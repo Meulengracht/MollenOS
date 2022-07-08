@@ -31,7 +31,7 @@
 int socket(int domain, int type, int protocol)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oscode_t               os_status;
+    oserr_t               os_status;
     uuid_t                   handle;
     uuid_t                   send_handle;
     uuid_t                   recv_handle;
@@ -47,7 +47,7 @@ int socket(int domain, int type, int protocol)
     sys_socket_create_result(GetGrachtClient(), &msg.base, &os_status, &handle, &recv_handle, &send_handle);
     if (os_status != OsOK) {
         ERROR("[socket] CreateSocket failed with code %u", os_status);
-        (void)OsCodeToErrNo(os_status);
+        (void)OsErrToErrNo(os_status);
         return -1;
     }
     

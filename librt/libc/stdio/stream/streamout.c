@@ -226,7 +226,7 @@ void format_float(
 
 #ifdef LIBC_KERNEL
 __EXTERN
-oscode_t
+oserr_t
 VideoPutCharacter(
     _In_ int Character);
 #endif

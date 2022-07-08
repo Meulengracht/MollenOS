@@ -95,7 +95,7 @@ VfsFileSystemMount(
  * @param fileSystem A pointer to the filesystem that should be unmounted.
  * @param flags      The type of unmount that is occuring.
  */
-extern oscode_t
+extern oserr_t
 VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);

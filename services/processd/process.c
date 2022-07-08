@@ -181,7 +181,7 @@ PmInitialize(void)
     usched_mtx_init(&g_processHistoryLock);
 }
 
-static oscode_t
+static oserr_t
 __BuildArguments(
         _In_ Process_t*  process,
         _In_ const char* argsIn)
@@ -220,7 +220,7 @@ __BuildArguments(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __BuildInheritationBlock(
         _In_ Process_t*  process,
         _In_ const void* inheritationBuffer)
@@ -243,12 +243,12 @@ __BuildInheritationBlock(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __LoadProcessImage(
         _In_  const char*      path,
         _Out_ PeExecutable_t** image)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     MString_t* pathUnified;
 
     ENTRY("__LoadProcessImage(path=%s)", path);
@@ -260,7 +260,7 @@ __LoadProcessImage(
     return osStatus;
 }
 
-static oscode_t
+static oserr_t
 __ProcessNew(
         _In_  ProcessConfiguration_t* config,
         _In_  uuid_t                  handle,
@@ -308,12 +308,12 @@ __ProcessNew(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __StartProcess(
         _In_ Process_t* process)
 {
     ThreadParameters_t threadParameters;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
 
     // Initialize threading paramaters for the new thread
     InitializeThreadParameters(&threadParameters);
@@ -331,7 +331,7 @@ __StartProcess(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 PmCreateProcessInternal(
         _In_  const char*             path,
         _In_  const char*             args,
@@ -343,7 +343,7 @@ PmCreateProcessInternal(
     PeExecutable_t* image;
     Process_t*      process;
     uuid_t          handle;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     ENTRY("PmCreateProcessInternal(path=%s, args=%s)", path, args);
 
     osStatus = __LoadProcessImage(path, &image);
@@ -410,7 +410,7 @@ void PmCreateProcess(
         _In_ void*      cancellationToken)
 {
     uuid_t     handle;
-    oscode_t osStatus;
+    oserr_t osStatus;
     ENTRY("PmCreateProcess(path=%s, args=%s)",
           request->parameters.spawn.path,
           request->parameters.spawn.args);
@@ -442,7 +442,7 @@ void PmGetProcessStartupInformation(
         _In_ void*      cancellationToken)
 {
     Process_t* process       = GetProcessByThread(request->parameters.get_initblock.threadHandle);
-    oscode_t   osStatus      = OsNotExists;
+    oserr_t   osStatus      = OsNotExists;
     uuid_t     processHandle = UUID_INVALID;
     int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
@@ -596,7 +596,7 @@ void PmSignalProcess(
         _In_ void*      cancellationToken)
 {
     Process_t* victim;
-    oscode_t osStatus;
+    oserr_t osStatus;
     TRACE("PmSignalProcess(process=%u, signal=%i)",
           request->parameters.signal.victim_handle,
           request->parameters.signal.signal);
@@ -632,7 +632,7 @@ void PmLoadLibrary(
     Process_t*      process;
     PeExecutable_t* executable;
     MString_t*      path;
-    oscode_t      osStatus = OsNotExists;
+    oserr_t      osStatus = OsNotExists;
     Handle_t        handle   = HANDLE_INVALID;
     uintptr_t       entry    = 0;
 
@@ -676,7 +676,7 @@ void PmGetLibraryFunction(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oscode_t osStatus = OsNotExists;
+    oserr_t osStatus = OsNotExists;
     uintptr_t  address  = 0;
     TRACE("PmGetLibraryFunction(process=%u, func=%s)",
           request->parameters.get_function.handle,
@@ -710,7 +710,7 @@ void PmUnloadLibrary(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oscode_t osStatus = OsNotExists;
+    oserr_t osStatus = OsNotExists;
     TRACE("PmUnloadLibrary(process=%u)",
           request->parameters.unload_library.handle);
 
@@ -759,7 +759,7 @@ void PmGetName(
         _In_ void*      cancellationToken)
 {
     Process_t*  process;
-    oscode_t  status = OsInvalidParameters;
+    oserr_t  status = OsInvalidParameters;
     const char* name = "";
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
@@ -782,7 +782,7 @@ void PmGetTickBase(
         _In_ void*      cancellationToken)
 {
     Process_t*      process;
-    oscode_t      status = OsInvalidParameters;
+    oserr_t      status = OsInvalidParameters;
     UInteger64_t tick;
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
@@ -805,7 +805,7 @@ void PmGetWorkingDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t*  process;
-    oscode_t  status = OsInvalidParameters;
+    oserr_t  status = OsInvalidParameters;
     const char* path   = "";
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
@@ -829,7 +829,7 @@ void PmSetWorkingDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oscode_t status = OsInvalidParameters;
+    oserr_t status = OsInvalidParameters;
 
     process = PmGetProcessByHandle(request->parameters.set_cwd.handle);
     if (process) {
@@ -854,7 +854,7 @@ void PmGetAssemblyDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t * process;
-    oscode_t  osStatus = OsInvalidParameters;
+    oserr_t  osStatus = OsInvalidParameters;
     const char* path    = "";
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);

@@ -21,10 +21,10 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oscode_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
+oserr_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNodeHandle* handle;
-    oscode_t            osStatus, osStatus2;
+    oserr_t            osStatus, osStatus2;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {

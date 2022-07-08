@@ -195,12 +195,12 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
-oscode_t
+oserr_t
 ArchProcessorSendInterrupt(
         _In_ uuid_t coreId,
         _In_ uuid_t interruptId)
 {
-    oscode_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
+    oserr_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
     if (osStatus != OsOK) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
@@ -245,7 +245,7 @@ CpuInitializeFeatures(void)
 #endif
 }
 
-oscode_t
+oserr_t
 CpuHasFeatures(
         _In_ unsigned int ecx,
         _In_ unsigned int edx)

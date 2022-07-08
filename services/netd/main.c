@@ -32,7 +32,7 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oscode_t OnUnload(void)
+oserr_t OnUnload(void)
 {
     return OsOK;
 }
@@ -43,7 +43,7 @@ void GetServiceAddress(struct ipmsg_addr* address)
     address->data.path = SERVICE_NET_PATH;
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported interfaces

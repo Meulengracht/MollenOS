@@ -135,7 +135,7 @@ ApicInitialize(void);
  * @brief Returns OsOK if the local apic is initialized and memory mapped.
  * @return OsOK if the Local Apic is available.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicIsInitialized(void);
 
 /**
@@ -236,7 +236,7 @@ ApicMaskGsi(
  * @param[In] vector
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicSendInterrupt(
         _In_ InterruptTarget_t type,
         _In_ uuid_t            specific,
@@ -248,7 +248,7 @@ ApicSendInterrupt(
  * @param[In] assert
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicPerformIPI(
         _In_ uuid_t coreId,
         _In_ int    assert);
@@ -260,7 +260,7 @@ ApicPerformIPI(
  * @param[In] address
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicPerformSIPI(
         _In_ uuid_t    coreId,
         _In_ uintptr_t address);

@@ -48,7 +48,7 @@ ProcessConfigurationInitialize(
  * @param handleOut
  * @return
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessSpawn(
 	_In_     const char* path,
 	_In_Opt_ const char* arguments,
@@ -64,7 +64,7 @@ CRTDECL(oscode_t,
  * @param handleOut
  * @return
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessSpawnEx(
     _In_     const char*             path,
     _In_Opt_ const char*             arguments,
@@ -82,7 +82,7 @@ CRTDECL(oscode_t,
  *         OsOK if the process has terminated within the given timeout or at the time at the call
  *         OsError in any other case.
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessJoin(
 	_In_  uuid_t handle,
     _In_  size_t timeout,
@@ -97,7 +97,7 @@ CRTDECL(oscode_t,
  * @param signal The signal that should be sent to the process
  * @return       The status of the operation
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessSignal(
     _In_ uuid_t handle,
     _In_ int    signal));
@@ -117,7 +117,7 @@ CRTDECL(uuid_t,
  * @param tickOut
  * @return
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessGetTickBase(
     _Out_ clock_t* tickOut));
 
@@ -130,7 +130,7 @@ CRTDECL(oscode_t,
  *               to the actual length of data stored into the buffer.
  * @return OsInvalidParameters if both parameters are invalid.
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         GetProcessCommandLine(
         _In_    char*   buffer,
         _InOut_ size_t* length));
@@ -142,7 +142,7 @@ CRTDECL(oscode_t,
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
  * @return OsInvalidParameters if either of the inputs are nil.
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessGetCurrentName(
         _In_ char*  buffer,
         _In_ size_t maxLength));
@@ -157,7 +157,7 @@ CRTDECL(oscode_t,
  * @return OsNotExists if the handle was invalid,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessGetAssemblyDirectory(
         _In_ uuid_t handle,
         _In_ char*  buffer,
@@ -173,7 +173,7 @@ CRTDECL(oscode_t,
  * @return OsNotExists if the handle was invalid,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessGetWorkingDirectory(
         _In_ uuid_t handle,
         _In_ char*  buffer,
@@ -185,7 +185,7 @@ CRTDECL(oscode_t,
  * @param path
  * @return
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ProcessSetWorkingDirectory(
     _In_ const char* path));
 

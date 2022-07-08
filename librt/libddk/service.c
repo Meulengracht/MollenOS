@@ -49,7 +49,7 @@ __GetHandleFromPath(
     return Handle;
 }
 
-static oscode_t
+static oserr_t
 __WaitForService(
     _In_ thrd_t (*getHandleCallback)(void),
     _In_ size_t timeout)
@@ -72,7 +72,7 @@ __WaitForService(
     return (handle == UUID_INVALID) ? OsTimeout : OsOK;
 }
 
-oscode_t
+oserr_t
 RegisterPath(
     _In_ const char* Path)
 {
@@ -131,42 +131,42 @@ thrd_t GetNetService(void)
     return (thrd_t)NetServiceId;
 }
 
-oscode_t
+oserr_t
 WaitForSessionService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetSessionService, Timeout);
 }
 
-oscode_t
+oserr_t
 WaitForDeviceService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetDeviceService, Timeout);
 }
 
-oscode_t
+oserr_t
 WaitForUsbService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetUsbService, Timeout);
 }
 
-oscode_t
+oserr_t
 WaitForProcessService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetProcessService, Timeout);
 }
 
-oscode_t
+oserr_t
 WaitForFileService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetFileService, Timeout);
 }
 
-oscode_t
+oserr_t
 WaitForNetService(
     _In_ size_t Timeout)
 {

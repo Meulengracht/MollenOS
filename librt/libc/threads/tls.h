@@ -58,11 +58,11 @@ CRTDECL(thread_storage_t*, tls_current(void));
  * @brief Initializes a new thread-storage space for the caller thread.
  *
  */
-CRTDECL(oscode_t, __crt_tls_create(thread_storage_t * tls));
+CRTDECL(oserr_t, __crt_tls_create(thread_storage_t * tls));
 
 /* tls_destroy
  * Destroys a thread-storage space should be called by thread crt */
-CRTDECL(oscode_t, tls_destroy(thread_storage_t * tls));
+CRTDECL(oserr_t, tls_destroy(thread_storage_t * tls));
 
 /* tls_cleanup
  * Destroys the TLS for the specific thread

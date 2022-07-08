@@ -178,7 +178,7 @@ UsbSchedulerSettingsAddPool(
  * Initializes a new instance of a scheduler that can be used to
  * keep track of controller bandwidth and which frames are active.
  * MaxBandwidth is usually either 800 or 900. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerInitialize(
 	_In_  UsbSchedulerSettings_t*   Settings,
     _Out_ UsbScheduler_t**          SchedulerOut);
@@ -194,7 +194,7 @@ UsbSchedulerDestroy(
  * Reinitializes all data structures in the scheduler to initial state. 
  * This should never be called unless the associating controller is in a
  * stopped state as the framelist is affected. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerResetInternalData(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ int                        ResetElements,
@@ -207,7 +207,7 @@ UsbSchedulerGetDma(
 
 /* UsbSchedulerGetPoolElement
  * Retrieves the element at the given pool and index. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerGetPoolElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
@@ -217,7 +217,7 @@ UsbSchedulerGetPoolElement(
 
 /* UsbSchedulerGetPoolFromElement
  * Retrieves which pool an element belongs to by only knowing the address. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerGetPoolFromElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  uint8_t*                  Element,
@@ -227,7 +227,7 @@ UsbSchedulerGetPoolFromElement(
  * Allocates a new element for usage with the scheduler. If this returns
  * OsError we are out of elements and we should wait till next transfer. ElementOut
  * will in this case be set to USB_OUT_OF_RESOURCES. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerAllocateElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
@@ -245,7 +245,7 @@ UsbSchedulerFreeElement(
  * Allocates bandwidth for a scheduler element. The bandwidth will automatically
  * be fitted into where is best place on schedule. If there is no more room it will
  * return OsError. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerAllocateBandwidth(
     _In_ UsbScheduler_t* scheduler,
     _In_ uint8_t         interval,
@@ -260,7 +260,7 @@ UsbSchedulerAllocateBandwidth(
  * Chains up a new element to the given element chain. The root element
  * must be specified and the element to append to the chain. Also the
  * chain direction must be specified. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerChainElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementRootPool,
@@ -274,7 +274,7 @@ UsbSchedulerChainElement(
  * Removes an existing element from the given element chain. The root element
  * must be specified and the element to remove from the chain. Also the
  * chain direction must be specified. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerUnchainElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementRootPool,
@@ -286,7 +286,7 @@ UsbSchedulerUnchainElement(
 /* UsbSchedulerLinkPeriodicElement
  * Queue's up a periodic/isochronous transfer. If it was not possible
  * to schedule the transfer with the requested bandwidth, it returns OsError */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementPool,

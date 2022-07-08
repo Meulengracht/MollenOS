@@ -121,7 +121,7 @@ HpetInitialize(void);
  * @param[In] legacyIrq
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 HpetComparatorStart(
     _In_ int      index,
     _In_ uint64_t frequency,
@@ -133,7 +133,7 @@ HpetComparatorStart(
  *
  * @return OsOK if the HPET has legacy routings
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 HpetIsEmulatingLegacyController(void);
 
 #endif //!_HPET_H_

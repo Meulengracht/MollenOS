@@ -48,7 +48,7 @@ SendPS2PortCommand(
     return PS2ReadData(0);
 }
 
-oscode_t
+oserr_t
 PS2InterfaceTest(
     _In_ int Index)
 {
@@ -59,7 +59,7 @@ PS2InterfaceTest(
     return (Response == PS2_INTERFACETEST_OK) ? OsOK : OsError;
 }
 
-oscode_t
+oserr_t
 PS2ResetPort(
     _In_ int Index)
 {
@@ -111,7 +111,7 @@ GetResponse:
 
 /* PS2RegisterDevice
  * Shortcut function for registering a new device */
-oscode_t
+oserr_t
 PS2RegisterDevice(
     _In_ PS2Port_t* port)
 {
@@ -150,7 +150,7 @@ PS2RegisterDevice(
 
 /* PS2PortWrite 
  * Writes the given data-byte to the ps2-port */
-oscode_t
+oserr_t
 PS2PortWrite(
     _In_ PS2Port_t* Port,
     _In_ uint8_t    Value)
@@ -165,7 +165,7 @@ PS2PortWrite(
 /* PS2PortWaitForState
  * Waits for the port to enter the given state. The function can return OsError
  * if the state is not reached in a seconds time. */
-oscode_t
+oserr_t
 PS2PortWaitForState(
     _In_ PS2Port_t*         Port,
     _In_ PS2Command_t*      Command,
@@ -195,14 +195,14 @@ PS2PortWaitForState(
 /* PS2PortExecuteCommand 
  * Executes the given ps2 command, handles both retries and commands that
  * require response. */
-oscode_t
+oserr_t
 PS2PortExecuteCommand(
     _In_ PS2Port_t* port,
     _In_ uint8_t    commandValue,
     _In_ uint8_t*   response)
 {
     PS2Command_t* command = &port->ActiveCommand;
-    oscode_t    osStatus;
+    oserr_t    osStatus;
 
     // Initiate the packet data
     command->State      = PS2InQueue;
@@ -220,7 +220,7 @@ PS2PortExecuteCommand(
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
-oscode_t
+oserr_t
 PS2PortFinishCommand(
     _In_ PS2Port_t* port)
 {
@@ -275,7 +275,7 @@ PS2PortFinishCommand(
 
 /* PS2PortInitialize
  * Initializes the given port and tries to identify the device on the port */
-oscode_t
+oserr_t
 PS2PortInitialize(
     _In_ PS2Port_t* port)
 {

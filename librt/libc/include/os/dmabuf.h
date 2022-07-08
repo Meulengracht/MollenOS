@@ -84,7 +84,7 @@ _CODE_BEGIN
  * @param attachment [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_create(struct dma_buffer_info* info, struct dma_attachment* attachment));
+CRTDECL(oserr_t, dma_create(struct dma_buffer_info* info, struct dma_attachment* attachment));
 
 /**
  * Exports the dma buffer provided. The structure must be prefilled with most
@@ -94,7 +94,7 @@ CRTDECL(oscode_t, dma_create(struct dma_buffer_info* info, struct dma_attachment
  * @param attachment [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_export(void* buffer, struct dma_buffer_info* info, struct dma_attachment* attachment));
+CRTDECL(oserr_t, dma_export(void* buffer, struct dma_buffer_info* info, struct dma_attachment* attachment));
 
 /**
  * Attach to a dma buffer handle, but does not perform further actions.
@@ -102,7 +102,7 @@ CRTDECL(oscode_t, dma_export(void* buffer, struct dma_buffer_info* info, struct 
  * @param attachment [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attach(uuid_t handle, struct dma_attachment* attachment));
+CRTDECL(oserr_t, dma_attach(uuid_t handle, struct dma_attachment* attachment));
 
 /**
  * Map the dma buffer into current memory space and get the metrics of the buffer
@@ -110,7 +110,7 @@ CRTDECL(oscode_t, dma_attach(uuid_t handle, struct dma_attachment* attachment));
  * @param accessFlags [In] The memory access flags the mapping should be created with.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attachment_map(struct dma_attachment* attachment, unsigned int accessFlags));
+CRTDECL(oserr_t, dma_attachment_map(struct dma_attachment* attachment, unsigned int accessFlags));
 
 /**
  * Commits the address by allocating physical page to backup the virtual address
@@ -119,7 +119,7 @@ CRTDECL(oscode_t, dma_attachment_map(struct dma_attachment* attachment, unsigned
  * @param length     [In] The number of bytes to commit (will be rounded up to page-size).
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attachment_map_commit(struct dma_attachment* attachment, vaddr_t address, size_t length));
+CRTDECL(oserr_t, dma_attachment_map_commit(struct dma_attachment* attachment, vaddr_t address, size_t length));
 
 /**
  * Resizes the dma buffer to the given length argument. This must be within
@@ -128,21 +128,21 @@ CRTDECL(oscode_t, dma_attachment_map_commit(struct dma_attachment* attachment, v
  * @param length     [In] The new length of the buffer attachment segment.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attachment_resize(struct dma_attachment* attachment, size_t length));
+CRTDECL(oserr_t, dma_attachment_resize(struct dma_attachment* attachment, size_t length));
 
 /**
  * Used by the attachers to refresh their memory mappings of the provided dma buffer.
  * @param attachment [In] The dma buffer attachment mapping that should be refreshed.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attachment_refresh_map(struct dma_attachment* attachment));
+CRTDECL(oserr_t, dma_attachment_refresh_map(struct dma_attachment* attachment));
 
 /**
  * Remove the mapping that has been previously created by its counterpart.
  * @param attachment [In] The dma buffer attachment to unmap from current addressing space.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_attachment_unmap(struct dma_attachment* attachment));
+CRTDECL(oserr_t, dma_attachment_unmap(struct dma_attachment* attachment));
 
 /**
  * Should be called both by attachers and the creator when the memory
@@ -150,7 +150,7 @@ CRTDECL(oscode_t, dma_attachment_unmap(struct dma_attachment* attachment));
  * @param attachment [In] The dma buffer to detach from.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_detach(struct dma_attachment* attachment));
+CRTDECL(oserr_t, dma_detach(struct dma_attachment* attachment));
 
 /**
  * Call this once with the count parameter to get the number of
@@ -161,7 +161,7 @@ CRTDECL(oscode_t, dma_detach(struct dma_attachment* attachment));
  * @param max_count  [In]  Max number of entries, if 0 or below it will get all number of entries.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_get_sg_table(struct dma_attachment* attachment, struct dma_sg_table* sg_table, int max_count));
+CRTDECL(oserr_t, dma_get_sg_table(struct dma_attachment* attachment, struct dma_sg_table* sg_table, int max_count));
 
 /**
  * Converts a virtual buffer offset into a dma_sg index + offset
@@ -171,7 +171,7 @@ CRTDECL(oscode_t, dma_get_sg_table(struct dma_attachment* attachment, struct dma
  * @param sg_offset [Out] A pointer to the variable for the offset.
  * @return Status of the operation.
  */
-CRTDECL(oscode_t, dma_sg_table_offset(struct dma_sg_table* sg_table, size_t offset, int* sg_index, size_t* sg_offset));
+CRTDECL(oserr_t, dma_sg_table_offset(struct dma_sg_table* sg_table, size_t offset, int* sg_index, size_t* sg_offset));
 
 _CODE_END
 

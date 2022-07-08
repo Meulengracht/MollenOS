@@ -41,92 +41,92 @@ struct dma_attachment;
 // - Protected, services/modules
 
 // System specific system calls
-extern oscode_t ScSystemDebug(int level, const char* message);
-extern oscode_t ScEndBootSequence(void);
-extern oscode_t ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
-extern oscode_t ScMapBootFramebuffer(void** bufferOut);
-extern oscode_t ScMapRamdisk(void** bufferOut, size_t* lengthOut);
+extern oserr_t ScSystemDebug(int level, const char* message);
+extern oserr_t ScEndBootSequence(void);
+extern oserr_t ScQueryDisplayInformation(VideoDescriptor_t *Descriptor);
+extern oserr_t ScMapBootFramebuffer(void** bufferOut);
+extern oserr_t ScMapRamdisk(void** bufferOut, size_t* lengthOut);
 
 // Module system calls
-extern oscode_t ScCreateMemorySpace(unsigned int flags, uuid_t* handleOut);
-extern oscode_t ScGetThreadMemorySpaceHandle(uuid_t threadHandle, uuid_t* handleOut);
-extern oscode_t ScCreateMemorySpaceMapping(uuid_t handle, struct MemoryMappingParameters* mappingParameters, void** addressOut);
+extern oserr_t ScCreateMemorySpace(unsigned int flags, uuid_t* handleOut);
+extern oserr_t ScGetThreadMemorySpaceHandle(uuid_t threadHandle, uuid_t* handleOut);
+extern oserr_t ScCreateMemorySpaceMapping(uuid_t handle, struct MemoryMappingParameters* mappingParameters, void** addressOut);
 
 // Driver system calls
-extern oscode_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
-extern oscode_t ScAcpiQueryTableHeader(const char* signature, ACPI_TABLE_HEADER* header);
-extern oscode_t ScAcpiQueryTable(const char* signature, ACPI_TABLE_HEADER* table);
-extern oscode_t ScAcpiQueryInterrupt(int, int, int, int*, unsigned int*);
-extern oscode_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
-extern oscode_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
-extern oscode_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
-extern oscode_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
+extern oserr_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
+extern oserr_t ScAcpiQueryTableHeader(const char* signature, ACPI_TABLE_HEADER* header);
+extern oserr_t ScAcpiQueryTable(const char* signature, ACPI_TABLE_HEADER* table);
+extern oserr_t ScAcpiQueryInterrupt(int, int, int, int*, unsigned int*);
+extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
+extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
+extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
+extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
 extern uuid_t     ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
-extern oscode_t ScUnregisterInterrupt(uuid_t sourceId);
-extern oscode_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
+extern oserr_t ScUnregisterInterrupt(uuid_t sourceId);
+extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
-extern oscode_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
+extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
 
 ///////////////////////////////////////////////
 // Operating System Interface
 // - Unprotected, all
 
 // Threading system calls
-extern oscode_t ScThreadCreate(ThreadEntry_t, void*, ThreadParameters_t*, uuid_t*);
-extern oscode_t ScThreadExit(int ExitCode);
-extern oscode_t ScThreadJoin(uuid_t ThreadId, int* ExitCode);
-extern oscode_t ScThreadDetach(uuid_t ThreadId);
-extern oscode_t ScThreadSignal(uuid_t ThreadId, int SignalCode);
-extern oscode_t ScThreadYield(void);
+extern oserr_t ScThreadCreate(ThreadEntry_t, void*, ThreadParameters_t*, uuid_t*);
+extern oserr_t ScThreadExit(int ExitCode);
+extern oserr_t ScThreadJoin(uuid_t ThreadId, int* ExitCode);
+extern oserr_t ScThreadDetach(uuid_t ThreadId);
+extern oserr_t ScThreadSignal(uuid_t ThreadId, int SignalCode);
+extern oserr_t ScThreadYield(void);
 extern uuid_t     ScThreadGetCurrentId(void);
 extern uuid_t     ScThreadCookie(void);
-extern oscode_t ScThreadSetCurrentName(const char* ThreadName);
-extern oscode_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
+extern oserr_t ScThreadSetCurrentName(const char* ThreadName);
+extern oserr_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
 
 // Synchronization system calls
-extern oscode_t ScFutexWait(FutexParameters_t* parameters);
-extern oscode_t ScFutexWake(FutexParameters_t* parameters);
-extern oscode_t ScEventCreate(unsigned int, unsigned int, uuid_t*, atomic_int**);
+extern oserr_t ScFutexWait(FutexParameters_t* parameters);
+extern oserr_t ScFutexWake(FutexParameters_t* parameters);
+extern oserr_t ScEventCreate(unsigned int, unsigned int, uuid_t*, atomic_int**);
 
 // Memory system calls
-extern oscode_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
-extern oscode_t ScMemoryFree(uintptr_t, size_t);
-extern oscode_t ScMemoryProtect(void*, size_t, unsigned int, unsigned int*);
-extern oscode_t ScMemoryQueryAllocation(void*, MemoryDescriptor_t*);
-extern oscode_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
+extern oserr_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
+extern oserr_t ScMemoryFree(uintptr_t, size_t);
+extern oserr_t ScMemoryProtect(void*, size_t, unsigned int, unsigned int*);
+extern oserr_t ScMemoryQueryAllocation(void*, MemoryDescriptor_t*);
+extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
-extern oscode_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
-extern oscode_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
-extern oscode_t ScDmaAttach(uuid_t, struct dma_attachment*);
-extern oscode_t ScDmaAttachmentMap(struct dma_attachment*, unsigned int);
-extern oscode_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
-extern oscode_t ScDmaAttachmentRefresh(struct dma_attachment*);
-extern oscode_t ScDmaAttachmentCommit(struct dma_attachment*, void*, size_t);
-extern oscode_t ScDmaAttachmentUnmap(struct dma_attachment*);
-extern oscode_t ScDmaDetach(struct dma_attachment*);
-extern oscode_t ScDmaGetMetrics(uuid_t, int*, struct dma_sg*);
+extern oserr_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
+extern oserr_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
+extern oserr_t ScDmaAttach(uuid_t, struct dma_attachment*);
+extern oserr_t ScDmaAttachmentMap(struct dma_attachment*, unsigned int);
+extern oserr_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
+extern oserr_t ScDmaAttachmentRefresh(struct dma_attachment*);
+extern oserr_t ScDmaAttachmentCommit(struct dma_attachment*, void*, size_t);
+extern oserr_t ScDmaAttachmentUnmap(struct dma_attachment*);
+extern oserr_t ScDmaDetach(struct dma_attachment*);
+extern oserr_t ScDmaGetMetrics(uuid_t, int*, struct dma_sg*);
 
-extern oscode_t ScCreateHandle(uuid_t*);
-extern oscode_t ScDestroyHandle(uuid_t Handle);
-extern oscode_t ScRegisterHandlePath(uuid_t, const char*);
-extern oscode_t ScLookupHandle(const char*, uuid_t*);
-extern oscode_t ScSetHandleActivity(uuid_t, unsigned int);
+extern oserr_t ScCreateHandle(uuid_t*);
+extern oserr_t ScDestroyHandle(uuid_t Handle);
+extern oserr_t ScRegisterHandlePath(uuid_t, const char*);
+extern oserr_t ScLookupHandle(const char*, uuid_t*);
+extern oserr_t ScSetHandleActivity(uuid_t, unsigned int);
 
-extern oscode_t ScCreateHandleSet(unsigned int, uuid_t*);
-extern oscode_t ScControlHandleSet(uuid_t, int, uuid_t, unsigned int, struct ioset_event*);
-extern oscode_t ScListenHandleSet(uuid_t, HandleSetWaitParameters_t*, int*);
+extern oserr_t ScCreateHandleSet(unsigned int, uuid_t*);
+extern oserr_t ScControlHandleSet(uuid_t, int, uuid_t, unsigned int, struct ioset_event*);
+extern oserr_t ScListenHandleSet(uuid_t, HandleSetWaitParameters_t*, int*);
 
 // Misc interface
-extern oscode_t ScInstallSignalHandler(uintptr_t handler);
-extern oscode_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
-extern oscode_t ScSystemQuery(SystemDescriptor_t*);
+extern oserr_t ScInstallSignalHandler(uintptr_t handler);
+extern oserr_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
+extern oserr_t ScSystemQuery(SystemDescriptor_t*);
 
 // Timing interface
-extern oscode_t ScSystemClockTick(enum VaClockSourceType, UInteger64_t*);
-extern oscode_t ScSystemClockFrequency(enum VaClockSourceType, UInteger64_t*);
-extern oscode_t ScSystemWallClock(Integer64_t*);
-extern oscode_t ScTimeSleep(UInteger64_t*, UInteger64_t*);
-extern oscode_t ScTimeStall(UInteger64_t*);
+extern oserr_t ScSystemClockTick(enum VaClockSourceType, UInteger64_t*);
+extern oserr_t ScSystemClockFrequency(enum VaClockSourceType, UInteger64_t*);
+extern oserr_t ScSystemWallClock(Integer64_t*);
+extern oserr_t ScTimeSleep(UInteger64_t*, UInteger64_t*);
+extern oserr_t ScTimeStall(UInteger64_t*);
 
 #define SYSTEM_CALL_COUNT 66
 

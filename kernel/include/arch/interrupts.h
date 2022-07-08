@@ -33,7 +33,7 @@
  *
  * @return Status of the initialization.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 PlatformInterruptInitialize(void);
 
 /**
@@ -52,7 +52,7 @@ InterruptSetMode(
  * @param tableIndex
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptResolve(
         _In_    DeviceInterrupt_t* deviceInterrupt,
         _In_    unsigned int       flags,
@@ -64,7 +64,7 @@ InterruptResolve(
  * @param enable
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptConfigure(
     _In_ SystemInterrupt_t* systemInterrupt,
     _In_ int                enable);

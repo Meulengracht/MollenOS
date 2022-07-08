@@ -90,7 +90,7 @@ typedef struct SystemTimers {
  * @param[In] context    A context pointer that will be passed to operations
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SystemTimerRegister(
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
@@ -106,7 +106,7 @@ SystemTimerRegister(
  * @param[In] context    A context pointer that will be passed to operations
  * @return OsExists if a clock source is already registered
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SystemWallClockRegister(
         _In_ SystemWallClockOperations_t* operations,
         _In_ void*                        context);
@@ -154,7 +154,7 @@ SystemTimerGetClockFrequency(
  * @param[Out] frequency A pointer where to store the frequency.
  * @return     Returns OsNotSupported if HPC is not supported, otherwise OsOK.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SystemTimerGetPerformanceFrequency(
         _Out_ UInteger64_t* frequency);
 
@@ -164,7 +164,7 @@ SystemTimerGetPerformanceFrequency(
  * @param[Out] tick A pointer where to store the current tick.
  * @return     Returns OsNotSupported if HPC is not supported, otherwise OsOK.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SystemTimerGetPerformanceTick(
         _Out_ UInteger64_t* tick);
 

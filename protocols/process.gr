@@ -18,25 +18,25 @@ struct process_configuration {
 }
 
 service process (5) {
-    func spawn(string path, string arguments, uint8[] inheritBlock, process_configuration configuration) : (oscode_t result, uuid_t handle) = 1;
-    func join(uuid_t handle, uint timeout) : (oscode_t result, int exitCode) = 2;
-    func signal(uuid_t processId, uuid_t handle, int signal) : (oscode_t result) = 3;
-    func terminate(uuid_t handle, int exitCode) : (oscode_t result) = 4;
-    func set_working_directory(uuid_t handle, string path) : (oscode_t result) = 5;
+    func spawn(string path, string arguments, uint8[] inheritBlock, process_configuration configuration) : (oserr_t result, uuid_t handle) = 1;
+    func join(uuid_t handle, uint timeout) : (oserr_t result, int exitCode) = 2;
+    func signal(uuid_t processId, uuid_t handle, int signal) : (oserr_t result) = 3;
+    func terminate(uuid_t handle, int exitCode) : (oserr_t result) = 4;
+    func set_working_directory(uuid_t handle, string path) : (oserr_t result) = 5;
     
-    func get_name(uuid_t handle) : (oscode_t result, string name) = 6;
-    func get_working_directory(uuid_t handle) : (oscode_t result, string path) = 7;
-    func get_assembly_directory(uuid_t handle) : (oscode_t result, string path) = 8;
+    func get_name(uuid_t handle) : (oserr_t result, string name) = 6;
+    func get_working_directory(uuid_t handle) : (oserr_t result, string path) = 7;
+    func get_assembly_directory(uuid_t handle) : (oserr_t result, string path) = 8;
     
-    func get_tick_base(uuid_t handle) : (oscode_t result, uint low, uint high) = 9;
-    func get_startup_information(uuid_t handle, uuid_t bufferHandle, ulong offset) : (oscode_t result, uuid_t handle) = 10;
+    func get_tick_base(uuid_t handle) : (oserr_t result, uint low, uint high) = 9;
+    func get_startup_information(uuid_t handle, uuid_t bufferHandle, ulong offset) : (oserr_t result, uuid_t handle) = 10;
     func get_modules(uuid_t handle) : (uintptr_t[] modules, int count) = 11;
     
-    func report_crash(uuid_t threadId, uuid_t processId, uint8[] crashContext, int reason) : (oscode_t result) = 12;
+    func report_crash(uuid_t threadId, uuid_t processId, uint8[] crashContext, int reason) : (oserr_t result) = 12;
 }
 
 service library (6) {
-    func load(uuid_t processId, string path) : (oscode_t result, uintptr_t handle, uintptr_t entry) = 1;
-    func get_function(uuid_t processId, uintptr_t handle, string name) : (oscode_t result, uintptr_t address) = 2;
-    func unload(uuid_t processId, uintptr_t handle) : (oscode_t result) = 3;
+    func load(uuid_t processId, string path) : (oserr_t result, uintptr_t handle, uintptr_t entry) = 1;
+    func get_function(uuid_t processId, uintptr_t handle, string name) : (oserr_t result, uintptr_t address) = 2;
+    func unload(uuid_t processId, uintptr_t handle) : (oserr_t result) = 3;
 }

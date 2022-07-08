@@ -217,7 +217,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
 void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const uuid_t processId,
                                            const uuid_t deviceId, const uuid_t transferId)
 {
-    oscode_t              status     = OsNotExists;
+    oserr_t              status     = OsNotExists;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     UsbManagerTransfer_t*   transfer   = NULL;
 
@@ -246,7 +246,7 @@ void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const
 void ctt_usbhost_dequeue_invocation(struct gracht_message* message, const uuid_t processId,
                                     const uuid_t deviceId, const uuid_t transferId)
 {
-    oscode_t              status     = OsNotExists;
+    oserr_t              status     = OsNotExists;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     UsbManagerTransfer_t*   transfer   = NULL;
 

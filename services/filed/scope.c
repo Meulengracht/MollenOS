@@ -23,7 +23,7 @@ static struct VFS* g_rootScope = NULL;
 
 void VFSScopeInitialize(void)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     osStatus = VFSNew(&g_rootScope);
     if (osStatus != OsOK) {

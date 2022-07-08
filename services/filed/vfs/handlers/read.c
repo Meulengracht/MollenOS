@@ -21,9 +21,9 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oscode_t __MapUserBuffer(uuid_t handle, struct dma_attachment* attachment)
+static oserr_t __MapUserBuffer(uuid_t handle, struct dma_attachment* attachment)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     osStatus = dma_attach(handle, attachment);
     if (osStatus != OsOK) {
@@ -38,11 +38,11 @@ static oscode_t __MapUserBuffer(uuid_t handle, struct dma_attachment* attachment
     return OsOK;
 }
 
-oscode_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
+oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oscode_t            osStatus, osStatus2;
+    oserr_t            osStatus, osStatus2;
     struct dma_attachment attachment;
 
     osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
@@ -59,7 +59,7 @@ oscode_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = nodeVfs->Module->Operations.Read(
-            &nodeVfs->Base, handle->Data,
+            nodeVfs->CommonData, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
             request->parameters.transfer.length,
@@ -83,11 +83,11 @@ cleanup:
     return osStatus;
 }
 
-oscode_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
+oserr_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oscode_t            osStatus, osStatus2;
+    oserr_t            osStatus, osStatus2;
     struct dma_attachment attachment;
     UInteger64_t       position, result;
 
@@ -108,7 +108,7 @@ oscode_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = nodeVfs->Module->Operations.Seek(
-            &nodeVfs->Base, handle->Data,
+            nodeVfs->CommonData, handle->Data,
             position.QuadPart, &result.QuadPart);
     if (osStatus != OsOK) {
         goto unmap;

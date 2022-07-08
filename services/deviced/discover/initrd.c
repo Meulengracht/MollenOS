@@ -53,7 +53,7 @@ __EndsWith(
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
 }
 
-static oscode_t
+static oserr_t
 __ReadFile(
         _In_  struct VaFsDirectoryHandle* directoryHandle,
         _In_  const char*                 filename,
@@ -91,14 +91,14 @@ __ReadFile(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __ParseModuleConfiguration(
         _In_ struct VaFsDirectoryHandle* directoryHandle,
         _In_ const char*                 name)
 {
     struct DriverConfiguration* driverConfig;
     MString_t*           path;
-    oscode_t           osStatus;
+    oserr_t           osStatus;
     void*                buffer;
     size_t               length;
     TRACE("__ParseRamdiskFile(name=%s)", name);
@@ -141,7 +141,7 @@ __ParseModuleConfiguration(
     return osStatus;
 }
 
-static oscode_t
+static oserr_t
 __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
@@ -150,7 +150,7 @@ __ParseRamdisk(
     struct VaFsDirectoryHandle* directoryHandle;
     struct VaFsEntry            entry;
     int                         status;
-    oscode_t                  osStatus = OsOK;
+    oserr_t                  osStatus = OsOK;
     TRACE("__ParseRamdisk()");
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &vafs);
@@ -192,7 +192,7 @@ __ParseRamdisk(
 void
 DmRamdiskDiscover(void)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     void*      ramdisk;
     size_t     ramdiskSize;
     TRACE("DmRamdiskDiscover()");

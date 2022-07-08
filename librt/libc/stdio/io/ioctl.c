@@ -29,7 +29,7 @@
 int ioctl(int iod, unsigned long request, ...)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    oscode_t      status;
+    oserr_t      status;
     va_list         args;
     
     if (!handle) {
@@ -45,5 +45,5 @@ int ioctl(int iod, unsigned long request, ...)
         _set_errno(EBADF);
         return -1;
     }
-    return OsCodeToErrNo(status);
+    return OsErrToErrNo(status);
 }

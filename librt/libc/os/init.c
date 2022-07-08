@@ -179,7 +179,7 @@ static int __get_startup_info(void)
     struct dma_attachment    mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     int                      status;
-    oscode_t                 osStatus;
+    oserr_t                 osStatus;
 
     status = __create_startup_buffer(&buffer, &mapping);
     if (status) {

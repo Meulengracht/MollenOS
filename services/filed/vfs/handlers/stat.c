@@ -22,11 +22,11 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oscode_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat* stat)
+oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat* stat)
 {
     struct VFSNode* node;
     MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oscode_t      osStatus;
+    oserr_t      osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -47,11 +47,11 @@ oscode_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat
     return OsOK;
 }
 
-oscode_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSStatFS* stat)
+oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSStatFS* stat)
 {
     struct VFSNode* node;
     MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oscode_t      osStatus, osStatus2;
+    oserr_t      osStatus, osStatus2;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -75,11 +75,11 @@ oscode_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSt
     return osStatus;
 }
 
-oscode_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageDescriptor_t* stat)
+oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageDescriptor_t* stat)
 {
     struct VFSNode* node;
     MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oscode_t      osStatus;
+    oserr_t      osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;

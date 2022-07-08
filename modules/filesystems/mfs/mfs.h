@@ -248,7 +248,7 @@ typedef struct FileSystemMFS {
 /* MfsReadSectors 
  * A wrapper for reading sectors from the disk associated
  * with the file-system descriptor */
-extern oscode_t
+extern oserr_t
 MfsReadSectors(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  uuid_t            bufferHandle,
@@ -260,7 +260,7 @@ MfsReadSectors(
 /* MfsWriteSectors 
  * A wrapper for writing sectors to the disk associated
  * with the file-system descriptor */
-extern oscode_t
+extern oserr_t
 MfsWriteSectors(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  uuid_t            bufferHandle,
@@ -272,7 +272,7 @@ MfsWriteSectors(
 /* MfsGetBucketLink
  * Looks up the next bucket link by utilizing the cached
  * in-memory version of the bucketmap */
-extern oscode_t
+extern oserr_t
 MfsGetBucketLink(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uint32_t          bucket,
@@ -281,7 +281,7 @@ MfsGetBucketLink(
 /* MfsSetBucketLink
  * Updates the next link for the given bucket and flushes
  * the changes to disk */
-extern oscode_t
+extern oserr_t
 MfsSetBucketLink(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uint32_t          bucket,
@@ -291,7 +291,7 @@ MfsSetBucketLink(
 /* MfsSwitchToNextBucketLink
  * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsNotExists
  * when end-of-chain. */
-extern oscode_t
+extern oserr_t
 MfsSwitchToNextBucketLink(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemHandleMFS_t* handle,
@@ -300,7 +300,7 @@ MfsSwitchToNextBucketLink(
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values
  * useful for clearing clusters of sectors */
-extern oscode_t
+extern oserr_t
 MfsZeroBucket(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uint32_t          bucket,
@@ -309,7 +309,7 @@ MfsZeroBucket(
 /* MfsAllocateBuckets
  * Allocates the number of requested buckets in the bucket-map
  * if the allocation could not be done, it'll return OsError */
-extern oscode_t
+extern oserr_t
 MfsAllocateBuckets(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  size_t            bucketCount,
@@ -318,7 +318,7 @@ MfsAllocateBuckets(
 /* MfsFreeBucketsMfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for 
  * a file-record */
-extern oscode_t
+extern oserr_t
 MfsFreeBuckets(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uint32_t          startBucket,
@@ -326,7 +326,7 @@ MfsFreeBuckets(
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
-extern oscode_t
+extern oserr_t
 MfsEnsureRecordSpace(
         _In_ FileSystemBase_t*     fileSystemBase,
         _In_ FileSystemEntryMFS_t* entry,
@@ -335,7 +335,7 @@ MfsEnsureRecordSpace(
 /* MfsUpdateRecord
  * Conveniance function for updating a given file on
  * the disk, not data related to file, but the metadata */
-extern oscode_t
+extern oserr_t
 MfsUpdateRecord(
         _In_ FileSystemBase_t*     fileSystemBase,
         _In_ FileSystemEntryMFS_t* entry,
@@ -344,7 +344,7 @@ MfsUpdateRecord(
 /* MfsLocateRecord
  * Locates a given file-record by the path given, all sub entries must be 
  * directories. File is only allocated and set if the function returns OsOK */
-extern oscode_t
+extern oserr_t
 MfsLocateRecord(
         _In_ FileSystemBase_t*     fileSystemBase,
         _In_ uint32_t              bucketOfDirectory,
@@ -361,7 +361,7 @@ MfsLocateRecord(
  * @param entryOut          [Out]
  * @return                  Status of the record creation
  */
-extern oscode_t
+extern oserr_t
 MfsCreateRecord(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ unsigned int           flags,

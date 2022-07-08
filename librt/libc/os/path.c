@@ -90,7 +90,7 @@ PathIsAbsolute(
     return false;
 }
 
-oscode_t
+oserr_t
 GetFullPath(
         _In_ const char* path,
         _In_ int         followLinks,
@@ -98,7 +98,7 @@ GetFullPath(
         _In_ size_t      maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oscode_t               status;
+    oserr_t               status;
 
     if (path == NULL || buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
@@ -147,7 +147,7 @@ GetFullPath(
     return status;
 }
 
-oscode_t
+oserr_t
 GetWorkingDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
@@ -158,12 +158,12 @@ GetWorkingDirectory(
     return ProcessGetWorkingDirectory(UUID_INVALID, buffer, maxLength);
 }
 
-oscode_t
+oserr_t
 ChangeWorkingDirectory(
     _In_ const char* path)
 {
 	char        canonBuffer[_MAXPATH];
-    oscode_t  osStatus;
+    oserr_t  osStatus;
     struct DIR* dir;
     TRACE("ChangeWorkingDirectory(path=%s)", path);
 
@@ -197,7 +197,7 @@ ChangeWorkingDirectory(
     return ProcessSetWorkingDirectory(&canonBuffer[0]);
 }
 
-oscode_t
+oserr_t
 GetAssemblyDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
@@ -208,7 +208,7 @@ GetAssemblyDirectory(
     return ProcessGetAssemblyDirectory(UUID_INVALID, buffer, maxLength);
 }
 
-oscode_t
+oserr_t
 GetUserDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
@@ -226,7 +226,7 @@ GetUserDirectory(
     return OsNotSupported;
 }
 
-oscode_t
+oserr_t
 GetUserCacheDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
@@ -245,7 +245,7 @@ GetUserCacheDirectory(
     return OsNotSupported;
 }
 
-oscode_t
+oserr_t
 GetApplicationDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
@@ -263,7 +263,7 @@ GetApplicationDirectory(
     return OsNotSupported;
 }
 
-oscode_t
+oserr_t
 GetApplicationTemporaryDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)

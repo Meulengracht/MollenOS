@@ -61,12 +61,12 @@ static struct __AhciCommandTableEntry {
     { -1, -1, -1, 0, 0, 0 }
 };
 
-static oscode_t __AllocateCommandSlot(
+static oserr_t __AllocateCommandSlot(
         _In_ AhciPort_t*        port,
         _In_ AhciTransaction_t* transaction)
 {
     int        portSlot = -1;
-    oscode_t status;
+    oserr_t status;
 
     // OK so the transaction we just recieved needs to be queued up,
     // so we must initally see if we can allocate a new slot on the port
@@ -83,12 +83,12 @@ static oscode_t __AllocateCommandSlot(
     return status;
 }
 
-static oscode_t __QueueTransaction(
+static oserr_t __QueueTransaction(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction)
 {
-    oscode_t status = OsOK;
+    oserr_t status = OsOK;
 
     TRACE("__QueueTransaction(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", transaction=0x%" PRIxIN ")",
           controller, port, transaction);
@@ -195,7 +195,7 @@ static AhciTransaction_t* __CreateTransaction(
     return transaction;
 }
 
-oscode_t
+oserr_t
 AhciTransactionControlCreate(
     _In_ AhciDevice_t* ahciDevice,
     _In_ AtaCommand_t  ataCommand,
@@ -203,7 +203,7 @@ AhciTransactionControlCreate(
     _In_ int           direction)
 {
     AhciTransaction_t*    transaction;
-    oscode_t            status;
+    oserr_t            status;
     struct dma_attachment dmaAttachment;
 
     TRACE("AhciTransactionControlCreate(ahciDevice=0x%" PRIxIN ", ataCommand=0x%x, length=0x%" PRIxIN ", direction=%i)",
@@ -260,7 +260,7 @@ static inline struct __AhciCommandTableEntry* __GetCommand(
     return NULL;
 }
 
-oscode_t
+oserr_t
 AhciTransactionStorageCreate(
         _In_ AhciDevice_t*          device,
         _In_ struct gracht_message* message,
@@ -273,7 +273,7 @@ AhciTransactionStorageCreate(
     struct __AhciCommandTableEntry* command;
     struct dma_attachment           dmaAttachment;
     AhciTransaction_t*              transaction = NULL;
-    oscode_t                      status;
+    oserr_t                      status;
     TRACE("AhciTransactionStorageCreate(device=0x%" PRIxIN ", sector=0x%" PRIxIN ", sectorCount=0x%" PRIxIN ", direction=%i)",
           device, sector, sectorCount, direction);
 
@@ -328,7 +328,7 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
                                      const uuid_t bufferId, const size_t offset, const size_t sectorCount)
 {
     AhciDevice_t*   device = AhciManagerGetDevice(deviceId);
-    oscode_t      status;
+    oserr_t      status;
     UInteger64_t sector;
     
     sector.u.LowPart = sectorLow;
@@ -341,7 +341,7 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
     }
 }
 
-oscode_t
+oserr_t
 AhciManagerCancelTransaction(
     _In_ AhciTransaction_t* transaction)
 {
@@ -363,7 +363,7 @@ static void __DumpD2HFis(
           combinedFis->RegisterD2H.Lba3, combinedFis->RegisterD2H.Count);
 }
 
-static oscode_t __VerifyRegisterFISD2H(
+static oserr_t __VerifyRegisterFISD2H(
     _In_ AhciTransaction_t* transaction)
 {
     FISRegisterD2H_t* result = (FISRegisterD2H_t*)&transaction->Response.RegisterD2H;
@@ -382,7 +382,7 @@ static oscode_t __VerifyRegisterFISD2H(
 static void __FinishTransaction(
         _In_ AhciPort_t*        port,
         _In_ AhciTransaction_t* transaction,
-        _In_ oscode_t         status)
+        _In_ oserr_t         status)
 {
     if (transaction->Internal) {
         AhciManagerHandleControlResponse(port, transaction);
@@ -401,7 +401,7 @@ AhciTransactionHandleResponse(
     _In_ AhciTransaction_t* transaction,
     _In_ size_t             bytesTransferred)
 {
-    oscode_t osStatus = OsNotSupported;
+    oserr_t osStatus = OsNotSupported;
     
     TRACE("AhciTransactionHandleResponse(bytesTransferred=%" PRIuIN ")", bytesTransferred);
     

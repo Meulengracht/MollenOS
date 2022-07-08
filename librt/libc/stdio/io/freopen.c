@@ -64,7 +64,7 @@ FILE* freopen(
 	else {
 		if (mode != NULL) {
 			struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-			oscode_t               status;
+			oserr_t               status;
 			
 			handle = stdio_handle_get(stream->_fd);
 			_fflags(mode, &open_flags, &stream_flags);
@@ -74,7 +74,7 @@ FILE* freopen(
 				handle->object.handle, _fopts(open_flags));
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
 			sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
-			OsCodeToErrNo(status);
+			OsErrToErrNo(status);
 		}
 	}
 	stream->_flag &= ~(_IOEOF | _IOERR);

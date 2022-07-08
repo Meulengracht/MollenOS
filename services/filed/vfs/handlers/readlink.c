@@ -21,10 +21,10 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oscode_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, MString_t** linkOut)
+oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, MString_t** linkOut)
 {
     struct VFSNodeHandle* handle;
-    oscode_t            osStatus, osStatus2;
+    oserr_t            osStatus, osStatus2;
 
     osStatus = VFSNodeHandleGet(request->parameters.stat_handle.fileHandle, &handle);
     if (osStatus != OsOK) {

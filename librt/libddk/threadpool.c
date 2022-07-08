@@ -78,7 +78,7 @@ static tss_t __GlbThreadPoolKey = TSS_KEY_INVALID;
 
 /* JobQueueInitialize
  * Allocates resources and initializes the job-queue */
-oscode_t
+oserr_t
 JobQueueInitialize(
     _In_ ThreadPoolJobQueue_t *JobQueue)
 {
@@ -102,7 +102,7 @@ JobQueueInitialize(
 /* JobQueuePush
  * Adds a new job to the end of the queue, the job will be executed
  * as fast as possible. */
-oscode_t
+oserr_t
 JobQueuePush(
     _In_ ThreadPoolJobQueue_t*  JobQueue,
     _In_ ThreadPoolJob_t*       Job)
@@ -181,7 +181,7 @@ JobQueuePull(
 /* JobQueueClear
  * Clears the job-queue and resets it's members. Also frees
  * any resources associated with the jobs */
-oscode_t
+oserr_t
 JobQueueClear(
     _In_ ThreadPoolJobQueue_t *JobQueue)
 {
@@ -315,7 +315,7 @@ ThreadPoolThreadDestroy(
 
 /* ThreadPoolInitialize 
  * Initializes a new thread-pool with the given number of threads */
-oscode_t
+oserr_t
 ThreadPoolInitialize(
     _In_  int                   NumThreads,
     _Out_ ThreadPool_t**        ThreadPool)
@@ -386,7 +386,7 @@ ThreadPoolInitialize(
  * Takes an action and its argument and adds it to the threadpool's job queue. 
  * If you want to add to work a function with more than one arguments then
  * a way to implement this is by passing a pointer to a structure. */
-oscode_t
+oserr_t
 ThreadPoolAddWork(
     _In_ ThreadPool_t* ThreadPool,
     _In_ thrd_start_t  Function,
@@ -414,7 +414,7 @@ ThreadPoolAddWork(
  * Will wait for all jobs - both queued and currently running to finish.
  * Once the queue is empty and all work has completed, the calling thread
  * (probably the main program) will continue. */
-oscode_t
+oserr_t
 ThreadPoolWait(
     _In_ ThreadPool_t*          ThreadPool)
 {
@@ -439,7 +439,7 @@ ThreadPoolWait(
  * The threads will be paused no matter if they are idle or working.
  * The threads return to their previous states once thpool_resume
  * is called. */
-oscode_t
+oserr_t
 ThreadPoolPause(
     _In_ ThreadPool_t*          ThreadPool)
 {
@@ -460,7 +460,7 @@ ThreadPoolPause(
 /* ThreadPoolResume
  * Switches the state of the threadpool to active, this will resume all waiting
  * threadpool workers. */
-oscode_t
+oserr_t
 ThreadPoolResume(
     _In_ ThreadPool_t*          ThreadPool)
 {
@@ -474,7 +474,7 @@ ThreadPoolResume(
 /* ThreadPoolDestroy
  * This will wait for the currently active threads to finish and then 'kill'
  * the whole threadpool to free up memory. */
-oscode_t
+oserr_t
 ThreadPoolDestroy(
     _In_ ThreadPool_t*          ThreadPool)
 {

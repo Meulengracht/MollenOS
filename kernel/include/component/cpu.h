@@ -127,7 +127,7 @@ StartApplicationCore(
  * TxuMessageSend
  * * Sends a TXU message to the target TXU.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 TxuMessageSend(
         _In_ uuid_t                  CoreId,
         _In_ SystemCpuFunctionType_t Type,

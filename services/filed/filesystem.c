@@ -101,7 +101,7 @@ FileSystemNew(
 {
     FileSystem_t*       fileSystem;
     enum FileSystemType fsType = type;
-    oscode_t            osStatus;
+    oserr_t            osStatus;
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -147,13 +147,13 @@ void FileSystemDestroy(FileSystem_t* fileSystem)
     free(fileSystem);
 }
 
-static oscode_t
+static oserr_t
 __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* partitionNode;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
     MString_t*      path;
 
     path = MStringCreate("/storage/", StrUTF8);
@@ -183,14 +183,14 @@ __MountFileSystemAtDefault(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __MountFileSystemAt(
         _In_ FileSystem_t* fileSystem,
         _In_ MString_t*    path)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
 
     osStatus = VFSNodeNewDirectory(fsScope, path, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
@@ -206,7 +206,7 @@ VfsFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ MString_t*    mountPoint)
 {
-    oscode_t   osStatus;
+    oserr_t   osStatus;
     MString_t* path;
 
     if (fileSystem == NULL || fileSystem->Module == NULL) {
@@ -270,7 +270,7 @@ VfsFileSystemMount(
     MStringDestroy(path);
 }
 
-oscode_t
+oserr_t
 VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
@@ -279,7 +279,7 @@ VfsFileSystemUnmount(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_MOUNTED) {
-        VFSNodeDestroy(fsScope, fileSystem->MountNode);
+        VFSNodeDestroy(fileSystem->MountNode);
         fileSystem->Module->Operations.Destroy(&fileSystem->CommonData, flags);
     }
     usched_mtx_unlock(&fileSystem->Lock);

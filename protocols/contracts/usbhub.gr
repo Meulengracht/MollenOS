@@ -9,8 +9,8 @@ import "../types"
 namespace ctt
  
 service usbhub (19) {
-    func query_port(uuid_t deviceId, uint8 portId) : (oscode_t status, uint8[] descriptor) = 1;
-    func reset_port(uuid_t deviceId, uint8 portId) : (oscode_t status, uint8[] descriptor) = 2;
+    func query_port(uuid_t deviceId, uint8 portId) : (oserr_t status, uint8[] descriptor) = 1;
+    func reset_port(uuid_t deviceId, uint8 portId) : (oserr_t status, uint8[] descriptor) = 2;
     
-    event port_status : (uuid_t id, oscode_t result, ulong bytesTransferred) = 3;
+    event port_status : (uuid_t id, oserr_t result, ulong bytesTransferred) = 3;
 }

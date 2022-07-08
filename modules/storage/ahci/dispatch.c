@@ -164,7 +164,7 @@ static size_t __PrepareCommandSlot(
     return bytesQueued - transaction->BytesLeft;
 }
 
-static oscode_t __DispatchCommand(
+static oserr_t __DispatchCommand(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction,
@@ -311,7 +311,7 @@ static void __FillRegisterFIS(
     }
 }
 
-oscode_t
+oserr_t
 AhciDispatchRegisterFIS(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,

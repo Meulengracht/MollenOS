@@ -43,7 +43,7 @@ MsdDeviceGet(
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -60,19 +60,19 @@ DestroyElement(
     MsdDeviceDestroy(Element->value);
 }
 
-oscode_t
+oserr_t
 OnUnload(void)
 {
     list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
-oscode_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
 }
 
-oscode_t
+oserr_t
 OnRegister(
     _In_ Device_t *Device)
 {
@@ -92,7 +92,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
     OnRegister((Device_t*)device);
 }
 
-oscode_t
+oserr_t
 OnUnregister(
     _In_ Device_t *Device)
 {
@@ -108,7 +108,7 @@ OnUnregister(
 void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    oscode_t                 status     = OsNotExists;
+    oserr_t                 status     = OsNotExists;
     MsdDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     

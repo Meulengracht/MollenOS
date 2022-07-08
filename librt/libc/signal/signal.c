@@ -39,7 +39,7 @@ typedef void (*__sa_process_t)(int, void*, void*);
 extern void __signalentry(void);
 
 // Default handler for memory mapping events
-extern oscode_t HandleMemoryMappingEvent(int, void*);
+extern oserr_t HandleMemoryMappingEvent(int, void*);
 
 // The consequences of recieving the different signals
 char signal_fatality[NUMSIGNALS] = {
@@ -88,7 +88,7 @@ static void __CrashHandler(
 {
     // Not supported by phoenix
     if (!__crt_is_phoenix()) {
-        oscode_t               osStatus;
+        oserr_t               osStatus;
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 

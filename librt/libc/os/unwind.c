@@ -41,7 +41,7 @@ ProcessGetLibraryHandles(
                                    PROCESS_MAXMODULES, ModuleCountOut);
 }
 
-oscode_t
+oserr_t
 UnwindGetSection(
     _In_ void*            MemoryAddress,
     _In_ UnwindSection_t* Section)

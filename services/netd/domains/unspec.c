@@ -29,7 +29,7 @@ typedef struct SocketDomain {
     SocketDomainOps_t Ops;
 } SocketDomain_t;
 
-oscode_t
+oserr_t
 DomainUnspecCreate(
     _Out_ SocketDomain_t** DomainOut)
 {

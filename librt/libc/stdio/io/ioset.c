@@ -40,7 +40,7 @@ static struct ioset_entry* ioset_remove(stdio_handle_t*, int);
 int ioset(int flags)
 {
     stdio_handle_t* ioObject;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     uuid_t          handle;
     int             status;
     
@@ -51,7 +51,7 @@ int ioset(int flags)
     
     osStatus = notification_queue_create(0, &handle);
     if (osStatus != OsOK) {
-        (void)OsCodeToErrNo(osStatus);
+        (void)OsErrToErrNo(osStatus);
         stdio_handle_destroy(ioObject, 0);
         return -1;
     }
@@ -68,7 +68,7 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 {
     stdio_handle_t*     setObject = stdio_handle_get(evt_iod);
     stdio_handle_t*     ioObject  = stdio_handle_get(iod);
-    oscode_t          status;
+    oserr_t          status;
     struct ioset_entry * entry;
     
     if (!event) {
@@ -118,7 +118,7 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
     status = notification_queue_ctrl(setObject->object.handle, op,
                                      ioObject->object.handle, event);
     if (status != OsOK) {
-        (void)OsCodeToErrNo(status);
+        (void)OsErrToErrNo(status);
         return -1;
     }
     return 0;
@@ -129,7 +129,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
     stdio_handle_t*     setObject = stdio_handle_get(set_iod);
     int                 numEvents;
     struct ioset_entry* entry;
-    oscode_t          status;
+    oserr_t          status;
     int                 i = 0;
     
     TRACE("[ioset] [wait] %i, %i", set_iod, max_events);
@@ -158,7 +158,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
     status = notification_queue_wait(setObject->object.handle, &events[0],
                                      max_events, i, timeout, &numEvents);
     if (status != OsOK) {
-        (void)OsCodeToErrNo(status);
+        (void)OsErrToErrNo(status);
         return -1;
     }
     return numEvents;

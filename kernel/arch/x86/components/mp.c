@@ -46,7 +46,7 @@
 static MpHeader_t MpHeader                          = { 0 };
 static MpConfigurationTable_t MpConfigurationTable  = { 0 };
 
-oscode_t
+oserr_t
 MpInitialize(void)
 {
    uintptr_t *i = NULL;
@@ -57,7 +57,7 @@ MpInitialize(void)
    return OsError;
 }
 
-oscode_t
+oserr_t
 MpGetLocalApicAddress(
     _Out_ uintptr_t*    Address)
 {

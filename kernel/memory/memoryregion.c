@@ -47,7 +47,7 @@ typedef struct MemoryRegion {
     uintptr_t    Pages[];
 } MemoryRegion_t;
 
-static oscode_t __CreateUserMapping(
+static oserr_t __CreateUserMapping(
         _In_ MemoryRegion_t* region,
         _In_ MemorySpace_t*  memorySpace,
         _In_ uintptr_t*      allocatedMapping,
@@ -57,7 +57,7 @@ static oscode_t __CreateUserMapping(
     // mapping that spans the entire Capacity, but is uncommitted, and then commit
     // the Length of it.
     unsigned int requiredFlags = MAPPING_USERSPACE | MAPPING_PERSISTENT;
-    oscode_t   status = MemorySpaceMapReserved(
+    oserr_t   status = MemorySpaceMapReserved(
             memorySpace,
             (vaddr_t*)allocatedMapping, region->Capacity,
             requiredFlags | region->Flags | accessFlags,
@@ -82,11 +82,11 @@ static oscode_t __CreateUserMapping(
     return status;
 }
 
-static oscode_t __CreateKernelMapping(
+static oserr_t __CreateKernelMapping(
         _In_ MemoryRegion_t* region,
         _In_ MemorySpace_t*  memorySpace)
 {
-    oscode_t status = MemorySpaceMapReserved(
+    oserr_t status = MemorySpaceMapReserved(
             memorySpace,
             (vaddr_t*)&region->KernelMapping, region->Capacity,
             region->Flags, MAPPING_VIRTUAL_GLOBAL);
@@ -103,12 +103,12 @@ static oscode_t __CreateKernelMapping(
     return status;
 }
 
-static oscode_t __CreateKernelMappingFromExisting(
+static oserr_t __CreateKernelMappingFromExisting(
         _In_ MemoryRegion_t* region,
         _In_ MemorySpace_t*  memorySpace,
         _In_ uintptr_t       userAddress)
 {
-    oscode_t status = GetMemorySpaceMapping(
+    oserr_t status = GetMemorySpaceMapping(
             memorySpace, (uintptr_t)userAddress,
             region->PageCount, &region->Pages[0]);
     if (status != OsOK) {
@@ -138,7 +138,7 @@ MemoryRegionDestroy(
     kfree(region);
 }
 
-oscode_t
+oserr_t
 MemoryRegionCreate(
         _In_  size_t       length,
         _In_  size_t       capacity,
@@ -149,7 +149,7 @@ MemoryRegionCreate(
         _Out_ uuid_t*      handleOut)
 {
     MemoryRegion_t* memoryRegion;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     int             pageCount;
 
     // Capacity is the expected maximum size of the region. Regions
@@ -191,7 +191,7 @@ ErrorHandler:
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MemoryRegionCreateExisting(
         _In_  void*        memory,
         _In_  size_t       size,
@@ -199,7 +199,7 @@ MemoryRegionCreateExisting(
         _Out_ uuid_t*      handleOut)
 {
     MemoryRegion_t* region;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     int             pageCount;
     size_t          capacityWithOffset;
 
@@ -241,7 +241,7 @@ ErrorHandler:
 }
 
 
-oscode_t
+oserr_t
 MemoryRegionAttach(
         _In_  uuid_t  Handle,
         _Out_ size_t* Length)
@@ -257,7 +257,7 @@ MemoryRegionAttach(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MemoryRegionInherit(
         _In_  uuid_t       regionHandle,
         _Out_ void**       memoryOut,
@@ -265,7 +265,7 @@ MemoryRegionInherit(
         _In_  unsigned int accessFlags)
 {
     MemoryRegion_t* region;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     uintptr_t       offset;
     uintptr_t       address;
     size_t          size;
@@ -299,7 +299,7 @@ MemoryRegionInherit(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MemoryRegionUnherit(
         _In_ uuid_t handle,
         _In_ void*  memory)
@@ -326,7 +326,7 @@ MemoryRegionUnherit(
     return MemorySpaceUnmap(GetCurrentMemorySpace(), address, memoryRegion->Capacity);
 }
 
-static oscode_t __FillInMemoryRegion(
+static oserr_t __FillInMemoryRegion(
         _In_ MemoryRegion_t* memoryRegion,
         _In_ uintptr_t       userStart,
         _In_ int             pageCount)
@@ -334,7 +334,7 @@ static oscode_t __FillInMemoryRegion(
 
     uintptr_t  kernelAddress = memoryRegion->KernelMapping;
     uintptr_t  userAddress   = userStart;
-    oscode_t osStatus      = OsOK;
+    oserr_t osStatus      = OsOK;
 
     for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize(), kernelAddress += GetMemorySpacePageSize()) {
         if (!memoryRegion->Pages[i]) {
@@ -370,13 +370,13 @@ static oscode_t __FillInMemoryRegion(
     return osStatus;
 }
 
-static oscode_t __ExpandMemoryRegion(
+static oserr_t __ExpandMemoryRegion(
         _In_ MemoryRegion_t* memoryRegion,
         _In_ uintptr_t       userAddress,
         _In_ int             currentPageCount,
         _In_ size_t          newLength)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     uintptr_t  end;
 
     // The behaviour for scattered regions will be that when resize is called
@@ -414,7 +414,7 @@ static oscode_t __ExpandMemoryRegion(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MemoryRegionResize(
         _In_ uuid_t handle,
         _In_ void*  memory,
@@ -423,7 +423,7 @@ MemoryRegionResize(
     MemoryRegion_t* memoryRegion;
     int             currentPages;
     int             newPages;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     
     // Lookup region
     memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
@@ -460,13 +460,13 @@ exit:
     return osStatus;
 }
 
-static oscode_t __RefreshMemoryRegion(
+static oserr_t __RefreshMemoryRegion(
         _In_ MemoryRegion_t* memoryRegion,
         _In_ uintptr_t       userStart,
         _In_ int             pageCount)
 {
     uintptr_t  userAddress   = userStart;
-    oscode_t osStatus      = OsOK;
+    oserr_t osStatus      = OsOK;
 
     for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize()) {
         if (memoryRegion->Pages[i] && IsMemorySpacePagePresent(GetCurrentMemorySpace(), userAddress) != OsOK) {
@@ -487,7 +487,7 @@ static oscode_t __RefreshMemoryRegion(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MemoryRegionRefresh(
         _In_  uuid_t  handle,
         _In_  void*   memory,
@@ -498,7 +498,7 @@ MemoryRegionRefresh(
     int             currentPages;
     int             newPages;
     uintptr_t       end;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     
     // Lookup region
     memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
@@ -548,7 +548,7 @@ exit:
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MemoryRegionCommit(
         _In_ uuid_t handle,
         _In_ void*  memoryBase,
@@ -556,7 +556,7 @@ MemoryRegionCommit(
         _In_ size_t length)
 {
     MemoryRegion_t* memoryRegion;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
     uintptr_t       userAddress = (uintptr_t)memory;
     uintptr_t       kernelAddress;
     int             limit;
@@ -609,7 +609,7 @@ MemoryRegionCommit(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MemoryRegionRead(
         _In_  uuid_t  Handle,
         _In_  size_t  Offset,
@@ -641,7 +641,7 @@ MemoryRegionRead(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MemoryRegionWrite(
         _In_  uuid_t      Handle,
         _In_  size_t      Offset,
@@ -677,7 +677,7 @@ MemoryRegionWrite(
     (((memory_region)->Pages[idx] + (pageSize) == (memory_region)->Pages[idx2]) || \
      ((memory_region)->Pages[idx] == 0 && (memory_region)->Pages[idx2] == 0))
 
-oscode_t
+oserr_t
 MemoryRegionGetSg(
         _In_  uuid_t         handle,
         _Out_ int*           sgCountOut,
@@ -730,7 +730,7 @@ MemoryRegionGetSg(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MemoryRegionGetKernelMapping(
         _In_  uuid_t handle,
         _Out_ void** bufferOut)

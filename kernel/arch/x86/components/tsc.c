@@ -47,7 +47,7 @@ static tick_t g_tscFrequency = 0;
 void
 TscInitialize(void)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     uint64_t   tscStart;
     uint64_t   tscEnd;
     uint32_t   ticker;

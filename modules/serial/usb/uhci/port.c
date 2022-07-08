@@ -29,7 +29,7 @@
 #include <threads.h>
 #include <string.h>
 
-oscode_t
+oserr_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
@@ -90,7 +90,7 @@ HciPortGetStatus(
     Port->Speed     = (pStatus & UHCI_PORT_LOWSPEED) == 0 ? USB_SPEED_FULL : USB_SPEED_LOW;
 }
 
-oscode_t
+oserr_t
 UhciPortCheck(
 	_In_ UhciController_t* Controller, 
 	_In_ int               Index)
@@ -108,7 +108,7 @@ UhciPortCheck(
 	return UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
 }
 
-oscode_t
+oserr_t
 UhciPortsCheck(
 	_In_ UhciController_t* Controller)
 {
@@ -118,7 +118,7 @@ UhciPortsCheck(
 	return OsOK;
 }
 
-oscode_t
+oserr_t
 UhciPortPrepare(
 	_In_ UhciController_t* Controller, 
 	_In_ int               Index)

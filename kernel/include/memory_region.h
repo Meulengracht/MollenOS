@@ -41,7 +41,7 @@ struct dma_sg;
  * @param handleOut     [Out] The global handle for the memory region.
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionCreate(
         _In_  size_t       length,
         _In_  size_t       capacity,
@@ -60,7 +60,7 @@ MemoryRegionCreate(
  * @param Handle [Out] The global handle for the memory region.
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionCreateExisting(
         _In_  void*   memory,
         _In_  size_t  size,
@@ -73,7 +73,7 @@ MemoryRegionCreateExisting(
  * @param Length
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionAttach(
         _In_  uuid_t  Handle,
         _Out_ size_t* Length);
@@ -86,7 +86,7 @@ MemoryRegionAttach(
  * @param accessFlags
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionInherit(
         _In_  uuid_t       regionHandle,
         _Out_ void**       memoryOut,
@@ -99,7 +99,7 @@ MemoryRegionInherit(
  * @param memory
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionUnherit(
         _In_ uuid_t handle,
         _In_ void*  memory);
@@ -112,7 +112,7 @@ MemoryRegionUnherit(
  * @param newLength
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionResize(
         _In_ uuid_t handle,
         _In_ void*  memory,
@@ -127,7 +127,7 @@ MemoryRegionResize(
  * @param newLength     [Out]
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionRefresh(
         _In_  uuid_t  handle,
         _In_  void*   memory,
@@ -142,7 +142,7 @@ MemoryRegionRefresh(
  * @param length     [In]
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionCommit(
         _In_ uuid_t handle,
         _In_ void*  memoryBase,
@@ -158,7 +158,7 @@ MemoryRegionCommit(
  * @param BytesRead
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionRead(
         _In_  uuid_t  Handle,
         _In_  size_t  Offset,
@@ -175,7 +175,7 @@ MemoryRegionRead(
  * @param BytesWritten
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionWrite(
         _In_  uuid_t      Handle,
         _In_  size_t      Offset,
@@ -190,7 +190,7 @@ MemoryRegionWrite(
  * @param sgListOut
  * @return Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionGetSg(
         _In_  uuid_t         handle,
         _Out_ int*           sgCountOut,
@@ -202,7 +202,7 @@ MemoryRegionGetSg(
  * @param bufferOut A pointer to the buffer will be set if successful.
  * @return          The status of the operation.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemoryRegionGetKernelMapping(
         _In_  uuid_t handle,
         _Out_ void** bufferOut);

@@ -44,7 +44,7 @@ static inline struct VFSModule* __GetLoadedModule(enum FileSystemType type)
     return header ? header->value : NULL;
 }
 
-oscode_t
+oserr_t
 VfsLoadModule(
         _In_  enum FileSystemType type,
         _Out_ struct VFSModule**  moduleOut)

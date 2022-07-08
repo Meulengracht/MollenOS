@@ -29,7 +29,7 @@
 #include <assert.h>
 #include <string.h>
 
-oscode_t
+oserr_t
 EhciQhInitialize(
     _In_ EhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer,
@@ -37,7 +37,7 @@ EhciQhInitialize(
     _In_ uint8_t               endpointAddress)
 {
     EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->EndpointDescriptor;
-    oscode_t       Status      = OsOK;
+    oserr_t       Status      = OsOK;
     size_t           EpBandwidth = MAX(3, transfer->Transfer.PeriodicBandwith);
 
     // Initialize links

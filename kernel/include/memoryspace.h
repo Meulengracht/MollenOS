@@ -95,7 +95,7 @@ typedef struct MemorySpace {
  * @param kernelMappings     [In]
  * @return                        Status of the initialization.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceInitialize(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
@@ -107,7 +107,7 @@ MemorySpaceInitialize(
  *
  *
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateMemorySpace(
         _In_  unsigned int flags,
         _Out_ uuid_t*      handleOut);
@@ -134,7 +134,7 @@ KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
  * @param Space2
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2);
@@ -150,7 +150,7 @@ AreMemorySpacesRelated(
  * @param memoryFlags           [In]      Memory mapping configuration flags.
  * @param placementFlags        [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceMap(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t*       address,
@@ -170,7 +170,7 @@ MemorySpaceMap(
  * @param MemoryFlags          [In]      Memory mapping configuration flags.
  * @param PlacementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceMapContiguous(
         _In_    MemorySpace_t* MemorySpace,
         _InOut_ vaddr_t*       Address,
@@ -188,7 +188,7 @@ MemorySpaceMapContiguous(
  * @param memoryFlags          [In]      Memory mapping configuration flags.
  * @param placementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceMapReserved(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t*       address,
@@ -203,7 +203,7 @@ MemorySpaceMapReserved(
  * @param address
  * @param size
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceUnmap(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -221,7 +221,7 @@ MemorySpaceUnmap(
  * @param pageMask              [In] The accepted page mask for physical pages allocated.
  * @param placementFlags        [In] Supports MAPPING_PHYSICAL_* flags.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceCommit(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -240,7 +240,7 @@ MemorySpaceCommit(
  * @param previousAttributes
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceChangeProtection(
         _In_        MemorySpace_t* memorySpace,
         _InOut_Opt_ vaddr_t        address,
@@ -260,7 +260,7 @@ MemorySpaceChangeProtection(
  * @param memoryFlags
  * @param placementFlags
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceCloneMapping(
         _In_        MemorySpace_t* sourceSpace,
         _In_        MemorySpace_t* destinationSpace,
@@ -278,7 +278,7 @@ MemorySpaceCloneMapping(
  * @param pageCount    [In]  The length of the lookup in pages.
  * @param dmaVectorOut [Out] The array to fill with mappings.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 GetMemorySpaceMapping(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        address,
@@ -293,7 +293,7 @@ GetMemorySpaceMapping(
  * @param descriptor
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceQuery(
         _In_ MemorySpace_t*      memorySpace,
         _In_ vaddr_t             address,
@@ -308,7 +308,7 @@ MemorySpaceQuery(
  * @param attributesArray
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 GetMemorySpaceAttributes(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -322,7 +322,7 @@ GetMemorySpaceAttributes(
  * @param address     [In] The address to check for access.
  * @return            Returns OsOK if the address is dirty.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 IsMemorySpacePageDirty(
         _In_ MemorySpace_t*   memorySpace,
         _In_ vaddr_t       address);
@@ -334,7 +334,7 @@ IsMemorySpacePageDirty(
  * @param address     [In] The virtual address to check.
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 IsMemorySpacePagePresent(
         _In_ MemorySpace_t*   memorySpace,
         _In_ vaddr_t       address);
@@ -346,7 +346,7 @@ IsMemorySpacePagePresent(
  * @param signalHandlerAddress [In] The address of the signal handler.
  * @return                     Status of the operation
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceSetSignalHandler(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        signalHandlerAddress);

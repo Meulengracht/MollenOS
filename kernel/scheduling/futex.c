@@ -243,7 +243,7 @@ FutexInitialize(void)
     }
 }
 
-oscode_t
+oserr_t
 FutexWait(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -310,7 +310,7 @@ FutexWait(
     return SchedulerGetTimeoutReason();
 }
 
-oscode_t
+oserr_t
 FutexWaitOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -382,7 +382,7 @@ FutexWaitOperation(
     return SchedulerGetTimeoutReason();
 }
 
-oscode_t
+oserr_t
 FutexWake(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
@@ -391,7 +391,7 @@ FutexWake(
     MemorySpaceContext_t* Context = NULL;
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
-    oscode_t            Status = OsNotExists;
+    oserr_t            Status = OsNotExists;
     uintptr_t             FutexAddress;
     int                   WaiterCount;
     int                   i;
@@ -454,7 +454,7 @@ WakeWaiters:
     return Status;
 }
 
-oscode_t
+oserr_t
 FutexWakeOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
@@ -463,7 +463,7 @@ FutexWakeOperation(
     _In_ int           Operation,
     _In_ int           Flags)
 {
-    oscode_t Status;
+    oserr_t Status;
     int        InitialValue;
     TRACE("%u: FutexWakeOperation(f 0x%llx)", ThreadCurrentHandle(), Futex);
     

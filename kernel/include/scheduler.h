@@ -82,7 +82,7 @@ SchedulerDestroyObject(
 
 /* SchedulerQueueObject
  * Queues up a new object for execution, at the next available timeslot. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SchedulerQueueObject(
     _In_ SchedulerObject_t* object);
 
@@ -101,7 +101,7 @@ SchedulerExpediteObject(
  * @param[Out] interruptedAt The timestamp the thread were awakened at if return is SCHEDULER_SLEEP_INTERRUPTED.
  * @return     Returns SCHEDULER_SLEEP_INTERRUPTED if a full sleep was not done, otherwise SCHEDULER_SLEEP_OK.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SchedulerSleep(
     _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt);
@@ -122,7 +122,7 @@ SchedulerBlock(
  *
  * @return Status for the last sleep.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SchedulerGetTimeoutReason(void);
 
 /**

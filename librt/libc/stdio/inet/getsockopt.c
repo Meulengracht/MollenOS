@@ -31,7 +31,7 @@ int getsockopt(int iod, int protocol, int option, void* data, socklen_t* length_
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
-    oscode_t               status;
+    oserr_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -47,7 +47,7 @@ int getsockopt(int iod, int protocol, int option, void* data, socklen_t* length_
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_get_option_result(GetGrachtClient(), &msg.base, &status, data, (uint32_t)(*length_out), length_out);
     if (status != OsOK) {
-        OsCodeToErrNo(status);
+        OsErrToErrNo(status);
         return -1;
     }
     return 0;

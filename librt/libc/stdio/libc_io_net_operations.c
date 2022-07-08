@@ -26,7 +26,7 @@
 #include <ioctl.h>
 #include <os/dmabuf.h>
 
-oscode_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     intmax_t num_bytes = recv(handle->fd, buffer, length, 0);
     if (num_bytes >= 0) {
@@ -36,7 +36,7 @@ oscode_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
     return OsError;
 }
 
-oscode_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+oserr_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     intmax_t num_bytes = send(handle->fd, buffer, length, 0);
     if (num_bytes >= 0) {
@@ -46,21 +46,21 @@ oscode_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t l
     return OsError;
 }
 
-oscode_t stdio_net_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+oserr_t stdio_net_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     // It is not possible to seek in sockets.
     return OsNotSupported;
 }
 
-oscode_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
+oserr_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     // TODO: Implement resizing of socket buffers
     return OsNotSupported;
 }
 
-oscode_t stdio_net_op_close(stdio_handle_t* handle, int options)
+oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
 {
-    oscode_t status = OsOK;
+    oserr_t status = OsOK;
     
     if (options & STDIO_CLOSE_FULL) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
@@ -81,9 +81,9 @@ oscode_t stdio_net_op_close(stdio_handle_t* handle, int options)
     return status;
 }
 
-oscode_t stdio_net_op_inherit(stdio_handle_t* handle)
+oserr_t stdio_net_op_inherit(stdio_handle_t* handle)
 {
-    oscode_t status1, status2;
+    oserr_t status1, status2;
     uuid_t     send_buffer_handle = handle->object.data.socket.send_buffer.handle;
     uuid_t     recv_buffer_handle = handle->object.data.socket.recv_buffer.handle;
     
@@ -107,7 +107,7 @@ oscode_t stdio_net_op_inherit(stdio_handle_t* handle)
     return status1;
 }
 
-oscode_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
+oserr_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
     streambuffer_t* recvStream = handle->object.data.socket.recv_buffer.buffer;
 

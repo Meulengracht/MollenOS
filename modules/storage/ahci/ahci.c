@@ -39,7 +39,7 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 // Prototypes
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
-oscode_t        AhciSetup(AhciController_t* controller);
+oserr_t        AhciSetup(AhciController_t* controller);
 
 AhciController_t*
 AhciControllerCreate(
@@ -48,7 +48,7 @@ AhciControllerCreate(
     AhciController_t* controller;
     DeviceInterrupt_t interrupt;
     DeviceIo_t*       ioBase = NULL;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
     int               i;
     int               opt = 1;
 
@@ -140,7 +140,7 @@ AhciControllerCreate(
     }
 }
 
-oscode_t
+oserr_t
 AhciControllerDestroy(
     _In_ AhciController_t* controller)
 {
@@ -160,7 +160,7 @@ AhciControllerDestroy(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 AhciReset(
     _In_ AhciController_t* controller)
 {
@@ -208,7 +208,7 @@ AhciReset(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 AhciTakeOwnership(
     _In_ AhciController_t* Controller)
 {
@@ -244,7 +244,7 @@ AhciTakeOwnership(
     }
 }
 
-oscode_t
+oserr_t
 AhciSetup(
     _In_ AhciController_t* controller)
 {

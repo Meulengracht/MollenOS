@@ -61,7 +61,7 @@ SharedObjectLoad(
     SOInitializer_t          Initializer;
     struct library_element*  library;
     Handle_t                 handle   = HANDLE_INVALID;
-    oscode_t               osStatus = OsOK;
+    oserr_t               osStatus = OsOK;
     uintptr_t                entryAddress;
 
     // Special case
@@ -116,7 +116,7 @@ SharedObjectLoad(
         mtx_unlock(&g_librariesLock);
     }
 
-    OsCodeToErrNo(osStatus);
+    OsErrToErrNo(osStatus);
     return handle;
 }
 
@@ -125,7 +125,7 @@ SharedObjectGetFunction(
 	_In_ Handle_t       Handle, 
 	_In_ const char*    Function)
 {
-    oscode_t Status;
+    oserr_t Status;
 	if (Handle == HANDLE_INVALID || Function == NULL) {
 	    _set_errno(EINVAL);
 		return NULL;
@@ -139,7 +139,7 @@ SharedObjectGetFunction(
     sys_library_get_function(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)Handle, Function);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
-    OsCodeToErrNo(Status);
+    OsErrToErrNo(Status);
     if (Status != OsOK) {
         return NULL;
     }
@@ -151,14 +151,14 @@ struct so_enum_context {
     struct library_element* library;
 };
 
-oscode_t
+oserr_t
 SharedObjectUnload(
 	_In_ Handle_t Handle)
 {
     SOInitializer_t        initialize = NULL;
     struct so_enum_context enumContext;
     int                    references;
-    oscode_t             status = OsOK;
+    oserr_t             status = OsOK;
 
 	if (Handle == HANDLE_INVALID) {
 	    _set_errno(EINVAL);
@@ -194,7 +194,7 @@ SharedObjectUnload(
         sys_library_unload(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)Handle);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
-        OsCodeToErrNo(status);
+        OsErrToErrNo(status);
     }
     mtx_unlock(&g_librariesLock);
     return status;

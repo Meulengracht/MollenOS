@@ -93,7 +93,7 @@ MmuGetMemoryConfiguration(
 }
 
 
-oscode_t
+oserr_t
 ArchGetPageMaskFromDmaType(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut)
@@ -189,7 +189,7 @@ ArchMmuSwitchMemorySpace(
     memory_load_cr3(memorySpace->PlatfromData.Cr3PhysicalAddress);
 }
 
-oscode_t
+oserr_t
 ArchMmuGetPageAttributes(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -204,7 +204,7 @@ ArchMmuGetPageAttributes(
     unsigned int       x86Attributes;
     int                index;
     int                pagesRetrieved = 0;
-    oscode_t         osStatus       = OsOK;
+    oserr_t         osStatus       = OsOK;
 
     if (!attributeValues || !pagesRetrievedOut) {
         return OsInvalidParameters;
@@ -228,7 +228,7 @@ ArchMmuGetPageAttributes(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 ArchMmuUpdatePageAttributes(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -243,7 +243,7 @@ ArchMmuUpdatePageAttributes(
     int                isCurrent, update;
     int                index;
     int                pagesUpdated = 0;
-    oscode_t         osStatus     = OsOK;
+    oserr_t         osStatus     = OsOK;
 
     if (!attributes || !pagesUpdatedOut) {
         return OsInvalidParameters;
@@ -291,7 +291,7 @@ ArchMmuUpdatePageAttributes(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 ArchMmuCommitVirtualPage(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -306,7 +306,7 @@ ArchMmuCommitVirtualPage(
     int                isCurrent;
     int                index;
     int                pagesComitted = 0;
-    oscode_t         osStatus      = OsOK;
+    oserr_t         osStatus      = OsOK;
 
     if (!physicalAddresses || !pagesComittedOut) {
         return OsInvalidParameters;
@@ -357,7 +357,7 @@ ArchMmuCommitVirtualPage(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 ArchMmuSetContiguousVirtualPages(
         _In_  MemorySpace_t*    memorySpace,
         _In_  vaddr_t  startAddress,
@@ -374,7 +374,7 @@ ArchMmuSetContiguousVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesUpdated = 0;
-    oscode_t         status       = OsOK;
+    oserr_t         status       = OsOK;
     uintptr_t          zero         = 0;
 
     if (!pagesUpdatedOut) {
@@ -422,7 +422,7 @@ ArchMmuSetContiguousVirtualPages(
     return status;
 }
 
-oscode_t
+oserr_t
 ArchMmuReserveVirtualPages(
         _In_  MemorySpace_t*   memorySpace,
         _In_  vaddr_t startAddress,
@@ -438,7 +438,7 @@ ArchMmuReserveVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesReserved = 0;
-    oscode_t         status        = OsOK;
+    oserr_t         status        = OsOK;
     uintptr_t          zero          = 0;
 
     if (!pagesReservedOut) {
@@ -477,7 +477,7 @@ ArchMmuReserveVirtualPages(
     return status;
 }
 
-oscode_t
+oserr_t
 ArchMmuSetVirtualPages(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -494,7 +494,7 @@ ArchMmuSetVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesUpdated = 0;
-    oscode_t         status       = OsOK;
+    oserr_t         status       = OsOK;
     uintptr_t          zero         = 0;
 
     if (!physicalAddressValues || !pagesUpdatedOut) {
@@ -541,7 +541,7 @@ ArchMmuSetVirtualPages(
     return status;
 }
 
-oscode_t
+oserr_t
 ArchMmuClearVirtualPages(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -559,7 +559,7 @@ ArchMmuClearVirtualPages(
     int                index;
     int                pagesCleared = 0;
     int                freedPages   = 0;
-    oscode_t         status       = OsOK;
+    oserr_t         status       = OsOK;
 
     if (!freedAddresses || !freedAddressesCountOut || !pagesClearedOut) {
         return OsInvalidParameters;
@@ -596,7 +596,7 @@ ArchMmuClearVirtualPages(
     return status;
 }
 
-oscode_t
+oserr_t
 ArchMmuVirtualToPhysical(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -611,7 +611,7 @@ ArchMmuVirtualToPhysical(
     int                isCurrent, update;
     int                index;
     int                pagesRetrieved = 0;
-    oscode_t         status         = OsOK;
+    oserr_t         status         = OsOK;
 
     if (!physicalAddressValues || !pagesRetrievedOut) {
         return OsInvalidParameters;
@@ -639,7 +639,7 @@ ArchMmuVirtualToPhysical(
     return status;
 }
 
-static oscode_t
+static oserr_t
 __InitializePlatformMemoryData(
         _In_ MemorySpace_t* memorySpace)
 {
@@ -657,13 +657,13 @@ __InitializePlatformMemoryData(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MmuCloneVirtualSpace(
         _In_ MemorySpace_t* parent,
         _In_ MemorySpace_t* child,
         _In_ int            inherit)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     paddr_t    physicalAddress;
     vaddr_t    virtualAddress;
 
@@ -704,7 +704,7 @@ MmuCloneVirtualSpace(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 SetDirectIoAccess(
         _In_ uuid_t         coreId,
         _In_ MemorySpace_t* memorySpace,
@@ -744,7 +744,7 @@ __GetBootMappingAttributes(
     return converted;
 }
 
-static oscode_t
+static oserr_t
 __InstallFirmwareMapping(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        virtualBase,
@@ -756,7 +756,7 @@ __InstallFirmwareMapping(
     PageTable_t*       pageTable;
     int                index;
     int                pagesUpdated = 0;
-    oscode_t         status       = OsOK;
+    oserr_t         status       = OsOK;
     TRACE("__InstallFirmwareMapping(virtualBase=0x%" PRIxIN", physicalBase=0x%" PRIxIN ", pageCount=%i)",
           virtualBase, physicalBase, pageCount);
 
@@ -782,13 +782,13 @@ __InstallFirmwareMapping(
     return status;
 }
 
-static oscode_t
+static oserr_t
 __CreateFirmwareMapping(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBootMemoryEntry* entry)
 {
     vaddr_t    virtualBase;
-    oscode_t osStatus;
+    oserr_t osStatus;
     int        pageCount;
     TRACE("__CreateFirmwareMapping(physicalBase=0x%" PRIxIN ", length=0x%" PRIxIN ")",
           entry->PhysicalBase, entry->Length);
@@ -815,7 +815,7 @@ __CreateFirmwareMapping(
     return osStatus;
 }
 
-static oscode_t
+static oserr_t
 __HandleFirmwareMappings(
         _In_  MemorySpace_t* memorySpace,
         _In_  struct VBoot*  bootInformation,
@@ -829,7 +829,7 @@ __HandleFirmwareMappings(
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &entries[i];
         if (entry->Type == VBootMemoryType_Firmware) {
-            oscode_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
+            oserr_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
             if (osStatus != OsOK) {
                 return osStatus;
             }
@@ -843,13 +843,13 @@ __HandleFirmwareMappings(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __RemapFramebuffer(
         _In_ MemorySpace_t* memorySpace)
 {
     vaddr_t    virtualBase;
     size_t     framebufferSize;
-    oscode_t osStatus;
+    oserr_t osStatus;
     int        pageCount;
     TRACE("__RemapFramebuffer(framebuffer=0x%" PRIxIN ")",
           VideoGetTerminal()->FrameBufferAddress);
@@ -930,7 +930,7 @@ __FixupVBootAddresses(
             (paddr_t)bootInformation->Stack.Base);
 }
 
-static oscode_t
+static oserr_t
 __CreateKernelMappings(
         _In_ MemorySpace_t*           memorySpace,
         _In_ PlatformMemoryMapping_t* kernelMappings)
@@ -941,7 +941,7 @@ __CreateKernelMappings(
     i = kernelMappings;
     while (i->Length) {
         int        pageCount = (int)DIVUP(i->Length, PAGE_SIZE);
-        oscode_t osStatus = __InstallFirmwareMapping(
+        oserr_t osStatus = __InstallFirmwareMapping(
                 memorySpace,
                 i->VirtualBase,
                 i->PhysicalBase,
@@ -958,12 +958,12 @@ __CreateKernelMappings(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 __InitializeTLS(
         _In_ MemorySpace_t* memorySpace)
 {
     uintptr_t  tlsPhysical;
-    oscode_t osStatus;
+    oserr_t osStatus;
     TRACE("__InitializeTLS()");
 
     osStatus = MachineAllocateBootMemory(
@@ -984,7 +984,7 @@ __InitializeTLS(
     );
 }
 
-oscode_t
+oserr_t
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
@@ -994,7 +994,7 @@ MmuLoadKernel(
 
     uintptr_t  stackVirtual;
     uintptr_t  stackPhysical;
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     // Create the system kernel virtual memory space, this call identity maps all
     // memory allocated by AllocateBootMemory, and also allocates some itself

@@ -84,13 +84,13 @@ static inline void __StoreRecord(
     entry->DirectoryIndex  = bucketIndex;
 }
 
-static oscode_t __ReadCurrentBucket(
+static oserr_t __ReadCurrentBucket(
         _In_ FileSystemBase_t* fileSystem,
         _In_ FileSystemMFS_t*          mfs,
         _In_ uint32_t                currentBucket,
         _In_ MapRecord_t*            mapRecord)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     size_t     sectorsTransferred;
 
     // Get the length of the bucket
@@ -115,12 +115,12 @@ static oscode_t __ReadCurrentBucket(
     return osStatus;
 }
 
-static oscode_t __ExpandDirectory(
+static oserr_t __ExpandDirectory(
         _In_ FileSystemBase_t* fileSystem,
         _In_ uint32_t                currentBucket,
         _In_ MapRecord_t*            mapRecord)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     // Allocate bucket
     osStatus = MfsAllocateBuckets(fileSystem, MFS_DIRECTORYEXPANSION, mapRecord);
@@ -156,7 +156,7 @@ static oscode_t __ExpandDirectory(
  * @return                  OsExists if entry with <entryName> was found, OsNotExists if a free entry was found.
  *                          Any other Os* value is indicative of an error.
  */
-static oscode_t __FindEntryOrFreeInDirectoryBucket(
+static oserr_t __FindEntryOrFreeInDirectoryBucket(
         _In_ FileSystemBase_t* fileSystem,
         _In_ FileSystemMFS_t*          mfs,
         _In_ uint32_t                bucketOfDirectory,
@@ -165,7 +165,7 @@ static oscode_t __FindEntryOrFreeInDirectoryBucket(
         _In_ FileSystemEntryMFS_t*             resultEntry)
 {
     uint32_t   currentBucket = bucketOfDirectory;
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     // iterate untill end of folder with two tasks in mind, either find matching entry
     // or one thats free so we can create it
@@ -251,14 +251,14 @@ static oscode_t __FindEntryOrFreeInDirectoryBucket(
     return osStatus;
 }
 
-static oscode_t __InitiateDirectory(
+static oserr_t __InitiateDirectory(
         _In_ FileSystemBase_t* fileSystem,
         _In_ FileSystemMFS_t*          mfs,
         _In_ uint32_t                currentBucket,
         _In_ FileRecord_t*           record)
 {
     MapRecord_t expansion;
-    oscode_t  osStatus;
+    oserr_t  osStatus;
     size_t      sectorsTransferred;
 
     // Allocate bucket
@@ -291,7 +291,7 @@ static oscode_t __InitiateDirectory(
     return osStatus;
 }
 
-static oscode_t __CreateEntryInDirectory(
+static oserr_t __CreateEntryInDirectory(
         _In_  FileSystemBase_t*       fileSystem,
         _In_  MString_t*              name,
         _In_  unsigned int            flags,
@@ -302,7 +302,7 @@ static oscode_t __CreateEntryInDirectory(
 {
     FileSystemEntryMFS_t entry       = {{{0 } } };
     unsigned int         nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, 0);
-    oscode_t           osStatus;
+    oserr_t           osStatus;
 
     entry.Base.Name = MStringClone(name);
     entry.StartBucket = MFS_ENDOFCHAIN;
@@ -328,13 +328,13 @@ static oscode_t __CreateEntryInDirectory(
     return OsOK;
 }
 
-static oscode_t __CreateDirectory(
+static oserr_t __CreateDirectory(
         _In_ FileSystemBase_t* fileSystem,
         _In_ FileSystemMFS_t*          mfs,
         _In_ MString_t*              name,
         _In_ FileSystemEntryMFS_t*             directoryEntry)
 {
-    oscode_t    osStatus;
+    oserr_t    osStatus;
     FileRecord_t* record;
 
     osStatus = __CreateEntryInDirectory(fileSystem, name, MFS_FILERECORD_DIRECTORY,
@@ -353,7 +353,7 @@ static oscode_t __CreateDirectory(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MfsLocateRecord(
         _In_ FileSystemBase_t*     fileSystemBase,
         _In_ uint32_t              bucketOfDirectory,
@@ -361,7 +361,7 @@ MfsLocateRecord(
         _In_ MString_t*            path)
 {
     FileSystemMFS_t*     mfs;
-    oscode_t           osStatus;
+    oserr_t           osStatus;
     MString_t*           remainingPath = NULL;
     MString_t*           currentToken  = NULL;
     FileSystemEntryMFS_t nextEntry   = {{{0 } } };
@@ -425,7 +425,7 @@ exit:
     return osStatus;
 }
 
-oscode_t
+oserr_t
 MfsCreateRecord(
         _In_ FileSystemBase_t*       fileSystemBase,
         _In_ unsigned int            flags,
@@ -434,7 +434,7 @@ MfsCreateRecord(
         _In_ FileSystemEntryMFS_t**  entryOut)
 {
     FileSystemMFS_t*     mfs;
-    oscode_t           osStatus;
+    oserr_t           osStatus;
     FileSystemEntryMFS_t nextEntry = {{{0 } } };
     MString_t*           remainingPath = NULL;
     MString_t*           currentToken  = NULL;

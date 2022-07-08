@@ -26,7 +26,7 @@
 
 /* BinarySemaphoreConstruct
  * Initializes the semaphore value to either 0 or 1 */
-oscode_t
+oserr_t
 BinarySemaphoreConstruct(
 	_In_ BinarySemaphore_t *BinarySemaphore, 
 	_In_ int Value)
@@ -49,7 +49,7 @@ BinarySemaphoreConstruct(
 
 /* BinarySemaphoreReset
  * Reinitializes the semaphore with a value of 0 */
-oscode_t
+oserr_t
 BinarySemaphoreReset(
 	_In_ BinarySemaphore_t *BinarySemaphore)
 {

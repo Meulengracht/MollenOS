@@ -44,20 +44,20 @@ SemaphoreConstruct(
 /* SemaphoreDestruct
  * Cleans up the semaphore, waking up all sleeper threads
  * to not have dead threads. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SemaphoreDestruct(
     _In_ Semaphore_t* Semaphore);
 
 /* SemaphoreWait
  * Waits for the semaphore signal with the optional time-out. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SemaphoreWait(
     _In_ Semaphore_t* Semaphore,
     _In_ size_t       Timeout);
 
 /* SemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SemaphoreSignal(
     _In_ Semaphore_t* Semaphore,
     _In_ int          Value);

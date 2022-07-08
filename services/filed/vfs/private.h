@@ -144,6 +144,10 @@ struct VFSNode {
     hashtable_t Mounts;
 };
 
+struct __VFSMount {
+    MString_t* Key;
+};
+
 struct __VFSChild {
     MString_t*      Key;
     struct VFSNode* Node;
@@ -175,7 +179,7 @@ struct VFSNodeHandle {
  * @param node
  * @return
  */
-extern oscode_t
+extern oserr_t
 VFSNodeHandleAdd(
         _In_ uuid_t          handleId,
         _In_ struct VFSNode* node,
@@ -190,7 +194,7 @@ VFSNodeHandleAdd(
  * @param handleOut
  * @return
  */
-extern oscode_t
+extern oserr_t
 VFSNodeHandleGet(
         _In_  uuid_t                 handleId,
         _Out_ struct VFSNodeHandle** handleOut);
@@ -201,7 +205,7 @@ VFSNodeHandleGet(
  * @param handle
  * @return
  */
-extern oscode_t
+extern oserr_t
 VFSNodeHandlePut(
         _In_ struct VFSNodeHandle* handle);
 
@@ -213,13 +217,13 @@ VFSNodeHandlePut(
  * @param handleId
  * @return
  */
-extern oscode_t
+extern oserr_t
 VFSNodeHandleRemove(
         _In_ uuid_t handleId);
 
 extern MString_t* VFSMakePath(const char* path);
-extern oscode_t   VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
-extern oscode_t   VFSNodePut(struct VFSNode* node);
+extern oserr_t   VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
+extern oserr_t   VFSNodePut(struct VFSNode* node);
 
 /**
  * @brief Ensures a node is loaded if the node is a directory node. A reader lock
@@ -227,7 +231,7 @@ extern oscode_t   VFSNodePut(struct VFSNode* node);
  * @param node
  * @return
  */
-extern oscode_t VFSNodeEnsureLoaded(struct VFSNode* node);
+extern oserr_t VFSNodeEnsureLoaded(struct VFSNode* node);
 
 /**
  * @brief VFSNodeFind locates a named entry in a node. If the node is unloaded the node
@@ -237,7 +241,7 @@ extern oscode_t VFSNodeEnsureLoaded(struct VFSNode* node);
  * @param nodeOut
  * @return
  */
-extern oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
+extern oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
 
 
 
@@ -251,7 +255,7 @@ extern oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNod
  * @param nodeOut
  * @return
  */
-extern oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
+extern oserr_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
 
 /**
  * @brief
@@ -262,7 +266,7 @@ extern oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32
  * @param nodeOut
  * @return
  */
-extern oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
+extern oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
 
 /**
  * @brief
@@ -271,6 +275,6 @@ extern oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MS
  * @param handleOut
  * @return
  */
-extern oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut);
+extern oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut);
 
 #endif //!__VFS_PRIVATE_H__

@@ -58,7 +58,7 @@ __EndsWith(
     return strncmp(text + lengthOfText - lengthOfSuffix, suffix, lengthOfSuffix);
 }
 
-static oscode_t
+static oserr_t
 __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
@@ -67,7 +67,7 @@ __ParseRamdisk(
     struct VaFsEntry            entry;
     int                         status;
     char*                       pathBuffer;
-    oscode_t                  osStatus;
+    oserr_t                  osStatus;
     ProcessConfiguration_t      processConfiguration;
     TRACE("__ParseRamdisk()");
 
@@ -133,7 +133,7 @@ __ParseRamdisk(
 
 void PmBootstrap(void)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     void*      ramdisk;
     size_t     ramdiskSize;
     TRACE("PmBootstrap()");
@@ -159,7 +159,7 @@ void PmBootstrap(void)
 void
 PmBootstrapCleanup(void)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     // close the vafs handle before freeing the buffer
     vafs_close(g_vafs);
@@ -172,7 +172,7 @@ PmBootstrapCleanup(void)
     }
 }
 
-oscode_t
+oserr_t
 PmBootstrapFindRamdiskFile(
         _In_  MString_t* path,
         _Out_ void**     bufferOut,

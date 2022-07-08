@@ -37,7 +37,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
 {
     stdio_handle_t* io_object;
     int             status;
-    oscode_t      os_status;
+    oserr_t      os_status;
     streambuffer_t* stream;
     uuid_t          handle;
 
@@ -50,7 +50,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
     
     os_status = Syscall_IpcContextCreate(len, &handle, &stream);
     if (os_status != OsOK) {
-        OsCodeToErrNo(os_status);
+        OsErrToErrNo(os_status);
         return -1;
     }
     
@@ -58,7 +58,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
         os_status = handle_set_path(handle, addr->data.path);
         if (os_status != OsOK) {
             handle_destroy(handle);
-            OsCodeToErrNo(os_status);
+            OsErrToErrNo(os_status);
             return -1;
         }
     }
@@ -81,7 +81,7 @@ int ipcontext(unsigned int len, struct ipmsg_addr* addr)
 int ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len, int timeout)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    oscode_t      status;
+    oserr_t      status;
     struct ipmsg    msg;
     struct ipmsg*   msgArray = &msg;
     
@@ -106,7 +106,7 @@ int ipsend(int iod, struct ipmsg_addr* addr, const void* data, unsigned int len,
     msg.length  = len;
     
     status = Syscall_IpcContextSend(&msgArray, 1, timeout);
-    return OsCodeToErrNo(status);
+    return OsErrToErrNo(status);
 }
 
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)

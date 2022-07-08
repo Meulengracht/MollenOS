@@ -40,7 +40,7 @@ extern void DmDevicesInitialize(void);
  * @param[In] deviceId
  * @return
  */
-extern oscode_t
+extern oserr_t
 DmDevicesRegister(
         _In_ uuid_t driverHandle,
         _In_ uuid_t deviceId);
@@ -55,7 +55,7 @@ DmDevicesRegister(
  * @param idOut
  * @return
  */
-extern oscode_t
+extern oserr_t
 DmDeviceCreate(
         _In_  Device_t*    device,
         _In_  const char*  name,
@@ -65,14 +65,14 @@ DmDeviceCreate(
 /**
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-extern oscode_t
+extern oserr_t
 DmDeviceDestroy(
         _In_ uuid_t DeviceId);
 
 /* DmIoctlDevice
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device */
-extern oscode_t
+extern oserr_t
 DmIoctlDevice(
     _In_ BusDevice_t* Device,
     _In_ unsigned int Command,
@@ -82,7 +82,7 @@ DmIoctlDevice(
  * Allows manipulation of a given device to either disable
  * or enable, or configure the device.
  * <Direction> = 0 (Read), 1 (Write) */
-extern oscode_t
+extern oserr_t
 DmIoctlDeviceEx(
 	_In_ BusDevice_t* device,
 	_In_ int          direction,

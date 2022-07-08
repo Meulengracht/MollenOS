@@ -133,7 +133,7 @@ MmVirtualGetTable(
  * @param pdirOut
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MmVirtualClone(
         _In_ MemorySpace_t* source,
         _In_ int            inherit,

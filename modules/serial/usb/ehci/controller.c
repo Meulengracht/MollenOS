@@ -33,7 +33,7 @@
 
 /* Prototypes 
  * This is to keep the create/destroy at the top of the source file */
-oscode_t        EhciSetup(EhciController_t *Controller);
+oserr_t        EhciSetup(EhciController_t *Controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*
@@ -118,7 +118,7 @@ HciControllerCreate(
     }
 }
 
-oscode_t
+oserr_t
 HciControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
@@ -254,7 +254,7 @@ EhciDisableLegacySupport(
     }
 }
 
-oscode_t
+oserr_t
 EhciHalt(
     _In_ EhciController_t* Controller)
 {
@@ -311,7 +311,7 @@ EhciSilence(
     WRITE_VOLATILE(Controller->OpRegisters->ConfigFlag, 0);
 }
 
-oscode_t
+oserr_t
 EhciReset(
     _In_ EhciController_t* Controller)
 {
@@ -339,7 +339,7 @@ EhciReset(
     }
 }
 
-oscode_t
+oserr_t
 EhciRestart(
     _In_ EhciController_t* Controller)
 {
@@ -414,7 +414,7 @@ EhciRestart(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 EhciWaitForCompanionControllers(
     _In_ EhciController_t* controller)
 {
@@ -466,7 +466,7 @@ EhciWaitForCompanionControllers(
     return (timeout != 0) ? OsOK : OsError;
 }
 
-oscode_t
+oserr_t
 EhciSetup(
     _In_ EhciController_t* Controller)
 {

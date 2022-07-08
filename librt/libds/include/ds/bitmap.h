@@ -43,7 +43,7 @@ BitmapCreate(
  * Creates a bitmap of the given size in bytes, the actual available
  * member count will then be Size * sizeof(byte). This uses user-provided
  * resources, and won't be cleaned up. */
-DSDECL(oscode_t,
+DSDECL(oserr_t,
        BitmapConstruct(
     _In_ Bitmap_t* Bitmap,
     _In_ size_t*   Data,
@@ -51,7 +51,7 @@ DSDECL(oscode_t,
 
 /* BitmapDestroy
  * Cleans up any resources allocated by the Create/Construct. */
-DSDECL(oscode_t,
+DSDECL(oserr_t,
        BitmapDestroy(
     _In_ Bitmap_t* Bitmap));
 

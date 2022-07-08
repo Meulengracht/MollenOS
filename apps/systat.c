@@ -24,13 +24,13 @@
 int main(int argc, char** argv)
 {
     SystemDescriptor_t systemDescriptor;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
     uint64_t           memoryTotal;
     uint64_t           memoryInUse;
 
     osStatus = SystemQuery(&systemDescriptor);
     if (osStatus != OsOK) {
-        OsCodeToErrNo(osStatus);
+        OsErrToErrNo(osStatus);
         printf("systat: failed to retrieve system stats: %i\n", errno);
         return -1;
     }

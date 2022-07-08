@@ -31,7 +31,7 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oscode_t
+oserr_t
 OnUnload(void)
 {
     PmBootstrapCleanup();
@@ -44,7 +44,7 @@ void GetServiceAddress(struct ipmsg_addr* address)
     address->data.path = SERVICE_PROCESS_PATH;
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported interfaces

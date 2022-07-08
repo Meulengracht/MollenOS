@@ -34,7 +34,7 @@ static void __ConvertEntry(FileRecord_t* record, struct VFSStat* stat)
     MfsFileRecordFlagsToVfsFlags(record, &stat->Flags, &stat->Permissions);
 }
 
-oscode_t
+oserr_t
 FsReadFromDirectory(
         _In_  FileSystemBase_t*      fileSystemBase,
         _In_  FileSystemEntryMFS_t*  entry,
@@ -45,7 +45,7 @@ FsReadFromDirectory(
         _Out_ size_t*                unitsRead)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    oscode_t       osStatus    = OsOK;
+    oserr_t       osStatus    = OsOK;
     size_t           bytesToRead = unitCount;
     uint64_t         position    = handle->Base.Position;
     struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
@@ -128,7 +128,7 @@ FsReadFromDirectory(
 }
 
 // TODO this is wrong
-oscode_t
+oserr_t
 FsSeekInDirectory(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemEntryMFS_t*  entry,

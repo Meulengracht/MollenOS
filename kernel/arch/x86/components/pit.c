@@ -104,13 +104,13 @@ __StartPit(
     WriteDirectIo(DeviceIoPortBased, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1, (divisor >> 8) & 0xFF);
 }
 
-oscode_t
+oserr_t
 PitInitialize(
         _In_ int rtcAvailable)
 {
 	DeviceInterrupt_t deviceInterrupt = {{0 } };
     uuid_t            irq;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
 
     TRACE("PitInitialize(rtcAvailable=%i)", rtcAvailable);
     if (rtcAvailable) {

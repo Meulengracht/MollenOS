@@ -96,7 +96,7 @@ UsbGetIdentificationString(
     return g_vendorString;
 }
 
-oscode_t
+oserr_t
 UsbCoreInitialize(void)
 {
     UsbCoreHubsInitialize();
@@ -110,7 +110,7 @@ static void __CleanupDeviceEntry(
     // not really used
 }
 
-oscode_t
+oserr_t
 UsbCoreDestroy(void)
 {
     UsbCoreHubsCleanup();
@@ -119,7 +119,7 @@ UsbCoreDestroy(void)
     return UsbCleanup();
 }
 
-oscode_t
+oserr_t
 UsbDeviceLoadDrivers(
     _In_ UsbController_t* controller,
     _In_ UsbPortDevice_t* device)
@@ -209,7 +209,7 @@ static UsbTransferStatus_t __SetDefaultConfiguration(
     return transferStatus;
 }
 
-oscode_t
+oserr_t
 UsbCoreDevicesCreate(
     _In_ UsbController_t* usbController,
     _In_ UsbHub_t*        usbHub,
@@ -324,7 +324,7 @@ device_error:
     return OsError;
 }
 
-oscode_t
+oserr_t
 UsbCoreDevicesDestroy(
     _In_ UsbController_t* controller,
     _In_ UsbPort_t*       port)

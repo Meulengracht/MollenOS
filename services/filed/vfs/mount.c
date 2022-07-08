@@ -17,40 +17,17 @@
  */
 
 #include <ddk/utils.h>
-#include <ds/hashtable.h>
 #include <vfs/vfs.h>
 #include "private.h"
+#include <string.h>
+#include <stdlib.h>
 
-static hashtable_t g_handles;
-
-
-
-oserr_t
-VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
-        _In_ struct VFSNode* node)
-{
-
-    return OsOK;
-}
-
-oserr_t
-VFSNodeHandleFind(
-        _In_  uuid_t           handleId,
-        _Out_ struct VFSNode** nodeOut)
+oserr_t VFSNodeMount(struct VFS*, struct VFSNode* at, struct VFS* what)
 {
 
 }
 
-oserr_t
-VFSNodeHandleRemove(
-        _In_ uuid_t handleId)
+oserr_t VFSNodeUnmount(struct VFS*, MString_t* path)
 {
-    void* found;
 
-    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
-    if (found == NULL) {
-        return OsNotExists;
-    }
-    return OsOK;
 }

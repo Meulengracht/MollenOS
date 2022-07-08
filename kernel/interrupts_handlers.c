@@ -83,7 +83,7 @@ FunctionExecutionInterruptHandler(
     return IRQSTATUS_HANDLED;
 }
 
-oscode_t
+oserr_t
 TxuMessageSend(
         _In_ uuid_t                  CoreId,
         _In_ SystemCpuFunctionType_t Type,
@@ -94,7 +94,7 @@ TxuMessageSend(
     SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     element_t*       Element;
     TxuMessage_t*    Message;
-    oscode_t       Status;
+    oserr_t       Status;
     
     assert(Core != NULL);
     assert(Type < CpuFunctionCount);

@@ -28,7 +28,7 @@
 #include "mfs.h"
 #include <string.h>
 
-oscode_t
+oserr_t
 MfsReadSectors(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uuid_t                  BufferHandle,
@@ -38,7 +38,7 @@ MfsReadSectors(
         _In_ size_t*                 SectorsRead)
 {
 	struct vali_link_message msg = VALI_MSG_INIT_HANDLE(fileSystemBase->Disk.driver_id);
-	oscode_t               status;
+	oserr_t               status;
     UInteger64_t          absoluteSector;
 
     absoluteSector.QuadPart = fileSystemBase->SectorStart + Sector;
@@ -51,7 +51,7 @@ MfsReadSectors(
 	return status;
 }
 
-oscode_t
+oserr_t
 MfsWriteSectors(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uuid_t                  BufferHandle,
@@ -62,7 +62,7 @@ MfsWriteSectors(
 {
 	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(fileSystemBase->Disk.driver_id);
     uint64_t                 absoluteSector = fileSystemBase->SectorStart + Sector;
-	oscode_t               status;
+	oserr_t               status;
 	
 	ctt_storage_transfer(GetGrachtClient(), &msg.base, fileSystemBase->Disk.device_id,
                          __STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector),
@@ -72,7 +72,7 @@ MfsWriteSectors(
 	return status;
 }
 
-oscode_t
+oserr_t
 MfsUpdateMasterRecord(
         _In_ FileSystemBase_t* FileSystem)
 {
@@ -92,7 +92,7 @@ MfsUpdateMasterRecord(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MfsGetBucketLink(
         _In_  FileSystemBase_t* fileSystemBase,
         _In_  uint32_t                bucket,
@@ -110,7 +110,7 @@ MfsGetBucketLink(
     return OsInvalidParameters;
 }
 
-oscode_t
+oserr_t
 MfsSetBucketLink(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ uint32_t          bucket,
@@ -150,7 +150,7 @@ MfsSetBucketLink(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MfsSwitchToNextBucketLink(
         _In_ FileSystemBase_t*      fileSystemBase,
         _In_ FileSystemHandleMFS_t* handle,
@@ -184,7 +184,7 @@ MfsSwitchToNextBucketLink(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MfsAllocateBuckets(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ size_t            bucketCount,
@@ -287,7 +287,7 @@ MfsAllocateBuckets(
 
 /* MfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for a file-record */
-oscode_t
+oserr_t
 MfsFreeBuckets(
         _In_ FileSystemBase_t*    fileSystemBase,
         _In_ uint32_t                   startBucket,
@@ -338,7 +338,7 @@ MfsFreeBuckets(
 
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values useful for clearing clusters of sectors */
-oscode_t
+oserr_t
 MfsZeroBucket(
         _In_ FileSystemBase_t*    fileSystemBase,
         _In_ uint32_t                   bucket,
@@ -426,14 +426,14 @@ MfsFileRecordToVfsFile(
     // VfsEntry->Base.DescriptorAccessedAt;
 }
 
-oscode_t
+oserr_t
 MfsUpdateRecord(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ FileSystemEntryMFS_t*             entry,
         _In_ int                     action)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    oscode_t     osStatus = OsOK;
+    oserr_t     osStatus = OsOK;
     FileRecord_t*  record;
     size_t         sectorsTransferred;
 
@@ -491,7 +491,7 @@ Cleanup:
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
-oscode_t
+oserr_t
 MfsEnsureRecordSpace(
         _In_ FileSystemBase_t* fileSystemBase,
         _In_ FileSystemEntryMFS_t*             entry,

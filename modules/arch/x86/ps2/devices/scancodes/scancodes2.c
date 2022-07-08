@@ -61,7 +61,7 @@ static uint8_t g_scancodeSet2ExtendedTable[126] = {
     VK_INVALID, VK_INVALID, VK_INVALID, VK_INVALID, VK_PAGEDOWN, VK_INVALID, VK_INVALID, VK_PAGEUP
 };
 
-oscode_t
+oserr_t
 ScancodeSet2ToVKey(
     _In_ struct key_state* keyState,
     _In_ uint8_t           scancode)

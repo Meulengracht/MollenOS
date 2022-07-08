@@ -44,12 +44,12 @@ typedef struct SectionMapping {
 #define OFFSET_IN_SECTION(Section, _RVA) (uintptr_t)((Section)->BasePointer + ((_RVA) - (Section)->RVA))
 
 // Directory handlers
-oscode_t PeHandleRuntimeRelocations(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
-oscode_t PeHandleRelocations(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
-oscode_t PeHandleExports(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
-oscode_t PeHandleImports(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+oserr_t PeHandleRuntimeRelocations(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+oserr_t PeHandleRelocations(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+oserr_t PeHandleExports(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+oserr_t PeHandleImports(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 
-typedef oscode_t(*DataDirectoryHandler)(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
+typedef oserr_t(*DataDirectoryHandler)(PeExecutable_t*, PeExecutable_t*, SectionMapping_t*, int, uint8_t*, size_t);
 static struct {
     int                  Index;
     DataDirectoryHandler Handler;
@@ -149,7 +149,7 @@ GetExportedFunctionByNameDescriptor(
     return NULL;
 }
 
-static oscode_t
+static oserr_t
 PeHandleSections(
     _In_ PeExecutable_t*   parent,
     _In_ PeExecutable_t*   image,
@@ -160,7 +160,7 @@ PeHandleSections(
 {
     PeSectionHeader_t* section        = (PeSectionHeader_t*)sectionsAddress;
     uintptr_t          currentAddress = image->VirtualAddress;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
     MemoryMapHandle_t  mapHandle;
     char               sectionName[PE_SECTION_NAME_LENGTH + 1];
     int                i;
@@ -251,7 +251,7 @@ PeHandleSections(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 PeResolveImportDescriptor(
     _In_ PeExecutable_t*       ParentImage,
     _In_ PeExecutable_t*       Image,
@@ -337,7 +337,7 @@ PeResolveImportDescriptor(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PeHandleRelocations(
     _In_ PeExecutable_t*    parentImage,
     _In_ PeExecutable_t*    image,
@@ -485,7 +485,7 @@ static void HandleRelocationsV1(
     }
 }
 
-static oscode_t HandleRelocationsV2(
+static oserr_t HandleRelocationsV2(
         _In_ PeExecutable_t*   Image,
         _In_ SectionMapping_t* Sections,
         _In_ int               SectionCount,
@@ -561,7 +561,7 @@ static oscode_t HandleRelocationsV2(
     return OsOK;
 }
 
-oscode_t PeHandleRuntimeRelocations(
+oserr_t PeHandleRuntimeRelocations(
         _In_ PeExecutable_t*    ParentImage,
         _In_ PeExecutable_t*    Image,
         _In_ SectionMapping_t*  Sections,
@@ -593,7 +593,7 @@ oscode_t PeHandleRuntimeRelocations(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PeHandleExports(
     _In_ PeExecutable_t*   ParentImage,
     _In_ PeExecutable_t*   Image,
@@ -702,7 +702,7 @@ PeHandleExports(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PeHandleImports(
     _In_ PeExecutable_t*    ParentImage,
     _In_ PeExecutable_t*    Image,
@@ -716,7 +716,7 @@ PeHandleImports(
         SectionMapping_t* Section         = GetSectionFromRVA(Sections, SectionCount, ImportDescriptor->ImportAddressTable);
         uintptr_t         HostNameAddress = OFFSET_IN_SECTION(Section, ImportDescriptor->ModuleName);
         MString_t*        Name            = MStringCreate((const char*)HostNameAddress, StrUTF8);
-        oscode_t        Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
+        oserr_t        Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
         MStringDestroy(Name);
 
         if (Status != OsOK) {
@@ -727,7 +727,7 @@ PeHandleImports(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 PeParseAndMapImage(
     _In_ PeExecutable_t*    Parent,
     _In_ PeExecutable_t*    Image,
@@ -741,7 +741,7 @@ PeParseAndMapImage(
     uint8_t*           DirectoryContents[PE_NUM_DIRECTORIES] = { 0 };
     SectionMapping_t*  SectionMappings;
     MemoryMapHandle_t MapHandle;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
     clock_t           Timing;
     int                i, j;
     WARNING("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
@@ -821,7 +821,7 @@ PeParseAndMapImage(
     return osStatus;
 }
 
-static oscode_t
+static oserr_t
 __ResolveImagePath(
         _In_  uuid_t          owner,
         _In_  PeExecutable_t* parent,
@@ -832,7 +832,7 @@ __ResolveImagePath(
     MString_t* fullPath;
     uint8_t*   buffer;
     size_t     length;
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     osStatus = PeImplResolveFilePath(
             owner,
@@ -858,7 +858,7 @@ __ResolveImagePath(
     return PeValidateImageBuffer(buffer, length);
 }
 
-oscode_t
+oserr_t
 PeLoadImage(
         _In_  uuid_t           owner,
         _In_  PeExecutable_t*  parent,
@@ -877,7 +877,7 @@ PeLoadImage(
     size_t             sizeOfMetaData;
     PeDataDirectory_t* directoryPtr;
     PeExecutable_t*    image;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
     uint8_t*           buffer;
     int                index;
 
@@ -987,7 +987,7 @@ PeLoadImage(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PeUnloadImage(
     _In_ PeExecutable_t* image)
 {
@@ -1015,7 +1015,7 @@ PeUnloadImage(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PeUnloadLibrary(
     _In_ PeExecutable_t* parent,
     _In_ PeExecutable_t* library)

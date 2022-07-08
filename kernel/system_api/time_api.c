@@ -27,7 +27,7 @@
 #include <string.h>
 #include <threading.h>
 
-oscode_t
+oserr_t
 ScSystemClockTick(
         _In_ enum VaClockSourceType source,
         _In_ UInteger64_t*       tickOut)
@@ -55,7 +55,7 @@ ScSystemClockTick(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ScSystemClockFrequency(
         _In_ enum VaClockSourceType source,
         _In_ UInteger64_t*       frequencyOut)
@@ -72,7 +72,7 @@ ScSystemClockFrequency(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ScSystemWallClock(
         _In_ Integer64_t* time)
 {
@@ -83,12 +83,12 @@ ScSystemWallClock(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ScTimeSleep(
         _In_      UInteger64_t* duration,
         _Out_Opt_ UInteger64_t* remainingOut)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     clock_t    start;
     clock_t    end;
 
@@ -107,7 +107,7 @@ ScTimeSleep(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 ScTimeStall(
         _In_ UInteger64_t* duration)
 {

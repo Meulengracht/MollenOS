@@ -87,7 +87,7 @@ void WriteVolatileMemory(
  * @brief Registers a new device memory io with the operating system. If this memory range
  * overlaps any existing io range, this request will be denied by the system.
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
@@ -97,7 +97,7 @@ DDKDECL(oscode_t,
  * @brief Registers a new device port io with the operating system. If this port io range
  * overlaps any existing range, this request will be denied by the system.
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         CreateDevicePortIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
@@ -106,7 +106,7 @@ DDKDECL(oscode_t,
 /* CreateDevicePinIo
  * Registers a new device port/pin io with the operating system. If this port/pin
  * overlaps any existing port/pin, this request will be denied by the system. */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         CreateDevicePinIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
@@ -115,21 +115,21 @@ DDKDECL(oscode_t,
 /* DestroyDeviceIo
  * Unregisters a device-io with the operating system, releasing all resources
  * associated and disabling the io range for use. */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         DestroyDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* AcquireDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         AcquireDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* ReleaseDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         ReleaseDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
@@ -145,7 +145,7 @@ ReadDeviceIo(
 /* WriteDeviceIo
  * Write data from the given io-space at <offset> with the given <length>, 
  * the offset and length must be below the size of the io-space */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WriteDeviceIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,

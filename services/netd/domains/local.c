@@ -65,11 +65,11 @@ typedef struct AcceptRequest {
 // TODO: should be hashtable
 static list_t AddressRegister = LIST_INIT_CMP(list_cmp_string);
 
-static oscode_t HandleInvalidType(Socket_t*);
-static oscode_t HandleSocketStreamData(Socket_t*);
-static oscode_t HandleSocketPacketData(Socket_t*);
+static oserr_t HandleInvalidType(Socket_t*);
+static oserr_t HandleSocketStreamData(Socket_t*);
+static oserr_t HandleSocketPacketData(Socket_t*);
 
-typedef oscode_t (*LocalTypeHandler)(Socket_t*);
+typedef oserr_t (*LocalTypeHandler)(Socket_t*);
 static LocalTypeHandler LocalTypeHandlers[6] = {
     HandleInvalidType,
     HandleSocketStreamData, // SOCK_STREAM
@@ -93,7 +93,7 @@ GetSocketFromAddress(
     return Record->Socket;
 }
 
-static oscode_t
+static oserr_t
 HandleInvalidType(
     _In_ Socket_t* Socket)
 {
@@ -101,7 +101,7 @@ HandleInvalidType(
     return OsNotSupported;
 }
 
-static oscode_t
+static oserr_t
 DomainLocalGetAddress(
     _In_ Socket_t*        socket,
     _In_ int              source,
@@ -138,7 +138,7 @@ DomainLocalGetAddress(
     return OsInvalidParameters;
 }
 
-static oscode_t
+static oserr_t
 HandleSocketStreamData(
     _In_ Socket_t* socket)
 {
@@ -247,7 +247,7 @@ ProcessSocketPacket(
     return TargetSocket;
 }
 
-static oscode_t
+static oserr_t
 HandleSocketPacketData(
     _In_ Socket_t* Socket)
 {
@@ -312,7 +312,7 @@ HandleSocketPacketData(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 DomainLocalSend(
     _In_ Socket_t* Socket)
 {
@@ -320,7 +320,7 @@ DomainLocalSend(
     return LocalTypeHandlers[Socket->Type](Socket);
 }
 
-static oscode_t
+static oserr_t
 DomainLocalReceive(
     _In_ Socket_t* Socket)
 {
@@ -328,7 +328,7 @@ DomainLocalReceive(
     return OsNotSupported;
 }
 
-static oscode_t
+static oserr_t
 DomainLocalPair(
     _In_ Socket_t* Socket1,
     _In_ Socket_t* Socket2)
@@ -338,7 +338,7 @@ DomainLocalPair(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 DomainLocalAllocateAddress(
     _In_ Socket_t* Socket)
 {
@@ -395,7 +395,7 @@ DomainLocalFreeAddress(
     }
 }
 
-static oscode_t
+static oserr_t
 DomainLocalBind(
     _In_ Socket_t*              Socket,
     _In_ const struct sockaddr* Address)
@@ -458,7 +458,7 @@ AcceptConnectionRequest(
 {
     uuid_t                  handle, recv_handle, send_handle;
     struct sockaddr_storage address;
-    oscode_t              status;
+    oserr_t              status;
     
     TRACE("[net_manager] [accept_request]");
     
@@ -482,7 +482,7 @@ AcceptConnectionRequest(
         handle, recv_handle, send_handle);
 }
 
-static oscode_t
+static oserr_t
 HandleLocalConnectionRequest(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              sourceSocket,
@@ -525,7 +525,7 @@ HandleLocalConnectionRequest(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 DomainLocalConnect(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket,
@@ -554,12 +554,12 @@ DomainLocalConnect(
     }
 }
 
-static oscode_t
+static oserr_t
 DomainLocalDisconnect(
     _In_ Socket_t* socket)
 {
     Socket_t*  peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
-    oscode_t osStatus   = OsNotConnected;
+    oserr_t osStatus   = OsNotConnected;
     TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
         LODWORD(socket->Domain->ConnectedSocket));
     
@@ -578,7 +578,7 @@ DomainLocalDisconnect(
     return osStatus;
 }
 
-static oscode_t
+static oserr_t
 DomainLocalAccept(
     _In_ struct gracht_message* message,
     _In_ Socket_t*              socket)
@@ -587,7 +587,7 @@ DomainLocalAccept(
     ConnectionRequest_t* connectionRequest;
     AcceptRequest_t*     acceptRequest;
     element_t*           element;
-    oscode_t           status = OsOK;
+    oserr_t           status = OsOK;
     TRACE("[domain] [local] [accept] %u", LODWORD(socket->Header.key));
     
     // Check if there is any requests available
@@ -661,7 +661,7 @@ DomainLocalDestroy(
     free(Domain);
 }
 
-oscode_t
+oserr_t
 DomainLocalCreate(
     _Out_ SocketDomain_t** DomainOut)
 {

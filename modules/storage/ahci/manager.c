@@ -71,11 +71,11 @@ FlipStringBuffer(
     }
 }
 
-oscode_t
+oserr_t
 AhciManagerInitialize(void)
 {
     SystemDescriptor_t Descriptor;
-    oscode_t         Status;
+    oserr_t         Status;
 
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
@@ -132,7 +132,7 @@ static AhciDevice_t* __CreateInitialDevice(
 
     memset(device, 0, sizeof(AhciDevice_t));
     ELEMENT_INIT(&device->header, (uintptr_t)deviceId, device);
-    device->Descriptor.Device = deviceId;
+    device->Descriptor.DeviceID = deviceId;
     device->Controller = controller;
     device->Port       = port;
     device->Type       = deviceType;
@@ -143,7 +143,7 @@ static AhciDevice_t* __CreateInitialDevice(
     return device;
 }
 
-oscode_t
+oserr_t
 AhciManagerRegisterDevice(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port,
@@ -151,7 +151,7 @@ AhciManagerRegisterDevice(
 {
     AhciDevice_t* ahciDevice;
     DeviceType_t  deviceType;
-    oscode_t    osStatus;
+    oserr_t    osStatus;
 
     TRACE("AhciManagerRegisterDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", signature=0x%x)",
           controller, port, signature);
@@ -238,7 +238,7 @@ AhciManagerUnregisterDevice(
     }
     assert(device != NULL);
     
-    UnregisterStorage(device->Descriptor.Device, 1);
+    UnregisterStorage(device->Descriptor.DeviceID, 1);
     list_remove(&devices, &device->header);
 }
 
@@ -297,7 +297,7 @@ HandleIdentifyCommand(
     // At this point the ahcidisk structure is filled
     // and we can continue to fill out the descriptor
     memset(&device->Descriptor, 0, sizeof(StorageDescriptor_t));
-    device->Descriptor.Driver      = UUID_INVALID;
+    device->Descriptor.DriverID    = UUID_INVALID;
     device->Descriptor.Flags       = 0;
     device->Descriptor.SectorCount = device->SectorCount;
     device->Descriptor.SectorSize  = device->SectorSize;
@@ -305,7 +305,7 @@ HandleIdentifyCommand(
     // Copy string data
     memcpy(&device->Descriptor.Model[0], (const void*)&deviceInformation->ModelNo[0], 40);
     memcpy(&device->Descriptor.Serial[0], (const void*)&deviceInformation->SerialNo[0], 20);
-    RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.Device, device->Descriptor.Flags);
+    RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.DeviceID, device->Descriptor.Flags);
 }
 
 void
@@ -339,7 +339,7 @@ AhciManagerHandleControlResponse(
 void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    oscode_t                 status = OsNotExists;
+    oserr_t                 status = OsNotExists;
     AhciDevice_t*              device = AhciManagerGetDevice(deviceId);
     if (device) {
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);

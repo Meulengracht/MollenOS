@@ -24,7 +24,7 @@
 #include <internal/_syscalls.h>
 #include <ddk/memory.h>
 
-oscode_t
+oserr_t
 CreateMemorySpace(
         _In_  unsigned int Flags,
         _Out_ uuid_t* Handle)
@@ -35,7 +35,7 @@ CreateMemorySpace(
     return Syscall_CreateMemorySpace(Flags, Handle);
 }
 
-oscode_t
+oserr_t
 GetMemorySpaceForThread(
         _In_  uuid_t  Thread,
         _Out_ uuid_t* Handle)
@@ -46,7 +46,7 @@ GetMemorySpaceForThread(
     return Syscall_GetMemorySpaceForThread(Thread, Handle);
 }
 
-oscode_t
+oserr_t
 CreateMemoryMapping(
         _In_  uuid_t                          Handle,
         _In_  struct MemoryMappingParameters* Parameters,

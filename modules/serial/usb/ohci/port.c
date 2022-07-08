@@ -60,7 +60,7 @@ ClearPortEventBits(
     }
 }
 
-oscode_t
+oserr_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
@@ -108,13 +108,13 @@ HciPortGetStatus(
     Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? USB_SPEED_FULL : USB_SPEED_LOW;
 }
 
-oscode_t
+oserr_t
 OhciPortCheck(
     _In_ OhciController_t* Controller,
     _In_ int               Index,
     _In_ int               IgnorePowerOn)
 {
-    oscode_t Result     = OsOK;
+    oserr_t Result     = OsOK;
     reg32_t    PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
     TRACE("OhciPortCheck(%i): 0x%x", Index, PortStatus);
 
@@ -128,7 +128,7 @@ OhciPortCheck(
     return Result;
 }
 
-oscode_t
+oserr_t
 OhciPortsCheck(
     _In_ OhciController_t* Controller,
     _In_ int               IgnorePowerOn)

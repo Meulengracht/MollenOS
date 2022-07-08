@@ -32,7 +32,7 @@ int link(
     _In_ int         symbolic)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-    oscode_t               status;
+    oserr_t               status;
 
     if (!from || !to) {
         return OsInvalidParameters;
@@ -41,5 +41,5 @@ int link(
     sys_file_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), from, to, symbolic);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_link_result(GetGrachtClient(), &msg.base, &status);
-    return OsCodeToErrNo(status);
+    return OsErrToErrNo(status);
 }

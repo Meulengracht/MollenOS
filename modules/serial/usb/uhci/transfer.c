@@ -46,7 +46,7 @@ UhciTransactionDispatch(
         USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
 }
 
-oscode_t
+oserr_t
 HciTransactionFinalize(
     _In_ UsbManagerController_t* Controller,
     _In_ UsbManagerTransfer_t*   Transfer,
@@ -62,7 +62,7 @@ HciTransactionFinalize(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer)
 {

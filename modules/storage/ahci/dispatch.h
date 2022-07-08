@@ -41,7 +41,7 @@
  * AhciDispatchRegisterFIS 
  * * Builds a new AHCI Transaction based on a register FIS
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 AhciDispatchRegisterFIS(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,

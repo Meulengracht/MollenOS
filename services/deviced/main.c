@@ -36,7 +36,7 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oscode_t
+oserr_t
 OnUnload(void)
 {
     return OsOK;
@@ -50,7 +50,7 @@ GetServiceAddress(
     address->data.path = SERVICE_DEVICE_PATH;
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported interfaces

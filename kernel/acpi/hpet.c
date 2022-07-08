@@ -129,7 +129,7 @@ __StartHpet(void)
     HP_WRITE_32(HPET_REGISTER_CONFIG, Config);
 }
 
-oscode_t
+oserr_t
 HpetIsEmulatingLegacyController(void)
 {
     if (g_hpet.BaseAddress != 0) {
@@ -218,7 +218,7 @@ HpInterrupt(
     return IRQSTATUS_HANDLED;
 }
 
-static oscode_t
+static oserr_t
 __InitializeComparator(
     _In_ int index,
     _In_ int legacyRoutings)
@@ -319,7 +319,7 @@ __AllocateInterrupt(
     }
 }
 
-oscode_t
+oserr_t
 HpetComparatorStart(
     _In_ int      index,
     _In_ uint64_t frequency,
@@ -413,7 +413,7 @@ HpetInitialize(void)
 {
     ACPI_TABLE_HPET* hpetTable;
     int              legacy;
-    oscode_t       osStatus;
+    oserr_t       osStatus;
     uintptr_t        updatedAddress;
     size_t           tempValue;
     int              numTimers;

@@ -153,7 +153,7 @@ SyncWithParent:
     return table;
 }
 
-oscode_t
+oserr_t
 MmVirtualClone(
         _In_ MemorySpace_t* source,
         _In_ int            inherit,
@@ -228,7 +228,7 @@ MmVirtualClone(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {

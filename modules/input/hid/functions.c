@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include "hid.h"
 
-static oscode_t __FillHidDescriptor(
+static oserr_t __FillHidDescriptor(
     _In_ HidDevice_t*        hidDevice,
     _In_ UsbHidDescriptor_t* hidDescriptor)
 {
@@ -52,7 +52,7 @@ static oscode_t __FillHidDescriptor(
     }
 }
 
-static oscode_t __FillReportDescriptor(
+static oserr_t __FillReportDescriptor(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportType,
     _In_ uint8_t      reportLength,
@@ -78,7 +78,7 @@ static oscode_t __FillReportDescriptor(
     }
 }
 
-oscode_t
+oserr_t
 HidGetProtocol(
         _In_ HidDevice_t* hidDevice,
         _In_ uint8_t*     protocol)
@@ -95,7 +95,7 @@ HidGetProtocol(
     }
 }
 
-oscode_t
+oserr_t
 HidSetProtocol(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      protocol)
@@ -112,7 +112,7 @@ HidSetProtocol(
     }
 }
 
-oscode_t
+oserr_t
 HidSetIdle(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportId,
@@ -133,14 +133,14 @@ HidSetIdle(
     }
 }
 
-oscode_t
+oserr_t
 HidSetupGeneric(
     _In_ HidDevice_t* hidDevice)
 {
     UsbHidDescriptor_t hidDescriptor;
     uint8_t*           reportDescriptor = NULL;
     size_t             reportLength;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
     TRACE("HidSetupGeneric(hidDevice=0x%" PRIxIN ")", hidDevice);
 
     osStatus = __FillHidDescriptor(hidDevice, &hidDescriptor);

@@ -51,7 +51,7 @@ void UsbCoreHubsCleanup(void)
     hashtable_destroy(&g_hubs);
 }
 
-oscode_t
+oserr_t
 UsbCoreHubsRegister(
         _In_ uuid_t  parentHubDeviceId,
         _In_ uuid_t  hubDeviceId,
@@ -179,7 +179,7 @@ static int hub_cmp(const void* element1, const void* element2)
 void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_t parentHubDeviceId,
                                      const uuid_t deviceId, const uuid_t driverId, const int portCount)
 {
-    oscode_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount);
+    oserr_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount);
     if (osStatus != OsOK) {
         // log
     }

@@ -44,7 +44,7 @@ typedef struct SystemInterruptController {
 /* CreateInterruptController
  * Creates a new interrupt controller with the given configuration and registers
  * with the system. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateInterruptController(
         _In_ uuid_t     Id,
         _In_ int        InterruptLineBase,
@@ -53,13 +53,13 @@ CreateInterruptController(
 
 /* CreateInterruptOverrides
  * Initializes the overrides with the given number of entries. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateInterruptOverrides(
     _In_ int        NumberOfInterruptOverrides);
 
 /* RegisterInterruptOverride
  * Registers a new override in a free entry. If the entries are filled it returns OsError. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
     _In_ int        DestinationInterruptLine,

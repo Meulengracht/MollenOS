@@ -52,7 +52,7 @@ __CalculateResolution(
     return frequency->QuadPart / NSEC_PER_SEC;
 }
 
-oscode_t
+oserr_t
 SystemTimerRegister(
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
@@ -139,7 +139,7 @@ static void __LinearTime(SystemTime_t* time, Integer64_t* linear)
     }
 }
 
-oscode_t
+oserr_t
 SystemWallClockRegister(
         _In_ SystemWallClockOperations_t* operations,
         _In_ void*                        context)
@@ -243,7 +243,7 @@ SystemTimerGetClockFrequency(
     clock->Operations.GetFrequency(clock->Context, frequencyOut);
 }
 
-oscode_t
+oserr_t
 SystemTimerGetPerformanceFrequency(
         _Out_ UInteger64_t* frequency)
 {
@@ -255,7 +255,7 @@ SystemTimerGetPerformanceFrequency(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 SystemTimerGetPerformanceTick(
         _Out_ UInteger64_t* tick)
 {

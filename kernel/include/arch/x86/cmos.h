@@ -127,7 +127,7 @@ typedef struct Cmos {
  * @param[In] initializeRtc Whether to initialize the RTC chip
  * @return    Status of the initialization.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CmosInitialize(
     _In_ int initializeRtc);
 
@@ -165,7 +165,7 @@ CmosWaitForUpdate(void);
  * @param[In] cmos The CMOS chip instance that gets initialized
  * @return    Status of the initialization.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 RtcInitialize(
         _In_ Cmos_t* cmos);
 

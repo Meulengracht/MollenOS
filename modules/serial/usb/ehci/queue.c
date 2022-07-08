@@ -52,7 +52,7 @@ const char *EhciErrorMessages[] = {
 
 /* EhciQueueResetInternalData
  * Removes and cleans up any existing transfers, then reinitializes. */
-oscode_t
+oserr_t
 EhciQueueResetInternalData(
     _In_ EhciController_t*  Controller)
 {
@@ -95,7 +95,7 @@ EhciQueueResetInternalData(
 
 /* EhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
-oscode_t
+oserr_t
 EhciQueueInitialize(
     _In_ EhciController_t*  Controller)
 {
@@ -159,7 +159,7 @@ EhciQueueInitialize(
 
 /* EhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
-oscode_t
+oserr_t
 EhciQueueReset(
     _In_ EhciController_t*  Controller)
 {
@@ -172,7 +172,7 @@ EhciQueueReset(
     return EhciQueueResetInternalData(Controller);
 }
 
-oscode_t
+oserr_t
 EhciQueueDestroy(
     _In_ EhciController_t* Controller)
 {
@@ -231,7 +231,7 @@ EhciGetStatusCode(
     }
 }
 
-oscode_t
+oserr_t
 EhciSetPrefetching(
     _In_ EhciController_t*  Controller,
     _In_ uint8_t  Type,

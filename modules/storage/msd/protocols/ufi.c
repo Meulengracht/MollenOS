@@ -99,7 +99,7 @@ UfiConstructCommand(
     }
 }
 
-oscode_t
+oserr_t
 UfiInitialize(
     _In_ MsdDevice_t *Device)
 {

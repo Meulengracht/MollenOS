@@ -33,7 +33,7 @@
 
 extern int __crt_get_server_iod(void);
 
-oscode_t
+oserr_t
 UsbControllerRegister(
         _In_ Device_t*           device,
         _In_ UsbControllerType_t type,
@@ -47,7 +47,7 @@ UsbControllerRegister(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbControllerUnregister(
         _In_ uuid_t deviceId)
 {
@@ -57,7 +57,7 @@ UsbControllerUnregister(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbHubRegister(
         _In_ UsbDevice_t* usbDevice,
         _In_ int          portCount)
@@ -73,7 +73,7 @@ UsbHubRegister(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbHubUnregister(
         _In_ uuid_t deviceId)
 {
@@ -83,7 +83,7 @@ UsbHubUnregister(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbEventPort(
         _In_ uuid_t  DeviceId,
         _In_ uint8_t PortAddress)
@@ -95,7 +95,7 @@ UsbEventPort(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbPortError(
         _In_ uuid_t  deviceId,
         _In_ uint8_t portAddress)
@@ -107,7 +107,7 @@ UsbPortError(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbQueryControllerCount(
     _Out_ int* ControllerCount)
 {
@@ -120,7 +120,7 @@ UsbQueryControllerCount(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UsbQueryController(
     _In_ int                Index,
     _In_ UsbHcController_t* Controller)

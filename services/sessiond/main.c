@@ -33,7 +33,7 @@ extern gracht_server_t* __crt_get_service_server(void);
 
 static uuid_t WindowingSystemId = UUID_INVALID;
 
-oscode_t OnUnload(void)
+oserr_t OnUnload(void)
 {
     return OsOK;
 }
@@ -44,7 +44,7 @@ void GetServiceAddress(struct ipmsg_addr* address)
     address->data.path = SERVICE_SESSION_PATH;
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported interfaces
@@ -56,12 +56,12 @@ void sys_session_login_invocation(struct gracht_message* message, const char* us
 {
     // if error give a fake delay of 1 << min(attempt_num, 31) if the first 5 attempts are wrong
     // reset on login_success
-    // int svc_session_login_response(struct gracht_recv_message* message, oscode_t status, char* session_id);
+    // int svc_session_login_response(struct gracht_recv_message* message, oserr_t status, char* session_id);
 }
 
 void sys_session_logout_invocation(struct gracht_message* message, const char* sessionId)
 {
-    // int svc_session_logout_response(struct gracht_recv_message* message, oscode_t status);
+    // int svc_session_logout_response(struct gracht_recv_message* message, oserr_t status);
 }
 
 void sys_session_disk_connected_invocation(struct gracht_message* message, const char* identifier)

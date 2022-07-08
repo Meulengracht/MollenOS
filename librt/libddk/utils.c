@@ -48,7 +48,7 @@ MollenOSEndBoot(void)
     Syscall_SystemStart();
 }
 
-oscode_t
+oserr_t
 QueryDisplayInformation(VideoDescriptor_t* Descriptor)
 {
     return Syscall_DisplayInformation(Descriptor);
@@ -57,14 +57,14 @@ QueryDisplayInformation(VideoDescriptor_t* Descriptor)
 void* CreateDisplayFramebuffer(void)
 {
     void*      framebuffer;
-    oscode_t osStatus = Syscall_MapBootFramebuffer(&framebuffer);
+    oserr_t osStatus = Syscall_MapBootFramebuffer(&framebuffer);
     if (osStatus != OsOK) {
         return NULL;
     }
     return framebuffer;
 }
 
-oscode_t
+oserr_t
 DdkUtilsMapRamdisk(
         _Out_ void**  bufferOut,
         _Out_ size_t* bufferLengthOut)

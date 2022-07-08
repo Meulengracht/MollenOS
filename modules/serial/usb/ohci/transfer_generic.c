@@ -29,7 +29,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-static oscode_t
+static oserr_t
 OhciTransferFill(
     _In_ OhciController_t*     Controller,
     _In_ UsbManagerTransfer_t* Transfer)

@@ -62,8 +62,8 @@ const int g_errorCodeTable[OsErrorCodeCount] = {
 };
 
 int
-OsCodeToErrNo(
-        _In_ oscode_t code)
+OsErrToErrNo(
+        _In_ oserr_t code)
 {
     int errnoCode;
     if (code >= OsErrorCodeCount) {

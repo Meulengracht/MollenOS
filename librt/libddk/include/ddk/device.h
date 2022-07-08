@@ -56,7 +56,7 @@ DDKDECL(uuid_t,
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UnregisterDevice(
     _In_ uuid_t DeviceId));
 

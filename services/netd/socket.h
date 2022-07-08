@@ -77,7 +77,7 @@ typedef struct Socket {
 /* SocketCreateImpl
  * Creates and initializes a new socket of default options. The socket
  * will be assigned an temporary address, and resource will be allocated. */
-oscode_t
+oserr_t
 SocketCreateImpl(
     _In_  int              Domain,
     _In_  int              Type,
@@ -87,7 +87,7 @@ SocketCreateImpl(
 /* SocketShutdownImpl
  * Shutsdown or closes certain aspects (or all) of a socket. This will also
  * close down any active connections, and notify of disconnect. */
-oscode_t
+oserr_t
 SocketShutdownImpl(
     _In_ Socket_t* Socket,
     _In_ int       Options);
@@ -96,7 +96,7 @@ SocketShutdownImpl(
  * Marks the socket as passive, and enables the use of accept operation. The
  * ConnectionCount parameter controls the number of connection requests that can
  * be queued up. */
-oscode_t
+oserr_t
 SocketListenImpl(
     _In_ Socket_t* Socket,
     _In_ int       ConnectionCount);
@@ -104,7 +104,7 @@ SocketListenImpl(
 /* SetSocketOptionImpl
  * Sets the option given for the protocol given. The option data and length must
  * be specified. */
-oscode_t
+oserr_t
 SetSocketOptionImpl(
     _In_ Socket_t*        Socket,
     _In_ int              Protocol,
@@ -115,7 +115,7 @@ SetSocketOptionImpl(
 /* GetSocketOptionImpl
  * Retrieves the option of the specified protocol for the socket handle given. The
  * data will be returned in the provided buffer, and the length specified. */
-oscode_t
+oserr_t
 GetSocketOptionImpl(
     _In_ Socket_t*         Socket,
     _In_  int              Protocol,
@@ -131,7 +131,7 @@ streambuffer_t*
 GetSocketRecvStream(
     _In_ Socket_t* Socket);
 
-oscode_t
+oserr_t
 SocketSetQueuedPacket(
     _In_ Socket_t*   Socket,
     _In_ const void* Payload,

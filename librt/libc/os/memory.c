@@ -25,7 +25,7 @@
 #include <os/mollenos.h>
 #include <internal/_syscalls.h>
 
-oscode_t
+oserr_t
 MemoryAllocate(
     _In_  void*        Hint,
     _In_  size_t       Length,
@@ -38,7 +38,7 @@ MemoryAllocate(
 	return Syscall_MemoryAllocate(Hint, Length, Flags, MemoryOut);
 }
 
-oscode_t
+oserr_t
 MemoryFree(
 	_In_ void*  Memory,
 	_In_ size_t Length)
@@ -49,7 +49,7 @@ MemoryFree(
 	return Syscall_MemoryFree(Memory, Length);
 }
 
-oscode_t
+oserr_t
 MemoryProtect(
     _In_  void*         Memory,
 	_In_  size_t        Length,
@@ -62,7 +62,7 @@ MemoryProtect(
     return Syscall_MemoryProtect(Memory, Length, Flags, PreviousFlags);
 }
 
-oscode_t
+oserr_t
 MemoryQueryAllocation(
         _In_ void*               Memory,
         _In_ MemoryDescriptor_t* DescriptorOut)
@@ -73,7 +73,7 @@ MemoryQueryAllocation(
     return Syscall_MemoryQueryAllocation(Memory, DescriptorOut);
 }
 
-oscode_t
+oserr_t
 MemoryQueryAttributes(
         _In_ void*         Memory,
         _In_ size_t        Length,

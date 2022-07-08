@@ -77,7 +77,7 @@ thrd_create(
 {
     ThreadParameters_t Paramaters;
     ThreadPackage_t*   Package;
-    oscode_t         Status;
+    oserr_t         Status;
     assert(thr != NULL);
 
     // Allocate a new startup-package
@@ -94,7 +94,7 @@ thrd_create(
 
     Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (uuid_t*)thr);
     if (Status != OsOK) {
-        OsCodeToErrNo(Status);
+        OsErrToErrNo(Status);
         free(Package);
         return thrd_error;
     }
@@ -133,7 +133,7 @@ thrd_sleep(
     UInteger64_t ns;
     UInteger64_t nsRemaining = {0 };
     struct timespec current;
-    oscode_t      osStatus;
+    oserr_t      osStatus;
 
     if (!duration || (duration->tv_sec == 0 && duration->tv_nsec == 0)) {
         return thrd_error;

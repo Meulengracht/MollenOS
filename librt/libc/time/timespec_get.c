@@ -60,7 +60,7 @@ timespec_get(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     if (!ts) {
         _set_errno(EINVAL);
@@ -75,7 +75,7 @@ timespec_get(
 
             osStatus = VaGetWallClock(&timeValue);
             if (osStatus != OsOK) {
-                return OsCodeToErrNo(osStatus);
+                return OsErrToErrNo(osStatus);
             }
 
             // Both UTC and TAI uses an epic of 1970 (January 1), so we need to add
@@ -96,7 +96,7 @@ timespec_get(
 
             osStatus = VaGetClockTick(__get_va_type(base), &tick);
             if (osStatus != OsOK) {
-                return OsCodeToErrNo(osStatus);
+                return OsErrToErrNo(osStatus);
             }
 
             timestamp = __calculate_timestamp(&tick);

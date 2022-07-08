@@ -29,7 +29,7 @@
 #include <ioctl.h>
 #include <internal/_io.h>
 
-oscode_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
@@ -43,7 +43,7 @@ oscode_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length,
     return OsOK;
 }
 
-oscode_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+oserr_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
@@ -59,19 +59,19 @@ oscode_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t 
     return OsOK;
 }
 
-oscode_t stdio_pipe_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+oserr_t stdio_pipe_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     return OsNotSupported;
 }
 
-oscode_t stdio_pipe_op_resize(stdio_handle_t* handle, long long resize_by)
+oserr_t stdio_pipe_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     // This could be implemented some day, but for now we do not support
     // the resize operation on pipes.
     return OsNotSupported;
 }
 
-oscode_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
+oserr_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
 {
     // Depending on the setup of the pipe. If the pipe is local, then we 
     // can simply free the structure. If the pipe is global/inheritable, we need
@@ -84,9 +84,9 @@ oscode_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     return OsOK;
 }
 
-oscode_t stdio_pipe_op_inherit(stdio_handle_t* handle)
+oserr_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 {
-    oscode_t status;
+    oserr_t status;
 
     status = dma_attach(handle->object.data.pipe.attachment.handle,
         &handle->object.data.pipe.attachment);
@@ -98,7 +98,7 @@ oscode_t stdio_pipe_op_inherit(stdio_handle_t* handle)
     return status;
 }
 
-oscode_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args)
+oserr_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
 

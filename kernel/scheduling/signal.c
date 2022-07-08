@@ -89,7 +89,7 @@ ExecuteSignalOnCoreFunction(
     }
 }
 
-oscode_t
+oserr_t
 SignalSend(
         _In_ uuid_t ThreadId,
         _In_ int    Signal,

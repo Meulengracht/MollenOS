@@ -21,11 +21,11 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oscode_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , MString_t** pathOut)
+oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , MString_t** pathOut)
 {
     struct VFSNode* node;
     MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oscode_t      osStatus;
+    oserr_t      osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;

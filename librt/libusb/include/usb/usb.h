@@ -167,8 +167,8 @@ typedef struct usb_transfer {
 
 #define USB_TRANSFER_ENDPOINT_CONTROL NULL
 
-__EXTERN oscode_t       UsbInitialize(void);
-__EXTERN oscode_t       UsbCleanup(void);
+__EXTERN oserr_t       UsbInitialize(void);
+__EXTERN oserr_t       UsbCleanup(void);
 __EXTERN struct dma_pool* UsbRetrievePool(void);
 
 /**
@@ -238,7 +238,7 @@ UsbTransferPeriodic(
  * @param Handshake
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbTransferIn(
         _In_ UsbTransfer_t* Transfer,
         _In_ uuid_t         BufferHandle,
@@ -256,7 +256,7 @@ UsbTransferIn(
  * @param Handshake
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbTransferOut(
         _In_ UsbTransfer_t* Transfer,
         _In_ uuid_t         BufferHandle,
@@ -300,7 +300,7 @@ UsbTransferQueuePeriodic(
  * @param transferId
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbTransferResetPeriodic(
         _In_ usb_device_context_t* deviceContext,
         _In_ uuid_t                transferId);
@@ -312,7 +312,7 @@ UsbTransferResetPeriodic(
  * @param transferId
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbTransferDequeuePeriodic(
         _In_ usb_device_context_t* deviceContext,
         _In_ uuid_t                transferId);
@@ -327,7 +327,7 @@ UsbTransferDequeuePeriodic(
  * @param portDescriptor
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbHubResetPort(
         _In_ uuid_t                 hubDriverId,
         _In_ uuid_t                 deviceId,
@@ -342,7 +342,7 @@ UsbHubResetPort(
  * @param portDescriptor
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbHubQueryPort(
         _In_ uuid_t                 hubDriverId,
         _In_ uuid_t                 deviceId,
@@ -447,7 +447,7 @@ UsbExecutePacket(
 /* UsbEndpointReset
  * Resets the data for the given endpoint. This includes the data-toggles. 
  * This function is unavailable for control-endpoints. */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbEndpointReset(
 	_In_ usb_device_context_t* deviceContext, 
     _In_ uint8_t               endpointAddress);
@@ -459,7 +459,7 @@ UsbEndpointReset(
  * @param portCount
  * @return
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbControllerRegister(
     _In_ Device_t*           device,
     _In_ UsbControllerType_t type,
@@ -470,7 +470,7 @@ DDKDECL(oscode_t,
  * @param DeviceId
  * @return
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbControllerUnregister(
     _In_ uuid_t deviceId));
 
@@ -480,7 +480,7 @@ DDKDECL(oscode_t,
  * @param portCount
  * @return
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbHubRegister(
         _In_ UsbDevice_t* usbDevice,
         _In_ int          portCount));
@@ -490,7 +490,7 @@ DDKDECL(oscode_t,
  * @param deviceId
  * @return
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbHubUnregister(
         _In_ uuid_t deviceId));
 
@@ -500,7 +500,7 @@ DDKDECL(oscode_t,
  * @param PortAddress
  * @return
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbEventPort(
     _In_ uuid_t  DeviceId,
     _In_ uint8_t PortAddress));
@@ -511,21 +511,21 @@ DDKDECL(oscode_t,
  * @param portAddress
  * @return
  */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbPortError(
         _In_ uuid_t  deviceId,
         _In_ uint8_t portAddress));
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbQueryControllerCount(
     _Out_ int* ControllerCount));
 
 /* UsbQueryController
  * Queries the controller with the given index. Index-max is
  * the controller count - 1. */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UsbQueryController(
     _In_ int                Index,
     _In_ UsbHcController_t* Controller));

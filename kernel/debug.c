@@ -30,7 +30,7 @@
 #include <machine.h>
 #include <stdio.h>
 
-oscode_t
+oserr_t
 DebugSingleStep(
     _In_ Context_t* Context)
 {
@@ -39,7 +39,7 @@ DebugSingleStep(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 DebugBreakpoint(
     _In_ Context_t* Context)
 {
@@ -48,7 +48,7 @@ DebugBreakpoint(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address)
@@ -56,7 +56,7 @@ DebugPageFault(
     MemoryDescriptor_t descriptor;
     MemorySpace_t*     memorySpace = GetCurrentMemorySpace();
     uintptr_t          physicalAddress;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
     TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
 
     // get information about the allocation
@@ -93,7 +93,7 @@ exit:
     return osStatus;
 }
 
-static oscode_t
+static oserr_t
 DebugHaltAllProcessorCores(
         _In_ uuid_t         ExcludeId,
         _In_ SystemCpu_t*   Processor)
@@ -115,7 +115,7 @@ DebugHaltAllProcessorCores(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
@@ -179,7 +179,7 @@ DebugPanic(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 DebugStackTrace(
     _In_ Context_t* context,
     _In_ size_t     maxFrames)
@@ -225,7 +225,7 @@ DebugStackTrace(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 DebugMemory(
     _In_Opt_ const char*    Description,
     _In_     void*          Address,

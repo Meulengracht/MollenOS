@@ -27,8 +27,8 @@
 #include <ioset.h>
 
 extern void       GetServiceAddress(struct ipmsg_addr*);
-extern oscode_t OnLoad(void);
-extern oscode_t OnUnload(void);
+extern oserr_t OnLoad(void);
+extern oserr_t OnUnload(void);
 
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;

@@ -90,30 +90,30 @@ typedef struct FileSystemHandleBase {
 /* FsInitialize 
  * Initializes a new instance of the file system
  * and allocates resources for the given descriptor */
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsInitialize)(
         _In_ struct VFSCommonData* VFSCommonData);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsDestroy)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ unsigned int          unmountFlags);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsStat)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ struct VFSStatFS*     stat);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsOpen)(
         _In_      struct VFSCommonData* VFSCommonData,
         _In_      MString_t*            path,
         _Out_Opt_ void**                dataOut);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsCreate)(
         _In_  struct VFSCommonData* VFSCommonData,
         _In_  void*                 data,
@@ -123,12 +123,12 @@ __FSDECL(FsCreate)(
         _In_  uint32_t              permissions,
         _Out_ void**                dataOut);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsClose)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ void*                 data);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsLink)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ void*                 data,
@@ -136,25 +136,25 @@ __FSDECL(FsLink)(
         _In_ MString_t*            linkTarget,
         _In_ int                   symbolic);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsUnlink)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ MString_t*            path);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsReadLink)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ MString_t*            path,
         _In_ MString_t*            pathOut);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsMove)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ MString_t*            from,
         _In_ MString_t*            to,
         _In_ int                   copy);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsRead)(
         _In_  struct VFSCommonData* VFSCommonData,
         _In_  void*                 data,
@@ -164,7 +164,7 @@ __FSDECL(FsRead)(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsRead);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsWrite)(
         _In_  struct VFSCommonData* VFSCommonData,
         _In_  void*                 data,
@@ -174,13 +174,13 @@ __FSDECL(FsWrite)(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsWritten);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsTruncate)(
         _In_ struct VFSCommonData* VFSCommonData,
         _In_ void*                 data,
         _In_ uint64_t              size);
 
-__FSAPI oscode_t
+__FSAPI oserr_t
 __FSDECL(FsSeek)(
         _In_  struct VFSCommonData* VFSCommonData,
         _In_  void*                 data,

@@ -31,7 +31,7 @@
 #include <interrupts.h>
 #include <machine.h>
 
-oscode_t
+oserr_t
 ScAcpiQueryStatus(
    _In_ AcpiDescriptor_t*   AcpiDescriptor)
 {
@@ -51,7 +51,7 @@ ScAcpiQueryStatus(
     }
 }
 
-oscode_t
+oserr_t
 ScAcpiQueryTableHeader(
     _In_ const char*        signature,
     _In_ ACPI_TABLE_HEADER* header)
@@ -70,7 +70,7 @@ ScAcpiQueryTableHeader(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ScAcpiQueryTable(
     _In_ const char*        signature,
     _In_ ACPI_TABLE_HEADER* table)
@@ -93,7 +93,7 @@ ScAcpiQueryTable(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ScAcpiQueryInterrupt(
     _In_  int           bus,
     _In_  int           device,
@@ -104,7 +104,7 @@ ScAcpiQueryInterrupt(
     return AcpiDeviceGetInterrupt(bus, device, pin, interruptOut, acpiConformOut);
 }
 
-oscode_t
+oserr_t
 ScIoSpaceRegister(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -114,7 +114,7 @@ ScIoSpaceRegister(
     return RegisterSystemDeviceIo(ioSpace);
 }
 
-oscode_t
+oserr_t
 ScIoSpaceAcquire(
     _In_ DeviceIo_t* IoSpace)
 {
@@ -124,7 +124,7 @@ ScIoSpaceAcquire(
     return AcquireSystemDeviceIo(IoSpace);
 }
 
-oscode_t
+oserr_t
 ScIoSpaceRelease(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -134,7 +134,7 @@ ScIoSpaceRelease(
     return ReleaseSystemDeviceIo(ioSpace);
 }
 
-oscode_t
+oserr_t
 ScIoSpaceDestroy(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -157,14 +157,14 @@ ScRegisterInterrupt(
     return InterruptRegister(deviceInterrupt, flags);
 }
 
-oscode_t
+oserr_t
 ScUnregisterInterrupt(
         _In_ uuid_t sourceId)
 {
     return InterruptUnregister(sourceId);
 }
 
-oscode_t
+oserr_t
 ScGetProcessBaseAddress(
     _Out_ uintptr_t* baseAddress)
 {

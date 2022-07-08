@@ -31,7 +31,7 @@
 
 extern gracht_server_t* __crt_get_module_server(void);
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -42,14 +42,14 @@ OnLoad(void)
     return UsbManagerInitialize();
 }
 
-oscode_t
+oserr_t
 OnUnload(void)
 {
     UsbManagerDestroy();
     return OsOK;
 }
 
-oscode_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     if (event->events & IOSETSYN) {
         UsbManagerController_t* controller = event->data.context;
@@ -68,7 +68,7 @@ oscode_t OnEvent(struct ioset_event* event)
     return OsNotExists;
 }
 
-oscode_t
+oserr_t
 OnRegister(
     _In_ Device_t* Device)
 {
@@ -88,7 +88,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message,
     OnRegister((Device_t*)device);
 }
 
-oscode_t
+oserr_t
 OnUnregister(
     _In_ Device_t *Device)
 {
@@ -115,7 +115,7 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid
 void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
-    oscode_t              status;
+    oserr_t              status;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     if (!controller) {
         ctt_usbhub_reset_port_response(message, OsInvalidParameters, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));

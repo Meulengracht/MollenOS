@@ -68,8 +68,8 @@ typedef struct UsbController {
     uint32_t            AddressMap[4]; // 4 x 32 bits = 128 possible addresses which match the max in usb-spec
 } UsbController_t;
 
-__EXTERN oscode_t UsbCoreInitialize(void);
-__EXTERN oscode_t UsbCoreDestroy(void);
+__EXTERN oserr_t UsbCoreInitialize(void);
+__EXTERN oserr_t UsbCoreDestroy(void);
 
 __EXTERN void UsbCoreHubsInitialize(void);
 __EXTERN void UsbCoreHubsCleanup(void);
@@ -83,7 +83,7 @@ __EXTERN void UsbCoreControllersCleanup(void);
  * @param usbPort
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbCoreDevicesCreate(
         _In_ UsbController_t* usbController,
         _In_ UsbHub_t*        usbHub,
@@ -95,7 +95,7 @@ UsbCoreDevicesCreate(
  * @param port
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbCoreDevicesDestroy(
         _In_ UsbController_t* controller,
         _In_ UsbPort_t*       port);
@@ -108,7 +108,7 @@ UsbCoreDevicesDestroy(
  * @param portCount
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbCoreHubsRegister(
         _In_ uuid_t  parentHubDeviceId,
         _In_ uuid_t  hubDeviceId,
@@ -149,7 +149,7 @@ UsbCoreHubsGet(
  * @param address
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 UsbCoreControllerReserveAddress(
         _In_  UsbController_t* controller,
         _Out_ int*             address);

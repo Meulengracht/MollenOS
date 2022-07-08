@@ -95,7 +95,7 @@ typedef void*        Handle_t;
 #define HANDLE_INVALID (Handle_t)0
 #define HANDLE_GLOBAL  (Handle_t)1
 
-typedef enum oscode {
+typedef enum oserr {
     OsOK = 0,
     OsError,                // Error - Generic
     OsExists,               // Error - Resource already exists
@@ -128,7 +128,7 @@ typedef enum oscode {
     OsAlreadyConnected,     // Error - Already connected
     
     OsErrorCodeCount
-} oscode_t;
+} oserr_t;
 
 typedef union Integer64 {
     struct {

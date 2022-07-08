@@ -55,24 +55,23 @@ MString_t* VFSNodeMakePath(struct VFSNode* node, int local)
     return path;
 }
 
-static oscode_t __AddEntry(struct VFSNode* node, struct VFSStat* entry)
+static oserr_t __AddEntry(struct VFSNode* node, struct VFSStat* entry, struct VFSNode** nodeOut)
 {
-    struct VFSNode* entryNode;
-    oscode_t      osStatus;
-
-    osStatus = VFSNodeChildNew(node->FileSystem, node, entry, &entryNode);
+    oserr_t osStatus;
+    osStatus = VFSNodeChildNew(node->FileSystem, node, entry, nodeOut);
     if (osStatus != OsOK) {
         return osStatus;
     }
     return OsOK;
 }
 
-static oscode_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
+static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
     struct VFSStat* i              = (struct VFSStat*)buffer;
     size_t          bytesAvailable = length;
+    struct VFSNode* result;
 
     while (bytesAvailable) {
-        oscode_t osStatus = __AddEntry(node, i);
+        oserr_t osStatus = __AddEntry(node, i, &result);
         if (osStatus != OsOK) {
             return osStatus;
         }
@@ -82,10 +81,10 @@ static oscode_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length
     return OsOK;
 }
 
-static oscode_t __LoadNode(struct VFSNode* node) {
+static oserr_t __LoadNode(struct VFSNode* node) {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
-    oscode_t              osStatus, osStatus2;
+    oserr_t               osStatus, osStatus2;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data;
 
@@ -93,7 +92,7 @@ static oscode_t __LoadNode(struct VFSNode* node) {
         return OsOutOfMemory;
     }
 
-    osStatus = ops->Open(&vfs->Base, nodePath, &data);
+    osStatus = ops->Open(vfs->CommonData, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -101,7 +100,7 @@ static oscode_t __LoadNode(struct VFSNode* node) {
     while (1) {
         size_t read;
 
-        osStatus = ops->Read(&vfs->Base, data, vfs->Buffer.handle, vfs->Buffer.buffer, 0, vfs->Buffer.length, &read);
+        osStatus = ops->Read(vfs->CommonData, data, vfs->Buffer.handle, vfs->Buffer.buffer, 0, vfs->Buffer.length, &read);
         if (osStatus != OsOK || read == 0) {
             break;
         }
@@ -112,7 +111,7 @@ static oscode_t __LoadNode(struct VFSNode* node) {
         }
     }
 
-    osStatus2 = ops->Close(&vfs->Base, data);
+    osStatus2 = ops->Close(vfs->CommonData, data);
     if (osStatus2 != OsOK) {
         WARNING("__LoadNode failed to cleanup handle with code %u", osStatus2);
     }
@@ -122,9 +121,9 @@ static oscode_t __LoadNode(struct VFSNode* node) {
     return osStatus;
 }
 
-oscode_t VFSNodeEnsureLoaded(struct VFSNode* node)
+oserr_t VFSNodeEnsureLoaded(struct VFSNode* node)
 {
-    oscode_t osStatus = OsOK;
+    oserr_t osStatus = OsOK;
 
     if (!node->IsLoaded) {
         usched_rwlock_w_promote(&node->Lock);
@@ -143,10 +142,10 @@ oscode_t VFSNodeEnsureLoaded(struct VFSNode* node)
     return osStatus;
 }
 
-oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut)
+oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut)
 {
     struct __VFSChild* result;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
 
     // check once while having the reader lock only, this is a performance optimization,
     // so we don't on following checks acquire the writer lock for nothing
@@ -173,12 +172,12 @@ oscode_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nod
     return OsOK;
 }
 
-oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
+oserr_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
-    oscode_t            osStatus, osStatus2;
+    oserr_t               osStatus, osStatus2;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data, *fileData;
 
@@ -197,12 +196,12 @@ oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flag
         return OsExists;
     }
 
-    osStatus = ops->Open(&vfs->Base, node->Name, &data);
+    osStatus = ops->Open(vfs->CommonData, node->Name, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Create(&vfs->Base, data, name, 0, flags, permissions, &fileData);
+    osStatus = ops->Create(vfs->CommonData, data, name, 0, flags, permissions, &fileData);
     if (osStatus != OsOK) {
         goto close;
     }
@@ -213,31 +212,31 @@ oscode_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flag
             .Owner = 0,
             .Flags = flags,
             .Permissions = permissions
-    });
+    }, nodeOut);
 
-    osStatus2 = ops->Close(&vfs->Base, fileData);
+    osStatus2 = ops->Close(vfs->CommonData, fileData);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
 close:
-    osStatus2 = ops->Close(&vfs->Base, data);
+    osStatus2 = ops->Close(vfs->CommonData, data);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
-    cleanup:
+cleanup:
     usched_rwlock_w_demote(&node->Lock);
     MStringDestroy(nodePath);
     return osStatus;
 }
 
-oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut)
+oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
-    oscode_t            osStatus, osStatus2;
+    oserr_t               osStatus, osStatus2;
     MString_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data;
 
@@ -254,12 +253,12 @@ oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t
         goto cleanup;
     }
 
-    osStatus = ops->Open(&vfs->Base, node->Name, &data);
+    osStatus = ops->Open(vfs->CommonData, node->Name, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Link(&vfs->Base, data, name, target, symbolic);
+    osStatus = ops->Link(vfs->CommonData, data, name, target, symbolic);
     if (osStatus != OsOK) {
         goto close;
     }
@@ -270,10 +269,10 @@ oscode_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t
             .Owner = 0,
             .Flags = FILE_FLAG_LINK,
             .Permissions = FILE_PERMISSION_READ | FILE_PERMISSION_WRITE | FILE_PERMISSION_EXECUTE
-    });
+    }, nodeOut);
 
 close:
-    osStatus2 = ops->Close(&vfs->Base, data);
+    osStatus2 = ops->Close(vfs->CommonData, data);
     if (osStatus2 != OsOK) {
         WARNING("__CreateInNode failed to cleanup handle with code %u", osStatus2);
     }
@@ -323,12 +322,18 @@ static void __VerifyHandleExclusivityEnum(int index, const void* element, void* 
     }
 }
 
-oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut)
+oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut)
 {
     struct __HandleExcCheckContext context;
-    struct VFSNodeHandle*          result;
-    oscode_t                     osStatus;
+    void*                          data;
+    oserr_t                        osStatus;
     uuid_t                         handleId;
+    MString_t*                     nodePath;
+
+    nodePath = VFSNodeMakePath(node, 1);
+    if (nodePath == NULL) {
+        return OsOutOfMemory;
+    }
 
     usched_mtx_lock(&node->HandlesLock);
 
@@ -346,11 +351,15 @@ oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* ha
         goto cleanup;
     }
 
-    //
-    osStatus = VFSNodeHandleAdd(handleId, node);
+    osStatus = node->FileSystem->Module->Operations.Open(node->FileSystem->CommonData, nodePath, &data);
+    if (osStatus != OsOK) {
+        goto cleanup;
+    }
+
+    osStatus = VFSNodeHandleAdd(handleId, node, data, accessKind);
     if (osStatus != OsOK) {
         handle_destroy(handleId);
-        goto cleanup;
+        goto error;
     }
 
     // Everything OK, we can add a new handle
@@ -359,8 +368,18 @@ oscode_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* ha
             .AccessKind = accessKind
     });
     *handleOut = handleId;
+    goto cleanup;
 
-    cleanup:
+error:
+    node->FileSystem->Module->Operations.Close(node->FileSystem->CommonData, data);
+
+cleanup:
     usched_mtx_unlock(&node->HandlesLock);
+    MStringDestroy(nodePath);
     return osStatus;
+}
+
+oserr_t VFSNodeNewDirectory(struct VFS* vfs, MString_t* path, struct VFSNode** nodeOut)
+{
+
 }

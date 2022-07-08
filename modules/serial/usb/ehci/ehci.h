@@ -546,7 +546,7 @@ typedef struct _EhciController {
 /* EhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
 __EXTERN
-oscode_t
+oserr_t
 EhciQueueInitialize(
     _In_ EhciController_t *Controller);
 
@@ -554,14 +554,14 @@ EhciQueueInitialize(
  * Unschedules any scheduled ed's and frees all resources allocated
  * by the initialize function */
 __EXTERN
-oscode_t
+oserr_t
 EhciQueueDestroy(
     _In_ EhciController_t *Controller);
 
 /* EhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
 __EXTERN
-oscode_t
+oserr_t
 EhciQueueReset(
     _In_ EhciController_t *Controller);
 
@@ -576,7 +576,7 @@ EhciEnableScheduler(
 /* EhciSetPrefetching
  * Disables the prefetching related to the transfer-type. */
 __EXTERN
-oscode_t
+oserr_t
 EhciSetPrefetching(
     _In_ EhciController_t*  Controller,
     _In_ uint8_t  Type,
@@ -585,7 +585,7 @@ EhciSetPrefetching(
 /* EhciHalt
  * Halt's the controller and clears any pending events. */
 __EXTERN
-oscode_t
+oserr_t
 EhciHalt(
     _In_ EhciController_t *Controller);
 
@@ -593,7 +593,7 @@ EhciHalt(
  * Resets and restarts the entire controller and schedule, this can be used in
  * case of serious failures. */
 __EXTERN
-oscode_t
+oserr_t
 EhciRestart(
     _In_ EhciController_t *Controller);
 
@@ -632,7 +632,7 @@ EhciPortScan(
  * This initiates any periodic scheduling information 
  * that might be needed */
 __EXTERN
-oscode_t
+oserr_t
 EhciQhInitialize(
     _In_ EhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer,
@@ -727,7 +727,7 @@ EhciTdRestart(
 /* EhciTdIsochronous
  * This initiates any periodic scheduling information that might be needed */
 __EXTERN
-oscode_t
+oserr_t
 EhciTdIsochronous(
     _In_ EhciController_t*            controller,
     _In_ UsbTransfer_t*               transfer,

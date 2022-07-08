@@ -44,12 +44,12 @@ InitializeStreambuffer(
     streambuffer_construct(Stream, ActualBufferSize, BufferOptions);
 }
 
-static oscode_t
+static oserr_t
 CreateSocketPipe(
     _In_ SocketPipe_t* Pipe)
 {
     struct dma_buffer_info Buffer;
-    oscode_t             Status;
+    oserr_t             Status;
     TRACE("CreateSocketPipe()");
     
     Buffer.name     = "socket_buffer";
@@ -84,7 +84,7 @@ SetDefaultConfiguration(
     Configuration->Blocking = 1;
 }
 
-oscode_t
+oserr_t
 SocketCreateImpl(
     _In_  int        Domain,
     _In_  int        Type,
@@ -92,7 +92,7 @@ SocketCreateImpl(
     _Out_ Socket_t** SocketOut)
 {
     Socket_t*  Socket;
-    oscode_t Status;
+    oserr_t Status;
     uuid_t     Handle;
     TRACE("[net_manager] [socket_create_impl] %i, %i, %i", 
         Domain, Type, Protocol);
@@ -160,7 +160,7 @@ SocketCreateImpl(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 SocketShutdownImpl(
     _In_ Socket_t* Socket,
     _In_ int       Options)
@@ -194,7 +194,7 @@ SocketShutdownImpl(
     return OsNotSupported;
 }
 
-oscode_t
+oserr_t
 SocketListenImpl(
     _In_ Socket_t* Socket,
     _In_ int       ConnectionCount)
@@ -208,7 +208,7 @@ SocketListenImpl(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 SetSocketOptionImpl(
     _In_ Socket_t*        Socket,
     _In_ int              Protocol,
@@ -219,7 +219,7 @@ SetSocketOptionImpl(
     return OsNotSupported;
 }
     
-oscode_t
+oserr_t
 GetSocketOptionImpl(
     _In_ Socket_t*         Socket,
     _In_  int              Protocol,
@@ -244,7 +244,7 @@ GetSocketRecvStream(
     return (streambuffer_t*)Socket->Receive.Stream;
 }
 
-oscode_t
+oserr_t
 SocketSetQueuedPacket(
     _In_ Socket_t*   Socket,
     _In_ const void* Payload,

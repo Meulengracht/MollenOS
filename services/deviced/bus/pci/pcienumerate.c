@@ -48,7 +48,7 @@ PACKED_TYPESTRUCT(McfgEntry, {
 });
 
 void       PciCheckBus(PciDevice_t* parent, int bus);
-oscode_t BusRegisterPS2Controller(void);
+oserr_t BusRegisterPS2Controller(void);
 void       PciInstallDriverCallback(PciDevice_t* pciDevice);
 
 static list_t       g_pciDevices;
@@ -62,7 +62,7 @@ void BusEnumerate(void)
     ACPI_TABLE_HEADER* header    = NULL;
     AcpiDescriptor_t   acpi      = { 0 };
     element_t*         element;
-    oscode_t         osStatus;
+    oserr_t         osStatus;
     int                function;
 
     g_rootDevice = (PciDevice_t*)malloc(sizeof(PciDevice_t));
@@ -345,7 +345,7 @@ static void __ResolveInterruptLineAndPin(
         unsigned int acpiConform   = 0;
         int          interruptLine = pciDevice->Header->InterruptLine;
         int          interruptPin  = pciDevice->Header->InterruptPin;
-        oscode_t   hasRouting    = OsNotExists;
+        oserr_t   hasRouting    = OsNotExists;
         TRACE("__ResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
 
         // Sanitize legals
@@ -389,7 +389,7 @@ static void __ResolveInterruptLineAndPin(
     }
 }
 
-static oscode_t __GetPciDeviceNativeHeader(
+static oserr_t __GetPciDeviceNativeHeader(
         _In_  PciDevice_t*        parent,
         _In_  int                 bus,
         _In_  int                 slot,
@@ -410,14 +410,14 @@ static oscode_t __GetPciDeviceNativeHeader(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 PciCheckFunction(
     _In_ PciDevice_t* parent,
     _In_ int          bus,
     _In_ int          slot,
     _In_ int          function)
 {
-    oscode_t   osStatus;
+    oserr_t   osStatus;
     PciDevice_t* device;
     int          secondBus;
 
@@ -529,7 +529,7 @@ PciCheckBus(
 
 /* CreateBusDeviceFromPciDevice
  * Creates a new Device_t from a pci-device and registers it with the device-manager */
-static oscode_t
+static oserr_t
 CreateBusDeviceFromPciDevice(
     _In_ PciDevice_t* PciDevice)
 {
@@ -607,7 +607,7 @@ PciInstallDriverCallback(
 
 /* BusInstallFixed
  * Loads a fixed driver for the vendorid/deviceid */
-oscode_t
+oserr_t
 BusInstallFixed(
     _In_ BusDevice_t* Device,
     _In_ const char*  Name)
@@ -631,11 +631,11 @@ BusInstallFixed(
 
 /* BusRegisterPS2Controller
  * Loads a fixed driver for the vendorid/deviceid */
-oscode_t
+oserr_t
 BusRegisterPS2Controller(void)
 {
     BusDevice_t Device = { { 0 } };
-    oscode_t  Status;
+    oserr_t  Status;
 
     // Set default ps2 device settings
     Device.Base.ProductId = PCI_PS2_DEVICEID;
@@ -658,7 +658,7 @@ BusRegisterPS2Controller(void)
     return BusInstallFixed(&Device, "PS/2 Controller");
 }
 
-oscode_t
+oserr_t
 DmIoctlDevice(
     _In_ BusDevice_t* Device,
     _In_ unsigned int Command,
@@ -724,7 +724,7 @@ DmIoctlDevice(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 DmIoctlDeviceEx(
 	_In_ BusDevice_t* device,
 	_In_ int          direction,

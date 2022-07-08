@@ -68,7 +68,7 @@ InterruptRegister(
 /* InterruptUnregister 
  * Unregisters the interrupt from the system and removes any resources that was associated 
  * with that interrupt also masks the interrupt if it was the only user */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptUnregister(
         _In_ uuid_t Source);
 
@@ -99,14 +99,14 @@ InterruptHandle(
 /* InterruptIncreasePenalty 
  * Increases the penalty for an interrupt source. This affects how the system allocates
  * interrupts when load balancing */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptIncreasePenalty(
     _In_ int Source);
 
 /* InterruptDecreasePenalty 
  * Decreases the penalty for an interrupt source. This affects how the system allocates
  * interrupts when load balancing */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptDecreasePenalty(
     _In_ int Source);
 
@@ -172,7 +172,7 @@ ConvertAcpiFlagsToConformFlags(
  * @param acpiConformOut
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 AcpiDeviceGetInterrupt(
         _In_  int           bus,
         _In_  int           device,

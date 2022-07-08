@@ -69,13 +69,13 @@ struct handleset_element {
 static uint64_t handleset_hash(const void* element);
 static int      handleset_cmp(const void* element1, const void* element2);
 
-static oscode_t DestroySetElement(struct handleset_element*);
-static oscode_t AddHandleToSet(struct handle_set*, uuid_t, struct ioset_event*);
+static oserr_t DestroySetElement(struct handleset_element*);
+static oserr_t AddHandleToSet(struct handle_set*, uuid_t, struct ioset_event*);
 
 static hashtable_t   g_handleSets;
 static IrqSpinlock_t g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
 
-oscode_t
+oserr_t
 HandleSetsInitialize(void)
 {
     int status = hashtable_construct(&g_handleSets, HASHTABLE_MINIMUM_CAPACITY,
@@ -133,7 +133,7 @@ CreateHandleSet(
     return handleId;
 }
 
-oscode_t
+oserr_t
 ControlHandleSet(
         _In_ uuid_t              setHandle,
         _In_ int                 operation,
@@ -142,7 +142,7 @@ ControlHandleSet(
 {
     struct handle_set*        set = LookupHandleOfType(setHandle, HandleTypeSet);
     struct handleset_element* setElement;
-    oscode_t                osStatus;
+    oserr_t                osStatus;
     TRACE("ControlHandleSet(setHandle=%u, op=%i, handle=%u)", setHandle, operation, handle);
 
     if (!set) {
@@ -188,7 +188,7 @@ ControlHandleSet(
     return osStatus;
 }
 
-oscode_t
+oserr_t
 WaitForHandleSet(
         _In_  uuid_t              handle,
         _In_  struct ioset_event* events,
@@ -218,7 +218,7 @@ WaitForHandleSet(
     
     // Wait for response by 'polling' the value
     while (!numberOfEvents) {
-        oscode_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
+        oserr_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
         if (osStatus != OsOK) {
             return osStatus;
         }
@@ -287,7 +287,7 @@ MarkHandleCallback(
     return LIST_ENUMERATE_CONTINUE;
 }
 
-oscode_t
+oserr_t
 MarkHandle(
         _In_ uuid_t       handle,
         _In_ unsigned int flags)
@@ -307,7 +307,7 @@ MarkHandle(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 DestroySetElement(
     _In_ struct handleset_element* setElement)
 {
@@ -332,7 +332,7 @@ DestroySetElement(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 AddHandleToSet(
         _In_ struct handle_set*  set,
         _In_ uuid_t              handle,
@@ -340,7 +340,7 @@ AddHandleToSet(
 {
     struct handle_sets*       element;
     struct handleset_element* setElement;
-    oscode_t                osStatus;
+    oserr_t                osStatus;
 
     IrqSpinlockAcquire(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });

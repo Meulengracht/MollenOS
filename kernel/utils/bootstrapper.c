@@ -29,7 +29,7 @@ SpawnBootstrapper(void)
 {
     uuid_t     memorySpaceHandle;
     uuid_t     threadHandle;
-    oscode_t osStatus;
+    oserr_t osStatus;
     vaddr_t    codeAddress;
     TRACE("SpawnBootstrapper(base=0x%llx, entry=0x%llx, len=0x%x)",
           GetMachine()->BootInformation.Phoenix.Base,

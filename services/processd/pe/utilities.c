@@ -43,7 +43,7 @@ PeResolveLibrary(
 {
     PeExecutable_t* ExportParent = Parent;
     PeExecutable_t* Exports      = NULL;
-    oscode_t Status;
+    oserr_t Status;
 
     //dstrace("PeResolveLibrary(Name %s)", MStringRaw(LibraryName));
     if (ExportParent == NULL) {
@@ -92,7 +92,7 @@ PeResolveFunction(
     return 0;
 }
 
-oscode_t
+oserr_t
 PeGetModuleHandles(
     _In_  PeExecutable_t* executable,
     _Out_ Handle_t*       moduleList,
@@ -125,7 +125,7 @@ PeGetModuleHandles(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PeGetModuleEntryPoints(
     _In_  PeExecutable_t* executable,
     _Out_ Handle_t*       moduleList,

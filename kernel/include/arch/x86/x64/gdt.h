@@ -152,7 +152,7 @@ GdtInstall(void);
  * @param[In] coreBlock The platform data block for the cpu core.
  * @return    The status of the initialization.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 TssInitialize(
         _In_ PlatformCpuCoreBlock_t* coreBlock);
 

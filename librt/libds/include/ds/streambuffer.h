@@ -60,7 +60,7 @@ streambuffer_construct(
     _In_ size_t          capacity,
     _In_ unsigned int    options));
 
-DSDECL(oscode_t,
+DSDECL(oserr_t,
        streambuffer_create(
     _In_  size_t           capacity,
     _In_  unsigned int     options,

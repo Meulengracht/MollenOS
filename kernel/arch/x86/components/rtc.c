@@ -83,7 +83,7 @@ __DisableRtc(void)
     return CmosRead(CMOS_REGISTER_STATUS_B);
 }
 
-oscode_t
+oserr_t
 RtcInitialize(
     _In_ Cmos_t* cmos)
 {

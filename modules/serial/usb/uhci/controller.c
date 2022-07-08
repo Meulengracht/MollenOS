@@ -30,7 +30,7 @@
 #include <threads.h>
 #include <stdlib.h>
 
-oscode_t        UhciSetup(UhciController_t *Controller);
+oserr_t        UhciSetup(UhciController_t *Controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 void
@@ -146,7 +146,7 @@ HciControllerCreate(
     }
 }
 
-oscode_t
+oserr_t
 HciControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
@@ -176,7 +176,7 @@ HciTimerCallback(
     UsbManagerProcessTransfers((UsbManagerController_t*)baseController);
 }
 
-oscode_t
+oserr_t
 UhciStart(
     _In_ UhciController_t* Controller,
     _In_ int               Wait)
@@ -204,7 +204,7 @@ UhciStart(
     return (OldCmd == 0) ? OsOK : OsError;
 }
 
-oscode_t
+oserr_t
 UhciStop(
     _In_ UhciController_t*  Controller)
 {
@@ -220,7 +220,7 @@ UhciStop(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UhciReset(
     _In_ UhciController_t*  Controller)
 {
@@ -257,7 +257,7 @@ UhciReset(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 UhciSetup(
     _In_ UhciController_t *Controller)
 {

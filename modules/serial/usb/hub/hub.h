@@ -206,7 +206,7 @@ HubDeviceDestroy(
  * @param portIndex
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 HubPowerOnPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex);
@@ -217,7 +217,7 @@ HubPowerOnPort(
  * @param status
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 HubGetStatus(
         _In_ HubDevice_t* hubDevice,
         _In_ HubStatus_t* status);
@@ -228,7 +228,7 @@ HubGetStatus(
  * @param change
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 HubClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       change);
@@ -240,7 +240,7 @@ HubClearChange(
  * @param status
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 HubGetPortStatus(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -253,7 +253,7 @@ HubGetPortStatus(
  * @param change
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 HubPortClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -265,7 +265,7 @@ HubPortClearChange(
  * @param portIndex
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 HubResetPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex);

@@ -70,9 +70,9 @@ typedef struct InterruptResourceTable {
 // to some memory regions, io-regions and some system-functions (like the standard input pipe).
 typedef struct InterruptFunctionTable {
     size_t     (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
-    oscode_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
-    oscode_t (*EventSignal)(uuid_t handle);
-    oscode_t (*WriteStream)(uuid_t handle, const void* buffer, size_t length);
+    oserr_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
+    oserr_t (*EventSignal)(uuid_t handle);
+    oserr_t (*WriteStream)(uuid_t handle, const void* buffer, size_t length);
     void       (*Trace)(const char* format, ...);
 } InterruptFunctionTable_t;
 
@@ -171,7 +171,7 @@ DDKDECL(uuid_t,
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of SIGINT */
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         UnregisterInterruptSource(
     _In_ uuid_t interruptHandle));
 

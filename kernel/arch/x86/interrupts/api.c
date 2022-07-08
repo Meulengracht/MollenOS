@@ -172,7 +172,7 @@ static uuid_t __AllocateSoftwareVector(
     return result;
 }
 
-oscode_t
+oserr_t
 InterruptResolve(
         _In_  DeviceInterrupt_t* deviceInterrupt,
         _In_  unsigned int       flags,
@@ -251,7 +251,7 @@ void InterruptSetMode(
     _CRT_UNUSED(mode);
 }
 
-oscode_t
+oserr_t
 InterruptConfigure(
     _In_ SystemInterrupt_t* systemInterrupt,
     _In_ int                enable)

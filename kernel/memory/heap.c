@@ -112,7 +112,7 @@ __AllocateVirtualPages(
     unsigned int memoryFlags = MAPPING_COMMIT | MAPPING_DOMAIN;
     uintptr_t    pages[pageCount];
     uintptr_t    address;
-    oscode_t   status;
+    oserr_t   status;
 
     if (flags & HEAP_CACHE_USERSPACE) {
         memoryFlags |= MAPPING_USERSPACE;
@@ -140,7 +140,7 @@ __FreeVirtualPages(
     _In_ int       PageCount)
 {
     size_t     PageSize = GetMemorySpacePageSize();
-    oscode_t Status   = MemorySpaceUnmap(
+    oserr_t Status   = MemorySpaceUnmap(
         GetCurrentMemorySpace(), Address, PageSize * PageCount);
     if (Status != OsOK) {
         ERROR("Failed to free allocation 0x%" PRIxIN " of size 0x%" PRIxIN "", Address, PageSize * PageCount);
@@ -897,8 +897,8 @@ void* kmalloc_p(size_t Size, uintptr_t* DmaOut)
 {
     void* Allocation = kmalloc(Size);
     if (Allocation != NULL && DmaOut != NULL) {
-        oscode_t Status = GetMemorySpaceMapping(GetCurrentMemorySpace(),
-                                                (vaddr_t)Allocation, 1, DmaOut);
+        oserr_t Status = GetMemorySpaceMapping(GetCurrentMemorySpace(),
+                                               (vaddr_t)Allocation, 1, DmaOut);
         if (Status != OsOK) {
             // ehm what?
             assert(0);

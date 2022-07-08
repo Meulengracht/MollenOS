@@ -43,12 +43,12 @@ struct file_view {
 static list_t g_fileViews = LIST_INIT;
 static size_t g_pageSize  = 0;
 
-oscode_t
+oserr_t
 SetFileSizeFromPath(
         _In_ const char* path,
         _In_ size_t      size)
 {
-    oscode_t status;
+    oserr_t status;
     int        fd;
     
     if (!path) {
@@ -57,7 +57,7 @@ SetFileSizeFromPath(
 
     fd = open(path, O_RDWR);
     if (fd == -1) {
-        return OsCodeToErrNo(fd);
+        return OsErrToErrNo(fd);
     }
 
     status = SetFileSizeFromFd(fd, size);
@@ -66,14 +66,14 @@ SetFileSizeFromPath(
     return status;
 }
 
-oscode_t
+oserr_t
 SetFileSizeFromFd(
         _In_ int    fileDescriptor,
         _In_ size_t size)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oscode_t               status;
+    oserr_t               status;
     UInteger64_t          value;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
@@ -95,12 +95,12 @@ SetFileSizeFromFd(
     return status;
 }
 
-oscode_t
+oserr_t
 ChangeFilePermissionsFromPath(
         _In_ const char*  path,
         _In_ unsigned int permissions)
 {
-    oscode_t status;
+    oserr_t status;
     int        fd;
     
     if (!path) {
@@ -109,7 +109,7 @@ ChangeFilePermissionsFromPath(
 
     fd = open(path, O_RDWR);
     if (fd == -1) {
-        return OsCodeToErrNo(fd);
+        return OsErrToErrNo(fd);
     }
 
     status = ChangeFilePermissionsFromFd(fd, permissions);
@@ -118,14 +118,14 @@ ChangeFilePermissionsFromPath(
     return status;
 }
 
-oscode_t
+oserr_t
 ChangeFilePermissionsFromFd(
         _In_ int          fileDescriptor,
         _In_ unsigned int permissions)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oscode_t                 status;
+    oserr_t                 status;
     unsigned int             access;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
@@ -153,14 +153,14 @@ ChangeFilePermissionsFromFd(
     return status;
 }
 
-oscode_t
+oserr_t
 GetFileLink(
         _In_ const char* path,
         _In_ char*       linkPathBuffer,
         _In_ size_t      bufferLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oscode_t               status;
+    oserr_t               status;
     
     if (!path || !linkPathBuffer || bufferLength == 0) {
         return OsInvalidParameters;
@@ -172,7 +172,7 @@ GetFileLink(
     return status;
 }
 
-oscode_t
+oserr_t
 GetFilePathFromFd(
     _In_ int    fileDescriptor,
     _In_ char*  buffer,
@@ -180,7 +180,7 @@ GetFilePathFromFd(
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oscode_t               status;
+    oserr_t               status;
 
     if (!handle || !buffer || handle->object.type != STDIO_HANDLE_FILE) {
         return OsInvalidParameters;
@@ -192,14 +192,14 @@ GetFilePathFromFd(
     return status;
 }
 
-oscode_t
+oserr_t
 GetStorageInformationFromPath(
     _In_ const char*            path,
     _In_ int                    followLinks,
     _In_ OsStorageDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oscode_t                 status;
+    oserr_t                 status;
     struct sys_disk_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
@@ -216,14 +216,14 @@ GetStorageInformationFromPath(
     return status;
 }
 
-oscode_t
+oserr_t
 GetStorageInformationFromFd(
     _In_ int                    fileDescriptor,
     _In_ OsStorageDescriptor_t* descriptor)
 {
-    struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-    stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
-    oscode_t                 status;
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
+    oserr_t                  status;
     struct sys_disk_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -241,14 +241,14 @@ GetStorageInformationFromFd(
     return status;
 }
 
-oscode_t
+oserr_t
 GetFileSystemInformationFromPath(
     _In_ const char*               path,
     _In_ int                       followLinks,
     _In_ OsFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oscode_t                       status;
+    oserr_t                          status;
     struct sys_filesystem_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
@@ -265,14 +265,14 @@ GetFileSystemInformationFromPath(
     return status;
 }
 
-oscode_t
+oserr_t
 GetFileSystemInformationFromFd(
     _In_ int                       fileDescriptor,
     _In_ OsFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*                  handle = stdio_handle_get(fileDescriptor);
-    oscode_t                       status;
+    oserr_t                       status;
     struct sys_filesystem_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -290,14 +290,14 @@ GetFileSystemInformationFromFd(
     return status;
 }
 
-oscode_t
+oserr_t
 GetFileInformationFromPath(
     _In_ const char*         path,
     _In_ int                 followLinks,
     _In_ OsFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oscode_t                 status;
+    oserr_t                 status;
     struct sys_file_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
@@ -314,14 +314,14 @@ GetFileInformationFromPath(
     return status;
 }
 
-oscode_t
+oserr_t
 GetFileInformationFromFd(
     _In_ int                 fileDescriptor,
     _In_ OsFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
-    oscode_t                 status;
+    oserr_t                 status;
     struct sys_file_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -367,7 +367,7 @@ static inline uintptr_t __GetPageSize(void)
     return g_pageSize;
 }
 
-oscode_t
+oserr_t
 CreateFileMapping(
     _In_  int      FileDescriptor,
     _In_  int      Flags,
@@ -376,7 +376,7 @@ CreateFileMapping(
     _Out_ void**   MemoryPointer)
 {
     stdio_handle_t*         handle = stdio_handle_get(FileDescriptor);
-    oscode_t              osStatus;
+    oserr_t              osStatus;
     struct file_view*       fileView;
     size_t                  fileOffset = Offset & (__GetPageSize() - 1);
     struct dma_buffer_info  bufferInfo;
@@ -420,13 +420,13 @@ CreateFileMapping(
     return osStatus;
 }
 
-oscode_t FlushFileMapping(
+oserr_t FlushFileMapping(
         _In_ void*  MemoryPointer,
         _In_ size_t Length)
 {
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
     UInteger64_t   fileOffset;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
     int               pageCount;
     unsigned int*     attributes;
     if (!fileView) {
@@ -481,12 +481,12 @@ exit:
     return osStatus;
 }
 
-oscode_t
+oserr_t
 DestroyFileMapping(
         _In_ void* MemoryPointer)
 {
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
-    oscode_t        osStatus;
+    oserr_t        osStatus;
     if (!fileView) {
         return OsInvalidParameters;
     }
@@ -511,7 +511,7 @@ DestroyFileMapping(
     return osStatus;
 }
 
-oscode_t HandleMemoryMappingEvent(
+oserr_t HandleMemoryMappingEvent(
         _In_ int   signal,
         _In_ void* vaddressPtr)
 {
@@ -519,7 +519,7 @@ oscode_t HandleMemoryMappingEvent(
     struct file_view* fileView       = __GetFileView((uintptr_t)vaddressPtr);
     uintptr_t         virtualAddress = (uintptr_t)vaddressPtr;
     UInteger64_t   fileOffset;
-    oscode_t        osStatus;
+    oserr_t        osStatus;
     size_t            bytesTransferred;
 
     if (!fileView) {

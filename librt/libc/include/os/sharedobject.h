@@ -45,7 +45,7 @@ SharedObjectGetFunction(
 /* SharedObjectUnload
  * Unloads a valid shared object handle
  * returns OsError on failure */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         SharedObjectUnload(
 	_In_ Handle_t Handle));
 _CODE_END

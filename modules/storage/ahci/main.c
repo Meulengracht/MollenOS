@@ -92,7 +92,7 @@ handler_loop:
     }
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -112,7 +112,7 @@ ClearControllerCallback(
     AhciControllerDestroy((AhciController_t*)element->value);
 }
 
-oscode_t
+oserr_t
 OnUnload(void)
 {
     list_clear(&controllers, ClearControllerCallback, NULL);
@@ -120,7 +120,7 @@ OnUnload(void)
     return OsOK;
 }
 
-oscode_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     TRACE("OnEvent(event->events=0x%x)", event->events);
     if (event->events & IOSETSYN) {
@@ -137,7 +137,7 @@ oscode_t OnEvent(struct ioset_event* event)
     return OsNotExists;
 }
 
-oscode_t
+oserr_t
 OnRegister(
     _In_ Device_t* device)
 {
@@ -156,7 +156,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message,
     OnRegister((Device_t*)device);
 }
 
-oscode_t
+oserr_t
 OnUnregister(
     _In_ Device_t* device)
 {

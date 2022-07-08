@@ -63,7 +63,7 @@ void io_buffer_ensure(FILE* stream)
     io_buffer_allocate(stream);
 }
 
-oscode_t
+oserr_t
 io_buffer_flush(
     _In_ FILE* file)
 {
@@ -107,7 +107,7 @@ io_buffer_flush_all(
     return filesFlushes;
 }
 
-oscode_t
+oserr_t
 _lock_stream(
     _In_ FILE *file)
 {
@@ -122,7 +122,7 @@ _lock_stream(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 _unlock_stream(
     _In_ FILE *file)
 {

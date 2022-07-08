@@ -154,7 +154,7 @@ PS2MouseInterrupt(
     port->ResponseReadIndex = index;
 }
 
-oscode_t
+oserr_t
 PS2SetSampling(
     _In_ PS2Port_t* Port,
     _In_ uint8_t    Sampling)
@@ -166,7 +166,7 @@ PS2SetSampling(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 PS2EnableExtensions(
     _In_ PS2Port_t* Port)
 {
@@ -190,7 +190,7 @@ PS2EnableExtensions(
 }
 
 // The 'unlock' sequence of 200-100-80 sample
-oscode_t
+oserr_t
 PS2EnableScroll(
     _In_ PS2Port_t* Port)
 {
@@ -214,7 +214,7 @@ PS2EnableScroll(
     }
 }
 
-oscode_t
+oserr_t
 PS2MouseInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              index)
@@ -249,7 +249,7 @@ PS2MouseInitialize(
     return PS2PortExecuteCommand(port, PS2_ENABLE_SCANNING, NULL);
 }
 
-oscode_t
+oserr_t
 PS2MouseCleanup(
     _In_ PS2Controller_t* controller,
     _In_ int              index)

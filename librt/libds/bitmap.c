@@ -51,7 +51,7 @@ BitmapCreate(
     return Bitmap;
 }
 
-oscode_t
+oserr_t
 BitmapConstruct(
     _In_ Bitmap_t* Bitmap,
     _In_ size_t*   Data,
@@ -71,7 +71,7 @@ BitmapConstruct(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 BitmapDestroy(
     _In_ Bitmap_t* Bitmap)
 {

@@ -59,7 +59,7 @@ __InstallSoftwareHandlers(void)
     );
 }
 
-oscode_t
+oserr_t
 PlatformInterruptInitialize(void)
 {
     TRACE("PlatformInterruptInitialize()");

@@ -45,7 +45,9 @@ set (SERVICE_SOURCES
         vfs/handlers/unlink.c
         vfs/handlers/write.c
         vfs/api.c
+        vfs/bind.c
         vfs/handles.c
+        vfs/mount.c
         vfs/utils.c
         vfs/vfs.c
 

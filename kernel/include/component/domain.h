@@ -42,7 +42,7 @@ typedef struct SystemDomain {
 
 /* CreateNumaDomain
  * Creates a new domain with the given parameters and configuration. */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateNumaDomain(
         _In_  uuid_t            DomainId,
         _In_  int               NumberOfCores,

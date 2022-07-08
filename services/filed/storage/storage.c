@@ -46,7 +46,7 @@ extern void VfsStorageInitialize(void)
     usched_mtx_init(&g_diskLock);
 }
 
-oscode_t
+oserr_t
 VfsStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
@@ -89,7 +89,7 @@ __StorageSetup(
         _In_ void*                cancellationToken)
 {
     struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(fsStorage->Storage.DriverID);
-    oscode_t                 osStatus;
+    oserr_t                 osStatus;
     struct sys_disk_descriptor gdescriptor;
     TRACE("__StorageSetup()");
 

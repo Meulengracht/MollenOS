@@ -27,7 +27,7 @@
 #include "uhci.h"
 #include <assert.h>
 
-static oscode_t
+static oserr_t
 UhciTransferFillIsochronous(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
@@ -108,7 +108,7 @@ UhciTransferFillIsochronous(
     return OsBusy;
 }
 
-static oscode_t
+static oserr_t
 UhciTransferFill(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)

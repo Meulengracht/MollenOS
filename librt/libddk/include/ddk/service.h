@@ -39,7 +39,7 @@ _CODE_BEGIN
 
 // The ability to associate the current thread handle 
 // with a global path to access services without knowing the thread
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         RegisterPath(
     _In_ const char* Path));
 
@@ -54,22 +54,22 @@ DDKDECL(thrd_t, GetNetService(void));
 // When a service is required for a module it is
 // possible to wait for it to be available. Be careful
 // about not giving a timeout
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WaitForSessionService(
     _In_ size_t Timeout));
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WaitForDeviceService(
     _In_ size_t Timeout));
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WaitForUsbService(
     _In_ size_t Timeout));
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WaitForProcessService(
     _In_ size_t Timeout));
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WaitForFileService(
     _In_ size_t Timeout));
-DDKDECL(oscode_t,
+DDKDECL(oserr_t,
         WaitForNetService(
     _In_ size_t Timeout));
 

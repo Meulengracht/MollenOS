@@ -60,7 +60,7 @@ VesaDrawPixel(
     }
 }
 
-static oscode_t
+static oserr_t
 VesaDrawCharacter(
     _In_ unsigned CursorX,
     _In_ unsigned CursorY,
@@ -120,7 +120,7 @@ VesaDrawCharacter(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 VesaScroll(
     _In_ int lineCount)
 {
@@ -181,7 +181,7 @@ VesaScroll(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 VesaPutCharacter(
     _In_ int Character)
 {
@@ -229,7 +229,7 @@ VesaPutCharacter(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 TextDrawCharacter(
     _In_ int      Character,
     _In_ unsigned CursorY,
@@ -249,7 +249,7 @@ TextDrawCharacter(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 TextScroll(
     _In_ int ByLines)
 {
@@ -281,7 +281,7 @@ TextScroll(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 TextPutCharacter(
     _In_ int Character)
 {
@@ -444,7 +444,7 @@ VideoDrawPixel(
     }
 }
 
-oscode_t
+oserr_t
 VideoDrawCharacter(
     _In_ unsigned int X,
     _In_ unsigned int Y,
@@ -491,7 +491,7 @@ SerialPutCharacter(
     WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, characterBuffer);
 }
 
-oscode_t
+oserr_t
 SerialPortInitialize(void)
 {
     // Initalize the UART port (1)
@@ -501,7 +501,7 @@ SerialPortInitialize(void)
     return OsOK;
 }
 
-oscode_t
+oserr_t
 InitializeFramebufferOutput(void)
 {
     // Which kind of mode has been enabled for us
@@ -512,7 +512,7 @@ InitializeFramebufferOutput(void)
         paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
 
         if (pages) {
-            oscode_t status = MemorySpaceMap(
+            oserr_t status = MemorySpaceMap(
                     GetCurrentMemorySpace(),
                     &backBuffer,
                     &pages[0],

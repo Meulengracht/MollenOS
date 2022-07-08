@@ -6,7 +6,7 @@
 namespace sys
 
 define uuid_t from "os/osdefs.h"
-define oscode_t from "os/osdefs.h"
+define oserr_t from "os/osdefs.h"
 define size_t from "stddef.h"
 define uintptr_t from "stdint.h"
 define time_t from "time.h"

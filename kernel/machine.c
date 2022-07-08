@@ -84,7 +84,7 @@ _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     // Initialize all our static memory systems and global variables
     LogInitialize();
@@ -228,14 +228,14 @@ IdleProcessor:
     }
 }
 
-oscode_t
+oserr_t
 AllocatePhysicalMemory(
         _In_ size_t     pageMask,
         _In_ int        pageCount,
         _In_ uintptr_t* pages)
 {
     SystemMemoryAllocatorRegion_t* region;
-    oscode_t                     osStatus;
+    oserr_t                     osStatus;
     int                            pagesLeftToAllocate = pageCount;
     int                            i = GetMachine()->PhysicalMemory.MaskCount - 1;
 

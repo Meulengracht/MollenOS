@@ -562,7 +562,7 @@ HidParseReportDescriptor(
     }
 }
 
-oscode_t
+oserr_t
 HidCollectionDestroy(
     _In_ UsbHidReportCollection_t* reportCollection)
 {
@@ -595,7 +595,7 @@ HidCollectionDestroy(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 HidCollectionCleanup(
     _In_ HidDevice_t* hidDevice)
 {

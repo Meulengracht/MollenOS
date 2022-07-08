@@ -33,7 +33,7 @@ typedef struct ThreadPool ThreadPool_t;
 _CODE_BEGIN
 /* ThreadPoolInitialize 
  * Initializes a new thread-pool with the given number of threads */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ThreadPoolInitialize(
     _In_  int            NumThreads,
     _Out_ ThreadPool_t** ThreadPool));
@@ -42,7 +42,7 @@ CRTDECL(oscode_t,
  * Takes an action and its argument and adds it to the threadpool's job queue. 
  * If you want to add to work a function with more than one arguments then
  * a way to implement this is by passing a pointer to a structure. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ThreadPoolAddWork(
     _In_ ThreadPool_t* ThreadPool,
     _In_ thrd_start_t  Function,
@@ -52,27 +52,27 @@ CRTDECL(oscode_t,
  * Will wait for all jobs - both queued and currently running to finish.
  * Once the queue is empty and all work has completed, the calling thread
  * (probably the main program) will continue. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ThreadPoolWait(
     _In_ ThreadPool_t* ThreadPool));
 
 /* ThreadPoolPause
  * The threads will be paused no matter if they are idle or working.
  * The threads return to their previous states once thpool_resume is called. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ThreadPoolPause(
     _In_ ThreadPool_t* ThreadPool));
 
 /* ThreadPoolResume
  * Unpauses all threads if they are paused. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ThreadPoolResume(
     _In_ ThreadPool_t* ThreadPool));
 
 /* ThreadPoolDestroy
  * This will wait for the currently active threads to finish and then 'kill'
  * the whole threadpool to free up memory. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         ThreadPoolDestroy(
     _In_ ThreadPool_t* ThreadPool));
 

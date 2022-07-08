@@ -67,7 +67,7 @@ AcpiDeviceLookupBusRoutings(
     return context.Device;
 }
 
-oscode_t
+oserr_t
 AcpiDeviceCreate(
     _In_ ACPI_HANDLE deviceHandle,
     _In_ ACPI_HANDLE parentHandle,

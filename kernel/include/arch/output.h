@@ -72,7 +72,7 @@ VideoDrawPixel(
 
 /* VideoDrawCharacter
  * Renders a character of the given color(s) at the specified pixel-position */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 VideoDrawCharacter(
     _In_ unsigned int X, 
     _In_ unsigned int Y, 
@@ -93,7 +93,7 @@ VideoPutCharacter(
  * Initializes the serial output for the operating system. This is the output that is
  * always active if a serial port is present.
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SerialPortInitialize(void);
 
 /**

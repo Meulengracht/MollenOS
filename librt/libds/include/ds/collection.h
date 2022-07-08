@@ -74,14 +74,14 @@ CollectionConstruct(
 
 /* CollectionClear
  * Clears the Collection of members, cleans up nodes. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionClear(
     _In_ Collection_t*          Collection));
 
 /* CollectionDestroy
  * Destroys the Collection and frees all resources associated
  * does also free all Collection elements and keys */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionDestroy(
     _In_ Collection_t*          Collection));
 
@@ -126,7 +126,7 @@ CollectionCreateNode(
 
 /* CollectionDestroyNode
  * Cleans up a Collection node and frees all resources it had */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionDestroyNode(
     _In_ Collection_t*          Collection,
     _In_ CollectionItem_t*      Node));
@@ -136,7 +136,7 @@ CRTDECL(oscode_t,
  * Inserts the node into the front of the Collection. This should be used for sorted
  * Collections, but is available for unsorted Collections aswell
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionInsert(
     _In_ Collection_t*     Collection, 
     _In_ CollectionItem_t* Node));
@@ -146,7 +146,7 @@ CRTDECL(oscode_t,
  * Inserts the node into the the back of the Collection. This function is not
  * available for sorted Collections, it will simply redirect to CollectionInsert 
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionAppend(
     _In_ Collection_t*          Collection,
     _In_ CollectionItem_t*      Node));
@@ -215,7 +215,7 @@ CollectionUnlinkNode(
  * * CollectionRemoveByNode
  * These are the deletion functions and remove based on either node or key 
  */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionRemoveByNode(
     _In_ Collection_t*     Collection,
     _In_ CollectionItem_t* Node));
@@ -223,7 +223,7 @@ CRTDECL(oscode_t,
 /**
  * CollectionRemoveByKey
  * These are the deletion functions and remove based on either node or key */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
         CollectionRemoveByKey(
     _In_ Collection_t* Collection, 
     _In_ DataKey_t     Key));

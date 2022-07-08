@@ -68,7 +68,7 @@ MutexDestruct(
  * @param mutex [In] A pointer to a Mutex_t structure
  * @return
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MutexTryLock(
     _In_ Mutex_t* mutex);
 
@@ -86,7 +86,7 @@ MutexLock(
  * @param timeout [In] Timeout in milliseconds
  * @return        Returns OsTimeout if it failed to acquire within the timeout
  */
-KERNELAPI oscode_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MutexLockTimed(
     _In_ Mutex_t* mutex,
     _In_ size_t   timeout);

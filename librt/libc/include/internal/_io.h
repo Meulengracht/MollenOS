@@ -68,13 +68,13 @@ typedef struct stdio_object {
 #define STDIO_CLOSE_DELETE  2
 
 // Stdio descriptor operations
-typedef oscode_t(*stdio_inherit)(stdio_handle_t*);
-typedef oscode_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
-typedef oscode_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
-typedef oscode_t(*stdio_resize)(stdio_handle_t*, long long);
-typedef oscode_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
-typedef oscode_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
-typedef oscode_t(*stdio_close)(stdio_handle_t*, int);
+typedef oserr_t(*stdio_inherit)(stdio_handle_t*);
+typedef oserr_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
+typedef oserr_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
+typedef oserr_t(*stdio_resize)(stdio_handle_t*, long long);
+typedef oserr_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
+typedef oserr_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
+typedef oserr_t(*stdio_close)(stdio_handle_t*, int);
 
 typedef struct stdio_ops {
     stdio_inherit inherit;
@@ -121,7 +121,7 @@ extern stdio_handle_t* stdio_handle_get(int iod);
 
 extern void       io_buffer_ensure(FILE* stream);
 extern void       io_buffer_allocate(FILE* stream);
-extern oscode_t io_buffer_flush(FILE* file);
+extern oserr_t io_buffer_flush(FILE* file);
 extern int        io_buffer_flush_all(int mask);
 
 // io-operation types
@@ -143,8 +143,8 @@ extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fopts(int oflags);
 extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
-extern oscode_t   _lock_stream(FILE * stream);
-extern oscode_t   _unlock_stream(FILE * stream);
+extern oserr_t   _lock_stream(FILE * stream);
+extern oserr_t   _unlock_stream(FILE * stream);
 extern int          streamout(FILE *stream, const char *format, va_list argptr);
 extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
 
@@ -153,7 +153,7 @@ extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argp
 #define LOCK_FILES() do { } while(0)
 #define UNLOCK_FILES() do { } while(0)
 
-extern oscode_t
+extern oserr_t
 StdioCreateInheritanceBlock(
 	_In_  ProcessConfiguration_t* configuration,
     _Out_ void**                  inheritationBlockOut,

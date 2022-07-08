@@ -58,7 +58,7 @@ struct VFSModule {
  * @param type [In] The type of filesystem to load.
  * @return     A handle for the given filesystem driver.
  */
-extern oscode_t
+extern oserr_t
 VfsLoadModule(
         _In_  enum FileSystemType type,
         _Out_ struct VFSModule**  moduleOut);

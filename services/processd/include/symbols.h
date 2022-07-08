@@ -61,7 +61,7 @@ SymbolInitialize(void);
  * @param symbolOffset A pointer to a uintptr_t where the offset into the symbol that was found
  * @return             Status of the lookup
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 SymbolLookup(
         _In_  const char*  binaryName,
         _In_  uintptr_t    binaryOffset,
@@ -76,7 +76,7 @@ SymbolLookup(
  * @param fileLength
  * @return
  */
-__EXTERN oscode_t
+__EXTERN oserr_t
 SymbolParseMapFile(
         _In_ struct symbol_context* symbolContext,
         _In_ void*                  fileBuffer,

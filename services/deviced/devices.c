@@ -77,7 +77,7 @@ __GetDevice(
     return result;
 }
 
-oscode_t
+oserr_t
 DmDevicesRegister(
         _In_ uuid_t driverHandle,
         _In_ uuid_t deviceId)
@@ -105,7 +105,7 @@ void DmHandleDeviceCreate(
         _In_ void*      cancellationToken)
 {
     uuid_t     result = UUID_INVALID;
-    oscode_t status = DmDeviceCreate(
+    oserr_t status = DmDeviceCreate(
             (Device_t*)request->parameters.create.device_buffer,
             NULL,
             request->parameters.create.flags,
@@ -159,7 +159,7 @@ void DmHandleIoctl(
         _In_ void*      cancellationToken)
 {
     struct DmDevice* device = __GetDevice(request->parameters.ioctl.device_id);
-    oscode_t       result = OsInvalidParameters;
+    oserr_t       result = OsInvalidParameters;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
         result = DmIoctlDevice(
@@ -178,7 +178,7 @@ void DmHandleIoctl2(
         _In_ void*      cancellationToken)
 {
     struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
-    oscode_t       result  = OsInvalidParameters;
+    oserr_t       result  = OsInvalidParameters;
     size_t           storage = request->parameters.ioctl2.value;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
@@ -223,7 +223,7 @@ void DmHandleRegisterProtocol(
     RequestDestroy(request);
 }
 
-oscode_t
+oserr_t
 DmDeviceCreate(
         _In_  Device_t*    device,
         _In_  const char*  name,

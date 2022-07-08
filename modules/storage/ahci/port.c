@@ -124,7 +124,7 @@ AhciPortInitiateSetup(
     }
 }
 
-oscode_t
+oserr_t
 AhciPortFinishSetup(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
@@ -208,13 +208,13 @@ AhciPortFinishSetup(
     return OsOK;
 }
 
-static oscode_t
+static oserr_t
 AllocateOperationalMemory(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
     struct dma_buffer_info bufferInfo;
-    oscode_t             osStatus;
+    oserr_t             osStatus;
 
     TRACE("AllocateOperationalMemory(controller=0x%" PRIxIN ", port=0x%" PRIxIN ")",
           controller, port);
@@ -261,14 +261,14 @@ AllocateOperationalMemory(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 AhciPortRebase(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
     reg32_t             Caps = READ_VOLATILE(controller->Registers->Capabilities);
     AHCICommandList_t*  CommandList;
-    oscode_t          Status;
+    oserr_t          Status;
     struct dma_sg_table SgTable;
     uintptr_t           PhysicalAddress;
     int                 i;
@@ -309,7 +309,7 @@ AhciPortRebase(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 AhciPortEnable(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
@@ -358,7 +358,7 @@ AhciPortEnable(
     return AhciManagerRegisterDevice(controller, port, status);
 }
 
-oscode_t
+oserr_t
 AhciPortStart(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
@@ -450,12 +450,12 @@ AhciPortStartCommandSlot(
     WRITE_VOLATILE(port->Registers->CI, bitIndex);
 }
 
-oscode_t
+oserr_t
 AhciPortAllocateCommandSlot(
     _In_  AhciPort_t* port,
     _Out_ int*        slotOut)
 {
-    oscode_t osStatus = OsError;
+    oserr_t osStatus = OsError;
     int        i;
     
     while (osStatus != OsOK) {

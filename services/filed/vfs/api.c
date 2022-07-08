@@ -36,7 +36,7 @@ void OpenFile(
     }
 
     uuid_t     handle   = UUID_INVALID;
-    oscode_t osStatus = VFSNodeOpen(fsScope, request, &handle);
+    oserr_t osStatus = VFSNodeOpen(fsScope, request, &handle);
     sys_file_open_response(request->message, osStatus, handle);
 
     free((void*)request->parameters.open.path);
@@ -53,7 +53,7 @@ void CloseFile(
         return;
     }
 
-    oscode_t osStatus = VFSNodeClose(fsScope, request);
+    oserr_t osStatus = VFSNodeClose(fsScope, request);
     sys_file_close_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -69,7 +69,7 @@ void DeletePath(
         return;
     }
 
-    oscode_t osStatus = VFSNodeUnlink(fsScope, request);
+    oserr_t osStatus = VFSNodeUnlink(fsScope, request);
     sys_file_delete_response(request->message, osStatus);
 
     free((void*)request->parameters.delete_path.path);
@@ -87,7 +87,7 @@ void ReadFile(
     }
 
     size_t     read     = 0;
-    oscode_t osStatus = VFSNodeRead(request, &read);
+    oserr_t osStatus = VFSNodeRead(request, &read);
     sys_file_transfer_response(request->message, osStatus, read);
 
     VfsRequestDestroy(request);
@@ -104,7 +104,7 @@ void WriteFile(
     }
 
     size_t     written  = 0;
-    oscode_t osStatus = VFSNodeWrite(request, &written);
+    oserr_t osStatus = VFSNodeWrite(request, &written);
     sys_file_transfer_response(request->message, osStatus, written);
 
     VfsRequestDestroy(request);
@@ -121,7 +121,7 @@ void ReadFileAbsolute(
     }
 
     size_t     read     = 0;
-    oscode_t osStatus = VFSNodeReadAt(request, &read);
+    oserr_t osStatus = VFSNodeReadAt(request, &read);
     sys_file_transfer_absolute_response(request->message, osStatus, read);
 
     VfsRequestDestroy(request);
@@ -138,7 +138,7 @@ void WriteFileAbsolute(
     }
 
     size_t     written  = 0;
-    oscode_t osStatus = VFSNodeWriteAt(request, &written);
+    oserr_t osStatus = VFSNodeWriteAt(request, &written);
     sys_file_transfer_absolute_response(request->message, osStatus, written);
 
     VfsRequestDestroy(request);
@@ -155,7 +155,7 @@ void Seek(
     }
 
     uint64_t   position = 0;
-    oscode_t osStatus = VFSNodeSeek(request, &position);
+    oserr_t osStatus = VFSNodeSeek(request, &position);
     sys_file_seek_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -171,7 +171,7 @@ void Flush(
         return;
     }
 
-    oscode_t osStatus = VFSNodeFlush(request);
+    oserr_t osStatus = VFSNodeFlush(request);
     sys_file_flush_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -187,7 +187,7 @@ void Move(
         return;
     }
 
-    oscode_t osStatus = VFSNodeMove(fsScope, request);
+    oserr_t osStatus = VFSNodeMove(fsScope, request);
     sys_file_move_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -203,7 +203,7 @@ void Link(
         return;
     }
 
-    oscode_t osStatus = VFSNodeLink(fsScope, request);
+    oserr_t osStatus = VFSNodeLink(fsScope, request);
     sys_file_link_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -220,7 +220,7 @@ void Duplicate(
     }
 
     uuid_t     dupHandle;
-    oscode_t osStatus = VFSNodeDuplicate(request, &dupHandle);
+    oserr_t osStatus = VFSNodeDuplicate(request, &dupHandle);
     sys_file_duplicate_response(request->message, osStatus, dupHandle);
 
     VfsRequestDestroy(request);
@@ -237,7 +237,7 @@ void GetPosition(
     }
 
     UInteger64_t position;
-    oscode_t      osStatus = VFSNodeGetPosition(request, &position.QuadPart);
+    oserr_t      osStatus = VFSNodeGetPosition(request, &position.QuadPart);
     sys_file_get_position_response(request->message, osStatus, position.u.LowPart, position.u.HighPart);
 
     VfsRequestDestroy(request);
@@ -254,7 +254,7 @@ void GetAccess(
     }
 
     uint32_t   access;
-    oscode_t osStatus = VFSNodeGetAccess(request, &access);
+    oserr_t osStatus = VFSNodeGetAccess(request, &access);
     sys_file_get_access_response(request->message, osStatus, access);
 
     VfsRequestDestroy(request);
@@ -270,7 +270,7 @@ void SetAccess(
         return;
     }
 
-    oscode_t osStatus = VFSNodeSetAccess(request);
+    oserr_t osStatus = VFSNodeSetAccess(request);
     sys_file_set_access_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -287,7 +287,7 @@ void GetSize(
     }
 
     UInteger64_t size;
-    oscode_t      osStatus = VFSNodeGetSize(request, &size.QuadPart);
+    oserr_t      osStatus = VFSNodeGetSize(request, &size.QuadPart);
     sys_file_get_size_response(request->message, osStatus, size.u.LowPart, size.u.HighPart);
 
     VfsRequestDestroy(request);
@@ -303,7 +303,7 @@ void SetSize(
         return;
     }
 
-    oscode_t osStatus = VFSNodeSetSize(request);
+    oserr_t osStatus = VFSNodeSetSize(request);
     sys_file_set_size_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -333,7 +333,7 @@ void StatFromHandle(
         return;
     }
 
-    oscode_t osStatus = VFSNodeStatHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatHandle(request, &stats);
     __ToProtocolFileDescriptor(&stats, &result);
     sys_file_fstat_response(request->message, osStatus, &result);
 
@@ -352,7 +352,7 @@ void StatFromPath(
         return;
     }
 
-    oscode_t osStatus = VFSNodeStat(fsScope, request, &stats);
+    oserr_t osStatus = VFSNodeStat(fsScope, request, &stats);
     __ToProtocolFileDescriptor(&stats, &result);
     sys_file_fstat_path_response(request->message, osStatus, &result);
 
@@ -384,7 +384,7 @@ void StatFileSystemByHandle(
         return;
     }
 
-    oscode_t osStatus = VFSNodeStatFsHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatFsHandle(request, &stats);
     __ToProtocolFileSystemDescriptor(&stats, &result);
     sys_file_fsstat_response(request->message, osStatus, &result);
 
@@ -403,7 +403,7 @@ void StatFileSystemByPath(
         return;
     }
 
-    oscode_t osStatus = VFSNodeStatFs(fsScope, request, &stats);
+    oserr_t osStatus = VFSNodeStatFs(fsScope, request, &stats);
     __ToProtocolFileSystemDescriptor(&stats, &result);
     sys_file_fsstat_path_response(request->message, osStatus, &result);
 
@@ -423,7 +423,7 @@ void StatStorageByHandle(
         return;
     }
 
-    oscode_t osStatus = VFSNodeStatStorageHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatStorageHandle(request, &stats);
     to_sys_disk_descriptor_dkk(&stats, &result);
     sys_file_ststat_response(request->message, osStatus, &result);
 
@@ -442,7 +442,7 @@ void StatStorageByPath(
         return;
     }
 
-    oscode_t osStatus = VFSNodeStatStorage(fsScope, request, &stats);
+    oserr_t osStatus = VFSNodeStatStorage(fsScope, request, &stats);
     to_sys_disk_descriptor_dkk(&stats, &result);
     sys_file_ststat_path_response(request->message, osStatus, &result);
 
@@ -461,7 +461,7 @@ void StatLinkPathFromPath(
     }
 
     MString_t* linkPath;
-    oscode_t osStatus = VFSNodeReadLink(fsScope, request, &linkPath);
+    oserr_t osStatus = VFSNodeReadLink(fsScope, request, &linkPath);
     if (osStatus != OsOK) {
         sys_file_fstat_link_response(request->message, osStatus, "");
         return;
@@ -482,7 +482,7 @@ void GetFullPathByHandle(
     }
 
     MString_t* fullPath;
-    oscode_t osStatus = VFSNodeGetPathHandle(request, &fullPath);
+    oserr_t osStatus = VFSNodeGetPathHandle(request, &fullPath);
     if (osStatus != OsOK) {
         sys_file_get_path_response(request->message, osStatus, "");
         return;
@@ -503,7 +503,7 @@ void RealPath(
     }
 
     MString_t* realPath;
-    oscode_t osStatus = VFSNodeRealPath(fsScope, request, &realPath);
+    oserr_t osStatus = VFSNodeRealPath(fsScope, request, &realPath);
     if (osStatus != OsOK) {
         sys_file_realpath_response(request->message, osStatus, "");
         return;

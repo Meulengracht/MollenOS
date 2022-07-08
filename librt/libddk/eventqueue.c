@@ -56,7 +56,7 @@ typedef struct EventQueue {
 static uuid_t __AddToEventQueue(EventQueue_t* eventQueue, EventQueueFunction function, void* context, size_t timeoutMs, size_t intervalMs);
 static int    EventQueueWorker(void* context);
 
-oscode_t CreateEventQueue(EventQueue_t** EventQueueOut)
+oserr_t CreateEventQueue(EventQueue_t** EventQueueOut)
 {
     EventQueue_t* eventQueue = malloc(sizeof(EventQueue_t));
     if (!eventQueue) {
@@ -119,10 +119,10 @@ uuid_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback,
     return __AddToEventQueue(eventQueue, callback, context, intervalMs, intervalMs);
 }
 
-oscode_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
+oserr_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
 {
     element_t* element;
-    oscode_t osStatus = OsNotExists;
+    oserr_t osStatus = OsNotExists;
     
     mtx_lock(&eventQueue->EventLock);
     element = list_find(&eventQueue->Events, (void*)(uintptr_t)eventHandle);

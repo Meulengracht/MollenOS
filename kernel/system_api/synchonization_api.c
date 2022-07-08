@@ -27,7 +27,7 @@
 #include <futex.h>
 #include <userevent.h>
 
-oscode_t
+oserr_t
 ScFutexWait(
     _In_ FutexParameters_t* parameters)
 {
@@ -41,7 +41,7 @@ ScFutexWait(
                      parameters->_timeout);
 }
 
-oscode_t
+oserr_t
 ScFutexWake(
     _In_ FutexParameters_t* parameters)
 {
@@ -54,7 +54,7 @@ ScFutexWake(
     return FutexWake(parameters->_futex0, parameters->_val0, parameters->_flags);
 }
 
-oscode_t ScEventCreate(unsigned int initialValue, unsigned int flags, uuid_t* handleOut, atomic_int** syncAddressOut)
+oserr_t ScEventCreate(unsigned int initialValue, unsigned int flags, uuid_t* handleOut, atomic_int** syncAddressOut)
 {
     return UserEventCreate(initialValue, flags, handleOut, syncAddressOut);
 }

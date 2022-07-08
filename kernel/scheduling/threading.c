@@ -42,11 +42,11 @@
 
 _Noreturn static void __ThreadStart(void);
 static void           __DestroyThread(void* resource);
-static oscode_t     __CreateThreadContexts(Thread_t* thread);
-static oscode_t     __InitializeDefaultsForThread(Thread_t* thread, const char* name,
-                                                  ThreadEntry_t threadEntry, void* arguments,
-                                                  unsigned int flags, size_t kernelStackSize,
-                                                  size_t userStackSize);
+static oserr_t     __CreateThreadContexts(Thread_t* thread);
+static oserr_t     __InitializeDefaultsForThread(Thread_t* thread, const char* name,
+                                                 ThreadEntry_t threadEntry, void* arguments,
+                                                 unsigned int flags, size_t kernelStackSize,
+                                                 size_t userStackSize);
 static size_t         __GetDefaultStackSize(unsigned int threadFlags);
 static uuid_t         __CreateCookie(Thread_t* thread, Thread_t* parent);
 static void           __AddChild(Thread_t* parent, Thread_t* child);
@@ -57,7 +57,7 @@ ThreadingEnable(
         _In_ SystemCpuCore_t* cpuCore)
 {
     Thread_t*  thread;
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     assert(cpuCore != NULL);
 
@@ -81,7 +81,7 @@ ThreadingEnable(
     CpuCoreSetCurrentThread(CpuCoreCurrent(), thread);
 }
 
-oscode_t
+oserr_t
 ThreadCreate(
         _In_ const char*   name,
         _In_ ThreadEntry_t entry,
@@ -108,7 +108,7 @@ ThreadCreate(
         return OsOutOfMemory;
     }
 
-    oscode_t status = __InitializeDefaultsForThread(
+    oserr_t status = __InitializeDefaultsForThread(
             thread,
             name,
             entry,
@@ -181,13 +181,13 @@ ThreadCreate(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ThreadDetach(
         _In_ uuid_t ThreadId)
 {
     Thread_t*  Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     Thread_t*  Target = THREAD_GET(ThreadId);
-    oscode_t Status = OsNotExists;
+    oserr_t Status = OsNotExists;
     
     // Detach is allowed if the caller is the spawner or the caller is in same process
     if (Target != NULL) {
@@ -204,7 +204,7 @@ ThreadDetach(
     return Status;
 }
 
-static oscode_t
+static oserr_t
 __TerminateWithChildren(
         _In_ Thread_t* thread,
         _In_ int       exitCode)
@@ -228,7 +228,7 @@ __TerminateWithChildren(
 
     child = thread->Children;
     while (child) {
-        oscode_t Status = __TerminateWithChildren(child, exitCode);
+        oserr_t Status = __TerminateWithChildren(child, exitCode);
         if (Status != OsOK) {
             ERROR("__TerminateWithChildren failed to terminate child %s of %s", child->Name, thread->Name);
         }
@@ -247,7 +247,7 @@ __TerminateWithChildren(
     return OsOK;
 }
 
-oscode_t
+oserr_t
 ThreadTerminate(
         _In_ uuid_t ThreadId,
         _In_ int    ExitCode,
@@ -289,7 +289,7 @@ ThreadTerminate(
     if (TerminateChildren) {
         Thread_t* child = thread->Children;
         while (child) {
-            oscode_t osStatus = __TerminateWithChildren(child, ExitCode);
+            oserr_t osStatus = __TerminateWithChildren(child, ExitCode);
             if (osStatus != OsOK) {
                 ERROR("[terminate_thread] failed to terminate child %s of %s", child->Name, thread->Name);
             }
@@ -342,7 +342,7 @@ __EnterUsermode(
     Thread_t*  thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     vaddr_t    tlsAddress;
     paddr_t    tlsPhysicalAddress;
-    oscode_t osStatus;
+    oserr_t osStatus;
 
     // Allocate the TLS segment (1 page) (x86 only, should be another place)
     osStatus = MemorySpaceMap(
@@ -396,7 +396,7 @@ ThreadCurrentHandle(void)
     return thread->Handle;
 }
 
-oscode_t
+oserr_t
 ThreadIsRelated(
         _In_ uuid_t Thread1,
         _In_ uuid_t Thread2)
@@ -456,7 +456,7 @@ ThreadCookie(
     return Thread->Cookie;
 }
 
-oscode_t
+oserr_t
 ThreadSetName(
         _In_ Thread_t*   Thread,
         _In_ const char* Name)
@@ -550,7 +550,7 @@ ThreadContext(
     return Thread->Contexts[Context];
 }
 
-oscode_t
+oserr_t
 ThreadingAdvance(
     _In_  int      preemptive,
     _In_  clock_t  nanosecondsPassed,
@@ -740,11 +740,11 @@ __DestroyThread(
     kfree(thread);
 }
 
-static oscode_t
+static oserr_t
 __CreateThreadContexts(
         _In_ Thread_t* thread)
 {
-    oscode_t status = OsOK;
+    oserr_t status = OsOK;
     TRACE("__CreateThreadContexts(thread=0x%" PRIxIN ")", thread);
 
     // Create the kernel context, for an userspace thread this is always the default
@@ -772,7 +772,7 @@ exit:
 }
 
 // Setup defaults for a new thread and creates appropriate resources
-static oscode_t
+static oserr_t
 __InitializeDefaultsForThread(
         _In_ Thread_t*     thread,
         _In_ const char*   name,
@@ -782,7 +782,7 @@ __InitializeDefaultsForThread(
         _In_ size_t        kernelStackSize,
         _In_ size_t        userStackSize)
 {
-    oscode_t osStatus;
+    oserr_t osStatus;
     uuid_t     handle;
     char       buffer[16];
 

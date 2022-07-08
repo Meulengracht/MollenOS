@@ -32,12 +32,12 @@ static void __ReadSystemTime(void*, SystemTime_t*);
 
 Cmos_t g_cmos = { 0 };
 
-oscode_t
+oserr_t
 CmosInitialize(
     _In_ int initializeRtc)
 {
     SystemWallClockOperations_t ops;
-    oscode_t                    status;
+    oserr_t                    status;
     
     TRACE("CmosInitialize(rtc %" PRIiIN ")", initializeRtc);
 

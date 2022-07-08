@@ -89,7 +89,7 @@ GdtInitialize(void)
 	GdtInstall();
 }
 
-oscode_t
+oserr_t
 TssInitialize(
         _In_ PlatformCpuCoreBlock_t* coreBlock)
 {
