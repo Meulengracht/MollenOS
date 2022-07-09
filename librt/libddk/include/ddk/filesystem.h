@@ -37,11 +37,14 @@
 typedef struct MString MString_t;
 
 struct VFSCommonData {
-    MString_t*          Label;
+    // Controlled by the VFS layer
     StorageDescriptor_t Storage;
     unsigned int        Flags;
     uint64_t            SectorStart;
     uint64_t            SectorCount;
+
+    // Set by the underlying filesystem
+    MString_t*          Label;
     void*               Data;
 };
 
@@ -76,46 +79,30 @@ struct VFSStatFS {
     uint64_t   SegmentsFree;
 };
 
-/* This is the per-handle entry instance
- * structure, so multiple handles can be opened
- * on just a single entry, it refers to an entry structure */
-typedef struct FileSystemHandleBase {
-    unsigned int Access;
-    unsigned int Options;
-    uint64_t     Position;
-    void*        OutBuffer;
-    size_t       OutBufferPosition;
-} FileSystemHandleBase_t;
-
 /* FsInitialize 
  * Initializes a new instance of the file system
  * and allocates resources for the given descriptor */
 __FSAPI oserr_t
 __FSDECL(FsInitialize)(
-        _In_ struct VFSCommonData* VFSCommonData);
+        _In_ struct VFSCommonData* vfsCommonData);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
 __FSAPI oserr_t
 __FSDECL(FsDestroy)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ unsigned int          unmountFlags);
 
 __FSAPI oserr_t
-__FSDECL(FsStat)(
-        _In_ struct VFSCommonData* VFSCommonData,
-        _In_ struct VFSStatFS*     stat);
-
-__FSAPI oserr_t
 __FSDECL(FsOpen)(
-        _In_      struct VFSCommonData* VFSCommonData,
+        _In_      struct VFSCommonData* vfsCommonData,
         _In_      MString_t*            path,
         _Out_Opt_ void**                dataOut);
 
 __FSAPI oserr_t
 __FSDECL(FsCreate)(
-        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
         _In_  MString_t*            name,
         _In_  uint32_t              owner,
@@ -125,12 +112,17 @@ __FSDECL(FsCreate)(
 
 __FSAPI oserr_t
 __FSDECL(FsClose)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data);
 
 __FSAPI oserr_t
+__FSDECL(FsStat)(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStatFS*     stat);
+
+__FSAPI oserr_t
 __FSDECL(FsLink)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data,
         _In_ MString_t*            linkName,
         _In_ MString_t*            linkTarget,
@@ -138,25 +130,25 @@ __FSDECL(FsLink)(
 
 __FSAPI oserr_t
 __FSDECL(FsUnlink)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ MString_t*            path);
 
 __FSAPI oserr_t
 __FSDECL(FsReadLink)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ MString_t*            path,
         _In_ MString_t*            pathOut);
 
 __FSAPI oserr_t
 __FSDECL(FsMove)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ MString_t*            from,
         _In_ MString_t*            to,
         _In_ int                   copy);
 
 __FSAPI oserr_t
 __FSDECL(FsRead)(
-        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -166,7 +158,7 @@ __FSDECL(FsRead)(
 
 __FSAPI oserr_t
 __FSDECL(FsWrite)(
-        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -176,13 +168,13 @@ __FSDECL(FsWrite)(
 
 __FSAPI oserr_t
 __FSDECL(FsTruncate)(
-        _In_ struct VFSCommonData* VFSCommonData,
+        _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data,
         _In_ uint64_t              size);
 
 __FSAPI oserr_t
 __FSDECL(FsSeek)(
-        _In_  struct VFSCommonData* VFSCommonData,
+        _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
         _In_  uint64_t              absolutePosition,
         _Out_ uint64_t*             absolutePositionOut);

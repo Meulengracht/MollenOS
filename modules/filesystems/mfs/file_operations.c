@@ -29,7 +29,7 @@
 oserr_t
 FsReadFromFile(
         _In_  FileSystemBase_t*      fileSystemBase,
-        _In_  FileSystemEntryMFS_t*  entry,
+        _In_  MFSEntry_t*  entry,
         _In_  FileSystemHandleMFS_t* handle,
         _In_  uuid_t                 bufferHandle,
         _In_  void*                  buffer,
@@ -193,7 +193,7 @@ FsReadFromFile(
 oserr_t
 FsWriteToFile(
         _In_  FileSystemBase_t*      fileSystemBase,
-        _In_  FileSystemEntryMFS_t*  entry,
+        _In_  MFSEntry_t*  entry,
         _In_  FileSystemHandleMFS_t* handle,
         _In_  uuid_t                 bufferHandle,
         _In_  void*                  buffer,
@@ -356,7 +356,7 @@ FsWriteToFile(
 oserr_t
 FsSeekInFile(
         _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryMFS_t*  entry,
+        _In_ MFSEntry_t*  entry,
         _In_ FileSystemHandleMFS_t* handle,
         _In_ uint64_t               absolutePosition)
 {
@@ -450,12 +450,12 @@ FsSeekInFile(
 }
 
 oserr_t
-FsChangeFileSize(
-        _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryBase_t* entryBase,
-        _In_ uint64_t               size)
+FsTruncate(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ void*                 data,
+        _In_ uint64_t              size)
 {
-    FileSystemEntryMFS_t* entry    = (FileSystemEntryMFS_t*)entryBase;
+    MFSEntry_t* entry    = (MFSEntry_t*)entryBase;
     oserr_t            osStatus = OsOK;
 
     TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(entry->Base.Name), LODWORD(size));

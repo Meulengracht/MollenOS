@@ -31,147 +31,192 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-oserr_t FsReadFromFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
-oserr_t FsWriteToFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
-oserr_t FsSeekInFile(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
+oserr_t FsReadFromFile(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
+oserr_t FsWriteToFile(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
+oserr_t FsSeekInFile(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uint64_t);
 
 // Directory specific operation handlers
-oserr_t FsReadFromDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, void*, size_t, size_t, size_t*);
-oserr_t FsSeekInDirectory(FileSystemBase_t*, FileSystemEntryMFS_t*, FileSystemHandleMFS_t*, uint64_t);
+oserr_t FsReadFromDirectory(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, void*, size_t, size_t, size_t*);
+oserr_t FsSeekInDirectory(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uint64_t);
+
+static MFSEntry_t* MFSEntryNew(void)
+{
+    MFSEntry_t* mfsEntry;
+
+    mfsEntry = (MFSEntry_t*)malloc(sizeof(MFSEntry_t));
+    if (!mfsEntry) {
+        return NULL;
+    }
+
+    memset(mfsEntry, 0, sizeof(MFSEntry_t));
+    return mfsEntry;
+}
+
+static void MFSEntryDelete(MFSEntry_t* entry)
+{
+    MStringDestroy(entry->Name);
+    free(entry);
+}
 
 oserr_t
-FsOpenEntry(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  MString_t*              path,
-        _Out_ FileSystemEntryBase_t** baseOut)
+FsOpen(
+        _In_      struct VFSCommonData* vfsCommonData,
+        _In_      MString_t*            path,
+        _Out_Opt_ void**                dataOut)
 {
-    FileSystemMFS_t*      mfs = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    oserr_t            osStatus;
-    FileSystemEntryMFS_t* mfsEntry;
+    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
+    oserr_t          osStatus;
+    MFSEntry_t*      mfsEntry;
 
-    mfsEntry = (FileSystemEntryMFS_t*)malloc(sizeof(FileSystemEntryMFS_t));
-    if (!mfsEntry) {
+    mfsEntry = MFSEntryNew();
+    if (mfsEntry == NULL) {
         return OsOutOfMemory;
     }
-    
-    memset(mfsEntry, 0, sizeof(FileSystemEntryMFS_t));
-    osStatus = MfsLocateRecord(fileSystemBase, mfs->MasterRecord.RootIndex, mfsEntry, path);
-    *baseOut = (FileSystemEntryBase_t*)mfsEntry;
+
+    osStatus = MfsLocateRecord(
+            vfsCommonData,
+            mfs->MasterRecord.RootIndex,
+            mfsEntry,
+            path);
     if (osStatus != OsOK) {
         free(mfsEntry);
+        return osStatus;
     }
+    *dataOut = mfsEntry;
     return osStatus;
 }
 
 oserr_t
-FsCreatePath(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  MString_t*              path,
-        _In_  unsigned int            options,
-        _Out_ FileSystemEntryBase_t** baseOut)
+FsCreate(
+        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  void*                 data,
+        _In_  MString_t*            name,
+        _In_  uint32_t              owner,
+        _In_  uint32_t              flags,
+        _In_  uint32_t              permissions,
+        _Out_ void**                dataOut)
 {
-    FileSystemMFS_t*      mfs;
-    oserr_t            osStatus;
-    FileSystemEntryMFS_t* entry;
+    oserr_t     osStatus;
+    MFSEntry_t* entry = (MFSEntry_t*)data;
+    MFSEntry_t* result;
 
-    if (!fileSystemBase || !baseOut) {
-        return OsInvalidParameters;
+    osStatus = MfsCreateRecord(
+            vfsCommonData,
+            entry,
+            name,
+            owner,
+            flags,
+            permissions,
+            &result);
+    if (osStatus != OsOK) {
+        return osStatus;
     }
-
-    mfs      = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
-    osStatus = MfsCreateRecord(fileSystemBase, options, mfs->MasterRecord.RootIndex, path, &entry);
-    if (osStatus == OsOK) {
-        *baseOut = &entry->Base;
-    }
+    *dataOut = result;
     return osStatus;
 }
 
 oserr_t
-FsCloseEntry(
-        _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryBase_t* entryBase)
+FsClose(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ void*                 data)
 {
-    oserr_t            osStatus = OsOK;
-    FileSystemEntryMFS_t* entry = (FileSystemEntryMFS_t*)entryBase;
+    MFSEntry_t* entry = (MFSEntry_t*)data;
+    oserr_t     osStatus;
     
-    TRACE("FsCloseEntry(%i)", entry->ActionOnClose);
+    TRACE("FsClose(%i)", entry->ActionOnClose);
     if (entry->ActionOnClose) {
-        osStatus = MfsUpdateRecord(fileSystemBase, entry, entry->ActionOnClose);
+        osStatus = MfsUpdateRecord(vfsCommonData, entry, entry->ActionOnClose);
     }
-    if (entryBase->Name != NULL) {
-        MStringDestroy(entryBase->Name);
+    if (entry->Name != NULL) {
+        MStringDestroy(entry->Name);
     }
     free(entry);
     return osStatus;
 }
 
 oserr_t
-FsDeleteEntry(
-        _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryBase_t* entryBase)
+FsStat(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStatFS*     stat)
 {
-    FileSystemEntryMFS_t*  entry = (FileSystemEntryMFS_t*)entryBase;
-    oserr_t             osStatus;
 
-    osStatus = MfsFreeBuckets(fileSystemBase, entry->StartBucket, entry->StartLength);
+}
+
+oserr_t
+FsUnlink(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ MString_t*            path)
+{
+    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
+    oserr_t          osStatus;
+    MFSEntry_t*      mfsEntry;
+
+    mfsEntry = MFSEntryNew();
+    if (mfsEntry == NULL) {
+        return OsOutOfMemory;
+    }
+
+    osStatus = MfsLocateRecord(vfsCommonData, mfs->RootRecord.StartBucket, mfsEntry, path);
+    if (osStatus != OsOK) {
+        goto cleanup;
+    }
+
+    osStatus = MfsFreeBuckets(vfsCommonData, mfsEntry->StartBucket, mfsEntry->StartLength);
     if (osStatus != OsOK) {
         ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
-              entry->StartBucket, entry->StartLength);
-        return OsDeviceError;
+              mfsEntry->StartBucket, mfsEntry->StartLength);
+        goto cleanup;
     }
 
-    osStatus = MfsUpdateRecord(fileSystemBase, entry, MFS_ACTION_DELETE);
-    if (osStatus == OsOK) {
-        osStatus = FsCloseEntry(fileSystemBase, &entry->Base);
-    }
+    osStatus = MfsUpdateRecord(vfsCommonData, mfsEntry, MFS_ACTION_DELETE);
+
+cleanup:
+    MFSEntryDelete(mfsEntry);
     return osStatus;
 }
 
 oserr_t
-FsOpenHandle(
-        _In_  FileSystemBase_t*        fileSystemBase,
-        _In_  FileSystemEntryBase_t*   entryBase,
-        _Out_ FileSystemHandleBase_t** handleBaseOut)
+FsLink(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ void*                 data,
+        _In_ MString_t*            linkName,
+        _In_ MString_t*            linkTarget,
+        _In_ int                   symbolic)
 {
-    FileSystemEntryMFS_t*  entry = (FileSystemEntryMFS_t*)entryBase;
-    FileSystemHandleMFS_t* handle;
 
-    handle = (FileSystemHandleMFS_t*)malloc(sizeof(FileSystemHandleMFS_t));
-    if (!handle) {
-        return OsOutOfMemory;
-    }
-    
-    memset(handle, 0, sizeof(FileSystemHandleMFS_t));
-    handle->BucketByteBoundary = 0;
-    handle->DataBucketPosition = entry->StartBucket;
-    handle->DataBucketLength   = entry->StartLength;
-    *handleBaseOut = &handle->Base;
-    return OsOK;
 }
 
 oserr_t
-FsCloseHandle(
-        _In_ FileSystemBase_t*       fileSystemBase,
-        _In_ FileSystemHandleBase_t* handleBase)
+FsReadLink(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ MString_t*            path,
+        _In_ MString_t*            pathOut)
 {
-    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    free(handle);
-    return OsOK;
+
 }
 
 oserr_t
-FsReadEntry(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  FileSystemEntryBase_t*  entryBase,
-        _In_  FileSystemHandleBase_t* handleBase,
-        _In_  uuid_t                  bufferHandle,
-        _In_  void*                   buffer,
-        _In_  size_t                  bufferOffset,
-        _In_  size_t                  unitCount,
-        _Out_ size_t*                 unitsRead)
+FsMove(
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ MString_t*            from,
+        _In_ MString_t*            to,
+        _In_ int                   copy)
+{
+
+}
+
+oserr_t
+FsRead(
+        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  void*                 data,
+        _In_  uuid_t                bufferHandle,
+        _In_  void*                 buffer,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                unitCount,
+        _Out_ size_t*               unitsRead)
 {
     FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    FileSystemEntryMFS_t*  entry  = (FileSystemEntryMFS_t*)entryBase;
+    MFSEntry_t*  entry  = (MFSEntry_t*)entryBase;
     TRACE("FsReadEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
 
     if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
@@ -183,18 +228,17 @@ FsReadEntry(
 }
 
 oserr_t
-FsWriteEntry(
-        _In_  FileSystemBase_t*       fileSystemBase,
-        _In_  FileSystemEntryBase_t*  entryBase,
-        _In_  FileSystemHandleBase_t* handleBase,
-        _In_  uuid_t                  bufferHandle,
-        _In_  void*                   buffer,
-        _In_  size_t                  bufferOffset,
-        _In_  size_t                  unitCount,
-        _Out_ size_t*                 unitsWritten)
+FsWrite(
+        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  void*                 data,
+        _In_  uuid_t                bufferHandle,
+        _In_  void*                 buffer,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                unitCount,
+        _Out_ size_t*               unitsWritten)
 {
     FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    FileSystemEntryMFS_t*  entry  = (FileSystemEntryMFS_t*)entryBase;
+    MFSEntry_t*  entry  = (MFSEntry_t*)entryBase;
     TRACE("FsWriteEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
 
     if (!(entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY)) {
@@ -204,14 +248,14 @@ FsWriteEntry(
 }
 
 oserr_t
-FsSeekInEntry(
-        _In_ FileSystemBase_t*       fileSystemBase,
-        _In_ FileSystemEntryBase_t*  entryBase,
-        _In_ FileSystemHandleBase_t* handleBase,
-        _In_ uint64_t                absolutePosition)
+FsSeek(
+        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  void*                 data,
+        _In_  uint64_t              absolutePosition,
+        _Out_ uint64_t*             absolutePositionOut)
 {
     FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    FileSystemEntryMFS_t*  entry  = (FileSystemEntryMFS_t*)entryBase;
+    MFSEntry_t*  entry  = (MFSEntry_t*)entryBase;
 
     if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
         return FsSeekInDirectory(fileSystemBase, entry, handle, absolutePosition);
@@ -223,16 +267,16 @@ FsSeekInEntry(
 
 oserr_t
 FsDestroy(
-        _In_ FileSystemBase_t* fileSystemBase,
-        _In_ unsigned int      unmountFlags)
+        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ unsigned int          unmountFlags)
 {
     FileSystemMFS_t* fileSystem;
 
-    if (!fileSystemBase) {
+    if (!vfsCommonData) {
         return OsInvalidParameters;
     }
 
-    fileSystem = (FileSystemMFS_t*)fileSystemBase->ExtensionData;
+    fileSystem = (FileSystemMFS_t*)vfsCommonData->Data;
     if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
@@ -256,7 +300,7 @@ FsDestroy(
 
     // Free structure and return
     free(fileSystem);
-    fileSystemBase->ExtensionData = NULL;
+    vfsCommonData->Data = NULL;
     return OsOK;
 }
 
@@ -275,7 +319,7 @@ FsInitializeRootRecord(
 
 oserr_t
 FsInitialize(
-        _In_ FileSystemBase_t* fileSystemBase)
+        _In_ struct VFSCommonData* vfsCommonData)
 {
     MasterRecord_t*  masterRecord;
     BootRecord_t*    bootRecord;
@@ -283,7 +327,7 @@ FsInitialize(
     uint8_t*         bMap;
     uint64_t         bytesRead;
     uint64_t         bytesLeft;
-    oserr_t       osStatus;
+    oserr_t          osStatus;
     size_t           i, imax;
     size_t           sectorsTransferred;
     
@@ -300,8 +344,8 @@ FsInitialize(
     memset(mfsInstance, 0, sizeof(FileSystemMFS_t));
     
     // Create a generic transferbuffer for us to use
-    bufferInfo.length   = fileSystemBase->Disk.descriptor.SectorSize;
-    bufferInfo.capacity = fileSystemBase->Disk.descriptor.SectorSize;
+    bufferInfo.length   = vfsCommonData->Storage.SectorSize;
+    bufferInfo.capacity = vfsCommonData->Storage.SectorSize;
     bufferInfo.flags    = 0;
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
@@ -312,13 +356,13 @@ FsInitialize(
     }
 
     // Read the boot-sector
-    if (MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle,
+    if (MfsReadSectors(vfsCommonData, mfsInstance->TransferBuffer.handle,
                        0, 0, 1, &sectorsTransferred) != OsOK) {
         ERROR("Failed to read mfs boot-sector record");
         goto error_exit;
     }
 
-    fileSystemBase->ExtensionData = (uintptr_t*)mfsInstance;
+    vfsCommonData->Data = (uintptr_t*)mfsInstance;
     bootRecord = (BootRecord_t*)mfsInstance->TransferBuffer.buffer;
     if (bootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
         ERROR("Failed to validate boot-record signature (0x%x, expected 0x%x)",
@@ -337,13 +381,13 @@ FsInitialize(
     mfsInstance->ReservedSectorCount      = bootRecord->ReservedSectors;
 
     // Calculate where our map sector is
-    mfsInstance->BucketCount = fileSystemBase->SectorCount / mfsInstance->SectorsPerBucket;
+    mfsInstance->BucketCount = vfsCommonData->SectorCount / mfsInstance->SectorsPerBucket;
     
     // Bucket entries are 64 bit (8 bytes) in map
-    mfsInstance->BucketsPerSectorInMap = fileSystemBase->Disk.descriptor.SectorSize / 8;
+    mfsInstance->BucketsPerSectorInMap = vfsCommonData->Storage.SectorSize / 8;
 
     // Read the master-record
-    if (MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle, 0,
+    if (MfsReadSectors(vfsCommonData, mfsInstance->TransferBuffer.handle, 0,
                        mfsInstance->MasterRecordSector, 1, &sectorsTransferred) != OsOK) {
         ERROR("Failed to read mfs master-sectofferfferr record");
         osStatus = OsError;
@@ -362,7 +406,7 @@ FsInitialize(
     memcpy(&mfsInstance->MasterRecord, masterRecord, sizeof(MasterRecord_t));
 
     // Parse the master record
-    fileSystemBase->Label = MStringCreate((const char*)&masterRecord->PartitionName[0], StrUTF8);
+    vfsCommonData->Label = MStringCreate((const char*)&masterRecord->PartitionName[0], StrUTF8);
     TRACE("Partition flags: 0x%x", fileSystemBase->Flags);
 
     dma_attachment_unmap(&mfsInstance->TransferBuffer);
@@ -370,8 +414,8 @@ FsInitialize(
 
     // Create a new transfer buffer that is more persistant and attached to the fs
     // and will provide the primary intermediate buffer for general usage.
-    bufferInfo.length   = mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
-    bufferInfo.capacity = mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize * MFS_ROOTSIZE;
+    bufferInfo.length   = mfsInstance->SectorsPerBucket * vfsCommonData->Storage.SectorSize * MFS_ROOTSIZE;
+    bufferInfo.capacity = mfsInstance->SectorsPerBucket * vfsCommonData->Storage.SectorSize * MFS_ROOTSIZE;
     osStatus = dma_create(&bufferInfo, &mfsInstance->TransferBuffer);
     if (osStatus != OsOK) {
         free(mfsInstance);
@@ -383,20 +427,20 @@ FsInitialize(
         LODWORD(mfsInstance->MasterRecord.MapSize));
 
     // Load map
-    mfsInstance->BucketMap = (uint32_t*)malloc((size_t)mfsInstance->MasterRecord.MapSize + fileSystemBase->Disk.descriptor.SectorSize);
+    mfsInstance->BucketMap = (uint32_t*)malloc((size_t)mfsInstance->MasterRecord.MapSize + vfsCommonData->Storage.SectorSize);
     bMap      = (uint8_t*)mfsInstance->BucketMap;
     bytesLeft = mfsInstance->MasterRecord.MapSize;
     bytesRead = 0;
     i         = 0;
-    imax      = DIVUP(bytesLeft, (mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize));
+    imax      = DIVUP(bytesLeft, (mfsInstance->SectorsPerBucket * vfsCommonData->Storage.SectorSize));
 
 #ifdef CACHE_SEGMENTED
     while (bytesLeft) {
         uint64_t mapSector    = mfsInstance->MasterRecord.MapSector + (i * mfsInstance->SectorsPerBucket);
-        size_t   transferSize = MIN((mfsInstance->SectorsPerBucket * fileSystemBase->Disk.descriptor.SectorSize), (size_t)bytesLeft);
-        size_t   sectorCount  = DIVUP(transferSize, fileSystemBase->Disk.descriptor.SectorSize);
+        size_t   transferSize = MIN((mfsInstance->SectorsPerBucket * vfsCommonData->Storage.SectorSize), (size_t)bytesLeft);
+        size_t   sectorCount  = DIVUP(transferSize, vfsCommonData->Storage.SectorSize);
 
-        osStatus = MfsReadSectors(fileSystemBase, mfsInstance->TransferBuffer.handle, 0,
+        osStatus = MfsReadSectors(vfsCommonData, mfsInstance->TransferBuffer.handle, 0,
                                   mapSector, sectorCount, &sectorsTransferred);
         if (osStatus != OsOK) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
@@ -406,7 +450,7 @@ FsInitialize(
         if (sectorsTransferred != sectorCount) {
             ERROR("Read %u sectors instead of %u from sector %u [bytesleft %u]",
                   LODWORD(sectorsTransferred), LODWORD(sectorCount),
-                  LODWORD(fileSystemBase->SectorStart + mapSector),
+                  LODWORD(vfsCommonData->SectorStart + mapSector),
                   LODWORD(bytesLeft));
             osStatus = OsDeviceError;
             goto error_exit;
@@ -461,6 +505,6 @@ FsInitialize(
     return OsOK;
 
 error_exit:
-    FsDestroy(fileSystemBase, 0);
+    FsDestroy(vfsCommonData, 0);
     return osStatus;
 }

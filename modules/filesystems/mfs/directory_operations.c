@@ -37,7 +37,7 @@ static void __ConvertEntry(FileRecord_t* record, struct VFSStat* stat)
 oserr_t
 FsReadFromDirectory(
         _In_  FileSystemBase_t*      fileSystemBase,
-        _In_  FileSystemEntryMFS_t*  entry,
+        _In_  MFSEntry_t*  entry,
         _In_  FileSystemHandleMFS_t* handle,
         _In_  void*                  buffer,
         _In_  size_t                 bufferOffset,
@@ -131,7 +131,7 @@ FsReadFromDirectory(
 oserr_t
 FsSeekInDirectory(
         _In_ FileSystemBase_t*      fileSystemBase,
-        _In_ FileSystemEntryMFS_t*  entry,
+        _In_ MFSEntry_t*  entry,
         _In_ FileSystemHandleMFS_t* handle,
         _In_ uint64_t               absolutePosition)
 {
