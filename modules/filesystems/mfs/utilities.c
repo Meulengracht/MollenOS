@@ -406,19 +406,19 @@ MfsFileRecordToVfsFile(
     TRACE("MfsFileRecordToVfsFile()");
 
     // VfsEntry->Base.Descriptor.Id = ??
-    mfsEntry->Name                          = MStringCreate((const char*)&nativeEntry->Name[0], StrUTF8);
-    mfsEntry->NativeFlags                   = nativeEntry->Flags;
-    mfsEntry->Base.Descriptor.Size.QuadPart = nativeEntry->Size;
-    mfsEntry->AllocatedSize                 = nativeEntry->AllocatedSize;
-    mfsEntry->StartBucket                   = nativeEntry->StartBucket;
-    mfsEntry->StartLength                   = nativeEntry->StartLength;
+    mfsEntry->Name          = MStringCreate((const char*)&nativeEntry->Name[0], StrUTF8);
+    mfsEntry->NativeFlags   = nativeEntry->Flags;
+    mfsEntry->ActualSize    = nativeEntry->Size;
+    mfsEntry->AllocatedSize = nativeEntry->AllocatedSize;
+    mfsEntry->StartBucket   = nativeEntry->StartBucket;
+    mfsEntry->StartLength   = nativeEntry->StartLength;
 
     // Convert flags to generic vfs flags and permissions
     MfsFileRecordFlagsToVfsFlags(nativeEntry,
-                                 &mfsEntry->Base.Descriptor.Flags,
-                                 &mfsEntry->Base.Descriptor.Permissions);
+                                 &mfsEntry->Flags,
+                                 &mfsEntry->Permissions);
 
-    // Convert dates
+    // TODO Convert dates
     // VfsEntry->Base.DescriptorCreatedAt;
     // VfsEntry->Base.DescriptorModifiedAt;
     // VfsEntry->Base.DescriptorAccessedAt;
@@ -471,7 +471,7 @@ MfsUpdateRecord(
         // Update modified / accessed dates
 
         // Update sizes
-        record->Size          = entry->Base.Descriptor.Size.QuadPart;
+        record->Size          = entry->ActualSize;
         record->AllocatedSize = entry->AllocatedSize;
     }
     

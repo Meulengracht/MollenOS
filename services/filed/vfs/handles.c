@@ -28,7 +28,9 @@ static hashtable_t g_handles;
 oserr_t
 VFSNodeHandleAdd(
         _In_ uuid_t          handleId,
-        _In_ struct VFSNode* node)
+        _In_ struct VFSNode* node,
+        _In_ void*           data,
+        _In_ uint32_t        accessKind)
 {
 
     return OsOK;

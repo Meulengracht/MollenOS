@@ -22,12 +22,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-oserr_t VFSNodeBind(struct VFS*, struct VFSNode* from, struct VFSNode* to)
+oserr_t VFSNodeBind(struct VFS* vfs, struct VFSNode* from, struct VFSNode* to)
 {
 
 }
 
-oserr_t VFSNodeUnbind(struct VFS*, struct VFSNode*)
+oserr_t VFSNodeUnbind(struct VFS* vfs, struct VFSNode* node)
 {
 
 }

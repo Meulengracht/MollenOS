@@ -117,7 +117,7 @@ static oserr_t __UnlinkDirectory(struct VFS* vfs, struct VFSRequest* request)
     struct VFSNode* node;
     oserr_t      osStatus;
     MString_t*      path;
-    size_t          pathLength;
+    size_t          pathLength = 0;
     int             startIndex;
 
     path = VFSMakePath(request->parameters.open.path);

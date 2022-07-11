@@ -31,13 +31,13 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-oserr_t FsReadFromFile(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
-oserr_t FsWriteToFile(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uuid_t, void*, size_t, size_t, size_t*);
-oserr_t FsSeekInFile(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uint64_t);
+oserr_t FsReadFromFile(struct VFSCommonData*, MFSEntry_t*, uuid_t, void*, size_t, size_t, size_t*);
+oserr_t FsWriteToFile(struct VFSCommonData*, MFSEntry_t*, uuid_t, void*, size_t, size_t, size_t*);
+oserr_t FsSeekInFile(struct VFSCommonData*, MFSEntry_t*, uint64_t);
 
 // Directory specific operation handlers
-oserr_t FsReadFromDirectory(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, void*, size_t, size_t, size_t*);
-oserr_t FsSeekInDirectory(FileSystemBase_t*, MFSEntry_t*, FileSystemHandleMFS_t*, uint64_t);
+oserr_t FsReadFromDirectory(struct VFSCommonData*, MFSEntry_t*, void*, size_t, size_t, size_t*);
+oserr_t FsSeekInDirectory(struct VFSCommonData*, MFSEntry_t*, uint64_t);
 
 static MFSEntry_t* MFSEntryNew(void)
 {
@@ -120,8 +120,8 @@ FsClose(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data)
 {
-    MFSEntry_t* entry = (MFSEntry_t*)data;
-    oserr_t     osStatus;
+    MFSEntry_t* entry    = (MFSEntry_t*)data;
+    oserr_t     osStatus = OsOK;
     
     TRACE("FsClose(%i)", entry->ActionOnClose);
     if (entry->ActionOnClose) {
@@ -215,15 +215,14 @@ FsRead(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsRead)
 {
-    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    MFSEntry_t*  entry  = (MFSEntry_t*)entryBase;
-    TRACE("FsReadEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
+    MFSEntry_t* entry = (MFSEntry_t*)data;
+    TRACE("FsReadEntry(flags 0x%x, length %u)", entry->Flags, unitCount);
 
-    if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
-        return FsReadFromDirectory(fileSystemBase, entry, handle, buffer, bufferOffset, unitCount, unitsRead);
+    if (entry->Flags & FILE_FLAG_DIRECTORY) {
+        return FsReadFromDirectory(vfsCommonData, entry, buffer, bufferOffset, unitCount, unitsRead);
     }
     else {
-        return FsReadFromFile(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsRead);
+        return FsReadFromFile(vfsCommonData, entry, bufferHandle, buffer, bufferOffset, unitCount, unitsRead);
     }
 }
 
@@ -237,12 +236,11 @@ FsWrite(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsWritten)
 {
-    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    MFSEntry_t*  entry  = (MFSEntry_t*)entryBase;
-    TRACE("FsWriteEntry(flags 0x%x, length %u)", entryBase->Descriptor.Flags, unitCount);
+    MFSEntry_t* entry = (MFSEntry_t*)data;
+    TRACE("FsWriteEntry(flags 0x%x, length %u)", entry->Flags, unitCount);
 
-    if (!(entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY)) {
-        return FsWriteToFile(fileSystemBase, entry, handle, bufferHandle, buffer, bufferOffset, unitCount, unitsWritten);
+    if (!(entry->Flags & FILE_FLAG_DIRECTORY)) {
+        return FsWriteToFile(vfsCommonData, entry, bufferHandle, buffer, bufferOffset, unitCount, unitsWritten);
     }
     return OsInvalidParameters;
 }
@@ -254,15 +252,18 @@ FsSeek(
         _In_  uint64_t              absolutePosition,
         _Out_ uint64_t*             absolutePositionOut)
 {
-    FileSystemHandleMFS_t* handle = (FileSystemHandleMFS_t*)handleBase;
-    MFSEntry_t*  entry  = (MFSEntry_t*)entryBase;
+    MFSEntry_t* entry = (MFSEntry_t*)data;
+    oserr_t     osStatus;
 
-    if (entryBase->Descriptor.Flags & FILE_FLAG_DIRECTORY) {
-        return FsSeekInDirectory(fileSystemBase, entry, handle, absolutePosition);
+    if (entry->Flags & FILE_FLAG_DIRECTORY) {
+        osStatus = FsSeekInDirectory(vfsCommonData, entry, absolutePosition);
+    } else {
+        osStatus = FsSeekInFile(vfsCommonData, entry, absolutePosition);
     }
-    else {
-        return FsSeekInFile(fileSystemBase, entry, handle, absolutePosition);
+    if (osStatus == OsOK) {
+        *absolutePositionOut = entry->Position;
     }
+    return osStatus;
 }
 
 oserr_t

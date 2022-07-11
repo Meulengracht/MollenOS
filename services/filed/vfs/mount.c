@@ -22,12 +22,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-oserr_t VFSNodeMount(struct VFS*, struct VFSNode* at, struct VFS* what)
+oserr_t VFSNodeMount(struct VFS* vfs, struct VFSNode* at, struct VFS* what)
 {
 
 }
 
-oserr_t VFSNodeUnmount(struct VFS*, MString_t* path)
+oserr_t VFSNodeUnmount(struct VFS* vfs, MString_t* path)
 {
 
 }

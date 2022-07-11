@@ -72,11 +72,11 @@ struct VFSStatFS {
     MString_t* Serial;
 
     // These should be filled in by the underlying FS.
-    uint32_t   MaxFilenameLength;
-    uint32_t   BlockSize;
-    uint32_t   BlocksPerSegment;
-    uint64_t   SegmentsTotal;
-    uint64_t   SegmentsFree;
+    uint32_t MaxFilenameLength;
+    uint32_t BlockSize;
+    uint32_t BlocksPerSegment;
+    uint64_t SegmentsTotal;
+    uint64_t SegmentsFree;
 };
 
 /* FsInitialize 

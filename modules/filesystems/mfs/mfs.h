@@ -198,17 +198,22 @@ PACKED_TYPESTRUCT(FileRecord, {
 
 typedef struct MFSEntry {
     MString_t* Name;
+    uint32_t   Owner;
+    uint32_t   Permissions;
+    uint32_t   Flags;
+
     uint32_t   NativeFlags;
     int        ActionOnClose;
-    
-    // The initial bucket and length of that bucket
-    uint32_t StartBucket;
-    uint32_t StartLength;
-    
+
     // How many bytes are actually allocated, not the number of
     // valid bytes for the file
     uint64_t AllocatedSize;
-    
+    uint64_t ActualSize;
+
+    // The initial bucket and length of that bucket
+    uint32_t StartBucket;
+    uint32_t StartLength;
+
     // The bucket of the directory where this file resides,
     // and the length of the bucket. We also store the file
     // descriptor index into this bucket.
@@ -218,6 +223,7 @@ typedef struct MFSEntry {
 
     // Current position for this file handle. We store the bucket
     // and the length of that bucket.
+    uint64_t Position;
     uint32_t DataBucketPosition;
     uint32_t DataBucketLength;
     uint64_t BucketByteBoundary;  // Support variadic bucket sizes
