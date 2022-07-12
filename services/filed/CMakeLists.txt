@@ -47,12 +47,13 @@ set (SERVICE_SOURCES
         vfs/api.c
         vfs/bind.c
         vfs/handles.c
+        vfs/memfs.c
         vfs/mount.c
         vfs/utils.c
         vfs/vfs.c
 
         filesystem.c
-        modules.c
+        modules/modules.c
         main.c
         requests.c
         scope.c
@@ -60,7 +61,6 @@ set (SERVICE_SOURCES
 
 set (ADDITONAL_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/sys_file_service_server.c
-    ${CMAKE_BINARY_DIR}/protocols/sys_path_service_server.c
     ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_server.c
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )

@@ -19,7 +19,6 @@
 #define __TRACE
 
 #include <assert.h>
-#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include <stdlib.h>
@@ -64,8 +63,8 @@ static void __NotifySessionManager(MString_t* mount_point)
     sys_session_disk_connected(GetGrachtClient(), &msg.base, MStringRaw(mount_point));
 }
 
-static enum FileSystemType
-__GetTypeFromGuid(
+enum FileSystemType
+FileSystemParseGuid(
         _In_ guid_t* guid)
 {
     if (!guid_cmp(guid, &g_efiGuid) || !guid_cmp(guid, &g_fatGuid)) {
@@ -93,15 +92,13 @@ FileSystem_t*
 FileSystemNew(
         _In_ StorageDescriptor_t* storage,
         _In_ uuid_t               id,
+        _In_ guid_t*              guid,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
-        _In_ enum FileSystemType  type,
-        _In_ guid_t*              typeGuid,
-        _In_ guid_t*              guid)
+        _In_ struct VFSModule*    module)
 {
-    FileSystem_t*       fileSystem;
-    enum FileSystemType fsType = type;
-    oserr_t            osStatus;
+    FileSystem_t* fileSystem;
+    oserr_t       osStatus;
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -109,24 +106,13 @@ FileSystemNew(
     }
     memset(fileSystem, 0, sizeof(FileSystem_t));
 
-    if (fsType == FileSystemType_UNKNOWN) {
-        // try to deduce from type guid
-        fsType = __GetTypeFromGuid(typeGuid);
-    }
-
     ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->DeviceID, fileSystem);
-    fileSystem->Type                   = fsType;
     fileSystem->State                  = FileSystemState_CREATED;
+    fileSystem->Module                 = module;
     fileSystem->CommonData.SectorStart = sector;
     fileSystem->CommonData.SectorCount = sectorCount;
     memcpy(&fileSystem->CommonData.Storage, storage, sizeof(StorageDescriptor_t));
     usched_mtx_init(&fileSystem->Lock);
-
-    osStatus = VfsLoadModule(fsType, &fileSystem->Module);
-    if (osStatus != OsOK) {
-        ERROR("FileSystemNew failed to load filesystem of type %u", fsType);
-        fileSystem->State = FileSystemState_ERROR;
-    }
 
     osStatus = VFSNew(id, guid, fileSystem->Module, &fileSystem->CommonData, &fileSystem->VFS);
     if (osStatus != OsOK) {
@@ -142,7 +128,7 @@ void FileSystemDestroy(FileSystem_t* fileSystem)
         VFSDestroy(fileSystem->VFS);
     }
     if (fileSystem->Module != NULL) {
-        VfsUnloadModule(fileSystem->Module);
+        VFSModuleDelete(fileSystem->Module);
     }
     free(fileSystem);
 }
@@ -275,8 +261,6 @@ VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
-    struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
-
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_MOUNTED) {
         VFSNodeDestroy(fileSystem->MountNode);

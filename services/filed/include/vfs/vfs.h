@@ -34,6 +34,7 @@ struct VFSStat;
 struct VFSStatFS;
 
 extern oserr_t VFSNew(uuid_t id, guid_t* guid, struct VFSModule*, struct VFSCommonData*, struct VFS**);
+extern oserr_t VFSNewMemFS(MString_t* name, guid_t* guid, struct VFS **vfsOut);
 extern oserr_t VFSChildNew(struct VFS*, struct VFS**);
 extern void    VFSDestroy(struct VFS*);
 

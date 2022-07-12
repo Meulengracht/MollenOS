@@ -23,12 +23,10 @@
 
 #include <internal/_ipc.h>
 #include <vfs/filesystem.h>
-#include <vfs/handle.h>
 #include <vfs/scope.h>
 #include <vfs/storage.h>
 
 #include <sys_file_service_server.h>
-#include <sys_path_service_server.h>
 #include <sys_storage_service_server.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
@@ -48,13 +46,11 @@ oserr_t OnLoad(void)
 {
     // Initialize subsystems
     VFSScopeInitialize();
-    VfsHandleInitialize();
     VfsStorageInitialize();
     VfsFileSystemInitialize();
 
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_file_server_protocol);
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_path_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_storage_server_protocol);
     return OsOK;
 }

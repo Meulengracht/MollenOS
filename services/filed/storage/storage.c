@@ -55,19 +55,32 @@ VfsStorageRegisterFileSystem(
         _In_ guid_t*              typeGuid,
         _In_ guid_t*              guid)
 {
-    FileSystem_t* fileSystem;
-    uuid_t        id;
+    FileSystem_t*       fileSystem;
+    enum FileSystemType fsType = type;
+    struct VFSModule*   module = NULL;
+    oserr_t             osStatus;
+    uuid_t              id;
 
     TRACE("VfsStorageRegisterFileSystem(sector=%u, sectorCount=%u, type=%u)",
           LODWORD(sector), LODWORD(sectorCount), type);
 
+    if (fsType == FileSystemType_UNKNOWN) {
+        // try to deduce from type guid
+        fsType = FileSystemParseGuid(typeGuid);
+    }
+
+    osStatus = VFSModuleLoadInternal(fsType, &module);
+    if (osStatus != OsOK) {
+        ERROR("VfsStorageRegisterFileSystem failed to load filesystem of type %u", fsType);
+    }
+
     id = VfsIdentifierAllocate(storage);
     fileSystem = FileSystemNew(
-            &storage->Storage, id,
-            sector, sectorCount, type,
-            typeGuid, guid
+            &storage->Storage, id, guid,
+            sector, sectorCount, module
     );
     if (!fileSystem) {
+        VFSModuleDelete(module);
         return OsOutOfMemory;
     }
 

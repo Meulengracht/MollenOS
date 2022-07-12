@@ -46,11 +46,24 @@ struct VFSOperations {
 
 struct VFSModule {
     enum FileSystemType  Type;
-    int                  References;
     Handle_t             Handle;
     struct usched_mtx    Lock;
     struct VFSOperations Operations;
 };
+
+/**
+ * @brief
+ *
+ * @param type
+ * @param dllHandle
+ * @param operations
+ * @return
+ */
+struct VFSModule*
+VFSModuleNew(
+        _In_  enum FileSystemType   type,
+        _In_  Handle_t              dllHandle,
+        _In_  struct VFSOperations* operations);
 
 /**
  * @brief Loads the appropriate filesystem driver for given type.
@@ -59,7 +72,7 @@ struct VFSModule {
  * @return     A handle for the given filesystem driver.
  */
 extern oserr_t
-VfsLoadModule(
+VFSModuleLoadInternal(
         _In_  enum FileSystemType type,
         _Out_ struct VFSModule**  moduleOut);
 
@@ -69,7 +82,7 @@ VfsLoadModule(
  * @param module [In] The module to release a reference on.
  */
 extern void
-VfsUnloadModule(
+VFSModuleDelete(
         _In_ struct VFSModule* module);
 
 #endif //!__VFS_MODULE_H__

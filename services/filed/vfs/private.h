@@ -243,8 +243,6 @@ extern oserr_t VFSNodeEnsureLoaded(struct VFSNode* node);
  */
 extern oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
 
-
-
 /**
  * @brief Creates a new child in the node. This will create the node on the filesystem as well. A reader lock on the
  * node must be held when calling this function.
@@ -276,5 +274,11 @@ extern oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MSt
  * @return
  */
 extern oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut);
+
+/**
+ * @brief
+ * @return
+ */
+extern struct VFSModule* MemFSNewModule(void);
 
 #endif //!__VFS_PRIVATE_H__

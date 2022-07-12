@@ -20,15 +20,26 @@
 #include <vfs/vfs.h>
 
 static struct VFS* g_rootScope = NULL;
+static guid_t      g_rootGuid  = GUID_EMPTY;
 
 void VFSScopeInitialize(void)
 {
-    oserr_t osStatus;
+    oserr_t    osStatus;
+    MString_t* name;
 
-    osStatus = VFSNew(&g_rootScope);
+    // TODO mstring_const
+    name = MStringCreate("vfs-root", StrUTF8);
+    if (name == NULL) {
+        ERROR("VFSScopeInitialize failed to allocate memory for fs name");
+        return;
+    }
+
+    osStatus = VFSNewMemFS(name, &g_rootGuid, &g_rootScope);
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
     }
+
+    MStringDestroy(name);
 }
 
 struct VFS*

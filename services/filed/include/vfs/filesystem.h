@@ -71,11 +71,19 @@ extern FileSystem_t*
 FileSystemNew(
         _In_ StorageDescriptor_t* storage,
         _In_ uuid_t               id,
+        _In_ guid_t*              guid,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
-        _In_ enum FileSystemType  type,
-        _In_ guid_t*              typeGuid,
-        _In_ guid_t*              guid);
+        _In_ struct VFSModule*    module);
+
+/**
+ *
+ * @param guid
+ * @return
+ */
+extern enum FileSystemType
+FileSystemParseGuid(
+        _In_ guid_t* guid);
 
 /**
  * @brief Mounts a previously registered filesystem at the provided mount point. If no mount point is provided

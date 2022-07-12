@@ -27,7 +27,8 @@ enum FileSystemType {
     FileSystemType_HFS,
     FileSystemType_HPFS,
     FileSystemType_MFS,
-    FileSystemType_EXT
+    FileSystemType_EXT,
+    FileSystemType_MEMFS
 };
 
 #endif //!__VFS_FILESYSTEM_TYPES_H__
