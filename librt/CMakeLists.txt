@@ -1,3 +1,8 @@
+# handle all unit test libraries that should be built for host
+if (VALI_BUILD_UNIT_TESTS)
+    add_subdirectory (libds)
+    return ()
+endif ()
 
 string(TOLOWER "${CMAKE_C_COMPILER_ID}-${CMAKE_C_COMPILER_VERSION}" VALI_COMPILER_ID)
 
@@ -99,6 +104,7 @@ LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/valicc)
 add_subdirectory (libcrt)
 add_subdirectory (libds)
 add_subdirectory (libddk)
+add_subdirectory (libos)
 
 merge_libraries (librt libcrt ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/valicc/${VALI_COMPILER_RT_TARGET})
 add_dependencies (librt compiler-rt)

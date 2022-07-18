@@ -28,7 +28,7 @@
 
 static void __ConvertEntry(FileRecord_t* record, struct VFSStat* stat)
 {
-    stat->Name  = MStringCreate((const char*)&record->Name[0], StrUTF8);
+    stat->Name  = mstr_new_u8((const char*)&record->Name[0]);
     stat->Owner = 0; // TODO not supported by MFS
     stat->Size  = record->Size;
     MfsFileRecordFlagsToVfsFlags(record, &stat->Flags, &stat->Permissions);

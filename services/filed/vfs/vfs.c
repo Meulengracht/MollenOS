@@ -49,7 +49,7 @@ __CreateNode(
     node->FileSystem = vfs;
     node->Parent     = NULL;
     node->Source     = NULL;
-    node->Name       = MStringClone(stats->Name);
+    node->Name       = mstr_clone(stats->Name);
     node->Type       = type;
     node->IsLoaded   = false;
     usched_rwlock_init(&node->Lock);
@@ -76,7 +76,7 @@ __StatRootNode(
 {
     stat->ID = 0;
     stat->StorageID = vfs->CommonData->Storage.DeviceID;
-    stat->Name = MStringCreate("/", StrUTF8);
+    stat->Name = mstr_new_u8("/");
     stat->LinkTarget = NULL;
     stat->Owner = 0;
     stat->Permissions = FILE_PERMISSION_READ | FILE_PERMISSION_WRITE;
@@ -103,7 +103,7 @@ __CreateRootNode(
     root->FileSystem = vfs;
     root->Parent     = NULL;
     root->Source     = NULL;
-    root->Name       = MStringCreate("/", StrUTF8);
+    root->Name       = mstr_new_u8("/");
     root->Type       = VFS_NODE_TYPE_REGULAR;
     root->IsLoaded   = false;
     usched_rwlock_init(&root->Lock);
@@ -254,10 +254,10 @@ void VFSNodeDestroy(struct VFSNode* node)
     hashtable_destroy(&node->Children);
     hashtable_destroy(&node->Mounts);
 
-    MStringDestroy(node->Name);
-    MStringDestroy(node->Stats.Name);
+    mstr_delete(node->Name);
+    mstr_delete(node->Stats.Name);
     if (node->Stats.LinkTarget != NULL) {
-        MStringDestroy(node->Stats.LinkTarget);
+        mstr_delete(node->Stats.LinkTarget);
     }
     free(node);
 }
@@ -278,7 +278,7 @@ static int __HandlesCmp(const void* lh, const void* rh)
 static uint64_t __ChildrenHash(const void* element)
 {
     const struct __VFSChild* child = element;
-    return MStringHash(child->Key);
+    return mstr_hash(child->Key);
 }
 
 static int __ChildrenCmp(const void* lh, const void* rh)
@@ -291,12 +291,12 @@ static int __ChildrenCmp(const void* lh, const void* rh)
 static uint64_t __MountsHash(const void* element)
 {
     const struct __VFSMount* child = element;
-    return MStringHash(child->Key);
+    return mstr_hash(child->Key);
 }
 
 static int __MountsCmp(const void* lh, const void* rh)
 {
     const struct __VFSMount* child1 = lh;
     const struct __VFSMount* child2 = rh;
-    return MStringCompare(child1->Key, child2->Key, 0) == MSTRING_FULL_MATCH ? 0 : 1;
+    return mstr_cmp(child1->Key, child2->Key);
 }

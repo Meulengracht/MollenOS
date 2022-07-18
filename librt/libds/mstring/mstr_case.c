@@ -16,7 +16,7 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include "mstr_conv.h"
 
 //                         X (start = 0, end = 16, i = 8)
@@ -28,7 +28,7 @@
 
 #define GO_NEXT(start, end) ((start) + (((end) - (start)) >> 2))
 
-mchar_t __find_binary_search(mchar_t val, case_folding_t* table, size_t length)
+mchar_t __find_binary_search(mchar_t val, const case_folding_t* table, size_t length)
 {
     size_t start = 0, end = length;
     size_t i = GO_NEXT(start, end);
@@ -53,10 +53,10 @@ mchar_t __find_binary_search(mchar_t val, case_folding_t* table, size_t length)
 
 mchar_t mstr_clower(mchar_t val)
 {
-    return __find_binary_search(val, NULL, 0);
+    return __find_binary_search(val, g_lowerCaseTable, g_lowerCaseTableSize);
 }
 
 mchar_t mstr_cupper(mchar_t val)
 {
-    return __find_binary_search(val, NULL, 0);
+    return __find_binary_search(val, g_upperCaseTable, g_upperCaseTableSize);
 }

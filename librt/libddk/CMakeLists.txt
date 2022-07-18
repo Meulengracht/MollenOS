@@ -79,9 +79,10 @@ target_include_directories(libddk
 target_include_directories(libddk PRIVATE
         ../../tools/rd/libvafs/include
         ../libgracht/include
-        ../libc/include
         ../libusb/include
         ../libds/include
+        ../libos/include
+        ../libc/include
 )
 
 install(TARGETS libddk

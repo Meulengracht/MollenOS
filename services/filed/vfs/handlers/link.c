@@ -32,30 +32,30 @@ static bool __NodeIsDirectory(struct VFSNode* node)
 oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* node;
-    MString_t*      path   = VFSMakePath(request->parameters.link.from);
-    MString_t*      target = MStringCreate(request->parameters.link.to, StrUTF8);
+    mstring_t*      path   = VFSMakePath(request->parameters.link.from);
+    mstring_t*      target = mstr_new_u8(request->parameters.link.to);
     oserr_t      osStatus;
     size_t          pathLength;
     int             startIndex;
 
     if (path == NULL || target == NULL) {
-        MStringDestroy(path);
-        MStringDestroy(target);
+        mstr_delete(path);
+        mstr_delete(target);
         return OsOutOfMemory;
     }
-    pathLength = MStringLength(path);
+    pathLength = mstr_len(path);
 
     startIndex = 1;
     node       = vfs->Root;
     while (1) {
-        int             endIndex = MStringFind(path, '/', startIndex);
-        MString_t*      token    = MStringSubString(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
+        int             endIndex = mstr_find_u8(path, "/", startIndex);
+        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
         struct VFSNode* child;
 
         // If we run out of tokens, then we ended on an existing path
         // and we cannot create a link at this path
-        if (MStringLength(token) == 0) {
-            MStringDestroy(token);
+        if (mstr_len(token) == 0) {
+            mstr_delete(token);
             osStatus = OsExists;
             break;
         }
@@ -67,9 +67,9 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
         osStatus = VFSNodeFind(node, token, &child);
         if (osStatus == OsNotExists) {
             // Ok, did not exist, were creation flags passed?
-            if (endIndex != MSTRING_NOT_FOUND) {
+            if (endIndex != -1) {
                 // Not end of path, did not exist
-                MStringDestroy(token);
+                mstr_delete(token);
                 osStatus = OsNotExists;
                 break;
             }
@@ -77,18 +77,18 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
             // OK we are at end of path and node did not exist
             // so we can now try to create this
             osStatus = VFSNodeCreateLinkChild(node, token, target, request->parameters.link.symbolic, &child);
-            MStringDestroy(token);
+            mstr_delete(token);
             break;
         } else if (osStatus != OsOK) {
-            MStringDestroy(token);
+            mstr_delete(token);
             break;
         }
 
         // Cleanup the token at this point, we don't need it anymore
-        MStringDestroy(token);
+        mstr_delete(token);
 
-        if (endIndex == MSTRING_NOT_FOUND) {
-            MStringDestroy(token);
+        if (endIndex == -1) {
+            mstr_delete(token);
             osStatus = OsExists;
             break;
         } else if (!__NodeIsDirectory(child)) {
@@ -105,6 +105,6 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
         node = node->Parent;
     }
 
-    MStringDestroy(path);
+    mstr_delete(path);
     return osStatus;
 }

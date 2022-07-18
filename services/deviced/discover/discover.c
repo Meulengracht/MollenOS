@@ -49,7 +49,7 @@ struct DmDriver {
     uuid_t                       id;
     uuid_t                       handle;
     enum DmDriverState           state;
-    MString_t*                   path;
+    mstring_t*                   path;
     struct DriverConfiguration*  configuration;
     list_t                       devices; // list<struct DmDevice>
     struct usched_mtx            devices_lock;
@@ -81,13 +81,13 @@ __DestroyDriver(
 {
     // freeing NULLS behave as noops
     DmDriverConfigDestroy(driver->configuration);
-    MStringDestroy(driver->path);
+    mstr_delete(driver->path);
     free(driver);
 }
 
 oserr_t
 DmDiscoverAddDriver(
-        _In_ MString_t*                  driverPath,
+        _In_ mstring_t*                  driverPath,
         _In_ struct DriverConfiguration* driverConfig)
 {
     struct DmDriver* driver;
@@ -108,7 +108,7 @@ DmDiscoverAddDriver(
     list_construct(&driver->devices);
     usched_mtx_init(&driver->devices_lock);
 
-    driver->path = MStringClone(driverPath);
+    driver->path = mstr_clone(driverPath);
     if (!driver->path) {
         __DestroyDriver(driver);
         return OsOutOfMemory;
@@ -122,7 +122,7 @@ DmDiscoverAddDriver(
 
 oserr_t
 DmDiscoverRemoveDriver(
-        _In_ MString_t* driverPath)
+        _In_ mstring_t* driverPath)
 {
     oserr_t osStatus = OsNotExists;
 

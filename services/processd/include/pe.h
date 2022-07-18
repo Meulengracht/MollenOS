@@ -52,8 +52,8 @@ typedef struct PeExportedFunction {
 
 typedef struct PeExecutable {
     uuid_t                Owner;
-    MString_t*            Name;
-    MString_t*            FullPath;
+    mstring_t*            Name;
+    mstring_t*            FullPath;
     atomic_int            References;
     MemorySpaceHandle_t   MemorySpace;
     element_t             Header;
@@ -79,8 +79,8 @@ typedef struct PeExecutable {
 __EXTERN uintptr_t  PeImplGetPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
-__EXTERN oserr_t PeImplResolveFilePath(uuid_t, MString_t*, MString_t*, MString_t**);
-__EXTERN oserr_t PeImplLoadFile(MString_t*, void**, size_t*);
+__EXTERN oserr_t PeImplResolveFilePath(uuid_t, mstring_t*, mstring_t*, mstring_t**);
+__EXTERN oserr_t PeImplLoadFile(mstring_t*, void**, size_t*);
 __EXTERN void       PeImplUnloadFile(void*);
 __EXTERN oserr_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
 __EXTERN oserr_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
@@ -118,7 +118,7 @@ extern oserr_t
 PeLoadImage(
         _In_  uuid_t           owner,
         _In_  PeExecutable_t*  parent,
-        _In_  MString_t*       path,
+        _In_  mstring_t*       path,
         _Out_ PeExecutable_t** imageOut);
 
 /**
@@ -146,7 +146,7 @@ __EXTERN PeExecutable_t*
 PeResolveLibrary(
     _In_    PeExecutable_t* Parent,
     _In_    PeExecutable_t* Image,
-    _In_    MString_t*      LibraryName);
+    _In_    mstring_t*      LibraryName);
 
 /* PeResolveFunction
  * Resolves a function by name in the given pe image, the return

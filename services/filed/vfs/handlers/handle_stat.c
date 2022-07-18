@@ -196,7 +196,7 @@ oserr_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_t
     return OsOK;
 }
 
-oserr_t VFSNodeGetPathHandle(struct VFSRequest* request, MString_t** pathOut)
+oserr_t VFSNodeGetPathHandle(struct VFSRequest* request, mstring_t** pathOut)
 {
     struct VFSNodeHandle* handle;
     oserr_t            osStatus;

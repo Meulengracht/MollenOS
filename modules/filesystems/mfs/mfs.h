@@ -197,7 +197,7 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_INUSE            0x80000000  // Record is in use
 
 typedef struct MFSEntry {
-    MString_t* Name;
+    mstring_t* Name;
     uint32_t   Owner;
     uint32_t   Permissions;
     uint32_t   Flags;
@@ -351,7 +351,7 @@ MfsLocateRecord(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ uint32_t              bucketOfDirectory,
         _In_ MFSEntry_t* entry,
-        _In_ MString_t*            path);
+        _In_ mstring_t*            path);
 
 /**
  * @brief
@@ -368,7 +368,7 @@ extern oserr_t
 MfsCreateRecord(
         _In_  struct VFSCommonData*  vfsCommonData,
         _In_  MFSEntry_t*  entry,
-        _In_  MString_t*             name,
+        _In_  mstring_t*             name,
         _In_  uint32_t               owner,
         _In_  uint32_t               flags,
         _In_  uint32_t               permissions,

@@ -16,19 +16,30 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include "private.h"
+#include <string.h>
 
-void mstr_delete(mstring_t* string)
+mstring_t* mstr_clone(mstring_t* source)
 {
+    mstring_t* string;
+
+    string = stralloc(sizeof(mstring_t));
     if (string == NULL) {
-        return;
+        return NULL;
     }
 
-    // consts have no actual memory allocated on heap
-    if (string->__flags & __MSTRING_FLAG_CONST) {
-        return;
+    string->__flags = 0;
+    string->__length = source->__length;
+    if (string->__length != 0) {
+        string->__data = stralloc(string->__length * sizeof(mchar_t));
+        if (string->__data == NULL) {
+            strfree(string);
+            return NULL;
+        }
+        memcpy(string->__data, source->__data, string->__length * sizeof(mchar_t));
+    } else {
+        string->__data = NULL;
     }
-    strfree(string->__data);
-    strfree(string);
+    return string;
 }

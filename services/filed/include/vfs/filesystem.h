@@ -95,7 +95,7 @@ FileSystemParseGuid(
 extern void
 VfsFileSystemMount(
         _In_ FileSystem_t* fileSystem,
-        _In_ MString_t*    mountPoint);
+        _In_ mstring_t*    mountPoint);
 
 /**
  * @brief Unmounts the given filesystem. The flags can specify the type of unmount that is occuring.

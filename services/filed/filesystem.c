@@ -30,7 +30,7 @@
 
 struct mount_point {
     element_t     header;
-    MString_t*    path;
+    mstring_t*    path;
     unsigned int  flags;
     FileSystem_t* filesystem;
 };
@@ -57,7 +57,7 @@ static struct default_mounts g_defaultMounts[] = {
 };
 static struct usched_mtx g_mountsLock;
 
-static void __NotifySessionManager(MString_t* mount_point)
+static void __NotifySessionManager(mstring_t* mount_point)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetSessionService());
     sys_session_disk_connected(GetGrachtClient(), &msg.base, MStringRaw(mount_point));
@@ -140,27 +140,27 @@ __MountFileSystemAtDefault(
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* partitionNode;
     oserr_t        osStatus;
-    MString_t*      path;
+    mstring_t*      path;
 
-    path = MStringCreate("/storage/", StrUTF8);
+    path = mstr_new_u8("/storage/");
     if (path == NULL) {
         return OsOutOfMemory;
     }
-    MStringAppendCharacters(path, &fileSystem->CommonData.Storage.Serial[0], StrUTF8);
+    MStringAppendCharacters(path, &fileSystem->CommonData.Storage.Serial[0]);
     MStringAppendCharacter(path, '/');
     MStringAppend(path, fileSystem->CommonData.Label);
 
     osStatus = VFSNodeNewDirectory(fsScope, path, &partitionNode);
     if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAtDefault failed to create node %s", MStringRaw(path));
-        MStringDestroy(path);
+        mstr_delete(path);
         return osStatus;
     }
 
     osStatus = VFSNodeMount(fsScope, partitionNode, NULL);
     if (osStatus != OsOK) {
         ERROR("__MountFileSystemAtDefault failed to mount filesystem at %s", MStringRaw(path));
-        MStringDestroy(path);
+        mstr_delete(path);
         return osStatus;
     }
 
@@ -172,7 +172,7 @@ __MountFileSystemAtDefault(
 static oserr_t
 __MountFileSystemAt(
         _In_ FileSystem_t* fileSystem,
-        _In_ MString_t*    path)
+        _In_ mstring_t*    path)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
@@ -190,10 +190,10 @@ __MountFileSystemAt(
 void
 VfsFileSystemMount(
         _In_ FileSystem_t* fileSystem,
-        _In_ MString_t*    mountPoint)
+        _In_ mstring_t*    mountPoint)
 {
     oserr_t   osStatus;
-    MString_t* path;
+    mstring_t* path;
 
     if (fileSystem == NULL || fileSystem->Module == NULL) {
         return;
@@ -228,19 +228,19 @@ VfsFileSystemMount(
     } else {
         // look up default mount points
         for (int i = 0; g_defaultMounts[i].path != NULL; i++) {
-            MString_t* label = MStringCreate(g_defaultMounts[i].label, StrUTF8);
+            mstring_t* label = mstr_new_u8(g_defaultMounts[i].label);
             if (label && MStringCompare(label, fileSystem->CommonData.Label, 0) == MSTRING_FULL_MATCH) {
-                MString_t* bindPath = MStringCreate(g_defaultMounts[i].path, StrUTF8);
+                mstring_t* bindPath = mstr_new_u8(g_defaultMounts[i].path);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
                 if (osStatus != OsOK) {
                     WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
                             MStringRaw(mountPoint), MStringRaw(fileSystem->CommonData.Label));
-                    MStringDestroy(label);
+                    mstr_delete(label);
                 }
-                MStringDestroy(bindPath);
+                mstr_delete(bindPath);
                 break;
             }
-            MStringDestroy(label);
+            mstr_delete(label);
         }
     }
 
@@ -253,7 +253,7 @@ VfsFileSystemMount(
 
     TRACE("VfsFileSystemMount notifying session about %s", MStringRaw(path));
     __NotifySessionManager(path);
-    MStringDestroy(path);
+    mstr_delete(path);
 }
 
 oserr_t

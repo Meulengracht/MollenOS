@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, MString_t** linkOut)
+oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, mstring_t** linkOut)
 {
     struct VFSNodeHandle* handle;
     oserr_t            osStatus, osStatus2;
@@ -33,7 +33,7 @@ oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, MString_t**
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     if (handle->Node->Stats.Flags & __FILE_LINK) {
-        *linkOut = MStringClone(handle->Node->Stats.LinkTarget);
+        *linkOut = mstr_clone(handle->Node->Stats.LinkTarget);
         osStatus = OsOK;
     } else {
         osStatus = OsLinkInvalid;

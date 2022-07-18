@@ -30,9 +30,9 @@
 
 // /test/ => [remainingPath ], [token ]
 static void __ExtractPathToken(
-    _In_  MString_t*  path,
-    _Out_ MString_t** remainingPath,
-    _Out_ MString_t** token)
+    _In_  mstring_t*  path,
+    _Out_ mstring_t** remainingPath,
+    _Out_ mstring_t** token)
 {
     int strIndex;
     int strLength;
@@ -41,17 +41,17 @@ static void __ExtractPathToken(
     // Step 1 is to extract the next token we searching for in this directory
     // we do also detect if that is the last token
     strIndex  = MStringFind(path, '/', 0);
-    strLength = MStringLength(path);
+    strLength = mstr_len(path);
 
-    // So, if StrIndex is MSTRING_NOT_FOUND now, we
+    // So, if StrIndex is -1 now, we
     // can pretty much assume this was the last token
     // unless that StrIndex == Last character
-    if (strIndex == MSTRING_NOT_FOUND || strIndex == (int)(strLength - 1)) {
+    if (strIndex == -1 || strIndex == (int)(strLength - 1)) {
         if (strIndex == (int)(strLength - 1) && strIndex != 0) {
-            *token = MStringSubString(path, 0, strIndex);
+            *token = mstr_substr(path, 0, strIndex);
         }
         else if (strIndex != 0) {
-            *token = MStringCreate((void*)MStringRaw(path), StrUTF8);
+            *token = mstr_new_u8((void*)MStringRaw(path));
         }
         else {
             *token = NULL;
@@ -62,8 +62,8 @@ static void __ExtractPathToken(
         return;
     }
 
-    *token         = MStringSubString(path, 0, strIndex);
-    *remainingPath = MStringSubString(path, strIndex + 1, (strLength - (strIndex + 1)));
+    *token         = mstr_substr(path, 0, strIndex);
+    *remainingPath = mstr_substr(path, strIndex + 1, (strLength - (strIndex + 1)));
     TRACE("__ExtractPathToken returns remainingPath=%s [0x%" PRIxIN "], token=%s [0x%" PRIxIN "]",
           MStringRaw(*remainingPath), remainingPath, MStringRaw(*token), token);
 }
@@ -165,7 +165,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ FileSystemMFS_t*      mfs,
         _In_ uint32_t              bucketOfDirectory,
-        _In_ MString_t*            entryName,
+        _In_ mstring_t*            entryName,
         _In_ int                   allowExpansion,
         _In_ MFSEntry_t* resultEntry)
 {
@@ -189,7 +189,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         // A record spans two sectors
         record = (FileRecord_t*)mfs->TransferBuffer.buffer;
         for (size_t i = 0; i < ((mfs->SectorsPerBucket * link.Length) / 2); i++) {
-            MString_t* filename;
+            mstring_t* filename;
             int        compareResult;
 
             // Look for a file-record that's either deleted or
@@ -206,11 +206,11 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
 
             // Convert the filename into a mstring object
             // and try to match it with our token (ignore case)
-            filename      = MStringCreate((const char*)&record->Name[0], StrUTF8);
+            filename      = mstr_new_u8((const char*)&record->Name[0]);
             compareResult = MStringCompare(entryName, filename, 1);
             //TRACE("__FindEntryOrFreeInDirectoryBucket matching token %s == %s: %i",
             //      MStringRaw(entryName), MStringRaw(filename), compareResult);
-            MStringDestroy(filename);
+            mstr_delete(filename);
 
             if (compareResult == MSTRING_FULL_MATCH) {
                 // it was end of path, and the entry exists
@@ -258,7 +258,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
 
 static oserr_t __CreateEntryInDirectory(
         _In_ struct VFSCommonData*   vfsCommonData,
-        _In_  MString_t*             name,
+        _In_  mstring_t*             name,
         _In_  uint32_t               owner,
         _In_  uint32_t               flags,
         _In_  uint32_t               permissions,
@@ -271,7 +271,7 @@ static oserr_t __CreateEntryInDirectory(
     unsigned int nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, 0);
     oserr_t      osStatus;
 
-    entry.Name = MStringClone(name);
+    entry.Name = mstr_clone(name);
     entry.StartBucket = MFS_ENDOFCHAIN;
     entry.NativeFlags = nativeFlags | MFS_FILERECORD_INUSE;
 
@@ -300,12 +300,12 @@ MfsLocateRecord(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ uint32_t              bucketOfDirectory,
         _In_ MFSEntry_t* entry,
-        _In_ MString_t*            path)
+        _In_ mstring_t*            path)
 {
     FileSystemMFS_t*     mfs;
     oserr_t              osStatus;
-    MString_t*           remainingPath = NULL;
-    MString_t*           currentToken  = NULL;
+    mstring_t*           remainingPath = NULL;
+    mstring_t*           currentToken  = NULL;
     MFSEntry_t           nextEntry     = { 0 };
     int                  isEndOfPath   = 0;
 
@@ -315,7 +315,7 @@ MfsLocateRecord(
     mfs = (FileSystemMFS_t*)vfsCommonData->Data;
 
     // Either get next part of the path, or end at this entry
-    if (MStringLength(path) != 0) {
+    if (mstr_len(path) != 0) {
         __ExtractPathToken(path, &remainingPath, &currentToken);
         if (remainingPath == NULL) {
             isEndOfPath = 1;
@@ -357,9 +357,9 @@ MfsLocateRecord(
     // Cleanup the allocated strings
 exit:
     if (remainingPath != NULL) {
-        MStringDestroy(remainingPath);
+        mstr_delete(remainingPath);
     }
-    MStringDestroy(currentToken);
+    mstr_delete(currentToken);
     return osStatus;
 }
 
@@ -367,7 +367,7 @@ oserr_t
 MfsCreateRecord(
         _In_  struct VFSCommonData*  vfsCommonData,
         _In_  MFSEntry_t*  entry,
-        _In_  MString_t*             name,
+        _In_  mstring_t*             name,
         _In_  uint32_t               owner,
         _In_  uint32_t               flags,
         _In_  uint32_t               permissions,

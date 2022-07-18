@@ -174,7 +174,7 @@ PmBootstrapCleanup(void)
 
 oserr_t
 PmBootstrapFindRamdiskFile(
-        _In_  MString_t* path,
+        _In_  mstring_t* path,
         _Out_ void**     bufferOut,
         _Out_ size_t*    bufferSizeOut)
 {

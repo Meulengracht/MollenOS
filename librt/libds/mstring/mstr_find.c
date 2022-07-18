@@ -16,7 +16,7 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include "private.h"
 
 int mstr_find_u8(mstring_t* string, const char* u8, int startIndex)
@@ -59,11 +59,11 @@ int mstr_rfind_u8(mstring_t* string, const char* u8, int startIndex)
     // making any compare calls.
     needle = mstr_next(u8, &u8i);
     while (i < string->__length) {
-        if ((int)i >= startIndex) {
+        if (i >= (size_t)startIndex) {
             break;
         }
 
-        if (needle == string->__data[i] && (int)i < startIndex) {
+        if (needle == string->__data[i] && i < (size_t)startIndex) {
             // compare the entire u8 sequence
             if (!mstr_cmp_u8_index(string, u8, i)) {
                 lastOccurrence = (int)i;

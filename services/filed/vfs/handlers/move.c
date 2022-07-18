@@ -22,48 +22,50 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static MString_t* __DirectoryOf(MString_t* path)
+static mstring_t* __DirectoryOf(mstring_t* path)
 {
-    size_t pathLength = MStringLength(path);
+    size_t pathLength = mstr_len(path);
     int    lastOccurrence;
 
-    lastOccurrence = MStringFindReverse(path, '/', 0);
+    lastOccurrence = mstr_rfind_u8(path, "/", -1);
     if (lastOccurrence == (int)pathLength) {
-        lastOccurrence = MStringFindReverse(path, '/', lastOccurrence);
+        lastOccurrence = mstr_rfind_u8(path, "/", lastOccurrence);
     }
-    return MStringSubString(path, 0, lastOccurrence);
+    return mstr_substr(path, 0, lastOccurrence);
 }
 
-static MString_t* __SubtractPath(MString_t* path, MString_t* operand)
+static mstring_t* __SubtractPath(mstring_t* path, mstring_t* operand)
 {
-    int result = MStringCompare(path, operand, 0);
-    if (result == MSTRING_NO_MATCH) {
+    if (mstr_cmp(path, operand)) {
         return NULL;
     }
-    return MStringSubString(path, (int)MStringLength(operand), -1);
+    return mstr_substr(path, (int)mstr_len(operand), -1);
 }
 
-static MString_t* __CombineNodePath(struct VFSNode* directoryNode, MString_t* name)
+static mstring_t* __CombineNodePath(struct VFSNode* directoryNode, mstring_t* name)
 {
-    MString_t* nodePath = VFSNodeMakePath(directoryNode, 1);
-    if (MStringGetCharAt(nodePath, (int)MStringLength(nodePath) - 1) != '/') {
-        MStringAppendCharacter(nodePath, '/');
+    mstring_t* nodePath = VFSNodeMakePath(directoryNode, 1);
+    mstring_t* combined;
+    if (mstr_at(nodePath, -1) != '/') {
+        combined = mstr_fmt("%ms/%ms", nodePath, name);
+    } else {
+        combined = mstr_fmt("%ms%ms", nodePath, name);
     }
-    MStringAppend(nodePath, name);
-    return nodePath;
+    mstr_delete(nodePath);
+    return combined;
 }
 
-static oserr_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directoryNode, MString_t* targetName, int copy)
+static oserr_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directoryNode, mstring_t* targetName, int copy)
 {
     struct VFSOperations* ops        = &sourceNode->FileSystem->Module->Operations;
     struct VFS*           vfs        = sourceNode->FileSystem;
-    MString_t*            sourcePath = VFSNodeMakePath(sourceNode, 1);
-    MString_t*            targetPath = __CombineNodePath(directoryNode, targetName);
+    mstring_t*            sourcePath = VFSNodeMakePath(sourceNode, 1);
+    mstring_t*            targetPath = __CombineNodePath(directoryNode, targetName);
     oserr_t            osStatus;
 
     if (sourcePath == NULL || targetPath == NULL) {
-        MStringDestroy(sourcePath);
-        MStringDestroy(targetPath);
+        mstr_delete(sourcePath);
+        mstr_delete(targetPath);
         return OsOutOfMemory;
     }
 
@@ -113,8 +115,8 @@ unlock:
         usched_rwlock_r_lock(&directoryNode->Lock);
     }
 
-    MStringDestroy(sourcePath);
-    MStringDestroy(targetPath);
+    mstr_delete(sourcePath);
+    mstr_delete(targetPath);
     return osStatus;
 }
 
@@ -156,15 +158,15 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
     return OsOK;
 }
 
-static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directoryNode, MString_t* targetName, int copy)
+static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directoryNode, mstring_t* targetName, int copy)
 {
-    MString_t* sourcePath = VFSNodeMakePath(sourceNode, 1);
-    MString_t* targetPath = __CombineNodePath(directoryNode, targetName);
+    mstring_t* sourcePath = VFSNodeMakePath(sourceNode, 1);
+    mstring_t* targetPath = __CombineNodePath(directoryNode, targetName);
     oserr_t osStatus, osStatus2;
 
     if (sourcePath == NULL || targetPath == NULL) {
-        MStringDestroy(sourcePath);
-        MStringDestroy(targetPath);
+        mstr_delete(sourcePath);
+        mstr_delete(targetPath);
         return OsOutOfMemory;
     }
 
@@ -229,24 +231,24 @@ unlock:
     }
 
 cleanup:
-    MStringDestroy(sourcePath);
-    MStringDestroy(targetPath);
+    mstr_delete(sourcePath);
+    mstr_delete(targetPath);
     return osStatus;
 }
 
 oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* from;
-    MString_t*      fromPath = VFSMakePath(request->parameters.move.from);
+    mstring_t*      fromPath = VFSMakePath(request->parameters.move.from);
     struct VFSNode* to;
-    MString_t*      toPath = VFSMakePath(request->parameters.move.to);
-    MString_t*      path;
-    MString_t*      targetName;
+    mstring_t*      toPath = VFSMakePath(request->parameters.move.to);
+    mstring_t*      path;
+    mstring_t*      targetName;
     oserr_t      osStatus;
 
     if (fromPath == NULL || toPath == NULL) {
-        MStringDestroy(fromPath);
-        MStringDestroy(toPath);
+        mstr_delete(fromPath);
+        mstr_delete(toPath);
         return OsOutOfMemory;
     }
 
@@ -285,7 +287,7 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
     VFSNodePut(from);
 
 cleanup:
-    MStringDestroy(fromPath);
-    MStringDestroy(toPath);
+    mstr_delete(fromPath);
+    mstr_delete(toPath);
     return osStatus;
 }

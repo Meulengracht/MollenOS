@@ -49,7 +49,7 @@ static uintptr_t          g_systemBaseAddress = 0;
  *******************************************************************************/
 static inline oserr_t
 __TestFilePath(
-        _In_ MString_t* path)
+        _In_ mstring_t* path)
 {
     OsFileDescriptor_t fileDescriptor;
     return GetFileInformationFromPath(MStringRaw(path), 1, &fileDescriptor);
@@ -58,12 +58,12 @@ __TestFilePath(
 static oserr_t
 __GuessBasePath(
         _In_  uuid_t      processHandle,
-        _In_  MString_t*  path,
-        _Out_ MString_t** fullPathOut)
+        _In_  mstring_t*  path,
+        _Out_ mstring_t** fullPathOut)
 {
     // Check the working directory, if it fails iterate the environment defaults
     Process_t* process = PmGetProcessByHandle(processHandle);
-    MString_t* result;
+    mstring_t* result;
     int        isApp;
     int        isDll;
 
@@ -73,7 +73,7 @@ __GuessBasePath(
     // Start by testing against the loaders current working directory,
     // however this won't work for the base process
     if (process != NULL) {
-        result = MStringClone(process->working_directory);
+        result = mstr_clone(process->working_directory);
         MStringAppendCharacter(result, '/');
         MStringAppend(result, path);
         if (__TestFilePath(result) == OsOK) {
@@ -82,7 +82,7 @@ __GuessBasePath(
         }
     }
     else {
-        result = MStringCreate(NULL, StrUTF8);
+        result = mstr_new_u8(NULL);
     }
 
     // At this point we have to run through all PATH values
@@ -90,11 +90,11 @@ __GuessBasePath(
     // for other types its most likely resource load
     isApp = MStringFindC(path, ".run");
     isDll = MStringFindC(path, ".dll");
-    if (isApp != MSTRING_NOT_FOUND || isDll != MSTRING_NOT_FOUND) {
-        MStringReset(result, "$bin/", StrUTF8);
+    if (isApp != -1 || isDll != -1) {
+        MStringReset(result, "$bin/");
     }
     else {
-        MStringReset(result, "$data/", StrUTF8);
+        MStringReset(result, "$data/");
     }
     MStringAppend(result, path);
     if (__TestFilePath(result) == OsOK) {
@@ -102,22 +102,22 @@ __GuessBasePath(
         return OsOK;
     }
     else {
-        MStringDestroy(result);
+        mstr_delete(result);
         return OsError;
     }
 }
 
-static MString_t*
+static mstring_t*
 __TestRamdiskPath(
         _In_ const char* basePath,
-        _In_  MString_t* path)
+        _In_  mstring_t* path)
 {
     oserr_t osStatus;
-    MString_t* temporaryResult;
+    mstring_t* temporaryResult;
     TRACE("__TestRamdiskPath(basePath=%s, path=%s)", basePath, MStringRaw(path));
 
     // create the full path for the ramdisk
-    temporaryResult = MStringCreate(basePath, StrUTF8);
+    temporaryResult = mstr_new_u8(basePath);
     MStringAppend(temporaryResult, path);
 
     // try to find the file in the ramdisk
@@ -125,24 +125,24 @@ __TestRamdiskPath(
     if (osStatus == OsOK) {
         return temporaryResult;
     }
-    MStringDestroy(temporaryResult);
+    mstr_delete(temporaryResult);
     return NULL;
 }
 
 static oserr_t
 __ResolveRelativePath(
         _In_  uuid_t      processId,
-        _In_  MString_t*  parentPath,
-        _In_  MString_t*  path,
-        _Out_ MString_t** fullPathOut)
+        _In_  mstring_t*  parentPath,
+        _In_  mstring_t*  path,
+        _Out_ mstring_t** fullPathOut)
 {
     oserr_t osStatus        = OsError;
-    MString_t* temporaryResult = path;
+    mstring_t* temporaryResult = path;
     TRACE("__ResolveRelativePath(processId=%u, parentPath=%s, path=%s)",
           processId, parentPath ? MStringRaw(parentPath) : "null", MStringRaw(path));
 
     // Let's test against parent being loaded through the ramdisk
-    if (parentPath && MStringFindC(parentPath, "rd:/") != MSTRING_NOT_FOUND) {
+    if (parentPath && MStringFindC(parentPath, "rd:/") != -1) {
         // create the full path for the ramdisk
         temporaryResult = __TestRamdiskPath("rd:/bin/", path);
         if (!temporaryResult) {
@@ -163,7 +163,7 @@ __ResolveRelativePath(
     TRACE("__ResolveRelativePath basePath=%s", MStringRaw(temporaryResult));
 
     // If we already deduced an absolute path skip the canonicalizing moment
-    if (osStatus == OsOK && MStringFind(temporaryResult, ':', 0) != MSTRING_NOT_FOUND) {
+    if (osStatus == OsOK && MStringFind(temporaryResult, ':', 0) != -1) {
         *fullPathOut = temporaryResult;
         return osStatus;
     }
@@ -173,21 +173,21 @@ __ResolveRelativePath(
 oserr_t
 PeImplResolveFilePath(
         _In_  uuid_t      processId,
-        _In_  MString_t*  parentPath,
-        _In_  MString_t*  path,
-        _Out_ MString_t** fullPathOut)
+        _In_  mstring_t*  parentPath,
+        _In_  mstring_t*  path,
+        _Out_ mstring_t** fullPathOut)
 {
     oserr_t osStatus = OsOK;
     ENTRY("ResolveFilePath(processId=%u, path=%s)", processId, MStringRaw(path));
 
-    if (MStringFind(path, ':', 0) == MSTRING_NOT_FOUND) {
+    if (MStringFind(path, ':', 0) == -1) {
         // If we don't even have an environmental identifier present, we
         // have to get creative and guess away
         osStatus = __ResolveRelativePath(processId, parentPath, path, fullPathOut);
     }
     else {
         // Assume absolute path
-        *fullPathOut = MStringClone(path);
+        *fullPathOut = mstr_clone(path);
     }
 
     EXIT("ResolveFilePath");
@@ -196,7 +196,7 @@ PeImplResolveFilePath(
 
 oserr_t
 PeImplLoadFile(
-        _In_  MString_t* fullPath,
+        _In_  mstring_t* fullPath,
         _Out_ void**     bufferOut,
         _Out_ size_t*    lengthOut)
 {
@@ -209,7 +209,7 @@ PeImplLoadFile(
 
     // special case:
     // load from ramdisk
-    if (MStringFindC(fullPath, "rd:/") != MSTRING_NOT_FOUND) {
+    if (MStringFindC(fullPath, "rd:/") != -1) {
         return PmBootstrapFindRamdiskFile(fullPath, bufferOut, lengthOut);
     }
 

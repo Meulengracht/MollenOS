@@ -21,37 +21,30 @@
 #include <vfs/vfs.h>
 #include "private.h"
 
-MString_t* VFSMakePath(const char* path)
+mstring_t* VFSMakePath(const char* path)
 {
 
 }
 
-MString_t* VFSNodeMakePath(struct VFSNode* node, int local)
+mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
 {
-    // iterate back untill we hit '/'
     struct VFSNode* i = node;
-    MString_t*      root = MStringCreate("/", StrUTF8);
-    MString_t*      path;
+    mstring_t*      path;
 
-    // TODO const mstring support
-    if (root == NULL) {
-        return NULL;
-    }
-
-    // Now we are at root, we have spooled back to start, and we will build
-    // up the full path from this point
-    path = MStringCreate(NULL, StrUTF8);
+    // start from the last node and iterate back, since we have to take
+    // end path into account, we specially handle that one right away
+    path = mstr_clone(i->Name);
     if (path == NULL) {
-        MStringDestroy(root);
         return NULL;
     }
 
+    mstr_set_dot(path);
+    i = i->Parent;
     while (i) {
-        MStringPrepend(path, i->Name);
+        path = mstr_fmt("%ms/%ms", i->Name, path);
         i = i->Parent;
     }
-
-    MStringDestroy(root);
+    mstr_clear_dot(path);
     return path;
 }
 
@@ -85,7 +78,7 @@ static oserr_t __LoadNode(struct VFSNode* node) {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     oserr_t               osStatus, osStatus2;
-    MString_t*            nodePath = VFSNodeMakePath(node, 1);
+    mstring_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data;
 
     if (nodePath == NULL) {
@@ -117,7 +110,7 @@ static oserr_t __LoadNode(struct VFSNode* node) {
     }
 
     cleanup:
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return osStatus;
 }
 
@@ -142,7 +135,7 @@ oserr_t VFSNodeEnsureLoaded(struct VFSNode* node)
     return osStatus;
 }
 
-oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut)
+oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** nodeOut)
 {
     struct __VFSChild* result;
     oserr_t         osStatus;
@@ -172,13 +165,13 @@ oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** node
     return OsOK;
 }
 
-oserr_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
+oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
     oserr_t               osStatus, osStatus2;
-    MString_t*            nodePath = VFSNodeMakePath(node, 1);
+    mstring_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data, *fileData;
 
     if (nodePath == NULL) {
@@ -191,7 +184,7 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags
     result = hashtable_get(&node->Children, &(struct __VFSChild) { .Key = name });
     if (result != NULL) {
         usched_rwlock_w_demote(&node->Lock);
-        MStringDestroy(nodePath);
+        mstr_delete(nodePath);
         *nodeOut = result->Node;
         return OsExists;
     }
@@ -227,17 +220,17 @@ close:
 
 cleanup:
     usched_rwlock_w_demote(&node->Lock);
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return osStatus;
 }
 
-oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut)
+oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t* target, int symbolic, struct VFSNode** nodeOut)
 {
     struct VFSOperations* ops = &node->FileSystem->Module->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
     oserr_t               osStatus, osStatus2;
-    MString_t*            nodePath = VFSNodeMakePath(node, 1);
+    mstring_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data;
 
     if (nodePath == NULL) {
@@ -265,7 +258,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t*
 
     osStatus = __AddEntry(node, &(struct VFSStat) {
             .Name = name,
-            .Size = MStringSize(target),
+            .Size = mstr_bsize(target),
             .Owner = 0,
             .Flags = FILE_FLAG_LINK,
             .Permissions = FILE_PERMISSION_READ | FILE_PERMISSION_WRITE | FILE_PERMISSION_EXECUTE
@@ -279,7 +272,7 @@ close:
 
 cleanup:
     usched_rwlock_w_demote(&node->Lock);
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return osStatus;
 }
 
@@ -328,7 +321,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     void*                          data;
     oserr_t                        osStatus;
     uuid_t                         handleId;
-    MString_t*                     nodePath;
+    mstring_t*                     nodePath;
 
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
@@ -375,16 +368,16 @@ error:
 
 cleanup:
     usched_mtx_unlock(&node->HandlesLock);
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return osStatus;
 }
 
-oserr_t VFSNodeNewDirectory(struct VFS* vfs, MString_t* path, struct VFSNode** nodeOut)
+oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, struct VFSNode** nodeOut)
 {
 
 }
 
-oserr_t VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut)
+oserr_t VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut)
 {
 
 }

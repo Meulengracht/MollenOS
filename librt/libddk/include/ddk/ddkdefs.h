@@ -32,12 +32,24 @@
 
 #if defined(i386) || defined(__i386__)
 #define TLS_VALUE   uint32_t
+#if (defined (__GNUC__))
+// TODO
+#define TLS_READ(offset, value)  (void)offset
+#define TLS_WRITE(offset, value) (void)offset
+#else
 #define TLS_READ(offset, value)  __asm { __asm mov ebx, [offset] __asm mov eax, gs:[ebx] __asm mov [value], eax }
 #define TLS_WRITE(offset, value) __asm { __asm mov ebx, [offset] __asm mov eax, [value] __asm mov gs:[ebx], eax }
+#endif
 #elif defined(amd64) || defined(__amd64__)
 #define TLS_VALUE   uint64_t
+#if (defined (__GNUC__))
+// TODO
+#define TLS_READ(offset, value)  (void)offset
+#define TLS_WRITE(offset, value) (void)offset
+#else
 #define TLS_READ(offset, value)  __asm { __asm mov rbx, [offset] __asm mov rax, gs:[rbx] __asm mov [value], rax }
 #define TLS_WRITE(offset, value) __asm { __asm mov rbx, [offset] __asm mov rax, [value] __asm mov gs:[rbx], rax }
+#endif
 #else
 #error "Implement rw for tls for this architecture"
 #endif

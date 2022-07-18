@@ -16,10 +16,12 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include "private.h"
+#include <stdarg.h>
+#include <setjmp.h>
 #include <cmocka.h>
 
 int TestSetup(void** state)
@@ -96,3 +98,12 @@ int main(void)
     };
     return cmocka_run_group_tests(tests, TestSetup, TestTeardown);
 }
+
+// mocks
+oserr_t handle_create(uuid_t* handleOut) { }
+void usched_mtx_init(struct usched_mtx* mutex) { }
+void usched_mtx_lock(struct usched_mtx* mtx) { }
+void usched_mtx_unlock(struct usched_mtx* mtx) { }
+void usched_cnd_init(struct usched_cnd* condition) { }
+void usched_cnd_notify_one(struct usched_cnd* cnd) { }
+void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex) { }

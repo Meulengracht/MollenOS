@@ -97,14 +97,14 @@ __ParseModuleConfiguration(
         _In_ const char*                 name)
 {
     struct DriverConfiguration* driverConfig;
-    MString_t*           path;
+    mstring_t*           path;
     oserr_t           osStatus;
     void*                buffer;
     size_t               length;
     TRACE("__ParseRamdiskFile(name=%s)", name);
 
     // build the path for the config first
-    path = MStringCreate(name, StrUTF8);
+    path = mstr_new_u8(name);
     if (!path) {
         return OsOutOfMemory;
     }
@@ -118,7 +118,7 @@ __ParseModuleConfiguration(
 
     driverConfig = malloc(sizeof(struct DriverConfiguration));
     if (!driverConfig) {
-        MStringDestroy(path);
+        mstr_delete(path);
         free(buffer);
         return OsOutOfMemory;
     }
@@ -127,17 +127,17 @@ __ParseModuleConfiguration(
     free(buffer);
 
     if (osStatus != OsOK) {
-        MStringDestroy(path);
+        mstr_delete(path);
         free(driverConfig);
         return osStatus;
     }
 
     // now we build the actual path to the file itself
-    MStringReset(path, "rd:/modules/", StrUTF8);
-    MStringAppendCharacters(path, (const char*)name, StrUTF8);
+    MStringReset(path, "rd:/modules/");
+    MStringAppendCharacters(path, (const char*)name);
 
     osStatus = DmDiscoverAddDriver(path, driverConfig);
-    MStringDestroy(path);
+    mstr_delete(path);
     return osStatus;
 }
 

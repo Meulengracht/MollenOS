@@ -406,7 +406,7 @@ MfsFileRecordToVfsFile(
     TRACE("MfsFileRecordToVfsFile()");
 
     // VfsEntry->Base.Descriptor.Id = ??
-    mfsEntry->Name          = MStringCreate((const char*)&nativeEntry->Name[0], StrUTF8);
+    mfsEntry->Name          = mstr_new_u8((const char*)&nativeEntry->Name[0]);
     mfsEntry->NativeFlags   = nativeEntry->Flags;
     mfsEntry->ActualSize    = nativeEntry->Size;
     mfsEntry->AllocatedSize = nativeEntry->AllocatedSize;

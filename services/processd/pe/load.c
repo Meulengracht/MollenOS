@@ -257,7 +257,7 @@ PeResolveImportDescriptor(
     _In_ PeExecutable_t*       Image,
     _In_ SectionMapping_t*     Section,
     _In_ PeImportDescriptor_t* ImportDescriptor,
-    _In_ MString_t*            ImportDescriptorName)
+    _In_ mstring_t*            ImportDescriptorName)
 {
     PeExecutable_t*           ResolvedLibrary;
     PeExportedFunction_t*     Exports;
@@ -715,9 +715,9 @@ PeHandleImports(
     while (ImportDescriptor->ImportAddressTable != 0) {
         SectionMapping_t* Section         = GetSectionFromRVA(Sections, SectionCount, ImportDescriptor->ImportAddressTable);
         uintptr_t         HostNameAddress = OFFSET_IN_SECTION(Section, ImportDescriptor->ModuleName);
-        MString_t*        Name            = MStringCreate((const char*)HostNameAddress, StrUTF8);
+        mstring_t*        Name            = mstr_new_u8((const char*)HostNameAddress);
         oserr_t        Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
-        MStringDestroy(Name);
+        mstr_delete(Name);
 
         if (Status != OsOK) {
             return OsError;
@@ -825,11 +825,11 @@ static oserr_t
 __ResolveImagePath(
         _In_  uuid_t          owner,
         _In_  PeExecutable_t* parent,
-        _In_  MString_t*      path,
+        _In_  mstring_t*      path,
         _Out_ uint8_t**       bufferOut,
-        _Out_ MString_t**     fullPathOut)
+        _Out_ mstring_t**     fullPathOut)
 {
-    MString_t* fullPath;
+    mstring_t* fullPath;
     uint8_t*   buffer;
     size_t     length;
     oserr_t osStatus;
@@ -849,7 +849,7 @@ __ResolveImagePath(
     osStatus = PeImplLoadFile(fullPath, (void**)&buffer, &length);
     if (osStatus != OsOK) {
         ERROR("Failed to load file for path %s (%u)", MStringRaw(fullPath), osStatus);
-        MStringDestroy(fullPath);
+        mstr_delete(fullPath);
         return osStatus;
     }
 
@@ -862,7 +862,7 @@ oserr_t
 PeLoadImage(
         _In_  uuid_t           owner,
         _In_  PeExecutable_t*  parent,
-        _In_  MString_t*       path,
+        _In_  mstring_t*       path,
         _Out_ PeExecutable_t** imageOut)
 {
     MzHeader_t*           dosHeader;
@@ -871,7 +871,7 @@ PeLoadImage(
     PeOptionalHeader32_t* optionalHeader32;
     PeOptionalHeader64_t* optionalHeader64;
 
-    MString_t*         fullPath = NULL;
+    mstring_t*         fullPath = NULL;
     uintptr_t          sectionAddress;
     uintptr_t          imageBase;
     size_t             sizeOfMetaData;
@@ -887,7 +887,7 @@ PeLoadImage(
     osStatus = __ResolveImagePath(owner, parent, path, &buffer, &fullPath);
     if (osStatus != OsOK) {
         if (fullPath != NULL) {
-            MStringDestroy(fullPath);
+            mstr_delete(fullPath);
         }
         return osStatus;
     }
@@ -944,7 +944,7 @@ PeLoadImage(
     memset(image, 0, sizeof(PeExecutable_t));
     ELEMENT_INIT(&image->Header, 0, image);
     index = MStringFindReverse(fullPath, '/', 0);
-    image->Name              = MStringSubString(fullPath, index + 1, -1);
+    image->Name              = mstr_substr(fullPath, index + 1, -1);
     image->Owner             = owner;
     image->FullPath          = fullPath;
     image->Architecture      = optionalHeader->Architecture;
@@ -964,8 +964,8 @@ PeLoadImage(
         osStatus = PeImplCreateImageSpace(&image->MemorySpace);
         if (osStatus != OsOK) {
             ERROR("Failed to create pe's memory space");
-            MStringDestroy(image->Name);
-            MStringDestroy(image->FullPath);
+            mstr_delete(image->Name);
+            mstr_delete(image->FullPath);
             free(image->Libraries);
             free(image);
             return OsError;
@@ -996,8 +996,8 @@ PeUnloadImage(
     }
 
     TRACE("PeUnloadImage(image=%s)", MStringRaw(image->Name));
-    MStringDestroy(image->Name);
-    MStringDestroy(image->FullPath);
+    mstr_delete(image->Name);
+    mstr_delete(image->FullPath);
     if (image->ExportedFunctions) {
         free(image->ExportedFunctions);
     }

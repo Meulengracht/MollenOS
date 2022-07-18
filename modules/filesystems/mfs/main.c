@@ -54,14 +54,14 @@ static MFSEntry_t* MFSEntryNew(void)
 
 static void MFSEntryDelete(MFSEntry_t* entry)
 {
-    MStringDestroy(entry->Name);
+    mstr_delete(entry->Name);
     free(entry);
 }
 
 oserr_t
 FsOpen(
         _In_      struct VFSCommonData* vfsCommonData,
-        _In_      MString_t*            path,
+        _In_      mstring_t*            path,
         _Out_Opt_ void**                dataOut)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
@@ -90,7 +90,7 @@ oserr_t
 FsCreate(
         _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
-        _In_  MString_t*            name,
+        _In_  mstring_t*            name,
         _In_  uint32_t              owner,
         _In_  uint32_t              flags,
         _In_  uint32_t              permissions,
@@ -128,7 +128,7 @@ FsClose(
         osStatus = MfsUpdateRecord(vfsCommonData, entry, entry->ActionOnClose);
     }
     if (entry->Name != NULL) {
-        MStringDestroy(entry->Name);
+        mstr_delete(entry->Name);
     }
     free(entry);
     return osStatus;
@@ -145,7 +145,7 @@ FsStat(
 oserr_t
 FsUnlink(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            path)
+        _In_ mstring_t*            path)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
     oserr_t          osStatus;
@@ -179,8 +179,8 @@ oserr_t
 FsLink(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data,
-        _In_ MString_t*            linkName,
-        _In_ MString_t*            linkTarget,
+        _In_ mstring_t*            linkName,
+        _In_ mstring_t*            linkTarget,
         _In_ int                   symbolic)
 {
 
@@ -189,8 +189,8 @@ FsLink(
 oserr_t
 FsReadLink(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            path,
-        _In_ MString_t*            pathOut)
+        _In_ mstring_t*            path,
+        _In_ mstring_t*            pathOut)
 {
 
 }
@@ -198,8 +198,8 @@ FsReadLink(
 oserr_t
 FsMove(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            from,
-        _In_ MString_t*            to,
+        _In_ mstring_t*            from,
+        _In_ mstring_t*            to,
         _In_ int                   copy)
 {
 
@@ -407,7 +407,7 @@ FsInitialize(
     memcpy(&mfsInstance->MasterRecord, masterRecord, sizeof(MasterRecord_t));
 
     // Parse the master record
-    vfsCommonData->Label = MStringCreate((const char*)&masterRecord->PartitionName[0], StrUTF8);
+    vfsCommonData->Label = mstr_new_u8((const char*)&masterRecord->PartitionName[0]);
     TRACE("Partition flags: 0x%x", fileSystemBase->Flags);
 
     dma_attachment_unmap(&mfsInstance->TransferBuffer);

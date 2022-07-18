@@ -384,7 +384,7 @@ set (SOURCES_OS
     os/shared_objects.c
     os/syscalls.c
     os/system.c
-        os/time.c
+    os/time.c
     os/thread_helpers.c
     os/unwind.c
 )
@@ -497,13 +497,13 @@ add_library(libk STATIC ${ASM_SOURCES} ${SOURCES_LIBK})
 target_compile_options(libk PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse>)
 target_compile_definitions(libk PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL)
 target_include_directories(libk PUBLIC include)
-target_include_directories(libk PRIVATE ../libddk/include)
+target_include_directories(libk PRIVATE ../libddk/include ../libos/include)
 target_link_libraries(libk libdsk gracht_static)
 
 add_library(libc STATIC ${ASM_SOURCES} ${SOURCES_LIBC})
 target_compile_definitions(libc PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_KRNL_DLL)
 target_include_directories(libc PUBLIC include)
-target_include_directories(libc PRIVATE ../libddk/include)
+target_include_directories(libc PRIVATE ../libddk/include ../libos/include)
 target_link_libraries(libc libm libds gracht_static)
 
 add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC} main.c)
@@ -511,7 +511,7 @@ target_compile_options(c
   PRIVATE $<$<COMPILE_LANGUAGE:C>:${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL>
 )
 target_include_directories(c PUBLIC include)
-target_include_directories(c PRIVATE ../libddk/include)
+target_include_directories(c PRIVATE ../libddk/include ../libos/include)
 target_link_options(c PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def")
 
 target_link_libraries (c gracht_static libds libddk libm librt)

@@ -27,7 +27,7 @@ oserr_t VFSNodeMount(struct VFS* vfs, struct VFSNode* at, struct VFS* what)
 
 }
 
-oserr_t VFSNodeUnmount(struct VFS* vfs, MString_t* path)
+oserr_t VFSNodeUnmount(struct VFS* vfs, mstring_t* path)
 {
 
 }

@@ -21,10 +21,10 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , MString_t** pathOut)
+oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t** pathOut)
 {
     struct VFSNode* node;
-    MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
+    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
     oserr_t      osStatus;
 
     if (nodePath == NULL) {
@@ -44,6 +44,6 @@ oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , MString_t*
     if (osStatus != OsOK) {
         WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
     }
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return OsOK;
 }

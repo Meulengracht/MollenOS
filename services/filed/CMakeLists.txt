@@ -1,4 +1,8 @@
-enable_language(C)
+if (VALI_BUILD_UNIT_TESTS)
+    # add all targets that support unit testing
+    add_subdirectory (vfs)
+    return ()
+endif ()
 
 # include sub projects
 add_subdirectory(vfs)

@@ -84,10 +84,10 @@ DestroyProcess(
     hashtable_remove(&g_processes, &(struct process_entry){ .process_id = process->handle });
     usched_mtx_unlock(&g_processesLock);
 
-    MStringDestroy(process->name);
-    MStringDestroy(process->path);
-    MStringDestroy(process->working_directory);
-    MStringDestroy(process->assembly_directory);
+    mstr_delete(process->name);
+    mstr_delete(process->path);
+    mstr_delete(process->working_directory);
+    mstr_delete(process->assembly_directory);
     if (process->image) {
         PeUnloadImage(process->image);
     }
@@ -249,11 +249,11 @@ __LoadProcessImage(
         _Out_ PeExecutable_t** image)
 {
     oserr_t osStatus;
-    MString_t* pathUnified;
+    mstring_t* pathUnified;
 
     ENTRY("__LoadProcessImage(path=%s)", path);
 
-    pathUnified = MStringCreate(path, StrUTF8);
+    pathUnified = mstr_new_u8(path);
     osStatus    = PeLoadImage(UUID_INVALID, NULL, pathUnified, image);
 
     EXIT("__LoadProcessImage");
@@ -285,21 +285,21 @@ __ProcessNew(
     usched_mtx_init(&process->lock);
     list_construct(&process->requests);
 
-    process->path = MStringClone(process->image->FullPath);
+    process->path = mstr_clone(process->image->FullPath);
     if (!process->path) {
         free(process);
         return OsOutOfMemory;
     }
 
     index = MStringFindReverse(process->path, '/', 0);
-    process->name              = MStringSubString(process->path, index + 1, -1);
-    process->working_directory  = MStringSubString(process->path, 0, index);
-    process->assembly_directory = MStringSubString(process->path, 0, index);
+    process->name              = mstr_substr(process->path, index + 1, -1);
+    process->working_directory  = mstr_substr(process->path, 0, index);
+    process->assembly_directory = mstr_substr(process->path, 0, index);
     if (!process->name || !process->working_directory || !process->assembly_directory) {
-        MStringDestroy(process->path);
-        MStringDestroy(process->name);
-        MStringDestroy(process->working_directory);
-        MStringDestroy(process->assembly_directory);
+        mstr_delete(process->path);
+        mstr_delete(process->name);
+        mstr_delete(process->working_directory);
+        mstr_delete(process->assembly_directory);
         free(process);
         return OsOutOfMemory;
     }
@@ -631,7 +631,7 @@ void PmLoadLibrary(
 {
     Process_t*      process;
     PeExecutable_t* executable;
-    MString_t*      path;
+    mstring_t*      path;
     oserr_t      osStatus = OsNotExists;
     Handle_t        handle   = HANDLE_INVALID;
     uintptr_t       entry    = 0;
@@ -651,13 +651,13 @@ void PmLoadLibrary(
         goto exit;
     }
 
-    path     = MStringCreate((void *)request->parameters.load_library.path, StrUTF8);
+    path     = mstr_new_u8((void *)request->parameters.load_library.path);
     osStatus = PeLoadImage(process->handle, process->image, path, &executable);
     if (osStatus == OsOK) {
         handle = executable;
         entry  = executable->EntryAddress;
     }
-    MStringDestroy(path);
+    mstr_delete(path);
 
 exit:
     UnregisterProcessRequest(process, request);
@@ -835,8 +835,8 @@ void PmSetWorkingDirectory(
     if (process) {
         usched_mtx_lock(&process->lock);
         TRACE("PmSetWorkingDirectory path=%s", request->parameters.set_cwd.path);
-        MStringDestroy(process->working_directory);
-        process->working_directory = MStringCreate((void*)request->parameters.set_cwd.path, StrUTF8);
+        mstr_delete(process->working_directory);
+        process->working_directory = mstr_new_u8((void*)request->parameters.set_cwd.path);
         usched_mtx_unlock(&process->lock);
         status = OsOK;
     }

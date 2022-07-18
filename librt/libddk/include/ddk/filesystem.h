@@ -21,6 +21,7 @@
 
 #include <ddk/storage.h>
 #include <ds/list.h>
+#include <ds/mstring.h>
 #include <os/mollenos.h>
 
 /* FileSystem Export 
@@ -34,8 +35,6 @@
 #define __FSDECL(Function) Function
 #endif
 
-typedef struct MString MString_t;
-
 struct VFSCommonData {
     // Controlled by the VFS layer
     StorageDescriptor_t Storage;
@@ -44,7 +43,7 @@ struct VFSCommonData {
     uint64_t            SectorCount;
 
     // Set by the underlying filesystem
-    MString_t*          Label;
+    mstring_t*          Label;
     void*               Data;
 };
 
@@ -53,8 +52,8 @@ struct VFSStat {
     uuid_t ID;
     uuid_t StorageID;
 
-    MString_t* Name;
-    MString_t* LinkTarget;
+    mstring_t* Name;
+    mstring_t* LinkTarget;
     uint32_t   Owner;
     uint32_t   Permissions; // Permissions come from os/file/types.h
     uint32_t   Flags;       // Flags come from os/file/types.h
@@ -68,8 +67,8 @@ struct VFSStat {
 struct VFSStatFS {
     // These are filled in by the VFS
     uuid_t     ID;
-    MString_t* Label;
-    MString_t* Serial;
+    mstring_t* Label;
+    mstring_t* Serial;
 
     // These should be filled in by the underlying FS.
     uint32_t MaxFilenameLength;
@@ -97,14 +96,14 @@ __FSDECL(FsDestroy)(
 __FSAPI oserr_t
 __FSDECL(FsOpen)(
         _In_      struct VFSCommonData* vfsCommonData,
-        _In_      MString_t*            path,
+        _In_      mstring_t*            path,
         _Out_Opt_ void**                dataOut);
 
 __FSAPI oserr_t
 __FSDECL(FsCreate)(
         _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
-        _In_  MString_t*            name,
+        _In_  mstring_t*            name,
         _In_  uint32_t              owner,
         _In_  uint32_t              flags,
         _In_  uint32_t              permissions,
@@ -124,26 +123,26 @@ __FSAPI oserr_t
 __FSDECL(FsLink)(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data,
-        _In_ MString_t*            linkName,
-        _In_ MString_t*            linkTarget,
+        _In_ mstring_t*            linkName,
+        _In_ mstring_t*            linkTarget,
         _In_ int                   symbolic);
 
 __FSAPI oserr_t
 __FSDECL(FsUnlink)(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            path);
+        _In_ mstring_t*            path);
 
 __FSAPI oserr_t
 __FSDECL(FsReadLink)(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            path,
-        _In_ MString_t*            pathOut);
+        _In_ mstring_t*            path,
+        _In_ mstring_t*            pathOut);
 
 __FSAPI oserr_t
 __FSDECL(FsMove)(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            from,
-        _In_ MString_t*            to,
+        _In_ mstring_t*            from,
+        _In_ mstring_t*            to,
         _In_ int                   copy);
 
 __FSAPI oserr_t

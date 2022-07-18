@@ -76,7 +76,7 @@ DmDiscoverInitialize(void);
  */
 oserr_t
 DmDiscoverAddDriver(
-        _In_ MString_t*                  driverPath,
+        _In_ mstring_t*                  driverPath,
         _In_ struct DriverConfiguration* driverConfig);
 
 /**
@@ -86,7 +86,7 @@ DmDiscoverAddDriver(
  */
 oserr_t
 DmDiscoverRemoveDriver(
-        _In_ MString_t* driverPath);
+        _In_ mstring_t* driverPath);
 
 /**
  * @brief

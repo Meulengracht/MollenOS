@@ -16,30 +16,20 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include "private.h"
-#include <string.h>
 
-mstring_t* mstr_clone(mstring_t* source)
+mchar_t mstr_at(mstring_t* string, int index)
 {
-    mstring_t* string;
-
-    string = stralloc(sizeof(mstring_t));
-    if (string == NULL) {
-        return NULL;
+    // We support negative indexing, so abs it so we can make sure
+    // we don't go out of index for either way
+    int absIndex = abs(index);
+    if (string == NULL || absIndex >= string->__length) {
+        return 0;
     }
 
-    string->__flags = 0;
-    string->__length = source->__length;
-    if (string->__length != 0) {
-        string->__data = stralloc(string->__length * sizeof(mchar_t));
-        if (string->__data == NULL) {
-            strfree(string);
-            return NULL;
-        }
-        memcpy(string->__data, source->__data, string->__length * sizeof(mchar_t));
-    } else {
-        string->__data = NULL;
+    if (index < 0) {
+        return *(mchar_t*)(string->__data + ((int)string->__length + index));
     }
-    return string;
+    return string->__data[index];
 }

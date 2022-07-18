@@ -16,29 +16,22 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include "private.h"
 
-mstring_t* mstr_new_u8(const char* str)
+uint32_t mstr_hash(mstring_t* string)
 {
-    mstring_t* string;
+    uint32_t hash = 5381;
+    size_t   i    = 0;
+    mchar_t  val;
 
-    string = stralloc(sizeof(mstring_t));
-    if (string == NULL) {
-        return NULL;
+    if (string == NULL || string->__length == 0) {
+        return 0;
     }
 
-    string->__flags = 0;
-    string->__length = mstr_len_u8(str);
-    if (string->__length != 0) {
-        string->__data = stralloc(string->__length * sizeof(mchar_t));
-        if (string->__data == NULL) {
-            strfree(string);
-            return NULL;
-        }
-    } else {
-        string->__data = NULL;
+    while (i < string->__length) {
+        val  = string->__data[i];
+        hash = ((hash << 5) + hash) + val; /* hash * 33 + c */
     }
-    mstr_to_internal(str, string->__data);
-    return string;
+    return hash;
 }

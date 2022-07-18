@@ -16,7 +16,7 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include <string.h>
 #include "private.h"
 

@@ -16,7 +16,7 @@
  *
  */
 
-#include <ds/mstring2.h>
+#include <ds/mstring.h>
 #include "private.h"
 
 mstring_t* mstr_substr(mstring_t* string, int start, int length)

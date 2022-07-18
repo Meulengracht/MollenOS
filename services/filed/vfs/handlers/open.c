@@ -21,9 +21,9 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static bool __IsPathRoot(MString_t* path)
+static bool __IsPathRoot(mstring_t* path)
 {
-    if (MStringGetCharAt(path, 0) == '/' && MStringLength(path) == 1) {
+    if (mstr_at(path, 0) == '/' && mstr_len(path) == 1) {
         return true;
     }
     return false;
@@ -40,8 +40,8 @@ static bool __NodeIsDirectory(struct VFSNode* node)
 static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNode* node;
-    oserr_t      osStatus;
-    MString_t*      path;
+    oserr_t         osStatus;
+    mstring_t*      path;
     size_t          pathLength = 0;
     int             startIndex;
 
@@ -51,20 +51,20 @@ static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid
     }
 
     if (__IsPathRoot(path)) {
-        MStringDestroy(path);
+        mstr_delete(path);
         return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
     }
 
     startIndex = 1;
     node       = vfs->Root;
     while (1) {
-        int             endIndex = MStringFind(path, '/', startIndex);
-        MString_t*      token    = MStringSubString(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
+        int             endIndex = mstr_find_u8(path, "/", startIndex);
+        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
         struct VFSNode* child;
 
         // If we run out of tokens (for instance path ends on '/') then we can assume at this
         // point that we are standing at the directory. So return a handle to the current node
-        if (MStringLength(token) == 0) {
+        if (mstr_len(token) == 0) {
             osStatus = VFSNodeOpenHandle(node, request->parameters.open.access, handleOut);
             break;
         }
@@ -76,9 +76,9 @@ static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid
         osStatus = VFSNodeFind(node, token, &child);
         if (osStatus == OsNotExists) {
             // Ok, did not exist, were creation flags passed?
-            if (endIndex != MSTRING_NOT_FOUND) {
+            if (endIndex != -1) {
                 // Not end of path, did not exist
-                MStringDestroy(token);
+                mstr_delete(token);
                 osStatus = OsNotExists;
                 break;
             }
@@ -91,17 +91,17 @@ static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid
                                               request->parameters.open.access,
                                               &child);
                 if (osStatus != OsOK) {
-                    MStringDestroy(token);
+                    mstr_delete(token);
                     break;
                 }
             }
         } else if (osStatus != OsOK) {
-            MStringDestroy(token);
+            mstr_delete(token);
             break;
         }
 
         // Cleanup the token at this point, we don't need it anymore
-        MStringDestroy(token);
+        mstr_delete(token);
 
         // Entry we find must always be a directory
         if (!__NodeIsDirectory(child)) {
@@ -109,9 +109,9 @@ static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid
             break;
         }
 
-        if (endIndex == MSTRING_NOT_FOUND) {
+        if (endIndex == -1) {
             if (request->parameters.open.options & __FILE_FAILONEXIST) {
-                MStringDestroy(token);
+                mstr_delete(token);
                 osStatus = OsExists;
                 break;
             }
@@ -131,7 +131,7 @@ static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid
         node = node->Parent;
     }
 
-    MStringDestroy(path);
+    mstr_delete(path);
     return osStatus;
 }
 
@@ -139,7 +139,7 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
 {
     struct VFSNode* node;
     oserr_t      osStatus;
-    MString_t*      path;
+    mstring_t*      path;
     size_t          pathLength;
     int             startIndex;
 
@@ -147,7 +147,7 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
     if (path == NULL) {
         return OsOutOfMemory;
     }
-    pathLength = MStringLength(path);
+    pathLength = mstr_len(path);
 
     // Catch the case where we are opening the root, but have not specified
     // the __FILE_DIRECTORY flag.
@@ -158,14 +158,14 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
     startIndex = 1;
     node       = vfs->Root;
     while (1) {
-        int             endIndex = MStringFind(path, '/', startIndex);
-        MString_t*      token    = MStringSubString(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
+        int             endIndex = mstr_find_u8(path, "/", startIndex);
+        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
         struct VFSNode* child;
 
         // If we run out of tokens, then the path passed to us was
         // a directory path and not a file path.
-        if (MStringLength(token) == 0) {
-            MStringDestroy(token);
+        if (mstr_len(token) == 0) {
+            mstr_delete(token);
             osStatus = OsPathIsDirectory;
             break;
         }
@@ -177,9 +177,9 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
         osStatus = VFSNodeFind(node, token, &child);
         if (osStatus == OsNotExists) {
             // Ok, did not exist, were creation flags passed?
-            if (endIndex != MSTRING_NOT_FOUND) {
+            if (endIndex != -1) {
                 // Not end of path, did not exist
-                MStringDestroy(token);
+                mstr_delete(token);
                 osStatus = OsNotExists;
                 break;
             }
@@ -192,21 +192,21 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
                                               request->parameters.open.access,
                                               &child);
                 if (osStatus != OsOK) {
-                    MStringDestroy(token);
+                    mstr_delete(token);
                     break;
                 }
             }
         } else if (osStatus != OsOK) {
-            MStringDestroy(token);
+            mstr_delete(token);
             break;
         }
 
         // Cleanup the token at this point, we don't need it anymore
-        MStringDestroy(token);
+        mstr_delete(token);
 
-        if (endIndex == MSTRING_NOT_FOUND) {
+        if (endIndex == -1) {
             if (request->parameters.open.options & __FILE_FAILONEXIST) {
-                MStringDestroy(token);
+                mstr_delete(token);
                 osStatus = OsExists;
                 break;
             }
@@ -229,7 +229,7 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
         node = node->Parent;
     }
 
-    MStringDestroy(path);
+    mstr_delete(path);
     return osStatus;
 }
 

@@ -460,7 +460,7 @@ void StatLinkPathFromPath(
         return;
     }
 
-    MString_t* linkPath;
+    mstring_t* linkPath;
     oserr_t osStatus = VFSNodeReadLink(fsScope, request, &linkPath);
     if (osStatus != OsOK) {
         sys_file_fstat_link_response(request->message, osStatus, "");
@@ -468,7 +468,7 @@ void StatLinkPathFromPath(
     }
 
     sys_file_fstat_link_response(request->message, OsOK, MStringRaw(linkPath));
-    MStringDestroy(linkPath);
+    mstr_delete(linkPath);
 }
 
 void GetFullPathByHandle(
@@ -481,7 +481,7 @@ void GetFullPathByHandle(
         return;
     }
 
-    MString_t* fullPath;
+    mstring_t* fullPath;
     oserr_t osStatus = VFSNodeGetPathHandle(request, &fullPath);
     if (osStatus != OsOK) {
         sys_file_get_path_response(request->message, osStatus, "");
@@ -489,7 +489,7 @@ void GetFullPathByHandle(
     }
 
     sys_file_get_path_response(request->message, OsOK, MStringRaw(fullPath));
-    MStringDestroy(fullPath);
+    mstr_delete(fullPath);
 }
 
 void RealPath(
@@ -502,7 +502,7 @@ void RealPath(
         return;
     }
 
-    MString_t* realPath;
+    mstring_t* realPath;
     oserr_t osStatus = VFSNodeRealPath(fsScope, request, &realPath);
     if (osStatus != OsOK) {
         sys_file_realpath_response(request->message, osStatus, "");
@@ -510,5 +510,5 @@ void RealPath(
     }
 
     sys_file_realpath_response(request->message, OsOK, MStringRaw(realPath));
-    MStringDestroy(realPath);
+    mstr_delete(realPath);
 }

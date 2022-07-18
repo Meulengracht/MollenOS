@@ -14,7 +14,10 @@ typedef struct {
     uint32_t folded_code;
 } case_folding_t;
 
-extern const size_t g_caseFoldingTableSize;
-extern const case_folding_t g_caseFoldingTable[];
+extern const size_t g_lowerCaseTableSize;
+extern const case_folding_t g_lowerCaseTable[];
+
+extern const size_t g_upperCaseTableSize;
+extern const case_folding_t g_upperCaseTable[];
 
 #endif

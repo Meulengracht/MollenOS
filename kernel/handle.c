@@ -36,20 +36,20 @@ struct resource_handle {
     uuid_t             id;
     HandleType_t       type;
     unsigned int       flags;
-    MString_t*         path;
+    mstring_t*         path;
     void*              resource;
     int                references;
     HandleDestructorFn destructor;
 };
 
 struct handle_mapping {
-    MString_t* path;
+    mstring_t* path;
     uuid_t     handle;
 };
 
 struct handle_cleanup {
     element_t          header;
-    MString_t*         path;
+    mstring_t*         path;
     void*              resource;
     HandleDestructorFn destructor;
 };
@@ -169,11 +169,11 @@ RegisterHandlePath(
 {
     struct resource_handle* handle;
     struct handle_mapping*  mapping;
-    MString_t*              internalPath;
+    mstring_t*              internalPath;
     DEBUG("[handle_register_path] %u => %s", handleId, path);
 
-    internalPath = MStringCreate(path, StrUTF8);
-    if (!MStringLength(internalPath)) {
+    internalPath = mstr_new_u8(path);
+    if (!mstr_len(internalPath)) {
         return OsInvalidParameters;
     }
 
@@ -181,20 +181,20 @@ RegisterHandlePath(
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
         IrqSpinlockRelease(&g_handlesLock);
-        MStringDestroy(internalPath);
+        mstr_delete(internalPath);
         return OsNotExists;
     }
 
     if (handle->path) {
         IrqSpinlockRelease(&g_handlesLock);
-        MStringDestroy(internalPath);
+        mstr_delete(internalPath);
         return OsError;
     }
 
     mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
     if (mapping) {
         IrqSpinlockRelease(&g_handlesLock);
-        MStringDestroy(internalPath);
+        mstr_delete(internalPath);
         return OsExists;
     }
 
@@ -212,11 +212,11 @@ LookupHandleByPath(
         _Out_ uuid_t*     handleOut)
 {
     struct handle_mapping* mapping;
-    MString_t*             internalPath;
+    mstring_t*             internalPath;
     TRACE("[handle_lookup_by_path] %s", path);
 
-    internalPath = MStringCreate(path, StrUTF8);
-    if (!MStringLength(internalPath)) {
+    internalPath = mstr_new_u8(path);
+    if (!mstr_len(internalPath)) {
         return OsInvalidParameters;
     }
 
@@ -226,7 +226,7 @@ LookupHandleByPath(
         *handleOut = mapping->handle;
     }
     IrqSpinlockRelease(&g_handlesLock);
-    MStringDestroy(internalPath);
+    mstr_delete(internalPath);
     return mapping != NULL ? OsOK : OsNotExists;
 }
 
@@ -245,7 +245,7 @@ LookupHandleOfType(
 static void AddHandleToCleanup(
         _In_ void*              resource,
         _In_ HandleDestructorFn dctor,
-        _In_ MString_t*         path)
+        _In_ mstring_t*         path)
 {
     struct handle_cleanup* cleanup;
 
@@ -268,7 +268,7 @@ DestroyHandle(
     struct resource_handle* handle;
     void*                   resource;
     HandleDestructorFn      dctor;
-    MString_t*              path;
+    mstring_t*              path;
 
     IrqSpinlockAcquire(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
@@ -316,7 +316,7 @@ HandleJanitorThread(
                 cleanup->destructor(cleanup->resource);
             }
             if (cleanup->path) {
-                MStringDestroy(cleanup->path);
+                mstr_delete(cleanup->path);
             }
             kfree(cleanup);
 

@@ -26,7 +26,7 @@ static struct VFSCommonData g_rootCommonData = { 0 };
 
 static oserr_t
 __NewMemFS(
-        _In_  MString_t*           name,
+        _In_  mstring_t*           name,
         _In_  guid_t*              guid,
         _In_ struct VFSCommonData* vfsCommonData,
         _Out_ struct VFS**         vfsOut)
@@ -49,10 +49,10 @@ __NewMemFS(
 void VFSScopeInitialize(void)
 {
     oserr_t    osStatus;
-    MString_t* name;
+    mstring_t* name;
 
     // TODO mstring_const
-    name = MStringCreate("vfs-root", StrUTF8);
+    name = mstr_new_u8("vfs-root");
     if (name == NULL) {
         ERROR("VFSScopeInitialize failed to allocate memory for fs name");
         return;
@@ -62,7 +62,7 @@ void VFSScopeInitialize(void)
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
     }
-    MStringDestroy(name);
+    mstr_delete(name);
 }
 
 struct VFS*

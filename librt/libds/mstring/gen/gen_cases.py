@@ -25,7 +25,8 @@ def parse_case_folding_data(data):
     Parse the case folding data.
     """
     # Parse the data.
-    mappings = {}
+    lowercaseMappings = {}
+    uppercaseMappings = {}
     for line in data.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -40,11 +41,13 @@ def parse_case_folding_data(data):
         mapping = parts[2].strip()
         if mapping.startswith("<"):
             continue
-        mappings[code] = int(mapping, 16)
+        lowercaseMappings[int(mapping, 16)] = code
+        uppercaseMappings[code] = int(mapping, 16)
 
     # sort mappings by key
-    mappings = sorted(mappings.items(), key=lambda x: x[0])
-    return mappings
+    lowercaseMappings = sorted(lowercaseMappings.items(), key=lambda x: x[0])
+    uppercaseMappings = sorted(uppercaseMappings.items(), key=lambda x: x[0])
+    return lowercaseMappings, uppercaseMappings
 
 def write_header(outPath):
     """
@@ -77,17 +80,24 @@ typedef struct {
 """)
 
         f.write("""\
-extern const size_t g_caseFoldingTableSize;
+extern const size_t g_lowerCaseTableSize;
 """)
         f.write("""\
-extern const case_folding_t g_caseFoldingTable[];
-""")
-        f.write("""\
+extern const case_folding_t g_lowerCaseTable[];
 
+""")
+        f.write("""\
+extern const size_t g_upperCaseTableSize;
+""")
+        f.write("""\
+extern const case_folding_t g_upperCaseTable[];
+
+""")
+        f.write("""\
 #endif
 """)
 
-def write_table(mappings, outPath):
+def write_table(lcMap, ucMap, outPath):
     """
     Write the table of case folding mappings to a file.
     """
@@ -102,14 +112,24 @@ def write_table(mappings, outPath):
 """)
         headerName = outPath.replace(".c", ".h")
         f.write(f"#include <{headerName}>\n\n")
-        f.write(f"const size_t         g_caseFoldingTableSize = {len(mappings)};\n", )
-        f.write("const case_folding_t g_caseFoldingTable[] = {\n")
-        f.write("    // lowercase, uppercase\n")
-        for code, folded_code in mappings:
+
+        f.write(f"const size_t         g_lowerCaseTableSize = {len(lcMap)};\n", )
+        f.write("const case_folding_t g_lowerCaseTable[] = {\n")
+        f.write("    // uppercase, lowercase\n")
+        for code, folded_code in lcMap:
             f.write("    { ")
             f.write("0x{:08x}, 0x{:08x}".format(code, folded_code))
             f.write(" },\n")
-        f.write("};\n")
+        f.write("};\n\n")
+
+        f.write(f"const size_t         g_upperCaseTableSize = {len(ucMap)};\n", )
+        f.write("const case_folding_t g_upperCaseTable[] = {\n")
+        f.write("    // lowercase, uppercase\n")
+        for code, folded_code in ucMap:
+            f.write("    { ")
+            f.write("0x{:08x}, 0x{:08x}".format(code, folded_code))
+            f.write(" },\n")
+        f.write("};\n\n")
 
 def main(args):
     """
@@ -118,15 +138,15 @@ def main(args):
     data = download_case_folding_data()
 
     # Parse the data.
-    mappings = parse_case_folding_data(data)
+    lcMap, ucMap = parse_case_folding_data(data)
 
     # Write the table to a file.
     write_header(args.out)
-    write_table(mappings, args.out)
+    write_table(lcMap, ucMap, args.out)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Installation utilities for building and releasing Vali.')
-    parser.add_argument('--out', default="case_folding.h", help='Where to write the output file.')
+    parser.add_argument('--out', default="case_folding.c", help='Where to write the output file.')
     args = parser.parse_args()
     main(args)

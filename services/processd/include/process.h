@@ -52,10 +52,10 @@ typedef struct Process {
     ProcessConfiguration_t config;
     int                    exit_code;
 
-    MString_t* name;
-    MString_t* path;
-    MString_t* working_directory;
-    MString_t* assembly_directory;
+    mstring_t* name;
+    mstring_t* path;
+    mstring_t* working_directory;
+    mstring_t* assembly_directory;
 
     const char* arguments;
     size_t      arguments_length;
@@ -94,7 +94,7 @@ extern void PmBootstrapCleanup(void);
  */
 extern oserr_t
 PmBootstrapFindRamdiskFile(
-        _In_  MString_t* path,
+        _In_  mstring_t* path,
         _Out_ void**     bufferOut,
         _Out_ size_t*    bufferSizeOut);
 

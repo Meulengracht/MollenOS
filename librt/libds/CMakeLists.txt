@@ -1,14 +1,23 @@
-# Project setup
-project (ValiDS)
-enable_language (C)
+# handle unit test support, we need to combine some libDS specific
+# support for services and modules that uses data-structures
+if (VALI_BUILD_UNIT_TESTS)
+    add_subdirectory(mstring)
+    return ()
+endif ()
 
-add_subdirectory(mstring2)
+
+# Add native builds of mstring, and lets request the kernel
+# build as well, so we end up with three total builds of mstring
+# library. We want one for userspace, kernel and host which can be
+# imported into unit tests
+add_subdirectory(mstring)
 
 # Configure include paths
 set (SHARED_INCLUDES
-    ../libddk/include
-    ../libc/include
-    ./include
+        ../libddk/include
+        ../libos/include
+        ../libc/include
+        ./include
 )
 set (KERNEL_INCLUDES
         ../../boot/include
@@ -28,22 +37,6 @@ endif ()
 
 set (SHARED_SOURCES
     lf/bounded_stack.c
-    
-    mstring/mstringappend.c
-    mstring/mstringcompare.c
-    mstring/mstringcopy.c
-    mstring/mstringcreate.c
-    mstring/mstringdestroy.c
-    mstring/mstringfind.c
-    mstring/mstringhash.c
-    mstring/mstringiterate.c
-    mstring/mstringlength.c
-    mstring/mstringmisc.c
-    mstring/mstringprint.c
-    mstring/mstringraw.c
-    mstring/mstringresize.c
-    mstring/mstringsubstring.c
-    mstring/mstringutf8.c
 
     bitmap.c
     bounded_stack.c
@@ -62,11 +55,13 @@ target_compile_options(libdsk PRIVATE -mno-sse)
 target_compile_definitions(libdsk PRIVATE -D__LIBDS_KERNEL__ -D_KRNL_DLL)
 target_include_directories(libdsk PRIVATE ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
 target_include_directories(libdsk PUBLIC include)
+target_link_libraries(libdsk PUBLIC mstringk)
 
 add_library(libds ${SHARED_SOURCES} support/ds.c)
 target_include_directories(libds PRIVATE ${SHARED_INCLUDES})
 target_include_directories(libds PUBLIC include)
-install(TARGETS libds
+target_link_libraries(libds PUBLIC mstring)
+install(TARGETS libds mstring
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin

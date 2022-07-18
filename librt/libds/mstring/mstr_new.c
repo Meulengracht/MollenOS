@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,31 +14,31 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Generic String Library
- *    - Managed string library for manipulating of strings in a managed format and to support
- *      conversions from different formats to UTF-8
  */
 
-#include "mstringprivate.h"
-#include <assert.h>
+#include <ds/mstring.h>
+#include "private.h"
 
-size_t
-MStringLength(
-    _In_ MString_t* string)
+mstring_t* mstr_new_u8(const char* str)
 {
-    if (!string || !string->Data || !string->Length) {
-        return 0;
-    }
-	return Utf8CharacterCountInString((const char*)string->Data);
-}
+    mstring_t* string;
 
-size_t
-MStringSize(
-    _In_ MString_t* string)
-{
-    if (!string || !string->Data || !string->Length) {
-        return 0;
+    string = stralloc(sizeof(mstring_t));
+    if (string == NULL) {
+        return NULL;
     }
-	return string->Length;
+
+    string->__flags = 0;
+    string->__length = mstr_len_u8(str);
+    if (string->__length != 0) {
+        string->__data = stralloc(string->__length * sizeof(mchar_t));
+        if (string->__data == NULL) {
+            strfree(string);
+            return NULL;
+        }
+    } else {
+        string->__data = NULL;
+    }
+    mstr_to_internal(str, string->__data);
+    return string;
 }

@@ -25,7 +25,7 @@
 oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat* stat)
 {
     struct VFSNode* node;
-    MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
+    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
     oserr_t      osStatus;
 
     if (nodePath == NULL) {
@@ -43,14 +43,14 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
         WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
     }
 
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return OsOK;
 }
 
 oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSStatFS* stat)
 {
     struct VFSNode* node;
-    MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
+    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
     oserr_t      osStatus, osStatus2;
 
     if (nodePath == NULL) {
@@ -71,14 +71,14 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
         WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
     }
 
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return osStatus;
 }
 
 oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageDescriptor_t* stat)
 {
     struct VFSNode* node;
-    MString_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
+    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
     oserr_t      osStatus;
 
     if (nodePath == NULL) {
@@ -96,6 +96,6 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageD
         WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
     }
 
-    MStringDestroy(nodePath);
+    mstr_delete(nodePath);
     return OsOK;
 }

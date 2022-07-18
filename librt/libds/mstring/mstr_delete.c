@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,27 +14,21 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Generic String Library
- *    - Managed string library for manipulating of strings in a managed format and to support
- *      conversions from different formats to UTF-8
  */
 
-#include "mstringprivate.h"
+#include <ds/mstring.h>
+#include "private.h"
 
-size_t MStringHash(MString_t *String)
+void mstr_delete(mstring_t* string)
 {
-	size_t Hash = 5381;
-	uint8_t *StrPtr;
-	int Char;
-
-	if (String->Data == NULL || String->Length == 0)
-		return 0;
-
-	StrPtr = (uint8_t*)String->Data;
-	while ((Char = tolower(*StrPtr)) != 0) {
-        Hash = ((Hash << 5) + Hash) + Char; /* hash * 33 + c */
-        StrPtr++;
+    if (string == NULL) {
+        return;
     }
-	return Hash;
+
+    // consts have no actual memory allocated on heap
+    if (string->__flags & __MSTRING_FLAG_CONST) {
+        return;
+    }
+    strfree(string->__data);
+    strfree(string);
 }

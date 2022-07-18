@@ -1,3 +1,10 @@
+if (VALI_BUILD_UNIT_TESTS)
+    # add all targets that support unit testing
+    add_subdirectory (filed)
+    return ()
+endif ()
+
+
 macro (add_service_target)
     if (${ARGC} GREATER_EQUAL 3)
         set (SERVICE_SOURCES "${ARGN}")

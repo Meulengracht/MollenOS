@@ -109,7 +109,7 @@ struct VFSNode {
     // If this node is cloned from another VFS, this will
     // be non-NULL and pointing to its original node.
     struct VFSNode*      Source;
-    MString_t*           Name;
+    mstring_t*           Name;
     enum VFSNodeType     Type;
     bool                 IsLoaded;
     struct usched_rwlock Lock;
@@ -145,11 +145,11 @@ struct VFSNode {
 };
 
 struct __VFSMount {
-    MString_t* Key;
+    mstring_t* Key;
 };
 
 struct __VFSChild {
-    MString_t*      Key;
+    mstring_t*      Key;
     struct VFSNode* Node;
 };
 
@@ -221,8 +221,8 @@ extern oserr_t
 VFSNodeHandleRemove(
         _In_ uuid_t handleId);
 
-extern MString_t* VFSMakePath(const char* path);
-extern oserr_t   VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut);
+extern mstring_t* VFSMakePath(const char* path);
+extern oserr_t   VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut);
 extern oserr_t   VFSNodePut(struct VFSNode* node);
 
 /**
@@ -241,7 +241,7 @@ extern oserr_t VFSNodeEnsureLoaded(struct VFSNode* node);
  * @param nodeOut
  * @return
  */
-extern oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode** nodeOut);
+extern oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** nodeOut);
 
 /**
  * @brief Creates a new child in the node. This will create the node on the filesystem as well. A reader lock on the
@@ -253,7 +253,7 @@ extern oserr_t VFSNodeFind(struct VFSNode* node, MString_t* name, struct VFSNode
  * @param nodeOut
  * @return
  */
-extern oserr_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
+extern oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut);
 
 /**
  * @brief
@@ -264,7 +264,7 @@ extern oserr_t VFSNodeCreateChild(struct VFSNode* node, MString_t* name, uint32_
  * @param nodeOut
  * @return
  */
-extern oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MString_t* target, int symbolic, struct VFSNode** nodeOut);
+extern oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t* target, int symbolic, struct VFSNode** nodeOut);
 
 /**
  * @brief

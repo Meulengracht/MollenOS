@@ -39,7 +39,7 @@ __MemFSDestroy(
 static oserr_t
 __MemFSOpen(
         _In_      struct VFSCommonData* vfsCommonData,
-        _In_      MString_t*            path,
+        _In_      mstring_t*            path,
         _Out_Opt_ void**                dataOut)
 {
     return OsOK;
@@ -49,7 +49,7 @@ static oserr_t
 __MemFSCreate(
         _In_  struct VFSCommonData* vfsCommonData,
         _In_  void*                 data,
-        _In_  MString_t*            name,
+        _In_  mstring_t*            name,
         _In_  uint32_t              owner,
         _In_  uint32_t              flags,
         _In_  uint32_t              permissions,
@@ -78,8 +78,8 @@ static oserr_t
 __MemFSLink(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data,
-        _In_ MString_t*            linkName,
-        _In_ MString_t*            linkTarget,
+        _In_ mstring_t*            linkName,
+        _In_ mstring_t*            linkTarget,
         _In_ int                   symbolic)
 {
     return OsOK;
@@ -88,7 +88,7 @@ __MemFSLink(
 static oserr_t
 __MemFSUnlink(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            path)
+        _In_ mstring_t*            path)
 {
     return OsOK;
 }
@@ -96,8 +96,8 @@ __MemFSUnlink(
 static oserr_t
 __MemFSReadLink(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            path,
-        _In_ MString_t*            pathOut)
+        _In_ mstring_t*            path,
+        _In_ mstring_t*            pathOut)
 {
     return OsOK;
 }
@@ -105,8 +105,8 @@ __MemFSReadLink(
 static oserr_t
 __MemFSMove(
         _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MString_t*            from,
-        _In_ MString_t*            to,
+        _In_ mstring_t*            from,
+        _In_ mstring_t*            to,
         _In_ int                   copy)
 {
     return OsOK;

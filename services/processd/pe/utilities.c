@@ -39,7 +39,7 @@ PeExecutable_t*
 PeResolveLibrary(
     _In_    PeExecutable_t* Parent,
     _In_    PeExecutable_t* Image,
-    _In_    MString_t*      LibraryName)
+    _In_    mstring_t*      LibraryName)
 {
     PeExecutable_t* ExportParent = Parent;
     PeExecutable_t* Exports      = NULL;
