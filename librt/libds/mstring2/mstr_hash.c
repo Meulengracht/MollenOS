@@ -16,50 +16,22 @@
  *
  */
 
-#include <ddk/utils.h>
-#include <ds/hashtable.h>
-#include <vfs/vfs.h>
+#include <ds/mstring2.h>
 #include "private.h"
 
-static hashtable_t g_handles;
-
-
-
-oserr_t
-VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
-        _In_ struct VFSNode* node,
-        _In_ void*           data,
-        _In_ uint32_t        accessKind)
+uint32_t mstr_hash(mstring_t* string)
 {
+    uint32_t hash = 5381;
+    size_t   i    = 0;
+    mchar_t  val;
 
-    return OsOK;
-}
-
-oserr_t
-VFSNodeHandleRemove(
-        _In_ uuid_t handleId)
-{
-    void* found;
-
-    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
-    if (found == NULL) {
-        return OsNotExists;
+    if (string == NULL || string->__length == 0) {
+        return 0;
     }
-    return OsOK;
-}
 
-oserr_t
-VFSNodeHandleGet(
-        _In_  uuid_t                 handleId,
-        _Out_ struct VFSNodeHandle** handleOut)
-{
-
-}
-
-oserr_t
-VFSNodeHandlePut(
-        _In_ struct VFSNodeHandle* handle)
-{
-
+    while (i < string->__length) {
+        val  = string->__data[i];
+        hash = ((hash << 5) + hash) + val; /* hash * 33 + c */
+    }
+    return hash;
 }

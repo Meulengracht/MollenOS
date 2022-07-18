@@ -16,50 +16,20 @@
  *
  */
 
-#include <ddk/utils.h>
-#include <ds/hashtable.h>
-#include <vfs/vfs.h>
+#include <ds/mstring2.h>
 #include "private.h"
 
-static hashtable_t g_handles;
-
-
-
-oserr_t
-VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
-        _In_ struct VFSNode* node,
-        _In_ void*           data,
-        _In_ uint32_t        accessKind)
+mchar_t mstr_at(mstring_t* string, int index)
 {
-
-    return OsOK;
-}
-
-oserr_t
-VFSNodeHandleRemove(
-        _In_ uuid_t handleId)
-{
-    void* found;
-
-    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
-    if (found == NULL) {
-        return OsNotExists;
+    // We support negative indexing, so abs it so we can make sure
+    // we don't go out of index for either way
+    int absIndex = abs(index);
+    if (string == NULL || absIndex >= string->__length) {
+        return 0;
     }
-    return OsOK;
-}
 
-oserr_t
-VFSNodeHandleGet(
-        _In_  uuid_t                 handleId,
-        _Out_ struct VFSNodeHandle** handleOut)
-{
-
-}
-
-oserr_t
-VFSNodeHandlePut(
-        _In_ struct VFSNodeHandle* handle)
-{
-
+    if (index < 0) {
+        return *(mchar_t*)(string->__data + ((int)string->__length + index));
+    }
+    return string->__data[index];
 }

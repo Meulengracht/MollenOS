@@ -18,9 +18,33 @@
 
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
+#include <vfs/vfs_module.h>
 
-static struct VFS* g_rootScope = NULL;
-static guid_t      g_rootGuid  = GUID_EMPTY;
+static struct VFS*          g_rootScope      = NULL;
+static guid_t               g_rootGuid       = GUID_EMPTY;
+static struct VFSCommonData g_rootCommonData = { 0 };
+
+static oserr_t
+__NewMemFS(
+        _In_  MString_t*           name,
+        _In_  guid_t*              guid,
+        _In_ struct VFSCommonData* vfsCommonData,
+        _Out_ struct VFS**         vfsOut)
+{
+    struct VFSModule* module;
+    oserr_t           osStatus;
+
+    module = MemFSNewModule();
+    if (module == NULL) {
+        return OsOutOfMemory;
+    }
+
+    osStatus = VFSNew(UUID_INVALID, guid, module, vfsCommonData, vfsOut);
+    if (osStatus != OsOK) {
+        VFSModuleDelete(module);
+    }
+    return osStatus;
+}
 
 void VFSScopeInitialize(void)
 {
@@ -34,11 +58,10 @@ void VFSScopeInitialize(void)
         return;
     }
 
-    osStatus = VFSNewMemFS(name, &g_rootGuid, &g_rootScope);
+    osStatus = __NewMemFS(name, &g_rootGuid, &g_rootCommonData, &g_rootScope);
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
     }
-
     MStringDestroy(name);
 }
 

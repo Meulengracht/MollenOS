@@ -25,7 +25,7 @@ static oserr_t
 __MemFSInitialize(
         _In_ struct VFSCommonData* vfsCommonData)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -33,7 +33,7 @@ __MemFSDestroy(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ unsigned int          unmountFlags)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -42,7 +42,7 @@ __MemFSOpen(
         _In_      MString_t*            path,
         _Out_Opt_ void**                dataOut)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -55,7 +55,7 @@ __MemFSCreate(
         _In_  uint32_t              permissions,
         _Out_ void**                dataOut)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -63,7 +63,7 @@ __MemFSClose(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -71,7 +71,7 @@ __MemFSStat(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ struct VFSStatFS*     stat)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -82,7 +82,7 @@ __MemFSLink(
         _In_ MString_t*            linkTarget,
         _In_ int                   symbolic)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -90,7 +90,7 @@ __MemFSUnlink(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ MString_t*            path)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -99,7 +99,7 @@ __MemFSReadLink(
         _In_ MString_t*            path,
         _In_ MString_t*            pathOut)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -109,7 +109,7 @@ __MemFSMove(
         _In_ MString_t*            to,
         _In_ int                   copy)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -122,7 +122,7 @@ __MemFSRead(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsRead)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -135,7 +135,7 @@ __MemFSWrite(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsWritten)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -144,7 +144,7 @@ __MemFSTruncate(
         _In_ void*                 data,
         _In_ uint64_t              size)
 {
-
+    return OsOK;
 }
 
 static oserr_t
@@ -154,7 +154,7 @@ __MemFSSeek(
         _In_  uint64_t              absolutePosition,
         _Out_ uint64_t*             absolutePositionOut)
 {
-
+    return OsOK;
 }
 
 static struct VFSOperations g_memfsOperations = {

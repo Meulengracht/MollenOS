@@ -1,15 +1,7 @@
 enable_language(C)
 
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../librt/libgracht/include
-    ../../librt/libddk/include
-    ../../librt/libds/include
-    ../../librt/libc/include
-    include
-)
+# include sub projects
+add_subdirectory(vfs)
 
 set (SERVICE_HEADERS
         include/vfs/filesystem.h
@@ -30,28 +22,6 @@ set (SERVICE_SOURCES
         storage/storage.c
         storage/utils.c
 
-        vfs/handlers/close.c
-        vfs/handlers/duplicate.c
-        vfs/handlers/flush.c
-        vfs/handlers/handle_stat.c
-        vfs/handlers/link.c
-        vfs/handlers/move.c
-        vfs/handlers/open.c
-        vfs/handlers/read.c
-        vfs/handlers/readlink.c
-        vfs/handlers/realpath.c
-        vfs/handlers/seek.c
-        vfs/handlers/stat.c
-        vfs/handlers/unlink.c
-        vfs/handlers/write.c
-        vfs/api.c
-        vfs/bind.c
-        vfs/handles.c
-        vfs/memfs.c
-        vfs/mount.c
-        vfs/utils.c
-        vfs/vfs.c
-
         filesystem.c
         modules/modules.c
         main.c
@@ -69,6 +39,12 @@ add_service_target(filemanager "-D__FILEMANAGER_IMPL"
         ${SERVICE_HEADERS}
         ${SERVICE_SOURCES}
         ${ADDITONAL_SOURCES}
+)
+target_link_libraries(filemanager PRIVATE filed-vfs)
+target_include_directories(filemanager PRIVATE
+        ${CMAKE_BINARY_DIR}/protocols
+        ${CMAKE_CURRENT_BINARY_DIR}
+        include
 )
 add_dependencies(filemanager service_servers)
 deploy_file_to_initrd(filemanager "services" filemanager.yaml)

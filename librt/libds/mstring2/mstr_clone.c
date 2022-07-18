@@ -16,50 +16,30 @@
  *
  */
 
-#include <ddk/utils.h>
-#include <ds/hashtable.h>
-#include <vfs/vfs.h>
+#include <ds/mstring2.h>
 #include "private.h"
+#include <string.h>
 
-static hashtable_t g_handles;
-
-
-
-oserr_t
-VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
-        _In_ struct VFSNode* node,
-        _In_ void*           data,
-        _In_ uint32_t        accessKind)
+mstring_t* mstr_clone(mstring_t* source)
 {
+    mstring_t* string;
 
-    return OsOK;
-}
-
-oserr_t
-VFSNodeHandleRemove(
-        _In_ uuid_t handleId)
-{
-    void* found;
-
-    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
-    if (found == NULL) {
-        return OsNotExists;
+    string = stralloc(sizeof(mstring_t));
+    if (string == NULL) {
+        return NULL;
     }
-    return OsOK;
-}
 
-oserr_t
-VFSNodeHandleGet(
-        _In_  uuid_t                 handleId,
-        _Out_ struct VFSNodeHandle** handleOut)
-{
-
-}
-
-oserr_t
-VFSNodeHandlePut(
-        _In_ struct VFSNodeHandle* handle)
-{
-
+    string->__flags = 0;
+    string->__length = source->__length;
+    if (string->__length != 0) {
+        string->__data = stralloc(string->__length * sizeof(mchar_t));
+        if (string->__data == NULL) {
+            strfree(string);
+            return NULL;
+        }
+        memcpy(string->__data, source->__data, string->__length * sizeof(mchar_t));
+    } else {
+        string->__data = NULL;
+    }
+    return string;
 }

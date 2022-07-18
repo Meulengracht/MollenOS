@@ -35,6 +35,6 @@ add_service_target(devicemanager ""
         requests.c
 )
 target_include_directories(devicemanager PRIVATE include)
-target_link_libraries(devicemanager libyaml vafs)
+target_link_libraries(devicemanager PRIVATE libyaml vafs)
 add_dependencies(devicemanager service_servers contract_clients)
 deploy_file_to_initrd(devicemanager "services" devicemanager.yaml)

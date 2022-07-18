@@ -383,3 +383,13 @@ oserr_t VFSNodeNewDirectory(struct VFS* vfs, MString_t* path, struct VFSNode** n
 {
 
 }
+
+oserr_t VFSNodeGet(struct VFS* vfs, MString_t* path, int followLinks, struct VFSNode** nodeOut)
+{
+
+}
+
+oserr_t VFSNodePut(struct VFSNode* node)
+{
+
+}

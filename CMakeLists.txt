@@ -69,6 +69,24 @@ macro (deploy_file_to_initrd)
     endif ()
 endmacro ()
 
+include(CMakeParseArguments)
+function (add_unit_test)
+    cmake_parse_arguments(
+            UNIT_TEST # prefix of output variables
+            "" # list of names of the boolean arguments (only defined ones will be true)
+            "FILE" # list of names of mono-valued arguments
+            "INCLUDES;DEFINES;LIBS" # list of names of multi-valued arguments (output variables are lists)
+            ${ARGN} # arguments of the function to parse, here we take the all original ones
+    )
+    string (REPLACE ".c" "" TEST_FILENAME ${UNIT_TEST_FILE})
+    string (REPLACE "_test." "." TEST_FILE ${UNIT_TEST_FILE})
+    add_executable (${TEST_FILENAME} ${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/${UNIT_TEST_FILE})
+    target_include_directories(${TEST_FILENAME} PRIVATE ${UNIT_TEST_INCLUDES})
+    target_compile_definitions(${TEST_FILENAME} PRIVATE ${UNIT_TEST_DEFINES})
+    target_link_libraries (${TEST_FILENAME} PRIVATE cmocka ${UNIT_TEST_LIBS})
+    add_test (NAME ${TEST_FILENAME} COMMAND ${TEST_FILENAME})
+endfunction ()
+
 # Setup tools
 set (TOOL_RD ${CMAKE_BINARY_DIR}/tools/host/bin/mkvafs)
 set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
@@ -99,6 +117,8 @@ endif ()
 
 include (cmake/HandleFeatureFlags.cmake)
 include (cmake/${VALI_ARCH}PlatformConfig.cmake)
+
+enable_testing()
 
 # Configure bootloader
 add_subdirectory (boot)

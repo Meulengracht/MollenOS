@@ -53,6 +53,12 @@ struct VFSModule {
 
 /**
  * @brief
+ * @return
+ */
+extern struct VFSModule* MemFSNewModule(void);
+
+/**
+ * @brief
  *
  * @param type
  * @param dllHandle

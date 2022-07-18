@@ -16,50 +16,30 @@
  *
  */
 
-#include <ddk/utils.h>
-#include <ds/hashtable.h>
-#include <vfs/vfs.h>
+#include <ds/mstring2.h>
 #include "private.h"
 
-static hashtable_t g_handles;
-
-
-
-oserr_t
-VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
-        _In_ struct VFSNode* node,
-        _In_ void*           data,
-        _In_ uint32_t        accessKind)
+mstring_t* mstr_replace_u8(mstring_t* string, const char* find, const char* with)
 {
+    int    u8i = 0;
+    size_t i   = 0;
+    mchar_t needle;
 
-    return OsOK;
-}
-
-oserr_t
-VFSNodeHandleRemove(
-        _In_ uuid_t handleId)
-{
-    void* found;
-
-    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
-    if (found == NULL) {
-        return OsNotExists;
+    if (string == NULL || string->__length == 0) {
+        return -1;
     }
-    return OsOK;
-}
 
-oserr_t
-VFSNodeHandleGet(
-        _In_  uuid_t                 handleId,
-        _Out_ struct VFSNodeHandle** handleOut)
-{
-
-}
-
-oserr_t
-VFSNodeHandlePut(
-        _In_ struct VFSNodeHandle* handle)
-{
-
+    // to speed up things, we look for the initial character before
+    // making any compare calls.
+    needle = mstr_next(u8, &u8i);
+    while (i < string->__length) {
+        if (needle == string->__data[i] && (int)i >= startIndex) {
+            // compare the entire u8 sequence
+            if (!mstr_cmp_u8_index(string, u8, i)) {
+                return (int)i;
+            }
+        }
+        i++;
+    }
+    return -1;
 }

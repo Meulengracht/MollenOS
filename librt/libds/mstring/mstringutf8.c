@@ -24,12 +24,12 @@
 
 #define IsUTF8(c) (((c) & 0xC0) == 0x80)
 
-uint32_t g_utf8OffsetTable[6] = {
+static uint32_t g_utf8OffsetTable[6] = {
 	0x00000000UL, 0x00003080UL, 0x000E2080UL,
 	0x03C82080UL, 0xFA082080UL, 0x82082080UL
 };
 
-char g_utf8TrailingBytesTable[256] = {
+static char g_utf8TrailingBytesTable[256] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -170,7 +170,7 @@ int Utf8ConvertCharacterToUtf8(uint32_t character, void* utf8buffer, size_t* len
 
 	*length = byteCount;
     return result;
- }
+}
 
 mchar_t Utf8GetNextCharacterInString(const char* string, int* indexp)
 {

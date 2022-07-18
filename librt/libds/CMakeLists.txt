@@ -2,6 +2,8 @@
 project (ValiDS)
 enable_language (C)
 
+add_subdirectory(mstring2)
+
 # Configure include paths
 set (SHARED_INCLUDES
     ../libddk/include

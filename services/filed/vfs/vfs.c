@@ -197,28 +197,6 @@ void VFSDestroy(struct VFS* vfs)
     free(vfs);
 }
 
-oserr_t VFSNewMemFS(MString_t* name, guid_t* guid, struct VFS** vfsOut)
-{
-    struct VFSCommonData* vfsCommonData;
-    struct VFSModule*     module;
-    oserr_t               osStatus;
-
-    // Prepare the new VFSCommonData which fits an in-memory filesystem
-
-
-    //  Prepare the in memory FS module
-    module = MemFSNewModule();
-    if (module == NULL) {
-        return OsOutOfMemory;
-    }
-
-    osStatus = VFSNew(UUID_INVALID, guid, module, vfsCommonData, vfsOut);
-    if (osStatus != OsOK) {
-        VFSModuleDelete(module);
-    }
-    return osStatus;
-}
-
 oserr_t VFSChildNew(struct VFS* parent, struct VFS** childOut)
 {
     return OsNotSupported;

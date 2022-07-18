@@ -275,10 +275,4 @@ extern oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, MString_t* name, MSt
  */
 extern oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* handleOut);
 
-/**
- * @brief
- * @return
- */
-extern struct VFSModule* MemFSNewModule(void);
-
 #endif //!__VFS_PRIVATE_H__
