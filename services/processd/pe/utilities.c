@@ -45,7 +45,7 @@ PeResolveLibrary(
     PeExecutable_t* Exports      = NULL;
     oserr_t Status;
 
-    //dstrace("PeResolveLibrary(Name %s)", MStringRaw(LibraryName));
+    //dstrace("PeResolveLibrary(Name %ms)", LibraryName);
     if (ExportParent == NULL) {
         ExportParent = Image;
     }
@@ -55,7 +55,7 @@ PeResolveLibrary(
     foreach(i, ExportParent->Libraries) {
         PeExecutable_t *Library = i->value;
         if (!mstr_cmp(Library->Name, LibraryName)) {
-            dstrace("Library %s was already resolved, increasing ref count", MStringRaw(Library->Name));
+            dstrace("Library %ms was already resolved, increasing ref count", Library->Name);
             Library->References++;
             Exports = Library;
             break;
@@ -145,8 +145,8 @@ PeGetModuleEntryPoints(
         foreach(i, executable->Libraries) {
             PeExecutable_t *Library = i->value;
             
-            dstrace("[pe] [get_modules] %i: library %s => 0x%" PRIxIN,
-                index, MStringRaw(Library->Name), Library->EntryAddress);
+            dstrace("[pe] [get_modules] %i: library %ms => 0x%" PRIxIN,
+                index, Library->Name, Library->EntryAddress);
             if (Library->EntryAddress != 0) {
                 moduleList[index++] = (Handle_t)Library->EntryAddress;
             }

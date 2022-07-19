@@ -41,7 +41,7 @@ oserr_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
     struct VFSNode*       node;
     oserr_t               osStatus;
 
-    osStatus = VFSNodeHandleFind(request->parameters.close.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(request->parameters.close.fileHandle, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }

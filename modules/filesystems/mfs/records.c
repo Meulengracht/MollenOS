@@ -36,7 +36,7 @@ static void __ExtractPathToken(
 {
     int strIndex;
     int strLength;
-    TRACE("__ExtractPathToken(path=%s [0x%" PRIxIN "])", MStringRaw(path), path);
+    TRACE("__ExtractPathToken(path=%ms)", path);
 
     // Step 1 is to extract the next token we searching for in this directory
     // we do also detect if that is the last token
@@ -58,14 +58,14 @@ static void __ExtractPathToken(
         }
 
         *remainingPath = NULL;
-        TRACE("__ExtractPathToken returns remainingPath=NULL, token=%s [0x%" PRIxIN "]", MStringRaw(*token), token);
+        TRACE("__ExtractPathToken returns remainingPath=NULL, token=%ms [0x%" PRIxIN "]", *token, token);
         return;
     }
 
     *token         = mstr_substr(path, 0, strIndex);
     *remainingPath = mstr_substr(path, strIndex + 1, (strLength - (strIndex + 1)));
-    TRACE("__ExtractPathToken returns remainingPath=%s [0x%" PRIxIN "], token=%s [0x%" PRIxIN "]",
-          MStringRaw(*remainingPath), remainingPath, MStringRaw(*token), token);
+    TRACE("__ExtractPathToken returns remainingPath=%ms [0x%" PRIxIN "], token=%ms [0x%" PRIxIN "]",
+          *remainingPath, remainingPath, *token, token);
 }
 
 static inline void __StoreRecord(
@@ -309,8 +309,8 @@ MfsLocateRecord(
     MFSEntry_t           nextEntry     = { 0 };
     int                  isEndOfPath   = 0;
 
-    TRACE("MfsLocateRecord(fileSystem=0x%" PRIxIN ", bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%s [0x%" PRIxIN "])",
-          fileSystemBase, bucketOfDirectory, entry, MStringRaw(path), path);
+    TRACE("MfsLocateRecord(fileSystem=0x%" PRIxIN ", bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%ms)",
+          fileSystemBase, bucketOfDirectory, entry, path);
 
     mfs = (FileSystemMFS_t*)vfsCommonData->Data;
 
@@ -377,8 +377,8 @@ MfsCreateRecord(
     oserr_t              osStatus;
     MFSEntry_t nextEntry = {0 };
 
-    TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN ", flags=0x%x, path=%s)",
-          fileSystemBase, flags, MStringRaw(name));
+    TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN ", flags=0x%x, path=%ms)",
+          fileSystemBase, flags, name);
     mfs = (FileSystemMFS_t*)vfsCommonData->Data;
 
     osStatus = __FindEntryOrFreeInDirectoryBucket(

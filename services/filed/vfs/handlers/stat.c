@@ -26,7 +26,7 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
 {
     struct VFSNode* node;
     mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oserr_t      osStatus;
+    oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -40,7 +40,7 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
     memcpy(stat, &node->Stats, sizeof(struct VFSStat));
     osStatus = VFSNodePut(node);
     if (osStatus != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
+        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
     }
 
     mstr_delete(nodePath);
@@ -51,7 +51,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
 {
     struct VFSNode* node;
     mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oserr_t      osStatus, osStatus2;
+    oserr_t         osStatus, osStatus2;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -68,7 +68,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
 
     osStatus2 = VFSNodePut(node);
     if (osStatus2 != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
+        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
     }
 
     mstr_delete(nodePath);
@@ -79,7 +79,7 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageD
 {
     struct VFSNode* node;
     mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oserr_t      osStatus;
+    oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -93,7 +93,7 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageD
     memcpy(stat, &node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
     osStatus = VFSNodePut(node);
     if (osStatus != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
+        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
     }
 
     mstr_delete(nodePath);

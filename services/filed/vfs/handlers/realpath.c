@@ -42,7 +42,7 @@ oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t*
 
     osStatus = VFSNodePut(node);
     if (osStatus != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%s)", MStringRaw(nodePath));
+        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
     }
     mstr_delete(nodePath);
     return OsOK;

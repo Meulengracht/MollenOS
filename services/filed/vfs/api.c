@@ -364,12 +364,17 @@ static void __ToProtocolFileSystemDescriptor(struct VFSStatFS* in, struct sys_fi
 {
     out->id = (long)in->ID;
     out->flags = 0;
-    out->serial = (char*)MStringRaw(in->Serial);
+    out->serial = mstr_u8(in->Serial);
     out->max_filename_length = in->MaxFilenameLength;
     out->block_size = in->BlockSize;
     out->blocks_per_segment = in->BlocksPerSegment;
     out->segments_free = in->SegmentsFree;
     out->segments_total = in->SegmentsTotal;
+}
+
+static void __CleanupProtocolFileSystemDescriptor(struct sys_filesystem_descriptor* in)
+{
+    free(in->serial);
 }
 
 void StatFileSystemByHandle(
@@ -387,7 +392,7 @@ void StatFileSystemByHandle(
     oserr_t osStatus = VFSNodeStatFsHandle(request, &stats);
     __ToProtocolFileSystemDescriptor(&stats, &result);
     sys_file_fsstat_response(request->message, osStatus, &result);
-
+    __CleanupProtocolFileSystemDescriptor(&result);
     VfsRequestDestroy(request);
 }
 
@@ -467,8 +472,10 @@ void StatLinkPathFromPath(
         return;
     }
 
-    sys_file_fstat_link_response(request->message, OsOK, MStringRaw(linkPath));
+    char* pathu8 = mstr_u8(linkPath);
+    sys_file_fstat_link_response(request->message, OsOK, pathu8);
     mstr_delete(linkPath);
+    free(pathu8);
 }
 
 void GetFullPathByHandle(
@@ -488,8 +495,10 @@ void GetFullPathByHandle(
         return;
     }
 
-    sys_file_get_path_response(request->message, OsOK, MStringRaw(fullPath));
+    char* pathu8 = mstr_u8(fullPath);
+    sys_file_get_path_response(request->message, OsOK, pathu8);
     mstr_delete(fullPath);
+    free(pathu8);
 }
 
 void RealPath(
@@ -503,12 +512,14 @@ void RealPath(
     }
 
     mstring_t* realPath;
-    oserr_t osStatus = VFSNodeRealPath(fsScope, request, &realPath);
+    oserr_t    osStatus = VFSNodeRealPath(fsScope, request, &realPath);
     if (osStatus != OsOK) {
         sys_file_realpath_response(request->message, osStatus, "");
         return;
     }
 
-    sys_file_realpath_response(request->message, OsOK, MStringRaw(realPath));
+    char* pathu8 = mstr_u8(realPath);
+    sys_file_realpath_response(request->message, OsOK, pathu8);
     mstr_delete(realPath);
+    free(pathu8);
 }

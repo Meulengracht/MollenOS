@@ -49,8 +49,8 @@ FsReadFromDirectory(
     uint64_t         position    = entry->Position;
     struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
 
-    TRACE("FsReadFromDirectory(entry=%s, position=%u, count=%u)",
-          MStringRaw(entry->Base.Name), LODWORD(position), LODWORD(unitCount));
+    TRACE("FsReadFromDirectory(entry=%ms, position=%u, count=%u)",
+          entry->Base.Name, LODWORD(position), LODWORD(unitCount));
 
     // Indicate zero bytes read to start with
     *unitsRead = 0;
@@ -138,8 +138,8 @@ FsSeekInDirectory(
     size_t           initialBucketMax;
 
     // Trace
-    TRACE("FsSeekInDirectory(entry=%s, position=%u)",
-          MStringRaw(entry->Base.Name), LODWORD(absolutePosition));
+    TRACE("FsSeekInDirectory(entry=%ms, position=%u)",
+          entry->Base.Name, LODWORD(absolutePosition));
 
     // Sanitize seeking bounds
     if (entry->ActualSize == 0) {

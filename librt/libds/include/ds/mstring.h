@@ -23,6 +23,7 @@
 
 typedef uint32_t mchar_t;
 #define MSTRING_EOS 0xFFFD // Marker for identifying end of string
+#define MSTRING_U8BYTES 10
 
 typedef struct mstring {
     unsigned int __flags;
@@ -62,6 +63,18 @@ DSDECL(char*, mstr_u8(mstring_t*));
  * @return 0 if the functions fails to convert, otherwise an UTF32 code point.
  */
 DSDECL(mchar_t, mstr_tochar(const char* u8));
+
+/**
+ * @breif Converts an mstring character (i.e from mstr_at) to a valid UTF-8 sequence
+ * if possible. The buffer provided by the caller should be atleast MSTRING_U8BYTES long
+ * to support any character conversion.
+ *
+ * @param[In]  character The character that should be converted to UTF-8.
+ * @param[In]  u8     The buffer to store the UTF-8 sequence in.
+ * @param[Out] length The number of bytes written to the buffer.
+ * @return
+ */
+DSDECL(int, mstr_fromchar(mchar_t character, char* u8, size_t* length));
 
 /**
  * @brief Creates a new string built up according to the format string. Works exactly

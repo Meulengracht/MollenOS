@@ -129,7 +129,7 @@ void mstr_to_internal(const char* u8, mchar_t* out) {
     }
 }
 
-int mstr_fromchar(uint32_t character, void* u8, size_t* length)
+int mstr_fromchar(mchar_t character, char* u8, size_t* length)
 {
     char   encodingBuffer[10] = { 0 };
     size_t byteCount          = 0;

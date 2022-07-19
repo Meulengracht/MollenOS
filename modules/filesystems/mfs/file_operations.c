@@ -453,7 +453,7 @@ FsTruncate(
     MFSEntry_t* entry    = (MFSEntry_t*)data;
     oserr_t     osStatus = OsOK;
 
-    TRACE("FsChangeFileSize(Name %s, Size 0x%x)", MStringRaw(entry->Base.Name), LODWORD(size));
+    TRACE("FsChangeFileSize(Name %ms, Size 0x%x)", entry->Base.Name, LODWORD(size));
 
     // Handle a special case of 0
     if (size == 0) {

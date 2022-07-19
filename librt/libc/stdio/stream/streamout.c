@@ -6,6 +6,7 @@
  * PROGRAMMER:      Timo Kreuzer
  */
 #include <os/osdefs.h>
+#include <ds/mstring.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -58,6 +59,7 @@ enum
     FLAG_INT64 =         0x400,
     FLAG_INTPTR =        FLAG_INT64,
     FLAG_LONGDOUBLE =    0x800,
+    FLAG_MSTRING =       0x1000
 };
 
 #define va_arg_f(argptr, flags) \
@@ -288,8 +290,7 @@ streamout_astring(FILE *stream, const char *string, size_t count)
     return written;
 }
 
-static
-int
+static int
 streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
 {
     wchar_t chr;
@@ -319,6 +320,31 @@ streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
         }
     }
 
+    return written;
+}
+
+static int
+streamout_mstring(FILE *stream, const mstring_t *string, size_t count)
+{
+    int    written = 0;
+    size_t i       = 0;
+
+    while (count--) {
+        char    u8buffer[MSTRING_U8BYTES];
+        size_t  u8len;
+        mchar_t val = string->__data[i++];
+
+        if (mstr_fromchar(val, &u8buffer[0], &u8len)) {
+            continue;
+        }
+
+        while (u8len) {
+            if (streamout_char(stream, u8buffer[--u8len]) == 0) {
+                return -1;
+            }
+            written++;
+        }
+    }
     return written;
 }
 
@@ -419,6 +445,7 @@ int streamout(
             else if (chr == _T('w')) flags |= FLAG_WIDECHAR;
             else if (chr == _T('L')) flags |= 0; // FIXME: long double
             else if (chr == _T('F')) flags |= 0; // FIXME: what is that?
+            else if (chr == _T('m') || chr == _T('M')) flags |= FLAG_MSTRING;
             else if (chr == _T('l')) {
                 /* Check if this is the 2nd 'l' in a row */
                 if (format[-2] == 'l') flags |= FLAG_INT64;
@@ -509,16 +536,21 @@ int streamout(
 #endif
 
             case_string:
-                if (!string)
-                {
+                if (!string) {
                     string = (TCHAR*)_nullstring;
-                    flags &= ~FLAG_WIDECHAR;
+                    flags &= ~(FLAG_WIDECHAR | FLAG_MSTRING);
                 }
 
-                if (flags & FLAG_WIDECHAR)
+                if (flags & FLAG_MSTRING) {
+                    len = mstr_len((mstring_t*)string);
+                    if (len < (unsigned)precision) {
+                        len = (unsigned)precision;
+                    }
+                } else if (flags & FLAG_WIDECHAR) {
                     len = wcsnlen((wchar_t*)string, (unsigned)precision);
-                else
+                } else {
                     len = strnlen((char*)string, (unsigned)precision);
+                }
                 precision = 0;
                 break;
 
@@ -648,10 +680,13 @@ int streamout(
         }
 
         /* Output the string */
-        if (flags & FLAG_WIDECHAR)
+        if (flags & FLAG_MSTRING) {
+            written = streamout_mstring(stream, (mstring_t*)string, len);
+        } else if (flags & FLAG_WIDECHAR) {
             written = streamout_wstring(stream, (wchar_t*)string, len);
-        else
+        } else {
             written = streamout_astring(stream, (char*)string, len);
+        }
         if (written == -1) return -1;
         written_all += written;
 

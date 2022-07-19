@@ -436,7 +436,7 @@ MfsUpdateRecord(
     FileRecord_t*    record;
     size_t           sectorsTransferred;
 
-    TRACE("MfsUpdateEntry(File %s)", MStringRaw(entry->Base.Name));
+    TRACE("MfsUpdateEntry(File %ms)", entry->Base.Name);
 
     // Read the stored data bucket where the record is
     if (MfsReadSectors(vfsCommonData, mfs->TransferBuffer.handle, 0,

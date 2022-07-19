@@ -407,7 +407,7 @@ PeHandleRelocations(
                 intptr_t   fixupValue = (intptr_t)(*fixupAddress) + imageDelta;
 #if __BITS == 32
                 if ((uintptr_t)fixupValue < image->VirtualAddress || (uintptr_t)fixupValue >= 0x30000000) {
-                    ERROR("%s: Rel %u, value %u (%u/%u)", MStringRaw(image->Name), type, value, i, relocationCount);
+                    ERROR("%ms: Rel %u, value %u (%u/%u)", image->Name, type, value, i, relocationCount);
                     ERROR("pageRva 0x%x of SectionRVA 0x%x. Current blocksize %u", pageRva, section->RVA, blockSize);
                     ERROR("section 0x%x, SectionAddress 0x%x, Address 0x%x, value 0x%x",
                         section->BasePointer, sectionOffset, fixupAddress, *fixupAddress);
@@ -611,8 +611,8 @@ PeHandleExports(
     int                  OrdinalBase;
     int                  i;
 
-    TRACE("PeHandleExports(%s, Address 0x%x, Size 0x%x)",
-        MStringRaw(Image->Name), DirectoryContent, DirectorySize);
+    TRACE("PeHandleExports(%ms, Address 0x%x, Size 0x%x)",
+        Image->Name, DirectoryContent, DirectorySize);
 
     // The following tables are the access we need
     ExportTable = (PeExportDirectory_t*)DirectoryContent;
@@ -881,8 +881,7 @@ PeLoadImage(
     uint8_t*           buffer;
     int                index;
 
-    TRACE("PeLoadImage(Path %s, Parent %s)",
-            MStringRaw(path), (parent == NULL) ? "None" : MStringRaw(parent->Name));
+    TRACE("PeLoadImage(Path %ms, Parent %ms)", path, (parent == NULL) ? NULL : parent->Name);
 
     osStatus = __ResolveImagePath(owner, parent, path, &buffer, &fullPath);
     if (osStatus != OsOK) {
@@ -953,7 +952,7 @@ PeLoadImage(
     image->References        = 1;
     image->OriginalImageBase = imageBase;
     list_construct(image->Libraries);
-    TRACE("library (%s) => 0x%" PRIxIN, MStringRaw(image->Name), image->VirtualAddress);
+    TRACE("library (%ms) => 0x%" PRIxIN, image->Name, image->VirtualAddress);
 
     // Set the entry point if there is any
     if (optionalHeader->EntryPoint != 0) {
