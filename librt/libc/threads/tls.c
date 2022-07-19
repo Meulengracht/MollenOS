@@ -394,7 +394,12 @@ tls_atexit_quick(_In_ thrd_t thr, _In_ void (*Function)(void*), _In_ void* Argum
     __register_atexit(&g_tls.TlsAtQuickExit, thr, Function, Argument, DsoHandle);
 }
 
-static void __callatexit(_In_ Collection_t* List, _In_ thrd_t ThreadId, _In_ void* DsoHandle, _In_ int ExitCode)
+static void
+__callatexit(
+        _In_ Collection_t* List,
+        _In_ thrd_t        ThreadId,
+        _In_ void*         DsoHandle,
+        _In_ int           ExitCode)
 {
     CollectionItem_t*   Node;
     DataKey_t           Key = { .Value.Id = ThreadId };
@@ -454,7 +459,7 @@ tls_cleanup(_In_ thrd_t thr, _In_ void* DsoHandle, _In_ int ExitCode)
 
     // Cleanup all stored tls-keys by this thread
     spinlock_acquire(&g_tlsLock);
-    while (CollectionRemoveByKey(&g_tls.Tls, Key) == OsOK);
+    while (!CollectionRemoveByKey(&g_tls.Tls, Key));
     spinlock_release(&g_tlsLock);
     __callatexit(&g_tls.TlsAtExit, thr, DsoHandle, ExitCode);
 }

@@ -26,10 +26,10 @@
 #include <os/osdefs.h>
 #include <os/types/process.h>
 #include <ds/list.h>
+#include <ds/mstring.h>
 #include <os/pe.h>
 #include <time.h>
 
-DECL_STRUCT(MString);
 typedef void* MemorySpaceHandle_t;
 typedef void* MemoryMapHandle_t;
 

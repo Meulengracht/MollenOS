@@ -23,6 +23,7 @@
 #ifndef __LIBDS_H__
 #define __LIBDS_H__
 
+#if defined(VALI)
 #ifdef __LIBDS_KERNEL__
 #include <irq_spinlock.h>
 typedef IrqSpinlock_t syncobject_t;
@@ -34,9 +35,31 @@ typedef IrqSpinlock_t syncobject_t;
 #include <os/spinlock.h>
 typedef spinlock_t syncobject_t;
 #define SYNC_INIT                _SPN_INITIALIZER_NP(spinlock_plain)
-#define SYNC_INIT_FN(collection) spinlock_init(&collection->lock, spinlock_plain)
-#define SYNC_LOCK(collection)    spinlock_acquire(&collection->lock)
-#define SYNC_UNLOCK(collection)  spinlock_release(&collection->lock)
+#define SYNC_INIT_FN(collection) spinlock_init(&(collection)->lock, spinlock_plain)
+#define SYNC_LOCK(collection)    spinlock_acquire(&(collection)->lock)
+#define SYNC_UNLOCK(collection)  spinlock_release(&(collection)->lock)
+#endif
+
+#else
+// Host build used for unit test
+#include <stdatomic.h>
+typedef struct spinlock {
+    int locked;
+} syncobject_t;
+
+void spinlock_lock(struct spinlock* spinlock) {
+    int zero = 0;
+    while (!atomic_compare_exchange_weak(&spinlock->locked, &zero, 1)) {
+    }
+}
+void spinlock_unlock(struct spinlock* spinlock) {
+    atomic_store(&spinlock->locked, 0);
+}
+
+#define SYNC_INIT { 0 };
+#define SYNC_INIT_FN(collection) (collection)->lock.locked = 0
+#define SYNC_LOCK(collection)    spinlock_lock(&(collection)->lock)
+#define SYNC_UNLOCK(collection)  spinlock_unlock(&(collection)->lock)
 #endif
 
 #include <inttypes.h>
@@ -50,11 +73,6 @@ typedef struct element {
     void* key;
     void* value;
 } element_t;
-
-typedef struct valuepair {
-    void* key;
-    void* value;
-} valuepair_t;
 
 #define ELEMENT_INIT(elem, _key, _value) (elem)->next = NULL; (elem)->previous = NULL; (elem)->key = (void*)_key; (elem)->value = (void*)_value
 

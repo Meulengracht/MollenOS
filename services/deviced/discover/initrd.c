@@ -97,10 +97,12 @@ __ParseModuleConfiguration(
         _In_ const char*                 name)
 {
     struct DriverConfiguration* driverConfig;
-    mstring_t*           path;
-    oserr_t           osStatus;
-    void*                buffer;
-    size_t               length;
+    mstring_t*                  path;
+    mstring_t*                  yamlPath;
+    char*                       yamlPathu8;
+    oserr_t                     osStatus;
+    void*                       buffer;
+    size_t                      length;
     TRACE("__ParseRamdiskFile(name=%s)", name);
 
     // build the path for the config first
@@ -110,8 +112,11 @@ __ParseModuleConfiguration(
     }
 
     // we make an assumption here that .dll exists as that was what triggered this function
-    (void)MStringReplaceC(path, ".dll", ".yaml");
-    osStatus = __ReadFile(directoryHandle, MStringRaw(path), &buffer, &length);
+    yamlPath = mstr_replace_u8(path, ".dll", ".yaml");
+    yamlPathu8 = mstr_u8(yamlPath);
+    osStatus = __ReadFile(directoryHandle, yamlPathu8, &buffer, &length);
+    mstr_delete(yamlPath);
+    free(yamlPathu8);
     if (osStatus != OsOK) {
         return osStatus;
     }
@@ -125,16 +130,19 @@ __ParseModuleConfiguration(
 
     osStatus = DmDriverConfigParseYaml(buffer, length, driverConfig);
     free(buffer);
+    mstr_delete(path);
 
     if (osStatus != OsOK) {
-        mstr_delete(path);
         free(driverConfig);
         return osStatus;
     }
 
     // now we build the actual path to the file itself
-    MStringReset(path, "rd:/modules/");
-    MStringAppendCharacters(path, (const char*)name);
+    path = mstr_fmt("rd:/modules/%s", name);
+    if (path == NULL) {
+        free(driverConfig);
+        return OsOutOfMemory;
+    }
 
     osStatus = DmDiscoverAddDriver(path, driverConfig);
     mstr_delete(path);

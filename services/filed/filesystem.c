@@ -57,10 +57,13 @@ static struct default_mounts g_defaultMounts[] = {
 };
 static struct usched_mtx g_mountsLock;
 
-static void __NotifySessionManager(mstring_t* mount_point)
+static void __NotifySessionManager(mstring_t* mountPoint)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetSessionService());
-    sys_session_disk_connected(GetGrachtClient(), &msg.base, MStringRaw(mount_point));
+    char*                    mp  = mstr_u8(mountPoint);
+
+    sys_session_disk_connected(GetGrachtClient(), &msg.base, mp);
+    free(mp);
 }
 
 enum FileSystemType
@@ -142,24 +145,21 @@ __MountFileSystemAtDefault(
     oserr_t        osStatus;
     mstring_t*      path;
 
-    path = mstr_new_u8("/storage/");
+    path = mstr_fmt("/storage/%s/%ms", &fileSystem->CommonData.Storage.Serial[0], fileSystem->CommonData.Label);
     if (path == NULL) {
         return OsOutOfMemory;
     }
-    MStringAppendCharacters(path, &fileSystem->CommonData.Storage.Serial[0]);
-    MStringAppendCharacter(path, '/');
-    MStringAppend(path, fileSystem->CommonData.Label);
 
     osStatus = VFSNodeNewDirectory(fsScope, path, &partitionNode);
     if (osStatus != OsOK && osStatus != OsExists) {
-        ERROR("__MountFileSystemAtDefault failed to create node %s", MStringRaw(path));
+        ERROR("__MountFileSystemAtDefault failed to create node %ms", path);
         mstr_delete(path);
         return osStatus;
     }
 
     osStatus = VFSNodeMount(fsScope, partitionNode, NULL);
     if (osStatus != OsOK) {
-        ERROR("__MountFileSystemAtDefault failed to mount filesystem at %s", MStringRaw(path));
+        ERROR("__MountFileSystemAtDefault failed to mount filesystem at %ms", path);
         mstr_delete(path);
         return osStatus;
     }
@@ -180,7 +180,7 @@ __MountFileSystemAt(
 
     osStatus = VFSNodeNewDirectory(fsScope, path, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
-        ERROR("__MountFileSystemAt failed to create node %s", MStringRaw(path));
+        ERROR("__MountFileSystemAt failed to create node %ms", path);
         return osStatus;
     }
 
@@ -209,7 +209,7 @@ VfsFileSystemMount(
     // Start out by mounting access to this partition under the device node
     osStatus = __MountFileSystemAtDefault(fileSystem);
     if (osStatus != OsOK) {
-        ERROR("VfsFileSystemMount failed to mount filesystem %s", MStringRaw(fileSystem->CommonData.Label));
+        ERROR("VfsFileSystemMount failed to mount filesystem %ms", fileSystem->CommonData.Label);
         fileSystem->State = FileSystemState_ERROR;
         return;
     }
@@ -222,19 +222,19 @@ VfsFileSystemMount(
     if (mountPoint) {
         osStatus = __MountFileSystemAt(fileSystem, mountPoint);
         if (osStatus != OsOK) {
-            WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
-                    MStringRaw(mountPoint), MStringRaw(fileSystem->CommonData.Label));
+            WARNING("VfsFileSystemMount failed to bind mount filesystem %ms at %ms",
+                    mountPoint, fileSystem->CommonData.Label);
         }
     } else {
         // look up default mount points
         for (int i = 0; g_defaultMounts[i].path != NULL; i++) {
             mstring_t* label = mstr_new_u8(g_defaultMounts[i].label);
-            if (label && MStringCompare(label, fileSystem->CommonData.Label, 0) == MSTRING_FULL_MATCH) {
+            if (label && !mstr_cmp(label, fileSystem->CommonData.Label)) {
                 mstring_t* bindPath = mstr_new_u8(g_defaultMounts[i].path);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
                 if (osStatus != OsOK) {
-                    WARNING("VfsFileSystemMount failed to bind mount filesystem %s at %s",
-                            MStringRaw(mountPoint), MStringRaw(fileSystem->CommonData.Label));
+                    WARNING("VfsFileSystemMount failed to bind mount filesystem %ms at %ms",
+                            mountPoint, fileSystem->CommonData.Label);
                     mstr_delete(label);
                 }
                 mstr_delete(bindPath);
@@ -251,7 +251,7 @@ VfsFileSystemMount(
         return;
     }
 
-    TRACE("VfsFileSystemMount notifying session about %s", MStringRaw(path));
+    TRACE("VfsFileSystemMount notifying session about %ms", path);
     __NotifySessionManager(path);
     mstr_delete(path);
 }

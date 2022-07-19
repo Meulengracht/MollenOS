@@ -189,6 +189,7 @@ __BuildArguments(
     size_t pathLength;
     size_t argumentsLength = 0;
     char*  argumentsPointer;
+    char*  processPath;
 
     // check for null or empty
     if (argsIn && strlen(argsIn)) {
@@ -196,15 +197,21 @@ __BuildArguments(
         argumentsLength = strlen(argsIn) + 1;
     }
 
+    processPath = mstr_u8(process->path);
+    if (processPath == NULL) {
+        return OsOutOfMemory;
+    }
+
     // handle arguments, we need to prepend the full path of the executable
-    pathLength       = strlen(MStringRaw(process->path));
+    pathLength       = strlen(processPath);
     argumentsPointer = malloc(pathLength + 1 + argumentsLength);
     if (!argumentsPointer) {
+        free(processPath);
         return OsOutOfMemory;
     }
 
     // Build the argument string, remember to null terminate.
-    memcpy(&argumentsPointer[0], (const void *)MStringRaw(process->path), pathLength);
+    memcpy(&argumentsPointer[0], processPath, pathLength);
     if (argumentsLength != 0) {
         argumentsPointer[pathLength] = ' ';
 
@@ -217,6 +224,7 @@ __BuildArguments(
 
     process->arguments        = (const char *)argumentsPointer;
     process->arguments_length = pathLength + 1 + argumentsLength;
+    free(processPath);
     return OsOK;
 }
 
@@ -291,7 +299,7 @@ __ProcessNew(
         return OsOutOfMemory;
     }
 
-    index = MStringFindReverse(process->path, '/', 0);
+    index = mstr_rfind_u8(process->path, "/", -1);
     process->name              = mstr_substr(process->path, index + 1, -1);
     process->working_directory  = mstr_substr(process->path, 0, index);
     process->assembly_directory = mstr_substr(process->path, 0, index);
@@ -313,12 +321,15 @@ __StartProcess(
         _In_ Process_t* process)
 {
     ThreadParameters_t threadParameters;
-    oserr_t         osStatus;
+    oserr_t            osStatus;
 
     // Initialize threading paramaters for the new thread
     InitializeThreadParameters(&threadParameters);
-    threadParameters.Name              = MStringRaw(process->name);
     threadParameters.MemorySpaceHandle = (uuid_t)(uintptr_t)process->image->MemorySpace;
+    threadParameters.Name              = mstr_u8(process->name);
+    if (threadParameters.Name == NULL) {
+        return OsOutOfMemory;
+    }
 
     osStatus = Syscall_ThreadCreate(
             process->image->EntryAddress,
@@ -328,6 +339,7 @@ __StartProcess(
     if (osStatus == OsOK) {
         osStatus = Syscall_ThreadDetach(process->primary_thread_id);
     }
+    free((void*)threadParameters.Name);
     return osStatus;
 }
 
@@ -758,22 +770,23 @@ void PmGetName(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    Process_t*  process;
-    oserr_t  status = OsInvalidParameters;
-    const char* name = "";
+    Process_t* process;
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
     if (process) {
+        char* name;
         usched_mtx_lock(&process->lock);
-        name = MStringRaw(process->name);
+        name = mstr_u8(process->name);
         usched_mtx_unlock(&process->lock);
-        status = OsOK;
+        if (name == NULL) {
+            sys_process_get_name_response(request->message, OsOutOfMemory, "");
+        } else {
+            sys_process_get_name_response(request->message, OsOK, name);
+            free(name);
+        }
+    } else {
+        sys_process_get_name_response(request->message, OsInvalidParameters, "");
     }
-
-    // respond
-    sys_process_get_name_response(request->message, status, name);
-
-    // cleanup
     RequestDestroy(request);
 }
 
@@ -781,7 +794,7 @@ void PmGetTickBase(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    Process_t*      process;
+    Process_t*   process;
     oserr_t      status = OsInvalidParameters;
     UInteger64_t tick;
 
@@ -804,23 +817,24 @@ void PmGetWorkingDirectory(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    Process_t*  process;
-    oserr_t  status = OsInvalidParameters;
-    const char* path   = "";
+    Process_t* process;
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
     if (process) {
+        char* path;
         usched_mtx_lock(&process->lock);
-        path = MStringRaw(process->working_directory);
+        path = mstr_u8(process->working_directory);
         usched_mtx_unlock(&process->lock);
-        status = OsOK;
-        TRACE("PmGetWorkingDirectory path=%s", path);
+        if (path == NULL) {
+            sys_process_get_working_directory_response(request->message, OsOutOfMemory, "");
+        } else {
+            TRACE("PmGetWorkingDirectory path=%s", path);
+            sys_process_get_working_directory_response(request->message, OsOK, path);
+            free(path);
+        }
+    } else {
+        sys_process_get_working_directory_response(request->message, OsInvalidParameters, "");
     }
-
-    // respond
-    sys_process_get_working_directory_response(request->message, status, path);
-
-    // cleanup
     RequestDestroy(request);
 }
 
@@ -853,22 +867,22 @@ void PmGetAssemblyDirectory(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    Process_t * process;
-    oserr_t  osStatus = OsInvalidParameters;
-    const char* path    = "";
+    Process_t* process;
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
     if (process) {
+        char* path;
         usched_mtx_lock(&process->lock);
-        path = MStringRaw(process->assembly_directory);
+        path = mstr_u8(process->assembly_directory);
         usched_mtx_unlock(&process->lock);
-        osStatus = OsOK;
+        if (path == NULL) {
+            sys_process_get_assembly_directory_response(request->message, OsOutOfMemory, "");
+        } else {
+            sys_process_get_assembly_directory_response(request->message, OsOK, path);
+        }
+    } else {
+        sys_process_get_assembly_directory_response(request->message, OsInvalidParameters, "");
     }
-
-    // respond
-    sys_process_get_assembly_directory_response(request->message, osStatus, path);
-
-    // cleanup
     RequestDestroy(request);
 }
 

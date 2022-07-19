@@ -10,7 +10,7 @@ if (VALI_BUILD_UNIT_TESTS)
     add_unit_test(FILE utils_test.c
             INCLUDES ${VFS_INCLUDES}
             DEFINES "-D__FILEMANAGER_IMPL"
-            LIBS mstring
+            LIBS libds
     )
 
     return ()
@@ -20,11 +20,13 @@ endif ()
 add_subdirectory(handlers)
 
 add_library(filed-vfs
-    handles.c
-    memfs.c
-    mount.c
-    utils.c
-    vfs.c
+        api.c
+        bind.c
+        handles.c
+        memfs.c
+        mount.c
+        utils.c
+        vfs.c
 )
 set_target_properties (filed-vfs
         PROPERTIES

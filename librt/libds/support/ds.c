@@ -20,12 +20,11 @@
 
 #define __TRACE
 
-#include <os/mollenos.h>
 #include <ds/ds.h>
 #include <string.h>
 
-#define __MODULE "DATA"
-#ifdef LIBC_KERNEL
+#if defined(VALI)
+#ifdef __LIBDS_KERNEL_BUILD
 #include <arch/interrupts.h>
 #include <memoryspace.h>
 #include <machine.h>
@@ -42,12 +41,26 @@ extern oserr_t ScFutexWake(FutexParameters_t*);
 #include <stdio.h>
 #endif
 
+#else
+// Host build
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdatomic.h>
+#include <stdarg.h>
+extern void Syscall_FutexWait(FutexParameters_t*);
+extern void Syscall_FutexWake(FutexParameters_t*);
+#define TRACE(...)   printf("%s\n", __VA_ARGS__)
+#define WARNING(...) printf("%s\n", __VA_ARGS__)
+#define ERROR(...)   fprintf(stderr, "%s\n", __VA_ARGS__)
+#endif
+
+
 /*******************************************************************************
  * Support Methods (DS)
  *******************************************************************************/
 void* dsalloc(size_t size)
 {
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
 	return kmalloc(size);
 #else
 	return malloc(size);
@@ -56,7 +69,7 @@ void* dsalloc(size_t size)
 
 void dsfree(void* pointer)
 {
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
 	kfree(pointer);
 #else
 	free(pointer);
@@ -67,7 +80,7 @@ void dslock(SafeMemoryLock_t* lock)
 {
     int locked = 1;
 
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
     irqstate_t flags = InterruptDisable();
 #endif
     while (1) {
@@ -76,25 +89,25 @@ void dslock(SafeMemoryLock_t* lock)
             break;
         }
     }
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
     lock->Flags = flags;
 #endif
 }
 
 void dsunlock(SafeMemoryLock_t* lock)
 {
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
     irqstate_t flags = lock->Flags;
 #endif
     atomic_store(&lock->SyncObject, 0);
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
     InterruptRestoreState(flags);
 #endif
 }
 
 void dswait(FutexParameters_t* params)
 {
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
     ScFutexWait(params);
 #else
     Syscall_FutexWait(params);
@@ -103,7 +116,7 @@ void dswait(FutexParameters_t* params)
 
 void dswake(FutexParameters_t* params)
 {
-#ifdef LIBC_KERNEL
+#ifdef __LIBDS_KERNEL_BUILD
     ScFutexWake(params);
 #else
     Syscall_FutexWake(params);
@@ -161,30 +174,4 @@ int dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
 		} break;
 	}
 	return -1;
-}
-
-int dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
-{
-	switch (type) {
-        case KeyId: {
-			if (key1.Value.Id == key2.Value.Id)
-				return 0;
-			else if (key1.Value.Id > key2.Value.Id)
-				return 1;
-			else
-				return -1;
-        } break;
-		case KeyInteger: {
-			if (key1.Value.Integer == key2.Value.Integer)
-				return 0;
-			else if (key1.Value.Integer > key2.Value.Integer)
-				return 1;
-			else
-				return -1;
-		} break;
-		case KeyString: {
-			return strcmp(key1.Value.String.Pointer, key2.Value.String.Pointer);
-		} break;
-	}
-	return 0;
 }

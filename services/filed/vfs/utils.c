@@ -38,13 +38,14 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
         return NULL;
     }
 
-    mstr_set_dot(path);
     i = i->Parent;
     while (i) {
-        path = mstr_fmt("%ms/%ms", i->Name, path);
+        mstring_t* combined = mstr_fmt("%ms/%ms", i->Name, path);
+        mstr_delete(path);
+        path = combined;
+
         i = i->Parent;
     }
-    mstr_clear_dot(path);
     return path;
 }
 

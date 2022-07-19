@@ -34,4 +34,18 @@ extern void    mstr_to_internal(const char* u8, mchar_t* out);
 extern mchar_t mstr_next(const char* u8, int* indexp);
 extern int     mstr_cmp_u8_index(mstring_t* string, const char* u8, size_t startIndex);
 
+struct mstring_builder {
+    size_t   size;
+    size_t   capacity;
+    mchar_t* storage;
+};
+
+extern struct mstring_builder* mstring_builder_new(size_t initialCapacity);
+extern void mstring_builder_destroy(struct mstring_builder* builder);
+extern mstring_t* mstring_builder_finish(struct mstring_builder* builder);
+
+extern int mstring_builder_append(struct mstring_builder* builder, mchar_t val);
+extern int mstring_builder_append_u8(struct mstring_builder* builder, const char* u8, size_t count);
+
+
 #endif //!__MSTRING_PRIVATE_H__

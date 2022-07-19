@@ -26,10 +26,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef uint32_t uuid_t;
 #define _CODE_BEGIN
 #define _CODE_END
 #define _In_
 #define _Out_
+#define _InOut_
 #else
 #include <os/osdefs.h>
 #endif

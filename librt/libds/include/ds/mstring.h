@@ -35,7 +35,8 @@ typedef struct mstring {
 _CODE_BEGIN
 
 // Length of const strings include the zero terminator
-#define mstr_const(c_str) { __MSTRING_FLAG_CONST, sizeof(c_str), (void*)(c_str) };
+// mstr_const *MUST* be used with the 'U' keyword
+#define mstr_const(c_str) { __MSTRING_FLAG_CONST, sizeof(c_str), (mchar_t*)(c_str) };
 #define mstr_len(str)     ((str) != NULL ? (str)->__length : 0)
 #define mstr_bsize(str)   ((str) != NULL ? (str)->__length*sizeof(mchar_t) : 0)
 
@@ -82,10 +83,6 @@ DSDECL(int,        mstr_find_u8(mstring_t*, const char*, int startIndex));
 DSDECL(int,        mstr_rfind_u8(mstring_t*, const char*, int startIndex));
 DSDECL(mstring_t*, mstr_replace_u8(mstring_t*, const char* find, const char* with));
 DSDECL(mchar_t,    mstr_at(mstring_t*, int));
-DSDECL(mstring_t*, mstr_concat(mstring_t*, mstring_t*));
-
-DSDECL(void, mstr_set_dot(mstring_t*));
-DSDECL(void, mstr_clear_dot(mstring_t*));
 
 _CODE_END
 

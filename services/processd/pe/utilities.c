@@ -54,7 +54,7 @@ PeResolveLibrary(
     // try to locate the library in the parent first.
     foreach(i, ExportParent->Libraries) {
         PeExecutable_t *Library = i->value;
-        if (MStringCompare(Library->Name, LibraryName, 1) == MSTRING_FULL_MATCH) {
+        if (!mstr_cmp(Library->Name, LibraryName)) {
             dstrace("Library %s was already resolved, increasing ref count", MStringRaw(Library->Name));
             Library->References++;
             Exports = Library;
@@ -66,12 +66,12 @@ PeResolveLibrary(
     if (Exports == NULL) {
         Status = PeLoadImage(ExportParent->Owner, ExportParent, LibraryName, &Exports);
         if (Status != OsOK) {
-            dserror("Library %s could not be loaded %u", MStringRaw(LibraryName), Status);
+            dserror("Library %ms could not be loaded %u", LibraryName, Status);
         }
     }
 
     if (Exports == NULL) {
-        dserror("Library %s was unable to be resolved", MStringRaw(LibraryName));
+        dserror("Library %ms was unable to be resolved", LibraryName);
     }
     return Exports;
 }

@@ -42,12 +42,12 @@ static oserr_t
 GetModuleAndOffset(
         _In_  Process_t*   process,
         _In_  uintptr_t    address,
-        _Out_ const char** moduleName,
+        _Out_ mstring_t**  moduleName,
         _Out_ uintptr_t*   moduleBase)
 {
     if (address < process->image->CodeBase) {
         *moduleBase = process->image->VirtualAddress;
-        *moduleName = (char*)MStringRaw(process->image->Name);
+        *moduleName = process->image->Name;
         return OsNotExists;
     }
 
@@ -58,7 +58,7 @@ GetModuleAndOffset(
             foreach(i, process->image->Libraries) {
                 PeExecutable_t* Library = (PeExecutable_t*) i->value;
                 if (address >= Library->CodeBase && address < (Library->CodeBase + Library->CodeSize)) {
-                    *moduleName = MStringRaw(Library->Name);
+                    *moduleName = Library->Name;
                     *moduleBase = Library->VirtualAddress;
                     return OsOK;
                 }
@@ -69,7 +69,7 @@ GetModuleAndOffset(
     }
 
     *moduleBase = process->image->VirtualAddress;
-    *moduleName = (char*) MStringRaw(process->image->Name);
+    *moduleName = process->image->Name;
     return OsOK;
 }
 
@@ -80,11 +80,11 @@ HandleProcessCrashReport(
         _In_ const Context_t* crashContext,
         _In_ int              crashReason)
 {
-    uintptr_t   moduleBase;
-    const char* moduleName;
-    const char* programName;
-    uintptr_t   crashAddress;
-    int         i = 0, max = 12;
+    uintptr_t  moduleBase;
+    mstring_t* moduleName;
+    mstring_t* programName;
+    uintptr_t  crashAddress;
+    int        i = 0, max = 12;
     TRACE("HandleProcessCrashReport(%i)", crashReason);
 
     if (!crashContext) {
@@ -92,17 +92,16 @@ HandleProcessCrashReport(
     }
 
     crashAddress = CONTEXT_IP(crashContext);
-    programName  = MStringRaw(process->image->Name);
+    programName  = process->image->Name;
 
-    // Debug
     GetModuleAndOffset(process, crashAddress, &moduleName, &moduleBase);
-    ERROR("%s: Crashed in module %s, at offset 0x%" PRIxIN " (0x%" PRIxIN ") with reason %i",
+    ERROR("%ms: Crashed in module %ms, at offset 0x%" PRIxIN " (0x%" PRIxIN ") with reason %i",
           programName, moduleName, crashAddress - moduleBase, crashAddress, crashReason);
 
     // Print stack trace for application
     if (CONTEXT_USERSP(crashContext)) {
-        void*      stack;
-        void*      topOfStack;
+        void*   stack;
+        void*   topOfStack;
         oserr_t status;
 
         status = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), &topOfStack, &stack);
@@ -114,17 +113,22 @@ HandleProcessCrashReport(
             while (stackAddress < stackLimit && i < max) {
                 uintptr_t stackValue = *stackAddress;
                 if (GetModuleAndOffset(process, stackValue, &moduleName, &moduleBase) == OsOK) {
+                    char*       moduleu8;
                     const char* symbolName;
                     uintptr_t   symbolOffset;
 
-                    if (SymbolLookup(moduleName, stackValue - moduleBase, &symbolName, &symbolOffset) == OsOK) {
-                        ERROR("%i: %s+%x in module %s", i, symbolName, symbolOffset, moduleName);
+                    moduleu8 = mstr_u8(moduleName);
+                    if (moduleu8 == NULL) {
+                        return OsOutOfMemory;
+                    }
+                    if (SymbolLookup(moduleu8, stackValue - moduleBase, &symbolName, &symbolOffset) == OsOK) {
+                        ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
                     }
                     else {
-                        ERROR("%i: At offset 0x%" PRIxIN " in module %s (0x%" PRIxIN ")",
+                        ERROR("%i: At offset 0x%" PRIxIN " in module %ms (0x%" PRIxIN ")",
                               i, stackValue - moduleBase, moduleName, stackValue);
                     }
-
+                    free(moduleu8);
                     i++;
                 }
                 stackAddress++;

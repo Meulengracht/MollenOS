@@ -1,7 +1,28 @@
+set (LIBDS_SRCS
+        lf/bounded_stack.c
+
+        bitmap.c
+        bounded_stack.c
+        collection.c
+        guid.c
+        hashtable.c
+        hash_sip.c
+        list.c
+        queue.c
+        rbtree.c
+        streambuffer.c
+)
+
 # handle unit test support, we need to combine some libDS specific
 # support for services and modules that uses data-structures
 if (VALI_BUILD_UNIT_TESTS)
     add_subdirectory(mstring)
+
+    add_library(libds ${LIBDS_SRCS} support/ds.c)
+    target_include_directories(libds PRIVATE ../libddk/include ../libos/include)
+    target_include_directories(libds PUBLIC include)
+    target_link_libraries(libds PUBLIC mstring)
+
     return ()
 endif ()
 
@@ -35,29 +56,14 @@ elseif (${VALI_ARCH} STREQUAL "amd64")
     )
 endif ()
 
-set (SHARED_SOURCES
-    lf/bounded_stack.c
-
-    bitmap.c
-    bounded_stack.c
-    collection.c
-    guid.c
-    hashtable.c
-    hash_sip.c
-    list.c
-    queue.c
-    rbtree.c
-    streambuffer.c
-)
-
-add_library(libdsk ${SHARED_SOURCES} support/dsk.c)
+add_library(libdsk ${LIBDS_SRCS} support/dsk.c)
 target_compile_options(libdsk PRIVATE -mno-sse)
 target_compile_definitions(libdsk PRIVATE -D__LIBDS_KERNEL__ -D_KRNL_DLL)
 target_include_directories(libdsk PRIVATE ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
 target_include_directories(libdsk PUBLIC include)
 target_link_libraries(libdsk PUBLIC mstringk)
 
-add_library(libds ${SHARED_SOURCES} support/ds.c)
+add_library(libds ${LIBDS_SRCS} support/ds.c)
 target_include_directories(libds PRIVATE ${SHARED_INCLUDES})
 target_include_directories(libds PUBLIC include)
 target_link_libraries(libds PUBLIC mstring)

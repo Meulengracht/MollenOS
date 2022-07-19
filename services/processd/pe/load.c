@@ -191,8 +191,8 @@ PeHandleSections(
         // Iterate pages and map them in our memory space
         osStatus = PeImplAcquireImageMapping(image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &mapHandle);
         if (osStatus != OsOK) {
-            ERROR("%s: Failed to map section %s at 0x%" PRIxIN ": %u",
-                  MStringRaw(image->Name), &sectionName[0], VirtualDestination, osStatus);
+            ERROR("%ms: Failed to map section %s at 0x%" PRIxIN ": %u",
+                  image->Name, &sectionName[0], VirtualDestination, osStatus);
             return osStatus;
         }
         Destination = (uint8_t*)VirtualDestination;
@@ -265,13 +265,13 @@ PeResolveImportDescriptor(
     uintptr_t                 AddressOfImportTable;
     PeImportNameDescriptor_t* NameDescriptor;
 
-    TRACE("PeResolveImportDescriptor(%s, %s)", 
-        MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
+    TRACE("PeResolveImportDescriptor(%ms, %ms)",
+          Image->Name, ImportDescriptorName);
 
     // Resolve the library from the import chunk
     ResolvedLibrary = PeResolveLibrary(ParentImage, Image, ImportDescriptorName);
     if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
-        ERROR("(%s): Failed to resolve library %s", MStringRaw(Image->Name), MStringRaw(ImportDescriptorName));
+        ERROR("(%ms): Failed to resolve library %ms", Image->Name, ImportDescriptorName);
         return OsError;
     }
     Exports              = ResolvedLibrary->ExportedFunctions;
@@ -369,8 +369,8 @@ PeHandleRelocations(
         uint32_t blockSize = relocationPointer[1];
         if (pageRva == 0 || blockSize == 0) {
             int Index = 0;
-            ERROR("%s: Directory 0x%" PRIxIN ", Size %" PRIuIN,
-                  MStringRaw(image->Name), directoryContent, directorySize);
+            ERROR("%ms: Directory 0x%" PRIxIN ", Size %" PRIuIN,
+                  image->Name, directoryContent, directorySize);
             ERROR("bytesLeft %" PRIuIN ", ", bytesLeft);
             ERROR("pageRva is 0, blockSize %u", blockSize);
             for (i = 0; i < 4; i++, Index += 16) {
@@ -418,7 +418,7 @@ PeHandleRelocations(
 #endif
 #if __BITS == 64
                 if ((uintptr_t)fixupValue < image->VirtualAddress || (uintptr_t)fixupValue >= 0x8100000000ULL) {
-                    ERROR("%s: Rel %u, value %u (%u/%u)", MStringRaw(image->Name), type, value, i, relocationCount);
+                    ERROR("%ms: Rel %u, value %u (%u/%u)", image->Name, type, value, i, relocationCount);
                     ERROR("pageRva 0x%x of SectionRVA 0x%x. Current blocksize %u", pageRva, section->RVA, blockSize);
                     ERROR("section 0x%x, SectionAddress 0x%x, Address 0x%x, value 0x%x",
                           section->BasePointer, sectionOffset, fixupAddress, *fixupAddress);
@@ -663,8 +663,8 @@ PeHandleExports(
         else {
             uintptr_t MaxImageValue = (ParentImage == NULL) ? Image->NextLoadingAddress : ParentImage->NextLoadingAddress; 
             if (!ISINRANGE(ExFunc->Address, Image->CodeBase, MaxImageValue)) {
-                ERROR("%s: Address 0x%x (Table RVA value: 0x%x), %i", 
-                    MStringRaw(Image->Name), ExFunc->Address, FunctionAddressTable[ExFunc->Ordinal], i);
+                ERROR("%ms: Address 0x%x (Table RVA value: 0x%x), %i",
+                      Image->Name, ExFunc->Address, FunctionAddressTable[ExFunc->Ordinal], i);
                 ERROR("The function to export was located outside the image code boundaries (0x%x => 0x%x)",
                     Image->CodeBase, MaxImageValue);
                 ERROR("ExportTable->NumberOfFunctions [%u]", ExportTable->NumberOfFunctions);
@@ -744,7 +744,7 @@ PeParseAndMapImage(
     oserr_t        osStatus;
     clock_t           Timing;
     int                i, j;
-    WARNING("%s: loading at 0x%" PRIxIN, MStringRaw(Image->Name), Image->VirtualAddress);
+    WARNING("%ms: loading at 0x%" PRIxIN, Image->Name, Image->VirtualAddress);
 
     // Copy metadata of image to base address
     osStatus = PeImplAcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
@@ -841,14 +841,14 @@ __ResolveImagePath(
             &fullPath
     );
     if (osStatus != OsOK) {
-        ERROR("Failed to resolve path for executable: %s (%u)", MStringRaw(path), osStatus);
+        ERROR("Failed to resolve path for executable: %ms (%u)", path, osStatus);
         return osStatus;
     }
     
     // Load the file
     osStatus = PeImplLoadFile(fullPath, (void**)&buffer, &length);
     if (osStatus != OsOK) {
-        ERROR("Failed to load file for path %s (%u)", MStringRaw(fullPath), osStatus);
+        ERROR("Failed to load file for path %ms (%u)", fullPath, osStatus);
         mstr_delete(fullPath);
         return osStatus;
     }
@@ -943,7 +943,7 @@ PeLoadImage(
     
     memset(image, 0, sizeof(PeExecutable_t));
     ELEMENT_INIT(&image->Header, 0, image);
-    index = MStringFindReverse(fullPath, '/', 0);
+    index = mstr_rfind_u8(fullPath, "/", -1);
     image->Name              = mstr_substr(fullPath, index + 1, -1);
     image->Owner             = owner;
     image->FullPath          = fullPath;

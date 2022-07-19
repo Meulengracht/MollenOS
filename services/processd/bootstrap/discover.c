@@ -184,12 +184,18 @@ PmBootstrapFindRamdiskFile(
     char*                       internFilename;
     int                         status;
     char                        tempbuf[64] = { 0 };
+    char*                       pathu8;
 
-    TRACE("PmBootstrapFindRamdiskFile(path=%s)", MStringRaw(path));
+    pathu8 = mstr_u8(path);
+    if (pathu8 == NULL) {
+        return OsOutOfMemory;
+    }
+
+    TRACE("PmBootstrapFindRamdiskFile(path=%s)", pathu8);
 
     // skip the rd:/ prefix
-    internPath = strchr(MStringRaw(path), '/') + 1;
-    internFilename = strrchr(MStringRaw(path), '/');
+    internPath = strchr(pathu8, '/') + 1;
+    internFilename = strrchr(pathu8, '/');
 
     // Ok, so max out at len(tempbuf) - 1, but minimum 1 char to include the initial '/'
     strncpy(
@@ -204,6 +210,7 @@ PmBootstrapFindRamdiskFile(
     status = vafs_directory_open(g_vafs, &tempbuf[0], &directoryHandle);
     if (status) {
         ERROR("PmBootstrapFindRamdiskFile failed to open %s, corrupt image buffer", &tempbuf[0]);
+        free(pathu8);
         return OsError;
     }
 
@@ -211,6 +218,7 @@ PmBootstrapFindRamdiskFile(
     status = vafs_directory_open_file(directoryHandle, internFilename, &fileHandle);
     if (status) {
         WARNING("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
+        free(pathu8);
         return OsNotExists;
     }
 
@@ -221,6 +229,7 @@ PmBootstrapFindRamdiskFile(
         size_t fileSize = vafs_file_length(fileHandle);
         void*  fileBuffer = malloc(fileSize);
         if (!fileBuffer) {
+            free(pathu8);
             return OsError;
         }
 
@@ -236,6 +245,6 @@ PmBootstrapFindRamdiskFile(
     // close the file and directory handle
     vafs_file_close(fileHandle);
     vafs_directory_close(directoryHandle);
-
+    free(pathu8);
     return OsOK;
 }

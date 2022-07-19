@@ -91,8 +91,8 @@ DmDiscoverAddDriver(
         _In_ struct DriverConfiguration* driverConfig)
 {
     struct DmDriver* driver;
-    TRACE("DmDiscoverAddDriver(path=%s, class=%u, subclass=%u)",
-          MStringRaw(driverPath), driverConfig->Class, driverConfig->Subclass);
+    TRACE("DmDiscoverAddDriver(path=%ms, class=%u, subclass=%u)",
+          driverPath, driverConfig->Class, driverConfig->Subclass);
 
     driver = malloc(sizeof(struct DmDriver));
     if (!driver) {
@@ -129,7 +129,7 @@ DmDiscoverRemoveDriver(
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
         struct DmDriver* driver = i->value;
-        if (MStringCompare(driver->path, driverPath, 0) == MSTRING_FULL_MATCH) {
+        if (!mstr_cmp(driver->path, driverPath)) {
             // we do not remove the driver if the driver is already loading/loaded
             if (driver->state == DmDriverState_NOTLOADED) {
                 list_remove(&g_drivers, &driver->list_header);
@@ -148,13 +148,20 @@ static oserr_t
 __SpawnDriver(
         _In_ struct DmDriver* driver)
 {
-    uuid_t     handle;
+    uuid_t  handle;
     oserr_t osStatus;
-    char       args[32];
+    char    args[32];
+    char*   driverPath;
+
+    driverPath = mstr_u8(driver->path);
+    if (driverPath == NULL) {
+        return OsOutOfMemory;
+    }
 
     sprintf(&args[0], "--id %u", driver->id);
 
-    osStatus = ProcessSpawn(MStringRaw(driver->path), &args[0], &handle);
+    osStatus = ProcessSpawn(driverPath, &args[0], &handle);
+    free(driverPath);
     if (osStatus != OsOK) {
         return osStatus;
     }

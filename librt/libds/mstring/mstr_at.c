@@ -17,7 +17,7 @@
  */
 
 #include <ds/mstring.h>
-#include "private.h"
+#include <stdlib.h>
 
 mchar_t mstr_at(mstring_t* string, int index)
 {

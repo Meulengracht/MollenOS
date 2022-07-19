@@ -69,11 +69,4 @@ DSDECL(void, dswake(FutexParameters_t*));
  * Matches two keys based on the key type returns 0 if they are equal, or -1 if not */
 DSDECL(int, dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
 
-/* Helper Function
- * Used by sorting, it compares to values and returns 
- *  - 1 if 1 > 2, 
- *  - 0 if 1 == 2 and
- *  - -1 if 2 > 1 */
-DSDECL(int, dssortkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
-
 #endif //!__DATASTRUCTURES__

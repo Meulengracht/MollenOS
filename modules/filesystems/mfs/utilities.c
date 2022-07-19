@@ -26,6 +26,7 @@
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include "mfs.h"
+#include <stdlib.h>
 #include <string.h>
 
 oserr_t
@@ -458,9 +459,11 @@ MfsUpdateRecord(
         // Now we have two sub cases, but create just needs some
         // extra updates otherwise they share
         if (action == MFS_ACTION_CREATE) {
+            char* entryName = mstr_u8(entry->Name);
             memset(&record->Integrated[0], 0, 512);
             memset(&record->Name[0], 0, 300);
-            memcpy(&record->Name[0], MStringRaw(entry->Name), MStringSize(entry->Name));
+            memcpy(&record->Name[0], entryName, strlen(entryName));
+            free(entryName);
         }
 
         // Update stats that are modifiable

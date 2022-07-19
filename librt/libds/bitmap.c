@@ -20,12 +20,14 @@
  * Generic Bitmap Implementation
  */
 
-#include <os/osdefs.h>
 #include <ds/bitmap.h>
 #include <ds/ds.h>
 #include <string.h>
 #include <stddef.h>
 #include <assert.h>
+
+#define _BM_BITS sizeof(void*) * 8
+#define _BM_MASK ((sizeof(void*) == 8) ? 0xFFFFFFFFFFFFFFFF : 0xFFFFFFFF)
 
 Bitmap_t*
 BitmapCreate(
@@ -38,20 +40,16 @@ BitmapCreate(
     // Allocate a new bitmap and associated buffer
     Bitmap  = (Bitmap_t*)dsalloc(sizeof(Bitmap_t));
     Data    = (uintptr_t*)dsalloc(Size);
-
-    // Construct the bitmap
-    if (BitmapConstruct(Bitmap, Data, Size) != OsOK) {
-        dsfree((void*)Data);
-        dsfree((void*)Bitmap);
+    if (Bitmap == NULL || Data == NULL) {
         return NULL;
     }
 
-    // Flip cleanup
+    BitmapConstruct(Bitmap, Data, Size);
     Bitmap->Cleanup = 1;
     return Bitmap;
 }
 
-oserr_t
+void
 BitmapConstruct(
     _In_ Bitmap_t* Bitmap,
     _In_ size_t*   Data,
@@ -68,10 +66,9 @@ BitmapConstruct(
     Bitmap->Data        = Data;
     Bitmap->SizeInBytes = Size;
     Bitmap->BitCount    = (Size * 8);
-    return OsOK;
 }
 
-oserr_t
+void
 BitmapDestroy(
     _In_ Bitmap_t* Bitmap)
 {
@@ -82,7 +79,6 @@ BitmapDestroy(
         dsfree((void*)Bitmap->Data);
         dsfree((void*)Bitmap);
     }
-    return OsOK;
 }
 
 int
@@ -93,8 +89,8 @@ BitmapSetBits(
     _In_    int       Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / __BITS;
-    int BlockOffset = Index % __BITS;
+    int BlockIndex  = Index / _BM_BITS;
+    int BlockOffset = Index % _BM_BITS;
     int BitsLeft    = Count;
     int BitsSet     = 0;
     int NumberOfObjects;
@@ -114,14 +110,14 @@ BitmapSetBits(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
-        if (Bitmap->Data[i] == 0 && BlockOffset == 0 && BitsLeft >= __BITS) {
-            Bitmap->Data[i] = __MASK;
-            BitsSet        += __BITS;
-            BitsLeft       -= __BITS;
+        if (Bitmap->Data[i] == 0 && BlockOffset == 0 && BitsLeft >= _BM_BITS) {
+            Bitmap->Data[i] = _BM_MASK;
+            BitsSet        += _BM_BITS;
+            BitsLeft       -= _BM_BITS;
             continue;
         }
         
-        for (j = BlockOffset; (j < __BITS) && (BitsLeft > 0); j++, BitsLeft--) {
+        for (j = BlockOffset; (j < _BM_BITS) && (BitsLeft > 0); j++, BitsLeft--) {
             size_t Bit = (size_t)1 << j;
             if (!(Bitmap->Data[i] & Bit)) {
                 Bitmap->Data[i] |= Bit;
@@ -141,8 +137,8 @@ BitmapClearBits(
     _In_    int       Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / __BITS;
-    int BlockOffset = Index % __BITS;
+    int BlockIndex  = Index / _BM_BITS;
+    int BlockOffset = Index % _BM_BITS;
     int BitsLeft    = Count;
     int BitsCleared = 0;
     int NumberOfObjects;
@@ -159,14 +155,14 @@ BitmapClearBits(
     
     // Iterate the block and flip bits
     for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
-        if (Bitmap->Data[i] == __MASK && BlockOffset == 0 && BitsLeft >= __BITS) {
+        if (Bitmap->Data[i] == _BM_MASK && BlockOffset == 0 && BitsLeft >= _BM_BITS) {
             Bitmap->Data[i] = 0;
-            BitsCleared    += __BITS;
-            BitsLeft       -= __BITS;
+            BitsCleared    += _BM_BITS;
+            BitsLeft       -= _BM_BITS;
             continue;
         }
         
-        for (j = BlockOffset; (j < __BITS) && (BitsLeft > 0); j++, BitsLeft--) {
+        for (j = BlockOffset; (j < _BM_BITS) && (BitsLeft > 0); j++, BitsLeft--) {
             size_t Bit = (size_t)1 << j;
             if (Bitmap->Data[i] & Bit) {
                 Bitmap->Data[i] &= ~Bit;
@@ -185,8 +181,8 @@ BitmapAreBitsSet(
     _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / __BITS;
-    int BlockOffset = Index % __BITS;
+    int BlockIndex  = Index / _BM_BITS;
+    int BlockOffset = Index % _BM_BITS;
     int BitsLeft    = Count;
     int NumberOfObjects;
     int i, j;
@@ -197,7 +193,7 @@ BitmapAreBitsSet(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
-        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
+        for (j = BlockOffset; j < _BM_BITS && BitsLeft > 0; j++, BitsLeft--) {
             size_t Bit = (size_t)1 << j;
             if (!(Bitmap->Data[i] & Bit)) {
                 return 0;
@@ -205,7 +201,7 @@ BitmapAreBitsSet(
         }
 
         // Reset block offset
-        if (j == __BITS) {
+        if (j == _BM_BITS) {
             BlockOffset = 0;
         }
     }
@@ -219,8 +215,8 @@ BitmapAreBitsClear(
     _In_ int        Count)
 {
     // Calculate the block index first
-    int BlockIndex  = Index / __BITS;
-    int BlockOffset = Index % __BITS;
+    int BlockIndex  = Index / _BM_BITS;
+    int BlockOffset = Index % _BM_BITS;
     int BitsLeft    = Count;
     int NumberOfObjects;
     int i, j;
@@ -231,7 +227,7 @@ BitmapAreBitsClear(
 
     // Iterate the block and flip bits
     for (i = BlockIndex; (i < NumberOfObjects) && (BitsLeft > 0); i++) {
-        for (j = BlockOffset; j < __BITS && BitsLeft > 0; j++, BitsLeft--) {
+        for (j = BlockOffset; j < _BM_BITS && BitsLeft > 0; j++, BitsLeft--) {
             size_t Bit = (size_t)1 << j;
             if (Bitmap->Data[i] & Bit) {
                 return 0;
@@ -239,7 +235,7 @@ BitmapAreBitsClear(
         }
 
         // Reset block offset
-        if (j == __BITS) {
+        if (j == _BM_BITS) {
             BlockOffset = 0;
         }
     }
@@ -264,19 +260,19 @@ BitmapFindBits(
     
     // Is the search index initialized?
     if (SearchIndex != NULL && *SearchIndex != -1) {
-        i = *SearchIndex / __BITS;
-        j = *SearchIndex % __BITS;
+        i = *SearchIndex / _BM_BITS;
+        j = *SearchIndex % _BM_BITS;
     }
 
     // Iterate bits
     for (; i < NumberOfObjects; i++) {
         // Quick test, if all is allocated, damn
-        if (Bitmap->Data[i] == __MASK) {
+        if (Bitmap->Data[i] == _BM_MASK) {
             continue;
         }
 
         // Test each bit in the value
-        for (; j < __BITS; j++) {
+        for (; j < _BM_BITS; j++) {
             size_t CurrentBit = (size_t)1 << j;
             if (Bitmap->Data[i] & CurrentBit) {
                 continue;
@@ -286,9 +282,9 @@ BitmapFindBits(
             // enough consecutive bits are free
             for (k = 0; k < Count; k++) {
                 // Make sure we are still in same block
-                if ((j + k) >= __BITS) {
-                    int TempI   = i + ((j + k) / __BITS);
-                    int OffsetI = (j + k) % __BITS;
+                if ((j + k) >= _BM_BITS) {
+                    int TempI   = i + ((j + k) / _BM_BITS);
+                    int OffsetI = (j + k) % _BM_BITS;
                     if (Bitmap->Data[TempI] & ((size_t)1 << OffsetI)) {
                         break;
                     }

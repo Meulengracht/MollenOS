@@ -23,6 +23,7 @@ if (VALI_BUILD_UNIT_TESTS)
 
     # enable testing
     enable_testing()
+    add_subdirectory(testing)
 
     # add all projects that support unit tests
     add_subdirectory (librt)
@@ -161,13 +162,15 @@ add_subdirectory (tools)
 add_subdirectory (apps)
 
 # build unit tests
-include (ExternalProject)
-ExternalProject_Add(unit_tests
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}
-        CMAKE_CACHE_ARGS
-            -DVALI_BUILD_UNIT_TESTS:BOOL=ON
-            -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/testing
-)
+if (VALI_ENABLE_TESTING)
+    include (ExternalProject)
+    ExternalProject_Add(unit_tests
+            SOURCE_DIR ${CMAKE_SOURCE_DIR}
+            CMAKE_CACHE_ARGS
+                -DVALI_BUILD_UNIT_TESTS:BOOL=ON
+                -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/testing
+    )
+endif ()
 
 # Installation and utility targets
 add_custom_target (install_prepare

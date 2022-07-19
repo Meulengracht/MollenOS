@@ -40,7 +40,7 @@ static void __ExtractPathToken(
 
     // Step 1 is to extract the next token we searching for in this directory
     // we do also detect if that is the last token
-    strIndex  = MStringFind(path, '/', 0);
+    strIndex  = mstr_find_u8(path, "/", 0);
     strLength = mstr_len(path);
 
     // So, if StrIndex is -1 now, we
@@ -51,7 +51,7 @@ static void __ExtractPathToken(
             *token = mstr_substr(path, 0, strIndex);
         }
         else if (strIndex != 0) {
-            *token = mstr_new_u8((void*)MStringRaw(path));
+            *token = mstr_clone(path);
         }
         else {
             *token = NULL;
@@ -207,12 +207,12 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
             // Convert the filename into a mstring object
             // and try to match it with our token (ignore case)
             filename      = mstr_new_u8((const char*)&record->Name[0]);
-            compareResult = MStringCompare(entryName, filename, 1);
+            compareResult = mstr_icmp(entryName, filename);
             //TRACE("__FindEntryOrFreeInDirectoryBucket matching token %s == %s: %i",
             //      MStringRaw(entryName), MStringRaw(filename), compareResult);
             mstr_delete(filename);
 
-            if (compareResult == MSTRING_FULL_MATCH) {
+            if (!compareResult) {
                 // it was end of path, and the entry exists
                 __StoreRecord(vfsCommonData, record, currentBucket, link.Length, i, resultEntry);
                 osStatus = OsExists;

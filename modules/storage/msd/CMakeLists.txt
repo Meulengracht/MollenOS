@@ -1,23 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../../../cmake/SetupEnvironment.cmake)
-    project(ValiModule_MSD)
-endif ()
-
-enable_language(C)
-
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../../librt/libgracht/include
-    ../../../librt/libusb/include
-    ../../../librt/libddk/include
-    ../../../librt/libds/include
-    ../../../librt/libc/include
-    ../sata
-)
-
 set (ADDITONAL_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/ctt_driver_service_server.c
     ${CMAKE_BINARY_DIR}/protocols/ctt_storage_service_server.c
@@ -34,5 +14,8 @@ add_module_target(msd ""
     msd.c
 )
 add_dependencies(msd contract_servers)
-target_link_libraries(msd libusb)
+target_include_directories(msd PRIVATE
+        ../sata
+)
+target_link_libraries(msd PRIVATE libusb)
 deploy_file_to_initrd(msd "modules" msd.yaml)

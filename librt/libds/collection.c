@@ -22,7 +22,6 @@
  */
 
 #include <ds/collection.h>
-#include <ddk/io.h>
 #include <stddef.h>
 #include <string.h>
 #include <assert.h>
@@ -44,45 +43,31 @@ CollectionCreate(
     if (!Collection) {
         return NULL;
     }
-    
     CollectionConstruct(Collection, KeyType);
     return Collection;
 }
 
-oserr_t
-CollectionClear(
-    _In_ Collection_t* Collection)
-{
-    CollectionItem_t *Node = NULL;
-    assert(Collection != NULL);
-
-    // Get initial node and then
-    // just iterate while destroying nodes
-    Node = CollectionPopFront(Collection);
-    while (Node != NULL) {
-        CollectionDestroyNode(Collection, Node);
-        Node = CollectionPopFront(Collection);
-    }
-    return OsOK;
-}
-
-oserr_t
-CollectionDestroy(
-    _In_ Collection_t* Collection)
-{
-    oserr_t Status = CollectionClear(Collection);
-    if (Status != OsInvalidParameters) {
-        dsfree(Collection);
-    }
-    return Status;
-}
-
-size_t
-CollectionLength(
-    _In_ Collection_t* Collection)
+void
+__DestroyNode(
+        _In_ Collection_t*          Collection,
+        _In_ CollectionItem_t*      Node)
 {
     assert(Collection != NULL);
-    return atomic_load(&Collection->Length);
+    assert(Node != NULL);
+    if (Node->Dynamic == false) {
+        return;
+    }
+
+    // Behave different based on the type of key
+    switch (Collection->KeyType) {
+        case KeyString:
+            dsfree((void*)Node->Key.Value.String.Pointer);
+            break;
+
+        default:
+            break;
+    }
+    dsfree(Node);
 }
 
 CollectionIterator_t*
@@ -117,62 +102,7 @@ CollectionCreateNode(
     return Node;
 }
 
-/* CollectionDestroyNode
- * Cleans up a Collection node and frees all resources it had */
-oserr_t
-CollectionDestroyNode(
-    _In_ Collection_t*          Collection,
-    _In_ CollectionItem_t*      Node)
-{
-    assert(Collection != NULL);
-    assert(Node != NULL);
-    if (Node->Dynamic == false) {
-        return OsOK;
-    }
-
-    // Behave different based on the type of key
-    switch (Collection->KeyType) {
-        case KeyString:
-            dsfree((void*)Node->Key.Value.String.Pointer);
-            break;
-
-        default:
-            break;
-    }
-
-    // Cleanup node and return
-    dsfree(Node);
-    return OsOK;
-}
-
-oserr_t
-CollectionInsert(
-    _In_ Collection_t*     Collection, 
-    _In_ CollectionItem_t* Node)
-{
-    assert(Collection != NULL);
-    assert(Node != NULL);
-
-    Node->Prev = NULL;
-
-    // In case the Collection is empty - no processing needed
-    dslock(&Collection->SyncObject);
-    if (!Collection->Head) {
-        Node->Link       = NULL;
-        Collection->Tail = Node;
-        Collection->Head = Node;
-    }
-    else {
-        Node->Link              = Collection->Head;
-        Collection->Head->Prev  = Node;
-        Collection->Head        = Node;
-    }
-    atomic_fetch_add(&Collection->Length, 1);
-    dsunlock(&Collection->SyncObject);
-    return OsOK;
-}
-
-oserr_t
+void
 CollectionAppend(
     _In_ Collection_t*     Collection,
     _In_ CollectionItem_t* Node)
@@ -184,7 +114,6 @@ CollectionAppend(
 
     // In case of empty Collection just update head/tail
     dslock(&Collection->SyncObject);
-    smp_rmb();
     if (Collection->Head == NULL) {
         Node->Prev       = NULL;
         Collection->Tail = Node;
@@ -197,48 +126,7 @@ CollectionAppend(
         Collection->Tail        = Node;
     }
     atomic_fetch_add(&Collection->Length, 1);
-    smp_wmb();
     dsunlock(&Collection->SyncObject);
-    return OsOK;
-}
-
-CollectionItem_t*
-CollectionPopFront(
-    _In_ Collection_t* Collection)
-{
-    CollectionItem_t *Current;
-    
-    assert(Collection != NULL);
-
-    // Manipulate the Collection to find the next pointer of the
-    // node that comes before the one to be removed.
-    dslock(&Collection->SyncObject);
-    smp_rmb();
-    if (!Collection->Head) {
-        dsunlock(&Collection->SyncObject);
-        return NULL;
-    }
-    
-    Current          = Collection->Head;
-    Collection->Head = Current->Link;
-
-    // Set previous to null
-    if (Collection->Head != NULL) {
-        Collection->Head->Prev = NULL;
-    }
-
-    // Update tail if necessary
-    if (Collection->Tail == Current) {
-        Collection->Tail = NULL;
-    }
-    atomic_fetch_sub(&Collection->Length, 1);
-    smp_wmb();
-    dsunlock(&Collection->SyncObject);
-
-    // Reset its link (remove any Collection traces!)
-    Current->Link = NULL;
-    Current->Prev = NULL;
-    return Current;
 }
 
 CollectionItem_t*
@@ -297,49 +185,6 @@ CollectionExecuteOnKey(
         }
     }
     dsunlock(&Collection->SyncObject);
-}
-
-void
-CollectionExecuteAll(
-    _In_ Collection_t* Collection, 
-    _In_ void          (*Function)(void*, int, void*), 
-    _In_ void*         Context)
-{
-    int               i = 0;
-    CollectionItem_t* Node;
-    assert(Collection != NULL);
-
-    dslock(&Collection->SyncObject);
-    _foreach(Node, Collection) {
-        Function(Node->Data, i++, Context);
-    }
-    dsunlock(&Collection->SyncObject);
-}
-
-CollectionItem_t*
-CollectionSplice(
-    _In_ Collection_t* Collection,
-    _In_ int           Count)
-{
-    CollectionItem_t* InitialNode;
-    int               NumberOfNodes;
-    
-    assert(Collection != NULL);
-    
-    dslock(&Collection->SyncObject);
-    InitialNode   = Collection->Head;
-    NumberOfNodes = MIN(atomic_load(&Collection->Length), Count);
-    
-    atomic_fetch_sub(&Collection->Length, NumberOfNodes);
-    while (NumberOfNodes--) {
-        Collection->Head = Collection->Head->Link;
-    }
-    
-    if (Collection->Head == NULL) {
-        Collection->Tail = NULL;
-    }
-    dsunlock(&Collection->SyncObject);
-    return InitialNode;
 }
 
 static void
@@ -408,12 +253,12 @@ CollectionUnlinkNode(
     return Item;
 }
 
-oserr_t
+int
 CollectionRemoveByNode(
     _In_ Collection_t*     Collection,
     _In_ CollectionItem_t* Node)
 {
-    oserr_t Status = OsOK;
+    int Status = 0;
     
     assert(Collection != NULL);
     assert(Node != NULL);
@@ -423,17 +268,16 @@ CollectionRemoveByNode(
     if (Node->Link == NULL) {
         // Then the node should be the end of the list
         if (Collection->Tail != Node) {
-            Status = OsNotExists;
+            Status = -1;
         }
-    }
-    else if (Node->Prev == NULL) {
+    } else if (Node->Prev == NULL) {
         // Then the node should be the initial
         if (Collection->Head != Node) {
-            Status = OsNotExists;
+            Status = -1;
         }
     }
     
-    if (Status != OsNotExists) {
+    if (Status != -1) {
         __collection_remove_node(Collection, Node);
         Node->Link = NULL;
         Node->Prev = NULL;
@@ -442,23 +286,24 @@ CollectionRemoveByNode(
     return Status;
 }
 
-oserr_t
+int
 CollectionRemoveByKey(
     _In_ Collection_t* Collection, 
     _In_ DataKey_t     Key)
 {
     CollectionItem_t* Node;
-    oserr_t        Status;
+    int               Status;
     
     assert(Collection != NULL);
 
     Node = CollectionGetNodeByKey(Collection, Key, 0);
     if (Node != NULL) {
         Status = CollectionRemoveByNode(Collection, Node);
-        if (Status != OsOK) {
+        if (Status) {
             return Status;
         }
-        return CollectionDestroyNode(Collection, Node);
+        __DestroyNode(Collection, Node);
+        return 0;
     }
-    return OsNotExists;
+    return -1;
 }

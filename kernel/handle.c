@@ -328,16 +328,14 @@ HandleJanitorThread(
 static uint64_t mapping_hash(const void* element)
 {
     const struct handle_mapping* entry = element;
-    return MStringHash(entry->path); // already unique identifier
+    return mstr_hash(entry->path); // already unique identifier
 }
 
 static int mapping_cmp(const void* element1, const void* element2)
 {
     const struct handle_mapping* lh = element1;
     const struct handle_mapping* rh = element2;
-
-    // return 0 on true, 1 on false
-    return MStringCompare(lh->path, rh->path, 0) == MSTRING_FULL_MATCH ? 0 : 1;
+    return mstr_cmp(lh->path, rh->path);
 }
 
 static uint64_t handle_hash(const void* element)
