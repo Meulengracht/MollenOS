@@ -1,19 +1,28 @@
 
 set(MSTRING_SRCS
-        mstr_at.c
-        mstr_builder.c
-        mstr_case.c
-        mstr_clone.c
-        mstr_cmp.c
-        mstr_conv.c
-        mstr_delete.c
-        mstr_find.c
-        mstr_fmt.c
-        mstr_hash.c
-        mstr_new.c
-        mstr_replace.c
-        mstr_substr.c
-        mstr_unicode.c
+        common/mstr_builder.c
+
+        core/mstr_at.c
+        core/mstr_case.c
+        core/mstr_clone.c
+        core/mstr_cmp.c
+        core/mstr_conv.c
+        core/mstr_delete.c
+        core/mstr_find.c
+        core/mstr_fmt.c
+        core/mstr_hash.c
+        core/mstr_join.c
+        core/mstr_new.c
+        core/mstr_replace.c
+        core/mstr_split.c
+        core/mstr_substr.c
+        core/mstr_unicode.c
+
+        path/mstr_path_basename.c
+        path/mstr_path_dirname.c
+        path/mstr_path_join.c
+        path/mstr_path_new_u8.c
+        path/mstr_path_tokens.c
 )
 
 # Build the host library if we are unit testing

@@ -1,4 +1,4 @@
-/**
+/**_tokens
  * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -17,29 +17,20 @@
  */
 
 #include <ds/mstring.h>
-#include "private.h"
-#include <string.h>
 
-mstring_t* mstr_clone(mstring_t* source)
+uint32_t mstr_hash(mstring_t* string)
 {
-    mstring_t* string;
+    uint32_t hash = 5381;
+    size_t   i    = 0;
+    mchar_t  val;
 
-    string = stralloc(sizeof(mstring_t));
-    if (string == NULL) {
-        return NULL;
+    if (string == NULL || string->__length == 0) {
+        return 0;
     }
 
-    string->__flags = 0;
-    string->__length = source->__length;
-    if (string->__length != 0) {
-        string->__data = stralloc(string->__length * sizeof(mchar_t));
-        if (string->__data == NULL) {
-            strfree(string);
-            return NULL;
-        }
-        memcpy(string->__data, source->__data, string->__length * sizeof(mchar_t));
-    } else {
-        string->__data = NULL;
+    while (i < string->__length) {
+        val  = string->__data[i];
+        hash = ((hash << 5) + hash) + val; /* hash * 33 + c */
     }
-    return string;
+    return hash;
 }

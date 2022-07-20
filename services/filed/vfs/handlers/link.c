@@ -32,7 +32,7 @@ static bool __NodeIsDirectory(struct VFSNode* node)
 oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* node;
-    mstring_t*      path   = VFSMakePath(request->parameters.link.from);
+    mstring_t*      path   = mstr_path_new_u8(request->parameters.link.from);
     mstring_t*      target = mstr_new_u8(request->parameters.link.to);
     oserr_t      osStatus;
     size_t          pathLength;

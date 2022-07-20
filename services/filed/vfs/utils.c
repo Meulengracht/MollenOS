@@ -21,10 +21,8 @@
 #include <vfs/vfs.h>
 #include "private.h"
 
-mstring_t* VFSMakePath(const char* path)
-{
-
-}
+static mstring_t g_dotToken = mstr_const(U".");
+static mstring_t g_dotdotToken = mstr_const(U"..");
 
 mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
 {
@@ -373,17 +371,134 @@ cleanup:
     return osStatus;
 }
 
-oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, struct VFSNode** nodeOut)
+oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, uint32_t permissions, struct VFSNode** nodeOut)
 {
+    struct VFSNode* baseDirectoryNode;
+    mstring_t*      directoryPath;
+    mstring_t*      directoryName;
+    oserr_t         osStatus;
 
+    directoryPath = mstr_path_dirname(path);
+    if (directoryPath == NULL) {
+        return OsOutOfMemory;
+    }
+
+    directoryName = mstr_path_basename(path);
+    if (directoryName == NULL) {
+        mstr_delete(directoryPath);
+        return OsOutOfMemory;
+    }
+
+    osStatus = VFSNodeGet(vfs, directoryPath, 1, &baseDirectoryNode);
+    if (osStatus != OsOK) {
+        mstr_delete(directoryPath);
+        mstr_delete(directoryName);
+        return osStatus;
+    }
+
+    osStatus = VFSNodeCreateChild(
+            baseDirectoryNode,
+            directoryName,
+            FILE_FLAG_DIRECTORY,
+            permissions,
+            nodeOut
+    );
+
+    VFSNodePut(baseDirectoryNode);
+    mstr_delete(directoryPath);
+    mstr_delete(directoryName);
+    return osStatus;
+}
+
+oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, struct VFSNode** nodeOut)
+{
+    oserr_t     osStatus = OsOK;
+    mstring_t** tokens;
+    int         tokenCount;
+
+    tokenCount = mstr_path_tokens(path, &tokens);
+    if (tokenCount < 0) {
+        return OsOutOfMemory;
+    }
+
+    struct VFSNode* node = from;
+    struct VFSNode* next;
+    usched_rwlock_r_lock(&node->Lock);
+    for (int i = 0; i < tokenCount - 1; i++) {
+        // Assumptions on entry of this loop.
+        // node => current node, we have a reader lock on this
+        // next => not used on entry
+
+        // Handle '.' and '..'
+        if (!mstr_cmp(tokens[i], &g_dotToken)) {
+            continue;
+        } else if (!mstr_cmp(tokens[i], &g_dotdotToken)) {
+            if (node->Parent) {
+                // Move one level up the tree
+                next = node->Parent;
+                usched_rwlock_r_lock(&next->Lock);
+                usched_rwlock_r_unlock(&node->Lock);
+                node = next;
+            }
+            continue;
+        }
+
+        // Find the next entry in the folder. This will automatically handle
+        // folder loading and whatnot if the folder is not currently loaded.
+        osStatus = VFSNodeFind(node, tokens[i], &next);
+        if (osStatus != OsOK) {
+            break;
+        }
+
+        usched_rwlock_r_lock(&next->Lock);
+
+        // If a node is a symlink, we must resolve that instead if we were charged
+        // to follow symlinks
+        if (__NodeIsSymlink(next)) {
+            struct VFSNode* real;
+
+            // If we are at last node, then we switch node based on sym or not
+            if (i == (tokenCount - 1) && !followLinks) {
+                usched_rwlock_r_unlock(&node->Lock);
+                node = next;
+                break;
+            }
+
+            // OK in all other cases we *must* follow the symlink
+            osStatus = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
+            usched_rwlock_r_unlock(&next->Lock);
+            if (osStatus != OsOK) {
+                break;
+            }
+            next = real;
+        }
+
+        // Move one level down the tree
+        usched_rwlock_r_lock(&next->Lock);
+        usched_rwlock_r_unlock(&node->Lock);
+        node = next;
+    }
+
+    // When exiting the loop, we must hold a reader lock still on
+    // node that needs to be unlocked.
+    mstr_delete_array(tokens, tokenCount);
+    if (osStatus == OsOK) {
+        *nodeOut = node;
+    } else {
+        usched_rwlock_r_unlock(&node->Lock);
+    }
+    return osStatus;
 }
 
 oserr_t VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut)
 {
-
+    return __GetRelative(vfs->Root, path, followLinks, nodeOut);
 }
 
-oserr_t VFSNodePut(struct VFSNode* node)
+void VFSNodePut(struct VFSNode* node)
 {
-
+    if (node == NULL) {
+        return;
+    }
+    usched_rwlock_r_unlock(&node->Lock);
 }

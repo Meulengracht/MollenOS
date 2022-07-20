@@ -16,9 +16,8 @@
  *
  */
 
-#include <ds/mstring.h>
+#include "../common/private.h"
 #include <string.h>
-#include "private.h"
 
 #define IS_UTF8(c) (((c) & 0xC0) == 0x80)
 

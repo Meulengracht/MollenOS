@@ -16,7 +16,6 @@
  *
  */
 
-#include <ddk/utils.h>
 #include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
@@ -24,8 +23,8 @@
 oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t** pathOut)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oserr_t      osStatus;
+    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
+    oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -39,11 +38,7 @@ oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t*
     // Now get the true path of the node by not asking for the local path
     // because we want the full (global) path to the node
     *pathOut = VFSNodeMakePath(node, 0);
-
-    osStatus = VFSNodePut(node);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
-    }
+    VFSNodePut(node);
     mstr_delete(nodePath);
     return OsOK;
 }

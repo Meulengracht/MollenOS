@@ -16,8 +16,7 @@
  *
  */
 
-#include <ds/mstring.h>
-#include "private.h"
+#include "../common/private.h"
 
 int mstr_cmp(mstring_t* lh, mstring_t* rh)
 {

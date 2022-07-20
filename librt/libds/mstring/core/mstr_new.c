@@ -16,19 +16,28 @@
  *
  */
 
-#include <ds/mstring.h>
-#include "private.h"
+#include "../common/private.h"
 
-void mstr_delete(mstring_t* string)
+mstring_t* mstr_new_u8(const char* str)
 {
+    mstring_t* string;
+
+    string = stralloc(sizeof(mstring_t));
     if (string == NULL) {
-        return;
+        return NULL;
     }
 
-    // consts have no actual memory allocated on heap
-    if (string->__flags & __MSTRING_FLAG_CONST) {
-        return;
+    string->__flags = 0;
+    string->__length = mstr_len_u8(str);
+    if (string->__length != 0) {
+        string->__data = stralloc(string->__length * sizeof(mchar_t));
+        if (string->__data == NULL) {
+            strfree(string);
+            return NULL;
+        }
+    } else {
+        string->__data = NULL;
     }
-    strfree(string->__data);
-    strfree(string);
+    mstr_to_internal(str, string->__data);
+    return string;
 }

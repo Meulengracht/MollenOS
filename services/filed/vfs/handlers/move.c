@@ -239,9 +239,9 @@ cleanup:
 oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
 {
     struct VFSNode* from;
-    mstring_t*      fromPath = VFSMakePath(request->parameters.move.from);
+    mstring_t*      fromPath = mstr_path_new_u8(request->parameters.move.from);
     struct VFSNode* to;
-    mstring_t*      toPath = VFSMakePath(request->parameters.move.to);
+    mstring_t*      toPath = mstr_path_new_u8(request->parameters.move.to);
     mstring_t*      path;
     mstring_t*      targetName;
     oserr_t      osStatus;

@@ -16,22 +16,30 @@
  *
  */
 
-#include <ds/mstring.h>
-#include "private.h"
+#include "../common/private.h"
 
-uint32_t mstr_hash(mstring_t* string)
+void mstr_delete(mstring_t* string)
 {
-    uint32_t hash = 5381;
-    size_t   i    = 0;
-    mchar_t  val;
-
-    if (string == NULL || string->__length == 0) {
-        return 0;
+    if (string == NULL) {
+        return;
     }
 
-    while (i < string->__length) {
-        val  = string->__data[i];
-        hash = ((hash << 5) + hash) + val; /* hash * 33 + c */
+    // consts have no actual memory allocated on heap
+    if (string->__flags & __MSTRING_FLAG_CONST) {
+        return;
     }
-    return hash;
+    strfree(string->__data);
+    strfree(string);
+}
+
+void mstr_delete_array(mstring_t** strings, int count)
+{
+    if (strings == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        mstr_delete(strings[i]);
+    }
+    strfree(strings);
 }

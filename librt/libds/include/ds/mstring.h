@@ -44,6 +44,7 @@ _CODE_BEGIN
 DSDECL(mstring_t*,  mstr_new_u8(const char* str));
 DSDECL(mstring_t*,  mstr_clone(mstring_t*));
 DSDECL(void,        mstr_delete(mstring_t*));
+DSDECL(void,        mstr_delete_array(mstring_t**, int));
 DSDECL(uint32_t,    mstr_hash(mstring_t*));
 
 /**
@@ -95,7 +96,67 @@ DSDECL(mstring_t*, mstr_substr(mstring_t*, int start, int length));
 DSDECL(int,        mstr_find_u8(mstring_t*, const char*, int startIndex));
 DSDECL(int,        mstr_rfind_u8(mstring_t*, const char*, int startIndex));
 DSDECL(mstring_t*, mstr_replace_u8(mstring_t*, const char* find, const char* with));
+DSDECL(int,        mstr_split(mstring_t*, mchar_t, mstring_t***));
+DSDECL(mstring_t*, mstr_join(mstring_t**, int, const char* sep));
 DSDECL(mchar_t,    mstr_at(mstring_t*, int));
+
+DSDECL(mstring_t*, mstr_path_new_u8(const char*));
+DSDECL(int,        mstr_path_tokens(mstring_t*, mstring_t***));
+DSDECL(mstring_t*, mstr_path_token_at(mstring_t*, int));
+
+/**
+ * @brief Acts like the traditional join, it will build a path from the elements
+ * provided, and automatically insert seperators between the elements. The list of
+ * elements *MUST* be NULL-terimanted, otherwise this will run in a loop untill it
+ * crashes.
+ *
+ * @param[In] base The base path that following elements should be joined with
+ * @param[In] ...  Further join arguments *MUST* be of the type 'mstring_t*'
+ * @return
+ */
+DSDECL(mstring_t*, mstr_path_join(mstring_t* base, ...));
+
+/**
+ * @brief Acts like the traditional join, it will build a path from the elements
+ * provided, and automatically insert seperators between the elements. The list of
+ * elements *MUST* be NULL-terimanted, otherwise this will run in a loop untill it
+ * crashes.
+ *
+ * @param[In] base The base path that following elements should be joined with
+ * @param[In] ...  Further join arguments *MUST* be of the type 'char*'
+ * @return
+ */
+DSDECL(mstring_t*, mstr_path_join_u8(mstring_t* base, ...));
+
+/**
+ * @brief Returns all the components of a path up to and not including
+ * the final '/'. Trailing '/' are ignored.
+ * path       dirname
+ * /usr/lib   /usr
+ * /usr/      /
+ * usr        .
+ * /          /
+ * .          .
+ * ..         .
+ *
+ * @returnThe new string containing the dirname of the path
+ */
+DSDECL(mstring_t*, mstr_path_dirname(mstring_t*));
+
+/**
+ * @brief Returns the filename componenet of a path. In real terms
+ * this means that it returns the component after the final '/' which
+ * is non-zero in length. All trailing '/' will be ignored.
+ * path       basename
+ * /usr/lib   lib
+ * /usr/      usr
+ * usr        usr
+ * /          /
+ * .          .
+ * ..         ..
+ * @return The new string containing the basename of the path
+ */
+DSDECL(mstring_t*, mstr_path_basename(mstring_t*));
 
 _CODE_END
 

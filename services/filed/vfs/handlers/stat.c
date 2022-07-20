@@ -25,7 +25,7 @@
 oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat* stat)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
+    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
@@ -38,10 +38,7 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
     }
 
     memcpy(stat, &node->Stats, sizeof(struct VFSStat));
-    osStatus = VFSNodePut(node);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
-    }
+    VFSNodePut(node);
 
     mstr_delete(nodePath);
     return OsOK;
@@ -50,8 +47,8 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
 oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSStatFS* stat)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
-    oserr_t         osStatus, osStatus2;
+    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
+    oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -65,12 +62,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
     // store the return value, so we can return the result of that instead of
     // returning the result of cleanup
     osStatus = node->FileSystem->Module->Operations.Stat(node->FileSystem->CommonData, stat);
-
-    osStatus2 = VFSNodePut(node);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
-    }
-
+    VFSNodePut(node);
     mstr_delete(nodePath);
     return osStatus;
 }
@@ -78,7 +70,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
 oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageDescriptor_t* stat)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = VFSMakePath(request->parameters.stat_path.path);
+    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
@@ -91,11 +83,7 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageD
     }
 
     memcpy(stat, &node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
-    osStatus = VFSNodePut(node);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeStat failed to put node back (path=%ms)", nodePath);
-    }
-
+    VFSNodePut(node);
     mstr_delete(nodePath);
     return OsOK;
 }

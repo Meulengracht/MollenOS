@@ -16,7 +16,6 @@
  *
  */
 
-#include <ds/mstring.h>
 #include "private.h"
 #include <string.h>
 
@@ -51,6 +50,16 @@ int mstring_builder_append(struct mstring_builder* builder, mchar_t val) {
     }
 
     builder->storage[builder->size++] = val;
+    return 0;
+}
+
+int mstring_builder_append_mstring(struct mstring_builder* builder, mstring_t* string)
+{
+    for (size_t i = 0; i < string->__length; i++) {
+        if (mstring_builder_append(builder, string->__data[i])) {
+            return -1;
+        }
+    }
     return 0;
 }
 

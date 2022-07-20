@@ -120,13 +120,13 @@ static oserr_t __UnlinkDirectory(struct VFS* vfs, struct VFSRequest* request)
     size_t          pathLength = 0;
     int             startIndex;
 
-    path = VFSMakePath(request->parameters.open.path);
+    path = mstr_path_new_u8(request->parameters.open.path);
     if (path == NULL) {
         return OsOutOfMemory;
     }
 
     // We do never allow deletion of the root path
-    if (__IsPathRoot(path)) {
+    if (__PathIsRoot(path)) {
         mstr_delete(path);
         return OsInvalidParameters;
     }
@@ -199,7 +199,7 @@ static oserr_t __UnlinkFile(struct VFS* vfs, struct VFSRequest* request)
     size_t          pathLength;
     int             startIndex;
 
-    path = VFSMakePath(request->parameters.open.path);
+    path = mstr_path_new_u8(request->parameters.open.path);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -207,7 +207,7 @@ static oserr_t __UnlinkFile(struct VFS* vfs, struct VFSRequest* request)
 
     // Catch the case where we are trying to delete the root, which we do never
     // allow, but we atleast ask for the correct options, thank you very much
-    if (__IsPathRoot(path)) {
+    if (__PathIsRoot(path)) {
         return OsPathIsDirectory;
     }
 

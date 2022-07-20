@@ -21,22 +21,6 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static bool __IsPathRoot(mstring_t* path)
-{
-    if (mstr_at(path, 0) == '/' && mstr_len(path) == 1) {
-        return true;
-    }
-    return false;
-}
-
-static bool __NodeIsDirectory(struct VFSNode* node)
-{
-    if (node->Stats.Flags & FILE_FLAG_DIRECTORY) {
-        return true;
-    }
-    return false;
-}
-
 static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNode* node;
@@ -45,12 +29,12 @@ static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid
     size_t          pathLength = 0;
     int             startIndex;
 
-    path = VFSMakePath(request->parameters.open.path);
+    path = mstr_path_new_u8(request->parameters.open.path);
     if (path == NULL) {
         return OsOutOfMemory;
     }
 
-    if (__IsPathRoot(path)) {
+    if (__PathIsRoot(path)) {
         mstr_delete(path);
         return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
     }
@@ -143,7 +127,7 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
     size_t          pathLength;
     int             startIndex;
 
-    path = VFSMakePath(request->parameters.open.path);
+    path = mstr_path_new_u8(request->parameters.open.path);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -151,7 +135,7 @@ static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* h
 
     // Catch the case where we are opening the root, but have not specified
     // the __FILE_DIRECTORY flag.
-    if (__IsPathRoot(path)) {
+    if (__PathIsRoot(path)) {
         return OsPathIsDirectory;
     }
 

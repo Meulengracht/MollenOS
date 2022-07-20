@@ -173,6 +173,27 @@ struct VFSNodeHandle {
     void*            Data;
 };
 
+static inline bool __NodeIsSymlink(struct VFSNode* node) {
+    if (node->Stats.Flags & FILE_FLAG_LINK) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool __NodeIsDirectory(struct VFSNode* node) {
+    if (node->Stats.Flags & FILE_FLAG_DIRECTORY) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool __PathIsRoot(mstring_t* path) {
+    if (mstr_at(path, 0) == '/' && mstr_len(path) == 1) {
+        return true;
+    }
+    return false;
+}
+
 /**
  * @brief Adds a new node handle to the register.
  * @param handleId
@@ -221,9 +242,8 @@ extern oserr_t
 VFSNodeHandleRemove(
         _In_ uuid_t handleId);
 
-extern mstring_t* VFSMakePath(const char* path);
-extern oserr_t   VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut);
-extern oserr_t   VFSNodePut(struct VFSNode* node);
+extern oserr_t VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut);
+extern void    VFSNodePut(struct VFSNode* node);
 
 /**
  * @brief Ensures a node is loaded if the node is a directory node. A reader lock

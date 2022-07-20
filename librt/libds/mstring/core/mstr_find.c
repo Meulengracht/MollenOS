@@ -16,8 +16,7 @@
  *
  */
 
-#include <ds/mstring.h>
-#include "private.h"
+#include "../common/private.h"
 
 int mstr_find_u8(mstring_t* string, const char* u8, int startIndex)
 {

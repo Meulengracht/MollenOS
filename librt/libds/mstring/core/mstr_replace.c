@@ -16,8 +16,7 @@
  *
  */
 
-#include <ds/mstring.h>
-#include "private.h"
+#include "../common/private.h"
 
 mstring_t* mstr_replace_u8(mstring_t* string, const char* find, const char* with)
 {

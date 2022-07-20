@@ -19,6 +19,9 @@
 #ifndef __MSTRING_PRIVATE_H__
 #define __MSTRING_PRIVATE_H__
 
+#include <ds/mstring.h>
+#include <stddef.h>
+
 #if defined(MSTRING_KERNEL)
 #include <heap.h>
 static inline void* stralloc(size_t size) { return kmalloc(size); }
@@ -46,6 +49,7 @@ extern mstring_t* mstring_builder_finish(struct mstring_builder* builder);
 
 extern int mstring_builder_append(struct mstring_builder* builder, mchar_t val);
 extern int mstring_builder_append_u8(struct mstring_builder* builder, const char* u8, size_t count);
+extern int mstring_builder_append_mstring(struct mstring_builder* builder, mstring_t* string);
 
 
 #endif //!__MSTRING_PRIVATE_H__

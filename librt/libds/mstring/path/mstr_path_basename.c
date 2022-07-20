@@ -16,29 +16,34 @@
  *
  */
 
-#include <ds/mstring.h>
-#include "private.h"
+#include "../common/private.h"
 
-mstring_t* mstr_new_u8(const char* str)
+mstring_t* mstr_path_basename(mstring_t* path)
 {
-    mstring_t* string;
+    mstring_t*  basename;
+    mstring_t** tokens;
+    int         tokenCount;
 
-    string = stralloc(sizeof(mstring_t));
-    if (string == NULL) {
+    tokenCount = mstr_path_tokens(path, &tokens);
+    if (tokenCount < 0) {
         return NULL;
     }
 
-    string->__flags = 0;
-    string->__length = mstr_len_u8(str);
-    if (string->__length != 0) {
-        string->__data = stralloc(string->__length * sizeof(mchar_t));
-        if (string->__data == NULL) {
-            strfree(string);
-            return NULL;
+    // If no tokens are present, we return an empty string unless
+    // the path equals '/'
+    if (tokenCount == 0) {
+        mstr_delete_array(tokens, tokenCount);
+
+        if (path->__data[0] == '/') {
+            return mstr_new_u8("/");
         }
-    } else {
-        string->__data = NULL;
+
+        // otherwise we return an empty string
+        return mstr_new_u8("");
     }
-    mstr_to_internal(str, string->__data);
-    return string;
+
+    // Otherwise we simply return the last token
+    basename = mstr_clone(tokens[tokenCount - 1]);
+    mstr_delete_array(tokens, tokenCount);
+    return basename;
 }

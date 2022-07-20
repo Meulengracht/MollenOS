@@ -63,24 +63,24 @@ static struct VFS* __MockVirtualFileSystem(void)
     assert_non_null(vfs);
 
     struct VFSNode* bootDirectory = NULL;
-    err = VFSNodeNewDirectory(vfs, &g_boot_root, &bootDirectory);
+    err = VFSNodeNewDirectory(vfs, &g_boot_root, 0, &bootDirectory);
     assert_int_equal(err, OsOK);
     assert_non_null(bootDirectory);
 }
 
-void TestVFSMakePath(void** state)
+void Testmstr_path_new_u8(void** state)
 {
     (void)state;
 
-    mstring_t* path = VFSMakePath("///");
+    mstring_t* path = mstr_path_new_u8("///");
     assert_string_equal(mstr_u8(path), "/");
     mstr_delete(path);
 
-    path = VFSMakePath("\\path/\\/path/what/the/test");
+    path = mstr_path_new_u8("\\path/\\/path/what/the/test");
     assert_string_equal(mstr_u8(path), "/path/path/what/the/test");
     mstr_delete(path);
 
-    path = VFSMakePath("");
+    path = mstr_path_new_u8("");
     assert_string_equal(mstr_u8(path), "");
     mstr_delete(path);
 }
@@ -94,7 +94,7 @@ void TestVFSNodeEnsureLoaded(void** state)
 int main(void)
 {
     const struct CMUnitTest tests [] = {
-        cmocka_unit_test(TestVFSMakePath),
+        cmocka_unit_test(Testmstr_path_new_u8),
     };
     return cmocka_run_group_tests(tests, TestSetup, TestTeardown);
 }

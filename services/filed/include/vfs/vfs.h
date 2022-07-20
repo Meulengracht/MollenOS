@@ -43,7 +43,7 @@ extern oserr_t VFSNodeUnmount(struct VFS*, mstring_t* path);
 extern oserr_t VFSNodeBind(struct VFS*, struct VFSNode* from, struct VFSNode* to);
 extern oserr_t VFSNodeUnbind(struct VFS*, struct VFSNode*);
 
-extern oserr_t    VFSNodeNewDirectory(struct VFS*, mstring_t* path, struct VFSNode**);
+extern oserr_t    VFSNodeNewDirectory(struct VFS*, mstring_t* path, uint32_t permissions, struct VFSNode**);
 extern oserr_t    VFSNodeChildNew(struct VFS*, struct VFSNode*, struct VFSStat*, struct VFSNode**);
 extern void       VFSNodeDestroy(struct VFSNode*);
 extern mstring_t* VFSNodeMakePath(struct VFSNode* node, int local);

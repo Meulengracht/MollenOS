@@ -150,7 +150,7 @@ __MountFileSystemAtDefault(
         return OsOutOfMemory;
     }
 
-    osStatus = VFSNodeNewDirectory(fsScope, path, &partitionNode);
+    osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &partitionNode);
     if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAtDefault failed to create node %ms", path);
         mstr_delete(path);
@@ -178,7 +178,7 @@ __MountFileSystemAt(
     struct VFSNode* bindNode;
     oserr_t        osStatus;
 
-    osStatus = VFSNodeNewDirectory(fsScope, path, &bindNode);
+    osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAt failed to create node %ms", path);
         return osStatus;
