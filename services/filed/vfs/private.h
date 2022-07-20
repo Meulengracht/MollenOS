@@ -226,7 +226,7 @@ VFSNodeHandleGet(
  * @param handle
  * @return
  */
-extern oserr_t
+extern void
 VFSNodeHandlePut(
         _In_ struct VFSNodeHandle* handle);
 

@@ -90,8 +90,16 @@ VfsStorageRegisterFileSystem(
 
     // we must wait for an MFS to be registered before trying to load
     // additional drivers due to the fact that we only come bearing MFS driver in the initrd (for now)
-    if (fileSystem->Type == FileSystemType_MFS) {;
-        VfsFileSystemMount(fileSystem, NULL);
+    if (fileSystem->Type == FileSystemType_MFS) {
+        osStatus = VFSFileSystemEnable(fileSystem);
+        if (osStatus != OsOK) {
+            return osStatus;
+        }
+
+        osStatus = VFSFileSystemMount(fileSystem, NULL);
+        if (osStatus != OsOK) {
+            return osStatus;
+        }
     }
     return OsOK;
 }

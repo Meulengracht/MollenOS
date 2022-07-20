@@ -187,23 +187,22 @@ __MountFileSystemAt(
     return VFSNodeBind(fsScope, fileSystem->MountNode, bindNode);
 }
 
-void
-VfsFileSystemMount(
-        _In_ FileSystem_t* fileSystem,
-        _In_ mstring_t*    mountPoint)
+oserr_t
+VFSFileSystemEnable(
+        _In_ FileSystem_t* fileSystem)
 {
     oserr_t   osStatus;
     mstring_t* path;
 
     if (fileSystem == NULL || fileSystem->Module == NULL) {
-        return;
+        return OsInvalidParameters;
     }
 
     osStatus = fileSystem->Module->Operations.Initialize(&fileSystem->CommonData);
     if (osStatus != OsOK) {
         ERROR("VfsFileSystemMount failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
         fileSystem->State = FileSystemState_ERROR;
-        return;
+        return osStatus;
     }
 
     // Start out by mounting access to this partition under the device node
@@ -211,11 +210,29 @@ VfsFileSystemMount(
     if (osStatus != OsOK) {
         ERROR("VfsFileSystemMount failed to mount filesystem %ms", fileSystem->CommonData.Label);
         fileSystem->State = FileSystemState_ERROR;
-        return;
+        return osStatus;
     }
 
     // set state to loaded at this point, even if the bind mounts fail
     fileSystem->State = FileSystemState_MOUNTED;
+    return OsOK;
+}
+
+oserr_t
+VFSFileSystemMount(
+        _In_ FileSystem_t* fileSystem,
+        _In_ mstring_t*    mountPoint)
+{
+    oserr_t   osStatus;
+    mstring_t* path;
+
+    if (fileSystem == NULL) {
+        return OsInvalidParameters;
+    }
+
+    if (fileSystem->State != FileSystemState_MOUNTED) {
+        return OsError;
+    }
 
     // If a mount point was supplied then we try to mount the filesystem as well at that point,
     // but otherwise we will be checking the default list
@@ -246,9 +263,7 @@ VfsFileSystemMount(
 
     path = VFSNodeMakePath(fileSystem->MountNode, 0);
     if (path == NULL) {
-        // oh no
-
-        return;
+        return OsOutOfMemory;
     }
 
     TRACE("VfsFileSystemMount notifying session about %ms", path);

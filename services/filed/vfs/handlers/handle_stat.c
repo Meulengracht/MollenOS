@@ -25,7 +25,7 @@
 oserr_t VFSNodeGetPosition(struct VFSRequest* request, uint64_t* positionOut)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -34,17 +34,14 @@ oserr_t VFSNodeGetPosition(struct VFSRequest* request, uint64_t* positionOut)
 
     *positionOut = handle->Position;
 
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeGetPosition failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }
 
 oserr_t VFSNodeGetAccess(struct VFSRequest* request, uint32_t* accessKindOut)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -53,17 +50,14 @@ oserr_t VFSNodeGetAccess(struct VFSRequest* request, uint32_t* accessKindOut)
 
     *accessKindOut = handle->AccessKind;
 
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeGetAccess failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }
 
 oserr_t VFSNodeSetAccess(struct VFSRequest* request)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -75,17 +69,14 @@ oserr_t VFSNodeSetAccess(struct VFSRequest* request)
     // the current ones.
     // TODO: implement support for this
 
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeGetAccess failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }
 
 oserr_t VFSNodeGetSize(struct VFSRequest* request, uint64_t* sizeOut)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -96,18 +87,15 @@ oserr_t VFSNodeGetSize(struct VFSRequest* request, uint64_t* sizeOut)
     *sizeOut = handle->Node->Stats.Size;
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeGetSize failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }
 
 oserr_t VFSNodeSetSize(struct VFSRequest* request)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus, osStatus2;
-    UInteger64_t       size;
+    oserr_t               osStatus;
+    UInteger64_t          size;
 
     size.u.LowPart  = request->parameters.set_size.size_low;
     size.u.HighPart = request->parameters.set_size.size_high;
@@ -124,18 +112,14 @@ oserr_t VFSNodeSetSize(struct VFSRequest* request)
         handle->Node->Stats.Size = size.QuadPart;
     }
     usched_rwlock_w_unlock(&handle->Node->Lock);
-
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeSetSize failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }
 
 oserr_t VFSNodeStatHandle(struct VFSRequest* request, struct VFSStat* stat)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -146,17 +130,14 @@ oserr_t VFSNodeStatHandle(struct VFSRequest* request, struct VFSStat* stat)
     memcpy(stat, &handle->Node->Stats, sizeof(struct VFSStat));
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeStatHandle failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }
 
 oserr_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* stat)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus, osStatus2;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -168,17 +149,14 @@ oserr_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* stat)
             handle->Node->FileSystem->CommonData, stat);
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeStatFsHandle failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }
 
 oserr_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_t* stat)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -188,18 +166,14 @@ oserr_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_t
     usched_rwlock_r_unlock(&handle->Node->Lock);
     memcpy(stat, &handle->Node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
     usched_rwlock_r_unlock(&handle->Node->Lock);
-
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeStatStorageHandle failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }
 
 oserr_t VFSNodeGetPathHandle(struct VFSRequest* request, mstring_t** pathOut)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -209,10 +183,6 @@ oserr_t VFSNodeGetPathHandle(struct VFSRequest* request, mstring_t** pathOut)
     usched_rwlock_r_unlock(&handle->Node->Lock);
     *pathOut = VFSNodeMakePath(handle->Node, 0);
     usched_rwlock_r_unlock(&handle->Node->Lock);
-
-    osStatus = VFSNodeHandlePut(handle);
-    if (osStatus != OsOK) {
-        WARNING("VFSNodeGetPathHandle failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return OsOK;
 }

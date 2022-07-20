@@ -42,7 +42,7 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t            osStatus, osStatus2;
+    oserr_t               osStatus, osStatus2;
     struct dma_attachment attachment;
 
     osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
@@ -76,10 +76,7 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
     }
 
 cleanup:
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeWrite failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }
 
@@ -87,9 +84,9 @@ oserr_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t            osStatus, osStatus2;
+    oserr_t               osStatus, osStatus2;
     struct dma_attachment attachment;
-    UInteger64_t       position, result;
+    UInteger64_t          position, result;
 
     position.u.LowPart  = request->parameters.transfer_absolute.position_low;
     position.u.HighPart = request->parameters.transfer_absolute.position_high;
@@ -134,9 +131,6 @@ unmap:
     }
 
 cleanup:
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeWriteAt failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }

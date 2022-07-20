@@ -21,9 +21,20 @@
 #include <vfs/vfs.h>
 #include "private.h"
 
-static hashtable_t g_handles;
+static uint64_t __HandlesHash(const void* element);
+static int      __HandlesCmp(const void* lh, const void* rh);
 
+static hashtable_t          g_handles;
+static struct usched_rwlock g_handlesLock;
 
+void
+VFSNodeHandleInitialize(void)
+{
+    usched_rwlock_init(&g_handlesLock);
+    hashtable_construct(&g_handles, 0,
+                        sizeof(struct VFSNodeHandle),
+                        __HandlesHash, __HandlesCmp);
+}
 
 oserr_t
 VFSNodeHandleAdd(
@@ -32,7 +43,24 @@ VFSNodeHandleAdd(
         _In_ void*           data,
         _In_ uint32_t        accessKind)
 {
+    void* existing;
 
+    usched_rwlock_w_lock(&g_handlesLock);
+    existing = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
+    if (existing != NULL) {
+        usched_rwlock_w_unlock(&g_handlesLock);
+        return OsExists;
+    }
+
+    hashtable_set(&g_handles, &(struct VFSNodeHandle) {
+        .Id = handleId,
+        .Position = 0,
+        .Data = data,
+        .Node = node,
+        .AccessKind = accessKind,
+        .Mode = MODE_NONE
+    });
+    usched_rwlock_w_unlock(&g_handlesLock);
     return OsOK;
 }
 
@@ -40,12 +68,17 @@ oserr_t
 VFSNodeHandleRemove(
         _In_ uuid_t handleId)
 {
-    void* found;
+    struct VFSNodeHandle* handle;
 
-    found = hashtable_remove(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
-    if (found == NULL) {
+    usched_rwlock_w_lock(&g_handlesLock);
+    handle = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
+    if (handle == NULL) {
+        usched_rwlock_w_unlock(&g_handlesLock);
         return OsNotExists;
     }
+
+    hashtable_remove(&g_handles, handle);
+    usched_rwlock_w_unlock(&g_handlesLock);
     return OsOK;
 }
 
@@ -54,12 +87,37 @@ VFSNodeHandleGet(
         _In_  uuid_t                 handleId,
         _Out_ struct VFSNodeHandle** handleOut)
 {
+    struct VFSNodeHandle* handle;
 
+    usched_rwlock_r_lock(&g_handlesLock);
+    handle = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
+    if (handle == NULL) {
+        usched_rwlock_r_unlock(&g_handlesLock);
+        return OsNotExists;
+    }
+    *handleOut = handle;
+    return OsOK;
 }
 
-oserr_t
+void
 VFSNodeHandlePut(
         _In_ struct VFSNodeHandle* handle)
 {
+    if (handle == NULL) {
+        return;
+    }
+    usched_rwlock_r_unlock(&g_handlesLock);
+}
 
+static uint64_t __HandlesHash(const void* element)
+{
+    const struct VFSNodeHandle* handle = element;
+    return handle->Id;
+}
+
+static int __HandlesCmp(const void* lh, const void* rh)
+{
+    const struct VFSNodeHandle* handle1 = lh;
+    const struct VFSNodeHandle* handle2 = rh;
+    return handle1->Id == handle2->Id ? 0 : 1;
 }

@@ -16,7 +16,6 @@
  *
  */
 
-#include <ddk/utils.h>
 #include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
@@ -24,7 +23,7 @@
 oserr_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus, osStatus2;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -34,10 +33,6 @@ oserr_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
     usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = VFSNodeOpenHandle(handle->Node, handle->AccessKind, handleOut);
     usched_rwlock_r_unlock(&handle->Node->Lock);
-
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeDuplicate failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }

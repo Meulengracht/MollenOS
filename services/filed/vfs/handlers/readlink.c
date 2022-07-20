@@ -24,7 +24,7 @@
 oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, mstring_t** linkOut)
 {
     struct VFSNodeHandle* handle;
-    oserr_t            osStatus, osStatus2;
+    oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.stat_handle.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -39,10 +39,6 @@ oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, mstring_t**
         osStatus = OsLinkInvalid;
     }
     usched_rwlock_r_unlock(&handle->Node->Lock);
-
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeReadLink failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }

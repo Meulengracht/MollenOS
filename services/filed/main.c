@@ -45,6 +45,7 @@ void GetServiceAddress(struct ipmsg_addr* address)
 oserr_t OnLoad(void)
 {
     // Initialize subsystems
+    VFSNodeHandleInitialize();
     VFSScopeInitialize();
     VfsStorageInitialize();
     VfsFileSystemInitialize();

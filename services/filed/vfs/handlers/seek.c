@@ -31,8 +31,8 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t            osStatus, osStatus2;
-    UInteger64_t       position, result;
+    oserr_t               osStatus;
+    UInteger64_t          position, result;
 
     position.u.LowPart  = request->parameters.seek.position_low;
     position.u.HighPart = request->parameters.seek.position_high;
@@ -62,9 +62,6 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
 
 cleanup:
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeSeek failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }

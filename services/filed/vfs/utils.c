@@ -450,6 +450,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
             break;
         }
 
+        // Get a lock on next while we 'process' next
         usched_rwlock_r_lock(&next->Lock);
 
         // If a node is a symlink, we must resolve that instead if we were charged
@@ -465,28 +466,32 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
             }
 
             // OK in all other cases we *must* follow the symlink
+            // NOTE: we now end up with two reader locks on 'node'
             osStatus = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
             usched_rwlock_r_unlock(&next->Lock);
             if (osStatus != OsOK) {
                 break;
             }
+
+            // At this point, we have a lock on 'node' and 'real'
             next = real;
         }
 
-        // Move one level down the tree
-        usched_rwlock_r_lock(&next->Lock);
+        // Move one level down the tree, so we release the lock on the current
+        // node and move to 'next' which is locked by this point
         usched_rwlock_r_unlock(&node->Lock);
         node = next;
+    }
+
+    if (osStatus != OsOK) {
+        // Don't keep the lock if we failed to get the target node
+        usched_rwlock_r_unlock(&node->Lock);
     }
 
     // When exiting the loop, we must hold a reader lock still on
     // node that needs to be unlocked.
     mstr_delete_array(tokens, tokenCount);
-    if (osStatus == OsOK) {
-        *nodeOut = node;
-    } else {
-        usched_rwlock_r_unlock(&node->Lock);
-    }
+    *nodeOut = node;
     return osStatus;
 }
 

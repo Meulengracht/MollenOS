@@ -76,10 +76,7 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
     }
 
 cleanup:
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeRead failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }
 
@@ -134,9 +131,6 @@ unmap:
     }
 
 cleanup:
-    osStatus2 = VFSNodeHandlePut(handle);
-    if (osStatus2 != OsOK) {
-        WARNING("VFSNodeReadAt failed to release handle lock");
-    }
+    VFSNodeHandlePut(handle);
     return osStatus;
 }

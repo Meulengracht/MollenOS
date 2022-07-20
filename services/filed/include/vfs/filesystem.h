@@ -85,6 +85,10 @@ extern enum FileSystemType
 FileSystemParseGuid(
         _In_ guid_t* guid);
 
+extern oserr_t
+VFSFileSystemEnable(
+        _In_ FileSystem_t* fileSystem);
+
 /**
  * @brief Mounts a previously registered filesystem at the provided mount point. If no mount point is provided
  * the default semantic for mount points is used, or default system mounts are automatically loaded.
@@ -92,8 +96,8 @@ FileSystemParseGuid(
  * @param fileSystem A pointer to the filesystem that should be mounted.
  * @param mountPoint The path where the filesystem should be mounted.
  */
-extern void
-VfsFileSystemMount(
+extern oserr_t
+VFSFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ mstring_t*    mountPoint);
 

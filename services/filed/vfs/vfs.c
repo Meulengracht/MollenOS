@@ -199,6 +199,7 @@ void VFSDestroy(struct VFS* vfs)
 
 oserr_t VFSChildNew(struct VFS* parent, struct VFS** childOut)
 {
+    // TODO: implement VFS scopes
     return OsNotSupported;
 }
 
