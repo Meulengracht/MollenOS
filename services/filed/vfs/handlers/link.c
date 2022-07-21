@@ -16,95 +16,63 @@
  *
  */
 
-#include <ddk/utils.h>
 #include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static bool __NodeIsDirectory(struct VFSNode* node)
-{
-    if (node->Stats.Flags & FILE_FLAG_DIRECTORY) {
-        return true;
-    }
-    return false;
-}
-
 oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 {
-    struct VFSNode* node;
-    mstring_t*      path   = mstr_path_new_u8(request->parameters.link.from);
-    mstring_t*      target = mstr_new_u8(request->parameters.link.to);
-    oserr_t      osStatus;
-    size_t          pathLength;
-    int             startIndex;
+    mstring_t* path   = mstr_path_new_u8(request->parameters.link.from);
+    mstring_t* target = mstr_new_u8(request->parameters.link.to);
 
     if (path == NULL || target == NULL) {
         mstr_delete(path);
         mstr_delete(target);
         return OsOutOfMemory;
     }
-    pathLength = mstr_len(path);
 
-    startIndex = 1;
-    node       = vfs->Root;
-    while (1) {
-        int             endIndex = mstr_find_u8(path, "/", startIndex);
-        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
-        struct VFSNode* child;
-
-        // If we run out of tokens, then we ended on an existing path
-        // and we cannot create a link at this path
-        if (mstr_len(token) == 0) {
-            mstr_delete(token);
-            osStatus = OsExists;
-            break;
-        }
-
-        // Acquire a read lock on this node, when we exit we release the entire chain
-        usched_rwlock_r_lock(&node->Lock);
-
-        // Next is finding this token inside the current VFSNode
-        osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus == OsNotExists) {
-            // Ok, did not exist, were creation flags passed?
-            if (endIndex != -1) {
-                // Not end of path, did not exist
-                mstr_delete(token);
-                osStatus = OsNotExists;
-                break;
-            }
-
-            // OK we are at end of path and node did not exist
-            // so we can now try to create this
-            osStatus = VFSNodeCreateLinkChild(node, token, target, request->parameters.link.symbolic, &child);
-            mstr_delete(token);
-            break;
-        } else if (osStatus != OsOK) {
-            mstr_delete(token);
-            break;
-        }
-
-        // Cleanup the token at this point, we don't need it anymore
-        mstr_delete(token);
-
-        if (endIndex == -1) {
-            mstr_delete(token);
-            osStatus = OsExists;
-            break;
-        } else if (!__NodeIsDirectory(child)) {
-            osStatus = OsPathIsNotDirectory;
-            break;
-        } else {
-            node = child;
-        }
+    // Catch early someone trying to create root as a symlink, however
+    // we allow people to symlink *to* root
+    if (__PathIsRoot(path)) {
+        mstr_delete(path);
+        mstr_delete(target);
+        return OsInvalidPermissions;
     }
 
-    // release all read locks at this point
-    while (node) {
-        usched_rwlock_r_unlock(&node->Lock);
-        node = node->Parent;
-    }
-
+    mstring_t* containingDirectoryPath = mstr_path_dirname(path);
+    mstring_t* nodeName                = mstr_path_basename(path);
     mstr_delete(path);
+
+    struct VFSNode* containingDirectory;
+    oserr_t         osStatus = VFSNodeGet(
+            vfs, containingDirectoryPath,
+            1, &containingDirectory);
+
+    mstr_delete(containingDirectoryPath);
+    if (osStatus != OsOK) {
+        return osStatus;
+    }
+
+    // Verify that the node is not already something that exists. I Don't know if
+    // we should support overwriting symlinks or ask users explicitly to delete an existing
+    // symlink. Of course this would require we verify this node is a symlink already.
+    struct VFSNode* node;
+    osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
+    if (osStatus != OsOK && osStatus != OsNotExists) {
+        goto exit;
+    } else if (osStatus == OsOK) {
+        osStatus = OsExists;
+        goto exit;
+    }
+
+    osStatus = VFSNodeCreateLinkChild(
+            node, nodeName, target,
+            request->parameters.link.symbolic,
+            &node);
+
+exit:
+    VFSNodePut(containingDirectory);
+    mstr_delete(nodeName);
+    mstr_delete(target);
     return osStatus;
 }

@@ -176,7 +176,7 @@ __MountFileSystemAt(
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
-    oserr_t        osStatus;
+    oserr_t         osStatus;
 
     osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
@@ -191,8 +191,7 @@ oserr_t
 VFSFileSystemEnable(
         _In_ FileSystem_t* fileSystem)
 {
-    oserr_t   osStatus;
-    mstring_t* path;
+    oserr_t osStatus;
 
     if (fileSystem == NULL || fileSystem->Module == NULL) {
         return OsInvalidParameters;
@@ -223,7 +222,7 @@ VFSFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ mstring_t*    mountPoint)
 {
-    oserr_t   osStatus;
+    oserr_t    osStatus;
     mstring_t* path;
 
     if (fileSystem == NULL) {

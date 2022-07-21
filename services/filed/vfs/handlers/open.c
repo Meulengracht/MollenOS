@@ -21,208 +21,71 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oserr_t __OpenDirectory(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
+oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
-    struct VFSNode* node;
-    oserr_t         osStatus;
-    mstring_t*      path;
-    size_t          pathLength = 0;
-    int             startIndex;
-
-    path = mstr_path_new_u8(request->parameters.open.path);
+    mstring_t* path = mstr_path_new_u8(request->parameters.open.path);
     if (path == NULL) {
         return OsOutOfMemory;
     }
 
+    // Opening root is a special case, as we won't be able to find the containing folder,
+    // and they are easily handled here.
     if (__PathIsRoot(path)) {
-        mstr_delete(path);
-        return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
-    }
+        mstr_delete(path); // we don't need the path anymore from this point
 
-    startIndex = 1;
-    node       = vfs->Root;
-    while (1) {
-        int             endIndex = mstr_find_u8(path, "/", startIndex);
-        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
-        struct VFSNode* child;
-
-        // If we run out of tokens (for instance path ends on '/') then we can assume at this
-        // point that we are standing at the directory. So return a handle to the current node
-        if (mstr_len(token) == 0) {
-            osStatus = VFSNodeOpenHandle(node, request->parameters.open.access, handleOut);
-            break;
+        // Did user request to create root? nono
+        if (request->parameters.open.options & __FILE_CREATE) {
+            return OsInvalidPermissions;
         }
 
-        // Acquire a read lock on this node, when we exit we release the entire chain
-        usched_rwlock_r_lock(&node->Lock);
-
-        // Next is finding this token inside the current VFSNode
-        osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus == OsNotExists) {
-            // Ok, did not exist, were creation flags passed?
-            if (endIndex != -1) {
-                // Not end of path, did not exist
-                mstr_delete(token);
-                osStatus = OsNotExists;
-                break;
-            }
-
-            // Cool, we are at the end of the path, if creation flags were passed
-            // we can continue
-            if (request->parameters.open.options & __FILE_CREATE) {
-                osStatus = VFSNodeCreateChild(node, token,
-                                              request->parameters.open.options,
-                                              request->parameters.open.access,
-                                              &child);
-                if (osStatus != OsOK) {
-                    mstr_delete(token);
-                    break;
-                }
-            }
-        } else if (osStatus != OsOK) {
-            mstr_delete(token);
-            break;
+        // Allow this only if requested to be opened as a dir
+        if (request->parameters.open.options & __FILE_DIRECTORY) {
+            return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
         }
-
-        // Cleanup the token at this point, we don't need it anymore
-        mstr_delete(token);
-
-        // Entry we find must always be a directory
-        if (!__NodeIsDirectory(child)) {
-            osStatus = OsPathIsNotDirectory;
-            break;
-        }
-
-        if (endIndex == -1) {
-            if (request->parameters.open.options & __FILE_FAILONEXIST) {
-                mstr_delete(token);
-                osStatus = OsExists;
-                break;
-            }
-
-            // So at this point child is valid and points to the target node we were looking
-            // for, so we can now acquire a lock on that based on permissions
-            osStatus = VFSNodeOpenHandle(child, request->parameters.open.access, handleOut);
-            break;
-        } else {
-            node = child;
-        }
-    }
-
-    // release all read locks at this point
-    while (node) {
-        usched_rwlock_r_unlock(&node->Lock);
-        node = node->Parent;
-    }
-
-    mstr_delete(path);
-    return osStatus;
-}
-
-static oserr_t __OpenFile(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
-{
-    struct VFSNode* node;
-    oserr_t      osStatus;
-    mstring_t*      path;
-    size_t          pathLength;
-    int             startIndex;
-
-    path = mstr_path_new_u8(request->parameters.open.path);
-    if (path == NULL) {
-        return OsOutOfMemory;
-    }
-    pathLength = mstr_len(path);
-
-    // Catch the case where we are opening the root, but have not specified
-    // the __FILE_DIRECTORY flag.
-    if (__PathIsRoot(path)) {
         return OsPathIsDirectory;
     }
 
-    startIndex = 1;
-    node       = vfs->Root;
-    while (1) {
-        int             endIndex = mstr_find_u8(path, "/", startIndex);
-        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
-        struct VFSNode* child;
-
-        // If we run out of tokens, then the path passed to us was
-        // a directory path and not a file path.
-        if (mstr_len(token) == 0) {
-            mstr_delete(token);
-            osStatus = OsPathIsDirectory;
-            break;
-        }
-
-        // Acquire a read lock on this node, when we exit we release the entire chain
-        usched_rwlock_r_lock(&node->Lock);
-
-        // Next is finding this token inside the current VFSNode
-        osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus == OsNotExists) {
-            // Ok, did not exist, were creation flags passed?
-            if (endIndex != -1) {
-                // Not end of path, did not exist
-                mstr_delete(token);
-                osStatus = OsNotExists;
-                break;
-            }
-
-            // Cool, we are at the end of the path, if creation flags were passed
-            // we can continue
-            if (request->parameters.open.options & __FILE_CREATE) {
-                osStatus = VFSNodeCreateChild(node, token,
-                                              request->parameters.open.options,
-                                              request->parameters.open.access,
-                                              &child);
-                if (osStatus != OsOK) {
-                    mstr_delete(token);
-                    break;
-                }
-            }
-        } else if (osStatus != OsOK) {
-            mstr_delete(token);
-            break;
-        }
-
-        // Cleanup the token at this point, we don't need it anymore
-        mstr_delete(token);
-
-        if (endIndex == -1) {
-            if (request->parameters.open.options & __FILE_FAILONEXIST) {
-                mstr_delete(token);
-                osStatus = OsExists;
-                break;
-            }
-
-            // So at this point child is valid and points to the target node we were looking
-            // for, so we can now acquire a lock on that based on permissions
-            osStatus = VFSNodeOpenHandle(child, request->parameters.open.access, handleOut);
-            break;
-        } else if (!__NodeIsDirectory(child)) {
-            osStatus = OsPathIsNotDirectory;
-            break;
-        } else {
-            node = child;
-        }
-    }
-
-    // release all read locks at this point
-    while (node) {
-        usched_rwlock_r_unlock(&node->Lock);
-        node = node->Parent;
-    }
-
+    mstring_t* containingDirectoryPath = mstr_path_dirname(path);
+    mstring_t* nodeName                = mstr_path_basename(path);
     mstr_delete(path);
-    return osStatus;
-}
 
-oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
-{
-    // Split out the logic to keep functions simpler, we don't want to handle to many
-    // cases inside one function
-    if (request->parameters.open.options & __FILE_DIRECTORY) {
-        return __OpenDirectory(vfs, request, handleOut);
+    struct VFSNode* containingDirectory;
+    oserr_t         osStatus = VFSNodeGet(
+            vfs, containingDirectoryPath,
+            1, &containingDirectory);
+
+    mstr_delete(containingDirectoryPath);
+    if (osStatus != OsOK) {
+        return osStatus;
     }
-    return __OpenFile(vfs, request, handleOut);
+
+    // Find the requested entry in the containing folder
+    struct VFSNode* node;
+    osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
+    if (osStatus != OsOK && osStatus != OsNotExists) {
+        goto exit;
+    }
+
+    if (osStatus == OsNotExists) {
+        if (request->parameters.open.options & __FILE_CREATE) {
+            // TODO permissions check
+            osStatus = VFSNodeCreateChild(node, nodeName,
+                                          request->parameters.open.options,
+                                          request->parameters.open.access,
+                                          &node);
+            if (osStatus != OsOK) {
+                goto exit;
+            }
+        } else {
+            // OK it wasn't found, just exit with that error code
+            goto exit;
+        }
+    }
+
+    osStatus = VFSNodeOpenHandle(node, request->parameters.open.access, handleOut);
+
+exit:
+    VFSNodePut(containingDirectory);
+    mstr_delete(nodeName);
+    return osStatus;
 }

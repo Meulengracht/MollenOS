@@ -17,6 +17,7 @@
  */
 
 #include "../common/private.h"
+#include <stdarg.h>
 
 static int __append_u8(struct mstring_builder* builder, const char* string)
 {

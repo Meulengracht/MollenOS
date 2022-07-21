@@ -475,6 +475,36 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
 
             // At this point, we have a lock on 'node' and 'real'
             next = real;
+        } else if (__NodeIsBindMount(next)) {
+            struct VFSNode* real = next->TypeData;
+            if (real == NULL) {
+                // *should* never happen
+                ERROR("__GetRelative discovered node having a NULL type-data but marked as bind mount");
+                osStatus = OsError;
+                usched_rwlock_r_unlock(&next->Lock);
+                break;
+            }
+
+            // make sure the new next (real) is locked
+            usched_rwlock_r_lock(&real->Lock);
+            usched_rwlock_r_unlock(&next->Lock);
+            next = real;
+        } else if (__NodeIsMountPoint(next)) {
+            struct VFS*     fs = next->TypeData;
+            struct VFSNode* real;
+            if (fs == NULL) {
+                // *should* never happen
+                ERROR("__GetRelative discovered node having a NULL type-data but marked as mountpoint");
+                osStatus = OsError;
+                usched_rwlock_r_unlock(&next->Lock);
+                break;
+            }
+
+            // make sure the new next (real) is locked
+            real = fs->Root;
+            usched_rwlock_r_lock(&real->Lock);
+            usched_rwlock_r_unlock(&next->Lock);
+            next = real;
         }
 
         // Move one level down the tree, so we release the lock on the current

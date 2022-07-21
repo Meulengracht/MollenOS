@@ -24,10 +24,36 @@
 
 oserr_t VFSNodeMount(struct VFS* vfs, struct VFSNode* at, struct VFS* what)
 {
+    oserr_t osStatus = OsOK;
 
+    usched_rwlock_w_lock(&at->Lock);
+    if (!__NodeIsRegular(at)) {
+        osStatus = OsInvalidParameters;
+        goto exit;
+    }
+
+    at->Type     = VFS_NODE_TYPE_MOUNTPOINT | VFS_NODE_TYPE_FILESYSTEM;
+    at->TypeData = what;
+
+exit:
+    usched_rwlock_w_unlock(&at->Lock);
+    return osStatus;
 }
 
-oserr_t VFSNodeUnmount(struct VFS* vfs, mstring_t* path)
+oserr_t VFSNodeUnmount(struct VFS* vfs, struct VFSNode* node)
 {
+    oserr_t osStatus = OsOK;
 
+    usched_rwlock_w_lock(&node->Lock);
+    if (!__NodeIsMountPoint(node)) {
+        osStatus = OsInvalidParameters;
+        goto exit;
+    }
+
+    node->Type     = VFS_NODE_TYPE_REGULAR;
+    node->TypeData = NULL;
+
+exit:
+    usched_rwlock_w_unlock(&node->Lock);
+    return osStatus;
 }

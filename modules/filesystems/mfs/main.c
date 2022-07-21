@@ -139,7 +139,8 @@ FsStat(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ struct VFSStatFS*     stat)
 {
-
+    // TODO implement MFS::Stat
+    return OsNotSupported;
 }
 
 oserr_t
@@ -183,7 +184,8 @@ FsLink(
         _In_ mstring_t*            linkTarget,
         _In_ int                   symbolic)
 {
-
+    // TODO implement MFS::Link
+    return OsNotSupported;
 }
 
 oserr_t
@@ -192,7 +194,8 @@ FsReadLink(
         _In_ mstring_t*            path,
         _In_ mstring_t*            pathOut)
 {
-
+    // TODO implement MFS::ReadLink
+    return OsNotSupported;
 }
 
 oserr_t
@@ -202,7 +205,8 @@ FsMove(
         _In_ mstring_t*            to,
         _In_ int                   copy)
 {
-
+    // TODO implement MFS::Move
+    return OsNotSupported;
 }
 
 oserr_t

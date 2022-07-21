@@ -40,7 +40,7 @@ extern oserr_t VFSChildNew(struct VFS*, struct VFS**);
 extern void    VFSDestroy(struct VFS*);
 
 extern oserr_t VFSNodeMount(struct VFS*, struct VFSNode* at, struct VFS* what);
-extern oserr_t VFSNodeUnmount(struct VFS*, mstring_t* path);
+extern oserr_t VFSNodeUnmount(struct VFS*, struct VFSNode*);
 
 extern oserr_t VFSNodeBind(struct VFS*, struct VFSNode* from, struct VFSNode* to);
 extern oserr_t VFSNodeUnbind(struct VFS*, struct VFSNode*);

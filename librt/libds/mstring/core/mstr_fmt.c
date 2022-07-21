@@ -57,7 +57,7 @@ static int __append_u8(struct mstring_builder* builder, const char* string)
 mstring_t* mstr_fmt(const char* fmt, ...)
 {
     struct mstring_builder* builder;
-    int                     fmti;
+    int                     fmti = 0;
     va_list                 args;
 
     builder = mstring_builder_new(128);

@@ -21,26 +21,10 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static bool __IsPathRoot(mstring_t* path)
-{
-    if (mstr_at(path, 0) == '/' && mstr_len(path) == 1) {
-        return true;
-    }
-    return false;
-}
-
-static bool __NodeIsDirectory(struct VFSNode* node)
-{
-    if (node->Stats.Flags & FILE_FLAG_DIRECTORY) {
-        return true;
-    }
-    return false;
-}
-
 static oserr_t __VerifyCanDelete(struct VFSNode* node)
 {
     // We do not allow bind mounted nodes to be deleted.
-    if (node->Type != VFS_NODE_TYPE_REGULAR) {
+    if (!__NodeIsRegular(node)) {
         return OsInvalidPermissions;
     }
 
@@ -112,160 +96,54 @@ error:
     return osStatus;
 }
 
-static oserr_t __UnlinkDirectory(struct VFS* vfs, struct VFSRequest* request)
-{
-    struct VFSNode* node;
-    oserr_t      osStatus;
-    mstring_t*      path;
-    size_t          pathLength = 0;
-    int             startIndex;
-
-    path = mstr_path_new_u8(request->parameters.open.path);
-    if (path == NULL) {
-        return OsOutOfMemory;
-    }
-
-    // We do never allow deletion of the root path
-    if (__PathIsRoot(path)) {
-        mstr_delete(path);
-        return OsInvalidParameters;
-    }
-
-    startIndex = 1;
-    node       = vfs->Root;
-    while (1) {
-        int             endIndex = mstr_find_u8(path, "/", startIndex);
-        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
-        struct VFSNode* child;
-
-        // If we run out of tokens (for instance path ends on '/') then we can assume at this
-        // point that we are standing at the directory. So return a handle to the current node
-        if (mstr_len(token) == 0) {
-            // __DeleteNode expects the node to be unlocked, but we have to handle that
-            // we recursively do readlocks on nodes here. So unlock the current node,
-            // delete it, and then update node to point to parent, so we don't try to
-            // unlock it as the node we gave to __DeleteNode will be invalid after
-            // the call to __DeleteNode
-            usched_rwlock_r_unlock(&node->Lock);
-            osStatus = __DeleteNode(node);
-            node = node->Parent;
-            break;
-        }
-
-        // Acquire a read lock on this node, when we exit we release the entire chain
-        usched_rwlock_r_lock(&node->Lock);
-
-        // Next is finding this token inside the current VFSNode
-        osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus != OsOK) {
-            mstr_delete(token);
-            break;
-        }
-
-        // Cleanup the token at this point, we don't need it anymore
-        mstr_delete(token);
-
-        // Entry we find must always be a directory
-        if (!__NodeIsDirectory(child)) {
-            osStatus = OsPathIsNotDirectory;
-            break;
-        }
-
-        if (endIndex == -1) {
-            // So at this point child is valid and points to the target node we were looking
-            // for, so we can now acquire a lock on that based on permissions
-            osStatus = __DeleteNode(child);
-            break;
-        } else {
-            node = child;
-        }
-    }
-
-    // release all read locks at this point
-    while (node) {
-        usched_rwlock_r_unlock(&node->Lock);
-        node = node->Parent;
-    }
-
-    mstr_delete(path);
-    return osStatus;
-}
-
-static oserr_t __UnlinkFile(struct VFS* vfs, struct VFSRequest* request)
-{
-    struct VFSNode* node;
-    oserr_t      osStatus;
-    mstring_t*      path;
-    size_t          pathLength;
-    int             startIndex;
-
-    path = mstr_path_new_u8(request->parameters.open.path);
-    if (path == NULL) {
-        return OsOutOfMemory;
-    }
-    pathLength = mstr_len(path);
-
-    // Catch the case where we are trying to delete the root, which we do never
-    // allow, but we atleast ask for the correct options, thank you very much
-    if (__PathIsRoot(path)) {
-        return OsPathIsDirectory;
-    }
-
-    startIndex = 1;
-    node       = vfs->Root;
-    while (1) {
-        int             endIndex = mstr_find_u8(path, "/", startIndex);
-        mstring_t*      token    = mstr_substr(path, startIndex, (int)pathLength - endIndex); // TODO ehh verify the logic here
-        struct VFSNode* child;
-
-        // If we run out of tokens, then the path passed to us was
-        // a directory path and not a file path.
-        if (mstr_len(token) == 0) {
-            mstr_delete(token);
-            osStatus = OsPathIsDirectory;
-            break;
-        }
-
-        // Acquire a read lock on this node, when we exit we release the entire chain
-        usched_rwlock_r_lock(&node->Lock);
-
-        // Next is finding this token inside the current VFSNode
-        osStatus = VFSNodeFind(node, token, &child);
-        if (osStatus != OsOK) {
-            mstr_delete(token);
-            break;
-        }
-
-        // Cleanup the token at this point, we don't need it anymore
-        mstr_delete(token);
-
-        if (endIndex == -1) {
-            // So at this point child is valid and points to the target node we were looking
-            // for, so we can now acquire a lock on that based on permissions
-            osStatus = __DeleteNode(child);
-            break;
-        } else if (!__NodeIsDirectory(child)) {
-            osStatus = OsPathIsNotDirectory;
-            break;
-        } else {
-            node = child;
-        }
-    }
-
-    // release all read locks at this point
-    while (node) {
-        usched_rwlock_r_unlock(&node->Lock);
-        node = node->Parent;
-    }
-
-    mstr_delete(path);
-    return osStatus;
-}
-
 oserr_t VFSNodeUnlink(struct VFS* vfs, struct VFSRequest* request)
 {
-    if (request->parameters.delete_path.options & __FILE_DIRECTORY) {
-        return __UnlinkDirectory(vfs, request);
+    mstring_t* path = mstr_path_new_u8(request->parameters.delete_path.path);
+    if (path == NULL) {
+        return OsOutOfMemory;
     }
-    return __UnlinkFile(vfs, request);
+
+    // Unlinking root is a special case, as we do not allow that do not
+    // need to go through expensive checks
+    if (__PathIsRoot(path)) {
+        mstr_delete(path); // we don't need the path from this point
+        if (!(request->parameters.delete_path.options & __FILE_DIRECTORY)) {
+            return OsPathIsDirectory;
+        }
+        return OsInvalidPermissions;
+    }
+
+    mstring_t* containingDirectoryPath = mstr_path_dirname(path);
+    mstring_t* nodeName                = mstr_path_basename(path);
+    mstr_delete(path);
+
+    struct VFSNode* containingDirectory;
+    oserr_t         osStatus = VFSNodeGet(
+            vfs, containingDirectoryPath,
+            1, &containingDirectory);
+
+    mstr_delete(containingDirectoryPath);
+    if (osStatus != OsOK) {
+        return osStatus;
+    }
+
+    // Find the requested entry in the containing folder
+    struct VFSNode* node;
+    osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
+    if (osStatus != OsOK && osStatus != OsNotExists) {
+        goto exit;
+    }
+
+    // Make sure what we are deleting is what was requested.
+    if (__NodeIsDirectory(node) && !(request->parameters.delete_path.options & __FILE_DIRECTORY)) {
+        osStatus = OsPathIsDirectory;
+        goto exit;
+    }
+
+    osStatus = __DeleteNode(node);
+
+exit:
+    VFSNodePut(containingDirectory);
+    mstr_delete(nodeName);
+    return osStatus;
 }

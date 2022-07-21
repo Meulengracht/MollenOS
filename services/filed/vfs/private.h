@@ -96,9 +96,9 @@ struct VFS {
 };
 
 enum VFSNodeType {
-    VFS_NODE_TYPE_REGULAR,
-    VFS_NODE_TYPE_MOUNTPOINT,
-    VFS_NODE_TYPE_FILESYSTEM
+    VFS_NODE_TYPE_REGULAR    = 0,
+    VFS_NODE_TYPE_MOUNTPOINT = 0x1,
+    VFS_NODE_TYPE_FILESYSTEM = 0x2
 };
 
 struct VFSNode {
@@ -172,6 +172,27 @@ struct VFSNodeHandle {
     uint64_t         Position;
     void*            Data;
 };
+
+static inline bool __NodeIsMountPoint(struct VFSNode* node) {
+    if (node->Type == (VFS_NODE_TYPE_MOUNTPOINT | VFS_NODE_TYPE_FILESYSTEM)) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool __NodeIsBindMount(struct VFSNode* node) {
+    if (node->Type == VFS_NODE_TYPE_MOUNTPOINT) {
+        return true;
+    }
+    return false;
+}
+
+static inline bool __NodeIsRegular(struct VFSNode* node) {
+    if (node->Type == VFS_NODE_TYPE_REGULAR) {
+        return true;
+    }
+    return false;
+}
 
 static inline bool __NodeIsSymlink(struct VFSNode* node) {
     if (node->Stats.Flags & FILE_FLAG_LINK) {

@@ -16,18 +16,42 @@
  *
  */
 
-#include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include "private.h"
 #include <string.h>
-#include <stdlib.h>
 
 oserr_t VFSNodeBind(struct VFS* vfs, struct VFSNode* from, struct VFSNode* to)
 {
+    oserr_t osStatus = OsOK;
 
+    usched_rwlock_w_lock(&to->Lock);
+    if (!__NodeIsRegular(to)) {
+        osStatus = OsInvalidParameters;
+        goto exit;
+    }
+
+    to->Type     = VFS_NODE_TYPE_MOUNTPOINT;
+    to->TypeData = from;
+
+exit:
+    usched_rwlock_w_unlock(&to->Lock);
+    return osStatus;
 }
 
 oserr_t VFSNodeUnbind(struct VFS* vfs, struct VFSNode* node)
 {
+    oserr_t osStatus = OsOK;
 
+    usched_rwlock_w_lock(&node->Lock);
+    if (!__NodeIsBindMount(node)) {
+        osStatus = OsInvalidParameters;
+        goto exit;
+    }
+
+    node->Type     = VFS_NODE_TYPE_REGULAR;
+    node->TypeData = NULL;
+
+exit:
+    usched_rwlock_w_unlock(&node->Lock);
+    return osStatus;
 }
