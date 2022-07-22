@@ -197,21 +197,21 @@ add_custom_target (install_vmdk
 add_dependencies(install_vmdk install_prepare)
 
 add_custom_command(
-    OUTPUT always_run.special mollenos_usb.img
-    COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
+    OUTPUT always_run.special disk.img
+    COMMAND ${CMAKE_COMMAND} -E copy disk.img disk_usb.img
 )
 
 add_custom_target (run_bochs
     COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    DEPENDS mollenos_usb.img
+    DEPENDS disk_usb.img
 )
 
 add_custom_target (run_qemu
         COMMAND qemu-system-x86_64
             -D ./log.txt -monitor stdio -smp 1 -m 4096
             -bios /usr/share/OVMF/OVMF_CODE.fd
-            -drive if=virtio,file=mollenos.img,format=raw
+            -drive if=virtio,file=disk.img,format=raw
             -net none -no-reboot
             -serial file:./qserial.txt
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
