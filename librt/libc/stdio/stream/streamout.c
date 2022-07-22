@@ -333,13 +333,13 @@ streamout_mstring(FILE *stream, const mstring_t *string, size_t count)
         char    u8buffer[MSTRING_U8BYTES];
         size_t  u8len;
         mchar_t val = string->__data[i++];
-
         if (mstr_fromchar(val, &u8buffer[0], &u8len)) {
             continue;
         }
 
-        while (u8len) {
-            if (streamout_char(stream, u8buffer[--u8len]) == 0) {
+        int j = 0;
+        while (j < u8len) {
+            if (streamout_char(stream, u8buffer[j++]) == 0) {
                 return -1;
             }
             written++;
@@ -400,6 +400,7 @@ int streamout(
             else if (chr == _T(' ')) flags |= FLAG_FORCE_SIGNSP;
             else if (chr == _T('0')) flags |= FLAG_PAD_ZERO;
             else if (chr == _T('#')) flags |= FLAG_SPECIAL;
+            else if (chr == _T('m')) flags |= FLAG_MSTRING;
             else break;
             chr = *format++;
         }
@@ -445,7 +446,6 @@ int streamout(
             else if (chr == _T('w')) flags |= FLAG_WIDECHAR;
             else if (chr == _T('L')) flags |= 0; // FIXME: long double
             else if (chr == _T('F')) flags |= 0; // FIXME: what is that?
-            else if (chr == _T('m') || chr == _T('M')) flags |= FLAG_MSTRING;
             else if (chr == _T('l')) {
                 /* Check if this is the 2nd 'l' in a row */
                 if (format[-2] == 'l') flags |= FLAG_INT64;
@@ -543,7 +543,7 @@ int streamout(
 
                 if (flags & FLAG_MSTRING) {
                     len = mstr_len((mstring_t*)string);
-                    if (len < (unsigned)precision) {
+                    if (len > (unsigned)precision) {
                         len = (unsigned)precision;
                     }
                 } else if (flags & FLAG_WIDECHAR) {

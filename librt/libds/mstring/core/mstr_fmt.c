@@ -68,14 +68,14 @@ mstring_t* mstr_fmt(const char* fmt, ...)
     va_start(args, fmt);
     while (fmt[fmti]) {
         struct fmt_context context = { 0 };
-        mchar_t            val     = mstr_next(&fmt[fmti], &fmti);
+        mchar_t            val     = mstr_next(fmt, &fmti);
         switch (val) {
             case '%': {
                 int ok = 0;
 
                 // consume '%', and consume flags
                 while (1) {
-                    val = mstr_next(&fmt[fmti], &fmti);
+                    val = mstr_next(fmt, &fmti);
                     if (val == 'm' || val == 'M') {
                         context.flags |= FMT_MSTRING;
                     } else {

@@ -30,7 +30,7 @@ mstring_t* mstr_path_new_u8(const char* u8)
 
     mchar_t prev = 0;
     while (u8[u8i]) {
-        mchar_t val = mstr_next(&u8[u8i], &u8i);
+        mchar_t val = mstr_next(u8, &u8i);
 
         // Always correct backslashes to slashes
         if (val == '\\') { val = '/'; }

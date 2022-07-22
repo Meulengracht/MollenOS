@@ -22,7 +22,7 @@
  *   of running applications.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <assert.h>
 #include <ds/mstring.h>
@@ -256,13 +256,17 @@ __LoadProcessImage(
         _In_  const char*      path,
         _Out_ PeExecutable_t** image)
 {
-    oserr_t osStatus;
+    oserr_t    osStatus;
     mstring_t* pathUnified;
 
     ENTRY("__LoadProcessImage(path=%s)", path);
 
     pathUnified = mstr_new_u8(path);
-    osStatus    = PeLoadImage(UUID_INVALID, NULL, pathUnified, image);
+    if (pathUnified == NULL) {
+        return OsOutOfMemory;
+    }
+
+    osStatus = PeLoadImage(UUID_INVALID, NULL, pathUnified, image);
 
     EXIT("__LoadProcessImage");
     return osStatus;
@@ -300,7 +304,7 @@ __ProcessNew(
     }
 
     index = mstr_rfind_u8(process->path, "/", -1);
-    process->name              = mstr_substr(process->path, index + 1, -1);
+    process->name               = mstr_substr(process->path, index + 1, -1);
     process->working_directory  = mstr_substr(process->path, 0, index);
     process->assembly_directory = mstr_substr(process->path, 0, index);
     if (!process->name || !process->working_directory || !process->assembly_directory) {
@@ -355,7 +359,7 @@ PmCreateProcessInternal(
     PeExecutable_t* image;
     Process_t*      process;
     uuid_t          handle;
-    oserr_t      osStatus;
+    oserr_t         osStatus;
     ENTRY("PmCreateProcessInternal(path=%s, args=%s)", path, args);
 
     osStatus = __LoadProcessImage(path, &image);

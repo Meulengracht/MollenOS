@@ -66,7 +66,7 @@ int mstring_builder_append_mstring(struct mstring_builder* builder, mstring_t* s
 int mstring_builder_append_u8(struct mstring_builder* builder, const char* u8, size_t count) {
     int u8i = 0;
     for (size_t i = 0; i < count; i++) {
-        mchar_t val = mstr_next(&u8[u8i], &u8i);
+        mchar_t val = mstr_next(u8, &u8i);
         if (mstring_builder_append(builder, val)) {
             return -1;
         }

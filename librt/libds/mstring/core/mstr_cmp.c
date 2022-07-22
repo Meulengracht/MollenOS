@@ -62,15 +62,14 @@ int mstr_icmp(mstring_t* lh, mstring_t* rh)
 
 int mstr_cmp_u8_index(mstring_t* string, const char* u8, size_t startIndex)
 {
-    size_t i   = startIndex;
-    int    u8i = 0;
+    int u8i = 0;
 
     if (string == NULL || u8 == NULL) {
         return -1;
     }
 
-    for (; i < string->__length; i++) {
-        mchar_t val = mstr_next(&u8[u8i], &u8i);
+    for (size_t i = startIndex; i < string->__length; i++) {
+        mchar_t val = mstr_next(u8, &u8i);
         if (val != string->__data[i]) {
             return -1;
         }

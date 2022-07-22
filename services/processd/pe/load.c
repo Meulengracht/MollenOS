@@ -22,7 +22,7 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <assert.h>
 #include <ds/ds.h>
@@ -832,7 +832,7 @@ __ResolveImagePath(
     mstring_t* fullPath;
     uint8_t*   buffer;
     size_t     length;
-    oserr_t osStatus;
+    oserr_t    osStatus;
 
     osStatus = PeImplResolveFilePath(
             owner,
@@ -877,7 +877,7 @@ PeLoadImage(
     size_t             sizeOfMetaData;
     PeDataDirectory_t* directoryPtr;
     PeExecutable_t*    image;
-    oserr_t         osStatus;
+    oserr_t            osStatus;
     uint8_t*           buffer;
     int                index;
 
@@ -994,7 +994,8 @@ PeUnloadImage(
         return OsInvalidParameters;
     }
 
-    TRACE("PeUnloadImage(image=%s)", MStringRaw(image->Name));
+    TRACE("PeUnloadImage(image=%ms)", image->Name);
+
     mstr_delete(image->Name);
     mstr_delete(image->FullPath);
     if (image->ExportedFunctions) {

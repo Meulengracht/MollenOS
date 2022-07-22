@@ -99,32 +99,29 @@ mchar_t mstr_next(const char* u8, int* indexp)
 size_t mstr_len_u8(const char* u8)
 {
     size_t length = 0;
-    int    index  = 0;
+    int    u8i    = 0;
 
     if (u8 == NULL) {
         return 0;
     }
 
-    while (mstr_next(u8, &index) != MSTRING_EOS) {
+    while (u8[u8i]) {
+        mstr_next(u8, &u8i);
         length++;
     }
     return length;
 }
 
 void mstr_to_internal(const char* u8, mchar_t* out) {
-    int index    = 0;
+    int u8i      = 0;
     int outIndex = 0;
 
     if (u8 == NULL || out == NULL) {
         return;
     }
 
-    while (1) {
-        mchar_t val = mstr_next(u8, &index);
-        if (val == MSTRING_EOS) {
-            break;
-        }
-        out[outIndex++] = val;
+    while (u8[u8i]) {
+        out[outIndex++] = mstr_next(u8, &u8i);
     }
 }
 
