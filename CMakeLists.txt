@@ -197,7 +197,7 @@ add_custom_target (install_vmdk
 add_dependencies(install_vmdk install_prepare)
 
 add_custom_command(
-    OUTPUT always_run.special disk.img
+    OUTPUT always_run.special disk_usb.img
     COMMAND ${CMAKE_COMMAND} -E copy disk.img disk_usb.img
 )
 
