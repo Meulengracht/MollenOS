@@ -72,7 +72,7 @@ VFSStorageRegisterFileSystem(
  * @return
  */
 extern oserr_t
-VfsStorageParse(
+VFSStorageParse(
         _In_ FileSystemStorage_t* fsStorage);
 
 /**

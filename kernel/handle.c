@@ -173,7 +173,9 @@ RegisterHandlePath(
     DEBUG("[handle_register_path] %u => %s", handleId, path);
 
     internalPath = mstr_new_u8(path);
-    if (!mstr_len(internalPath)) {
+
+    // TODO do some actual verification of path here
+    if (internalPath == NULL || mstr_len(internalPath) == 0) {
         return OsInvalidParameters;
     }
 
@@ -216,7 +218,9 @@ LookupHandleByPath(
     TRACE("[handle_lookup_by_path] %s", path);
 
     internalPath = mstr_new_u8(path);
-    if (!mstr_len(internalPath)) {
+
+    // TODO do some actual verification of path here
+    if (internalPath == NULL || mstr_len(internalPath) == 0) {
         return OsInvalidParameters;
     }
 

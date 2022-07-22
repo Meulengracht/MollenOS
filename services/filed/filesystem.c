@@ -75,6 +75,8 @@ FileSystemParseGuid(
 
 void VfsFileSystemInitialize(void)
 {
+    TRACE("VfsFileSystemInitialize()");
+
     guid_parse_string(&g_efiGuid, "C12A7328-F81F-11D2-BA4B-00A0C93EC93B");
     guid_parse_string(&g_fatGuid, "21686148-6449-6E6F-744E-656564454649");
     guid_parse_string(&g_mfsSystemGuid, "C4483A10-E3A0-4D3F-B7CC-C04A6E16612B");
@@ -93,6 +95,7 @@ FileSystemNew(
         _In_ uint64_t             sectorCount)
 {
     FileSystem_t* fileSystem;
+    TRACE("FileSystemNew(storage=%s, sector=%llu)", &storage->Serial[0], sector);
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -114,6 +117,10 @@ FileSystemNew(
 
 void FileSystemDestroy(FileSystem_t* fileSystem)
 {
+    TRACE("FileSystemDestroy(storage=%s, sector=%llu)",
+          &fileSystem->CommonData.Storage.Serial[0],
+          fileSystem->CommonData.SectorStart);
+
     VFSDestroy(fileSystem->VFS);
     VFSInterfaceDelete(fileSystem->Interface);
     free(fileSystem);
@@ -127,12 +134,14 @@ __MountFileSystemAtDefault(
     struct VFSNode* partitionNode;
     oserr_t         osStatus;
     mstring_t*      path;
+    TRACE("__MountFileSystemAtDefault(fs=%u)", fileSystem->ID);
 
     path = mstr_fmt("/storage/%s/%ms", &fileSystem->CommonData.Storage.Serial[0], fileSystem->CommonData.Label);
     if (path == NULL) {
         return OsOutOfMemory;
     }
 
+    TRACE("__MountFileSystemAtDefault mounting at %ms", path);
     osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &partitionNode);
     if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAtDefault failed to create node %ms", path);
@@ -160,6 +169,7 @@ __MountFileSystemAt(
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* bindNode;
     oserr_t         osStatus;
+    TRACE("__MountFileSystemAt(fs=%u, path=%ms)", fileSystem->ID, path);
 
     osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &bindNode);
     if (osStatus != OsOK && osStatus != OsExists) {
@@ -176,6 +186,7 @@ __Connect(
         _In_ struct VFSInterface* interface)
 {
     oserr_t osStatus;
+    TRACE("__Connect(fs=%u)", fileSystem->ID);
 
     osStatus = VFSNew(
             fileSystem->ID, &fileSystem->GUID, interface,
@@ -203,6 +214,7 @@ VFSFileSystemConnectInterface(
     if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
+    TRACE("VFSFileSystemConnectInterface(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_CONNECTED) {
@@ -245,6 +257,7 @@ VFSFileSystemMount(
     if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
+    TRACE("VFSFileSystemMount(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State != FileSystemState_ENABLED) {
@@ -285,7 +298,7 @@ VFSFileSystemMount(
         goto exit;
     }
 
-    TRACE("VfsFileSystemMount notifying session about %ms", path);
+    TRACE("VFSFileSystemMount notifying session about %ms", path);
     __NotifySessionManager(path);
     mstr_delete(path);
 
@@ -300,6 +313,11 @@ VfsFileSystemUnmount(
         _In_ unsigned int  flags)
 {
     oserr_t osStatus = OsNotSupported;
+
+    if (fileSystem == NULL) {
+        return OsInvalidParameters;
+    }
+    TRACE("VfsFileSystemUnmount(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_ENABLED) {
@@ -317,6 +335,11 @@ VfsFileSystemDisconnectInterface(
         _In_ unsigned int  flags)
 {
     oserr_t osStatus = OsBusy;
+
+    if (fileSystem == NULL) {
+        return OsInvalidParameters;
+    }
+    TRACE("VfsFileSystemDisconnectInterface(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_CONNECTED) {

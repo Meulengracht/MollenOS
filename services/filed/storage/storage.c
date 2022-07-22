@@ -30,6 +30,8 @@
 #include <vfs/storage.h>
 #include <vfs/filesystem.h>
 #include <vfs/requests.h>
+#include <vfs/scope.h>
+#include <vfs/vfs.h>
 
 #include "sys_storage_service_server.h"
 
@@ -110,13 +112,51 @@ VFSStorageRegisterFileSystem(
     return OsOK;
 }
 
+static oserr_t
+__StorageVerify(
+        _In_ FileSystemStorage_t* fsStorage)
+{
+    // TODO implement meaningful validation
+    if (fsStorage->Storage.SectorCount == 0) {
+        return OsError;
+    }
+    return OsOK;
+}
+
+static oserr_t
+__StorageMount(
+        _In_ FileSystemStorage_t* fsStorage)
+{
+    struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
+    struct VFSNode* deviceNode;
+    oserr_t         osStatus;
+    mstring_t*      path;
+    TRACE("__StorageMount()");
+
+    path = mstr_fmt("/storage/%s", &fsStorage->Storage.Serial[0]);
+    if (path == NULL) {
+        return OsOutOfMemory;
+    }
+    TRACE("__StorageMount mounting at %ms", path);
+
+    osStatus = VFSNodeNewDirectory(
+            fsScope, path,
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &deviceNode);
+    if (osStatus != OsOK) {
+        ERROR("__StorageMount failed to create node %ms", path);
+    }
+
+    mstr_delete(path);
+    return osStatus;
+}
+
 static void
 __StorageSetup(
         _In_ FileSystemStorage_t* fsStorage,
         _In_ void*                cancellationToken)
 {
     struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(fsStorage->Storage.DriverID);
-    oserr_t                 osStatus;
+    oserr_t                    osStatus;
     struct sys_disk_descriptor gdescriptor;
     TRACE("__StorageSetup()");
 
@@ -132,15 +172,34 @@ __StorageSetup(
         return;
     }
     from_sys_disk_descriptor_dkk(&gdescriptor, &fsStorage->Storage);
-    
+
+    // OK now we do some basic verification of the storage medium (again, could be
+    // anthing, network, usb, file, harddisk)
+    osStatus = __StorageVerify(fsStorage);
+    if (osStatus != OsOK) {
+        ERROR("__StorageSetup verification of storage medium failed: %u", osStatus);
+        goto error;
+    }
+
+    // Next thing is mounting the storage device as a folder
+    osStatus = __StorageMount(fsStorage);
+    if (osStatus != OsOK) {
+        ERROR("__StorageSetup mounting storage device failed: %u", osStatus);
+        goto error;
+    }
+
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
-    osStatus = VfsStorageParse(fsStorage);
+    osStatus = VFSStorageParse(fsStorage);
     if (osStatus != OsOK) {
-        fsStorage->State = STORAGE_STATE_DISCONNECTED;
-    } else {
-        fsStorage->State = STORAGE_STATE_CONNECTED;
+        goto error;
     }
+
+    fsStorage->State = STORAGE_STATE_CONNECTED;
+    return;
+
+error:
+    fsStorage->State = STORAGE_STATE_DISCONNECTED;
 }
 
 static FileSystemStorage_t*

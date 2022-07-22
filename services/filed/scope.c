@@ -47,12 +47,34 @@ __NewMemFS(
     return osStatus;
 }
 
+static oserr_t
+__MountDefaultDirectories(void)
+{
+    struct VFSNode* node;
+    mstring_t       storage = mstr_const(U"/storage/");
+
+    // Mount the storage folder, this is the responsibility of the storage
+    // manager, which is this service for the time being
+    return VFSNodeNewDirectory(
+            g_rootScope, &storage,
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &node);
+}
+
 void VFSScopeInitialize(void)
 {
     oserr_t osStatus;
-    osStatus = __NewMemFS(&g_globalName, &g_rootGuid, &g_rootCommonData, &g_rootScope);
+
+    osStatus = __NewMemFS(
+            &g_globalName, &g_rootGuid,
+            &g_rootCommonData, &g_rootScope);
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
+        return;
+    }
+
+    osStatus = __MountDefaultDirectories();
+    if (osStatus != OsOK) {
+        ERROR("VFSScopeInitialize failed to mount default directories");
     }
 }
 

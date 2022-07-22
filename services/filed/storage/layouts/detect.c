@@ -95,14 +95,14 @@ VfsStorageDetectFileSystem(
 }
 
 oserr_t
-VfsStorageParse(
+VFSStorageParse(
 	_In_ FileSystemStorage_t* fsStorage)
 {
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;
     oserr_t               osStatus;
 
-	TRACE("VfsStorageParse(SectorSize %u)", fsStorage->Storage.SectorSize);
+	TRACE("VFSStorageParse(SectorSize %u)", fsStorage->Storage.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
