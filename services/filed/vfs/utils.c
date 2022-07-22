@@ -19,31 +19,43 @@
 #include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
+#include <stdlib.h>
 #include "private.h"
 
-static mstring_t g_dotToken = mstr_const(U".");
+static mstring_t g_rootToken   = mstr_const(U"/");
+static mstring_t g_dotToken    = mstr_const(U".");
 static mstring_t g_dotdotToken = mstr_const(U"..");
 
 mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
 {
-    struct VFSNode* i = node;
-    mstring_t*      path;
+    struct VFSNode* i;
+    int             tokenCount = 0;
+    mstring_t**     tokens;
 
-    // start from the last node and iterate back, since we have to take
-    // end path into account, we specially handle that one right away
-    path = mstr_clone(i->Name);
-    if (path == NULL) {
+    i = node;
+    while (i) {
+        tokenCount++;
+        if (local && !mstr_cmp(&g_rootToken, i->Name)) {
+            break;
+        }
+        i = i->Parent;
+    }
+
+    tokens = malloc(sizeof(mstring_t*) * tokenCount);
+    if (tokens == NULL) {
         return NULL;
     }
 
-    i = i->Parent;
-    while (i) {
-        mstring_t* combined = mstr_fmt("%ms/%ms", i->Name, path);
-        mstr_delete(path);
-        path = combined;
-
+    int index = 0;
+    i = node;
+    while (index < tokenCount) {
+        tokens[tokenCount - index] = i->Name;
         i = i->Parent;
+        index++;
     }
+
+    mstring_t* path = mstr_path_tokens_join(tokens, tokenCount);
+    free(tokens);
     return path;
 }
 
@@ -74,7 +86,7 @@ static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length)
 }
 
 static oserr_t __LoadNode(struct VFSNode* node) {
-    struct VFSOperations* ops = &node->FileSystem->Module->Operations;
+    struct VFSOperations* ops = &node->FileSystem->Interface->Operations;
     struct VFS*           vfs = node->FileSystem;
     oserr_t               osStatus, osStatus2;
     mstring_t*            nodePath = VFSNodeMakePath(node, 1);
@@ -166,7 +178,7 @@ oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** node
 
 oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
 {
-    struct VFSOperations* ops = &node->FileSystem->Module->Operations;
+    struct VFSOperations* ops = &node->FileSystem->Interface->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
     oserr_t               osStatus, osStatus2;
@@ -225,7 +237,7 @@ cleanup:
 
 oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t* target, int symbolic, struct VFSNode** nodeOut)
 {
-    struct VFSOperations* ops = &node->FileSystem->Module->Operations;
+    struct VFSOperations* ops = &node->FileSystem->Interface->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct __VFSChild*    result;
     oserr_t               osStatus, osStatus2;
@@ -343,7 +355,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
         goto cleanup;
     }
 
-    osStatus = node->FileSystem->Module->Operations.Open(node->FileSystem->CommonData, nodePath, &data);
+    osStatus = node->FileSystem->Interface->Operations.Open(node->FileSystem->CommonData, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -363,7 +375,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     goto cleanup;
 
 error:
-    node->FileSystem->Module->Operations.Close(node->FileSystem->CommonData, data);
+    node->FileSystem->Interface->Operations.Close(node->FileSystem->CommonData, data);
 
 cleanup:
     usched_mtx_unlock(&node->HandlesLock);

@@ -18,7 +18,7 @@
 
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_module.h>
+#include <vfs/vfs_interface.h>
 #include "private.h"
 #include <string.h>
 #include <stdlib.h>
@@ -62,6 +62,7 @@ __CreateNode(
     hashtable_construct(&node->Children, 0,
                         sizeof(struct __VFSChild),
                         __ChildrenHash, __ChildrenCmp);
+    usched_mtx_init(&node->MountsLock);
     hashtable_construct(&node->Mounts, 0,
                         sizeof(struct __VFSMount),
                         __MountsHash, __MountsCmp);
@@ -141,7 +142,7 @@ oserr_t
 VFSNew(
         _In_  uuid_t                id,
         _In_  guid_t*               guid,
-        _In_  struct VFSModule*     module,
+        _In_  struct VFSInterface*  interface,
         _In_  struct VFSCommonData* commonData,
         _Out_ struct VFS**          vfsOut)
 {
@@ -157,7 +158,7 @@ VFSNew(
     vfs->ID = id;
     memcpy(&vfs->Guid, guid, sizeof(guid_t));
     vfs->CommonData = commonData;
-    vfs->Module = module;
+    vfs->Interface  = interface;
     usched_rwlock_init(&vfs->Lock);
 
     osStatus = __CreateRootNode(vfs, &vfs->Root);
@@ -292,12 +293,12 @@ static int __ChildrenCmp(const void* lh, const void* rh)
 static uint64_t __MountsHash(const void* element)
 {
     const struct __VFSMount* child = element;
-    return mstr_hash(child->Key);
+    return (uint64_t)child->Target;
 }
 
 static int __MountsCmp(const void* lh, const void* rh)
 {
     const struct __VFSMount* child1 = lh;
     const struct __VFSMount* child2 = rh;
-    return mstr_cmp(child1->Key, child2->Key);
+    return (uint64_t)child1 != (uint64_t)child2;
 }

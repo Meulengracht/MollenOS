@@ -47,7 +47,7 @@ oserr_t OnLoad(void)
     // Initialize subsystems
     VFSNodeHandleInitialize();
     VFSScopeInitialize();
-    VfsStorageInitialize();
+    VFSStorageInitialize();
     VfsFileSystemInitialize();
 
     // Register supported interfaces

@@ -18,10 +18,11 @@
 
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_module.h>
+#include <vfs/vfs_interface.h>
 
 static struct VFS*          g_rootScope      = NULL;
 static guid_t               g_rootGuid       = GUID_EMPTY;
+static mstring_t            g_globalName     = mstr_const(U"vfs-root");
 static struct VFSCommonData g_rootCommonData = { 0 };
 
 static oserr_t
@@ -31,43 +32,34 @@ __NewMemFS(
         _In_ struct VFSCommonData* vfsCommonData,
         _Out_ struct VFS**         vfsOut)
 {
-    struct VFSModule* module;
-    oserr_t           osStatus;
+    struct VFSInterface* interface;
+    oserr_t              osStatus;
 
-    module = MemFSNewModule();
-    if (module == NULL) {
+    interface = MemFSNewInterface();
+    if (interface == NULL) {
         return OsOutOfMemory;
     }
 
-    osStatus = VFSNew(UUID_INVALID, guid, module, vfsCommonData, vfsOut);
+    osStatus = VFSNew(UUID_INVALID, guid, interface, vfsCommonData, vfsOut);
     if (osStatus != OsOK) {
-        VFSModuleDelete(module);
+        VFSInterfaceDelete(interface);
     }
     return osStatus;
 }
 
 void VFSScopeInitialize(void)
 {
-    oserr_t    osStatus;
-    mstring_t* name;
-
-    // TODO mstring_const
-    name = mstr_new_u8("vfs-root");
-    if (name == NULL) {
-        ERROR("VFSScopeInitialize failed to allocate memory for fs name");
-        return;
-    }
-
-    osStatus = __NewMemFS(name, &g_rootGuid, &g_rootCommonData, &g_rootScope);
+    oserr_t osStatus;
+    osStatus = __NewMemFS(&g_globalName, &g_rootGuid, &g_rootCommonData, &g_rootScope);
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
     }
-    mstr_delete(name);
 }
 
 struct VFS*
 VFSScopeGet(
         _In_ uuid_t processId)
 {
+    // TODO implement filesystem scopes based on processId
     return g_rootScope;
 }

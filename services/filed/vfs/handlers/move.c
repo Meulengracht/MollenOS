@@ -57,7 +57,7 @@ static mstring_t* __CombineNodePath(struct VFSNode* directoryNode, mstring_t* na
 
 static oserr_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directoryNode, mstring_t* targetName, int copy)
 {
-    struct VFSOperations* ops        = &sourceNode->FileSystem->Module->Operations;
+    struct VFSOperations* ops        = &sourceNode->FileSystem->Interface->Operations;
     struct VFS*           vfs        = sourceNode->FileSystem;
     mstring_t*            sourcePath = VFSNodeMakePath(sourceNode, 1);
     mstring_t*            targetPath = __CombineNodePath(directoryNode, targetName);
@@ -139,14 +139,14 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
     while (1) {
         size_t read, written;
 
-        osStatus = sourceVFS->Module->Operations.Read(sourceVFS->CommonData, sourceFile,
+        osStatus = sourceVFS->Interface->Operations.Read(sourceVFS->CommonData, sourceFile,
                                                       attachment.handle, attachment.buffer, 0,
                                                       MB(1), &read);
         if (osStatus != OsOK || read == 0) {
             break;
         }
 
-        osStatus = targetVFS->Module->Operations.Write(targetVFS->CommonData, targetFile,
+        osStatus = targetVFS->Interface->Operations.Write(targetVFS->CommonData, targetFile,
                                                        attachment.handle, attachment.buffer, 0,
                                                        read, &written);
         if (osStatus != OsOK) {
@@ -170,7 +170,7 @@ static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directory
         return OsOutOfMemory;
     }
 
-    struct VFSOperations* sourceOps = &sourceNode->FileSystem->Module->Operations;
+    struct VFSOperations* sourceOps = &sourceNode->FileSystem->Interface->Operations;
     void*                 sourceFile;
     osStatus = sourceOps->Open(sourceNode->FileSystem->CommonData, sourceNode->Name, &sourceFile);
     if (osStatus != OsOK) {
@@ -185,7 +185,7 @@ static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directory
         goto unlock;
     }
 
-    struct VFSOperations* targetOps = &directoryNode->FileSystem->Module->Operations;
+    struct VFSOperations* targetOps = &directoryNode->FileSystem->Interface->Operations;
     void*                 targetDirectory;
     osStatus = targetOps->Open(directoryNode->FileSystem->CommonData, directoryNode->Name, &targetDirectory);
     if (osStatus != OsOK) {

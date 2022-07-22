@@ -33,6 +33,10 @@ oserr_t VFSNodeBind(struct VFS* vfs, struct VFSNode* from, struct VFSNode* to)
     to->Type     = VFS_NODE_TYPE_MOUNTPOINT;
     to->TypeData = from;
 
+    usched_mtx_lock(&from->MountsLock);
+    hashtable_set(&from->Mounts, &(struct __VFSMount) { .Target = to });
+    usched_mtx_unlock(&from->MountsLock);
+
 exit:
     usched_rwlock_w_unlock(&to->Lock);
     return osStatus;

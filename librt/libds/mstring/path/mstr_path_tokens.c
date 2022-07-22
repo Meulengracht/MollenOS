@@ -35,7 +35,7 @@ int mstr_path_tokens(mstring_t* path, mstring_t*** tokensOut)
         if (val != '/' && skipSeperators) {
             skipSeperators = 0;
             tokenCount++;
-        } else if (val == '/') {
+        } else if (val == U'/') {
             skipSeperators = 1;
         }
     }
@@ -83,7 +83,7 @@ mstring_t* mstr_path_token_at(mstring_t* path, int index)
             if (!count) {
                 break;
             }
-        } else if (val == '/') {
+        } else if (val == U'/') {
             skipSeperators = 1;
         }
     }
@@ -102,5 +102,43 @@ mstring_t* mstr_path_token_at(mstring_t* path, int index)
         }
     }
 
+    return mstring_builder_finish(builder);
+}
+
+mstring_t* mstr_path_tokens_join(mstring_t** tokens, int tokenCount)
+{
+    struct mstring_builder* builder;
+
+    builder = mstring_builder_new(512);
+    if (builder == NULL) {
+        return NULL;
+    }
+
+    // OK, so what we do here is that we always make sure that
+    // between each token is only one seperator.
+    mchar_t prev = 0;
+    for (int i = 0; i < tokenCount; i++) {
+        for (size_t mi = 0; mi < tokens[i]->__length; mi++) {
+            mchar_t val = tokens[i]->__data[mi];
+            if (prev == U'/' && val == U'/') {
+                continue;
+            }
+
+            if (mstring_builder_append(builder, val)) {
+                mstring_builder_destroy(builder);
+                return NULL;
+            }
+
+            prev = val;
+        }
+
+        if (prev != U'/') {
+            if (mstring_builder_append(builder, U'/')) {
+                mstring_builder_destroy(builder);
+                return NULL;
+            }
+            prev = U'/';
+        }
+    }
     return mstring_builder_finish(builder);
 }

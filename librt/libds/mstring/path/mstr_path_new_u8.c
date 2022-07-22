@@ -37,7 +37,7 @@ mstring_t* mstr_path_new_u8(const char* u8)
 
         // If the last character was a slash, then skip this one, we do
         // not want double-slashes in paths
-        if (val == '/' && prev == '/') { continue; }
+        if (val == U'/' && prev == U'/') { continue; }
 
         if (mstring_builder_append(builder, val)) {
             mstring_builder_destroy(builder);

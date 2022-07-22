@@ -44,7 +44,7 @@ struct VFSOperations {
     FsSeek_t            Seek;
 };
 
-struct VFSModule {
+struct VFSInterface {
     enum FileSystemType  Type;
     Handle_t             Handle;
     struct usched_mtx    Lock;
@@ -55,7 +55,7 @@ struct VFSModule {
  * @brief
  * @return
  */
-extern struct VFSModule* MemFSNewModule(void);
+extern struct VFSInterface* MemFSNewInterface(void);
 
 /**
  * @brief
@@ -65,8 +65,8 @@ extern struct VFSModule* MemFSNewModule(void);
  * @param operations
  * @return
  */
-struct VFSModule*
-VFSModuleNew(
+struct VFSInterface*
+VFSInterfaceNew(
         _In_  enum FileSystemType   type,
         _In_  Handle_t              dllHandle,
         _In_  struct VFSOperations* operations);
@@ -78,17 +78,17 @@ VFSModuleNew(
  * @return     A handle for the given filesystem driver.
  */
 extern oserr_t
-VFSModuleLoadInternal(
-        _In_  enum FileSystemType type,
-        _Out_ struct VFSModule**  moduleOut);
+VFSInterfaceLoadInternal(
+        _In_  enum FileSystemType    type,
+        _Out_ struct VFSInterface**  interfaceOut);
 
 /**
- * @brief Unloads the given module if its reference count reaches 0.
+ * @brief Unloads the given interface if its reference count reaches 0.
  *
- * @param module [In] The module to release a reference on.
+ * @param interface [In] The interface to release a reference on.
  */
 extern void
-VFSModuleDelete(
-        _In_ struct VFSModule* module);
+VFSInterfaceDelete(
+        _In_ struct VFSInterface* interface);
 
 #endif //!__VFS_MODULE_H__

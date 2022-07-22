@@ -28,7 +28,7 @@
 static int g_diskTable[__FILEMANAGER_MAXDISKS] = { 0 };
 
 uuid_t
-VfsIdentifierAllocate(
+VFSIdentifierAllocate(
         _In_ FileSystemStorage_t* fsStorage)
 {
     int indexBegin = 0;
@@ -53,7 +53,7 @@ VfsIdentifierAllocate(
 }
 
 void
-VfsIdentifierFree(
+VFSIdentifierFree(
         _In_ FileSystemStorage_t* storage,
         _In_ uuid_t               id)
 {

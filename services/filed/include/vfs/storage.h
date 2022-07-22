@@ -49,14 +49,14 @@ typedef struct FileSystemStorage {
 /**
  * Initializes the storage subsystem of the VFS manager
  */
-extern void VfsStorageInitialize(void);
+extern void VFSStorageInitialize(void);
 
 /**
  * @brief Registers a new filesystem of the given type, on the given disk with the given position on the disk
  * and assigns it an identifier.
  */
 extern oserr_t
-VfsStorageRegisterFileSystem(
+VFSStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
@@ -95,7 +95,7 @@ VfsStorageDetectFileSystem(
  * @return          UUID_INVALID if system is out of identifiers.
  */
 extern uuid_t
-VfsIdentifierAllocate(
+VFSIdentifierAllocate(
     _In_ FileSystemStorage_t* fsStorage);
 
 /**
@@ -105,7 +105,7 @@ VfsIdentifierAllocate(
  * @param id   [In] The disk identifier to be freed
  */
 extern void
-VfsIdentifierFree(
+VFSIdentifierFree(
         _In_ FileSystemStorage_t* storage,
         _In_ uuid_t               id);
 

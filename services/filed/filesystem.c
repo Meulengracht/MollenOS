@@ -26,14 +26,7 @@
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_module.h>
-
-struct mount_point {
-    element_t     header;
-    mstring_t*    path;
-    unsigned int  flags;
-    FileSystem_t* filesystem;
-};
+#include <vfs/vfs_interface.h>
 
 struct default_mounts {
     const char*  label;
@@ -97,11 +90,9 @@ FileSystemNew(
         _In_ uuid_t               id,
         _In_ guid_t*              guid,
         _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount,
-        _In_ struct VFSModule*    module)
+        _In_ uint64_t             sectorCount)
 {
     FileSystem_t* fileSystem;
-    oserr_t       osStatus;
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -110,29 +101,21 @@ FileSystemNew(
     memset(fileSystem, 0, sizeof(FileSystem_t));
 
     ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->DeviceID, fileSystem);
-    fileSystem->State                  = FileSystemState_CREATED;
-    fileSystem->Module                 = module;
+    fileSystem->ID                     = id;
+    fileSystem->State                  = FileSystemState_NO_INTERFACE;
+    fileSystem->Interface              = NULL;
     fileSystem->CommonData.SectorStart = sector;
     fileSystem->CommonData.SectorCount = sectorCount;
+    memcpy(&fileSystem->GUID, guid, sizeof(guid_t));
     memcpy(&fileSystem->CommonData.Storage, storage, sizeof(StorageDescriptor_t));
     usched_mtx_init(&fileSystem->Lock);
-
-    osStatus = VFSNew(id, guid, fileSystem->Module, &fileSystem->CommonData, &fileSystem->VFS);
-    if (osStatus != OsOK) {
-        ERROR("FileSystemNew failed to initialize vfs data");
-        fileSystem->State = FileSystemState_ERROR;
-    }
     return fileSystem;
 }
 
 void FileSystemDestroy(FileSystem_t* fileSystem)
 {
-    if (fileSystem->VFS != NULL) {
-        VFSDestroy(fileSystem->VFS);
-    }
-    if (fileSystem->Module != NULL) {
-        VFSModuleDelete(fileSystem->Module);
-    }
+    VFSDestroy(fileSystem->VFS);
+    VFSInterfaceDelete(fileSystem->Interface);
     free(fileSystem);
 }
 
@@ -142,7 +125,7 @@ __MountFileSystemAtDefault(
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* partitionNode;
-    oserr_t        osStatus;
+    oserr_t         osStatus;
     mstring_t*      path;
 
     path = mstr_fmt("/storage/%s/%ms", &fileSystem->CommonData.Storage.Serial[0], fileSystem->CommonData.Label);
@@ -157,7 +140,7 @@ __MountFileSystemAtDefault(
         return osStatus;
     }
 
-    osStatus = VFSNodeMount(fsScope, partitionNode, NULL);
+    osStatus = VFSNodeMount(fsScope, partitionNode, fileSystem->VFS);
     if (osStatus != OsOK) {
         ERROR("__MountFileSystemAtDefault failed to mount filesystem at %ms", path);
         mstr_delete(path);
@@ -188,33 +171,67 @@ __MountFileSystemAt(
 }
 
 oserr_t
-VFSFileSystemEnable(
-        _In_ FileSystem_t* fileSystem)
+__Connect(
+        _In_ FileSystem_t*        fileSystem,
+        _In_ struct VFSInterface* interface)
 {
     oserr_t osStatus;
 
-    if (fileSystem == NULL || fileSystem->Module == NULL) {
+    osStatus = VFSNew(
+            fileSystem->ID, &fileSystem->GUID, interface,
+            &fileSystem->CommonData, &fileSystem->VFS
+    );
+    if (osStatus != OsOK) {
+        ERROR("__Connect failed to initialize vfs data");
+        return osStatus;
+    }
+
+    osStatus = interface->Operations.Initialize(&fileSystem->CommonData);
+    if (osStatus != OsOK) {
+        ERROR("__Connect failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
+    }
+    return osStatus;
+}
+
+oserr_t
+VFSFileSystemConnectInterface(
+        _In_ FileSystem_t*        fileSystem,
+        _In_ struct VFSInterface* interface)
+{
+    oserr_t osStatus;
+
+    if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
 
-    osStatus = fileSystem->Module->Operations.Initialize(&fileSystem->CommonData);
-    if (osStatus != OsOK) {
-        ERROR("VfsFileSystemMount failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
-        fileSystem->State = FileSystemState_ERROR;
-        return osStatus;
+    usched_mtx_lock(&fileSystem->Lock);
+    if (fileSystem->State == FileSystemState_CONNECTED) {
+        goto enable;
     }
+
+    osStatus = __Connect(fileSystem, interface);
+    if (osStatus != OsOK) {
+        VFSDestroy(fileSystem->VFS);
+        goto exit;
+    }
+
+    // OK we connected, store and switch state
+    fileSystem->State     = FileSystemState_CONNECTED;
+    fileSystem->Interface = interface;
 
     // Start out by mounting access to this partition under the device node
+enable:
     osStatus = __MountFileSystemAtDefault(fileSystem);
     if (osStatus != OsOK) {
-        ERROR("VfsFileSystemMount failed to mount filesystem %ms", fileSystem->CommonData.Label);
-        fileSystem->State = FileSystemState_ERROR;
-        return osStatus;
+        ERROR("VFSFileSystemConnectInterface failed to mount filesystem %ms", fileSystem->CommonData.Label);
+        goto exit;
     }
 
-    // set state to loaded at this point, even if the bind mounts fail
-    fileSystem->State = FileSystemState_MOUNTED;
-    return OsOK;
+    fileSystem->State = FileSystemState_ENABLED;
+
+exit:
+    usched_mtx_unlock(&fileSystem->Lock);
+    return osStatus;
 }
 
 oserr_t
@@ -229,16 +246,18 @@ VFSFileSystemMount(
         return OsInvalidParameters;
     }
 
-    if (fileSystem->State != FileSystemState_MOUNTED) {
-        return OsError;
+    usched_mtx_lock(&fileSystem->Lock);
+    if (fileSystem->State != FileSystemState_ENABLED) {
+        osStatus = OsNotSupported;
+        goto exit;
     }
 
-    // If a mount point was supplied then we try to mount the filesystem as well at that point,
+    // If a mount point was supplied then we try to mount the filesystem at that point,
     // but otherwise we will be checking the default list
     if (mountPoint) {
         osStatus = __MountFileSystemAt(fileSystem, mountPoint);
         if (osStatus != OsOK) {
-            WARNING("VfsFileSystemMount failed to bind mount filesystem %ms at %ms",
+            WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                     mountPoint, fileSystem->CommonData.Label);
         }
     } else {
@@ -249,7 +268,7 @@ VFSFileSystemMount(
                 mstring_t* bindPath = mstr_new_u8(g_defaultMounts[i].path);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
                 if (osStatus != OsOK) {
-                    WARNING("VfsFileSystemMount failed to bind mount filesystem %ms at %ms",
+                    WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                             mountPoint, fileSystem->CommonData.Label);
                     mstr_delete(label);
                 }
@@ -262,12 +281,17 @@ VFSFileSystemMount(
 
     path = VFSNodeMakePath(fileSystem->MountNode, 0);
     if (path == NULL) {
-        return OsOutOfMemory;
+        osStatus = OsOutOfMemory;
+        goto exit;
     }
 
     TRACE("VfsFileSystemMount notifying session about %ms", path);
     __NotifySessionManager(path);
     mstr_delete(path);
+
+exit:
+    usched_mtx_unlock(&fileSystem->Lock);
+    return osStatus;
 }
 
 oserr_t
@@ -275,11 +299,29 @@ VfsFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
+    oserr_t osStatus = OsNotSupported;
+
     usched_mtx_lock(&fileSystem->Lock);
-    if (fileSystem->State == FileSystemState_MOUNTED) {
+    if (fileSystem->State == FileSystemState_ENABLED) {
         VFSNodeDestroy(fileSystem->MountNode);
-        fileSystem->Module->Operations.Destroy(&fileSystem->CommonData, flags);
+        fileSystem->State = FileSystemState_CONNECTED;
+        osStatus = OsOK;
     }
     usched_mtx_unlock(&fileSystem->Lock);
-    FileSystemDestroy(fileSystem);
+    return osStatus;
+}
+
+oserr_t
+VfsFileSystemDisconnectInterface(
+        _In_ FileSystem_t* fileSystem,
+        _In_ unsigned int  flags)
+{
+    oserr_t osStatus = OsBusy;
+
+    usched_mtx_lock(&fileSystem->Lock);
+    if (fileSystem->State == FileSystemState_CONNECTED) {
+        osStatus = fileSystem->Interface->Operations.Destroy(&fileSystem->CommonData, flags);
+    }
+    usched_mtx_unlock(&fileSystem->Lock);
+    return osStatus;
 }

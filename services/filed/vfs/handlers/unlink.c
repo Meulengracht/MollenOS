@@ -50,7 +50,7 @@ static oserr_t __VerifyCanDelete(struct VFSNode* node)
 // on the parent
 static oserr_t __DeleteNode(struct VFSNode* node)
 {
-    struct VFSOperations* ops = &node->FileSystem->Module->Operations;
+    struct VFSOperations* ops = &node->FileSystem->Interface->Operations;
     struct VFS*           vfs = node->FileSystem;
     struct VFSNode*       parent;
     oserr_t            osStatus;

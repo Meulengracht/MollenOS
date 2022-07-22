@@ -46,7 +46,7 @@ mstring_t* mstr_path_dirname(mstring_t* path)
     }
 
     // Add initial seperator?
-    if (path->__data[0] == '/') {
+    if (path->__data[0] == U'/') {
         if (mstring_builder_append(builder, path->__data[0])) {
             mstring_builder_destroy(builder);
             return NULL;

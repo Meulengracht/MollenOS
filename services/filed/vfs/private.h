@@ -25,7 +25,7 @@
 #include <os/dmabuf.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
-#include <vfs/vfs_module.h>
+#include <vfs/vfs_interface.h>
 
 struct usched_rwlock {
     struct usched_mtx sync_object;
@@ -89,7 +89,7 @@ struct VFS {
     uuid_t                 ID;
     guid_t                 Guid;
     struct VFSCommonData*  CommonData;
-    struct VFSModule*      Module;
+    struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;
     struct dma_attachment  Buffer;
@@ -126,6 +126,12 @@ struct VFSNode {
     // <struct VFSNode>.
     void* TypeData;
 
+    // Children contains the list of child nodes. This is only relevant if the node
+    // is a directory or a filesystem.
+    // The type of member is <struct __VFSChild>
+    // Requires: write lock on node
+    hashtable_t Children;
+
     // Handles contain the table of handles associated with this node. If the node
     // is cloned (Source being non-NULL), then this member will not be used and the
     // Handles of the original node should be used instead.
@@ -133,19 +139,14 @@ struct VFSNode {
     hashtable_t       Handles;
     struct usched_mtx HandlesLock;
 
-    // Children contains the list of child nodes. This is only relevant if the node
-    // is a directory or a filesystem.
-    // The type of member is <struct __VFSChild>
-    // Requires: write lock on node
-    hashtable_t Children;
-
     // Mounts contain a list of nodes where this node is mounted.
-    // The type of member is <struct VFSMount*>
-    hashtable_t Mounts;
+    // The type of member is <struct __VFSMount*>
+    hashtable_t       Mounts;
+    struct usched_mtx MountsLock;
 };
 
 struct __VFSMount {
-    mstring_t* Key;
+    struct VFSNode* Target;
 };
 
 struct __VFSChild {
@@ -209,7 +210,7 @@ static inline bool __NodeIsDirectory(struct VFSNode* node) {
 }
 
 static inline bool __PathIsRoot(mstring_t* path) {
-    if (mstr_at(path, 0) == '/' && mstr_len(path) == 1) {
+    if (mstr_at(path, 0) == U'/' && mstr_len(path) == 1) {
         return true;
     }
     return false;

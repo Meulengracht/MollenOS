@@ -34,7 +34,7 @@ mstring_t* mstr_path_basename(mstring_t* path)
     if (tokenCount == 0) {
         mstr_delete_array(tokens, tokenCount);
 
-        if (path->__data[0] == '/') {
+        if (path->__data[0] == U'/') {
             return mstr_new_u8("/");
         }
 

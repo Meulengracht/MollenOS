@@ -86,7 +86,7 @@ VfsStorageDetectFileSystem(
         return OsError;
     }
 
-    return VfsStorageRegisterFileSystem(
+    return VFSStorageRegisterFileSystem(
             storage, sector,
             sectorCount, type,
             &g_emptyGuid,

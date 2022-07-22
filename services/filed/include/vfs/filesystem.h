@@ -31,22 +31,23 @@
 #include "filesystem_types.h"
 #include "requests.h"
 #include "vfs.h"
-#include "vfs_module.h"
+#include "vfs_interface.h"
 
 enum FileSystemState {
-    FileSystemState_CREATED,
-    FileSystemState_MOUNTED,
-    FileSystemState_UNMOUNTED,
-    FileSystemState_ERROR
+    FileSystemState_NO_INTERFACE,
+    FileSystemState_CONNECTED,
+    FileSystemState_ENABLED,
 };
 
 typedef struct FileSystem {
     element_t             Header;
+    uuid_t                ID;
+    guid_t                GUID;
     struct VFSCommonData  CommonData;
     enum FileSystemType   Type;
     enum FileSystemState  State;
     struct VFS*           VFS;
-    struct VFSModule*     Module;
+    struct VFSInterface*  Interface;
     struct VFSNode*       MountNode;
     struct usched_mtx     Lock;
 } FileSystem_t;
@@ -60,11 +61,11 @@ extern void VfsFileSystemInitialize(void);
  * @brief Creates a new filesystem instance from the parameters provided. This does not register
  * or mount the filesystem.
  *
- * @param disk        The (shared) filesystem descriptor.
+ * @param storage     The storage descriptor.
  * @param id          A numeric id of the filesystem.
+ * @param guid        The unique identifier (GUID) of the filesystem.
  * @param sector      The start sector of the filesystem on the disk.
  * @param sectorCount The number of sectors (size) the filesystem spans.
- * @param type        The filesystem type id.
  * @return
  */
 extern FileSystem_t*
@@ -73,10 +74,17 @@ FileSystemNew(
         _In_ uuid_t               id,
         _In_ guid_t*              guid,
         _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount,
-        _In_ struct VFSModule*    module);
+        _In_ uint64_t             sectorCount);
 
 /**
+ * @brief
+ *
+ * @param fileSystem
+ */
+extern void FileSystemDestroy(FileSystem_t* fileSystem);
+
+/**
+ * @brief
  *
  * @param guid
  * @return
@@ -85,9 +93,29 @@ extern enum FileSystemType
 FileSystemParseGuid(
         _In_ guid_t* guid);
 
+/**
+ * @brief
+ *
+ * @param fileSystem
+ * @param interface
+ * @return
+ */
 extern oserr_t
-VFSFileSystemEnable(
-        _In_ FileSystem_t* fileSystem);
+VFSFileSystemConnectInterface(
+        _In_ FileSystem_t*        fileSystem,
+        _In_ struct VFSInterface* interface);
+
+/**
+ * @brief
+ *
+ * @param fileSystem
+ * @param flags
+ * @return
+ */
+extern oserr_t
+VfsFileSystemDisconnectInterface(
+        _In_ FileSystem_t* fileSystem,
+        _In_ unsigned int  flags);
 
 /**
  * @brief Mounts a previously registered filesystem at the provided mount point. If no mount point is provided

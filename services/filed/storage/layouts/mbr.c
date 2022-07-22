@@ -106,12 +106,12 @@ static oserr_t ParsePartitionEntry(
         }
     }
 
-    return VfsStorageRegisterFileSystem(storage,
-                                 currentSector + entry->LbaSector,
-                                 entry->LbaSize,
-                                 type,
-                                 &g_emptyGuid,
-                                 &g_emptyGuid
+    return VFSStorageRegisterFileSystem(storage,
+                                        currentSector + entry->LbaSector,
+                                        entry->LbaSize,
+                                        type,
+                                        &g_emptyGuid,
+                                        &g_emptyGuid
     );
 }
 

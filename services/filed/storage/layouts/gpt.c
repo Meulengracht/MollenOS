@@ -79,7 +79,7 @@ GptEnumeratePartitionTable(
 
             guid_parse_raw(&uniqueId, &entry->PartitionGUID[0]);
             sectorCount = (entry->EndLBA - entry->StartLBA) + 1;
-            VfsStorageRegisterFileSystem(
+            VFSStorageRegisterFileSystem(
                     storage, entry->StartLBA,
                     sectorCount, 0,
                     &typeGuid,

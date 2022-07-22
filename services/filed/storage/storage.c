@@ -41,13 +41,13 @@ struct VfsRemoveDiskRequest {
 static list_t            g_disks = LIST_INIT;
 static struct usched_mtx g_diskLock;
 
-extern void VfsStorageInitialize(void)
+extern void VFSStorageInitialize(void)
 {
     usched_mtx_init(&g_diskLock);
 }
 
 oserr_t
-VfsStorageRegisterFileSystem(
+VFSStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
@@ -55,13 +55,13 @@ VfsStorageRegisterFileSystem(
         _In_ guid_t*              typeGuid,
         _In_ guid_t*              guid)
 {
-    FileSystem_t*       fileSystem;
-    enum FileSystemType fsType = type;
-    struct VFSModule*   module = NULL;
-    oserr_t             osStatus;
-    uuid_t              id;
+    FileSystem_t*        fileSystem;
+    enum FileSystemType  fsType = type;
+    struct VFSInterface* interface = NULL;
+    oserr_t              osStatus;
+    uuid_t               id;
 
-    TRACE("VfsStorageRegisterFileSystem(sector=%u, sectorCount=%u, type=%u)",
+    TRACE("VFSStorageRegisterFileSystem(sector=%u, sectorCount=%u, type=%u)",
           LODWORD(sector), LODWORD(sectorCount), type);
 
     if (fsType == FileSystemType_UNKNOWN) {
@@ -69,18 +69,17 @@ VfsStorageRegisterFileSystem(
         fsType = FileSystemParseGuid(typeGuid);
     }
 
-    osStatus = VFSModuleLoadInternal(fsType, &module);
-    if (osStatus != OsOK) {
-        ERROR("VfsStorageRegisterFileSystem failed to load filesystem of type %u", fsType);
-    }
-
-    id = VfsIdentifierAllocate(storage);
+    // Get a new filesystem identifier specific to the storage, and then we create
+    // the filesystem instance. The storage descriptor, which tells the FS about the
+    // storage medium it is on (could be anything), must always be supplied, and should
+    // always be known ahead of FS registration.
+    id = VFSIdentifierAllocate(storage);
     fileSystem = FileSystemNew(
             &storage->Storage, id, guid,
-            sector, sectorCount, module
+            sector, sectorCount
     );
     if (!fileSystem) {
-        VFSModuleDelete(module);
+        VFSIdentifierFree(storage, id);
         return OsOutOfMemory;
     }
 
@@ -88,18 +87,25 @@ VfsStorageRegisterFileSystem(
     list_append(&storage->Filesystems, &fileSystem->Header);
     usched_mtx_unlock(&storage->Lock);
 
-    // we must wait for an MFS to be registered before trying to load
-    // additional drivers due to the fact that we only come bearing MFS driver in the initrd (for now)
-    if (fileSystem->Type == FileSystemType_MFS) {
-        osStatus = VFSFileSystemEnable(fileSystem);
-        if (osStatus != OsOK) {
-            return osStatus;
-        }
+    // Try to find a module for the filesystem type. If this returns an error
+    // it simply means we are not in a sitatuion where we can load the filesystem
+    // right now. A module may be present later, so we still register it as disconnected
+    osStatus = VFSInterfaceLoadInternal(fsType, &interface);
+    if (osStatus != OsOK) {
+        WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
+    }
 
-        osStatus = VFSFileSystemMount(fileSystem, NULL);
-        if (osStatus != OsOK) {
-            return osStatus;
-        }
+    osStatus = VFSFileSystemConnectInterface(fileSystem, interface);
+    if (osStatus != OsOK) {
+        // If the interface fails to connect, then the filesystem will go into
+        // state NO_INTERFACE. We bail early then as there is no reason to mount the
+        // filesystem
+        return osStatus;
+    }
+
+    osStatus = VFSFileSystemMount(fileSystem, NULL);
+    if (osStatus != OsOK) {
+        return osStatus;
     }
     return OsOK;
 }
@@ -184,6 +190,8 @@ __StorageUnmount(
     _foreach(i, &fsStorage->Filesystems) {
         FileSystem_t* fileSystem = (FileSystem_t*)i->value;
         VfsFileSystemUnmount(fileSystem, flags);
+        VfsFileSystemDisconnectInterface(fileSystem, flags);
+        FileSystemDestroy(fileSystem);
     }
     usched_mtx_unlock(&fsStorage->Lock);
 }

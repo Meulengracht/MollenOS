@@ -61,7 +61,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
 
     // store the return value, so we can return the result of that instead of
     // returning the result of cleanup
-    osStatus = node->FileSystem->Module->Operations.Stat(node->FileSystem->CommonData, stat);
+    osStatus = node->FileSystem->Interface->Operations.Stat(node->FileSystem->CommonData, stat);
     VFSNodePut(node);
     mstr_delete(nodePath);
     return osStatus;

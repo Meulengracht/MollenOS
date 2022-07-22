@@ -174,6 +174,6 @@ static struct VFSOperations g_memfsOperations = {
         .Seek = __MemFSSeek
 };
 
-struct VFSModule* MemFSNewModule(void) {
-    return VFSModuleNew(FileSystemType_MEMFS, NULL, &g_memfsOperations);
+struct VFSInterface* MemFSNewInterface(void) {
+    return VFSInterfaceNew(FileSystemType_MEMFS, NULL, &g_memfsOperations);
 }

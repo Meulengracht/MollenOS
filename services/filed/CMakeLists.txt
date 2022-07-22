@@ -19,15 +19,15 @@ set (SERVICE_HEADERS
 )
 
 set (SERVICE_SOURCES
+        interfaces/modules.c
+
         storage/layouts/detect.c
         storage/layouts/mbr.c
         storage/layouts/gpt.c
-
         storage/storage.c
         storage/utils.c
 
         filesystem.c
-        modules/modules.c
         main.c
         requests.c
         scope.c

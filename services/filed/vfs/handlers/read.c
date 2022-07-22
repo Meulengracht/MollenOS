@@ -58,7 +58,7 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
     nodeVfs = handle->Node->FileSystem;
 
     usched_rwlock_r_lock(&handle->Node->Lock);
-    osStatus = nodeVfs->Module->Operations.Read(
+    osStatus = nodeVfs->Interface->Operations.Read(
             nodeVfs->CommonData, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
@@ -104,7 +104,7 @@ oserr_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
     nodeVfs = handle->Node->FileSystem;
 
     usched_rwlock_r_lock(&handle->Node->Lock);
-    osStatus = nodeVfs->Module->Operations.Seek(
+    osStatus = nodeVfs->Interface->Operations.Seek(
             nodeVfs->CommonData, handle->Data,
             position.QuadPart, &result.QuadPart);
     if (osStatus != OsOK) {
@@ -112,7 +112,7 @@ oserr_t VFSNodeReadAt(struct VFSRequest* request, size_t* readOut)
     }
     handle->Position = result.QuadPart;
 
-    osStatus = nodeVfs->Module->Operations.Read(
+    osStatus = nodeVfs->Interface->Operations.Read(
             nodeVfs->CommonData, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,

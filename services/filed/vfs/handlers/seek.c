@@ -52,7 +52,7 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
         }
     }
 
-    osStatus = nodeVfs->Module->Operations.Seek(
+    osStatus = nodeVfs->Interface->Operations.Seek(
             nodeVfs->CommonData, handle->Data,
             position.QuadPart, &result.QuadPart);
     if (osStatus == OsOK) {
