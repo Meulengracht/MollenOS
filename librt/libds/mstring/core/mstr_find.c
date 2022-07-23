@@ -23,18 +23,20 @@ int mstr_find_u8(mstring_t* string, const char* u8, int startIndex)
     int    u8i = 0;
     size_t i   = 0;
     mchar_t needle;
+    size_t  needleLength;
 
-    if (string == NULL || string->__length == 0) {
+    if (string == NULL || u8 == NULL) {
         return -1;
     }
 
     // to speed up things, we look for the initial character before
     // making any compare calls.
-    needle = mstr_next(u8, &u8i);
+    needle       = mstr_next(u8, &u8i);
+    needleLength = mstr_len_u8(u8);
     while (i < string->__length) {
         if (needle == string->__data[i] && (int)i >= startIndex) {
             // compare the entire u8 sequence
-            if (!mstr_cmp_u8_index(string, u8, i)) {
+            if (!mstr_cmp_u8_index(string, u8, i, needleLength)) {
                 return (int)i;
             }
         }
@@ -48,6 +50,7 @@ int mstr_rfind_u8(mstring_t* string, const char* u8, int startIndex)
     int     u8i = 0;
     size_t  i   = 0;
     mchar_t needle;
+    size_t  needleLength;
     int     lastOccurrence  = -1;
 
     if (string == NULL || string->__length == 0) {
@@ -56,7 +59,8 @@ int mstr_rfind_u8(mstring_t* string, const char* u8, int startIndex)
 
     // to speed up things, we look for the initial character before
     // making any compare calls.
-    needle = mstr_next(u8, &u8i);
+    needle       = mstr_next(u8, &u8i);
+    needleLength = mstr_len_u8(u8);
     while (i < string->__length) {
         if (i >= (size_t)startIndex) {
             break;
@@ -64,7 +68,7 @@ int mstr_rfind_u8(mstring_t* string, const char* u8, int startIndex)
 
         if (needle == string->__data[i] && i < (size_t)startIndex) {
             // compare the entire u8 sequence
-            if (!mstr_cmp_u8_index(string, u8, i)) {
+            if (!mstr_cmp_u8_index(string, u8, i, needleLength)) {
                 lastOccurrence = (int)i;
             }
         }
