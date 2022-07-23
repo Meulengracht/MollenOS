@@ -45,7 +45,7 @@ mstring_t* mstr_replace_u8(mstring_t* string, const char* find, const char* with
     while (i < string->__length) {
         if (needle == string->__data[i]) {
             // compare the entire u8 sequence
-            if (!mstr_cmp_u8_index(string, find, i)) {
+            if (!mstr_cmp_u8_index(string, find, i, findLength)) {
                 if (mstring_builder_append_u8(builder, with, withLength)) {
                     mstring_builder_destroy(builder);
                     return NULL;
