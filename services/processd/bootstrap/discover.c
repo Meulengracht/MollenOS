@@ -194,7 +194,7 @@ PmBootstrapFindRamdiskFile(
     TRACE("PmBootstrapFindRamdiskFile(path=%s)", pathu8);
 
     // skip the rd:/ prefix
-    internPath = strchr(pathu8, '/') + 1;
+    internPath = strchr(pathu8, '/');
     internFilename = strrchr(pathu8, '/');
 
     // Ok, so max out at len(tempbuf) - 1, but minimum 1 char to include the initial '/'
@@ -209,7 +209,7 @@ PmBootstrapFindRamdiskFile(
 
     status = vafs_directory_open(g_vafs, &tempbuf[0], &directoryHandle);
     if (status) {
-        ERROR("PmBootstrapFindRamdiskFile failed to open %s, corrupt image buffer", &tempbuf[0]);
+        ERROR("PmBootstrapFindRamdiskFile failed to open %s: %i", &tempbuf[0], errno);
         free(pathu8);
         return OsError;
     }

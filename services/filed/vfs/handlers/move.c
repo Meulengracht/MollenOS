@@ -22,18 +22,6 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static mstring_t* __DirectoryOf(mstring_t* path)
-{
-    size_t pathLength = mstr_len(path);
-    int    lastOccurrence;
-
-    lastOccurrence = mstr_rfind_u8(path, "/", -1);
-    if (lastOccurrence == (int)pathLength) {
-        lastOccurrence = mstr_rfind_u8(path, "/", lastOccurrence);
-    }
-    return mstr_substr(path, 0, lastOccurrence);
-}
-
 static mstring_t* __SubtractPath(mstring_t* path, mstring_t* operand)
 {
     if (mstr_cmp(path, operand)) {
@@ -242,9 +230,9 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
     mstring_t*      fromPath = mstr_path_new_u8(request->parameters.move.from);
     struct VFSNode* to;
     mstring_t*      toPath = mstr_path_new_u8(request->parameters.move.to);
-    mstring_t*      path;
+    mstring_t*      path = NULL;
     mstring_t*      targetName;
-    oserr_t      osStatus;
+    oserr_t         osStatus;
 
     if (fromPath == NULL || toPath == NULL) {
         mstr_delete(fromPath);
@@ -262,7 +250,7 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
 
     // Move only supports regular files, so get the directory node
     // of the target, which must exist
-    path = __DirectoryOf(toPath);
+    path = mstr_path_dirname(toPath);
     if (path == NULL) {
         VFSNodePut(from);
         osStatus = OsOutOfMemory;
@@ -289,5 +277,6 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
 cleanup:
     mstr_delete(fromPath);
     mstr_delete(toPath);
+    mstr_delete(path);
     return osStatus;
 }

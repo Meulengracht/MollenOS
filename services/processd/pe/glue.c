@@ -108,14 +108,17 @@ __GuessBasePath(
 static mstring_t*
 __TestRamdiskPath(
         _In_ const char* basePath,
-        _In_  mstring_t* path)
+        _In_ mstring_t*  path)
 {
-    oserr_t osStatus;
+    oserr_t    osStatus;
     mstring_t* temporaryResult;
     TRACE("__TestRamdiskPath(basePath=%s, path=%ms)", basePath, path);
 
     // create the full path for the ramdisk
-    temporaryResult = mstr_fmt("%ms/%ms", basePath, path);
+    temporaryResult = mstr_fmt("%s/%ms", basePath, path);
+    if (temporaryResult == NULL) {
+        return NULL;
+    }
 
     // try to find the file in the ramdisk
     osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
@@ -141,10 +144,10 @@ __ResolveRelativePath(
     // Let's test against parent being loaded through the ramdisk
     if (parentPath && mstr_find_u8(parentPath, "rd:/", 0) != -1) {
         // create the full path for the ramdisk
-        temporaryResult = __TestRamdiskPath("rd:/bin/", path);
+        temporaryResult = __TestRamdiskPath("rd:/bin", path);
         if (!temporaryResult) {
             // sometimes additional modules will be loaded (i.e fs modules)
-            temporaryResult = __TestRamdiskPath("rd:/modules/", path);
+            temporaryResult = __TestRamdiskPath("rd:/modules", path);
         }
 
         if (temporaryResult) {

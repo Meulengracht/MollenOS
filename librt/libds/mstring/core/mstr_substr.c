@@ -32,12 +32,12 @@ mstring_t* mstr_substr(mstring_t* string, int start, int length)
     // Special case handlings
     // 1. Start is out of range OR length is 0
     //    - Return empty string
-    // 2. End is out of range
+    // 2. End is out of range OR length is less than 0
     //    - Clamp to length, return remainder
     if (i0 >= string->__length || length == 0) {
         return mstr_new_u8("");
     }
-    if (iN > string->__length)  {
+    if (iN > string->__length || length < 0)  {
         iN = string->__length;
     }
 
