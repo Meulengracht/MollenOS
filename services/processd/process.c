@@ -458,7 +458,7 @@ void PmGetProcessStartupInformation(
         _In_ void*      cancellationToken)
 {
     Process_t* process       = GetProcessByThread(request->parameters.get_initblock.threadHandle);
-    oserr_t   osStatus      = OsNotExists;
+    oserr_t    osStatus      = OsNotExists;
     uuid_t     processHandle = UUID_INVALID;
     int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
@@ -496,9 +496,9 @@ void PmGetProcessStartupInformation(
 
     // fill in the startup header as we now have all info
     startupInfo->ArgumentsLength = process->arguments_length;
-    startupInfo->EnvironmentBlockLength = 0;
     startupInfo->InheritationLength = process->inheritation_block_length;
     startupInfo->LibraryEntriesLength = moduleCount * sizeof(Handle_t);
+    startupInfo->EnvironmentBlockLength = 0;
 
     // unmap and cleanup
     dma_attachment_unmap(&dmaAttachment);

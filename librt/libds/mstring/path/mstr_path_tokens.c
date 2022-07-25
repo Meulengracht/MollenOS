@@ -74,19 +74,16 @@ mstring_t* mstr_path_token_at(mstring_t* path, int index)
         return NULL;
     }
 
-    int skipSeperators = 1;
-    for (; i < path->__length; i++) {
-        mchar_t val = path->__data[i];
-        if (val != '/' && skipSeperators) {
-            skipSeperators = 0;
+    do {
+        // skip '/'
+        while (i < path->__length && path->__data[i] == U'/') i++;
+
+        // now skip towards the next '/'
+        if (i < path->__length && count) {
+            while (i < path->__length && path->__data[i] != U'/') i++;
             count--;
-            if (!count) {
-                break;
-            }
-        } else if (val == U'/') {
-            skipSeperators = 1;
         }
-    }
+    } while (i < path->__length && count);
 
     // If count is non-zero at this point, we asked for a token
     // that was out of range, so exit here
@@ -95,7 +92,7 @@ mstring_t* mstr_path_token_at(mstring_t* path, int index)
         return NULL;
     }
 
-    while (i < path->__length && path->__data[i] != '/') {
+    while (i < path->__length && path->__data[i] != U'/') {
         if (mstring_builder_append(builder, path->__data[i++])) {
             mstring_builder_destroy(builder);
             return NULL;

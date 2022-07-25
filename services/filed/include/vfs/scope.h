@@ -24,7 +24,7 @@
 /**
  * @brief Initializes the filesystem scope subsystem
  */
-extern void VFSScopeInitialize(void);
+extern void VFSScopeInitialize(void*, void*);
 
 /**
  * @brief Retrieves the relevant filesystem scope for the given process

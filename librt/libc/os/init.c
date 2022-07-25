@@ -77,6 +77,7 @@ static int __build_environment(const char* environment)
 {
     const char* i         = environment;
     int         pairCount = 0;
+    TRACE("__build_environment(env=%s)", environment);
 
     while (*i) {
         // skip towards next entry, and skip the terminating zero
@@ -112,6 +113,7 @@ static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
 {
     size_t     entries = length / sizeof(uintptr_t);
     uintptr_t* libraries;
+    TRACE("__parse_library_handles(length=%u)", length);
 
     if (!entries) {
         return NULL;
@@ -128,11 +130,14 @@ static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
     return libraries;
 }
 
-static int __parse_startup_info(const char* buffer)
+static int __parse_startup_info(struct dma_attachment* dmaAttachment)
 {
-    ProcessStartupInformation_t* source = (ProcessStartupInformation_t*)buffer;
-    const char*                  data   = buffer + sizeof(ProcessStartupInformation_t);
+    ProcessStartupInformation_t* source;
+    const char*                  data;
+    TRACE("__parse_startup_info()");
 
+    source = (ProcessStartupInformation_t*)dmaAttachment->buffer;
+    data   = (char*)dmaAttachment->buffer + sizeof(ProcessStartupInformation_t);
     TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
           source->ArgumentsLength,
           source->InheritationLength,
@@ -179,7 +184,8 @@ static int __get_startup_info(void)
     struct dma_attachment    mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     int                      status;
-    oserr_t                 osStatus;
+    oserr_t                  osStatus;
+    TRACE("__get_startup_info()");
 
     status = __create_startup_buffer(&buffer, &mapping);
     if (status) {
@@ -202,9 +208,9 @@ static int __get_startup_info(void)
     );
     assert(osStatus == OsOK);
 
-    status = __parse_startup_info(mapping.buffer);
+    status = __parse_startup_info(&mapping);
+    dma_attachment_unmap(&mapping);
     dma_detach(&mapping);
-    free(mapping.buffer);
     return status;
 }
 
@@ -213,7 +219,7 @@ void __crt_process_initialize(
 {
     gracht_client_configuration_t clientConfig;
     int                           status;
-    TRACE("__crt_process_initialize(isPhoenix=%i)", );
+    TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
     
     // We must set IsModule before anything
     g_isPhoenix = isPhoenix;

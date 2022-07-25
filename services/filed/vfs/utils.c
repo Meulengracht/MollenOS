@@ -16,6 +16,8 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
@@ -389,6 +391,7 @@ oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, uint32_t permissio
     mstring_t*      directoryPath;
     mstring_t*      directoryName;
     oserr_t         osStatus;
+    TRACE("VFSNodeNewDirectory(path=%ms, perms=0x%x)", path, permissions);
 
     directoryPath = mstr_path_dirname(path);
     if (directoryPath == NULL) {

@@ -16,6 +16,8 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include <vfs/vfs_interface.h>
@@ -52,6 +54,7 @@ __MountDefaultDirectories(void)
 {
     struct VFSNode* node;
     mstring_t       storage = mstr_const(U"/storage/");
+    TRACE("__MountDefaultDirectories()");
 
     // Mount the storage folder, this is the responsibility of the storage
     // manager, which is this service for the time being
@@ -60,7 +63,7 @@ __MountDefaultDirectories(void)
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &node);
 }
 
-void VFSScopeInitialize(void)
+void VFSScopeInitialize(void* context, void* token)
 {
     oserr_t osStatus;
 
@@ -74,7 +77,7 @@ void VFSScopeInitialize(void)
 
     osStatus = __MountDefaultDirectories();
     if (osStatus != OsOK) {
-        ERROR("VFSScopeInitialize failed to mount default directories");
+        ERROR("VFSScopeInitialize failed to mount default directories: %u", osStatus);
     }
 }
 

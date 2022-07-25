@@ -112,7 +112,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
 {
     struct dma_buffer_info buffer;
     struct dma_attachment  attachment;
-    oserr_t             osStatus;
+    oserr_t                osStatus;
 
     buffer.name     = "vfs_transfer_file";
     buffer.flags    = 0;
@@ -142,6 +142,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
         }
     }
 
+    dma_attachment_unmap(&attachment);
     dma_detach(&attachment);
     return OsOK;
 }

@@ -56,7 +56,7 @@ mstring_t* mstr_path_dirname(mstring_t* path)
             goto finish;
         }
     } else if (tokenCount <= 1) {
-        if (mstring_builder_append(builder, '.')) {
+        if (mstring_builder_append(builder, U'.')) {
             mstring_builder_destroy(builder);
             return NULL;
         }
@@ -64,7 +64,7 @@ mstring_t* mstr_path_dirname(mstring_t* path)
     }
 
     for (int i = 0; i < (tokenCount - 1); i++) {
-        if (mstring_builder_append(builder, '/') ||
+        if (mstring_builder_append(builder, U'/') ||
             __append_mstring(builder, tokens[i])) {
             mstring_builder_destroy(builder);
             return NULL;

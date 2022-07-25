@@ -19,7 +19,7 @@
  * services and boots them.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/initrd.h>
 #include <ddk/utils.h>

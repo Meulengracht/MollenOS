@@ -192,6 +192,7 @@ void VFSDestroy(struct VFS* vfs)
     // we have to make sure that there are no links back to this
 
     if (vfs->Buffer.buffer != NULL) {
+        dma_attachment_unmap(&vfs->Buffer);
         dma_detach(&vfs->Buffer);
     }
     VFSNodeDestroy(vfs->Root);

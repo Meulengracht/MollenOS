@@ -22,7 +22,7 @@
  *      and implemented as a part of libds to share between services and kernel
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ds/ds.h>

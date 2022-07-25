@@ -46,12 +46,14 @@ oserr_t OnLoad(void)
 {
     // Initialize subsystems
     VFSNodeHandleInitialize();
-    VFSScopeInitialize();
     VFSStorageInitialize();
     VfsFileSystemInitialize();
 
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_file_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_storage_server_protocol);
+
+    // Queue up some initialization jobs
+    usched_task_queue((usched_task_fn)VFSScopeInitialize, NULL);
     return OsOK;
 }
