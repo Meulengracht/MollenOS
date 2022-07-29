@@ -38,6 +38,30 @@ mstring_t* mstr_new_u8(const char* str)
     } else {
         string->__data = NULL;
     }
-    mstr_to_internal(str, string->__data);
+    mstr_u8_to_internal(str, string->__data);
+    return string;
+}
+
+mstring_t* mstr_new_u16(const short* str)
+{
+    mstring_t* string;
+
+    string = stralloc(sizeof(mstring_t));
+    if (string == NULL) {
+        return NULL;
+    }
+
+    string->__flags = 0;
+    string->__length = mstr_len_u16(str);
+    if (string->__length != 0) {
+        string->__data = stralloc(string->__length * sizeof(mchar_t));
+        if (string->__data == NULL) {
+            strfree(string);
+            return NULL;
+        }
+    } else {
+        string->__data = NULL;
+    }
+    mstr_u16_to_internal(str, string->__data);
     return string;
 }

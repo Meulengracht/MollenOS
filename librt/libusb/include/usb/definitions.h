@@ -237,9 +237,9 @@ PACKED_TYPESTRUCT(usb_string_descriptor, {
  * Contains the structure of the string-descriptor returned 
  * by an usb device. Length here is size + (2 * numUnicodeCharacters) */
 PACKED_TYPESTRUCT(usb_unicode_string_descriptor, {
-    uint8_t Length;     // Header - Length
-    uint8_t Type;       // Header - Type
-    uint8_t String[60]; // Use a buffer large enough in all cases
+    uint8_t length;
+    uint8_t type;
+    uint8_t string[60];
 });
 
 #endif //!__USB_DEFINITIONS_H__

@@ -288,7 +288,7 @@ static int __ChildrenCmp(const void* lh, const void* rh)
 {
     const struct __VFSChild* child1 = lh;
     const struct __VFSChild* child2 = rh;
-    return child1->Node->Stats.ID == child2->Node->Stats.ID ? 0 : 1;
+    return mstr_cmp(child1->Key, child2->Key);
 }
 
 static uint64_t __MountsHash(const void* element)

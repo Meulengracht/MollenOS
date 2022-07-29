@@ -45,26 +45,26 @@ static uuid_t g_nextDeviceId = 0;
 static size_t g_frameSize;
 
 static void
-FlipStringBuffer(
-    _In_ uint8_t* Buffer,
-    _In_ size_t   Length)
+__flipbuffer(
+    _In_ uint8_t* buffer,
+    _In_ size_t   length)
 {
-    size_t StringPairs = Length / 2;
+    size_t pairs = length / 2;
     size_t i;
 
     // Iterate pairs in string, and swap
-    for (i = 0; i < StringPairs; i++) {
-        uint8_t TempChar    = Buffer[i * 2];
-        Buffer[i * 2]       = Buffer[i * 2 + 1];
-        Buffer[i * 2 + 1]   = TempChar;
+    for (i = 0; i < pairs; i++) {
+        uint8_t temp      = buffer[i * 2];
+        buffer[i * 2]     = buffer[i * 2 + 1];
+        buffer[i * 2 + 1] = temp;
     }
 
     // Zero terminate by trimming trailing spaces
-    for (i = (Length - 1); i > 0; i--) {
-        if (Buffer[i] != ' ' && Buffer[i] != '\0') {
+    for (i = (length - 1); i > 0; i--) {
+        if (buffer[i] != ' ' && buffer[i] != '\0') {
             i += 1;
-            if (i < Length) {
-                Buffer[i] = '\0';
+            if (i < length) {
+                buffer[i] = '\0';
             }
             break;
         }
@@ -250,9 +250,9 @@ HandleIdentifyCommand(
         (ATAIdentify_t*)device->Port->InternalBuffer.buffer;
 
     // Flip the data in the strings as it's inverted
-    FlipStringBuffer(deviceInformation->SerialNo, 20);
-    FlipStringBuffer(deviceInformation->ModelNo, 40);
-    FlipStringBuffer(deviceInformation->FWRevision, 8);
+    __flipbuffer(deviceInformation->SerialNo, 20);
+    __flipbuffer(deviceInformation->ModelNo, 40);
+    __flipbuffer(deviceInformation->FWRevision, 8);
 
     TRACE("HandleIdentifyCommand(%s)", &deviceInformation->ModelNo[0]);
 

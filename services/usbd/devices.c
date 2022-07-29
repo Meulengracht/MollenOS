@@ -166,14 +166,48 @@ static UsbTransferStatus_t __GetDeviceDescriptor(
     TRACE("__GetDeviceDescriptor configurations 0x%x, mps 0x%x",
           deviceDescriptor.ConfigurationCount, deviceDescriptor.MaxPacketSize);
 
-
     // Update information from the device descriptor
-    device->Base.device_mps = deviceDescriptor.MaxPacketSize;
-    device->VendorId        = deviceDescriptor.VendorId;
-    device->ProductId       = deviceDescriptor.ProductId;
-    device->Class           = deviceDescriptor.Class;
-    device->Subclass        = deviceDescriptor.Subclass;
+    device->Base.device_mps   = deviceDescriptor.MaxPacketSize;
+    device->ManufactorerIndex = deviceDescriptor.StringIndexManufactor;
+    device->ProductIndex      = deviceDescriptor.StringIndexProduct;
+    device->SerialIndex       = deviceDescriptor.StringIndexSerialNumber;
+    device->VendorId          = deviceDescriptor.VendorId;
+    device->ProductId         = deviceDescriptor.ProductId;
+    device->Class             = deviceDescriptor.Class;
+    device->Subclass          = deviceDescriptor.Subclass;
     return transferStatus;
+}
+
+// TODO get language list first
+static UsbTransferStatus_t __GetDeviceString(
+        _In_  UsbPortDevice_t* device,
+        _In_  uint8_t          stringIndex,
+        _Out_ mstring_t**      stringOut)
+{
+    UsbTransferStatus_t transferStatus;
+
+    transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
+    if (transferStatus != TransferFinished) {
+        transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
+    }
+    return transferStatus;
+}
+
+static UsbTransferStatus_t __GetDeviceIdentification(
+        _In_ UsbPortDevice_t* device)
+{
+    UsbTransferStatus_t transferStatus;
+
+    transferStatus = __GetDeviceString(device, device->ManufactorerIndex, &device->Manufacturer);
+    if (transferStatus != TransferFinished) {
+        return transferStatus;
+    }
+
+    transferStatus = __GetDeviceString(device, device->ProductIndex, &device->Product);
+    if (transferStatus != TransferFinished) {
+        return transferStatus;
+    }
+    return __GetDeviceString(device, device->SerialIndex, &device->Serial);
 }
 
 static UsbTransferStatus_t __GetConfiguration(
@@ -295,10 +329,15 @@ UsbCoreDevicesCreate(
     device->Base.device_address = reservedAddress;
     thrd_sleepex(10);
 
-    // Query Device Descriptor
     tStatus = __GetDeviceDescriptor(device);
     if (tStatus != TransferFinished) {
         ERROR("[usb] [%u:%u] __GetDeviceDescriptor failed", usbHub->PortAddress, usbPort->Address);
+        goto device_error;
+    }
+
+    tStatus = __GetDeviceIdentification(device);
+    if (tStatus != TransferFinished) {
+        ERROR("[usb] [%u:%u] __GetDeviceIdentification failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
@@ -345,6 +384,9 @@ UsbCoreDevicesDestroy(
         UsbCoreControllerReleaseAddress(controller, device->Base.device_address);
     }
 
+    mstr_delete(device->Manufacturer);
+    mstr_delete(device->Product);
+    mstr_delete(device->Serial);
     free(device);
     port->Device = NULL;
     return OsOK;

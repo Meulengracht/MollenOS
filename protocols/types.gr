@@ -40,3 +40,81 @@ enum transfer_direction {
     READ,
     WRITE
 }
+
+struct device_identification {
+    uint32 vendor_id;
+    uint32 product_id;
+    uint32 class;
+    uint32 subclass;
+
+    string description;
+    string manufacturer;
+    string product;
+    string revision;
+    string serial;
+}
+
+struct device_base {
+    uuid_t                id;
+    uuid_t                parent_id;
+    device_identification identification;
+}
+
+struct bus_io_memory {
+    uintptr_t physical_base;
+    uintptr_t virtual_base;
+    size_t    length;
+}
+
+struct bus_io_port {
+    uint16 base;
+    size_t length;
+}
+
+struct bus_io_pin {
+    uint16 port;
+    uint8  pin;
+}
+
+struct bus_io {
+    uuid_t id;
+    variant access {
+        bus_io_memory memory;
+        bus_io_port port;
+        bus_io_pin pin;
+    }
+}
+
+struct device_bus {
+    device_base;
+    int      irq_line;
+    int      irq_pin;
+    uint32   acpi_conform_flags;
+    uint32   segment;
+    uint32   bus;
+    uint32   slot;
+    uint32   function;
+    bus_io[] ios;
+}
+
+struct device_usb {
+    device_base;
+	uuid_t controller_device_id;
+	uuid_t controller_driver_id;
+	uuid_t hub_device_id;
+	uuid_t hub_driver_id;
+    uint8  hub_address;
+    uint8  port_address;
+    uint8  device_address;
+    uint16 configuration_length;
+    uint16 device_mps;
+    uint8  speed;
+}
+
+struct device {
+    variant content {
+        device_base base;
+        device_bus  bus;
+        device_usb  usb;
+    }
+}

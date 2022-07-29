@@ -22,6 +22,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <ddk/convert.h>
 #include <ddk/device.h>
 #include <ddk/utils.h>
 #include <errno.h>
@@ -29,17 +30,23 @@
 
 uuid_t
 RegisterDevice(
-    _In_ Device_t* device,
-    _In_ unsigned int   flags)
+    _In_ Device_t*    device,
+    _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     int                      status;
-    oserr_t               osStatus;
+    oserr_t                  osStatus;
     uuid_t                   id;
+    struct sys_device        sysDevice;
 
-    status = sys_device_register(GetGrachtClient(), &msg.base, (uint8_t*)device, device->Length, flags);
+    to_sys_device(device, &sysDevice);
+
+    status = sys_device_register(GetGrachtClient(), &msg.base, &sysDevice,  flags);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_device_register_result(GetGrachtClient(), &msg.base, &osStatus, &id);
+
+
+
     if (status) {
         ERROR("[ddk] [device] failed to register new device, errno %i", errno);
         return UUID_INVALID;

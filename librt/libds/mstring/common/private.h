@@ -33,9 +33,12 @@ static inline void  strfree(void* mem) { free(mem); }
 #endif
 
 extern size_t  mstr_len_u8(const char* u8);
-extern void    mstr_to_internal(const char* u8, mchar_t* out);
+extern void    mstr_u8_to_internal(const char* u8, mchar_t* out);
 extern mchar_t mstr_next(const char* u8, int* indexp);
 extern int     mstr_cmp_u8_index(mstring_t* string, const char* u8, size_t startIndex, size_t length);
+
+extern size_t mstr_len_u16(const short* u16);
+extern void mstr_u16_to_internal(const short* u16, mchar_t* out);
 
 struct mstring_builder {
     size_t   size;

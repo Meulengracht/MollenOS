@@ -28,8 +28,9 @@
 #include <ddk/ddkdefs.h>
 #include <ddk/bufferpool.h>
 #include <ddk/busdevice.h>
-#include <usb/definitions.h>
 #include <ddk/service.h>
+#include <ds/mstring.h>
+#include <usb/definitions.h>
 
 DECL_STRUCT(UsbDevice);
 
@@ -402,15 +403,16 @@ UsbGetStringLanguages(
 	_In_ usb_device_context_t*    deviceContext,
     _In_ usb_string_descriptor_t* descriptor);
 
-/* UsbGetStringDescriptor
- * Queries the usb device for a string with the given language and index. 
- * The provided buffer must be of size at-least 64 bytes. */
+/**
+ * @brief Retrieves the string on the device with the given index. The string is
+ * returned as an mstring. LanguageID 0 requests a list of languages.
+ */
 __EXTERN UsbTransferStatus_t
 UsbGetStringDescriptor(
-	_In_ usb_device_context_t* deviceContext,
-    _In_  size_t               LanguageId, 
-    _In_  size_t               StringIndex, 
-    _Out_ char*                String);
+	_In_  usb_device_context_t* deviceContext,
+    _In_  size_t                languageId,
+    _In_  size_t                stringIndex,
+    _Out_ mstring_t**           stringOut);
 
 /* UsbClearFeature
  * Indicates to an usb-device that we want to request a feature/state disabled. */

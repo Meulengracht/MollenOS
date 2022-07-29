@@ -33,6 +33,11 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
     struct VFSNode* i;
     int             tokenCount = 0;
     mstring_t**     tokens;
+    TRACE("VFSNodeMakePath(local=%i)", local);
+
+    if (node == NULL) {
+        return NULL;
+    }
 
     i = node;
     while (i) {
@@ -51,7 +56,7 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
     int index = 0;
     i = node;
     while (index < tokenCount) {
-        tokens[tokenCount - index] = i->Name;
+        tokens[tokenCount - index - 1] = i->Name;
         i = i->Parent;
         index++;
     }
@@ -186,6 +191,7 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
     oserr_t               osStatus, osStatus2;
     mstring_t*            nodePath = VFSNodeMakePath(node, 1);
     void*                 data, *fileData;
+    TRACE("VFSNodeCreateChild(node=%ms, name=%ms, flags=0x%x, perms=0x%x)", nodePath, name, flags, permissions);
 
     if (nodePath == NULL) {
         return OsOutOfMemory;
@@ -430,6 +436,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
     oserr_t     osStatus = OsOK;
     mstring_t** tokens;
     int         tokenCount;
+    TRACE("__GetRelative(path=%ms, followLinks=1)", path, followLinks);
 
     tokenCount = mstr_path_tokens(path, &tokens);
     if (tokenCount < 0) {
@@ -440,6 +447,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
     struct VFSNode* next;
     usched_rwlock_r_lock(&node->Lock);
     for (int i = 0; i < tokenCount - 1; i++) {
+        TRACE("__GetRelative token[%i] = %ms", i, tokens[i]);
         // Assumptions on entry of this loop.
         // node => current node, we have a reader lock on this
         // next => not used on entry
@@ -462,6 +470,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         // folder loading and whatnot if the folder is not currently loaded.
         osStatus = VFSNodeFind(node, tokens[i], &next);
         if (osStatus != OsOK) {
+            ERROR("__GetRelative failed to find token in node");
             break;
         }
 

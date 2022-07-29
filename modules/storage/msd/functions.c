@@ -24,8 +24,10 @@
 
 #include "msd.h"
 #include <ddk/utils.h>
+#include <ds/mstring.h>
 #include <internal/_ipc.h>
 #include <threads.h>
+#include <stdio.h>
 
 #include "ctt_driver_service_server.h"
 #include "ctt_storage_service_server.h"
@@ -75,6 +77,34 @@ uint64_t rev64(uint64_t qword)
         py[i] = px[sizeof(uint64_t) - 1 - i];
     return y;
 }
+
+static void
+__flipbuffer(
+        _In_ uint8_t* buffer,
+        _In_ size_t   length)
+{
+    size_t pairs = length / 2;
+    size_t i;
+
+    // Iterate pairs in string, and swap
+    for (i = 0; i < pairs; i++) {
+        uint8_t temp      = buffer[i * 2];
+        buffer[i * 2]     = buffer[i * 2 + 1];
+        buffer[i * 2 + 1] = temp;
+    }
+
+    // Zero terminate by trimming trailing spaces
+    for (i = (length - 1); i > 0; i--) {
+        if (buffer[i] != ' ' && buffer[i] != '\0') {
+            i += 1;
+            if (i < length) {
+                buffer[i] = '\0';
+            }
+            break;
+        }
+    }
+}
+
 
 oserr_t
 MsdDeviceInitialize(
@@ -229,68 +259,114 @@ oserr_t
 MsdReadCapabilities(
     _In_ MsdDevice_t *Device)
 {
-    StorageDescriptor_t *Descriptor = &Device->Descriptor;
-    uint32_t *CapabilitesPointer = NULL;
+    StorageDescriptor_t* descriptor = &Device->Descriptor;
+    uint32_t*            capabilitesPointer = NULL;
 
-    // Allocate buffer
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiExtendedCaps_t), 
-        (void**)&CapabilitesPointer) != OsOK) {
+        (void**)&capabilitesPointer) != OsOK) {
         ERROR("Failed to allocate buffer (caps)");
         return OsError;
     }
 
     // Perform caps-command
     if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY, 0, 
-            dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), CapabilitesPointer), 
+            dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
             8) != TransferFinished) {
-        dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
+        dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
         return OsError;
     }
 
     // If the size equals max, then we need to use extended
     // capabilities
-    if (CapabilitesPointer[0] == 0xFFFFFFFF) {
-        // Variables
-        ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)CapabilitesPointer;
+    if (capabilitesPointer[0] == 0xFFFFFFFF) {
+        ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)capabilitesPointer;
 
         // Perform extended-caps read command
         if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY_16, 0, 
-                dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), CapabilitesPointer),
+                dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
                 sizeof(ScsiExtendedCaps_t)) != TransferFinished) {
-            dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
+            dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
             return OsError;
         }
 
         // Capabilities are returned in reverse byte-order
-        Descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
-        Descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
-        TRACE("[msd] [read_capabilities] sectorCount %llu, sectorSize %u", Descriptor->SectorCount,
-            Descriptor->SectorSize);
+        descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
+        descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
+        TRACE("[msd] [read_capabilities] sectorCount %llu, sectorSize %u", descriptor->SectorCount,
+              descriptor->SectorSize);
         Device->IsExtended = 1;
-        dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
+        dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
         return OsOK;
     }
 
     // Capabilities are returned in reverse byte-order
-    Descriptor->SectorCount = (uint64_t)rev32(CapabilitesPointer[0]) + 1;
-    Descriptor->SectorSize = rev32(CapabilitesPointer[1]);
+    descriptor->SectorCount = (uint64_t)rev32(capabilitesPointer[0]) + 1;
+    descriptor->SectorSize = rev32(capabilitesPointer[1]);
     TRACE("[msd] [read_capabilities] 0x%llx sectorCount %llu, sectorSize %u",
-        &Descriptor->SectorCount, Descriptor->SectorCount, Descriptor->SectorSize);
-    dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
+          &descriptor->SectorCount, descriptor->SectorCount, descriptor->SectorSize);
+    dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
     return OsOK;
+}
+
+static oserr_t
+__ReadDeviceIdentification(
+        _In_ MsdDevice_t* device)
+{
+    mstring_t*          manufactor;
+    mstring_t*          product;
+    mstring_t*          serial;
+    UsbTransferStatus_t status;
+
+    status = UsbGetStringDescriptor(&device->Base.DeviceContext, 0, device->Base.DeviceContext.str_manufacturer_index, &manufactor);
+    if (status != TransferFinished) {
+        goto error;
+    }
+
+    status = UsbGetStringDescriptor(&device->Base.DeviceContext, 0, device->Base.DeviceContext.str_product_index, &product);
+    if (status != TransferFinished) {
+        goto error;
+    }
+
+    status = UsbGetStringDescriptor(&device->Base.DeviceContext, 0, device->Base.DeviceContext.str_serial_index, &serial);
+    if (status != TransferFinished) {
+        goto error;
+    }
+
+    // convert strings
+    char* manufactoru8 = mstr_u8(manufactor);
+    char* productu8    = mstr_u8(product);
+    char* serialu8     = mstr_u8(serial);
+    strncpy(&device->Descriptor.Model[0], productu8, sizeof(device->Descriptor.Model));
+    strncpy(&device->Descriptor.Serial[0], serialu8, sizeof(device->Descriptor.Serial));
+    free(manufactoru8);
+    free(productu8);
+    free(serialu8);
+
+error:
+    mstr_delete(manufactor);
+    mstr_delete(product);
+    mstr_delete(serial);
+    return OsError;
 }
 
 oserr_t
 MsdDeviceStart(
-    _In_ MsdDevice_t* msdDevice)
+    _In_ MsdDevice_t* device)
 {
     UsbTransferStatus_t transferStatus;
     ScsiInquiry_t*      inquiryData = NULL;
-    int i;
+    int                 i;
+    oserr_t             osStatus;
+
+    osStatus = __ReadDeviceIdentification(device);
+    if (osStatus != OsOK) {
+        ERROR("MsdDeviceStart failed to read device identification");
+        return osStatus;
+    }
 
     // How many iterations of device-ready?
     // Floppys need a lot longer to spin up
-    i = (msdDevice->Protocol != ProtocolCB && msdDevice->Protocol != ProtocolCBI) ? 30 : 3;
+    i = (device->Protocol != ProtocolCB && device->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsOK) {
@@ -299,8 +375,10 @@ MsdDeviceStart(
     }
 
     // Perform inquiry
-    transferStatus = MsdScsiCommand(msdDevice, 0, SCSI_INQUIRY, 0,
-                                    dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), inquiryData), sizeof(ScsiInquiry_t));
+    transferStatus = MsdScsiCommand(device, 0, SCSI_INQUIRY, 0,
+                                    dma_pool_handle(UsbRetrievePool()),
+                                    dma_pool_offset(UsbRetrievePool(), inquiryData),
+                                    sizeof(ScsiInquiry_t));
     if (transferStatus != TransferFinished) {
         ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
@@ -308,9 +386,9 @@ MsdDeviceStart(
     }
 
     // Perform the Test-Unit Ready command
-    while (msdDevice->IsReady == 0 && i != 0) {
-        MsdDevicePrepare(msdDevice);
-        if (msdDevice->IsReady == 1) {
+    while (device->IsReady == 0 && i != 0) {
+        MsdDevicePrepare(device);
+        if (device->IsReady == 1) {
             break; 
         }
         thrd_sleepex(100);
@@ -319,13 +397,15 @@ MsdDeviceStart(
 
     // Sanitize the resulting ready state, we need it 
     // ready otherwise we can't use it
-    if (!msdDevice->IsReady) {
+    if (!device->IsReady) {
         ERROR("Failed to ready device");
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
         return OsError;
     }
+
+
     dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
-    return MsdReadCapabilities(msdDevice);
+    return MsdReadCapabilities(device);
 }
 
 static void

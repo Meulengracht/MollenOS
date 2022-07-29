@@ -26,6 +26,9 @@
 #define __DDK_CONVERT_H__
 
 #include <ddk/storage.h>
+#include <ddk/device.h>
+#include <ddk/usbdevice.h>
+#include <ddk/busdevice.h>
 
 #include <os/mollenos.h>
 #include <os/process.h>
@@ -149,6 +152,36 @@ static void to_sys_process_configuration(ProcessConfiguration_t* in, struct sys_
     out->stdout_handle = in->StdOutHandle;
     out->stderr_handle = in->StdErrHandle;
     out->stdin_handle  = in->StdInHandle;
+}
+
+static void to_sys_device_base(Device_t* in, struct sys_device_base* out)
+{
+    out->id = in->Id;
+    out->parent_id = in->ParentId;
+    out->identification.vendor_id = in->VendorId;
+    out->identification.product_id = in->ProductId;
+    out->identification.class = in->Class;
+    out->identification.subclass = in->Subclass;
+
+    out->identification.description = in->Identification.Description;
+    out->identification.manufacturer = in->Identification.Manufacturer;
+    out->identification.product = in->Identification.Product;
+    out->identification.revision = in->Identification.Revision;
+    out->identification.serial = in->Identification.Serial;
+}
+
+static void to_sys_device_bus(BusDevice_t* in, struct sys_device_bus* out)
+{
+
+}
+
+static void to_sys_device(Device_t* in, struct sys_device* out)
+{
+    if (in->Length == sizeof(Device_t)) {
+        to_sys_device_base(in, &out->content.base);
+    } else if (in->Length == sizeof(BusDevice_t)) {
+        to_sys_device_bus((BusDevice_t*)in, &out->content.bus);
+    }
 }
 
 #endif //!__DDK_CONVERT_H__

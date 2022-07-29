@@ -24,15 +24,25 @@
 #ifndef __USBMANAGER_H__
 #define __USBMANAGER_H__
 
-#include <usb/usb.h>
 #include <ddk/bufferpool.h>
-#include <os/osdefs.h>
 #include <ds/list.h>
+#include <ds/mstring.h>
+#include <usb/usb.h>
+#include <os/osdefs.h>
 
 typedef struct UsbHub UsbHub_t;
 
 typedef struct UsbPortDevice {
     usb_device_context_t Base;
+
+    uint8_t              ManufactorerIndex;
+    uint8_t              ProductIndex;
+    uint8_t              SerialIndex;
+
+    mstring_t*           Manufacturer;
+    mstring_t*           Product;
+    mstring_t*           Serial;
+
     uint16_t             VendorId;
     uint16_t             ProductId;
     uint8_t              Class;

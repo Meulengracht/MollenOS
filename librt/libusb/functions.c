@@ -26,9 +26,9 @@
 #include <usb/usb.h>
 #include <ddk/bufferpool.h>
 #include <ddk/utils.h>
+#include <ds/mstring.h>
 #include <internal/_ipc.h>
 #include <os/process.h>
-#include <os/dmabuf.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -632,28 +632,35 @@ UsbGetStringLanguages(
 
 UsbTransferStatus_t
 UsbGetStringDescriptor(
-	_In_ usb_device_context_t* deviceContext,
-    _In_  size_t               LanguageId, 
-    _In_  size_t               StringIndex, 
-    _Out_ char*                String)
+	_In_  usb_device_context_t* deviceContext,
+    _In_  size_t                languageId,
+    _In_  size_t                stringIndex,
+    _Out_ mstring_t**           stringOut)
 {
-    void*               descriptorStorage;
-    UsbTransferStatus_t status;
+    usb_unicode_string_descriptor_t* desc;
+    UsbTransferStatus_t              status;
     
-    descriptorStorage = malloc(64);
-    status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
-        USBPACKET_TYPE_GET_DESC, (uint8_t)StringIndex, USB_DESCRIPTOR_STRING,
-        (uint16_t)LanguageId, 64, descriptorStorage);
-
-    // Update the out variable with the string
-    // TODO: convert to utf8
-    if (status == TransferFinished) {
-        const char* stringBuffer = (const char*)descriptorStorage;
-        //size_t StringLength = (*((uint8_t*)descriptorStorage + 1) - 2);
-        _CRT_UNUSED(stringBuffer);
+    desc = malloc(sizeof(usb_unicode_string_descriptor_t) + 2);
+    if (desc == NULL) {
+        return TransferInvalid;
     }
 
-    free(descriptorStorage);
+    status = UsbExecutePacket(
+            deviceContext,
+            USBPACKET_DIRECTION_IN,
+            USBPACKET_TYPE_GET_DESC, (uint8_t)
+            stringIndex, USB_DESCRIPTOR_STRING,
+            (uint16_t)languageId,
+            sizeof(usb_unicode_string_descriptor_t) + 2, desc);
+
+    if (status == TransferFinished) {
+        // zero terminate the UTF-16 string, we allocated an extra two bytes
+        desc->string[desc->length - 2] = 0;
+        desc->string[desc->length - 1] = 0;
+        *stringOut = mstr_new_u16((const short*)&desc->string[0]);
+    }
+
+    free(desc);
     return status;
 }
 
