@@ -50,9 +50,8 @@ typedef struct Request {
             uuid_t driver_handle;
         } notify;
         struct {
-            uint8_t*     device_buffer;
-            uint32_t     buffer_size;
-            unsigned int flags;
+            struct sys_device* device;
+            unsigned int       flags;
         } create;
         struct {
             uuid_t device_id;

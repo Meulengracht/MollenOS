@@ -23,9 +23,7 @@
  */
 
 #include <ddk/convert.h>
-#include <ddk/device.h>
 #include <ddk/utils.h>
-#include <errno.h>
 #include <internal/_ipc.h>
 
 uuid_t
@@ -42,11 +40,10 @@ RegisterDevice(
     to_sys_device(device, &sysDevice);
 
     status = sys_device_register(GetGrachtClient(), &msg.base, &sysDevice,  flags);
+    sys_device_destroy(&sysDevice);
+
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_device_register_result(GetGrachtClient(), &msg.base, &osStatus, &id);
-
-
-
     if (status) {
         ERROR("[ddk] [device] failed to register new device, errno %i", errno);
         return UUID_INVALID;
@@ -90,11 +87,11 @@ IoctlDevice(
 
 oserr_t
 IoctlDeviceEx(
-        _In_    uuid_t  Device,
-        _In_    int     Direction,
+        _In_    uuid_t       Device,
+        _In_    int          Direction,
         _In_    unsigned int Register,
-        _InOut_ size_t* Value,
-        _In_    size_t  Width)
+        _InOut_ size_t*      Value,
+        _In_    size_t       Width)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     oserr_t               status;

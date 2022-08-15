@@ -28,11 +28,9 @@
 #include <requests.h>
 #include <ddk/utils.h>
 #include <ddk/busdevice.h>
-#include <ds/list.h>
 #include <gracht/link/vali.h>
 #include <internal/_ipc.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -104,16 +102,26 @@ void DmHandleDeviceCreate(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    uuid_t     result = UUID_INVALID;
-    oserr_t status = DmDeviceCreate(
-            (Device_t*)request->parameters.create.device_buffer,
+    uuid_t    result = UUID_INVALID;
+    oserr_t   status;
+    Device_t* device;
+
+    // handle conversion of device type
+    switch (request->parameters.create.device->content_type) {
+        case 1: break; // base
+        case 2: break; // bus
+        case 3: break; // usb
+    }
+
+    status = DmDeviceCreate(
+            device,
             NULL,
             request->parameters.create.flags,
             &result
     );
     sys_device_register_response(request->message, status, result);
 
-    free((void*)request->parameters.create.device_buffer);
+    free((void*)request->parameters.create.device);
     RequestDestroy(request);
 }
 
@@ -251,7 +259,7 @@ DmDeviceCreate(
     // Create the device cloned object and adjust name/id
     memcpy(deviceCopy, device, device->Length);
     if (name != NULL) {
-        strncpy(&deviceCopy->Name[0], name, sizeof(deviceCopy->Name));
+        deviceCopy->Identification.Description = strdup(name);
     }
     deviceCopy->Id = g_nextDeviceId++;
 

@@ -22,6 +22,7 @@ target_include_directories(filed-vfs-handlers PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include
         ${CMAKE_SOURCE_DIR}/librt/libgracht/include
         ${CMAKE_SOURCE_DIR}/librt/libddk/include
+        ${CMAKE_SOURCE_DIR}/librt/libusb/include
         ${CMAKE_SOURCE_DIR}/librt/libds/include
         ${CMAKE_SOURCE_DIR}/librt/libos/include
         ${CMAKE_SOURCE_DIR}/librt/libc/include

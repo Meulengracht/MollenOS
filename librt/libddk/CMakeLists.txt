@@ -68,9 +68,9 @@ add_library(libddk
 )
 add_dependencies(libddk service_clients contract_clients)
 target_include_directories(libddk
-    PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>"
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/../libusb/include>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>"
 )
 
 # avoid using target_link_libraries for the RT libraries as it could result
@@ -79,7 +79,6 @@ target_include_directories(libddk
 target_include_directories(libddk PRIVATE
         ../../tools/rd/libvafs/include
         ../libgracht/include
-        ../libusb/include
         ../libds/include
         ../libos/include
         ../libc/include
