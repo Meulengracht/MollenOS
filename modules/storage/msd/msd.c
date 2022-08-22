@@ -183,6 +183,17 @@ MsdDeviceCreate(
     memset(msdDevice, 0, sizeof(MsdDevice_t));
     memcpy(&msdDevice->Base, usbDevice, sizeof(UsbDevice_t));
     ELEMENT_INIT(&msdDevice->Header, (uintptr_t)usbDevice->Base.Id, msdDevice);
+
+    strncpy(
+            &msdDevice->Descriptor.Serial[0],
+            usbDevice->Base.Identification.Serial,
+            sizeof(msdDevice->Descriptor.Serial)
+    );
+    strncpy(
+            &msdDevice->Descriptor.Model[0],
+            usbDevice->Base.Identification.Product,
+            sizeof(msdDevice->Descriptor.Model)
+    );
     
     __GetDeviceConfiguration(msdDevice);
     

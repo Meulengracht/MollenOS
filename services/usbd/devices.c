@@ -120,24 +120,26 @@ UsbCoreDestroy(void)
 }
 
 oserr_t
-UsbDeviceLoadDrivers(
+__LoadDeviceDriver(
     _In_ UsbController_t* controller,
     _In_ UsbPortDevice_t* device)
 {
-    UsbDevice_t  coreDevice     = { { 0 } };
-    const char*  identification = UsbGetIdentificationString(device->Class);
+    UsbDevice_t coreDevice;
 
     TRACE("[usb] [load_driver] %u:%u %u:%u",
         device->VendorId, device->ProductId, device->Class, device->Subclass);
 
-    memcpy(&coreDevice.Base.Name[0], identification, strlen(&identification[0]));
+    memset(&coreDevice, 0, sizeof(UsbDevice_t));
     memcpy(&coreDevice.DeviceContext, &device->Base, sizeof(usb_device_context_t));
-    coreDevice.Base.ParentId = controller->Device.Id;
+
+    coreDevice.Base.Id       = UUID_INVALID;
     coreDevice.Base.Length   = sizeof(UsbDevice_t);
+    coreDevice.Base.ParentId = controller->Device.Id;
     coreDevice.Base.VendorId = device->VendorId;
     coreDevice.Base.ProductId = device->ProductId;
     coreDevice.Base.Class    = USB_DEVICE_CLASS;
     coreDevice.Base.Subclass = (device->Class << 16) | 0; // Subclass
+    coreDevice.Base.Identification.Description = (char*)UsbGetIdentificationString(device->Class);
 
     device->DeviceId = RegisterDevice(&coreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
     if (device->DeviceId == UUID_INVALID) {
@@ -354,7 +356,7 @@ UsbCoreDevicesCreate(
     }
     
     TRACE("[usb] [%u:%u] setup success", usbHub->PortAddress, usbPort->Address);
-    return UsbDeviceLoadDrivers(usbController, device);
+    return __LoadDeviceDriver(usbController, device);
 
     // All errors are handled here
 device_error:

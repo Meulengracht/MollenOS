@@ -105,7 +105,6 @@ __flipbuffer(
     }
 }
 
-
 oserr_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device)
@@ -308,47 +307,6 @@ MsdReadCapabilities(
     return OsOK;
 }
 
-static oserr_t
-__ReadDeviceIdentification(
-        _In_ MsdDevice_t* device)
-{
-    mstring_t*          manufactor;
-    mstring_t*          product;
-    mstring_t*          serial;
-    UsbTransferStatus_t status;
-
-    status = UsbGetStringDescriptor(&device->Base.DeviceContext, 0, device->Base.DeviceContext.str_manufacturer_index, &manufactor);
-    if (status != TransferFinished) {
-        goto error;
-    }
-
-    status = UsbGetStringDescriptor(&device->Base.DeviceContext, 0, device->Base.DeviceContext.str_product_index, &product);
-    if (status != TransferFinished) {
-        goto error;
-    }
-
-    status = UsbGetStringDescriptor(&device->Base.DeviceContext, 0, device->Base.DeviceContext.str_serial_index, &serial);
-    if (status != TransferFinished) {
-        goto error;
-    }
-
-    // convert strings
-    char* manufactoru8 = mstr_u8(manufactor);
-    char* productu8    = mstr_u8(product);
-    char* serialu8     = mstr_u8(serial);
-    strncpy(&device->Descriptor.Model[0], productu8, sizeof(device->Descriptor.Model));
-    strncpy(&device->Descriptor.Serial[0], serialu8, sizeof(device->Descriptor.Serial));
-    free(manufactoru8);
-    free(productu8);
-    free(serialu8);
-
-error:
-    mstr_delete(manufactor);
-    mstr_delete(product);
-    mstr_delete(serial);
-    return OsError;
-}
-
 oserr_t
 MsdDeviceStart(
     _In_ MsdDevice_t* device)
@@ -356,13 +314,6 @@ MsdDeviceStart(
     UsbTransferStatus_t transferStatus;
     ScsiInquiry_t*      inquiryData = NULL;
     int                 i;
-    oserr_t             osStatus;
-
-    osStatus = __ReadDeviceIdentification(device);
-    if (osStatus != OsOK) {
-        ERROR("MsdDeviceStart failed to read device identification");
-        return osStatus;
-    }
 
     // How many iterations of device-ready?
     // Floppys need a lot longer to spin up

@@ -28,6 +28,7 @@
 #include <ctt_usbhub_service_server.h>
 #include <io.h>
 #include <ddk/utils.h>
+#include <ddk/convert.h>
 
 extern gracht_server_t* __crt_get_module_server(void);
 
@@ -82,10 +83,9 @@ OnRegister(
     return OsOK;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message,
-        const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
 oserr_t

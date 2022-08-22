@@ -42,19 +42,6 @@ extern void DmHandleRegisterProtocol(Request_t* request, void*);
 
 static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
 
-static inline void* memdup(const void* source, size_t count) {
-    void* dest;
-    if (!count) {
-        return NULL;
-    }
-    dest = malloc(count);
-    if (!dest) {
-        return NULL;
-    }
-    memcpy(dest, source, count);
-    return dest;
-}
-
 static Request_t*
 CreateRequest(struct gracht_message* message)
 {
@@ -124,7 +111,7 @@ void sys_device_register_invocation(
     }
 
     // initialize parameters
-    request->parameters.create.device = memdup(device, sizeof(struct sys_device));
+    sys_device_copy(device, &request->parameters.create.device);
     request->parameters.create.flags  = flags;
     usched_task_queue((usched_task_fn)DmHandleDeviceCreate, request);
 }

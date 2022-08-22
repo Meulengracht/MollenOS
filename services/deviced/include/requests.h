@@ -29,6 +29,7 @@
 #include <ds/list.h>
 #include <os/types/process.h>
 #include <os/context.h>
+#include <sys_device_service.h>
 
 enum RequestState {
     RequestState_CREATED,
@@ -50,8 +51,8 @@ typedef struct Request {
             uuid_t driver_handle;
         } notify;
         struct {
-            struct sys_device* device;
-            unsigned int       flags;
+            struct sys_device device;
+            unsigned int      flags;
         } create;
         struct {
             uuid_t device_id;

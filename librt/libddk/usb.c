@@ -24,10 +24,8 @@
 
 #include <ddk/service.h>
 #include <ddk/usbdevice.h>
-#include <usb/usb.h>
+#include <ddk/convert.h>
 #include <internal/_ipc.h>
-#include <internal/_utils.h>
-#include <gracht/server.h>
 
 #include <sys_usb_service_client.h>
 
@@ -41,9 +39,12 @@ UsbControllerRegister(
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
-    
+    struct sys_device        protoDevice;
+
+    to_sys_device(device, &protoDevice);
     sys_usb_register_controller(GetGrachtClient(), &msg.base, serverHandle,
-                                (const uint8_t*)device, device->Length, (int)type, (int)portCount);
+                                &protoDevice, (int)type, (int)portCount);
+    sys_device_destroy(&protoDevice);
     return OsOK;
 }
 
@@ -91,7 +92,12 @@ UsbEventPort(
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
-    status = sys_usb_port_event(GetGrachtClient(), &msg.base, DeviceId, PortAddress);
+    status = sys_usb_port_event(
+            GetGrachtClient(),
+            &msg.base,
+            DeviceId,
+            PortAddress
+    );
     return OsOK;
 }
 

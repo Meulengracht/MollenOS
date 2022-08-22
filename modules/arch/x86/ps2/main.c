@@ -23,10 +23,10 @@
 
 #include <ddk/service.h>
 #include <ddk/utils.h>
+#include <ddk/convert.h>
 #include <ioset.h>
 #include <string.h>
 #include <stdlib.h>
-#include <threads.h>
 
 #include "ps2.h"
 
@@ -315,9 +315,9 @@ OnRegister(
     return Result;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)

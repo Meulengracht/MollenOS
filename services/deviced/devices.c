@@ -26,11 +26,11 @@
 #include <devices.h>
 #include <discover.h>
 #include <requests.h>
-#include <ddk/utils.h>
 #include <ddk/busdevice.h>
+#include <ddk/convert.h>
+#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_ipc.h>
-#include <stdlib.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -82,6 +82,7 @@ DmDevicesRegister(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
     struct DmDevice*         device = __GetDevice(deviceId);
+    struct sys_device        protoDevice;
     TRACE("DmDevicesRegister(driverHandle=%u, deviceId=%u)",
           driverHandle, deviceId);
 
@@ -92,9 +93,10 @@ DmDevicesRegister(
     // store the driver loaded
     device->driver_id = driverHandle;
 
-    ctt_driver_register_device(GetGrachtClient(), &msg.base, (uint8_t*)device->device,
-                               device->device->Length);
+    to_sys_device(device->device, &protoDevice);
+    ctt_driver_register_device(GetGrachtClient(), &msg.base, &protoDevice);
     ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, device->device->Id);
+    sys_device_destroy(&protoDevice);
     return OsOK;
 }
 
@@ -106,22 +108,22 @@ void DmHandleDeviceCreate(
     oserr_t   status;
     Device_t* device;
 
-    // handle conversion of device type
-    switch (request->parameters.create.device->content_type) {
-        case 1: break; // base
-        case 2: break; // bus
-        case 3: break; // usb
+    device = from_sys_device(&request->parameters.create.device);
+    if (device == NULL) {
+        status = OsInvalidParameters;
+        goto respond;
     }
 
     status = DmDeviceCreate(
             device,
-            NULL,
             request->parameters.create.flags,
             &result
     );
+
+respond:
     sys_device_register_response(request->message, status, result);
 
-    free((void*)request->parameters.create.device);
+    sys_device_destroy(&request->parameters.create.device);
     RequestDestroy(request);
 }
 
@@ -222,7 +224,7 @@ void DmHandleRegisterProtocol(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
+    struct DmDevice* device = __GetDevice(request->parameters.ioctl2.device_id);
     if (device) {
         __AddProtocolToDevice(request, device);
     }
@@ -234,12 +236,10 @@ void DmHandleRegisterProtocol(
 oserr_t
 DmDeviceCreate(
         _In_  Device_t*    device,
-        _In_  const char*  name,
         _In_  unsigned int flags,
         _Out_ uuid_t*      idOut)
 {
     struct DmDevice* deviceNode;
-    Device_t*        deviceCopy;
 
     assert(device != NULL);
     assert(idOut != NULL);
@@ -250,30 +250,20 @@ DmDeviceCreate(
         return OsOutOfMemory;
     }
 
-    deviceCopy = (Device_t*)malloc(device->Length);
-    if (!deviceCopy) {
-        free(deviceNode);
-        return OsOutOfMemory;
-    }
-
-    // Create the device cloned object and adjust name/id
-    memcpy(deviceCopy, device, device->Length);
-    if (name != NULL) {
-        deviceCopy->Identification.Description = strdup(name);
-    }
-    deviceCopy->Id = g_nextDeviceId++;
+    // assign a unique device id for this instance
+    device->Id = g_nextDeviceId++;
 
     // initialize object
-    ELEMENT_INIT(&deviceNode->header, (uintptr_t)deviceCopy->Id, deviceNode);
+    ELEMENT_INIT(&deviceNode->header, (uintptr_t)device->Id, deviceNode);
     deviceNode->driver_id = UUID_INVALID;
-    deviceNode->device    = deviceCopy;
+    deviceNode->device    = device;
     list_construct(&deviceNode->protocols);
 
     list_append(&g_devices, &deviceNode->header);
-    *idOut = deviceCopy->Id;
+    *idOut = device->Id;
 
     TRACE("%u, Registered device %s, struct length %u",
-          deviceCopy->Id, &deviceCopy->Name[0], deviceCopy->Length);
+          device->Id, &device->Identification.Description, device->Length);
 
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up
@@ -287,7 +277,7 @@ DmDeviceCreate(
                 .Subclass = device->Subclass
         };
 
-        DmDiscoverFindDriver(deviceCopy->Id, &driverIdentification);
+        DmDiscoverFindDriver(device->Id, &driverIdentification);
     }
 #endif
     return OsOK;

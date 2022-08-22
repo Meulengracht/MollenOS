@@ -115,15 +115,18 @@ oserr_t
 PS2RegisterDevice(
     _In_ PS2Port_t* port)
 {
-    BusDevice_t busDevice = {{0 } };
+    BusDevice_t busDevice;
 
-    strcpy(&busDevice.Base.Name[0], "PS2 Child Device");
+    memset(&busDevice, 0, sizeof(BusDevice_t));
+    busDevice.Base.Id        = UUID_INVALID;
     busDevice.Base.ParentId  = UUID_INVALID;
     busDevice.Base.Length    = sizeof(BusDevice_t);
+
     busDevice.Base.VendorId  = 0xFFEF;
     busDevice.Base.ProductId = 0x0030;
     busDevice.Base.Class     = 0xFF0F;
     busDevice.Base.Subclass  = 0xFF0F;
+    busDevice.Base.Identification.Description = "PS2 Child Device";
 
     // Initialize the irq structure
     busDevice.InterruptPin         = INTERRUPT_NONE;

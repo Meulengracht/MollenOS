@@ -16,10 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * X86 Bus Driver 
- * - Enumerates the bus and registers the devices/controllers
- *   available in the system
  */
 
 //#define __TRACE
@@ -48,7 +44,7 @@ PACKED_TYPESTRUCT(McfgEntry, {
 });
 
 void       PciCheckBus(PciDevice_t* parent, int bus);
-oserr_t BusRegisterPS2Controller(void);
+oserr_t __InstallPS2Controller(void);
 void       PciInstallDriverCallback(PciDevice_t* pciDevice);
 
 static list_t       g_pciDevices;
@@ -62,7 +58,7 @@ void BusEnumerate(void)
     ACPI_TABLE_HEADER* header    = NULL;
     AcpiDescriptor_t   acpi      = { 0 };
     element_t*         element;
-    oserr_t         osStatus;
+    oserr_t            osStatus;
     int                function;
 
     g_rootDevice = (PciDevice_t*)malloc(sizeof(PciDevice_t));
@@ -95,13 +91,13 @@ void BusEnumerate(void)
 
         // Check for PS2 controller presence
         if ((acpi.BootFlags & ACPI_IA_8042) || acpi.BootFlags == 0) {
-            BusRegisterPS2Controller();
+            __InstallPS2Controller();
         }
     }
     else {
         // We can pretty much assume all 8042 devices
         // are present in system, like PS2, etc
-        BusRegisterPS2Controller();
+        __InstallPS2Controller();
     }
 
     // @todo lookup mcfg table
@@ -531,61 +527,69 @@ PciCheckBus(
  * Creates a new Device_t from a pci-device and registers it with the device-manager */
 static oserr_t
 CreateBusDeviceFromPciDevice(
-    _In_ PciDevice_t* PciDevice)
+    _In_ PciDevice_t* pciDevice)
 {
-    BusDevice_t Device = { { 0 } };
-    uuid_t      Id;
+    BusDevice_t* device;
+    uuid_t       id;
 
-    Device.Base.ParentId = UUID_INVALID;
-    Device.Base.Length   = sizeof(BusDevice_t);
-    Device.Base.VendorId = PciDevice->Header->VendorId;
-    Device.Base.ProductId = PciDevice->Header->DeviceId;
-    Device.Base.Class    = PciToDevClass(PciDevice->Header->Class, PciDevice->Header->Subclass);
-    Device.Base.Subclass = PciToDevSubClass(PciDevice->Header->Interface);
+    device = malloc(sizeof(BusDevice_t));
+    if (device == NULL) {
+        return OsOutOfMemory;
+    }
 
-    Device.Segment  = (unsigned int)PciDevice->BusIo->Segment;
-    Device.Bus      = PciDevice->Bus;
-    Device.Slot     = PciDevice->Slot;
-    Device.Function = PciDevice->Function;
+    memset(device, 0, sizeof(BusDevice_t));
+    device->Base.Id     = UUID_INVALID;
+    device->Base.ParentId  = UUID_INVALID;
+    device->Base.Length = sizeof(BusDevice_t);
 
-    Device.InterruptLine        = (int)PciDevice->Header->InterruptLine;
-    Device.InterruptPin         = (int)PciDevice->Header->InterruptPin;
-    Device.InterruptAcpiConform = PciDevice->AcpiConform;
+    device->Base.VendorId  = pciDevice->Header->VendorId;
+    device->Base.ProductId = pciDevice->Header->DeviceId;
+    device->Base.Class     = PciToDevClass(pciDevice->Header->Class, pciDevice->Header->Subclass);
+    device->Base.Subclass  = PciToDevSubClass(pciDevice->Header->Interface);
+    device->Base.Identification.Description = strdup(PciToString(
+            pciDevice->Header->Class,
+            pciDevice->Header->Subclass,
+            pciDevice->Header->Interface));
+
+    device->Segment  = (unsigned int)pciDevice->BusIo->Segment;
+    device->Bus      = pciDevice->Bus;
+    device->Slot     = pciDevice->Slot;
+    device->Function = pciDevice->Function;
+
+    device->InterruptLine        = (int)pciDevice->Header->InterruptLine;
+    device->InterruptPin         = (int)pciDevice->Header->InterruptPin;
+    device->InterruptAcpiConform = pciDevice->AcpiConform;
 
     // Handle bars attached to device
-    PciReadBars(PciDevice->BusIo, &Device, PciDevice->Header->HeaderType);
+    PciReadBars(pciDevice->BusIo, device, pciDevice->Header->HeaderType);
 
     // PCI - IDE Bar Fixup
     // From experience ide-bars don't always show up (ex: Oracle VM and Bochs)
     // but only the initial 4 bars don't, the BM bar
     // always seem to show up 
-    if (PciDevice->Header->Class == PCI_CLASS_STORAGE
-        && PciDevice->Header->Subclass == PCI_STORAGE_SUBCLASS_IDE) {
-        if ((PciDevice->Header->Interface & 0x1) == 0) {
-            if (Device.IoSpaces[0].Type == DeviceIoInvalid) {
-                CreateDevicePortIo(&Device.IoSpaces[0], 0x1F0, 8);
+    if (pciDevice->Header->Class == PCI_CLASS_STORAGE
+        && pciDevice->Header->Subclass == PCI_STORAGE_SUBCLASS_IDE) {
+        if ((pciDevice->Header->Interface & 0x1) == 0) {
+            if (device->IoSpaces[0].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&device->IoSpaces[0], 0x1F0, 8);
             }
-            if (Device.IoSpaces[1].Type == DeviceIoInvalid) {
-                CreateDevicePortIo(&Device.IoSpaces[1], 0x3F6, 4);
+            if (device->IoSpaces[1].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&device->IoSpaces[1], 0x3F6, 4);
             }
         }
-        if ((PciDevice->Header->Interface & 0x4) == 0) {
-            if (Device.IoSpaces[2].Type == DeviceIoInvalid) {
-                CreateDevicePortIo(&Device.IoSpaces[2], 0x170, 8);
+        if ((pciDevice->Header->Interface & 0x4) == 0) {
+            if (device->IoSpaces[2].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&device->IoSpaces[2], 0x170, 8);
             }
-            if (Device.IoSpaces[3].Type == DeviceIoInvalid) {
-                CreateDevicePortIo(&Device.IoSpaces[3], 0x376, 4);
+            if (device->IoSpaces[3].Type == DeviceIoInvalid) {
+                CreateDevicePortIo(&device->IoSpaces[3], 0x376, 4);
             }
         }
     }
     return DmDeviceCreate(
-            &Device.Base,
-            PciToString(
-                    PciDevice->Header->Class,
-                    PciDevice->Header->Subclass,
-                    PciDevice->Header->Interface),
+            &device->Base,
             DEVICE_REGISTER_FLAG_LOADDRIVER,
-            &Id
+            &id
     );
 }
 
@@ -605,57 +609,60 @@ PciInstallDriverCallback(
     }
 }
 
-/* BusInstallFixed
- * Loads a fixed driver for the vendorid/deviceid */
 oserr_t
-BusInstallFixed(
-    _In_ BusDevice_t* Device,
-    _In_ const char*  Name)
+__InstallFixedBusDevice(
+    _In_ BusDevice_t* device,
+    _In_ const char*  Description)
 {
     uuid_t Id;
-    
-    Device->Base.ParentId = UUID_INVALID;
-    Device->Base.Length   = sizeof(BusDevice_t);
-    Device->Base.VendorId = PCI_FIXED_VENDORID;
+
+    device->Base.ParentId = UUID_INVALID;
+    device->Base.Length   = sizeof(BusDevice_t);
+    device->Base.VendorId = PCI_FIXED_VENDORID;
 
     // Set more magic constants to ignore class and subclass
-    Device->Base.Class    = 0xFF0F;
-    Device->Base.Subclass = 0xFF0F;
+    device->Base.Class    = 0xFF0F;
+    device->Base.Subclass = 0xFF0F;
+    device->Base.Identification.Description = strdup(Description);
 
     // Invalidate irqs, this must be set by fixed drivers
-    Device->InterruptPin         = INTERRUPT_NONE;
-    Device->InterruptLine        = INTERRUPT_NONE;
-    Device->InterruptAcpiConform = 0;
-    return DmDeviceCreate(&Device->Base, Name, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
+    device->InterruptPin         = INTERRUPT_NONE;
+    device->InterruptLine        = INTERRUPT_NONE;
+    device->InterruptAcpiConform = 0;
+    return DmDeviceCreate(&device->Base, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
 }
 
-/* BusRegisterPS2Controller
- * Loads a fixed driver for the vendorid/deviceid */
 oserr_t
-BusRegisterPS2Controller(void)
+__InstallPS2Controller(void)
 {
-    BusDevice_t Device = { { 0 } };
-    oserr_t  Status;
+    BusDevice_t* device;
+    oserr_t      oserr;
+
+    device = malloc(sizeof(BusDevice_t));
+    if (device == NULL) {
+        return OsOutOfMemory;
+    }
+    memset(device, 0, sizeof(BusDevice_t));
 
     // Set default ps2 device settings
-    Device.Base.ProductId = PCI_PS2_DEVICEID;
+    device->Base.ProductId = PCI_PS2_DEVICEID;
 
     // Register io-spaces for the ps2 controller, it has two ports
     // Data port - 0x60
-    // Status/Command port - 0x64
+    // oserr/Command port - 0x64
     // one byte each
-    Status = CreateDevicePortIo(&Device.IoSpaces[0], 0x60, 1);
-    if (Status != OsOK) {
+    oserr = CreateDevicePortIo(&device->IoSpaces[0], 0x60, 1);
+    if (oserr != OsOK) {
         ERROR(" > failed to initialize ps2 data io space");
         return OsError;
     }
 
-    Status = CreateDevicePortIo(&Device.IoSpaces[1], 0x64, 1);
-    if (Status != OsOK) {
+    oserr = CreateDevicePortIo(&device->IoSpaces[1], 0x64, 1);
+    if (oserr != OsOK) {
         ERROR(" > failed to initialize ps2 command/status io space");
         return OsError;
     }
-    return BusInstallFixed(&Device, "PS/2 Controller");
+    return __InstallFixedBusDevice(device, "PS/2 Controller");
 }
 
 oserr_t

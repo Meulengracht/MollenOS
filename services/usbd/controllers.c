@@ -172,7 +172,7 @@ static UsbController_t* __GetControllerIndex(
 }
 
 void sys_usb_register_controller_invocation(struct gracht_message* message, const uuid_t driverId,
-        const uint8_t* device, const uint32_t device_count, const int type, const int portCount)
+        const struct sys_device* device, const int type, const int portCount)
 {
     UsbCoreControllerRegister(driverId, (Device_t*)device, (UsbControllerType_t)type, portCount);
 }

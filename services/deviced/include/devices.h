@@ -58,7 +58,6 @@ DmDevicesRegister(
 extern oserr_t
 DmDeviceCreate(
         _In_  Device_t*    device,
-        _In_  const char*  name,
         _In_  unsigned int flags,
         _Out_ uuid_t*      idOut);
 
