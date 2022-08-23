@@ -43,12 +43,12 @@ oserr_t        AhciSetup(AhciController_t* controller);
 
 AhciController_t*
 AhciControllerCreate(
-    _In_ BusDevice_t* Device)
+    _In_ BusDevice_t* busDevice)
 {
     AhciController_t* controller;
     DeviceInterrupt_t interrupt;
     DeviceIo_t*       ioBase = NULL;
-    oserr_t        osStatus;
+    oserr_t           osStatus;
     int               i;
     int               opt = 1;
 
@@ -58,9 +58,9 @@ AhciControllerCreate(
     }
     
     memset(controller, 0, sizeof(AhciController_t));
-    memcpy(&controller->Device, Device, Device->Base.Length);
     spinlock_init(&controller->Lock, spinlock_plain);
-    ELEMENT_INIT(&controller->header, (void*)(uintptr_t)Device->Base.Id, controller);
+    ELEMENT_INIT(&controller->header, (void*)(uintptr_t)busDevice->Base.Id, controller);
+    controller->Device = busDevice;
 
     // Create the event descriptor used to receive irqs
     controller->event_descriptor = eventd(0, EVT_RESET_EVENT);
@@ -79,8 +79,8 @@ AhciControllerCreate(
     // Get I/O Base, and for AHCI there might be between 1-5
     // IO-spaces filled, so we always, ALWAYS go for the last one
     for (i = __DEVICEMANAGER_MAX_IOSPACES - 1; i >= 0; i--) {
-        if (controller->Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            ioBase = &controller->Device.IoSpaces[i];
+        if (controller->Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
+            ioBase = &controller->Device->IoSpaces[i];
             break;
         }
     }
@@ -106,7 +106,7 @@ AhciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN, ioBase->Access.Memory.VirtualBase);
     controller->Registers = (AHCIGenericRegisters_t*)ioBase->Access.Memory.VirtualBase;
     
-    DeviceInterruptInitialize(&interrupt, Device);
+    DeviceInterruptInitialize(&interrupt, busDevice);
     RegisterInterruptDescriptor(&interrupt, controller->event_descriptor);
     RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&interrupt, ioBase);
@@ -119,7 +119,7 @@ AhciControllerCreate(
     controller->InterruptId = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
-    osStatus = IoctlDevice(controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+    osStatus = IoctlDevice(controller->Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                            (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
     if (osStatus != OsOK || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
@@ -156,6 +156,7 @@ AhciControllerDestroy(
 
     UnregisterInterruptSource(controller->InterruptId);
     ReleaseDeviceIo(controller->IoBase);
+    free(controller->Device);
     free(controller);
     return OsOK;
 }

@@ -41,7 +41,7 @@ BulkReset(
     // Reset is 
     // 0x21 | 0xFF | wIndex - Interface
     while (Status == TransferNAK) {
-        Status = UsbExecutePacket(&Device->Base.DeviceContext,
+        Status = UsbExecutePacket(&Device->Device->DeviceContext,
             USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
             MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->InterfaceId, 0, NULL);
         Iterations++;
@@ -62,14 +62,14 @@ ClearAndResetEndpoint(
     _In_ MsdDevice_t*               device,
     _In_ usb_endpoint_descriptor_t* endpoint)
 {
-    UsbTransferStatus_t status = UsbClearFeature(&device->Base.DeviceContext,
+    UsbTransferStatus_t status = UsbClearFeature(&device->Device->DeviceContext,
         USBPACKET_DIRECTION_ENDPOINT, USB_ENDPOINT_ADDRESS(endpoint->Address), 
         USB_FEATURE_HALT);
     if (status != TransferFinished) {
         return OsError;
     }
     
-    return UsbEndpointReset(&device->Base.DeviceContext,
+    return UsbEndpointReset(&device->Device->DeviceContext,
         USB_ENDPOINT_ADDRESS(endpoint->Address));
 }
 
@@ -376,12 +376,12 @@ BulkInitialize(
     }
 
     // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(&Device->Base.DeviceContext,
+    if (UsbEndpointReset(&Device->Device->DeviceContext,
             USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (in)");
         return OsError;
     }
-    if (UsbEndpointReset(&Device->Base.DeviceContext, 
+    if (UsbEndpointReset(&Device->Device->DeviceContext, 
             USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (out)");
         return OsError;
@@ -444,12 +444,12 @@ BulkSendCommand(
     // Construct our command build the usb transfer
     BulkScsiCommandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    UsbTransferInitialize(&CommandStage, &Device->Base.DeviceContext, 
+    UsbTransferInitialize(&CommandStage, &Device->Device->DeviceContext, 
         Device->Out, USB_TRANSFER_BULK, 0);
     UsbTransferOut(&CommandStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
         sizeof(MsdCommandBlock_t), 0);
-    Result = UsbTransferQueue(&Device->Base.DeviceContext, &CommandStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Device->DeviceContext, &CommandStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     if (Result != TransferFinished) {
@@ -479,10 +479,10 @@ BulkReadData(
     size_t              bytesTransferred = 0;
 
     // Perform the transfer
-    UsbTransferInitialize(&dataStage, &Device->Base.DeviceContext,
+    UsbTransferInitialize(&dataStage, &Device->Device->DeviceContext,
                           Device->In, USB_TRANSFER_BULK, 0);
     UsbTransferIn(&dataStage, BufferHandle, BufferOffset, DataLength, 0);
-    transferStatus = UsbTransferQueue(&Device->Base.DeviceContext, &dataStage, &bytesTransferred);
+    transferStatus = UsbTransferQueue(&Device->Device->DeviceContext, &dataStage, &bytesTransferred);
     
     // Sanitize for any transport errors
     // The host shall accept the data received.
@@ -516,10 +516,10 @@ BulkWriteData(
     size_t              bytesTransferred;
 
     // Perform the data-stage
-    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+    UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
         Device->Out, USB_TRANSFER_BULK, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // The host shall accept the data received.
@@ -552,11 +552,11 @@ BulkGetStatus(
     TRACE("BulkGetStatus()");
 
     // Perform the transfer
-    UsbTransferInitialize(&StatusStage, &Device->Base.DeviceContext, 
+    UsbTransferInitialize(&StatusStage, &Device->Device->DeviceContext, 
         Device->In, USB_TRANSFER_BULK, 0);
     UsbTransferIn(&StatusStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->StatusBlock), sizeof(MsdCommandStatus_t), 0);
-    Result = UsbTransferQueue(&Device->Base.DeviceContext, &StatusStage, &bytesTransferred);
+    Result = UsbTransferQueue(&Device->Device->DeviceContext, &StatusStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // On a STALL condition receiving the CSW, then:

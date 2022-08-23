@@ -134,11 +134,11 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
         if (status == TransferStalled) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
-            UsbClearFeature(&hubDevice->Base.DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
+            UsbClearFeature(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
                             USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address), USB_FEATURE_HALT);
-            UsbEndpointReset(&hubDevice->Base.DeviceContext,
+            UsbEndpointReset(&hubDevice->Base->DeviceContext,
                              USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address));
-            UsbTransferResetPeriodic(&hubDevice->Base.DeviceContext, hubDevice->TransferId);
+            UsbTransferResetPeriodic(&hubDevice->Base->DeviceContext, hubDevice->TransferId);
         }
         else {
             HubInterrupt(hubDevice, dataIndex);

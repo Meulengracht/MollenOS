@@ -32,6 +32,7 @@
 
 #include <os/mollenos.h>
 #include <os/process.h>
+#include <stdlib.h>
 
 #include <sys_device_service.h>
 #include <sys_file_service.h>
@@ -306,7 +307,7 @@ static void from_sys_bus_io(const struct sys_bus_io* in, DeviceIo_t* out)
     }
 }
 
-static void from_sys_device_bus(const struct sys_device_bus* in, BusDevice_t* out)
+static void from_sys_device_bus(struct sys_device_bus* in, BusDevice_t* out)
 {
     memset(out, 0, sizeof(BusDevice_t));
     out->Base.Id = in->id;
@@ -372,7 +373,7 @@ static Device_t* from_sys_device(const struct sys_device* in)
             if (out == NULL) {
                 return NULL;
             }
-            from_sys_device_bus(&in->content.bus, (BusDevice_t*)out);
+            from_sys_device_bus((struct sys_device_bus*)&in->content.bus, (BusDevice_t*)out);
         } break;
         case 3: {
             out = malloc(sizeof(UsbDevice_t));

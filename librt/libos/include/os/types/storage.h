@@ -28,10 +28,10 @@
 
 typedef struct {
     long           Id;
-    unsigned int        Flags;
+    unsigned int   Flags;
     char           SerialNumber[32];
     unsigned long  SectorSize;
-    Integer64_t SectorsTotal;
+    UInteger64_t   SectorsTotal;
 } OsStorageDescriptor_t;
 
 // OsStorageDescriptor_t::Flags

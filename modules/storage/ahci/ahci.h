@@ -343,7 +343,7 @@ typedef struct AhciInterruptResource {
 } AhciInterruptResource_t;
 
 typedef struct AhciController {
-    BusDevice_t             Device;
+    BusDevice_t*            Device;
     element_t               header;
     AhciInterruptResource_t InterruptResource;
     uuid_t                  InterruptId;
@@ -363,7 +363,7 @@ typedef struct AhciController {
  * Registers a new controller with the AHCI driver */
 __EXTERN AhciController_t*
 AhciControllerCreate(
-    _In_ BusDevice_t* Device);
+    _In_ BusDevice_t* busDevice);
 
 /* AhciControllerDestroy
  * Destroys an existing controller instance and cleans up

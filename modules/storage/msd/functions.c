@@ -128,7 +128,7 @@ MsdGetMaximumLunCount(
     // Get Max LUNS is
     // 0xA1 | 0xFE | wIndex - Interface 
     // 1 Byte is expected back, values range between 0 - 15, 0-indexed
-    Status = UsbExecutePacket(&Device->Base.DeviceContext,
+    Status = UsbExecutePacket(&Device->Device->DeviceContext,
         USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
         MSD_REQUEST_GET_MAX_LUN, 0, 0, (uint16_t)Device->InterfaceId, 1, &MaxLuns);
 

@@ -105,7 +105,7 @@ UhciPortCheck(
 
 	// Clear connection event so we don't redetect
 	UhciWrite16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)), UHCI_PORT_CONNECT_EVENT);
-	return UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
+	return UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
 }
 
 oserr_t

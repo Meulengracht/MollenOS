@@ -54,8 +54,8 @@ HciControllerCreate(
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            IoBase = &Controller->Base.Device.IoSpaces[i];
+        if (Controller->Base.Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
+            IoBase = &Controller->Base.Device->IoSpaces[i];
             break;
         }
     }
@@ -121,7 +121,7 @@ HciControllerCreate(
 
     // Enable device
     TRACE("... enabling device");
-    Status = IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+    Status = IoctlDevice(Controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
     if (Status != OsOK) {

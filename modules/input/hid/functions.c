@@ -37,7 +37,7 @@ static oserr_t __FillHidDescriptor(
     TRACE("__FillHidDescriptor(hidDevice=0x%" PRIxIN ", hidDescriptor=0x%" PRIxIN ")",
           hidDevice, hidDescriptor);
 
-    status = UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    status = UsbExecutePacket(&hidDevice->Base->DeviceContext,
                               USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
                               USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HID,
                               (uint16_t)hidDevice->InterfaceId,
@@ -63,7 +63,7 @@ static oserr_t __FillReportDescriptor(
     TRACE("__FillReportDescriptor(hidDevice=0x%" PRIxIN ", reportType=%u, reportLength=%u)",
           hidDevice, reportType, reportLength);
 
-    status = UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    status = UsbExecutePacket(&hidDevice->Base->DeviceContext,
                               USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
                               USBPACKET_TYPE_GET_DESC, 0, reportType,
                               (uint16_t)hidDevice->InterfaceId,
@@ -84,7 +84,7 @@ HidGetProtocol(
         _In_ uint8_t*     protocol)
 {
     TRACE("HidSetProtocol(hidDevice=0x%" PRIxIN ", protocol=%i)", hidDevice, protocol);
-    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_IN,
                          HID_GET_PROTOCOL, 0, 0,
                          (uint16_t)hidDevice->InterfaceId, 1, protocol) != TransferFinished) {
@@ -101,7 +101,7 @@ HidSetProtocol(
     _In_ uint8_t      protocol)
 {
     TRACE("HidSetProtocol(hidDevice=0x%" PRIxIN ", protocol=%i)", hidDevice, protocol);
-    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                 HID_SET_PROTOCOL, protocol & 0xFF, 0,
                 (uint16_t)hidDevice->InterfaceId, 0, NULL) != TransferFinished) {
@@ -122,7 +122,7 @@ HidSetIdle(
           hidDevice, reportId, duration);
 
     // This request may stall, which means it's unsupported
-    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                          HID_SET_IDLE, reportId, duration,
                          (uint16_t)hidDevice->InterfaceId, 0, NULL) == TransferFinished) {

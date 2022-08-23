@@ -168,7 +168,7 @@ PACKED_TYPESTRUCT(PortStatus, {
 #define HUB_PORT_CHANGE_RESET       0x10 // Reset complete.
 
 typedef struct HubDevice {
-    UsbDevice_t   Base;
+    UsbDevice_t*  Base;
     element_t     Header;
     UsbTransfer_t Transfer;
     uuid_t        TransferId;

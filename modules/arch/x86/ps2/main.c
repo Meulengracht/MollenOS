@@ -144,25 +144,24 @@ PS2SelfTest(void)
 
 oserr_t
 PS2Initialize(
-    _In_ Device_t* Device)
+    _In_ Device_t* device)
 {
-    oserr_t Status;
-    uint8_t    Temp;
-    int        i;
+    oserr_t oserr;
+    uint8_t temp;
+    int     i;
 
-    // Store a copy of the device
-    memcpy(&Ps2Controller->Device, Device, sizeof(BusDevice_t));
+    Ps2Controller->Device = (BusDevice_t*)device;
 
     // No problem, last thing is to acquire the io-spaces, and just return that as result
-    if (AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[0]) != OsOK ||
-        AcquireDeviceIo(&Ps2Controller->Device.IoSpaces[1]) != OsOK) {
+    if (AcquireDeviceIo(&Ps2Controller->Device->IoSpaces[0]) != OsOK ||
+        AcquireDeviceIo(&Ps2Controller->Device->IoSpaces[1]) != OsOK) {
         ERROR(" > failed to acquire ps2 io spaces");
         return OsError;
     }
 
     // Data is at 0x60 - the first space, Command is at 0x64, the second space
-    Ps2Controller->Data    = &Ps2Controller->Device.IoSpaces[0];
-    Ps2Controller->Command = &Ps2Controller->Device.IoSpaces[1];
+    Ps2Controller->Data    = &Ps2Controller->Device->IoSpaces[0];
+    Ps2Controller->Command = &Ps2Controller->Device->IoSpaces[1];
 
     // Disable Devices
     PS2SendCommand(PS2_DISABLE_PORT1);
@@ -174,7 +173,7 @@ PS2Initialize(
 
     // Get Controller Configuration
     PS2SendCommand(PS2_GET_CONFIGURATION);
-    Temp = PS2ReadData(0);
+    temp = PS2ReadData(0);
 
     // Discover port status - initially both ports should be enabled
     // we will detect this later on
@@ -182,14 +181,14 @@ PS2Initialize(
     Ps2Controller->Ports[1].State = PortStateEnabled;
 
     // Clear all irqs and translations
-    Temp &= ~(PS2_CONFIG_PORT1_IRQ | PS2_CONFIG_PORT2_IRQ | PS2_CONFIG_TRANSLATION);
+    temp &= ~(PS2_CONFIG_PORT1_IRQ | PS2_CONFIG_PORT2_IRQ | PS2_CONFIG_TRANSLATION);
 
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
-    Status = PS2WriteData(Temp);
+    oserr = PS2WriteData(temp);
 
     // Perform Self Test
-    if (Status != OsOK || PS2SelfTest() != OsOK) {
+    if (oserr != OsOK || PS2SelfTest() != OsOK) {
         ERROR(" > failed to initialize ps2 controller, giving up");
         return OsError;
     }
@@ -197,8 +196,8 @@ PS2Initialize(
     // Initialize the ports
     for (i = 0; i < PS2_MAXPORTS; i++) {
         Ps2Controller->Ports[i].Index   = i;
-        Status = PS2PortInitialize(&Ps2Controller->Ports[i]);
-        if (Status != OsOK) {
+        oserr = PS2PortInitialize(&Ps2Controller->Ports[i]);
+        if (oserr != OsOK) {
             WARNING(" > port %i is in disabled state", i);
             Ps2Controller->Ports[i].State = PortStateDisabled;
         }
@@ -220,7 +219,7 @@ OnLoad(void)
     }
 
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
-    Ps2Controller->Device.Base.Id = UUID_INVALID;
+    Ps2Controller->Device->Base.Id = UUID_INVALID;
 
     if (WaitForNetService(1000) != OsOK) {
         ERROR(" => Failed to start ps2 driver, as net service never became available.");
@@ -267,52 +266,49 @@ oserr_t OnEvent(struct ioset_event* event)
 
 oserr_t
 OnRegister(
-    _In_ Device_t* Device)
+    _In_ Device_t* device)
 {
-    oserr_t Result = OsOK;
-    PS2Port_t *Port;
+    oserr_t    oserr;
+    PS2Port_t* port;
 
     // First register call is the ps2-controller and all sequent calls here is ps2-devices
     // So install the contract as soon as it arrives
-    if (Ps2Controller->Device.Base.Id == UUID_INVALID) {
-        return PS2Initialize(Device);
+    if (Ps2Controller->Device->Base.Id == UUID_INVALID) {
+        return PS2Initialize(device);
     }
 
     // Select port from device-id
-    if (Ps2Controller->Ports[0].DeviceId == Device->Id) {
-        Port = &Ps2Controller->Ports[0];
-    }
-    else if (Ps2Controller->Ports[1].DeviceId == Device->Id) {
-        Port = &Ps2Controller->Ports[1];
-    }
-    else {
+    if (Ps2Controller->Ports[0].DeviceId == device->Id) {
+        port = &Ps2Controller->Ports[0];
+    } else if (Ps2Controller->Ports[1].DeviceId == device->Id) {
+        port = &Ps2Controller->Ports[1];
+    } else {
+        free(device);
         return OsError;
     }
 
     // Ok .. It's a new device
     // - What kind of device?
-    if (Port->Signature == 0xAB41 || Port->Signature == 0xABC1) { // MF2 Keyboard Translation
-        Result = PS2KeyboardInitialize(Ps2Controller, Port->Index, 1);
-        if (Result != OsOK) {
+    if (port->Signature == 0xAB41 || port->Signature == 0xABC1) { // MF2 Keyboard Translation
+        oserr = PS2KeyboardInitialize(Ps2Controller, port->Index, 1);
+        if (oserr != OsOK) {
             ERROR(" > failed to initalize ps2-keyboard");
         }
-    }
-    else if (Port->Signature == 0xAB83) { // MF2 Keyboard
-        Result = PS2KeyboardInitialize(Ps2Controller, Port->Index, 0);
-        if (Result != OsOK) {
+    } else if (port->Signature == 0xAB83) { // MF2 Keyboard
+        oserr = PS2KeyboardInitialize(Ps2Controller, port->Index, 0);
+        if (oserr != OsOK) {
             ERROR(" > failed to initalize ps2-keyboard");
         }
-    }
-    else if (Port->Signature != 0xFFFFFFFF) {
-        Result = PS2MouseInitialize(Ps2Controller, Port->Index);
-        if (Result != OsOK) {
+    } else if (port->Signature != 0xFFFFFFFF) {
+        oserr = PS2MouseInitialize(Ps2Controller, port->Index);
+        if (oserr != OsOK) {
             ERROR(" > failed to initalize ps2-mouse");
         }
+    } else {
+        oserr = OsError;
     }
-    else {
-        Result = OsError;
-    }
-    return Result;
+    free(device); // not used for ports atm
+    return oserr;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
@@ -323,7 +319,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     // announce the protocols we support for the individual devices
-    if (deviceId != Ps2Controller->Device.Base.Id) {
+    if (deviceId != Ps2Controller->Device->Base.Id) {
         ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
                 "input", SERVICE_CTT_INPUT_ID);
     }

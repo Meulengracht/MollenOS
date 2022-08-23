@@ -240,7 +240,7 @@ typedef struct UsbHidReportCollection {
 #define HID_DEVICE_PROTOCOL_REPORT 1
 
 typedef struct HidDevice {
-    UsbDevice_t   Base;
+    UsbDevice_t*  Base;
     element_t     Header;
     UsbTransfer_t Transfer;
     uuid_t        TransferId;

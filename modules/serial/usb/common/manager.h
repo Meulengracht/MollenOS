@@ -36,7 +36,7 @@
 typedef struct UsbManagerController {
     uuid_t              Id;
     UsbControllerType_t Type;
-    BusDevice_t         Device;
+    BusDevice_t*        Device;
 
     int                 event_descriptor;
     uuid_t              Interrupt;

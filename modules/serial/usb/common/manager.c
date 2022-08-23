@@ -103,10 +103,9 @@ UsbManagerCreateController(
     if (!controller) {
         return NULL;
     }
-
     memset(controller, 0, structureSize);
-    memcpy(&controller->Device, device, sizeof(BusDevice_t));
 
+    controller->Device = device;
     controller->Type = type;
     list_construct(&controller->TransactionList);
     hashtable_construct(&controller->Endpoints, 0,
@@ -142,7 +141,7 @@ oserr_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller)
 {
-    oserr_t status = UsbControllerRegister(&controller->Device.Base, controller->Type, controller->PortCount);
+    oserr_t status = UsbControllerRegister(&controller->Device->Base, controller->Type, controller->PortCount);
     if (status != OsOK) {
         ERROR("[UsbManagerRegisterController] failed with code %u", status);
     }
@@ -158,7 +157,7 @@ UsbManagerDestroyController(
 
     // remove the controller indexes
     hashtable_remove(&g_controllers, &(struct usb_controller_device_index) {
-            .deviceId = controller->Device.Base.Id });
+            .deviceId = controller->Device->Base.Id });
 
     // clean up resources
     hashtable_destroy(&controller->Endpoints);
@@ -169,7 +168,7 @@ UsbManagerDestroyController(
     close(controller->event_descriptor);
 
     // Unregister controller with usbmanager service
-    return UsbControllerUnregister(controller->Device.Base.Id);
+    return UsbControllerUnregister(controller->Device->Base.Id);
 }
 
 static void

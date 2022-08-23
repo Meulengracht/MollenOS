@@ -133,7 +133,7 @@ static void __GetDeviceConfiguration(
     UsbTransferStatus_t        status;
     int                        i, j;
     
-    status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
+    status = UsbGetActiveConfigDescriptor(&device->Device->DeviceContext, &configuration);
     if (status != TransferFinished) {
         ERROR("[msd] [__GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
         return;
@@ -181,8 +181,8 @@ MsdDeviceCreate(
     }
     
     memset(msdDevice, 0, sizeof(MsdDevice_t));
-    memcpy(&msdDevice->Base, usbDevice, sizeof(UsbDevice_t));
     ELEMENT_INIT(&msdDevice->Header, (uintptr_t)usbDevice->Base.Id, msdDevice);
+    msdDevice->Device = usbDevice;
 
     strncpy(
             &msdDevice->Descriptor.Serial[0],
@@ -233,7 +233,7 @@ MsdDeviceCreate(
     }
 
     RegisterStorage(GetNativeHandle(__crt_get_server_iod()),
-                    msdDevice->Base.Base.Id, SYS_STORAGE_FLAGS_REMOVABLE);
+                    msdDevice->Device->Base.Id, SYS_STORAGE_FLAGS_REMOVABLE);
     return msdDevice;
 
 Error:
@@ -244,23 +244,24 @@ Error:
 
 oserr_t
 MsdDeviceDestroy(
-    _In_ MsdDevice_t *Device)
+    _In_ MsdDevice_t* msdDevice)
 {
     // Notify diskmanager
-    UnregisterStorage(Device->Base.Base.Id, 1);
+    UnregisterStorage(msdDevice->Device->Base.Id, 1);
 
     // Flush existing requests?
     // @todo
 
     // Free reusable buffers
-    if (Device->CommandBlock != NULL) {
-        dma_pool_free(UsbRetrievePool(), (void*)Device->CommandBlock);
+    if (msdDevice->CommandBlock != NULL) {
+        dma_pool_free(UsbRetrievePool(), (void*)msdDevice->CommandBlock);
     }
-    if (Device->StatusBlock != NULL) {
-        dma_pool_free(UsbRetrievePool(), (void*)Device->StatusBlock);
+    if (msdDevice->StatusBlock != NULL) {
+        dma_pool_free(UsbRetrievePool(), (void*)msdDevice->StatusBlock);
     }
 
     // Free data allocated
-    free(Device);
+    free(msdDevice->Device);
+    free(msdDevice);
     return OsOK;
 }

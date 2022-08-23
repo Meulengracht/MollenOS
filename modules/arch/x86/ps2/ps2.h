@@ -147,10 +147,10 @@ typedef struct PS2Port {
 } PS2Port_t;
 
 typedef struct PS2Controller {
-    BusDevice_t Device;
-    DeviceIo_t* Command;
-    DeviceIo_t* Data;
-    PS2Port_t   Ports[PS2_MAXPORTS];
+    BusDevice_t* Device;
+    DeviceIo_t*  Command;
+    DeviceIo_t*  Data;
+    PS2Port_t    Ports[PS2_MAXPORTS];
 } PS2Controller_t;
 
 /* PS2PortInitialize

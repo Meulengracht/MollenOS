@@ -130,7 +130,7 @@ typedef struct MsdOperations {
 } MsdOperations_t;
 
 typedef struct MsdDevice {
-    UsbDevice_t            Base;
+    UsbDevice_t*           Device;
     element_t              Header;
     StorageDescriptor_t    Descriptor;
     MsdDeviceType_t        Type;
@@ -162,7 +162,7 @@ MsdDeviceCreate(
  * any resources related to it */
 __EXTERN oserr_t
 MsdDeviceDestroy(
-    _In_ MsdDevice_t *Device);
+    _In_ MsdDevice_t *msdDevice);
 
 /* MsdDeviceInitialize 
  * Initializes and validates that the protocol has all neccessary

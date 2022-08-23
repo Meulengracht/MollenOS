@@ -140,7 +140,7 @@ static void __GetDeviceConfiguration(
     int                        i, j;
     TRACE("__GetDeviceConfiguration(hidDevice=0x%" PRIxIN ")", hidDevice);
     
-    status = UsbGetActiveConfigDescriptor(&hidDevice->Base.DeviceContext, &configuration);
+    status = UsbGetActiveConfigDescriptor(&hidDevice->Base->DeviceContext, &configuration);
     if (status != TransferFinished) {
         return;
     }
@@ -186,9 +186,8 @@ HidDeviceCreate(
     }
 
     memset(hidDevice, 0, sizeof(HidDevice_t));
-    memcpy(&hidDevice->Base, usbDevice, sizeof(UsbDevice_t));
-
     ELEMENT_INIT(&hidDevice->Header, (uintptr_t)usbDevice->Base.Id, hidDevice);
+    hidDevice->Base       = usbDevice;
     hidDevice->TransferId = UUID_INVALID;
 
     __GetDeviceConfiguration(hidDevice);
@@ -206,7 +205,7 @@ HidDeviceCreate(
     }
 
     // Reset interrupt ep
-    if (UsbEndpointReset(&hidDevice->Base.DeviceContext,
+    if (UsbEndpointReset(&hidDevice->Base->DeviceContext,
             USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address)) != OsOK) {
         ERROR("HidDeviceCreate failed to reset endpoint (interrupt)");
         goto error_exit;
@@ -222,13 +221,13 @@ HidDeviceCreate(
     __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
 
     // Install interrupt pipe
-    UsbTransferInitialize(&hidDevice->Transfer, &hidDevice->Base.DeviceContext,
+    UsbTransferInitialize(&hidDevice->Transfer, &hidDevice->Base->DeviceContext,
                           hidDevice->Interrupt, USB_TRANSFER_INTERRUPT, 0);
     UsbTransferPeriodic(&hidDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
                         dma_pool_offset(UsbRetrievePool(), hidDevice->Buffer), 0x400,
                         hidDevice->ReportLength, USB_TRANSACTION_IN, (const void*)hidDevice);
 
-    status = UsbTransferQueuePeriodic(&hidDevice->Base.DeviceContext, &hidDevice->Transfer, &hidDevice->TransferId);
+    status = UsbTransferQueuePeriodic(&hidDevice->Base->DeviceContext, &hidDevice->Transfer, &hidDevice->TransferId);
     if (status != TransferQueued && status != TransferInProgress) {
         ERROR("HidDeviceCreate failed to install interrupt transfer");
         goto error_exit;
@@ -249,10 +248,10 @@ HidDeviceDestroy(
 {
     // Destroy the interrupt channel
     if (hidDevice->TransferId != UUID_INVALID) {
-        UsbTransferDequeuePeriodic(&hidDevice->Base.DeviceContext, hidDevice->TransferId);
+        UsbTransferDequeuePeriodic(&hidDevice->Base->DeviceContext, hidDevice->TransferId);
     }
 
-    __UnsubscribeToController(hidDevice->Base.DeviceContext.controller_driver_id);
+    __UnsubscribeToController(hidDevice->Base->DeviceContext.controller_driver_id);
 
     if (hidDevice->Buffer != NULL) {
         dma_pool_free(UsbRetrievePool(), hidDevice->Buffer);
