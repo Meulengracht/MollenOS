@@ -243,13 +243,13 @@ static void to_sys_device(Device_t* in, struct sys_device* out)
     sys_device_init(out);
 
     if (in->Length == sizeof(Device_t)) {
-        out->content_type = 1;
+        out->content_type = SYS_DEVICE_CONTENT_BASE;
         to_sys_device_base(in, &out->content.base);
     } else if (in->Length == sizeof(BusDevice_t)) {
-        out->content_type = 2;
+        out->content_type = SYS_DEVICE_CONTENT_BUS;
         to_sys_device_bus((BusDevice_t*)in, &out->content.bus);
     } else if (in->Length == sizeof(UsbDevice_t)) {
-        out->content_type = 3;
+        out->content_type = SYS_DEVICE_CONTENT_USB;
         to_sys_device_usb((UsbDevice_t*)in, &out->content.usb);
     }
 }
@@ -287,18 +287,18 @@ static void from_sys_bus_io(const struct sys_bus_io* in, DeviceIo_t* out)
 {
     out->Id = in->id;
     switch (in->access_type) {
-        case 1: {
+        case SYS_BUS_IO_ACCESS_MEMORY: {
             out->Type                       = DeviceIoMemoryBased;
             out->Access.Memory.PhysicalBase = in->access.memory.physical_base;
             out->Access.Memory.VirtualBase  = in->access.memory.virtual_base;
             out->Access.Memory.Length       = in->access.memory.length;
         } break;
-        case 2: {
+        case SYS_BUS_IO_ACCESS_PORT: {
             out->Type               = DeviceIoPortBased;
             out->Access.Port.Base   = in->access.port.base;
             out->Access.Port.Length = in->access.port.length;
         } break;
-        case 3: {
+        case SYS_BUS_IO_ACCESS_PIN: {
             out->Type            = DeviceIoPinBased;
             out->Access.Pin.Port = in->access.pin.port;
             out->Access.Pin.Pin  = in->access.pin.pin;
@@ -361,21 +361,21 @@ static Device_t* from_sys_device(const struct sys_device* in)
     Device_t* out = NULL;
 
     switch (in->content_type) {
-        case 1: {
+        case SYS_DEVICE_CONTENT_BASE: {
             out = malloc(sizeof(Device_t));
             if (out == NULL) {
                 return NULL;
             }
             from_sys_device_base(&in->content.base, out);
         } break;
-        case 2: {
+        case SYS_DEVICE_CONTENT_BUS: {
             out = malloc(sizeof(BusDevice_t));
             if (out == NULL) {
                 return NULL;
             }
             from_sys_device_bus((struct sys_device_bus*)&in->content.bus, (BusDevice_t*)out);
         } break;
-        case 3: {
+        case SYS_DEVICE_CONTENT_USB: {
             out = malloc(sizeof(UsbDevice_t));
             if (out == NULL) {
                 return NULL;

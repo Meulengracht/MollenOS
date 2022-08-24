@@ -36,11 +36,12 @@ _CODE_BEGIN
 #define SERVICE_PROCESS_PATH "/service/process"
 #define SERVICE_FILE_PATH "/service/file"
 #define SERVICE_NET_PATH "/service/net"
+#define SERVICE_SERVED_PATH "/service/serve"
 
 // The ability to associate the current thread handle 
 // with a global path to access services without knowing the thread
 DDKDECL(oserr_t,
-        RegisterPath(
+RegisterPath(
     _In_ const char* Path));
 
 // Service targets that are available for Vali
@@ -55,22 +56,22 @@ DDKDECL(thrd_t, GetNetService(void));
 // possible to wait for it to be available. Be careful
 // about not giving a timeout
 DDKDECL(oserr_t,
-        WaitForSessionService(
+WaitForSessionService(
     _In_ size_t Timeout));
 DDKDECL(oserr_t,
-        WaitForDeviceService(
+WaitForDeviceService(
     _In_ size_t Timeout));
 DDKDECL(oserr_t,
-        WaitForUsbService(
+WaitForUsbService(
     _In_ size_t Timeout));
 DDKDECL(oserr_t,
-        WaitForProcessService(
+WaitForProcessService(
     _In_ size_t Timeout));
 DDKDECL(oserr_t,
-        WaitForFileService(
+WaitForFileService(
     _In_ size_t Timeout));
 DDKDECL(oserr_t,
-        WaitForNetService(
+WaitForNetService(
     _In_ size_t Timeout));
 
 _CODE_END

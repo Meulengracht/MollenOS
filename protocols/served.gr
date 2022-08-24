@@ -1,0 +1,58 @@
+/**
+ * Serve Daemon Protocol
+ * The protocol specifies which commands are available from served. Served is the
+ * application server for chef, and the CLI utility 'serve' implements this protocol
+ *
+ * Protocol Version: 1.0.0
+ * Protocol Source:  https://github.com/Meulengracht/bake/blob/main/protocols/served.gr
+ */
+
+namespace chef
+
+enum install_status {
+    SUCCESS,
+    FAILED_VERIFICATION,
+    FAILED_INSTALL,
+    FAILED_LOAD,
+    FAILED_HOOKS
+}
+
+enum update_status {
+    SUCCESS,
+    FAILED_UNLOAD,
+    FAILED_INSTALL,
+    FAILED_LOAD,
+    FAILED_HOOKS
+}
+
+// served_command describes information relating to a served command. This
+// will include the path to actual mounted command, the arguments it requires
+// and the type of command is being executed.
+struct served_command {
+    int    type;
+    string path;
+    string arguments;
+    string data_path;
+}
+
+// served_package describes a package with small details used
+// for displaying to the user. This usually only includes information
+// necessary to inform the user of events that have happened, and not
+// information used for decision making.
+struct served_package {
+    string name;
+    string version;
+}
+
+service served (42) {
+    func install(string publisher, string path) : () = 1;
+    func remove(string packageName) : (int result) = 2;
+    func info(string packageName) : (served_package info) = 3;
+    func listcount() : (uint count) = 4;
+    func list() : (served_package[] packages) = 5;
+    func get_command(string mountPath) : (served_command command) = 6;
+
+    event package_installed : (install_status status, served_package info) = 7;
+    event package_removed : (served_package info) = 8;
+    event package_updated : (update_status status, served_package info) = 9;
+}

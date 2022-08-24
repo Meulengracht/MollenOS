@@ -58,14 +58,14 @@ typedef struct Device {
  * device-manager, and automatically queries for a driver for the new device */
 DDKDECL(uuid_t,
 RegisterDevice(
-    _In_ Device_t*    Device,
-    _In_ unsigned int Flags));
+    _In_ Device_t*    device,
+    _In_ unsigned int flags));
 
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
 DDKDECL(oserr_t,
 UnregisterDevice(
-        _In_ uuid_t DeviceId));
+        _In_ uuid_t deviceId));
 
 #endif //!__DDK_DEVICE_H__

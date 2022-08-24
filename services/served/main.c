@@ -22,18 +22,13 @@
 #define __TRACE
 
 #include <os/process.h>
-#include <ddk/utils.h>
 #include <internal/_ipc.h>
-#include <string.h>
-#include <stdio.h>
 
-#include <sys_session_service_server.h>
+#include <chef_served_service_server.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-static UUId_t WindowingSystemId = UUID_INVALID;
-
-oscode_t OnUnload(void)
+oserr_t OnUnload(void)
 {
     return OsOK;
 }
@@ -41,39 +36,43 @@ oscode_t OnUnload(void)
 void GetServiceAddress(struct ipmsg_addr* address)
 {
     address->type = IPMSG_ADDRESS_PATH;
-    address->data.path = SERVICE_SESSION_PATH;
+    address->data.path = SERVICE_SERVED_PATH;
 }
 
-oscode_t
+oserr_t
 OnLoad(void)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_session_server_protocol);
-    return OsSuccess;
+    gracht_server_register_protocol(__crt_get_service_server(), &chef_served_server_protocol);
+    return OsOK;
 }
 
-void sys_session_login_invocation(struct gracht_message* message, const char* user, const char* password)
+void chef_served_install_invocation(struct gracht_message* message, const char* publisher, const char* path)
 {
-    // if error give a fake delay of 1 << min(attempt_num, 31) if the first 5 attempts are wrong
-    // reset on login_success
-    // int svc_session_login_response(struct gracht_recv_message* message, oscode_t status, char* session_id);
+
 }
 
-void sys_session_logout_invocation(struct gracht_message* message, const char* sessionId)
+void chef_served_remove_invocation(struct gracht_message* message, const char* packageName)
 {
-    // int svc_session_logout_response(struct gracht_recv_message* message, oscode_t status);
+
 }
 
-void sys_session_disk_connected_invocation(struct gracht_message* message, const char* identifier)
+void chef_served_info_invocation(struct gracht_message* message, const char* packageName)
 {
-    char pathBuffer[64];
-    TRACE("sys_session_disk_connected_invocation");
-    
-    if (WindowingSystemId == UUID_INVALID) {
-        // Clear up buffer and spawn app
-        memset(&pathBuffer[0], 0, sizeof(pathBuffer));
-        sprintf(&pathBuffer[0], "%s:/bin/" __OSCONFIG_INIT_APP, identifier);
-        TRACE("Spawning %s", &pathBuffer[0]);
-        ProcessSpawn(&pathBuffer[0], NULL, &WindowingSystemId);
-    }
+
+}
+
+void chef_served_listcount_invocation(struct gracht_message* message)
+{
+
+}
+
+void chef_served_list_invocation(struct gracht_message* message)
+{
+
+}
+
+void chef_served_get_command_invocation(struct gracht_message* message, const char* mountPath)
+{
+
 }
