@@ -25,11 +25,9 @@
 #define __TRACE
 
 #include <usb/usb.h>
-#include <ddk/device.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include "manager.h"
-#include <stdlib.h>
-#include <string.h>
 
 #include "sys_usb_service_server.h"
 
@@ -43,7 +41,7 @@ UsbCoreControllerRegister(
         _In_ int                 rootPorts)
 {
     UsbController_t* controller;
-    oserr_t       osStatus;
+    oserr_t          osStatus;
     TRACE("UsbCoreControllerRegister(driverId=%u, device=0x%" PRIxIN ", controllerType=%u, rootPorts=%i)",
           driverId, device, controllerType, rootPorts);
 
@@ -55,7 +53,7 @@ UsbCoreControllerRegister(
     memset(controller, 0, sizeof(UsbController_t));
 
     ELEMENT_INIT(&controller->Header, 0, controller);
-    memcpy(&controller->Device, device, sizeof(Device_t));
+    controller->Device    = device;
     controller->DriverId  = driverId;
     controller->Type      = controllerType;
 
@@ -85,6 +83,7 @@ UsbCoreControllerUnregister(
         return OsInvalidParameters;
     }
     list_remove(&g_controllers, &controller->Header);
+    free(controller->Device);
     free(controller);
 
     UsbCoreHubsUnregister(deviceId);
@@ -97,7 +96,7 @@ UsbCoreControllerGet(
 {
     foreach(element, &g_controllers) {
         UsbController_t* controller = (UsbController_t*)element->value;
-        if (controller->Device.Id == deviceId) {
+        if (controller->Device->Id == deviceId) {
             return controller;
         }
     }
@@ -144,7 +143,7 @@ static void __CleanupControllerEntry(
         _In_ void*      context)
 {
     UsbController_t* controller = (UsbController_t*)element->value;
-    UsbCoreControllerUnregister(controller->Device.Id);
+    UsbCoreControllerUnregister(controller->Device->Id);
 }
 
 void UsbCoreControllersCleanup(void)
@@ -174,7 +173,10 @@ static UsbController_t* __GetControllerIndex(
 void sys_usb_register_controller_invocation(struct gracht_message* message, const uuid_t driverId,
         const struct sys_device* device, const int type, const int portCount)
 {
-    UsbCoreControllerRegister(driverId, (Device_t*)device, (UsbControllerType_t)type, portCount);
+    UsbCoreControllerRegister(
+            driverId, from_sys_device(device),
+            (UsbControllerType_t)type, portCount
+    );
 }
 
 void sys_usb_unregister_controller_invocation(struct gracht_message* message, const uuid_t deviceId)

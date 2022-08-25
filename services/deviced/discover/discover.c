@@ -281,9 +281,9 @@ __NotifyDevices(
 {
     usched_mtx_lock(&driver->devices_lock);
     foreach (i, &driver->devices) {
-        struct DmDevice* device   = i->value;
-        oserr_t       osStatus = DmDevicesRegister(driver->handle, device->id);
-        if (osStatus != OsOK) {
+        struct DmDevice* device = i->value;
+        oserr_t          oserr  = DmDevicesRegister(driver->handle, device->id);
+        if (oserr != OsOK) {
             WARNING("__NotifyDevices failed to notify driver of device %u", device->id);
         }
     }

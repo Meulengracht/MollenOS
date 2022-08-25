@@ -71,13 +71,18 @@ oserr_t OnEvent(struct ioset_event* event)
 
 oserr_t
 OnRegister(
-    _In_ Device_t* Device)
+    _In_ Device_t* device)
 {
-    if (Device->Length != sizeof(BusDevice_t)) {
+    if (device == NULL) {
+        ERROR("OnRegister: device provided was NULL");
+        return OsInvalidParameters;
+    }
+
+    if (device->Length != sizeof(BusDevice_t)) {
         return OsInvalidParameters;
     }
     
-    if (HciControllerCreate((BusDevice_t*)Device) == NULL) {
+    if (HciControllerCreate((BusDevice_t*)device) == NULL) {
         return OsError;
     }
     return OsOK;

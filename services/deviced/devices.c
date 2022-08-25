@@ -263,7 +263,7 @@ DmDeviceCreate(
     *idOut = device->Id;
 
     TRACE("%u, Registered device %s, struct length %u",
-          device->Id, &device->Identification.Description, device->Length);
+          device->Id, device->Identification.Description, device->Length);
 
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up

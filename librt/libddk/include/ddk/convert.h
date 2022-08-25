@@ -250,7 +250,7 @@ static void to_sys_device(Device_t* in, struct sys_device* out)
         to_sys_device_bus((BusDevice_t*)in, &out->content.bus);
     } else if (in->Length == sizeof(UsbDevice_t)) {
         out->content_type = SYS_DEVICE_CONTENT_USB;
-        to_sys_device_usb((UsbDevice_t*)in, &out->content.usb);
+        to_sys_device_usb((UsbDevice_t*)in,&out->content.usb);
     }
 }
 

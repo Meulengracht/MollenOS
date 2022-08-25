@@ -71,7 +71,7 @@ typedef struct UsbHub {
 } UsbHub_t;
 
 typedef struct UsbController {
-    Device_t            Device;
+    Device_t*           Device;
     element_t           Header;
     uuid_t              DriverId;
     UsbControllerType_t Type;

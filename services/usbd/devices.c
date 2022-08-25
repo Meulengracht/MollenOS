@@ -134,7 +134,7 @@ __LoadDeviceDriver(
 
     coreDevice.Base.Id       = UUID_INVALID;
     coreDevice.Base.Length   = sizeof(UsbDevice_t);
-    coreDevice.Base.ParentId = controller->Device.Id;
+    coreDevice.Base.ParentId = controller->Device->Id;
     coreDevice.Base.VendorId = device->VendorId;
     coreDevice.Base.ProductId = device->ProductId;
     coreDevice.Base.Class    = USB_DEVICE_CLASS;
@@ -291,7 +291,7 @@ UsbCoreDevicesCreate(
     usbPort->Speed                    = portDescriptor.Speed;
     
     // Initialize the members we have, leave device address to 0
-    device->Base.controller_device_id = usbController->Device.Id;
+    device->Base.controller_device_id = usbController->Device->Id;
     device->Base.controller_driver_id = usbController->DriverId;
     device->Base.hub_device_id        = usbHub->DeviceId;
     device->Base.hub_driver_id        = usbHub->DriverId;
