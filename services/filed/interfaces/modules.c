@@ -24,18 +24,25 @@
 #include <ddk/utils.h>
 #include <os/sharedobject.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "vfs/vfs_interface.h"
 
-static const char* g_fsModules[] = {
+static const char* g_modulePaths[] = {
+        "/modules",
+        "rd:",
+        NULL
+};
+
+static const char* g_moduleNames[] = {
 	NULL,
-	"$sys/drivers/filesystems/fat.dll",
-	"$sys/drivers/filesystems/exfat.dll",
-	"$sys/drivers/filesystems/ntfs.dll",
-	"$sys/drivers/filesystems/hfs.dll",
-	"$sys/drivers/filesystems/hpfs.dll",
+	"fat.dll",
+	"exfat.dll",
+	"ntfs.dll",
+	"hfs.dll",
+	"hpfs.dll",
 	"mfs.dll",
-	"$sys/drivers/filesystems/ext.dll"
+	"ext.dll"
 };
 
 static oserr_t
@@ -101,6 +108,29 @@ VFSInterfaceNew(
     return interface;
 }
 
+static Handle_t
+__TryLocateModule(
+        _In_  enum FileSystemType type)
+{
+    char tmp[256];
+    int  i;
+
+    if (type == FileSystemType_UNKNOWN) {
+        return HANDLE_INVALID;
+    }
+
+    i = 0;
+    while (g_modulePaths[i]) {
+        snprintf(&tmp[0], sizeof(tmp), "%s/%s", g_modulePaths[i], g_moduleNames[(int)type]);
+        Handle_t handle = SharedObjectLoad(&tmp[0]);
+        if (handle != HANDLE_INVALID) {
+            return handle;
+        }
+        i++;
+    }
+    return HANDLE_INVALID;
+}
+
 oserr_t
 VFSInterfaceLoadInternal(
         _In_  enum FileSystemType   type,
@@ -115,10 +145,10 @@ VFSInterfaceLoadInternal(
 	    return OsNotSupported;
 	}
 
-    handle = SharedObjectLoad(g_fsModules[(int)type]);
+    handle = __TryLocateModule(type);
     if (handle == HANDLE_INVALID) {
-        ERROR("VFSInterfaceLoadInternal failed to load %s", g_fsModules[(int)type]);
-        return OsError;
+        ERROR("VFSInterfaceLoadInternal failed to load %s", g_moduleNames[(int)type]);
+        return OsNotExists;
     }
 
     interface = VFSInterfaceNew(type, handle, NULL);

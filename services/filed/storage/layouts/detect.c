@@ -100,7 +100,7 @@ VFSStorageParse(
 {
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;
-    oserr_t               osStatus;
+    oserr_t                oserr;
 
 	TRACE("VFSStorageParse(SectorSize %u)", fsStorage->Storage.SectorSize);
 
@@ -112,18 +112,18 @@ VFSStorageParse(
 	dmaInfo.flags    = 0;
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
-    osStatus = dma_create(&dmaInfo, &dmaAttachment);
-	if (osStatus != OsOK) {
-		return osStatus;
+    oserr = dma_create(&dmaInfo, &dmaAttachment);
+	if (oserr != OsOK) {
+		return oserr;
 	}
 
     // Always check for GPT table first
-    osStatus = GptEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
-    if (osStatus == OsNotExists) {
-        osStatus = MbrEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
+    oserr = GptEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
+    if (oserr == OsNotExists) {
+        oserr = MbrEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
     }
 
 	dma_attachment_unmap(&dmaAttachment);
 	dma_detach(&dmaAttachment);
-	return osStatus;
+	return oserr;
 }

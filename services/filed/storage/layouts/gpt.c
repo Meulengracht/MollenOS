@@ -128,13 +128,13 @@ GptEnumerate(
 {
     GptHeader_t* gpt;
     size_t       sectorsRead;
-    oserr_t   osStatus;
+    oserr_t      oserr;
 
     TRACE("GptEnumerate()");
 
     // Start out by reading the gpt-header to detect whether there is a valid GPT table
-    osStatus = VfsStorageReadHelper(storage, bufferHandle, 1, 1, &sectorsRead);
-    if (osStatus != OsOK) {
+    oserr = VfsStorageReadHelper(storage, bufferHandle, 1, 1, &sectorsRead);
+    if (oserr != OsOK) {
         return OsError;
     }
 
@@ -146,10 +146,10 @@ GptEnumerate(
     }
     memcpy(gpt, buffer, sizeof(GptHeader_t));
 
-    osStatus = GptValidateHeader(gpt);
-    if (osStatus == OsOK) {
-        osStatus = GptEnumeratePartitionTable(storage, gpt, bufferHandle, buffer);
+    oserr = GptValidateHeader(gpt);
+    if (oserr == OsOK) {
+        oserr = GptEnumeratePartitionTable(storage, gpt, bufferHandle, buffer);
     }
     free(gpt);
-	return osStatus;
+	return oserr;
 }

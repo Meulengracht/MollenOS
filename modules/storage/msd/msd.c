@@ -97,6 +97,8 @@ static inline void __GetDeviceProtocol(
     // Set initial shared stuff
     device->Protocol                      = ProtocolUnknown;
     device->AlignedAccess                 = 0;
+    device->Descriptor.DeviceID           = device->Device->Base.Id;
+    device->Descriptor.DriverID           = GetNativeHandle(__crt_get_server_iod());
     device->Descriptor.SectorsPerCylinder = 64;
     device->Descriptor.SectorSize         = 512;
     device->InterfaceId                   = interface->base.NumInterface;
@@ -179,21 +181,25 @@ MsdDeviceCreate(
     if (!msdDevice) {
         return NULL;
     }
-    
     memset(msdDevice, 0, sizeof(MsdDevice_t));
+
     ELEMENT_INIT(&msdDevice->Header, (uintptr_t)usbDevice->Base.Id, msdDevice);
     msdDevice->Device = usbDevice;
 
-    strncpy(
-            &msdDevice->Descriptor.Serial[0],
-            usbDevice->Base.Identification.Serial,
-            sizeof(msdDevice->Descriptor.Serial)
-    );
-    strncpy(
-            &msdDevice->Descriptor.Model[0],
-            usbDevice->Base.Identification.Product,
-            sizeof(msdDevice->Descriptor.Model)
-    );
+    if (usbDevice->Base.Identification.Serial) {
+        strncpy(
+                &msdDevice->Descriptor.Serial[0],
+                usbDevice->Base.Identification.Serial,
+                sizeof(msdDevice->Descriptor.Serial)
+        );
+    }
+    if (usbDevice->Base.Identification.Product) {
+        strncpy(
+                &msdDevice->Descriptor.Model[0],
+                usbDevice->Base.Identification.Product,
+                sizeof(msdDevice->Descriptor.Model)
+        );
+    }
     
     __GetDeviceConfiguration(msdDevice);
     

@@ -139,13 +139,19 @@ __LoadDeviceDriver(
     coreDevice.Base.ProductId = device->ProductId;
     coreDevice.Base.Class    = USB_DEVICE_CLASS;
     coreDevice.Base.Subclass = (device->Class << 16) | 0; // Subclass
-    coreDevice.Base.Identification.Description = (char*)UsbGetIdentificationString(device->Class);
+
+    coreDevice.Base.Identification.Description  = (char*)UsbGetIdentificationString(device->Class);
+    coreDevice.Base.Identification.Manufacturer = device->Manufacturer == NULL ? NULL : mstr_u8(device->Manufacturer);
+    coreDevice.Base.Identification.Product      = device->Product == NULL ? NULL : mstr_u8(device->Product);
+    coreDevice.Base.Identification.Serial       = device->Serial == NULL ? NULL : mstr_u8(device->Serial);
 
     device->DeviceId = RegisterDevice(&coreDevice.Base, DEVICE_REGISTER_FLAG_LOADDRIVER);
-    if (device->DeviceId == UUID_INVALID) {
-        return OsError;
-    }
-    return OsOK;
+
+    // cleanup the converted mstrings
+    free(coreDevice.Base.Identification.Manufacturer);
+    free(coreDevice.Base.Identification.Product);
+    free(coreDevice.Base.Identification.Serial);
+    return device->DeviceId == UUID_INVALID ? OsError : OsOK;
 }
 
 static UsbTransferStatus_t __GetDeviceDescriptor(

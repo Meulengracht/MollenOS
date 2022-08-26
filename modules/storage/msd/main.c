@@ -105,7 +105,7 @@ OnUnregister(
 void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    oserr_t                 status     = OsNotExists;
+    oserr_t                    oserr      = OsNotExists;
     MsdDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     
@@ -114,10 +114,10 @@ void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t de
             device->Descriptor.SectorCount,
             device->Descriptor.SectorSize);
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        status = OsOK;
+        oserr = OsOK;
     }
     
-    ctt_storage_stat_response(message, status, &gdescriptor);
+    ctt_storage_stat_response(message, oserr, &gdescriptor);
 }
 
 // lazyness

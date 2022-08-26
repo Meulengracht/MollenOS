@@ -155,13 +155,21 @@ static void to_sys_process_configuration(ProcessConfiguration_t* in, struct sys_
     out->stdin_handle  = in->StdInHandle;
 }
 
+static char* to_protocol_string(const char* in)
+{
+    if (!in || strlen(in) == 0) {
+        return NULL;
+    }
+    return strdup(in);
+}
+
 static void to_sys_device_identification(DeviceIdentification_t* in, struct sys_device_identification* out)
 {
-    out->description = in->Description;
-    out->manufacturer = in->Manufacturer;
-    out->product = in->Product;
-    out->revision = in->Revision;
-    out->serial = in->Serial;
+    out->description  = to_protocol_string(in->Description);
+    out->manufacturer = to_protocol_string(in->Manufacturer);
+    out->product      = to_protocol_string(in->Product);
+    out->revision     = to_protocol_string(in->Revision);
+    out->serial       = to_protocol_string(in->Serial);
 }
 
 static void to_sys_device_base(Device_t* in, struct sys_device_base* out)
@@ -236,6 +244,17 @@ static void to_sys_device_usb(UsbDevice_t* in, struct sys_device_usb* out)
     out->identification.class      = in->Base.Class;
     out->identification.subclass   = in->Base.Subclass;
     to_sys_device_identification(&in->Base.Identification, &out->identification);
+
+    out->controller_device_id = in->DeviceContext.controller_device_id;
+    out->controller_driver_id = in->DeviceContext.controller_driver_id;
+    out->hub_device_id        = in->DeviceContext.hub_device_id;
+    out->hub_driver_id        = in->DeviceContext.hub_driver_id;
+    out->hub_address          = in->DeviceContext.hub_address;
+    out->port_address         = in->DeviceContext.port_address;
+    out->device_address       = in->DeviceContext.device_address;
+    out->configuration_length = in->DeviceContext.configuration_length;
+    out->device_mps           = in->DeviceContext.device_mps;
+    out->speed                = in->DeviceContext.speed;
 }
 
 static void to_sys_device(Device_t* in, struct sys_device* out)
