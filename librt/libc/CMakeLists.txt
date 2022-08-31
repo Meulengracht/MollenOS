@@ -1,4 +1,4 @@
-# Project setup
+    # Project setup
 project (ValiLibC)
 enable_language (ASM_NASM)
 enable_language (C)
@@ -367,6 +367,7 @@ set (SOURCES_OS
     os/scheduler/scheduler.c
     os/scheduler/mutex.c
     os/scheduler/cond.c
+    os/scheduler/xunit.c
 
     os/keymaps/en-us.c
 

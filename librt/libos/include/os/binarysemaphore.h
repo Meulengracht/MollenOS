@@ -39,16 +39,16 @@ typedef struct BinarySemaphore {
  * Initializes the semaphore value to either 0 or 1. The pointer
  * must be pre-allocated before calling. */
 CRTDECL(
-        oserr_t,
-        BinarySemaphoreConstruct(
+oserr_t,
+BinarySemaphoreConstruct(
     _In_ BinarySemaphore_t *BinarySemaphore,
     _In_ int Value));
 
 /* BinarySemaphoreReset
  * Reinitializes the semaphore with a value of 0 */
 CRTDECL(
-        oserr_t,
-        BinarySemaphoreReset(
+oserr_t,
+BinarySemaphoreReset(
     _In_ BinarySemaphore_t *BinarySemaphore));
 
 /* BinarySemaphorePost

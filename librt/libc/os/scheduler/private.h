@@ -23,6 +23,7 @@
 #ifndef __USCHED_PRIVATE_H__
 #define __USCHED_PRIVATE_H__
 
+#include <internal/_tls.h>
 #include <threads.h>
 
 #define SCHEDULER_MAGIC 0xDEADB00B
@@ -35,14 +36,21 @@ enum JobState {
 };
 
 struct usched_job {
-    void*          stack;
-    unsigned int   stack_size;
-    jmp_buf        context;
-    enum JobState  state;
-    usched_task_fn entry;
-    void*          argument;
-    int            cancelled;
+    void*                 stack;
+    unsigned int          stack_size;
+    jmp_buf               context;
+    enum JobState         state;
+    usched_task_fn        entry;
+    void*                 argument;
+    int                   cancelled;
+    struct thread_storage tls;
 
+    struct usched_job* next;
+};
+
+struct usched_job_queue {
+    mtx_t              lock;
+    cnd_t              signal;
     struct usched_job* next;
 };
 
@@ -58,15 +66,28 @@ struct usched_timeout {
 };
 
 struct usched_scheduler {
-    int     magic;
-    mtx_t   lock;
-    jmp_buf context;
+    int                    magic;
+    mtx_t                  lock;
+    jmp_buf                context;
+    struct thread_storage* tls;
 
     struct usched_job* current;
     struct usched_job* ready;
     struct usched_job* garbage_bin;
 
     struct usched_timeout* timers;
+};
+
+struct execution_unit_tls {
+    struct usched_scheduler* scheduler;
+    int                      exit_requested;
+};
+
+struct usched_execution_unit {
+    uuid_t                        thread_id;
+    struct usched_scheduler       scheduler;
+    struct execution_unit_tls     tls;
+    struct usched_execution_unit* next;
 };
 
 static inline void AppendTimer(struct usched_timeout** list, struct usched_timeout* timer)
@@ -97,9 +118,16 @@ static inline void AppendJob(struct usched_job** list, struct usched_job* job)
     i->next = job;
 }
 
-extern struct usched_scheduler* __usched_get_scheduler(void);
-extern int __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);
-extern int __usched_timeout_finish(int id);
-extern void __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
+extern struct usched_scheduler*   __usched_get_scheduler(void);
+extern int                        __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);
+extern int                        __usched_timeout_finish(int id);
+extern void                       __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
+extern struct execution_unit_tls* __usched_xunit_tls_current(void);
+
+CRTDECL(oserr_t, __usched_tls_init(struct thread_storage* tls));
+CRTDECL(oserr_t, __usched_tls_switch(struct thread_storage* tls));
+CRTDECL(oserr_t, __usched_tls_destroy(struct thread_storage* tls));
+CRTDECL(void, tls_cleanup(uuid_t thr, void* dsoHandle, int exitCode));
+CRTDECL(void, tls_cleanup_quick(uuid_t thr, void* dsoHandle, int exitCode));
 
 #endif //!__USCHED_PRIVATE_H__

@@ -13,14 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * User threads implementation. Implements support for multiple tasks running entirely
- * in userspace. This is supported by additional synchronization primitives in the usched_
- * namespace.
  */
 
 #include <errno.h>
+#include <os/usched/tls.h>
 #include <os/usched/usched.h>
 #include <setjmp.h>
 #include <string.h>
@@ -28,13 +24,14 @@
 #include <threads.h>
 #include "private.h"
 
-static struct usched_scheduler g_scheduler;
+// Needed to handle thread stuff now on a userspace basis
+CRTDECL(void, __cxa_threadinitialize(void));
+CRTDECL(void, __cxa_threadfinalize(void));
+
 static atomic_int g_timerid = ATOMIC_VAR_INIT(1);
 
-struct usched_scheduler*
-__usched_get_scheduler(void)
-{
-    return &g_scheduler;
+struct usched_scheduler* __usched_get_scheduler(void) {
+    return __usched_xunit_tls_current()->scheduler;
 }
 
 static clock_t
@@ -48,15 +45,18 @@ __get_timestamp_ms(void)
 void
 usched_init(void)
 {
-    if (g_scheduler.magic == SCHEDULER_MAGIC) {
+    struct usched_scheduler* sched = __usched_get_scheduler();
+
+    if (sched->magic == SCHEDULER_MAGIC) {
         return;
     }
 
     // initialize the global scheduler, there will always only exist one
     // scheduler instance, unless we implement multiple executors
-    memset(&g_scheduler, 0, sizeof(struct usched_scheduler));
-    mtx_init(&g_scheduler.lock, mtx_plain);
-    g_scheduler.magic = SCHEDULER_MAGIC;
+    memset(sched, 0, sizeof(struct usched_scheduler));
+    mtx_init(&sched->lock, mtx_plain);
+    sched->tls   = usched_tls_current();
+    sched->magic = SCHEDULER_MAGIC;
 }
 
 static struct usched_job*
@@ -73,17 +73,30 @@ __get_next_ready(struct usched_scheduler* scheduler)
     return next;
 }
 
+// TaskMain takes care of C/C++ handlers for the thread. Each job is in itself a
+// full thread (atleast treated like that), except that it exclusively runs in
+// userspace. This function encapsulates the C/C++ handler handling, while the
+// TLS for each thread is taken care of by job creation/destruction.
 void
 TaskMain(struct usched_job* job)
 {
+    // Run any C/C++ initialization for the thread. Before this call
+    // the tls must be set correctly. The TLS is set before the jump to this
+    // entry function
+    __cxa_threadinitialize();
+
+    // Now update the state, and call the entry function.
     job->state = JobState_RUNNING;
     job->entry(job->argument, job);
     job->state = JobState_FINISHING;
+
+    // Before yielding, let us run the deinitalizers before we do any task cleanup.
+    __cxa_threadfinalize();
     usched_yield();
 }
 
 static void
-__switch_task(struct usched_job* current, struct usched_job* next)
+__switch_task(struct usched_scheduler* sched, struct usched_job* current, struct usched_job* next)
 {
     char* stack;
 
@@ -96,8 +109,13 @@ __switch_task(struct usched_job* current, struct usched_job* next)
 
     // return to scheduler context if we have no next
     if (!next) {
-        longjmp(g_scheduler.context, 1);
+        // This automatically restores the correct TLS context after the jump
+        longjmp(sched->context, 1);
     }
+
+    // Before jumping here, we *must* restore the TLS context as we have
+    // no control over the next step.
+    __usched_tls_switch(&next->tls);
 
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
@@ -126,35 +144,36 @@ __switch_task(struct usched_job* current, struct usched_job* next)
 static void
 __task_destroy(struct usched_job* job)
 {
+    __usched_tls_destroy(&job->tls);
     free(job->stack);
     free(job);
 }
 
 static void
-__empty_garbage_bin(void)
+__empty_garbage_bin(struct usched_scheduler* sched)
 {
     struct usched_job* i;
 
-    mtx_lock(&g_scheduler.lock);
-    i = g_scheduler.garbage_bin;
+    mtx_lock(&sched->lock);
+    i = sched->garbage_bin;
     while (i) {
         struct usched_job* next = i->next;
         __task_destroy(i);
         i = next;
     }
-    g_scheduler.garbage_bin = NULL;
-    mtx_unlock(&g_scheduler.lock);
+    sched->garbage_bin = NULL;
+    mtx_unlock(&sched->lock);
 }
 
 static void
-__update_timers(void)
+__update_timers(struct usched_scheduler* sched)
 {
     clock_t                currentTime;
     struct usched_timeout* timer;
 
-    mtx_lock(&g_scheduler.lock);
+    mtx_lock(&sched->lock);
     currentTime = __get_timestamp_ms();
-    timer = g_scheduler.timers;
+    timer = sched->timers;
     while (timer) {
         if (timer->deadline <= currentTime) {
             timer->active = 0;
@@ -162,19 +181,19 @@ __update_timers(void)
         }
         timer = timer->next;
     }
-    mtx_unlock(&g_scheduler.lock);
+    mtx_unlock(&sched->lock);
 }
 
 static int
-__get_next_deadline(void)
+__get_next_deadline(struct usched_scheduler* sched)
 {
     clock_t                currentTime;
     struct usched_timeout* timer;
     int                    shortest = INT_MAX;
 
-    mtx_lock(&g_scheduler.lock);
+    mtx_lock(&sched->lock);
     currentTime = __get_timestamp_ms();
-    timer = g_scheduler.timers;
+    timer = sched->timers;
     while (timer) {
         if (timer->active) {
             int diff = (int)(timer->deadline > currentTime ? (timer->deadline - currentTime) : 0);
@@ -185,59 +204,71 @@ __get_next_deadline(void)
         }
         timer = timer->next;
     }
-    mtx_unlock(&g_scheduler.lock);
+    mtx_unlock(&sched->lock);
     return shortest;
 }
 
 int
 usched_yield(void)
 {
-    struct usched_job* current;
-    struct usched_job* next;
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_job*       current;
+    struct usched_job*       next;
 
     // update timers before we check the scheduler as we might trigger a job to
     // be ready
-    __update_timers();
+    __update_timers(sched);
 
-    if (!g_scheduler.current) {
+    if (!sched->current) {
         // if no active thread and no ready threads then we can safely just return
-        if (!g_scheduler.ready) {
-            return __get_next_deadline();
+        if (!sched->ready) {
+            return __get_next_deadline(sched);
         }
 
         // we are running in scheduler context, make sure we store
         // this context, so we can return to here when we run out of tasks
         // to execute
-        if (setjmp(g_scheduler.context)) {
-            __empty_garbage_bin();
-            return __get_next_deadline();
+        if (setjmp(sched->context)) {
+            // We are back into the execution unit context, which means we should update
+            // the TLS accordingly.
+            __usched_tls_switch(sched->tls);
+
+            // Run maintinence tasks before returning the deadline for the next job
+            __empty_garbage_bin(sched);
+            return __get_next_deadline(sched);
         }
     }
 
-    current = g_scheduler.current;
+    current = sched->current;
 
-    mtx_lock(&g_scheduler.lock);
+    mtx_lock(&sched->lock);
     if (current) {
         if (SHOULD_RESCHEDULE(current)) {
-            AppendJob(&g_scheduler.ready, current);
+            AppendJob(&sched->ready, current);
         }
         else if (current->state == JobState_FINISHING) {
-            AppendJob(&g_scheduler.garbage_bin, current);
+            AppendJob(&sched->garbage_bin, current);
         }
     }
-    next = __get_next_ready(&g_scheduler);
-    g_scheduler.current = next;
-    mtx_unlock(&g_scheduler.lock);
+    next = __get_next_ready(sched);
+    sched->current = next;
+    mtx_unlock(&sched->lock);
 
     // Should always be the last call
-    __switch_task(current, next);
+    __switch_task(sched, current, next);
     return 0;
+}
+
+void usched_wait(void)
+{
+
 }
 
 void*
 usched_task_queue(usched_task_fn entry, void* argument)
 {
-    struct usched_job* job;
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_job*       job;
 
     job = malloc(sizeof(struct usched_job));
     if (!job) {
@@ -258,9 +289,19 @@ usched_task_queue(usched_task_fn entry, void* argument)
     job->entry = entry;
     job->argument = argument;
     job->cancelled = 0;
-    AppendJob(&g_scheduler.ready, job);
+    __usched_tls_init(&job->tls);
+    AppendJob(&sched->ready, job);
 
     return job;
+}
+
+void usched_task_cancel_current(void)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    if (sched->current == NULL) {
+        return;
+    }
+    usched_task_cancel(sched->current);
 }
 
 void
@@ -286,7 +327,8 @@ usched_ct_is_cancelled(void* cancellationToken)
 int
 __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
 {
-    struct usched_timeout* timer;
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_timeout*   timer;
 
     if (!timeout) {
         errno = EINVAL;
@@ -304,10 +346,10 @@ __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
     timer->signal = cond;
     timer->next = NULL;
 
-    mtx_lock(&g_scheduler.lock);
-    timer->job = g_scheduler.current;
-    AppendTimer(&g_scheduler.timers, timer);
-    mtx_unlock(&g_scheduler.lock);
+    mtx_lock(&sched->lock);
+    timer->job = sched->current;
+    AppendTimer(&sched->timers, timer);
+    mtx_unlock(&sched->lock);
 
     return timer->id;
 }
@@ -315,23 +357,24 @@ __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
 int
 __usched_timeout_finish(int id)
 {
-    struct usched_timeout* timer;
-    struct usched_timeout* previousTimer = NULL;
-    int                    result = 0;
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_timeout*   timer;
+    struct usched_timeout*   previousTimer = NULL;
+    int                      result = 0;
     if (id == -1) {
         // an invalid id was provided, ignore it
         return 0;
     }
 
-    mtx_lock(&g_scheduler.lock);
-    timer = g_scheduler.timers;
+    mtx_lock(&sched->lock);
+    timer = sched->timers;
     while (timer) {
         if (timer->id == id) {
             if (previousTimer) {
                 previousTimer->next = timer->next;
             }
             else {
-                g_scheduler.timers = timer->next;
+                sched->timers = timer->next;
             }
 
             // return -1 if timer was signalled.
@@ -346,6 +389,6 @@ __usched_timeout_finish(int id)
         previousTimer = timer;
         timer = timer->next;
     }
-    mtx_unlock(&g_scheduler.lock);
+    mtx_unlock(&sched->lock);
     return result;
 }

@@ -90,9 +90,9 @@ __GuessBasePath(
     isApp = mstr_find_u8(path, ".run", 0);
     isDll = mstr_find_u8(path, ".dll", 0);
     if (isApp != -1 || isDll != -1) {
-        result = mstr_fmt("$bin/%ms", path);
+        result = mstr_fmt("/shared/bin/%ms", path);
     } else {
-        result = mstr_fmt("$data/%ms", path);
+        result = mstr_fmt("/system/bin/%ms", path);
     }
 
     if (__TestFilePath(result) == OsOK) {
@@ -142,12 +142,12 @@ __ResolveRelativePath(
           processId, parentPath, path);
 
     // Let's test against parent being loaded through the ramdisk
-    if (parentPath && mstr_find_u8(parentPath, "rd:/", 0) != -1) {
+    if (parentPath && mstr_find_u8(parentPath, "/initfs/", 0) != -1) {
         // create the full path for the ramdisk
-        temporaryResult = __TestRamdiskPath("rd:/bin", path);
+        temporaryResult = __TestRamdiskPath("/initfs/bin", path);
         if (!temporaryResult) {
             // sometimes additional modules will be loaded (i.e fs modules)
-            temporaryResult = __TestRamdiskPath("rd:/modules", path);
+            temporaryResult = __TestRamdiskPath("/initfs/modules", path);
         }
 
         if (temporaryResult) {
@@ -163,7 +163,7 @@ __ResolveRelativePath(
     TRACE("__ResolveRelativePath basePath=%ms", temporaryResult);
 
     // If we already deduced an absolute path skip the canonicalizing moment
-    if (osStatus == OsOK && mstr_find_u8(temporaryResult, ":", 0) != -1) {
+    if (osStatus == OsOK && mstr_at(temporaryResult, 0) == U'/') {
         *fullPathOut = temporaryResult;
         return osStatus;
     }
@@ -177,21 +177,20 @@ PeImplResolveFilePath(
         _In_  mstring_t*  path,
         _Out_ mstring_t** fullPathOut)
 {
-    oserr_t osStatus = OsOK;
+    oserr_t oserr = OsOK;
     ENTRY("ResolveFilePath(processId=%u, path=%ms)", processId, path);
 
-    if (mstr_find_u8(path, ":", 0) == -1) {
+    if (mstr_at(path, 0) != U'/') {
         // If we don't even have an environmental identifier present, we
         // have to get creative and guess away
-        osStatus = __ResolveRelativePath(processId, parentPath, path, fullPathOut);
-    }
-    else {
+        oserr = __ResolveRelativePath(processId, parentPath, path, fullPathOut);
+    } else {
         // Assume absolute path
         *fullPathOut = mstr_clone(path);
     }
 
     EXIT("ResolveFilePath");
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -212,7 +211,7 @@ PeImplLoadFile(
 
     // special case:
     // load from ramdisk
-    if (mstr_find_u8(fullPath, "rd:/", 0) != -1) {
+    if (mstr_find_u8(fullPath, "/initfs/", 0) != -1) {
         return PmBootstrapFindRamdiskFile(fullPath, bufferOut, lengthOut);
     }
 

@@ -57,11 +57,11 @@ Handle_t
 SharedObjectLoad(
 	_In_ const char* SharedObject)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(UUID_INVALID);
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     SOInitializer_t          Initializer;
     struct library_element*  library;
-    Handle_t                 handle   = HANDLE_INVALID;
-    oserr_t               osStatus = OsOK;
+    Handle_t                 handle = HANDLE_INVALID;
+    oserr_t                  oserr  = OsOK;
     uintptr_t                entryAddress;
 
     // Special case
@@ -80,12 +80,11 @@ SharedObjectLoad(
         return handle;
     }
 
-    msg.address.data.handle = GetProcessService();
     sys_library_load(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), SharedObject);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_library_load_result(GetGrachtClient(), &msg.base, &osStatus, (uintptr_t*)&handle, &entryAddress);
+    sys_library_load_result(GetGrachtClient(), &msg.base, &oserr, (uintptr_t*)&handle, &entryAddress);
 
-    if (osStatus == OsOK && handle != HANDLE_INVALID) {
+    if (oserr == OsOK && handle != HANDLE_INVALID) {
         struct library_element element;
         element.references = (atomic_int*)malloc(sizeof(atomic_int));
         if (!element.references) {
@@ -116,7 +115,7 @@ SharedObjectLoad(
         mtx_unlock(&g_librariesLock);
     }
 
-    OsErrToErrNo(osStatus);
+    OsErrToErrNo(oserr);
     return handle;
 }
 

@@ -138,7 +138,7 @@ __ParseModuleConfiguration(
     }
 
     // now we build the actual path to the file itself
-    path = mstr_fmt("rd:/modules/%s", name);
+    path = mstr_fmt("/initfs/modules/%s", name);
     if (path == NULL) {
         free(driverConfig);
         return OsOutOfMemory;

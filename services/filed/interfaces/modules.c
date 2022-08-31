@@ -30,7 +30,7 @@
 
 static const char* g_modulePaths[] = {
         "/modules",
-        "rd:",
+        "/initfs/modules",
         NULL
 };
 
@@ -110,14 +110,10 @@ VFSInterfaceNew(
 
 static Handle_t
 __TryLocateModule(
-        _In_  enum FileSystemType type)
+        _In_ enum FileSystemType type)
 {
     char tmp[256];
     int  i;
-
-    if (type == FileSystemType_UNKNOWN) {
-        return HANDLE_INVALID;
-    }
 
     i = 0;
     while (g_modulePaths[i]) {

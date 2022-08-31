@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#define __TRACE
 
 #include <ddk/utils.h>
 #include <vfs/requests.h>
@@ -23,7 +24,10 @@
 
 oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
 {
-    mstring_t* path = mstr_path_new_u8(request->parameters.open.path);
+    mstring_t* path;
+    TRACE("VFSNodeOpen(%s)", request->parameters.open.path);
+
+    path = mstr_path_new_u8(request->parameters.open.path);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -31,6 +35,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleO
     // Opening root is a special case, as we won't be able to find the containing folder,
     // and they are easily handled here.
     if (__PathIsRoot(path)) {
+        TRACE("VFSNodeOpen path was root");
         mstr_delete(path); // we don't need the path anymore from this point
 
         // Did user request to create root? nono
@@ -40,6 +45,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleO
 
         // Allow this only if requested to be opened as a dir
         if (request->parameters.open.options & __FILE_DIRECTORY) {
+            TRACE("VFSNodeOpen returning root handle");
             return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
         }
         return OsPathIsDirectory;
@@ -47,6 +53,8 @@ oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleO
 
     mstring_t* containingDirectoryPath = mstr_path_dirname(path);
     mstring_t* nodeName                = mstr_path_basename(path);
+    TRACE("VFSNodeOpen containingDirectoryPath=%ms", containingDirectoryPath);
+    TRACE("VFSNodeOpen nodeName=%ms", nodeName);
     mstr_delete(path);
 
     struct VFSNode* containingDirectory;

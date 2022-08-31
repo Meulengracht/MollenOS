@@ -109,7 +109,7 @@ __ParseRamdisk(
         if (!__EndsWith(entry.Name, ".dll")) {
             uuid_t handle;
 
-            snprintf(pathBuffer, 128-1, "rd:/services/%s", entry.Name);
+            snprintf(pathBuffer, 128-1, "/initfs/services/%s", entry.Name);
             TRACE("__ParseRamdisk file found: %s", &pathBuffer[0]);
             osStatus = PmCreateProcessInternal(
                     (const char*)pathBuffer,
@@ -193,8 +193,8 @@ PmBootstrapFindRamdiskFile(
 
     TRACE("PmBootstrapFindRamdiskFile(path=%s)", pathu8);
 
-    // skip the rd:/ prefix
-    internPath = strchr(pathu8, '/');
+    // skip the /initfs/ prefix
+    internPath = strchr(pathu8 + 1, '/');
     internFilename = strrchr(pathu8, '/');
 
     // Ok, so max out at len(tempbuf) - 1, but minimum 1 char to include the initial '/'
