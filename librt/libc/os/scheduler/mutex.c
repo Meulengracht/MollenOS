@@ -41,7 +41,7 @@ static void BlockAndWait(struct usched_mtx* mutex, struct usched_job* current)
     current->state = JobState_BLOCKED;
 
     // add us to the blocked queue
-    AppendJob(&mutex->queue, current);
+    __usched_append_job(&mutex->queue, current);
 
     // wait for ownership
     while (mutex->owner != current) {
@@ -93,6 +93,6 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
     // mark next job as woken
     if (next) {
         next->state = JobState_RUNNING;
-        AppendJob(&__usched_get_scheduler()->ready, next);
+        __usched_append_job(&__usched_get_scheduler()->ready, next);
     }
 }

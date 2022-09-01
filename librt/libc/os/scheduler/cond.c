@@ -43,7 +43,7 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
     usched_mtx_lock(&condition->lock);
     current = __usched_get_scheduler()->current;
     current->state = JobState_BLOCKED;
-    AppendJob(&condition->queue, current);
+    __usched_append_job(&condition->queue, current);
     usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
@@ -62,7 +62,7 @@ int usched_cnd_wait_timed(struct usched_cnd* condition, struct usched_mtx* mutex
     usched_mtx_lock(&condition->lock);
     current = __usched_get_scheduler()->current;
     current->state = JobState_BLOCKED;
-    AppendJob(&condition->queue, current);
+    __usched_append_job(&condition->queue, current);
     usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
@@ -84,7 +84,7 @@ void usched_cnd_notify_one(struct usched_cnd* condition)
         job->next = NULL;
 
         job->state = JobState_RUNNING;
-        AppendJob(&__usched_get_scheduler()->ready, job);
+        __usched_append_job(&__usched_get_scheduler()->ready, job);
     }
     usched_mtx_unlock(&condition->lock);
 }
@@ -100,7 +100,7 @@ void usched_cnd_notify_all(struct usched_cnd* condition)
         job->next = NULL;
 
         job->state = JobState_RUNNING;
-        AppendJob(&__usched_get_scheduler()->ready, job);
+        __usched_append_job(&__usched_get_scheduler()->ready, job);
     }
     usched_mtx_unlock(&condition->lock);
 }
@@ -124,7 +124,7 @@ void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* j
 
                 job->next = NULL;
                 job->state = JobState_RUNNING;
-                AppendJob(&__usched_get_scheduler()->ready, job);
+                __usched_append_job(&__usched_get_scheduler()->ready, job);
             }
 
             previous = i;

@@ -22,6 +22,11 @@
 #include <os/usched/types.h>
 
 /**
+ * @brief Initializes the xunit system
+ */
+CRTDECL(void, usched_xunit_init(void));
+
+/**
  * @brief Starts the execution manager and initializes the current kernel thread
  * as the initial execution unit for the userspace threads.
  *

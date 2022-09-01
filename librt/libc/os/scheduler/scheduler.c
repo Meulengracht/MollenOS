@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <errno.h>
 #include <os/usched/tls.h>
 #include <os/usched/usched.h>
@@ -64,6 +65,8 @@ __get_next_ready(struct usched_scheduler* scheduler)
 {
     struct usched_job* next = scheduler->ready;
 
+    // Always check the global queue first for new tasks that should run specifically
+    // on this scheduler.
     if (!scheduler->ready) {
         return NULL;
     }
@@ -244,10 +247,10 @@ usched_yield(void)
     mtx_lock(&sched->lock);
     if (current) {
         if (SHOULD_RESCHEDULE(current)) {
-            AppendJob(&sched->ready, current);
+            __usched_append_job(&sched->ready, current);
         }
         else if (current->state == JobState_FINISHING) {
-            AppendJob(&sched->garbage_bin, current);
+            __usched_append_job(&sched->garbage_bin, current);
         }
     }
     next = __get_next_ready(sched);
@@ -264,11 +267,20 @@ void usched_wait(void)
 
 }
 
-void*
-usched_task_queue(usched_task_fn entry, void* argument)
+void usched_job_paramaters_init(struct usched_job_paramaters* params)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct usched_job*       job;
+    params->stack_size = 4096 * 4;
+    params->affinity_mask = NULL;
+    params->job_weight = 25;
+}
+
+void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_paramaters* params)
+{
+    struct usched_job* job;
+
+    assert(params != NULL);
+    assert(params->stack_size >= 4096);
+    assert(params->job_weight > 0);
 
     job = malloc(sizeof(struct usched_job));
     if (!job) {
@@ -276,23 +288,34 @@ usched_task_queue(usched_task_fn entry, void* argument)
         return NULL;
     }
 
-    job->stack = malloc(4096 * 4);
+    job->stack = malloc(params->stack_size);
     if (!job->stack) {
         free(job);
         errno = ENOMEM;
         return NULL;
     }
 
-    job->stack_size = 4096 * 4;
+    job->stack_size = params->stack_size;
     job->state = JobState_CREATED;
     job->next = NULL;
     job->entry = entry;
     job->argument = argument;
     job->cancelled = 0;
+    job->weight = params->job_weight;
     __usched_tls_init(&job->tls);
-    AppendJob(&sched->ready, job);
-
+    if (__usched_xunit_queue_job(job, params)) {
+        // cleanup job, probably invalid scheduling parameters
+        // TODO cleanup
+        return NULL;
+    }
     return job;
+}
+
+void* usched_task_queue(usched_task_fn entry, void* argument)
+{
+    struct usched_job_paramaters defaultParams;
+    usched_job_paramaters_init(&defaultParams);
+    return usched_task_queue3(entry, argument, &defaultParams);
 }
 
 void usched_task_cancel_current(void)
@@ -348,7 +371,7 @@ __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
 
     mtx_lock(&sched->lock);
     timer->job = sched->current;
-    AppendTimer(&sched->timers, timer);
+    __usched_append_timer(&sched->timers, timer);
     mtx_unlock(&sched->lock);
 
     return timer->id;

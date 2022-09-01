@@ -43,16 +43,16 @@ struct usched_job {
     usched_task_fn        entry;
     void*                 argument;
     int                   cancelled;
+    int                   weight;
     struct thread_storage tls;
 
     struct usched_job* next;
 };
 
 struct usched_job_queue {
-    mtx_t              lock;
-    cnd_t              signal;
     struct usched_job* next;
-};
+    mtx_t              lock;
+}
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
 
@@ -69,6 +69,7 @@ struct usched_scheduler {
     int                    magic;
     mtx_t                  lock;
     jmp_buf                context;
+    atomic_int             pending;
     struct thread_storage* tls;
 
     struct usched_job* current;
@@ -81,16 +82,18 @@ struct usched_scheduler {
 struct execution_unit_tls {
     struct usched_scheduler* scheduler;
     int                      exit_requested;
+    struct usched_job_queue  wait_queue;
 };
 
 struct usched_execution_unit {
     uuid_t                        thread_id;
+    unsigned int                  load;
     struct usched_scheduler       scheduler;
     struct execution_unit_tls     tls;
     struct usched_execution_unit* next;
 };
 
-static inline void AppendTimer(struct usched_timeout** list, struct usched_timeout* timer)
+static inline void __usched_append_timer(struct usched_timeout** list, struct usched_timeout* timer)
 {
     struct usched_timeout* i = *list;
     if (!i) {
@@ -104,7 +107,7 @@ static inline void AppendTimer(struct usched_timeout** list, struct usched_timeo
     i->next = timer;
 }
 
-static inline void AppendJob(struct usched_job** list, struct usched_job* job)
+static inline void __usched_append_job(struct usched_job** list, struct usched_job* job)
 {
     struct usched_job* i = *list;
     if (!i) {
@@ -117,6 +120,8 @@ static inline void AppendJob(struct usched_job** list, struct usched_job* job)
     }
     i->next = job;
 }
+
+extern int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_paramaters* params);
 
 extern struct usched_scheduler*   __usched_get_scheduler(void);
 extern int                        __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);

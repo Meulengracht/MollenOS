@@ -37,6 +37,7 @@ CRTDECL(void, __cxa_threadfinalize(void));
 struct execution_manager {
     struct usched_execution_unit primary;
     int                          count;
+    mtx_t                        queue_lock;
 };
 
 static struct execution_manager g_executionManager = { 0 };
@@ -48,7 +49,18 @@ static void __handle_unit_signal(int sig)
         // we mark the current job as cancelled.
         __usched_xunit_tls_current()->exit_requested = 1;
         usched_task_cancel_current();
+    } else if (sig == SIGUSR2) {
+        // New task has been scheduled for us, we need to move it into the ready queue
     }
+}
+
+void usched_xunit_init(void)
+{
+    // initialize the manager
+    mtx_init(&g_executionManager.queue_lock, mtx_plain);
+
+    // initialize the primary xunit
+    mtx_init(&g_executionManager.primary.tls.wait_queue.lock);
 }
 
 void usched_xunit_start(usched_task_fn startFn, void* argument)
@@ -63,6 +75,7 @@ void usched_xunit_start(usched_task_fn startFn, void* argument)
 
     // Install a signal handler in case we need to be told something
     signal(SIGUSR1, __handle_unit_signal);
+    signal(SIGUSR2, __handle_unit_signal);
 
     // Initialize the userspace thread systems before going into the main loop
     usched_init();
@@ -122,6 +135,7 @@ static void __execution_unit_main(void* data)
 
     // Install a signal handler in case we need to be told something
     signal(SIGUSR1, __handle_unit_signal);
+    signal(SIGUSR2, __handle_unit_signal);
 
     // Initialize the userspace thread systems before going into the main loop
     usched_init();
@@ -164,3 +178,64 @@ int usched_xunit_set_count(int count)
 
 }
 
+static bool __bit_set(const unsigned int* mask, int bit)
+{
+    unsigned int block  = bit / (unsigned int)((sizeof(unsigned int) * 8));
+    unsigned int offset = bit % (unsigned int)((sizeof(unsigned int) * 8));
+    return (mask[block] & offset) > 0;
+}
+
+static struct usched_execution_unit* __select_lowest_loaded(unsigned int* mask)
+{
+    struct usched_execution_unit* xunit;
+    struct usched_execution_unit* result = NULL;
+    int                           id;
+
+    xunit = &g_executionManager.primary;
+    id    = 0;
+    while (xunit != NULL) {
+        if (__bit_set(mask, id)) {
+            if (result == NULL || result->load > xunit->load) {
+                result = xunit;
+            }
+        }
+
+        xunit = xunit->next;
+        id++;
+    }
+
+    return result;
+}
+
+int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_paramaters* params)
+{
+    struct usched_execution_unit* xunit;
+
+    mtx_lock(&g_executionManager.queue_lock);
+    xunit = __select_lowest_loaded(params->affinity_mask);
+    if (!xunit) {
+        mtx_unlock(&g_executionManager.queue_lock);
+        return -1;
+    }
+
+    // add it to the scheduler for that thread
+    xunit->load += params->job_weight;
+    mtx_unlock(&g_executionManager.queue_lock);
+
+    // If we are on the correct execution unit, we can just add it to the ready
+    // queue and skip any additional handling right there. The tricky part is if
+    // we need to move this job to another execution unit
+    if (&xunit->tls == __usched_xunit_tls_current()) {
+        __usched_append_job(&xunit->scheduler.ready, job);
+        return 0;
+    }
+
+    mtx_lock(&xunit->tls.wait_queue.lock);
+    __usched_append_job(&xunit->tls.wait_queue.next, job);
+    mtx_unlock(&xunit->tls.wait_queue.lock);
+
+    // signal the thread
+    atomic_fetch_add(&xunit->scheduler.pending, 1);
+    thrd_signal(xunit->thread_id, SIGUSR2);
+    return 0;
+}

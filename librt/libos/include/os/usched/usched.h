@@ -48,6 +48,12 @@ struct usched_job_paramaters {
 };
 
 /**
+ * @brief Initialize the job parameters to the default values.
+ * @param params
+ */
+CRTDECL(void, usched_job_paramaters_init(struct usched_job_paramaters* params));
+
+/**
  * @brief Initializes the scheduler for single unit scheduling. Currently usched only supports
  * a single execution unit.
  */
@@ -74,6 +80,17 @@ CRTDECL(void, usched_wait(void));
  *                 The cancellation token is passed to the task entry as the second parameter.
  */
 CRTDECL(void*, usched_task_queue(usched_task_fn entry, void* argument));
+
+/**
+ * @brief Schedules a new task in the scheduler for current execution unit.
+ *
+ * @param entry    The function to execute with the usched_task_fn signature.
+ * @param argument The argument that should be passed to the function.
+ * @param params   Configuration parameters for the job
+ * @return         A cancellation token value that can be used to signal cancellation to the task.
+ *                 The cancellation token is passed to the task entry as the second parameter.
+ */
+CRTDECL(void*, usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_paramaters* params));
 
 /**
  * @brief Marks the currently running task as cancelled. The cancelation token will be
