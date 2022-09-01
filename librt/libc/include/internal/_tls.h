@@ -27,4 +27,10 @@ typedef struct thread_storage {
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 } thread_storage_t;
 
+/**
+ * @brief Retrieves the local storage space for the current thread
+ * @return The current TLS structure for the calling thread
+ */
+CRTDECL(struct thread_storage*, usched_tls_current(void));
+
 #endif //!__INTERNAL_TLS__

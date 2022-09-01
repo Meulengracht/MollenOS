@@ -44,7 +44,7 @@ ANSI C requires <<localtime>>.
 <<localtime>> requires no supporting OS subroutines.
 */
 
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 #include <string.h>
 #include <time.h>
 #include "local.h"

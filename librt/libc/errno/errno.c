@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 #include <errno.h>
 
 #ifdef LIBC_KERNEL

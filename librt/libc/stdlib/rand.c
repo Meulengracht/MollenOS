@@ -21,7 +21,7 @@
  
 /* Includes 
  * - Library */
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 #include <stdlib.h>
 
 /* Generate a new random value based on

@@ -32,7 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);

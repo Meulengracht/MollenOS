@@ -17,7 +17,7 @@
  * C Library - Driver Entry 
  */
 
-#include "../libc/threads/tls.h"
+#include "../libc/threads/tss.h"
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>

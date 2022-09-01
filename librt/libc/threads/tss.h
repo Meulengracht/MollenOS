@@ -14,23 +14,37 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * MollenOS C11-Support Threading Implementation
+ * - Definitions, prototypes and information needed.
  */
 
 #ifndef __STDC_TLS__
 #define __STDC_TLS__
 
-#include <os/osdefs.h>
-
-struct thread_storage;
+#include <threads.h>
 
 _CODE_BEGIN
+/**
+ * @brief Performs regular TSS cleanup. This is only needed to do on a process-level,
+ * not once per thread.
+ *
+ * @param[In] threadID The thread if of the caller
+ * @param[In] dsoHandle The handle of the library
+ * @param[In] exitCode The current exit code
+ */
+CRTDECL(void, tss_cleanup(thrd_t threadID, void* dsoHandle, int exitCode));
 
 /**
- * @brief Retrieves the local storage space for the current thread
- * @return The current TLS structure for the calling thread
+ * @brief Performs quick TSS cleanup. This is only needed to do on a process-level,
+ * not once per thread.
+ *
+ * @param[In] thr The thread if of the caller
+ * @param[In] dsoHandle The handle of the library
+ * @param[In] exitCode The current exit code
  */
-CRTDECL(struct thread_storage*, usched_tls_current(void));
-
+CRTDECL(void, tss_cleanup_quick(thrd_t thr, void* dsoHandle, int exitCode));
 _CODE_END
 
 #endif //!__STDC_TLS__

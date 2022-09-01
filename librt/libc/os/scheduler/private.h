@@ -129,10 +129,8 @@ extern int                        __usched_timeout_finish(int id);
 extern void                       __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
 extern struct execution_unit_tls* __usched_xunit_tls_current(void);
 
-CRTDECL(oserr_t, __usched_tls_init(struct thread_storage* tls));
-CRTDECL(oserr_t, __usched_tls_switch(struct thread_storage* tls));
-CRTDECL(oserr_t, __usched_tls_destroy(struct thread_storage* tls));
-CRTDECL(void, tls_cleanup(uuid_t thr, void* dsoHandle, int exitCode));
-CRTDECL(void, tls_cleanup_quick(uuid_t thr, void* dsoHandle, int exitCode));
+extern int  __usched_tls_init(struct thread_storage* tls);
+extern void __usched_tls_switch(struct thread_storage* tls);
+extern void __usched_tls_destroy(struct thread_storage* tls);
 
 #endif //!__USCHED_PRIVATE_H__

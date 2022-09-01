@@ -22,7 +22,7 @@
 #include <gracht/server.h>
 #include <internal/_utils.h>
 #include <os/usched/usched.h>
-#include "../libc/threads/tls.h"
+#include "../libc/threads/tss.h"
 #include <stdlib.h>
 #include <ioset.h>
 

@@ -24,7 +24,7 @@
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <os/mollenos.h>
-#include "tls.h"
+#include "tss.h"
 #include <stdlib.h>
 #include <threads.h>
 
@@ -185,7 +185,7 @@ _Noreturn void
 thrd_exit(
     _In_ int res)
 {
-    tls_cleanup(thrd_current(), NULL, res);
+    tss_cleanup(thrd_current(), NULL, res);
     tls_destroy(tls_current());
     __cxa_threadfinalize();
     Syscall_ThreadExit(res);

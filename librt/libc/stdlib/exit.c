@@ -37,18 +37,15 @@
  *    If exit_code is EXIT_FAILURE, an implementation-defined status, indicating unsuccessful 
  *    termination is returned. In other cases implementation-defined status value is returned. */
 #ifdef __clang__
-extern void  __cxa_exithandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
+extern void  __cxa_exithandlers(int exitCode, int quickCleanup, int executeAtExit, int cleanupRuntime);
 extern int   __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso);
 extern void* __dso_handle;
-int
-atexit(
-    _In_ void (*Function)(void))
-{
-    return __cxa_atexit((void (*)(void*))Function, NULL, __dso_handle);
+
+int atexit(void (*fn)(void)) {
+    return __cxa_atexit((void (*)(void*))fn, NULL, __dso_handle);
 }
-void
-exit(
-    _In_ int exitCode)
+
+void exit(int exitCode)
 {
     // important here that we use the gracht client BEFORE cleaning up the entire C runtime
     if (!__crt_is_phoenix()) {

@@ -368,6 +368,7 @@ set (SOURCES_OS
     os/scheduler/mutex.c
     os/scheduler/cond.c
     os/scheduler/xunit.c
+    os/scheduler/tls.c
 
     os/keymaps/en-us.c
 
@@ -394,7 +395,7 @@ set (SOURCES_THREADS
     threads/condition.c
     threads/mutex.c
     threads/thread.c
-    threads/tls.c
+        threads/tss.c
 )
 
 set (SOURCES_TIME

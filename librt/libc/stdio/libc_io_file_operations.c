@@ -30,7 +30,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 
 static inline oserr_t
 perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,

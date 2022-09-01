@@ -214,7 +214,7 @@ __CRT_INLINE struct __locale_t *__get_global_locale(void) {
 
 /* Per thread locale. */
 #ifndef LIBC_KERNEL
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 __CRT_INLINE struct __locale_t *__get_locale_r(void) {
 	return (struct __locale_t *)tls_current()->locale;
 }

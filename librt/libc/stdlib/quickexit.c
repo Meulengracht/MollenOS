@@ -18,32 +18,21 @@
  * MollenOS CLib - Quick Exit Function
  */
 
-/* Includes */
 #include <os/spinlock.h>
 #include <stdlib.h>
-#include <errno.h>
 
 #ifdef __clang__
-extern void  __cxa_exithandlers(int Status, int Quick, int DoAtExit, int CleanupCrt);
+extern void  __cxa_exithandlers(int exitCode, int quickCleanup, int executeAtExit, int cleanupRuntime);
 extern int   __cxa_at_quick_exit(void (*Function)(void*), void *Dso);
 extern void* __dso_handle;
 
-/* at_quick_exit 
- * Register a cleanup handler for
- * the quick_exit method */
-int
-at_quick_exit(
-    _In_ void(*Function)(void)) {
-    return __cxa_at_quick_exit((void (*)(void*))Function, __dso_handle);
+int at_quick_exit(void(*fn)(void)) {
+    return __cxa_at_quick_exit((void (*)(void*))fn, __dso_handle);
 }
 
-/* quick_exit 
- * Calls all function in quick_exit and then exits normally */
-void
-quick_exit(
-    _In_ int Status) {
-    __cxa_exithandlers(Status, 1, 0, 0);
-	_Exit(Status);
+void quick_exit(int exitCode) {
+    __cxa_exithandlers(exitCode, 1, 0, 0);
+	_Exit(exitCode);
 }
 #else
 /* We use a simple linked list structure of handles

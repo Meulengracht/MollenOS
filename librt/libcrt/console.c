@@ -19,7 +19,7 @@
  * MollenOS C Library - Entry Points
  */
 
-#include "../libc/threads/tls.h"
+#include "../libc/threads/tss.h"
 #include <stddef.h>
 #include <stdlib.h>
 

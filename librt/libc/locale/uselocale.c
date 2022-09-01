@@ -50,7 +50,7 @@ PORTABILITY
 <<uselocale>> is POSIX-1.2008.
 */
 
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 #include <stdlib.h>
 #include "setlocale.h"
 
