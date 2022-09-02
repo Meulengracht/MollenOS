@@ -43,8 +43,8 @@ extern oserr_t HandleMemoryMappingEvent(int, void*);
 
 // The consequences of recieving the different signals
 char signal_fatality[NUMSIGNALS] = {
-	0, /* 0? */
-	
+    0, // what
+
 	0, /* SIGINT  */
 	1, /* SIGQUIT */
 	1, /* SIGILL  */
@@ -60,10 +60,13 @@ char signal_fatality[NUMSIGNALS] = {
 	1, /* SIGTERM */
 	0, /* SIGURG  */
     1, /* SIGSOCK */
+    1, /* SIGEXIT */
+    1, /* SIGEXITQ */
 };
 
 // Default interrupt handlers
 static sig_element signal_list[] = {
+    { 0, "Invalid Signal", SIG_DFL },
     { SIGINT,  "Interrupt (Ctrl-c)", SIG_DFL },
     { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
     { SIGILL,  "Illegal instruction", SIG_DFL },
@@ -78,7 +81,9 @@ static sig_element signal_list[] = {
     { SIGALRM, "Alarm has expired", SIG_DFL },
     { SIGTERM, "Termination request", SIG_DFL },
     { SIGURG,  "Urgent request has arrived that must be handled", SIG_DFL },
-    { SIGSOCK, "Socket transmission error", SIG_DFL }
+    { SIGSOCK, "Socket transmission error", SIG_DFL },
+    { SIGEXIT, "Exit requested by application", exit },
+    { SIGEXITQ, "Quick exit requested by application", quick_exit }
 };
 
 static void __CrashHandler(

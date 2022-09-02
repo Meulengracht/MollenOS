@@ -317,8 +317,7 @@ set (SOURCES_STDLIB
     stdlib/wide/wctob.c
     stdlib/wide/wctomb.c
 
-    stdlib/_Exit.c
-    stdlib/abort.c
+        stdlib/abort.c
     stdlib/abs.c
     stdlib/aligned_alloc.c
     stdlib/atof.c
@@ -344,7 +343,6 @@ set (SOURCES_STDLIB
     stdlib/malloc.c
     stdlib/mprec.c
     stdlib/qsort.c
-    stdlib/quickexit.c
     stdlib/rand.c
     stdlib/strtod.c
     stdlib/strtodg.c

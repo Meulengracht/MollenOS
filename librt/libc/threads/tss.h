@@ -26,25 +26,15 @@
 #include <threads.h>
 
 _CODE_BEGIN
+
 /**
  * @brief Performs regular TSS cleanup. This is only needed to do on a process-level,
  * not once per thread.
  *
  * @param[In] threadID The thread if of the caller
- * @param[In] dsoHandle The handle of the library
- * @param[In] exitCode The current exit code
  */
-CRTDECL(void, tss_cleanup(thrd_t threadID, void* dsoHandle, int exitCode));
+CRTDECL(void, tss_cleanup(thrd_t threadID));
 
-/**
- * @brief Performs quick TSS cleanup. This is only needed to do on a process-level,
- * not once per thread.
- *
- * @param[In] thr The thread if of the caller
- * @param[In] dsoHandle The handle of the library
- * @param[In] exitCode The current exit code
- */
-CRTDECL(void, tss_cleanup_quick(thrd_t thr, void* dsoHandle, int exitCode));
 _CODE_END
 
 #endif //!__STDC_TLS__

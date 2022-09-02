@@ -27,7 +27,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <threads.h>
-#include "../threads/tss.h"
 
 #ifndef __INTERNAL_FUNC_DEFINED
 #define __INTERNAL_FUNC_DEFINED
@@ -38,8 +37,8 @@ typedef void(*_PVTLS)(void*, unsigned long, void*);
 #endif
 
 extern void StdioCleanup(void);
-extern void tss_atexit(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
-extern void tss_atexit_quick(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
+extern void __at_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
+extern void __at_quick_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
 
 static int              g_cleanupPerformed = 0;
 static const uintptr_t* g_moduleEntries    = NULL;
@@ -93,46 +92,17 @@ __cxa_callinitializers_tls(
     }
 }
 
-void CRTHIDE
-__cxa_exithandlers(
-    _In_ int exitCode,
-    _In_ int quickCleanup,
-    _In_ int executeAtExit,
-    _In_ int cleanupRuntime)
+void CRTHIDE __cxa_exithandlers(void)
 {
     TRACE("__cxa_exithandlers()");
-    // Avoid recursive calls or anything to this
-    if (g_cleanupPerformed != 0) {
-        return;
-    }
-    g_cleanupPerformed = 1;
 
-    // Run dynamic crt for current thread + primary application
-    if (!quickCleanup) {
-        tss_cleanup(thrd_current(), NULL, exitCode);
-        tss_cleanup(UUID_INVALID, NULL, exitCode);
-    } else {
-        tss_cleanup_quick(thrd_current(), NULL, exitCode);
-        tss_cleanup_quick(UUID_INVALID, NULL, exitCode);
+    // Run at-exit lists for all the modules
+    for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
+        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_FINALIZE);
     }
 
-    // Run dynamic/static for all modules
-    if (!quickCleanup) {
-        // Run at-exit lists for all the modules
-        if (executeAtExit != 0) {
-            for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
-                ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_FINALIZE);
-            }
-            // Cleanup primary app
-            __cxa_primary_cleanup();
-        }
-    }
-
-    // Cleanup crt if asked
-    if (cleanupRuntime != 0) {
-        StdioCleanup();
-    }
-    tls_destroy(tls_current());
+    // Cleanup primary app
+    __cxa_primary_cleanup();
 }
 
 /* __cxa_threadinitialize
@@ -162,13 +132,13 @@ CRTDECL(void, __cxa_threadfinalize(void))
 CRTDECL(void, __cxa_tls_thread_cleanup(void *Dso))
 {
     TRACE("__cxa_tls_thread_cleanup()");
-    tss_cleanup(thrd_current(), Dso, 0);
+    tss_cleanup(thrd_current());
 }
 
 CRTDECL(void, __cxa_tls_module_cleanup(void *Dso))
 {
     TRACE("__cxa_tls_module_cleanup()");
-    tss_cleanup(UUID_INVALID, Dso, 0);
+    tss_cleanup(UUID_INVALID);
 }
 
 /* __cxa_finalize
@@ -181,28 +151,28 @@ CRTDECL(void, __cxa_finalize(void *Dso))
 
 /* __cxa_atexit/__cxa_at_quick_exit 
  * C++ At-Exit implementation for registering of exit-handlers. */
-CRTDECL(int, __cxa_atexit(void (*Function)(void*), void *Argument, void *Dso)) {
+CRTDECL(int, __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle)) {
     TRACE("__cxa_atexit()");
-    tss_atexit(UUID_INVALID, Function, Argument, Dso);
+    __at_exit_impl(UUID_INVALID, fn, argument, dsoHandle);
     return 0;
 }
-CRTDECL(int, __cxa_at_quick_exit(void (*Function)(void*), void *Dso)) {
+CRTDECL(int, __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle)) {
     TRACE("__cxa_at_quick_exit()");
-    tss_atexit_quick(UUID_INVALID, Function, NULL, Dso);
+    __at_quick_exit_impl(UUID_INVALID, fn, NULL, dsoHandle);
     return 0;
 }
 
 /* __cxa_thread_atexit_impl/__cxa_thread_at_quick_exit_impl
  * C++ At-Exit implementation for thread specific cleanup. */
-CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dso_symbol)) {
+CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dsoHandle)) {
     TRACE("__cxa_thread_atexit_impl()");
-    tss_atexit(thrd_current(), dtor, arg, dso_symbol);
+    __at_exit_impl(thrd_current(), dtor, arg, dsoHandle);
     return 0;
 }
 
-CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dso_symbol)) {
+CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dsoHandle)) {
     TRACE("__cxa_thread_at_quick_exit_impl()");
-    tss_atexit_quick(thrd_current(), dtor, NULL, dso_symbol);
+    __at_quick_exit_impl(thrd_current(), dtor, NULL, dsoHandle);
     return 0;
 }
 
