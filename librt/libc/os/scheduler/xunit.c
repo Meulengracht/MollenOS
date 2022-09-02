@@ -17,7 +17,9 @@
  */
 
 #include <ddk/ddkdefs.h> // for __reserved
+#include <os/futex.h>
 #include <internal/_tls.h>
+#include <internal/_utils.h>
 #include <internal/_syscalls.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
@@ -63,6 +65,41 @@ void usched_xunit_init(void)
     mtx_init(&g_executionManager.primary.tls.wait_queue.lock);
 }
 
+static int __wait(struct usched_execution_unit* unit)
+{
+    FutexParameters_t params = {
+            ._futex0 = &unit->sync,
+            ._val0   = 0,
+            ._flags  = FUTEX_WAIT_PRIVATE,
+    };
+
+    int currentValue = atomic_exchange(&unit->sync, 0);
+    if (currentValue) {
+        // changes pending, lets go
+        return EINTR;
+    }
+
+    oserr_t oserr = Syscall_FutexWait(&params);
+    if (oserr == OsInterrupted) {
+        return EINTR;
+    }
+    return EOK;
+}
+
+static void __load_wait_queue(struct usched_execution_unit* unit)
+{
+    struct usched_job* job;
+
+    mtx_lock(&unit->tls.wait_queue.lock);
+    job = unit->tls.wait_queue.next;
+    unit->tls.wait_queue.next = NULL;
+    mtx_unlock(&unit->tls.wait_queue.lock);
+
+    if (job != NULL) {
+        __usched_append_job(&unit->scheduler.ready, job);
+    }
+}
+
 void usched_xunit_start(usched_task_fn startFn, void* argument)
 {
     struct usched_execution_unit* unit = &g_executionManager.primary;
@@ -95,7 +132,8 @@ void usched_xunit_start(usched_task_fn startFn, void* argument)
         }
 
         // Wait now for new tasks to enter the ready queue
-        usched_wait();
+        __wait(unit);
+        __load_wait_queue(unit);
     }
 
     // Cleanup systems, destroy children, etc etc
@@ -121,8 +159,8 @@ static void __execution_unit_main(void* data)
 
     // Initialize the thread storage system for the execution unit,
     // each execution unit has their own TLS as well
-    __usched_tls_init(&tls);
-    __usched_tls_switch(&tls);
+    __tls_initialize(&tls);
+    __tls_switch(&tls);
 
     // Install the execution unit specific data into slot 2. This will then
     // be available to all units, and gives us an opportunity to store things
@@ -155,13 +193,15 @@ static void __execution_unit_main(void* data)
             break;
         }
 
-        // Wait now for new tasks to enter the ready queue
-        usched_wait();
+        // wait for any pending changes to our system, then we
+        // transfer all queued tasks to our ready queue
+        __wait(unit);
+        __load_wait_queue(unit);
     }
 
     // Run deinit of C/C++ handlers for the execution unit thread
     __cxa_threadfinalize();
-    __usched_tls_destroy(&tls);
+    __tls_destroy(&tls);
 
     // Exit thread, but let's keep a catch-all in case of fire
     Syscall_ThreadExit(0);

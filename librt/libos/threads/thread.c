@@ -23,7 +23,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <internal/_syscalls.h>
-#include <internal/_tls.h>
 #include <os/mollenos.h>
 #include "tss.h"
 #include <stdlib.h>
@@ -39,21 +38,20 @@ typedef struct ThreadPackage {
 
 void
 thrd_initialize(
-    _In_ void* context)
+    _In_ void *Data)
 {
-    thread_storage_t tls;
-    ThreadPackage_t* package;
-    int              exitCode;
+    thread_storage_t    Tls;
+    ThreadPackage_t*    Tp;
+    int                 ExitCode;
 
-    __tls_initialize(&tls);
-    __tls_switch(&tls);
+    __crt_tls_create(&Tls);
     __cxa_threadinitialize();
+    
+    Tp       = (ThreadPackage_t*)Data;
+    ExitCode = Tp->Entry(Tp->Data);
 
-    package       = (ThreadPackage_t*)context;
-    exitCode = package->Entry(package->Data);
-
-    free(package);
-    thrd_exit(exitCode);
+    free(Tp);
+    thrd_exit(ExitCode);
 }
 
 void
@@ -118,13 +116,13 @@ thrd_t
 thrd_current(void)
 {
     // If it's already cached, use that
-    if (__tls_current()->thr_id != UUID_INVALID) {
-        return __tls_current()->thr_id;
+    if (tls_current()->thr_id != UUID_INVALID) {
+        return tls_current()->thr_id;
     }
 
     // Otherwise, invoke OS to refresh id
-    __tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
-    return __tls_current()->thr_id;
+    tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
+    return tls_current()->thr_id;
 }
 
 int
@@ -187,9 +185,9 @@ _Noreturn void
 thrd_exit(
     _In_ int res)
 {
-    tss_cleanup(thrd_current());
+    tss_cleanup(thrd_current(), NULL, res);
+    tls_destroy(tls_current());
     __cxa_threadfinalize();
-    __tls_destroy(__tls_current());
     Syscall_ThreadExit(res);
     for(;;);
 }

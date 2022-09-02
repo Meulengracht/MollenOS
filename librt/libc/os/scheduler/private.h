@@ -69,7 +69,6 @@ struct usched_scheduler {
     int                    magic;
     mtx_t                  lock;
     jmp_buf                context;
-    atomic_int             pending;
     struct thread_storage* tls;
 
     struct usched_job* current;
@@ -88,6 +87,7 @@ struct execution_unit_tls {
 struct usched_execution_unit {
     uuid_t                        thread_id;
     unsigned int                  load;
+    atomic_int                    sync;
     struct usched_scheduler       scheduler;
     struct execution_unit_tls     tls;
     struct usched_execution_unit* next;
@@ -128,9 +128,5 @@ extern int                        __usched_timeout_start(unsigned int timeout, s
 extern int                        __usched_timeout_finish(int id);
 extern void                       __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
 extern struct execution_unit_tls* __usched_xunit_tls_current(void);
-
-extern int  __usched_tls_init(struct thread_storage* tls);
-extern void __usched_tls_switch(struct thread_storage* tls);
-extern void __usched_tls_destroy(struct thread_storage* tls);
 
 #endif //!__USCHED_PRIVATE_H__

@@ -67,11 +67,6 @@ CRTDECL(void, usched_init(void));
 CRTDECL(int, usched_yield(void));
 
 /**
- * @brief Wait for the current scheduler to have work to do.
- */
-CRTDECL(void, usched_wait(void));
-
-/**
  * @brief Schedules a new task in the scheduler for current execution unit.
  *
  * @param entry    The function to execute with the usched_task_fn signature.

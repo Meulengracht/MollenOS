@@ -28,9 +28,28 @@ typedef struct thread_storage {
 } thread_storage_t;
 
 /**
+ * @brief Initializes a new TLS instance
+ * @param tls
+ * @return
+ */
+CRTDECL(int,  __tls_initialize(struct thread_storage* tls));
+
+/**
+ * @brief
+ * @param tls
+ */
+CRTDECL(void, __tls_switch(struct thread_storage* tls));
+
+/**
+ * @brief
+ * @param tls
+ */
+CRTDECL(void, __tls_destroy(struct thread_storage* tls));
+
+/**
  * @brief Retrieves the local storage space for the current thread
  * @return The current TLS structure for the calling thread
  */
-CRTDECL(struct thread_storage*, usched_tls_current(void));
+CRTDECL(struct thread_storage*, __tls_current(void));
 
 #endif //!__INTERNAL_TLS__

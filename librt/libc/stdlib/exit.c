@@ -317,6 +317,15 @@ done:
     spinlock_release(&manager->lock);
 }
 
+
+void __cxa_at_exit_run(
+        _In_ thrd_t threadID,
+        _In_ void*  dsoHandle,
+        _In_ int    exitCode)
+{
+    __at_exit_run(&g_at_exit, UUID_INVALID, NULL, exitCode);
+}
+
 int at_quick_exit(void(*fn)(void)) {
     return __cxa_at_quick_exit((void (*)(void*))fn, __dso_handle);
 }
@@ -412,10 +421,10 @@ void quick_exit(int exitCode)
 
     if (!__crt_is_phoenix()) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t               status;
+        oserr_t                  oserr;
         sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &status);
+        sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
     }
 
     // Exit the primary thread
@@ -423,9 +432,7 @@ void quick_exit(int exitCode)
     for(;;);
 }
 
-void
-_Exit(
-        _In_ int exitCode)
+void _Exit(int exitCode)
 {
     int ec = exitCode;
 

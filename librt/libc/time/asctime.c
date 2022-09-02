@@ -75,7 +75,7 @@ char *asctime_r(const struct tm *__restrict tim_p, char *__restrict result)
 
 char *asctime(const struct tm *tim_p)
 {
-	char *ascbuf = &usched_tls_current()->asc_buffer[0];
-	memset(ascbuf, 0, sizeof(usched_tls_current()->asc_buffer));
+	char *ascbuf = &__tls_current()->asc_buffer[0];
+	memset(ascbuf, 0, sizeof(__tls_current()->asc_buffer));
 	return asctime_r(tim_p, ascbuf);
 }

@@ -39,6 +39,7 @@ typedef void(*_PVTLS)(void*, unsigned long, void*);
 extern void StdioCleanup(void);
 extern void __at_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
 extern void __at_quick_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
+extern void __cxa_at_exit_run(thrd_t threadID, void* dsoHandle, int exitCode);
 
 static int              g_cleanupPerformed = 0;
 static const uintptr_t* g_moduleEntries    = NULL;
@@ -129,16 +130,16 @@ CRTDECL(void, __cxa_threadfinalize(void))
     __cxa_primary_tls_thread_finit();
 }
 
-CRTDECL(void, __cxa_tls_thread_cleanup(void *Dso))
+CRTDECL(void, __cxa_tls_thread_cleanup(void* dsoHandle))
 {
     TRACE("__cxa_tls_thread_cleanup()");
-    tss_cleanup(thrd_current());
+    __cxa_at_exit_run(thrd_current(), dsoHandle, 0);
 }
 
-CRTDECL(void, __cxa_tls_module_cleanup(void *Dso))
+CRTDECL(void, __cxa_tls_module_cleanup(void* dsoHandle))
 {
     TRACE("__cxa_tls_module_cleanup()");
-    tss_cleanup(UUID_INVALID);
+    __cxa_at_exit_run(UUID_INVALID, dsoHandle, 0);
 }
 
 /* __cxa_finalize

@@ -289,7 +289,7 @@ cnd_destroy(
  * basis and persist for the life of the calling thread. */
 CRTDECL(int,
 tss_create(
-    _In_ tss_t*tssKeytss_key,
+    _In_ tss_t*     tssKey,
     _In_ tss_dtor_t destructor));
 
 /* tss_get
@@ -297,21 +297,21 @@ tss_create(
  * identified by tss_key. Different threads may get different values identified by the same key. */
 CRTDECL(void*,
 tss_get(
-    _In_ tssKey tss_key));
+    _In_ tss_t tssKey));
 
 /* tss_set
  * Sets the value of the thread-specific storage identified by tss_id for the 
  * current thread to val. Different threads may set different values to the same key. */
 CRTDECL(int,
 tss_set(
-    _In_ tssKey tss_id,
+    _In_ tss_t tssKey,
     _In_ void* val));
 
 /* tss_delete
  * Destroys the thread-specific storage identified by tss_id. */
 CRTDECL(void,
 tss_delete(
-    _In_ tssID tss_id));
+    _In_ tss_t tssKey));
 
 _CODE_END
 #endif //!__STDC_THREADS__

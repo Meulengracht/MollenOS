@@ -16,13 +16,13 @@
  *
  */
 
-#include <ddk/ddkdefs.h> // for __reserved
-#include <internal/_locale.h>
-#include <internal/_utils.h>
-#include <os/usched/usched.h>
-#include <stdlib.h>
-#include <string.h>
-#include "private.h"
+#include "ddk/ddkdefs.h" // for __reserved
+#include "internal/_locale.h"
+#include "internal/_utils.h"
+#include "os/usched/usched.h"
+#include "stdlib.h"
+#include "string.h"
+#include "scheduler/private.h"
 
 static const char* g_nullEnvironment[] = {
         NULL
@@ -56,7 +56,7 @@ static const char* const* __clone_env_block(void)
     return (const char* const*)copy;
 }
 
-int __usched_tls_init(struct thread_storage* tls)
+int __tls_initialize(struct thread_storage* tls)
 {
     struct dma_buffer_info info;
     void*                  buffer;
@@ -101,7 +101,7 @@ static void __destroy_env_block(char** env)
     free(env);
 }
 
-void __usched_tls_destroy(struct thread_storage* tls)
+void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
     if (tls->transfer_buffer.buffer != NULL) {
@@ -116,11 +116,11 @@ void __usched_tls_destroy(struct thread_storage* tls)
     }
 }
 
-struct thread_storage* usched_tls_current(void) {
+struct thread_storage* __tls_current(void) {
     return (thread_storage_t*)__get_reserved(0);
 }
 
-void __usched_tls_switch(struct thread_storage* tls) {
+void __tls_switch(struct thread_storage* tls) {
     __set_reserved(0, (size_t)tls);
     __set_reserved(1, (size_t)&tls->tls_array[0]);
     __set_reserved(11, (size_t)&tls->tls_array[0]);

@@ -56,7 +56,7 @@ usched_init(void)
     // scheduler instance, unless we implement multiple executors
     memset(sched, 0, sizeof(struct usched_scheduler));
     mtx_init(&sched->lock, mtx_plain);
-    sched->tls   = usched_tls_current();
+    sched->tls   = __tls_current();
     sched->magic = SCHEDULER_MAGIC;
 }
 
@@ -118,7 +118,7 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 
     // Before jumping here, we *must* restore the TLS context as we have
     // no control over the next step.
-    __usched_tls_switch(&next->tls);
+    __tls_switch(&next->tls);
 
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
@@ -147,7 +147,7 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 static void
 __task_destroy(struct usched_job* job)
 {
-    __usched_tls_destroy(&job->tls);
+    __tls_destroy(&job->tls);
     free(job->stack);
     free(job);
 }
@@ -234,7 +234,7 @@ usched_yield(void)
         if (setjmp(sched->context)) {
             // We are back into the execution unit context, which means we should update
             // the TLS accordingly.
-            __usched_tls_switch(sched->tls);
+            __tls_switch(sched->tls);
 
             // Run maintinence tasks before returning the deadline for the next job
             __empty_garbage_bin(sched);
@@ -260,11 +260,6 @@ usched_yield(void)
     // Should always be the last call
     __switch_task(sched, current, next);
     return 0;
-}
-
-void usched_wait(void)
-{
-
 }
 
 void usched_job_paramaters_init(struct usched_job_paramaters* params)
@@ -302,7 +297,7 @@ void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->argument = argument;
     job->cancelled = 0;
     job->weight = params->job_weight;
-    __usched_tls_init(&job->tls);
+    __tls_initialize(&job->tls);
     if (__usched_xunit_queue_job(job, params)) {
         // cleanup job, probably invalid scheduling parameters
         // TODO cleanup

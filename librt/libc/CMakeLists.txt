@@ -366,7 +366,7 @@ set (SOURCES_OS
     os/scheduler/mutex.c
     os/scheduler/cond.c
     os/scheduler/xunit.c
-    os/scheduler/tls.c
+        os/tls.c
 
     os/keymaps/en-us.c
 
