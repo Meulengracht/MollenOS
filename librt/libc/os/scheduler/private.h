@@ -52,7 +52,7 @@ struct usched_job {
 struct usched_job_queue {
     struct usched_job* next;
     mtx_t              lock;
-}
+};
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
 
@@ -80,7 +80,6 @@ struct usched_scheduler {
 
 struct execution_unit_tls {
     struct usched_scheduler* scheduler;
-    int                      exit_requested;
     struct usched_job_queue  wait_queue;
 };
 
@@ -88,6 +87,7 @@ struct usched_execution_unit {
     uuid_t                        thread_id;
     unsigned int                  load;
     atomic_int                    sync;
+    unsigned int                  locked;
     struct usched_scheduler       scheduler;
     struct execution_unit_tls     tls;
     struct usched_execution_unit* next;
@@ -121,8 +121,11 @@ static inline void __usched_append_job(struct usched_job** list, struct usched_j
     i->next = job;
 }
 
-extern int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_paramaters* params);
+extern int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_parameters* params);
 
+extern void                       __usched_init(struct usched_scheduler* sched);
+extern void                       __usched_destroy(struct usched_scheduler* sched);
+extern int                        __usched_prepare_migrate(void);
 extern struct usched_scheduler*   __usched_get_scheduler(void);
 extern int                        __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);
 extern int                        __usched_timeout_finish(int id);

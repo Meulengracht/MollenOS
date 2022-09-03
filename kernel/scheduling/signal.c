@@ -194,8 +194,12 @@ SignalProcessQueued(
     }
 
     while (1) {
-        size_t bytesRead = streambuffer_stream_in(thread->Signaling.Signals,
-                                                  &threadSignal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);
+        size_t bytesRead = streambuffer_stream_in(
+                thread->Signaling.Signals,
+                &threadSignal,
+                sizeof(ThreadSignal_t),
+                STREAMBUFFER_NO_BLOCK
+        );
         if (!bytesRead) {
             break;
         }
@@ -203,14 +207,19 @@ SignalProcessQueued(
         if (threadSignal.Flags & SIGNAL_SEPERATE_STACK) {
             // Missing implementation
             // AlternativeStack = Signal.Stack;
-        }
-        else {
+        } else {
             alternativeStack = 0;
         }
 
         flags = ((uint32_t)threadSignal.Signal << 16 | threadSignal.Flags);
-        ArchThreadContextPushInterceptor(context, alternativeStack, handler, flags,
-                                         (uintptr_t) threadSignal.Argument, 0);
+        ArchThreadContextPushInterceptor(
+                context,
+                alternativeStack,
+                handler,
+                flags,
+                (uintptr_t) threadSignal.Argument,
+                0
+        );
         atomic_fetch_sub(&thread->Signaling.Pending, 1);
     }
 #endif // !__OSCONFIG_DISABLE_SIGNALLING

@@ -43,11 +43,8 @@ __get_timestamp_ms(void)
     return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
 }
 
-void
-usched_init(void)
+void __usched_init(struct usched_scheduler* sched)
 {
-    struct usched_scheduler* sched = __usched_get_scheduler();
-
     if (sched->magic == SCHEDULER_MAGIC) {
         return;
     }
@@ -58,6 +55,60 @@ usched_init(void)
     mtx_init(&sched->lock, mtx_plain);
     sched->tls   = __tls_current();
     sched->magic = SCHEDULER_MAGIC;
+}
+
+void __usched_destroy(struct usched_scheduler* sched)
+{
+
+}
+
+static void
+__task_destroy(struct usched_job* job)
+{
+    __tls_destroy(&job->tls);
+    free(job->stack);
+    free(job);
+}
+
+static void
+__empty_garbage_bin(struct usched_scheduler* sched)
+{
+    struct usched_job* i;
+
+    mtx_lock(&sched->lock);
+    i = sched->garbage_bin;
+    while (i) {
+        struct usched_job* next = i->next;
+        __task_destroy(i);
+        i = next;
+    }
+    sched->garbage_bin = NULL;
+    mtx_unlock(&sched->lock);
+}
+
+int __usched_prepare_migrate(void)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    if (!sched->current) {
+        return 0; // no current task, which means we can chill
+    }
+
+    // Store the context of the current, this function is called by signal
+    // handler, but stays in the same stack as the task, so we can safe store
+    // the current context and just return to it later.
+    if (setjmp(sched->current->context)) {
+        return 1;
+    }
+
+    // Move the current task back into the ready-queue
+    __usched_append_job(&sched->ready, sched->current);
+
+    // Swap back into scheduler context (as much as possible)
+    __tls_switch(sched->tls);
+
+    // Run maintinence tasks before returning the deadline for the next job
+    __empty_garbage_bin(sched);
+    return 0;
 }
 
 static struct usched_job*
@@ -142,30 +193,6 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 #else
 #error "Unimplemented architecture for userspace scheduler"
 #endif
-}
-
-static void
-__task_destroy(struct usched_job* job)
-{
-    __tls_destroy(&job->tls);
-    free(job->stack);
-    free(job);
-}
-
-static void
-__empty_garbage_bin(struct usched_scheduler* sched)
-{
-    struct usched_job* i;
-
-    mtx_lock(&sched->lock);
-    i = sched->garbage_bin;
-    while (i) {
-        struct usched_job* next = i->next;
-        __task_destroy(i);
-        i = next;
-    }
-    sched->garbage_bin = NULL;
-    mtx_unlock(&sched->lock);
 }
 
 static void
@@ -262,14 +289,14 @@ usched_yield(void)
     return 0;
 }
 
-void usched_job_paramaters_init(struct usched_job_paramaters* params)
+void usched_job_parameters_init(struct usched_job_parameters* params)
 {
     params->stack_size = 4096 * 4;
     params->affinity_mask = NULL;
     params->job_weight = 25;
 }
 
-void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_paramaters* params)
+void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params)
 {
     struct usched_job* job;
 
@@ -308,8 +335,8 @@ void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job
 
 void* usched_task_queue(usched_task_fn entry, void* argument)
 {
-    struct usched_job_paramaters defaultParams;
-    usched_job_paramaters_init(&defaultParams);
+    struct usched_job_parameters defaultParams;
+    usched_job_parameters_init(&defaultParams);
     return usched_task_queue3(entry, argument, &defaultParams);
 }
 

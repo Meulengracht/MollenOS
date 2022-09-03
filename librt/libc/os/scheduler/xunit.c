@@ -24,6 +24,8 @@
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
 #include <signal.h>
+#include <stdlib.h>
+#include <string.h>
 #include "private.h"
 
 // Needed to handle thread stuff now on a userspace basis
@@ -39,7 +41,7 @@ CRTDECL(void, __cxa_threadfinalize(void));
 struct execution_manager {
     struct usched_execution_unit primary;
     int                          count;
-    mtx_t                        queue_lock;
+    mtx_t                        lock;
 };
 
 static struct execution_manager g_executionManager = { 0 };
@@ -49,20 +51,55 @@ static void __handle_unit_signal(int sig)
     if (sig == SIGUSR1) {
         // Only request exit, we want to finish executing the current job, but
         // we mark the current job as cancelled.
-        __usched_xunit_tls_current()->exit_requested = 1;
-        usched_task_cancel_current();
-    } else if (sig == SIGUSR2) {
-        // New task has been scheduled for us, we need to move it into the ready queue
+        if (__usched_prepare_migrate()) {
+            return; // return from migrated thread
+        }
+
+        // Run deinit of C/C++ handlers for the execution unit thread
+        __cxa_threadfinalize();
+        __tls_destroy(&tls);
+
+        // Exit thread, but let's keep a catch-all in case of fire
+        Syscall_ThreadExit(0);
+        for(;;);
     }
+}
+
+static void __job_queue_construct(struct usched_job_queue* jobQueue)
+{
+    mtx_init(&jobQueue->lock, mtx_plain);
+}
+
+static void __execution_unit_tls_construct(struct execution_unit_tls* tls, struct usched_scheduler* scheduler)
+{
+    tls->scheduler = scheduler;
+    __job_queue_construct(&tls->wait_queue);
+}
+
+static void __execution_unit_construct(struct usched_execution_unit* unit)
+{
+    unit->thread_id = UUID_INVALID;
+    __execution_unit_tls_construct(&unit->tls, &unit->scheduler);
 }
 
 void usched_xunit_init(void)
 {
     // initialize the manager
-    mtx_init(&g_executionManager.queue_lock, mtx_plain);
+    g_executionManager.count = 1;
+    mtx_init(&g_executionManager.lock, mtx_recursive);
 
     // initialize the primary xunit
-    mtx_init(&g_executionManager.primary.tls.wait_queue.lock);
+    __execution_unit_construct(&g_executionManager.primary);
+    g_executionManager.primary.thread_id = thrd_current();
+
+    // Install the execution unit specific data into slot 2. This will then
+    // be available to all units, and gives us an opportunity to store things
+    // like the current scheduler etc.
+    __set_reserved(2, (uintptr_t)&g_executionManager.primary.tls);
+
+    // Initialize all the subsystems for the primary execution unit. Each unit needs
+    // to run this
+    __usched_init(&g_executionManager.primary.scheduler);
 }
 
 static int __wait(struct usched_execution_unit* unit)
@@ -86,6 +123,17 @@ static int __wait(struct usched_execution_unit* unit)
     return EOK;
 }
 
+static void __wake(struct usched_execution_unit* unit)
+{
+    FutexParameters_t params = {
+            ._futex0 = &unit->sync,
+            ._val0   = 1,
+            ._flags  = FUTEX_WAKE_PRIVATE,
+    };
+    atomic_fetch_add(&unit->sync, 1);
+    (void)Syscall_FutexWake(&params);
+}
+
 static void __load_wait_queue(struct usched_execution_unit* unit)
 {
     struct usched_job* job;
@@ -100,22 +148,10 @@ static void __load_wait_queue(struct usched_execution_unit* unit)
     }
 }
 
-void usched_xunit_start(usched_task_fn startFn, void* argument)
+_Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
     struct usched_execution_unit* unit = &g_executionManager.primary;
     void*                         mainCT;
-
-    // Install the execution unit specific data into slot 2. This will then
-    // be available to all units, and gives us an opportunity to store things
-    // like the current scheduler etc.
-    __set_reserved(2, (uintptr_t)&unit->tls);
-
-    // Install a signal handler in case we need to be told something
-    signal(SIGUSR1, __handle_unit_signal);
-    signal(SIGUSR2, __handle_unit_signal);
-
-    // Initialize the userspace thread systems before going into the main loop
-    usched_init();
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
@@ -125,24 +161,18 @@ void usched_xunit_start(usched_task_fn startFn, void* argument)
 
         do {
             timeout = usched_yield();
-        } while (!unit->tls.exit_requested && timeout == 0);
-
-        if (unit->tls.exit_requested) {
-            break;
-        }
+        } while (timeout == 0);
 
         // Wait now for new tasks to enter the ready queue
         __wait(unit);
         __load_wait_queue(unit);
     }
-
-    // Cleanup systems, destroy children, etc etc
 }
 
 int usched_xunit_count(void)
 {
     if (g_executionManager.count == 0) {
-        errno = ENODEV;
+        errno = ENOSYS;
         return -1;
     }
     return g_executionManager.count;
@@ -152,7 +182,7 @@ struct execution_unit_tls* __usched_xunit_tls_current(void) {
     return (struct execution_unit_tls*)__get_reserved(2);
 }
 
-static void __execution_unit_main(void* data)
+_Noreturn static void __execution_unit_main(void* data)
 {
     struct usched_execution_unit* unit = data;
     struct thread_storage         tls;
@@ -173,10 +203,9 @@ static void __execution_unit_main(void* data)
 
     // Install a signal handler in case we need to be told something
     signal(SIGUSR1, __handle_unit_signal);
-    signal(SIGUSR2, __handle_unit_signal);
 
     // Initialize the userspace thread systems before going into the main loop
-    usched_init();
+    __usched_init(&unit->scheduler);
 
     // Enter main loop, this loop is differnt from the primary execution unit, as shutdown is
     // not handled by the child execution units. If we run out of tasks, we just sleep untill one
@@ -187,35 +216,180 @@ static void __execution_unit_main(void* data)
 
         do {
             timeout = usched_yield();
-        } while (!unit->tls.exit_requested && timeout == 0);
-
-        if (unit->tls.exit_requested) {
-            break;
-        }
+        } while (timeout == 0);
 
         // wait for any pending changes to our system, then we
         // transfer all queued tasks to our ready queue
         __wait(unit);
         __load_wait_queue(unit);
     }
-
-    // Run deinit of C/C++ handlers for the execution unit thread
-    __cxa_threadfinalize();
-    __tls_destroy(&tls);
-
-    // Exit thread, but let's keep a catch-all in case of fire
-    Syscall_ThreadExit(0);
-    for(;;);
 }
 
-static int __create_execution_unit(void)
+static struct usched_execution_unit* __execution_unit_new(void)
 {
+    struct usched_execution_unit* unit;
 
+    unit = malloc(sizeof(struct usched_execution_unit));
+    if (unit == NULL) {
+        return NULL;
+    }
+    memset(unit, 0, sizeof(struct usched_execution_unit));
+    __execution_unit_construct(unit);
+}
+
+static int __spawn_execution_unit(struct usched_execution_unit* unit)
+{
+    ThreadParameters_t parameters;
+    oserr_t            oserr;
+
+    // Use default thread parameters for now until we decide on another
+    // course of action.
+    InitializeThreadParameters(&parameters);
+
+    // Spawn a thread in the raw fashion to allow us to control the CRT initalization
+    // a bit more fine-grained as we want to inject another per-thread value.
+    oserr = Syscall_ThreadCreate(
+            (thrd_start_t)__execution_unit_main,
+            unit, &parameters,
+            &unit->thread_id
+    );
+    return OsErrToErrNo(oserr);
+}
+
+static void __job_queue_destruct(struct usched_job_queue* jobQueue)
+{
+    mtx_destroy(&jobQueue->lock);
+}
+
+static void __execution_unit_tls_destruct(struct execution_unit_tls* tls)
+{
+    __job_queue_destruct(&tls->wait_queue);
+}
+
+static void __execution_unit_delete(struct usched_execution_unit* unit)
+{
+    // We cannot destroy the scheduler here, it was initialized on-thread and
+    // must be destroyed by the same thread upon exit
+    __execution_unit_tls_destruct(&unit->tls);
+    free(unit);
+}
+
+static int __start_execution_unit(void)
+{
+    struct usched_execution_unit* unit = __execution_unit_new();
+    struct usched_execution_unit* i;
+    int                           status;
+
+    if (unit == NULL) {
+        return -1;
+    }
+
+    status = __spawn_execution_unit(unit);
+    if (status) {
+        __execution_unit_delete(unit);
+        return status;
+    }
+
+    // add it to the list of execution units
+    i = &g_executionManager.primary;
+    while (i->next) {
+        i = i->next;
+    }
+    i->next = unit;
+    g_executionManager.count++;
+    return 0;
+}
+
+static int __stop_execution_unit(void)
+{
+    struct usched_execution_unit* unit;
+    struct usched_execution_unit* prev;
+    struct usched_job_parameters  jobParameters;
+    int                           unitResult;
+
+    // Find an unlocked execution in the list. If we can't find
+    // one unlocked to remove, then we fail the downsizing, because
+    // the users must themselves shut down the locked threads
+    prev = &g_executionManager.primary;
+    unit = g_executionManager.primary.next;
+    while (unit && unit->locked) {
+        prev = unit;
+        unit = unit->next;
+    }
+
+    // If the one we ended up on, is locked, then it failed
+    if (unit == NULL || unit->locked) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    // remove it, and reduce count, then we handle cleanup
+    prev->next = unit->next;
+    g_executionManager.count--;
+
+    // signal the execution unit to stop, wait for it to terminate
+    // and then we transfer its tasks to the remaining units
+    thrd_signal(unit->thread_id, SIGUSR1);
+    thrd_join(unit->thread_id, &unitResult);
+
+    // Migrate jobs with no affinity mask
+    jobParameters.affinity_mask = NULL;
+
+    // As a part of the cleanup, the current running thread has been moved
+    // back into the ready queue, which means there are two queues we need
+    // to migrate, ready + wait
+    struct usched_job* queue = NULL;
+    __usched_append_job(&queue, unit->scheduler.ready);
+    __usched_append_job(&queue, unit->tls.wait_queue.next);
+    for (struct usched_job* i = queue; i != NULL; ) {
+        struct usched_job* tmp = i;
+        i = i->next;
+
+        // schedule them one-by-one to load-balance
+        tmp->next = NULL;
+
+        jobParameters.stack_size = tmp->stack_size;
+        jobParameters.job_weight = tmp->weight;
+        __usched_xunit_queue_job(tmp, &jobParameters);
+    }
+
+    // lastly, destroy resources
+    __execution_unit_delete(unit);
 }
 
 int usched_xunit_set_count(int count)
 {
+    int result = 0;
 
+    // plz call _start first
+    if (g_executionManager.count == 0) {
+        errno = ENOSYS;
+        return -1;
+    }
+
+    // can't set it to 0
+    if (count == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    mtx_lock(&g_executionManager.lock);
+    if (count > g_executionManager.count) {
+        int xunitsToCreate = count - g_executionManager.count;
+        for (int i = 0; i < xunitsToCreate; i++) {
+            result = __start_execution_unit();
+            if (result) {
+                break;
+            }
+        }
+    } else if (count < g_executionManager.count) {
+        int xunitsToStop = g_executionManager.count - count;
+        for (int i = 0; i < xunitsToStop; i++) {
+            __stop_execution_unit();
+        }
+    }
+    mtx_unlock(&g_executionManager.lock);
+    return result;
 }
 
 static bool __bit_set(const unsigned int* mask, int bit)
@@ -234,7 +408,7 @@ static struct usched_execution_unit* __select_lowest_loaded(unsigned int* mask)
     xunit = &g_executionManager.primary;
     id    = 0;
     while (xunit != NULL) {
-        if (__bit_set(mask, id)) {
+        if (mask == NULL || __bit_set(mask, id)) {
             if (result == NULL || result->load > xunit->load) {
                 result = xunit;
             }
@@ -247,20 +421,23 @@ static struct usched_execution_unit* __select_lowest_loaded(unsigned int* mask)
     return result;
 }
 
-int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_paramaters* params)
+int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_parameters* params)
 {
     struct usched_execution_unit* xunit;
 
-    mtx_lock(&g_executionManager.queue_lock);
+    mtx_lock(&g_executionManager.lock);
     xunit = __select_lowest_loaded(params->affinity_mask);
     if (!xunit) {
-        mtx_unlock(&g_executionManager.queue_lock);
+        mtx_unlock(&g_executionManager.lock);
         return -1;
     }
 
     // add it to the scheduler for that thread
+    if (params->affinity_mask != NULL) {
+        xunit->locked++;
+    }
     xunit->load += params->job_weight;
-    mtx_unlock(&g_executionManager.queue_lock);
+    mtx_unlock(&g_executionManager.lock);
 
     // If we are on the correct execution unit, we can just add it to the ready
     // queue and skip any additional handling right there. The tricky part is if
@@ -275,7 +452,6 @@ int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_paramater
     mtx_unlock(&xunit->tls.wait_queue.lock);
 
     // signal the thread
-    atomic_fetch_add(&xunit->scheduler.pending, 1);
-    thrd_signal(xunit->thread_id, SIGUSR2);
+    __wake(xunit);
     return 0;
 }

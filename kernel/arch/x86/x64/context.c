@@ -95,43 +95,43 @@ PushContextOntoStack(
 
 void
 ArchThreadContextPushInterceptor(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  TemporaryStack,
-    _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2)
+    _In_ Context_t* context,
+    _In_ uintptr_t  temporaryStack,
+    _In_ uintptr_t  address,
+    _In_ uintptr_t  argument0,
+    _In_ uintptr_t  argument1,
+    _In_ uintptr_t  argument2)
 {
-	uintptr_t NewStackPointer;
+	uintptr_t newStackPointer;
 	
 	TRACE("[context] [push_interceptor] stack 0x%" PRIxIN ", address 0x%" PRIxIN ", rip 0x%" PRIxIN,
-		TemporaryStack, Address, Context->Rip);
+          temporaryStack, address, context->Rip);
 	
 	// On the previous stack, we would like to keep the Rip as it will be activated
 	// before jumping to the previous address
-	if (!TemporaryStack) {
-		PushRegister(&Context->UserRsp, Context->Rip);
-		
-		NewStackPointer = Context->UserRsp;
-		PushContextOntoStack(&NewStackPointer, Context);
+	if (!temporaryStack) {
+		PushRegister(&context->UserRsp, context->Rip);
+
+        newStackPointer = context->UserRsp;
+		PushContextOntoStack(&newStackPointer, context);
 	}
 	else {
-		NewStackPointer = TemporaryStack;
+        newStackPointer = temporaryStack;
 		
-		PushRegister(&Context->UserRsp, Context->Rip);
-		PushContextOntoStack(&NewStackPointer, Context);
+		PushRegister(&context->UserRsp, context->Rip);
+		PushContextOntoStack(&newStackPointer, context);
 	}
 
 	// Store all information provided, and 
-	Context->Rip = Address;
-	Context->Rcx = NewStackPointer;
-	Context->Rdx = Argument0;
-	Context->R8  = Argument1;
-	Context->R9  = Argument2;
+	context->Rip = address;
+    context->Rcx = newStackPointer;
+    context->Rdx = argument0;
+    context->R8  = argument1;
+    context->R9  = argument2;
 	
 	// Replace current stack with the one provided that has been adjusted for
 	// the copy of the context structure
-	Context->UserRsp = NewStackPointer;
+	context->UserRsp = newStackPointer;
 }
 
 void

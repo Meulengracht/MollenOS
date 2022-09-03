@@ -121,21 +121,21 @@ ArchThreadContextReset(
  * of thread. This will then be the next thing executed. Optionally a safe
  * stack can be provided that will be used for execution.
  *
- * @param Context
- * @param TemporaryStack
- * @param Address
- * @param Argument0
- * @param Argument1
- * @param Argument2
+ * @param context
+ * @param temporaryStack
+ * @param address
+ * @param argument0
+ * @param argument1
+ * @param argument2
  */
 KERNELAPI void KERNELABI
 ArchThreadContextPushInterceptor(
-    _In_ Context_t* Context,
-    _In_ uintptr_t  TemporaryStack,
-    _In_ uintptr_t  Address,
-    _In_ uintptr_t  Argument0,
-    _In_ uintptr_t  Argument1,
-    _In_ uintptr_t  Argument2);
+    _In_ Context_t* context,
+    _In_ uintptr_t  temporaryStack,
+    _In_ uintptr_t  address,
+    _In_ uintptr_t  argument0,
+    _In_ uintptr_t  argument1,
+    _In_ uintptr_t  argument2);
 
 /**
  * @brief Dumps the contents of the given thread context for debugging.

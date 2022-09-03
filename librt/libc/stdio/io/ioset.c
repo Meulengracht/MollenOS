@@ -40,7 +40,7 @@ static struct ioset_entry* ioset_remove(stdio_handle_t*, int);
 int ioset(int flags)
 {
     stdio_handle_t* ioObject;
-    oserr_t      osStatus;
+    oserr_t         oserr;
     uuid_t          handle;
     int             status;
     
@@ -48,10 +48,10 @@ int ioset(int flags)
     if (status) {
         return -1;
     }
-    
-    osStatus = notification_queue_create(0, &handle);
-    if (osStatus != OsOK) {
-        (void)OsErrToErrNo(osStatus);
+
+    oserr = notification_queue_create(0, &handle);
+    if (oserr != OsOK) {
+        (void)OsErrToErrNo(oserr);
         stdio_handle_destroy(ioObject, 0);
         return -1;
     }
@@ -68,8 +68,8 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 {
     stdio_handle_t*     setObject = stdio_handle_get(evt_iod);
     stdio_handle_t*     ioObject  = stdio_handle_get(iod);
-    oserr_t          status;
-    struct ioset_entry * entry;
+    oserr_t             oserr;
+    struct ioset_entry* entry;
     
     if (!event) {
         _set_errno(EINVAL);
@@ -114,11 +114,11 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
         _set_errno(EINVAL);
         return -1;
     }
-    
-    status = notification_queue_ctrl(setObject->object.handle, op,
-                                     ioObject->object.handle, event);
-    if (status != OsOK) {
-        (void)OsErrToErrNo(status);
+
+    oserr = notification_queue_ctrl(setObject->object.handle, op,
+                                    ioObject->object.handle, event);
+    if (oserr != OsOK) {
+        (void)OsErrToErrNo(oserr);
         return -1;
     }
     return 0;
@@ -158,8 +158,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
     status = notification_queue_wait(setObject->object.handle, &events[0],
                                      max_events, i, timeout, &numEvents);
     if (status != OsOK) {
-        (void)OsErrToErrNo(status);
-        return -1;
+        return OsErrToErrNo(status);
     }
     return numEvents;
 }

@@ -22,18 +22,21 @@
 #include <os/usched/types.h>
 
 /**
- * @brief Initializes the xunit system
+ * @brief Initializes the xunit system, and initializes the current kernel thread
+ * as the initial execution unit for the userspace threads. After this call it's possible
+ * to either use a custom loop for the primary execution unit, or use the pre-provided
+ * usched_xunit_main_loop
  */
 CRTDECL(void, usched_xunit_init(void));
 
 /**
- * @brief Starts the execution manager and initializes the current kernel thread
- * as the initial execution unit for the userspace threads.
+ * @brief Runs the execution units primary loop. There is no return from this call, as
+ * it will run until program exit
  *
  * @param[In] startFn  Initial job that should be scheduled for this execution unit
  * @param[In] argument Argument for the initial job
  */
-CRTDECL(void, usched_xunit_start(usched_task_fn startFn, void* argument));
+CRTDECL(_Noreturn void, usched_xunit_main_loop(usched_task_fn startFn, void* argument));
 
 /**
  * @brief Retrieves the current number of execution units.

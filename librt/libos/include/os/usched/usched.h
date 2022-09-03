@@ -27,7 +27,7 @@
 
 #include <os/usched/types.h>
 
-struct usched_job_paramaters {
+struct usched_job_parameters {
     // The stack size for the job. The default stack-size will be 16KB
     unsigned int stack_size;
 
@@ -51,13 +51,7 @@ struct usched_job_paramaters {
  * @brief Initialize the job parameters to the default values.
  * @param params
  */
-CRTDECL(void, usched_job_paramaters_init(struct usched_job_paramaters* params));
-
-/**
- * @brief Initializes the scheduler for single unit scheduling. Currently usched only supports
- * a single execution unit.
- */
-CRTDECL(void, usched_init(void));
+CRTDECL(void, usched_job_parameters_init(struct usched_job_parameters* params));
 
 /**
  * @brief Yields control of the current task and executes the next task in line. If no tasks
@@ -85,7 +79,7 @@ CRTDECL(void*, usched_task_queue(usched_task_fn entry, void* argument));
  * @return         A cancellation token value that can be used to signal cancellation to the task.
  *                 The cancellation token is passed to the task entry as the second parameter.
  */
-CRTDECL(void*, usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_paramaters* params));
+CRTDECL(void*, usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params));
 
 /**
  * @brief Marks the currently running task as cancelled. The cancelation token will be
