@@ -26,11 +26,11 @@
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_ipc.h>
+#include <internal/_tls.h>
 #include <io.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../threads/tss.h"
 
 static inline oserr_t
 perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
@@ -69,8 +69,8 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
 
 oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
 {
-    uuid_t     builtinHandle = tls_current()->transfer_buffer.handle;
-    size_t     builtinLength = tls_current()->transfer_buffer.length;
+    uuid_t     builtinHandle = __tls_current()->transfer_buffer.handle;
+    size_t     builtinLength = __tls_current()->transfer_buffer.length;
     size_t     bytesRead;
     oserr_t status;
     TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
@@ -121,7 +121,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
     status = perform_transfer(handle->object.handle, builtinHandle, 0,
         builtinLength, 0, length, &bytesRead);
     if (status == OsOK && bytesRead > 0) {
-        memcpy(buffer, tls_current()->transfer_buffer.buffer, bytesRead);
+        memcpy(buffer, __tls_current()->transfer_buffer.buffer, bytesRead);
     }
     
     *bytesReadOut = bytesRead;
@@ -131,8 +131,8 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
 oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
                             size_t length, size_t* bytesWrittenOut)
 {
-    uuid_t     builtinHandle = tls_current()->transfer_buffer.handle;
-    size_t     builtinLength = tls_current()->transfer_buffer.length;
+    uuid_t     builtinHandle = __tls_current()->transfer_buffer.handle;
+    size_t     builtinLength = __tls_current()->transfer_buffer.length;
     oserr_t status;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
@@ -177,7 +177,7 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         return status;
     }
     
-    memcpy(tls_current()->transfer_buffer.buffer, buffer, length);
+    memcpy(__tls_current()->transfer_buffer.buffer, buffer, length);
     status = perform_transfer(handle->object.handle, builtinHandle, 1,
         builtinLength, 0, length, bytesWrittenOut);
     return status;

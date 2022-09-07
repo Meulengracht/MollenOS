@@ -35,7 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <wctype.h>
 #include <locale.h>
 #include "../local.h"
-#include "../../locale/setlocale.h"
+#include <internal/_locale.h>
 
 #ifdef _HAVE_LONG_DOUBLE
 

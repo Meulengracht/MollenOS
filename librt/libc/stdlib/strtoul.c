@@ -36,7 +36,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 
 /*
  * Convert a string to an unsigned long integer.

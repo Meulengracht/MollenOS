@@ -31,7 +31,7 @@
 #include <stdlib.h>
 #include <wctype.h>
 #include <wchar.h>
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 #endif
 
 int tolower_l(int c, struct __locale_t *locale)

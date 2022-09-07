@@ -20,8 +20,10 @@
 
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
+#include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <os/usched/usched.h>
+#include <os/usched/xunit.h>
 #include "../libc/threads/tss.h"
 #include <stdlib.h>
 #include <ioset.h>
@@ -120,7 +122,7 @@ __crt_service_init(void)
     // Initialize the userspace scheduler to support request based
     // services in an async matter, and do this before we call OnLoad
     // as the service might queue tasks up on load.
-    usched_init();
+    usched_xunit_init();
 
     // Call the driver load function
     // - This will be run once, before loop

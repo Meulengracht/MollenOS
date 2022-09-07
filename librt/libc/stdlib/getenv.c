@@ -21,14 +21,14 @@
  */
 
 #include <errno.h>
+#include <internal/_tls.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../threads/tss.h"
 
 static const char* const* __get_environment()
 {
-    return tls_current()->env_block;
+    return __tls_current()->env_block;
 }
 
 char* getenv(const char* name)

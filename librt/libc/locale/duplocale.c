@@ -35,7 +35,7 @@ PORTABILITY
 */
 
 #include <stdlib.h>
-#include "setlocale.h"
+#include <internal/_locale.h>
 
 struct __locale_t *duplocale(struct __locale_t *locobj)
 {

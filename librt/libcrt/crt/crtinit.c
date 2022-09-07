@@ -21,7 +21,7 @@
  */
 
 #include <ctype.h>
-#include "../../libc/threads/tss.h"
+#include <internal/_tls.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -57,7 +57,8 @@ char** __crt_argv(int* argcOut) {
 
 void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix)
 {
-	__crt_tls_create(threadStorage);
+	__tls_initialize(threadStorage);
+    __tls_switch(threadStorage);
     __crt_process_initialize(isPhoenix);
 
     // The following library function handles running static initializers and TLS data for the primary

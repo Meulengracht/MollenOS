@@ -14,14 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * C Library - Driver Entry 
  */
 
-#include "../libc/threads/tss.h"
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
+#include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
 #include <string.h>
@@ -116,7 +115,7 @@ void __CrtModuleEntry(void)
     thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
-    oserr_t                    osStatus;
+    oserr_t                       oserr;
     uuid_t                        moduleId;
     int                           status;
     char**                        argv;
@@ -131,8 +130,8 @@ void __CrtModuleEntry(void)
     }
 
     // parse the options provided for this module
-    osStatus = __ParseModuleOptions(argv, argc, &moduleId);
-    if (osStatus != OsOK) {
+    oserr = __ParseModuleOptions(argv, argc, &moduleId);
+    if (oserr != OsOK) {
         ERROR("__CrtModuleEntry missing --id parameter for module");
         exit(-1);
     }

@@ -92,7 +92,7 @@ static int         g_exit_in_progress   = 0;
 static int         g_exit_code          = 0;
 static spinlock_t  g_exit_lock          = _SPN_INITIALIZER_NP(spinlock_plain);
 
-static int __initialize_handlers_level_3(
+static void __initialize_handlers_level_3(
         _In_ struct atexit_dso_entry* entry,
         _In_ void*                    dsoHandle)
 {
@@ -105,7 +105,7 @@ static int __initialize_handlers_level_2(
         _In_ thrd_t                      threadID)
 {
     entry->thread_id = threadID;
-    hashtable_construct(
+    return hashtable_construct(
             &entry->values,
             0,
             sizeof(struct atexit_dso_entry),
@@ -117,7 +117,7 @@ static int __initialize_handlers_level_2(
 static int __initialize_handlers_level_1(
         _In_ struct at_exit_manager* manager)
 {
-    hashtable_construct(
+    return hashtable_construct(
             &manager->handlers,
             0,
             sizeof(struct atexit_thread_entry),

@@ -1,5 +1,5 @@
 /* wctrans constants */
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 
 /* valid values for wctrans_t */
 #define WCT_TOLOWER 1

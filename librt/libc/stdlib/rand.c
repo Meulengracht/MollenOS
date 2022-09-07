@@ -15,26 +15,22 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS - Pseudo Random Number generator
  */
- 
-/* Includes 
- * - Library */
-#include "../threads/tss.h"
+
+#include <internal/_tls.h>
 #include <stdlib.h>
 
 /* Generate a new random value based on
  * the seed, the formula is taken from reactos */
 int rand(void) {
-	int Current = tls_current()->seed;
-	Current = Current * 214013L + 2531011L;
-	tls_current()->seed = Current;
-	return (int)(Current >> 16) & RAND_MAX;
+	unsigned int seed = __tls_current()->seed;
+    seed = seed * 214013L + 2531011L;
+	__tls_current()->seed = seed;
+	return (int)(seed >> 16) & RAND_MAX;
 }
 
 /* Set a new custom seed for this threads
  * random number generator */
 void srand(unsigned int seed) {
-	tls_current()->seed = seed;
+    __tls_current()->seed = seed;
 }

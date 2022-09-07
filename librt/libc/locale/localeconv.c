@@ -1,4 +1,4 @@
-#include "setlocale.h"
+#include <internal/_locale.h>
 
 struct lconv *__localeconv_l (struct __locale_t *locale)
 {

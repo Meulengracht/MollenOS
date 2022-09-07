@@ -16,14 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * C Standard Library
- * - File link implementation
  */
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "../threads/tss.h"
+#include <internal/_tls.h>
 
 static char* g_chars = "ABCDEFGHIJKLMNOPQRSTUVWXZY";
 static char* g_nums  = "0123456789";
@@ -35,7 +32,7 @@ char* tmpnam(
     int   i;
 
     if (!out) {
-        out = &tls_current()->tmpname_buffer[0];
+        out = &__tls_current()->tmpname_buffer[0];
     }
 
     srand(clock());

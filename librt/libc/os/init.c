@@ -44,12 +44,13 @@ extern void StdSoInitialize(void);
 static gracht_client_t*         g_gclient     = NULL;
 static struct gracht_link_vali* g_gclientLink = NULL;
 
-static char*      g_rawCommandLine = NULL;
-static uint8_t*   g_inheritBlock   = NULL;
-static uintptr_t* g_baseLibraries  = NULL;
-static char**     g_environment    = NULL;
-static int        g_isPhoenix      = 0;
-static uuid_t     g_processId      = UUID_INVALID;
+static char*      g_rawCommandLine  = NULL;
+static uint8_t*   g_inheritBlock    = NULL;
+static uintptr_t* g_baseLibraries   = NULL;
+static char**     g_environment     = NULL;
+static int        g_isPhoenix       = 0;
+static uuid_t     g_startupThreadId = UUID_INVALID;
+static uuid_t     g_processId       = UUID_INVALID;
 
 static void
 __mark_iod_priority(int iod)
@@ -224,6 +225,10 @@ void __crt_process_initialize(
     // We must set IsModule before anything
     g_isPhoenix = isPhoenix;
 
+    // Get the handle of the startup thread so we always know
+    // the thread id of the primary process thread.
+    g_startupThreadId = thrd_current();
+
     // Initialize the standard C library
     TRACE("__crt_process_initialize initializing stdio");
     StdioInitialize();
@@ -281,6 +286,11 @@ void __crt_process_initialize(
 int __crt_is_phoenix(void)
 {
     return g_isPhoenix;
+}
+
+uuid_t __crt_primary_thread(void)
+{
+    return g_startupThreadId;
 }
 
 uuid_t* __crt_processid_ptr(void)

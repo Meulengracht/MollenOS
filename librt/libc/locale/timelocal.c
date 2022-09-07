@@ -26,7 +26,7 @@
  */
 
 #include <stddef.h>
-#include "setlocale.h"
+#include <internal/_locale.h>
 
 #define LCTIME_SIZE (sizeof(struct lc_time_T) / sizeof(char *))
 

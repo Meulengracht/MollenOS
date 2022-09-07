@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999 Kungliga Tekniska Högskolan
+ * Copyright (c) 1999 Kungliga Tekniska Hï¿½gskolan
  * (Royal Institute of Technology, Stockholm, Sweden). 
  * All rights reserved. 
  *
@@ -37,7 +37,7 @@
 #include <time.h>
 #include <string.h>
 #include <strings.h>
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 #include <ctype.h>
 #include <stdlib.h>
 

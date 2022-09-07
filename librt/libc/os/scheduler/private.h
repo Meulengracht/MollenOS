@@ -24,6 +24,7 @@
 #define __USCHED_PRIVATE_H__
 
 #include <internal/_tls.h>
+#include <setjmp.h>
 #include <threads.h>
 
 #define SCHEDULER_MAGIC 0xDEADB00B
@@ -43,7 +44,7 @@ struct usched_job {
     usched_task_fn        entry;
     void*                 argument;
     int                   cancelled;
-    int                   weight;
+    unsigned int          weight;
     struct thread_storage tls;
 
     struct usched_job* next;

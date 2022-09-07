@@ -97,6 +97,11 @@ void CRTHIDE __cxa_exithandlers(void)
 {
     TRACE("__cxa_exithandlers()");
 
+    if (g_cleanupPerformed) {
+        return;
+    }
+    g_cleanupPerformed = 1;
+
     // Run at-exit lists for all the modules
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_FINALIZE);

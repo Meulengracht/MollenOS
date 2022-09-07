@@ -36,7 +36,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <stdint.h>
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 
 /*
  * Convert a string to an intmax_t integer.

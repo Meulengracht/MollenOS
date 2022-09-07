@@ -28,7 +28,7 @@
 #include <string.h>
 #include "private.h"
 
-// Needed to handle thread stuff now on a userspace basis
+// Needed to handle thread stuff now on userspace basis
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
@@ -46,22 +46,27 @@ struct execution_manager {
 
 static struct execution_manager g_executionManager = { 0 };
 
+static void __execution_unit_exit(void)
+{
+    struct thread_storage* tls = __tls_current();
+
+    if (__usched_prepare_migrate()) {
+        return; // return from migrated thread
+    }
+
+    // Run deinit of C/C++ handlers for the execution unit thread
+    __cxa_threadfinalize();
+    __tls_destroy(tls);
+
+    // Exit thread, but let's keep a catch-all in case of fire
+    Syscall_ThreadExit(0);
+    for(;;);
+}
+
 static void __handle_unit_signal(int sig)
 {
     if (sig == SIGUSR1) {
-        // Only request exit, we want to finish executing the current job, but
-        // we mark the current job as cancelled.
-        if (__usched_prepare_migrate()) {
-            return; // return from migrated thread
-        }
-
-        // Run deinit of C/C++ handlers for the execution unit thread
-        __cxa_threadfinalize();
-        __tls_destroy(&tls);
-
-        // Exit thread, but let's keep a catch-all in case of fire
-        Syscall_ThreadExit(0);
-        for(;;);
+        __execution_unit_exit();
     }
 }
 
@@ -85,8 +90,8 @@ static void __execution_unit_construct(struct usched_execution_unit* unit)
 void usched_xunit_init(void)
 {
     // initialize the manager
-    g_executionManager.count = 1;
     mtx_init(&g_executionManager.lock, mtx_recursive);
+    g_executionManager.count = 1;
 
     // initialize the primary xunit
     __execution_unit_construct(&g_executionManager.primary);
@@ -156,6 +161,7 @@ _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
     mainCT = usched_task_queue(startFn, argument);
+    (void)mainCT; // TODO
     while (1) {
         int timeout;
 
@@ -235,6 +241,7 @@ static struct usched_execution_unit* __execution_unit_new(void)
     }
     memset(unit, 0, sizeof(struct usched_execution_unit));
     __execution_unit_construct(unit);
+    return unit;
 }
 
 static int __spawn_execution_unit(struct usched_execution_unit* unit)
@@ -327,7 +334,7 @@ static int __stop_execution_unit(void)
     prev->next = unit->next;
     g_executionManager.count--;
 
-    // signal the execution unit to stop, wait for it to terminate
+    // signal the execution unit to stop, wait for it to terminate,
     // and then we transfer its tasks to the remaining units
     thrd_signal(unit->thread_id, SIGUSR1);
     thrd_join(unit->thread_id, &unitResult);
@@ -355,6 +362,14 @@ static int __stop_execution_unit(void)
 
     // lastly, destroy resources
     __execution_unit_delete(unit);
+    return 0;
+}
+
+static int __get_cpu_count(void)
+{
+    SystemDescriptor_t descriptor;
+    SystemQuery(&descriptor);
+    return (int)descriptor.NumberOfActiveCores;
 }
 
 int usched_xunit_set_count(int count)
@@ -371,6 +386,10 @@ int usched_xunit_set_count(int count)
     if (count == 0) {
         errno = EINVAL;
         return -1;
+    }
+
+    if (count < 0) {
+        count = __get_cpu_count();
     }
 
     mtx_lock(&g_executionManager.lock);

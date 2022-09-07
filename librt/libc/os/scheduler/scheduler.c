@@ -17,7 +17,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <os/usched/tls.h>
 #include <os/usched/usched.h>
 #include <setjmp.h>
 #include <string.h>
