@@ -103,6 +103,11 @@ typedef struct stdio_inheritation_block {
     struct stdio_handle handles[];
 } stdio_inheritation_block_t;
 
+struct stdio_object_entry {
+    int             id;
+    stdio_handle_t* handle;
+};
+
 // io-object interface
 extern int             stdio_handle_create(int iod, int flags, stdio_handle_t**);
 extern void            stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
@@ -143,8 +148,8 @@ extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fopts(int oflags);
 extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
-extern oserr_t   _lock_stream(FILE * stream);
-extern oserr_t   _unlock_stream(FILE * stream);
+extern oserr_t      _lock_stream(FILE * stream);
+extern oserr_t      _unlock_stream(FILE * stream);
 extern int          streamout(FILE *stream, const char *format, va_list argptr);
 extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
 

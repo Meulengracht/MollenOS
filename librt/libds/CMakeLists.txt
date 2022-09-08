@@ -3,7 +3,6 @@ set (LIBDS_SRCS
 
         bitmap.c
         bounded_stack.c
-        collection.c
         guid.c
         hashtable.c
         hash_sip.c
