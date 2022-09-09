@@ -208,7 +208,7 @@ static int EventQueueWorker(void* context)
     struct timespec         interruptedAt;
     struct timespec         timeSpent;
 
-    SetCurrentThreadName("event-pump");
+    ThreadsSetName("event-pump");
 
     mtx_lock(&eventQueue->EventLock);
     while (eventQueue->IsRunning) {

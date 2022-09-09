@@ -42,6 +42,7 @@ struct execution_manager {
     struct usched_execution_unit primary;
     int                          count;
     mtx_t                        lock;
+    int                          core_count;
 };
 
 static struct execution_manager g_executionManager = { 0 };
@@ -87,11 +88,19 @@ static void __execution_unit_construct(struct usched_execution_unit* unit)
     __execution_unit_tls_construct(&unit->tls, &unit->scheduler);
 }
 
+static int __get_cpu_count(void)
+{
+    SystemDescriptor_t descriptor;
+    SystemQuery(&descriptor);
+    return (int)descriptor.NumberOfActiveCores;
+}
+
 void usched_xunit_init(void)
 {
     // initialize the manager
     mtx_init(&g_executionManager.lock, mtx_recursive);
     g_executionManager.count = 1;
+    g_executionManager.core_count = __get_cpu_count();
 
     // initialize the primary xunit
     __execution_unit_construct(&g_executionManager.primary);
@@ -213,7 +222,7 @@ _Noreturn static void __execution_unit_main(void* data)
     // Initialize the userspace thread systems before going into the main loop
     __usched_init(&unit->scheduler);
 
-    // Enter main loop, this loop is differnt from the primary execution unit, as shutdown is
+    // Enter main loop, this loop is different from the primary execution unit, as shutdown is
     // not handled by the child execution units. If we run out of tasks, we just sleep untill one
     // becomes available. If the primary runs out of tasks, and all XU's sleep, then the program
     // exits.
@@ -365,13 +374,6 @@ static int __stop_execution_unit(void)
     return 0;
 }
 
-static int __get_cpu_count(void)
-{
-    SystemDescriptor_t descriptor;
-    SystemQuery(&descriptor);
-    return (int)descriptor.NumberOfActiveCores;
-}
-
 int usched_xunit_set_count(int count)
 {
     int result = 0;
@@ -389,7 +391,7 @@ int usched_xunit_set_count(int count)
     }
 
     if (count < 0) {
-        count = __get_cpu_count();
+        count = g_executionManager.core_count;
     }
 
     mtx_lock(&g_executionManager.lock);
@@ -404,7 +406,10 @@ int usched_xunit_set_count(int count)
     } else if (count < g_executionManager.count) {
         int xunitsToStop = g_executionManager.count - count;
         for (int i = 0; i < xunitsToStop; i++) {
-            __stop_execution_unit();
+            result = __stop_execution_unit();
+            if (result) {
+                break;
+            }
         }
     }
     mtx_unlock(&g_executionManager.lock);

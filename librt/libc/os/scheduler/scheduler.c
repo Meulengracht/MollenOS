@@ -24,7 +24,7 @@
 #include <threads.h>
 #include "private.h"
 
-// Needed to handle thread stuff now on a userspace basis
+// Needed to handle thread stuff now on an userspace basis
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
@@ -93,7 +93,7 @@ int __usched_prepare_migrate(void)
     }
 
     // Store the context of the current, this function is called by signal
-    // handler, but stays in the same stack as the task, so we can safe store
+    // handler, but stays in the same stack as the task, so we can safely store
     // the current context and just return to it later.
     if (setjmp(sched->current->context)) {
         return 1;

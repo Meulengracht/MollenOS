@@ -130,13 +130,6 @@ CRTDECL(oserr_t,
         _In_ UInteger64_t*       frequencyOut));
 
 /*******************************************************************************
- * Threading Extensions
- *******************************************************************************/
-CRTDECL(void,       InitializeThreadParameters(ThreadParameters_t* Paramaters));
-CRTDECL(oserr_t, SetCurrentThreadName(const char* ThreadName));
-CRTDECL(oserr_t, GetCurrentThreadName(char* ThreadNameBuffer, size_t MaxLength));
-
-/*******************************************************************************
  * Path Extensions
  *******************************************************************************/
 

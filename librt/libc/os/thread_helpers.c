@@ -35,14 +35,14 @@ InitializeThreadParameters(
 }
 
 oserr_t
-SetCurrentThreadName(
+ThreadsSetName(
     _In_ const char* ThreadName)
 {
     return Syscall_ThreadSetCurrentName(ThreadName);
 }
 
 oserr_t
-GetCurrentThreadName(
+ThreadsGetName(
     _In_ char*  ThreadNameBuffer,
     _In_ size_t MaxLength)
 {
