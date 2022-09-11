@@ -328,7 +328,7 @@ __StartProcess(
     oserr_t            osStatus;
 
     // Initialize threading paramaters for the new thread
-    InitializeThreadParameters(&threadParameters);
+    ThreadParametersInitialize(&threadParameters);
     threadParameters.MemorySpaceHandle = (uuid_t)(uintptr_t)process->image->MemorySpace;
     threadParameters.Name              = mstr_u8(process->name);
     if (threadParameters.Name == NULL) {

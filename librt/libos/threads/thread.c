@@ -90,7 +90,7 @@ thrd_create(
     
     Package->Entry = func;
     Package->Data  = arg;
-    InitializeThreadParameters(&Paramaters);
+    ThreadParametersInitialize(&Paramaters);
 
     Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (uuid_t*)thr);
     if (Status != OsOK) {

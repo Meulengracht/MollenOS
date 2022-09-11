@@ -25,7 +25,7 @@
 #include <internal/_syscalls.h>
 
 void
-InitializeThreadParameters(
+ThreadParametersInitialize(
     _In_ ThreadParameters_t* Paramaters)
 {
     Paramaters->Name              = NULL;

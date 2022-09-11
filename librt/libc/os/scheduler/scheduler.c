@@ -28,7 +28,10 @@
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
-static atomic_int g_timerid = ATOMIC_VAR_INIT(1);
+static atomic_int         g_timerid        = ATOMIC_VAR_INIT(1);
+static struct usched_job* g_readyQueue     = NULL;
+static mtx_t              g_readyQueueLock = MUTEX_INIT(mtx_plain);
+static cnd_t              g_readyQueueCond = COND_INIT;
 
 struct usched_scheduler* __usched_get_scheduler(void) {
     return __usched_xunit_tls_current()->scheduler;
@@ -42,7 +45,18 @@ __get_timestamp_ms(void)
     return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
 }
 
-void __usched_init(struct usched_scheduler* sched)
+static void
+__get_timestamp_from_now(int ms, struct timespec* ts)
+{
+    timespec_get(ts, TIME_UTC);
+    ts->tv_nsec += (NSEC_PER_MSEC * ms);
+    if (ts->tv_nsec >= NSEC_PER_SEC) {
+        ts->tv_sec++;
+        ts->tv_nsec -= NSEC_PER_SEC;
+    }
+}
+
+void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
 {
     if (sched->magic == SCHEDULER_MAGIC) {
         return;
@@ -51,14 +65,17 @@ void __usched_init(struct usched_scheduler* sched)
     // initialize the global scheduler, there will always only exist one
     // scheduler instance, unless we implement multiple executors
     memset(sched, 0, sizeof(struct usched_scheduler));
-    mtx_init(&sched->lock, mtx_plain);
     sched->tls   = __tls_current();
     sched->magic = SCHEDULER_MAGIC;
-}
 
-void __usched_destroy(struct usched_scheduler* sched)
-{
-
+    // If this is set non-null, this means the scheduler will *only* execute
+    // tasks from the internal queue instead of the detached queue. This is useful
+    // if an user wants to keep long-running tasks OR bind tasks to specific cores,
+    // without that impacting the entire workpool.
+    if (params->detached_job != NULL) {
+        sched->internal_queue = params->detached_job;
+        sched->detached       = true;
+    }
 }
 
 static void
@@ -74,7 +91,6 @@ __empty_garbage_bin(struct usched_scheduler* sched)
 {
     struct usched_job* i;
 
-    mtx_lock(&sched->lock);
     i = sched->garbage_bin;
     while (i) {
         struct usched_job* next = i->next;
@@ -82,7 +98,14 @@ __empty_garbage_bin(struct usched_scheduler* sched)
         i = next;
     }
     sched->garbage_bin = NULL;
-    mtx_unlock(&sched->lock);
+}
+
+void __usched_add_job_ready(struct usched_job* job)
+{
+    mtx_lock(&g_readyQueueLock);
+    __usched_append_job(&g_readyQueue, job);
+    cnd_signal(&g_readyQueueCond);
+    mtx_unlock(&g_readyQueueLock);
 }
 
 int __usched_prepare_migrate(void)
@@ -100,7 +123,7 @@ int __usched_prepare_migrate(void)
     }
 
     // Move the current task back into the ready-queue
-    __usched_append_job(&sched->ready, sched->current);
+    __usched_add_job_ready(sched->current);
 
     // Swap back into scheduler context (as much as possible)
     __tls_switch(sched->tls);
@@ -113,16 +136,17 @@ int __usched_prepare_migrate(void)
 static struct usched_job*
 __get_next_ready(struct usched_scheduler* scheduler)
 {
-    struct usched_job* next = scheduler->ready;
+    struct usched_job* next;
 
     // Always check the global queue first for new tasks that should run specifically
     // on this scheduler.
-    if (!scheduler->ready) {
-        return NULL;
+    mtx_lock(&g_readyQueueLock);
+    next = g_readyQueue;
+    if (next != NULL) {
+        g_readyQueue = next->next;
+        next->next = NULL;
     }
-
-    scheduler->ready = next->next;
-    next->next = NULL;
+    mtx_unlock(&g_readyQueueLock);
     return next;
 }
 
@@ -200,7 +224,6 @@ __update_timers(struct usched_scheduler* sched)
     clock_t                currentTime;
     struct usched_timeout* timer;
 
-    mtx_lock(&sched->lock);
     currentTime = __get_timestamp_ms();
     timer = sched->timers;
     while (timer) {
@@ -210,7 +233,6 @@ __update_timers(struct usched_scheduler* sched)
         }
         timer = timer->next;
     }
-    mtx_unlock(&sched->lock);
 }
 
 static int
@@ -220,7 +242,6 @@ __get_next_deadline(struct usched_scheduler* sched)
     struct usched_timeout* timer;
     int                    shortest = INT_MAX;
 
-    mtx_lock(&sched->lock);
     currentTime = __get_timestamp_ms();
     timer = sched->timers;
     while (timer) {
@@ -233,7 +254,6 @@ __get_next_deadline(struct usched_scheduler* sched)
         }
         timer = timer->next;
     }
-    mtx_unlock(&sched->lock);
     return shortest;
 }
 
@@ -248,9 +268,10 @@ usched_yield(void)
     // be ready
     __update_timers(sched);
 
-    if (!sched->current) {
+    next = __get_next_ready(sched);
+    if (sched->current == NULL) {
         // if no active thread and no ready threads then we can safely just return
-        if (!sched->ready) {
+        if (next == NULL) {
             return __get_next_deadline(sched);
         }
 
@@ -269,30 +290,46 @@ usched_yield(void)
     }
 
     current = sched->current;
-
-    mtx_lock(&sched->lock);
     if (current) {
         if (SHOULD_RESCHEDULE(current)) {
-            __usched_append_job(&sched->ready, current);
-        }
-        else if (current->state == JobState_FINISHING) {
+            // let us skip the thole schedule unschedule if
+            // possible.
+            if (next == NULL) {
+                next = current;
+            } else {
+                __usched_add_job_ready(current);
+            }
+        } else if (current->state == JobState_FINISHING) {
             __usched_append_job(&sched->garbage_bin, current);
         }
     }
-    next = __get_next_ready(sched);
     sched->current = next;
-    mtx_unlock(&sched->lock);
 
     // Should always be the last call
     __switch_task(sched, current, next);
     return 0;
 }
 
+void usched_wait(int timeoutMS)
+{
+    struct timespec ts;
+    __get_timestamp_from_now(timeoutMS, &ts);
+
+    mtx_lock(&g_readyQueueLock);
+    while (g_readyQueue == NULL) {
+        int status = cnd_timedwait(&g_readyQueueCond, &g_readyQueueLock, &ts);
+        if (status == thrd_timedout) {
+            break;
+        }
+    }
+    mtx_unlock(&g_readyQueueLock);
+}
+
 void usched_job_parameters_init(struct usched_job_parameters* params)
 {
     params->stack_size = 4096 * 4;
+    params->detached = false;
     params->affinity_mask = NULL;
-    params->job_weight = 25;
 }
 
 void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params)
@@ -301,7 +338,6 @@ void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job
 
     assert(params != NULL);
     assert(params->stack_size >= 4096);
-    assert(params->job_weight > 0);
 
     job = malloc(sizeof(struct usched_job));
     if (!job) {
@@ -322,12 +358,19 @@ void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->entry = entry;
     job->argument = argument;
     job->cancelled = 0;
-    job->weight = params->job_weight;
     __tls_initialize(&job->tls);
-    if (__usched_xunit_queue_job(job, params)) {
-        // cleanup job, probably invalid scheduling parameters
-        // TODO cleanup
-        return NULL;
+
+    // We have two possible ways of queue jobs. Detached jobs get their own
+    // execution unit, and thus we queue these through the xunit system. Normal
+    // undetached jobs are running in the global job pool
+    if (params->detached) {
+        if (__xunit_start_detached(job, params)) {
+            // cleanup job, probably invalid scheduling parameters
+            // TODO cleanup
+            return NULL;
+        }
+    } else {
+        __usched_add_job_ready(job);
     }
     return job;
 }
@@ -390,10 +433,8 @@ __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
     timer->signal = cond;
     timer->next = NULL;
 
-    mtx_lock(&sched->lock);
     timer->job = sched->current;
     __usched_append_timer(&sched->timers, timer);
-    mtx_unlock(&sched->lock);
 
     return timer->id;
 }
@@ -410,7 +451,6 @@ __usched_timeout_finish(int id)
         return 0;
     }
 
-    mtx_lock(&sched->lock);
     timer = sched->timers;
     while (timer) {
         if (timer->id == id) {
@@ -433,6 +473,5 @@ __usched_timeout_finish(int id)
         previousTimer = timer;
         timer = timer->next;
     }
-    mtx_unlock(&sched->lock);
     return result;
 }

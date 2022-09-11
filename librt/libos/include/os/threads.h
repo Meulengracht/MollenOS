@@ -45,7 +45,7 @@ ThreadsCreate(
  * @param Paramaters
  */
 CRTDECL(void,
-InitializeThreadParameters(
+ThreadParametersInitialize(
         _In_ ThreadParameters_t* parameters));
 
 /**

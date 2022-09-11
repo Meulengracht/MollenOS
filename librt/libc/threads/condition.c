@@ -123,7 +123,7 @@ cnd_timedwait(
     _In_ const struct timespec* restrict time_point)
 {
     FutexParameters_t parameters;
-	oserr_t        status;
+	oserr_t           oserr;
     time_t            msec;
 	struct timespec   now, result;
 
@@ -150,13 +150,12 @@ cnd_timedwait(
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
     parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
     parameters._timeout = msec;
-    
-    status = Syscall_FutexWait(&parameters);
+
+    oserr = Syscall_FutexWait(&parameters);
     mtx_lock(mutex);
-	if (status  == OsTimeout) {
+	if (oserr == OsTimeout) {
 		return thrd_timedout;
-	}
-	else if (status != OsOK) {
+	} else if (oserr != OsOK) {
 	    return thrd_error;
 	}
 	return thrd_success;

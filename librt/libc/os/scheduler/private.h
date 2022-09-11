@@ -44,15 +44,9 @@ struct usched_job {
     usched_task_fn        entry;
     void*                 argument;
     int                   cancelled;
-    unsigned int          weight;
     struct thread_storage tls;
 
     struct usched_job* next;
-};
-
-struct usched_job_queue {
-    struct usched_job* next;
-    mtx_t              lock;
 };
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
@@ -68,12 +62,12 @@ struct usched_timeout {
 
 struct usched_scheduler {
     int                    magic;
-    mtx_t                  lock;
     jmp_buf                context;
     struct thread_storage* tls;
+    bool                   detached;
 
     struct usched_job* current;
-    struct usched_job* ready;
+    struct usched_job* internal_queue;
     struct usched_job* garbage_bin;
 
     struct usched_timeout* timers;
@@ -81,16 +75,17 @@ struct usched_scheduler {
 
 struct execution_unit_tls {
     struct usched_scheduler* scheduler;
-    struct usched_job_queue  wait_queue;
+};
+
+struct execution_unit_params {
+    struct usched_job* detached_job;
 };
 
 struct usched_execution_unit {
     uuid_t                        thread_id;
-    unsigned int                  load;
-    atomic_int                    sync;
-    unsigned int                  locked;
     struct usched_scheduler       scheduler;
     struct execution_unit_tls     tls;
+    struct execution_unit_params  params;
     struct usched_execution_unit* next;
 };
 
@@ -122,10 +117,22 @@ static inline void __usched_append_job(struct usched_job** list, struct usched_j
     i->next = job;
 }
 
-extern int __usched_xunit_queue_job(struct usched_job* job, struct usched_job_parameters* params);
+extern int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters* params);
 
-extern void                       __usched_init(struct usched_scheduler* sched);
-extern void                       __usched_destroy(struct usched_scheduler* sched);
+struct usched_init_params {
+    struct usched_job* detached_job;
+};
+
+/**
+ * @brief Initializes the usched scheduler for the current execution unit. Only
+ * called once per execution unit.
+ * @param sched
+ * @param params
+ */
+extern void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params);
+
+
+extern void                       __usched_add_job_ready(struct usched_job* job);
 extern int                        __usched_prepare_migrate(void);
 extern struct usched_scheduler*   __usched_get_scheduler(void);
 extern int                        __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);

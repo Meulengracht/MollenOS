@@ -14,15 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * User threads implementation. Implements support for multiple tasks running entirely
- * in userspace. This is supported by additional synchronization primitives in the usched_
- * namespace.
  */
 
 #include <os/usched/usched.h>
 #include <os/usched/mutex.h>
-#include <setjmp.h>
 #include <assert.h>
 #include "private.h"
 
@@ -93,6 +88,6 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
     // mark next job as woken
     if (next) {
         next->state = JobState_RUNNING;
-        __usched_append_job(&__usched_get_scheduler()->ready, next);
+        __usched_add_job_ready(next);
     }
 }

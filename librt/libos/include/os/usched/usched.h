@@ -18,8 +18,6 @@
  * in userspace. This is supported by additional synchronization primitives in the usched_
  * namespace.
  *
- * TODO:
- *  - Task configuration support (size of stack etc)
  */
 
 #ifndef __OS_USCHED_H__
@@ -31,6 +29,11 @@ struct usched_job_parameters {
     // The stack size for the job. The default stack-size will be 16KB
     unsigned int stack_size;
 
+    // Detached controls whether this job runs as a part of the common
+    // worker pool. A detached job is assigned its own, seperate execution unit. This
+    // execution unit runs only this job, and will sleep when the job is not ready.
+    bool detached;
+
     // Setting an affinity mask for a job can result in jobs receiving less processor time,
     // as the system is restricted from running the jobs on certain execution units. In most cases,
     // it is better to let usched select an execution unit. The affinity mask must point to a array
@@ -38,13 +41,6 @@ struct usched_job_parameters {
     // execution units, this should point to 64 bit of storage (2 DWORDs).
     unsigned int* affinity_mask;
 
-    // Provides a hint to scheduler the weight of the task. Higher weight means the job will consume
-    // a lot of execution time, and decourages the scheduler from scheduling more jobs for the execution
-    // unit receiving this job, and also takes this into consideration when selecting an execution unit.
-    // <=10 => Means close to no additional stress on the execution unit
-    // 25 => Default weight for jobs
-    // >=100 => High impact on the CPU, and should be careful to schedule anything else.
-    unsigned int job_weight;
 };
 
 /**
@@ -59,6 +55,12 @@ CRTDECL(void, usched_job_parameters_init(struct usched_job_parameters* params));
  * @return Returns the number of milliseconds untill the next timed event should occur.
  */
 CRTDECL(int, usched_yield(void));
+
+/**
+ * @brief
+ * @param timeoutMS
+ */
+CRTDECL(void, usched_wait(int timeoutMS));
 
 /**
  * @brief Schedules a new task in the scheduler for current execution unit.

@@ -14,16 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * User threads implementation. Implements support for multiple tasks running entirely
- * in userspace. This is supported by additional synchronization primitives in the usched_
- * namespace.
  */
 
 #include <os/usched/usched.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
-#include <setjmp.h>
 #include <assert.h>
 #include "private.h"
 
@@ -84,7 +79,7 @@ void usched_cnd_notify_one(struct usched_cnd* condition)
         job->next = NULL;
 
         job->state = JobState_RUNNING;
-        __usched_append_job(&__usched_get_scheduler()->ready, job);
+        __usched_add_job_ready(job);
     }
     usched_mtx_unlock(&condition->lock);
 }
@@ -100,7 +95,7 @@ void usched_cnd_notify_all(struct usched_cnd* condition)
         job->next = NULL;
 
         job->state = JobState_RUNNING;
-        __usched_append_job(&__usched_get_scheduler()->ready, job);
+        __usched_add_job_ready(job);
     }
     usched_mtx_unlock(&condition->lock);
 }
@@ -124,7 +119,7 @@ void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* j
 
                 job->next = NULL;
                 job->state = JobState_RUNNING;
-                __usched_append_job(&__usched_get_scheduler()->ready, job);
+                __usched_add_job_ready(job);
             }
 
             previous = i;
