@@ -15,10 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Event Queue Support Definitions & Structures
- * - This header describes the base event-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 //#define __TRACE
@@ -27,7 +23,7 @@
 #include <ddk/eventqueue.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
-#include <os/mollenos.h>
+#include <os/threads.h>
 #include <stdlib.h>
 #include <threads.h>
 

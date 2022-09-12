@@ -17,10 +17,8 @@
  */
 
 #include <ddk/ddkdefs.h> // for __reserved
-#include <os/futex.h>
 #include <os/threads.h>
 #include <internal/_tls.h>
-#include <internal/_utils.h>
 #include <internal/_syscalls.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
@@ -40,10 +38,11 @@ CRTDECL(void, __cxa_threadfinalize(void));
 // the correct TLS each time.
 
 struct execution_manager {
-    struct usched_execution_unit primary;
-    int                          count;
-    mtx_t                        lock;
-    int                          core_count;
+    struct usched_execution_unit  primary;
+    struct usched_execution_unit* detached;
+    int                           count;
+    mtx_t                         lock;
+    int                           core_count;
 };
 
 static struct execution_manager g_executionManager = { 0 };
@@ -115,13 +114,12 @@ void usched_xunit_init(void)
 
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
-    struct usched_execution_unit* unit = &g_executionManager.primary;
-    void*                         mainCT;
+    void* mainCT;
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
     mainCT = usched_task_queue(startFn, argument);
-    (void)mainCT; // TODO
+    (void)mainCT; // TODO: better support for cancelling tasks...
     while (1) {
         int timeout;
 
@@ -233,7 +231,7 @@ static void __execution_unit_delete(struct usched_execution_unit* unit)
 static int __start_execution_unit(unsigned int* affinityMask, struct usched_job* detachedJob)
 {
     struct usched_execution_unit* unit = __execution_unit_new();
-    struct usched_execution_unit* i;
+    struct usched_execution_unit* i    = NULL;
     int                           status;
 
     if (unit == NULL) {
@@ -250,76 +248,64 @@ static int __start_execution_unit(unsigned int* affinityMask, struct usched_job*
     }
 
     // add it to the list of execution units
-    i = &g_executionManager.primary;
-    while (i->next) {
-        i = i->next;
+    if (detachedJob != NULL) {
+        if (g_executionManager.detached == NULL) {
+            g_executionManager.detached = unit;
+        } else {
+            i = g_executionManager.detached;
+        }
+    } else {
+        i = &g_executionManager.primary;
+        g_executionManager.count++;
     }
-    i->next = unit;
-    g_executionManager.count++;
+
+    if (i != NULL) {
+        while (i->next) {
+            i = i->next;
+        }
+        i->next = unit;
+    }
     return 0;
 }
 
 static int __stop_execution_unit(void)
 {
     struct usched_execution_unit* unit;
-    struct usched_execution_unit* prev;
-    struct usched_job_parameters  jobParameters;
     int                           unitResult;
 
-    // Find an unlocked execution in the list. If we can't find
-    // one unlocked to remove, then we fail the downsizing, because
-    // the users must themselves shut down the locked threads
-    prev = &g_executionManager.primary;
-    unit = g_executionManager.primary.next;
-    while (unit && unit->locked) {
-        prev = unit;
-        unit = unit->next;
-    }
-
-    // If the one we ended up on, is locked, then it failed
-    if (unit == NULL || unit->locked) {
+    // Check if there are any available execution units to kill,
+    // otherwise we just return here.
+    if (g_executionManager.primary.next == NULL) {
         errno = ENOENT;
         return -1;
     }
 
     // remove it, and reduce count, then we handle cleanup
-    prev->next = unit->next;
+    unit = g_executionManager.primary.next;
+    g_executionManager.primary.next = unit->next;
     g_executionManager.count--;
+
+    // We are bound to kill ourselves at some point, so we instead return
+    // with ESHUTDOWN to make sure that the killing of us, takes place after
+    // we've killed others.
+    if (&unit->tls == __usched_xunit_tls_current()) {
+        // uh oh, we need to kill ourselves
+        errno = ESHUTDOWN;
+        return -1;
+    }
 
     // signal the execution unit to stop, wait for it to terminate,
     // and then we transfer its tasks to the remaining units
     thrd_signal(unit->thread_id, SIGUSR1);
     thrd_join(unit->thread_id, &unitResult);
-
-    // Migrate jobs with no affinity mask
-    jobParameters.affinity_mask = NULL;
-
-    // As a part of the cleanup, the current running thread has been moved
-    // back into the ready queue, which means there are two queues we need
-    // to migrate, ready + wait
-    struct usched_job* queue = NULL;
-    __usched_append_job(&queue, unit->scheduler.ready);
-    __usched_append_job(&queue, unit->tls.wait_queue.next);
-    for (struct usched_job* i = queue; i != NULL; ) {
-        struct usched_job* tmp = i;
-        i = i->next;
-
-        // schedule them one-by-one to load-balance
-        tmp->next = NULL;
-
-        jobParameters.stack_size = tmp->stack_size;
-        jobParameters.job_weight = tmp->weight;
-        __xunit_start_detached(tmp, &jobParameters);
-    }
-
-    // lastly, destroy resources
     __execution_unit_delete(unit);
     return 0;
 }
 
 int usched_xunit_set_count(int count)
 {
-    int result = 0;
+    int killCurrentXUnit = 0;
+    int result           = 0;
 
     // plz call _start first
     if (g_executionManager.count == 0) {
@@ -351,11 +337,25 @@ int usched_xunit_set_count(int count)
         for (int i = 0; i < xunitsToStop; i++) {
             result = __stop_execution_unit();
             if (result) {
-                break;
+                // Two types of error here, either it's because
+                // we are putting off suicide (ESHUTDOWN), or it's
+                // because there are no more units to kill (ENOENT)
+                if (errno == ESHUTDOWN) {
+                    killCurrentXUnit = 1;
+                } else {
+                    // Simply break out as we do not need to do anymore.
+                    break;
+                }
             }
         }
     }
     mtx_unlock(&g_executionManager.lock);
+
+    // Before returning - which we should not do if we need to kill
+    // the current thread, we just exit
+    if (killCurrentXUnit) {
+        __execution_unit_exit();
+    }
     return result;
 }
 

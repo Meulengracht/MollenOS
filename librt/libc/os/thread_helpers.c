@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/mollenos.h>
+#include <os/threads.h>
 #include <internal/_syscalls.h>
 
 void

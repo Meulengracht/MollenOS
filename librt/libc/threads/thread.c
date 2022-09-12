@@ -25,9 +25,9 @@
 #include <internal/_syscalls.h>
 #include <internal/_tls.h>
 #include <os/mollenos.h>
+#include <os/threads.h>
 #include "tss.h"
 #include <stdlib.h>
-#include <threads.h>
 
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));

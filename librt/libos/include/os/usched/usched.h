@@ -24,6 +24,7 @@
 #define __OS_USCHED_H__
 
 #include <os/usched/types.h>
+#include <stdbool.h>
 
 struct usched_job_parameters {
     // The stack size for the job. The default stack-size will be 16KB
@@ -40,7 +41,6 @@ struct usched_job_parameters {
     // big enough to encompass enough bits for largest cpu id. For instance, on a system with 64
     // execution units, this should point to 64 bit of storage (2 DWORDs).
     unsigned int* affinity_mask;
-
 };
 
 /**

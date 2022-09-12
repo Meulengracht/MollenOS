@@ -31,13 +31,9 @@
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include <internal/_io.h>
-#include <internal/_ipc.h>
-#include <os/mollenos.h>
+#include <os/threads.h>
 #include "pe.h"
 #include "process.h"
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
 
 #include "sys_library_service_server.h"
 #include "sys_process_service_server.h"
