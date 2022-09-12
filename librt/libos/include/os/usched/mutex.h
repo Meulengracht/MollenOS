@@ -23,6 +23,9 @@
 #ifndef __OS_USCHED_MUTEX_H__
 #define __OS_USCHED_MUTEX_H__
 
+// imported from time.h
+struct timespec;
+
 #include <os/spinlock.h>
 
 struct usched_job;
@@ -39,6 +42,22 @@ struct usched_mtx {
  * @param mutex A pointer to a mutex that should be initialized.
  */
 CRTDECL(void, usched_mtx_init(struct usched_mtx* mutex));
+
+/**
+ * @brief Blocks the current thread until the mutex pointed to by mutex is
+ * locked or until the TIME_UTC based time point pointed to by until has been reached.
+ * @param mutex
+ * @param time_point
+ * @return
+ */
+CRTDECL(int, usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restrict until));
+
+/**
+ * @brief Tries to lock the mutex pointed to by mutex without blocking.
+ * @param mutex
+ * @return
+ */
+CRTDECL(int, usched_mtx_trylock(struct usched_mtx* mutex));
 
 /**
  * @brief Locks a mutex, and if the mutex is already locked then this function will block.

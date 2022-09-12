@@ -37,25 +37,6 @@ struct usched_scheduler* __usched_get_scheduler(void) {
     return __usched_xunit_tls_current()->scheduler;
 }
 
-static clock_t
-__get_timestamp_ms(void)
-{
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
-}
-
-static void
-__get_timestamp_from_now(int ms, struct timespec* ts)
-{
-    timespec_get(ts, TIME_UTC);
-    ts->tv_nsec += (NSEC_PER_MSEC * ms);
-    if (ts->tv_nsec >= NSEC_PER_SEC) {
-        ts->tv_sec++;
-        ts->tv_nsec -= NSEC_PER_SEC;
-    }
-}
-
 void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
 {
     if (sched->magic == SCHEDULER_MAGIC) {
@@ -70,7 +51,7 @@ void __usched_init(struct usched_scheduler* sched, struct usched_init_params* pa
 
     // If this is set non-null, this means the scheduler will *only* execute
     // tasks from the internal queue instead of the detached queue. This is useful
-    // if an user wants to keep long-running tasks OR bind tasks to specific cores,
+    // if a user wants to keep long-running tasks OR bind tasks to specific cores,
     // without that impacting the entire workpool.
     if (params->detached_job != NULL) {
         sched->internal_queue = params->detached_job;
@@ -138,8 +119,20 @@ __get_next_ready(struct usched_scheduler* scheduler)
 {
     struct usched_job* next;
 
-    // Always check the global queue first for new tasks that should run specifically
-    // on this scheduler.
+    // If a scheduler is detached, then it cannot consume jobs from
+    // the global queue. Instead, we only check the internal queue for
+    // jobs.
+    if (scheduler->detached) {
+        next = scheduler->internal_queue;
+        if (next != NULL) {
+            scheduler->internal_queue = next->next;
+            next->next = NULL;
+        }
+        return next;
+    }
+
+    // Otherwise, the execution unit is running as a part of the global
+    // worker pool, they only execute from the global ready queue
     mtx_lock(&g_readyQueueLock);
     next = g_readyQueue;
     if (next != NULL) {
@@ -169,7 +162,7 @@ TaskMain(struct usched_job* job)
 
     // Before yielding, let us run the deinitalizers before we do any task cleanup.
     __cxa_threadfinalize();
-    usched_yield();
+    usched_yield(NULL);
 }
 
 static void
@@ -218,47 +211,93 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 #endif
 }
 
+static void __notify_timer(struct usched_timeout* timer)
+{
+    if (timer->queue_type == __QUEUE_TYPE_MUTEX) {
+        __usched_mtx_notify_job(timer->queue.mutex, timer->job);
+    } else if (timer->queue_type == __QUEUE_TYPE_COND) {
+        __usched_cond_notify_job(timer->queue.cond, timer->job);
+    }
+}
+
+static bool __is_before_or_equal(const struct timespec* before, const struct timespec* this) {
+    if (before->tv_sec < this->tv_sec) {
+        return true;
+    } else if (before->tv_sec == this->tv_sec) {
+        return before->tv_nsec <= this->tv_nsec;
+    }
+    return false;
+}
+
 static void
 __update_timers(struct usched_scheduler* sched)
 {
-    clock_t                currentTime;
+    struct timespec        currentTime;
     struct usched_timeout* timer;
 
-    currentTime = __get_timestamp_ms();
+    timespec_get(&currentTime, TIME_UTC);
     timer = sched->timers;
     while (timer) {
-        if (timer->deadline <= currentTime) {
+        if (__is_before_or_equal(&timer->deadline, &currentTime)) {
             timer->active = 0;
-            __usched_cond_notify_job(timer->signal, timer->job);
+            __notify_timer(timer);
         }
         timer = timer->next;
     }
 }
 
-static int
-__get_next_deadline(struct usched_scheduler* sched)
+static int __get_next_deadline(
+        struct usched_scheduler* sched,
+        struct timespec*         deadline)
 {
-    clock_t                currentTime;
+    struct timespec        currentTime;
+    struct timespec        currentDiff;
     struct usched_timeout* timer;
-    int                    shortest = INT_MAX;
+    clock_t                shortest = (clock_t)-1;
+    int                    result   = -1;
 
-    currentTime = __get_timestamp_ms();
+    timespec_get(&currentTime, TIME_UTC);
     timer = sched->timers;
     while (timer) {
         if (timer->active) {
-            int diff = (int)(timer->deadline > currentTime ? (timer->deadline - currentTime) : 0);
+            if (__is_before_or_equal(&timer->deadline, &currentTime)) {
+                // timer ready, let it run again
+                currentDiff.tv_sec  = 0;
+                currentDiff.tv_nsec = 0;
+            } else {
+                timespec_diff(&currentTime, &timer->deadline , &currentDiff);
+            }
+
+            clock_t diff = (clock_t)((currentDiff.tv_sec * NSEC_PER_SEC) + (clock_t)currentDiff.tv_nsec);
+            if (diff < shortest) {
+                deadline->tv_sec = timer->deadline.tv_sec;
+                deadline->tv_nsec = timer->deadline.tv_nsec;
+            }
             shortest = MIN(diff, shortest);
             if (!shortest) {
+                result = 0;
                 break;
             }
         }
         timer = timer->next;
     }
-    return shortest;
+
+    // Set error code based on the outcome of this. We must inform
+    // the execution unit of the next action based on when a new job
+    // is ready
+    if (shortest == (clock_t)-1) {
+        // No entries, this means the XU should block indefinitely
+        // untill a new job enters ready queue
+        errno = ENOENT;
+    } else {
+        // Entries will be ready at some point, and the XU should check
+        // when the deadline has been reached.
+        errno = EWOULDBLOCK;
+    }
+    return result;
 }
 
-int
-usched_yield(void)
+int usched_yield(struct timespec* deadline)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
     struct usched_job*       current;
@@ -272,7 +311,7 @@ usched_yield(void)
     if (sched->current == NULL) {
         // if no active thread and no ready threads then we can safely just return
         if (next == NULL) {
-            return __get_next_deadline(sched);
+            return __get_next_deadline(sched, deadline);
         }
 
         // we are running in scheduler context, make sure we store
@@ -285,7 +324,7 @@ usched_yield(void)
 
             // Run maintinence tasks before returning the deadline for the next job
             __empty_garbage_bin(sched);
-            return __get_next_deadline(sched);
+            return __get_next_deadline(sched, deadline);
         }
     }
 
@@ -310,17 +349,23 @@ usched_yield(void)
     return 0;
 }
 
-void usched_wait(int timeoutMS)
+void usched_timedwait(const struct timespec* until)
 {
-    struct timespec ts;
-    __get_timestamp_from_now(timeoutMS, &ts);
-
     mtx_lock(&g_readyQueueLock);
     while (g_readyQueue == NULL) {
-        int status = cnd_timedwait(&g_readyQueueCond, &g_readyQueueLock, &ts);
+        int status = cnd_timedwait(&g_readyQueueCond, &g_readyQueueLock, until);
         if (status == thrd_timedout) {
             break;
         }
+    }
+    mtx_unlock(&g_readyQueueLock);
+}
+
+void usched_wait(void)
+{
+    mtx_lock(&g_readyQueueLock);
+    while (g_readyQueue == NULL) {
+        cnd_wait(&g_readyQueueCond, &g_readyQueueLock);
     }
     mtx_unlock(&g_readyQueueLock);
 }
@@ -341,14 +386,12 @@ void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job
 
     job = malloc(sizeof(struct usched_job));
     if (!job) {
-        errno = ENOMEM;
         return NULL;
     }
 
     job->stack = malloc(params->stack_size);
     if (!job->stack) {
         free(job);
-        errno = ENOMEM;
         return NULL;
     }
 
@@ -358,15 +401,20 @@ void* usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->entry = entry;
     job->argument = argument;
     job->cancelled = 0;
-    __tls_initialize(&job->tls);
+    if (__tls_initialize(&job->tls)) {
+        free(job->stack);
+        free(job);
+        return NULL;
+    }
 
     // We have two possible ways of queue jobs. Detached jobs get their own
     // execution unit, and thus we queue these through the xunit system. Normal
     // undetached jobs are running in the global job pool
     if (params->detached) {
         if (__xunit_start_detached(job, params)) {
-            // cleanup job, probably invalid scheduling parameters
-            // TODO cleanup
+            __tls_destroy(&job->tls);
+            free(job->stack);
+            free(job);
             return NULL;
         }
     } else {
@@ -411,13 +459,12 @@ usched_ct_is_cancelled(void* cancellationToken)
     return ((struct usched_job*)cancellationToken)->cancelled;
 }
 
-int
-__usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
+int __usched_timeout_start_cond(const struct timespec *restrict until, struct usched_cnd* cond)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
     struct usched_timeout*   timer;
 
-    if (!timeout) {
+    if (!until) {
         errno = EINVAL;
         return -1;
     }
@@ -429,8 +476,39 @@ __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond)
     }
 
     timer->id = atomic_fetch_add(&g_timerid, 1);
-    timer->deadline = __get_timestamp_ms() + timeout;
-    timer->signal = cond;
+    timer->deadline.tv_sec = until->tv_sec;
+    timer->deadline.tv_nsec = until->tv_nsec;
+    timer->queue.cond = cond;
+    timer->queue_type = __QUEUE_TYPE_COND;
+    timer->next = NULL;
+
+    timer->job = sched->current;
+    __usched_append_timer(&sched->timers, timer);
+
+    return timer->id;
+}
+
+int __usched_timeout_start_mtx(const struct timespec *restrict until, struct usched_mtx* mtx)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_timeout*   timer;
+
+    if (!until) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    timer = malloc(sizeof(struct usched_timeout));
+    if (!timer) {
+        errno = ENOMEM;
+        return -1;
+    }
+
+    timer->id = atomic_fetch_add(&g_timerid, 1);
+    timer->deadline.tv_sec = until->tv_sec;
+    timer->deadline.tv_nsec = until->tv_nsec;
+    timer->queue.mutex = mtx;
+    timer->queue_type = __QUEUE_TYPE_MUTEX;
     timer->next = NULL;
 
     timer->job = sched->current;

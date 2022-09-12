@@ -18,11 +18,15 @@
 #ifndef __OS_THREADS_H__
 #define __OS_THREADS_H__
 
+// imported from time.h
+struct timespec;
+
 #include <os/osdefs.h>
 #include <os/types/thread.h>
 
 typedef int (*ThreadEntry_t)(void*);
 
+_CODE_BEGIN
 /**
  * @brief Creates a new thread executing the function func. The function is invoked as func(arg).
  * If successful, the object pointed to by thr is set to the identifier of the new thread.
@@ -102,7 +106,7 @@ ThreadsYield(void));
  * @param threadId
  * @return
  */
-CRTDECL(int,
+CRTDECL(oserr_t,
 ThreadsDetach(
         _In_ uuid_t threadId));
 
@@ -115,7 +119,7 @@ ThreadsDetach(
  * @param exitCode
  * @return
  */
-CRTDECL(int,
+CRTDECL(oserr_t,
 ThreadsJoin(
         _In_  uuid_t threadId,
         _Out_ int*   exitCode));
@@ -127,7 +131,7 @@ ThreadsJoin(
  * @param signal
  * @return
  */
-CRTDECL(int,
+CRTDECL(oserr_t,
 ThreadsSignal(
         _In_ uuid_t threadId,
         _In_ int    signal));
@@ -152,4 +156,5 @@ ThreadsGetName(
         _In_ char* buffer,
         _In_ size_t maxLength));
 
+_CODE_END
 #endif //!__OS_THREADS_H__

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,130 +13,101 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Threading Support Definitions & Structures
- * - This header describes the base threading-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <assert.h>
 #include <errno.h>
 #include <internal/_syscalls.h>
+#include <internal/_tls.h>
 #include <os/mollenos.h>
-#include "tss.h"
+#include <os/threads.h>
 #include <stdlib.h>
-#include <threads.h>
+#include "../../libc/threads/tss.h"
 
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
-typedef struct ThreadPackage {
-    thrd_start_t Entry;
-    void*        Data;
-} ThreadPackage_t;
+struct ThreadStartupContext {
+    ThreadEntry_t Entry;
+    void*         Data;
+};
 
 void
-thrd_initialize(
-    _In_ void *Data)
+__ThreadStartup(
+    _In_ void* context)
 {
-    thread_storage_t    Tls;
-    ThreadPackage_t*    Tp;
-    int                 ExitCode;
+    thread_storage_t             threadStorage;
+    struct ThreadStartupContext* startupContext;
+    int                          exitCode;
 
-    __crt_tls_create(&Tls);
+    __tls_initialize(&threadStorage);
     __cxa_threadinitialize();
-    
-    Tp       = (ThreadPackage_t*)Data;
-    ExitCode = Tp->Entry(Tp->Data);
 
-    free(Tp);
-    thrd_exit(ExitCode);
+    startupContext = (struct ThreadStartupContext*)context;
+    exitCode = startupContext->Entry(startupContext->Data);
+
+    free(startupContext);
+    thrd_exit(exitCode);
 }
 
-void
-call_once(
-    _In_ once_flag* flag, 
-    _In_ void (*func)(void))
+oserr_t
+ThreadsCreate(
+        _Out_ uuid_t*             threadId,
+        _In_  ThreadParameters_t* parameters,
+        _In_  ThreadEntry_t       function,
+        _In_  void*               argument)
 {
-    assert(flag != NULL);
-    
-    mtx_lock(&flag->syncobject);
-    if (!flag->value) {
-        flag->value = 1;
-        func();
-    }
-    mtx_unlock(&flag->syncobject);
-}
-
-int
-thrd_create(
-    _Out_ thrd_t*      thr,
-    _In_  thrd_start_t func,
-    _In_  void*        arg)
-{
-    ThreadParameters_t Paramaters;
-    ThreadPackage_t*   Package;
-    oserr_t         Status;
-    assert(thr != NULL);
+    struct ThreadStartupContext* startupContext;
+    oserr_t                      oserr;
+    assert(threadId != NULL);
 
     // Allocate a new startup-package
-    Package = (ThreadPackage_t*)malloc(sizeof(ThreadPackage_t));
-    if (Package == NULL) {
-        _set_errno(ENOMEM);
-        return thrd_nomem;
+    startupContext = malloc(sizeof(struct ThreadStartupContext));
+    if (startupContext == NULL) {
+        return OsOutOfMemory;
     }
-    *thr = UUID_INVALID;
-    
-    Package->Entry = func;
-    Package->Data  = arg;
-    ThreadParametersInitialize(&Paramaters);
+    *threadId = UUID_INVALID;
 
-    Status = Syscall_ThreadCreate((thrd_start_t)thrd_initialize, Package, &Paramaters, (uuid_t*)thr);
-    if (Status != OsOK) {
-        OsErrToErrNo(Status);
-        free(Package);
-        return thrd_error;
+    startupContext->Entry = function;
+    startupContext->Data  = argument;
+
+    oserr = Syscall_ThreadCreate(
+            (ThreadEntry_t)__ThreadStartup,
+            startupContext,
+            parameters,
+            (uuid_t*)threadId
+    );
+    if (oserr != OsOK) {
+        free(startupContext);
     }
-    return thrd_success;
+    return oserr;
 }
 
-int
-thrd_equal(
-    _In_ thrd_t lhs,
-    _In_ thrd_t rhs)
-{
-    if (lhs == rhs) {
-        return 1;
-    }
-    return 0;
-}
-
-thrd_t
-thrd_current(void)
+uuid_t
+ThreadsCurrentId(void)
 {
     // If it's already cached, use that
-    if (tls_current()->thr_id != UUID_INVALID) {
-        return tls_current()->thr_id;
+    if (__tls_current()->thr_id != UUID_INVALID) {
+        return __tls_current()->thr_id;
     }
 
     // Otherwise, invoke OS to refresh id
-    tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
-    return tls_current()->thr_id;
+    __tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
+    return __tls_current()->thr_id;
 }
 
-int
-thrd_sleep(
-    _In_     const struct timespec* duration,
-    _In_Opt_ struct timespec*       remaining)
+oserr_t
+ThreadsSleep(
+        _In_      const struct timespec* until,
+        _Out_Opt_ struct timespec*       remaining)
 {
-    UInteger64_t ns;
-    UInteger64_t nsRemaining = {0 };
+    UInteger64_t    ns;
+    UInteger64_t    nsRemaining = {0 };
     struct timespec current;
-    oserr_t      osStatus;
+    oserr_t         oserr;
 
-    if (!duration || (duration->tv_sec == 0 && duration->tv_nsec == 0)) {
-        return thrd_error;
+    if (until == NULL) {
+        return OsInvalidParameters;
     }
 
     // the duration value is actually a timepoint specified in UTC. So we actually need to
@@ -144,80 +115,63 @@ thrd_sleep(
     timespec_get(&current, TIME_UTC);
 
     // make sure that we haven't already stepped over the timeline
-    if (current.tv_sec > duration->tv_sec || (current.tv_sec == duration->tv_sec && current.tv_nsec >= duration->tv_nsec)) {
+    if (current.tv_sec > until->tv_sec || (current.tv_sec == until->tv_sec && current.tv_nsec >= until->tv_nsec)) {
         return thrd_success;
     }
 
     // calculate duration
-    ns.QuadPart = (duration->tv_sec * NSEC_PER_SEC) + duration->tv_nsec;
+    ns.QuadPart = (until->tv_sec * NSEC_PER_SEC) + until->tv_nsec;
     ns.QuadPart -= (current.tv_sec * NSEC_PER_SEC) + current.tv_nsec;
 
-    osStatus = Syscall_Sleep(&ns, &nsRemaining);
-    if (osStatus == OsInterrupted) {
+    oserr = Syscall_Sleep(&ns, &nsRemaining);
+    if (oserr == OsInterrupted) {
         if (remaining) {
             remaining->tv_sec  = (time_t)(nsRemaining.QuadPart / NSEC_PER_SEC);
             remaining->tv_nsec = (long)(nsRemaining.QuadPart % NSEC_PER_SEC);
         }
-        return thrd_error;
     }
-    return thrd_success;
-}
-
-int
-thrd_sleepex(
-    _In_ size_t msec)
-{
-    UInteger64_t nanoseconds;
-    UInteger64_t remaining;
-
-    nanoseconds.QuadPart = msec * NSEC_PER_MSEC;
-    VaSleep(&nanoseconds, &remaining);
-    return 0;
+    return oserr;
 }
 
 void
-thrd_yield(void)
+ThreadsYield(void)
 {
     (void)Syscall_ThreadYield();
 }
 
-_Noreturn void 
-thrd_exit(
-    _In_ int res)
+_Noreturn void
+ThreadsExit(
+        _In_ int exitCode)
 {
-    tss_cleanup(thrd_current(), NULL, res);
-    tls_destroy(tls_current());
+    tss_cleanup(thrd_current());
+    __tls_destroy(__tls_current());
     __cxa_threadfinalize();
-    Syscall_ThreadExit(res);
+    Syscall_ThreadExit(exitCode);
     for(;;);
 }
 
-int
-thrd_join(
-    _In_  thrd_t thr,
-    _Out_ int*   res)
+oserr_t
+ThreadsJoin(
+        _In_  uuid_t threadId,
+        _Out_ int*   exitCode)
 {
-    if (Syscall_ThreadJoin(thr, res) == OsOK) {
-        return thrd_success;
+    if (exitCode == NULL) {
+        return OsInvalidParameters;
     }
-    return thrd_error;
+    return Syscall_ThreadJoin(threadId, exitCode);
 }
 
-int
-thrd_detach(
-    _In_ thrd_t thr)
+oserr_t
+ThreadsDetach(
+        _In_ uuid_t threadId)
 {
-    // The syscall actually does most of the work
-    if (Syscall_ThreadDetach(thr) == OsOK) {
-        return thrd_success;
-    }
-    return thrd_error;
+    return Syscall_ThreadDetach(threadId);
 }
 
-int
-thrd_signal(
-    _In_ thrd_t thr,
-    _In_ int    sig)
+oserr_t
+ThreadsSignal(
+        _In_ uuid_t threadId,
+        _In_ int    signal)
 {
-    return Syscall_ThreadSignal(thr, sig);
+    return Syscall_ThreadSignal(threadId, signal);
 }

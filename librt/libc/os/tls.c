@@ -20,9 +20,6 @@
 #include "internal/_locale.h"
 #include "internal/_utils.h"
 #include "os/usched/usched.h"
-#include "stdlib.h"
-#include "string.h"
-#include "scheduler/private.h"
 
 static const char* g_nullEnvironment[] = {
         NULL
@@ -82,7 +79,7 @@ int __tls_initialize(struct thread_storage* tls)
     // TODO: do on first read/write instead?
     buffer = malloc(BUFSIZ);
     if (buffer == NULL) {
-        return OsOutOfMemory;
+        return -1;
     }
 
     info.name     = "thread_tls";
@@ -90,7 +87,10 @@ int __tls_initialize(struct thread_storage* tls)
     info.capacity = BUFSIZ;
     info.flags    = DMA_PERSISTANT;
     info.type     = DMA_TYPE_DRIVER_32;
-    return dma_export(buffer, &info, &tls->transfer_buffer);
+    if (dma_export(buffer, &info, &tls->transfer_buffer) != OsOK) {
+        return -1;
+    }
+    return 0;
 }
 
 static void __destroy_env_block(char** env)

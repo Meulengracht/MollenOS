@@ -30,8 +30,14 @@ void usched_mtx_init(struct usched_mtx* mutex)
     mutex->queue = NULL;
 }
 
-static void BlockAndWait(struct usched_mtx* mutex, struct usched_job* current)
+static int BlockAndWait(
+        struct usched_mtx*              mutex,
+        struct usched_job*              current,
+        const struct timespec *restrict until)
 {
+    int status = 0;
+    int timer;
+
     // set us blocked
     current->state = JobState_BLOCKED;
 
@@ -41,14 +47,22 @@ static void BlockAndWait(struct usched_mtx* mutex, struct usched_job* current)
     // wait for ownership
     while (mutex->owner != current) {
         spinlock_release(&mutex->lock);
-        usched_yield();
+        if (until != NULL) {
+            timer = __usched_timeout_start_mtx(until, mutex);
+        }
+        usched_yield(NULL);
+        if (until != NULL) {
+            status = __usched_timeout_finish(timer);
+        }
         spinlock_acquire(&mutex->lock);
     }
+    return status;
 }
 
-void usched_mtx_lock(struct usched_mtx* mutex)
+int usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restrict until)
 {
     struct usched_job* current;
+    int                status = 0;
     assert(mutex != NULL);
 
     current = __usched_get_scheduler()->current;
@@ -57,12 +71,42 @@ void usched_mtx_lock(struct usched_mtx* mutex)
     spinlock_acquire(&mutex->lock);
     assert(mutex->owner != current);
     if (mutex->owner) {
-        BlockAndWait(mutex, current);
-    }
-    else {
+        if (BlockAndWait(mutex, current, until) == -1) {
+            errno  = ETIME;
+            status = -1;
+        }
+    } else {
         mutex->owner = current;
     }
     spinlock_release(&mutex->lock);
+    return status;
+}
+
+int usched_mtx_trylock(struct usched_mtx* mutex)
+{
+    struct usched_job* current;
+    int                status;
+    assert(mutex != NULL);
+
+    current = __usched_get_scheduler()->current;
+    assert(current != NULL);
+
+    spinlock_acquire(&mutex->lock);
+    if (mutex->owner) {
+        errno  = EBUSY;
+        status = -1;
+    } else {
+        mutex->owner = current;
+        status       = 0;
+    }
+    spinlock_release(&mutex->lock);
+    return status;
+}
+
+void usched_mtx_lock(struct usched_mtx* mutex)
+{
+    int status = usched_mtx_timedlock(mutex, NULL);
+    assert(status == 0);
 }
 
 void usched_mtx_unlock(struct usched_mtx* mutex)
@@ -90,4 +134,34 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
         next->state = JobState_RUNNING;
         __usched_add_job_ready(next);
     }
+}
+
+void __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job)
+{
+    assert(mtx != NULL);
+    assert(job != NULL);
+
+    spinlock_acquire(&mtx->lock);
+    if (mtx->queue) {
+        struct usched_job* i = mtx->queue, *previous = NULL;
+        while (i) {
+            if (i == job) {
+                if (!previous) {
+                    mtx->queue = i->next;
+                }
+                else {
+                    previous->next = i->next;
+                }
+
+                job->next = NULL;
+                job->state = JobState_RUNNING;
+                __usched_add_job_ready(job);
+                break;
+            }
+
+            previous = i;
+            i = i->next;
+        }
+    }
+    spinlock_release(&mtx->lock);
 }

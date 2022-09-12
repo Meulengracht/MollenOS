@@ -26,6 +26,7 @@
  */
 
 #ifndef LIBC_KERNEL
+#include <assert.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <internal/_ipc.h>

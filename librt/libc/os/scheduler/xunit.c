@@ -114,21 +114,25 @@ void usched_xunit_init(void)
 
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
-    void* mainCT;
+    struct timespec deadline;
+    void*           mainCT;
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
     mainCT = usched_task_queue(startFn, argument);
     (void)mainCT; // TODO: better support for cancelling tasks...
     while (1) {
-        int timeout;
+        int status;
 
         do {
-            timeout = usched_yield();
-        } while (timeout == 0);
+            status = usched_yield(&deadline);
+        } while (status == 0);
 
-        // Wait now for new tasks to enter the ready queue
-        usched_wait(timeout);
+        // Wait now for new tasks to enter the ready queue. If errno is set
+        // to EWOULDBLOCK, this means we should wait until the deadline is
+        // reached.
+        if (errno == EWOULDBLOCK) { usched_timedwait(&deadline); }
+        else                      { usched_wait(); }
     }
 }
 
@@ -177,14 +181,18 @@ _Noreturn static void __execution_unit_main(void* data)
     // becomes available. If the primary runs out of tasks, and all XU's sleep, then the program
     // exits.
     while (1) {
-        int timeout;
+        struct timespec deadline;
+        int             status;
 
         do {
-            timeout = usched_yield();
-        } while (timeout == 0);
+            status = usched_yield(&deadline);
+        } while (status == 0);
 
-        // Wait for new jobs to be ready on this execution unit.
-        usched_wait(timeout);
+        // Wait now for new tasks to enter the ready queue. If errno is set
+        // to EWOULDBLOCK, this means we should wait until the deadline is
+        // reached.
+        if (errno == EWOULDBLOCK) { usched_timedwait(&deadline); }
+        else                      { usched_wait(); }
     }
 }
 

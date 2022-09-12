@@ -13,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * User threads implementation. Implements support for multiple tasks running entirely
- * in userspace. This is supported by additional synchronization primitives in the usched_
- * namespace.
  */
 
 #ifndef __USCHED_PRIVATE_H__
@@ -26,6 +21,7 @@
 #include <internal/_tls.h>
 #include <setjmp.h>
 #include <threads.h>
+#include <time.h>
 
 #define SCHEDULER_MAGIC 0xDEADB00B
 
@@ -51,12 +47,19 @@ struct usched_job {
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
 
+#define __QUEUE_TYPE_COND  1
+#define __QUEUE_TYPE_MUTEX 2
+
 struct usched_timeout {
     int                    id;
-    clock_t                deadline;
+    struct timespec        deadline;
     int                    active;
     struct usched_job*     job;
-    struct usched_cnd*     signal;
+    union {
+        struct usched_cnd* cond;
+        struct usched_mtx* mutex;
+    } queue;
+    int                    queue_type;
     struct usched_timeout* next;
 };
 
@@ -135,9 +138,12 @@ extern void __usched_init(struct usched_scheduler* sched, struct usched_init_par
 extern void                       __usched_add_job_ready(struct usched_job* job);
 extern int                        __usched_prepare_migrate(void);
 extern struct usched_scheduler*   __usched_get_scheduler(void);
-extern int                        __usched_timeout_start(unsigned int timeout, struct usched_cnd* cond);
+extern struct execution_unit_tls* __usched_xunit_tls_current(void);
+
+extern int                        __usched_timeout_start_cond(const struct timespec *restrict until, struct usched_cnd* cond);
+extern int                        __usched_timeout_start_mtx(const struct timespec *restrict until, struct usched_mtx* mtx);
 extern int                        __usched_timeout_finish(int id);
 extern void                       __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
-extern struct execution_unit_tls* __usched_xunit_tls_current(void);
+extern void                       __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job);
 
 #endif //!__USCHED_PRIVATE_H__

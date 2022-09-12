@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,127 +15,117 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Condition Support Definitions & Structures
- * - This header describes the base condition-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/futex.h>
-#include <threads.h>
+#include <os/condition.h>
 #include <time.h>
 
-int
-cnd_init(
-    _In_ cnd_t* cond)
+oserr_t
+ConditionInitialize(
+        _In_ Condition_t* cond)
 {
     if (!cond) {
-        return thrd_error;
+        return OsInvalidParameters;
     }
 
-    atomic_store(&cond->syncobject, 0);
-    return thrd_success;
+    atomic_store(&cond->Value, 0);
+    return OsOK;
 }
 
 void
-cnd_destroy(
-    _In_ cnd_t* cond)
+ConditionDestroy(
+        _In_ Condition_t* cond)
 {
 	if (!cond) {
 		return;
 	}
-	cnd_broadcast(cond);
+    ConditionBroadcast(cond);
 }
 
-int
-cnd_signal(
-    _In_ cnd_t* cond)
+oserr_t
+ConditionSignal(
+        _In_ Condition_t* cond)
 {
     FutexParameters_t parameters;
     oserr_t        status;
     
 	if (cond == NULL) {
-		return thrd_error;
+		return OsInvalidParameters;
 	}
 	
-    parameters._futex0  = &cond->syncobject;
+    parameters._futex0  = &cond->Value;
     parameters._val0    = 1;
     parameters._flags   = FUTEX_WAKE_PRIVATE;
-	status = Syscall_FutexWake(&parameters);
-	if (status != OsOK && status != OsNotExists) {
-	    return thrd_error;
-	}
-    return thrd_success;
+	return Syscall_FutexWake(&parameters);
 }
 
-int 
-cnd_broadcast(
-    _In_ cnd_t *cond)
+oserr_t
+ConditionBroadcast(
+        _In_ Condition_t* cond)
 {
     FutexParameters_t parameters;
     
-	if (!cond) {
-		return thrd_error;
+	if (cond == NULL) {
+        return OsInvalidParameters;
 	}
 	
-    parameters._futex0  = &cond->syncobject;
-    parameters._val0    = atomic_load(&cond->syncobject);
+    parameters._futex0  = &cond->Value;
+    parameters._val0    = atomic_load(&cond->Value);
     parameters._flags   = FUTEX_WAKE_PRIVATE;
-	(void)Syscall_FutexWake(&parameters);
-    return thrd_success;
+	return Syscall_FutexWake(&parameters);
 }
 
-int
-cnd_wait(
-    _In_ cnd_t* cond,
-    _In_ mtx_t* mutex)
+oserr_t
+ConditionWait(
+        _In_ Condition_t* cond,
+        _In_ Mutex_t*     mutex)
 {
     FutexParameters_t parameters;
-    oserr_t        status;
-	if (!cond || !mutex) {
-		return thrd_error;
+    oserr_t           oserr;
+	if (cond == NULL || mutex == NULL) {
+		return OsInvalidParameters;
 	}
 
-    parameters._futex0  = &cond->syncobject;
-    parameters._futex1  = &mutex->value;
-    parameters._val0    = atomic_load(&cond->syncobject);
+    parameters._futex0  = &cond->Value;
+    parameters._futex1  = &mutex->Value;
+    parameters._val0    = atomic_load(&cond->Value);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0);
     parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
     parameters._timeout = 0;
-    
-    status = Syscall_FutexWait(&parameters);
-    mtx_lock(mutex);
-    if (status != OsOK) {
-        return thrd_error;
+
+    oserr = Syscall_FutexWait(&parameters);
+    if (oserr != OsOK) {
+        MutexLock(mutex);
+        return oserr;
     }
-    return thrd_success;
+    return MutexLock(mutex);
 }
 
-int
-cnd_timedwait(
-    _In_ cnd_t* restrict                 cond,
-    _In_ mtx_t* restrict                 mutex,
-    _In_ const struct timespec* restrict time_point)
+oserr_t
+ConditionTimedWait(
+        _In_ Condition_t* restrict           cond,
+        _In_ Mutex_t* restrict               mutex,
+        _In_ const struct timespec* restrict timePoint)
 {
     FutexParameters_t parameters;
-	oserr_t        status;
+	oserr_t           status;
     time_t            msec;
 	struct timespec   now, result;
 
-	if (!cond || !mutex) {
-		return thrd_error;
+	if (cond == NULL || mutex == NULL || timePoint == NULL) {
+		return OsInvalidParameters;
 	}
     
     // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
-    timespec_diff(&now, time_point, &result);
+    timespec_diff(&now, timePoint, &result);
     if (result.tv_sec < 0) {
-        return thrd_timedout;
+        return OsTimeout;
     }
 
     msec = result.tv_sec * MSEC_PER_SEC;
@@ -143,21 +133,18 @@ cnd_timedwait(
         msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
     }
 
-    parameters._futex0  = &cond->syncobject;
-    parameters._futex1  = &mutex->value;
-    parameters._val0    = atomic_load(&cond->syncobject);
+    parameters._futex0  = &cond->Value;
+    parameters._futex1  = &mutex->Value;
+    parameters._val0    = atomic_load(&cond->Value);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
     parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
     parameters._timeout = msec;
     
     status = Syscall_FutexWait(&parameters);
-    mtx_lock(mutex);
-	if (status  == OsTimeout) {
-		return thrd_timedout;
-	}
-	else if (status != OsOK) {
-	    return thrd_error;
-	}
-	return thrd_success;
+    if (status != OsOK) {
+        MutexLock(mutex);
+        return status;
+    }
+	return MutexLock(mutex);
 }

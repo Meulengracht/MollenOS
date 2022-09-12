@@ -507,6 +507,17 @@ exit:
     RequestDestroy(request);
 }
 
+static void
+__get_timestamp_from_now(unsigned int ms, struct timespec* ts)
+{
+    timespec_get(ts, TIME_UTC);
+    ts->tv_nsec += (NSEC_PER_MSEC * ms);
+    if (ts->tv_nsec >= NSEC_PER_SEC) {
+        ts->tv_sec++;
+        ts->tv_nsec -= NSEC_PER_SEC;
+    }
+}
+
 void
 PmJoinProcess(
         _In_ Request_t* request,
@@ -540,8 +551,10 @@ PmJoinProcess(
     // ok so the process is still running/terminating
     usched_mtx_lock(&target->lock);
     if (target->state == ProcessState_RUNNING) {
-        int status = usched_cnd_wait_timed(&request->signal, &target->lock,
-                                           request->parameters.join.timeout);
+        struct timespec ts;
+        int             status;
+        __get_timestamp_from_now(request->parameters.join.timeout, &ts);
+        status = usched_cnd_timedwait(&request->signal, &target->lock, &ts);
         if (status) {
             usched_mtx_unlock(&target->lock);
             sys_process_join_response(request->message, OsTimeout, 0);

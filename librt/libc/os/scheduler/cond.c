@@ -42,11 +42,14 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
     usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
-    usched_yield();
+    usched_yield(NULL);
     usched_mtx_lock(mutex);
 }
 
-int usched_cnd_wait_timed(struct usched_cnd* condition, struct usched_mtx* mutex, unsigned int timeout)
+int usched_cnd_timedwait(
+        struct usched_cnd*              condition,
+        struct usched_mtx*              mutex,
+        const struct timespec *restrict until)
 {
     struct usched_job* current;
     int                timer;
@@ -61,8 +64,8 @@ int usched_cnd_wait_timed(struct usched_cnd* condition, struct usched_mtx* mutex
     usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
-    timer = __usched_timeout_start(timeout, condition);
-    usched_yield();
+    timer = __usched_timeout_start_cond(until, condition);
+    usched_yield(NULL);
     status = __usched_timeout_finish(timer);
     usched_mtx_lock(mutex);
     return status;
@@ -120,6 +123,7 @@ void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* j
                 job->next = NULL;
                 job->state = JobState_RUNNING;
                 __usched_add_job_ready(job);
+                break;
             }
 
             previous = i;

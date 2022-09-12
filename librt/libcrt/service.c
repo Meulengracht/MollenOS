@@ -24,7 +24,6 @@
 #include <internal/_utils.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
-#include "../libc/threads/tss.h"
 #include <stdlib.h>
 #include <ioset.h>
 
@@ -49,23 +48,49 @@ __crt_get_service_server(void)
     return g_server;
 }
 
+static bool __is_before_or_equal(const struct timespec* before, const struct timespec* this) {
+    if (before->tv_sec < this->tv_sec) {
+        return true;
+    } else if (before->tv_sec == this->tv_sec) {
+        return before->tv_nsec <= this->tv_nsec;
+    }
+    return false;
+}
+
+static int __get_ms_from_timespec_now(const struct timespec* deadline)
+{
+    struct timespec ts;
+    struct timespec diff;
+    timespec_get(&ts, TIME_UTC);
+    if (__is_before_or_equal(&ts, deadline)) {
+        timespec_diff(&ts, deadline , &diff);
+    } else {
+        timespec_diff(deadline, deadline, &diff);
+    }
+    return (int)((diff.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC));
+}
+
 _Noreturn static void
 __crt_service_main(int setIod)
 {
     struct ioset_event events[32];
-    int                timeout;
     int                num_events;
 
     while (1) {
+        struct timespec deadline;
+        int             status;
+        int             timeout;
+
         // handle tasks before going to sleep
         do {
-            timeout = usched_yield();
-        } while (timeout == 0);
+            status = usched_yield(&deadline);
+        } while (status == 0);
 
-        // convert INT_MAX result to infinite result
-        if (timeout == INT_MAX) {
-            timeout = 0;
-        }
+        // Wait now for new tasks to enter the ready queue. If errno is set
+        // to EWOULDBLOCK, this means we should wait until the deadline is
+        // reached.
+        if (errno == EWOULDBLOCK) { timeout = __get_ms_from_timespec_now(&deadline); }
+        else                      { timeout = 0; }
 
         // handle events
         num_events = ioset_wait(setIod, &events[0], 32, timeout);

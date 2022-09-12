@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Mutex Support Definitions & Structures
- * - This header describes the base mutex-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <ddk/barrier.h>
@@ -27,7 +22,8 @@
 #include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <os/futex.h>
-#include <threads.h>
+#include <os/mutex.h>
+#include <os/threads.h>
 #include <time.h>
 
 #define MUTEX_SPINS     1000
@@ -35,13 +31,13 @@
 
 static SystemDescriptor_t SystemInfo = { 0 };
 
-int
-mtx_init(
-    _In_ mtx_t* mutex,
-    _In_ int    type)
+oserr_t
+MutexInitialize(
+        _In_ Mutex_t* mutex,
+        _In_ int      flags)
 {
     if (mutex == NULL) {
-        return thrd_error;
+        return OsInvalidParameters;
     }
 
     // Get information about the system
@@ -49,55 +45,53 @@ mtx_init(
         SystemQuery(&SystemInfo);
     }
     
-    mutex->flags = type;
-    mutex->owner = UUID_INVALID;
-    mutex->value = ATOMIC_VAR_INIT(0);
-    mutex->references = ATOMIC_VAR_INIT(0);
-    smp_wmb();
-    
-    return thrd_success;
+    mutex->Flags = flags;
+    mutex->Owner = UUID_INVALID;
+    mutex->Value = ATOMIC_VAR_INIT(0);
+    mutex->References = ATOMIC_VAR_INIT(0);
+    return OsOK;
 }
 
 void
-mtx_destroy(
-    _In_ mtx_t* mutex)
+MutexDestroy(
+        _In_ Mutex_t* mutex)
 {
     FutexParameters_t parameters;
     
     if (mutex != NULL) {
-        mutex->flags |= MUTEX_DESTROYED;
+        mutex->Flags |= MUTEX_DESTROYED;
         smp_wmb();
         
-        parameters._futex0 = &mutex->value;
+        parameters._futex0 = &mutex->Value;
         parameters._val0   = INT_MAX;
         parameters._flags  = FUTEX_WAKE_PRIVATE;
         Syscall_FutexWake(&parameters);
     }
 }
 
-int
-mtx_trylock(
-    _In_ mtx_t* mutex)
+oserr_t
+MutexTryLock(
+        _In_ Mutex_t* mutex)
 {
     int initialcount;
     int z = 0;
     int status;
     
     if (mutex == NULL) {
-        return thrd_error;
+        return OsInvalidParameters;
     }
     
     // If this thread already holds the mutex,
     // increase ref count, but only if we're recursive
-    if (mutex->flags & mtx_recursive) {
+    if (mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
-            initialcount = atomic_load(&mutex->references);
-            if (initialcount != 0 && mutex->owner == thrd_current()) {
-                status = atomic_compare_exchange_weak_explicit(&mutex->references, 
+            initialcount = atomic_load(&mutex->References);
+            if (initialcount != 0 && mutex->Owner == ThreadsCurrentId()) {
+                status = atomic_compare_exchange_weak_explicit(&mutex->References,
                     &initialcount, initialcount + 1, memory_order_release,
                     memory_order_acquire);
                 if (status) {
-                    return thrd_success;
+                    return OsOK;
                 }
                 continue;
             }
@@ -105,19 +99,19 @@ mtx_trylock(
         }
     }
     
-    status = atomic_compare_exchange_strong(&mutex->value, &z, 1);
+    status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
     if (status) {
-        mutex->owner = thrd_current();
-        atomic_store(&mutex->references, 1);
-        return thrd_success;
+        mutex->Owner = ThreadsCurrentId();
+        atomic_store(&mutex->References, 1);
+        return OsOK;
     }
-    return thrd_busy;
+    return OsBusy;
 }
 
 static int
 __perform_lock(
-    _In_ mtx_t* mutex,
-    _In_ size_t timeout)
+    _In_ Mutex_t* mutex,
+    _In_ size_t   timeout)
 {
     FutexParameters_t parameters;
     int initialcount;
@@ -127,15 +121,15 @@ __perform_lock(
     
     // If this thread already holds the mutex,
     // increase ref count, but only if we're recursive 
-    if (mutex->flags & mtx_recursive) {
+    if (mutex->Flags & MUTEX_RECURSIVE) {
         while (1) {
-            initialcount = atomic_load(&mutex->references);
-            if (initialcount != 0 && mutex->owner == thrd_current()) {
-                status = atomic_compare_exchange_weak_explicit(&mutex->references, 
+            initialcount = atomic_load(&mutex->References);
+            if (initialcount != 0 && mutex->Owner == ThreadsCurrentId()) {
+                status = atomic_compare_exchange_weak_explicit(&mutex->References,
                     &initialcount, initialcount + 1, memory_order_release,
                     memory_order_acquire);
                 if (status) {
-                    return thrd_success;
+                    return OsOK;
                 }
                 continue;
             }
@@ -143,7 +137,7 @@ __perform_lock(
         }
     }
     
-    parameters._futex0  = &mutex->value;
+    parameters._futex0  = &mutex->Value;
     parameters._val0    = 2; // we always sleep on expecting a two
     parameters._timeout = timeout;
     parameters._flags   = FUTEX_WAIT_PRIVATE;
@@ -151,12 +145,12 @@ __perform_lock(
     // On multicore systems the lock might be released rather quickly
     // so we perform a number of initial spins before going to sleep,
     // and only in the case that there are no sleepers && locked
-    status = atomic_compare_exchange_strong(&mutex->value, &z, 1);
+    status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
     if (!status) {
         if (SystemInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
-                if (mtx_trylock(mutex) == thrd_success) {
-                    return thrd_success;
+                if (MutexTryLock(mutex) == OsOK) {
+                    return OsOK;
                 }
             }
         }
@@ -164,52 +158,52 @@ __perform_lock(
         // Loop untill we get the lock
         if (z != 0) {
             if (z != 2) {
-                z = atomic_exchange(&mutex->value, 2);
+                z = atomic_exchange(&mutex->Value, 2);
             }
             while (z != 0) {
                 if (Syscall_FutexWait(&parameters) == OsTimeout) {
-                    return thrd_timedout;
+                    return OsTimeout;
                 }
-                if (mutex->flags & MUTEX_DESTROYED) {
-                    return thrd_error;
+                if (mutex->Flags & MUTEX_DESTROYED) {
+                    return OsCancelled;
                 }
-                z = atomic_exchange(&mutex->value, 2);
+                z = atomic_exchange(&mutex->Value, 2);
             }
         }
     }
 
-    mutex->owner = thrd_current();
-    atomic_store(&mutex->references, 1);
-    return thrd_success;
+    mutex->Owner = ThreadsCurrentId();
+    atomic_store(&mutex->References, 1);
+    return OsOK;
 }
 
-int
-mtx_lock(
-    _In_ mtx_t* mutex)
+oserr_t
+MutexLock(
+        _In_ Mutex_t* mutex)
 {
     if (mutex == NULL) {
-        return thrd_error;
+        return OsInvalidParameters;
     }
     return __perform_lock(mutex, 0);
 }
 
-int
-mtx_timedlock(
-    _In_ mtx_t* restrict                 mutex,
-    _In_ const struct timespec* restrict time_point)
+oserr_t
+MutexTimedLock(
+        _In_ Mutex_t* restrict               mutex,
+        _In_ const struct timespec *restrict timePoint)
 {
     time_t          msec = 0;
 	struct timespec now, result;
     
-    if (mutex == NULL || !(mutex->flags & mtx_timed)) {
-        return thrd_error;
+    if (mutex == NULL || !(mutex->Flags & MUTEX_TIMED)) {
+        return OsInvalidParameters;
     }
     
     // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
-    timespec_diff(&now, time_point, &result);
+    timespec_diff(&now, timePoint, &result);
     if (result.tv_sec < 0) {
-        return thrd_timedout;
+        return OsTimeout;
     }
 
     msec = result.tv_sec * MSEC_PER_SEC;
@@ -219,35 +213,35 @@ mtx_timedlock(
     return __perform_lock(mutex, msec);
 }
 
-int
-mtx_unlock(
-    _In_ mtx_t* mutex)
+oserr_t
+MutexUnlock(
+        _In_ Mutex_t* mutex)
 {
     FutexParameters_t parameters;
     int               initialcount;
     if (mutex == NULL) {
-        return thrd_error;
+        return OsInvalidParameters;
     }
 
     // Sanitize state of the mutex, are we even able to unlock it?
-    initialcount = atomic_load(&mutex->references);
-    if (initialcount == 0 || mutex->owner != thrd_current()) {
-        return thrd_error;
+    initialcount = atomic_load(&mutex->References);
+    if (initialcount == 0 || mutex->Owner != ThreadsCurrentId()) {
+        return OsInvalidPermissions;
     }
     
-    initialcount = atomic_fetch_sub(&mutex->references, 1);
+    initialcount = atomic_fetch_sub(&mutex->References, 1);
     if ((initialcount - 1) == 0) {
-        parameters._futex0  = &mutex->value;
+        parameters._futex0  = &mutex->Value;
         parameters._val0    = 1;
         parameters._flags   = FUTEX_WAKE_PRIVATE;
 
-        mutex->owner = UUID_INVALID;
+        mutex->Owner = UUID_INVALID;
         
-        initialcount = atomic_fetch_sub(&mutex->value, 1);
+        initialcount = atomic_fetch_sub(&mutex->Value, 1);
         if (initialcount != 1) {
-            atomic_store(&mutex->value, 0);
+            atomic_store(&mutex->Value, 0);
             Syscall_FutexWake(&parameters);
         }
     }
-    return thrd_success;
+    return OsOK;
 }

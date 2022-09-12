@@ -25,51 +25,56 @@
 #define _BINARYSEMAPHORE_INTERFACE_H_
 
 #include <os/osdefs.h>
-#include <threads.h>
+#include <os/mutex.h>
+#include <os/condition.h>
 
-/* Binary Semaphore
- * Provides a synchronization method between threads and jobs */
 typedef struct BinarySemaphore {
-    mtx_t           Mutex;
-    cnd_t           Condition;
-    int             Value;
+    Mutex_t     Mutex;
+    Condition_t Condition;
+    int         Value;
 } BinarySemaphore_t;
 
-/* BinarySemaphoreConstruct
- * Initializes the semaphore value to either 0 or 1. The pointer
- * must be pre-allocated before calling. */
-CRTDECL(
-oserr_t,
-BinarySemaphoreConstruct(
-    _In_ BinarySemaphore_t *BinarySemaphore,
-    _In_ int Value));
+/**
+ * @brief Initializes the semaphore value to either 0 or 1
+ * @param binarySemaphore
+ * @param value
+ * @return
+ */
+CRTDECL(oserr_t,
+BinarySemaphoreInitialize(
+    _In_ BinarySemaphore_t* binarySemaphore,
+    _In_ int                value));
 
-/* BinarySemaphoreReset
- * Reinitializes the semaphore with a value of 0 */
-CRTDECL(
-oserr_t,
+/**
+ * @brief Reinitializes the semaphore with a value of 0.
+ * @param binarySemaphore
+ */
+CRTDECL(void,
 BinarySemaphoreReset(
-    _In_ BinarySemaphore_t *BinarySemaphore));
+        _In_ BinarySemaphore_t* binarySemaphore));
 
-/* BinarySemaphorePost
- * Post event to a single thread waiting for an event */
-CRTDECL(
-void,
+/**
+ * @brief Post event to a single thread waiting for an event.
+ * @param binarySemaphore
+ */
+CRTDECL(void,
 BinarySemaphorePost(
-    _In_ BinarySemaphore_t *BinarySemaphore));
+        _In_ BinarySemaphore_t* binarySemaphore));
 
-/* BinarySemaphorePostAll
- * Post event to all threads waiting for an event */
-CRTDECL(
-void,
+/**
+ * @brief Post event to all threads waiting for an event
+ * @param binarySemaphore
+ */
+CRTDECL(void,
 BinarySemaphorePostAll(
-    _In_ BinarySemaphore_t *BinarySemaphore));
+        _In_ BinarySemaphore_t* binarySemaphore));
 
-/* BinarySemaphoreWait
- * Wait on semaphore until semaphore has value 0 */
-CRTDECL(
-void,
+/**
+ * @brief Wait on semaphore until semaphore has value 0.
+ * @param binarySemaphore
+ */
+CRTDECL(void,
 BinarySemaphoreWait(
-    _In_ BinarySemaphore_t* BinarySemaphore));
+        _In_ BinarySemaphore_t* binarySemaphore));
 
 #endif //!_BINARYSEMAPHORE_INTERFACE_H_
