@@ -17,9 +17,10 @@
  */
 
 #include <ddk/ddkdefs.h> // for __reserved
-#include <os/threads.h>
 #include <internal/_tls.h>
 #include <internal/_syscalls.h>
+#include <os/mutex.h>
+#include <os/threads.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
 #include <signal.h>
@@ -41,7 +42,7 @@ struct execution_manager {
     struct usched_execution_unit  primary;
     struct usched_execution_unit* detached;
     int                           count;
-    mtx_t                         lock;
+    Mutex_t                       lock;
     int                           core_count;
 };
 
@@ -92,13 +93,13 @@ static int __get_cpu_count(void)
 void usched_xunit_init(void)
 {
     // initialize the manager
-    mtx_init(&g_executionManager.lock, mtx_recursive);
+    MutexInitialize(&g_executionManager.lock, MUTEX_RECURSIVE);
     g_executionManager.count = 1;
     g_executionManager.core_count = __get_cpu_count();
 
     // initialize the primary xunit
     __execution_unit_construct(&g_executionManager.primary);
-    g_executionManager.primary.thread_id = thrd_current();
+    g_executionManager.primary.thread_id = ThreadsCurrentId();
 
     // Install the execution unit specific data into slot 2. This will then
     // be available to all units, and gives us an opportunity to store things
@@ -222,7 +223,7 @@ static int __spawn_execution_unit(struct usched_execution_unit* unit, unsigned i
     // Spawn a thread in the raw fashion to allow us to control the CRT initalization
     // a bit more fine-grained as we want to inject another per-thread value.
     oserr = Syscall_ThreadCreate(
-            (thrd_start_t)__execution_unit_main,
+            (ThreadEntry_t)__execution_unit_main,
             unit, &parameters,
             &unit->thread_id
     );
@@ -304,8 +305,8 @@ static int __stop_execution_unit(void)
 
     // signal the execution unit to stop, wait for it to terminate,
     // and then we transfer its tasks to the remaining units
-    thrd_signal(unit->thread_id, SIGUSR1);
-    thrd_join(unit->thread_id, &unitResult);
+    ThreadsSignal(unit->thread_id, SIGUSR1);
+    ThreadsJoin(unit->thread_id, &unitResult);
     __execution_unit_delete(unit);
     return 0;
 }
@@ -331,7 +332,7 @@ int usched_xunit_set_count(int count)
         count = g_executionManager.core_count;
     }
 
-    mtx_lock(&g_executionManager.lock);
+    MutexLock(&g_executionManager.lock);
     if (count > g_executionManager.count) {
         int xunitsToCreate = count - g_executionManager.count;
         for (int i = 0; i < xunitsToCreate; i++) {
@@ -357,7 +358,7 @@ int usched_xunit_set_count(int count)
             }
         }
     }
-    mtx_unlock(&g_executionManager.lock);
+    MutexUnlock(&g_executionManager.lock);
 
     // Before returning - which we should not do if we need to kill
     // the current thread, we just exit
@@ -374,9 +375,9 @@ int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters*
     // Create a new execution unit, mark it RUNNING_DETACHED. We then supply it the
     // job it will be executing. Make sure we proxy the affinity mask for the execution
     // unit in case the job is requesting a specific core to run on.
-    mtx_lock(&g_executionManager.lock);
+    MutexLock(&g_executionManager.lock);
     result = __start_execution_unit(params->affinity_mask, job);
-    mtx_unlock(&g_executionManager.lock);
+    MutexUnlock(&g_executionManager.lock);
     if (result) {
         return result;
     }

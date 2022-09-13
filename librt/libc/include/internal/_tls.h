@@ -5,14 +5,13 @@
 #include <os/osdefs.h>
 #include <os/dmabuf.h>
 #include <stdio.h>
-#include <threads.h>
 #include <wchar.h>
 
 // Number of tls entries
 #define TLS_NUMBER_ENTRIES 64
 
 typedef struct thread_storage {
-    thrd_t                thr_id;
+    uuid_t                thr_id;
     void*                 handle;
     const char* const*    env_block;
     errno_t               err_no;

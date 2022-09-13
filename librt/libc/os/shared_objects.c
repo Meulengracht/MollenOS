@@ -20,15 +20,8 @@
 #include <ds/hashtable.h>
 #include <errno.h>
 #include <internal/_ipc.h>
-#include <internal/_syscalls.h>
-#include <internal/_utils.h>
-#include <os/mollenos.h>
 #include <os/sharedobject.h>
-#include <stdlib.h>
-#include <string.h>
 #include <strings.h>
-#include <threads.h>
-#include "assert.h"
 
 struct library_element {
     const char* path;

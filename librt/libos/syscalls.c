@@ -15,14 +15,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Syscall Definitions & Structures
- * - This header describes the base syscall-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_syscalls.h>
-#include <os/osdefs.h>
 
 __EXTERN SCTYPE _syscall(SCTYPE Function, SCTYPE Arg0, SCTYPE Arg1, SCTYPE Arg2, SCTYPE Arg3, SCTYPE Arg4);
 

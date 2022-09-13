@@ -15,11 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Spinlock Support Definitions & Structures
- * - This header describes the base spinlock-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <assert.h>

@@ -21,7 +21,6 @@
 #define __TRACE
 
 #include <ds/ds.h>
-#include <string.h>
 
 #if defined(VALI)
 #ifdef __LIBDS_KERNEL_BUILD
@@ -35,7 +34,7 @@
 extern oserr_t ScFutexWait(FutexParameters_t*);
 extern oserr_t ScFutexWake(FutexParameters_t*);
 #else
-#include <internal/_syscalls.h>
+#include <os/futex.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -110,7 +109,7 @@ void dswait(FutexParameters_t* params)
 #ifdef __LIBDS_KERNEL_BUILD
     ScFutexWait(params);
 #else
-    Syscall_FutexWait(params);
+    Futex(params);
 #endif
 }
 
@@ -119,7 +118,7 @@ void dswake(FutexParameters_t* params)
 #ifdef __LIBDS_KERNEL_BUILD
     ScFutexWake(params);
 #else
-    Syscall_FutexWake(params);
+    Futex(params);
 #endif
 }
 
@@ -154,24 +153,4 @@ void dserror(const char* fmt, ...)
     vsnprintf(&Buffer[0], sizeof(Buffer), fmt, Arguments);
     va_end(Arguments);
     ERROR(&Buffer[0]);
-}
-
-int dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2)
-{
-	switch (type) {
-        case KeyId: {
-			if (key1.Value.Id == key2.Value.Id) {
-                return 0;
-            }
-        } break;
-		case KeyInteger: {
-			if (key1.Value.Integer == key2.Value.Integer) {
-                return 0;
-            }
-		} break;
-		case KeyString: {
-			return strcmp(key1.Value.String.Pointer, key2.Value.String.Pointer);
-		} break;
-	}
-	return -1;
 }

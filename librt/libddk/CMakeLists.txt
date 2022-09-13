@@ -62,7 +62,6 @@ add_library(libddk
         io.c
         mappings.c
         service.c
-        threadpool.c
         usb.c
         utils.c
 )

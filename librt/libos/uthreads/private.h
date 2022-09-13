@@ -20,12 +20,11 @@
 
 #include <internal/_tls.h>
 #include <setjmp.h>
-#include <threads.h>
 #include <time.h>
 
 #define SCHEDULER_MAGIC 0xDEADB00B
 
-enum JobState {
+enum job_state {
     JobState_CREATED,
     JobState_RUNNING,
     JobState_BLOCKED,
@@ -36,7 +35,7 @@ struct usched_job {
     void*                 stack;
     unsigned int          stack_size;
     jmp_buf               context;
-    enum JobState         state;
+    enum job_state        state;
     usched_task_fn        entry;
     void*                 argument;
     int                   cancelled;

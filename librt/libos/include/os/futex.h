@@ -28,12 +28,24 @@
                    ((oparg & 0xfff) << 12) | \
                    (cmparg & 0xfff))
 
-#define FUTEX_WAIT_PRIVATE      0x1U
-#define FUTEX_WAIT_OP           0x2U
-#define FUTEX_WAKE_PRIVATE      0x4U
-#define FUTEX_WAKE_OP           0x8U
+#define FUTEX_FLAG_WAKE          0x1
+#define FUTEX_FLAG_WAIT          0x2
+#define FUTEX_FLAG_ACTION(Flags) ((Flags) & 0x2)
+#define FUTEX_FLAG_OP            0x10U
+#define FUTEX_FLAG_PRIVATE       0x20U
 
-//int futex(int *uaddr, int op, int val, const struct timespec *timeout,
-//          int *uaddr2, int val3);
+typedef struct FutexParameters {
+    _Atomic(int)* _futex0;
+    _Atomic(int)* _futex1;
+    int           _val0;
+    int           _val1;
+    int           _val2;
+    int           _flags;
+    size_t        _timeout; // todo struct timespec
+} FutexParameters_t;
+
+CRTDECL(oserr_t,
+Futex(
+        _In_ FutexParameters_t* parameters));
 
 #endif //!__OS_FUTEX_H__

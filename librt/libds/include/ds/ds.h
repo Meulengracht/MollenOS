@@ -27,23 +27,6 @@
 typedef struct FutexParameters FutexParameters_t;
 
 typedef struct {
-    union {
-        int     Integer;
-        uuid_t  Id;
-        struct {
-            const char* Pointer;
-            size_t      Length;
-        } String;
-    } Value;
-} DataKey_t;
-
-typedef enum {
-    KeyInteger,
-    KeyId,
-    KeyString
-} KeyType_t;
-
-typedef struct {
     _Atomic(int) SyncObject;
     unsigned     Flags;
 } SafeMemoryLock_t;
@@ -64,9 +47,5 @@ DSDECL(void, dserror(const char* fmt, ...));
 
 DSDECL(void, dswait(FutexParameters_t*));
 DSDECL(void, dswake(FutexParameters_t*));
-
-/* Helper Function 
- * Matches two keys based on the key type returns 0 if they are equal, or -1 if not */
-DSDECL(int, dsmatchkey(KeyType_t type, DataKey_t key1, DataKey_t key2));
 
 #endif //!__DATASTRUCTURES__

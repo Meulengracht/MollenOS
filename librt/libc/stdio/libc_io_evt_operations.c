@@ -15,17 +15,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO null operation implementations.
  */
 
 #include <ddk/handle.h>
-#include <ddk/utils.h>
 #include <event.h>
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
+#include <os/futex.h>
 #include <ioctl.h>
 
 #define EVT_OPTION_NON_BLOCKING 0x1
@@ -33,11 +28,11 @@
 static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
     FutexParameters_t parameters;
-    oserr_t        status = OsOK;
+    oserr_t           oserr = OsOK;
     int               value;
 
     parameters._futex0  = sync_address;
-    parameters._flags   = 0;
+    parameters._flags   = FUTEX_FLAG_WAIT;
     parameters._timeout = 0;
 
     while (1) {
@@ -48,8 +43,8 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
             }
 
             parameters._val0 = value;
-            status = Syscall_FutexWait(&parameters);
-            if (status != OsOK) {
+            oserr = Futex(&parameters);
+            if (oserr != OsOK) {
                 break;
             }
 
@@ -60,7 +55,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
             break;
         }
     }
-    return status;
+    return oserr;
 }
 
 static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
@@ -73,7 +68,7 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
 
     parameters._futex0 = sync_address;
     parameters._val0   = 0;
-    parameters._flags  = 0;
+    parameters._flags  = FUTEX_FLAG_WAKE;
 
     // assert not max
     currentValue = atomic_load(sync_address);
@@ -89,7 +84,7 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
     }
 
     if (parameters._val0) {
-        Syscall_FutexWake(&parameters);
+        Futex(&parameters);
         status = OsOK;
     }
 

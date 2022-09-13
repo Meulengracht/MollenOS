@@ -17,17 +17,13 @@
  */
 
 #include <os/binarysemaphore.h>
-#include <ddk/utils.h>
 
 oserr_t
 BinarySemaphoreInitialize(
         _In_ BinarySemaphore_t* binarySemaphore,
         _In_ int                value)
 {
-	TRACE("BinarySemaphoreConstruct(%i)", Value);
-
 	if (value < 0 || value > 1) {
-		ERROR("Binary semaphore can take only values 1 or 0");
 		return OsError;
 	}
 

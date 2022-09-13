@@ -17,11 +17,12 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <os/mutex.h>
+#include <os/condition.h>
 #include <os/usched/usched.h>
 #include <setjmp.h>
 #include <string.h>
 #include <stdlib.h>
-#include <threads.h>
 #include "private.h"
 
 // Needed to handle thread stuff now on an userspace basis
@@ -30,8 +31,8 @@ CRTDECL(void, __cxa_threadfinalize(void));
 
 static atomic_int         g_timerid        = ATOMIC_VAR_INIT(1);
 static struct usched_job* g_readyQueue     = NULL;
-static mtx_t              g_readyQueueLock = MUTEX_INIT(mtx_plain);
-static cnd_t              g_readyQueueCond = COND_INIT;
+static Mutex_t            g_readyQueueLock = MUTEX_INIT(MUTEX_PLAIN);
+static Condition_t        g_readyQueueCond = COND_INIT;
 
 struct usched_scheduler* __usched_get_scheduler(void) {
     return __usched_xunit_tls_current()->scheduler;
@@ -83,10 +84,10 @@ __empty_garbage_bin(struct usched_scheduler* sched)
 
 void __usched_add_job_ready(struct usched_job* job)
 {
-    mtx_lock(&g_readyQueueLock);
+    MutexLock(&g_readyQueueLock);
     __usched_append_job(&g_readyQueue, job);
-    cnd_signal(&g_readyQueueCond);
-    mtx_unlock(&g_readyQueueLock);
+    ConditionSignal(&g_readyQueueCond);
+    MutexUnlock(&g_readyQueueLock);
 }
 
 int __usched_prepare_migrate(void)
@@ -133,13 +134,13 @@ __get_next_ready(struct usched_scheduler* scheduler)
 
     // Otherwise, the execution unit is running as a part of the global
     // worker pool, they only execute from the global ready queue
-    mtx_lock(&g_readyQueueLock);
+    MutexLock(&g_readyQueueLock);
     next = g_readyQueue;
     if (next != NULL) {
         g_readyQueue = next->next;
         next->next = NULL;
     }
-    mtx_unlock(&g_readyQueueLock);
+    MutexUnlock(&g_readyQueueLock);
     return next;
 }
 
@@ -351,23 +352,23 @@ int usched_yield(struct timespec* deadline)
 
 void usched_timedwait(const struct timespec* until)
 {
-    mtx_lock(&g_readyQueueLock);
+    MutexLock(&g_readyQueueLock);
     while (g_readyQueue == NULL) {
-        int status = cnd_timedwait(&g_readyQueueCond, &g_readyQueueLock, until);
-        if (status == thrd_timedout) {
+        oserr_t oserr = ConditionTimedWait(&g_readyQueueCond, &g_readyQueueLock, until);
+        if (oserr == OsTimeout) {
             break;
         }
     }
-    mtx_unlock(&g_readyQueueLock);
+    MutexUnlock(&g_readyQueueLock);
 }
 
 void usched_wait(void)
 {
-    mtx_lock(&g_readyQueueLock);
+    MutexLock(&g_readyQueueLock);
     while (g_readyQueue == NULL) {
-        cnd_wait(&g_readyQueueCond, &g_readyQueueLock);
+        ConditionWait(&g_readyQueueCond, &g_readyQueueLock);
     }
-    mtx_unlock(&g_readyQueueLock);
+    MutexUnlock(&g_readyQueueLock);
 }
 
 void usched_job_parameters_init(struct usched_job_parameters* params)

@@ -32,7 +32,7 @@ ScFutexWait(
     _In_ FutexParameters_t* parameters)
 {
     // Two version of wait
-    if (parameters->_flags & FUTEX_WAIT_OP) {
+    if (parameters->_flags & FUTEX_FLAG_OP) {
         return FutexWaitOperation(parameters->_futex0, parameters->_val0,
                                   parameters->_futex1, parameters->_val1, parameters->_val2,
                                   parameters->_flags, parameters->_timeout);
@@ -46,7 +46,7 @@ ScFutexWake(
     _In_ FutexParameters_t* parameters)
 {
     // Also two versions of wake
-    if (parameters->_flags & FUTEX_WAKE_OP) {
+    if (parameters->_flags & FUTEX_FLAG_OP) {
         return FutexWakeOperation(parameters->_futex0, parameters->_val0,
                                   parameters->_futex1, parameters->_val1, parameters->_val2,
                                   parameters->_flags);

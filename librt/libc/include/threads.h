@@ -41,25 +41,18 @@ typedef void (*tss_dtor_t)(void*);
 typedef unsigned int tss_t;
 typedef uuid_t       thrd_t;
 
-// Condition Synchronization Object
-typedef struct cnd {
-    _Atomic(int) syncobject;
-} cnd_t;
+#define TSS_DTOR_ITERATIONS 4
+#define TSS_KEY_INVALID     UINT_MAX
 
-// Mutex Synchronization Object
-typedef struct mtx {
-    int          flags;
-    uuid_t       owner;
-    _Atomic(int) references;
-    _Atomic(int) value;
-} mtx_t;
-// _MTX_INITIALIZER_NP
+#ifdef __OSCONFIG_GREEN_THREADS
+#include <os/usched/cond.h>
+#include <os/usched/mutex.h>
+#include <os/usched/job.h>
+#include <os/usched/once.h>
 
-// Once-Flag Synchronization Object
-typedef struct once_flag {
-    mtx_t syncobject;
-    int   value;
-} once_flag;
+typedef struct usched_cnd cnd_t;
+typedef struct usched_mtx mtx_t;
+typedef struct usched_once_flag once_flag;
 
 enum {
     thrd_success    = 0,
@@ -70,245 +63,641 @@ enum {
 };
 
 enum {
-    mtx_plain       = 0,
-    mtx_recursive   = 1,
-    mtx_timed       = 2
+    mtx_plain       = USCHED_MUTEX_PLAIN,
+    mtx_recursive   = USCHED_MUTEX_RECURSIVE,
+    mtx_timed       = USCHED_MUTEX_TIMED
 };
 
-#define TSS_DTOR_ITERATIONS 4
-#define TSS_KEY_INVALID     UINT_MAX
+#define MUTEX_INIT(type) { type, _SPN_INITIALIZER_NP(spinlock_plain), NULL, NULL }
+#define COND_INIT        { MUTEX_INIT(mtx_plain), NULL }
+#define ONCE_FLAG_INIT   { MUTEX_INIT(mtx_plain), 0 }
 
-#if defined(__cplusplus)
-#define COND_INIT           { 0 }
-#define MUTEX_INIT(type)    { type, UUID_INVALID, 0, 0 }
-#else
-// Use stdatomic C11
-#define COND_INIT           { ATOMIC_VAR_INIT(0) }
-#define MUTEX_INIT(type)    { type, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
-#endif
-#define ONCE_FLAG_INIT      { MUTEX_INIT(mtx_plain), 0 }
+static inline int __to_thrd_error(int err) {
+    if (err == 0) {
+        return thrd_success;
+    }
 
-_CODE_BEGIN
-/* call_once
- * Calls function func exactly once, even if invoked from several threads. 
- * The completion of the function func synchronizes with all previous or subsequent 
- * calls to call_once with the same flag variable. */
-CRTDECL(void,
-call_once(
-    _In_ once_flag* flag, 
-    _In_ void     (*func)(void)));
+    switch (errno) {
+        case EBUSY: return thrd_busy;
+        case ETIME: return thrd_timedout;
+        case ENOMEM: return thrd_nomem;
+        default: return ENOSYS;
+    }
+}
 
-/* thrd_create
- * Creates a new thread executing the function func. The function is invoked as func(arg).
+/**
+ * @brief Calls function func exactly once, even if invoked from several threads.
+ * The completion of the function func synchronizes with all previous or subsequent
+ * calls to call_once with the same flag variable.
+ * @param flag Pointer to an object that is used to ensure func is called only once
+ * @param func The function to execute
+ */
+static inline void call_once(once_flag* flag, void (*func)(void)) {
+    usched_call_once(flag, func);
+}
+
+/**
+ * @brief Creates a new thread executing the function func. The function is invoked as func(arg).
  * If successful, the object pointed to by thr is set to the identifier of the new thread.
- * The completion of this function synchronizes-with the beginning of the thread. */
-CRTDECL(int,
-thrd_create(
-    _Out_ thrd_t*      thr,
-    _In_  thrd_start_t func,
-    _In_  void*        arg));
+ * The completion of this function synchronizes-with the beginning of the thread.
+ * @param thr
+ * @param func
+ * @param arg
+ * @return
+ */
+static inline int thrd_create(thrd_t* thr, thrd_start_t func, void* arg) {
+    struct usched_job_parameters jobParameters;
+    usched_job_parameters_init(&jobParameters);
+    return __to_thrd_error(
+            ThreadsCreate(thr, &threadParameters, func, arg)
+    );
+}
 
-/* thrd_equal
- * Checks whether lhs and rhs refer to the same thread. */
-CRTDECL(int,
-thrd_equal(
-    _In_ thrd_t lhs,
-    _In_ thrd_t rhs));
+/**
+ * @brief Checks whether lhs and rhs refer to the same thread.
+ * @param a
+ * @param b
+ * @return
+ */
+static inline int thrd_equal(thrd_t a, thrd_t b) {
+    return a == b;
+}
 
-/* thrd_current
- * Returns the identifier of the calling thread. */
-CRTDECL(thrd_t,
-thrd_current(void));
+/**
+ * @brief Returns the identifier of the calling thread.
+ * @return
+ */
+static inline thrd_t thrd_current(void) {
+    return ThreadsCurrentId();
+}
+
+/**
+ * @brief Provides a hint to the implementation to reschedule the execution of threads,
+ * allowing other threads to run.
+ */
+static inline void thrd_yield(void) {
+    ThreadsYield();
+}
+
+/**
+ * @brief First, for every thread-specific storage key which was created with a non-null
+ * destructor and for which the associated value is non-null (see tss_create), thrd_exit
+ * sets the value associated with the key to NULL and then invokes the destructor with
+ * the previous value of the key. The order in which the destructors are invoked is unspecified.
+ * If, after this, there remain keys with both non-null destructors and values
+ * (e.g. if a destructor executed tss_set), the process is repeated up to TSS_DTOR_ITERATIONS times.
+ * Finally, the thrd_exit function terminates execution of the calling thread and sets its result code to res.
+ * If the last thread in the program is terminated with thrd_exit, the entire program
+ * terminates as if by calling exit with EXIT_SUCCESS as the argument (so the functions
+ * registered by atexit are executed in the context of that last thread)
+ * @param res
+ */
+static inline void thrd_exit(int res) {
+    ThreadsExit(res);
+}
+
+/**
+ * @brief Detaches the thread identified by thr from the current environment.
+ * The resources held by the thread will be freed automatically once the thread exits.
+ * @param thr
+ * @return
+ */
+static inline int thrd_detach(thrd_t thr) {
+    return __to_thrd_error(ThreadsDetach(thr));
+}
+
+/**
+ * @brief Blocks the current thread until the thread identified by thr finishes execution.
+ * If res is not a null pointer, the result code of the thread is put to the location pointed to by res.
+ * The termination of the thread synchronizes-with the completion of this function.
+ * The behavior is undefined if the thread was previously detached or joined by another thread.
+ * @param thr
+ * @param res
+ * @return
+ */
+static inline int thrd_join(thrd_t thr, int* res) {
+    return __to_thrd_error(ThreadsJoin(thr, res));
+}
+
+/**
+ * @brief Invokes a signal on the given thread id, for security reasons
+ * it's only possible to signal threads local to the running process.
+ * @param thr
+ * @param sig
+ * @return
+ */
+static inline int thrd_signal(thrd_t thr, int sig) {
+    return __to_thrd_error(ThreadsSignal(thr, sig));
+}
 
 /**
  * @brief Blocks the execution of the current thread for at least until the TIME_UTC
  * based time point pointed to by time_point has been reached.
  *
  * The sleep may resume earlier if a signal that is not ignored is received.
- * In such case, if remaining is not NULL, the remaining time duration is stored 
+ * In such case, if remaining is not NULL, the remaining time duration is stored
  * into the object pointed to by remaining.
  *
  * @param[In]            duration Pointer to the duration to sleep for
  * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
-CRTDECL(int,
-thrd_sleep(
-    _In_      const struct timespec* duration,
-    _Out_Opt_ struct timespec*       remaining));
+static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
+    return __to_thrd_error(ThreadsSleep(duration, remaining));
+}
 
-/* thrd_sleep
- * Blocks the execution of the current thread for at least given milliseconds */
-CRTDECL(int,
-thrd_sleepex(
-    _In_ size_t msec));
+/**
+ * @brief Blocks the execution of the current thread for at least given milliseconds.
+ * Extensions in Vali/MollenOS. Will be obsoleted at some point.
+ */
+static inline int thrd_sleepex(size_t msec) {
+    UInteger64_t remaining;
+    UInteger64_t nanoseconds = {
+            .QuadPart = msec * NSEC_PER_MSEC
+    };
+    return __to_thrd_error(
+            VaSleep(&nanoseconds, &remaining)
+    );
+}
 
-/* thrd_yield
- * Provides a hint to the implementation to reschedule the execution of threads, 
- * allowing other threads to run. */
-CRTDECL(void,
-thrd_yield(void));
+/**
+ * @brief Creates a new mutex object with type. The object pointed to by mutex is set to an
+ * identifier of the newly created mutex.
+ * @param mutex
+ * @param type
+ * @return
+ */
+static inline int mtx_init(mtx_t* mutex, int type) {
+    usched_mtx_init(mutex);
+    return thrd_success;
+}
 
-/* thrd_exit
- * First, for every thread-specific storage key which was created with a non-null 
- * destructor and for which the associated value is non-null (see tss_create), thrd_exit 
- * sets the value associated with the key to NULL and then invokes the destructor with 
+/**
+ * @brief Blocks the current thread until the mutex pointed to by mutex is locked.
+ * The behavior is undefined if the current thread has already locked the mutex
+ * and the mutex is not recursive.
+ * @param mutex
+ * @return
+ */
+static inline int mtx_lock(mtx_t* mutex) {
+    usched_mtx_lock(mutex);
+    return thrd_success;
+}
+
+/**
+ * @brief Blocks the current thread until the mutex pointed to by mutex is
+ * locked or until the TIME_UTC based time_point has been reached.
+ * @param mutex
+ * @param time_point
+ * @return
+ */
+static inline int mtx_timedlock(mtx_t* restrict mutex, const struct timespec* restrict time_point) {
+    return __to_thrd_error(usched_mtx_timedlock(mutex, time_point));
+}
+
+/**
+ * @brief Tries to lock the mutex pointed to by mutex without blocking.
+ * Returns immediately if the mutex is already locked.
+ * @param mutex
+ * @return
+ */
+static inline int mtx_trylock(mtx_t* mutex) {
+    return __to_thrd_error(usched_mtx_trylock(mutex));
+}
+
+/**
+ * @brief Unlocks the mutex pointed to by mutex.
+ * @param mutex
+ * @return
+ */
+static inline int mtx_unlock(mtx_t* mutex) {
+    usched_mtx_unlock(mutex);
+    return thrd_success;
+}
+
+/**
+ * @brief Destroys the mutex pointed to by mutex. If there are threads waiting on mutex,
+ * the behavior is undefined.
+ * @param mutex
+ */
+static inline void mtx_destroy(mtx_t *mutex) {
+    // not implemented
+    (void)mutex;
+}
+
+/**
+ * @brief Initializes new condition variable.
+ * The object pointed to by cond will be set to value that identifies the condition variable.
+ * @param cond
+ * @return
+ */
+static inline int cnd_init(cnd_t* cond) {
+    usched_cnd_init(cond);
+    return thrd_success;
+}
+
+/**
+ * @brief Unblocks one thread that currently waits on condition variable pointed to by cond.
+ * If no threads are blocked, does nothing and returns thrd_success.
+ * @param cond
+ * @return
+ */
+static inline int cnd_signal(cnd_t* cond) {
+    usched_cnd_notify_one(cond);
+    return thrd_success;
+}
+
+/**
+ * @brief Unblocks all thread that currently wait on condition variable pointed to by cond.
+ * If no threads are blocked, does nothing and returns thrd_success.
+ * @param cond
+ * @return
+ */
+static inline int cnd_broadcast(cnd_t* cond) {
+    usched_cnd_notify_all(cond);
+    return thrd_success;
+}
+
+/**
+ * @brief Atomically unlocks the mutex pointed to by mutex and blocks on the
+ * condition variable pointed to by cond until the thread is signalled
+ * by cnd_signal or cnd_broadcast. The mutex is locked again before the function returns.
+ * @param cond
+ * @param mutex
+ * @return
+ */
+static inline int cnd_wait(cnd_t* cond, mtx_t* mutex) {
+    usched_cnd_wait(cond, mutex);
+    return thrd_success;
+}
+
+/**
+ * @brief Atomically unlocks the mutex pointed to by mutex and blocks on the
+ * condition variable pointed to by cond until the thread is signalled
+ * by cnd_signal or cnd_broadcast, or until the TIME_UTC based time point
+ * pointed to by time_point has been reached. The mutex is locked again
+ * before the function returns.
+ * @param cond
+ * @param mutex
+ * @param time_point
+ * @return
+ */
+static inline int cnd_timedwait(cnd_t* restrict cond, mtx_t* restrict mutex, const struct timespec* restrict time_point) {
+    return __to_thrd_error(
+            usched_cnd_timedwait(cond, mutex, time_point)
+    );
+}
+
+/**
+ * @brief Destroys the condition variable pointed to by cond. If there are threads
+ * waiting on cond, the behavior is undefined.
+ * @param cond
+ */
+static inline void cnd_destroy(cnd_t* cond) {
+    // not implemented
+    (void)cond;
+}
+
+#else //!__OSCONFIG_GREEN_THREADS
+#include <os/condition.h>
+#include <os/mutex.h>
+#include <os/once.h>
+#include <os/threads.h>
+
+typedef Condition_t cnd_t;
+typedef Mutex_t mtx_t;
+typedef OnceFlag_t once_flag;
+
+enum {
+    thrd_success    = OsOK,
+    thrd_busy       = OsBusy,
+    thrd_timedout   = OsTimeout,
+    thrd_nomem      = OsOutOfMemory,
+    thrd_error      = -1
+};
+
+enum {
+    mtx_plain       = MUTEX_PLAIN,
+    mtx_recursive   = MUTEX_RECURSIVE,
+    mtx_timed       = MUTEX_TIMED
+};
+
+static inline int __to_thrd_error(oserr_t oserr) {
+    switch (oserr) {
+        case OsOK: return thrd_success;
+        case OsBusy: return thrd_busy;
+        case OsTimeout: return thrd_timedout;
+        case OsOutOfMemory: return thrd_nomem;
+        default: return thrd_error;
+    }
+}
+
+/**
+ * @brief Calls function func exactly once, even if invoked from several threads.
+ * The completion of the function func synchronizes with all previous or subsequent
+ * calls to call_once with the same flag variable.
+ * @param flag Pointer to an object that is used to ensure func is called only once
+ * @param func The function to execute
+ */
+static inline void call_once(once_flag* flag, void (*func)(void)) {
+    CallOnce(flag, func);
+}
+
+/**
+ * @brief Creates a new thread executing the function func. The function is invoked as func(arg).
+ * If successful, the object pointed to by thr is set to the identifier of the new thread.
+ * The completion of this function synchronizes-with the beginning of the thread.
+ * @param thr
+ * @param func
+ * @param arg
+ * @return
+ */
+static inline int thrd_create(thrd_t* thr, thrd_start_t func, void* arg) {
+    ThreadParameters_t threadParameters;
+    ThreadParametersInitialize(&threadParameters);
+    return __to_thrd_error(
+            ThreadsCreate(thr, &threadParameters, func, arg)
+    );
+}
+
+/**
+ * @brief Checks whether lhs and rhs refer to the same thread.
+ * @param a
+ * @param b
+ * @return
+ */
+static inline int thrd_equal(thrd_t a, thrd_t b) {
+    return a == b;
+}
+
+/**
+ * @brief Returns the identifier of the calling thread.
+ * @return
+ */
+static inline thrd_t thrd_current(void) {
+    return ThreadsCurrentId();
+}
+
+/**
+ * @brief Provides a hint to the implementation to reschedule the execution of threads,
+ * allowing other threads to run.
+ */
+static inline void thrd_yield(void) {
+    ThreadsYield();
+}
+
+/**
+ * @brief First, for every thread-specific storage key which was created with a non-null
+ * destructor and for which the associated value is non-null (see tss_create), thrd_exit
+ * sets the value associated with the key to NULL and then invokes the destructor with
  * the previous value of the key. The order in which the destructors are invoked is unspecified.
- * If, after this, there remain keys with both non-null destructors and values 
+ * If, after this, there remain keys with both non-null destructors and values
  * (e.g. if a destructor executed tss_set), the process is repeated up to TSS_DTOR_ITERATIONS times.
  * Finally, the thrd_exit function terminates execution of the calling thread and sets its result code to res.
- * If the last thread in the program is terminated with thrd_exit, the entire program 
- * terminates as if by calling exit with EXIT_SUCCESS as the argument (so the functions 
- * registered by atexit are executed in the context of that last thread) */
-CRTDECL(void, 
-thrd_exit(
-    _In_ int res));
+ * If the last thread in the program is terminated with thrd_exit, the entire program
+ * terminates as if by calling exit with EXIT_SUCCESS as the argument (so the functions
+ * registered by atexit are executed in the context of that last thread)
+ * @param res
+ */
+static inline void thrd_exit(int res) {
+    ThreadsExit(res);
+}
 
-/* thrd_detach
- * Detaches the thread identified by thr from the current environment. 
- * The resources held by the thread will be freed automatically once the thread exits. */
-CRTDECL(int,
-thrd_detach(
-    _In_ thrd_t thr));
+/**
+ * @brief Detaches the thread identified by thr from the current environment.
+ * The resources held by the thread will be freed automatically once the thread exits.
+ * @param thr
+ * @return
+ */
+static inline int thrd_detach(thrd_t thr) {
+    return __to_thrd_error(ThreadsDetach(thr));
+}
 
-/* thrd_join
- * Blocks the current thread until the thread identified by thr finishes execution.
+/**
+ * @brief Blocks the current thread until the thread identified by thr finishes execution.
  * If res is not a null pointer, the result code of the thread is put to the location pointed to by res.
  * The termination of the thread synchronizes-with the completion of this function.
- * The behavior is undefined if the thread was previously detached or joined by another thread. */
-CRTDECL(int,
-thrd_join(
-    _In_  thrd_t thr,
-    _Out_ int*   res));
+ * The behavior is undefined if the thread was previously detached or joined by another thread.
+ * @param thr
+ * @param res
+ * @return
+ */
+static inline int thrd_join(thrd_t thr, int* res) {
+    return __to_thrd_error(ThreadsJoin(thr, res));
+}
 
-/* thrd_signal
- * Invokes a signal on the given thread id, for security reasons
- * it's only possible to signal threads local to the running process. */
-CRTDECL(int,
-thrd_signal(
-    _In_ thrd_t thr,
-    _In_ int    sig));
+/**
+ * @brief Invokes a signal on the given thread id, for security reasons
+ * it's only possible to signal threads local to the running process.
+ * @param thr
+ * @param sig
+ * @return
+ */
+static inline int thrd_signal(thrd_t thr, int sig) {
+    return __to_thrd_error(ThreadsSignal(thr, sig));
+}
 
-/* mtx_init
- * Creates a new mutex object with type. The object pointed to by mutex is set to an 
- * identifier of the newly created mutex. */
-CRTDECL(int,
-mtx_init(
-    _In_ mtx_t* mutex,
-    _In_ int    type));
+/**
+ * @brief Blocks the execution of the current thread for at least until the TIME_UTC
+ * based time point pointed to by time_point has been reached.
+ *
+ * The sleep may resume earlier if a signal that is not ignored is received.
+ * In such case, if remaining is not NULL, the remaining time duration is stored
+ * into the object pointed to by remaining.
+ *
+ * @param[In]            duration Pointer to the duration to sleep for
+ * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
+ * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
+ */
+static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
+    return __to_thrd_error(ThreadsSleep(duration, remaining));
+}
 
-/* mtx_lock 
- * Blocks the current thread until the mutex pointed to by mutex is locked.
- * The behavior is undefined if the current thread has already locked the mutex 
- * and the mutex is not recursive. */
-CRTDECL(int,
-mtx_lock(
-    _In_ mtx_t* mutex));
+/**
+ * @brief Blocks the execution of the current thread for at least given milliseconds.
+ * Extensions in Vali/MollenOS. Will be obsoleted at some point.
+ */
+static inline int thrd_sleepex(size_t msec) {
+    UInteger64_t remaining;
+    UInteger64_t nanoseconds = {
+            .QuadPart = msec * NSEC_PER_MSEC
+    };
+    return __to_thrd_error(
+            VaSleep(&nanoseconds, &remaining)
+    );
+}
 
-/* mtx_timedlock
- * Blocks the current thread until the mutex pointed to by mutex is 
- * locked or until the TIME_UTC based time point pointed to by time_point has been reached. */
-CRTDECL(int,
-mtx_timedlock(
-    _In_ mtx_t*restrict                  mutex,
-    _In_ const struct timespec *restrict time_point));
+/**
+ * @brief Creates a new mutex object with type. The object pointed to by mutex is set to an
+ * identifier of the newly created mutex.
+ * @param mutex
+ * @param type
+ * @return
+ */
+static inline int mtx_init(mtx_t* mutex, int type) {
+    return __to_thrd_error(MutexInitialize(mutex, type));
+}
 
-/* mtx_trylock
- * Tries to lock the mutex pointed to by mutex without blocking. 
- * Returns immediately if the mutex is already locked. */
-CRTDECL(int,
-mtx_trylock(
-    _In_ mtx_t* mutex));
+/**
+ * @brief Blocks the current thread until the mutex pointed to by mutex is locked.
+ * The behavior is undefined if the current thread has already locked the mutex
+ * and the mutex is not recursive.
+ * @param mutex
+ * @return
+ */
+static inline int mtx_lock(mtx_t* mutex) {
+    return __to_thrd_error(MutexLock(mutex));
+}
 
-/* mtx_unlock
- * Unlocks the mutex pointed to by mutex. */
-CRTDECL(int,
-mtx_unlock(
-    _In_ mtx_t* mutex));
+/**
+ * @brief Blocks the current thread until the mutex pointed to by mutex is
+ * locked or until the TIME_UTC based time_point has been reached.
+ * @param mutex
+ * @param time_point
+ * @return
+ */
+static inline int mtx_timedlock(mtx_t* restrict mutex, const struct timespec* restrict time_point) {
+    return __to_thrd_error(MutexTimedLock(mutex, time_point));
+}
 
-/* mtx_destroy
- * Destroys the mutex pointed to by mutex. If there are threads waiting on mutex, 
- * the behavior is undefined. */
-CRTDECL(void,
-mtx_destroy(
-    _In_ mtx_t *mutex));
+/**
+ * @brief Tries to lock the mutex pointed to by mutex without blocking.
+ * Returns immediately if the mutex is already locked.
+ * @param mutex
+ * @return
+ */
+static inline int mtx_trylock(mtx_t* mutex) {
+    return __to_thrd_error(MutexTryLock(mutex));
+}
 
-/* cnd_init
- * Initializes new condition variable. 
- * The object pointed to by cond will be set to value that identifies the condition variable. */
-CRTDECL(int,
-cnd_init(
-    _In_ cnd_t* cond));
+/**
+ * @brief Unlocks the mutex pointed to by mutex.
+ * @param mutex
+ * @return
+ */
+static inline int mtx_unlock(mtx_t* mutex) {
+    return __to_thrd_error(MutexUnlock(mutex));
+}
 
-/* cnd_signal
- * Unblocks one thread that currently waits on condition variable pointed to by cond. 
- * If no threads are blocked, does nothing and returns thrd_success. */
-CRTDECL(int,
-cnd_signal(
-    _In_ cnd_t* cond));
+/**
+ * @brief Destroys the mutex pointed to by mutex. If there are threads waiting on mutex,
+ * the behavior is undefined.
+ * @param mutex
+ */
+static inline void mtx_destroy(mtx_t *mutex) {
+    MutexDestroy(mutex);
+}
 
-/* cnd_broadcast
- * Unblocks all thread that currently wait on condition variable pointed to by cond. 
- * If no threads are blocked, does nothing and returns thrd_success. */
-CRTDECL(int, 
-cnd_broadcast(
-    _In_ cnd_t* cond));
+/**
+ * @brief Initializes new condition variable.
+ * The object pointed to by cond will be set to value that identifies the condition variable.
+ * @param cond
+ * @return
+ */
+static inline int cnd_init(cnd_t* cond) {
+    return __to_thrd_error(ConditionInitialize(cond));
+}
 
-/* cnd_wait
- * Atomically unlocks the mutex pointed to by mutex and blocks on the 
- * condition variable pointed to by cond until the thread is signalled 
- * by cnd_signal or cnd_broadcast. The mutex is locked again before the function returns. */
-CRTDECL(int,
-cnd_wait(
-    _In_ cnd_t* cond,
-    _In_ mtx_t* mutex));
+/**
+ * @brief Unblocks one thread that currently waits on condition variable pointed to by cond.
+ * If no threads are blocked, does nothing and returns thrd_success.
+ * @param cond
+ * @return
+ */
+static inline int cnd_signal(cnd_t* cond) {
+    return __to_thrd_error(ConditionSignal(cond));
+}
 
-/* cnd_timedwait
- * Atomically unlocks the mutex pointed to by mutex and blocks on the 
- * condition variable pointed to by cond until the thread is signalled 
- * by cnd_signal or cnd_broadcast, or until the TIME_UTC based time point 
- * pointed to by time_point has been reached. The mutex is locked again 
- * before the function returns. */
-CRTDECL(int,
-cnd_timedwait(
-    _In_ cnd_t* restrict                 cond,
-    _In_ mtx_t* restrict                 mutex,
-    _In_ const struct timespec* restrict time_point));
+/**
+ * @brief Unblocks all thread that currently wait on condition variable pointed to by cond.
+ * If no threads are blocked, does nothing and returns thrd_success.
+ * @param cond
+ * @return
+ */
+static inline int cnd_broadcast(cnd_t* cond) {
+    return __to_thrd_error(ConditionBroadcast(cond));
+}
 
-/* cnd_destroy
- * Destroys the condition variable pointed to by cond. If there are threads 
- * waiting on cond, the behavior is undefined. */
-CRTDECL(void,
-cnd_destroy(
-    _In_ cnd_t* cond));
+/**
+ * @brief Atomically unlocks the mutex pointed to by mutex and blocks on the
+ * condition variable pointed to by cond until the thread is signalled
+ * by cnd_signal or cnd_broadcast. The mutex is locked again before the function returns.
+ * @param cond
+ * @param mutex
+ * @return
+ */
+static inline int cnd_wait(cnd_t* cond, mtx_t* mutex) {
+    return __to_thrd_error(ConditionWait(cond, mutex));
+}
 
-/* tss_create
- * Creates new thread-specific storage key and stores it in the object pointed to by tss_key. 
- * Although the same key value may be used by different threads, 
- * the values bound to the key by tss_set are maintained on a per-thread 
- * basis and persist for the life of the calling thread. */
+/**
+ * @brief Atomically unlocks the mutex pointed to by mutex and blocks on the
+ * condition variable pointed to by cond until the thread is signalled
+ * by cnd_signal or cnd_broadcast, or until the TIME_UTC based time point
+ * pointed to by time_point has been reached. The mutex is locked again
+ * before the function returns.
+ * @param cond
+ * @param mutex
+ * @param time_point
+ * @return
+ */
+static inline int cnd_timedwait(cnd_t* restrict cond, mtx_t* restrict mutex, const struct timespec* restrict time_point) {
+    return __to_thrd_error(ConditionTimedWait(cond, mutex, time_point));
+}
+
+/**
+ * @brief Destroys the condition variable pointed to by cond. If there are threads
+ * waiting on cond, the behavior is undefined.
+ * @param cond
+ */
+static inline void cnd_destroy(cnd_t* cond) {
+    ConditionDestroy(cond);
+}
+
+#endif //__OSCONFIG_GREEN_THREADS
+
+_CODE_BEGIN
+
+/**
+ * @brief Creates new thread-specific storage key and stores it in the object pointed to by tss_key.
+ * Although the same key value may be used by different threads,
+ * the values bound to the key by tss_set are maintained on a per-thread
+ * basis and persist for the life of the calling thread.
+ * @param tssKey
+ * @param destructor
+ * @return
+ */
 CRTDECL(int,
 tss_create(
     _In_ tss_t*     tssKey,
     _In_ tss_dtor_t destructor));
 
-/* tss_get
- * Returns the value held in thread-specific storage for the current thread 
- * identified by tss_key. Different threads may get different values identified by the same key. */
+/**
+ * @brief Returns the value held in thread-specific storage for the current thread
+ * identified by tss_key. Different threads may get different values identified by the same key.
+ * @param tssKey
+ * @return
+ */
 CRTDECL(void*,
 tss_get(
     _In_ tss_t tssKey));
 
-/* tss_set
- * Sets the value of the thread-specific storage identified by tss_id for the 
- * current thread to val. Different threads may set different values to the same key. */
+/**
+ * @brief Sets the value of the thread-specific storage identified by tss_id for the
+ * current thread to val. Different threads may set different values to the same key.
+ * @param tssKey
+ * @param val
+ * @return
+ */
 CRTDECL(int,
 tss_set(
     _In_ tss_t tssKey,
     _In_ void* val));
 
-/* tss_delete
- * Destroys the thread-specific storage identified by tss_id. */
+/**
+ * @brief Destroys the thread-specific storage identified by tss_id.
+ * @param tssKey
+ */
 CRTDECL(void,
 tss_delete(
     _In_ tss_t tssKey));

@@ -24,14 +24,9 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <internal/_syscalls.h>
 #include <internal/_ipc.h>
 #include <internal/_io.h>
 #include <os/process.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <threads.h>
 #include <ddk/convert.h>
 
 void

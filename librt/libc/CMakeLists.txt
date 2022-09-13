@@ -358,42 +358,23 @@ set (SOURCES_STDLIB
 )
 
 set (SOURCES_OS
-    os/synchronization/binarysemaphore.c
-    os/synchronization/spinlock.c
-    os/synchronization/event.c
-
-    os/scheduler/scheduler.c
-    os/scheduler/mutex.c
-    os/scheduler/cond.c
-    os/scheduler/xunit.c
+        os/synchronization/spinlock.c
+        os/synchronization/event.c
+        os/keymaps/en-us.c
+        os/clang.c
+        os/file.c
+        os/init.c
+        os/ipcontext.c
+        os/keycodes.c
+        os/path.c
+        os/process.c
+        os/shared_objects.c
         os/tls.c
-
-    os/keymaps/en-us.c
-
-    os/clang.c
-    os/dmabuf.c
-    os/error_codes.c
-    os/file.c
-    os/init.c
-    os/ipcontext.c
-    os/keycodes.c
-    os/memory.c
-    os/path.c
-    os/process.c
-    os/sha1.c
-    os/shared_objects.c
-    os/syscalls.c
-    os/system.c
-    os/time.c
-    os/thread_helpers.c
-    os/unwind.c
+        os/unwind.c
 )
 
 set (SOURCES_THREADS
-    threads/condition.c
-    threads/mutex.c
-    threads/thread.c
-        threads/tss.c
+    threads/tss.c
 )
 
 set (SOURCES_TIME
@@ -504,7 +485,7 @@ add_library(libc STATIC ${ASM_SOURCES} ${SOURCES_LIBC})
 target_compile_definitions(libc PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_KRNL_DLL)
 target_include_directories(libc PUBLIC include)
 target_include_directories(libc PRIVATE ../libos/include)
-target_link_libraries(libc PRIVATE libm libds libddk gracht_static)
+target_link_libraries(libc PRIVATE libos libm libds libddk gracht_static)
 
 add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC} main.c)
 target_compile_options(c

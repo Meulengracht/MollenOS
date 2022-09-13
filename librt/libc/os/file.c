@@ -25,11 +25,7 @@
 #include <ddk/convert.h>
 #include <ds/list.h>
 #include <internal/_io.h>
-#include <internal/_ipc.h>
-#include <internal/_syscalls.h>
 #include <io.h>
-#include <os/mollenos.h>
-#include <stdlib.h>
 
 struct file_view {
     element_t             header;

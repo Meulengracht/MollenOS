@@ -17,13 +17,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ddk/barrier.h>
 #include <internal/_syscalls.h>
-#include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <os/futex.h>
 #include <os/mutex.h>
 #include <os/threads.h>
+#include <limits.h>
 #include <time.h>
 
 #define MUTEX_SPINS     1000
@@ -60,12 +59,11 @@ MutexDestroy(
     
     if (mutex != NULL) {
         mutex->Flags |= MUTEX_DESTROYED;
-        smp_wmb();
-        
+
         parameters._futex0 = &mutex->Value;
         parameters._val0   = INT_MAX;
-        parameters._flags  = FUTEX_WAKE_PRIVATE;
-        Syscall_FutexWake(&parameters);
+        parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+        Futex(&parameters);
     }
 }
 
@@ -140,9 +138,9 @@ __perform_lock(
     parameters._futex0  = &mutex->Value;
     parameters._val0    = 2; // we always sleep on expecting a two
     parameters._timeout = timeout;
-    parameters._flags   = FUTEX_WAIT_PRIVATE;
+    parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE;
     
-    // On multicore systems the lock might be released rather quickly
+    // On multicore systems the lock might be released rather quickly,
     // so we perform a number of initial spins before going to sleep,
     // and only in the case that there are no sleepers && locked
     status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
@@ -161,7 +159,7 @@ __perform_lock(
                 z = atomic_exchange(&mutex->Value, 2);
             }
             while (z != 0) {
-                if (Syscall_FutexWait(&parameters) == OsTimeout) {
+                if (Futex(&parameters) == OsTimeout) {
                     return OsTimeout;
                 }
                 if (mutex->Flags & MUTEX_DESTROYED) {
@@ -192,7 +190,7 @@ MutexTimedLock(
         _In_ Mutex_t* restrict               mutex,
         _In_ const struct timespec *restrict timePoint)
 {
-    time_t          msec = 0;
+    time_t          msec;
 	struct timespec now, result;
     
     if (mutex == NULL || !(mutex->Flags & MUTEX_TIMED)) {
@@ -233,14 +231,14 @@ MutexUnlock(
     if ((initialcount - 1) == 0) {
         parameters._futex0  = &mutex->Value;
         parameters._val0    = 1;
-        parameters._flags   = FUTEX_WAKE_PRIVATE;
+        parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
 
         mutex->Owner = UUID_INVALID;
         
         initialcount = atomic_fetch_sub(&mutex->Value, 1);
         if (initialcount != 1) {
             atomic_store(&mutex->Value, 0);
-            Syscall_FutexWake(&parameters);
+            Futex(&parameters);
         }
     }
     return OsOK;

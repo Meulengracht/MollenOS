@@ -268,7 +268,7 @@ FutexWait(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
-    if (Flags & FUTEX_WAIT_PRIVATE) {
+    if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
     }
@@ -338,7 +338,7 @@ FutexWaitOperation(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
-    if (Flags & FUTEX_WAIT_PRIVATE) {
+    if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
     }
@@ -399,7 +399,7 @@ FutexWake(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
-    if (Flags & FUTEX_WAKE_PRIVATE) {
+    if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
     }

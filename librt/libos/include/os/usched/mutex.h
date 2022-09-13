@@ -30,7 +30,14 @@ struct timespec;
 
 struct usched_job;
 
+enum {
+    USCHED_MUTEX_PLAIN       = 0,
+    USCHED_MUTEX_RECURSIVE   = 1,
+    USCHED_MUTEX_TIMED       = 2
+};
+
 struct usched_mtx {
+    int                type;
     spinlock_t         lock;
     struct usched_job* owner;
     struct usched_job* queue;

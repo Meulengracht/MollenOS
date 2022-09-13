@@ -18,8 +18,6 @@
  */
 
 #include <errno.h>
-#include <internal/_syscalls.h>
-#include <internal/_utils.h>
 #include <os/futex.h>
 #include <os/condition.h>
 #include <time.h>
@@ -51,7 +49,6 @@ ConditionSignal(
         _In_ Condition_t* cond)
 {
     FutexParameters_t parameters;
-    oserr_t        status;
     
 	if (cond == NULL) {
 		return OsInvalidParameters;
@@ -59,8 +56,8 @@ ConditionSignal(
 	
     parameters._futex0  = &cond->Value;
     parameters._val0    = 1;
-    parameters._flags   = FUTEX_WAKE_PRIVATE;
-	return Syscall_FutexWake(&parameters);
+    parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+	return Futex(&parameters);
 }
 
 oserr_t
@@ -75,8 +72,8 @@ ConditionBroadcast(
 	
     parameters._futex0  = &cond->Value;
     parameters._val0    = atomic_load(&cond->Value);
-    parameters._flags   = FUTEX_WAKE_PRIVATE;
-	return Syscall_FutexWake(&parameters);
+    parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+	return Futex(&parameters);
 }
 
 oserr_t
@@ -95,10 +92,10 @@ ConditionWait(
     parameters._val0    = atomic_load(&cond->Value);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0);
-    parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
+    parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
     parameters._timeout = 0;
 
-    oserr = Syscall_FutexWait(&parameters);
+    oserr = Futex(&parameters);
     if (oserr != OsOK) {
         MutexLock(mutex);
         return oserr;
@@ -138,10 +135,10 @@ ConditionTimedWait(
     parameters._val0    = atomic_load(&cond->Value);
     parameters._val1    = 1; // Wakeup one on the mutex
     parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
-    parameters._flags   = FUTEX_WAIT_PRIVATE | FUTEX_WAIT_OP;
+    parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
     parameters._timeout = msec;
     
-    status = Syscall_FutexWait(&parameters);
+    status = Futex(&parameters);
     if (status != OsOK) {
         MutexLock(mutex);
         return status;

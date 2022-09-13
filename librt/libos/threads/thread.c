@@ -175,3 +175,28 @@ ThreadsSignal(
 {
     return Syscall_ThreadSignal(threadId, signal);
 }
+
+void
+ThreadParametersInitialize(
+        _In_ ThreadParameters_t* parameters)
+{
+    parameters->Name              = NULL;
+    parameters->Configuration     = 0;
+    parameters->MemorySpaceHandle = UUID_INVALID;
+    parameters->MaximumStackSize  = __MASK;
+}
+
+oserr_t
+ThreadsSetName(
+        _In_ const char* name)
+{
+    return Syscall_ThreadSetCurrentName(name);
+}
+
+oserr_t
+ThreadsGetName(
+        _In_ char*  buffer,
+        _In_ size_t maxLength)
+{
+    return Syscall_ThreadGetCurrentName(buffer, maxLength);
+}

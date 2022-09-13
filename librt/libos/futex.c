@@ -16,19 +16,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define __TRACE
 
-#include <os/keycodes.h>
+#include <os/futex.h>
+#include <internal/_syscalls.h>
 
-extern char GetASCIIFromKeyCodeEnUs(uint8_t, uint16_t);
-
-char
-TranslateKeyCode(
-        _In_  uint8_t  keyCode,
-        _In_  uint16_t keyModifiers)
+oserr_t
+Futex(
+        _In_ FutexParameters_t* parameters)
 {
-    if (keyCode != VK_INVALID) {
-        return GetASCIIFromKeyCodeEnUs(keyCode, keyModifiers);
+    if (FUTEX_FLAG_ACTION(parameters->_flags) == FUTEX_FLAG_WAIT) {
+        return Syscall_FutexWait(parameters);
+    } else {
+        return Syscall_FutexWake(&parameters);
     }
-    return '\0';
 }

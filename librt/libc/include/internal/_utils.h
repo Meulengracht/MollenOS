@@ -5,16 +5,6 @@
 
 typedef struct gracht_client gracht_client_t;
 
-typedef struct FutexParameters {
-    _Atomic(int)* _futex0;
-    _Atomic(int)* _futex1;
-    int           _val0;
-    int           _val1;
-    int           _val2;
-    int           _flags;
-    size_t        _timeout;
-} FutexParameters_t;
-
 typedef struct HandleSetWaitParameters {
     struct ioset_event* events;
     int                 maxEvents;
