@@ -21,12 +21,42 @@
 #include <stdlib.h>
 #include "private.h"
 
+// Needed to handle thread stuff now on an userspace basis
+CRTDECL(void, __cxa_threadinitialize(void));
+CRTDECL(void, __cxa_threadfinalize(void));
 
 void usched_job_parameters_init(struct usched_job_parameters* params)
 {
     params->stack_size = 4096 * 4;
     params->detached = false;
     params->affinity_mask = NULL;
+}
+
+static void __finalize_task(struct usched_job* job, int exitCode)
+{
+    job->state = JobState_FINISHING;
+
+    // Before yielding, let us run the deinitalizers before we do any task cleanup.
+    __cxa_threadfinalize();
+    usched_yield(NULL);
+}
+
+// TaskMain takes care of C/C++ handlers for the thread. Each job is in itself a
+// full thread (atleast treated like that), except that it exclusively exists in
+// userspace. This function encapsulates the C/C++ handler handling, while the
+// TLS for each thread is taken care of by job creation/destruction.
+void __usched_task_main(struct usched_job* job)
+{
+    // Set our state to running, as the task is now in progress
+    job->state = JobState_RUNNING;
+
+    // Run any C/C++ initialization for the thread. Before this call
+    // the tls must be set correctly. The TLS is set before the jump to this
+    // entry function
+    __cxa_threadinitialize();
+
+    job->entry(job->argument);
+    __finalize_task(job, 0);
 }
 
 uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params)
@@ -52,7 +82,6 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->next = NULL;
     job->entry = entry;
     job->argument = argument;
-    job->cancelled = 0;
     if (__tls_initialize(&job->tls)) {
         free(job->stack);
         free(job);
@@ -100,31 +129,54 @@ void usched_job_exit(int exitCode)
     if (sched->current == NULL) {
         return;
     }
-    usched_task_cancel(sched->current);
+    __finalize_task(sched->current, exitCode);
 }
 
-void usched_job_cancel(uuid_t jobID)
+int usched_job_detach(uuid_t jobID)
 {
-    if (!cancellationToken) {
-        return;
-    }
+    // We need to determine the current state of the task, and we do this
+    // by first locking the ready queue to assert no new tasks are queued
+    // or dequeued while we perform this operation. And because of this, this
+    // operation can be a bit expensive to perform, and it is much preferred that
+    // this is requested on job-creation.
 
-    ((struct usched_job*)cancellationToken)->cancelled = 1;
+    // The state can be in one of *several* states at this point, and narrowing down
+    // exactly what is happening with this task, while it's not already en-route an
+    // operation is going to be extremely tricky.
+
+    // When detaching, the following requirements are in place
+    // i. Must not already be detached
+    // ii. Must not have the state _FINISHING
+    // Furthermore, we have 3 general cases
+    // 1. We are trying to detach the current job
+    // This is the easy one, we can simply remove any references to this job, queue it up
+    // normally and then yield to the next
+    // 2. We are trying to detach a job that is not currently running
+    // OK so this one could be easy as-well, we could flag this task for detaching whenever
+    // it is queued up for running again, which hopefully should be shortly. In any case this job
+    // could be in many states (in ready queue, sleeping or blocked).
+    // 3. We are trying to detach a currently running job
+    // Now this can be problematic, especially if we expect the job to not yield. The strategy
+    // here will be to identify the running execution unit, and signal it to migrate the job. Before this
+    // we should perform identical action as to (2) to make sure any race-condition is prevented, so as
+    // if the execution unit should yield before the signal is received, action would have already been
+    // taken to migrate the job. The issue here again, is that we have to protect the state of jobs with
+    // synchronization.
 }
 
-int usched_ct_is_cancelled(void* cancellationToken)
+int usched_job_join(uuid_t jobID, int* exitCode)
 {
-    if (!cancellationToken) {
-        return 0;
-    }
-
-    return ((struct usched_job*)cancellationToken)->cancelled;
+    // Joining is straight forward. Get the job from the job-table, check it's current
+    // state, and wait in the wait-queue. The wait-queue is a regular uthread mtx/cond combo
+    // which will wake us up once the job quits.
 }
 
-CRTDECL(int, usched_job_detach(uuid_t jobID));
+int usched_job_signal(uuid_t jobID, int signal)
+{
+    // Signalling jobs is a bit more tricky.
+}
 
-CRTDECL(int, usched_job_join(uuid_t jobID, int* exitCode));
+int usched_job_sleep(const struct timespec* duration, struct timespec* remaining)
+{
 
-CRTDECL(int, usched_job_signal(uuid_t jobID, int signal));
-
-CRTDECL(int, usched_job_sleep(const struct timespec* duration, struct timespec* remaining));
+}

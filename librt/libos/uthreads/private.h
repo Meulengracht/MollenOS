@@ -26,10 +26,14 @@
 #define SCHEDULER_MAGIC 0xDEADB00B
 
 enum job_state {
-    JobState_CREATED,
-    JobState_RUNNING,
-    JobState_BLOCKED,
-    JobState_FINISHING
+    // Current state
+    JobState_CREATED = 0,
+    JobState_RUNNING = 1,
+    JobState_BLOCKED = 2,
+    JobState_FINISHING = 3,
+
+    // State flags
+
 };
 
 struct usched_job {
@@ -40,7 +44,6 @@ struct usched_job {
     enum job_state        state;
     usched_task_fn        entry;
     void*                 argument;
-    int                   cancelled;
     struct thread_storage tls;
 
     struct usched_job* next;

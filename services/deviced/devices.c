@@ -101,8 +101,7 @@ DmDevicesRegister(
 }
 
 void DmHandleDeviceCreate(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     uuid_t    result = UUID_INVALID;
     oserr_t   status;
@@ -128,16 +127,14 @@ respond:
 }
 
 void DmHandleDeviceDestroy(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     sys_device_unregister_response(request->message, OsNotSupported);
     RequestDestroy(request);
 }
 
 void DmHandleGetDevicesByProtocol(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     TRACE("DmHandleGetDevicesByProtocol(protocol=%u)",
           request->parameters.get_devices_by_protocol.protocol);
@@ -165,8 +162,7 @@ void DmHandleGetDevicesByProtocol(
 }
 
 void DmHandleIoctl(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     struct DmDevice* device = __GetDevice(request->parameters.ioctl.device_id);
     oserr_t       result = OsInvalidParameters;
@@ -184,8 +180,7 @@ void DmHandleIoctl(
 }
 
 void DmHandleIoctl2(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
     oserr_t       result  = OsInvalidParameters;
@@ -221,8 +216,7 @@ __AddProtocolToDevice(
 }
 
 void DmHandleRegisterProtocol(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     struct DmDevice* device = __GetDevice(request->parameters.ioctl2.device_id);
     if (device) {

@@ -152,8 +152,7 @@ __StorageMount(
 
 static void
 __StorageSetup(
-        _In_ FileSystemStorage_t* fsStorage,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemStorage_t* fsStorage)
 {
     struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(fsStorage->Storage.DriverID);
     oserr_t                    osStatus;
@@ -257,8 +256,7 @@ __StorageUnmount(
 
 static void
 __StorageDestroy(
-        _In_ struct VfsRemoveDiskRequest* request,
-        _In_ void*                        cancellationToken)
+        _In_ struct VfsRemoveDiskRequest* request)
 {
     element_t* header;
 

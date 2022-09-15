@@ -349,7 +349,6 @@ PmCreateProcessInternal(
         _In_  const char*             args,
         _In_  const void*             inherit,
         _In_  ProcessConfiguration_t* processConfiguration,
-        _In_  void*                   cancellationToken,
         _Out_ uuid_t*                 handleOut)
 {
     PeExecutable_t* image;
@@ -418,8 +417,7 @@ exit:
 }
 
 void PmCreateProcess(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     uuid_t     handle;
     oserr_t osStatus;
@@ -432,7 +430,6 @@ void PmCreateProcess(
             request->parameters.spawn.args,
             request->parameters.spawn.inherit,
             &request->parameters.spawn.conf,
-            cancellationToken,
             &handle);
     if (osStatus != OsOK) {
         sys_process_spawn_response(request->message, osStatus, UUID_INVALID);
@@ -450,8 +447,7 @@ cleanup:
 }
 
 void PmGetProcessStartupInformation(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process       = GetProcessByThread(request->parameters.get_initblock.threadHandle);
     oserr_t    osStatus      = OsNotExists;
@@ -520,8 +516,7 @@ __get_timestamp_from_now(unsigned int ms, struct timespec* ts)
 
 void
 PmJoinProcess(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* target;
     int        exitCode;
@@ -574,8 +569,7 @@ cleanup:
 }
 
 void PmTerminateProcess(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
     element_t* i;
@@ -617,8 +611,7 @@ cleanup:
 }
 
 void PmSignalProcess(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* victim;
     oserr_t osStatus;
@@ -651,8 +644,7 @@ exit:
 }
 
 void PmLoadLibrary(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t*      process;
     PeExecutable_t* executable;
@@ -697,8 +689,7 @@ exit1:
 }
 
 void PmGetLibraryFunction(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
     oserr_t osStatus = OsNotExists;
@@ -731,8 +722,7 @@ void PmGetLibraryFunction(
 }
 
 void PmUnloadLibrary(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
     oserr_t osStatus = OsNotExists;
@@ -758,8 +748,7 @@ respond:
 }
 
 void PmGetModules(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
     int        moduleCount = PROCESS_MAXMODULES;
@@ -780,8 +769,7 @@ void PmGetModules(
 }
 
 void PmGetName(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
 
@@ -804,8 +792,7 @@ void PmGetName(
 }
 
 void PmGetTickBase(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t*   process;
     oserr_t      status = OsInvalidParameters;
@@ -827,8 +814,7 @@ void PmGetTickBase(
 }
 
 void PmGetWorkingDirectory(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
 
@@ -852,8 +838,7 @@ void PmGetWorkingDirectory(
 }
 
 void PmSetWorkingDirectory(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
     oserr_t status = OsInvalidParameters;
@@ -877,8 +862,7 @@ void PmSetWorkingDirectory(
 }
 
 void PmGetAssemblyDirectory(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
 

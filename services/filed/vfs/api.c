@@ -26,8 +26,7 @@
 #include "sys_file_service_server.h"
 
 void OpenFile(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -44,8 +43,7 @@ void OpenFile(
 }
 
 void CloseFile(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -60,8 +58,7 @@ void CloseFile(
 }
 
 void DeletePath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -77,8 +74,7 @@ void DeletePath(
 }
 
 void ReadFile(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -94,8 +90,7 @@ void ReadFile(
 }
 
 void WriteFile(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -111,8 +106,7 @@ void WriteFile(
 }
 
 void ReadFileAbsolute(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -128,8 +122,7 @@ void ReadFileAbsolute(
 }
 
 void WriteFileAbsolute(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -145,8 +138,7 @@ void WriteFileAbsolute(
 }
 
 void Seek(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -162,8 +154,7 @@ void Seek(
 }
 
 void Flush(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -178,8 +169,7 @@ void Flush(
 }
 
 void Move(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -194,8 +184,7 @@ void Move(
 }
 
 void Link(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -210,8 +199,7 @@ void Link(
 }
 
 void Duplicate(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -227,8 +215,7 @@ void Duplicate(
 }
 
 void GetPosition(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -244,8 +231,7 @@ void GetPosition(
 }
 
 void GetAccess(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -261,8 +247,7 @@ void GetAccess(
 }
 
 void SetAccess(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -277,8 +262,7 @@ void SetAccess(
 }
 
 void GetSize(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationTokenv)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -294,8 +278,7 @@ void GetSize(
 }
 
 void SetSize(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -322,8 +305,7 @@ static void __ToProtocolFileDescriptor(struct VFSStat* in, struct sys_file_descr
 }
 
 void StatFromHandle(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFSStat             stats;
     struct sys_file_descriptor result;
@@ -341,8 +323,7 @@ void StatFromHandle(
 }
 
 void StatFromPath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFSStat             stats;
     struct sys_file_descriptor result;
@@ -378,8 +359,7 @@ static void __CleanupProtocolFileSystemDescriptor(struct sys_filesystem_descript
 }
 
 void StatFileSystemByHandle(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFSStatFS                 stats;
     struct sys_filesystem_descriptor result;
@@ -397,8 +377,7 @@ void StatFileSystemByHandle(
 }
 
 void StatFileSystemByPath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFSStatFS                 stats;
     struct sys_filesystem_descriptor result;
@@ -417,8 +396,7 @@ void StatFileSystemByPath(
 }
 
 void StatStorageByHandle(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     StorageDescriptor_t        stats;
     struct sys_disk_descriptor result;
@@ -436,8 +414,7 @@ void StatStorageByHandle(
 }
 
 void StatStorageByPath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     StorageDescriptor_t        stats;
     struct sys_disk_descriptor result;
@@ -456,8 +433,7 @@ void StatStorageByPath(
 }
 
 void StatLinkPathFromPath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -479,8 +455,7 @@ void StatLinkPathFromPath(
 }
 
 void GetFullPathByHandle(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
@@ -502,8 +477,7 @@ void GetFullPathByHandle(
 }
 
 void RealPath(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+        _In_ FileSystemRequest_t* request)
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {

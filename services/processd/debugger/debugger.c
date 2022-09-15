@@ -148,8 +148,7 @@ HandleProcessCrashReport(
 }
 
 void PmHandleCrash(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     Process_t* process;
     oserr_t osStatus;

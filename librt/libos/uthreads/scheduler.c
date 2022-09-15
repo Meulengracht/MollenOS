@@ -25,10 +25,6 @@
 #include <stdlib.h>
 #include "private.h"
 
-// Needed to handle thread stuff now on an userspace basis
-CRTDECL(void, __cxa_threadinitialize(void));
-CRTDECL(void, __cxa_threadfinalize(void));
-
 static atomic_int         g_timerid        = ATOMIC_VAR_INIT(1);
 static struct usched_job* g_readyQueue     = NULL;
 static Mutex_t            g_readyQueueLock = MUTEX_INIT(MUTEX_PLAIN);
@@ -144,27 +140,8 @@ __get_next_ready(struct usched_scheduler* scheduler)
     return next;
 }
 
-// TaskMain takes care of C/C++ handlers for the thread. Each job is in itself a
-// full thread (atleast treated like that), except that it exclusively runs in
-// userspace. This function encapsulates the C/C++ handler handling, while the
-// TLS for each thread is taken care of by job creation/destruction.
-void
-TaskMain(struct usched_job* job)
-{
-    // Run any C/C++ initialization for the thread. Before this call
-    // the tls must be set correctly. The TLS is set before the jump to this
-    // entry function
-    __cxa_threadinitialize();
-
-    // Now update the state, and call the entry function.
-    job->state = JobState_RUNNING;
-    job->entry(job->argument, job);
-    job->state = JobState_FINISHING;
-
-    // Before yielding, let us run the deinitalizers before we do any task cleanup.
-    __cxa_threadfinalize();
-    usched_yield(NULL);
-}
+// entry point for new tasks
+extern void __usched_task_main(struct usched_job* job);
 
 static void
 __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct usched_job* next)
@@ -199,12 +176,12 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
     stack = (char*)next->stack + next->stack_size;
 #if defined(__amd64__)
     __asm__ (
-            "movq %0, %%rcx; movq %1, %%rsp; callq TaskMain\n"
+            "movq %0, %%rcx; movq %1, %%rsp; callq __usched_task_main\n"
             :: "r"(next), "r"(stack)
             : "rdi", "rsp", "memory");
 #elif defined(__i386__)
     __asm__ (
-            "movl %0, %%eax; movl %1, %%esp; pushl %%eax; call _TaskMain\n"
+            "movl %0, %%eax; movl %1, %%esp; pushl %%eax; call ___usched_task_main\n"
             :: "r"(next), "r"(stack)
             : "eax", "esp", "memory");
 #else
@@ -332,7 +309,7 @@ int usched_yield(struct timespec* deadline)
     current = sched->current;
     if (current) {
         if (SHOULD_RESCHEDULE(current)) {
-            // let us skip the thole schedule unschedule if
+            // let us skip the whole schedule unschedule if
             // possible.
             if (next == NULL) {
                 next = current;

@@ -21,6 +21,6 @@
 #include <stddef.h>
 #include <crtdefs.h>
 
-typedef void (*usched_task_fn)(void*, void*);
+typedef void (*usched_task_fn)(void*);
 
 #endif //!__OS_USCHED_TYPES_H__

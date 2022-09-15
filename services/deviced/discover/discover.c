@@ -291,13 +291,11 @@ __NotifyDevices(
 }
 
 void DmHandleNotify(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ Request_t* request)
 {
     // driver is now booted, we can send all the devices that have
     // been registered
     struct DmDriver* driver;
-    _CRT_UNUSED(cancellationToken);
     TRACE("DmHandleNotify(driverId=%u)",
           request->parameters.notify.driver_id);
 

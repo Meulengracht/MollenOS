@@ -131,7 +131,6 @@ UnregisterProcessRequest(
  * @param[In] args
  * @param[In] inherit
  * @param[In] processConfiguration
- * @param[In] cancellationToken
  * @param[Out] handleOut
  * @return
  */
@@ -141,7 +140,6 @@ PmCreateProcessInternal(
         _In_  const char*             args,
         _In_  const void*             inherit,
         _In_  ProcessConfiguration_t* processConfiguration,
-        _In_  void*                   cancellationToken,
         _Out_ uuid_t*                 handleOut);
 
 /**

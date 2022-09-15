@@ -84,22 +84,6 @@ CRTDECL(void, usched_job_yield(void));
  */
 CRTDECL(void, usched_job_exit(int exitCode));
 
-/**
- * @brief Signals to the task's cancellation token that the a cancel operation has been requested.
- *
- * @param cancellationToken The cancellation token that should be signalled.
- */
-CRTDECL(void, usched_job_cancel(uuid_t jobID));
-
-/**
- * @brief For tasks to implement check of whether or not a cancellation token has been signalled.
- *
- * @param cancellationToken The token to check.
- * @return                  Returns 1 if the token is signaled. Returns 0 if not.
- */
-CRTDECL(int, usched_ct_is_cancelled(void* cancellationToken));
-
-
 CRTDECL(int, usched_job_detach(uuid_t jobID));
 
 CRTDECL(int, usched_job_join(uuid_t jobID, int* exitCode));
