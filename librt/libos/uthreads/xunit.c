@@ -21,6 +21,7 @@
 #include <internal/_syscalls.h>
 #include <os/mutex.h>
 #include <os/threads.h>
+#include <os/usched/job.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
 #include <signal.h>
@@ -120,7 +121,7 @@ _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
-    mainCT = usched_task_queue(startFn, argument);
+    mainCT = usched_job_queue(startFn, argument);
     (void)mainCT; // TODO: better support for cancelling tasks...
     while (1) {
         int status;

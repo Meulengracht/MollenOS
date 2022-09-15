@@ -95,7 +95,7 @@ void sys_device_notify_invocation(struct gracht_message* message,
     // initialize parameters
     request->parameters.notify.driver_id     = driverId;
     request->parameters.notify.driver_handle = driverHandle;
-    usched_task_queue((usched_task_fn)DmHandleNotify, request);
+    usched_job_queue((usched_task_fn)DmHandleNotify, request);
 }
 
 void sys_device_register_invocation(
@@ -113,7 +113,7 @@ void sys_device_register_invocation(
     // initialize parameters
     sys_device_copy(device, &request->parameters.create.device);
     request->parameters.create.flags  = flags;
-    usched_task_queue((usched_task_fn)DmHandleDeviceCreate, request);
+    usched_job_queue((usched_task_fn)DmHandleDeviceCreate, request);
 }
 
 void sys_device_unregister_invocation(struct gracht_message* message, const uuid_t deviceId)
@@ -129,7 +129,7 @@ void sys_device_unregister_invocation(struct gracht_message* message, const uuid
 
     // initialize parameters
     request->parameters.destroy.device_id = deviceId;
-    usched_task_queue((usched_task_fn)DmHandleDeviceDestroy, request);
+    usched_job_queue((usched_task_fn)DmHandleDeviceDestroy, request);
 }
 
 void sys_device_ioctl_invocation(struct gracht_message* message,
@@ -148,7 +148,7 @@ void sys_device_ioctl_invocation(struct gracht_message* message,
     request->parameters.ioctl.device_id = deviceId;
     request->parameters.ioctl.command   = command;
     request->parameters.ioctl.flags     = flags;
-    usched_task_queue((usched_task_fn)DmHandleIoctl, request);
+    usched_job_queue((usched_task_fn)DmHandleIoctl, request);
 }
 
 void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t deviceId,
@@ -170,7 +170,7 @@ void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t 
     request->parameters.ioctl2.command   = command;
     request->parameters.ioctl2.value     = value;
     request->parameters.ioctl2.width     = width;
-    usched_task_queue((usched_task_fn)DmHandleIoctl2, request);
+    usched_job_queue((usched_task_fn)DmHandleIoctl2, request);
 }
 
 void sys_device_get_devices_by_protocol_invocation(struct gracht_message* message, const uint8_t protocolId)
@@ -186,7 +186,7 @@ void sys_device_get_devices_by_protocol_invocation(struct gracht_message* messag
 
     // initialize parameters
     request->parameters.get_devices_by_protocol.protocol = protocolId;
-    usched_task_queue((usched_task_fn)DmHandleGetDevicesByProtocol, request);
+    usched_job_queue((usched_task_fn)DmHandleGetDevicesByProtocol, request);
 }
 
 void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
@@ -206,5 +206,5 @@ void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
     request->parameters.register_protocol.device_id     = deviceId;
     request->parameters.register_protocol.protocol_id   = protocolId;
     request->parameters.register_protocol.protocol_name = strdup(protocolName);
-    usched_task_queue((usched_task_fn)DmHandleRegisterProtocol, request);
+    usched_job_queue((usched_task_fn)DmHandleRegisterProtocol, request);
 }

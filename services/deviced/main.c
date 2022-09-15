@@ -65,6 +65,6 @@ OnLoad(void)
 
     // Start the enumeration process in a new thread, so we can quickly return
     // and be ready for requests.
-    usched_task_queue((usched_task_fn)BusEnumerate, NULL);
+    usched_job_queue((usched_task_fn)BusEnumerate, NULL);
     return OsOK;
 }

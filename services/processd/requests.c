@@ -121,7 +121,7 @@ void sys_process_spawn_invocation(struct gracht_message* message, const char* pa
     request->parameters.spawn.args = strdup(arguments);
     request->parameters.spawn.inherit = memdup(inheritBlock, inheritBlock_count);
     from_sys_process_configuration(configuration, &request->parameters.spawn.conf);
-    usched_task_queue((usched_task_fn)PmCreateProcess, request);
+    usched_job_queue((usched_task_fn)PmCreateProcess, request);
 }
 
 void sys_process_get_startup_information_invocation(struct gracht_message* message, const uuid_t handle,
@@ -140,7 +140,7 @@ void sys_process_get_startup_information_invocation(struct gracht_message* messa
     request->parameters.get_initblock.threadHandle = handle;
     request->parameters.get_initblock.bufferHandle = bufferHandle;
     request->parameters.get_initblock.bufferOffset = offset;
-    usched_task_queue((usched_task_fn)PmGetProcessStartupInformation, request);
+    usched_job_queue((usched_task_fn)PmGetProcessStartupInformation, request);
 }
 
 void sys_process_join_invocation(struct gracht_message* message, const uuid_t handle, const unsigned int timeout)
@@ -157,7 +157,7 @@ void sys_process_join_invocation(struct gracht_message* message, const uuid_t ha
     // initialize parameters
     request->parameters.join.handle  = handle;
     request->parameters.join.timeout = timeout;
-    usched_task_queue((usched_task_fn)PmJoinProcess, request);
+    usched_job_queue((usched_task_fn)PmJoinProcess, request);
 }
 
 void sys_process_terminate_invocation(struct gracht_message* message, const uuid_t handle, const int exitCode)
@@ -174,7 +174,7 @@ void sys_process_terminate_invocation(struct gracht_message* message, const uuid
     // initialize parameters
     request->parameters.terminate.handle    = handle;
     request->parameters.terminate.exit_code = exitCode;
-    usched_task_queue((usched_task_fn)PmTerminateProcess, request);
+    usched_job_queue((usched_task_fn)PmTerminateProcess, request);
 }
 
 void sys_process_signal_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle, const int signal)
@@ -191,7 +191,7 @@ void sys_process_signal_invocation(struct gracht_message* message, const uuid_t 
     // initialize parameters
     request->parameters.signal.killer_handle = processId;
     request->parameters.signal.victim_handle = handle;
-    usched_task_queue((usched_task_fn)PmSignalProcess, request);
+    usched_job_queue((usched_task_fn)PmSignalProcess, request);
 }
 
 void sys_library_load_invocation(struct gracht_message* message, const uuid_t processId, const char* path)
@@ -208,7 +208,7 @@ void sys_library_load_invocation(struct gracht_message* message, const uuid_t pr
     // initialize parameters
     request->parameters.load_library.handle = processId;
     request->parameters.load_library.path   = strdup(path);
-    usched_task_queue((usched_task_fn)PmLoadLibrary, request);
+    usched_job_queue((usched_task_fn)PmLoadLibrary, request);
 }
 
 void sys_library_get_function_invocation(struct gracht_message* message, const uuid_t processId,
@@ -227,7 +227,7 @@ void sys_library_get_function_invocation(struct gracht_message* message, const u
     request->parameters.get_function.handle         = processId;
     request->parameters.get_function.library_handle = (Handle_t)handle;
     request->parameters.get_function.name           = strdup(name);
-    usched_task_queue((usched_task_fn)PmGetLibraryFunction, request);
+    usched_job_queue((usched_task_fn)PmGetLibraryFunction, request);
 }
 
 void sys_library_unload_invocation(struct gracht_message* message, const uuid_t processId, const uintptr_t handle)
@@ -244,7 +244,7 @@ void sys_library_unload_invocation(struct gracht_message* message, const uuid_t 
     // initialize parameters
     request->parameters.unload_library.handle         = processId;
     request->parameters.unload_library.library_handle = (Handle_t)handle;
-    usched_task_queue((usched_task_fn)PmUnloadLibrary, request);
+    usched_job_queue((usched_task_fn)PmUnloadLibrary, request);
 }
 
 void sys_process_get_modules_invocation(struct gracht_message* message, const uuid_t handle)
@@ -260,7 +260,7 @@ void sys_process_get_modules_invocation(struct gracht_message* message, const uu
 
     // initialize parameters
     request->parameters.stat_handle.handle = handle;
-    usched_task_queue((usched_task_fn)PmGetModules, request);
+    usched_job_queue((usched_task_fn)PmGetModules, request);
 }
 
 void sys_process_get_tick_base_invocation(struct gracht_message* message, const uuid_t handle)
@@ -276,7 +276,7 @@ void sys_process_get_tick_base_invocation(struct gracht_message* message, const 
 
     // initialize parameters
     request->parameters.stat_handle.handle = handle;
-    usched_task_queue((usched_task_fn)PmGetTickBase, request);
+    usched_job_queue((usched_task_fn)PmGetTickBase, request);
 }
 
 void sys_process_get_assembly_directory_invocation(struct gracht_message* message, const uuid_t handle)
@@ -292,7 +292,7 @@ void sys_process_get_assembly_directory_invocation(struct gracht_message* messag
 
     // initialize parameters
     request->parameters.stat_handle.handle = handle;
-    usched_task_queue((usched_task_fn)PmGetAssemblyDirectory, request);
+    usched_job_queue((usched_task_fn)PmGetAssemblyDirectory, request);
 }
 
 void sys_process_get_working_directory_invocation(struct gracht_message* message, const uuid_t handle)
@@ -308,7 +308,7 @@ void sys_process_get_working_directory_invocation(struct gracht_message* message
 
     // initialize parameters
     request->parameters.stat_handle.handle = handle;
-    usched_task_queue((usched_task_fn)PmGetWorkingDirectory, request);
+    usched_job_queue((usched_task_fn)PmGetWorkingDirectory, request);
 }
 
 void sys_process_set_working_directory_invocation(struct gracht_message* message, const uuid_t handle, const char* path)
@@ -325,7 +325,7 @@ void sys_process_set_working_directory_invocation(struct gracht_message* message
     // initialize parameters
     request->parameters.set_cwd.handle = handle;
     request->parameters.set_cwd.path   = strdup(path);
-    usched_task_queue((usched_task_fn)PmSetWorkingDirectory, request);
+    usched_job_queue((usched_task_fn)PmSetWorkingDirectory, request);
 }
 
 void sys_process_get_name_invocation(struct gracht_message* message, const uuid_t handle)
@@ -341,7 +341,7 @@ void sys_process_get_name_invocation(struct gracht_message* message, const uuid_
 
     // initialize parameters
     request->parameters.stat_handle.handle = handle;
-    usched_task_queue((usched_task_fn)PmGetName, request);
+    usched_job_queue((usched_task_fn)PmGetName, request);
 }
 
 void sys_process_report_crash_invocation(struct gracht_message* message, const uuid_t threadId,
@@ -362,5 +362,5 @@ void sys_process_report_crash_invocation(struct gracht_message* message, const u
     request->parameters.crash.process_handle = processId;
     request->parameters.crash.context = memdup(crashContext, crashContext_count);
     request->parameters.crash.reason = reason;
-    usched_task_queue((usched_task_fn)PmHandleCrash, request);
+    usched_job_queue((usched_task_fn)PmHandleCrash, request);
 }

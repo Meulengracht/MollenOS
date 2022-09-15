@@ -122,7 +122,7 @@ void sys_file_open_invocation(struct gracht_message* message,
     request->parameters.open.path = strdup(path);
     request->parameters.open.access = access;
     request->parameters.open.options = options;
-    usched_task_queue((usched_task_fn)OpenFile, request);
+    usched_job_queue((usched_task_fn)OpenFile, request);
 }
 
 void sys_file_close_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -137,7 +137,7 @@ void sys_file_close_invocation(struct gracht_message* message, const uuid_t proc
     }
 
     request->parameters.close.fileHandle = handle;
-    usched_task_queue((usched_task_fn)CloseFile, request);
+    usched_job_queue((usched_task_fn)CloseFile, request);
 }
 
 void sys_file_delete_invocation(struct gracht_message* message,
@@ -154,7 +154,7 @@ void sys_file_delete_invocation(struct gracht_message* message,
 
     request->parameters.delete_path.path = strdup(path);
     request->parameters.delete_path.options = flags;
-    usched_task_queue((usched_task_fn)DeletePath, request);
+    usched_job_queue((usched_task_fn)DeletePath, request);
 }
 
 void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle,
@@ -182,10 +182,10 @@ void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t p
     request->parameters.transfer.offset = offset;
 
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        usched_task_queue((usched_task_fn)ReadFile, request);
+        usched_job_queue((usched_task_fn)ReadFile, request);
     }
     else {
-        usched_task_queue((usched_task_fn)WriteFile, request);
+        usched_job_queue((usched_task_fn)WriteFile, request);
     }
 }
 
@@ -204,7 +204,7 @@ void sys_file_seek_invocation(struct gracht_message* message, const uuid_t proce
     request->parameters.seek.fileHandle = handle;
     request->parameters.seek.position_low = seekLow;
     request->parameters.seek.position_high = seekHigh;
-    usched_task_queue((usched_task_fn)Seek, request);
+    usched_job_queue((usched_task_fn)Seek, request);
 }
 
 void sys_file_transfer_absolute_invocation(struct gracht_message* message, const uuid_t processId,
@@ -235,10 +235,10 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
     request->parameters.transfer_absolute.offset = offset;
 
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
-        usched_task_queue((usched_task_fn)ReadFileAbsolute, request);
+        usched_job_queue((usched_task_fn)ReadFileAbsolute, request);
     }
     else {
-        usched_task_queue((usched_task_fn)WriteFileAbsolute, request);
+        usched_job_queue((usched_task_fn)WriteFileAbsolute, request);
     }
 }
 
@@ -254,7 +254,7 @@ void sys_file_flush_invocation(struct gracht_message* message, const uuid_t proc
     }
 
     request->parameters.flush.fileHandle = handle;
-    usched_task_queue((usched_task_fn)Flush, request);
+    usched_job_queue((usched_task_fn)Flush, request);
 }
 
 void sys_file_move_invocation(struct gracht_message* message, const uuid_t processId,
@@ -277,7 +277,7 @@ void sys_file_move_invocation(struct gracht_message* message, const uuid_t proce
     request->parameters.move.from = strdup(source);
     request->parameters.move.to = strdup(destination);
     request->parameters.move.copy = copy;
-    usched_task_queue((usched_task_fn)Move, request);
+    usched_job_queue((usched_task_fn)Move, request);
 }
 
 void sys_file_link_invocation(struct gracht_message* message, const uuid_t processId,
@@ -300,7 +300,7 @@ void sys_file_link_invocation(struct gracht_message* message, const uuid_t proce
     request->parameters.link.from = strdup(source);
     request->parameters.link.to = strdup(destination);
     request->parameters.link.symbolic = symbolic;
-    usched_task_queue((usched_task_fn)Link, request);
+    usched_job_queue((usched_task_fn)Link, request);
 }
 
 void sys_file_get_position_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -315,7 +315,7 @@ void sys_file_get_position_invocation(struct gracht_message* message, const uuid
     }
 
     request->parameters.get_position.fileHandle = handle;
-    usched_task_queue((usched_task_fn)GetPosition, request);
+    usched_job_queue((usched_task_fn)GetPosition, request);
 }
 
 void sys_file_duplicate_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -330,7 +330,7 @@ void sys_file_duplicate_invocation(struct gracht_message* message, const uuid_t 
     }
 
     request->parameters.duplicate.fileHandle = handle;
-    usched_task_queue((usched_task_fn)Duplicate, request);
+    usched_job_queue((usched_task_fn)Duplicate, request);
 }
 
 void sys_file_get_access_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -345,7 +345,7 @@ void sys_file_get_access_invocation(struct gracht_message* message, const uuid_t
     }
 
     request->parameters.get_access.fileHandle = handle;
-    usched_task_queue((usched_task_fn)GetAccess, request);
+    usched_job_queue((usched_task_fn)GetAccess, request);
 }
 
 void sys_file_set_access_invocation(struct gracht_message* message, const uuid_t processId,
@@ -362,7 +362,7 @@ void sys_file_set_access_invocation(struct gracht_message* message, const uuid_t
 
     request->parameters.set_access.fileHandle = handle;
     request->parameters.set_access.access = access;
-    usched_task_queue((usched_task_fn)SetAccess, request);
+    usched_job_queue((usched_task_fn)SetAccess, request);
 }
 
 void sys_file_get_size_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -377,7 +377,7 @@ void sys_file_get_size_invocation(struct gracht_message* message, const uuid_t p
     }
 
     request->parameters.get_size.fileHandle = handle;
-    usched_task_queue((usched_task_fn)GetSize, request);
+    usched_job_queue((usched_task_fn)GetSize, request);
 }
 
 void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t processId,
@@ -395,7 +395,7 @@ void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t p
     request->parameters.set_size.fileHandle = handle;
     request->parameters.set_size.size_low = sizeLow;
     request->parameters.set_size.size_high = sizeHigh;
-    usched_task_queue((usched_task_fn)SetSize, request);
+    usched_job_queue((usched_task_fn)SetSize, request);
 }
 
 void sys_file_get_path_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -411,7 +411,7 @@ void sys_file_get_path_invocation(struct gracht_message* message, const uuid_t p
     }
 
     request->parameters.stat_handle.fileHandle = handle;
-    usched_task_queue((usched_task_fn)GetFullPathByHandle, request);
+    usched_job_queue((usched_task_fn)GetFullPathByHandle, request);
 }
 
 void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -427,7 +427,7 @@ void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t proc
     }
 
     request->parameters.stat_handle.fileHandle = handle;
-    usched_task_queue((usched_task_fn)StatFromHandle, request);
+    usched_job_queue((usched_task_fn)StatFromHandle, request);
 }
 
 void sys_file_fstat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* path, const int followLinks)
@@ -449,7 +449,7 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const uuid_t
 
     request->parameters.stat_path.path = strdup(path);
     request->parameters.stat_path.follow_links = followLinks;
-    usched_task_queue((usched_task_fn)StatFromPath, request);
+    usched_job_queue((usched_task_fn)StatFromPath, request);
 }
 
 void sys_file_fstat_link_invocation(struct gracht_message* message, const uuid_t processId, const char* path)
@@ -469,7 +469,7 @@ void sys_file_fstat_link_invocation(struct gracht_message* message, const uuid_t
     }
 
     request->parameters.stat_path.path = strdup(path);
-    usched_task_queue((usched_task_fn)StatLinkPathFromPath, request);
+    usched_job_queue((usched_task_fn)StatLinkPathFromPath, request);
 }
 
 void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
@@ -485,7 +485,7 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t pro
     }
 
     request->parameters.stat_handle.fileHandle = handle;
-    usched_task_queue((usched_task_fn)StatFileSystemByHandle, request);
+    usched_job_queue((usched_task_fn)StatFileSystemByHandle, request);
 }
 
 void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* path, const int followLinks)
@@ -502,7 +502,7 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_
 
     request->parameters.stat_path.path = strdup(path);
     request->parameters.stat_path.follow_links = followLinks;
-    usched_task_queue((usched_task_fn)StatFileSystemByPath, request);
+    usched_job_queue((usched_task_fn)StatFileSystemByPath, request);
 }
 
 void sys_file_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)
@@ -523,7 +523,7 @@ void sys_file_realpath_invocation(struct gracht_message* message, const char* pa
 
     request->parameters.stat_path.path = strdup(path);
     request->parameters.stat_path.follow_links = followLinks;
-    usched_task_queue((usched_task_fn)RealPath, request);
+    usched_job_queue((usched_task_fn)RealPath, request);
 }
 
 void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t fileHandle)
@@ -539,7 +539,7 @@ void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t pro
     }
 
     request->parameters.stat_handle.fileHandle = fileHandle;
-    usched_task_queue((usched_task_fn)StatStorageByHandle, request);
+    usched_job_queue((usched_task_fn)StatStorageByHandle, request);
 }
 
 void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* filePath, const int followLinks)
@@ -561,5 +561,5 @@ void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_
 
     request->parameters.stat_path.path = strdup(filePath);
     request->parameters.stat_path.follow_links = followLinks;
-    usched_task_queue((usched_task_fn)StatStorageByPath, request);
+    usched_job_queue((usched_task_fn)StatStorageByPath, request);
 }

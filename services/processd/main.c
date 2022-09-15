@@ -57,6 +57,6 @@ OnLoad(void)
 
     // Queue up a task that bootstraps the system, it must run in scheduler
     // context as it uses scheduler primitives.
-    usched_task_queue((usched_task_fn)PmBootstrap, NULL);
+    usched_job_queue((usched_task_fn)PmBootstrap, NULL);
     return OsOK;
 }

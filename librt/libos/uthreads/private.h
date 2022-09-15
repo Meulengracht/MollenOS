@@ -19,6 +19,7 @@
 #define __USCHED_PRIVATE_H__
 
 #include <internal/_tls.h>
+#include <os/usched/types.h>
 #include <setjmp.h>
 #include <time.h>
 
@@ -32,6 +33,7 @@ enum job_state {
 };
 
 struct usched_job {
+    uuid_t                id;
     void*                 stack;
     unsigned int          stack_size;
     jmp_buf               context;

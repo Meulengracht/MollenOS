@@ -72,7 +72,7 @@ DmDiscoverInitialize(void)
 
     // Start parsing the ramdisk as that is all we have initially, do it in usched
     // context, so we spawn a job to do this.
-    usched_task_queue((usched_task_fn)DmRamdiskDiscover, NULL);
+    usched_job_queue((usched_task_fn)DmRamdiskDiscover, NULL);
 }
 
 static void

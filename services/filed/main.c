@@ -54,6 +54,6 @@ oserr_t OnLoad(void)
     gracht_server_register_protocol(__crt_get_service_server(), &sys_storage_server_protocol);
 
     // Queue up some initialization jobs
-    usched_task_queue((usched_task_fn)VFSScopeInitialize, NULL);
+    usched_job_queue((usched_task_fn)VFSScopeInitialize, NULL);
     return OsOK;
 }

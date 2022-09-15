@@ -44,7 +44,9 @@ typedef uuid_t       thrd_t;
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX
 
+//#define __OSCONFIG_GREEN_THREADS
 #ifdef __OSCONFIG_GREEN_THREADS
+#include <errno.h>
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
 #include <os/usched/job.h>
@@ -106,11 +108,8 @@ static inline void call_once(once_flag* flag, void (*func)(void)) {
  * @return
  */
 static inline int thrd_create(thrd_t* thr, thrd_start_t func, void* arg) {
-    struct usched_job_parameters jobParameters;
-    usched_job_parameters_init(&jobParameters);
-    return __to_thrd_error(
-            ThreadsCreate(thr, &threadParameters, func, arg)
-    );
+    *thr = usched_job_queue((usched_task_fn)func, arg);
+    return __to_thrd_error(*thr != UUID_INVALID ? 0 : -1);
 }
 
 /**
@@ -128,7 +127,7 @@ static inline int thrd_equal(thrd_t a, thrd_t b) {
  * @return
  */
 static inline thrd_t thrd_current(void) {
-    return ThreadsCurrentId();
+    return usched_job_current();
 }
 
 /**
@@ -136,7 +135,7 @@ static inline thrd_t thrd_current(void) {
  * allowing other threads to run.
  */
 static inline void thrd_yield(void) {
-    ThreadsYield();
+    usched_job_yield();
 }
 
 /**
@@ -153,7 +152,7 @@ static inline void thrd_yield(void) {
  * @param res
  */
 static inline void thrd_exit(int res) {
-    ThreadsExit(res);
+    usched_job_exit(res);
 }
 
 /**
@@ -163,7 +162,7 @@ static inline void thrd_exit(int res) {
  * @return
  */
 static inline int thrd_detach(thrd_t thr) {
-    return __to_thrd_error(ThreadsDetach(thr));
+    return __to_thrd_error(usched_job_detach(thr));
 }
 
 /**
@@ -176,7 +175,7 @@ static inline int thrd_detach(thrd_t thr) {
  * @return
  */
 static inline int thrd_join(thrd_t thr, int* res) {
-    return __to_thrd_error(ThreadsJoin(thr, res));
+    return __to_thrd_error(usched_job_join(thr, res));
 }
 
 /**
@@ -187,7 +186,7 @@ static inline int thrd_join(thrd_t thr, int* res) {
  * @return
  */
 static inline int thrd_signal(thrd_t thr, int sig) {
-    return __to_thrd_error(ThreadsSignal(thr, sig));
+    return __to_thrd_error(usched_job_signal(thr, sig));
 }
 
 /**
@@ -203,7 +202,7 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
 static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
-    return __to_thrd_error(ThreadsSleep(duration, remaining));
+    return __to_thrd_error(usched_job_sleep(duration, remaining));
 }
 
 /**
@@ -211,13 +210,16 @@ static inline int thrd_sleep(const struct timespec* duration, struct timespec* r
  * Extensions in Vali/MollenOS. Will be obsoleted at some point.
  */
 static inline int thrd_sleepex(size_t msec) {
-    UInteger64_t remaining;
-    UInteger64_t nanoseconds = {
-            .QuadPart = msec * NSEC_PER_MSEC
-    };
-    return __to_thrd_error(
-            VaSleep(&nanoseconds, &remaining)
-    );
+    struct timespec ts;
+    struct timespec remaining;
+    timespec_get(&ts, TIME_UTC);
+    ts.tv_sec += (time_t)(msec / MSEC_PER_SEC);
+    ts.tv_nsec += (long)(msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
+    if (ts.tv_nsec >= NSEC_PER_SEC) {
+        ts.tv_sec++;
+        ts.tv_nsec -= NSEC_PER_SEC;
+    }
+    return thrd_sleep(&ts, &remaining);
 }
 
 /**

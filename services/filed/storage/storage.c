@@ -235,7 +235,7 @@ void sys_storage_register_invocation(struct gracht_message* message,
         ERROR("sys_storage_register_invocation FAILED TO CREATE STORAGE STRUCTURE");
         return;
     }
-    usched_task_queue((usched_task_fn) __StorageSetup, storage);
+    usched_job_queue((usched_task_fn) __StorageSetup, storage);
 }
 
 static void
@@ -287,5 +287,5 @@ void sys_storage_unregister_invocation(struct gracht_message* message, const uui
 
     request->disk_id = deviceId;
     request->flags = forced;
-    usched_task_queue((usched_task_fn) __StorageDestroy, request);
+    usched_job_queue((usched_task_fn) __StorageDestroy, request);
 }

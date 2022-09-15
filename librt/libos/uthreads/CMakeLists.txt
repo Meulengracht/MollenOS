@@ -1,7 +1,9 @@
 
 add_library(libos-uthreads STATIC
         cond.c
+        job.c
         mutex.c
+        once.c
         scheduler.c
         xunit.c
 )

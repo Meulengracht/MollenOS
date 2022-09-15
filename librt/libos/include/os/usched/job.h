@@ -26,6 +26,7 @@
 // imported from time.h
 struct timespec;
 
+#include <os/osdefs.h>
 #include <os/usched/types.h>
 #include <stdbool.h>
 
@@ -52,7 +53,6 @@ struct usched_job_parameters {
  */
 CRTDECL(void, usched_job_parameters_init(struct usched_job_parameters* params));
 
-
 /**
  * @brief Schedules a new task in the scheduler for current execution unit.
  *
@@ -61,7 +61,7 @@ CRTDECL(void, usched_job_parameters_init(struct usched_job_parameters* params));
  * @return         A cancellation token value that can be used to signal cancellation to the task.
  *                 The cancellation token is passed to the task entry as the second parameter.
  */
-CRTDECL(void*, usched_task_queue(usched_task_fn entry, void* argument));
+CRTDECL(uuid_t, usched_job_queue(usched_task_fn entry, void* argument));
 
 /**
  * @brief Schedules a new task in the scheduler for current execution unit.
@@ -72,20 +72,24 @@ CRTDECL(void*, usched_task_queue(usched_task_fn entry, void* argument));
  * @return         A cancellation token value that can be used to signal cancellation to the task.
  *                 The cancellation token is passed to the task entry as the second parameter.
  */
-CRTDECL(void*, usched_task_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params));
+CRTDECL(uuid_t, usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params));
+
+CRTDECL(uuid_t, usched_job_current(void));
+
+CRTDECL(void, usched_job_yield(void));
 
 /**
  * @brief Marks the currently running task as cancelled. The cancelation token will be
  * signaled.
  */
-CRTDECL(void, usched_task_cancel_current(void));
+CRTDECL(void, usched_job_exit(int exitCode));
 
 /**
  * @brief Signals to the task's cancellation token that the a cancel operation has been requested.
  *
  * @param cancellationToken The cancellation token that should be signalled.
  */
-CRTDECL(void, usched_task_cancel(void* cancellationToken));
+CRTDECL(void, usched_job_cancel(uuid_t jobID));
 
 /**
  * @brief For tasks to implement check of whether or not a cancellation token has been signalled.
@@ -94,5 +98,14 @@ CRTDECL(void, usched_task_cancel(void* cancellationToken));
  * @return                  Returns 1 if the token is signaled. Returns 0 if not.
  */
 CRTDECL(int, usched_ct_is_cancelled(void* cancellationToken));
+
+
+CRTDECL(int, usched_job_detach(uuid_t jobID));
+
+CRTDECL(int, usched_job_join(uuid_t jobID, int* exitCode));
+
+CRTDECL(int, usched_job_signal(uuid_t jobID, int signal));
+
+CRTDECL(int, usched_job_sleep(const struct timespec* duration, struct timespec* remaining));
 
 #endif //!__OS_USCHED_JOB_H__
