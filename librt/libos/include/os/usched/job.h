@@ -76,6 +76,8 @@ CRTDECL(uuid_t, usched_job_queue3(usched_task_fn entry, void* argument, struct u
 
 CRTDECL(uuid_t, usched_job_current(void));
 
+CRTDECL(int, usched_job_cancel(uuid_t jobID));
+
 CRTDECL(void, usched_job_yield(void));
 
 /**
@@ -91,5 +93,12 @@ CRTDECL(int, usched_job_join(uuid_t jobID, int* exitCode));
 CRTDECL(int, usched_job_signal(uuid_t jobID, int signal));
 
 CRTDECL(int, usched_job_sleep(const struct timespec* duration, struct timespec* remaining));
+
+/**
+ * @brief
+ * @param cancellationToken
+ * @return
+ */
+CRTDECL(bool, usched_is_cancelled(const void* cancellationToken));
 
 #endif //!__OS_USCHED_JOB_H__

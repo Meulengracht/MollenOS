@@ -16,7 +16,7 @@
  *
  */
 
-#include <os/usched/usched.h>
+#include <os/usched/job.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
 #include <assert.h>
@@ -42,7 +42,7 @@ void usched_cnd_wait(struct usched_cnd* condition, struct usched_mtx* mutex)
     usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
-    usched_yield(NULL);
+    usched_job_yield();
     usched_mtx_lock(mutex);
 }
 
@@ -51,9 +51,10 @@ int usched_cnd_timedwait(
         struct usched_mtx*              mutex,
         const struct timespec *restrict until)
 {
-    struct usched_job* current;
-    int                timer;
-    int                status;
+    struct usched_job*       current;
+    int                      timer;
+    int                      status;
+    union usched_timer_queue queue = { .cond = condition };
     assert(condition != NULL);
     assert(mutex != NULL);
 
@@ -64,8 +65,8 @@ int usched_cnd_timedwait(
     usched_mtx_unlock(&condition->lock);
 
     usched_mtx_unlock(mutex);
-    timer = __usched_timeout_start_cond(until, condition);
-    usched_yield(NULL);
+    timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_COND);
+    usched_job_yield();
     status = __usched_timeout_finish(timer);
     usched_mtx_lock(mutex);
     return status;

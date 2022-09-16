@@ -75,35 +75,6 @@ void dsfree(void* pointer)
 #endif
 }
 
-void dslock(SafeMemoryLock_t* lock)
-{
-    int locked = 1;
-
-#ifdef __LIBDS_KERNEL_BUILD
-    irqstate_t flags = InterruptDisable();
-#endif
-    while (1) {
-        int val = atomic_exchange(&lock->SyncObject, locked);
-        if (!val) {
-            break;
-        }
-    }
-#ifdef __LIBDS_KERNEL_BUILD
-    lock->Flags = flags;
-#endif
-}
-
-void dsunlock(SafeMemoryLock_t* lock)
-{
-#ifdef __LIBDS_KERNEL_BUILD
-    irqstate_t flags = lock->Flags;
-#endif
-    atomic_store(&lock->SyncObject, 0);
-#ifdef __LIBDS_KERNEL_BUILD
-    InterruptRestoreState(flags);
-#endif
-}
-
 void dswait(FutexParameters_t* params)
 {
 #ifdef __LIBDS_KERNEL_BUILD

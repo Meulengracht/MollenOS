@@ -26,16 +26,8 @@
 
 typedef struct FutexParameters FutexParameters_t;
 
-typedef struct {
-    _Atomic(int) SyncObject;
-    unsigned     Flags;
-} SafeMemoryLock_t;
-
 DSDECL(void*, dsalloc(size_t size));
 DSDECL(void,  dsfree(void* pointer));
-
-DSDECL(void, dslock(SafeMemoryLock_t* lock));
-DSDECL(void, dsunlock(SafeMemoryLock_t* lock));
 
 #ifdef __TRACE
 DSDECL(void, dstrace(const char* fmt, ...));

@@ -25,7 +25,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
-#include <os/usched/usched.h>
+#include <os/usched/job.h>
 #include <stdlib.h>
 #include <vfs/storage.h>
 #include <vfs/filesystem.h>
@@ -152,7 +152,8 @@ __StorageMount(
 
 static void
 __StorageSetup(
-        _In_ FileSystemStorage_t* fsStorage)
+        _In_ FileSystemStorage_t* fsStorage,
+        _In_ void*                cancellationToken)
 {
     struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(fsStorage->Storage.DriverID);
     oserr_t                    osStatus;
@@ -256,7 +257,8 @@ __StorageUnmount(
 
 static void
 __StorageDestroy(
-        _In_ struct VfsRemoveDiskRequest* request)
+        _In_ struct VfsRemoveDiskRequest* request,
+        _In_ void*                        cancellationToken)
 {
     element_t* header;
 

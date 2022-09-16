@@ -191,7 +191,9 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 
 static void __notify_timer(struct usched_timeout* timer)
 {
-    if (timer->queue_type == __QUEUE_TYPE_MUTEX) {
+    if (timer->queue_type == __QUEUE_TYPE_SLEEP) {
+        __usched_job_notify(timer->job);
+    } else if (timer->queue_type == __QUEUE_TYPE_MUTEX) {
         __usched_mtx_notify_job(timer->queue.mutex, timer->job);
     } else if (timer->queue_type == __QUEUE_TYPE_COND) {
         __usched_cond_notify_job(timer->queue.cond, timer->job);
@@ -348,7 +350,7 @@ void usched_wait(void)
     MutexUnlock(&g_readyQueueLock);
 }
 
-int __usched_timeout_start_cond(const struct timespec *restrict until, struct usched_cnd* cond)
+int __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
     struct usched_timeout*   timer;
@@ -367,37 +369,8 @@ int __usched_timeout_start_cond(const struct timespec *restrict until, struct us
     timer->id = atomic_fetch_add(&g_timerid, 1);
     timer->deadline.tv_sec = until->tv_sec;
     timer->deadline.tv_nsec = until->tv_nsec;
-    timer->queue.cond = cond;
-    timer->queue_type = __QUEUE_TYPE_COND;
-    timer->next = NULL;
-
-    timer->job = sched->current;
-    __usched_append_timer(&sched->timers, timer);
-
-    return timer->id;
-}
-
-int __usched_timeout_start_mtx(const struct timespec *restrict until, struct usched_mtx* mtx)
-{
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct usched_timeout*   timer;
-
-    if (!until) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    timer = malloc(sizeof(struct usched_timeout));
-    if (!timer) {
-        errno = ENOMEM;
-        return -1;
-    }
-
-    timer->id = atomic_fetch_add(&g_timerid, 1);
-    timer->deadline.tv_sec = until->tv_sec;
-    timer->deadline.tv_nsec = until->tv_nsec;
-    timer->queue.mutex = mtx;
-    timer->queue_type = __QUEUE_TYPE_MUTEX;
+    timer->queue = *queue;
+    timer->queue_type = queueType;
     timer->next = NULL;
 
     timer->job = sched->current;

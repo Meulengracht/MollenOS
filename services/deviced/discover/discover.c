@@ -291,7 +291,8 @@ __NotifyDevices(
 }
 
 void DmHandleNotify(
-        _In_ Request_t* request)
+        _In_ Request_t* request,
+        _In_ void*      cancellationToken)
 {
     // driver is now booted, we can send all the devices that have
     // been registered

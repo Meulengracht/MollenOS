@@ -16,7 +16,7 @@
  *
  */
 
-#include <os/usched/usched.h>
+#include <os/usched/job.h>
 #include <os/usched/mutex.h>
 #include <assert.h>
 #include "private.h"
@@ -48,9 +48,10 @@ static int BlockAndWait(
     while (mutex->owner != current) {
         spinlock_release(&mutex->lock);
         if (until != NULL) {
-            timer = __usched_timeout_start_mtx(until, mutex);
+            union usched_timer_queue queue = { .mutex = mutex };
+            timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_MUTEX);
         }
-        usched_yield(NULL);
+        usched_job_yield();
         if (until != NULL) {
             status = __usched_timeout_finish(timer);
         }

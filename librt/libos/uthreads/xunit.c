@@ -19,8 +19,6 @@
 #include <ddk/ddkdefs.h> // for __reserved
 #include <internal/_tls.h>
 #include <internal/_syscalls.h>
-#include <os/mutex.h>
-#include <os/threads.h>
 #include <os/usched/job.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
@@ -38,16 +36,14 @@ CRTDECL(void, __cxa_threadfinalize(void));
 // This means we need to switch values in the GS register
 // on each thread to make sure that the register point to
 // the correct TLS each time.
-
-struct execution_manager {
-    struct usched_execution_unit  primary;
-    struct usched_execution_unit* detached;
-    int                           count;
-    Mutex_t                       lock;
-    int                           core_count;
-};
+static uint64_t job_hash(const void* element);
+static int      job_cmp(const void* element1, const void* element2);
 
 static struct execution_manager g_executionManager = { 0 };
+
+struct execution_manager* __xunit_manager(void) {
+    return &g_executionManager;
+}
 
 static void __execution_unit_exit(void)
 {
@@ -102,6 +98,11 @@ void usched_xunit_init(void)
     __execution_unit_construct(&g_executionManager.primary);
     g_executionManager.primary.thread_id = ThreadsCurrentId();
 
+    // initialize the job register
+    hashtable_construct(&g_executionManager.jobs, 0, sizeof(struct job_entry), job_hash, job_cmp);
+    MutexInitialize(&g_executionManager.jobs_lock, MUTEX_PLAIN);
+    g_executionManager.jobs_id = 1;
+
     // Install the execution unit specific data into slot 2. This will then
     // be available to all units, and gives us an opportunity to store things
     // like the current scheduler etc.
@@ -117,12 +118,10 @@ void usched_xunit_init(void)
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
     struct timespec deadline;
-    void*           mainCT;
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
-    mainCT = usched_job_queue(startFn, argument);
-    (void)mainCT; // TODO: better support for cancelling tasks...
+    (void)usched_job_queue(startFn, argument);
     while (1) {
         int status;
 
@@ -383,4 +382,17 @@ int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters*
         return result;
     }
     return 0;
+}
+
+static uint64_t job_hash(const void* element)
+{
+    const struct job_entry* entry = element;
+    return entry->id;
+}
+
+static int job_cmp(const void* element1, const void* element2)
+{
+    const struct job_entry* entry1 = element1;
+    const struct job_entry* entry2 = element2;
+    return entry1->id == entry2->id;
 }

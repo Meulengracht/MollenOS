@@ -18,7 +18,10 @@
 #ifndef __USCHED_PRIVATE_H__
 #define __USCHED_PRIVATE_H__
 
+#include <ds/hashtable.h>
 #include <internal/_tls.h>
+#include <os/mutex.h>
+#include <os/threads.h>
 #include <os/usched/types.h>
 #include <setjmp.h>
 #include <time.h>
@@ -33,7 +36,7 @@ enum job_state {
     JobState_FINISHING = 3,
 
     // State flags
-
+    JobState_CANCELLED = 0x10
 };
 
 struct usched_job {
@@ -51,20 +54,23 @@ struct usched_job {
 
 #define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
 
+#define __QUEUE_TYPE_SLEEP 0
 #define __QUEUE_TYPE_COND  1
 #define __QUEUE_TYPE_MUTEX 2
 
+union usched_timer_queue {
+    struct usched_cnd* cond;
+    struct usched_mtx* mutex;
+};
+
 struct usched_timeout {
-    int                    id;
-    struct timespec        deadline;
-    int                    active;
-    struct usched_job*     job;
-    union {
-        struct usched_cnd* cond;
-        struct usched_mtx* mutex;
-    } queue;
-    int                    queue_type;
-    struct usched_timeout* next;
+    int                      id;
+    struct timespec          deadline;
+    int                      active;
+    struct usched_job*       job;
+    union usched_timer_queue queue;
+    int                      queue_type;
+    struct usched_timeout*   next;
 };
 
 struct usched_scheduler {
@@ -94,6 +100,30 @@ struct usched_execution_unit {
     struct execution_unit_tls     tls;
     struct execution_unit_params  params;
     struct usched_execution_unit* next;
+};
+
+struct job_entry_wait {
+    struct usched_mtx mtx;
+    struct usched_cnd cond;
+};
+
+struct job_entry {
+    uuid_t                 id;
+    int                    exit_code;
+    struct usched_job*     job;
+    struct job_entry_wait* wait;
+};
+
+struct execution_manager {
+    struct usched_execution_unit  primary;
+    struct usched_execution_unit* detached;
+    int                           count;
+    Mutex_t                       lock;
+    int                           core_count;
+
+    hashtable_t                   jobs;
+    uuid_t                        jobs_id;
+    Mutex_t                       jobs_lock;
 };
 
 static inline void __usched_append_timer(struct usched_timeout** list, struct usched_timeout* timer)
@@ -138,15 +168,15 @@ struct usched_init_params {
  */
 extern void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params);
 
-
+extern struct execution_manager*  __xunit_manager(void);
 extern void                       __usched_add_job_ready(struct usched_job* job);
 extern int                        __usched_prepare_migrate(void);
 extern struct usched_scheduler*   __usched_get_scheduler(void);
 extern struct execution_unit_tls* __usched_xunit_tls_current(void);
 
-extern int                        __usched_timeout_start_cond(const struct timespec *restrict until, struct usched_cnd* cond);
-extern int                        __usched_timeout_start_mtx(const struct timespec *restrict until, struct usched_mtx* mtx);
+extern int                        __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType);
 extern int                        __usched_timeout_finish(int id);
+extern void                       __usched_job_notify(struct usched_job* job);
 extern void                       __usched_cond_notify_job(struct usched_cnd* cond, struct usched_job* job);
 extern void                       __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job);
 

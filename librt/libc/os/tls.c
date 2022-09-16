@@ -16,10 +16,9 @@
  *
  */
 
-#include "ddk/ddkdefs.h" // for __reserved
-#include "internal/_locale.h"
-#include "internal/_utils.h"
-#include "os/usched/usched.h"
+#include <ddk/ddkdefs.h> // for __reserved
+#include <internal/_locale.h>
+#include <internal/_utils.h>
 
 static const char* g_nullEnvironment[] = {
         NULL

@@ -30,7 +30,7 @@
 /* SessionLoginRequest
  * Sends a login-request to the session-manager. The sessionmanager will respond
  * with a SessionObject structure containing information about success/failure. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
 SessionLoginRequest(
 	_In_ const char*      User,
     _In_ const char*      Password,
@@ -39,7 +39,7 @@ SessionLoginRequest(
 /* SessionLogoutRequest
  * Sends a logout-request to the session-manager. The acquired session-id from
  * the login must be used to logout the correct user. */
-CRTDECL(oscode_t,
+CRTDECL(oserr_t,
 SessionLogoutRequest(
 	_In_ const char* SessionId));
 

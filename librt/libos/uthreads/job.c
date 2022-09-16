@@ -16,6 +16,7 @@
  */
 
 #include <assert.h>
+#include <os/usched/cond.h>
 #include <os/usched/job.h>
 #include <os/usched/usched.h>
 #include <stdlib.h>
@@ -24,6 +25,51 @@
 // Needed to handle thread stuff now on an userspace basis
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
+
+static struct job_entry_wait* __job_entry_wait_new(void)
+{
+    struct job_entry_wait* wait = malloc(sizeof(struct job_entry_wait));
+    if (wait == NULL) {
+        return NULL;
+    }
+    usched_mtx_init(&wait->mtx);
+    usched_cnd_init(&wait->cond);
+    return wait;
+}
+
+static uuid_t __add_job_to_register(struct usched_job* job) {
+    struct execution_manager* manager = __xunit_manager();
+    uuid_t                    jobID;
+    struct job_entry_wait*    wait;
+    struct job_entry*         entry;
+
+    wait = __job_entry_wait_new();
+    if (wait == NULL) {
+        return UUID_INVALID;
+    }
+
+    MutexLock(&manager->jobs_lock);
+    while (1) {
+        jobID = manager->jobs_id++;
+        entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
+        if (entry == NULL || entry->job == NULL) {
+            break;
+        }
+    }
+    if (entry != NULL) {
+        entry->exit_code = 0;
+        entry->job = job;
+    } else {
+        hashtable_set(&manager->jobs, &(struct job_entry) {
+                .id = jobID,
+                .job = job,
+                .wait = wait,
+                .exit_code = 0
+        });
+    }
+    MutexUnlock(&manager->jobs_lock);
+    return jobID;
+}
 
 void usched_job_parameters_init(struct usched_job_parameters* params)
 {
@@ -55,7 +101,7 @@ void __usched_task_main(struct usched_job* job)
     // entry function
     __cxa_threadinitialize();
 
-    job->entry(job->argument);
+    job->entry(job->argument, job);
     __finalize_task(job, 0);
 }
 
@@ -101,7 +147,9 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     } else {
         __usched_add_job_ready(job);
     }
-    return job;
+
+    // add it to register before returning
+    return __add_job_to_register(job);
 }
 
 uuid_t usched_job_queue(usched_task_fn entry, void* argument)
@@ -132,8 +180,29 @@ void usched_job_exit(int exitCode)
     __finalize_task(sched->current, exitCode);
 }
 
+int usched_job_cancel(uuid_t jobID)
+{
+    struct execution_manager* manager = __xunit_manager();
+    struct job_entry*         entry;
+
+    MutexLock(&manager->jobs_lock);
+    entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
+    if (entry == NULL || entry->job == NULL) {
+        MutexUnlock(&manager->jobs_lock);
+        errno = ENOENT;
+        return -1;
+    }
+    entry->job->state |= JobState_CANCELLED;
+    MutexUnlock(&manager->jobs_lock);
+    return 0;
+}
+
 int usched_job_detach(uuid_t jobID)
 {
+    _CRT_UNUSED(jobID);
+    errno = ENOTSUP;
+    return -1;
+
     // We need to determine the current state of the task, and we do this
     // by first locking the ready queue to assert no new tasks are queued
     // or dequeued while we perform this operation. And because of this, this
@@ -173,10 +242,42 @@ int usched_job_join(uuid_t jobID, int* exitCode)
 
 int usched_job_signal(uuid_t jobID, int signal)
 {
-    // Signalling jobs is a bit more tricky.
+    _CRT_UNUSED(jobID);
+    _CRT_UNUSED(signal);
+
+    // We do not support signalling for jobs. We do not condone this
+    // kind of behaviour in green threads, and users must instead use
+    // other forms of synchronization. The real threads (execution units)
+    // still provide signal support, but green threads do not.
+    // Similarily, if green threads are enabled, it will not be directly
+    // possible to install signals for those.
+    errno = ENOTSUP;
+    return -1;
 }
 
 int usched_job_sleep(const struct timespec* duration, struct timespec* remaining)
 {
+    union usched_timer_queue queue = { NULL };
+    int                      timer;
 
+    timer = __usched_timeout_start(duration, &queue, __QUEUE_TYPE_SLEEP);
+    usched_job_yield();
+    return __usched_timeout_finish(timer);
+}
+
+void __usched_job_notify(struct usched_job* job)
+{
+    assert(job != NULL);
+    job->next = NULL;
+    job->state = JobState_RUNNING;
+    __usched_add_job_ready(job);
+}
+
+bool usched_is_cancelled(const void* cancellationToken)
+{
+    const struct usched_job* job = cancellationToken;
+    if (job == NULL) {
+        return false;
+    }
+    return (job->state & JobState_CANCELLED) != 0;
 }

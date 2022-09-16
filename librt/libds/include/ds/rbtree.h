@@ -76,7 +76,7 @@ rb_tree_construct_cmp(
  * @param RBTreeItem [In] The item to append to the tree, the key must not exist.
  */
 DSDECL(oserr_t,
-       rb_tree_append(
+rb_tree_append(
     _In_ rb_tree_t*,
     _In_ rb_leaf_t*));
 
