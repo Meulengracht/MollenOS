@@ -18,6 +18,9 @@ target_include_directories(libos PRIVATE
         ../libc/include
         include
 )
+target_include_directories(libos PUBLIC
+        include
+)
 target_link_libraries(libos PUBLIC libos-threads libos-uthreads)
 
 install(DIRECTORY include/ DESTINATION include

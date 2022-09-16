@@ -23,6 +23,8 @@
 #include <os/mutex.h>
 #include <os/threads.h>
 #include <os/usched/types.h>
+#include <os/usched/cond.h>
+#include <os/usched/job.h>
 #include <setjmp.h>
 #include <time.h>
 
@@ -102,16 +104,16 @@ struct usched_execution_unit {
     struct usched_execution_unit* next;
 };
 
-struct job_entry_wait {
-    struct usched_mtx mtx;
-    struct usched_cnd cond;
+struct job_entry_context {
+    struct usched_mtx   mtx;
+    struct usched_cnd   cond;
+    int                 exit_code;
+    struct usched_job*  job;
 };
 
 struct job_entry {
-    uuid_t                 id;
-    int                    exit_code;
-    struct usched_job*     job;
-    struct job_entry_wait* wait;
+    uuid_t                    id;
+    struct job_entry_context* context;
 };
 
 struct execution_manager {

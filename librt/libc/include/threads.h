@@ -365,6 +365,7 @@ static inline void cnd_destroy(cnd_t* cond) {
 #include <os/mutex.h>
 #include <os/once.h>
 #include <os/threads.h>
+#include <os/mollenos.h>
 
 typedef Condition_t cnd_t;
 typedef Mutex_t mtx_t;

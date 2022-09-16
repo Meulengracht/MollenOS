@@ -18,7 +18,6 @@
  * MollenOS System Interface
  */
 
-#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
@@ -37,21 +36,21 @@ VaGetWallClock(
 oserr_t
 VaGetClockTick(
         _In_ enum VaClockSourceType source,
-        _In_ UInteger64_t*       tickOut)
+        _In_ UInteger64_t*          tickOut)
 {
     if (!tickOut) {
         return OsInvalidParameters;
     }
 
     if (source == VaClockSourceType_PROCESS && !__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t               osStatus;
-        
-        sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &osStatus,
-                                         &tickOut->u.LowPart, &tickOut->u.HighPart);
-        return osStatus;
+        clock_t tickBase;
+        oserr_t oserr = ProcessGetTickBase(&tickBase);
+        if (oserr != OsOK) {
+            return oserr;
+        }
+
+        tickOut->QuadPart = (uint64_t)tickBase;
+        return OsOK;
     }
     return Syscall_ClockTick(source, tickOut);
 }

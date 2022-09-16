@@ -18,9 +18,10 @@
  *
  */
 
+#include <internal/_tls.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <internal/_tls.h>
+#include <time.h>
 
 static char* g_chars = "ABCDEFGHIJKLMNOPQRSTUVWXZY";
 static char* g_nums  = "0123456789";

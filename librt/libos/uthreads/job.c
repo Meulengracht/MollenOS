@@ -26,49 +26,73 @@
 CRTDECL(void, __cxa_threadinitialize(void));
 CRTDECL(void, __cxa_threadfinalize(void));
 
-static struct job_entry_wait* __job_entry_wait_new(void)
+static struct job_entry_context* __job_entry_context_new(struct usched_job* job)
 {
-    struct job_entry_wait* wait = malloc(sizeof(struct job_entry_wait));
-    if (wait == NULL) {
+    struct job_entry_context* context = malloc(sizeof(struct job_entry_context));
+    if (context == NULL) {
         return NULL;
     }
-    usched_mtx_init(&wait->mtx);
-    usched_cnd_init(&wait->cond);
-    return wait;
+    usched_mtx_init(&context->mtx);
+    usched_cnd_init(&context->cond);
+    context->job = job;
+    context->exit_code = 0;
+    return context;
 }
 
-static uuid_t __add_job_to_register(struct usched_job* job) {
+static uuid_t __add_job_to_register(struct usched_job* job)
+{
     struct execution_manager* manager = __xunit_manager();
     uuid_t                    jobID;
-    struct job_entry_wait*    wait;
+    struct job_entry_context* context;
     struct job_entry*         entry;
 
-    wait = __job_entry_wait_new();
-    if (wait == NULL) {
+    context = __job_entry_context_new(job);
+    if (context == NULL) {
         return UUID_INVALID;
     }
 
     MutexLock(&manager->jobs_lock);
     while (1) {
-        jobID = manager->jobs_id++;
+        jobID = (manager->jobs_id++) % 1024;
         entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
-        if (entry == NULL || entry->job == NULL) {
+        if (entry == NULL || entry->context->job == NULL) {
             break;
         }
     }
     if (entry != NULL) {
-        entry->exit_code = 0;
-        entry->job = job;
+        entry->context->job = job;
+        free(context);
     } else {
         hashtable_set(&manager->jobs, &(struct job_entry) {
                 .id = jobID,
-                .job = job,
-                .wait = wait,
-                .exit_code = 0
+                .context = context
         });
     }
     MutexUnlock(&manager->jobs_lock);
     return jobID;
+}
+
+static void __remove_job_from_register(uuid_t jobID, int exitCode)
+{
+    struct execution_manager* manager = __xunit_manager();
+    struct job_entry_context* context = NULL;
+    struct job_entry*         entry;
+
+    MutexLock(&manager->jobs_lock);
+    entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
+    if (entry != NULL) {
+        context = entry->context;
+    }
+    MutexUnlock(&manager->jobs_lock);
+    if (context == NULL) {
+        return;
+    }
+
+    usched_mtx_lock(&context->mtx);
+    context->exit_code = exitCode;
+    context->job       = NULL;
+    usched_cnd_notify_all(&context->cond);
+    usched_mtx_unlock(&context->mtx);
 }
 
 void usched_job_parameters_init(struct usched_job_parameters* params)
@@ -81,6 +105,8 @@ void usched_job_parameters_init(struct usched_job_parameters* params)
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
     job->state = JobState_FINISHING;
+
+    __remove_job_from_register(job->id, exitCode);
 
     // Before yielding, let us run the deinitalizers before we do any task cleanup.
     __cxa_threadfinalize();
@@ -128,7 +154,16 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->next = NULL;
     job->entry = entry;
     job->argument = argument;
+
     if (__tls_initialize(&job->tls)) {
+        free(job->stack);
+        free(job);
+        return UUID_INVALID;
+    }
+
+    job->id = __add_job_to_register(job);
+    if (job->id == UUID_INVALID) {
+        __tls_destroy(&job->tls);
         free(job->stack);
         free(job);
         return UUID_INVALID;
@@ -139,6 +174,7 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     // undetached jobs are running in the global job pool
     if (params->detached) {
         if (__xunit_start_detached(job, params)) {
+            __remove_job_from_register(job->id, 0);
             __tls_destroy(&job->tls);
             free(job->stack);
             free(job);
@@ -147,9 +183,7 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     } else {
         __usched_add_job_ready(job);
     }
-
-    // add it to register before returning
-    return __add_job_to_register(job);
+    return job->id;
 }
 
 uuid_t usched_job_queue(usched_task_fn entry, void* argument)
@@ -183,17 +217,24 @@ void usched_job_exit(int exitCode)
 int usched_job_cancel(uuid_t jobID)
 {
     struct execution_manager* manager = __xunit_manager();
+    struct job_entry_context* context = NULL;
     struct job_entry*         entry;
 
     MutexLock(&manager->jobs_lock);
     entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
-    if (entry == NULL || entry->job == NULL) {
-        MutexUnlock(&manager->jobs_lock);
+    if (entry != NULL) {
+        context = entry->context;
+    }
+    MutexUnlock(&manager->jobs_lock);
+
+    if (context == NULL) {
         errno = ENOENT;
         return -1;
     }
-    entry->job->state |= JobState_CANCELLED;
-    MutexUnlock(&manager->jobs_lock);
+
+    usched_mtx_lock(&context->mtx);
+    context->job->state |= JobState_CANCELLED;
+    usched_mtx_unlock(&context->mtx);
     return 0;
 }
 
@@ -238,6 +279,30 @@ int usched_job_join(uuid_t jobID, int* exitCode)
     // Joining is straight forward. Get the job from the job-table, check it's current
     // state, and wait in the wait-queue. The wait-queue is a regular uthread mtx/cond combo
     // which will wake us up once the job quits.
+    struct execution_manager* manager = __xunit_manager();
+    struct job_entry_context* context = NULL;
+    struct job_entry*         entry;
+
+    MutexLock(&manager->jobs_lock);
+    entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
+    if (entry != NULL) {
+        context = entry->context;
+    }
+    MutexUnlock(&manager->jobs_lock);
+
+    if (context == NULL) {
+        errno = ENOENT;
+        return -1;
+    }
+
+    usched_mtx_lock(&context->mtx);
+    while (context->job != NULL) {
+        usched_cnd_wait(&context->cond, &context->mtx);
+    }
+
+    *exitCode = context->exit_code;
+    usched_mtx_unlock(&context->mtx);
+    return 0;
 }
 
 int usched_job_signal(uuid_t jobID, int signal)
@@ -262,7 +327,14 @@ int usched_job_sleep(const struct timespec* duration, struct timespec* remaining
 
     timer = __usched_timeout_start(duration, &queue, __QUEUE_TYPE_SLEEP);
     usched_job_yield();
-    return __usched_timeout_finish(timer);
+    if (__usched_timeout_finish(timer)) {
+        if (errno == ETIME) {
+            return 0;
+        } else {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 void __usched_job_notify(struct usched_job* job)

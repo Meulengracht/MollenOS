@@ -7,6 +7,8 @@
 #ifndef __OS_FUTEX_H__
 #define __OS_FUTEX_H__
 
+#include <os/osdefs.h>
+
 #define FUTEX_OP_SET        0  /* uaddr2 = oparg; */
 #define FUTEX_OP_ADD        1  /* uaddr2 += oparg; */
 #define FUTEX_OP_OR         2  /* uaddr2 |= oparg; */
@@ -23,10 +25,10 @@
 #define FUTEX_OP_CMP_GE     5  /* if (oldval >= cmparg) wake */
 
 #define FUTEX_OP(op, oparg, cmp, cmparg) \
-                   (((op & 0xf) << 28) | \
-                   ((cmp & 0xf) << 24) | \
-                   ((oparg & 0xfff) << 12) | \
-                   (cmparg & 0xfff))
+                   ((((op) & 0xf) << 28) | \
+                   (((cmp) & 0xf) << 24) | \
+                   (((oparg) & 0xfff) << 12) | \
+                   ((cmparg) & 0xfff))
 
 #define FUTEX_FLAG_WAKE          0x1
 #define FUTEX_FLAG_WAIT          0x2
