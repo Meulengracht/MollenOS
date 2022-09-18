@@ -2,6 +2,7 @@
 # include sub-directories which the primary project relies on
 add_subdirectory(threads)
 add_subdirectory(uthreads)
+add_subdirectory(services)
 
 # setup primary library
 add_library(libos STATIC
@@ -21,7 +22,8 @@ target_include_directories(libos PRIVATE
 target_include_directories(libos PUBLIC
         include
 )
-target_link_libraries(libos PUBLIC libos-threads libos-uthreads)
+target_compile_definitions(libos PRIVATE -D__OSLIB_C_IMPLEMENTATION)
+target_link_libraries(libos PUBLIC libos-threads libos-uthreads libos-services)
 
 install(DIRECTORY include/ DESTINATION include
         FILES_MATCHING

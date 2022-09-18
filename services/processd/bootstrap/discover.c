@@ -116,7 +116,6 @@ __ParseRamdisk(
                     NULL,
                     NULL,
                     &processConfiguration,
-                    NULL,
                     &handle
             );
             if (osStatus != OsOK) {

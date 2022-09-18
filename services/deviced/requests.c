@@ -25,7 +25,7 @@
 #include <ddk/utils.h>
 #include <gracht/server.h>
 #include <gracht/client.h>
-#include <os/usched/usched.h>
+#include <os/usched/job.h>
 #include <stdlib.h>
 #include <string.h>
 #include "requests.h"

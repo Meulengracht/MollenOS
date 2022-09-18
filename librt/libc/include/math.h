@@ -22,8 +22,6 @@
 #ifndef __STDC_MATH__
 #define __STDC_MATH__
 
-/* Includes
- * - Library */
 #include <crtdefs.h>
 #include <locale.h>
 
@@ -31,13 +29,13 @@
  * ANSI/POSIX
  */
 extern const union __infinity_un {
-	unsigned char	__uc[8];
-	double		__ud;
+	unsigned char __uc[8];
+	double        __ud;
 } __infinity;
 
 extern const union __nan_un {
-	unsigned char	__uc[sizeof(float)];
-	float		__uf;
+	unsigned char __uc[sizeof(float)];
+	float         __uf;
 } __nan;
 
 /* VBS
@@ -110,16 +108,16 @@ extern const union __nan_un {
 #define __LOp(x) *(int*)x
 #else
 #define __HI(x) *(int*)&x
-#define __LO(x) *(1+(int*)&x)
+#define __LO(x) *(1+(int*)&(x))
 #define __HIp(x) *(int*)x
-#define __LOp(x) *(1+(int*)x)
+#define __LOp(x) *(1+(int*)(x))
 #endif
 
 #ifndef _EXCEPTION_DEFINED
 #define _EXCEPTION_DEFINED
 		struct _exception {
-			int exctyp;
-			char *name;
+			int    exctyp;
+			char*  name;
 			double arg1;
 			double arg2;
 			double retval;
@@ -197,28 +195,28 @@ CRTDECL(long long,  llabs(long long));
 
 /* 7.12.3.2 */
 #define	isfinite(x)					\
-    ((sizeof (x) == sizeof (float)) ? __isfinitef((float)x)	\
-    : (sizeof (x) == sizeof (double)) ? __isfinite((double)x)	\
+    ((sizeof (x) == sizeof (float)) ? __isfinitef((float)(x))	\
+    : (sizeof (x) == sizeof (double)) ? __isfinite((double)(x))	\
     : __isfinitel(x))
 
 
 /* 7.12.3.3 */
 #define	isinf(x)					\
-    ((sizeof (x) == sizeof (float)) ? __isinff((float)x)	\
-    : (sizeof (x) == sizeof (double)) ? __isinf((double)x)	\
+    ((sizeof (x) == sizeof (float)) ? __isinff((float)(x))	 \
+    : (sizeof (x) == sizeof (double)) ? __isinf((double)(x)) \
     : __isinfl(x))
 
 /* 7.12.3.4
  * We don't need to worry about truncation here: A NaN stays a NaN. */
 #define	isnan(x)					\
-    ((sizeof (x) == sizeof (float)) ? __isnanf((float)x)	\
-    : (sizeof (x) == sizeof (double)) ? __isnan((double)x)	\
+    ((sizeof (x) == sizeof (float)) ? __isnanf((float)(x))   \
+    : (sizeof (x) == sizeof (double)) ? __isnan((double)(x)) \
     : __isnanl(x))
 
 /* 7.12.3.5 */
 #define	isnormal(x)					\
-    ((sizeof (x) == sizeof (float)) ? __isnormalf((float)x)	\
-    : (sizeof (x) == sizeof (double)) ? __isnormal(x)	\
+    ((sizeof (x) == sizeof (float)) ? __isnormalf((float)(x)) \
+    : (sizeof (x) == sizeof (double)) ? __isnormal(x)         \
     : __isnormall(x))
 
 /* 7.12.3.6 The signbit macro */
@@ -228,260 +226,259 @@ CRTDECL(long long,  llabs(long long));
     : __signbitl(x))
 
 /* 7.12.4 Trigonometric functions: Double in C89 */
-_CRTIMP double __CRTDECL cos(double);
-_CRTIMP float __CRTDECL cosf(float);
-_CRTIMP long double __CRTDECL cosl(long double);
+CRTDECL(double __CRTDECL, cos(double));
+CRTDECL(float __CRTDECL, cosf(float));
+CRTDECL(long double __CRTDECL, cosl(long double));
 
-_CRTIMP double __CRTDECL sin(double);
-_CRTIMP float __CRTDECL sinf(float);
-_CRTIMP long double __CRTDECL sinl(long double);
+CRTDECL(double __CRTDECL, sin(double));
+CRTDECL(float __CRTDECL, sinf(float));
+CRTDECL(long double __CRTDECL, sinl(long double));
 
-_CRTIMP double __CRTDECL tan(double);
-_CRTIMP float __CRTDECL tanf(float);
-_CRTIMP long double __CRTDECL tanl(long double);
+CRTDECL(double __CRTDECL, tan(double));
+CRTDECL(float __CRTDECL, tanf(float));
+CRTDECL(long double __CRTDECL, tanl(long double));
 
 /* 7.12.5 Hyperbolic functions: Double in C89  */
-_CRTIMP double __CRTDECL cosh(double);
-_CRTIMP float __CRTDECL coshf(float);
-_CRTIMP long double __CRTDECL coshl(long double);
+CRTDECL(double __CRTDECL, cosh(double));
+CRTDECL(float __CRTDECL, coshf(float));
+CRTDECL(long double __CRTDECL, coshl(long double));
 
-_CRTIMP double __CRTDECL sinh(double);
-_CRTIMP float __CRTDECL sinhf(float);
-_CRTIMP long double __CRTDECL sinhl(long double);
+CRTDECL(double __CRTDECL, sinh(double));
+CRTDECL(float __CRTDECL, sinhf(float));
+CRTDECL(long double __CRTDECL, sinhl(long double));
 
-_CRTIMP double __CRTDECL tanh(double);
-_CRTIMP float __CRTDECL tanhf(float);
-_CRTIMP long double __CRTDECL tanhl(long double);
+CRTDECL(double __CRTDECL, tanh(double));
+CRTDECL(float __CRTDECL, tanhf(float));
+CRTDECL(long double __CRTDECL, tanhl(long double));
 
 /* 7.12.4 Inverse Trigonometric functions: Double in C89 */
-_CRTIMP double __CRTDECL acos(double);
-_CRTIMP float __CRTDECL acosf(float);
-_CRTIMP long double __CRTDECL acosl(long double);
+CRTDECL(double __CRTDECL, acos(double));
+CRTDECL(float __CRTDECL, acosf(float));
+CRTDECL(long double __CRTDECL, acosl(long double));
 
-_CRTIMP double __CRTDECL asin(double);
-_CRTIMP float __CRTDECL asinf(float);
-_CRTIMP long double __CRTDECL asinl(long double);
+CRTDECL(double __CRTDECL, asin(double));
+CRTDECL(float __CRTDECL, asinf(float));
+CRTDECL(long double __CRTDECL, asinl(long double));
 
-_CRTIMP double __CRTDECL atan(double);
-_CRTIMP float __CRTDECL atanf(float);
-_CRTIMP long double __CRTDECL atanl(long double);
+CRTDECL(double __CRTDECL, atan(double));
+CRTDECL(float __CRTDECL, atanf(float));
+CRTDECL(long double __CRTDECL, atanl(long double));
 
-_CRTIMP double __CRTDECL atan2(double, double);
-_CRTIMP float __CRTDECL atan2f(float, float);
-_CRTIMP long double __CRTDECL atan2l(long double, long double);
+CRTDECL(double __CRTDECL, atan2(double, double));
+CRTDECL(float __CRTDECL, atan2f(float, float));
+CRTDECL(long double __CRTDECL, atan2l(long double, long double));
 
 /* 7.12.5.1  Inverse hyperbolic trig functions  */
-_CRTIMP double __CRTDECL acosh(double);
-_CRTIMP float __CRTDECL acoshf(float);
-_CRTIMP long double __CRTDECL acoshl(long double);
+CRTDECL(double __CRTDECL, acosh(double));
+CRTDECL(float __CRTDECL, acoshf(float));
+CRTDECL(long double __CRTDECL, acoshl(long double));
 
 /* 7.12.5.2 */
-_CRTIMP double __CRTDECL asinh(double);
-_CRTIMP float __CRTDECL asinhf(float);
-_CRTIMP long double __CRTDECL asinhl(long double);
+CRTDECL(double __CRTDECL, asinh(double));
+CRTDECL(float __CRTDECL, asinhf(float));
+CRTDECL(long double __CRTDECL, asinhl(long double));
 
 /* 7.12.5.3 */
-_CRTIMP double __CRTDECL atanh(double);
-_CRTIMP float __CRTDECL atanhf(float);
-_CRTIMP long double __CRTDECL atanhl(long double);
+CRTDECL(double __CRTDECL, atanh(double));
+CRTDECL(float __CRTDECL, atanhf(float));
+CRTDECL(long double __CRTDECL, atanhl(long double));
 
 /* Exponentials and logarithms  */
 /* 7.12.6.1 Double in C89 */
-_CRTIMP double __CRTDECL exp(double);
-_CRTIMP float __CRTDECL expf(float);
-_CRTIMP long double __CRTDECL expl(long double);
+CRTDECL(double __CRTDECL, exp(double));
+CRTDECL(float __CRTDECL, expf(float));
+CRTDECL(long double __CRTDECL, expl(long double));
 
 /* 7.12.6.2 */
-_CRTIMP double __CRTDECL exp2(double);
-_CRTIMP float __CRTDECL exp2f(float);
-_CRTIMP long double __CRTDECL exp2l(long double);
+CRTDECL(double __CRTDECL, exp2(double));
+CRTDECL(float __CRTDECL, exp2f(float));
+CRTDECL(long double __CRTDECL, exp2l(long double));
 
 /* 7.12.6.3 The expm1 functions */
-/* TODO: These could be inlined */
-_CRTIMP double __CRTDECL expm1(double);
-_CRTIMP float __CRTDECL expm1f(float);
-_CRTIMP long double __CRTDECL expm1l(long double);
+CRTDECL(double __CRTDECL, expm1(double));
+CRTDECL(float __CRTDECL, expm1f(float));
+CRTDECL(long double __CRTDECL, expm1l(long double));
 
 /* 7.12.6.4 Double in C89 */
-_CRTIMP double __CRTDECL frexp(double, int*);
-_CRTIMP float __CRTDECL frexpf(float, int*);
-_CRTIMP long double __CRTDECL frexpl(long double, int*);
+CRTDECL(double __CRTDECL, frexp(double, int*));
+CRTDECL(float __CRTDECL, frexpf(float, int*));
+CRTDECL(long double __CRTDECL, frexpl(long double, int*));
 
 /* 7.12.6.5 */
-_CRTIMP double __CRTDECL ldexp(double, int);
-_CRTIMP float __CRTDECL ldexpf(float, int);
-_CRTIMP long double __CRTDECL ldexpl(long double, int);
+CRTDECL(double __CRTDECL, ldexp(double, int));
+CRTDECL(float __CRTDECL, ldexpf(float, int));
+CRTDECL(long double __CRTDECL, ldexpl(long double, int));
 
 /* 7.12.6.6 */
-_CRTIMP int __CRTDECL ilogb(double);
-_CRTIMP int __CRTDECL ilogbf(float);
-_CRTIMP int __CRTDECL ilogbl(long double);
+CRTDECL(int __CRTDECL, ilogb(double));
+CRTDECL(int __CRTDECL, ilogbf(float));
+CRTDECL(int __CRTDECL, ilogbl(long double));
 
 /* 7.12.6.7 */
-_CRTIMP double __CRTDECL log(double);
-_CRTIMP float __CRTDECL logf(float);
-_CRTIMP long double __CRTDECL logl(long double);
+CRTDECL(double __CRTDECL, log(double));
+CRTDECL(float __CRTDECL, logf(float));
+CRTDECL(long double __CRTDECL, logl(long double));
 
 /* 7.12.6.8 */
-_CRTIMP double __CRTDECL log10(double);
-_CRTIMP float __CRTDECL log10f(float);
-_CRTIMP long double __CRTDECL log10l(long double);
+CRTDECL(double __CRTDECL, log10(double));
+CRTDECL(float __CRTDECL, log10f(float));
+CRTDECL(long double __CRTDECL, log10l(long double));
 
 /* 7.12.6.9 */
-_CRTIMP double __CRTDECL log1p(double);
-_CRTIMP float __CRTDECL log1pf(float);
-_CRTIMP long double __CRTDECL log1pl(long double);
+CRTDECL(double __CRTDECL, log1p(double));
+CRTDECL(float __CRTDECL, log1pf(float));
+CRTDECL(long double __CRTDECL, log1pl(long double));
 
 /* 7.12.6.10 */
-_CRTIMP double __CRTDECL log2(double);
-_CRTIMP float __CRTDECL log2f(float);
-_CRTIMP long double __CRTDECL log2l(long double);
+CRTDECL(double __CRTDECL, log2(double));
+CRTDECL(float __CRTDECL, log2f(float));
+CRTDECL(long double __CRTDECL, log2l(long double));
 
 /* 7.12.6.11 */
-_CRTIMP double __CRTDECL logb(double);
-_CRTIMP float __CRTDECL logbf(float);
-_CRTIMP long double __CRTDECL logbl(long double);
+CRTDECL(double __CRTDECL, logb(double));
+CRTDECL(float __CRTDECL, logbf(float));
+CRTDECL(long double __CRTDECL, logbl(long double));
 
 /* 7.12.6.12  Double in C89 */
-_CRTIMP double __CRTDECL modf(double, double*);
-_CRTIMP float __CRTDECL modff(float, float*);
-_CRTIMP long double __CRTDECL modfl(long double, long double*);
+CRTDECL(double __CRTDECL, modf(double, double*));
+CRTDECL(float __CRTDECL, modff(float, float*));
+CRTDECL(long double __CRTDECL, modfl(long double, long double*));
 
 /* 7.12.6.13 */
-_CRTIMP double __CRTDECL scalbn(double, int);
-_CRTIMP float __CRTDECL scalbnf(float, int);
-_CRTIMP long double __CRTDECL scalbnl(long double, int);
+CRTDECL(double __CRTDECL, scalbn(double, int));
+CRTDECL(float __CRTDECL, scalbnf(float, int));
+CRTDECL(long double __CRTDECL, scalbnl(long double, int));
 
-_CRTIMP double __CRTDECL scalbln(double, long);
-_CRTIMP float __CRTDECL scalblnf(float, long);
-_CRTIMP long double __CRTDECL scalblnl(long double, long);
+CRTDECL(double __CRTDECL, scalbln(double, long));
+CRTDECL(float __CRTDECL, scalblnf(float, long));
+CRTDECL(long double __CRTDECL, scalblnl(long double, long));
 
 /* 7.12.7.1 */
 /* Implementations adapted from Cephes versions */
-_CRTIMP double __CRTDECL cbrt(double);
-_CRTIMP float __CRTDECL cbrtf(float);
-_CRTIMP long double __CRTDECL cbrtl(long double);
+CRTDECL(double __CRTDECL, cbrt(double));
+CRTDECL(float __CRTDECL, cbrtf(float));
+CRTDECL(long double __CRTDECL, cbrtl(long double));
 
 /* 7.12.7.2 The fabs functions: Double in C89 */
-_CRTIMP double __CRTDECL fabs(double);
-_CRTIMP float __CRTDECL fabsf(float);
-_CRTIMP long double __CRTDECL fabsl(long double);
+CRTDECL(double __CRTDECL, fabs(double));
+CRTDECL(float __CRTDECL, fabsf(float));
+CRTDECL(long double __CRTDECL, fabsl(long double));
 
 /* 7.12.7.3  */
-_CRTIMP double __CRTDECL hypot(double, double);
-_CRTIMP float __CRTDECL hypotf(float, float);
-_CRTIMP long double __CRTDECL hypotl(long double, long double);
+CRTDECL(double __CRTDECL, hypot(double, double));
+CRTDECL(float __CRTDECL, hypotf(float, float));
+CRTDECL(long double __CRTDECL, hypotl(long double, long double));
 
 /* 7.12.7.4 The pow functions. Double in C89 */
-_CRTIMP double __CRTDECL pow(double, double);
-_CRTIMP float __CRTDECL powf(float, float);
-_CRTIMP long double __CRTDECL powl(long double, long double);
+CRTDECL(double __CRTDECL, pow(double, double));
+CRTDECL(float __CRTDECL, powf(float, float));
+CRTDECL(long double __CRTDECL, powl(long double, long double));
 
 /* 7.12.7.5 The sqrt functions. Double in C89. */
-_CRTIMP double __CRTDECL sqrt(double);
-_CRTIMP float __CRTDECL sqrtf(float);
-_CRTIMP long double __CRTDECL sqrtl(long double);
+CRTDECL(double __CRTDECL, sqrt(double));
+CRTDECL(float __CRTDECL, sqrtf(float));
+CRTDECL(long double __CRTDECL, sqrtl(long double));
 
 /* 7.12.8.1 The erf functions  */
-_CRTIMP double __CRTDECL erf(double);
-_CRTIMP float __CRTDECL erff(float);
-_CRTIMP long double __CRTDECL erfl(long double);
+CRTDECL(double __CRTDECL, erf(double));
+CRTDECL(float __CRTDECL, erff(float));
+CRTDECL(long double __CRTDECL, erfl(long double));
 
 /* 7.12.8.2 The erfc functions  */
-_CRTIMP double __CRTDECL erfc(double);
-_CRTIMP float __CRTDECL erfcf(float);
-_CRTIMP long double __CRTDECL erfcl(long double);
+CRTDECL(double __CRTDECL, erfc(double));
+CRTDECL(float __CRTDECL, erfcf(float));
+CRTDECL(long double __CRTDECL, erfcl(long double));
 
 /* 7.12.8.3 The lgamma functions */
-_CRTIMP double __CRTDECL lgamma(double);
-_CRTIMP float __CRTDECL lgammaf(float);
-_CRTIMP long double __CRTDECL lgammal(long double);
+CRTDECL(double __CRTDECL, lgamma(double));
+CRTDECL(float __CRTDECL, lgammaf(float));
+CRTDECL(long double __CRTDECL, lgammal(long double));
 
 /* Reentrant version of lgamma; passes signgam back by reference as the
  * second argument; user must allocate space for signgam. */
-_CRTIMP double __CRTDECL lgamma_r(double, int *);
-_CRTIMP float __CRTDECL lgammaf_r(float, int*);
-_CRTIMP long double __CRTDECL lgammal_r(long double, int *);
+CRTDECL(double __CRTDECL, lgamma_r(double, int *));
+CRTDECL(float __CRTDECL, lgammaf_r(float, int*));
+CRTDECL(long double __CRTDECL, lgammal_r(long double, int *));
 
 /* 7.12.8.4 The tgamma functions */
-_CRTIMP double __CRTDECL tgamma(double);
-_CRTIMP float __CRTDECL tgammaf(float);
-_CRTIMP long double __CRTDECL tgammal(long double);
+CRTDECL(double __CRTDECL, tgamma(double));
+CRTDECL(float __CRTDECL, tgammaf(float));
+CRTDECL(long double __CRTDECL, tgammal(long double));
 
 /* 7.12.9.1 Double in C89 */
-_CRTIMP double __CRTDECL ceil(double);
-_CRTIMP float __CRTDECL ceilf(float);
-_CRTIMP long double __CRTDECL ceill(long double);
+CRTDECL(double __CRTDECL, ceil(double));
+CRTDECL(float __CRTDECL, ceilf(float));
+CRTDECL(long double __CRTDECL, ceill(long double));
 
 /* 7.12.9.2 Double in C89 */
-_CRTIMP double __CRTDECL floor(double);
-_CRTIMP float __CRTDECL floorf(float);
-_CRTIMP long double __CRTDECL floorl(long double);
+CRTDECL(double __CRTDECL, floor(double));
+CRTDECL(float __CRTDECL, floorf(float));
+CRTDECL(long double __CRTDECL, floorl(long double));
 
 /* 7.12.9.3 */
-_CRTIMP double __CRTDECL nearbyint(double);
-_CRTIMP float __CRTDECL nearbyintf(float);
-_CRTIMP long double __CRTDECL nearbyintl(long double);
+CRTDECL(double __CRTDECL, nearbyint(double));
+CRTDECL(float __CRTDECL, nearbyintf(float));
+CRTDECL(long double __CRTDECL, nearbyintl(long double));
 
 /* 7.12.9.4 */
 /* round, using fpu control word settings */
-_CRTIMP double __CRTDECL rint(double);
-_CRTIMP float __CRTDECL rintf(float);
-_CRTIMP long double __CRTDECL rintl(long double);
+CRTDECL(double __CRTDECL, rint(double));
+CRTDECL(float __CRTDECL, rintf(float));
+CRTDECL(long double __CRTDECL, rintl(long double));
 
 /* 7.12.9.5 */
-_CRTIMP long __CRTDECL lrint(double);
-_CRTIMP long __CRTDECL lrintf(float);
-_CRTIMP long __CRTDECL lrintl(long double);
+CRTDECL(long __CRTDECL, lrint(double));
+CRTDECL(long __CRTDECL, lrintf(float));
+CRTDECL(long __CRTDECL, lrintl(long double));
 
-_CRTIMP long long __CRTDECL llrint(double);
-_CRTIMP long long __CRTDECL llrintf(float);
-_CRTIMP long long __CRTDECL llrintl(long double);
+CRTDECL(long long __CRTDECL, llrint(double));
+CRTDECL(long long __CRTDECL, llrintf(float));
+CRTDECL(long long __CRTDECL, llrintl(long double));
 
 /* 7.12.9.6 */
 /* round away from zero, regardless of fpu control word settings */
-_CRTIMP double __CRTDECL round(double);
-_CRTIMP float __CRTDECL roundf(float);
-_CRTIMP long double __CRTDECL roundl(long double);
+CRTDECL(double __CRTDECL, round(double));
+CRTDECL(float __CRTDECL, roundf(float));
+CRTDECL(long double __CRTDECL, roundl(long double));
 
 /* 7.12.9.7  */
-_CRTIMP long __CRTDECL lround(double);
-_CRTIMP long __CRTDECL lroundf(float);
-_CRTIMP long __CRTDECL lroundl(long double);
-_CRTIMP long long __CRTDECL llround(double);
-_CRTIMP long long __CRTDECL llroundf(float);
-_CRTIMP long long __CRTDECL llroundl(long double);
+CRTDECL(long __CRTDECL, lround(double));
+CRTDECL(long __CRTDECL, lroundf(float));
+CRTDECL(long __CRTDECL, lroundl(long double));
+CRTDECL(long long __CRTDECL, llround(double));
+CRTDECL(long long __CRTDECL, llroundf(float));
+CRTDECL(long long __CRTDECL, llroundl(long double));
 
 /* 7.12.9.8 */
 /* round towards zero, regardless of fpu control word settings */
-_CRTIMP double __CRTDECL trunc(double);
-_CRTIMP float __CRTDECL truncf(float);
-_CRTIMP long double __CRTDECL truncl(long double);
+CRTDECL(double __CRTDECL, trunc(double));
+CRTDECL(float __CRTDECL, truncf(float));
+CRTDECL(long double __CRTDECL, truncl(long double));
 
 /* 7.12.10.1 Double in C89 */
-_CRTIMP double __CRTDECL fmod(double, double);
-_CRTIMP float __CRTDECL fmodf(float, float);
-_CRTIMP long double __CRTDECL fmodl(long double, long double);
+CRTDECL(double __CRTDECL, fmod(double, double));
+CRTDECL(float __CRTDECL, fmodf(float, float));
+CRTDECL(long double __CRTDECL, fmodl(long double, long double));
 
 /* 7.12.10.2 */
-_CRTIMP double __CRTDECL remainder(double, double);
-_CRTIMP float __CRTDECL remainderf(float, float);
-_CRTIMP long double __CRTDECL remainderl(long double, long double);
+CRTDECL(double __CRTDECL, remainder(double, double));
+CRTDECL(float __CRTDECL, remainderf(float, float));
+CRTDECL(long double __CRTDECL, remainderl(long double, long double));
 
 /* 7.12.10.3 */
-_CRTIMP double __CRTDECL remquo(double, double, int*);
-_CRTIMP float __CRTDECL remquof(float, float, int*);
-_CRTIMP long double __CRTDECL remquol(long double, long double, int*);
+CRTDECL(double __CRTDECL, remquo(double, double, int*));
+CRTDECL(float __CRTDECL, remquof(float, float, int*));
+CRTDECL(long double __CRTDECL, remquol(long double, long double, int*));
 
 /* 7.12.11.1 */
-_CRTIMP double __CRTDECL copysign(double, double); /* in libmoldname.a */
-_CRTIMP float __CRTDECL copysignf(float, float);
-_CRTIMP long double __CRTDECL copysignl(long double, long double);
+CRTDECL(double __CRTDECL, copysign(double, double));
+CRTDECL(float __CRTDECL, copysignf(float, float));
+CRTDECL(long double __CRTDECL, copysignl(long double, long double));
 
 /* 7.12.11.2 Return a NaN */
-_CRTIMP double __CRTDECL nan(__CONST char *tagp);
-_CRTIMP float __CRTDECL nanf(__CONST char *tagp);
-_CRTIMP long double __CRTDECL nanl(__CONST char *tagp);
+CRTDECL(double __CRTDECL, nan(const char* tagp));
+CRTDECL(float __CRTDECL, nanf(const char* tagp));
+CRTDECL(long double __CRTDECL, nanl(const char* tagp));
 
 #ifndef __STRICT_ANSI__
 #define _nan() nan("")
@@ -490,20 +487,20 @@ _CRTIMP long double __CRTDECL nanl(__CONST char *tagp);
 #endif
 
 /* 7.12.11.3 */
-_CRTIMP double __CRTDECL nextafter(double, double); /* in libmoldname.a */
-_CRTIMP float __CRTDECL nextafterf(float, float);
-_CRTIMP long double __CRTDECL nextafterl(long double, long double);
+CRTDECL(double __CRTDECL, nextafter(double, double));
+CRTDECL(float __CRTDECL, nextafterf(float, float));
+CRTDECL(long double __CRTDECL, nextafterl(long double, long double));
 
 /* 7.12.11.4 The nexttoward functions */
-_CRTIMP double __CRTDECL nexttoward(double, long double);
-_CRTIMP float __CRTDECL nexttowardf(float, long double);
-_CRTIMP long double __CRTDECL nexttowardl(long double, long double);
+CRTDECL(double __CRTDECL, nexttoward(double, long double));
+CRTDECL(float __CRTDECL, nexttowardf(float, long double));
+CRTDECL(long double __CRTDECL, nexttowardl(long double, long double));
 
 /* 7.12.12.1 */
 /*  x > y ? (x - y) : 0.0  */
-_CRTIMP double __CRTDECL fdim(double, double);
-_CRTIMP float __CRTDECL fdimf(float, float);
-_CRTIMP long double __CRTDECL fdiml(long double, long double);
+CRTDECL(double __CRTDECL, fdim(double, double));
+CRTDECL(float __CRTDECL, fdimf(float, float));
+CRTDECL(long double __CRTDECL, fdiml(long double, long double));
 
 /* fmax and fmin.
 NaN arguments are treated as missing data: if one argument is a NaN
@@ -511,48 +508,48 @@ and the other numeric, then these functions choose the numeric
 value. */
 
 /* 7.12.12.2 */
-_CRTIMP double __CRTDECL fmax(double, double);
-_CRTIMP float __CRTDECL fmaxf(float, float);
-_CRTIMP long double __CRTDECL fmaxl(long double, long double);
+CRTDECL(double __CRTDECL, fmax(double, double));
+CRTDECL(float __CRTDECL, fmaxf(float, float));
+CRTDECL(long double __CRTDECL, fmaxl(long double, long double));
 
 /* 7.12.12.3 */
-_CRTIMP double __CRTDECL fmin(double, double);
-_CRTIMP float __CRTDECL fminf(float, float);
-_CRTIMP long double __CRTDECL fminl(long double, long double);
+CRTDECL(double __CRTDECL, fmin(double, double));
+CRTDECL(float __CRTDECL, fminf(float, float));
+CRTDECL(long double __CRTDECL, fminl(long double, long double));
 
 /* 7.12.13.1 */
 /* return x * y + z as a ternary op */
-_CRTIMP double __CRTDECL fma(double, double, double);
-_CRTIMP float __CRTDECL fmaf(float, float, float);
-_CRTIMP long double __CRTDECL fmal(long double, long double, long double);
+CRTDECL(double __CRTDECL, fma(double, double, double));
+CRTDECL(float __CRTDECL, fmaf(float, float, float));
+CRTDECL(long double __CRTDECL, fmal(long double, long double, long double));
 
 /* 7.12.13.2 Bessel functions */
-_CRTIMP double __CRTDECL j0(double);
-_CRTIMP double __CRTDECL j1(double);
-_CRTIMP double __CRTDECL jn(int, double);
+CRTDECL(double __CRTDECL, j0(double));
+CRTDECL(double __CRTDECL, j1(double));
+CRTDECL(double __CRTDECL, jn(int, double));
 
-_CRTIMP float __CRTDECL j0f(float);
-_CRTIMP float __CRTDECL j1f(float);
-_CRTIMP float __CRTDECL jnf(int, float);
+CRTDECL(float __CRTDECL, j0f(float));
+CRTDECL(float __CRTDECL, j1f(float));
+CRTDECL(float __CRTDECL, jnf(int, float));
 
-_CRTIMP double __CRTDECL y0(double);
-_CRTIMP double __CRTDECL y1(double);
-_CRTIMP double __CRTDECL yn(int, double);
+CRTDECL(double __CRTDECL, y0(double));
+CRTDECL(double __CRTDECL, y1(double));
+CRTDECL(double __CRTDECL, yn(int, double));
 
-_CRTIMP float __CRTDECL y0f(float);
-_CRTIMP float __CRTDECL y1f(float);
-_CRTIMP float __CRTDECL ynf(int, float);
+CRTDECL(float __CRTDECL, y0f(float));
+CRTDECL(float __CRTDECL, y1f(float));
+CRTDECL(float __CRTDECL, ynf(int, float));
 
 /* Combined */
-_CRTIMP void __CRTDECL sincos(double, double*, double*);
-_CRTIMP void __CRTDECL sincosf(float, float*, float*);
+CRTDECL(void __CRTDECL, sincos(double, double*, double*));
+CRTDECL(void __CRTDECL, sincosf(float, float*, float*));
 
 /* 7.12.14 */
 /*
 *  With these functions, comparisons involving quiet NaNs set the FP
 *  condition code to "unordered".  The IEEE floating-point spec
 *  dictates that the result of floating-point comparisons should be
-*  false whenever a NaN is involved, with the exception of the != op,
+*  false whenever a NaN is involved, except the != op,
 *  which always returns true: yes, (NaN != NaN) is true).
 */
 
@@ -607,12 +604,12 @@ __fp_unordered_compare(long double x, long double y){
 
 #ifndef _CRT_ATOF_DEFINED
 #define _CRT_ATOF_DEFINED
-		_CRTIMP double __CRTDECL atof(__CONST char *str);
-		 double __CRTDECL _atof_l(__CONST char *str ,locale_t locale);
+		 CRTDECL(double __CRTDECL, atof(const char *str));
+		 double __CRTDECL _atof_l(const char *str, locale_t locale);
 #endif
 #ifndef _SIGN_DEFINED
 #define _SIGN_DEFINED
-		 double __CRTDECL _copysign(double x,double sgn);
+		 double __CRTDECL _copysign(double x, double sgn);
 		 double __CRTDECL _chgsign(double x);
 #endif
 
@@ -624,7 +621,7 @@ __fp_unordered_compare(long double x, long double y){
 		 float __CRTDECL _copysignf(float x, float sgn);
 		 float __CRTDECL _chgsignf(float x);
 		 float __CRTDECL _logbf(float x);
-		 float __CRTDECL _nextafterf(float x,float y);
+		 float __CRTDECL _nextafterf(float x, float y);
 		 int __CRTDECL _finitef(float x);
 		 int __CRTDECL _isnanf(float x);
 		 int __CRTDECL _fpclassf(float x);
@@ -753,7 +750,7 @@ int * __CRTDECL __fpecode(void);
 #define	_fpecode	(*(__fpecode()))
 
 /*
- * IEEE recommended functions.  MS puts them in float.h
+ * IEEE recommended functions.  MS puts them in float.
  * but they really belong in math.h.
  */
 

@@ -24,7 +24,7 @@
 #include <ds/mstring.h>
 #include <internal/_ipc.h>
 #include "process.h"
-#include <os/usched/usched.h>
+#include <os/usched/job.h>
 
 #include <sys_library_service_server.h>
 #include <sys_process_service_server.h>

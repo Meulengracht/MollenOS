@@ -27,7 +27,6 @@
 
 #include <gracht/types.h>
 #include <os/osdefs.h>
-#include <threads.h>
 
 #define IPMSG_ADDRESS_HANDLE 0
 #define IPMSG_ADDRESS_PATH   1

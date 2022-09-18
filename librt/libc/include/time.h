@@ -175,10 +175,9 @@ timespec_diff(
  * @param tm
  * @return
  */
-_CRTIMP
-time_t
+CRTDECL(time_t,
 mktime(
-    _In_ struct tm *tm);
+    _In_ struct tm *tm));
 
 /**
  * @brief Computes difference between two calendar times as time_t objects
@@ -189,11 +188,10 @@ mktime(
  * @param time_beg
  * @return
  */
-_CRTIMP
-double
+CRTDECL(double,
 difftime(
     _In_ time_t time_end,
-    _In_ time_t time_beg);
+    _In_ time_t time_beg));
 
 /**
  * @brief Returns the approximate processor time used by the process since the beginning of
@@ -202,28 +200,26 @@ difftime(
  *
  * @return
  */
-_CRTIMP clock_t clock(void);
-_CRTIMP __tzinfo_type* __gettzinfo(void);
+CRTDECL(clock_t, clock(void));
+CRTDECL(__tzinfo_type*, __gettzinfo(void));
 
 /* gmtime
  * Converts given time since epoch (a time_t value pointed to by time) into calendar time,
  * expressed in Coordinated Universal Time (UTC) in the struct tm format. 
  * The result is stored in static storage and a pointer to that static storage is returned. */
-_CRTIMP
-struct tm*
+CRTDECL(struct tm*,
 gmtime(
-    _In_ __CONST time_t *time);
+    _In_ const time_t *time));
 
 /* gmtime_s
  * Same as gmtime, except that the function uses user-provided storage result for the 
  * result and that the following errors are detected at runtime and call the currently 
  * installed constraint handler function. */
 #ifdef __STDC_LIB_EXT1__
-_CRTIMP
-struct tm*
+CRTDECL(struct tm*,
 gmtime_s(
-    _In_ __CONST time_t *restrict time,
-    _In_ struct tm *restrict result);
+    _In_ const time_t *restrict time,
+    _In_ struct tm *restrict result));
 #endif
 
 /* localtime
@@ -235,44 +231,40 @@ CRTDECL(int,        localtime_s(struct tm *__restrict, const time_t *__restrict)
 /* asctime
  * Converts given calendar time tm to a textual representation of the 
  * following fixed 25-character form: Www Mmm dd hh:mm:ss yyyy\n */
-_CRTIMP
-char*
+CRTDECL(char*,
 asctime(
-    _In_ __CONST struct tm* time_ptr);
+    _In_ const struct tm* time_ptr));
 
 /* asctime_s
  * Same as asctime, except that the message is copied into user-provided storage buf, 
  * which is guaranteed to be null-terminated, and the following errors are 
  * detected at runtime and call the currently installed constraint handler function */
 #ifdef __STDC_LIB_EXT1__
-_CRTIMP
-errno_t
+CRTDECL(errno_t,
 asctime_s(
     _In_ char *buf,
     _In_ rsize_t bufsz,
-    _In_ __CONST struct tm *time_ptr);
+    _In_ const struct tm *time_ptr));
 #endif
 
 /* ctime
  * Interprets the value pointed by timer as a calendar time and 
  * converts it to a C-string containing a human-readable version 
  * of the corresponding time and date, in terms of local time. */
-_CRTIMP
-char*
+CRTDECL(char*,
 ctime(
-    _In_ __CONST time_t* time);
+    _In_ const time_t* time));
 
 /* ctime_s
  * Same as ctime, except that the function is equivalent to 
  * asctime_s(buffer, bufsz, localtime_s(time, &(struct tm){0})), and the following 
  * errors are detected at runtime and call the currently installed constraint handler function: */
 #ifdef __STDC_LIB_EXT1__
-_CRTIMP
-errno_t
+CRTDECL(errno_t,
 ctime_s(
     _In_ char *buffer,
     _In_ rsize_t bufsz,
-    _In_ __CONST time_t *time);
+    _In_ const time_t *time));
 #endif
 
 /* strftime
@@ -282,13 +274,13 @@ ctime_s(
 CRTDECL(size_t, strftime(
     _In_ char *__restrict dest,
     _In_ size_t maxsize, 
-    _In_ __CONST char *__restrict format,
-    _In_ __CONST struct tm *__restrict tmptr));
+    _In_ const char *__restrict format,
+    _In_ const struct tm *__restrict tmptr));
 CRTDECL(size_t, strftime_l(
     _In_ char *__restrict s,
     _In_ size_t maxsize,
-    _In_ __CONST char *__restrict format,
-	_In_ __CONST struct tm *__restrict tim_p,
+    _In_ const char *__restrict format,
+	_In_ const struct tm *__restrict tim_p,
     _In_ struct __locale_t *locale));
 
 /* wcsftime
@@ -300,13 +292,13 @@ CRTDECL(size_t, strftime_l(
 CRTDECL(size_t, wcsftime(
     _In_ wchar_t*__restrict str,
     _In_ size_t maxsize,
-    _In_ __CONST wchar_t*__restrict format, 
-    _In_ __CONST struct tm*__restrict time));
+    _In_ const wchar_t*__restrict format, 
+    _In_ const struct tm*__restrict time));
 CRTDECL(size_t, wcsftime_l(
     _In_ wchar_t*__restrict str,
     _In_ size_t maxsize,
-    _In_ __CONST wchar_t*__restrict format, 
-    _In_ __CONST struct tm*__restrict time,
+    _In_ const wchar_t*__restrict format, 
+    _In_ const struct tm*__restrict time,
     _In_ struct __locale_t *locale));
 #endif
 _CODE_END

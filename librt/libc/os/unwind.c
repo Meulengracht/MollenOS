@@ -14,11 +14,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Process Service Definitions & Structures
- * - This header describes the base process-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_ipc.h>

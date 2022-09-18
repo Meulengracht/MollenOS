@@ -78,11 +78,7 @@ double tanh(double x)
 	return (jx >= 0) ? z : -z;
 }
 
-/*
-* @implemented
-*/
-_CRTIMP double __CRTDECL _CItanh(void)
-{
+CRTDECL(double __CRTDECL, _CItanh(void)) {
 	FPU_DOUBLE(x);
 	return tanh(x);
 }

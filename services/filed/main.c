@@ -25,6 +25,7 @@
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
 #include <vfs/storage.h>
+#include <os/usched/job.h>
 
 #include <sys_file_service_server.h>
 #include <sys_storage_service_server.h>

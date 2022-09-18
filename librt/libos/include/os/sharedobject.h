@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -21,33 +20,42 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __SHAREDOBJECT_H__
-#define __SHAREDOBJECT_H__
+#ifndef __OS_SHAREDOBJECT_H__
+#define __OS_SHAREDOBJECT_H__
 
 #include <os/osdefs.h>
 
 _CODE_BEGIN
-/* SharedObjectLoad
- * Load a shared object given a path which must exists otherwise NULL is returned */
+
+/**
+ * @brief Load a shared object given a path which must exists otherwise NULL is returned
+ * @param library
+ * @return
+ */
 CRTDECL(Handle_t,
 SharedObjectLoad(
-	_In_ const char* SharedObject));
+        _In_ const char* library));
 
-/* SharedObjectGetFunction
- * Load a function-address given an shared object
- * handle and a function name, function must exist
- * otherwise null is returned */
+/**
+ * @brief Load a function-address given an shared object handle and a function name,
+ * function must exist otherwise null is returned
+ * @param handle
+ * @param function
+ * @return
+ */
 CRTDECL(void*,
 SharedObjectGetFunction(
-	_In_ Handle_t    Handle, 
-	_In_ const char* Function));
+        _In_ Handle_t    handle,
+        _In_ const char* function));
 
-/* SharedObjectUnload
- * Unloads a valid shared object handle
- * returns OsError on failure */
+/**
+ * @brief Unloads a valid shared object handle
+ * @param Handle
+ * @return
+ */
 CRTDECL(oserr_t,
-        SharedObjectUnload(
-	_In_ Handle_t Handle));
+SharedObjectUnload(
+        _In_ Handle_t Handle));
 _CODE_END
 
-#endif //!__SHAREDOBJECT_H__
+#endif //!__OS_SHAREDOBJECT_H__

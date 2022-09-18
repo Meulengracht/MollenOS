@@ -124,7 +124,7 @@ atan(double x)
 }
 
 /* Msvc version (intrin) of atan */
-_CRTIMP double __CRTDECL _CIatan(void) {
+CRTDECL(double __CRTDECL, _CIatan(void)) {
 	FPU_DOUBLE(x);
 	return atan(x);
 }

@@ -72,7 +72,7 @@ add_library(m SHARED
 )
 target_include_directories(m PUBLIC include)
 target_include_directories(m PRIVATE ../libos/include ../libc/include)
-target_compile_definitions(m PRIVATE -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL)
+target_compile_definitions(m PRIVATE -D__OSLIB_C_IMPLEMENTATION)
 target_link_options(m PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/${VALI_ARCH}/libm.def,-noentry")
 
 install(TARGETS m

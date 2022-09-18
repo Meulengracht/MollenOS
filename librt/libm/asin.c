@@ -114,7 +114,7 @@ long double asinl(long double x) {
 #endif
 
 /* Msvc version (intrin) of asin */
-_CRTIMP double __CRTDECL _CIasin(void) {
+CRTDECL(double __CRTDECL, _CIasin(void)) {
 	FPU_DOUBLE(x);
 	return asin(x);
 }

@@ -19,9 +19,14 @@
 #include <ctype.h>
 #include <ds/hashtable.h>
 #include <errno.h>
-#include <internal/_ipc.h>
+#include <internal/_utils.h>
 #include <os/sharedobject.h>
 #include <strings.h>
+#include <threads.h>
+
+#include <ddk/service.h>
+#include <gracht/link/vali.h>
+#include <sys_library_service_client.h>
 
 struct library_element {
     const char* path;
@@ -37,13 +42,19 @@ static void     so_enumerate(int index, const void* element, void* userContext);
 typedef void (*SOInitializer_t)(int);
 
 static hashtable_t g_libraries;
-static mtx_t       g_librariesLock;
+static mtx_t       g_librariesLock = MUTEX_INIT(mtx_plain);
+static once_flag   g_initCalled    = ONCE_FLAG_INIT;
+static bool        g_initialized   = false;
 
-void
-StdSoInitialize(void)
+static void __InitializeSO(void)
 {
-    hashtable_construct(&g_libraries, 0, sizeof(struct library_element), so_hash, so_cmp);
-    mtx_init(&g_librariesLock, mtx_plain);
+    hashtable_construct(
+            &g_libraries,
+            0,
+            sizeof(struct library_element),
+            so_hash, so_cmp
+    );
+    g_initialized = true;
 }
 
 Handle_t 
@@ -63,6 +74,10 @@ SharedObjectLoad(
     }
 
     assert(__crt_is_phoenix() == 0);
+
+    // Make sure the SO system is initialized. We do this on the first call to load
+    // as there is no reason to this before.
+    call_once(&g_initCalled, __InitializeSO);
 
     mtx_lock(&g_librariesLock);
     library = hashtable_get(&g_libraries, &(struct library_element) { .path = SharedObject });
@@ -114,28 +129,34 @@ SharedObjectLoad(
 
 void*
 SharedObjectGetFunction(
-	_In_ Handle_t       Handle, 
-	_In_ const char*    Function)
+	_In_ Handle_t       handle,
+	_In_ const char*    function)
 {
-    oserr_t Status;
-	if (Handle == HANDLE_INVALID || Function == NULL) {
+    oserr_t oserr;
+
+    if (handle == HANDLE_INVALID || function == NULL) {
 	    _set_errno(EINVAL);
 		return NULL;
 	}
 
+    if (!g_initialized) {
+        errno = ENOSYS;
+        return NULL;
+    }
+
     assert(__crt_is_phoenix() == 0);
 
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    uintptr_t AddressOfFunction;
+    uintptr_t                functionAddress;
 
-    sys_library_get_function(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)Handle, Function);
+    sys_library_get_function(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)handle, function);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_library_get_function_result(GetGrachtClient(), &msg.base, &Status, &AddressOfFunction);
-    OsErrToErrNo(Status);
-    if (Status != OsOK) {
+    sys_library_get_function_result(GetGrachtClient(), &msg.base, &oserr, &functionAddress);
+    OsErrToErrNo(oserr);
+    if (oserr != OsOK) {
         return NULL;
     }
-    return (void*)AddressOfFunction;
+    return (void*)functionAddress;
 }
 
 struct so_enum_context {
@@ -145,25 +166,30 @@ struct so_enum_context {
 
 oserr_t
 SharedObjectUnload(
-	_In_ Handle_t Handle)
+	_In_ Handle_t handle)
 {
     SOInitializer_t        initialize = NULL;
     struct so_enum_context enumContext;
     int                    references;
-    oserr_t             status = OsOK;
+    oserr_t                status = OsOK;
 
-	if (Handle == HANDLE_INVALID) {
+	if (handle == HANDLE_INVALID) {
 	    _set_errno(EINVAL);
 		return OsError;
 	}
     
-    if (Handle == HANDLE_GLOBAL) {
+    if (handle == HANDLE_GLOBAL) {
         return OsOK;
+    }
+
+    if (!g_initialized) {
+        errno = ENOSYS;
+        return OsNotSupported;
     }
 
     assert(__crt_is_phoenix() == 0);
 
-    enumContext.handle  = Handle;
+    enumContext.handle  = handle;
     enumContext.library = NULL;
 
     mtx_lock(&g_librariesLock);
@@ -183,7 +209,7 @@ SharedObjectUnload(
         }
 
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        sys_library_unload(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)Handle);
+        sys_library_unload(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), (uintptr_t)handle);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
         OsErrToErrNo(status);

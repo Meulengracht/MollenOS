@@ -1,5 +1,15 @@
 LIBRARY c
 EXPORTS
+usched_mtx_init
+usched_mtx_lock
+usched_mtx_unlock
+usched_mtx_trylock
+usched_mtx_timedlock
+usched_cnd_init
+usched_cnd_notify_one
+usched_cnd_notify_all
+usched_cnd_wait
+usched_cnd_timedwait
 abort
 __crt_process_initialize
 __crt_cmdline

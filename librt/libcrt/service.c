@@ -22,10 +22,11 @@
 #include <gracht/server.h>
 #include <internal/_tls.h>
 #include <internal/_utils.h>
+#include <ioset.h>
 #include <os/usched/usched.h>
 #include <os/usched/xunit.h>
 #include <stdlib.h>
-#include <ioset.h>
+#include <time.h>
 
 extern void       GetServiceAddress(struct ipmsg_addr*);
 extern oserr_t OnLoad(void);

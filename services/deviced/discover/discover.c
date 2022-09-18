@@ -26,14 +26,10 @@
 #include <configparser.h>
 #include <requests.h>
 #include <ddk/utils.h>
-#include <ds/list.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/process.h>
-#include <os/usched/mutex.h>
-#include <os/usched/usched.h>
-#include <stdlib.h>
-#include <string.h>
+#include <os/usched/job.h>
 #include <stdio.h>
 
 #include <ctt_driver_service_client.h>

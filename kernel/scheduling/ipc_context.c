@@ -29,7 +29,6 @@
 #include <heap.h>
 #include <ioset.h>
 #include <ipc_context.h>
-#include <memoryspace.h>
 #include <memory_region.h>
 #include <threading.h>
 

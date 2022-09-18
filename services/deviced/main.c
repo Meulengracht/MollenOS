@@ -24,12 +24,11 @@
 
 #include <assert.h>
 #include <bus.h>
-#include <ctype.h>
 #include "devices.h"
 #include "discover.h"
 #include <gracht/link/vali.h>
 #include <internal/_ipc.h>
-#include <os/usched/usched.h>
+#include <os/usched/job.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>

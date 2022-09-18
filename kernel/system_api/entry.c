@@ -26,7 +26,7 @@
 #include <debug.h>
 #include <internal/_utils.h>
 #include <ipc_context.h>
-#include <os/mollenos.h>
+#include <os/futex.h>
 #include <threading.h>
 
 DECL_STRUCT(DeviceInterrupt);

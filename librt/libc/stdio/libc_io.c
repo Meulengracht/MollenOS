@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,16 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO Support functions
  */
 
 #ifdef LIBC_KERNEL
 #include <os/spinlock.h>
 #include <threading.h>
-#include <threads.h>
 #include <stdio.h>
 
 spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP(spinlock_plain);
@@ -85,8 +78,8 @@ int wctomb(char *mbchar, wchar_t wchar)
     return 0;
 }
 
-thrd_t thrd_current(void) {
-    return (thrd_t)ThreadCurrentHandle();
+uuid_t ThreadsCurrentId(void) {
+    return ThreadCurrentHandle();
 }
 
 #else
@@ -411,7 +404,7 @@ void StdioInitialize(void)
     stdio_bitmap_initialize();
 }
 
-_CRTIMP void StdioCleanup(void)
+CRTDECL(void, StdioCleanup(void))
 {
     // flush all file buffers and close handles
     io_buffer_flush_all(_IOWRT | _IOREAD);

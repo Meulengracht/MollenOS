@@ -89,20 +89,37 @@ struct lconv {
 	char padding[2];
 };
 
-/* The setlocale function
- * Used to update the current localization */
-_CRTIMP char *setlocale(int, __CONST char *);
+/**
+ * @brief Sets or retrieves the run-time locale.
+ * @param category Category affected by locale.
+ * @param locale   Locale specifier.
+ * @return If a valid locale and category are given, returns a pointer to the string associated
+ *         with the specified locale and category.
+ *         If the locale or category isn't valid, the invalid parameter handler is invoked,
+ *         as described in Parameter Validation. If execution is allowed to continue,
+ *         the function sets errno to EINVAL and returns NULL.
+ */
+CRTDECL(char*,
+setlocale(
+        _In_ int         category,
+        _In_ const char* locale));
 
-/* The localeconv function
- * Get locale formatting parameters for quantities */
-_CRTIMP struct lconv *localeconv(void);
+/**
+ * @brief Gets detailed information on locale settings.
+ * @return localeconv returns a pointer to a filled-in object of type struct lconv.
+ *         The values contained in the object are copied from the locale settings in thread-local storage,
+ *         and can be overwritten by subsequent calls to localeconv. Changes made to the values in
+ *         this object do not modify the locale settings. Calls to setlocale with category values of LC_ALL,
+ *         LC_MONETARY, or LC_NUMERIC overwrite the contents of the structure.
+ */
+CRTDECL(struct lconv*, localeconv(void));
 
 /* The below functions are not actually strictly defined
  * by the C standard, but rather by the POSIX standard */
-_CRTIMP locale_t newlocale(int, __CONST char *, locale_t);
-_CRTIMP void freelocale(locale_t);
-_CRTIMP locale_t duplocale(locale_t);
-_CRTIMP locale_t uselocale(locale_t);
+CRTDECL(locale_t, newlocale(int, const char *, locale_t));
+CRTDECL(void,     freelocale(locale_t));
+CRTDECL(locale_t, duplocale(locale_t));
+CRTDECL(locale_t, uselocale(locale_t));
 
 #ifdef __cplusplus
 }
