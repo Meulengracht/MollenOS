@@ -32,8 +32,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-OsStatus_t        OhciSetup(OhciController_t *Controller);
-InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
+oserr_t        OhciSetup(OhciController_t *Controller);
+irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*
 HciControllerCreate(
@@ -43,7 +43,7 @@ HciControllerCreate(
     DeviceIo_t*            IoBase  = NULL;
     DeviceInterrupt_t      Interrupt;
     OhciController_t*      Controller;
-    OsStatus_t             Status;
+    oserr_t             Status;
     int i;
 
     Controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
@@ -54,8 +54,8 @@ HciControllerCreate(
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            IoBase = &Controller->Base.Device.IoSpaces[i];
+        if (Controller->Base.Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
+            IoBase = &Controller->Base.Device->IoSpaces[i];
             break;
         }
     }
@@ -79,7 +79,7 @@ HciControllerCreate(
     DmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
     
     Status = dma_create(&DmaInfo, &Controller->HccaDMA);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to allocate space for HCCA");
         free(Controller);
         return NULL;
@@ -92,7 +92,7 @@ HciControllerCreate(
     Controller->Base.IoBase = IoBase;
     
     // Acquire the io-space
-    if (AcquireDeviceIo(IoBase) != OsSuccess) {
+    if (AcquireDeviceIo(IoBase) != OsOK) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
         free(Controller);
         return NULL;
@@ -121,10 +121,10 @@ HciControllerCreate(
 
     // Enable device
     TRACE("... enabling device");
-    Status = IoctlDevice(Controller->Base.Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+    Status = IoctlDevice(Controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         ERROR("Failed to enable the ohci-controller");
         UnregisterInterruptSource(Controller->Base.Interrupt);
         ReleaseDeviceIo(Controller->Base.IoBase);
@@ -133,7 +133,7 @@ HciControllerCreate(
     }
 
     TRACE("... initializing device");
-    if (OhciSetup(Controller) == OsSuccess) {
+    if (OhciSetup(Controller) == OsOK) {
         return &Controller->Base;
     }
     else {
@@ -142,7 +142,7 @@ HciControllerCreate(
     }
 }
 
-OsStatus_t
+oserr_t
 HciControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
@@ -165,7 +165,7 @@ HciControllerDestroy(
     ReleaseDeviceIo(Controller->IoBase);
     
     free(Controller);
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -187,7 +187,7 @@ OhciSetMode(
     WRITE_VOLATILE(Controller->Registers->HcControl, Value);
 }
 
-OsStatus_t
+oserr_t
 OhciTakeControl(
     _In_ OhciController_t* Controller)
 {
@@ -233,10 +233,10 @@ OhciTakeControl(
         // Cold boot, wait 10 ms
         thrd_sleepex(10);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 OhciReset(
     _In_ OhciController_t* Controller)
 {
@@ -339,10 +339,10 @@ OhciReset(
     
     Controller->QueuesActive = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
     TRACE(" > Wrote control 0x%x to controller", Temporary);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 OhciSetup(
     _In_ OhciController_t* Controller)
 {
@@ -364,7 +364,7 @@ OhciSetup(
 
     // Last step is to take ownership, reset the controller and initialize
     // the registers, all resource must be allocated before this
-    if (OhciTakeControl(Controller) != OsSuccess || OhciReset(Controller) != OsSuccess) {
+    if (OhciTakeControl(Controller) != OsOK || OhciReset(Controller) != OsOK) {
         ERROR("Failed to initialize the ohci-controller");
         return OsError;
     }
@@ -429,7 +429,7 @@ OhciSetup(
         Controller->Base.PortCount, Controller->PowerMode, Temporary);
     
     // Register the controller before starting
-    if (UsbManagerRegisterController(&Controller->Base) != OsSuccess) {
+    if (UsbManagerRegisterController(&Controller->Base) != OsOK) {
         ERROR("Failed to register uhci controller with the system.");
     }
 

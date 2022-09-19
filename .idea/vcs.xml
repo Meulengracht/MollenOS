@@ -11,6 +11,7 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libacpi" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libgracht" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/tools/imager" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tools/rd" vcs="Git" />
   </component>
 </project>

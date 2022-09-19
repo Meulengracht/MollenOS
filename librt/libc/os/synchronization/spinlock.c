@@ -15,11 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Spinlock Support Definitions & Structures
- * - This header describes the base spinlock-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <assert.h>
@@ -32,7 +27,7 @@ extern int  _spinlock_acquire(spinlock_t* lock);
 extern int  _spinlock_test(spinlock_t* lock);
 extern void _spinlock_release(spinlock_t* lock);
 
-#define IS_RECURSIVE(lock) (lock->type & spinlock_recursive)
+#define IS_RECURSIVE(lock) ((lock)->type & spinlock_recursive)
 
 void 
 spinlock_init(

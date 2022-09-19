@@ -77,7 +77,7 @@ typedef struct AhciDevice {
 
 typedef struct AhciTransation {
     element_t             Header;
-    UUId_t                Id;
+    uuid_t                Id;
     int                   Internal;
     TransactionState_t    State;
     TransactionType_t     Type;
@@ -113,10 +113,10 @@ typedef struct AhciTransation {
  * Initialization and destruction of the ahci manager. Tracks both devices and
  * transactions
  */
-__EXTERN OsStatus_t AhciManagerInitialize(void);
+__EXTERN oserr_t AhciManagerInitialize(void);
 __EXTERN void AhciManagerDestroy(void);
 __EXTERN size_t     AhciManagerGetFrameSize(void);
-__EXTERN OsStatus_t AhciManagerRegisterDevice(AhciController_t*, AhciPort_t*, uint32_t);
+__EXTERN oserr_t AhciManagerRegisterDevice(AhciController_t*, AhciPort_t*, uint32_t);
 __EXTERN void       AhciManagerUnregisterDevice(AhciController_t*, AhciPort_t*);
 __EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransaction_t*);
 
@@ -126,14 +126,14 @@ __EXTERN void       AhciManagerHandleControlResponse(AhciPort_t*, AhciTransactio
  */
 __EXTERN AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 
 /**
  * AhciTransactionControlCreate
  * @param ahciDevice  [In] The device that should handle the transaction.
  * @param ataCommand [In] The transaction that should get queued up.
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 AhciTransactionControlCreate(
     _In_ AhciDevice_t* ahciDevice,
     _In_ AtaCommand_t  ataCommand,
@@ -143,7 +143,7 @@ AhciTransactionControlCreate(
 /** 
  * AhciDeviceCancelTransaction
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 AhciManagerCancelTransaction(
     _In_ AhciTransaction_t* transaction);
 

@@ -39,7 +39,7 @@ lf_bounded_stack_construct(
     struct lf_bounded_stack_head freeList = { 0, NULL };
     
     if (!stack || capacity <= 0) {
-        _set_errno(EINVAL);
+        errno = EINVAL;
         return -1;
     }
     
@@ -48,7 +48,7 @@ lf_bounded_stack_construct(
 
     stack->nodes = dsalloc(capacity * sizeof(struct lf_bounded_stack_node));
     if (stack->nodes == NULL) {
-        _set_errno(ENOMEM);
+        errno = ENOMEM;
         return -1;
     }
     
@@ -68,9 +68,7 @@ lf_bounded_stack_destroy(
     if (!stack) {
         return;
     }
-    
     dsfree(stack->nodes);
-    return;
 }
 
 static struct lf_bounded_stack_node*
@@ -114,13 +112,13 @@ lf_bounded_stack_push(
     struct lf_bounded_stack_node *node;
     
     if (!stack) {
-        _set_errno(EINVAL);
+        errno = EINVAL;
         return -1;
     }
     
     node = pop(&stack->free);
     if (node == NULL) {
-        _set_errno(ENOMEM);
+        errno = ENOMEM;
         return -1;
     }
     

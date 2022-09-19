@@ -16,7 +16,7 @@ macro (add_host_project PROJECT_DIR)
 endmacro ()
 
 # build host tool projects
-add_host_project (diskutility)
+add_host_project (imager)
 add_host_project (rd)
 add_host_project (lzss)
 add_host_project (file2c)
@@ -24,4 +24,5 @@ add_host_project (file2c)
 # build native tool projects
 set (VAFS_BUILD_TOOLS OFF CACHE BOOL "Disable vafs tools for native build")
 add_subdirectory (rd)
-target_include_directories(vafs PRIVATE ../librt/libc/include)
+target_include_directories(vafs-blockcache PRIVATE ../librt/libos/include ../librt/libc/include)
+target_include_directories(vafs PRIVATE ../librt/libos/include ../librt/libc/include)

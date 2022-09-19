@@ -80,26 +80,26 @@ typedef void(*ThreadEntry_t)(void*);
  * @brief Creates a new thread that will execute the given function as soon as possible. The
  * thread can be supplied with arguments, mode and a custom memory space.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ThreadCreate(
         _In_ const char*   name,
         _In_ ThreadEntry_t entry,
         _In_ void*         arguments,
         _In_ unsigned int  flags,
-        _In_ UUId_t        memorySpaceHandle,
+        _In_ uuid_t        memorySpaceHandle,
         _In_ size_t        kernelMaxStackSize,
         _In_ size_t        userMaxStackSize,
-        _In_ UUId_t*       handle);
+        _In_ uuid_t*       handle);
 
 /**
  * @brief Marks the thread with the given id for finished, and it will be cleaned up
  * on next switch unless specified. The given exitcode will be stored.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ThreadTerminate(
-    _In_ UUId_t ThreadId,
-    _In_ int    ExitCode,
-    _In_ int    TerminateChildren);
+        _In_ uuid_t ThreadId,
+        _In_ int    ExitCode,
+        _In_ int    TerminateChildren);
 
 /**
  * @brief Can be used to wait for a thread
@@ -109,22 +109,22 @@ ThreadTerminate(
  */
 KERNELAPI int KERNELABI
 ThreadJoin(
-    _In_ UUId_t ThreadId);
+        _In_ uuid_t ThreadId);
 
 /**
  * @brief Detaches a running thread by marking it without parent, this will make
  * sure it runs untill it kills itself.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ThreadDetach(
-    _In_  UUId_t ThreadId);
+        _In_  uuid_t ThreadId);
 
 /**
  * @brief Is the given cpu running it's idle task?
  */
 KERNELAPI int KERNELABI
 ThreadIsCurrentIdle(
-    _In_ UUId_t CoreId);
+        _In_ uuid_t CoreId);
 
 /**
  * @brief Returns the current run-mode for the current thread on the current cpu
@@ -135,7 +135,7 @@ ThreadCurrentMode(void);
 /**
  * @brief Retrives the current thread handle on the current cpu
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadCurrentHandle(void);
 
 /**
@@ -144,22 +144,22 @@ ThreadCurrentHandle(void);
  */
 KERNELAPI Thread_t* KERNELABI
 ThreadCurrentForCore(
-    _In_ UUId_t CoreId);
+        _In_ uuid_t CoreId);
 
 /**
  * @brief Returns whether or not the threads are running in same address space context.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ThreadIsRelated(
-    _In_ UUId_t Thread1,
-    _In_ UUId_t Thread2);
+        _In_ uuid_t Thread1,
+        _In_ uuid_t Thread2);
 
 /**
  * ThreadHandle
  * @param Thread A pointer to a thread structure
  * @return       The handle for the thread structure
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadHandle(
         _In_ Thread_t* Thread);
 
@@ -167,7 +167,7 @@ ThreadHandle(
  * @param Thread A pointer to a thread structure
  * @return       The start time for the thread
  */
-KERNELAPI LargeUInteger_t* KERNELABI
+KERNELAPI UInteger64_t* KERNELABI
 ThreadStartTime(
         _In_ Thread_t* Thread);
 
@@ -176,7 +176,7 @@ ThreadStartTime(
  * @param Thread A pointer to a thread structure
  * @return       The cookie for the thread
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadCookie(
         _In_ Thread_t* Thread);
 
@@ -185,7 +185,7 @@ ThreadCookie(
  * @param Thread A pointer to a thread structure
  * @return       Status of the operation
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ThreadSetName(
         _In_ Thread_t*   Thread,
         _In_ const char* Name);
@@ -222,7 +222,7 @@ ThreadMemorySpace(
  * @param Thread A pointer to a thread structure
  * @return       The handle for the threads memory space
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ThreadMemorySpaceHandle(
         _In_ Thread_t* Thread);
 
@@ -259,11 +259,11 @@ ThreadContext(
  * * Dispatches a signal to a thread in the system from an external 
  * * source (i.e another thread).
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SignalSend(
-    _In_ UUId_t ThreadId,
-    _In_ int    Signal,
-    _In_ void*  Argument);
+        _In_ uuid_t ThreadId,
+        _In_ int    Signal,
+        _In_ void*  Argument);
 
 /**
  * Dispatches a signal to the current thread. This immediately loads the signal
@@ -310,7 +310,7 @@ ThreadingEnable(
  * @param[Out] nextDeadlineOut   The nanoseconds untill next scheduling.
  * @return     Status of the tick.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ThreadingAdvance(
         _In_  int     preemptive,
         _In_  clock_t nanosecondsPassed,

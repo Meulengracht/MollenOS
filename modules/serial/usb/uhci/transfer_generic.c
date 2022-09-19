@@ -27,7 +27,7 @@
 #include "uhci.h"
 #include <assert.h>
 
-static OsStatus_t
+static oserr_t
 UhciTransferFillIsochronous(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
@@ -52,7 +52,7 @@ UhciTransferFillIsochronous(
         addressPointer = transfer->Transactions[0].DmaTable.entries[
             transfer->Transactions[0].SgIndex].address + transfer->Transactions[0].SgOffset;
         
-        if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OsSuccess) {
+        if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OsOK) {
             bytesStep = UhciTdIo(td, transfer->Transfer.Type, transactionType,
                                  transfer->Transfer.Address.DeviceAddress,
                                  transfer->Transfer.Address.EndpointAddress,
@@ -61,7 +61,7 @@ UhciTransferFillIsochronous(
             if (UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
                                               transfer->Transfer.PeriodicInterval, transfer->Transfer.MaxPacketSize,
                                               transactionType, bytesStep, USB_TRANSFER_ISOCHRONOUS,
-                                              transfer->Transfer.Speed, (uint8_t*)td) != OsSuccess) {
+                                              transfer->Transfer.Speed, (uint8_t*)td) != OsOK) {
                 // Free element
                 UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)td);
                 break;
@@ -102,13 +102,13 @@ UhciTransferFillIsochronous(
     if (previousTd != NULL) {
         previousTd->Flags           |= UHCI_TD_IOC;
         transfer->EndpointDescriptor = initialTd;
-        return OsSuccess;
+        return OsOK;
     }
 
     return OsBusy;
 }
 
-static OsStatus_t
+static oserr_t
 UhciTransferFill(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
@@ -174,7 +174,7 @@ UhciTransferFill(
             }
 
             toggle = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
-            if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OsSuccess) {
+            if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OsOK) {
                 if (transactionType == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
                     toggle = 0; // Initial toggle must ALWAYS be 0 for setup
@@ -241,7 +241,7 @@ UhciTransferFill(
     // End of <transfer>?
     if (previousTd != NULL) {
         previousTd->Flags |= UHCI_TD_IOC;
-        return OsSuccess;
+        return OsOK;
     }
     return OsBusy;
 }
@@ -262,14 +262,14 @@ HciQueueTransferGeneric(
     // Step 1 - Allocate queue head
     if (transfer->EndpointDescriptor == NULL) {
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
-                                        UHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsSuccess) {
+                                        UHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsOK) {
             goto queued;
         }
         assert(endpointDescriptor != NULL);
         transfer->EndpointDescriptor = endpointDescriptor;
 
         // Store and initialize the qh
-        if (UhciQhInitialize(controller, transfer) != OsSuccess) {
+        if (UhciQhInitialize(controller, transfer) != OsOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;
@@ -278,7 +278,7 @@ HciQueueTransferGeneric(
     }
 
     // If it fails to queue up => restore toggle
-    if (UhciTransferFill(controller, transfer) != OsSuccess) {
+    if (UhciTransferFill(controller, transfer) != OsOK) {
         goto queued;
     }
 
@@ -305,7 +305,7 @@ HciQueueTransferIsochronous(
         return TransferInvalid;
     }
 
-    if (UhciTransferFillIsochronous(controller, transfer) != OsSuccess) {
+    if (UhciTransferFillIsochronous(controller, transfer) != OsOK) {
         transfer->Status = TransferQueued;
         return TransferQueued;
     }

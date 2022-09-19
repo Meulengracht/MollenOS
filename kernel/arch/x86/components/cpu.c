@@ -195,13 +195,13 @@ SetMachineUmaMode(void)
     for(;;);
 }
 
-OsStatus_t
+oserr_t
 ArchProcessorSendInterrupt(
-    _In_ UUId_t coreId,
-    _In_ UUId_t interruptId)
+        _In_ uuid_t coreId,
+        _In_ uuid_t interruptId)
 {
-    OsStatus_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
-    if (osStatus != OsSuccess) {
+    oserr_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
+    if (osStatus != OsOK) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
     return osStatus;
@@ -212,24 +212,24 @@ CpuInitializeFeatures(void)
 {
     // Can we use global pages? We will use this for kernel mappings
     // to speed up refill performance
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
         CpuEnableGpe();
     }
 
 	// Can we enable FPU?
-	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OsSuccess) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OsOK) {
 		CpuEnableFpu();
 	}
 
 	// Can we enable SSE?
-	if (CpuHasFeatures(0, CPUID_FEAT_EDX_SSE) == OsSuccess) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_SSE) == OsOK) {
 		CpuEnableSse();
 	}
     
     // Can we enable xsave? (and maybe avx?)
-    if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsSuccess) {
+    if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsOK) {
         CpuEnableXSave();
-        if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OsSuccess) {
+        if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OsOK) {
             CpuEnableAvx();
         }
     }
@@ -245,7 +245,7 @@ CpuInitializeFeatures(void)
 #endif
 }
 
-OsStatus_t
+oserr_t
 CpuHasFeatures(
         _In_ unsigned int ecx,
         _In_ unsigned int edx)
@@ -263,13 +263,13 @@ CpuHasFeatures(
 			return OsError;
 		}
 	}
-	return OsSuccess;
+	return OsOK;
 }
 
-UUId_t
+uuid_t
 ArchGetProcessorCoreId(void)
 {
-    if (ApicIsInitialized() == OsSuccess) {
+    if (ApicIsInitialized() == OsOK) {
         return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
     }
 
@@ -329,7 +329,7 @@ CpuInvalidateMemoryCache(
 
 void CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
 {
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsOK) {
         _rdmsr(registerIndex, pointerToValue);
     }
     else {
@@ -339,7 +339,7 @@ void CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
 
 void CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
 {
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsOK) {
         _wrmsr(registerIndex, pointerToValue);
     }
     else {

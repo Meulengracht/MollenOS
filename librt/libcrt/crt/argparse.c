@@ -50,15 +50,15 @@ __unescape_quotes(
 
 int
 __crt_parse_cmdline(
-        _In_ char*  rawCommandLine,
-        _In_ char** argv)
+        _In_ const char* rawCommandLine,
+        _In_ char**      argv)
 {
     char* bufferPointer;
     char* lastPointer = NULL;
-    int argc, lastArgc;
+    int   argc, lastArgc;
 
-    argc               = lastArgc = 0;
-    for (bufferPointer = rawCommandLine; *bufferPointer;) {
+    argc = lastArgc = 0;
+    for (bufferPointer = (char*)rawCommandLine; *bufferPointer;) {
         /* Skip leading whitespace */
         while (isspace((int)(*bufferPointer))) {
             ++bufferPointer;

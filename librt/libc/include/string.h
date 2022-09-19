@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS C11-Support String Implementation
- * - Definitions, prototypes and information needed.
  */
 
 #ifndef __STDC_STRING__
@@ -116,44 +111,31 @@ CRTDECL(char*,      strncat(char* destination, const char* source, size_t num));
 /*******************************
  *      String Comparison      *
  *******************************/
-_CRTIMP	int memcmp(__CONST void* ptr1, __CONST void* ptr2, size_t num);
-_CRTIMP	int strcmp(__CONST char* str1, __CONST char* str2);
-CRTDECL(int, strcoll(
-    __CONST char* str1,
-    __CONST char* str2));
-CRTDECL(int, strcoll_l(
-    const char *a,
-    const char *b,
-    struct __locale_t *locale));
-_CRTIMP	int strncmp(__CONST char* s1, __CONST char* s2, size_t n);
-CRTDECL(size_t, strxfrm(
-    char* destination,
-    __CONST char* source,
-    size_t num));
-CRTDECL(size_t, strxfrm_l(
-    char *__restrict s1,
-    const char *__restrict s2,
-    size_t n,
-	struct __locale_t *locale));
+CRTDECL(int, memcmp(const void* ptr1, const void* ptr2, size_t num));
+CRTDECL(int, strcmp(const char* str1, const char* str2));
+CRTDECL(int, strcoll(const char* str1, const char* str2));
+CRTDECL(int, strcoll_l(const char *a, const char *b, struct __locale_t *locale));
+CRTDECL(int, strncmp(const char* s1, const char* s2, size_t n));
+CRTDECL(size_t, strxfrm(char* destination, const char* source, size_t num));
+CRTDECL(size_t, strxfrm_l(char *__restrict s1, const char *__restrict s2, size_t n, struct __locale_t *locale));
 
 /*******************************
  *      String S&D             *
  *******************************/
-_CRTIMP void* memchr(__CONST void* ptr, int value, size_t num);
-_CRTIMP char* strchr(__CONST char* str, int character);
-_CRTIMP	size_t strcspn(__CONST char* str1, __CONST char* str2);
-_CRTIMP char* strpbrk(__CONST char* str1, __CONST char* str2);
-_CRTIMP char* strrchr(__CONST char* str, int character);
-_CRTIMP	size_t strspn(__CONST char* str1, __CONST char* str2);
-_CRTIMP char* strstr(__CONST char* haystack, __CONST char* needle);
-_CRTIMP	char* strtok_r(char* s, __CONST char* delimiters, char** lasts);
-_CRTIMP	char* strtok(char* str, __CONST char* delimiters);
+CRTDECL(void*,  memchr(const void* ptr, int value, size_t num));
+CRTDECL(char*,  strchr(const char* str, int character));
+CRTDECL(size_t, strcspn(const char* str1, const char* str2));
+CRTDECL(char*,  strpbrk(const char* str1, const char* str2));
+CRTDECL(char*,  strrchr(const char* str, int character));
+CRTDECL(size_t, strspn(const char* str1, const char* str2));
+CRTDECL(char*,  strstr(const char* haystack, const char* needle));
+CRTDECL(char*,  strtok_r(char* s, const char* delimiters, char** lasts));
+CRTDECL(char*,  strtok(char* str, const char* delimiters));
 
 /* strerror
  * Returns a pointer to the textual description of the system error code errnum, 
  * identical to the description that would be printed by perror(). */
-CRTDECL(char*, strerror(
-    _In_ int errnum));
+CRTDECL(char*, strerror(int errnum));
 
 /* strerror_s 
  * Same as (1), except that the message is copied into user-provided storage buf. 
@@ -164,32 +146,29 @@ CRTDECL(char*, strerror(
  * currently installed constraint handler function:
  * 1. buf is a null pointer
  * 2. bufsz is zero or greater than RSIZE_MAX */
-CRTDECL_EX(errno_t, strerror_s(
-    _In_ char *buf,
-    _In_ rsize_t bufsz,
-    _In_ errno_t errnum))
+CRTDECL_EX(errno_t, strerror_s(char *buf, rsize_t bufsz, errno_t errnum))
 
 /* strerrorlen_s 
  * Computes the length of the untruncated locale-specific error message that strerror_s 
  * would write if it were called with errnum. The length does not include the null terminator. */
-CRTDECL_EX(size_t, strerrorlen_s(
-    _In_ errno_t errnum))
+CRTDECL_EX(size_t, strerrorlen_s(errno_t errnum))
 
-_CRTIMP	void* memset(void *dest, int c, size_t count);
-_CRTIMP	size_t strlen(__CONST char* str);
-_CRTIMP size_t strnlen(__CONST char *str, size_t max);
+CRTDECL(void*,  memset(void *dest, int c, size_t count));
+CRTDECL(size_t, strlen(const char* str));
+CRTDECL(size_t, strnlen(const char *str, size_t max));
 
 /*******************************
  *     String Conversions      *
  *******************************/
-_CRTIMP	char *i64toa(int64_t value, char *string, int radix);
-_CRTIMP	int i64toa_s(int64_t value, char *str, size_t size, int radix);
-_CRTIMP	char *ui64toa(uint64_t value, char *string, int radix);
-_CRTIMP	int ui64toa_s(uint64_t value, char *str, size_t size, int radix);
-_CRTIMP	int itoa_s(int value, char *str, size_t size, int radix);
-_CRTIMP	char *itoa(int value, char *string, int radix);
-_CRTIMP	char *ltoa(long value, char *string, int radix);
-_CRTIMP	int ltoa_s(long value, char *str, size_t size, int radix);
-_CRTIMP	char *ultoa(unsigned long value, char *string, int radix);
+CRTDECL(char*, i64toa(int64_t value, char *string, int radix));
+CRTDECL(int,   i64toa_s(int64_t value, char *str, size_t size, int radix));
+CRTDECL(char*, ui64toa(uint64_t value, char *string, int radix));
+CRTDECL(int,   ui64toa_s(uint64_t value, char *str, size_t size, int radix));
+CRTDECL(int,   itoa_s(int value, char *str, size_t size, int radix));
+CRTDECL(char*, itoa(int value, char *string, int radix));
+CRTDECL(char*, ltoa(long value, char *string, int radix));
+CRTDECL(int,   ltoa_s(long value, char *str, size_t size, int radix));
+CRTDECL(char*, ultoa(unsigned long value, char *string, int radix));
+
 _CODE_END
 #endif //!__STDC_STRING__

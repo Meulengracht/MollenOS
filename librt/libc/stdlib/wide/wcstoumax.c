@@ -38,7 +38,7 @@
 #include <wchar.h>
 #include <wctype.h>
 #include <stdint.h>
-#include "../../locale/setlocale.h"
+#include <internal/_locale.h>
 
 /*
  * Convert a wide character string to a uintmax_t integer.

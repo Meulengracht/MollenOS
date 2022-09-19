@@ -27,15 +27,15 @@
 #include <string.h>
 #include <debug.h>
 
-OsStatus_t
+oserr_t
 ScThreadCreate(
-    _In_  ThreadEntry_t       Entry,
-    _In_  void*               Arguments,
-    _In_  ThreadParameters_t* Parameters,
-    _Out_ UUId_t*             HandleOut)
+        _In_  ThreadEntry_t       Entry,
+        _In_  void*               Arguments,
+        _In_  ThreadParameters_t* Parameters,
+        _Out_ uuid_t*             HandleOut)
 {
     unsigned int threadCurrentMode = ThreadCurrentMode();
-    UUId_t       memorySpaceHandle = UUID_INVALID;
+    uuid_t       memorySpaceHandle = UUID_INVALID;
     const char*  name              = NULL;
     if (Entry == NULL) {
         return OsInvalidParameters;
@@ -58,7 +58,7 @@ ScThreadCreate(
                         0, 0, HandleOut);
 }
 
-OsStatus_t
+oserr_t
 ScThreadExit(
     _In_ int ExitCode)
 {
@@ -66,15 +66,15 @@ ScThreadExit(
     return ThreadTerminate(ThreadCurrentHandle(), ExitCode, 1);
 }
 
-OsStatus_t
+oserr_t
 ScThreadJoin(
-    _In_  UUId_t ThreadId,
-    _Out_ int*   ExitCode)
+        _In_  uuid_t ThreadId,
+        _Out_ int*   ExitCode)
 {
     int        ResultCode;
-    OsStatus_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
+    oserr_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
 
-    if (Result == OsSuccess) {
+    if (Result == OsOK) {
         ResultCode = ThreadJoin(ThreadId);
         if (ExitCode != NULL) {
             *ExitCode = ResultCode;
@@ -84,52 +84,52 @@ ScThreadJoin(
     return Result;
 }
 
-OsStatus_t
+oserr_t
 ScThreadDetach(
-    _In_ UUId_t ThreadId)
+        _In_ uuid_t ThreadId)
 {
     return ThreadDetach(ThreadId);
 }
 
-OsStatus_t
+oserr_t
 ScThreadSignal(
-    _In_ UUId_t ThreadId,
-    _In_ int    SignalCode)
+        _In_ uuid_t ThreadId,
+        _In_ int    SignalCode)
 {
-    OsStatus_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
-    if (Result == OsSuccess) {
+    oserr_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
+    if (Result == OsOK) {
         Result = SignalSend(ThreadId, SignalCode, NULL);
     }
     return Result;
 }
 
-UUId_t
+uuid_t
 ScThreadGetCurrentId(void)
 {
     return ThreadCurrentHandle();
 }
 
-OsStatus_t
+oserr_t
 ScThreadYield(void)
 {
     ArchThreadYield();
-    return OsSuccess;
+    return OsOK;
 }
 
-UUId_t
+uuid_t
 ScThreadCookie(void)
 {
     return ThreadCookie(ThreadCurrentForCore(ArchGetProcessorCoreId()));
 }
 
-OsStatus_t
+oserr_t
 ScThreadSetCurrentName(const char* ThreadName)
 {
     Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     return ThreadSetName(thread, ThreadName);
 }
 
-OsStatus_t
+oserr_t
 ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength)
 {
     const char* threadName = ThreadName(ThreadCurrentForCore(ArchGetProcessorCoreId()));
@@ -138,5 +138,5 @@ ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength)
     }
 
     strncpy(ThreadNameBuffer, threadName, MaxLength);
-    return OsSuccess;
+    return OsOK;
 }

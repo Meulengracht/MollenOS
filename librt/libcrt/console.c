@@ -15,26 +15,26 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS C Library - Entry Points
  */
 
-#include "../libc/threads/tls.h"
+#include <internal/_tls.h>
 #include <stddef.h>
 #include <stdlib.h>
 
 extern int    main(int argc, char **argv, char **envp);
-extern char** __crt_initialize(thread_storage_t* threadStorage, int isPhoenix, int* argumentCount);
+extern void   __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
+extern char** __crt_argv(int* argcOut);
 
 void
 __CrtConsoleEntry(void)
 {
-	thread_storage_t threadStorage;
-	char**           argv;
-	int              argc;
-	int              exitCode;
+    struct thread_storage tls;
+	char**                argv;
+	int                   argc;
+	int                   exitCode;
 
-	argv = __crt_initialize(&threadStorage, 0, &argc);
+	__crt_initialize(&tls, 0);
+    argv = __crt_argv(&argc);
 	exitCode = main(argc, argv, NULL);
 	free(argv);
 	exit(exitCode);

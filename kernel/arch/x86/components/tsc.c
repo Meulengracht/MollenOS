@@ -30,8 +30,8 @@
 extern uint32_t g_calibrationTick;
 extern void _rdtsc(uint64_t *Value);
 
-static void TscGetCount(void*, LargeUInteger_t*);
-static void TscGetFrequency(void*, LargeUInteger_t*);
+static void TscGetCount(void*, UInteger64_t*);
+static void TscGetFrequency(void*, UInteger64_t*);
 static void TscNoOperation(void*);
 
 /**
@@ -47,14 +47,14 @@ static tick_t g_tscFrequency = 0;
 void
 TscInitialize(void)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     uint64_t   tscStart;
     uint64_t   tscEnd;
     uint32_t   ticker;
     uint32_t   tickEnd;
     TRACE("TscInitialize()");
 
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_TSC) != OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_TSC) != OsOK) {
         WARNING("TscInitialize TSC is not available for this CPU");
         return;
     }
@@ -81,7 +81,7 @@ TscInitialize(void)
             SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
             UUID_INVALID,
             NULL);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("TscInitialize failed to register platform timer");
     }
 }
@@ -89,7 +89,7 @@ TscInitialize(void)
 static void
 TscGetCount(
         _In_ void*            context,
-        _In_ LargeUInteger_t* tick)
+        _In_ UInteger64_t* tick)
 {
     _CRT_UNUSED(context);
     _rdtsc(&tick->QuadPart);
@@ -98,7 +98,7 @@ TscGetCount(
 static void
 TscGetFrequency(
         _In_ void*            context,
-        _In_ LargeUInteger_t* frequency)
+        _In_ UInteger64_t* frequency)
 {
     _CRT_UNUSED(context);
     frequency->QuadPart = g_tscFrequency;

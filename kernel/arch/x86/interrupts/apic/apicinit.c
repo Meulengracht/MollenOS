@@ -310,7 +310,7 @@ __ClearApic(void)
 
 static void
 __PrepareApic(
-        _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     uint32_t temp;
     int      i, j;
@@ -397,7 +397,7 @@ ApicInitialize(void)
     ACPI_TABLE_HEADER*           header = NULL;
     uintptr_t originalApAddress = 0;
     uintptr_t remappedApAddress = 0;
-    UUId_t    bspApicId;
+    uuid_t    bspApicId;
     uint32_t  temporaryValue;
     TRACE("ApicInitialize()");
 
@@ -415,8 +415,8 @@ ApicInitialize(void)
         originalApAddress = MadtTable->Address;
         AcpiPutTable(header);
     }
-    else if (MpInitialize() == OsSuccess) {
-        if (MpGetLocalApicAddress(&originalApAddress) != OsSuccess) {
+    else if (MpInitialize() == OsOK) {
+        if (MpGetLocalApicAddress(&originalApAddress) != OsOK) {
             // Fallback to msr
             uint64_t Value = 0;
             CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &Value);
@@ -485,10 +485,10 @@ GetApicInterruptMode(void)
     return g_interruptMode;
 }
 
-OsStatus_t
+oserr_t
 ApicIsInitialized(void)
 {
-    return (g_localApicBaseAddress == 0) ? OsNotSupported : OsSuccess;
+    return (g_localApicBaseAddress == 0) ? OsNotSupported : OsOK;
 }
 
 void

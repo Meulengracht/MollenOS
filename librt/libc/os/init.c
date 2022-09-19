@@ -27,26 +27,29 @@
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/types/process.h>
 #include <stdlib.h>
+#include <string.h>
 #include <threads.h>
-#include "../threads/tls.h"
+#include "../threads/tss.h"
 
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
 extern void StdSignalInitialize(void);
-extern void StdSoInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
 static gracht_client_t*         g_gclient     = NULL;
 static struct gracht_link_vali* g_gclientLink = NULL;
 
-static char   g_rawCommandLine[1024] = { 0 };
-static int    g_isPhoenix            = 0;
-static UUId_t g_processId            = UUID_INVALID;
+static char*      g_rawCommandLine  = NULL;
+static uint8_t*   g_inheritBlock    = NULL;
+static uintptr_t* g_baseLibraries   = NULL;
+static char**     g_environment     = NULL;
+static int        g_isPhoenix       = 0;
+static uuid_t     g_startupThreadId = UUID_INVALID;
+static uuid_t     g_processId       = UUID_INVALID;
 
 static void
 __mark_iod_priority(int iod)
@@ -58,26 +61,178 @@ __mark_iod_priority(int iod)
     stdio_handle_flag(handle, WX_PRIORITY);
 }
 
+static uint8_t* memdup(const char* data, size_t length)
+{
+    uint8_t* mem = malloc(length);
+    if (mem == NULL) {
+        return NULL;
+    }
+    memcpy(mem, data, length);
+    return mem;
+}
+
+// environment data is an double null terminated array of
+// null terminated strings
+static int __build_environment(const char* environment)
+{
+    const char* i         = environment;
+    int         pairCount = 0;
+    TRACE("__build_environment(env=%s)", environment);
+
+    while (*i) {
+        // skip towards next entry, and skip the terminating zero
+        i += strlen(i) + 1;
+        pairCount++;
+    }
+
+    g_environment = calloc((pairCount + 1), sizeof(char*));
+    if (g_environment == NULL) {
+        return -1;
+    }
+
+    i         = environment;
+    pairCount = 0;
+    while (*i) {
+        g_environment[pairCount++] = strdup(i);
+        i += strlen(i) + 1;
+    }
+    return 0;
+}
+
+static int __create_startup_buffer(struct dma_buffer_info* buffer, struct dma_attachment* mapping)
+{
+    buffer->capacity = KB(64);
+    buffer->length   = KB(64);
+    buffer->name     = "startup-info";
+    buffer->flags    = 0;
+    buffer->type     = DMA_TYPE_REGULAR;
+    return dma_create(buffer, mapping);
+}
+
+static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
+{
+    size_t     entries = length / sizeof(uintptr_t);
+    uintptr_t* libraries;
+    TRACE("__parse_library_handles(length=%u)", length);
+
+    if (!entries) {
+        return NULL;
+    }
+
+    libraries = calloc(entries + 1, sizeof(uintptr_t));
+    if (libraries == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < (int)entries; i++) {
+        libraries[i] = ((uintptr_t*)buffer)[i];
+    }
+    return libraries;
+}
+
+static int __parse_startup_info(struct dma_attachment* dmaAttachment)
+{
+    ProcessStartupInformation_t* source;
+    const char*                  data;
+    TRACE("__parse_startup_info()");
+
+    source = (ProcessStartupInformation_t*)dmaAttachment->buffer;
+    data   = (char*)dmaAttachment->buffer + sizeof(ProcessStartupInformation_t);
+    TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
+          source->ArgumentsLength,
+          source->InheritationLength,
+          source->LibraryEntriesLength);
+    assert((source->ArgumentsLength + source->InheritationLength +
+            source->LibraryEntriesLength + source->EnvironmentBlockLength)
+           < KB(64));
+
+    // Required - arguments (commandline) is written without zero terminator
+    g_rawCommandLine = strndup(data, source->ArgumentsLength);
+    if (g_rawCommandLine == NULL) {
+        return -1;
+    }
+    data += source->ArgumentsLength;
+
+    // Optional - inheritation block is not required and may be null
+    if (source->InheritationLength) {
+        g_inheritBlock = memdup(data, source->InheritationLength);
+        data += source->InheritationLength;
+    }
+
+    // Required - the list of library entry points that needs to be called upon
+    // CRT init/finit. This is the base library list, which are the libraries that
+    // were automatically loaded during load of this process.
+    g_baseLibraries = __parse_library_handles(data, source->LibraryEntriesLength);
+    if (g_baseLibraries == NULL) {
+        return -1;
+    }
+    data += source->LibraryEntriesLength;
+
+    // Optional - environmental block. List of strings, does not need to be provided.
+    if (source->EnvironmentBlockLength) {
+        if (__build_environment(data)) {
+            return -1;
+        }
+        data += source->EnvironmentBlockLength;
+    }
+    return 0;
+}
+
+static int __get_startup_info(void)
+{
+    struct dma_buffer_info   buffer;
+    struct dma_attachment    mapping;
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    int                      status;
+    oserr_t                  osStatus;
+    TRACE("__get_startup_info()");
+
+    status = __create_startup_buffer(&buffer, &mapping);
+    if (status) {
+        return status;
+    }
+
+    sys_process_get_startup_information(
+            GetGrachtClient(),
+            &msg.base,
+            thrd_current(),
+            mapping.handle,
+            0
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_process_get_startup_information_result(
+            GetGrachtClient(),
+            &msg.base,
+            &osStatus,
+            &g_processId
+    );
+    assert(osStatus == OsOK);
+
+    status = __parse_startup_info(&mapping);
+    dma_attachment_unmap(&mapping);
+    dma_detach(&mapping);
+    return status;
+}
+
 void __crt_process_initialize(
-        _In_ int                          isPhoenix,
-        _In_ ProcessStartupInformation_t* startupInformation)
+        _In_ int isPhoenix)
 {
     gracht_client_configuration_t clientConfig;
-    struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    OsStatus_t                    osStatus;
     int                           status;
-    TRACE("__crt_process_initialize(isPhoenix=%i)", );
+    TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
     
     // We must set IsModule before anything
     g_isPhoenix = isPhoenix;
+
+    // Get the handle of the startup thread so we always know
+    // the thread id of the primary process thread.
+    g_startupThreadId = thrd_current();
 
     // Initialize the standard C library
     TRACE("__crt_process_initialize initializing stdio");
     StdioInitialize();
     TRACE("__crt_process_initialize initializing stdsig");
     StdSignalInitialize();
-    TRACE("__crt_process_initialize initializing so");
-    StdSoInitialize();
 
     // initialite the ipc link
     TRACE("__crt_process_initialize creating rpc link");
@@ -109,48 +264,20 @@ void __crt_process_initialize(
     // down during crt finalizing
     __mark_iod_priority(gracht_client_iod(g_gclient));
     
-    // Get startup information
+    // Unless it's the phoenix bootstrapper, we retrieve startup information
+    // and various process related configurations before proceeding.
     TRACE("__crt_process_initialize receiving startup configuration");
-    if (isPhoenix) {
-        // for phoenix, we have no booter or environment
-    }
-    else {
-        UUId_t dmaHandle = tls_current()->transfer_buffer.handle;
-        char*  dmaBuffer = tls_current()->transfer_buffer.buffer;
-        size_t maxLength = tls_current()->transfer_buffer.length;
-
-        sys_process_get_startup_information(GetGrachtClient(), &msg.base, thrd_current(), dmaHandle, maxLength);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_get_startup_information_result(GetGrachtClient(), &msg.base,
-                                                   &osStatus, &g_processId, &startupInformation->ArgumentsLength,
-                                                   &startupInformation->InheritationLength, &startupInformation->LibraryEntriesLength);
-        assert(osStatus == OsSuccess);
-
-        TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
-              startupInformation->ArgumentsLength,
-              startupInformation->InheritationLength,
-              startupInformation->LibraryEntriesLength);
-        assert((startupInformation->ArgumentsLength + startupInformation->InheritationLength +
-                startupInformation->LibraryEntriesLength) < maxLength);
-        
-        // fixup pointers
-        startupInformation->Arguments = &dmaBuffer[0];
-        if (startupInformation->InheritationLength) {
-            startupInformation->Inheritation = &dmaBuffer[startupInformation->ArgumentsLength];
+    if (!isPhoenix) {
+        status = __get_startup_info();
+        if (status) {
+            ERROR("__crt_process_initialize failed to get process startup information");
+            _Exit(status);
         }
-        else {
-            startupInformation->Inheritation = NULL;
-        }
-
-        startupInformation->LibraryEntries = &dmaBuffer[
-                startupInformation->ArgumentsLength + startupInformation->InheritationLength];
-
-        // copy the arguments to the raw cmdline
-        memcpy(&g_rawCommandLine[0], startupInformation->Arguments, startupInformation->ArgumentsLength);
     }
 
-    // Parse the configuration information
-    StdioConfigureStandardHandles(startupInformation->Inheritation);
+    // now that we have the startup information, we can proceed to setup systems
+    // that require it.
+    StdioConfigureStandardHandles(g_inheritBlock);
 }
 
 int __crt_is_phoenix(void)
@@ -158,7 +285,12 @@ int __crt_is_phoenix(void)
     return g_isPhoenix;
 }
 
-UUId_t* __crt_processid_ptr(void)
+uuid_t __crt_primary_thread(void)
+{
+    return g_startupThreadId;
+}
+
+uuid_t* __crt_processid_ptr(void)
 {
     return &g_processId;
 }
@@ -166,6 +298,16 @@ UUId_t* __crt_processid_ptr(void)
 const char* __crt_cmdline(void)
 {
     return &g_rawCommandLine[0];
+}
+
+const char* const* __crt_environment(void)
+{
+    return (const char* const*)g_environment;
+}
+
+const uintptr_t* __crt_base_libraries(void)
+{
+    return g_baseLibraries;
 }
 
 gracht_client_t* GetGrachtClient(void)

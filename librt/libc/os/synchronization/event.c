@@ -29,7 +29,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
 {
     stdio_handle_t* ioObject;
     int             status;
-    UUId_t          handle;
+    uuid_t          handle;
     atomic_int*     syncAddress;
 
     if (EVT_TYPE(flags) == EVT_RESET_EVENT) {
@@ -41,7 +41,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
         return status;
     }
 
-    if (Syscall_EventCreate(initialValue, flags, &handle, &syncAddress) != OsSuccess) {
+    if (Syscall_EventCreate(initialValue, flags, &handle, &syncAddress) != OsOK) {
         stdio_handle_destroy(ioObject, 0);
         errno = ENOSYS;
         return -1;

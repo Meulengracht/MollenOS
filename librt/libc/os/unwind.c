@@ -14,11 +14,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Process Service Definitions & Structures
- * - This header describes the base process-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_ipc.h>
@@ -41,7 +36,7 @@ ProcessGetLibraryHandles(
                                    PROCESS_MAXMODULES, ModuleCountOut);
 }
 
-OsStatus_t
+oserr_t
 UnwindGetSection(
     _In_ void*            MemoryAddress,
     _In_ UnwindSection_t* Section)
@@ -50,7 +45,7 @@ UnwindGetSection(
     int      ModuleCount;
     
     if (__crt_is_phoenix()) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     ProcessGetLibraryHandles(ModuleList, &ModuleCount);
@@ -97,8 +92,8 @@ UnwindGetSection(
             }
             
             if (foundObj && foundHdr)
-                return OsSuccess;
+                return OsOK;
         }
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }

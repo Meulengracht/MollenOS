@@ -100,21 +100,17 @@
     #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
-/* Standard C-Library Export 
- * Standard definition for the std-c. */
+/**
+ * @brief LibC implementation macro. We use PE dlls for Vali and that means
+ * we make use of dllimport/dllexport notations. This is for some parts a pain
+ * but in other scenarios this is nice. Switch between impl/use here.
+ */
 #ifdef __OSLIB_C_IMPLEMENTATION
-#ifdef __OSLIB_C_SHAREDLIBRARY
 #define __STDC_DECORATION CRTEXPORT
 #else
-#define __STDC_DECORATION 
-#endif //!__OSLIB_C_SHAREDLIBRARY
-#else
-#ifdef __OSLIB_C_SHAREDLIBRARY
 #define __STDC_DECORATION CRTIMPORT
-#else
-#define __STDC_DECORATION 
-#endif //!__OSLIB_C_SHAREDLIBRARY
 #endif //!__OSLIB_C_IMPLEMENTATION
+
 #define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
 #define CRTDECL_DATA(Type, Name)      __STDC_DECORATION Type Name
 #if __STDC_VERSION__ >= 201112L || __cplusplus >= 201103L
@@ -132,22 +128,6 @@
 #define DLL_ACTION_INITIALIZE   1 // 1
 #define DLL_ACTION_THREADATTACH 2 // 2
 #define DLL_ACTION_THREADDETACH 3 // 3
-
-/* This is the export definitions used by
- * the runtime libraries, they default to
- * import by standard. RT Libraries have
- * CRTDLL defined by default. 
- * The only time this needs to be defined
- * as static is for the OS */
-#ifndef _CRTIMP
-#if defined(CRTDLL)
-#define _CRTIMP CRTEXPORT
-#elif defined(_KRNL_DLL)
-#define _CRTIMP CRTEXTERN
-#else
-#define _CRTIMP CRTIMPORT
-#endif
-#endif //!_CRTIMP
 
 #ifndef __CRT_INLINE
 #define __CRT_INLINE __inline

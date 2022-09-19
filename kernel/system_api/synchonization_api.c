@@ -27,12 +27,12 @@
 #include <futex.h>
 #include <userevent.h>
 
-OsStatus_t
+oserr_t
 ScFutexWait(
     _In_ FutexParameters_t* parameters)
 {
     // Two version of wait
-    if (parameters->_flags & FUTEX_WAIT_OP) {
+    if (parameters->_flags & FUTEX_FLAG_OP) {
         return FutexWaitOperation(parameters->_futex0, parameters->_val0,
                                   parameters->_futex1, parameters->_val1, parameters->_val2,
                                   parameters->_flags, parameters->_timeout);
@@ -41,12 +41,12 @@ ScFutexWait(
                      parameters->_timeout);
 }
 
-OsStatus_t
+oserr_t
 ScFutexWake(
     _In_ FutexParameters_t* parameters)
 {
     // Also two versions of wake
-    if (parameters->_flags & FUTEX_WAKE_OP) {
+    if (parameters->_flags & FUTEX_FLAG_OP) {
         return FutexWakeOperation(parameters->_futex0, parameters->_val0,
                                   parameters->_futex1, parameters->_val1, parameters->_val2,
                                   parameters->_flags);
@@ -54,7 +54,7 @@ ScFutexWake(
     return FutexWake(parameters->_futex0, parameters->_val0, parameters->_flags);
 }
 
-OsStatus_t ScEventCreate(unsigned int initialValue, unsigned int flags, UUId_t* handleOut, atomic_int** syncAddressOut)
+oserr_t ScEventCreate(unsigned int initialValue, unsigned int flags, uuid_t* handleOut, atomic_int** syncAddressOut)
 {
     return UserEventCreate(initialValue, flags, handleOut, syncAddressOut);
 }

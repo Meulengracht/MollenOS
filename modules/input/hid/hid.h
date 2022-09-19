@@ -168,7 +168,7 @@ PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
     int32_t                         UnitExponent;
     
     uint32_t                        ReportSize;
-    UUId_t                          ReportId;
+    uuid_t                          ReportId;
     uint32_t                        ReportCount;
 });
 
@@ -240,10 +240,10 @@ typedef struct UsbHidReportCollection {
 #define HID_DEVICE_PROTOCOL_REPORT 1
 
 typedef struct HidDevice {
-    UsbDevice_t   Base;
+    UsbDevice_t*  Base;
     element_t     Header;
     UsbTransfer_t Transfer;
-    UUId_t        TransferId;
+    uuid_t        TransferId;
 
     UsbHidReportCollection_t*  Collection;
     uintptr_t*                 Buffer;
@@ -274,7 +274,7 @@ HidDeviceDestroy(
  * @param hidDevice
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HidSetupGeneric(
     _In_ HidDevice_t *hidDevice);
 
@@ -284,7 +284,7 @@ HidSetupGeneric(
  * @param protocol
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HidGetProtocol(
         _In_ HidDevice_t* hidDevice,
         _In_ uint8_t*     protocol);
@@ -295,7 +295,7 @@ HidGetProtocol(
  * @param protocol
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HidSetProtocol(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      protocol);
@@ -306,7 +306,7 @@ HidSetProtocol(
  * Set Duration = 0 to apply indefinite duration. Use this
  * to set the report time-out time, minimum value is device polling rate */
 __EXTERN
-OsStatus_t
+oserr_t
 HidSetIdle(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportId,
@@ -333,7 +333,7 @@ HidHandleReportEvent(
 
 /* HidCollectionCleanup
  * Cleans up any resources allocated by the collection parser. */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HidCollectionCleanup(
     _In_ HidDevice_t *hidDevice);
 

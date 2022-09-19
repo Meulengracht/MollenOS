@@ -27,9 +27,9 @@
 void
 SpawnBootstrapper(void)
 {
-    UUId_t     memorySpaceHandle;
-    UUId_t     threadHandle;
-    OsStatus_t osStatus;
+    uuid_t     memorySpaceHandle;
+    uuid_t     threadHandle;
+    oserr_t osStatus;
     vaddr_t    codeAddress;
     TRACE("SpawnBootstrapper(base=0x%llx, entry=0x%llx, len=0x%x)",
           GetMachine()->BootInformation.Phoenix.Base,
@@ -43,7 +43,7 @@ SpawnBootstrapper(void)
 
     // Create a new memoryspace that is application specific
     osStatus = CreateMemorySpace(MEMORY_SPACE_APPLICATION, &memorySpaceHandle);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("SpawnBootstrapper failed to create memory space for bootstrapper");
     }
 
@@ -58,7 +58,7 @@ SpawnBootstrapper(void)
             MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_EXECUTABLE | MAPPING_PERSISTENT,
             MAPPING_VIRTUAL_FIXED
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("SpawnBootstrapper failed to map image into bootstrapper memory space");
     }
 
@@ -72,7 +72,7 @@ SpawnBootstrapper(void)
             0,
             &threadHandle
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("SpawnBootstrapper failed to create thread for bootstrapper");
     }
 }

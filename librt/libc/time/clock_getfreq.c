@@ -18,7 +18,7 @@
 #include <os/mollenos.h>
 #include <time.h>
 
-static LargeUInteger_t g_clockFrequency = { 0 };
+static UInteger64_t g_clockFrequency = {0 };
 
 clock_t
 clock_getfreq(void)

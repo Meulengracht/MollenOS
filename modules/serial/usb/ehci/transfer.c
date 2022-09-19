@@ -47,7 +47,7 @@ EhciTransactionDispatch(
         USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
 }
 
-OsStatus_t
+oserr_t
 HciTransactionFinalize(
     _In_ UsbManagerController_t*    Controller,
     _In_ UsbManagerTransfer_t*      Transfer,
@@ -71,10 +71,10 @@ HciTransactionFinalize(
         Transfer->Flags |= TransferFlagCleanup;
         EhciRingDoorbell((EhciController_t*)Controller);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer)
 {
@@ -99,5 +99,5 @@ HciDequeueTransfer(
             USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
     }
     
-    return OsSuccess;
+    return OsOK;
 }

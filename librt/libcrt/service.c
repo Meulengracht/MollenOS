@@ -20,24 +20,22 @@
 
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
+#include <internal/_tls.h>
 #include <internal/_utils.h>
-#include <os/usched/usched.h>
-#include "../libc/threads/tls.h"
-#include <stdlib.h>
 #include <ioset.h>
+#include <os/usched/usched.h>
+#include <os/usched/xunit.h>
+#include <stdlib.h>
+#include <time.h>
 
 extern void       GetServiceAddress(struct ipmsg_addr*);
-extern OsStatus_t OnLoad(void);
-extern OsStatus_t OnUnload(void);
+extern oserr_t OnLoad(void);
+extern oserr_t OnUnload(void);
 
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
-extern char**
-__crt_initialize(
-    _In_  thread_storage_t* threadStorage,
-    _In_  int               isPhoenix,
-    _Out_ int*              argumentCount);
+extern void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 
 int
 __crt_get_server_iod(void)
@@ -51,23 +49,49 @@ __crt_get_service_server(void)
     return g_server;
 }
 
+static bool __is_before_or_equal(const struct timespec* before, const struct timespec* this) {
+    if (before->tv_sec < this->tv_sec) {
+        return true;
+    } else if (before->tv_sec == this->tv_sec) {
+        return before->tv_nsec <= this->tv_nsec;
+    }
+    return false;
+}
+
+static int __get_ms_from_timespec_now(const struct timespec* deadline)
+{
+    struct timespec ts;
+    struct timespec diff;
+    timespec_get(&ts, TIME_UTC);
+    if (__is_before_or_equal(&ts, deadline)) {
+        timespec_diff(&ts, deadline , &diff);
+    } else {
+        timespec_diff(deadline, deadline, &diff);
+    }
+    return (int)((diff.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC));
+}
+
 _Noreturn static void
 __crt_service_main(int setIod)
 {
     struct ioset_event events[32];
-    int                timeout;
     int                num_events;
 
     while (1) {
+        struct timespec deadline;
+        int             status;
+        int             timeout;
+
         // handle tasks before going to sleep
         do {
-            timeout = usched_yield();
-        } while (timeout == 0);
+            status = usched_yield(&deadline);
+        } while (status == 0);
 
-        // convert INT_MAX result to infinite result
-        if (timeout == INT_MAX) {
-            timeout = 0;
-        }
+        // Wait now for new tasks to enter the ready queue. If errno is set
+        // to EWOULDBLOCK, this means we should wait until the deadline is
+        // reached.
+        if (errno == EWOULDBLOCK) { timeout = __get_ms_from_timespec_now(&deadline); }
+        else                      { timeout = 0; }
 
         // handle events
         num_events = ioset_wait(setIod, &events[0], 32, timeout);
@@ -124,11 +148,11 @@ __crt_service_init(void)
     // Initialize the userspace scheduler to support request based
     // services in an async matter, and do this before we call OnLoad
     // as the service might queue tasks up on load.
-    usched_init();
+    usched_xunit_init();
 
     // Call the driver load function
     // - This will be run once, before loop
-    if (OnLoad() != OsSuccess) {
+    if (OnLoad() != OsOK) {
         exit(-2001);
     }
 
@@ -140,13 +164,13 @@ __crt_service_init(void)
 void __CrtServiceEntry(void)
 {
     thread_storage_t threadStorage;
-    __crt_initialize(&threadStorage, 0, NULL);
+    __crt_initialize(&threadStorage, 0);
     __crt_service_init();
 }
 
 void __phoenix_main(void)
 {
     thread_storage_t threadStorage;
-    __crt_initialize(&threadStorage, 1, NULL);
+    __crt_initialize(&threadStorage, 1);
     __crt_service_init();
 }

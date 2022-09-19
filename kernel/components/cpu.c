@@ -42,7 +42,7 @@ static SystemCpuCore_t* g_coreTable[__CPU_MAX_COUNT] = { 0 };
 
 SystemCpuCore_t*
 GetProcessorCore(
-    _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     assert(coreId < __CPU_MAX_COUNT);
     return g_coreTable[coreId];
@@ -57,7 +57,7 @@ CpuCoreCurrent(void)
 static void
 __ConstructCpuCore(
         _In_ SystemCpuCore_t* core,
-        _In_ UUId_t           coreId,
+        _In_ uuid_t           coreId,
         _In_ SystemCpuState_t state,
         _In_ int              external)
 {
@@ -92,10 +92,10 @@ CpuInitializePlatform(
 
 void
 CpuCoreRegister(
-    _In_ SystemCpu_t*     cpu,
-    _In_ UUId_t           coreId,
-    _In_ SystemCpuState_t initialState,
-    _In_ int              external)
+        _In_ SystemCpu_t*     cpu,
+        _In_ uuid_t           coreId,
+        _In_ SystemCpuState_t initialState,
+        _In_ int              external)
 {
     SystemCpuCore_t* core;
     SystemCpuCore_t* i;
@@ -135,8 +135,8 @@ CpuCoreStart(void)
     SystemDomain_t*  domain;
     SystemCpuCore_t* i;
     SystemCpuCore_t* cpuCore;
-    OsStatus_t       osStatus;
-    UUId_t           memorySpace;
+    oserr_t       osStatus;
+    uuid_t           memorySpace;
 
     TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
 
@@ -150,7 +150,7 @@ CpuCoreStart(void)
     // Now we need to do a new memory space for this core. We simply create a new memory space
     // with kernel flags and switch to it.
     osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         // failed to boot this core!
         ERROR("CpuCoreStart failed to create idle memoryspace for coreId=%u", ArchGetProcessorCoreId());
         ArchProcessorHalt();
@@ -199,7 +199,7 @@ ProcessorMessageSend(
     SystemCpu_t*     Processor;
     SystemCpuCore_t* CurrentCore = CpuCoreCurrent();
     SystemCpuCore_t* Iter;
-    OsStatus_t       Status;
+    oserr_t       Status;
     int              Executions = 0;
     
     assert(Function != NULL);
@@ -221,7 +221,7 @@ ProcessorMessageSend(
         
         if (READ_VOLATILE(Iter->State) & CpuStateRunning) {
             Status = TxuMessageSend(Iter->Id, Type, Function, Argument, Asynchronous);
-            if (Status == OsSuccess) {
+            if (Status == OsOK) {
                 Executions++;
             }
         }
@@ -293,7 +293,7 @@ CpuCoreQueueIpc(
     queue_push(&cpuCore->FunctionQueue[functionType], element);
 }
 
-UUId_t
+uuid_t
 CpuCoreId(
         _In_ SystemCpuCore_t* cpuCore)
 {

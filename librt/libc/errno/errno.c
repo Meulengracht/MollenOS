@@ -21,7 +21,6 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include "../threads/tls.h"
 #include <errno.h>
 
 #ifdef LIBC_KERNEL
@@ -30,7 +29,8 @@ errno_t *__errno(void) {
 	return &__errno_global;
 }
 #else
+#include <internal/_tls.h>
 errno_t *__errno(void) {
-	return &((tls_current())->err_no);
+	return &((__tls_current())->err_no);
 }
 #endif

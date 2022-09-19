@@ -29,7 +29,7 @@
 #include <ioctl.h>
 #include <internal/_io.h>
 
-OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
@@ -40,10 +40,10 @@ OsStatus_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t lengt
     bytesRead = streambuffer_stream_in(stream, buffer, length, options);
     *bytes_read = bytesRead;
     TRACE("stdio_pipe_op_read returns %" PRIuIN, bytesRead);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+oserr_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
     unsigned int    options = handle->object.data.pipe.options;
@@ -56,22 +56,22 @@ OsStatus_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_
 
     *bytes_written = bytesWritten;
     TRACE("stdio_pipe_op_write returns %" PRIuIN, bytesWritten);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t stdio_pipe_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+oserr_t stdio_pipe_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_pipe_op_resize(stdio_handle_t* handle, long long resize_by)
+oserr_t stdio_pipe_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     // This could be implemented some day, but for now we do not support
     // the resize operation on pipes.
     return OsNotSupported;
 }
 
-OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
+oserr_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
 {
     // Depending on the setup of the pipe. If the pipe is local, then we 
     // can simply free the structure. If the pipe is global/inheritable, we need
@@ -81,16 +81,16 @@ OsStatus_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     if (options & STDIO_CLOSE_FULL) {
         handle_destroy(handle->object.handle);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
+oserr_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 {
-    OsStatus_t status;
+    oserr_t status;
 
     status = dma_attach(handle->object.data.pipe.attachment.handle,
         &handle->object.data.pipe.attachment);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
     
@@ -98,7 +98,7 @@ OsStatus_t stdio_pipe_op_inherit(stdio_handle_t* handle)
     return status;
 }
 
-OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args)
+oserr_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
 
@@ -112,7 +112,7 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
                 handle->object.data.pipe.options &= ~(STREAMBUFFER_NO_BLOCK);
             }
         }
-        return OsSuccess;
+        return OsOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
@@ -121,7 +121,7 @@ OsStatus_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args
             streambuffer_get_bytes_available_in(stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }

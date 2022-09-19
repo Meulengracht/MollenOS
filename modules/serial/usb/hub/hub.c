@@ -32,7 +32,7 @@
 #include <ctt_usbhost_service_client.h>
 
 static struct {
-    UUId_t driverId;
+    uuid_t driverId;
     int    references;
 } g_Subscriptions[16] = { { 0 } };
 
@@ -47,7 +47,7 @@ memdup(void* mem, size_t size)
     return dup;
 }
 
-static void __SubscribeToController(UUId_t driverId)
+static void __SubscribeToController(uuid_t driverId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
     int    foundIndex = -1;
@@ -66,7 +66,7 @@ static void __SubscribeToController(UUId_t driverId)
     g_Subscriptions[foundIndex].references = 1;
 }
 
-static void __UnsubscribeToController(UUId_t driverId)
+static void __UnsubscribeToController(uuid_t driverId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverId);
 
@@ -111,7 +111,7 @@ static inline void __GetDeviceProtocol(
     hubDevice->InterfaceId = interface->base.NumInterface;
 }
 
-static OsStatus_t __GetDeviceConfiguration(
+static oserr_t __GetDeviceConfiguration(
         _In_ HubDevice_t* hubDevice)
 {
     usb_device_configuration_t configuration;
@@ -119,7 +119,7 @@ static OsStatus_t __GetDeviceConfiguration(
     int                        i, j;
     TRACE("__GetDeviceConfiguration(hubDevice=0x%" PRIxIN ")", hubDevice);
 
-    status = UsbGetActiveConfigDescriptor(&hubDevice->Base.DeviceContext, &configuration);
+    status = UsbGetActiveConfigDescriptor(&hubDevice->Base->DeviceContext, &configuration);
     if (status != TransferFinished) {
         return OsDeviceError;
     }
@@ -148,17 +148,17 @@ static OsStatus_t __GetDeviceConfiguration(
     }
 
     UsbFreeConfigDescriptor(&configuration);
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t __GetSuperSpeedHubDescriptor(
+static oserr_t __GetSuperSpeedHubDescriptor(
         _In_ HubDevice_t* hubDevice)
 {
     UsbTransferStatus_t     transferStatus;
     UsbHubSuperDescriptor_t descriptor;
     TRACE("__GetSuperSpeedHubDescriptor(hubDevice=0x%" PRIxIN ")", hubDevice);
 
-    transferStatus = UsbExecutePacket(&hubDevice->Base.DeviceContext,
+    transferStatus = UsbExecutePacket(&hubDevice->Base->DeviceContext,
                                       USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                               USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HUB_SUPERSPEED,
                               0, 8, &descriptor);
@@ -171,21 +171,21 @@ static OsStatus_t __GetSuperSpeedHubDescriptor(
     hubDevice->PortCount = descriptor.NumberOfPorts;
     hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t __GetHubDescriptor(
+static oserr_t __GetHubDescriptor(
         _In_ HubDevice_t* hubDevice)
 {
     UsbTransferStatus_t transferStatus;
     UsbHubDescriptor_t  descriptor;
     TRACE("__GetHubDescriptor(hubDevice=0x%" PRIxIN ")", hubDevice);
 
-    if (hubDevice->Base.DeviceContext.speed >= USB_SPEED_SUPER) {
+    if (hubDevice->Base->DeviceContext.speed >= USB_SPEED_SUPER) {
         return __GetSuperSpeedHubDescriptor(hubDevice);
     }
 
-    transferStatus = UsbExecutePacket(&hubDevice->Base.DeviceContext,
+    transferStatus = UsbExecutePacket(&hubDevice->Base->DeviceContext,
                                       USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                                       USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HUB,
                                       0, 8, &descriptor);
@@ -198,7 +198,7 @@ static OsStatus_t __GetHubDescriptor(
     hubDevice->PortCount = descriptor.NumberOfPorts;
     hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
-    return OsSuccess;
+    return OsOK;
 }
 
 static HubDevice_t* __CreateHubDevice(
@@ -214,10 +214,9 @@ static HubDevice_t* __CreateHubDevice(
     }
 
     memset(hubDevice, 0, sizeof(HubDevice_t));
-    memcpy(&hubDevice->Base, usbDevice, sizeof(UsbDevice_t));
-
     ELEMENT_INIT(&hubDevice->Header, (uintptr_t)usbDevice->Base.Id, hubDevice);
     hubDevice->TransferId = UUID_INVALID;
+    hubDevice->Base = usbDevice;
     return hubDevice;
 }
 
@@ -229,8 +228,8 @@ static void __EnumeratePorts(
 
     // Power on ports
     for (i = 1; i <= hubDevice->PortCount; i++) {
-        OsStatus_t osStatus = HubPowerOnPort(hubDevice, i);
-        if (osStatus != OsSuccess) {
+        oserr_t osStatus = HubPowerOnPort(hubDevice, i);
+        if (osStatus != OsOK) {
             ERROR("__EnumeratePorts failed to power on port %u", i);
         }
 
@@ -246,10 +245,10 @@ static void __EnumeratePorts(
     // then send a notification to the usb service that its ready for enumeration
     for (i = 1; i <= hubDevice->PortCount; i++) {
         PortStatus_t portStatus;
-        OsStatus_t   osStatus;
+        oserr_t   osStatus;
 
         osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("__EnumeratePorts failed to get status for port %u", i);
             continue;
         }
@@ -260,7 +259,7 @@ static void __EnumeratePorts(
             if (portStatus.Change & HUB_PORT_CHANGE_CONNECTED) {
                 HubPortClearChange(hubDevice, i, HUB_FEATURE_C_PORT_CONNECTION);
             }
-            UsbEventPort(hubDevice->Base.Base.Id, i);
+            UsbEventPort(hubDevice->Base->Base.Id, i);
         }
     }
 }
@@ -272,7 +271,7 @@ HubDeviceCreate(
     HubDevice_t*        hubDevice;
     uint8_t             interruptEpAddress;
     UsbTransferStatus_t transferStatus;
-    OsStatus_t          osStatus;
+    oserr_t             osStatus;
 
     TRACE("HubDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 
@@ -282,12 +281,12 @@ HubDeviceCreate(
     }
 
     osStatus = __GetDeviceConfiguration(hubDevice);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto error_exit;
     }
 
     osStatus = __GetHubDescriptor(hubDevice);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto error_exit;
     }
 
@@ -299,13 +298,13 @@ HubDeviceCreate(
 
     // Reset interrupt ep
     interruptEpAddress = USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address);
-    if (UsbEndpointReset(&hubDevice->Base.DeviceContext, interruptEpAddress) != OsSuccess) {
+    if (UsbEndpointReset(&hubDevice->Base->DeviceContext, interruptEpAddress) != OsOK) {
         ERROR("HubDeviceCreate failed to reset endpoint (interrupt)");
         goto error_exit;
     }
 
     // Allocate a ringbuffer for use
-    if (dma_pool_allocate(UsbRetrievePool(), 0x100, (void**)&hubDevice->Buffer) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), 0x100, (void**)&hubDevice->Buffer) != OsOK) {
         ERROR("HubDeviceCreate failed to allocate reusable buffer (interrupt-buffer)");
         goto error_exit;
     }
@@ -314,8 +313,8 @@ HubDeviceCreate(
     __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
 
     // Register us with the usb stack before enumerating ports
-    osStatus = UsbHubRegister(&hubDevice->Base, (int)hubDevice->PortCount);
-    if (osStatus != OsSuccess) {
+    osStatus = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount);
+    if (osStatus != OsOK) {
         ERROR("HubDeviceCreate failed to register hub with usb stack");
         goto error_exit;
     }
@@ -324,13 +323,13 @@ HubDeviceCreate(
     __EnumeratePorts(hubDevice);
 
     // Install interrupt pipe
-    UsbTransferInitialize(&hubDevice->Transfer, &hubDevice->Base.DeviceContext,
+    UsbTransferInitialize(&hubDevice->Transfer, &hubDevice->Base->DeviceContext,
                           hubDevice->Interrupt, USB_TRANSFER_INTERRUPT, 0);
     UsbTransferPeriodic(&hubDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
                         dma_pool_offset(UsbRetrievePool(), hubDevice->Buffer), 0x100,
                         DIVUP(hubDevice->PortCount, 8), USB_TRANSACTION_IN, (const void*)hubDevice);
 
-    transferStatus = UsbTransferQueuePeriodic(&hubDevice->Base.DeviceContext, &hubDevice->Transfer, &hubDevice->TransferId);
+    transferStatus = UsbTransferQueuePeriodic(&hubDevice->Base->DeviceContext, &hubDevice->Transfer, &hubDevice->TransferId);
     if (transferStatus != TransferQueued && transferStatus != TransferInProgress) {
         ERROR("HubDeviceCreate failed to install interrupt transfer");
         goto error_exit;
@@ -351,17 +350,18 @@ HubDeviceDestroy(
 {
     // Destroy the interrupt channel
     if (hubDevice->TransferId != UUID_INVALID) {
-        UsbTransferDequeuePeriodic(&hubDevice->Base.DeviceContext, hubDevice->TransferId);
+        UsbTransferDequeuePeriodic(&hubDevice->Base->DeviceContext, hubDevice->TransferId);
     }
 
     // unregister all ports
-    UsbHubUnregister(hubDevice->Base.Base.Id);
+    UsbHubUnregister(hubDevice->Base->Base.Id);
 
-    __UnsubscribeToController(hubDevice->Base.DeviceContext.controller_driver_id);
+    __UnsubscribeToController(hubDevice->Base->DeviceContext.controller_driver_id);
 
     if (hubDevice->Buffer != NULL) {
         dma_pool_free(UsbRetrievePool(), hubDevice->Buffer);
     }
+    free(hubDevice->Base);
     free(hubDevice);
 }
 
@@ -370,9 +370,7 @@ static void __HandleConnectionChange(
         _In_ uint8_t       portIndex)
 {
     HubPortClearChange(hubDevice, portIndex, HUB_FEATURE_C_PORT_CONNECTION);
-    UsbEventPort(
-            hubDevice->Base.Base.Id,
-            portIndex);
+    UsbEventPort(hubDevice->Base->Base.Id, portIndex);
 }
 
 static void __HandleHubOverCurrentEvent(
@@ -380,21 +378,21 @@ static void __HandleHubOverCurrentEvent(
 {
     // unregister all devices
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
-        UsbPortError(hubDevice->Base.Base.Id, i);
+        UsbPortError(hubDevice->Base->Base.Id, i);
     }
 
     // we have to wait for the overcurrent status bit to clear
     while (1) {
         HubStatus_t hubStatus;
-        OsStatus_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
-        if (osStatus != OsSuccess) {
+        oserr_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
+        if (osStatus != OsOK) {
             ERROR("__HandleHubOverCurrentEvent failed to get hub status");
             return;
         }
 
         if (!(hubStatus.Status & HUB_STATUS_OVERCURRENT_ACTIVE)) {
             osStatus = HubClearChange(hubDevice, HUB_CHANGE_OVERCURRENT);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("__HandleHubOverCurrentEvent failed to clear overcurrent change");
             }
             break;
@@ -409,8 +407,8 @@ static void __EnumerateSinglePort(
         _In_ uint8_t      portIndex)
 {
     PortStatus_t portStatus;
-    OsStatus_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
-    if (osStatus != OsSuccess) {
+    oserr_t   osStatus = HubPowerOnPort(hubDevice, portIndex);
+    if (osStatus != OsOK) {
         ERROR("__EnumerateSinglePort failed to power on port %u", portIndex);
         return;
     }
@@ -419,7 +417,7 @@ static void __EnumerateSinglePort(
     thrd_sleepex(hubDevice->PowerOnDelay);
 
     osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("__EnumerateSinglePort failed to get status for port %u", portIndex);
         return;
     }
@@ -430,7 +428,7 @@ static void __EnumerateSinglePort(
         if (portStatus.Change & HUB_PORT_CHANGE_CONNECTED) {
             HubPortClearChange(hubDevice, portIndex, HUB_FEATURE_C_PORT_CONNECTION);
         }
-        UsbEventPort(hubDevice->Base.Base.Id, portIndex);
+        UsbEventPort(hubDevice->Base->Base.Id, portIndex);
     }
 }
 
@@ -438,20 +436,20 @@ static void __HandlePortOverCurrentEvent(
         _In_ HubDevice_t* hubDevice,
         _In_ uint8_t      portIndex)
 {
-    UsbPortError(hubDevice->Base.Base.Id, portIndex);
+    UsbPortError(hubDevice->Base->Base.Id, portIndex);
 
     // we have to wait for the overcurrent status bit to clear
     while (1) {
         PortStatus_t portStatus;
-        OsStatus_t   osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
-        if (osStatus != OsSuccess) {
+        oserr_t   osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
+        if (osStatus != OsOK) {
             ERROR("__HandlePortOverCurrentEvent failed to get hub status");
             return;
         }
 
         if (!(portStatus.Status & HUB_STATUS_OVERCURRENT_ACTIVE)) {
             osStatus = HubPortClearChange(hubDevice, portIndex, HUB_PORT_CHANGE_OVERCURRENT);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("__HandlePortOverCurrentEvent failed to clear overcurrent change");
             }
             break;
@@ -473,8 +471,8 @@ HubInterrupt(
     // If the first bit is set - there was an hub event
     if (changeMap[0] & 0x1) {
         HubStatus_t hubStatus;
-        OsStatus_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
-        if (osStatus != OsSuccess) {
+        oserr_t  osStatus = HubGetStatus(hubDevice, &hubStatus);
+        if (osStatus != OsOK) {
             ERROR("HubInterrupt failed to get hub status");
         }
         else {
@@ -493,8 +491,8 @@ HubInterrupt(
     // we do detect all change events
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
         if (changeMap[i / 8] & (i << (i % 8))) {
-            OsStatus_t osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
-            if (osStatus != OsSuccess) {
+            oserr_t osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
+            if (osStatus != OsOK) {
                 ERROR("HubInterrupt failed to get port %u status", i);
                 continue;
             }

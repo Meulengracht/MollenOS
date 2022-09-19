@@ -39,12 +39,12 @@ typedef void (*__sa_process_t)(int, void*, void*);
 extern void __signalentry(void);
 
 // Default handler for memory mapping events
-extern OsStatus_t HandleMemoryMappingEvent(int, void*);
+extern oserr_t HandleMemoryMappingEvent(int, void*);
 
 // The consequences of recieving the different signals
 char signal_fatality[NUMSIGNALS] = {
-	0, /* 0? */
-	
+    0, // what
+
 	0, /* SIGINT  */
 	1, /* SIGQUIT */
 	1, /* SIGILL  */
@@ -60,10 +60,13 @@ char signal_fatality[NUMSIGNALS] = {
 	1, /* SIGTERM */
 	0, /* SIGURG  */
     1, /* SIGSOCK */
+    1, /* SIGEXIT */
+    1, /* SIGEXITQ */
 };
 
 // Default interrupt handlers
 static sig_element signal_list[] = {
+    { 0, "Invalid Signal", SIG_DFL },
     { SIGINT,  "Interrupt (Ctrl-c)", SIG_DFL },
     { SIGQUIT, "Interrupt (Ctrl+break)", SIG_DFL },
     { SIGILL,  "Illegal instruction", SIG_DFL },
@@ -78,7 +81,9 @@ static sig_element signal_list[] = {
     { SIGALRM, "Alarm has expired", SIG_DFL },
     { SIGTERM, "Termination request", SIG_DFL },
     { SIGURG,  "Urgent request has arrived that must be handled", SIG_DFL },
-    { SIGSOCK, "Socket transmission error", SIG_DFL }
+    { SIGSOCK, "Socket transmission error", SIG_DFL },
+    { SIGEXIT, "Exit requested by application", exit },
+    { SIGEXITQ, "Quick exit requested by application", quick_exit }
 };
 
 static void __CrashHandler(
@@ -88,7 +93,7 @@ static void __CrashHandler(
 {
     // Not supported by phoenix
     if (!__crt_is_phoenix()) {
-        OsStatus_t               osStatus;
+        oserr_t               osStatus;
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
@@ -139,7 +144,7 @@ StdInvokeSignal(
     int          i;
 
     // SPECIAL CASE MEMORY HANDLERS
-    if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OsSuccess) {
+    if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OsOK) {
         return;
     }
     
@@ -182,7 +187,7 @@ void
 StdSignalInitialize()
 {
     // Install default handler
-    if (Syscall_InstallSignalHandler(__signalentry) != OsSuccess) {
+    if (Syscall_InstallSignalHandler(__signalentry) != OsOK) {
         assert(0);
     }
 }

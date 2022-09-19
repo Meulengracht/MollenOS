@@ -33,18 +33,18 @@
  * @param handleOut A unique identifier to a generic OS handle
  * @return          Status of the handle creation
  */
-DDKDECL(OsStatus_t,
-handle_create(
-    _Out_ UUId_t* handleOut));
+DDKDECL(oserr_t,
+        handle_create(
+    _Out_ uuid_t* handleOut));
 
 /**
  * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
  * @param handle A generic OS handle
  * @return       Status of the operation
  */
-DDKDECL(OsStatus_t,
-handle_destroy(
-    _In_ UUId_t handle));
+DDKDECL(oserr_t,
+        handle_destroy(
+    _In_ uuid_t handle));
 
 /**
  * Registers a unique system wide path for the handle, so the handle can be accessed across the system
@@ -53,9 +53,9 @@ handle_destroy(
  * @param path   The path to be registered for the handle
  * @return       Whether or not the path was successfully registered for the handle
  */
-DDKDECL(OsStatus_t,
-handle_set_path(
-    _In_ UUId_t      handle,
+DDKDECL(oserr_t,
+        handle_set_path(
+    _In_ uuid_t      handle,
     _In_ const char* path));
 
 /**
@@ -64,10 +64,10 @@ handle_set_path(
  * @param handleOut A unique identifier to an OS handle of the type Set
  * @return          status of the queue creation
  */
-DDKDECL(OsStatus_t,
-notification_queue_create(
+DDKDECL(oserr_t,
+        notification_queue_create(
     _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut));
+    _Out_ uuid_t*      handleOut));
 
 /**
  * notification_queue_ctrl
@@ -77,11 +77,11 @@ notification_queue_create(
  * @param handle    [In] The handle that should be operated on.
  * @param event     [In] The configuration for the event to be recieved.
  */
-DDKDECL(OsStatus_t,
-notification_queue_ctrl(
-    _In_ UUId_t              setHandle,
+DDKDECL(oserr_t,
+        notification_queue_ctrl(
+    _In_ uuid_t              setHandle,
     _In_ int                 operation,
-    _In_ UUId_t              handle,
+    _In_ uuid_t              handle,
     _In_ struct ioset_event* event));
 
 /**
@@ -93,9 +93,9 @@ notification_queue_ctrl(
  * @param maxEvents [In]
  * @param timeout   [In]
  */
-DDKDECL(OsStatus_t,
-notification_queue_wait(
-    _In_  UUId_t              handle,
+DDKDECL(oserr_t,
+        notification_queue_wait(
+    _In_  uuid_t              handle,
     _In_  struct ioset_event * events,
     _In_  int                 maxEvents,
     _In_  int                 pollEvents,
@@ -109,9 +109,9 @@ notification_queue_wait(
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags which denote which kind of event.
  */
-DDKDECL(OsStatus_t,
-handle_post_notification(
-    _In_ UUId_t       handle,
+DDKDECL(oserr_t,
+        handle_post_notification(
+    _In_ uuid_t       handle,
     _In_ unsigned int flags));
 
 #endif //!__DDK_HANDLE_H__

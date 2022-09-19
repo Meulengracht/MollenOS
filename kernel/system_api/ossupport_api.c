@@ -29,63 +29,62 @@
 #include <memoryspace.h>
 #include <threading.h>
 
-OsStatus_t
+oserr_t
 ScInstallSignalHandler(
     _In_ uintptr_t handler)
 {
     return MemorySpaceSetSignalHandler(GetCurrentMemorySpace(), handler);
 }
 
-OsStatus_t
+oserr_t
 ScCreateHandle(
-    _Out_ UUId_t* HandleOut)
+        _Out_ uuid_t* HandleOut)
 {
     *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
     if (*HandleOut != UUID_INVALID) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsOutOfMemory;
 }
 
-OsStatus_t
+oserr_t
 ScSetHandleActivity(
-    _In_ UUId_t  Handle,
-    _In_ unsigned int Flags)
+        _In_ uuid_t  Handle,
+        _In_ unsigned int Flags)
 {
     return MarkHandle(Handle, Flags);
 }
 
-OsStatus_t
+oserr_t
 ScRegisterHandlePath(
-    _In_ UUId_t      Handle,
-    _In_ const char* Path)
+        _In_ uuid_t      Handle,
+        _In_ const char* Path)
 {
     return RegisterHandlePath(Handle, Path);
 }
 
-OsStatus_t
+oserr_t
 ScLookupHandle(
-    _In_  const char* Path,
-    _Out_ UUId_t*     HandleOut)
+        _In_  const char* Path,
+        _Out_ uuid_t*     HandleOut)
 {
     return LookupHandleByPath(Path, HandleOut);
 }
 
-OsStatus_t
+oserr_t
 ScDestroyHandle(
-    _In_ UUId_t Handle)
+        _In_ uuid_t Handle)
 {
     if (Handle == UUID_INVALID) {
         return OsInvalidParameters;
     }
-    DestroyHandle(Handle);
-    return OsSuccess;
+    return DestroyHandle(Handle);
 }
 
-OsStatus_t
+oserr_t
 ScCreateHandleSet(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t* HandleOut)
+        _In_  unsigned int Flags,
+        _Out_ uuid_t* HandleOut)
 {
     if (!HandleOut) {
         return OsInvalidParameters;
@@ -93,26 +92,26 @@ ScCreateHandleSet(
     
     *HandleOut = CreateHandleSet(Flags);
     if (*HandleOut != UUID_INVALID) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsOutOfMemory;
 }
 
-OsStatus_t
+oserr_t
 ScControlHandleSet(
-    _In_ UUId_t              setHandle,
-    _In_ int                 operation,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ uuid_t              setHandle,
+        _In_ int                 operation,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     return ControlHandleSet(setHandle, operation, handle, event);
 }
 
-OsStatus_t
+oserr_t
 ScListenHandleSet(
-    _In_  UUId_t                     handle,
-    _In_  HandleSetWaitParameters_t* parameters,
-    _Out_ int*                       numberOfEventsOut)
+        _In_  uuid_t                     handle,
+        _In_  HandleSetWaitParameters_t* parameters,
+        _Out_ int*                       numberOfEventsOut)
 {
     if (!parameters || !numberOfEventsOut) {
         return OsInvalidParameters;

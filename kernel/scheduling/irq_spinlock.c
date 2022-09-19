@@ -46,7 +46,7 @@ void
 IrqSpinlockAcquire(
     _In_ IrqSpinlock_t* spinlock)
 {
-    IntStatus_t flags;
+    irqstate_t flags;
     assert(spinlock != NULL);
 
     if (spinlock->owner == ThreadCurrentHandle()) {
@@ -65,7 +65,7 @@ void
 IrqSpinlockRelease(
     _In_ IrqSpinlock_t* spinlock)
 {
-    IntStatus_t flags;
+    irqstate_t flags;
 
     assert(spinlock != NULL);
     assert(spinlock->owner == ThreadCurrentHandle());

@@ -21,33 +21,24 @@
  */
 
 #include <errno.h>
+#include <internal/_tls.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-// should be located in tls data and instantiated from session
-static char* g_nullEnvironment[] = {
-        NULL
-};
-
-// A pointer to the current environment
-static char** g_currentEnvironment = &g_nullEnvironment[0];
-
-static char*** get_tls_environment()
+static const char* const* __get_environment()
 {
-	// @todo
-	return &g_currentEnvironment;
+    return __tls_current()->env_block;
 }
 
 char* getenv(const char* name)
 {
-	char***         environment = get_tls_environment();
-	register int    length;
-	register char** p;
-	const char*     c;
+    const char* const* environment = __get_environment();
+	int                length;
+	const char* const* p;
+	const char*        c;
 
-	// sanitize that we have an environment installed currently
-	if (!*environment) {
+	if (*environment == NULL) {
 		return NULL;
 	}
 
@@ -59,7 +50,7 @@ char* getenv(const char* name)
 
 	if (*c != '=') {
         length = c - name;
-		for (p = *environment; *p; ++p) {
+		for (p = environment; *p; ++p) {
 			if (!strncmp(*p, name, length)) {
 				if (*(c = *p + length) == '=') {
 					return (char *)(++c);
@@ -72,10 +63,10 @@ char* getenv(const char* name)
 
 int setenv(const char* name, const char* value, int override)
 {
-	char*** environment = get_tls_environment();
+    const char* const* environment = __get_environment();
 
 	// sanitize that we have an environment installed currently
-	if (!*environment) {
+    if (*environment == NULL) {
 		_set_errno(ENOTSUP);
 		return -1;
 	}
@@ -86,10 +77,10 @@ int setenv(const char* name, const char* value, int override)
 
 int unsetenv(const char* name)
 {
-	char*** environment = get_tls_environment();
+    const char* const* environment = __get_environment();
 
 	// sanitize that we have an environment installed currently
-	if (!*environment) {
+    if (*environment == NULL) {
 		_set_errno(ENOTSUP);
 		return -1;
 	}

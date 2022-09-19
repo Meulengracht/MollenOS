@@ -31,7 +31,7 @@
 #include <interrupts.h>
 #include <machine.h>
 
-OsStatus_t
+oserr_t
 ScAcpiQueryStatus(
    _In_ AcpiDescriptor_t*   AcpiDescriptor)
 {
@@ -47,11 +47,11 @@ ScAcpiQueryStatus(
         AcpiDescriptor->BootFlags       = AcpiGbl_FADT.BootFlags;
         AcpiDescriptor->ArmBootFlags    = AcpiGbl_FADT.ArmBootFlags;
         AcpiDescriptor->Version         = ACPI_VERSION_6_0;
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 ScAcpiQueryTableHeader(
     _In_ const char*        signature,
     _In_ ACPI_TABLE_HEADER* header)
@@ -67,10 +67,10 @@ ScAcpiQueryTableHeader(
     if (ACPI_FAILURE(AcpiGetTableHeader((ACPI_STRING)signature, 0, header))) {
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScAcpiQueryTable(
     _In_ const char*        signature,
     _In_ ACPI_TABLE_HEADER* table)
@@ -90,10 +90,10 @@ ScAcpiQueryTable(
     }
 
     memcpy(table, header, header->Length);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScAcpiQueryInterrupt(
     _In_  int           bus,
     _In_  int           device,
@@ -104,7 +104,7 @@ ScAcpiQueryInterrupt(
     return AcpiDeviceGetInterrupt(bus, device, pin, interruptOut, acpiConformOut);
 }
 
-OsStatus_t
+oserr_t
 ScIoSpaceRegister(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -114,7 +114,7 @@ ScIoSpaceRegister(
     return RegisterSystemDeviceIo(ioSpace);
 }
 
-OsStatus_t
+oserr_t
 ScIoSpaceAcquire(
     _In_ DeviceIo_t* IoSpace)
 {
@@ -124,7 +124,7 @@ ScIoSpaceAcquire(
     return AcquireSystemDeviceIo(IoSpace);
 }
 
-OsStatus_t
+oserr_t
 ScIoSpaceRelease(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -134,7 +134,7 @@ ScIoSpaceRelease(
     return ReleaseSystemDeviceIo(ioSpace);
 }
 
-OsStatus_t
+oserr_t
 ScIoSpaceDestroy(
     _In_ DeviceIo_t* ioSpace)
 {
@@ -142,10 +142,10 @@ ScIoSpaceDestroy(
         return OsInvalidParameters;
     }
     DestroyHandle(ioSpace->Id);
-    return OsSuccess;
+    return OsOK;
 }
 
-UUId_t
+uuid_t
 ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags)
@@ -157,20 +157,20 @@ ScRegisterInterrupt(
     return InterruptRegister(deviceInterrupt, flags);
 }
 
-OsStatus_t
+oserr_t
 ScUnregisterInterrupt(
-    _In_ UUId_t sourceId)
+        _In_ uuid_t sourceId)
 {
     return InterruptUnregister(sourceId);
 }
 
-OsStatus_t
+oserr_t
 ScGetProcessBaseAddress(
     _Out_ uintptr_t* baseAddress)
 {
     if (baseAddress != NULL) {
         *baseAddress = GetMachine()->MemoryMap.UserCode.Start;
-        return OsSuccess;
+        return OsOK;
     }
     return OsInvalidParameters;
 }

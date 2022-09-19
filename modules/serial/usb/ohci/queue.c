@@ -54,7 +54,7 @@ const char *OhciErrorMessages[] = {
 
 /* OhciQueueResetInternalData
  * Removes and cleans up any existing transfers, then reinitializes. */
-OsStatus_t
+oserr_t
 OhciQueueResetInternalData(
     _In_ OhciController_t*          Controller)
 {
@@ -99,10 +99,10 @@ OhciQueueResetInternalData(
     NulliTd->BufferEnd = 0;
     NulliTd->Cbp       = 0;
     NulliTd->Link      = OHCI_LINK_HALTED;
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 OhciQueueInitialize(
     _In_ OhciController_t* Controller)
 {
@@ -136,7 +136,7 @@ OhciQueueInitialize(
     return OhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oserr_t
 OhciQueueReset(
     _In_ OhciController_t* Controller)
 {
@@ -147,7 +147,7 @@ OhciQueueReset(
     return OhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oserr_t
 OhciQueueDestroy(
     _In_ OhciController_t* Controller)
 {
@@ -155,7 +155,7 @@ OhciQueueDestroy(
 
     OhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t

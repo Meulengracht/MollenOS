@@ -12,8 +12,6 @@ set (GENERATED_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_file_service_client.h
     ${CMAKE_BINARY_DIR}/protocols/sys_file_service_client.c
-    ${CMAKE_BINARY_DIR}/protocols/sys_path_service_client.h
-    ${CMAKE_BINARY_DIR}/protocols/sys_path_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_process_service_client.h
     ${CMAKE_BINARY_DIR}/protocols/sys_process_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_library_service_client.h
@@ -64,15 +62,14 @@ add_library(libddk
         io.c
         mappings.c
         service.c
-        threadpool.c
         usb.c
         utils.c
 )
 add_dependencies(libddk service_clients contract_clients)
 target_include_directories(libddk
-    PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/vali-ddk/include>"
+        PUBLIC
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include;${CMAKE_CURRENT_SOURCE_DIR}/../libusb/include>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/include>"
 )
 
 # avoid using target_link_libraries for the RT libraries as it could result
@@ -81,17 +78,17 @@ target_include_directories(libddk
 target_include_directories(libddk PRIVATE
         ../../tools/rd/libvafs/include
         ../libgracht/include
-        ../libc/include
-        ../libusb/include
         ../libds/include
+        ../libos/include
+        ../libc/include
 )
 
 install(TARGETS libddk
     EXPORT ddk_targets
-    ARCHIVE DESTINATION vali-ddk/lib
-    LIBRARY DESTINATION vali-ddk/lib
-    RUNTIME DESTINATION vali-ddk/bin
-    INCLUDES DESTINATION vali-ddk/include
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include
 )
-install(DIRECTORY include/ DESTINATION vali-ddk/include)
-install(DIRECTORY ../../protocols/ DESTINATION vali-ddk/share/vali/protocols)
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY ../../protocols/ DESTINATION share/vali/protocols)

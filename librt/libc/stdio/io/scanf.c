@@ -24,6 +24,7 @@
  */
 
 #include <internal/_io.h>
+#include <internal/_locale.h>
 #include <ds/bitmap.h>
 #include <wchar.h>
 #include <stdarg.h>
@@ -31,7 +32,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <locale.h>
-#include "../locale/setlocale.h"
 #include <ctype.h>
 #include <wctype.h>
 #include <math.h>

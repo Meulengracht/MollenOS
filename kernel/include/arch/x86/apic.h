@@ -132,10 +132,10 @@ KERNELAPI void KERNELABI
 ApicInitialize(void);
 
 /**
- * @brief Returns OsSuccess if the local apic is initialized and memory mapped.
- * @return OsSuccess if the Local Apic is available.
+ * @brief Returns OsOK if the local apic is initialized and memory mapped.
+ * @return OsOK if the Local Apic is available.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicIsInitialized(void);
 
 /**
@@ -236,11 +236,11 @@ ApicMaskGsi(
  * @param[In] vector
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicSendInterrupt(
-    _In_ InterruptTarget_t type,
-    _In_ UUId_t            specific,
-    _In_ uint32_t          vector);
+        _In_ InterruptTarget_t type,
+        _In_ uuid_t            specific,
+        _In_ uint32_t          vector);
 
 /**
  * @brief Sends an ipi request for the specified cpu
@@ -248,10 +248,10 @@ ApicSendInterrupt(
  * @param[In] assert
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicPerformIPI(
-    _In_ UUId_t coreId,
-    _In_ int    assert);
+        _In_ uuid_t coreId,
+        _In_ int    assert);
 
 /**
  * @brief Sends an sipi request for the specified cpu, to start executing code at the given vector
@@ -260,10 +260,10 @@ ApicPerformIPI(
  * @param[In] address
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ApicPerformSIPI(
-    _In_ UUId_t    coreId,
-    _In_ uintptr_t address);
+        _In_ uuid_t    coreId,
+        _In_ uintptr_t address);
 
 /**
  * @brief On 32-bit processors the local apic might not be integrated onto the chip,
@@ -292,7 +292,7 @@ ApicGetMaxLvt(void);
  */
 KERNELAPI uint32_t KERNELABI
 ApicComputeLogicalDestination(
-        _In_ UUId_t coreId);
+        _In_ uuid_t coreId);
 
 /**
  * @brief Sets the current task priority
@@ -314,7 +314,7 @@ ApicGetTaskPriority(void);
 /* ApicTimerHandler
  * The scheduler interrupt handler. The only functionality this handler has is
  * to switch threads. */
-KERNELAPI InterruptStatus_t KERNELABI
+KERNELAPI irqstatus_t KERNELABI
 ApicTimerHandler(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context);
@@ -322,7 +322,7 @@ ApicTimerHandler(
 /* ApicErrorHandler
  * Handles any internally errors that the apic encounters. Most of these
  * don't have any resolution. */
-KERNELAPI InterruptStatus_t KERNELABI
+KERNELAPI irqstatus_t KERNELABI
 ApicErrorHandler(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context);

@@ -46,9 +46,9 @@ static const char* g_deviceProtocolNames[ProtocolCount] = {
 
 static inline void
 RegisterStorage(
-    _In_ UUId_t       protocolServerId,
-    _In_ UUId_t       deviceId,
-    _In_ unsigned int flags)
+        _In_ uuid_t       protocolServerId,
+        _In_ uuid_t       deviceId,
+        _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     (void)sys_storage_register(GetGrachtClient(), &msg.base, protocolServerId, deviceId, flags);
@@ -56,8 +56,8 @@ RegisterStorage(
 
 static inline void
 UnregisterStorage(
-    _In_ UUId_t  deviceId,
-    _In_ uint8_t forced)
+        _In_ uuid_t  deviceId,
+        _In_ uint8_t forced)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     (void)sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);
@@ -97,6 +97,8 @@ static inline void __GetDeviceProtocol(
     // Set initial shared stuff
     device->Protocol                      = ProtocolUnknown;
     device->AlignedAccess                 = 0;
+    device->Descriptor.DeviceID           = device->Device->Base.Id;
+    device->Descriptor.DriverID           = GetNativeHandle(__crt_get_server_iod());
     device->Descriptor.SectorsPerCylinder = 64;
     device->Descriptor.SectorSize         = 512;
     device->InterfaceId                   = interface->base.NumInterface;
@@ -133,7 +135,7 @@ static void __GetDeviceConfiguration(
     UsbTransferStatus_t        status;
     int                        i, j;
     
-    status = UsbGetActiveConfigDescriptor(&device->Base.DeviceContext, &configuration);
+    status = UsbGetActiveConfigDescriptor(&device->Device->DeviceContext, &configuration);
     if (status != TransferFinished) {
         ERROR("[msd] [__GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
         return;
@@ -179,10 +181,25 @@ MsdDeviceCreate(
     if (!msdDevice) {
         return NULL;
     }
-    
     memset(msdDevice, 0, sizeof(MsdDevice_t));
-    memcpy(&msdDevice->Base, usbDevice, sizeof(UsbDevice_t));
+
     ELEMENT_INIT(&msdDevice->Header, (uintptr_t)usbDevice->Base.Id, msdDevice);
+    msdDevice->Device = usbDevice;
+
+    if (usbDevice->Base.Identification.Serial) {
+        strncpy(
+                &msdDevice->Descriptor.Serial[0],
+                usbDevice->Base.Identification.Serial,
+                sizeof(msdDevice->Descriptor.Serial)
+        );
+    }
+    if (usbDevice->Base.Identification.Product) {
+        strncpy(
+                &msdDevice->Descriptor.Model[0],
+                usbDevice->Base.Identification.Product,
+                sizeof(msdDevice->Descriptor.Model)
+        );
+    }
     
     __GetDeviceConfiguration(msdDevice);
     
@@ -192,37 +209,37 @@ MsdDeviceCreate(
           g_deviceProtocolNames[msdDevice->Protocol]);
 
     // Initialize the kind of profile we discovered
-    if (MsdDeviceInitialize(msdDevice) != OsSuccess) {
+    if (MsdDeviceInitialize(msdDevice) != OsOK) {
         ERROR("Failed to initialize the msd-device, missing support.");
         goto Error;
     }
 
     // Allocate reusable buffers
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandBlock_t), 
-        (void**)&msdDevice->CommandBlock) != OsSuccess) {
+        (void**)&msdDevice->CommandBlock) != OsOK) {
         ERROR("Failed to allocate reusable buffer (command-block)");
         goto Error;
     }
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(MsdCommandStatus_t), 
-        (void**)&msdDevice->StatusBlock) != OsSuccess) {
+        (void**)&msdDevice->StatusBlock) != OsOK) {
         ERROR("Failed to allocate reusable buffer (status-block)");
         goto Error;
     }
 
-    if (MsdDeviceStart(msdDevice) != OsSuccess) {
+    if (MsdDeviceStart(msdDevice) != OsOK) {
         ERROR("Failed to initialize the device");
         goto Error;
     }
 
     // Wait for the disk service to finish loading
-    if (WaitForFileService(1000) != OsSuccess) {
+    if (WaitForFileService(1000) != OsOK) {
         ERROR("[msd] disk ready but storage service did not start");
         // TODO: what do
         return msdDevice;
     }
 
     RegisterStorage(GetNativeHandle(__crt_get_server_iod()),
-                    msdDevice->Base.Base.Id, SYS_STORAGE_FLAGS_REMOVABLE);
+                    msdDevice->Device->Base.Id, SYS_STORAGE_FLAGS_REMOVABLE);
     return msdDevice;
 
 Error:
@@ -231,25 +248,26 @@ Error:
     return NULL;
 }
 
-OsStatus_t
+oserr_t
 MsdDeviceDestroy(
-    _In_ MsdDevice_t *Device)
+    _In_ MsdDevice_t* msdDevice)
 {
     // Notify diskmanager
-    UnregisterStorage(Device->Base.Base.Id, 1);
+    UnregisterStorage(msdDevice->Device->Base.Id, 1);
 
     // Flush existing requests?
     // @todo
 
     // Free reusable buffers
-    if (Device->CommandBlock != NULL) {
-        dma_pool_free(UsbRetrievePool(), (void*)Device->CommandBlock);
+    if (msdDevice->CommandBlock != NULL) {
+        dma_pool_free(UsbRetrievePool(), (void*)msdDevice->CommandBlock);
     }
-    if (Device->StatusBlock != NULL) {
-        dma_pool_free(UsbRetrievePool(), (void*)Device->StatusBlock);
+    if (msdDevice->StatusBlock != NULL) {
+        dma_pool_free(UsbRetrievePool(), (void*)msdDevice->StatusBlock);
     }
 
     // Free data allocated
-    free(Device);
-    return OsSuccess;
+    free(msdDevice->Device);
+    free(msdDevice);
+    return OsOK;
 }

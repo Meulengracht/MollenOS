@@ -9,25 +9,19 @@ import "types"
 
 namespace sys
 
-service storage (2) {
-    func register(UUId_t driverId, UUId_t deviceId, storage_flags flags) : () = 1;
-    func unregister(UUId_t deviceId, bool forced) : () = 2;
-    
-    // I'm not sure whether or not they should be here or in the file service
-    func get_descriptor(UUId_t fileHandle) : (OsStatus_t result, disk_descriptor descriptor) = 3;
-    func get_descriptor_path(string filePath) : (OsStatus_t result, disk_descriptor descriptor) = 4;
-}
-
 enum file_flags {
-    FILE = 0,
+    FILE      = 0,
     DIRECTORY = 0x1,
-    LINK = 0x2
+    LINK      = 0x2
 }
 
 enum file_permissions {
-    READ = 0x1,
-    WRITE = 0x2,
-    EXECUTE = 0x4
+    OWNER_READ    = 0x1,
+    OWNER_WRITE   = 0x2,
+    OWNER_EXECUTE = 0x4,
+    OTHER_READ    = 0x8,
+    OTHER_WRITE   = 0x10,
+    OTHER_EXECUTE = 0x20
 }
 
 struct file_descriptor {
@@ -53,47 +47,31 @@ struct filesystem_descriptor {
 }
 
 service file (3) {
-    func open(UUId_t processId, string path, uint options, uint access) : (OsStatus_t result, UUId_t handle) = 1;
-    func close(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 2;
-    func delete(UUId_t processId, string path, uint flags) : (OsStatus_t result) = 3;
-    func transfer(UUId_t processId, UUId_t handle, transfer_direction direction, UUId_t bufferHandle, ulong offset, ulong length) : (OsStatus_t result, ulong bytesTransferred) = 4;
-    func transfer_absolute(UUId_t processId, UUId_t handle, transfer_direction direction, uint seekLow, uint seekHigh, UUId_t bufferHandle, ulong offset, ulong length) : (OsStatus_t result, ulong bytesTransferred) = 5;
-    func seek(UUId_t processId, UUId_t handle, uint seekLow, uint seekHigh) : (OsStatus_t result) = 6;
-    func flush(UUId_t processId, UUId_t handle) : (OsStatus_t result) = 7;
-    func move(UUId_t processId, string source, string destination, bool copy) : (OsStatus_t result) = 8;
-    func link(UUId_t processId, string source, string destination, bool symbolic) : (OsStatus_t result) = 9;
-    func set_options(UUId_t processId, UUId_t handle, uint options, uint access) : (OsStatus_t result) = 10;
-    func get_options(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint options, uint access) = 11;
-    func get_position(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 12;
-    func set_size(UUId_t processId, UUId_t handle, uint sizeLow, uint sizeHigh) : (OsStatus_t result) = 13;
-    func get_size(UUId_t processId, UUId_t handle) : (OsStatus_t result, uint low, uint high) = 14;
-    func get_path(UUId_t processId, UUId_t handle) : (OsStatus_t result, string path) = 15;
-    func fstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, file_descriptor descriptor) = 16;
-    func fstat_link(UUId_t processId, string path) : (OsStatus_t result, string path) = 17;
-    func fsstat(UUId_t processId, UUId_t handle) : (OsStatus_t result, filesystem_descriptor descriptor) = 19;
-    func fstat_path(UUId_t processId, string path) : (OsStatus_t result, file_descriptor descriptor) = 20;
-    func fsstat_path(UUId_t processId, string path) : (OsStatus_t result, filesystem_descriptor descriptor) = 21;
+    func open(uuid_t processId, string path, uint options, uint access) : (oserr_t result, uuid_t handle) = 1;
+    func close(uuid_t processId, uuid_t handle) : (oserr_t result) = 2;
+    func delete(uuid_t processId, string path, uint flags) : (oserr_t result) = 3;
+    func transfer(uuid_t processId, uuid_t handle, transfer_direction direction, uuid_t bufferHandle, ulong offset, ulong length) : (oserr_t result, ulong bytesTransferred) = 4;
+    func transfer_absolute(uuid_t processId, uuid_t handle, transfer_direction direction, uint seekLow, uint seekHigh, uuid_t bufferHandle, ulong offset, ulong length) : (oserr_t result, ulong bytesTransferred) = 5;
+    func seek(uuid_t processId, uuid_t handle, uint seekLow, uint seekHigh) : (oserr_t result) = 6;
+    func flush(uuid_t processId, uuid_t handle) : (oserr_t result) = 7;
+    func move(uuid_t processId, string source, string destination, bool copy) : (oserr_t result) = 8;
+    func link(uuid_t processId, string source, string destination, bool symbolic) : (oserr_t result) = 9;
+    func duplicate(uuid_t processId, uuid_t handle) : (oserr_t result, uuid_t dupHandle) = 10;
+    func set_access(uuid_t processId, uuid_t handle, uint access) : (oserr_t result) = 11;
+    func get_access(uuid_t processId, uuid_t handle) : (oserr_t result, uint access) = 12;
+    func get_position(uuid_t processId, uuid_t handle) : (oserr_t result, uint low, uint high) = 13;
+    func set_size(uuid_t processId, uuid_t handle, uint sizeLow, uint sizeHigh) : (oserr_t result) = 14;
+    func get_size(uuid_t processId, uuid_t handle) : (oserr_t result, uint low, uint high) = 15;
+    func get_path(uuid_t processId, uuid_t handle) : (oserr_t result, string path) = 16;
+    func fstat(uuid_t processId, uuid_t handle) : (oserr_t result, file_descriptor descriptor) = 17;
+    func fstat_link(uuid_t processId, string path) : (oserr_t result, string path) = 18;
+    func fsstat(uuid_t processId, uuid_t handle) : (oserr_t result, filesystem_descriptor descriptor) = 19;
+    func fstat_path(uuid_t processId, string path, int followLinks) : (oserr_t result, file_descriptor descriptor) = 20;
+    func fsstat_path(uuid_t processId, string path, int followLinks) : (oserr_t result, filesystem_descriptor descriptor) = 21;
+    func ststat(uuid_t processId, uuid_t fileHandle) : (oserr_t result, disk_descriptor descriptor) = 22;
+    func ststat_path(uuid_t processId, string filePath, int followLinks) : (oserr_t result, disk_descriptor descriptor) = 23;
+    func realpath(string path, int followLinks) : (oserr_t result, string resolved) = 24;
     
     // Service should also provide an async interface that communicates with events
     // transfer_async, and transfer_status
-}
-
-enum system_paths {
-    PATH_SYSTEM,
-    PATH_SYSTEM_THEMES,
-    PATH_DATA,
-    PATH_DATA_BIN,
-    PATH_DATA_INC,
-    PATH_DATA_LIB,
-    PATH_DATA_SHARE,
-    PATH_USER,
-    PATH_USER_CACHE,
-    PATH_APP,
-    PATH_APP_TEMP,
-    PATH_COUNT
-}
-
-service path (4) {
-    func resolve(system_paths path) : (OsStatus_t result, string resolved) = 1;
-    func canonicalize(string path) : (OsStatus_t result, string canonicalized) = 2;
 }

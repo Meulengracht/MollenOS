@@ -14,9 +14,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * - Open addressed hashtable implementation using round robin for balancing.
  */
 
 //#define __DS_TESTPROGRAM
@@ -45,7 +42,7 @@ struct hashtable_element {
 #define SHOULD_GROW(hashtable)        (hashtable->element_count == hashtable->grow_count)
 #define SHOULD_SHRINK(hashtable)      (hashtable->element_count == hashtable->shrink_count)
 
-#define GET_ELEMENT_ARRAY(hashtable, elements, index) (struct hashtable_element*)&((uint8_t*)elements)[index * hashtable->element_size]
+#define GET_ELEMENT_ARRAY(hashtable, elements, index) ((struct hashtable_element*)&((uint8_t*)elements)[index * hashtable->element_size])
 #define GET_ELEMENT(hashtable, index)                 GET_ELEMENT_ARRAY(hashtable, hashtable->elements, index)
 
 static int  hashtable_resize(hashtable_t* hashtable, size_t newCapacity);
@@ -154,7 +151,7 @@ void* hashtable_set(
         }
         else {
             // If the slot is taken, we either replace it or we move fit in between
-            // Just because something shares hash these is no guarantee that it's an element we want
+            // Just because something shares hash, does not guarantee that it's an element we want
             // to replace - instead let the user decide. Another strategy here is to use double hashing
             // and try to trust that
             if (current->hash == iterElement->hash &&
@@ -165,7 +162,7 @@ void* hashtable_set(
             }
 
             // ok so we instead insert it here if our probe count is lower, we should not stop
-            // the iteration though, the element we swap out must be inserted again at the next
+            // the iteration though, the element we swap out, must be inserted again at the next
             // probe location, and we must continue this charade untill no more elements are displaced
             if (current->probeCount < iterElement->probeCount) {
                 memcpy(hashtable->swap, current, hashtable->element_size);
@@ -254,14 +251,12 @@ void hashtable_enumerate(
     _In_ hashtable_enumfn enumFunction,
     _In_ void*            context)
 {
-    size_t i;
-
     if (!hashtable || !enumFunction) {
         errno = EINVAL;
         return;
     }
 
-    for (i = 0; i < hashtable->capacity; i++) {
+    for (int i = 0; i < (int)hashtable->capacity; i++) {
         struct hashtable_element* current = GET_ELEMENT(hashtable, i);
         if (current->probeCount) {
             enumFunction(i, &current->payload[0], context);
@@ -276,7 +271,7 @@ static void hashtable_remove_and_bump(
 {
     struct hashtable_element* previous = element;
 
-    // Remove is a little bit more extensive, we have to bump up all elements that
+    // Removing is a bit more extensive, we have to bump up all elements that
     // share the hash
     memcpy(hashtable->swap, element, hashtable->element_size);
     element->probeCount = 0;

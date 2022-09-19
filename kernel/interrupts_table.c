@@ -54,7 +54,7 @@ static size_t __FunctionReadIoSpace(
 }
 
 // WriteIoSpace
-static OsStatus_t __FunctionWriteIoSpace(
+static oserr_t __FunctionWriteIoSpace(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
     _In_ size_t         Value,
@@ -66,17 +66,17 @@ static OsStatus_t __FunctionWriteIoSpace(
     return OsError;
 }
 
-static OsStatus_t __FunctionWriteStream(
-        _In_ UUId_t      handle,
+static oserr_t __FunctionWriteStream(
+        _In_ uuid_t      handle,
         _In_ const void* buffer,
         _In_ size_t      length)
 {
     streambuffer_t* stream;
 
-    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsSuccess) {
+    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsOK) {
         streambuffer_stream_out(stream, (void*)buffer, length, STREAMBUFFER_NO_BLOCK);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static void __FunctionTrace(const char* format, ...)

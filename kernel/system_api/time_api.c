@@ -27,10 +27,10 @@
 #include <string.h>
 #include <threading.h>
 
-OsStatus_t
+oserr_t
 ScSystemClockTick(
-    _In_ enum VaClockSourceType source,
-    _In_ LargeUInteger_t*       tickOut)
+        _In_ enum VaClockSourceType source,
+        _In_ UInteger64_t*       tickOut)
 {
     if (!tickOut) {
         return OsInvalidParameters;
@@ -52,13 +52,13 @@ ScSystemClockTick(
             SystemTimerGetClockTick(tickOut);
             break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScSystemClockFrequency(
         _In_ enum VaClockSourceType source,
-        _In_ LargeUInteger_t*       frequencyOut)
+        _In_ UInteger64_t*       frequencyOut)
 {
     if (!frequencyOut) {
         return OsInvalidParameters;
@@ -69,26 +69,26 @@ ScSystemClockFrequency(
     }
 
     SystemTimerGetClockFrequency(frequencyOut);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScSystemWallClock(
-        _In_ SystemTime_t* wallClock)
+        _In_ Integer64_t* time)
 {
-    if (wallClock == NULL) {
-        return OsError;
+    if (time == NULL) {
+        return OsInvalidParameters;
     }
-    memcpy(wallClock, &GetMachine()->SystemTimers.WallClock, sizeof(SystemTime_t));
-    return OsSuccess;
+    SystemTimerGetWallClockTime(time);
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScTimeSleep(
-        _In_      LargeUInteger_t* duration,
-        _Out_Opt_ LargeUInteger_t* remainingOut)
+        _In_      UInteger64_t* duration,
+        _Out_Opt_ UInteger64_t* remainingOut)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     clock_t    start;
     clock_t    end;
 
@@ -107,9 +107,9 @@ ScTimeSleep(
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 ScTimeStall(
-        _In_ LargeUInteger_t* duration)
+        _In_ UInteger64_t* duration)
 {
     clock_t current;
     clock_t end;
@@ -122,5 +122,5 @@ ScTimeStall(
     while (current < end) {
         SystemTimerGetTimestamp(&current);
     }
-    return OsSuccess;
+    return OsOK;
 }

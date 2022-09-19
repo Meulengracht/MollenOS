@@ -68,14 +68,14 @@ __GetAppropriateAllocator(
     return &systemMemory->Allocator.Region[i];
 }
 
-OsStatus_t
+oserr_t
 SystemMemoryAllocate(
         _In_ SystemMemory_t* systemMemory,
         _In_ size_t          memoryMask,
         _In_ int             pageCount,
         _In_ uintptr_t*      pages)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     int        pagesAllocated = pageCount;
     SystemMemoryAllocatorRegion_t* region;
 
@@ -99,24 +99,24 @@ SystemMemoryAllocate(
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 SystemMemoryFree(
         _In_ SystemMemory_t* systemMemory,
         _In_ int             pageCount,
         _In_ uintptr_t*      pages)
 {
 
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 SystemMemoryContainsAddress(
         _In_ SystemMemory_t* systemMemory,
         _In_ uintptr_t       address)
 {
     if (address >= systemMemory->PhysicalBase &&
         address < (systemMemory->PhysicalBase + systemMemory->Size)) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }

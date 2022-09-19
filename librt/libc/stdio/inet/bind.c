@@ -41,7 +41,7 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
-    OsStatus_t               status;
+    oserr_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -56,8 +56,8 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
     sys_socket_bind(GetGrachtClient(), &msg.base, handle->object.handle, (const uint8_t*)address, address_length);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_bind_result(GetGrachtClient(), &msg.base, &status);
-    if (status != OsSuccess) {
-        OsStatusToErrno(status);
+    if (status != OsOK) {
+        OsErrToErrNo(status);
         return -1;
     }
     return 0;

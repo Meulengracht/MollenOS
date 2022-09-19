@@ -113,65 +113,46 @@ typedef _mbstate_t mbstate_t;
 CRTDECL(int, mbsinit(
     _In_ const mbstate_t *ps));
 
-_CRTIMP wchar_t *wcpcpy(wchar_t *s1, __CONST wchar_t *s2);
-_CRTIMP wchar_t *wcpncpy(wchar_t *__restrict dst,
-	__CONST wchar_t *__restrict src, size_t count);
-_CRTIMP int wcscasecmp(__CONST wchar_t *s1, __CONST wchar_t *s2);
-_CRTIMP wchar_t *wmemset(wchar_t *s, wchar_t c, size_t n);
-_CRTIMP wchar_t *wmemmove(wchar_t *d, __CONST wchar_t *s, size_t n);
-_CRTIMP wchar_t *wmemcpy(wchar_t *__restrict d,
-	__CONST wchar_t *__restrict s, size_t n);
-_CRTIMP int wmemcmp(__CONST wchar_t *s1, __CONST wchar_t *s2, size_t n);
-_CRTIMP wchar_t	*wmemchr(__CONST wchar_t *s, wchar_t c, size_t n);
-_CRTIMP int wcwidth(__CONST wchar_t wc);
-_CRTIMP int wcswidth(__CONST wchar_t *pwcs, size_t n);
-_CRTIMP size_t wcslcpy(wchar_t *dst, __CONST wchar_t *src, size_t siz);
-_CRTIMP size_t wcsxfrm(wchar_t *__restrict a,
-	__CONST wchar_t *__restrict b, size_t n);
-_CRTIMP wchar_t *wcscat(wchar_t *__restrict s1,
-	__CONST wchar_t *__restrict s2);
-_CRTIMP wchar_t *wcschr(__CONST wchar_t *s, wchar_t c);
-_CRTIMP int wcscmp(__CONST wchar_t *s1, __CONST wchar_t *s2);
-CRTDECL(int, wcscoll(
-    __CONST wchar_t *a,
-    __CONST wchar_t *b));
-_CRTIMP wchar_t *wcscpy(wchar_t *__restrict s1,
-	__CONST wchar_t *__restrict s2);
-_CRTIMP	size_t wcscspn(__CONST wchar_t *s, wchar_t *set);
-_CRTIMP wchar_t *wcsdup(__CONST wchar_t *str);
-_CRTIMP size_t wcslcat(wchar_t *dst, 
-	__CONST wchar_t *src, size_t siz);
-_CRTIMP size_t wcslen(__CONST wchar_t *s);
-_CRTIMP size_t wcsnlen(__CONST wchar_t *s, size_t maxlen);
-_CRTIMP int wcsncasecmp(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, size_t n);
-_CRTIMP wchar_t *wcsncat(wchar_t *__restrict s1,
-	__CONST wchar_t *__restrict s2, size_t n);
-_CRTIMP int wcsncmp(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, size_t n);
-_CRTIMP wchar_t *wcsncpy(wchar_t *__restrict s1,
-	__CONST wchar_t *__restrict s2, size_t n);
-_CRTIMP wchar_t *wcspbrk(__CONST wchar_t *s,
-	__CONST wchar_t *set);
-_CRTIMP wchar_t *wcsrchr(__CONST wchar_t *s, wchar_t c);
-_CRTIMP size_t wcsspn(__CONST wchar_t *s, __CONST wchar_t *set);
-_CRTIMP wchar_t *wcsstr(__CONST wchar_t *__restrict big,
-	__CONST wchar_t *__restrict little);
-_CRTIMP wchar_t *wcstok(wchar_t *__restrict source,
-	__CONST wchar_t *__restrict delimiters,
-	wchar_t **__restrict lasts);
+CRTDECL(wchar_t*, wcpcpy(wchar_t *s1, const wchar_t *s2));
+CRTDECL(wchar_t*, wcpncpy(wchar_t *__restrict dst, const wchar_t *__restrict src, size_t count));
+CRTDECL(int,      wcscasecmp(const wchar_t *s1, const wchar_t *s2));
+CRTDECL(wchar_t*, wmemset(wchar_t *s, wchar_t c, size_t n));
+CRTDECL(wchar_t*, wmemmove(wchar_t *d, const wchar_t *s, size_t n));
+CRTDECL(wchar_t*, wmemcpy(wchar_t *__restrict d, const wchar_t *__restrict s, size_t n));
+CRTDECL(int,      wmemcmp(const wchar_t *s1, const wchar_t *s2, size_t n));
+CRTDECL(wchar_t*, wmemchr(const wchar_t *s, wchar_t c, size_t n));
+CRTDECL(int,      wcwidth(const wchar_t wc));
+CRTDECL(int,      wcswidth(const wchar_t *pwcs, size_t n));
+CRTDECL(size_t,   wcslcpy(wchar_t *dst, const wchar_t *src, size_t siz));
+CRTDECL(size_t,   wcsxfrm(wchar_t *__restrict a, const wchar_t *__restrict b, size_t n));
+CRTDECL(wchar_t*, wcscat(wchar_t *__restrict s1, const wchar_t *__restrict s2));
+CRTDECL(wchar_t*, wcschr(const wchar_t *s, wchar_t c));
+CRTDECL(int,      wcscmp(const wchar_t *s1, const wchar_t *s2));
+CRTDECL(int,      wcscoll(const wchar_t *a, const wchar_t *b));
+CRTDECL(wchar_t*, wcscpy(wchar_t *__restrict s1, const wchar_t *__restrict s2));
+CRTDECL(size_t,   wcscspn(const wchar_t *s, wchar_t *set));
+CRTDECL(wchar_t*, wcsdup(const wchar_t *str));
+CRTDECL(size_t,   wcslcat(wchar_t *dst, const wchar_t *src, size_t siz));
+CRTDECL(size_t,   wcslen(const wchar_t *s));
+CRTDECL(size_t,   wcsnlen(const wchar_t *s, size_t maxlen));
+CRTDECL(int,      wcsncasecmp(const wchar_t *s1, const wchar_t *s2, size_t n));
+CRTDECL(wchar_t*, wcsncat(wchar_t *__restrict s1, const wchar_t *__restrict s2, size_t n));
+CRTDECL(int,      wcsncmp(const wchar_t *s1, const wchar_t *s2, size_t n));
+CRTDECL(wchar_t*, wcsncpy(wchar_t *__restrict s1, const wchar_t *__restrict s2, size_t n));
+CRTDECL(wchar_t*, wcspbrk(const wchar_t *s, const wchar_t *set));
+CRTDECL(wchar_t*, wcsrchr(const wchar_t *s, wchar_t c));
+CRTDECL(size_t,   wcsspn(const wchar_t *s, const wchar_t *set));
+CRTDECL(wchar_t*, wcsstr(const wchar_t *__restrict big, const wchar_t *__restrict little));
+CRTDECL(wchar_t*, wcstok(wchar_t *__restrict source, const wchar_t *__restrict delimiters, wchar_t **__restrict lasts));
 
+/**
+ * @brief Locale variants.
+ */
 #include <locale.h>
-_CRTIMP int wcsxfrm_l(wchar_t *__restrict a,
-	__CONST wchar_t *__restrict b, size_t n,
-	locale_t locale);
-_CRTIMP int wcscasecmp_l(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, locale_t locale);
-_CRTIMP int wcscoll_l(__CONST wchar_t *a, 
-	__CONST wchar_t *b, locale_t locale);
-_CRTIMP int wcsncasecmp_l(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, size_t n, 
-	locale_t locale);
+CRTDECL(int, wcsxfrm_l(wchar_t *__restrict a, const wchar_t *__restrict b, size_t n, locale_t locale));
+CRTDECL(int, wcscasecmp_l(const wchar_t *s1, const wchar_t *s2, locale_t locale));
+CRTDECL(int, wcscoll_l(const wchar_t *a, const wchar_t *b, locale_t locale));
+CRTDECL(int, wcsncasecmp_l(const wchar_t *s1, const wchar_t *s2, size_t n, locale_t locale));
 
 /* wcsftime
  * Converts the date and time information from a given calendar time time 
@@ -182,13 +163,13 @@ _CRTIMP int wcsncasecmp_l(__CONST wchar_t *s1,
 CRTDECL(size_t, wcsftime(
     _In_ wchar_t*__restrict str,
     _In_ size_t maxsize,
-    _In_ __CONST wchar_t*__restrict format, 
-    _In_ __CONST struct tm*__restrict time));
+    _In_ const wchar_t*__restrict format, 
+    _In_ const struct tm*__restrict time));
 CRTDECL(size_t, wcsftime_l(
     _In_ wchar_t*__restrict str,
     _In_ size_t maxsize,
-    _In_ __CONST wchar_t*__restrict format, 
-    _In_ __CONST struct tm*__restrict time,
+    _In_ const wchar_t*__restrict format, 
+    _In_ const struct tm*__restrict time,
     _In_ struct __locale_t *locale));
 #endif
 

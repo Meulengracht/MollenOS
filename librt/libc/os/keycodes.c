@@ -15,11 +15,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Key Definitions & Structures
- * - This header describes the key-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 #define __TRACE
 

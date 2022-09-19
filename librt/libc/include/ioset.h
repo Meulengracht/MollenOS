@@ -43,7 +43,7 @@ enum ioset_flags
 
 union ioset_data {
     int      iod;
-    UUId_t   handle;
+    uuid_t   handle;
     void*    context;
     uint32_t val32;
     uint64_t val64;

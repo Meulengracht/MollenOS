@@ -36,7 +36,7 @@ static char sccsid[] = "@(#)ctype_.c	5.6 (Berkeley) 6/1/90";
 #endif /* LIBC_SCCS and not lint */
 
 #include "ctype_.h"
-#include "../../locale/setlocale.h"
+#include <internal/_locale.h>
 
 #define _CTYPE_DATA_0_127 \
 	_CTYPE_C,	_CTYPE_C,	_CTYPE_C,	_CTYPE_C,	_CTYPE_C,	_CTYPE_C,	_CTYPE_C,	_CTYPE_C, \

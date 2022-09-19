@@ -70,10 +70,10 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
-    UUId_t                   socket_handle;
-    UUId_t                   send_handle;
-    UUId_t                   recv_handle;
-    OsStatus_t               status;
+    uuid_t                   socket_handle;
+    uuid_t                   send_handle;
+    uuid_t                   recv_handle;
+    oserr_t               status;
     int                      accept_iod;
     
     if (!handle) {
@@ -96,8 +96,8 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_accept_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address, *address_length,
         &socket_handle, &recv_handle, &send_handle);
-    if (status != OsSuccess) {
-        OsStatusToErrno(status);
+    if (status != OsOK) {
+        OsErrToErrNo(status);
         return -1;
     }
     

@@ -41,7 +41,7 @@ effects vary with the locale.
 <<mblen>> requires no supporting OS subroutines.
 */
 
-#include "../../threads/tls.h"
+#include "../../threads/tss.h"
 #include <stdlib.h>
 #include <wchar.h>
 #include "../local.h"

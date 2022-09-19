@@ -71,7 +71,7 @@
  * @param[In] rtcAvailable Availability of the RTC chip
  * @return    Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 PitInitialize(
         _In_ int rtcAvailable);
 

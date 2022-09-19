@@ -33,7 +33,7 @@
 #include <machine.h>
 
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
-fault = OsSuccess; \
+fault = OsOK; \
 for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
     if (timeout_ >= (runs)) {\
          (fault) = OsTimeout; \
@@ -42,11 +42,11 @@ for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
     SystemTimerStall((wait) * NSEC_PER_MSEC);\
                     }
 
-static UUId_t         InterruptHandlers[CpuFunctionCount] = { 0 };
+static uuid_t         InterruptHandlers[CpuFunctionCount] = {0 };
 static MemoryCache_t* TxuMessageCache                     = NULL;
 static queue_t        TxuReusableBin                      = QUEUE_INIT;
 
-InterruptStatus_t
+irqstatus_t
 ProcessorHaltHandler(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     NotUsedEither)
@@ -54,10 +54,10 @@ ProcessorHaltHandler(
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
     ArchProcessorHalt();
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-InterruptStatus_t
+irqstatus_t
 FunctionExecutionInterruptHandler(
         _In_ InterruptFunctionTable_t* NotUsed,
         _In_ void*                     NotUsedEither)
@@ -80,21 +80,21 @@ FunctionExecutionInterruptHandler(
         queue_push(&TxuReusableBin, Element);
         Element = CpuCorePopQueuedIpc(Core);
     }
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-OsStatus_t
+oserr_t
 TxuMessageSend(
-    _In_ UUId_t                  CoreId,
-    _In_ SystemCpuFunctionType_t Type,
-    _In_ TxuFunction_t           Function,
-    _In_ void*                   Argument,
-    _In_ int                     Asynchronous)
+        _In_ uuid_t                  CoreId,
+        _In_ SystemCpuFunctionType_t Type,
+        _In_ TxuFunction_t           Function,
+        _In_ void*                   Argument,
+        _In_ int                     Asynchronous)
 {
     SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     element_t*       Element;
     TxuMessage_t*    Message;
-    OsStatus_t       Status;
+    oserr_t       Status;
     
     assert(Core != NULL);
     assert(Type < CpuFunctionCount);
@@ -118,7 +118,7 @@ TxuMessageSend(
 
     CpuCoreQueueIpc(Core, Type, &Message->Header);
     Status = ArchProcessorSendInterrupt(CoreId, InterruptHandlers[Type]);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         if (!Asynchronous) {
             ERROR("[txu] [send] failed to execute a synchronous handler");
         }
@@ -127,7 +127,7 @@ TxuMessageSend(
     
     if (!Asynchronous) {
         WaitForConditionWithFault(Status, atomic_load(&Message->Delivered) == 0, 100, 10)
-        if (Status != OsSuccess) {
+        if (Status != OsOK) {
             ERROR("[txu] [send] timeout executing synchronous handler");
         }
     }

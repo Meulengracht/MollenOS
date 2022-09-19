@@ -26,24 +26,23 @@
 #include <ds/streambuffer.h>
 #include <ds/ds.h>
 #include <limits.h>
-#include <internal/_utils.h>
 #include <os/futex.h>
 #include <string.h>
 
-#define STREAMBUFFER_CAN_OVERWRITE(stream) (stream->options & STREAMBUFFER_OVERWRITE_ENABLED)
+#define STREAMBUFFER_CAN_OVERWRITE(stream) ((stream)->options & STREAMBUFFER_OVERWRITE_ENABLED)
 
-#define STREAMBUFFER_PARTIAL_OP(options)  (options & STREAMBUFFER_ALLOW_PARTIAL)
-#define STREAMBUFFER_PARTIAL_OP_SAFE(options, bytes_available)  (STREAMBUFFER_PARTIAL_OP(options) && bytes_available != 0)
+#define STREAMBUFFER_PARTIAL_OP(options)  ((options) & STREAMBUFFER_ALLOW_PARTIAL)
+#define STREAMBUFFER_PARTIAL_OP_SAFE(options, bytes_available)  (STREAMBUFFER_PARTIAL_OP(options) && (bytes_available) != 0)
 
-#define STREAMBUFFER_CAN_READ(options, bytes_available, length)           (bytes_available == length || STREAMBUFFER_PARTIAL_OP_SAFE(options, bytes_available))
-#define STREAMBUFFER_CAN_WRITE(options, bytes_available, length)          (bytes_available == length || STREAMBUFFER_PARTIAL_OP(options))
-#define STREAMBUFFER_CAN_STREAM(stream, options, bytes_available, length) (bytes_available == length || STREAMBUFFER_CAN_OVERWRITE(stream) || STREAMBUFFER_PARTIAL_OP_SAFE(options, bytes_available))
+#define STREAMBUFFER_CAN_READ(options, bytes_available, length)           ((bytes_available) == (length) || STREAMBUFFER_PARTIAL_OP_SAFE(options, bytes_available))
+#define STREAMBUFFER_CAN_WRITE(options, bytes_available, length)          ((bytes_available) == (length) || STREAMBUFFER_PARTIAL_OP(options))
+#define STREAMBUFFER_CAN_STREAM(stream, options, bytes_available, length) ((bytes_available) == (length) || STREAMBUFFER_CAN_OVERWRITE(stream) || STREAMBUFFER_PARTIAL_OP_SAFE(options, bytes_available))
 
-#define STREAMBUFFER_CAN_BLOCK(options)           ((options & STREAMBUFFER_NO_BLOCK) == 0)
-#define STREAMBUFFER_HAS_MULTIPLE_READERS(stream) (stream->options & STREAMBUFFER_MULTIPLE_READERS)
-#define STREAMBUFFER_HAS_MULTIPLE_WRITERS(stream) (stream->options & STREAMBUFFER_MULTIPLE_WRITERS)
-#define STREAMBUFFER_WAIT_FLAGS(stream)           ((stream->options & STREAMBUFFER_GLOBAL) ? 0 : FUTEX_WAIT_PRIVATE)
-#define STREAMBUFFER_WAKE_FLAGS(stream)           ((stream->options & STREAMBUFFER_GLOBAL) ? 0 : FUTEX_WAKE_PRIVATE)
+#define STREAMBUFFER_CAN_BLOCK(options)           (((options) & STREAMBUFFER_NO_BLOCK) == 0)
+#define STREAMBUFFER_HAS_MULTIPLE_READERS(stream) ((stream)->options & STREAMBUFFER_MULTIPLE_READERS)
+#define STREAMBUFFER_HAS_MULTIPLE_WRITERS(stream) ((stream)->options & STREAMBUFFER_MULTIPLE_WRITERS)
+#define STREAMBUFFER_WAIT_FLAGS(stream)           (((stream)->options & STREAMBUFFER_GLOBAL) ? FUTEX_FLAG_WAIT : (FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE))
+#define STREAMBUFFER_WAKE_FLAGS(stream)           (((stream)->options & STREAMBUFFER_GLOBAL) ? FUTEX_FLAG_WAKE : (FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE))
 
 typedef struct sb_packethdr {
     size_t packet_len;
@@ -74,7 +73,7 @@ streambuffer_construct(
     stream->options  = options;
 }
 
-OsStatus_t
+oserr_t
 streambuffer_create(
     _In_  size_t           capacity,
     _In_  unsigned int     options,
@@ -89,7 +88,7 @@ streambuffer_create(
     
     streambuffer_construct(stream, capacity, options);
     *stream_out = stream;
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -124,7 +123,7 @@ bytes_writable(
 {
     if (read_index > write_index) {
         // If we somehow ended up in a state where read_index got ahead of write_index
-        // fix this by treating us a empty capacity
+        // fix this by treating us with an empty capacity
         if ((UINT_MAX - read_index) - write_index > capacity) {
             return capacity;
         }
@@ -159,7 +158,7 @@ streambuffer_try_truncate(
     _In_ size_t          length)
 {
     // when we check, we must check how many bytes are actually allocated, not currently comitted
-    // as we have to take into account current readers. The write index however
+    // as we have to take into account current readers. The write-index however
     // we have to only take into account how many bytes are actually comitted
     unsigned int write_index     = atomic_load(&stream->producer_comitted_index);
     unsigned int read_index      = atomic_load(&stream->consumer_index);
@@ -266,7 +265,7 @@ streambuffer_stream_out(
             continue; // Start over
         }
         
-        // Handle overwrite, empty the queue by an the needed amount of bytes
+        // Handle overwrite, empty the queue by the needed amount of bytes
         if (bytes_available < (length - bytes_written)) {
             streambuffer_try_truncate(stream, options, (length - bytes_written));
             continue;
@@ -445,7 +444,7 @@ streambuffer_stream_in(
     // Make sure there are bytes to read
     while (bytes_read < length) {
         // when we check, we must check how many bytes are actually allocated, not currently comitted
-        // as we have to take into account current readers. The write index however
+        // as we have to take into account current readers. The write-index however
         // we have to only take into account how many bytes are actually comitted
         unsigned int write_index     = atomic_load(&stream->producer_comitted_index);
         unsigned int read_index      = atomic_load(&stream->consumer_index);
@@ -521,7 +520,7 @@ streambuffer_read_packet_start(
     // Make sure there are bytes to read
     while (!bytes_read) {
         // when we check, we must check how many bytes are actually allocated, not currently comitted
-        // as we have to take into account current readers. The write index however
+        // as we have to take into account current readers. The write-index however
         // we have to only take into account how many bytes are actually comitted
         unsigned int write_index     = atomic_load(&stream->producer_comitted_index);
         unsigned int read_index      = atomic_load(&stream->consumer_index);
@@ -561,7 +560,7 @@ streambuffer_read_packet_start(
         }
         
         // Set the base at the actual base, but adjust the state_index so the user
-        // of this does not the read the sb_packethdr_t instance
+        // of this do not read the sb_packethdr_t instance
         *base_out  = read_index;
         *state_out = read_index + sizeof(sb_packethdr_t);
         bytes_read = bytes_available - sizeof(sb_packethdr_t);

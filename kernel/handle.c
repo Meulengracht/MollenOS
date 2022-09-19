@@ -33,23 +33,23 @@
 #include <threading.h>
 
 struct resource_handle {
-    UUId_t             id;
+    uuid_t             id;
     HandleType_t       type;
     unsigned int       flags;
-    MString_t*         path;
+    mstring_t*         path;
     void*              resource;
     int                references;
     HandleDestructorFn destructor;
 };
 
 struct handle_mapping {
-    MString_t* path;
-    UUId_t     handle;
+    mstring_t* path;
+    uuid_t     handle;
 };
 
 struct handle_cleanup {
     element_t          header;
-    MString_t*         path;
+    mstring_t*         path;
     void*              resource;
     HandleDestructorFn destructor;
 };
@@ -63,12 +63,12 @@ static int      handle_cmp(const void* element1, const void* element2);
 static hashtable_t     g_handlemappings;
 static hashtable_t     g_handles;
 static IrqSpinlock_t   g_handlesLock; // use irq lock as we use the handles from interrupts
-static _Atomic(UUId_t) g_nextHandleId  = ATOMIC_VAR_INIT(0);
+static _Atomic(uuid_t) g_nextHandleId  = ATOMIC_VAR_INIT(0);
 static Semaphore_t     g_eventHandle   = SEMAPHORE_INIT(0, 1);
 static queue_t         g_cleanQueue    = QUEUE_INIT;
-static UUId_t          g_janitorHandle = UUID_INVALID;
+static uuid_t          g_janitorHandle = UUID_INVALID;
 
-OsStatus_t
+oserr_t
 InitializeHandles(void)
 {
     hashtable_construct(&g_handlemappings, HASHTABLE_MINIMUM_CAPACITY,
@@ -79,10 +79,10 @@ InitializeHandles(void)
                         handle_cmp);
     IrqSpinlockConstruct(&g_handlesLock);
     atomic_store(&g_nextHandleId, 1);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 InitializeHandleJanitor(void)
 {
     // Create the thread with all defaults
@@ -93,7 +93,7 @@ InitializeHandleJanitor(void)
 
 static inline struct resource_handle*
 LookupSafeHandleInstance(
-    _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
     if (!atomic_load(&g_nextHandleId)) {
@@ -108,7 +108,7 @@ LookupSafeHandleInstance(
 
 static struct resource_handle*
 AcquireHandleInstance(
-    _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
     if (!atomic_load(&g_nextHandleId)) {
@@ -124,7 +124,7 @@ AcquireHandleInstance(
     return handle;
 }
 
-UUId_t
+uuid_t
 CreateHandle(
     _In_ HandleType_t       handleType,
     _In_ HandleDestructorFn destructor,
@@ -146,34 +146,36 @@ CreateHandle(
     return handle.id;
 }
 
-OsStatus_t
+oserr_t
 AcquireHandle(
-    _In_  UUId_t handleId,
-    _Out_ void** resourceOut)
+        _In_  uuid_t handleId,
+        _Out_ void** resourceOut)
 {
     struct resource_handle* handle = AcquireHandleInstance(handleId);
     if (!handle) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (resourceOut) {
         *resourceOut = handle->resource;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 RegisterHandlePath(
-    _In_ UUId_t      handleId,
-    _In_ const char* path)
+        _In_ uuid_t      handleId,
+        _In_ const char* path)
 {
     struct resource_handle* handle;
     struct handle_mapping*  mapping;
-    MString_t*              internalPath;
+    mstring_t*              internalPath;
     DEBUG("[handle_register_path] %u => %s", handleId, path);
 
-    internalPath = MStringCreate(path, StrUTF8);
-    if (!MStringLength(internalPath)) {
+    internalPath = mstr_new_u8(path);
+
+    // TODO do some actual verification of path here
+    if (internalPath == NULL || mstr_len(internalPath) == 0) {
         return OsInvalidParameters;
     }
 
@@ -181,20 +183,20 @@ RegisterHandlePath(
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
         IrqSpinlockRelease(&g_handlesLock);
-        MStringDestroy(internalPath);
-        return OsDoesNotExist;
+        mstr_delete(internalPath);
+        return OsNotExists;
     }
 
     if (handle->path) {
         IrqSpinlockRelease(&g_handlesLock);
-        MStringDestroy(internalPath);
+        mstr_delete(internalPath);
         return OsError;
     }
 
     mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
     if (mapping) {
         IrqSpinlockRelease(&g_handlesLock);
-        MStringDestroy(internalPath);
+        mstr_delete(internalPath);
         return OsExists;
     }
 
@@ -203,20 +205,22 @@ RegisterHandlePath(
     handle->path = internalPath;
     IrqSpinlockRelease(&g_handlesLock);
 
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 LookupHandleByPath(
-    _In_  const char* path,
-    _Out_ UUId_t*     handleOut)
+        _In_  const char* path,
+        _Out_ uuid_t*     handleOut)
 {
     struct handle_mapping* mapping;
-    MString_t*             internalPath;
+    mstring_t*             internalPath;
     TRACE("[handle_lookup_by_path] %s", path);
 
-    internalPath = MStringCreate(path, StrUTF8);
-    if (!MStringLength(internalPath)) {
+    internalPath = mstr_new_u8(path);
+
+    // TODO do some actual verification of path here
+    if (internalPath == NULL || mstr_len(internalPath) == 0) {
         return OsInvalidParameters;
     }
 
@@ -226,14 +230,14 @@ LookupHandleByPath(
         *handleOut = mapping->handle;
     }
     IrqSpinlockRelease(&g_handlesLock);
-    MStringDestroy(internalPath);
-    return mapping != NULL ? OsSuccess : OsDoesNotExist;
+    mstr_delete(internalPath);
+    return mapping != NULL ? OsOK : OsNotExists;
 }
 
 void*
 LookupHandleOfType(
-    _In_ UUId_t       handleId,
-    _In_ HandleType_t handleType)
+        _In_ uuid_t       handleId,
+        _In_ HandleType_t handleType)
 {
     struct resource_handle* handle = LookupSafeHandleInstance(handleId);
     if (!handle || handle->type != handleType) {
@@ -245,7 +249,7 @@ LookupHandleOfType(
 static void AddHandleToCleanup(
         _In_ void*              resource,
         _In_ HandleDestructorFn dctor,
-        _In_ MString_t*         path)
+        _In_ mstring_t*         path)
 {
     struct handle_cleanup* cleanup;
 
@@ -261,27 +265,27 @@ static void AddHandleToCleanup(
     SemaphoreSignal(&g_eventHandle, 1);
 }
 
-void
+oserr_t
 DestroyHandle(
-    _In_ UUId_t handleId)
+        _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
     void*                   resource;
     HandleDestructorFn      dctor;
-    MString_t*              path;
+    mstring_t*              path;
 
     IrqSpinlockAcquire(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
         IrqSpinlockRelease(&g_handlesLock);
-        return;
+        return OsNotExists;
     }
 
     // do nothing if there still is active handles
     handle->references--;
     if (handle->references) {
         IrqSpinlockRelease(&g_handlesLock);
-        return;
+        return OsIncomplete;
     }
 
     // store some resources before releaseing lock
@@ -295,6 +299,7 @@ DestroyHandle(
     IrqSpinlockRelease(&g_handlesLock);
 
     AddHandleToCleanup(resource, dctor, path);
+    return OsOK;
 }
 
 _Noreturn static void
@@ -315,7 +320,7 @@ HandleJanitorThread(
                 cleanup->destructor(cleanup->resource);
             }
             if (cleanup->path) {
-                MStringDestroy(cleanup->path);
+                mstr_delete(cleanup->path);
             }
             kfree(cleanup);
 
@@ -327,16 +332,14 @@ HandleJanitorThread(
 static uint64_t mapping_hash(const void* element)
 {
     const struct handle_mapping* entry = element;
-    return MStringHash(entry->path); // already unique identifier
+    return mstr_hash(entry->path); // already unique identifier
 }
 
 static int mapping_cmp(const void* element1, const void* element2)
 {
     const struct handle_mapping* lh = element1;
     const struct handle_mapping* rh = element2;
-
-    // return 0 on true, 1 on false
-    return MStringCompare(lh->path, rh->path, 0) == MSTRING_FULL_MATCH ? 0 : 1;
+    return mstr_cmp(lh->path, rh->path);
 }
 
 static uint64_t handle_hash(const void* element)

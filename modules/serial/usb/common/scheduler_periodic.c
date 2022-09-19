@@ -29,13 +29,13 @@
 #include <os/mollenos.h>
 #include "scheduler.h"
 
-OsStatus_t
+oserr_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t* Scheduler,
     _In_ int             ElementPool,
     _In_ uint8_t*        Element)
 {
-    OsStatus_t            Result;
+    oserr_t            Result;
     UsbSchedulerObject_t* sObject         = NULL;
     UsbSchedulerPool_t*   sPool           = NULL;
     uintptr_t             PhysicalAddress = 0;
@@ -64,7 +64,7 @@ UsbSchedulerLinkPeriodicElement(
 
             // Get element and validate existance
             Result = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
-            assert(Result == OsSuccess);
+            assert(Result == OsOK);
             ExistingObject = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
 
             // Isochronous always have first right regardless of interval
@@ -120,7 +120,7 @@ UsbSchedulerLinkPeriodicElement(
             }
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -129,7 +129,7 @@ UsbSchedulerUnlinkPeriodicElement(
     _In_ int             ElementPool,
     _In_ uint8_t*        Element)
 {
-    OsStatus_t            Result;
+    oserr_t            Result;
     UsbSchedulerObject_t* sObject = NULL;
     UsbSchedulerPool_t*   sPool   = NULL;
     reg32_t               NoLink  = (Scheduler->Settings.Flags & USB_SCHEDULER_LINK_BIT_EOL) ? USB_ELEMENT_LINK_END : 0;
@@ -149,7 +149,7 @@ UsbSchedulerUnlinkPeriodicElement(
 
         // Get element and validate existance
         Result = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
-        assert(Result == OsSuccess);
+        assert(Result == OsOK);
         ExistingObject = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
 
         // Two cases, root or not

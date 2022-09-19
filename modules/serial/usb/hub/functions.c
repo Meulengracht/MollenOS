@@ -26,42 +26,42 @@
 #include <ddk/utils.h>
 #include "hub.h"
 
-OsStatus_t
+oserr_t
 HubGetStatus(
         _In_ HubDevice_t* hubDevice,
         _In_ HubStatus_t* status)
 {
     TRACE("HubGetStatus(hubDevice=0x%" PRIxIN ")", hubDevice);
-    if (UsbExecutePacket(&hubDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hubDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                          USBPACKET_TYPE_GET_STATUS, 0, 0,
                          0, 4, status) != TransferFinished) {
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 HubGetPortStatus(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
         _In_ PortStatus_t* status)
 {
     TRACE("HubGetPortStatus(hubDevice=0x%" PRIxIN ")", hubDevice);
-    if (UsbExecutePacket(&hubDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hubDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                          USBPACKET_TYPE_GET_STATUS, 0, 0,
                          portIndex, 4, status) != TransferFinished) {
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 HubClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       change)
@@ -69,16 +69,16 @@ HubClearChange(
     UsbTransferStatus_t transferStatus;
     TRACE("HubClearChange(hubDevice=0x%" PRIxIN ", change=0x%x)", hubDevice, change);
 
-    transferStatus = UsbExecutePacket(&hubDevice->Base.DeviceContext, USBPACKET_DIRECTION_CLASS,
+    transferStatus = UsbExecutePacket(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_CLASS,
                               USBPACKET_TYPE_CLR_FEATURE, change,
                               0, 0, 0, NULL);
     if (transferStatus != TransferFinished) {
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 HubPortClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -88,17 +88,17 @@ HubPortClearChange(
     TRACE("HubPortClearChange(hubDevice=0x%" PRIxIN ", portIndex=%u, change=0x%x)",
           hubDevice, portIndex, change);
 
-    transferStatus = UsbExecutePacket(&hubDevice->Base.DeviceContext,
+    transferStatus = UsbExecutePacket(&hubDevice->Base->DeviceContext,
                                       USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                       USBPACKET_TYPE_CLR_FEATURE, change,
                                       0, portIndex, 0, NULL);
     if (transferStatus != TransferFinished) {
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 HubPowerOnPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex)
@@ -106,17 +106,17 @@ HubPowerOnPort(
     UsbTransferStatus_t transferStatus;
     TRACE("HubPowerOnPort(hubDevice=0x%" PRIxIN ", portIndex=%u)", hubDevice, portIndex);
 
-    transferStatus = UsbSetFeature(&hubDevice->Base.DeviceContext,
+    transferStatus = UsbSetFeature(&hubDevice->Base->DeviceContext,
                                    USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                    portIndex,
                                    HUB_FEATURE_PORT_POWER);
     if (transferStatus != TransferFinished) {
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 HubResetPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex)
@@ -124,7 +124,7 @@ HubResetPort(
     UsbTransferStatus_t transferStatus;
     TRACE("HubResetPort(hubDevice=0x%" PRIxIN ", portIndex=%u)", hubDevice, portIndex);
 
-    transferStatus = UsbSetFeature(&hubDevice->Base.DeviceContext,
+    transferStatus = UsbSetFeature(&hubDevice->Base->DeviceContext,
                                    USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                    portIndex,
                                    HUB_FEATURE_PORT_RESET);
@@ -133,5 +133,5 @@ HubResetPort(
     }
 
     thrd_sleepex(100);
-    return OsSuccess;
+    return OsOK;
 }

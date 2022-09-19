@@ -29,7 +29,7 @@
 #include <assert.h>
 #include <string.h>
 
-OsStatus_t
+oserr_t
 EhciQhInitialize(
     _In_ EhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer,
@@ -37,7 +37,7 @@ EhciQhInitialize(
     _In_ uint8_t               endpointAddress)
 {
     EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->EndpointDescriptor;
-    OsStatus_t       Status      = OsSuccess;
+    oserr_t       Status      = OsOK;
     size_t           EpBandwidth = MAX(3, transfer->Transfer.PeriodicBandwith);
 
     // Initialize links
@@ -105,7 +105,7 @@ EhciQhInitialize(
             transfer->Transfer.PeriodicInterval, transfer->Transfer.MaxPacketSize,
             transfer->Transfer.Transactions[0].Type, BytesToTransfer,
             transfer->Transfer.Type, transfer->Transfer.Speed, (uint8_t*)Qh);
-        if (Status == OsSuccess) {
+        if (Status == OsOK) {
             // Calculate both the frame start and completion mask
             // If the transfer was to spand over a boundary, starting with subframes in
             // one frame, ending with subframes in next frame, we would have to use

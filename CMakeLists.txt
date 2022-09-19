@@ -1,5 +1,37 @@
 cmake_minimum_required (VERSION 3.13.4)
 
+if (VALI_BUILD_UNIT_TESTS)
+    project (vali-testing C)
+    include(CMakeParseArguments)
+    function (add_unit_test)
+        cmake_parse_arguments(
+                UNIT_TEST # prefix of output variables
+                "" # list of names of the boolean arguments (only defined ones will be true)
+                "FILE" # list of names of mono-valued arguments
+                "INCLUDES;DEFINES;LIBS" # list of names of multi-valued arguments (output variables are lists)
+                ${ARGN} # arguments of the function to parse, here we take the all original ones
+        )
+        string (REPLACE ".c" "" TEST_FILENAME ${UNIT_TEST_FILE})
+        string (REPLACE "_test." "." TEST_FILE ${UNIT_TEST_FILE})
+        list (REMOVE_ITEM UNIT_TEST_INCLUDES "${CMAKE_SOURCE_DIR}/librt/libc/include")
+        add_executable (${TEST_FILENAME} ${CMAKE_CURRENT_SOURCE_DIR}/${TEST_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/${UNIT_TEST_FILE})
+        target_include_directories(${TEST_FILENAME} PRIVATE ${UNIT_TEST_INCLUDES} ${CMAKE_SOURCE_DIR}/testing/include)
+        target_compile_definitions(${TEST_FILENAME} PRIVATE ${UNIT_TEST_DEFINES})
+        target_link_libraries (${TEST_FILENAME} PRIVATE cmocka ${UNIT_TEST_LIBS})
+        add_test (NAME ${TEST_FILENAME} COMMAND ${TEST_FILENAME})
+    endfunction ()
+
+    # enable testing
+    enable_testing()
+    add_subdirectory(testing)
+
+    # add all projects that support unit tests
+    add_subdirectory (librt)
+    add_subdirectory (services)
+
+    return()
+endif ()
+
 # Enable the system image switch
 set (VALI_BUILD ON)
 set (VALI_BOOTSTRAP ON)
@@ -43,13 +75,6 @@ set (VALI_PATH_DEPLOY_SHARED_LIB    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/lib)
 set (VALI_PATH_DEPLOY_SHARED_INC    ${CMAKE_BINARY_DIR}/deploy/hdd/shared/include)
 set (VALI_PATH_DEPLOY_SHARED_MAPS   ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
 set (VALI_PATH_DEPLOY_SHARED_SHARE  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/share)
-set (VALI_PATH_APPLICATIONS         ${CMAKE_BINARY_DIR}/apps)
-set (VALI_PATH_APPLICATIONS_SHARE   ${CMAKE_BINARY_DIR}/apps/share)
-
-if (DEFINED ENV{VALI_APPLICATION_PATH})
-    set (VALI_PATH_APPLICATIONS       $ENV{VALI_APPLICATION_PATH})
-    set (VALI_PATH_APPLICATIONS_SHARE $ENV{VALI_APPLICATION_PATH}/share)
-endif ()
 
 # Setup utility macros for targets
 macro (deploy_target_to_initrd RDTARGET)
@@ -95,8 +120,6 @@ file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_LIB})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_INC})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_MAPS})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_SHARED_SHARE})
-file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS})
-file (MAKE_DIRECTORY ${VALI_PATH_APPLICATIONS_SHARE})
 
 # Read the project version
 file(READ "VERSION" VALI_VERSION)
@@ -138,18 +161,18 @@ add_subdirectory (tools)
 # running as we have no terminal environment builtin.
 add_subdirectory (apps)
 
-# Installation and utility targets
-add_custom_target (install_applications
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.app
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.run
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/bin --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${VALI_PATH_APPLICATIONS}/maps --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
-    #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/include/ ${VALI_PATH_DEPLOY_SHARED_INC}
-    #COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/lib/ ${VALI_PATH_DEPLOY_SHARED_LIB}
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${VALI_PATH_APPLICATIONS}/share/ ${VALI_PATH_DEPLOY_SHARED_SHARE}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
+# build unit tests
+if (VALI_ENABLE_TESTING)
+    include (ExternalProject)
+    ExternalProject_Add(unit_tests
+            SOURCE_DIR ${CMAKE_SOURCE_DIR}
+            CMAKE_CACHE_ARGS
+                -DVALI_BUILD_UNIT_TESTS:BOOL=ON
+                -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/testing
+    )
+endif ()
 
+# Installation and utility targets
 add_custom_target (install_prepare
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
     COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
@@ -159,36 +182,36 @@ add_custom_target (install_prepare
     COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_dependencies(install_prepare diskutility rd lzss)
+add_dependencies(install_prepare imager rd lzss)
 
 add_custom_target (install_img
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
+    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-add_dependencies(install_img install_prepare install_applications)
+add_dependencies(install_img install_prepare)
 
 add_custom_target (install_vmdk
-    COMMAND ${TOOL_DU} --project ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
+    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
-add_dependencies(install_vmdk install_prepare install_applications)
+add_dependencies(install_vmdk install_prepare)
 
 add_custom_command(
-    OUTPUT always_run.special mollenos_usb.img
-    COMMAND ${CMAKE_COMMAND} -E copy mollenos.img mollenos_usb.img
+    OUTPUT always_run.special disk_usb.img
+    COMMAND ${CMAKE_COMMAND} -E copy disk.img disk_usb.img
 )
 
 add_custom_target (run_bochs
     COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    DEPENDS mollenos_usb.img
+    DEPENDS disk_usb.img
 )
 
 add_custom_target (run_qemu
         COMMAND qemu-system-x86_64
             -D ./log.txt -monitor stdio -smp 1 -m 4096
             -bios /usr/share/OVMF/OVMF_CODE.fd
-            -drive if=virtio,file=mollenos.img,format=raw
+            -drive if=virtio,file=disk.img,format=raw
             -net none -no-reboot
             -serial file:./qserial.txt
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

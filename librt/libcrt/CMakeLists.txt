@@ -35,11 +35,11 @@ add_library(libcrt
     module.c
     service.c
 )
-target_include_directories(libcrt PRIVATE ../libc/include ../libddk/include ../libgracht/include ../libds/include)
+target_include_directories(libcrt PRIVATE ../libddk/include ../libgracht/include ../libds/include ../libos/include ../libc/include)
 add_dependencies(libcrt libddk)
 
 install(TARGETS libcrt
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )

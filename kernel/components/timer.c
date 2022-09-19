@@ -33,7 +33,7 @@
 
 static tick_t
 __CalculateResolution(
-        _In_ LargeUInteger_t* frequency)
+        _In_ UInteger64_t* frequency)
 {
     if (frequency->QuadPart <= MSEC_PER_SEC) {
         // ms resolution
@@ -52,15 +52,15 @@ __CalculateResolution(
     return frequency->QuadPart / NSEC_PER_SEC;
 }
 
-OsStatus_t
+oserr_t
 SystemTimerRegister(
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
-        _In_ UUId_t                    interrupt,
+        _In_ uuid_t                    interrupt,
         _In_ void*                     context)
 {
     SystemTimer_t*  systemTimer;
-    LargeUInteger_t frequency;
+    UInteger64_t frequency;
     TRACE("SystemTimerRegister(attributes=0x%x)", attributes);
 
     systemTimer = (SystemTimer_t*)kmalloc(sizeof(SystemTimer_t));
@@ -102,7 +102,84 @@ SystemTimerRegister(
 
     // Store it in the list of available system timers
     list_append(&GetMachine()->SystemTimers.Timers, &systemTimer->ListHeader);
-    return OsSuccess;
+    return OsOK;
+}
+
+// Our system wall clock is valid down to microseconds precision, which allows us for
+// a precision of 292.277 years in either direction. This should be sufficient for our
+// needs.
+static void __LinearTime(SystemTime_t* time, Integer64_t* linear)
+{
+    // Ok we convert the format of SystemTime to a total second count. We count
+    // time starting from January 1, 2000. (UTC) from the value of 0.
+    int isLeap = isleap(time->Year);
+    int seconds;
+    int days;
+
+    if (time->Year < 2000) {
+        // calculate the time left in the day, and the days left in the current year
+        seconds = SECSPERDAY - (time->Second + (time->Minute * (int)SECSPERMIN) + (time->Hour * (int)SECSPERHOUR));
+        days    = DAYSPERYEAR(time->Year) - (__days_before_month[isLeap][time->Month] + time->DayOfMonth);
+
+        // date is in the past, we must count backwards from that date, start by calculating
+        // the full number of days
+        for (int i = 1999; i > time->Year; i--) {
+            days += DAYSPERYEAR(i);
+        }
+
+        // do the last conversion of days to seconds and return that value as a negative
+        linear->QuadPart = -(((days * SECSPERDAY) + seconds) * USEC_PER_SEC);
+    } else {
+        seconds = time->Second + (time->Minute * (int)SECSPERMIN) + (time->Hour * (int)SECSPERHOUR);
+        days    = __days_before_month[isLeap][time->Month] + time->DayOfMonth;
+        for (int i = 2000; i < time->Year; i++) {
+            days += DAYSPERYEAR(i);
+        }
+        linear->QuadPart = ((days * SECSPERDAY) + seconds) * USEC_PER_SEC;
+    }
+}
+
+oserr_t
+SystemWallClockRegister(
+        _In_ SystemWallClockOperations_t* operations,
+        _In_ void*                        context)
+{
+    SystemWallClock_t* clock;
+
+    if (GetMachine()->SystemTimers.WallClock != NULL) {
+        return OsExists;
+    }
+
+    clock = kmalloc(sizeof(SystemWallClock_t));
+    if (clock == NULL) {
+        return OsOutOfMemory;
+    }
+
+    clock->BaseTick.QuadPart = 0;
+    clock->Context = context;
+    memcpy(&clock->Operations, operations, sizeof(SystemWallClockOperations_t));
+
+    // store it as our primary wall clock
+    GetMachine()->SystemTimers.WallClock = clock;
+    return OsOK;
+}
+
+void
+SystemTimerGetWallClockTime(
+        _In_ Integer64_t* time)
+{
+    tick_t timestamp;
+
+    // The wall clock and default system timer are synchronized. Which means
+    // we use the BaseTick of the wall clock, and then add clock timestamp
+    // to that to get the final time.
+    time->QuadPart = GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
+
+    // The timestamp is in nanosecond precision, however we want microsecond
+    // precision here, so we adjust
+    SystemTimerGetTimestamp(&timestamp);
+    timestamp /= 1000UL;
+    time->QuadPart += (int64_t)timestamp;
 }
 
 void
@@ -110,8 +187,8 @@ SystemTimerGetTimestamp(
         _Out_ tick_t* timestampOut)
 {
     SystemTimer_t*  clock = GetMachine()->SystemTimers.Clock;
-    LargeUInteger_t frequency;
-    LargeUInteger_t tick;
+    UInteger64_t frequency;
+    UInteger64_t tick;
 
     // guard against early calls from the log
     if (!clock) {
@@ -142,7 +219,7 @@ SystemTimerGetTimestamp(
 
 void
 SystemTimerGetClockTick(
-        _In_ LargeUInteger_t* tickOut)
+        _In_ UInteger64_t* tickOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
     if (!clock) {
@@ -155,7 +232,7 @@ SystemTimerGetClockTick(
 
 void
 SystemTimerGetClockFrequency(
-        _In_ LargeUInteger_t* frequencyOut)
+        _In_ UInteger64_t* frequencyOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
     if (!clock) {
@@ -166,28 +243,28 @@ SystemTimerGetClockFrequency(
     clock->Operations.GetFrequency(clock->Context, frequencyOut);
 }
 
-OsStatus_t
+oserr_t
 SystemTimerGetPerformanceFrequency(
-        _Out_ LargeUInteger_t* frequency)
+        _Out_ UInteger64_t* frequency)
 {
     SystemTimer_t* hpc = GetMachine()->SystemTimers.Hpc;
     if (!hpc) {
         return OsNotSupported;
     }
     hpc->Operations.GetFrequency(hpc->Context, frequency);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 SystemTimerGetPerformanceTick(
-        _Out_ LargeUInteger_t* tick)
+        _Out_ UInteger64_t* tick)
 {
     SystemTimer_t* hpc = GetMachine()->SystemTimers.Hpc;
     if (!hpc) {
         return OsNotSupported;
     }
     hpc->Operations.Read(hpc->Context, tick);
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -195,9 +272,9 @@ SystemTimerStall(
         _In_ tick_t ns)
 {
     SystemTimer_t*  clock = GetMachine()->SystemTimers.Clock;
-    LargeUInteger_t frequency;
-    LargeUInteger_t tick;
-    LargeUInteger_t tickEnd;
+    UInteger64_t frequency;
+    UInteger64_t tick;
+    UInteger64_t tickEnd;
     uint64_t        vPerTicks;
 
     assert(clock != NULL);
@@ -230,38 +307,5 @@ SystemTimerStall(
     // wait for it
     while (tick.QuadPart < tickEnd.QuadPart) {
         clock->Operations.Read(clock->Context, &tick);
-    }
-}
-
-void
-SystemTimerWallClockAddTime(
-        _In_ int seconds)
-{
-    SystemTime_t* systemTime = &GetMachine()->SystemTimers.WallClock;
-    int           IsLeap;
-    int           DaysInMonth;
-
-    systemTime->Second += seconds;
-    if (systemTime->Second >= SECSPERMIN) {
-        systemTime->Second %= SECSPERMIN;
-        systemTime->Minute++;
-        if (systemTime->Minute == MINSPERHOUR) {
-            systemTime->Minute = 0;
-            systemTime->Hour++;
-            if (systemTime->Hour == HOURSPERDAY) {
-                systemTime->Hour = 0;
-                IsLeap      = isleap(systemTime->Year);
-                DaysInMonth = __month_lengths[IsLeap][systemTime->Month - 1];
-                systemTime->DayOfMonth++;
-                if (systemTime->DayOfMonth > DaysInMonth) {
-                    systemTime->DayOfMonth = 1;
-                    systemTime->Month++;
-                    if (systemTime->Month > MONSPERYEAR) {
-                        systemTime->Month = 0;
-                        systemTime->Year++;
-                    }
-                }
-            }
-        }
     }
 }

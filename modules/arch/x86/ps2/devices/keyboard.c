@@ -37,7 +37,7 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 #define IS_SWITCH(keyCode) ((keyCode) == VK_CAPSLOCK || (keyCode) == VK_SCROLL || (keyCode) == VK_NUMLOCK)
 
-InterruptStatus_t
+irqstatus_t
 PS2KeyboardFastInterrupt(
         _In_ InterruptFunctionTable_t* interruptTable,
         _In_ InterruptResourceTable_t* resourceTable)
@@ -63,7 +63,7 @@ PS2KeyboardFastInterrupt(
         }
     }
 
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 static inline int __IsKeySet(
@@ -160,13 +160,13 @@ static void __HandleKeyCode(
     buttonEvent->modifiers |= modifiers;
 }
 
-static inline OsStatus_t __ParseKeyCode(
+static inline oserr_t __ParseKeyCode(
         _In_ PS2Port_t*        port,
         _In_ uint8_t           scancodeSet,
         _In_ uint32_t*         readIndexReference,
         _In_ struct key_state* event)
 {
-    OsStatus_t osStatus  = OsError;
+    oserr_t osStatus  = OsError;
     uint32_t   readIndex = *readIndexReference;
 
     while (osStatus == OsError && readIndex < port->ResponseWriteIndex) {
@@ -189,7 +189,7 @@ void
 PS2KeyboardInterrupt(
     _In_ PS2Port_t* port)
 {
-    OsStatus_t status;
+    oserr_t status;
     uint8_t    scancodeSet = port->device_data.keyboard.scancode_set;
     uint32_t   readIndex   = port->ResponseReadIndex;
 
@@ -198,7 +198,7 @@ PS2KeyboardInterrupt(
         struct key_state buttonEvent = { 0 };
 
         status = __ParseKeyCode(port, scancodeSet, &readIndex, &buttonEvent);
-        if (status == OsSuccess) {
+        if (status == OsOK) {
             port->ResponseReadIndex = readIndex;
 
             // we do not handle invalid key-codes
@@ -215,13 +215,13 @@ PS2KeyboardInterrupt(
     }
 }
 
-OsStatus_t
+oserr_t
 PS2KeyboardGetScancode(
     _In_  PS2Port_t* Port,
     _Out_ uint8_t*   ResultSet)
 {
     uint8_t Response = 0;
-    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, &Response) != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_KEYBOARD_SCANCODE, &Response) != OsOK) {
         return OsError;
     }
 
@@ -231,25 +231,25 @@ PS2KeyboardGetScancode(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t PS2KeyboardSetScancode(
+oserr_t PS2KeyboardSetScancode(
     _In_ PS2Port_t* port,
     _In_ uint8_t    requestSet)
 {
-    if (PS2PortExecuteCommand(port, PS2_KEYBOARD_SCANCODE, NULL) != OsSuccess ||
-        PS2PortExecuteCommand(port, requestSet, NULL) != OsSuccess) {
+    if (PS2PortExecuteCommand(port, PS2_KEYBOARD_SCANCODE, NULL) != OsOK ||
+        PS2PortExecuteCommand(port, requestSet, NULL) != OsOK) {
         return OsError;
     }
     else {
         port->device_data.keyboard.scancode_set = requestSet;
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 PS2KeyboardSetTypematics(
     _In_ PS2Port_t* port)
 {
@@ -260,16 +260,16 @@ PS2KeyboardSetTypematics(
     data |= port->device_data.keyboard.delay;
 
     // Write the command to get scancode set
-    if (PS2PortExecuteCommand(port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsSuccess ||
-        PS2PortExecuteCommand(port, data, NULL) != OsSuccess) {
+    if (PS2PortExecuteCommand(port, PS2_KEYBOARD_TYPEMATIC, NULL) != OsOK ||
+        PS2PortExecuteCommand(port, data, NULL) != OsOK) {
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 PS2KeyboardSetLEDs(
     _In_ PS2Port_t* port,
     _In_ int        setScroll,
@@ -284,16 +284,16 @@ PS2KeyboardSetLEDs(
     data |= ((uint8_t)(setCaps & 0x1) << 2);
 
     // Write the command to get scancode set
-    if (PS2PortExecuteCommand(port, PS2_KEYBOARD_SETLEDS, NULL) != OsSuccess ||
-        PS2PortExecuteCommand(port, data, NULL) != OsSuccess) {
+    if (PS2PortExecuteCommand(port, PS2_KEYBOARD_SETLEDS, NULL) != OsOK ||
+        PS2PortExecuteCommand(port, data, NULL) != OsOK) {
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 PS2KeyboardInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              portIndex,
@@ -315,17 +315,17 @@ PS2KeyboardInitialize(
     port->InterruptId = RegisterInterruptSource(&port->Interrupt, INTERRUPT_EXCLUSIVE);
 
     // Reset keyboard LEDs status
-    if (PS2KeyboardSetLEDs(port, 0, 0, 0) != OsSuccess) {
+    if (PS2KeyboardSetLEDs(port, 0, 0, 0) != OsOK) {
         ERROR("PS2KeyboardInitialize: failed to reset LEDs");
     }
 
     // Update typematics to preffered settings
-    if (PS2KeyboardSetTypematics(port) != OsSuccess) {
+    if (PS2KeyboardSetTypematics(port) != OsOK) {
         WARNING("PS2KeyboardInitialize: failed to set typematic settings");
     }
     
     // Select our preffered scancode set
-    if (PS2KeyboardSetScancode(port, 2) != OsSuccess) {
+    if (PS2KeyboardSetScancode(port, 2) != OsOK) {
         WARNING("PS2KeyboardInitialize: failed to select scancodeset 2 (%u)",
                 port->device_data.keyboard.scancode_set);
     }
@@ -334,7 +334,7 @@ PS2KeyboardInitialize(
     return PS2PortExecuteCommand(port, PS2_ENABLE_SCANNING, NULL);
 }
 
-OsStatus_t
+oserr_t
 PS2KeyboardCleanup(
     _In_ PS2Controller_t* controller,
     _In_ int              portIndex)
@@ -347,5 +347,5 @@ PS2KeyboardCleanup(
 
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;
-    return OsSuccess;
+    return OsOK;
 }

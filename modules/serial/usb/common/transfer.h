@@ -48,8 +48,8 @@ typedef struct UsbManagerTransfer {
     element_t     ListHeader;
 
     // Transfer Metadata
-    UUId_t                    Id;
-    UUId_t                    DeviceId;
+    uuid_t                    Id;
+    uuid_t                    DeviceId;
     UsbTransferStatus_t       Status;
     UsbManagerTransferFlags_t Flags;
     void*                     EndpointDescriptor;  // We only use one no matter what

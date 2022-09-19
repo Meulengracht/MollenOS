@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ddk/convert.h>
 #include <ds/list.h>
 #include "hid.h"
 #include <ioset.h>
@@ -38,17 +39,17 @@ static list_t g_devices = LIST_INIT;
 
 HidDevice_t*
 HidDeviceGet(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
 }
 
-OsStatus_t OnLoad(void)
+oserr_t OnLoad(void)
 {
     // Register supported server protocols
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
@@ -68,14 +69,14 @@ DestroyElement(
     HidDeviceDestroy(Element->value);
 }
 
-OsStatus_t
+oserr_t
 OnUnload(void)
 {
     list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
-OsStatus_t OnRegister(
+oserr_t OnRegister(
     _In_ Device_t* device)
 {
     HidDevice_t* hidDevice;
@@ -86,35 +87,35 @@ OsStatus_t OnRegister(
     }
 
     list_append(&g_devices, &hidDevice->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
-OsStatus_t OnUnregister(
+oserr_t OnUnregister(
     _In_ Device_t* device)
 {
     HidDevice_t* hidDevice = HidDeviceGet(device->Id);
     if (hidDevice == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     list_remove(&g_devices, &hidDevice->Header);
     HidDeviceDestroy(hidDevice);
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
                                             "input\0\0\0\0\0\0\0\0\0\0",
                                             SERVICE_CTT_INPUT_ID);
 }
 
-void ctt_input_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_input_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct UsbHidReportCollectionItem* item;
     HidDevice_t*                       hidDevice = HidDeviceGet(deviceId);
@@ -132,7 +133,7 @@ void ctt_input_stat_invocation(struct gracht_message* message, const UUId_t devi
     }
 }
 
-void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const UUId_t transferId,
+void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
                                                   const UsbTransferStatus_t status, const size_t dataIndex)
 {
     HidDevice_t* hidDevice = NULL;
@@ -152,11 +153,11 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
         if (status == TransferStalled) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
-            UsbClearFeature(&hidDevice->Base.DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
+            UsbClearFeature(&hidDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
                             USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address), USB_FEATURE_HALT);
-            UsbEndpointReset(&hidDevice->Base.DeviceContext,
+            UsbEndpointReset(&hidDevice->Base->DeviceContext,
                              USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address));
-            UsbTransferResetPeriodic(&hidDevice->Base.DeviceContext, hidDevice->TransferId);
+            UsbTransferResetPeriodic(&hidDevice->Base->DeviceContext, hidDevice->TransferId);
         }
         else {
             HidInterrupt(hidDevice, status, dataIndex);

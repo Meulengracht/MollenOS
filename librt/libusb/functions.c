@@ -26,25 +26,25 @@
 #include <usb/usb.h>
 #include <ddk/bufferpool.h>
 #include <ddk/utils.h>
+#include <ds/mstring.h>
 #include <internal/_ipc.h>
 #include <os/process.h>
-#include <os/dmabuf.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <ctt_usbhost_service_client.h>
 #include <ctt_usbhub_service_client.h>
 
-static _Atomic(UUId_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
+static _Atomic(uuid_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
 static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static struct dma_pool*      DmaPool                  = NULL;
 static struct dma_attachment DmaAttachment;
 
-OsStatus_t
+oserr_t
 UsbInitialize(void)
 {
     struct dma_buffer_info info;
-    OsStatus_t             status;
+    oserr_t             status;
     
     info.length   = LIBUSB_SHAREDBUFFER_SIZE;
     info.capacity = LIBUSB_SHAREDBUFFER_SIZE;
@@ -52,18 +52,18 @@ UsbInitialize(void)
     info.type     = DMA_TYPE_DRIVER_32;
     
     status = dma_create(&info, &DmaAttachment);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         return status;
     }
     
     status = dma_pool_create(&DmaAttachment, &DmaPool);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         (void)dma_detach(&DmaAttachment);
     }
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbCleanup(void)
 {
     if (!DmaPool) {
@@ -73,7 +73,7 @@ UsbCleanup(void)
     dma_pool_destroy(DmaPool);
     dma_detach(&DmaAttachment);
     DmaPool = NULL;
-    return OsSuccess;
+    return OsOK;
 }
 
 struct dma_pool*
@@ -113,13 +113,13 @@ UsbTransferInitialize(
 
 void
 UsbTransferSetup(
-    _In_ UsbTransfer_t* transfer,
-    _In_ UUId_t         setupBufferHandle,
-    _In_ size_t         setupBufferOffset,
-    _In_ UUId_t         dataBufferHandle,
-    _In_ size_t         dataBufferOffset,
-    _In_ size_t         dataLength,
-    _In_ uint8_t        type)
+        _In_ UsbTransfer_t* transfer,
+        _In_ uuid_t         setupBufferHandle,
+        _In_ size_t         setupBufferOffset,
+        _In_ uuid_t         dataBufferHandle,
+        _In_ size_t         dataBufferOffset,
+        _In_ size_t         dataLength,
+        _In_ uint8_t        type)
 {
     uint8_t ackType  = USB_TRANSACTION_IN;
     int     ackIndex = 1;
@@ -153,13 +153,13 @@ UsbTransferSetup(
 
 void
 UsbTransferPeriodic(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-    _In_ size_t         BufferLength,
-    _In_ size_t         DataLength,
-    _In_ uint8_t        DataDirection,
-    _In_ const void*    NotifificationData)
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         BufferLength,
+        _In_ size_t         DataLength,
+        _In_ uint8_t        DataDirection,
+        _In_ const void*    NotifificationData)
 {
     // Initialize the data stage
     Transfer->Transactions[0].Type         = DataDirection;
@@ -173,13 +173,13 @@ UsbTransferPeriodic(
     Transfer->TransactionCount   = 1;
 }
 
-OsStatus_t
+oserr_t
 UsbTransferIn(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake)
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake)
 {
     usb_transaction_t* Transaction;
 
@@ -198,16 +198,16 @@ UsbTransferIn(
     if (Length == 0) { // Zero-length?
         Transaction->Flags |= USB_TRANSACTION_ZLP;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 UsbTransferOut(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake)
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake)
 {
     usb_transaction_t* Transaction;
 
@@ -226,7 +226,7 @@ UsbTransferOut(
     if (Length == 0) { // Zero-length?
         Transaction->Flags |= USB_TRANSACTION_ZLP;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t
@@ -236,7 +236,7 @@ UsbTransferQueue(
 	_Out_ size_t*               bytesTransferred)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    UUId_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
+    uuid_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      transferStatus = TransferInvalid;
 
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
@@ -248,12 +248,12 @@ UsbTransferQueue(
 
 UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-    _In_  usb_device_context_t* deviceContext,
-	_In_  UsbTransfer_t*        transfer,
-	_Out_ UUId_t*               transferIdOut)
+        _In_  usb_device_context_t* deviceContext,
+        _In_  UsbTransfer_t*        transfer,
+        _Out_ uuid_t*               transferIdOut)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    UUId_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
+    uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      status;
     
     ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
@@ -265,13 +265,13 @@ UsbTransferQueuePeriodic(
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbTransferResetPeriodic(
         _In_ usb_device_context_t* deviceContext,
-        _In_ UUId_t                transferId)
+        _In_ uuid_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    OsStatus_t               status;
+    oserr_t               status;
 
     ctt_usbhost_reset_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
                         deviceContext->controller_device_id, transferId);
@@ -280,13 +280,13 @@ UsbTransferResetPeriodic(
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbTransferDequeuePeriodic(
-    _In_ usb_device_context_t* deviceContext,
-	_In_ UUId_t                transferId)
+        _In_ usb_device_context_t* deviceContext,
+        _In_ uuid_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    OsStatus_t               status;
+    oserr_t               status;
     
     ctt_usbhost_dequeue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
         deviceContext->controller_device_id, transferId);
@@ -295,15 +295,15 @@ UsbTransferDequeuePeriodic(
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbHubResetPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor)
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
-    OsStatus_t               status;
+    oserr_t               status;
     
     ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -311,15 +311,15 @@ UsbHubResetPort(
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbHubQueryPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor)
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
-    OsStatus_t               status;
+    oserr_t               status;
     
     ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -327,13 +327,13 @@ UsbHubQueryPort(
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbEndpointReset(
 	_In_ usb_device_context_t* deviceContext, 
     _In_ uint8_t               endpointAddress)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    OsStatus_t               status;
+    oserr_t               status;
     
     ctt_usbhost_reset_endpoint(GetGrachtClient(), &msg.base, deviceContext->controller_device_id,
         deviceContext->hub_address, deviceContext->port_address,
@@ -362,14 +362,14 @@ UsbExecutePacket(
     usb_packet_t*       packet;
     UsbTransfer_t       transfer;
     
-    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OsSuccess) {
+    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OsOK) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
     if (length != 0) {
-        OsStatus_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
-        if (osStatus != OsSuccess) {
+        oserr_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
+        if (osStatus != OsOK) {
             ERROR("Failed to allocate a transfer data buffer");
             dma_pool_free(DmaPool, dmaPacketStorage);
             return TransferInvalid;
@@ -632,28 +632,35 @@ UsbGetStringLanguages(
 
 UsbTransferStatus_t
 UsbGetStringDescriptor(
-	_In_ usb_device_context_t* deviceContext,
-    _In_  size_t               LanguageId, 
-    _In_  size_t               StringIndex, 
-    _Out_ char*                String)
+	_In_  usb_device_context_t* deviceContext,
+    _In_  size_t                languageId,
+    _In_  size_t                stringIndex,
+    _Out_ mstring_t**           stringOut)
 {
-    void*               descriptorStorage;
-    UsbTransferStatus_t status;
+    usb_unicode_string_descriptor_t* desc;
+    UsbTransferStatus_t              status;
     
-    descriptorStorage = malloc(64);
-    status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
-        USBPACKET_TYPE_GET_DESC, (uint8_t)StringIndex, USB_DESCRIPTOR_STRING,
-        (uint16_t)LanguageId, 64, descriptorStorage);
-
-    // Update the out variable with the string
-    // TODO: convert to utf8
-    if (status == TransferFinished) {
-        const char* stringBuffer = (const char*)descriptorStorage;
-        //size_t StringLength = (*((uint8_t*)descriptorStorage + 1) - 2);
-        _CRT_UNUSED(stringBuffer);
+    desc = malloc(sizeof(usb_unicode_string_descriptor_t) + 2);
+    if (desc == NULL) {
+        return TransferInvalid;
     }
 
-    free(descriptorStorage);
+    status = UsbExecutePacket(
+            deviceContext,
+            USBPACKET_DIRECTION_IN,
+            USBPACKET_TYPE_GET_DESC, (uint8_t)
+            stringIndex, USB_DESCRIPTOR_STRING,
+            (uint16_t)languageId,
+            sizeof(usb_unicode_string_descriptor_t) + 2, desc);
+
+    if (status == TransferFinished) {
+        // zero terminate the UTF-16 string, we allocated an extra two bytes
+        desc->string[desc->length - 2] = 0;
+        desc->string[desc->length - 1] = 0;
+        *stringOut = mstr_new_u16((const short*)&desc->string[0]);
+    }
+
+    free(desc);
     return status;
 }
 

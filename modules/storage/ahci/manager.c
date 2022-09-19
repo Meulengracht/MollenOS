@@ -41,45 +41,45 @@
 extern int __crt_get_server_iod(void);
 
 static list_t devices        = LIST_INIT;
-static UUId_t g_nextDeviceId = 0;
+static uuid_t g_nextDeviceId = 0;
 static size_t g_frameSize;
 
 static void
-FlipStringBuffer(
-    _In_ uint8_t* Buffer,
-    _In_ size_t   Length)
+__flipbuffer(
+    _In_ uint8_t* buffer,
+    _In_ size_t   length)
 {
-    size_t StringPairs = Length / 2;
+    size_t pairs = length / 2;
     size_t i;
 
     // Iterate pairs in string, and swap
-    for (i = 0; i < StringPairs; i++) {
-        uint8_t TempChar    = Buffer[i * 2];
-        Buffer[i * 2]       = Buffer[i * 2 + 1];
-        Buffer[i * 2 + 1]   = TempChar;
+    for (i = 0; i < pairs; i++) {
+        uint8_t temp      = buffer[i * 2];
+        buffer[i * 2]     = buffer[i * 2 + 1];
+        buffer[i * 2 + 1] = temp;
     }
 
     // Zero terminate by trimming trailing spaces
-    for (i = (Length - 1); i > 0; i--) {
-        if (Buffer[i] != ' ' && Buffer[i] != '\0') {
+    for (i = (length - 1); i > 0; i--) {
+        if (buffer[i] != ' ' && buffer[i] != '\0') {
             i += 1;
-            if (i < Length) {
-                Buffer[i] = '\0';
+            if (i < length) {
+                buffer[i] = '\0';
             }
             break;
         }
     }
 }
 
-OsStatus_t
+oserr_t
 AhciManagerInitialize(void)
 {
     SystemDescriptor_t Descriptor;
-    OsStatus_t         Status;
+    oserr_t         Status;
 
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
-    if (Status == OsSuccess) {
+    if (Status == OsOK) {
         g_frameSize = Descriptor.PageSizeBytes;
     }
     return Status;
@@ -107,7 +107,7 @@ AhciManagerGetFrameSize(void)
 
 AhciDevice_t*
 AhciManagerGetDevice(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&devices, (void*)(uintptr_t)deviceId);
 }
@@ -118,7 +118,7 @@ static AhciDevice_t* __CreateInitialDevice(
     _In_ DeviceType_t      deviceType)
 {
     AhciDevice_t* device;
-    UUId_t        deviceId;
+    uuid_t        deviceId;
 
     TRACE("__CreateInitialDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", deviceType=%u)",
           controller, port, deviceType);
@@ -132,7 +132,7 @@ static AhciDevice_t* __CreateInitialDevice(
 
     memset(device, 0, sizeof(AhciDevice_t));
     ELEMENT_INIT(&device->header, (uintptr_t)deviceId, device);
-    device->Descriptor.Device = deviceId;
+    device->Descriptor.DeviceID = deviceId;
     device->Controller = controller;
     device->Port       = port;
     device->Type       = deviceType;
@@ -143,7 +143,7 @@ static AhciDevice_t* __CreateInitialDevice(
     return device;
 }
 
-OsStatus_t
+oserr_t
 AhciManagerRegisterDevice(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port,
@@ -151,7 +151,7 @@ AhciManagerRegisterDevice(
 {
     AhciDevice_t* ahciDevice;
     DeviceType_t  deviceType;
-    OsStatus_t    osStatus;
+    oserr_t    osStatus;
 
     TRACE("AhciManagerRegisterDevice(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", signature=0x%x)",
           controller, port, signature);
@@ -182,21 +182,21 @@ AhciManagerRegisterDevice(
 
     osStatus = AhciTransactionControlCreate(ahciDevice, AtaPIOIdentifyDevice,
                                             sizeof(ATAIdentify_t), __STORAGE_OPERATION_READ);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AhciManagerRegisterDevice osStatus=%u", osStatus);
         free(ahciDevice);
         return osStatus;
     }
 
     list_append(&devices, &ahciDevice->header);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
 RegisterStorage(
-    _In_ UUId_t       ProtocolServerId,
-    _In_ UUId_t       DeviceId,
-    _In_ unsigned int Flags)
+        _In_ uuid_t       ProtocolServerId,
+        _In_ uuid_t       DeviceId,
+        _In_ unsigned int Flags)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
@@ -209,8 +209,8 @@ RegisterStorage(
 
 static void
 UnregisterStorage(
-    _In_ UUId_t  deviceId,
-    _In_ uint8_t forced)
+        _In_ uuid_t  deviceId,
+        _In_ uint8_t forced)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
@@ -238,7 +238,7 @@ AhciManagerUnregisterDevice(
     }
     assert(device != NULL);
     
-    UnregisterStorage(device->Descriptor.Device, 1);
+    UnregisterStorage(device->Descriptor.DeviceID, 1);
     list_remove(&devices, &device->header);
 }
 
@@ -250,9 +250,9 @@ HandleIdentifyCommand(
         (ATAIdentify_t*)device->Port->InternalBuffer.buffer;
 
     // Flip the data in the strings as it's inverted
-    FlipStringBuffer(deviceInformation->SerialNo, 20);
-    FlipStringBuffer(deviceInformation->ModelNo, 40);
-    FlipStringBuffer(deviceInformation->FWRevision, 8);
+    __flipbuffer(deviceInformation->SerialNo, 20);
+    __flipbuffer(deviceInformation->ModelNo, 40);
+    __flipbuffer(deviceInformation->FWRevision, 8);
 
     TRACE("HandleIdentifyCommand(%s)", &deviceInformation->ModelNo[0]);
 
@@ -297,7 +297,7 @@ HandleIdentifyCommand(
     // At this point the ahcidisk structure is filled
     // and we can continue to fill out the descriptor
     memset(&device->Descriptor, 0, sizeof(StorageDescriptor_t));
-    device->Descriptor.Driver      = UUID_INVALID;
+    device->Descriptor.DriverID    = UUID_INVALID;
     device->Descriptor.Flags       = 0;
     device->Descriptor.SectorCount = device->SectorCount;
     device->Descriptor.SectorSize  = device->SectorSize;
@@ -305,7 +305,7 @@ HandleIdentifyCommand(
     // Copy string data
     memcpy(&device->Descriptor.Model[0], (const void*)&deviceInformation->ModelNo[0], 40);
     memcpy(&device->Descriptor.Serial[0], (const void*)&deviceInformation->SerialNo[0], 20);
-    RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.Device, device->Descriptor.Flags);
+    RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.DeviceID, device->Descriptor.Flags);
 }
 
 void
@@ -336,14 +336,14 @@ AhciManagerHandleControlResponse(
     }
 }
 
-void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    OsStatus_t                 status = OsDoesNotExist;
+    oserr_t                 status = OsNotExists;
     AhciDevice_t*              device = AhciManagerGetDevice(deviceId);
     if (device) {
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        status = OsSuccess;
+        status = OsOK;
     }
     
     ctt_storage_stat_response(message, status, &gdescriptor);

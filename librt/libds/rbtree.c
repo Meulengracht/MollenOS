@@ -200,7 +200,7 @@ fixup_tree(
     tree->root->color = COLOR_BLACK;
 }
 
-OsStatus_t
+oserr_t
 rb_tree_append(
     _In_ rb_tree_t* tree,
     _In_ rb_leaf_t* leaf)
@@ -256,7 +256,7 @@ rb_tree_append(
         fixup_tree(tree, leaf);
     }
     TREE_UNLOCK;
-    return OsSuccess;
+    return OsOK;
 }
 
 static rb_leaf_t*

@@ -30,19 +30,19 @@
 /* InitializeFramebufferOutput (@arch)
  * Initializes the video framebuffer of the operating system. This enables visual rendering
  * of the operating system debug console. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InitializeFramebufferOutput(void);
 
 /* InitializeConsole
  * Initializes the output environment. This enables either visual representation
  * and debugging of the kernel and enables a serial debugger. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ConsoleInitialize(void);
 
 /* VideoQuery
  * Renders a character with default colors
  * at the current terminal position */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 VideoQuery(
 	_Out_ VideoDescriptor_t *videoDescriptor);
 

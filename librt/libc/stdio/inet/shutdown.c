@@ -22,10 +22,6 @@
  */
 
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
-#include <inet/local.h>
-#include <errno.h>
-#include <os/mollenos.h>
 
 int shutdown(int iod, int how)
 {

@@ -31,31 +31,31 @@
 #include <threads.h>
 #include <assert.h>
 
-static UUId_t SessionServiceId = UUID_INVALID;
-static UUId_t DeviceServiceId  = UUID_INVALID;
-static UUId_t UsbServiceId     = UUID_INVALID;
-static UUId_t ProcessServiceId = UUID_INVALID;
-static UUId_t FileServiceId    = UUID_INVALID;
-static UUId_t NetServiceId     = UUID_INVALID;
+static uuid_t SessionServiceId = UUID_INVALID;
+static uuid_t DeviceServiceId  = UUID_INVALID;
+static uuid_t UsbServiceId     = UUID_INVALID;
+static uuid_t ProcessServiceId = UUID_INVALID;
+static uuid_t FileServiceId    = UUID_INVALID;
+static uuid_t NetServiceId     = UUID_INVALID;
 
-static UUId_t
+static uuid_t
 __GetHandleFromPath(
     _In_ const char* Path)
 {
-    UUId_t Handle;
-    if (Syscall_LookupHandle(Path, &Handle) != OsSuccess) {
+    uuid_t Handle;
+    if (Syscall_LookupHandle(Path, &Handle) != OsOK) {
         return UUID_INVALID;
     }
     return Handle;
 }
 
-static OsStatus_t
+static oserr_t
 __WaitForService(
     _In_ thrd_t (*getHandleCallback)(void),
     _In_ size_t timeout)
 {
     size_t timeLeft = timeout;
-    UUId_t handle   = getHandleCallback();
+    uuid_t handle   = getHandleCallback();
     if (!timeout) {
         while (handle == UUID_INVALID) {
             thrd_sleepex(10);
@@ -69,10 +69,10 @@ __WaitForService(
             handle = getHandleCallback();
         }
     }
-    return (handle == UUID_INVALID) ? OsTimeout : OsSuccess;
+    return (handle == UUID_INVALID) ? OsTimeout : OsOK;
 }
 
-OsStatus_t 
+oserr_t
 RegisterPath(
     _In_ const char* Path)
 {
@@ -131,42 +131,42 @@ thrd_t GetNetService(void)
     return (thrd_t)NetServiceId;
 }
 
-OsStatus_t
+oserr_t
 WaitForSessionService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetSessionService, Timeout);
 }
 
-OsStatus_t
+oserr_t
 WaitForDeviceService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetDeviceService, Timeout);
 }
 
-OsStatus_t
+oserr_t
 WaitForUsbService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetUsbService, Timeout);
 }
 
-OsStatus_t
+oserr_t
 WaitForProcessService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetProcessService, Timeout);
 }
 
-OsStatus_t
+oserr_t
 WaitForFileService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetFileService, Timeout);
 }
 
-OsStatus_t
+oserr_t
 WaitForNetService(
     _In_ size_t Timeout)
 {

@@ -34,13 +34,13 @@ struct dma_pool {
     struct dma_sg_table    table;
 };
 
-OsStatus_t
+oserr_t
 dma_pool_create(
     _In_  struct dma_attachment* attachment,
     _Out_ struct dma_pool**      pool_out)
 {
     struct dma_pool* pool;
-    OsStatus_t       status;
+    oserr_t       status;
     
     if (!attachment || !pool_out || !attachment->buffer) {
         return OsInvalidParameters;
@@ -60,14 +60,14 @@ dma_pool_create(
     return status;
 }
 
-OsStatus_t
+oserr_t
 dma_pool_destroy(
     _In_ struct dma_pool* pool)
 {
     free(pool->table.entries);
     free(pool->pool);
     free(pool);
-    return OsSuccess;
+    return OsOK;
 }
 
 static uintptr_t
@@ -77,12 +77,12 @@ dma_pool_get_dma(
 {
     int        entry_index;
     size_t     sg_offset;
-    OsStatus_t status = dma_sg_table_offset(
+    oserr_t status = dma_sg_table_offset(
         &pool->table, offset, &entry_index, &sg_offset);
-    return status != OsSuccess ? 0 : pool->table.entries[entry_index].address + sg_offset;
+    return status != OsOK ? 0 : pool->table.entries[entry_index].address + sg_offset;
 }
 
-OsStatus_t
+oserr_t
 dma_pool_allocate(
     _In_  struct dma_pool* pool,
     _In_  size_t           length,
@@ -99,19 +99,19 @@ dma_pool_allocate(
     }
     
     *address_out = allocation;
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 dma_pool_free(
     _In_ struct dma_pool* pool,
     _In_ void*            address)
 {
     brel(pool->pool, address);
-    return OsSuccess;
+    return OsOK;
 }
 
-UUId_t
+uuid_t
 dma_pool_handle(
     _In_ struct dma_pool* pool)
 {

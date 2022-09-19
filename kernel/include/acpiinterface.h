@@ -161,7 +161,7 @@ typedef struct AcpiDevice {
 
 /* AcpiInitializeEarly
  * Initializes Early Access and enumerates the APIC Table */
-KERNELAPI OsStatus_t KERNELABI AcpiInitializeEarly(void);
+KERNELAPI oserr_t KERNELABI AcpiInitializeEarly(void);
 
 /* Initializes the full access and functionality
  * of ACPICA / ACPI and allows for scanning of ACPI devices */

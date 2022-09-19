@@ -29,14 +29,13 @@
 #include <heap.h>
 #include <ioset.h>
 #include <ipc_context.h>
-#include <memoryspace.h>
 #include <memory_region.h>
 #include <threading.h>
 
 typedef struct IpcContext {
-    UUId_t          Handle;
-    UUId_t          CreatorThreadHandle;
-    UUId_t          MemoryRegionHandle;
+    uuid_t          Handle;
+    uuid_t          CreatorThreadHandle;
+    uuid_t          MemoryRegionHandle;
     streambuffer_t* KernelStream;
 } IpcContext_t;
 
@@ -49,14 +48,14 @@ IpcContextDestroy(
     kfree(context);
 }
 
-OsStatus_t
+oserr_t
 IpcContextCreate(
-    _In_  size_t  Size,
-    _Out_ UUId_t* HandleOut,
-    _Out_ void**  UserContextOut)
+        _In_  size_t  Size,
+        _Out_ uuid_t* HandleOut,
+        _Out_ void**  UserContextOut)
 {
     IpcContext_t* Context;
-    OsStatus_t    Status;
+    oserr_t    Status;
     void*         KernelMapping;
     TRACE("IpcContextCreate(%u)", Size);
     
@@ -80,7 +79,7 @@ IpcContextCreate(
             UserContextOut,
             &Context->MemoryRegionHandle
     );
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         kfree(Context);
         return Status;
     }
@@ -99,7 +98,7 @@ struct message_state {
     unsigned int state;
 };
 
-static OsStatus_t
+static oserr_t
 AllocateMessage(
     _In_  struct ipmsg*          message,
     _In_  size_t                 timeout,
@@ -108,16 +107,16 @@ AllocateMessage(
 {
     IpcContext_t* ipcContext;
     size_t        bytesAvailable;
-    size_t        bytesToAllocate = sizeof(UUId_t) + message->length;
+    size_t        bytesToAllocate = sizeof(uuid_t) + message->length;
     TRACE("AllocateMessage(target=%u, len=%" PRIuIN ")", message->addr->data.handle, bytesToAllocate);
     
     if (message->addr->type == IPMSG_ADDRESS_HANDLE) {
         ipcContext = LookupHandleOfType(message->addr->data.handle, HandleTypeIpcContext);
     }
     else {
-        UUId_t     handle;
-        OsStatus_t osStatus = LookupHandleByPath(message->addr->data.path, &handle);
-        if (osStatus != OsSuccess) {
+        uuid_t     handle;
+        oserr_t osStatus = LookupHandleByPath(message->addr->data.path, &handle);
+        if (osStatus != OsOK) {
             ERROR("AllocateMessage could not find target path %s", message->addr->data.path);
             return osStatus;
         }
@@ -127,7 +126,7 @@ AllocateMessage(
     
     if (!ipcContext) {
         ERROR("AllocateMessage could not find target handle %u", message->addr->data.handle);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     bytesAvailable = streambuffer_write_packet_start(ipcContext->KernelStream,
@@ -139,7 +138,7 @@ AllocateMessage(
     }
     
     *targetContext = ipcContext;
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -151,7 +150,7 @@ WriteMessage(
     TRACE("WriteMessage()");
     
     // write the header (senders handle)
-    streambuffer_write_packet_data(context->KernelStream, &message->from, sizeof(UUId_t), &state->state);
+    streambuffer_write_packet_data(context->KernelStream, &message->from, sizeof(uuid_t), &state->state);
 
     // write the actual payload
     streambuffer_write_packet_data(context->KernelStream, (void*)message->payload, message->length, &state->state);
@@ -166,12 +165,12 @@ SendMessage(
     size_t bytesToCommit;
     TRACE("SendMessage()");
 
-    bytesToCommit = sizeof(UUId_t) + message->length;
+    bytesToCommit = sizeof(uuid_t) + message->length;
     streambuffer_write_packet_end(context->KernelStream, state->base, bytesToCommit);
     MarkHandle(context->Handle, IOSETIN);
 }
 
-OsStatus_t
+oserr_t
 IpcContextSendMultiple(
     _In_ struct ipmsg** messages,
     _In_ int            messageCount,
@@ -186,13 +185,13 @@ IpcContextSendMultiple(
     
     for (int i = 0; i < messageCount; i++) {
         IpcContext_t* targetContext;
-        OsStatus_t    status = AllocateMessage(messages[i], timeout, &state, &targetContext);
-        if (status != OsSuccess) {
+        oserr_t    status = AllocateMessage(messages[i], timeout, &state, &targetContext);
+        if (status != OsOK) {
             // todo store status in context and return incomplete
             return OsIncomplete;
         }
         WriteMessage(targetContext, messages[i], &state);
         SendMessage(targetContext, messages[i], &state);
     }
-    return OsSuccess;
+    return OsOK;
 }

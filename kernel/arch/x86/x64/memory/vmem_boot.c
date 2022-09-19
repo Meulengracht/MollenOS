@@ -195,12 +195,12 @@ MmBootPrepareKernel(void)
     size_t             bytesToMap;
     paddr_t            physicalBase;
     vaddr_t            virtualBase;
-    OsStatus_t         osStatus;
+    oserr_t         osStatus;
     unsigned int       kernelPageFlags = PAGE_PRESENT | PAGE_WRITE;
 	TRACE("MmBootPrepareKernel()");
 
     // Can we use global pages for kernel table?
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
         kernelPageFlags |= PAGE_GLOBAL;
     }
 
@@ -209,7 +209,7 @@ MmBootPrepareKernel(void)
             &virtualBase,
             (paddr_t*)&pageMasterTable
     );
-    assert(osStatus == OsSuccess);
+    assert(osStatus == OsOK);
 
     memset((void*)pageMasterTable, 0, sizeof(PageMasterTable_t));
     g_kernelcr3 = (uintptr_t)pageMasterTable;

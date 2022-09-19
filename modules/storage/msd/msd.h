@@ -122,15 +122,15 @@ typedef enum MsdProtocolType {
 
 typedef struct MsdDevice MsdDevice_t;
 typedef struct MsdOperations {
-    OsStatus_t          (*Initialize)(MsdDevice_t*);
-    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, UUId_t, size_t, size_t);
-    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
-    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, UUId_t, size_t, size_t, size_t*);
+    oserr_t          (*Initialize)(MsdDevice_t*);
+    UsbTransferStatus_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, uuid_t, size_t, size_t);
+    UsbTransferStatus_t (*ReadData)(MsdDevice_t*, uuid_t, size_t, size_t, size_t*);
+    UsbTransferStatus_t (*WriteData)(MsdDevice_t*, uuid_t, size_t, size_t, size_t*);
     UsbTransferStatus_t (*GetStatus)(MsdDevice_t*);
 } MsdOperations_t;
 
 typedef struct MsdDevice {
-    UsbDevice_t            Base;
+    UsbDevice_t*           Device;
     element_t              Header;
     StorageDescriptor_t    Descriptor;
     MsdDeviceType_t        Type;
@@ -160,25 +160,25 @@ MsdDeviceCreate(
 /* MsdDeviceDestroy
  * Destroys an existing msd device instance and cleans up
  * any resources related to it */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 MsdDeviceDestroy(
-    _In_ MsdDevice_t *Device);
+    _In_ MsdDevice_t *msdDevice);
 
 /* MsdDeviceInitialize 
  * Initializes and validates that the protocol has all neccessary
  * resources/endpoints/prerequisites for operation. */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device);
 
 /* MsdDeviceStart
  * Initializes the device by performing one-time setup and reading device
  * capabilities and features. */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 MsdDeviceStart(
-    _In_ MsdDevice_t *msdDevice);
+    _In_ MsdDevice_t *device);
 
 __EXTERN MsdDevice_t*
 MsdDeviceGet(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 #endif // !_USB_MSD_H_

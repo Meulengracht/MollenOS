@@ -99,7 +99,7 @@ UfiConstructCommand(
     }
 }
 
-OsStatus_t
+oserr_t
 UfiInitialize(
     _In_ MsdDevice_t *Device)
 {
@@ -116,28 +116,28 @@ UfiInitialize(
     }
 
     // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(&Device->Base.DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Device->DeviceContext,
+        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (in)");
         return OsError;
     }
-    if (UsbEndpointReset(&Device->Base.DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsSuccess) {
+    if (UsbEndpointReset(&Device->Device->DeviceContext,
+        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsOK) {
         ERROR("Failed to reset endpoint (out)");
         return OsError;
     }
 
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t 
 UfiSendCommand(
-    _In_ MsdDevice_t* Device,
-    _In_ uint8_t      ScsiCommand,
-    _In_ uint64_t     SectorStart,
-    _In_ UUId_t       BufferHandle,
-    _In_ size_t       BufferOffset,
-    _In_ size_t       DataLength)
+        _In_ MsdDevice_t* Device,
+        _In_ uint8_t      ScsiCommand,
+        _In_ uint64_t     SectorStart,
+        _In_ uuid_t       BufferHandle,
+        _In_ size_t       BufferOffset,
+        _In_ size_t       DataLength)
 {
     MsdCommandBlockUFI_t UfiCommandBlock;
     UsbTransferStatus_t  Result;
@@ -149,7 +149,7 @@ UfiSendCommand(
     // Construct our command build the usb transfer
     UfiConstructCommand(&UfiCommandBlock, ScsiCommand, SectorStart,
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    Result = UsbExecutePacket(&Device->Base.DeviceContext, 
+    Result = UsbExecutePacket(&Device->Device->DeviceContext, 
         USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE, 0, 0, 0, 
         (uint16_t)Device->InterfaceId, 
         sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
@@ -163,19 +163,19 @@ UfiSendCommand(
 
 UsbTransferStatus_t 
 UfiReadData(
-    _In_  MsdDevice_t* Device,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       DataLength,
-    _Out_ size_t*      BytesRead)
+        _In_  MsdDevice_t* Device,
+        _In_  uuid_t       BufferHandle,
+        _In_  size_t       BufferOffset,
+        _In_  size_t       DataLength,
+        _Out_ size_t*      BytesRead)
 {
     UsbTransferStatus_t Result;
     UsbTransfer_t       DataStage;
 
-    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+    UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
         Device->In, USB_TRANSFER_BULK, 0);
     UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, BytesRead);
+    Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesRead);
     
     // Sanitize for any transport errors
     if (Result != TransferFinished) {
@@ -188,20 +188,20 @@ UfiReadData(
 
 UsbTransferStatus_t 
 UfiWriteData(
-    _In_  MsdDevice_t* Device,
-    _In_  UUId_t       BufferHandle,
-    _In_  size_t       BufferOffset,
-    _In_  size_t       DataLength,
-    _Out_ size_t*      BytesWritten)
+        _In_  MsdDevice_t* Device,
+        _In_  uuid_t       BufferHandle,
+        _In_  size_t       BufferOffset,
+        _In_  size_t       DataLength,
+        _Out_ size_t*      BytesWritten)
 {
     UsbTransferStatus_t Result;
     UsbTransfer_t       DataStage;
 
     // Perform the data-stage
-    UsbTransferInitialize(&DataStage, &Device->Base.DeviceContext, 
+    UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
         Device->Out, USB_TRANSFER_BULK, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
-    Result = UsbTransferQueue(&Device->Base.DeviceContext, &DataStage, BytesWritten);
+    Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesWritten);
 
     // Sanitize for any transport errors
     if (Result != TransferFinished) {

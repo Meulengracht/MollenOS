@@ -53,7 +53,7 @@ typedef struct stdio_handle stdio_handle_t;
 // Inheritable handle that is shared with child processes
 // should contain only portable information
 typedef struct stdio_object {
-    UUId_t handle;
+    uuid_t handle;
     int    type;
     union {
         struct socket    socket;
@@ -68,13 +68,13 @@ typedef struct stdio_object {
 #define STDIO_CLOSE_DELETE  2
 
 // Stdio descriptor operations
-typedef OsStatus_t(*stdio_inherit)(stdio_handle_t*);
-typedef OsStatus_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
-typedef OsStatus_t(*stdio_resize)(stdio_handle_t*, long long);
-typedef OsStatus_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
-typedef OsStatus_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
-typedef OsStatus_t(*stdio_close)(stdio_handle_t*, int);
+typedef oserr_t(*stdio_inherit)(stdio_handle_t*);
+typedef oserr_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
+typedef oserr_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
+typedef oserr_t(*stdio_resize)(stdio_handle_t*, long long);
+typedef oserr_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
+typedef oserr_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
+typedef oserr_t(*stdio_close)(stdio_handle_t*, int);
 
 typedef struct stdio_ops {
     stdio_inherit inherit;
@@ -103,10 +103,15 @@ typedef struct stdio_inheritation_block {
     struct stdio_handle handles[];
 } stdio_inheritation_block_t;
 
+struct stdio_object_entry {
+    int             id;
+    stdio_handle_t* handle;
+};
+
 // io-object interface
 extern int             stdio_handle_create(int iod, int flags, stdio_handle_t**);
 extern void            stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
-extern int             stdio_handle_set_handle(stdio_handle_t*, UUId_t);
+extern int             stdio_handle_set_handle(stdio_handle_t*, uuid_t);
 extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
@@ -121,7 +126,7 @@ extern stdio_handle_t* stdio_handle_get(int iod);
 
 extern void       io_buffer_ensure(FILE* stream);
 extern void       io_buffer_allocate(FILE* stream);
-extern OsStatus_t io_buffer_flush(FILE* file);
+extern oserr_t io_buffer_flush(FILE* file);
 extern int        io_buffer_flush_all(int mask);
 
 // io-operation types
@@ -143,8 +148,8 @@ extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fopts(int oflags);
 extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
-extern OsStatus_t   _lock_stream(FILE * stream);
-extern OsStatus_t   _unlock_stream(FILE * stream);
+extern oserr_t      _lock_stream(FILE * stream);
+extern oserr_t      _unlock_stream(FILE * stream);
 extern int          streamout(FILE *stream, const char *format, va_list argptr);
 extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
 
@@ -153,7 +158,7 @@ extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argp
 #define LOCK_FILES() do { } while(0)
 #define UNLOCK_FILES() do { } while(0)
 
-extern OsStatus_t
+extern oserr_t
 StdioCreateInheritanceBlock(
 	_In_  ProcessConfiguration_t* configuration,
     _Out_ void**                  inheritationBlockOut,

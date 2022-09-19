@@ -14,32 +14,30 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * C Library - Driver Entry 
  */
 
-#include "../libc/threads/tls.h"
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
-#include <internal/_ipc.h>
+#include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ioset.h>
 
+#include <sys_device_service_client.h>
+
 // Module Interface
-extern OsStatus_t OnLoad(void);
-extern OsStatus_t OnUnload(void);
-extern OsStatus_t OnEvent(struct ioset_event* event);
+extern oserr_t OnLoad(void);
+extern oserr_t OnUnload(void);
+extern oserr_t OnEvent(struct ioset_event* event);
 
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
-extern char**
-__crt_initialize(
-    _In_  thread_storage_t* threadStorage,
-    _In_  int               isPhoenix,
-    _Out_ int*              argumentCount);
+extern void   __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
+extern char** __crt_argv(int* argcOut);
 
 int __crt_get_server_iod(void)
 {
@@ -52,13 +50,13 @@ gracht_server_t* __crt_get_module_server(void)
 }
 
 void __crt_module_load(
-        _In_ UUId_t moduleId)
+        _In_ uuid_t moduleId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
 
     // Call the driver load function 
     // - This will be run once, before loop
-    if (OnLoad() != OsSuccess) {
+    if (OnLoad() != OsOK) {
         exit(-2001);
     }
 
@@ -85,7 +83,7 @@ __crt_module_main(
             }
             else {
                 // Check if the driver had any IRQs registered
-                if (OnEvent(&events[i]) == OsSuccess) {
+                if (OnEvent(&events[i]) == OsOK) {
                     continue;
                 }
                 gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
@@ -94,22 +92,22 @@ __crt_module_main(
     }
 }
 
-static OsStatus_t
+static oserr_t
 __ParseModuleOptions(
         _In_  char**  argv,
         _In_  int     argc,
-        _Out_ UUId_t* moduleIdOut)
+        _Out_ uuid_t* moduleIdOut)
 {
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
             long moduleId = strtol(argv[i + 1], NULL, 10);
             if (moduleId != 0) {
-                *moduleIdOut = (UUId_t)moduleId;
-                return OsSuccess;
+                *moduleIdOut = (uuid_t)moduleId;
+                return OsOK;
             }
         }
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 void __CrtModuleEntry(void)
@@ -117,22 +115,23 @@ void __CrtModuleEntry(void)
     thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
-    OsStatus_t                    osStatus;
-    UUId_t                        moduleId;
+    oserr_t                       oserr;
+    uuid_t                        moduleId;
     int                           status;
     char**                        argv;
     int                           argc;
 
     // initialize runtime environment
-    argv = __crt_initialize(&threadStorage, 0, &argc);
+    __crt_initialize(&threadStorage, 0);
+    argv = __crt_argv(&argc);
     if (!argv || argc < 3) {
         ERROR("__CrtModuleEntry invalid argument count for module");
         exit(-1);
     }
 
     // parse the options provided for this module
-    osStatus = __ParseModuleOptions(argv, argc, &moduleId);
-    if (osStatus != OsSuccess) {
+    oserr = __ParseModuleOptions(argv, argc, &moduleId);
+    if (oserr != OsOK) {
         ERROR("__CrtModuleEntry missing --id parameter for module");
         exit(-1);
     }
@@ -170,7 +169,7 @@ void __CrtModuleEntry(void)
 
     // Wait for the device-manager service, as all modules require the device-manager
     // service to perform requests.
-    if (WaitForDeviceService(2000) != OsSuccess) {
+    if (WaitForDeviceService(2000) != OsOK) {
         exit(-2002);
     }
 

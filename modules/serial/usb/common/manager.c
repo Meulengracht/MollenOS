@@ -43,12 +43,12 @@
 extern gracht_server_t* __crt_get_module_server(void);
 
 struct usb_controller_device_index {
-    UUId_t                  deviceId;
+    uuid_t                  deviceId;
     UsbManagerController_t* pointer;
 };
 
 struct usb_controller_endpoint {
-    UUId_t address;
+    uuid_t address;
     int    toggle;
 };
 
@@ -65,12 +65,12 @@ static int           g_hciCheckupRegistered = 0;
 static uint8_t       g_hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
 static hashtable_t   g_controllers;
 
-OsStatus_t
+oserr_t
 UsbManagerInitialize(void)
 {
     // Create the event queue and wait for usb services, give it
     // up to 5 seconds before appearing
-    if (WaitForUsbService(5000) != OsSuccess) {
+    if (WaitForUsbService(5000) != OsOK) {
         ERROR(" => Failed to start usb manager, as usb service never became available.");
         return OsTimeout;
     }
@@ -80,7 +80,7 @@ UsbManagerInitialize(void)
                         sizeof(struct usb_controller_device_index),
                         default_dev_hash, default_dev_cmp);
 
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -103,10 +103,9 @@ UsbManagerCreateController(
     if (!controller) {
         return NULL;
     }
-
     memset(controller, 0, structureSize);
-    memcpy(&controller->Device, device, sizeof(BusDevice_t));
 
+    controller->Device = device;
     controller->Type = type;
     list_construct(&controller->TransactionList);
     hashtable_construct(&controller->Endpoints, 0,
@@ -138,18 +137,18 @@ UsbManagerCreateController(
     return controller;
 }
 
-OsStatus_t
+oserr_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller)
 {
-    OsStatus_t status = UsbControllerRegister(&controller->Device.Base, controller->Type, controller->PortCount);
-    if (status != OsSuccess) {
+    oserr_t status = UsbControllerRegister(&controller->Device->Base, controller->Type, controller->PortCount);
+    if (status != OsOK) {
         ERROR("[UsbManagerRegisterController] failed with code %u", status);
     }
     return status;
 }
 
-OsStatus_t
+oserr_t
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller)
 {
@@ -158,7 +157,7 @@ UsbManagerDestroyController(
 
     // remove the controller indexes
     hashtable_remove(&g_controllers, &(struct usb_controller_device_index) {
-            .deviceId = controller->Device.Base.Id });
+            .deviceId = controller->Device->Base.Id });
 
     // clean up resources
     hashtable_destroy(&controller->Endpoints);
@@ -169,7 +168,7 @@ UsbManagerDestroyController(
     close(controller->event_descriptor);
 
     // Unregister controller with usbmanager service
-    return UsbControllerUnregister(controller->Device.Base.Id);
+    return UsbControllerUnregister(controller->Device->Base.Id);
 }
 
 static void
@@ -215,7 +214,7 @@ UsbManagerIterateTransfers(
 
 UsbManagerController_t*
 UsbManagerGetController(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     struct usb_controller_device_index* index = hashtable_get(&g_controllers,
             &(struct usb_controller_device_index) { .deviceId = deviceId });
@@ -227,13 +226,13 @@ UsbManagerGetController(
 
 int
 UsbManagerGetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address)
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address)
 {
     // Create an unique id for this endpoint
     UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
     struct usb_controller_endpoint* endpoint;
-    UUId_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
+    uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
     if (!controller) {
         return 0;
@@ -249,19 +248,19 @@ UsbManagerGetToggle(
     return endpoint->toggle;
 }
 
-OsStatus_t
+oserr_t
 UsbManagerSetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address,
-    _In_ int             toggle)
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address,
+        _In_ int             toggle)
 {
     // Create an unique id for this endpoint
     UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
     struct usb_controller_endpoint* endpoint;
-    UUId_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
+    uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
     if (!controller) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     endpoint = hashtable_get(&controller->Endpoints, &(struct usb_controller_endpoint) {
@@ -269,18 +268,18 @@ UsbManagerSetToggle(
     if (!endpoint) {
         hashtable_set(&controller->Endpoints, &(struct usb_controller_endpoint) {
                 .address = endpointAddress, .toggle = toggle });
-        return OsSuccess;
+        return OsOK;
     }
 
     endpoint->toggle = toggle;
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const UUId_t deviceId,
+void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
         const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
     UsbHcAddress_t address = { hub, port, device, endpoint };
-    OsStatus_t     status  = UsbManagerSetToggle(deviceId, &address, 0);
+    oserr_t     status  = UsbManagerSetToggle(deviceId, &address, 0);
     ctt_usbhost_reset_endpoint_response(message, status);
 }
 
@@ -303,7 +302,7 @@ UsbManagerQueueWaitingTransfers(
     }
 }
 
-OsStatus_t
+oserr_t
 UsbManagerFinalizeTransfer(UsbManagerTransfer_t* transfer)
 {
     int bytesLeft = 0;
@@ -325,7 +324,7 @@ UsbManagerFinalizeTransfer(UsbManagerTransfer_t* transfer)
     }
     else {
         UsbManagerSendNotification(transfer);
-        return OsSuccess;
+        return OsOK;
     }
 }
 
@@ -353,7 +352,7 @@ UsbManagerClearTransfers(
     list_clear(&controller->TransactionList, ClearTransferCallback, controller);
 }
 
-OsStatus_t
+oserr_t
 UsbManagerIsAddressesEqual(
     _In_ UsbHcAddress_t* Address1,
     _In_ UsbHcAddress_t* Address2)
@@ -362,7 +361,7 @@ UsbManagerIsAddressesEqual(
         Address1->PortAddress     == Address2->PortAddress    && 
         Address1->DeviceAddress   == Address2->DeviceAddress  &&
         Address1->EndpointAddress == Address2->EndpointAddress) {
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }
@@ -377,7 +376,7 @@ UsbManagerSynchronizeTransfers(
     TRACE("UsbManagerSynchronizeTransfers()");
 
     // Is this transfer relevant?
-    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsSuccess &&
+    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsOK &&
         Transfer->Status != TransferInProgress &&
         Transfer->Transfer.Type != USB_TRANSFER_BULK &&
         Transfer->Transfer.Type != USB_TRANSFER_INTERRUPT) {
@@ -439,7 +438,7 @@ UsbManagerProcessTransfer(
                                    USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, transfer);
             transfer->EndpointDescriptor = NULL; // Reset
         }
-        if (UsbManagerFinalizeTransfer(transfer) == OsSuccess) {
+        if (UsbManagerFinalizeTransfer(transfer) == OsOK) {
             return ITERATOR_REMOVE;
         }
         return ITERATOR_CONTINUE;
@@ -489,7 +488,7 @@ UsbManagerProcessTransfer(
         HciTransactionFinalize(controller, transfer, 0);
         if (!(controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
             transfer->EndpointDescriptor = NULL;
-            if (UsbManagerFinalizeTransfer(transfer) == OsSuccess) {
+            if (UsbManagerFinalizeTransfer(transfer) == OsOK) {
                 return ITERATOR_REMOVE;
             }
         }
@@ -518,7 +517,7 @@ UsbManagerIterateChain(
     UsbSchedulerObject_t* Object  = NULL;
     UsbSchedulerPool_t*   Pool    = NULL;
     uint8_t*              Element = ElementRoot;
-    OsStatus_t            Result;
+    oserr_t            Result;
     uint16_t              RootIndex;
     uint16_t              LinkIndex;
     int                   Status;
@@ -529,7 +528,7 @@ UsbManagerIterateChain(
 
     // Validate element and lookup pool
     Result = UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
-    assert(Result == OsSuccess);
+    assert(Result == OsOK);
     Object = USB_ELEMENT_OBJECT(Pool, Element);
     
     // Get indices
@@ -609,7 +608,7 @@ UsbManagerDumpSchedule(
 static uint64_t default_dev_hash(const void* deviceIndex)
 {
     const struct usb_controller_device_index* index = deviceIndex;
-    return siphash_64((const uint8_t*)&index->deviceId, sizeof(UUId_t), &g_hashKey[0]);
+    return siphash_64((const uint8_t*)&index->deviceId, sizeof(uuid_t), &g_hashKey[0]);
 }
 
 static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
@@ -622,7 +621,7 @@ static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
 static uint64_t endpoint_hash(const void* element)
 {
     const struct usb_controller_endpoint* endpoint = element;
-    return siphash_64((const uint8_t*)&endpoint->address, sizeof(UUId_t), &g_hashKey[0]);
+    return siphash_64((const uint8_t*)&endpoint->address, sizeof(uuid_t), &g_hashKey[0]);
 }
 
 static int endpoint_cmp(const void* element1, const void* element2)

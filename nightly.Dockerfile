@@ -26,7 +26,7 @@ RUN sed -i 's/\r$//' ./tools/depends.sh && chmod +x ./tools/depends.sh && chmod 
     chmod +x ./tools/ci-nightly.sh && ./tools/depends.sh && mkdir -p $VALI_APPLICATION_PATH && cd $VALI_APPLICATION_PATH && \
     /usr/workspace/vali/tools/ci-nightly.sh && cd /usr/workspace/vali && mkdir -p build && cd build && \
     cmake -G "Unix Makefiles" -DVALI_ARCH=$VALI_ARCH -DCMAKE_INSTALL_PREFIX=$VALI_INSTALL_DIR .. && \
-    make && make install_img && tar -czvf vali-nightly.tar.gz ./mollenos.img
+    make && make install_img && tar -czvf vali-nightly.tar.gz ./disk.img
 
 # Make an artifact stage specifically for building output with the command
 # DOCKER_BUILDKIT=1 docker build --target artifact --output type=local,dest=. .

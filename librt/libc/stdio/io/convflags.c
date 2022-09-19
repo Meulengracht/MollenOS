@@ -193,9 +193,6 @@ _fopts(
     // Take care of opening flags
     if (oflags & O_CREAT) {
         mFlags |= __FILE_CREATE;
-        if (oflags & O_RECURS) {
-            mFlags |= __FILE_CREATE_RECURSIVE;
-        }
         if (oflags & O_DIR) {
             mFlags |= __FILE_DIRECTORY;
         }

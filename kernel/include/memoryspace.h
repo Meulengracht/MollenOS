@@ -79,7 +79,7 @@ typedef struct MemorySpaceContext MemorySpaceContext_t;
 
 // one per thread
 typedef struct MemorySpace {
-    UUId_t                ParentHandle;
+    uuid_t                ParentHandle;
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;
     MemorySpaceContext_t* Context;
@@ -95,7 +95,7 @@ typedef struct MemorySpace {
  * @param kernelMappings     [In]
  * @return                        Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceInitialize(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
@@ -107,10 +107,10 @@ MemorySpaceInitialize(
  *
  *
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateMemorySpace(
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut);
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut);
 
 /**
  * @brief Switches the current address space out with the the address space provided
@@ -122,7 +122,7 @@ KERNELAPI void KERNELABI
 MemorySpaceSwitch(
         _In_ MemorySpace_t* memorySpace);
 
-KERNELAPI UUId_t KERNELABI         GetCurrentMemorySpaceHandle(void);
+KERNELAPI uuid_t KERNELABI         GetCurrentMemorySpaceHandle(void);
 KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
 KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
@@ -134,7 +134,7 @@ KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
  * @param Space2
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2);
@@ -150,7 +150,7 @@ AreMemorySpacesRelated(
  * @param memoryFlags           [In]      Memory mapping configuration flags.
  * @param placementFlags        [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceMap(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t*       address,
@@ -170,7 +170,7 @@ MemorySpaceMap(
  * @param MemoryFlags          [In]      Memory mapping configuration flags.
  * @param PlacementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceMapContiguous(
         _In_    MemorySpace_t* MemorySpace,
         _InOut_ vaddr_t*       Address,
@@ -188,7 +188,7 @@ MemorySpaceMapContiguous(
  * @param memoryFlags          [In]      Memory mapping configuration flags.
  * @param placementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceMapReserved(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t*       address,
@@ -203,7 +203,7 @@ MemorySpaceMapReserved(
  * @param address
  * @param size
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceUnmap(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -221,7 +221,7 @@ MemorySpaceUnmap(
  * @param pageMask              [In] The accepted page mask for physical pages allocated.
  * @param placementFlags        [In] Supports MAPPING_PHYSICAL_* flags.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceCommit(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -240,7 +240,7 @@ MemorySpaceCommit(
  * @param previousAttributes
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceChangeProtection(
         _In_        MemorySpace_t* memorySpace,
         _InOut_Opt_ vaddr_t        address,
@@ -260,7 +260,7 @@ MemorySpaceChangeProtection(
  * @param memoryFlags
  * @param placementFlags
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceCloneMapping(
         _In_        MemorySpace_t* sourceSpace,
         _In_        MemorySpace_t* destinationSpace,
@@ -278,7 +278,7 @@ MemorySpaceCloneMapping(
  * @param pageCount    [In]  The length of the lookup in pages.
  * @param dmaVectorOut [Out] The array to fill with mappings.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 GetMemorySpaceMapping(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        address,
@@ -293,7 +293,7 @@ GetMemorySpaceMapping(
  * @param descriptor
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceQuery(
         _In_ MemorySpace_t*      memorySpace,
         _In_ vaddr_t             address,
@@ -308,7 +308,7 @@ MemorySpaceQuery(
  * @param attributesArray
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 GetMemorySpaceAttributes(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
@@ -320,9 +320,9 @@ GetMemorySpaceAttributes(
  *
  * @param memorySpace [In] The memory space to check the address in.
  * @param address     [In] The address to check for access.
- * @return            Returns OsSuccess if the address is dirty.
+ * @return            Returns OsOK if the address is dirty.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 IsMemorySpacePageDirty(
         _In_ MemorySpace_t*   memorySpace,
         _In_ vaddr_t       address);
@@ -334,7 +334,7 @@ IsMemorySpacePageDirty(
  * @param address     [In] The virtual address to check.
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 IsMemorySpacePagePresent(
         _In_ MemorySpace_t*   memorySpace,
         _In_ vaddr_t       address);
@@ -346,7 +346,7 @@ IsMemorySpacePagePresent(
  * @param signalHandlerAddress [In] The address of the signal handler.
  * @return                     Status of the operation
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MemorySpaceSetSignalHandler(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        signalHandlerAddress);

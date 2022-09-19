@@ -63,7 +63,7 @@
  * Handles the SingleStep trap on a higher level 
  * and the actual interrupt/exception should be propegated
  * to this event handler */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 DebugSingleStep(
     _In_ Context_t* Context);
 
@@ -71,15 +71,15 @@ DebugSingleStep(
  * Handles the Breakpoint trap on a higher level 
  * and the actual interrupt/exception should be propegated
  * to this event handler */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 DebugBreakpoint(
     _In_ Context_t* Context);
 
 /* DebugPageFault
  * Handles page-fault and either validates or invalidates
  * that the address is valid. In case of valid address it automatically
- * maps in the page and returns OsSuccess */
-KERNELAPI OsStatus_t KERNELABI
+ * maps in the page and returns OsOK */
+KERNELAPI oserr_t KERNELABI
 DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address);
@@ -87,7 +87,7 @@ DebugPageFault(
 /* DebugPanic
  * Kernel panic function - Call this to enter panic mode
  * and disrupt normal functioning. This function does not return again */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
@@ -96,7 +96,7 @@ DebugPanic(
 /* DebugStackTrace
  * Performs a verbose stack trace in the current context 
  * Goes back a maximum of <MaxFrames> in the stack */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 DebugStackTrace(
     _In_ Context_t* context,
     _In_ size_t     maxFrames);
@@ -104,7 +104,7 @@ DebugStackTrace(
 /* DebugMemory 
  * Dumps memory in the form of <data> <string> at the
  * given address and length of memory dump */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 DebugMemory(
     _In_Opt_ const char* Description,
     _In_     void*       Address,

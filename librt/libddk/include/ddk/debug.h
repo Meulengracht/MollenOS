@@ -32,8 +32,8 @@
  * Clones the current memory region of the given thread into callers memory space.
  * The space can then be freed with MemoryFree
  */
-DDKDECL(OsStatus_t, MapThreadMemoryRegion(
-        _In_  UUId_t threadHandle,
+DDKDECL(oserr_t, MapThreadMemoryRegion(
+        _In_  uuid_t threadHandle,
         _In_  uintptr_t address,
         _Out_ void** topOfStack,
         _Out_ void** pointerOut));

@@ -95,7 +95,7 @@ PORTABILITY
 <<mbsrtowcs>> is defined by the C99 standard.
 <<mbsnrtowcs>> is defined by the POSIX.1-2008 standard.
 */
-#include "../../threads/tls.h"
+#include "../../threads/tss.h"
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>

@@ -35,11 +35,11 @@
 static int g_acpiStatus       = ACPI_NOT_AVAILABLE;
 AcpiEcdt_t EmbeddedController = { 0 };
 
-static OsStatus_t
+static oserr_t
 __RegisterDomainCore(
-    _In_ SystemDomain_t* Domain,
-    _In_ UUId_t          CoreId,
-    _In_ int             Override)
+        _In_ SystemDomain_t* Domain,
+        _In_ uuid_t          CoreId,
+        _In_ int             Override)
 {
     TRACE("__RegisterDomainCore()");
     if (CoreId != CpuCoreId(Domain->CoreGroup.Cores)) {
@@ -48,7 +48,7 @@ __RegisterDomainCore(
     else {
 
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 /**
@@ -199,7 +199,7 @@ __EnumerateSystemCoresForDomainSRAT(
                     DomainId         |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
                     DomainId         |= CpuAffinity->ProximityDomainLo;
                     if (Domain->Id == DomainId) {
-                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsSuccess) {
+                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsOK) {
                             ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
@@ -211,7 +211,7 @@ __EnumerateSystemCoresForDomainSRAT(
                 if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
                     uint32_t DomainId = CpuAffinity->ProximityDomain;
                     if (Domain->Id == DomainId) {
-                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsSuccess) {
+                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsOK) {
                             ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
@@ -347,14 +347,14 @@ __EnumerateSystemHardwareMADT(
             case ACPI_MADT_TYPE_IO_APIC: {
                 ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)madtEntry;
                 TRACE(" > io-apic: %" PRIuIN "", IoApic->Id);
-                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsSuccess) {
+                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsOK) {
                     ERROR("Failed to register interrupt-controller");   
                 }
             } break;
 
             case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE: {
                 ACPI_MADT_INTERRUPT_OVERRIDE *Override = (ACPI_MADT_INTERRUPT_OVERRIDE*)madtEntry;
-                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OsSuccess) {
+                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OsOK) {
                     ERROR("Failed to register interrupt-override");
                 }
             } break;
@@ -392,7 +392,7 @@ __ParseECDT(
     memcpy(&EmbeddedController.NsPath[0], &ecdtTable->Id[0], strlen((const char*)&(ecdtTable->Id[0])));
 }
 
-static OsStatus_t
+static oserr_t
 __ParseMADT(
         _In_ ACPI_TABLE_HEADER* header)
 {
@@ -434,7 +434,7 @@ __ParseMADT(
                 // Validate not empty domain
                 if (NumberOfCores != 0) {
                     // Create the domain, then enumerate the cores for that domain
-                    CreateNumaDomain((UUId_t)i, NumberOfCores, MemoryStart, MemoryLength, &Domain);
+                    CreateNumaDomain((uuid_t)i, NumberOfCores, MemoryStart, MemoryLength, &Domain);
                     __EnumerateSystemCoresForDomainSRAT(SratTableStart, SratTableEnd, Domain);
                 }
             }
@@ -470,14 +470,14 @@ __ParseMADT(
 
     // Now enumerate the present hardware as now know where they go
     __EnumerateSystemHardwareMADT(madtStart, madtEnd);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 AcpiInitializeEarly(void)
 {
     ACPI_TABLE_HEADER* header;
-    OsStatus_t         osStatus = OsSuccess;
+    oserr_t         osStatus = OsOK;
     ACPI_STATUS        acpiStatus;
     TRACE("AcpiInitializeEarly()");
 

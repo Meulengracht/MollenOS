@@ -7,3 +7,6 @@
 [submodule "tools/rd"]
 	path = tools/rd
 	url = ../vali-rofs
+[submodule "tools/imager"]
+	path = tools/imager
+	url = ../diskbuilder

@@ -68,20 +68,17 @@ queue_push(
     QUEUE_LOCK;
     element->next = NULL;
     element->previous = queue->tail;
-    smp_wmb();
 
     // To avoid compiler optimizations here, we need to enforce the control
     // dependencies that can be optimized away by certian compilers. Because
     // we also do identical writes in the if/else, we also enforce a memory
     // barrier
     if (!READ_VOLATILE(queue->head)) {
-        sw_mb();
         WRITE_VOLATILE(queue->tail, element);
         WRITE_VOLATILE(queue->head, element);
     }
     else {
         WRITE_VOLATILE(queue->tail->next, element);
-        sw_mb();
         WRITE_VOLATILE(queue->tail, element);
     }
     queue->count++;

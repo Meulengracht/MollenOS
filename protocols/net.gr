@@ -19,14 +19,14 @@ enum address_type {
 }
 
 service socket (8) {
-    func create(int domain, int type, int protocol) : (OsStatus_t result, UUId_t handle, UUId_t recvHandle, UUId_t sendHandle) = 1;
-    func close(UUId_t handle, close_options options) : (OsStatus_t result) = 2;
-    func bind(UUId_t handle, uint8[] address) : (OsStatus_t result) = 3;
-    func connect(UUId_t handle, uint8[] address) : (OsStatus_t result) = 4;
-    func accept(UUId_t handle) : (OsStatus_t result, uint8[] address, UUId_t handle, UUId_t recvHandle, UUId_t sendHandle) = 5;
-    func listen(UUId_t handle, int backlog) : (OsStatus_t result) = 6;
-    func pair(UUId_t handle1, UUId_t handle2) : (OsStatus_t result) = 7;
-    func set_option(UUId_t handle, int protocol, uint option, uint8[] data, int length) : (OsStatus_t result) = 8;
-    func get_option(UUId_t handle, int protocol, uint option) : (OsStatus_t result, uint8[] data, int length) = 9;
-    func get_address(UUId_t handle, address_type type) : (OsStatus_t result, uint8[] address) = 10;
+    func create(int domain, int type, int protocol) : (oserr_t result, uuid_t handle, uuid_t recvHandle, uuid_t sendHandle) = 1;
+    func close(uuid_t handle, close_options options) : (oserr_t result) = 2;
+    func bind(uuid_t handle, uint8[] address) : (oserr_t result) = 3;
+    func connect(uuid_t handle, uint8[] address) : (oserr_t result) = 4;
+    func accept(uuid_t handle) : (oserr_t result, uint8[] address, uuid_t handle, uuid_t recvHandle, uuid_t sendHandle) = 5;
+    func listen(uuid_t handle, int backlog) : (oserr_t result) = 6;
+    func pair(uuid_t handle1, uuid_t handle2) : (oserr_t result) = 7;
+    func set_option(uuid_t handle, int protocol, uint option, uint8[] data, int length) : (oserr_t result) = 8;
+    func get_option(uuid_t handle, int protocol, uint option) : (oserr_t result, uint8[] data, int length) = 9;
+    func get_address(uuid_t handle, address_type type) : (oserr_t result, uint8[] address) = 10;
 }

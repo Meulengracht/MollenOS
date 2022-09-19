@@ -47,21 +47,20 @@ ANSI C requires <<asctime>>.
 <<asctime>> requires no supporting OS subroutines.
 */
 
-/* Includes 
- * - Library */
-#include "../threads/tls.h"
+#include <internal/_tls.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
 
-/* Reentrency version of asctime 
- * Modified implementation by newlib */
-char *asctime_r(__CONST struct tm *__restrict tim_p, char *__restrict result)
+/**
+ * @brief Modified version of asctime_r from newlib. Appropriate license at top of file
+ */
+char *asctime_r(const struct tm *__restrict tim_p, char *__restrict result)
 {
-	static __CONST char day_name[][4] = {
+	static const char day_name[][4] = {
 		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
 	};
-	static __CONST char mon_name[][4] = {
+	static const char mon_name[][4] = {
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
 		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	};
@@ -74,11 +73,9 @@ char *asctime_r(__CONST struct tm *__restrict tim_p, char *__restrict result)
 	return result;
 }
 
-/* Formats a given timebuffer to a 
- * string of format Www Mmm dd hh:mm:ss yyyy */
-char *asctime(__CONST struct tm *tim_p)
+char *asctime(const struct tm *tim_p)
 {
-	char *ascbuf = &tls_current()->asc_buffer[0];
-	memset(ascbuf, 0, sizeof(tls_current()->asc_buffer));
+	char *ascbuf = &__tls_current()->asc_buffer[0];
+	memset(ascbuf, 0, sizeof(__tls_current()->asc_buffer));
 	return asctime_r(tim_p, ascbuf);
 }

@@ -22,12 +22,16 @@
 #ifndef __DS_DSDEFS_H__
 #define __DS_DSDEFS_H__
 
-#ifdef __DS_TESTPROGRAM
+#if !defined(VALI)
 #include <stddef.h>
 #include <stdint.h>
 
+typedef uint32_t uuid_t;
+#define _CODE_BEGIN
+#define _CODE_END
 #define _In_
 #define _Out_
+#define _InOut_
 #else
 #include <os/osdefs.h>
 #endif

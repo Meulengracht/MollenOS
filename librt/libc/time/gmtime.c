@@ -59,9 +59,7 @@ ANSI C requires <<gmtime>>.
 <<gmtime>> requires no supporting OS subroutines.
 */
 
-/* Includes 
- * - Library */
-#include "../threads/tls.h"
+#include <internal/_tls.h>
 #include <stdlib.h>
 #include <string.h>
 #include "local.h"
@@ -151,7 +149,7 @@ struct tm *gmtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res)
 /* Normal version of gmtime 
  * Modified implementation by newlib */
 struct tm *gmtime(__CONST time_t *tim_p) {
-	struct tm *gmbuf = &(tls_current()->tm_buffer);
+	struct tm *gmbuf = &(__tls_current()->tm_buffer);
 	memset(gmbuf, 0, sizeof(struct tm));
 	return gmtime_r(tim_p, gmbuf);
 }

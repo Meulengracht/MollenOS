@@ -120,7 +120,7 @@ void PciWrite8(
 	outw(X86_PCI_DATA + (Register & 0x03), Value);
 }
 
-OsStatus_t
+oserr_t
 ReadDirectIo(
     _In_  DeviceIoType_t Type,
     _In_  uintptr_t      Address,
@@ -156,10 +156,10 @@ ReadDirectIo(
             FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io read type %" PRIuIN "", Type);
         } break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 WriteDirectIo(
     _In_ DeviceIoType_t Type,
     _In_ uintptr_t      Address,
@@ -193,10 +193,10 @@ WriteDirectIo(
             FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io write type %" PRIuIN "", Type);
         } break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ReadDirectPci(
     _In_  unsigned Bus,
     _In_  unsigned Slot,
@@ -219,10 +219,10 @@ ReadDirectPci(
         ERROR("(PciRead) Invalid width %" PRIuIN "", Width);
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 WriteDirectPci(
     _In_ unsigned Bus,
     _In_ unsigned Slot,
@@ -245,5 +245,5 @@ WriteDirectPci(
         ERROR("(PciWrite) Invalid width %" PRIuIN "", Width);
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }

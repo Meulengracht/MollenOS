@@ -74,21 +74,21 @@ typedef struct AcpiDescriptor {
 #define ACPI_ARM_PSCI_USE_HVC		(1<<1)      /* 01: [V5+] HVC must be used instead of SMC as the PSCI conduit */
 
 /* AcpiQueryStatus
- * Queries basic acpi information and returns either OsSuccess
+ * Queries basic acpi information and returns either OsOK
  * or OsError if Acpi is not supported on the running platform */
-DDKDECL(OsStatus_t, AcpiQueryStatus(AcpiDescriptor_t *AcpiDescriptor));
+DDKDECL(oserr_t, AcpiQueryStatus(AcpiDescriptor_t * AcpiDescriptor));
 
 /* AcpiQueryTable
  * Queries the full table information of the table that matches
  * the given signature, and copies the information to the supplied pointer
  * the buffer is automatically allocated, and should be cleaned up afterwards  */
-DDKDECL(OsStatus_t, AcpiQueryTable(const char*signature, ACPI_TABLE_HEADER **tableOut));
+DDKDECL(oserr_t, AcpiQueryTable(const char*signature, ACPI_TABLE_HEADER **tableOut));
 
 /* AcpiQueryInterrupt
  * Queries the interrupt-line for the given bus, device and
  * pin combination. The pin must be zero indexed. Conform flags
  * are returned in the <AcpiConform> */
-DDKDECL(OsStatus_t, AcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin,
+DDKDECL(oserr_t, AcpiQueryInterrupt(unsigned int Bus, unsigned int Device, int Pin,
 	int *Interrupt, unsigned int *AcpiConform));
 
 #endif //!_ACPI_INTEFACE_H_

@@ -32,7 +32,7 @@ typedef struct SystemInterruptOverride {
 } SystemInterruptOverride_t;
 
 typedef struct SystemInterruptController {
-    UUId_t      Id;
+    uuid_t      Id;
     int         InterruptLineBase;
     int         NumberOfInterruptLines;
     uintptr_t   MemoryAddress;
@@ -44,22 +44,22 @@ typedef struct SystemInterruptController {
 /* CreateInterruptController
  * Creates a new interrupt controller with the given configuration and registers
  * with the system. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateInterruptController(
-    _In_ UUId_t     Id,
-    _In_ int        InterruptLineBase,
-    _In_ int        NumberOfInterrupts,
-    _In_ uintptr_t  BaseAddress);
+        _In_ uuid_t     Id,
+        _In_ int        InterruptLineBase,
+        _In_ int        NumberOfInterrupts,
+        _In_ uintptr_t  BaseAddress);
 
 /* CreateInterruptOverrides
  * Initializes the overrides with the given number of entries. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateInterruptOverrides(
     _In_ int        NumberOfInterruptOverrides);
 
 /* RegisterInterruptOverride
  * Registers a new override in a free entry. If the entries are filled it returns OsError. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
     _In_ int        DestinationInterruptLine,

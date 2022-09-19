@@ -164,7 +164,7 @@ static size_t __PrepareCommandSlot(
     return bytesQueued - transaction->BytesLeft;
 }
 
-static OsStatus_t __DispatchCommand(
+static oserr_t __DispatchCommand(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction,
@@ -244,7 +244,7 @@ static OsStatus_t __DispatchCommand(
     //thrd_sleepex(5000);
     __DumpCurrentState(controller, port);
 #endif
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -311,7 +311,7 @@ static void __FillRegisterFIS(
     }
 }
 
-OsStatus_t
+oserr_t
 AhciDispatchRegisterFIS(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,

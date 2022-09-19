@@ -23,6 +23,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ddk/convert.h>
 #include <ds/list.h>
 #include <ioset.h>
 #include "hub.h"
@@ -38,17 +39,17 @@ static list_t g_devices = LIST_INIT;
 
 HubDevice_t*
 HubDeviceGet(
-        _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
 }
 
-OsStatus_t OnLoad(void)
+oserr_t OnLoad(void)
 {
     // Register supported server protocols
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
@@ -68,14 +69,14 @@ DestroyElement(
     HubDeviceDestroy(Element->value);
 }
 
-OsStatus_t
+oserr_t
 OnUnload(void)
 {
     list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
-OsStatus_t OnRegister(
+oserr_t OnRegister(
     _In_ Device_t* device)
 {
     HubDevice_t* hubDevice;
@@ -86,35 +87,35 @@ OsStatus_t OnRegister(
     }
 
     list_append(&g_devices, &hubDevice->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
-OsStatus_t OnUnregister(
+oserr_t OnUnregister(
     _In_ Device_t* device)
 {
     HubDevice_t* hubDevice = HubDeviceGet(device->Id);
     if (hubDevice == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     list_remove(&g_devices, &hubDevice->Header);
     HubDeviceDestroy(hubDevice);
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
                                             "usbhub\0\0\0\0\0\0\0\0\0\0",
                                             SERVICE_CTT_USBHUB_ID);
 }
 
-void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const UUId_t transferId,
+void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
                                                   const UsbTransferStatus_t status, const size_t dataIndex)
 {
     HubDevice_t* hubDevice = NULL;
@@ -133,11 +134,11 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
         if (status == TransferStalled) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
-            UsbClearFeature(&hubDevice->Base.DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
+            UsbClearFeature(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
                             USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address), USB_FEATURE_HALT);
-            UsbEndpointReset(&hubDevice->Base.DeviceContext,
+            UsbEndpointReset(&hubDevice->Base->DeviceContext,
                              USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address));
-            UsbTransferResetPeriodic(&hubDevice->Base.DeviceContext, hubDevice->TransferId);
+            UsbTransferResetPeriodic(&hubDevice->Base->DeviceContext, hubDevice->TransferId);
         }
         else {
             HubInterrupt(hubDevice, dataIndex);
@@ -157,12 +158,12 @@ static inline void __PortStatusToDescriptor(
     else                                                     { descriptor->Speed = USB_SPEED_FULL; }
 }
 
-void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t portDescriptor = { 0 };
     HubDevice_t*          hubDevice;
     PortStatus_t          portStatus;
-    OsStatus_t            osStatus;
+    oserr_t            osStatus;
 
     hubDevice = HubDeviceGet(deviceId);
     if (!hubDevice) {
@@ -176,12 +177,12 @@ respond:
     ctt_usbhub_query_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t portDescriptor = { 0 };
     HubDevice_t*          hubDevice;
     PortStatus_t          portStatus;
-    OsStatus_t            osStatus;
+    oserr_t            osStatus;
 
     hubDevice = HubDeviceGet(deviceId);
     if (!hubDevice) {
@@ -190,7 +191,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId
     }
 
     osStatus = HubResetPort(hubDevice, portId);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         goto respond;
     }
 

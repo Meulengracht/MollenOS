@@ -36,7 +36,7 @@
 
 typedef struct Mutex {
     _Atomic(unsigned int) flags;
-    _Atomic(UUId_t)       owner;
+    _Atomic(uuid_t)       owner;
     int                   referenceCount;
     list_t                blockQueue;
     spinlock_t            syncObject;
@@ -68,7 +68,7 @@ MutexDestruct(
  * @param mutex [In] A pointer to a Mutex_t structure
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MutexTryLock(
     _In_ Mutex_t* mutex);
 
@@ -86,7 +86,7 @@ MutexLock(
  * @param timeout [In] Timeout in milliseconds
  * @return        Returns OsTimeout if it failed to acquire within the timeout
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MutexLockTimed(
     _In_ Mutex_t* mutex,
     _In_ size_t   timeout);

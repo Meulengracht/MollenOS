@@ -30,7 +30,7 @@
 
 /* ReadDirectIo 
  * Reads a value from the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ReadDirectIo(
     _In_  DeviceIoType_t Type,
     _In_  uintptr_t      Address,
@@ -39,7 +39,7 @@ ReadDirectIo(
 
 /* WriteDirectIo 
  * Writes a value to the given raw io source. Accepted values in width are 1, 2, 4 or 8. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 WriteDirectIo(
     _In_ DeviceIoType_t Type,
     _In_ uintptr_t      Address,
@@ -48,7 +48,7 @@ WriteDirectIo(
 
 /* ReadDirectPci
  * Reads a value from the given pci address. Accepted values in width are 1, 2, 4 or 8. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ReadDirectPci(
     _In_  unsigned Bus,
     _In_  unsigned Slot,
@@ -59,7 +59,7 @@ ReadDirectPci(
 
 /* WriteDirectPci
  * Writes a value to the given pci address. Accepted values in width are 1, 2, 4 or 8. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 WriteDirectPci(
     _In_ unsigned Bus,
     _In_ unsigned Slot,
@@ -70,9 +70,9 @@ WriteDirectPci(
 
 /* SetDirectIoAccess
  * Set's the io status of the given memory space. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 SetDirectIoAccess(
-        _In_ UUId_t         coreId,
+        _In_ uuid_t         coreId,
         _In_ MemorySpace_t* memorySpace,
         _In_ uint16_t       port,
         _In_ int            enable);

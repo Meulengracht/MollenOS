@@ -39,14 +39,14 @@ HciControllerCreate(
  * Destroys an existing controller instance and cleans up
  * any resources related to it */
 __EXTERN
-OsStatus_t
+oserr_t
 HciControllerDestroy(
     _In_ UsbManagerController_t* Controller);
 
 /* HciPortReset
  * Resets the given port and returns the result of the reset */
 __EXTERN
-OsStatus_t
+oserr_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index);
@@ -85,7 +85,7 @@ HciProcessEvent(
  * Finalizes a transfer by cleaning up resources allocated. This should free
  * all elements and unschedule elements. */
 __EXTERN
-OsStatus_t
+oserr_t
 HciTransactionFinalize(
     _In_ UsbManagerController_t* Controller,
     _In_ UsbManagerTransfer_t*   Transfer,
@@ -110,7 +110,7 @@ HciQueueTransferIsochronous(
 /* HciDequeueTransfer 
  * Removes a queued transfer from the controller's transfer list */
 __EXTERN
-OsStatus_t
+oserr_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer);
 

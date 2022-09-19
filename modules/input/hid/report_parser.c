@@ -562,7 +562,7 @@ HidParseReportDescriptor(
     }
 }
 
-OsStatus_t
+oserr_t
 HidCollectionDestroy(
     _In_ UsbHidReportCollection_t* reportCollection)
 {
@@ -592,10 +592,10 @@ HidCollectionDestroy(
 
     // Last step is to free the given collection
     free(reportCollection);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 HidCollectionCleanup(
     _In_ HidDevice_t* hidDevice)
 {

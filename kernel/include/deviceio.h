@@ -31,35 +31,35 @@
 /* RegisterSystemDeviceIo
  * Registers a new device memory io with the operating system. If this memory range
  * overlaps any existing io range, this request will be denied by the system. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 RegisterSystemDeviceIo(
     _In_ DeviceIo_t* ioSpace);
 
 /* AcquireSystemDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 AcquireSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace);
 
 /* ReleaseSystemDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t* IoSpace);
 
 /* AcquireKernelSystemDeviceIo
  * Creates a kernel mapped copy of the passed device-io. This can then be released
  * and cleaned up by the opposite call. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateKernelSystemDeviceIo(
     _In_  DeviceIo_t*  SourceIoSpace,
     _Out_ DeviceIo_t** SystemIoSpace);
 
 /* ReleaseKernelSystemDeviceIo 
  * Releases the kernel mapped copy of the passed device-io. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ReleaseKernelSystemDeviceIo(
     _In_ DeviceIo_t* SystemIoSpace);
 

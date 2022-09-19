@@ -29,7 +29,7 @@
 #include <machine.h>
 #include <debug.h>
 
-OsStatus_t
+oserr_t
 ScSystemDebug(
     _In_ int         level,
     _In_ const char* message)
@@ -48,16 +48,16 @@ ScSystemDebug(
     else {
         LogAppendMessage(LOG_ERROR, message);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t ScEndBootSequence(void) {
+oserr_t ScEndBootSequence(void) {
     TRACE("Ending console session");
     LogSetRenderMode(0);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScSystemQuery(
     _In_ SystemDescriptor_t* Descriptor)
 {
@@ -71,10 +71,10 @@ ScSystemQuery(
     Descriptor->PageSizeBytes = GetMemorySpacePageSize();
     Descriptor->PagesTotal = maxBlocks;
     Descriptor->PagesUsed  = maxBlocks - freeBlocks;
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 ScFlushHardwareCache(
     _In_     int    Cache,
     _In_Opt_ void*  Start, 
@@ -82,16 +82,16 @@ ScFlushHardwareCache(
 {
     if (Cache == CACHE_INSTRUCTION) {
         CpuFlushInstructionCache(Start, Length);
-        return OsSuccess;
+        return OsOK;
     }
     else if (Cache == CACHE_MEMORY) {
         CpuInvalidateMemoryCache(Start, Length);
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }
 
-OsStatus_t
+oserr_t
 ScQueryDisplayInformation(
     _In_ VideoDescriptor_t *Descriptor) {
     if (Descriptor == NULL) {
@@ -100,7 +100,7 @@ ScQueryDisplayInformation(
     return VideoQuery(Descriptor);
 }
 
-OsStatus_t
+oserr_t
 ScMapBootFramebuffer(
         _Out_ void** bufferOut)
 {
@@ -108,7 +108,7 @@ ScMapBootFramebuffer(
     uintptr_t      addressPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t      fbVirtual       = 0;
     size_t         fbSize          = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-    OsStatus_t     osStatus;
+    oserr_t     osStatus;
 
     if (!VideoGetTerminal()->FrameBufferAddressPhysical) {
         return OsNotSupported;
@@ -123,18 +123,18 @@ ScMapBootFramebuffer(
             MAPPING_VIRTUAL_PROCESS
     );
 
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         *bufferOut = (void*)fbVirtual;
     }
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 ScMapRamdisk(
         _Out_ void**  bufferOut,
         _Out_ size_t* lengthOut)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     vaddr_t    mapping;
 
     osStatus = MemorySpaceCloneMapping(
@@ -146,7 +146,7 @@ ScMapRamdisk(
             MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
             MAPPING_VIRTUAL_PROCESS
     );
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         *bufferOut = (void*)mapping;
         *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
     }

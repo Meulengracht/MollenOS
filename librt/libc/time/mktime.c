@@ -177,39 +177,39 @@ handle_daylight_savings(
 
 time_t 
 mktime(
-    _In_ struct tm *TimePointer)
+    _In_ struct tm* tm)
 {
-    time_t Result = 0;
-    long   Days   = 0;
-    int    Year   = TimePointer->tm_year;
-    int    Leap   = isleap(Year);
+    time_t result = 0;
+    int    days   = 0;
+    int    year   = tm->tm_year;
+    int    leap   = isleap(year);
 
-    validate_structure(TimePointer);
-    if (TimePointer->tm_year > 10000 || TimePointer->tm_year < -10000) {
+    validate_structure(tm);
+    if (tm->tm_year > 10000 || tm->tm_year < -10000) {
         return (time_t)-1;
     }
 
     // compute hours, minutes, seconds
-    Result += TimePointer->tm_sec + (TimePointer->tm_min * SECSPERMIN) + (TimePointer->tm_hour * SECSPERHOUR);
+    result += tm->tm_sec + (tm->tm_min * SECSPERMIN) + (tm->tm_hour * SECSPERHOUR);
 
     // compute days in year, get how many days untill now, and how many days has passed this year
-    Days += __days_before_month[Leap][TimePointer->tm_mon];
-    Days += TimePointer->tm_mday - 1;
+    days += __days_before_month[leap][tm->tm_mon];
+    days += tm->tm_mday - 1;
 
     // Update the time structure to include this information
-    TimePointer->tm_yday = Days;
+    tm->tm_yday = days;
 
     // compute days in other years
-    if (Year > 70) {
-        for (Year = 70; Year < TimePointer->tm_year; Year++) {
-            Days += DAYSPERYEAR(Year);
+    if (year > 70) {
+        for (year = 70; year < tm->tm_year; year++) {
+            days += DAYSPERYEAR(year);
         }
     }
-    else if (Year < 70) {
-        for (Year = 69; Year > TimePointer->tm_year; Year--) {
-            Days -= DAYSPERYEAR(Year);
+    else if (year < 70) {
+        for (year = 69; year > tm->tm_year; year--) {
+            days -= DAYSPERYEAR(year);
         }
-        Days -= DAYSPERYEAR(Year);
+        days -= DAYSPERYEAR(year);
     }
-    return handle_daylight_savings(TimePointer, Year, Days, Result + (Days * SECSPERDAY));
+    return handle_daylight_savings(tm, year, days, result + (days * SECSPERDAY));
 }

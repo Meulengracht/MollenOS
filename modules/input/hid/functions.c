@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include "hid.h"
 
-static OsStatus_t __FillHidDescriptor(
+static oserr_t __FillHidDescriptor(
     _In_ HidDevice_t*        hidDevice,
     _In_ UsbHidDescriptor_t* hidDescriptor)
 {
@@ -37,7 +37,7 @@ static OsStatus_t __FillHidDescriptor(
     TRACE("__FillHidDescriptor(hidDevice=0x%" PRIxIN ", hidDescriptor=0x%" PRIxIN ")",
           hidDevice, hidDescriptor);
 
-    status = UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    status = UsbExecutePacket(&hidDevice->Base->DeviceContext,
                               USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
                               USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HID,
                               (uint16_t)hidDevice->InterfaceId,
@@ -48,11 +48,11 @@ static OsStatus_t __FillHidDescriptor(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-static OsStatus_t __FillReportDescriptor(
+static oserr_t __FillReportDescriptor(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportType,
     _In_ uint8_t      reportLength,
@@ -63,7 +63,7 @@ static OsStatus_t __FillReportDescriptor(
     TRACE("__FillReportDescriptor(hidDevice=0x%" PRIxIN ", reportType=%u, reportLength=%u)",
           hidDevice, reportType, reportLength);
 
-    status = UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    status = UsbExecutePacket(&hidDevice->Base->DeviceContext,
                               USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_IN,
                               USBPACKET_TYPE_GET_DESC, 0, reportType,
                               (uint16_t)hidDevice->InterfaceId,
@@ -74,45 +74,45 @@ static OsStatus_t __FillReportDescriptor(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 HidGetProtocol(
         _In_ HidDevice_t* hidDevice,
         _In_ uint8_t*     protocol)
 {
     TRACE("HidSetProtocol(hidDevice=0x%" PRIxIN ", protocol=%i)", hidDevice, protocol);
-    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_IN,
                          HID_GET_PROTOCOL, 0, 0,
                          (uint16_t)hidDevice->InterfaceId, 1, protocol) != TransferFinished) {
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 HidSetProtocol(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      protocol)
 {
     TRACE("HidSetProtocol(hidDevice=0x%" PRIxIN ", protocol=%i)", hidDevice, protocol);
-    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                 HID_SET_PROTOCOL, protocol & 0xFF, 0,
                 (uint16_t)hidDevice->InterfaceId, 0, NULL) != TransferFinished) {
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 HidSetIdle(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportId,
@@ -122,29 +122,29 @@ HidSetIdle(
           hidDevice, reportId, duration);
 
     // This request may stall, which means it's unsupported
-    if (UsbExecutePacket(&hidDevice->Base.DeviceContext,
+    if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                          HID_SET_IDLE, reportId, duration,
                          (uint16_t)hidDevice->InterfaceId, 0, NULL) == TransferFinished) {
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return OsNotSupported;
     }
 }
 
-OsStatus_t
+oserr_t
 HidSetupGeneric(
     _In_ HidDevice_t* hidDevice)
 {
     UsbHidDescriptor_t hidDescriptor;
     uint8_t*           reportDescriptor = NULL;
     size_t             reportLength;
-    OsStatus_t         osStatus;
+    oserr_t         osStatus;
     TRACE("HidSetupGeneric(hidDevice=0x%" PRIxIN ")", hidDevice);
 
     osStatus = __FillHidDescriptor(hidDevice, &hidDescriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("HidSetupGeneric failed to retrieve the default hid descriptor");
         return osStatus;
     }
@@ -153,14 +153,14 @@ HidSetupGeneric(
     if (hidDevice->CurrentProtocol == HID_DEVICE_PROTOCOL_BOOT) {
         uint8_t currentProtocol;
         osStatus = HidGetProtocol(hidDevice, &currentProtocol);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             ERROR("HidSetupGeneric failed to get the current hid device protocol");
             return osStatus;
         }
 
         if (currentProtocol != HID_DEVICE_PROTOCOL_REPORT) {
             osStatus = HidSetProtocol(hidDevice, HID_DEVICE_PROTOCOL_REPORT);
-            if (osStatus != OsSuccess) {
+            if (osStatus != OsOK) {
                 ERROR("HidSetupGeneric failed to set the hid device into report protocol");
                 return osStatus;
             }
@@ -172,7 +172,7 @@ HidSetupGeneric(
     // We might have to set Duration to 500 ms for keyboards, but has to be tested
     // time is calculated in 4ms resolution, so 500ms = Duration = 125
     osStatus = HidSetIdle(hidDevice, 0, 0);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("HidSetupGeneric SetIdle failed, it might be unsupported by the HID");
     }
 
@@ -183,7 +183,7 @@ HidSetupGeneric(
 
     osStatus = __FillReportDescriptor(hidDevice, hidDescriptor.ClassDescriptorType,
                                       hidDescriptor.ClassDescriptorLength, reportDescriptor);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("HidSetupGeneric failed to retrieve the report descriptor");
         free(reportDescriptor);
         return osStatus;
@@ -193,5 +193,5 @@ HidSetupGeneric(
     free(reportDescriptor);
 
     hidDevice->ReportLength = reportLength;
-    return OsSuccess;
+    return OsOK;
 }

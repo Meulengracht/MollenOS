@@ -22,30 +22,34 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <ddk/device.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <errno.h>
 #include <internal/_ipc.h>
 
-UUId_t
+uuid_t
 RegisterDevice(
-    _In_ Device_t* device,
-    _In_ unsigned int   flags)
+    _In_ Device_t*    device,
+    _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
     int                      status;
-    OsStatus_t               osStatus;
-    UUId_t                   id;
+    oserr_t                  oserr;
+    uuid_t                   id;
+    struct sys_device        sysDevice;
 
-    status = sys_device_register(GetGrachtClient(), &msg.base, (uint8_t*)device, device->Length, flags);
+    to_sys_device(device, &sysDevice);
+
+    status = sys_device_register(GetGrachtClient(), &msg.base, &sysDevice,  flags);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_device_register_result(GetGrachtClient(), &msg.base, &osStatus, &id);
+    sys_device_register_result(GetGrachtClient(), &msg.base, &oserr, &id);
+
+    sys_device_destroy(&sysDevice);
     if (status) {
         ERROR("[ddk] [device] failed to register new device, errno %i", errno);
         return UUID_INVALID;
     }
     
-    if (osStatus != OsSuccess) {
+    if (oserr != OsOK) {
         return UUID_INVALID;
     }
     
@@ -53,47 +57,47 @@ RegisterDevice(
     return id;
 }
 
-OsStatus_t
+oserr_t
 UnregisterDevice(
-    _In_ UUId_t DeviceId)
+        _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    OsStatus_t               status;
+    oserr_t                  oserr;
     
-    sys_device_unregister(GetGrachtClient(), &msg.base, DeviceId);
+    sys_device_unregister(GetGrachtClient(), &msg.base, deviceId);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_device_unregister_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_device_unregister_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
-OsStatus_t
+oserr_t
 IoctlDevice(
-    _In_ UUId_t  Device,
-    _In_ unsigned int Command,
-    _In_ unsigned int Flags)
+        _In_ uuid_t       deviceId,
+        _In_ unsigned int command,
+        _In_ unsigned int flags)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    OsStatus_t               status;
+    oserr_t                  oserr;
     
-    sys_device_ioctl(GetGrachtClient(), &msg.base, Device, Command, Flags);
+    sys_device_ioctl(GetGrachtClient(), &msg.base, deviceId, command, flags);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_device_ioctl_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_device_ioctl_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
-OsStatus_t
+oserr_t
 IoctlDeviceEx(
-    _In_    UUId_t  Device,
-    _In_    int     Direction,
-    _In_    unsigned int Register,
-    _InOut_ size_t* Value,
-    _In_    size_t  Width)
+        _In_    uuid_t       deviceId,
+        _In_    int          direction,
+        _In_    unsigned int offset,
+        _InOut_ size_t*      value,
+        _In_    size_t       width)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    OsStatus_t               status;
+    oserr_t                  oserr;
     
-    sys_device_ioctlex(GetGrachtClient(), &msg.base, Device, Direction, Register, *Value, Width);
+    sys_device_ioctlex(GetGrachtClient(), &msg.base, deviceId, direction, offset, *value, width);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_device_ioctlex_result(GetGrachtClient(), &msg.base, &status, Value);
-    return status;
+    sys_device_ioctlex_result(GetGrachtClient(), &msg.base, &oserr, value);
+    return oserr;
 }

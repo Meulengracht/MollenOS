@@ -132,12 +132,12 @@ No supporting OS subroutines are required.
  * SUCH DAMAGE.
  */
 #define __POSIX_VISIBLE
+#include <internal/_locale.h>
 #include <locale.h>
 #include <limits.h>
 #include <wctype.h>
 #include <errno.h>
 #include <wchar.h>
-#include "../../locale/setlocale.h"
 
 /*
  * Convert a wide string to a long integer.

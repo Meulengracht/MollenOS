@@ -64,7 +64,7 @@ OnInterrupt(
 /* OnLoad
  * The entry-point of a driver, this is called
  * as soon as the driver is loaded in the system */
-OsStatus_t OnLoad(void)
+oscode_t OnLoad(void)
 {
 	// Initialize state for this driver
 	GlbControllers = ListCreate(KeyInteger);
@@ -76,7 +76,7 @@ OsStatus_t OnLoad(void)
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
-OsStatus_t OnUnload(void)
+oscode_t OnUnload(void)
 {
 	// Iterate registered controllers
 	foreach(cNode, GlbControllers) {
@@ -93,7 +93,7 @@ OsStatus_t OnUnload(void)
 /* OnRegister
  * Is called when the device-manager registers a new
  * instance of this driver for the given device */
-OsStatus_t OnRegister(Device_t *Device)
+oscode_t OnRegister(Device_t *Device)
 {
 	// Variables
 	AhciController_t *Controller = NULL;
@@ -120,7 +120,7 @@ OsStatus_t OnRegister(Device_t *Device)
 /* OnUnregister
  * Is called when the device-manager wants to unload
  * an instance of this driver from the system */
-OsStatus_t OnUnregister(Device_t *Device)
+oscode_t OnUnregister(Device_t *Device)
 {
 	// Variables
 	AhciController_t *Controller = NULL;
@@ -150,7 +150,7 @@ OsStatus_t OnUnregister(Device_t *Device)
  * Occurs when an external process or server quries
  * this driver for data, this will correspond to the query
  * function that is defined in the contract */
-OsStatus_t 
+oscode_t
 OnQuery(
 	_In_     MContractType_t        QueryType, 
 	_In_     int                    QueryFunction, 
@@ -185,7 +185,7 @@ OnQuery(
 				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
 		}
 		else {
-			OsStatus_t Result = OsError;
+            oscode_t Result = OsError;
 			return SendPipe(Queryee, ResponsePort,
 				(void*)&Result, sizeof(OsStatus_t));
 		}

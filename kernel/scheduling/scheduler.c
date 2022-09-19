@@ -57,7 +57,7 @@ typedef struct SchedulerObject {
     element_t               Header;
     _Atomic(int)            State;
     unsigned int            Flags;
-    UUId_t                  CoreId;
+    uuid_t                  CoreId;
     clock_t                 TimeSlice;
     clock_t                 TimeSliceLeft;
     int                     Queue;
@@ -66,7 +66,7 @@ typedef struct SchedulerObject {
     
     list_t*                 WaitQueueHandle;
     clock_t                 TimeLeft;
-    OsStatus_t              TimeoutReason;
+    oserr_t              TimeoutReason;
     clock_t                 InterruptedAt;
 } SchedulerObject_t;
 
@@ -149,14 +149,14 @@ TryAgain:
 
 static Scheduler_t*
 SchedulerGetFromCore(
-    _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     return CpuCoreScheduler(GetProcessorCore(coreId));
 }
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
-    _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     Thread_t* thread = CpuCoreCurrentThread(GetProcessorCore(coreId));
     if (!thread) {
@@ -193,7 +193,7 @@ __AppendToQueue(
     }
 }
 
-static OsStatus_t
+static oserr_t
 __RemoveFromQueue(
     _In_ SchedulerQueue_t*  queue,
     _In_ SchedulerObject_t* object)
@@ -215,12 +215,12 @@ __RemoveFromQueue(
             
             // Reset link
             object->Link = NULL;
-            return OsSuccess;
+            return OsOK;
         }
         previous = current;
         current  = current->Link;
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
 static void
@@ -259,7 +259,7 @@ __QueueOnCoreFunction(
     }
 }
 
-static inline OsStatus_t
+static inline oserr_t
 __QueueObjectImmediately(
     _In_ SchedulerObject_t* object)
 {
@@ -276,7 +276,7 @@ __QueueObjectImmediately(
         if (scheduler->Enabled && ThreadIsCurrentIdle(CpuCoreId(core))) {
             ArchThreadYield();
         }
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return TxuMessageSend(object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, object, 1);
@@ -291,7 +291,7 @@ __AllocateScheduler(
     SystemCpu_t*     coreGroup = &GetMachine()->Processor;
     SystemCpuCore_t* iter;
     Scheduler_t*     scheduler;
-    UUId_t           coreId;
+    uuid_t           coreId;
     
     // Select the default core range
     if (domain != NULL) {
@@ -380,7 +380,7 @@ SchedulerDestroyObject(
     kfree(object);
 }
 
-OsStatus_t
+oserr_t
 SchedulerSleep(
     _In_  clock_t  nanoseconds,
     _Out_ clock_t* interruptedAt)
@@ -391,13 +391,13 @@ SchedulerSleep(
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
         SystemTimerStall(nanoseconds);
-        return OsSuccess;
+        return OsOK;
     }
 
     // Since we rely on this value not being zero in cases of timeouts
     // we would a minimum value of 1
     object->TimeLeft        = MAX(nanoseconds, 1);
-    object->TimeoutReason   = OsSuccess;
+    object->TimeoutReason   = OsOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = NULL;
     
@@ -414,7 +414,7 @@ SchedulerSleep(
         *interruptedAt = object->InterruptedAt;
         return OsInterrupted;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -429,7 +429,7 @@ SchedulerBlock(
     assert(object != NULL);
 
     object->TimeLeft        = timeout;
-    object->TimeoutReason   = OsSuccess;
+    object->TimeoutReason   = OsOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = blockQueue;
 
@@ -469,11 +469,11 @@ SchedulerExpediteObject(
     }
 }
 
-OsStatus_t
+oserr_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* object)
 {
-    OsStatus_t osStatus = OsSuccess;
+    oserr_t osStatus = OsOK;
     int        resultState;
     
     TRACE("SchedulerQueueObject()");
@@ -505,7 +505,7 @@ SchedulerObjectGetQueue(
     return object->Queue;
 }
 
-UUId_t
+uuid_t
 SchedulerObjectGetAffinity(
     _In_ SchedulerObject_t* object)
 {
@@ -513,7 +513,7 @@ SchedulerObjectGetAffinity(
     return object->CoreId;
 }
 
-OsStatus_t
+oserr_t
 SchedulerGetTimeoutReason(void)
 {
     SchedulerObject_t* object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
@@ -531,7 +531,7 @@ void SchedulerDisable(void)
 
 void SchedulerEnable(void)
 {
-    UUId_t       coreId    = ArchGetProcessorCoreId();
+    uuid_t       coreId    = ArchGetProcessorCoreId();
     Scheduler_t* scheduler = SchedulerGetFromCore(coreId);
     if (scheduler->Enabled) {
         return;

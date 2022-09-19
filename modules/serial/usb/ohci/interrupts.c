@@ -30,7 +30,7 @@
 #include "../common/manager.h"
 #include "ohci.h"
 
-InterruptStatus_t
+irqstatus_t
 OnFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
@@ -57,7 +57,7 @@ OnFastInterrupt(
 
     // Was the interrupt even from this controller?
     if (!InterruptStatus) {
-        return InterruptNotHandled;
+        return IRQSTATUS_NOT_HANDLED;
     }
     
     // Process Checks first
@@ -79,7 +79,7 @@ OnFastInterrupt(
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
     
     InterruptTable->EventSignal(ResourceTable->HandleResource);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 void

@@ -34,12 +34,12 @@
 #include "transfer.h"
 
 typedef struct UsbManagerController {
-    UUId_t              Id;
+    uuid_t              Id;
     UsbControllerType_t Type;
-    BusDevice_t         Device;
+    BusDevice_t*        Device;
 
     int                 event_descriptor;
-    UUId_t              Interrupt;
+    uuid_t              Interrupt;
     _Atomic(reg32_t)    InterruptStatus;
     size_t              PortCount;
     
@@ -82,7 +82,7 @@ typedef int(*UsbSchedulerElementCallback)(
  * Initializes the common usb manager that all usb drivers can use to keep track of controllers
  * @return Status of the initialization.
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbManagerInitialize(void);
 
 /**
@@ -109,7 +109,7 @@ UsbManagerCreateController(
  * @param controller The controller that should be registered with the usb service.
  * @return           Status of the operation.
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller);
 
@@ -118,7 +118,7 @@ UsbManagerRegisterController(
  * @param controller The controller that should be unregistered from the usb service and cleaned up.
  * @return           Status of the operation.
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller);
 
@@ -168,7 +168,7 @@ UsbManagerDumpChain(
  */
 __EXTERN UsbManagerController_t*
 UsbManagerGetController(
-    _In_ UUId_t deviceId);
+        _In_ uuid_t deviceId);
 
 /**
  * Gets the current toggle status of an endpoint address for the controller.
@@ -178,8 +178,8 @@ UsbManagerGetController(
  */
 __EXTERN int
 UsbManagerGetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address);
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address);
 
 /**
  * Updates the current toggle status of an endpoint address for the controller.
@@ -187,11 +187,11 @@ UsbManagerGetToggle(
  * @param address  Address of the endpoint.
  * @return         Status of the update operation.
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbManagerSetToggle(
-    _In_ UUId_t          deviceId,
-    _In_ UsbHcAddress_t* address,
-    _In_ int             toggle);
+        _In_ uuid_t          deviceId,
+        _In_ UsbHcAddress_t* address,
+        _In_ int             toggle);
 
 /* UsbManagerProcessTransfers
  * Processes all the associated transfers with the given usb controller.

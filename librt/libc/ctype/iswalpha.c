@@ -68,9 +68,7 @@ PORTABILITY
 No supporting OS subroutines are required.
 */
 
-/* Includes */
 #include <wctype.h>
-#include <string.h>
 #include <ctype.h>
 #include "local.h"
 

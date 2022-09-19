@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,22 +13,17 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO Support functions
  */
 
 #ifdef LIBC_KERNEL
 #include <os/spinlock.h>
 #include <threading.h>
-#include <threads.h>
 #include <stdio.h>
 
 spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP(spinlock_plain);
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
-OsStatus_t
+oserr_t
 _lock_stream(
     _In_ FILE *file)
 {
@@ -41,10 +34,10 @@ _lock_stream(
     if (!(file->_flag & _IOSTRG)) {
         spinlock_acquire(&__GlbPrintLock);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 _unlock_stream(
     _In_ FILE *file)
 {
@@ -55,7 +48,7 @@ _unlock_stream(
     if (!(file->_flag & _IOSTRG)) {
         spinlock_release(&__GlbPrintLock);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 FILE *
@@ -85,8 +78,8 @@ int wctomb(char *mbchar, wchar_t wchar)
     return 0;
 }
 
-thrd_t thrd_current(void) {
-    return (thrd_t)ThreadCurrentHandle();
+uuid_t ThreadsCurrentId(void) {
+    return ThreadCurrentHandle();
 }
 
 #else
@@ -94,33 +87,30 @@ thrd_t thrd_current(void) {
 #include <assert.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
-#include <ds/collection.h>
+#include <ds/hashtable.h>
 #include <errno.h>
-#include <internal/_syscalls.h>
 #include <internal/_io.h>
 #include <io.h>
-#include <ctt_input_service.h>
-#include <os/keycodes.h>
-#include <os/mollenos.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-static Collection_t g_stdioObjects = COLLECTION_INIT(KeyInteger); // TODO hashtable
-static FILE         g_stdout = { 0 };
-static FILE         g_stdint = { 0 };
-static FILE         g_stderr = { 0 };
+// hashtable functions for g_stdioObjects
+static uint64_t stdio_hash(const void* element);
+static int      stdio_cmp(const void* element1, const void* element2);
+
+static hashtable_t g_stdioObjects = { 0 };
+static FILE        g_stdout       = { 0 };
+static FILE        g_stdint       = { 0 };
+static FILE        g_stderr       = { 0 };
 
 /**
  * Returns whether or not the handle should be inheritted by sub-processes based on the requested
  * startup information and the handle settings.
  */
-static OsStatus_t
+static oserr_t
 StdioIsHandleInheritable(
     _In_ ProcessConfiguration_t* configuration,
     _In_ stdio_handle_t*         handle)
 {
-    OsStatus_t osSuccess = OsSuccess;
+    oserr_t osSuccess = OsOK;
 
     if (handle->wxflag & WX_DONTINHERIT) {
         osSuccess = OsError;
@@ -131,16 +121,13 @@ StdioIsHandleInheritable(
     if (handle->fd == configuration->StdOutHandle &&
         !(configuration->InheritFlags & PROCESS_INHERIT_STDOUT)) {
         osSuccess = OsError;
-    }
-    else if (handle->fd == configuration->StdInHandle &&
+    } else if (handle->fd == configuration->StdInHandle &&
              !(configuration->InheritFlags & PROCESS_INHERIT_STDIN)) {
         osSuccess = OsError;
-    }
-    else if (handle->fd == configuration->StdErrHandle &&
+    } else if (handle->fd == configuration->StdErrHandle &&
              !(configuration->InheritFlags & PROCESS_INHERIT_STDERR)) {
         osSuccess = OsError;
-    }
-    else if (!(configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
+    } else if (!(configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
         if (handle->fd != configuration->StdOutHandle &&
             handle->fd != configuration->StdInHandle &&
             handle->fd != configuration->StdErrHandle) {
@@ -150,40 +137,100 @@ StdioIsHandleInheritable(
 
     TRACE("[can_inherit] iod %i, handle %u: %s",
             handle->fd, handle->object.handle,
-            (osSuccess == OsSuccess) ? "yes" : "no");
+          (osSuccess == OsOK) ? "yes" : "no");
     return osSuccess;
 }
 
-static size_t
+struct __get_inherit_context {
+    ProcessConfiguration_t* configuration;
+    int                     file_count;
+};
+
+static void __count_inherit_entry(
+        _In_ int         index,
+        _In_ const void* element,
+        _In_ void*       userContext)
+{
+    const struct stdio_object_entry* entry  = element;
+    stdio_handle_t*                  object = entry->handle;
+    struct __get_inherit_context*    context = userContext;
+    _CRT_UNUSED(index);
+
+    if (StdioIsHandleInheritable(context->configuration, object) == OsOK) {
+        context->file_count++;
+    }
+}
+
+static int
 StdioGetNumberOfInheritableHandles(
     _In_ ProcessConfiguration_t* configuration)
 {
-    size_t numberOfFiles = 0;
+    struct __get_inherit_context context = {
+            .configuration = configuration,
+            .file_count = 0
+    };
     LOCK_FILES();
-    foreach(Node, &g_stdioObjects) {
-        stdio_handle_t* object = (stdio_handle_t*)Node->Data;
-        if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
-            numberOfFiles++;
-        }
-    }
+    hashtable_enumerate(
+            &g_stdioObjects,
+            __count_inherit_entry,
+            &context
+    );
     UNLOCK_FILES();
-    return numberOfFiles;
+    return context.file_count;
 }
 
-OsStatus_t
+struct __create_inherit_context {
+    ProcessConfiguration_t*     configuration;
+    stdio_inheritation_block_t* inheritation_block;
+    int                         i;
+};
+
+static void __create_inherit_entry(
+        _In_ int         index,
+        _In_ const void* element,
+        _In_ void*       userContext)
+{
+    const struct stdio_object_entry* entry  = element;
+    stdio_handle_t*                  object = entry->handle;
+    struct __create_inherit_context* context = userContext;
+    _CRT_UNUSED(index);
+
+    if (StdioIsHandleInheritable(context->configuration, object) == OsOK) {
+        memcpy(
+                &context->inheritation_block->handles[context->i],
+                object,
+                sizeof(struct stdio_handle)
+        );
+
+        // Check for this fd to be equal to one of the custom handles
+        // if it is equal, we need to update the fd of the handle to our reserved
+        if (object->fd == context->configuration->StdOutHandle) {
+            context->inheritation_block->handles[context->i].fd = STDOUT_FILENO;
+        }
+        if (object->fd == context->configuration->StdInHandle) {
+            context->inheritation_block->handles[context->i].fd = STDIN_FILENO;
+        }
+        if (object->fd == context->configuration->StdErrHandle) {
+            context->inheritation_block->handles[context->i].fd = STDERR_FILENO;
+        }
+        context->i++;
+    }
+}
+
+oserr_t
 StdioCreateInheritanceBlock(
     _In_  ProcessConfiguration_t* configuration,
     _Out_ void**                  inheritationBlockOut,
     _Out_ size_t*                 inheritationBlockLengthOut)
 {
-    stdio_inheritation_block_t* inheritationBlock;
-    size_t                      numberOfObjects;
-    int                         i = 0;
+    struct __create_inherit_context context;
+    stdio_inheritation_block_t*     inheritationBlock;
+    int                             numberOfObjects;
 
     assert(configuration != NULL);
 
     if (configuration->InheritFlags == PROCESS_INHERIT_NONE) {
-        return OsSuccess;
+        return OsOK;
     }
 
     numberOfObjects = StdioGetNumberOfInheritableHandles(configuration);
@@ -198,33 +245,23 @@ StdioCreateInheritanceBlock(
 
         TRACE("[add_inherit] length %u", inheritationBlockLength);
         inheritationBlock->handle_count = numberOfObjects;
+
+        context.configuration = configuration;
+        context.inheritation_block = inheritationBlock;
+        context.i = 0;
         
         LOCK_FILES();
-        foreach(Node, &g_stdioObjects) {
-            stdio_handle_t* object = (stdio_handle_t*)Node->Data;
-            if (StdioIsHandleInheritable(configuration, object) == OsSuccess) {
-                memcpy(&inheritationBlock->handles[i], object, sizeof(struct stdio_handle));
-                
-                // Check for this fd to be equal to one of the custom handles
-                // if it is equal, we need to update the fd of the handle to our reserved
-                if (object->fd == configuration->StdOutHandle) {
-                    inheritationBlock->handles[i].fd = STDOUT_FILENO;
-                }
-                if (object->fd == configuration->StdInHandle) {
-                    inheritationBlock->handles[i].fd = STDIN_FILENO;
-                }
-                if (object->fd == configuration->StdErrHandle) {
-                    inheritationBlock->handles[i].fd = STDERR_FILENO;
-                }
-                i++;
-            }
-        }
+        hashtable_enumerate(
+                &g_stdioObjects,
+                __create_inherit_entry,
+                &context
+        );
         UNLOCK_FILES();
         
         *inheritationBlockOut       = (void*)inheritationBlock;
         *inheritationBlockLengthOut = inheritationBlockLength;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -248,7 +285,7 @@ StdioInheritObject(
         }
 
         stdio_handle_clone(handle, inheritHandle);
-        if (handle->ops.inherit(handle) != OsSuccess) {
+        if (handle->ops.inherit(handle) != OsOK) {
             TRACE(" > failed to inherit fd %i", inheritHandle->fd);
             stdio_handle_destroy(handle, 0);
         }
@@ -299,43 +336,75 @@ void StdioConfigureStandardHandles(
     stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT | _IONBF);
 }
 
+struct __iod_close_context {
+    unsigned int excludeFlags;
+    int          filesClosed;
+};
+
+static void __close_entry(
+        _In_ int         index,
+        _In_ const void* element,
+        _In_ void*       userContext)
+{
+    struct stdio_object_entry*  entry = (struct stdio_object_entry*)element;
+    stdio_handle_t*             handle = entry->handle;
+    struct __iod_close_context* context = userContext;
+    _CRT_UNUSED(index);
+
+    if (handle == NULL) {
+        // already cleaned up
+        return;
+    }
+
+    if (context->excludeFlags && (handle->wxflag & context->excludeFlags)) {
+        return;
+    }
+
+    // Is it a buffered stream or raw?
+    if (handle->buffered_stream) {
+        fclose(handle->buffered_stream);
+    } else {
+        close(handle->fd);
+    }
+
+    // Cleanup handle, and mark the handle NULL to not cleanup twice.
+    // We do a *VERY* crude cleanup here as we are called on shutdown
+    // which means we don't really care about proper cleanup
+    entry->handle = NULL;
+
+    context->filesClosed++;
+}
+
 static int __close_io_descriptors(unsigned int excludeFlags)
 {
-    CollectionItem_t* node;
-    stdio_handle_t*   handle;
-    int               filesClosed = 0;
+    struct __iod_close_context context = {
+            .excludeFlags = excludeFlags,
+            .filesClosed  = 0
+    };
     
     LOCK_FILES();
-    node = CollectionBegin(&g_stdioObjects);
-    while (node) {
-        handle = (stdio_handle_t*)node->Data;
-        if (excludeFlags && (handle->wxflag & excludeFlags)) {
-            node = CollectionNext(node);
-            continue;
-        }
-
-        // Load next node before closing, as it will be removed
-        node = CollectionNext(node);
-        
-        // Is it a buffered stream or raw?
-        if (handle->buffered_stream) {
-            fclose(handle->buffered_stream);
-        }
-        else {
-            close(handle->fd);
-        }
-        filesClosed++;
-    }
+    hashtable_enumerate(
+            &g_stdioObjects,
+            __close_entry,
+            &context
+    );
     UNLOCK_FILES();
-    return filesClosed;
+    return context.filesClosed;
 }
 
 void StdioInitialize(void)
 {
+    // initialize the hashtable of handles
+    hashtable_construct(
+            &g_stdioObjects, 0, sizeof(struct stdio_object_entry),
+            stdio_hash, stdio_cmp
+    );
+
+    // initialize subsystems for stdio
     stdio_bitmap_initialize();
 }
 
-_CRTIMP void StdioCleanup(void)
+CRTDECL(void, StdioCleanup(void))
 {
     // flush all file buffers and close handles
     io_buffer_flush_all(_IOWRT | _IOREAD);
@@ -349,7 +418,6 @@ _CRTIMP void StdioCleanup(void)
 int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
 {
     stdio_handle_t* handle;
-    DataKey_t       key;
     int             updated_fd;
 
     // the bitmap allocator handles both cases if we want to allocate a specific
@@ -378,8 +446,10 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     spinlock_init(&handle->lock, spinlock_recursive);
     stdio_get_null_operations(&handle->ops);
 
-    key.Value.Integer = updated_fd;
-    CollectionAppend(&g_stdioObjects, CollectionCreateNode(key, handle));
+    hashtable_set(&g_stdioObjects, &(struct stdio_object_entry) {
+        .id = updated_fd,
+        .handle = handle
+    });
     TRACE("[stdio_handle_create] success %i", updated_fd);
     
     *handle_out = handle;
@@ -397,7 +467,7 @@ void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source)
     stdio_handle_set_ops_type(target, source->object.type);
 }
 
-int stdio_handle_set_handle(stdio_handle_t* handle, UUId_t io_handle)
+int stdio_handle_set_handle(stdio_handle_t* handle, uuid_t io_handle)
 {
     if (!handle) {
         return EBADF;
@@ -458,7 +528,7 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
     stream->_ptr      = stream->_base = NULL;
     stream->_cnt      = 0;
     stream->_fd       = handle->fd;
-    stream->_flag     = stream_flags;
+    stream->_flag     = (int)stream_flags;
     stream->_tmpfname = NULL;
     
     // associate the stream object
@@ -468,14 +538,11 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
 
 int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 {
-    DataKey_t key;
-    
     if (!handle) {
         return EBADF;
     }
-    
-    key.Value.Integer = handle->fd;
-    CollectionRemoveByKey(&g_stdioObjects, key);
+
+    hashtable_remove(&g_stdioObjects, &(struct stdio_object_entry) { .id = handle->fd });
     stdio_bitmap_free(handle->fd);
     free(handle);
     return EOK;
@@ -483,9 +550,9 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
-    OsStatus_t status = handle_post_notification(handle->object.handle, activity);
-    if (status != OsSuccess) {
-        OsStatusToErrno(status);
+    oserr_t status = handle_post_notification(handle->object.handle, activity);
+    if (status != OsOK) {
+        OsErrToErrNo(status);
         return -1;
     }
     return 0;
@@ -499,8 +566,13 @@ void stdio_handle_flag(stdio_handle_t* handle, unsigned int flag)
 
 stdio_handle_t* stdio_handle_get(int iod)
 {
-    DataKey_t Key = { .Value.Integer = iod };
-    return (stdio_handle_t*)CollectionGetDataByKey(&g_stdioObjects, Key, 0);
+    struct stdio_object_entry* result;
+
+    result = hashtable_get(&g_stdioObjects, &(struct stdio_object_entry) { .id = iod });
+    if (result != NULL) {
+        return result->handle;
+    }
+    return NULL;
 }
 
 FILE* stdio_get_std(int n)
@@ -530,18 +602,31 @@ int isatty(int fd)
     return (handle->wxflag & WX_TTY) != 0;
 }
 
-Collection_t* stdio_get_handles(void)
+hashtable_t* stdio_get_handles(void)
 {
     return &g_stdioObjects;
 }
 
-UUId_t GetNativeHandle(int iod)
+uuid_t GetNativeHandle(int iod)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     if (!handle) {
         return UUID_INVALID;
     }
     return handle->object.handle;
+}
+
+static uint64_t stdio_hash(const void* element)
+{
+    const struct stdio_object_entry* entry = element;
+    return (uint64_t)entry->id;
+}
+
+static int stdio_cmp(const void* element1, const void* element2)
+{
+    const struct stdio_object_entry* entry1 = element1;
+    const struct stdio_object_entry* entry2 = element2;
+    return entry1->id == entry2->id ? 0 : -1;
 }
 
 #endif

@@ -63,13 +63,13 @@ UserEventDestroy(
     kfree(event);
 }
 
-static OsStatus_t
+static oserr_t
 AllocateSyncAddress(
     _In_ UserEvent_t* event)
 {
     uintptr_t   offsetInPage;
     uintptr_t   dmaAddress;
-    OsStatus_t  status;
+    oserr_t  status;
     uintptr_t   userAddress;
     void*       kernelAddress = MemoryCacheAllocate(syncAddressCache);
     if (!kernelAddress) {
@@ -79,7 +79,7 @@ AllocateSyncAddress(
     offsetInPage = (uintptr_t)kernelAddress % GetMemorySpacePageSize();
     status       = GetMemorySpaceMapping(GetCurrentMemorySpace(),
                                          (vaddr_t)kernelAddress, 1, &dmaAddress);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
@@ -93,7 +93,7 @@ AllocateSyncAddress(
             MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
             MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
     );
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
@@ -101,19 +101,19 @@ AllocateSyncAddress(
     event->kernel_mapping    = (atomic_int*)kernelAddress;
     event->userspace_mapping = (atomic_int*)(userAddress + offsetInPage);
     atomic_store(event->kernel_mapping, 0);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 UserEventCreate(
-    _In_  unsigned int initialValue,
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut,
-    _Out_ atomic_int** syncAddressOut)
+        _In_  unsigned int initialValue,
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut,
+        _Out_ atomic_int** syncAddressOut)
 {
     UserEvent_t* event;
-    UUId_t       handle;
-    OsStatus_t   status;
+    uuid_t       handle;
+    oserr_t   status;
 
     if (!handleOut || !syncAddressOut) {
         return OsInvalidParameters;
@@ -125,7 +125,7 @@ UserEventCreate(
     }
 
     status = AllocateSyncAddress(event);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         kfree(event);
         return status;
     }
@@ -146,15 +146,15 @@ UserEventCreate(
 
     *handleOut      = handle;
     *syncAddressOut = event->userspace_mapping;
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 UserEventSignal(
-    _In_ UUId_t handle)
+        _In_ uuid_t handle)
 {
     UserEvent_t* event  = LookupHandleOfType(handle, HandleTypeUserEvent);
-    OsStatus_t   status = OsIncomplete;
+    oserr_t   status = OsIncomplete;
     int          currentValue;
     int          i;
     int          result;

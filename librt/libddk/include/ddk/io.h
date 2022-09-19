@@ -52,7 +52,7 @@ typedef enum DeviceIoType {
 // Represents a device io communcation space
 // that can be used by a driver to communcate with its physical device.
 typedef struct DeviceIo {
-    UUId_t              Id;
+    uuid_t              Id;
     DeviceIoType_t      Type;
     union {
         struct {
@@ -87,8 +87,8 @@ void WriteVolatileMemory(
  * @brief Registers a new device memory io with the operating system. If this memory range
  * overlaps any existing io range, this request will be denied by the system.
  */
-DDKDECL(OsStatus_t,
-CreateDeviceMemoryIo(
+DDKDECL(oserr_t,
+        CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
     _In_ size_t         Length));
@@ -97,8 +97,8 @@ CreateDeviceMemoryIo(
  * @brief Registers a new device port io with the operating system. If this port io range
  * overlaps any existing range, this request will be denied by the system.
  */
-DDKDECL(OsStatus_t,
-CreateDevicePortIo(
+DDKDECL(oserr_t,
+        CreateDevicePortIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
     _In_ size_t         Length));
@@ -106,8 +106,8 @@ CreateDevicePortIo(
 /* CreateDevicePinIo
  * Registers a new device port/pin io with the operating system. If this port/pin
  * overlaps any existing port/pin, this request will be denied by the system. */
-DDKDECL(OsStatus_t,
-CreateDevicePinIo(
+DDKDECL(oserr_t,
+        CreateDevicePinIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
     _In_ uint8_t        Pin));
@@ -115,22 +115,22 @@ CreateDevicePinIo(
 /* DestroyDeviceIo
  * Unregisters a device-io with the operating system, releasing all resources
  * associated and disabling the io range for use. */
-DDKDECL(OsStatus_t,
-DestroyDeviceIo(
+DDKDECL(oserr_t,
+        DestroyDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* AcquireDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-DDKDECL(OsStatus_t,
-AcquireDeviceIo(
+DDKDECL(oserr_t,
+        AcquireDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* ReleaseDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
-DDKDECL(OsStatus_t,
-ReleaseDeviceIo(
+DDKDECL(oserr_t,
+        ReleaseDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* ReadDeviceIo
@@ -145,8 +145,8 @@ ReadDeviceIo(
 /* WriteDeviceIo
  * Write data from the given io-space at <offset> with the given <length>, 
  * the offset and length must be below the size of the io-space */
-DDKDECL(OsStatus_t,
-WriteDeviceIo(
+DDKDECL(oserr_t,
+        WriteDeviceIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
     _In_ size_t         Value,

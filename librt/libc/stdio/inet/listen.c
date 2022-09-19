@@ -40,7 +40,7 @@ int listen(int iod, int backlog)
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
-    OsStatus_t               status;
+    oserr_t               status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -61,8 +61,8 @@ int listen(int iod, int backlog)
     sys_socket_listen(GetGrachtClient(), &msg.base, handle->object.handle, backlog);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_listen_result(GetGrachtClient(), &msg.base, &status);
-    if (status != OsSuccess) {
-        OsStatusToErrno(status);
+    if (status != OsOK) {
+        OsErrToErrNo(status);
         return -1;
     }
     return 0;

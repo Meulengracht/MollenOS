@@ -29,7 +29,7 @@
 #define COLOR_BG 0xFF000000
 #define COLOR_FG 0xFFFFFFFF
 
-OsStatus_t
+oserr_t
 VideoQuery(
 	_Out_ VideoDescriptor_t* videoDescriptor)
 {
@@ -38,18 +38,18 @@ VideoQuery(
 	}
 
 	memcpy(videoDescriptor, &VideoGetTerminal()->Info, sizeof(VideoDescriptor_t));
-	return OsSuccess;
+	return OsOK;
 }
 
-OsStatus_t 
+oserr_t
 ConsoleInitialize(void)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
 
     // Initialize visual representation by framebuffer
 #ifdef __OSCONFIG_HAS_VIDEO
     osStatus = InitializeFramebufferOutput();
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         VideoClear(COLOR_BG);
 #ifdef __OSCONFIG_DEBUGCONSOLE
         // Define some virtual borders to prettify just a little
@@ -69,5 +69,5 @@ ConsoleInitialize(void)
 	if (VideoGetTerminal()->AvailableOutputs != 0) {
 		LogSetRenderMode(1);	
 	}
-	return OsSuccess;
+	return OsOK;
 }

@@ -27,12 +27,12 @@
 #include <machine.h>
 #include <string.h>
 
-OsStatus_t
+oserr_t
 CreateInterruptController(
-    _In_ UUId_t     Id,
-    _In_ int        InterruptLineBase,
-    _In_ int        NumberOfInterrupts,
-    _In_ uintptr_t  BaseAddress)
+        _In_ uuid_t     Id,
+        _In_ int        InterruptLineBase,
+        _In_ int        NumberOfInterrupts,
+        _In_ uintptr_t  BaseAddress)
 {
     // Variables
     SystemInterruptController_t *Ic;
@@ -55,10 +55,10 @@ CreateInterruptController(
         }
         IcHead->Link = Ic;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 CreateInterruptOverrides(
     _In_ int        NumberOfInterruptOverrides)
 {
@@ -76,10 +76,10 @@ CreateInterruptOverrides(
     for (i = 0; i < NumberOfInterruptOverrides; i++) {
         GetMachine()->Overrides[i].SourceLine = -1;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,
     _In_ int        DestinationInterruptLine,
@@ -95,7 +95,7 @@ RegisterInterruptOverride(
             GetMachine()->Overrides[i].SourceLine       = SourceInterruptLine;
             GetMachine()->Overrides[i].DestinationLine  = DestinationInterruptLine;
             GetMachine()->Overrides[i].OverrideFlags    = ConvertAcpiFlagsToConformFlags(InterruptFlags, DestinationInterruptLine);
-            return OsSuccess;
+            return OsOK;
         }
     }
     return OsError;

@@ -25,8 +25,8 @@
 #include <ddk/debug.h>
 #include <internal/_syscalls.h>
 
-OsStatus_t MapThreadMemoryRegion(
-        _In_  UUId_t    threadHandle,
+oserr_t MapThreadMemoryRegion(
+        _In_  uuid_t    threadHandle,
         _In_  uintptr_t address,
         _Out_ void**    topOfStack,
         _Out_ void**    pointerOut)

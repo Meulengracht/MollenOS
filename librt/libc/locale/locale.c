@@ -170,13 +170,12 @@ No supporting OS subroutines are required.
  * SUCH DAMAGE.
  */
 
-/* Includes */
 #include <errno.h>
 #include <string.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include "setlocale.h"
+#include <internal/_locale.h>
 #include "../ctype/common/ctype_.h"
 #include "../stdlib/local.h"
 

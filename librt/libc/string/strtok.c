@@ -21,7 +21,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include "../threads/tls.h"
+#include <internal/_tls.h>
 #include <string.h>
 #include <stddef.h>
 
@@ -46,5 +46,5 @@ char* strtok_r(char* s, const char* delimiters, char** lasts)
 
 char* strtok(char* str, const char* delimiters)
 {
-	return strtok_r(str, delimiters, &(tls_current()->strtok_next));
+	return strtok_r(str, delimiters, &(__tls_current()->strtok_next));
 }

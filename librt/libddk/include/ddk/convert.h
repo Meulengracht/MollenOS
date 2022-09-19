@@ -26,9 +26,13 @@
 #define __DDK_CONVERT_H__
 
 #include <ddk/storage.h>
+#include <ddk/device.h>
+#include <ddk/usbdevice.h>
+#include <ddk/busdevice.h>
 
 #include <os/mollenos.h>
 #include <os/process.h>
+#include <stdlib.h>
 
 #include <sys_device_service.h>
 #include <sys_file_service.h>
@@ -64,8 +68,8 @@ static void from_sys_disk_descriptor_dkk(struct sys_disk_descriptor* in, Storage
     size_t serialLen = strnlen(in->serial, sizeof(out->Serial) - 1);
     size_t modelLen  = strnlen(in->model, sizeof(out->Model) - 1);
 
-    out->Device = in->device_id;
-    out->Driver = in->driver_id;
+    out->DeviceID = in->device_id;
+    out->DriverID = in->driver_id;
     out->Flags = (unsigned int)in->flags;
     out->SectorSize = in->geometry.sector_size;
     out->SectorCount = in->geometry.sectors_total;
@@ -80,8 +84,8 @@ static void from_sys_disk_descriptor_dkk(struct sys_disk_descriptor* in, Storage
 
 static void to_sys_disk_descriptor_dkk(StorageDescriptor_t* in, struct sys_disk_descriptor* out)
 {
-    out->device_id = in->Device;
-    out->driver_id = in->Driver;
+    out->device_id = in->DeviceID;
+    out->driver_id = in->DriverID;
     out->flags = (enum sys_storage_flags)in->Flags;
     out->geometry.sector_size = in->SectorSize;
     out->geometry.sectors_total = in->SectorCount;
@@ -149,6 +153,257 @@ static void to_sys_process_configuration(ProcessConfiguration_t* in, struct sys_
     out->stdout_handle = in->StdOutHandle;
     out->stderr_handle = in->StdErrHandle;
     out->stdin_handle  = in->StdInHandle;
+}
+
+static char* to_protocol_string(const char* in)
+{
+    if (!in || strlen(in) == 0) {
+        return NULL;
+    }
+    return strdup(in);
+}
+
+static void to_sys_device_identification(DeviceIdentification_t* in, struct sys_device_identification* out)
+{
+    out->description  = to_protocol_string(in->Description);
+    out->manufacturer = to_protocol_string(in->Manufacturer);
+    out->product      = to_protocol_string(in->Product);
+    out->revision     = to_protocol_string(in->Revision);
+    out->serial       = to_protocol_string(in->Serial);
+}
+
+static void to_sys_device_base(Device_t* in, struct sys_device_base* out)
+{
+    out->id = in->Id;
+    out->parent_id = in->ParentId;
+    out->identification.vendor_id = in->VendorId;
+    out->identification.product_id = in->ProductId;
+    out->identification.class = in->Class;
+    out->identification.subclass = in->Subclass;
+    to_sys_device_identification(&in->Identification, &out->identification);
+}
+
+static void to_sys_bus_io(DeviceIo_t* in, struct sys_bus_io* out)
+{
+    out->id = in->Id;
+    switch (in->Type) {
+        case DeviceIoMemoryBased: {
+            sys_bus_io_access_set_bus_io_memory(out, &(struct sys_bus_io_memory) {
+                .physical_base = in->Access.Memory.PhysicalBase,
+                .virtual_base  = in->Access.Memory.VirtualBase,
+                .length        = in->Access.Memory.Length
+            });
+        } break;
+        case DeviceIoPortBased: {
+            sys_bus_io_access_set_bus_io_port(out, &(struct sys_bus_io_port) {
+                .base = in->Access.Port.Base,
+                .length = in->Access.Port.Length
+            });
+        } break;
+        case DeviceIoPinBased: {
+            sys_bus_io_access_set_bus_io_pin(out, &(struct sys_bus_io_pin) {
+                    .port = in->Access.Pin.Port,
+                    .pin = in->Access.Pin.Pin
+            });
+        } break;
+        default: break;
+    }
+}
+
+static void to_sys_device_bus(BusDevice_t* in, struct sys_device_bus* out)
+{
+    out->id = in->Base.Id;
+    out->parent_id = in->Base.ParentId;
+    out->identification.vendor_id = in->Base.VendorId;
+    out->identification.product_id = in->Base.ProductId;
+    out->identification.class = in->Base.Class;
+    out->identification.subclass = in->Base.Subclass;
+    to_sys_device_identification(&in->Base.Identification, &out->identification);
+
+    out->irq_line = in->InterruptLine;
+    out->irq_pin = in->InterruptPin;
+    out->acpi_conform_flags = in->InterruptAcpiConform;
+    out->segment = in->Segment;
+    out->bus = in->Bus;
+    out->slot = in->Slot;
+    out->function = in->Function;
+
+    sys_device_bus_ios_add(out, __DEVICEMANAGER_MAX_IOSPACES);
+    for (int __i = 0; __i < __DEVICEMANAGER_MAX_IOSPACES; __i++) {
+        struct sys_bus_io* io = sys_device_bus_ios_get(out, __i);
+        to_sys_bus_io(&in->IoSpaces[__i], io);
+    }
+}
+
+static void to_sys_device_usb(UsbDevice_t* in, struct sys_device_usb* out)
+{
+    out->id                        = in->Base.Id;
+    out->parent_id                 = in->Base.ParentId;
+    out->identification.vendor_id  = in->Base.VendorId;
+    out->identification.product_id = in->Base.ProductId;
+    out->identification.class      = in->Base.Class;
+    out->identification.subclass   = in->Base.Subclass;
+    to_sys_device_identification(&in->Base.Identification, &out->identification);
+
+    out->controller_device_id = in->DeviceContext.controller_device_id;
+    out->controller_driver_id = in->DeviceContext.controller_driver_id;
+    out->hub_device_id        = in->DeviceContext.hub_device_id;
+    out->hub_driver_id        = in->DeviceContext.hub_driver_id;
+    out->hub_address          = in->DeviceContext.hub_address;
+    out->port_address         = in->DeviceContext.port_address;
+    out->device_address       = in->DeviceContext.device_address;
+    out->configuration_length = in->DeviceContext.configuration_length;
+    out->device_mps           = in->DeviceContext.device_mps;
+    out->speed                = in->DeviceContext.speed;
+}
+
+static void to_sys_device(Device_t* in, struct sys_device* out)
+{
+    sys_device_init(out);
+
+    if (in->Length == sizeof(Device_t)) {
+        out->content_type = SYS_DEVICE_CONTENT_BASE;
+        to_sys_device_base(in, &out->content.base);
+    } else if (in->Length == sizeof(BusDevice_t)) {
+        out->content_type = SYS_DEVICE_CONTENT_BUS;
+        to_sys_device_bus((BusDevice_t*)in, &out->content.bus);
+    } else if (in->Length == sizeof(UsbDevice_t)) {
+        out->content_type = SYS_DEVICE_CONTENT_USB;
+        to_sys_device_usb((UsbDevice_t*)in,&out->content.usb);
+    }
+}
+
+static char* from_protocol_string(const char* in)
+{
+    if (!in || strlen(in) == 0) {
+        return NULL;
+    }
+    return strdup(in);
+}
+
+static void from_sys_device_identification(const struct sys_device_identification* in, DeviceIdentification_t* out)
+{
+    out->Description = from_protocol_string(in->description);
+    out->Manufacturer = from_protocol_string(in->manufacturer);
+    out->Product = from_protocol_string(in->product);
+    out->Revision = from_protocol_string(in->revision);
+    out->Serial = from_protocol_string(in->serial);
+}
+
+static void from_sys_device_base(const struct sys_device_base* in, Device_t* out)
+{
+    out->Id = in->id;
+    out->ParentId = in->parent_id;
+    out->Length = sizeof(Device_t);
+    out->VendorId = in->identification.vendor_id;
+    out->ProductId = in->identification.product_id;
+    out->Class = in->identification.class;
+    out->Subclass = in->identification.subclass;
+    from_sys_device_identification(&in->identification, &out->Identification);
+}
+
+static void from_sys_bus_io(const struct sys_bus_io* in, DeviceIo_t* out)
+{
+    out->Id = in->id;
+    switch (in->access_type) {
+        case SYS_BUS_IO_ACCESS_MEMORY: {
+            out->Type                       = DeviceIoMemoryBased;
+            out->Access.Memory.PhysicalBase = in->access.memory.physical_base;
+            out->Access.Memory.VirtualBase  = in->access.memory.virtual_base;
+            out->Access.Memory.Length       = in->access.memory.length;
+        } break;
+        case SYS_BUS_IO_ACCESS_PORT: {
+            out->Type               = DeviceIoPortBased;
+            out->Access.Port.Base   = in->access.port.base;
+            out->Access.Port.Length = in->access.port.length;
+        } break;
+        case SYS_BUS_IO_ACCESS_PIN: {
+            out->Type            = DeviceIoPinBased;
+            out->Access.Pin.Port = in->access.pin.port;
+            out->Access.Pin.Pin  = in->access.pin.pin;
+        } break;
+        default: break;
+    }
+}
+
+static void from_sys_device_bus(struct sys_device_bus* in, BusDevice_t* out)
+{
+    memset(out, 0, sizeof(BusDevice_t));
+    out->Base.Id = in->id;
+    out->Base.ParentId = in->parent_id;
+    out->Base.Length = sizeof(BusDevice_t);
+    out->Base.VendorId = in->identification.vendor_id;
+    out->Base.ProductId = in->identification.product_id;
+    out->Base.Class = in->identification.class;
+    out->Base.Subclass = in->identification.subclass;
+    from_sys_device_identification(&in->identification, &out->Base.Identification);
+
+    for (int i = 0; i < in->ios_count; i++) {
+        struct sys_bus_io* io = sys_device_bus_ios_get(in, i);
+        from_sys_bus_io(io, &out->IoSpaces[i]);
+    }
+
+    out->InterruptLine = in->irq_line;
+    out->InterruptPin = in->irq_pin;
+    out->InterruptAcpiConform = in->acpi_conform_flags;
+    out->Segment = in->segment;
+    out->Bus = in->bus;
+    out->Slot = in->slot;
+    out->Function = in->function;
+}
+
+static void from_sys_device_usb(const struct sys_device_usb* in, UsbDevice_t* out)
+{
+    out->Base.Id = in->id;
+    out->Base.ParentId = in->parent_id;
+    out->Base.Length = sizeof(UsbDevice_t);
+    out->Base.VendorId = in->identification.vendor_id;
+    out->Base.ProductId = in->identification.product_id;
+    out->Base.Class = in->identification.class;
+    out->Base.Subclass = in->identification.subclass;
+    from_sys_device_identification(&in->identification, &out->Base.Identification);
+
+    out->DeviceContext.controller_device_id = in->controller_device_id;
+    out->DeviceContext.controller_driver_id = in->controller_driver_id;
+    out->DeviceContext.hub_device_id = in->hub_device_id;
+    out->DeviceContext.hub_driver_id = in->hub_driver_id;
+    out->DeviceContext.hub_address = in->hub_address;
+    out->DeviceContext.port_address = in->port_address;
+    out->DeviceContext.device_address = in->device_address;
+    out->DeviceContext.configuration_length = in->configuration_length;
+    out->DeviceContext.device_mps = in->device_mps;
+    out->DeviceContext.speed = in->speed;
+}
+
+static Device_t* from_sys_device(const struct sys_device* in)
+{
+    Device_t* out = NULL;
+
+    switch (in->content_type) {
+        case SYS_DEVICE_CONTENT_BASE: {
+            out = malloc(sizeof(Device_t));
+            if (out == NULL) {
+                return NULL;
+            }
+            from_sys_device_base(&in->content.base, out);
+        } break;
+        case SYS_DEVICE_CONTENT_BUS: {
+            out = malloc(sizeof(BusDevice_t));
+            if (out == NULL) {
+                return NULL;
+            }
+            from_sys_device_bus((struct sys_device_bus*)&in->content.bus, (BusDevice_t*)out);
+        } break;
+        case SYS_DEVICE_CONTENT_USB: {
+            out = malloc(sizeof(UsbDevice_t));
+            if (out == NULL) {
+                return NULL;
+            }
+            from_sys_device_usb(&in->content.usb, (UsbDevice_t*)out);
+        } break;
+        default: break;
+    }
+    return out;
 }
 
 #endif //!__DDK_CONVERT_H__

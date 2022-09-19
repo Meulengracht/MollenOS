@@ -35,7 +35,7 @@
 #include "ctt_driver_service_server.h"
 #include "ctt_storage_service_server.h"
 
-static UUId_t g_nextTransactionId = 0;
+static uuid_t g_nextTransactionId = 0;
 
 static struct __AhciCommandTableEntry {
     int          Direction;
@@ -61,19 +61,19 @@ static struct __AhciCommandTableEntry {
     { -1, -1, -1, 0, 0, 0 }
 };
 
-static OsStatus_t __AllocateCommandSlot(
+static oserr_t __AllocateCommandSlot(
         _In_ AhciPort_t*        port,
         _In_ AhciTransaction_t* transaction)
 {
     int        portSlot = -1;
-    OsStatus_t status;
+    oserr_t status;
 
     // OK so the transaction we just recieved needs to be queued up,
     // so we must initally see if we can allocate a new slot on the port
     status = AhciPortAllocateCommandSlot(port, &portSlot);
 
     __SetTransferKey(transaction, portSlot);
-    if (status == OsSuccess) {
+    if (status == OsOK) {
         transaction->State = TransactionInProgress;
     }
     else {
@@ -83,19 +83,19 @@ static OsStatus_t __AllocateCommandSlot(
     return status;
 }
 
-static OsStatus_t __QueueTransaction(
+static oserr_t __QueueTransaction(
     _In_ AhciController_t*  controller,
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction)
 {
-    OsStatus_t status = OsSuccess;
+    oserr_t status = OsOK;
 
     TRACE("__QueueTransaction(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", transaction=0x%" PRIxIN ")",
           controller, port, transaction);
 
     // update header with the slot
     if (__GetTransferKey(transaction) == -1) {
-        if (__AllocateCommandSlot(port, transaction) != OsSuccess) {
+        if (__AllocateCommandSlot(port, transaction) != OsOK) {
             goto exit;
         }
     }
@@ -151,7 +151,7 @@ static AhciTransaction_t* __CreateTransaction(
         _In_ struct dma_attachment* dmaAttachment,
         _In_ unsigned int           bufferOffset)
 {
-    UUId_t             transactionId;
+    uuid_t             transactionId;
     AhciTransaction_t* transaction;
     size_t             transactionSize = message ?
             sizeof(AhciTransaction_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message) :
@@ -195,7 +195,7 @@ static AhciTransaction_t* __CreateTransaction(
     return transaction;
 }
 
-OsStatus_t
+oserr_t
 AhciTransactionControlCreate(
     _In_ AhciDevice_t* ahciDevice,
     _In_ AtaCommand_t  ataCommand,
@@ -203,7 +203,7 @@ AhciTransactionControlCreate(
     _In_ int           direction)
 {
     AhciTransaction_t*    transaction;
-    OsStatus_t            status;
+    oserr_t            status;
     struct dma_attachment dmaAttachment;
 
     TRACE("AhciTransactionControlCreate(ahciDevice=0x%" PRIxIN ", ataCommand=0x%x, length=0x%" PRIxIN ", direction=%i)",
@@ -215,7 +215,7 @@ AhciTransactionControlCreate(
     }
 
     status = dma_attach(ahciDevice->Port->InternalBuffer.handle, &dmaAttachment);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         goto exit;
     }
 
@@ -233,7 +233,7 @@ AhciTransactionControlCreate(
 
     // The transaction is now prepared and ready for the dispatch
     status = __QueueTransaction(ahciDevice->Controller, ahciDevice->Port, transaction);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         AhciTransactionDestroy(ahciDevice->Port, transaction);
     }
 
@@ -260,20 +260,20 @@ static inline struct __AhciCommandTableEntry* __GetCommand(
     return NULL;
 }
 
-OsStatus_t
+oserr_t
 AhciTransactionStorageCreate(
-    _In_ AhciDevice_t*          device,
-    _In_ struct gracht_message* message,
-    _In_ int                    direction,
-    _In_ uint64_t               sector,
-    _In_ UUId_t                 bufferHandle,
-    _In_ unsigned int           bufferOffset,
-    _In_ size_t                 sectorCount)
+        _In_ AhciDevice_t*          device,
+        _In_ struct gracht_message* message,
+        _In_ int                    direction,
+        _In_ uint64_t               sector,
+        _In_ uuid_t                 bufferHandle,
+        _In_ unsigned int           bufferOffset,
+        _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
     struct dma_attachment           dmaAttachment;
     AhciTransaction_t*              transaction = NULL;
-    OsStatus_t                      status;
+    oserr_t                      status;
     TRACE("AhciTransactionStorageCreate(device=0x%" PRIxIN ", sector=0x%" PRIxIN ", sectorCount=0x%" PRIxIN ", direction=%i)",
           device, sector, sectorCount, direction);
 
@@ -283,7 +283,7 @@ AhciTransactionStorageCreate(
     }
     
     status = dma_attach(bufferHandle, &dmaAttachment);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         status = OsInvalidParameters;
         goto exit;
     }
@@ -317,31 +317,31 @@ AhciTransactionStorageCreate(
     status = __QueueTransaction(device->Controller, device->Port, transaction);
 
 exit:
-    if (status != OsSuccess && device && transaction) {
+    if (status != OsOK && device && transaction) {
         AhciTransactionDestroy(device->Port, transaction);
     }
     return status;
 }
 
-void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,
-        const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
-        const UUId_t bufferId, const size_t offset, const size_t sectorCount)
+void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_t deviceId,
+                                     const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
+                                     const uuid_t bufferId, const size_t offset, const size_t sectorCount)
 {
     AhciDevice_t*   device = AhciManagerGetDevice(deviceId);
-    OsStatus_t      status;
-    LargeUInteger_t sector;
+    oserr_t      status;
+    UInteger64_t sector;
     
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
     
     status = AhciTransactionStorageCreate(device, message, (int)direction, sector.QuadPart,
         bufferId, offset, sectorCount);
-    if (status != OsSuccess) {
+    if (status != OsOK) {
         ctt_storage_transfer_response(message, status, 0);
     }
 }
 
-OsStatus_t
+oserr_t
 AhciManagerCancelTransaction(
     _In_ AhciTransaction_t* transaction)
 {
@@ -363,7 +363,7 @@ static void __DumpD2HFis(
           combinedFis->RegisterD2H.Lba3, combinedFis->RegisterD2H.Count);
 }
 
-static OsStatus_t __VerifyRegisterFISD2H(
+static oserr_t __VerifyRegisterFISD2H(
     _In_ AhciTransaction_t* transaction)
 {
     FISRegisterD2H_t* result = (FISRegisterD2H_t*)&transaction->Response.RegisterD2H;
@@ -376,13 +376,13 @@ static OsStatus_t __VerifyRegisterFISD2H(
         if (result->Status & ATA_STS_DEV_ERROR) { PrintTaskDataErrorString(result->Error); }
         return OsDeviceError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static void __FinishTransaction(
         _In_ AhciPort_t*        port,
         _In_ AhciTransaction_t* transaction,
-        _In_ OsStatus_t         status)
+        _In_ oserr_t         status)
 {
     if (transaction->Internal) {
         AhciManagerHandleControlResponse(port, transaction);
@@ -401,7 +401,7 @@ AhciTransactionHandleResponse(
     _In_ AhciTransaction_t* transaction,
     _In_ size_t             bytesTransferred)
 {
-    OsStatus_t osStatus = OsNotSupported;
+    oserr_t osStatus = OsNotSupported;
     
     TRACE("AhciTransactionHandleResponse(bytesTransferred=%" PRIuIN ")", bytesTransferred);
     
@@ -419,13 +419,13 @@ AhciTransactionHandleResponse(
     transaction->SectorsTransferred += (bytesTransferred / transaction->Target.SectorSize);
 
     // Is the transaction finished? (Or did it error?)
-    if (osStatus != OsSuccess || transaction->BytesLeft == 0) {
+    if (osStatus != OsOK || transaction->BytesLeft == 0) {
         __FinishTransaction(port, transaction, osStatus);
         return;
     }
 
     osStatus = __QueueTransaction(controller, port, transaction);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         __FinishTransaction(port, transaction, osStatus);
     }
 }

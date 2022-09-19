@@ -31,13 +31,21 @@
 
 #define DEVICE_REGISTER_FLAG_LOADDRIVER 0x00000001
 
+typedef struct DeviceIdentification {
+    char* Description;
+    char* Manufacturer;
+    char* Product;
+    char* Revision;
+    char* Serial;
+} DeviceIdentification_t;
+
 // Device Information
 // This is used both by the devicemanager and by the driver to match
 typedef struct Device {
-    UUId_t Id;
-    UUId_t ParentId;
-    size_t Length;
-    char   Name[__DEVICEMANAGER_NAMEBUFFER_LENGTH];
+    uuid_t                 Id;
+    uuid_t                 ParentId;
+    size_t                 Length;
+    DeviceIdentification_t Identification;
 
     unsigned int VendorId;
     unsigned int ProductId;
@@ -48,16 +56,16 @@ typedef struct Device {
 /* RegisterDevice
  * Allows registering of a new device in the
  * device-manager, and automatically queries for a driver for the new device */
-DDKDECL(UUId_t,
+DDKDECL(uuid_t,
 RegisterDevice(
-    _In_ Device_t* Device, 
-    _In_ unsigned int   Flags));
+    _In_ Device_t*    device,
+    _In_ unsigned int flags));
 
 /* UnregisterDevice
  * Allows removal of a device in the device-manager, and automatically 
  * unloads drivers for the removed device */
-DDKDECL(OsStatus_t,
+DDKDECL(oserr_t,
 UnregisterDevice(
-    _In_ UUId_t DeviceId));
+        _In_ uuid_t deviceId));
 
 #endif //!__DDK_DEVICE_H__

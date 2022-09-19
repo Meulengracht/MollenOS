@@ -28,8 +28,9 @@
 #include <ddk/ddkdefs.h>
 #include <ddk/bufferpool.h>
 #include <ddk/busdevice.h>
-#include <usb/definitions.h>
 #include <ddk/service.h>
+#include <ds/mstring.h>
+#include <usb/definitions.h>
 
 DECL_STRUCT(UsbDevice);
 
@@ -109,10 +110,10 @@ typedef struct usb_device_configuration {
 } usb_device_configuration_t;
 
 typedef struct usb_device_context {
-	UUId_t   controller_device_id;
-	UUId_t   controller_driver_id;
-	UUId_t   hub_device_id;
-	UUId_t   hub_driver_id;
+	uuid_t   controller_device_id;
+	uuid_t   controller_driver_id;
+	uuid_t   hub_device_id;
+	uuid_t   hub_driver_id;
     uint8_t  hub_address;
     uint8_t  port_address;
     uint8_t  device_address;
@@ -124,7 +125,7 @@ typedef struct usb_device_context {
 typedef struct usb_transaction {
 	uint8_t Type;
 	uint8_t Flags;
-	UUId_t  BufferHandle;
+	uuid_t  BufferHandle;
 	size_t  BufferOffset;
 	size_t  Length;
 } usb_transaction_t;
@@ -167,8 +168,8 @@ typedef struct usb_transfer {
 
 #define USB_TRANSFER_ENDPOINT_CONTROL NULL
 
-__EXTERN OsStatus_t       UsbInitialize(void);
-__EXTERN OsStatus_t       UsbCleanup(void);
+__EXTERN oserr_t       UsbInitialize(void);
+__EXTERN oserr_t       UsbCleanup(void);
 __EXTERN struct dma_pool* UsbRetrievePool(void);
 
 /**
@@ -200,13 +201,13 @@ UsbTransferInitialize(
  */
 __EXTERN void
 UsbTransferSetup(
-    _In_ UsbTransfer_t* transfer,
-    _In_ UUId_t         setupBufferHandle,
-    _In_ size_t         setupBufferOffset,
-    _In_ UUId_t         dataBufferHandle,
-    _In_ size_t         dataBufferOffset,
-    _In_ size_t         dataLength,
-    _In_ uint8_t        type);
+        _In_ UsbTransfer_t* transfer,
+        _In_ uuid_t         setupBufferHandle,
+        _In_ size_t         setupBufferOffset,
+        _In_ uuid_t         dataBufferHandle,
+        _In_ size_t         dataBufferOffset,
+        _In_ size_t         dataLength,
+        _In_ uint8_t        type);
 
 /**
  * Initializes a transfer for a periodic-transaction.
@@ -220,13 +221,13 @@ UsbTransferSetup(
  */
 __EXTERN void
 UsbTransferPeriodic(
-    _In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-    _In_ size_t         BufferLength,
-    _In_ size_t         DataLength,
-    _In_ uint8_t        DataDirection,
-    _In_ const void*    NotifificationData);
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         BufferLength,
+        _In_ size_t         DataLength,
+        _In_ uint8_t        DataDirection,
+        _In_ const void*    NotifificationData);
 
 /**
  * Creates an In-transaction in the given usb-transfer. Both buffer and length
@@ -238,13 +239,13 @@ UsbTransferPeriodic(
  * @param Handshake
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbTransferIn(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake);
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake);
 
 /**
  * Creates an Out-transaction in the given usb-transfer. Both buffer and length
@@ -256,13 +257,13 @@ UsbTransferIn(
  * @param Handshake
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbTransferOut(
-	_In_ UsbTransfer_t* Transfer,
-    _In_ UUId_t         BufferHandle,
-    _In_ size_t         BufferOffset,
-	_In_ size_t         Length,
-    _In_ int            Handshake);
+        _In_ UsbTransfer_t* Transfer,
+        _In_ uuid_t         BufferHandle,
+        _In_ size_t         BufferOffset,
+        _In_ size_t         Length,
+        _In_ int            Handshake);
 
 /**
  * Queues a new Control or Bulk transfer for the given driver
@@ -290,9 +291,9 @@ UsbTransferQueue(
  */
 __EXTERN UsbTransferStatus_t
 UsbTransferQueuePeriodic(
-    _In_  usb_device_context_t* deviceContext,
-	_In_  UsbTransfer_t*        transfer,
-	_Out_ UUId_t*               transferIdOut);
+        _In_  usb_device_context_t* deviceContext,
+        _In_  UsbTransfer_t*        transfer,
+        _Out_ uuid_t*               transferIdOut);
 
 /**
  * Can be used to reset an interrupt or isochronous transfer after a stall condition has occurred and been cleared.
@@ -300,10 +301,10 @@ UsbTransferQueuePeriodic(
  * @param transferId
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbTransferResetPeriodic(
         _In_ usb_device_context_t* deviceContext,
-        _In_ UUId_t                transferId);
+        _In_ uuid_t                transferId);
 
 /**
  * Dequeues an existing periodic transfer from the given controller. The transfer
@@ -312,10 +313,10 @@ UsbTransferResetPeriodic(
  * @param transferId
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbTransferDequeuePeriodic(
-    _In_ usb_device_context_t* deviceContext,
-	_In_ UUId_t                transferId);
+        _In_ usb_device_context_t* deviceContext,
+        _In_ uuid_t                transferId);
 
 /**
  * Resets the given port on the given hub and queries it's
@@ -327,12 +328,12 @@ UsbTransferDequeuePeriodic(
  * @param portDescriptor
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbHubResetPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor);
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor);
 
 /**
  * Queries the port-descriptor of host-controller port.
@@ -342,12 +343,12 @@ UsbHubResetPort(
  * @param portDescriptor
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbHubQueryPort(
-	_In_ UUId_t                 hubDriverId,
-	_In_ UUId_t                 deviceId,
-	_In_ uint8_t                portAddress,
-	_In_ UsbHcPortDescriptor_t* portDescriptor);
+        _In_ uuid_t                 hubDriverId,
+        _In_ uuid_t                 deviceId,
+        _In_ uint8_t                portAddress,
+        _In_ UsbHcPortDescriptor_t* portDescriptor);
 
 /**
  * UsbSetAddress
@@ -402,15 +403,16 @@ UsbGetStringLanguages(
 	_In_ usb_device_context_t*    deviceContext,
     _In_ usb_string_descriptor_t* descriptor);
 
-/* UsbGetStringDescriptor
- * Queries the usb device for a string with the given language and index. 
- * The provided buffer must be of size at-least 64 bytes. */
+/**
+ * @brief Retrieves the string on the device with the given index. The string is
+ * returned as an mstring. LanguageID 0 requests a list of languages.
+ */
 __EXTERN UsbTransferStatus_t
 UsbGetStringDescriptor(
-	_In_ usb_device_context_t* deviceContext,
-    _In_  size_t               LanguageId, 
-    _In_  size_t               StringIndex, 
-    _Out_ char*                String);
+	_In_  usb_device_context_t* deviceContext,
+    _In_  size_t                languageId,
+    _In_  size_t                stringIndex,
+    _Out_ mstring_t**           stringOut);
 
 /* UsbClearFeature
  * Indicates to an usb-device that we want to request a feature/state disabled. */
@@ -447,7 +449,7 @@ UsbExecutePacket(
 /* UsbEndpointReset
  * Resets the data for the given endpoint. This includes the data-toggles. 
  * This function is unavailable for control-endpoints. */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 UsbEndpointReset(
 	_In_ usb_device_context_t* deviceContext, 
     _In_ uint8_t               endpointAddress);
@@ -459,8 +461,8 @@ UsbEndpointReset(
  * @param portCount
  * @return
  */
-DDKDECL(OsStatus_t,
-UsbControllerRegister(
+DDKDECL(oserr_t,
+        UsbControllerRegister(
     _In_ Device_t*           device,
     _In_ UsbControllerType_t type,
     _In_ int                 portCount));
@@ -470,9 +472,9 @@ UsbControllerRegister(
  * @param DeviceId
  * @return
  */
-DDKDECL(OsStatus_t,
-UsbControllerUnregister(
-    _In_ UUId_t deviceId));
+DDKDECL(oserr_t,
+        UsbControllerUnregister(
+    _In_ uuid_t deviceId));
 
 /**
  *
@@ -480,8 +482,8 @@ UsbControllerUnregister(
  * @param portCount
  * @return
  */
-DDKDECL(OsStatus_t,
-UsbHubRegister(
+DDKDECL(oserr_t,
+        UsbHubRegister(
         _In_ UsbDevice_t* usbDevice,
         _In_ int          portCount));
 
@@ -490,9 +492,9 @@ UsbHubRegister(
  * @param deviceId
  * @return
  */
-DDKDECL(OsStatus_t,
-UsbHubUnregister(
-        _In_ UUId_t deviceId));
+DDKDECL(oserr_t,
+        UsbHubUnregister(
+        _In_ uuid_t deviceId));
 
 /**
  * Call this event when any port status update needs action taken by the usb stack
@@ -500,9 +502,9 @@ UsbHubUnregister(
  * @param PortAddress
  * @return
  */
-DDKDECL(OsStatus_t,
-UsbEventPort(
-    _In_ UUId_t  DeviceId,
+DDKDECL(oserr_t,
+        UsbEventPort(
+    _In_ uuid_t  DeviceId,
     _In_ uint8_t PortAddress));
 
 /**
@@ -511,22 +513,22 @@ UsbEventPort(
  * @param portAddress
  * @return
  */
-DDKDECL(OsStatus_t,
-UsbPortError(
-        _In_ UUId_t  deviceId,
+DDKDECL(oserr_t,
+        UsbPortError(
+        _In_ uuid_t  deviceId,
         _In_ uint8_t portAddress));
 
 /* UsbQueryControllerCount
  * Queries the available number of usb controllers. */
-DDKDECL(OsStatus_t,
-UsbQueryControllerCount(
+DDKDECL(oserr_t,
+        UsbQueryControllerCount(
     _Out_ int* ControllerCount));
 
 /* UsbQueryController
  * Queries the controller with the given index. Index-max is
  * the controller count - 1. */
-DDKDECL(OsStatus_t,
-UsbQueryController(
+DDKDECL(oserr_t,
+        UsbQueryController(
     _In_ int                Index,
     _In_ UsbHcController_t* Controller));
 

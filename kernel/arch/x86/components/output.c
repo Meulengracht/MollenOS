@@ -60,7 +60,7 @@ VesaDrawPixel(
     }
 }
 
-static OsStatus_t 
+static oserr_t
 VesaDrawCharacter(
     _In_ unsigned CursorX,
     _In_ unsigned CursorY,
@@ -86,7 +86,7 @@ VesaDrawCharacter(
             break;
     }
     if (i == MCoreFontNumChars) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 #else
     i = (unsigned)Character
@@ -117,10 +117,10 @@ VesaDrawCharacter(
         bbPointer = (uint32_t*)_bb;
     }
 
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t 
+static oserr_t
 VesaScroll(
     _In_ int lineCount)
 {
@@ -178,10 +178,10 @@ VesaScroll(
     // We did the scroll, modify cursor
     g_bootTerminal.CursorY -= (MCoreFontHeight * lineCount);
     VideoFlush();
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t 
+static oserr_t
 VesaPutCharacter(
     _In_ int Character)
 {
@@ -226,10 +226,10 @@ VesaPutCharacter(
     if ((g_bootTerminal.CursorY + MCoreFontHeight) >= g_bootTerminal.CursorLimitY) {
         VesaScroll(1);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t 
+static oserr_t
 TextDrawCharacter(
     _In_ int      Character,
     _In_ unsigned CursorY,
@@ -246,10 +246,10 @@ TextDrawCharacter(
     // Plot it on the screen
     *Video = Data;
 
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t 
+static oserr_t
 TextScroll(
     _In_ int ByLines)
 {
@@ -278,10 +278,10 @@ TextScroll(
     g_bootTerminal.CursorY = (g_bootTerminal.Info.Height - ByLines);
 
     // Done - no errors
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t 
+static oserr_t
 TextPutCharacter(
     _In_ int Character)
 {
@@ -336,7 +336,7 @@ TextPutCharacter(
     // Send the low byte.
     WriteDirectIo(DeviceIoPortBased, 0x3D4, 1, 15);
     WriteDirectIo(DeviceIoPortBased, 0x3D5, 1, (uint8_t)CursorLoc);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void __SetTerminalMode(
@@ -444,7 +444,7 @@ VideoDrawPixel(
     }
 }
 
-OsStatus_t
+oserr_t
 VideoDrawCharacter(
     _In_ unsigned int X,
     _In_ unsigned int Y,
@@ -491,17 +491,17 @@ SerialPutCharacter(
     WriteDirectIo(DeviceIoPortBased, 0x3F8, 1, characterBuffer);
 }
 
-OsStatus_t
+oserr_t
 SerialPortInitialize(void)
 {
     // Initalize the UART port (1)
 #ifdef __OSCONFIG_DEBUGMODE
     g_bootTerminal.AvailableOutputs |= VIDEO_UART;
 #endif
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 InitializeFramebufferOutput(void)
 {
     // Which kind of mode has been enabled for us
@@ -512,7 +512,7 @@ InitializeFramebufferOutput(void)
         paddr_t* pages = kmalloc(sizeof(paddr_t) * pageCount);
 
         if (pages) {
-            OsStatus_t status = MemorySpaceMap(
+            oserr_t status = MemorySpaceMap(
                     GetCurrentMemorySpace(),
                     &backBuffer,
                     &pages[0],
@@ -521,7 +521,7 @@ InitializeFramebufferOutput(void)
                     MAPPING_COMMIT,
                     MAPPING_VIRTUAL_GLOBAL
             );
-            if (status == OsSuccess) {
+            if (status == OsOK) {
                 g_bootTerminal.BackBufferAddress = backBuffer;
             }
             kfree(pages);
@@ -535,5 +535,5 @@ InitializeFramebufferOutput(void)
             g_bootTerminal.AvailableOutputs |= VIDEO_TEXT;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }

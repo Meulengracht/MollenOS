@@ -31,10 +31,10 @@
 int socket(int domain, int type, int protocol)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    OsStatus_t               os_status;
-    UUId_t                   handle;
-    UUId_t                   send_handle;
-    UUId_t                   recv_handle;
+    oserr_t               os_status;
+    uuid_t                   handle;
+    uuid_t                   send_handle;
+    uuid_t                   recv_handle;
     int                      fd;
     
     // We need to create the socket object at kernel level, as we need
@@ -45,9 +45,9 @@ int socket(int domain, int type, int protocol)
     sys_socket_create(GetGrachtClient(), &msg.base, domain, type, protocol);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_create_result(GetGrachtClient(), &msg.base, &os_status, &handle, &recv_handle, &send_handle);
-    if (os_status != OsSuccess) {
+    if (os_status != OsOK) {
         ERROR("[socket] CreateSocket failed with code %u", os_status);
-        (void)OsStatusToErrno(os_status);
+        (void)OsErrToErrNo(os_status);
         return -1;
     }
     

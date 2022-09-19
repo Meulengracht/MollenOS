@@ -30,12 +30,12 @@
 #include <internal/_utils.h>
 #include <os/mollenos.h>
 
-int socket_create(int domain, int type, int protocol, UUId_t handle, 
-    UUId_t send_handle, UUId_t recv_handle)
+int socket_create(int domain, int type, int protocol, uuid_t handle,
+                  uuid_t send_handle, uuid_t recv_handle)
 {
     stdio_handle_t* ioObject;
     int             status;
-    OsStatus_t      osStatus;
+    oserr_t      osStatus;
     TRACE("[socket] creating from handle %u", LODWORD(handle));
     
     status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &ioObject);
@@ -62,8 +62,8 @@ int socket_create(int domain, int type, int protocol, UUId_t handle,
     
     TRACE("[socket] mapping pipes");
     osStatus = ioObject->ops.inherit(ioObject);
-    if (osStatus != OsSuccess) {
-        (void)OsStatusToErrno(osStatus);
+    if (osStatus != OsOK) {
+        (void)OsErrToErrNo(osStatus);
         ioObject->ops.close(ioObject, 0);
         stdio_handle_destroy(ioObject, 0);
         return -1;

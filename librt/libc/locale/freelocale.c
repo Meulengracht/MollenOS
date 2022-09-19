@@ -32,9 +32,8 @@ PORTABILITY
 <<freelocale>> is POSIX-1.2008.
 */
 
-/* Includes */
 #include <stdlib.h>
-#include "setlocale.h"
+#include <internal/_locale.h>
 
 void freelocale(struct __locale_t *locobj)
 {

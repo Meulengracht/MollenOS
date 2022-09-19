@@ -53,42 +53,42 @@ static inline void __SetFlags(Mutex_t* mutex, unsigned int flags)
 }
 
 // Try performing a quick lock of the mutex by using cmpxchg
-static OsStatus_t
+static oserr_t
 __TryQuickLock(
         _In_  Mutex_t* mutex,
-        _Out_ UUId_t*  ownerOut)
+        _Out_ uuid_t*  ownerOut)
 {
-    UUId_t currentThread = ThreadCurrentHandle();
-    UUId_t free          = UUID_INVALID;
+    uuid_t currentThread = ThreadCurrentHandle();
+    uuid_t free          = UUID_INVALID;
     int    status        = atomic_compare_exchange_strong(&mutex->owner, &free, currentThread);
     if (!status) {
         if (free == currentThread) {
             assert(__HasFlags(mutex, MUTEX_FLAG_RECURSIVE));
             mutex->referenceCount++;
-            return OsSuccess;
+            return OsOK;
         }
         *ownerOut = free;
         return OsBusy;
     }
 
     mutex->referenceCount = 1;
-    return OsSuccess;
+    return OsOK;
 }
 
 // On multicore systems the lock might be released rather quickly
 // so we perform a number of initial spins before going to sleep,
 // and only in the case that there are no sleepers && locked
-static OsStatus_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
+static oserr_t __TrySpinOnOwner(Mutex_t* mutex, uuid_t owner)
 {
-    UUId_t currentOwner = owner;
+    uuid_t currentOwner = owner;
 
     if (atomic_load(&GetMachine()->NumberOfActiveCores) > 1) {
         // they must be on seperate cores, otherwise it makes no sense
         SchedulerObject_t* ownerSchedulerObject = ThreadSchedulerHandle(THREAD_GET(owner));
         if (CpuCoreId(CpuCoreCurrent()) != SchedulerObjectGetAffinity(ownerSchedulerObject)) {
             for (int i = 0; i < MUTEX_SPINS && currentOwner == owner; i++) {
-                if (__TryQuickLock(mutex, &currentOwner) == OsSuccess) {
-                    return OsSuccess;
+                if (__TryQuickLock(mutex, &currentOwner) == OsOK) {
+                    return OsOK;
                 }
             }
         }
@@ -96,24 +96,24 @@ static OsStatus_t __TrySpinOnOwner(Mutex_t* mutex, UUId_t owner)
     return OsError;
 }
 
-static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
+static oserr_t __SlowLock(Mutex_t* mutex, size_t timeout)
 {
-    IntStatus_t intStatus;
-    UUId_t      owner;
+    irqstate_t intStatus;
+    uuid_t      owner;
 
     // Disable interrupts and try to acquire the lock or wait for the lock
     // to unlock if its held on another CPU - however we only wait for a brief period
     intStatus = InterruptDisable();
-    if (__TryQuickLock(mutex, &owner) == OsSuccess ||
-        __TrySpinOnOwner(mutex, owner) == OsSuccess) {
+    if (__TryQuickLock(mutex, &owner) == OsOK ||
+        __TrySpinOnOwner(mutex, owner) == OsOK) {
         InterruptRestoreState(intStatus);
-        return OsSuccess;
+        return OsOK;
     }
 
     // After we acquire the lock we want to make sure that we still cant
     // get the lock before adding us to the queue
     spinlock_acquire(&mutex->syncObject);
-    if (__TryQuickLock(mutex, &owner) == OsSuccess) {
+    if (__TryQuickLock(mutex, &owner) == OsOK) {
         goto exit;
     }
 
@@ -139,7 +139,7 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
         // try acquiring the mutex
         intStatus = InterruptDisable();
         spinlock_acquire(&mutex->syncObject);
-        if (__TryQuickLock(mutex, &owner) == OsSuccess) {
+        if (__TryQuickLock(mutex, &owner) == OsOK) {
             break;
         }
     }
@@ -147,7 +147,7 @@ static OsStatus_t __SlowLock(Mutex_t* mutex, size_t timeout)
 exit:
     spinlock_release(&mutex->syncObject);
     InterruptRestoreState(intStatus);
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -188,11 +188,11 @@ MutexDestruct(
     spinlock_release(&mutex->syncObject);
 }
 
-OsStatus_t
+oserr_t
 MutexTryLock(
     _In_ Mutex_t* mutex)
 {
-    UUId_t owner;
+    uuid_t owner;
 
     if (!mutex) {
         return OsInvalidParameters;
@@ -210,7 +210,7 @@ MutexLock(
     (void)__SlowLock(mutex, 0);
 }
 
-OsStatus_t
+oserr_t
 MutexLockTimed(
     _In_ Mutex_t* mutex,
     _In_ size_t   timeout)
@@ -226,7 +226,7 @@ MutexUnlock(
     _In_ Mutex_t* mutex)
 {
     element_t* waiter;
-    UUId_t     owner;
+    uuid_t     owner;
 
     if (!mutex) {
         return;

@@ -34,7 +34,7 @@
 extern uint32_t g_calibrationTick;
 extern Cmos_t   g_cmos;
 
-InterruptStatus_t
+irqstatus_t
 RtcInterrupt(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context)
@@ -50,21 +50,12 @@ RtcInterrupt(
         // this was a calibration irq
         uint32_t tick = READ_VOLATILE(g_calibrationTick);
         WRITE_VOLATILE(g_calibrationTick, tick + 1);
-        return InterruptHandled;
+        return IRQSTATUS_HANDLED;
     }
-
-    // Should we ever try to resync the time at specific intervals?
-    if (GetMachine()->SystemTimers.WallClock.Year == 0) {
-        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
-    }
-    else {
-        // Update system time with 1 second
-        SystemTimerWallClockAddTime(1);
-    }
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
-InterruptStatus_t
+irqstatus_t
 RtcHpetInterrupt(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context)
@@ -76,18 +67,9 @@ RtcHpetInterrupt(
         // this was a calibration irq
         uint32_t tick = READ_VOLATILE(g_calibrationTick);
         WRITE_VOLATILE(g_calibrationTick, tick + 1);
-        return InterruptHandled;
+        return IRQSTATUS_HANDLED;
     }
-
-    // Should we ever try to resync the time at specific intervals?
-    if (GetMachine()->SystemTimers.WallClock.Year == 0) {
-        CmosReadSystemTime(&GetMachine()->SystemTimers.WallClock);
-    }
-    else {
-        // Update system time with 1 second
-        SystemTimerWallClockAddTime(1);
-    }
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 static uint8_t
@@ -101,7 +83,7 @@ __DisableRtc(void)
     return CmosRead(CMOS_REGISTER_STATUS_B);
 }
 
-OsStatus_t
+oserr_t
 RtcInitialize(
     _In_ Cmos_t* cmos)
 {
@@ -119,7 +101,7 @@ RtcInitialize(
     deviceInterrupt.Line                  = CMOS_RTC_IRQ;
     deviceInterrupt.Pin                   = INTERRUPT_NONE;
     deviceInterrupt.Vectors[0]            = INTERRUPT_NONE;
-    deviceInterrupt.ResourceTable.Handler = (HpetIsEmulatingLegacyController() == OsSuccess ? RtcHpetInterrupt : RtcInterrupt);
+    deviceInterrupt.ResourceTable.Handler = (HpetIsEmulatingLegacyController() == OsOK ? RtcHpetInterrupt : RtcInterrupt);
     deviceInterrupt.Context               = cmos;
 
     cmos->Irq = InterruptRegister(
@@ -137,7 +119,7 @@ RtcInitialize(
     // Set calibration mode
     RtcSetCalibrationMode(1);
 
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -154,7 +136,7 @@ RtcSetCalibrationMode(
 
     // In calibration mode, we request a frequency of 1000hz, in default mode
     // we just want an interrupt once every second
-    if (HpetIsEmulatingLegacyController() == OsSuccess) {
+    if (HpetIsEmulatingLegacyController() == OsOK) {
         uint64_t frequency = MAX(1, 1000 * enable);
         if (!enable) {
             // very naive attempt at syncing the comparator with the CMOS clock update

@@ -38,17 +38,17 @@
 extern gracht_server_t* __crt_get_module_server(void);
 
 // Prototypes
-InterruptStatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
-OsStatus_t        AhciSetup(AhciController_t* controller);
+irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
+oserr_t        AhciSetup(AhciController_t* controller);
 
 AhciController_t*
 AhciControllerCreate(
-    _In_ BusDevice_t* Device)
+    _In_ BusDevice_t* busDevice)
 {
     AhciController_t* controller;
     DeviceInterrupt_t interrupt;
     DeviceIo_t*       ioBase = NULL;
-    OsStatus_t        osStatus;
+    oserr_t           osStatus;
     int               i;
     int               opt = 1;
 
@@ -58,9 +58,9 @@ AhciControllerCreate(
     }
     
     memset(controller, 0, sizeof(AhciController_t));
-    memcpy(&controller->Device, Device, Device->Base.Length);
     spinlock_init(&controller->Lock, spinlock_plain);
-    ELEMENT_INIT(&controller->header, (void*)(uintptr_t)Device->Base.Id, controller);
+    ELEMENT_INIT(&controller->header, (void*)(uintptr_t)busDevice->Base.Id, controller);
+    controller->Device = busDevice;
 
     // Create the event descriptor used to receive irqs
     controller->event_descriptor = eventd(0, EVT_RESET_EVENT);
@@ -79,8 +79,8 @@ AhciControllerCreate(
     // Get I/O Base, and for AHCI there might be between 1-5
     // IO-spaces filled, so we always, ALWAYS go for the last one
     for (i = __DEVICEMANAGER_MAX_IOSPACES - 1; i >= 0; i--) {
-        if (controller->Device.IoSpaces[i].Type == DeviceIoMemoryBased) {
-            ioBase = &controller->Device.IoSpaces[i];
+        if (controller->Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
+            ioBase = &controller->Device->IoSpaces[i];
             break;
         }
     }
@@ -96,7 +96,7 @@ AhciControllerCreate(
 
     // Acquire the io-space
     osStatus = AcquireDeviceIo(ioBase);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
         free(controller);
         return NULL;
@@ -106,7 +106,7 @@ AhciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN, ioBase->Access.Memory.VirtualBase);
     controller->Registers = (AHCIGenericRegisters_t*)ioBase->Access.Memory.VirtualBase;
     
-    DeviceInterruptInitialize(&interrupt, Device);
+    DeviceInterruptInitialize(&interrupt, busDevice);
     RegisterInterruptDescriptor(&interrupt, controller->event_descriptor);
     RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&interrupt, ioBase);
@@ -119,9 +119,9 @@ AhciControllerCreate(
     controller->InterruptId = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
-    osStatus = IoctlDevice(controller->Device.Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+    osStatus = IoctlDevice(controller->Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                            (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (osStatus != OsSuccess || controller->InterruptId == UUID_INVALID) {
+    if (osStatus != OsOK || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(controller->InterruptId);
         ReleaseDeviceIo(controller->IoBase);
@@ -131,7 +131,7 @@ AhciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (AhciSetup(controller) == OsSuccess) {
+    if (AhciSetup(controller) == OsOK) {
         return controller;
     }
     else {
@@ -140,7 +140,7 @@ AhciControllerCreate(
     }
 }
 
-OsStatus_t
+oserr_t
 AhciControllerDestroy(
     _In_ AhciController_t* controller)
 {
@@ -156,11 +156,12 @@ AhciControllerDestroy(
 
     UnregisterInterruptSource(controller->InterruptId);
     ReleaseDeviceIo(controller->IoBase);
+    free(controller->Device);
     free(controller);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 AhciReset(
     _In_ AhciController_t* controller)
 {
@@ -205,10 +206,10 @@ AhciReset(
         }
         TRACE(" > port %i status after reset: 0x%x", i, controller->Ports[i]->Registers->CommandAndStatus);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 AhciTakeOwnership(
     _In_ AhciController_t* Controller)
 {
@@ -240,11 +241,11 @@ AhciTakeOwnership(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
-OsStatus_t
+oserr_t
 AhciSetup(
     _In_ AhciController_t* controller)
 {
@@ -256,7 +257,7 @@ AhciSetup(
     TRACE("AhciSetup()");
 
     // Take ownership of the controller
-    if (AhciTakeOwnership(controller) != OsSuccess) {
+    if (AhciTakeOwnership(controller) != OsOK) {
         ERROR("Failed to take ownership of the controller.");
         return OsError;
     }
@@ -302,7 +303,7 @@ AhciSetup(
     // Finish the stop sequences
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (controller->Ports[i] != NULL) {
-            if (AhciPortFinishSetup(controller, controller->Ports[i]) != OsSuccess) {
+            if (AhciPortFinishSetup(controller, controller->Ports[i]) != OsOK) {
                 ERROR(" > failed to initialize port %i", i);
                 fullResetRequired = 1;
                 break;
@@ -312,7 +313,7 @@ AhciSetup(
 
     // Perform full reset if required here
     if (fullResetRequired) {
-        if (AhciReset(controller) != OsSuccess) {
+        if (AhciReset(controller) != OsOK) {
             ERROR("Failed to initialize the AHCI controller, aborting");
             return OsError;
         }
@@ -325,10 +326,10 @@ AhciSetup(
     WRITE_VOLATILE(controller->Registers->GlobalHostControl, ghc | AHCI_HOSTCONTROL_IE);
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (controller->Ports[i] != NULL) {
-            if (AhciPortStart(controller, controller->Ports[i]) != OsSuccess) {
+            if (AhciPortStart(controller, controller->Ports[i]) != OsOK) {
                 ERROR(" > failed to start port %i", i);
             }
         }
     }
-    return OsSuccess;
+    return OsOK;
 }

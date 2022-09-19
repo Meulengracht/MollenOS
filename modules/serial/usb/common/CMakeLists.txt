@@ -1,22 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../../../../cmake/SetupEnvironment.cmake)
-    project(ValiModule_USBCOMMON)
-endif ()
-
-enable_language(C)
-
-# Configure include paths
-include_directories (
-    ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../../../librt/libgracht/include
-    ../../../../librt/libusb/include
-    ../../../../librt/libddk/include
-    ../../../../librt/libds/include
-    ../../../../librt/libc/include
-)
-
 set (ADDITONAL_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/ctt_driver_service_server.c
     ${CMAKE_BINARY_DIR}/protocols/ctt_usbhost_service_server.c
@@ -36,3 +17,10 @@ add_library(usb-common STATIC
     transfer.c
 )
 add_dependencies(usb-common contract_servers)
+target_link_libraries(usb-common PUBLIC gracht libds libddk c librt)
+target_include_directories(usb-common PUBLIC
+        ${CMAKE_BINARY_DIR}/protocols
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ../../../../librt/libusb/include
+        ../../../../librt/libos/include
+)

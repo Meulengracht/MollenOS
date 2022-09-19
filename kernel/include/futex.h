@@ -32,7 +32,7 @@ FutexInitialize(void);
 /* FutexWait
  * Performs an atomic check-and-wait operation on the given atomic variable. It must match
  * the expected value otherwise the wait is ignored. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 FutexWait(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -42,7 +42,7 @@ FutexWait(
 /* FutexWaitOperation
  * Performs an atomic check-and-wait operation on the given atomic variable. It must match
  * the expected value otherwise the wait is ignored. */    
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 FutexWaitOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -54,7 +54,7 @@ FutexWaitOperation(
 
 /* FutexWake
  * Wakes up a blocked thread on the given atomic variable. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 FutexWake(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
@@ -62,7 +62,7 @@ FutexWake(
 
 /* FutexWakeOperation
  * Wakes up a blocked thread on the given atomic variable. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 FutexWakeOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,

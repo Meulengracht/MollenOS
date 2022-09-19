@@ -91,7 +91,7 @@ OhciReloadAsynchronous(
     }
 }
 
-OsStatus_t
+oserr_t
 HciTransactionFinalize(
     _In_ UsbManagerController_t* Controller,
     _In_ UsbManagerTransfer_t*   Transfer,
@@ -156,10 +156,10 @@ HciTransactionFinalize(
         UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor,
             USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer)
 {
@@ -175,5 +175,5 @@ HciDequeueTransfer(
     Transfer->Flags |= TransferFlagUnschedule;
     WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
     WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
-    return OsSuccess;
+    return OsOK;
 }

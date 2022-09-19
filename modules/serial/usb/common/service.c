@@ -28,10 +28,11 @@
 #include <ctt_usbhub_service_server.h>
 #include <io.h>
 #include <ddk/utils.h>
+#include <ddk/convert.h>
 
 extern gracht_server_t* __crt_get_module_server(void);
 
-OsStatus_t
+oserr_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -42,14 +43,14 @@ OnLoad(void)
     return UsbManagerInitialize();
 }
 
-OsStatus_t
+oserr_t
 OnUnload(void)
 {
     UsbManagerDestroy();
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     if (event->events & IOSETSYN) {
         UsbManagerController_t* controller = event->data.context;
@@ -62,33 +63,37 @@ OsStatus_t OnEvent(struct ioset_event* event)
         }
 
         HciInterruptCallback(controller);
-        return OsSuccess;
+        return OsOK;
     }
 
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
-OsStatus_t
+oserr_t
 OnRegister(
-    _In_ Device_t* Device)
+    _In_ Device_t* device)
 {
-    if (Device->Length != sizeof(BusDevice_t)) {
+    if (device == NULL) {
+        ERROR("OnRegister: device provided was NULL");
+        return OsInvalidParameters;
+    }
+
+    if (device->Length != sizeof(BusDevice_t)) {
         return OsInvalidParameters;
     }
     
-    if (HciControllerCreate((BusDevice_t*)Device) == NULL) {
+    if (HciControllerCreate((BusDevice_t*)device) == NULL) {
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message,
-        const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
-OsStatus_t
+oserr_t
 OnUnregister(
     _In_ Device_t *Device)
 {
@@ -99,7 +104,7 @@ OnUnregister(
     return HciControllerDestroy(Controller);
 }
 
-void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
@@ -109,13 +114,13 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const UUId
     }
 
     HciPortGetStatus(controller, (int)portId, &descriptor);
-    ctt_usbhub_query_port_response(message, OsSuccess, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+    ctt_usbhub_query_port_response(message, OsOK, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId_t deviceId, const uint8_t portId)
+void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
-    OsStatus_t              status;
+    oserr_t              status;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     if (!controller) {
         ctt_usbhub_reset_port_response(message, OsInvalidParameters, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
@@ -127,7 +132,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const UUId
     ctt_usbhub_reset_port_response(message, status, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
 }
 
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     //
 }

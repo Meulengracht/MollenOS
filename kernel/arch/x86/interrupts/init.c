@@ -59,7 +59,7 @@ __InstallSoftwareHandlers(void)
     );
 }
 
-OsStatus_t
+oserr_t
 PlatformInterruptInitialize(void)
 {
     TRACE("PlatformInterruptInitialize()");
@@ -82,12 +82,12 @@ PlatformInterruptInitialize(void)
     InterruptIncreasePenalty(15);   // IDE / Spurious
     
     // Initialize APIC?
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsOK) {
         ApicInitialize();
     }
     else {
         ERROR("PlatformInterruptInitialize cpu does not have a local apic. This model is too old and not supported.");
         return OsNotSupported;
     }
-    return OsSuccess;
+    return OsOK;
 }

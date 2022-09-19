@@ -61,7 +61,7 @@ static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
 int pipe(long size, int flags)
 {
     stdio_handle_t*        ioObject;
-    OsStatus_t             osStatus;
+    oserr_t             osStatus;
     int                    status;
     struct dma_buffer_info bufferInfo;
     struct dma_attachment  attachment;
@@ -75,8 +75,8 @@ int pipe(long size, int flags)
     bufferInfo.type     = DMA_TYPE_REGULAR;
 
     osStatus = dma_create(&bufferInfo, &attachment);
-    if (osStatus != OsSuccess) {
-        return OsStatusToErrno(osStatus);
+    if (osStatus != OsOK) {
+        return OsErrToErrNo(osStatus);
     }
 
     streambuffer_construct(

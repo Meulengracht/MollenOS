@@ -28,7 +28,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-static OsStatus_t
+static oserr_t
 EhciTransferFill(
     _In_ EhciController_t*     Controller,
     _In_ UsbManagerTransfer_t* Transfer)
@@ -91,7 +91,7 @@ EhciTransferFill(
             }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OsSuccess) {
+            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OsOK) {
                 if (Type == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
@@ -155,7 +155,7 @@ EhciTransferFill(
         // Set last td to generate a interrupt (not null)
         PreviousTd->Token         |= EHCI_TD_IOC;
         PreviousTd->OriginalToken |= EHCI_TD_IOC;
-        return OsSuccess;
+        return OsOK;
     }
     return OsBusy;
 }
@@ -176,7 +176,7 @@ HciQueueTransferGeneric(
     // Step 1 - Allocate queue head
     if (!transfer->EndpointDescriptor) {
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
-                                        EHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsSuccess) {
+                                        EHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsOK) {
             goto queued;
         }
         assert(endpointDescriptor != NULL);
@@ -185,7 +185,7 @@ HciQueueTransferGeneric(
         // Store and initialize the qh
         if (EhciQhInitialize(controller, transfer,
                              transfer->Transfer.Address.DeviceAddress,
-                             transfer->Transfer.Address.EndpointAddress) != OsSuccess) {
+                             transfer->Transfer.Address.EndpointAddress) != OsOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;
@@ -194,7 +194,7 @@ HciQueueTransferGeneric(
     }
 
     // If it fails to queue up => restore toggle
-    if (EhciTransferFill(controller, transfer) != OsSuccess) {
+    if (EhciTransferFill(controller, transfer) != OsOK) {
         goto queued;
     }
 

@@ -24,8 +24,10 @@
 
 #include "msd.h"
 #include <ddk/utils.h>
+#include <ds/mstring.h>
 #include <internal/_ipc.h>
 #include <threads.h>
+#include <stdio.h>
 
 #include "ctt_driver_service_server.h"
 #include "ctt_storage_service_server.h"
@@ -76,7 +78,34 @@ uint64_t rev64(uint64_t qword)
     return y;
 }
 
-OsStatus_t
+static void
+__flipbuffer(
+        _In_ uint8_t* buffer,
+        _In_ size_t   length)
+{
+    size_t pairs = length / 2;
+    size_t i;
+
+    // Iterate pairs in string, and swap
+    for (i = 0; i < pairs; i++) {
+        uint8_t temp      = buffer[i * 2];
+        buffer[i * 2]     = buffer[i * 2 + 1];
+        buffer[i * 2 + 1] = temp;
+    }
+
+    // Zero terminate by trimming trailing spaces
+    for (i = (length - 1); i > 0; i--) {
+        if (buffer[i] != ' ' && buffer[i] != '\0') {
+            i += 1;
+            if (i < length) {
+                buffer[i] = '\0';
+            }
+            break;
+        }
+    }
+}
+
+oserr_t
 MsdDeviceInitialize(
     _In_ MsdDevice_t *Device)
 {
@@ -89,7 +118,7 @@ MsdDeviceInitialize(
     return Device->Operations->Initialize(Device);
 }
 
-OsStatus_t
+oserr_t
 MsdGetMaximumLunCount(
     _In_ MsdDevice_t *Device)
 {
@@ -99,7 +128,7 @@ MsdGetMaximumLunCount(
     // Get Max LUNS is
     // 0xA1 | 0xFE | wIndex - Interface 
     // 1 Byte is expected back, values range between 0 - 15, 0-indexed
-    Status = UsbExecutePacket(&Device->Base.DeviceContext,
+    Status = UsbExecutePacket(&Device->Device->DeviceContext,
         USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
         MSD_REQUEST_GET_MAX_LUN, 0, 0, (uint16_t)Device->InterfaceId, 1, &MaxLuns);
 
@@ -111,18 +140,18 @@ MsdGetMaximumLunCount(
     else {
         Device->Descriptor.LUNCount = 0;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 UsbTransferStatus_t 
 MsdScsiCommand(
-    _In_ MsdDevice_t* Device,
-    _In_ int          Direction,
-    _In_ uint8_t      ScsiCommand,
-    _In_ uint64_t     SectorStart,
-    _In_ UUId_t       BufferHandle,
-    _In_ size_t       BufferOffset,
-    _In_ size_t       DataLength)
+        _In_ MsdDevice_t* Device,
+        _In_ int          Direction,
+        _In_ uint8_t      ScsiCommand,
+        _In_ uint64_t     SectorStart,
+        _In_ uuid_t       BufferHandle,
+        _In_ size_t       BufferOffset,
+        _In_ size_t       DataLength)
 {
     UsbTransferStatus_t Status;
     size_t              DataToTransfer = DataLength;
@@ -167,7 +196,7 @@ MsdScsiCommand(
     return Device->Operations->GetStatus(Device);
 }
 
-OsStatus_t
+oserr_t
 MsdDevicePrepare(
     MsdDevice_t *Device)
 {
@@ -179,7 +208,7 @@ MsdDevicePrepare(
 
     // Allocate memory buffer
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiSense_t), 
-        (void**)&SenseBlock) != OsSuccess) {
+        (void**)&SenseBlock) != OsOK) {
         ERROR("Failed to allocate buffer (sense)");
         return OsError;
     }
@@ -222,85 +251,85 @@ MsdDevicePrepare(
 
     // Mark ready and return
     Device->IsReady = 1;
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t 
+oserr_t
 MsdReadCapabilities(
     _In_ MsdDevice_t *Device)
 {
-    StorageDescriptor_t *Descriptor = &Device->Descriptor;
-    uint32_t *CapabilitesPointer = NULL;
+    StorageDescriptor_t* descriptor = &Device->Descriptor;
+    uint32_t*            capabilitesPointer = NULL;
 
-    // Allocate buffer
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiExtendedCaps_t), 
-        (void**)&CapabilitesPointer) != OsSuccess) {
+        (void**)&capabilitesPointer) != OsOK) {
         ERROR("Failed to allocate buffer (caps)");
         return OsError;
     }
 
     // Perform caps-command
     if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY, 0, 
-            dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), CapabilitesPointer), 
+            dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
             8) != TransferFinished) {
-        dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
+        dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
         return OsError;
     }
 
     // If the size equals max, then we need to use extended
     // capabilities
-    if (CapabilitesPointer[0] == 0xFFFFFFFF) {
-        // Variables
-        ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)CapabilitesPointer;
+    if (capabilitesPointer[0] == 0xFFFFFFFF) {
+        ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)capabilitesPointer;
 
         // Perform extended-caps read command
         if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY_16, 0, 
-                dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), CapabilitesPointer),
+                dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
                 sizeof(ScsiExtendedCaps_t)) != TransferFinished) {
-            dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
+            dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
             return OsError;
         }
 
         // Capabilities are returned in reverse byte-order
-        Descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
-        Descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
-        TRACE("[msd] [read_capabilities] sectorCount %llu, sectorSize %u", Descriptor->SectorCount,
-            Descriptor->SectorSize);
+        descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
+        descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
+        TRACE("[msd] [read_capabilities] sectorCount %llu, sectorSize %u", descriptor->SectorCount,
+              descriptor->SectorSize);
         Device->IsExtended = 1;
-        dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
-        return OsSuccess;
+        dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
+        return OsOK;
     }
 
     // Capabilities are returned in reverse byte-order
-    Descriptor->SectorCount = (uint64_t)rev32(CapabilitesPointer[0]) + 1;
-    Descriptor->SectorSize = rev32(CapabilitesPointer[1]);
+    descriptor->SectorCount = (uint64_t)rev32(capabilitesPointer[0]) + 1;
+    descriptor->SectorSize = rev32(capabilitesPointer[1]);
     TRACE("[msd] [read_capabilities] 0x%llx sectorCount %llu, sectorSize %u",
-        &Descriptor->SectorCount, Descriptor->SectorCount, Descriptor->SectorSize);
-    dma_pool_free(UsbRetrievePool(), (void*)CapabilitesPointer);
-    return OsSuccess;
+          &descriptor->SectorCount, descriptor->SectorCount, descriptor->SectorSize);
+    dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 MsdDeviceStart(
-    _In_ MsdDevice_t* msdDevice)
+    _In_ MsdDevice_t* device)
 {
     UsbTransferStatus_t transferStatus;
     ScsiInquiry_t*      inquiryData = NULL;
-    int i;
+    int                 i;
 
     // How many iterations of device-ready?
     // Floppys need a lot longer to spin up
-    i = (msdDevice->Protocol != ProtocolCB && msdDevice->Protocol != ProtocolCBI) ? 30 : 3;
+    i = (device->Protocol != ProtocolCB && device->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsSuccess) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsOK) {
         ERROR("Failed to allocate buffer (inquiry)");
         return OsError;
     }
 
     // Perform inquiry
-    transferStatus = MsdScsiCommand(msdDevice, 0, SCSI_INQUIRY, 0,
-                                    dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), inquiryData), sizeof(ScsiInquiry_t));
+    transferStatus = MsdScsiCommand(device, 0, SCSI_INQUIRY, 0,
+                                    dma_pool_handle(UsbRetrievePool()),
+                                    dma_pool_offset(UsbRetrievePool(), inquiryData),
+                                    sizeof(ScsiInquiry_t));
     if (transferStatus != TransferFinished) {
         ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
@@ -308,9 +337,9 @@ MsdDeviceStart(
     }
 
     // Perform the Test-Unit Ready command
-    while (msdDevice->IsReady == 0 && i != 0) {
-        MsdDevicePrepare(msdDevice);
-        if (msdDevice->IsReady == 1) {
+    while (device->IsReady == 0 && i != 0) {
+        MsdDevicePrepare(device);
+        if (device->IsReady == 1) {
             break; 
         }
         thrd_sleepex(100);
@@ -319,13 +348,15 @@ MsdDeviceStart(
 
     // Sanitize the resulting ready state, we need it 
     // ready otherwise we can't use it
-    if (!msdDevice->IsReady) {
+    if (!device->IsReady) {
         ERROR("Failed to ready device");
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
         return OsError;
     }
+
+
     dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
-    return MsdReadCapabilities(msdDevice);
+    return MsdReadCapabilities(device);
 }
 
 static void
@@ -350,15 +381,15 @@ SelectScsiTransferCommand(
     }
 }
 
-OsStatus_t
+oserr_t
 MsdTransferSectors(
-    _In_  MsdDevice_t* device,
-    _In_  int          direction,
-    _In_  uint64_t     sector,
-    _In_  UUId_t       bufferHandle,
-    _In_  unsigned int bufferOffset,
-    _In_  size_t       sectorCount,
-    _Out_ size_t*      sectorsTransferred)
+        _In_  MsdDevice_t* device,
+        _In_  int          direction,
+        _In_  uint64_t     sector,
+        _In_  uuid_t       bufferHandle,
+        _In_  unsigned int bufferOffset,
+        _In_  size_t       sectorCount,
+        _Out_ size_t*      sectorsTransferred)
 {
     UsbTransferStatus_t transferStatus;
     size_t              sectorsToBeTransferred;
@@ -415,16 +446,16 @@ MsdTransferSectors(
             *sectorsTransferred -= SectorsLeft;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_storage_transfer_invocation(struct gracht_message* message, const UUId_t deviceId,
-        const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
-        const UUId_t bufferId, const size_t offset, const size_t sectorCount)
+void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_t deviceId,
+                                     const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
+                                     const uuid_t bufferId, const size_t offset, const size_t sectorCount)
 {
     MsdDevice_t*    device = MsdDeviceGet(deviceId);
-    OsStatus_t      status;
-    LargeUInteger_t sector;
+    oserr_t      status;
+    UInteger64_t sector;
     size_t          sectorsTransferred;
     
     sector.u.LowPart = sectorLow;

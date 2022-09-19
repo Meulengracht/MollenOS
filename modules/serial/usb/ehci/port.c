@@ -52,7 +52,7 @@ EhciPortSetBits(
     WRITE_VOLATILE(Controller->OpRegisters->Ports[Index], PortBits);
 }
 
-OsStatus_t
+oserr_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
@@ -104,7 +104,7 @@ HciPortReset(
         }
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -128,7 +128,7 @@ HciPortGetStatus(
     port->Speed     = USB_SPEED_HIGH; // Ehci only has high-speed root ports
 }
 
-OsStatus_t
+oserr_t
 EhciPortCheck(
     _In_ EhciController_t*          Controller,
     _In_ size_t                     Index)
@@ -142,7 +142,7 @@ EhciPortCheck(
     // is now disabled and to disable anything related to this device
     if (Status & EHCI_PORT_OC_EVENT) {
         ERROR("Port %u reported over current. TODO");
-        return OsSuccess;
+        return OsOK;
     }
 
     // Connection event?
@@ -157,17 +157,17 @@ EhciPortCheck(
                 if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
                     EhciPortSetBits(Controller, Index, EHCI_PORT_COMPANION_HC);
                 }
-                return OsSuccess;
+                return OsOK;
             }
         }
-        return UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
+        return UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
     }
 
     // Enable event. This can only happen when it gets disabled due to something
     // like suspend or that i imagine.
     if (Status & EHCI_PORT_ENABLE_EVENT) {
         ERROR("Port %u is now disabled. TODO");
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }

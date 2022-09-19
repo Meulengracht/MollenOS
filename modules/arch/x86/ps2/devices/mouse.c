@@ -56,7 +56,7 @@ int bitScanForward(uint64_t bb) {
     return g_lsbTable[folded * 0x78291ACF >> 26];
 }
 
-InterruptStatus_t
+irqstatus_t
 PS2MouseFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
@@ -83,7 +83,7 @@ PS2MouseFastInterrupt(
         }
     }
 
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 static void __ParseButtonData(
@@ -154,35 +154,35 @@ PS2MouseInterrupt(
     port->ResponseReadIndex = index;
 }
 
-OsStatus_t
+oserr_t
 PS2SetSampling(
     _In_ PS2Port_t* Port,
     _In_ uint8_t    Sampling)
 {
-    if (PS2PortExecuteCommand(Port, PS2_MOUSE_SETSAMPLE, NULL) != OsSuccess || 
-        PS2PortExecuteCommand(Port, Sampling, NULL)            != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_MOUSE_SETSAMPLE, NULL) != OsOK ||
+        PS2PortExecuteCommand(Port, Sampling, NULL) != OsOK) {
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 PS2EnableExtensions(
     _In_ PS2Port_t* Port)
 {
     uint8_t MouseId = 0;
 
-    if (PS2SetSampling(Port, 200) != OsSuccess || 
-        PS2SetSampling(Port, 200) != OsSuccess || 
-        PS2SetSampling(Port, 80)  != OsSuccess) {
+    if (PS2SetSampling(Port, 200) != OsOK ||
+        PS2SetSampling(Port, 200) != OsOK ||
+        PS2SetSampling(Port, 80) != OsOK) {
         return OsError;
     }
-    if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsOK) {
         return OsError;
     }
 
     if (MouseId == PS2_MOUSE_ID_EXTENDED2) {
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return OsError;
@@ -190,31 +190,31 @@ PS2EnableExtensions(
 }
 
 // The 'unlock' sequence of 200-100-80 sample
-OsStatus_t
+oserr_t
 PS2EnableScroll(
     _In_ PS2Port_t* Port)
 {
     uint8_t MouseId = 0;
 
-    if (PS2SetSampling(Port, 200) != OsSuccess || 
-        PS2SetSampling(Port, 100) != OsSuccess || 
-        PS2SetSampling(Port, 80)  != OsSuccess) {
+    if (PS2SetSampling(Port, 200) != OsOK ||
+        PS2SetSampling(Port, 100) != OsOK ||
+        PS2SetSampling(Port, 80) != OsOK) {
         return OsError;
     }
 
-    if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsSuccess) {
+    if (PS2PortExecuteCommand(Port, PS2_MOUSE_GETID, &MouseId) != OsOK) {
         return OsError;
     }
 
     if (MouseId == PS2_MOUSE_ID_EXTENDED) {
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return OsError;
     }
 }
 
-OsStatus_t
+oserr_t
 PS2MouseInitialize(
     _In_ PS2Controller_t* controller,
     _In_ int              index)
@@ -233,15 +233,15 @@ PS2MouseInitialize(
 
     // The mouse is in default state at this point
     // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse
-    if (PS2EnableScroll(port) == OsSuccess) {
+    if (PS2EnableScroll(port) == OsOK) {
         port->device_data.mouse.mode = 1;
-        if (PS2EnableExtensions(port) == OsSuccess) {
+        if (PS2EnableExtensions(port) == OsOK) {
             port->device_data.mouse.mode = 2;
         }
     }
 
     // Update sampling to 60, no need for faster updates
-    if (PS2SetSampling(port, 60) == OsSuccess) {
+    if (PS2SetSampling(port, 60) == OsOK) {
         port->device_data.mouse.sampling = 100;
     }
 
@@ -249,7 +249,7 @@ PS2MouseInitialize(
     return PS2PortExecuteCommand(port, PS2_ENABLE_SCANNING, NULL);
 }
 
-OsStatus_t
+oserr_t
 PS2MouseCleanup(
     _In_ PS2Controller_t* controller,
     _In_ int              index)
@@ -262,5 +262,5 @@ PS2MouseCleanup(
 
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;
-    return OsSuccess;
+    return OsOK;
 }

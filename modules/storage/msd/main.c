@@ -22,12 +22,9 @@
 //#define __TRACE
 
 #include <ddk/convert.h>
-#include <ddk/storage.h>
 #include <ddk/utils.h>
 #include <ioset.h>
 #include "msd.h"
-#include <string.h>
-#include <stdlib.h>
 
 #include <ctt_driver_service_server.h>
 #include <ctt_storage_service_server.h>
@@ -38,12 +35,12 @@ static list_t g_devices = LIST_INIT;
 
 MsdDevice_t*
 MsdDeviceGet(
-    _In_ UUId_t deviceId)
+        _In_ uuid_t deviceId)
 {
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
-OsStatus_t
+oserr_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -60,19 +57,19 @@ DestroyElement(
     MsdDeviceDestroy(Element->value);
 }
 
-OsStatus_t
+oserr_t
 OnUnload(void)
 {
     list_clear(&g_devices, DestroyElement, NULL);
     return UsbCleanup();
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     return OsNotSupported;
 }
 
-OsStatus_t
+oserr_t
 OnRegister(
     _In_ Device_t *Device)
 {
@@ -84,15 +81,15 @@ OnRegister(
     }
 
     list_append(&g_devices, &MsdDevice->Header);
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message, const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
-OsStatus_t
+oserr_t
 OnUnregister(
     _In_ Device_t *Device)
 {
@@ -105,10 +102,10 @@ OnUnregister(
     return MsdDeviceDestroy(MsdDevice);
 }
 
-void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t deviceId)
+void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    OsStatus_t                 status     = OsDoesNotExist;
+    oserr_t                    oserr      = OsNotExists;
     MsdDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     
@@ -117,14 +114,14 @@ void ctt_storage_stat_invocation(struct gracht_message* message, const UUId_t de
             device->Descriptor.SectorCount,
             device->Descriptor.SectorSize);
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        status = OsSuccess;
+        oserr = OsOK;
     }
     
-    ctt_storage_stat_response(message, status, &gdescriptor);
+    ctt_storage_stat_response(message, oserr, &gdescriptor);
 }
 
 // lazyness
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId) { }
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId) { }
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }
 void ctt_usbhost_event_transfer_status_invocation(void) { }

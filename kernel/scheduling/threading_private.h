@@ -51,17 +51,17 @@ typedef struct ThreadSignals {
 
 typedef struct Thread {
     MemorySpace_t*          MemorySpace;
-    UUId_t                  MemorySpaceHandle;
+    uuid_t                  MemorySpaceHandle;
     SchedulerObject_t*      SchedulerObject;
     Context_t*              ContextActive;
 
-    UUId_t                  Handle;
-    UUId_t                  ParentHandle;
+    uuid_t                  Handle;
+    uuid_t                  ParentHandle;
 
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
-    LargeUInteger_t         StartedAt;
+    UInteger64_t         StartedAt;
     struct Thread*          Children;
     struct Thread*          Sibling;
 
@@ -69,7 +69,7 @@ typedef struct Thread {
     const char*             Name;
     unsigned int            Flags;
     _Atomic(int)            Cleanup;
-    UUId_t                  Cookie;
+    uuid_t                  Cookie;
     ThreadEntry_t           Function;
     void*                   Arguments;
     int                     RetCode;

@@ -48,7 +48,7 @@ SendPS2PortCommand(
     return PS2ReadData(0);
 }
 
-OsStatus_t
+oserr_t
 PS2InterfaceTest(
     _In_ int Index)
 {
@@ -56,10 +56,10 @@ PS2InterfaceTest(
     PS2SendCommand(Index == 0 ? PS2_INTERFACETEST_PORT1 : PS2_INTERFACETEST_PORT2);
 
     Response = PS2ReadData(0);
-    return (Response == PS2_INTERFACETEST_OK) ? OsSuccess : OsError;
+    return (Response == PS2_INTERFACETEST_OK) ? OsOK : OsError;
 }
 
-OsStatus_t
+oserr_t
 PS2ResetPort(
     _In_ int Index)
 {
@@ -70,7 +70,7 @@ PS2ResetPort(
     if (Response == PS2_SELFTEST || Response == PS2_ACK) {
         (void)PS2ReadData(0); // We can recieve up to 3 bytes
         (void)PS2ReadData(0); // so don't ignore anything, but ignore errors
-        return OsSuccess;
+        return OsOK;
     }
     return OsError;
 }
@@ -111,19 +111,22 @@ GetResponse:
 
 /* PS2RegisterDevice
  * Shortcut function for registering a new device */
-OsStatus_t
+oserr_t
 PS2RegisterDevice(
     _In_ PS2Port_t* port)
 {
-    BusDevice_t busDevice = {{0 } };
+    BusDevice_t busDevice;
 
-    strcpy(&busDevice.Base.Name[0], "PS2 Child Device");
+    memset(&busDevice, 0, sizeof(BusDevice_t));
+    busDevice.Base.Id        = UUID_INVALID;
     busDevice.Base.ParentId  = UUID_INVALID;
     busDevice.Base.Length    = sizeof(BusDevice_t);
+
     busDevice.Base.VendorId  = 0xFFEF;
     busDevice.Base.ProductId = 0x0030;
     busDevice.Base.Class     = 0xFF0F;
     busDevice.Base.Subclass  = 0xFF0F;
+    busDevice.Base.Identification.Description = "PS2 Child Device";
 
     // Initialize the irq structure
     busDevice.InterruptPin         = INTERRUPT_NONE;
@@ -144,13 +147,13 @@ PS2RegisterDevice(
         return OsError;
     }
     else {
-        return OsSuccess;
+        return OsOK;
     }
 }
 
 /* PS2PortWrite 
  * Writes the given data-byte to the ps2-port */
-OsStatus_t
+oserr_t
 PS2PortWrite(
     _In_ PS2Port_t* Port,
     _In_ uint8_t    Value)
@@ -165,7 +168,7 @@ PS2PortWrite(
 /* PS2PortWaitForState
  * Waits for the port to enter the given state. The function can return OsError
  * if the state is not reached in a seconds time. */
-OsStatus_t
+oserr_t
 PS2PortWaitForState(
     _In_ PS2Port_t*         Port,
     _In_ PS2Command_t*      Command,
@@ -179,8 +182,8 @@ PS2PortWaitForState(
         thrd_sleepex(10);
         Timeout -= 10;
 
-        // If it returns OsSuccess all done
-        if (PS2PortFinishCommand(Port) == OsSuccess) {
+        // If it returns OsOK all done
+        if (PS2PortFinishCommand(Port) == OsOK) {
             break;
         }
     }
@@ -189,20 +192,20 @@ PS2PortWaitForState(
             *ActiveState, State, Command->Command);
         return OsError;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 /* PS2PortExecuteCommand 
  * Executes the given ps2 command, handles both retries and commands that
  * require response. */
-OsStatus_t
+oserr_t
 PS2PortExecuteCommand(
     _In_ PS2Port_t* port,
     _In_ uint8_t    commandValue,
     _In_ uint8_t*   response)
 {
     PS2Command_t* command = &port->ActiveCommand;
-    OsStatus_t    osStatus;
+    oserr_t    osStatus;
 
     // Initiate the packet data
     command->State      = PS2InQueue;
@@ -212,7 +215,7 @@ PS2PortExecuteCommand(
     command->SyncObject = 0;
 
     osStatus = PS2PortWrite(port, commandValue);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
     return PS2PortWaitForState(port, command, PS2Free);
@@ -220,7 +223,7 @@ PS2PortExecuteCommand(
 
 /* PS2PortFinishCommand 
  * Finalizes the current command and executes the next command in queue (if any). */
-OsStatus_t
+oserr_t
 PS2PortFinishCommand(
     _In_ PS2Port_t* port)
 {
@@ -270,12 +273,12 @@ PS2PortFinishCommand(
 
         } break;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 /* PS2PortInitialize
  * Initializes the given port and tries to identify the device on the port */
-OsStatus_t
+oserr_t
 PS2PortInitialize(
     _In_ PS2Port_t* port)
 {
@@ -314,7 +317,7 @@ PS2PortInitialize(
 
     // Start out by doing an interface
     // test on the given port
-    if (PS2InterfaceTest(port->Index) != OsSuccess) {
+    if (PS2InterfaceTest(port->Index) != OsOK) {
         ERROR(" > ps2-port %i failed interface test", port->Index);
         return OsError;
     }
@@ -334,13 +337,13 @@ PS2PortInitialize(
 
     // Write back the configuration
     PS2SendCommand(PS2_SET_CONFIGURATION);
-    if (PS2WriteData(tempValue) != OsSuccess) {
+    if (PS2WriteData(tempValue) != OsOK) {
         ERROR(" > ps2-port %i failed to update configuration", port->Index);
         return OsError;
     }
 
     // Reset the port
-    if (PS2ResetPort(port->Index) != OsSuccess) {
+    if (PS2ResetPort(port->Index) != OsOK) {
         ERROR(" > ps2-port %i failed port reset", port->Index);
         return OsError;
     }
@@ -352,5 +355,5 @@ PS2PortInitialize(
         port->State = PortStateConnected;
         return PS2RegisterDevice(port);
     }
-    return OsSuccess;
+    return OsOK;
 }

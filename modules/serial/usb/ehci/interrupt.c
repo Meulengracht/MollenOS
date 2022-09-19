@@ -28,7 +28,7 @@
 #include "../common/manager.h"
 #include "ehci.h"
 
-InterruptStatus_t
+irqstatus_t
 OnFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
@@ -44,7 +44,7 @@ OnFastInterrupt(
 
     // Was the interrupt even from this controller?
     if (!InterruptStatus) {
-        return InterruptNotHandled;
+        return IRQSTATUS_NOT_HANDLED;
     }
 
     // Acknowledge the interrupt by clearing
@@ -52,7 +52,7 @@ OnFastInterrupt(
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
 
     InterruptTable->EventSignal(ResourceTable->HandleResource);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 void
@@ -84,10 +84,10 @@ ProcessInterrupt:
     // HC Fatal Error
     // Clear all queued, reset controller
     if (interruptStatus & EHCI_STATUS_HOSTERROR) {
-        if (EhciQueueReset(controller) != OsSuccess) {
+        if (EhciQueueReset(controller) != OsOK) {
             ERROR("EHCI-Failure: Failed to reset queue after fatal error");
         }
-        if (EhciRestart(controller) != OsSuccess) {
+        if (EhciRestart(controller) != OsOK) {
             ERROR("EHCI-Failure: Failed to reset controller after fatal error");
         }
     }

@@ -34,7 +34,7 @@
 // accessing foreign memory.
 typedef struct SystemDomain {
     element_t      Header;
-    UUId_t         Id;
+    uuid_t         Id;
     SystemCpu_t    CoreGroup;
     SystemMemory_t Memory;
     MemorySpace_t  SystemSpace;
@@ -42,13 +42,13 @@ typedef struct SystemDomain {
 
 /* CreateNumaDomain
  * Creates a new domain with the given parameters and configuration. */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CreateNumaDomain(
-    _In_  UUId_t            DomainId,
-    _In_  int               NumberOfCores,
-    _In_  uintptr_t         MemoryRangeStart, 
-    _In_  uintptr_t         MemoryRangeLength,
-    _Out_ SystemDomain_t**  Domain);
+        _In_  uuid_t            DomainId,
+        _In_  int               NumberOfCores,
+        _In_  uintptr_t         MemoryRangeStart,
+        _In_  uintptr_t         MemoryRangeLength,
+        _Out_ SystemDomain_t**  Domain);
 
 /* GetCurrentDomain
  * Retrieves a pointer for the current domain. The current domain

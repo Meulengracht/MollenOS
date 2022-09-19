@@ -30,7 +30,7 @@
 #include "../common/manager.h"
 #include "uhci.h"
 
-InterruptStatus_t
+irqstatus_t
 OnFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
         _In_ InterruptResourceTable_t* ResourceTable)
@@ -42,14 +42,14 @@ OnFastInterrupt(
     // Was the interrupt even from this controller?
     InterruptStatus = LOWORD(InterruptTable->ReadIoSpace(IoSpace, UHCI_REGISTER_STATUS, 2));
     if (!(InterruptStatus & UHCI_STATUS_INTMASK)) {
-        return InterruptNotHandled;
+        return IRQSTATUS_NOT_HANDLED;
     }
     atomic_fetch_or(&Controller->Base.InterruptStatus, InterruptStatus);
 
     // Clear interrupt bits
     InterruptTable->WriteIoSpace(IoSpace, UHCI_REGISTER_STATUS, InterruptStatus, 2);
     InterruptTable->EventSignal(ResourceTable->HandleResource);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 void

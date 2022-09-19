@@ -38,7 +38,7 @@ DECL_STRUCT(SystemCpuCore);
  * @param pageMaskOut [Out]
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ArchGetPageMaskFromDmaType(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut);
@@ -48,7 +48,7 @@ ArchGetPageMaskFromDmaType(
  *
  * @return
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 ArchGetProcessorCoreId(void);
 
 /**
@@ -70,10 +70,10 @@ ArchPlatformInitialize(
  * @param interruptId
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 ArchProcessorSendInterrupt(
-    _In_ UUId_t coreId,
-    _In_ UUId_t interruptId);
+        _In_ uuid_t coreId,
+        _In_ uuid_t interruptId);
 
 /**
  * @brief Enters idle mode for the current processor core.

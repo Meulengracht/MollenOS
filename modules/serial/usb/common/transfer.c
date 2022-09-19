@@ -38,10 +38,10 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 UsbManagerTransfer_t*
 UsbManagerCreateTransfer(
-    _In_ struct gracht_message* message,
-    _In_ UsbTransfer_t*         transfer,
-    _In_ UUId_t                 transferId,
-    _In_ UUId_t                 deviceId)
+        _In_ struct gracht_message* message,
+        _In_ UsbTransfer_t*         transfer,
+        _In_ uuid_t                 transferId,
+        _In_ uuid_t                 deviceId)
 {
     UsbManagerController_t* controller;
     UsbManagerTransfer_t*   usbTransfer;
@@ -182,8 +182,8 @@ UsbManagerSendNotification(
     }
 }
 
-void ctt_usbhost_queue_invocation(struct gracht_message* message, const UUId_t processId, const UUId_t deviceId,
-                                  const UUId_t transferId, const uint8_t* transfer, const uint32_t transfer_count)
+void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t deviceId,
+                                  const uuid_t transferId, const uint8_t* transfer, const uint32_t transfer_count)
 {
     UsbManagerTransfer_t* usbTransfer = UsbManagerCreateTransfer(message, (struct usb_transfer*)transfer,
             transferId, deviceId);
@@ -194,8 +194,8 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const UUId_t p
     }
 }
 
-void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const UUId_t processId,
-        const UUId_t deviceId, const UUId_t transferId, const uint8_t* transfer, const uint32_t transfer_count)
+void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const uuid_t processId,
+                                           const uuid_t deviceId, const uuid_t transferId, const uint8_t* transfer, const uint32_t transfer_count)
 {
     UsbManagerTransfer_t* usbTransfer = UsbManagerCreateTransfer(message, (struct usb_transfer*)transfer,
             transferId, deviceId);
@@ -214,10 +214,10 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     ctt_usbhost_queue_periodic_response(message, status);
 }
 
-void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const UUId_t processId,
-        const UUId_t deviceId, const UUId_t transferId)
+void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const uuid_t processId,
+                                           const uuid_t deviceId, const uuid_t transferId)
 {
-    OsStatus_t              status     = OsDoesNotExist;
+    oserr_t              status     = OsNotExists;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     UsbManagerTransfer_t*   transfer   = NULL;
 
@@ -237,16 +237,16 @@ void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const
         HciProcessEvent(controller, USB_EVENT_RESTART_DONE, transfer);
         transfer->Status = TransferInProgress;
         transfer->Flags  = TransferFlagNone;
-        status = OsSuccess;
+        status = OsOK;
     }
 
     ctt_usbhost_reset_periodic_response(message, status);
 }
 
-void ctt_usbhost_dequeue_invocation(struct gracht_message* message, const UUId_t processId,
-        const UUId_t deviceId, const UUId_t transferId)
+void ctt_usbhost_dequeue_invocation(struct gracht_message* message, const uuid_t processId,
+                                    const uuid_t deviceId, const uuid_t transferId)
 {
-    OsStatus_t              status     = OsDoesNotExist;
+    oserr_t              status     = OsNotExists;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     UsbManagerTransfer_t*   transfer   = NULL;
 

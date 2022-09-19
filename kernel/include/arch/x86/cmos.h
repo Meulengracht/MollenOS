@@ -118,7 +118,7 @@ typedef struct Cmos {
     int     RtcAvailable;
     int     RtcLine;
     int     CalibrationMode;
-    UUId_t  Irq;
+    uuid_t  Irq;
 } Cmos_t;
 
 /**
@@ -127,30 +127,30 @@ typedef struct Cmos {
  * @param[In] initializeRtc Whether to initialize the RTC chip
  * @return    Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 CmosInitialize(
     _In_ int initializeRtc);
 
 /**
  * @brief Reads a byte value from a specific CMOS register.
  *
- * @param[In] Register
+ * @param[In] cmosRegister
  * @return
  */
 KERNELAPI uint8_t KERNELABI
 CmosRead(
-    _In_ uint8_t Register);
+    _In_ uint8_t cmosRegister);
 
 /**
  * @brief Writes a byte value to a specific CMOS register.
  *
- * @param[In] Register
- * @param[In] Data
+ * @param[In] cmosRegister
+ * @param[In] data
  */
 KERNELAPI void KERNELABI
 CmosWrite(
-    _In_ uint8_t Register,
-    _In_ uint8_t Data);
+    _In_ uint8_t cmosRegister,
+    _In_ uint8_t data);
 
 /**
  * @brief Waits for the cmos time to perform a full tick
@@ -159,23 +159,13 @@ KERNELAPI void KERNELABI
 CmosWaitForUpdate(void);
 
 /**
- * @brief Updates the provided system time structure with the current time
- * read from the CMOS chip
- *
- * @param[In] systemTime
- */
-void
-CmosReadSystemTime(
-        _In_ SystemTime_t* systemTime);
-
-/**
  * @brief Initializes the RTC chip and neccessary interrupts. The RTC will be initialized
  * to CalibrationMode and will remain in such untill
  *
  * @param[In] cmos The CMOS chip instance that gets initialized
  * @return    Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 RtcInitialize(
         _In_ Cmos_t* cmos);
 

@@ -24,10 +24,10 @@
 #include <internal/_syscalls.h>
 #include <ddk/memory.h>
 
-OsStatus_t
+oserr_t
 CreateMemorySpace(
-    _In_  unsigned int Flags,
-    _Out_ UUId_t* Handle)
+        _In_  unsigned int Flags,
+        _Out_ uuid_t* Handle)
 {
     if (Handle == NULL) {
         return OsError;
@@ -35,10 +35,10 @@ CreateMemorySpace(
     return Syscall_CreateMemorySpace(Flags, Handle);
 }
 
-OsStatus_t
+oserr_t
 GetMemorySpaceForThread(
-    _In_  UUId_t  Thread,
-    _Out_ UUId_t* Handle)
+        _In_  uuid_t  Thread,
+        _Out_ uuid_t* Handle)
 {
     if (Handle == NULL) {
         return OsError;
@@ -46,11 +46,11 @@ GetMemorySpaceForThread(
     return Syscall_GetMemorySpaceForThread(Thread, Handle);
 }
 
-OsStatus_t
+oserr_t
 CreateMemoryMapping(
-    _In_  UUId_t                          Handle,
-    _In_  struct MemoryMappingParameters* Parameters,
-    _Out_ void**                          AddressOut)
+        _In_  uuid_t                          Handle,
+        _In_  struct MemoryMappingParameters* Parameters,
+        _Out_ void**                          AddressOut)
 {
     if (Parameters == NULL || AddressOut == NULL) {
         return OsError;

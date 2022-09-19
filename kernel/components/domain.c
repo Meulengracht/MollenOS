@@ -26,15 +26,15 @@
 
 #include "cpu_private.h"
 
-OsStatus_t
+oserr_t
 CreateNumaDomain(
-    _In_  UUId_t            DomainId,
-    _In_  int               NumberOfCores,
-    _In_  uintptr_t         MemoryRangeStart, 
-    _In_  uintptr_t         MemoryRangeLength,
-    _Out_ SystemDomain_t**  Domain)
+        _In_  uuid_t            DomainId,
+        _In_  int               NumberOfCores,
+        _In_  uintptr_t         MemoryRangeStart,
+        _In_  uintptr_t         MemoryRangeLength,
+        _Out_ SystemDomain_t**  Domain)
 {
-    return OsSuccess;
+    return OsOK;
 }
 
 SystemDomain_t*

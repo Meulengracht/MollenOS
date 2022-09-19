@@ -288,7 +288,7 @@ locale, hard-coding the "C" locale settings.
 #include <ctype.h>
 #include <wctype.h>
 #include "local.h"
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 
 /* Defines to make the file dual use for either strftime() or wcsftime().
  * To get wcsftime, define MAKE_WCSFTIME.

@@ -1,5 +1,5 @@
 /* wctrans constants */
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 
 /* valid values for wctrans_t */
 #define WCT_TOLOWER 1
@@ -25,5 +25,5 @@
    to the requirements of the underlying OS. */
 #define _jp2uc(c) (c)
 #else
-_CRTIMP wint_t _jp2uc(wint_t);
+CRTDECL(wint_t, _jp2uc(wint_t));
 #endif

@@ -124,7 +124,7 @@ AhciPortInitiateSetup(
     }
 }
 
-OsStatus_t
+oserr_t
 AhciPortFinishSetup(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
@@ -205,16 +205,16 @@ AhciPortFinishSetup(
     // any bits that were set as part of the port reset.
     WRITE_VOLATILE(port->Registers->SERR, 0xFFFFFFFF);
     WRITE_VOLATILE(port->Registers->InterruptStatus, 0xFFFFFFFF);
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t
+static oserr_t
 AllocateOperationalMemory(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
     struct dma_buffer_info bufferInfo;
-    OsStatus_t             osStatus;
+    oserr_t             osStatus;
 
     TRACE("AllocateOperationalMemory(controller=0x%" PRIxIN ", port=0x%" PRIxIN ")",
           controller, port);
@@ -228,7 +228,7 @@ AllocateOperationalMemory(
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     osStatus = dma_create(&bufferInfo, &port->CommandListDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command list.");
         return OsOutOfMemory;
     }
@@ -241,7 +241,7 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
     osStatus = dma_create(&bufferInfo, &port->CommandTableDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OsOutOfMemory;
     }
@@ -254,21 +254,21 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
     osStatus = dma_create(&bufferInfo, &port->RecievedFisDMA);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OsOutOfMemory;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 AhciPortRebase(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
     reg32_t             Caps = READ_VOLATILE(controller->Registers->Capabilities);
     AHCICommandList_t*  CommandList;
-    OsStatus_t          Status;
+    oserr_t          Status;
     struct dma_sg_table SgTable;
     uintptr_t           PhysicalAddress;
     int                 i;
@@ -278,7 +278,7 @@ AhciPortRebase(
           controller, port);
 
     Status = AllocateOperationalMemory(controller, port);
-    if (Status != OsSuccess) {
+    if (Status != OsOK) {
         return Status;
     }
     
@@ -306,10 +306,10 @@ AhciPortRebase(
     }
 
     free(SgTable.entries);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 AhciPortEnable(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
@@ -358,7 +358,7 @@ AhciPortEnable(
     return AhciManagerRegisterDevice(controller, port, status);
 }
 
-OsStatus_t
+oserr_t
 AhciPortStart(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
@@ -432,7 +432,7 @@ AhciPortStart(
 
     if (AHCI_PORT_STSS_DET(status) != AHCI_PORT_SSTS_DET_ENABLED) {
         TRACE("AhciPortStart port %i has nothing present: 0x%x", port->Index, port->Registers->STSS);
-        return OsSuccess;
+        return OsOK;
     }
     return AhciPortEnable(controller, port);
 }
@@ -450,15 +450,15 @@ AhciPortStartCommandSlot(
     WRITE_VOLATILE(port->Registers->CI, bitIndex);
 }
 
-OsStatus_t
+oserr_t
 AhciPortAllocateCommandSlot(
     _In_  AhciPort_t* port,
     _Out_ int*        slotOut)
 {
-    OsStatus_t osStatus = OsError;
+    oserr_t osStatus = OsError;
     int        i;
     
-    while (osStatus != OsSuccess) {
+    while (osStatus != OsOK) {
         int slots = atomic_load(&port->Slots);
         
         for (i = 0; i < port->SlotCount; i++) {
@@ -475,7 +475,7 @@ AhciPortAllocateCommandSlot(
                 continue;
             }
 
-            osStatus = OsSuccess;
+            osStatus = OsOK;
             *slotOut = i;
             break;
         }

@@ -31,14 +31,15 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
+
 #define __POSIX_VISIBLE
+#include <internal/_locale.h>
 #include <stdint.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include <wctype.h>
 #include <stdint.h>
-#include "../../locale/setlocale.h"
 
 /*
  * Convert a wide character string to an intmax_t integer.

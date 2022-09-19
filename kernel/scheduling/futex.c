@@ -75,7 +75,7 @@ GetIntegerHash(
 
 static SchedulerObject_t*
 SchedulerGetCurrentObject(
-        _In_ UUId_t coreId)
+        _In_ uuid_t coreId)
 {
     Thread_t* currentThread = CpuCoreCurrentThread(GetProcessorCore(coreId));
     if (!currentThread) {
@@ -243,7 +243,7 @@ FutexInitialize(void)
     }
 }
 
-OsStatus_t
+oserr_t
 FutexWait(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -254,7 +254,7 @@ FutexWait(
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
     uintptr_t             FutexAddress;
-    IntStatus_t           CpuState;
+    irqstate_t           CpuState;
     TRACE("%u: FutexWait(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
@@ -268,14 +268,14 @@ FutexWait(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
-    if (Flags & FUTEX_WAIT_PRIVATE) {
+    if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsSuccess) {
-            return OsDoesNotExist;
+                1, &FutexAddress) != OsOK) {
+            return OsNotExists;
         }
     }
 
@@ -310,7 +310,7 @@ FutexWait(
     return SchedulerGetTimeoutReason();
 }
 
-OsStatus_t
+oserr_t
 FutexWaitOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           ExpectedValue,
@@ -324,7 +324,7 @@ FutexWaitOperation(
     FutexBucket_t        *              Bucket;
     FutexItem_t*                FutexItem;
     uintptr_t                   FutexAddress;
-    IntStatus_t                 CpuState;
+    irqstate_t                 CpuState;
     TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
@@ -338,14 +338,14 @@ FutexWaitOperation(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
-    if (Flags & FUTEX_WAIT_PRIVATE) {
+    if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsSuccess) {
-            return OsDoesNotExist;
+                1, &FutexAddress) != OsOK) {
+            return OsNotExists;
         }
     }
     
@@ -382,7 +382,7 @@ FutexWaitOperation(
     return SchedulerGetTimeoutReason();
 }
 
-OsStatus_t
+oserr_t
 FutexWake(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
@@ -391,7 +391,7 @@ FutexWake(
     MemorySpaceContext_t* Context = NULL;
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
-    OsStatus_t            Status = OsDoesNotExist;
+    oserr_t            Status = OsNotExists;
     uintptr_t             FutexAddress;
     int                   WaiterCount;
     int                   i;
@@ -399,14 +399,14 @@ FutexWake(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to lookup the physical page
-    if (Flags & FUTEX_WAKE_PRIVATE) {
+    if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsSuccess) {
-            return OsDoesNotExist;
+                1, &FutexAddress) != OsOK) {
+            return OsNotExists;
         }
     }
     
@@ -414,7 +414,7 @@ FutexWake(
 
     FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     WaiterCount = atomic_load(&FutexItem->Waiters);
@@ -437,7 +437,7 @@ WakeWaiters:
         
         if (Front) {
             Status = SchedulerQueueObject(Front->value);
-            if (Status != OsSuccess) {
+            if (Status != OsOK) {
                 break;
             }
         }
@@ -454,7 +454,7 @@ WakeWaiters:
     return Status;
 }
 
-OsStatus_t
+oserr_t
 FutexWakeOperation(
     _In_ _Atomic(int)* Futex,
     _In_ int           Count,
@@ -463,7 +463,7 @@ FutexWakeOperation(
     _In_ int           Operation,
     _In_ int           Flags)
 {
-    OsStatus_t Status;
+    oserr_t Status;
     int        InitialValue;
     TRACE("%u: FutexWakeOperation(f 0x%llx)", ThreadCurrentHandle(), Futex);
     

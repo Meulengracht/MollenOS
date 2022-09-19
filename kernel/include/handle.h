@@ -39,13 +39,13 @@ typedef enum HandleType {
 
 typedef void (*HandleDestructorFn)(void*);
 
-KERNELAPI OsStatus_t KERNELABI InitializeHandles(void);
-KERNELAPI OsStatus_t KERNELABI InitializeHandleJanitor(void);
+KERNELAPI oserr_t KERNELABI InitializeHandles(void);
+KERNELAPI oserr_t KERNELABI InitializeHandleJanitor(void);
 
 /**
  * @brief Allocates a new handle for a system resource with a reference of 1.
  */
-KERNELAPI UUId_t KERNELABI
+KERNELAPI uuid_t KERNELABI
 CreateHandle(
     _In_ HandleType_t       handleType,
     _In_ HandleDestructorFn destructor,
@@ -54,10 +54,13 @@ CreateHandle(
 /**
  * @brief Reduces the reference count of the given handle, and cleans up the handle on
  * reaching 0 references.
+ * @param handleId
+ * @return OsIncomplete if there are still active references
+ *         OsOK if the handle was destroyed
  */
-KERNELAPI void KERNELABI
+KERNELAPI oserr_t KERNELABI
 DestroyHandle(
-    _In_ UUId_t handleId);
+        _In_ uuid_t handleId);
 
 /**
  * @brief Registers a global handle path that can be used to look up the handle.
@@ -65,10 +68,10 @@ DestroyHandle(
  * @param handleId [In] The handle to register the path with.
  * @param path   [In] The path at which the handle should reside.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 RegisterHandlePath(
-    _In_ UUId_t      handleId,
-    _In_ const char* path);
+        _In_ uuid_t      handleId,
+        _In_ const char* path);
 
 /**
  * @brief Tries to resolve a handle from the given path.
@@ -76,20 +79,20 @@ RegisterHandlePath(
  * @param path      [In]  The path to resolve a handle for.
  * @param handleOut [Out] A pointer to handle storage.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 LookupHandleByPath(
-    _In_  const char* path,
-    _Out_ UUId_t*     handleOut);
+        _In_  const char* path,
+        _Out_ uuid_t*     handleOut);
 
 /**
  * @brief Acquires the handle given for the calling process. This can fail if the handle
  * turns out to be invalid, otherwise the resource will be returned.
  * @param handleId [In] The handle that should be acquired.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 AcquireHandle(
-    _In_  UUId_t handleId,
-    _Out_ void** resourceOut);
+        _In_  uuid_t handleId,
+        _Out_ void** resourceOut);
 
 /**
  * Retrieves the handle given, while also performing type validation of the handle. 
@@ -97,7 +100,7 @@ AcquireHandle(
  */
 KERNELAPI void* KERNELABI
 LookupHandleOfType(
-    _In_ UUId_t       handleId,
-    _In_ HandleType_t handleType);
+        _In_ uuid_t       handleId,
+        _In_ HandleType_t handleType);
 
 #endif //! __HANDLE_H__

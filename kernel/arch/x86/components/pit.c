@@ -44,8 +44,8 @@ typedef struct Pit {
 // import the calibration ticker
 extern uint32_t g_calibrationTick;
 
-static void PitGetCount(void*, LargeUInteger_t*);
-static void PitGetFrequency(void*, LargeUInteger_t*);
+static void PitGetCount(void*, UInteger64_t*);
+static void PitGetFrequency(void*, UInteger64_t*);
 static void PitNoOperation(void*);
 
 static SystemTimerOperations_t g_pitOperations = {
@@ -55,7 +55,7 @@ static SystemTimerOperations_t g_pitOperations = {
 };
 static Pit_t g_pit = { 0 };
 
-InterruptStatus_t
+irqstatus_t
 PitInterrupt(
         _In_ InterruptFunctionTable_t*  NotUsed,
         _In_ void*                      Context)
@@ -67,7 +67,7 @@ PitInterrupt(
     if (g_pit.Frequency == 1000) {
         uint32_t ticker = READ_VOLATILE(g_calibrationTick);
         WRITE_VOLATILE(g_calibrationTick, ticker + 1);
-        return InterruptHandled;
+        return IRQSTATUS_HANDLED;
     }
 
     // Otherwise, we act as the wall-clock counter. Now we are configured to run at lowest
@@ -87,9 +87,8 @@ PitInterrupt(
             g_pit.DriftAccumulated += 1000;
             seconds--;
         }
-        SystemTimerWallClockAddTime(seconds);
     }
-	return InterruptHandled;
+	return IRQSTATUS_HANDLED;
 }
 
 static void
@@ -105,18 +104,18 @@ __StartPit(
     WriteDirectIo(DeviceIoPortBased, PIT_IO_BASE + PIT_REGISTER_COUNTER0, 1, (divisor >> 8) & 0xFF);
 }
 
-OsStatus_t
+oserr_t
 PitInitialize(
         _In_ int rtcAvailable)
 {
 	DeviceInterrupt_t deviceInterrupt = {{0 } };
-    UUId_t            irq;
-    OsStatus_t        osStatus;
+    uuid_t            irq;
+    oserr_t        osStatus;
 
     TRACE("PitInitialize(rtcAvailable=%i)", rtcAvailable);
     if (rtcAvailable) {
         TRACE("PitInitialize PIT will be disabled as the RTC is enabled");
-        return OsSuccess;
+        return OsOK;
     }
 
     // Otherwise, we set the PIT as enabled
@@ -149,10 +148,10 @@ PitInitialize(
             SystemTimeAttributes_IRQ,
             irq,
             &g_pit);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         WARNING("PitInitialize failed to register the platform timer");
     }
-	return OsSuccess;
+	return OsOK;
 }
 
 void
@@ -176,7 +175,7 @@ PitSetCalibrationMode(
         // Initialize the PIT to the lowest frequency possible, this is determined by whether
         // we are emulated by the HPET or this is a native PIT chip. The lowest we can go in
         // the native PIT, is 18.2065Hz.
-        if (HpetIsEmulatingLegacyController() == OsSuccess) {
+        if (HpetIsEmulatingLegacyController() == OsOK) {
             g_pit.Frequency = 1;
             g_pit.Drift     = 0;
         }
@@ -187,7 +186,7 @@ PitSetCalibrationMode(
         }
     }
 
-    if (HpetIsEmulatingLegacyController() == OsSuccess) {
+    if (HpetIsEmulatingLegacyController() == OsOK) {
         // Counter 0 is the IRQ 0 emulator
         HpetComparatorStart(0, g_pit.Frequency, 1, g_pit.InterruptLine);
     }
@@ -199,7 +198,7 @@ PitSetCalibrationMode(
 static void
 PitGetCount(
         _In_ void*            context,
-        _In_ LargeUInteger_t* tick)
+        _In_ UInteger64_t* tick)
 {
     Pit_t* pit = context;
     tick->QuadPart = pit->Tick;
@@ -208,7 +207,7 @@ PitGetCount(
 static void
 PitGetFrequency(
         _In_ void*            context,
-        _In_ LargeUInteger_t* frequency)
+        _In_ UInteger64_t* frequency)
 {
     Pit_t* pit = context;
     frequency->QuadPart = pit->Frequency;

@@ -72,11 +72,7 @@ double __ieee754_sinh(double x)
 	return x*shuge;
 }
 
-/*
-* @implemented
-*/
-_CRTIMP double __CRTDECL _CIsinh(void)
-{
+CRTDECL(double __CRTDECL, _CIsinh(void)) {
 	FPU_DOUBLE(x);
 	return sinh(x);
 }

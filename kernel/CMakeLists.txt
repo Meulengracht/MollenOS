@@ -4,15 +4,16 @@ enable_language (C)
 
 # Configure include paths
 include_directories (
-	${CMAKE_BINARY_DIR}
-	${CMAKE_BINARY_DIR}/protocols
-	include
-	../boot/include
-    ../librt/libc/include
-    ../librt/libds/include
-    ../librt/libddk/include
-    ../librt/libgracht/include
-    ../librt/libacpi/source/include
+		${CMAKE_BINARY_DIR}
+		${CMAKE_BINARY_DIR}/protocols
+		include
+		../boot/include
+    	../librt/libgracht/include
+    	../librt/libacpi/source/include
+		../librt/libds/include
+		../librt/libddk/include
+		../librt/libos/include
+		../librt/libc/include
 )
 
 # macro for adding subfolders as seperate projects

@@ -52,7 +52,7 @@ const char *EhciErrorMessages[] = {
 
 /* EhciQueueResetInternalData
  * Removes and cleans up any existing transfers, then reinitializes. */
-OsStatus_t
+oserr_t
 EhciQueueResetInternalData(
     _In_ EhciController_t*  Controller)
 {
@@ -90,12 +90,12 @@ EhciQueueResetInternalData(
     NullTd->Status                      = EHCI_TD_HALTED;
     NullTd->Link                        = EHCI_LINK_END;
     NullTd->AlternativeLink             = EHCI_LINK_END;
-    return OsSuccess;
+    return OsOK;
 }
 
 /* EhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
-OsStatus_t
+oserr_t
 EhciQueueInitialize(
     _In_ EhciController_t*  Controller)
 {
@@ -159,7 +159,7 @@ EhciQueueInitialize(
 
 /* EhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
-OsStatus_t
+oserr_t
 EhciQueueReset(
     _In_ EhciController_t*  Controller)
 {
@@ -172,7 +172,7 @@ EhciQueueReset(
     return EhciQueueResetInternalData(Controller);
 }
 
-OsStatus_t
+oserr_t
 EhciQueueDestroy(
     _In_ EhciController_t* Controller)
 {
@@ -182,7 +182,7 @@ EhciQueueDestroy(
     // Reset first
     EhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* EhciConditionCodeToIndex
@@ -231,7 +231,7 @@ EhciGetStatusCode(
     }
 }
 
-OsStatus_t
+oserr_t
 EhciSetPrefetching(
     _In_ EhciController_t*  Controller,
     _In_ uint8_t  Type,
@@ -265,7 +265,7 @@ EhciSetPrefetching(
             WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void

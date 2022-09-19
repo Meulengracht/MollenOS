@@ -26,7 +26,7 @@
 
 /* Includes */
 #include <stddef.h>
-#include "setlocale.h"
+#include <internal/_locale.h>
 
 #define LCMESSAGES_SIZE_FULL (sizeof(struct lc_messages_T) / sizeof(char *))
 #define LCMESSAGES_SIZE_MIN \

@@ -1,0 +1,5 @@
+# Standard yaml configuration for services in the OS
+service:
+  name: served
+  path: /service/serve
+  #depends: none

@@ -60,7 +60,7 @@ ClearPortEventBits(
     }
 }
 
-OsStatus_t
+oserr_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
@@ -87,7 +87,7 @@ HciPortReset(
     else {
         WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 void
@@ -108,13 +108,13 @@ HciPortGetStatus(
     Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? USB_SPEED_FULL : USB_SPEED_LOW;
 }
 
-OsStatus_t 
+oserr_t
 OhciPortCheck(
     _In_ OhciController_t* Controller,
     _In_ int               Index,
     _In_ int               IgnorePowerOn)
 {
-    OsStatus_t Result     = OsSuccess;
+    oserr_t Result     = OsOK;
     reg32_t    PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
     TRACE("OhciPortCheck(%i): 0x%x", Index, PortStatus);
 
@@ -123,12 +123,12 @@ OhciPortCheck(
     
     // We only care about connection events currently
     if (PortStatus & OHCI_PORT_CONNECT_EVENT) {
-        Result = UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
+        Result = UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
     }
     return Result;
 }
 
-OsStatus_t
+oserr_t
 OhciPortsCheck(
     _In_ OhciController_t* Controller,
     _In_ int               IgnorePowerOn)
@@ -143,5 +143,5 @@ OhciPortsCheck(
         OhciPortCheck(Controller, i, IgnorePowerOn);
     }
     spinlock_release(&Controller->Base.Lock);
-    return OsSuccess;
+    return OsOK;
 }

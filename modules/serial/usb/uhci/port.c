@@ -29,7 +29,7 @@
 #include <threads.h>
 #include <string.h>
 
-OsStatus_t
+oserr_t
 HciPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
@@ -69,7 +69,7 @@ HciPortReset(
 		WARNING("UHCI: Port %u enable time-out!", Index);
 		return OsError;
 	}
-	return OsSuccess;
+	return OsOK;
 }
 
 void
@@ -90,14 +90,14 @@ HciPortGetStatus(
     Port->Speed     = (pStatus & UHCI_PORT_LOWSPEED) == 0 ? USB_SPEED_FULL : USB_SPEED_LOW;
 }
 
-OsStatus_t
+oserr_t
 UhciPortCheck(
 	_In_ UhciController_t* Controller, 
 	_In_ int               Index)
 {
 	uint16_t pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
 	if (!(pStatus & UHCI_PORT_CONNECT_EVENT)) {
-		return OsSuccess;
+		return OsOK;
     }
 
     // Debug
@@ -105,20 +105,20 @@ UhciPortCheck(
 
 	// Clear connection event so we don't redetect
 	UhciWrite16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)), UHCI_PORT_CONNECT_EVENT);
-	return UsbEventPort(Controller->Base.Device.Base.Id, (uint8_t)(Index & 0xFF));
+	return UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
 }
 
-OsStatus_t
+oserr_t
 UhciPortsCheck(
 	_In_ UhciController_t* Controller)
 {
 	for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
 		UhciPortCheck(Controller, i);
 	}
-	return OsSuccess;
+	return OsOK;
 }
 
-OsStatus_t
+oserr_t
 UhciPortPrepare(
 	_In_ UhciController_t* Controller, 
 	_In_ int               Index)

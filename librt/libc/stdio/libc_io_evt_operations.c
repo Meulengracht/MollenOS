@@ -15,29 +15,24 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO null operation implementations.
  */
 
 #include <ddk/handle.h>
-#include <ddk/utils.h>
 #include <event.h>
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
+#include <os/futex.h>
 #include <ioctl.h>
 
 #define EVT_OPTION_NON_BLOCKING 0x1
 
-static OsStatus_t evt_lock(atomic_int* sync_address, unsigned int options)
+static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
     FutexParameters_t parameters;
-    OsStatus_t        status = OsSuccess;
+    oserr_t           oserr = OsOK;
     int               value;
 
     parameters._futex0  = sync_address;
-    parameters._flags   = 0;
+    parameters._flags   = FUTEX_FLAG_WAIT;
     parameters._timeout = 0;
 
     while (1) {
@@ -48,8 +43,8 @@ static OsStatus_t evt_lock(atomic_int* sync_address, unsigned int options)
             }
 
             parameters._val0 = value;
-            status = Syscall_FutexWait(&parameters);
-            if (status != OsSuccess) {
+            oserr = Futex(&parameters);
+            if (oserr != OsOK) {
                 break;
             }
 
@@ -60,20 +55,20 @@ static OsStatus_t evt_lock(atomic_int* sync_address, unsigned int options)
             break;
         }
     }
-    return status;
+    return oserr;
 }
 
-static OsStatus_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
+static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
 {
     FutexParameters_t parameters;
-    OsStatus_t        status = OsIncomplete;
+    oserr_t        status = OsIncomplete;
     int               currentValue;
     int               i;
     int               result;
 
     parameters._futex0 = sync_address;
     parameters._val0   = 0;
-    parameters._flags  = 0;
+    parameters._flags  = FUTEX_FLAG_WAKE;
 
     // assert not max
     currentValue = atomic_load(sync_address);
@@ -89,16 +84,16 @@ static OsStatus_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, un
     }
 
     if (parameters._val0) {
-        Syscall_FutexWake(&parameters);
-        status = OsSuccess;
+        Futex(&parameters);
+        status = OsOK;
     }
 
     return status;
 }
 
-OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+oserr_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    OsStatus_t result;
+    oserr_t result;
 
     // Sanitize buffer and length for RESET and SEM events
     if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
@@ -108,7 +103,7 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
     }
 
     result = evt_lock(handle->object.data.evt.sync_address, handle->object.data.evt.options);
-    if (result != OsSuccess) {
+    if (result != OsOK) {
         return result;
     }
 
@@ -121,12 +116,12 @@ OsStatus_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length
         *(unsigned int*)buffer = 1;
         *bytes_read            = sizeof(unsigned int);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    OsStatus_t result = OsNotSupported;
+    oserr_t result = OsNotSupported;
     if (!buffer || length < sizeof(unsigned int)) {
         return OsInvalidPermissions;
     }
@@ -136,7 +131,7 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
         *bytes_written = sizeof(unsigned int);
 
         result = evt_unlock(handle->object.data.evt.sync_address, 1, 1);
-        if (result == OsSuccess) {
+        if (result == OsOK) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
     }
@@ -146,7 +141,7 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
         result = evt_unlock(handle->object.data.evt.sync_address,
                             handle->object.data.evt.initialValue,
                             value);
-        if (result == OsSuccess) {
+        if (result == OsOK) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
         *bytes_written = sizeof(size_t);
@@ -155,33 +150,33 @@ OsStatus_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t
     return result;
 }
 
-OsStatus_t stdio_evt_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+oserr_t stdio_evt_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_resize(stdio_handle_t* handle, long long resize_by)
+oserr_t stdio_evt_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_close(stdio_handle_t* handle, int options)
+oserr_t stdio_evt_op_close(stdio_handle_t* handle, int options)
 {
     if (options & STDIO_CLOSE_FULL) {
         if (handle->object.handle != UUID_INVALID) {
             return handle_destroy(handle->object.handle);
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t stdio_evt_op_inherit(stdio_handle_t* handle)
+oserr_t stdio_evt_op_inherit(stdio_handle_t* handle)
 {
     // we can't inherit them atm, we need the userspace mapping mapped into this process as well
     return OsNotSupported;
 }
 
-OsStatus_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
+oserr_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
     if ((unsigned int)request == FIONBIO) {
         int* nonBlocking = va_arg(args, int*);
@@ -193,14 +188,14 @@ OsStatus_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
                 handle->object.data.evt.options &= ~(EVT_OPTION_NON_BLOCKING);
             }
         }
-        return OsSuccess;
+        return OsOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             *bytesAvailableOut = atomic_load(handle->object.data.evt.sync_address);
         }
-        return OsSuccess;
+        return OsOK;
     }
     return OsNotSupported;
 }

@@ -30,25 +30,25 @@
 #include <machine.h>
 #include <stdio.h>
 
-OsStatus_t
+oserr_t
 DebugSingleStep(
     _In_ Context_t* Context)
 {
     TRACE("DebugSingleStep(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 DebugBreakpoint(
     _In_ Context_t* Context)
 {
     TRACE("DebugBreakpoint(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address)
@@ -56,12 +56,12 @@ DebugPageFault(
     MemoryDescriptor_t descriptor;
     MemorySpace_t*     memorySpace = GetCurrentMemorySpace();
     uintptr_t          physicalAddress;
-    OsStatus_t         osStatus;
+    oserr_t         osStatus;
     TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
 
     // get information about the allocation
     osStatus = MemorySpaceQuery(memorySpace, address, &descriptor);
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         // userspace allocation, perform additional checks.
         // 1) Was a guard page hit?
         // 2) Should the exception be propegated (i.e. memory handlers)
@@ -86,17 +86,17 @@ DebugPageFault(
             0
     );
     if (osStatus == OsExists) {
-        osStatus = OsSuccess;
+        osStatus = OsOK;
     }
 
 exit:
     return osStatus;
 }
 
-static OsStatus_t
+static oserr_t
 DebugHaltAllProcessorCores(
-    _In_ UUId_t         ExcludeId,
-    _In_ SystemCpu_t*   Processor)
+        _In_ uuid_t         ExcludeId,
+        _In_ SystemCpu_t*   Processor)
 {
     SystemCpuCore_t* Iter;
     
@@ -112,10 +112,10 @@ DebugHaltAllProcessorCores(
         }
         Iter = CpuCoreNext(Iter);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
@@ -124,7 +124,7 @@ DebugPanic(
     Thread_t* currentThread;
     char      messageBuffer[256];
     va_list   arguments;
-    UUId_t    coreId;
+    uuid_t    coreId;
 
     ERROR("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 
@@ -176,10 +176,10 @@ DebugPanic(
         ArchProcessorHalt();
     }
     for(;;);
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 DebugStackTrace(
     _In_ Context_t* context,
     _In_ size_t     maxFrames)
@@ -222,10 +222,10 @@ DebugStackTrace(
         }
         StackPtr++;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 DebugMemory(
     _In_Opt_ const char*    Description,
     _In_     void*          Address,
@@ -281,7 +281,7 @@ DebugMemory(
 
     // And print the final ASCII bit.
     LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
-    return OsSuccess;
+    return OsOK;
 }
 
 /* Disassembles Memory */

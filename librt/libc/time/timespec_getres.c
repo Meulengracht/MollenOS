@@ -27,7 +27,7 @@
 
 static long
 __calculate_resolution(
-        _In_ LargeUInteger_t* frequency)
+        _In_ UInteger64_t* frequency)
 {
     if (frequency->QuadPart <= MSEC_PER_SEC) {
         // ms resolution
@@ -62,7 +62,7 @@ timespec_getres(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    LargeUInteger_t frequency;
+    UInteger64_t frequency;
 
     if (!ts) {
         _set_errno(EINVAL);

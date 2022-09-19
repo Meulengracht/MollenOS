@@ -40,7 +40,7 @@ __get_va_type(
 
 static clock_t
 __calculate_timestamp(
-        _In_ LargeUInteger_t* tick)
+        _In_ UInteger64_t* tick)
 {
     clock_t freq = CLOCKS_PER_SEC;
 
@@ -60,7 +60,7 @@ timespec_get(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
 
     if (!ts) {
         _set_errno(EINVAL);
@@ -71,39 +71,32 @@ timespec_get(
     switch (base) {
         case TIME_TAI:
         case TIME_UTC: {
-            SystemTime_t systemTime;
-            struct tm    temporary;
+            Integer64_t timeValue;
 
-            osStatus = VaGetWallClock(&systemTime);
-            if (osStatus != OsSuccess) {
-                return OsStatusToErrno(osStatus);
+            osStatus = VaGetWallClock(&timeValue);
+            if (osStatus != OsOK) {
+                return OsErrToErrNo(osStatus);
             }
 
-            if (base == TIME_UTC) {
-                temporary.tm_sec  = systemTime.Second;
-                temporary.tm_min  = systemTime.Minute;
-                temporary.tm_hour = systemTime.Hour;
-                temporary.tm_mday = systemTime.DayOfMonth;
-                temporary.tm_mon  = systemTime.Month - 1;
-                temporary.tm_year = systemTime.Year - YEAR_BASE;
-                ts->tv_sec        = mktime(&temporary);
+            // Both UTC and TAI uses an epic of 1970 (January 1), so we need to add
+            // 30 years to the timestamp (946,684,800 seconds between those two dates)
+            timeValue.QuadPart += (EPOCH_DIFFERENCE * USEC_PER_SEC);
+
+            ts->tv_sec  = timeValue.QuadPart / USEC_PER_SEC;
+            ts->tv_nsec = timeValue.QuadPart % USEC_PER_SEC;
+            if (base == TIME_TAI) {
+                // TODO adjust for leap seconds
             }
-            else {
-                ts->tv_sec = systemTime.Second + (systemTime.Minute * SECSPERMIN) +
-                             (systemTime.Hour * SECSPERHOUR) + ((systemTime.DayOfMonth - 1) * SECSPERDAY) +
-                             ((systemTime.Month - 1) * (SECSPERDAY * 30)) + ((systemTime.Year * 365) * SECSPERDAY);
-            }
-            ts->tv_nsec = (long)systemTime.Nanoseconds.QuadPart;
         } break;
         case TIME_MONOTONIC:
         case TIME_PROCESS:
         case TIME_THREAD: {
-            LargeUInteger_t tick;
+            UInteger64_t tick;
             clock_t         timestamp;
 
             osStatus = VaGetClockTick(__get_va_type(base), &tick);
-            if (osStatus != OsSuccess) {
-                return OsStatusToErrno(osStatus);
+            if (osStatus != OsOK) {
+                return OsErrToErrNo(osStatus);
             }
 
             timestamp = __calculate_timestamp(&tick);

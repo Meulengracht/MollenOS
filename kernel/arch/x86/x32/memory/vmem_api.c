@@ -153,7 +153,7 @@ SyncWithParent:
     return table;
 }
 
-OsStatus_t
+oserr_t
 MmVirtualClone(
         _In_ MemorySpace_t* source,
         _In_ int            inherit,
@@ -225,10 +225,10 @@ MmVirtualClone(
     }
 	*cr3Out  = pagedirectoryPhysical;
     *pdirOut = (uintptr_t)pageDirectory;
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {
@@ -275,7 +275,7 @@ MmuDestroyVirtualSpace(
     if (memorySpace->ParentHandle == UUID_INVALID) {
         kfree((void*)memorySpace->PlatfromData.TssIoMap);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 #if defined(__clang__)

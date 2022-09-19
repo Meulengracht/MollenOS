@@ -26,13 +26,13 @@
 	dmg@research.att.com or research!dmg
  */
 
+#include <errno.h>
+#include <float.h>
 #include <ieeefp.h>
+#include <internal/_locale.h>
 #include <math.h>
 #include <limits.h>
-#include <float.h>
-#include <errno.h>
 #include <sys/types.h>
-#include "../locale/setlocale.h"
 #include <locale.h>
 
 #ifdef __IEEE_LITTLE_ENDIAN

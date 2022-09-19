@@ -26,6 +26,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ddk/convert.h>
 #include <ioset.h>
 #include "manager.h"
 
@@ -37,7 +38,7 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t controllers = LIST_INIT;
 
-InterruptStatus_t
+irqstatus_t
 OnFastInterrupt(
     _In_ InterruptFunctionTable_t* interruptTable,
     _In_ InterruptResourceTable_t* resourceTable)
@@ -50,7 +51,7 @@ OnFastInterrupt(
     // Skip processing immediately if the interrupt was not for us
     interruptStatus = registers->InterruptStatus;
     if (!interruptStatus) {
-        return InterruptNotHandled;
+        return IRQSTATUS_NOT_HANDLED;
     }
 
     // Save the status to port that made it and clear
@@ -66,7 +67,7 @@ OnFastInterrupt(
     registers->InterruptStatus = interruptStatus;
     atomic_fetch_or(&resource->ControllerInterruptStatus, interruptStatus);
     interruptTable->EventSignal(resourceTable->HandleResource);
-    return InterruptHandled;
+    return IRQSTATUS_HANDLED;
 }
 
 void
@@ -92,7 +93,7 @@ handler_loop:
     }
 }
 
-OsStatus_t
+oserr_t
 OnLoad(void)
 {
     // Register supported protocols
@@ -112,15 +113,15 @@ ClearControllerCallback(
     AhciControllerDestroy((AhciController_t*)element->value);
 }
 
-OsStatus_t
+oserr_t
 OnUnload(void)
 {
     list_clear(&controllers, ClearControllerCallback, NULL);
     AhciManagerDestroy();
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t OnEvent(struct ioset_event* event)
+oserr_t OnEvent(struct ioset_event* event)
 {
     TRACE("OnEvent(event->events=0x%x)", event->events);
     if (event->events & IOSETSYN) {
@@ -132,12 +133,12 @@ OsStatus_t OnEvent(struct ioset_event* event)
         }
 
         OnInterrupt(controller);
-        return OsSuccess;
+        return OsOK;
     }
-    return OsDoesNotExist;
+    return OsNotExists;
 }
 
-OsStatus_t
+oserr_t
 OnRegister(
     _In_ Device_t* device)
 {
@@ -147,22 +148,21 @@ OnRegister(
     }
 
     list_append(&controllers, &controller->header);
-    return OsSuccess;
+    return OsOK;
 }
 
-void ctt_driver_register_device_invocation(struct gracht_message* message,
-        const uint8_t* device, const uint32_t device_count)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister((Device_t*)device);
+    OnRegister(from_sys_device(device));
 }
 
-OsStatus_t
+oserr_t
 OnUnregister(
     _In_ Device_t* device)
 {
     AhciController_t* controller = list_find_value(&controllers, (void*)(uintptr_t)device->Id);
     if (controller == NULL) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     list_remove(&controllers, &controller->header);
@@ -170,6 +170,6 @@ OnUnregister(
 }
 
 // Lazyness in ddk that unfortuantely draws in more context than neccessary.
-void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const UUId_t deviceId) { }
+void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId) { }
 void sys_device_event_protocol_device_invocation(void) { }
 void sys_device_event_device_update_invocation(void) { }

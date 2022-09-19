@@ -1,4 +1,4 @@
-# Project setup
+    # Project setup
 project (ValiLibC)
 enable_language (ASM_NASM)
 enable_language (C)
@@ -317,8 +317,7 @@ set (SOURCES_STDLIB
     stdlib/wide/wctob.c
     stdlib/wide/wctomb.c
 
-    stdlib/_Exit.c
-    stdlib/abort.c
+        stdlib/abort.c
     stdlib/abs.c
     stdlib/aligned_alloc.c
     stdlib/atof.c
@@ -344,7 +343,6 @@ set (SOURCES_STDLIB
     stdlib/malloc.c
     stdlib/mprec.c
     stdlib/qsort.c
-    stdlib/quickexit.c
     stdlib/rand.c
     stdlib/strtod.c
     stdlib/strtodg.c
@@ -360,40 +358,19 @@ set (SOURCES_STDLIB
 )
 
 set (SOURCES_OS
-    os/synchronization/binarysemaphore.c
-    os/synchronization/spinlock.c
-    os/synchronization/event.c
-
-    os/scheduler/scheduler.c
-    os/scheduler/mutex.c
-    os/scheduler/cond.c
-
-    os/keymaps/en-us.c
-
-    os/clang.c
-    os/dmabuf.c
-    os/error_codes.c
-    os/file.c
-    os/init.c
-    os/ipcontext.c
-    os/keycodes.c
-    os/memory.c
-    os/path.c
-    os/process.c
-    os/sha1.c
-    os/shared_objects.c
-    os/syscalls.c
-    os/system.c
-        os/time.c
-    os/thread_helpers.c
-    os/unwind.c
+        os/synchronization/spinlock.c
+        os/synchronization/event.c
+        os/keymaps/en-us.c
+        os/clang.c
+        os/init.c
+        os/ipcontext.c
+        os/keycodes.c
+        os/tls.c
+        os/unwind.c
 )
 
 set (SOURCES_THREADS
-    threads/condition.c
-    threads/mutex.c
-    threads/thread.c
-    threads/tls.c
+    threads/tss.c
 )
 
 set (SOURCES_TIME
@@ -493,35 +470,41 @@ set (SOURCES_LIBC
     ${SOURCES_WSTRING}
 )
 
+# The kernel (static) build of libc should contain the absolutely bare minimum required for the
+# kernel to run. This is compiled without any cpu accelleration, as we can't make any guarantees
+# of the cpu it will run on top of. The *ONLY* purpose of this is to be linked into the kernel, and
+# nothing but the kernel executable should link against this.
 add_library(libk STATIC ${ASM_SOURCES} ${SOURCES_LIBK})
 target_compile_options(libk PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse>)
 target_compile_definitions(libk PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__ -D_KRNL_DLL)
 target_include_directories(libk PUBLIC include)
-target_include_directories(libk PRIVATE ../libddk/include)
-target_link_libraries(libk libdsk gracht_static)
+target_include_directories(libk PRIVATE ../libos/include)
+target_link_libraries(libk PRIVATE libdsk libddk gracht_static)
 
+# The static build of libc exists *SOLELY* for the purpose of phoenix. Phoenix is the bootstrap
+# process in Vali, which is bundled with the initfs, and can thus not load any dependencies. This
+# means its a single binary blob, and thus needs *ALL* libraries linked in. This should NEVER be
+# used as a replacement for the regular, dynamic libc as this contains code that should exist only
+# once per process. Until we seperate this code out into its own library, libc must be loaded as a
+# dynamic library and shared between all running libraries in a single process-space.
 add_library(libc STATIC ${ASM_SOURCES} ${SOURCES_LIBC})
 target_compile_definitions(libc PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_KRNL_DLL)
 target_include_directories(libc PUBLIC include)
-target_include_directories(libc PRIVATE ../libddk/include)
-target_link_libraries(libc libm libds gracht_static)
+target_link_libraries(libc PUBLIC libos libm libds libddk gracht_static)
 
 add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC} main.c)
-target_compile_options(c
-  PRIVATE $<$<COMPILE_LANGUAGE:C>:${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D__OSLIB_C_SHAREDLIBRARY -DCRTDLL>
-)
+target_compile_definitions(c PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION)
 target_include_directories(c PUBLIC include)
-target_include_directories(c PRIVATE ../libddk/include)
 target_link_options(c PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def")
+target_link_libraries (c PRIVATE libos gracht_static libds libddk libm librt)
 
-target_link_libraries (c gracht_static libds libddk libm librt)
 install(TARGETS c
-    ARCHIVE DESTINATION vali-sdk/lib
-    LIBRARY DESTINATION vali-sdk/lib
-    RUNTIME DESTINATION vali-sdk/bin
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY include/ DESTINATION vali-sdk/include
+install(DIRECTORY include/ DESTINATION include
     FILES_MATCHING
         PATTERN "*.h"
         PATTERN "internal" EXCLUDE

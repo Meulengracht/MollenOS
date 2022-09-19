@@ -98,7 +98,7 @@ list_front(
     _In_ list_t*));
 
 DSDECL(element_t*,
-       list_back(
+list_back(
    _In_ list_t*));
 
 DSDECL(element_t*,

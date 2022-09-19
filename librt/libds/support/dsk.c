@@ -19,5 +19,5 @@
  * MollenOS - Generic Data Structures (Shared)
  */
 
-#define LIBC_KERNEL
+#define __LIBDS_KERNEL_BUILD
 #include "ds.c"

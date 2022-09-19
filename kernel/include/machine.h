@@ -102,7 +102,7 @@ SetMachineUmaMode(void);
  * PlatformTimersInitialize (@arch)
  * Register and start all neccessary system timers for the operating system to run.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 PlatformTimersInitialize(void);
 
 /**
@@ -113,7 +113,7 @@ PlatformTimersInitialize(void);
  * @param[In] cpuCore The per-core structure of the booting cpu-core.
  * @return            Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MachineMemoryInitialize(
         _In_ SystemMachine_t* machine,
         _In_ SystemCpuCore_t* cpuCore);
@@ -126,7 +126,7 @@ MachineMemoryInitialize(
  * @param physicalBaseOut
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 MachineAllocateBootMemory(
         _In_  size_t   size,
         _Out_ vaddr_t* virtualBaseOut,
@@ -140,7 +140,7 @@ MachineAllocateBootMemory(
  * @param pages     [In] The pages allocated
  * @return          The status of the operation
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 AllocatePhysicalMemory(
         _In_ size_t     pageMask,
         _In_ int        pageCount,

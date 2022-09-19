@@ -545,7 +545,7 @@ bectl(
  * Add a region of memory to the buffer pool. If the pointer to the bytepool is passed as
  * null, it is treated as a new memory region and thus initialized. Otherwise memory is
  * added to the existing pool. */
-OsStatus_t
+oserr_t
 bpool(
 	_In_ void *buf, 
 	_In_ long len,
@@ -615,7 +615,7 @@ bpool(
     /* Definition of ESent assumes two's complement! */
     assert((~0) == -1);
     bn->bsize = ESent;
-	return OsSuccess;
+	return OsOK;
 }
 
 #ifdef BufStats
@@ -794,7 +794,7 @@ bpoold(
 /* bpoolv
  * Validate a buffer pool. If NDEBUG isn't defined,
  * any error generates an assertion failure. */
-OsStatus_t
+oserr_t
 bpoolv(
 	_In_ bytepool_t *pool,
 	_In_ void *buf)
@@ -835,6 +835,6 @@ bpoolv(
 	}
 	b = BFH(((char *) b) + bs);
     }
-    return OsSuccess;
+    return OsOK;
 }
 #endif /* BufValid */

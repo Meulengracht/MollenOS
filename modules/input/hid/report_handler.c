@@ -256,10 +256,10 @@ static void __HandleInputItem(
 
     // Create a new input report
     if (collectionItem->InputType == CTT_INPUT_TYPE_KEYBOARD) {
-        ctt_input_event_button_event_all(__crt_get_module_server(), hidDevice->Base.Base.Id, 0, 0);
+        ctt_input_event_button_event_all(__crt_get_module_server(), hidDevice->Base->Base.Id, 0, 0);
     }
     else if (collectionItem->InputType == CTT_INPUT_TYPE_MOUSE) {
-        ctt_input_event_cursor_event_all(__crt_get_module_server(), hidDevice->Base.Base.Id, 0,
+        ctt_input_event_cursor_event_all(__crt_get_module_server(), hidDevice->Base->Base.Id, 0,
                                    context.EventData.PointerEvent.rel_x,
                                    context.EventData.PointerEvent.rel_y,
                                    context.EventData.PointerEvent.rel_z);

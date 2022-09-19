@@ -5,7 +5,7 @@
 
 char *_gcvt(double , int , char *, char, int);
 
-#include "../locale/setlocale.h"
+#include <internal/_locale.h>
 
 #ifndef __machine_mbstate_t_defined
 #include <wchar.h>

@@ -6,6 +6,7 @@
  * PROGRAMMER:      Timo Kreuzer
  */
 #include <os/osdefs.h>
+#include <ds/mstring.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -58,6 +59,7 @@ enum
     FLAG_INT64 =         0x400,
     FLAG_INTPTR =        FLAG_INT64,
     FLAG_LONGDOUBLE =    0x800,
+    FLAG_MSTRING =       0x1000
 };
 
 #define va_arg_f(argptr, flags) \
@@ -226,7 +228,7 @@ void format_float(
 
 #ifdef LIBC_KERNEL
 __EXTERN
-OsStatus_t
+oserr_t
 VideoPutCharacter(
     _In_ int Character);
 #endif
@@ -256,7 +258,7 @@ streamout_char(FILE *stream, int chr)
     }
 
 #ifdef LIBC_KERNEL
-    return VideoPutCharacter(chr) == OsSuccess;
+    return VideoPutCharacter(chr) == OsOK;
 #else
     return fputtc((TCHAR)chr, stream) != _TEOF;
 #endif
@@ -288,8 +290,7 @@ streamout_astring(FILE *stream, const char *string, size_t count)
     return written;
 }
 
-static
-int
+static int
 streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
 {
     wchar_t chr;
@@ -319,6 +320,31 @@ streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
         }
     }
 
+    return written;
+}
+
+static int
+streamout_mstring(FILE *stream, const mstring_t *string, size_t count)
+{
+    int    written = 0;
+    size_t i       = 0;
+
+    while (count--) {
+        char    u8buffer[MSTRING_U8BYTES];
+        size_t  u8len;
+        mchar_t val = string->__data[i++];
+        if (mstr_fromchar(val, &u8buffer[0], &u8len)) {
+            continue;
+        }
+
+        int j = 0;
+        while (j < u8len) {
+            if (streamout_char(stream, u8buffer[j++]) == 0) {
+                return -1;
+            }
+            written++;
+        }
+    }
     return written;
 }
 
@@ -374,6 +400,7 @@ int streamout(
             else if (chr == _T(' ')) flags |= FLAG_FORCE_SIGNSP;
             else if (chr == _T('0')) flags |= FLAG_PAD_ZERO;
             else if (chr == _T('#')) flags |= FLAG_SPECIAL;
+            else if (chr == _T('m')) flags |= FLAG_MSTRING;
             else break;
             chr = *format++;
         }
@@ -509,16 +536,21 @@ int streamout(
 #endif
 
             case_string:
-                if (!string)
-                {
+                if (!string) {
                     string = (TCHAR*)_nullstring;
-                    flags &= ~FLAG_WIDECHAR;
+                    flags &= ~(FLAG_WIDECHAR | FLAG_MSTRING);
                 }
 
-                if (flags & FLAG_WIDECHAR)
+                if (flags & FLAG_MSTRING) {
+                    len = mstr_len((mstring_t*)string);
+                    if (len > (unsigned)precision) {
+                        len = (unsigned)precision;
+                    }
+                } else if (flags & FLAG_WIDECHAR) {
                     len = wcsnlen((wchar_t*)string, (unsigned)precision);
-                else
+                } else {
                     len = strnlen((char*)string, (unsigned)precision);
+                }
                 precision = 0;
                 break;
 
@@ -648,10 +680,13 @@ int streamout(
         }
 
         /* Output the string */
-        if (flags & FLAG_WIDECHAR)
+        if (flags & FLAG_MSTRING) {
+            written = streamout_mstring(stream, (mstring_t*)string, len);
+        } else if (flags & FLAG_WIDECHAR) {
             written = streamout_wstring(stream, (wchar_t*)string, len);
-        else
+        } else {
             written = streamout_astring(stream, (char*)string, len);
+        }
         if (written == -1) return -1;
         written_all += written;
 

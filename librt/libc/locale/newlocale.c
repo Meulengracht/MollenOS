@@ -75,7 +75,7 @@ PORTABILITY
 
 #include <errno.h>
 #include <stdlib.h>
-#include "setlocale.h"
+#include <internal/_locale.h>
 
 #define LC_VALID_MASK	(LC_COLLATE_MASK | LC_CTYPE_MASK | LC_MONETARY_MASK \
        | LC_NUMERIC_MASK | LC_TIME_MASK | LC_MESSAGES_MASK)

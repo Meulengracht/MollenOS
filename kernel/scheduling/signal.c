@@ -89,14 +89,14 @@ ExecuteSignalOnCoreFunction(
     }
 }
 
-OsStatus_t
+oserr_t
 SignalSend(
-    _In_ UUId_t ThreadId,
-    _In_ int    Signal,
-    _In_ void*  Argument)
+        _In_ uuid_t ThreadId,
+        _In_ int    Signal,
+        _In_ void*  Argument)
 {
     Thread_t*      target = THREAD_GET(ThreadId);
-    UUId_t         targetCore;
+    uuid_t         targetCore;
     ThreadSignal_t signalInfo = {
         .Signal   = Signal,
         .Argument = Argument,
@@ -105,7 +105,7 @@ SignalSend(
     
     if (!target) {
         ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     if (Signal < 0 || Signal >= NUMSIGNALS) {
@@ -127,7 +127,7 @@ SignalSend(
     targetCore = SchedulerObjectGetAffinity(target->SchedulerObject);
     if (targetCore == ArchGetProcessorCoreId()) {
         ExecuteSignalOnCoreFunction(target);
-        return OsSuccess;
+        return OsOK;
     }
     else {
         return TxuMessageSend(targetCore, CpuFunctionCustom, ExecuteSignalOnCoreFunction, target, 1);
@@ -194,8 +194,12 @@ SignalProcessQueued(
     }
 
     while (1) {
-        size_t bytesRead = streambuffer_stream_in(thread->Signaling.Signals,
-                                                  &threadSignal, sizeof(ThreadSignal_t), STREAMBUFFER_NO_BLOCK);
+        size_t bytesRead = streambuffer_stream_in(
+                thread->Signaling.Signals,
+                &threadSignal,
+                sizeof(ThreadSignal_t),
+                STREAMBUFFER_NO_BLOCK
+        );
         if (!bytesRead) {
             break;
         }
@@ -203,14 +207,19 @@ SignalProcessQueued(
         if (threadSignal.Flags & SIGNAL_SEPERATE_STACK) {
             // Missing implementation
             // AlternativeStack = Signal.Stack;
-        }
-        else {
+        } else {
             alternativeStack = 0;
         }
 
         flags = ((uint32_t)threadSignal.Signal << 16 | threadSignal.Flags);
-        ArchThreadContextPushInterceptor(context, alternativeStack, handler, flags,
-                                         (uintptr_t) threadSignal.Argument, 0);
+        ArchThreadContextPushInterceptor(
+                context,
+                alternativeStack,
+                handler,
+                flags,
+                (uintptr_t) threadSignal.Argument,
+                0
+        );
         atomic_fetch_sub(&thread->Signaling.Pending, 1);
     }
 #endif // !__OSCONFIG_DISABLE_SIGNALLING

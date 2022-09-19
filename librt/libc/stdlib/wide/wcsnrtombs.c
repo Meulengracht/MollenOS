@@ -96,13 +96,13 @@ PORTABILITY
 <<wcsnrtombs>> is defined by the POSIX.1-2008 standard.
 */
 
-#include "../../threads/tls.h"
+#include <errno.h>
+#include <internal/_locale.h>
+#include <internal/_tls.h>
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <errno.h>
 #include "../local.h"
-#include "../../locale/setlocale.h"
 
 size_t
 _wcsnrtombs_l (char *dst, __CONST wchar_t **src, size_t nwc,

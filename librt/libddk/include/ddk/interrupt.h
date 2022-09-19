@@ -43,7 +43,7 @@ DECL_STRUCT(BusDevice);
 #ifndef __INTERRUPTHANDLER
 #define __INTERRUPTHANDLER
 typedef struct InterruptFunctionTable InterruptFunctionTable_t;
-typedef InterruptStatus_t(*InterruptHandler_t)(InterruptFunctionTable_t*, void*);
+typedef irqstatus_t(*InterruptHandler_t)(InterruptFunctionTable_t*, void*);
 #endif
 
 // Fast-Interrupt Memory Resource
@@ -59,7 +59,7 @@ typedef struct FastInterruptMemoryResource {
 // measures will be taken on the passed regions, and interrupt-copies will be created for the handler.
 typedef struct InterruptResourceTable {
     InterruptHandler_t            Handler;
-    UUId_t                        HandleResource;
+    uuid_t                        HandleResource;
     DeviceIo_t*                   IoResources[INTERRUPT_MAX_IO_RESOURCES];
     FastInterruptMemoryResource_t MemoryResources[INTERRUPT_MAX_MEMORY_RESOURCES];
 } InterruptResourceTable_t;
@@ -70,9 +70,9 @@ typedef struct InterruptResourceTable {
 // to some memory regions, io-regions and some system-functions (like the standard input pipe).
 typedef struct InterruptFunctionTable {
     size_t     (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
-    OsStatus_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
-    OsStatus_t (*EventSignal)(UUId_t handle);
-    OsStatus_t (*WriteStream)(UUId_t handle, const void* buffer, size_t length);
+    oserr_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
+    oserr_t (*EventSignal)(uuid_t handle);
+    oserr_t (*WriteStream)(uuid_t handle, const void* buffer, size_t length);
     void       (*Trace)(const char* format, ...);
 } InterruptFunctionTable_t;
 
@@ -164,15 +164,15 @@ RegisterInterruptDescriptor(
 /* RegisterInterruptSource 
  * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, SIGINT can be invoked by the event-system */
-DDKDECL(UUId_t,
-RegisterInterruptSource(
+DDKDECL(uuid_t,
+        RegisterInterruptSource(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ unsigned int       flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of SIGINT */
-DDKDECL(OsStatus_t,
-UnregisterInterruptSource(
-    _In_ UUId_t interruptHandle));
+DDKDECL(oserr_t,
+        UnregisterInterruptSource(
+    _In_ uuid_t interruptHandle));
 
 #endif //!_INTERRUPT_INTERFACE_H_

@@ -168,10 +168,10 @@ PACKED_TYPESTRUCT(PortStatus, {
 #define HUB_PORT_CHANGE_RESET       0x10 // Reset complete.
 
 typedef struct HubDevice {
-    UsbDevice_t   Base;
+    UsbDevice_t*  Base;
     element_t     Header;
     UsbTransfer_t Transfer;
-    UUId_t        TransferId;
+    uuid_t        TransferId;
 
     uint8_t       PortCount;
     uint8_t       DescriptorLength;
@@ -206,7 +206,7 @@ HubDeviceDestroy(
  * @param portIndex
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HubPowerOnPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex);
@@ -217,7 +217,7 @@ HubPowerOnPort(
  * @param status
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HubGetStatus(
         _In_ HubDevice_t* hubDevice,
         _In_ HubStatus_t* status);
@@ -228,7 +228,7 @@ HubGetStatus(
  * @param change
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HubClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       change);
@@ -240,7 +240,7 @@ HubClearChange(
  * @param status
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HubGetPortStatus(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -253,7 +253,7 @@ HubGetPortStatus(
  * @param change
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HubPortClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex,
@@ -265,7 +265,7 @@ HubPortClearChange(
  * @param portIndex
  * @return
  */
-__EXTERN OsStatus_t
+__EXTERN oserr_t
 HubResetPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex);

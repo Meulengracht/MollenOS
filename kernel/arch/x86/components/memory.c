@@ -93,25 +93,25 @@ MmuGetMemoryConfiguration(
 }
 
 
-OsStatus_t
+oserr_t
 ArchGetPageMaskFromDmaType(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut)
 {
     switch (dmaType) {
 #if defined(__amd64__)
-        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OsSuccess;
+        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OsOK;
 #else
-        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OsSuccess;
+        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OsOK;
 #endif
-        case DMA_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OsSuccess;
-        case DMA_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OsSuccess;
-        case DMA_TYPE_DRIVER_32:    *pageMaskOut = MEMORY_MASK_32BIT; return OsSuccess;
+        case DMA_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OsOK;
+        case DMA_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OsOK;
+        case DMA_TYPE_DRIVER_32:    *pageMaskOut = MEMORY_MASK_32BIT; return OsOK;
 
 #if defined(__amd64__)
-        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OsSuccess;
+        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OsOK;
 #else
-        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OsSuccess;
+        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OsOK;
 #endif
 
         default:
@@ -189,7 +189,7 @@ ArchMmuSwitchMemorySpace(
     memory_load_cr3(memorySpace->PlatfromData.Cr3PhysicalAddress);
 }
 
-OsStatus_t
+oserr_t
 ArchMmuGetPageAttributes(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -204,7 +204,7 @@ ArchMmuGetPageAttributes(
     unsigned int       x86Attributes;
     int                index;
     int                pagesRetrieved = 0;
-    OsStatus_t         osStatus       = OsSuccess;
+    oserr_t         osStatus       = OsOK;
 
     if (!attributeValues || !pagesRetrievedOut) {
         return OsInvalidParameters;
@@ -214,7 +214,7 @@ ArchMmuGetPageAttributes(
     while (pageCount) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 0, &update);
         if (pageTable == NULL) {
-            osStatus = (pagesRetrieved == 0) ? OsDoesNotExist : OsIncomplete;
+            osStatus = (pagesRetrieved == 0) ? OsNotExists : OsIncomplete;
             break;
         }
 
@@ -228,7 +228,7 @@ ArchMmuGetPageAttributes(
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuUpdatePageAttributes(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -243,7 +243,7 @@ ArchMmuUpdatePageAttributes(
     int                isCurrent, update;
     int                index;
     int                pagesUpdated = 0;
-    OsStatus_t         osStatus     = OsSuccess;
+    oserr_t         osStatus     = OsOK;
 
     if (!attributes || !pagesUpdatedOut) {
         return OsInvalidParameters;
@@ -253,7 +253,7 @@ ArchMmuUpdatePageAttributes(
     
     // For kernel mappings we would like to mark the mappings global
     if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
             x86Attributes |= PAGE_GLOBAL;
         }
     }
@@ -262,7 +262,7 @@ ArchMmuUpdatePageAttributes(
     while (pageCount) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 0, &update);
         if (pageTable == NULL) {
-            osStatus = (pagesUpdated == 0) ? OsDoesNotExist : OsIncomplete;
+            osStatus = (pagesUpdated == 0) ? OsNotExists : OsIncomplete;
             break;
         }
 
@@ -291,7 +291,7 @@ ArchMmuUpdatePageAttributes(
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuCommitVirtualPage(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -306,17 +306,17 @@ ArchMmuCommitVirtualPage(
     int                isCurrent;
     int                index;
     int                pagesComitted = 0;
-    OsStatus_t         osStatus      = OsSuccess;
+    oserr_t         osStatus      = OsOK;
 
     if (!physicalAddresses || !pagesComittedOut) {
         return OsInvalidParameters;
     }
 
     directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
-    while (pageCount && osStatus == OsSuccess) {
+    while (pageCount && osStatus == OsOK) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 0, &update);
         if (!pageTable) {
-            osStatus = (pagesComitted == 0) ? OsDoesNotExist : OsIncomplete;
+            osStatus = (pagesComitted == 0) ? OsNotExists : OsIncomplete;
             break;
         }
 
@@ -334,7 +334,7 @@ ArchMmuCommitVirtualPage(
             }
             
             if (!(mapping & PAGE_RESERVED)) { // Mapping was not reserved
-                osStatus = (pagesComitted == 0) ? OsDoesNotExist : OsIncomplete;
+                osStatus = (pagesComitted == 0) ? OsNotExists : OsIncomplete;
                 break;
             }
             
@@ -357,7 +357,7 @@ ArchMmuCommitVirtualPage(
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuSetContiguousVirtualPages(
         _In_  MemorySpace_t*    memorySpace,
         _In_  vaddr_t  startAddress,
@@ -374,7 +374,7 @@ ArchMmuSetContiguousVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesUpdated = 0;
-    OsStatus_t         status       = OsSuccess;
+    oserr_t         status       = OsOK;
     uintptr_t          zero         = 0;
 
     if (!pagesUpdatedOut) {
@@ -385,13 +385,13 @@ ArchMmuSetContiguousVirtualPages(
     
     // For kernel mappings we would like to mark the mappings global
     if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
             x86Attributes |= PAGE_GLOBAL;
         }
     }
 
     directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
-    while (pageCount && status == OsSuccess) {
+    while (pageCount && status == OsOK) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 1, &update);
         if (!pageTable) {
             status = (pagesUpdated == 0) ? OsOutOfMemory : OsIncomplete;
@@ -422,7 +422,7 @@ ArchMmuSetContiguousVirtualPages(
     return status;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuReserveVirtualPages(
         _In_  MemorySpace_t*   memorySpace,
         _In_  vaddr_t startAddress,
@@ -438,7 +438,7 @@ ArchMmuReserveVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesReserved = 0;
-    OsStatus_t         status        = OsSuccess;
+    oserr_t         status        = OsOK;
     uintptr_t          zero          = 0;
 
     if (!pagesReservedOut) {
@@ -449,13 +449,13 @@ ArchMmuReserveVirtualPages(
     
     // For kernel mappings we would like to mark the mappings global
     if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
             x86Attributes |= PAGE_GLOBAL;
         }
     }
 
     directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
-    while (pageCount && status == OsSuccess) {
+    while (pageCount && status == OsOK) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 1, &update);
         if (!pageTable) {
             status = (pagesReserved == 0) ? OsOutOfMemory : OsIncomplete;
@@ -477,7 +477,7 @@ ArchMmuReserveVirtualPages(
     return status;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuSetVirtualPages(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -494,7 +494,7 @@ ArchMmuSetVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesUpdated = 0;
-    OsStatus_t         status       = OsSuccess;
+    oserr_t         status       = OsOK;
     uintptr_t          zero         = 0;
 
     if (!physicalAddressValues || !pagesUpdatedOut) {
@@ -505,13 +505,13 @@ ArchMmuSetVirtualPages(
     
     // For kernel mappings we would like to mark the mappings global
     if (ISINRANGE(startAddress, MEMORY_LOCATION_SHARED_START, MEMORY_LOCATION_SHARED_END)) {
-        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+        if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
             x86Attributes |= PAGE_GLOBAL;
         }
     }
 
     directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
-    while (pageCount && status == OsSuccess) {
+    while (pageCount && status == OsOK) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 1, &update);
         if (!pageTable) {
             status = (pagesUpdated == 0) ? OsOutOfMemory : OsIncomplete;
@@ -541,7 +541,7 @@ ArchMmuSetVirtualPages(
     return status;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuClearVirtualPages(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -559,7 +559,7 @@ ArchMmuClearVirtualPages(
     int                index;
     int                pagesCleared = 0;
     int                freedPages   = 0;
-    OsStatus_t         status       = OsSuccess;
+    oserr_t         status       = OsOK;
 
     if (!freedAddresses || !freedAddressesCountOut || !pagesClearedOut) {
         return OsInvalidParameters;
@@ -569,7 +569,7 @@ ArchMmuClearVirtualPages(
     while (pageCount) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 0, &update);
         if (pageTable == NULL) {
-            status = (pagesCleared == 0) ? OsDoesNotExist : OsIncomplete;
+            status = (pagesCleared == 0) ? OsNotExists : OsIncomplete;
             break;
         }
 
@@ -596,7 +596,7 @@ ArchMmuClearVirtualPages(
     return status;
 }
 
-OsStatus_t
+oserr_t
 ArchMmuVirtualToPhysical(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        startAddress,
@@ -611,7 +611,7 @@ ArchMmuVirtualToPhysical(
     int                isCurrent, update;
     int                index;
     int                pagesRetrieved = 0;
-    OsStatus_t         status         = OsSuccess;
+    oserr_t         status         = OsOK;
 
     if (!physicalAddressValues || !pagesRetrievedOut) {
         return OsInvalidParameters;
@@ -621,7 +621,7 @@ ArchMmuVirtualToPhysical(
     while (pageCount) {
         pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 0, &update);
         if (pageTable == NULL) {
-            status = (pagesRetrieved == 0) ? OsDoesNotExist : OsIncomplete;
+            status = (pagesRetrieved == 0) ? OsNotExists : OsIncomplete;
             break;
         }
 
@@ -639,7 +639,7 @@ ArchMmuVirtualToPhysical(
     return status;
 }
 
-static OsStatus_t
+static oserr_t
 __InitializePlatformMemoryData(
         _In_ MemorySpace_t* memorySpace)
 {
@@ -654,21 +654,21 @@ __InitializePlatformMemoryData(
     else {
         memset(memorySpace->PlatfromData.TssIoMap, 0, GDT_IOMAP_SIZE);
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 MmuCloneVirtualSpace(
         _In_ MemorySpace_t* parent,
         _In_ MemorySpace_t* child,
         _In_ int            inherit)
 {
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     paddr_t    physicalAddress;
     vaddr_t    virtualAddress;
 
     osStatus = MmVirtualClone(parent, inherit, &physicalAddress, &virtualAddress);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
     TRACE("MmuCloneVirtualSpace cr3=0x%llx (virt=0x%llx)", physicalAddress, virtualAddress);
@@ -688,7 +688,7 @@ MmuCloneVirtualSpace(
             MAPPING_COMMIT,
             MAPPING_VIRTUAL_FIXED
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         MmuDestroyVirtualSpace(child);
         return osStatus;
     }
@@ -696,17 +696,17 @@ MmuCloneVirtualSpace(
     // Create new resources for the happy new parent :-)
     if (!parent) {
         osStatus = __InitializePlatformMemoryData(child);
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             MmuDestroyVirtualSpace(child);
             return osStatus;
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-OsStatus_t
+oserr_t
 SetDirectIoAccess(
-        _In_ UUId_t         coreId,
+        _In_ uuid_t         coreId,
         _In_ MemorySpace_t* memorySpace,
         _In_ uint16_t       port,
         _In_ int            enable)
@@ -730,7 +730,7 @@ SetDirectIoAccess(
             TssDisableIo(CpuCorePlatformBlock(cpuCore), port);
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static unsigned int
@@ -744,7 +744,7 @@ __GetBootMappingAttributes(
     return converted;
 }
 
-static OsStatus_t
+static oserr_t
 __InstallFirmwareMapping(
         _In_  MemorySpace_t* memorySpace,
         _In_  vaddr_t        virtualBase,
@@ -756,11 +756,11 @@ __InstallFirmwareMapping(
     PageTable_t*       pageTable;
     int                index;
     int                pagesUpdated = 0;
-    OsStatus_t         status       = OsSuccess;
+    oserr_t         status       = OsOK;
     TRACE("__InstallFirmwareMapping(virtualBase=0x%" PRIxIN", physicalBase=0x%" PRIxIN ", pageCount=%i)",
           virtualBase, physicalBase, pageCount);
 
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsSuccess) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
         attributes |= PAGE_GLOBAL;
     }
 
@@ -782,13 +782,13 @@ __InstallFirmwareMapping(
     return status;
 }
 
-static OsStatus_t
+static oserr_t
 __CreateFirmwareMapping(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBootMemoryEntry* entry)
 {
     vaddr_t    virtualBase;
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     int        pageCount;
     TRACE("__CreateFirmwareMapping(physicalBase=0x%" PRIxIN ", length=0x%" PRIxIN ")",
           entry->PhysicalBase, entry->Length);
@@ -809,13 +809,13 @@ __CreateFirmwareMapping(
                            pageCount,
                            __GetBootMappingAttributes(entry->Attributes)
     );
-    if (osStatus == OsSuccess) {
+    if (osStatus == OsOK) {
         entry->VirtualBase = virtualBase;
     }
     return osStatus;
 }
 
-static OsStatus_t
+static oserr_t
 __HandleFirmwareMappings(
         _In_  MemorySpace_t* memorySpace,
         _In_  struct VBoot*  bootInformation,
@@ -829,8 +829,8 @@ __HandleFirmwareMappings(
     for (i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &entries[i];
         if (entry->Type == VBootMemoryType_Firmware) {
-            OsStatus_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
-            if (osStatus != OsSuccess) {
+            oserr_t osStatus = __CreateFirmwareMapping(memorySpace, entry);
+            if (osStatus != OsOK) {
                 return osStatus;
             }
 
@@ -840,23 +840,23 @@ __HandleFirmwareMappings(
             }
         }
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t
+static oserr_t
 __RemapFramebuffer(
         _In_ MemorySpace_t* memorySpace)
 {
     vaddr_t    virtualBase;
     size_t     framebufferSize;
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     int        pageCount;
     TRACE("__RemapFramebuffer(framebuffer=0x%" PRIxIN ")",
           VideoGetTerminal()->FrameBufferAddress);
 
     // If no framebuffer for output, no need to do this
     if (!VideoGetTerminal()->FrameBufferAddress) {
-        return OsSuccess;
+        return OsOK;
     }
 
     framebufferSize = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
@@ -930,7 +930,7 @@ __FixupVBootAddresses(
             (paddr_t)bootInformation->Stack.Base);
 }
 
-static OsStatus_t
+static oserr_t
 __CreateKernelMappings(
         _In_ MemorySpace_t*           memorySpace,
         _In_ PlatformMemoryMapping_t* kernelMappings)
@@ -941,29 +941,29 @@ __CreateKernelMappings(
     i = kernelMappings;
     while (i->Length) {
         int        pageCount = (int)DIVUP(i->Length, PAGE_SIZE);
-        OsStatus_t osStatus = __InstallFirmwareMapping(
+        oserr_t osStatus = __InstallFirmwareMapping(
                 memorySpace,
                 i->VirtualBase,
                 i->PhysicalBase,
                 pageCount,
                 PAGE_PRESENT | PAGE_WRITE
         );
-        if (osStatus != OsSuccess) {
+        if (osStatus != OsOK) {
             return osStatus;
         }
 
         // go to next entry, the kernel mappings end with a 0 entry
         i++;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t
+static oserr_t
 __InitializeTLS(
         _In_ MemorySpace_t* memorySpace)
 {
     uintptr_t  tlsPhysical;
-    OsStatus_t osStatus;
+    oserr_t osStatus;
     TRACE("__InitializeTLS()");
 
     osStatus = MachineAllocateBootMemory(
@@ -971,7 +971,7 @@ __InitializeTLS(
             NULL,
             (paddr_t*)&tlsPhysical
     );
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -984,7 +984,7 @@ __InitializeTLS(
     );
 }
 
-OsStatus_t
+oserr_t
 MmuLoadKernel(
         _In_ MemorySpace_t*           memorySpace,
         _In_ struct VBoot*            bootInformation,
@@ -994,7 +994,7 @@ MmuLoadKernel(
 
     uintptr_t  stackVirtual;
     uintptr_t  stackPhysical;
-    OsStatus_t osStatus;
+    oserr_t osStatus;
 
     // Create the system kernel virtual memory space, this call identity maps all
     // memory allocated by AllocateBootMemory, and also allocates some itself
@@ -1010,7 +1010,7 @@ MmuLoadKernel(
 
     // Install the TLS mapping for the boot thread
     osStatus = __InitializeTLS(memorySpace);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -1018,19 +1018,19 @@ MmuLoadKernel(
     // mappings still need to be allocated into global access memory. We also need to ensure
     // that the kernel stack is mapped correctly
     osStatus = __HandleFirmwareMappings(memorySpace, bootInformation, &stackVirtual);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
     // Remap the framebuffer for good times
     osStatus = __RemapFramebuffer(memorySpace);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
     // Create all the kernel mappings
     osStatus = __CreateKernelMappings(memorySpace, kernelMappings);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         return osStatus;
     }
 
@@ -1042,7 +1042,7 @@ MmuLoadKernel(
           g_kernelcr3, stackPhysical, stackVirtual);
     memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
 
-    return OsSuccess;
+    return OsOK;
 }
 
 #if defined(__clang__)

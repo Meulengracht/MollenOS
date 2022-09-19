@@ -33,7 +33,7 @@
  *
  * @return Status of the initialization.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 PlatformInterruptInitialize(void);
 
 /**
@@ -52,11 +52,11 @@ InterruptSetMode(
  * @param tableIndex
  * @return
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptResolve(
-    _In_    DeviceInterrupt_t* deviceInterrupt,
-    _In_    unsigned int       flags,
-    _Out_   UUId_t*            tableIndex);
+        _In_    DeviceInterrupt_t* deviceInterrupt,
+        _In_    unsigned int       flags,
+        _Out_   uuid_t*            tableIndex);
 
 /**
  * Initialize and enable/disable the interrupt described in systemInterrupt member.
@@ -64,7 +64,7 @@ InterruptResolve(
  * @param enable
  * @return Status of the operation
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 InterruptConfigure(
     _In_ SystemInterrupt_t* systemInterrupt,
     _In_ int                enable);
@@ -80,10 +80,10 @@ KERNELAPI void     KERNELABI InterruptsSetPriority(uint32_t Priority);
  * is the virtual table entry. */
 KERNELAPI void KERNELABI InterruptsAcknowledge(int Source, uint32_t TableIndex);
 
-KERNELAPI IntStatus_t KERNELABI InterruptDisable(void);
-KERNELAPI IntStatus_t KERNELABI InterruptEnable(void);
-KERNELAPI IntStatus_t KERNELABI InterruptRestoreState(IntStatus_t State);
-KERNELAPI IntStatus_t KERNELABI InterruptSaveState(void);
+KERNELAPI irqstate_t KERNELABI InterruptDisable(void);
+KERNELAPI irqstate_t KERNELABI InterruptEnable(void);
+KERNELAPI irqstate_t KERNELABI InterruptRestoreState(irqstate_t State);
+KERNELAPI irqstate_t KERNELABI InterruptSaveState(void);
 KERNELAPI int         KERNELABI InterruptIsDisabled(void);
 
 #endif //!__VALI_ARCH_INTERRUPT_H__

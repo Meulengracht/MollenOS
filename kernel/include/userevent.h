@@ -43,20 +43,20 @@ UserEventInitialize(void);
  * @param syncAddressOut The userspace synchronization address where the event is signalled.
  * @return               Status of the creation.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 UserEventCreate(
-    _In_  unsigned int initialValue,
-    _In_  unsigned int flags,
-    _Out_ UUId_t*      handleOut,
-    _Out_ atomic_int** syncAddressOut);
+        _In_  unsigned int initialValue,
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut,
+        _Out_ atomic_int** syncAddressOut);
 
 /**
  * Signals a userevent handle, based on the type of userevent a notification is also raised on the handle.
  * @param handle The handle to signal the event on. Must be an user-event handle.
  * @return       Status of the signal operation.
  */
-KERNELAPI OsStatus_t KERNELABI
+KERNELAPI oserr_t KERNELABI
 UserEventSignal(
-        _In_ UUId_t handle);
+        _In_ uuid_t handle);
 
 #endif //!__VALI_MUTEX_H__

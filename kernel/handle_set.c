@@ -40,7 +40,7 @@
 // The HandleSet is the set that is created and contains a list of handles registered
 // with the set (HandleItems), and also contains a list of registered events
 struct handle_sets {
-    UUId_t id;
+    uuid_t id;
     list_t sets;
 };
 
@@ -59,7 +59,7 @@ struct handleset_element {
     struct handle_set* set;           // This is a pointer back to the set it belongs
     
     // Event data
-    UUId_t                    Handle;
+    uuid_t                    Handle;
     _Atomic(int)              ActiveEvents;
     struct handleset_element* Link;
     union ioset_data          Context;
@@ -69,13 +69,13 @@ struct handleset_element {
 static uint64_t handleset_hash(const void* element);
 static int      handleset_cmp(const void* element1, const void* element2);
 
-static OsStatus_t DestroySetElement(struct handleset_element*);
-static OsStatus_t AddHandleToSet(struct handle_set*, UUId_t, struct ioset_event*);
+static oserr_t DestroySetElement(struct handleset_element*);
+static oserr_t AddHandleToSet(struct handle_set*, uuid_t, struct ioset_event*);
 
 static hashtable_t   g_handleSets;
 static IrqSpinlock_t g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
 
-OsStatus_t
+oserr_t
 HandleSetsInitialize(void)
 {
     int status = hashtable_construct(&g_handleSets, HASHTABLE_MINIMUM_CAPACITY,
@@ -85,7 +85,7 @@ HandleSetsInitialize(void)
         return OsOutOfMemory;
     }
     IrqSpinlockConstruct(&g_handleSetsLock);
-    return OsSuccess;
+    return OsOK;
 }
 
 static void
@@ -105,12 +105,12 @@ DestroyHandleSet(
     kfree(set);
 }
 
-UUId_t
+uuid_t
 CreateHandleSet(
     _In_  unsigned int flags)
 {
     struct handle_set* handleSet;
-    UUId_t             handleId;
+    uuid_t             handleId;
     TRACE("CreateHandleSet(flags=0x%x)", flags);
 
     handleSet = (struct handle_set*)kmalloc(sizeof(struct handle_set));
@@ -133,20 +133,20 @@ CreateHandleSet(
     return handleId;
 }
 
-OsStatus_t
+oserr_t
 ControlHandleSet(
-    _In_ UUId_t              setHandle,
-    _In_ int                 operation,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ uuid_t              setHandle,
+        _In_ int                 operation,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     struct handle_set*        set = LookupHandleOfType(setHandle, HandleTypeSet);
     struct handleset_element* setElement;
-    OsStatus_t                osStatus;
+    oserr_t                osStatus;
     TRACE("ControlHandleSet(setHandle=%u, op=%i, handle=%u)", setHandle, operation, handle);
 
     if (!set) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     if (operation == IOSET_ADD) {
@@ -165,18 +165,18 @@ ControlHandleSet(
         
         leaf = rb_tree_lookup(&set->handles, VOID_KEY(handle));
         if (!leaf) {
-            return OsDoesNotExist;
+            return OsNotExists;
         }
         
         setElement                = leaf->value;
         setElement->Configuration = event->events;
         setElement->Context       = event->data;
-        osStatus                  = OsSuccess;
+        osStatus                  = OsOK;
     }
     else if (operation == IOSET_DEL) {
         rb_leaf_t* leaf = rb_tree_remove(&set->handles, VOID_KEY(handle));
         if (!leaf) {
-            return OsDoesNotExist;
+            return OsNotExists;
         }
         
         setElement = leaf->value;
@@ -188,14 +188,14 @@ ControlHandleSet(
     return osStatus;
 }
 
-OsStatus_t
+oserr_t
 WaitForHandleSet(
-    _In_  UUId_t              handle,
-    _In_  struct ioset_event* events,
-    _In_  int                 maxEvents,
-    _In_  int                 pollEvents,
-    _In_  size_t              timeout,
-    _Out_ int*                numEventsOut)
+        _In_  uuid_t              handle,
+        _In_  struct ioset_event* events,
+        _In_  int                 maxEvents,
+        _In_  int                 pollEvents,
+        _In_  size_t              timeout,
+        _Out_ int*                numEventsOut)
 {
     struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
     int                numberOfEvents;
@@ -205,7 +205,7 @@ WaitForHandleSet(
     TRACE("WaitForHandleSet(%u, %i, %i, %" PRIuIN ")", handle, maxEvents, pollEvents, timeout);
 
     if (!set) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
     
     // If there are no queued events, but there were pollEvents, let the user
@@ -213,13 +213,13 @@ WaitForHandleSet(
     numberOfEvents = atomic_exchange(&set->events_pending, 0);
     if (!numberOfEvents && pollEvents > 0) {
         *numEventsOut = pollEvents;
-        return OsSuccess;
+        return OsOK;
     }
     
     // Wait for response by 'polling' the value
     while (!numberOfEvents) {
-        OsStatus_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
-        if (osStatus != OsSuccess) {
+        oserr_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
+        if (osStatus != OsOK) {
             return osStatus;
         }
         numberOfEvents = atomic_exchange(&set->events_pending, 0);
@@ -259,7 +259,7 @@ WaitForHandleSet(
         k++;
     }
     *numEventsOut = k;
-    return OsSuccess;
+    return OsOK;
 }
 
 static int
@@ -287,10 +287,10 @@ MarkHandleCallback(
     return LIST_ENUMERATE_CONTINUE;
 }
 
-OsStatus_t
+oserr_t
 MarkHandle(
-    _In_ UUId_t       handle,
-    _In_ unsigned int flags)
+        _In_ uuid_t       handle,
+        _In_ unsigned int flags)
 {
     struct handle_sets* element;
     TRACE("MarkHandle(handle=%u, flags=0x%x)", handle, flags);
@@ -300,14 +300,14 @@ MarkHandle(
     IrqSpinlockRelease(&g_handleSetsLock);
 
     if (!element) {
-        return OsDoesNotExist;
+        return OsNotExists;
     }
 
     list_enumerate(&element->sets, MarkHandleCallback, (void*)(uintptr_t)flags);
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t
+static oserr_t
 DestroySetElement(
     _In_ struct handleset_element* setElement)
 {
@@ -329,18 +329,18 @@ DestroySetElement(
     // If we have an event queued up, we should now remove it
     list_remove(&setElement->set->events, &setElement->event_header);
     kfree(setElement);
-    return OsSuccess;
+    return OsOK;
 }
 
-static OsStatus_t
+static oserr_t
 AddHandleToSet(
-    _In_ struct handle_set*  set,
-    _In_ UUId_t              handle,
-    _In_ struct ioset_event* event)
+        _In_ struct handle_set*  set,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event)
 {
     struct handle_sets*       element;
     struct handleset_element* setElement;
-    OsStatus_t                osStatus;
+    oserr_t                osStatus;
 
     IrqSpinlockAcquire(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
@@ -377,13 +377,13 @@ AddHandleToSet(
     
     // Register the target handle in the current set, so we can clean up again
     osStatus = rb_tree_append(&set->handles, &setElement->handle_header);
-    if (osStatus != OsSuccess) {
+    if (osStatus != OsOK) {
         ERROR("AddHandleToSet rb_tree_append failed with %u", osStatus);
         list_remove(&element->sets, &setElement->set_header);
         kfree(setElement);
         return osStatus;
     }
-    return OsSuccess;
+    return OsOK;
 }
 
 static uint64_t handleset_hash(const void* element)

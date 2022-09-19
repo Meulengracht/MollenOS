@@ -45,13 +45,13 @@ UhciQhCalculateQueue(
     TRACE("Queue for interrupt transfer: %i", queue);
 }
 
-OsStatus_t
+oserr_t
 UhciQhInitialize(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
-    OsStatus_t       osStatus = OsSuccess;
+    oserr_t       osStatus = OsOK;
 
     queueHead->Link  = UHCI_LINK_END;
     queueHead->Child = UHCI_LINK_END;
