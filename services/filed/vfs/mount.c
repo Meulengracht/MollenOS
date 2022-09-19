@@ -20,7 +20,6 @@
 #include <vfs/vfs.h>
 #include "private.h"
 #include <string.h>
-#include <stdlib.h>
 
 oserr_t VFSNodeMount(struct VFS* vfs, struct VFSNode* at, struct VFS* what)
 {

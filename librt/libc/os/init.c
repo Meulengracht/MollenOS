@@ -28,11 +28,9 @@
 #include <internal/_ipc.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
-#include <os/types/process.h>
+#include <os/threads.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
-#include "../threads/tss.h"
 
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
@@ -71,7 +69,7 @@ static uint8_t* memdup(const char* data, size_t length)
     return mem;
 }
 
-// environment data is an double null terminated array of
+// environment data is a null terminated array of
 // null terminated strings
 static int __build_environment(const char* environment)
 {
@@ -195,7 +193,7 @@ static int __get_startup_info(void)
     sys_process_get_startup_information(
             GetGrachtClient(),
             &msg.base,
-            thrd_current(),
+            ThreadsCurrentId(),
             mapping.handle,
             0
     );
@@ -224,9 +222,9 @@ void __crt_process_initialize(
     // We must set IsModule before anything
     g_isPhoenix = isPhoenix;
 
-    // Get the handle of the startup thread so we always know
+    // Get the handle of the startup thread, so we always know
     // the thread id of the primary process thread.
-    g_startupThreadId = thrd_current();
+    g_startupThreadId = ThreadsCurrentId();
 
     // Initialize the standard C library
     TRACE("__crt_process_initialize initializing stdio");

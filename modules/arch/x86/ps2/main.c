@@ -27,6 +27,7 @@
 #include <ioset.h>
 #include <string.h>
 #include <stdlib.h>
+#include <threads.h>
 
 #include "ps2.h"
 

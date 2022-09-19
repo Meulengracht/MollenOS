@@ -102,6 +102,15 @@ void usched_job_parameters_init(struct usched_job_parameters* params)
     params->affinity_mask = NULL;
 }
 
+void usched_job_parameters_set_detached(struct usched_job_parameters* params, bool detached)
+{
+    params->detached = detached;
+    if (!params->detached) {
+        // reset affinity mask if we turned it off
+        params->affinity_mask = NULL;
+    }
+}
+
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
     job->state = JobState_FINISHING;

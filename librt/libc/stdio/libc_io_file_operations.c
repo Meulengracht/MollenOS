@@ -69,9 +69,10 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
 
 oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
 {
-    uuid_t     builtinHandle = __tls_current()->transfer_buffer.handle;
-    size_t     builtinLength = __tls_current()->transfer_buffer.length;
-    size_t     bytesRead;
+    struct dma_attachment* dmaAttachment = __tls_current_dmabuf();
+    uuid_t  builtinHandle = dmaAttachment->handle;
+    size_t  builtinLength = dmaAttachment->length;
+    size_t  bytesRead;
     oserr_t status;
     TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
@@ -121,7 +122,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
     status = perform_transfer(handle->object.handle, builtinHandle, 0,
         builtinLength, 0, length, &bytesRead);
     if (status == OsOK && bytesRead > 0) {
-        memcpy(buffer, __tls_current()->transfer_buffer.buffer, bytesRead);
+        memcpy(buffer, __tls_current_dmabuf()->buffer, bytesRead);
     }
     
     *bytesReadOut = bytesRead;
@@ -131,8 +132,9 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
 oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
                             size_t length, size_t* bytesWrittenOut)
 {
-    uuid_t     builtinHandle = __tls_current()->transfer_buffer.handle;
-    size_t     builtinLength = __tls_current()->transfer_buffer.length;
+    struct dma_attachment* dmaAttachment = __tls_current_dmabuf();
+    uuid_t     builtinHandle = dmaAttachment->handle;
+    size_t     builtinLength = dmaAttachment->length;
     oserr_t status;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
@@ -177,7 +179,7 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         return status;
     }
     
-    memcpy(__tls_current()->transfer_buffer.buffer, buffer, length);
+    memcpy(__tls_current_dmabuf()->buffer, buffer, length);
     status = perform_transfer(handle->object.handle, builtinHandle, 1,
         builtinLength, 0, length, bytesWrittenOut);
     return status;

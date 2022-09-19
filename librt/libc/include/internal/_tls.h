@@ -22,7 +22,7 @@ typedef struct thread_storage {
     struct tm             tm_buffer;
     char                  asc_buffer[26];
     char                  tmpname_buffer[L_tmpnam];
-    struct dma_attachment transfer_buffer;
+    struct dma_attachment dma;
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 } thread_storage_t;
 
@@ -50,5 +50,13 @@ CRTDECL(void, __tls_destroy(struct thread_storage* tls));
  * @return The current TLS structure for the calling thread
  */
 CRTDECL(struct thread_storage*, __tls_current(void));
+
+/**
+ * @brief Retrieves the local dma buffer for the current thread. Use this
+ * function instead of accessing the dma buffer member manually as it is
+ * allocated on demand.
+ * @return The current dma buffer for the calling thread
+ */
+CRTDECL(struct dma_attachment*, __tls_current_dmabuf(void));
 
 #endif //!__INTERNAL_TLS__

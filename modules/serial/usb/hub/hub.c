@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2021, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,9 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Human Input Device Driver (Generic)
  */
 
 #define __TRACE
@@ -25,8 +20,8 @@
 #include <ddk/utils.h>
 #include "hub.h"
 #include <internal/_utils.h>
-#include <usb/usb.h>
 #include <stdlib.h>
+#include <threads.h>
 
 #include <gracht/link/vali.h>
 #include <ctt_usbhost_service_client.h>
