@@ -14,8 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define __TRACE
 
 #include <assert.h>
+#include <ddk/utils.h>
 #include <os/usched/cond.h>
 #include <os/usched/job.h>
 #include <os/usched/usched.h>
@@ -45,6 +47,7 @@ static uuid_t __add_job_to_register(struct usched_job* job)
     uuid_t                    jobID;
     struct job_entry_context* context;
     struct job_entry*         entry;
+    TRACE("__add_job_to_register()");
 
     context = __job_entry_context_new(job);
     if (context == NULL) {
@@ -77,6 +80,7 @@ static void __remove_job_from_register(uuid_t jobID, int exitCode)
     struct execution_manager* manager = __xunit_manager();
     struct job_entry_context* context = NULL;
     struct job_entry*         entry;
+    TRACE("__remove_job_from_register()");
 
     MutexLock(&manager->jobs_lock);
     entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
@@ -113,6 +117,7 @@ void usched_job_parameters_set_detached(struct usched_job_parameters* params, bo
 
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
+    TRACE("__finalize_task()");
     job->state = JobState_FINISHING;
 
     __remove_job_from_register(job->id, exitCode);
@@ -128,6 +133,7 @@ static void __finalize_task(struct usched_job* job, int exitCode)
 // TLS for each thread is taken care of by job creation/destruction.
 void __usched_task_main(struct usched_job* job)
 {
+    TRACE("__usched_task_main()");
     // Set our state to running, as the task is now in progress
     job->state = JobState_RUNNING;
 
@@ -143,6 +149,7 @@ void __usched_task_main(struct usched_job* job)
 uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params)
 {
     struct usched_job* job;
+    TRACE("usched_job_queue3()");
 
     assert(params != NULL);
     assert(params->stack_size >= 4096);

@@ -27,7 +27,7 @@
 #include <os/usched/job.h>
 #include <stdlib.h>
 
-extern void       GetServiceAddress(struct ipmsg_addr*);
+extern void     GetServiceAddress(struct ipmsg_addr*);
 extern oserr_t OnLoad(void);
 extern oserr_t OnUnload(void);
 

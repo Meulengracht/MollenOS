@@ -26,15 +26,14 @@
  */
 
 #ifndef LIBC_KERNEL
+#define __TRACE
 #include <assert.h>
+#include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
-#include <internal/_utils.h>
-#include <os/spinlock.h>
 #include <signal.h>
-#include <stdlib.h>
 #include "../threads/tss.h"
 
 /* exit
@@ -132,7 +131,6 @@ static struct atexit_thread_entry* __get_or_insert_thread(
         _In_ thrd_t                  threadID)
 {
     struct atexit_thread_entry* entry;
-
     do {
         entry = hashtable_get(&manager->handlers, &(struct atexit_thread_entry) {
                 .thread_id = threadID
@@ -143,7 +141,7 @@ static struct atexit_thread_entry* __get_or_insert_thread(
             hashtable_set(&manager->handlers, &e);
         }
     } while (entry == NULL);
-    return NULL;
+    return entry;
 }
 
 static struct atexit_dso_entry* __get_or_insert_dso(
@@ -162,7 +160,7 @@ static struct atexit_dso_entry* __get_or_insert_dso(
             hashtable_set(&threadEntry->values, &e);
         }
     } while (entry == NULL);
-    return NULL;
+    return entry;
 }
 
 static void __register_handler(
@@ -201,6 +199,8 @@ void __at_exit_impl(
         _In_ void*  argument,
         _In_ void*  dsoHandle)
 {
+    TRACE("__at_exit_impl()");
+    BOCHSBREAK;
     spinlock_acquire(&g_at_exit.lock);
 
     // Do not register any handlers once we've run primary cleanup
@@ -217,6 +217,7 @@ void __at_exit_impl(
 
     __register_handler(&g_at_exit, threadID, atExitFn, argument, dsoHandle);
     spinlock_release(&g_at_exit.lock);
+    TRACE("__at_exit_impl .. done");
 }
 
 void __at_quick_exit_impl(
@@ -225,6 +226,7 @@ void __at_quick_exit_impl(
         _In_ void*  argument,
         _In_ void*  dsoHandle)
 {
+    TRACE("__at_quick_exit_impl()");
     spinlock_acquire(&g_at_quick_exit.lock);
 
     // Do not register any handlers once we've run primary cleanup
@@ -241,6 +243,7 @@ void __at_quick_exit_impl(
 
     __register_handler(&g_at_quick_exit, threadID, atExitFn, argument, dsoHandle);
     spinlock_release(&g_at_quick_exit.lock);
+    TRACE("__at_quick_exit_impl .. done");
 }
 
 struct __dso_iterate_context {
@@ -324,7 +327,7 @@ void __cxa_at_exit_run(
         _In_ void*  dsoHandle,
         _In_ int    exitCode)
 {
-    __at_exit_run(&g_at_exit, UUID_INVALID, NULL, exitCode);
+    __at_exit_run(&g_at_exit, threadID, dsoHandle, exitCode);
 }
 
 int at_quick_exit(void(*fn)(void)) {

@@ -16,7 +16,10 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/ddkdefs.h> // for __reserved
+#include <ddk/utils.h>
 #include <internal/_tls.h>
 #include <internal/_syscalls.h>
 #include <os/usched/job.h>
@@ -83,12 +86,16 @@ static void __execution_unit_construct(struct usched_execution_unit* unit)
 static int __get_cpu_count(void)
 {
     SystemDescriptor_t descriptor;
-    SystemQuery(&descriptor);
+    if (SystemQuery(&descriptor) != OsOK) {
+        return 1;
+    }
     return (int)descriptor.NumberOfActiveCores;
 }
 
 void usched_xunit_init(void)
 {
+    TRACE("usched_xunit_init()");
+
     // initialize the manager
     MutexInitialize(&g_executionManager.lock, MUTEX_RECURSIVE);
     g_executionManager.count = 1;
@@ -118,6 +125,7 @@ void usched_xunit_init(void)
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
     struct timespec deadline;
+    TRACE("usched_xunit_main_loop()");
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
@@ -154,6 +162,7 @@ _Noreturn static void __execution_unit_main(void* data)
 {
     struct usched_execution_unit* unit = data;
     struct thread_storage         tls;
+    TRACE("__execution_unit_main()");
 
     // Initialize the thread storage system for the execution unit,
     // each execution unit has their own TLS as well
@@ -214,6 +223,7 @@ static int __spawn_execution_unit(struct usched_execution_unit* unit, unsigned i
 {
     ThreadParameters_t parameters;
     oserr_t            oserr;
+    TRACE("__spawn_execution_unit()");
 
     // Use default thread parameters for now until we decide on another
     // course of action.
@@ -242,6 +252,7 @@ static int __start_execution_unit(unsigned int* affinityMask, struct usched_job*
     struct usched_execution_unit* unit = __execution_unit_new();
     struct usched_execution_unit* i    = NULL;
     int                           status;
+    TRACE("__start_execution_unit()");
 
     if (unit == NULL) {
         return -1;
@@ -371,6 +382,7 @@ int usched_xunit_set_count(int count)
 int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters* params)
 {
     int result;
+    TRACE("__xunit_start_detached()");
 
     // Create a new execution unit, mark it RUNNING_DETACHED. We then supply it the
     // job it will be executing. Make sure we proxy the affinity mask for the execution

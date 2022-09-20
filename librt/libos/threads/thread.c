@@ -92,7 +92,7 @@ ThreadsCurrentId(void)
     }
 
     // Otherwise, invoke OS to refresh id
-    __tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
+    __tls_current()->thr_id = Syscall_ThreadId();
     return __tls_current()->thr_id;
 }
 
