@@ -23,9 +23,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include <os/osdefs.h>
 #include <math.h>
-#include <stdlib.h>
 #include <threads.h>
 
 #ifndef __INTERNAL_FUNC_DEFINED
