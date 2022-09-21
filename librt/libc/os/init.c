@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C-Support Initialize Implementation
- * - Definitions, prototypes and information needed.
  */
 
 //#define __TRACE

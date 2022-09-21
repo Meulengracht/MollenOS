@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,17 +25,17 @@
  */
 
 #ifndef LIBC_KERNEL
-#define __TRACE
 #include <assert.h>
-#include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
-#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
+#include <internal/_utils.h>
+#include <os/process.h>
 #include <signal.h>
+#include <stdlib.h>
 #include "../threads/tss.h"
 
-/* exit
+/**
  * Causes normal program termination to occur.
  * Several cleanup steps are performed:
  *  - functions passed to atexit are called, in reverse order of registration all C streams are flushed and closed
@@ -44,7 +43,8 @@
  *  - control is returned to the host environment. If exit_code is zero or EXIT_SUCCESS, 
  *    an implementation-defined status, indicating successful termination is returned. 
  *    If exit_code is EXIT_FAILURE, an implementation-defined status, indicating unsuccessful 
- *    termination is returned. In other cases implementation-defined status value is returned. */
+ *    termination is returned. In other cases implementation-defined status value is returned.
+ */
 extern void  __cxa_exithandlers(void);
 extern int   __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle);
 extern int   __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle);
@@ -199,8 +199,6 @@ void __at_exit_impl(
         _In_ void*  argument,
         _In_ void*  dsoHandle)
 {
-    TRACE("__at_exit_impl()");
-    BOCHSBREAK;
     spinlock_acquire(&g_at_exit.lock);
 
     // Do not register any handlers once we've run primary cleanup
@@ -217,7 +215,6 @@ void __at_exit_impl(
 
     __register_handler(&g_at_exit, threadID, atExitFn, argument, dsoHandle);
     spinlock_release(&g_at_exit.lock);
-    TRACE("__at_exit_impl .. done");
 }
 
 void __at_quick_exit_impl(
@@ -226,7 +223,6 @@ void __at_quick_exit_impl(
         _In_ void*  argument,
         _In_ void*  dsoHandle)
 {
-    TRACE("__at_quick_exit_impl()");
     spinlock_acquire(&g_at_quick_exit.lock);
 
     // Do not register any handlers once we've run primary cleanup
@@ -243,7 +239,6 @@ void __at_quick_exit_impl(
 
     __register_handler(&g_at_quick_exit, threadID, atExitFn, argument, dsoHandle);
     spinlock_release(&g_at_quick_exit.lock);
-    TRACE("__at_quick_exit_impl .. done");
 }
 
 struct __dso_iterate_context {
@@ -366,13 +361,7 @@ void exit(int exitCode)
     }
 
     // important here that we use the gracht client BEFORE cleaning up the entire C runtime
-    if (!__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t                  oserr;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), ec);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
-    }
+    ProcessTerminate(exitCode);
 
     // Otherwise, we are the main thread, which means we will go ahead and do primary
     // program cleanup, the moment we get killed, the rest of threads will be aborted
@@ -423,15 +412,7 @@ void quick_exit(int exitCode)
         __thrd_quick_exit(EXIT_SUCCESS);
     }
 
-    if (!__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t                  oserr;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
-    }
-
-    // Exit the primary thread
+    ProcessTerminate(exitCode);
     Syscall_ThreadExit(ec);
     for(;;);
 }
@@ -465,14 +446,7 @@ void _Exit(int exitCode)
         for(;;);
     }
 
-    if (!__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t               status;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &status);
-    }
-
+    ProcessTerminate(exitCode);
     Syscall_ThreadExit(ec);
     for(;;);
 }

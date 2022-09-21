@@ -27,12 +27,17 @@
 #include <os/usched/job.h>
 #include <stdlib.h>
 
+struct __gracht_job_context {
+    int set_iod;
+};
+
 extern void     GetServiceAddress(struct ipmsg_addr*);
 extern oserr_t OnLoad(void);
 extern oserr_t OnUnload(void);
 
-static gracht_server_t*         g_server     = NULL;
-static struct gracht_link_vali* g_serverLink = NULL;
+static gracht_server_t*            g_server     = NULL;
+static struct gracht_link_vali*    g_serverLink = NULL;
+static struct __gracht_job_context g_grachtContext = { 0 };
 
 extern void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 
@@ -48,11 +53,8 @@ __crt_get_service_server(void)
     return g_server;
 }
 
-struct __gracht_job_context {
-    int set_iod;
-};
-
-static void __gracht_job(void* argument, void* cancellationToken)
+static void
+__gracht_job(void* argument, void* cancellationToken)
 {
     struct __gracht_job_context* context = argument;
     struct ioset_event           events[32];
@@ -71,13 +73,11 @@ static void __gracht_job(void* argument, void* cancellationToken)
     }
 }
 
-static void
-__crt_service_init(void)
+static void __crt_service_init(void)
 {
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_PATH };
     int                           status;
-    struct __gracht_job_context   context;
     GetServiceAddress(&addr);
 
     // initialize the link
@@ -123,9 +123,9 @@ __crt_service_init(void)
     usched_job_parameters_init(&jobParameters);
     usched_job_parameters_set_detached(&jobParameters, true);
 
-    context.set_iod = config.set_descriptor;
+    g_grachtContext.set_iod = config.set_descriptor;
 
-    usched_job_queue3(__gracht_job, &context, &jobParameters);
+    usched_job_queue3(__gracht_job, &g_grachtContext, &jobParameters);
 
     // Now queue up the on-unload functions that should be called before exit of service.
     atexit((void (*)(void))OnUnload);

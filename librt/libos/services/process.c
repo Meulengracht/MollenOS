@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Process Definitions & Structures
- * - This header describes the base process-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <assert.h>
@@ -127,6 +120,19 @@ ProcessSignal(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_process_signal_result(GetGrachtClient(), &msg.base, &osStatus);
     return osStatus;
+}
+
+oserr_t ProcessTerminate(int exitCode)
+{
+    struct vali_link_message msg   = VALI_MSG_INIT_HANDLE(GetProcessService());
+    oserr_t                  oserr = OsOK;
+
+    if (!__crt_is_phoenix()) {
+        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
+        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
+    }
+    return oserr;
 }
 
 uuid_t

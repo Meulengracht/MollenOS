@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,7 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
  *
  * Process Service Definitions & Structures
  * - This header describes the base process-structure, prototypes
@@ -49,7 +47,7 @@ ProcessConfigurationInitialize(
  * @return
  */
 CRTDECL(oserr_t,
-        ProcessSpawn(
+ProcessSpawn(
 	_In_     const char* path,
 	_In_Opt_ const char* arguments,
     _Out_    uuid_t*     handleOut));
@@ -65,7 +63,7 @@ CRTDECL(oserr_t,
  * @return
  */
 CRTDECL(oserr_t,
-        ProcessSpawnEx(
+ProcessSpawnEx(
     _In_     const char*             path,
     _In_Opt_ const char*             arguments,
     _In_Opt_ const char* const*      environment,
@@ -83,7 +81,7 @@ CRTDECL(oserr_t,
  *         OsError in any other case.
  */
 CRTDECL(oserr_t,
-        ProcessJoin(
+ProcessJoin(
 	_In_  uuid_t handle,
     _In_  size_t timeout,
     _Out_ int*   exitCodeOut));
@@ -98,7 +96,7 @@ CRTDECL(oserr_t,
  * @return       The status of the operation
  */
 CRTDECL(oserr_t,
-        ProcessSignal(
+ProcessSignal(
     _In_ uuid_t handle,
     _In_ int    signal));
 
@@ -108,7 +106,16 @@ CRTDECL(oserr_t,
  * @return The ID of the current process.
  */
 CRTDECL(uuid_t,
-        ProcessGetCurrentId(void));
+ProcessGetCurrentId(void));
+
+/**
+ * @brief Signals to the process server that this process is terminating. This does not
+ * exit the current process, but it should exit as quickly as possible after invoking this.
+ * @param exitCode The exit code this process resulted with.
+ * @return The status of the termination.
+ */
+CRTDECL(oserr_t,
+ProcessTerminate(int exitCode));
 
 /**
  * @brief Retrieves the current process tick base. The tick base is set upon process startup. The
@@ -118,7 +125,7 @@ CRTDECL(uuid_t,
  * @return
  */
 CRTDECL(oserr_t,
-        ProcessGetTickBase(
+ProcessGetTickBase(
     _Out_ clock_t* tickOut));
 
 /**

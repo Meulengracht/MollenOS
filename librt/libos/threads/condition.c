@@ -97,7 +97,6 @@ ConditionWait(
 
     oserr = Futex(&parameters);
     if (oserr != OsOK) {
-        MutexLock(mutex);
         return oserr;
     }
     return MutexLock(mutex);

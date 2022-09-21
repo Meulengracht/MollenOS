@@ -17,6 +17,7 @@
 #define __TRACE
 
 #include <errno.h>
+#include <ddk/io.h>
 #include <ddk/utils.h>
 #include <os/mutex.h>
 #include <os/condition.h>
@@ -137,9 +138,9 @@ __get_next_ready(struct usched_scheduler* scheduler)
     // Otherwise, the execution unit is running as a part of the global
     // worker pool, they only execute from the global ready queue
     MutexLock(&g_readyQueueLock);
-    next = g_readyQueue;
+    next = READ_VOLATILE(g_readyQueue);
     if (next != NULL) {
-        g_readyQueue = next->next;
+        WRITE_VOLATILE(g_readyQueue, next->next);
         next->next = NULL;
     }
     MutexUnlock(&g_readyQueueLock);
@@ -180,7 +181,7 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 
     // Set the correct thread id for the job on the first switch for
     // the TLS
-    __tls_current()->thr_id = next->id;
+    //__tls_current()->thr_id = next->id;
 
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.
@@ -359,8 +360,9 @@ void usched_wait(void)
 {
     TRACE("usched_wait()");
     MutexLock(&g_readyQueueLock);
-    while (g_readyQueue == NULL) {
+    while (READ_VOLATILE(g_readyQueue) == NULL) {
         ConditionWait(&g_readyQueueCond, &g_readyQueueLock);
+        TRACE("usched_wait I woke up!");
     }
     MutexUnlock(&g_readyQueueLock);
 }

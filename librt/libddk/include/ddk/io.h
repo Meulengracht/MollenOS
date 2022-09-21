@@ -35,9 +35,9 @@
         ValueRep.Value;                                             \
     })
 
-#define WRITE_VOLATILE(var, value) ({                                \
+#define WRITE_VOLATILE(var, x) ({                                \
         union { typeof(var) Value; char Data[1]; } ValueRep =         \
-            { .Value = (value) };                                      \
+            { .Value = (x) };                                      \
         WriteVolatileMemory(&(var), &ValueRep.Data[0], sizeof(var)); \
         ValueRep.Value;                                              \
     })
