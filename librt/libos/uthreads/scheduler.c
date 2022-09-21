@@ -14,11 +14,9 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#define __TRACE
 
 #include <errno.h>
 #include <ddk/io.h>
-#include <ddk/utils.h>
 #include <os/mutex.h>
 #include <os/condition.h>
 #include <os/usched/usched.h>
@@ -38,8 +36,6 @@ struct usched_scheduler* __usched_get_scheduler(void) {
 
 void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
 {
-    TRACE("__usched_init()");
-
     if (sched->magic == SCHEDULER_MAGIC) {
         return;
     }
@@ -84,8 +80,6 @@ __empty_garbage_bin(struct usched_scheduler* sched)
 
 void __usched_add_job_ready(struct usched_job* job)
 {
-    TRACE("__usched_add_job_ready()");
-
     MutexLock(&g_readyQueueLock);
     __usched_append_job(&g_readyQueue, job);
     ConditionSignal(&g_readyQueueCond);
@@ -121,7 +115,6 @@ static struct usched_job*
 __get_next_ready(struct usched_scheduler* scheduler)
 {
     struct usched_job* next;
-    TRACE("__get_next_ready()");
 
     // If a scheduler is detached, then it cannot consume jobs from
     // the global queue. Instead, we only check the internal queue for
@@ -154,7 +147,6 @@ static void
 __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct usched_job* next)
 {
     char* stack;
-    TRACE("__switch_task()");
 
     // save the current context and set a return point
     if (current) {
@@ -247,7 +239,6 @@ static int __get_next_deadline(
     struct usched_timeout* timer;
     clock_t                shortest = (clock_t)-1;
     int                    result   = -1;
-    TRACE("__get_next_deadline()");
 
     timespec_get(&currentTime, TIME_UTC);
     timer = sched->timers;
@@ -295,7 +286,6 @@ int usched_yield(struct timespec* deadline)
     struct usched_scheduler* sched = __usched_get_scheduler();
     struct usched_job*       current;
     struct usched_job*       next;
-    TRACE("usched_yield()");
 
     // update timers before we check the scheduler as we might trigger a job to
     // be ready
@@ -345,7 +335,6 @@ int usched_yield(struct timespec* deadline)
 
 void usched_timedwait(const struct timespec* until)
 {
-    TRACE("usched_timedwait()");
     MutexLock(&g_readyQueueLock);
     while (g_readyQueue == NULL) {
         oserr_t oserr = ConditionTimedWait(&g_readyQueueCond, &g_readyQueueLock, until);
@@ -358,11 +347,9 @@ void usched_timedwait(const struct timespec* until)
 
 void usched_wait(void)
 {
-    TRACE("usched_wait()");
     MutexLock(&g_readyQueueLock);
     while (READ_VOLATILE(g_readyQueue) == NULL) {
         ConditionWait(&g_readyQueueCond, &g_readyQueueLock);
-        TRACE("usched_wait I woke up!");
     }
     MutexUnlock(&g_readyQueueLock);
 }

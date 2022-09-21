@@ -25,6 +25,6 @@ Futex(
     if (FUTEX_FLAG_ACTION(parameters->_flags) == FUTEX_FLAG_WAIT) {
         return Syscall_FutexWait(parameters);
     } else {
-        return Syscall_FutexWake(&parameters);
+        return Syscall_FutexWake(parameters);
     }
 }

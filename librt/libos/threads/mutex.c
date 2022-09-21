@@ -112,10 +112,10 @@ __perform_lock(
     _In_ size_t   timeout)
 {
     FutexParameters_t parameters;
-    int initialcount;
-    int status;
-    int z = 0;
-    int i;
+    int               initialcount;
+    int               status;
+    int               z = 0;
+    int               i;
     
     // If this thread already holds the mutex,
     // increase ref count, but only if we're recursive 

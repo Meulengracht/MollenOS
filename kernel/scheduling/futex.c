@@ -251,7 +251,7 @@ FutexWait(
     FutexItem_t*          FutexItem;
     uintptr_t             FutexAddress;
     irqstate_t           CpuState;
-    TRACE("%u: FutexWait(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
+    TRACE("FutexWait(f 0x%llx, t %u)", Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -302,7 +302,6 @@ FutexWait(
     ArchThreadYield();
 
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-    TRACE("%u: woke up", ThreadCurrentHandle());
     return SchedulerGetTimeoutReason();
 }
 
@@ -321,7 +320,7 @@ FutexWaitOperation(
     FutexItem_t*          futexItem;
     uintptr_t             futexAddress;
     irqstate_t            irqstate;
-    TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
+    TRACE("FutexWaitOperation(f 0x%llx, f 0x%llx, t %u)", Futex, Futex2, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -373,7 +372,6 @@ FutexWaitOperation(
     ArchThreadYield();
     
     (void)atomic_fetch_sub(&futexItem->Waiters, 1);
-    TRACE("%u: woke up", ThreadCurrentHandle());
     return SchedulerGetTimeoutReason();
 }
 
@@ -386,7 +384,7 @@ FutexWake(
     MemorySpaceContext_t* Context = NULL;
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
-    oserr_t            Status = OsNotExists;
+    oserr_t               Status = OsNotExists;
     uintptr_t             FutexAddress;
     int                   WaiterCount;
     int                   i;
@@ -460,7 +458,7 @@ FutexWakeOperation(
 {
     oserr_t oserr;
     int     initialValue;
-    TRACE("%u: FutexWakeOperation(f 0x%llx)", ThreadCurrentHandle(), Futex);
+    TRACE("FutexWakeOperation(f 0x%llx)", Futex);
 
     initialValue = atomic_load(Futex);
     FutexPerformOperation(Futex2, Operation);
