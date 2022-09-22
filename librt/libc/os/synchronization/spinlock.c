@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +19,7 @@
 #include <ddk/barrier.h>
 #include <internal/_syscalls.h>
 #include <os/spinlock.h>
-#include <threads.h>
+#include <os/threads.h>
 
 extern int  _spinlock_acquire(spinlock_t* lock);
 extern int  _spinlock_test(spinlock_t* lock);
@@ -48,7 +46,7 @@ spinlock_try_acquire(
 	_In_ spinlock_t* lock)
 {
     int    references;
-    thrd_t currentThread = thrd_current();
+    uuid_t currentThread = ThreadsCurrentId();
     
     assert(lock != NULL);
 
@@ -72,7 +70,7 @@ spinlock_acquire(
 	_In_ spinlock_t* lock)
 {
     int    references;
-    thrd_t currentThread = thrd_current();
+    uuid_t currentThread = ThreadsCurrentId();
     
     assert(lock != NULL);
 

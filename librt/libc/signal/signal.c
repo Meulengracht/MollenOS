@@ -28,9 +28,9 @@
 #include <internal/_all.h>
 #include <internal/_ipc.h>
 #include <os/context.h>
+#include <os/threads.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <threads.h>
 #include <string.h>
 
 typedef void (*__sa_process_t)(int, void*, void*);
@@ -97,7 +97,7 @@ static void __CrashHandler(
         int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
-        status = sys_process_report_crash(GetGrachtClient(), &msg.base, thrd_current(),
+        status = sys_process_report_crash(GetGrachtClient(), &msg.base, ThreadsCurrentId(),
                                           *__crt_processid_ptr(), (const uint8_t*)context,
                                           sizeof(Context_t), signal->signal);
         if (status) {

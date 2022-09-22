@@ -11,7 +11,8 @@
 #define TLS_NUMBER_ENTRIES 64
 
 typedef struct thread_storage {
-    uuid_t                thr_id;
+    uuid_t                thread_id;
+    uuid_t                job_id;
     void*                 handle;
     const char* const*    env_block;
     errno_t               err_no;

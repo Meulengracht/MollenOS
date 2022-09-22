@@ -74,11 +74,11 @@ oserr_t
 RegisterPath(
     _In_ const char* Path)
 {
-    TRACE("RegisterPath(%s) => %u", Path, thrd_current());
+    TRACE("RegisterPath(%s) => %u", Path, ThreadsCurrentId());
     if (!Path) {
         return OsInvalidParameters;
     }
-    return Syscall_RegisterHandlePath(thrd_current(), Path);
+    return Syscall_RegisterHandlePath(ThreadsCurrentId(), Path);
 }
 
 uuid_t GetSessionService(void)

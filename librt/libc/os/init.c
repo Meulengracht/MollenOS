@@ -22,6 +22,7 @@
 #include <internal/_ipc.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
+#include <internal/_tls.h>
 #include <os/threads.h>
 #include <stdlib.h>
 #include <string.h>
@@ -280,6 +281,17 @@ int __crt_is_phoenix(void)
 uuid_t __crt_primary_thread(void)
 {
     return g_startupThreadId;
+}
+
+// This function returns the job id if set, otherwise it will return the
+// real thread id.
+uuid_t __crt_thread_id(void)
+{
+    struct thread_storage* tls = __tls_current();
+    if (tls->job_id != UUID_INVALID) {
+        return tls->job_id;
+    }
+    return ThreadsCurrentId();
 }
 
 uuid_t* __crt_processid_ptr(void)

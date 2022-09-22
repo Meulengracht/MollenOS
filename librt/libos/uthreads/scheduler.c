@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <errno.h>
-#include <ddk/io.h>
 #include <os/mutex.h>
 #include <os/condition.h>
 #include <os/usched/usched.h>
@@ -25,13 +25,30 @@
 #include <stdlib.h>
 #include "private.h"
 
-static atomic_int         g_timerid        = ATOMIC_VAR_INIT(1);
-static struct usched_job* g_readyQueue     = NULL;
-static Mutex_t            g_readyQueueLock = MUTEX_INIT(MUTEX_PLAIN);
-static Condition_t        g_readyQueueCond = COND_INIT;
+struct usched_scheduler_queue {
+    struct usched_job* ready;
+    Mutex_t            mutex;
+    Condition_t        condition;
+};
+
+static atomic_int                    g_timerid     = ATOMIC_VAR_INIT(1);
+static struct usched_scheduler_queue g_globalQueue = { NULL, MUTEX_INIT(MUTEX_PLAIN), COND_INIT };
 
 struct usched_scheduler* __usched_get_scheduler(void) {
     return __usched_xunit_tls_current()->scheduler;
+}
+
+static struct usched_scheduler_queue* __usched_scheduler_queue_new(struct usched_job* job)
+{
+    struct usched_scheduler_queue* queue = malloc(sizeof(struct usched_scheduler_queue));
+    if (queue == NULL) {
+        return NULL;
+    }
+
+    queue->ready = job;
+    MutexInitialize(&queue->mutex, MUTEX_PLAIN);
+    ConditionInitialize(&queue->condition);
+    return queue;
 }
 
 void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
@@ -51,9 +68,17 @@ void __usched_init(struct usched_scheduler* sched, struct usched_init_params* pa
     // if a user wants to keep long-running tasks OR bind tasks to specific cores,
     // without that impacting the entire workpool.
     if (params->detached_job != NULL) {
-        sched->internal_queue = params->detached_job;
-        sched->detached       = true;
+        sched->internal_queue = __usched_scheduler_queue_new(params->detached_job);
+        assert(sched->internal_queue != NULL);
     }
+}
+
+void __usched_destroy(struct usched_scheduler* sched)
+{
+    if (sched->magic != SCHEDULER_MAGIC) {
+        return;
+    }
+    free(sched->internal_queue);
 }
 
 static void
@@ -80,10 +105,12 @@ __empty_garbage_bin(struct usched_scheduler* sched)
 
 void __usched_add_job_ready(struct usched_job* job)
 {
-    MutexLock(&g_readyQueueLock);
-    __usched_append_job(&g_readyQueue, job);
-    ConditionSignal(&g_readyQueueCond);
-    MutexUnlock(&g_readyQueueLock);
+    struct usched_scheduler_queue* queue = job->queue;
+
+    MutexLock(&queue->mutex);
+    __usched_append_job(&queue->ready, job);
+    ConditionSignal(&queue->condition);
+    MutexUnlock(&queue->mutex);
 }
 
 int __usched_prepare_migrate(void)
@@ -114,29 +141,22 @@ int __usched_prepare_migrate(void)
 static struct usched_job*
 __get_next_ready(struct usched_scheduler* scheduler)
 {
-    struct usched_job* next;
+    struct usched_scheduler_queue* queue = &g_globalQueue;
+    struct usched_job*             next;
 
-    // If a scheduler is detached, then it cannot consume jobs from
-    // the global queue. Instead, we only check the internal queue for
-    // jobs.
-    if (scheduler->detached) {
-        next = scheduler->internal_queue;
-        if (next != NULL) {
-            scheduler->internal_queue = next->next;
-            next->next = NULL;
-        }
-        return next;
+    // If a scheduler has its own internal queue set, then it cannot consume jobs from
+    // the global queue. Instead, we only check the internal queue for jobs.
+    if (scheduler->internal_queue != NULL) {
+        queue = scheduler->internal_queue;
     }
 
-    // Otherwise, the execution unit is running as a part of the global
-    // worker pool, they only execute from the global ready queue
-    MutexLock(&g_readyQueueLock);
-    next = READ_VOLATILE(g_readyQueue);
+    MutexLock(&queue->mutex);
+    next = queue->ready;
     if (next != NULL) {
-        WRITE_VOLATILE(g_readyQueue, next->next);
+        queue->ready = next->next;
         next->next = NULL;
     }
-    MutexUnlock(&g_readyQueueLock);
+    MutexUnlock(&queue->mutex);
     return next;
 }
 
@@ -171,9 +191,13 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
         longjmp(next->context, 1);
     }
 
-    // Set the correct thread id for the job on the first switch for
-    // the TLS
-    //__tls_current()->thr_id = next->id;
+    // Set up the job id for the current job before running it, and also set up
+    // the scheduling queue. These are things are not practical for us to do at
+    // job creation, so we have deferred them to just-in-time initialization.
+    __tls_current()->job_id = next->id;
+    if (next->queue == NULL) {
+        next->queue = sched->internal_queue != NULL ? sched->internal_queue : &g_globalQueue;
+    }
 
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.
@@ -333,25 +357,36 @@ int usched_yield(struct timespec* deadline)
     return 0;
 }
 
+static inline struct usched_scheduler_queue* __get_scheduler_queue(void)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    if (sched->internal_queue) {
+        return sched->internal_queue;
+    }
+    return &g_globalQueue;
+}
+
 void usched_timedwait(const struct timespec* until)
 {
-    MutexLock(&g_readyQueueLock);
-    while (g_readyQueue == NULL) {
-        oserr_t oserr = ConditionTimedWait(&g_readyQueueCond, &g_readyQueueLock, until);
+    struct usched_scheduler_queue* queue = __get_scheduler_queue();
+    MutexLock(&queue->mutex);
+    while (queue->ready == NULL) {
+        oserr_t oserr = ConditionTimedWait(&queue->condition, &queue->mutex, until);
         if (oserr == OsTimeout) {
             break;
         }
     }
-    MutexUnlock(&g_readyQueueLock);
+    MutexUnlock(&queue->mutex);
 }
 
 void usched_wait(void)
 {
-    MutexLock(&g_readyQueueLock);
-    while (READ_VOLATILE(g_readyQueue) == NULL) {
-        ConditionWait(&g_readyQueueCond, &g_readyQueueLock);
+    struct usched_scheduler_queue* queue = __get_scheduler_queue();
+    MutexLock(&queue->mutex);
+    while (queue->ready == NULL) {
+        ConditionWait(&queue->condition, &queue->mutex);
     }
-    MutexUnlock(&g_readyQueueLock);
+    MutexUnlock(&queue->mutex);
 }
 
 int __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType)

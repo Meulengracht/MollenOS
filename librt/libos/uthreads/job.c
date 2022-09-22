@@ -163,6 +163,8 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->next = NULL;
     job->entry = entry;
     job->argument = argument;
+    job->detached = params->detached;
+    job->queue = NULL;
 
     if (__tls_initialize(&job->tls)) {
         free(job->stack);
@@ -312,6 +314,21 @@ int usched_job_join(uuid_t jobID, int* exitCode)
     *exitCode = context->exit_code;
     usched_mtx_unlock(&context->mtx);
     return 0;
+}
+
+bool __usched_job_has_exit(uuid_t jobID)
+{
+    struct execution_manager* manager = __xunit_manager();
+    struct job_entry_context* context = NULL;
+    struct job_entry*         entry;
+
+    MutexLock(&manager->jobs_lock);
+    entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
+    if (entry != NULL) {
+        context = entry->context;
+    }
+    MutexUnlock(&manager->jobs_lock);
+    return context != NULL && context->job == NULL;
 }
 
 int usched_job_signal(uuid_t jobID, int signal)

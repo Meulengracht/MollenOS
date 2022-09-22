@@ -19,8 +19,6 @@
  * - Handles all file related services and disk services
  */
 
-#define __TRACE
-
 #include <internal/_ipc.h>
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
@@ -49,12 +47,10 @@ oserr_t OnLoad(void)
     VFSNodeHandleInitialize();
     VFSStorageInitialize();
     VfsFileSystemInitialize();
+    VFSScopeInitialize();
 
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_file_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_storage_server_protocol);
-
-    // Queue up some initialization jobs
-    usched_job_queue((usched_task_fn)VFSScopeInitialize, NULL);
     return OsOK;
 }

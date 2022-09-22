@@ -63,7 +63,7 @@ __MountDefaultDirectories(void)
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &node);
 }
 
-void VFSScopeInitialize(void* context, void* token)
+void VFSScopeInitialize(void)
 {
     oserr_t osStatus;
 

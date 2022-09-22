@@ -63,7 +63,8 @@ int __tls_initialize(struct thread_storage* tls)
     __set_reserved(11, (size_t)&tls->tls_array[0]);
 
     // Initialize members to default values
-    tls->thr_id = UUID_INVALID;
+    tls->thread_id = UUID_INVALID;
+    tls->job_id = UUID_INVALID;
     tls->err_no = EOK;
     tls->locale = __get_global_locale();
     tls->seed   = 1;
