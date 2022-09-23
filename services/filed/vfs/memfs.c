@@ -26,6 +26,11 @@
 #include <vfs/vfs.h>
 #include "private.h"
 
+struct MemFSFile {
+    void*  Buffer;
+    size_t BufferSize;
+};
+
 struct MemFSDirectory {
     hashtable_t Entries;
 };
@@ -39,9 +44,11 @@ enum {
 struct MemFSEntry {
     mstring_t*        Name;
     uint32_t          Owner;
+    uint32_t          Permissions;
     struct usched_mtx Mutex;
     int               Type;
     union {
+        struct MemFSFile      File;
         struct MemFSDirectory Directory;
     } Data;
 };
@@ -62,6 +69,7 @@ struct MemFS {
 };
 
 struct MemFSHandle {
+    size_t             Position;
     struct MemFSEntry* Entry;
 };
 
@@ -79,7 +87,9 @@ static void __MemFSEntry_delete(struct MemFSEntry* entry)
         return;
     }
 
-    if (entry->Type == MEMFS_ENTRY_TYPE_DIRECTORY) {
+    if (entry->Type == MEMFS_ENTRY_TYPE_FILE) {
+        free(entry->Data.File.Buffer);
+    } else if (entry->Type == MEMFS_ENTRY_TYPE_DIRECTORY) {
         hashtable_enumerate(&entry->Data.Directory.Entries, __directory_entries_delete, NULL);
         hashtable_destroy(&entry->Data.Directory.Entries);
     }
@@ -93,7 +103,7 @@ static int __MemFSDirectory_construct(struct MemFSDirectory* directory)
                                __directory_entries_hash, __directory_entries_cmp);
 }
 
-static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, int Type)
+static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int type, uint32_t permissions)
 {
     struct MemFSEntry* entry = malloc(sizeof(struct MemFSEntry));
     if (entry == NULL) {
@@ -101,8 +111,10 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, int Type)
     }
     memset(entry, 0, sizeof(struct MemFSEntry));
 
-    entry->Type = Type;
-    if (Type == MEMFS_ENTRY_TYPE_DIRECTORY) {
+    entry->Type = type;
+    entry->Owner = owner;
+    entry->Permissions = permissions;
+    if (type == MEMFS_ENTRY_TYPE_DIRECTORY) {
         if (__MemFSDirectory_construct(&entry->Data.Directory)) {
             free(entry);
             return NULL;
@@ -137,7 +149,11 @@ static struct MemFS* __MemFS_new(void)
         return NULL;
     }
 
-    memfs->Root = __MemFSEntry_new(&g_rootName, MEMFS_ENTRY_TYPE_DIRECTORY);
+    memfs->Root = __MemFSEntry_new(
+            &g_rootName,
+            0, MEMFS_ENTRY_TYPE_DIRECTORY,
+            FILE_PERMISSION_READ | FILE_PERMISSION_WRITE | FILE_PERMISSION_EXECUTE
+    );
     if (memfs->Root == NULL) {
         __MemFS_delete(memfs);
         return NULL;
@@ -186,7 +202,8 @@ static struct MemFSHandle* __MemFSHandle_new(struct MemFSEntry* entry)
         return NULL;
     }
 
-    handle->Entry = entry;
+    handle->Position = 0;
+    handle->Entry    = entry;
     return handle;
 }
 
@@ -273,10 +290,45 @@ __MemFSOpen(
     return OsOK;
 }
 
-static oserr_t __CreateInNode(
-        _In_ struct MemFSEntry* entry, mstring_t* name)
-{
+static int __TypeFromFlags(uint32_t flags) {
+    switch (FILE_FLAG_TYPE(flags)) {
+        case FILE_FLAG_FILE: return MEMFS_ENTRY_TYPE_FILE;
+        case FILE_FLAG_DIRECTORY: return MEMFS_ENTRY_TYPE_DIRECTORY;
+        default: return MEMFS_ENTRY_TYPE_INVALID;
+    }
+}
 
+static oserr_t __CreateInNode(
+        _In_ struct MemFSEntry* entry,
+        _In_ mstring_t*         name,
+        _In_ uint32_t           owner,
+        _In_ uint32_t           flags,
+        _In_ uint32_t           permissions)
+{
+    struct __DirectoryEntry* lookup;
+    struct MemFSEntry*       newEntry;
+
+    usched_mtx_lock(&entry->Mutex);
+    lookup = hashtable_get(&entry->Data.Directory.Entries, &(struct __DirectoryEntry) { .Name = name });
+    if (lookup) {
+        usched_mtx_unlock(&entry->Mutex);
+        return OsExists;
+    }
+
+    newEntry = __MemFSEntry_new(name, owner, __TypeFromFlags(flags), permissions);
+    if (newEntry == NULL) {
+        usched_mtx_unlock(&entry->Mutex);
+        return OsOutOfMemory;
+    }
+
+    // Important to note here that we set .Name to the name pointer *inside* the
+    // entry structure, as we must always use memory owned by the entry.
+    hashtable_set(
+            &entry->Data.Directory.Entries,
+            &(struct __DirectoryEntry) { .Name = newEntry->Name, newEntry }
+    );
+    usched_mtx_unlock(&entry->Mutex);
+    return OsOK;
 }
 
 static oserr_t
@@ -297,7 +349,12 @@ __MemFSCreate(
         return OsInvalidParameters;
     }
 
-    return __CreateInNode(handle->Entry, name, ownher, flags, permissions);
+    // The handle must point to a directory
+    if (handle->Entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
+        return OsPathIsNotDirectory;
+    }
+
+    return __CreateInNode(handle->Entry, name, owner, flags, permissions);
 }
 
 static oserr_t
@@ -385,6 +442,110 @@ __MemFSMove(
     return OsOK;
 }
 
+static oserr_t __ReadFile(
+        _In_  struct MemFSHandle* handle,
+        _In_  void*               buffer,
+        _In_  size_t              bufferOffset,
+        _In_  size_t              unitCount,
+        _Out_ size_t*             unitsRead)
+{
+    size_t bytesToRead;
+
+    TRACE("__ReadFile()");
+
+    // Calculate the number of bytes to read based on current position
+    // and the size of the file.
+    bytesToRead = MIN((handle->Entry->Data.File.BufferSize - handle->Position), unitCount);
+
+    // Copy that number of bytes, but guard against zero-reads
+    if (bytesToRead) {
+        memcpy(
+                (uint8_t*)buffer + bufferOffset,
+                (uint8_t*)handle->Entry->Data.File.Buffer + handle->Position,
+                bytesToRead
+        );
+        handle->Position += bytesToRead;
+    }
+
+    *unitsRead = bytesToRead;
+    return OsOK;
+}
+
+struct __ReadDirectoryContext {
+    struct VFSStat* Buffer;
+    size_t          BytesToSkip;
+    size_t          BytesLeftInBuffer;
+    int             EntriesRead;
+};
+
+static void __ReadDirectoryEntry(int index, const void* element, void* userContext)
+{
+    const struct __DirectoryEntry* entry   = element;
+    struct __ReadDirectoryContext* context = userContext;
+    TRACE("__ReadDirectoryEntry(entry=%ms)", entry->Name);
+
+    // ensure enough buffer space for this
+    if (context->BytesLeftInBuffer < sizeof(struct VFSStat)) {
+        return;
+    }
+
+    // ensure that we have skipped enough entries
+    if (context->BytesToSkip) {
+        context->BytesToSkip -= sizeof(struct VFSStat);
+        return;
+    }
+
+    // Fill in the VFS structure
+    context->Buffer->Name = mstr_clone(entry->Name);
+    context->Buffer->LinkTarget = NULL;
+    context->Buffer->Size = (entry->Entry->Type == MEMFS_ENTRY_TYPE_FILE) ? entry->Entry->Data.File.BufferSize : 0;
+    context->Buffer->Owner = entry->Entry->Owner;
+    context->Buffer->Permissions = entry->Entry->Permissions;
+    context->Buffer->Flags = entry->Entry->Permissions;
+
+    //context->Buffer->Accessed;
+    //context->Buffer->Modified;
+    //context->Buffer->Created;
+
+    // Update iterators
+    context->Buffer++;
+    context->EntriesRead++;
+    context->BytesLeftInBuffer -= sizeof(struct VFSStat);
+}
+
+static oserr_t __ReadDirectory(
+        _In_  struct MemFSHandle* handle,
+        _In_  void*               buffer,
+        _In_  size_t              bufferOffset,
+        _In_  size_t              unitCount,
+        _Out_ size_t*             unitsRead)
+{
+    struct __ReadDirectoryContext context = {
+            .Buffer = (struct VFSStat*)((uint8_t*)buffer + bufferOffset),
+            .BytesToSkip = handle->Position,
+            .BytesLeftInBuffer = unitCount,
+            .EntriesRead = 0
+    };
+    TRACE("__ReadDirectory()");
+
+    // Ensure that a minimum of *one* stat structure can fit
+    if (unitCount < sizeof(struct VFSStat)) {
+        *unitsRead = 0;
+        return OsCancelled;
+    }
+
+    usched_mtx_lock(&handle->Entry->Mutex);
+    hashtable_enumerate(
+            &handle->Entry->Data.Directory.Entries,
+            __ReadDirectoryEntry, &context
+    );
+    usched_mtx_unlock(&handle->Entry->Mutex);
+
+    handle->Position += unitCount - context.BytesLeftInBuffer;
+    *unitsRead = unitCount - context.BytesLeftInBuffer;
+    return OsOK;
+}
+
 static oserr_t
 __MemFSRead(
         _In_  struct VFSCommonData* vfsCommonData,
@@ -395,11 +556,26 @@ __MemFSRead(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsRead)
 {
+    struct MemFSHandle* handle = data;
+
     TRACE("__MemFSRead()");
-    if (vfsCommonData->Data == NULL) {
+    if (vfsCommonData->Data == NULL || data == NULL) {
         return OsInvalidParameters;
     }
 
+    // All data is sourced locally, so we do not really need to use
+    // the buffer-handle in this type of FS.
+    _CRT_UNUSED(bufferHandle);
+
+    // Handle reading of data differently based on the type of file
+    // entry.
+    switch (handle->Entry->Type) {
+        case MEMFS_ENTRY_TYPE_FILE:
+            return __ReadFile(handle, buffer, bufferOffset, unitCount, unitsRead);
+        case MEMFS_ENTRY_TYPE_DIRECTORY:
+            return __ReadDirectory(handle, buffer, bufferOffset, unitCount, unitsRead);
+        default: break;
+    }
     return OsOK;
 }
 
