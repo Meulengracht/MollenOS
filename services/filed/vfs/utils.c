@@ -33,26 +33,32 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
     struct VFSNode* i;
     int             tokenCount = 0;
     mstring_t**     tokens;
-    TRACE("VFSNodeMakePath(local=%i)", local);
+    TRACE("VFSNodeMakePath(node=%ms, local=%i)", node->Name, local);
 
     if (node == NULL) {
         return NULL;
     }
 
     i = node;
-    while (i) {
+    do {
         tokenCount++;
         if (local && !mstr_cmp(&g_rootToken, i->Name)) {
             break;
         }
         i = i->Parent;
-    }
+    } while (1);
+    TRACE("VFSNodeMakePath tokenCount=%i", tokenCount);
 
     tokens = malloc(sizeof(mstring_t*) * tokenCount);
     if (tokens == NULL) {
         return NULL;
     }
 
+    // No need to do any combining if we only have one token, then we can
+    // simply return that.
+    if (tokenCount == 1) {
+        return mstr_clone(i->Name);
+    }
     int index = 0;
     i = node;
     while (index < tokenCount) {
@@ -61,7 +67,9 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
         index++;
     }
 
+    TRACE("VFSNodeMakePath combining");
     mstring_t* path = mstr_path_tokens_join(tokens, tokenCount);
+    TRACE("VFSNodeMakePath result=%ms", path);
     free(tokens);
     return path;
 }
@@ -96,9 +104,11 @@ static oserr_t __LoadNode(struct VFSNode* node) {
     struct VFSOperations* ops = &node->FileSystem->Interface->Operations;
     struct VFS*           vfs = node->FileSystem;
     oserr_t               osStatus, osStatus2;
-    mstring_t*            nodePath = VFSNodeMakePath(node, 1);
+    mstring_t*            nodePath;
     void*                 data;
+    TRACE("__LoadNode(node=%ms)", node->Name);
 
+    nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
         return OsOutOfMemory;
     }
@@ -127,7 +137,7 @@ static oserr_t __LoadNode(struct VFSNode* node) {
         WARNING("__LoadNode failed to cleanup handle with code %u", osStatus2);
     }
 
-    cleanup:
+cleanup:
     mstr_delete(nodePath);
     return osStatus;
 }
@@ -156,7 +166,8 @@ oserr_t VFSNodeEnsureLoaded(struct VFSNode* node)
 oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** nodeOut)
 {
     struct __VFSChild* result;
-    oserr_t         osStatus;
+    oserr_t            oserr;
+    TRACE("VFSNodeFind(node=%ms, name=%ms)", node->Name, name);
 
     // check once while having the reader lock only, this is a performance optimization,
     // so we don't on following checks acquire the writer lock for nothing
@@ -164,10 +175,10 @@ oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** node
         usched_rwlock_w_promote(&node->Lock);
         // do another check while holding the lock
         if (!node->IsLoaded) {
-            osStatus = __LoadNode(node);
-            if (osStatus != OsOK) {
+            oserr = __LoadNode(node);
+            if (oserr != OsOK) {
                 usched_rwlock_w_demote(&node->Lock);
-                return osStatus;
+                return oserr;
             }
             node->IsLoaded = true;
         }
@@ -446,7 +457,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
     struct VFSNode* node = from;
     struct VFSNode* next;
     usched_rwlock_r_lock(&node->Lock);
-    for (int i = 0; i < tokenCount - 1; i++) {
+    for (int i = 0; i < tokenCount; i++) {
         TRACE("__GetRelative token[%i] = %ms", i, tokens[i]);
         // Assumptions on entry of this loop.
         // node => current node, we have a reader lock on this
@@ -544,7 +555,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
 
     // When exiting the loop, we must hold a reader lock still on
     // node that needs to be unlocked.
-    mstr_delete_array(tokens, tokenCount);
+    mstrv_delete(tokens);
     *nodeOut = node;
     return osStatus;
 }

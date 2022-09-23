@@ -39,6 +39,10 @@ static struct job_entry_context* __job_entry_context_new(struct usched_job* job)
     return context;
 }
 
+static inline uuid_t __get_job_id(struct execution_manager* manager) {
+    return ((manager->jobs_id++) % 1024) + 1000;
+}
+
 static uuid_t __add_job_to_register(struct usched_job* job)
 {
     struct execution_manager* manager = __xunit_manager();
@@ -52,13 +56,11 @@ static uuid_t __add_job_to_register(struct usched_job* job)
     }
 
     MutexLock(&manager->jobs_lock);
-    while (1) {
-        jobID = (manager->jobs_id++) % 1024;
+    do {
+        jobID = __get_job_id(manager);
         entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
-        if (entry == NULL || entry->context->job == NULL) {
-            break;
-        }
-    }
+    } while (entry != NULL && entry->context->job != NULL);
+
     if (entry != NULL) {
         entry->context->job = job;
         free(context);

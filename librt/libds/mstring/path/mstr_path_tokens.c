@@ -46,7 +46,7 @@ int mstr_path_tokens(mstring_t* path, mstring_t*** tokensOut)
         return tokenCount;
     }
 
-    tokens = stralloc(tokenCount * sizeof(mstring_t*));
+    tokens = stralloc((tokenCount + 1) * sizeof(mstring_t*));
     if (tokens == NULL) {
         return -1;
     }
@@ -54,10 +54,13 @@ int mstr_path_tokens(mstring_t* path, mstring_t*** tokensOut)
     for (int i = 0; i < tokenCount; i++) {
         tokens[i] = mstr_path_token_at(path, i);
         if (tokens[i] == NULL) {
-            mstr_delete_array(tokens, i);
+            mstrv_delete(tokens);
             return -1;
         }
     }
+
+    // Null-terminate the list
+    tokens[tokenCount] = NULL;
 
     *tokensOut = tokens;
     return tokenCount;
@@ -92,6 +95,10 @@ mstring_t* mstr_path_token_at(mstring_t* path, int index)
         return NULL;
     }
 
+    // skip '/'
+    while (i < path->__length && path->__data[i] == U'/') i++;
+
+    // now build the final token
     while (i < path->__length && path->__data[i] != U'/') {
         if (mstring_builder_append(builder, path->__data[i++])) {
             mstring_builder_destroy(builder);

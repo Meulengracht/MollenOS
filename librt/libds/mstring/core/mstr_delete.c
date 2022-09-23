@@ -32,13 +32,13 @@ void mstr_delete(mstring_t* string)
     strfree(string);
 }
 
-void mstr_delete_array(mstring_t** strings, int count)
+void mstrv_delete(mstring_t** strings)
 {
     if (strings == NULL) {
         return;
     }
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; strings[i] != NULL; i++) {
         mstr_delete(strings[i]);
     }
     strfree(strings);

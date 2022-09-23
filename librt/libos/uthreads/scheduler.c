@@ -70,6 +70,9 @@ void __usched_init(struct usched_scheduler* sched, struct usched_init_params* pa
     if (params->detached_job != NULL) {
         sched->internal_queue = __usched_scheduler_queue_new(params->detached_job);
         assert(sched->internal_queue != NULL);
+
+        // Also bind the job to the internal queue
+        params->detached_job->queue = sched->internal_queue;
     }
 }
 
@@ -106,6 +109,13 @@ __empty_garbage_bin(struct usched_scheduler* sched)
 void __usched_add_job_ready(struct usched_job* job)
 {
     struct usched_scheduler_queue* queue = job->queue;
+
+    // When a job is queued for the global queue, then the job will initially have
+    // the queue set to NULL. In this case bind it to the global queue.
+    if (queue == NULL) {
+        job->queue = &g_globalQueue;
+        queue = &g_globalQueue;
+    }
 
     MutexLock(&queue->mutex);
     __usched_append_job(&queue->ready, job);
@@ -191,13 +201,10 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
         longjmp(next->context, 1);
     }
 
-    // Set up the job id for the current job before running it, and also set up
-    // the scheduling queue. These are things are not practical for us to do at
-    // job creation, so we have deferred them to just-in-time initialization.
+    // Set up the job id for the current job before running it, These are
+    // things are not practical for us to do at job creation, so we have
+    // deferred them to just-in-time initialization.
     __tls_current()->job_id = next->id;
-    if (next->queue == NULL) {
-        next->queue = sched->internal_queue != NULL ? sched->internal_queue : &g_globalQueue;
-    }
 
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.

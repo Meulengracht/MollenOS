@@ -23,10 +23,12 @@
 
 #include <ddk/utils.h>
 #include <os/sharedobject.h>
+#include <os/usched/cond.h>
+#include <os/usched/job.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "vfs/vfs_interface.h"
+#include <vfs/vfs_interface.h>
 
 static const char* g_modulePaths[] = {
         "/modules",
@@ -108,23 +110,74 @@ VFSInterfaceNew(
     return interface;
 }
 
-static Handle_t
-__TryLocateModule(
-        _In_ enum FileSystemType type)
+struct __DetachedContext {
+    // params
+    enum FileSystemType Type;
+
+    // return
+    Handle_t Handle;
+};
+
+static struct __DetachedContext* __DetachedContext_new(enum FileSystemType type)
 {
-    char tmp[256];
-    int  i;
+    struct __DetachedContext* context = malloc(sizeof(struct __DetachedContext));
+    if (context == NULL) {
+        return NULL;
+    }
+    context->Type   = type;
+    context->Handle = UUID_INVALID;
+    return context;
+}
+
+static void __DetachedContext_delete(struct __DetachedContext* context)
+{
+    free(context);
+}
+
+static void
+__TryLocateModule(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
+{
+    struct __DetachedContext* context = argument;
+    char                      tmp[256];
+    int                       i;
 
     i = 0;
     while (g_modulePaths[i]) {
-        snprintf(&tmp[0], sizeof(tmp), "%s/%s", g_modulePaths[i], g_moduleNames[(int)type]);
+        snprintf(&tmp[0], sizeof(tmp), "%s/%s", g_modulePaths[i], g_moduleNames[(int)context->Type]);
         Handle_t handle = SharedObjectLoad(&tmp[0]);
         if (handle != HANDLE_INVALID) {
-            return handle;
+            context->Handle = handle;
+            return;
         }
         i++;
     }
-    return HANDLE_INVALID;
+}
+
+static Handle_t __RunDetached(
+        _In_ enum FileSystemType type)
+{
+    struct usched_job_parameters jobParameters;
+    struct __DetachedContext*    context;
+    uuid_t                       jobID;
+    int                          exitCode;
+    Handle_t                     handle;
+
+    context = __DetachedContext_new(type);
+    if (context == NULL) {
+        return HANDLE_INVALID;
+    }
+
+    usched_job_parameters_init(&jobParameters);
+    usched_job_parameters_set_detached(&jobParameters, true);
+    jobID = usched_job_queue3(__TryLocateModule, context, &jobParameters);
+    if (usched_job_join(jobID, &exitCode)) {
+        ERROR("__RunDetached failed to join on job %u: %i", jobID, errno);
+    }
+    handle = context->Handle;
+    __DetachedContext_delete(context);
+    return handle;
 }
 
 oserr_t
@@ -141,7 +194,8 @@ VFSInterfaceLoadInternal(
 	    return OsNotSupported;
 	}
 
-    handle = __TryLocateModule(type);
+    // Until such a time
+    handle = __RunDetached(type);
     if (handle == HANDLE_INVALID) {
         ERROR("VFSInterfaceLoadInternal failed to load %s", g_moduleNames[(int)type]);
         return OsNotExists;

@@ -45,7 +45,7 @@ DSDECL(mstring_t*,  mstr_new_u8(const char* str));
 DSDECL(mstring_t*,  mstr_new_u16(const short* str));
 DSDECL(mstring_t*,  mstr_clone(mstring_t*));
 DSDECL(void,        mstr_delete(mstring_t*));
-DSDECL(void,        mstr_delete_array(mstring_t**, int));
+DSDECL(void,        mstrv_delete(mstring_t**));
 DSDECL(uint32_t,    mstr_hash(mstring_t*));
 
 /**

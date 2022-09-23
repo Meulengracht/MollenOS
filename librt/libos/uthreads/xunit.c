@@ -416,5 +416,5 @@ static int job_cmp(const void* element1, const void* element2)
 {
     const struct job_entry* entry1 = element1;
     const struct job_entry* entry2 = element2;
-    return entry1->id == entry2->id;
+    return entry1->id == entry2->id ? 0 : -1;
 }

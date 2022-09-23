@@ -16,6 +16,8 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <vfs/vfs.h>
@@ -25,6 +27,7 @@ static oserr_t
 __MemFSInitialize(
         _In_ struct VFSCommonData* vfsCommonData)
 {
+    TRACE("__MemFSInitialize()");
     return OsOK;
 }
 
@@ -33,6 +36,7 @@ __MemFSDestroy(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ unsigned int          unmountFlags)
 {
+    TRACE("__MemFSDestroy()");
     return OsOK;
 }
 
@@ -42,6 +46,7 @@ __MemFSOpen(
         _In_      mstring_t*            path,
         _Out_Opt_ void**                dataOut)
 {
+    TRACE("__MemFSOpen(path=%ms)", path);
     return OsOK;
 }
 
@@ -55,6 +60,7 @@ __MemFSCreate(
         _In_  uint32_t              permissions,
         _Out_ void**                dataOut)
 {
+    TRACE("__MemFSCreate(name=%ms)", name);
     return OsOK;
 }
 
@@ -63,6 +69,7 @@ __MemFSClose(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ void*                 data)
 {
+    TRACE("__MemFSClose()");
     return OsOK;
 }
 
@@ -71,6 +78,7 @@ __MemFSStat(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ struct VFSStatFS*     stat)
 {
+    TRACE("__MemFSStat()");
     return OsOK;
 }
 
@@ -82,6 +90,7 @@ __MemFSLink(
         _In_ mstring_t*            linkTarget,
         _In_ int                   symbolic)
 {
+    TRACE("__MemFSLink()");
     return OsOK;
 }
 
@@ -90,6 +99,7 @@ __MemFSUnlink(
         _In_ struct VFSCommonData* vfsCommonData,
         _In_ mstring_t*            path)
 {
+    TRACE("__MemFSUnlink()");
     return OsOK;
 }
 
@@ -99,6 +109,7 @@ __MemFSReadLink(
         _In_ mstring_t*            path,
         _In_ mstring_t*            pathOut)
 {
+    TRACE("__MemFSReadLink()");
     return OsOK;
 }
 
@@ -109,6 +120,7 @@ __MemFSMove(
         _In_ mstring_t*            to,
         _In_ int                   copy)
 {
+    TRACE("__MemFSMove(from=%ms, to=%ms, copy=%i)", from, to, copy);
     return OsOK;
 }
 
@@ -122,6 +134,7 @@ __MemFSRead(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsRead)
 {
+    TRACE("__MemFSRead()");
     return OsOK;
 }
 
@@ -135,6 +148,7 @@ __MemFSWrite(
         _In_  size_t                unitCount,
         _Out_ size_t*               unitsWritten)
 {
+    TRACE("__MemFSWrite()");
     return OsOK;
 }
 
@@ -144,6 +158,7 @@ __MemFSTruncate(
         _In_ void*                 data,
         _In_ uint64_t              size)
 {
+    TRACE("__MemFSTruncate()");
     return OsOK;
 }
 
@@ -154,6 +169,7 @@ __MemFSSeek(
         _In_  uint64_t              absolutePosition,
         _Out_ uint64_t*             absolutePositionOut)
 {
+    TRACE("__MemFSSeek()");
     return OsOK;
 }
 
