@@ -28,14 +28,14 @@
 #include <time.h>
 
 typedef struct OsFileSystemDescriptor {
-    long            Id;
-    unsigned int    Flags;
-    size_t          MaxFilenameLength;
-    char            SerialNumber[32];
-    unsigned long   BlockSize;
-    unsigned long   BlocksPerSegment;
-    UInteger64_t SegmentsTotal;
-    UInteger64_t SegmentsFree;
+    long          Id;
+    unsigned int  Flags;
+    size_t        MaxFilenameLength;
+    char          SerialNumber[32];
+    unsigned long BlockSize;
+    unsigned long BlocksPerSegment;
+    UInteger64_t  SegmentsTotal;
+    UInteger64_t  SegmentsFree;
 } OsFileSystemDescriptor_t;
 
 typedef struct OsFileDescriptor {
@@ -43,7 +43,7 @@ typedef struct OsFileDescriptor {
     long            StorageId;
     unsigned int    Flags;
     unsigned int    Permissions;
-    UInteger64_t Size;
+    UInteger64_t    Size;
     struct timespec CreatedAt;
     struct timespec ModifiedAt;
     struct timespec AccessedAt;
@@ -53,6 +53,7 @@ typedef struct OsFileDescriptor {
 #define FILE_FLAG_FILE          0x00000000
 #define FILE_FLAG_DIRECTORY     0x00000001
 #define FILE_FLAG_LINK          0x00000002
+#define FILE_FLAG_TYPE(Flags)   ((Flags) & 0x00000003)
 
 // OsFileDescriptor_t::Permissions
 #define FILE_PERMISSION_OWNER_READ    0x0001

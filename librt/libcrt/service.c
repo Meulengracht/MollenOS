@@ -23,17 +23,21 @@
 #include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <ioset.h>
-#include <os/usched/usched.h>
 #include <os/usched/xunit.h>
+#include <os/usched/job.h>
 #include <stdlib.h>
-#include <time.h>
 
-extern void       GetServiceAddress(struct ipmsg_addr*);
+struct __gracht_job_context {
+    int set_iod;
+};
+
+extern void     GetServiceAddress(struct ipmsg_addr*);
 extern oserr_t OnLoad(void);
 extern oserr_t OnUnload(void);
 
-static gracht_server_t*         g_server     = NULL;
-static struct gracht_link_vali* g_serverLink = NULL;
+static gracht_server_t*            g_server     = NULL;
+static struct gracht_link_vali*    g_serverLink = NULL;
+static struct __gracht_job_context g_grachtContext = { 0 };
 
 extern void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 
@@ -49,52 +53,15 @@ __crt_get_service_server(void)
     return g_server;
 }
 
-static bool __is_before_or_equal(const struct timespec* before, const struct timespec* this) {
-    if (before->tv_sec < this->tv_sec) {
-        return true;
-    } else if (before->tv_sec == this->tv_sec) {
-        return before->tv_nsec <= this->tv_nsec;
-    }
-    return false;
-}
-
-static int __get_ms_from_timespec_now(const struct timespec* deadline)
+static void
+__gracht_job(void* argument, void* cancellationToken)
 {
-    struct timespec ts;
-    struct timespec diff;
-    timespec_get(&ts, TIME_UTC);
-    if (__is_before_or_equal(&ts, deadline)) {
-        timespec_diff(&ts, deadline , &diff);
-    } else {
-        timespec_diff(deadline, deadline, &diff);
-    }
-    return (int)((diff.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC));
-}
+    struct __gracht_job_context* context = argument;
+    struct ioset_event           events[32];
+    int                          num_events;
 
-_Noreturn static void
-__crt_service_main(int setIod)
-{
-    struct ioset_event events[32];
-    int                num_events;
-
-    while (1) {
-        struct timespec deadline;
-        int             status;
-        int             timeout;
-
-        // handle tasks before going to sleep
-        do {
-            status = usched_yield(&deadline);
-        } while (status == 0);
-
-        // Wait now for new tasks to enter the ready queue. If errno is set
-        // to EWOULDBLOCK, this means we should wait until the deadline is
-        // reached.
-        if (errno == EWOULDBLOCK) { timeout = __get_ms_from_timespec_now(&deadline); }
-        else                      { timeout = 0; }
-
-        // handle events
-        num_events = ioset_wait(setIod, &events[0], 32, timeout);
+    while (usched_is_cancelled(cancellationToken) == false) {
+        num_events = ioset_wait(context->set_iod, &events[0], 32, 0);
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, 0);
@@ -106,8 +73,7 @@ __crt_service_main(int setIod)
     }
 }
 
-static void
-__crt_service_init(void)
+static void __crt_service_init(void)
 {
     gracht_server_configuration_t config;
     struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_PATH };
@@ -143,22 +109,32 @@ __crt_service_init(void)
                &(struct ioset_event) {
                        .data.iod = gracht_client_iod(GetGrachtClient()),
                        .events   = IOSETIN | IOSETCTL | IOSETLVT
-               });
+   });
 
     // Initialize the userspace scheduler to support request based
     // services in an async matter, and do this before we call OnLoad
     // as the service might queue tasks up on load.
     usched_xunit_init();
 
-    // Call the driver load function
-    // - This will be run once, before loop
-    if (OnLoad() != OsOK) {
-        exit(-2001);
-    }
+    // Queue up the __gracht_job as a detached job, as it does not run in
+    // green-thread context. So any blocking that makes will stall the execution
+    // unit. To counter this we run it isolated
+    struct usched_job_parameters jobParameters;
+    usched_job_parameters_init(&jobParameters);
+    usched_job_parameters_set_detached(&jobParameters, true);
 
+    g_grachtContext.set_iod = config.set_descriptor;
+
+    usched_job_queue3(__gracht_job, &g_grachtContext, &jobParameters);
+
+    // Now queue up the on-unload functions that should be called before exit of service.
     atexit((void (*)(void))OnUnload);
     at_quick_exit((void (*)(void))OnUnload);
-    __crt_service_main(config.set_descriptor);
+
+    // Enter the eternal program loop. This will execute jobs untill exit() is called.
+    // We use OnLoad as the programs main function, we expect it to return relatively quick
+    // and should be only used to initialize service subsystems.
+    usched_xunit_main_loop((usched_task_fn)OnLoad, NULL);
 }
 
 void __CrtServiceEntry(void)

@@ -24,7 +24,6 @@
 
 #include <ddk/utils.h>
 #include <stdlib.h>
-#include <threads.h>
 #include <string.h>
 #include <inttypes.h>
 

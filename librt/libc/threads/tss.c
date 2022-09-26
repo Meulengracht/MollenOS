@@ -18,12 +18,13 @@
  */
 //#define __TRACE
 
-#include <os/spinlock.h>
 #include <ds/hashtable.h>
 #include <ddk/utils.h>
-#include <threads.h>
+#include <internal/_utils.h>
+#include <os/spinlock.h>
 #include <string.h>
 #include <stdio.h>
+#include <threads.h>
 #include "tss.h"
 
 #define TSS_MAX_KEYS 64
@@ -120,7 +121,7 @@ tss_get(
 
     spinlock_acquire(&g_tssLock);
     struct tss_thread_scope* entry = hashtable_get(&g_tss.tss[tssKey].values,
-            &(struct tss_thread_scope) { .thread_id = thrd_current() });
+            &(struct tss_thread_scope) { .thread_id = __crt_thread_id() });
     if (entry != NULL) {
         result = entry;
     }
@@ -144,7 +145,7 @@ tss_set(
     spinlock_acquire(&g_tssLock);
     hashtable_set(&g_tss.tss[tssKey].values,
                   &(struct tss_thread_scope) {
-        .thread_id = thrd_current(),
+        .thread_id = __crt_thread_id(),
         .value     = val,
         .destructor = g_tss.tss[tssKey].destructor
     });

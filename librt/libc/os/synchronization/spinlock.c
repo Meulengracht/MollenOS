@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +19,7 @@
 #include <ddk/barrier.h>
 #include <internal/_syscalls.h>
 #include <os/spinlock.h>
-#include <threads.h>
+#include <os/threads.h>
 
 extern int  _spinlock_acquire(spinlock_t* lock);
 extern int  _spinlock_test(spinlock_t* lock);
@@ -48,7 +46,7 @@ spinlock_try_acquire(
 	_In_ spinlock_t* lock)
 {
     int    references;
-    thrd_t currentThread = thrd_current();
+    uuid_t currentThread = ThreadsCurrentId();
     
     assert(lock != NULL);
 
@@ -62,7 +60,7 @@ spinlock_try_acquire(
         return spinlock_busy;
     }
     
-    lock->owner = thrd_current();
+    lock->owner = currentThread;
     atomic_store(&lock->references, 1);
     return spinlock_acquired;
 }
@@ -71,18 +69,19 @@ void
 spinlock_acquire(
 	_In_ spinlock_t* lock)
 {
-    int references;
+    int    references;
+    uuid_t currentThread = ThreadsCurrentId();
     
     assert(lock != NULL);
 
-    if (IS_RECURSIVE(lock) && lock->owner == thrd_current()) {
+    if (IS_RECURSIVE(lock) && lock->owner == currentThread) {
         references = atomic_fetch_add(&lock->references, 1);
         assert(references != 0);
         return;
     }
     
     _spinlock_acquire(lock);
-    lock->owner = thrd_current();
+    lock->owner = currentThread;
     atomic_store(&lock->references, 1);
 }
 

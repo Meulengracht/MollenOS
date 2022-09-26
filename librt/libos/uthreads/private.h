@@ -41,16 +41,37 @@ enum job_state {
     JobState_CANCELLED = 0x10
 };
 
+struct usched_scheduler_queue;
+
 struct usched_job {
-    uuid_t                id;
-    void*                 stack;
-    unsigned int          stack_size;
-    jmp_buf               context;
-    enum job_state        state;
-    usched_task_fn        entry;
-    void*                 argument;
+    uuid_t         id;
+    void*          stack;
+    unsigned int   stack_size;
+    bool           detached;
+    jmp_buf        context;
+    enum job_state state;
+
+    // entry is the job entry function.
+    usched_task_fn entry;
+
+    // argument is the job argument to use when invoking
+    // the job entry.
+    void* argument;
+
+    // tls is the (libc) thread local storage for this job. This
+    // is located as a part of the job pointer as that is as good
+    // a place as any.
     struct thread_storage tls;
 
+    // queue describes which queue the job belongs to. The job can
+    // either belong to the global queue, or it belongs to a specific
+    // scheduler (i.e being detached). We need to know this for when
+    // requeuing the job after being blocked or sleep.
+    struct usched_scheduler_queue* queue;
+
+    // next is the pointer to the next job for the queues it is in.
+    // Since a job can only be in one queue at the time, the link pointer
+    // is kept as a part of the job.
     struct usched_job* next;
 };
 
@@ -79,10 +100,13 @@ struct usched_scheduler {
     int                    magic;
     jmp_buf                context;
     struct thread_storage* tls;
-    bool                   detached;
+
+    // internal_queue is the queue that is only specific to this scheduler.
+    // If this is non-NULL, then the scheduler is using a seperate queue for jobs
+    // and not the global queue.
+    struct usched_scheduler_queue* internal_queue;
 
     struct usched_job* current;
-    struct usched_job* internal_queue;
     struct usched_job* garbage_bin;
 
     struct usched_timeout* timers;
@@ -128,35 +152,40 @@ struct execution_manager {
     Mutex_t                       jobs_lock;
 };
 
-static inline void __usched_append_timer(struct usched_timeout** list, struct usched_timeout* timer)
-{
-    struct usched_timeout* i = *list;
-    if (!i) {
-        *list = timer;
-        return;
+#define DEFINE_LIST_APPEND(type, name) \
+    static inline void __usched_ ## append_ ## name(type** list, type* item) { \
+        type* i = *list;               \
+        if (!i) {                      \
+            *list = item;              \
+            return;                    \
+        }                              \
+        while (i->next) {              \
+            i = i->next;               \
+        }                              \
+        i->next = item;                \
     }
 
-    while (i->next) {
-        i = i->next;
+#define DEFINE_LIST_REMOVE(type, name) \
+    static inline void __usched_ ## remove_ ## name(type** list, type* item) { \
+        type* i = *list;               \
+        type* p = NULL;                \
+        while (i != NULL) {            \
+            if (i == item) {           \
+                if (p == NULL) {       \
+                    *list = i->next;   \
+                } else {               \
+                    p->next = i->next; \
+                }                      \
+                return;                \
+            }                          \
+            i = i->next;               \
+        }                              \
     }
-    i->next = timer;
-}
 
-static inline void __usched_append_job(struct usched_job** list, struct usched_job* job)
-{
-    struct usched_job* i = *list;
-    if (!i) {
-        *list = job;
-        return;
-    }
-
-    while (i->next) {
-        i = i->next;
-    }
-    i->next = job;
-}
-
-extern int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters* params);
+DEFINE_LIST_APPEND(struct usched_timeout, timer)
+DEFINE_LIST_APPEND(struct usched_job, job)
+DEFINE_LIST_APPEND(struct usched_execution_unit, xunit)
+DEFINE_LIST_REMOVE(struct usched_execution_unit, xunit)
 
 struct usched_init_params {
     struct usched_job* detached_job;
@@ -170,11 +199,20 @@ struct usched_init_params {
  */
 extern void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params);
 
+/**
+ * @brief Destroys any resources allocated by __usched_init
+ * @param sched
+ */
+extern void __usched_destroy(struct usched_scheduler* sched);
+
+extern int __xunit_start_detached(struct usched_job* job, struct usched_job_parameters* params);
+
 extern struct execution_manager*  __xunit_manager(void);
 extern void                       __usched_add_job_ready(struct usched_job* job);
 extern int                        __usched_prepare_migrate(void);
 extern struct usched_scheduler*   __usched_get_scheduler(void);
 extern struct execution_unit_tls* __usched_xunit_tls_current(void);
+extern bool                       __usched_job_has_exit(uuid_t jobID);
 
 extern int                        __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType);
 extern int                        __usched_timeout_finish(int id);

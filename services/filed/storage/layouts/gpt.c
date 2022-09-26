@@ -37,9 +37,10 @@ GptEnumeratePartitionTable(
         _In_ uuid_t               bufferHandle,
         _In_ void*                buffer)
 {
-    size_t     partitionTableSectorCount;
-    size_t     sectorsRead;
-    oserr_t osStatus;
+    size_t  partitionTableSectorCount;
+    size_t  sectorsRead;
+    int     partitionIndex = 0;
+    oserr_t oserr;
     TRACE("GptEnumeratePartitionTable()");
 
     // No partitions on this disk, skip parse!
@@ -58,10 +59,10 @@ GptEnumeratePartitionTable(
     while (partitionTableSectorCount) {
         GptPartitionEntry_t* entry;
 
-        osStatus = VfsStorageReadHelper(storage, bufferHandle,
-                                        gptHeader->PartitionTableLBA,
-                                        1, &sectorsRead);
-        if (osStatus != OsOK) {
+        oserr = VfsStorageReadHelper(storage, bufferHandle,
+                                     gptHeader->PartitionTableLBA,
+                                     1, &sectorsRead);
+        if (oserr != OsOK) {
             return OsError;
         }
 
@@ -80,7 +81,9 @@ GptEnumeratePartitionTable(
             guid_parse_raw(&uniqueId, &entry->PartitionGUID[0]);
             sectorCount = (entry->EndLBA - entry->StartLBA) + 1;
             VFSStorageRegisterFileSystem(
-                    storage, entry->StartLBA,
+                    storage,
+                    partitionIndex++,
+                    entry->StartLBA,
                     sectorCount, 0,
                     &typeGuid,
                     &uniqueId

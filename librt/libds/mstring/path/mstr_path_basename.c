@@ -32,7 +32,7 @@ mstring_t* mstr_path_basename(mstring_t* path)
     // If no tokens are present, we return an empty string unless
     // the path equals '/'
     if (tokenCount == 0) {
-        mstr_delete_array(tokens, tokenCount);
+        mstrv_delete(tokens);
 
         if (path->__data[0] == U'/') {
             return mstr_new_u8("/");
@@ -44,6 +44,6 @@ mstring_t* mstr_path_basename(mstring_t* path)
 
     // Otherwise we simply return the last token
     basename = mstr_clone(tokens[tokenCount - 1]);
-    mstr_delete_array(tokens, tokenCount);
+    mstrv_delete(tokens);
     return basename;
 }

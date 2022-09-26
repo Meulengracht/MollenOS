@@ -20,9 +20,9 @@
 #include <ds/hashtable.h>
 #include <errno.h>
 #include <internal/_utils.h>
+#include <os/once.h>
 #include <os/sharedobject.h>
 #include <strings.h>
-#include <threads.h>
 
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
@@ -42,8 +42,8 @@ static void     so_enumerate(int index, const void* element, void* userContext);
 typedef void (*SOInitializer_t)(int);
 
 static hashtable_t g_libraries;
-static mtx_t       g_librariesLock = MUTEX_INIT(mtx_plain);
-static once_flag   g_initCalled    = ONCE_FLAG_INIT;
+static Mutex_t     g_librariesLock = MUTEX_INIT(MUTEX_PLAIN);
+static OnceFlag_t  g_initCalled    = ONCE_FLAG_INIT;
 static bool        g_initialized   = false;
 
 static void __InitializeSO(void)
@@ -77,14 +77,16 @@ SharedObjectLoad(
 
     // Make sure the SO system is initialized. We do this on the first call to load
     // as there is no reason to this before.
-    call_once(&g_initCalled, __InitializeSO);
+    if (!g_initialized) {
+        CallOnce(&g_initCalled, __InitializeSO);
+    }
 
-    mtx_lock(&g_librariesLock);
+    MutexLock(&g_librariesLock);
     library = hashtable_get(&g_libraries, &(struct library_element) { .path = SharedObject });
     if (library) {
         atomic_fetch_add(library->references, 1);
         handle = library->handle;
-        mtx_unlock(&g_librariesLock);
+        MutexUnlock(&g_librariesLock);
         return handle;
     }
 
@@ -111,7 +113,7 @@ SharedObjectLoad(
         element.entryAddress = entryAddress;
         atomic_store(element.references, 1);
         hashtable_set(&g_libraries, &element);
-        mtx_unlock(&g_librariesLock);
+        MutexUnlock(&g_librariesLock);
         
         // run initializer
         Initializer = (SOInitializer_t)(void*)entryAddress;
@@ -120,7 +122,7 @@ SharedObjectLoad(
         }
     }
     else {
-        mtx_unlock(&g_librariesLock);
+        MutexUnlock(&g_librariesLock);
     }
 
     OsErrToErrNo(oserr);
@@ -192,10 +194,10 @@ SharedObjectUnload(
     enumContext.handle  = handle;
     enumContext.library = NULL;
 
-    mtx_lock(&g_librariesLock);
+    MutexLock(&g_librariesLock);
     hashtable_enumerate(&g_libraries, so_enumerate, &enumContext);
     if (!enumContext.library) {
-        mtx_unlock(&g_librariesLock);
+        MutexUnlock(&g_librariesLock);
         errno = ENOENT;
         return OsNotExists;
     }
@@ -214,7 +216,7 @@ SharedObjectUnload(
         sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
         OsErrToErrNo(status);
     }
-    mtx_unlock(&g_librariesLock);
+    MutexUnlock(&g_librariesLock);
     return status;
 }
 

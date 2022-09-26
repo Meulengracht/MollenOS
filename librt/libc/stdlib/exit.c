@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,15 +28,14 @@
 #include <assert.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
-#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/spinlock.h>
+#include <os/process.h>
 #include <signal.h>
 #include <stdlib.h>
 #include "../threads/tss.h"
 
-/* exit
+/**
  * Causes normal program termination to occur.
  * Several cleanup steps are performed:
  *  - functions passed to atexit are called, in reverse order of registration all C streams are flushed and closed
@@ -45,7 +43,8 @@
  *  - control is returned to the host environment. If exit_code is zero or EXIT_SUCCESS, 
  *    an implementation-defined status, indicating successful termination is returned. 
  *    If exit_code is EXIT_FAILURE, an implementation-defined status, indicating unsuccessful 
- *    termination is returned. In other cases implementation-defined status value is returned. */
+ *    termination is returned. In other cases implementation-defined status value is returned.
+ */
 extern void  __cxa_exithandlers(void);
 extern int   __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle);
 extern int   __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle);
@@ -71,7 +70,7 @@ static uint64_t atexit_dso_hash(const void* element);
 static int      atexit_dso_cmp(const void* element1, const void* element2);
 
 struct atexit_thread_entry {
-    thrd_t      thread_id;
+    uuid_t      thread_id;
     hashtable_t values;
 };
 
@@ -103,7 +102,7 @@ static void __initialize_handlers_level_3(
 
 static int __initialize_handlers_level_2(
         _In_ struct atexit_thread_entry* entry,
-        _In_ thrd_t                      threadID)
+        _In_ uuid_t                      threadID)
 {
     entry->thread_id = threadID;
     return hashtable_construct(
@@ -129,10 +128,9 @@ static int __initialize_handlers_level_1(
 
 static struct atexit_thread_entry* __get_or_insert_thread(
         _In_ struct at_exit_manager* manager,
-        _In_ thrd_t                  threadID)
+        _In_ uuid_t                  threadID)
 {
     struct atexit_thread_entry* entry;
-
     do {
         entry = hashtable_get(&manager->handlers, &(struct atexit_thread_entry) {
                 .thread_id = threadID
@@ -143,7 +141,7 @@ static struct atexit_thread_entry* __get_or_insert_thread(
             hashtable_set(&manager->handlers, &e);
         }
     } while (entry == NULL);
-    return NULL;
+    return entry;
 }
 
 static struct atexit_dso_entry* __get_or_insert_dso(
@@ -162,12 +160,12 @@ static struct atexit_dso_entry* __get_or_insert_dso(
             hashtable_set(&threadEntry->values, &e);
         }
     } while (entry == NULL);
-    return NULL;
+    return entry;
 }
 
 static void __register_handler(
         _In_ struct at_exit_manager* manager,
-        _In_ thrd_t                  threadID,
+        _In_ uuid_t                  threadID,
         _In_ void                    (*atExitFn)(void*),
         _In_ void*                   argument,
         _In_ void*                   dsoHandle)
@@ -196,7 +194,7 @@ static void __register_handler(
 }
 
 void __at_exit_impl(
-        _In_ thrd_t threadID,
+        _In_ uuid_t threadID,
         _In_ void   (*atExitFn)(void*),
         _In_ void*  argument,
         _In_ void*  dsoHandle)
@@ -220,7 +218,7 @@ void __at_exit_impl(
 }
 
 void __at_quick_exit_impl(
-        _In_ thrd_t threadID,
+        _In_ uuid_t threadID,
         _In_ void   (*atExitFn)(void*),
         _In_ void*  argument,
         _In_ void*  dsoHandle)
@@ -244,7 +242,7 @@ void __at_quick_exit_impl(
 }
 
 struct __dso_iterate_context {
-    thrd_t thread_id;
+    uuid_t thread_id;
     int    exit_code;
 };
 
@@ -275,7 +273,7 @@ __run_dso_handlers(
 
 void __at_exit_run(
         _In_ struct at_exit_manager* manager,
-        _In_ thrd_t                  threadID,
+        _In_ uuid_t                  threadID,
         _In_ void*                   dsoHandle,
         _In_ int                     exitCode)
 {
@@ -320,11 +318,11 @@ done:
 
 
 void __cxa_at_exit_run(
-        _In_ thrd_t threadID,
+        _In_ uuid_t threadID,
         _In_ void*  dsoHandle,
         _In_ int    exitCode)
 {
-    __at_exit_run(&g_at_exit, UUID_INVALID, NULL, exitCode);
+    __at_exit_run(&g_at_exit, threadID, dsoHandle, exitCode);
 }
 
 int at_quick_exit(void(*fn)(void)) {
@@ -344,9 +342,9 @@ void exit(int exitCode)
         // Exit is already in progress, two cases can happen here, either
         // it's the primary thread, which needs to do the primary cleanup, or
         // it's another child thread crowing our exit
-        if (thrd_current() != __crt_primary_thread()) {
+        if (ThreadsCurrentId() != __crt_primary_thread()) {
             spinlock_release(&g_exit_lock);
-            thrd_exit(g_exit_code);
+            ThreadsExit(g_exit_code);
         }
         ec = g_exit_code;
     } else {
@@ -357,19 +355,13 @@ void exit(int exitCode)
 
     // Are we not the primary thread? Then run cleanup for this thread, and interrupt
     // the primary thread, telling it to quit its job :-)
-    if (thrd_current() != __crt_primary_thread()) {
-        thrd_signal(__crt_primary_thread(), SIGEXIT);
-        thrd_exit(EXIT_SUCCESS);
+    if (ThreadsCurrentId() != __crt_primary_thread()) {
+        ThreadsSignal(__crt_primary_thread(), SIGEXIT);
+        ThreadsExit(EXIT_SUCCESS);
     }
 
     // important here that we use the gracht client BEFORE cleaning up the entire C runtime
-    if (!__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t                  oserr;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), ec);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
-    }
+    ProcessTerminate(exitCode);
 
     // Otherwise, we are the main thread, which means we will go ahead and do primary
     // program cleanup, the moment we get killed, the rest of threads will be aborted
@@ -402,7 +394,7 @@ void quick_exit(int exitCode)
         // Exit is already in progress, two cases can happen here, either
         // it's the primary thread, which needs to do the primary cleanup, or
         // it's another child thread crowing our exit
-        if (thrd_current() != __crt_primary_thread()) {
+        if (ThreadsCurrentId() != __crt_primary_thread()) {
             spinlock_release(&g_exit_lock);
             __thrd_quick_exit(g_exit_code);
         }
@@ -415,20 +407,12 @@ void quick_exit(int exitCode)
 
     // Are we not the primary thread? Then run cleanup for this thread, and interrupt
     // the primary thread, telling it to quit its job :-)
-    if (thrd_current() != __crt_primary_thread()) {
-        thrd_signal(__crt_primary_thread(), SIGEXITQ);
+    if (ThreadsCurrentId() != __crt_primary_thread()) {
+        ThreadsSignal(__crt_primary_thread(), SIGEXITQ);
         __thrd_quick_exit(EXIT_SUCCESS);
     }
 
-    if (!__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t                  oserr;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
-    }
-
-    // Exit the primary thread
+    ProcessTerminate(exitCode);
     Syscall_ThreadExit(ec);
     for(;;);
 }
@@ -442,7 +426,7 @@ void _Exit(int exitCode)
         // Exit is already in progress, two cases can happen here, either
         // it's the primary thread, which needs to do the primary cleanup, or
         // it's another child thread crowing our exit
-        if (thrd_current() != __crt_primary_thread()) {
+        if (ThreadsCurrentId() != __crt_primary_thread()) {
             spinlock_release(&g_exit_lock);
             Syscall_ThreadExit(g_exit_code);
             for(;;);
@@ -456,20 +440,13 @@ void _Exit(int exitCode)
 
     // Are we not the primary thread? Then run cleanup for this thread, and interrupt
     // the primary thread, telling it to quit its job :-)
-    if (thrd_current() != __crt_primary_thread()) {
-        thrd_signal(__crt_primary_thread(), SIGQUIT);
+    if (ThreadsCurrentId() != __crt_primary_thread()) {
+        ThreadsSignal(__crt_primary_thread(), SIGQUIT);
         Syscall_ThreadExit(ec);
         for(;;);
     }
 
-    if (!__crt_is_phoenix()) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-        oserr_t               status;
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_process_terminate_result(GetGrachtClient(), &msg.base, &status);
-    }
-
+    ProcessTerminate(exitCode);
     Syscall_ThreadExit(ec);
     for(;;);
 }

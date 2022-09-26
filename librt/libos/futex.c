@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +25,6 @@ Futex(
     if (FUTEX_FLAG_ACTION(parameters->_flags) == FUTEX_FLAG_WAIT) {
         return Syscall_FutexWait(parameters);
     } else {
-        return Syscall_FutexWake(&parameters);
+        return Syscall_FutexWake(parameters);
     }
 }

@@ -30,7 +30,7 @@
 oserr_t
 ScSystemClockTick(
         _In_ enum VaClockSourceType source,
-        _In_ UInteger64_t*       tickOut)
+        _In_ UInteger64_t*          tickOut)
 {
     if (!tickOut) {
         return OsInvalidParameters;

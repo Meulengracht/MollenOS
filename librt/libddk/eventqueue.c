@@ -23,9 +23,10 @@
 #include <ddk/eventqueue.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
+#include <os/mutex.h>
+#include <os/condition.h>
 #include <os/threads.h>
 #include <stdlib.h>
-#include <threads.h>
 
 #define EVENT_QUEUED    0
 #define EVENT_EXECUTED  1
@@ -41,12 +42,12 @@ struct EventQueueEvent {
 };
 
 typedef struct EventQueue {
-    int    IsRunning;
-    uuid_t NextEventId;
-    thrd_t EventThread;
-    mtx_t  EventLock;
-    cnd_t  EventCondition;
-    list_t Events;
+    int         IsRunning;
+    uuid_t      NextEventId;
+    uuid_t      EventThread;
+    Mutex_t     EventLock;
+    Condition_t EventCondition;
+    list_t      Events;
 } EventQueue_t;
 
 static uuid_t __AddToEventQueue(EventQueue_t* eventQueue, EventQueueFunction function, void* context, size_t timeoutMs, size_t intervalMs);
@@ -54,7 +55,10 @@ static int    EventQueueWorker(void* context);
 
 oserr_t CreateEventQueue(EventQueue_t** EventQueueOut)
 {
-    EventQueue_t* eventQueue = malloc(sizeof(EventQueue_t));
+    EventQueue_t*      eventQueue;
+    ThreadParameters_t threadParameters;
+
+    eventQueue = malloc(sizeof(EventQueue_t));
     if (!eventQueue) {
         return OsOutOfMemory;
     }
@@ -62,10 +66,11 @@ oserr_t CreateEventQueue(EventQueue_t** EventQueueOut)
     eventQueue->IsRunning   = 1;
     eventQueue->NextEventId = 1;
     list_construct(&eventQueue->Events);
-    mtx_init(&eventQueue->EventLock, mtx_plain);
-    cnd_init(&eventQueue->EventCondition);
-    
-    if (thrd_create(&eventQueue->EventThread, EventQueueWorker, eventQueue) != thrd_success) {
+    MutexInitialize(&eventQueue->EventLock, MUTEX_PLAIN);
+    ConditionInitialize(&eventQueue->EventCondition);
+
+    ThreadParametersInitialize(&threadParameters);
+    if (ThreadsCreate(&eventQueue->EventThread, &threadParameters, EventQueueWorker, eventQueue) != OsOK) {
         eventQueue->EventThread = UUID_INVALID;
         DestroyEventQueue(eventQueue);
         return OsOutOfMemory;
@@ -88,10 +93,10 @@ void DestroyEventQueue(EventQueue_t* eventQueue)
     // Kill the thread, then cleanup resources
     if (eventQueue->EventThread != UUID_INVALID) {
         eventQueue->IsRunning = 0;
-        cnd_signal(&eventQueue->EventCondition);
-        thrd_join(eventQueue->EventThread, &unused);
-        mtx_destroy(&eventQueue->EventLock);
-        cnd_destroy(&eventQueue->EventCondition);
+        ConditionSignal(&eventQueue->EventCondition);
+        ThreadsJoin(eventQueue->EventThread, &unused);
+        MutexDestroy(&eventQueue->EventLock);
+        ConditionDestroy(&eventQueue->EventCondition);
     }
     list_clear(&eventQueue->Events, __CleanupEvent, NULL);
     free(eventQueue);
@@ -120,7 +125,7 @@ oserr_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
     element_t* element;
     oserr_t osStatus = OsNotExists;
     
-    mtx_lock(&eventQueue->EventLock);
+    MutexLock(&eventQueue->EventLock);
     element = list_find(&eventQueue->Events, (void*)(uintptr_t)eventHandle);
     if (element) {
         struct EventQueueEvent* event = element->value;
@@ -129,7 +134,7 @@ oserr_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
             osStatus = OsOK;
         }
     }
-    mtx_unlock(&eventQueue->EventLock);
+    MutexUnlock(&eventQueue->EventLock);
     return osStatus;
 }
 
@@ -163,10 +168,10 @@ static uuid_t __AddToEventQueue(
     event->Timeout  = timeoutMs;
     event->Interval = intervalMs;
     
-    mtx_lock(&eventQueue->EventLock);
+    MutexLock(&eventQueue->EventLock);
     list_append(&eventQueue->Events, &event->Header);
-    mtx_unlock(&eventQueue->EventLock);
-    cnd_signal(&eventQueue->EventCondition);
+    MutexUnlock(&eventQueue->EventLock);
+    ConditionSignal(&eventQueue->EventCondition);
 
 exit:
     TRACE("__AddToEventQueue returns=%u", eventId);
@@ -206,7 +211,7 @@ static int EventQueueWorker(void* context)
 
     ThreadsSetName("event-pump");
 
-    mtx_lock(&eventQueue->EventLock);
+    MutexLock(&eventQueue->EventLock);
     while (eventQueue->IsRunning) {
         event = __GetNearestDeadline(eventQueue);
         if (event) {
@@ -219,7 +224,7 @@ static int EventQueueWorker(void* context)
             }
 
             TRACE("EventQueueWorker waiting");
-            if (cnd_timedwait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint) == thrd_timedout) {
+            if (ConditionTimedWait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint) == OsTimeout) {
                 if (!eventQueue->IsRunning) {
                     break;
                 }
@@ -229,9 +234,9 @@ static int EventQueueWorker(void* context)
                 if (event->State != EVENT_CANCELLED) {
                     event->State = EVENT_EXECUTED;
                     
-                    mtx_unlock(&eventQueue->EventLock);
+                    MutexUnlock(&eventQueue->EventLock);
                     event->Function(event->Context);
-                    mtx_lock(&eventQueue->EventLock);
+                    MutexLock(&eventQueue->EventLock);
                     if (event->Interval != 0) {
                         event->Timeout = event->Interval;
                     }
@@ -265,9 +270,9 @@ static int EventQueueWorker(void* context)
         }
         else {
             // Wait for event to be added
-            cnd_wait(&eventQueue->EventCondition, &eventQueue->EventLock);
+            ConditionWait(&eventQueue->EventCondition, &eventQueue->EventLock);
         }
     }
-    mtx_unlock(&eventQueue->EventLock);
+    MutexUnlock(&eventQueue->EventLock);
     return 0;
 }

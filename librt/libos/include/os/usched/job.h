@@ -54,6 +54,13 @@ struct usched_job_parameters {
 CRTDECL(void, usched_job_parameters_init(struct usched_job_parameters* params));
 
 /**
+ * @brief Sets the detached status of the job parameters.
+ * @param params   The job parameters to update.
+ * @param detached Whether the job should run detached or not.
+ */
+CRTDECL(void, usched_job_parameters_set_detached(struct usched_job_parameters* params, bool detached));
+
+/**
  * @brief Schedules a new task in the scheduler for current execution unit.
  *
  * @param entry    The function to execute with the usched_task_fn signature.

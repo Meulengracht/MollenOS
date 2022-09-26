@@ -24,19 +24,17 @@
 //#define __TRACE
 
 #include <internal/_syscalls.h>
-#include <internal/_utils.h>
 #include <ddk/service.h>
-#include <ddk/device.h>
 #include <ddk/utils.h>
 #include <threads.h>
 #include <assert.h>
 
-static uuid_t SessionServiceId = UUID_INVALID;
-static uuid_t DeviceServiceId  = UUID_INVALID;
-static uuid_t UsbServiceId     = UUID_INVALID;
-static uuid_t ProcessServiceId = UUID_INVALID;
-static uuid_t FileServiceId    = UUID_INVALID;
-static uuid_t NetServiceId     = UUID_INVALID;
+static uuid_t g_sessionServiceId = UUID_INVALID;
+static uuid_t g_deviceServiceId  = UUID_INVALID;
+static uuid_t g_usbServiceId     = UUID_INVALID;
+static uuid_t g_processServiceId = UUID_INVALID;
+static uuid_t g_fileServiceId    = UUID_INVALID;
+static uuid_t g_netServiceId     = UUID_INVALID;
 
 static uuid_t
 __GetHandleFromPath(
@@ -51,7 +49,7 @@ __GetHandleFromPath(
 
 static oserr_t
 __WaitForService(
-    _In_ thrd_t (*getHandleCallback)(void),
+    _In_ uuid_t (*getHandleCallback)(void),
     _In_ size_t timeout)
 {
     size_t timeLeft = timeout;
@@ -76,59 +74,59 @@ oserr_t
 RegisterPath(
     _In_ const char* Path)
 {
-    TRACE("RegisterPath(%s) => %u", Path, thrd_current());
+    TRACE("RegisterPath(%s) => %u", Path, ThreadsCurrentId());
     if (!Path) {
         return OsInvalidParameters;
     }
-    return Syscall_RegisterHandlePath(thrd_current(), Path);
+    return Syscall_RegisterHandlePath(ThreadsCurrentId(), Path);
 }
 
-thrd_t GetSessionService(void)
+uuid_t GetSessionService(void)
 {
-    if (SessionServiceId == UUID_INVALID) {
-        SessionServiceId = __GetHandleFromPath(SERVICE_SESSION_PATH);
+    if (g_sessionServiceId == UUID_INVALID) {
+        g_sessionServiceId = __GetHandleFromPath(SERVICE_SESSION_PATH);
     }
-    return (thrd_t)SessionServiceId;
+    return g_sessionServiceId;
 }
 
-thrd_t GetDeviceService(void)
+uuid_t GetDeviceService(void)
 {
-    if (DeviceServiceId == UUID_INVALID) {
-        DeviceServiceId = __GetHandleFromPath(SERVICE_DEVICE_PATH);
+    if (g_deviceServiceId == UUID_INVALID) {
+        g_deviceServiceId = __GetHandleFromPath(SERVICE_DEVICE_PATH);
     }
-    return (thrd_t)DeviceServiceId;
+    return g_deviceServiceId;
 }
 
-thrd_t GetUsbService(void)
+uuid_t GetUsbService(void)
 {
-    if (UsbServiceId == UUID_INVALID) {
-        UsbServiceId = __GetHandleFromPath(SERVICE_USB_PATH);
+    if (g_usbServiceId == UUID_INVALID) {
+        g_usbServiceId = __GetHandleFromPath(SERVICE_USB_PATH);
     }
-    return (thrd_t)UsbServiceId;
+    return g_usbServiceId;
 }
 
-thrd_t GetProcessService(void)
+uuid_t GetProcessService(void)
 {
-    if (ProcessServiceId == UUID_INVALID) {
-        ProcessServiceId = __GetHandleFromPath(SERVICE_PROCESS_PATH);
+    if (g_processServiceId == UUID_INVALID) {
+        g_processServiceId = __GetHandleFromPath(SERVICE_PROCESS_PATH);
     }
-    return (thrd_t)ProcessServiceId;
+    return g_processServiceId;
 }
 
-thrd_t GetFileService(void)
+uuid_t GetFileService(void)
 {
-    if (FileServiceId == UUID_INVALID) {
-        FileServiceId = __GetHandleFromPath(SERVICE_FILE_PATH);
+    if (g_fileServiceId == UUID_INVALID) {
+        g_fileServiceId = __GetHandleFromPath(SERVICE_FILE_PATH);
     }
-    return (thrd_t)FileServiceId;
+    return g_fileServiceId;
 }
 
-thrd_t GetNetService(void)
+uuid_t GetNetService(void)
 {
-    if (NetServiceId == UUID_INVALID) {
-        NetServiceId = __GetHandleFromPath(SERVICE_NET_PATH);
+    if (g_netServiceId == UUID_INVALID) {
+        g_netServiceId = __GetHandleFromPath(SERVICE_NET_PATH);
     }
-    return (thrd_t)NetServiceId;
+    return g_netServiceId;
 }
 
 oserr_t

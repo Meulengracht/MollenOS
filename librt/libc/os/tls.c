@@ -16,6 +16,7 @@
  *
  */
 
+#include <assert.h>
 #include <ddk/ddkdefs.h> // for __reserved
 #include <internal/_locale.h>
 #include <internal/_utils.h>
@@ -54,9 +55,6 @@ static const char* const* __clone_env_block(void)
 
 int __tls_initialize(struct thread_storage* tls)
 {
-    struct dma_buffer_info info;
-    void*                  buffer;
-
     memset(tls, 0, sizeof(struct thread_storage));
 
     // Store it at reserved pointer place first
@@ -65,7 +63,8 @@ int __tls_initialize(struct thread_storage* tls)
     __set_reserved(11, (size_t)&tls->tls_array[0]);
 
     // Initialize members to default values
-    tls->thr_id = UUID_INVALID;
+    tls->thread_id = UUID_INVALID;
+    tls->job_id = UUID_INVALID;
     tls->err_no = EOK;
     tls->locale = __get_global_locale();
     tls->seed   = 1;
@@ -73,22 +72,6 @@ int __tls_initialize(struct thread_storage* tls)
     // this may end up returning NULL environment for the primary thread if the
     // CRT hasn't fully initialized yet. Ignore it, and see what happens
     tls->env_block = __clone_env_block();
-
-    // Setup a local transfer buffer for stdio operations
-    // TODO: do on first read/write instead?
-    buffer = malloc(BUFSIZ);
-    if (buffer == NULL) {
-        return -1;
-    }
-
-    info.name     = "thread_tls";
-    info.length   = BUFSIZ;
-    info.capacity = BUFSIZ;
-    info.flags    = DMA_PERSISTANT;
-    info.type     = DMA_TYPE_DRIVER_32;
-    if (dma_export(buffer, &info, &tls->transfer_buffer) != OsOK) {
-        return -1;
-    }
     return 0;
 }
 
@@ -103,10 +86,10 @@ static void __destroy_env_block(char** env)
 void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
-    if (tls->transfer_buffer.buffer != NULL) {
-        dma_detach(&tls->transfer_buffer);
-        free(tls->transfer_buffer.buffer);
-        tls->transfer_buffer.buffer = NULL;
+    if (tls->dma.buffer != NULL) {
+        dma_detach(&tls->dma);
+        free(tls->dma.buffer);
+        tls->dma.buffer = NULL;
     }
 
     if (tls->env_block != NULL && tls->env_block != g_nullEnvironment) {
@@ -114,6 +97,28 @@ void __tls_destroy(struct thread_storage* tls)
         tls->env_block = NULL;
     }
 }
+
+struct dma_attachment* __tls_current_dmabuf(void)
+{
+    struct thread_storage* tls = __tls_current();
+    if (tls->dma.buffer == NULL) {
+        struct dma_buffer_info info;
+        void*                  buffer;
+        oserr_t                oserr;
+
+        buffer = malloc(BUFSIZ);
+        assert(buffer != NULL);
+
+        info.name     = "thread_tls";
+        info.length   = BUFSIZ;
+        info.capacity = BUFSIZ;
+        info.flags    = DMA_PERSISTANT;
+        info.type     = DMA_TYPE_DRIVER_32;
+        oserr = dma_export(buffer, &info, &tls->dma);
+        assert(oserr == OsOK);
+    }
+    return &tls->dma;
+};
 
 struct thread_storage* __tls_current(void) {
     return (thread_storage_t*)__get_reserved(0);

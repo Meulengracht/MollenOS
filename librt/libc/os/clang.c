@@ -23,9 +23,8 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include <os/osdefs.h>
+#include <internal/_utils.h>
 #include <math.h>
-#include <stdlib.h>
 #include <threads.h>
 
 #ifndef __INTERNAL_FUNC_DEFINED
@@ -138,7 +137,7 @@ CRTDECL(void, __cxa_threadfinalize(void))
 CRTDECL(void, __cxa_tls_thread_cleanup(void* dsoHandle))
 {
     TRACE("__cxa_tls_thread_cleanup()");
-    __cxa_at_exit_run(thrd_current(), dsoHandle, 0);
+    __cxa_at_exit_run(__crt_thread_id(), dsoHandle, 0);
 }
 
 CRTDECL(void, __cxa_tls_module_cleanup(void* dsoHandle))
@@ -172,13 +171,13 @@ CRTDECL(int, __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle)) {
  * C++ At-Exit implementation for thread specific cleanup. */
 CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dsoHandle)) {
     TRACE("__cxa_thread_atexit_impl()");
-    __at_exit_impl(thrd_current(), dtor, arg, dsoHandle);
+    __at_exit_impl(__crt_thread_id(), dtor, arg, dsoHandle);
     return 0;
 }
 
 CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dsoHandle)) {
     TRACE("__cxa_thread_at_quick_exit_impl()");
-    __at_quick_exit_impl(thrd_current(), dtor, NULL, dsoHandle);
+    __at_quick_exit_impl(__crt_thread_id(), dtor, NULL, dsoHandle);
     return 0;
 }
 

@@ -53,7 +53,7 @@ ConditionSignal(
 	if (cond == NULL) {
 		return OsInvalidParameters;
 	}
-	
+
     parameters._futex0  = &cond->Value;
     parameters._val0    = 1;
     parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
@@ -96,11 +96,8 @@ ConditionWait(
     parameters._timeout = 0;
 
     oserr = Futex(&parameters);
-    if (oserr != OsOK) {
-        MutexLock(mutex);
-        return oserr;
-    }
-    return MutexLock(mutex);
+    (void)MutexLock(mutex);
+    return oserr;
 }
 
 oserr_t
@@ -139,9 +136,6 @@ ConditionTimedWait(
     parameters._timeout = msec;
     
     status = Futex(&parameters);
-    if (status != OsOK) {
-        MutexLock(mutex);
-        return status;
-    }
-	return MutexLock(mutex);
+    MutexLock(mutex);
+    return status;
 }

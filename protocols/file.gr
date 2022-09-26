@@ -74,4 +74,9 @@ service file (3) {
     
     // Service should also provide an async interface that communicates with events
     // transfer_async, and transfer_status
+
+    // Filemanager events that can be listened for by other services or
+    // applications that are interested. In order to subscribe to these, the service
+    // must be loaded and fully running.
+    event storage_ready : (string path) = 25;
 }

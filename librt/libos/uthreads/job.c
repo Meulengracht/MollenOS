@@ -39,6 +39,10 @@ static struct job_entry_context* __job_entry_context_new(struct usched_job* job)
     return context;
 }
 
+static inline uuid_t __get_job_id(struct execution_manager* manager) {
+    return ((manager->jobs_id++) % 1024) + 1000;
+}
+
 static uuid_t __add_job_to_register(struct usched_job* job)
 {
     struct execution_manager* manager = __xunit_manager();
@@ -52,13 +56,11 @@ static uuid_t __add_job_to_register(struct usched_job* job)
     }
 
     MutexLock(&manager->jobs_lock);
-    while (1) {
-        jobID = (manager->jobs_id++) % 1024;
+    do {
+        jobID = __get_job_id(manager);
         entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
-        if (entry == NULL || entry->context->job == NULL) {
-            break;
-        }
-    }
+    } while (entry != NULL && entry->context->job != NULL);
+
     if (entry != NULL) {
         entry->context->job = job;
         free(context);
@@ -100,6 +102,15 @@ void usched_job_parameters_init(struct usched_job_parameters* params)
     params->stack_size = 4096 * 4;
     params->detached = false;
     params->affinity_mask = NULL;
+}
+
+void usched_job_parameters_set_detached(struct usched_job_parameters* params, bool detached)
+{
+    params->detached = detached;
+    if (!params->detached) {
+        // reset affinity mask if we turned it off
+        params->affinity_mask = NULL;
+    }
 }
 
 static void __finalize_task(struct usched_job* job, int exitCode)
@@ -154,6 +165,8 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->next = NULL;
     job->entry = entry;
     job->argument = argument;
+    job->detached = params->detached;
+    job->queue = NULL;
 
     if (__tls_initialize(&job->tls)) {
         free(job->stack);
@@ -303,6 +316,21 @@ int usched_job_join(uuid_t jobID, int* exitCode)
     *exitCode = context->exit_code;
     usched_mtx_unlock(&context->mtx);
     return 0;
+}
+
+bool __usched_job_has_exit(uuid_t jobID)
+{
+    struct execution_manager* manager = __xunit_manager();
+    struct job_entry_context* context = NULL;
+    struct job_entry*         entry;
+
+    MutexLock(&manager->jobs_lock);
+    entry = hashtable_get(&manager->jobs, &(struct job_entry) { .id = jobID });
+    if (entry != NULL) {
+        context = entry->context;
+    }
+    MutexUnlock(&manager->jobs_lock);
+    return context != NULL && context->job == NULL;
 }
 
 int usched_job_signal(uuid_t jobID, int signal)

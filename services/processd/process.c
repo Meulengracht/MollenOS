@@ -321,7 +321,8 @@ __StartProcess(
         _In_ Process_t* process)
 {
     ThreadParameters_t threadParameters;
-    oserr_t            osStatus;
+    oserr_t            oserr;
+    TRACE("__StartProcess(process=%ms)", process->name);
 
     // Initialize threading paramaters for the new thread
     ThreadParametersInitialize(&threadParameters);
@@ -331,16 +332,16 @@ __StartProcess(
         return OsOutOfMemory;
     }
 
-    osStatus = Syscall_ThreadCreate(
+    oserr = Syscall_ThreadCreate(
             process->image->EntryAddress,
             NULL, // Argument
             &threadParameters,
             &process->primary_thread_id);
-    if (osStatus == OsOK) {
-        osStatus = Syscall_ThreadDetach(process->primary_thread_id);
+    if (oserr == OsOK) {
+        oserr = Syscall_ThreadDetach(process->primary_thread_id);
     }
     free((void*)threadParameters.Name);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t

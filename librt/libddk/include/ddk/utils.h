@@ -52,8 +52,8 @@
 #define __TS_DIFF_MS(start, end) (((end.tv_sec - start.tv_sec) * MSEC_PER_SEC) + ((end.tv_nsec - start.tv_nsec) / NSEC_PER_MSEC))
 
 #define TRACE(...) SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
-#define ENTRY(...) struct timespec start, end; SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__); timespec_get(&start, TIME_UTC)
-#define EXIT(msg)  timespec_get(&end, TIME_UTC); SystemDebug(SYSTEM_DEBUG_TRACE, msg " completed in %llu ms", __TS_DIFF_MS(start, end))
+#define ENTRY(...) struct timespec start, end; SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__); timespec_get(&start, TIME_MONOTONIC)
+#define EXIT(msg)  timespec_get(&end, TIME_MONOTONIC); SystemDebug(SYSTEM_DEBUG_TRACE, msg " completed in %llu ms", __TS_DIFF_MS(start, end))
 #else
 #define TRACE(...)
 #define ENTRY(...)

@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * Futex Synchronization
  *
  */
 
@@ -255,7 +251,7 @@ FutexWait(
     FutexItem_t*          FutexItem;
     uintptr_t             FutexAddress;
     irqstate_t           CpuState;
-    TRACE("%u: FutexWait(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
+    TRACE("FutexWait(f 0x%llx, t %u)", Futex, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -267,7 +263,7 @@ FutexWait(
     
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
-    // otherwise we need to lookup the physical page
+    // otherwise we need to look up the physical page
     if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
@@ -282,7 +278,7 @@ FutexWait(
     Bucket = FutexGetBucket(FutexAddress);
     
     // Disable interrupts here to gain safe passage, as we don't want to be
-    // interrupted in this 'atomic' action. However when competing with other
+    // interrupted in this 'atomic' action. However, when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
     CpuState = InterruptDisable();
 
@@ -306,7 +302,6 @@ FutexWait(
     ArchThreadYield();
 
     (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-    TRACE("%u: woke up", ThreadCurrentHandle());
     return SchedulerGetTimeoutReason();
 }
 
@@ -320,12 +315,12 @@ FutexWaitOperation(
     _In_ int           Flags,
     _In_ size_t        Timeout)
 {
-    MemorySpaceContext_t * Context = NULL;
-    FutexBucket_t        *              Bucket;
-    FutexItem_t*                FutexItem;
-    uintptr_t                   FutexAddress;
-    irqstate_t                 CpuState;
-    TRACE("%u: FutexWaitOperation(f 0x%llx, t %u)", ThreadCurrentHandle(), Futex, Timeout);
+    MemorySpaceContext_t* context = NULL;
+    FutexBucket_t*        bucket;
+    FutexItem_t*          futexItem;
+    uintptr_t             futexAddress;
+    irqstate_t            irqstate;
+    TRACE("FutexWaitOperation(f 0x%llx, f 0x%llx, t %u)", Futex, Futex2, Timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -337,48 +332,46 @@ FutexWaitOperation(
     
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
-    // otherwise we need to lookup the physical page
+    // otherwise we need to look up the physical page
     if (Flags & FUTEX_FLAG_PRIVATE) {
-        Context = GetCurrentMemorySpace()->Context;
-        FutexAddress = (uintptr_t)Futex;
-    }
-    else {
+        context = GetCurrentMemorySpace()->Context;
+        futexAddress = (uintptr_t)Futex;
+    } else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsOK) {
+                1, &futexAddress) != OsOK) {
             return OsNotExists;
         }
     }
-    
-    Bucket = FutexGetBucket(FutexAddress);
+
+    bucket = FutexGetBucket(futexAddress);
     
     // Disable interrupts here to gain safe passage, as we don't want to be
-    // interrupted in this 'atomic' action. However when competing with other
+    // interrupted in this 'atomic' action. However, when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
-    CpuState = InterruptDisable();
+    irqstate = InterruptDisable();
 
-    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
-    if (!FutexItem) {
-        FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
-        if (!FutexItem) {
+    futexItem = FutexGetNodeLocked(bucket, futexAddress, context);
+    if (!futexItem) {
+        futexItem = FutexCreateNode(bucket, futexAddress, context);
+        if (!futexItem) {
             return OsOutOfMemory;
         }
     }
     
-    (void)atomic_fetch_add(&FutexItem->Waiters, 1);
+    (void)atomic_fetch_add(&futexItem->Waiters, 1);
     if (atomic_load(Futex) != ExpectedValue) {
-        (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-        InterruptRestoreState(CpuState);
+        (void)atomic_fetch_sub(&futexItem->Waiters, 1);
+        InterruptRestoreState(irqstate);
         return OsInterrupted;
     }
     
-    SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
+    SchedulerBlock(&futexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
     FutexPerformOperation(Futex2, Operation);
     FutexWake(Futex2, Count2, Flags);
-    InterruptRestoreState(CpuState);
+    InterruptRestoreState(irqstate);
     ArchThreadYield();
     
-    (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-    TRACE("%u: woke up", ThreadCurrentHandle());
+    (void)atomic_fetch_sub(&futexItem->Waiters, 1);
     return SchedulerGetTimeoutReason();
 }
 
@@ -391,14 +384,14 @@ FutexWake(
     MemorySpaceContext_t* Context = NULL;
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
-    oserr_t            Status = OsNotExists;
+    oserr_t               Status = OsNotExists;
     uintptr_t             FutexAddress;
     int                   WaiterCount;
     int                   i;
     
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
-    // otherwise we need to lookup the physical page
+    // otherwise we need to look up the physical page
     if (Flags & FUTEX_FLAG_PRIVATE) {
         Context = GetCurrentMemorySpace()->Context;
         FutexAddress = (uintptr_t)Futex;
@@ -463,15 +456,15 @@ FutexWakeOperation(
     _In_ int           Operation,
     _In_ int           Flags)
 {
-    oserr_t Status;
-    int        InitialValue;
-    TRACE("%u: FutexWakeOperation(f 0x%llx)", ThreadCurrentHandle(), Futex);
-    
-    InitialValue = atomic_load(Futex);
+    oserr_t oserr;
+    int     initialValue;
+    TRACE("FutexWakeOperation(f 0x%llx)", Futex);
+
+    initialValue = atomic_load(Futex);
     FutexPerformOperation(Futex2, Operation);
-    Status = FutexWake(Futex, Count, Flags);
-    if (FutexCompareOperation(InitialValue, Operation)) {
-        Status = FutexWake(Futex2, Count2, Flags);
+    oserr = FutexWake(Futex, Count, Flags);
+    if (FutexCompareOperation(initialValue, Operation)) {
+        oserr = FutexWake(Futex2, Count2, Flags);
     }
-    return Status;
+    return oserr;
 }

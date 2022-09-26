@@ -39,6 +39,8 @@ CRTDECL(void, __cxa_threadfinalize(void));
 static uint64_t job_hash(const void* element);
 static int      job_cmp(const void* element1, const void* element2);
 
+static void __execution_unit_delete(struct usched_execution_unit* unit);
+
 static struct execution_manager g_executionManager = { 0 };
 
 struct execution_manager* __xunit_manager(void) {
@@ -83,7 +85,9 @@ static void __execution_unit_construct(struct usched_execution_unit* unit)
 static int __get_cpu_count(void)
 {
     SystemDescriptor_t descriptor;
-    SystemQuery(&descriptor);
+    if (SystemQuery(&descriptor) != OsOK) {
+        return 1;
+    }
     return (int)descriptor.NumberOfActiveCores;
 }
 
@@ -152,7 +156,8 @@ struct execution_unit_tls* __usched_xunit_tls_current(void) {
 
 _Noreturn static void __execution_unit_main(void* data)
 {
-    struct usched_execution_unit* unit = data;
+    struct usched_execution_unit* unit  = data;
+    uuid_t                        jobID = UUID_INVALID;
     struct thread_storage         tls;
 
     // Initialize the thread storage system for the execution unit,
@@ -177,6 +182,12 @@ _Noreturn static void __execution_unit_main(void* data)
         .detached_job = unit->params.detached_job
     });
 
+    // Retrieve and store the job id of the detached job, so we can keep track of
+    // exit status for the job.
+    if (unit->params.detached_job) {
+        jobID = unit->params.detached_job->id;
+    }
+
     // Enter main loop, this loop is different from the primary execution unit, as shutdown is
     // not handled by the child execution units. If we run out of tasks, we just sleep untill one
     // becomes available. If the primary runs out of tasks, and all XU's sleep, then the program
@@ -189,12 +200,33 @@ _Noreturn static void __execution_unit_main(void* data)
             status = usched_yield(&deadline);
         } while (status == 0);
 
+        // If this unit is running detached, then we want to continuously check
+        // whether the detached job has exit - In the case it has, we exit the
+        // execution unit.
+        if (jobID != UUID_INVALID && __usched_job_has_exit(jobID)) {
+            break;
+        }
+
         // Wait now for new tasks to enter the ready queue. If errno is set
         // to EWOULDBLOCK, this means we should wait until the deadline is
         // reached.
         if (errno == EWOULDBLOCK) { usched_timedwait(&deadline); }
         else                      { usched_wait(); }
     }
+
+    // Remove the execution unit from the list of execution units
+    MutexLock(&g_executionManager.lock);
+    __usched_remove_xunit(&g_executionManager.detached, unit);
+    MutexUnlock(&g_executionManager.lock);
+
+    // Cleanup the userspace thread systems
+    __execution_unit_delete(unit);
+
+    // Cleanup the execution unit
+    __cxa_threadfinalize();
+    __tls_destroy(&tls);
+    Syscall_ThreadExit(0);
+    for(;;);
 }
 
 static struct usched_execution_unit* __execution_unit_new(void)
@@ -232,15 +264,16 @@ static int __spawn_execution_unit(struct usched_execution_unit* unit, unsigned i
 
 static void __execution_unit_delete(struct usched_execution_unit* unit)
 {
-    // We cannot destroy the scheduler here, it was initialized on-thread and
-    // must be destroyed by the same thread upon exit
+    // Cleanup and destroy the userspace scheduler
+    __usched_destroy(&unit->scheduler);
+
+    // Cleanup the memory used by the execution unit
     free(unit);
 }
 
 static int __start_execution_unit(unsigned int* affinityMask, struct usched_job* detachedJob)
 {
     struct usched_execution_unit* unit = __execution_unit_new();
-    struct usched_execution_unit* i    = NULL;
     int                           status;
 
     if (unit == NULL) {
@@ -258,21 +291,11 @@ static int __start_execution_unit(unsigned int* affinityMask, struct usched_job*
 
     // add it to the list of execution units
     if (detachedJob != NULL) {
-        if (g_executionManager.detached == NULL) {
-            g_executionManager.detached = unit;
-        } else {
-            i = g_executionManager.detached;
-        }
+        __usched_append_xunit(&g_executionManager.detached, unit);
     } else {
-        i = &g_executionManager.primary;
+        struct usched_execution_unit* i = &g_executionManager.primary;
+        __usched_append_xunit(&i, unit);
         g_executionManager.count++;
-    }
-
-    if (i != NULL) {
-        while (i->next) {
-            i = i->next;
-        }
-        i->next = unit;
     }
     return 0;
 }
@@ -307,7 +330,6 @@ static int __stop_execution_unit(void)
     // and then we transfer its tasks to the remaining units
     ThreadsSignal(unit->thread_id, SIGUSR1);
     ThreadsJoin(unit->thread_id, &unitResult);
-    __execution_unit_delete(unit);
     return 0;
 }
 
@@ -394,5 +416,5 @@ static int job_cmp(const void* element1, const void* element2)
 {
     const struct job_entry* entry1 = element1;
     const struct job_entry* entry2 = element2;
-    return entry1->id == entry2->id;
+    return entry1->id == entry2->id ? 0 : -1;
 }

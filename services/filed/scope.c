@@ -29,13 +29,14 @@ static struct VFSCommonData g_rootCommonData = { 0 };
 
 static oserr_t
 __NewMemFS(
-        _In_  mstring_t*           name,
+        _In_  mstring_t*           label,
         _In_  guid_t*              guid,
         _In_ struct VFSCommonData* vfsCommonData,
         _Out_ struct VFS**         vfsOut)
 {
     struct VFSInterface* interface;
     oserr_t              osStatus;
+    _CRT_UNUSED(label); // TODO missing support for setting this, where should we do it
 
     interface = MemFSNewInterface();
     if (interface == NULL) {
@@ -45,6 +46,16 @@ __NewMemFS(
     osStatus = VFSNew(UUID_INVALID, guid, interface, vfsCommonData, vfsOut);
     if (osStatus != OsOK) {
         VFSInterfaceDelete(interface);
+    }
+
+    // Normally the FileSystem interface will take care of initializing for us,
+    // but when dealing with our VFS* directly, we have to take care of initializing
+    // and destructing manually
+    if (interface->Operations.Initialize) {
+        osStatus = interface->Operations.Initialize(vfsCommonData);
+        if (osStatus != OsOK) {
+            VFSInterfaceDelete(interface);
+        }
     }
     return osStatus;
 }
@@ -63,7 +74,7 @@ __MountDefaultDirectories(void)
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &node);
 }
 
-void VFSScopeInitialize(void* context, void* token)
+void VFSScopeInitialize(void)
 {
     oserr_t osStatus;
 

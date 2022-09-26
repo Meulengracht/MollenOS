@@ -33,14 +33,17 @@
 
 static guid_t g_emptyGuid = GUID_EMPTY;
 
-oserr_t MbrEnumeratePartitions(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer,
-        _In_ uint64_t             sector);
+struct __EnumerateContext {
+    int PartitionIndex;
+};
 
-static oserr_t ParsePartitionEntry(
+static oserr_t __EnumeratePartitions(
+        FileSystemStorage_t* storage, struct __EnumerateContext* context,
+        uuid_t bufferHandle, void* buffer, uint64_t sector);
+
+static oserr_t __ParseEntry(
         _In_ FileSystemStorage_t*       storage,
+        _In_ struct __EnumerateContext* context,
         _In_ uuid_t                     bufferHandle,
         _In_ void*                      buffer,
         _In_ uint64_t                   currentSector,
@@ -58,10 +61,15 @@ static oserr_t ParsePartitionEntry(
     // 0x0F = LBA
     // 0xCF = LBA
     if (entry->Type == 0x05) {
-    }
-    else if (entry->Type == 0x0F || entry->Type == 0xCF) {
-        MbrEnumeratePartitions(storage, bufferHandle, buffer,
-                               currentSector + entry->LbaSector);
+
+    } else if (entry->Type == 0x0F || entry->Type == 0xCF) {
+        return __EnumeratePartitions(
+                storage,
+                context,
+                bufferHandle,
+                buffer,
+                currentSector + entry->LbaSector
+        );
     }
     // GPT Formatted
     // ??? Shouldn't happen ever we reach this
@@ -106,33 +114,35 @@ static oserr_t ParsePartitionEntry(
         }
     }
 
-    return VFSStorageRegisterFileSystem(storage,
-                                        currentSector + entry->LbaSector,
-                                        entry->LbaSize,
-                                        type,
-                                        &g_emptyGuid,
-                                        &g_emptyGuid
+    return VFSStorageRegisterFileSystem(
+            storage,
+            context->PartitionIndex++,
+            currentSector + entry->LbaSector,
+            entry->LbaSize,
+            type,
+            &g_emptyGuid,
+            &g_emptyGuid
     );
 }
 
-oserr_t
-MbrEnumeratePartitions(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer,
-        _In_ uint64_t             sector)
+static oserr_t __EnumeratePartitions(
+        _In_ FileSystemStorage_t*       storage,
+        _In_ struct __EnumerateContext* context,
+        _In_ uuid_t                     bufferHandle,
+        _In_ void*                      buffer,
+        _In_ uint64_t                   sector)
 {
     MasterBootRecord_t* mbr;
     int                 partitionCount = 0;
     int                 i;
     size_t              sectorsRead;
-    oserr_t          status;
+    oserr_t             oserr;
 
-    TRACE("MbrEnumeratePartitions(Sector %u)", LODWORD(sector));
+    TRACE("__EnumeratePartitions(Sector %u)", LODWORD(sector));
 
     // Start out by reading the mbr to detect whether there is a partition table
-    status = VfsStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
-    if (status != OsOK) {
+    oserr = VfsStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
+    if (oserr != OsOK) {
         return OsError;
     }
 
@@ -145,7 +155,7 @@ MbrEnumeratePartitions(
     memcpy(mbr, buffer, sizeof(MasterBootRecord_t));
 
     for (i = 0; i < MBR_PARTITION_COUNT; i++) {
-        if (ParsePartitionEntry(storage, bufferHandle, buffer, sector, mbr, &mbr->Partitions[i]) == OsOK) {
+        if (__ParseEntry(storage, context, bufferHandle, buffer, sector, mbr, &mbr->Partitions[i]) == OsOK) {
             partitionCount++;
         }
     }
@@ -160,14 +170,17 @@ MbrEnumerate(
         _In_ uuid_t               bufferHandle,
         _In_ void*                buffer)
 {
-    oserr_t osStatus;
+    struct __EnumerateContext context;
+    oserr_t                   oserr;
     TRACE("MbrEnumerate()");
+
+    context.PartitionIndex = 0;
     
     // First, we want to detect whether there is a partition table available
     // otherwise we treat the entire disk as one partition
-    osStatus = MbrEnumeratePartitions(storage, bufferHandle, buffer, 0);
-    if (osStatus != OsOK) {
+    oserr = __EnumeratePartitions(storage, &context, bufferHandle, buffer, 0);
+    if (oserr != OsOK) {
         return VfsStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->Storage.SectorCount);
     }
-    return osStatus;
+    return oserr;
 }

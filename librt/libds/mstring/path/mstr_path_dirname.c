@@ -64,14 +64,23 @@ mstring_t* mstr_path_dirname(mstring_t* path)
     }
 
     for (int i = 0; i < (tokenCount - 1); i++) {
-        if (mstring_builder_append(builder, U'/') ||
-            __append_mstring(builder, tokens[i])) {
+        if (__append_mstring(builder, tokens[i])) {
             mstring_builder_destroy(builder);
             return NULL;
+        }
+
+        // Only append '/' if we are not at second-last token. The
+        // last token will be the basename, which we exclude, and
+        // only on tokens before that we insert a seperator
+        if (i != (tokenCount - 2)) {
+            if (mstring_builder_append(builder, U'/')) {
+                mstring_builder_destroy(builder);
+                return NULL;
+            }
         }
     }
 
 finish:
-    mstr_delete_array(tokens, tokenCount);
+    mstrv_delete(tokens);
     return mstring_builder_finish(builder);
 }

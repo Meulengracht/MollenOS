@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C-Support Initialize Implementation
- * - Definitions, prototypes and information needed.
  */
 
 //#define __TRACE
@@ -28,11 +22,10 @@
 #include <internal/_ipc.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
-#include <os/types/process.h>
+#include <internal/_tls.h>
+#include <os/threads.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
-#include "../threads/tss.h"
 
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
@@ -71,7 +64,7 @@ static uint8_t* memdup(const char* data, size_t length)
     return mem;
 }
 
-// environment data is an double null terminated array of
+// environment data is a null terminated array of
 // null terminated strings
 static int __build_environment(const char* environment)
 {
@@ -195,7 +188,7 @@ static int __get_startup_info(void)
     sys_process_get_startup_information(
             GetGrachtClient(),
             &msg.base,
-            thrd_current(),
+            ThreadsCurrentId(),
             mapping.handle,
             0
     );
@@ -224,9 +217,9 @@ void __crt_process_initialize(
     // We must set IsModule before anything
     g_isPhoenix = isPhoenix;
 
-    // Get the handle of the startup thread so we always know
+    // Get the handle of the startup thread, so we always know
     // the thread id of the primary process thread.
-    g_startupThreadId = thrd_current();
+    g_startupThreadId = ThreadsCurrentId();
 
     // Initialize the standard C library
     TRACE("__crt_process_initialize initializing stdio");
@@ -288,6 +281,17 @@ int __crt_is_phoenix(void)
 uuid_t __crt_primary_thread(void)
 {
     return g_startupThreadId;
+}
+
+// This function returns the job id if set, otherwise it will return the
+// real thread id.
+uuid_t __crt_thread_id(void)
+{
+    struct thread_storage* tls = __tls_current();
+    if (tls->job_id != UUID_INVALID) {
+        return tls->job_id;
+    }
+    return ThreadsCurrentId();
 }
 
 uuid_t* __crt_processid_ptr(void)

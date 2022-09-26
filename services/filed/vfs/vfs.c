@@ -172,6 +172,7 @@ VFSNew(
         VFSDestroy(vfs);
         return osStatus;
     }
+
     *vfsOut = vfs;
     return OsOK;
 }
@@ -208,14 +209,20 @@ oserr_t VFSChildNew(struct VFS* parent, struct VFS** childOut)
 oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* stats, struct VFSNode** nodeOut)
 {
     struct VFSNode* result;
-    oserr_t         osStatus;
+    oserr_t         oserr;
+    TRACE("VFSNodeChildNew(node=%ms, stats=%ms)", node->Name, stats->Name);
 
-    osStatus = __CreateNode(vfs, VFS_NODE_TYPE_REGULAR, stats, &result);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = __CreateNode(vfs, VFS_NODE_TYPE_REGULAR, stats, &result);
+    if (oserr != OsOK) {
+        return oserr;
     }
 
-    hashtable_set(&node->Children, &(struct __VFSChild) { .Key = result->Name, .Node = result });
+    // Link parent and children together. Update parent member and then insert us as child
+    result->Parent = node;
+    hashtable_set(
+            &node->Children,
+            &(struct __VFSChild) { .Key = result->Name, .Node = result }
+    );
     *nodeOut = result;
     return OsOK;
 }

@@ -26,7 +26,6 @@
 #define __DDK_SERVICES_SERVICE_H__
 
 #include <ddk/ddkdefs.h>
-#include <threads.h>
 
 _CODE_BEGIN
 
@@ -45,12 +44,12 @@ RegisterPath(
     _In_ const char* Path));
 
 // Service targets that are available for Vali
-DDKDECL(thrd_t, GetSessionService(void));
-DDKDECL(thrd_t, GetDeviceService(void));
-DDKDECL(thrd_t, GetUsbService(void));
-DDKDECL(thrd_t, GetProcessService(void));
-DDKDECL(thrd_t, GetFileService(void));
-DDKDECL(thrd_t, GetNetService(void));
+DDKDECL(uuid_t, GetSessionService(void));
+DDKDECL(uuid_t, GetDeviceService(void));
+DDKDECL(uuid_t, GetUsbService(void));
+DDKDECL(uuid_t, GetProcessService(void));
+DDKDECL(uuid_t, GetFileService(void));
+DDKDECL(uuid_t, GetNetService(void));
 
 // When a service is required for a module it is
 // possible to wait for it to be available. Be careful

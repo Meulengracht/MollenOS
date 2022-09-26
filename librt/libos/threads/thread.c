@@ -87,13 +87,13 @@ uuid_t
 ThreadsCurrentId(void)
 {
     // If it's already cached, use that
-    if (__tls_current()->thr_id != UUID_INVALID) {
-        return __tls_current()->thr_id;
+    if (__tls_current()->thread_id != UUID_INVALID) {
+        return __tls_current()->thread_id;
     }
 
     // Otherwise, invoke OS to refresh id
-    __tls_current()->thr_id = (thrd_t)Syscall_ThreadId();
-    return __tls_current()->thr_id;
+    __tls_current()->thread_id = Syscall_ThreadId();
+    return __tls_current()->thread_id;
 }
 
 oserr_t
@@ -143,7 +143,7 @@ _Noreturn void
 ThreadsExit(
         _In_ int exitCode)
 {
-    tss_cleanup(thrd_current());
+    tss_cleanup(ThreadsCurrentId());
     __tls_destroy(__tls_current());
     __cxa_threadfinalize();
     Syscall_ThreadExit(exitCode);

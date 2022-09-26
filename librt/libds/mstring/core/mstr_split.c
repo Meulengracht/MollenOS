@@ -68,7 +68,7 @@ int mstr_split(mstring_t* string, mchar_t sep, mstring_t*** stringsOut)
     for (int i = 0; i < stringsCount; i++) {
         strings[i] = __build_from_to(string, &state, sep);
         if (strings[i] == NULL) {
-            mstr_delete_array(strings, i);
+            mstrv_delete(strings);
             return -1;
         }
     }
