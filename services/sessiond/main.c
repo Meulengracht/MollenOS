@@ -21,17 +21,12 @@
  */
 #define __TRACE
 
-#include <os/process.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>
-#include <string.h>
-#include <stdio.h>
 
 #include <sys_session_service_server.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
-
-static uuid_t WindowingSystemId = UUID_INVALID;
 
 oserr_t OnUnload(void)
 {
@@ -64,16 +59,7 @@ void sys_session_logout_invocation(struct gracht_message* message, const char* s
     // int svc_session_logout_response(struct gracht_recv_message* message, oserr_t status);
 }
 
-void sys_session_disk_connected_invocation(struct gracht_message* message, const char* identifier)
+void sys_session_info_invocation(struct gracht_message* message, const char* sessionId)
 {
-    char pathBuffer[64];
-    TRACE("sys_session_disk_connected_invocation");
-    
-    if (WindowingSystemId == UUID_INVALID) {
-        // Clear up buffer and spawn app
-        memset(&pathBuffer[0], 0, sizeof(pathBuffer));
-        sprintf(&pathBuffer[0], "%s:/bin/" __OSCONFIG_INIT_APP, identifier);
-        TRACE("Spawning %s", &pathBuffer[0]);
-        ProcessSpawn(&pathBuffer[0], NULL, &WindowingSystemId);
-    }
+
 }

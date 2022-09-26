@@ -51,6 +51,7 @@ void VFSStorageInitialize(void)
 oserr_t
 VFSStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
+        _In_ int                  partitionIndex,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
         _In_ enum FileSystemType  type,
@@ -77,8 +78,12 @@ VFSStorageRegisterFileSystem(
     // always be known ahead of FS registration.
     id = VFSIdentifierAllocate(storage);
     fileSystem = FileSystemNew(
-            &storage->Storage, id, guid,
-            sector, sectorCount
+            &storage->Storage,
+            partitionIndex,
+            id,
+            guid,
+            sector,
+            sectorCount
     );
     if (!fileSystem) {
         VFSIdentifierFree(storage, id);

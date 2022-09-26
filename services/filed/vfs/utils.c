@@ -46,8 +46,7 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
             break;
         }
         i = i->Parent;
-    } while (1);
-    TRACE("VFSNodeMakePath tokenCount=%i", tokenCount);
+    } while (i);
 
     tokens = malloc(sizeof(mstring_t*) * tokenCount);
     if (tokens == NULL) {
@@ -67,21 +66,9 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
         index++;
     }
 
-    TRACE("VFSNodeMakePath combining");
     mstring_t* path = mstr_path_tokens_join(tokens, tokenCount);
-    TRACE("VFSNodeMakePath result=%ms", path);
     free(tokens);
     return path;
-}
-
-static oserr_t __AddEntry(struct VFSNode* node, struct VFSStat* entry, struct VFSNode** nodeOut)
-{
-    oserr_t osStatus;
-    osStatus = VFSNodeChildNew(node->FileSystem, node, entry, nodeOut);
-    if (osStatus != OsOK) {
-        return osStatus;
-    }
-    return OsOK;
 }
 
 static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
@@ -90,7 +77,7 @@ static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length)
     struct VFSNode* result;
 
     while (bytesAvailable) {
-        oserr_t osStatus = __AddEntry(node, i, &result);
+        oserr_t osStatus = VFSNodeChildNew(node->FileSystem, node, i, &result);
         if (osStatus != OsOK) {
             return osStatus;
         }
@@ -219,7 +206,7 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
         return OsExists;
     }
 
-    osStatus = ops->Open(vfs->CommonData, node->Name, &data);
+    osStatus = ops->Open(vfs->CommonData, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -229,7 +216,7 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
         goto close;
     }
 
-    osStatus = __AddEntry(node, &(struct VFSStat) {
+    osStatus = VFSNodeChildNew(node->FileSystem, node, &(struct VFSStat) {
             .Name = name,
             .Size = 0,
             .Owner = 0,
@@ -276,7 +263,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
         goto cleanup;
     }
 
-    osStatus = ops->Open(vfs->CommonData, node->Name, &data);
+    osStatus = ops->Open(vfs->CommonData, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -286,7 +273,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
         goto close;
     }
 
-    osStatus = __AddEntry(node, &(struct VFSStat) {
+    osStatus = VFSNodeChildNew(node->FileSystem, node, &(struct VFSStat) {
             .Name = name,
             .Size = mstr_bsize(target),
             .Owner = 0,
@@ -352,12 +339,14 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     oserr_t                        osStatus;
     uuid_t                         handleId;
     mstring_t*                     nodePath;
+    TRACE("VFSNodeOpenHandle(node=%ms)", node->Name);
 
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
         return OsOutOfMemory;
     }
 
+    TRACE("VFSNodeOpenHandle exclusivity check");
     usched_mtx_lock(&node->HandlesLock);
 
     // Perform a handle exclusivity check before opening new handles.
@@ -447,7 +436,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
     oserr_t     osStatus = OsOK;
     mstring_t** tokens;
     int         tokenCount;
-    TRACE("__GetRelative(path=%ms, followLinks=1)", path, followLinks);
+    ENTRY("__GetRelative(path=%ms, followLinks=1)", path, followLinks);
 
     tokenCount = mstr_path_tokens(path, &tokens);
     if (tokenCount < 0) {
@@ -481,7 +470,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         // folder loading and whatnot if the folder is not currently loaded.
         osStatus = VFSNodeFind(node, tokens[i], &next);
         if (osStatus != OsOK) {
-            ERROR("__GetRelative failed to find token in node");
+            ERROR("__GetRelative failed to find %ms in %ms", tokens[i], node->Name);
             break;
         }
 
@@ -557,6 +546,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
     // node that needs to be unlocked.
     mstrv_delete(tokens);
     *nodeOut = node;
+    EXIT("__GetRelative");
     return osStatus;
 }
 

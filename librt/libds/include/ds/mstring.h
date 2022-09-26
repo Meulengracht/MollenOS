@@ -103,8 +103,20 @@ DSDECL(mchar_t,    mstr_at(mstring_t*, int));
 
 DSDECL(mstring_t*, mstr_path_new_u8(const char*));
 DSDECL(int,        mstr_path_tokens(mstring_t*, mstring_t***));
-DSDECL(mstring_t*, mstr_path_tokens_join(mstring_t**, int));
 DSDECL(mstring_t*, mstr_path_token_at(mstring_t*, int));
+
+/**
+ * @brief Joins a series of path tokens to a final path.
+ * @param tokens The array of tokens
+ * @param count  The number of array tokens
+ * @return
+ * For instance, an array provided of
+ * [0] - foo
+ * [1] - bar
+ * Will result in the path of foo/bar. Leading and trailing '/' are not
+ * added and must explicit be provided as individual tokens to add them.
+ */
+DSDECL(mstring_t*, mstr_path_tokens_join(mstring_t**, int));
 
 /**
  * @brief Acts like the traditional join, it will build a path from the elements

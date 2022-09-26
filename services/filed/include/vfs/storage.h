@@ -58,6 +58,7 @@ extern void VFSStorageInitialize(void);
 extern oserr_t
 VFSStorageRegisterFileSystem(
         _In_ FileSystemStorage_t* storage,
+        _In_ int                  partitionIndex,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount,
         _In_ enum FileSystemType  type,

@@ -20,13 +20,16 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <internal/_utils.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
 #include <vfs/vfs.h>
 #include <vfs/vfs_interface.h>
+
+#include <sys_file_service_server.h>
+extern gracht_server_t* __crt_get_service_server(void);
 
 struct default_mounts {
     const char*  label;
@@ -47,15 +50,14 @@ static struct default_mounts g_defaultMounts[] = {
         { "vali-efi",  "/efi",  MOUNT_READONLY },
         { "vali-boot", "/boot", MOUNT_READONLY },
         { "vali-data", "/data",     0 },
+        { NULL, NULL, 0 },
 };
 static struct usched_mtx g_mountsLock;
 
-static void __NotifySessionManager(mstring_t* mountPoint)
+static void __StorageReadyEvent(mstring_t* mountPoint)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetSessionService());
-    char*                    mp  = mstr_u8(mountPoint);
-
-    sys_session_disk_connected(GetGrachtClient(), &msg.base, mp);
+    char* mp = mstr_u8(mountPoint);
+    sys_file_event_storage_ready_all(__crt_get_service_server(), mp);
     free(mp);
 }
 
@@ -89,13 +91,14 @@ void VfsFileSystemInitialize(void)
 FileSystem_t*
 FileSystemNew(
         _In_ StorageDescriptor_t* storage,
+        _In_ int                  partitionIndex,
         _In_ uuid_t               id,
         _In_ guid_t*              guid,
         _In_ uint64_t             sector,
         _In_ uint64_t             sectorCount)
 {
     FileSystem_t* fileSystem;
-    TRACE("FileSystemNew(storage=%s, sector=%llu)", &storage->Serial[0], sector);
+    TRACE("FileSystemNew(storage=%s, partition=%i, sector=%llu)", &storage->Serial[0], partitionIndex, sector);
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -106,6 +109,7 @@ FileSystemNew(
     ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->DeviceID, fileSystem);
     fileSystem->ID                     = id;
     fileSystem->State                  = FileSystemState_NO_INTERFACE;
+    fileSystem->PartitionIndex         = partitionIndex;
     fileSystem->Interface              = NULL;
     fileSystem->CommonData.SectorStart = sector;
     fileSystem->CommonData.SectorCount = sectorCount;
@@ -126,6 +130,19 @@ void FileSystemDestroy(FileSystem_t* fileSystem)
     free(fileSystem);
 }
 
+static mstring_t* __GetLabel(
+        _In_ FileSystem_t* fileSystem)
+{
+    if (fileSystem->CommonData.Label) {
+        return mstr_clone(fileSystem->CommonData.Label);
+    }
+
+    // Otherwise no driver was available, or the filesystem is weird, thus
+    // we must make up our own label
+    // syntax: part-{index}
+    return mstr_fmt("part-%i", fileSystem->PartitionIndex);
+}
+
 static oserr_t
 __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
@@ -134,9 +151,16 @@ __MountFileSystemAtDefault(
     struct VFSNode* partitionNode;
     oserr_t         osStatus;
     mstring_t*      path;
+    mstring_t*      label;
     TRACE("__MountFileSystemAtDefault(fs=%u)", fileSystem->ID);
 
-    path = mstr_fmt("/storage/%s/%ms", &fileSystem->CommonData.Storage.Serial[0], fileSystem->CommonData.Label);
+    label = __GetLabel(fileSystem);
+    if (label == NULL) {
+        return OsOutOfMemory;
+    }
+
+    path = mstr_fmt("/storage/%s/%ms", &fileSystem->CommonData.Storage.Serial[0], label);
+    mstr_delete(label);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -197,9 +221,11 @@ __Connect(
         return osStatus;
     }
 
-    osStatus = interface->Operations.Initialize(&fileSystem->CommonData);
-    if (osStatus != OsOK) {
-        ERROR("__Connect failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
+    if (interface && interface->Operations.Initialize) {
+        osStatus = interface->Operations.Initialize(&fileSystem->CommonData);
+        if (osStatus != OsOK) {
+            ERROR("__Connect failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
+        }
     }
     return osStatus;
 }
@@ -223,7 +249,6 @@ VFSFileSystemConnectInterface(
 
     osStatus = __Connect(fileSystem, interface);
     if (osStatus != OsOK) {
-        VFSDestroy(fileSystem->VFS);
         goto exit;
     }
 
@@ -267,22 +292,23 @@ VFSFileSystemMount(
 
     // If a mount point was supplied then we try to mount the filesystem at that point,
     // but otherwise we will be checking the default list
+    mstring_t* fsLabel = __GetLabel(fileSystem);
     if (mountPoint) {
         osStatus = __MountFileSystemAt(fileSystem, mountPoint);
         if (osStatus != OsOK) {
             WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
-                    mountPoint, fileSystem->CommonData.Label);
+                    fsLabel, mountPoint);
         }
     } else {
         // look up default mount points
         for (int i = 0; g_defaultMounts[i].path != NULL; i++) {
             mstring_t* label = mstr_new_u8(g_defaultMounts[i].label);
-            if (label && !mstr_cmp(label, fileSystem->CommonData.Label)) {
+            if (label && !mstr_cmp(label, fsLabel)) {
                 mstring_t* bindPath = mstr_new_u8(g_defaultMounts[i].path);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
                 if (osStatus != OsOK) {
                     WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
-                            mountPoint, fileSystem->CommonData.Label);
+                            fsLabel, bindPath);
                     mstr_delete(label);
                 }
                 mstr_delete(bindPath);
@@ -291,6 +317,7 @@ VFSFileSystemMount(
             mstr_delete(label);
         }
     }
+    mstr_delete(fsLabel);
 
     path = VFSNodeMakePath(fileSystem->MountNode, 0);
     if (path == NULL) {
@@ -299,7 +326,7 @@ VFSFileSystemMount(
     }
 
     TRACE("VFSFileSystemMount notifying session about %ms", path);
-    __NotifySessionManager(path);
+    __StorageReadyEvent(path);
     mstr_delete(path);
 
 exit:
@@ -313,6 +340,7 @@ VfsFileSystemUnmount(
         _In_ unsigned int  flags)
 {
     oserr_t osStatus = OsNotSupported;
+    _CRT_UNUSED(flags);
 
     if (fileSystem == NULL) {
         return OsInvalidParameters;

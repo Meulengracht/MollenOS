@@ -136,7 +136,8 @@ mstring_t* mstr_path_tokens_join(mstring_t** tokens, int tokenCount)
             prev = val;
         }
 
-        if (prev != U'/') {
+        // Add trailing seperator, only if we aren't already at the last token.
+        if (i != (tokenCount - 1) && prev != U'/') {
             if (mstring_builder_append(builder, U'/')) {
                 mstring_builder_destroy(builder);
                 return NULL;

@@ -53,6 +53,31 @@ static int __append_u8(struct mstring_builder* builder, const char* string)
     return mstring_builder_append_u8(builder, string, u8len);
 }
 
+static int __append_int(struct mstring_builder* builder, int value)
+{
+    char tmp[32];
+    int  i = 0;
+    int  _val = value;
+
+    // Handle two special cases, 0 and - values
+    if (_val == 0) {
+        return mstring_builder_append(builder, U'0');
+    } else if (_val < 0) {
+        if (mstring_builder_append(builder, U'-')) return -1;
+        _val = -_val;
+    }
+
+    while (_val) {
+        tmp[sizeof(tmp) - (i++)] = (char)'0' + (char)(_val % 10);
+        _val /= 10;
+    }
+
+    for (i--; i >= 0; i--) {
+        if (mstring_builder_append(builder, tmp[sizeof(tmp) - i])) return -1;
+    }
+    return 0;
+}
+
 // Supports %s and %ms
 mstring_t* mstr_fmt(const char* fmt, ...)
 {
@@ -71,7 +96,7 @@ mstring_t* mstr_fmt(const char* fmt, ...)
         mchar_t            val     = mstr_next(fmt, &fmti);
         switch (val) {
             case '%': {
-                int ok = 0;
+                int consumed = 0;
 
                 // consume '%', and consume flags
                 while (1) {
@@ -96,13 +121,18 @@ mstring_t* mstr_fmt(const char* fmt, ...)
                             const char* string = va_arg(args, const char*);
                             __FMT_CHECK(__append_u8(builder, string))
                         }
-                        ok = 1;
+                        consumed = 1;
+                    } break;
+                    case 'i': {
+                        int value = va_arg(args, int);
+                        __FMT_CHECK(__append_int(builder, value));
+                        consumed = 1;
                     } break;
 
                     default:
                         break;
                 }
-                if (ok) {
+                if (consumed) {
                     continue;
                 }
             } break;

@@ -19,7 +19,7 @@
  * - Handles all file related services and disk services
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/utils.h>
 #include <os/sharedobject.h>
@@ -142,9 +142,10 @@ __TryLocateModule(
     struct __DetachedContext* context = argument;
     char                      tmp[256];
     int                       i;
+    ENTRY("__TryLocateModule()");
 
     i = 0;
-    while (g_modulePaths[i]) {
+    while (g_modulePaths[i] && !usched_is_cancelled(cancellationToken)) {
         snprintf(&tmp[0], sizeof(tmp), "%s/%s", g_modulePaths[i], g_moduleNames[(int)context->Type]);
         Handle_t handle = SharedObjectLoad(&tmp[0]);
         if (handle != HANDLE_INVALID) {
@@ -153,6 +154,7 @@ __TryLocateModule(
         }
         i++;
     }
+    EXIT("__TryLocateModule");
 }
 
 static Handle_t __RunDetached(

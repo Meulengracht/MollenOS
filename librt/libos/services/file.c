@@ -539,3 +539,9 @@ oserr_t HandleMemoryMappingEvent(
     sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &osStatus, &bytesTransferred);
     return osStatus;
 }
+
+// add default event handlers
+void sys_file_event_storage_ready_invocation(gracht_client_t* client, const char* path) {
+    _CRT_UNUSED(client);
+    _CRT_UNUSED(path);
+}

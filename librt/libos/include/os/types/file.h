@@ -53,7 +53,7 @@ typedef struct OsFileDescriptor {
 #define FILE_FLAG_FILE          0x00000000
 #define FILE_FLAG_DIRECTORY     0x00000001
 #define FILE_FLAG_LINK          0x00000002
-#define FILE_FLAG_TYPE(Flags)   ((Flags) & 0x00000002)
+#define FILE_FLAG_TYPE(Flags)   ((Flags) & 0x00000003)
 
 // OsFileDescriptor_t::Permissions
 #define FILE_PERMISSION_OWNER_READ    0x0001

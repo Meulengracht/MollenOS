@@ -72,7 +72,7 @@ mstring_t* mstr_path_dirname(mstring_t* path)
         // Only append '/' if we are not at second-last token. The
         // last token will be the basename, which we exclude, and
         // only on tokens before that we insert a seperator
-        if (i >= 2 && i != (tokenCount - 2)) {
+        if (i != (tokenCount - 2)) {
             if (mstring_builder_append(builder, U'/')) {
                 mstring_builder_destroy(builder);
                 return NULL;

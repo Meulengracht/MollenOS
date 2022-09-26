@@ -87,7 +87,7 @@ VfsStorageDetectFileSystem(
     }
 
     return VFSStorageRegisterFileSystem(
-            storage, sector,
+            storage, 0, sector,
             sectorCount, type,
             &g_emptyGuid,
             &g_emptyGuid

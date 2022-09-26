@@ -32,7 +32,7 @@
 
 #define FUTEX_FLAG_WAKE          0x1
 #define FUTEX_FLAG_WAIT          0x2
-#define FUTEX_FLAG_ACTION(Flags) ((Flags) & 0x2)
+#define FUTEX_FLAG_ACTION(Flags) ((Flags) & 0x3)
 #define FUTEX_FLAG_OP            0x10U
 #define FUTEX_FLAG_PRIVATE       0x20U
 

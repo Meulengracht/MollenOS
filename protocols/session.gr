@@ -5,15 +5,22 @@
  * of the system functionality.
  */
  
- import "types"
+import "types"
  
- namespace sys
+namespace sys
+
+struct user_info {
+    string first_name;
+    string last_name;
+    string email;
+
+    uint32 id;
+    uint32 group_id;
+}
  
- service session (1) {
+service session (1) {
     func login(string user, string password) : (oserr_t result, string sessionId) = 1;
     func logout(string sessionId) : (oserr_t result) = 2;
-    
-    // this should be replaced at some point by just listening to device manager events
-    func disk_connected(string identifier) : () = 3;
- }
+    func info(string sessionId) : (oserr_t result, user_info user) = 3;
+}
  

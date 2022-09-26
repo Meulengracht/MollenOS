@@ -43,6 +43,7 @@ typedef struct FileSystem {
     element_t             Header;
     uuid_t                ID;
     guid_t                GUID;
+    int                   PartitionIndex;
     struct VFSCommonData  CommonData;
     enum FileSystemType   Type;
     enum FileSystemState  State;
@@ -71,6 +72,7 @@ extern void VfsFileSystemInitialize(void);
 extern FileSystem_t*
 FileSystemNew(
         _In_ StorageDescriptor_t* storage,
+        _In_ int                  partitionIndex,
         _In_ uuid_t               id,
         _In_ guid_t*              guid,
         _In_ uint64_t             sector,

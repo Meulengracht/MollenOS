@@ -45,6 +45,9 @@ struct MemFSEntry {
     mstring_t*        Name;
     uint32_t          Owner;
     uint32_t          Permissions;
+    struct timespec   Accessed;
+    struct timespec   Modified;
+    struct timespec   Created;
     struct usched_mtx Mutex;
     int               Type;
     union {
@@ -74,6 +77,11 @@ struct MemFSHandle {
 };
 
 static mstring_t g_rootName = mstr_const(U"/");
+
+static inline void __CopyTime(struct timespec* destination, struct timespec* source) {
+    destination->tv_sec = source->tv_sec;
+    destination->tv_nsec = source->tv_nsec;
+}
 
 static void __directory_entries_delete(int index, const void* element, void* userContext)
 {
@@ -105,7 +113,10 @@ static int __MemFSDirectory_construct(struct MemFSDirectory* directory)
 
 static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int type, uint32_t permissions)
 {
-    struct MemFSEntry* entry = malloc(sizeof(struct MemFSEntry));
+    struct MemFSEntry* entry;
+    TRACE("__MemFSEntry_new(name=%ms, owner=%u, type=%i, perms=0x%x)", name, owner, type, permissions);
+
+    entry = malloc(sizeof(struct MemFSEntry));
     if (entry == NULL) {
         return NULL;
     }
@@ -114,6 +125,7 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int 
     entry->Type = type;
     entry->Owner = owner;
     entry->Permissions = permissions;
+    timespec_get(&entry->Created, TIME_UTC);
     if (type == MEMFS_ENTRY_TYPE_DIRECTORY) {
         if (__MemFSDirectory_construct(&entry->Data.Directory)) {
             free(entry);
@@ -281,10 +293,16 @@ __MemFSOpen(
         return oserr;
     }
 
+    usched_mtx_lock(&entry->Mutex);
     handle = __MemFSHandle_new(entry);
     if (handle == NULL) {
+        usched_mtx_unlock(&entry->Mutex);
         return OsOutOfMemory;
     }
+
+    // Update the accessed time of entry before continuing
+    timespec_get(&entry->Accessed, TIME_UTC);
+    usched_mtx_unlock(&entry->Mutex);
 
     *dataOut = handle;
     return OsOK;
@@ -299,11 +317,12 @@ static int __TypeFromFlags(uint32_t flags) {
 }
 
 static oserr_t __CreateInNode(
-        _In_ struct MemFSEntry* entry,
-        _In_ mstring_t*         name,
-        _In_ uint32_t           owner,
-        _In_ uint32_t           flags,
-        _In_ uint32_t           permissions)
+        _In_  struct MemFSEntry*  entry,
+        _In_  mstring_t*          name,
+        _In_  uint32_t            owner,
+        _In_  uint32_t            flags,
+        _In_  uint32_t            permissions,
+        _Out_ struct MemFSEntry** entryOut)
 {
     struct __DirectoryEntry* lookup;
     struct MemFSEntry*       newEntry;
@@ -320,6 +339,8 @@ static oserr_t __CreateInNode(
         usched_mtx_unlock(&entry->Mutex);
         return OsOutOfMemory;
     }
+
+    *entryOut = newEntry;
 
     // Important to note here that we set .Name to the name pointer *inside* the
     // entry structure, as we must always use memory owned by the entry.
@@ -341,8 +362,11 @@ __MemFSCreate(
         _In_  uint32_t              permissions,
         _Out_ void**                dataOut)
 {
-    struct MemFS*       memfs  = vfsCommonData->Data;
+    //struct MemFS*       memfs  = vfsCommonData->Data;
     struct MemFSHandle* handle = data;
+    struct MemFSHandle* newHandle;
+    oserr_t             oserr;
+    struct MemFSEntry*  entry;
 
     TRACE("__MemFSCreate(name=%ms)", name);
     if (vfsCommonData->Data == NULL || data == NULL) {
@@ -351,10 +375,27 @@ __MemFSCreate(
 
     // The handle must point to a directory
     if (handle->Entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
+        WARNING("__MemFSCreate %ms is not a directory (%i)", handle->Entry->Name, handle->Entry->Type);
         return OsPathIsNotDirectory;
     }
 
-    return __CreateInNode(handle->Entry, name, owner, flags, permissions);
+    oserr = __CreateInNode(handle->Entry, name, owner, flags, permissions, &entry);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    usched_mtx_lock(&entry->Mutex);
+    newHandle = __MemFSHandle_new(entry);
+    if (newHandle == NULL) {
+        usched_mtx_unlock(&entry->Mutex);
+        return OsOutOfMemory;
+    }
+
+    // Update the accessed time of entry before continuing
+    timespec_get(&entry->Accessed, TIME_UTC);
+    usched_mtx_unlock(&entry->Mutex);
+    *dataOut = newHandle;
+    return OsOK;
 }
 
 static oserr_t
@@ -381,6 +422,15 @@ __MemFSStat(
         return OsInvalidParameters;
     }
 
+    stat->ID = 0;
+    stat->Label = NULL;
+    stat->Serial = NULL;
+
+    stat->BlockSize = 512;
+    stat->BlocksPerSegment = 1;
+    stat->MaxFilenameLength = 255;
+    stat->SegmentsFree = 0;
+    stat->SegmentsTotal = 0;
     return OsOK;
 }
 
@@ -397,7 +447,7 @@ __MemFSLink(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t
@@ -410,7 +460,7 @@ __MemFSUnlink(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t
@@ -424,7 +474,7 @@ __MemFSReadLink(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t
@@ -439,7 +489,7 @@ __MemFSMove(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t __ReadFile(
@@ -478,6 +528,14 @@ struct __ReadDirectoryContext {
     int             EntriesRead;
 };
 
+static uint32_t __TypeToFlags(int type) {
+    switch (type) {
+        case MEMFS_ENTRY_TYPE_DIRECTORY: return FILE_FLAG_DIRECTORY;
+        case MEMFS_ENTRY_TYPE_FILE: return FILE_FLAG_FILE;
+        default: return 0;
+    }
+}
+
 static void __ReadDirectoryEntry(int index, const void* element, void* userContext)
 {
     const struct __DirectoryEntry* entry   = element;
@@ -501,11 +559,10 @@ static void __ReadDirectoryEntry(int index, const void* element, void* userConte
     context->Buffer->Size = (entry->Entry->Type == MEMFS_ENTRY_TYPE_FILE) ? entry->Entry->Data.File.BufferSize : 0;
     context->Buffer->Owner = entry->Entry->Owner;
     context->Buffer->Permissions = entry->Entry->Permissions;
-    context->Buffer->Flags = entry->Entry->Permissions;
-
-    //context->Buffer->Accessed;
-    //context->Buffer->Modified;
-    //context->Buffer->Created;
+    context->Buffer->Flags = __TypeToFlags(entry->Entry->Type);
+    __CopyTime(&context->Buffer->Accessed, &entry->Entry->Accessed);
+    __CopyTime(&context->Buffer->Modified, &entry->Entry->Modified);
+    __CopyTime(&context->Buffer->Created, &entry->Entry->Created);
 
     // Update iterators
     context->Buffer++;
@@ -594,7 +651,7 @@ __MemFSWrite(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t
@@ -608,7 +665,7 @@ __MemFSTruncate(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t
@@ -623,7 +680,7 @@ __MemFSSeek(
         return OsInvalidParameters;
     }
 
-    return OsOK;
+    return OsNotSupported;
 }
 
 static struct VFSOperations g_memfsOperations = {
