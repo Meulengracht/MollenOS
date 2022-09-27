@@ -1,5 +1,5 @@
 /**
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,12 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #define __TRACE
 
+#include <ddk/service.h>
 #include <ddk/utils.h>
+#include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include <os/process.h>
-#include <internal/_ipc.h>
+#include <os/usched/job.h>
+#include <served/setup.h>
 
 #include <chef_served_service_server.h>
 #include <sys_file_service_client.h>
@@ -65,45 +68,13 @@ OnLoad(void)
     return OsOK;
 }
 
-void chef_served_install_invocation(struct gracht_message* message, const char* publisher, const char* path)
-{
-
-}
-
-void chef_served_remove_invocation(struct gracht_message* message, const char* packageName)
-{
-
-}
-
-void chef_served_info_invocation(struct gracht_message* message, const char* packageName)
-{
-
-}
-
-void chef_served_listcount_invocation(struct gracht_message* message)
-{
-
-}
-
-void chef_served_list_invocation(struct gracht_message* message)
-{
-
-}
-
-void chef_served_get_command_invocation(struct gracht_message* message, const char* mountPath)
-{
-
-}
-
 void sys_file_event_storage_ready_invocation(gracht_client_t* client, const char* path)
 {
     TRACE("sys_file_event_storage_ready_invocation(path=%s)", path);
     _CRT_UNUSED(client);
 
     // wait for /data to attach
-    if (strstr(path, "/vali-data")) {
-        // ensure that /data/setup exists
-
-        // schedule install job
+    if (strstr(path, "/data")) {
+        usched_job_queue(served_server_setup_job, NULL);
     }
 }

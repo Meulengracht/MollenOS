@@ -30,6 +30,6 @@ add_library(filed-vfs
 )
 set_target_properties (filed-vfs
         PROPERTIES
-        COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL -D__FILEMANAGER_IMPL"
+        COMPILE_FLAGS "-Wno-address-of-packed-member -D__FILEMANAGER_IMPL"
 )
 target_link_libraries(filed-vfs PUBLIC filed-vfs-handlers)

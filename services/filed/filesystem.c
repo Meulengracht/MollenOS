@@ -20,15 +20,13 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
-#include <internal/_utils.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
-#include <vfs/vfs.h>
-#include <vfs/vfs_interface.h>
 
 #include <sys_file_service_server.h>
+
 extern gracht_server_t* __crt_get_service_server(void);
 
 struct default_mounts {
@@ -276,7 +274,7 @@ VFSFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ mstring_t*    mountPoint)
 {
-    oserr_t    osStatus;
+    oserr_t    osStatus = OsOK;
     mstring_t* path;
 
     if (fileSystem == NULL) {
@@ -299,6 +297,16 @@ VFSFileSystemMount(
             WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                     fsLabel, mountPoint);
         }
+
+        path = VFSNodeMakePath(fileSystem->MountNode, 0);
+        if (path == NULL) {
+            osStatus = OsOutOfMemory;
+            goto exit;
+        }
+
+        TRACE("VFSFileSystemMount notifying session about %ms", path);
+        __StorageReadyEvent(path);
+        mstr_delete(path);
     } else {
         // look up default mount points
         for (int i = 0; g_defaultMounts[i].path != NULL; i++) {
@@ -310,6 +318,9 @@ VFSFileSystemMount(
                     WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                             fsLabel, bindPath);
                     mstr_delete(label);
+                } else {
+                    TRACE("VFSFileSystemMount notifying session about %ms", bindPath);
+                    __StorageReadyEvent(bindPath);
                 }
                 mstr_delete(bindPath);
                 break;
@@ -318,16 +329,6 @@ VFSFileSystemMount(
         }
     }
     mstr_delete(fsLabel);
-
-    path = VFSNodeMakePath(fileSystem->MountNode, 0);
-    if (path == NULL) {
-        osStatus = OsOutOfMemory;
-        goto exit;
-    }
-
-    TRACE("VFSFileSystemMount notifying session about %ms", path);
-    __StorageReadyEvent(path);
-    mstr_delete(path);
 
 exit:
     usched_mtx_unlock(&fileSystem->Lock);
