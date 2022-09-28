@@ -1,6 +1,7 @@
 # add all the sub-libraries for served
 add_subdirectory(libs)
 add_subdirectory(server)
+add_subdirectory(utils)
 
 set (ADDITONAL_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/chef_served_service_server.c
@@ -11,7 +12,7 @@ add_service_target(served ""
     ${ADDITONAL_SOURCES}
     main.c
 )
-target_link_libraries(served PRIVATE served-server)
+target_link_libraries(served PRIVATE served-server served-utils)
 target_include_directories(served PRIVATE include)
 target_include_directories(served PRIVATE
         ${CMAKE_BINARY_DIR}/protocols

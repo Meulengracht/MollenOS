@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,14 +13,20 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
-#include <stdio.h>
+#ifndef __SERVED_UTILS_H__
+#define __SERVED_UTILS_H__
 
-int rename(
-	_In_ const char* oldname,
-	_In_ const char* newname)
-{
-    // @todo
-    return -1;
-}
+#include <os/osdefs.h>
+
+/**
+ * @brief
+ * @param source
+ * @param destination
+ * @return
+ */
+extern oserr_t CopyFile(const char* source, const char* destination);
+
+#endif //!__SERVED_UTILS_H__

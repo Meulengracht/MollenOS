@@ -49,4 +49,11 @@ extern oserr_t ApplicationStartServices(struct Application* application);
  */
 extern oserr_t ApplicationStopServices(struct Application* application);
 
+/**
+ * @brief
+ * @param application
+ * @return
+ */
+extern mstring_t* ApplicationPackPath(struct Application* application);
+
 #endif //!__SERVED_APPLICATION_H__

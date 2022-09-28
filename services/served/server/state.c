@@ -21,6 +21,7 @@
 #include <served/state.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static struct State g_globalState = { 0 };
 struct usched_mtx   g_stateMutex  = { 0 };
@@ -226,6 +227,148 @@ oserr_t StateLoad(void)
 
     oserr = __ParseState(&g_globalState, stateData, stateDataLength);
     free(stateData);
+    return oserr;
+}
+
+static void __AddStringToObject(cJSON* out, const char* key, mstring_t* in)
+{
+    char* stru8 = mstr_u8(in);
+    cJSON_AddStringToObject(out, key, stru8);
+    free(stru8);
+}
+
+static oserr_t __SerializeCommand(cJSON** out, struct Command* in)
+{
+    cJSON* command = cJSON_CreateObject();
+    if (command == NULL) {
+        return OsOutOfMemory;
+    }
+
+    __AddStringToObject(command, "name", in->Name);
+    __AddStringToObject(command, "path", in->Path);
+    __AddStringToObject(command, "arguments", in->Arguments);
+    cJSON_AddNumberToObject(command, "type", in->Type);
+
+    *out = command;
+    return OsOK;
+}
+
+static oserr_t __SerializeCommands(cJSON* out, list_t* in)
+{
+    foreach(i, in) {
+        cJSON*  command;
+        oserr_t oserr;
+
+        oserr = __SerializeCommand(&command, (struct Command*)i);
+        if (oserr != OsOK) {
+            return oserr;
+        }
+
+        if (cJSON_AddItemToArray(out, command)) {
+            return OsOutOfMemory;
+        }
+    }
+    return OsOK;
+}
+
+static oserr_t __SerializeApplication(cJSON** out, struct Application* in)
+{
+    cJSON* application = cJSON_CreateObject();
+    if (application == NULL) {
+        return OsOutOfMemory;
+    }
+
+    __AddStringToObject(application, "name", in->Name);
+    __AddStringToObject(application, "publisher", in->Publisher);
+    __AddStringToObject(application, "package", in->Package);
+    cJSON_AddNumberToObject(application, "major", in->Major);
+    cJSON_AddNumberToObject(application, "minor", in->Minor);
+    cJSON_AddNumberToObject(application, "patch", in->Patch);
+    cJSON_AddNumberToObject(application, "revision", in->Revision);
+
+    oserr_t oserr = __SerializeCommands(cJSON_AddArrayToObject(application, "commands"), &in->Commands);
+    if (oserr != OsOK) {
+        cJSON_Delete(application);
+        return oserr;
+    }
+
+    *out = application;
+    return OsOK;
+}
+
+static oserr_t __SerializeApplications(cJSON* out, list_t* in)
+{
+    foreach(i, in) {
+        cJSON*  application;
+        oserr_t oserr;
+
+        oserr = __SerializeApplication(&application, (struct Application*)i);
+        if (oserr != OsOK) {
+            return oserr;
+        }
+
+        if (cJSON_AddItemToArray(out, application)) {
+            return OsOutOfMemory;
+        }
+    }
+    return OsOK;
+}
+
+static oserr_t __SerializeState(struct State* state, cJSON** rootOut)
+{
+    cJSON*  root = cJSON_CreateObject();
+    oserr_t oserr;
+    if (root == NULL) {
+        return OsOutOfMemory;
+    }
+
+    cJSON_AddBoolToObject(root, "first-boot", state->FirstBoot ? cJSON_True : cJSON_False);
+    oserr = __SerializeApplications(cJSON_AddArrayToObject(root, "applications"), &state->Applications);
+    if (oserr != OsOK) {
+        cJSON_Delete(root);
+        return oserr;
+    }
+
+    *rootOut = root;
+    return OsOK;
+}
+
+static oserr_t __WriteState(const char* path, const char* buffer)
+{
+    FILE*   stateFile = fopen(path, "w+");
+    oserr_t oserr     = OsOK;
+    if (stateFile == NULL) {
+        return OsInvalidParameters;
+    }
+
+    size_t length = strlen(buffer);
+    size_t written = fwrite(buffer, 1, length, stateFile);
+    if (written != length) {
+        oserr = OsIncomplete;
+    }
+
+    fclose(stateFile);
+    return oserr;
+}
+
+oserr_t StateSave(void)
+{
+    cJSON*  root;
+    oserr_t oserr;
+
+    oserr = __SerializeState(&g_globalState, &root);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    char* data = cJSON_Print(root);
+    cJSON_Delete(root);
+    if (data == NULL) {
+        return OsOutOfMemory;
+    }
+
+    oserr = __WriteState("/data/served/state.json", data);
+    free(data);
     return oserr;
 }
 

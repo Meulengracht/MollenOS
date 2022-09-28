@@ -35,6 +35,12 @@ struct State {
 extern oserr_t StateLoad(void);
 
 /**
+ * @brief
+ * @return
+ */
+extern oserr_t StateSave(void);
+
+/**
  * @brief Returns the current server state
  * @return
  */
