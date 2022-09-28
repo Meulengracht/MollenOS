@@ -16,15 +16,30 @@
  *
  */
 
-#ifndef __SERVED_SERVER_H__
-#define __SERVED_SERVER_H__
+#ifndef __SERVED_TYPE_APPLICATION_H__
+#define __SERVED_TYPE_APPLICATION_H__
 
-#include <os/osdefs.h>
+#include <ds/mstring.h>
+#include <ds/list.h>
 
-/**
- * @brief Before loading server the state should have been either loaded or initialized.
- * @return
- */
-extern oserr_t ServerLoad(void);
+struct Command {
+    element_t  ListHeader;
+    mstring_t* Name;
+    mstring_t* Path;
+    mstring_t* Arguments;
+    int        Type;
+};
 
-#endif //!__SERVED_SERVER_H__
+struct Application {
+    element_t  ListHeader;
+    mstring_t* Name; // publisher/package
+    mstring_t* Publisher;
+    mstring_t* Package;
+    int        Major;
+    int        Minor;
+    int        Patch;
+    int        Revision;
+    list_t     Commands; // List<struct Command>
+};
+
+#endif //!__SERVED_TYPE_APPLICATION_H__

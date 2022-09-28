@@ -20,9 +20,12 @@
 #define __SERVED_STATE_H__
 
 #include <os/osdefs.h>
+#include <ds/list.h>
+#include <served/types/application.h>
 
 struct State {
-
+    bool   FirstBoot;
+    list_t Applications; // List<struct Application>
 };
 
 /**
@@ -32,12 +35,19 @@ struct State {
 extern oserr_t StateLoad(void);
 
 /**
- * @brief Initializes the served state. This will in essence create a new state
- * for served, and thus if this should be called when one exists, will be overwritten.
+ * @brief Returns the current server state
  * @return
  */
-extern oserr_t StateInitialize(void);
+extern struct State* State(void);
 
+/**
+ * @brief
+ */
+extern void StateLock(void);
 
+/**
+ * @brief
+ */
+extern void StateUnlock(void);
 
 #endif //!__SERVED_STATE_H__

@@ -16,15 +16,37 @@
  *
  */
 
-#ifndef __SERVED_SERVER_H__
-#define __SERVED_SERVER_H__
+#ifndef __SERVED_APPLICATION_H__
+#define __SERVED_APPLICATION_H__
 
-#include <os/osdefs.h>
+#include <served/types/application.h>
 
 /**
- * @brief Before loading server the state should have been either loaded or initialized.
+ * @brief
+ * @param application
  * @return
  */
-extern oserr_t ServerLoad(void);
+extern oserr_t ApplicationMount(struct Application* application);
 
-#endif //!__SERVED_SERVER_H__
+/**
+ *
+ * @param application
+ * @return
+ */
+extern oserr_t ApplicationUnmount(struct Application* application);
+
+/**
+ *
+ * @param application
+ * @return
+ */
+extern oserr_t ApplicationStartServices(struct Application* application);
+
+/**
+ *
+ * @param application
+ * @return
+ */
+extern oserr_t ApplicationStopServices(struct Application* application);
+
+#endif //!__SERVED_APPLICATION_H__

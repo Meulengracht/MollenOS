@@ -34,19 +34,18 @@ void served_server_setup_job(void* arguments, void* cancellationToken)
     // /data/served/state.json is not present, then we check for
     // /data/setup and launch the system install job.
     oserr_t oserr = StateLoad();
-    if (oserr == OsNotExists) {
-        oserr = StateInitialize();
-        if (oserr != OsOK) {
-            // ehh bail
-            ERROR("served_server_setup_job failed to initialize server state: %u", oserr);
-            exit(-1);
-        }
-        InstallBundledApplications();
-    } else if (oserr != OsOK) {
+    if (oserr != OsOK) {
         // WHAT the hell, corrupt state.
         ERROR("served_server_setup_job failed to load server state: %u", oserr);
         exit(-1);
     }
+
+    StateLock();
+    if (State()->FirstBoot) {
+        InstallBundledApplications();
+        State()->FirstBoot = false;
+    }
+    StateUnlock();
 
     // State was loaded, initialize served from state
     oserr = ServerLoad();

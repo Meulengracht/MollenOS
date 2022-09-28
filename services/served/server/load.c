@@ -16,25 +16,70 @@
  *
  */
 
+#include <io.h>
 #include <os/mollenos.h>
+#include <served/application.h>
+#include <served/state.h>
 
+/**
+ * Server paths
+ * /apps/<symlinks>
+ * /data/setup
+ * /data/served/state.json
+ * /data/served/apps/<name>.pack
+ * /data/served/mount/<name>
+ */
 static oserr_t __EnsurePaths(void)
 {
+    int mode = FILE_PERMISSION_READ | FILE_PERMISSION_EXECUTE | FILE_PERMISSION_OWNER_WRITE;
+    if (mkdir("/apps", mode)) {
+        return OsError;
+    }
 
+    if (mkdir("/data/served", mode)) {
+        return OsError;
+    }
 
+    if (mkdir("/data/served/apps", mode)) {
+        return OsError;
+    }
+
+    if (mkdir("/data/served/mount", mode)) {
+        return OsError;
+    }
     return OsOK;
 }
 
 static oserr_t __MountApplications(void)
 {
+    struct State* state = State();
+    oserr_t       oserr = OsOK;
 
-    return OsOK;
+    StateLock();
+    foreach(i, &state->Applications) {
+        oserr = ApplicationMount((struct Application*)i);
+        if (oserr != OsOK) {
+            // TODO ERROR report
+        }
+    }
+    StateUnlock();
+    return oserr;
 }
 
 static oserr_t __StartServices(void)
 {
+    struct State* state = State();
+    oserr_t       oserr = OsOK;
 
-    return OsOK;
+    StateLock();
+    foreach(i, &state->Applications) {
+        oserr = ApplicationStartServices((struct Application*)i);
+        if (oserr != OsOK) {
+            // TODO ERROR report
+        }
+    }
+    StateUnlock();
+    return oserr;
 }
 
 oserr_t ServerLoad(void)

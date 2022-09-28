@@ -1,4 +1,5 @@
 # add all the sub-libraries for served
+add_subdirectory(libs)
 add_subdirectory(server)
 
 set (ADDITONAL_SOURCES

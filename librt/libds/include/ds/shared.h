@@ -78,7 +78,7 @@ typedef struct element {
 
 // These are for unlocked access and destroy the purpose of synchronization
 // if used out of library.
-#define foreach(i, collection)           element_t *i; for (i = (collection)->head; i != NULL; i = i->next)
+#define foreach(i, collection)           for (element_t* i = (collection)->head; i != NULL; i = i->next)
 #define foreach_reverse(i, collection)   element_t *i; for (i = (collection)->tail; i != NULL; i = i->previous)
 #define foreach_volatile(i, collection)  element_t *i; for (i = READ_VOLATILE((collection)->head); i != NULL; i = i->next)
 #define _foreach(i, collection)          for (i = (collection)->head; i != NULL; i = i->next)
