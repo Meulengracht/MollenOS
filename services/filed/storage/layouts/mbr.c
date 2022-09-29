@@ -180,7 +180,7 @@ MbrEnumerate(
     // otherwise we treat the entire disk as one partition
     oserr = __EnumeratePartitions(storage, &context, bufferHandle, buffer, 0);
     if (oserr != OsOK) {
-        return VfsStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->Storage.SectorCount);
+        return VFSStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->Storage.SectorCount);
     }
     return oserr;
 }

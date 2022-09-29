@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * File Manager Service
- * - Handles all file related services and disk services
  */
+
 #define __TRACE
 
 #include <ctype.h>
@@ -46,6 +42,33 @@ static struct usched_mtx g_diskLock;
 void VFSStorageInitialize(void)
 {
     usched_mtx_init(&g_diskLock);
+}
+
+struct VFSStorage*
+VFSStorageNew(
+        _In_ struct VFSStorageOperations* operations)
+{
+    struct VFSStorage* storage;
+
+    storage = malloc(sizeof(struct VFSStorage));
+    if (!storage) {
+        return NULL;
+    }
+
+    ELEMENT_INIT(&storage->ListHeader, 0, 0);
+    usched_mtx_init(&storage->Lock);
+    storage->State = VFSSTORAGE_STATE_INITIALIZING;
+    memcpy(&storage->Operations, operations, sizeof(struct VFSStorageOperations));
+    storage->Data = NULL;
+    list_construct(&storage->Filesystems);
+    return storage;
+}
+
+void
+VFSStorageDelete(
+        _In_ struct VFSStorage* storage)
+{
+
 }
 
 oserr_t

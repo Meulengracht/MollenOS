@@ -32,8 +32,8 @@
 static guid_t g_emptyGuid = GUID_EMPTY;
 
 oserr_t
-VfsStorageDetectFileSystem(
-        _In_ FileSystemStorage_t* storage,
+VFSStorageDetectFileSystem(
+        _In_ struct VFSStorage *storage,
         _In_ uuid_t               bufferHandle,
         _In_ void*                buffer,
         _In_ uint64_t             sector,
@@ -44,7 +44,7 @@ VfsStorageDetectFileSystem(
 	size_t              sectorsRead;
 	oserr_t          status;
 
-	TRACE("VfsStorageDetectFileSystem(Sector %u, Count %u)",
+	TRACE("VFSStorageDetectFileSystem(Sector %u, Count %u)",
 		LODWORD(sector), LODWORD(sectorCount));
 
 	// Make sure the MBR is loaded

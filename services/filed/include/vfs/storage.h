@@ -31,20 +31,29 @@
 
 #define __FILEMANAGER_MAXDISKS 64
 
-enum StorageState {
-    STORAGE_STATE_INITIALIZING,
-    STORAGE_STATE_FAILED,
-    STORAGE_STATE_DISCONNECTED,
-    STORAGE_STATE_CONNECTED
+enum VFSStorageState {
+    VFSSTORAGE_STATE_INITIALIZING,
+    VFSSTORAGE_STATE_FAILED,
+    VFSSTORAGE_STATE_DISCONNECTED,
+    VFSSTORAGE_STATE_CONNECTED
 };
 
-typedef struct FileSystemStorage {
-    element_t           Header;
-    StorageDescriptor_t Storage;
-    enum StorageState   State;
-    struct usched_mtx   Lock;
-    list_t              Filesystems;
-} FileSystemStorage_t;
+struct VFSStorage;
+
+struct VFSStorageOperations {
+    oserr_t (*Destroy)(void*);
+    oserr_t (*Read)(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
+    oserr_t (*Write)(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
+};
+
+struct VFSStorage {
+    element_t                   ListHeader;
+    struct usched_mtx           Lock;
+    enum VFSStorageState        State;
+    struct VFSStorageOperations Operations;
+    void*                       Data;
+    list_t                      Filesystems;
+};
 
 /**
  * Initializes the storage subsystem of the VFS manager
@@ -52,29 +61,67 @@ typedef struct FileSystemStorage {
 extern void VFSStorageInitialize(void);
 
 /**
+ * @brief
+ * @param operations
+ * @return
+ */
+extern struct VFSStorage*
+VFSStorageNew(
+        _In_ struct VFSStorageOperations* operations);
+
+/**
+ * @brief
+ * @param storage
+ */
+extern void
+VFSStorageDelete(
+        _In_ struct VFSStorage* storage);
+
+/**
+ * @brief
+ * @param path
+ * @return
+ */
+extern struct VFSStorage*
+VFSStorageCreateFileBacked(
+        _In_ mstring_t* path);
+
+/**
+ * @brief
+ * @param deviceID
+ * @param driverID
+ * @param flags
+ * @return
+ */
+extern struct VFSStorage*
+VFSStorageCreateDeviceBacked(
+        _In_ uuid_t       deviceID,
+        _In_ uuid_t       driverID,
+        _In_ unsigned int flags);
+
+/**
  * @brief Registers a new filesystem of the given type, on the given disk with the given position on the disk
  * and assigns it an identifier.
  */
 extern oserr_t
 VFSStorageRegisterFileSystem(
-        _In_ FileSystemStorage_t* storage,
-        _In_ int                  partitionIndex,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount,
-        _In_ enum FileSystemType  type,
-        _In_ guid_t*              typeGuid,
-        _In_ guid_t*              guid);
+        _In_ struct VFSStorage*  storage,
+        _In_ int                 partitionIndex,
+        _In_ uint64_t            sector,
+        _In_ uint64_t            sectorCount,
+        _In_ enum FileSystemType type,
+        _In_ guid_t*             typeGuid,
+        _In_ guid_t*             guid);
 
 /**
  * @brief Detects the kind of layout on the disk, be it MBR or GPT layout, if there is no layout it returns
  * OsError to indicate the entire disk is a FS
- *__VFS_H__
  * @param Disk
  * @return
  */
 extern oserr_t
 VFSStorageParse(
-        _In_ FileSystemStorage_t* fsStorage);
+        _In_ struct VFSStorage* fsStorage);
 
 /**
  * @brief Detectes the kind of filesystem at the given absolute sector
@@ -82,12 +129,12 @@ VFSStorageParse(
  * and installs it
  */
 extern oserr_t
-VfsStorageDetectFileSystem(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount);
+VFSStorageDetectFileSystem(
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             bufferHandle,
+        _In_ void*              buffer,
+        _In_ uint64_t           sector,
+        _In_ uint64_t           sectorCount);
 
 /**
  * @brief Allocates a new disk identifier.
@@ -97,7 +144,7 @@ VfsStorageDetectFileSystem(
  */
 extern uuid_t
 VFSIdentifierAllocate(
-    _In_ FileSystemStorage_t* fsStorage);
+    _In_ struct VFSStorage* fsStorage);
 
 /**
  * @brief Frees an existing identifier that has been allocated
@@ -107,8 +154,8 @@ VFSIdentifierAllocate(
  */
 extern void
 VFSIdentifierFree(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               id);
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             id);
 
 /**
  *
@@ -121,10 +168,10 @@ VFSIdentifierFree(
  */
 extern oserr_t
 VfsStorageReadHelper(
-        _In_  FileSystemStorage_t* storage,
-        _In_  uuid_t               bufferHandle,
-        _In_  uint64_t             sector,
-        _In_  size_t               sectorCount,
-        _Out_ size_t*              sectorsRead);
+        _In_  struct VFSStorage* storage,
+        _In_  uuid_t             bufferHandle,
+        _In_  uint64_t           sector,
+        _In_  size_t             sectorCount,
+        _Out_ size_t*            sectorsRead);
 
 #endif //!__VFS_STORAGE_H__
