@@ -40,16 +40,17 @@ static uint32_t __AccessFlagsFromMountFlags(enum sys_mount_flags mountFlags)
 static oserr_t __MountFile(
         _In_ struct VFS*          vfs,
         _In_ const char*          cpath,
-        /* TODO: file offset */
-        /* TODO: user provide their own FS interface */
+        _In_ size_t               offset,
+        _In_ uuid_t               interfaceDriverID,
         _In_ uuid_t               atHandle,
         _In_ const char*          fsType,
         _In_ enum sys_mount_flags flags)
 {
     struct VFSStorage* storage;
-    struct FileSystem* fileSystem;
     uuid_t             handle;
     oserr_t            oserr;
+    mstring_t*         path;
+    UInteger64_t       sector;
 
     oserr = VFSNodeOpen(
             vfs, cpath,
@@ -70,19 +71,36 @@ static oserr_t __MountFile(
         return OsOutOfMemory;
     }
 
-    // Then we can safely create a new VFS from this.
-    fileSystem = VFSStorageRegisterFileSystem(
-            storage,
-            0,
-            0,
-            NULL,
-            0
-    );
-    if (fileSystem == NULL) {
+    oserr = VFSNodeGetPathHandle(atHandle, &path);
+    if (oserr != OsOK) {
+        // Weird this should not fail :/
         VFSStorageDelete(storage);
         (void)VFSNodeClose(vfs, handle);
-        return OsOutOfMemory;
+        return oserr;
     }
+
+    // Then we can safely create a new VFS from this.
+    sector.QuadPart = offset / 512;
+    oserr = VFSStorageRegisterFileSystem(
+            storage,
+            0,
+            &sector,
+            NULL,
+            fsType,
+            NULL,
+            interfaceDriverID,
+            path
+    );
+    mstr_delete(path);
+    if (oserr != OsOK) {
+        VFSStorageDelete(storage);
+        (void)VFSNodeClose(vfs, handle);
+        return oserr;
+    }
+
+    // register the mount
+
+    return oserr;
 }
 
 static oserr_t __MountPath(
@@ -103,13 +121,11 @@ static oserr_t __MountPath(
     );
     if (oserr != OsOK) {
         if (oserr == OsPathIsNotDirectory) {
-            // mount as a file instead
+            return __MountFile(vfs, cpath, 0, UUID_INVALID, atHandle, fsType, flags);
         }
         return oserr;
     }
 
-    // If the node we are mounting is a directory, then we are simply creating
-    // a "link" between the two nodes
     oserr = VFSNodeBind(vfs, handle, atHandle);
     if (oserr != OsOK) {
         // Ok something went wrong, maybe it's already bind mounted.
@@ -198,7 +214,6 @@ void Unmount(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
 {
-
     struct VFS*     fsScope = VFSScopeGet(request->processId);
     mstring_t*      path;
     oserr_t         oserr;

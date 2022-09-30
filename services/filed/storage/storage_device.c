@@ -22,27 +22,22 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <vfs/storage.h>
-#include <vfs/vfs.h>
-#include <stdlib.h>
 #include <ctt_storage_service_client.h>
 
 struct __DeviceContext {
     uuid_t              DeviceID;
     uuid_t              DriverID;
     unsigned int        Flags;
-    StorageDescriptor_t Stat;
 };
 
 static void    __DestroyDevice(void*);
 static oserr_t __ReadDevice(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
 static oserr_t __WriteDevice(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
-static void    __StatDevice(void*, StorageDescriptor_t*);
 
 static struct VFSStorageOperations g_operations = {
         .Destroy = __DestroyDevice,
         .Read = __ReadDevice,
         .Write = __WriteDevice,
-        .Stat = __StatDevice,
 };
 
 static oserr_t __DeviceQueryStats(
@@ -101,7 +96,7 @@ VFSStorageCreateDeviceBacked(
     }
     storage->Data = context;
 
-    oserr = __DeviceQueryStats(deviceID, driverID, &context->Stat);
+    oserr = __DeviceQueryStats(deviceID, driverID, &storage->Stats);
     if (oserr != OsOK) {
         VFSStorageDelete(storage);
         return NULL;
@@ -160,10 +155,4 @@ static oserr_t __WriteDevice(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, written);
     return status;
-}
-
-static void __StatDevice(void* context, StorageDescriptor_t* stat)
-{
-    struct __DeviceContext* device = context;
-    memcpy(stat, &device->Stat, sizeof(StorageDescriptor_t));
 }

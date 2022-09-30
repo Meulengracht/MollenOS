@@ -88,7 +88,8 @@ static void usched_rwlock_w_unlock(struct usched_rwlock* lock)
 struct VFS {
     uuid_t                 ID;
     guid_t                 Guid;
-    struct VFSStorageParameters*  CommonData;
+    void*                  Data;
+    struct VFSStorage*     Storage;
     struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;

@@ -23,8 +23,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/filesystem.h>
+#include <vfs/interface.h>
 #include <vfs/scope.h>
 #include <vfs/storage.h>
+#include <vfs/vfs.h>
 
 #include <sys_file_service_server.h>
 
@@ -91,9 +93,9 @@ FileSystem_t*
 FileSystemNew(
         _In_ struct VFSStorage* storage,
         _In_ int                partitionIndex,
+        _In_ UInteger64_t*      sector,
         _In_ uuid_t             id,
-        _In_ guid_t*            guid,
-        _In_ uint64_t           sector)
+        _In_ guid_t*            guid)
 {
     FileSystem_t* fileSystem;
     TRACE("FileSystemNew(storage=%u, partition=%i, sector=%llu)", &storage->ID, partitionIndex, sector);
@@ -106,13 +108,27 @@ FileSystemNew(
 
     ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->ID, fileSystem);
     fileSystem->ID                     = id;
+    fileSystem->Storage                = storage;
     fileSystem->State                  = FileSystemState_NO_INTERFACE;
     fileSystem->PartitionIndex         = partitionIndex;
     fileSystem->Interface              = NULL;
-    fileSystem->CommonData.SectorStart = sector;
+    fileSystem->SectorStart.QuadPart   = sector->QuadPart;
     memcpy(&fileSystem->GUID, guid, sizeof(guid_t));
     usched_mtx_init(&fileSystem->Lock);
     return fileSystem;
+}
+
+static void __DestroyDriver(
+        _In_ FileSystem_t* fileSystem)
+{
+    if (fileSystem->State != FileSystemState_CONNECTED) {
+        return;
+    }
+
+    if (fileSystem->Interface && fileSystem->Interface->Operations.Destroy) {
+        fileSystem->Interface->Operations.Destroy(fileSystem->Data, 0);
+    }
+    VFSInterfaceDelete(fileSystem->Interface);
 }
 
 void
@@ -120,25 +136,36 @@ FileSystemDestroy(
         _In_ FileSystem_t* fileSystem)
 {
     TRACE("FileSystemDestroy(storage=%u, sector=%llu)",
-          &fileSystem->CommonData.Storage.Serial[0],
-          fileSystem->CommonData.SectorStart);
+          &fileSystem->Storage->ID,
+          fileSystem->SectorStart.QuadPart);
 
+    // Unmount and destroy all resources related to the VFS
     VFSDestroy(fileSystem->VFS);
-    VFSInterfaceDelete(fileSystem->Interface);
+
+    // Next is destroying the actual driver and the underlying
+    // resources which are bound to this.
+    __DestroyDriver(fileSystem);
+
+    // Cleanup memory allocated by this subsystem
     free(fileSystem);
 }
 
 static mstring_t* __GetLabel(
         _In_ FileSystem_t* fileSystem)
 {
-    if (fileSystem->CommonData.Label) {
-        return mstr_clone(fileSystem->CommonData.Label);
+    struct VFSStatFS stat;
+
+    if (fileSystem->Interface && fileSystem->Interface->Operations.Stat) {
+        fileSystem->Interface->Operations.Stat(fileSystem->Data, &stat);
+        if (stat.Label) {
+            return mstr_clone(stat.Label);
+        }
     }
 
     // Otherwise no driver was available, or the filesystem is weird, thus
     // we must make up our own label
-    // syntax: part-{index}
-    return mstr_fmt("part-%i", fileSystem->PartitionIndex);
+    // syntax: p{index}
+    return mstr_fmt("p%i", fileSystem->PartitionIndex);
 }
 
 static oserr_t
@@ -157,7 +184,7 @@ __MountFileSystemAtDefault(
         return OsOutOfMemory;
     }
 
-    path = mstr_fmt("/storage/%s/%ms", &fileSystem->CommonData.Storage.Serial[0], label);
+    path = mstr_fmt("/storage/%s/%ms", &fileSystem->Storage->Stats.Serial[0], label);
     mstr_delete(label);
     if (path == NULL) {
         return OsOutOfMemory;
@@ -202,30 +229,66 @@ __MountFileSystemAt(
     return VFSNodeBind(fsScope, fileSystem->MountNode, bindNode);
 }
 
+static void
+__BuildStorageParameters(
+        _In_ FileSystem_t*                fileSystem,
+        _In_ struct VFSStorageParameters* storageParameters)
+{
+    storageParameters->StorageType = fileSystem->Storage->Protocol.StorageType;
+    switch (fileSystem->Storage->Protocol.StorageType) {
+        case VFSSTORAGE_TYPE_DEVICE: {
+            storageParameters->Storage.Device.DriverID = fileSystem->Storage->Protocol.Storage.Device.DriverID;
+            storageParameters->Storage.Device.DeviceID = fileSystem->Storage->Protocol.Storage.Device.DeviceID;
+        } break;
+        case VFSSTORAGE_TYPE_FILE: {
+            storageParameters->Storage.File.HandleID = fileSystem->Storage->Protocol.Storage.File.HandleID;
+        } break;
+        default: break;
+    }
+    storageParameters->Flags = 0; // TODO To what?
+    storageParameters->SectorStart.QuadPart = fileSystem->SectorStart.QuadPart;
+}
+
+static oserr_t
+__InitializeInterface(
+        _In_ FileSystem_t*        fileSystem,
+        _In_ struct VFSInterface* interface)
+{
+    struct VFSStorageParameters storageParameters;
+
+    // We do certainly not require an interface
+    if (interface == NULL || interface->Operations.Initialize == NULL) {
+        return OsOK;
+    }
+    __BuildStorageParameters(fileSystem, &storageParameters);
+    return interface->Operations.Initialize(&storageParameters, &fileSystem->Data);
+}
+
 oserr_t
 __Connect(
         _In_ FileSystem_t*        fileSystem,
         _In_ struct VFSInterface* interface)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
     TRACE("__Connect(fs=%u)", fileSystem->ID);
 
-    osStatus = VFSNew(
-            fileSystem->ID, &fileSystem->GUID, interface,
-            &fileSystem->CommonData, &fileSystem->VFS
-    );
-    if (osStatus != OsOK) {
-        ERROR("__Connect failed to initialize vfs data");
-        return osStatus;
+    oserr = __InitializeInterface(fileSystem, interface);
+    if (oserr != OsOK) {
+        ERROR("__Connect failed to initialize the underlying fs");
+        return oserr;
     }
 
-    if (interface && interface->Operations.Initialize) {
-        osStatus = interface->Operations.Initialize(&fileSystem->CommonData);
-        if (osStatus != OsOK) {
-            ERROR("__Connect failed to initialize filesystem of type %u: %u", fileSystem->Type, osStatus);
-        }
+    oserr = VFSNew(
+            fileSystem->ID,
+            &fileSystem->GUID,
+            fileSystem->Data,
+            interface,
+            &fileSystem->VFS
+    );
+    if (oserr != OsOK) {
+        ERROR("__Connect failed to initialize vfs data");
     }
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -258,11 +321,13 @@ VFSFileSystemConnectInterface(
 enable:
     osStatus = __MountFileSystemAtDefault(fileSystem);
     if (osStatus != OsOK) {
-        ERROR("VFSFileSystemConnectInterface failed to mount filesystem %ms", fileSystem->CommonData.Label);
+        mstring_t* label = __GetLabel(fileSystem);
+        ERROR("VFSFileSystemConnectInterface failed to mount filesystem %ms", label);
+        mstr_delete(label);
         goto exit;
     }
 
-    fileSystem->State = FileSystemState_ENABLED;
+    fileSystem->State = FileSystemState_MOUNTED;
 
 exit:
     usched_mtx_unlock(&fileSystem->Lock);
@@ -283,7 +348,7 @@ VFSFileSystemMount(
     TRACE("VFSFileSystemMount(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
-    if (fileSystem->State != FileSystemState_ENABLED) {
+    if (fileSystem->State != FileSystemState_MOUNTED) {
         osStatus = OsNotSupported;
         goto exit;
     }
@@ -349,7 +414,7 @@ VfsFileSystemUnmount(
     TRACE("VfsFileSystemUnmount(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
-    if (fileSystem->State == FileSystemState_ENABLED) {
+    if (fileSystem->State == FileSystemState_MOUNTED) {
         VFSNodeDestroy(fileSystem->MountNode);
         fileSystem->State = FileSystemState_CONNECTED;
         osStatus = OsOK;
@@ -372,7 +437,8 @@ VfsFileSystemDisconnectInterface(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_CONNECTED) {
-        osStatus = fileSystem->Interface->Operations.Destroy(&fileSystem->CommonData, flags);
+        osStatus = fileSystem->Interface->Operations.Destroy(&fileSystem->Data, flags);
+        fileSystem->State = FileSystemState_NO_INTERFACE;
     }
     usched_mtx_unlock(&fileSystem->Lock);
     return osStatus;

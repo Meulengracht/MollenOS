@@ -19,6 +19,7 @@
 #include <ddk/utils.h>
 #include <string.h>
 #include <vfs/requests.h>
+#include <vfs/storage.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -107,7 +108,7 @@ oserr_t VFSNodeSetSize(struct VFSRequest* request)
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Interface->Operations.Truncate(
-            handle->Node->FileSystem->CommonData, handle->Data, size.QuadPart);
+            handle->Node->FileSystem->Data, handle->Data, size.QuadPart);
     if (osStatus == OsOK) {
         handle->Node->Stats.Size = size.QuadPart;
     }
@@ -146,7 +147,7 @@ oserr_t VFSNodeStatFsHandle(struct VFSRequest* request, struct VFSStatFS* stat)
 
     usched_rwlock_r_unlock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Interface->Operations.Stat(
-            handle->Node->FileSystem->CommonData, stat);
+            handle->Node->FileSystem->Data, stat);
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
     VFSNodeHandlePut(handle);
@@ -164,18 +165,22 @@ oserr_t VFSNodeStatStorageHandle(struct VFSRequest* request, StorageDescriptor_t
     }
 
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    memcpy(stat, &handle->Node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
+    memcpy(
+            stat,
+           &handle->Node->FileSystem->Storage->Stats,
+           sizeof(StorageDescriptor_t)
+   );
     usched_rwlock_r_unlock(&handle->Node->Lock);
     VFSNodeHandlePut(handle);
     return OsOK;
 }
 
-oserr_t VFSNodeGetPathHandle(struct VFSRequest* request, mstring_t** pathOut)
+oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t** pathOut)
 {
     struct VFSNodeHandle* handle;
     oserr_t               osStatus;
 
-    osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(handleID, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }

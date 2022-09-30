@@ -35,6 +35,11 @@
 #define __FSDECL(Function) Function
 #endif
 
+enum VFSStorageType {
+    VFSSTORAGE_TYPE_DEVICE,
+    VFSSTORAGE_TYPE_FILE
+};
+
 /**
  * @brief The data in VFSStorageParameters will be supplied once upon initialization
  * of the filesystem. It is expected that the FS itself stores these parameters to
@@ -44,15 +49,15 @@ struct VFSStorageParameters {
     unsigned int StorageType;
     union {
         struct {
-            uuid_t handleID;
+            uuid_t HandleID;
         } File;
         struct {
-            uuid_t driverID;
-            uuid_t deviceID;
+            uuid_t DriverID;
+            uuid_t DeviceID;
         } Device;
     } Storage;
     unsigned int Flags;
-    uint64_t     SectorStart;
+    UInteger64_t SectorStart;
 };
 
 struct VFSStat {

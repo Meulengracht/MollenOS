@@ -35,7 +35,7 @@ struct VFSStatFS;
 
 extern void VFSNodeHandleInitialize(void);
 
-extern oserr_t VFSNew(uuid_t id, guid_t* guid, struct VFSInterface*, struct VFSStorageParameters*, struct VFS**);
+extern oserr_t VFSNew(uuid_t id, guid_t* guid, void* data, struct VFSInterface*, struct VFS**);
 extern oserr_t VFSChildNew(struct VFS*, struct VFS**);
 extern void    VFSDestroy(struct VFS*);
 
@@ -77,6 +77,6 @@ extern oserr_t VFSNodeSetSize(struct VFSRequest*);
 extern oserr_t VFSNodeStatHandle(struct VFSRequest*, struct VFSStat*);
 extern oserr_t VFSNodeStatFsHandle(struct VFSRequest*, struct VFSStatFS*);
 extern oserr_t VFSNodeStatStorageHandle(struct VFSRequest*, StorageDescriptor_t*);
-extern oserr_t VFSNodeGetPathHandle(struct VFSRequest*, mstring_t**);
+extern oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t**);
 
 #endif //!__VFS_H__

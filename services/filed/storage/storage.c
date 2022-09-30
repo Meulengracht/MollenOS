@@ -20,16 +20,14 @@
 #include <ctype.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
 #include <os/usched/job.h>
-#include <stdlib.h>
 #include <vfs/storage.h>
 #include <vfs/filesystem.h>
-#include <vfs/requests.h>
+#include <vfs/interface.h>
 #include <vfs/scope.h>
 #include <vfs/vfs.h>
 
-#include "sys_storage_service_server.h"
+#include <sys_storage_service_server.h>
 
 struct VfsRemoveDiskRequest {
     uuid_t       disk_id;
@@ -92,7 +90,7 @@ oserr_t
 VFSStorageRegisterFileSystem(
         _In_ struct VFSStorage*  storage,
         _In_ int                 partitionIndex,
-        _In_ uint64_t            sector,
+        _In_ UInteger64_t*       sector,
         _In_ guid_t*             guid,
         _In_ const char*         typeHint,
         _In_ guid_t*             typeGuid,
@@ -121,9 +119,9 @@ VFSStorageRegisterFileSystem(
     fileSystem = FileSystemNew(
             storage,
             partitionIndex,
+            sector,
             id,
-            guid,
-            sector
+            guid
     );
     if (!fileSystem) {
         VFSIdentifierFree(storage, id);
@@ -174,7 +172,7 @@ __StorageMount(
     mstring_t*      path;
     TRACE("__StorageMount()");
 
-    path = mstr_fmt("/storage/%s", &storage->Storage.Serial[0]);
+    path = mstr_fmt("/storage/%s", &storage->Stats.Serial[0]);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -191,58 +189,94 @@ __StorageMount(
     return osStatus;
 }
 
+struct __StorageSetupParameters {
+    uuid_t                 DriverId;
+    uuid_t                 DeviceId;
+    enum sys_storage_flags Flags;
+};
+
+static struct __StorageSetupParameters*
+__StorageSetupParametersNew(
+        _In_ uuid_t                 driverId,
+        _In_ uuid_t                 deviceId,
+        _In_ enum sys_storage_flags flags)
+{
+    struct __StorageSetupParameters* setupParameters;
+
+    setupParameters = malloc(sizeof(struct __StorageSetupParameters));
+    if (setupParameters == NULL) {
+        return NULL;
+    }
+
+    setupParameters->DriverId = driverId;
+    setupParameters->DeviceId = deviceId;
+    setupParameters->Flags = flags;
+    return setupParameters;
+}
+
+static void
+__StorageSetupParametersDelete(
+        struct __StorageSetupParameters* setupParameters)
+{
+    free(setupParameters);
+}
+
 static void
 __StorageSetup(
-        _In_ struct VFSStorage* storage,
-        _In_ void*              cancellationToken)
+        _In_ struct __StorageSetupParameters* setupParameters,
+        _In_ void*                            cancellationToken)
 {
-    oserr_t osStatus;
+    struct VFSStorage* storage;
+    oserr_t            oserr;
+    _CRT_UNUSED(cancellationToken);
     TRACE("__StorageSetup()");
+
+    storage = VFSStorageCreateDeviceBacked(
+            setupParameters->DeviceId,
+            setupParameters->DriverId,
+            setupParameters->Flags
+    );
+    __StorageSetupParametersDelete(setupParameters);
+    if (storage == NULL) {
+        return;
+    }
 
     usched_mtx_lock(&g_diskLock);
     list_append(&g_disks, &storage->ListHeader);
     usched_mtx_unlock(&g_diskLock);
 
-
-    // OK now we do some basic verification of the storage medium (again, could be
-    // anthing, network, usb, file, harddisk)
-    osStatus = __StorageVerify(storage);
-    if (osStatus != OsOK) {
-        ERROR("__StorageSetup verification of storage medium failed: %u", osStatus);
-        goto error;
-    }
-
     // Next thing is mounting the storage device as a folder
-    osStatus = __StorageMount(storage);
-    if (osStatus != OsOK) {
-        ERROR("__StorageSetup mounting storage device failed: %u", osStatus);
+    oserr = __StorageMount(storage);
+    if (oserr != OsOK) {
+        ERROR("__StorageSetup mounting storage device failed: %u", oserr);
         goto error;
     }
 
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
-    osStatus = VFSStorageParse(storage);
-    if (osStatus != OsOK) {
+    oserr = VFSStorageParse(storage);
+    if (oserr != OsOK) {
         goto error;
     }
 
-    storage->State = STORAGE_STATE_CONNECTED;
+    storage->State = VFSSTORAGE_STATE_CONNECTED;
     return;
-
 error:
-    storage->State = STORAGE_STATE_DISCONNECTED;
+    storage->State = VFSSTORAGE_STATE_DISCONNECTED;
 }
 
 void sys_storage_register_invocation(struct gracht_message* message,
                                      const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
 {
-    struct VFSStorage* storage = __FileSystemStorageNew(deviceId, driverId, (unsigned int)flags);
-    if (!storage) {
-        // TODO
-        ERROR("sys_storage_register_invocation FAILED TO CREATE STORAGE STRUCTURE");
+    struct __StorageSetupParameters* setupParameters;
+    _CRT_UNUSED(message);
+
+    setupParameters = __StorageSetupParametersNew(driverId, deviceId, (unsigned int)flags);
+    if (setupParameters == NULL) {
+        ERROR("sys_storage_register_invocation failed to allocate memory");
         return;
     }
-    usched_job_queue((usched_task_fn)__StorageSetup, storage);
+    usched_job_queue((usched_task_fn)__StorageSetup, setupParameters);
 }
 
 static void
@@ -268,6 +302,7 @@ __StorageDestroy(
         _In_ void*                        cancellationToken)
 {
     element_t* header;
+    _CRT_UNUSED(cancellationToken);
 
     usched_mtx_lock(&g_diskLock);
     header = list_find(&g_disks, (void*)(uintptr_t)request->disk_id);
@@ -286,7 +321,10 @@ __StorageDestroy(
 
 void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
 {
-    struct VfsRemoveDiskRequest* request = malloc(sizeof(struct VfsRemoveDiskRequest));
+    struct VfsRemoveDiskRequest* request;
+    _CRT_UNUSED(message);
+
+    request = malloc(sizeof(struct VfsRemoveDiskRequest));
     if (!request) {
         ERROR("sys_storage_unregister_invocation FAILED TO UNREGISTER DISK");
         return;

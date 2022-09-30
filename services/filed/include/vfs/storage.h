@@ -27,7 +27,6 @@
 #include <ds/guid.h>
 #include <ds/list.h>
 #include <os/usched/mutex.h>
-#include "filesystem_types.h"
 
 #define __FILEMANAGER_MAXDISKS 64
 
@@ -44,7 +43,19 @@ struct VFSStorageOperations {
     void    (*Destroy)(void*);
     oserr_t (*Read)(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
     oserr_t (*Write)(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
-    void    (*Stat)(void*, StorageDescriptor_t*);
+};
+
+struct VFSStorageProtocol {
+    int StorageType;
+    union {
+        struct {
+            uuid_t HandleID;
+        } File;
+        struct {
+            uuid_t DeviceID;
+            uuid_t DriverID;
+        } Device;
+    } Storage;
 };
 
 struct VFSStorage {
@@ -52,8 +63,9 @@ struct VFSStorage {
     uuid_t                      ID;
     struct usched_mtx           Lock;
     enum VFSStorageState        State;
+    struct VFSStorageProtocol   Protocol;
     struct VFSStorageOperations Operations;
-    void*                       Data;
+    StorageDescriptor_t         Stats;
     list_t                      Filesystems;
 };
 
@@ -101,7 +113,6 @@ VFSStorageCreateDeviceBacked(
         _In_ uuid_t       driverID,
         _In_ unsigned int flags);
 
-
 /**
  * @brief
  * @param storage
@@ -118,7 +129,7 @@ extern oserr_t
 VFSStorageRegisterFileSystem(
         _In_ struct VFSStorage*  storage,
         _In_ int                 partitionIndex,
-        _In_ uint64_t            sector,
+        _In_ UInteger64_t*       sector,
         _In_ guid_t*             guid,
         _In_ const char*         typeHint,
         _In_ guid_t*             typeGuid,

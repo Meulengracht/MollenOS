@@ -142,8 +142,8 @@ oserr_t
 VFSNew(
         _In_  uuid_t                id,
         _In_  guid_t*               guid,
+        _In_  void*                 data,
         _In_  struct VFSInterface*  interface,
-        _In_  struct VFSStorageParameters* commonData,
         _Out_ struct VFS**          vfsOut)
 {
     struct VFS* vfs;
@@ -157,8 +157,8 @@ VFSNew(
 
     vfs->ID = id;
     memcpy(&vfs->Guid, guid, sizeof(guid_t));
-    vfs->CommonData = commonData;
-    vfs->Interface  = interface;
+    vfs->Interface = interface;
+    vfs->Data = data;
     usched_rwlock_init(&vfs->Lock);
 
     osStatus = __CreateRootNode(vfs, &vfs->Root);

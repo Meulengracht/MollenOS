@@ -29,13 +29,11 @@ struct __FileContext {
 static void    __DestroyFile(void*);
 static oserr_t __ReadFile(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
 static oserr_t __WriteFile(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
-static void    __StatFile(void*, StorageDescriptor_t*);
 
 static struct VFSStorageOperations g_operations = {
         .Destroy = __DestroyFile,
         .Read = __ReadFile,
-        .Write = __WriteFile,
-        .Stat = __StatFile
+        .Write = __WriteFile
 };
 
 static struct __FileContext* __FileContextNew(
@@ -95,9 +93,4 @@ static oserr_t __WriteFile(
 {
     struct __FileContext* file = context;
 
-}
-
-static void __StatFile(void* context, StorageDescriptor_t* stat)
-{
-    struct __FileContext* file = context;
 }

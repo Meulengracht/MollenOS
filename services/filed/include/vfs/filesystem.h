@@ -26,28 +26,26 @@
 #include <ds/guid.h>
 #include <ds/hashtable.h>
 #include <ds/mstring.h>
-#include <os/usched/usched.h>
+#include <os/usched/mutex.h>
 #include <ddk/filesystem.h>
-#include "filesystem_types.h"
-#include "requests.h"
-#include "vfs.h"
-#include "interface.h"
 
 struct VFSStorage;
+struct VFSInterface;
 
 enum FileSystemState {
     FileSystemState_NO_INTERFACE,
     FileSystemState_CONNECTED,
-    FileSystemState_ENABLED,
+    FileSystemState_MOUNTED,
 };
 
 typedef struct FileSystem {
     element_t             Header;
     uuid_t                ID;
     guid_t                GUID;
+    struct VFSStorage*    Storage;
     int                   PartitionIndex;
-    struct VFSStorageParameters  CommonData;
-    enum FileSystemType   Type;
+    UInteger64_t          SectorStart;
+    void*                 Data;
     enum FileSystemState  State;
     struct VFS*           VFS;
     struct VFSInterface*  Interface;
@@ -75,9 +73,9 @@ extern FileSystem_t*
 FileSystemNew(
         _In_ struct VFSStorage* storage,
         _In_ int                partitionIndex,
+        _In_ UInteger64_t*      sector,
         _In_ uuid_t             id,
-        _In_ guid_t*            guid,
-        _In_ uint64_t           sector);
+        _In_ guid_t*            guid);
 
 /**
  * @brief

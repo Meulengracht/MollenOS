@@ -19,10 +19,10 @@
 #include <assert.h>
 #include <ctype.h>
 #include <ddk/convert.h>
-#include <os/dmabuf.h>
-#include <stdlib.h>
 #include <vfs/filesystem.h>
+#include <vfs/requests.h>
 #include <vfs/scope.h>
+#include <vfs/vfs.h>
 #include "sys_file_service_server.h"
 
 void OpenFile(
@@ -35,7 +35,7 @@ void OpenFile(
         return;
     }
 
-    uuid_t     handle   = UUID_INVALID;
+    uuid_t  handle   = UUID_INVALID;
     oserr_t osStatus = VFSNodeOpen(
             fsScope,
             request->parameters.open.path,
@@ -494,7 +494,7 @@ void GetFullPathByHandle(
     }
 
     mstring_t* fullPath;
-    oserr_t osStatus = VFSNodeGetPathHandle(request, &fullPath);
+    oserr_t osStatus = VFSNodeGetPathHandle(request->parameters.stat_handle.fileHandle, &fullPath);
     if (osStatus != OsOK) {
         sys_file_get_path_response(request->message, osStatus, "");
         return;
