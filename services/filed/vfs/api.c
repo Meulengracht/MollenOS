@@ -58,7 +58,7 @@ void CloseFile(
         return;
     }
 
-    oserr_t osStatus = VFSNodeClose(fsScope, request);
+    oserr_t osStatus = VFSNodeClose(fsScope, request->parameters.close.fileHandle);
     sys_file_close_response(request->message, osStatus);
 
     VfsRequestDestroy(request);

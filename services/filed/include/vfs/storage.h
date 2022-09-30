@@ -13,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Virtual File Definitions & Structures
- * - This header describes the base virtual file-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #ifndef __VFS_STORAGE_H__
@@ -27,6 +22,8 @@
 #include <ds/guid.h>
 #include <ds/list.h>
 #include <os/usched/mutex.h>
+
+struct FileSystem;
 
 #define __FILEMANAGER_MAXDISKS 64
 
@@ -66,6 +63,7 @@ struct VFSStorage {
     struct VFSStorageProtocol   Protocol;
     struct VFSStorageOperations Operations;
     StorageDescriptor_t         Stats;
+    void*                       Data;
     list_t                      Filesystems;
 };
 
@@ -114,6 +112,25 @@ VFSStorageCreateDeviceBacked(
         _In_ unsigned int flags);
 
 /**
+ * @brief Registers a new partiton on the storage provided. This will create and
+ * add a new partition to the list of partitions. This does not initialize or setup
+ * the partition.
+ * @param storage
+ * @param partitionIndex
+ * @param sector
+ * @param guid
+ * @param fileSystemOut
+ * @return
+ */
+extern oserr_t
+VFSStorageRegisterPartition(
+        _In_  struct VFSStorage*  storage,
+        _In_  int                 partitionIndex,
+        _In_  UInteger64_t*       sector,
+        _In_  guid_t*             guid,
+        _Out_ struct FileSystem** fileSystemOut);
+
+/**
  * @brief
  * @param storage
  * @param partitionIndex
@@ -126,7 +143,7 @@ VFSStorageCreateDeviceBacked(
  * @return
  */
 extern oserr_t
-VFSStorageRegisterFileSystem(
+VFSStorageRegisterAndSetupPartition(
         _In_ struct VFSStorage*  storage,
         _In_ int                 partitionIndex,
         _In_ UInteger64_t*       sector,
@@ -144,7 +161,7 @@ VFSStorageRegisterFileSystem(
  */
 extern oserr_t
 VFSStorageParse(
-        _In_ struct VFSStorage* fsStorage);
+        _In_ struct VFSStorage* storage);
 
 /**
  * @brief Detectes the kind of filesystem at the given absolute sector
@@ -156,8 +173,7 @@ VFSStorageDetectFileSystem(
         _In_ struct VFSStorage* storage,
         _In_ uuid_t             bufferHandle,
         _In_ void*              buffer,
-        _In_ uint64_t           sector,
-        _In_ uint64_t           sectorCount);
+        _In_ UInteger64_t*      sector);
 
 /**
  * @brief Allocates a new disk identifier.
@@ -190,7 +206,7 @@ VFSIdentifierFree(
  * @return
  */
 extern oserr_t
-VfsStorageReadHelper(
+VFSStorageReadHelper(
         _In_  struct VFSStorage* storage,
         _In_  uuid_t             bufferHandle,
         _In_  uint64_t           sector,

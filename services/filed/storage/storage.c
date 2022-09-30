@@ -52,12 +52,12 @@ VFSStorageNew(
     if (!storage) {
         return NULL;
     }
+    memset(storage, 0, sizeof(struct VFSStorage));
 
     ELEMENT_INIT(&storage->ListHeader, 0, 0);
     usched_mtx_init(&storage->Lock);
     storage->State = VFSSTORAGE_STATE_INITIALIZING;
     memcpy(&storage->Operations, operations, sizeof(struct VFSStorageOperations));
-    storage->Data = NULL;
     list_construct(&storage->Filesystems);
     return storage;
 }
@@ -80,36 +80,20 @@ VFSStorageDelete(
     }
 
     list_clear(&storage->Filesystems, __DestroyFilesystem, NULL);
-    if (storage->Operations.Destroy) {
-        storage->Operations.Destroy(storage->Data);
-    }
     free(storage);
 }
 
 oserr_t
-VFSStorageRegisterFileSystem(
-        _In_ struct VFSStorage*  storage,
-        _In_ int                 partitionIndex,
-        _In_ UInteger64_t*       sector,
-        _In_ guid_t*             guid,
-        _In_ const char*         typeHint,
-        _In_ guid_t*             typeGuid,
-        _In_ uuid_t              interfaceDriverID,
-        _In_ mstring_t*          mountPoint)
+VFSStorageRegisterPartition(
+        _In_  struct VFSStorage*  storage,
+        _In_  int                 partitionIndex,
+        _In_  UInteger64_t*       sector,
+        _In_  guid_t*             guid,
+        _Out_ struct FileSystem** fileSystemOut)
 {
-    FileSystem_t*        fileSystem;
-    const char*          fsType = typeHint;
-    struct VFSInterface* interface = NULL;
-    oserr_t              osStatus;
-    uuid_t               id;
-
-    TRACE("VFSStorageRegisterFileSystem(sector=%u, type=%s)",
-          LODWORD(sector), typeHint);
-
-    if (fsType == NULL) {
-        // try to deduce from type guid
-        fsType = FileSystemParseGuid(typeGuid);
-    }
+    FileSystem_t* fileSystem;
+    uuid_t        id;
+    TRACE("VFSStorageRegisterFileSystem(sector=%u)", sector->u.LowPart);
 
     // Get a new filesystem identifier specific to the storage, and then we create
     // the filesystem instance. The storage descriptor, which tells the FS about the
@@ -128,36 +112,72 @@ VFSStorageRegisterFileSystem(
         return OsOutOfMemory;
     }
 
+    *fileSystemOut = fileSystem;
+
     usched_mtx_lock(&storage->Lock);
     list_append(&storage->Filesystems, &fileSystem->Header);
     usched_mtx_unlock(&storage->Lock);
+    return OsOK;
+}
+
+oserr_t
+VFSStorageRegisterAndSetupPartition(
+        _In_ struct VFSStorage*  storage,
+        _In_ int                 partitionIndex,
+        _In_ UInteger64_t*       sector,
+        _In_ guid_t*             guid,
+        _In_ const char*         typeHint,
+        _In_ guid_t*             typeGuid,
+        _In_ uuid_t              interfaceDriverID,
+        _In_ mstring_t*          mountPoint)
+{
+    struct FileSystem*   fileSystem;
+    const char*          fsType = typeHint;
+    struct VFSInterface* interface = NULL;
+    oserr_t              oserr;
+
+    TRACE("VFSStorageRegisterFileSystem(sector=%u, type=%s)",
+          sector->u.LowPart, typeHint);
+
+    if (fsType == NULL) {
+        // try to deduce from type guid
+        fsType = FileSystemParseGuid(typeGuid);
+    }
+
+    oserr = VFSStorageRegisterPartition(
+        storage, partitionIndex, sector,
+        guid, &fileSystem
+    );
+    if (oserr != OsOK) {
+        return oserr;
+    }
 
     // Try to find a module for the filesystem type. If this returns an error
     // it simply means we are not in a sitatuion where we can load the filesystem
     // right now. A module may be present later, so we still register it as disconnected
     if (interfaceDriverID == UUID_INVALID) {
-        osStatus = VFSInterfaceLoadInternal(typeHint, &interface);
-        if (osStatus != OsOK) {
+        oserr = VFSInterfaceLoadInternal(typeHint, &interface);
+        if (oserr != OsOK) {
             WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
         }
     } else {
-        osStatus = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
-        if (osStatus != OsOK) {
+        oserr = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
+        if (oserr != OsOK) {
             WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
         }
     }
 
-    osStatus = VFSFileSystemConnectInterface(fileSystem, interface);
-    if (osStatus != OsOK) {
+    oserr = VFSFileSystemConnectInterface(fileSystem, interface);
+    if (oserr != OsOK) {
         // If the interface fails to connect, then the filesystem will go into
         // state NO_INTERFACE. We bail early then as there is no reason to mount the
         // filesystem
-        return osStatus;
+        return oserr;
     }
 
-    osStatus = VFSFileSystemMount(fileSystem, mountPoint);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = VFSFileSystemMount(fileSystem, mountPoint);
+    if (oserr != OsOK) {
+        return oserr;
     }
     return OsOK;
 }
@@ -180,7 +200,9 @@ __StorageMount(
 
     osStatus = VFSNodeNewDirectory(
             fsScope, path,
-            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &deviceNode);
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE,
+            &deviceNode
+    );
     if (osStatus != OsOK) {
         ERROR("__StorageMount failed to create node %ms", path);
     }

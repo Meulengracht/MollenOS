@@ -67,8 +67,8 @@ VFSIdentifierFree(
 }
 
 oserr_t
-VfsStorageReadHelper(
-        _In_  FileSystemStorage_t* storage,
+VFSStorageReadHelper(
+        _In_  struct VFSStorage* storage,
         _In_  uuid_t               bufferHandle,
         _In_  uint64_t             sector,
         _In_  size_t               sectorCount,

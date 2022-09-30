@@ -38,11 +38,11 @@ struct __EnumerateContext {
 };
 
 static oserr_t __EnumeratePartitions(
-        FileSystemStorage_t* storage, struct __EnumerateContext* context,
+        struct VFSStorage* storage, struct __EnumerateContext* context,
         uuid_t bufferHandle, void* buffer, uint64_t sector);
 
 static oserr_t __ParseEntry(
-        _In_ FileSystemStorage_t*       storage,
+        _In_ struct VFSStorage*         storage,
         _In_ struct __EnumerateContext* context,
         _In_ uuid_t                     bufferHandle,
         _In_ void*                      buffer,
@@ -50,7 +50,7 @@ static oserr_t __ParseEntry(
         _In_ const MasterBootRecord_t*  mbr,
         _In_ const MbrPartitionEntry_t* entry)
 {
-    enum FileSystemType type = FileSystemType_UNKNOWN;
+    char* fsHint = NULL;
 
     if (!IS_PARTITION_PRESENT(entry)) {
         return OsNotExists;
@@ -80,7 +80,7 @@ static oserr_t __ParseEntry(
 
     // Check MFS
     else if (entry->Type == 0x61) {
-        type = FileSystemType_MFS;
+        fsHint = "mfs";
     }
 
     // Check FAT
@@ -90,12 +90,12 @@ static oserr_t __ParseEntry(
              || entry->Type == 0x6       /* Fat16B */
              || entry->Type == 0xB       /* FAT32 - CHS */
              || entry->Type == 0xC) {    /* Fat32 - LBA */
-        type = FileSystemType_FAT;
+        fsHint = "fat";
     }
 
     // Check HFS
     else if (entry->Type == 0xAF) {
-        type = FileSystemType_HFS;
+        fsHint = "hfs";
     }
 
     // exFat or NTFS or HPFS
@@ -104,29 +104,33 @@ static oserr_t __ParseEntry(
     else if (entry->Type == 0x7) {
         const char* signature = (const char*)&mbr->BootCode[3];
         if (!strncmp(signature, "EXFAT", 5)) {
-            type = FileSystemType_EXFAT;
+            fsHint = "exfat";
         }
         else if (!strncmp(signature, "NTFS", 4)) {
-            type = FileSystemType_NTFS;
+            fsHint = "ntfs";
         }
         else {
-            type = FileSystemType_HPFS;
+            fsHint = "hpfs";
         }
     }
 
-    return VFSStorageRegisterFileSystem(
+    UInteger64_t startSector = {
+            .QuadPart = currentSector + entry->LbaSector
+    };
+    return VFSStorageRegisterAndSetupPartition(
             storage,
             context->PartitionIndex++,
-            currentSector + entry->LbaSector,
-            entry->LbaSize,
-            type,
+            &startSector,
             &g_emptyGuid,
-            &g_emptyGuid
+            fsHint,
+            &g_emptyGuid,
+            UUID_INVALID,
+            NULL
     );
 }
 
 static oserr_t __EnumeratePartitions(
-        _In_ FileSystemStorage_t*       storage,
+        _In_ struct VFSStorage*         storage,
         _In_ struct __EnumerateContext* context,
         _In_ uuid_t                     bufferHandle,
         _In_ void*                      buffer,
@@ -141,7 +145,7 @@ static oserr_t __EnumeratePartitions(
     TRACE("__EnumeratePartitions(Sector %u)", LODWORD(sector));
 
     // Start out by reading the mbr to detect whether there is a partition table
-    oserr = VfsStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
+    oserr = VFSStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
     if (oserr != OsOK) {
         return OsError;
     }
@@ -166,9 +170,9 @@ static oserr_t __EnumeratePartitions(
 
 oserr_t
 MbrEnumerate(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer)
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             bufferHandle,
+        _In_ void*              buffer)
 {
     struct __EnumerateContext context;
     oserr_t                   oserr;
@@ -180,7 +184,7 @@ MbrEnumerate(
     // otherwise we treat the entire disk as one partition
     oserr = __EnumeratePartitions(storage, &context, bufferHandle, buffer, 0);
     if (oserr != OsOK) {
-        return VFSStorageDetectFileSystem(storage, bufferHandle, buffer, 0, storage->Storage.SectorCount);
+        return VFSStorageDetectFileSystem(storage, bufferHandle, buffer, 0);
     }
     return oserr;
 }

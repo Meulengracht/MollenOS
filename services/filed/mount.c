@@ -81,15 +81,11 @@ static oserr_t __MountFile(
 
     // Then we can safely create a new VFS from this.
     sector.QuadPart = offset / 512;
-    oserr = VFSStorageRegisterFileSystem(
+    oserr = VFSStorageRegisterPartition(
             storage,
             0,
             &sector,
             NULL,
-            fsType,
-            NULL,
-            interfaceDriverID,
-            path
     );
     mstr_delete(path);
     if (oserr != OsOK) {

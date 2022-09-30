@@ -59,7 +59,7 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = nodeVfs->Interface->Operations.Write(
-            nodeVfs->CommonData, handle->Data,
+            nodeVfs->Data, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
             request->parameters.transfer.length,
@@ -105,7 +105,7 @@ oserr_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = nodeVfs->Interface->Operations.Seek(
-            nodeVfs->CommonData, handle->Data,
+            nodeVfs->Data, handle->Data,
             position.QuadPart, &result.QuadPart);
     if (osStatus != OsOK) {
         goto unmap;
@@ -113,7 +113,7 @@ oserr_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
     handle->Position = result.QuadPart;
 
     osStatus = nodeVfs->Interface->Operations.Write(
-            nodeVfs->CommonData, handle->Data,
+            nodeVfs->Data, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
             request->parameters.transfer.length,
