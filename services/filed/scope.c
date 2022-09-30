@@ -20,18 +20,18 @@
 
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_interface.h>
+#include <vfs/interface.h>
 
 static struct VFS*          g_rootScope      = NULL;
 static guid_t               g_rootGuid       = GUID_EMPTY;
 static mstring_t            g_globalName     = mstr_const(U"vfs-root");
-static struct VFSCommonData g_rootCommonData = { 0 };
+static struct VFSStorageParameters g_rootCommonData = {0 };
 
 static oserr_t
 __NewMemFS(
         _In_  mstring_t*           label,
         _In_  guid_t*              guid,
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _Out_ struct VFS**         vfsOut)
 {
     struct VFSInterface* interface;

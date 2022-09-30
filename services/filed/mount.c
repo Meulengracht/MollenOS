@@ -16,45 +16,114 @@
  */
 
 #include <ds/mstring.h>
+#include <vfs/filesystem.h>
 #include <vfs/requests.h>
 #include <vfs/scope.h>
+#include <vfs/storage.h>
 #include <vfs/vfs.h>
-#include "vfs/private.h"
 #include <stdlib.h>
 
 #include <sys_mount_service_server.h>
 
-static oserr_t __MountPath(
+static uint32_t __AccessFlagsFromMountFlags(enum sys_mount_flags mountFlags)
+{
+    uint32_t access = 0;
+    if (mountFlags & SYS_MOUNT_FLAGS_READ) {
+        access |= FILE_PERMISSION_READ;
+    }
+    if (mountFlags & SYS_MOUNT_FLAGS_WRITE) {
+        access |= FILE_PERMISSION_WRITE;
+    }
+    return access;
+}
+
+static oserr_t __MountFile(
         _In_ struct VFS*          vfs,
-        _In_ mstring_t*           path,
-        _In_ struct VFSNode*      at,
+        _In_ const char*          cpath,
+        /* TODO: file offset */
+        /* TODO: user provide their own FS interface */
+        _In_ uuid_t               atHandle,
         _In_ const char*          fsType,
         _In_ enum sys_mount_flags flags)
 {
-    struct VFSNode* node;
-    oserr_t         oserr;
+    struct VFSStorage* storage;
+    struct FileSystem* fileSystem;
+    uuid_t             handle;
+    oserr_t            oserr;
 
-    oserr = VFSNodeGet(vfs, path, 1, &node);
+    oserr = VFSNodeOpen(
+            vfs, cpath,
+            0,
+            __AccessFlagsFromMountFlags(flags),
+            &handle
+    );
     if (oserr != OsOK) {
+        return oserr;
+    }
+
+    // The first thing we need to do is to create as file-backed storage medium.
+    // Then we need to somehow discover the correct filesystem, either by using the
+    // hint provided, or allowing the user to specify a filesystem interface implementation.
+    storage = VFSStorageCreateFileBacked(handle);
+    if (storage == NULL) {
+        (void)VFSNodeClose(vfs, handle);
+        return OsOutOfMemory;
+    }
+
+    // Then we can safely create a new VFS from this.
+    fileSystem = VFSStorageRegisterFileSystem(
+            storage,
+            0,
+            0,
+            NULL,
+            0
+    );
+    if (fileSystem == NULL) {
+        VFSStorageDelete(storage);
+        (void)VFSNodeClose(vfs, handle);
+        return OsOutOfMemory;
+    }
+}
+
+static oserr_t __MountPath(
+        _In_ struct VFS*          vfs,
+        _In_ const char*          cpath,
+        _In_ uuid_t               atHandle,
+        _In_ const char*          fsType,
+        _In_ enum sys_mount_flags flags)
+{
+    uuid_t  handle;
+    oserr_t oserr;
+
+    oserr = VFSNodeOpen(
+            vfs, cpath,
+            __FILE_DIRECTORY,
+            FILE_PERMISSION_READ | FILE_PERMISSION_WRITE,
+            &handle
+    );
+    if (oserr != OsOK) {
+        if (oserr == OsPathIsNotDirectory) {
+            // mount as a file instead
+        }
         return oserr;
     }
 
     // If the node we are mounting is a directory, then we are simply creating
     // a "link" between the two nodes
-    if (__NodeIsDirectory(node)) {
-        return VFSNodeBind(vfs, node, at);
+    oserr = VFSNodeBind(vfs, handle, atHandle);
+    if (oserr != OsOK) {
+        // Ok something went wrong, maybe it's already bind mounted.
+        (void)VFSNodeClose(vfs, handle);
+        return oserr;
     }
 
-    // If not, then it's a bit more complex. We need to create a new VFS
-    // from the file as a storage medium. So the first thing we need to do
-    // is to create as file-backed storage medium.
+    // Register the mount
 
-    // Then we can safely create a new VFS from this.
 }
 
 static oserr_t __MountSpecial(
         _In_ struct VFS*     vfs,
-        _In_ struct VFSNode* at,
+        _In_ uuid_t          atHandle,
         _In_ const char*     fsType)
 {
     if (fsType == NULL) {
@@ -73,7 +142,7 @@ void Mount(
         _In_ void*                cancellationToken)
 {
     struct VFS*     fsScope = VFSScopeGet(request->processId);
-    mstring_t*      at;
+    uuid_t          atHandle = UUID_INVALID;
     oserr_t         oserr;
     struct VFSNode* atNode;
     _CRT_UNUSED(cancellationToken);
@@ -83,8 +152,15 @@ void Mount(
         return;
     }
 
-    at = mstr_new_u8(request->parameters.mount.at);
-    oserr = VFSNodeGet(fsScope, at, 1, &atNode);
+    // Get a handle on the directory we are mounting on top of. This directory
+    // must exist for the length of the mount.
+    oserr = VFSNodeOpen(
+            fsScope,
+            request->parameters.mount.at,
+            __FILE_DIRECTORY,
+            FILE_PERMISSION_READ | FILE_PERMISSION_WRITE,
+            &atHandle
+    );
     if (oserr != OsOK) {
         goto cleanup;
     }
@@ -93,22 +169,25 @@ void Mount(
     // an image file. If no path is provided, then we are mounting a special
     // filesystem on top of the path given in <at>
     if (request->parameters.mount.path) {
-        mstring_t* path = mstr_new_u8(request->parameters.mount.path);
         oserr = __MountPath(
-                fsScope, path, atNode,
+                fsScope, request->parameters.mount.path, atHandle,
                 request->parameters.mount.path,
                 (enum sys_mount_flags)request->parameters.mount.flags
         );
-        mstr_delete(path);
     } else {
-        oserr = __MountSpecial(fsScope, atNode, request->parameters.mount.fs_type);
+        oserr = __MountSpecial(
+                fsScope, atHandle,
+                request->parameters.mount.fs_type
+        );
     }
 
 cleanup:
     sys_mount_mount_response(request->message, oserr);
 
     // Cleanup resources allocated by us and the request
-    mstr_delete(at);
+    if (oserr != OsOK && atHandle != UUID_INVALID) {
+        (void)VFSNodeClose(fsScope, atHandle);
+    }
     free((void*)request->parameters.mount.path);
     free((void*)request->parameters.mount.at);
     free((void*)request->parameters.mount.fs_type);

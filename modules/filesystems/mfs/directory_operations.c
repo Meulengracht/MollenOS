@@ -36,7 +36,7 @@ static void __ConvertEntry(FileRecord_t* record, struct VFSStat* stat)
 
 oserr_t
 FsReadFromDirectory(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  MFSEntry_t*           entry,
         _In_  void*                 buffer,
         _In_  size_t                bufferOffset,
@@ -129,7 +129,7 @@ FsReadFromDirectory(
 // TODO this is wrong
 oserr_t
 FsSeekInDirectory(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t*           entry,
         _In_ uint64_t              absolutePosition)
 {

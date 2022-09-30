@@ -36,7 +36,12 @@ void OpenFile(
     }
 
     uuid_t     handle   = UUID_INVALID;
-    oserr_t osStatus = VFSNodeOpen(fsScope, request, &handle);
+    oserr_t osStatus = VFSNodeOpen(
+            fsScope,
+            request->parameters.open.path,
+            request->parameters.open.options,
+            request->parameters.open.access,
+            &handle);
     sys_file_open_response(request->message, osStatus, handle);
 
     free((void*)request->parameters.open.path);

@@ -15,6 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __TRACE
+
+#include <ddk/convert.h>
+#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <vfs/storage.h>
@@ -23,20 +27,42 @@
 #include <ctt_storage_service_client.h>
 
 struct __DeviceContext {
-    uuid_t       DeviceID;
-    uuid_t       DriverID;
-    unsigned int Flags;
+    uuid_t              DeviceID;
+    uuid_t              DriverID;
+    unsigned int        Flags;
+    StorageDescriptor_t Stat;
 };
 
-static oserr_t __DestroyDevice(void*);
-static oserr_t __ReadDevice(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
-static oserr_t __WriteDevice(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
+static void    __DestroyDevice(void*);
+static oserr_t __ReadDevice(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static oserr_t __WriteDevice(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static void    __StatDevice(void*, StorageDescriptor_t*);
 
 static struct VFSStorageOperations g_operations = {
         .Destroy = __DestroyDevice,
         .Read = __ReadDevice,
-        .Write = __WriteDevice
+        .Write = __WriteDevice,
+        .Stat = __StatDevice,
 };
+
+static oserr_t __DeviceQueryStats(
+        _In_ uuid_t               deviceID,
+        _In_ uuid_t               driverID,
+        _In_ StorageDescriptor_t* stats)
+{
+    struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(driverID);
+    oserr_t                    osStatus;
+    struct sys_disk_descriptor gdescriptor;
+    TRACE("__DeviceQueryStats()");
+
+    ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
+    if (osStatus == OsOK) {
+        from_sys_disk_descriptor_dkk(&gdescriptor, stats);
+    }
+    return osStatus;
+}
 
 static struct __DeviceContext* __DeviceContextNew(
         _In_ uuid_t       deviceID,
@@ -59,20 +85,31 @@ VFSStorageCreateDeviceBacked(
         _In_ uuid_t       driverID,
         _In_ unsigned int flags)
 {
-    struct VFSStorage* storage = VFSStorageNew(&g_operations);
+    struct VFSStorage*      storage;
+    struct __DeviceContext* context;
+    oserr_t                 oserr;
+
+    storage = VFSStorageNew(&g_operations);
     if (storage == NULL) {
         return NULL;
     }
 
-    storage->Data = __DeviceContextNew(deviceID, driverID, flags);
-    if (storage->Data == NULL) {
+    context = __DeviceContextNew(deviceID, driverID, flags);
+    if (context == NULL) {
         free(storage);
+        return NULL;
+    }
+    storage->Data = context;
+
+    oserr = __DeviceQueryStats(deviceID, driverID, &context->Stat);
+    if (oserr != OsOK) {
+        VFSStorageDelete(storage);
         return NULL;
     }
     return storage;
 }
 
-static oserr_t __DestroyDevice(
+static void __DestroyDevice(
         _In_ void* context)
 {
     struct __DeviceContext* device = context;
@@ -80,12 +117,12 @@ static oserr_t __DestroyDevice(
 }
 
 static oserr_t __ReadDevice(
-        _In_ void*        context,
-        _In_ uuid_t       buffer,
-        _In_ size_t       offset,
-        _In_ UInteger64_t sector,
-        _In_ size_t       count,
-        _In_ size_t*      read)
+        _In_ void*         context,
+        _In_ uuid_t        buffer,
+        _In_ size_t        offset,
+        _In_ UInteger64_t* sector,
+        _In_ size_t        count,
+        _In_ size_t*       read)
 {
     struct __DeviceContext*  device = context;
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(device->DriverID);
@@ -94,7 +131,7 @@ static oserr_t __ReadDevice(
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
             device->DeviceID, __STORAGE_OPERATION_READ,
-            sector.u.LowPart, sector.u.HighPart,
+            sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -103,12 +140,12 @@ static oserr_t __ReadDevice(
 }
 
 static oserr_t __WriteDevice(
-        _In_ void*        context,
-        _In_ uuid_t       buffer,
-        _In_ size_t       offset,
-        _In_ UInteger64_t sector,
-        _In_ size_t       count,
-        _In_ size_t*      written)
+        _In_ void*         context,
+        _In_ uuid_t        buffer,
+        _In_ size_t        offset,
+        _In_ UInteger64_t* sector,
+        _In_ size_t        count,
+        _In_ size_t*       written)
 {
     struct __DeviceContext* device = context;
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(device->DriverID);
@@ -117,10 +154,16 @@ static oserr_t __WriteDevice(
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
             device->DeviceID, __STORAGE_OPERATION_WRITE,
-            sector.u.LowPart, sector.u.HighPart,
+            sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, written);
     return status;
+}
+
+static void __StatDevice(void* context, StorageDescriptor_t* stat)
+{
+    struct __DeviceContext* device = context;
+    memcpy(stat, &device->Stat, sizeof(StorageDescriptor_t));
 }

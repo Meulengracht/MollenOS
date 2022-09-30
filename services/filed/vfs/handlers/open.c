@@ -18,16 +18,15 @@
 #define __TRACE
 
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleOut)
+oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32_t access, uuid_t* handleOut)
 {
     mstring_t* path;
-    TRACE("VFSNodeOpen(%s)", request->parameters.open.path);
+    TRACE("VFSNodeOpen(%s)", cpath);
 
-    path = mstr_path_new_u8(request->parameters.open.path);
+    path = mstr_path_new_u8(cpath);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -39,14 +38,14 @@ oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleO
         mstr_delete(path); // we don't need the path anymore from this point
 
         // Did user request to create root? nono
-        if (request->parameters.open.options & __FILE_CREATE) {
+        if (options & __FILE_CREATE) {
             return OsInvalidPermissions;
         }
 
         // Allow this only if requested to be opened as a dir
-        if (request->parameters.open.options & __FILE_DIRECTORY) {
+        if (options & __FILE_DIRECTORY) {
             TRACE("VFSNodeOpen returning root handle");
-            return VFSNodeOpenHandle(vfs->Root, request->parameters.open.access, handleOut);
+            return VFSNodeOpenHandle(vfs->Root, access, handleOut);
         }
         return OsPathIsDirectory;
     }
@@ -75,11 +74,10 @@ oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleO
     }
 
     if (osStatus == OsNotExists) {
-        if (request->parameters.open.options & __FILE_CREATE) {
+        if (options & __FILE_CREATE) {
             // TODO permissions check
             osStatus = VFSNodeCreateChild(node, nodeName,
-                                          request->parameters.open.options,
-                                          request->parameters.open.access,
+                                          options,access,
                                           &node);
             if (osStatus != OsOK) {
                 goto exit;
@@ -90,7 +88,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, struct VFSRequest* request, uuid_t* handleO
         }
     }
 
-    osStatus = VFSNodeOpenHandle(node, request->parameters.open.access, handleOut);
+    osStatus = VFSNodeOpenHandle(node, access, handleOut);
 
 exit:
     VFSNodePut(containingDirectory);

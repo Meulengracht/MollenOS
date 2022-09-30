@@ -175,7 +175,7 @@ static struct MemFS* __MemFS_new(void)
 
 static oserr_t
 __MemFSInitialize(
-        _In_ struct VFSCommonData* vfsCommonData)
+        _In_ struct VFSStorageParameters* vfsCommonData)
 {
     TRACE("__MemFSInitialize()");
 
@@ -190,7 +190,7 @@ __MemFSInitialize(
 
 static oserr_t
 __MemFSDestroy(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ unsigned int          unmountFlags)
 {
     TRACE("__MemFSDestroy()");
@@ -274,7 +274,7 @@ static oserr_t __FindNode(struct MemFSEntry* root, mstring_t* path, struct MemFS
 
 static oserr_t
 __MemFSOpen(
-        _In_      struct VFSCommonData* vfsCommonData,
+        _In_      struct VFSStorageParameters* vfsCommonData,
         _In_      mstring_t*            path,
         _Out_Opt_ void**                dataOut)
 {
@@ -354,7 +354,7 @@ static oserr_t __CreateInNode(
 
 static oserr_t
 __MemFSCreate(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  mstring_t*            name,
         _In_  uint32_t              owner,
@@ -400,7 +400,7 @@ __MemFSCreate(
 
 static oserr_t
 __MemFSClose(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ void*                 data)
 {
     TRACE("__MemFSClose()");
@@ -414,7 +414,7 @@ __MemFSClose(
 
 static oserr_t
 __MemFSStat(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ struct VFSStatFS*     stat)
 {
     TRACE("__MemFSStat()");
@@ -436,7 +436,7 @@ __MemFSStat(
 
 static oserr_t
 __MemFSLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ void*                 data,
         _In_ mstring_t*            linkName,
         _In_ mstring_t*            linkTarget,
@@ -452,7 +452,7 @@ __MemFSLink(
 
 static oserr_t
 __MemFSUnlink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ mstring_t*            path)
 {
     TRACE("__MemFSUnlink()");
@@ -465,7 +465,7 @@ __MemFSUnlink(
 
 static oserr_t
 __MemFSReadLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ mstring_t*            path,
         _In_ mstring_t*            pathOut)
 {
@@ -479,7 +479,7 @@ __MemFSReadLink(
 
 static oserr_t
 __MemFSMove(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ mstring_t*            from,
         _In_ mstring_t*            to,
         _In_ int                   copy)
@@ -605,7 +605,7 @@ static oserr_t __ReadDirectory(
 
 static oserr_t
 __MemFSRead(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -638,7 +638,7 @@ __MemFSRead(
 
 static oserr_t
 __MemFSWrite(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -656,7 +656,7 @@ __MemFSWrite(
 
 static oserr_t
 __MemFSTruncate(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ void*                 data,
         _In_ uint64_t              size)
 {
@@ -670,7 +670,7 @@ __MemFSTruncate(
 
 static oserr_t
 __MemFSSeek(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  uint64_t              absolutePosition,
         _Out_ uint64_t*             absolutePositionOut)
@@ -701,7 +701,7 @@ static struct VFSOperations g_memfsOperations = {
 };
 
 struct VFSInterface* MemFSNewInterface(void) {
-    return VFSInterfaceNew(FileSystemType_MEMFS, NULL, &g_memfsOperations);
+    return VFSInterfaceNew(NULL, &g_memfsOperations);
 }
 
 static uint64_t __directory_entries_hash(const void* element)

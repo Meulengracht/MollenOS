@@ -25,7 +25,7 @@
 #include <os/dmabuf.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
-#include <vfs/vfs_interface.h>
+#include <vfs/interface.h>
 
 struct usched_rwlock {
     struct usched_mtx sync_object;
@@ -88,7 +88,7 @@ static void usched_rwlock_w_unlock(struct usched_rwlock* lock)
 struct VFS {
     uuid_t                 ID;
     guid_t                 Guid;
-    struct VFSCommonData*  CommonData;
+    struct VFSStorageParameters*  CommonData;
     struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;

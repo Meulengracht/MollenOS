@@ -252,7 +252,7 @@ typedef struct FileSystemMFS {
  * with the file-system descriptor */
 extern oserr_t
 MfsReadSectors(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_  uuid_t               bufferHandle,
         _In_  size_t               bufferOffset,
         _In_  uint64_t             sector,
@@ -264,7 +264,7 @@ MfsReadSectors(
  * with the file-system descriptor */
 extern oserr_t
 MfsWriteSectors(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_  uuid_t               bufferHandle,
         _In_  size_t               bufferOffset,
         _In_  uint64_t             sector,
@@ -276,7 +276,7 @@ MfsWriteSectors(
  * in-memory version of the bucketmap */
 extern oserr_t
 MfsGetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucket,
         _In_ MapRecord_t*          link);
 
@@ -285,7 +285,7 @@ MfsGetBucketLink(
  * the changes to disk */
 extern oserr_t
 MfsSetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucket,
         _In_ MapRecord_t*          link,
         _In_ int                   updateLength);
@@ -295,7 +295,7 @@ MfsSetBucketLink(
  * when end-of-chain. */
 extern oserr_t
 MfsSwitchToNextBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t* entry,
         _In_ size_t                bucketSizeBytes);
 
@@ -304,7 +304,7 @@ MfsSwitchToNextBucketLink(
  * useful for clearing clusters of sectors */
 extern oserr_t
 MfsZeroBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucket,
         _In_ size_t                count);
 
@@ -313,7 +313,7 @@ MfsZeroBucket(
  * if the allocation could not be done, it'll return OsError */
 extern oserr_t
 MfsAllocateBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_  size_t               bucketCount,
         _Out_ MapRecord_t*         mapRecord);
 
@@ -322,7 +322,7 @@ MfsAllocateBuckets(
  * a file-record */
 extern oserr_t
 MfsFreeBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              startBucket,
         _In_ uint32_t              startLength);
 
@@ -330,7 +330,7 @@ MfsFreeBuckets(
  * Ensures that the given record has the space neccessary for the required data. */
 extern oserr_t
 MfsEnsureRecordSpace(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t* entry,
         _In_ uint64_t              spaceRequired);
 
@@ -339,7 +339,7 @@ MfsEnsureRecordSpace(
  * the disk, not data related to file, but the metadata */
 extern oserr_t
 MfsUpdateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t* entry,
         _In_ int                   action);
 
@@ -348,7 +348,7 @@ MfsUpdateRecord(
  * directories. File is only allocated and set if the function returns OsOK */
 extern oserr_t
 MfsLocateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucketOfDirectory,
         _In_ MFSEntry_t* entry,
         _In_ mstring_t*            path);
@@ -366,7 +366,7 @@ MfsLocateRecord(
  */
 extern oserr_t
 MfsCreateRecord(
-        _In_  struct VFSCommonData*  vfsCommonData,
+        _In_  struct VFSStorageParameters*  vfsCommonData,
         _In_  MFSEntry_t*  entry,
         _In_  mstring_t*             name,
         _In_  uint32_t               owner,
@@ -393,7 +393,7 @@ MfsFileRecordFlagsToVfsFlags(
  * Converts a native MFS file record into the generic vfs representation. */
 extern void
 MfsFileRecordToVfsFile(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ FileRecord_t*         nativeEntry,
         _In_ MFSEntry_t* mfsEntry);
 

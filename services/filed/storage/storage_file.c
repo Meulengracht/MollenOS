@@ -23,39 +23,42 @@
 #include <stdlib.h>
 
 struct __FileContext {
-
+    uuid_t file_handle;
 };
 
-static oserr_t __DestroyFile(void*);
-static oserr_t __ReadFile(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
-static oserr_t __WriteFile(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
+static void    __DestroyFile(void*);
+static oserr_t __ReadFile(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static oserr_t __WriteFile(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static void    __StatFile(void*, StorageDescriptor_t*);
 
 static struct VFSStorageOperations g_operations = {
         .Destroy = __DestroyFile,
         .Read = __ReadFile,
-        .Write = __WriteFile
+        .Write = __WriteFile,
+        .Stat = __StatFile
 };
 
-static struct __FileContext* __FileContextNew(void)
+static struct __FileContext* __FileContextNew(
+        _In_ uuid_t fileHandleID)
 {
     struct __FileContext* context = malloc(sizeof(struct __FileContext));
     if (context == NULL) {
         return NULL;
     }
-
+    context->file_handle = fileHandleID;
     return context;
 }
 
 struct VFSStorage*
 VFSStorageCreateFileBacked(
-        _In_ mstring_t* path)
+        _In_ uuid_t fileHandleID)
 {
     struct VFSStorage* storage = VFSStorageNew(&g_operations);
     if (storage == NULL) {
         return NULL;
     }
 
-    storage->Data = __FileContextNew();
+    storage->Data = __FileContextNew(fileHandleID);
     if (storage->Data == NULL) {
         free(storage);
         return NULL;
@@ -63,7 +66,7 @@ VFSStorageCreateFileBacked(
     return storage;
 }
 
-static oserr_t __DestroyFile(
+static void __DestroyFile(
         _In_ void* context)
 {
     struct __FileContext* file = context;
@@ -71,25 +74,30 @@ static oserr_t __DestroyFile(
 }
 
 static oserr_t __ReadFile(
-        _In_ void*        context,
-        _In_ uuid_t       buffer,
-        _In_ size_t       offset,
-        _In_ UInteger64_t sector,
-        _In_ size_t       count,
-        _In_ size_t*      read)
+        _In_ void*         context,
+        _In_ uuid_t        buffer,
+        _In_ size_t        offset,
+        _In_ UInteger64_t* sector,
+        _In_ size_t        count,
+        _In_ size_t*       read)
 {
     struct __FileContext* file = context;
 
 }
 
 static oserr_t __WriteFile(
-        _In_ void*        context,
-        _In_ uuid_t       buffer,
-        _In_ size_t       offset,
-        _In_ UInteger64_t sector,
-        _In_ size_t       count,
-        _In_ size_t*      written)
+        _In_ void*         context,
+        _In_ uuid_t        buffer,
+        _In_ size_t        offset,
+        _In_ UInteger64_t* sector,
+        _In_ size_t        count,
+        _In_ size_t*       written)
 {
     struct __FileContext* file = context;
 
+}
+
+static void __StatFile(void* context, StorageDescriptor_t* stat)
+{
+    struct __FileContext* file = context;
 }

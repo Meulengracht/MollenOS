@@ -31,7 +31,9 @@
 #include "filesystem_types.h"
 #include "requests.h"
 #include "vfs.h"
-#include "vfs_interface.h"
+#include "interface.h"
+
+struct VFSStorage;
 
 enum FileSystemState {
     FileSystemState_NO_INTERFACE,
@@ -44,7 +46,7 @@ typedef struct FileSystem {
     uuid_t                ID;
     guid_t                GUID;
     int                   PartitionIndex;
-    struct VFSCommonData  CommonData;
+    struct VFSStorageParameters  CommonData;
     enum FileSystemType   Type;
     enum FileSystemState  State;
     struct VFS*           VFS;
@@ -71,19 +73,20 @@ extern void VfsFileSystemInitialize(void);
  */
 extern FileSystem_t*
 FileSystemNew(
-        _In_ StorageDescriptor_t* storage,
-        _In_ int                  partitionIndex,
-        _In_ uuid_t               id,
-        _In_ guid_t*              guid,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount);
+        _In_ struct VFSStorage* storage,
+        _In_ int                partitionIndex,
+        _In_ uuid_t             id,
+        _In_ guid_t*            guid,
+        _In_ uint64_t           sector);
 
 /**
  * @brief
  *
  * @param fileSystem
  */
-extern void FileSystemDestroy(FileSystem_t* fileSystem);
+extern void
+FileSystemDestroy(
+        _In_ FileSystem_t* fileSystem);
 
 /**
  * @brief
@@ -91,7 +94,7 @@ extern void FileSystemDestroy(FileSystem_t* fileSystem);
  * @param guid
  * @return
  */
-extern enum FileSystemType
+extern const char*
 FileSystemParseGuid(
         _In_ guid_t* guid);
 

@@ -31,13 +31,13 @@
 static const char* RootEntryName = "<root>";
 
 // File specific operation handlers
-oserr_t FsReadFromFile(struct VFSCommonData*, MFSEntry_t*, uuid_t, void*, size_t, size_t, size_t*);
-oserr_t FsWriteToFile(struct VFSCommonData*, MFSEntry_t*, uuid_t, void*, size_t, size_t, size_t*);
-oserr_t FsSeekInFile(struct VFSCommonData*, MFSEntry_t*, uint64_t);
+oserr_t FsReadFromFile(struct VFSStorageParameters*, MFSEntry_t*, uuid_t, void*, size_t, size_t, size_t*);
+oserr_t FsWriteToFile(struct VFSStorageParameters*, MFSEntry_t*, uuid_t, void*, size_t, size_t, size_t*);
+oserr_t FsSeekInFile(struct VFSStorageParameters*, MFSEntry_t*, uint64_t);
 
 // Directory specific operation handlers
-oserr_t FsReadFromDirectory(struct VFSCommonData*, MFSEntry_t*, void*, size_t, size_t, size_t*);
-oserr_t FsSeekInDirectory(struct VFSCommonData*, MFSEntry_t*, uint64_t);
+oserr_t FsReadFromDirectory(struct VFSStorageParameters*, MFSEntry_t*, void*, size_t, size_t, size_t*);
+oserr_t FsSeekInDirectory(struct VFSStorageParameters*, MFSEntry_t*, uint64_t);
 
 static MFSEntry_t* MFSEntryNew(void)
 {
@@ -60,7 +60,7 @@ static void MFSEntryDelete(MFSEntry_t* entry)
 
 oserr_t
 FsOpen(
-        _In_      struct VFSCommonData* vfsCommonData,
+        _In_      struct VFSStorageParameters* vfsCommonData,
         _In_      mstring_t*            path,
         _Out_Opt_ void**                dataOut)
 {
@@ -88,7 +88,7 @@ FsOpen(
 
 oserr_t
 FsCreate(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  mstring_t*            name,
         _In_  uint32_t              owner,
@@ -117,7 +117,7 @@ FsCreate(
 
 oserr_t
 FsClose(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ void*                 data)
 {
     MFSEntry_t* entry    = (MFSEntry_t*)data;
@@ -136,7 +136,7 @@ FsClose(
 
 oserr_t
 FsStat(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ struct VFSStatFS*     stat)
 {
     // TODO implement MFS::Stat
@@ -145,7 +145,7 @@ FsStat(
 
 oserr_t
 FsUnlink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ mstring_t*            path)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
@@ -178,7 +178,7 @@ cleanup:
 
 oserr_t
 FsLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ void*                 data,
         _In_ mstring_t*            linkName,
         _In_ mstring_t*            linkTarget,
@@ -190,7 +190,7 @@ FsLink(
 
 oserr_t
 FsReadLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ mstring_t*            path,
         _In_ mstring_t*            pathOut)
 {
@@ -200,7 +200,7 @@ FsReadLink(
 
 oserr_t
 FsMove(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ mstring_t*            from,
         _In_ mstring_t*            to,
         _In_ int                   copy)
@@ -211,7 +211,7 @@ FsMove(
 
 oserr_t
 FsRead(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -232,7 +232,7 @@ FsRead(
 
 oserr_t
 FsWrite(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -251,7 +251,7 @@ FsWrite(
 
 oserr_t
 FsSeek(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  void*                 data,
         _In_  uint64_t              absolutePosition,
         _Out_ uint64_t*             absolutePositionOut)
@@ -272,7 +272,7 @@ FsSeek(
 
 oserr_t
 FsDestroy(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ unsigned int          unmountFlags)
 {
     FileSystemMFS_t* fileSystem;
@@ -324,7 +324,7 @@ FsInitializeRootRecord(
 
 oserr_t
 FsInitialize(
-        _In_ struct VFSCommonData* vfsCommonData)
+        _In_ struct VFSStorageParameters* vfsCommonData)
 {
     MasterRecord_t*  masterRecord;
     BootRecord_t*    bootRecord;

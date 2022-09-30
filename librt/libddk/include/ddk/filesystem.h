@@ -35,16 +35,24 @@
 #define __FSDECL(Function) Function
 #endif
 
-struct VFSCommonData {
-    // Controlled by the VFS layer
-    StorageDescriptor_t Storage;
-    unsigned int        Flags;
-    uint64_t            SectorStart;
-    uint64_t            SectorCount;
-
-    // Set by the underlying filesystem
-    mstring_t*          Label;
-    void*               Data;
+/**
+ * @brief The data in VFSStorageParameters will be supplied once upon initialization
+ * of the filesystem. It is expected that the FS itself stores these parameters to
+ * use for storage operations.
+ */
+struct VFSStorageParameters {
+    unsigned int StorageType;
+    union {
+        struct {
+            uuid_t handleID;
+        } File;
+        struct {
+            uuid_t driverID;
+            uuid_t deviceID;
+        } Device;
+    } Storage;
+    unsigned int Flags;
+    uint64_t     SectorStart;
 };
 
 struct VFSStat {
@@ -78,104 +86,109 @@ struct VFSStatFS {
     uint64_t SegmentsFree;
 };
 
-/* FsInitialize 
- * Initializes a new instance of the file system
- * and allocates resources for the given descriptor */
+/**
+ * @brief Initializes a new instance of the given filesystem.
+ * @param setupParameters The parameters for how the filesystem can interact with the underlying storage device.
+ * @param instanceData    This should be set to whatever context the fileystem expects to be passed for each operation
+ *                        done on the filesystem.
+ * @return Status of the operation
+ */
 __FSAPI oserr_t
 __FSDECL(FsInitialize)(
-        _In_ struct VFSCommonData* vfsCommonData);
+        _In_  struct VFSStorageParameters* setupParameters,
+        _Out_ void**                     instanceData);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans
  * up any resources allocated by the filesystem instance */
 __FSAPI oserr_t
 __FSDECL(FsDestroy)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ unsigned int          unmountFlags);
+        _In_ void*         instanceData,
+        _In_ unsigned int  unmountFlags);
 
 __FSAPI oserr_t
 __FSDECL(FsOpen)(
-        _In_      struct VFSCommonData* vfsCommonData,
-        _In_      mstring_t*            path,
-        _Out_Opt_ void**                dataOut);
+        _In_      void*      instanceData,
+        _In_      mstring_t* path,
+        _Out_Opt_ void**     dataOut);
 
 __FSAPI oserr_t
 __FSDECL(FsCreate)(
-        _In_  struct VFSCommonData* vfsCommonData,
-        _In_  void*                 data,
-        _In_  mstring_t*            name,
-        _In_  uint32_t              owner,
-        _In_  uint32_t              flags,
-        _In_  uint32_t              permissions,
-        _Out_ void**                dataOut);
+        _In_  void*      instanceData,
+        _In_  void*      data,
+        _In_  mstring_t* name,
+        _In_  uint32_t   owner,
+        _In_  uint32_t   flags,
+        _In_  uint32_t   permissions,
+        _Out_ void**     dataOut);
 
 __FSAPI oserr_t
 __FSDECL(FsClose)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ void*                 data);
+        _In_ void* instanceData,
+        _In_ void* data);
 
 __FSAPI oserr_t
 __FSDECL(FsStat)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ struct VFSStatFS*     stat);
+        _In_ void*             instanceData,
+        _In_ struct VFSStatFS* stat);
 
 __FSAPI oserr_t
 __FSDECL(FsLink)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ void*                 data,
-        _In_ mstring_t*            linkName,
-        _In_ mstring_t*            linkTarget,
-        _In_ int                   symbolic);
+        _In_ void*      instanceData,
+        _In_ void*      data,
+        _In_ mstring_t* linkName,
+        _In_ mstring_t* linkTarget,
+        _In_ int        symbolic);
 
 __FSAPI oserr_t
 __FSDECL(FsUnlink)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ mstring_t*            path);
+        _In_ void*      instanceData,
+        _In_ mstring_t* path);
 
 __FSAPI oserr_t
 __FSDECL(FsReadLink)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ mstring_t*            path,
-        _In_ mstring_t*            pathOut);
+        _In_ void*      instanceData,
+        _In_ mstring_t* path,
+        _In_ mstring_t* pathOut);
 
 __FSAPI oserr_t
 __FSDECL(FsMove)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ mstring_t*            from,
-        _In_ mstring_t*            to,
-        _In_ int                   copy);
+        _In_ void*      instanceData,
+        _In_ mstring_t* from,
+        _In_ mstring_t* to,
+        _In_ int        copy);
 
 __FSAPI oserr_t
 __FSDECL(FsRead)(
-        _In_  struct VFSCommonData* vfsCommonData,
-        _In_  void*                 data,
-        _In_  uuid_t                bufferHandle,
-        _In_  void*                 buffer,
-        _In_  size_t                bufferOffset,
-        _In_  size_t                unitCount,
-        _Out_ size_t*               unitsRead);
+        _In_  void*   instanceData,
+        _In_  void*   data,
+        _In_  uuid_t  bufferHandle,
+        _In_  void*   buffer,
+        _In_  size_t  bufferOffset,
+        _In_  size_t  unitCount,
+        _Out_ size_t* unitsRead);
 
 __FSAPI oserr_t
 __FSDECL(FsWrite)(
-        _In_  struct VFSCommonData* vfsCommonData,
-        _In_  void*                 data,
-        _In_  uuid_t                bufferHandle,
-        _In_  void*                 buffer,
-        _In_  size_t                bufferOffset,
-        _In_  size_t                unitCount,
-        _Out_ size_t*               unitsWritten);
+        _In_  void*   instanceData,
+        _In_  void*   data,
+        _In_  uuid_t  bufferHandle,
+        _In_  void*   buffer,
+        _In_  size_t  bufferOffset,
+        _In_  size_t  unitCount,
+        _Out_ size_t* unitsWritten);
 
 __FSAPI oserr_t
 __FSDECL(FsTruncate)(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ void*                 data,
-        _In_ uint64_t              size);
+        _In_ void*    instanceData,
+        _In_ void*    data,
+        _In_ uint64_t size);
 
 __FSAPI oserr_t
 __FSDECL(FsSeek)(
-        _In_  struct VFSCommonData* vfsCommonData,
-        _In_  void*                 data,
-        _In_  uint64_t              absolutePosition,
-        _Out_ uint64_t*             absolutePositionOut);
+        _In_  void*     instanceData,
+        _In_  void*     data,
+        _In_  uint64_t  absolutePosition,
+        _Out_ uint64_t* absolutePositionOut);
 
 #endif //!__DDK_FILESYSTEM_H_

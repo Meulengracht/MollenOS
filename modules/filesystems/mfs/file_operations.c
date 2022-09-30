@@ -28,7 +28,7 @@
 
 oserr_t
 FsReadFromFile(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  MFSEntry_t*           entry,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -191,7 +191,7 @@ FsReadFromFile(
 
 oserr_t
 FsWriteToFile(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  MFSEntry_t*           entry,
         _In_  uuid_t                bufferHandle,
         _In_  void*                 buffer,
@@ -353,7 +353,7 @@ FsWriteToFile(
 
 oserr_t
 FsSeekInFile(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t*           entry,
         _In_ uint64_t              absolutePosition)
 {
@@ -446,7 +446,7 @@ FsSeekInFile(
 
 oserr_t
 FsTruncate(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ void*                 data,
         _In_ uint64_t              size)
 {

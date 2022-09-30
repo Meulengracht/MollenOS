@@ -69,7 +69,7 @@ static void __ExtractPathToken(
 }
 
 static inline void __StoreRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ FileRecord_t*         record,
         _In_ uint32_t              currentBucket,
         _In_ uint32_t              bucketLength,
@@ -85,7 +85,7 @@ static inline void __StoreRecord(
 }
 
 static oserr_t __ReadCurrentBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ FileSystemMFS_t*      mfs,
         _In_ uint32_t              currentBucket,
         _In_ MapRecord_t*          mapRecord)
@@ -121,7 +121,7 @@ static oserr_t __ReadCurrentBucket(
 }
 
 static oserr_t __ExpandDirectory(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              currentBucket,
         _In_ MapRecord_t*          mapRecord)
 {
@@ -162,7 +162,7 @@ static oserr_t __ExpandDirectory(
  *                          Any other Os* value is indicative of an error.
  */
 static oserr_t __FindEntryOrFreeInDirectoryBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ FileSystemMFS_t*      mfs,
         _In_ uint32_t              bucketOfDirectory,
         _In_ mstring_t*            entryName,
@@ -257,7 +257,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
 }
 
 static oserr_t __CreateEntryInDirectory(
-        _In_ struct VFSCommonData*   vfsCommonData,
+        _In_ struct VFSStorageParameters*   vfsCommonData,
         _In_  mstring_t*             name,
         _In_  uint32_t               owner,
         _In_  uint32_t               flags,
@@ -297,7 +297,7 @@ static oserr_t __CreateEntryInDirectory(
 
 oserr_t
 MfsLocateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucketOfDirectory,
         _In_ MFSEntry_t* entry,
         _In_ mstring_t*            path)
@@ -365,7 +365,7 @@ exit:
 
 oserr_t
 MfsCreateRecord(
-        _In_  struct VFSCommonData*  vfsCommonData,
+        _In_  struct VFSStorageParameters*  vfsCommonData,
         _In_  MFSEntry_t*  entry,
         _In_  mstring_t*             name,
         _In_  uint32_t               owner,

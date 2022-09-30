@@ -18,7 +18,7 @@
 
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_interface.h>
+#include <vfs/interface.h>
 #include "private.h"
 #include <string.h>
 #include <stdlib.h>
@@ -143,7 +143,7 @@ VFSNew(
         _In_  uuid_t                id,
         _In_  guid_t*               guid,
         _In_  struct VFSInterface*  interface,
-        _In_  struct VFSCommonData* commonData,
+        _In_  struct VFSStorageParameters* commonData,
         _Out_ struct VFS**          vfsOut)
 {
     struct VFS* vfs;

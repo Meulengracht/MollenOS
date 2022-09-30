@@ -31,7 +31,7 @@
 
 oserr_t
 MfsReadSectors(
-        _In_  struct VFSCommonData* vfsCommonData,
+        _In_  struct VFSStorageParameters* vfsCommonData,
         _In_  uuid_t                bufferHandle,
         _In_  size_t                bufferOffset,
         _In_  uint64_t              sector,
@@ -54,7 +54,7 @@ MfsReadSectors(
 
 oserr_t
 MfsWriteSectors(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uuid_t                bufferHandle,
         _In_ size_t                bufferOffset,
         _In_ uint64_t              sector,
@@ -75,7 +75,7 @@ MfsWriteSectors(
 
 oserr_t
 MfsUpdateMasterRecord(
-        _In_ struct VFSCommonData* vfsCommonData)
+        _In_ struct VFSStorageParameters* vfsCommonData)
 {
     FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
     size_t           sectorsTransferred;
@@ -95,7 +95,7 @@ MfsUpdateMasterRecord(
 
 oserr_t
 MfsGetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_  uint32_t             bucket,
         _Out_ MapRecord_t*         link)
 {
@@ -113,7 +113,7 @@ MfsGetBucketLink(
 
 oserr_t
 MfsSetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucket,
         _In_ MapRecord_t*          link,
         _In_ int                   updateLength)
@@ -153,7 +153,7 @@ MfsSetBucketLink(
 
 oserr_t
 MfsSwitchToNextBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t*           entry,
         _In_ size_t                bucketSizeBytes)
 {
@@ -187,7 +187,7 @@ MfsSwitchToNextBucketLink(
 
 oserr_t
 MfsAllocateBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ size_t                bucketCount,
         _In_ MapRecord_t*          mapRecord)
 {
@@ -290,7 +290,7 @@ MfsAllocateBuckets(
  * Frees an entire chain of buckets that has been allocated for a file-record */
 oserr_t
 MfsFreeBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              startBucket,
         _In_ uint32_t              startLength)
 {
@@ -341,7 +341,7 @@ MfsFreeBuckets(
  * Wipes the given bucket and count with zero values useful for clearing clusters of sectors */
 oserr_t
 MfsZeroBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ uint32_t              bucket,
         _In_ size_t                count)
 {
@@ -400,7 +400,7 @@ MfsFileRecordFlagsToVfsFlags(
 
 void
 MfsFileRecordToVfsFile(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ FileRecord_t*         nativeEntry,
         _In_ MFSEntry_t*           mfsEntry)
 {
@@ -427,7 +427,7 @@ MfsFileRecordToVfsFile(
 
 oserr_t
 MfsUpdateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t*           entry,
         _In_ int                   action)
 {
@@ -494,7 +494,7 @@ Cleanup:
  * Ensures that the given record has the space neccessary for the required data. */
 oserr_t
 MfsEnsureRecordSpace(
-        _In_ struct VFSCommonData* vfsCommonData,
+        _In_ struct VFSStorageParameters* vfsCommonData,
         _In_ MFSEntry_t*           entry,
         _In_ uint64_t              spaceRequired)
 {

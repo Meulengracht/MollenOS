@@ -64,33 +64,51 @@ VFSStorageNew(
     return storage;
 }
 
+static void __DestroyFilesystem(
+        _In_ element_t* item,
+        _In_ void*      context)
+{
+    FileSystem_t* fileSystem = (FileSystem_t*)item;
+    _CRT_UNUSED(context);
+    FileSystemDestroy(fileSystem);
+}
+
 void
 VFSStorageDelete(
         _In_ struct VFSStorage* storage)
 {
+    if (storage == NULL) {
+        return;
+    }
 
+    list_clear(&storage->Filesystems, __DestroyFilesystem, NULL);
+    if (storage->Operations.Destroy) {
+        storage->Operations.Destroy(storage->Data);
+    }
+    free(storage);
 }
 
 oserr_t
 VFSStorageRegisterFileSystem(
-        _In_ FileSystemStorage_t* storage,
-        _In_ int                  partitionIndex,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount,
-        _In_ enum FileSystemType  type,
-        _In_ guid_t*              typeGuid,
-        _In_ guid_t*              guid)
+        _In_ struct VFSStorage*  storage,
+        _In_ int                 partitionIndex,
+        _In_ uint64_t            sector,
+        _In_ guid_t*             guid,
+        _In_ const char*         typeHint,
+        _In_ guid_t*             typeGuid,
+        _In_ uuid_t              interfaceDriverID,
+        _In_ mstring_t*          mountPoint)
 {
     FileSystem_t*        fileSystem;
-    enum FileSystemType  fsType = type;
+    const char*          fsType = typeHint;
     struct VFSInterface* interface = NULL;
     oserr_t              osStatus;
     uuid_t               id;
 
-    TRACE("VFSStorageRegisterFileSystem(sector=%u, sectorCount=%u, type=%u)",
-          LODWORD(sector), LODWORD(sectorCount), type);
+    TRACE("VFSStorageRegisterFileSystem(sector=%u, type=%s)",
+          LODWORD(sector), typeHint);
 
-    if (fsType == FileSystemType_UNKNOWN) {
+    if (fsType == NULL) {
         // try to deduce from type guid
         fsType = FileSystemParseGuid(typeGuid);
     }
@@ -101,12 +119,11 @@ VFSStorageRegisterFileSystem(
     // always be known ahead of FS registration.
     id = VFSIdentifierAllocate(storage);
     fileSystem = FileSystemNew(
-            &storage->Storage,
+            storage,
             partitionIndex,
             id,
             guid,
-            sector,
-            sectorCount
+            sector
     );
     if (!fileSystem) {
         VFSIdentifierFree(storage, id);
@@ -120,9 +137,16 @@ VFSStorageRegisterFileSystem(
     // Try to find a module for the filesystem type. If this returns an error
     // it simply means we are not in a sitatuion where we can load the filesystem
     // right now. A module may be present later, so we still register it as disconnected
-    osStatus = VFSInterfaceLoadInternal(fsType, &interface);
-    if (osStatus != OsOK) {
-        WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
+    if (interfaceDriverID == UUID_INVALID) {
+        osStatus = VFSInterfaceLoadInternal(typeHint, &interface);
+        if (osStatus != OsOK) {
+            WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
+        }
+    } else {
+        osStatus = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
+        if (osStatus != OsOK) {
+            WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
+        }
     }
 
     osStatus = VFSFileSystemConnectInterface(fileSystem, interface);
@@ -133,7 +157,7 @@ VFSStorageRegisterFileSystem(
         return osStatus;
     }
 
-    osStatus = VFSFileSystemMount(fileSystem, NULL);
+    osStatus = VFSFileSystemMount(fileSystem, mountPoint);
     if (osStatus != OsOK) {
         return osStatus;
     }
@@ -141,19 +165,8 @@ VFSStorageRegisterFileSystem(
 }
 
 static oserr_t
-__StorageVerify(
-        _In_ FileSystemStorage_t* fsStorage)
-{
-    // TODO implement meaningful validation
-    if (fsStorage->Storage.SectorCount == 0) {
-        return OsError;
-    }
-    return OsOK;
-}
-
-static oserr_t
 __StorageMount(
-        _In_ FileSystemStorage_t* fsStorage)
+        _In_ struct VFSStorage* storage)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
     struct VFSNode* deviceNode;
@@ -161,7 +174,7 @@ __StorageMount(
     mstring_t*      path;
     TRACE("__StorageMount()");
 
-    path = mstr_fmt("/storage/%s", &fsStorage->Storage.Serial[0]);
+    path = mstr_fmt("/storage/%s", &storage->Storage.Serial[0]);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -180,37 +193,27 @@ __StorageMount(
 
 static void
 __StorageSetup(
-        _In_ FileSystemStorage_t* fsStorage,
-        _In_ void*                cancellationToken)
+        _In_ struct VFSStorage* storage,
+        _In_ void*              cancellationToken)
 {
-    struct vali_link_message   msg  = VALI_MSG_INIT_HANDLE(fsStorage->Storage.DriverID);
-    oserr_t                    osStatus;
-    struct sys_disk_descriptor gdescriptor;
+    oserr_t osStatus;
     TRACE("__StorageSetup()");
 
     usched_mtx_lock(&g_diskLock);
-    list_append(&g_disks, &fsStorage->Header);
+    list_append(&g_disks, &storage->ListHeader);
     usched_mtx_unlock(&g_diskLock);
 
-    ctt_storage_stat(GetGrachtClient(), &msg.base, fsStorage->Storage.DeviceID);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
-    if (osStatus != OsOK) {
-        fsStorage->State = STORAGE_STATE_FAILED;
-        return;
-    }
-    from_sys_disk_descriptor_dkk(&gdescriptor, &fsStorage->Storage);
 
     // OK now we do some basic verification of the storage medium (again, could be
     // anthing, network, usb, file, harddisk)
-    osStatus = __StorageVerify(fsStorage);
+    osStatus = __StorageVerify(storage);
     if (osStatus != OsOK) {
         ERROR("__StorageSetup verification of storage medium failed: %u", osStatus);
         goto error;
     }
 
     // Next thing is mounting the storage device as a folder
-    osStatus = __StorageMount(fsStorage);
+    osStatus = __StorageMount(storage);
     if (osStatus != OsOK) {
         ERROR("__StorageSetup mounting storage device failed: %u", osStatus);
         goto error;
@@ -218,58 +221,34 @@ __StorageSetup(
 
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
-    osStatus = VFSStorageParse(fsStorage);
+    osStatus = VFSStorageParse(storage);
     if (osStatus != OsOK) {
         goto error;
     }
 
-    fsStorage->State = STORAGE_STATE_CONNECTED;
+    storage->State = STORAGE_STATE_CONNECTED;
     return;
 
 error:
-    fsStorage->State = STORAGE_STATE_DISCONNECTED;
-}
-
-static FileSystemStorage_t*
-__FileSystemStorageNew(
-        _In_ uuid_t       deviceID,
-        _In_ uuid_t       driverID,
-        _In_ unsigned int flags)
-{
-    FileSystemStorage_t* fsStorage;
-
-    fsStorage = (FileSystemStorage_t*)malloc(sizeof(FileSystemStorage_t));
-    if (!fsStorage) {
-        return NULL;
-    }
-    memset(fsStorage, 0, sizeof(FileSystemStorage_t));
-
-    ELEMENT_INIT(&fsStorage->Header, (uintptr_t)deviceID, fsStorage);
-    fsStorage->Storage.DriverID = driverID;
-    fsStorage->Storage.DeviceID = deviceID;
-    fsStorage->Storage.Flags     = flags;
-    fsStorage->State             = STORAGE_STATE_INITIALIZING;
-    list_construct(&fsStorage->Filesystems);
-    usched_mtx_init(&fsStorage->Lock);
-    return fsStorage;
+    storage->State = STORAGE_STATE_DISCONNECTED;
 }
 
 void sys_storage_register_invocation(struct gracht_message* message,
                                      const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
 {
-    FileSystemStorage_t* storage = __FileSystemStorageNew(deviceId, driverId, (unsigned int)flags);
+    struct VFSStorage* storage = __FileSystemStorageNew(deviceId, driverId, (unsigned int)flags);
     if (!storage) {
         // TODO
         ERROR("sys_storage_register_invocation FAILED TO CREATE STORAGE STRUCTURE");
         return;
     }
-    usched_job_queue((usched_task_fn) __StorageSetup, storage);
+    usched_job_queue((usched_task_fn)__StorageSetup, storage);
 }
 
 static void
 __StorageUnmount(
-        _In_ FileSystemStorage_t* fsStorage,
-        _In_ unsigned int         flags)
+        _In_ struct VFSStorage* fsStorage,
+        _In_ unsigned int       flags)
 {
     element_t* i;
 
@@ -298,7 +277,7 @@ __StorageDestroy(
     usched_mtx_unlock(&g_diskLock);
 
     if (header) {
-        FileSystemStorage_t* fsStorage = header->value;
+        struct VFSStorage* fsStorage = header->value;
         __StorageUnmount(fsStorage, request->flags);
         free(fsStorage);
     }

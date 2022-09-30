@@ -9,7 +9,6 @@ add_subdirectory(vfs)
 
 set (SERVICE_HEADERS
         include/vfs/filesystem.h
-        include/vfs/filesystem_types.h
         include/vfs/gpt.h
         include/vfs/mbr.h
         include/vfs/requests.h

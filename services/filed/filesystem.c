@@ -1,5 +1,5 @@
 /**
- * Copyright 2021, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include <string.h>
 #include <vfs/filesystem.h>
 #include <vfs/scope.h>
+#include <vfs/storage.h>
 
 #include <sys_file_service_server.h>
 
@@ -59,18 +60,18 @@ static void __StorageReadyEvent(mstring_t* mountPoint)
     free(mp);
 }
 
-enum FileSystemType
+const char*
 FileSystemParseGuid(
         _In_ guid_t* guid)
 {
     if (!guid_cmp(guid, &g_efiGuid) || !guid_cmp(guid, &g_fatGuid)) {
-        return FileSystemType_FAT;
+        return "fat";
     }
     if (!guid_cmp(guid, &g_mfsSystemGuid) || !guid_cmp(guid, &g_mfsUserDataGuid) ||
         !guid_cmp(guid, &g_mfsUserGuid) || !guid_cmp(guid, &g_mfsDataGuid)) {
-        return FileSystemType_MFS;
+        return "mfs";
     }
-    return FileSystemType_UNKNOWN;
+    return NULL;
 }
 
 void VfsFileSystemInitialize(void)
@@ -88,15 +89,14 @@ void VfsFileSystemInitialize(void)
 
 FileSystem_t*
 FileSystemNew(
-        _In_ StorageDescriptor_t* storage,
-        _In_ int                  partitionIndex,
-        _In_ uuid_t               id,
-        _In_ guid_t*              guid,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount)
+        _In_ struct VFSStorage* storage,
+        _In_ int                partitionIndex,
+        _In_ uuid_t             id,
+        _In_ guid_t*            guid,
+        _In_ uint64_t           sector)
 {
     FileSystem_t* fileSystem;
-    TRACE("FileSystemNew(storage=%s, partition=%i, sector=%llu)", &storage->Serial[0], partitionIndex, sector);
+    TRACE("FileSystemNew(storage=%u, partition=%i, sector=%llu)", &storage->ID, partitionIndex, sector);
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {
@@ -104,22 +104,22 @@ FileSystemNew(
     }
     memset(fileSystem, 0, sizeof(FileSystem_t));
 
-    ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->DeviceID, fileSystem);
+    ELEMENT_INIT(&fileSystem->Header, (uintptr_t)storage->ID, fileSystem);
     fileSystem->ID                     = id;
     fileSystem->State                  = FileSystemState_NO_INTERFACE;
     fileSystem->PartitionIndex         = partitionIndex;
     fileSystem->Interface              = NULL;
     fileSystem->CommonData.SectorStart = sector;
-    fileSystem->CommonData.SectorCount = sectorCount;
     memcpy(&fileSystem->GUID, guid, sizeof(guid_t));
-    memcpy(&fileSystem->CommonData.Storage, storage, sizeof(StorageDescriptor_t));
     usched_mtx_init(&fileSystem->Lock);
     return fileSystem;
 }
 
-void FileSystemDestroy(FileSystem_t* fileSystem)
+void
+FileSystemDestroy(
+        _In_ FileSystem_t* fileSystem)
 {
-    TRACE("FileSystemDestroy(storage=%s, sector=%llu)",
+    TRACE("FileSystemDestroy(storage=%u, sector=%llu)",
           &fileSystem->CommonData.Storage.Serial[0],
           fileSystem->CommonData.SectorStart);
 

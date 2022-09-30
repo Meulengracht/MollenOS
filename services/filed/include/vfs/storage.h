@@ -41,13 +41,15 @@ enum VFSStorageState {
 struct VFSStorage;
 
 struct VFSStorageOperations {
-    oserr_t (*Destroy)(void*);
-    oserr_t (*Read)(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
-    oserr_t (*Write)(void*, uuid_t, size_t, UInteger64_t, size_t, size_t*);
+    void    (*Destroy)(void*);
+    oserr_t (*Read)(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+    oserr_t (*Write)(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+    void    (*Stat)(void*, StorageDescriptor_t*);
 };
 
 struct VFSStorage {
     element_t                   ListHeader;
+    uuid_t                      ID;
     struct usched_mtx           Lock;
     enum VFSStorageState        State;
     struct VFSStorageOperations Operations;
@@ -84,7 +86,7 @@ VFSStorageDelete(
  */
 extern struct VFSStorage*
 VFSStorageCreateFileBacked(
-        _In_ mstring_t* path);
+        _In_ uuid_t fileHandleID);
 
 /**
  * @brief
@@ -99,19 +101,29 @@ VFSStorageCreateDeviceBacked(
         _In_ uuid_t       driverID,
         _In_ unsigned int flags);
 
+
 /**
- * @brief Registers a new filesystem of the given type, on the given disk with the given position on the disk
- * and assigns it an identifier.
+ * @brief
+ * @param storage
+ * @param partitionIndex
+ * @param sector
+ * @param guid
+ * @param typeHint
+ * @param typeGuid
+ * @param interfaceDriverID
+ * @param mountPoint
+ * @return
  */
 extern oserr_t
 VFSStorageRegisterFileSystem(
         _In_ struct VFSStorage*  storage,
         _In_ int                 partitionIndex,
         _In_ uint64_t            sector,
-        _In_ uint64_t            sectorCount,
-        _In_ enum FileSystemType type,
+        _In_ guid_t*             guid,
+        _In_ const char*         typeHint,
         _In_ guid_t*             typeGuid,
-        _In_ guid_t*             guid);
+        _In_ uuid_t              interfaceDriverID,
+        _In_ mstring_t*          mountPoint);
 
 /**
  * @brief Detects the kind of layout on the disk, be it MBR or GPT layout, if there is no layout it returns
