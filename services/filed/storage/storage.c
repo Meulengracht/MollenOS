@@ -198,6 +198,8 @@ __StorageMount(
     }
     TRACE("__StorageMount mounting at %ms", path);
 
+    // TODO we should probably be using VFSNodeMkdir instead and keep a handle
+    // on the directory for the lifetime of the storage.
     osStatus = VFSNodeNewDirectory(
             fsScope, path,
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE,

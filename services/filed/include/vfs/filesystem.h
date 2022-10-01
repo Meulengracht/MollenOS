@@ -49,7 +49,7 @@ typedef struct FileSystem {
     enum FileSystemState  State;
     struct VFS*           VFS;
     struct VFSInterface*  Interface;
-    struct VFSNode*       MountNode;
+    uuid_t                MountHandle;
     struct usched_mtx     Lock;
 } FileSystem_t;
 

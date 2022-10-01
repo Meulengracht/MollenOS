@@ -46,6 +46,7 @@ extern mstring_t* VFSNodeMakePath(struct VFSNode* node, int local);
 
 extern oserr_t VFSNodeOpen(struct VFS*, const char* cpath, uint32_t options, uint32_t access, uuid_t* handleOut);
 extern oserr_t VFSNodeClose(struct VFS*, uuid_t handleID);
+extern oserr_t VFSNodeMkdir(struct VFS*, mstring_t* path, uint32_t access, uuid_t* handleOut);
 extern oserr_t VFSNodeLink(struct VFS*, struct VFSRequest*);
 extern oserr_t VFSNodeUnlink(struct VFS*, struct VFSRequest*);
 extern oserr_t VFSNodeMove(struct VFS*, struct VFSRequest*);
@@ -60,6 +61,7 @@ extern oserr_t VFSNodeUnbind(struct VFS*, uuid_t directoryHandleID);
 
 extern oserr_t VFSNodeMount(struct VFS*, uuid_t atID, struct VFS* what);
 extern oserr_t VFSNodeUnmount(struct VFS*, uuid_t directoryHandleID);
+extern oserr_t VFSNodeUnmountPath(struct VFS*, mstring_t* path);
 
 extern oserr_t VFSNodeDuplicate(struct VFSRequest*, uuid_t* handleOut);
 extern oserr_t VFSNodeRead(struct VFSRequest*, size_t* readOut);

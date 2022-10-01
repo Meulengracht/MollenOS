@@ -4,6 +4,7 @@ add_library(filed-vfs-handlers
         flush.c
         handle_stat.c
         link.c
+        mkdir.c
         move.c
         open.c
         read.c

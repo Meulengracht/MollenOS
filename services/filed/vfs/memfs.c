@@ -175,29 +175,31 @@ static struct MemFS* __MemFS_new(void)
 
 static oserr_t
 __MemFSInitialize(
-        _In_ struct VFSStorageParameters* vfsCommonData)
+        _In_ struct VFSStorageParameters* storageParameters,
+        _Out_ void**                      instanceData)
 {
     TRACE("__MemFSInitialize()");
+    _CRT_UNUSED(storageParameters);
 
     struct MemFS* memfs = __MemFS_new();
     if (memfs == NULL) {
         return OsOutOfMemory;
     }
 
-    vfsCommonData->Data = memfs;
+    *instanceData = memfs;
     return OsOK;
 }
 
 static oserr_t
 __MemFSDestroy(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ unsigned int          unmountFlags)
+        _In_ void*        instanceData,
+        _In_ unsigned int unmountFlags)
 {
     TRACE("__MemFSDestroy()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
-    __MemFS_delete(vfsCommonData->Data);
+    __MemFS_delete(instanceData);
     return OsOK;
 }
 
@@ -274,17 +276,17 @@ static oserr_t __FindNode(struct MemFSEntry* root, mstring_t* path, struct MemFS
 
 static oserr_t
 __MemFSOpen(
-        _In_      struct VFSStorageParameters* vfsCommonData,
-        _In_      mstring_t*            path,
-        _Out_Opt_ void**                dataOut)
+        _In_      void*      instanceData,
+        _In_      mstring_t* path,
+        _Out_Opt_ void**     dataOut)
 {
-    struct MemFS*       memfs = vfsCommonData->Data;
+    struct MemFS*       memfs = instanceData;
     struct MemFSHandle* handle;
     struct MemFSEntry*  entry;
     oserr_t             oserr;
 
     TRACE("__MemFSOpen(path=%ms)", path);
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -354,22 +356,22 @@ static oserr_t __CreateInNode(
 
 static oserr_t
 __MemFSCreate(
-        _In_  struct VFSStorageParameters* vfsCommonData,
-        _In_  void*                 data,
-        _In_  mstring_t*            name,
-        _In_  uint32_t              owner,
-        _In_  uint32_t              flags,
-        _In_  uint32_t              permissions,
-        _Out_ void**                dataOut)
+        _In_  void*      instanceData,
+        _In_  void*      data,
+        _In_  mstring_t* name,
+        _In_  uint32_t   owner,
+        _In_  uint32_t   flags,
+        _In_  uint32_t   permissions,
+        _Out_ void**     dataOut)
 {
-    //struct MemFS*       memfs  = vfsCommonData->Data;
+    //struct MemFS*       memfs  = instanceData;
     struct MemFSHandle* handle = data;
     struct MemFSHandle* newHandle;
     oserr_t             oserr;
     struct MemFSEntry*  entry;
 
     TRACE("__MemFSCreate(name=%ms)", name);
-    if (vfsCommonData->Data == NULL || data == NULL) {
+    if (instanceData == NULL || data == NULL) {
         return OsInvalidParameters;
     }
 
@@ -400,11 +402,11 @@ __MemFSCreate(
 
 static oserr_t
 __MemFSClose(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ void*                 data)
+        _In_ void* instanceData,
+        _In_ void* data)
 {
     TRACE("__MemFSClose()");
-    if (vfsCommonData->Data == NULL || data == NULL) {
+    if (instanceData == NULL || data == NULL) {
         return OsInvalidParameters;
     }
 
@@ -414,11 +416,11 @@ __MemFSClose(
 
 static oserr_t
 __MemFSStat(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ struct VFSStatFS*     stat)
+        _In_ void*             instanceData,
+        _In_ struct VFSStatFS* stat)
 {
     TRACE("__MemFSStat()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -436,27 +438,26 @@ __MemFSStat(
 
 static oserr_t
 __MemFSLink(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ void*                 data,
-        _In_ mstring_t*            linkName,
-        _In_ mstring_t*            linkTarget,
-        _In_ int                   symbolic)
+        _In_ void*      instanceData,
+        _In_ void*      data,
+        _In_ mstring_t* linkName,
+        _In_ mstring_t* linkTarget,
+        _In_ int        symbolic)
 {
     TRACE("__MemFSLink()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
-
     return OsNotSupported;
 }
 
 static oserr_t
 __MemFSUnlink(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ mstring_t*            path)
+        _In_ void*      instanceData,
+        _In_ mstring_t* path)
 {
     TRACE("__MemFSUnlink()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -465,12 +466,12 @@ __MemFSUnlink(
 
 static oserr_t
 __MemFSReadLink(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ mstring_t*            path,
-        _In_ mstring_t*            pathOut)
+        _In_ void*      instanceData,
+        _In_ mstring_t* path,
+        _In_ mstring_t* pathOut)
 {
     TRACE("__MemFSReadLink()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -479,13 +480,13 @@ __MemFSReadLink(
 
 static oserr_t
 __MemFSMove(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ mstring_t*            from,
-        _In_ mstring_t*            to,
-        _In_ int                   copy)
+        _In_ void*      instanceData,
+        _In_ mstring_t* from,
+        _In_ mstring_t* to,
+        _In_ int        copy)
 {
     TRACE("__MemFSMove(from=%ms, to=%ms, copy=%i)", from, to, copy);
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -605,18 +606,18 @@ static oserr_t __ReadDirectory(
 
 static oserr_t
 __MemFSRead(
-        _In_  struct VFSStorageParameters* vfsCommonData,
-        _In_  void*                 data,
-        _In_  uuid_t                bufferHandle,
-        _In_  void*                 buffer,
-        _In_  size_t                bufferOffset,
-        _In_  size_t                unitCount,
-        _Out_ size_t*               unitsRead)
+        _In_  void*   instanceData,
+        _In_  void*   data,
+        _In_  uuid_t  bufferHandle,
+        _In_  void*   buffer,
+        _In_  size_t  bufferOffset,
+        _In_  size_t  unitCount,
+        _Out_ size_t* unitsRead)
 {
     struct MemFSHandle* handle = data;
 
     TRACE("__MemFSRead()");
-    if (vfsCommonData->Data == NULL || data == NULL) {
+    if (instanceData == NULL || data == NULL) {
         return OsInvalidParameters;
     }
 
@@ -638,16 +639,16 @@ __MemFSRead(
 
 static oserr_t
 __MemFSWrite(
-        _In_  struct VFSStorageParameters* vfsCommonData,
-        _In_  void*                 data,
-        _In_  uuid_t                bufferHandle,
-        _In_  void*                 buffer,
-        _In_  size_t                bufferOffset,
-        _In_  size_t                unitCount,
-        _Out_ size_t*               unitsWritten)
+        _In_  void*   instanceData,
+        _In_  void*   data,
+        _In_  uuid_t  bufferHandle,
+        _In_  void*   buffer,
+        _In_  size_t  bufferOffset,
+        _In_  size_t  unitCount,
+        _Out_ size_t* unitsWritten)
 {
     TRACE("__MemFSWrite()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -656,12 +657,12 @@ __MemFSWrite(
 
 static oserr_t
 __MemFSTruncate(
-        _In_ struct VFSStorageParameters* vfsCommonData,
-        _In_ void*                 data,
-        _In_ uint64_t              size)
+        _In_ void*    instanceData,
+        _In_ void*    data,
+        _In_ uint64_t size)
 {
     TRACE("__MemFSTruncate()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
@@ -670,13 +671,13 @@ __MemFSTruncate(
 
 static oserr_t
 __MemFSSeek(
-        _In_  struct VFSStorageParameters* vfsCommonData,
-        _In_  void*                 data,
-        _In_  uint64_t              absolutePosition,
-        _Out_ uint64_t*             absolutePositionOut)
+        _In_  void*     instanceData,
+        _In_  void*     data,
+        _In_  uint64_t  absolutePosition,
+        _Out_ uint64_t* absolutePositionOut)
 {
     TRACE("__MemFSSeek()");
-    if (vfsCommonData->Data == NULL) {
+    if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 

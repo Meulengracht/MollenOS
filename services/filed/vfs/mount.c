@@ -21,7 +21,7 @@
 #include "private.h"
 #include <string.h>
 
-oserr_t VFSNodeMount(struct VFS* vfs, struct VFSNode* at, struct VFS* what)
+oserr_t VFSNodeMount(struct VFS* vfs, uuid_t atID, struct VFS* what)
 {
     oserr_t osStatus = OsOK;
 
@@ -39,7 +39,7 @@ exit:
     return osStatus;
 }
 
-oserr_t VFSNodeUnmount(struct VFS* vfs, struct VFSNode* node)
+oserr_t VFSNodeUnmount(struct VFS* vfs, uuid_t directoryHandleID)
 {
     oserr_t osStatus = OsOK;
 
@@ -55,4 +55,9 @@ oserr_t VFSNodeUnmount(struct VFS* vfs, struct VFSNode* node)
 exit:
     usched_rwlock_w_unlock(&node->Lock);
     return osStatus;
+}
+
+oserr_t VFSNodeUnmountPath(struct VFS* vfs, mstring_t* path)
+{
+
 }

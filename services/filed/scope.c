@@ -30,11 +30,12 @@ static oserr_t
 __NewMemFS(
         _In_  mstring_t*           label,
         _In_  guid_t*              guid,
-        _In_ struct VFSStorageParameters* vfsCommonData,
         _Out_ struct VFS**         vfsOut)
 {
-    struct VFSInterface* interface;
-    oserr_t              osStatus;
+    struct VFSStorageParameters storageParameters;
+    struct VFSInterface*        interface;
+    oserr_t                     osStatus;
+    void*                       interfaceData = NULL;
     _CRT_UNUSED(label); // TODO missing support for setting this, where should we do it
 
     interface = MemFSNewInterface();
@@ -42,19 +43,19 @@ __NewMemFS(
         return OsOutOfMemory;
     }
 
-    osStatus = VFSNew(UUID_INVALID, guid, interface, vfsCommonData, vfsOut);
-    if (osStatus != OsOK) {
-        VFSInterfaceDelete(interface);
-    }
-
     // Normally the FileSystem interface will take care of initializing for us,
     // but when dealing with our VFS* directly, we have to take care of initializing
     // and destructing manually
     if (interface->Operations.Initialize) {
-        osStatus = interface->Operations.Initialize(vfsCommonData);
+        osStatus = interface->Operations.Initialize(&storageParameters, &interfaceData);
         if (osStatus != OsOK) {
             VFSInterfaceDelete(interface);
         }
+    }
+
+    osStatus = VFSNew(UUID_INVALID, guid, interfaceData, interface, vfsOut);
+    if (osStatus != OsOK) {
+        VFSInterfaceDelete(interface);
     }
     return osStatus;
 }
@@ -77,9 +78,7 @@ void VFSScopeInitialize(void)
 {
     oserr_t osStatus;
 
-    osStatus = __NewMemFS(
-            &g_globalName, &g_rootGuid,
-            &g_rootCommonData, &g_rootScope);
+    osStatus = __NewMemFS(&g_globalName, &g_rootGuid, &g_rootScope);
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
         return;

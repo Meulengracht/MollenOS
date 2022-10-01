@@ -20,7 +20,7 @@
 #include "private.h"
 #include <string.h>
 
-oserr_t VFSNodeBind(struct VFS* vfs, struct VFSNode* from, struct VFSNode* to)
+oserr_t VFSNodeBind(struct VFS* vfs, uuid_t fromID, uuid_t toID)
 {
     oserr_t osStatus = OsOK;
 
@@ -42,7 +42,7 @@ exit:
     return osStatus;
 }
 
-oserr_t VFSNodeUnbind(struct VFS* vfs, struct VFSNode* node)
+oserr_t VFSNodeUnbind(struct VFS* vfs, uuid_t directoryHandleID)
 {
     oserr_t osStatus = OsOK;
 

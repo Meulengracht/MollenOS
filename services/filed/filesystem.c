@@ -173,7 +173,7 @@ __MountFileSystemAtDefault(
         _In_ FileSystem_t* fileSystem)
 {
     struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
-    struct VFSNode* partitionNode;
+    uuid_t          nodeHandle;
     oserr_t         osStatus;
     mstring_t*      path;
     mstring_t*      label;
@@ -191,22 +191,25 @@ __MountFileSystemAtDefault(
     }
 
     TRACE("__MountFileSystemAtDefault mounting at %ms", path);
-    osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &partitionNode);
+    osStatus = VFSNodeMkdir(
+            fsScope,
+            path,
+            FILE_PERMISSION_READ,
+            &nodeHandle
+    );
     if (osStatus != OsOK && osStatus != OsExists) {
         ERROR("__MountFileSystemAtDefault failed to create node %ms", path);
         mstr_delete(path);
         return osStatus;
     }
 
-    osStatus = VFSNodeMount(fsScope, partitionNode, fileSystem->VFS);
+    osStatus = VFSNodeMount(fsScope, nodeHandle, fileSystem->VFS);
     if (osStatus != OsOK) {
         ERROR("__MountFileSystemAtDefault failed to mount filesystem at %ms", path);
         mstr_delete(path);
         return osStatus;
     }
-
-    // Store the root mount node, so we can unmount later (ez)
-    fileSystem->MountNode = partitionNode;
+    fileSystem->MountHandle = nodeHandle;
     return OsOK;
 }
 
@@ -215,18 +218,23 @@ __MountFileSystemAt(
         _In_ FileSystem_t* fileSystem,
         _In_ mstring_t*    path)
 {
-    struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
-    struct VFSNode* bindNode;
-    oserr_t         osStatus;
+    struct VFS* fsScope = VFSScopeGet(UUID_INVALID);
+    uuid_t      bindHandle;
+    oserr_t     oserr;
     TRACE("__MountFileSystemAt(fs=%u, path=%ms)", fileSystem->ID, path);
 
-    osStatus = VFSNodeNewDirectory(fsScope, path, FILE_PERMISSION_READ, &bindNode);
-    if (osStatus != OsOK && osStatus != OsExists) {
+    oserr = VFSNodeMkdir(
+            fsScope,
+            path,
+            FILE_PERMISSION_READ,
+            &bindHandle
+    );
+    if (oserr != OsOK && oserr != OsExists) {
         ERROR("__MountFileSystemAt failed to create node %ms", path);
-        return osStatus;
+        return oserr;
     }
 
-    return VFSNodeBind(fsScope, fileSystem->MountNode, bindNode);
+    return VFSNodeBind(fsScope, fileSystem->MountHandle, bindHandle);
 }
 
 static void
@@ -363,9 +371,8 @@ VFSFileSystemMount(
                     fsLabel, mountPoint);
         }
 
-        path = VFSNodeMakePath(fileSystem->MountNode, 0);
-        if (path == NULL) {
-            osStatus = OsOutOfMemory;
+        osStatus = VFSNodeGetPathHandle(fileSystem->MountHandle, &path);
+        if (osStatus != OsOK) {
             goto exit;
         }
 
@@ -415,7 +422,15 @@ VfsFileSystemUnmount(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_MOUNTED) {
-        VFSNodeDestroy(fileSystem->MountNode);
+        // TODO this is absolutely wrong, right now we are trying to unmount
+        // ourselves in the wrong VFS (Which is ourselves). The right thing to do
+        // here is to STORE THE VFS WE ARE MOUNTED IN.
+        VFSNodeUnmount(
+                fileSystem->VFS,
+                fileSystem->MountHandle
+        );
+        // TODO this is also wrong fs scope!
+        VFSNodeClose(fileSystem->VFS, fileSystem->MountHandle);
         fileSystem->State = FileSystemState_CONNECTED;
         osStatus = OsOK;
     }

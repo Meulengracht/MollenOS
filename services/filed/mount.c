@@ -15,8 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __TRACE
+
+#include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <vfs/filesystem.h>
+#include <vfs/interface.h>
 #include <vfs/requests.h>
 #include <vfs/scope.h>
 #include <vfs/storage.h>
@@ -37,6 +41,67 @@ static uint32_t __AccessFlagsFromMountFlags(enum sys_mount_flags mountFlags)
     return access;
 }
 
+static oserr_t __SetupFileBackedStorage(
+        _In_  struct VFSStorage*  storage,
+        _In_  size_t              offset,
+        _In_  const char*         fsType,
+        _In_  uuid_t              interfaceDriverID,
+        _Out_ struct FileSystem** fileSystemOut)
+{
+    struct VFSInterface* interface;
+    struct FileSystem*   fileSystem;
+    oserr_t              oserr;
+    UInteger64_t         sector;
+
+    // Offset should be given in bytes, and should always be 512-bytes
+    // aligned.
+    sector.QuadPart = offset / 512;
+    oserr = VFSStorageRegisterPartition(
+            storage,
+            0,
+            &sector,
+            NULL,
+            &fileSystem
+    );
+    if (oserr != OsOK) {
+        return oserr;
+    }
+    *fileSystemOut = fileSystem;
+
+    // Try to find a module for the filesystem type. Since this is file mounted, and we
+    // only support RO file mounts at the moment, we expect to be able to resolve the file
+    // system driver immediately
+    if (interfaceDriverID == UUID_INVALID && fsType == NULL) {
+        // Use auto-detection like we do for MBR/GPT
+        oserr = VFSStorageDetectFileSystem(
+                storage,
+                UUID_INVALID,
+                NULL,
+                &sector
+        );
+        if (oserr != OsOK) {
+            WARNING("__SetupFileBackedStorage failed to detect filesystem");
+        }
+    }
+
+    if (interfaceDriverID == UUID_INVALID) {
+        oserr = VFSInterfaceLoadInternal(fsType, &interface);
+        if (oserr != OsOK) {
+            WARNING("__SetupFileBackedStorage no module for filesystem type %u", fsType);
+        }
+    } else {
+        oserr = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
+        if (oserr != OsOK) {
+            WARNING("__SetupFileBackedStorage failed to register driver for %u", fsType);
+        }
+    }
+
+    // If the interface fails to connect, then the filesystem will go into
+    // state NO_INTERFACE. We bail early then as there is no reason to mount the
+    // filesystem
+    return VFSFileSystemConnectInterface(fileSystem, interface);
+}
+
 static oserr_t __MountFile(
         _In_ struct VFS*          vfs,
         _In_ const char*          cpath,
@@ -47,10 +112,9 @@ static oserr_t __MountFile(
         _In_ enum sys_mount_flags flags)
 {
     struct VFSStorage* storage;
+    struct FileSystem* fileSystem;
     uuid_t             handle;
     oserr_t            oserr;
-    mstring_t*         path;
-    UInteger64_t       sector;
 
     oserr = VFSNodeOpen(
             vfs, cpath,
@@ -71,23 +135,8 @@ static oserr_t __MountFile(
         return OsOutOfMemory;
     }
 
-    oserr = VFSNodeGetPathHandle(atHandle, &path);
-    if (oserr != OsOK) {
-        // Weird this should not fail :/
-        VFSStorageDelete(storage);
-        (void)VFSNodeClose(vfs, handle);
-        return oserr;
-    }
-
     // Then we can safely create a new VFS from this.
-    sector.QuadPart = offset / 512;
-    oserr = VFSStorageRegisterPartition(
-            storage,
-            0,
-            &sector,
-            NULL,
-    );
-    mstr_delete(path);
+    oserr = __SetupFileBackedStorage(storage, offset, fsType, interfaceDriverID, &fileSystem);
     if (oserr != OsOK) {
         VFSStorageDelete(storage);
         (void)VFSNodeClose(vfs, handle);
@@ -95,7 +144,11 @@ static oserr_t __MountFile(
     }
 
     // register the mount
-
+    oserr = VFSNodeMount(vfs, atHandle, fileSystem->VFS);
+    if (oserr != OsOK) {
+        VFSStorageDelete(storage);
+        (void)VFSNodeClose(vfs, handle);
+    }
     return oserr;
 }
 
@@ -130,7 +183,7 @@ static oserr_t __MountPath(
     }
 
     // Register the mount
-
+    return oserr;
 }
 
 static oserr_t __MountSpecial(
@@ -222,7 +275,7 @@ void Unmount(
     }
 
     path = mstr_new_u8(request->parameters.unmount.path);
-    oserr = VFSNodeGet(fsScope, path, 1, &node);
+    oserr = VFSNodeUnmountPath(fsScope, path);
     if (oserr != OsOK) {
         goto cleanup;
     }
