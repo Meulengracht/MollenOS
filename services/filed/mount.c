@@ -19,6 +19,7 @@
 
 #include <ddk/utils.h>
 #include <ds/mstring.h>
+#include <os/dmabuf.h>
 #include <vfs/filesystem.h>
 #include <vfs/interface.h>
 #include <vfs/requests.h>
@@ -39,6 +40,42 @@ static uint32_t __AccessFlagsFromMountFlags(enum sys_mount_flags mountFlags)
         access |= FILE_PERMISSION_WRITE;
     }
     return access;
+}
+
+static oserr_t __DetectFileSystem(
+        _In_  struct VFSStorage*  storage,
+        _In_  UInteger64_t*       sector,
+        _Out_ const char**        fsHintOut)
+{
+
+    struct dma_buffer_info dmaInfo;
+    struct dma_attachment  dmaAttachment;
+    oserr_t                oserr;
+
+    // Allocate a generic transfer buffer for disk operations
+    // on the given disk, we need it to parse the disk
+    dmaInfo.name     = "disk_temp_buffer";
+    dmaInfo.capacity = storage->Stats.SectorSize;
+    dmaInfo.length   = storage->Stats.SectorSize;
+    dmaInfo.flags    = 0;
+    dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
+
+    oserr = dma_create(&dmaInfo, &dmaAttachment);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    oserr = VFSStorageDeriveFileSystemType(
+            storage,
+            dmaAttachment.handle,
+            dmaAttachment.buffer,
+            sector,
+            fsHintOut
+    );
+
+    dma_attachment_unmap(&dmaAttachment);
+    dma_detach(&dmaAttachment);
+    return oserr;
 }
 
 static oserr_t __SetupFileBackedStorage(
@@ -73,17 +110,17 @@ static oserr_t __SetupFileBackedStorage(
     // system driver immediately
     if (interfaceDriverID == UUID_INVALID && fsType == NULL) {
         // Use auto-detection like we do for MBR/GPT
-        oserr = VFSStorageDetectFileSystem(
-                storage,
-                UUID_INVALID,
-                NULL,
-                &sector
-        );
+        oserr = __DetectFileSystem(storage, &sector, &fsType);
         if (oserr != OsOK) {
-            WARNING("__SetupFileBackedStorage failed to detect filesystem");
+            // If we fail to determine the file-system, then we should still mount the file
+            // as a raw device that people can format. TODO This needs to be implemented.
+            WARNING("__SetupFileBackedStorage failed to auto-detect filesystem");
+            // __MountAsRawDeviceOnly
+            return OsNotSupported;
         }
     }
 
+    // Next step is to load a module or driver for the fileystem.
     if (interfaceDriverID == UUID_INVALID) {
         oserr = VFSInterfaceLoadInternal(fsType, &interface);
         if (oserr != OsOK) {
@@ -143,7 +180,6 @@ static oserr_t __MountFile(
         return oserr;
     }
 
-    // register the mount
     oserr = VFSNodeMount(vfs, atHandle, fileSystem->VFS);
     if (oserr != OsOK) {
         VFSStorageDelete(storage);
@@ -181,8 +217,6 @@ static oserr_t __MountPath(
         (void)VFSNodeClose(vfs, handle);
         return oserr;
     }
-
-    // Register the mount
     return oserr;
 }
 
@@ -197,7 +231,8 @@ static oserr_t __MountSpecial(
 
     // Verify against supported special fs's
     if (!strcmp(fsType, "memfs")) {
-
+        // TODO support mounting temporary fs's, this should be pretty easy
+        return OsNotSupported;
     }
     return OsInvalidParameters;
 }
@@ -206,10 +241,9 @@ void Mount(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
 {
-    struct VFS*     fsScope = VFSScopeGet(request->processId);
-    uuid_t          atHandle = UUID_INVALID;
-    oserr_t         oserr;
-    struct VFSNode* atNode;
+    struct VFS* fsScope = VFSScopeGet(request->processId);
+    uuid_t      atHandle = UUID_INVALID;
+    oserr_t     oserr;
     _CRT_UNUSED(cancellationToken);
 
     if (fsScope == NULL) {
@@ -263,10 +297,9 @@ void Unmount(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
 {
-    struct VFS*     fsScope = VFSScopeGet(request->processId);
-    mstring_t*      path;
-    oserr_t         oserr;
-    struct VFSNode* node;
+    struct VFS* fsScope = VFSScopeGet(request->processId);
+    mstring_t*  path;
+    oserr_t     oserr;
     _CRT_UNUSED(cancellationToken);
 
     if (fsScope == NULL) {

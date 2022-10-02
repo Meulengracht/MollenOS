@@ -32,56 +32,77 @@
 static guid_t g_emptyGuid = GUID_EMPTY;
 
 oserr_t
+VFSStorageDeriveFileSystemType(
+        _In_  struct VFSStorage* storage,
+        _In_  uuid_t             bufferHandle,
+        _In_  void*              buffer,
+        _In_  UInteger64_t*      sector,
+        _Out_ const char**       fsHintOut)
+{
+    char*               fsHint = NULL;
+    MasterBootRecord_t* mbr;
+    size_t              sectorsRead;
+    oserr_t             status;
+
+    TRACE("VFSStorageDeriveFileSystemType(sector=%u)", sector->u.LowPart);
+
+    // Make sure the MBR is loaded
+    status = storage->Operations.Read(storage->Data, bufferHandle, 0, sector, 1, &sectorsRead);
+    if (status != OsOK) {
+        return status;
+    }
+
+    // Ok - we do some basic signature checks
+    // MFS - "MFS1"
+    // NTFS - "NTFS"
+    // exFAT - "EXFAT"
+    // FAT - "FATXX"
+    mbr = buffer;
+    if (!strncmp((const char*)&mbr->BootCode[3], "MFS1", 4)) {
+        fsHint = "mfs";
+    }
+    else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
+        fsHint = "ntfs";
+    }
+    else if (!strncmp((const char*)&mbr->BootCode[3], "EXFAT", 5)) {
+        fsHint = "exfat";
+    }
+    else if (!strncmp((const char*)&mbr->BootCode[0x36], "FAT12", 5)
+             || !strncmp((const char*)&mbr->BootCode[0x36], "FAT16", 5)
+             || !strncmp((const char*)&mbr->BootCode[0x52], "FAT32", 5)) {
+        fsHint = "fat";
+    }
+    else {
+        WARNING("Unknown filesystem detected");
+        // The following needs processing in other sectors to be determined
+        //TODO
+        //HPFS
+        //EXT
+        //HFS
+    }
+
+    if (fsHint == NULL) {
+        return OsError;
+    }
+    *fsHintOut = fsHint;
+    return OsOK;
+}
+
+oserr_t
 VFSStorageDetectFileSystem(
         _In_ struct VFSStorage* storage,
         _In_ uuid_t             bufferHandle,
         _In_ void*              buffer,
         _In_ UInteger64_t*      sector)
 {
-    char*               fsHint = NULL;
-	MasterBootRecord_t* mbr;
-	size_t              sectorsRead;
-	oserr_t             status;
+    const char* fsHint;
+	oserr_t     oserr;
 
 	TRACE("VFSStorageDetectFileSystem(sector=%u)", sector->u.LowPart);
 
-	// Make sure the MBR is loaded
-	status = storage->Operations.Read(storage->Data, bufferHandle, 0, sector, 1, &sectorsRead);
-	if (status != OsOK) {
-		return status;
-	}
-
-	// Ok - we do some basic signature checks 
-	// MFS - "MFS1" 
-	// NTFS - "NTFS" 
-	// exFAT - "EXFAT" 
-	// FAT - "FATXX"
-	mbr = (MasterBootRecord_t*)buffer;
-	if (!strncmp((const char*)&mbr->BootCode[3], "MFS1", 4)) {
-		fsHint = "mfs";
-	}
-	else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
-		fsHint = "ntfs";
-	}
-	else if (!strncmp((const char*)&mbr->BootCode[3], "EXFAT", 5)) {
-		fsHint = "exfat";
-	}
-	else if (!strncmp((const char*)&mbr->BootCode[0x36], "FAT12", 5)
-		|| !strncmp((const char*)&mbr->BootCode[0x36], "FAT16", 5)
-		|| !strncmp((const char*)&mbr->BootCode[0x52], "FAT32", 5)) {
-		fsHint = "fat";
-	}
-	else {
-        WARNING("Unknown filesystem detected");
-		// The following needs processing in other sectors to be determined
-		//TODO
-		//HPFS
-		//EXT
-		//HFS
-	}
-
-    if (fsHint == NULL) {
-        return OsError;
+    oserr = VFSStorageDeriveFileSystemType(storage, bufferHandle, buffer, sector, &fsHint);
+    if (oserr != OsOK) {
+        return oserr;
     }
 
     return VFSStorageRegisterAndSetupPartition(

@@ -24,10 +24,13 @@
 #ifndef __STDC_STDIO__
 #define __STDC_STDIO__
 
-#include <os/osdefs.h>
+#include <crtdefs.h>
+#define __need_size_t
+#define __need_wchar_t
 #define __need_wint_t
 #include <stddef.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 _CODE_BEGIN
 /*******************************

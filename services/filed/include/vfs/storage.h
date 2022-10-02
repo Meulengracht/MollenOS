@@ -164,6 +164,23 @@ VFSStorageParse(
         _In_ struct VFSStorage* storage);
 
 /**
+ * @brief
+ * @param storage
+ * @param bufferHandle
+ * @param buffer
+ * @param sector
+ * @param fsHintOut
+ * @return
+ */
+extern oserr_t
+VFSStorageDeriveFileSystemType(
+        _In_  struct VFSStorage* storage,
+        _In_  uuid_t             bufferHandle,
+        _In_  void*              buffer,
+        _In_  UInteger64_t*      sector,
+        _Out_ const char**       fsHintOut);
+
+/**
  * @brief Detectes the kind of filesystem at the given absolute sector
  * with the given sector count. It then loads the correct driver
  * and installs it
@@ -183,7 +200,7 @@ VFSStorageDetectFileSystem(
  */
 extern uuid_t
 VFSIdentifierAllocate(
-    _In_ struct VFSStorage* fsStorage);
+    _In_ struct VFSStorage* storage);
 
 /**
  * @brief Frees an existing identifier that has been allocated
@@ -195,22 +212,5 @@ extern void
 VFSIdentifierFree(
         _In_ struct VFSStorage* storage,
         _In_ uuid_t             id);
-
-/**
- *
- * @param storage
- * @param bufferHandle
- * @param sector
- * @param sectorCount
- * @param sectorsRead
- * @return
- */
-extern oserr_t
-VFSStorageReadHelper(
-        _In_  struct VFSStorage* storage,
-        _In_  uuid_t             bufferHandle,
-        _In_  uint64_t           sector,
-        _In_  size_t             sectorCount,
-        _Out_ size_t*            sectorsRead);
 
 #endif //!__VFS_STORAGE_H__

@@ -3,7 +3,6 @@ import glob
 import os
 import re
 import shutil
-import subprocess
 import sys
 import zipfile
 
@@ -56,7 +55,7 @@ def copy_files(source_path, destination_path, pattern='*', overwrite=False):
     """
     Copies files from source  to destination directory.
     :param pattern: the file pattern to copy
-    :param source_path: source directorysys.argv
+    :param source_path: source directory
     :param destination_path: destination directory
     :param overwrite if True all files will be overwritten otherwise skip if file exist
     :return: count of copied files

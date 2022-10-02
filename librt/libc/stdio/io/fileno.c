@@ -20,6 +20,7 @@
  * - Writes a character to the stream and advances the position indicator.
  */
 
+#define __need_NULL
 #include <stdio.h>
 #include <errno.h>
 

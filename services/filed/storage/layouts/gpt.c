@@ -59,9 +59,11 @@ GptEnumeratePartitionTable(
     while (partitionTableSectorCount) {
         GptPartitionEntry_t* entry;
 
-        oserr = VFSStorageReadHelper(storage, bufferHandle,
-                                     gptHeader->PartitionTableLBA,
-                                     1, &sectorsRead);
+        oserr = storage->Operations.Read(
+                storage->Data, bufferHandle, 0,
+                &(UInteger64_t) { .QuadPart = gptHeader->PartitionTableLBA },
+                1, &sectorsRead
+        );
         if (oserr != OsOK) {
             return OsError;
         }

@@ -19,6 +19,7 @@
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include <vfs/interface.h>
+#include <vfs/storage.h>
 #include "private.h"
 #include <string.h>
 #include <stdlib.h>
@@ -76,7 +77,7 @@ __StatRootNode(
         _In_ struct VFSStat* stat)
 {
     stat->ID = 0;
-    stat->StorageID = vfs->CommonData->Storage.DeviceID;
+    stat->StorageID = vfs->Storage->Stats.DeviceID;
     stat->Name = mstr_new_u8("/");
     stat->LinkTarget = NULL;
     stat->Owner = 0;

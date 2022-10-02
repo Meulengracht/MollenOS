@@ -100,7 +100,7 @@ static oserr_t __LoadNode(struct VFSNode* node) {
         return OsOutOfMemory;
     }
 
-    osStatus = ops->Open(vfs->CommonData, nodePath, &data);
+    osStatus = ops->Open(vfs->Data, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -108,7 +108,7 @@ static oserr_t __LoadNode(struct VFSNode* node) {
     while (1) {
         size_t read;
 
-        osStatus = ops->Read(vfs->CommonData, data, vfs->Buffer.handle, vfs->Buffer.buffer, 0, vfs->Buffer.length, &read);
+        osStatus = ops->Read(vfs->Data, data, vfs->Buffer.handle, vfs->Buffer.buffer, 0, vfs->Buffer.length, &read);
         if (osStatus != OsOK || read == 0) {
             break;
         }
@@ -119,7 +119,7 @@ static oserr_t __LoadNode(struct VFSNode* node) {
         }
     }
 
-    osStatus2 = ops->Close(vfs->CommonData, data);
+    osStatus2 = ops->Close(vfs->Data, data);
     if (osStatus2 != OsOK) {
         WARNING("__LoadNode failed to cleanup handle with code %u", osStatus2);
     }
@@ -206,12 +206,12 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
         return OsExists;
     }
 
-    osStatus = ops->Open(vfs->CommonData, nodePath, &data);
+    osStatus = ops->Open(vfs->Data, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Create(vfs->CommonData, data, name, 0, flags, permissions, &fileData);
+    osStatus = ops->Create(vfs->Data, data, name, 0, flags, permissions, &fileData);
     if (osStatus != OsOK) {
         goto close;
     }
@@ -224,13 +224,13 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
             .Permissions = permissions
     }, nodeOut);
 
-    osStatus2 = ops->Close(vfs->CommonData, fileData);
+    osStatus2 = ops->Close(vfs->Data, fileData);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
 close:
-    osStatus2 = ops->Close(vfs->CommonData, data);
+    osStatus2 = ops->Close(vfs->Data, data);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
@@ -263,12 +263,12 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
         goto cleanup;
     }
 
-    osStatus = ops->Open(vfs->CommonData, nodePath, &data);
+    osStatus = ops->Open(vfs->Data, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Link(vfs->CommonData, data, name, target, symbolic);
+    osStatus = ops->Link(vfs->Data, data, name, target, symbolic);
     if (osStatus != OsOK) {
         goto close;
     }
@@ -282,7 +282,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     }, nodeOut);
 
 close:
-    osStatus2 = ops->Close(vfs->CommonData, data);
+    osStatus2 = ops->Close(vfs->Data, data);
     if (osStatus2 != OsOK) {
         WARNING("__CreateInNode failed to cleanup handle with code %u", osStatus2);
     }
@@ -363,7 +363,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
         goto cleanup;
     }
 
-    osStatus = node->FileSystem->Interface->Operations.Open(node->FileSystem->CommonData, nodePath, &data);
+    osStatus = node->FileSystem->Interface->Operations.Open(node->FileSystem->Data, nodePath, &data);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -383,7 +383,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     goto cleanup;
 
 error:
-    node->FileSystem->Interface->Operations.Close(node->FileSystem->CommonData, data);
+    node->FileSystem->Interface->Operations.Close(node->FileSystem->Data, data);
 
 cleanup:
     usched_mtx_unlock(&node->HandlesLock);

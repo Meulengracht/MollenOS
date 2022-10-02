@@ -1,18 +1,29 @@
-set(SERVICES  "device;file;mount;net;process;served;session;storage;usb")
+set(SERVICES  "device;file;mount;net/sys/socket;process;served/chef/served;session;storage;usb")
 set(CONTRACTS "driver;input;storage;usbhost;usbhub")
 set(GENERATOR_PATH "${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py")
 
 # Generate all the service files
 foreach(SVC ${SERVICES})
-    set(SVC_HEADER "${CMAKE_CURRENT_BINARY_DIR}/sys_${SVC}_service.h")
-    set(SVC_CLIENT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/sys_${SVC}_service_client.h")
-    set(SVC_CLIENT_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/sys_${SVC}_service_client.c")
-    set(SVC_SERVER_HEADER "${CMAKE_CURRENT_BINARY_DIR}/sys_${SVC}_service_server.h")
-    set(SVC_SERVER_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/sys_${SVC}_service_server.c")
+    set(SVC_FILENAME ${SVC})
+    set(SVC_NAMESPACE "sys")
+    set(SVC_NAME ${SVC})
+    string(FIND ${SVC} "/" SVC_SPLIT_LOC)
+    if (NOT ${SVC_SPLIT_LOC} EQUAL -1)
+        string(REPLACE "/" ";" SVC_TOKENS ${SVC})
+        list(GET SVC_TOKENS 0 SVC_FILENAME)
+        list(GET SVC_TOKENS 1 SVC_NAMESPACE)
+        list(GET SVC_TOKENS 2 SVC_NAME)
+    endif()
+
+    set(SVC_HEADER "${CMAKE_CURRENT_BINARY_DIR}/${SVC_NAMESPACE}_${SVC_NAME}_service.h")
+    set(SVC_CLIENT_HEADER "${CMAKE_CURRENT_BINARY_DIR}/${SVC_NAMESPACE}_${SVC_NAME}_service_client.h")
+    set(SVC_CLIENT_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/${SVC_NAMESPACE}_${SVC_NAME}_service_client.c")
+    set(SVC_SERVER_HEADER "${CMAKE_CURRENT_BINARY_DIR}/${SVC_NAMESPACE}_${SVC_NAME}_service_server.h")
+    set(SVC_SERVER_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/${SVC_NAMESPACE}_${SVC_NAME}_service_server.c")
     add_custom_command(
             OUTPUT ${SVC_HEADER} ${SVC_CLIENT_HEADER} ${SVC_CLIENT_SOURCE} ${SVC_SERVER_HEADER} ${SVC_SERVER_SOURCE}
-            COMMAND python3 ${GENERATOR_PATH} --service ${CMAKE_CURRENT_SOURCE_DIR}/${SVC}.gr --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --client --server
-            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${SVC}.gr
+            COMMAND python3 ${GENERATOR_PATH} --service ${CMAKE_CURRENT_SOURCE_DIR}/${SVC_FILENAME}.gr --out ${CMAKE_CURRENT_BINARY_DIR} --lang-c --client --server
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${SVC_FILENAME}.gr
     )
     set(GEN_SERVICE_HEADERS ${GEN_SERVICE_HEADERS} ${SVC_HEADER})
     set(GEN_SERVICE_CLIENT_HEADERS ${GEN_SERVICE_CLIENT_HEADERS} ${SVC_CLIENT_HEADER})

@@ -528,7 +528,9 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #endif /* DLMALLOC_VERSION */
 
 #ifdef MOLLENOS
-#include <os/osdefs.h>
+#include <crtdefs.h>
+#define __need_size_t
+#include <stddef.h>
 
 // Define features
 #define USE_LOCKS               1 // Use locks

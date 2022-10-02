@@ -18,7 +18,9 @@
 #ifndef __STDC_STRING__
 #define __STDC_STRING__
 
-#include <os/osdefs.h>
+#include <crtdefs.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <locale.h>
 #include <errno.h>
 

@@ -145,7 +145,12 @@ static oserr_t __EnumeratePartitions(
     TRACE("__EnumeratePartitions(Sector %u)", LODWORD(sector));
 
     // Start out by reading the mbr to detect whether there is a partition table
-    oserr = VFSStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
+
+    oserr = storage->Operations.Read(
+            storage->Data, bufferHandle, 0,
+            &(UInteger64_t) { .QuadPart = sector },
+            1, &sectorsRead
+    );
     if (oserr != OsOK) {
         return OsError;
     }
