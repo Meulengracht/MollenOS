@@ -21,11 +21,30 @@
 #include <fs/common.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vafs/directory.h>
+#include <vafs/file.h>
 #include <vafs/vafs.h>
 
 struct __ValiFSContext {
     struct VFSStorageParameters Storage;
     UInteger64_t                Position;
+    struct VaFs*                ValiFS;
+};
+
+enum {
+    VALIFS_HANDLE_TYPE_FILE,
+    VALIFS_HANDLE_TYPE_DIR,
+    VALIFS_HANDLE_TYPE_SYMLINK
+};
+
+struct __ValiFSHandle {
+    int Type;
+    union {
+        struct VaFsDirectoryHandle* Directory;
+        struct VaFsFileHandle*      File;
+        struct VaFsSymlinkHandle*   Symlink;
+        void*                       Raw;
+    } Value;
 };
 
 static long __ValiFS_Seek(void* userData, long offset, int whence);
@@ -38,18 +57,66 @@ static struct VaFsOperations g_vafsOperations = {
         .close = NULL,  // We handle close ourselves
 };
 
+static struct __ValiFSContext* __ValiFSContextNew(
+        _In_  struct VFSStorageParameters* storageParameters)
+{
+    struct __ValiFSContext* context;
+
+    context = malloc(sizeof(struct __ValiFSContext));
+    if (context == NULL) {
+        return NULL;
+    }
+    memcpy(
+            &context->Storage,
+            storageParameters,
+            sizeof(struct VFSStorageParameters)
+    );
+    context->Position.QuadPart = 0;
+    return context;
+}
+
 oserr_t
 FsInitialize(
         _In_  struct VFSStorageParameters* storageParameters,
         _Out_ void**                       instanceData)
 {
+    struct __ValiFSContext* context;
+    int                     status;
 
+    context = __ValiFSContextNew(storageParameters);
+    if (context == NULL) {
+        return OsOutOfMemory;
+    }
+
+    status = vafs_open_ops(
+            &g_vafsOperations,
+            context,
+            &context->ValiFS
+    );
+    if (status) {
+        return OsDeviceError;
+    }
+
+    *instanceData = context;
+    return OsOK;
 }
 
 oserr_t
 FsDestroy(
         _In_ void*         instanceData,
         _In_ unsigned int  unmountFlags)
+{
+    struct __ValiFSContext* context = instanceData;
+    _CRT_UNUSED(unmountFlags);
+
+    (void)vafs_close(context->ValiFS);
+    free(context);
+    return OsOK;
+}
+
+static struct __ValiFSHandle* __ValiFSHandleNew(
+        _In_ int   type,
+        _In_ void* handleValue)
 {
 
 }
@@ -60,7 +127,38 @@ FsOpen(
         _In_      mstring_t* path,
         _Out_Opt_ void**     dataOut)
 {
+    struct __ValiFSContext*     context = instanceData;
+    struct VaFsFileHandle*      fileHandle;
+    struct VaFsDirectoryHandle* dirHandle;
+    int                         status;
+    char*                       cpath;
 
+    // Ok we use the same open call for both files and directories. So what we will
+    // try to, is to open it as a file first, if that fails with EISDIR, then we open
+    // it as a directory.
+    // VaFS luckily tells us the difference with EEXIST and EISDIR.
+    cpath = mstr_u8(path);
+    if (cpath == NULL) {
+        return OsOutOfMemory;
+    }
+
+    status = vafs_file_open(context->ValiFS, cpath, &fileHandle);
+    if (status) {
+        if (errno == EISDIR) {
+            status = vafs_directory_open(context->ValiFS, cpath, &dirHandle);
+            if (status) {
+                return OsInvalidParameters;
+            }
+            *dataOut = __ValiFSHandleNew(VALIFS_HANDLE_TYPE_DIR, dirHandle);
+            return OsOK;
+        } else if (errno == EEXIST) {
+            return OsNotExists;
+        } else {
+            return OsError;
+        }
+    }
+    *dataOut = __ValiFSHandleNew(VALIFS_HANDLE_TYPE_FILE, fileHandle);
+    return OsOK;
 }
 
 oserr_t
@@ -73,7 +171,9 @@ FsCreate(
         _In_  uint32_t   permissions,
         _Out_ void**     dataOut)
 {
-
+    // File creation is not supported when reading ValiFS's. The only case this
+    // is supported is during image creation.
+    return OsNotSupported;
 }
 
 oserr_t
@@ -84,69 +184,108 @@ FsClose(
 
 }
 
-__FSAPI oserr_t
-__FSDECL(FsStat)(
+oserr_t
+FsStat(
         _In_ void*             instanceData,
-        _In_ struct VFSStatFS* stat);
+        _In_ struct VFSStatFS* stat)
+{
 
-__FSAPI oserr_t
-__FSDECL(FsLink)(
+}
+
+oserr_t
+FsLink(
         _In_ void*      instanceData,
         _In_ void*      data,
         _In_ mstring_t* linkName,
         _In_ mstring_t* linkTarget,
-        _In_ int        symbolic);
+        _In_ int        symbolic)
+{
+    // File creation is not supported when reading ValiFS's. The only case this
+    // is supported is during image creation.
+    return OsNotSupported;
+}
 
-__FSAPI oserr_t
-__FSDECL(FsUnlink)(
+oserr_t
+FsUnlink(
         _In_ void*      instanceData,
-        _In_ mstring_t* path);
+        _In_ mstring_t* path)
+{
+    // File-removal is not supported on ValiFS's. The images are read-only
+    // and the only supported operation is reading. During image creation
+    // removal is still not supported.
+    return OsNotSupported;
+}
 
-__FSAPI oserr_t
-__FSDECL(FsReadLink)(
+oserr_t
+FsReadLink(
         _In_ void*      instanceData,
         _In_ mstring_t* path,
-        _In_ mstring_t* pathOut);
+        _In_ mstring_t* pathOut)
+{
 
-__FSAPI oserr_t
-__FSDECL(FsMove)(
+}
+
+oserr_t
+FsMove(
         _In_ void*      instanceData,
         _In_ mstring_t* from,
         _In_ mstring_t* to,
-        _In_ int        copy);
+        _In_ int        copy)
+{
+    // File creation is not supported when reading ValiFS's. The only case this
+    // is supported is during image creation.
+    return OsNotSupported;
+}
 
-__FSAPI oserr_t
-__FSDECL(FsRead)(
+oserr_t
+FsRead(
         _In_  void*   instanceData,
         _In_  void*   data,
         _In_  uuid_t  bufferHandle,
         _In_  void*   buffer,
         _In_  size_t  bufferOffset,
         _In_  size_t  unitCount,
-        _Out_ size_t* unitsRead);
+        _Out_ size_t* unitsRead)
+{
 
-__FSAPI oserr_t
-__FSDECL(FsWrite)(
+}
+
+oserr_t
+FsWrite(
         _In_  void*   instanceData,
         _In_  void*   data,
         _In_  uuid_t  bufferHandle,
         _In_  void*   buffer,
         _In_  size_t  bufferOffset,
         _In_  size_t  unitCount,
-        _Out_ size_t* unitsWritten);
+        _Out_ size_t* unitsWritten)
+{
+    // Writing to files are not supported, in this driver we only support read-only
+    // images of ValiFS. The write operation is not implemented as it's not possible
+    // to either create images or in general to modify them.
+    return OsNotSupported;
+}
 
-__FSAPI oserr_t
-__FSDECL(FsTruncate)(
+oserr_t
+FsTruncate(
         _In_ void*    instanceData,
         _In_ void*    data,
-        _In_ uint64_t size);
+        _In_ uint64_t size)
+{
+    // File modifications are not supported when reading ValiFS's. The only case this
+    // is supported is during image creation.
+    return OsNotSupported;
+}
 
-__FSAPI oserr_t
-__FSDECL(FsSeek)(
+oserr_t
+FsSeek(
         _In_  void*     instanceData,
         _In_  void*     data,
         _In_  uint64_t  absolutePosition,
-        _Out_ uint64_t* absolutePositionOut);
+        _Out_ uint64_t* absolutePositionOut)
+{
+
+}
 
 
 static long __ValiFS_Seek(void* userData, long offset, int whence)
