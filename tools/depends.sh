@@ -5,7 +5,7 @@ SCRIPTPATH=`dirname "$SCRIPT"`
 # Dev-libraries
 echo "** installing build dependencies"
 apt-get update -yqq
-apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python3 curl
+apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python3 curl libssl-dev
 
 # Install dotnet core
 if ! [ -x "$(command -v dotnet)" ]; then
