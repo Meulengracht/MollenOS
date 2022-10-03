@@ -11,7 +11,8 @@ apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python3 curl
 # not shipping with ubuntu 22.04, so we install this manually
 if ! [ -x "$(command -v dotnet)" ]; then
   if ! apt-get -y -qq install libssl1.1; then
-    curl -o libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+    APT_ARCH=$(dpkg --print-architecture)
+    curl -o libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_"${APT_ARCH}".deb
     dpkg -i ./libssl1.1.deb
     rm ./libssl1.1.deb
   fi
