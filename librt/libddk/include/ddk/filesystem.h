@@ -50,6 +50,7 @@ struct VFSStorageParameters {
     union {
         struct {
             uuid_t HandleID;
+            // size_t SectorSize;
         } File;
         struct {
             uuid_t DriverID;
@@ -100,8 +101,8 @@ struct VFSStatFS {
  */
 __FSAPI oserr_t
 __FSDECL(FsInitialize)(
-        _In_  struct VFSStorageParameters* setupParameters,
-        _Out_ void**                     instanceData);
+        _In_  struct VFSStorageParameters* storageParameters,
+        _Out_ void**                       instanceData);
 
 /* FsDestroy 
  * Destroys the given filesystem descriptor and cleans

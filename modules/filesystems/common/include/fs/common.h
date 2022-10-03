@@ -31,14 +31,14 @@
  * @param read
  * @return
  */
-static oserr_t
+extern oserr_t
 FSStorageRead(
-        _In_ struct VFSStorageParameters* storageParameters,
-        _In_ uuid_t                       buffer,
-        _In_ size_t                       offset,
-        _In_ UInteger64_t*                sector,
-        _In_ size_t                       count,
-        _Out_ size_t*                     read);
+        _In_  struct VFSStorageParameters* storageParameters,
+        _In_  uuid_t                       buffer,
+        _In_  size_t                       offset,
+        _In_  UInteger64_t*                sector,
+        _In_  size_t                       count,
+        _Out_ size_t*                      read);
 
 /**
  * @brief
@@ -50,21 +50,22 @@ FSStorageRead(
  * @param written
  * @return
  */
-static oserr_t
+extern oserr_t
 FSStorageWrite(
-        _In_ struct VFSStorageParameters* storageParameters,
-        _In_ uuid_t                       buffer,
-        _In_ size_t                       offset,
-        _In_ UInteger64_t*                sector,
-        _In_ size_t                       count,
-        _Out_ size_t*                     written);
+        _In_  struct VFSStorageParameters* storageParameters,
+        _In_  uuid_t                       buffer,
+        _In_  size_t                       offset,
+        _In_  UInteger64_t*                sector,
+        _In_  size_t                       count,
+        _Out_ size_t*                      written);
 
 /**
  * @brief
  * @param storageParameters
  * @param stat
+ * @return
  */
-extern void
+extern oserr_t
 FSStorageStat(
         _In_ struct VFSStorageParameters* storageParameters,
         _In_ StorageDescriptor_t*         stat);
