@@ -125,8 +125,18 @@ void ReadFileAbsolute(
         return;
     }
 
-    size_t     read     = 0;
-    oserr_t osStatus = VFSNodeReadAt(request, &read);
+    size_t  read     = 0;
+    oserr_t osStatus = VFSNodeReadAt(
+            request->parameters.transfer_absolute.fileHandle,
+            &(UInteger64_t) {
+                    .u.LowPart = request->parameters.transfer_absolute.position_low,
+                    .u.HighPart = request->parameters.transfer_absolute.position_high
+            },
+            request->parameters.transfer_absolute.bufferHandle,
+            request->parameters.transfer_absolute.offset,
+            request->parameters.transfer_absolute.length,
+            &read
+    );
     sys_file_transfer_absolute_response(request->message, osStatus, read);
 
     VfsRequestDestroy(request);
@@ -142,8 +152,18 @@ void WriteFileAbsolute(
         return;
     }
 
-    size_t     written  = 0;
-    oserr_t osStatus = VFSNodeWriteAt(request, &written);
+    size_t  written  = 0;
+    oserr_t osStatus = VFSNodeWriteAt(
+            request->parameters.transfer_absolute.fileHandle,
+            &(UInteger64_t) {
+                    .u.LowPart = request->parameters.transfer_absolute.position_low,
+                    .u.HighPart = request->parameters.transfer_absolute.position_high
+            },
+            request->parameters.transfer_absolute.bufferHandle,
+            request->parameters.transfer_absolute.offset,
+            request->parameters.transfer_absolute.length,
+            &written
+    );
     sys_file_transfer_absolute_response(request->message, osStatus, written);
 
     VfsRequestDestroy(request);

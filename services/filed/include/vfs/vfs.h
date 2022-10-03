@@ -65,9 +65,9 @@ extern oserr_t VFSNodeUnmountPath(struct VFS*, mstring_t* path);
 
 extern oserr_t VFSNodeDuplicate(struct VFSRequest*, uuid_t* handleOut);
 extern oserr_t VFSNodeRead(struct VFSRequest*, size_t* readOut);
-extern oserr_t VFSNodeReadAt(struct VFSRequest*, size_t* readOut);
+extern oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* readOut);
 extern oserr_t VFSNodeWrite(struct VFSRequest*, size_t* writtenOut);
-extern oserr_t VFSNodeWriteAt(struct VFSRequest*, size_t* writtenOut);
+extern oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut);
 extern oserr_t VFSNodeSeek(struct VFSRequest*, uint64_t* positionOut);
 extern oserr_t VFSNodeFlush(struct VFSRequest*);
 

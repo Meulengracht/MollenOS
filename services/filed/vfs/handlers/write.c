@@ -80,23 +80,20 @@ cleanup:
     return osStatus;
 }
 
-oserr_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
+oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
     oserr_t               osStatus, osStatus2;
     struct dma_attachment attachment;
-    UInteger64_t          position, result;
+    UInteger64_t          result;
 
-    position.u.LowPart  = request->parameters.transfer_absolute.position_low;
-    position.u.HighPart = request->parameters.transfer_absolute.position_high;
-
-    osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(fileHandle, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }
 
-    osStatus = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
+    osStatus = __MapUserBuffer(bufferHandle, &attachment);
     if (osStatus != OsOK) {
         goto cleanup;
     }
@@ -106,7 +103,8 @@ oserr_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
     usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = nodeVfs->Interface->Operations.Seek(
             nodeVfs->Data, handle->Data,
-            position.QuadPart, &result.QuadPart);
+            position->QuadPart, &result.QuadPart
+    );
     if (osStatus != OsOK) {
         goto unmap;
     }
@@ -115,9 +113,8 @@ oserr_t VFSNodeWriteAt(struct VFSRequest* request, size_t* writtenOut)
     osStatus = nodeVfs->Interface->Operations.Write(
             nodeVfs->Data, handle->Data,
             attachment.handle, attachment.buffer,
-            request->parameters.transfer.offset,
-            request->parameters.transfer.length,
-            writtenOut);
+            offset, length, writtenOut
+    );
     if (osStatus == OsOK) {
         handle->Mode     = MODE_WRITE;
         handle->Position += *writtenOut;

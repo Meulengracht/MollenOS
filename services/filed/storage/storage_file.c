@@ -16,14 +16,12 @@
  */
 
 #include <vfs/storage.h>
-#include <vfs/filesystem.h>
-#include <vfs/requests.h>
-#include <vfs/scope.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
 
 struct __FileContext {
     uuid_t file_handle;
+    // size_t sector_size;
 };
 
 static void    __DestroyFile(void*);
@@ -80,7 +78,20 @@ static oserr_t __ReadFile(
         _In_ size_t*       read)
 {
     struct __FileContext* file = context;
-
+    size_t                bytesRead;
+    oserr_t               oserr = VFSNodeReadAt(
+            file->file_handle,
+            &(UInteger64_t) { .QuadPart = sector->QuadPart * 512 },
+            buffer,
+            offset,
+            count * 512,
+            &bytesRead
+    );
+    if (oserr != OsOK) {
+        return oserr;
+    }
+    *read = bytesRead / 512;
+    return OsOK;
 }
 
 static oserr_t __WriteFile(
@@ -92,5 +103,18 @@ static oserr_t __WriteFile(
         _In_ size_t*       written)
 {
     struct __FileContext* file = context;
-
+    size_t                bytesWritten;
+    oserr_t               oserr = VFSNodeWriteAt(
+            file->file_handle,
+            &(UInteger64_t) { .QuadPart = sector->QuadPart * 512 },
+            buffer,
+            offset,
+            count * 512,
+            &bytesWritten
+    );
+    if (oserr != OsOK) {
+        return oserr;
+    }
+    *written = bytesWritten / 512;
+    return OsOK;
 }
