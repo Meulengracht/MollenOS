@@ -186,9 +186,9 @@ FsLink(
 
 oserr_t
 FsReadLink(
-        _In_ void*      instanceData,
-        _In_ mstring_t* path,
-        _In_ mstring_t* pathOut)
+        _In_ void*       instanceData,
+        _In_ mstring_t*  path,
+        _In_ mstring_t** pathOut)
 {
     // TODO implement MFS::ReadLink
     return OsNotSupported;

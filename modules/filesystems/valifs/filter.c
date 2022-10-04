@@ -16,7 +16,12 @@
  */
 
 #include <vafs/vafs.h>
+#include <string.h>
 #include <zstd.h>
+
+struct VaFsFeatureFilter {
+    struct VaFsFeatureHeader Header;
+};
 
 static struct VaFsGuid g_filterGuid    = VA_FS_FEATURE_FILTER;
 static struct VaFsGuid g_filterOpsGuid = VA_FS_FEATURE_FILTER_OPS;
@@ -32,7 +37,6 @@ static int __zstd_decode(void* Input, uint32_t InputLength, void* Output, uint32
     size_t             decompressedSize;
     unsigned long long contentSize = ZSTD_getFrameContentSize(Input, InputLength);
     if (contentSize == ZSTD_CONTENTSIZE_ERROR || contentSize == ZSTD_CONTENTSIZE_UNKNOWN) {
-        fprintf(stderr, "__zstd_decode: failed to get frame content size\n");
         return -1;
     }
 

@@ -10,3 +10,6 @@
 [submodule "tools/imager"]
 	path = tools/imager
 	url = ../diskbuilder
+[submodule "librt/zstd"]
+	path = librt/zstd
+	url = ../../umbrella-c/zstd

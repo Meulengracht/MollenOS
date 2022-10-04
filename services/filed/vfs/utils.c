@@ -316,6 +316,7 @@ static void __VerifyHandleExclusivityEnum(int index, const void* element, void* 
 {
     struct __HandleExcCheckContext* context = userContext;
     const struct __VFSHandle*       handle  = element;
+    _CRT_UNUSED(index);
 
     if (context->Success == false) {
         return;

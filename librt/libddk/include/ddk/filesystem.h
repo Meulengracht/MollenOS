@@ -153,9 +153,9 @@ __FSDECL(FsUnlink)(
 
 __FSAPI oserr_t
 __FSDECL(FsReadLink)(
-        _In_ void*      instanceData,
-        _In_ mstring_t* path,
-        _In_ mstring_t* pathOut);
+        _In_ void*       instanceData,
+        _In_ mstring_t*  path,
+        _In_ mstring_t** pathOut);
 
 __FSAPI oserr_t
 __FSDECL(FsMove)(
