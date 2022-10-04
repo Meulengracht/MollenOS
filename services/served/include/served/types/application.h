@@ -54,6 +54,7 @@ struct Application {
     // the server state. This is regenerated on system load.
     mstring_t* PackPath;
     mstring_t* MountPath;
+    mstring_t* CachePath;
 };
 
 /**

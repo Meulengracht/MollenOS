@@ -28,6 +28,7 @@
  * /data/served/state.json
  * /data/served/apps/<name>.pack
  * /data/served/mount/<name>
+ * /data/served/cache/<name>
  */
 static oserr_t __EnsurePaths(void)
 {
@@ -45,6 +46,10 @@ static oserr_t __EnsurePaths(void)
     }
 
     if (mkdir("/data/served/mount", mode)) {
+        return OsError;
+    }
+
+    if (mkdir("/data/served/cache", mode)) {
         return OsError;
     }
     return OsOK;

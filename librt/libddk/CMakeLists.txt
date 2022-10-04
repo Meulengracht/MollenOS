@@ -12,6 +12,8 @@ set (GENERATED_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_file_service_client.h
     ${CMAKE_BINARY_DIR}/protocols/sys_file_service_client.c
+    ${CMAKE_BINARY_DIR}/protocols/sys_mount_service_client.h
+    ${CMAKE_BINARY_DIR}/protocols/sys_mount_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_process_service_client.h
     ${CMAKE_BINARY_DIR}/protocols/sys_process_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_library_service_client.h

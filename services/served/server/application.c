@@ -16,9 +16,16 @@
  *
  */
 
+#define __TRACE
+
+#include <errno.h>
+#include <chef/package.h>
+#include <ddk/utils.h>
 #include <os/services/mount.h>
+#include <os/process.h>
 #include <served/application.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <io.h>
 
 // /data/served/apps/<publisher>.<package>.pack
@@ -36,6 +43,16 @@ static mstring_t* __ApplicationMountPath(struct Application* application)
 {
     return mstr_fmt(
             "/data/served/mount/%ms.%ms",
+            application->Publisher,
+            application->Package
+    );
+}
+
+// /data/served/cache/<name>
+static mstring_t* __ApplicationCachePath(struct Application* application)
+{
+    return mstr_fmt(
+            "/data/served/cache/%ms.%ms",
             application->Publisher,
             application->Package
     );
@@ -142,7 +159,10 @@ ApplicationNew(
     // Generate paths for the application
     application->PackPath  = __ApplicationPackPath(application);
     application->MountPath = __ApplicationMountPath(application);
-    if (application->PackPath == NULL || application->MountPath == NULL) {
+    application->CachePath = __ApplicationCachePath(application);
+    if (application->PackPath == NULL ||
+        application->MountPath == NULL ||
+        application->CachePath == NULL) {
         ApplicationDelete(application);
         return NULL;
     }
@@ -172,6 +192,7 @@ ApplicationDelete(
     mstr_delete(application->Package);
     mstr_delete(application->PackPath);
     mstr_delete(application->MountPath);
+    mstr_delete(application->CachePath);
     list_clear(&application->Commands, __FreeCommand, NULL);
     free(application);
 }
@@ -183,6 +204,7 @@ static oserr_t __CreateCommandSymlink(
     char* symlinkPath;
     char* mountPath;
     int   status;
+    TRACE("__CreateCommandSymlink(app=%ms, cmd=%ms)", application->Name, command->Name);
 
     symlinkPath  = mstr_u8(command->SymlinkPath);
     mountPath = mstr_u8(command->MountedPath);
@@ -197,7 +219,7 @@ static oserr_t __CreateCommandSymlink(
     free(mountPath);
 
     if (status) {
-        // TODO log this
+        ERROR("__CreateCommandSymlink link failed with code: %i", errno);
         return OsInvalidParameters;
     }
     return OsOK;
@@ -216,6 +238,7 @@ oserr_t ApplicationMount(
     char*   packPath;
     char*   mountPath;
     oserr_t oserr;
+    TRACE("ApplicationMount(app=%ms)", application ? application->Name : NULL);
 
     if (application == NULL) {
         return OsInvalidParameters;
@@ -233,16 +256,18 @@ oserr_t ApplicationMount(
     // for the application.
     oserr = Mount(packPath, mountPath, "valifs", MOUNT_FLAG_READ);
     if (oserr != OsOK) {
+        ERROR("ApplicationMount failed to mount application %ms: %u",
+              application->Name, oserr);
         goto cleanup;
     }
 
     // Next up is creating symlinks for applications into the global mount namespace,
     // so they are visible.
     foreach(i, &application->Commands) {
-        oserr = __CreateCommandSymlink(application, (struct Command*)i);
+        struct Command* command = (struct Command*)i;
+        oserr = __CreateCommandSymlink(application, command);
         if (oserr != OsOK) {
-            // So we should not cancel everything here - instead let us log this.
-            // TODO proper logging in served
+            WARNING("ApplicationMount failed to prepare command %ms", command->Name);
         }
     }
 
@@ -250,7 +275,7 @@ oserr_t ApplicationMount(
     // for this application will be spawned under
     oserr = __PrepareMountNamespace(application);
     if (oserr != OsOK) {
-        // Again log this
+        ERROR("ApplicationMount failed to prepare mount namespace for %ms", application->Name);
     }
 
 cleanup:
@@ -263,20 +288,41 @@ static oserr_t __KillCommand(
         _In_ struct Application* application,
         _In_ struct Command*     command)
 {
-
+    TRACE("__RemoveCommandSymlink(app=%ms, cmd=%ms)", application->Name, command->Name);
+    // TODO not implemented yet, we need somehow track processes spawned here
+    // or some other system in place
+    return OsOK;
 }
 
 static oserr_t __RemoveCommandSymlink(
         _In_ struct Application* application,
         _In_ struct Command*     command)
 {
+    char* symlinkPath;
+    int   status;
+    TRACE("__RemoveCommandSymlink(app=%ms, cmd=%ms)", application->Name, command->Name);
 
+    symlinkPath  = mstr_u8(command->SymlinkPath);
+    if (symlinkPath == NULL) {
+        free(symlinkPath);
+        return OsOutOfMemory;
+    }
+
+    status = unlink(symlinkPath);
+    free(symlinkPath);
+
+    if (status) {
+        ERROR("__RemoveCommandSymlink unlink failed with code: %i", errno);
+        return OsInvalidParameters;
+    }
+    return OsOK;
 }
 
 oserr_t ApplicationUnmount(struct Application* application)
 {
     char*   mountPath;
     oserr_t oserr;
+    TRACE("ApplicationUnmount(app=%ms)", application ? application->Name : NULL);
 
     if (application == NULL) {
         return OsInvalidParameters;
@@ -297,6 +343,8 @@ oserr_t ApplicationUnmount(struct Application* application)
         oserr = __KillCommand(application, command);
         if (oserr != OsOK) {
             // Uh this is not good, then we cannot unmount.
+            ERROR("ApplicationUnmount failed to stop processes spawned by command %ms",
+                  command->Name);
             free(mountPath);
             return oserr;
         }
@@ -305,36 +353,150 @@ oserr_t ApplicationUnmount(struct Application* application)
         oserr = __RemoveCommandSymlink(application, command);
         if (oserr != OsOK) {
             // Can we live with broken symlinks?
+            ERROR("ApplicationUnmount failed to remove symlinks for command %ms",
+                  command->Name);
         }
     }
 
     oserr = Unmount(mountPath);
     if (oserr != OsOK) {
-        // Uhh log this
+        ERROR("ApplicationUnmount failed to unmount application %ms", application->Name);
     }
     free(mountPath);
     return oserr;
+}
+
+static char* __FmtString(const char* fmt, ...)
+{
+    char*   buffer;
+    va_list args;
+
+    buffer = malloc(512);
+    if (buffer == NULL) {
+        return NULL;
+    }
+
+    va_start(args, fmt);
+    snprintf(buffer, 512, fmt, args);
+    va_end(args);
+    return buffer;
+}
+
+static void __DestroyEnvironment(
+        _In_ char** environment)
+{
+    if (environment == NULL) {
+        return;
+    }
+    for (int i = 0; environment[i] != NULL; i++) {
+        free(environment[i]);
+    }
+    free(environment);
+}
+
+static char** __BuildCommandEnvironment(
+        _In_ struct Application* application,
+        _In_ struct Command*     command)
+{
+    char** environment;
+
+    environment = malloc(sizeof(char*) * 4);
+    if (environment == NULL) {
+        return NULL;
+    }
+
+    environment[0] = __FmtString("PATH=/apps;/data/bin");
+    if (environment[0] == NULL) {
+        __DestroyEnvironment(environment);
+        return NULL;
+    }
+    environment[1] = __FmtString("USRDIR=/home");
+    if (environment[1] == NULL) {
+        __DestroyEnvironment(environment);
+        return NULL;
+    }
+    environment[2] = __FmtString("APPDIR=%ms", application->CachePath);
+    if (environment[2] == NULL) {
+        __DestroyEnvironment(environment);
+        return NULL;
+    }
+    environment[3] = NULL;
+    return environment;
 }
 
 static oserr_t __SpawnService(
         _In_ struct Application* application,
         _In_ struct Command*     command)
 {
-    // TODO implement this
-    return OsNotSupported;
+    ProcessConfiguration_t config;
+    oserr_t                oserr;
+    uuid_t                 handle;
+    char*                  path;
+    char*                  args;
+    char**                 environment;
+    TRACE("__SpawnService(app=%ms)", application->Name, command->Name);
+
+    path = mstr_u8(command->MountedPath);
+    args = mstr_u8(command->Arguments);
+    if (path == NULL || args == NULL) {
+        ERROR("__SpawnService path or args was null");
+        free(path);
+        free(args);
+        return OsOutOfMemory;
+    }
+
+    ProcessConfigurationInitialize(&config);
+
+    // Each application gets their own log stream setup, which will be connected
+    // to each command on startup. This way it's possible to query log output for
+    // each service/application seperately.
+    // TODO not implemented
+
+    // Supply each command spawned with their respective mount namespace here
+    // TODO not implemented
+
+    // Build custom, very controlled environment blocks here, derived by various
+    // things but tailored to each application.
+    environment = __BuildCommandEnvironment(application, command);
+    if (environment == NULL) {
+        ERROR("__SpawnService failed to build environment for command %ms", command->Name);
+        oserr = OsOutOfMemory;
+        goto cleanup;
+    }
+
+    // Spawn the process, what we should do here is to actually monitor the
+    // processes spawned, so we can make sure to kill them again later. Or maybe
+    // this should be tracked somewhere else
+    // TODO not implemented
+    oserr = ProcessSpawnEx(
+            path,
+            args,
+            (const char* const*)environment,
+            &config,
+            &handle
+    );
+
+cleanup:
+    free(path);
+    free(args);
+    __DestroyEnvironment(environment);
+    return oserr;
 }
 
 oserr_t ApplicationStartServices(struct Application* application)
 {
+    TRACE("ApplicationStartServices(app=%ms)", application ? application->Name : NULL);
+
     // Go through all commands registered to the application, if an
     // application is a service, we start it under the prepared namespace
     // for the application
     foreach(i, &application->Commands) {
         struct Command* command = (struct Command*)i;
-        if (command->Type == 0) {
+        if (command->Type == CHEF_COMMAND_TYPE_DAEMON) {
             oserr_t oserr = __SpawnService(application, command);
             if (oserr != OsOK) {
                 // Again, continue here, but we log the error for the user
+                ERROR("ApplicationStartServices failed to spawn service %ms", command->Name);
             }
         }
     }
@@ -343,6 +505,19 @@ oserr_t ApplicationStartServices(struct Application* application)
 
 oserr_t ApplicationStopServices(struct Application* application)
 {
+    TRACE("ApplicationStopServices(app=%ms)", application ? application->Name : NULL);
 
+    // Go through all commands registered to the application, if an
+    // application is a service, we request a stop
+    foreach(i, &application->Commands) {
+        struct Command* command = (struct Command*)i;
+        if (command->Type == CHEF_COMMAND_TYPE_DAEMON) {
+            oserr_t oserr = __KillCommand(application, command);
+            if (oserr != OsOK) {
+                // Again, continue here, but we log the error for the user
+                ERROR("ApplicationStopServices failed to stop service %ms", command->Name);
+            }
+        }
+    }
     return OsOK;
 }

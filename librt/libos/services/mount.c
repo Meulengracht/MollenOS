@@ -20,6 +20,7 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/services/mount.h>
+#include <os/process.h>
 
 #include <sys_mount_service_client.h>
 
@@ -36,7 +37,7 @@ Mount(
     sys_mount_mount(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            ProcessGetCurrentId(),
             path,
             at,
             type,
@@ -57,7 +58,7 @@ Unmount(
     sys_mount_unmount(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            ProcessGetCurrentId(),
             path
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);

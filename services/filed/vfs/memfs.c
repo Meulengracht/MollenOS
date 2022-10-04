@@ -466,9 +466,9 @@ __MemFSUnlink(
 
 static oserr_t
 __MemFSReadLink(
-        _In_ void*      instanceData,
-        _In_ mstring_t* path,
-        _In_ mstring_t* pathOut)
+        _In_ void*       instanceData,
+        _In_ mstring_t*  path,
+        _In_ mstring_t** pathOut)
 {
     TRACE("__MemFSReadLink()");
     if (instanceData == NULL) {

@@ -98,7 +98,7 @@ GetFullPath(
         _In_ size_t      maxLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t               status;
+    oserr_t                  status;
 
     if (path == NULL || buffer == NULL || maxLength == 0) {
         return OsInvalidParameters;
