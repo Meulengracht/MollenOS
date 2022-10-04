@@ -16,10 +16,22 @@
  *
  */
 
+#include <errno.h>
 #include <io.h>
 #include <os/mollenos.h>
 #include <served/application.h>
 #include <served/state.h>
+
+static int __CreateDirectoryIfNotExists(
+        _In_ const char* path)
+{
+    int mode   = FILE_PERMISSION_READ | FILE_PERMISSION_EXECUTE | FILE_PERMISSION_OWNER_WRITE;
+    int status = mkdir(path, mode);
+    if (status && errno != EEXIST) {
+        return status;
+    }
+    return 0;
+}
 
 /**
  * Server paths
@@ -30,26 +42,25 @@
  * /data/served/mount/<name>
  * /data/served/cache/<name>
  */
-static oserr_t __EnsurePaths(void)
+oserr_t ServerEnsurePaths(void)
 {
-    int mode = FILE_PERMISSION_READ | FILE_PERMISSION_EXECUTE | FILE_PERMISSION_OWNER_WRITE;
-    if (mkdir("/apps", mode)) {
+    if (__CreateDirectoryIfNotExists("/apps")) {
         return OsError;
     }
 
-    if (mkdir("/data/served", mode)) {
+    if (__CreateDirectoryIfNotExists("/data/served")) {
         return OsError;
     }
 
-    if (mkdir("/data/served/apps", mode)) {
+    if (__CreateDirectoryIfNotExists("/data/served/apps")) {
         return OsError;
     }
 
-    if (mkdir("/data/served/mount", mode)) {
+    if (__CreateDirectoryIfNotExists("/data/served/mount")) {
         return OsError;
     }
 
-    if (mkdir("/data/served/cache", mode)) {
+    if (__CreateDirectoryIfNotExists("/data/served/cache")) {
         return OsError;
     }
     return OsOK;
@@ -90,11 +101,6 @@ static oserr_t __StartServices(void)
 oserr_t ServerLoad(void)
 {
     oserr_t oserr;
-
-    oserr = __EnsurePaths();
-    if (oserr != OsOK) {
-        return oserr;
-    }
 
     oserr = __MountApplications();
     if (oserr != OsOK) {

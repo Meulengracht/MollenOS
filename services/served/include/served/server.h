@@ -22,6 +22,12 @@
 #include <os/osdefs.h>
 
 /**
+ * @brief
+ * @return
+ */
+extern oserr_t ServerEnsurePaths(void);
+
+/**
  * @brief Before loading server the state should have been either loaded or initialized.
  * @return
  */

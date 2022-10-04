@@ -232,6 +232,42 @@ static oserr_t __PrepareMountNamespace(
     return OsOK;
 }
 
+static oserr_t __CreateDirectoryIfNotExists(
+        _In_ mstring_t* path)
+{
+    int   mode = FILE_PERMISSION_READ | FILE_PERMISSION_EXECUTE | FILE_PERMISSION_OWNER_WRITE;
+    char* cpath = mstr_u8(path);
+    int   status;
+
+    if (cpath == NULL) {
+        return OsOutOfMemory;
+    }
+
+    status = mkdir(cpath, mode);
+    free(cpath);
+    if (status && errno != EEXIST) {
+        ERROR("__CreateDirectoryIfNotExists failed to create path %ms", path);
+        return OsError;
+    }
+    return OsOK;
+}
+
+static oserr_t __EnsureApplicationRuntimePaths(
+        _In_ struct Application* application)
+{
+    oserr_t oserr;
+    TRACE("__EnsureApplicationRuntimePaths(app=%ms)", application->Name);
+
+    // /data/served/mount/<name>
+    oserr = __CreateDirectoryIfNotExists(application->MountPath);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    // /data/served/cache/<name>
+    return __CreateDirectoryIfNotExists(application->CachePath);
+}
+
 oserr_t ApplicationMount(
         _In_ struct Application* application)
 {
@@ -242,6 +278,11 @@ oserr_t ApplicationMount(
 
     if (application == NULL) {
         return OsInvalidParameters;
+    }
+
+    oserr = __EnsureApplicationRuntimePaths(application);
+    if (oserr != OsOK) {
+        return oserr;
     }
 
     packPath  = mstr_u8(application->PackPath);

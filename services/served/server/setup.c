@@ -29,11 +29,20 @@ void served_server_setup_job(void* arguments, void* cancellationToken)
     _CRT_UNUSED(arguments);
     _CRT_UNUSED(cancellationToken);
 
+    // Ensure server paths exists before doing anything. This doesn't
+    // require any previous action, and does not hurt to ensure we do.
+    oserr_t oserr = ServerEnsurePaths();
+    if (oserr != OsOK) {
+        // WHAT the hell, corrupt state.
+        ERROR("served_server_setup_job failed to create necessary paths: %u", oserr);
+        exit(-1);
+    }
+
     // The first thing we want to determine is the system state. Check for the
     // presence of state.json, and determine the action from here. If
     // /data/served/state.json is not present, then we check for
     // /data/setup and launch the system install job.
-    oserr_t oserr = StateLoad();
+    oserr = StateLoad();
     if (oserr != OsOK) {
         // WHAT the hell, corrupt state.
         ERROR("served_server_setup_job failed to load server state: %u", oserr);
