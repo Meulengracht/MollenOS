@@ -24,14 +24,23 @@
 
 struct Command {
     element_t  ListHeader;
+
+    // Serialized data which will be stored on disk.
     mstring_t* Name;
     mstring_t* Path;
     mstring_t* Arguments;
     int        Type;
+
+    // Runtime data which is not serialized by
+    // the server state. This is regenerated on system load.
+    mstring_t* MountedPath;
+    mstring_t* SymlinkPath;
 };
 
 struct Application {
     element_t  ListHeader;
+
+    // Serialized data which will be stored on disk.
     mstring_t* Name; // publisher/package
     mstring_t* Publisher;
     mstring_t* Package;
@@ -40,6 +49,11 @@ struct Application {
     int        Patch;
     int        Revision;
     list_t     Commands; // List<struct Command>
+
+    // Runtime data which is not serialized by
+    // the server state. This is regenerated on system load.
+    mstring_t* PackPath;
+    mstring_t* MountPath;
 };
 
 /**
@@ -81,10 +95,11 @@ ApplicationDelete(
  */
 extern struct Command*
 CommandNew(
-        _In_ mstring_t* name,
-        _In_ mstring_t* path,
-        _In_ mstring_t* arguments,
-        _In_ int        type);
+        _In_ struct Application* application,
+        _In_ mstring_t*          name,
+        _In_ mstring_t*          path,
+        _In_ mstring_t*          arguments,
+        _In_ int                 type);
 
 /**
  * @brief

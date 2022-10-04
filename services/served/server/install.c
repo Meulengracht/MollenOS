@@ -89,6 +89,7 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
     // add parsed commands
     for (int i = 0; i < count; i++) {
         struct Command* command = CommandNew(
+                application,
                 mstr_new_u8(commands[i].name),
                 mstr_new_u8(commands[i].path),
                 mstr_new_u8(commands[i].arguments),
@@ -98,7 +99,6 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
             oserr = OsOutOfMemory;
             goto cleanup;
         }
-        list_append(&application->Commands, &command->ListHeader);
     }
 
     *applicationOut = application;
@@ -120,7 +120,7 @@ static oserr_t __InstallPack(mstring_t* path, struct Application* application)
     oserr_t oserr;
 
     sourceu8 = mstr_u8(path);
-    destinationu8 = mstr_u8(ApplicationPackPath(application));
+    destinationu8 = mstr_u8(application->PackPath);
     if (sourceu8 == NULL || destinationu8 == NULL) {
         free(sourceu8);
         free(destinationu8);

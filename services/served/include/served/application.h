@@ -26,34 +26,35 @@
  * @param application
  * @return
  */
-extern oserr_t ApplicationMount(struct Application* application);
+extern oserr_t
+ApplicationMount(
+        _In_ struct Application* application);
 
 /**
  *
  * @param application
  * @return
  */
-extern oserr_t ApplicationUnmount(struct Application* application);
+extern oserr_t
+ApplicationUnmount(
+        _In_ struct Application* application);
 
 /**
  *
  * @param application
  * @return
  */
-extern oserr_t ApplicationStartServices(struct Application* application);
+extern oserr_t
+ApplicationStartServices(
+        _In_ struct Application* application);
 
 /**
  *
  * @param application
  * @return
  */
-extern oserr_t ApplicationStopServices(struct Application* application);
-
-/**
- * @brief
- * @param application
- * @return
- */
-extern mstring_t* ApplicationPackPath(struct Application* application);
+extern oserr_t
+ApplicationStopServices(
+        _In_ struct Application* application);
 
 #endif //!__SERVED_APPLICATION_H__

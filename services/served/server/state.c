@@ -62,31 +62,26 @@ exit:
 }
 
 static struct Command* __CommandFromJson(
+        struct Application* application,
         const cJSON* name,
         const cJSON* path,
         const cJSON* arguments,
         const cJSON* type)
 {
-    struct Command* command;
-
     if (name == NULL || path == NULL || type == NULL) {
         return NULL;
     }
 
-    command = malloc(sizeof(struct Command));
-    if (command == NULL) {
-        return NULL;
-    }
-
-    ELEMENT_INIT(&command->ListHeader, 0, 0);
-    command->Name = mstr_new_u8(cJSON_GetStringValue(name));
-    command->Path = mstr_new_u8(cJSON_GetStringValue(path));
-    command->Arguments = mstr_new_u8(cJSON_GetStringValue(arguments));
-    command->Type = (int)cJSON_GetNumberValue(type);
-    return command;
+    return CommandNew(
+            application,
+            mstr_new_u8(cJSON_GetStringValue(name)),
+            mstr_new_u8(cJSON_GetStringValue(path)),
+            mstr_new_u8(cJSON_GetStringValue(arguments)),
+            (int)cJSON_GetNumberValue(type)
+    );
 }
 
-static oserr_t __ParseCommands(list_t* out, cJSON* in)
+static oserr_t __ParseCommands(struct Application* application, cJSON* in)
 {
     int cmdCount = cJSON_GetArraySize(in);
     for (int i = 0; i < cmdCount; i++) {
@@ -100,12 +95,13 @@ static oserr_t __ParseCommands(list_t* out, cJSON* in)
         cJSON* pathObject = cJSON_GetObjectItem(cmdObject, "path");
         cJSON* argumentsObject = cJSON_GetObjectItem(cmdObject, "arguments");
         cJSON* typeObject = cJSON_GetObjectItem(cmdObject, "type");
-        struct Command* command = __CommandFromJson(
-                nameObject, pathObject, argumentsObject,typeObject);
+        struct Command* command = __CommandFromJson(application,
+                nameObject, pathObject,
+                argumentsObject, typeObject
+        );
         if (command == NULL) {
             return OsError;
         }
-        list_append(out, &command->ListHeader);
     }
     return OsOK;
 }
@@ -119,27 +115,19 @@ static struct Application* __ApplicationFromJson(
         const cJSON* patch,
         const cJSON* revision)
 {
-    struct Application* application;
-
     if (name == NULL || publisher == NULL || package == NULL) {
         return NULL;
     }
 
-    application = malloc(sizeof(struct Application));
-    if (application == NULL) {
-        return NULL;
-    }
-
-    ELEMENT_INIT(&application->ListHeader, 0, 0);
-    application->Name = mstr_new_u8(cJSON_GetStringValue(name));
-    application->Publisher = mstr_new_u8(cJSON_GetStringValue(publisher));
-    application->Package = mstr_new_u8(cJSON_GetStringValue(package));
-    application->Major = (int)cJSON_GetNumberValue(major);
-    application->Minor = (int)cJSON_GetNumberValue(minor);
-    application->Patch = (int)cJSON_GetNumberValue(patch);
-    application->Revision = (int)cJSON_GetNumberValue(revision);
-    list_construct(&application->Commands);
-    return application;
+    return ApplicationNew(
+            mstr_new_u8(cJSON_GetStringValue(name)),
+            mstr_new_u8(cJSON_GetStringValue(publisher)),
+            mstr_new_u8(cJSON_GetStringValue(package)),
+            (int)cJSON_GetNumberValue(major),
+            (int)cJSON_GetNumberValue(minor),
+            (int)cJSON_GetNumberValue(patch),
+            (int)cJSON_GetNumberValue(revision)
+    );
 }
 
 static oserr_t __ParseApplications(list_t* out, const cJSON* in)
@@ -170,7 +158,7 @@ static oserr_t __ParseApplications(list_t* out, const cJSON* in)
         // Get application members
         cJSON* commands = cJSON_GetObjectItem(appObject, "commands");
         if (commands != NULL) {
-            oserr_t oserr = __ParseCommands(&application->Commands, commands);
+            oserr_t oserr = __ParseCommands(application, commands);
             if (oserr != OsOK) {
                 return oserr;
             }

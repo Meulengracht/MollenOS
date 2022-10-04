@@ -38,9 +38,9 @@ _CODE_BEGIN
  */
 CRTDECL(oserr_t,
 Mount(
-        _In_ mstring_t*   path,
-        _In_ mstring_t*   at,
-        _In_ mstring_t*   type,
+        _In_ const char*  path,
+        _In_ const char*  at,
+        _In_ const char*  type,
         _In_ unsigned int flags));
 
 /**
@@ -50,7 +50,7 @@ Mount(
  */
 CRTDECL(oserr_t,
 Unmount(
-        _In_ mstring_t* path));
+        _In_ const char* path));
 
 _CODE_END
 #endif //!__OS_SERVICE_MOUNT_H__
