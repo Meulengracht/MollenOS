@@ -313,8 +313,8 @@ __StorageUnmount(
     usched_mtx_lock(&fsStorage->Lock);
     _foreach(i, &fsStorage->Filesystems) {
         FileSystem_t* fileSystem = (FileSystem_t*)i->value;
-        VfsFileSystemUnmount(fileSystem, flags);
-        VfsFileSystemDisconnectInterface(fileSystem, flags);
+        VFSFileSystemUnmount(fileSystem, flags);
+        VFSFileSystemDisconnectInterface(fileSystem, flags);
         FileSystemDestroy(fileSystem);
     }
     usched_mtx_unlock(&fsStorage->Lock);

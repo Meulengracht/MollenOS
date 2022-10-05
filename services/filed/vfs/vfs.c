@@ -143,8 +143,9 @@ oserr_t
 VFSNew(
         _In_  uuid_t                id,
         _In_  guid_t*               guid,
-        _In_  void*                 data,
+        _In_  struct VFSStorage*    storage,
         _In_  struct VFSInterface*  interface,
+        _In_  void*                 data,
         _Out_ struct VFS**          vfsOut)
 {
     struct VFS* vfs;
@@ -158,6 +159,7 @@ VFSNew(
 
     vfs->ID = id;
     memcpy(&vfs->Guid, guid, sizeof(guid_t));
+    vfs->Storage = storage;
     vfs->Interface = interface;
     vfs->Data = data;
     usched_rwlock_init(&vfs->Lock);

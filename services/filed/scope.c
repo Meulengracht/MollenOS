@@ -19,8 +19,9 @@
 #define __TRACE
 
 #include <ddk/utils.h>
-#include <vfs/vfs.h>
 #include <vfs/interface.h>
+#include <vfs/storage.h>
+#include <vfs/vfs.h>
 
 static struct VFS*          g_rootScope      = NULL;
 static guid_t               g_rootGuid       = GUID_EMPTY;
@@ -34,12 +35,22 @@ __NewMemFS(
 {
     struct VFSStorageParameters storageParameters;
     struct VFSInterface*        interface;
+    struct VFSStorage*          storage;
     oserr_t                     osStatus;
     void*                       interfaceData = NULL;
     _CRT_UNUSED(label); // TODO missing support for setting this, where should we do it
 
     interface = MemFSNewInterface();
     if (interface == NULL) {
+        return OsOutOfMemory;
+    }
+
+    // Create a new, empty memory backend which the memory-fs will
+    // be bound to. MemFS does not actually use the storage backend, but we
+    // have subsystems which will inquire about storage geometry.
+    storage = VFSStorageCreateMemoryBacked(UUID_INVALID, 0, NULL, 0);
+    if (storage == NULL) {
+        VFSInterfaceDelete(interface);
         return OsOutOfMemory;
     }
 
@@ -50,12 +61,22 @@ __NewMemFS(
         osStatus = interface->Operations.Initialize(&storageParameters, &interfaceData);
         if (osStatus != OsOK) {
             VFSInterfaceDelete(interface);
+            VFSStorageDelete(storage);
+            return osStatus;
         }
     }
 
-    osStatus = VFSNew(UUID_INVALID, guid, interfaceData, interface, vfsOut);
+    osStatus = VFSNew(
+            UUID_INVALID,
+            guid,
+            storage,
+            interface,
+            interfaceData,
+            vfsOut
+    );
     if (osStatus != OsOK) {
         VFSInterfaceDelete(interface);
+        VFSStorageDelete(storage);
     }
     return osStatus;
 }

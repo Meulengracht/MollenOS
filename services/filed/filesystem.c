@@ -76,9 +76,9 @@ FileSystemParseGuid(
     return NULL;
 }
 
-void VfsFileSystemInitialize(void)
+void VFSFileSystemInitialize(void)
 {
-    TRACE("VfsFileSystemInitialize()");
+    TRACE("VFSFileSystemInitialize()");
 
     guid_parse_string(&g_efiGuid, "C12A7328-F81F-11D2-BA4B-00A0C93EC93B");
     guid_parse_string(&g_fatGuid, "21686148-6449-6E6F-744E-656564454649");
@@ -289,8 +289,9 @@ __Connect(
     oserr = VFSNew(
             fileSystem->ID,
             &fileSystem->GUID,
-            fileSystem->Data,
+            fileSystem->Storage,
             interface,
+            fileSystem->Data,
             &fileSystem->VFS
     );
     if (oserr != OsOK) {
@@ -408,7 +409,7 @@ exit:
 }
 
 oserr_t
-VfsFileSystemUnmount(
+VFSFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
@@ -418,7 +419,7 @@ VfsFileSystemUnmount(
     if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
-    TRACE("VfsFileSystemUnmount(fs=%u)", fileSystem->ID);
+    TRACE("VFSFileSystemUnmount(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_MOUNTED) {
@@ -439,7 +440,7 @@ VfsFileSystemUnmount(
 }
 
 oserr_t
-VfsFileSystemDisconnectInterface(
+VFSFileSystemDisconnectInterface(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
@@ -448,7 +449,7 @@ VfsFileSystemDisconnectInterface(
     if (fileSystem == NULL) {
         return OsInvalidParameters;
     }
-    TRACE("VfsFileSystemDisconnectInterface(fs=%u)", fileSystem->ID);
+    TRACE("VFSFileSystemDisconnectInterface(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_CONNECTED) {

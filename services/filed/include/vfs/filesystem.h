@@ -56,7 +56,7 @@ typedef struct FileSystem {
 /**
  * Initializes the filesystem interface.
  */
-extern void VfsFileSystemInitialize(void);
+extern void VFSFileSystemInitialize(void);
 
 /**
  * @brief Creates a new filesystem instance from the parameters provided. This does not register
@@ -116,7 +116,7 @@ VFSFileSystemConnectInterface(
  * @return
  */
 extern oserr_t
-VfsFileSystemDisconnectInterface(
+VFSFileSystemDisconnectInterface(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
 
@@ -139,7 +139,7 @@ VFSFileSystemMount(
  * @param flags      The type of unmount that is occuring.
  */
 extern oserr_t
-VfsFileSystemUnmount(
+VFSFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
 

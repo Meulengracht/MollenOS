@@ -52,6 +52,12 @@ struct VFSStorageProtocol {
             uuid_t DeviceID;
             uuid_t DriverID;
         } Device;
+        struct {
+            uuid_t bufferHandle;
+            size_t bufferOffset;
+            void*  buffer;
+            size_t size;
+        } Memory;
     } Storage;
 };
 
@@ -110,6 +116,21 @@ VFSStorageCreateDeviceBacked(
         _In_ uuid_t       deviceID,
         _In_ uuid_t       driverID,
         _In_ unsigned int flags);
+
+/**
+ * @brief
+ * @param bufferHandle
+ * @param bufferOffset
+ * @param buffer
+ * @param size
+ * @return
+ */
+extern struct VFSStorage*
+VFSStorageCreateMemoryBacked(
+        _In_ uuid_t bufferHandle,
+        _In_ size_t bufferOffset,
+        _In_ void*  buffer,
+        _In_ size_t size);
 
 /**
  * @brief Registers a new partiton on the storage provided. This will create and

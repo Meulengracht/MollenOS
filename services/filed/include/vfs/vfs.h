@@ -25,6 +25,7 @@
 #include <os/osdefs.h>
 
 struct VFS;
+struct VFSStorage;
 struct VFSStorageParameters;
 struct VFSInterface;
 struct VFSNode;
@@ -35,7 +36,15 @@ struct VFSStatFS;
 
 extern void VFSNodeHandleInitialize(void);
 
-extern oserr_t VFSNew(uuid_t id, guid_t* guid, void* data, struct VFSInterface*, struct VFS**);
+extern oserr_t
+VFSNew(
+        _In_  uuid_t                id,
+        _In_  guid_t*               guid,
+        _In_  struct VFSStorage*    storage,
+        _In_  struct VFSInterface*  interface,
+        _In_  void*                 data,
+        _Out_ struct VFS**          vfsOut);
+
 extern oserr_t VFSChildNew(struct VFS*, struct VFS**);
 extern void    VFSDestroy(struct VFS*);
 
