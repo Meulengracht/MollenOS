@@ -16,7 +16,10 @@
  *
  */
 
+#define __TRACE
+
 #include <chef/package.h>
+#include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <io.h>
 #include <stdlib.h>
@@ -54,6 +57,7 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
     int                  status;
     oserr_t              oserr = OsOK;
     char*                pathu8;
+    TRACE("__ParsePackage(publisher=%ms, path=%ms)", publisher, path);
 
     pathu8 = mstr_u8(path);
     if (pathu8 == NULL) {
@@ -82,7 +86,7 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
             version->revision
     );
     if (application == NULL) {
-        status = OsError;
+        oserr = OsError;
         goto cleanup;
     }
 
@@ -118,6 +122,7 @@ static oserr_t __InstallPack(mstring_t* path, struct Application* application)
     char*   sourceu8;
     char*   destinationu8;
     oserr_t oserr;
+    TRACE("__InstallPack(path=%ms)", path);
 
     sourceu8 = mstr_u8(path);
     destinationu8 = mstr_u8(application->PackPath);
@@ -136,12 +141,18 @@ static oserr_t __InstallPack(mstring_t* path, struct Application* application)
 static oserr_t __RegisterApplication(struct Application* application)
 {
     struct State* state = State();
+    TRACE("__RegisterApplication(app=%ms)", application->Name);
 
     StateLock();
     // we should definitely do a check here that we are not double installing
     // something we shouldn't
     foreach(i, &state->Applications) {
+        struct Application* a = (struct Application*)i;
         // TODO do some kind of security check here
+        if (!mstr_cmp(a->Name, application->Name)) {
+            StateUnlock();
+            return OsExists;
+        }
     }
 
     list_append(&state->Applications, &application->ListHeader);
@@ -154,6 +165,7 @@ oserr_t InstallApplication(mstring_t* path, const char* basename)
     struct Application* application;
     mstring_t*          publisher;
     oserr_t             oserr;
+    TRACE("InstallApplication(path=%ms, basename=%s)", path, basename);
 
     oserr = __GetPublisher(basename, &publisher);
     if (oserr != OsOK) {
@@ -186,6 +198,7 @@ void InstallBundledApplications(void)
 {
     struct DIR*   setupDir;
     struct DIRENT entry;
+    TRACE("InstallBundledApplications()");
 
     if (opendir("/data/setup", 0, &setupDir)) {
         // directory did not exist, no bundled apps to install
@@ -199,7 +212,7 @@ void InstallBundledApplications(void)
             // Not a compatable file, delete it
             char* pathu8 = mstr_u8(path);
             if (unlink(pathu8)) {
-                // warn
+                ERROR("InstallBundledApplications failed to unlink path %s", pathu8);
             }
             free(pathu8);
         }
@@ -209,6 +222,6 @@ void InstallBundledApplications(void)
     // finally remove the directory as installation has completed.
     (void)closedir(setupDir);
     if (unlink("/data/setup")) {
-        // warn
+        ERROR("InstallBundledApplications failed to remove /data/setup");
     }
 }

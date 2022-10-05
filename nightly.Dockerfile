@@ -14,6 +14,7 @@ ENV VALI_APPLICATION_PATH=/usr/workspace/vali-apps
 ENV PATH="/root/.dotnet:${PATH}"
 ENV DOTNET_ROOT="/root/.dotnet"
 ENV DEBIAN_FRONTEND=noninteractive
+ENV CLR_OPENSSL_VERSION_OVERRIDE=1.1
 
 # Set the directory
 WORKDIR /usr/workspace/vali
