@@ -5,7 +5,7 @@ SCRIPTPATH=$(dirname "$SCRIPT")
 # Dev-libraries
 echo "** installing build dependencies"
 apt-get update -yqq
-apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python3 curl
+apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python3 curl libfuse3-dev
 
 # Install dotnet core, unfortunately dotnet core needs libssl.1 which is
 # not shipping with ubuntu 22.04, so we install this manually

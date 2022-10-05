@@ -163,7 +163,7 @@ static struct atexit_dso_entry* __get_or_insert_dso(
     return entry;
 }
 
-static void __register_handler(
+static int __register_handler(
         _In_ struct at_exit_manager* manager,
         _In_ uuid_t                  threadID,
         _In_ void                    (*atExitFn)(void*),
@@ -175,13 +175,19 @@ static void __register_handler(
     struct atexit_handler_entry* handlerEntry;
 
     threadEntry = __get_or_insert_thread(manager, threadID);
-    assert(threadEntry != NULL);
+    if (threadEntry == NULL) {
+        return -1;
+    }
 
     dsoEntry = __get_or_insert_dso(threadEntry, dsoHandle);
-    assert(dsoHandle != NULL);
+    if (dsoEntry == NULL) {
+        return -1;
+    }
 
     handlerEntry = malloc(sizeof(struct atexit_handler_entry));
-    assert(handlerEntry != NULL);
+    if (handlerEntry == NULL) {
+        return -1;
+    }
 
     ELEMENT_INIT(&handlerEntry->header, 0, 0);
     handlerEntry->argument = argument;
@@ -190,55 +196,68 @@ static void __register_handler(
     } else {
         handlerEntry->callback.atexit_fn = (void(*)(void*, int))atExitFn;
     }
-    list_append(&dsoEntry->values, &handlerEntry->header);
+    return list_append(&dsoEntry->values, &handlerEntry->header);
 }
 
-void __at_exit_impl(
+int __at_exit_impl(
         _In_ uuid_t threadID,
         _In_ void   (*atExitFn)(void*),
         _In_ void*  argument,
         _In_ void*  dsoHandle)
 {
-    spinlock_acquire(&g_at_exit.lock);
+    int status;
 
+    spinlock_acquire(&g_at_exit.lock);
     // Do not register any handlers once we've run primary cleanup
     // to avoid any expectations.
     if (g_at_exit.ran) {
         spinlock_release(&g_at_exit.lock);
-        return;
+        return -1;
     }
 
     if (!g_at_exit.initialized) {
-        assert(__initialize_handlers_level_1(&g_at_exit) == 0);
+        status = __initialize_handlers_level_1(&g_at_exit);
+        if (status) {
+            spinlock_release(&g_at_exit.lock);
+            return status;
+        }
         g_at_exit.initialized = 1;
     }
 
-    __register_handler(&g_at_exit, threadID, atExitFn, argument, dsoHandle);
+    status = __register_handler(&g_at_exit, threadID, atExitFn, argument, dsoHandle);
     spinlock_release(&g_at_exit.lock);
+    return status;
 }
 
-void __at_quick_exit_impl(
+int __at_quick_exit_impl(
         _In_ uuid_t threadID,
         _In_ void   (*atExitFn)(void*),
         _In_ void*  argument,
         _In_ void*  dsoHandle)
 {
+    int status;
+
     spinlock_acquire(&g_at_quick_exit.lock);
 
     // Do not register any handlers once we've run primary cleanup
     // to avoid any expectations.
     if (g_at_quick_exit.ran) {
         spinlock_release(&g_at_quick_exit.lock);
-        return;
+        return -1;
     }
 
     if (!g_at_quick_exit.initialized) {
-        assert(__initialize_handlers_level_1(&g_at_quick_exit) == 0);
+        status = __initialize_handlers_level_1(&g_at_quick_exit);
+        if (status) {
+            spinlock_release(&g_at_quick_exit.lock);
+            return status;
+        }
         g_at_quick_exit.initialized = 1;
     }
 
-    __register_handler(&g_at_quick_exit, threadID, atExitFn, argument, dsoHandle);
+    status = __register_handler(&g_at_quick_exit, threadID, atExitFn, argument, dsoHandle);
     spinlock_release(&g_at_quick_exit.lock);
+    return status;
 }
 
 struct __dso_iterate_context {

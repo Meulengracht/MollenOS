@@ -32,12 +32,14 @@
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include <internal/_io.h>
 #include <os/threads.h>
-#include "pe.h"
-#include "process.h"
+#include <pe.h>
+#include <process.h>
+#include <requests.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "sys_library_service_server.h"
-#include "sys_process_service_server.h"
-#include "requests.h"
+#include <sys_library_service_server.h>
+#include <sys_process_service_server.h>
 
 struct thread_mapping {
     uuid_t     process_id;
@@ -164,6 +166,7 @@ GetProcessByThread(
 void
 PmInitialize(void)
 {
+
     hashtable_construct(&g_threadmappings, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct thread_mapping), mapping_hash,
                         mapping_cmp);

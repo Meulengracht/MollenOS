@@ -141,8 +141,7 @@ add_subdirectory(zstd/build/cmake)
 
 # Unfortunately we have to manually add include paths to the targets
 # introduced by zstd, as we are compiling free-standing at this moment
-target_include_directories(libzstd_static PRIVATE libos/include)
-target_link_libraries(libzstd_static PRIVATE c)
+target_link_libraries(libzstd_static PRIVATE libos-api c)
 
 # create an interface library for zstd
 add_library(zstd-api INTERFACE)

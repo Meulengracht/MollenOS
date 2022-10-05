@@ -11,6 +11,8 @@ usched_cnd_notify_all
 usched_cnd_wait
 usched_cnd_timedwait
 abort
+Mount
+Unmount
 __crt_process_initialize
 __crt_cmdline
 exit

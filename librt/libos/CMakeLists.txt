@@ -29,3 +29,8 @@ install(DIRECTORY include/ DESTINATION include
         FILES_MATCHING
         PATTERN "*.h"
 )
+
+# create an interface library for libos as targets are not meant
+# to include this library themselves
+add_library(libos-api INTERFACE)
+target_include_directories(libos-api INTERFACE include)

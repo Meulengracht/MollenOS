@@ -36,8 +36,8 @@ typedef void(*_PVTLS)(void*, unsigned long, void*);
 #endif
 
 extern void StdioCleanup(void);
-extern void __at_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
-extern void __at_quick_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
+extern int  __at_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
+extern int  __at_quick_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
 extern void __cxa_at_exit_run(thrd_t threadID, void* dsoHandle, int exitCode);
 
 static int              g_cleanupPerformed = 0;
@@ -158,27 +158,23 @@ CRTDECL(void, __cxa_finalize(void *Dso))
  * C++ At-Exit implementation for registering of exit-handlers. */
 CRTDECL(int, __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle)) {
     TRACE("__cxa_atexit()");
-    __at_exit_impl(UUID_INVALID, fn, argument, dsoHandle);
-    return 0;
+    return __at_exit_impl(UUID_INVALID, fn, argument, dsoHandle);;
 }
 CRTDECL(int, __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle)) {
     TRACE("__cxa_at_quick_exit()");
-    __at_quick_exit_impl(UUID_INVALID, fn, NULL, dsoHandle);
-    return 0;
+    return __at_quick_exit_impl(UUID_INVALID, fn, NULL, dsoHandle);
 }
 
 /* __cxa_thread_atexit_impl/__cxa_thread_at_quick_exit_impl
  * C++ At-Exit implementation for thread specific cleanup. */
 CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dsoHandle)) {
     TRACE("__cxa_thread_atexit_impl()");
-    __at_exit_impl(__crt_thread_id(), dtor, arg, dsoHandle);
-    return 0;
+    return __at_exit_impl(__crt_thread_id(), dtor, arg, dsoHandle);
 }
 
 CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dsoHandle)) {
     TRACE("__cxa_thread_at_quick_exit_impl()");
-    __at_quick_exit_impl(__crt_thread_id(), dtor, NULL, dsoHandle);
-    return 0;
+    return __at_quick_exit_impl(__crt_thread_id(), dtor, NULL, dsoHandle);
 }
 
 /* __cxa_runinitializers 
