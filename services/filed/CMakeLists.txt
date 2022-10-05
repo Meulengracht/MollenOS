@@ -26,6 +26,7 @@ set (SERVICE_SOURCES
         storage/storage.c
         storage/storage_device.c
         storage/storage_file.c
+        storage/storage_memory.c
         storage/utils.c
 
         filesystem.c

@@ -95,6 +95,17 @@ AcquireHandle(
         _Out_ void** resourceOut);
 
 /**
+ * @brief Acquires the handle given for the calling process. This can fail if the handle
+ * turns out to be invalid, otherwise the resource will be returned.
+ * @param handleId [In] The handle that should be acquired.
+ */
+KERNELAPI oserr_t KERNELABI
+AcquireHandleOfType(
+        _In_  uuid_t       handleId,
+        _In_  HandleType_t handleType,
+        _Out_ void**       resourceOut);
+
+/**
  * Retrieves the handle given, while also performing type validation of the handle. 
  * This can fail if the handle turns out to be invalid, otherwise the resource will be returned.
  */

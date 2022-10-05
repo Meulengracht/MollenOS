@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <ds/mstring.h>
 #include <ds/hashtable.h>
+#include <ddk/barrier.h>
 #include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
@@ -455,12 +456,14 @@ void PmGetProcessStartupInformation(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    Process_t* process       = GetProcessByThread(request->parameters.get_initblock.threadHandle);
+    Process_t* process;
     oserr_t    osStatus      = OsNotExists;
     uuid_t     processHandle = UUID_INVALID;
     int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
 
+    smp_rmb();
+    process = GetProcessByThread(request->parameters.get_initblock.threadHandle);
     if (process == NULL) {
         goto exit;
     }
@@ -469,6 +472,7 @@ void PmGetProcessStartupInformation(
     struct dma_attachment dmaAttachment;
     osStatus = dma_attach(request->parameters.get_initblock.bufferHandle, &dmaAttachment);
     if (osStatus != OsOK) {
+        ERROR("PmGetProcessStartupInformation failed to attach to user buffer");
         goto exit;
     }
 
@@ -484,7 +488,8 @@ void PmGetProcessStartupInformation(
         memcpy(
                 &buffer[process->arguments_length],
                 process->inheritation_block,
-                process->inheritation_block_length);
+                process->inheritation_block_length
+        );
     }
 
     osStatus = PeGetModuleEntryPoints(

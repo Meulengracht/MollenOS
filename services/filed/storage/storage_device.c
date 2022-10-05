@@ -24,18 +24,10 @@
 #include <vfs/storage.h>
 #include <ctt_storage_service_client.h>
 
-struct __DeviceContext {
-    uuid_t              DeviceID;
-    uuid_t              DriverID;
-    unsigned int        Flags;
-};
-
-static void    __DestroyDevice(void*);
-static oserr_t __ReadDevice(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
-static oserr_t __WriteDevice(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static oserr_t __ReadDevice(struct VFSStorage*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static oserr_t __WriteDevice(struct VFSStorage*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
 
 static struct VFSStorageOperations g_operations = {
-        .Destroy = __DestroyDevice,
         .Read = __ReadDevice,
         .Write = __WriteDevice,
 };
@@ -59,21 +51,6 @@ static oserr_t __DeviceQueryStats(
     return osStatus;
 }
 
-static struct __DeviceContext* __DeviceContextNew(
-        _In_ uuid_t       deviceID,
-        _In_ uuid_t       driverID,
-        _In_ unsigned int flags)
-{
-    struct __DeviceContext* context = malloc(sizeof(struct __DeviceContext));
-    if (context == NULL) {
-        return NULL;
-    }
-    context->DeviceID = deviceID;
-    context->DriverID = driverID;
-    context->Flags = flags;
-    return context;
-}
-
 struct VFSStorage*
 VFSStorageCreateDeviceBacked(
         _In_ uuid_t       deviceID,
@@ -81,20 +58,17 @@ VFSStorageCreateDeviceBacked(
         _In_ unsigned int flags)
 {
     struct VFSStorage*      storage;
-    struct __DeviceContext* context;
     oserr_t                 oserr;
 
-    storage = VFSStorageNew(&g_operations);
+    storage = VFSStorageNew(&g_operations, flags);
     if (storage == NULL) {
         return NULL;
     }
 
-    context = __DeviceContextNew(deviceID, driverID, flags);
-    if (context == NULL) {
-        free(storage);
-        return NULL;
-    }
-    storage->Data = context;
+    // setup protocol settings
+    storage->Protocol.StorageType = VFSSTORAGE_TYPE_DEVICE;
+    storage->Protocol.Storage.Device.DriverID = driverID;
+    storage->Protocol.Storage.Device.DeviceID = deviceID;
 
     oserr = __DeviceQueryStats(deviceID, driverID, &storage->Stats);
     if (oserr != OsOK) {
@@ -104,28 +78,21 @@ VFSStorageCreateDeviceBacked(
     return storage;
 }
 
-static void __DestroyDevice(
-        _In_ void* context)
-{
-    struct __DeviceContext* device = context;
-    free(device);
-}
-
 static oserr_t __ReadDevice(
-        _In_ void*         context,
-        _In_ uuid_t        buffer,
-        _In_ size_t        offset,
-        _In_ UInteger64_t* sector,
-        _In_ size_t        count,
-        _In_ size_t*       read)
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             buffer,
+        _In_ size_t             offset,
+        _In_ UInteger64_t*      sector,
+        _In_ size_t             count,
+        _In_ size_t*            read)
 {
-    struct __DeviceContext*  device = context;
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(device->DriverID);
+    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Protocol.Storage.Device.DriverID);
     oserr_t                  status;
 
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
-            device->DeviceID, __STORAGE_OPERATION_READ,
+            storage->Protocol.Storage.Device.DeviceID,
+            __STORAGE_OPERATION_READ,
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
@@ -135,20 +102,20 @@ static oserr_t __ReadDevice(
 }
 
 static oserr_t __WriteDevice(
-        _In_ void*         context,
-        _In_ uuid_t        buffer,
-        _In_ size_t        offset,
-        _In_ UInteger64_t* sector,
-        _In_ size_t        count,
-        _In_ size_t*       written)
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             buffer,
+        _In_ size_t             offset,
+        _In_ UInteger64_t*      sector,
+        _In_ size_t             count,
+        _In_ size_t*            written)
 {
-    struct __DeviceContext* device = context;
-    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(device->DriverID);
+    struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(storage->Protocol.Storage.Device.DriverID);
     oserr_t                  status;
 
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
-            device->DeviceID, __STORAGE_OPERATION_WRITE,
+            storage->Protocol.Storage.Device.DeviceID,
+            __STORAGE_OPERATION_WRITE,
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );

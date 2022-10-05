@@ -124,12 +124,12 @@ static oserr_t __SetupFileBackedStorage(
     if (interfaceDriverID == UUID_INVALID) {
         oserr = VFSInterfaceLoadInternal(fsType, &interface);
         if (oserr != OsOK) {
-            WARNING("__SetupFileBackedStorage no module for filesystem type %u", fsType);
+            WARNING("__SetupFileBackedStorage no module for filesystem type %s", fsType);
         }
     } else {
         oserr = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
         if (oserr != OsOK) {
-            WARNING("__SetupFileBackedStorage failed to register driver for %u", fsType);
+            WARNING("__SetupFileBackedStorage failed to register driver for %s", fsType);
         }
     }
 

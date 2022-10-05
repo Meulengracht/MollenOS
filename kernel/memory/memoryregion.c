@@ -149,7 +149,7 @@ MemoryRegionCreate(
         _Out_ uuid_t*      handleOut)
 {
     MemoryRegion_t* memoryRegion;
-    oserr_t      osStatus;
+    oserr_t         osStatus;
     int             pageCount;
 
     // Capacity is the expected maximum size of the region. Regions
@@ -183,7 +183,11 @@ MemoryRegionCreate(
     }
     
     *kernelMapping = (void*)memoryRegion->KernelMapping;
-    *handleOut     = CreateHandle(HandleTypeMemoryRegion, MemoryRegionDestroy, memoryRegion);
+    *handleOut     = CreateHandle(
+            HandleTypeMemoryRegion,
+            MemoryRegionDestroy,
+            memoryRegion
+    );
     return osStatus;
     
 ErrorHandler:
@@ -199,7 +203,7 @@ MemoryRegionCreateExisting(
         _Out_ uuid_t*      handleOut)
 {
     MemoryRegion_t* region;
-    oserr_t      osStatus;
+    oserr_t         osStatus;
     int             pageCount;
     size_t          capacityWithOffset;
 
@@ -240,20 +244,25 @@ ErrorHandler:
     return osStatus;
 }
 
-
 oserr_t
 MemoryRegionAttach(
         _In_  uuid_t  Handle,
         _Out_ size_t* Length)
 {
-    MemoryRegion_t* Region;
-    
-    if (AcquireHandle(Handle, (void**)&Region) != OsOK) {
-        ERROR("[sc_dma_attach] [acquire_handle] invalid handle %u", Handle);
+    MemoryRegion_t* region;
+    oserr_t         oserr;
+
+    oserr = AcquireHandleOfType(
+            Handle,
+            HandleTypeMemoryRegion,
+            (void**)&region
+    );
+    if (oserr != OsOK) {
+        ERROR("MemoryRegionAttach handle %u was invalid", Handle);
         return OsNotExists;
     }
     
-    *Length = Region->Length;
+    *Length = region->Length;
     return OsOK;
 }
 

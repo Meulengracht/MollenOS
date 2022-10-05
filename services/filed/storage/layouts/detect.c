@@ -47,7 +47,7 @@ VFSStorageDeriveFileSystemType(
     TRACE("VFSStorageDeriveFileSystemType(sector=%u)", sector->u.LowPart);
 
     // Make sure the MBR is loaded
-    status = storage->Operations.Read(storage->Data, bufferHandle, 0, sector, 1, &sectorsRead);
+    status = storage->Operations.Read(storage, bufferHandle, 0, sector, 1, &sectorsRead);
     if (status != OsOK) {
         return status;
     }

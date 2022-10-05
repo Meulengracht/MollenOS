@@ -60,7 +60,7 @@ GptEnumeratePartitionTable(
         GptPartitionEntry_t* entry;
 
         oserr = storage->Operations.Read(
-                storage->Data, bufferHandle, 0,
+                storage, bufferHandle, 0,
                 &(UInteger64_t) { .QuadPart = gptHeader->PartitionTableLBA },
                 1, &sectorsRead
         );
@@ -145,7 +145,7 @@ GptEnumerate(
     UInteger64_t sector = {
             .QuadPart = 1
     };
-    oserr = storage->Operations.Read(storage->Data, bufferHandle, 0, &sector, 1, &sectorsRead);
+    oserr = storage->Operations.Read(storage, bufferHandle, 0, &sector, 1, &sectorsRead);
     if (oserr != OsOK) {
         return OsError;
     }

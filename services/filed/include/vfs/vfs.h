@@ -85,7 +85,7 @@ extern oserr_t VFSNodeGetAccess(struct VFSRequest*, uint32_t* accessKindOut);
 extern oserr_t VFSNodeSetAccess(struct VFSRequest*);
 extern oserr_t VFSNodeGetSize(struct VFSRequest*, uint64_t* sizeOut);
 extern oserr_t VFSNodeSetSize(struct VFSRequest*);
-extern oserr_t VFSNodeStatHandle(struct VFSRequest*, struct VFSStat*);
+extern oserr_t VFSNodeStatHandle(uuid_t fileHandle, struct VFSStat*);
 extern oserr_t VFSNodeStatFsHandle(struct VFSRequest*, struct VFSStatFS*);
 extern oserr_t VFSNodeStatStorageHandle(struct VFSRequest*, StorageDescriptor_t*);
 extern oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t**);

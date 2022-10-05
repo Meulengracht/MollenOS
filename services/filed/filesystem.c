@@ -98,7 +98,8 @@ FileSystemNew(
         _In_ guid_t*            guid)
 {
     FileSystem_t* fileSystem;
-    TRACE("FileSystemNew(storage=%u, partition=%i, sector=%llu)", &storage->ID, partitionIndex, sector);
+    TRACE("FileSystemNew(storage=%u, partition=%i, sector=%llu)",
+          &storage->ID, partitionIndex, sector->QuadPart);
 
     fileSystem = (FileSystem_t*)malloc(sizeof(FileSystem_t));
     if (!fileSystem) {

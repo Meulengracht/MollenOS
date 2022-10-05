@@ -112,7 +112,7 @@ static struct __DetachedContext* __DetachedContext_new(const char* type)
         return NULL;
     }
     context->Type   = type;
-    context->Handle = UUID_INVALID;
+    context->Handle = HANDLE_INVALID;
     return context;
 }
 
@@ -177,7 +177,7 @@ VFSInterfaceLoadInternal(
     struct VFSInterface* interface;
 	Handle_t             handle;
     oserr_t              osStatus;
-    TRACE("VFSInterfaceLoadInternal(%u)", type);
+    TRACE("VFSInterfaceLoadInternal(%s)", type);
 
 	if (type == NULL) {
 	    return OsNotSupported;

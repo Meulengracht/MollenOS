@@ -358,7 +358,7 @@ void StatFromHandle(
         return;
     }
 
-    oserr_t osStatus = VFSNodeStatHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatHandle(request->parameters.stat_handle.fileHandle, &stats);
     __ToProtocolFileDescriptor(&stats, &result);
     sys_file_fstat_response(request->message, osStatus, &result);
 

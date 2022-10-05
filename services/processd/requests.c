@@ -13,16 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Virtual File Request Definitions & Structures
- * - This header describes the base virtual file-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 //#define __TRACE
 
 #include <assert.h>
+#include <ddk/barrier.h>
 #include <ddk/utils.h>
 #include <gracht/server.h>
 #include <os/usched/job.h>
@@ -140,6 +136,7 @@ void sys_process_get_startup_information_invocation(struct gracht_message* messa
     request->parameters.get_initblock.threadHandle = handle;
     request->parameters.get_initblock.bufferHandle = bufferHandle;
     request->parameters.get_initblock.bufferOffset = offset;
+    smp_wmb();
     usched_job_queue((usched_task_fn)PmGetProcessStartupInformation, request);
 }
 

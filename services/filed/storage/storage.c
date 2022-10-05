@@ -44,7 +44,8 @@ void VFSStorageInitialize(void)
 
 struct VFSStorage*
 VFSStorageNew(
-        _In_ struct VFSStorageOperations* operations)
+        _In_ struct VFSStorageOperations* operations,
+        _In_ unsigned int                 flags)
 {
     struct VFSStorage* storage;
 
@@ -156,14 +157,14 @@ VFSStorageRegisterAndSetupPartition(
     // it simply means we are not in a sitatuion where we can load the filesystem
     // right now. A module may be present later, so we still register it as disconnected
     if (interfaceDriverID == UUID_INVALID) {
-        oserr = VFSInterfaceLoadInternal(typeHint, &interface);
+        oserr = VFSInterfaceLoadInternal(fsType, &interface);
         if (oserr != OsOK) {
-            WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
+            WARNING("VFSStorageRegisterFileSystem no module for filesystem type %s", fsType);
         }
     } else {
         oserr = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
         if (oserr != OsOK) {
-            WARNING("VFSStorageRegisterFileSystem no module for filesystem type %u", fsType);
+            WARNING("VFSStorageRegisterFileSystem no module for filesystem type %s", fsType);
         }
     }
 

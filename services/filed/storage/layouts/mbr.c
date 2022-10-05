@@ -147,7 +147,7 @@ static oserr_t __EnumeratePartitions(
     // Start out by reading the mbr to detect whether there is a partition table
 
     oserr = storage->Operations.Read(
-            storage->Data, bufferHandle, 0,
+            storage, bufferHandle, 0,
             &(UInteger64_t) { .QuadPart = sector },
             1, &sectorsRead
     );

@@ -37,9 +37,8 @@ enum VFSStorageState {
 struct VFSStorage;
 
 struct VFSStorageOperations {
-    void    (*Destroy)(void*);
-    oserr_t (*Read)(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
-    oserr_t (*Write)(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+    oserr_t (*Read)(struct VFSStorage*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+    oserr_t (*Write)(struct VFSStorage*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
 };
 
 struct VFSStorageProtocol {
@@ -53,10 +52,10 @@ struct VFSStorageProtocol {
             uuid_t DriverID;
         } Device;
         struct {
-            uuid_t bufferHandle;
-            size_t bufferOffset;
-            void*  buffer;
-            size_t size;
+            uuid_t BufferHandle;
+            size_t BufferOffset;
+            void*  Buffer;
+            size_t Size;
         } Memory;
     } Storage;
 };
@@ -69,7 +68,6 @@ struct VFSStorage {
     struct VFSStorageProtocol   Protocol;
     struct VFSStorageOperations Operations;
     StorageDescriptor_t         Stats;
-    void*                       Data;
     list_t                      Filesystems;
 };
 
@@ -85,7 +83,8 @@ extern void VFSStorageInitialize(void);
  */
 extern struct VFSStorage*
 VFSStorageNew(
-        _In_ struct VFSStorageOperations* operations);
+        _In_ struct VFSStorageOperations* operations,
+        _In_ unsigned int                 flags);
 
 /**
  * @brief

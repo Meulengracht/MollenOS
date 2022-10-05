@@ -107,7 +107,7 @@ LookupSafeHandleInstance(
 }
 
 static struct resource_handle*
-AcquireHandleInstance(
+__AcquireHandle(
         _In_ uuid_t handleId)
 {
     struct resource_handle* handle;
@@ -151,11 +151,37 @@ AcquireHandle(
         _In_  uuid_t handleId,
         _Out_ void** resourceOut)
 {
-    struct resource_handle* handle = AcquireHandleInstance(handleId);
+    struct resource_handle* handle = __AcquireHandle(handleId);
     if (!handle) {
         return OsNotExists;
     }
     
+    if (resourceOut) {
+        *resourceOut = handle->resource;
+    }
+    return OsOK;
+}
+
+oserr_t
+AcquireHandleOfType(
+        _In_  uuid_t       handleId,
+        _In_  HandleType_t handleType,
+        _Out_ void**       resourceOut)
+{
+    struct resource_handle* handle;
+
+    handle = __AcquireHandle(handleId);
+    if (!handle) {
+        return OsNotExists;
+    }
+
+    if (handle->type != handleType) {
+        ERROR("AcquireHandleOfType requested handle type %u, but handle was of type %u",
+              handleType, handle->type);
+        DestroyHandle(handleId);
+        return OsError;
+    }
+
     if (resourceOut) {
         *resourceOut = handle->resource;
     }

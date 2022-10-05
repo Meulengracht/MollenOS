@@ -18,69 +18,84 @@
 #include <vfs/storage.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-struct __FileContext {
-    uuid_t file_handle;
-    // size_t sector_size;
-};
-
-static void    __DestroyFile(void*);
-static oserr_t __ReadFile(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
-static oserr_t __WriteFile(void*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static oserr_t __ReadFile(struct VFSStorage*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
+static oserr_t __WriteFile(struct VFSStorage*, uuid_t, size_t, UInteger64_t*, size_t, size_t*);
 
 static struct VFSStorageOperations g_operations = {
-        .Destroy = __DestroyFile,
         .Read = __ReadFile,
         .Write = __WriteFile
 };
 
-static struct __FileContext* __FileContextNew(
-        _In_ uuid_t fileHandleID)
+static oserr_t
+__QueryFileStats(
+        _In_ uuid_t               fileHandleID,
+        _In_ StorageDescriptor_t* stats)
 {
-    struct __FileContext* context = malloc(sizeof(struct __FileContext));
-    if (context == NULL) {
-        return NULL;
+    struct VFSStat fstats;
+    oserr_t        oserr;
+
+    oserr = VFSNodeStatHandle(fileHandleID, &fstats);
+    if (oserr != OsOK) {
+        return oserr;
     }
-    context->file_handle = fileHandleID;
-    return context;
+
+    stats->DriverID = UUID_INVALID;
+    stats->DeviceID = fileHandleID;
+    stats->SectorCount = fstats.Size / 512;
+    stats->SectorSize  = 512; // TODO this can change in the future
+    stats->Flags = 0;
+    stats->LUNCount = 1;
+
+    // generate model and serial
+    snprintf(
+            &stats->Serial[0], sizeof(stats->Serial),
+            "%u-%u", fstats.StorageID, fstats.ID
+    );
+    snprintf(
+            &stats->Model[0], sizeof(stats->Model),
+            "file-mount"
+    );
+    return OsOK;
 }
 
 struct VFSStorage*
 VFSStorageCreateFileBacked(
         _In_ uuid_t fileHandleID)
 {
-    struct VFSStorage* storage = VFSStorageNew(&g_operations);
+    struct VFSStorage* storage;
+    oserr_t            oserr;
+
+    storage = VFSStorageNew(&g_operations, 0);
     if (storage == NULL) {
         return NULL;
     }
 
-    storage->Data = __FileContextNew(fileHandleID);
-    if (storage->Data == NULL) {
-        free(storage);
+    // setup protocol stuff
+    storage->Protocol.StorageType = VFSSTORAGE_TYPE_FILE;
+    storage->Protocol.Storage.File.HandleID = fileHandleID;
+
+    // query file info
+    oserr = __QueryFileStats(fileHandleID, &storage->Stats);
+    if (oserr != OsOK) {
+        VFSStorageDelete(storage);
         return NULL;
     }
     return storage;
 }
 
-static void __DestroyFile(
-        _In_ void* context)
-{
-    struct __FileContext* file = context;
-    free(file);
-}
-
 static oserr_t __ReadFile(
-        _In_ void*         context,
-        _In_ uuid_t        buffer,
-        _In_ size_t        offset,
-        _In_ UInteger64_t* sector,
-        _In_ size_t        count,
-        _In_ size_t*       read)
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             buffer,
+        _In_ size_t             offset,
+        _In_ UInteger64_t*      sector,
+        _In_ size_t             count,
+        _In_ size_t*            read)
 {
-    struct __FileContext* file = context;
-    size_t                bytesRead;
-    oserr_t               oserr = VFSNodeReadAt(
-            file->file_handle,
+    size_t  bytesRead;
+    oserr_t oserr = VFSNodeReadAt(
+            storage->Protocol.Storage.File.HandleID,
             &(UInteger64_t) { .QuadPart = sector->QuadPart * 512 },
             buffer,
             offset,
@@ -95,17 +110,16 @@ static oserr_t __ReadFile(
 }
 
 static oserr_t __WriteFile(
-        _In_ void*         context,
-        _In_ uuid_t        buffer,
-        _In_ size_t        offset,
-        _In_ UInteger64_t* sector,
-        _In_ size_t        count,
-        _In_ size_t*       written)
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             buffer,
+        _In_ size_t             offset,
+        _In_ UInteger64_t*      sector,
+        _In_ size_t             count,
+        _In_ size_t*            written)
 {
-    struct __FileContext* file = context;
-    size_t                bytesWritten;
-    oserr_t               oserr = VFSNodeWriteAt(
-            file->file_handle,
+    size_t  bytesWritten;
+    oserr_t oserr = VFSNodeWriteAt(
+            storage->Protocol.Storage.File.HandleID,
             &(UInteger64_t) { .QuadPart = sector->QuadPart * 512 },
             buffer,
             offset,

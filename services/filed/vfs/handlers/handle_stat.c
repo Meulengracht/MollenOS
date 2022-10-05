@@ -117,12 +117,12 @@ oserr_t VFSNodeSetSize(struct VFSRequest* request)
     return osStatus;
 }
 
-oserr_t VFSNodeStatHandle(struct VFSRequest* request, struct VFSStat* stat)
+oserr_t VFSNodeStatHandle(uuid_t fileHandle, struct VFSStat* stat)
 {
     struct VFSNodeHandle* handle;
     oserr_t               osStatus;
 
-    osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(fileHandle, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }
