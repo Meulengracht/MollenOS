@@ -25,7 +25,7 @@ void usched_mtx_init(struct usched_mtx* mutex)
 {
     assert(mutex != NULL);
 
-    spinlock_init(&mutex->lock, spinlock_plain);
+    spinlock_init(&mutex->lock);
     mutex->owner = NULL;
     mutex->queue = NULL;
 }

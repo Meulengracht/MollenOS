@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -158,7 +156,7 @@ MutexConstruct(
     assert(mutex != NULL);
 
     list_construct(&mutex->blockQueue);
-    spinlock_init(&mutex->syncObject, spinlock_plain);
+    spinlock_init(&mutex->syncObject);
     mutex->owner          = ATOMIC_VAR_INIT(UUID_INVALID);
     mutex->flags          = ATOMIC_VAR_INIT(configuration);
     mutex->referenceCount = 0;

@@ -22,7 +22,7 @@
 #include <os/spinlock.h>
 #include "local.h"
 
-spinlock_t __GlbTzLock = _SPN_INITIALIZER_NP(spinlock_plain);
+spinlock_t __GlbTzLock = _SPN_INITIALIZER_NP;
 
 void __tz_lock(void) {
 	spinlock_acquire(&__GlbTzLock);

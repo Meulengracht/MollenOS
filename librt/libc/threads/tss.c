@@ -48,7 +48,7 @@ struct tss_process_scope {
 static uint64_t tss_object_hash(const void* element);
 static int      tss_object_cmp(const void* element1, const void* element2);
 
-static spinlock_t               g_tssLock = _SPN_INITIALIZER_NP(spinlock_plain);
+static spinlock_t               g_tssLock = _SPN_INITIALIZER_NP;
 static struct tss_process_scope g_tss     = {
         { 0 },
 };

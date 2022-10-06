@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Datastructure Implementations
  */
 
 #ifndef __LIBDS_H__
@@ -34,8 +29,8 @@ typedef IrqSpinlock_t syncobject_t;
 #else
 #include <os/spinlock.h>
 typedef spinlock_t syncobject_t;
-#define SYNC_INIT                _SPN_INITIALIZER_NP(spinlock_plain)
-#define SYNC_INIT_FN(collection) spinlock_init(&(collection)->lock, spinlock_plain)
+#define SYNC_INIT                _SPN_INITIALIZER_NP
+#define SYNC_INIT_FN(collection) spinlock_init(&(collection)->lock)
 #define SYNC_LOCK(collection)    spinlock_acquire(&(collection)->lock)
 #define SYNC_UNLOCK(collection)  spinlock_release(&(collection)->lock)
 #endif

@@ -11,6 +11,7 @@ add_library(libos STATIC
         futex.c
         memory.c
         sha1.c
+        spinlock.c
         syscalls.c
         system.c
         time.c

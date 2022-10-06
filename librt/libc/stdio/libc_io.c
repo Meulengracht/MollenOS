@@ -20,7 +20,7 @@
 #include <threading.h>
 #include <stdio.h>
 
-spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP(spinlock_plain);
+spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP;
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 oserr_t
@@ -443,7 +443,7 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     handle->lookahead[0]    = '\n';
     handle->lookahead[1]    = '\n';
     handle->lookahead[2]    = '\n';
-    spinlock_init(&handle->lock, spinlock_recursive);
+    spinlock_init(&handle->lock);
     stdio_get_null_operations(&handle->ops);
 
     hashtable_set(&g_stdioObjects, &(struct stdio_object_entry) {

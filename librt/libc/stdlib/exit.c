@@ -86,11 +86,11 @@ struct at_exit_manager {
     hashtable_t handlers;
 };
 
-static struct at_exit_manager g_at_exit       = { 0, 0, _SPN_INITIALIZER_NP(spinlock_plain), { 0 } };
-static struct at_exit_manager g_at_quick_exit = { 0, 0, _SPN_INITIALIZER_NP(spinlock_plain), { 0 } };
+static struct at_exit_manager g_at_exit       = { 0, 0, _SPN_INITIALIZER_NP, { 0 } };
+static struct at_exit_manager g_at_quick_exit = { 0, 0, _SPN_INITIALIZER_NP, { 0 } };
 static int         g_exit_in_progress   = 0;
 static int         g_exit_code          = 0;
-static spinlock_t  g_exit_lock          = _SPN_INITIALIZER_NP(spinlock_plain);
+static spinlock_t  g_exit_lock          = _SPN_INITIALIZER_NP;
 
 static void __initialize_handlers_level_3(
         _In_ struct atexit_dso_entry* entry,

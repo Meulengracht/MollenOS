@@ -1,5 +1,5 @@
 /**
- * Copyright 2021, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * User Scheduler Definitions & Structures
- * - This header describes the base sched structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #ifndef __OS_USCHED_MUTEX_H__

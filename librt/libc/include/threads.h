@@ -70,7 +70,7 @@ enum {
     mtx_timed       = USCHED_MUTEX_TIMED
 };
 
-#define MUTEX_INIT(type) { type, _SPN_INITIALIZER_NP(spinlock_plain), NULL, NULL }
+#define MUTEX_INIT(type) { type, _SPN_INITIALIZER_NP, NULL, NULL }
 #define COND_INIT        { MUTEX_INIT(mtx_plain), NULL }
 #define ONCE_FLAG_INIT   { MUTEX_INIT(mtx_plain), 0 }
 

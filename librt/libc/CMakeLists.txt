@@ -358,7 +358,6 @@ set (SOURCES_STDLIB
 )
 
 set (SOURCES_OS
-        os/synchronization/spinlock.c
         os/synchronization/event.c
         os/keymaps/en-us.c
         os/clang.c
@@ -443,7 +442,6 @@ set (SOURCES_LIBK
     ${SOURCES_STDIO_COMMON}
     ${SOURCES_TIME_COMMON}
 
-    os/synchronization/spinlock.c
     locale/locale.c
     stdio/libc_io.c
     stdlib/itoa.c
