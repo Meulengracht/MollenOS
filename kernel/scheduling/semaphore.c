@@ -69,7 +69,7 @@ SemaphoreWait(
     oserr_t Status = OsOK;
     int        Value;
     
-    while (1) {
+    for (;;) {
         Value = atomic_load(&(Semaphore->Value));
         while (Value < 1) {
             Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);

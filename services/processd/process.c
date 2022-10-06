@@ -462,7 +462,6 @@ void PmGetProcessStartupInformation(
     int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
 
-    smp_rmb();
     process = GetProcessByThread(request->parameters.get_initblock.threadHandle);
     if (process == NULL) {
         goto exit;

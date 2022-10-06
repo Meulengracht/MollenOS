@@ -89,13 +89,13 @@ SystemMemoryAllocate(
         }
     }
 
-    IrqSpinlockAcquire(&region->Lock);
+    SpinlockAcquireIrq(&region->Lock);
     osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
     if (osStatus == OsIncomplete) {
         MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
         osStatus = OsOutOfMemory;
     }
-    IrqSpinlockRelease(&region->Lock);
+    SpinlockReleaseIrq(&region->Lock);
     return osStatus;
 }
 

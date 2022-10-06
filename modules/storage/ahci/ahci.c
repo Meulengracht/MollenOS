@@ -58,7 +58,7 @@ AhciControllerCreate(
     }
     
     memset(controller, 0, sizeof(AhciController_t));
-    spinlock_init(&controller->Lock, spinlock_plain);
+    spinlock_init(&controller->Lock);
     ELEMENT_INIT(&controller->header, (void*)(uintptr_t)busDevice->Base.Id, controller);
     controller->Device = busDevice;
 

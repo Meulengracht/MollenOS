@@ -81,7 +81,7 @@ StaticMemoryPoolConstruct(
 		ERROR("[utils] [st_mem_pool] length 0x%" PRIxIN " is not a power of two");
 	}
 
-	IrqSpinlockConstruct(&Pool->SyncObject);
+    SpinlockConstruct(&Pool->SyncObject);
 	Pool->Chunks = (StaticMemoryChunk_t*)Storage;
 	Pool->StartAddress = StartAddress;
 	Pool->Length = Length;
@@ -212,10 +212,10 @@ StaticMemoryPoolAllocate(
 {
 	uintptr_t Result;
 	assert(Pool != NULL);
-	
-	IrqSpinlockAcquire(&Pool->SyncObject);
+
+    SpinlockAcquireIrq(&Pool->SyncObject);
 	Result = IterativeAllocate(Pool, Length);
-	IrqSpinlockRelease(&Pool->SyncObject);
+    SpinlockReleaseIrq(&Pool->SyncObject);
 	return Result;
 }
 
@@ -288,10 +288,10 @@ StaticMemoryPoolFree(
 {
 	int Result;
 	assert(Pool != NULL);
-	
-	IrqSpinlockAcquire(&Pool->SyncObject);
+
+    SpinlockAcquireIrq(&Pool->SyncObject);
 	Result = IterativeFree(Pool, Address);
-	IrqSpinlockRelease(&Pool->SyncObject);
+    SpinlockReleaseIrq(&Pool->SyncObject);
 	if (Result) {
 		WARNING("[memory_pool_free] failed to free address 0x%x\n", Address);
 	}

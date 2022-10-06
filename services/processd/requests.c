@@ -136,7 +136,6 @@ void sys_process_get_startup_information_invocation(struct gracht_message* messa
     request->parameters.get_initblock.threadHandle = handle;
     request->parameters.get_initblock.bufferHandle = bufferHandle;
     request->parameters.get_initblock.bufferOffset = offset;
-    smp_wmb();
     usched_job_queue((usched_task_fn)PmGetProcessStartupInformation, request);
 }
 

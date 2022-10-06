@@ -284,7 +284,11 @@ CreateMemorySpace(
                 }
 
                 // Add a reference and copy data
-                AcquireHandle(memorySpace->ParentHandle, NULL);
+                AcquireHandleOfType(
+                        memorySpace->ParentHandle,
+                        HandleTypeMemorySpace,
+                        NULL
+                );
                 memcpy(&memorySpace->PlatfromData, &parent->PlatfromData, sizeof(PlatformMemoryBlock_t));
             }
             else {

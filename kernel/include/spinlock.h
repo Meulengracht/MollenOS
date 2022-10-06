@@ -24,25 +24,54 @@
 #ifndef __VALI_IRQ_SPINLOCK_H__
 #define __VALI_IRQ_SPINLOCK_H__
 
-typedef struct IrqSpinlock {
-    int         value;
-    int         references;
-    irqstate_t original_flags;
-    uuid_t      owner;
-} IrqSpinlock_t;
+#include <os/osdefs.h>
 
-#define OS_IRQ_SPINLOCK_INIT { 0, 0, 0, 0xFFFFFFFF }
+typedef struct Spinlock {
+    irqstate_t            IrqState;
+    _Atomic(unsigned int) Current;
+    _Atomic(unsigned int) Next;
+} Spinlock_t;
 
+#define OS_SPINLOCK_INIT { 0, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+
+/**
+ * @brief
+ * @param spinlock
+ */
 KERNELAPI void KERNELABI
-IrqSpinlockConstruct(
-    _In_ IrqSpinlock_t* spinlock);
+SpinlockConstruct(
+        _In_ Spinlock_t* spinlock);
 
+/**
+ * @brief
+ * @param spinlock
+ */
 KERNELAPI void KERNELABI
-IrqSpinlockAcquire(
-    _In_ IrqSpinlock_t* spinlock);
+SpinlockAcquire(
+        _In_ Spinlock_t* spinlock);
 
+/**
+ * @brief
+ * @param spinlock
+ */
 KERNELAPI void KERNELABI
-IrqSpinlockRelease(
-    _In_ IrqSpinlock_t* spinlock);
+SpinlockRelease(
+        _In_ Spinlock_t* spinlock);
+
+/**
+ * @brief
+ * @param spinlock
+ */
+KERNELAPI void KERNELABI
+SpinlockAcquireIrq(
+        _In_ Spinlock_t* spinlock);
+
+/**
+ * @brief
+ * @param spinlock
+ */
+KERNELAPI void KERNELABI
+SpinlockReleaseIrq(
+        _In_ Spinlock_t* spinlock);
 
 #endif //!__VALI_IRQ_SPINLOCK_H__

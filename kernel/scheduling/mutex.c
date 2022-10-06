@@ -37,17 +37,17 @@
 
 static inline int __HasFlags(Mutex_t* mutex, unsigned int flags)
 {
-    return (atomic_load(&mutex->flags) & flags) == flags;
+    return (atomic_load(&mutex->Flags) & flags) == flags;
 }
 
 static inline void __ClearFlags(Mutex_t* mutex, unsigned int flags)
 {
-    (void)atomic_fetch_xor(&mutex->flags, flags);
+    (void)atomic_fetch_xor(&mutex->Flags, flags);
 }
 
 static inline void __SetFlags(Mutex_t* mutex, unsigned int flags)
 {
-    (void)atomic_fetch_or(&mutex->flags, flags);
+    (void)atomic_fetch_or(&mutex->Flags, flags);
 }
 
 // Try performing a quick lock of the mutex by using cmpxchg
@@ -58,22 +58,22 @@ __TryQuickLock(
 {
     uuid_t currentThread = ThreadCurrentHandle();
     uuid_t free          = UUID_INVALID;
-    int    status        = atomic_compare_exchange_strong(&mutex->owner, &free, currentThread);
+    int    status        = atomic_compare_exchange_strong(&mutex->Owner, &free, currentThread);
     if (!status) {
         if (free == currentThread) {
             assert(__HasFlags(mutex, MUTEX_FLAG_RECURSIVE));
-            mutex->referenceCount++;
+            mutex->ReferenceCount++;
             return OsOK;
         }
         *ownerOut = free;
         return OsBusy;
     }
 
-    mutex->referenceCount = 1;
+    mutex->ReferenceCount = 1;
     return OsOK;
 }
 
-// On multicore systems the lock might be released rather quickly
+// On multicore systems the lock might be released rather quickly,
 // so we perform a number of initial spins before going to sleep,
 // and only in the case that there are no sleepers && locked
 static oserr_t __TrySpinOnOwner(Mutex_t* mutex, uuid_t owner)
@@ -100,7 +100,7 @@ static oserr_t __SlowLock(Mutex_t* mutex, size_t timeout)
     uuid_t      owner;
 
     // Disable interrupts and try to acquire the lock or wait for the lock
-    // to unlock if its held on another CPU - however we only wait for a brief period
+    // to unlock if it's held on another CPU - however we only wait for a brief period
     intStatus = InterruptDisable();
     if (__TryQuickLock(mutex, &owner) == OsOK ||
         __TrySpinOnOwner(mutex, owner) == OsOK) {
@@ -110,17 +110,17 @@ static oserr_t __SlowLock(Mutex_t* mutex, size_t timeout)
 
     // After we acquire the lock we want to make sure that we still cant
     // get the lock before adding us to the queue
-    spinlock_acquire(&mutex->syncObject);
+    SpinlockAcquire(&mutex->Lock);
     if (__TryQuickLock(mutex, &owner) == OsOK) {
         goto exit;
     }
 
     // mark us having waiters
     __SetFlags(mutex, MUTEX_FLAG_PENDING);
-    while (1) {
+    for (;;) {
         // block task and then reenable interrupts
-        SchedulerBlock(&mutex->blockQueue, timeout * NSEC_PER_MSEC);
-        spinlock_release(&mutex->syncObject);
+        SchedulerBlock(&mutex->BlockQueue, timeout * NSEC_PER_MSEC);
+        SpinlockRelease(&mutex->Lock);
         InterruptRestoreState(intStatus);
         ArchThreadYield();
 
@@ -136,14 +136,14 @@ static oserr_t __SlowLock(Mutex_t* mutex, size_t timeout)
 
         // try acquiring the mutex
         intStatus = InterruptDisable();
-        spinlock_acquire(&mutex->syncObject);
+        SpinlockAcquire(&mutex->Lock);
         if (__TryQuickLock(mutex, &owner) == OsOK) {
             break;
         }
     }
 
 exit:
-    spinlock_release(&mutex->syncObject);
+    SpinlockRelease(&mutex->Lock);
     InterruptRestoreState(intStatus);
     return OsOK;
 }
@@ -155,11 +155,11 @@ MutexConstruct(
 {
     assert(mutex != NULL);
 
-    list_construct(&mutex->blockQueue);
-    spinlock_init(&mutex->syncObject);
-    mutex->owner          = ATOMIC_VAR_INIT(UUID_INVALID);
-    mutex->flags          = ATOMIC_VAR_INIT(configuration);
-    mutex->referenceCount = 0;
+    list_construct(&mutex->BlockQueue);
+    SpinlockConstruct(&mutex->Lock);
+    mutex->Owner          = ATOMIC_VAR_INIT(UUID_INVALID);
+    mutex->Flags          = ATOMIC_VAR_INIT(configuration);
+    mutex->ReferenceCount = 0;
 }
 
 void
@@ -171,19 +171,19 @@ MutexDestruct(
     assert(mutex != NULL);
 
     // first mark the mutex invalid
-    mutex->referenceCount = 0;
+    mutex->ReferenceCount = 0;
     __SetFlags(mutex, MUTEX_FLAG_INVALID);
     __ClearFlags(mutex, MUTEX_FLAG_PENDING);
-    atomic_store(&mutex->owner, UUID_INVALID);
+    atomic_store(&mutex->Owner, UUID_INVALID);
 
-    spinlock_acquire(&mutex->syncObject);
-    waiter = list_front(&mutex->blockQueue);
+    SpinlockAcquire(&mutex->Lock);
+    waiter = list_front(&mutex->BlockQueue);
     while (waiter) {
-        list_remove(&mutex->blockQueue, waiter);
+        list_remove(&mutex->BlockQueue, waiter);
         (void)SchedulerQueueObject(waiter->value);
-        waiter = list_front(&mutex->blockQueue);
+        waiter = list_front(&mutex->BlockQueue);
     }
-    spinlock_release(&mutex->syncObject);
+    SpinlockRelease(&mutex->Lock);
 }
 
 oserr_t
@@ -231,31 +231,31 @@ MutexUnlock(
     }
 
     // protect against bad free
-    owner = atomic_load(&mutex->owner);
+    owner = atomic_load(&mutex->Owner);
     if (owner != ThreadCurrentHandle()) {
         return;
     }
 
     // protect against recursion
-    mutex->referenceCount--;
-    if (mutex->referenceCount) {
+    mutex->ReferenceCount--;
+    if (mutex->ReferenceCount) {
         return;
     }
 
     // free the lock immediately
-    atomic_store(&mutex->owner, UUID_INVALID);
+    atomic_store(&mutex->Owner, UUID_INVALID);
     if (!__HasFlags(mutex, MUTEX_FLAG_PENDING))
         return;
 
-    spinlock_acquire(&mutex->syncObject);
-    waiter = list_front(&mutex->blockQueue);
+    SpinlockAcquire(&mutex->Lock);
+    waiter = list_front(&mutex->BlockQueue);
     if (waiter) {
-        list_remove(&mutex->blockQueue, waiter);
+        list_remove(&mutex->BlockQueue, waiter);
         SchedulerQueueObject(waiter->value);
 
-        if (!list_front(&mutex->blockQueue)) {
+        if (!list_front(&mutex->BlockQueue)) {
             __ClearFlags(mutex, MUTEX_FLAG_PENDING);
         }
     }
-    spinlock_release(&mutex->syncObject);
+    SpinlockRelease(&mutex->Lock);
 }

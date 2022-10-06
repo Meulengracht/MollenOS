@@ -23,7 +23,7 @@
 #define __COMPONENT_MEMORY__
 
 #include <os/osdefs.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 #include <utils/memory_stack.h>
 
 #define MEMORY_MASK_COUNT 5
@@ -47,7 +47,7 @@ typedef struct SystemMemoryMap {
 
 typedef struct SystemMemoryAllocatorRegion {
     MemoryStack_t Stack;
-    IrqSpinlock_t Lock;
+    Spinlock_t    Lock;
 } SystemMemoryAllocatorRegion_t;
 
 typedef struct SystemMemoryAllocator {

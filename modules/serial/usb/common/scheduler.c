@@ -157,7 +157,7 @@ UsbSchedulerInitialize(
     }
 
     memset((void*)Scheduler, 0, sizeof(UsbScheduler_t));
-    spinlock_init(&Scheduler->Lock, spinlock_plain);
+    spinlock_init(&Scheduler->Lock);
     memcpy((void*)&Scheduler->Settings, Settings, sizeof(UsbSchedulerSettings_t));
 
     // Start out by allocating the frame list if requested by the user

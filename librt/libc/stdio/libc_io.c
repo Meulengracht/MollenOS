@@ -16,11 +16,11 @@
  */
 
 #ifdef LIBC_KERNEL
-#include <os/spinlock.h>
+#include <spinlock.h>
 #include <threading.h>
 #include <stdio.h>
 
-spinlock_t __GlbPrintLock = _SPN_INITIALIZER_NP;
+Spinlock_t __GlbPrintLock = OS_SPINLOCK_INIT;
 FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
 
 oserr_t
@@ -32,7 +32,7 @@ _lock_stream(
     }
 
     if (!(file->_flag & _IOSTRG)) {
-        spinlock_acquire(&__GlbPrintLock);
+        SpinlockAcquire(&__GlbPrintLock);
     }
     return OsOK;
 }
@@ -46,7 +46,7 @@ _unlock_stream(
     }
     
     if (!(file->_flag & _IOSTRG)) {
-        spinlock_release(&__GlbPrintLock);
+        SpinlockRelease(&__GlbPrintLock);
     }
     return OsOK;
 }

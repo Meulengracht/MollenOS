@@ -62,7 +62,7 @@ static int      handle_cmp(const void* element1, const void* element2);
 
 static hashtable_t     g_handlemappings;
 static hashtable_t     g_handles;
-static IrqSpinlock_t   g_handlesLock; // use irq lock as we use the handles from interrupts
+static Spinlock_t      g_handlesLock; // use irq lock as we use the handles from interrupts
 static _Atomic(uuid_t) g_nextHandleId  = ATOMIC_VAR_INIT(0);
 static Semaphore_t     g_eventHandle   = SEMAPHORE_INIT(0, 1);
 static queue_t         g_cleanQueue    = QUEUE_INIT;
@@ -77,7 +77,7 @@ InitializeHandles(void)
     hashtable_construct(&g_handles, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct resource_handle), handle_hash,
                         handle_cmp);
-    IrqSpinlockConstruct(&g_handlesLock);
+    SpinlockConstruct(&g_handlesLock);
     atomic_store(&g_nextHandleId, 1);
     return OsOK;
 }
@@ -100,9 +100,9 @@ LookupSafeHandleInstance(
         return NULL;
     }
 
-    IrqSpinlockAcquire(&g_handlesLock);
+    SpinlockAcquireIrq(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
-    IrqSpinlockRelease(&g_handlesLock);
+    SpinlockReleaseIrq(&g_handlesLock);
     return handle;
 }
 
@@ -115,12 +115,12 @@ __AcquireHandle(
         return NULL;
     }
 
-    IrqSpinlockAcquire(&g_handlesLock);
+    SpinlockAcquireIrq(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (handle) {
         handle->references++;
     }
-    IrqSpinlockRelease(&g_handlesLock);
+    SpinlockReleaseIrq(&g_handlesLock);
     return handle;
 }
 
@@ -140,9 +140,9 @@ CreateHandle(
     handle.references = 1;
     handle.flags      = 0;
 
-    IrqSpinlockAcquire(&g_handlesLock);
+    SpinlockAcquireIrq(&g_handlesLock);
     hashtable_set(&g_handles, &handle);
-    IrqSpinlockRelease(&g_handlesLock);
+    SpinlockReleaseIrq(&g_handlesLock);
     return handle.id;
 }
 
@@ -205,23 +205,23 @@ RegisterHandlePath(
         return OsInvalidParameters;
     }
 
-    IrqSpinlockAcquire(&g_handlesLock);
+    SpinlockAcquireIrq(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
-        IrqSpinlockRelease(&g_handlesLock);
+        SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
         return OsNotExists;
     }
 
     if (handle->path) {
-        IrqSpinlockRelease(&g_handlesLock);
+        SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
         return OsError;
     }
 
     mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
     if (mapping) {
-        IrqSpinlockRelease(&g_handlesLock);
+        SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
         return OsExists;
     }
@@ -229,7 +229,7 @@ RegisterHandlePath(
     // store the new mapping, and update the handle instance
     hashtable_set(&g_handlemappings, &(struct handle_mapping) { .path = internalPath, .handle = handleId });
     handle->path = internalPath;
-    IrqSpinlockRelease(&g_handlesLock);
+    SpinlockReleaseIrq(&g_handlesLock);
 
     return OsOK;
 }
@@ -250,12 +250,12 @@ LookupHandleByPath(
         return OsInvalidParameters;
     }
 
-    IrqSpinlockAcquire(&g_handlesLock);
+    SpinlockAcquireIrq(&g_handlesLock);
     mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
     if (mapping && handleOut) {
         *handleOut = mapping->handle;
     }
-    IrqSpinlockRelease(&g_handlesLock);
+    SpinlockReleaseIrq(&g_handlesLock);
     mstr_delete(internalPath);
     return mapping != NULL ? OsOK : OsNotExists;
 }
@@ -300,17 +300,17 @@ DestroyHandle(
     HandleDestructorFn      dctor;
     mstring_t*              path;
 
-    IrqSpinlockAcquire(&g_handlesLock);
+    SpinlockAcquireIrq(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
-        IrqSpinlockRelease(&g_handlesLock);
+        SpinlockReleaseIrq(&g_handlesLock);
         return OsNotExists;
     }
 
     // do nothing if there still is active handles
     handle->references--;
     if (handle->references) {
-        IrqSpinlockRelease(&g_handlesLock);
+        SpinlockReleaseIrq(&g_handlesLock);
         return OsIncomplete;
     }
 
@@ -322,7 +322,7 @@ DestroyHandle(
         hashtable_remove(&g_handlemappings, &(struct handle_mapping) { .path = path });
     }
     hashtable_remove(&g_handles, &(struct resource_handle) { .id = handleId });
-    IrqSpinlockRelease(&g_handlesLock);
+    SpinlockReleaseIrq(&g_handlesLock);
 
     AddHandleToCleanup(resource, dctor, path);
     return OsOK;
@@ -336,7 +336,7 @@ HandleJanitorThread(
     struct handle_cleanup* cleanup;
     _CRT_UNUSED(arg);
     
-    while (1) {
+    for (;;) {
         SemaphoreWait(&g_eventHandle, 0);
 
         element = queue_pop(&g_cleanQueue);

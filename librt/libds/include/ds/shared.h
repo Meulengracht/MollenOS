@@ -20,12 +20,12 @@
 
 #if defined(VALI)
 #ifdef __LIBDS_KERNEL__
-#include <irq_spinlock.h>
-typedef IrqSpinlock_t syncobject_t;
-#define SYNC_INIT                OS_IRQ_SPINLOCK_INIT
-#define SYNC_INIT_FN(collection) IrqSpinlockConstruct(&collection->lock)
-#define SYNC_LOCK(collection)    IrqSpinlockAcquire(&collection->lock)
-#define SYNC_UNLOCK(collection)  IrqSpinlockRelease(&collection->lock)
+#include <spinlock.h>
+typedef Spinlock_t syncobject_t;
+#define SYNC_INIT                OS_SPINLOCK_INIT
+#define SYNC_INIT_FN(collection) SpinlockConstruct(&(collection)->lock)
+#define SYNC_LOCK(collection)    SpinlockAcquireIrq(&(collection)->lock)
+#define SYNC_UNLOCK(collection)  SpinlockReleaseIrq(&(collection)->lock)
 #else
 #include <os/spinlock.h>
 typedef spinlock_t syncobject_t;
@@ -69,18 +69,18 @@ typedef struct element {
     void* value;
 } element_t;
 
-#define ELEMENT_INIT(elem, _key, _value) (elem)->next = NULL; (elem)->previous = NULL; (elem)->key = (void*)_key; (elem)->value = (void*)_value
+#define ELEMENT_INIT(elem, _key, _value) (elem)->next = NULL; (elem)->previous = NULL; (elem)->key = (void*)(_key); (elem)->value = (void*)_value
 
 // These are for unlocked access and destroy the purpose of synchronization
 // if used out of library.
-#define foreach(i, collection)           for (element_t* i = (collection)->head; i != NULL; i = i->next)
-#define foreach_reverse(i, collection)   element_t *i; for (i = (collection)->tail; i != NULL; i = i->previous)
-#define foreach_volatile(i, collection)  element_t *i; for (i = READ_VOLATILE((collection)->head); i != NULL; i = i->next)
-#define _foreach(i, collection)          for (i = (collection)->head; i != NULL; i = i->next)
-#define _foreach_reverse(i, collection)  for (i = (collection)->tail; i != NULL; i = i->previous)
-#define _foreach_volatile(i, collection) for (i = READ_VOLATILE((collection)->head); i != NULL; i = i->next)
+#define foreach(i, collection)           for (element_t* (i) = (collection)->head; (i) != NULL; (i) = (i)->next)
+#define foreach_reverse(i, collection)   for (element_t* (i) = (collection)->tail; (i) != NULL; (i) = (i)->previous)
+#define foreach_volatile(i, collection)  for (element_t* (i) = READ_VOLATILE((collection)->head); (i) != NULL; (i) = (i)->next)
+#define _foreach(i, collection)          for ((i) = (collection)->head; (i) != NULL; (i) = (i)->next)
+#define _foreach_reverse(i, collection)  for ((i) = (collection)->tail; (i) != NULL; (i) = (i)->previous)
+#define _foreach_volatile(i, collection) for ((i) = READ_VOLATILE((collection)->head); (i) != NULL; (i) = (i)->next)
 
-#define foreach_nolink(i, collection)  element_t *i; for (i = (collection)->head; i != NULL; )
-#define _foreach_nolink(i, collection) for (i = (collection)->head; i != NULL; )
+#define foreach_nolink(i, collection)  for (element_t* (i) = (collection)->head; (i) != NULL; )
+#define _foreach_nolink(i, collection) for ((i) = (collection)->head; (i) != NULL; )
 
 #endif //!__LIBDS_H__

@@ -25,7 +25,6 @@
 
 #include <os/osdefs.h>
 #include <os/context.h>
-#include <os/spinlock.h>
 
 #if defined(i386) || defined(__i386__)
 #define ARCHITECTURE_NAME               "x86-32"

@@ -72,8 +72,8 @@ static int      handleset_cmp(const void* element1, const void* element2);
 static oserr_t DestroySetElement(struct handleset_element*);
 static oserr_t AddHandleToSet(struct handle_set*, uuid_t, struct ioset_event*);
 
-static hashtable_t   g_handleSets;
-static IrqSpinlock_t g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
+static hashtable_t g_handleSets;
+static Spinlock_t  g_handleSetsLock; // use irq lock as we use MarkHandle from interrupts
 
 oserr_t
 HandleSetsInitialize(void)
@@ -84,7 +84,7 @@ HandleSetsInitialize(void)
     if (status) {
         return OsOutOfMemory;
     }
-    IrqSpinlockConstruct(&g_handleSetsLock);
+    SpinlockConstruct(&g_handleSetsLock);
     return OsOK;
 }
 
@@ -295,9 +295,9 @@ MarkHandle(
     struct handle_sets* element;
     TRACE("MarkHandle(handle=%u, flags=0x%x)", handle, flags);
 
-    IrqSpinlockAcquire(&g_handleSetsLock);
+    SpinlockAcquireIrq(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
-    IrqSpinlockRelease(&g_handleSetsLock);
+    SpinlockReleaseIrq(&g_handleSetsLock);
 
     if (!element) {
         return OsNotExists;
@@ -313,16 +313,16 @@ DestroySetElement(
 {
     struct handle_sets* element;
 
-    IrqSpinlockAcquire(&g_handleSetsLock);
+    SpinlockAcquireIrq(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
-    IrqSpinlockRelease(&g_handleSetsLock);
+    SpinlockReleaseIrq(&g_handleSetsLock);
 
     if (element) {
         list_remove(&element->sets, &setElement->set_header);
         if (!list_count(&element->sets)) {
-            IrqSpinlockAcquire(&g_handleSetsLock);
+            SpinlockAcquireIrq(&g_handleSetsLock);
             hashtable_remove(&g_handleSets, &(struct handle_sets) { .id = setElement->Handle });
-            IrqSpinlockRelease(&g_handleSetsLock);
+            SpinlockReleaseIrq(&g_handleSetsLock);
         }
     }
 
@@ -342,13 +342,13 @@ AddHandleToSet(
     struct handleset_element* setElement;
     oserr_t                osStatus;
 
-    IrqSpinlockAcquire(&g_handleSetsLock);
+    SpinlockAcquireIrq(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
     if (!element) {
         hashtable_set(&g_handleSets, &(struct handle_sets) { .id = handle, .sets = LIST_INIT });
         element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
     }
-    IrqSpinlockRelease(&g_handleSetsLock);
+    SpinlockReleaseIrq(&g_handleSetsLock);
 
     // Now we have access to the handle-set and the target handle, so we can go ahead
     // and add the target handle to the set-tree and then create the set element for

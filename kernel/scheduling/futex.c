@@ -27,7 +27,7 @@
 #include <ddk/barrier.h>
 #include <futex.h>
 #include <heap.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 #include <memoryspace.h>
 #include <scheduler.h>
 #include <string.h>
@@ -37,9 +37,9 @@
 // One per memory context
 typedef struct FutexItem {
     element_t     Header;
-    list_t        BlockQueue;
-    IrqSpinlock_t BlockQueueSyncObject;
-    _Atomic(int)  Waiters;
+    list_t       BlockQueue;
+    Spinlock_t   BlockQueueSyncObject;
+    _Atomic(int) Waiters;
     
     MemorySpaceContext_t* Context;
     uintptr_t             FutexAddress;
@@ -47,8 +47,8 @@ typedef struct FutexItem {
 
 // One per futex key
 typedef struct FutexBucket {
-    IrqSpinlock_t SyncObject;
-    list_t        Futexes;
+    Spinlock_t SyncObject;
+    list_t     Futexes;
 } FutexBucket_t;
 
 static FutexBucket_t FutexBuckets[FUTEX_HASHTABLE_CAPACITY] = { 0 };
@@ -113,9 +113,9 @@ FutexGetNodeLocked(
 {
     FutexItem_t* item;
 
-    IrqSpinlockAcquire(&bucket->SyncObject);
+    SpinlockAcquireIrq(&bucket->SyncObject);
     item = FutexGetNode(bucket, futexAddress, context);
-    IrqSpinlockRelease(&bucket->SyncObject);
+    SpinlockReleaseIrq(&bucket->SyncObject);
 
     return item;
 }
@@ -136,16 +136,16 @@ FutexCreateNode(
     memset(item, 0, sizeof(FutexItem_t));
     ELEMENT_INIT(&item->Header, 0, item);
     list_construct(&item->BlockQueue);
-    IrqSpinlockConstruct(&item->BlockQueueSyncObject);
+    SpinlockConstruct(&item->BlockQueueSyncObject);
     item->FutexAddress = futexAddress;
     item->Context      = context;
-    
-    IrqSpinlockAcquire(&bucket->SyncObject);
+
+    SpinlockAcquireIrq(&bucket->SyncObject);
     existing = FutexGetNode(bucket, futexAddress, context);
     if (!existing) {
         list_append(&bucket->Futexes, &item->Header);
     }
-    IrqSpinlockRelease(&bucket->SyncObject);
+    SpinlockReleaseIrq(&bucket->SyncObject);
     
     if (existing) {
         kfree(item);
@@ -234,7 +234,7 @@ void
 FutexInitialize(void)
 {
     for (int i = 0; i < FUTEX_HASHTABLE_CAPACITY; i++) {
-        IrqSpinlockConstruct(&FutexBuckets[i].SyncObject);
+        SpinlockConstruct(&FutexBuckets[i].SyncObject);
         list_construct(&FutexBuckets[i].Futexes);
     }
 }
@@ -415,8 +415,8 @@ FutexWake(
 WakeWaiters:
     for (i = 0; i < Count; i++) {
         element_t* Front;
-        
-        IrqSpinlockAcquire(&FutexItem->BlockQueueSyncObject);
+
+        SpinlockAcquireIrq(&FutexItem->BlockQueueSyncObject);
         Front = list_front(&FutexItem->BlockQueue);
         if (Front) {
             // This is only neccessary while the list itself is thread-safe
@@ -426,7 +426,7 @@ WakeWaiters:
                 Front = NULL;
             }
         }
-        IrqSpinlockRelease(&FutexItem->BlockQueueSyncObject);
+        SpinlockReleaseIrq(&FutexItem->BlockQueueSyncObject);
         
         if (Front) {
             Status = SchedulerQueueObject(Front->value);

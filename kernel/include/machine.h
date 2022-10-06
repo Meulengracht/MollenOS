@@ -25,7 +25,7 @@
 #include <ds/bounded_stack.h>
 #include <os/osdefs.h>
 #include <os/mollenos.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 #include <vboot/vboot.h>
 #include <time.h>
 #include <utils/static_memory_pool.h>

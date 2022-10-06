@@ -24,8 +24,7 @@
 #define __VALI_SCHEDULER_H__
 
 #include <os/osdefs.h>
-#include <os/spinlock.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 #include <time.h>
 
 typedef struct list list_t;
@@ -55,9 +54,9 @@ typedef struct SchedulerQueue {
 
 typedef struct Scheduler {
     int                    Enabled;
-    clock_t                LastBoost;
-    IrqSpinlock_t          SyncObject;
-    SchedulerQueue_t       SleepQueue;
+    clock_t          LastBoost;
+    Spinlock_t       SyncObject;
+    SchedulerQueue_t SleepQueue;
     SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
 
     // TODO bandwidth should be 64 bit, remove use of atomic here and protect
