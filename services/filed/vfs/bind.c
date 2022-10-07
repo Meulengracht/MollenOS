@@ -34,6 +34,7 @@ oserr_t VFSNodeBind(struct VFS* vfs, uuid_t fromID, uuid_t toID)
 
     oserr = VFSNodeHandleGet(toID, &toHandle);
     if (oserr != OsOK) {
+        VFSNodeHandlePut(fromHandle);
         return oserr;
     }
 
@@ -55,6 +56,8 @@ oserr_t VFSNodeBind(struct VFS* vfs, uuid_t fromID, uuid_t toID)
 
 exit:
     usched_rwlock_w_unlock(&toHandle->Node->Lock);
+    VFSNodeHandlePut(fromHandle);
+    VFSNodeHandlePut(toHandle);
     return oserr;
 }
 
@@ -80,5 +83,6 @@ oserr_t VFSNodeUnbind(struct VFS* vfs, uuid_t directoryHandleID)
 
 exit:
     usched_rwlock_w_unlock(&handle->Node->Lock);
+    VFSNodeHandlePut(handle);
     return oserr;
 }

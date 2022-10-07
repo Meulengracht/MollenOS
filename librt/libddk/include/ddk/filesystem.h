@@ -82,15 +82,15 @@ struct VFSStat {
 struct VFSStatFS {
     // These are filled in by the VFS
     uuid_t     ID;
-    mstring_t* Label;
     mstring_t* Serial;
 
     // These should be filled in by the underlying FS.
-    uint32_t MaxFilenameLength;
-    uint32_t BlockSize;
-    uint32_t BlocksPerSegment;
-    uint64_t SegmentsTotal;
-    uint64_t SegmentsFree;
+    mstring_t* Label;
+    uint32_t   MaxFilenameLength;
+    uint32_t   BlockSize;
+    uint32_t   BlocksPerSegment;
+    uint64_t   SegmentsTotal;
+    uint64_t   SegmentsFree;
 };
 
 /**

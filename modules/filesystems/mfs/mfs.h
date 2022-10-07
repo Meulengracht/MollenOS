@@ -230,6 +230,7 @@ typedef struct MFSEntry {
 } MFSEntry_t;
 
 typedef struct FileSystemMFS {
+    mstring_t*                  Label;
     unsigned int                Flags;
     int                         Version;
     size_t                      SectorsPerBucket;

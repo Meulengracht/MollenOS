@@ -43,6 +43,7 @@ oserr_t VFSNodeMount(struct VFS* vfs, uuid_t atID, struct VFS* what)
 
 exit:
     usched_rwlock_w_unlock(&handle->Node->Lock);
+    VFSNodeHandlePut(handle);
     return oserr;
 }
 
@@ -68,6 +69,7 @@ oserr_t VFSNodeUnmount(struct VFS* vfs, uuid_t directoryHandleID)
 
 exit:
     usched_rwlock_w_unlock(&handle->Node->Lock);
+    VFSNodeHandlePut(handle);
     return oserr;
 }
 

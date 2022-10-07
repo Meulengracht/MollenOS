@@ -30,7 +30,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
-#include <internal/_ipc.h>
+#include <internal/_utils.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>

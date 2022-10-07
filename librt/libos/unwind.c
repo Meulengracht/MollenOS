@@ -16,12 +16,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <internal/_ipc.h>
+#include <ddk/service.h>
+#include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/types/process.h>
 #include <os/unwind.h>
 #include <os/pe.h>
 #include <string.h>
+
+#include <sys_process_service_client.h>
 
 static void
 ProcessGetLibraryHandles(

@@ -358,14 +358,13 @@ set (SOURCES_STDLIB
 )
 
 set (SOURCES_OS
-        os/synchronization/event.c
+        os/event.c
         os/keymaps/en-us.c
         os/clang.c
         os/init.c
         os/ipcontext.c
         os/keycodes.c
         os/tls.c
-        os/unwind.c
 )
 
 set (SOURCES_THREADS

@@ -19,7 +19,8 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <ddk/service.h>
+#include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
 #include <os/process.h>
@@ -27,6 +28,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <io.h>
+
+#include <sys_file_service_client.h>
 
 char* PathJoin(
         _In_ const char* path1,

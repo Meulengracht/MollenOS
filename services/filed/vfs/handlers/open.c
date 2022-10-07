@@ -76,9 +76,13 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
     if (osStatus == OsNotExists) {
         if (options & __FILE_CREATE) {
             // TODO permissions check
-            osStatus = VFSNodeCreateChild(node, nodeName,
-                                          options,access,
-                                          &node);
+            osStatus = VFSNodeCreateChild(
+                    containingDirectory,
+                    nodeName,
+                    options,
+                    access,
+                    &node
+            );
             if (osStatus != OsOK) {
                 goto exit;
             }

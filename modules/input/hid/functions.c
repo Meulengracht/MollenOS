@@ -24,7 +24,6 @@
 
 #include <usb/usb.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
 #include <stdlib.h>
 #include "hid.h"
 

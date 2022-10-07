@@ -28,15 +28,11 @@
 #include <assert.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <gracht/server.h>
-#include <internal/_ipc.h>
-#include <os/mollenos.h>
+#include <internal/_utils.h>
 #include "manager.h"
-#include <stdlib.h>
-#include <string.h>
 
-#include "ctt_driver_service_server.h"
-#include "ctt_storage_service_server.h"
+#include <ctt_storage_service_server.h>
+#include <sys_storage_service_client.h>
 
 extern int __crt_get_server_iod(void);
 
@@ -294,7 +290,7 @@ HandleIdentifyCommand(
         device->SectorCount = deviceInformation->SectorCountLBA28;
     }
 
-    // At this point the ahcidisk structure is filled
+    // At this point the ahcidisk structure is filled,
     // and we can continue to fill out the descriptor
     memset(&device->Descriptor, 0, sizeof(StorageDescriptor_t));
     device->Descriptor.DriverID    = UUID_INVALID;

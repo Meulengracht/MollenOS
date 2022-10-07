@@ -48,6 +48,11 @@ oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
 
     node = handle->Node;
 
+    // After this, we can free the handle lock,
+    // as we don't need it anymore after retrieving the
+    // node instance
+    VFSNodeHandlePut(handle);
+
     // When processes inherit files, they gain additional references for a handle
     // which means we try to destroy the handle first, and only if we were the final
     // call we handle cleanup of this file-handle. This also acts as a barrier for

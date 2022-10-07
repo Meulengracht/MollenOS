@@ -154,11 +154,11 @@ FileSystemDestroy(
 static mstring_t* __GetLabel(
         _In_ FileSystem_t* fileSystem)
 {
-    struct VFSStatFS stat;
+    struct VFSStatFS stat = { 0 };
 
     if (fileSystem->Interface && fileSystem->Interface->Operations.Stat) {
-        fileSystem->Interface->Operations.Stat(fileSystem->Data, &stat);
-        if (stat.Label) {
+        oserr_t oserr = fileSystem->Interface->Operations.Stat(fileSystem->Data, &stat);
+        if (oserr == OsOK && stat.Label) {
             return mstr_clone(stat.Label);
         }
     }
@@ -191,7 +191,6 @@ __MountFileSystemAtDefault(
         return OsOutOfMemory;
     }
 
-    TRACE("__MountFileSystemAtDefault mounting at %ms", path);
     osStatus = VFSNodeMkdir(
             fsScope,
             path,
@@ -264,6 +263,7 @@ __InitializeInterface(
         _In_ struct VFSInterface* interface)
 {
     struct VFSStorageParameters storageParameters;
+    TRACE("__InitializeInterface(fs=%u)", fileSystem->ID);
 
     // We do certainly not require an interface
     if (interface == NULL || interface->Operations.Initialize == NULL) {

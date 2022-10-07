@@ -71,10 +71,10 @@ GetASCIIFromKeyCodeEnUs(
 
     // Handle modifiers, caps lock negates shift as seen above
     if (shouldUpperCase) {
-        character = g_asciiShiftKeyMap[keyCode];
+        character = (char)g_asciiShiftKeyMap[keyCode];
     }
     else {
-        character = g_asciiKeyMap[keyCode];
+        character = (char)g_asciiKeyMap[keyCode];
     }
     return character;
 }

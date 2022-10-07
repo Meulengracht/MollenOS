@@ -58,7 +58,11 @@ OnLoad(void)
         exit(-ENOTSUP);
     }
 
-    // Register supported interfaces
+    // Register supported client interfaces. These are the interfaces where we
+    // listen to events from other servers.
+    gracht_client_register_protocol(GetGrachtClient(), &sys_file_client_protocol);
+
+    // Register supported server interfaces.
     gracht_server_register_protocol(__crt_get_service_server(), &chef_served_server_protocol);
 
     // Connect to the file server and listen for events

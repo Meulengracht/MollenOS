@@ -20,8 +20,8 @@
 #include <ddk/service.h>
 #include <ddk/usbdevice.h>
 #include <ddk/convert.h>
-#include <internal/_ipc.h>
-
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 #include <sys_usb_service_client.h>
 
 extern int __crt_get_server_iod(void);

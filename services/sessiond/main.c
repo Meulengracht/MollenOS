@@ -21,8 +21,10 @@
  */
 #define __TRACE
 
+#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 
 #include <sys_session_service_server.h>
 

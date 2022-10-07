@@ -25,14 +25,10 @@
 #define __TRACE
 
 #include <ddk/usbdevice.h>
-#include <usb/usb.h>
-#include <ddk/device.h>
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
-#include <internal/_ipc.h>
 #include "manager.h"
 #include <stdlib.h>
-#include <string.h>
 
 static uint64_t hub_hash(const void* element);
 static int      hub_cmp(const void* element1, const void* element2);

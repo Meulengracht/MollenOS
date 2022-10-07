@@ -135,8 +135,15 @@ FsStat(
         _In_ void*             instanceData,
         _In_ struct VFSStatFS* stat)
 {
-    // TODO implement MFS::Stat
-    return OsNotSupported;
+    FileSystemMFS_t* mfs = instanceData;
+
+    stat->Label = mfs->Label;
+    stat->MaxFilenameLength = sizeof(mfs->RootRecord.Name);
+    stat->BlockSize = mfs->SectorSize;
+    stat->BlocksPerSegment = mfs->SectorsPerBucket;
+    stat->SegmentsTotal = mfs->BucketsInMap;
+    stat->SegmentsFree = mfs->MasterRecord.FreeBucket; // TODO we don't know how many free
+    return OsOK;
 }
 
 oserr_t
@@ -370,9 +377,9 @@ static oserr_t __ValidateMasterRecord(
     return OsOK;
 }
 
-static oserr_t __ParseAndProcessMasterRecord(
-        _In_ FileSystemMFS_t* mfs,
-        _In_ MasterRecord_t*  masterRecord)
+static oserr_t
+__ParseAndProcessMasterRecord(
+        _In_ FileSystemMFS_t* mfs)
 {
     uint8_t* bMap;
     uint64_t bytesRead;
@@ -381,17 +388,17 @@ static oserr_t __ParseAndProcessMasterRecord(
     size_t   i, imax;
     size_t   sectorsTransferred;
 
-    TRACE("Partition-name: %s", &masterRecord->PartitionName[0]);
-    memcpy(&mfs->MasterRecord, masterRecord, sizeof(MasterRecord_t));
+    TRACE("Partition-name: %s", &mfs->MasterRecord.PartitionName[0]);
+    mfs->Label = mstr_new_u8((const char*)&mfs->MasterRecord.PartitionName[0]);
 
     // Parse the master record
-    TRACE("Partition flags: 0x%x", fileSystemBase->Flags);
+    TRACE("Partition flags: 0x%x", mfs->MasterRecord.Flags);
     TRACE("Caching bucket-map (Sector %u - Size %u Bytes)",
-          LODWORD(mfsInstance->MasterRecord.MapSector),
-          LODWORD(mfsInstance->MasterRecord.MapSize));
+          LODWORD(mfs->MasterRecord.MapSector),
+          LODWORD(mfs->MasterRecord.MapSize));
 
     // Calculate the number of entries in the bucket map.
-    mfs->BucketsInMap = masterRecord->MapSize / sizeof(struct MapRecord);
+    mfs->BucketsInMap = mfs->MasterRecord.MapSize / sizeof(struct MapRecord);
     mfs->BucketMap    = (uint32_t*)malloc((size_t)mfs->MasterRecord.MapSize + mfs->SectorSize);
     if (mfs->BucketMap == NULL) {
         return OsOutOfMemory;
@@ -438,7 +445,7 @@ static oserr_t __ParseAndProcessMasterRecord(
         bMap      += transferSize;
         i++;
         if (i == (imax / 4) || i == (imax / 2) || i == ((imax / 4) * 3)) {
-            TRACE("Cached %u/%u bytes of sector-map", LODWORD(bytesRead), LODWORD(mfsInstance->MasterRecord.MapSize));
+            TRACE("Cached %u/%u bytes of sector-map", LODWORD(bytesRead), LODWORD(mfs->MasterRecord.MapSize));
         }
     }
     TRACE("Bucket map was cached");
@@ -493,7 +500,7 @@ FsInitialize(
         _In_  struct VFSStorageParameters* storageParameters,
         _Out_ void**                       instanceData)
 {
-    FileSystemMFS_t*    mfsInstance;
+    FileSystemMFS_t*    mfs;
     oserr_t             oserr;
     size_t              sectorsTransferred;
     StorageDescriptor_t storageStats;
@@ -504,8 +511,8 @@ FsInitialize(
     // the storage medium.
     FSStorageStat(storageParameters, &storageStats);
 
-    mfsInstance = __FileSystemMFSNew(storageParameters, &storageStats);
-    if (mfsInstance == NULL) {
+    mfs = __FileSystemMFSNew(storageParameters, &storageStats);
+    if (mfs == NULL) {
         ERROR("FsInitialize Failed to allocate memory for the fileystem");
         return OsOutOfMemory;
     }
@@ -513,7 +520,7 @@ FsInitialize(
     // Read the boot-sector
     oserr = FSStorageRead(
             storageParameters,
-            mfsInstance->TransferBuffer.handle,
+            mfs->TransferBuffer.handle,
             0,
             &(UInteger64_t) { .QuadPart = 0 },
             1,
@@ -525,8 +532,8 @@ FsInitialize(
     }
 
     oserr = __ParseBootRecord(
-            mfsInstance,
-            (BootRecord_t*)mfsInstance->TransferBuffer.buffer
+            mfs,
+            (BootRecord_t*)mfs->TransferBuffer.buffer
     );
     if (oserr != OsOK) {
         ERROR("FsInitialize failed to parse the boot record");
@@ -536,9 +543,9 @@ FsInitialize(
     // Read the master-record
     oserr = FSStorageRead(
             storageParameters,
-            mfsInstance->TransferBuffer.handle,
+            mfs->TransferBuffer.handle,
             0,
-            &(UInteger64_t) { .QuadPart = mfsInstance->MasterRecordSector },
+            &(UInteger64_t) { .QuadPart = mfs->MasterRecordSector },
             1,
             &sectorsTransferred
     );
@@ -547,33 +554,33 @@ FsInitialize(
         goto error_exit;
     }
 
-    oserr = __ValidateMasterRecord((MasterRecord_t*)mfsInstance->TransferBuffer.buffer);
+    // Validate and store the master record immediately, so we can resize the
+    // transfer buffer. The moment we do, the data is lost.
+    oserr = __ValidateMasterRecord((MasterRecord_t*)mfs->TransferBuffer.buffer);
     if (oserr != OsOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
+    memcpy(&mfs->MasterRecord, mfs->TransferBuffer.buffer, sizeof(MasterRecord_t));
 
-    oserr = __ResizeTransferBuffer(mfsInstance);
+    oserr = __ResizeTransferBuffer(mfs);
     if (oserr != OsOK) {
         ERROR("FsInitialize failed to allocate memory for resized transfer buffer");
         goto error_exit;
     }
 
-    oserr = __ParseAndProcessMasterRecord(
-            mfsInstance,
-            (MasterRecord_t*)mfsInstance->TransferBuffer.buffer
-    );
+    oserr = __ParseAndProcessMasterRecord(mfs);
     if (oserr != OsOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
 
-    __InitializeRootRecord(mfsInstance);
-    *instanceData = mfsInstance;
+    __InitializeRootRecord(mfs);
+    *instanceData = mfs;
     return OsOK;
 
 error_exit:
-    __FileSystemMFSDelete(mfsInstance);
+    __FileSystemMFSDelete(mfs);
     return oserr;
 }
 

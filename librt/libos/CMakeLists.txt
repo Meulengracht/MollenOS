@@ -15,6 +15,7 @@ add_library(libos STATIC
         syscalls.c
         system.c
         time.c
+        unwind.c
 )
 target_include_directories(libos PRIVATE
         ../libc/include

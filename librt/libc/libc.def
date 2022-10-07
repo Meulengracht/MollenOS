@@ -10,6 +10,13 @@ usched_cnd_notify_one
 usched_cnd_notify_all
 usched_cnd_wait
 usched_cnd_timedwait
+usched_rwlock_init
+usched_rwlock_r_lock
+usched_rwlock_r_unlock
+usched_rwlock_w_promote
+usched_rwlock_w_demote
+usched_rwlock_w_lock
+usched_rwlock_w_unlock
 abort
 Mount
 Unmount
