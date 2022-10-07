@@ -61,7 +61,7 @@ extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
-extern uuid_t     ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
+extern uuid_t  ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
 extern oserr_t ScUnregisterInterrupt(uuid_t sourceId);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
@@ -78,8 +78,8 @@ extern oserr_t ScThreadJoin(uuid_t ThreadId, int* ExitCode);
 extern oserr_t ScThreadDetach(uuid_t ThreadId);
 extern oserr_t ScThreadSignal(uuid_t ThreadId, int SignalCode);
 extern oserr_t ScThreadYield(void);
-extern uuid_t     ScThreadGetCurrentId(void);
-extern uuid_t     ScThreadCookie(void);
+extern uuid_t  ScThreadGetCurrentId(void);
+extern uuid_t  ScThreadCookie(void);
 extern oserr_t ScThreadSetCurrentName(const char* ThreadName);
 extern oserr_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
 

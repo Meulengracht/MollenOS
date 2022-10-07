@@ -114,7 +114,7 @@ void __CrtModuleEntry(void)
 {
     thread_storage_t              threadStorage;
     gracht_server_configuration_t config;
-    struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_HANDLE };
+    IPCAddress_t                  addr = { .Type = IPC_ADDRESS_HANDLE };
     oserr_t                       oserr;
     uuid_t                        moduleId;
     int                           status;

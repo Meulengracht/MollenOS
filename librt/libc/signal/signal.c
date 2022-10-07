@@ -27,6 +27,7 @@
 #include <fenv.h>
 #include <internal/_all.h>
 #include <internal/_ipc.h>
+#include <internal/_syscalls.h>
 #include <os/context.h>
 #include <os/threads.h>
 #include <signal.h>

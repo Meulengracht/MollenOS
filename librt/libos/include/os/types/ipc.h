@@ -1,5 +1,5 @@
 /**
- * Copyright 2020, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,18 +13,33 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
  */
 
-#ifndef __IPCONTEXT_H__
-#define	__IPCONTEXT_H__
+#ifndef __OS_TYPES_IPCCONTEXT_H__
+#define	__OS_TYPES_IPCCONTEXT_H__
 
-#include <os/types/ipc.h>
+#include <os/osdefs.h>
 
-_CODE_BEGIN
-CRTDECL(int, ipcontext(unsigned int len, IPCAddress_t* addr));
-CRTDECL(int, ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, int timeout));
-CRTDECL(int, iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle));
-_CODE_END
+#define IPC_ADDRESS_HANDLE 0
+#define IPC_ADDRESS_PATH   1
 
-#endif //!__IPCONTEXT_H__
+typedef struct IPCAddress {
+    int Type;
+    union {
+        uuid_t      Handle;
+        const char* Path;
+    } Data;
+} IPCAddress_t;
+
+typedef struct IPCMessage {
+    uuid_t        SenderHandle;
+    IPCAddress_t* Address;
+    const void*   Payload;
+    size_t        Length;
+} IPCMessage_t;
+
+#define IPC_ADDRESS_HANDLE_INIT(handle) { IPC_ADDRESS_HANDLE, { handle } }
+
+#define IPC_DONTWAIT 0x1
+
+#endif //!__OS_TYPES_IPCCONTEXT_H__

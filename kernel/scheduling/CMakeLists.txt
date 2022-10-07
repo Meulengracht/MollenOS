@@ -4,7 +4,7 @@ enable_language (C)
 # Configure source files
 add_kernel_library (vali-core-scheduling ""
         futex.c
-        ipc_context.c
+        ipc.c
         spinlock.c
         mutex.c
         scheduler.c

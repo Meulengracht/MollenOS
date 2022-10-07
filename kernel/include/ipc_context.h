@@ -25,7 +25,7 @@
 #define __VALI_IPC_CONTEXT_H__
 
 #include <os/osdefs.h>
-#include <ipcontext.h>
+#include <os/types/ipc.h>
 
 /**
  * IpcContextCreate
@@ -43,7 +43,7 @@ IpcContextCreate(
  */
 KERNELAPI oserr_t KERNELABI
 IpcContextSendMultiple(
-    _In_ struct ipmsg** messages,
+    _In_ IPCMessage_t** messages,
     _In_ int            messageCount,
     _In_ size_t         timeout);
 

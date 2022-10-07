@@ -61,7 +61,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
 {
     FutexParameters_t parameters;
-    oserr_t        status = OsIncomplete;
+    oserr_t           status = OsIncomplete;
     int               currentValue;
     int               i;
     int               result;

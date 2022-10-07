@@ -31,7 +31,7 @@ struct __gracht_job_context {
     int set_iod;
 };
 
-extern void     GetServiceAddress(struct ipmsg_addr*);
+extern void    GetServiceAddress(IPCAddress_t*);
 extern oserr_t OnLoad(void);
 extern oserr_t OnUnload(void);
 
@@ -76,7 +76,7 @@ __gracht_job(void* argument, void* cancellationToken)
 static void __crt_service_init(void)
 {
     gracht_server_configuration_t config;
-    struct ipmsg_addr             addr = { .type = IPMSG_ADDRESS_PATH };
+    IPCAddress_t                  addr = { .Type = IPC_ADDRESS_PATH };
     int                           status;
     GetServiceAddress(&addr);
 
