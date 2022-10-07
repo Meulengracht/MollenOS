@@ -28,7 +28,15 @@
 #define MUTEX_SPINS     1000
 #define MUTEX_DESTROYED 0x1000
 
-static SystemDescriptor_t SystemInfo = { 0 };
+static SystemDescriptor_t g_systemInfo = {0 };
+
+// Mutex::State is made up of 24 bits of ownership, which corresponds to the thread
+// id. We don't actually need the full 24 bits, but it makes things easier. This way
+// we allow up to 256 recursive acquires, and should this be reached we abort the program
+// due to toxic behavior.
+#define __BUILD_STATE(owner, refcount) (((owner) << 8) | ((refcount) & 0xFF))
+#define __STATE_OWNER(state)           (((state) & 0xFFFFFF00) >> 8)
+#define __STATE_REFCOUNT(state)        ((state) & 0xFF)
 
 oserr_t
 MutexInitialize(
@@ -40,14 +48,13 @@ MutexInitialize(
     }
 
     // Get information about the system
-    if (SystemInfo.NumberOfActiveCores == 0) {
-        SystemQuery(&SystemInfo);
+    if (g_systemInfo.NumberOfActiveCores == 0) {
+        SystemQuery(&g_systemInfo);
     }
     
     mutex->Flags = flags;
-    mutex->Owner = UUID_INVALID;
     mutex->Value = ATOMIC_VAR_INIT(0);
-    mutex->References = ATOMIC_VAR_INIT(0);
+    mutex->State = ATOMIC_VAR_INIT(__BUILD_STATE(UUID_INVALID, 0));
     return OsOK;
 }
 
@@ -67,43 +74,54 @@ MutexDestroy(
     }
 }
 
+static oserr_t
+__TryLockRecursive(
+        _In_ Mutex_t* mutex)
+{
+    while (1) {
+        unsigned int state    = atomic_load(&mutex->State);
+        uuid_t       owner    = __STATE_OWNER(state);
+        unsigned int refcount = __STATE_REFCOUNT(state);
+        if (refcount != 0 && owner == ThreadsCurrentId()) {
+            unsigned int newState = __BUILD_STATE(owner, refcount + 1);
+            int status = atomic_compare_exchange_weak(&mutex->State, &state, newState);
+            if (status) {
+                return OsOK;
+            }
+            continue;
+        }
+        break;
+    }
+    return OsBusy;
+}
+
 oserr_t
 MutexTryLock(
         _In_ Mutex_t* mutex)
 {
-    int initialcount;
     int z = 0;
     int status;
     
     if (mutex == NULL) {
         return OsInvalidParameters;
     }
-    
-    // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive
+
+    // If the mutex is recursive, we add one refcount to the state. We do not
+    // need to check this in any memory-safe way, as Mutex::Flags does not change
+    // after creation.
     if (mutex->Flags & MUTEX_RECURSIVE) {
-        while (1) {
-            initialcount = atomic_load(&mutex->References);
-            if (initialcount != 0 && mutex->Owner == ThreadsCurrentId()) {
-                status = atomic_compare_exchange_weak_explicit(&mutex->References,
-                    &initialcount, initialcount + 1, memory_order_release,
-                    memory_order_acquire);
-                if (status) {
-                    return OsOK;
-                }
-                continue;
-            }
-            break;
+        if (__TryLockRecursive(mutex) == OsOK) {
+            return OsOK;
         }
     }
     
     status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
-    if (status) {
-        mutex->Owner = ThreadsCurrentId();
-        atomic_store(&mutex->References, 1);
-        return OsOK;
+    if (!status) {
+        return OsBusy;
     }
-    return OsBusy;
+
+    atomic_store(&mutex->State, __BUILD_STATE(ThreadsCurrentId(), 1));
+    return OsOK;
 }
 
 static int
@@ -112,26 +130,16 @@ __perform_lock(
     _In_ size_t   timeout)
 {
     FutexParameters_t parameters;
-    int               initialcount;
     int               status;
     int               z = 0;
     int               i;
-    
-    // If this thread already holds the mutex,
-    // increase ref count, but only if we're recursive 
+
+    // If the mutex is recursive, we add one refcount to the state. We do not
+    // need to check this in any memory-safe way, as Mutex::Flags does not change
+    // after creation.
     if (mutex->Flags & MUTEX_RECURSIVE) {
-        while (1) {
-            initialcount = atomic_load(&mutex->References);
-            if (initialcount != 0 && mutex->Owner == ThreadsCurrentId()) {
-                status = atomic_compare_exchange_weak_explicit(&mutex->References,
-                    &initialcount, initialcount + 1, memory_order_release,
-                    memory_order_acquire);
-                if (status) {
-                    return OsOK;
-                }
-                continue;
-            }
-            break;
+        if (__TryLockRecursive(mutex) == OsOK) {
+            return OsOK;
         }
     }
     
@@ -145,7 +153,7 @@ __perform_lock(
     // and only in the case that there are no sleepers && locked
     status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
     if (!status) {
-        if (SystemInfo.NumberOfActiveCores > 1 && z == 1) {
+        if (g_systemInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
                 if (MutexTryLock(mutex) == OsOK) {
                     return OsOK;
@@ -153,15 +161,25 @@ __perform_lock(
             }
         }
         
-        // Loop untill we get the lock
+        // Loop untill we get the lock. How this works is that we use the
+        // value 0 for unlocked, 1 for locked, and 2 for locked, locker pending.
+        // This allows us to improve for effeciency when unlocking. If the unlocked
+        // value was 2, then we wake up.
         if (z != 0) {
+            // Mark the value as pending before continuing
             if (z != 2) {
+                // Get the previous value to make sure it wasn't unlocked this nanosecond.
                 z = atomic_exchange(&mutex->Value, 2);
             }
+
             while (z != 0) {
                 if (Futex(&parameters) == OsTimeout) {
                     return OsTimeout;
                 }
+
+                // Check that the mutex wasn't flagged for destruction, no need
+                // wait for a mutex that won't ever be signalled. Probably needs
+                // a barrier before reading this value
                 if (mutex->Flags & MUTEX_DESTROYED) {
                     return OsCancelled;
                 }
@@ -170,8 +188,7 @@ __perform_lock(
         }
     }
 
-    mutex->Owner = ThreadsCurrentId();
-    atomic_store(&mutex->References, 1);
+    atomic_store(&mutex->State, __BUILD_STATE(ThreadsCurrentId(), 1));
     return OsOK;
 }
 
@@ -216,30 +233,55 @@ MutexUnlock(
         _In_ Mutex_t* mutex)
 {
     FutexParameters_t parameters;
-    int               initialcount;
+    unsigned int      state, newState;
+    uuid_t            owner;
+    unsigned int      refcount;
+    int               status;
+    int               lockState;
     if (mutex == NULL) {
         return OsInvalidParameters;
     }
 
     // Sanitize state of the mutex, are we even able to unlock it?
-    initialcount = atomic_load(&mutex->References);
-    if (initialcount == 0 || mutex->Owner != ThreadsCurrentId()) {
-        return OsInvalidPermissions;
-    }
-    
-    initialcount = atomic_fetch_sub(&mutex->References, 1);
-    if ((initialcount - 1) == 0) {
-        parameters._futex0  = &mutex->Value;
-        parameters._val0    = 1;
-        parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-
-        mutex->Owner = UUID_INVALID;
-        
-        initialcount = atomic_fetch_sub(&mutex->Value, 1);
-        if (initialcount != 1) {
-            atomic_store(&mutex->Value, 0);
-            Futex(&parameters);
+    state = atomic_load(&mutex->State);
+    while (1) {
+        owner = __STATE_OWNER(state);
+        refcount = __STATE_REFCOUNT(state);
+        if (refcount == 0 || owner != ThreadsCurrentId()) {
+            return OsInvalidPermissions;
         }
+
+        // If the refcount is 1, then it's our responsiblity to unlock it.
+        if (refcount == 1) {
+            newState = __BUILD_STATE(UUID_INVALID, 0);
+            status = atomic_compare_exchange_strong(&mutex->State, &state, newState);
+            if (!status) {
+                // Uhhh something changed, try again
+                continue;
+            }
+
+            break;
+        } else {
+            newState = __BUILD_STATE(owner, refcount - 1);
+            status = atomic_compare_exchange_strong(&mutex->State, &state, newState);
+            if (!status) {
+                // Uhhh something changed, try again
+                continue;
+            }
+
+            // And we're done, we don't need to wake anyone since we were
+            // simply reducing the refcount.
+            return OsOK;
+        }
+    }
+
+    // get current lock state and act accordinly
+    lockState = atomic_exchange(&mutex->Value, 0);
+    if (lockState == 2) {
+        parameters._futex0 = &mutex->Value;
+        parameters._val0   = 1;
+        parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+        Futex(&parameters);
     }
     return OsOK;
 }

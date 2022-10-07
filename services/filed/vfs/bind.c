@@ -20,42 +20,69 @@
 #include "private.h"
 #include <string.h>
 
-oserr_t VFSNodeBind(struct VFS* vfs, struct VFSNode* from, struct VFSNode* to)
+oserr_t VFSNodeBind(struct VFS* vfs, uuid_t fromID, uuid_t toID)
 {
-    oserr_t osStatus = OsOK;
+    struct VFSNodeHandle* fromHandle;
+    struct VFSNodeHandle* toHandle;
+    oserr_t               oserr;
+    _CRT_UNUSED(vfs);
 
-    usched_rwlock_w_lock(&to->Lock);
-    if (!__NodeIsRegular(to)) {
-        osStatus = OsInvalidParameters;
+    oserr = VFSNodeHandleGet(fromID, &fromHandle);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    oserr = VFSNodeHandleGet(toID, &toHandle);
+    if (oserr != OsOK) {
+        VFSNodeHandlePut(fromHandle);
+        return oserr;
+    }
+
+    usched_rwlock_w_lock(&toHandle->Node->Lock);
+    if (!__NodeIsRegular(toHandle->Node)) {
+        oserr = OsInvalidParameters;
         goto exit;
     }
 
-    to->Type     = VFS_NODE_TYPE_MOUNTPOINT;
-    to->TypeData = from;
+    toHandle->Node->Type     = VFS_NODE_TYPE_MOUNTPOINT;
+    toHandle->Node->TypeData = fromHandle->Node;
 
-    usched_mtx_lock(&from->MountsLock);
-    hashtable_set(&from->Mounts, &(struct __VFSMount) { .Target = to });
-    usched_mtx_unlock(&from->MountsLock);
+    usched_mtx_lock(&fromHandle->Node->MountsLock);
+    hashtable_set(
+            &fromHandle->Node->Mounts,
+            &(struct __VFSMount) { .Target = toHandle->Node }
+    );
+    usched_mtx_unlock(&fromHandle->Node->MountsLock);
 
 exit:
-    usched_rwlock_w_unlock(&to->Lock);
-    return osStatus;
+    usched_rwlock_w_unlock(&toHandle->Node->Lock);
+    VFSNodeHandlePut(fromHandle);
+    VFSNodeHandlePut(toHandle);
+    return oserr;
 }
 
-oserr_t VFSNodeUnbind(struct VFS* vfs, struct VFSNode* node)
+oserr_t VFSNodeUnbind(struct VFS* vfs, uuid_t directoryHandleID)
 {
-    oserr_t osStatus = OsOK;
+    struct VFSNodeHandle* handle;
+    oserr_t               oserr;
+    _CRT_UNUSED(vfs);
 
-    usched_rwlock_w_lock(&node->Lock);
-    if (!__NodeIsBindMount(node)) {
-        osStatus = OsInvalidParameters;
+    oserr = VFSNodeHandleGet(directoryHandleID, &handle);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    usched_rwlock_w_lock(&handle->Node->Lock);
+    if (!__NodeIsBindMount(handle->Node)) {
+        oserr = OsInvalidParameters;
         goto exit;
     }
 
-    node->Type     = VFS_NODE_TYPE_REGULAR;
-    node->TypeData = NULL;
+    handle->Node->Type     = VFS_NODE_TYPE_REGULAR;
+    handle->Node->TypeData = NULL;
 
 exit:
-    usched_rwlock_w_unlock(&node->Lock);
-    return osStatus;
+    usched_rwlock_w_unlock(&handle->Node->Lock);
+    VFSNodeHandlePut(handle);
+    return oserr;
 }

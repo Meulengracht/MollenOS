@@ -21,9 +21,9 @@
  * wait/set.
  */
 
-#include <event.h>
-#include <internal/_io.h>
-#include <internal/_syscalls.h>
+#include "event.h"
+#include "internal/_io.h"
+#include "internal/_syscalls.h"
 
 int eventd(unsigned int initialValue, unsigned int flags)
 {

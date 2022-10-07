@@ -116,6 +116,15 @@ typedef struct VFSRequest {
             const char* path;
             int         follow_links;
         } stat_path;
+        struct {
+            const char*  path;
+            const char*  at;
+            const char*  fs_type;
+            unsigned int flags;
+        } mount;
+        struct {
+            const char* path;
+        } unmount;
     } parameters;
 
     // must be last member of struct

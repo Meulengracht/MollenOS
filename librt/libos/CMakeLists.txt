@@ -11,9 +11,11 @@ add_library(libos STATIC
         futex.c
         memory.c
         sha1.c
+        spinlock.c
         syscalls.c
         system.c
         time.c
+        unwind.c
 )
 target_include_directories(libos PRIVATE
         ../libc/include
@@ -29,3 +31,8 @@ install(DIRECTORY include/ DESTINATION include
         FILES_MATCHING
         PATTERN "*.h"
 )
+
+# create an interface library for libos as targets are not meant
+# to include this library themselves
+add_library(libos-api INTERFACE)
+target_include_directories(libos-api INTERFACE include)

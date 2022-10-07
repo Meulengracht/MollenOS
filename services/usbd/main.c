@@ -22,10 +22,10 @@
  *   of all usb-controllers and their devices
  */
 
-#include <usb/usb.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
 #include "manager.h"
+#include <usb/usb.h>
 
 #include <sys_usb_service_server.h>
 

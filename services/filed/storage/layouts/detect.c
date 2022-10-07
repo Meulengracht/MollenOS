@@ -32,83 +32,104 @@
 static guid_t g_emptyGuid = GUID_EMPTY;
 
 oserr_t
-VfsStorageDetectFileSystem(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount)
+VFSStorageDeriveFileSystemType(
+        _In_  struct VFSStorage* storage,
+        _In_  uuid_t             bufferHandle,
+        _In_  void*              buffer,
+        _In_  UInteger64_t*      sector,
+        _Out_ const char**       fsHintOut)
 {
-    enum FileSystemType type = FileSystemType_UNKNOWN;
-	MasterBootRecord_t* mbr;
-	size_t              sectorsRead;
-	oserr_t          status;
+    char*               fsHint = NULL;
+    MasterBootRecord_t* mbr;
+    size_t              sectorsRead;
+    oserr_t             status;
 
-	TRACE("VfsStorageDetectFileSystem(Sector %u, Count %u)",
-		LODWORD(sector), LODWORD(sectorCount));
+    TRACE("VFSStorageDeriveFileSystemType(sector=%u)", sector->u.LowPart);
 
-	// Make sure the MBR is loaded
-	status = VfsStorageReadHelper(storage, bufferHandle, sector, 1, &sectorsRead);
-	if (status != OsOK) {
-		return status;
-	}
-
-	// Ok - we do some basic signature checks 
-	// MFS - "MFS1" 
-	// NTFS - "NTFS" 
-	// exFAT - "EXFAT" 
-	// FAT - "FATXX"
-	mbr = (MasterBootRecord_t*)buffer;
-	if (!strncmp((const char*)&mbr->BootCode[3], "MFS1", 4)) {
-		type = FileSystemType_MFS;
-	}
-	else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
-		type = FileSystemType_NTFS;
-	}
-	else if (!strncmp((const char*)&mbr->BootCode[3], "EXFAT", 5)) {
-		type = FileSystemType_EXFAT;
-	}
-	else if (!strncmp((const char*)&mbr->BootCode[0x36], "FAT12", 5)
-		|| !strncmp((const char*)&mbr->BootCode[0x36], "FAT16", 5)
-		|| !strncmp((const char*)&mbr->BootCode[0x52], "FAT32", 5)) {
-		type = FileSystemType_FAT;
-	}
-	else {
-        WARNING("Unknown filesystem detected");
-		// The following needs processing in other sectors to be determined
-		//TODO
-		//HPFS
-		//EXT
-		//HFS
-	}
-
-    if (type == FileSystemType_UNKNOWN) {
-        return OsError;
+    // Make sure the MBR is loaded
+    status = storage->Operations.Read(storage, bufferHandle, 0, sector, 1, &sectorsRead);
+    if (status != OsOK) {
+        return status;
     }
 
-    return VFSStorageRegisterFileSystem(
+    // Ok - we do some basic signature checks
+    // MFS - "MFS1"
+    // NTFS - "NTFS"
+    // exFAT - "EXFAT"
+    // FAT - "FATXX"
+    mbr = buffer;
+    if (!strncmp((const char*)&mbr->BootCode[3], "MFS1", 4)) {
+        fsHint = "mfs";
+    }
+    else if (!strncmp((const char*)&mbr->BootCode[3], "NTFS", 4)) {
+        fsHint = "ntfs";
+    }
+    else if (!strncmp((const char*)&mbr->BootCode[3], "EXFAT", 5)) {
+        fsHint = "exfat";
+    }
+    else if (!strncmp((const char*)&mbr->BootCode[0x36], "FAT12", 5)
+             || !strncmp((const char*)&mbr->BootCode[0x36], "FAT16", 5)
+             || !strncmp((const char*)&mbr->BootCode[0x52], "FAT32", 5)) {
+        fsHint = "fat";
+    }
+    else {
+        WARNING("Unknown filesystem detected");
+        // The following needs processing in other sectors to be determined
+        //TODO
+        //HPFS
+        //EXT
+        //HFS
+    }
+
+    if (fsHint == NULL) {
+        return OsError;
+    }
+    *fsHintOut = fsHint;
+    return OsOK;
+}
+
+oserr_t
+VFSStorageDetectFileSystem(
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             bufferHandle,
+        _In_ void*              buffer,
+        _In_ UInteger64_t*      sector)
+{
+    const char* fsHint;
+	oserr_t     oserr;
+
+	TRACE("VFSStorageDetectFileSystem(sector=%u)", sector->u.LowPart);
+
+    oserr = VFSStorageDeriveFileSystemType(storage, bufferHandle, buffer, sector, &fsHint);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    return VFSStorageRegisterAndSetupPartition(
             storage, 0, sector,
-            sectorCount, type,
             &g_emptyGuid,
-            &g_emptyGuid
+            fsHint,
+            &g_emptyGuid,
+            UUID_INVALID,
+            NULL
     );
 }
 
 oserr_t
 VFSStorageParse(
-	_In_ FileSystemStorage_t* fsStorage)
+        _In_ struct VFSStorage* storage)
 {
 	struct dma_buffer_info dmaInfo;
 	struct dma_attachment  dmaAttachment;
     oserr_t                oserr;
 
-	TRACE("VFSStorageParse(SectorSize %u)", fsStorage->Storage.SectorSize);
+	TRACE("VFSStorageParse(SectorSize %u)", storage->Stats.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
 	dmaInfo.name     = "disk_temp_buffer";
-	dmaInfo.capacity = fsStorage->Storage.SectorSize;
-	dmaInfo.length   = fsStorage->Storage.SectorSize;
+	dmaInfo.capacity = storage->Stats.SectorSize;
+	dmaInfo.length   = storage->Stats.SectorSize;
 	dmaInfo.flags    = 0;
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
@@ -118,9 +139,9 @@ VFSStorageParse(
 	}
 
     // Always check for GPT table first
-    oserr = GptEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
+    oserr = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
     if (oserr == OsNotExists) {
-        oserr = MbrEnumerate(fsStorage, dmaAttachment.handle, dmaAttachment.buffer);
+        oserr = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
     }
 
 	dma_attachment_unmap(&dmaAttachment);

@@ -32,10 +32,10 @@ static guid_t g_emptyGuid = GUID_EMPTY;
 
 oserr_t
 GptEnumeratePartitionTable(
-        _In_ FileSystemStorage_t* storage,
-        _In_ GptHeader_t*         gptHeader,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer)
+        _In_ struct VFSStorage* storage,
+        _In_ GptHeader_t*       gptHeader,
+        _In_ uuid_t             bufferHandle,
+        _In_ void*              buffer)
 {
     size_t  partitionTableSectorCount;
     size_t  sectorsRead;
@@ -51,7 +51,7 @@ GptEnumeratePartitionTable(
 
     // Calculate the number of sectors we need to parse
     partitionTableSectorCount = (gptHeader->PartitionCount * gptHeader->PartitionEntrySize);
-    partitionTableSectorCount /= storage->Storage.SectorSize;
+    partitionTableSectorCount /= storage->Stats.SectorSize;
     partitionTableSectorCount++;
     TRACE("GptEnumeratePartitionTable table sector size=%u", partitionTableSectorCount);
 
@@ -59,18 +59,19 @@ GptEnumeratePartitionTable(
     while (partitionTableSectorCount) {
         GptPartitionEntry_t* entry;
 
-        oserr = VfsStorageReadHelper(storage, bufferHandle,
-                                     gptHeader->PartitionTableLBA,
-                                     1, &sectorsRead);
+        oserr = storage->Operations.Read(
+                storage, bufferHandle, 0,
+                &(UInteger64_t) { .QuadPart = gptHeader->PartitionTableLBA },
+                1, &sectorsRead
+        );
         if (oserr != OsOK) {
             return OsError;
         }
 
         entry = (GptPartitionEntry_t*)buffer;
-        for (size_t i = 0; i < storage->Storage.SectorSize; i += gptHeader->PartitionEntrySize, entry++) {
-            guid_t   typeGuid;
-            guid_t   uniqueId;
-            uint64_t sectorCount;
+        for (size_t i = 0; i < storage->Stats.SectorSize; i += gptHeader->PartitionEntrySize, entry++) {
+            guid_t typeGuid;
+            guid_t uniqueId;
 
             // detect end of table, empty type guid
             guid_parse_raw(&typeGuid, &entry->PartitionTypeGUID[0]);
@@ -79,14 +80,19 @@ GptEnumeratePartitionTable(
             }
 
             guid_parse_raw(&uniqueId, &entry->PartitionGUID[0]);
-            sectorCount = (entry->EndLBA - entry->StartLBA) + 1;
-            VFSStorageRegisterFileSystem(
+            // sectorCount = (entry->EndLBA - entry->StartLBA) + 1;
+            UInteger64_t startSector = {
+                    .QuadPart = entry->StartLBA
+            };
+            VFSStorageRegisterAndSetupPartition(
                     storage,
                     partitionIndex++,
-                    entry->StartLBA,
-                    sectorCount, 0,
+                    &startSector,
+                    &uniqueId,
+                    NULL,
                     &typeGuid,
-                    &uniqueId
+                    UUID_INVALID,
+                    NULL
             );
         }
 
@@ -125,9 +131,9 @@ GptValidateHeader(
 
 oserr_t
 GptEnumerate(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer)
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             bufferHandle,
+        _In_ void*              buffer)
 {
     GptHeader_t* gpt;
     size_t       sectorsRead;
@@ -136,7 +142,10 @@ GptEnumerate(
     TRACE("GptEnumerate()");
 
     // Start out by reading the gpt-header to detect whether there is a valid GPT table
-    oserr = VfsStorageReadHelper(storage, bufferHandle, 1, 1, &sectorsRead);
+    UInteger64_t sector = {
+            .QuadPart = 1
+    };
+    oserr = storage->Operations.Read(storage, bufferHandle, 0, &sector, 1, &sectorsRead);
     if (oserr != OsOK) {
         return OsError;
     }

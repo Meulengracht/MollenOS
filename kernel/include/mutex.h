@@ -27,7 +27,7 @@
 
 #include <os/osdefs.h>
 #include <ds/list.h>
-#include <os/spinlock.h>
+#include <spinlock.h>
 
 // We support recursive mutexes
 #define MUTEX_FLAG_PLAIN     0
@@ -35,14 +35,14 @@
 #define MUTEX_FLAG_TIMED     0x2
 
 typedef struct Mutex {
-    _Atomic(unsigned int) flags;
-    _Atomic(uuid_t)       owner;
-    int                   referenceCount;
-    list_t                blockQueue;
-    spinlock_t            syncObject;
+    _Atomic(unsigned int) Flags;
+    _Atomic(uuid_t)       Owner;
+    int                   ReferenceCount;
+    list_t                BlockQueue;
+    Spinlock_t            Lock;
 } Mutex_t;
 
-#define OS_MUTEX_INIT(Flags) { ATOMIC_VAR_INIT(Flags), ATOMIC_VAR_INIT(UUID_INVALID), 0, LIST_INIT, SPINLOCK_INIT(spinlock_plain) }
+#define OS_MUTEX_INIT(Flags) { ATOMIC_VAR_INIT(Flags), ATOMIC_VAR_INIT(UUID_INVALID), 0, LIST_INIT, SPINLOCK_INIT }
 
 /**
  * Initializes a mutex to default values.

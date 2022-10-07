@@ -339,17 +339,31 @@ UpdateEntry:
 irqstate_t
 InterruptDisable(void)
 {
-    irqstate_t CurrentState = InterruptSaveState();
+    irqstate_t irqState;
+
+    // When we disable or enable interrupts out-right, let's always return
+    // previous state to allow the caller to restore a previous state. This
+    // is useful for irq-spinlocks.
+    irqState = InterruptSaveState();
+
+    // Disable the current interrupt context, and return the previous state.
     __cli();
-    return CurrentState;
+    return irqState;
 }
 
 irqstate_t
 InterruptEnable(void)
 {
-    irqstate_t CurrentState = InterruptSaveState();
+    irqstate_t irqState;
+
+    // When we disable or enable interrupts out-right, let's always return
+    // previous state to allow the caller to restore a previous state. This
+    // is useful for irq-spinlocks.
+    irqState = InterruptSaveState();
+
+    // Enable current state, and return the state before this enable.
     __sti();
-    return CurrentState;
+    return irqState;
 }
 
 irqstate_t

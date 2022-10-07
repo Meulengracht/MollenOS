@@ -14,10 +14,10 @@ macro (add_service_target)
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
         set_target_properties (${ARGV0}
             PROPERTIES
-                COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL ${ARGV1}"
+                COMPILE_FLAGS "-Wno-address-of-packed-member ${ARGV1}"
         )
         target_link_options(${ARGV0} PRIVATE "LINKER:-entry:__CrtServiceEntry")
-        target_link_libraries (${ARGV0} PRIVATE gracht libusb libds libddk c librt)
+        target_link_libraries (${ARGV0} PRIVATE gracht libusb libds libddk libos-api c librt)
         add_custom_command (TARGET ${ARGV0} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_SRV}
         )

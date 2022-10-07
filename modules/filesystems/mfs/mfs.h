@@ -39,11 +39,11 @@
  * MFS Definitions and Utilities
  * Contains magic constant values and utility macros for conversion
  */
-#define MFS_ENDOFCHAIN                    0xFFFFFFFF
-#define MFS_SECTORCOUNT(mfs, bucketCount) ((mfs)->SectorsPerBucket * (bucketCount))
-#define MFS_GETSECTOR(mfs, bucket)        ((mfs)->ReservedSectorCount + MFS_SECTORCOUNT(mfs, bucket))
-#define MFS_ROOTSIZE                      8
-#define MFS_DIRECTORYEXPANSION            4
+#define MFS_ENDOFCHAIN                0xFFFFFFFF
+#define MFS_SECTORCOUNT(mfs, bucket) ((mfs)->SectorsPerBucket * (bucket))
+#define MFS_GETSECTOR(mfs, bucket)   ((mfs)->ReservedSectorCount + MFS_SECTORCOUNT(mfs, bucket))
+#define MFS_ROOTSIZE                  8
+#define MFS_DIRECTORYEXPANSION        4
 
 #define MFS_ACTION_NONE     0x0
 #define MFS_ACTION_UPDATE   0x1
@@ -230,16 +230,18 @@ typedef struct MFSEntry {
 } MFSEntry_t;
 
 typedef struct FileSystemMFS {
-    unsigned int          Flags;
-    int                   Version;
-    size_t                SectorsPerBucket;
-    struct dma_attachment TransferBuffer;
-
-    uint16_t ReservedSectorCount;
-    uint64_t MasterRecordSector;
-    uint64_t MasterRecordMirrorSector;
-    uint64_t BucketCount;
-    size_t   BucketsPerSectorInMap;
+    mstring_t*                  Label;
+    unsigned int                Flags;
+    int                         Version;
+    size_t                      SectorsPerBucket;
+    struct dma_attachment       TransferBuffer;
+    struct VFSStorageParameters Storage;
+    size_t                      SectorSize;
+    uint16_t                    ReservedSectorCount;
+    uint64_t                    MasterRecordSector;
+    uint64_t                    MasterRecordMirrorSector;
+    size_t                      BucketsPerSectorInMap;
+    size_t                      BucketsInMap;
 
     // Cached resources
     uint32_t*      BucketMap;
@@ -247,111 +249,87 @@ typedef struct FileSystemMFS {
     FileRecord_t   RootRecord;
 } FileSystemMFS_t;
 
-/* MfsReadSectors 
- * A wrapper for reading sectors from the disk associated
- * with the file-system descriptor */
-extern oserr_t
-MfsReadSectors(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_  uuid_t               bufferHandle,
-        _In_  size_t               bufferOffset,
-        _In_  uint64_t             sector,
-        _In_  size_t               count,
-        _Out_ size_t*              sectorsReadOut);
-
-/* MfsWriteSectors 
- * A wrapper for writing sectors to the disk associated
- * with the file-system descriptor */
-extern oserr_t
-MfsWriteSectors(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_  uuid_t               bufferHandle,
-        _In_  size_t               bufferOffset,
-        _In_  uint64_t             sector,
-        _In_  size_t               count,
-        _Out_ size_t*              sectorsWrittenOut);
-
 /* MfsGetBucketLink
  * Looks up the next bucket link by utilizing the cached
  * in-memory version of the bucketmap */
 extern oserr_t
 MfsGetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucket,
-        _In_ MapRecord_t*          link);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucket,
+        _In_ MapRecord_t*     link);
 
 /* MfsSetBucketLink
  * Updates the next link for the given bucket and flushes
  * the changes to disk */
 extern oserr_t
 MfsSetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucket,
-        _In_ MapRecord_t*          link,
-        _In_ int                   updateLength);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucket,
+        _In_ MapRecord_t*     link,
+        _In_ int              updateLength);
 
 /* MfsSwitchToNextBucketLink
  * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsNotExists
  * when end-of-chain. */
 extern oserr_t
 MfsSwitchToNextBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MFSEntry_t* entry,
-        _In_ size_t                bucketSizeBytes);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ size_t           bucketSizeBytes);
 
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values
  * useful for clearing clusters of sectors */
 extern oserr_t
 MfsZeroBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucket,
-        _In_ size_t                count);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucket,
+        _In_ size_t           count);
 
 /* MfsAllocateBuckets
  * Allocates the number of requested buckets in the bucket-map
  * if the allocation could not be done, it'll return OsError */
 extern oserr_t
 MfsAllocateBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_  size_t               bucketCount,
-        _Out_ MapRecord_t*         mapRecord);
+        _In_  FileSystemMFS_t* mfs,
+        _In_  size_t           bucketCount,
+        _Out_ MapRecord_t*     mapRecord);
 
 /* MfsFreeBucketsMfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for 
  * a file-record */
 extern oserr_t
 MfsFreeBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              startBucket,
-        _In_ uint32_t              startLength);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         startBucket,
+        _In_ uint32_t         startLength);
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
 extern oserr_t
 MfsEnsureRecordSpace(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MFSEntry_t* entry,
-        _In_ uint64_t              spaceRequired);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ uint64_t         spaceRequired);
 
 /* MfsUpdateRecord
  * Conveniance function for updating a given file on
  * the disk, not data related to file, but the metadata */
 extern oserr_t
 MfsUpdateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MFSEntry_t* entry,
-        _In_ int                   action);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ int              action);
 
 /* MfsLocateRecord
  * Locates a given file-record by the path given, all sub entries must be 
  * directories. File is only allocated and set if the function returns OsOK */
 extern oserr_t
 MfsLocateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucketOfDirectory,
-        _In_ MFSEntry_t* entry,
-        _In_ mstring_t*            path);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucketOfDirectory,
+        _In_ MFSEntry_t*      entry,
+        _In_ mstring_t*       path);
 
 /**
  * @brief
@@ -366,13 +344,13 @@ MfsLocateRecord(
  */
 extern oserr_t
 MfsCreateRecord(
-        _In_  struct VFSCommonData*  vfsCommonData,
-        _In_  MFSEntry_t*  entry,
-        _In_  mstring_t*             name,
-        _In_  uint32_t               owner,
-        _In_  uint32_t               flags,
-        _In_  uint32_t               permissions,
-        _Out_ MFSEntry_t** entryOut);
+        _In_  FileSystemMFS_t* mfs,
+        _In_  MFSEntry_t*      entry,
+        _In_  mstring_t*       name,
+        _In_  uint32_t         owner,
+        _In_  uint32_t         flags,
+        _In_  uint32_t         permissions,
+        _Out_ MFSEntry_t**     entryOut);
 
 /* MfsVfsFlagsToFileRecordFlags
  * Converts the generic vfs options/permissions to the native mfs representation. */
@@ -393,8 +371,8 @@ MfsFileRecordFlagsToVfsFlags(
  * Converts a native MFS file record into the generic vfs representation. */
 extern void
 MfsFileRecordToVfsFile(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ FileRecord_t*         nativeEntry,
-        _In_ MFSEntry_t* mfsEntry);
+        _In_ FileSystemMFS_t* mfs,
+        _In_ FileRecord_t*    nativeEntry,
+        _In_ MFSEntry_t*      mfsEntry);
 
 #endif //!_MFS_H_

@@ -25,70 +25,14 @@
 #include <os/dmabuf.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
-#include <vfs/vfs_interface.h>
-
-struct usched_rwlock {
-    struct usched_mtx sync_object;
-    struct usched_cnd signal;
-    int               readers;
-};
-
-static void usched_rwlock_init(struct usched_rwlock* lock)
-{
-    usched_mtx_init(&lock->sync_object);
-    usched_cnd_init(&lock->signal);
-    lock->readers = 0;
-}
-
-static void usched_rwlock_r_lock(struct usched_rwlock* lock)
-{
-    usched_mtx_lock(&lock->sync_object);
-    lock->readers++;
-    usched_mtx_unlock(&lock->sync_object);
-}
-
-static void usched_rwlock_r_unlock(struct usched_rwlock* lock)
-{
-    usched_mtx_lock(&lock->sync_object);
-    lock->readers--;
-    if (!lock->readers) {
-        usched_cnd_notify_one(&lock->signal);
-    }
-    usched_mtx_unlock(&lock->sync_object);
-}
-
-static void usched_rwlock_w_promote(struct usched_rwlock* lock)
-{
-    usched_mtx_lock(&lock->sync_object);
-    if (--(lock->readers)) {
-        usched_cnd_wait(&lock->signal, &lock->sync_object);
-    }
-}
-
-static void usched_rwlock_w_demote(struct usched_rwlock* lock)
-{
-    lock->readers++;
-    usched_mtx_unlock(&lock->sync_object);
-}
-
-static void usched_rwlock_w_lock(struct usched_rwlock* lock)
-{
-    usched_mtx_lock(&lock->sync_object);
-    if (lock->readers) {
-        usched_cnd_wait(&lock->signal, &lock->sync_object);
-    }
-}
-
-static void usched_rwlock_w_unlock(struct usched_rwlock* lock)
-{
-    usched_mtx_unlock(&lock->sync_object);
-    usched_cnd_notify_one(&lock->signal);
-}
+#include <os/usched/rwlock.h>
+#include <vfs/interface.h>
 
 struct VFS {
     uuid_t                 ID;
     guid_t                 Guid;
-    struct VFSCommonData*  CommonData;
+    void*                  Data;
+    struct VFSStorage*     Storage;
     struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;

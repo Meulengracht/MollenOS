@@ -18,7 +18,8 @@
 
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_interface.h>
+#include <vfs/interface.h>
+#include <vfs/storage.h>
 #include "private.h"
 #include <string.h>
 #include <stdlib.h>
@@ -76,7 +77,7 @@ __StatRootNode(
         _In_ struct VFSStat* stat)
 {
     stat->ID = 0;
-    stat->StorageID = vfs->CommonData->Storage.DeviceID;
+    stat->StorageID = vfs->Storage->Stats.DeviceID;
     stat->Name = mstr_new_u8("/");
     stat->LinkTarget = NULL;
     stat->Owner = 0;
@@ -142,8 +143,9 @@ oserr_t
 VFSNew(
         _In_  uuid_t                id,
         _In_  guid_t*               guid,
+        _In_  struct VFSStorage*    storage,
         _In_  struct VFSInterface*  interface,
-        _In_  struct VFSCommonData* commonData,
+        _In_  void*                 data,
         _Out_ struct VFS**          vfsOut)
 {
     struct VFS* vfs;
@@ -157,8 +159,9 @@ VFSNew(
 
     vfs->ID = id;
     memcpy(&vfs->Guid, guid, sizeof(guid_t));
-    vfs->CommonData = commonData;
-    vfs->Interface  = interface;
+    vfs->Storage = storage;
+    vfs->Interface = interface;
+    vfs->Data = data;
     usched_rwlock_init(&vfs->Lock);
 
     osStatus = __CreateRootNode(vfs, &vfs->Root);

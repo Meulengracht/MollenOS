@@ -135,7 +135,11 @@ ThreadCreate(
     if (!(flags & THREADING_INHERIT) && memorySpaceHandle != UUID_INVALID) {
         MemorySpace_t* memorySpace;
 
-        status = AcquireHandle(memorySpaceHandle, (void**)&memorySpace);
+        status = AcquireHandleOfType(
+                memorySpaceHandle,
+                HandleTypeMemorySpace,
+                (void**)&memorySpace
+        );
         if (status != OsOK) {
             __DestroyThread(thread);
             return status;
@@ -661,7 +665,7 @@ __ThreadStart(void)
     TRACE("__ThreadStart(void)");
 
     if (thread->Flags & THREADING_IDLE) {
-        while (1) {
+        for (;;) {
             ArchProcessorIdle();
         }
     }

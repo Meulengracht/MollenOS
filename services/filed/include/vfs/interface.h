@@ -23,7 +23,6 @@
 #include <ddk/filesystem.h>
 #include <os/osdefs.h>
 #include <os/usched/mutex.h>
-#include "filesystem_types.h"
 
 struct VFSOperations {
     FsInitialize_t      Initialize;
@@ -45,7 +44,6 @@ struct VFSOperations {
 };
 
 struct VFSInterface {
-    enum FileSystemType  Type;
     Handle_t             Handle;
     struct usched_mtx    Lock;
     struct VFSOperations Operations;
@@ -55,7 +53,8 @@ struct VFSInterface {
  * @brief
  * @return
  */
-extern struct VFSInterface* MemFSNewInterface(void);
+extern struct VFSInterface*
+MemFSNewInterface(void);
 
 /**
  * @brief
@@ -67,7 +66,6 @@ extern struct VFSInterface* MemFSNewInterface(void);
  */
 struct VFSInterface*
 VFSInterfaceNew(
-        _In_  enum FileSystemType   type,
         _In_  Handle_t              dllHandle,
         _In_  struct VFSOperations* operations);
 
@@ -79,7 +77,18 @@ VFSInterfaceNew(
  */
 extern oserr_t
 VFSInterfaceLoadInternal(
-        _In_  enum FileSystemType    type,
+        _In_  const char*            type,
+        _Out_ struct VFSInterface**  interfaceOut);
+
+/**
+ * @brief
+ * @param interfaceDriverID
+ * @param interfaceOut
+ * @return
+ */
+extern oserr_t
+VFSInterfaceLoadDriver(
+        _In_  uuid_t                 interfaceDriverID,
         _Out_ struct VFSInterface**  interfaceOut);
 
 /**

@@ -182,7 +182,7 @@ CpuCoreStart(void)
 
     // Enter idle loop
     WARNING("CpuCoreStart %" PRIuIN " is online", cpuCore->Id);
-	while (1) {
+	for (;;) {
 		ArchProcessorIdle();
     }
 }

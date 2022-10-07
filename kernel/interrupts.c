@@ -35,7 +35,7 @@
 #include <debug.h>
 #include <heap.h>
 #include <memoryspace.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 #include <interrupts.h>
 #include <threading.h>
 #include <string.h>
@@ -47,8 +47,8 @@ typedef struct InterruptTableEntry {
 } InterruptTableEntry_t;
 
 static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
-static IrqSpinlock_t   g_interruptTableLock                             = OS_IRQ_SPINLOCK_INIT;
-static _Atomic(uuid_t) g_nextInterruptId                                = ATOMIC_VAR_INIT(0);
+static Spinlock_t            g_interruptTableLock                       = OS_SPINLOCK_INIT;
+static _Atomic(uuid_t)       g_nextInterruptId                          = ATOMIC_VAR_INIT(0);
 
 oserr_t
 InterruptIncreasePenalty(
@@ -419,7 +419,7 @@ InterruptRegister(
     }
     
     // Initialize the table entry?
-    IrqSpinlockAcquire(&g_interruptTableLock);
+    SpinlockAcquireIrq(&g_interruptTableLock);
     if (g_interruptTable[tableIndex].Descriptor == NULL) {
         g_interruptTable[tableIndex].Descriptor = systemInterrupt;
         g_interruptTable[tableIndex].Penalty    = 1;
@@ -438,7 +438,7 @@ InterruptRegister(
     if (InterruptConfigure(systemInterrupt, 1) != OsOK) {
         ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
     }
-    IrqSpinlockRelease(&g_interruptTableLock);
+    SpinlockReleaseIrq(&g_interruptTableLock);
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
           systemInterrupt->Id, systemInterrupt->Interrupt.ResourceTable.Handler, systemInterrupt->Interrupt.Context);
     return systemInterrupt->Id;
@@ -460,7 +460,7 @@ InterruptUnregister(
     }
     
     // Iterate handlers in that table index and unlink the given entry
-    IrqSpinlockAcquire(&g_interruptTableLock);
+    SpinlockAcquireIrq(&g_interruptTableLock);
     Entry = g_interruptTable[TableIndex].Descriptor;
     while (Entry) {
         if (Entry->Id == Source) {
@@ -485,7 +485,7 @@ InterruptUnregister(
         Previous = Entry;
         Entry    = Entry->Link;
     }
-    IrqSpinlockRelease(&g_interruptTableLock);
+    SpinlockReleaseIrq(&g_interruptTableLock);
 
     // Sanitize if we were successfull
     if (!Found) {

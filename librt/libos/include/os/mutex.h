@@ -30,17 +30,16 @@ enum {
 };
 
 typedef struct Mutex {
-    int          Flags;
-    uuid_t       Owner;
-    _Atomic(int) References;
-    _Atomic(int) Value;
+    int                   Flags;
+    _Atomic(unsigned int) State;
+    _Atomic(int)          Value;
 } Mutex_t;
 // _MTX_INITIALIZER_NP
 
 #if defined(__cplusplus)
-#define MUTEX_INIT(type) { type, UUID_INVALID, 0, 0 }
+#define MUTEX_INIT(type) { type, 0, 0 }
 #else
-#define MUTEX_INIT(type) { type, UUID_INVALID, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#define MUTEX_INIT(type) { type, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
 #endif
 
 _CODE_BEGIN

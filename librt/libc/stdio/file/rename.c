@@ -1,6 +1,6 @@
 /* MollenOS
  *
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,17 +14,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - File link implementation
  */
 
 #include <stdio.h>
 
 int rename(
-	_In_ const char * oldname, 
-	_In_ const char * newname)
+	_In_ const char* oldname,
+	_In_ const char* newname)
 {
     // @todo
     return -1;

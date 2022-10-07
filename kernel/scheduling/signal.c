@@ -193,7 +193,7 @@ SignalProcessQueued(
         return;
     }
 
-    while (1) {
+    for (;;) {
         size_t bytesRead = streambuffer_stream_in(
                 thread->Signaling.Signals,
                 &threadSignal,

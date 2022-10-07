@@ -1,3 +1,4 @@
 # Build objects and binaries
 build/
 venv/
+.fridge/

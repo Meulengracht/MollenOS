@@ -268,9 +268,9 @@ __QueueObjectImmediately(
     
     // If the object is running on our core, just append it
     if (CpuCoreId(core) == object->CoreId) {
-        IrqSpinlockAcquire(&scheduler->SyncObject);
+        SpinlockAcquireIrq(&scheduler->SyncObject);
         __QueueForScheduler(scheduler, object, 1);
-        IrqSpinlockRelease(&scheduler->SyncObject);
+        SpinlockReleaseIrq(&scheduler->SyncObject);
 
         // If we are running on the idle thread, we can switch immediately, unless
         if (scheduler->Enabled && ThreadIsCurrentIdle(CpuCoreId(core))) {

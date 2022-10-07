@@ -358,15 +358,13 @@ set (SOURCES_STDLIB
 )
 
 set (SOURCES_OS
-        os/synchronization/spinlock.c
-        os/synchronization/event.c
+        os/event.c
         os/keymaps/en-us.c
         os/clang.c
         os/init.c
         os/ipcontext.c
         os/keycodes.c
         os/tls.c
-        os/unwind.c
 )
 
 set (SOURCES_THREADS
@@ -443,7 +441,6 @@ set (SOURCES_LIBK
     ${SOURCES_STDIO_COMMON}
     ${SOURCES_TIME_COMMON}
 
-    os/synchronization/spinlock.c
     locale/locale.c
     stdio/libc_io.c
     stdlib/itoa.c
@@ -496,7 +493,12 @@ add_library(c SHARED ${ASM_SOURCES} ${SOURCES_LIBC} main.c)
 target_compile_definitions(c PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION)
 target_include_directories(c PUBLIC include)
 target_link_options(c PRIVATE "LINKER:-def:${CMAKE_CURRENT_SOURCE_DIR}/libc.def")
-target_link_libraries (c PRIVATE libos gracht_static libds libddk libm librt)
+target_link_libraries(c PRIVATE libos gracht_static libds libddk libm librt)
+
+# create an interface library for libc so targets can get the include files
+# without actually including either the static or shared library copy
+add_library(libc-api INTERFACE)
+target_include_directories(libc-api INTERFACE include)
 
 install(TARGETS c
     ARCHIVE DESTINATION lib

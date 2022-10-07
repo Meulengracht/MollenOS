@@ -206,7 +206,7 @@ static AcpiInterruptResource_t* __GetLeastLoadedEntry(
         return NULL;
     }
 
-    _foreach(i, possibleInterrupts) {
+    foreach(i, possibleInterrupts) {
         AcpiInterruptResource_t* entry = (AcpiInterruptResource_t*)i->value;
         if (entry->Irq == count) {
             return entry;

@@ -22,12 +22,12 @@
 #define __TRACE
 
 #include "msd.h"
-#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <gracht/server.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
+
+#include <sys_storage_service_client.h>
 
 extern int __crt_get_server_iod(void);
 

@@ -17,10 +17,13 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <internal/_ipc.h>
+#include <ddk/service.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <os/process.h>
 #include <ddk/convert.h>
+
+#include <sys_process_service_client.h>
 
 void
 ProcessConfigurationInitialize(

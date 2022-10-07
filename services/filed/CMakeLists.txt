@@ -9,7 +9,6 @@ add_subdirectory(vfs)
 
 set (SERVICE_HEADERS
         include/vfs/filesystem.h
-        include/vfs/filesystem_types.h
         include/vfs/gpt.h
         include/vfs/mbr.h
         include/vfs/requests.h
@@ -25,17 +24,22 @@ set (SERVICE_SOURCES
         storage/layouts/mbr.c
         storage/layouts/gpt.c
         storage/storage.c
+        storage/storage_device.c
+        storage/storage_file.c
+        storage/storage_memory.c
         storage/utils.c
 
         filesystem.c
         main.c
+        mount.c
         requests.c
         scope.c
 )
 
 set (ADDITONAL_SOURCES
-    ${CMAKE_BINARY_DIR}/protocols/sys_file_service_server.c
-    ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_server.c
+        ${CMAKE_BINARY_DIR}/protocols/sys_file_service_server.c
+        ${CMAKE_BINARY_DIR}/protocols/sys_mount_service_server.c
+        ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_server.c
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 

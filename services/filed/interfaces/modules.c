@@ -28,23 +28,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <vfs/vfs_interface.h>
+#include <vfs/interface.h>
 
 static const char* g_modulePaths[] = {
         "/modules",
         "/initfs/modules",
         NULL
-};
-
-static const char* g_moduleNames[] = {
-	NULL,
-	"fat.dll",
-	"exfat.dll",
-	"ntfs.dll",
-	"hfs.dll",
-	"hpfs.dll",
-	"mfs.dll",
-	"ext.dll"
 };
 
 static oserr_t
@@ -90,7 +79,6 @@ __LoadInternalAPI(
 
 struct VFSInterface*
 VFSInterfaceNew(
-        _In_  enum FileSystemType   type,
         _In_  Handle_t              dllHandle,
         _In_  struct VFSOperations* operations)
 {
@@ -101,7 +89,6 @@ VFSInterfaceNew(
         return NULL;
     }
 
-    interface->Type   = type;
     interface->Handle = dllHandle;
     usched_mtx_init(&interface->Lock);
     if (operations) {
@@ -112,20 +99,20 @@ VFSInterfaceNew(
 
 struct __DetachedContext {
     // params
-    enum FileSystemType Type;
+    const char* Type;
 
     // return
     Handle_t Handle;
 };
 
-static struct __DetachedContext* __DetachedContext_new(enum FileSystemType type)
+static struct __DetachedContext* __DetachedContext_new(const char* type)
 {
     struct __DetachedContext* context = malloc(sizeof(struct __DetachedContext));
     if (context == NULL) {
         return NULL;
     }
     context->Type   = type;
-    context->Handle = UUID_INVALID;
+    context->Handle = HANDLE_INVALID;
     return context;
 }
 
@@ -146,7 +133,7 @@ __TryLocateModule(
 
     i = 0;
     while (g_modulePaths[i] && !usched_is_cancelled(cancellationToken)) {
-        snprintf(&tmp[0], sizeof(tmp), "%s/%s", g_modulePaths[i], g_moduleNames[(int)context->Type]);
+        snprintf(&tmp[0], sizeof(tmp), "%s/%s.dll", g_modulePaths[i], context->Type);
         Handle_t handle = SharedObjectLoad(&tmp[0]);
         if (handle != HANDLE_INVALID) {
             context->Handle = handle;
@@ -158,7 +145,7 @@ __TryLocateModule(
 }
 
 static Handle_t __RunDetached(
-        _In_ enum FileSystemType type)
+        _In_  const char* type)
 {
     struct usched_job_parameters jobParameters;
     struct __DetachedContext*    context;
@@ -184,26 +171,26 @@ static Handle_t __RunDetached(
 
 oserr_t
 VFSInterfaceLoadInternal(
-        _In_  enum FileSystemType   type,
+        _In_  const char*           type,
         _Out_ struct VFSInterface** interfaceOut)
 {
     struct VFSInterface* interface;
 	Handle_t             handle;
     oserr_t              osStatus;
-    TRACE("VFSInterfaceLoadInternal(%u)", type);
+    TRACE("VFSInterfaceLoadInternal(%s)", type);
 
-	if (type == FileSystemType_UNKNOWN) {
+	if (type == NULL) {
 	    return OsNotSupported;
 	}
 
     // Until such a time
     handle = __RunDetached(type);
     if (handle == HANDLE_INVALID) {
-        ERROR("VFSInterfaceLoadInternal failed to load %s", g_moduleNames[(int)type]);
+        ERROR("VFSInterfaceLoadInternal failed to load %s", type);
         return OsNotExists;
     }
 
-    interface = VFSInterfaceNew(type, handle, NULL);
+    interface = VFSInterfaceNew(handle, NULL);
     if (interface == NULL) {
         return OsOutOfMemory;
     }
@@ -216,6 +203,15 @@ VFSInterfaceLoadInternal(
 
     *interfaceOut = interface;
     return OsOK;
+}
+
+oserr_t
+VFSInterfaceLoadDriver(
+        _In_  uuid_t                 interfaceDriverID,
+        _Out_ struct VFSInterface**  interfaceOut)
+{
+    // TODO implement this
+    return OsNotSupported;
 }
 
 void

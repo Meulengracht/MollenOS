@@ -223,7 +223,7 @@ InitializeMachine(
     goto IdleProcessor;
 
 IdleProcessor:
-    while (1) {
+    for (;;) {
         ArchProcessorIdle();
     }
 }
@@ -253,9 +253,9 @@ AllocatePhysicalMemory(
         }
 
         // try to allocate all neccessary pages from this memory mask allocator
-        IrqSpinlockAcquire(&region->Lock);
+        SpinlockAcquireIrq(&region->Lock);
         osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
-        IrqSpinlockRelease(&region->Lock);
+        SpinlockReleaseIrq(&region->Lock);
 
         // if it returns out of memory, then no pages are available here
         if (osStatus != OsOutOfMemory) {
@@ -289,9 +289,9 @@ FreePhysicalMemory(
             }
         }
 
-        IrqSpinlockAcquire(&region->Lock);
+        SpinlockAcquireIrq(&region->Lock);
         MemoryStackPush(&region->Stack, address, 1);
-        IrqSpinlockRelease(&region->Lock);
+        SpinlockReleaseIrq(&region->Lock);
     }
 
     GetMachine()->NumberOfFreeMemoryBlocks += (size_t)pageCount;

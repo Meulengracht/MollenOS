@@ -19,10 +19,10 @@
 #include <assert.h>
 #include <ctype.h>
 #include <ddk/convert.h>
-#include <os/dmabuf.h>
-#include <stdlib.h>
 #include <vfs/filesystem.h>
+#include <vfs/requests.h>
 #include <vfs/scope.h>
+#include <vfs/vfs.h>
 #include "sys_file_service_server.h"
 
 void OpenFile(
@@ -35,8 +35,13 @@ void OpenFile(
         return;
     }
 
-    uuid_t     handle   = UUID_INVALID;
-    oserr_t osStatus = VFSNodeOpen(fsScope, request, &handle);
+    uuid_t  handle   = UUID_INVALID;
+    oserr_t osStatus = VFSNodeOpen(
+            fsScope,
+            request->parameters.open.path,
+            request->parameters.open.options,
+            request->parameters.open.access,
+            &handle);
     sys_file_open_response(request->message, osStatus, handle);
 
     free((void*)request->parameters.open.path);
@@ -53,7 +58,7 @@ void CloseFile(
         return;
     }
 
-    oserr_t osStatus = VFSNodeClose(fsScope, request);
+    oserr_t osStatus = VFSNodeClose(fsScope, request->parameters.close.fileHandle);
     sys_file_close_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -120,8 +125,18 @@ void ReadFileAbsolute(
         return;
     }
 
-    size_t     read     = 0;
-    oserr_t osStatus = VFSNodeReadAt(request, &read);
+    size_t  read     = 0;
+    oserr_t osStatus = VFSNodeReadAt(
+            request->parameters.transfer_absolute.fileHandle,
+            &(UInteger64_t) {
+                    .u.LowPart = request->parameters.transfer_absolute.position_low,
+                    .u.HighPart = request->parameters.transfer_absolute.position_high
+            },
+            request->parameters.transfer_absolute.bufferHandle,
+            request->parameters.transfer_absolute.offset,
+            request->parameters.transfer_absolute.length,
+            &read
+    );
     sys_file_transfer_absolute_response(request->message, osStatus, read);
 
     VfsRequestDestroy(request);
@@ -137,8 +152,18 @@ void WriteFileAbsolute(
         return;
     }
 
-    size_t     written  = 0;
-    oserr_t osStatus = VFSNodeWriteAt(request, &written);
+    size_t  written  = 0;
+    oserr_t osStatus = VFSNodeWriteAt(
+            request->parameters.transfer_absolute.fileHandle,
+            &(UInteger64_t) {
+                    .u.LowPart = request->parameters.transfer_absolute.position_low,
+                    .u.HighPart = request->parameters.transfer_absolute.position_high
+            },
+            request->parameters.transfer_absolute.bufferHandle,
+            request->parameters.transfer_absolute.offset,
+            request->parameters.transfer_absolute.length,
+            &written
+    );
     sys_file_transfer_absolute_response(request->message, osStatus, written);
 
     VfsRequestDestroy(request);
@@ -333,7 +358,7 @@ void StatFromHandle(
         return;
     }
 
-    oserr_t osStatus = VFSNodeStatHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatHandle(request->parameters.stat_handle.fileHandle, &stats);
     __ToProtocolFileDescriptor(&stats, &result);
     sys_file_fstat_response(request->message, osStatus, &result);
 
@@ -489,7 +514,7 @@ void GetFullPathByHandle(
     }
 
     mstring_t* fullPath;
-    oserr_t osStatus = VFSNodeGetPathHandle(request, &fullPath);
+    oserr_t osStatus = VFSNodeGetPathHandle(request->parameters.stat_handle.fileHandle, &fullPath);
     if (osStatus != OsOK) {
         sys_file_get_path_response(request->message, osStatus, "");
         return;

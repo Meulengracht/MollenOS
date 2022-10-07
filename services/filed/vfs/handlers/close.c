@@ -35,24 +35,29 @@ static oserr_t __RemoveHandle(struct VFSNode* node, uuid_t handleId)
     return OsOK;
 }
 
-oserr_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
+oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
 {
     struct VFSNodeHandle* handle;
     struct VFSNode*       node;
     oserr_t               osStatus;
 
-    osStatus = VFSNodeHandleGet(request->parameters.close.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(handleID, &handle);
     if (osStatus != OsOK) {
         return osStatus;
     }
 
     node = handle->Node;
 
+    // After this, we can free the handle lock,
+    // as we don't need it anymore after retrieving the
+    // node instance
+    VFSNodeHandlePut(handle);
+
     // When processes inherit files, they gain additional references for a handle
     // which means we try to destroy the handle first, and only if we were the final
     // call we handle cleanup of this file-handle. This also acts as a barrier for
     // synchronization.
-    osStatus = handle_destroy(request->parameters.close.fileHandle);
+    osStatus = handle_destroy(handleID);
     if (osStatus == OsIncomplete) {
         return OsOK;
     } else if (osStatus != OsOK) {
@@ -60,11 +65,11 @@ oserr_t VFSNodeClose(struct VFS* vfs, struct VFSRequest* request)
     }
 
     // Ok last reference was destroyed
-    osStatus = VFSNodeHandleRemove(request->parameters.close.fileHandle);
+    osStatus = VFSNodeHandleRemove(handleID);
     if (osStatus != OsOK) {
         return osStatus;
     }
 
     // Also remove the handle from the node
-    return __RemoveHandle(node, request->parameters.close.fileHandle);
+    return __RemoveHandle(node, handleID);
 }

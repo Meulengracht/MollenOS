@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO Support functions
  */
 
 //#define __TRACE
@@ -30,7 +25,7 @@
 #include <string.h>
 
 static int*       g_stdioHandles     = NULL;
-static spinlock_t g_stdioHandlesLock = _SPN_INITIALIZER_NP(spinlock_plain);
+static spinlock_t g_stdioHandlesLock = _SPN_INITIALIZER_NP;
 
 int stdio_bitmap_initialize(void)
 {

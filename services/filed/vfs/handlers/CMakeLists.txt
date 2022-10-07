@@ -4,6 +4,7 @@ add_library(filed-vfs-handlers
         flush.c
         handle_stat.c
         link.c
+        mkdir.c
         move.c
         open.c
         read.c
@@ -16,7 +17,7 @@ add_library(filed-vfs-handlers
 )
 set_target_properties (filed-vfs-handlers
         PROPERTIES
-        COMPILE_FLAGS "-Wno-address-of-packed-member -D__SERVICE_IMPL -D__FILEMANAGER_IMPL"
+        COMPILE_FLAGS "-Wno-address-of-packed-member -D__FILEMANAGER_IMPL"
 )
 target_include_directories(filed-vfs-handlers PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include

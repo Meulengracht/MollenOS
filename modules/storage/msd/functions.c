@@ -24,13 +24,11 @@
 
 #include "msd.h"
 #include <ddk/utils.h>
-#include <ds/mstring.h>
-#include <internal/_ipc.h>
 #include <threads.h>
 #include <stdio.h>
 
-#include "ctt_driver_service_server.h"
-#include "ctt_storage_service_server.h"
+#include <ctt_driver_service_server.h>
+#include <ctt_storage_service_server.h>
 
 extern MsdOperations_t  BulkOperations;
 extern MsdOperations_t  UfiOperations;

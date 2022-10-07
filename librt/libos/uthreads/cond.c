@@ -106,30 +106,44 @@ void usched_cnd_notify_all(struct usched_cnd* condition)
 
 void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* job)
 {
+    struct usched_job* i;
+    struct usched_job* previous;
+    bool               reQueue = false;
+
     assert(condition != NULL);
     assert(job != NULL);
 
     usched_mtx_lock(&condition->lock);
-    if (condition->queue) {
-        struct usched_job* i = condition->queue, *previous = NULL;
-        while (i) {
-            if (i == job) {
-                if (!previous) {
-                    condition->queue = i->next;
-                }
-                else {
-                    previous->next = i->next;
-                }
+    if (condition->queue == NULL) {
+        usched_mtx_unlock(&condition->lock);
+        return;
+    }
 
-                job->next = NULL;
-                job->state = JobState_RUNNING;
-                __usched_add_job_ready(job);
-                break;
+    i = condition->queue;
+    previous = NULL;
+    while (i) {
+        if (i == job) {
+            // Unlink the job from the condition block queue while we hold
+            // the spinlock. The rest of the job handling can be done
+            // without the spinlock.
+            if (!previous) {
+                condition->queue = i->next;
             }
-
-            previous = i;
-            i = i->next;
+            else {
+                previous->next = i->next;
+            }
+            reQueue = true;
+            break;
         }
+
+        previous = i;
+        i = i->next;
     }
     usched_mtx_unlock(&condition->lock);
+
+    if (reQueue) {
+        job->next = NULL;
+        job->state = JobState_RUNNING;
+        __usched_add_job_ready(job);
+    }
 }

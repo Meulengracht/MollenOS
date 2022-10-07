@@ -75,8 +75,8 @@ PACKED_TYPESTRUCT(MasterBootRecord, {
  */
 extern oserr_t
 MbrEnumerate(
-        _In_ FileSystemStorage_t* storage,
-        _In_ uuid_t               bufferHandle,
-        _In_ void*                buffer);
+        _In_ struct VFSStorage* storage,
+        _In_ uuid_t             bufferHandle,
+        _In_ void*              buffer);
 
 #endif //!_DISK_LAYOUT_MBR_H_

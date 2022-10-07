@@ -21,31 +21,71 @@
 #include "private.h"
 #include <string.h>
 
-oserr_t VFSNodeMount(struct VFS* vfs, struct VFSNode* at, struct VFS* what)
+oserr_t VFSNodeMount(struct VFS* vfs, uuid_t atID, struct VFS* what)
 {
-    oserr_t osStatus = OsOK;
+    struct VFSNodeHandle* handle;
+    oserr_t               oserr;
+    _CRT_UNUSED(vfs);
 
-    usched_rwlock_w_lock(&at->Lock);
-    if (!__NodeIsRegular(at)) {
-        osStatus = OsInvalidParameters;
+    oserr = VFSNodeHandleGet(atID, &handle);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    usched_rwlock_w_lock(&handle->Node->Lock);
+    if (!__NodeIsRegular(handle->Node)) {
+        oserr = OsInvalidParameters;
         goto exit;
     }
 
-    at->Type     = VFS_NODE_TYPE_MOUNTPOINT | VFS_NODE_TYPE_FILESYSTEM;
-    at->TypeData = what;
+    handle->Node->Type     = VFS_NODE_TYPE_MOUNTPOINT | VFS_NODE_TYPE_FILESYSTEM;
+    handle->Node->TypeData = what;
 
 exit:
-    usched_rwlock_w_unlock(&at->Lock);
-    return osStatus;
+    usched_rwlock_w_unlock(&handle->Node->Lock);
+    VFSNodeHandlePut(handle);
+    return oserr;
 }
 
-oserr_t VFSNodeUnmount(struct VFS* vfs, struct VFSNode* node)
+oserr_t VFSNodeUnmount(struct VFS* vfs, uuid_t directoryHandleID)
 {
-    oserr_t osStatus = OsOK;
+    struct VFSNodeHandle* handle;
+    oserr_t               oserr;
+    _CRT_UNUSED(vfs);
+
+    oserr = VFSNodeHandleGet(directoryHandleID, &handle);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    usched_rwlock_w_lock(&handle->Node->Lock);
+    if (!__NodeIsMountPoint(handle->Node)) {
+        oserr = OsInvalidParameters;
+        goto exit;
+    }
+
+    handle->Node->Type     = VFS_NODE_TYPE_REGULAR;
+    handle->Node->TypeData = NULL;
+
+exit:
+    usched_rwlock_w_unlock(&handle->Node->Lock);
+    VFSNodeHandlePut(handle);
+    return oserr;
+}
+
+oserr_t VFSNodeUnmountPath(struct VFS* vfs, mstring_t* path)
+{
+    struct VFSNode* node;
+    oserr_t         oserr;
+
+    oserr = VFSNodeGet(vfs, path, 1, &node);
+    if (oserr != OsOK) {
+        return oserr;
+    }
 
     usched_rwlock_w_lock(&node->Lock);
     if (!__NodeIsMountPoint(node)) {
-        osStatus = OsInvalidParameters;
+        oserr = OsInvalidParameters;
         goto exit;
     }
 
@@ -54,5 +94,5 @@ oserr_t VFSNodeUnmount(struct VFS* vfs, struct VFSNode* node)
 
 exit:
     usched_rwlock_w_unlock(&node->Lock);
-    return osStatus;
+    return oserr;
 }

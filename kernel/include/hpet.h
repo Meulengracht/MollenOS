@@ -22,7 +22,6 @@
 #define _HPET_H_
 
 #include <acpiinterface.h>
-#include <os/spinlock.h>
 #include <os/osdefs.h>
 #include <time.h>
 

@@ -432,6 +432,8 @@ __usched_timeout_finish(int id)
     struct usched_timeout*   timer;
     struct usched_timeout*   previousTimer = NULL;
     int                      result = 0;
+    bool                     timerFound = false;
+
     if (id == -1) {
         // an invalid id was provided, ignore it
         return 0;
@@ -446,18 +448,21 @@ __usched_timeout_finish(int id)
             else {
                 sched->timers = timer->next;
             }
-
-            // return -1 if timer was signalled.
-            if (!timer->active) {
-                errno = ETIME;
-                result = -1;
-            }
-            free(timer);
+            timerFound = true;
             break;
         }
 
         previousTimer = timer;
         timer = timer->next;
+    }
+
+    if (timerFound) {
+        // return -1 if timer was signalled.
+        if (!timer->active) {
+            errno = ETIME;
+            result = -1;
+        }
+        free(timer);
     }
     return result;
 }

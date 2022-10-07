@@ -19,6 +19,7 @@
 #include <ddk/utils.h>
 #include <string.h>
 #include <vfs/requests.h>
+#include <vfs/storage.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -61,7 +62,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
 
     // store the return value, so we can return the result of that instead of
     // returning the result of cleanup
-    osStatus = node->FileSystem->Interface->Operations.Stat(node->FileSystem->CommonData, stat);
+    osStatus = node->FileSystem->Interface->Operations.Stat(node->FileSystem->Data, stat);
     VFSNodePut(node);
     mstr_delete(nodePath);
     return osStatus;
@@ -82,7 +83,7 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageD
         return osStatus;
     }
 
-    memcpy(stat, &node->FileSystem->CommonData->Storage, sizeof(StorageDescriptor_t));
+    memcpy(stat, &node->FileSystem->Storage->Stats, sizeof(StorageDescriptor_t));
     VFSNodePut(node);
     mstr_delete(nodePath);
     return OsOK;

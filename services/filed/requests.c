@@ -30,7 +30,8 @@
 #include <string.h>
 #include <vfs/requests.h>
 
-#include "sys_file_service_server.h"
+#include <sys_file_service_server.h>
+#include <sys_mount_service_server.h>
 
 extern void OpenFile(FileSystemRequest_t* request, void*);
 extern void CloseFile(FileSystemRequest_t* request, void*);
@@ -58,6 +59,8 @@ extern void StatStorageByHandle(FileSystemRequest_t* request, void*);
 extern void StatStorageByPath(FileSystemRequest_t* request, void*);
 extern void GetFullPathByHandle(FileSystemRequest_t* request, void*);
 extern void RealPath(FileSystemRequest_t* request, void*);
+extern void Mount(FileSystemRequest_t* request, void*);
+extern void Unmount(FileSystemRequest_t* request, void*);
 
 static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
 
@@ -562,4 +565,48 @@ void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_
     request->parameters.stat_path.path = strdup(filePath);
     request->parameters.stat_path.follow_links = followLinks;
     usched_job_queue((usched_task_fn)StatStorageByPath, request);
+}
+
+void sys_mount_mount_invocation(struct gracht_message* message, const uuid_t processId,
+                                const char* path, const char* at, const char* fsType, const enum sys_mount_flags flags)
+{
+    FileSystemRequest_t* request;
+
+    TRACE("sys_mount_mount_invocation()");
+    if (!strlen(at)) {
+        sys_mount_mount_response(message, OsInvalidParameters);
+        return;
+    }
+
+    request = CreateRequest(message, processId);
+    if (!request) {
+        sys_mount_mount_response(message, OsOutOfMemory);
+        return;
+    }
+
+    request->parameters.mount.path = path == NULL ? NULL : strdup(path);
+    request->parameters.mount.at = strdup(at);
+    request->parameters.mount.fs_type = fsType == NULL ? NULL : strdup(fsType);
+    request->parameters.mount.flags = (unsigned int)flags;
+    usched_job_queue((usched_task_fn)Mount, request);
+}
+
+void sys_mount_unmount_invocation(struct gracht_message* message, const uuid_t processId, const char* path)
+{
+    FileSystemRequest_t* request;
+
+    TRACE("sys_mount_unmount_invocation()");
+    if (!strlen(path)) {
+        sys_mount_mount_response(message, OsInvalidParameters);
+        return;
+    }
+
+    request = CreateRequest(message, processId);
+    if (!request) {
+        sys_mount_mount_response(message, OsOutOfMemory);
+        return;
+    }
+
+    request->parameters.unmount.path = strdup(path);
+    usched_job_queue((usched_task_fn)Unmount, request);
 }

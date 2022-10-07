@@ -110,7 +110,7 @@ UsbManagerCreateController(
     list_construct(&controller->TransactionList);
     hashtable_construct(&controller->Endpoints, 0,
             sizeof(struct usb_controller_endpoint), endpoint_hash, endpoint_cmp);
-    spinlock_init(&controller->Lock, spinlock_plain);
+    spinlock_init(&controller->Lock);
 
     // create the event descriptor to allow listening for interrupts
     controller->event_descriptor = eventd(0, EVT_RESET_EVENT);

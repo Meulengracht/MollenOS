@@ -25,7 +25,7 @@
 #define __UTILS_STATIC_MEMORY_POOL_H__
 
 #include <os/osdefs.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 
 PACKED_TYPESTRUCT(StaticMemoryChunk, {
 	uint8_t Split : 1;
@@ -38,7 +38,7 @@ typedef struct StaticMemoryPool {
 	size_t               Length;
 	size_t               ChunkSize;
 	StaticMemoryChunk_t* Chunks;
-	IrqSpinlock_t        SyncObject;
+	Spinlock_t SyncObject;
 } StaticMemoryPool_t;
 
 /**

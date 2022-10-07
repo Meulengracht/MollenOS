@@ -26,37 +26,37 @@
 #include <ds/guid.h>
 #include <ds/hashtable.h>
 #include <ds/mstring.h>
-#include <os/usched/usched.h>
+#include <os/usched/mutex.h>
 #include <ddk/filesystem.h>
-#include "filesystem_types.h"
-#include "requests.h"
-#include "vfs.h"
-#include "vfs_interface.h"
+
+struct VFSStorage;
+struct VFSInterface;
 
 enum FileSystemState {
     FileSystemState_NO_INTERFACE,
     FileSystemState_CONNECTED,
-    FileSystemState_ENABLED,
+    FileSystemState_MOUNTED,
 };
 
 typedef struct FileSystem {
     element_t             Header;
     uuid_t                ID;
     guid_t                GUID;
+    struct VFSStorage*    Storage;
     int                   PartitionIndex;
-    struct VFSCommonData  CommonData;
-    enum FileSystemType   Type;
+    UInteger64_t          SectorStart;
+    void*                 Data;
     enum FileSystemState  State;
     struct VFS*           VFS;
     struct VFSInterface*  Interface;
-    struct VFSNode*       MountNode;
+    uuid_t                MountHandle;
     struct usched_mtx     Lock;
 } FileSystem_t;
 
 /**
  * Initializes the filesystem interface.
  */
-extern void VfsFileSystemInitialize(void);
+extern void VFSFileSystemInitialize(void);
 
 /**
  * @brief Creates a new filesystem instance from the parameters provided. This does not register
@@ -71,19 +71,20 @@ extern void VfsFileSystemInitialize(void);
  */
 extern FileSystem_t*
 FileSystemNew(
-        _In_ StorageDescriptor_t* storage,
-        _In_ int                  partitionIndex,
-        _In_ uuid_t               id,
-        _In_ guid_t*              guid,
-        _In_ uint64_t             sector,
-        _In_ uint64_t             sectorCount);
+        _In_ struct VFSStorage* storage,
+        _In_ int                partitionIndex,
+        _In_ UInteger64_t*      sector,
+        _In_ uuid_t             id,
+        _In_ guid_t*            guid);
 
 /**
  * @brief
  *
  * @param fileSystem
  */
-extern void FileSystemDestroy(FileSystem_t* fileSystem);
+extern void
+FileSystemDestroy(
+        _In_ FileSystem_t* fileSystem);
 
 /**
  * @brief
@@ -91,7 +92,7 @@ extern void FileSystemDestroy(FileSystem_t* fileSystem);
  * @param guid
  * @return
  */
-extern enum FileSystemType
+extern const char*
 FileSystemParseGuid(
         _In_ guid_t* guid);
 
@@ -115,7 +116,7 @@ VFSFileSystemConnectInterface(
  * @return
  */
 extern oserr_t
-VfsFileSystemDisconnectInterface(
+VFSFileSystemDisconnectInterface(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
 
@@ -138,7 +139,7 @@ VFSFileSystemMount(
  * @param flags      The type of unmount that is occuring.
  */
 extern oserr_t
-VfsFileSystemUnmount(
+VFSFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags);
 

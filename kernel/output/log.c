@@ -28,7 +28,7 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 #include <log.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -48,7 +48,7 @@ typedef struct SystemLog {
     size_t           DataSize;
     int              NumberOfLines;
     SystemLogLine_t* Lines;
-    IrqSpinlock_t    SyncObject;
+    Spinlock_t SyncObject;
     
     int LineIndex;
     int RenderIndex;
@@ -96,7 +96,7 @@ void
 LogInitialize(void)
 {
     // Setup initial log space
-    IrqSpinlockConstruct(&g_kernelLog.SyncObject);
+    SpinlockConstruct(&g_kernelLog.SyncObject);
     g_kernelLog.StartOfData = (uintptr_t*)&g_bootLogSpace[0];
     g_kernelLog.DataSize    = LOG_INITIAL_SIZE;
 
@@ -123,13 +123,13 @@ LogInitializeFull(void)
 
     memset(upgradeBuffer, 0, LOG_PREFFERED_SIZE);
 
-	IrqSpinlockAcquire(&g_kernelLog.SyncObject);
+    SpinlockAcquireIrq(&g_kernelLog.SyncObject);
     memcpy(upgradeBuffer, (const void*)g_kernelLog.StartOfData, g_kernelLog.DataSize);
     g_kernelLog.StartOfData   = (uintptr_t*)upgradeBuffer;
     g_kernelLog.DataSize      = LOG_PREFFERED_SIZE;
     g_kernelLog.Lines         = (SystemLogLine_t*)upgradeBuffer;
     g_kernelLog.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
-	IrqSpinlockRelease(&g_kernelLog.SyncObject);
+    SpinlockReleaseIrq(&g_kernelLog.SyncObject);
 }
 
 void
@@ -182,9 +182,9 @@ LogSetRenderMode(
     // Update status, flush log
     g_kernelLog.AllowRender = enable;
     if (enable) {
-	    IrqSpinlockAcquire(&g_kernelLog.SyncObject);
+        SpinlockAcquireIrq(&g_kernelLog.SyncObject);
         LogRenderMessages();
-	    IrqSpinlockRelease(&g_kernelLog.SyncObject);
+        SpinlockReleaseIrq(&g_kernelLog.SyncObject);
     }
 }
 
@@ -204,7 +204,7 @@ LogAppendMessage(
 	}
 
     // Get a new line object
-	IrqSpinlockAcquire(&g_kernelLog.SyncObject);
+    SpinlockAcquireIrq(&g_kernelLog.SyncObject);
 	if ((g_kernelLog.LineIndex + 1) % g_kernelLog.NumberOfLines == g_kernelLog.RenderIndex) {
 	    LogRenderMessages();
 	}
@@ -227,5 +227,5 @@ LogAppendMessage(
     logLine->data[written] = '\0';
 
 	LogRenderMessages();
-	IrqSpinlockRelease(&g_kernelLog.SyncObject);
+    SpinlockReleaseIrq(&g_kernelLog.SyncObject);
 }

@@ -19,23 +19,25 @@
 #define __TRACE
 
 #include <ddk/utils.h>
+#include <vfs/interface.h>
+#include <vfs/storage.h>
 #include <vfs/vfs.h>
-#include <vfs/vfs_interface.h>
 
 static struct VFS*          g_rootScope      = NULL;
 static guid_t               g_rootGuid       = GUID_EMPTY;
 static mstring_t            g_globalName     = mstr_const(U"vfs-root");
-static struct VFSCommonData g_rootCommonData = { 0 };
 
 static oserr_t
 __NewMemFS(
         _In_  mstring_t*           label,
         _In_  guid_t*              guid,
-        _In_ struct VFSCommonData* vfsCommonData,
         _Out_ struct VFS**         vfsOut)
 {
-    struct VFSInterface* interface;
-    oserr_t              osStatus;
+    struct VFSStorageParameters storageParameters;
+    struct VFSInterface*        interface;
+    struct VFSStorage*          storage;
+    oserr_t                     osStatus;
+    void*                       interfaceData = NULL;
     _CRT_UNUSED(label); // TODO missing support for setting this, where should we do it
 
     interface = MemFSNewInterface();
@@ -43,19 +45,38 @@ __NewMemFS(
         return OsOutOfMemory;
     }
 
-    osStatus = VFSNew(UUID_INVALID, guid, interface, vfsCommonData, vfsOut);
-    if (osStatus != OsOK) {
+    // Create a new, empty memory backend which the memory-fs will
+    // be bound to. MemFS does not actually use the storage backend, but we
+    // have subsystems which will inquire about storage geometry.
+    storage = VFSStorageCreateMemoryBacked(UUID_INVALID, 0, NULL, 0);
+    if (storage == NULL) {
         VFSInterfaceDelete(interface);
+        return OsOutOfMemory;
     }
 
     // Normally the FileSystem interface will take care of initializing for us,
     // but when dealing with our VFS* directly, we have to take care of initializing
     // and destructing manually
     if (interface->Operations.Initialize) {
-        osStatus = interface->Operations.Initialize(vfsCommonData);
+        osStatus = interface->Operations.Initialize(&storageParameters, &interfaceData);
         if (osStatus != OsOK) {
             VFSInterfaceDelete(interface);
+            VFSStorageDelete(storage);
+            return osStatus;
         }
+    }
+
+    osStatus = VFSNew(
+            UUID_INVALID,
+            guid,
+            storage,
+            interface,
+            interfaceData,
+            vfsOut
+    );
+    if (osStatus != OsOK) {
+        VFSInterfaceDelete(interface);
+        VFSStorageDelete(storage);
     }
     return osStatus;
 }
@@ -78,9 +99,7 @@ void VFSScopeInitialize(void)
 {
     oserr_t osStatus;
 
-    osStatus = __NewMemFS(
-            &g_globalName, &g_rootGuid,
-            &g_rootCommonData, &g_rootScope);
+    osStatus = __NewMemFS(&g_globalName, &g_rootGuid, &g_rootScope);
     if (osStatus != OsOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
         return;

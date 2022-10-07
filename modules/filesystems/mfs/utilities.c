@@ -24,104 +24,80 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <fs/common.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>
 
 oserr_t
-MfsReadSectors(
-        _In_  struct VFSCommonData* vfsCommonData,
-        _In_  uuid_t                bufferHandle,
-        _In_  size_t                bufferOffset,
-        _In_  uint64_t              sector,
-        _In_  size_t                count,
-        _Out_ size_t*               sectorsReadOut)
-{
-	struct vali_link_message msg = VALI_MSG_INIT_HANDLE(vfsCommonData->Storage.DriverID);
-	oserr_t                  status;
-    UInteger64_t             absoluteSector;
-
-    absoluteSector.QuadPart = vfsCommonData->SectorStart + sector;
-	
-	ctt_storage_transfer(GetGrachtClient(), &msg.base, vfsCommonData->Storage.DeviceID,
-                         __STORAGE_OPERATION_READ, absoluteSector.u.LowPart, absoluteSector.u.HighPart,
-                         bufferHandle, bufferOffset, count);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, sectorsReadOut);
-	return status;
-}
-
-oserr_t
-MfsWriteSectors(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uuid_t                bufferHandle,
-        _In_ size_t                bufferOffset,
-        _In_ uint64_t              sector,
-        _In_ size_t                count,
-        _In_ size_t*               sectorsWrittenOut)
-{
-	struct vali_link_message msg            = VALI_MSG_INIT_HANDLE(vfsCommonData->Storage.DriverID);
-    uint64_t                 absoluteSector = vfsCommonData->SectorStart + sector;
-	oserr_t                  status;
-	
-	ctt_storage_transfer(GetGrachtClient(), &msg.base, vfsCommonData->Storage.DeviceID,
-                         __STORAGE_OPERATION_WRITE, LODWORD(absoluteSector), HIDWORD(absoluteSector),
-                         bufferHandle, bufferOffset, count);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-	ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, sectorsWrittenOut);
-	return status;
-}
-
-oserr_t
 MfsUpdateMasterRecord(
-        _In_ struct VFSCommonData* vfsCommonData)
+        _In_ FileSystemMFS_t* mfs)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    size_t           sectorsTransferred;
+    size_t  sectorsTransferred;
+    oserr_t oserr;
 
     TRACE("MfsUpdateMasterRecord()");
 
-    memset(mfs->TransferBuffer.buffer, 0, vfsCommonData->Storage.SectorSize);
+    memset(mfs->TransferBuffer.buffer, 0, mfs->SectorSize);
     memcpy(mfs->TransferBuffer.buffer, &mfs->MasterRecord, sizeof(MasterRecord_t));
 
-    if (MfsWriteSectors(vfsCommonData, mfs->TransferBuffer.handle, 0, mfs->MasterRecordSector, 1, &sectorsTransferred) != OsOK ||
-        MfsWriteSectors(vfsCommonData, mfs->TransferBuffer.handle, 0, mfs->MasterRecordMirrorSector, 1, &sectorsTransferred) != OsOK) {
-        ERROR("Failed to write master-record to disk");
+    // Flush the secondary copy first, so we can detect failures
+    oserr = FSStorageWrite(
+            &mfs->Storage,
+            mfs->TransferBuffer.handle,
+            0,
+            &(UInteger64_t) { .QuadPart = mfs->MasterRecordMirrorSector},
+            1,
+            &sectorsTransferred
+    );
+    if (oserr != OsOK) {
+        ERROR("Failed to write (secondary) master-record to disk");
         return OsError;
     }
-    return OsOK;
+
+    // Flush the primary copy
+    oserr = FSStorageWrite(
+            &mfs->Storage,
+            mfs->TransferBuffer.handle,
+            0,
+            &(UInteger64_t) { .QuadPart = mfs->MasterRecordSector},
+            1,
+            &sectorsTransferred
+    );
+    if (oserr != OsOK) {
+        ERROR("Failed to write (primary) master-record to disk");
+    }
+    return oserr;
 }
 
 oserr_t
 MfsGetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_  uint32_t             bucket,
-        _Out_ MapRecord_t*         link)
+        _In_  FileSystemMFS_t* mfs,
+        _In_  uint32_t         bucket,
+        _Out_ MapRecord_t*     link)
 {
-    FileSystemMFS_t* Mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-
     TRACE("MfsGetBucketLink(Bucket %u)", bucket);
-    if (bucket < Mfs->BucketCount) {
-        link->Link   = Mfs->BucketMap[(bucket * 2)];
-        link->Length = Mfs->BucketMap[(bucket * 2) + 1];
-        TRACE("... link %u, length %u", link->Link, link->Length);
-        return OsOK;
+    if (bucket >= mfs->BucketsInMap) {
+        return OsInvalidParameters;
     }
-    return OsInvalidParameters;
+
+    link->Link   = mfs->BucketMap[(bucket * 2)];
+    link->Length = mfs->BucketMap[(bucket * 2) + 1];
+    TRACE("... link %u, length %u", link->Link, link->Length);
+    return OsOK;
 }
 
 oserr_t
 MfsSetBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucket,
-        _In_ MapRecord_t*          link,
-        _In_ int                   updateLength)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucket,
+        _In_ MapRecord_t*     link,
+        _In_ int              updateLength)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    uint8_t*         bufferOffset;
-    size_t           sectorOffset;
-    size_t           sectorsTransferred;
+    uint8_t* bufferOffset;
+    size_t   sectorOffset;
+    size_t   sectorsTransferred;
+    oserr_t  oserr;
 
     TRACE("MfsSetBucketLink(Bucket %u, Link %u)", bucket, link->Link);
 
@@ -136,14 +112,21 @@ MfsSetBucketLink(
 
     // Calculate offset into buffer
     bufferOffset = (uint8_t*)mfs->BucketMap;
-    bufferOffset += (sectorOffset * vfsCommonData->Storage.SectorSize);
+    bufferOffset += (sectorOffset * mfs->SectorSize);
 
     // Copy a sector's worth of data into the buffer
-    memcpy(mfs->TransferBuffer.buffer, bufferOffset, vfsCommonData->Storage.SectorSize);
+    memcpy(mfs->TransferBuffer.buffer, bufferOffset, mfs->SectorSize);
 
     // Flush buffer to disk
-    if (MfsWriteSectors(vfsCommonData, mfs->TransferBuffer.handle, 0,
-                        mfs->MasterRecord.MapSector + sectorOffset, 1, &sectorsTransferred) != OsOK) {
+    oserr = FSStorageWrite(
+            &mfs->Storage,
+            mfs->TransferBuffer.handle,
+            0,
+            &(UInteger64_t) { .QuadPart = mfs->MasterRecord.MapSector + sectorOffset },
+            1,
+            &sectorsTransferred
+    );
+    if (oserr != OsOK) {
         ERROR("Failed to update the given map-sector %u on disk",
             LODWORD(mfs->MasterRecord.MapSector + sectorOffset));
         return OsError;
@@ -153,15 +136,15 @@ MfsSetBucketLink(
 
 oserr_t
 MfsSwitchToNextBucketLink(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MFSEntry_t*           entry,
-        _In_ size_t                bucketSizeBytes)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ size_t           bucketSizeBytes)
 {
     MapRecord_t link;
     uint32_t    nextDataBucketPosition;
 
     // We have to lookup the link for current bucket
-    if (MfsGetBucketLink(vfsCommonData, entry->DataBucketPosition, &link) != OsOK) {
+    if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
         ERROR("Failed to get link for bucket %u", entry->DataBucketPosition);
         return OsDeviceError;
     }
@@ -173,7 +156,7 @@ MfsSwitchToNextBucketLink(
     nextDataBucketPosition = link.Link;
 
     // Lookup length of link
-    if (MfsGetBucketLink(vfsCommonData, entry->DataBucketPosition, &link) != OsOK) {
+    if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
         ERROR("Failed to get length for bucket %u", entry->DataBucketPosition);
         return OsDeviceError;
     }
@@ -187,15 +170,14 @@ MfsSwitchToNextBucketLink(
 
 oserr_t
 MfsAllocateBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ size_t                bucketCount,
-        _In_ MapRecord_t*          mapRecord)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ size_t           bucketCount,
+        _In_ MapRecord_t*     mapRecord)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    uint32_t         previousBucket = 0;
-    uint32_t         bucket  = mfs->MasterRecord.FreeBucket;
-    size_t           counter = bucketCount;
-    MapRecord_t      record;
+    uint32_t    previousBucket = 0;
+    uint32_t    bucket  = mfs->MasterRecord.FreeBucket;
+    size_t      counter = bucketCount;
+    MapRecord_t record;
 
     TRACE("MfsAllocateBuckets(FreeAt %u, Count %u)", bucket, bucketCount);
 
@@ -207,7 +189,7 @@ MfsAllocateBuckets(
     // allocations to satisfy the demand
     while (counter > 0) {
         // Get next free bucket
-        if (MfsGetBucketLink(vfsCommonData, bucket, &record) != OsOK) {
+        if (MfsGetBucketLink(mfs, bucket, &record) != OsOK) {
             ERROR("Failed to retrieve link for bucket %u", bucket);
             return OsError;
         }
@@ -244,14 +226,14 @@ MfsAllocateBuckets(
             // only a chunk of the available length
             // Map[Bucket] = (Counter) | (MFS_ENDOFCHAIN)
             // Map[Bucket + Counter] = (Length - Counter) | PreviousLink
-            if (MfsSetBucketLink(vfsCommonData, bucket, &Update, 1) != OsOK &&
-                MfsSetBucketLink(vfsCommonData, bucket + counter, &Next, 1) != OsOK) {
+            if (MfsSetBucketLink(mfs, bucket, &Update, 1) != OsOK &&
+                MfsSetBucketLink(mfs, bucket + counter, &Next, 1) != OsOK) {
                 ERROR("Failed to update link for bucket %u and %u",
                       bucket, bucket + counter);
                 return OsError;
             }
             mfs->MasterRecord.FreeBucket = bucket + counter;
-            return MfsUpdateMasterRecord(vfsCommonData);
+            return MfsUpdateMasterRecord(mfs);
         }
         else {
             // Ok, block is either exactly the size we need or less
@@ -276,27 +258,26 @@ MfsAllocateBuckets(
     record.Link = MFS_ENDOFCHAIN;
 
     // Update the previous bucket to MFS_ENDOFCHAIN
-    if (MfsSetBucketLink(vfsCommonData, previousBucket, &record, 0) != OsOK) {
+    if (MfsSetBucketLink(mfs, previousBucket, &record, 0) != OsOK) {
         ERROR("Failed to update link for bucket %u", previousBucket);
         return OsError;
     }
     
     // Update the master-record and we are done
     mfs->MasterRecord.FreeBucket = bucket;
-    return MfsUpdateMasterRecord(vfsCommonData);
+    return MfsUpdateMasterRecord(mfs);
 }
 
 /* MfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for a file-record */
 oserr_t
 MfsFreeBuckets(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              startBucket,
-        _In_ uint32_t              startLength)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         startBucket,
+        _In_ uint32_t         startLength)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    uint32_t         previousBucket;
-    MapRecord_t      mapRecord;
+    uint32_t    previousBucket;
+    MapRecord_t mapRecord;
 
     TRACE("MfsFreeBuckets(Bucket %u, Length %u)", startBucket, startLength);
 
@@ -316,7 +297,7 @@ MfsFreeBuckets(
     previousBucket = MFS_ENDOFCHAIN;
     while (mapRecord.Link != MFS_ENDOFCHAIN) {
         previousBucket = mapRecord.Link;
-        if (MfsGetBucketLink(vfsCommonData, mapRecord.Link, &mapRecord) != OsOK) {
+        if (MfsGetBucketLink(mfs, mapRecord.Link, &mapRecord) != OsOK) {
             ERROR("Failed to retrieve the next bucket-link");
             return OsError;
         }
@@ -327,12 +308,12 @@ MfsFreeBuckets(
         mapRecord.Link = mfs->MasterRecord.FreeBucket;
 
         // Ok, so now update the pointer to free list
-        if (MfsSetBucketLink(vfsCommonData, previousBucket, &mapRecord, 0)) {
+        if (MfsSetBucketLink(mfs, previousBucket, &mapRecord, 0)) {
             ERROR("Failed to update the next bucket-link");
             return OsError;
         }
         mfs->MasterRecord.FreeBucket = startBucket;
-        return MfsUpdateMasterRecord(vfsCommonData);
+        return MfsUpdateMasterRecord(mfs);
     }
     return OsOK;
 }
@@ -341,13 +322,12 @@ MfsFreeBuckets(
  * Wipes the given bucket and count with zero values useful for clearing clusters of sectors */
 oserr_t
 MfsZeroBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucket,
-        _In_ size_t                count)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucket,
+        _In_ size_t           count)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    size_t           i;
-    size_t           sectorsTransferred;
+    size_t i;
+    size_t sectorsTransferred;
 
     TRACE("MfsZeroBucket(Bucket %u, Count %u)", bucket, count);
 
@@ -355,10 +335,19 @@ MfsZeroBucket(
     for (i = 0; i < count; i++) {
         // Calculate the sector
         uint64_t AbsoluteSector = MFS_GETSECTOR(mfs, bucket + i);
-        if (MfsWriteSectors(vfsCommonData, mfs->TransferBuffer.handle, 0, AbsoluteSector,
-                            mfs->SectorsPerBucket, &sectorsTransferred) != OsOK) {
+        oserr_t  oserr;
+
+        oserr = FSStorageWrite(
+                &mfs->Storage,
+                mfs->TransferBuffer.handle,
+                0,
+                &(UInteger64_t) { .QuadPart = AbsoluteSector },
+                mfs->SectorsPerBucket,
+                &sectorsTransferred
+        );
+        if (oserr != OsOK) {
             ERROR("Failed to write bucket to disk");
-            return OsError;
+            return oserr;
         }
     }
     return OsOK;
@@ -400,9 +389,9 @@ MfsFileRecordFlagsToVfsFlags(
 
 void
 MfsFileRecordToVfsFile(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ FileRecord_t*         nativeEntry,
-        _In_ MFSEntry_t*           mfsEntry)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ FileRecord_t*    nativeEntry,
+        _In_ MFSEntry_t*      mfsEntry)
 {
     TRACE("MfsFileRecordToVfsFile()");
 
@@ -427,23 +416,27 @@ MfsFileRecordToVfsFile(
 
 oserr_t
 MfsUpdateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MFSEntry_t*           entry,
-        _In_ int                   action)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ int              action)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    oserr_t          osStatus = OsOK;
-    FileRecord_t*    record;
-    size_t           sectorsTransferred;
+    oserr_t       oserr = OsOK;
+    FileRecord_t* record;
+    size_t        sectorsTransferred;
 
     TRACE("MfsUpdateEntry(File %ms)", entry->Base.Name);
 
     // Read the stored data bucket where the record is
-    if (MfsReadSectors(vfsCommonData, mfs->TransferBuffer.handle, 0,
-                       MFS_GETSECTOR(mfs, entry->DirectoryBucket),
-                       MFS_SECTORCOUNT(mfs, entry->DirectoryLength), &sectorsTransferred) != OsOK) {
-        ERROR("Failed to read bucket %u", entry->DirectoryBucket);
-        osStatus = OsDeviceError;
+    oserr = FSStorageRead(
+            &mfs->Storage,
+            mfs->TransferBuffer.handle,
+            0,
+            &(UInteger64_t) { .QuadPart = MFS_GETSECTOR(mfs, entry->DirectoryBucket) },
+            MFS_SECTORCOUNT(mfs, entry->DirectoryLength),
+            &sectorsTransferred
+    );
+    if (oserr != OsOK) {
+        ERROR("MfsUpdateEntry Failed to read bucket %u", entry->DirectoryBucket);
         goto Cleanup;
     }
 
@@ -479,38 +472,43 @@ MfsUpdateRecord(
     }
     
     // Write the bucket back to the disk
-    if (MfsWriteSectors(vfsCommonData, mfs->TransferBuffer.handle, 0, MFS_GETSECTOR(mfs, entry->DirectoryBucket),
-                        MFS_SECTORCOUNT(mfs, entry->DirectoryLength), &sectorsTransferred) != OsOK) {
-        ERROR("Failed to update bucket %u", entry->DirectoryBucket);
-        osStatus = OsDeviceError;
+    oserr = FSStorageWrite(
+            &mfs->Storage,
+            mfs->TransferBuffer.handle,
+            0,
+            &(UInteger64_t) { .QuadPart = MFS_GETSECTOR(mfs, entry->DirectoryBucket) },
+            MFS_SECTORCOUNT(mfs, entry->DirectoryLength),
+            &sectorsTransferred
+    );
+    if (oserr != OsOK) {
+        ERROR("MfsUpdateEntry Failed to update bucket %u", entry->DirectoryBucket);
     }
 
     // Cleanup and exit
 Cleanup:
-    return osStatus;
+    return oserr;
 }
 
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
 oserr_t
 MfsEnsureRecordSpace(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ MFSEntry_t*           entry,
-        _In_ uint64_t              spaceRequired)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ uint64_t         spaceRequired)
 {
-    FileSystemMFS_t* mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-    size_t           bucketSizeBytes = mfs->SectorsPerBucket * vfsCommonData->Storage.SectorSize;
+    size_t bucketSizeBytes = mfs->SectorsPerBucket * mfs->SectorSize;
     TRACE("MfsEnsureRecordSpace(%u)", LODWORD(spaceRequired));
 
     if (spaceRequired > entry->AllocatedSize) {
         // Calculate the number of sectors, then number of buckets
-        size_t      sectorCount = (size_t)(DIVUP((spaceRequired - entry->AllocatedSize), vfsCommonData->Storage.SectorSize));
+        size_t      sectorCount = (size_t)(DIVUP((spaceRequired - entry->AllocatedSize), mfs->SectorSize));
         size_t      bucketCount = DIVUP(sectorCount, mfs->SectorsPerBucket);
         uint32_t    bucketPointer, previousBucketPointer;
         MapRecord_t iterator, link;
 
         // Perform the allocation of buckets
-        if (MfsAllocateBuckets(vfsCommonData, bucketCount, &link) != OsOK) {
+        if (MfsAllocateBuckets(mfs, bucketCount, &link) != OsOK) {
             ERROR("Failed to allocate %u buckets for file", bucketCount);
             return OsDeviceError;
         }
@@ -520,7 +518,7 @@ MfsEnsureRecordSpace(
         previousBucketPointer = MFS_ENDOFCHAIN;
         while (bucketPointer != MFS_ENDOFCHAIN) {
             previousBucketPointer = bucketPointer;
-            if (MfsGetBucketLink(vfsCommonData, bucketPointer, &iterator) != OsOK) {
+            if (MfsGetBucketLink(mfs, bucketPointer, &iterator) != OsOK) {
                 ERROR("Failed to get link for bucket %u", bucketPointer);
                 return OsDeviceError;
             }
@@ -534,7 +532,7 @@ MfsEnsureRecordSpace(
             entry->StartLength = link.Length;
         }
         else {
-            if (MfsSetBucketLink(vfsCommonData, previousBucketPointer, &link, 1) != OsOK) {
+            if (MfsSetBucketLink(mfs, previousBucketPointer, &link, 1) != OsOK) {
                 ERROR("Failed to set link for bucket %u", previousBucketPointer);
                 return OsDeviceError;
             }

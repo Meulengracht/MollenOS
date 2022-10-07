@@ -20,6 +20,8 @@
  * - If mode > 0, attempts to make stream wide-oriented. If mode < 0, attempts 
  *   to make stream byte-oriented. If mode==0, only queries the current orientation of the stream.
  */
+
+#define __need_NULL
 #include <stdio.h>
 
 int fwide(

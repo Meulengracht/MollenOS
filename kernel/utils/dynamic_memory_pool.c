@@ -62,7 +62,7 @@ DynamicMemoryPoolConstruct(
 		ERROR("[utils] [dyn_mem_pool] length 0x%" PRIxIN " is not a power of two");
 	}
 
-	IrqSpinlockConstruct(&Pool->SyncObject);
+    SpinlockConstruct(&Pool->SyncObject);
 	Pool->StartAddress = StartAddress;
 	Pool->Length       = Length;
 	Pool->ChunkSize    = ChunkSize;
@@ -212,10 +212,10 @@ DynamicMemoryPoolAllocate(
 {
 	uintptr_t Result;
 	assert(Pool != NULL);
-	
-	IrqSpinlockAcquire(&Pool->SyncObject);
+
+    SpinlockAcquireIrq(&Pool->SyncObject);
 	Result = IterativeAllocate(Pool, Length);
-	IrqSpinlockRelease(&Pool->SyncObject);
+    SpinlockReleaseIrq(&Pool->SyncObject);
 	
 	TRACE("[utils] [dyn_mem_pool] allocate length 0x%" PRIxIN " => 0x%" PRIxIN,
 		Length, Result);
@@ -295,9 +295,9 @@ DynamicMemoryPoolFree(
 	
 	TRACE("[utils] [dyn_mem_pool] free 0x%" PRIxIN, Address);
 
-	IrqSpinlockAcquire(&Pool->SyncObject);
+    SpinlockAcquireIrq(&Pool->SyncObject);
 	Result = IterativeFree(Pool, Address);
-	IrqSpinlockRelease(&Pool->SyncObject);
+    SpinlockReleaseIrq(&Pool->SyncObject);
 	if (Result) {
 		WARNING("[utils] [dyn_mem_pool] failed to free Address 0x%" PRIxIN, Address);
 	}

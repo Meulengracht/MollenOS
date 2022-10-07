@@ -1,0 +1,20 @@
+/**
+ * File-related Services
+ * Provides storage, file and path related functionality to the rest of the OS.
+ * These services are split for readability, but they are implemented by the same
+ * process.
+ */
+
+import "types"
+
+namespace sys
+
+enum mount_flags {
+    READ = 1,
+    WRITE = 2
+}
+
+service mount (10) {
+    func mount(uuid_t processId, string path, string at, string fsType, mount_flags flags) : (oserr_t result) = 1;
+    func unmount(uuid_t processId, string path) : (oserr_t result) = 2;
+}

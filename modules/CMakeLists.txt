@@ -11,7 +11,7 @@ macro (add_filesystem_target)
 
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
         target_link_options(${ARGV0} PRIVATE "LINKER:-noentry")
-        target_link_libraries (${ARGV0} PRIVATE gracht libds libddk c librt)
+        target_link_libraries (${ARGV0} PRIVATE fs-common gracht libds libddk c librt)
         add_custom_command (TARGET ${ARGV0} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )

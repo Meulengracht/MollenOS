@@ -25,7 +25,7 @@
 #define __UTILS_DYNAMIC_MEMORY_POOL_H__
 
 #include <os/osdefs.h>
-#include <irq_spinlock.h>
+#include <spinlock.h>
 
 PACKED_TYPESTRUCT(DynamicMemoryChunk, {
 	struct DynamicMemoryChunk* Parent;
@@ -41,7 +41,7 @@ typedef struct DynamicMemoryPool {
 	size_t                Length;
 	size_t                ChunkSize;
 	DynamicMemoryChunk_t* Root;
-	IrqSpinlock_t         SyncObject;
+	Spinlock_t SyncObject;
 } DynamicMemoryPool_t;
 
 KERNELAPI void KERNELABI

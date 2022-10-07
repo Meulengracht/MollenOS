@@ -25,7 +25,7 @@ void usched_mtx_init(struct usched_mtx* mutex)
 {
     assert(mutex != NULL);
 
-    spinlock_init(&mutex->lock, spinlock_plain);
+    spinlock_init(&mutex->lock);
     mutex->owner = NULL;
     mutex->queue = NULL;
 }
@@ -139,30 +139,44 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
 
 void __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job)
 {
+    struct usched_job* i;
+    struct usched_job* previous;
+    bool               reQueue = false;
+
     assert(mtx != NULL);
     assert(job != NULL);
 
     spinlock_acquire(&mtx->lock);
-    if (mtx->queue) {
-        struct usched_job* i = mtx->queue, *previous = NULL;
-        while (i) {
-            if (i == job) {
-                if (!previous) {
-                    mtx->queue = i->next;
-                }
-                else {
-                    previous->next = i->next;
-                }
+    if (mtx->queue == NULL) {
+        spinlock_release(&mtx->lock);
+        return;
+    }
 
-                job->next = NULL;
-                job->state = JobState_RUNNING;
-                __usched_add_job_ready(job);
-                break;
+    i = mtx->queue;
+    previous = NULL;
+    while (i) {
+        if (i == job) {
+            // Unlink the job from the mutex block queue while we hold
+            // the spinlock. The rest of the job handling can be done
+            // without the spinlock.
+            if (!previous) {
+                mtx->queue = i->next;
             }
-
-            previous = i;
-            i = i->next;
+            else {
+                previous->next = i->next;
+            }
+            reQueue = true;
+            break;
         }
+
+        previous = i;
+        i = i->next;
     }
     spinlock_release(&mtx->lock);
+
+    if (reQueue) {
+        job->next = NULL;
+        job->state = JobState_RUNNING;
+        __usched_add_job_ready(job);
+    }
 }

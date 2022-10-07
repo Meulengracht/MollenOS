@@ -130,6 +130,23 @@ add_subdirectory (libc)
 # Libraries that depend on the c lib
 add_subdirectory(libyaml)
 
+# build zstd in the static flavor for now. To build the shared one
+# we need to fix a few issues in our cmake platform setup
+set(ZSTD_LEGACY_SUPPORT OFF CACHE BOOL "Disable legacy support for zstd")
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Do not build zstd programs")
+set(ZSTD_BUILD_CONTRIB  OFF CACHE BOOL "Do not build zstd contrib")
+set(ZSTD_BUILD_TESTS    OFF CACHE BOOL "Do not build zstd tests")
+set(ZSTD_BUILD_SHARED   OFF CACHE BOOL "Do not build shared library")
+add_subdirectory(zstd/build/cmake)
+
+# Unfortunately we have to manually add include paths to the targets
+# introduced by zstd, as we are compiling free-standing at this moment
+target_link_libraries(libzstd_static PRIVATE libos-api c)
+
+# create an interface library for zstd
+add_library(zstd-api INTERFACE)
+target_include_directories(zstd-api INTERFACE zstd/lib)
+
 # Export all the ddk targets for easier use
 install(EXPORT ddk_targets
     FILE ValiDDKTargets.cmake

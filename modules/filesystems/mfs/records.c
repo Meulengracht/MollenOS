@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <fs/common.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -69,14 +70,14 @@ static void __ExtractPathToken(
 }
 
 static inline void __StoreRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ FileRecord_t*         record,
-        _In_ uint32_t              currentBucket,
-        _In_ uint32_t              bucketLength,
-        _In_ size_t                bucketIndex,
-        _In_ MFSEntry_t* entry)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ FileRecord_t*    record,
+        _In_ uint32_t         currentBucket,
+        _In_ uint32_t         bucketLength,
+        _In_ size_t           bucketIndex,
+        _In_ MFSEntry_t*      entry)
 {
-    MfsFileRecordToVfsFile(vfsCommonData, record, entry);
+    MfsFileRecordToVfsFile(mfs, record, entry);
 
     // Save where in the directory we found it
     entry->DirectoryBucket = currentBucket;
@@ -85,16 +86,15 @@ static inline void __StoreRecord(
 }
 
 static oserr_t __ReadCurrentBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ FileSystemMFS_t*      mfs,
-        _In_ uint32_t              currentBucket,
-        _In_ MapRecord_t*          mapRecord)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         currentBucket,
+        _In_ MapRecord_t*     mapRecord)
 {
     oserr_t osStatus;
     size_t  sectorsTransferred;
 
     // Get the length of the bucket
-    osStatus = MfsGetBucketLink(vfsCommonData, currentBucket, mapRecord);
+    osStatus = MfsGetBucketLink(mfs, currentBucket, mapRecord);
     if (osStatus != OsOK) {
         ERROR("__ReadCurrentBucket: failed to get length of bucket %u", currentBucket);
         return osStatus;
@@ -106,13 +106,14 @@ static oserr_t __ReadCurrentBucket(
     }
 
     // Start out by loading the bucket buffer with data
-    osStatus = MfsReadSectors(
-            vfsCommonData,
+    osStatus = FSStorageRead(
+            &mfs->Storage,
             mfs->TransferBuffer.handle,
             0,
-            MFS_GETSECTOR(mfs, currentBucket),
+            &(UInteger64_t) { .QuadPart = MFS_GETSECTOR(mfs, currentBucket) },
             MFS_SECTORCOUNT(mfs, mapRecord->Length),
-            &sectorsTransferred);
+            &sectorsTransferred
+    );
     if (osStatus != OsOK) {
         ERROR("__ReadCurrentBucket: failed to read directory-bucket %u", currentBucket);
     }
@@ -121,28 +122,28 @@ static oserr_t __ReadCurrentBucket(
 }
 
 static oserr_t __ExpandDirectory(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              currentBucket,
-        _In_ MapRecord_t*          mapRecord)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         currentBucket,
+        _In_ MapRecord_t*     mapRecord)
 {
     oserr_t osStatus;
 
     // Allocate bucket
-    osStatus = MfsAllocateBuckets(vfsCommonData, MFS_DIRECTORYEXPANSION, mapRecord);
+    osStatus = MfsAllocateBuckets(mfs, MFS_DIRECTORYEXPANSION, mapRecord);
     if (osStatus != OsOK) {
         ERROR("__ExpandDirectory failed to allocate bucket for expansion");
         return osStatus;
     }
 
     // Update link
-    osStatus = MfsSetBucketLink(vfsCommonData, currentBucket, mapRecord, 1);
+    osStatus = MfsSetBucketLink(mfs, currentBucket, mapRecord, 1);
     if (osStatus != OsOK) {
         ERROR("__ExpandDirectory failed to update bucket-link for expansion");
         return osStatus;
     }
 
     // Zero the bucket
-    osStatus = MfsZeroBucket(vfsCommonData, mapRecord->Link, mapRecord->Length);
+    osStatus = MfsZeroBucket(mfs, mapRecord->Link, mapRecord->Length);
     if (osStatus != OsOK) {
         ERROR("__ExpandDirectory failed to zero bucket %u", mapRecord->Link);
     }
@@ -162,12 +163,11 @@ static oserr_t __ExpandDirectory(
  *                          Any other Os* value is indicative of an error.
  */
 static oserr_t __FindEntryOrFreeInDirectoryBucket(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ FileSystemMFS_t*      mfs,
-        _In_ uint32_t              bucketOfDirectory,
-        _In_ mstring_t*            entryName,
-        _In_ int                   allowExpansion,
-        _In_ MFSEntry_t* resultEntry)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucketOfDirectory,
+        _In_ mstring_t*       entryName,
+        _In_ int              allowExpansion,
+        _In_ MFSEntry_t*      resultEntry)
 {
     uint32_t currentBucket = bucketOfDirectory;
     oserr_t  osStatus;
@@ -179,7 +179,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         MapRecord_t   link;
         int           exitLoop = 0;
 
-        osStatus = __ReadCurrentBucket(vfsCommonData, mfs, currentBucket, &link);
+        osStatus = __ReadCurrentBucket(mfs, currentBucket, &link);
         if (osStatus != OsOK) {
             ERROR("__FindEntryOrFreeInDirectoryBucket failed to read directory bucket");
             break;
@@ -214,7 +214,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
 
             if (!compareResult) {
                 // it was end of path, and the entry exists
-                __StoreRecord(vfsCommonData, record, currentBucket, link.Length, i, resultEntry);
+                __StoreRecord(mfs, record, currentBucket, link.Length, i, resultEntry);
                 osStatus = OsExists;
                 exitLoop = 1;
                 break;
@@ -233,7 +233,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         if (link.Link == MFS_ENDOFCHAIN) {
             if (resultEntry->DirectoryBucket == 0 && allowExpansion) {
                 // Expand directory as we have not found a free record
-                osStatus = __ExpandDirectory(vfsCommonData, currentBucket, &link);
+                osStatus = __ExpandDirectory(mfs, currentBucket, &link);
                 if (osStatus != OsOK) {
                     ERROR("__FindEntryOrFreeInDirectoryBucket failed to expand directory");
                     break;
@@ -257,15 +257,15 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
 }
 
 static oserr_t __CreateEntryInDirectory(
-        _In_ struct VFSCommonData*   vfsCommonData,
-        _In_  mstring_t*             name,
-        _In_  uint32_t               owner,
-        _In_  uint32_t               flags,
-        _In_  uint32_t               permissions,
-        _In_  uint32_t               directoryBucket,
-        _In_  uint32_t               directoryLength,
-        _In_  size_t                 directoryIndex,
-        _Out_ MFSEntry_t** entryOut)
+        _In_  FileSystemMFS_t* mfs,
+        _In_  mstring_t*       name,
+        _In_  uint32_t         owner,
+        _In_  uint32_t         flags,
+        _In_  uint32_t         permissions,
+        _In_  uint32_t         directoryBucket,
+        _In_  uint32_t         directoryLength,
+        _In_  size_t           directoryIndex,
+        _Out_ MFSEntry_t**     entryOut)
 {
     MFSEntry_t   entry       = { 0 };
     unsigned int nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, 0);
@@ -279,7 +279,7 @@ static oserr_t __CreateEntryInDirectory(
     entry.DirectoryLength = directoryLength;
     entry.DirectoryIndex = directoryIndex;
 
-    osStatus = MfsUpdateRecord(vfsCommonData, &entry, MFS_ACTION_CREATE);
+    osStatus = MfsUpdateRecord(mfs, &entry, MFS_ACTION_CREATE);
     if (osStatus != OsOK) {
         return osStatus;
     }
@@ -297,12 +297,11 @@ static oserr_t __CreateEntryInDirectory(
 
 oserr_t
 MfsLocateRecord(
-        _In_ struct VFSCommonData* vfsCommonData,
-        _In_ uint32_t              bucketOfDirectory,
-        _In_ MFSEntry_t* entry,
-        _In_ mstring_t*            path)
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         bucketOfDirectory,
+        _In_ MFSEntry_t*      entry,
+        _In_ mstring_t*       path)
 {
-    FileSystemMFS_t*     mfs;
     oserr_t              osStatus;
     mstring_t*           remainingPath = NULL;
     mstring_t*           currentToken  = NULL;
@@ -312,28 +311,29 @@ MfsLocateRecord(
     TRACE("MfsLocateRecord(fileSystem=0x%" PRIxIN ", bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%ms)",
           fileSystemBase, bucketOfDirectory, entry, path);
 
-    mfs = (FileSystemMFS_t*)vfsCommonData->Data;
-
     // Either get next part of the path, or end at this entry
     if (mstr_len(path) != 0) {
         __ExtractPathToken(path, &remainingPath, &currentToken);
         if (remainingPath == NULL) {
             isEndOfPath = 1;
             if (currentToken == NULL) {
-                MfsFileRecordToVfsFile(vfsCommonData, &mfs->RootRecord, entry);
+                MfsFileRecordToVfsFile(mfs, &mfs->RootRecord, entry);
                 return OsOK;
             }
         }
     }
     else {
         // end of path
-        MfsFileRecordToVfsFile(vfsCommonData, &mfs->RootRecord, entry);
+        MfsFileRecordToVfsFile(mfs, &mfs->RootRecord, entry);
         return OsOK;
     }
 
     // Iterate untill we reach end of folder
-    osStatus = __FindEntryOrFreeInDirectoryBucket(vfsCommonData, mfs, bucketOfDirectory,
-                                                  currentToken, 0, &nextEntry);
+    osStatus = __FindEntryOrFreeInDirectoryBucket(
+            mfs, bucketOfDirectory,
+            currentToken, 0,
+            &nextEntry
+    );
     if (osStatus == OsExists) {
         if (!isEndOfPath) {
             if (!(nextEntry.NativeFlags & MFS_FILERECORD_DIRECTORY)) {
@@ -346,7 +346,7 @@ MfsLocateRecord(
                 goto exit;
             }
 
-            osStatus = MfsLocateRecord(vfsCommonData, nextEntry.StartBucket, entry, remainingPath);
+            osStatus = MfsLocateRecord(mfs, nextEntry.StartBucket, entry, remainingPath);
         }
         else {
             memcpy(entry, &nextEntry, sizeof(MFSEntry_t));
@@ -365,31 +365,30 @@ exit:
 
 oserr_t
 MfsCreateRecord(
-        _In_  struct VFSCommonData*  vfsCommonData,
-        _In_  MFSEntry_t*  entry,
-        _In_  mstring_t*             name,
-        _In_  uint32_t               owner,
-        _In_  uint32_t               flags,
-        _In_  uint32_t               permissions,
-        _Out_ MFSEntry_t** entryOut)
+        _In_  FileSystemMFS_t* mfs,
+        _In_  MFSEntry_t*      entry,
+        _In_  mstring_t*       name,
+        _In_  uint32_t         owner,
+        _In_  uint32_t         flags,
+        _In_  uint32_t         permissions,
+        _Out_ MFSEntry_t**     entryOut)
 {
-    FileSystemMFS_t*     mfs;
-    oserr_t              osStatus;
-    MFSEntry_t nextEntry = {0 };
+    oserr_t    osStatus;
+    MFSEntry_t nextEntry = { 0 };
 
     TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN ", flags=0x%x, path=%ms)",
           fileSystemBase, flags, name);
-    mfs = (FileSystemMFS_t*)vfsCommonData->Data;
 
     osStatus = __FindEntryOrFreeInDirectoryBucket(
-            vfsCommonData, mfs,
+            mfs,
             entry->StartBucket,
             name,
             1,
-            &nextEntry);
+            &nextEntry
+    );
     if (osStatus == OsNotExists) {
         osStatus = __CreateEntryInDirectory(
-                vfsCommonData,
+                mfs,
                 name,
                 owner,
                 flags,

@@ -319,7 +319,7 @@ __InitializePhysicalMemory(
         bootContext->IdentityMappings[i].PhysicalBase = memory;
         bootContext->IdentityMappings[i].Length       = memoryConfiguration->PageSize;
 
-        IrqSpinlockConstruct(&physicalMemory->Region[i].Lock);
+        SpinlockConstruct(&physicalMemory->Region[i].Lock);
         MemoryStackConstruct(&physicalMemory->Region[i].Stack,
                              memoryConfiguration->PageSize,
                              memory,

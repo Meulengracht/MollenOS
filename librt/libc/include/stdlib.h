@@ -23,7 +23,6 @@
 #ifndef __STDLIB_INC__
 #define __STDLIB_INC__
 
-#include <os/osdefs.h>
 #include <malloc.h>
 #include <locale.h>
 #include <wchar.h>
@@ -62,13 +61,10 @@
 #define RAND_MAX 65535
 #endif
 
-/* This denotes the maximum number of bytes that may
- * be allowed to be used by a single multi-byte character 
- * we have no MB support, so just 1 for now */
 #ifndef MB_LEN_MAX
-#define MB_LEN_MAX    5
+#define MB_LEN_MAX 5
 #endif
-#define MB_CUR_MAX 10 //__locale_mb_cur_max()
+#define MB_CUR_MAX 10 // TODO __locale_mb_cur_max()
 
 #ifndef _DIV_T_DEFINED
 #define _DIV_T_DEFINED

@@ -21,6 +21,7 @@
 
 //#define __TRACE
 
+#include <errno.h>
 #include <ddk/initrd.h>
 #include <ddk/utils.h>
 #include <ds/mstring.h>
@@ -67,13 +68,13 @@ __ParseRamdisk(
     struct VaFsEntry            entry;
     int                         status;
     char*                       pathBuffer;
-    oserr_t                  osStatus;
+    oserr_t                     osStatus;
     ProcessConfiguration_t      processConfiguration;
-    TRACE("__ParseRamdisk()");
+    TRACE("__ParseRamdisk(buffer=0x%llx, size=%llu)", ramdiskBuffer, ramdiskSize);
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
     if (status) {
-        ERROR("__ParseRamdisk failed to open vafs image");
+        ERROR("__ParseRamdisk failed to open vafs image: %i", errno);
         return OsError;
     }
 

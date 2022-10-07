@@ -26,8 +26,9 @@
 #include <bus.h>
 #include "devices.h"
 #include "discover.h"
+#include <ddk/service.h>
 #include <gracht/link/vali.h>
-#include <internal/_ipc.h>
+#include <internal/_utils.h>
 #include <os/usched/job.h>
 
 #include <sys_device_service_server.h>

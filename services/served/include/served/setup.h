@@ -1,5 +1,5 @@
 /**
- * Copyright 2021, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -10,25 +10,20 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
  * GNU General Public License for more details.
- *enum FileSystemType
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
-#ifndef __VFS_FILESYSTEM_TYPES_H__
-#define __VFS_FILESYSTEM_TYPES_H__
+#ifndef __SERVED_SETUP_H__
+#define __SERVED_SETUP_H__
 
-enum FileSystemType {
-    FileSystemType_UNKNOWN,
-    FileSystemType_FAT,
-    FileSystemType_EXFAT,
-    FileSystemType_NTFS,
-    FileSystemType_HFS,
-    FileSystemType_HPFS,
-    FileSystemType_MFS,
-    FileSystemType_EXT,
-    FileSystemType_MEMFS
-};
+/**
+ * @brief Initializes the served server. This will take care of system setup and initialize
+ * all installed applications. Served will wait for /data to be present, and if /data/served
+ * is present, will load the system or initialize the system for first run.
+ */
+extern void served_server_setup_job(void*, void*);
 
-#endif //!__VFS_FILESYSTEM_TYPES_H__
+#endif //!__SERVED_SETUP_H__
