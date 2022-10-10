@@ -234,7 +234,7 @@ typedef struct FileSystemMFS {
     unsigned int                Flags;
     int                         Version;
     size_t                      SectorsPerBucket;
-    struct dma_attachment       TransferBuffer;
+    DMAAttachment_t             TransferBuffer;
     struct VFSStorageParameters Storage;
     size_t                      SectorSize;
     uint16_t                    ReservedSectorCount;

@@ -48,8 +48,8 @@ static oserr_t
 CreateSocketPipe(
     _In_ SocketPipe_t* Pipe)
 {
-    struct dma_buffer_info Buffer;
-    oserr_t             Status;
+    DMABuffer_t Buffer;
+    oserr_t     Status;
     TRACE("CreateSocketPipe()");
     
     Buffer.name     = "socket_buffer";
@@ -58,7 +58,7 @@ CreateSocketPipe(
     Buffer.flags    = 0;
     Buffer.type     = 0;
     
-    Status = dma_create(&Buffer, &Pipe->DmaAttachment);
+    Status = DmaCreate(&Buffer, &Pipe->DmaAttachment);
     if (Status != OsOK) {
         return Status;
     }
@@ -72,8 +72,8 @@ static void
 DestroySocketPipe(
     _In_ SocketPipe_t* Pipe)
 {
-    (void)dma_attachment_unmap(&Pipe->DmaAttachment);
-    (void)dma_detach(&Pipe->DmaAttachment);
+    (void) DmaAttachmentUnmap(&Pipe->DmaAttachment);
+    (void) DmaDetach(&Pipe->DmaAttachment);
 }
 
 static void

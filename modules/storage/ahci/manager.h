@@ -84,8 +84,8 @@ typedef struct AhciTransation {
     AtaCommand_t          Command;
     int                   Direction;
     AHCIFis_t             Response;
-    struct dma_attachment DmaAttachment;
-    struct dma_sg_table   DmaTable;
+    DMAAttachment_t       DmaAttachment;
+    DMASGTable_t          DmaTable;
 
     struct {
         DeviceType_t Type;

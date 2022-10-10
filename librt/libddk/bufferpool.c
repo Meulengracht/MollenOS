@@ -29,20 +29,20 @@
 #include <stdlib.h>
 
 struct dma_pool {
-    struct bytepool*       pool;
-    struct dma_attachment* attachment;
-    struct dma_sg_table    table;
+    struct bytepool* pool;
+    DMAAttachment_t* attachment;
+    DMASGTable_t     table;
 };
 
 oserr_t
 dma_pool_create(
-    _In_  struct dma_attachment* attachment,
-    _Out_ struct dma_pool**      pool_out)
+    _In_  DMAAttachment_t*  attachment,
+    _Out_ struct dma_pool** poolOut)
 {
     struct dma_pool* pool;
     oserr_t       status;
     
-    if (!attachment || !pool_out || !attachment->buffer) {
+    if (!attachment || !poolOut || !attachment->buffer) {
         return OsInvalidParameters;
     }
     
@@ -53,10 +53,10 @@ dma_pool_create(
     
     pool->attachment = attachment;
     
-    status = dma_get_sg_table(attachment, &pool->table, -1);
+    status = DmaGetSGTable(attachment, &pool->table, -1);
     status = bpool(attachment->buffer, attachment->length, &pool->pool);
     
-    *pool_out = pool;
+    *poolOut = pool;
     return status;
 }
 
@@ -77,8 +77,8 @@ dma_pool_get_dma(
 {
     int        entry_index;
     size_t     sg_offset;
-    oserr_t status = dma_sg_table_offset(
-        &pool->table, offset, &entry_index, &sg_offset);
+    oserr_t status = DmaSGTableOffset(
+            &pool->table, offset, &entry_index, &sg_offset);
     return status != OsOK ? 0 : pool->table.entries[entry_index].address + sg_offset;
 }
 

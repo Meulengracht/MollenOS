@@ -119,9 +119,9 @@ oserr_t
 VFSStorageParse(
         _In_ struct VFSStorage* storage)
 {
-	struct dma_buffer_info dmaInfo;
-	struct dma_attachment  dmaAttachment;
-    oserr_t                oserr;
+    DMABuffer_t     dmaInfo;
+	DMAAttachment_t dmaAttachment;
+    oserr_t         oserr;
 
 	TRACE("VFSStorageParse(SectorSize %u)", storage->Stats.SectorSize);
 
@@ -133,7 +133,7 @@ VFSStorageParse(
 	dmaInfo.flags    = 0;
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
-    oserr = dma_create(&dmaInfo, &dmaAttachment);
+    oserr = DmaCreate(&dmaInfo, &dmaAttachment);
 	if (oserr != OsOK) {
 		return oserr;
 	}
@@ -144,7 +144,7 @@ VFSStorageParse(
         oserr = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
     }
 
-	dma_attachment_unmap(&dmaAttachment);
-	dma_detach(&dmaAttachment);
+    DmaAttachmentUnmap(&dmaAttachment);
+    DmaDetach(&dmaAttachment);
 	return oserr;
 }

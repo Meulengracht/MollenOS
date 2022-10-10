@@ -88,15 +88,15 @@ UsbManagerCreateTransfer(
                 sizeof(struct UsbManagerTransaction));
         }
         else {
-            dma_attach(usbTransfer->Transfer.Transactions[i].BufferHandle,
+            DmaAttach(usbTransfer->Transfer.Transactions[i].BufferHandle,
                 &usbTransfer->Transactions[i].DmaAttachment);
-            dma_get_sg_table(&usbTransfer->Transactions[i].DmaAttachment,
-                &usbTransfer->Transactions[i].DmaTable, -1);
+            DmaGetSGTable(&usbTransfer->Transactions[i].DmaAttachment,
+                          &usbTransfer->Transactions[i].DmaTable, -1);
         }
-        dma_sg_table_offset(&usbTransfer->Transactions[i].DmaTable,
-            usbTransfer->Transfer.Transactions[i].BufferOffset,
-            &usbTransfer->Transactions[i].SgIndex,
-            &usbTransfer->Transactions[i].SgOffset);
+        DmaSGTableOffset(&usbTransfer->Transactions[i].DmaTable,
+                         usbTransfer->Transfer.Transactions[i].BufferOffset,
+                         &usbTransfer->Transactions[i].SgIndex,
+                         &usbTransfer->Transactions[i].SgOffset);
     }
 
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
@@ -134,7 +134,7 @@ UsbManagerDestroyTransfer(
         }
         else {
             free(transfer->Transactions[i].DmaTable.entries);
-            dma_detach(&transfer->Transactions[i].DmaAttachment);
+            DmaDetach(&transfer->Transactions[i].DmaAttachment);
         }
     }
     free(transfer);

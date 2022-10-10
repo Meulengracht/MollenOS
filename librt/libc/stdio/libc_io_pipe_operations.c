@@ -76,8 +76,8 @@ oserr_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     // Depending on the setup of the pipe. If the pipe is local, then we 
     // can simply free the structure. If the pipe is global/inheritable, we need
     // to free the memory used, and destroy the handle.
-    (void)dma_attachment_unmap(&handle->object.data.pipe.attachment);
-    (void)dma_detach(&handle->object.data.pipe.attachment);
+    (void) DmaAttachmentUnmap(&handle->object.data.pipe.attachment);
+    (void) DmaDetach(&handle->object.data.pipe.attachment);
     if (options & STDIO_CLOSE_FULL) {
         handle_destroy(handle->object.handle);
     }
@@ -88,13 +88,13 @@ oserr_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 {
     oserr_t status;
 
-    status = dma_attach(handle->object.data.pipe.attachment.handle,
+    status = DmaAttach(handle->object.data.pipe.attachment.handle,
         &handle->object.data.pipe.attachment);
     if (status != OsOK) {
         return status;
     }
     
-    status = dma_attachment_map(&handle->object.data.pipe.attachment, DMA_ACCESS_WRITE);
+    status = DmaAttachmentMap(&handle->object.data.pipe.attachment, DMA_ACCESS_WRITE);
     return status;
 }
 

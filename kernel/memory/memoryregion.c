@@ -31,9 +31,8 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
-#include <os/dmabuf.h>
+#include <os/types/dma.h>
 #include <memoryspace.h>
-#include <string.h>
 #include <threading.h>
 
 typedef struct MemoryRegion {
@@ -688,9 +687,9 @@ MemoryRegionWrite(
 
 oserr_t
 MemoryRegionGetSg(
-        _In_  uuid_t         handle,
-        _Out_ int*           sgCountOut,
-        _Out_ struct dma_sg* sgListOut)
+        _In_  uuid_t   handle,
+        _Out_ int*     sgCountOut,
+        _Out_ DMASG_t* sgListOut)
 {
     MemoryRegion_t* memoryRegion;
     size_t          pageSize = GetMemorySpacePageSize();
@@ -722,7 +721,7 @@ MemoryRegionGetSg(
     if (sgListOut) {
         int sgCount = *sgCountOut;
         for (int i = 0, j = 0; (i < sgCount) && (j < memoryRegion->PageCount); i++) {
-            struct dma_sg* sg = &sgListOut[i];
+            DMASG_t* sg = &sgListOut[i];
 
             sg->address = memoryRegion->Pages[j++];
             sg->length  = pageSize;

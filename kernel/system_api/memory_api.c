@@ -25,10 +25,7 @@
 
 #include <arch/utils.h>
 #include <ddk/memory.h>
-
-#include <os/mollenos.h>
-#include <os/dmabuf.h>
-
+#include <os/types/dma.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -230,8 +227,8 @@ ScMemoryQueryAttributes(
 
 oserr_t
 ScDmaCreate(
-    _In_ struct dma_buffer_info* info,
-    _In_ struct dma_attachment*  attachment)
+    _In_ DMABuffer_t*     info,
+    _In_ DMAAttachment_t* attachment)
 {
     oserr_t   osStatus;
     unsigned int flags = 0;
@@ -242,7 +239,7 @@ ScDmaCreate(
         return OsInvalidParameters;
     }
     
-    TRACE("[sc_mem] [dma_create] %u, 0x%x", LODWORD(info->length), info->flags);
+    TRACE("[sc_mem] [DmaCreate] %u, 0x%x", LODWORD(info->length), info->flags);
     osStatus = ArchGetPageMaskFromDmaType(info->type, &pageMask);
     if (osStatus != OsOK) {
         ERROR("ScDmaCreate unsupported dma buffer type %u on this platform", info->type);
@@ -276,9 +273,9 @@ ScDmaCreate(
 
 oserr_t
 ScDmaExport(
-    _In_ void*                   buffer,
-    _In_ struct dma_buffer_info* info,
-    _In_ struct dma_attachment*  attachment)
+    _In_ void*            buffer,
+    _In_ DMABuffer_t*     info,
+    _In_ DMAAttachment_t* attachment)
 {
     oserr_t   osStatus;
     unsigned int flags = 0;
@@ -307,8 +304,8 @@ ScDmaExport(
 
 oserr_t
 ScDmaAttach(
-        _In_ uuid_t                 handle,
-        _In_ struct dma_attachment* attachment)
+        _In_ uuid_t           handle,
+        _In_ DMAAttachment_t* attachment)
 {
     if (!attachment) {
         ERROR("[sc_dma_attach] null attachment pointer");
@@ -324,12 +321,12 @@ ScDmaAttach(
 
 oserr_t
 ScDmaDetach(
-    _In_ struct dma_attachment* Attachment)
+    _In_ DMAAttachment_t* attachment)
 {
-    if (!Attachment) {
+    if (!attachment) {
         return OsInvalidParameters;
     }
-    DestroyHandle(Attachment->handle);
+    DestroyHandle(attachment->handle);
     return OsOK;
 }
 
@@ -357,16 +354,16 @@ ScDmaWrite(
 
 oserr_t
 ScDmaGetMetrics(
-        _In_  uuid_t         Handle,
-        _Out_ int*           SgCountOut,
-        _Out_ struct dma_sg* SgListOut)
+        _In_  uuid_t   Handle,
+        _Out_ int*     SgCountOut,
+        _Out_ DMASG_t* SgListOut)
 {
     return MemoryRegionGetSg(Handle, SgCountOut, SgListOut);
 }
 
 oserr_t
 ScDmaAttachmentMap(
-    _In_ struct dma_attachment* attachment,
+    _In_ DMAAttachment_t* attachment,
     _In_ unsigned int           accessFlags)
 {
     unsigned int memoryFlags = 0;
@@ -382,8 +379,8 @@ ScDmaAttachmentMap(
 
 oserr_t
 ScDmaAttachmentResize(
-    _In_ struct dma_attachment* attachment,
-    _In_ size_t                 length)
+    _In_ DMAAttachment_t* attachment,
+    _In_ size_t           length)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -393,7 +390,7 @@ ScDmaAttachmentResize(
 
 oserr_t
 ScDmaAttachmentRefresh(
-    _In_ struct dma_attachment* attachment)
+    _In_ DMAAttachment_t* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -404,9 +401,9 @@ ScDmaAttachmentRefresh(
 
 oserr_t
 ScDmaAttachmentCommit(
-        _In_ struct dma_attachment* attachment,
-        _In_ void*                  address,
-        _In_ size_t                 length)
+        _In_ DMAAttachment_t* attachment,
+        _In_ void*            address,
+        _In_ size_t           length)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -416,7 +413,7 @@ ScDmaAttachmentCommit(
 
 oserr_t
 ScDmaAttachmentUnmap(
-    _In_ struct dma_attachment* attachment)
+    _In_ DMAAttachment_t* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -526,7 +523,7 @@ ScMapThreadMemoryRegion(
 {
     Thread_t*  thread;
     uintptr_t  copiedAddress;
-    oserr_t status;
+    oserr_t    status;
     size_t     correctLength;
 
     thread = THREAD_GET(threadHandle);

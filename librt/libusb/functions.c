@@ -34,30 +34,30 @@
 #include <ctt_usbhost_service_client.h>
 #include <ctt_usbhub_service_client.h>
 
-static _Atomic(uuid_t)       TransferIdGenerator      = ATOMIC_VAR_INIT(1);
-static const size_t          LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
-static struct dma_pool*      DmaPool                  = NULL;
-static struct dma_attachment DmaAttachment;
+static _Atomic(uuid_t)  TransferIdGenerator      = ATOMIC_VAR_INIT(1);
+static const size_t     LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
+static struct dma_pool* DmaPool                  = NULL;
+static DMAAttachment_t  DmaAttachment;
 
 oserr_t
 UsbInitialize(void)
 {
-    struct dma_buffer_info info;
-    oserr_t             status;
+    DMABuffer_t info;
+    oserr_t     status;
     
     info.length   = LIBUSB_SHAREDBUFFER_SIZE;
     info.capacity = LIBUSB_SHAREDBUFFER_SIZE;
     info.flags    = 0;
     info.type     = DMA_TYPE_DRIVER_32;
     
-    status = dma_create(&info, &DmaAttachment);
+    status = DmaCreate(&info, &DmaAttachment);
     if (status != OsOK) {
         return status;
     }
     
     status = dma_pool_create(&DmaAttachment, &DmaPool);
     if (status != OsOK) {
-        (void)dma_detach(&DmaAttachment);
+        (void) DmaDetach(&DmaAttachment);
     }
     return status;
 }
@@ -70,7 +70,7 @@ UsbCleanup(void)
     }
 
     dma_pool_destroy(DmaPool);
-    dma_detach(&DmaAttachment);
+    DmaDetach(&DmaAttachment);
     DmaPool = NULL;
     return OsOK;
 }

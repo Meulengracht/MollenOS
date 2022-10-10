@@ -138,7 +138,7 @@ AhciTransactionDestroy(
     // Detach from our buffer reference
     list_remove(&port->Transactions, &transaction->Header);
     AhciPortFreeCommandSlot(port, portSlot);
-    dma_detach(&transaction->DmaAttachment);
+    DmaDetach(&transaction->DmaAttachment);
     free(transaction->DmaTable.entries);
     free(transaction);
 }
@@ -148,7 +148,7 @@ static AhciTransaction_t* __CreateTransaction(
         _In_ struct gracht_message* message,
         _In_ int                    direction,
         _In_ uint64_t               sector,
-        _In_ struct dma_attachment* dmaAttachment,
+        _In_ DMAAttachment_t*       dmaAttachment,
         _In_ unsigned int           bufferOffset)
 {
     uuid_t             transactionId;
@@ -166,7 +166,7 @@ static AhciTransaction_t* __CreateTransaction(
 
     // Do not bother about zeroing the array
     memset(transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&transaction->DmaAttachment, dmaAttachment, sizeof(struct dma_attachment));
+    memcpy(&transaction->DmaAttachment, dmaAttachment, sizeof(DMAAttachment_t));
 
     ELEMENT_INIT(&transaction->Header, (void*)(uintptr_t)-1, transaction);
     transaction->Id      = transactionId;
@@ -190,8 +190,8 @@ static AhciTransaction_t* __CreateTransaction(
     }
 
     // Do not bother to check return code again, things should go ok now
-    dma_get_sg_table(dmaAttachment, &transaction->DmaTable, -1);
-    dma_sg_table_offset(&transaction->DmaTable, bufferOffset, &transaction->SgIndex, &transaction->SgOffset);
+    DmaGetSGTable(dmaAttachment, &transaction->DmaTable, -1);
+    DmaSGTableOffset(&transaction->DmaTable, bufferOffset, &transaction->SgIndex, &transaction->SgOffset);
     return transaction;
 }
 
@@ -203,8 +203,8 @@ AhciTransactionControlCreate(
     _In_ int           direction)
 {
     AhciTransaction_t*    transaction;
-    oserr_t            status;
-    struct dma_attachment dmaAttachment;
+    oserr_t               status;
+    DMAAttachment_t       dmaAttachment;
 
     TRACE("AhciTransactionControlCreate(ahciDevice=0x%" PRIxIN ", ataCommand=0x%x, length=0x%" PRIxIN ", direction=%i)",
           ahciDevice, ataCommand, length, direction);
@@ -214,14 +214,14 @@ AhciTransactionControlCreate(
         goto exit;
     }
 
-    status = dma_attach(ahciDevice->Port->InternalBuffer.handle, &dmaAttachment);
+    status = DmaAttach(ahciDevice->Port->InternalBuffer.handle, &dmaAttachment);
     if (status != OsOK) {
         goto exit;
     }
 
     transaction = __CreateTransaction(ahciDevice, NULL, direction, 0, &dmaAttachment, 0);
     if (!transaction) {
-        dma_detach(&dmaAttachment);
+        DmaDetach(&dmaAttachment);
         status = OsOutOfMemory;
         goto exit;
     }
@@ -271,7 +271,7 @@ AhciTransactionStorageCreate(
         _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
-    struct dma_attachment           dmaAttachment;
+    DMAAttachment_t                 dmaAttachment;
     AhciTransaction_t*              transaction = NULL;
     oserr_t                      status;
     TRACE("AhciTransactionStorageCreate(device=0x%" PRIxIN ", sector=0x%" PRIxIN ", sectorCount=0x%" PRIxIN ", direction=%i)",
@@ -282,7 +282,7 @@ AhciTransactionStorageCreate(
         goto exit;
     }
     
-    status = dma_attach(bufferHandle, &dmaAttachment);
+    status = DmaAttach(bufferHandle, &dmaAttachment);
     if (status != OsOK) {
         status = OsInvalidParameters;
         goto exit;
@@ -290,7 +290,7 @@ AhciTransactionStorageCreate(
 
     transaction = __CreateTransaction(device, message, direction, sector, &dmaAttachment, bufferOffset);
     if (!transaction) {
-        dma_detach(&dmaAttachment);
+        DmaDetach(&dmaAttachment);
         status = OsOutOfMemory;
         goto exit;
     }

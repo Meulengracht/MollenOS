@@ -36,7 +36,7 @@ struct VFS {
     struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;
-    struct dma_attachment  Buffer;
+    DMAAttachment_t        Buffer;
 };
 
 enum VFSNodeType {

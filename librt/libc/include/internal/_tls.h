@@ -3,7 +3,7 @@
 
 #include <errno.h>
 #include <os/osdefs.h>
-#include <os/dmabuf.h>
+#include <os/types/dma.h>
 #include <stdio.h>
 #include <wchar.h>
 
@@ -23,7 +23,7 @@ typedef struct thread_storage {
     struct tm             tm_buffer;
     char                  asc_buffer[26];
     char                  tmpname_buffer[L_tmpnam];
-    struct dma_attachment dma;
+    DMAAttachment_t       dma;
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 } thread_storage_t;
 
@@ -58,6 +58,6 @@ CRTDECL(struct thread_storage*, __tls_current(void));
  * allocated on demand.
  * @return The current dma buffer for the calling thread
  */
-CRTDECL(struct dma_attachment*, __tls_current_dmabuf(void));
+CRTDECL(DMAAttachment_t*, __tls_current_dmabuf(void));
 
 #endif //!__INTERNAL_TLS__

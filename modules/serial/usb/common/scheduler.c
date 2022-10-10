@@ -79,9 +79,9 @@ static oserr_t
 AllocateMemoryForPool(
     _In_ UsbSchedulerPool_t* Pool)
 {
-    size_t                 elementBytes = Pool->ElementCount * Pool->ElementAlignedSize;
-    struct dma_buffer_info dmaBufferInfo;
-    oserr_t             osStatus;
+    size_t      elementBytes = Pool->ElementCount * Pool->ElementAlignedSize;
+    DMABuffer_t dmaBufferInfo;
+    oserr_t     osStatus;
         
     // Setup required memory allocation flags
     // Require low memory as most usb controllers don't work with physical memory above 2GB
@@ -93,12 +93,12 @@ AllocateMemoryForPool(
     dmaBufferInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     TRACE("... allocating element pool memory (%u bytes)", elementBytes);
-    osStatus = dma_create(&dmaBufferInfo, &Pool->ElementPoolDMA);
+    osStatus = DmaCreate(&dmaBufferInfo, &Pool->ElementPoolDMA);
     if (osStatus != OsOK) {
         ERROR("... failed! %u", osStatus);
         return osStatus;
     }
-    (void)dma_get_sg_table(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
+    (void) DmaGetSGTable(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
 
     TRACE("... address 0x%" PRIxIN, Pool->ElementPoolDMATable.entries[0].address);
     Pool->ElementPool = Pool->ElementPoolDMA.buffer;
@@ -109,12 +109,12 @@ static oserr_t
 AllocateMemoryForFrameList(
     _In_ UsbScheduler_t* Scheduler)
 {
-    size_t                 FrameListBytes = Scheduler->Settings.FrameCount * 4;
-    struct dma_buffer_info DmaInfo;
-    oserr_t             Status;
+    size_t      FrameListBytes = Scheduler->Settings.FrameCount * 4;
+    DMABuffer_t DmaInfo;
+    oserr_t     Status;
     
     // Setup required memory allocation flags
-    // TODO: Require low memory as most usb controllers don't work with physical memory above 2GB
+    // Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
     DmaInfo.length   = FrameListBytes;
     DmaInfo.capacity = FrameListBytes;
@@ -122,13 +122,13 @@ AllocateMemoryForFrameList(
     DmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     TRACE("... allocating frame list memory (%u bytes)", FrameListBytes);
-    Status = dma_create(&DmaInfo, &Scheduler->Settings.FrameListDMA);
+    Status = DmaCreate(&DmaInfo, &Scheduler->Settings.FrameListDMA);
     if (Status != OsOK) {
         ERROR("... failed! %u", Status);
         return Status;
     }
-    (void)dma_get_sg_table(&Scheduler->Settings.FrameListDMA, 
-        &Scheduler->Settings.FrameListDMATable, -1);
+    (void) DmaGetSGTable(&Scheduler->Settings.FrameListDMA,
+                         &Scheduler->Settings.FrameListDMATable, -1);
     
     TRACE("... address 0x%" PRIxIN, Scheduler->Settings.FrameListDMATable.entries[0].address);
     Scheduler->Settings.FrameList = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
@@ -212,8 +212,8 @@ FreePoolMemory(
         return;
     }
     
-    (void)dma_attachment_unmap(&Pool->ElementPoolDMA);
-    (void)dma_detach(&Pool->ElementPoolDMA);
+    (void) DmaAttachmentUnmap(&Pool->ElementPoolDMA);
+    (void) DmaDetach(&Pool->ElementPoolDMA);
     free(Pool->ElementPoolDMATable.entries);
 }
 
@@ -225,8 +225,8 @@ FreeFrameListMemory(
         return;
     }
     
-    (void)dma_attachment_unmap(&Scheduler->Settings.FrameListDMA);
-    (void)dma_detach(&Scheduler->Settings.FrameListDMA);
+    (void) DmaAttachmentUnmap(&Scheduler->Settings.FrameListDMA);
+    (void) DmaDetach(&Scheduler->Settings.FrameListDMA);
     free(Scheduler->Settings.FrameListDMATable.entries);
 }
 

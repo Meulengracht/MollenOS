@@ -468,14 +468,14 @@ void PmGetProcessStartupInformation(
     }
     processHandle = process->handle;
 
-    struct dma_attachment dmaAttachment;
-    osStatus = dma_attach(request->parameters.get_initblock.bufferHandle, &dmaAttachment);
+    DMAAttachment_t dmaAttachment;
+    osStatus = DmaAttach(request->parameters.get_initblock.bufferHandle, &dmaAttachment);
     if (osStatus != OsOK) {
         ERROR("PmGetProcessStartupInformation failed to attach to user buffer");
         goto exit;
     }
 
-    osStatus = dma_attachment_map(&dmaAttachment, DMA_ACCESS_WRITE);
+    osStatus = DmaAttachmentMap(&dmaAttachment, DMA_ACCESS_WRITE);
     if (osStatus != OsOK) {
         goto detach;
     }
@@ -503,10 +503,10 @@ void PmGetProcessStartupInformation(
     startupInfo->EnvironmentBlockLength = 0;
 
     // unmap and cleanup
-    dma_attachment_unmap(&dmaAttachment);
+    DmaAttachmentUnmap(&dmaAttachment);
 
 detach:
-    dma_detach(&dmaAttachment);
+    DmaDetach(&dmaAttachment);
 
 exit:
     sys_process_get_startup_information_response(request->message, osStatus, processHandle);

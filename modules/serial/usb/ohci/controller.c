@@ -39,105 +39,105 @@ UsbManagerController_t*
 HciControllerCreate(
     _In_ BusDevice_t* Device)
 {
-    struct dma_buffer_info DmaInfo;
-    DeviceIo_t*            IoBase  = NULL;
-    DeviceInterrupt_t      Interrupt;
-    OhciController_t*      Controller;
-    oserr_t             Status;
+    DMABuffer_t       dmaBuffer;
+    DeviceIo_t*       ioBase  = NULL;
+    DeviceInterrupt_t interrupt;
+    OhciController_t* controller;
+    oserr_t           oserr;
     int i;
 
-    Controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
-    if (!Controller) {
+    controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
+    if (!controller) {
         return NULL;
     }
     
     // Get I/O Base, and for OHCI it'll be the first address we encounter
     // of type MMIO
     for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
-        if (Controller->Base.Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
-            IoBase = &Controller->Base.Device->IoSpaces[i];
+        if (controller->Base.Device->IoSpaces[i].Type == DeviceIoMemoryBased) {
+            ioBase = &controller->Base.Device->IoSpaces[i];
             break;
         }
     }
 
     // Sanitize that we found the io-space
-    if (IoBase == NULL) {
+    if (ioBase == NULL) {
         ERROR("No memory space found for ohci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
 
     // Trace
     TRACE("Found Io-Space (Type %u, Physical 0x%" PRIxIN ", Size 0x%" PRIxIN ")",
-        IoBase->Type, IoBase->Access.Memory.PhysicalBase, IoBase->Access.Memory.Length);
+          ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
     // Allocate the HCCA-space in low memory as controllers
     // have issues with higher memory (<2GB)
-    DmaInfo.length   = 0x1000;
-    DmaInfo.capacity = 0x1000;
-    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-    DmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
-    
-    Status = dma_create(&DmaInfo, &Controller->HccaDMA);
-    if (Status != OsOK) {
+    dmaBuffer.length   = 0x1000;
+    dmaBuffer.capacity = 0x1000;
+    dmaBuffer.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
+    dmaBuffer.type     = DMA_TYPE_DRIVER_32LOW;
+
+    oserr = DmaCreate(&dmaBuffer, &controller->HccaDMA);
+    if (oserr != OsOK) {
         ERROR("Failed to allocate space for HCCA");
-        free(Controller);
+        free(controller);
         return NULL;
     }
     
     // Retrieve the physical location of the HCCA
-    (void)dma_get_sg_table(&Controller->HccaDMA, &Controller->HccaDMATable, -1);
+    (void) DmaGetSGTable(&controller->HccaDMA, &controller->HccaDMATable, -1);
 
-    Controller->Hcca        = (OhciHCCA_t*)Controller->HccaDMA.buffer;
-    Controller->Base.IoBase = IoBase;
+    controller->Hcca        = (OhciHCCA_t*)controller->HccaDMA.buffer;
+    controller->Base.IoBase = ioBase;
     
     // Acquire the io-space
-    if (AcquireDeviceIo(IoBase) != OsOK) {
+    if (AcquireDeviceIo(ioBase) != OsOK) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
-        free(Controller);
+        free(controller);
         return NULL;
     }
 
     // Trace
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN,
-        IoBase->Access.Memory.VirtualBase);
+          ioBase->Access.Memory.VirtualBase);
 
     // Instantiate the register-access and disable interrupts on device
-    Controller->Registers = (OhciRegisters_t*)IoBase->Access.Memory.VirtualBase;
-    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, 0);
-    WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
+    controller->Registers = (OhciRegisters_t*)ioBase->Access.Memory.VirtualBase;
+    WRITE_VOLATILE(controller->Registers->HcInterruptEnable, 0);
+    WRITE_VOLATILE(controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Initialize the interrupt settings
-    DeviceInterruptInitialize(&Interrupt, Device);
-    RegisterInterruptDescriptor(&Interrupt, Controller->Base.event_descriptor);
-    RegisterFastInterruptHandler(&Interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&Interrupt, IoBase);
-    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller, sizeof(OhciController_t), 0);
-    RegisterFastInterruptMemoryResource(&Interrupt, (uintptr_t)Controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
+    DeviceInterruptInitialize(&interrupt, Device);
+    RegisterInterruptDescriptor(&interrupt, controller->Base.event_descriptor);
+    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
+    RegisterFastInterruptIoResource(&interrupt, ioBase);
+    RegisterFastInterruptMemoryResource(&interrupt, (uintptr_t)controller, sizeof(OhciController_t), 0);
+    RegisterFastInterruptMemoryResource(&interrupt, (uintptr_t)controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
 
     // Register interrupt
     TRACE("... register interrupt");
-    Controller->Base.Interrupt = RegisterInterruptSource(&Interrupt, 0);
+    controller->Base.Interrupt = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
     TRACE("... enabling device");
-    Status = IoctlDevice(Controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
+    oserr = IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
+                        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (Status != OsOK) {
+    if (oserr != OsOK) {
         ERROR("Failed to enable the ohci-controller");
-        UnregisterInterruptSource(Controller->Base.Interrupt);
-        ReleaseDeviceIo(Controller->Base.IoBase);
-        free(Controller);
+        UnregisterInterruptSource(controller->Base.Interrupt);
+        ReleaseDeviceIo(controller->Base.IoBase);
+        free(controller);
         return NULL;
     }
 
     TRACE("... initializing device");
-    if (OhciSetup(Controller) == OsOK) {
-        return &Controller->Base;
+    if (OhciSetup(controller) == OsOK) {
+        return &controller->Base;
     }
     else {
-        HciControllerDestroy(&Controller->Base);
+        HciControllerDestroy(&controller->Base);
         return NULL;
     }
 }
@@ -154,8 +154,8 @@ HciControllerDestroy(
 
     // Free resources
     if (((OhciController_t*)Controller)->Hcca != NULL) {
-        dma_attachment_unmap(&((OhciController_t*)Controller)->HccaDMA);
-        dma_detach(&((OhciController_t*)Controller)->HccaDMA);
+        DmaAttachmentUnmap(&((OhciController_t *) Controller)->HccaDMA);
+        DmaDetach(&((OhciController_t *) Controller)->HccaDMA);
     }
 
     // Unregister the interrupt

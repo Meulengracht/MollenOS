@@ -70,13 +70,13 @@ oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
     }
     
     if (handle->object.data.socket.send_buffer.buffer) {
-        (void)dma_attachment_unmap(&handle->object.data.socket.send_buffer);
-        (void)dma_detach(&handle->object.data.socket.send_buffer);
+        (void) DmaAttachmentUnmap(&handle->object.data.socket.send_buffer);
+        (void) DmaDetach(&handle->object.data.socket.send_buffer);
     }
     
     if (handle->object.data.socket.recv_buffer.buffer) {
-        (void)dma_attachment_unmap(&handle->object.data.socket.recv_buffer);
-        (void)dma_detach(&handle->object.data.socket.recv_buffer);
+        (void) DmaAttachmentUnmap(&handle->object.data.socket.recv_buffer);
+        (void) DmaDetach(&handle->object.data.socket.recv_buffer);
     }
     return status;
 }
@@ -89,18 +89,18 @@ oserr_t stdio_net_op_inherit(stdio_handle_t* handle)
     
     // When we inherit a socket from another application, we must reattach
     // the handle that is stored in dma_attachment.
-    status1 = dma_attach(send_buffer_handle, &handle->object.data.socket.send_buffer);
-    status2 = dma_attach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
+    status1 = DmaAttach(send_buffer_handle, &handle->object.data.socket.send_buffer);
+    status2 = DmaAttach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
     if (status1 != OsOK || status2 != OsOK) {
         return status1 != OsOK ? status1 : status2;
     }
     
-    status1 = dma_attachment_map(&handle->object.data.socket.send_buffer, DMA_ACCESS_WRITE);
+    status1 = DmaAttachmentMap(&handle->object.data.socket.send_buffer, DMA_ACCESS_WRITE);
     if (status1 != OsOK) {
         return status1;
     }
     
-    status1 = dma_attachment_map(&handle->object.data.socket.recv_buffer, DMA_ACCESS_WRITE);
+    status1 = DmaAttachmentMap(&handle->object.data.socket.recv_buffer, DMA_ACCESS_WRITE);
     if (status1 != OsOK) {
         return status1;
     }

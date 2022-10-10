@@ -80,9 +80,9 @@ EhciTransferFill(
 
         TRACE(" > BytesToTransfer(%u)", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
-            struct dma_sg* Dma     = NULL;
-            size_t         Length  = BytesToTransfer;
-            uintptr_t      Address = 0;
+            DMASG_t*  Dma     = NULL;
+            size_t    Length  = BytesToTransfer;
+            uintptr_t Address = 0;
             
             if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
                 Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
