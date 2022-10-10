@@ -32,21 +32,19 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oserr_t OnUnload(void)
-{
-    return OsOK;
-}
-
 void GetServiceAddress(IPCAddress_t* address)
 {
     address->Type = IPC_ADDRESS_PATH;
     address->Data.Path = SERVICE_NET_PATH;
 }
 
-oserr_t
-OnLoad(void)
+void ServiceInitialize(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_socket_server_protocol);
-    return NetworkManagerInitialize();
+
+    // Initialize the subsystems
+    if (NetworkManagerInitialize() != OsOK) {
+        exit(-1);
+    }
 }

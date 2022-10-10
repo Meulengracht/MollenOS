@@ -1,5 +1,0 @@
-# Standard yaml configuration for services in the OS
-service:
-  name: netmanager
-  path: /service/net
-  #depends: none

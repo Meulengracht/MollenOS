@@ -1,21 +1,9 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../../cmake/SetupEnvironment.cmake)
-    project(ValiUsbManager)
-endif ()
-
 enable_language(C)
 
 # Configure include paths
 include_directories (
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libddk/include
-    ../../librt/libds/include
-    ../../librt/libc/include
 )
 
 set (ADDITONAL_SOURCES
@@ -23,7 +11,7 @@ set (ADDITONAL_SOURCES
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
-add_service_target(usbmanager ""
+add_service_target(usbd ""
         ${ADDITONAL_SOURCES}
 
         port_event.c
@@ -32,5 +20,5 @@ add_service_target(usbmanager ""
         devices.c
         main.c
 )
-add_dependencies(usbmanager service_servers)
-deploy_file_to_initrd(usbmanager "services" usbmanager.yaml)
+add_dependencies(usbd service_servers)
+deploy_file_to_initrd(usbd "services" usbd.yaml)

@@ -1,21 +1,9 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../../cmake/SetupEnvironment.cmake)
-    project(ValiSessionManager)
-endif ()
-
 enable_language(C)
 
 # Configure include paths
 include_directories (
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/protocols
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ../../librt/libgracht/include
-    ../../librt/libusb/include
-    ../../librt/libddk/include
-    ../../librt/libds/include
-    ../../librt/libc/include
 )
 
 set (ADDITONAL_SOURCES
@@ -23,10 +11,10 @@ set (ADDITONAL_SOURCES
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
-add_service_target(sessionmanager ""
+add_service_target(sessiond ""
     ${ADDITONAL_SOURCES}
     
     main.c
 )
-add_dependencies(sessionmanager service_servers)
-deploy_file_to_initrd(sessionmanager "services" sessionmanager.yaml)
+add_dependencies(sessiond service_servers)
+deploy_file_to_initrd(sessiond "services" sessiond.yaml)

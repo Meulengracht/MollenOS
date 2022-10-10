@@ -1,5 +1,5 @@
 # Standard yaml configuration for services in the OS
 service:
-  name: filemanager
-  path: /service/file
+  name: netd
+  path: /service/net
   #depends: none

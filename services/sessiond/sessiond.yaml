@@ -1,5 +1,5 @@
 # Standard yaml configuration for services in the OS
 service:
-  name: usbmanager
-  path: /service/usb
+  name: sessiond
+  path: /service/session
   #depends: none

@@ -31,9 +31,8 @@ struct __gracht_job_context {
     int set_iod;
 };
 
-extern void    GetServiceAddress(IPCAddress_t*);
-extern oserr_t OnLoad(void);
-extern oserr_t OnUnload(void);
+extern void GetServiceAddress(IPCAddress_t*);
+extern void ServiceInitialize(void);
 
 static gracht_server_t*            g_server     = NULL;
 static struct gracht_link_vali*    g_serverLink = NULL;
@@ -112,7 +111,7 @@ static void __crt_service_init(void)
    });
 
     // Initialize the userspace scheduler to support request based
-    // services in an async matter, and do this before we call OnLoad
+    // services in an async matter, and do this before we call ServiceInitialize
     // as the service might queue tasks up on load.
     usched_xunit_init();
 
@@ -127,14 +126,10 @@ static void __crt_service_init(void)
 
     usched_job_queue3(__gracht_job, &g_grachtContext, &jobParameters);
 
-    // Now queue up the on-unload functions that should be called before exit of service.
-    atexit((void (*)(void))OnUnload);
-    at_quick_exit((void (*)(void))OnUnload);
-
     // Enter the eternal program loop. This will execute jobs untill exit() is called.
-    // We use OnLoad as the programs main function, we expect it to return relatively quick
+    // We use ServiceInitialize as the programs main function, we expect it to return relatively quick
     // and should be only used to initialize service subsystems.
-    usched_xunit_main_loop((usched_task_fn)OnLoad, NULL);
+    usched_xunit_main_loop((usched_task_fn)ServiceInitialize, NULL);
 }
 
 void __CrtServiceEntry(void)

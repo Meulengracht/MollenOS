@@ -29,18 +29,11 @@
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include <os/usched/job.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
-
-oserr_t
-OnUnload(void)
-{
-    return OsOK;
-}
 
 void
 GetServiceAddress(
@@ -50,8 +43,7 @@ GetServiceAddress(
     address->Data.Path = SERVICE_DEVICE_PATH;
 }
 
-oserr_t
-OnLoad(void)
+void ServiceInitialize(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_device_server_protocol);
@@ -62,9 +54,5 @@ OnLoad(void)
     // Initialize the subsystems
     DmDevicesInitialize();
     DmDiscoverInitialize();
-
-    // Start the enumeration process in a new thread, so we can quickly return
-    // and be ready for requests.
-    usched_job_queue((usched_task_fn)BusEnumerate, NULL);
-    return OsOK;
+    BusEnumerate();
 }

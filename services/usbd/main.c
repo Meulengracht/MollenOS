@@ -31,23 +31,21 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oserr_t OnUnload(void)
-{
-    return UsbCoreDestroy();
-}
-
 void GetServiceAddress(IPCAddress_t* address)
 {
     address->Type = IPC_ADDRESS_PATH;
     address->Data.Path = SERVICE_USB_PATH;
 }
 
-oserr_t
-OnLoad(void)
+void ServiceInitialize(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_usb_server_protocol);
-    return UsbCoreInitialize();
+
+    // Initialize all subsystems
+    if (UsbCoreInitialize() != OsOK) {
+        exit(-1);
+    }
 }
 
 

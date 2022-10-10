@@ -26,7 +26,6 @@
 #include <os/context.h>
 #include <ddk/debug.h>
 #include <ddk/utils.h>
-#include <os/mollenos.h>
 #include "pe.h"
 #include "process.h"
 #include "sys_process_service_server.h"
@@ -104,7 +103,12 @@ HandleProcessCrashReport(
         void*   topOfStack;
         oserr_t status;
 
-        status = MapThreadMemoryRegion(threadHandle, CONTEXT_USERSP(crashContext), &topOfStack, &stack);
+        status = MapThreadMemoryRegion(
+                threadHandle,
+                CONTEXT_USERSP(crashContext),
+                &topOfStack,
+                &stack
+        );
         if (status == OsOK) {
             // Traverse the memory region up to stack max
             uintptr_t* stackAddress = (uintptr_t*)stack;
