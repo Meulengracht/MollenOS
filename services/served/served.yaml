@@ -1,5 +1,21 @@
 # Standard yaml configuration for services in the OS
 service:
+  # The global unique identifier for the system service
   name: served
+
+  # The service API path, for other instances to expect connection through.
+  # These API paths are registered upon startup of the service, and allows an
+  # easy way to recognize system services.
   path: /service/serve
-  #depends: none
+
+  # Dependencies allow for different criterias to be met before the service is
+  # started. Services can depend on other services, paths or devices to be registered
+  # with the system before being started up.
+  depends:
+    # The list of services that should be running before starting this service.
+    services:
+      - filed # Require filed to be running as we need FS access
+      - processd # Require processd to be running so we can spawn apps
+      - sessiond # Require sessiond to be running for user functionality
+    # paths:
+    # devices:
