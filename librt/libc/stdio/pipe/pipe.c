@@ -60,12 +60,12 @@ static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
 
 int pipe(long size, int flags)
 {
-    stdio_handle_t*        ioObject;
-    oserr_t             osStatus;
-    int                    status;
-    struct dma_buffer_info bufferInfo;
-    struct dma_attachment  attachment;
-    unsigned int           wxflags = __convert_o_to_wx_flags(flags);
+    stdio_handle_t* ioObject;
+    oserr_t         osStatus;
+    int             status;
+    DMABuffer_t     bufferInfo;
+    DMAAttachment_t attachment;
+    unsigned int    wxflags = __convert_o_to_wx_flags(flags);
 
     // create the dma attachment
     bufferInfo.name     = "libc_pipe";
@@ -74,7 +74,7 @@ int pipe(long size, int flags)
     bufferInfo.flags    = 0;
     bufferInfo.type     = DMA_TYPE_REGULAR;
 
-    osStatus = dma_create(&bufferInfo, &attachment);
+    osStatus = DmaCreate(&bufferInfo, &attachment);
     if (osStatus != OsOK) {
         return OsErrToErrNo(osStatus);
     }
@@ -86,7 +86,7 @@ int pipe(long size, int flags)
 
     status = stdio_handle_create(-1, WX_OPEN | wxflags, &ioObject);
     if (status) {
-        dma_detach(&attachment);
+        DmaDetach(&attachment);
         return status;
     }
 
@@ -94,7 +94,7 @@ int pipe(long size, int flags)
     stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_PIPE);
     
     memcpy(&ioObject->object.data.pipe.attachment, &attachment,
-        sizeof(struct dma_attachment));
+        sizeof(DMAAttachment_t));
     ioObject->object.data.pipe.options = STREAMBUFFER_ALLOW_PARTIAL;
     return ioObject->fd;
 }

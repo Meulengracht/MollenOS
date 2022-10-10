@@ -42,8 +42,8 @@ AhciPortCreate(
     _In_ int                portIndex,
     _In_ int                mapIndex)
 {
-    struct dma_buffer_info bufferInfo;
-    AhciPort_t*            port;
+    DMABuffer_t bufferInfo;
+    AhciPort_t* port;
     TRACE("AhciPortCreate(controller=0x%" PRIxIN ", portIndex=%i, mapIndex=%i)",
           controller, portIndex, mapIndex);
 
@@ -73,7 +73,7 @@ AhciPortCreate(
     bufferInfo.capacity = AhciManagerGetFrameSize();
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
-    dma_create(&bufferInfo, &port->InternalBuffer);
+    DmaCreate(&bufferInfo, &port->InternalBuffer);
     
     // TODO: port nr or bit index? Right now use the Index in the validity map
     port->Registers = (AHCIPortRegisters_t*)((uintptr_t)controller->Registers + AHCI_REGISTER_PORTBASE(mapIndex));
@@ -100,8 +100,8 @@ AhciPortCleanup(
     AhciManagerUnregisterDevice(Controller, Port);
     
     // Destroy the internal transfer buffer
-    dma_attachment_unmap(&Port->InternalBuffer);
-    dma_detach(&Port->InternalBuffer);
+    DmaAttachmentUnmap(&Port->InternalBuffer);
+    DmaDetach(&Port->InternalBuffer);
     free(Port);
 }
 
@@ -213,8 +213,8 @@ AllocateOperationalMemory(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
-    struct dma_buffer_info bufferInfo;
-    oserr_t             osStatus;
+    DMABuffer_t bufferInfo;
+    oserr_t     osStatus;
 
     TRACE("AllocateOperationalMemory(controller=0x%" PRIxIN ", port=0x%" PRIxIN ")",
           controller, port);
@@ -227,7 +227,7 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
-    osStatus = dma_create(&bufferInfo, &port->CommandListDMA);
+    osStatus = DmaCreate(&bufferInfo, &port->CommandListDMA);
     if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command list.");
         return OsOutOfMemory;
@@ -240,7 +240,7 @@ AllocateOperationalMemory(
     bufferInfo.capacity = AHCI_COMMAND_TABLE_SIZE * 32;
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
-    osStatus = dma_create(&bufferInfo, &port->CommandTableDMA);
+    osStatus = DmaCreate(&bufferInfo, &port->CommandTableDMA);
     if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OsOutOfMemory;
@@ -253,7 +253,7 @@ AllocateOperationalMemory(
     bufferInfo.capacity = 0x1000;
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
-    osStatus = dma_create(&bufferInfo, &port->RecievedFisDMA);
+    osStatus = DmaCreate(&bufferInfo, &port->RecievedFisDMA);
     if (osStatus != OsOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OsOutOfMemory;
@@ -268,8 +268,8 @@ AhciPortRebase(
 {
     reg32_t             Caps = READ_VOLATILE(controller->Registers->Capabilities);
     AHCICommandList_t*  CommandList;
-    oserr_t          Status;
-    struct dma_sg_table SgTable;
+    oserr_t             Status;
+    DMASGTable_t        SgTable;
     uintptr_t           PhysicalAddress;
     int                 i;
     int                 j;
@@ -282,7 +282,7 @@ AhciPortRebase(
         return Status;
     }
     
-    (void)dma_get_sg_table(&port->CommandTableDMA, &SgTable, -1);
+    (void) DmaGetSGTable(&port->CommandTableDMA, &SgTable, -1);
 
     // Iterate the 32 command headers
     CommandList     = (AHCICommandList_t*)port->CommandListDMA.buffer;
@@ -363,16 +363,16 @@ AhciPortStart(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
-    struct dma_sg_table dmaTable;
-    reg32_t             capabilities = READ_VOLATILE(controller->Registers->Capabilities);
-    reg32_t             status;
-    int                 hung;
+    DMASGTable_t dmaTable;
+    reg32_t      capabilities = READ_VOLATILE(controller->Registers->Capabilities);
+    reg32_t      status;
+    int          hung;
 
     TRACE("AhciPortStart(controller=0x%" PRIxIN ", port=0x%" PRIxIN ")",
           controller, port);
 
     // Setup the physical data addresses
-    dma_get_sg_table(&port->RecievedFisDMA, &dmaTable, -1);
+    DmaGetSGTable(&port->RecievedFisDMA, &dmaTable, -1);
 
     TRACE("AhciPortStart FISBaseAddress=0x%" PRIxIN, dmaTable.entries[0].address);
     WRITE_VOLATILE(port->Registers->FISBaseAddress, LOWORD(dmaTable.entries[0].address));
@@ -385,7 +385,7 @@ AhciPortStart(
     }
     free(dmaTable.entries);
 
-    dma_get_sg_table(&port->CommandListDMA, &dmaTable, -1);
+    DmaGetSGTable(&port->CommandListDMA, &dmaTable, -1);
 
     TRACE("AhciPortStart CmdListBaseAddress=0x%" PRIxIN, dmaTable.entries[0].address);
     WRITE_VOLATILE(port->Registers->CmdListBaseAddress, LODWORD(dmaTable.entries[0].address));

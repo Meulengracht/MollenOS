@@ -5,6 +5,5 @@
 #include <internal/_mbstring.h>
 #include <internal/_string.h>
 #include <internal/_signal.h>
-#include <internal/_syscalls.h>
 
 #endif

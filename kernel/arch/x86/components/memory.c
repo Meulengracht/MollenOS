@@ -33,7 +33,7 @@
 #include <debug.h>
 #include <heap.h>
 #include <machine.h>
-#include <os/dmabuf.h>
+#include <os/types/dma.h>
 #include <string.h>
 
 #if defined(__i386__)

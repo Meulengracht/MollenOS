@@ -69,7 +69,7 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
 
 oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
 {
-    struct dma_attachment* dmaAttachment = __tls_current_dmabuf();
+    DMAAttachment_t* dmaAttachment = __tls_current_dmabuf();
     uuid_t  builtinHandle = dmaAttachment->handle;
     size_t  builtinLength = dmaAttachment->length;
     size_t  bytesRead;
@@ -79,10 +79,10 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length > builtinLength) {
-        struct dma_buffer_info info;
-        struct dma_attachment  attachment;
-        void*                  adjustedPointer = (void*)buffer;
-        size_t                 adjustedLength  = length;
+        DMABuffer_t     info;
+        DMAAttachment_t attachment;
+        void*           adjustedPointer = (void*)buffer;
+        size_t          adjustedLength  = length;
 
         // enforce dword alignment on the buffer
         // which means if someone passes us a byte or word aligned
@@ -103,7 +103,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
         info.flags    = DMA_PERSISTANT;
         info.type     = DMA_TYPE_DRIVER_32;
         
-        status = dma_export(adjustedPointer, &info, &attachment);
+        status = DmaExport(adjustedPointer, &info, &attachment);
         if (status != OsOK) {
             return status;
         }
@@ -115,7 +115,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
             *bytesReadOut = length;
         }
 
-        dma_detach(&attachment);
+        DmaDetach(&attachment);
         return status;
     }
     
@@ -132,7 +132,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
 oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
                             size_t length, size_t* bytesWrittenOut)
 {
-    struct dma_attachment* dmaAttachment = __tls_current_dmabuf();
+    DMAAttachment_t* dmaAttachment = __tls_current_dmabuf();
     uuid_t     builtinHandle = dmaAttachment->handle;
     size_t     builtinLength = dmaAttachment->length;
     oserr_t status;
@@ -141,10 +141,10 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length > builtinLength) {
-        struct dma_buffer_info info;
-        struct dma_attachment  attachment;
-        void*                  adjustedPointer = (void*)buffer;
-        size_t                 adjustedLength  = length;
+        DMABuffer_t     info;
+        DMAAttachment_t attachment;
+        void*           adjustedPointer = (void*)buffer;
+        size_t          adjustedLength  = length;
         
         // enforce dword alignment on the buffer
         // which means if someone passes us a byte or word aligned
@@ -165,14 +165,14 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         info.flags    = DMA_PERSISTANT;
         info.type     = DMA_TYPE_DRIVER_32;
         
-        status = dma_export(adjustedPointer, &info, &attachment);
+        status = DmaExport(adjustedPointer, &info, &attachment);
         if (status != OsOK) {
             return status;
         }
         
         status = perform_transfer(handle->object.handle, attachment.handle,
             1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
-        dma_detach(&attachment);
+        DmaDetach(&attachment);
         if (*bytesWrittenOut == adjustedLength) {
             *bytesWrittenOut = length;
         }

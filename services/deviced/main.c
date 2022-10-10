@@ -44,10 +44,10 @@ OnUnload(void)
 
 void
 GetServiceAddress(
-        _In_ struct ipmsg_addr* address)
+        _In_ IPCAddress_t* address)
 {
-    address->type = IPMSG_ADDRESS_PATH;
-    address->data.path = SERVICE_DEVICE_PATH;
+    address->Type = IPC_ADDRESS_PATH;
+    address->Data.Path = SERVICE_DEVICE_PATH;
 }
 
 oserr_t

@@ -48,9 +48,9 @@ static oserr_t __DetectFileSystem(
         _Out_ const char**        fsHintOut)
 {
 
-    struct dma_buffer_info dmaInfo;
-    struct dma_attachment  dmaAttachment;
-    oserr_t                oserr;
+    DMABuffer_t     dmaInfo;
+    DMAAttachment_t dmaAttachment;
+    oserr_t         oserr;
 
     // Allocate a generic transfer buffer for disk operations
     // on the given disk, we need it to parse the disk
@@ -60,7 +60,7 @@ static oserr_t __DetectFileSystem(
     dmaInfo.flags    = 0;
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
-    oserr = dma_create(&dmaInfo, &dmaAttachment);
+    oserr = DmaCreate(&dmaInfo, &dmaAttachment);
     if (oserr != OsOK) {
         return oserr;
     }
@@ -73,8 +73,8 @@ static oserr_t __DetectFileSystem(
             fsHintOut
     );
 
-    dma_attachment_unmap(&dmaAttachment);
-    dma_detach(&dmaAttachment);
+    DmaAttachmentUnmap(&dmaAttachment);
+    DmaDetach(&dmaAttachment);
     return oserr;
 }
 

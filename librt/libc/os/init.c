@@ -92,14 +92,14 @@ static int __build_environment(const char* environment)
     return 0;
 }
 
-static int __create_startup_buffer(struct dma_buffer_info* buffer, struct dma_attachment* mapping)
+static int __create_startup_buffer(DMABuffer_t* buffer, DMAAttachment_t* mapping)
 {
     buffer->capacity = KB(64);
     buffer->length   = KB(64);
     buffer->name     = "startup-info";
     buffer->flags    = 0;
     buffer->type     = DMA_TYPE_REGULAR;
-    return dma_create(buffer, mapping);
+    return DmaCreate(buffer, mapping);
 }
 
 static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
@@ -123,7 +123,7 @@ static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
     return libraries;
 }
 
-static int __parse_startup_info(struct dma_attachment* dmaAttachment)
+static int __parse_startup_info(DMAAttachment_t* dmaAttachment)
 {
     ProcessStartupInformation_t* source;
     const char*                  data;
@@ -173,8 +173,8 @@ static int __parse_startup_info(struct dma_attachment* dmaAttachment)
 
 static int __get_startup_info(void)
 {
-    struct dma_buffer_info   buffer;
-    struct dma_attachment    mapping;
+    DMABuffer_t              buffer;
+    DMAAttachment_t          mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     int                      status;
     oserr_t                  osStatus;
@@ -202,8 +202,8 @@ static int __get_startup_info(void)
     assert(osStatus == OsOK);
 
     status = __parse_startup_info(&mapping);
-    dma_attachment_unmap(&mapping);
-    dma_detach(&mapping);
+    DmaAttachmentUnmap(&mapping);
+    DmaDetach(&mapping);
     return status;
 }
 

@@ -127,16 +127,16 @@ __CreateRootNode(
 
 static oserr_t
 __CreateDMABuffer(
-        _In_ struct dma_attachment* attachment)
+        _In_ DMAAttachment_t* attachment)
 {
-    struct dma_buffer_info buffer;
+    DMABuffer_t buffer;
 
     buffer.name     = "vfs_fs_buffer";
     buffer.flags    = 0;
     buffer.type     = DMA_TYPE_DRIVER_32;
     buffer.length   = MB(1);
     buffer.capacity = MB(1);
-    return dma_create(&buffer, attachment);
+    return DmaCreate(&buffer, attachment);
 }
 
 oserr_t
@@ -196,8 +196,8 @@ void VFSDestroy(struct VFS* vfs)
     // we have to make sure that there are no links back to this
 
     if (vfs->Buffer.buffer != NULL) {
-        dma_attachment_unmap(&vfs->Buffer);
-        dma_detach(&vfs->Buffer);
+        DmaAttachmentUnmap(&vfs->Buffer);
+        DmaDetach(&vfs->Buffer);
     }
     VFSNodeDestroy(vfs->Root);
     free(vfs);

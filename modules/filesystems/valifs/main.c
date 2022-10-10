@@ -32,7 +32,7 @@
 struct __ValiFSContext {
     struct VFSStorageParameters Storage;
     UInteger64_t                Position;
-    struct dma_attachment       Buffer;
+    DMAAttachment_t             Buffer;
     StorageDescriptor_t         Stats;
     struct VaFs*                ValiFS;
 };
@@ -70,8 +70,8 @@ static struct __ValiFSContext* __ValiFSContextNew(
         _In_ StorageDescriptor_t*         storageStats)
 {
     struct __ValiFSContext* context;
-    struct dma_buffer_info  dma;
-    struct dma_attachment   dmaAttachment;
+    DMABuffer_t             dma;
+    DMAAttachment_t         dmaAttachment;
     oserr_t                 oserr;
 
     dma.name = "vafs_transfer_buffer";
@@ -79,7 +79,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
     dma.flags = 0;
     dma.length = MB(1);
     dma.capacity = MB(1);
-    oserr = dma_create(&dma, &dmaAttachment);
+    oserr = DmaCreate(&dma, &dmaAttachment);
     if (oserr != OsOK) {
         return NULL;
     }
@@ -91,7 +91,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
 
     memcpy(&context->Storage, storageParameters,sizeof(struct VFSStorageParameters));
     memcpy(&context->Stats, storageStats, sizeof(StorageDescriptor_t));
-    memcpy(&context->Buffer, &dmaAttachment, sizeof(struct dma_attachment));
+    memcpy(&context->Buffer, &dmaAttachment, sizeof(DMAAttachment_t));
     context->Position.QuadPart = 0;
     context->ValiFS = NULL;
     return context;
@@ -104,8 +104,8 @@ static void __ValiFSContextDelete(
         (void)vafs_close(context->ValiFS);
     }
     if (context->Buffer.buffer) {
-        dma_attachment_unmap(&context->Buffer);
-        dma_detach(&context->Buffer);
+        DmaAttachmentUnmap(&context->Buffer);
+        DmaDetach(&context->Buffer);
     }
     free(context);
 }

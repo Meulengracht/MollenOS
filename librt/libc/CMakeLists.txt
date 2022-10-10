@@ -362,7 +362,7 @@ set (SOURCES_OS
         os/keymaps/en-us.c
         os/clang.c
         os/init.c
-        os/ipcontext.c
+        os/ipc.c
         os/keycodes.c
         os/tls.c
 )

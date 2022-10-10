@@ -162,9 +162,9 @@ UhciTransferFill(
         // Keep adding td's
         TRACE(" > BytesToTransfer(%u)", bytesToTransfer);
         while (bytesToTransfer || isZlp) {
-            struct dma_sg* Dma     = NULL;
-            size_t         Length  = bytesToTransfer;
-            uintptr_t      Address = 0;
+            DMASG_t*  Dma     = NULL;
+            size_t    Length  = bytesToTransfer;
+            uintptr_t Address = 0;
             
             if (Length && transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
                 Dma     = &transfer->Transactions[i].DmaTable.entries[transfer->Transactions[i].SgIndex];

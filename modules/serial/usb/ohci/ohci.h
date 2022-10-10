@@ -284,10 +284,10 @@ typedef struct {
     uint16_t                TransactionQueueBulkIndex;
 
     // Registers and resources
-    OhciRegisters_t*        Registers;
-    struct dma_attachment   HccaDMA;
-    struct dma_sg_table     HccaDMATable;
-    OhciHCCA_t*             Hcca;
+    OhciRegisters_t* Registers;
+    DMAAttachment_t  HccaDMA;
+    DMASGTable_t     HccaDMATable;
+    OhciHCCA_t*      Hcca;
 
     // State information
     size_t                  PowerOnDelayMs;

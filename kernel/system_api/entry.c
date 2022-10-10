@@ -27,14 +27,12 @@
 #include <internal/_utils.h>
 #include <ipc_context.h>
 #include <os/futex.h>
+#include <os/types/dma.h>
 #include <threading.h>
 
 DECL_STRUCT(DeviceInterrupt);
 
 struct MemoryMappingParameters;
-struct dma_sg;
-struct dma_buffer_info;
-struct dma_attachment;
 
 ///////////////////////////////////////////////
 // Operating System Interface
@@ -61,7 +59,7 @@ extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
-extern uuid_t     ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
+extern uuid_t  ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
 extern oserr_t ScUnregisterInterrupt(uuid_t sourceId);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
@@ -78,8 +76,8 @@ extern oserr_t ScThreadJoin(uuid_t ThreadId, int* ExitCode);
 extern oserr_t ScThreadDetach(uuid_t ThreadId);
 extern oserr_t ScThreadSignal(uuid_t ThreadId, int SignalCode);
 extern oserr_t ScThreadYield(void);
-extern uuid_t     ScThreadGetCurrentId(void);
-extern uuid_t     ScThreadCookie(void);
+extern uuid_t  ScThreadGetCurrentId(void);
+extern uuid_t  ScThreadCookie(void);
 extern oserr_t ScThreadSetCurrentName(const char* ThreadName);
 extern oserr_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
 
@@ -95,16 +93,16 @@ extern oserr_t ScMemoryProtect(void*, size_t, unsigned int, unsigned int*);
 extern oserr_t ScMemoryQueryAllocation(void*, MemoryDescriptor_t*);
 extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
-extern oserr_t ScDmaCreate(struct dma_buffer_info*, struct dma_attachment*);
-extern oserr_t ScDmaExport(void*, struct dma_buffer_info*, struct dma_attachment*);
-extern oserr_t ScDmaAttach(uuid_t, struct dma_attachment*);
-extern oserr_t ScDmaAttachmentMap(struct dma_attachment*, unsigned int);
-extern oserr_t ScDmaAttachmentResize(struct dma_attachment*, size_t);
-extern oserr_t ScDmaAttachmentRefresh(struct dma_attachment*);
-extern oserr_t ScDmaAttachmentCommit(struct dma_attachment*, void*, size_t);
-extern oserr_t ScDmaAttachmentUnmap(struct dma_attachment*);
-extern oserr_t ScDmaDetach(struct dma_attachment*);
-extern oserr_t ScDmaGetMetrics(uuid_t, int*, struct dma_sg*);
+extern oserr_t ScDmaCreate(DMABuffer_t*, DMAAttachment_t*);
+extern oserr_t ScDmaExport(void*, DMABuffer_t*, DMAAttachment_t*);
+extern oserr_t ScDmaAttach(uuid_t, DMAAttachment_t*);
+extern oserr_t ScDmaAttachmentMap(DMAAttachment_t*, unsigned int);
+extern oserr_t ScDmaAttachmentResize(DMAAttachment_t*, size_t);
+extern oserr_t ScDmaAttachmentRefresh(DMAAttachment_t*);
+extern oserr_t ScDmaAttachmentCommit(DMAAttachment_t*, void*, size_t);
+extern oserr_t ScDmaAttachmentUnmap(DMAAttachment_t*);
+extern oserr_t ScDmaDetach(DMAAttachment_t*);
+extern oserr_t ScDmaGetMetrics(uuid_t, int*, DMASG_t*);
 
 extern oserr_t ScCreateHandle(uuid_t*);
 extern oserr_t ScDestroyHandle(uuid_t Handle);

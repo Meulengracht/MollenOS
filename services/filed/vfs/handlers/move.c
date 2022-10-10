@@ -110,16 +110,16 @@ unlock:
 
 static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VFS* targetVFS, void* targetFile)
 {
-    struct dma_buffer_info buffer;
-    struct dma_attachment  attachment;
-    oserr_t                osStatus;
+    DMABuffer_t     buffer;
+    DMAAttachment_t attachment;
+    oserr_t         osStatus;
 
     buffer.name     = "vfs_transfer_file";
     buffer.flags    = 0;
     buffer.type     = DMA_TYPE_DRIVER_32;
     buffer.length   = MB(1);
     buffer.capacity = MB(1);
-    osStatus = dma_create(&buffer, &attachment);
+    osStatus = DmaCreate(&buffer, &attachment);
     if (osStatus != OsOK) {
         return osStatus;
     }
@@ -142,8 +142,8 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
         }
     }
 
-    dma_attachment_unmap(&attachment);
-    dma_detach(&attachment);
+    DmaAttachmentUnmap(&attachment);
+    DmaDetach(&attachment);
     return OsOK;
 }
 

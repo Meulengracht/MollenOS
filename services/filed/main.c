@@ -32,10 +32,10 @@ oserr_t OnUnload(void)
     return OsOK;
 }
 
-void GetServiceAddress(struct ipmsg_addr* address)
+void GetServiceAddress(IPCAddress_t* address)
 {
-    address->type = IPMSG_ADDRESS_PATH;
-    address->data.path = SERVICE_FILE_PATH;
+    address->Type = IPC_ADDRESS_PATH;
+    address->Data.Path = SERVICE_FILE_PATH;
 }
 
 oserr_t OnLoad(void)

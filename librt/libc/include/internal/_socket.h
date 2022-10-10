@@ -3,15 +3,15 @@
 
 #include <ds/streambuffer.h>
 #include <inet/socket.h>
-#include <os/dmabuf.h>
+#include <os/types/dma.h>
 
 struct socket {
     int                     domain;
     int                     type;
     int                     protocol;
     struct sockaddr_storage default_address;
-    struct dma_attachment   send_buffer;
-    struct dma_attachment   recv_buffer;
+    DMAAttachment_t         send_buffer;
+    DMAAttachment_t         recv_buffer;
 };
 
 struct packethdr {

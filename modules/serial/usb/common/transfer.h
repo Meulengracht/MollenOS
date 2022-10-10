@@ -56,11 +56,11 @@ typedef struct UsbManagerTransfer {
     
     // Per-transaction data
     struct UsbManagerTransaction {
-        struct dma_attachment DmaAttachment;
-        struct dma_sg_table   DmaTable;
-        int                   SgIndex;
-        size_t                SgOffset;
-        size_t                BytesTransferred;
+        DMAAttachment_t DmaAttachment;
+        DMASGTable_t    DmaTable;
+        int             SgIndex;
+        size_t          SgOffset;
+        size_t          BytesTransferred;
     } Transactions[USB_TRANSACTIONCOUNT];
 
     // Periodic Transfers

@@ -1,11 +1,11 @@
 #ifndef __INTERNAL_PIPE_H__
 #define __INTERNAL_PIPE_H__
 
-#include <os/dmabuf.h>
+#include <os/types/dma.h>
 
 struct pipe {
-    struct dma_attachment attachment;
-    unsigned int          options;
+    DMAAttachment_t attachment;
+    unsigned int    options;
 };
 
 #endif //!__INTERNAL_PIPE_H__

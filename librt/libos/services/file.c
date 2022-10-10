@@ -28,12 +28,12 @@
 #include <io.h>
 
 struct file_view {
-    element_t             header;
-    struct dma_attachment dmaAttachment;
-    uuid_t                file_handle;
-    unsigned int          flags;
-    size_t                offset;
-    size_t                length;
+    element_t       header;
+    DMAAttachment_t dmaAttachment;
+    uuid_t          file_handle;
+    unsigned int    flags;
+    size_t          offset;
+    size_t          length;
 };
 
 static list_t g_fileViews = LIST_INIT;
@@ -371,11 +371,11 @@ CreateFileMapping(
     _In_  size_t   Length,
     _Out_ void**   MemoryPointer)
 {
-    stdio_handle_t*         handle = stdio_handle_get(FileDescriptor);
-    oserr_t              osStatus;
-    struct file_view*       fileView;
-    size_t                  fileOffset = Offset & (__GetPageSize() - 1);
-    struct dma_buffer_info  bufferInfo;
+    stdio_handle_t*    handle = stdio_handle_get(FileDescriptor);
+    oserr_t            osStatus;
+    struct file_view*  fileView;
+    size_t             fileOffset = Offset & (__GetPageSize() - 1);
+    DMABuffer_t        bufferInfo;
 
     // Sanitize that the descritor is valid
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
@@ -398,7 +398,7 @@ CreateFileMapping(
     bufferInfo.flags    = DMA_CLEAN | DMA_TRAP;
     bufferInfo.type     = DMA_TYPE_REGULAR;
 
-    osStatus = dma_create(&bufferInfo, &fileView->dmaAttachment);
+    osStatus = DmaCreate(&bufferInfo, &fileView->dmaAttachment);
     if (osStatus != OsOK) {
         free(fileView);
         return osStatus;
@@ -492,12 +492,12 @@ DestroyFileMapping(
         (void)FlushFileMapping(MemoryPointer, fileView->length);
     }
 
-    osStatus = dma_attachment_unmap(&fileView->dmaAttachment);
+    osStatus = DmaAttachmentUnmap(&fileView->dmaAttachment);
     if (osStatus != OsOK) {
         // ignore for now
     }
 
-    osStatus = dma_detach(&fileView->dmaAttachment);
+    osStatus = DmaDetach(&fileView->dmaAttachment);
     if (osStatus != OsOK) {
         // ignore for now
     }
@@ -526,7 +526,7 @@ oserr_t HandleMemoryMappingEvent(
     virtualAddress &= (__GetPageSize() - 1);
 
     fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)fileView->dmaAttachment.buffer);
-    osStatus            = dma_attachment_map_commit(&fileView->dmaAttachment, (vaddr_t)vaddressPtr, __GetPageSize());
+    osStatus            = DmaAttachmentCommit(&fileView->dmaAttachment, (vaddr_t) vaddressPtr, __GetPageSize());
     if (osStatus != OsOK) {
         return OsNotExists;
     }

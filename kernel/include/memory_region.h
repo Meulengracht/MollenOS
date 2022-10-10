@@ -26,8 +26,7 @@
 #define __MEMORY_REGION_H__
 
 #include <os/osdefs.h>
-
-struct dma_sg;
+#include <os/types/dma.h>
 
 /**
  * Create a new page-aligned memory region that stretches over <Capacity>. The
@@ -192,9 +191,9 @@ MemoryRegionWrite(
  */
 KERNELAPI oserr_t KERNELABI
 MemoryRegionGetSg(
-        _In_  uuid_t         handle,
-        _Out_ int*           sgCountOut,
-        _Out_ struct dma_sg* sgListOut);
+        _In_  uuid_t   handle,
+        _Out_ int*     sgCountOut,
+        _Out_ DMASG_t* sgListOut);
 
 /**
  * Retrieves the kernel memory mapping for a given memory region handle

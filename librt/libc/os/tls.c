@@ -20,6 +20,7 @@
 #include <ddk/ddkdefs.h> // for __reserved
 #include <internal/_locale.h>
 #include <internal/_utils.h>
+#include <os/dmabuf.h>
 
 static const char* g_nullEnvironment[] = {
         NULL
@@ -87,7 +88,7 @@ void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
     if (tls->dma.buffer != NULL) {
-        dma_detach(&tls->dma);
+        DmaDetach(&tls->dma);
         free(tls->dma.buffer);
         tls->dma.buffer = NULL;
     }
@@ -98,13 +99,13 @@ void __tls_destroy(struct thread_storage* tls)
     }
 }
 
-struct dma_attachment* __tls_current_dmabuf(void)
+DMAAttachment_t* __tls_current_dmabuf(void)
 {
     struct thread_storage* tls = __tls_current();
     if (tls->dma.buffer == NULL) {
-        struct dma_buffer_info info;
-        void*                  buffer;
-        oserr_t                oserr;
+        DMABuffer_t info;
+        void*       buffer;
+        oserr_t     oserr;
 
         buffer = malloc(BUFSIZ);
         assert(buffer != NULL);
@@ -114,7 +115,7 @@ struct dma_attachment* __tls_current_dmabuf(void)
         info.capacity = BUFSIZ;
         info.flags    = DMA_PERSISTANT;
         info.type     = DMA_TYPE_DRIVER_32;
-        oserr = dma_export(buffer, &info, &tls->dma);
+        oserr = DmaExport(buffer, &info, &tls->dma);
         assert(oserr == OsOK);
     }
     return &tls->dma;

@@ -21,18 +21,18 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oserr_t __MapUserBuffer(uuid_t handle, struct dma_attachment* attachment)
+static oserr_t __MapUserBuffer(uuid_t handle, DMAAttachment_t* attachment)
 {
     oserr_t osStatus;
 
-    osStatus = dma_attach(handle, attachment);
+    osStatus = DmaAttach(handle, attachment);
     if (osStatus != OsOK) {
         return osStatus;
     }
 
-    osStatus = dma_attachment_map(attachment, 0);
+    osStatus = DmaAttachmentMap(attachment, 0);
     if (osStatus != OsOK) {
-        dma_detach(attachment);
+        DmaDetach(attachment);
         return osStatus;
     }
     return OsOK;
@@ -42,8 +42,8 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t            osStatus, osStatus2;
-    struct dma_attachment attachment;
+    oserr_t               osStatus, osStatus2;
+    DMAAttachment_t       attachment;
 
     osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
     if (osStatus != OsOK) {
@@ -70,7 +70,7 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
         handle->Position += *readOut;
     }
 
-    osStatus2 = dma_detach(&attachment);
+    osStatus2 = DmaDetach(&attachment);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeRead failed to detach read buffer");
     }
@@ -85,7 +85,7 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
     oserr_t               osStatus, osStatus2;
-    struct dma_attachment attachment;
+    DMAAttachment_t       attachment;
     UInteger64_t          result;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
@@ -121,7 +121,7 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
 
 unmap:
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    osStatus2 = dma_detach(&attachment);
+    osStatus2 = DmaDetach(&attachment);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeReadAt failed to detach read buffer");
     }

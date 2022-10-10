@@ -26,8 +26,8 @@
 #define __DMA_POOL_H__
 
 #include <ddk/ddkdefs.h>
+#include <os/types/dma.h>
 
-struct dma_attachment;
 struct dma_pool;
 
 _CODE_BEGIN
@@ -35,9 +35,9 @@ _CODE_BEGIN
  * Creates a new buffer-pool from the given buffer object. 
  * This allows sub-allocations from a buffer-object. */
 DDKDECL(oserr_t,
-        dma_pool_create(
-    _In_  struct dma_attachment* attachment,
-    _Out_ struct dma_pool**      pool_out));
+dma_pool_create(
+    _In_  DMAAttachment_t*  attachment,
+    _Out_ struct dma_pool** poolOut));
 
 /* BufferPoolDestroy
  * Cleans up the buffer-pool and deallocates resources previously

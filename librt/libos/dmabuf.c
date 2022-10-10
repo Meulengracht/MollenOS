@@ -27,9 +27,9 @@
 #include <stdlib.h>
 
 oserr_t
-dma_create(
-    _In_ struct dma_buffer_info* info,
-    _In_ struct dma_attachment*  attachment)
+DmaCreate(
+    _In_ DMABuffer_t*     info,
+    _In_ DMAAttachment_t* attachment)
 {
     if (!info || !attachment) {
         return OsInvalidParameters;
@@ -38,10 +38,10 @@ dma_create(
 }
 
 oserr_t
-dma_export(
-    _In_ void*                   buffer,
-    _In_ struct dma_buffer_info* info,
-    _In_ struct dma_attachment*  attachment)
+DmaExport(
+    _In_ void*            buffer,
+    _In_ DMABuffer_t*     info,
+    _In_ DMAAttachment_t* attachment)
 {
     if (!buffer || !info || !attachment) {
         return OsInvalidParameters;
@@ -50,9 +50,9 @@ dma_export(
 }
 
 oserr_t
-dma_attach(
-        _In_ uuid_t                 handle,
-        _In_ struct dma_attachment* attachment)
+DmaAttach(
+        _In_ uuid_t           handle,
+        _In_ DMAAttachment_t* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -61,9 +61,9 @@ dma_attach(
 }
 
 oserr_t
-dma_attachment_map(
-    _In_ struct dma_attachment* attachment,
-    _In_ unsigned int           accessFlags)
+DmaAttachmentMap(
+    _In_ DMAAttachment_t* attachment,
+    _In_ unsigned int     accessFlags)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -72,9 +72,9 @@ dma_attachment_map(
 }
 
 oserr_t
-dma_attachment_resize(
-    _In_ struct dma_attachment* attachment,
-    _In_ size_t                 length)
+DmaAttachmentResize(
+    _In_ DMAAttachment_t* attachment,
+    _In_ size_t           length)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -83,8 +83,8 @@ dma_attachment_resize(
 }
 
 oserr_t
-dma_attachment_refresh_map(
-    struct dma_attachment* attachment)
+DmaAttachmentRefresh(
+    DMAAttachment_t* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -93,10 +93,10 @@ dma_attachment_refresh_map(
 }
 
 oserr_t
-dma_attachment_map_commit(
-        _In_ struct dma_attachment* attachment,
-        _In_ vaddr_t                address,
-        _In_ size_t                 length)
+DmaAttachmentCommit(
+        _In_ DMAAttachment_t* attachment,
+        _In_ vaddr_t          address,
+        _In_ size_t           length)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -105,8 +105,8 @@ dma_attachment_map_commit(
 }
 
 oserr_t
-dma_attachment_unmap(
-    struct dma_attachment* attachment)
+DmaAttachmentUnmap(
+    DMAAttachment_t* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -115,8 +115,8 @@ dma_attachment_unmap(
 }
 
 oserr_t
-dma_detach(
-    struct dma_attachment* attachment)
+DmaDetach(
+    DMAAttachment_t* attachment)
 {
     if (!attachment) {
         return OsInvalidParameters;
@@ -125,53 +125,53 @@ dma_detach(
 }
 
 oserr_t
-dma_get_sg_table(
-    _In_ struct dma_attachment* attachment,
-    _In_ struct dma_sg_table*   sg_table,
-    _In_ int                    max_count)
+DmaGetSGTable(
+    _In_ DMAAttachment_t* attachment,
+    _In_ DMASGTable_t*    sgTable,
+    _In_ int              maxCount)
 {
     oserr_t status;
     
-    if (!attachment || !sg_table) {
+    if (!attachment || !sgTable) {
         return OsInvalidParameters;
     }
     
     // get count unless provided, 
     // then allocate space and then retrieve full list
-    sg_table->count = max_count;
-    if (max_count <= 0) {
-        status = Syscall_DmaGetMetrics(attachment->handle, &sg_table->count, NULL);
+    sgTable->count = maxCount;
+    if (maxCount <= 0) {
+        status = Syscall_DmaGetMetrics(attachment->handle, &sgTable->count, NULL);
         if (status != OsOK) {
             return status;
         }
     }
-    
-    sg_table->entries = malloc(sizeof(struct dma_sg) * sg_table->count);
-    if (!sg_table->entries) {
+
+    sgTable->entries = malloc(sizeof(DMASG_t) * sgTable->count);
+    if (!sgTable->entries) {
         return OsOutOfMemory;
     }
-    return Syscall_DmaGetMetrics(attachment->handle, &sg_table->count, sg_table->entries);
+    return Syscall_DmaGetMetrics(attachment->handle, &sgTable->count, sgTable->entries);
 }
 
 
 oserr_t
-dma_sg_table_offset(
-    _In_  struct dma_sg_table* sg_table,
-    _In_  size_t               offset,
-    _Out_ int*                 sg_index_out,
-    _Out_ size_t*              sg_offset_out)
+DmaSGTableOffset(
+    _In_  DMASGTable_t* sgTable,
+    _In_  size_t        offset,
+    _Out_ int*          sgIndex,
+    _Out_ size_t*       sgOffset)
 {
-    if (!sg_table || !sg_index_out || !sg_offset_out) {
+    if (!sgTable || !sgIndex || !sgOffset) {
         return OsInvalidParameters;
     }
     
-    for (int i = 0; i < sg_table->count; i++) {
-        if (offset < sg_table->entries[i].length) {
-            *sg_index_out  = i;
-            *sg_offset_out = offset;
+    for (int i = 0; i < sgTable->count; i++) {
+        if (offset < sgTable->entries[i].length) {
+            *sgIndex  = i;
+            *sgOffset = offset;
             return OsOK;
         }
-        offset -= sg_table->entries[i].length;
+        offset -= sgTable->entries[i].length;
     }
     return OsInvalidParameters;
 }

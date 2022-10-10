@@ -277,9 +277,9 @@ static FileSystemMFS_t* __FileSystemMFSNew(
         _In_ struct VFSStorageParameters* storageParameters,
         _In_ StorageDescriptor_t*         storageStats)
 {
-    FileSystemMFS_t*       mfs;
-    struct dma_buffer_info bufferInfo;
-    oserr_t                oserr;
+    FileSystemMFS_t* mfs;
+    DMABuffer_t      bufferInfo;
+    oserr_t          oserr;
 
     mfs = (FileSystemMFS_t*)malloc(sizeof(FileSystemMFS_t));
     if (!mfs) {
@@ -300,7 +300,7 @@ static FileSystemMFS_t* __FileSystemMFSNew(
     bufferInfo.flags    = 0;
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
-    oserr = dma_create(&bufferInfo, &mfs->TransferBuffer);
+    oserr = DmaCreate(&bufferInfo, &mfs->TransferBuffer);
     if (oserr != OsOK) {
         free(mfs);
         return NULL;
@@ -312,8 +312,8 @@ static void __FileSystemMFSDelete(
         _In_ FileSystemMFS_t* mfs)
 {
     if (mfs->TransferBuffer.buffer != NULL) {
-        (void)dma_attachment_unmap(&mfs->TransferBuffer);
-        (void)dma_detach(&mfs->TransferBuffer);
+        (void) DmaAttachmentUnmap(&mfs->TransferBuffer);
+        (void) DmaDetach(&mfs->TransferBuffer);
     }
     free(mfs->BucketMap);
     free(mfs);
@@ -346,11 +346,11 @@ static oserr_t __ParseBootRecord(
 static oserr_t __ResizeTransferBuffer(
         _In_ FileSystemMFS_t* mfs)
 {
-    struct dma_buffer_info bufferInfo;
+    DMABuffer_t bufferInfo;
 
     // TODO should probably error check these
-    (void)dma_attachment_unmap(&mfs->TransferBuffer);
-    (void)dma_detach(&mfs->TransferBuffer);
+    (void) DmaAttachmentUnmap(&mfs->TransferBuffer);
+    (void) DmaDetach(&mfs->TransferBuffer);
 
     bufferInfo.length   = mfs->SectorSize;
     bufferInfo.capacity = mfs->SectorSize;
@@ -363,7 +363,7 @@ static oserr_t __ResizeTransferBuffer(
     bufferInfo.flags    = 0;
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
-    return dma_create(&bufferInfo, &mfs->TransferBuffer);
+    return DmaCreate(&bufferInfo, &mfs->TransferBuffer);
 }
 
 static oserr_t __ValidateMasterRecord(
@@ -450,10 +450,10 @@ __ParseAndProcessMasterRecord(
     }
     TRACE("Bucket map was cached");
 #else
-    struct dma_buffer_info mapInfo;
-    struct dma_attachment  mapAttachment;
-    uint64_t               mapSector   = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
-    size_t                 sectorCount = DIVUP((size_t)Mfs->MasterRecord.MapSize,
+    DMABuffer_t     mapInfo;
+    DMAAttachment_t mapAttachment;
+    uint64_t        mapSector   = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
+    size_t          sectorCount = DIVUP((size_t)Mfs->MasterRecord.MapSize,
         Descriptor->Disk.descriptor.SectorSize);
 
     mapInfo.name     = "mfs_mapbuffer";
