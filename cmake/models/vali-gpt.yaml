@@ -37,7 +37,7 @@ partitions:
         path: deploy/hdd/system
         target: /system/
       - type: chef
-        package: vali/vioarr
+        package: vali/hello-world
         channel: devel
         platform: vali
         arch: amd64
