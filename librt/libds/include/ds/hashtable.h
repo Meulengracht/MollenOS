@@ -28,9 +28,19 @@
 #define HASHTABLE_LOADFACTOR_SHRINK 20 // Equals 20 percent load
 #define HASHTABLE_MINIMUM_CAPACITY  16
 
+// HashFn must return a 64-bit hash for the element given. The hash does
+// not need to be unique, but if two identical hashes should occur, then
+// CmpFn will be invoked on the two objects that share hash
 typedef uint64_t (*hashtable_hashfn)(const void* element);
-typedef int      (*hashtable_cmpfn)(const void* lh, const void* rh);
-typedef void     (*hashtable_enumfn)(int index, const void* element, void* userContext);
+
+// CmpFn is used to compare the equality of two objects that share the same
+// hash returned by HashFn. This function is expected to return zero if the objects
+// are identical, and thus should replace each other. Otherwise should return
+// non-zero to identicate the objects are not identical.
+typedef int (*hashtable_cmpfn)(const void* lh, const void* rh);
+
+// EnumFn is the signature of a enumerate callback.
+typedef void (*hashtable_enumfn)(int index, const void* element, void* userContext);
 
 typedef struct hashtable {
     size_t capacity;
