@@ -22,7 +22,8 @@
 #include <chef/package.h>
 #include <ddk/utils.h>
 #include <os/services/mount.h>
-#include <os/process.h>
+#include <os/services/process.h>
+#include <os/services/file.h>
 #include <served/application.h>
 #include <stdlib.h>
 #include <stdio.h>

@@ -27,12 +27,12 @@
 
 #include <arch/platform.h>
 #include <os/osdefs.h>
+#include <os/types/memory.h>
 #include <ds/list.h>
 #include <mutex.h>
 #include <utils/dynamic_memory_pool.h>
 #include <vboot/vboot.h>
 
-DECL_STRUCT(MemoryDescriptor);
 DECL_STRUCT(Context);
 DECL_STRUCT(PlatformMemoryMapping);
 
@@ -295,9 +295,9 @@ GetMemorySpaceMapping(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceQuery(
-        _In_ MemorySpace_t*      memorySpace,
-        _In_ vaddr_t             address,
-        _In_ MemoryDescriptor_t* descriptor);
+        _In_ MemorySpace_t*        memorySpace,
+        _In_ vaddr_t               address,
+        _In_ OsMemoryDescriptor_t* descriptor);
 
 /**
  * @brief Retrieves the attributes for a specific virtual memory address in the given space.

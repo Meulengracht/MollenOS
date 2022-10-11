@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2021, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - File link implementation
  */
 
 #include <ddk/service.h>
@@ -26,7 +20,7 @@
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
-#include <os/mollenos.h>
+#include <os/services/file.h>
 #include <stdio.h>
 
 #include <sys_file_service_client.h>
@@ -35,7 +29,7 @@ FILE* tmpfile(void)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     int                      status;
-    oserr_t               osStatus;
+    oserr_t                  osStatus;
     stdio_handle_t*          object;
     uuid_t                   handle;
     char                     path[64];

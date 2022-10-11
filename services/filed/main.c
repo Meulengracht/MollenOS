@@ -27,18 +27,13 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oserr_t OnUnload(void)
-{
-    return OsOK;
-}
-
 void GetServiceAddress(IPCAddress_t* address)
 {
     address->Type = IPC_ADDRESS_PATH;
     address->Data.Path = SERVICE_FILE_PATH;
 }
 
-oserr_t OnLoad(void)
+void ServiceInitialize(void)
 {
     // Initialize subsystems
     VFSNodeHandleInitialize();
@@ -50,5 +45,4 @@ oserr_t OnLoad(void)
     gracht_server_register_protocol(__crt_get_service_server(), &sys_file_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_mount_server_protocol);
     gracht_server_register_protocol(__crt_get_service_server(), &sys_storage_server_protocol);
-    return OsOK;
 }

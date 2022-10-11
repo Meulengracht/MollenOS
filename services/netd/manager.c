@@ -40,9 +40,9 @@
 
 // This socket tree contains all the local system sockets that were created by
 // this machine. All remote sockets are maintained by the domains
-static rb_tree_t Sockets;
-static uuid_t    SocketSet;
-static thrd_t    SocketMonitorHandle;
+static rb_tree_t g_sockets;
+static uuid_t    g_socketSet;
+static thrd_t    g_socketMonitorHandle;
 
 /////////////////////////////////////////////////////
 // APPLICATIONS => NetworkService
@@ -123,8 +123,8 @@ SocketMonitor(
     }
     
     while (RunForever) {
-        Status = notification_queue_wait(SocketSet, Events,
-            NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
+        Status = notification_queue_wait(g_socketSet, Events,
+                                         NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
         if (Status != OsOK && Status != OsInterrupted) {
             ERROR("[socket_monitor] notification_queue_wait FAILED: %u", Status);
             continue;
@@ -170,8 +170,8 @@ NetworkManagerInitialize(void)
     int        Code;
     TRACE("[net_manager] initialize");
     
-    rb_tree_construct(&Sockets);
-    Status = notification_queue_create(0, &SocketSet);
+    rb_tree_construct(&g_sockets);
+    Status = notification_queue_create(0, &g_socketSet);
     if (Status != OsOK) {
         ERROR("[net_manager] failed to create socket handle set");
         return Status;
@@ -180,7 +180,7 @@ NetworkManagerInitialize(void)
     // Spawn the socket monitor thread, the network monitor threads are
     // only spawned once a network card is registered.
     TRACE("[net_manager] creating thread");
-    Code = thrd_create(&SocketMonitorHandle, SocketMonitor, NULL);
+    Code = thrd_create(&g_socketMonitorHandle, SocketMonitor, NULL);
     if (Code != thrd_success) {
         ERROR("[net_manager] thrd_create failed %i", Code);
         return OsError;
@@ -218,14 +218,14 @@ NetworkManagerSocketCreate(
     // Add it to the handle set
     event.events = IOSETOUT;
     event.data.handle = (uuid_t)(uintptr_t)Socket->Header.key;
-    Status = notification_queue_ctrl(SocketSet, IOSET_ADD,
+    Status = notification_queue_ctrl(g_socketSet, IOSET_ADD,
                                      (uuid_t)(uintptr_t)Socket->Header.key, &event);
     if (Status != OsOK) {
         // what the fuck TODO
         assert(0);
     }
     
-    rb_tree_append(&Sockets, &Socket->Header);
+    rb_tree_append(&g_sockets, &Socket->Header);
     *HandleOut           = (uuid_t)(uintptr_t)Socket->Header.key;
     *SendBufferHandleOut = Socket->Send.DmaAttachment.handle;
     *RecvBufferHandleOut = Socket->Receive.DmaAttachment.handle;
@@ -261,11 +261,11 @@ NetworkManagerSocketShutdown(
     if (Options & SYS_CLOSE_OPTIONS_DESTROY) {
         // If removing it failed, then assume that it was already destroyed, and we just
         // encountered a race condition
-        if (!rb_tree_remove(&Sockets, (void*)(uintptr_t)Handle)) {
+        if (!rb_tree_remove(&g_sockets, (void*)(uintptr_t)Handle)) {
             return OsNotExists;
         }
         
-        Status = notification_queue_ctrl(SocketSet, IOSET_DEL, Handle, NULL);
+        Status = notification_queue_ctrl(g_socketSet, IOSET_DEL, Handle, NULL);
         if (Status != OsOK) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }
@@ -560,5 +560,5 @@ Socket_t*
 NetworkManagerSocketGet(
         _In_ uuid_t Handle)
 {
-    return (Socket_t*)rb_tree_lookup_value(&Sockets, (void*)(uintptr_t)Handle);
+    return (Socket_t*)rb_tree_lookup_value(&g_sockets, (void*)(uintptr_t)Handle);
 }

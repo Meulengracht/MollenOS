@@ -27,7 +27,7 @@
 #include <ds/list.h>
 #include <gracht/server.h>
 #include <os/osdefs.h>
-#include <os/process.h>
+#include "os/services/process.h"
 #include <os/usched/mutex.h>
 #include <time.h>
 #include "requests.h"

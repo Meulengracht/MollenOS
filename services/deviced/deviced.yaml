@@ -1,5 +1,5 @@
 # Standard yaml configuration for services in the OS
 service:
-  name: processmanager
-  path: /service/process
+  name: deviced
+  path: /service/device
   #depends: none

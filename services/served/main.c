@@ -30,11 +30,6 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oserr_t OnUnload(void)
-{
-    return OsOK;
-}
-
 void GetServiceAddress(IPCAddress_t* address)
 {
     address->Type = IPC_ADDRESS_PATH;
@@ -47,14 +42,13 @@ static int __SubscribeToFileEvents(void)
     return sys_file_subscribe(GetGrachtClient(), &msg.base);
 }
 
-oserr_t
-OnLoad(void)
+void ServiceInitialize(void)
 {
     // Wait for the file server to present itself, if it doesn't come online after 2 seconds
     // of waiting, then assume that the file server is dead or not included. In this case
     // served will kill itself as well.
     if (WaitForFileService(2000) == OsTimeout) {
-        ERROR("OnLoad filed never started up, gave up after 2 seconds");
+        ERROR("ServiceInitialize filed never started up, gave up after 2 seconds");
         exit(-ENOTSUP);
     }
 
@@ -67,9 +61,8 @@ OnLoad(void)
 
     // Connect to the file server and listen for events
     if (__SubscribeToFileEvents()) {
-        WARNING("OnLoad failed to subscribe to events from file-server.");
+        WARNING("ServiceInitialize failed to subscribe to events from file-server.");
     }
-    return OsOK;
 }
 
 void sys_file_event_storage_ready_invocation(gracht_client_t* client, const char* path)

@@ -153,7 +153,7 @@ ThreadsSetName(
  */
 CRTDECL(oserr_t,
 ThreadsGetName(
-        _In_ char* buffer,
+        _In_ char*  buffer,
         _In_ size_t maxLength));
 
 _CODE_END

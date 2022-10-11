@@ -16,6 +16,7 @@
  *
  */
 
+#define __need_quantity
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include <vfs/interface.h>

@@ -29,7 +29,7 @@
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <ddk/utils.h>
-#include <os/mollenos.h>
+#include <os/memory.h>
 #include <string.h>
 #include <stdlib.h>
 #include "pe.h"

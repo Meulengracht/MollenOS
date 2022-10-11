@@ -12,7 +12,6 @@ ENV VALI_INSTALL_DIR=/usr/workspace
 ENV VALI_ARCH=$ARCH
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="/root/.dotnet:${PATH}"
-ENV CLR_OPENSSL_VERSION_OVERRIDE=1.1
 
 # Set the directory
 WORKDIR /usr/workspace/vali

@@ -22,6 +22,7 @@
 
 #include <errno.h>
 #include <os/mollenos.h>
+#include <os/time.h>
 #include <time.h>
 #include "local.h"
 

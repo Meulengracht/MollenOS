@@ -26,6 +26,7 @@
 #include <discover.h>
 #include <ds/mstring.h>
 #include <configparser.h>
+#include <os/memory.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vafs/vafs.h>

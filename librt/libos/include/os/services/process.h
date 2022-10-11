@@ -19,8 +19,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __PROCESS_H__
-#define __PROCESS_H__
+#ifndef __OS_SERVICES_PROCESS_H__
+#define __OS_SERVICES_PROCESS_H__
 
 #include <os/osdefs.h>
 #include <os/types/process.h>
@@ -197,4 +197,4 @@ CRTDECL(oserr_t,
     _In_ const char* path));
 
 _CODE_END
-#endif //!__PROCESS_H__
+#endif //!__OS_SERVICES_PROCESS_H__

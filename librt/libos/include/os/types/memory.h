@@ -41,10 +41,10 @@
 #define MEMORY_EXECUTABLE    0x00000400U                  // Memory is executable
 #define MEMORY_DIRTY         0x00000800U                  // Memory is dirty
 
-typedef struct MemoryDescriptor {
+typedef struct OsMemoryDescriptor {
     uintptr_t    StartAddress;
     uintptr_t    AllocationSize;
     unsigned int Attributes;
-} MemoryDescriptor_t;
+} OsMemoryDescriptor_t;
 
 #endif //!__TYPES_MEMORY_H__

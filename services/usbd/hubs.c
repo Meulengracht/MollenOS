@@ -30,6 +30,8 @@
 #include "manager.h"
 #include <stdlib.h>
 
+#include <sys_usb_service_server.h>
+
 static uint64_t hub_hash(const void* element);
 static int      hub_cmp(const void* element1, const void* element2);
 static void     hub_free_entry(int index, const void* element, void* userContext);

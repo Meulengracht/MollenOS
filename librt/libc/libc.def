@@ -1,5 +1,10 @@
 LIBRARY c
 EXPORTS
+GetFullPath
+GetWorkingDirectory
+ChangeWorkingDirectory
+GetApplicationTemporaryDirectory
+UnwindGetSection
 usched_mtx_init
 usched_mtx_lock
 usched_mtx_unlock
@@ -17,11 +22,11 @@ usched_rwlock_w_promote
 usched_rwlock_w_demote
 usched_rwlock_w_lock
 usched_rwlock_w_unlock
-abort
 Mount
 Unmount
 __crt_process_initialize
 __crt_cmdline
+abort
 exit
 _setjmp
 _setjmp3

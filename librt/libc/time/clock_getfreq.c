@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <os/mollenos.h>
+#include <os/time.h>
 #include <time.h>
 
 static UInteger64_t g_clockFrequency = {0 };

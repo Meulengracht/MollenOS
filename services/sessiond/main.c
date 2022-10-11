@@ -30,23 +30,16 @@
 
 extern gracht_server_t* __crt_get_service_server(void);
 
-oserr_t OnUnload(void)
-{
-    return OsOK;
-}
-
 void GetServiceAddress(IPCAddress_t* address)
 {
     address->Type = IPC_ADDRESS_PATH;
     address->Data.Path = SERVICE_SESSION_PATH;
 }
 
-oserr_t
-OnLoad(void)
+void ServiceInitialize(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_session_server_protocol);
-    return OsOK;
 }
 
 void sys_session_login_invocation(struct gracht_message* message, const char* user, const char* password)

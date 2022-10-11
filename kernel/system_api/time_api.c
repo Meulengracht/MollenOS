@@ -23,7 +23,7 @@
 #include <component/timer.h>
 #include <debug.h>
 #include <machine.h>
-#include <os/mollenos.h>
+#include <os/types/time.h>
 #include <string.h>
 #include <threading.h>
 

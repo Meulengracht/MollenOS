@@ -20,7 +20,7 @@
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
-#include <os/process.h>
+#include "os/services/process.h"
 #include <ddk/convert.h>
 
 #include <sys_process_service_client.h>

@@ -251,7 +251,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 
 #ifndef WIN32
 #ifdef MOLLENOS
-#include <os/mollenos.h>
+#include <os/memory.h>
 static FORCEINLINE void* mosmmap(size_t Size) {
 	void* ptr = NULL;
 	if (MemoryAllocate(NULL, Size, 

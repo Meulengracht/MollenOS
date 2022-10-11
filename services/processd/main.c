@@ -20,22 +20,13 @@
  *   of running applications.
  */
 
-#include <ds/mstring.h>
 #include <internal/_ipc.h>
 #include "process.h"
-#include <os/usched/job.h>
 
 #include <sys_library_service_server.h>
 #include <sys_process_service_server.h>
 
 extern gracht_server_t* __crt_get_service_server(void);
-
-oserr_t
-OnUnload(void)
-{
-    PmBootstrapCleanup();
-    return OsOK;
-}
 
 void GetServiceAddress(IPCAddress_t* address)
 {
@@ -43,8 +34,7 @@ void GetServiceAddress(IPCAddress_t* address)
     address->Data.Path = SERVICE_PROCESS_PATH;
 }
 
-oserr_t
-OnLoad(void)
+void ServiceInitialize(void)
 {
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_library_server_protocol);
@@ -53,9 +43,5 @@ OnLoad(void)
     // Initialize all our subsystems for Phoenix
     PmInitialize();
     PmDebuggerInitialize();
-
-    // Queue up a task that bootstraps the system, it must run in scheduler
-    // context as it uses scheduler primitives.
-    usched_job_queue((usched_task_fn)PmBootstrap, NULL);
-    return OsOK;
+    PmBootstrap();
 }

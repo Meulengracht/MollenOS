@@ -30,8 +30,10 @@
 #include <ddk/usbdevice.h>
 #include <ddk/busdevice.h>
 
-#include <os/mollenos.h>
-#include <os/process.h>
+#include <os/types/file.h>
+#include <os/types/storage.h>
+#include <os/types/process.h>
+
 #include <stdlib.h>
 
 #include <sys_device_service.h>

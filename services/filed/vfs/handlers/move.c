@@ -16,6 +16,7 @@
  *
  */
 
+#define __need_quantity
 #include <os/dmabuf.h>
 #include <ddk/utils.h>
 #include <vfs/requests.h>

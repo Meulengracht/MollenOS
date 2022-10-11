@@ -43,16 +43,16 @@ set (ADDITONAL_SOURCES
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
-add_service_target(filemanager "-D__FILEMANAGER_IMPL"
+add_service_target(filed "-D__FILEMANAGER_IMPL"
         ${SERVICE_HEADERS}
         ${SERVICE_SOURCES}
         ${ADDITONAL_SOURCES}
 )
-target_link_libraries(filemanager PRIVATE filed-vfs)
-target_include_directories(filemanager PRIVATE
+target_link_libraries(filed PRIVATE filed-vfs)
+target_include_directories(filed PRIVATE
         ${CMAKE_BINARY_DIR}/protocols
         ${CMAKE_CURRENT_BINARY_DIR}
         include
 )
-add_dependencies(filemanager service_servers)
-deploy_file_to_initrd(filemanager "services" filemanager.yaml)
+add_dependencies(filed service_servers)
+deploy_file_to_initrd(filed "services" filed.yaml)

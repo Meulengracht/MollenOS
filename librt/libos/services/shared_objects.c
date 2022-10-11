@@ -21,7 +21,7 @@
 #include <errno.h>
 #include <internal/_utils.h>
 #include <os/once.h>
-#include <os/sharedobject.h>
+#include "os/services/sharedobject.h"
 #include <strings.h>
 
 #include <ddk/service.h>

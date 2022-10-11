@@ -75,7 +75,6 @@ int hashtable_construct(
 
     elementStorage = dsalloc(initialCapacity * totalElementSize);
     if (!elementStorage) {
-        errno = ENOMEM;
         return -1;
     }
     memset(elementStorage, 0, initialCapacity * totalElementSize);
@@ -83,7 +82,6 @@ int hashtable_construct(
     swapElement = dsalloc(totalElementSize);
     if (!swapElement) {
         dsfree(elementStorage);
-        errno = ENOMEM;
         return -1;
     }
 
@@ -124,13 +122,12 @@ void* hashtable_set(
         return NULL;
     }
 
-    uint8_t                   elementBuffer[hashtable->element_size];
+    uint8_t*                  elementBuffer[hashtable->element_size];
     struct hashtable_element* iterElement = (struct hashtable_element*)&elementBuffer[0];
     size_t                    index;
 
     // Only resize on entry - that way we avoid any unneccessary resizing
     if (SHOULD_GROW(hashtable) && hashtable_resize(hashtable, hashtable->capacity << 1)) {
-        errno = ENOMEM;
         return NULL;
     }
 
@@ -142,16 +139,15 @@ void* hashtable_set(
     index = iterElement->hash & (hashtable->capacity - 1);
     while (1) {
         struct hashtable_element* current = GET_ELEMENT(hashtable, index);
-        
+
         // few cases to consider when doing this, either the slot is not taken or it is
         if (!current->probeCount) {
             memcpy(current, iterElement, hashtable->element_size);
             hashtable->element_count++;
             return NULL;
-        }
-        else {
+        } else {
             // If the slot is taken, we either replace it or we move fit in between
-            // Just because something shares hash, does not guarantee that it's an element we want
+            // Just because something shares hash there is no guarantee that it's an element we want
             // to replace - instead let the user decide. Another strategy here is to use double hashing
             // and try to trust that
             if (current->hash == iterElement->hash &&
@@ -162,7 +158,7 @@ void* hashtable_set(
             }
 
             // ok so we instead insert it here if our probe count is lower, we should not stop
-            // the iteration though, the element we swap out, must be inserted again at the next
+            // the iteration though, the element we swap out must be inserted again at the next
             // probe location, and we must continue this charade untill no more elements are displaced
             if (current->probeCount < iterElement->probeCount) {
                 memcpy(hashtable->swap, current, hashtable->element_size);
@@ -222,7 +218,6 @@ void* hashtable_remove(
 
     // Only resize on entry to avoid any unncessary resizes
     if (SHOULD_SHRINK(hashtable) && hashtable_resize(hashtable, hashtable->capacity >> 1)) {
-        errno = ENOMEM;
         return NULL;
     }
 
@@ -271,38 +266,50 @@ static void hashtable_remove_and_bump(
 {
     struct hashtable_element* previous = element;
 
-    // Removing is a bit more extensive, we have to bump up all elements that
+    // Remove is a bit more extensive, we have to bump up all elements that
     // share the hash
     memcpy(hashtable->swap, element, hashtable->element_size);
-    element->probeCount = 0;
 
     index = (index + 1) & (hashtable->capacity - 1);
     while (1) {
         struct hashtable_element* current = GET_ELEMENT(hashtable, index);
         if (current->probeCount <= 1) {
-            // this element is the first in a new chain or a free element
+            // this element is the first in a new chain or a free element.
+            // we still need to reset the last entry to 0 in proble count
+            previous->probeCount = 0;
             break;
         }
-        
+
         // reduce the probe count and move it one up
         current->probeCount--;
         memcpy(previous, current, hashtable->element_size);
-        
+
         // store next space and move to next index
         previous = current;
         index    = (index + 1) & (hashtable->capacity - 1);
     }
-
     hashtable->element_count--;
+}
+
+static void __hashtable_clone(hashtable_t* dst, hashtable_t* src, void* elements, size_t capacity)
+{
+    dst->capacity      = capacity;
+    dst->element_count = 0;
+    dst->grow_count    = (capacity * HASHTABLE_LOADFACTOR_GROW) / 100;
+    dst->shrink_count  = (capacity * HASHTABLE_LOADFACTOR_SHRINK) / 100;
+    dst->element_size  = src->element_size;
+    dst->elements      = elements;
+    dst->swap          = src->swap;
+    dst->hash          = src->hash;
+    dst->cmp           = src->cmp;
 }
 
 static int hashtable_resize(
     _In_ hashtable_t* hashtable,
     _In_ size_t       newCapacity)
 {
-    size_t updatedIndex;
-    void*  resizedStorage;
-    int    i;
+    hashtable_t temporaryTable;
+    void*       resizedStorage;
 
     // potentially there can be a too big resize - but practically very unlikely...
     if (newCapacity < HASHTABLE_MINIMUM_CAPACITY) {
@@ -311,46 +318,32 @@ static int hashtable_resize(
 
     resizedStorage = dsalloc(newCapacity * hashtable->element_size);
     if (!resizedStorage) {
-        errno = ENOMEM;
         return -1;
     }
-    
-    // transfer objects and reset their probeCount
     memset(resizedStorage, 0, newCapacity * hashtable->element_size);
-    for (i = 0; i < hashtable->capacity; i++) {
-        struct hashtable_element* current = GET_ELEMENT(hashtable, i);
-        struct hashtable_element* newCurrent;
-        if (current->probeCount) {
-            current->probeCount = 1;
-            updatedIndex        = current->hash & (newCapacity - 1);
-            
-            while (1) {
-                newCurrent = GET_ELEMENT_ARRAY(hashtable, resizedStorage, updatedIndex);
-                if (!newCurrent->probeCount) {
-                    memcpy(newCurrent, current, hashtable->element_size);
-                    break;
-                }
-                else {
-                    if (newCurrent->probeCount < current->probeCount) {
-                        memcpy(hashtable->swap, newCurrent, hashtable->element_size);
-                        memcpy(newCurrent, current, hashtable->element_size);
-                        memcpy(current, hashtable->swap, hashtable->element_size);
-                    }
-                }
 
-                current->probeCount++;
-                updatedIndex = (updatedIndex + 1) & (newCapacity - 1);
-            }
+    // initialize the temporary hashtable we'll use to rebuild storage with
+    // the new storage and capacity
+    __hashtable_clone(&temporaryTable, hashtable, resizedStorage, newCapacity);
+
+    // transfer objects and reset their probeCount
+    for (size_t i = 0; i < hashtable->capacity; i++) {
+        struct hashtable_element* current = GET_ELEMENT(hashtable, i);
+        if (!current->probeCount) {
+            continue;
         }
+        hashtable_set(&temporaryTable, &current->payload[0]);
     }
 
+    // free the original storage, we are done with that now
     dsfree(hashtable->elements);
 
-    hashtable->elements      = resizedStorage;
-    hashtable->capacity      = newCapacity;
-    hashtable->grow_count    = (newCapacity * HASHTABLE_LOADFACTOR_GROW) / 100;
-    hashtable->shrink_count  = (newCapacity * HASHTABLE_LOADFACTOR_SHRINK) / 100;
-
+    // transfer the relevant data from the temporary hashtable to
+    // the original one, we are now done
+    hashtable->elements      = temporaryTable.elements;
+    hashtable->capacity      = temporaryTable.capacity;
+    hashtable->grow_count    = temporaryTable.grow_count;
+    hashtable->shrink_count  = temporaryTable.shrink_count;
     return 0;
 }
 

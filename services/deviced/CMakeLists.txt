@@ -1,9 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../../cmake/SetupEnvironment.cmake)
-    project(ValiDeviceManager)
-endif ()
-
 enable_language(C)
 
 set (ADDITONAL_SOURCES
@@ -23,7 +17,7 @@ if (${VALI_ARCH} STREQUAL "i386" OR ${VALI_ARCH} STREQUAL "amd64")
     )
 endif ()
 
-add_service_target(devicemanager ""
+add_service_target(deviced ""
         ${ADDITONAL_SOURCES}
 
         discover/configparser.c
@@ -34,7 +28,7 @@ add_service_target(devicemanager ""
         main.c
         requests.c
 )
-target_include_directories(devicemanager PRIVATE include)
-target_link_libraries(devicemanager PRIVATE libyaml vafs)
-add_dependencies(devicemanager service_servers contract_clients)
-deploy_file_to_initrd(devicemanager "services" devicemanager.yaml)
+target_include_directories(deviced PRIVATE include)
+target_link_libraries(deviced PRIVATE libyaml vafs)
+add_dependencies(deviced service_servers contract_clients)
+deploy_file_to_initrd(deviced "services" deviced.yaml)

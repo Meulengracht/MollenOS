@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <os/mollenos.h>
+#include <os/time.h>
 #include <time.h>
 
 clock_t

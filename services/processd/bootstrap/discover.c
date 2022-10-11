@@ -25,6 +25,7 @@
 #include <ddk/initrd.h>
 #include <ddk/utils.h>
 #include <ds/mstring.h>
+#include <os/memory.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -134,8 +135,8 @@ __ParseRamdisk(
 void PmBootstrap(void)
 {
     oserr_t osStatus;
-    void*      ramdisk;
-    size_t     ramdiskSize;
+    void*   ramdisk;
+    size_t  ramdiskSize;
     TRACE("PmBootstrap()");
 
     // Let's map in the ramdisk and discover various service modules
