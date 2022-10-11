@@ -7,18 +7,9 @@ echo "** installing build dependencies"
 apt-get update -yqq
 apt-get -y -qq install git cmake gcc g++ zip unzip nasm make python3 curl libfuse3-dev
 
-# Install dotnet core, unfortunately dotnet core needs libssl.1 which is
-# not shipping with ubuntu 22.04, so we install this manually
 if ! [ -x "$(command -v dotnet)" ]; then
-  if ! apt-get -y -qq install libssl1.1; then
-    APT_ARCH=$(dpkg --print-architecture)
-    curl -o libssl1.1.deb http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_"${APT_ARCH}".deb
-    dpkg -i ./libssl1.1.deb
-    rm ./libssl1.1.deb
-  fi
-
   echo "** installing dotnet core"
-  "$SCRIPTPATH"/dotnet-install.sh --channel 3.1
+  "$SCRIPTPATH"/dotnet-install.sh
 fi
 
 # Install the cmake platform template
