@@ -17,7 +17,7 @@
  *
  */
 
-#include <os/mollenos.h>
+#include <os/time.h>
 #include <stddef.h>
 #include <time.h>
 #include "local.h"

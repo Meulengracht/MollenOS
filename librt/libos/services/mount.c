@@ -20,7 +20,7 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/services/mount.h>
-#include <os/process.h>
+#include "os/services/process.h"
 
 #include <sys_mount_service_client.h>
 

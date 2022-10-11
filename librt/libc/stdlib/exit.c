@@ -30,7 +30,7 @@
 #include <ds/list.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/process.h>
+#include "os/services/process.h"
 #include <signal.h>
 #include <stdlib.h>
 #include "../threads/tss.h"

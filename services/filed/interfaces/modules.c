@@ -22,7 +22,7 @@
 #define __TRACE
 
 #include <ddk/utils.h>
-#include <os/sharedobject.h>
+#include "os/services/sharedobject.h"
 #include <os/usched/cond.h>
 #include <os/usched/job.h>
 #include <stdlib.h>

@@ -25,6 +25,7 @@
 
 #include <ddk/utils.h>
 #include <fs/common.h>
+#include <os/types/file.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>

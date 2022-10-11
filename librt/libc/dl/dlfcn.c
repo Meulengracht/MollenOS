@@ -18,7 +18,7 @@
  * Dynamic library support
  */
 
-#include <os/sharedobject.h>
+#include "os/services/sharedobject.h"
 #include <string.h>
 #include <errno.h>
 #include <dlfcn.h>

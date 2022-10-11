@@ -53,10 +53,10 @@ DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address)
 {
-    MemoryDescriptor_t descriptor;
-    MemorySpace_t*     memorySpace = GetCurrentMemorySpace();
-    uintptr_t          physicalAddress;
-    oserr_t         osStatus;
+    OsMemoryDescriptor_t descriptor;
+    MemorySpace_t*       memorySpace = GetCurrentMemorySpace();
+    uintptr_t            physicalAddress;
+    oserr_t              osStatus;
     TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
 
     // get information about the allocation

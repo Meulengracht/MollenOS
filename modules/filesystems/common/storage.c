@@ -20,7 +20,7 @@
 #include <fs/common.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include <os/process.h>
+#include "os/services/process.h"
 #include <stdio.h>
 
 #include <ctt_storage_service_client.h>

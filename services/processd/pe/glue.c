@@ -26,7 +26,8 @@
 #include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <internal/_syscalls.h>
-#include <os/mollenos.h>
+#include <os/services/file.h>
+#include <os/memory.h>
 #include "pe.h"
 #include "process.h"
 #include <stdlib.h>

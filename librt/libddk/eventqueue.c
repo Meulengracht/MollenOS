@@ -27,6 +27,7 @@
 #include <os/condition.h>
 #include <os/threads.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define EVENT_QUEUED    0
 #define EVENT_EXECUTED  1

@@ -22,7 +22,7 @@
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <assert.h>
-#include <os/mollenos.h>
+#include <os/types/thread.h>
 #include <threading.h>
 #include <string.h>
 #include <debug.h>

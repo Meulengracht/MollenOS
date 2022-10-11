@@ -26,6 +26,7 @@
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
 #include <os/usched/rwlock.h>
+#include <os/types/file.h>
 #include <vfs/interface.h>
 
 struct VFS {

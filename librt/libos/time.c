@@ -20,8 +20,8 @@
 
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/mollenos.h>
-#include <os/process.h>
+#include <os/time.h>
+#include <os/services/process.h>
 
 oserr_t
 VaGetWallClock(

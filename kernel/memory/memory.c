@@ -19,7 +19,7 @@
  */
 
 //#define __TRACE
-
+#define __need_quantity
 #include <assert.h>
 #include <arch/mmu.h>
 #include <ddk/io.h>

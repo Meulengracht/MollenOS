@@ -26,6 +26,8 @@
 #include <ds/list.h>
 #include <internal/_io.h>
 #include <io.h>
+#include <os/services/file.h>
+#include <os/memory.h>
 
 struct file_view {
     element_t       header;

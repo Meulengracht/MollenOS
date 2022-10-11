@@ -22,8 +22,8 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
-#include <os/mollenos.h>
 #include <internal/_syscalls.h>
+#include <os/memory.h>
 
 oserr_t
 MemoryAllocate(
@@ -64,8 +64,8 @@ MemoryProtect(
 
 oserr_t
 MemoryQueryAllocation(
-        _In_ void*               Memory,
-        _In_ MemoryDescriptor_t* DescriptorOut)
+        _In_ void*                 Memory,
+        _In_ OsMemoryDescriptor_t* DescriptorOut)
 {
     if (!Memory || !DescriptorOut) {
         return OsInvalidParameters;

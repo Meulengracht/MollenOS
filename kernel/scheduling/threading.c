@@ -23,6 +23,7 @@
 #define __MODULE "thread"
 //#define __TRACE
 //#define __OSCONFIG_DEBUG_SCHEDULER
+#define __need_quantity
 
 #include <arch/thread.h>
 #include <arch/utils.h>
@@ -41,16 +42,16 @@
 #include "threading_private.h"
 
 _Noreturn static void __ThreadStart(void);
-static void           __DestroyThread(void* resource);
-static oserr_t     __CreateThreadContexts(Thread_t* thread);
-static oserr_t     __InitializeDefaultsForThread(Thread_t* thread, const char* name,
+static void    __DestroyThread(void* resource);
+static oserr_t __CreateThreadContexts(Thread_t* thread);
+static oserr_t __InitializeDefaultsForThread(Thread_t* thread, const char* name,
                                                  ThreadEntry_t threadEntry, void* arguments,
                                                  unsigned int flags, size_t kernelStackSize,
                                                  size_t userStackSize);
-static size_t         __GetDefaultStackSize(unsigned int threadFlags);
-static uuid_t         __CreateCookie(Thread_t* thread, Thread_t* parent);
-static void           __AddChild(Thread_t* parent, Thread_t* child);
-static void           __RemoveChild(Thread_t* parent, Thread_t* child);
+static size_t __GetDefaultStackSize(unsigned int threadFlags);
+static uuid_t __CreateCookie(Thread_t* thread, Thread_t* parent);
+static void   __AddChild(Thread_t* parent, Thread_t* child);
+static void   __RemoveChild(Thread_t* parent, Thread_t* child);
 
 void
 ThreadingEnable(

@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
+#include <os/types/file.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/filesystem.h>

@@ -23,9 +23,10 @@
 //#define __TRACE
 
 #include <ds/mstring.h>
-#include <os/context.h>
 #include <ddk/debug.h>
 #include <ddk/utils.h>
+#include <os/context.h>
+#include <os/memory.h>
 #include "pe.h"
 #include "process.h"
 #include "sys_process_service_server.h"

@@ -28,6 +28,9 @@
 #include <ipc_context.h>
 #include <os/futex.h>
 #include <os/types/dma.h>
+#include <os/types/thread.h>
+#include <os/types/memory.h>
+#include <os/types/time.h>
 #include <threading.h>
 
 DECL_STRUCT(DeviceInterrupt);
@@ -90,7 +93,7 @@ extern oserr_t ScEventCreate(unsigned int, unsigned int, uuid_t*, atomic_int**);
 extern oserr_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
 extern oserr_t ScMemoryFree(uintptr_t, size_t);
 extern oserr_t ScMemoryProtect(void*, size_t, unsigned int, unsigned int*);
-extern oserr_t ScMemoryQueryAllocation(void*, MemoryDescriptor_t*);
+extern oserr_t ScMemoryQueryAllocation(void*, OsMemoryDescriptor_t*);
 extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
 extern oserr_t ScDmaCreate(DMABuffer_t*, DMAAttachment_t*);

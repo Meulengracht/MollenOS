@@ -23,7 +23,9 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/mollenos.h>
-#include <os/process.h>
+#include <os/services/process.h>
+#include <os/services/path.h>
+#include <os/services/file.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

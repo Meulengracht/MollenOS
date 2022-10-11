@@ -19,6 +19,7 @@
 #define __TRACE
 
 #include <ddk/utils.h>
+#include <os/types/file.h>
 #include <vfs/interface.h>
 #include <vfs/storage.h>
 #include <vfs/vfs.h>

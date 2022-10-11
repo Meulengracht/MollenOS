@@ -17,6 +17,8 @@
 
 //#define __TRACE
 
+#define __need_quantity
+
 #include <assert.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>

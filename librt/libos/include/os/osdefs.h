@@ -235,12 +235,14 @@ NextPowerOfTwo(size_t value)
 #define USEC_PER_SEC  1000000L
 #define MSEC_PER_SEC  1000L
 
+#ifdef __need_quantity
 #define BYTES_PER_KB 1024
 #define BYTES_PER_MB (BYTES_PER_KB * 1024)
 #define BYTES_PER_GB (BYTES_PER_MB * 1024)
 #define KB(x)        ((x) * BYTES_PER_KB)
 #define MB(x)        ((x) * BYTES_PER_MB)
 #define GB(x)        ((x) * BYTES_PER_GB)
+#endif
 
 #ifndef LOWORD
 #define LOWORD(l) ((uint16_t)(uint32_t)(l))

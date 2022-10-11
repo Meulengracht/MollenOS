@@ -23,6 +23,7 @@
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <os/mollenos.h>
+#include <time.h>
 
 /* FileSystem Export 
  * This is define the interface between user (filemanager)

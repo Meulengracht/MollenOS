@@ -20,6 +20,7 @@
 #include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <os/dmabuf.h>
+#include <os/types/file.h>
 #include <vfs/filesystem.h>
 #include <vfs/interface.h>
 #include <vfs/requests.h>

@@ -17,9 +17,11 @@
 
 //#define __TRACE
 
+#define __need_quantity
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/dmabuf.h>
+#include <os/types/file.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>

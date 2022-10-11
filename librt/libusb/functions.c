@@ -27,7 +27,7 @@
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include <os/process.h>
+#include "os/services/process.h"
 #include <os/dmabuf.h>
 #include <stdlib.h>
 
