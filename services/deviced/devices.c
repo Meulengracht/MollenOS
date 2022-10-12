@@ -45,6 +45,7 @@ struct DmDeviceProtocol {
 struct DmDevice {
     element_t header;
     uuid_t    driver_id;
+    bool      has_driver;
     Device_t* device;
     list_t    protocols;   // list<struct DmDeviceProtocol>
 };
@@ -188,7 +189,7 @@ void DmHandleIoctl2(
         _In_ void*      cancellationToken)
 {
     struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
-    oserr_t       result  = OsInvalidParameters;
+    oserr_t          result  = OsInvalidParameters;
     size_t           storage = request->parameters.ioctl2.value;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
@@ -224,13 +225,34 @@ void DmHandleRegisterProtocol(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    struct DmDevice* device = __GetDevice(request->parameters.ioctl2.device_id);
+    struct DmDevice* device;
+    _CRT_UNUSED(cancellationToken);
+
+    device = __GetDevice(request->parameters.ioctl2.device_id);
     if (device) {
         __AddProtocolToDevice(request, device);
     }
 
     free((void*)request->parameters.register_protocol.protocol_name);
     RequestDestroy(request);
+}
+
+static void __TryLocateDriver(
+        _In_ struct DmDevice* device)
+{
+    struct DriverIdentification driverIdentification = {
+            .VendorId = device->device->VendorId,
+            .ProductId = device->device->ProductId,
+
+            .Class = device->device->Class,
+            .Subclass = device->device->Subclass
+    };
+
+    oserr_t oserr = DmDiscoverFindDriver(device->device->Id, &driverIdentification);
+    if (oserr == OsOK) {
+        // a driver was found for the device
+        device->has_driver = true;
+    }
 }
 
 oserr_t
@@ -255,11 +277,14 @@ DmDeviceCreate(
 
     // initialize object
     ELEMENT_INIT(&deviceNode->header, (uintptr_t)device->Id, deviceNode);
-    deviceNode->driver_id = UUID_INVALID;
-    deviceNode->device    = device;
+    deviceNode->driver_id  = UUID_INVALID;
+    deviceNode->device     = device;
+    deviceNode->has_driver = false;
     list_construct(&deviceNode->protocols);
 
+    usched_mtx_lock(&g_devicesLock);
     list_append(&g_devices, &deviceNode->header);
+    usched_mtx_unlock(&g_devicesLock);
     *idOut = device->Id;
 
     TRACE("%u, Registered device %s, struct length %u",
@@ -269,16 +294,21 @@ DmDeviceCreate(
     // for dealing with this to avoid any waiting for the ipc to open up
 #ifndef __OSCONFIG_NODRIVERS
     if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
-        struct DriverIdentification driverIdentification = {
-                .VendorId = device->VendorId,
-                .ProductId = device->ProductId,
-
-                .Class = device->Class,
-                .Subclass = device->Subclass
-        };
-
-        DmDiscoverFindDriver(device->Id, &driverIdentification);
+        __TryLocateDriver(deviceNode);
     }
 #endif
     return OsOK;
+}
+
+void DmDeviceRefreshDrivers(void)
+{
+    usched_mtx_lock(&g_devicesLock);
+    foreach (i, &g_devices) {
+        struct DmDevice* device = i->value;
+        if (device->has_driver) {
+            continue;
+        }
+        __TryLocateDriver(device);
+    }
+    usched_mtx_unlock(&g_devicesLock);
 }

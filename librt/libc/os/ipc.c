@@ -16,7 +16,7 @@
  *
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/handle.h>
 #include <ddk/utils.h>
@@ -72,13 +72,21 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, int 
         _set_errno(EBADFD);
         return -1;
     }
-    return OsErrToErrNo(IPCContextSend(handle->object.handle, addr, data, len, timeout));
+    return OsErrToErrNo(
+            IPCContextSend(
+                    handle->object.handle,
+                    addr,
+                    data,
+                    len,
+                    timeout
+            )
+    );
 }
 
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    size_t          bytesRead;
+    size_t          bytesRead = 0;
     oserr_t         oserr = OsInvalidParameters;
     int             status = -1;
     TRACE("iprecv(len=%u, flags=0x%x)");
@@ -110,6 +118,5 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
     }
     status = (int)bytesRead;
 exit:
-    TRACE("iprecv status=%i, oserr=%u", status, oserr);
     return status;
 }

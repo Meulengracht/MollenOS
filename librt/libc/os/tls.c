@@ -58,11 +58,6 @@ int __tls_initialize(struct thread_storage* tls)
 {
     memset(tls, 0, sizeof(struct thread_storage));
 
-    // Store it at reserved pointer place first
-    __set_reserved(0, (size_t)tls);
-    __set_reserved(1, (size_t)&tls->tls_array[0]);
-    __set_reserved(11, (size_t)&tls->tls_array[0]);
-
     // Initialize members to default values
     tls->thread_id = UUID_INVALID;
     tls->job_id = UUID_INVALID;

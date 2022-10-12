@@ -80,8 +80,7 @@ __crt_module_main(
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, 0);
-            }
-            else {
+            } else {
                 // Check if the driver had any IRQs registered
                 if (OnEvent(&events[i]) == OsOK) {
                     continue;
@@ -160,12 +159,15 @@ void __CrtModuleEntry(void)
     }
 
     // listen to client events as well
-    ioset_ctrl(config.set_descriptor, IOSET_ADD,
-               gracht_client_iod(GetGrachtClient()),
-               &(struct ioset_event) {
-                       .data.iod = gracht_client_iod(GetGrachtClient()),
-                       .events   = IOSETIN | IOSETCTL | IOSETLVT
-               });
+    ioset_ctrl(
+            config.set_descriptor,
+            IOSET_ADD,
+            gracht_client_iod(GetGrachtClient()),
+            &(struct ioset_event) {
+                .data.iod = gracht_client_iod(GetGrachtClient()),
+                .events   = IOSETIN | IOSETCTL | IOSETLVT
+            }
+    );
 
     // Wait for the device-manager service, as all modules require the device-manager
     // service to perform requests.

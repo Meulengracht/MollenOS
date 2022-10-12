@@ -120,6 +120,6 @@ IPCContextRecv(
     streambuffer_read_packet_end(stream, base, bytesAvailable);
 
     *fromHandle = sender;
-    *bytesReceived = (int)bytesAvailable;
+    *bytesReceived = bytesAvailable;
     return OsOK;
 }

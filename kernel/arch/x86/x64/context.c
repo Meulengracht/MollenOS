@@ -184,7 +184,7 @@ ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
-	oserr_t     status;
+	oserr_t        status;
 	uintptr_t      physicalContextAddress;
     uintptr_t      contextAddress = 0;
     unsigned int   placementFlags = 0;

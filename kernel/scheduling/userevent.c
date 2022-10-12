@@ -154,7 +154,7 @@ UserEventSignal(
         _In_ uuid_t handle)
 {
     UserEvent_t* event  = LookupHandleOfType(handle, HandleTypeUserEvent);
-    oserr_t   status = OsIncomplete;
+    oserr_t      status = OsIncomplete;
     int          currentValue;
     int          i;
     int          result;

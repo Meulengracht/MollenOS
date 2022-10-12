@@ -142,8 +142,7 @@ ExceptionEntry(
     else if (context->Irq == 12) { // Stack Segment Fault
         SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
         issueFixed = 1;
-    }
-    else if (context->Irq == 13) { // General Protection Fault
+    } else if (context->Irq == 13) { // General Protection Fault
         core   = CpuCoreCurrent();
         thread = CpuCoreCurrentThread(core);
 
@@ -152,8 +151,7 @@ ExceptionEntry(
               context->ErrorCode, CONTEXT_IP(context), CONTEXT_SP(context));
         SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
         issueFixed = 1;
-    }
-    else if (context->Irq == 14) {    // Page Fault
+    } else if (context->Irq == 14) {    // Page Fault
         address = (uintptr_t)__getcr2();
         core    = CpuCoreCurrent();
         thread  = CpuCoreCurrentThread(core);
@@ -175,8 +173,7 @@ ExceptionEntry(
                     SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
                     issueFixed = 1;
                 }
-            }
-            else if (context->ErrorCode & PAGE_FAULT_WRITE) {
+            } else if (context->ErrorCode & PAGE_FAULT_WRITE) {
                 // Write access, so lets verify that write attributes are set, if they
                 // are not, then the thread tried to write to read-only memory
                 if (attributes & MAPPING_READONLY) {
@@ -188,34 +185,29 @@ ExceptionEntry(
                         SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
                         issueFixed = 1;
                     }
-                }
-                else {
+                } else {
                     // Invalidate the address and return
                     CpuInvalidateMemoryCache((void*)address, GetMemorySpacePageSize());
                     issueFixed = 1;
                 }
-            }
-            else {
+            } else {
                 // Read access violation, but this kernel does not map pages without
                 // read access, so something terrible has happened. Fall through to kernel crash
                 ERROR("%s: READ_ACCESS_VIOLATION: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN "",
                       thread != NULL ? ThreadName(thread) : "Null",
                       address, context->ErrorCode, CONTEXT_IP(context));
             }
-        }
-        else {
+        } else {
             // Page was not present, this could be because of lazy-comitting, lets try
             // to fix it by comitting the address.
             if (address > 0x1000 && DebugPageFault(context, address) == OsOK) {
                 issueFixed = 1;
-            }
-            else {
+            } else {
                 SignalExecuteLocalThreadTrap(context, SIGSEGV, (void*)address, NULL);
                 issueFixed = 1;
             }
         }
-    }
-    else if (context->Irq == 16 || context->Irq == 19) {    // FPU & SIMD Floating Point Exception
+    } else if (context->Irq == 16 || context->Irq == 19) {    // FPU & SIMD Floating Point Exception
         SignalExecuteLocalThreadTrap(context, SIGFPE, NULL, NULL);
         issueFixed = 1;
     }

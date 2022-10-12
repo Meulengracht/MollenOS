@@ -67,8 +67,11 @@ DmDiscoverInitialize(void)
     usched_mtx_init(&g_driversLock);
 
     // Start parsing the ramdisk as that is all we have initially, do it in usched
-    // context, so we spawn a job to do this.
+    // context, so we spawn a job to do this. After discovering drivers, we want to do
+    // a refresh of drivers for devices. This ensures that we don't have to enumerate
+    // devices and drivers in a certain order
     usched_job_queue((usched_task_fn)DmRamdiskDiscover, NULL);
+    usched_job_queue((usched_task_fn)DmDeviceRefreshDrivers, NULL);
 }
 
 static void
@@ -231,11 +234,9 @@ DmDiscoverFindDriver(
             __RegisterDeviceForDriver(driver, deviceId);
             if (driver->state == DmDriverState_NOTLOADED) {
                 osStatus = __SpawnDriver(driver);
-            }
-            else if (driver->state == DmDriverState_AVAILABLE) {
+            } else if (driver->state == DmDriverState_AVAILABLE) {
                 osStatus = DmDevicesRegister(driver->handle, deviceId);
-            }
-            else {
+            } else {
                 osStatus = OsOK;
             }
             break;

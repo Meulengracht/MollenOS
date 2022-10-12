@@ -130,7 +130,7 @@ CpuInitializeFeatures(void);
 
 
 KERNELAPI oserr_t KERNELABI CpuHasFeatures(unsigned int ecx, unsigned int edx);
-KERNELAPI void KERNELABI       CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
-KERNELAPI void KERNELABI       CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
+KERNELAPI void KERNELABI    CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
+KERNELAPI void KERNELABI    CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue);
 
 #endif // !_x86_CPU_H_

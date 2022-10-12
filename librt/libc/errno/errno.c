@@ -31,6 +31,6 @@ errno_t *__errno(void) {
 #else
 #include <internal/_tls.h>
 errno_t *__errno(void) {
-	return &((__tls_current())->err_no);
+	return &(__tls_current()->err_no);
 }
 #endif
