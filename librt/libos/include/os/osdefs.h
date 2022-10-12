@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,10 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * OS Basic Definitions & Structures
- * - This header describes the base structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #ifndef __OS_DEFINITIONS__
@@ -56,30 +50,20 @@
 #endif
 
 /**
- * Introduce registry types for drivers
- * TODO move reg* types to ddkdefs.h
- */
-typedef uint32_t reg32_t;
-typedef uint64_t reg64_t;
-
-/**
  * Define various memory types that are based on the underlying platform.
  * Introduce __BITS and __MASK to allow programs and easy way to detect 32/64 bits
  * TODO move paddr_t/vaddr_t to kernel.h
- * TODO move reg_t to ddkdefs.h
  */
 #if defined(i386) || defined(__i386__)
 #define __BITS       32
 #define __MASK       0xFFFFFFFF
 typedef unsigned int paddr_t;
 typedef unsigned int vaddr_t;
-typedef reg32_t      reg_t;
 #elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
 #define __BITS             64
 #define __MASK             0xFFFFFFFFFFFFFFFF
 typedef unsigned long long paddr_t;
 typedef unsigned long long vaddr_t;
-typedef reg64_t            reg_t;
 #endif
 
 /**
@@ -195,14 +179,11 @@ IsPowerOfTwo(size_t value)
     return 1;    
 }
 
-static inline size_t
-NextPowerOfTwo(size_t value)
-{
+static inline size_t NextPowerOfTwo(size_t value) {
     size_t next = 1;
     if (value >> (__BITS - 1) == 1) {
         return value;
     }
-    
     while (next < value) {
         next <<= 1;
     }

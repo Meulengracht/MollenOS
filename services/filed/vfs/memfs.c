@@ -35,10 +35,20 @@ struct MemFSDirectory {
     hashtable_t Entries;
 };
 
+struct MemFSSymlink {
+    mstring_t* Target;
+};
+
+struct MemFSLink {
+    struct MemFSEntry* Original;
+};
+
 enum {
     MEMFS_ENTRY_TYPE_INVALID,
     MEMFS_ENTRY_TYPE_FILE,
     MEMFS_ENTRY_TYPE_DIRECTORY,
+    MEMFS_ENTRY_TYPE_SYMLINK,
+    MEMFS_ENTRY_TYPE_LINK
 };
 
 struct MemFSEntry {
@@ -50,9 +60,12 @@ struct MemFSEntry {
     struct timespec   Created;
     struct usched_mtx Mutex;
     int               Type;
+    int               Links;
     union {
         struct MemFSFile      File;
         struct MemFSDirectory Directory;
+        struct MemFSSymlink   Symlink;
+        struct MemFSLink      Link;
     } Data;
 };
 
@@ -95,12 +108,27 @@ static void __MemFSEntry_delete(struct MemFSEntry* entry)
         return;
     }
 
+    // Reduce the link count by one.
+    entry->Links--;
+    if (entry->Links) {
+        // There are still links that refer to this entry, so while we remove it from
+        // the parent directory, the entry itself should keep on existing.
+        return;
+    }
+
     if (entry->Type == MEMFS_ENTRY_TYPE_FILE) {
         free(entry->Data.File.Buffer);
     } else if (entry->Type == MEMFS_ENTRY_TYPE_DIRECTORY) {
         hashtable_enumerate(&entry->Data.Directory.Entries, __directory_entries_delete, NULL);
         hashtable_destroy(&entry->Data.Directory.Entries);
+    } else if (entry->Type == MEMFS_ENTRY_TYPE_SYMLINK) {
+        mstr_delete(entry->Data.Symlink.Target);
+    } else if (entry->Type == MEMFS_ENTRY_TYPE_LINK) {
+        // Reduce the original entry link count by one. If we are the last one to do
+        // so then the original entry should be deleted here as well.
+        __MemFSEntry_delete(entry->Data.Link.Original);
     }
+
     mstr_delete(entry->Name);
     free(entry);
 }
@@ -125,7 +153,12 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int 
     entry->Type = type;
     entry->Owner = owner;
     entry->Permissions = permissions;
+    entry->Links = 1;
     timespec_get(&entry->Created, TIME_UTC);
+
+    // Do some type based initialization where we don't need additional parameters
+    // to set up. The rest of the initialization should be handled by the create/link
+    // function.
     if (type == MEMFS_ENTRY_TYPE_DIRECTORY) {
         if (__MemFSDirectory_construct(&entry->Data.Directory)) {
             free(entry);
@@ -221,7 +254,11 @@ static struct MemFSHandle* __MemFSHandle_new(struct MemFSEntry* entry)
     return handle;
 }
 
-static oserr_t __FindNode(struct MemFSEntry* root, mstring_t* path, struct MemFSEntry** entryOut)
+static oserr_t __FindNode(
+        struct MemFSEntry*  root,
+        mstring_t*          path,
+        struct MemFSEntry** parentOut,
+        struct MemFSEntry** entryOut)
 {
     mstring_t** tokens;
     int         tokensCount;
@@ -242,9 +279,11 @@ static oserr_t __FindNode(struct MemFSEntry* root, mstring_t* path, struct MemFS
     }
 
     struct MemFSEntry* n = root;
+    struct MemFSEntry* p = root;
     for (int i = 0; i < tokensCount; i++) {
         struct __DirectoryEntry* directoryEntry;
         struct MemFSEntry*       entry = NULL;
+        bool                     isLastEntry = i == (tokensCount - 1);
 
         usched_mtx_lock(&n->Mutex);
         directoryEntry = hashtable_get(&n->Data.Directory.Entries, &(struct __DirectoryEntry) {
@@ -260,17 +299,18 @@ static oserr_t __FindNode(struct MemFSEntry* root, mstring_t* path, struct MemFS
             break;
         }
 
-        // If we are not at last token, then the entry *must* be a directory
-        // otherwise it'll not be good for this loop.
-        if (i != (tokensCount - 1) && entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
+        // The entry we've found must be a directory if we are not at the last entry
+        if (!isLastEntry && entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
             oserr = OsPathIsNotDirectory;
             break;
         }
+        p = n;
         n = entry;
     }
 
     mstrv_delete(tokens);
-    *entryOut = n;
+    *parentOut = p;
+    *entryOut  = n;
     return oserr;
 }
 
@@ -282,6 +322,7 @@ __MemFSOpen(
 {
     struct MemFS*       memfs = instanceData;
     struct MemFSHandle* handle;
+    struct MemFSEntry*  parent;
     struct MemFSEntry*  entry;
     oserr_t             oserr;
 
@@ -290,7 +331,7 @@ __MemFSOpen(
         return OsInvalidParameters;
     }
 
-    oserr = __FindNode(memfs->Root, path, &entry);
+    oserr = __FindNode(memfs->Root, path, &parent, &entry);
     if (oserr != OsOK) {
         return oserr;
     }
@@ -314,6 +355,7 @@ static int __TypeFromFlags(uint32_t flags) {
     switch (FILE_FLAG_TYPE(flags)) {
         case FILE_FLAG_FILE: return MEMFS_ENTRY_TYPE_FILE;
         case FILE_FLAG_DIRECTORY: return MEMFS_ENTRY_TYPE_DIRECTORY;
+        case FILE_FLAG_LINK: return MEMFS_ENTRY_TYPE_SYMLINK;
         default: return MEMFS_ENTRY_TYPE_INVALID;
     }
 }
@@ -424,15 +466,59 @@ __MemFSStat(
         return OsInvalidParameters;
     }
 
-    stat->ID = 0;
     stat->Label = NULL;
-    stat->Serial = NULL;
-
     stat->BlockSize = 512;
     stat->BlocksPerSegment = 1;
     stat->MaxFilenameLength = 255;
     stat->SegmentsFree = 0;
     stat->SegmentsTotal = 0;
+    return OsOK;
+}
+
+static oserr_t __SymlinkInNode(
+        _In_  struct MemFSEntry*  entry,
+        _In_  mstring_t*          name,
+        _In_  mstring_t*          target,
+        _In_  uint32_t            owner,
+        _Out_ struct MemFSEntry** entryOut)
+{
+    struct __DirectoryEntry* lookup;
+    struct MemFSEntry*       newEntry;
+    TRACE("__SymlinkInNode(node=%ms, name=%ms, target=%ms)", entry->Name, name, target);
+
+    usched_mtx_lock(&entry->Mutex);
+    lookup = hashtable_get(&entry->Data.Directory.Entries, &(struct __DirectoryEntry) { .Name = name });
+    if (lookup) {
+        usched_mtx_unlock(&entry->Mutex);
+        return OsExists;
+    }
+
+    newEntry = __MemFSEntry_new(
+            name, owner, MEMFS_ENTRY_TYPE_SYMLINK,
+            FILE_PERMISSION_WRITE | FILE_PERMISSION_READ | FILE_PERMISSION_EXECUTE
+    );
+    if (newEntry == NULL) {
+        usched_mtx_unlock(&entry->Mutex);
+        return OsOutOfMemory;
+    }
+
+    // setup symlink-specific data
+    newEntry->Data.Symlink.Target = mstr_clone(target);
+    if (newEntry->Data.Symlink.Target == NULL) {
+        usched_mtx_unlock(&entry->Mutex);
+        __MemFSEntry_delete(newEntry);
+        return OsOutOfMemory;
+    }
+
+    *entryOut = newEntry;
+
+    // Important to note here that we set .Name to the name pointer *inside* the
+    // entry structure, as we must always use memory owned by the entry.
+    hashtable_set(
+            &entry->Data.Directory.Entries,
+            &(struct __DirectoryEntry) { .Name = newEntry->Name, newEntry }
+    );
+    usched_mtx_unlock(&entry->Mutex);
     return OsOK;
 }
 
@@ -444,11 +530,43 @@ __MemFSLink(
         _In_ mstring_t* linkTarget,
         _In_ int        symbolic)
 {
-    TRACE("__MemFSLink()");
-    if (instanceData == NULL) {
+    //struct MemFS*       memfs  = instanceData;
+    struct MemFSHandle* handle = data;
+    oserr_t             oserr;
+    struct MemFSEntry*  entry;
+
+    TRACE("__MemFSLink(name=%ms, target=%ms)", linkName, linkTarget);
+    if (instanceData == NULL || data == NULL) {
         return OsInvalidParameters;
     }
-    return OsNotSupported;
+
+    // The handle must point to a directory
+    if (handle->Entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
+        WARNING("__MemFSLink %ms is not a directory (%i)", handle->Entry->Name, handle->Entry->Type);
+        return OsPathIsNotDirectory;
+    }
+
+    if (symbolic) {
+        oserr = __SymlinkInNode(
+                handle->Entry,
+                linkName,
+                linkTarget,
+                handle->Entry->Owner,
+                &entry
+        );
+        if (oserr != OsOK) {
+            return oserr;
+        }
+
+        // Update the accessed time of entry before continuing
+        usched_mtx_lock(&entry->Mutex);
+        timespec_get(&entry->Accessed, TIME_UTC);
+        usched_mtx_unlock(&entry->Mutex);
+    } else {
+        // TODO hard links
+        oserr = OsNotSupported;
+    }
+    return oserr;
 }
 
 static oserr_t
@@ -456,12 +574,32 @@ __MemFSUnlink(
         _In_ void*      instanceData,
         _In_ mstring_t* path)
 {
-    TRACE("__MemFSUnlink()");
+    struct MemFS*      memfs = instanceData;
+    struct MemFSEntry* parent;
+    struct MemFSEntry* node;
+    oserr_t            oserr;
+
+    TRACE("__MemFSUnlink(path=%ms)", path);
     if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
-    return OsNotSupported;
+    oserr = __FindNode(memfs->Root, path, &parent, &node);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    // Remove it from the parent node
+    usched_mtx_lock(&parent->Mutex);
+    hashtable_remove(
+            &parent->Data.Directory.Entries,
+            &(struct __DirectoryEntry) { .Name = node->Name }
+    );
+    usched_mtx_unlock(&parent->Mutex);
+
+    // Remove one link to the entry
+    __MemFSEntry_delete(node);
+    return OsOK;
 }
 
 static oserr_t
@@ -470,12 +608,30 @@ __MemFSReadLink(
         _In_ mstring_t*  path,
         _In_ mstring_t** pathOut)
 {
-    TRACE("__MemFSReadLink()");
+    struct MemFS*      memfs = instanceData;
+    struct MemFSEntry* parent;
+    struct MemFSEntry* node;
+    oserr_t            oserr;
+
+    TRACE("__MemFSReadLink(path=%ms)", path);
     if (instanceData == NULL) {
         return OsInvalidParameters;
     }
 
-    return OsNotSupported;
+    oserr = __FindNode(memfs->Root, path, &parent, &node);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    if (node->Type != MEMFS_ENTRY_TYPE_SYMLINK) {
+        return OsNotSupported;
+    }
+
+    *pathOut = mstr_clone(node->Data.Symlink.Target);
+    if (*pathOut == NULL) {
+        return OsOutOfMemory;
+    }
+    return OsOK;
 }
 
 static oserr_t
@@ -533,6 +689,7 @@ static uint32_t __TypeToFlags(int type) {
     switch (type) {
         case MEMFS_ENTRY_TYPE_DIRECTORY: return FILE_FLAG_DIRECTORY;
         case MEMFS_ENTRY_TYPE_FILE: return FILE_FLAG_FILE;
+        case MEMFS_ENTRY_TYPE_SYMLINK: return FILE_FLAG_LINK;
         default: return 0;
     }
 }
@@ -616,7 +773,7 @@ __MemFSRead(
 {
     struct MemFSHandle* handle = data;
 
-    TRACE("__MemFSRead()");
+    TRACE("__MemFSRead(entry=%ms)", handle ? handle->Entry->Name : NULL);
     if (instanceData == NULL || data == NULL) {
         return OsInvalidParameters;
     }
@@ -634,7 +791,7 @@ __MemFSRead(
             return __ReadDirectory(handle, buffer, bufferOffset, unitCount, unitsRead);
         default: break;
     }
-    return OsOK;
+    return OsNotSupported;
 }
 
 static oserr_t

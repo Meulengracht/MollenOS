@@ -16,7 +16,7 @@
  *
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/handle.h>
 #include <ddk/utils.h>
@@ -32,7 +32,6 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
     oserr_t         oserr;
     void*           ipcContext;
     uuid_t          handle;
-
     TRACE("ipcontext(len=%u, addr=0x" PRIxIN ")", len, addr);
     
     if (!len) {
@@ -79,19 +78,18 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, int 
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    size_t          bytesAvailable;
-    oserr_t         oserr;
-    int             status = 0;
+    size_t          bytesRead;
+    oserr_t         oserr = OsInvalidParameters;
+    int             status = -1;
+    TRACE("iprecv(len=%u, flags=0x%x)");
 
     if (!handle || !buffer || !len) {
         _set_errno(EINVAL);
-        status = -1;
         goto exit;
     }
     
     if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
         _set_errno(EBADF);
-        status = -1;
         goto exit;
     }
 
@@ -101,15 +99,17 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
             len,
             flags,
             fromHandle,
-            &bytesAvailable
+            &bytesRead
     );
     if (oserr != OsOK) {
-        return OsErrToErrNo(oserr);
-    } else if (bytesAvailable == 0) {
+        OsErrToErrNo(oserr);
+        goto exit;
+    } else if (bytesRead == 0) {
         errno = ENODATA;
-        return -1;
+        goto exit;
     }
-
+    status = (int)bytesRead;
 exit:
+    TRACE("iprecv status=%i, oserr=%u", status, oserr);
     return status;
 }
