@@ -299,6 +299,13 @@ void __at_exit_run(
     struct atexit_thread_entry*  threadEntry;
     struct __dso_iterate_context context;
 
+    // ensure that the CRT initialization has gone far enough for the
+    // exit manger to have been initialized. Otherwise, there is no reason
+    // to look for atexit handlers.
+    if (!manager->initialized) {
+        return;
+    }
+
     spinlock_acquire(&manager->lock);
     if (threadID == UUID_INVALID && dsoHandle == NULL) {
         manager->ran = 1;

@@ -1,9 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../cmake/SetupEnvironment.cmake)
-    project(ValiModules)
-endif ()
-
 macro (add_filesystem_target)
     if (${ARGC} GREATER_EQUAL 2)
         set (SERVICE_SOURCES "${ARGN}")
@@ -29,7 +23,7 @@ macro (add_module_target)
         add_library(${ARGV0} SHARED ${SERVICE_SOURCES})
         set_target_properties (${ARGV0}
             PROPERTIES
-                COMPILE_FLAGS "-Wno-address-of-packed-member -D__DRIVER_IMPL ${ARGV1}"
+                COMPILE_FLAGS "-Wno-address-of-packed-member ${ARGV1}"
         )
         target_link_options(${ARGV0} PRIVATE "LINKER:-entry:__CrtModuleEntry")
         target_link_libraries (${ARGV0} PRIVATE gracht libds libddk c librt)

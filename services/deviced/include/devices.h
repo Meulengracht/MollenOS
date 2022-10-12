@@ -34,6 +34,12 @@ DECL_STRUCT(BusDevice);
 extern void DmDevicesInitialize(void);
 
 /**
+ * @brief When new drivers are registered in the system, this function can
+ * be called to perform a refresh for devices currently missing drivers
+ */
+extern void DmDeviceRefreshDrivers(void);
+
+/**
  * @brief Notifies a driver of a new device for the driver.
  *
  * @param[In] driverHandle

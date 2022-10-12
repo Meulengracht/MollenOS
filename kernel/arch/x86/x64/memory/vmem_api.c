@@ -315,7 +315,7 @@ MmVirtualClone(
     PageDirectoryTable_t* directoryTable;
     uintptr_t             physicalAddress;
     uintptr_t             masterAddress;
-    oserr_t            osStatus;
+    oserr_t               osStatus;
     TRACE("MmuCloneVirtualSpace(inherit=%" PRIiIN ")", inherit);
 
     // lookup and sanitize regions

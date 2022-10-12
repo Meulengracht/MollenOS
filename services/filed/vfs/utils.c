@@ -522,58 +522,63 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         // Get a lock on next while we 'process' next
         usched_rwlock_r_lock(&next->Lock);
 
-        // If a node is a symlink, we must resolve that instead if we were charged
-        // to follow symlinks
-        if (__NodeIsSymlink(next)) {
-            struct VFSNode* real;
+        // If a node is a not a regular file, but instead a redirect, then we must resolve
+        // the redirect before continuing with the provided path. We must do this in a loop
+        // as it is possible for these redirects to be chained.
+        for (;;) {
+            if (__NodeIsSymlink(next)) {
+                struct VFSNode* real;
 
-            // If we are at last node, then we switch node based on sym or not
-            if (i == (tokenCount - 1) && !followLinks) {
-                usched_rwlock_r_unlock(&node->Lock);
-                node = next;
-                break;
-            }
+                // If we are at last node, then we switch node based on sym or not
+                if (i == (tokenCount - 1) && !followLinks) {
+                    usched_rwlock_r_unlock(&node->Lock);
+                    node = next;
+                    break;
+                }
 
-            // OK in all other cases we *must* follow the symlink
-            // NOTE: we now end up with two reader locks on 'node'
-            osStatus = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
-            usched_rwlock_r_unlock(&next->Lock);
-            if (osStatus != OsOK) {
-                break;
-            }
-
-            // At this point, we have a lock on 'node' and 'real'
-            next = real;
-        } else if (__NodeIsBindMount(next)) {
-            struct VFSNode* real = next->TypeData;
-            if (real == NULL) {
-                // *should* never happen
-                ERROR("__GetRelative discovered node having a NULL type-data but marked as bind mount");
-                osStatus = OsError;
+                // OK in all other cases we *must* follow the symlink
+                // NOTE: we now end up with two reader locks on 'node'
+                osStatus = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
                 usched_rwlock_r_unlock(&next->Lock);
-                break;
-            }
+                if (osStatus != OsOK) {
+                    break;
+                }
 
-            // make sure the new next (real) is locked
-            usched_rwlock_r_lock(&real->Lock);
-            usched_rwlock_r_unlock(&next->Lock);
-            next = real;
-        } else if (__NodeIsMountPoint(next)) {
-            struct VFS*     fs = next->TypeData;
-            struct VFSNode* real;
-            if (fs == NULL) {
-                // *should* never happen
-                ERROR("__GetRelative discovered node having a NULL type-data but marked as mountpoint");
-                osStatus = OsError;
+                // At this point, we have a lock on 'node' and 'real'
+                next = real;
+            } else if (__NodeIsBindMount(next)) {
+                struct VFSNode* real = next->TypeData;
+                if (real == NULL) {
+                    // *should* never happen
+                    ERROR("__GetRelative discovered node having a NULL type-data but marked as bind mount");
+                    osStatus = OsError;
+                    usched_rwlock_r_unlock(&next->Lock);
+                    break;
+                }
+
+                // make sure the new next (real) is locked
+                usched_rwlock_r_lock(&real->Lock);
                 usched_rwlock_r_unlock(&next->Lock);
+                next = real;
+            } else if (__NodeIsMountPoint(next)) {
+                struct VFS*     fs = next->TypeData;
+                struct VFSNode* real;
+                if (fs == NULL) {
+                    // *should* never happen
+                    ERROR("__GetRelative discovered node having a NULL type-data but marked as mountpoint");
+                    osStatus = OsError;
+                    usched_rwlock_r_unlock(&next->Lock);
+                    break;
+                }
+
+                // make sure the new next (real) is locked
+                real = fs->Root;
+                usched_rwlock_r_lock(&real->Lock);
+                usched_rwlock_r_unlock(&next->Lock);
+                next = real;
+            } else {
                 break;
             }
-
-            // make sure the new next (real) is locked
-            real = fs->Root;
-            usched_rwlock_r_lock(&real->Lock);
-            usched_rwlock_r_unlock(&next->Lock);
-            next = real;
         }
 
         // Move one level down the tree, so we release the lock on the current

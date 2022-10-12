@@ -16,10 +16,8 @@
  */
 
 #include <assert.h>
-#include <errno.h>
 #include <internal/_syscalls.h>
 #include <internal/_tls.h>
-#include <os/mollenos.h>
 #include <os/threads.h>
 #include <stdlib.h>
 #include "../../libc/threads/tss.h"
@@ -40,14 +38,31 @@ __ThreadStartup(
     struct ThreadStartupContext* startupContext;
     int                          exitCode;
 
+    // Initialize the TLS system for the new kernel thread, remember to switch
+    // to it immediately.
     __tls_initialize(&threadStorage);
+    __tls_switch(&threadStorage);
+
+    // Run any C/C++ initialization for the thread. Before this call
+    // the tls must be set correctly. The TLS is set before the jump to this
+    // entry function
     __cxa_threadinitialize();
 
+    // Retrieve the startup context that should have been passed to us.
     startupContext = (struct ThreadStartupContext*)context;
+    assert(startupContext != NULL);
+
+    // Call the thread entry function
     exitCode = startupContext->Entry(startupContext->Data);
 
+    // Cleanup the startup context, after getting passed to us, we now
+    // own that piece of memory as the creator of this kernel thread shouldn't
+    // need to keep track of this.
     free(startupContext);
-    thrd_exit(exitCode);
+
+    // Call the correct thread-exit function here. The thread exit function
+    // will do the proper cleanup in order.
+    ThreadsExit(exitCode);
 }
 
 oserr_t
@@ -72,10 +87,10 @@ ThreadsCreate(
     startupContext->Data  = argument;
 
     oserr = Syscall_ThreadCreate(
-            (ThreadEntry_t)__ThreadStartup,
+            __ThreadStartup,
             startupContext,
             parameters,
-            (uuid_t*)threadId
+            threadId
     );
     if (oserr != OsOK) {
         free(startupContext);
