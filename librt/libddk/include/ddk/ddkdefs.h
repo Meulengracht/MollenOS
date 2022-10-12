@@ -27,14 +27,24 @@
 
 #include <os/mollenos.h>
 
+/**
+ * Introduce registry types for drivers
+ */
+typedef uint32_t reg32_t;
+typedef uint64_t reg64_t;
+
 #define DDKDECL(ReturnType, Function) extern ReturnType Function
 #define DDKDECL_DATA(Type, Name) extern Type Name
 
 #if defined(i386) || defined(__i386__)
+typedef reg32_t reg_t;
+
 #define TLS_VALUE uint32_t
 #define TLS_READ(offset, value)  __asm { __asm mov ebx, [offset] __asm mov eax, gs:[ebx] __asm mov [value], eax }
 #define TLS_WRITE(offset, value) __asm { __asm mov ebx, [offset] __asm mov eax, [value] __asm mov gs:[ebx], eax }
 #elif defined(amd64) || defined(__amd64__)
+typedef reg64_t reg_t;
+
 #define TLS_VALUE uint64_t
 #define TLS_READ(offset, value)  __asm { __asm mov rbx, [offset] __asm mov rax, gs:[rbx] __asm mov [value], rax }
 #define TLS_WRITE(offset, value) __asm { __asm mov rbx, [offset] __asm mov rax, [value] __asm mov gs:[rbx], rax }

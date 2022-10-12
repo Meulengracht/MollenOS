@@ -29,6 +29,7 @@
 #include <assert.h>
 #include <component/cpu.h>
 #include <debug.h>
+#include <ddk/ddkdefs.h>
 #include <memoryspace.h>
 #include <threading.h>
 

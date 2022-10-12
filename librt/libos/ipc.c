@@ -110,6 +110,7 @@ IPCContextRecv(
     stream         = ipcContext;
     bytesAvailable = streambuffer_read_packet_start(stream, sbOptions, &base, &state);
     if (!bytesAvailable) {
+        *fromHandle = UUID_INVALID;
         *bytesReceived = 0;
         return OsOK;
     }
