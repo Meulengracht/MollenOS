@@ -1,0 +1,13 @@
+add_libc_target(libc-locale
+        duplocale.c
+        freelocale.c
+        lctype.c
+        lmessages.c
+        lmonetary.c
+        lnumeric.c
+        locale.c
+        localeconv.c
+        newlocale.c
+        timelocal.c
+        uselocale.c
+)
