@@ -33,6 +33,7 @@
 #include <internal/_io.h>
 #include <internal/_ipc.h>
 #include <inet/local.h>
+#include <inet/socket.h>
 #include <errno.h>
 #include <os/mollenos.h>
 

@@ -35,6 +35,7 @@
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <inet/local.h>
+#include <inet/socket.h>
 #include <os/mollenos.h>
 
 int bind(int iod, const struct sockaddr* address, socklen_t address_length)

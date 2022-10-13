@@ -1,13 +1,9 @@
-add_libc_target(libc-locale
-        duplocale.c
-        freelocale.c
-        lctype.c
-        lmessages.c
-        lmonetary.c
-        lnumeric.c
-        locale.c
-        localeconv.c
-        newlocale.c
-        timelocal.c
-        uselocale.c
+set(SRCS
+        memchr.c
+        memcmp.c
+        memcpy.c
+        memmove.c
+        memset.c
 )
+add_libk_target(libk-mem ${SRCS})
+add_libc_target(libc-mem ${SRCS})

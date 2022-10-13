@@ -25,7 +25,7 @@ macro (add_kernel_library)
 
 		add_library(${ARGV0} STATIC ${SERVICE_SOURCES})
 		target_compile_options(${ARGV0}
-				PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -D__LIBDS_KERNEL__>
+				PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D__LIBDS_KERNEL__>
 		)
 		target_link_libraries(vali-core ${ARGV0})
 	else ()
@@ -66,7 +66,7 @@ set_target_properties (
         SUFFIX ".mos"
 )
 target_compile_options(vali-core
-	PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D_KRNL_DLL -D__LIBDS_KERNEL__>
+	PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D__LIBDS_KERNEL__>
 )
 
 # add additional link libraries from out of this tree

@@ -1,1 +1,1 @@
-add_libc_target(libc-thrd tss.c)
+add_libc_target(libc-sig signal.c)

@@ -1,13 +1,9 @@
-add_libc_target(libc-locale
-        duplocale.c
-        freelocale.c
-        lctype.c
-        lmessages.c
-        lmonetary.c
-        lnumeric.c
-        locale.c
-        localeconv.c
-        newlocale.c
-        timelocal.c
-        uselocale.c
+add_libc_target(libc-os
+        event.c
+        keymaps/en-us.c
+        clang.c
+        init.c
+        ipc.c
+        keycodes.c
+        tls.c
 )

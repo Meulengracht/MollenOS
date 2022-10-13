@@ -25,8 +25,7 @@
 #include <ddk/utils.h>
 #include <internal/_io.h>
 #include <internal/_ipc.h>
-#include <os/mollenos.h>
-#include <stdlib.h>
+#include <inet/socket.h>
 
 int socket(int domain, int type, int protocol)
 {
