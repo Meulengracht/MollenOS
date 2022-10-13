@@ -1,0 +1,22 @@
+add_libc_target(libc-time
+        common/month_lengths.c
+        asctime.c
+        clock.c
+        clock_getfreq.c
+        ctime.c
+        difftime.c
+        gettzinfo.c
+        gmtime.c
+        lcltime.c
+        mktime.c
+        strftime.c
+        time.c
+        timespec_get.c
+        timespec_getres.c
+        timespec_diff.c
+        tzcalc_limits.c
+        tzlock.c
+        tzset.c
+        tzset_r.c
+        wcsftime.c
+)

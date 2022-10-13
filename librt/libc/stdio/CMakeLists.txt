@@ -1,0 +1,78 @@
+# sources that are shared with kernel project
+set(SRCS_COMMON
+        common/ctype_.c
+        common/isalnum.c
+        common/isalpha.c
+        common/isascii.c
+        common/isblank.c
+        common/iscntrl.c
+        common/isdigit.c
+        common/islower.c
+        common/isprint.c
+        common/ispunct.c
+        common/isspace.c
+        common/isupper.c
+        common/isxdigit.c
+        common/toascii.c
+        common/tolower.c
+        common/toupper.c
+)
+
+# sources only for the full libc
+set(SRCS
+        ${SRCS_COMMON}
+        isalnum_l.c
+        isalpha_l.c
+        isascii_l.c
+        isblank_l.c
+        iscntrl_l.c
+        isdigit_l.c
+        islower_l.c
+        isprint_l.c
+        ispunct_l.c
+        isspace_l.c
+        isupper_l.c
+        iswalnum.c
+        iswalnum_l.c
+        iswalpha.c
+        iswalpha_l.c
+        iswblank.c
+        iswblank_l.c
+        iswcntrl.c
+        iswcntrl_l.c
+        iswctype.c
+        iswctype_l.c
+        iswdigit.c
+        iswdigit_l.c
+        iswgraph.c
+        iswgraph_l.c
+        iswlower.c
+        iswlower_l.c
+        iswprint.c
+        iswprint_l.c
+        iswpunct.c
+        iswpunct_l.c
+        iswspace.c
+        iswspace_l.c
+        iswupper.c
+        iswupper_l.c
+        iswxdigit.c
+        iswxdigit_l.c
+        isxdigit_l.c
+        jp2uc.c
+        toascii_l.c
+        tolower_l.c
+        toupper_l.c
+        towctrans.c
+        towctrans_l.c
+        towlower.c
+        towlower_l.c
+        towupper.c
+        towupper_l.c
+        wctrans.c
+        wctrans_l.c
+        wctype.c
+        wctype_l.c
+)
+add_libk_target(libk-ctype ${SRCS_COMMON})
+add_libc_target(libc-ctype ${SRCS})
