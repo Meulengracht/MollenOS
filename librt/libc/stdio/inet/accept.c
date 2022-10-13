@@ -64,6 +64,7 @@
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <inet/local.h>
+#include <inet/socket.h>
 #include <os/mollenos.h>
 
 int accept(int iod, struct sockaddr* address, socklen_t* address_length)

@@ -39,7 +39,7 @@ target_include_directories(mstring PUBLIC ../include ../../libos/include ../../l
 
 add_library(mstringk STATIC ${MSTRING_SRCS})
 target_compile_options(mstringk PRIVATE -mno-sse)
-target_compile_definitions(mstringk PRIVATE -DMSTRING_KERNEL -D_KRNL_DLL)
+target_compile_definitions(mstringk PRIVATE -DMSTRING_KERNEL)
 target_include_directories(mstringk PUBLIC
         ../include
         ${CMAKE_SOURCE_DIR}/kernel/include

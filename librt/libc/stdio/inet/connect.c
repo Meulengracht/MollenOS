@@ -41,6 +41,7 @@
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <inet/local.h>
+#include <inet/socket.h>
 #include <os/mollenos.h>
 #include <string.h>
 

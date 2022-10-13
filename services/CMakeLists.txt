@@ -4,7 +4,6 @@ if (VALI_BUILD_UNIT_TESTS)
     return ()
 endif ()
 
-
 macro (add_service_target)
     if (${ARGC} GREATER_EQUAL 3)
         set (SERVICE_SOURCES "${ARGN}")
