@@ -75,45 +75,77 @@
 #define O_SEQUENTIAL    0x0020  /* file access is primarily sequential */
 #define O_RANDOM        0x0010  /* file access is primarily random */
 
+/*
+ * @brief Types used in dirent::d_type. Most of these are here for completeness
+ * and not neccessarily because they are used in Vali.
+ */
+#define DT_BLK     0 // This is a block device.
+#define DT_CHR     1 // This is a character device.
+#define DT_DIR     2 // This is a directory.
+#define DT_FIFO    3 // This is a named pipe (FIFO).
+#define DT_LNK     4 // This is a symbolic link.
+#define DT_REG     5 // This is a regular file.
+#define DT_SOCK    6 // This is a UNIX domain socket.
+#define DT_UNKNOWN 7 // The file type could not be determined.
+
+struct dirent {
+    // d_ino is the file node ID. This is not consistent across boots
+    // and is only consistent for the current boot.
+    long d_ino;
+    // d_off is index into the directory, and can be used with together
+    // with seekdir().
+    long d_off;
+    // d_reclen is the length of the entire record. This may not match
+    // the sizeof returned length.
+    unsigned short d_reclen;
+    // d_type is the type of the record converted to POSIX-comliant types.
+    int d_type;
+    // d_name is the name buffer and contains the name of the directory entry
+    // up to NAME_MAX - 1. NAME_MAX is quite generous and should encompass most, but
+    // will cut off entries longer than this. There is a byte reserved for the
+    // NULL terminator.
+    char d_name[NAME_MAX];
+};
+typedef struct dirent dirent;
+
 struct DIR {
-    int d_handle;
-    int d_index;
+    uuid_t _handle;
+    struct dirent cdirent;
 };
-struct DIRENT {
-    unsigned int d_options;
-    unsigned int d_perms;
-    char         d_name[256];
-};
+typedef struct DIR DIR;
 
 _CODE_BEGIN
 // shared io interface
-CRTDECL(int,        marktty(int iod));
-CRTDECL(int,        pipe(long size, int flags));
-CRTDECL(int,        dup(int iod));
-CRTDECL(int,        open(const char *file, int flags, ...));
-CRTDECL(int,        close(int fd));
-CRTDECL(int,        read(int fd, void *buffer, unsigned int len));
-CRTDECL(int,        write(int fd, const void *buffer, unsigned int length));
-CRTDECL(int,        iolock(int fd));
-CRTDECL(int,        iounlock(int fd));
+CRTDECL(int, marktty(int iod));
+CRTDECL(int, pipe(long size, int flags));
+CRTDECL(int, dup(int iod));
+CRTDECL(int, open(const char *file, int flags, ...));
+CRTDECL(int, close(int fd));
+CRTDECL(int, read(int fd, void *buffer, unsigned int len));
+CRTDECL(int, write(int fd, const void *buffer, unsigned int length));
+CRTDECL(int, iolock(int fd));
+CRTDECL(int, iounlock(int fd));
 
 // file interface
-CRTDECL(long,       lseek(int fd, long offset, int whence));
-CRTDECL(long long,  lseeki64(int fd, long long offset, int whence));
-CRTDECL(long,       tell(int fd));
-CRTDECL(long long,  telli64(int fd));
-CRTDECL(int,        chsize(int fd, long size));
+CRTDECL(long,      lseek(int fd, long offset, int whence));
+CRTDECL(long long, lseeki64(int fd, long long offset, int whence));
+CRTDECL(long,      tell(int fd));
+CRTDECL(long long, telli64(int fd));
+CRTDECL(int,       chsize(int fd, long size));
 
 // directory interface
-CRTDECL(int,        mkdir(const char *path, int mode));
-CRTDECL(int,        opendir(const char *path, int flags, struct DIR **handle));
-CRTDECL(int,        closedir(struct DIR *handle));
-CRTDECL(int,        readdir(struct DIR *handle, struct DIRENT *entry));
+CRTDECL(int,            mkdir(const char* path, unsigned int mode));
+CRTDECL(struct DIR*,    opendir(const char* path));
+CRTDECL(int,            closedir(struct DIR* dir));
+CRTDECL(struct dirent*, readdir(struct DIR* dir));
+CRTDECL(int,            rewinddir(struct DIR* dir));
+CRTDECL(int,            seekdir(struct DIR* dir, long index));
+CRTDECL(long,           telldir(struct DIR* dir));
 
 // file and directory interface
-CRTDECL(int,        link(const char *from, const char *to, int symbolic));
-CRTDECL(int,        unlink(const char *path));
-CRTDECL(int,        isatty(int fd));
+CRTDECL(int, link(const char *from, const char *to, int symbolic));
+CRTDECL(int, unlink(const char *path));
+CRTDECL(int, isatty(int fd));
 _CODE_END
 
 #endif // !__IO_H__

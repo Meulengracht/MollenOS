@@ -140,15 +140,22 @@ static inline bool __NodeIsRegular(struct VFSNode* node) {
     return false;
 }
 
+static inline bool __NodeIsFile(struct VFSNode* node) {
+    if (FILE_FLAG_TYPE(node->Stats.Flags) == FILE_FLAG_FILE) {
+        return true;
+    }
+    return false;
+}
+
 static inline bool __NodeIsSymlink(struct VFSNode* node) {
-    if (node->Stats.Flags & FILE_FLAG_LINK) {
+    if (FILE_FLAG_TYPE(node->Stats.Flags) & FILE_FLAG_LINK) {
         return true;
     }
     return false;
 }
 
 static inline bool __NodeIsDirectory(struct VFSNode* node) {
-    if (node->Stats.Flags & FILE_FLAG_DIRECTORY) {
+    if (FILE_FLAG_TYPE(node->Stats.Flags) & FILE_FLAG_DIRECTORY) {
         return true;
     }
     return false;

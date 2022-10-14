@@ -27,6 +27,20 @@
 #include <os/osdefs.h>
 #include <time.h>
 
+typedef struct OsDirectoryEntry {
+    // ID is the file node ID. This is not consistent across boots, and is
+    // assigned during when first enumerated on a fresh boot.
+    uuid_t ID;
+    // Name is guaranteed to be able to hold a name of NAME_MAX set in os/osdefs.h.
+    const char* Name;
+    // Index into the directory. This can be used in conjunction with
+    // seekdir()
+    long Index;
+    // Flags match the field OsFileDescriptor_t::Flags and describe
+    // the type of directory entry.
+    unsigned int Flags;
+} OsDirectoryEntry_t;
+
 typedef struct OsFileSystemDescriptor {
     long          Id;
     unsigned int  Flags;

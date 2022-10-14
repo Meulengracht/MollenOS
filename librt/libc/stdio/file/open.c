@@ -22,15 +22,14 @@
 
 //#define __TRACE
 
-#include <sys_file_service_client.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
-#include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <io.h>
 #include <os/mollenos.h>
+#include <os/services/file.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,13 +97,12 @@ static unsigned int __detect_filemode(int iod)
 // return -1 on fail and set errno
 int open(const char* file, int flags, ...)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    int                      status;
-    oserr_t               osStatus;
-    stdio_handle_t*          object;
-    uuid_t                   handle;
-    int                      pmode = 0;
-    va_list                  ap;
+    int             status;
+    oserr_t         osStatus;
+    stdio_handle_t* object;
+    uuid_t          handle;
+    int             pmode = 0;
+    va_list         ap;
 
     if (!file) {
         _set_errno(EINVAL);
@@ -122,36 +120,21 @@ int open(const char* file, int flags, ...)
     if (pmode) {
         // @todo check permission flags for creation
     }
-    
+
     // Try to open the file by directly communicating with the file-service
-    status = sys_file_open(GetGrachtClient(), &msg.base, *__crt_processid_ptr(),
-        file, _fopts(flags), _faccess(flags));
-    if (status) {
-        ERROR("open no communcation channel open");
-        _set_errno(ECOMM);
-        return -1;
-    }
-
-    status = gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    if (status) {
-        ERROR("open failed to wait for answer: %i", status);
-        return -1;
-    }
-
-    sys_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
-    if (OsErrToErrNo(osStatus)) {
+    osStatus = OSOpenPath(file, _fopts(flags), _faccess(flags),&handle);
+    if (osStatus != OsOK) {
         ERROR("open(path=%s) failed with code: %u", file, osStatus);
-        return -1;
+        return OsErrToErrNo(osStatus);
     }
 
     TRACE("open retrieved handle %u", handle);
-    if (stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object)) {
-        sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
-        return -1;
+    status = stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object);
+    if (status) {
+        (void)OSCloseFile(handle);
+        return status;
     }
-    
+
     stdio_handle_set_handle(object, handle);
     stdio_handle_set_ops_type(object, STDIO_HANDLE_FILE);
 

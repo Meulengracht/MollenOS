@@ -46,31 +46,40 @@ struct filesystem_descriptor {
     uint64 segments_free;
 }
 
+struct directory_entry {
+    uuid_t     id;
+    string     name;
+    long       index;
+    file_flags flags;
+}
+
 service file (3) {
     func open(uuid_t processId, string path, uint options, uint access) : (oserr_t result, uuid_t handle) = 1;
     func close(uuid_t processId, uuid_t handle) : (oserr_t result) = 2;
     func delete(uuid_t processId, string path, uint flags) : (oserr_t result) = 3;
     func transfer(uuid_t processId, uuid_t handle, transfer_direction direction, uuid_t bufferHandle, ulong offset, ulong length) : (oserr_t result, ulong bytesTransferred) = 4;
     func transfer_absolute(uuid_t processId, uuid_t handle, transfer_direction direction, uint seekLow, uint seekHigh, uuid_t bufferHandle, ulong offset, ulong length) : (oserr_t result, ulong bytesTransferred) = 5;
-    func seek(uuid_t processId, uuid_t handle, uint seekLow, uint seekHigh) : (oserr_t result) = 6;
-    func flush(uuid_t processId, uuid_t handle) : (oserr_t result) = 7;
-    func move(uuid_t processId, string source, string destination, bool copy) : (oserr_t result) = 8;
-    func link(uuid_t processId, string source, string destination, bool symbolic) : (oserr_t result) = 9;
-    func duplicate(uuid_t processId, uuid_t handle) : (oserr_t result, uuid_t dupHandle) = 10;
-    func set_access(uuid_t processId, uuid_t handle, uint access) : (oserr_t result) = 11;
-    func get_access(uuid_t processId, uuid_t handle) : (oserr_t result, uint access) = 12;
-    func get_position(uuid_t processId, uuid_t handle) : (oserr_t result, uint low, uint high) = 13;
-    func set_size(uuid_t processId, uuid_t handle, uint sizeLow, uint sizeHigh) : (oserr_t result) = 14;
-    func get_size(uuid_t processId, uuid_t handle) : (oserr_t result, uint low, uint high) = 15;
-    func get_path(uuid_t processId, uuid_t handle) : (oserr_t result, string path) = 16;
-    func fstat(uuid_t processId, uuid_t handle) : (oserr_t result, file_descriptor descriptor) = 17;
-    func fstat_link(uuid_t processId, string path) : (oserr_t result, string path) = 18;
-    func fsstat(uuid_t processId, uuid_t handle) : (oserr_t result, filesystem_descriptor descriptor) = 19;
-    func fstat_path(uuid_t processId, string path, int followLinks) : (oserr_t result, file_descriptor descriptor) = 20;
-    func fsstat_path(uuid_t processId, string path, int followLinks) : (oserr_t result, filesystem_descriptor descriptor) = 21;
-    func ststat(uuid_t processId, uuid_t fileHandle) : (oserr_t result, disk_descriptor descriptor) = 22;
-    func ststat_path(uuid_t processId, string filePath, int followLinks) : (oserr_t result, disk_descriptor descriptor) = 23;
-    func realpath(string path, int followLinks) : (oserr_t result, string resolved) = 24;
+    func mkdir(uuid_t processId, string path, uint permissions) : (oserr_t result) = 6;
+    func readdir(uuid_t processId, uuid_t handle) : (oserr_t result, directory_entry entry) = 7;
+    func seek(uuid_t processId, uuid_t handle, uint seekLow, uint seekHigh) : (oserr_t result) = 8;
+    func flush(uuid_t processId, uuid_t handle) : (oserr_t result) = 9;
+    func move(uuid_t processId, string source, string destination, bool copy) : (oserr_t result) = 10;
+    func link(uuid_t processId, string source, string destination, bool symbolic) : (oserr_t result) = 11;
+    func duplicate(uuid_t processId, uuid_t handle) : (oserr_t result, uuid_t dupHandle) = 12;
+    func set_access(uuid_t processId, uuid_t handle, uint access) : (oserr_t result) = 13;
+    func get_access(uuid_t processId, uuid_t handle) : (oserr_t result, uint access) = 14;
+    func get_position(uuid_t processId, uuid_t handle) : (oserr_t result, uint low, uint high) = 15;
+    func set_size(uuid_t processId, uuid_t handle, uint sizeLow, uint sizeHigh) : (oserr_t result) = 16;
+    func get_size(uuid_t processId, uuid_t handle) : (oserr_t result, uint low, uint high) = 17;
+    func get_path(uuid_t processId, uuid_t handle) : (oserr_t result, string path) = 18;
+    func fstat(uuid_t processId, uuid_t handle) : (oserr_t result, file_descriptor descriptor) = 19;
+    func fstat_link(uuid_t processId, string path) : (oserr_t result, string path) = 20;
+    func fsstat(uuid_t processId, uuid_t handle) : (oserr_t result, filesystem_descriptor descriptor) = 21;
+    func fstat_path(uuid_t processId, string path, int followLinks) : (oserr_t result, file_descriptor descriptor) = 22;
+    func fsstat_path(uuid_t processId, string path, int followLinks) : (oserr_t result, filesystem_descriptor descriptor) = 23;
+    func ststat(uuid_t processId, uuid_t fileHandle) : (oserr_t result, disk_descriptor descriptor) = 24;
+    func ststat_path(uuid_t processId, string filePath, int followLinks) : (oserr_t result, disk_descriptor descriptor) = 25;
+    func realpath(string path, int followLinks) : (oserr_t result, string resolved) = 26;
     
     // Service should also provide an async interface that communicates with events
     // transfer_async, and transfer_status
@@ -78,5 +87,5 @@ service file (3) {
     // Filemanager events that can be listened for by other services or
     // applications that are interested. In order to subscribe to these, the service
     // must be loaded and fully running.
-    event storage_ready : (string path) = 25;
+    event storage_ready : (string path) = 27;
 }

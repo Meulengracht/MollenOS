@@ -205,7 +205,8 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
     struct __VFSChild*    result;
     oserr_t               osStatus, osStatus2;
     mstring_t*            nodePath;
-    void*                 data, *fileData;
+    void*                 parentData;
+    void*                 childData;
     TRACE("VFSNodeCreateChild(node=%ms, name=%ms, flags=0x%x, perms=0x%x)",
           node ? node->Name : NULL, name, flags, permissions);
 
@@ -232,31 +233,31 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
         return OsExists;
     }
 
-    osStatus = ops->Open(vfs->Data, nodePath, &data);
+    osStatus = ops->Open(vfs->Data, nodePath, &parentData);
     if (osStatus != OsOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Create(vfs->Data, data, name, 0, flags, permissions, &fileData);
+    osStatus = ops->Create(vfs->Data, parentData, name, 0, flags, permissions, &childData);
     if (osStatus != OsOK) {
         goto close;
     }
 
     osStatus = VFSNodeChildNew(node->FileSystem, node, &(struct VFSStat) {
-            .Name = name,
+            .Name = mstr_clone(name),
             .Size = 0,
             .Owner = 0,
             .Flags = flags,
             .Permissions = permissions
     }, nodeOut);
 
-    osStatus2 = ops->Close(vfs->Data, fileData);
+    osStatus2 = ops->Close(vfs->Data, childData);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
 close:
-    osStatus2 = ops->Close(vfs->Data, data);
+    osStatus2 = ops->Close(vfs->Data, parentData);
     if (osStatus2 != OsOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }

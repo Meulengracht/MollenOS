@@ -71,6 +71,13 @@ typedef struct VFSRequest {
             size_t   length;
         } transfer_absolute;
         struct {
+            const char* path;
+            uint32_t    permissions;
+        } mkdir;
+        struct {
+            uuid_t fileHandle;
+        } readdir;
+        struct {
             uuid_t   fileHandle;
             uint32_t position_low;
             uint32_t position_high;

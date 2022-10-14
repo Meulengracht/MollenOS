@@ -28,6 +28,7 @@
 #include <internal/_ipc.h>
 #include <internal/_tls.h>
 #include <io.h>
+#include <os/services/file.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -189,18 +190,16 @@ oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, l
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t               status;
-    Integer64_t           seekFinal;
+    UInteger64_t          seekFinal;
     TRACE("stdio_file_op_seek(origin=%i, offset=%" PRIiIN ")", origin, offset);
 
     // If we search from SEEK_SET, just build offset directly
     if (origin != SEEK_SET) {
-        Integer64_t currentOffset;
+        UInteger64_t currentOffset;
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
-            sys_file_get_position(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-            sys_file_get_position_result(GetGrachtClient(), &msg.base, &status, &currentOffset.u.LowPart, &currentOffset.u.HighPart);
+            status = OSGetFilePosition(handle->object.handle, &currentOffset);
             if (status != OsOK) {
                 ERROR("failed to get file position");
                 return status;
@@ -212,35 +211,28 @@ oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, l
                 _set_errno(EOVERFLOW);
                 return OsError;
             }
-        }
-        else {
-            sys_file_get_size(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-            sys_file_get_size_result(GetGrachtClient(), &msg.base, &status, &currentOffset.u.LowPart, &currentOffset.u.HighPart);
+        } else {
+            status = OSGetFileSize(handle->object.handle, &currentOffset);
             if (status != OsOK) {
                 ERROR("failed to get file size");
                 return status;
             }
         }
         seekFinal.QuadPart = currentOffset.QuadPart + offset;
-    }
-    else {
+    } else {
         seekFinal.QuadPart = offset;
     }
 
     // no reason to invoke the service
     if (origin == SEEK_CUR && offset == 0) {
-        *position_out = seekFinal.QuadPart;
+        *position_out = (long long int)seekFinal.QuadPart;
         return OsOK;
     }
 
     // Now perform the seek
-    sys_file_seek(GetGrachtClient(), &msg.base, *__crt_processid_ptr(),
-                  handle->object.handle, seekFinal.u.LowPart, seekFinal.u.HighPart);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_seek_result(GetGrachtClient(), &msg.base, &status);
+    status = OSSeekFile(handle->object.handle, &seekFinal);
     if (status == OsOK) {
-        *position_out = seekFinal.QuadPart;
+        *position_out = (long long int)seekFinal.QuadPart;
         return OsOK;
     }
     TRACE("stdio::fseek::fail %u", status);

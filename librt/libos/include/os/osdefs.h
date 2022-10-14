@@ -191,6 +191,7 @@ static inline size_t NextPowerOfTwo(size_t value) {
 }
 
 #define _MAXPATH                                512
+#define NAME_MAX                                4096
 #define MIN(a,b)                                (((a)<(b))?(a):(b))
 #define MAX(a,b)                                (((a)>(b))?(a):(b))
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) < (max)))

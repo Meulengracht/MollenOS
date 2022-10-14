@@ -25,19 +25,27 @@ oserr_t VFSNodeFlush(struct VFSRequest* request)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t               osStatus;
+    oserr_t               oserr;
     UInteger64_t          position;
 
     position.u.LowPart  = request->parameters.seek.position_low;
     position.u.HighPart = request->parameters.seek.position_high;
 
-    osStatus = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
+    if (oserr != OsOK) {
+        return oserr;
+    }
+
+    // We only support the flush operation on regular files.
+    if (!__NodeIsFile(handle->Node)) {
+        oserr = OsNotSupported;
+        goto cleanup;
     }
 
     // TODO implement
-    osStatus = OsNotSupported;
+    oserr = OsNotSupported;
+
+cleanup:
     VFSNodeHandlePut(handle);
-    return osStatus;
+    return oserr;
 }

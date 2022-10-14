@@ -42,91 +42,105 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t               osStatus, osStatus2;
+    oserr_t               oserr, oserr2;
     DMAAttachment_t       attachment;
 
-    osStatus = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
+    if (oserr != OsOK) {
+        return oserr;
     }
 
-    osStatus = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
-    if (osStatus != OsOK) {
+    // The regular read and write operations we will only support for files. Directories
+    // and symlinks have their own respective interfaces for dealing with Read/Write.
+    if (!__NodeIsFile(handle->Node)) {
+        oserr = OsNotSupported;
+        goto cleanup;
+    }
+
+    oserr = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
+    if (oserr != OsOK) {
         goto cleanup;
     }
 
     nodeVfs = handle->Node->FileSystem;
 
     usched_rwlock_r_lock(&handle->Node->Lock);
-    osStatus = nodeVfs->Interface->Operations.Read(
+    oserr = nodeVfs->Interface->Operations.Read(
             nodeVfs->Data, handle->Data,
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
             request->parameters.transfer.length,
             readOut);
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    if (osStatus == OsOK) {
+    if (oserr == OsOK) {
         handle->Mode     = MODE_READ;
         handle->Position += *readOut;
     }
 
-    osStatus2 = DmaDetach(&attachment);
-    if (osStatus2 != OsOK) {
+    oserr2 = DmaDetach(&attachment);
+    if (oserr2 != OsOK) {
         WARNING("VFSNodeRead failed to detach read buffer");
     }
 
 cleanup:
     VFSNodeHandlePut(handle);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHandle, size_t offset, size_t length, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t               osStatus, osStatus2;
+    oserr_t               oserr, oserr2;
     DMAAttachment_t       attachment;
     UInteger64_t          result;
 
-    osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = VFSNodeHandleGet(fileHandle, &handle);
+    if (oserr != OsOK) {
+        return oserr;
     }
 
-    osStatus = __MapUserBuffer(bufferHandle, &attachment);
-    if (osStatus != OsOK) {
+    // The regular read and write operations we will only support for files. Directories
+    // and symlinks have their own respective interfaces for dealing with Read/Write.
+    if (!__NodeIsFile(handle->Node)) {
+        oserr = OsNotSupported;
+        goto cleanup;
+    }
+
+    oserr = __MapUserBuffer(bufferHandle, &attachment);
+    if (oserr != OsOK) {
         goto cleanup;
     }
 
     nodeVfs = handle->Node->FileSystem;
 
     usched_rwlock_r_lock(&handle->Node->Lock);
-    osStatus = nodeVfs->Interface->Operations.Seek(
+    oserr = nodeVfs->Interface->Operations.Seek(
             nodeVfs->Data, handle->Data,
             position->QuadPart, &result.QuadPart);
-    if (osStatus != OsOK) {
+    if (oserr != OsOK) {
         goto unmap;
     }
     handle->Position = result.QuadPart;
 
-    osStatus = nodeVfs->Interface->Operations.Read(
+    oserr = nodeVfs->Interface->Operations.Read(
             nodeVfs->Data, handle->Data,
             attachment.handle, attachment.buffer,
             offset, length, readOut
     );
-    if (osStatus == OsOK) {
+    if (oserr == OsOK) {
         handle->Mode     = MODE_READ;
         handle->Position += *readOut;
     }
 
 unmap:
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    osStatus2 = DmaDetach(&attachment);
-    if (osStatus2 != OsOK) {
+    oserr2 = DmaDetach(&attachment);
+    if (oserr2 != OsOK) {
         WARNING("VFSNodeReadAt failed to detach read buffer");
     }
 
 cleanup:
     VFSNodeHandlePut(handle);
-    return osStatus;
+    return oserr;
 }

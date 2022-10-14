@@ -37,7 +37,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
         TRACE("VFSNodeOpen path was root");
         mstr_delete(path); // we don't need the path anymore from this point
 
-        // Did user request to create root? nono
+        // Did user request to create root? lmao
         if (options & __FILE_CREATE) {
             return OsInvalidPermissions;
         }
@@ -91,7 +91,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
             goto exit;
         }
     }
-
+    
     osStatus = VFSNodeOpenHandle(node, access, handleOut);
 
 exit:

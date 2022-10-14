@@ -74,6 +74,7 @@ struct VFSStat {
     uint32_t   Permissions; // Permissions come from os/file/types.h
     uint32_t   Flags;       // Flags come from os/file/types.h
     uint64_t   Size;
+    uint32_t   Links;
 
     struct timespec Accessed;
     struct timespec Modified;

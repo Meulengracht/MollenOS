@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -39,7 +39,7 @@ static void __ExtractPathToken(
     int strLength;
     TRACE("__ExtractPathToken(path=%ms)", path);
 
-    // Step 1 is to extract the next token we searching for in this directory
+    // Step 1 is to extract the next token we're searching for in this directory
     // we do also detect if that is the last token
     strIndex  = mstr_find_u8(path, "/", 0);
     strLength = mstr_len(path);
@@ -256,6 +256,31 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
     return osStatus;
 }
 
+static MFSEntry_t* __MFSEntryNew(
+        _In_  mstring_t*       name,
+        _In_  uint32_t         owner,
+        _In_  uint32_t         flags,
+        _In_  uint32_t         permissions)
+{
+    MFSEntry_t* entry = malloc(sizeof(MFSEntry_t));
+    if (entry == NULL) {
+        return NULL;
+    }
+    memset(entry, 0, sizeof(MFSEntry_t));
+
+    entry->Name = mstr_clone(name);
+    if (entry->Name == NULL) {
+        free(entry);
+        return NULL;
+    }
+
+    unsigned int nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, permissions);
+    entry->StartBucket = MFS_ENDOFCHAIN;
+    entry->NativeFlags = nativeFlags | MFS_FILERECORD_INUSE;
+    entry->Owner = owner;
+    return entry;
+}
+
 static oserr_t __CreateEntryInDirectory(
         _In_  FileSystemMFS_t* mfs,
         _In_  mstring_t*       name,
@@ -267,31 +292,25 @@ static oserr_t __CreateEntryInDirectory(
         _In_  size_t           directoryIndex,
         _Out_ MFSEntry_t**     entryOut)
 {
-    MFSEntry_t   entry       = { 0 };
-    unsigned int nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, 0);
+    MFSEntry_t*  entry;
     oserr_t      osStatus;
 
-    entry.Name = mstr_clone(name);
-    entry.StartBucket = MFS_ENDOFCHAIN;
-    entry.NativeFlags = nativeFlags | MFS_FILERECORD_INUSE;
+    entry = __MFSEntryNew(name, owner, flags, permissions);
+    if (entry == NULL) {
+        return OsOutOfMemory;
+    }
 
-    entry.DirectoryBucket = directoryBucket;
-    entry.DirectoryLength = directoryLength;
-    entry.DirectoryIndex = directoryIndex;
+    entry->DirectoryBucket = directoryBucket;
+    entry->DirectoryLength = directoryLength;
+    entry->DirectoryIndex = directoryIndex;
 
-    osStatus = MfsUpdateRecord(mfs, &entry, MFS_ACTION_CREATE);
+    osStatus = MfsUpdateRecord(mfs, entry, MFS_ACTION_CREATE);
     if (osStatus != OsOK) {
+        mstr_delete(entry->Name);
+        free(entry);
         return osStatus;
     }
-
-    if (entryOut) {
-        *entryOut = malloc(sizeof(MFSEntry_t));
-        if (!(*entryOut)) {
-            // @todo What to do here, we are out of memory but entry was created
-            return OsOutOfMemory;
-        }
-        memcpy(*entryOut, &entry, sizeof(MFSEntry_t));
-    }
+    *entryOut = entry;
     return OsOK;
 }
 
@@ -308,8 +327,8 @@ MfsLocateRecord(
     MFSEntry_t           nextEntry     = { 0 };
     int                  isEndOfPath   = 0;
 
-    TRACE("MfsLocateRecord(fileSystem=0x%" PRIxIN ", bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%ms)",
-          fileSystemBase, bucketOfDirectory, entry, path);
+    TRACE("MfsLocateRecord(fileSystem=%ms, bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%ms)",
+          mfs->Label, bucketOfDirectory, entry, path);
 
     // Either get next part of the path, or end at this entry
     if (mstr_len(path) != 0) {
@@ -321,8 +340,7 @@ MfsLocateRecord(
                 return OsOK;
             }
         }
-    }
-    else {
+    } else {
         // end of path
         MfsFileRecordToVfsFile(mfs, &mfs->RootRecord, entry);
         return OsOK;
@@ -376,8 +394,8 @@ MfsCreateRecord(
     oserr_t    osStatus;
     MFSEntry_t nextEntry = { 0 };
 
-    TRACE("MfsCreateRecord(fileSystem=0x%" PRIxIN ", flags=0x%x, path=%ms)",
-          fileSystemBase, flags, name);
+    TRACE("MfsCreateRecord(fileSystem=%ms, flags=0x%x, path=%ms)",
+          mfs->Label, flags, name);
 
     osStatus = __FindEntryOrFreeInDirectoryBucket(
             mfs,

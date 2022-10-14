@@ -196,18 +196,19 @@ oserr_t InstallApplication(mstring_t* path, const char* basename)
 
 void InstallBundledApplications(void)
 {
-    struct DIR*   setupDir;
-    struct DIRENT entry;
+    struct DIR*    setupDir;
+    struct dirent* entry;
     TRACE("InstallBundledApplications()");
 
-    if (opendir("/data/setup", 0, &setupDir)) {
+    setupDir = opendir("/data/setup");
+    if (setupDir == NULL) {
         // directory did not exist, no bundled apps to install
         return;
     }
 
-    while (readdir(setupDir, &entry) == 0) {
-        mstring_t* path = mstr_fmt("/data/setup/%s", &entry.d_name[0]);
-        oserr_t oserr = InstallApplication(path, &entry.d_name[0]);
+    while ((entry = readdir(setupDir)) != NULL) {
+        mstring_t* path = mstr_fmt("/data/setup/%s", &entry->d_name[0]);
+        oserr_t oserr = InstallApplication(path, &entry->d_name[0]);
         if (oserr != OsOK) {
             // Not a compatable file, delete it
             char* pathu8 = mstr_u8(path);
