@@ -10,7 +10,7 @@ macro (add_filesystem_target)
                 COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
         )
     else ()
-        message (FATAL_ERROR "Not enough parameters for add_module_target")
+        message (FATAL_ERROR "Not enough parameters for add_filesystem_target")
     endif ()
 endmacro ()
 

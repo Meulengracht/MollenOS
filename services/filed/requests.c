@@ -40,6 +40,8 @@ extern void ReadFile(FileSystemRequest_t* request, void*);
 extern void WriteFile(FileSystemRequest_t* request, void*);
 extern void ReadFileAbsolute(FileSystemRequest_t* request, void*);
 extern void WriteFileAbsolute(FileSystemRequest_t* request, void*);
+extern void MakeDirectory(FileSystemRequest_t* request, void*);
+extern void ReadDirectory(FileSystemRequest_t* request, void*);
 extern void Seek(FileSystemRequest_t* request, void*);
 extern void Flush(FileSystemRequest_t* request, void*);
 extern void Move(FileSystemRequest_t* request, void*);
@@ -239,10 +241,46 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
 
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
         usched_job_queue((usched_task_fn)ReadFileAbsolute, request);
-    }
-    else {
+    } else {
         usched_job_queue((usched_task_fn)WriteFileAbsolute, request);
     }
+}
+
+void sys_file_mkdir_invocation(struct gracht_message* message, const uuid_t processId, const char* path, const unsigned int permissions)
+{
+    FileSystemRequest_t* request;
+
+    TRACE("sys_file_mkdir_invocation()");
+    if (!strlen(path)) {
+        sys_file_mkdir_response(message, OsInvalidParameters);
+        return;
+    }
+
+    request = CreateRequest(message, processId);
+    if (!request) {
+        sys_file_mkdir_response(message, OsOutOfMemory);
+        return;
+    }
+
+    request->parameters.mkdir.path = strdup(path);
+    request->parameters.mkdir.permissions = permissions;
+    usched_job_queue((usched_task_fn)MakeDirectory, request);
+}
+
+void sys_file_readdir_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
+{
+    FileSystemRequest_t* request;
+
+    TRACE("sys_file_readdir_invocation()");
+    request = CreateRequest(message, processId);
+    if (!request) {
+        struct sys_directory_entry empty = { 0 };
+        sys_file_readdir_response(message, OsOutOfMemory, &empty);
+        return;
+    }
+
+    request->parameters.readdir.fileHandle = handle;
+    usched_job_queue((usched_task_fn)ReadDirectory, request);
 }
 
 void sys_file_flush_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)

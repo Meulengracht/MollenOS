@@ -168,8 +168,8 @@ ChangeWorkingDirectory(
     _In_ const char* path)
 {
 	char        canonBuffer[_MAXPATH];
-    oserr_t  osStatus;
-    struct DIR* dir;
+    oserr_t     oserr;
+    int         dirFd;
     TRACE("ChangeWorkingDirectory(path=%s)", path);
 
 	if (path == NULL || strlen(path) == 0) {
@@ -182,22 +182,23 @@ ChangeWorkingDirectory(
         memcpy(&canonBuffer[0], path, strnlen(path, _MAXPATH - 1));
     } else {
         TRACE("ChangeWorkingDirectory relative path detected");
-        osStatus = GetWorkingDirectory(&canonBuffer[0], _MAXPATH);
-        if (osStatus != OsOK) {
-            return osStatus;
+        oserr = GetWorkingDirectory(&canonBuffer[0], _MAXPATH);
+        if (oserr != OsOK) {
+            return oserr;
         }
         strncat(&canonBuffer[0], path, _MAXPATH);
     }
 
-    if (opendir(&canonBuffer[0], 0, &dir)) {
+    dirFd = open(&canonBuffer[0], O_DIR);
+    if (dirFd < 0) {
         // TODO convert errno to osstatus
         return OsError;
     }
 
-    osStatus = GetFilePathFromFd(dir->d_handle, &canonBuffer[0], _MAXPATH);
-    closedir(dir);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = GetFilePathFromFd(dirFd, &canonBuffer[0], _MAXPATH);
+    close(dirFd);
+    if (oserr != OsOK) {
+        return oserr;
     }
     return ProcessSetWorkingDirectory(&canonBuffer[0]);
 }

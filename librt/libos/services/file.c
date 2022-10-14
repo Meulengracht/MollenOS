@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * File Definitions & Structures
- * - This header describes the base file-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <ddk/convert.h>
@@ -40,6 +33,194 @@ struct file_view {
 
 static list_t g_fileViews = LIST_INIT;
 static size_t g_pageSize  = 0;
+
+oserr_t
+OSOpenPath(
+        _In_  const char*  path,
+        _In_  unsigned int flags,
+        _In_  unsigned int permissions,
+        _Out_ uuid_t*      handleOut)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    if (path == NULL || handleOut == NULL) {
+        return OsInvalidParameters;
+    }
+
+    // Try to open the file by directly communicating with the file-service
+    sys_file_open(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            path,
+            flags,
+            permissions
+   );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_open_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
+    return oserr;
+}
+
+oserr_t
+OSCloseFile(
+        _In_ uuid_t handle)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    // Try to open the file by directly communicating with the file-service
+    sys_file_close(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            handle
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_close_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
+OSMakeDirectory(
+        _In_ const char*  path,
+        _In_ unsigned int permissions)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  status;
+
+    if (path == NULL) {
+        return OsInvalidParameters;
+    }
+
+    sys_file_mkdir(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            path,
+            permissions
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_mkdir_result(GetGrachtClient(), &msg.base, &status);
+    return status;
+}
+
+static void __ToOSDirectoryEntry(struct sys_directory_entry* in, OsDirectoryEntry_t* out)
+{
+    out->Name = in->name;
+    out->ID = in->id;
+    out->Flags = in->flags;
+    out->Index = in->index;
+}
+
+oserr_t
+OSReadDirectory(
+        _In_ uuid_t              handle,
+        _In_ OsDirectoryEntry_t* entry)
+{
+    struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    struct sys_directory_entry sysEntry;
+    oserr_t                    status;
+
+    if (entry == NULL) {
+        return OsInvalidParameters;
+    }
+
+    sys_file_readdir(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            handle
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_readdir_result(GetGrachtClient(), &msg.base, &status, &sysEntry);
+    if (status == OsOK) {
+        __ToOSDirectoryEntry(&sysEntry, entry);
+    }
+    return status;
+}
+
+oserr_t
+OSSeekFile(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* position)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    if (position == NULL) {
+        return OsInvalidParameters;
+    }
+
+    // Try to open the file by directly communicating with the file-service
+    sys_file_seek(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            handle,
+            position->u.LowPart,
+            position->u.HighPart
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_seek_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
+OSGetFilePosition(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* position)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    if (position == NULL) {
+        return OsInvalidParameters;
+    }
+
+    // Try to open the file by directly communicating with the file-service
+    sys_file_get_position(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            handle
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_get_position_result(
+            GetGrachtClient(), &msg.base, &oserr,
+            &position->u.LowPart,
+            &position->u.HighPart
+    );
+    return oserr;
+}
+
+oserr_t
+OSGetFileSize(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* size)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    if (size == NULL) {
+        return OsInvalidParameters;
+    }
+
+    // Try to open the file by directly communicating with the file-service
+    sys_file_get_size(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            handle
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_get_size_result(
+            GetGrachtClient(), &msg.base, &oserr,
+            &size->u.LowPart,
+            &size->u.HighPart
+    );
+    return oserr;
+}
 
 oserr_t
 SetFileSizeFromPath(

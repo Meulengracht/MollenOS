@@ -16,6 +16,7 @@
  *
  */
 
+//#define __TRACE
 #define __need_quantity
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
@@ -225,7 +226,10 @@ oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* s
     result->Parent = node;
     hashtable_set(
             &node->Children,
-            &(struct __VFSChild) { .Key = result->Name, .Node = result }
+            &(struct __VFSChild) {
+                .Key = result->Name,
+                .Node = result
+            }
     );
     *nodeOut = result;
     return OsOK;

@@ -169,6 +169,76 @@ void WriteFileAbsolute(
     VfsRequestDestroy(request);
 }
 
+void MakeDirectory(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    struct VFS* fsScope = VFSScopeGet(request->processId);
+    if (fsScope == NULL) {
+        sys_file_mkdir_response(request->message, OsInvalidPermissions);
+        return;
+    }
+
+    uuid_t     handle;
+    mstring_t* path = mstr_new_u8(request->parameters.mkdir.path);
+    oserr_t    osStatus = VFSNodeMkdir(
+            fsScope,
+            path,
+            request->parameters.mkdir.permissions,
+            &handle
+    );
+    mstr_delete(path);
+    if (osStatus == OsOK) {
+        // We don't need it.
+        VFSNodeClose(fsScope, handle);
+    }
+    sys_file_mkdir_response(request->message, osStatus);
+
+    free((void*)request->parameters.mkdir.path);
+    VfsRequestDestroy(request);
+}
+
+static void __ToSysDirectoryEntry(struct VFSStat* in, struct sys_directory_entry* out, uint32_t index)
+{
+    out->name = mstr_u8(in->Name);
+    out->id = in->ID;
+    out->flags = in->Flags;
+    out->index = index;
+}
+
+void ReadDirectory(
+        _In_ FileSystemRequest_t* request,
+        _In_ void*                cancellationToken)
+{
+    struct VFSStat             stats;
+    struct sys_directory_entry entry = { 0 };
+    struct VFS*                fsScope;
+
+    fsScope = VFSScopeGet(request->processId);
+    if (fsScope == NULL) {
+        sys_file_readdir_response(request->message, OsInvalidPermissions, &entry);
+        return;
+    }
+
+    uint32_t index;
+    oserr_t osStatus = VFSNodeReadDirectory(
+            request->parameters.readdir.fileHandle,
+            &stats, &index
+    );
+    if (osStatus == OsOK) {
+        __ToSysDirectoryEntry(&stats, &entry, index);
+    }
+    sys_file_readdir_response(request->message, osStatus, &entry);
+
+    // Do cleanup of the sys_directory_entry structure, we unfornately
+    // need to convert from mstr into const char. Maybe some day we should
+    // do a static conversion ability in mstring library (TODO)
+    if (entry.name) {
+        free(entry.name);
+    }
+    VfsRequestDestroy(request);
+}
+
 void Seek(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
@@ -244,7 +314,7 @@ void Duplicate(
         return;
     }
 
-    uuid_t     dupHandle;
+    uuid_t  dupHandle;
     oserr_t osStatus = VFSNodeDuplicate(request, &dupHandle);
     sys_file_duplicate_response(request->message, osStatus, dupHandle);
 
@@ -262,7 +332,10 @@ void GetPosition(
     }
 
     UInteger64_t position;
-    oserr_t      osStatus = VFSNodeGetPosition(request, &position.QuadPart);
+    oserr_t      osStatus = VFSNodeGetPosition(
+            request->parameters.get_position.fileHandle,
+            &position.QuadPart
+    );
     sys_file_get_position_response(request->message, osStatus, position.u.LowPart, position.u.HighPart);
 
     VfsRequestDestroy(request);
@@ -279,7 +352,10 @@ void GetAccess(
     }
 
     uint32_t   access;
-    oserr_t osStatus = VFSNodeGetAccess(request, &access);
+    oserr_t osStatus = VFSNodeGetAccess(
+            request->parameters.get_access.fileHandle,
+            &access
+    );
     sys_file_get_access_response(request->message, osStatus, access);
 
     VfsRequestDestroy(request);
@@ -295,7 +371,10 @@ void SetAccess(
         return;
     }
 
-    oserr_t osStatus = VFSNodeSetAccess(request);
+    oserr_t osStatus = VFSNodeSetAccess(
+            request->parameters.set_access.fileHandle,
+            request->parameters.set_access.access
+    );
     sys_file_set_access_response(request->message, osStatus);
 
     VfsRequestDestroy(request);
@@ -312,7 +391,10 @@ void GetSize(
     }
 
     UInteger64_t size;
-    oserr_t      osStatus = VFSNodeGetSize(request, &size.QuadPart);
+    oserr_t      osStatus = VFSNodeGetSize(
+            request->parameters.get_size.fileHandle,
+            &size.QuadPart
+    );
     sys_file_get_size_response(request->message, osStatus, size.u.LowPart, size.u.HighPart);
 
     VfsRequestDestroy(request);
@@ -322,14 +404,18 @@ void SetSize(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
 {
-    struct VFS* fsScope = VFSScopeGet(request->processId);
+    UInteger64_t size;
+    oserr_t      oserr;
+    struct VFS*  fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
         sys_file_set_size_response(request->message, OsInvalidPermissions);
         return;
     }
 
-    oserr_t osStatus = VFSNodeSetSize(request);
-    sys_file_set_size_response(request->message, osStatus);
+    size.u.LowPart = request->parameters.set_size.size_low;
+    size.u.HighPart = request->parameters.set_size.size_high;
+    oserr = VFSNodeSetSize(request->parameters.set_size.fileHandle, &size);
+    sys_file_set_size_response(request->message, oserr);
 
     VfsRequestDestroy(request);
 }
@@ -414,7 +500,7 @@ void StatFileSystemByHandle(
         return;
     }
 
-    oserr_t osStatus = VFSNodeStatFsHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatFsHandle(request->parameters.stat_handle.fileHandle, &stats);
     __ToProtocolFileSystemDescriptor(&stats, &result);
     sys_file_fsstat_response(request->message, osStatus, &result);
     __CleanupProtocolFileSystemDescriptor(&result);
@@ -453,7 +539,7 @@ void StatStorageByHandle(
         return;
     }
 
-    oserr_t osStatus = VFSNodeStatStorageHandle(request, &stats);
+    oserr_t osStatus = VFSNodeStatStorageHandle(request->parameters.stat_handle.fileHandle, &stats);
     to_sys_disk_descriptor_dkk(&stats, &result);
     sys_file_ststat_response(request->message, osStatus, &result);
 

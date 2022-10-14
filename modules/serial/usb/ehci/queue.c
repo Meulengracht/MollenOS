@@ -109,14 +109,12 @@ EhciQueueInitialize(
     // Select a queue size
     if (Controller->CParameters & (EHCI_CPARAM_VARIABLEFRAMELIST | EHCI_CPARAM_32FRAME_SUPPORT)) {
         if (Controller->CParameters & EHCI_CPARAM_32FRAME_SUPPORT) {
-            Controller->FrameCount  = 32;
+            Controller->FrameCount = 32;
+        } else {
+            Controller->FrameCount = 256;
         }
-        else {
-            Controller->FrameCount  = 256;
-        }
-    }
-    else {
-        Controller->FrameCount      = 1024;
+    } else {
+        Controller->FrameCount = 1024;
     }
 
     // Initialize the scheduler
@@ -189,7 +187,7 @@ EhciQueueDestroy(
  * Converts a given condition bit-index to number */
 int
 EhciConditionCodeToIndex(
-    _In_ unsigned           ConditionCode)
+    _In_ unsigned ConditionCode)
 {
     // Variables
     unsigned Cc = ConditionCode;
@@ -207,25 +205,20 @@ EhciConditionCodeToIndex(
  * Retrieves a status-code from a given condition code */
 UsbTransferStatus_t
 EhciGetStatusCode(
-    _In_ int                ConditionCode)
+    _In_ int ConditionCode)
 {
     // One huuuge if/else
     if (ConditionCode == 0) {
         return TransferFinished;
-    }
-    else if (ConditionCode == 4) {
+    } else if (ConditionCode == 4) {
         return TransferNotResponding;
-    }
-    else if (ConditionCode == 5) {
+    } else if (ConditionCode == 5) {
         return TransferBabble;
-    }
-    else if (ConditionCode == 6) {
+    } else if (ConditionCode == 6) {
         return TransferBufferError;
-    }
-    else if (ConditionCode == 7) {
+    } else if (ConditionCode == 7) {
         return TransferStalled;
-    }
-    else {
+    } else {
         WARNING("EHCI-Error: 0x%x (%s)", ConditionCode, EhciErrorMessages[ConditionCode]);
         return TransferInvalid;
     }

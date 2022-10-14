@@ -27,6 +27,85 @@ _CODE_BEGIN
 /**
  * @brief
  * @param path
+ * @param flags
+ * @param permissions
+ * @param handleOut
+ * @return
+ */
+CRTDECL(oserr_t,
+OSOpenPath(
+        _In_  const char*  path,
+        _In_  unsigned int flags,
+        _In_  unsigned int permissions,
+        _Out_ uuid_t*      handleOut));
+
+/**
+ * @brief
+ * @param handle
+ * @return
+ */
+CRTDECL(oserr_t,
+OSCloseFile(
+        _In_ uuid_t handle));
+
+/**
+ * @brief
+ * @param path
+ * @param permissions
+ * @return
+ */
+CRTDECL(oserr_t,
+OSMakeDirectory(
+        _In_ const char*  path,
+        _In_ unsigned int permissions));
+
+/**
+ * @brief
+ * @param handle
+ * @param entry
+ * @return
+ */
+CRTDECL(oserr_t,
+OSReadDirectory(
+        _In_ uuid_t              handle,
+        _In_ OsDirectoryEntry_t* entry));
+
+/**
+ * @brief
+ * @param handle
+ * @param position
+ * @return
+ */
+CRTDECL(oserr_t,
+OSSeekFile(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* position));
+
+/**
+ * @brief
+ * @param handle
+ * @param position
+ * @return
+ */
+CRTDECL(oserr_t,
+OSGetFilePosition(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* position));
+
+/**
+ * @brief
+ * @param handle
+ * @param size
+ * @return
+ */
+CRTDECL(oserr_t,
+OSGetFileSize(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* size));
+
+/**
+ * @brief
+ * @param path
  * @param size
  * @return
  */

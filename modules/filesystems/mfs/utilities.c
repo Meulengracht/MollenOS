@@ -421,11 +421,11 @@ MfsUpdateRecord(
         _In_ MFSEntry_t*      entry,
         _In_ int              action)
 {
-    oserr_t       oserr = OsOK;
+    oserr_t       oserr;
     FileRecord_t* record;
     size_t        sectorsTransferred;
 
-    TRACE("MfsUpdateEntry(File %ms)", entry->Base.Name);
+    TRACE("MfsUpdateEntry(File %ms)", entry->Name);
 
     // Read the stored data bucket where the record is
     oserr = FSStorageRead(
@@ -448,12 +448,15 @@ MfsUpdateRecord(
     // we zero out the entry and set the status to deleted
     if (action == MFS_ACTION_DELETE) {
         memset((void*)record, 0, sizeof(FileRecord_t));
-    }
-    else {
+    } else {
         // Now we have two sub cases, but create just needs some
         // extra updates otherwise they share
         if (action == MFS_ACTION_CREATE) {
             char* entryName = mstr_u8(entry->Name);
+            if (entryName == NULL) {
+                return OsOutOfMemory;
+            }
+
             memset(&record->Integrated[0], 0, 512);
             memset(&record->Name[0], 0, 300);
             memcpy(&record->Name[0], entryName, strlen(entryName));

@@ -8,6 +8,7 @@ add_library(filed-vfs-handlers
         move.c
         open.c
         read.c
+        readdir.c
         readlink.c
         realpath.c
         seek.c
