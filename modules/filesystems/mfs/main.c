@@ -106,11 +106,12 @@ FsCreate(
             owner,
             flags,
             permissions,
-            &result);
+            &result
+    );
     if (osStatus != OsOK) {
         return osStatus;
     }
-    WARNING("FsCreate returned %u (0x%llx)", osStatus, result);
+    WARNING("FsCreate returned %u (0x%llx) %ms", osStatus, result, result->Name);
     *dataOut = result;
     return osStatus;
 }
