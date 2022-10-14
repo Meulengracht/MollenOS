@@ -311,7 +311,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     }
 
     osStatus = VFSNodeChildNew(node->FileSystem, node, &(struct VFSStat) {
-            .Name = name,
+            .Name = mstr_clone(name),
             .Size = mstr_bsize(target),
             .Owner = 0,
             .Flags = FILE_FLAG_LINK,

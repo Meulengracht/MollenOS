@@ -171,9 +171,13 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
 {
     uint32_t currentBucket = bucketOfDirectory;
     oserr_t  osStatus;
+    TRACE("__FindEntryOrFreeInDirectoryBucket(name=%ms, expand=%i)", entryName, allowExpansion);
+
+    // Mark the bucket invalid, we use this as a loop indicator
+    resultEntry->DirectoryBucket = MFS_ENDOFCHAIN;
 
     // iterate untill end of folder with two tasks in mind, either find matching entry
-    // or one thats free so we can create it
+    // or one that's free, so we can create it
     while (1) {
         FileRecord_t* record = NULL;
         MapRecord_t   link;
@@ -195,7 +199,8 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
             // Look for a file-record that's either deleted or
             // if we encounter the end of the file-record table
             if (!(record->Flags & MFS_FILERECORD_INUSE)) {
-                if (resultEntry->DirectoryBucket == 0) {
+                if (resultEntry->DirectoryBucket == MFS_ENDOFCHAIN) {
+                    TRACE("__FindEntryOrFreeInDirectoryBucket free entry stored: %u/%llu", currentBucket, i);
                     resultEntry->DirectoryBucket = currentBucket;
                     resultEntry->DirectoryLength = link.Length;
                     resultEntry->DirectoryIndex  = i;
@@ -208,11 +213,12 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
             // and try to match it with our token (ignore case)
             filename      = mstr_new_u8((const char*)&record->Name[0]);
             compareResult = mstr_icmp(entryName, filename);
-            //TRACE("__FindEntryOrFreeInDirectoryBucket matching token %s == %s: %i",
-            //      MStringRaw(entryName), MStringRaw(filename), compareResult);
+            TRACE("__FindEntryOrFreeInDirectoryBucket matching token %ms == %ms: %i",
+                  entryName, filename, compareResult);
             mstr_delete(filename);
 
             if (!compareResult) {
+                TRACE("__FindEntryOrFreeInDirectoryBucket found!");
                 // it was end of path, and the entry exists
                 __StoreRecord(mfs, record, currentBucket, link.Length, i, resultEntry);
                 osStatus = OsExists;
@@ -231,7 +237,9 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         // and can actually move on to creating the file. If we did not find a free entry while
         // iterating, then we have to expand the directory
         if (link.Link == MFS_ENDOFCHAIN) {
-            if (resultEntry->DirectoryBucket == 0 && allowExpansion) {
+            if (resultEntry->DirectoryBucket == MFS_ENDOFCHAIN && allowExpansion) {
+                TRACE("__FindEntryOrFreeInDirectoryBucket expanding directory");
+
                 // Expand directory as we have not found a free record
                 osStatus = __ExpandDirectory(mfs, currentBucket, &link);
                 if (osStatus != OsOK) {
@@ -243,8 +251,8 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
                 resultEntry->DirectoryBucket = link.Link;
                 resultEntry->DirectoryLength = link.Length;
                 resultEntry->DirectoryIndex  = 0;
-            }
-            else {
+            } else {
+                TRACE("__FindEntryOrFreeInDirectoryBucket didn't exist!");
                 osStatus = OsNotExists;
             }
             break;
@@ -294,6 +302,7 @@ static oserr_t __CreateEntryInDirectory(
 {
     MFSEntry_t*  entry;
     oserr_t      osStatus;
+    TRACE("__CreateEntryInDirectory(name=%ms)", name);
 
     entry = __MFSEntryNew(name, owner, flags, permissions);
     if (entry == NULL) {
@@ -310,6 +319,7 @@ static oserr_t __CreateEntryInDirectory(
         free(entry);
         return osStatus;
     }
+    TRACE("__CreateEntryInDirectory entry->Name=%ms", entry->Name);
     *entryOut = entry;
     return OsOK;
 }
