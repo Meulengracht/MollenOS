@@ -66,20 +66,15 @@ FsOpen(
     MFSEntry_t*      mfsEntry;
     WARNING("FsOpen=(path=%ms)", path);
 
-    mfsEntry = MFSEntryNew();
-    if (mfsEntry == NULL) {
-        return OsOutOfMemory;
-    }
-
     osStatus = MfsLocateRecord(
             mfs,
-            mfs->MasterRecord.RootIndex,
-            mfsEntry,
-            path);
+            &mfs->RootEntry,
+            path,
+            &mfsEntry);
     if (osStatus != OsOK) {
-        free(mfsEntry);
         return osStatus;
     }
+
     *dataOut = mfsEntry;
     return osStatus;
 }
@@ -159,14 +154,13 @@ FsUnlink(
     oserr_t          osStatus;
     MFSEntry_t*      mfsEntry;
 
-    mfsEntry = MFSEntryNew();
-    if (mfsEntry == NULL) {
-        return OsOutOfMemory;
-    }
-
-    osStatus = MfsLocateRecord(mfs, mfs->RootRecord.StartBucket, mfsEntry, path);
+    osStatus = MfsLocateRecord(
+            mfs,
+            &mfs->RootEntry,
+            path,
+            &mfsEntry);
     if (osStatus != OsOK) {
-        goto cleanup;
+        return osStatus;
     }
 
     osStatus = MfsFreeBuckets(mfs, mfsEntry->StartBucket, mfsEntry->StartLength);
@@ -177,7 +171,6 @@ FsUnlink(
     }
 
     osStatus = MfsUpdateRecord(mfs, mfsEntry, MFS_ACTION_DELETE);
-
 cleanup:
     MFSEntryDelete(mfsEntry);
     return osStatus;

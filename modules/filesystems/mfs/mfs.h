@@ -247,6 +247,7 @@ typedef struct FileSystemMFS {
     uint32_t*      BucketMap;
     MasterRecord_t MasterRecord;
     FileRecord_t   RootRecord;
+    MFSEntry_t     RootEntry;
 } FileSystemMFS_t;
 
 /* MfsGetBucketLink
@@ -321,15 +322,20 @@ MfsUpdateRecord(
         _In_ MFSEntry_t*      entry,
         _In_ int              action);
 
-/* MfsLocateRecord
- * Locates a given file-record by the path given, all sub entries must be 
- * directories. File is only allocated and set if the function returns OsOK */
+/**
+ * @brief Locates a path, starting from the given directory.
+ * @param mfs
+ * @param directory
+ * @param path
+ * @param entryOut
+ * @return
+ */
 extern oserr_t
 MfsLocateRecord(
-        _In_ FileSystemMFS_t* mfs,
-        _In_ uint32_t         bucketOfDirectory,
-        _In_ MFSEntry_t*      entry,
-        _In_ mstring_t*       path);
+        _In_  FileSystemMFS_t* mfs,
+        _In_  MFSEntry_t*      directory,
+        _In_  mstring_t*       path,
+        _Out_ MFSEntry_t**     entryOut);
 
 /**
  * @brief
