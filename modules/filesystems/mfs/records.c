@@ -29,46 +29,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-// /test/ => [remainingPath ], [token ]
-static void __ExtractPathToken(
-    _In_  mstring_t*  path,
-    _Out_ mstring_t** remainingPath,
-    _Out_ mstring_t** token)
-{
-    int strIndex;
-    int strLength;
-    TRACE("__ExtractPathToken(path=%ms)", path);
-
-    // Step 1 is to extract the next token we're searching for in this directory
-    // we do also detect if that is the last token
-    strIndex  = mstr_find_u8(path, "/", 0);
-    strLength = mstr_len(path);
-
-    // So, if StrIndex is -1 now, we
-    // can pretty much assume this was the last token
-    // unless that StrIndex == Last character
-    if (strIndex == -1 || strIndex == (int)(strLength - 1)) {
-        if (strIndex == (int)(strLength - 1) && strIndex != 0) {
-            *token = mstr_substr(path, 0, strIndex);
-        }
-        else if (strIndex != 0) {
-            *token = mstr_clone(path);
-        }
-        else {
-            *token = NULL;
-        }
-
-        *remainingPath = NULL;
-        TRACE("__ExtractPathToken returns remainingPath=NULL, token=%ms [0x%" PRIxIN "]", *token, token);
-        return;
-    }
-
-    *token         = mstr_substr(path, 0, strIndex);
-    *remainingPath = mstr_substr(path, strIndex + 1, (strLength - (strIndex + 1)));
-    TRACE("__ExtractPathToken returns remainingPath=%ms [0x%" PRIxIN "], token=%ms [0x%" PRIxIN "]",
-          *remainingPath, remainingPath, *token, token);
-}
-
 static inline void __StoreRecord(
         _In_ FileSystemMFS_t* mfs,
         _In_ FileRecord_t*    record,
@@ -150,28 +110,73 @@ static oserr_t __ExpandDirectory(
     return osStatus;
 }
 
+static oserr_t __InitiateDirectory(
+        _In_ FileSystemMFS_t* mfs,
+        _In_ MFSEntry_t*      entry,
+        _In_ uint32_t*        bucketOut)
+{
+    MapRecord_t record;
+    oserr_t     oserr;
+
+    // Allocate bucket
+    oserr = MfsAllocateBuckets(mfs, MFS_DIRECTORYEXPANSION, &record);
+    if (oserr != OsOK) {
+        ERROR("__InitiateDirectory failed to allocate bucket for expansion");
+        return oserr;
+    }
+
+    // Update the stored record
+    oserr = MfsUpdateRecord(mfs, entry, MFS_ACTION_UPDATE);
+    if (oserr != OsOK) {
+        ERROR("__InitiateDirectory failed to update bucket-link for expansion");
+        return oserr;
+    }
+
+    // Zero the bucket
+    oserr = MfsZeroBucket(mfs, record.Link, record.Length);
+    if (oserr != OsOK) {
+        ERROR("__InitiateDirectory failed to zero bucket %u", record.Link);
+    }
+
+    *bucketOut = record.Link;
+    return oserr;
+}
+
 /**
  * Finds an entry matching the name given, or returns a free entry. A guarantee of a free entry can only be made
  * if the <allowExpansion> is set to a non-zero value.
  * @param fileSystem        [In] A pointer to an instance of the filesystem data.
  * @param mfs               [In] A pointer to an instance of the mfs data.
- * @param bucketOfDirectory [In] The first data bucket of the directory to search in.
+ * @param directory         [In] The directory that should be searched.
  * @param entryName         [In] Name of the entry that we are searchin for.
  * @param allowExpansion    [In] Whether or not we can expand the directory if no free entry was found.
  * @param resultEntry       [In] A pointer to an MfsEntry_t structure where the found entry can be stored.
  * @return                  OsExists if entry with <entryName> was found, OsNotExists if a free entry was found.
  *                          Any other Os* value is indicative of an error.
  */
-static oserr_t __FindEntryOrFreeInDirectoryBucket(
+static oserr_t __FindEntryOrFreeInDirectory(
         _In_ FileSystemMFS_t* mfs,
-        _In_ uint32_t         bucketOfDirectory,
+        _In_ MFSEntry_t*      directory,
         _In_ mstring_t*       entryName,
         _In_ int              allowExpansion,
         _In_ MFSEntry_t*      resultEntry)
 {
-    uint32_t currentBucket = bucketOfDirectory;
-    oserr_t  osStatus;
-    TRACE("__FindEntryOrFreeInDirectoryBucket(name=%ms, expand=%i)", entryName, allowExpansion);
+    uint32_t currentBucket = directory->StartBucket;
+    oserr_t  oserr;
+    TRACE("__FindEntryOrFreeInDirectory(name=%ms, expand=%i)", entryName, allowExpansion);
+
+    // Handle the zero case where a directory is completely empty. In that
+    // case a directory will have a Bucket of MFS_ENDOFCHAIN. In that case,
+    // if expansion is allowed, we must allocate a new bucket for it first.
+    if (currentBucket == MFS_ENDOFCHAIN) {
+        if (!allowExpansion) {
+            return OsNotExists;
+        }
+        oserr = __InitiateDirectory(mfs, directory, &currentBucket);
+        if (oserr != OsOK) {
+            return oserr;
+        }
+    }
 
     // Mark the bucket invalid, we use this as a loop indicator
     resultEntry->DirectoryBucket = MFS_ENDOFCHAIN;
@@ -183,9 +188,9 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         MapRecord_t   link;
         int           exitLoop = 0;
 
-        osStatus = __ReadCurrentBucket(mfs, currentBucket, &link);
-        if (osStatus != OsOK) {
-            ERROR("__FindEntryOrFreeInDirectoryBucket failed to read directory bucket");
+        oserr = __ReadCurrentBucket(mfs, currentBucket, &link);
+        if (oserr != OsOK) {
+            ERROR("__FindEntryOrFreeInDirectory failed to read directory bucket");
             break;
         }
 
@@ -200,7 +205,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
             // if we encounter the end of the file-record table
             if (!(record->Flags & MFS_FILERECORD_INUSE)) {
                 if (resultEntry->DirectoryBucket == MFS_ENDOFCHAIN) {
-                    TRACE("__FindEntryOrFreeInDirectoryBucket free entry stored: %u/%llu", currentBucket, i);
+                    TRACE("__FindEntryOrFreeInDirectory free entry stored: %u/%llu", currentBucket, i);
                     resultEntry->DirectoryBucket = currentBucket;
                     resultEntry->DirectoryLength = link.Length;
                     resultEntry->DirectoryIndex  = i;
@@ -213,15 +218,15 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
             // and try to match it with our token (ignore case)
             filename      = mstr_new_u8((const char*)&record->Name[0]);
             compareResult = mstr_icmp(entryName, filename);
-            TRACE("__FindEntryOrFreeInDirectoryBucket matching token %ms == %ms: %i",
+            TRACE("__FindEntryOrFreeInDirectory matching token %ms == %ms: %i",
                   entryName, filename, compareResult);
             mstr_delete(filename);
 
             if (!compareResult) {
-                TRACE("__FindEntryOrFreeInDirectoryBucket found!");
+                TRACE("__FindEntryOrFreeInDirectory found!");
                 // it was end of path, and the entry exists
                 __StoreRecord(mfs, record, currentBucket, link.Length, i, resultEntry);
-                osStatus = OsExists;
+                oserr    = OsExists;
                 exitLoop = 1;
                 break;
             }
@@ -232,18 +237,18 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
             break;
         }
 
-        // OK when link == MFS_ENDOFCHAIN, then we are at the end of the current directory
+        // OK when link == MFS_ENDOFCHAIN, then we are at the end of the current directory,
         // and we have to expand it. At this point we can assume that file/directory did not exist
         // and can actually move on to creating the file. If we did not find a free entry while
         // iterating, then we have to expand the directory
         if (link.Link == MFS_ENDOFCHAIN) {
             if (resultEntry->DirectoryBucket == MFS_ENDOFCHAIN && allowExpansion) {
-                TRACE("__FindEntryOrFreeInDirectoryBucket expanding directory");
+                TRACE("__FindEntryOrFreeInDirectory expanding directory");
 
                 // Expand directory as we have not found a free record
-                osStatus = __ExpandDirectory(mfs, currentBucket, &link);
-                if (osStatus != OsOK) {
-                    ERROR("__FindEntryOrFreeInDirectoryBucket failed to expand directory");
+                oserr = __ExpandDirectory(mfs, currentBucket, &link);
+                if (oserr != OsOK) {
+                    ERROR("__FindEntryOrFreeInDirectory failed to expand directory");
                     break;
                 }
 
@@ -252,8 +257,8 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
                 resultEntry->DirectoryLength = link.Length;
                 resultEntry->DirectoryIndex  = 0;
             } else {
-                TRACE("__FindEntryOrFreeInDirectoryBucket didn't exist!");
-                osStatus = OsNotExists;
+                TRACE("__FindEntryOrFreeInDirectory didn't exist!");
+                oserr = OsNotExists;
             }
             break;
         }
@@ -261,7 +266,7 @@ static oserr_t __FindEntryOrFreeInDirectoryBucket(
         // Update current bucket pointer
         currentBucket = link.Link;
     }
-    return osStatus;
+    return oserr;
 }
 
 static MFSEntry_t* __MFSEntryNew(
@@ -324,71 +329,102 @@ static oserr_t __CreateEntryInDirectory(
     return OsOK;
 }
 
+static inline bool __PathIsRoot(mstring_t* path) {
+    if (mstr_at(path, 0) == U'/' && mstr_len(path) == 1) {
+        return true;
+    }
+    return false;
+}
+
 oserr_t
 MfsLocateRecord(
-        _In_ FileSystemMFS_t* mfs,
-        _In_ uint32_t         bucketOfDirectory,
-        _In_ MFSEntry_t*      entry,
-        _In_ mstring_t*       path)
+        _In_  FileSystemMFS_t* mfs,
+        _In_  MFSEntry_t*      directory,
+        _In_  mstring_t*       path,
+        _Out_ MFSEntry_t**     entryOut)
 {
-    oserr_t              osStatus;
-    mstring_t*           remainingPath = NULL;
-    mstring_t*           currentToken  = NULL;
-    MFSEntry_t           nextEntry     = { 0 };
-    int                  isEndOfPath   = 0;
+    oserr_t     oserr;
+    MFSEntry_t  currentEntry;
+    mstring_t** tokens;
+    int         tokenCount;
 
-    TRACE("MfsLocateRecord(fileSystem=%ms, bucketOfDirectory=%u, entry=0x%" PRIxIN ", path=%ms)",
-          mfs->Label, bucketOfDirectory, entry, path);
+    TRACE("MfsLocateRecord(fileSystem=%ms, bucketOfDirectory=%u, path=%ms)",
+          mfs->Label, directory->Name, path);
 
-    // Either get next part of the path, or end at this entry
-    if (mstr_len(path) != 0) {
-        __ExtractPathToken(path, &remainingPath, &currentToken);
-        if (remainingPath == NULL) {
-            isEndOfPath = 1;
-            if (currentToken == NULL) {
-                MfsFileRecordToVfsFile(mfs, &mfs->RootRecord, entry);
-                return OsOK;
-            }
+    if (__PathIsRoot(path)) {
+        MFSEntry_t* entry = __MFSEntryNew(
+                mfs->RootEntry.Name,
+                mfs->RootEntry.Owner,
+                mfs->RootEntry.Flags,
+                mfs->RootEntry.Permissions
+        );
+        if (entry == NULL) {
+            return OsOutOfMemory;
         }
-    } else {
-        // end of path
         MfsFileRecordToVfsFile(mfs, &mfs->RootRecord, entry);
+        *entryOut = entry;
         return OsOK;
     }
 
-    // Iterate untill we reach end of folder
-    osStatus = __FindEntryOrFreeInDirectoryBucket(
-            mfs, bucketOfDirectory,
-            currentToken, 0,
-            &nextEntry
-    );
-    if (osStatus == OsExists) {
-        if (!isEndOfPath) {
-            if (!(nextEntry.NativeFlags & MFS_FILERECORD_DIRECTORY)) {
-                osStatus = OsPathIsNotDirectory;
-                goto exit;
+    tokenCount = mstr_path_tokens(path, &tokens);
+    if (tokenCount <= 0) {
+        return OsInvalidParameters;
+    }
+
+    // Copy the entry we are looking inside, into currentEntry, we will use that
+    // one as the iterator.
+    memcpy(&currentEntry, directory, sizeof(MFSEntry_t));
+
+    for (int i = 0; i < tokenCount; i++) {
+        mstring_t* token = tokens[i];
+        bool       isLast = i == (tokenCount - 1);
+
+        // lookup the token in the current folder, this function will either return
+        // OsExists or OsNotExists
+        oserr = __FindEntryOrFreeInDirectory(
+                mfs, &currentEntry,
+                token, 0,
+                &currentEntry
+        );
+
+        // If the entry was located, we must do some checks
+        if (oserr == OsExists) {
+            if (isLast) {
+                MFSEntry_t* entry = __MFSEntryNew(
+                        mfs->RootEntry.Name,
+                        mfs->RootEntry.Owner,
+                        mfs->RootEntry.Flags,
+                        mfs->RootEntry.Permissions
+                );
+                if (entry == NULL) {
+                    return OsOutOfMemory;
+                }
+                memcpy(entry, &currentEntry, sizeof(MFSEntry_t));
+                oserr = OsOK;
+                *entryOut = entry;
+                break;
             }
 
-            if (nextEntry.StartBucket == MFS_ENDOFCHAIN) {
-                osStatus = OsNotExists;
-                goto exit;
+            // If we are not at the last entry, then two criterias must be met:
+            // 1. The token we found *must* be a directory
+            // 2. The directory must have been initialized, otherwise it is empty.
+            if (!(currentEntry.NativeFlags & MFS_FILERECORD_DIRECTORY)) {
+                oserr = OsPathIsNotDirectory;
+                break;
             }
 
-            osStatus = MfsLocateRecord(mfs, nextEntry.StartBucket, entry, remainingPath);
-        }
-        else {
-            memcpy(entry, &nextEntry, sizeof(MFSEntry_t));
-            osStatus = OsOK;
+            if (currentEntry.StartBucket == MFS_ENDOFCHAIN) {
+                oserr = OsNotExists;
+                break;
+            }
+        } else {
+            // Entry was not found, leave the osStatus and break
+            break;
         }
     }
 
-    // Cleanup the allocated strings
-exit:
-    if (remainingPath != NULL) {
-        mstr_delete(remainingPath);
-    }
-    mstr_delete(currentToken);
-    return osStatus;
+    mstrv_delete(tokens);
+    return oserr;
 }
 
 oserr_t
@@ -407,9 +443,9 @@ MfsCreateRecord(
     TRACE("MfsCreateRecord(fileSystem=%ms, flags=0x%x, path=%ms)",
           mfs->Label, flags, name);
 
-    osStatus = __FindEntryOrFreeInDirectoryBucket(
+    osStatus = __FindEntryOrFreeInDirectory(
             mfs,
-            entry->StartBucket,
+            entry,
             name,
             1,
             &nextEntry
