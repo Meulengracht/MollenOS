@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -45,7 +45,7 @@ FsReadFromDirectory(
     struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
 
     TRACE("FsReadFromDirectory(entry=%ms, position=%u, count=%u)",
-          entry->Base.Name, LODWORD(position), LODWORD(unitCount));
+          entry->Name, LODWORD(position), LODWORD(unitCount));
 
     // Indicate zero bytes read to start with
     *unitsRead = 0;
@@ -57,10 +57,10 @@ FsReadFromDirectory(
 
     TRACE(" > dma: fpos %u, bytes-total %u, offset %u", LODWORD(position), bytesToRead, bufferOffset);
     TRACE(" > dma: databucket-pos %u, databucket-len %u, databucket-bound %u",
-          LODWORD(handle->DataBucketPosition), LODWORD(handle->DataBucketLength),
-          LODWORD(handle->BucketByteBoundary));
-    TRACE(" > sec %u, count %u, offset %u", LODWORD(MFS_GETSECTOR(mfs, handle->DataBucketPosition)),
-          LODWORD(MFS_SECTORCOUNT(mfs, handle->DataBucketLength)), LODWORD(position - handle->BucketByteBoundary));
+          LODWORD(entry->DataBucketPosition), LODWORD(entry->DataBucketLength),
+          LODWORD(entry->BucketByteBoundary));
+    TRACE(" > sec %u, count %u, offset %u", LODWORD(MFS_GETSECTOR(mfs, entry->DataBucketPosition)),
+          LODWORD(MFS_SECTORCOUNT(mfs, entry->DataBucketLength)), LODWORD(position - entry->BucketByteBoundary));
 
     while (bytesToRead > sizeof(struct VFSStat)) {
         uint64_t sector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
@@ -104,7 +104,7 @@ FsReadFromDirectory(
         // We do if the position we have read to equals end of bucket
         if (position == (entry->BucketByteBoundary + bucketSize)) {
             TRACE("read_metrics::position %u, limit %u", LODWORD(position),
-                LODWORD(handle->BucketByteBoundary + bucketSize));
+                LODWORD(entry->BucketByteBoundary + bucketSize));
             osStatus = MfsSwitchToNextBucketLink(mfs, entry,
                                                  mfs->SectorsPerBucket * mfs->SectorSize);
             if (osStatus != OsOK) {
@@ -139,7 +139,7 @@ FsSeekInDirectory(
 
     // Trace
     TRACE("FsSeekInDirectory(entry=%ms, position=%u)",
-          entry->Base.Name, LODWORD(absolutePosition));
+          entry->Name, LODWORD(absolutePosition));
 
     // Sanitize seeking bounds
     if (entry->ActualSize == 0) {

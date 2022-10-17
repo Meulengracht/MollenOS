@@ -546,3 +546,14 @@ MfsEnsureRecordSpace(
     }
     return OsOK;
 }
+
+oserr_t
+MFSCloneBucketData(
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         sourceBucket,
+        _In_ uint32_t         sourceLength,
+        _In_ uint32_t         destinationBucket,
+        _In_ uint32_t         destinationLength)
+{
+    return OsNotSupported;
+}
