@@ -125,6 +125,10 @@ static oserr_t __InitiateDirectory(
         return oserr;
     }
 
+    // Update the bucket info in the stored record
+    entry->StartBucket = record.Link;
+    entry->StartLength = record.Length;
+
     // Update the stored record
     oserr = MfsUpdateRecord(mfs, entry, MFS_ACTION_UPDATE);
     if (oserr != OsOK) {
@@ -225,7 +229,14 @@ static oserr_t __FindEntryOrFreeInDirectory(
             if (!compareResult) {
                 TRACE("__FindEntryOrFreeInDirectory found!");
                 // it was end of path, and the entry exists
-                __StoreRecord(mfs, record, currentBucket, link.Length, i, resultEntry);
+                __StoreRecord(
+                        mfs,
+                        record,
+                        currentBucket,
+                        link.Length,
+                        i,
+                        resultEntry
+                );
                 oserr    = OsExists;
                 exitLoop = 1;
                 break;
@@ -269,6 +280,21 @@ static oserr_t __FindEntryOrFreeInDirectory(
     return oserr;
 }
 
+static MFSEntry_t* __MFSEntryClone(
+        _In_ MFSEntry_t* entry)
+{
+    MFSEntry_t* cloned = malloc(sizeof(MFSEntry_t));
+    if (cloned == NULL) {
+        return NULL;
+    }
+    // Start out by cloning all data members
+    memcpy(cloned, entry, sizeof(MFSEntry_t));
+
+    // Now correct for allocated members
+    cloned->Name = mstr_clone(entry->Name);
+    return cloned;
+}
+
 static MFSEntry_t* __MFSEntryNew(
         _In_  mstring_t*       name,
         _In_  uint32_t         owner,
@@ -287,10 +313,12 @@ static MFSEntry_t* __MFSEntryNew(
         return NULL;
     }
 
-    unsigned int nativeFlags = MfsVfsFlagsToFileRecordFlags(flags, permissions);
+    unsigned int nativeFlags = MFSToNativeFlags(flags);
     entry->StartBucket = MFS_ENDOFCHAIN;
+    entry->Flags = flags;
     entry->NativeFlags = nativeFlags | MFS_FILERECORD_INUSE;
     entry->Owner = owner;
+    entry->Permissions = permissions;
     return entry;
 }
 
@@ -336,6 +364,12 @@ static inline bool __PathIsRoot(mstring_t* path) {
     return false;
 }
 
+static void __CleanupEntryIterator(
+        _In_ MFSEntry_t* entry)
+{
+    mstr_delete(entry->Name);
+}
+
 oserr_t
 MfsLocateRecord(
         _In_  FileSystemMFS_t* mfs,
@@ -352,16 +386,10 @@ MfsLocateRecord(
           mfs->Label, directory->Name, path);
 
     if (__PathIsRoot(path)) {
-        MFSEntry_t* entry = __MFSEntryNew(
-                mfs->RootEntry.Name,
-                mfs->RootEntry.Owner,
-                mfs->RootEntry.Flags,
-                mfs->RootEntry.Permissions
-        );
+        MFSEntry_t* entry = __MFSEntryClone(&mfs->RootEntry);
         if (entry == NULL) {
             return OsOutOfMemory;
         }
-        MfsFileRecordToVfsFile(mfs, &mfs->RootRecord, entry);
         *entryOut = entry;
         return OsOK;
     }
@@ -380,7 +408,7 @@ MfsLocateRecord(
         bool       isLast = i == (tokenCount - 1);
 
         // lookup the token in the current folder, this function will either return
-        // OsExists or OsNotExists
+        // OsExists or OsNotExists.
         oserr = __FindEntryOrFreeInDirectory(
                 mfs, &currentEntry,
                 token, 0,
@@ -390,16 +418,11 @@ MfsLocateRecord(
         // If the entry was located, we must do some checks
         if (oserr == OsExists) {
             if (isLast) {
-                MFSEntry_t* entry = __MFSEntryNew(
-                        mfs->RootEntry.Name,
-                        mfs->RootEntry.Owner,
-                        mfs->RootEntry.Flags,
-                        mfs->RootEntry.Permissions
-                );
+                MFSEntry_t* entry = __MFSEntryClone(&currentEntry);
+                __CleanupEntryIterator(&currentEntry);
                 if (entry == NULL) {
                     return OsOutOfMemory;
                 }
-                memcpy(entry, &currentEntry, sizeof(MFSEntry_t));
                 oserr = OsOK;
                 *entryOut = entry;
                 break;
@@ -409,14 +432,19 @@ MfsLocateRecord(
             // 1. The token we found *must* be a directory
             // 2. The directory must have been initialized, otherwise it is empty.
             if (!(currentEntry.NativeFlags & MFS_FILERECORD_DIRECTORY)) {
+                TRACE("MfsLocateRecord %ms was not a directory", currentEntry.Name);
                 oserr = OsPathIsNotDirectory;
+                __CleanupEntryIterator(&currentEntry);
                 break;
             }
 
             if (currentEntry.StartBucket == MFS_ENDOFCHAIN) {
+                TRACE("MfsLocateRecord %ms was an empty directory", currentEntry.Name);
                 oserr = OsNotExists;
+                __CleanupEntryIterator(&currentEntry);
                 break;
             }
+            __CleanupEntryIterator(&currentEntry);
         } else {
             // Entry was not found, leave the osStatus and break
             break;
