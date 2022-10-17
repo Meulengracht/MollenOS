@@ -355,23 +355,23 @@ MfsZeroBucket(
 }
 
 unsigned int
-MfsVfsFlagsToFileRecordFlags(
-    _In_ unsigned int flags,
-    _In_ unsigned int permissions)
+MFSToNativeFlags(
+    _In_ unsigned int flags)
 {
     unsigned int nativeFlags = 0;
+    TRACE("MFSToNativeFlags(flags=0x%x)", flags);
 
-    if (flags & __FILE_DIRECTORY) {
+    if (flags & FILE_FLAG_DIRECTORY) {
         nativeFlags |= MFS_FILERECORD_DIRECTORY;
-    }
-    else if (flags & __FILE_LINK) {
+    } else if (flags & FILE_FLAG_LINK) {
         nativeFlags |= MFS_FILERECORD_LINK;
     }
+    TRACE("MFSToNativeFlags returns 0x%x", nativeFlags)
     return nativeFlags;
 }
 
 void
-MfsFileRecordFlagsToVfsFlags(
+MFSFromNativeFlags(
     _In_  FileRecord_t* fileRecord,
     _Out_ unsigned int* flags,
     _Out_ unsigned int* permissions)
@@ -382,8 +382,7 @@ MfsFileRecordFlagsToVfsFlags(
 
     if (fileRecord->Flags & MFS_FILERECORD_DIRECTORY) {
         *flags |= FILE_FLAG_DIRECTORY;
-    }
-    else if (fileRecord->Flags & MFS_FILERECORD_LINK) {
+    } else if (fileRecord->Flags & MFS_FILERECORD_LINK) {
         *flags |= FILE_FLAG_LINK;
     }
 }
@@ -405,9 +404,9 @@ MfsFileRecordToVfsFile(
     mfsEntry->StartLength   = nativeEntry->StartLength;
 
     // Convert flags to generic vfs flags and permissions
-    MfsFileRecordFlagsToVfsFlags(nativeEntry,
-                                 &mfsEntry->Flags,
-                                 &mfsEntry->Permissions);
+    MFSFromNativeFlags(nativeEntry,
+                       &mfsEntry->Flags,
+                       &mfsEntry->Permissions);
 
     // TODO Convert dates
     // VfsEntry->Base.DescriptorCreatedAt;
@@ -534,8 +533,7 @@ MfsEnsureRecordSpace(
             // This means file had nothing allocated
             entry->StartBucket = link.Link;
             entry->StartLength = link.Length;
-        }
-        else {
+        } else {
             if (MfsSetBucketLink(mfs, previousBucketPointer, &link, 1) != OsOK) {
                 ERROR("Failed to set link for bucket %u", previousBucketPointer);
                 return OsDeviceError;

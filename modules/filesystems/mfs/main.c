@@ -36,19 +36,6 @@ oserr_t FsSeekInFile(FileSystemMFS_t*, MFSEntry_t*, uint64_t);
 oserr_t FsReadFromDirectory(FileSystemMFS_t*, MFSEntry_t*, void*, size_t, size_t, size_t*);
 oserr_t FsSeekInDirectory(FileSystemMFS_t*, MFSEntry_t*, uint64_t);
 
-static MFSEntry_t* MFSEntryNew(void)
-{
-    MFSEntry_t* mfsEntry;
-
-    mfsEntry = (MFSEntry_t*)malloc(sizeof(MFSEntry_t));
-    if (!mfsEntry) {
-        return NULL;
-    }
-
-    memset(mfsEntry, 0, sizeof(MFSEntry_t));
-    return mfsEntry;
-}
-
 static void MFSEntryDelete(MFSEntry_t* entry)
 {
     mstr_delete(entry->Name);
@@ -137,7 +124,7 @@ FsStat(
     FileSystemMFS_t* mfs = instanceData;
 
     stat->Label = mfs->Label;
-    stat->MaxFilenameLength = sizeof(mfs->RootRecord.Name);
+    stat->MaxFilenameLength = MFS_FILERECORD_MAX_NAME;
     stat->BlockSize = mfs->SectorSize;
     stat->BlocksPerSegment = mfs->SectorsPerBucket;
     stat->SegmentsTotal = mfs->BucketsInMap;
@@ -482,14 +469,19 @@ __ParseAndProcessMasterRecord(
     return OsOK;
 }
 
-static void __InitializeRootRecord(
+static void __InitializeRootEntry(
         _In_ FileSystemMFS_t* mfs)
 {
-    memcpy(&mfs->RootRecord.Name[0], RootEntryName, strlen(RootEntryName));
-    mfs->RootRecord.Flags       = MFS_FILERECORD_INUSE | MFS_FILERECORD_LOCKED |
-                                  MFS_FILERECORD_SYSTEM | MFS_FILERECORD_DIRECTORY;
-    mfs->RootRecord.StartBucket = mfs->MasterRecord.RootIndex;
-    mfs->RootRecord.StartLength = MFS_ROOTSIZE;
+    // Only initiate member values that should not be 0, __FileSystemMFSNew takes
+    // care of memset'ing the structure.
+    mfs->RootEntry.Name = mstr_new_u8(RootEntryName);
+    mfs->RootEntry.Owner = UUID_INVALID;
+    mfs->RootEntry.Permissions = FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE;
+    mfs->RootEntry.Flags = FILE_FLAG_DIRECTORY;
+    mfs->RootEntry.ActionOnClose = MFS_ACTION_NONE;
+    mfs->RootEntry.StartBucket = mfs->MasterRecord.RootIndex;
+    mfs->RootEntry.StartLength = MFS_ROOTSIZE;
+    mfs->RootEntry.DirectoryBucket = MFS_ENDOFCHAIN;
 }
 
 oserr_t
@@ -572,7 +564,7 @@ FsInitialize(
         goto error_exit;
     }
 
-    __InitializeRootRecord(mfs);
+    __InitializeRootEntry(mfs);
     *instanceData = mfs;
     return OsOK;
 

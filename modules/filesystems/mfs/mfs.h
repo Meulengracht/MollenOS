@@ -177,6 +177,8 @@ PACKED_TYPESTRUCT(FileRecord, {
     uint8_t          Integrated[512];    // 0x200
 });
 
+#define MFS_FILERECORD_MAX_NAME 300
+
 /* MFS FileRecord-Flags Definitions
  * Contains constants and bitfield definitions for FileRecord::Flags */
 #define MFS_FILERECORD_FILE             0x0        
@@ -246,7 +248,6 @@ typedef struct FileSystemMFS {
     // Cached resources
     uint32_t*      BucketMap;
     MasterRecord_t MasterRecord;
-    FileRecord_t   RootRecord;
     MFSEntry_t     RootEntry;
 } FileSystemMFS_t;
 
@@ -358,17 +359,23 @@ MfsCreateRecord(
         _In_  uint32_t         permissions,
         _Out_ MFSEntry_t**     entryOut);
 
-/* MfsVfsFlagsToFileRecordFlags
- * Converts the generic vfs options/permissions to the native mfs representation. */
+/**
+ * @brief Converts the generic vfs options/permissions to the native mfs representation.
+ * @param flags
+ * @return
+ */
 extern unsigned int
-MfsVfsFlagsToFileRecordFlags(
-    _In_ unsigned int flags,
-    _In_ unsigned int permissions);
+MFSToNativeFlags(
+    _In_ unsigned int flags);
 
-/* MfsFileRecordFlagsToVfsFlags
- * Converts the native MFS file flags into the generic vfs options/permissions. */
+/**
+ * @brief Converts the native MFS file flags into the generic vfs options/permissions.
+ * @param fileRecord
+ * @param flags
+ * @param permissions
+ */
 extern void
-MfsFileRecordFlagsToVfsFlags(
+MFSFromNativeFlags(
     _In_  FileRecord_t* fileRecord,
     _Out_ unsigned int* flags,
     _Out_ unsigned int* permissions);
