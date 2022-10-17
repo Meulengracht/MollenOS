@@ -70,6 +70,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
     if (osStatus != OsOK && osStatus != OsNotExists) {
+        TRACE("VFSNodeOpen find returned %u", osStatus);
         goto exit;
     }
 

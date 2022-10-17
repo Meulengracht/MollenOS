@@ -38,6 +38,10 @@ oserr_t FsSeekInDirectory(FileSystemMFS_t*, MFSEntry_t*, uint64_t);
 
 static void MFSEntryDelete(MFSEntry_t* entry)
 {
+    if (entry == NULL) {
+        return;
+    }
+
     mstr_delete(entry->Name);
     free(entry);
 }
@@ -88,6 +92,8 @@ FsCreate(
             owner,
             flags,
             permissions,
+            0, 0,
+            MFS_ENDOFCHAIN, 0,
             &result
     );
     if (osStatus != OsOK) {
@@ -192,8 +198,108 @@ FsMove(
         _In_ mstring_t* to,
         _In_ int        copy)
 {
-    // TODO implement MFS::Move
-    return OsNotSupported;
+
+    FileSystemMFS_t* mfs = instanceData;
+    oserr_t          oserr;
+    MFSEntry_t*      targetEntry;
+    MFSEntry_t*      newEntry = NULL;
+    MFSEntry_t*      sourceEntry;
+    mstring_t*       fromDirectoryPath;
+    mstring_t*       fromBaseName;
+
+    // If where we are moving it already exists, then lets bail with the
+    // excuse that the record already exists. If the entry does not exist, then
+    // we get a handle on the directory of the target
+    oserr = MfsLocateRecord(
+            mfs,
+            &mfs->RootEntry,
+            to,
+            &targetEntry);
+    if (oserr != OsNotExists) {
+        if (oserr == OsOK) {
+            oserr = OsExists;
+        }
+        return oserr;
+    }
+
+    fromDirectoryPath = mstr_path_dirname(from);
+    fromBaseName = mstr_path_basename(from);
+    if (fromDirectoryPath == NULL || fromBaseName == NULL) {
+        mstr_delete(fromDirectoryPath);
+        mstr_delete(fromBaseName);
+        return OsOutOfMemory;
+    }
+
+    oserr = MfsLocateRecord(
+            mfs,
+            &mfs->RootEntry,
+            fromDirectoryPath,
+            &targetEntry);
+    if (oserr != OsOK) {
+        mstr_delete(fromDirectoryPath);
+        mstr_delete(fromBaseName);
+        return oserr;
+    }
+
+    // Next step is to locate the source record.
+    oserr = MfsLocateRecord(
+            mfs,
+            &mfs->RootEntry,
+            from,
+            &sourceEntry);
+    if (oserr != OsOK) {
+        goto cleanup;
+    }
+
+    // Create the new record
+    oserr = MfsCreateRecord(
+            mfs,
+            targetEntry,
+            fromBaseName,
+            sourceEntry->Owner,
+            sourceEntry->Flags,
+            sourceEntry->Permissions,
+            sourceEntry->AllocatedSize,
+            sourceEntry->ActualSize,
+            sourceEntry->StartBucket,
+            sourceEntry->StartLength,
+            &newEntry
+    );
+    if (oserr != OsOK) {
+        goto cleanup;
+    }
+
+    if (!copy) {
+        oserr = MfsUpdateRecord(mfs, sourceEntry, MFS_ACTION_DELETE);
+        goto cleanup;
+    }
+
+    // Allocate a new chain, and dublicate the data
+    newEntry->AllocatedSize = 0;
+    newEntry->ActualSize = 0;
+    newEntry->StartBucket = MFS_ENDOFCHAIN;
+    newEntry->StartLength = 0;
+    oserr = MfsEnsureRecordSpace(mfs, newEntry, sourceEntry->ActualSize);
+    if (oserr != OsOK) {
+        (void)MfsUpdateRecord(mfs, newEntry, MFS_ACTION_DELETE);
+        goto cleanup;
+    }
+
+    oserr = MFSCloneBucketData(mfs, sourceEntry->StartBucket, sourceEntry->StartLength, newEntry->StartBucket, newEntry->StartLength);
+    if (oserr != OsOK) {
+        (void)MfsUpdateRecord(mfs, newEntry, MFS_ACTION_DELETE);
+        goto cleanup;
+    }
+
+    oserr = MfsUpdateRecord(mfs, newEntry, MFS_ACTION_UPDATE);
+
+cleanup:
+    MFSEntryDelete(targetEntry);
+    MFSEntryDelete(sourceEntry);
+    MFSEntryDelete(newEntry);
+    mstr_delete(fromDirectoryPath);
+    mstr_delete(fromBaseName);
+    return oserr;
 }
 
 oserr_t
@@ -482,6 +588,8 @@ static void __InitializeRootEntry(
     mfs->RootEntry.StartBucket = mfs->MasterRecord.RootIndex;
     mfs->RootEntry.StartLength = MFS_ROOTSIZE;
     mfs->RootEntry.DirectoryBucket = MFS_ENDOFCHAIN;
+    mfs->RootEntry.DataBucketPosition = mfs->MasterRecord.RootIndex;
+    mfs->RootEntry.DataBucketLength = MFS_ROOTSIZE;
 }
 
 oserr_t

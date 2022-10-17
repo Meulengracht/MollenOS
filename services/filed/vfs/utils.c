@@ -184,15 +184,18 @@ oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** node
 
     // check once while having the reader lock only, this is a performance optimization,
     // so we don't on following checks acquire the writer lock for nothing
+    TRACE("VFSNodeFind ensuring loaded");
     oserr = VFSNodeEnsureLoaded(node);
     if (oserr != OsOK) {
         return oserr;
     }
+    TRACE("VFSNodeFind done");
 
     result = hashtable_get(&node->Children, &(struct __VFSChild) { .Key = name });
     if (result == NULL) {
         return OsNotExists;
     }
+    TRACE("VFSNodeFind found");
 
     *nodeOut = result->Node;
     return OsOK;

@@ -306,6 +306,23 @@ MfsFreeBuckets(
         _In_ uint32_t         startBucket,
         _In_ uint32_t         startLength);
 
+/**
+ * @brief
+ * @param mfs
+ * @param sourceBucket
+ * @param sourceLength
+ * @param destinationBucket
+ * @param destinationLength
+ * @return
+ */
+extern oserr_t
+MFSCloneBucketData(
+        _In_ FileSystemMFS_t* mfs,
+        _In_ uint32_t         sourceBucket,
+        _In_ uint32_t         sourceLength,
+        _In_ uint32_t         destinationBucket,
+        _In_ uint32_t         destinationLength);
+
 /* MfsEnsureRecordSpace
  * Ensures that the given record has the space neccessary for the required data. */
 extern oserr_t
@@ -357,6 +374,10 @@ MfsCreateRecord(
         _In_  uint32_t         owner,
         _In_  uint32_t         flags,
         _In_  uint32_t         permissions,
+        _In_  uint64_t         allocatedSize,
+        _In_  uint64_t         size,
+        _In_  uint32_t         startBucket,
+        _In_  uint32_t         startLength,
         _Out_ MFSEntry_t**     entryOut);
 
 /**

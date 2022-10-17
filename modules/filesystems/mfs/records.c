@@ -43,6 +43,10 @@ static inline void __StoreRecord(
     entry->DirectoryBucket = currentBucket;
     entry->DirectoryLength = bucketLength;
     entry->DirectoryIndex  = bucketIndex;
+
+    // Set up the handle stuff
+    entry->DataBucketPosition = entry->StartBucket;
+    entry->DataBucketLength = entry->StartLength;
 }
 
 static oserr_t __ReadCurrentBucket(
@@ -328,6 +332,10 @@ static oserr_t __CreateEntryInDirectory(
         _In_  uint32_t         owner,
         _In_  uint32_t         flags,
         _In_  uint32_t         permissions,
+        _In_  uint64_t         allocatedSize,
+        _In_  uint64_t         size,
+        _In_  uint32_t         startBucket,
+        _In_  uint32_t         startLength,
         _In_  uint32_t         directoryBucket,
         _In_  uint32_t         directoryLength,
         _In_  size_t           directoryIndex,
@@ -342,6 +350,10 @@ static oserr_t __CreateEntryInDirectory(
         return OsOutOfMemory;
     }
 
+    entry->AllocatedSize = allocatedSize;
+    entry->ActualSize = size,
+    entry->StartBucket = startBucket;
+    entry->StartLength = startLength;
     entry->DirectoryBucket = directoryBucket;
     entry->DirectoryLength = directoryLength;
     entry->DirectoryIndex = directoryIndex;
@@ -463,6 +475,10 @@ MfsCreateRecord(
         _In_  uint32_t         owner,
         _In_  uint32_t         flags,
         _In_  uint32_t         permissions,
+        _In_  uint64_t         allocatedSize,
+        _In_  uint64_t         size,
+        _In_  uint32_t         startBucket,
+        _In_  uint32_t         startLength,
         _Out_ MFSEntry_t**     entryOut)
 {
     oserr_t    osStatus;
@@ -485,11 +501,16 @@ MfsCreateRecord(
                 owner,
                 flags,
                 permissions,
+                allocatedSize,
+                size,
+                startBucket,
+                startLength,
                 nextEntry.DirectoryBucket,
                 nextEntry.DirectoryLength,
                 nextEntry.DirectoryIndex,
                 entryOut);
     }
+    __CleanupEntryIterator(&nextEntry);
     TRACE("MfsCreateRecord returns=%u", osStatus);
     return osStatus;
 }
