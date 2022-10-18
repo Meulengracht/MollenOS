@@ -15,60 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <os/services/file.h>
 #include <stdio.h>
 
-#include <sys_file_service_client.h>
-
 FILE* tmpfile(void)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    int                      status;
-    oserr_t                  osStatus;
-    stdio_handle_t*          object;
-    uuid_t                   handle;
-    char                     path[64];
+    oserr_t         osStatus;
+    stdio_handle_t* object;
+    uuid_t          handle;
+    char            path[64];
 
     // generate a new path we can use as a temporary file
-    sprintf(&path[0], "$share/%s",  tmpnam(NULL));
-    status = sys_file_open(
-        GetGrachtClient(), 
-        &msg.base, 
-        *__crt_processid_ptr(),
-        &path[0], 
-        __FILE_CREATE | __FILE_TEMPORARY | __FILE_FAILONEXIST | __FILE_BINARY, 
-        __FILE_READ_ACCESS | __FILE_WRITE_ACCESS
+    sprintf(&path[0], "/tmp/%s",  tmpnam(NULL));
+    osStatus = OSOpenPath(
+            path,
+            __FILE_CREATE | __FILE_TEMPORARY | __FILE_FAILONEXIST | __FILE_BINARY,
+            __FILE_READ_ACCESS | __FILE_WRITE_ACCESS,
+            &handle
     );
-
-    if (status) {
-        ERROR("open no communcation channel open");
-        _set_errno(EPIPE);
-        return NULL;
-    }
-
-    status = gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    if (status) {
-        ERROR("open failed to wait for answer: %i", status);
-        _set_errno(EPIPE);
-        return NULL;
-    }
-
-    sys_file_open_result(GetGrachtClient(), &msg.base, &osStatus, &handle);
     if (OsErrToErrNo(osStatus)) {
-        ERROR("open(path=%s) failed with code: %u", &path[0], osStatus);
+        ERROR("tmpfile(path=%s) failed with code: %u", &path[0], osStatus);
         return NULL;
     }
 
-    TRACE("open retrieved handle %u", handle);
     if (stdio_handle_create(-1, WX_DONTINHERIT | WX_TEMP, &object)) {
-        sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_file_close_result(GetGrachtClient(), &msg.base, &osStatus);
+        osStatus = OSCloseFile(handle);
+        if (osStatus != OsOK) {
+            WARNING("tmpfile(path=%s) failed to cleanup handle");
+        }
         return NULL;
     }
     

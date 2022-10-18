@@ -61,7 +61,7 @@ extern oserr_t VFSNodeStatStorage(struct VFS*, struct VFSRequest*, StorageDescri
 extern oserr_t VFSNodeRealPath(struct VFS*, struct VFSRequest*, mstring_t**);
 
 extern oserr_t VFSNodeLink(struct VFS*, struct VFSRequest*);
-extern oserr_t VFSNodeUnlink(struct VFS*, struct VFSRequest*);
+extern oserr_t VFSNodeUnlink(struct VFS*, const char* cpath);
 extern oserr_t VFSNodeReadLink(struct VFS*, struct VFSRequest*, mstring_t**);
 
 extern oserr_t VFSNodeMkdir(struct VFS*, mstring_t* path, uint32_t access, uuid_t* handleOut);

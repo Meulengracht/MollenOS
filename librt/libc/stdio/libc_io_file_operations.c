@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO file operation implementations.
  */
 
 //#define __TRACE
@@ -39,7 +34,7 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
 {
     struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
     size_t                   bytesLeft = length;
-    oserr_t               status;
+    oserr_t                  status;
     TRACE("[libc] [file-io] [perform_transfer] length %" PRIuIN, length);
     
     // Keep reading chunks untill we've read all requested
@@ -134,9 +129,9 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
                             size_t length, size_t* bytesWrittenOut)
 {
     DMAAttachment_t* dmaAttachment = __tls_current_dmabuf();
-    uuid_t     builtinHandle = dmaAttachment->handle;
-    size_t     builtinLength = dmaAttachment->length;
-    oserr_t status;
+    uuid_t           builtinHandle = dmaAttachment->handle;
+    size_t           builtinLength = dmaAttachment->length;
+    oserr_t          oserr;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
@@ -152,9 +147,9 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         // buffer we must account for that
         if ((uintptr_t)buffer & 0x3) {
             size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
-            status = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
-            if (status != OsOK) {
-                return status;
+            oserr = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
+            if (oserr != OsOK) {
+                return oserr;
             }
             adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
             adjustedLength -= bytesToAlign;
@@ -165,32 +160,31 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         info.capacity = adjustedLength;
         info.flags    = DMA_PERSISTANT;
         info.type     = DMA_TYPE_DRIVER_32;
-        
-        status = DmaExport(adjustedPointer, &info, &attachment);
-        if (status != OsOK) {
-            return status;
+
+        oserr = DmaExport(adjustedPointer, &info, &attachment);
+        if (oserr != OsOK) {
+            return oserr;
         }
-        
-        status = perform_transfer(handle->object.handle, attachment.handle,
-            1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
+
+        oserr = perform_transfer(handle->object.handle, attachment.handle,
+                                 1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
         DmaDetach(&attachment);
         if (*bytesWrittenOut == adjustedLength) {
             *bytesWrittenOut = length;
         }
-        return status;
+        return oserr;
     }
     
     memcpy(__tls_current_dmabuf()->buffer, buffer, length);
-    status = perform_transfer(handle->object.handle, builtinHandle, 1,
-        builtinLength, 0, length, bytesWrittenOut);
-    return status;
+    oserr = perform_transfer(handle->object.handle, builtinHandle, 1,
+                             builtinLength, 0, length, bytesWrittenOut);
+    return oserr;
 }
 
 oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t               status;
-    UInteger64_t          seekFinal;
+    oserr_t      status;
+    UInteger64_t seekFinal;
     TRACE("stdio_file_op_seek(origin=%i, offset=%" PRIiIN ")", origin, offset);
 
     // If we search from SEEK_SET, just build offset directly
@@ -247,13 +241,10 @@ oserr_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 
 oserr_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-	oserr_t               status = OsOK;
+	oserr_t status = OsOK;
 	
 	if (options & STDIO_CLOSE_FULL) {
-        sys_file_close(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-        sys_file_close_result(GetGrachtClient(), &msg.base, &status);
+        status = OSCloseFile(handle->object.handle);
 	}
     return status;
 }

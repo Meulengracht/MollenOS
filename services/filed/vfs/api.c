@@ -74,7 +74,7 @@ void DeletePath(
         return;
     }
 
-    oserr_t osStatus = VFSNodeUnlink(fsScope, request);
+    oserr_t osStatus = VFSNodeUnlink(fsScope, request->parameters.delete_path.path);
     sys_file_delete_response(request->message, osStatus);
 
     free((void*)request->parameters.delete_path.path);

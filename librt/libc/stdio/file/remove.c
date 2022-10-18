@@ -13,42 +13,19 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Deletes the file specified by the path
  */
 
-#include <sys_file_service_client.h>
-#include <ddk/service.h>
-#include <errno.h>
-#include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <io.h>
 #include <os/mollenos.h>
+#include <os/services/file.h>
 #include <stdio.h>
 
-int unlink(
-	_In_ const char *path)
+int unlink(const char *path)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    int                      status;
-    oserr_t               osStatus;
-        
-    if (path == NULL) {
-    	_set_errno(EINVAL);
-    	return EOF;
-    }
-    
-    status = sys_file_delete(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, 0);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_delete_result(GetGrachtClient(), &msg.base, &osStatus);
-    if (status || OsErrToErrNo(osStatus)) {
-    	return -1;
-    }
-    return 0;
+    return OsErrToErrNo(OSUnlinkPath(path));
 }
 
-int remove(const char * filename) {
+int remove(const char* filename) {
     return unlink(filename);
 }

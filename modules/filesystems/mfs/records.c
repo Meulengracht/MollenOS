@@ -121,6 +121,7 @@ static oserr_t __InitiateDirectory(
 {
     MapRecord_t record;
     oserr_t     oserr;
+    TRACE("__InitiateDirectory(entry=%ms)", entry->Name);
 
     // Allocate bucket
     oserr = MfsAllocateBuckets(mfs, MFS_DIRECTORYEXPANSION, &record);
@@ -130,8 +131,13 @@ static oserr_t __InitiateDirectory(
     }
 
     // Update the bucket info in the stored record
+    TRACE("__InitiateDirectory allocated %u of length %u", record.Link, record.Length);
     entry->StartBucket = record.Link;
     entry->StartLength = record.Length;
+
+    // Update the read context
+    entry->DataBucketPosition = record.Link;
+    entry->DataBucketLength = record.Length;
 
     // Update the stored record
     oserr = MfsUpdateRecord(mfs, entry, MFS_ACTION_UPDATE);

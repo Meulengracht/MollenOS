@@ -49,6 +49,15 @@ OSCloseFile(
         _In_ uuid_t handle));
 
 /**
+ * @brief Unlinks/removes a path.
+ * @param path The path to unlink.
+ * @return The status of the operation.
+ */
+CRTDECL(oserr_t,
+OSUnlinkPath(
+        _In_ const char* path));
+
+/**
  * @brief
  * @param path
  * @param permissions
@@ -102,6 +111,19 @@ CRTDECL(oserr_t,
 OSGetFileSize(
         _In_ uuid_t        handle,
         _In_ UInteger64_t* size));
+
+/**
+ * @brief Moves, or optionally copies a file.
+ * @param[In] from The source file that should be copied or moved.
+ * @param[In] to The destination of the file
+ * @param[In] copy If set, copy the file instead of moving it
+ * @return OsOK if the operation succeeded, otherwise the an error code.
+ */
+CRTDECL(oserr_t,
+OSMoveFile(
+        _In_ const char* from,
+        _In_ const char* to,
+        _In_ bool        copy));
 
 /**
  * @brief

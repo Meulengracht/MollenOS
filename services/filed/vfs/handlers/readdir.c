@@ -71,7 +71,19 @@ oserr_t VFSNodeReadDirectory(uuid_t fileHandle, struct VFSStat* stats, uint32_t*
     *indexOut = LODWORD(handle->Position);
 
     usched_rwlock_r_lock(&handle->Node->Lock);
-    hashtable_enumerate(&handle->Node->Children, __ReadEntry, &context);
+    // Ensure directory is loaded before accessing entries. We do this on
+    // demand to optimize for the case where we just check if directory exists.
+    oserr = VFSNodeEnsureLoaded(handle->Node);
+    if (oserr != OsOK) {
+        usched_rwlock_r_unlock(&handle->Node->Lock);
+        goto cleanup;
+    }
+
+    hashtable_enumerate(
+            &handle->Node->Children,
+            __ReadEntry,
+            &context
+    );
     usched_rwlock_r_unlock(&handle->Node->Lock);
     if (!context.Found) {
         oserr = OsNotExists;

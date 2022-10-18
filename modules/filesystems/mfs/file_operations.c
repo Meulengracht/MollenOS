@@ -20,7 +20,8 @@
  * General File System (MFS) Driver
  *  - Contains the implementation of the MFS driver for mollenos
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -42,8 +43,8 @@ FsReadFromFile(
     size_t   bucketSizeBytes = mfs->SectorsPerBucket * mfs->SectorSize;
     size_t   bytesToRead     = unitCount;
 
-    TRACE("[mfs] [read_file] id 0x%x, position %u, length %u",
-          handle->Base.Id, LODWORD(handle->Base.position), LODWORD(unitCount));
+    TRACE("FsReadFromFile(name=%ms, position=%u, length=%u)",
+          entry->Name, LODWORD(entry->Position), LODWORD(unitCount));
 
     // Zero this first to indicate no bytes read
     *unitsRead = 0;
@@ -61,16 +62,11 @@ FsReadFromFile(
         // Case 1 - Newly created file, return OsOK;
         if (entry->ActualSize == 0) {
             return OsOK;
-        }
-        else {
+        } else {
             // Read from integrated data
             // TODO
         }
     }
-    
-    // Debug counter values
-    TRACE(" > dma: 0x%x, fpos %u, bytes-total %u, bytes-at %u", DataPointer,
-          LODWORD(position), bytesToRead, *BytesAt);
 
     // Read the current sector, update index to where data starts
     // Keep reading consecutive after that untill all bytes requested have
@@ -178,7 +174,7 @@ FsReadFromFile(
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
         if (position == (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes))) {
-            osStatus = MfsSwitchToNextBucketLink(mfs, entry, bucketSizeBytes);
+            osStatus = MFSAdvanceToNextBucket(mfs, entry, bucketSizeBytes);
             if (osStatus != OsOK) {
                 if (osStatus == OsNotExists) {
                     osStatus = OsOK;
@@ -191,7 +187,7 @@ FsReadFromFile(
     // if (update_when_accessed) @todo
     // entry->accessed = now
     // entry->action_on_close = update
-    TRACE("[mfs] [read_file] bytes read %u/%u", *unitsRead, UnitCount);
+    TRACE("[mfs] [read_file] bytes read %u/%u", *unitsRead, unitCount);
     return osStatus;
 }
 
@@ -210,8 +206,8 @@ FsWriteToFile(
     size_t   bytesToWrite    = unitCount;
     oserr_t  osStatus;
 
-    TRACE("FsWriteEntry(Id 0x%x, Position %u, Length %u)",
-          handle->Base.Id, LODWORD(position), unitCount);
+    TRACE("FsWriteToFile(name=%ms, position=%u, length=%u)",
+          entry->Name, LODWORD(entry->Position), LODWORD(unitCount));
 
     // Set 0 to start out with, in case of errors we want to indicate correctly.
     *unitsWritten = 0;
@@ -341,7 +337,7 @@ FsWriteToFile(
 
             // We have to lookup the link for current bucket
             if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &Link) != OsOK) {
-                ERROR("Failed to get link for bucket %u", entry->DataBucketPosition);
+                ERROR("FsWriteToFile failed to get link for bucket %u", entry->DataBucketPosition);
                 osStatus = OsDeviceError;
                 break;
             }
@@ -376,7 +372,7 @@ FsSeekInFile(
 {
     size_t initialBucketMax;
 
-    TRACE("FsSeekInFile(Id 0x%x, Position 0x%x)", handle->Base.Id, LODWORD(absolutePosition));
+    TRACE("FsSeekInFile(name=%ms, position=0x%x)", entry->Name, LODWORD(absolutePosition));
 
     // Step 1, if the new position is in
     // initial bucket, we need to do no actual seeking
@@ -421,7 +417,7 @@ FsSeekInFile(
 
                 // Get link
                 if (MfsGetBucketLink(mfs, BucketPtr, &Link) != OsOK) {
-                    ERROR("Failed to get link for bucket %u", BucketPtr);
+                    ERROR("FsSeekInFile failed to get link for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
 
@@ -469,7 +465,7 @@ FsTruncate(
     MFSEntry_t*      entry    = (MFSEntry_t*)data;
     oserr_t          osStatus = OsOK;
 
-    TRACE("FsChangeFileSize(Name %ms, Size 0x%x)", entry->Base.Name, LODWORD(size));
+    TRACE("FsChangeFileSize(Name %ms, Size 0x%x)", entry->Name, LODWORD(size));
 
     // Handle a special case of 0
     if (size == 0) {

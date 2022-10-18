@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -54,6 +54,12 @@ FsReadFromDirectory(
     // iterate in units of MfsRecords
     position /= sizeof(struct VFSStat);
     position *= sizeof(FileRecord_t);
+
+    // Guard against empty directories, we just return OsOK and
+    // unitsRead=0
+    if (entry->StartBucket == MFS_ENDOFCHAIN) {
+        return OsOK;
+    }
 
     TRACE(" > dma: fpos %u, bytes-total %u, offset %u", LODWORD(position), bytesToRead, bufferOffset);
     TRACE(" > dma: databucket-pos %u, databucket-len %u, databucket-bound %u",
@@ -105,8 +111,10 @@ FsReadFromDirectory(
         if (position == (entry->BucketByteBoundary + bucketSize)) {
             TRACE("read_metrics::position %u, limit %u", LODWORD(position),
                 LODWORD(entry->BucketByteBoundary + bucketSize));
-            osStatus = MfsSwitchToNextBucketLink(mfs, entry,
-                                                 mfs->SectorsPerBucket * mfs->SectorSize);
+            osStatus = MFSAdvanceToNextBucket(
+                    mfs, entry,
+                    mfs->SectorsPerBucket * mfs->SectorSize
+            );
             if (osStatus != OsOK) {
                 if (osStatus == OsNotExists) {
                     osStatus = OsOK;
@@ -187,7 +195,7 @@ FsSeekInDirectory(
 
                 // Get link
                 if (MfsGetBucketLink(mfs, BucketPtr, &Link) != OsOK) {
-                    ERROR("Failed to get link for bucket %u", BucketPtr);
+                    ERROR("FsSeekInDirectory failed to get link for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
 
