@@ -223,6 +223,6 @@ void InstallBundledApplications(void)
     // finally remove the directory as installation has completed.
     (void)closedir(setupDir);
     if (unlink("/data/setup")) {
-        ERROR("InstallBundledApplications failed to remove /data/setup");
+        ERROR("InstallBundledApplications failed to remove /data/setup: %i", errno);
     }
 }

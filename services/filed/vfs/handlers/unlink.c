@@ -16,8 +16,9 @@
  *
  */
 
+//#define __TRACE
+
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -50,15 +51,20 @@ static oserr_t __VerifyCanDelete(struct VFSNode* node)
 // on the parent
 static oserr_t __DeleteNode(struct VFSNode* node)
 {
-    struct VFSOperations* ops = &node->FileSystem->Interface->Operations;
-    struct VFS*           vfs = node->FileSystem;
+    struct VFSOperations* ops;
+    struct VFS*           vfs;
     struct VFSNode*       parent;
-    oserr_t            osStatus;
-    mstring_t*            nodePath = VFSNodeMakePath(node, 1);
+    oserr_t               oserr;
+    mstring_t*            nodePath;
+    TRACE("__DeleteNode(node=%ms)", node->Name);
 
+    nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL)  {
         return OsOutOfMemory;
     }
+
+    ops = &node->FileSystem->Interface->Operations;
+    vfs = node->FileSystem;
 
     // Get a write-lock on the parent node, we must do this to ensure there
     // are no waiters on the node we are deleting.
@@ -70,35 +76,41 @@ static oserr_t __DeleteNode(struct VFSNode* node)
 
     // Load node before deletion to make sure the node
     // is up-to-date
-    osStatus = VFSNodeEnsureLoaded(node);
-    if (osStatus != OsOK) {
+    oserr = VFSNodeEnsureLoaded(node);
+    if (oserr != OsOK) {
         goto error;
     }
 
-    osStatus = __VerifyCanDelete(node);
-    if (osStatus != OsOK) {
+    oserr = __VerifyCanDelete(node);
+    if (oserr != OsOK) {
         goto error;
     }
 
     // OK at this point we are now allowed to perform the deletion
-    osStatus = ops->Unlink(vfs->Data, nodePath);
-    if (osStatus != OsOK) {
+    oserr = ops->Unlink(vfs->Data, nodePath);
+    if (oserr != OsOK) {
         goto error;
     }
 
-    hashtable_remove(&parent->Children, &(struct __VFSChild) { .Key = node->Name });
+    hashtable_remove(
+            &parent->Children,
+            &(struct __VFSChild) { .Key = node->Name }
+    );
     VFSNodeDestroy(node);
 
 error:
     usched_rwlock_r_unlock(&node->Lock);
     usched_rwlock_w_demote(&parent->Lock);
     mstr_delete(nodePath);
-    return osStatus;
+    return oserr;
 }
 
-oserr_t VFSNodeUnlink(struct VFS* vfs, struct VFSRequest* request)
+oserr_t VFSNodeUnlink(struct VFS* vfs, const char* cpath)
 {
-    mstring_t* path = mstr_path_new_u8(request->parameters.delete_path.path);
+    mstring_t* path;
+    TRACE("VFSNodeUnlink(path=%s)", cpath);
+
+    path = mstr_path_new_u8(cpath);
     if (path == NULL) {
         return OsOutOfMemory;
     }
@@ -107,9 +119,7 @@ oserr_t VFSNodeUnlink(struct VFS* vfs, struct VFSRequest* request)
     // need to go through expensive checks
     if (__PathIsRoot(path)) {
         mstr_delete(path); // we don't need the path from this point
-        if (!(request->parameters.delete_path.options & __FILE_DIRECTORY)) {
-            return OsPathIsDirectory;
-        }
+        WARNING("VFSNodeUnlink deletion of root was requested, returning no-no");
         return OsInvalidPermissions;
     }
 
@@ -131,12 +141,6 @@ oserr_t VFSNodeUnlink(struct VFS* vfs, struct VFSRequest* request)
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
     if (osStatus != OsOK && osStatus != OsNotExists) {
-        goto exit;
-    }
-
-    // Make sure what we are deleting is what was requested.
-    if (__NodeIsDirectory(node) && !(request->parameters.delete_path.options & __FILE_DIRECTORY)) {
-        osStatus = OsPathIsDirectory;
         goto exit;
     }
 

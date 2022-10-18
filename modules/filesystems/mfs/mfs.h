@@ -270,11 +270,11 @@ MfsSetBucketLink(
         _In_ MapRecord_t*     link,
         _In_ int              updateLength);
 
-/* MfsSwitchToNextBucketLink
+/* MFSAdvanceToNextBucket
  * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsNotExists
  * when end-of-chain. */
 extern oserr_t
-MfsSwitchToNextBucketLink(
+MFSAdvanceToNextBucket(
         _In_ FileSystemMFS_t* mfs,
         _In_ MFSEntry_t*      entry,
         _In_ size_t           bucketSizeBytes);

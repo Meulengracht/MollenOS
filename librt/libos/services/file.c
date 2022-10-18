@@ -167,6 +167,55 @@ OSSeekFile(
 }
 
 oserr_t
+OSUnlinkPath(
+        _In_ const char* path)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    if (path == NULL ) {
+        return OsInvalidParameters;
+    }
+
+    sys_file_delete(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            path,
+            0
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_delete_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
+OSMoveFile(
+        _In_ const char* from,
+        _In_ const char* to,
+        _In_ bool        copy)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+
+    if (from == NULL || to == NULL) {
+        return OsInvalidParameters;
+    }
+
+    sys_file_move(
+            GetGrachtClient(),
+            &msg.base,
+            *__crt_processid_ptr(),
+            from,
+            to,
+            copy
+    );
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    sys_file_move_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
 OSGetFilePosition(
         _In_ uuid_t        handle,
         _In_ UInteger64_t* position)

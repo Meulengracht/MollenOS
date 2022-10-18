@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,12 +15,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <os/mollenos.h>
+#include <os/services/file.h>
 #include <stdio.h>
 
-int rename(
-	_In_ const char* oldname,
-	_In_ const char* newname)
+int rename(const char* oldname, const char* newname)
 {
-    // @todo
-    return -1;
+    return OsErrToErrNo(
+            OSMoveFile(
+                    oldname,
+                    newname,
+                    false
+            )
+    );
 }

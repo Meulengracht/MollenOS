@@ -30,7 +30,7 @@ static oserr_t __MapUserBuffer(uuid_t handle, DMAAttachment_t* attachment)
         return osStatus;
     }
 
-    osStatus = DmaAttachmentMap(attachment, 0);
+    osStatus = DmaAttachmentMap(attachment, DMA_ACCESS_WRITE);
     if (osStatus != OsOK) {
         DmaDetach(attachment);
         return osStatus;
