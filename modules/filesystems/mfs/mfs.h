@@ -87,6 +87,8 @@ PACKED_TYPESTRUCT(BootRecord, {
 #define MFS_BOOTRECORD_SYSDRIVE  0x1  // Boot Partition
 #define MFS_BOOTRECORD_ENCRYPTED 0x2  // Partition is protected by encryption
 
+typedef uint32_t bucket_t;
+
 /**
  * The master-record structure
  * Exists two places on disk to have a backup
@@ -98,10 +100,10 @@ PACKED_TYPESTRUCT(MasterRecord, {
     uint32_t Checksum;           // Checksum of the master-record
     uint8_t  PartitionName[64];
 
-    uint32_t FreeBucket;         // Pointer to first free index
-    uint32_t RootIndex;          // Pointer to root directory
-    uint32_t BadBucketIndex;     // Pointer to list of bad buckets
-    uint32_t JournalIndex;       // Pointer to journal file
+    bucket_t FreeBucket;         // Pointer to first free index
+    bucket_t RootIndex;          // Pointer to root directory
+    bucket_t BadBucketIndex;     // Pointer to list of bad buckets
+    bucket_t JournalIndex;       // Pointer to journal file
 
     uint64_t MapSector;          // Start sector of bucket-map
     uint64_t MapSize;            // Size of bucket map
@@ -119,7 +121,7 @@ PACKED_TYPESTRUCT(MasterRecord, {
  * Length of bucket 0 is HIDWORD(Map[0]), Link of bucket 0 is LODWORD(Map[0])
  * If the link equals 0xFFFFFFFF there is no link */
 PACKED_TYPESTRUCT(MapRecord, {
-    uint32_t Link;
+    bucket_t Link;
     uint32_t Length;
 });
 
@@ -154,7 +156,7 @@ PACKED_TYPESTRUCT(VersionRecord, {
  * with the common types being both directories and files, and file-links */
 PACKED_TYPESTRUCT(FileRecord, {
     uint32_t         Flags;                // 0x00 - Record Flags
-    uint32_t         StartBucket;        // 0x04 - First data bucket
+    bucket_t         StartBucket;        // 0x04 - First data bucket
     uint32_t         StartLength;        // 0x08 - Length of first data bucket
     uint32_t         RecordChecksum;        // 0x0C - Checksum of record excluding this entry + inline data
     uint64_t         DataChecksum;        // 0x10 - Checksum of data
@@ -198,6 +200,25 @@ PACKED_TYPESTRUCT(FileRecord, {
 #define MFS_FILERECORD_SPARSE           0x40000000  // Record-sparse map is in use
 #define MFS_FILERECORD_INUSE            0x80000000  // Record is in use
 
+typedef struct MFSBucketMap {
+    // Keep a copy of the master-record, so we can flush
+    // it faster. It's the responsibility of the bucket map
+    // as the only value that we expect to change in the master
+    // record often is the free bucket pointer.
+    MasterRecord_t MasterRecord;
+
+    // The number of buckets present in the map. The map
+    // is always large enough to have room for each bucket,
+    // as if they were not chained. Though in theory it should
+    // ever only be count/2 as after that it will always be possible
+    // to concenate.
+    uint32_t BucketCount;
+
+    // Records is the pointer to the cached bucket map. When loading
+    // the FS we cache the entire bucket-map to speedup lookups.
+    MapRecord_t* Records;
+} MFSBucketMap_t;
+
 typedef struct MFSEntry {
     mstring_t* Name;
     uint32_t   Owner;
@@ -213,20 +234,20 @@ typedef struct MFSEntry {
     uint64_t ActualSize;
 
     // The initial bucket and length of that bucket
-    uint32_t StartBucket;
+    bucket_t StartBucket;
     uint32_t StartLength;
 
     // The bucket of the directory where this file resides,
     // and the length of the bucket. We also store the file
     // descriptor index into this bucket.
-    uint32_t DirectoryBucket;
+    bucket_t DirectoryBucket;
     uint32_t DirectoryLength;
     size_t   DirectoryIndex;
 
     // Current position for this file handle. We store the bucket
     // and the length of that bucket.
     uint64_t Position;
-    uint32_t DataBucketPosition;
+    bucket_t DataBucketPosition;
     uint32_t DataBucketLength;
     uint64_t BucketByteBoundary;  // Support variadic bucket sizes
 } MFSEntry_t;
@@ -251,28 +272,56 @@ typedef struct FileSystemMFS {
     MFSEntry_t     RootEntry;
 } FileSystemMFS_t;
 
-/* MfsGetBucketLink
- * Looks up the next bucket link by utilizing the cached
- * in-memory version of the bucketmap */
+/**
+ * @brief
+ * @param mfs
+ * @param bucketCount
+ * @param allocatedRecord
+ * @return
+ */
 extern oserr_t
-MfsGetBucketLink(
+MFSBucketMapAllocate(
+        _In_  FileSystemMFS_t* mfs,
+        _In_  size_t           bucketCount,
+        _Out_ MapRecord_t*     allocatedRecord);
+
+/**
+ * @brief
+ * @param mfs
+ * @param bucket
+ * @param link
+ * @return
+ */
+extern oserr_t
+MFSBucketMapGetLengthAndLink(
         _In_ FileSystemMFS_t* mfs,
-        _In_ uint32_t         bucket,
+        _In_ bucket_t         bucket,
         _In_ MapRecord_t*     link);
 
-/* MfsSetBucketLink
- * Updates the next link for the given bucket and flushes
- * the changes to disk */
+/**
+ * @brief
+ * @param mfs
+ * @param bucket
+ * @param link
+ * @param length
+ * @param updateLength
+ * @return
+ */
 extern oserr_t
-MfsSetBucketLink(
+MFSBucketMapSetLinkAndLength(
         _In_ FileSystemMFS_t* mfs,
-        _In_ uint32_t         bucket,
-        _In_ MapRecord_t*     link,
-        _In_ int              updateLength);
+        _In_ bucket_t         bucket,
+        _In_ bucket_t         link,
+        _In_ uint32_t         length,
+        _In_ bool             updateLength);
 
-/* MFSAdvanceToNextBucket
- * Retrieves the next bucket link, marks it active and updates the file-instance. Returns OsNotExists
- * when end-of-chain. */
+/**
+ * @brief
+ * @param mfs
+ * @param entry
+ * @param bucketSizeBytes
+ * @return
+ */
 extern oserr_t
 MFSAdvanceToNextBucket(
         _In_ FileSystemMFS_t* mfs,
@@ -288,16 +337,7 @@ MfsZeroBucket(
         _In_ uint32_t         bucket,
         _In_ size_t           count);
 
-/* MfsAllocateBuckets
- * Allocates the number of requested buckets in the bucket-map
- * if the allocation could not be done, it'll return OsError */
-extern oserr_t
-MfsAllocateBuckets(
-        _In_  FileSystemMFS_t* mfs,
-        _In_  size_t           bucketCount,
-        _Out_ MapRecord_t*     mapRecord);
-
-/* MfsFreeBucketsMfsFreeBuckets
+/* MfsFreeBuckets
  * Frees an entire chain of buckets that has been allocated for 
  * a file-record */
 extern oserr_t

@@ -336,7 +336,7 @@ FsWriteToFile(
             MapRecord_t Link;
 
             // We have to lookup the link for current bucket
-            if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &Link) != OsOK) {
+            if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &Link) != OsOK) {
                 ERROR("FsWriteToFile failed to get link for bucket %u", entry->DataBucketPosition);
                 osStatus = OsDeviceError;
                 break;
@@ -349,7 +349,7 @@ FsWriteToFile(
             entry->DataBucketPosition = Link.Link;
 
             // Lookup length of link
-            if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &Link) != OsOK) {
+            if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &Link) != OsOK) {
                 ERROR("Failed to get length for bucket %u", entry->DataBucketPosition);
                 osStatus = OsDeviceError;
                 break;
@@ -416,7 +416,7 @@ FsSeekInFile(
                 }
 
                 // Get link
-                if (MfsGetBucketLink(mfs, BucketPtr, &Link) != OsOK) {
+                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OsOK) {
                     ERROR("FsSeekInFile failed to get link for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
@@ -432,7 +432,7 @@ FsSeekInFile(
                 BucketPtr = Link.Link;
 
                 // Get length of link
-                if (MfsGetBucketLink(mfs, BucketPtr, &Link) != OsOK) {
+                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OsOK) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
