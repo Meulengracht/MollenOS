@@ -96,12 +96,12 @@ MfsZeroBucket(
 }
 
 oserr_t
-MfsGetBucketLink(
+MFSBucketMapGetLengthAndLink(
         _In_  FileSystemMFS_t* mfs,
-        _In_  uint32_t         bucket,
+        _In_  bucket_t         bucket,
         _Out_ MapRecord_t*     link)
 {
-    TRACE("MfsGetBucketLink(Bucket %u)", bucket);
+    TRACE("MFSBucketMapGetLengthAndLink(bucket=%u)", bucket);
     if (bucket >= mfs->BucketsInMap) {
         return OsInvalidParameters;
     }
@@ -113,23 +113,24 @@ MfsGetBucketLink(
 }
 
 oserr_t
-MfsSetBucketLink(
+MFSBucketMapSetLinkAndLength(
         _In_ FileSystemMFS_t* mfs,
-        _In_ uint32_t         bucket,
-        _In_ MapRecord_t*     link,
-        _In_ int              updateLength)
+        _In_ bucket_t         bucket,
+        _In_ bucket_t         link,
+        _In_ uint32_t         length,
+        _In_ bool             updateLength)
 {
     uint8_t* bufferOffset;
     size_t   sectorOffset;
     size_t   sectorsTransferred;
     oserr_t  oserr;
 
-    TRACE("MfsSetBucketLink(Bucket %u, Link %u)", bucket, link->Link);
+    TRACE("MFSBucketMapSetLinkAndLength(Bucket %u, Link %u)", bucket, link->Link);
 
     // Update in-memory map first
-    mfs->BucketMap[(bucket * 2)] = link->Link;
+    mfs->BucketMap[(bucket * 2)] = link;
     if (updateLength) {
-        mfs->BucketMap[(bucket * 2) + 1] = link->Length;
+        mfs->BucketMap[(bucket * 2) + 1] = length;
     }
 
     // Calculate which sector that is dirty now
@@ -160,101 +161,101 @@ MfsSetBucketLink(
 }
 
 oserr_t
-MfsAllocateBuckets(
+MFSBucketMapAllocate(
         _In_ FileSystemMFS_t* mfs,
         _In_ size_t           bucketCount,
-        _In_ MapRecord_t*     mapRecord)
+        _In_ MapRecord_t*     allocatedRecord)
 {
-    uint32_t    previousBucket = 0;
-    uint32_t    bucket  = mfs->MasterRecord.FreeBucket;
-    size_t      counter = bucketCount;
-    MapRecord_t record;
+    bucket_t i;
+    bucket_t previous;
+    uint32_t bucketsLeft = bucketCount;
 
-    TRACE("MfsAllocateBuckets(FreeAt %u, Count %u)", bucket, bucketCount);
+    // Initiate the allocated record
+    allocatedRecord->Link = mfs->MasterRecord.FreeBucket;
+    allocatedRecord->Length = 0;
 
-    mapRecord->Link   = mfs->MasterRecord.FreeBucket;
-    mapRecord->Length = 0;
+    // Start allocating from the free list. If we are lucky then the length
+    // of the first free bucket-chain will be long enough for our allocation.
+    i = mfs->MasterRecord.FreeBucket;
+    previous = MFS_ENDOFCHAIN;
+    while (bucketsLeft) {
+        MapRecord_t currentRecord;
+        oserr_t     oserr;
 
-    // Do allocation in a for-loop as bucket-sizes
-    // are variable, and thus we might need multiple
-    // allocations to satisfy the demand
-    while (counter > 0) {
-        // Get next free bucket
-        if (MfsGetBucketLink(mfs, bucket, &record) != OsOK) {
-            ERROR("Failed to retrieve link for bucket %u", bucket);
-            return OsError;
+        // Get length of i.
+        oserr = MFSBucketMapGetLengthAndLink(mfs, i, &currentRecord);
+        if (oserr != OsOK) {
+            return oserr;
         }
 
-        // Bucket points to the free bucket index
-        // Record.Link holds the link of <bucket>
-        // Record.Length holds the length of <bucket>
+        // Update the length of the allocated record
+        if (!allocatedRecord->Length) {
+            allocatedRecord->Length = MIN(bucketsLeft, currentRecord.Length);
+        }
 
-        // We now have two cases, either the next block is
-        // larger than the number of buckets we are asking for,
-        // or it's smaller
-        if (record.Length > counter) {
-            // Ok, this block is larger than what we need.
-            // We now need to first, update the free index to these values
-            // Map[Bucket] = (Counter) | (MFS_ENDOFCHAIN)
-            // Map[Bucket + Counter] = (Length - Counter) | Link
-            MapRecord_t Update, Next;
-
-            // Set update
-            Update.Link     = MFS_ENDOFCHAIN;
-            Update.Length   = counter;
-
-            // Set next
-            Next.Link       = record.Link;
-            Next.Length     = record.Length - counter;
-
-            // Make sure only to update out once, we just need
-            // the initial size, not for each new allocation
-            if (mapRecord->Length == 0) {
-                mapRecord->Length = Update.Length;
+        // If i is longer than the number of buckets we need to allocate, then we must
+        // split up i.
+        // i0 with the length of the number of buckets to allocate
+        // i1 who starts from i0+number of buckets to allocate, with a length adjusted
+        if (currentRecord.Length > bucketsLeft) {
+            // Update the current record to reflect it's new length and link
+            oserr = MFSBucketMapSetLinkAndLength(
+                    mfs,
+                    i,
+                    MFS_ENDOFCHAIN,
+                    bucketsLeft,
+                    true
+            );
+            if (oserr != OsOK) {
+                // Ehh that's not good, in theory we should cancel the transaction
+                return OsIncomplete;
             }
 
-            // We have to adjust now, since we are taking
-            // only a chunk of the available length
-            // Map[Bucket] = (Counter) | (MFS_ENDOFCHAIN)
-            // Map[Bucket + Counter] = (Length - Counter) | PreviousLink
-            if (MfsSetBucketLink(mfs, bucket, &Update, 1) != OsOK &&
-                MfsSetBucketLink(mfs, bucket + counter, &Next, 1) != OsOK) {
-                ERROR("Failed to update link for bucket %u and %u",
-                      bucket, bucket + counter);
-                return OsError;
+            // Update the next record which will be our new free record
+            oserr = MFSBucketMapSetLinkAndLength(
+                    mfs,
+                    i + bucketsLeft,
+                    currentRecord.Link,
+                    currentRecord.Length - bucketsLeft,
+                    true
+            );
+            if (oserr != OsOK) {
+                // Ehh that's not good, in theory we should cancel the transaction
+                return OsIncomplete;
             }
-            mfs->MasterRecord.FreeBucket = bucket + counter;
-            return __UpdateMasterRecords(mfs);
+
+            // Manipulate with the current record so the code flow can continue
+            currentRecord.Length = bucketsLeft;
+            currentRecord.Link = i + bucketsLeft;
+            bucketsLeft = 0;
+        } else if (currentRecord.Length == bucketsLeft) {
+            bucketsLeft = 0;
         } else {
-            // Ok, block is either exactly the size we need or less
-            // than what we need
-
-            // Make sure only to update out once, we just need
-            // the initial size, not for each new allocation
-            if (mapRecord->Length == 0) {
-                mapRecord->Length = record.Length;
+            // The length is less, so we need to allocate this segment and move on
+            // to the link
+            if (currentRecord.Link == MFS_ENDOFCHAIN) {
+                // Uh oh, out of disk space
+                return OsIncomplete;
             }
-            counter         -= record.Length;
-            previousBucket = bucket;
-            bucket         = record.Link;
+            bucketsLeft -= currentRecord.Length;
         }
+
+        // If we are doing multiple allocations, then we have to make sure the chain
+        // is correct by chaining them.
+        if (previous != MFS_ENDOFCHAIN) {
+            oserr = MFSBucketMapSetLinkAndLength(mfs, previous, i, 0, false);
+            if (oserr != OsOK) {
+                // Ehh that's not good, in theory we should cancel the transaction
+                return OsIncomplete;
+            }
+        }
+        previous = i;
+        i = currentRecord.Link;
     }
 
-    // If we reach here it was because we encountered a block
-    // that was exactly the fit we needed. So we set FreeIndex to Bucket
-    // We set Record.Link to ENDOFCHAIN. We leave size unchanged
-
-    // We want to update the last bucket of the chain but not update the length
-    record.Link = MFS_ENDOFCHAIN;
-
-    // Update the previous bucket to MFS_ENDOFCHAIN
-    if (MfsSetBucketLink(mfs, previousBucket, &record, 0) != OsOK) {
-        ERROR("Failed to update link for bucket %u", previousBucket);
-        return OsError;
-    }
-
-    // Update the master-record and we are done
-    mfs->MasterRecord.FreeBucket = bucket;
+    // At this point we have done the allocation and 'i' will point
+    // to the next free record
+    mfs->MasterRecord.FreeBucket = i;
     return __UpdateMasterRecords(mfs);
 }
 
@@ -285,7 +286,7 @@ MfsFreeBuckets(
     previousBucket = MFS_ENDOFCHAIN;
     while (mapRecord.Link != MFS_ENDOFCHAIN) {
         previousBucket = mapRecord.Link;
-        if (MfsGetBucketLink(mfs, mapRecord.Link, &mapRecord) != OsOK) {
+        if (MFSBucketMapGetLengthAndLink(mfs, mapRecord.Link, &mapRecord) != OsOK) {
             ERROR("Failed to retrieve the next bucket-link");
             return OsError;
         }
@@ -293,12 +294,17 @@ MfsFreeBuckets(
 
     // If there was no allocated buckets to start with then do nothing
     if (previousBucket != MFS_ENDOFCHAIN) {
-        mapRecord.Link = mfs->MasterRecord.FreeBucket;
-
         // Ok, so now update the pointer to free list
-        if (MfsSetBucketLink(mfs, previousBucket, &mapRecord, 0)) {
+        oserr_t oserr = MFSBucketMapSetLinkAndLength(
+                mfs,
+                previousBucket,
+                mfs->MasterRecord.FreeBucket,
+                0,
+                false
+        );
+        if (oserr != OsOK) {
             ERROR("Failed to update the next bucket-link");
-            return OsError;
+            return oserr;
         }
         mfs->MasterRecord.FreeBucket = startBucket;
         return __UpdateMasterRecords(mfs);

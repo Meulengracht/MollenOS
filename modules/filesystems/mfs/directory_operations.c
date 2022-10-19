@@ -194,7 +194,7 @@ FsSeekInDirectory(
                 }
 
                 // Get link
-                if (MfsGetBucketLink(mfs, BucketPtr, &Link) != OsOK) {
+                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OsOK) {
                     ERROR("FsSeekInDirectory failed to get link for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }
@@ -207,7 +207,7 @@ FsSeekInDirectory(
                 BucketPtr = Link.Link;
 
                 // Get length of link
-                if (MfsGetBucketLink(mfs, BucketPtr, &Link) != OsOK) {
+                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OsOK) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
                     return OsDeviceError;
                 }

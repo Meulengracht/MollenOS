@@ -70,7 +70,8 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
             attachment.handle, attachment.buffer,
             request->parameters.transfer.offset,
             request->parameters.transfer.length,
-            writtenOut);
+            writtenOut
+    );
     usched_rwlock_r_unlock(&handle->Node->Lock);
     if (oserr == OsOK) {
         handle->Mode     = MODE_WRITE;

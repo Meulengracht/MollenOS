@@ -168,8 +168,6 @@ Cleanup:
     return oserr;
 }
 
-/* MfsEnsureRecordSpace
- * Ensures that the given record has the space neccessary for the required data. */
 oserr_t
 MfsEnsureRecordSpace(
         _In_ FileSystemMFS_t* mfs,
@@ -187,7 +185,7 @@ MfsEnsureRecordSpace(
         MapRecord_t iterator, link;
 
         // Perform the allocation of buckets
-        if (MfsAllocateBuckets(mfs, bucketCount, &link) != OsOK) {
+        if (MFSBucketMapAllocate(mfs, bucketCount, &link) != OsOK) {
             ERROR("Failed to allocate %u buckets for file", bucketCount);
             return OsDeviceError;
         }
@@ -197,7 +195,7 @@ MfsEnsureRecordSpace(
         previousBucketPointer = MFS_ENDOFCHAIN;
         while (bucketPointer != MFS_ENDOFCHAIN) {
             previousBucketPointer = bucketPointer;
-            if (MfsGetBucketLink(mfs, bucketPointer, &iterator) != OsOK) {
+            if (MFSBucketMapGetLengthAndLink(mfs, bucketPointer, &iterator) != OsOK) {
                 ERROR("MfsEnsureRecordSpace failed to get link for bucket %u", bucketPointer);
                 return OsDeviceError;
             }
@@ -210,7 +208,7 @@ MfsEnsureRecordSpace(
             entry->StartBucket = link.Link;
             entry->StartLength = link.Length;
         } else {
-            if (MfsSetBucketLink(mfs, previousBucketPointer, &link, 1) != OsOK) {
+            if (MFSBucketMapSetLinkAndLength(mfs, previousBucketPointer, link.Link, link.Length, true) != OsOK) {
                 ERROR("Failed to set link for bucket %u", previousBucketPointer);
                 return OsDeviceError;
             }
@@ -244,7 +242,7 @@ MFSAdvanceToNextBucket(
     uint32_t    nextDataBucketPosition;
 
     // We have to look up the link for current bucket
-    if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
+    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
         ERROR("MFSAdvanceToNextBucket failed to get link for bucket %u", entry->DataBucketPosition);
         return OsDeviceError;
     }
@@ -256,7 +254,7 @@ MFSAdvanceToNextBucket(
     nextDataBucketPosition = link.Link;
 
     // Lookup length of link
-    if (MfsGetBucketLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
+    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
         ERROR("Failed to get length for bucket %u", entry->DataBucketPosition);
         return OsDeviceError;
     }

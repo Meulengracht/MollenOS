@@ -58,7 +58,7 @@ static oserr_t __ReadCurrentBucket(
     size_t  sectorsTransferred;
 
     // Get the length of the bucket
-    osStatus = MfsGetBucketLink(mfs, currentBucket, mapRecord);
+    osStatus = MFSBucketMapGetLengthAndLink(mfs, currentBucket, mapRecord);
     if (osStatus != OsOK) {
         ERROR("__ReadCurrentBucket: failed to get length of bucket %u", currentBucket);
         return osStatus;
@@ -90,28 +90,31 @@ static oserr_t __ExpandDirectory(
         _In_ uint32_t         currentBucket,
         _In_ MapRecord_t*     mapRecord)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
 
-    // Allocate bucket
-    osStatus = MfsAllocateBuckets(mfs, MFS_DIRECTORYEXPANSION, mapRecord);
-    if (osStatus != OsOK) {
+    oserr = MFSBucketMapAllocate(mfs, MFS_DIRECTORYEXPANSION, mapRecord);
+    if (oserr != OsOK) {
         ERROR("__ExpandDirectory failed to allocate bucket for expansion");
-        return osStatus;
+        return oserr;
     }
 
-    // Update link
-    osStatus = MfsSetBucketLink(mfs, currentBucket, mapRecord, 1);
-    if (osStatus != OsOK) {
+    oserr = MFSBucketMapSetLinkAndLength(
+            mfs,
+            currentBucket,
+            mapRecord->Link,
+            mapRecord->Length,
+            true
+    );
+    if (oserr != OsOK) {
         ERROR("__ExpandDirectory failed to update bucket-link for expansion");
-        return osStatus;
+        return oserr;
     }
 
-    // Zero the bucket
-    osStatus = MfsZeroBucket(mfs, mapRecord->Link, mapRecord->Length);
-    if (osStatus != OsOK) {
+    oserr = MfsZeroBucket(mfs, mapRecord->Link, mapRecord->Length);
+    if (oserr != OsOK) {
         ERROR("__ExpandDirectory failed to zero bucket %u", mapRecord->Link);
     }
-    return osStatus;
+    return oserr;
 }
 
 static oserr_t __InitiateDirectory(
@@ -124,7 +127,7 @@ static oserr_t __InitiateDirectory(
     TRACE("__InitiateDirectory(entry=%ms)", entry->Name);
 
     // Allocate bucket
-    oserr = MfsAllocateBuckets(mfs, MFS_DIRECTORYEXPANSION, &record);
+    oserr = MFSBucketMapAllocate(mfs, MFS_DIRECTORYEXPANSION, &record);
     if (oserr != OsOK) {
         ERROR("__InitiateDirectory failed to allocate bucket for expansion");
         return oserr;
@@ -400,7 +403,7 @@ MfsLocateRecord(
     mstring_t** tokens;
     int         tokenCount;
 
-    TRACE("MfsLocateRecord(fileSystem=%ms, bucketOfDirectory=%u, path=%ms)",
+    TRACE("MfsLocateRecord(fileSystem=%ms, directory=%ms, path=%ms)",
           mfs->Label, directory->Name, path);
 
     if (__PathIsRoot(path)) {
