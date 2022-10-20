@@ -16,6 +16,9 @@
  *
  */
 
+#define __TRACE
+
+#include <ddk/utils.h>
 #include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
@@ -24,6 +27,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 {
     mstring_t* path   = mstr_path_new_u8(request->parameters.link.from);
     mstring_t* target = mstr_new_u8(request->parameters.link.to);
+    TRACE("VFSNodeLink(path=%ms, target=%ms)", path, target);
 
     if (path == NULL || target == NULL) {
         mstr_delete(path);
@@ -43,6 +47,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     mstring_t* nodeName                = mstr_path_basename(path);
     mstr_delete(path);
 
+    TRACE("VFSNodeLink 1");
     struct VFSNode* containingDirectory;
     oserr_t         osStatus = VFSNodeGet(
             vfs, containingDirectoryPath,
@@ -56,6 +61,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     // Verify that the node is not already something that exists. I Don't know if
     // we should support overwriting symlinks or ask users explicitly to delete an existing
     // symlink. Of course this would require we verify this node is a symlink already.
+    TRACE("VFSNodeLink 2");
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
     if (osStatus != OsOK && osStatus != OsNotExists) {
@@ -65,8 +71,9 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
         goto exit;
     }
 
+    TRACE("VFSNodeLink 3");
     osStatus = VFSNodeCreateLinkChild(
-            node, nodeName, target,
+            containingDirectory, nodeName, target,
             request->parameters.link.symbolic,
             &node);
 

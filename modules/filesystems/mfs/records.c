@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>

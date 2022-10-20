@@ -184,9 +184,9 @@ FsReadFromFile(
         }
     }
 
-    // if (update_when_accessed) @todo
-    // entry->accessed = now
-    // entry->action_on_close = update
+    // Store the new position we've calculated during the read operation.
+    entry->Position = position;
+
     TRACE("[mfs] [read_file] bytes read %u/%u", *unitsRead, unitCount);
     return osStatus;
 }
@@ -359,8 +359,12 @@ FsWriteToFile(
         }
     }
 
-    // entry->modified = now
-    entry->ActionOnClose = MFS_ACTION_UPDATE;
+    // Store the new position we've calculated during the read operation.
+    entry->Position = position;
+    if (entry->Position > entry->ActualSize) {
+        entry->ActualSize = entry->Position;
+        entry->ActionOnClose = MFS_ACTION_UPDATE;
+    }
     return osStatus;
 }
 

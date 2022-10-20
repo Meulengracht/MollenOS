@@ -309,7 +309,7 @@ VFSFileSystemConnectInterface(
 {
     oserr_t osStatus;
 
-    if (fileSystem == NULL) {
+    if (fileSystem == NULL || interface == NULL) {
         return OsInvalidParameters;
     }
     TRACE("VFSFileSystemConnectInterface(fs=%u)", fileSystem->ID);

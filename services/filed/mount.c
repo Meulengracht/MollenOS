@@ -19,6 +19,7 @@
 
 #include <ddk/utils.h>
 #include <ds/mstring.h>
+#include <ds/guid.h>
 #include <os/dmabuf.h>
 #include <os/types/file.h>
 #include <vfs/filesystem.h>
@@ -52,6 +53,7 @@ static oserr_t __DetectFileSystem(
     DMABuffer_t     dmaInfo;
     DMAAttachment_t dmaAttachment;
     oserr_t         oserr;
+    TRACE("__DetectFileSystem()");
 
     // Allocate a generic transfer buffer for disk operations
     // on the given disk, we need it to parse the disk
@@ -86,19 +88,22 @@ static oserr_t __SetupFileBackedStorage(
         _In_  uuid_t              interfaceDriverID,
         _Out_ struct FileSystem** fileSystemOut)
 {
-    struct VFSInterface* interface;
+    struct VFSInterface* interface = NULL;
     struct FileSystem*   fileSystem;
     oserr_t              oserr;
     UInteger64_t         sector;
+    guid_t               guid;
+    TRACE("__SetupFileBackedStorage()");
 
     // Offset should be given in bytes, and should always be 512-bytes
     // aligned.
+    guid_new(&guid);
     sector.QuadPart = offset / 512;
     oserr = VFSStorageRegisterPartition(
             storage,
             0,
             &sector,
-            NULL,
+            &guid,
             &fileSystem
     );
     if (oserr != OsOK) {
@@ -153,6 +158,7 @@ static oserr_t __MountFile(
     struct FileSystem* fileSystem;
     uuid_t             handle;
     oserr_t            oserr;
+    TRACE("__MountFile()");
 
     oserr = VFSNodeOpen(
             vfs, cpath,
@@ -198,11 +204,12 @@ static oserr_t __MountPath(
 {
     uuid_t  handle;
     oserr_t oserr;
+    TRACE("__MountPath(what=%s)", cpath);
 
     oserr = VFSNodeOpen(
             vfs, cpath,
             __FILE_DIRECTORY,
-            FILE_PERMISSION_READ | FILE_PERMISSION_WRITE,
+            0, // TODO what kind of access should we have here
             &handle
     );
     if (oserr != OsOK) {
@@ -226,6 +233,8 @@ static oserr_t __MountSpecial(
         _In_ uuid_t          atHandle,
         _In_ const char*     fsType)
 {
+    TRACE("__MountSpecial()");
+
     if (fsType == NULL) {
         return OsInvalidParameters;
     }
@@ -245,6 +254,9 @@ void Mount(
     struct VFS* fsScope = VFSScopeGet(request->processId);
     uuid_t      atHandle = UUID_INVALID;
     oserr_t     oserr;
+    TRACE("Mount(what=%s, at=%s)",
+          request->parameters.mount.path,
+          request->parameters.mount.at);
     _CRT_UNUSED(cancellationToken);
 
     if (fsScope == NULL) {
@@ -258,7 +270,7 @@ void Mount(
             fsScope,
             request->parameters.mount.at,
             __FILE_DIRECTORY,
-            FILE_PERMISSION_READ | FILE_PERMISSION_WRITE,
+            0, // TODO what kind of access should we have here
             &atHandle
     );
     if (oserr != OsOK) {
@@ -271,7 +283,7 @@ void Mount(
     if (request->parameters.mount.path) {
         oserr = __MountPath(
                 fsScope, request->parameters.mount.path, atHandle,
-                request->parameters.mount.path,
+                request->parameters.mount.fs_type,
                 (enum sys_mount_flags)request->parameters.mount.flags
         );
     } else {

@@ -76,12 +76,12 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
 
     if (osStatus == OsNotExists) {
         if (options & __FILE_CREATE) {
-            // TODO permissions check
+            // Create the file with regular options and regular permissions
             osStatus = VFSNodeCreateChild(
                     containingDirectory,
                     nodeName,
-                    options,
-                    access,
+                    FILE_FLAG_FILE,
+                    FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
                     &node
             );
             if (osStatus != OsOK) {
@@ -91,6 +91,14 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
             // OK it wasn't found, just exit with that error code
             goto exit;
         }
+    }
+
+    if (!__NodeIsDirectory(node) && (options & __FILE_DIRECTORY)) {
+        osStatus = OsPathIsNotDirectory;
+        goto exit;
+    } else if (__NodeIsDirectory(node) && !(options & __FILE_DIRECTORY)) {
+        osStatus = OsPathIsDirectory;
+        goto exit;
     }
     
     osStatus = VFSNodeOpenHandle(node, access, handleOut);

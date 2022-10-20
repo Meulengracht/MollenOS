@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library 
- *   - Write to io handles
  */
 
 //#define __TRACE
@@ -55,8 +50,7 @@ int write(int fd, const void* buffer, unsigned int length)
     status = handle->ops.write(handle, (char*)buffer, length, &bytesWritten);
 	if (status != OsOK) {
 	    res = OsErrToErrNo(status);
-	}
-	else {
+	} else {
 	    res = (int)bytesWritten;
 	}
 
