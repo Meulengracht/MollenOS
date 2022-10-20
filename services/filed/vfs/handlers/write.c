@@ -23,17 +23,17 @@
 
 static oserr_t __MapUserBuffer(uuid_t handle, DMAAttachment_t* attachment)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
 
-    osStatus = DmaAttach(handle, attachment);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = DmaAttach(handle, attachment);
+    if (oserr != OsOK) {
+        return oserr;
     }
 
-    osStatus = DmaAttachmentMap(attachment, 0);
-    if (osStatus != OsOK) {
+    oserr = DmaAttachmentMap(attachment, 0);
+    if (oserr != OsOK) {
         DmaDetach(attachment);
-        return osStatus;
+        return oserr;
     }
     return OsOK;
 }
@@ -57,12 +57,18 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
         goto cleanup;
     }
 
+    nodeVfs = handle->Node->FileSystem;
+    if (nodeVfs->Interface->Operations.Write == NULL) {
+        // Write is not a required operation for the filesystem to support,
+        // so it may not be supported.
+        oserr = OsNotSupported;
+        goto cleanup;
+    }
+
     oserr = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
     if (oserr != OsOK) {
         goto cleanup;
     }
-
-    nodeVfs = handle->Node->FileSystem;
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     oserr = nodeVfs->Interface->Operations.Write(
@@ -76,6 +82,9 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
     if (oserr == OsOK) {
         handle->Mode     = MODE_WRITE;
         handle->Position += *writtenOut;
+        if (handle->Position > handle->Node->Stats.Size) {
+            handle->Node->Stats.Size = handle->Position;
+        }
     }
 
     oserr2 = DmaDetach(&attachment);
@@ -133,6 +142,9 @@ oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferH
     if (oserr == OsOK) {
         handle->Mode     = MODE_WRITE;
         handle->Position += *writtenOut;
+        if (handle->Position > handle->Node->Stats.Size) {
+            handle->Node->Stats.Size = handle->Position;
+        }
     }
 
 unmap:

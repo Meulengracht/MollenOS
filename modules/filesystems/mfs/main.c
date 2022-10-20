@@ -55,7 +55,7 @@ FsOpen(
     FileSystemMFS_t* mfs = instanceData;
     oserr_t          osStatus;
     MFSEntry_t*      mfsEntry;
-    WARNING("FsOpen=(path=%ms)", path);
+    TRACE("FsOpen=(path=%ms)", path);
 
     osStatus = MfsLocateRecord(
             mfs,
@@ -83,7 +83,7 @@ FsCreate(
     oserr_t     osStatus;
     MFSEntry_t* entry = (MFSEntry_t*)data;
     MFSEntry_t* result;
-    WARNING("FsCreate(parent=%ms, name=%ms)", entry ? entry->Name : NULL, name);
+    TRACE("FsCreate(parent=%ms, name=%ms)", entry ? entry->Name : NULL, name);
 
     osStatus = MfsCreateRecord(
             instanceData,
@@ -99,7 +99,7 @@ FsCreate(
     if (osStatus != OsOK) {
         return osStatus;
     }
-    WARNING("FsCreate returned %u (0x%llx) %ms", osStatus, result, result->Name);
+    TRACE("FsCreate returned %u (0x%llx) %ms", osStatus, result, result->Name);
     *dataOut = result;
     return osStatus;
 }
@@ -111,9 +111,8 @@ FsClose(
 {
     MFSEntry_t* entry    = (MFSEntry_t*)data;
     oserr_t     osStatus = OsOK;
-    WARNING("FsClose(data=0x%llx)", data);
+    TRACE("FsClose(%i)", entry->ActionOnClose);
 
-    WARNING("FsClose(%i)", entry->ActionOnClose);
     if (entry->ActionOnClose) {
         osStatus = MfsUpdateRecord(instanceData, entry, entry->ActionOnClose);
     }
