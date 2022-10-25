@@ -372,10 +372,10 @@ typedef Mutex_t mtx_t;
 typedef OnceFlag_t once_flag;
 
 enum {
-    thrd_success    = OsOK,
-    thrd_busy       = OsBusy,
-    thrd_timedout   = OsTimeout,
-    thrd_nomem      = OsOutOfMemory,
+    thrd_success    = OS_EOK,
+    thrd_busy       = OS_EBUSY,
+    thrd_timedout   = OS_ETIMEOUT,
+    thrd_nomem      = OS_EOOM,
     thrd_error      = -1
 };
 
@@ -387,10 +387,10 @@ enum {
 
 static inline int __to_thrd_error(oserr_t oserr) {
     switch (oserr) {
-        case OsOK: return thrd_success;
-        case OsBusy: return thrd_busy;
-        case OsTimeout: return thrd_timedout;
-        case OsOutOfMemory: return thrd_nomem;
+        case OS_EOK: return thrd_success;
+        case OS_EBUSY: return thrd_busy;
+        case OS_ETIMEOUT: return thrd_timedout;
+        case OS_EOOM: return thrd_nomem;
         default: return thrd_error;
     }
 }

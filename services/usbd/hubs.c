@@ -91,7 +91,7 @@ UsbCoreHubsRegister(
         .PortAddress = portAddress,
         .Ports = { 0 }
     });
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -178,7 +178,7 @@ void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_
                                      const uuid_t deviceId, const uuid_t driverId, const int portCount)
 {
     oserr_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // log
     }
 }

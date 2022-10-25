@@ -78,9 +78,9 @@ __GuessBasePath(
     // however this won't work for the base process
     if (process != NULL) {
         result = mstr_fmt("%ms/%ms", process->working_directory, path);
-        if (__TestFilePath(result) == OsOK) {
+        if (__TestFilePath(result) == OS_EOK) {
             *fullPathOut = result;
-            return OsOK;
+            return OS_EOK;
         }
         mstr_delete(result);
     }
@@ -96,13 +96,13 @@ __GuessBasePath(
         result = mstr_fmt("/system/bin/%ms", path);
     }
 
-    if (__TestFilePath(result) == OsOK) {
+    if (__TestFilePath(result) == OS_EOK) {
         *fullPathOut = result;
-        return OsOK;
+        return OS_EOK;
     }
     else {
         mstr_delete(result);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 }
 
@@ -123,7 +123,7 @@ __TestRamdiskPath(
 
     // try to find the file in the ramdisk
     osStatus = PmBootstrapFindRamdiskFile(temporaryResult, NULL, NULL);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         return temporaryResult;
     }
     mstr_delete(temporaryResult);
@@ -153,7 +153,7 @@ __ResolveRelativePath(
 
         if (temporaryResult) {
             *fullPathOut = temporaryResult;
-            return OsOK;
+            return OS_EOK;
         }
 
         // restore temporaryResult
@@ -164,11 +164,11 @@ __ResolveRelativePath(
     TRACE("__ResolveRelativePath basePath=%ms", temporaryResult);
 
     // If we already deduced an absolute path skip the canonicalizing moment
-    if (osStatus == OsOK && mstr_at(temporaryResult, 0) == U'/') {
+    if (osStatus == OS_EOK && mstr_at(temporaryResult, 0) == U'/') {
         *fullPathOut = temporaryResult;
         return osStatus;
     }
-    return OsNotExists;
+    return OS_ENOENT;
 }
 
 oserr_t
@@ -178,7 +178,7 @@ PeImplResolveFilePath(
         _In_  mstring_t*  path,
         _Out_ mstring_t** fullPathOut)
 {
-    oserr_t oserr = OsOK;
+    oserr_t oserr = OS_EOK;
     ENTRY("ResolveFilePath(processId=%u, path=%ms)", processId, path);
 
     if (mstr_at(path, 0) != U'/') {
@@ -204,7 +204,7 @@ PeImplLoadFile(
     long    fileSize;
     void*   fileBuffer;
     size_t  bytesRead;
-    oserr_t osStatus = OsOK;
+    oserr_t osStatus = OS_EOK;
     char*   pathu8;
 
     pathu8 = mstr_u8(fullPath);
@@ -220,7 +220,7 @@ PeImplLoadFile(
     free(pathu8);
     if (!file) {
         ERROR("LoadFile fopen failed: %i", errno);
-        osStatus = OsNotExists;
+        osStatus = OS_ENOENT;
         goto exit;
     }
 
@@ -233,7 +233,7 @@ PeImplLoadFile(
     if (!fileBuffer) {
         ERROR("LoadFile null");
         fclose(file);
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
         goto exit;
     }
 
@@ -242,7 +242,7 @@ PeImplLoadFile(
 
     TRACE("LoadFile read %" PRIuIN " bytes from file", bytesRead);
     if (bytesRead != fileSize) {
-        osStatus = OsIncomplete;
+        osStatus = OS_EINCOMPLETE;
     }
 
     *bufferOut = fileBuffer;
@@ -295,11 +295,11 @@ PeImplCreateImageSpace(
 {
     uuid_t     memorySpaceHandle = UUID_INVALID;
     oserr_t osStatus          = CreateMemorySpace(0, &memorySpaceHandle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
     *handleOut = (MemorySpaceHandle_t)(uintptr_t)memorySpaceHandle;
-    return OsOK;
+    return OS_EOK;
 }
 
 // Acquires (and creates) a memory mapping in the given memory space handle. The mapping is directly
@@ -316,7 +316,7 @@ PeImplAcquireImageMapping(
     oserr_t            osStatus;
 
     if (!stateObject) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     stateObject->Handle  = memorySpaceHandle;
@@ -334,7 +334,7 @@ PeImplAcquireImageMapping(
 
     osStatus = CreateMemoryMapping((uuid_t)(uintptr_t)memorySpaceHandle, &Parameters, (void**)&stateObject->Address);
     *address = stateObject->Address;
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         free(stateObject);
     }
     return osStatus;

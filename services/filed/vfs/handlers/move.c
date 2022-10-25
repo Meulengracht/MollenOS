@@ -55,7 +55,7 @@ static oserr_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directory
     if (sourcePath == NULL || targetPath == NULL) {
         mstr_delete(sourcePath);
         mstr_delete(targetPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Get write access, the issue here is that actually at this point we _may_
@@ -80,12 +80,12 @@ static oserr_t __MoveLocal(struct VFSNode* sourceNode, struct VFSNode* directory
     usched_rwlock_w_promote(&directoryNode->Lock);
     struct __VFSChild* result = hashtable_get(&directoryNode->Children, &(struct __VFSChild) { .Key = targetName });
     if (result != NULL) {
-        osStatus = OsExists;
+        osStatus = OS_EEXISTS;
         goto unlock;
     }
 
     osStatus = ops->Move(vfs->Data, sourcePath, targetPath, copy);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto unlock;
     }
 
@@ -121,7 +121,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
     buffer.length   = MB(1);
     buffer.capacity = MB(1);
     osStatus = DmaCreate(&buffer, &attachment);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -131,21 +131,21 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
         osStatus = sourceVFS->Interface->Operations.Read(sourceVFS->Data, sourceFile,
                                                       attachment.handle, attachment.buffer, 0,
                                                       MB(1), &read);
-        if (osStatus != OsOK || read == 0) {
+        if (osStatus != OS_EOK || read == 0) {
             break;
         }
 
         osStatus = targetVFS->Interface->Operations.Write(targetVFS->Data, targetFile,
                                                        attachment.handle, attachment.buffer, 0,
                                                        read, &written);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             break;
         }
     }
 
     DmaAttachmentUnmap(&attachment);
     DmaDetach(&attachment);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directoryNode, mstring_t* targetName, int copy)
@@ -157,13 +157,13 @@ static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directory
     if (sourcePath == NULL || targetPath == NULL) {
         mstr_delete(sourcePath);
         mstr_delete(targetPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     struct VFSOperations* sourceOps = &sourceNode->FileSystem->Interface->Operations;
     void*                 sourceFile;
     osStatus = sourceOps->Open(sourceNode->FileSystem->Data, sourceNode->Name, &sourceFile);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
@@ -171,26 +171,26 @@ static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directory
     usched_rwlock_w_promote(&directoryNode->Lock);
     struct __VFSChild* result = hashtable_get(&directoryNode->Children, &(struct __VFSChild) { .Key = targetName });
     if (result != NULL) {
-        osStatus = OsExists;
+        osStatus = OS_EEXISTS;
         goto unlock;
     }
 
     struct VFSOperations* targetOps = &directoryNode->FileSystem->Interface->Operations;
     void*                 targetDirectory;
     osStatus = targetOps->Open(directoryNode->FileSystem->Data, directoryNode->Name, &targetDirectory);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto unlock;
     }
 
     void* targetFile;
     osStatus = targetOps->Create(directoryNode->FileSystem->Data, targetDirectory, targetName, 0,
                                  sourceNode->Stats.Flags, sourceNode->Stats.Permissions, &targetFile);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto unlock;
     }
 
     osStatus2 = targetOps->Close(directoryNode->FileSystem->Data, targetDirectory);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
     }
 
@@ -202,21 +202,21 @@ static oserr_t __MoveCross(struct VFSNode* sourceNode, struct VFSNode* directory
             .Flags = sourceNode->Stats.Flags,
             .Permissions = sourceNode->Stats.Permissions
     }, &child);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         WARNING("__MoveCross failed to create new directory node %u", osStatus);
     }
 
     osStatus = __TransferFile(sourceNode->FileSystem, sourceFile,
                               directoryNode->FileSystem, targetFile);
     osStatus2 = targetOps->Close(directoryNode->FileSystem->Data, targetFile);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
     }
 
 unlock:
     usched_rwlock_w_demote(&directoryNode->Lock);
     osStatus2 = sourceOps->Close(sourceNode->FileSystem->Data, sourceFile);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
     }
 
@@ -239,14 +239,14 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
     if (fromPath == NULL || toPath == NULL) {
         mstr_delete(fromPath);
         mstr_delete(toPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Before we do a move, we first want to make sure the source node exists,
     // but based on the filesystem of the source and the target destination we might
     // be able to do an internal copy instead of a proper copy.
     osStatus = VFSNodeGet(vfs, fromPath, 1, &from);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
@@ -255,12 +255,12 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
     path = mstr_path_dirname(toPath);
     if (path == NULL) {
         VFSNodePut(from);
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
         goto cleanup;
     }
 
     osStatus = VFSNodeGet(vfs, path, 1, &to);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         VFSNodePut(from);
         goto cleanup;
     }

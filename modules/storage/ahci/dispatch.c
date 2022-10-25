@@ -193,13 +193,13 @@ static oserr_t __DispatchCommand(
     // this is always true.
     if (((uintptr_t)transaction->SgOffset & 0x1) != 0) {
         ERROR("__DispatchCommand FrameOffset was not dword aligned (0x%x)", transaction->SgOffset);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (commandLength > 64 || atapiCommandLength > 16) {
         ERROR("__DispatchCommand Commands are exceeding the allowed length, FIS (%u), ATAPI (%u)",
               commandLength, atapiCommandLength);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     commandList   = (AHCICommandList_t*)port->CommandListDMA.buffer;
@@ -244,7 +244,7 @@ static oserr_t __DispatchCommand(
     //thrd_sleepex(5000);
     __DumpCurrentState(controller, port);
 #endif
-    return OsOK;
+    return OS_EOK;
 }
 
 void

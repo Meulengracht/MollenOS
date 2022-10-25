@@ -148,7 +148,7 @@ ReadDirectIo(
 #endif
             else {
                 ERROR(" > invalid port width %" PRIuIN " for reading", Width);
-                return OsError;
+                return OS_EUNKNOWN;
             }
         } break;
 
@@ -156,7 +156,7 @@ ReadDirectIo(
             FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io read type %" PRIuIN "", Type);
         } break;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -185,7 +185,7 @@ WriteDirectIo(
     #endif
             else {
                 ERROR(" > invalid port width %" PRIuIN " for writing", Width);
-                return OsError;
+                return OS_EUNKNOWN;
             }
         } break;
 
@@ -193,7 +193,7 @@ WriteDirectIo(
             FATAL(FATAL_SCOPE_KERNEL, " > invalid direct io write type %" PRIuIN "", Type);
         } break;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -217,9 +217,9 @@ ReadDirectPci(
     }
     else {
         ERROR("(PciRead) Invalid width %" PRIuIN "", Width);
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -243,7 +243,7 @@ WriteDirectPci(
     }
     else {
         ERROR("(PciWrite) Invalid width %" PRIuIN "", Width);
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }

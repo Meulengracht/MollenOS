@@ -76,21 +76,21 @@ __ParseRamdisk(
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
     if (status) {
         ERROR("__ParseRamdisk failed to open vafs image: %i", errno);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     status = DdkInitrdHandleVafsFilter(g_vafs);
     if (status) {
         ERROR("__ParseRamdisk vafs image is using an unsupported filter");
         vafs_close(g_vafs);
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     status = vafs_directory_open(g_vafs, "/services", &directoryHandle);
     if (status) {
         ERROR("__ParseRamdisk failed to open /services in vafs image");
         vafs_close(g_vafs);
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     pathBuffer = malloc(128);
@@ -98,7 +98,7 @@ __ParseRamdisk(
         ERROR("__ParseRamdisk out of memory");
         vafs_directory_close(directoryHandle);
         vafs_close(g_vafs);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     ProcessConfigurationInitialize(&processConfiguration);
@@ -120,7 +120,7 @@ __ParseRamdisk(
                     &processConfiguration,
                     &handle
             );
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 WARNING("__ParseRamdisk failed to spawn service %s", pathBuffer);
             }
         }
@@ -129,7 +129,7 @@ __ParseRamdisk(
     // close the directory and cleanup
     vafs_directory_close(directoryHandle);
     free(pathBuffer);
-    return OsOK;
+    return OS_EOK;
 }
 
 void PmBootstrap(void)
@@ -141,7 +141,7 @@ void PmBootstrap(void)
 
     // Let's map in the ramdisk and discover various service modules
     osStatus = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         TRACE("ProcessBootstrap failed to map ramdisk into address space %u", osStatus);
         return;
     }
@@ -151,7 +151,7 @@ void PmBootstrap(void)
     g_ramdiskSize   = ramdiskSize;
 
     osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("ProcessBootstrap failed to parse ramdisk");
         return;
     }
@@ -167,7 +167,7 @@ PmBootstrapCleanup(void)
 
     if (g_ramdiskBuffer && g_ramdiskSize) {
         osStatus = MemoryFree(g_ramdiskBuffer, g_ramdiskSize);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR("PmBootstrapCleanup failed to free the ramdisk memory");
         }
     }
@@ -189,7 +189,7 @@ PmBootstrapFindRamdiskFile(
 
     pathu8 = mstr_u8(path);
     if (pathu8 == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     TRACE("PmBootstrapFindRamdiskFile(path=%s)", pathu8);
@@ -212,7 +212,7 @@ PmBootstrapFindRamdiskFile(
     if (status) {
         ERROR("PmBootstrapFindRamdiskFile failed to open %s: %i", &tempbuf[0], errno);
         free(pathu8);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // now lets access the file
@@ -220,7 +220,7 @@ PmBootstrapFindRamdiskFile(
     if (status) {
         WARNING("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
         free(pathu8);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // allocate a buffer for the file, and read the data
@@ -231,7 +231,7 @@ PmBootstrapFindRamdiskFile(
         void*  fileBuffer = malloc(fileSize);
         if (!fileBuffer) {
             free(pathu8);
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         bytesRead = vafs_file_read(fileHandle, fileBuffer, fileSize);
@@ -247,5 +247,5 @@ PmBootstrapFindRamdiskFile(
     vafs_file_close(fileHandle);
     vafs_directory_close(directoryHandle);
     free(pathu8);
-    return OsOK;
+    return OS_EOK;
 }

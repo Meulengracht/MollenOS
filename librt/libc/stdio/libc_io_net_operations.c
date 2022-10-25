@@ -31,9 +31,9 @@ oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
     intmax_t num_bytes = recv(handle->fd, buffer, length, 0);
     if (num_bytes >= 0) {
         *bytes_read = (size_t)num_bytes;
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 oserr_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
@@ -41,26 +41,26 @@ oserr_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t le
     intmax_t num_bytes = send(handle->fd, buffer, length, 0);
     if (num_bytes >= 0) {
         *bytes_written = (size_t)num_bytes;
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 oserr_t stdio_net_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     // It is not possible to seek in sockets.
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     // TODO: Implement resizing of socket buffers
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
 {
-    oserr_t status = OsOK;
+    oserr_t status = OS_EOK;
     
     if (options & STDIO_CLOSE_FULL) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
@@ -91,17 +91,17 @@ oserr_t stdio_net_op_inherit(stdio_handle_t* handle)
     // the handle that is stored in dma_attachment.
     status1 = DmaAttach(send_buffer_handle, &handle->object.data.socket.send_buffer);
     status2 = DmaAttach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
-    if (status1 != OsOK || status2 != OsOK) {
-        return status1 != OsOK ? status1 : status2;
+    if (status1 != OS_EOK || status2 != OS_EOK) {
+        return status1 != OS_EOK ? status1 : status2;
     }
     
     status1 = DmaAttachmentMap(&handle->object.data.socket.send_buffer, DMA_ACCESS_WRITE);
-    if (status1 != OsOK) {
+    if (status1 != OS_EOK) {
         return status1;
     }
     
     status1 = DmaAttachmentMap(&handle->object.data.socket.recv_buffer, DMA_ACCESS_WRITE);
-    if (status1 != OsOK) {
+    if (status1 != OS_EOK) {
         return status1;
     }
     return status1;
@@ -118,9 +118,9 @@ oserr_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
             streambuffer_get_bytes_available_in(recvStream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 void stdio_get_net_operations(stdio_ops_t* ops)

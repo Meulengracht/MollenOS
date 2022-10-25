@@ -37,7 +37,7 @@ __QueryFileStats(
     oserr_t        oserr;
 
     oserr = VFSNodeStatHandle(fileHandleID, &fstats);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -57,7 +57,7 @@ __QueryFileStats(
             &stats->Model[0], sizeof(stats->Model),
             "file-mount"
     );
-    return OsOK;
+    return OS_EOK;
 }
 
 struct VFSStorage*
@@ -78,7 +78,7 @@ VFSStorageCreateFileBacked(
 
     // query file info
     oserr = __QueryFileStats(fileHandleID, &storage->Stats);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         VFSStorageDelete(storage);
         return NULL;
     }
@@ -102,11 +102,11 @@ static oserr_t __ReadFile(
             count * 512,
             &bytesRead
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     *read = bytesRead / 512;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __WriteFile(
@@ -126,9 +126,9 @@ static oserr_t __WriteFile(
             count * 512,
             &bytesWritten
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     *written = bytesWritten / 512;
-    return OsOK;
+    return OS_EOK;
 }

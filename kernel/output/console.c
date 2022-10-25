@@ -34,11 +34,11 @@ VideoQuery(
 	_Out_ VideoDescriptor_t* videoDescriptor)
 {
 	if (videoDescriptor == NULL || VideoGetTerminal() == NULL) {
-		return OsNotSupported;
+		return OS_ENOTSUPPORTED;
 	}
 
 	memcpy(videoDescriptor, &VideoGetTerminal()->Info, sizeof(VideoDescriptor_t));
-	return OsOK;
+	return OS_EOK;
 }
 
 oserr_t
@@ -49,7 +49,7 @@ ConsoleInitialize(void)
     // Initialize visual representation by framebuffer
 #ifdef __OSCONFIG_HAS_VIDEO
     osStatus = InitializeFramebufferOutput();
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         VideoClear(COLOR_BG);
 #ifdef __OSCONFIG_DEBUGCONSOLE
         // Define some virtual borders to prettify just a little
@@ -69,5 +69,5 @@ ConsoleInitialize(void)
 	if (VideoGetTerminal()->AvailableOutputs != 0) {
 		LogSetRenderMode(1);	
 	}
-	return OsOK;
+	return OS_EOK;
 }

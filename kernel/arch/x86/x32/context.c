@@ -153,8 +153,7 @@ ArchThreadContextReset(
         dataSegment  = GDT_KDATA_SEGMENT;
         extraSegment = GDT_KDATA_SEGMENT;
         stackSegment = GDT_KDATA_SEGMENT;
-    }
-    else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
+    } else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
         extraSegment = GDT_EXTRA_SEGMENT + 0x03;
         codeSegment  = GDT_UCODE_SEGMENT + 0x03;
         stackSegment = GDT_UDATA_SEGMENT + 0x03;
@@ -162,8 +161,7 @@ ArchThreadContextReset(
 
 		// Either initialize the ring3 stuff or zero out the values
 	    context->Eax = CONTEXT_RESET_IDENTIFIER;
-    }
-    else {
+    } else {
         FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
     }
 
@@ -186,52 +184,162 @@ ArchThreadContextReset(
     context->Arguments[1] = argument;
 }
 
+static void
+__GetContextFlags(
+        _In_  int           contextType,
+        _Out_ unsigned int* placementFlagsOut,
+        _Out_ unsigned int* memoryFlagsOut)
+{
+    unsigned int   placementFlags = 0;
+    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_GUARDPAGE;
+
+    if (contextType == THREADING_CONTEXT_LEVEL0) {
+        placementFlags = MAPPING_VIRTUAL_GLOBAL;
+    } else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
+        placementFlags = MAPPING_VIRTUAL_THREAD;
+        memoryFlags |= MAPPING_USERSPACE;
+    }
+    else {
+        FATAL(FATAL_SCOPE_KERNEL, "__GetContextFlags invalid contextType=%i", contextType);
+    }
+
+    *placementFlagsOut = placementFlags;
+    *memoryFlagsOut = memoryFlags;
+}
+
+static oserr_t
+__AllocateStackInMemory(
+        _In_  unsigned int placementFlags,
+        _In_  unsigned int memoryFlags,
+        _In_  size_t       contextReservedSize,
+        _In_  size_t       contextComittedSize,
+        _Out_ uintptr_t*   contextAddressOut)
+{
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    vaddr_t        contextAddress;
+    paddr_t        contextPhysicalAddress;
+    oserr_t        oserr;
+
+    // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
+    oserr = MemorySpaceMapReserved(
+            memorySpace,
+            &contextAddress,
+            contextReservedSize,
+            memoryFlags,
+            placementFlags
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Adjust pointer to top of stack and then commit the first stack page
+    oserr = MemorySpaceCommit(
+            memorySpace,
+            contextAddress + (contextReservedSize - contextComittedSize),
+            &contextPhysicalAddress,
+            contextComittedSize,
+            0,
+            0
+    );
+    if (oserr != OS_EOK) {
+        MemorySpaceUnmap(memorySpace, contextAddress, contextReservedSize);
+    }
+    *contextAddressOut = contextAddress;
+    return oserr;
+}
+
 Context_t*
 ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
 {
-    oserr_t     status;
-    uintptr_t      physicalContextAddress;
-    uintptr_t      contextAddress = 0;
-    unsigned int   placementFlags = 0;
-    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_GUARDPAGE;
-    MemorySpace_t* memorySpace    = GetCurrentMemorySpace();
+    oserr_t      oserr;
+    uintptr_t    contextAddress;
+    unsigned int placementFlags;
+    unsigned int memoryFlags;
 
-    if (contextType == THREADING_CONTEXT_LEVEL0) {
-        placementFlags = MAPPING_VIRTUAL_GLOBAL;
-    }
-    else if (contextType == THREADING_CONTEXT_LEVEL1 || contextType == THREADING_CONTEXT_SIGNAL) {
-        placementFlags = MAPPING_VIRTUAL_THREAD;
-        memoryFlags |= MAPPING_USERSPACE;
-    }
-    else {
-        FATAL(FATAL_SCOPE_KERNEL, "ArchThreadContextCreate::INVALID ContextType(%" PRIiIN ")", contextType);
-    }
-
-    // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
-    status = MemorySpaceMapReserved(memorySpace, &contextAddress, contextSize, memoryFlags, placementFlags);
-    if (status != OsOK) {
-        return NULL;
-    }
-
-    // Adjust pointer to top of stack and then commit the first stack page
-    status = MemorySpaceCommit(
-            memorySpace,
-            contextAddress + (contextSize - sizeof(Context_t)),
-            &physicalContextAddress,
+    __GetContextFlags(contextType, &placementFlags, &memoryFlags);
+    oserr = __AllocateStackInMemory(
+            placementFlags,
+            memoryFlags,
+            contextSize,
             PAGE_SIZE,
-            0,
-            0
+            &contextAddress
     );
-    if (status != OsOK) {
-        MemorySpaceUnmap(memorySpace, contextAddress, contextSize);
+    if (oserr != OS_EOK) {
         return NULL;
     }
 
     contextAddress += contextSize - sizeof(Context_t);
-
     return (Context_t*)contextAddress;
+}
+
+static uintptr_t
+__FixupAddress(
+        _In_ uintptr_t address,
+        _In_ uintptr_t originalStackTop,
+        _In_ uintptr_t newStackTop)
+{
+    uintptr_t offset = originalStackTop - address;
+    return newStackTop - offset;
+}
+
+oserr_t
+ArchThreadContextFork(
+        _In_  Context_t*  baseContext,
+        _In_  Context_t*  returnContext,
+        _In_  int         contextType,
+        _In_  size_t      contextSize,
+        _Out_ Context_t** baseContextOut,
+        _Out_ Context_t** contextOut)
+{
+    oserr_t      oserr;
+    uintptr_t    contextAddress;
+    Context_t*   newContext;
+    uintptr_t    stackTop   = (uintptr_t)baseContext + sizeof(Context_t);
+    uintptr_t    newStackTop;
+    uintptr_t    stack      = CONTEXT_SP(returnContext);
+    size_t       stackUsage = stackTop - stack;
+    unsigned int placementFlags;
+    unsigned int memoryFlags;
+
+    __GetContextFlags(contextType, &placementFlags, &memoryFlags);
+
+    // Commit enough space for the extra Context_t we add below
+    oserr = __AllocateStackInMemory(
+            placementFlags,
+            memoryFlags,
+            contextSize,
+            (stackUsage + sizeof(Context_t)),
+            &contextAddress
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // contextAddress now points to the top of the new stack - sizeof(Context_t),
+    // so let's fix it up and then calculate new addresses
+    contextAddress += sizeof(Context_t); // point to top
+    newStackTop    = contextAddress;     // save it for fix ups
+    contextAddress -= stackUsage;        // point to bottom
+
+    // Now we copy from <stack> to <contextAddress>
+    memcpy((void*)contextAddress, (const void*)stack, stackUsage);
+
+    // And then, finally, we must set up a new context on top of this, which when unwound
+    // somehow lands us back at the caller function. This is where the <returnContext> comes
+    // into play, except we need to fix up the stack pointers in it
+    contextAddress -= sizeof(Context_t);
+    memcpy((void*)contextAddress, returnContext, sizeof(Context_t));
+
+    // Fix up the stack pointers, which must not be their original values
+    newContext = (Context_t*)contextAddress;
+    newContext->Ebp = __FixupAddress(returnContext->Ebp, stackTop, newStackTop);
+    newContext->Esp = __FixupAddress(returnContext->Esp, stackTop, newStackTop);
+
+    *baseContextOut = (Context_t*)(newStackTop - sizeof(Context_t));
+    *contextOut = newContext;
+    return OS_EOK;
 }
 
 void
@@ -279,5 +387,5 @@ ArchThreadContextDump(
     // Dump IRQ information
     DEBUG("IRQ 0x%" PRIxIN ", ErrorCode 0x%" PRIxIN ", UserSS 0x%" PRIxIN "",
           context->Irq, context->ErrorCode, context->UserSs);
-    return OsOK;
+    return OS_EOK;
 }

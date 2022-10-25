@@ -46,7 +46,7 @@ HubDeviceGet(
 
 oserr_t OnEvent(struct ioset_event* event)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t OnLoad(void)
@@ -83,11 +83,11 @@ oserr_t OnRegister(
 
     hubDevice = HubDeviceCreate((UsbDevice_t*)device);
     if (!hubDevice) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     list_append(&g_devices, &hubDevice->Header);
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
@@ -100,12 +100,12 @@ oserr_t OnUnregister(
 {
     HubDevice_t* hubDevice = HubDeviceGet(device->Id);
     if (hubDevice == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     list_remove(&g_devices, &hubDevice->Header);
     HubDeviceDestroy(hubDevice);
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
@@ -167,7 +167,7 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid
 
     hubDevice = HubDeviceGet(deviceId);
     if (!hubDevice) {
-        osStatus = OsInvalidParameters;
+        osStatus = OS_EINVALPARAMS;
         goto respond;
     }
 
@@ -186,12 +186,12 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid
 
     hubDevice = HubDeviceGet(deviceId);
     if (!hubDevice) {
-        osStatus = OsInvalidParameters;
+        osStatus = OS_EINVALPARAMS;
         goto respond;
     }
 
     osStatus = HubResetPort(hubDevice, portId);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto respond;
     }
 

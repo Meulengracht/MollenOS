@@ -56,7 +56,7 @@ SemaphoreDestruct(
     _In_ Semaphore_t* Semaphore)
 {
     if (!Semaphore) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return FutexWake(&Semaphore->Value, INT_MAX, 0);
 }
@@ -66,14 +66,14 @@ SemaphoreWait(
     _In_ Semaphore_t* Semaphore,
     _In_ size_t       Timeout)
 {
-    oserr_t Status = OsOK;
+    oserr_t Status = OS_EOK;
     int        Value;
     
     for (;;) {
         Value = atomic_load(&(Semaphore->Value));
         while (Value < 1) {
             Status = FutexWait(&(Semaphore->Value), Value, 0, Timeout);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 break;
             }
             Value = atomic_load(&(Semaphore->Value));
@@ -93,7 +93,7 @@ SemaphoreSignal(
     _In_ Semaphore_t* Semaphore,
     _In_ int          Value)
 {
-    oserr_t Status = OsError;
+    oserr_t Status = OS_EUNKNOWN;
     int        currentValue;
     int        i;
     int        result;
@@ -112,7 +112,7 @@ SemaphoreSignal(
             }
             FutexWake(&Semaphore->Value, 1, 0);
         }
-        Status = OsOK;
+        Status = OS_EOK;
     }
     return Status;
 }

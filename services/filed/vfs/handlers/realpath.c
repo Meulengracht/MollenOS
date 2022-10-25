@@ -27,11 +27,11 @@ oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t*
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -40,5 +40,5 @@ oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t*
     *pathOut = VFSNodeMakePath(node, 0);
     VFSNodePut(node);
     mstr_delete(nodePath);
-    return OsOK;
+    return OS_EOK;
 }

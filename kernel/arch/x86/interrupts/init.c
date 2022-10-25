@@ -82,12 +82,12 @@ PlatformInterruptInitialize(void)
     InterruptIncreasePenalty(15);   // IDE / Spurious
     
     // Initialize APIC?
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OsOK) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_APIC) == OS_EOK) {
         ApicInitialize();
     }
     else {
         ERROR("PlatformInterruptInitialize cpu does not have a local apic. This model is too old and not supported.");
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
-    return OsOK;
+    return OS_EOK;
 }

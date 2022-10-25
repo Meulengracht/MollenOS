@@ -26,16 +26,16 @@ static oserr_t __MapUserBuffer(uuid_t handle, DMAAttachment_t* attachment)
     oserr_t oserr;
 
     oserr = DmaAttach(handle, attachment);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = DmaAttachmentMap(attachment, 0);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         DmaDetach(attachment);
         return oserr;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
@@ -46,14 +46,14 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
     DMAAttachment_t       attachment;
 
     oserr = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     // The regular read and write operations we will only support for files. Directories
     // and symlinks have their own respective interfaces for dealing with Read/Write.
     if (!__NodeIsFile(handle->Node)) {
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
@@ -61,12 +61,12 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
     if (nodeVfs->Interface->Operations.Write == NULL) {
         // Write is not a required operation for the filesystem to support,
         // so it may not be supported.
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
     oserr = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
@@ -79,7 +79,7 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
             writtenOut
     );
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    if (oserr == OsOK) {
+    if (oserr == OS_EOK) {
         handle->Mode     = MODE_WRITE;
         handle->Position += *writtenOut;
         if (handle->Position > handle->Node->Stats.Size) {
@@ -88,7 +88,7 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
     }
 
     oserr2 = DmaDetach(&attachment);
-    if (oserr2 != OsOK) {
+    if (oserr2 != OS_EOK) {
         WARNING("VFSNodeWrite failed to detach read buffer");
     }
 
@@ -106,19 +106,19 @@ oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferH
     UInteger64_t          result;
 
     oserr = VFSNodeHandleGet(fileHandle, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     // The regular read and write operations we will only support for files. Directories
     // and symlinks have their own respective interfaces for dealing with Read/Write.
     if (!__NodeIsFile(handle->Node)) {
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
     oserr = __MapUserBuffer(bufferHandle, &attachment);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
@@ -129,7 +129,7 @@ oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferH
             nodeVfs->Data, handle->Data,
             position->QuadPart, &result.QuadPart
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto unmap;
     }
     handle->Position = result.QuadPart;
@@ -139,7 +139,7 @@ oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferH
             attachment.handle, attachment.buffer,
             offset, length, writtenOut
     );
-    if (oserr == OsOK) {
+    if (oserr == OS_EOK) {
         handle->Mode     = MODE_WRITE;
         handle->Position += *writtenOut;
         if (handle->Position > handle->Node->Stats.Size) {
@@ -150,7 +150,7 @@ oserr_t VFSNodeWriteAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferH
 unmap:
     usched_rwlock_r_unlock(&handle->Node->Lock);
     oserr2 = DmaDetach(&attachment);
-    if (oserr2 != OsOK) {
+    if (oserr2 != OS_EOK) {
         WARNING("VFSNodeWriteAt failed to detach read buffer");
     }
 

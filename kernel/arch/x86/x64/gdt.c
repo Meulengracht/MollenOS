@@ -48,7 +48,7 @@ __CreateTssStacks(
 
     allStacks = (uint64_t)kmalloc(PAGE_SIZE * 7);
     if (!allStacks) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     memset((void*)allStacks, 0, PAGE_SIZE * 7);
@@ -58,7 +58,7 @@ __CreateTssStacks(
         tssDescriptor->InterruptTable[i] = allStacks;
         allStacks -= PAGE_SIZE;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static int
@@ -120,7 +120,7 @@ TssInitialize(
 
     coreBlock->Tss = kmalloc(sizeof(TssDescriptor_t));
     if (!coreBlock->Tss) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     tssDescriptor = coreBlock->Tss;
@@ -130,9 +130,9 @@ TssInitialize(
     tssBase  = (uint64_t)tssDescriptor;
     tssLimit = tssBase + sizeof(TssDescriptor_t);
     tssDescriptor->IoMapBase = (uint16_t)offsetof(TssDescriptor_t, IoMap[0]);
-    if (__CreateTssStacks(tssDescriptor) != OsOK) {
+    if (__CreateTssStacks(tssDescriptor) != OS_EOK) {
         kfree(coreBlock->Tss);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // The core might be missing the io-map, so update it now
@@ -150,7 +150,7 @@ TssInitialize(
                     0x00
             )
     );
-    return OsOK;
+    return OS_EOK;
 }
 
 void

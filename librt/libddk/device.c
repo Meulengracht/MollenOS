@@ -49,7 +49,7 @@ RegisterDevice(
         return UUID_INVALID;
     }
     
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return UUID_INVALID;
     }
     

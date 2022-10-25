@@ -51,7 +51,7 @@ __read_as_binary(stdio_handle_t* handle, char* buf, unsigned int count)
     oserr_t status;
 
     status = handle->ops.read(handle, pointer, count, &bytesRead);
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         // Test against EOF
         if (count != 0 && bytesRead == 0) {
             __set_eof(handle);
@@ -120,7 +120,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 	
 	// Handle the small case with the local buffer
     if (count < 4) {
-        if(!pos && handle->ops.read(handle, readbuf, 1, &bytesRead) == OsOK) {
+        if(!pos && handle->ops.read(handle, readbuf, 1, &bytesRead) == OS_EOK) {
             if(!bytesRead) {
                 __set_eof(handle);
                 if (readbuf != &min_buf[0]) {
@@ -136,7 +136,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 		// Read the rest of the character bytes
         char_len = __get_utf8_character_bytes(readbuf[0]);
         if(char_len > pos) {
-            if(handle->ops.read(handle, readbuf + pos, char_len - pos, &bytesRead) == OsOK) {
+            if(handle->ops.read(handle, readbuf + pos, char_len - pos, &bytesRead) == OS_EOK) {
                 pos += bytesRead;
 			}
         }
@@ -160,7 +160,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 
 		// Handle CR
         if (readbuf[0] == '\r') {
-			if (handle->ops.read(handle, &lookahead, 1, &bytesRead) == OsOK && bytesRead == 1) {
+			if (handle->ops.read(handle, &lookahead, 1, &bytesRead) == OS_EOK && bytesRead == 1) {
 				buf[0] = '\r';
 			}
 			else if (lookahead == '\n') {
@@ -195,7 +195,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     }
 
     // perform the read operation to fill the read buffer up
-    if (handle->ops.read(handle, readbuf + pos, readbuf_size - pos, &bytesRead) != OsOK) {
+    if (handle->ops.read(handle, readbuf + pos, readbuf_size - pos, &bytesRead) != OS_EOK) {
 		// EOF?
 		if (!pos && !bytesRead) {
             __set_eof(handle);
@@ -267,7 +267,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
         // strip '\r' if followed by '\n'
         if (readbuf[i] == '\r' && (i + 1) == pos) {
 			if (handle->lookahead[0] != '\n'
-				|| handle->ops.read(handle, &lookahead, 1, &bytesRead) == OsOK) {
+				|| handle->ops.read(handle, &lookahead, 1, &bytesRead) == OS_EOK) {
                 readbuf[j++] = '\r';
 			}
 			else if (lookahead == '\n' && j == 0) {
@@ -327,7 +327,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
 
     // Now do the actual read of either binary or UTF16
     if (handle->lookahead[0] != '\n' ||
-        handle->ops.read(handle, bufferPointer, count, &bytesRead) == OsOK) {
+        handle->ops.read(handle, bufferPointer, count, &bytesRead) == OS_EOK) {
         if (handle->lookahead[0] != '\n') {
             bufferPointer[0]     = handle->lookahead[0];
             handle->lookahead[0] = '\n';
@@ -340,7 +340,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
             if (count > (1 + isUtf16) && handle->ops.read(handle,
                                                           bufferPointer + 1 + isUtf16,
                                                           count - 1 - isUtf16,
-                                                          &bytesRead) == OsOK) {
+                                                          &bytesRead) == OS_EOK) {
                 bytesRead += 1 + isUtf16;
             }
             else {
@@ -385,7 +385,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
                     size_t localBytesRead;
 
                     lookahead[1] = '\n';
-                    if (handle->ops.read(handle, lookahead, 1 + isUtf16, &localBytesRead) == OsOK
+                    if (handle->ops.read(handle, lookahead, 1 + isUtf16, &localBytesRead) == OS_EOK
                         && localBytesRead) {
                         if (lookahead[0] == '\n' && (!isUtf16 || lookahead[1] == 0) && j == 0) {
                             bufferPointer[j++] = '\n';

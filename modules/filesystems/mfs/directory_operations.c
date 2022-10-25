@@ -39,7 +39,7 @@ FsReadFromDirectory(
         _In_  size_t           unitCount,
         _Out_ size_t*          unitsRead)
 {
-    oserr_t          osStatus    = OsOK;
+    oserr_t          osStatus    = OS_EOK;
     size_t           bytesToRead = unitCount;
     uint64_t         position    = entry->Position;
     struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
@@ -58,7 +58,7 @@ FsReadFromDirectory(
     // Guard against empty directories, we just return OsOK and
     // unitsRead=0
     if (entry->StartBucket == MFS_ENDOFCHAIN) {
-        return OsOK;
+        return OS_EOK;
     }
 
     TRACE(" > dma: fpos %u, bytes-total %u, offset %u", LODWORD(position), bytesToRead, bufferOffset);
@@ -88,7 +88,7 @@ FsReadFromDirectory(
                     sectorCount,
                     &sectorsRead
             );
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 ERROR("Failed to read sector");
                 break;
             }
@@ -115,9 +115,9 @@ FsReadFromDirectory(
                     mfs, entry,
                     mfs->SectorsPerBucket * mfs->SectorSize
             );
-            if (osStatus != OsOK) {
-                if (osStatus == OsNotExists) {
-                    osStatus = OsOK;
+            if (osStatus != OS_EOK) {
+                if (osStatus == OS_ENOENT) {
+                    osStatus = OS_EOK;
                 }
                 break;
             }
@@ -151,7 +151,7 @@ FsSeekInDirectory(
 
     // Sanitize seeking bounds
     if (entry->ActualSize == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Step 1, if the new position is in
@@ -194,22 +194,22 @@ FsSeekInDirectory(
                 }
 
                 // Get link
-                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OsOK) {
+                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OS_EOK) {
                     ERROR("FsSeekInDirectory failed to get link for bucket %u", BucketPtr);
-                    return OsDeviceError;
+                    return OS_EDEVFAULT;
                 }
 
                 // If we do reach end of chain, something went terribly wrong
                 if (Link.Link == MFS_ENDOFCHAIN) {
                     ERROR("Reached end of chain during seek");
-                    return OsInvalidParameters;
+                    return OS_EINVALPARAMS;
                 }
                 BucketPtr = Link.Link;
 
                 // Get length of link
-                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OsOK) {
+                if (MFSBucketMapGetLengthAndLink(mfs, BucketPtr, &Link) != OS_EOK) {
                     ERROR("Failed to get length for bucket %u", BucketPtr);
-                    return OsDeviceError;
+                    return OS_EDEVFAULT;
                 }
                 PositionBoundLow    += PositionBoundHigh;
                 PositionBoundHigh   = (Link.Length *
@@ -225,5 +225,5 @@ FsSeekInDirectory(
     
     // Update the new position since everything went ok
     entry->Position = actualPosition;
-    return OsOK;
+    return OS_EOK;
 }

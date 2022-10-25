@@ -68,7 +68,7 @@ SymbolsLoadContext(
 
     TRACE("[SymbolsLoadContext] loading map file");
     status = SymbolLoadMapFile(binaryName, &fileBuffer, &fileSize);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         WARNING("[SymbolsLoadContext] failed to load map for %s", binaryName);
         return status;
     }
@@ -76,7 +76,7 @@ SymbolsLoadContext(
     TRACE("[SymbolsLoadContext] parsing map file, 0x%llx - %llu", fileBuffer, fileSize);
     status = SymbolParseMapFile(&symbolContext, fileBuffer, fileSize);
     free(fileBuffer);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         WARNING("[SymbolsLoadContext] failed to parse map for %s", binaryName);
         return status;
     }
@@ -87,7 +87,7 @@ SymbolsLoadContext(
     TRACE("[SymbolsLoadContext] context loaded %s", symbolContext.key);
     hashtable_set(&g_loadedSymbolContexts, &symbolContext);
     *symbolContextOut = hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -103,14 +103,14 @@ SymbolLookup(
     int                    i;
 
     if (!binaryName) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Check for loaded context
     symbolContext = (struct symbol_context*)hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
     if (!symbolContext) {
         status = SymbolsLoadContext(binaryName, &symbolContext);
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             return status;
         }
     }
@@ -132,7 +132,7 @@ SymbolLookup(
 
     *symbolName   = symbol->name;
     *symbolOffset = binaryOffset - symbol->address;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -164,7 +164,7 @@ SymbolLoadMapFile(
     if (!file) {
         // map did not exist
         ERROR("[SymbolsLoadContext] map file not found at %s", &path[0]);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     fseek(file, 0, SEEK_END);
@@ -173,13 +173,13 @@ SymbolLoadMapFile(
 
     if (!fileSize) {
         fclose(file);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     fileBuffer = malloc(fileSize);
     if (!fileBuffer) {
         fclose(file);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     bytesRead = fread(fileBuffer, 1, fileSize, file);
@@ -187,12 +187,12 @@ SymbolLoadMapFile(
 
     if (bytesRead != fileSize) {
         ERROR("[SymbolsLoadContext] fread returned %i", (int)bytesRead);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     *fileBufferOut = fileBuffer;
     *fileSizeOut   = fileSize;
-    return OsOK;
+    return OS_EOK;
 }
 
 static uint64_t SymbolContextHash(const void* element)

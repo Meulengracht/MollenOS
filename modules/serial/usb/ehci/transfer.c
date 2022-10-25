@@ -71,7 +71,7 @@ HciTransactionFinalize(
         Transfer->Flags |= TransferFlagCleanup;
         EhciRingDoorbell((EhciController_t*)Controller);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -82,7 +82,7 @@ HciDequeueTransfer(
 
     Controller = (EhciController_t*) UsbManagerGetController(Transfer->DeviceId);
     if (!Controller) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     // Unschedule immediately, but keep data intact as hardware still (might) reference it.
@@ -99,5 +99,5 @@ HciDequeueTransfer(
             USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
     }
     
-    return OsOK;
+    return OS_EOK;
 }

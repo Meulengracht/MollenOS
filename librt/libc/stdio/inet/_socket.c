@@ -62,7 +62,7 @@ int socket_create(int domain, int type, int protocol, uuid_t handle,
     
     TRACE("[socket] mapping pipes");
     osStatus = ioObject->ops.inherit(ioObject);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         (void)OsErrToErrNo(osStatus);
         ioObject->ops.close(ioObject, 0);
         stdio_handle_destroy(ioObject, 0);

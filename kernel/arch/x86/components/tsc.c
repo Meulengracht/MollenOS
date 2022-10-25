@@ -54,7 +54,7 @@ TscInitialize(void)
     uint32_t   tickEnd;
     TRACE("TscInitialize()");
 
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_TSC) != OsOK) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_TSC) != OS_EOK) {
         WARNING("TscInitialize TSC is not available for this CPU");
         return;
     }
@@ -81,7 +81,7 @@ TscInitialize(void)
             SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
             UUID_INVALID,
             NULL);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         WARNING("TscInitialize failed to register platform timer");
     }
 }

@@ -28,7 +28,7 @@
 static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
     FutexParameters_t parameters;
-    oserr_t           oserr = OsOK;
+    oserr_t           oserr = OS_EOK;
     int               value;
 
     parameters._futex0  = sync_address;
@@ -39,12 +39,12 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
         value = atomic_load(sync_address);
         while (value < 1) {
             if (options & EVT_OPTION_NON_BLOCKING) {
-                return OsBusy;
+                return OS_EBUSY;
             }
 
             parameters._val0 = value;
             oserr = Futex(&parameters);
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 break;
             }
 
@@ -61,7 +61,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
 {
     FutexParameters_t parameters;
-    oserr_t           status = OsIncomplete;
+    oserr_t           status = OS_EINCOMPLETE;
     int               currentValue;
     int               i;
     int               result;
@@ -85,7 +85,7 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
 
     if (parameters._val0) {
         Futex(&parameters);
-        status = OsOK;
+        status = OS_EOK;
     }
 
     return status;
@@ -98,12 +98,12 @@ oserr_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
     // Sanitize buffer and length for RESET and SEM events
     if (EVT_TYPE(handle->object.data.evt.flags) != EVT_TIMEOUT_EVENT) {
         if (!buffer || length < sizeof(unsigned int)) {
-            return OsInvalidPermissions;
+            return OS_EPERMISSIONS;
         }
     }
 
     result = evt_lock(handle->object.data.evt.sync_address, handle->object.data.evt.options);
-    if (result != OsOK) {
+    if (result != OS_EOK) {
         return result;
     }
 
@@ -116,14 +116,14 @@ oserr_t stdio_evt_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
         *(unsigned int*)buffer = 1;
         *bytes_read            = sizeof(unsigned int);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    oserr_t result = OsNotSupported;
+    oserr_t result = OS_ENOTSUPPORTED;
     if (!buffer || length < sizeof(unsigned int)) {
-        return OsInvalidPermissions;
+        return OS_EPERMISSIONS;
     }
 
     if (EVT_TYPE(handle->object.data.evt.flags) == EVT_RESET_EVENT) {
@@ -131,7 +131,7 @@ oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t le
         *bytes_written = sizeof(unsigned int);
 
         result = evt_unlock(handle->object.data.evt.sync_address, 1, 1);
-        if (result == OsOK) {
+        if (result == OS_EOK) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
     }
@@ -141,7 +141,7 @@ oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t le
         result = evt_unlock(handle->object.data.evt.sync_address,
                             handle->object.data.evt.initialValue,
                             value);
-        if (result == OsOK) {
+        if (result == OS_EOK) {
             handle_post_notification(handle->object.handle, IOSETSYN);
         }
         *bytes_written = sizeof(size_t);
@@ -152,12 +152,12 @@ oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t le
 
 oserr_t stdio_evt_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_evt_op_resize(stdio_handle_t* handle, long long resize_by)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_evt_op_close(stdio_handle_t* handle, int options)
@@ -167,13 +167,13 @@ oserr_t stdio_evt_op_close(stdio_handle_t* handle, int options)
             return handle_destroy(handle->object.handle);
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t stdio_evt_op_inherit(stdio_handle_t* handle)
 {
     // we can't inherit them atm, we need the userspace mapping mapped into this process as well
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
@@ -188,16 +188,16 @@ oserr_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
                 handle->object.data.evt.options &= ~(EVT_OPTION_NON_BLOCKING);
             }
         }
-        return OsOK;
+        return OS_EOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             *bytesAvailableOut = atomic_load(handle->object.data.evt.sync_address);
         }
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 void stdio_get_evt_operations(stdio_ops_t* ops)

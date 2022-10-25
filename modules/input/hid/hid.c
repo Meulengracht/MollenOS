@@ -199,20 +199,20 @@ HidDeviceCreate(
     }
 
     // Setup device
-    if (HidSetupGeneric(hidDevice) != OsOK) {
+    if (HidSetupGeneric(hidDevice) != OS_EOK) {
         ERROR("HidDeviceCreate failed to setup the generic hid device");
         goto error_exit;
     }
 
     // Reset interrupt ep
     if (UsbEndpointReset(&hidDevice->Base->DeviceContext,
-            USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address)) != OsOK) {
+            USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address)) != OS_EOK) {
         ERROR("HidDeviceCreate failed to reset endpoint (interrupt)");
         goto error_exit;
     }
 
     // Allocate a ringbuffer for use
-    if (dma_pool_allocate(UsbRetrievePool(), 0x400, (void**)&hidDevice->Buffer) != OsOK) {
+    if (dma_pool_allocate(UsbRetrievePool(), 0x400, (void**)&hidDevice->Buffer) != OS_EOK) {
         ERROR("HidDeviceCreate failed to allocate reusable buffer (interrupt-buffer)");
         goto error_exit;
     }

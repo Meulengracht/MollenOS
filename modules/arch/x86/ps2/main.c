@@ -51,12 +51,12 @@ WaitForPs2StatusFlagsSet(
     int Timeout = 100; // 100 ms
     while (Timeout > 0) {
         if (PS2ReadStatus() & Flags) {
-            return OsOK;
+            return OS_EOK;
         }
         thrd_sleepex(5);
         Timeout -= 5;
     }
-    return OsError; // If we reach here - it never set
+    return OS_EUNKNOWN; // If we reach here - it never set
 }
 
 oserr_t
@@ -66,12 +66,12 @@ WaitForPs2StatusFlagsClear(
     int Timeout = 100; // 100 ms
     while (Timeout > 0) {
         if (!(PS2ReadStatus() & Flags)) {
-            return OsOK;
+            return OS_EOK;
         }
         thrd_sleepex(5);
         Timeout -= 5;
     }
-    return OsError; // If we reach here - it never set
+    return OS_EUNKNOWN; // If we reach here - it never set
 }
 
 uint8_t
@@ -80,7 +80,7 @@ PS2ReadData(
 {
     // Only wait for input to be full in case we don't do dummy reads
     if (Dummy == 0) {
-        if (WaitForPs2StatusFlagsSet(PS2_STATUS_OUTPUT_FULL) == OsError) {
+        if (WaitForPs2StatusFlagsSet(PS2_STATUS_OUTPUT_FULL) == OS_EUNKNOWN) {
             return 0xFF;
         }
     }
@@ -91,11 +91,11 @@ oserr_t
 PS2WriteData(
     _In_ uint8_t Value)
 {
-    if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OsOK) {
-        return OsError;
+    if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OS_EOK) {
+        return OS_EUNKNOWN;
     }
     WriteDeviceIo(Ps2Controller->Data, PS2_REGISTER_DATA, Value, 1);
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -103,7 +103,7 @@ PS2SendCommand(
     _In_ uint8_t Command)
 {
     // Wait for flag to clear, then write data
-    if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OsOK) {
+    if (WaitForPs2StatusFlagsClear(PS2_STATUS_INPUT_FULL) != OS_EOK) {
         ERROR(" > input buffer full flags never cleared");
     }
     WriteDeviceIo(Ps2Controller->Command, PS2_REGISTER_COMMAND, Command, 1);
@@ -119,11 +119,11 @@ PS2SetScanning(
         PS2SendCommand(PS2_SELECT_PORT2);
     }
 
-    if (PS2WriteData(Status) != OsOK ||
+    if (PS2WriteData(Status) != OS_EOK ||
         PS2ReadData(0)   != PS2_ACK) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -140,7 +140,7 @@ PS2SelfTest(void)
             break;
         }
     }
-    return (i == 5) ? OsError : OsOK;
+    return (i == 5) ? OS_EUNKNOWN : OS_EOK;
 }
 
 oserr_t
@@ -154,10 +154,10 @@ PS2Initialize(
     Ps2Controller->Device = (BusDevice_t*)device;
 
     // No problem, last thing is to acquire the io-spaces, and just return that as result
-    if (AcquireDeviceIo(&Ps2Controller->Device->IoSpaces[0]) != OsOK ||
-        AcquireDeviceIo(&Ps2Controller->Device->IoSpaces[1]) != OsOK) {
+    if (AcquireDeviceIo(&Ps2Controller->Device->IoSpaces[0]) != OS_EOK ||
+        AcquireDeviceIo(&Ps2Controller->Device->IoSpaces[1]) != OS_EOK) {
         ERROR(" > failed to acquire ps2 io spaces");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Data is at 0x60 - the first space, Command is at 0x64, the second space
@@ -189,21 +189,21 @@ PS2Initialize(
     oserr = PS2WriteData(temp);
 
     // Perform Self Test
-    if (oserr != OsOK || PS2SelfTest() != OsOK) {
+    if (oserr != OS_EOK || PS2SelfTest() != OS_EOK) {
         ERROR(" > failed to initialize ps2 controller, giving up");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Initialize the ports
     for (i = 0; i < PS2_MAXPORTS; i++) {
         Ps2Controller->Ports[i].Index   = i;
         oserr = PS2PortInitialize(&Ps2Controller->Ports[i]);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING(" > port %i is in disabled state", i);
             Ps2Controller->Ports[i].State = PortStateDisabled;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -216,17 +216,17 @@ OnLoad(void)
     // Allocate a new instance of the ps2-data
     Ps2Controller = (PS2Controller_t*)malloc(sizeof(PS2Controller_t));
     if (!Ps2Controller) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
     Ps2Controller->Device->Base.Id = UUID_INVALID;
 
-    if (WaitForNetService(1000) != OsOK) {
+    if (WaitForNetService(1000) != OS_EOK) {
         ERROR(" => Failed to start ps2 driver, as net service never became available.");
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -241,7 +241,7 @@ OnUnload(void)
         ReleaseDeviceIo(Ps2Controller->Data);
     }
     free(Ps2Controller);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t OnEvent(struct ioset_event* event)
@@ -251,7 +251,7 @@ oserr_t OnEvent(struct ioset_event* event)
         unsigned int value;
 
         if (read(port->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         if (SIGNATURE_IS_KEYBOARD(port->Signature)) {
@@ -260,9 +260,9 @@ oserr_t OnEvent(struct ioset_event* event)
         else if (SIGNATURE_IS_MOUSE(port->Signature)) {
             PS2MouseInterrupt(port);
         }
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotExists;
+    return OS_ENOENT;
 }
 
 oserr_t
@@ -285,28 +285,28 @@ OnRegister(
         port = &Ps2Controller->Ports[1];
     } else {
         free(device);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Ok .. It's a new device
     // - What kind of device?
     if (port->Signature == 0xAB41 || port->Signature == 0xABC1) { // MF2 Keyboard Translation
         oserr = PS2KeyboardInitialize(Ps2Controller, port->Index, 1);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR(" > failed to initalize ps2-keyboard");
         }
     } else if (port->Signature == 0xAB83) { // MF2 Keyboard
         oserr = PS2KeyboardInitialize(Ps2Controller, port->Index, 0);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR(" > failed to initalize ps2-keyboard");
         }
     } else if (port->Signature != 0xFFFFFFFF) {
         oserr = PS2MouseInitialize(Ps2Controller, port->Index);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR(" > failed to initalize ps2-mouse");
         }
     } else {
-        oserr = OsError;
+        oserr = OS_EUNKNOWN;
     }
     free(device); // not used for ports atm
     return oserr;
@@ -353,7 +353,7 @@ oserr_t
 OnUnregister(
     _In_ Device_t* Device)
 {
-    oserr_t Result = OsError;
+    oserr_t Result = OS_EUNKNOWN;
     PS2Port_t *Port;
 
     // Select port from device-id
@@ -364,7 +364,7 @@ OnUnregister(
         Port = &Ps2Controller->Ports[1];
     }
     else {
-        return OsError;    // Probably the controller itself
+        return OS_EUNKNOWN;    // Probably the controller itself
     }
 
     // Handle device destruction

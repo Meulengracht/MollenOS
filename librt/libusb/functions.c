@@ -51,12 +51,12 @@ UsbInitialize(void)
     info.type     = DMA_TYPE_DRIVER_32;
     
     status = DmaCreate(&info, &DmaAttachment);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         return status;
     }
     
     status = dma_pool_create(&DmaAttachment, &DmaPool);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         (void) DmaDetach(&DmaAttachment);
     }
     return status;
@@ -66,13 +66,13 @@ oserr_t
 UsbCleanup(void)
 {
     if (!DmaPool) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     dma_pool_destroy(DmaPool);
     DmaDetach(&DmaAttachment);
     DmaPool = NULL;
-    return OsOK;
+    return OS_EOK;
 }
 
 struct dma_pool*
@@ -184,7 +184,7 @@ UsbTransferIn(
 
     // Sanitize count
     if (Transfer->TransactionCount >= 3) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     Transaction               = &Transfer->Transactions[Transfer->TransactionCount++];
@@ -197,7 +197,7 @@ UsbTransferIn(
     if (Length == 0) { // Zero-length?
         Transaction->Flags |= USB_TRANSACTION_ZLP;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -212,7 +212,7 @@ UsbTransferOut(
 
     // Sanitize count
     if (Transfer->TransactionCount >= 3) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     Transaction               = &Transfer->Transactions[Transfer->TransactionCount++];
@@ -225,7 +225,7 @@ UsbTransferOut(
     if (Length == 0) { // Zero-length?
         Transaction->Flags |= USB_TRANSACTION_ZLP;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 UsbTransferStatus_t
@@ -361,14 +361,14 @@ UsbExecutePacket(
     usb_packet_t*       packet;
     UsbTransfer_t       transfer;
     
-    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OsOK) {
+    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OS_EOK) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
     if (length != 0) {
         oserr_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR("Failed to allocate a transfer data buffer");
             dma_pool_free(DmaPool, dmaPacketStorage);
             return TransferInvalid;

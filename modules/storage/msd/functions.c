@@ -109,7 +109,7 @@ MsdDeviceInitialize(
 {
     if (!g_protocolOperations[Device->Protocol]) {
         ERROR("Support is not implemented for the protocol.");
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     Device->Operations = g_protocolOperations[Device->Protocol];
@@ -138,7 +138,7 @@ MsdGetMaximumLunCount(
     else {
         Device->Descriptor.LUNCount = 0;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 UsbTransferStatus_t 
@@ -206,9 +206,9 @@ MsdDevicePrepare(
 
     // Allocate memory buffer
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiSense_t), 
-        (void**)&SenseBlock) != OsOK) {
+        (void**)&SenseBlock) != OS_EOK) {
         ERROR("Failed to allocate buffer (sense)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Don't use test-unit-ready for UFI
@@ -218,7 +218,7 @@ MsdDevicePrepare(
             ERROR("Failed to perform test-unit-ready command");
             dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
             Device->IsReady = 0;
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
 
@@ -229,7 +229,7 @@ MsdDevicePrepare(
         ERROR("Failed to perform sense command");
         dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
         Device->IsReady = 0;
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Extract sense-codes and key
@@ -244,12 +244,12 @@ MsdDevicePrepare(
     else {
         ERROR("Invalid Response Code: 0x%x", ResponseCode);
         Device->IsReady = 0;
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Mark ready and return
     Device->IsReady = 1;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -260,9 +260,9 @@ MsdReadCapabilities(
     uint32_t*            capabilitesPointer = NULL;
 
     if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiExtendedCaps_t), 
-        (void**)&capabilitesPointer) != OsOK) {
+        (void**)&capabilitesPointer) != OS_EOK) {
         ERROR("Failed to allocate buffer (caps)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Perform caps-command
@@ -270,7 +270,7 @@ MsdReadCapabilities(
             dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
             8) != TransferFinished) {
         dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // If the size equals max, then we need to use extended
@@ -283,7 +283,7 @@ MsdReadCapabilities(
                 dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
                 sizeof(ScsiExtendedCaps_t)) != TransferFinished) {
             dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         // Capabilities are returned in reverse byte-order
@@ -293,7 +293,7 @@ MsdReadCapabilities(
               descriptor->SectorSize);
         Device->IsExtended = 1;
         dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
-        return OsOK;
+        return OS_EOK;
     }
 
     // Capabilities are returned in reverse byte-order
@@ -302,7 +302,7 @@ MsdReadCapabilities(
     TRACE("[msd] [read_capabilities] 0x%llx sectorCount %llu, sectorSize %u",
           &descriptor->SectorCount, descriptor->SectorCount, descriptor->SectorSize);
     dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -318,9 +318,9 @@ MsdDeviceStart(
     i = (device->Protocol != ProtocolCB && device->Protocol != ProtocolCBI) ? 30 : 3;
 
     // Allocate space for inquiry
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OsOK) {
+    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OS_EOK) {
         ERROR("Failed to allocate buffer (inquiry)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Perform inquiry
@@ -331,7 +331,7 @@ MsdDeviceStart(
     if (transferStatus != TransferFinished) {
         ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Perform the Test-Unit Ready command
@@ -349,7 +349,7 @@ MsdDeviceStart(
     if (!device->IsReady) {
         ERROR("Failed to ready device");
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
 
@@ -399,7 +399,7 @@ MsdTransferSectors(
 
     // Protect against bad start sector
     if (sector >= device->Descriptor.SectorCount) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Of course it's possible that the requester is requesting too much data in one
@@ -416,7 +416,7 @@ MsdTransferSectors(
 
     // protect against zero reads
     if (sectorsToBeTransferred == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     TRACE("[msd_transfer] command %u, max sectors for command %u", command, maxSectorsPerCommand);
@@ -432,7 +432,7 @@ MsdTransferSectors(
         if (sectorsTransferred) {
             *sectorsTransferred = 0;
         }
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else if (sectorsTransferred) {
         *sectorsTransferred = sectorsToBeTransferred;
@@ -444,7 +444,7 @@ MsdTransferSectors(
             *sectorsTransferred -= SectorsLeft;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_t deviceId,

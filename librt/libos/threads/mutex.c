@@ -44,7 +44,7 @@ MutexInitialize(
         _In_ int      flags)
 {
     if (mutex == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Get information about the system
@@ -55,7 +55,7 @@ MutexInitialize(
     mutex->Flags = flags;
     mutex->Value = ATOMIC_VAR_INIT(0);
     mutex->State = ATOMIC_VAR_INIT(__BUILD_STATE(UUID_INVALID, 0));
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -86,13 +86,13 @@ __TryLockRecursive(
             unsigned int newState = __BUILD_STATE(owner, refcount + 1);
             int status = atomic_compare_exchange_weak(&mutex->State, &state, newState);
             if (status) {
-                return OsOK;
+                return OS_EOK;
             }
             continue;
         }
         break;
     }
-    return OsBusy;
+    return OS_EBUSY;
 }
 
 oserr_t
@@ -103,25 +103,25 @@ MutexTryLock(
     int status;
     
     if (mutex == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // If the mutex is recursive, we add one refcount to the state. We do not
     // need to check this in any memory-safe way, as Mutex::Flags does not change
     // after creation.
     if (mutex->Flags & MUTEX_RECURSIVE) {
-        if (__TryLockRecursive(mutex) == OsOK) {
-            return OsOK;
+        if (__TryLockRecursive(mutex) == OS_EOK) {
+            return OS_EOK;
         }
     }
     
     status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
     if (!status) {
-        return OsBusy;
+        return OS_EBUSY;
     }
 
     atomic_store(&mutex->State, __BUILD_STATE(ThreadsCurrentId(), 1));
-    return OsOK;
+    return OS_EOK;
 }
 
 static int
@@ -138,8 +138,8 @@ __perform_lock(
     // need to check this in any memory-safe way, as Mutex::Flags does not change
     // after creation.
     if (mutex->Flags & MUTEX_RECURSIVE) {
-        if (__TryLockRecursive(mutex) == OsOK) {
-            return OsOK;
+        if (__TryLockRecursive(mutex) == OS_EOK) {
+            return OS_EOK;
         }
     }
     
@@ -155,8 +155,8 @@ __perform_lock(
     if (!status) {
         if (g_systemInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
-                if (MutexTryLock(mutex) == OsOK) {
-                    return OsOK;
+                if (MutexTryLock(mutex) == OS_EOK) {
+                    return OS_EOK;
                 }
             }
         }
@@ -173,15 +173,15 @@ __perform_lock(
             }
 
             while (z != 0) {
-                if (Futex(&parameters) == OsTimeout) {
-                    return OsTimeout;
+                if (Futex(&parameters) == OS_ETIMEOUT) {
+                    return OS_ETIMEOUT;
                 }
 
                 // Check that the mutex wasn't flagged for destruction, no need
                 // wait for a mutex that won't ever be signalled. Probably needs
                 // a barrier before reading this value
                 if (mutex->Flags & MUTEX_DESTROYED) {
-                    return OsCancelled;
+                    return OS_ECANCELLED;
                 }
                 z = atomic_exchange(&mutex->Value, 2);
             }
@@ -189,7 +189,7 @@ __perform_lock(
     }
 
     atomic_store(&mutex->State, __BUILD_STATE(ThreadsCurrentId(), 1));
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -197,7 +197,7 @@ MutexLock(
         _In_ Mutex_t* mutex)
 {
     if (mutex == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return __perform_lock(mutex, 0);
 }
@@ -211,14 +211,14 @@ MutexTimedLock(
 	struct timespec now, result;
     
     if (mutex == NULL || !(mutex->Flags & MUTEX_TIMED)) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
     timespec_diff(&now, timePoint, &result);
     if (result.tv_sec < 0) {
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
 
     msec = result.tv_sec * MSEC_PER_SEC;
@@ -239,7 +239,7 @@ MutexUnlock(
     int               status;
     int               lockState;
     if (mutex == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Sanitize state of the mutex, are we even able to unlock it?
@@ -248,7 +248,7 @@ MutexUnlock(
         owner = __STATE_OWNER(state);
         refcount = __STATE_REFCOUNT(state);
         if (refcount == 0 || owner != ThreadsCurrentId()) {
-            return OsInvalidPermissions;
+            return OS_EPERMISSIONS;
         }
 
         // If the refcount is 1, then it's our responsiblity to unlock it.
@@ -271,7 +271,7 @@ MutexUnlock(
 
             // And we're done, we don't need to wake anyone since we were
             // simply reducing the refcount.
-            return OsOK;
+            return OS_EOK;
         }
     }
 
@@ -283,5 +283,5 @@ MutexUnlock(
         parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
         Futex(&parameters);
     }
-    return OsOK;
+    return OS_EOK;
 }

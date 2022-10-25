@@ -33,7 +33,7 @@ MemoryAllocate(
     _Out_ void**       MemoryOut)
 {
 	if (!Length || !MemoryOut) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 	return Syscall_MemoryAllocate(Hint, Length, Flags, MemoryOut);
 }
@@ -44,7 +44,7 @@ MemoryFree(
 	_In_ size_t Length)
 {
 	if (!Length || !Memory) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 	return Syscall_MemoryFree(Memory, Length);
 }
@@ -57,7 +57,7 @@ MemoryProtect(
     _Out_ unsigned int* PreviousFlags)
 {
 	if (!Length || !Memory) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
     return Syscall_MemoryProtect(Memory, Length, Flags, PreviousFlags);
 }
@@ -68,7 +68,7 @@ MemoryQueryAllocation(
         _In_ OsMemoryDescriptor_t* DescriptorOut)
 {
     if (!Memory || !DescriptorOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_MemoryQueryAllocation(Memory, DescriptorOut);
 }
@@ -80,7 +80,7 @@ MemoryQueryAttributes(
         _In_ unsigned int* AttributeArray)
 {
     if (!Memory || !Length || !AttributeArray) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_MemoryQueryAttributes(Memory, Length, AttributeArray);
 }

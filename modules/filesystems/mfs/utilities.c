@@ -111,7 +111,7 @@ MfsUpdateRecord(
             MFS_SECTORCOUNT(mfs, entry->DirectoryLength),
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("MfsUpdateEntry Failed to read bucket %u", entry->DirectoryBucket);
         goto Cleanup;
     }
@@ -129,7 +129,7 @@ MfsUpdateRecord(
         if (action == MFS_ACTION_CREATE) {
             char* entryName = mstr_u8(entry->Name);
             if (entryName == NULL) {
-                return OsOutOfMemory;
+                return OS_EOOM;
             }
 
             memset(&record->Integrated[0], 0, 512);
@@ -159,7 +159,7 @@ MfsUpdateRecord(
             MFS_SECTORCOUNT(mfs, entry->DirectoryLength),
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("MfsUpdateEntry Failed to update bucket %u", entry->DirectoryBucket);
     }
 
@@ -185,9 +185,9 @@ MfsEnsureRecordSpace(
         MapRecord_t iterator, link;
 
         // Perform the allocation of buckets
-        if (MFSBucketMapAllocate(mfs, bucketCount, &link) != OsOK) {
+        if (MFSBucketMapAllocate(mfs, bucketCount, &link) != OS_EOK) {
             ERROR("Failed to allocate %u buckets for file", bucketCount);
-            return OsDeviceError;
+            return OS_EDEVFAULT;
         }
 
         // Now iterate to end
@@ -195,9 +195,9 @@ MfsEnsureRecordSpace(
         previousBucketPointer = MFS_ENDOFCHAIN;
         while (bucketPointer != MFS_ENDOFCHAIN) {
             previousBucketPointer = bucketPointer;
-            if (MFSBucketMapGetLengthAndLink(mfs, bucketPointer, &iterator) != OsOK) {
+            if (MFSBucketMapGetLengthAndLink(mfs, bucketPointer, &iterator) != OS_EOK) {
                 ERROR("MfsEnsureRecordSpace failed to get link for bucket %u", bucketPointer);
-                return OsDeviceError;
+                return OS_EDEVFAULT;
             }
             bucketPointer = iterator.Link;
         }
@@ -208,9 +208,9 @@ MfsEnsureRecordSpace(
             entry->StartBucket = link.Link;
             entry->StartLength = link.Length;
         } else {
-            if (MFSBucketMapSetLinkAndLength(mfs, previousBucketPointer, link.Link, link.Length, true) != OsOK) {
+            if (MFSBucketMapSetLinkAndLength(mfs, previousBucketPointer, link.Link, link.Length, true) != OS_EOK) {
                 ERROR("Failed to set link for bucket %u", previousBucketPointer);
-                return OsDeviceError;
+                return OS_EDEVFAULT;
             }
         }
 
@@ -218,7 +218,7 @@ MfsEnsureRecordSpace(
         entry->AllocatedSize += (bucketCount * bucketSizeBytes);
         entry->ActionOnClose  = MFS_ACTION_UPDATE;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -229,7 +229,7 @@ MFSCloneBucketData(
         _In_ uint32_t         destinationBucket,
         _In_ uint32_t         destinationLength)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -242,26 +242,26 @@ MFSAdvanceToNextBucket(
     uint32_t    nextDataBucketPosition;
 
     // We have to look up the link for current bucket
-    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
+    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OS_EOK) {
         ERROR("MFSAdvanceToNextBucket failed to get link for bucket %u", entry->DataBucketPosition);
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
 
     // Check for EOL
     if (link.Link == MFS_ENDOFCHAIN) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     nextDataBucketPosition = link.Link;
 
     // Lookup length of link
-    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OsOK) {
+    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OS_EOK) {
         ERROR("Failed to get length for bucket %u", entry->DataBucketPosition);
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
 
     // Store length & Update bucket boundary
     entry->DataBucketPosition = nextDataBucketPosition;
     entry->DataBucketLength   = link.Length;
     entry->BucketByteBoundary += (link.Length * bucketSizeBytes);
-    return OsOK;
+    return OS_EOK;
 }

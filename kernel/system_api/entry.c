@@ -247,7 +247,7 @@ SyscallHandle(
     size_t                       returnValue;
 
     if (index >= SYSTEM_CALL_COUNT) {
-        CONTEXT_SC_RET0(context) = (size_t)OsInvalidParameters;
+        CONTEXT_SC_RET0(context) = (size_t)OS_EINVALPARAMS;
         return context;
     }
 

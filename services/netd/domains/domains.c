@@ -60,7 +60,7 @@ DomainCreate(
         default:
             break;
     }
-    return OsInvalidParameters;
+    return OS_EINVALPARAMS;
 }
 
 void
@@ -78,7 +78,7 @@ DomainAllocateAddress(
     _In_ Socket_t* Socket)
 {
     if (!Socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket->Domain->Ops.AddressAllocate(Socket);
 }
@@ -89,7 +89,7 @@ DomainUpdateAddress(
     _In_ const struct sockaddr* Address)
 {
     if (!Socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket->Domain->Ops.Bind(Socket, Address);
 }
@@ -111,7 +111,7 @@ DomainConnect(
     _In_ const struct sockaddr* address)
 {
     if (!socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return socket->Domain->Ops.Connect(message, socket, address);
 }
@@ -121,7 +121,7 @@ DomainDisconnect(
     _In_ Socket_t* Socket)
 {
     if (!Socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket->Domain->Ops.Disconnect(Socket);
 }
@@ -132,7 +132,7 @@ DomainAccept(
     _In_ Socket_t*              socket)
 {
     if (!socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return socket->Domain->Ops.Accept(message, socket);
 }
@@ -143,7 +143,7 @@ DomainPair(
     _In_ Socket_t* Socket2)
 {
     if (!Socket1->Domain || !Socket2->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket1->Domain->Ops.Pair(Socket1, Socket2);
 }
@@ -153,7 +153,7 @@ DomainSend(
     _In_ Socket_t* Socket)
 {
     if (!Socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket->Domain->Ops.Send(Socket);
 }
@@ -163,7 +163,7 @@ DomainReceive(
     _In_ Socket_t* Socket)
 {
     if (!Socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket->Domain->Ops.Receive(Socket);
 }
@@ -175,7 +175,7 @@ DomainGetAddress(
     _In_ struct sockaddr* Address)
 {
     if (!Socket->Domain) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Socket->Domain->Ops.GetAddress(Socket, Source, Address);
 }

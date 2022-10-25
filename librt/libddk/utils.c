@@ -58,7 +58,7 @@ void* CreateDisplayFramebuffer(void)
 {
     void*      framebuffer;
     oserr_t osStatus = Syscall_MapBootFramebuffer(&framebuffer);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return NULL;
     }
     return framebuffer;
@@ -70,7 +70,7 @@ DdkUtilsMapRamdisk(
         _Out_ size_t* bufferLengthOut)
 {
     if (!bufferOut || !bufferLengthOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_MapRamdisk(bufferOut, bufferLengthOut);
 }

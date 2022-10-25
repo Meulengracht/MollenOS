@@ -70,9 +70,9 @@ UsbManagerInitialize(void)
 {
     // Create the event queue and wait for usb services, give it
     // up to 5 seconds before appearing
-    if (WaitForUsbService(5000) != OsOK) {
+    if (WaitForUsbService(5000) != OS_EOK) {
         ERROR(" => Failed to start usb manager, as usb service never became available.");
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
 
     CreateEventQueue(&g_eventQueue);
@@ -80,7 +80,7 @@ UsbManagerInitialize(void)
                         sizeof(struct usb_controller_device_index),
                         default_dev_hash, default_dev_cmp);
 
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -142,7 +142,7 @@ UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller)
 {
     oserr_t status = UsbControllerRegister(&controller->Device->Base, controller->Type, controller->PortCount);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         ERROR("[UsbManagerRegisterController] failed with code %u", status);
     }
     return status;
@@ -260,7 +260,7 @@ UsbManagerSetToggle(
     uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
 
     if (!controller) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     endpoint = hashtable_get(&controller->Endpoints, &(struct usb_controller_endpoint) {
@@ -268,11 +268,11 @@ UsbManagerSetToggle(
     if (!endpoint) {
         hashtable_set(&controller->Endpoints, &(struct usb_controller_endpoint) {
                 .address = endpointAddress, .toggle = toggle });
-        return OsOK;
+        return OS_EOK;
     }
 
     endpoint->toggle = toggle;
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
@@ -320,11 +320,11 @@ UsbManagerFinalizeTransfer(UsbManagerTransfer_t* transfer)
     // is done, we might not be done yet
     if (bytesLeft == 1) {
         HciQueueTransferGeneric(transfer);
-        return OsIncomplete;
+        return OS_EINCOMPLETE;
     }
     else {
         UsbManagerSendNotification(transfer);
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -361,9 +361,9 @@ UsbManagerIsAddressesEqual(
         Address1->PortAddress     == Address2->PortAddress    && 
         Address1->DeviceAddress   == Address2->DeviceAddress  &&
         Address1->EndpointAddress == Address2->EndpointAddress) {
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 int
@@ -376,7 +376,7 @@ UsbManagerSynchronizeTransfers(
     TRACE("UsbManagerSynchronizeTransfers()");
 
     // Is this transfer relevant?
-    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OsOK &&
+    if (UsbManagerIsAddressesEqual(&Transfer->Transfer.Address, Address) != OS_EOK &&
         Transfer->Status != TransferInProgress &&
         Transfer->Transfer.Type != USB_TRANSFER_BULK &&
         Transfer->Transfer.Type != USB_TRANSFER_INTERRUPT) {
@@ -438,7 +438,7 @@ UsbManagerProcessTransfer(
                                    USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, transfer);
             transfer->EndpointDescriptor = NULL; // Reset
         }
-        if (UsbManagerFinalizeTransfer(transfer) == OsOK) {
+        if (UsbManagerFinalizeTransfer(transfer) == OS_EOK) {
             return ITERATOR_REMOVE;
         }
         return ITERATOR_CONTINUE;
@@ -488,7 +488,7 @@ UsbManagerProcessTransfer(
         HciTransactionFinalize(controller, transfer, 0);
         if (!(controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
             transfer->EndpointDescriptor = NULL;
-            if (UsbManagerFinalizeTransfer(transfer) == OsOK) {
+            if (UsbManagerFinalizeTransfer(transfer) == OS_EOK) {
                 return ITERATOR_REMOVE;
             }
         }
@@ -528,7 +528,7 @@ UsbManagerIterateChain(
 
     // Validate element and lookup pool
     Result = UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
-    assert(Result == OsOK);
+    assert(Result == OS_EOK);
     Object = USB_ELEMENT_OBJECT(Pool, Element);
     
     // Get indices

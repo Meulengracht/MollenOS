@@ -33,7 +33,7 @@ ScSystemClockTick(
         _In_ UInteger64_t*          tickOut)
 {
     if (!tickOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     switch (source) {
@@ -52,7 +52,7 @@ ScSystemClockTick(
             SystemTimerGetClockTick(tickOut);
             break;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -61,7 +61,7 @@ ScSystemClockFrequency(
         _In_ UInteger64_t*       frequencyOut)
 {
     if (!frequencyOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (source == VaClockSourceType_HPC) {
@@ -69,7 +69,7 @@ ScSystemClockFrequency(
     }
 
     SystemTimerGetClockFrequency(frequencyOut);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -77,10 +77,10 @@ ScSystemWallClock(
         _In_ Integer64_t* time)
 {
     if (time == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     SystemTimerGetWallClockTime(time);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -93,13 +93,13 @@ ScTimeSleep(
     clock_t    end;
 
     if (!duration) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     TRACE("ScTimeSleep(duration=%llu)", duration->QuadPart);
 
     SystemTimerGetTimestamp(&start);
     osStatus = SchedulerSleep(duration->QuadPart, &end);
-    if (osStatus == OsInterrupted && remainingOut) {
+    if (osStatus == OS_EINTERRUPTED && remainingOut) {
         SystemTimerGetTimestamp(&end);
         remainingOut->QuadPart = duration->QuadPart - MAX((end - start), duration->QuadPart);
     }
@@ -114,7 +114,7 @@ ScTimeStall(
     clock_t current;
     clock_t end;
     if (!duration) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     SystemTimerGetTimestamp(&current);
@@ -122,5 +122,5 @@ ScTimeStall(
     while (current < end) {
         SystemTimerGetTimestamp(&current);
     }
-    return OsOK;
+    return OS_EOK;
 }

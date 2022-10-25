@@ -27,7 +27,7 @@ time_t time(time_t* tim)
     Integer64_t timeValue;
     time_t         converted = 0;
 
-	if (VaGetWallClock(&timeValue) == OsOK) {
+	if (VaGetWallClock(&timeValue) == OS_EOK) {
         // time is expected to return a time since the epoch of Jaunary 1, 1970
         // but the time epoch in Vali is January 1, 2000. So we fix this by adding
         // the below difference which is the exact number of seconds between those

@@ -42,9 +42,9 @@ ScCreateHandle(
 {
     *HandleOut = CreateHandle(HandleTypeGeneric, NULL, NULL);
     if (*HandleOut != UUID_INVALID) {
-        return OsOK;
+        return OS_EOK;
     }
-    return OsOutOfMemory;
+    return OS_EOOM;
 }
 
 oserr_t
@@ -76,7 +76,7 @@ ScDestroyHandle(
         _In_ uuid_t Handle)
 {
     if (Handle == UUID_INVALID) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return DestroyHandle(Handle);
 }
@@ -87,14 +87,14 @@ ScCreateHandleSet(
         _Out_ uuid_t* HandleOut)
 {
     if (!HandleOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     *HandleOut = CreateHandleSet(Flags);
     if (*HandleOut != UUID_INVALID) {
-        return OsOK;
+        return OS_EOK;
     }
-    return OsOutOfMemory;
+    return OS_EOOM;
 }
 
 oserr_t
@@ -114,7 +114,7 @@ ScListenHandleSet(
         _Out_ int*                       numberOfEventsOut)
 {
     if (!parameters || !numberOfEventsOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return WaitForHandleSet(handle, parameters->events, parameters->maxEvents,
         parameters->pollEvents, parameters->timeout, numberOfEventsOut);

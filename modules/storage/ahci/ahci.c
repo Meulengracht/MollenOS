@@ -96,7 +96,7 @@ AhciControllerCreate(
 
     // Acquire the io-space
     osStatus = AcquireDeviceIo(ioBase);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for ahci-controller");
         free(controller);
         return NULL;
@@ -121,7 +121,7 @@ AhciControllerCreate(
     // Enable device
     osStatus = IoctlDevice(controller->Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                            (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (osStatus != OsOK || controller->InterruptId == UUID_INVALID) {
+    if (osStatus != OS_EOK || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(controller->InterruptId);
         ReleaseDeviceIo(controller->IoBase);
@@ -131,7 +131,7 @@ AhciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (AhciSetup(controller) == OsOK) {
+    if (AhciSetup(controller) == OS_EOK) {
         return controller;
     }
     else {
@@ -158,7 +158,7 @@ AhciControllerDestroy(
     ReleaseDeviceIo(controller->IoBase);
     free(controller->Device);
     free(controller);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -182,7 +182,7 @@ AhciReset(
                               ((READ_VOLATILE(controller->Registers->GlobalHostControl) & AHCI_HOSTCONTROL_HR) == 0),
                               10, 200);
     if (hung) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // If the HBA supports staggered spin-up, the PxCMD.SUD bit will be reset to 0; 
@@ -206,7 +206,7 @@ AhciReset(
         }
         TRACE(" > port %i status after reset: 0x%x", i, controller->Ports[i]->Registers->CommandAndStatus);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -238,10 +238,10 @@ AhciTakeOwnership(
 
     // Sanitize if we got the ownership 
     if (hung) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -257,9 +257,9 @@ AhciSetup(
     TRACE("AhciSetup()");
 
     // Take ownership of the controller
-    if (AhciTakeOwnership(controller) != OsOK) {
+    if (AhciTakeOwnership(controller) != OS_EOK) {
         ERROR("Failed to take ownership of the controller.");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Indicate that system software is AHCI aware by setting GHC.AE to 1.
@@ -303,7 +303,7 @@ AhciSetup(
     // Finish the stop sequences
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (controller->Ports[i] != NULL) {
-            if (AhciPortFinishSetup(controller, controller->Ports[i]) != OsOK) {
+            if (AhciPortFinishSetup(controller, controller->Ports[i]) != OS_EOK) {
                 ERROR(" > failed to initialize port %i", i);
                 fullResetRequired = 1;
                 break;
@@ -313,9 +313,9 @@ AhciSetup(
 
     // Perform full reset if required here
     if (fullResetRequired) {
-        if (AhciReset(controller) != OsOK) {
+        if (AhciReset(controller) != OS_EOK) {
             ERROR("Failed to initialize the AHCI controller, aborting");
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
 
@@ -326,10 +326,10 @@ AhciSetup(
     WRITE_VOLATILE(controller->Registers->GlobalHostControl, ghc | AHCI_HOSTCONTROL_IE);
     for (i = 0; i < AHCI_MAX_PORTS; i++) {
         if (controller->Ports[i] != NULL) {
-            if (AhciPortStart(controller, controller->Ports[i]) != OsOK) {
+            if (AhciPortStart(controller, controller->Ports[i]) != OS_EOK) {
                 ERROR(" > failed to start port %i", i);
             }
         }
     }
-    return OsOK;
+    return OS_EOK;
 }

@@ -79,13 +79,13 @@ static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length)
 
     while (bytesAvailable) {
         oserr_t osStatus = VFSNodeChildNew(node->FileSystem, node, i, &result);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
         bytesAvailable -= sizeof(struct VFSStat);
         i++;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __LoadNode(struct VFSNode* node)
@@ -98,7 +98,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
 
     TRACE("__LoadNode(node=%ms)", node ? node->Name : NULL);
     if (node == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     vfs = node->FileSystem;
@@ -106,11 +106,11 @@ static oserr_t __LoadNode(struct VFSNode* node)
 
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = ops->Open(vfs->Data, nodePath, &data);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
@@ -118,18 +118,18 @@ static oserr_t __LoadNode(struct VFSNode* node)
         size_t read;
 
         osStatus = ops->Read(vfs->Data, data, vfs->Buffer.handle, vfs->Buffer.buffer, 0, vfs->Buffer.length, &read);
-        if (osStatus != OsOK || read == 0) {
+        if (osStatus != OS_EOK || read == 0) {
             break;
         }
 
         osStatus = __ParseEntries(node, vfs->Buffer.buffer, read);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             break;
         }
     }
 
     osStatus2 = ops->Close(vfs->Data, data);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("__LoadNode failed to cleanup handle with code %u", osStatus2);
     }
 
@@ -146,23 +146,23 @@ oserr_t VFSNodeEnsureLoaded(struct VFSNode* node)
     oserr_t osStatus;
 
     if (node == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!__NodeIsDirectory(node)) {
-        return OsOK;
+        return OS_EOK;
     }
 
     if (node->IsLoaded) {
-        return OsOK;
+        return OS_EOK;
     }
 
-    osStatus = OsOK;
+    osStatus = OS_EOK;
     usched_rwlock_w_promote(&node->Lock);
     // do another check while holding the lock
     if (!node->IsLoaded) {
         osStatus = __LoadNode(node);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             usched_rwlock_w_demote(&node->Lock);
             return osStatus;
         }
@@ -179,23 +179,23 @@ oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** node
 
     TRACE("VFSNodeFind(node=%ms, name=%ms)", node ? node->Name : NULL, name);
     if (node == NULL || name == NULL || nodeOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // check once while having the reader lock only, this is a performance optimization,
     // so we don't on following checks acquire the writer lock for nothing
     oserr = VFSNodeEnsureLoaded(node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     result = hashtable_get(&node->Children, &(struct __VFSChild) { .Key = name });
     if (result == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     *nodeOut = result->Node;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags, uint32_t permissions, struct VFSNode** nodeOut)
@@ -211,14 +211,14 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
           node ? node->Name : NULL, name, flags, permissions);
 
     if (node == NULL || name == NULL || nodeOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     vfs = node->FileSystem;
     ops = &vfs->Interface->Operations;
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     TRACE("VFSNodeCreateChild nodePath=%ms", nodePath);
@@ -230,16 +230,16 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
         usched_rwlock_w_demote(&node->Lock);
         mstr_delete(nodePath);
         *nodeOut = result->Node;
-        return OsExists;
+        return OS_EEXISTS;
     }
 
     osStatus = ops->Open(vfs->Data, nodePath, &parentData);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
     osStatus = ops->Create(vfs->Data, parentData, name, 0, flags, permissions, &childData);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto close;
     }
 
@@ -252,13 +252,13 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
     }, nodeOut);
 
     osStatus2 = ops->Close(vfs->Data, childData);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
 close:
     osStatus2 = ops->Close(vfs->Data, parentData);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
@@ -280,14 +280,14 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     TRACE("VFSNodeCreateLinkChild(node=%ms, name=%ms, symbolic=%i)",
           node ? node->Name : NULL, name, symbolic);
     if (node == NULL || name == NULL || nodeOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     vfs = node->FileSystem;
     ops = &vfs->Interface->Operations;
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     TRACE("VFSNodeCreateLinkChild nodePath=%ms", nodePath);
@@ -296,17 +296,17 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     // make sure the first we do is verify it still does not exist
     result = hashtable_get(&node->Children, &(struct __VFSChild) { .Key = name });
     if (result != NULL) {
-        osStatus = OsExists;
+        osStatus = OS_EEXISTS;
         goto cleanup;
     }
 
     osStatus = ops->Open(vfs->Data, nodePath, &data);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
     osStatus = ops->Link(vfs->Data, data, name, target, symbolic);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto close;
     }
 
@@ -320,7 +320,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
 
 close:
     osStatus2 = ops->Close(vfs->Data, data);
-    if (osStatus2 != OsOK) {
+    if (osStatus2 != OS_EOK) {
         WARNING("__CreateInNode failed to cleanup handle with code %u", osStatus2);
     }
 
@@ -380,12 +380,12 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
 
     TRACE("VFSNodeOpenHandle(node=%ms)", node ? node->Name : NULL);
     if (node == NULL || handleOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     TRACE("VFSNodeOpenHandle exclusivity check");
@@ -396,22 +396,22 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     context.AccessKind = accessKind;
     hashtable_enumerate(&node->Handles, __VerifyHandleExclusivityEnum, &context);
     if (!context.Success) {
-        osStatus = OsInvalidPermissions;
+        osStatus = OS_EPERMISSIONS;
         goto cleanup;
     }
 
     osStatus = handle_create(&handleId);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
     osStatus = node->FileSystem->Interface->Operations.Open(node->FileSystem->Data, nodePath, &data);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
     osStatus = VFSNodeHandleAdd(handleId, node, data, accessKind);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         handle_destroy(handleId);
         goto error;
     }
@@ -442,22 +442,22 @@ oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, uint32_t permissio
 
     TRACE("VFSNodeNewDirectory(path=%ms, perms=0x%x)", path, permissions);
     if (vfs == NULL || path == NULL || nodeOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     directoryPath = mstr_path_dirname(path);
     if (directoryPath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     directoryName = mstr_path_basename(path);
     if (directoryName == NULL) {
         mstr_delete(directoryPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = VFSNodeGet(vfs, directoryPath, 1, &baseDirectoryNode);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         mstr_delete(directoryPath);
         mstr_delete(directoryName);
         return osStatus;
@@ -479,14 +479,14 @@ oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, uint32_t permissio
 
 oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, struct VFSNode** nodeOut)
 {
-    oserr_t     osStatus = OsOK;
+    oserr_t     osStatus = OS_EOK;
     mstring_t** tokens;
     int         tokenCount;
     ENTRY("__GetRelative(path=%ms, followLinks=1)", path, followLinks);
 
     tokenCount = mstr_path_tokens(path, &tokens);
     if (tokenCount < 0) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     struct VFSNode* node = from;
@@ -515,7 +515,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         // Find the next entry in the folder. This will automatically handle
         // folder loading and whatnot if the folder is not currently loaded.
         osStatus = VFSNodeFind(node, tokens[i], &next);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR("__GetRelative failed to find %ms in %ms", tokens[i], node->Name);
             break;
         }
@@ -541,7 +541,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
                 // NOTE: we now end up with two reader locks on 'node'
                 osStatus = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
                 usched_rwlock_r_unlock(&next->Lock);
-                if (osStatus != OsOK) {
+                if (osStatus != OS_EOK) {
                     break;
                 }
 
@@ -552,7 +552,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
                 if (real == NULL) {
                     // *should* never happen
                     ERROR("__GetRelative discovered node having a NULL type-data but marked as bind mount");
-                    osStatus = OsError;
+                    osStatus = OS_EUNKNOWN;
                     usched_rwlock_r_unlock(&next->Lock);
                     break;
                 }
@@ -567,7 +567,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
                 if (fs == NULL) {
                     // *should* never happen
                     ERROR("__GetRelative discovered node having a NULL type-data but marked as mountpoint");
-                    osStatus = OsError;
+                    osStatus = OS_EUNKNOWN;
                     usched_rwlock_r_unlock(&next->Lock);
                     break;
                 }
@@ -588,7 +588,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         node = next;
     }
 
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // Don't keep the lock if we failed to get the target node
         usched_rwlock_r_unlock(&node->Lock);
     }
@@ -604,7 +604,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
 oserr_t VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut)
 {
     if (vfs == NULL || path == NULL || nodeOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return __GetRelative(vfs->Root, path, followLinks, nodeOut);
 }

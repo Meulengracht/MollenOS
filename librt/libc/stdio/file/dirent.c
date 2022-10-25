@@ -73,7 +73,7 @@ opendir(
             0,
             &handle
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);
         return NULL;
     }
@@ -134,7 +134,7 @@ readdir(
     }
 
     oserr = OSReadDirectory(dir->_handle, &entry);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);
         return NULL;
     }
@@ -168,7 +168,7 @@ long telldir(struct DIR* dir)
     }
 
     oserr = OSGetFilePosition(dir->_handle, &position);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }
     return (long)position.u.LowPart;

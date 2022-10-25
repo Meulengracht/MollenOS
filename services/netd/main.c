@@ -44,7 +44,7 @@ void ServiceInitialize(void)
     gracht_server_register_protocol(__crt_get_service_server(), &sys_socket_server_protocol);
 
     // Initialize the subsystems
-    if (NetworkManagerInitialize() != OsOK) {
+    if (NetworkManagerInitialize() != OS_EOK) {
         exit(-1);
     }
 }

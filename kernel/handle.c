@@ -79,7 +79,7 @@ InitializeHandles(void)
                         handle_cmp);
     SpinlockConstruct(&g_handlesLock);
     atomic_store(&g_nextHandleId, 1);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -153,13 +153,13 @@ AcquireHandle(
 {
     struct resource_handle* handle = __AcquireHandle(handleId);
     if (!handle) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     if (resourceOut) {
         *resourceOut = handle->resource;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -172,20 +172,20 @@ AcquireHandleOfType(
 
     handle = __AcquireHandle(handleId);
     if (!handle) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     if (handle->type != handleType) {
         ERROR("AcquireHandleOfType requested handle type %u, but handle was of type %u",
               handleType, handle->type);
         DestroyHandle(handleId);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (resourceOut) {
         *resourceOut = handle->resource;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -202,7 +202,7 @@ RegisterHandlePath(
 
     // TODO do some actual verification of path here
     if (internalPath == NULL || mstr_len(internalPath) == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     SpinlockAcquireIrq(&g_handlesLock);
@@ -210,20 +210,20 @@ RegisterHandlePath(
     if (!handle) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     if (handle->path) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
     if (mapping) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
-        return OsExists;
+        return OS_EEXISTS;
     }
 
     // store the new mapping, and update the handle instance
@@ -231,7 +231,7 @@ RegisterHandlePath(
     handle->path = internalPath;
     SpinlockReleaseIrq(&g_handlesLock);
 
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -247,7 +247,7 @@ LookupHandleByPath(
 
     // TODO do some actual verification of path here
     if (internalPath == NULL || mstr_len(internalPath) == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     SpinlockAcquireIrq(&g_handlesLock);
@@ -257,7 +257,7 @@ LookupHandleByPath(
     }
     SpinlockReleaseIrq(&g_handlesLock);
     mstr_delete(internalPath);
-    return mapping != NULL ? OsOK : OsNotExists;
+    return mapping != NULL ? OS_EOK : OS_ENOENT;
 }
 
 void*
@@ -304,14 +304,14 @@ DestroyHandle(
     handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
     if (!handle) {
         SpinlockReleaseIrq(&g_handlesLock);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // do nothing if there still is active handles
     handle->references--;
     if (handle->references) {
         SpinlockReleaseIrq(&g_handlesLock);
-        return OsIncomplete;
+        return OS_EINCOMPLETE;
     }
 
     // store some resources before releaseing lock
@@ -325,7 +325,7 @@ DestroyHandle(
     SpinlockReleaseIrq(&g_handlesLock);
 
     AddHandleToCleanup(resource, dctor, path);
-    return OsOK;
+    return OS_EOK;
 }
 
 _Noreturn static void

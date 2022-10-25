@@ -66,21 +66,21 @@ PeValidateImageBuffer(
     size_t              CheckSumAddress    = 0;
 
     if (Buffer == NULL || Length == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     DosHeader = (MzHeader_t*)Buffer;
 
     // Check magic for DOS
     if (DosHeader->Signature != MZ_MAGIC) {
         dserror("Invalid MZ Signature 0x%x", DosHeader->Signature);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
 
     // Check magic for PE
     if (BaseHeader->Magic != PE_MAGIC) {
         dserror("Invalid PE File Magic 0x%x", BaseHeader->Magic);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
 
@@ -109,8 +109,8 @@ PeValidateImageBuffer(
         if (CalculatedCheckSum != HeaderCheckSum) {
             dserror("Invalid checksum of file (Header 0x%x, Calculated 0x%x)", 
                 HeaderCheckSum, CalculatedCheckSum);
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }

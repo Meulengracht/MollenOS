@@ -45,7 +45,7 @@ OSOpenPath(
     oserr_t                  oserr;
 
     if (path == NULL || handleOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
@@ -90,7 +90,7 @@ OSMakeDirectory(
     oserr_t                  status;
 
     if (path == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_mkdir(
@@ -123,7 +123,7 @@ OSReadDirectory(
     oserr_t                    status;
 
     if (entry == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_readdir(
@@ -134,7 +134,7 @@ OSReadDirectory(
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_readdir_result(GetGrachtClient(), &msg.base, &status, &sysEntry);
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         __ToOSDirectoryEntry(&sysEntry, entry);
     }
     return status;
@@ -149,7 +149,7 @@ OSSeekFile(
     oserr_t                  oserr;
 
     if (position == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
@@ -174,7 +174,7 @@ OSUnlinkPath(
     oserr_t                  oserr;
 
     if (path == NULL ) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_delete(
@@ -199,7 +199,7 @@ OSMoveFile(
     oserr_t                  oserr;
 
     if (from == NULL || to == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_move(
@@ -224,7 +224,7 @@ OSGetFilePosition(
     oserr_t                  oserr;
 
     if (position == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
@@ -252,7 +252,7 @@ OSGetFileSize(
     oserr_t                  oserr;
 
     if (size == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
@@ -280,7 +280,7 @@ SetFileSizeFromPath(
     int        fd;
     
     if (!path) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     fd = open(path, O_RDWR);
@@ -305,7 +305,7 @@ SetFileSizeFromFd(
     UInteger64_t          value;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     value.QuadPart = size;
@@ -332,7 +332,7 @@ ChangeFilePermissionsFromPath(
     int        fd;
     
     if (!path) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     fd = open(path, O_RDWR);
@@ -357,7 +357,7 @@ ChangeFilePermissionsFromFd(
     unsigned int             access;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_get_access(
@@ -391,7 +391,7 @@ GetFileLink(
     oserr_t               status;
     
     if (!path || !linkPathBuffer || bufferLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_fstat_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path);
@@ -411,7 +411,7 @@ GetFilePathFromFd(
     oserr_t               status;
 
     if (!handle || !buffer || handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_file_get_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
@@ -431,14 +431,14 @@ GetStorageInformationFromPath(
     struct sys_disk_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_ststat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_ststat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -456,14 +456,14 @@ GetStorageInformationFromFd(
 
     if (handle == NULL || descriptor == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     sys_file_ststat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_ststat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -480,14 +480,14 @@ GetFileSystemInformationFromPath(
     struct sys_filesystem_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_file_fsstat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         from_sys_filesystem_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -505,14 +505,14 @@ GetFileSystemInformationFromFd(
 
     if (handle == NULL || descriptor == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_file_fsstat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         from_sys_filesystem_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -529,14 +529,14 @@ GetFileInformationFromPath(
     struct sys_file_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_file_fstat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -554,14 +554,14 @@ GetFileInformationFromFd(
 
     if (handle == NULL || descriptor == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_file_fstat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
     return status;
@@ -611,12 +611,12 @@ CreateFileMapping(
 
     // Sanitize that the descritor is valid
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     fileView = malloc(sizeof(struct file_view));
     if (!fileView) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // parse flags
@@ -631,7 +631,7 @@ CreateFileMapping(
     bufferInfo.type     = DMA_TYPE_REGULAR;
 
     osStatus = DmaCreate(&bufferInfo, &fileView->dmaAttachment);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         free(fileView);
         return osStatus;
     }
@@ -658,22 +658,22 @@ oserr_t FlushFileMapping(
     int               pageCount;
     unsigned int*     attributes;
     if (!fileView) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!(fileView->flags & FILE_MAPPING_WRITE)) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     pageCount  = DIVUP(MIN(fileView->length, Length), __GetPageSize());
     attributes = malloc(sizeof(unsigned int) * pageCount);
     if (!attributes) {
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
         goto exit;
     }
 
     osStatus = MemoryQueryAttributes(fileView->dmaAttachment.buffer, fileView->length, &attributes[0]);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto exit;
     }
 
@@ -716,7 +716,7 @@ DestroyFileMapping(
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
     oserr_t        osStatus;
     if (!fileView) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // is the mapping write enabled, then flush pages
@@ -725,12 +725,12 @@ DestroyFileMapping(
     }
 
     osStatus = DmaAttachmentUnmap(&fileView->dmaAttachment);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // ignore for now
     }
 
     osStatus = DmaDetach(&fileView->dmaAttachment);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // ignore for now
     }
 
@@ -751,7 +751,7 @@ oserr_t HandleMemoryMappingEvent(
     size_t            bytesTransferred;
 
     if (!fileView) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // Prepare the memory that we want to fill
@@ -759,8 +759,8 @@ oserr_t HandleMemoryMappingEvent(
 
     fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)fileView->dmaAttachment.buffer);
     osStatus            = DmaAttachmentCommit(&fileView->dmaAttachment, (vaddr_t) vaddressPtr, __GetPageSize());
-    if (osStatus != OsOK) {
-        return OsNotExists;
+    if (osStatus != OS_EOK) {
+        return OS_ENOENT;
     }
 
     // Now we perform the actual filling on the memory area

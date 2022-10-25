@@ -66,11 +66,11 @@ HciQueueTransferIsochronous(
         AddressPointer = transfer->Transactions[0].DmaTable.entries[
             transfer->Transactions[0].SgIndex].address + transfer->Transactions[0].SgOffset;
         
-        if (UsbSchedulerAllocateElement(controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OsOK) {
+        if (UsbSchedulerAllocateElement(controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OS_EOK) {
             if (EhciTdIsochronous(controller, &transfer->Transfer, iTd,
                                   AddressPointer, BytesStep, transfer->Transfer.Transactions[0].Type,
                                   transfer->Transfer.Address.DeviceAddress,
-                                  transfer->Transfer.Address.EndpointAddress) != OsOK) {
+                                  transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
                 // TODO: Out of bandwidth
                 TRACE(" > Out of bandwidth");
                 for(;;);

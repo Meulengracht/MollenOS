@@ -31,7 +31,7 @@ handle_create(
         _Out_ uuid_t* handleOut)
 {
     if (!handleOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_CreateHandle(handleOut);
 }
@@ -49,7 +49,7 @@ handle_set_path(
         _In_ const char* path)
 {
     if (!path) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_RegisterHandlePath(handle, path);
 }
@@ -68,7 +68,7 @@ notification_queue_create(
         _Out_ uuid_t*      handleOut)
 {
     if (!handleOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_CreateHandleSet(flags, handleOut);
 }
@@ -100,7 +100,7 @@ notification_queue_wait(
     };
     
     if (!events || !numEventsOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     return Syscall_ListenHandleSet(handle, &parameters, numEventsOut);

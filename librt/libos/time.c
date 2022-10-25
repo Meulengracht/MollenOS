@@ -28,7 +28,7 @@ VaGetWallClock(
         _In_ Integer64_t* time)
 {
     if (!time) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_ReadWallClock(time);
 }
@@ -39,18 +39,18 @@ VaGetClockTick(
         _In_ UInteger64_t*          tickOut)
 {
     if (!tickOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (source == VaClockSourceType_PROCESS && !__crt_is_phoenix()) {
         clock_t tickBase;
         oserr_t oserr = ProcessGetTickBase(&tickBase);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
 
         tickOut->QuadPart = (uint64_t)tickBase;
-        return OsOK;
+        return OS_EOK;
     }
     return Syscall_ClockTick(source, tickOut);
 }
@@ -61,7 +61,7 @@ VaGetClockFrequency(
         _In_ UInteger64_t*       frequencyOut)
 {
     if (!frequencyOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // The frequency is a bit more funny, because all ticks inheritly source the same frequency
@@ -75,7 +75,7 @@ VaSleep(
         _Out_Opt_ UInteger64_t* remaining)
 {
     if (!duration || !duration->QuadPart) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     return Syscall_Sleep(duration, remaining);
@@ -86,7 +86,7 @@ VaStall(
         _In_ UInteger64_t* duration)
 {
     if (!duration || !duration->QuadPart) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     return Syscall_Stall(duration);

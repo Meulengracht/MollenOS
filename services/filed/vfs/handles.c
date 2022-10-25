@@ -49,7 +49,7 @@ VFSNodeHandleAdd(
     existing = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
     if (existing != NULL) {
         usched_rwlock_w_unlock(&g_handlesLock);
-        return OsExists;
+        return OS_EEXISTS;
     }
 
     hashtable_set(&g_handles, &(struct VFSNodeHandle) {
@@ -61,7 +61,7 @@ VFSNodeHandleAdd(
         .Mode = MODE_NONE
     });
     usched_rwlock_w_unlock(&g_handlesLock);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -74,12 +74,12 @@ VFSNodeHandleRemove(
     handle = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
     if (handle == NULL) {
         usched_rwlock_w_unlock(&g_handlesLock);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     hashtable_remove(&g_handles, handle);
     usched_rwlock_w_unlock(&g_handlesLock);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -93,10 +93,10 @@ VFSNodeHandleGet(
     handle = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
     if (handle == NULL) {
         usched_rwlock_r_unlock(&g_handlesLock);
-        return OsNotExists;
+        return OS_ENOENT;
     }
     *handleOut = handle;
-    return OsOK;
+    return OS_EOK;
 }
 
 void

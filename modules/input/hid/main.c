@@ -46,7 +46,7 @@ HidDeviceGet(
 
 oserr_t OnEvent(struct ioset_event* event)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t OnLoad(void)
@@ -83,11 +83,11 @@ oserr_t OnRegister(
 
     hidDevice = HidDeviceCreate((UsbDevice_t*)device);
     if (!hidDevice) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     list_append(&g_devices, &hidDevice->Header);
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
@@ -100,12 +100,12 @@ oserr_t OnUnregister(
 {
     HidDevice_t* hidDevice = HidDeviceGet(device->Id);
     if (hidDevice == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     list_remove(&g_devices, &hidDevice->Header);
     HidDeviceDestroy(hidDevice);
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)

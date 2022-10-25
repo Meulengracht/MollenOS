@@ -35,7 +35,7 @@ ScSystemDebug(
     _In_ const char* message)
 {
     if (message == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Switch based on type
@@ -48,13 +48,13 @@ ScSystemDebug(
     else {
         LogAppendMessage(LOG_ERROR, message);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t ScEndBootSequence(void) {
     TRACE("Ending console session");
     LogSetRenderMode(0);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -71,7 +71,7 @@ ScSystemQuery(
     Descriptor->PageSizeBytes = GetMemorySpacePageSize();
     Descriptor->PagesTotal = maxBlocks;
     Descriptor->PagesUsed  = maxBlocks - freeBlocks;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -82,20 +82,20 @@ ScFlushHardwareCache(
 {
     if (Cache == CACHE_INSTRUCTION) {
         CpuFlushInstructionCache(Start, Length);
-        return OsOK;
+        return OS_EOK;
     }
     else if (Cache == CACHE_MEMORY) {
         CpuInvalidateMemoryCache(Start, Length);
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 oserr_t
 ScQueryDisplayInformation(
     _In_ VideoDescriptor_t *Descriptor) {
     if (Descriptor == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return VideoQuery(Descriptor);
 }
@@ -111,7 +111,7 @@ ScMapBootFramebuffer(
     oserr_t     osStatus;
 
     if (!VideoGetTerminal()->FrameBufferAddressPhysical) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     osStatus = MemorySpaceMapContiguous(
@@ -123,7 +123,7 @@ ScMapBootFramebuffer(
             MAPPING_VIRTUAL_PROCESS
     );
 
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         *bufferOut = (void*)fbVirtual;
     }
     return osStatus;
@@ -146,7 +146,7 @@ ScMapRamdisk(
             MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
             MAPPING_VIRTUAL_PROCESS
     );
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         *bufferOut = (void*)mapping;
         *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
     }

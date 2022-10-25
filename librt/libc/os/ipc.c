@@ -40,7 +40,7 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
     }
 
     oserr = IPCContextCreate(len, addr, &handle, &ipcContext);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);
         return -1;
     }
@@ -87,7 +87,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     size_t          bytesRead = 0;
-    oserr_t         oserr = OsInvalidParameters;
+    oserr_t         oserr = OS_EINVALPARAMS;
     int             status = -1;
     TRACE("iprecv(len=%u, flags=0x%x)");
 
@@ -109,7 +109,7 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
             fromHandle,
             &bytesRead
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);
         goto exit;
     } else if (bytesRead == 0) {

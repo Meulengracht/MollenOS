@@ -51,7 +51,7 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
         
         TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",
             bytesTransferred, status);
-        if (status != OsOK || bytesTransferred == 0) {
+        if (status != OS_EOK || bytesTransferred == 0) {
             break;
         }
 
@@ -86,7 +86,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
         if ((uintptr_t)buffer & 0x3) {
             size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
             status = stdio_file_op_read(handle, buffer, bytesToAlign, bytesReadOut);
-            if (status != OsOK) {
+            if (status != OS_EOK) {
                 return status;
             }
             adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
@@ -100,7 +100,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
         info.type     = DMA_TYPE_DRIVER_32;
         
         status = DmaExport(adjustedPointer, &info, &attachment);
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             return status;
         }
         
@@ -117,7 +117,7 @@ oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
     
     status = perform_transfer(handle->object.handle, builtinHandle, 0,
         builtinLength, 0, length, &bytesRead);
-    if (status == OsOK && bytesRead > 0) {
+    if (status == OS_EOK && bytesRead > 0) {
         memcpy(buffer, __tls_current_dmabuf()->buffer, bytesRead);
     }
     
@@ -148,7 +148,7 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         if ((uintptr_t)buffer & 0x3) {
             size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
             oserr = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 return oserr;
             }
             adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
@@ -162,7 +162,7 @@ oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
         info.type     = DMA_TYPE_DRIVER_32;
 
         oserr = DmaExport(adjustedPointer, &info, &attachment);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
 
@@ -194,7 +194,7 @@ oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, l
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
             status = OSGetFilePosition(handle->object.handle, &currentOffset);
-            if (status != OsOK) {
+            if (status != OS_EOK) {
                 ERROR("failed to get file position");
                 return status;
             }
@@ -203,11 +203,11 @@ oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, l
             if ((size_t)currentOffset.QuadPart != currentOffset.QuadPart) {
                 ERROR("file-offset-overflow");
                 _set_errno(EOVERFLOW);
-                return OsError;
+                return OS_EUNKNOWN;
             }
         } else {
             status = OSGetFileSize(handle->object.handle, &currentOffset);
-            if (status != OsOK) {
+            if (status != OS_EOK) {
                 ERROR("failed to get file size");
                 return status;
             }
@@ -220,14 +220,14 @@ oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, l
     // no reason to invoke the service
     if (origin == SEEK_CUR && offset == 0) {
         *position_out = (long long int)seekFinal.QuadPart;
-        return OsOK;
+        return OS_EOK;
     }
 
     // Now perform the seek
     status = OSSeekFile(handle->object.handle, &seekFinal);
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         *position_out = (long long int)seekFinal.QuadPart;
-        return OsOK;
+        return OS_EOK;
     }
     TRACE("stdio::fseek::fail %u", status);
     *position_out = (off_t)-1;
@@ -236,12 +236,12 @@ oserr_t stdio_file_op_seek(stdio_handle_t* handle, int origin, off64_t offset, l
 
 oserr_t stdio_file_op_resize(stdio_handle_t* handle, long long resize_by)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_file_op_close(stdio_handle_t* handle, int options)
 {
-	oserr_t status = OsOK;
+	oserr_t status = OS_EOK;
 	
 	if (options & STDIO_CLOSE_FULL) {
         status = OSCloseFile(handle->object.handle);
@@ -251,12 +251,12 @@ oserr_t stdio_file_op_close(stdio_handle_t* handle, int options)
 
 oserr_t stdio_file_op_inherit(stdio_handle_t* handle)
 {
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t stdio_file_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 void stdio_get_file_operations(stdio_ops_t* ops)

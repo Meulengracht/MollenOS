@@ -82,10 +82,10 @@ HandleSetsInitialize(void)
                         sizeof(struct handle_sets), handleset_hash,
                         handleset_cmp);
     if (status) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     SpinlockConstruct(&g_handleSetsLock);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -146,12 +146,12 @@ ControlHandleSet(
     TRACE("ControlHandleSet(setHandle=%u, op=%i, handle=%u)", setHandle, operation, handle);
 
     if (!set) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     if (operation == IOSET_ADD) {
         if (!event) {
-            return OsInvalidParameters;
+            return OS_EINVALPARAMS;
         }
 
         osStatus = AddHandleToSet(set, handle, event);
@@ -160,30 +160,30 @@ ControlHandleSet(
         rb_leaf_t* leaf;
         
         if (!event) {
-            return OsInvalidParameters;
+            return OS_EINVALPARAMS;
         }
         
         leaf = rb_tree_lookup(&set->handles, VOID_KEY(handle));
         if (!leaf) {
-            return OsNotExists;
+            return OS_ENOENT;
         }
         
         setElement                = leaf->value;
         setElement->Configuration = event->events;
         setElement->Context       = event->data;
-        osStatus                  = OsOK;
+        osStatus                  = OS_EOK;
     }
     else if (operation == IOSET_DEL) {
         rb_leaf_t* leaf = rb_tree_remove(&set->handles, VOID_KEY(handle));
         if (!leaf) {
-            return OsNotExists;
+            return OS_ENOENT;
         }
         
         setElement = leaf->value;
         osStatus   = DestroySetElement(setElement);
     }
     else {
-        osStatus = OsInvalidParameters;
+        osStatus = OS_EINVALPARAMS;
     }
     return osStatus;
 }
@@ -205,7 +205,7 @@ WaitForHandleSet(
     TRACE("WaitForHandleSet(%u, %i, %i, %" PRIuIN ")", handle, maxEvents, pollEvents, timeout);
 
     if (!set) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     // If there are no queued events, but there were pollEvents, let the user
@@ -213,13 +213,13 @@ WaitForHandleSet(
     numberOfEvents = atomic_exchange(&set->events_pending, 0);
     if (!numberOfEvents && pollEvents > 0) {
         *numEventsOut = pollEvents;
-        return OsOK;
+        return OS_EOK;
     }
     
     // Wait for response by 'polling' the value
     while (!numberOfEvents) {
         oserr_t osStatus = FutexWait(&set->events_pending, numberOfEvents, 0, timeout);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
         numberOfEvents = atomic_exchange(&set->events_pending, 0);
@@ -259,7 +259,7 @@ WaitForHandleSet(
         k++;
     }
     *numEventsOut = k;
-    return OsOK;
+    return OS_EOK;
 }
 
 static int
@@ -300,11 +300,11 @@ MarkHandle(
     SpinlockReleaseIrq(&g_handleSetsLock);
 
     if (!element) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     list_enumerate(&element->sets, MarkHandleCallback, (void*)(uintptr_t)flags);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -329,7 +329,7 @@ DestroySetElement(
     // If we have an event queued up, we should now remove it
     list_remove(&setElement->set->events, &setElement->event_header);
     kfree(setElement);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -358,7 +358,7 @@ AddHandleToSet(
     // handle instance
     setElement = (struct handleset_element*)kmalloc(sizeof(struct handleset_element));
     if (!setElement) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     memset(setElement, 0, sizeof(struct handleset_element));
@@ -377,13 +377,13 @@ AddHandleToSet(
     
     // Register the target handle in the current set, so we can clean up again
     osStatus = rb_tree_append(&set->handles, &setElement->handle_header);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("AddHandleToSet rb_tree_append failed with %u", osStatus);
         list_remove(&element->sets, &setElement->set_header);
         kfree(setElement);
         return osStatus;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static uint64_t handleset_hash(const void* element)

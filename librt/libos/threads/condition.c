@@ -27,11 +27,11 @@ ConditionInitialize(
         _In_ Condition_t* cond)
 {
     if (!cond) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     atomic_store(&cond->Value, 0);
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -51,7 +51,7 @@ ConditionSignal(
     FutexParameters_t parameters;
     
 	if (cond == NULL) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
     parameters._futex0  = &cond->Value;
@@ -67,7 +67,7 @@ ConditionBroadcast(
     FutexParameters_t parameters;
     
 	if (cond == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
 	}
 	
     parameters._futex0  = &cond->Value;
@@ -84,7 +84,7 @@ ConditionWait(
     FutexParameters_t parameters;
     oserr_t           oserr;
 	if (cond == NULL || mutex == NULL) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
     parameters._futex0  = &cond->Value;
@@ -112,14 +112,14 @@ ConditionTimedWait(
 	struct timespec   now, result;
 
 	if (cond == NULL || mutex == NULL || timePoint == NULL) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
     
     // Calculate time to sleep
 	timespec_get(&now, TIME_UTC);
     timespec_diff(&now, timePoint, &result);
     if (result.tv_sec < 0) {
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
 
     msec = result.tv_sec * MSEC_PER_SEC;

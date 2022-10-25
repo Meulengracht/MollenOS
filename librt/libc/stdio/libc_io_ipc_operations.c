@@ -39,25 +39,25 @@ oserr_t stdio_ipc_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
     streambuffer_read_packet_end(stream, base, bytesAvailable);
 
     *bytes_read = MIN(length, bytesAvailable);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t stdio_ipc_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     // Write is not supported
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_ipc_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
 {
     // Seek is not supported
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_ipc_op_resize(stdio_handle_t* handle, long long resize_by)
 {
     // Resize is not supported
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_ipc_op_close(stdio_handle_t* handle, int options)
@@ -65,13 +65,13 @@ oserr_t stdio_ipc_op_close(stdio_handle_t* handle, int options)
     if (handle->object.handle != UUID_INVALID) {
         return handle_destroy(handle->object.handle);
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t stdio_ipc_op_inherit(stdio_handle_t* handle)
 {
     // Is not supported
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
@@ -88,7 +88,7 @@ oserr_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
                 handle->object.data.ipcontext.options &= ~(STREAMBUFFER_NO_BLOCK);
             }
         }
-        return OsOK;
+        return OS_EOK;
     }
     else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
@@ -97,9 +97,9 @@ oserr_t stdio_ipc_op_ioctl(stdio_handle_t* handle, int request, va_list args)
             streambuffer_get_bytes_available_in(stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 void stdio_get_ipc_operations(stdio_ops_t* ops)

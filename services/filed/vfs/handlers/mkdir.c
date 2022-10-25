@@ -25,7 +25,7 @@ oserr_t VFSNodeMkdir(struct VFS* vfs, mstring_t* path, uint32_t access, uuid_t* 
     oserr_t         oserr;
 
     oserr = VFSNodeNewDirectory(vfs, path, access, &node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     return VFSNodeOpenHandle(node, access, handleOut);

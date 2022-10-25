@@ -73,7 +73,7 @@ static oserr_t __AllocateCommandSlot(
     status = AhciPortAllocateCommandSlot(port, &portSlot);
 
     __SetTransferKey(transaction, portSlot);
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         transaction->State = TransactionInProgress;
     }
     else {
@@ -88,14 +88,14 @@ static oserr_t __QueueTransaction(
     _In_ AhciPort_t*        port,
     _In_ AhciTransaction_t* transaction)
 {
-    oserr_t status = OsOK;
+    oserr_t status = OS_EOK;
 
     TRACE("__QueueTransaction(controller=0x%" PRIxIN ", port=0x%" PRIxIN ", transaction=0x%" PRIxIN ")",
           controller, port, transaction);
 
     // update header with the slot
     if (__GetTransferKey(transaction) == -1) {
-        if (__AllocateCommandSlot(port, transaction) != OsOK) {
+        if (__AllocateCommandSlot(port, transaction) != OS_EOK) {
             goto exit;
         }
     }
@@ -210,19 +210,19 @@ AhciTransactionControlCreate(
           ahciDevice, ataCommand, length, direction);
     
     if (!ahciDevice) {
-        status = OsInvalidParameters;
+        status = OS_EINVALPARAMS;
         goto exit;
     }
 
     status = DmaAttach(ahciDevice->Port->InternalBuffer.handle, &dmaAttachment);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         goto exit;
     }
 
     transaction = __CreateTransaction(ahciDevice, NULL, direction, 0, &dmaAttachment, 0);
     if (!transaction) {
         DmaDetach(&dmaAttachment);
-        status = OsOutOfMemory;
+        status = OS_EOOM;
         goto exit;
     }
 
@@ -233,7 +233,7 @@ AhciTransactionControlCreate(
 
     // The transaction is now prepared and ready for the dispatch
     status = __QueueTransaction(ahciDevice->Controller, ahciDevice->Port, transaction);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         AhciTransactionDestroy(ahciDevice->Port, transaction);
     }
 
@@ -278,20 +278,20 @@ AhciTransactionStorageCreate(
           device, sector, sectorCount, direction);
 
     if (!device) {
-        status = OsInvalidParameters;
+        status = OS_EINVALPARAMS;
         goto exit;
     }
     
     status = DmaAttach(bufferHandle, &dmaAttachment);
-    if (status != OsOK) {
-        status = OsInvalidParameters;
+    if (status != OS_EOK) {
+        status = OS_EINVALPARAMS;
         goto exit;
     }
 
     transaction = __CreateTransaction(device, message, direction, sector, &dmaAttachment, bufferOffset);
     if (!transaction) {
         DmaDetach(&dmaAttachment);
-        status = OsOutOfMemory;
+        status = OS_EOOM;
         goto exit;
     }
 
@@ -305,7 +305,7 @@ AhciTransactionStorageCreate(
     // Select the appropriate command
     command = __GetCommand(device, direction);
     if (!command) {
-        status = OsInvalidParameters;
+        status = OS_EINVALPARAMS;
         goto exit;
     }
 
@@ -317,7 +317,7 @@ AhciTransactionStorageCreate(
     status = __QueueTransaction(device->Controller, device->Port, transaction);
 
 exit:
-    if (status != OsOK && device && transaction) {
+    if (status != OS_EOK && device && transaction) {
         AhciTransactionDestroy(device->Port, transaction);
     }
     return status;
@@ -336,7 +336,7 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
     
     status = AhciTransactionStorageCreate(device, message, (int)direction, sector.QuadPart,
         bufferId, offset, sectorCount);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         ctt_storage_transfer_response(message, status, 0);
     }
 }
@@ -345,7 +345,7 @@ oserr_t
 AhciManagerCancelTransaction(
     _In_ AhciTransaction_t* transaction)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static void __DumpD2HFis(
@@ -374,9 +374,9 @@ static oserr_t __VerifyRegisterFISD2H(
     if (result->Status & (ATA_STS_DEV_ERROR | ATA_STS_DEV_FAULT)) {
         TRACE("__VerifyRegisterFISD2H result->Error=0x%x", result->Error);
         if (result->Status & ATA_STS_DEV_ERROR) { PrintTaskDataErrorString(result->Error); }
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __FinishTransaction(
@@ -401,7 +401,7 @@ AhciTransactionHandleResponse(
     _In_ AhciTransaction_t* transaction,
     _In_ size_t             bytesTransferred)
 {
-    oserr_t osStatus = OsNotSupported;
+    oserr_t osStatus = OS_ENOTSUPPORTED;
     
     TRACE("AhciTransactionHandleResponse(bytesTransferred=%" PRIuIN ")", bytesTransferred);
     
@@ -419,13 +419,13 @@ AhciTransactionHandleResponse(
     transaction->SectorsTransferred += (bytesTransferred / transaction->Target.SectorSize);
 
     // Is the transaction finished? (Or did it error?)
-    if (osStatus != OsOK || transaction->BytesLeft == 0) {
+    if (osStatus != OS_EOK || transaction->BytesLeft == 0) {
         __FinishTransaction(port, transaction, osStatus);
         return;
     }
 
     osStatus = __QueueTransaction(controller, port, transaction);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         __FinishTransaction(port, transaction, osStatus);
     }
 }

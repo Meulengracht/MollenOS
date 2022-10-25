@@ -49,7 +49,7 @@ CmosInitialize(
     ops.Read = __ReadSystemTime;
 
     status = SystemWallClockRegister(&ops, &g_cmos);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         return status;
     }
     
@@ -57,7 +57,7 @@ CmosInitialize(
         return RtcInitialize(&g_cmos);
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 

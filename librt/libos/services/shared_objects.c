@@ -65,7 +65,7 @@ SharedObjectLoad(
     SOInitializer_t          Initializer;
     struct library_element*  library;
     Handle_t                 handle = HANDLE_INVALID;
-    oserr_t                  oserr  = OsOK;
+    oserr_t                  oserr  = OS_EOK;
     uintptr_t                entryAddress;
 
     // Special case
@@ -94,7 +94,7 @@ SharedObjectLoad(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_library_load_result(GetGrachtClient(), &msg.base, &oserr, (uintptr_t*)&handle, &entryAddress);
 
-    if (oserr == OsOK && handle != HANDLE_INVALID) {
+    if (oserr == OS_EOK && handle != HANDLE_INVALID) {
         struct library_element element;
         element.references = (atomic_int*)malloc(sizeof(atomic_int));
         if (!element.references) {
@@ -155,7 +155,7 @@ SharedObjectGetFunction(
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_library_get_function_result(GetGrachtClient(), &msg.base, &oserr, &functionAddress);
     OsErrToErrNo(oserr);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return NULL;
     }
     return (void*)functionAddress;
@@ -173,20 +173,20 @@ SharedObjectUnload(
     SOInitializer_t        initialize = NULL;
     struct so_enum_context enumContext;
     int                    references;
-    oserr_t                status = OsOK;
+    oserr_t                status = OS_EOK;
 
 	if (handle == HANDLE_INVALID) {
 	    _set_errno(EINVAL);
-		return OsError;
+		return OS_EUNKNOWN;
 	}
     
     if (handle == HANDLE_GLOBAL) {
-        return OsOK;
+        return OS_EOK;
     }
 
     if (!g_initialized) {
         errno = ENOSYS;
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     assert(__crt_is_phoenix() == 0);
@@ -199,7 +199,7 @@ SharedObjectUnload(
     if (!enumContext.library) {
         MutexUnlock(&g_librariesLock);
         errno = ENOENT;
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     references = atomic_fetch_sub(enumContext.library->references, 1);

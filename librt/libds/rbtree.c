@@ -209,7 +209,7 @@ rb_tree_append(
     int        result;
     
     if (!tree || !leaf) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     leaf->left  = ITEM_NIL(tree);
@@ -250,13 +250,13 @@ rb_tree_append(
             }
             else {
                 TREE_UNLOCK;
-                return OsExists;
+                return OS_EEXISTS;
             }
         }
         fixup_tree(tree, leaf);
     }
     TREE_UNLOCK;
-    return OsOK;
+    return OS_EOK;
 }
 
 static rb_leaf_t*

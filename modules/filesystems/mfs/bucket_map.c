@@ -43,9 +43,9 @@ __UpdateMasterRecords(
             1,
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("Failed to write (secondary) master-record to disk");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Flush the primary copy
@@ -57,7 +57,7 @@ __UpdateMasterRecords(
             1,
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("Failed to write (primary) master-record to disk");
     }
     return oserr;
@@ -87,12 +87,12 @@ MfsZeroBucket(
                 mfs->SectorsPerBucket,
                 &sectorsTransferred
         );
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR("MfsZeroBucket failed to write bucket to disk");
             return oserr;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -103,13 +103,13 @@ MFSBucketMapGetLengthAndLink(
 {
     TRACE("MFSBucketMapGetLengthAndLink(bucket=%u)", bucket);
     if (bucket >= mfs->BucketsInMap) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     link->Link   = mfs->BucketMap[(bucket * 2)];
     link->Length = mfs->BucketMap[(bucket * 2) + 1];
     TRACE("... link %u, length %u", link->Link, link->Length);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -152,12 +152,12 @@ MFSBucketMapSetLinkAndLength(
             1,
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("Failed to update the given map-sector %u on disk",
               LODWORD(mfs->MasterRecord.MapSector + sectorOffset));
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -184,7 +184,7 @@ MFSBucketMapAllocate(
 
         // Get length of i.
         oserr = MFSBucketMapGetLengthAndLink(mfs, i, &currentRecord);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
 
@@ -206,9 +206,9 @@ MFSBucketMapAllocate(
                     bucketsLeft,
                     true
             );
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 // Ehh that's not good, in theory we should cancel the transaction
-                return OsIncomplete;
+                return OS_EINCOMPLETE;
             }
 
             // Update the next record which will be our new free record
@@ -219,9 +219,9 @@ MFSBucketMapAllocate(
                     currentRecord.Length - bucketsLeft,
                     true
             );
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 // Ehh that's not good, in theory we should cancel the transaction
-                return OsIncomplete;
+                return OS_EINCOMPLETE;
             }
 
             // Manipulate with the current record so the code flow can continue
@@ -235,7 +235,7 @@ MFSBucketMapAllocate(
             // to the link
             if (currentRecord.Link == MFS_ENDOFCHAIN) {
                 // Uh oh, out of disk space
-                return OsIncomplete;
+                return OS_EINCOMPLETE;
             }
             bucketsLeft -= currentRecord.Length;
         }
@@ -244,9 +244,9 @@ MFSBucketMapAllocate(
         // is correct by chaining them.
         if (previous != MFS_ENDOFCHAIN) {
             oserr = MFSBucketMapSetLinkAndLength(mfs, previous, i, 0, false);
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 // Ehh that's not good, in theory we should cancel the transaction
-                return OsIncomplete;
+                return OS_EINCOMPLETE;
             }
         }
         previous = i;
@@ -271,7 +271,7 @@ MfsFreeBuckets(
     TRACE("MfsFreeBuckets(Bucket %u, Length %u)", startBucket, startLength);
 
     if (startLength == 0) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Essentially there is two algorithms we can deploy here
@@ -286,9 +286,9 @@ MfsFreeBuckets(
     previousBucket = MFS_ENDOFCHAIN;
     while (mapRecord.Link != MFS_ENDOFCHAIN) {
         previousBucket = mapRecord.Link;
-        if (MFSBucketMapGetLengthAndLink(mfs, mapRecord.Link, &mapRecord) != OsOK) {
+        if (MFSBucketMapGetLengthAndLink(mfs, mapRecord.Link, &mapRecord) != OS_EOK) {
             ERROR("Failed to retrieve the next bucket-link");
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
 
@@ -302,12 +302,12 @@ MfsFreeBuckets(
                 0,
                 false
         );
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR("Failed to update the next bucket-link");
             return oserr;
         }
         mfs->MasterRecord.FreeBucket = startBucket;
         return __UpdateMasterRecords(mfs);
     }
-    return OsOK;
+    return OS_EOK;
 }

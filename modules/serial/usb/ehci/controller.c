@@ -70,7 +70,7 @@ HciControllerCreate(
           ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
     // Acquire the io-space
-    if (AcquireDeviceIo(ioBase) != OsOK) {
+    if (AcquireDeviceIo(ioBase) != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for ehci-controller");
         free(controller);
         return NULL;
@@ -99,7 +99,7 @@ HciControllerCreate(
     // Enable device
     if (IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                     (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsOK) {
+            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OS_EOK) {
         ERROR("Failed to enable the ehci-controller");
         UnregisterInterruptSource(controller->Base.Interrupt);
         ReleaseDeviceIo(controller->Base.IoBase);
@@ -109,7 +109,7 @@ HciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (EhciSetup(controller) == OsOK) {
+    if (EhciSetup(controller) == OS_EOK) {
         return &controller->Base;
     }
     else {
@@ -135,7 +135,7 @@ HciControllerDestroy(
     ReleaseDeviceIo(Controller->IoBase);
 
     free(Controller);
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -177,7 +177,7 @@ EhciDisableLegacySupport(
         // We read the second byte, because it contains the BIOS Semaphore
         while (1) {
             // Retrieve capability id
-            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp, &capId, 1) != OsOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp, &capId, 1) != OS_EOK) {
                 return;
             }
 
@@ -187,7 +187,7 @@ EhciDisableLegacySupport(
             }
 
             // Nope, follow eecp link
-            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x1, &nextEecp, 1) != OsOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x1, &nextEecp, 1) != OS_EOK) {
                 return;
             }
 
@@ -203,7 +203,7 @@ EhciDisableLegacySupport(
         // Only continue if Id == 0x01
         if (capId == 0x01) {
             size_t Zero = 0;
-            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x2, &semaphore, 1) != OsOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x2, &semaphore, 1) != OS_EOK) {
                 return;
             }
 
@@ -212,13 +212,13 @@ EhciDisableLegacySupport(
                 // Request for my hat back :/
                 // Third byte contains the OS Semaphore 
                 size_t One = 0x1;
-                if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 1, eecp + 0x3, &One, 1) != OsOK) {
+                if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 1, eecp + 0x3, &One, 1) != OS_EOK) {
                     return;
                 }
 
                 // Now wait for bios to release the semaphore
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x2, &semaphore, 1) != OsOK) {
+                    if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x2, &semaphore, 1) != OS_EOK) {
                         return;
                     }
                     if ((semaphore & 0x1) == 0) {
@@ -232,7 +232,7 @@ EhciDisableLegacySupport(
                 }
                 One = 1;
                 while (One++) {
-                    if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x3, &semaphore, 1) != OsOK) {
+                    if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 0, eecp + 0x3, &semaphore, 1) != OS_EOK) {
                         return;
                     }
                     if ((semaphore & 0x1) == 1) {
@@ -247,7 +247,7 @@ EhciDisableLegacySupport(
             }
 
             // Disable SMI by setting all lower 16 bits to 0 of EECP+4
-            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 1, eecp + 0x4, &Zero, 2) != OsOK) {
+            if (IoctlDeviceEx(Controller->Base.Device->Base.Id, 1, eecp + 0x4, &Zero, 2) != OS_EOK) {
                 return;
             }
         }
@@ -291,10 +291,10 @@ EhciHalt(
     if (Fault) {
         ERROR("EHCI-Failure: Failed to stop controller, Command Register: 0x%x - Status: 0x%x",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
-            return OsError;
+            return OS_EUNKNOWN;
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -332,10 +332,10 @@ EhciReset(
         ERROR("EHCI-Failure: Reset signal won't deassert, waiting one last long wait",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
         thrd_sleepex(250);
-        return ((READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0) ? OsOK : OsError;
+        return ((READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0) ? OS_EOK : OS_EUNKNOWN;
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -351,10 +351,10 @@ EhciRestart(
 
     // Stop controller, unschedule everything
     // and then reset it.
-    if (EhciHalt(Controller) != OsOK ||
-        EhciReset(Controller) != OsOK) {
+    if (EhciHalt(Controller) != OS_EOK ||
+        EhciReset(Controller) != OS_EOK) {
         ERROR("Failed to halt or reset controller");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Reset certain indices
@@ -411,7 +411,7 @@ EhciRestart(
     WRITE_VOLATILE(Controller->OpRegisters->UsbIntr, (EHCI_INTR_PROCESS | EHCI_INTR_PROCESSERROR
         | EHCI_INTR_PORTCHANGE | EHCI_INTR_HOSTERROR | EHCI_INTR_ASYNC_DOORBELL));
     WRITE_VOLATILE(Controller->OpRegisters->ConfigFlag, 1);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -427,7 +427,7 @@ EhciWaitForCompanionControllers(
 
     hcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
     if (!hcController) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     ccToStart = EHCI_SPARAM_CCCOUNT(controller->SParameters);
@@ -439,7 +439,7 @@ EhciWaitForCompanionControllers(
         thrd_sleepex(500);
         timeout -= 500;
 
-        if (UsbQueryControllerCount(&updatedControllerCount) != OsOK) {
+        if (UsbQueryControllerCount(&updatedControllerCount) != OS_EOK) {
             WARNING("EhciWaitForCompanionControllers failed to acquire controller count");
             break;
         }
@@ -463,7 +463,7 @@ EhciWaitForCompanionControllers(
         }
     }
     free(hcController);
-    return (timeout != 0) ? OsOK : OsError;
+    return (timeout != 0) ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t
@@ -495,7 +495,7 @@ EhciSetup(
     EhciWaitForCompanionControllers(Controller);    
     
     // Register the controller before starting
-    if (UsbManagerRegisterController(&Controller->Base) != OsOK) {
+    if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {
         ERROR(" > failed to register ehci controller with the system.");
     }
 
@@ -536,5 +536,5 @@ EhciSetup(
         }
     }
 #endif
-    return OsOK;
+    return OS_EOK;
 }

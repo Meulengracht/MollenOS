@@ -59,7 +59,7 @@ InterruptIncreasePenalty(
         return INTERRUPT_NONE;
     }
     g_interruptTable[Source].Penalty++;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -71,7 +71,7 @@ InterruptDecreasePenalty(
         return INTERRUPT_NONE;
     }
     g_interruptTable[Source].Penalty--;
-    return OsOK;
+    return OS_EOK;
 }
 
 int
@@ -132,12 +132,12 @@ InterruptCleanupIoResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
     InterruptResourceTable_t* Resources = &Interrupt->KernelResources;
-    oserr_t                Status    = OsOK;
+    oserr_t                Status    = OS_EOK;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Resources->IoResources[i] != NULL) {
             Status = ReleaseKernelSystemDeviceIo(Resources->IoResources[i]);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 ERROR(" > failed to cleanup system copy of io-resource");
                 break;
             }
@@ -157,21 +157,21 @@ InterruptResolveIoResources(
 {
     InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* Destination = &systemInterrupt->KernelResources;
-    oserr_t                Status      = OsOK;
+    oserr_t                Status      = OS_EOK;
 
     for (int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (Source->IoResources[i] != NULL) {
             Status = CreateKernelSystemDeviceIo(Source->IoResources[i], &Destination->IoResources[i]);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 ERROR(" > failed to create system copy of io-resource");
                 break;
             }
         }
     }
     
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         (void)InterruptCleanupIoResources(systemInterrupt);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return Status;
 }
@@ -183,7 +183,7 @@ InterruptCleanupMemoryResources(
     _In_ SystemInterrupt_t* Interrupt)
 {
     InterruptResourceTable_t * Resources = &Interrupt->KernelResources;
-    oserr_t Status                       = OsOK;
+    oserr_t Status                       = OS_EOK;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         if (Resources->MemoryResources[i].Address != 0) {
@@ -192,7 +192,7 @@ InterruptCleanupMemoryResources(
 
             Status = MemorySpaceUnmap(GetCurrentMemorySpace(),
                 Resources->MemoryResources[i].Address, Length);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 ERROR(" > failed to remove interrupt resource mapping");
                 break;
             }
@@ -212,7 +212,7 @@ InterruptResolveMemoryResources(
 {
     InterruptResourceTable_t* source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* destination = &systemInterrupt->KernelResources;
-    oserr_t                success = OsOK;
+    oserr_t                success = OS_EOK;
     uintptr_t                 updatedMapping;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
@@ -228,7 +228,7 @@ InterruptResolveMemoryResources(
             success = MemorySpaceCloneMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
                                               source->MemoryResources[i].Address, &updatedMapping, length, pageFlags,
                                               placementFlags);
-            if (success != OsOK) {
+            if (success != OS_EOK) {
                 ERROR(" > failed to clone interrupt resource mapping");
                 break;
             }
@@ -239,9 +239,9 @@ InterruptResolveMemoryResources(
         }
     }
 
-    if (success != OsOK) {
+    if (success != OS_EOK) {
         (void)InterruptCleanupMemoryResources(systemInterrupt);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return success;
 }
@@ -276,9 +276,9 @@ InterruptResolveResources(
     PlacementFlags = MAPPING_VIRTUAL_GLOBAL;
     Status         = MemorySpaceCloneMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
                                              (vaddr_t) Source->Handler, &Virtual, Length, PageFlags, PlacementFlags);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR(" > failed to clone interrupt handler mapping");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     Virtual += Offset;
 
@@ -286,17 +286,17 @@ InterruptResolveResources(
     Destination->Handler = (InterruptHandler_t)Virtual;
 
     TRACE(" > remapping io-resources");
-    if (InterruptResolveIoResources(deviceInterrupt, systemInterrupt) != OsOK) {
+    if (InterruptResolveIoResources(deviceInterrupt, systemInterrupt) != OS_EOK) {
         ERROR(" > failed to remap interrupt io resources");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     TRACE(" > remapping memory-resources");
-    if (InterruptResolveMemoryResources(deviceInterrupt, systemInterrupt) != OsOK) {
+    if (InterruptResolveMemoryResources(deviceInterrupt, systemInterrupt) != OS_EOK) {
         ERROR(" > failed to remap interrupt memory resources");
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 /* InterruptReleaseResources
@@ -312,7 +312,7 @@ InterruptReleaseResources(
 
     // Sanitize a handler is present, if not, no resources are present
     if ((uintptr_t)Resources->Handler == 0) {
-        return OsOK;
+        return OS_EOK;
     }
 
     // Unmap and release the fast-handler that we had mapped in.
@@ -320,21 +320,21 @@ InterruptReleaseResources(
     Length      = GetMemorySpacePageSize() + Offset;
     Status      = MemorySpaceUnmap(GetCurrentMemorySpace(),
         (uintptr_t)Resources->Handler, Length);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR(" > failed to cleanup interrupt handler mapping");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
-    if (InterruptCleanupIoResources(Interrupt) != OsOK) {
+    if (InterruptCleanupIoResources(Interrupt) != OS_EOK) {
         ERROR(" > failed to cleanup interrupt io resources");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
-    if (InterruptCleanupMemoryResources(Interrupt) != OsOK) {
+    if (InterruptCleanupMemoryResources(Interrupt) != OS_EOK) {
         ERROR(" > failed to cleanup interrupt memory resources");
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 uuid_t
@@ -347,7 +347,7 @@ InterruptRegister(
     uuid_t             id;
 
     if (!deviceInterrupt) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     TRACE("InterruptRegister(Line %i Pin %i, Vector %i, Flags 0x%" PRIxIN ")",
@@ -376,10 +376,10 @@ InterruptRegister(
     }
 
     // Resolve the table index
-    if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OsOK) {
+    if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OS_EOK) {
         ERROR("Failed to resolve the interrupt, invalid flags.");
         kfree(systemInterrupt);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Update remaining members now that we resolved
@@ -395,14 +395,14 @@ InterruptRegister(
             // We failed to gain exclusive access
             ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", tableIndex);
             kfree(systemInterrupt);
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
     else if (g_interruptTable[tableIndex].Sharable != 1 && g_interruptTable[tableIndex].Penalty > 0) {
         // Existing interrupt has exclusive access
         ERROR(" > existing interrupt has exclusive access");
         kfree(systemInterrupt);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Trace
@@ -411,10 +411,10 @@ InterruptRegister(
 
     // If it's an user interrupt, resolve resources
     if (systemInterrupt->Owner != UUID_INVALID) {
-        if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OsOK) {
+        if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OS_EOK) {
             ERROR(" > failed to resolve the requested resources");
             kfree(systemInterrupt);
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
     
@@ -429,13 +429,13 @@ InterruptRegister(
         // Insert and increase penalty
         systemInterrupt->Link                   = g_interruptTable[tableIndex].Descriptor;
         g_interruptTable[tableIndex].Descriptor = systemInterrupt;
-        if (InterruptIncreasePenalty(tableIndex) != OsOK) {
+        if (InterruptIncreasePenalty(tableIndex) != OS_EOK) {
             ERROR("Failed to increase penalty for source %" PRIiIN "", systemInterrupt->Source);
         }
     }
 
     // Enable the new interrupt
-    if (InterruptConfigure(systemInterrupt, 1) != OsOK) {
+    if (InterruptConfigure(systemInterrupt, 1) != OS_EOK) {
         ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
     }
     SpinlockReleaseIrq(&g_interruptTableLock);
@@ -450,13 +450,13 @@ InterruptUnregister(
 {
     SystemInterrupt_t* Entry;
     SystemInterrupt_t* Previous   = NULL;
-    oserr_t         Result     = OsError;
+    oserr_t         Result     = OS_EUNKNOWN;
     uint16_t           TableIndex = LOWORD(Source);
     int                Found      = 0;
 
     // Sanitize parameter
     if (TableIndex >= MAX_SUPPORTED_INTERRUPTS) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     // Iterate handlers in that table index and unlink the given entry
@@ -489,7 +489,7 @@ InterruptUnregister(
 
     // Sanitize if we were successfull
     if (!Found) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     // Decrease penalty
@@ -502,7 +502,7 @@ InterruptUnregister(
         InterruptConfigure(Entry, 0);
     }
     if (Entry->Owner != UUID_INVALID) {
-        if (InterruptReleaseResources(Entry) != OsOK) {
+        if (InterruptReleaseResources(Entry) != OS_EOK) {
             ERROR(" > failed to cleanup interrupt resources");
         }
     }

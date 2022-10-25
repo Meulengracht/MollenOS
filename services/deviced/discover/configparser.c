@@ -139,13 +139,13 @@ __AddProduct(
     product = malloc(sizeof(struct DriverProduct));
     if (!product) {
         ERROR("__AddProduct out of memory for product!");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     ELEMENT_INIT(&product->ListHeader, 0, product);
     product->Id = productId;
     list_append(&vendor->Products, &product->ListHeader);
-    return OsOK;
+    return OS_EOK;
 }
 
 static int
@@ -409,7 +409,7 @@ __ConsumeEvent(
                                 (const char*)event->data.scalar.value);
                     }
                     else {
-                        if (__AddProduct(s->vendor, productId) != OsOK) {
+                        if (__AddProduct(s->vendor, productId) != OS_EOK) {
                             return -1;
                         }
                     }
@@ -570,7 +570,7 @@ DmDriverConfigParseYaml(
 
     TRACE("DmDriverConfigParseYaml()");
     if (!yaml || !length || !driverConfig) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     memset(&state, 0, sizeof(state));
@@ -585,14 +585,14 @@ DmDriverConfigParseYaml(
         if (status == 0) {
             ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
             __CleanupDriverConfiguration(&state.driver);
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         status = __ConsumeEvent(&state, &event);
         if (status) {
             ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
             __CleanupDriverConfiguration(&state.driver);
-            return OsError;
+            return OS_EUNKNOWN;
         }
         yaml_event_delete(&event);
     } while (state.state != STATE_STOP);
@@ -600,7 +600,7 @@ DmDriverConfigParseYaml(
     yaml_parser_delete(&parser);
 
     memcpy(driverConfig, &state.driver, sizeof(struct DriverConfiguration));
-    return OsOK;
+    return OS_EOK;
 }
 
 void

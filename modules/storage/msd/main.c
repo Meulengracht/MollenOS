@@ -66,7 +66,7 @@ OnUnload(void)
 
 oserr_t OnEvent(struct ioset_event* event)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -77,11 +77,11 @@ OnRegister(
     
     MsdDevice = MsdDeviceCreate((UsbDevice_t*)Device);
     if (MsdDevice == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     list_append(&g_devices, &MsdDevice->Header);
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
@@ -95,7 +95,7 @@ OnUnregister(
 {
     MsdDevice_t* MsdDevice = MsdDeviceGet(Device->Id);
     if (MsdDevice == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     list_remove(&g_devices, &MsdDevice->Header);
@@ -105,7 +105,7 @@ OnUnregister(
 void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    oserr_t                    oserr      = OsNotExists;
+    oserr_t                    oserr      = OS_ENOENT;
     MsdDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     
@@ -114,7 +114,7 @@ void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t de
             device->Descriptor.SectorCount,
             device->Descriptor.SectorSize);
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        oserr = OsOK;
+        oserr = OS_EOK;
     }
     
     ctt_storage_stat_response(message, oserr, &gdescriptor);

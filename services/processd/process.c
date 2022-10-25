@@ -199,7 +199,7 @@ __BuildArguments(
 
     processPath = mstr_u8(process->path);
     if (processPath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // handle arguments, we need to prepend the full path of the executable
@@ -207,7 +207,7 @@ __BuildArguments(
     argumentsPointer = malloc(pathLength + 1 + argumentsLength);
     if (!argumentsPointer) {
         free(processPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Build the argument string, remember to null terminate.
@@ -225,7 +225,7 @@ __BuildArguments(
     process->arguments        = (const char *)argumentsPointer;
     process->arguments_length = pathLength + 1 + argumentsLength;
     free(processPath);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -242,13 +242,13 @@ __BuildInheritationBlock(
                                   (block->handle_count * sizeof(struct stdio_handle));
         process->inheritation_block = malloc(inheritationBlockLength);
         if (!process->inheritation_block) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
 
         process->inheritation_block_length = inheritationBlockLength;
         memcpy(process->inheritation_block, block, inheritationBlockLength);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -263,7 +263,7 @@ __LoadProcessImage(
 
     pathUnified = mstr_new_u8(path);
     if (pathUnified == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = PeLoadImage(UUID_INVALID, NULL, pathUnified, image);
@@ -284,7 +284,7 @@ __ProcessNew(
 
     process = (Process_t *)malloc(sizeof(Process_t));
     if (!process) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(process, 0, sizeof(Process_t));
 
@@ -300,7 +300,7 @@ __ProcessNew(
     process->path = mstr_clone(process->image->FullPath);
     if (!process->path) {
         free(process);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     index = mstr_rfind_u8(process->path, "/", -1);
@@ -313,11 +313,11 @@ __ProcessNew(
         mstr_delete(process->working_directory);
         mstr_delete(process->assembly_directory);
         free(process);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *processOut = process;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -333,7 +333,7 @@ __StartProcess(
     threadParameters.MemorySpaceHandle = (uuid_t)(uintptr_t)process->image->MemorySpace;
     threadParameters.Name              = mstr_u8(process->name);
     if (threadParameters.Name == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     oserr = Syscall_ThreadCreate(
@@ -341,7 +341,7 @@ __StartProcess(
             NULL, // Argument
             &threadParameters,
             &process->primary_thread_id);
-    if (oserr == OsOK) {
+    if (oserr == OS_EOK) {
         oserr = Syscall_ThreadDetach(process->primary_thread_id);
     }
     free((void*)threadParameters.Name);
@@ -363,31 +363,31 @@ PmCreateProcessInternal(
     ENTRY("PmCreateProcessInternal(path=%s, args=%s)", path, args);
 
     osStatus = __LoadProcessImage(path, &image);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto exit;
     }
 
     osStatus = handle_create(&handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("PmCreateProcessInternal failed to allocate a system handle for process");
         PeUnloadImage(image);
         goto exit;
     }
 
     osStatus = __ProcessNew(processConfiguration, handle, image, &process);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         PeUnloadImage(image);
         goto exit;
     }
 
     osStatus = __BuildArguments(process, args);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         DestroyProcess(process);
         goto exit;
     }
 
     osStatus = __BuildInheritationBlock(process, inherit);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         DestroyProcess(process);
         goto exit;
     }
@@ -397,7 +397,7 @@ PmCreateProcessInternal(
     // in a multicore environment, hold the lock untill we've added it.
     usched_mtx_lock(&g_processesLock);
     osStatus = __StartProcess(process);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         usched_mtx_unlock(&g_processesLock);
         DestroyProcess(process);
         goto exit;
@@ -437,7 +437,7 @@ void PmCreateProcess(
             request->parameters.spawn.inherit,
             &request->parameters.spawn.conf,
             &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         sys_process_spawn_response(request->message, osStatus, UUID_INVALID);
         goto cleanup;
     }
@@ -457,7 +457,7 @@ void PmGetProcessStartupInformation(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oserr_t    osStatus      = OsNotExists;
+    oserr_t    osStatus      = OS_ENOENT;
     uuid_t     processHandle = UUID_INVALID;
     int        moduleCount   = PROCESS_MAXMODULES;
     TRACE("PmGetProcessStartupInformation(thread=%u)", request->parameters.get_initblock.threadHandle);
@@ -470,13 +470,13 @@ void PmGetProcessStartupInformation(
 
     DMAAttachment_t dmaAttachment;
     osStatus = DmaAttach(request->parameters.get_initblock.bufferHandle, &dmaAttachment);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("PmGetProcessStartupInformation failed to attach to user buffer");
         goto exit;
     }
 
     osStatus = DmaAttachmentMap(&dmaAttachment, DMA_ACCESS_WRITE);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto detach;
     }
 
@@ -547,10 +547,10 @@ PmJoinProcess(
         });
         usched_mtx_unlock(&g_processHistoryLock);
         if (entry) {
-            sys_process_join_response(request->message, OsOK, entry->exit_code);
+            sys_process_join_response(request->message, OS_EOK, entry->exit_code);
             goto cleanup;
         }
-        sys_process_join_response(request->message, OsNotExists, 0);
+        sys_process_join_response(request->message, OS_ENOENT, 0);
         goto cleanup;
     }
 
@@ -563,14 +563,14 @@ PmJoinProcess(
         status = usched_cnd_timedwait(&request->signal, &target->lock, &ts);
         if (status) {
             usched_mtx_unlock(&target->lock);
-            sys_process_join_response(request->message, OsTimeout, 0);
+            sys_process_join_response(request->message, OS_ETIMEOUT, 0);
             goto exit;
         }
     }
     exitCode = target->exit_code;
     usched_mtx_unlock(&target->lock);
 
-    sys_process_join_response(request->message, OsOK, exitCode);
+    sys_process_join_response(request->message, OS_EOK, exitCode);
 
 exit:
     UnregisterProcessRequest(target, request);
@@ -593,7 +593,7 @@ void PmTerminateProcess(
     process = PmGetProcessByHandle(request->parameters.terminate.handle);
     if (!process) {
         // what
-        sys_process_terminate_response(request->message, OsNotExists);
+        sys_process_terminate_response(request->message, OS_ENOENT);
         goto cleanup;
     }
 
@@ -617,7 +617,7 @@ void PmTerminateProcess(
     }
     usched_mtx_unlock(&process->lock);
 
-    sys_process_terminate_response(request->message, OsOK);
+    sys_process_terminate_response(request->message, OS_EOK);
 cleanup:
     RequestDestroy(request);
 }
@@ -636,7 +636,7 @@ void PmSignalProcess(
     // has license to kill before executing the signal
     victim = RegisterProcessRequest(request->parameters.signal.victim_handle, request);
     if (!victim) {
-        osStatus = OsNotExists;
+        osStatus = OS_ENOENT;
         goto exit;
     }
 
@@ -646,7 +646,7 @@ void PmSignalProcess(
         osStatus = Syscall_ThreadSignal(victim->primary_thread_id, request->parameters.signal.signal);
     }
     else {
-        osStatus = OsInProgress;
+        osStatus = OS_EINPROGRESS;
     }
     usched_mtx_unlock(&victim->lock);
     UnregisterProcessRequest(victim, request);
@@ -663,7 +663,7 @@ void PmLoadLibrary(
     Process_t*      process;
     PeExecutable_t* executable;
     mstring_t*      path;
-    oserr_t      osStatus = OsNotExists;
+    oserr_t      osStatus = OS_ENOENT;
     Handle_t        handle   = HANDLE_INVALID;
     uintptr_t       entry    = 0;
 
@@ -678,13 +678,13 @@ void PmLoadLibrary(
     if (!strlen(request->parameters.load_library.path)) {
         handle   = HANDLE_GLOBAL;
         entry    = process->image->EntryAddress;
-        osStatus = OsOK;
+        osStatus = OS_EOK;
         goto exit;
     }
 
     path     = mstr_new_u8((void *)request->parameters.load_library.path);
     osStatus = PeLoadImage(process->handle, process->image, path, &executable);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         handle = executable;
         entry  = executable->EntryAddress;
     }
@@ -707,7 +707,7 @@ void PmGetLibraryFunction(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oserr_t osStatus = OsNotExists;
+    oserr_t osStatus = OS_ENOENT;
     uintptr_t  address  = 0;
     TRACE("PmGetLibraryFunction(process=%u, func=%s)",
           request->parameters.get_function.handle,
@@ -726,7 +726,7 @@ void PmGetLibraryFunction(
         }
         address = PeResolveFunction(executable, request->parameters.get_function.name);
         if (address != 0) {
-            osStatus = OsOK;
+            osStatus = OS_EOK;
         }
         usched_mtx_unlock(&process->lock);
     }
@@ -741,12 +741,12 @@ void PmUnloadLibrary(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oserr_t osStatus = OsNotExists;
+    oserr_t osStatus = OS_ENOENT;
     TRACE("PmUnloadLibrary(process=%u)",
           request->parameters.unload_library.handle);
 
     if (request->parameters.unload_library.library_handle == HANDLE_GLOBAL) {
-        osStatus = OsOK;
+        osStatus = OS_EOK;
         goto respond;
     }
 
@@ -798,13 +798,13 @@ void PmGetName(
         name = mstr_u8(process->name);
         usched_mtx_unlock(&process->lock);
         if (name == NULL) {
-            sys_process_get_name_response(request->message, OsOutOfMemory, "");
+            sys_process_get_name_response(request->message, OS_EOOM, "");
         } else {
-            sys_process_get_name_response(request->message, OsOK, name);
+            sys_process_get_name_response(request->message, OS_EOK, name);
             free(name);
         }
     } else {
-        sys_process_get_name_response(request->message, OsInvalidParameters, "");
+        sys_process_get_name_response(request->message, OS_EINVALPARAMS, "");
     }
     RequestDestroy(request);
 }
@@ -814,7 +814,7 @@ void PmGetTickBase(
         _In_ void*      cancellationToken)
 {
     Process_t*   process;
-    oserr_t      status = OsInvalidParameters;
+    oserr_t      status = OS_EINVALPARAMS;
     UInteger64_t tick;
 
     process = PmGetProcessByHandle(request->parameters.stat_handle.handle);
@@ -822,7 +822,7 @@ void PmGetTickBase(
         usched_mtx_lock(&process->lock);
         tick.QuadPart = clock() - process->tick_base;
         usched_mtx_unlock(&process->lock);
-        status = OsOK;
+        status = OS_EOK;
     }
 
     // respond
@@ -845,14 +845,14 @@ void PmGetWorkingDirectory(
         path = mstr_u8(process->working_directory);
         usched_mtx_unlock(&process->lock);
         if (path == NULL) {
-            sys_process_get_working_directory_response(request->message, OsOutOfMemory, "");
+            sys_process_get_working_directory_response(request->message, OS_EOOM, "");
         } else {
             TRACE("PmGetWorkingDirectory path=%s", path);
-            sys_process_get_working_directory_response(request->message, OsOK, path);
+            sys_process_get_working_directory_response(request->message, OS_EOK, path);
             free(path);
         }
     } else {
-        sys_process_get_working_directory_response(request->message, OsInvalidParameters, "");
+        sys_process_get_working_directory_response(request->message, OS_EINVALPARAMS, "");
     }
     RequestDestroy(request);
 }
@@ -862,7 +862,7 @@ void PmSetWorkingDirectory(
         _In_ void*      cancellationToken)
 {
     Process_t* process;
-    oserr_t status = OsInvalidParameters;
+    oserr_t status = OS_EINVALPARAMS;
 
     process = PmGetProcessByHandle(request->parameters.set_cwd.handle);
     if (process) {
@@ -871,7 +871,7 @@ void PmSetWorkingDirectory(
         mstr_delete(process->working_directory);
         process->working_directory = mstr_new_u8((void*)request->parameters.set_cwd.path);
         usched_mtx_unlock(&process->lock);
-        status = OsOK;
+        status = OS_EOK;
     }
 
     // respond
@@ -895,12 +895,12 @@ void PmGetAssemblyDirectory(
         path = mstr_u8(process->assembly_directory);
         usched_mtx_unlock(&process->lock);
         if (path == NULL) {
-            sys_process_get_assembly_directory_response(request->message, OsOutOfMemory, "");
+            sys_process_get_assembly_directory_response(request->message, OS_EOOM, "");
         } else {
-            sys_process_get_assembly_directory_response(request->message, OsOK, path);
+            sys_process_get_assembly_directory_response(request->message, OS_EOK, path);
         }
     } else {
-        sys_process_get_assembly_directory_response(request->message, OsInvalidParameters, "");
+        sys_process_get_assembly_directory_response(request->message, OS_EINVALPARAMS, "");
     }
     RequestDestroy(request);
 }

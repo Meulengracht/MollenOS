@@ -108,19 +108,19 @@ void sys_file_open_invocation(struct gracht_message* message,
 
     TRACE("svc_file_open_callback()");
     if (!strlen(path)) {
-        sys_file_open_response(message, OsInvalidParameters, UUID_INVALID);
+        sys_file_open_response(message, OS_EINVALPARAMS, UUID_INVALID);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_open_response(message, OsOutOfMemory, UUID_INVALID);
+        sys_file_open_response(message, OS_EOOM, UUID_INVALID);
         return;
     }
 
     // perform initial input verification
     if (!path) {
-        sys_file_open_response(request->message, OsInvalidParameters, UUID_INVALID);
+        sys_file_open_response(request->message, OS_EINVALPARAMS, UUID_INVALID);
         return;
     }
 
@@ -137,7 +137,7 @@ void sys_file_close_invocation(struct gracht_message* message, const uuid_t proc
     TRACE("sys_file_close_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_close_response(message, OsOutOfMemory);
+        sys_file_close_response(message, OS_EOOM);
         return;
     }
 
@@ -153,7 +153,7 @@ void sys_file_delete_invocation(struct gracht_message* message,
     TRACE("sys_file_delete_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_delete_response(message, OsOutOfMemory);
+        sys_file_delete_response(message, OS_EOOM);
         return;
     }
 
@@ -170,13 +170,13 @@ void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t p
 
     TRACE("sys_file_transfer_invocation()");
     if (bufferHandle == UUID_INVALID || length == 0) {
-        sys_file_transfer_response(message, OsInvalidParameters, 0);
+        sys_file_transfer_response(message, OS_EINVALPARAMS, 0);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_transfer_response(message, OsOutOfMemory, 0);
+        sys_file_transfer_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -202,7 +202,7 @@ void sys_file_seek_invocation(struct gracht_message* message, const uuid_t proce
     TRACE("sys_file_seek_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_seek_response(message, OsOutOfMemory);
+        sys_file_seek_response(message, OS_EOOM);
         return;
     }
 
@@ -221,13 +221,13 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
 
     TRACE("sys_file_transfer_absolute_invocation()");
     if (bufferHandle == UUID_INVALID || length == 0) {
-        sys_file_transfer_absolute_response(message, OsInvalidParameters, 0);
+        sys_file_transfer_absolute_response(message, OS_EINVALPARAMS, 0);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_transfer_absolute_response(message, OsOutOfMemory, 0);
+        sys_file_transfer_absolute_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -252,13 +252,13 @@ void sys_file_mkdir_invocation(struct gracht_message* message, const uuid_t proc
 
     TRACE("sys_file_mkdir_invocation()");
     if (!strlen(path)) {
-        sys_file_mkdir_response(message, OsInvalidParameters);
+        sys_file_mkdir_response(message, OS_EINVALPARAMS);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_mkdir_response(message, OsOutOfMemory);
+        sys_file_mkdir_response(message, OS_EOOM);
         return;
     }
 
@@ -275,7 +275,7 @@ void sys_file_readdir_invocation(struct gracht_message* message, const uuid_t pr
     request = CreateRequest(message, processId);
     if (!request) {
         struct sys_directory_entry empty = { 0 };
-        sys_file_readdir_response(message, OsOutOfMemory, &empty);
+        sys_file_readdir_response(message, OS_EOOM, &empty);
         return;
     }
 
@@ -290,7 +290,7 @@ void sys_file_flush_invocation(struct gracht_message* message, const uuid_t proc
     TRACE("sys_file_flush_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_flush_response(message, OsOutOfMemory);
+        sys_file_flush_response(message, OS_EOOM);
         return;
     }
 
@@ -305,13 +305,13 @@ void sys_file_move_invocation(struct gracht_message* message, const uuid_t proce
 
     TRACE("sys_file_move_invocation()");
     if (!strlen(source) || !strlen(destination)) {
-        sys_file_move_response(message, OsInvalidParameters);
+        sys_file_move_response(message, OS_EINVALPARAMS);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_move_response(message, OsOutOfMemory);
+        sys_file_move_response(message, OS_EOOM);
         return;
     }
 
@@ -328,13 +328,13 @@ void sys_file_link_invocation(struct gracht_message* message, const uuid_t proce
 
     TRACE("sys_file_link_invocation()");
     if (!strlen(source) || !strlen(destination)) {
-        sys_file_link_response(message, OsInvalidParameters);
+        sys_file_link_response(message, OS_EINVALPARAMS);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_link_response(message, OsOutOfMemory);
+        sys_file_link_response(message, OS_EOOM);
         return;
     }
 
@@ -351,7 +351,7 @@ void sys_file_get_position_invocation(struct gracht_message* message, const uuid
     TRACE("sys_file_get_position_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_get_position_response(message, OsOutOfMemory, 0, 0);
+        sys_file_get_position_response(message, OS_EOOM, 0, 0);
         return;
     }
 
@@ -366,7 +366,7 @@ void sys_file_duplicate_invocation(struct gracht_message* message, const uuid_t 
     TRACE("sys_file_duplicate_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_get_access_response(message, OsOutOfMemory, 0);
+        sys_file_get_access_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -381,7 +381,7 @@ void sys_file_get_access_invocation(struct gracht_message* message, const uuid_t
     TRACE("sys_file_get_access_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_get_access_response(message, OsOutOfMemory, 0);
+        sys_file_get_access_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -397,7 +397,7 @@ void sys_file_set_access_invocation(struct gracht_message* message, const uuid_t
     TRACE("sys_file_set_access_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_set_access_response(message, OsOutOfMemory);
+        sys_file_set_access_response(message, OS_EOOM);
         return;
     }
 
@@ -413,7 +413,7 @@ void sys_file_get_size_invocation(struct gracht_message* message, const uuid_t p
     TRACE("sys_file_get_size_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_get_size_response(message, OsOutOfMemory, 0, 0);
+        sys_file_get_size_response(message, OS_EOOM, 0, 0);
         return;
     }
 
@@ -429,7 +429,7 @@ void sys_file_set_size_invocation(struct gracht_message* message, const uuid_t p
     TRACE("sys_file_set_size_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_set_size_response(message, OsOutOfMemory);
+        sys_file_set_size_response(message, OS_EOOM);
         return;
     }
 
@@ -447,7 +447,7 @@ void sys_file_get_path_invocation(struct gracht_message* message, const uuid_t p
     request = CreateRequest(message, processId);
     if (!request) {
         char zero[1] = { 0 };
-        sys_file_get_path_response(message, OsOutOfMemory, &zero[0]);
+        sys_file_get_path_response(message, OS_EOOM, &zero[0]);
         return;
     }
 
@@ -463,7 +463,7 @@ void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t proc
     TRACE("sys_file_fstat_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_fstat_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_fstat_response(message, OS_EOOM, &gdescriptor);
         return;
     }
 
@@ -478,13 +478,13 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const uuid_t
 
     TRACE("sys_file_fstat_path_invocation()");
     if (!strlen(path)) {
-        sys_file_fstat_path_response(message, OsInvalidParameters, &gdescriptor);
+        sys_file_fstat_path_response(message, OS_EINVALPARAMS, &gdescriptor);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_fstat_path_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_fstat_path_response(message, OS_EOOM, &gdescriptor);
         return;
     }
 
@@ -499,13 +499,13 @@ void sys_file_fstat_link_invocation(struct gracht_message* message, const uuid_t
 
     TRACE("sys_file_fstat_link_invocation()");
     if (!strlen(path)) {
-        sys_file_fstat_link_response(message, OsInvalidParameters, "");
+        sys_file_fstat_link_response(message, OS_EINVALPARAMS, "");
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_fstat_link_response(message, OsOutOfMemory, "");
+        sys_file_fstat_link_response(message, OS_EOOM, "");
         return;
     }
 
@@ -521,7 +521,7 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t pro
     TRACE("sys_file_fsstat_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_fsstat_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_fsstat_response(message, OS_EOOM, &gdescriptor);
         return;
     }
 
@@ -537,7 +537,7 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_
     TRACE("sys_file_fsstat_path_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_fsstat_path_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_fsstat_path_response(message, OS_EOOM, &gdescriptor);
         return;
     }
 
@@ -552,13 +552,13 @@ void sys_file_realpath_invocation(struct gracht_message* message, const char* pa
 
     TRACE("sys_file_realpath_invocation(path=%s)", path);
     if (!strlen(path)) {
-        sys_file_realpath_response(message, OsInvalidParameters, "");
+        sys_file_realpath_response(message, OS_EINVALPARAMS, "");
         return;
     }
 
     request = CreateRequest(message, UUID_INVALID);
     if (!request) {
-        sys_file_realpath_response(message, OsOutOfMemory, "");
+        sys_file_realpath_response(message, OS_EOOM, "");
         return;
     }
 
@@ -575,7 +575,7 @@ void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t pro
     TRACE("sys_file_ststat_invocation()");
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_ststat_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_ststat_response(message, OS_EOOM, &gdescriptor);
         return;
     }
 
@@ -590,13 +590,13 @@ void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_
 
     TRACE("sys_file_ststat_path_invocation()");
     if (!strlen(filePath)) {
-        sys_file_ststat_path_response(message, OsInvalidParameters, &gdescriptor);
+        sys_file_ststat_path_response(message, OS_EINVALPARAMS, &gdescriptor);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_file_ststat_path_response(message, OsOutOfMemory, &gdescriptor);
+        sys_file_ststat_path_response(message, OS_EOOM, &gdescriptor);
         return;
     }
 
@@ -612,13 +612,13 @@ void sys_mount_mount_invocation(struct gracht_message* message, const uuid_t pro
 
     TRACE("sys_mount_mount_invocation()");
     if (!strlen(at)) {
-        sys_mount_mount_response(message, OsInvalidParameters);
+        sys_mount_mount_response(message, OS_EINVALPARAMS);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_mount_mount_response(message, OsOutOfMemory);
+        sys_mount_mount_response(message, OS_EOOM);
         return;
     }
 
@@ -635,13 +635,13 @@ void sys_mount_unmount_invocation(struct gracht_message* message, const uuid_t p
 
     TRACE("sys_mount_unmount_invocation()");
     if (!strlen(path)) {
-        sys_mount_mount_response(message, OsInvalidParameters);
+        sys_mount_mount_response(message, OS_EINVALPARAMS);
         return;
     }
 
     request = CreateRequest(message, processId);
     if (!request) {
-        sys_mount_mount_response(message, OsOutOfMemory);
+        sys_mount_mount_response(message, OS_EOOM);
         return;
     }
 

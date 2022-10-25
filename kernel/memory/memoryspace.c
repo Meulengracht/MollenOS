@@ -141,7 +141,7 @@ __CreateContext(
 {
     MemorySpaceContext_t* context = (MemorySpaceContext_t*)kmalloc(sizeof(MemorySpaceContext_t));
     if (!context) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
@@ -151,7 +151,7 @@ __CreateContext(
     context->SignalHandler = 0;
 
     memorySpace->Context = context;
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -234,7 +234,7 @@ CreateMemorySpace(
 
     memorySpace = __NewMemorySpace(flags);
     if (!memorySpace) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // We must handle two cases here, either we inherit the kernels address-space, or we are
@@ -258,7 +258,7 @@ CreateMemorySpace(
                 memorySpace,
                 (flags & MEMORY_SPACE_INHERIT) ? 1 : 0
         );
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
 
@@ -302,7 +302,7 @@ CreateMemorySpace(
         }
 
         osStatus = MmuCloneVirtualSpace(parent, memorySpace, (flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
 
@@ -311,7 +311,7 @@ CreateMemorySpace(
     else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -382,7 +382,7 @@ AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2)
 {
-    return (Space1->Context == Space2->Context) ? OsOK : OsError;
+    return (Space1->Context == Space2->Context) ? OS_EOK : OS_EUNKNOWN;
 }
 
 static oserr_t
@@ -393,7 +393,7 @@ __CreateAllocation(
         _In_ unsigned int   flags)
 {
     struct MemorySpaceAllocation* allocation;
-    oserr_t                    osStatus = OsOK;
+    oserr_t                    osStatus = OS_EOK;
 
     TRACE("__CreateAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
           memorySpace, address, length, flags);
@@ -405,7 +405,7 @@ __CreateAllocation(
 
     allocation = kmalloc(sizeof(struct MemorySpaceAllocation));
     if (!allocation) {
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
         goto exit;
     }
 
@@ -462,7 +462,7 @@ __AllocateVirtualMemory(
                 // then we would have to guard against eternal loops as-well as the __CreateAllocation actually calls
                 // kmalloc
                 oserr_t osStatus = __CreateAllocation(memorySpace, virtualBase, size, memoryFlags);
-                if (osStatus != OsOK) {
+                if (osStatus != OS_EOK) {
                     ERROR("__AllocateVirtualMemory failed to register allocation");
                     DynamicMemoryPoolFree(&memorySpace->Context->Heap, size);
                     virtualBase = 0;
@@ -536,7 +536,7 @@ MemorySpaceMap(
     }
     else if (memoryFlags & MAPPING_COMMIT) {
         osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR("MemorySpaceMap failed to allocate physical memory for mapping");
             return osStatus;
         }
@@ -549,7 +549,7 @@ MemorySpaceMap(
         // Cleanup physical mappings
         // TODO
         ERROR("MemorySpaceMap implement cleanup of phys virt");
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     osStatus = ArchMmuSetVirtualPages(
@@ -560,7 +560,7 @@ MemorySpaceMap(
             memoryFlags,
             &pagesUpdated
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // Handle cleanup of the pages not mapped
         // TODO
         ERROR("MemorySpaceMap implement cleanup of phys/virt");
@@ -595,12 +595,12 @@ MemorySpaceMapContiguous(
     // went wrong during the phase to figure out where to place
     VirtualBase = __AllocateVirtualMemory(MemorySpace, Address, Length, MemoryFlags, PlacementFlags);
     if (!VirtualBase) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     Status = ArchMmuSetContiguousVirtualPages(MemorySpace, VirtualBase, 
         PhysicalStartAddress, PageCount, MemoryFlags, &PagesUpdated);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         // Handle cleanup of the pages not mapped
         // TODO
         ERROR("[memory_map_contiguous] implement cleanup");
@@ -624,7 +624,7 @@ MemorySpaceMapReserved(
     TRACE("[memory_map_reserve] %u, 0x%x, 0x%x", LODWORD(size), memoryFlags, placementFlags);
 
     if (!memorySpace || !address) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Clear the COMMIT flag if provided
@@ -634,11 +634,11 @@ MemorySpaceMapReserved(
     // went wrong during the phase to figure out where to place
     virtualBase = __AllocateVirtualMemory(memorySpace, address, size, memoryFlags, placementFlags);
     if (!virtualBase) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     osStatus = ArchMmuReserveVirtualPages(memorySpace, virtualBase, pageCount, memoryFlags, &pagesReserved);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // Handle cleanup of the pages not mapped
         // TODO
         ERROR("[memory_map_reserve] implement cleanup");
@@ -660,19 +660,19 @@ MemorySpaceCommit(
     oserr_t osStatus;
 
     if (!memorySpace || !physicalAddressValues) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!(placementFlags & MAPPING_PHYSICAL_FIXED)) {
         osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
     }
 
     osStatus = ArchMmuCommitVirtualPage(memorySpace, address, &physicalAddressValues[0],
                                         pageCount, &pagesComitted);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("[memory] [commit] status %u, comitting address 0x%" PRIxIN ", length 0x%" PRIxIN,
               osStatus, address, size);
         if (!(placementFlags & MAPPING_PHYSICAL_FIXED)) {
@@ -700,12 +700,12 @@ static oserr_t __GetAndVerifyPhysicalMapping(
     // the mapping, otherwise the mapping can get out of sync. And we do not want that.
     physicalAddresses = (uintptr_t*)kmalloc(pageCount * sizeof(uintptr_t));
     if (!physicalAddresses) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Allocate a temporary array to store physical mappings
     osStatus = ArchMmuVirtualToPhysical(sourceSpace, address, pageCount, &physicalAddresses[0], &pagesRetrieved);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         kfree(physicalAddresses);
         return osStatus;
     }
@@ -716,7 +716,7 @@ static oserr_t __GetAndVerifyPhysicalMapping(
         if (!physicalAddresses[i]) {
             ERROR("__GetAndVerifyPhysicalMapping offset %i was 0 [0x%" PRIxIN "]",
                   i, address + (i * GetMemorySpacePageSize()));
-            osStatus = OsError;
+            osStatus = OS_EUNKNOWN;
         }
     }
 
@@ -777,7 +777,7 @@ __ClearPhysicalPages(
     pageCount = DIVUP(size, GetMemorySpacePageSize());
     addresses = kmalloc(sizeof(paddr_t) * pageCount);
     if (!addresses) {
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
         goto exit;
     }
 
@@ -821,7 +821,7 @@ __ReleaseAllocation(
             if (allocation->References) {
                 // still has references so we just free virtual
                 MutexUnlock(&memorySpace->Context->SyncObject);
-                osStatus = OsOK;
+                osStatus = OS_EOK;
                 goto exit;
             }
 
@@ -893,7 +893,7 @@ MemorySpaceCloneMapping(
           sourceSpace, destinationSpace, sourceAddress, length, memoryFlags);
 
     if (!sourceSpace || !destinationSpace || !destinationAddress) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // increase reference of the source allocation first, to "acquire" it.
@@ -906,7 +906,7 @@ MemorySpaceCloneMapping(
             &physicalAddressValues,
             &pagesRetrieved
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto exit;
     }
 
@@ -918,7 +918,7 @@ MemorySpaceCloneMapping(
             placementFlags
     );
     if (virtualBase == 0) {
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
         goto exit;
     }
 
@@ -935,8 +935,8 @@ MemorySpaceCloneMapping(
             memoryFlags | MAPPING_PERSISTENT | MAPPING_COMMIT,
             &pagesUpdated
     );
-    if (osStatus == OsOK && pagesUpdated != pageCount) {
-        osStatus = OsIncomplete;
+    if (osStatus == OS_EOK && pagesUpdated != pageCount) {
+        osStatus = OS_EINCOMPLETE;
     }
 
 exit:
@@ -944,7 +944,7 @@ exit:
         kfree(physicalAddressValues);
     }
 
-    if (osStatus != OsOK && osStatus != OsIncomplete) {
+    if (osStatus != OS_EOK && osStatus != OS_EINCOMPLETE) {
         if (sourceAllocation) {
             __ReleaseAllocation(sourceSpace, sourceAddress, length);
         }
@@ -965,11 +965,11 @@ MemorySpaceUnmap(
           memorySpace, address, size);
 
     if (!memorySpace || !size || !address) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     osStatus = __ReleaseAllocation(memorySpace, address, size);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto exit;
     }
 
@@ -1002,13 +1002,13 @@ MemorySpaceChangeProtection(
     oserr_t osStatus;
 
     if (!memorySpace || !length || !previousAttributes) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     *previousAttributes = attributes;
     osStatus = ArchMmuUpdatePageAttributes(memorySpace, address, pageCount,
                                            previousAttributes, &pagesUpdated);
-    if (osStatus != OsOK && osStatus != OsIncomplete) {
+    if (osStatus != OS_EOK && osStatus != OS_EINCOMPLETE) {
         return osStatus;
     }
     __SyncMemoryRegion(memorySpace, address, length);
@@ -1024,7 +1024,7 @@ MemorySpaceQuery(
     struct MemorySpaceAllocation* allocation;
 
     if (!memorySpace || !memorySpace->Context) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     MutexLock(&memorySpace->Context->SyncObject);
@@ -1032,13 +1032,13 @@ MemorySpaceQuery(
     MutexUnlock(&memorySpace->Context->SyncObject);
 
     if (!allocation) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     descriptor->StartAddress = allocation->Address;
     descriptor->AllocationSize = allocation->Length;
     descriptor->Attributes = allocation->Flags;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -1052,7 +1052,7 @@ GetMemorySpaceMapping(
     int        pagesRetrieved;
     
     if (!memorySpace || !dmaVectorOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     osStatus = ArchMmuVirtualToPhysical(memorySpace, address, pageCount, dmaVectorOut, &pagesRetrieved);
@@ -1070,7 +1070,7 @@ GetMemorySpaceAttributes(
     int pagesRetrieved;
 
     if (!memorySpace || !pageCount || !attributesArray) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return ArchMmuGetPageAttributes(memorySpace, address, pageCount, attributesArray, &pagesRetrieved);
 }
@@ -1085,12 +1085,12 @@ IsMemorySpacePageDirty(
     int          pagesRetrieved;
 
     if (!memorySpace) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     osStatus = ArchMmuGetPageAttributes(memorySpace, address, 1, &flags, &pagesRetrieved);
-    if (osStatus == OsOK && !(flags & MAPPING_ISDIRTY)) {
-        osStatus = OsError;
+    if (osStatus == OS_EOK && !(flags & MAPPING_ISDIRTY)) {
+        osStatus = OS_EUNKNOWN;
     }
     return osStatus;
 }
@@ -1105,12 +1105,12 @@ IsMemorySpacePagePresent(
     int          pagesRetrieved;
 
     if (!memorySpace) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     osStatus = ArchMmuGetPageAttributes(memorySpace, address, 1, &flags, &pagesRetrieved);
-    if (osStatus == OsOK && !(flags & MAPPING_COMMIT)) {
-        osStatus = OsNotExists;
+    if (osStatus == OS_EOK && !(flags & MAPPING_COMMIT)) {
+        osStatus = OS_ENOENT;
     }
     return osStatus;
 }
@@ -1121,11 +1121,11 @@ MemorySpaceSetSignalHandler(
         _In_ vaddr_t        signalHandlerAddress)
 {
     if (!memorySpace || !memorySpace->Context) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     memorySpace->Context->SignalHandler = signalHandlerAddress;
-    return OsOK;
+    return OS_EOK;
 }
 
 vaddr_t

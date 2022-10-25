@@ -106,7 +106,7 @@ void sys_device_register_invocation(
 
     request = CreateRequest(message);
     if (!request) {
-        sys_device_register_response(message, OsOutOfMemory, UUID_INVALID);
+        sys_device_register_response(message, OS_EOOM, UUID_INVALID);
         return;
     }
 
@@ -123,7 +123,7 @@ void sys_device_unregister_invocation(struct gracht_message* message, const uuid
 
     request = CreateRequest(message);
     if (!request) {
-        sys_device_unregister_response(message, OsOutOfMemory);
+        sys_device_unregister_response(message, OS_EOOM);
         return;
     }
 
@@ -140,7 +140,7 @@ void sys_device_ioctl_invocation(struct gracht_message* message,
 
     request = CreateRequest(message);
     if (!request) {
-        sys_device_ioctl_response(message, OsOutOfMemory);
+        sys_device_ioctl_response(message, OS_EOOM);
         return;
     }
 
@@ -160,7 +160,7 @@ void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t 
 
     request = CreateRequest(message);
     if (!request) {
-        sys_device_ioctlex_response(message, OsOutOfMemory, 0);
+        sys_device_ioctlex_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -180,7 +180,7 @@ void sys_device_get_devices_by_protocol_invocation(struct gracht_message* messag
 
     request = CreateRequest(message);
     if (!request) {
-        sys_device_ioctlex_response(message, OsOutOfMemory, 0);
+        sys_device_ioctlex_response(message, OS_EOOM, 0);
         return;
     }
 

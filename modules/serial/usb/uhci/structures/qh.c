@@ -51,7 +51,7 @@ UhciQhInitialize(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
-    oserr_t       osStatus = OsOK;
+    oserr_t       osStatus = OS_EOK;
 
     queueHead->Link  = UHCI_LINK_END;
     queueHead->Child = UHCI_LINK_END;
@@ -67,7 +67,7 @@ UhciQhInitialize(
                                                  transfer->Transfer.Type,
                                                  transfer->Transfer.Speed,
                                                  (uint8_t*)queueHead);
-        if (osStatus != OsError) {
+        if (osStatus != OS_EUNKNOWN) {
             UhciQhCalculateQueue(queueHead);
         }
     }

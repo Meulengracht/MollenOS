@@ -82,7 +82,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
     dma.length = MB(1);
     dma.capacity = MB(1);
     oserr = DmaCreate(&dma, &dmaAttachment);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return NULL;
     }
 
@@ -125,13 +125,13 @@ FsInitialize(
     // Start out by stat'ing the storage device, we don't need
     // need to do any cleanup if this should fail.
     oserr = FSStorageStat(storageParameters, &stats);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     context = __ValiFSContextNew(storageParameters, &stats);
     if (context == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = vafs_open_ops(
@@ -141,17 +141,17 @@ FsInitialize(
     );
     if (status) {
         __ValiFSContextDelete(context);
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
 
     status = __ValiFSHandleFilter(context->ValiFS);
     if (status) {
         __ValiFSContextDelete(context);
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     *instanceData = context;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -163,7 +163,7 @@ FsDestroy(
     _CRT_UNUSED(unmountFlags);
 
     __ValiFSContextDelete(context);
-    return OsOK;
+    return OS_EOK;
 }
 
 static struct __ValiFSHandle* __ValiFSHandleNew(
@@ -200,7 +200,7 @@ FsOpen(
     // VaFS luckily tells us the difference with EEXIST and EISDIR.
     cpath = mstr_u8(path);
     if (cpath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = vafs_file_open(context->ValiFS, cpath, &fileHandle);
@@ -209,19 +209,19 @@ FsOpen(
             status = vafs_directory_open(context->ValiFS, cpath, &dirHandle);
             free(cpath);
             if (status) {
-                return OsInvalidParameters;
+                return OS_EINVALPARAMS;
             }
             *dataOut = __ValiFSHandleNew(VALIFS_HANDLE_TYPE_DIR, dirHandle);
-            return OsOK;
+            return OS_EOK;
         } else if (errno == ENOENT) {
-            return OsNotExists;
+            return OS_ENOENT;
         } else {
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
     free(cpath);
     *dataOut = __ValiFSHandleNew(VALIFS_HANDLE_TYPE_FILE, fileHandle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -243,7 +243,7 @@ FsCreate(
     _CRT_UNUSED(flags);
     _CRT_UNUSED(permissions);
     _CRT_UNUSED(dataOut);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -258,15 +258,15 @@ FsClose(
     switch (handle->Type) {
         case VALIFS_HANDLE_TYPE_FILE:
             vafs_file_close(handle->Value.File);
-            return OsOK;
+            return OS_EOK;
         case VALIFS_HANDLE_TYPE_DIR:
             vafs_directory_close(handle->Value.Directory);
-            return OsOK;
+            return OS_EOK;
         case VALIFS_HANDLE_TYPE_SYMLINK:
             vafs_symlink_close(handle->Value.Symlink);
-            return OsOK;
+            return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -281,7 +281,7 @@ FsStat(
     stat->BlocksPerSegment = 1;
     stat->SegmentsTotal = 0;
     stat->SegmentsFree = 0;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -299,7 +299,7 @@ FsLink(
     _CRT_UNUSED(linkName);
     _CRT_UNUSED(linkTarget);
     _CRT_UNUSED(symbolic);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -312,7 +312,7 @@ FsUnlink(
     // removal is still not supported.
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(path);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -328,26 +328,26 @@ FsReadLink(
 
     cpath = mstr_u8(path);
     if (cpath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = vafs_symlink_open(context->ValiFS, cpath, &handle);
     free(cpath);
     if (status) {
         if (errno == ENOENT) {
-            return OsNotExists;
+            return OS_ENOENT;
         } else if (errno == EISDIR) {
-            return OsPathIsDirectory;
+            return OS_EISDIR;
         } else if (errno == ENOTDIR) {
-            return OsPathIsNotDirectory;
+            return OS_ENOTDIR;
         }
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     cpath = malloc(VAFS_PATH_MAX);
     if (cpath == NULL) {
         vafs_symlink_close(handle);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     (void)vafs_symlink_target(handle, cpath, VAFS_PATH_MAX);
@@ -355,7 +355,7 @@ FsReadLink(
 
     *pathOut = mstr_new_u8(cpath);
     free(cpath);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -371,7 +371,7 @@ FsMove(
     _CRT_UNUSED(from);
     _CRT_UNUSED(to);
     _CRT_UNUSED(copy);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static uint32_t __ConvertTypeToFlags(
@@ -416,7 +416,7 @@ FsRead(
                     ((char*)buffer + bufferOffset),
                     unitCount
             );
-            return OsOK;
+            return OS_EOK;
         case VALIFS_HANDLE_TYPE_DIR:
             size_t          entriesToRead = unitCount / sizeof(struct VFSStat);
             size_t          entriesLeft = entriesToRead;
@@ -436,9 +436,9 @@ FsRead(
                 stat++;
             }
             *unitsRead = (entriesToRead - entriesLeft) * sizeof(struct VFSStat);
-            return OsOK;
+            return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -461,7 +461,7 @@ FsWrite(
     _CRT_UNUSED(bufferOffset);
     _CRT_UNUSED(unitCount);
     _CRT_UNUSED(unitsWritten);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -475,7 +475,7 @@ FsTruncate(
     _CRT_UNUSED(instanceData);
     _CRT_UNUSED(data);
     _CRT_UNUSED(size);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -496,10 +496,10 @@ FsSeek(
                     (long)absolutePosition,
                     SEEK_SET
             );
-            return OsOK;
+            return OS_EOK;
             // TODO VALIFS_HANDLE_TYPE_DIR:
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static uint64_t __GetSize(struct __ValiFSContext* context) {
@@ -565,7 +565,7 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
             count,
             &sectorsRead
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }
 
@@ -578,5 +578,5 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
             context->Buffer.buffer,
             count
     );
-    return OsOK;
+    return OS_EOK;
 }

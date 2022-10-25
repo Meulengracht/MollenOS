@@ -258,7 +258,7 @@ FutexWait(
         // implementation, which occurs during boot up of cores before a scheduler is running.
         // In this case we want the semaphore to act like a spinlock, which it will if we just
         // return anything else than OsTimeout.
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
     
     // Get the futex context, if the context is private
@@ -270,8 +270,8 @@ FutexWait(
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsOK) {
-            return OsNotExists;
+                1, &FutexAddress) != OS_EOK) {
+            return OS_ENOENT;
         }
     }
 
@@ -286,7 +286,7 @@ FutexWait(
     if (!FutexItem) {
         FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
         if (!FutexItem) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
     }
     
@@ -294,7 +294,7 @@ FutexWait(
     if (atomic_load(Futex) != ExpectedValue) {
         (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
         InterruptRestoreState(CpuState);
-        return OsInterrupted;
+        return OS_EINTERRUPTED;
     }
     
     SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
@@ -327,7 +327,7 @@ FutexWaitOperation(
         // implementation, which occurs during boot up of cores before a scheduler is running.
         // In this case we want the semaphore to act like a spinlock, which it will if we just
         // return anything else than OsTimeout.
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
     
     // Get the futex context, if the context is private
@@ -338,8 +338,8 @@ FutexWaitOperation(
         futexAddress = (uintptr_t)Futex;
     } else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &futexAddress) != OsOK) {
-            return OsNotExists;
+                1, &futexAddress) != OS_EOK) {
+            return OS_ENOENT;
         }
     }
 
@@ -354,7 +354,7 @@ FutexWaitOperation(
     if (!futexItem) {
         futexItem = FutexCreateNode(bucket, futexAddress, context);
         if (!futexItem) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
     }
     
@@ -362,7 +362,7 @@ FutexWaitOperation(
     if (atomic_load(Futex) != ExpectedValue) {
         (void)atomic_fetch_sub(&futexItem->Waiters, 1);
         InterruptRestoreState(irqstate);
-        return OsInterrupted;
+        return OS_EINTERRUPTED;
     }
     
     SchedulerBlock(&futexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
@@ -384,7 +384,7 @@ FutexWake(
     MemorySpaceContext_t* Context = NULL;
     FutexBucket_t*        Bucket;
     FutexItem_t*          FutexItem;
-    oserr_t               Status = OsNotExists;
+    oserr_t               Status = OS_ENOENT;
     uintptr_t             FutexAddress;
     int                   WaiterCount;
     int                   i;
@@ -398,8 +398,8 @@ FutexWake(
     }
     else {
         if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OsOK) {
-            return OsNotExists;
+                1, &FutexAddress) != OS_EOK) {
+            return OS_ENOENT;
         }
     }
     
@@ -407,7 +407,7 @@ FutexWake(
 
     FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     WaiterCount = atomic_load(&FutexItem->Waiters);
@@ -430,7 +430,7 @@ WakeWaiters:
         
         if (Front) {
             Status = SchedulerQueueObject(Front->value);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 break;
             }
         }

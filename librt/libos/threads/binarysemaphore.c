@@ -24,13 +24,13 @@ BinarySemaphoreInitialize(
         _In_ int                value)
 {
 	if (value < 0 || value > 1) {
-		return OsError;
+		return OS_EUNKNOWN;
 	}
 
     MutexInitialize(&binarySemaphore->Mutex, MUTEX_PLAIN);
     ConditionInitialize(&binarySemaphore->Condition);
     binarySemaphore->Value = value;
-	return OsOK;
+	return OS_EOK;
 }
 
 void

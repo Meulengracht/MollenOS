@@ -73,13 +73,13 @@ AllocateSyncAddress(
     uintptr_t   userAddress;
     void*       kernelAddress = MemoryCacheAllocate(syncAddressCache);
     if (!kernelAddress) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     offsetInPage = (uintptr_t)kernelAddress % GetMemorySpacePageSize();
     status       = GetMemorySpaceMapping(GetCurrentMemorySpace(),
                                          (vaddr_t)kernelAddress, 1, &dmaAddress);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
@@ -93,7 +93,7 @@ AllocateSyncAddress(
             MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
             MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
     );
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
         return status;
     }
@@ -101,7 +101,7 @@ AllocateSyncAddress(
     event->kernel_mapping    = (atomic_int*)kernelAddress;
     event->userspace_mapping = (atomic_int*)(userAddress + offsetInPage);
     atomic_store(event->kernel_mapping, 0);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -116,16 +116,16 @@ UserEventCreate(
     oserr_t   status;
 
     if (!handleOut || !syncAddressOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     event = kmalloc(sizeof(UserEvent_t));
     if (!event) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = AllocateSyncAddress(event);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         kfree(event);
         return status;
     }
@@ -137,7 +137,7 @@ UserEventCreate(
     if (handle == UUID_INVALID) {
         MemoryCacheFree(syncAddressCache, event->kernel_mapping);
         kfree(event);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (EVT_TYPE(flags) == EVT_TIMEOUT_EVENT) {
@@ -146,7 +146,7 @@ UserEventCreate(
 
     *handleOut      = handle;
     *syncAddressOut = event->userspace_mapping;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -154,14 +154,14 @@ UserEventSignal(
         _In_ uuid_t handle)
 {
     UserEvent_t* event  = LookupHandleOfType(handle, HandleTypeUserEvent);
-    oserr_t      status = OsIncomplete;
+    oserr_t      status = OS_EINCOMPLETE;
     int          currentValue;
     int          i;
     int          result;
     int          value = 1;
 
     if (!event) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // assert not max

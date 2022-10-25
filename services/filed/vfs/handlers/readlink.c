@@ -27,16 +27,16 @@ oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, mstring_t**
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.stat_handle.fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     if (handle->Node->Stats.Flags & __FILE_LINK) {
         *linkOut = mstr_clone(handle->Node->Stats.LinkTarget);
-        osStatus = OsOK;
+        osStatus = OS_EOK;
     } else {
-        osStatus = OsLinkInvalid;
+        osStatus = OS_ELINKINVAL;
     }
     usched_rwlock_r_unlock(&handle->Node->Lock);
     VFSNodeHandlePut(handle);

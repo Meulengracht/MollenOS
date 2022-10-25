@@ -79,7 +79,7 @@ ThreadsCreate(
     // Allocate a new startup-package
     startupContext = malloc(sizeof(struct ThreadStartupContext));
     if (startupContext == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     *threadId = UUID_INVALID;
 
@@ -92,7 +92,7 @@ ThreadsCreate(
             parameters,
             threadId
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         free(startupContext);
     }
     return oserr;
@@ -122,7 +122,7 @@ ThreadsSleep(
     oserr_t         oserr;
 
     if (until == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // the duration value is actually a timepoint specified in UTC. So we actually need to
@@ -139,7 +139,7 @@ ThreadsSleep(
     ns.QuadPart -= (current.tv_sec * NSEC_PER_SEC) + current.tv_nsec;
 
     oserr = Syscall_Sleep(&ns, &nsRemaining);
-    if (oserr == OsInterrupted) {
+    if (oserr == OS_EINTERRUPTED) {
         if (remaining) {
             remaining->tv_sec  = (time_t)(nsRemaining.QuadPart / NSEC_PER_SEC);
             remaining->tv_nsec = (long)(nsRemaining.QuadPart % NSEC_PER_SEC);
@@ -171,7 +171,7 @@ ThreadsJoin(
         _Out_ int*   exitCode)
 {
     if (exitCode == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_ThreadJoin(threadId, exitCode);
 }

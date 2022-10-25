@@ -102,13 +102,13 @@ void sys_process_spawn_invocation(struct gracht_message* message, const char* pa
     TRACE("sys_process_spawn_invocation()");
 
     if (!strlen(path)) {
-        sys_process_spawn_response(message, OsInvalidParameters, UUID_INVALID);
+        sys_process_spawn_response(message, OS_EINVALPARAMS, UUID_INVALID);
         return;
     }
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_spawn_response(message, OsOutOfMemory, UUID_INVALID);
+        sys_process_spawn_response(message, OS_EOOM, UUID_INVALID);
         return;
     }
 
@@ -128,7 +128,7 @@ void sys_process_get_startup_information_invocation(struct gracht_message* messa
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_get_startup_information_response(message, OsOutOfMemory, UUID_INVALID);
+        sys_process_get_startup_information_response(message, OS_EOOM, UUID_INVALID);
         return;
     }
 
@@ -146,7 +146,7 @@ void sys_process_join_invocation(struct gracht_message* message, const uuid_t ha
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_join_response(message, OsOutOfMemory, 0);
+        sys_process_join_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -163,7 +163,7 @@ void sys_process_terminate_invocation(struct gracht_message* message, const uuid
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_terminate_response(message, OsOutOfMemory);
+        sys_process_terminate_response(message, OS_EOOM);
         return;
     }
 
@@ -180,7 +180,7 @@ void sys_process_signal_invocation(struct gracht_message* message, const uuid_t 
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_signal_response(message, OsOutOfMemory);
+        sys_process_signal_response(message, OS_EOOM);
         return;
     }
 
@@ -197,7 +197,7 @@ void sys_library_load_invocation(struct gracht_message* message, const uuid_t pr
 
     request = CreateRequest(message);
     if (!request) {
-        sys_library_load_response(message, OsOutOfMemory, UUID_INVALID, 0);
+        sys_library_load_response(message, OS_EOOM, UUID_INVALID, 0);
         return;
     }
 
@@ -215,7 +215,7 @@ void sys_library_get_function_invocation(struct gracht_message* message, const u
 
     request = CreateRequest(message);
     if (!request) {
-        sys_library_get_function_response(message, OsOutOfMemory, 0);
+        sys_library_get_function_response(message, OS_EOOM, 0);
         return;
     }
 
@@ -233,7 +233,7 @@ void sys_library_unload_invocation(struct gracht_message* message, const uuid_t 
 
     request = CreateRequest(message);
     if (!request) {
-        sys_library_unload_response(message, OsOutOfMemory);
+        sys_library_unload_response(message, OS_EOOM);
         return;
     }
 
@@ -266,7 +266,7 @@ void sys_process_get_tick_base_invocation(struct gracht_message* message, const 
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_get_tick_base_response(message, OsOutOfMemory, 0, 0);
+        sys_process_get_tick_base_response(message, OS_EOOM, 0, 0);
         return;
     }
 
@@ -282,7 +282,7 @@ void sys_process_get_assembly_directory_invocation(struct gracht_message* messag
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_get_assembly_directory_response(message, OsOutOfMemory, "");
+        sys_process_get_assembly_directory_response(message, OS_EOOM, "");
         return;
     }
 
@@ -298,7 +298,7 @@ void sys_process_get_working_directory_invocation(struct gracht_message* message
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_get_working_directory_response(message, OsOutOfMemory, "");
+        sys_process_get_working_directory_response(message, OS_EOOM, "");
         return;
     }
 
@@ -314,7 +314,7 @@ void sys_process_set_working_directory_invocation(struct gracht_message* message
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_set_working_directory_response(message, OsOutOfMemory);
+        sys_process_set_working_directory_response(message, OS_EOOM);
         return;
     }
 
@@ -331,7 +331,7 @@ void sys_process_get_name_invocation(struct gracht_message* message, const uuid_
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_get_name_response(message, OsOutOfMemory, "");
+        sys_process_get_name_response(message, OS_EOOM, "");
         return;
     }
 
@@ -349,7 +349,7 @@ void sys_process_report_crash_invocation(struct gracht_message* message, const u
 
     request = CreateRequest(message);
     if (!request) {
-        sys_process_report_crash_response(message, OsOutOfMemory);
+        sys_process_report_crash_response(message, OS_EOOM);
         return;
     }
 

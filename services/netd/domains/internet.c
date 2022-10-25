@@ -34,5 +34,5 @@ DomainInternetCreate(
     _In_  int              DomainType,
     _Out_ SocketDomain_t** DomainOut)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }

@@ -175,7 +175,7 @@ MmVirtualClone(
 
     pageDirectory = (PageDirectory_t*)kmalloc_p(sizeof(PageDirectory_t), &pagedirectoryPhysical);
     if (!pageDirectory) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(pageDirectory, 0, sizeof(PageDirectory_t));
 
@@ -188,7 +188,7 @@ MmVirtualClone(
     virtualAddress = (vaddr_t)kmalloc_p(sizeof(PageTable_t), &physicalAddress);
     if (!virtualAddress) {
         kfree(pageDirectory);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset((void*)virtualAddress, 0, sizeof(PageTable_t));
 
@@ -225,7 +225,7 @@ MmVirtualClone(
     }
 	*cr3Out  = pagedirectoryPhysical;
     *pdirOut = (uintptr_t)pageDirectory;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -275,7 +275,7 @@ MmuDestroyVirtualSpace(
     if (memorySpace->ParentHandle == UUID_INVALID) {
         kfree((void*)memorySpace->PlatfromData.TssIoMap);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 #if defined(__clang__)

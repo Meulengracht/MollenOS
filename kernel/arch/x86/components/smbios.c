@@ -37,10 +37,10 @@ SmBiosLocate(void)
     {
         if (*((uintptr_t*)Address) == SMBIOS_SIGNATURE) {
             memcpy((void*)&g_smbios, (const void*)Address, sizeof(SmBiosTable_t));
-            return OsOK;
+            return OS_EOK;
         }
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 static oserr_t
@@ -51,21 +51,21 @@ __FindSmBiosInConfigurationTable(
     void* table;
 
     if (!configurationTable || !count) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     table = __LocateGuidInConfigurationTable(configurationTable, count, g_smbios3Guid);
     if (table) {
         memcpy((void*)&g_smbios, (const void*)table, sizeof(SmBiosTable_t));
-        return OsOK;
+        return OS_EOK;
     }
 
     table = __LocateGuidInConfigurationTable(configurationTable, count, g_smbiosGuid);
     if (table) {
         memcpy((void*)&g_smbios, (const void*)table, sizeof(SmBiosTable_t));
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotExists;
+    return OS_ENOENT;
 }
 
 oserr_t
@@ -76,7 +76,7 @@ SmBiosInitialize(void)
     oserr_t osStatus = __FindSmBiosInConfigurationTable(
             (void*)GetMachine()->BootInformation.ConfigurationTable,
             GetMachine()->BootInformation.ConfigurationTableCount);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return SmBiosLocate();
     }
     return osStatus;

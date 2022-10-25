@@ -44,7 +44,7 @@ ApicWaitForIdle(void)
 {
     int Error = 0;
     WaitForConditionWithFault(Error, (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0, 200, 1);
-	return (Error == 0) ? OsOK : OsError;
+	return (Error == 0) ? OS_EOK : OS_EUNKNOWN;
 }
 
 void
@@ -57,13 +57,13 @@ ApicSynchronizeArbIds(void)
 	// So we need a check here in place to do it @todo
     interruptStatus = InterruptDisable();
     osStatus        = ApicWaitForIdle();
-    assert(osStatus != OsError);
+    assert(osStatus != OS_EUNKNOWN);
 
 	ApicWriteLocal(APIC_ICR_HIGH,   0);
 	ApicWriteLocal(APIC_ICR_LOW,    APIC_ICR_SH_ALL | APIC_TRIGGER_LEVEL | APIC_DELIVERY_MODE(APIC_MODE_INIT));
 
     osStatus = ApicWaitForIdle();
-    assert(osStatus != OsError);
+    assert(osStatus != OS_EUNKNOWN);
     InterruptRestoreState(interruptStatus);
 }
 
@@ -107,7 +107,7 @@ ApicSendInterrupt(
     // busy we don't want to clear it as we already a send pending, just queue up interrupt
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    if (Status == OsOK) {
+    if (Status == OS_EOK) {
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
         Status = ApicWaitForIdle();
@@ -137,7 +137,7 @@ ApicPerformIPI(
 	// Wait for ICR to clear
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    if (Status == OsOK) {
+    if (Status == OS_EOK) {
         // Always write upper first, irq is sent when low is written
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
@@ -167,7 +167,7 @@ ApicPerformSIPI(
 	// Wait for ICR to clear
     InterruptStatus = InterruptDisable();
 	Status          = ApicWaitForIdle();
-    if (Status == OsOK) {
+    if (Status == OS_EOK) {
         // Always write upper first, irq is sent when low is written
         ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
         ApicWriteLocal(APIC_ICR_LOW,  IpiLow);

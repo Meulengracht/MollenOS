@@ -43,7 +43,7 @@ void ServiceInitialize(void)
     gracht_server_register_protocol(__crt_get_service_server(), &sys_usb_server_protocol);
 
     // Initialize all subsystems
-    if (UsbCoreInitialize() != OsOK) {
+    if (UsbCoreInitialize() != OS_EOK) {
         exit(-1);
     }
 }

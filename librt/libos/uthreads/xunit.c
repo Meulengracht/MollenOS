@@ -85,7 +85,7 @@ static void __execution_unit_construct(struct usched_execution_unit* unit)
 static int __get_cpu_count(void)
 {
     SystemDescriptor_t descriptor;
-    if (SystemQuery(&descriptor) != OsOK) {
+    if (SystemQuery(&descriptor) != OS_EOK) {
         return 1;
     }
     return (int)descriptor.NumberOfActiveCores;

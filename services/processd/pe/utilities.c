@@ -65,7 +65,7 @@ PeResolveLibrary(
     // Sanitize the exports, if its null we have to resolve the library
     if (Exports == NULL) {
         Status = PeLoadImage(ExportParent->Owner, ExportParent, LibraryName, &Exports);
-        if (Status != OsOK) {
+        if (Status != OS_EOK) {
             dserror("Library %ms could not be loaded %u", LibraryName, Status);
         }
     }
@@ -102,7 +102,7 @@ PeGetModuleHandles(
     int index;
 
     if (!executable || !moduleList || !moduleCount) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     index    = 0;
@@ -122,7 +122,7 @@ PeGetModuleHandles(
     }
     
     *moduleCount = index;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -135,7 +135,7 @@ PeGetModuleEntryPoints(
     int index;
 
     if (!executable || !moduleList || !moduleCount) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     index    = 0;
@@ -158,5 +158,5 @@ PeGetModuleEntryPoints(
     }
     
     *moduleCount = index;
-    return OsOK;
+    return OS_EOK;
 }

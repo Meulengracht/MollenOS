@@ -85,14 +85,14 @@ static oserr_t __ReadBuffer(
 
     if (sourceOffset.QuadPart >= storage->Protocol.Storage.Memory.Size) {
         *read = 0;
-        return OsOK;
+        return OS_EOK;
     }
 
     bytesAvailable = storage->Protocol.Storage.Memory.Size -= (size_t)sourceOffset.QuadPart;
     // TODO transfer from one dma to another
 
     *read = bytesAvailable / 512;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __WriteBuffer(
@@ -110,12 +110,12 @@ static oserr_t __WriteBuffer(
 
     if (destinationOffset.QuadPart >= storage->Protocol.Storage.Memory.Size) {
         *written = 0;
-        return OsOK;
+        return OS_EOK;
     }
 
     bytesAvailable = storage->Protocol.Storage.Memory.Size -= (size_t)destinationOffset.QuadPart;
     // TODO transfer from one dma to another
 
     *written = bytesAvailable / 512;
-    return OsOK;
+    return OS_EOK;
 }

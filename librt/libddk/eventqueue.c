@@ -61,7 +61,7 @@ oserr_t CreateEventQueue(EventQueue_t** EventQueueOut)
 
     eventQueue = malloc(sizeof(EventQueue_t));
     if (!eventQueue) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     eventQueue->IsRunning   = 1;
@@ -71,14 +71,14 @@ oserr_t CreateEventQueue(EventQueue_t** EventQueueOut)
     ConditionInitialize(&eventQueue->EventCondition);
 
     ThreadParametersInitialize(&threadParameters);
-    if (ThreadsCreate(&eventQueue->EventThread, &threadParameters, EventQueueWorker, eventQueue) != OsOK) {
+    if (ThreadsCreate(&eventQueue->EventThread, &threadParameters, EventQueueWorker, eventQueue) != OS_EOK) {
         eventQueue->EventThread = UUID_INVALID;
         DestroyEventQueue(eventQueue);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *EventQueueOut = eventQueue;
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __CleanupEvent(element_t* element, void* context)
@@ -124,7 +124,7 @@ uuid_t QueuePeriodicEvent(EventQueue_t* eventQueue, EventQueueFunction callback,
 oserr_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
 {
     element_t* element;
-    oserr_t osStatus = OsNotExists;
+    oserr_t osStatus = OS_ENOENT;
     
     MutexLock(&eventQueue->EventLock);
     element = list_find(&eventQueue->Events, (void*)(uintptr_t)eventHandle);
@@ -132,7 +132,7 @@ oserr_t CancelEvent(EventQueue_t* eventQueue, uuid_t eventHandle)
         struct EventQueueEvent* event = element->value;
         if (event->State != EVENT_EXECUTED) {
             event->State = EVENT_CANCELLED;
-            osStatus = OsOK;
+            osStatus = OS_EOK;
         }
     }
     MutexUnlock(&eventQueue->EventLock);
@@ -225,7 +225,7 @@ static int EventQueueWorker(void* context)
             }
 
             TRACE("EventQueueWorker waiting");
-            if (ConditionTimedWait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint) == OsTimeout) {
+            if (ConditionTimedWait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint) == OS_ETIMEOUT) {
                 if (!eventQueue->IsRunning) {
                     break;
                 }

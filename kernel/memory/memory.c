@@ -89,14 +89,14 @@ __AddKernelMapping(
 
     if (g_kernelMappingIndex == g_kernelMappingCapacity - 1) {
         ERROR("__AddKernelMapping maximum number of kernel mappings reached");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     mapping = &g_kernelMappings[g_kernelMappingIndex++];
     mapping->PhysicalBase = physicalBase;
     mapping->VirtualBase  = virtualBase;
     mapping->Length       = length;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -112,7 +112,7 @@ __InitializeKernelMappings(
             memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT,
             (void**)&g_kernelMappings
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -123,7 +123,7 @@ __InitializeKernelMappings(
             (memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT) / sizeof(PlatformMemoryMapping_t));
     g_kernelMappingCapacity--; // keep a null entry
     TRACE("__InitializeKernelMappings g_kernelMappingCapacity=%i", g_kernelMappingCapacity);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -158,11 +158,11 @@ __InitializeIdentityMemory(
                 bootContext->BootMemoryStart   = entry->PhysicalBase;
                 bootContext->BootMemoryAddress = entry->PhysicalBase;
                 bootContext->BootMemoryEnabled = 1;
-                return OsOK;
+                return OS_EOK;
             }
         }
     }
-    return OsOutOfMemory;
+    return OS_EOOM;
 }
 
 static oserr_t
@@ -189,7 +189,7 @@ __DisableIdentityMemory(
                     bootContext->IdentityMappings[i].VirtualBase,
                     bootContext->IdentityMappings[i].Length
             );
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 return osStatus;
             }
         }
@@ -216,7 +216,7 @@ __AllocateIdentity(
 {
     TRACE("__AllocateIdentity(size=0x%" PRIxIN ")", size);
     if (!bootContext || !bootContext->BootMemoryEnabled) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     // all allocations will be page aligned for good reasons
@@ -229,7 +229,7 @@ __AllocateIdentity(
 
     *memory = (void*)bootContext->BootMemoryAddress;
     bootContext->BootMemoryAddress += size;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -250,7 +250,7 @@ MachineAllocateBootMemory(
     if (virtualBaseOut) {
         virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, size);
         if (!virtualBase) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
     }
 
@@ -261,7 +261,7 @@ MachineAllocateBootMemory(
                 &GetMachine()->PhysicalMemory.Region[i].Stack,
                 &pagesAllocated, &blocks[0]
         );
-        if (osStatus == OsOutOfMemory) {
+        if (osStatus == OS_EOOM) {
             continue;
         }
         blockCount -= pagesAllocated;
@@ -270,7 +270,7 @@ MachineAllocateBootMemory(
         GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pagesAllocated;
     }
 
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         // revert the order of pages, the reason for this is we want to provide
         // contigious pages, and it actually pops from top
         for (i = 0; i < blockCount / 2; i++) {
@@ -283,7 +283,7 @@ MachineAllocateBootMemory(
     // register the kernel mapping, so it will be available after switching to virtual space
     if (virtualBaseOut) {
         osStatus = __AddKernelMapping(blocks[0], virtualBase, size);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
         *virtualBaseOut  = virtualBase;
@@ -311,7 +311,7 @@ __InitializePhysicalMemory(
     for (i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
         uintptr_t memory;
         osStatus = __AllocateIdentity(bootContext, memoryConfiguration->PageSize, (void**)&memory);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             return osStatus;
         }
 
@@ -326,7 +326,7 @@ __InitializePhysicalMemory(
                              memoryConfiguration->PageSize
         );
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -406,8 +406,8 @@ __InitializeGlobalAccessMemory(
     );
 
     osStatus = __AllocateIdentity(bootContext, gaMemorySize, &gaMemory);
-    if (osStatus != OsOK) {
-        return OsOutOfMemory;
+    if (osStatus != OS_EOK) {
+        return OS_EOOM;
     }
 
     // Update the boot context with the new physical mapping
@@ -428,7 +428,7 @@ __InitializeGlobalAccessMemory(
             gaMemorySize,
             pageSize
     );
-    return OsOK;
+    return OS_EOK;
 }
 
 #ifdef __OSCONFIG_HAS_MMIO
@@ -481,14 +481,14 @@ MachineMemoryInitialize(
     TRACE("MachineMemoryInitialize()");
 
     if (!machine) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Verify the size of available memory - require atleast 64mb (configurable some day)
     memorySize = __GetAvailablePhysicalMemory(&machine->BootInformation);
     if (memorySize < (64 * BYTES_PER_MB)) {
         ERROR("MachineMemoryInitialize available system memory was below 64mb (memorySize=%" PRIuIN "B)", memorySize);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Get fixed virtual memory layout and platform page size
@@ -511,7 +511,7 @@ MachineMemoryInitialize(
             &machine->BootInformation,
             &configuration
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -519,7 +519,7 @@ MachineMemoryInitialize(
     // switching to the new virtual addressing space. This is to avoid having identity mapped memory when we are
     // done allocating for basic systems.
     osStatus = __InitializeKernelMappings(&bootContext, &configuration);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -529,7 +529,7 @@ MachineMemoryInitialize(
             &machine->PhysicalMemory,
             &configuration
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -543,14 +543,14 @@ MachineMemoryInitialize(
             &machine->MemoryMap,
             machine->MemoryGranularity
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     // At this point no further boot allocations will be made, and thus we can start adding
     // the remaining free physical pages to the physical memory manager
     osStatus = __DisableIdentityMemory(&bootContext, &machine->GlobalAccessMemory);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -569,7 +569,7 @@ MachineMemoryInitialize(
             &machine->BootInformation,
             g_kernelMappings
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -589,5 +589,5 @@ MachineMemoryInitialize(
     MemoryCacheInitialize();
 
     __PrintMemoryUsage();
-    return OsOK;
+    return OS_EOK;
 }

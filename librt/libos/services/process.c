@@ -76,7 +76,7 @@ ProcessSpawnEx(
     struct sys_process_configuration gconfiguration;
     
     if (!path || !configuration || !handleOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     StdioCreateInheritanceBlock(configuration, &inheritationBlock, &inheritationBlockLength);
@@ -128,7 +128,7 @@ ProcessSignal(
 oserr_t ProcessTerminate(int exitCode)
 {
     struct vali_link_message msg   = VALI_MSG_INIT_HANDLE(GetProcessService());
-    oserr_t                  oserr = OsOK;
+    oserr_t                  oserr = OS_EOK;
 
     if (!__crt_is_phoenix()) {
         sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
@@ -153,7 +153,7 @@ ProcessGetTickBase(
     UInteger64_t          tick;
 
     if (!tickOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
@@ -174,15 +174,15 @@ GetProcessCommandLine(
 
     if (buffer == NULL) {
         if (length == NULL) {
-            return OsInvalidParameters;
+            return OS_EINVALPARAMS;
         }
         *length = clLength;
-        return OsOK;
+        return OS_EOK;
     }
 
     memcpy(buffer, commandLine, MIN(*length, clLength));
 	*length = clLength;
-	return OsOK;
+	return OS_EOK;
 }
 
 oserr_t
@@ -194,7 +194,7 @@ ProcessGetCurrentName(
     oserr_t               status;
 
     if (buffer == NULL && maxLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     assert(__crt_is_phoenix() == 0);
@@ -218,7 +218,7 @@ ProcessGetAssemblyDirectory(
     oserr_t               status;
 
     if (buffer == NULL || maxLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (handle == UUID_INVALID) {
@@ -245,7 +245,7 @@ ProcessGetWorkingDirectory(
     oserr_t               status;
 
     if (buffer == NULL || maxLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     if (handle == UUID_INVALID) {
@@ -270,7 +270,7 @@ ProcessSetWorkingDirectory(
     oserr_t               status;
 
     if (path == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     assert(__crt_is_phoenix() == 0);
 	

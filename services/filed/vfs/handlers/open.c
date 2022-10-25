@@ -28,7 +28,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
 
     path = mstr_path_new_u8(cpath);
     if (path == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Opening root is a special case, as we won't be able to find the containing folder,
@@ -39,7 +39,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
 
         // Did user request to create root? lmao
         if (options & __FILE_CREATE) {
-            return OsInvalidPermissions;
+            return OS_EPERMISSIONS;
         }
 
         // Allow this only if requested to be opened as a dir
@@ -47,7 +47,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
             TRACE("VFSNodeOpen returning root handle");
             return VFSNodeOpenHandle(vfs->Root, access, handleOut);
         }
-        return OsPathIsDirectory;
+        return OS_EISDIR;
     }
 
     mstring_t* containingDirectoryPath = mstr_path_dirname(path);
@@ -62,19 +62,19 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
             1, &containingDirectory);
 
     mstr_delete(containingDirectoryPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     // Find the requested entry in the containing folder
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
-    if (osStatus != OsOK && osStatus != OsNotExists) {
+    if (osStatus != OS_EOK && osStatus != OS_ENOENT) {
         TRACE("VFSNodeOpen find returned %u", osStatus);
         goto exit;
     }
 
-    if (osStatus == OsNotExists) {
+    if (osStatus == OS_ENOENT) {
         if (options & __FILE_CREATE) {
             // Create the file with regular options and regular permissions
             osStatus = VFSNodeCreateChild(
@@ -84,7 +84,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
                     FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
                     &node
             );
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 goto exit;
             }
         } else {
@@ -94,10 +94,10 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
     }
 
     if (!__NodeIsDirectory(node) && (options & __FILE_DIRECTORY)) {
-        osStatus = OsPathIsNotDirectory;
+        osStatus = OS_ENOTDIR;
         goto exit;
     } else if (__NodeIsDirectory(node) && !(options & __FILE_DIRECTORY)) {
-        osStatus = OsPathIsDirectory;
+        osStatus = OS_EISDIR;
         goto exit;
     }
     

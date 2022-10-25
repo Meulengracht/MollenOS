@@ -34,17 +34,17 @@ static oserr_t __GetPublisher(const char* basename, mstring_t** publisherOut)
 {
     char* seperator = strchr(basename, '.');
     if (seperator == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     char* token = strndup(basename, seperator - basename);
     if (token == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *publisherOut = mstr_new_u8(token);
     free(token);
-    return *publisherOut == NULL ? OsOutOfMemory : OsOK;
+    return *publisherOut == NULL ? OS_EOOM : OS_EOK;
 }
 
 static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Application** applicationOut)
@@ -55,13 +55,13 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
     struct chef_command* commands;
     int                  count;
     int                  status;
-    oserr_t              oserr = OsOK;
+    oserr_t              oserr = OS_EOK;
     char*                pathu8;
     TRACE("__ParsePackage(publisher=%ms, path=%ms)", publisher, path);
 
     pathu8 = mstr_u8(path);
     if (pathu8 == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = chef_package_load(
@@ -73,7 +73,7 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
     );
     free(pathu8);
     if (status) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     application = ApplicationNew(
@@ -86,7 +86,7 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
             version->revision
     );
     if (application == NULL) {
-        oserr = OsError;
+        oserr = OS_EUNKNOWN;
         goto cleanup;
     }
 
@@ -100,7 +100,7 @@ static oserr_t __ParsePackage(mstring_t* publisher, mstring_t* path, struct Appl
                 (int)commands[i].type
         );
         if (command == NULL) {
-            oserr = OsOutOfMemory;
+            oserr = OS_EOOM;
             goto cleanup;
         }
     }
@@ -111,7 +111,7 @@ cleanup:
     chef_package_free(package);
     chef_version_free(version);
     chef_commands_free(commands, count);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ApplicationDelete(application);
     }
     return oserr;
@@ -129,7 +129,7 @@ static oserr_t __InstallPack(mstring_t* path, struct Application* application)
     if (sourceu8 == NULL || destinationu8 == NULL) {
         free(sourceu8);
         free(destinationu8);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     oserr = CopyFile(sourceu8, destinationu8);
@@ -151,13 +151,13 @@ static oserr_t __RegisterApplication(struct Application* application)
         // TODO do some kind of security check here
         if (!mstr_cmp(a->Name, application->Name)) {
             StateUnlock();
-            return OsExists;
+            return OS_EEXISTS;
         }
     }
 
     list_append(&state->Applications, &application->ListHeader);
     StateUnlock();
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t InstallApplication(mstring_t* path, const char* basename)
@@ -168,27 +168,27 @@ oserr_t InstallApplication(mstring_t* path, const char* basename)
     TRACE("InstallApplication(path=%ms, basename=%s)", path, basename);
 
     oserr = __GetPublisher(basename, &publisher);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = __ParsePackage(publisher, path, &application);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = __InstallPack(path, application);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = __RegisterApplication(application);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = ApplicationMount(application);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     return ApplicationStartServices(application);
@@ -209,7 +209,7 @@ void InstallBundledApplications(void)
     while ((entry = readdir(setupDir)) != NULL) {
         mstring_t* path = mstr_fmt("/data/setup/%s", &entry->d_name[0]);
         oserr_t oserr = InstallApplication(path, &entry->d_name[0]);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // Not a compatable file, delete it
             char* pathu8 = mstr_u8(path);
             if (unlink(pathu8)) {

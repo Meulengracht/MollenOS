@@ -36,7 +36,7 @@ DebugSingleStep(
 {
     TRACE("DebugSingleStep(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -45,7 +45,7 @@ DebugBreakpoint(
 {
     TRACE("DebugBreakpoint(IP 0x%" PRIxIN ")", CONTEXT_IP(Context));
     _CRT_UNUSED(Context);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -61,7 +61,7 @@ DebugPageFault(
 
     // get information about the allocation
     osStatus = MemorySpaceQuery(memorySpace, address, &descriptor);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         // userspace allocation, perform additional checks.
         // 1) Was a guard page hit?
         // 2) Should the exception be propegated (i.e. memory handlers)
@@ -70,7 +70,7 @@ DebugPageFault(
         }
         if (descriptor.Attributes & MAPPING_TRAPPAGE) {
             TRACE("DebugPageFault trappage hit 0x%" PRIxIN, address);
-            osStatus = OsError; // return error
+            osStatus = OS_EUNKNOWN; // return error
             goto exit;
         }
     }
@@ -85,8 +85,8 @@ DebugPageFault(
             0,
             0
     );
-    if (osStatus == OsExists) {
-        osStatus = OsOK;
+    if (osStatus == OS_EEXISTS) {
+        osStatus = OS_EOK;
     }
 
 exit:
@@ -112,7 +112,7 @@ DebugHaltAllProcessorCores(
         }
         Iter = CpuCoreNext(Iter);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -176,7 +176,7 @@ DebugPanic(
         ArchProcessorHalt();
     }
     for(;;);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -222,7 +222,7 @@ DebugStackTrace(
         }
         StackPtr++;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -243,7 +243,7 @@ DebugMemory(
 
     if (Length == 0) {
         ERROR("ZERO LENGTH");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Process every byte in the data.
@@ -281,7 +281,7 @@ DebugMemory(
 
     // And print the final ASCII bit.
     LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
-    return OsOK;
+    return OS_EOK;
 }
 
 /* Disassembles Memory */

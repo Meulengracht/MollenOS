@@ -80,38 +80,37 @@ typedef void*        Handle_t;
 #define HANDLE_GLOBAL  (Handle_t)1
 
 typedef enum oserr {
-    OsOK = 0,
-    OsError,                // Error - Generic
-    OsExists,               // Error - Resource already exists
-    OsNotExists,            // Error - Resource does not exist
-    OsInvalidParameters,    // Error - Bad parameters given
-    OsInvalidPermissions,   // Error - Bad permissions
-    OsTimeout,              // Error - Operation timeout
-    OsInterrupted,          // Error - Operation was interrupted
-    OsNotSupported,         // Error - Feature/Operation not supported
-    OsOutOfMemory,          // Error - Out of memory
-    OsBusy,                 // Error - Resource is busy or contended
-    OsIncomplete,           // Error - Operation only completed partially
-    OsCancelled,            // Error - Operation was cancelled
-    OsBlocked,              // Error - Operating was blocked
-    OsInProgress,           // Error - Operation was in progress
+    OS_EOK = 0,
+    OS_EUNKNOWN,            // Unknown error ocurred
+    OS_EEXISTS,             // Resource already exists
+    OS_ENOENT,              // Resource does not exist
+    OS_EINVALPARAMS,        // Bad parameters given
+    OS_EPERMISSIONS,        // Bad permissions
+    OS_ETIMEOUT,            // Operation timeout
+    OS_EINTERRUPTED,        // Operation was interrupted
+    OS_ENOTSUPPORTED,       // Feature/Operation not supported
+    OS_EOOM,                // Out of memory
+    OS_EBUSY,               // Resource is busy or contended
+    OS_EINCOMPLETE,         // Operation only completed partially
+    OS_ECANCELLED,          // Operation was cancelled
+    OS_EBLOCKED,            // Operating was blocked
+    OS_EINPROGRESS,         // Operation was in progress
+    OS_EFORKED,             // Thread is now running in forked context
+
+    OS_ENOTDIR,             // Path is not a directory
+    OS_EISDIR,              // Path is a directory
+    OS_ELINKINVAL,          // Link is invalid
+    OS_EDIRNOTEMPTY,        // Directory is not empty
+    OS_EDEVFAULT,           // Device error occurred during operation
     
-    OsDeleted,              // Error - Resource was deleted
-    OsPathIsNotDirectory,   // Error - Path is not a directory
-    OsPathIsDirectory,      // Error - Path is a directory
-    OsLinkInvalid,          // Error - Link is invalid
-    OsDirectoryNotEmpty,    // Error - Directory is not empty
-    OsDeviceError,          // Error - Device error occurred during operation
+    OS_EPROTOCOL,           // Protocol was invalid
+    OS_ECONNREFUSED,        // Connection was refused
+    OS_ECONNABORTED,        // Connection was aborted
+    OS_EHOSTUNREACHABLE,    // Host could not be reached
+    OS_ENOTCONNECTED,       // Not connected
+    OS_EISCONNECTED,        // Already connected
     
-    OsInvalidProtocol,      // Error - Protocol was invalid
-    OsConnectionRefused,    // Error - Connection was refused
-    OsConnectionAborted,    // Error - Connection was aborted
-    OsHostUnreachable,      // Error - Host could not be reached
-    OsNotConnected,         // Error - Not connected
-    OsConnectionInProgress, // Error - Connection already in progress
-    OsAlreadyConnected,     // Error - Already connected
-    
-    OsErrorCodeCount
+    __OS_ECOUNT
 } oserr_t;
 
 typedef union Integer64 {

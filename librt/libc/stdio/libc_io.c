@@ -28,13 +28,13 @@ _lock_stream(
     _In_ FILE *file)
 {
     if (!file) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!(file->_flag & _IOSTRG)) {
         SpinlockAcquire(&__GlbPrintLock);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -42,13 +42,13 @@ _unlock_stream(
     _In_ FILE *file)
 {
     if (!file) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     if (!(file->_flag & _IOSTRG)) {
         SpinlockRelease(&__GlbPrintLock);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 FILE *

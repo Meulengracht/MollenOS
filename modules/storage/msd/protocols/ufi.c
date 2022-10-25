@@ -106,28 +106,28 @@ UfiInitialize(
     // Sanitize found endpoints
     if (Device->In == NULL || Device->Out == NULL) {
         ERROR("Either in or out endpoint not available on device");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // If we are CBI and not CB, there must be interrupt
     if (Device->Protocol == ProtocolCBI && Device->Interrupt == NULL) {
         ERROR("Protocol is CBI, but interrupt endpoint does not exist");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Reset data toggles for bulk-endpoints
     if (UsbEndpointReset(&Device->Device->DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsOK) {
+        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OS_EOK) {
         ERROR("Failed to reset endpoint (in)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     if (UsbEndpointReset(&Device->Device->DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsOK) {
+        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OS_EOK) {
         ERROR("Failed to reset endpoint (out)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
-    return OsOK;
+    return OS_EOK;
 }
 
 UsbTransferStatus_t 

@@ -32,7 +32,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     if (path == NULL || target == NULL) {
         mstr_delete(path);
         mstr_delete(target);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Catch early someone trying to create root as a symlink, however
@@ -40,7 +40,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     if (__PathIsRoot(path)) {
         mstr_delete(path);
         mstr_delete(target);
-        return OsInvalidPermissions;
+        return OS_EPERMISSIONS;
     }
 
     mstring_t* containingDirectoryPath = mstr_path_dirname(path);
@@ -54,7 +54,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
             1, &containingDirectory);
 
     mstr_delete(containingDirectoryPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -64,10 +64,10 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     TRACE("VFSNodeLink 2");
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
-    if (osStatus != OsOK && osStatus != OsNotExists) {
+    if (osStatus != OS_EOK && osStatus != OS_ENOENT) {
         goto exit;
-    } else if (osStatus == OsOK) {
-        osStatus = OsExists;
+    } else if (osStatus == OS_EOK) {
+        osStatus = OS_EEXISTS;
         goto exit;
     }
 

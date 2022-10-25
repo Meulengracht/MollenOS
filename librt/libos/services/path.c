@@ -106,7 +106,7 @@ GetFullPath(
     oserr_t                  status;
 
     if (path == NULL || buffer == NULL || maxLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!PathIsAbsolute(path)) {
@@ -117,7 +117,7 @@ GetFullPath(
         // the provided buffer :-)
         GetWorkingDirectory(&buffer[0], maxLength);
         fullPath = PathJoin(&buffer[0], path);
-        if (GetFileInformationFromPath(fullPath, 0, &descriptor) != OsOK) {
+        if (GetFileInformationFromPath(fullPath, 0, &descriptor) != OS_EOK) {
             free(fullPath);
             fullPath = NULL;
         }
@@ -127,7 +127,7 @@ GetFullPath(
             char* token = getenv("PATH");
             for (char* i = strtok( token, ";"); i; i = strtok(NULL, ";")) {
                 char* combined = PathJoin(i, path);
-                if (GetFileInformationFromPath(combined, 0, &descriptor) == OsOK) {
+                if (GetFileInformationFromPath(combined, 0, &descriptor) == OS_EOK) {
                     fullPath = combined;
                     break;
                 }
@@ -137,7 +137,7 @@ GetFullPath(
 
         // path was invalid, we can early exit here
         if (fullPath == NULL) {
-            return OsNotExists;
+            return OS_ENOENT;
         }
 
         sys_file_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
@@ -158,7 +158,7 @@ GetWorkingDirectory(
     _In_ size_t maxLength)
 {
     if (buffer == NULL || maxLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return ProcessGetWorkingDirectory(UUID_INVALID, buffer, maxLength);
 }
@@ -173,7 +173,7 @@ ChangeWorkingDirectory(
     TRACE("ChangeWorkingDirectory(path=%s)", path);
 
 	if (path == NULL || strlen(path) == 0) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
 	memset(&canonBuffer[0], 0, _MAXPATH);
@@ -183,7 +183,7 @@ ChangeWorkingDirectory(
     } else {
         TRACE("ChangeWorkingDirectory relative path detected");
         oserr = GetWorkingDirectory(&canonBuffer[0], _MAXPATH);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
         strncat(&canonBuffer[0], path, _MAXPATH);
@@ -192,12 +192,12 @@ ChangeWorkingDirectory(
     dirFd = open(&canonBuffer[0], O_DIR);
     if (dirFd < 0) {
         // TODO convert errno to osstatus
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     oserr = GetFilePathFromFd(dirFd, &canonBuffer[0], _MAXPATH);
     close(dirFd);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     return ProcessSetWorkingDirectory(&canonBuffer[0]);
@@ -209,7 +209,7 @@ GetAssemblyDirectory(
     _In_ size_t maxLength)
 {
     if (buffer == NULL || maxLength == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return ProcessGetAssemblyDirectory(UUID_INVALID, buffer, maxLength);
 }
@@ -221,15 +221,15 @@ GetUserDirectory(
 {
     char* path;
 	if (buffer == NULL || maxLength == 0) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
     path = getenv("USRDIR");
     if (path) {
         strncpy(&buffer[0], path, maxLength);
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -239,16 +239,16 @@ GetUserCacheDirectory(
 {
     char* path;
 	if (buffer == NULL || maxLength == 0) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
     path = getenv("USRDIR");
     if (path) {
         strncpy(&buffer[0], path, maxLength);
         strncat(&buffer[0], "/.cache", maxLength);
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -258,15 +258,15 @@ GetApplicationDirectory(
 {
     char* path;
 	if (buffer == NULL || maxLength == 0) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
     path = getenv("APPDIR");
     if (path) {
         strncpy(&buffer[0], path, maxLength);
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -276,14 +276,14 @@ GetApplicationTemporaryDirectory(
 {
     char* path;
 	if (buffer == NULL || maxLength == 0) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 
     path = getenv("APPDIR");
     if (path) {
         strncpy(&buffer[0], path, maxLength);
         strncat(&buffer[0], "/.clear", maxLength);
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }

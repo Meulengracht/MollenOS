@@ -28,13 +28,13 @@ oserr_t VFSNodeMount(struct VFS* vfs, uuid_t atID, struct VFS* what)
     _CRT_UNUSED(vfs);
 
     oserr = VFSNodeHandleGet(atID, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     if (!__NodeIsRegular(handle->Node)) {
-        oserr = OsInvalidParameters;
+        oserr = OS_EINVALPARAMS;
         goto exit;
     }
 
@@ -54,13 +54,13 @@ oserr_t VFSNodeUnmount(struct VFS* vfs, uuid_t directoryHandleID)
     _CRT_UNUSED(vfs);
 
     oserr = VFSNodeHandleGet(directoryHandleID, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     if (!__NodeIsMountPoint(handle->Node)) {
-        oserr = OsInvalidParameters;
+        oserr = OS_EINVALPARAMS;
         goto exit;
     }
 
@@ -79,13 +79,13 @@ oserr_t VFSNodeUnmountPath(struct VFS* vfs, mstring_t* path)
     oserr_t         oserr;
 
     oserr = VFSNodeGet(vfs, path, 1, &node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     usched_rwlock_w_lock(&node->Lock);
     if (!__NodeIsMountPoint(node)) {
-        oserr = OsInvalidParameters;
+        oserr = OS_EINVALPARAMS;
         goto exit;
     }
 

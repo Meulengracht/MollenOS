@@ -35,7 +35,7 @@ int link(
     oserr_t               status;
 
     if (!from || !to) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     sys_file_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), from, to, symbolic);

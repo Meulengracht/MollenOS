@@ -138,7 +138,7 @@ AhciPortFinishSetup(
     WaitForConditionWithFault(hung, (READ_VOLATILE(port->Registers->CommandAndStatus) & AHCI_PORT_CR) == 0, 6, 100);
     if (hung) {
         ERROR("AhciPortFinishSetup failed to stop command engine: 0x%x", port->Registers->CommandAndStatus);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Step 2 -> wait for the fis receive engine to stop by waiting for AHCI_PORT_FR to clear
@@ -147,7 +147,7 @@ AhciPortFinishSetup(
     WaitForConditionWithFault(hung, (READ_VOLATILE(port->Registers->CommandAndStatus) & AHCI_PORT_FR) == 0, 6, 100);
     if (hung) {
         ERROR("AhciPortFinishSetup failed to stop fis receive engine: 0x%x", port->Registers->CommandAndStatus);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Step 3.1 -> If 1 or 2 fails, then we proceed to a reset of the port.
@@ -183,9 +183,9 @@ AhciPortFinishSetup(
         // COMINIT from the attached device, PxTFD.STS.BSY shall be set to 1 by the HBA.
         ERROR("AhciPortFinishSetup failed to re-establish communication: 0x%x", port->Registers->STSS);
         if (AHCI_PORT_STSS_DET(status) == AHCI_PORT_SSTS_DET_NOPHYCOM) {
-            return OsTimeout;
+            return OS_ETIMEOUT;
         }
-        return OsError;
+        return OS_EUNKNOWN;
     }
     TRACE("AhciPortFinishSetup AtaStatus=0x%x", status);
 
@@ -205,7 +205,7 @@ AhciPortFinishSetup(
     // any bits that were set as part of the port reset.
     WRITE_VOLATILE(port->Registers->SERR, 0xFFFFFFFF);
     WRITE_VOLATILE(port->Registers->InterruptStatus, 0xFFFFFFFF);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -228,9 +228,9 @@ AllocateOperationalMemory(
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     osStatus = DmaCreate(&bufferInfo, &port->CommandListDMA);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command list.");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     // Allocate memory for the 32 command tables, one for each command header.
@@ -241,9 +241,9 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
     osStatus = DmaCreate(&bufferInfo, &port->CommandTableDMA);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     // We have to take into account FIS based switching here, 
@@ -254,11 +254,11 @@ AllocateOperationalMemory(
     bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
 
     osStatus = DmaCreate(&bufferInfo, &port->RecievedFisDMA);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -278,7 +278,7 @@ AhciPortRebase(
           controller, port);
 
     Status = AllocateOperationalMemory(controller, port);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         return Status;
     }
     
@@ -306,7 +306,7 @@ AhciPortRebase(
     }
 
     free(SgTable.entries);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -328,7 +328,7 @@ AhciPortEnable(
     WaitForConditionWithFault(hung, READ_VOLATILE(port->Registers->CommandAndStatus) & AHCI_PORT_FR, 6, 100);
     if (hung) {
         ERROR("AhciPortEnable fis receive engine failed to start: 0x%x", port->Registers->CommandAndStatus);
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
 
     // Wait for BSYDRQ to clear
@@ -337,7 +337,7 @@ AhciPortEnable(
         WaitForConditionWithFault(hung, (READ_VOLATILE(port->Registers->TaskFileData) & (AHCI_PORT_TFD_BSY | AHCI_PORT_TFD_DRQ)) == 0, 30, 100);
         if (hung) {
             ERROR("AhciPortEnable failed to clear BSY and DRQ: 0x%x", port->Registers->TaskFileData);
-            return OsTimeout;
+            return OS_ETIMEOUT;
         }
     }
 
@@ -349,7 +349,7 @@ AhciPortEnable(
     WaitForConditionWithFault(hung, READ_VOLATILE(port->Registers->CommandAndStatus) & AHCI_PORT_CR, 6, 100);
     if (hung) {
         ERROR("AhciPortEnable command engine failed to start: 0x%x", port->Registers->CommandAndStatus);
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
 
     port->Connected = 1;
@@ -423,7 +423,7 @@ AhciPortStart(
     if (hung) {
         // In this case we should reset the entire controller @todo
         ERROR("AhciPortStart command engine is hung: 0x%x", port->Registers->CommandAndStatus);
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
     
     // Wait for FRE and BSYDRQ. This assumes a device present
@@ -432,7 +432,7 @@ AhciPortStart(
 
     if (AHCI_PORT_STSS_DET(status) != AHCI_PORT_SSTS_DET_ENABLED) {
         TRACE("AhciPortStart port %i has nothing present: 0x%x", port->Index, port->Registers->STSS);
-        return OsOK;
+        return OS_EOK;
     }
     return AhciPortEnable(controller, port);
 }
@@ -455,10 +455,10 @@ AhciPortAllocateCommandSlot(
     _In_  AhciPort_t* port,
     _Out_ int*        slotOut)
 {
-    oserr_t osStatus = OsError;
+    oserr_t osStatus = OS_EUNKNOWN;
     int        i;
     
-    while (osStatus != OsOK) {
+    while (osStatus != OS_EOK) {
         int slots = atomic_load(&port->Slots);
         
         for (i = 0; i < port->SlotCount; i++) {
@@ -475,7 +475,7 @@ AhciPortAllocateCommandSlot(
                 continue;
             }
 
-            osStatus = OsOK;
+            osStatus = OS_EOK;
             *slotOut = i;
             break;
         }

@@ -136,10 +136,10 @@ HpetIsEmulatingLegacyController(void)
         size_t hpetConfig;
         HP_READ_32(HPET_REGISTER_CONFIG, &hpetConfig);
         if (hpetConfig & HPET_CONFIG_LEGACY) {
-            return OsOK;
+            return OS_EOK;
         }     
     }
-    return OsNotSupported;    
+    return OS_ENOTSUPPORTED;
 }
 
 static void
@@ -245,7 +245,7 @@ __InitializeComparator(
     
     if (configuration == 0xFFFFFFFF || interruptMap == 0) {
         WARNING("__InitializeComparator configuration=0x%x, map=0x%x", LODWORD(configuration), LODWORD(interruptMap));
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Setup basic information
@@ -267,7 +267,7 @@ __InitializeComparator(
     // Process timer configuration and disable it for now
     configuration &= ~(HPET_TIMER_CONFIG_IRQENABLED | HPET_TIMER_CONFIG_POLARITY | HPET_TIMER_CONFIG_FSBMODE);
     HP_WRITE_32(HPET_TIMER_CONFIG(index), configuration);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -395,7 +395,7 @@ HpetComparatorStart(
         __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), delta);
     }
     __StartHpet();
-    return OsOK;
+    return OS_EOK;
 }
 
 ACPI_TABLE_HPET*
@@ -442,7 +442,7 @@ HpetInitialize(void)
             MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE,
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("HpetInitialize failed to map address for hpet.");
         return;
     }
@@ -509,7 +509,7 @@ HpetInitialize(void)
 
     // Loop through all comparators and configurate them
     for (i = 0; i < numTimers; i++) {
-        if (__InitializeComparator(i, legacy) == OsError) {
+        if (__InitializeComparator(i, legacy) == OS_EUNKNOWN) {
             ERROR("HpetInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
             g_hpet.Timers[i].Present = 0;
         }
@@ -522,7 +522,7 @@ HpetInitialize(void)
         UUID_INVALID,
         &g_hpet
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         WARNING("HpetInitialize failed to register platform timer");
     }
 }

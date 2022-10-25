@@ -185,7 +185,7 @@ WriteDeviceIo(
     _In_ size_t         Value,
     _In_ size_t         Length)
 {
-    oserr_t Status = OsOK;
+    oserr_t Status = OS_EOK;
     assert(IoSpace != NULL);
 
     switch (IoSpace->Type) {
@@ -209,7 +209,7 @@ WriteDeviceIo(
                     break;
     #endif
                 default:
-                    Status = OsError;
+                    Status = OS_EUNKNOWN;
                     break;
             }
         } break;
@@ -227,13 +227,13 @@ WriteDeviceIo(
                     __writelong(Port, (uint32_t)(Value & 0xFFFFFFFF));
                     break;
                 default:
-                    Status = OsError;
+                    Status = OS_EUNKNOWN;
                     break;
             }
         } break;
 
         default:
-            Status = OsError;
+            Status = OS_EUNKNOWN;
             break;
     }
     return Status;

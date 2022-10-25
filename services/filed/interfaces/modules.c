@@ -62,19 +62,19 @@ __LoadInternalAPI(
     // Sanitize required functions
     if (interface->Operations.Open == NULL) {
         WARNING("__LoadInternalAPI FsOpen is required, was not present");
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     if (interface->Operations.Read == NULL) {
         WARNING("__LoadInternalAPI FsRead is required, was not present");
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     if (interface->Operations.Close == NULL) {
         WARNING("__LoadInternalAPI FsClose is required, was not present");
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 struct VFSInterface*
@@ -180,29 +180,29 @@ VFSInterfaceLoadInternal(
     TRACE("VFSInterfaceLoadInternal(%s)", type);
 
 	if (type == NULL) {
-	    return OsNotSupported;
+	    return OS_ENOTSUPPORTED;
 	}
 
     // Until such a time
     handle = __RunDetached(type);
     if (handle == HANDLE_INVALID) {
         ERROR("VFSInterfaceLoadInternal failed to load %s", type);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     interface = VFSInterfaceNew(handle, NULL);
     if (interface == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = __LoadInternalAPI(interface, handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         VFSInterfaceDelete(interface);
         return osStatus;
     }
 
     *interfaceOut = interface;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -211,7 +211,7 @@ VFSInterfaceLoadDriver(
         _Out_ struct VFSInterface**  interfaceOut)
 {
     // TODO implement this
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 void
