@@ -78,7 +78,7 @@ ProcessSpawnEx(
  * @param exitCode If this function returns OS_EOK the exit code will be a valid value.
  * @return OsTimeout if the timeout was reached without the process terminating
  *         OS_EOK if the process has terminated within the given timeout or at the time at the call
- *         OsError in any other case.
+ *         OS_EUNKNOWN in any other case.
  */
 CRTDECL(oserr_t,
 ProcessJoin(

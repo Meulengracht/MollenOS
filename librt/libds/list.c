@@ -22,6 +22,7 @@
  *    linked structure, allowing O(1) add/remove, and O(n) lookups.
  */
 
+#define __need_minmax
 #include <assert.h>
 #include <ds/list.h>
 #include <string.h>

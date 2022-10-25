@@ -23,7 +23,7 @@
  */
 
 //#define __TRACE
-
+#define __need_minmax
 #include <assert.h>
 #include <ds/ds.h>
 #include <ds/list.h>

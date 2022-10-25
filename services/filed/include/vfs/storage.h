@@ -175,7 +175,7 @@ VFSStorageRegisterAndSetupPartition(
 
 /**
  * @brief Detects the kind of layout on the disk, be it MBR or GPT layout, if there is no layout it returns
- * OsError to indicate the entire disk is a FS
+ * OS_EUNKNOWN to indicate the entire disk is a FS
  * @param Disk
  * @return
  */

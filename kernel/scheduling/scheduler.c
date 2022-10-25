@@ -25,6 +25,7 @@
 #define __MODULE "scheduler"
 //#define __TRACE
 
+#define __need_minmax
 #include <assert.h>
 #include <arch/thread.h>
 #include <arch/utils.h>

@@ -225,7 +225,7 @@ UsbSchedulerGetPoolFromElement(
 
 /* UsbSchedulerAllocateElement
  * Allocates a new element for usage with the scheduler. If this returns
- * OsError we are out of elements and we should wait till next transfer. ElementOut
+ * OS_EUNKNOWN we are out of elements and we should wait till next transfer. ElementOut
  * will in this case be set to USB_OUT_OF_RESOURCES. */
 __EXTERN oserr_t
 UsbSchedulerAllocateElement(
@@ -244,7 +244,7 @@ UsbSchedulerFreeElement(
 /* UsbSchedulerAllocateBandwidth
  * Allocates bandwidth for a scheduler element. The bandwidth will automatically
  * be fitted into where is best place on schedule. If there is no more room it will
- * return OsError. */
+ * return OS_EUNKNOWN. */
 __EXTERN oserr_t
 UsbSchedulerAllocateBandwidth(
     _In_ UsbScheduler_t* scheduler,
@@ -285,7 +285,7 @@ UsbSchedulerUnchainElement(
 
 /* UsbSchedulerLinkPeriodicElement
  * Queue's up a periodic/isochronous transfer. If it was not possible
- * to schedule the transfer with the requested bandwidth, it returns OsError */
+ * to schedule the transfer with the requested bandwidth, it returns OS_EUNKNOWN */
 __EXTERN oserr_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,

@@ -166,7 +166,7 @@ PS2PortWrite(
 }
 
 /* PS2PortWaitForState
- * Waits for the port to enter the given state. The function can return OsError
+ * Waits for the port to enter the given state. The function can return OS_EUNKNOWN
  * if the state is not reached in a seconds time. */
 oserr_t
 PS2PortWaitForState(

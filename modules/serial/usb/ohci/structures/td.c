@@ -22,7 +22,7 @@
  *    - Power Management
  */
 //#define __TRACE
-
+#define __need_minmax
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ohci.h"

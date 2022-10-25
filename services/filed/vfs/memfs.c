@@ -17,7 +17,7 @@
  */
 
 #define __TRACE
-
+#define __need_minmax
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <os/usched/mutex.h>

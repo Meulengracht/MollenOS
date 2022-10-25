@@ -23,6 +23,7 @@
  *   them in the block of memory specified by ptr.
  */
 
+#define __need_minmax
 #ifndef __TEST
 //#define __TRACE
 #include <ddk/utils.h>

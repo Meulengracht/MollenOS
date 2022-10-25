@@ -19,6 +19,8 @@
 
 //#define __TRACE
 
+#include <assert.h>
+#include <arch/thread.h>
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <ddk/video.h>
@@ -251,7 +253,6 @@ SyscallHandle(
         return context;
     }
 
-    thread  = ThreadCurrentForCore(ArchGetProcessorCoreId());
     handler = &SystemCallsTable[index];
 
     TRACE("SyscallHandle %s", handler->Name);
@@ -260,7 +261,29 @@ SyscallHandle(
             (void*)CONTEXT_SC_ARG2(context), (void*)CONTEXT_SC_ARG3(context),
             (void*)CONTEXT_SC_ARG4(context));
     CONTEXT_SC_RET0(context) = returnValue;
-    
+
+    // Is the thread that is handling the system call a fork? Then the original
+    // thread has already returned to userspace and this thread should notify
+    // the main thread and then die peacefully. We also intentionally do not retrieve
+    // the current thread before this point as we may be a different thread at exit
+    // than we were on entry.
+    thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    if (ThreadFlags(thread) & THREADING_FORKED) {
+        oserr_t oserr = SignalSend(
+                ThreadParent(thread),
+                SIGSYSCALL,
+                ThreadSyscallContext(thread)
+        );
+        assert(oserr == OS_EOK);
+
+        oserr = ThreadTerminate(ThreadCurrentHandle(), 0, 1);
+        assert(oserr == OS_EOK);
+        ArchThreadYield();
+
+        // catch all, the thread must not escape
+        for (;;) { }
+    }
+
     // Before returning to userspace code, queue up any signals that might
     // have been queued up for us.
     SignalProcessQueued(thread, context);

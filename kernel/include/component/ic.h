@@ -58,7 +58,7 @@ CreateInterruptOverrides(
     _In_ int        NumberOfInterruptOverrides);
 
 /* RegisterInterruptOverride
- * Registers a new override in a free entry. If the entries are filled it returns OsError. */
+ * Registers a new override in a free entry. If the entries are filled it returns OS_EUNKNOWN. */
 KERNELAPI oserr_t KERNELABI
 RegisterInterruptOverride(
     _In_ int        SourceInterruptLine,

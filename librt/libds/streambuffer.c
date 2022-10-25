@@ -23,6 +23,7 @@
  */
 //#define __TRACE
 
+#define __need_minmax
 #include <ds/streambuffer.h>
 #include <ds/ds.h>
 #include <limits.h>

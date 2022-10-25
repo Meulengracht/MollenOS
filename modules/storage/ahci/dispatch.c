@@ -24,7 +24,7 @@
  */
 
 //#define __TRACE
-
+#define __need_minmax
 #include <assert.h>
 #include <ddk/utils.h>
 #include "manager.h"

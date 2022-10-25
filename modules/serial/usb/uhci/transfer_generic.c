@@ -22,7 +22,7 @@
  *    - Power Management
  */
 //#define __TRACE
-
+#define __need_minmax
 #include <ddk/utils.h>
 #include "uhci.h"
 #include <assert.h>

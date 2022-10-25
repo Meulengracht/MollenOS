@@ -24,8 +24,9 @@
 
 #define __MODULE "MEM1"
 #define __TRACE
-#define __COMPILE_ASSERT
+#define __need_static_assert
 #define __need_quantity
+#define __need_minmax
 #include <arch/x86/arch.h>
 #include <arch/x86/cpu.h>
 #include <arch/x86/memory.h>

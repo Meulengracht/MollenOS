@@ -22,7 +22,7 @@
  * - Transaction Translator Support
  */
 //#define __TRACE
-
+#define __need_minmax
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ehci.h"

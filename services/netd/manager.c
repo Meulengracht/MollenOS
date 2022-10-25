@@ -296,7 +296,7 @@ NetworkManagerSocketBind(
     }
     
     if (Socket->Configuration.Connecting || Socket->Configuration.Connected) {
-        return OS_ECONNECTING;
+        return OS_EINPROGRESS;
     }
     
     Status = DomainUpdateAddress(Socket, Address);
@@ -343,7 +343,7 @@ NetworkManagerSocketConnect(
      * sa_family member of sockaddr set to AF_UNSPEC. */
     if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
         if (socket->Configuration.Connecting) {
-            return OS_ECONNECTING;
+            return OS_EINPROGRESS;
         }
         
         if (socket->Configuration.Connected) {
@@ -419,7 +419,7 @@ NetworkManagerSocketListen(
     }
     
     if (Socket->Configuration.Connecting || Socket->Configuration.Connected) {
-        return OS_ECONNECTING;
+        return OS_EINPROGRESS;
     }
     return SocketListenImpl(Socket, ConnectionCount);
 }

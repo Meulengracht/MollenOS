@@ -23,7 +23,7 @@
  */
 
 //#define __TRACE
-
+#define __need_minmax
 #include <ddk/utils.h>
 #include "ohci.h"
 #include <assert.h>

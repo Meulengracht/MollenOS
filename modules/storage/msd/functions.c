@@ -21,7 +21,7 @@
  */
 
 //#define __TRACE
-
+#define __need_minmax
 #include "msd.h"
 #include <ddk/utils.h>
 #include <threads.h>

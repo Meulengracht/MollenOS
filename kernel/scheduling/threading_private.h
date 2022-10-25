@@ -24,6 +24,7 @@
 #define __VALI_THREADING_PRIVATE_H__
 
 #include <os/osdefs.h>
+#include <os/types/syscall.h>
 #include <arch/platform.h>
 
 // Forward some structures we need
@@ -79,8 +80,17 @@ typedef struct Thread {
     Context_t*              Contexts[THREADING_NUMCONTEXTS];
     PlatformThreadBlock_t   PlatformData;
 
-    // signal support
-    ThreadSignals_t         Signaling;
+    // SyscallContext is used to support asynchronous system calls. When a thread
+    // is forked, this structure must be provided and will be returned to userspace
+    // once the forked thread is done, by signalling the parent thread that we are
+    // done handling the system call.
+    OSSyscallContext_t* SyscallContext;
+
+    // Signaling is used to supprt the per-thread signals and contains
+    // a mask, and a signal queue. The signal queue is then handled on exit
+    // of each system-call, or scheduled directly while the thread is in
+    // userspace.
+    ThreadSignals_t Signaling;
 } Thread_t;
 
 #endif //__VALI_THREADING_PRIVATE_H__

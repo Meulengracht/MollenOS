@@ -21,6 +21,7 @@
 
 //#define __TRACE
 
+#define __need_minmax
 #include <assert.h>
 #include <debug.h>
 #include <memoryspace.h>

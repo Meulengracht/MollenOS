@@ -123,7 +123,8 @@ static unsigned int __InheritThreadFlags(unsigned int flags)
 }
 
 oserr_t
-ThreadFork(void)
+ThreadFork(
+        _In_ OSSyscallContext_t* syscallContext)
 {
     Thread_t* parent;
     Thread_t* thread;
@@ -201,6 +202,7 @@ ThreadFork(void)
     thread->ParentHandle    = parent->Handle;
     thread->KernelStackSize = parent->KernelStackSize;
     thread->UserStackSize   = 0; // Forked threads are kernel only
+    thread->SyscallContext  = syscallContext;
     SystemTimerGetClockTick(&thread->StartedAt);
 
     // Inherit the same address space, even if an application.
@@ -576,6 +578,16 @@ ThreadHandle(
     return Thread->Handle;
 }
 
+uuid_t
+ThreadParent(
+        _In_ Thread_t* Thread)
+{
+    if (!Thread) {
+        return UUID_INVALID;
+    }
+    return Thread->ParentHandle;
+}
+
 UInteger64_t*
 ThreadStartTime(
         _In_ Thread_t* Thread)
@@ -637,6 +649,16 @@ ThreadFlags(
         return 0;
     }
     return Thread->Flags;
+}
+
+OSSyscallContext_t*
+ThreadSyscallContext(
+        _In_ Thread_t* thread)
+{
+    if (!thread) {
+        return NULL;
+    }
+    return thread->SyscallContext;
 }
 
 MemorySpace_t*

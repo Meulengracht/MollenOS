@@ -27,6 +27,7 @@
 
 #include <os/osdefs.h>
 #include <os/context.h>
+#include <os/types/syscall.h>
 #include <ds/list.h>
 #include <semaphore.h>
 #include <mutex.h>
@@ -91,6 +92,15 @@ ThreadCreate(
         _In_ size_t        kernelMaxStackSize,
         _In_ size_t        userMaxStackSize,
         _In_ uuid_t*       handle);
+
+/**
+ * @brief
+ * @param syscallContext
+ * @return
+ */
+KERNELAPI oserr_t KERNELABI
+ThreadFork(
+        _In_ OSSyscallContext_t* syscallContext);
 
 /**
  * @brief Marks the thread with the given id for finished, and it will be cleaned up
@@ -210,6 +220,16 @@ ThreadFlags(
         _In_ Thread_t* Thread);
 
 /**
+ * @brief Retrieve a handle to the parent thread.
+ * @param Thread The thread to get the parent handle of.
+ * @return Returns the parent handle for the thread,
+ *         UUID_INVALID if there is no parent.
+ */
+KERNELAPI uuid_t KERNELABI
+ThreadParent(
+        _In_ Thread_t* Thread);
+
+/**
  * ThreadMemorySpace
  * @param Thread A pointer to a thread structure
  * @return       A pointer to the threads memory space
@@ -242,6 +262,14 @@ ThreadSchedulerHandle(
  */
 KERNELAPI PlatformThreadBlock_t* KERNELABI
 ThreadPlatformBlock(
+        _In_ Thread_t* thread);
+
+/**
+ * @param[In] thread The thread to retrieve the syscall context pointer from.
+ * @return    A pointer to the system call context.
+ */
+KERNELAPI OSSyscallContext_t* KERNELABI
+ThreadSyscallContext(
         _In_ Thread_t* thread);
 
 /**

@@ -19,6 +19,7 @@
 
 #define __TRACE
 
+#define __need_minmax
 #include <arch/utils.h>
 #include <component/timer.h>
 #include <debug.h>
