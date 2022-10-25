@@ -352,8 +352,7 @@ GetCurrentMemorySpace(void)
     // if no threads are active return the kernel address space
     if (currentThread == NULL) {
         return GetDomainMemorySpace();
-    }
-    else {
+    } else {
         assert(ThreadMemorySpace(currentThread) != NULL);
         return ThreadMemorySpace(currentThread);
     }
@@ -365,8 +364,7 @@ GetCurrentMemorySpaceHandle(void)
     Thread_t* currentThread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     if (currentThread == NULL) {
         return UUID_INVALID;
-    }
-    else {
+    } else {
         return ThreadMemorySpaceHandle(currentThread);
     }
 }
@@ -655,8 +653,8 @@ MemorySpaceCommit(
         _In_ size_t         pageMask,
         _In_ unsigned int   placementFlags)
 {
-    int        pageCount = DIVUP(size, GetMemorySpacePageSize());
-    int        pagesComitted;
+    int     pageCount = DIVUP(size, GetMemorySpacePageSize());
+    int     pagesComitted;
     oserr_t osStatus;
 
     if (!memorySpace || !physicalAddressValues) {

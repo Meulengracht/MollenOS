@@ -28,16 +28,19 @@ segment .text
 %define REGISTER_EDX      20
 %define REGISTER_ECX      24
 %define REGISTER_EAX      28
+
 %define REGISTER_GS       32 ; Not saved
 %define REGISTER_FS       36
 %define REGISTER_ES       40 ; Not saved
 %define REGISTER_DS       44 ; Not saved
+
 %define REGISTER_IRQ      48 ; Not saved
 %define REGISTER_ERR      52 ; Not saved
 %define REGISTER_EIP      56
 %define REGISTER_CS       60 ; Not saved
 %define REGISTER_EFLAGS   64 ; Not saved
 %define REGISTER_USERESP  68 ; Not saved
+%define REGISTER_USERSS   72 ; Not saved
 
 ;Functions in this asm
 global _GetContext

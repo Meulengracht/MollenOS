@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "thread"
-//#define __TRACE
+#define __TRACE
 //#define __OSCONFIG_DEBUG_SCHEDULER
 #define __need_quantity
 
@@ -53,6 +53,26 @@ static uuid_t __CreateCookie(Thread_t* thread, Thread_t* parent);
 static void   __AddChild(Thread_t* parent, Thread_t* child);
 static void   __RemoveChild(Thread_t* parent, Thread_t* child);
 
+static void
+__SetupIdleContext(
+        _In_ Thread_t* thread)
+{
+    Context_t*  idleContext;
+    Context_t** currentStack = &idleContext;
+    uintptr_t   stackAligned;
+    size_t      blockSize = GetMemorySpacePageSize();
+    TRACE("__SetupIdleContext(current=0x%llx)", currentStack);
+
+    // The way we currently calculate the stack-top is by block-aligning it. We expect
+    // the stack to be block-aligned, and this probably *does not hold true* for all architectures.
+    // For our current architectures we expect this
+    stackAligned = (uintptr_t)currentStack & ~(blockSize - 1);
+    stackAligned += blockSize;
+    stackAligned -= sizeof(Context_t);
+    TRACE("__SetupIdleContext top=0x%llx", stackAligned);
+    thread->Contexts[THREADING_CONTEXT_LEVEL0] = (Context_t*)stackAligned;
+}
+
 void
 ThreadingEnable(
         _In_ SystemCpuCore_t* cpuCore)
@@ -75,7 +95,11 @@ ThreadingEnable(
     if (oserr != OS_EOK) {
         assert(0);
     }
-    
+
+    // The idle threads have pre-allocated stacks, and must manually
+    // be setup according to the current stack.
+    __SetupIdleContext(thread);
+
     // Handle setup of memory space as that is not covered.
     thread->MemorySpace       = GetCurrentMemorySpace();
     thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
@@ -89,6 +113,15 @@ __InheritAddressSpace(
 {
     MemorySpace_t* memorySpace;
     oserr_t        oserr;
+
+    // Idle threads have no memory space handle, just the root (domain) memory
+    // space. Instead of acquiring it (which we don't need), we just proxy it
+    // and use the same setup
+    if (parent->MemorySpaceHandle == UUID_INVALID) {
+        thread->MemorySpace       = GetDomainMemorySpace();
+        thread->MemorySpaceHandle = UUID_INVALID;
+        return OS_EOK;
+    }
 
     oserr = AcquireHandleOfType(
             parent->MemorySpaceHandle,
@@ -130,6 +163,7 @@ ThreadFork(
     Thread_t* thread;
     Context_t returnContext;
     oserr_t   oserr;
+    TRACE("ThreadFork()");
 
     // Clone the current kernel context
     if (GetContext(&returnContext)) {
@@ -152,6 +186,7 @@ ThreadFork(
     thread->References = ATOMIC_VAR_INIT(0);
 
     // Get current stack pointer, get top of stack, clone it.
+    TRACE("ThreadFork forking context");
     parent = ThreadCurrentForCore(ArchGetProcessorCoreId());
     oserr = ArchThreadContextFork(
             parent->Contexts[THREADING_CONTEXT_LEVEL0],
@@ -196,6 +231,7 @@ ThreadFork(
     }
 
     // Inherit all the following
+    TRACE("ThreadFork initializing thread");
     thread->Function        = parent->Function;
     thread->Arguments       = parent->Arguments;
     thread->Flags           = __InheritThreadFlags(parent->Flags) | THREADING_FORKED;
@@ -214,7 +250,10 @@ ThreadFork(
 
     // Schedule the thread
     __AddChild(parent, thread);
-    TRACE("ThreadFork new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
+    TRACE("ThreadFork new thread %s on core %u",
+          thread->Name,
+          SchedulerObjectGetAffinity(thread->SchedulerObject)
+    );
     SchedulerQueueObject(thread->SchedulerObject);
     return OS_EOK;
 }
@@ -233,6 +272,7 @@ ThreadCreate(
     Thread_t* thread;
     Thread_t* parent;
     uuid_t    coreId;
+    oserr_t   oserr;
 
     TRACE("ThreadCreate(name=%s, entry=0x%" PRIxIN ", argments=0x%" PRIxIN ", flags=0x%x, memorySpaceHandle=%u"
           "kernelMaxStackSize=%" PRIuIN ", userMaxStackSize=%" PRIuIN ")",
@@ -246,7 +286,7 @@ ThreadCreate(
         return OS_EOOM;
     }
 
-    oserr_t status = __InitializeDefaultsForThread(
+    oserr = __InitializeDefaultsForThread(
             thread,
             name,
             entry,
@@ -255,9 +295,15 @@ ThreadCreate(
             kernelMaxStackSize,
             userMaxStackSize
     );
-    if (status != OS_EOK) {
+    if (oserr != OS_EOK) {
         __DestroyThread(thread);
-        return status;
+        return oserr;
+    }
+
+    oserr = __CreateThreadContexts(thread);
+    if (oserr != OS_EOK) {
+        __DestroyThread(thread);
+        return oserr;
     }
     
     // Setup parent and cookie information
@@ -273,14 +319,14 @@ ThreadCreate(
     if (!(flags & THREADING_INHERIT) && memorySpaceHandle != UUID_INVALID) {
         MemorySpace_t* memorySpace;
 
-        status = AcquireHandleOfType(
+        oserr = AcquireHandleOfType(
                 memorySpaceHandle,
                 HandleTypeMemorySpace,
                 (void**)&memorySpace
         );
-        if (status != OS_EOK) {
+        if (oserr != OS_EOK) {
             __DestroyThread(thread);
-            return status;
+            return oserr;
         }
 
         if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
@@ -302,8 +348,8 @@ ThreadCreate(
                 memorySpaceFlags |= MEMORY_SPACE_INHERIT;
             }
 
-            status = CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle);
-            if (status != OS_EOK) {
+            oserr = CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle);
+            if (oserr != OS_EOK) {
                 __DestroyThread(thread);
                 return OS_EUNKNOWN;
             }
@@ -989,12 +1035,7 @@ __InitializeDefaultsForThread(
     }
 
     thread->SchedulerObject = SchedulerCreateObject(thread, flags);
-    oserr = ArchThreadInitialize(thread);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    return __CreateThreadContexts(thread);
+    return ArchThreadInitialize(thread);
 }
 
 static uuid_t
