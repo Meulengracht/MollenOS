@@ -44,6 +44,7 @@ segment .text
 %define REGISTER_CS       152 ; Not saved
 %define REGISTER_EFLAGS   160 ; Not saved
 %define REGISTER_USERESP  168 ; Not saved
+%define REGISTER_USERSS   176 ; Not saved
 
 ;Functions in this asm
 global GetContext
@@ -72,6 +73,14 @@ GetContext:
     mov [rcx + REGISTER_RSP], rax
     mov rax, [rsp]
     mov [rcx + REGISTER_RIP], rax
+
+    ; zero values not stored
+    mov qword [rcx + REGISTER_IRQ], 0
+    mov qword [rcx + REGISTER_ERR], 0
+    mov qword [rcx + REGISTER_CS], 0
+    mov qword [rcx + REGISTER_EFLAGS], 0
+    mov qword [rcx + REGISTER_USERESP], 0
+    mov qword [rcx + REGISTER_USERSS], 0
     
     ; store fpregs TODO
 

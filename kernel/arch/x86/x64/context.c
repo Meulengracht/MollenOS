@@ -19,7 +19,7 @@
  */
 
 #define __MODULE "context"
-//#define __TRACE
+#define __TRACE
 
 #include <assert.h>
 #include <arch/x86/cpu.h>
@@ -252,6 +252,7 @@ ArchThreadContextCreate(
     uintptr_t    contextAddress;
     unsigned int placementFlags;
     unsigned int memoryFlags;
+    TRACE("ArchThreadContextCreate(type=%i, size=0x%llx)", contextType, contextSize);
 
     __GetContextFlags(contextType, &placementFlags, &memoryFlags);
     oserr = __AllocateStackInMemory(
@@ -266,6 +267,7 @@ ArchThreadContextCreate(
     }
 
     contextAddress += contextSize - sizeof(Context_t);
+    TRACE("ArchThreadContextCreate returns 0x%llx", contextAddress);
 	return (Context_t*)contextAddress;
 }
 
@@ -297,10 +299,13 @@ ArchThreadContextFork(
     size_t       stackUsage = stackTop - stack;
     unsigned int placementFlags;
     unsigned int memoryFlags;
+    TRACE("ArchThreadContextFork(stackTop=0x%llx, stack=0x%llx, stackUsage=0x%llx)",
+          stackTop, stack, stackUsage);
 
     __GetContextFlags(contextType, &placementFlags, &memoryFlags);
 
     // Commit enough space for the extra Context_t we add below
+    TRACE("ArchThreadContextFork mapping the new stack");
     oserr = __AllocateStackInMemory(
             placementFlags,
             memoryFlags,
@@ -312,25 +317,38 @@ ArchThreadContextFork(
         return oserr;
     }
 
-    // contextAddress now points to the top of the new stack - sizeof(Context_t),
-    // so let's fix it up and then calculate new addresses
-    contextAddress += sizeof(Context_t); // point to top
-    newStackTop    = contextAddress;     // save it for fix ups
-    contextAddress -= stackUsage;        // point to bottom
+    TRACE("ArchThreadContextFork new stack at 0x%llx", contextAddress);
+    // contextAddress now points to the bottom of the stack, but we need it
+    // to point to the top, so we can calculate a new 'current'. So let's fix
+    // it up and then calculate new addresses
+    contextAddress += contextSize;    // point to top
+    newStackTop    = contextAddress;  // save it for fix ups
+    contextAddress -= stackUsage;     // point to bottom
 
     // Now we copy from <stack> to <contextAddress>
+    TRACE("ArchThreadContextFork cloning stack from 0x%llx to 0x%llx", stack, contextAddress);
     memcpy((void*)contextAddress, (const void*)stack, stackUsage);
 
     // And then, finally, we must set up a new context on top of this, which when unwound
     // somehow lands us back at the caller function. This is where the <returnContext> comes
     // into play, except we need to fix up the stack pointers in it
+    TRACE("ArchThreadContextFork setting up return context");
     contextAddress -= sizeof(Context_t);
     memcpy((void*)contextAddress, returnContext, sizeof(Context_t));
 
     // Fix up the stack pointers, which must not be their original values
+    TRACE("ArchThreadContextFork fixing up addresses");
     newContext = (Context_t*)contextAddress;
     newContext->Rbp = __FixupAddress(returnContext->Rbp, stackTop, newStackTop);
     newContext->Rsp = __FixupAddress(returnContext->Rsp, stackTop, newStackTop);
+
+    // Fixup IRQ values which definitely needs to be reset. It's important that the entire Context_t is
+    // consumed, otherwise we will be left with values on the stack, messing up the original stack.
+    // TODO: this works on bochs, does it work on real HW?
+    newContext->Rflags  = CPU_EFLAGS_DEFAULT;
+    newContext->Cs      = GDT_KCODE_SEGMENT;
+    newContext->UserRsp = (uint64_t)&newContext->ShadowSpace[4]; // point stack pointer beyond the structure
+    newContext->UserSs  = GDT_KDATA_SEGMENT;
 
     *baseContextOut = (Context_t*)(newStackTop - sizeof(Context_t));
     *contextOut = newContext;
