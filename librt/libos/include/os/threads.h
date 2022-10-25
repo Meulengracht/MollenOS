@@ -86,7 +86,7 @@ ThreadsCurrentId(void));
  *
  * @param[In]            until     Pointer to the point in time to sleep until
  * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
- * @return OsOK on successful sleep, OsInterrupted if a signal occurred, other if an error occurred.
+ * @return OS_EOK on successful sleep, OsInterrupted if a signal occurred, other if an error occurred.
  */
 CRTDECL(oserr_t,
 ThreadsSleep(

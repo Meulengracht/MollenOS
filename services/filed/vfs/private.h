@@ -183,7 +183,7 @@ VFSNodeHandleAdd(
 
 /**
  * @brief Retrieves a file handle, this will automatically acquire one reader lock
- * if this returns OsOK. For each call to this function, one call to VFSNodeHandlePut
+ * if this returns OS_EOK. For each call to this function, one call to VFSNodeHandlePut
  * must be called.
  * @param handleId
  * @param handleOut

@@ -152,7 +152,7 @@ SystemTimerGetClockFrequency(
  * @brief Retrieves the frequency of the high performance counter (if present)
  *
  * @param[Out] frequency A pointer where to store the frequency.
- * @return     Returns OsNotSupported if HPC is not supported, otherwise OsOK.
+ * @return     Returns OsNotSupported if HPC is not supported, otherwise OS_EOK.
  */
 KERNELAPI oserr_t KERNELABI
 SystemTimerGetPerformanceFrequency(
@@ -162,7 +162,7 @@ SystemTimerGetPerformanceFrequency(
  * @brief Retrieves the current tick of the high performance counter (if present)
  *
  * @param[Out] tick A pointer where to store the current tick.
- * @return     Returns OsNotSupported if HPC is not supported, otherwise OsOK.
+ * @return     Returns OsNotSupported if HPC is not supported, otherwise OS_EOK.
  */
 KERNELAPI oserr_t KERNELABI
 SystemTimerGetPerformanceTick(

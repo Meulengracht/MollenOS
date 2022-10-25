@@ -55,7 +55,7 @@ FsReadFromDirectory(
     position /= sizeof(struct VFSStat);
     position *= sizeof(FileRecord_t);
 
-    // Guard against empty directories, we just return OsOK and
+    // Guard against empty directories, we just return OS_EOK and
     // unitsRead=0
     if (entry->StartBucket == MFS_ENDOFCHAIN) {
         return OS_EOK;

@@ -182,7 +182,7 @@ PS2PortWaitForState(
         thrd_sleepex(10);
         Timeout -= 10;
 
-        // If it returns OsOK all done
+        // If it returns OS_EOK all done
         if (PS2PortFinishCommand(Port) == OS_EOK) {
             break;
         }

@@ -130,7 +130,7 @@ HpetComparatorStart(
 /**
  * @brief Returns whether or not the hpet is configured to use legacy routings.
  *
- * @return OsOK if the HPET has legacy routings
+ * @return OS_EOK if the HPET has legacy routings
  */
 KERNELAPI oserr_t KERNELABI
 HpetIsEmulatingLegacyController(void);

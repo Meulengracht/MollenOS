@@ -552,13 +552,13 @@ __ParseAndProcessMasterRecord(
     DmaInfo.type     = DMA_TYPE_DRIVER_32;
 
     Status = dma_export(bMap, &mapInfo, &mapAttachment);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR("[mfs] [init] failed to export buffer for sector-map");
         goto Error;
     }
 
     if (MfsReadSectors(Descriptor, mapAttachment.handle, 0,
-            mapSector, sectorCount, &SectorsTransferred) != OsOK) {
+            mapSector, sectorCount, &SectorsTransferred) != OS_EOK) {
         ERROR("[mfs] [init] failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
         goto Error;
     }

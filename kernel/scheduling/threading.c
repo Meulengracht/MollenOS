@@ -114,6 +114,14 @@ __SetDefaultName(
     thread->Name = strdup(&buffer[0]);
 }
 
+// __InheritThreadFlags only returns flags that we want to include from
+// the parent thread when forking. This will not include any run-mode as
+// all forked threads are currently kernel threads.
+static unsigned int __InheritThreadFlags(unsigned int flags)
+{
+    return flags & (THREADING_INHERIT);
+}
+
 oserr_t
 ThreadFork(void)
 {
@@ -189,7 +197,7 @@ ThreadFork(void)
     // Inherit all the following
     thread->Function        = parent->Function;
     thread->Arguments       = parent->Arguments;
-    thread->Flags           = parent->Flags | THREADING_FORKED;
+    thread->Flags           = __InheritThreadFlags(parent->Flags) | THREADING_FORKED;
     thread->ParentHandle    = parent->Handle;
     thread->KernelStackSize = parent->KernelStackSize;
     thread->UserStackSize   = 0; // Forked threads are kernel only

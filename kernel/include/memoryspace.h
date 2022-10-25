@@ -320,7 +320,7 @@ GetMemorySpaceAttributes(
  *
  * @param memorySpace [In] The memory space to check the address in.
  * @param address     [In] The address to check for access.
- * @return            Returns OsOK if the address is dirty.
+ * @return            Returns OS_EOK if the address is dirty.
  */
 KERNELAPI oserr_t KERNELABI
 IsMemorySpacePageDirty(

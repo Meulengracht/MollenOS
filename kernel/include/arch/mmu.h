@@ -134,7 +134,7 @@ ArchMmuGetPageAttributes(
  * @param Attributes     [In]  Replaces the attributes here with the previous attributes 
  * @param PagesUpdated   [Out]
  * 
- * @return OsOK if operation was fully completed, otherwise OsIncomplete
+ * @return OS_EOK if operation was fully completed, otherwise OsIncomplete
  */
 KERNELAPI oserr_t KERNELABI
 ArchMmuUpdatePageAttributes(
