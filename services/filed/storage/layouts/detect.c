@@ -48,7 +48,7 @@ VFSStorageDeriveFileSystemType(
 
     // Make sure the MBR is loaded
     status = storage->Operations.Read(storage, bufferHandle, 0, sector, 1, &sectorsRead);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         return status;
     }
 
@@ -82,10 +82,10 @@ VFSStorageDeriveFileSystemType(
     }
 
     if (fsHint == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     *fsHintOut = fsHint;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -101,7 +101,7 @@ VFSStorageDetectFileSystem(
 	TRACE("VFSStorageDetectFileSystem(sector=%u)", sector->u.LowPart);
 
     oserr = VFSStorageDeriveFileSystemType(storage, bufferHandle, buffer, sector, &fsHint);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -134,13 +134,13 @@ VFSStorageParse(
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     oserr = DmaCreate(&dmaInfo, &dmaAttachment);
-	if (oserr != OsOK) {
+	if (oserr != OS_EOK) {
 		return oserr;
 	}
 
     // Always check for GPT table first
     oserr = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
-    if (oserr == OsNotExists) {
+    if (oserr == OS_ENOENT) {
         oserr = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
     }
 

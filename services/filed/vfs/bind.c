@@ -28,19 +28,19 @@ oserr_t VFSNodeBind(struct VFS* vfs, uuid_t fromID, uuid_t toID)
     _CRT_UNUSED(vfs);
 
     oserr = VFSNodeHandleGet(fromID, &fromHandle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = VFSNodeHandleGet(toID, &toHandle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         VFSNodeHandlePut(fromHandle);
         return oserr;
     }
 
     usched_rwlock_w_lock(&toHandle->Node->Lock);
     if (!__NodeIsRegular(toHandle->Node)) {
-        oserr = OsInvalidParameters;
+        oserr = OS_EINVALPARAMS;
         goto exit;
     }
 
@@ -68,13 +68,13 @@ oserr_t VFSNodeUnbind(struct VFS* vfs, uuid_t directoryHandleID)
     _CRT_UNUSED(vfs);
 
     oserr = VFSNodeHandleGet(directoryHandleID, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     if (!__NodeIsBindMount(handle->Node)) {
-        oserr = OsInvalidParameters;
+        oserr = OS_EINVALPARAMS;
         goto exit;
     }
 

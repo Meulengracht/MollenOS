@@ -64,7 +64,7 @@ static oserr_t __DetectFileSystem(
     dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
 
     oserr = DmaCreate(&dmaInfo, &dmaAttachment);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -106,7 +106,7 @@ static oserr_t __SetupFileBackedStorage(
             &guid,
             &fileSystem
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     *fileSystemOut = fileSystem;
@@ -117,24 +117,24 @@ static oserr_t __SetupFileBackedStorage(
     if (interfaceDriverID == UUID_INVALID && fsType == NULL) {
         // Use auto-detection like we do for MBR/GPT
         oserr = __DetectFileSystem(storage, &sector, &fsType);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // If we fail to determine the file-system, then we should still mount the file
             // as a raw device that people can format. TODO This needs to be implemented.
             WARNING("__SetupFileBackedStorage failed to auto-detect filesystem");
             // __MountAsRawDeviceOnly
-            return OsNotSupported;
+            return OS_ENOTSUPPORTED;
         }
     }
 
     // Next step is to load a module or driver for the fileystem.
     if (interfaceDriverID == UUID_INVALID) {
         oserr = VFSInterfaceLoadInternal(fsType, &interface);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING("__SetupFileBackedStorage no module for filesystem type %s", fsType);
         }
     } else {
         oserr = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING("__SetupFileBackedStorage failed to register driver for %s", fsType);
         }
     }
@@ -166,7 +166,7 @@ static oserr_t __MountFile(
             __AccessFlagsFromMountFlags(flags),
             &handle
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -176,19 +176,19 @@ static oserr_t __MountFile(
     storage = VFSStorageCreateFileBacked(handle);
     if (storage == NULL) {
         (void)VFSNodeClose(vfs, handle);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Then we can safely create a new VFS from this.
     oserr = __SetupFileBackedStorage(storage, offset, fsType, interfaceDriverID, &fileSystem);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         VFSStorageDelete(storage);
         (void)VFSNodeClose(vfs, handle);
         return oserr;
     }
 
     oserr = VFSNodeMount(vfs, atHandle, fileSystem->VFS);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         VFSStorageDelete(storage);
         (void)VFSNodeClose(vfs, handle);
     }
@@ -212,15 +212,15 @@ static oserr_t __MountPath(
             0, // TODO what kind of access should we have here
             &handle
     );
-    if (oserr != OsOK) {
-        if (oserr == OsPathIsNotDirectory) {
+    if (oserr != OS_EOK) {
+        if (oserr == OS_ENOTDIR) {
             return __MountFile(vfs, cpath, 0, UUID_INVALID, atHandle, fsType, flags);
         }
         return oserr;
     }
 
     oserr = VFSNodeBind(vfs, handle, atHandle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         // Ok something went wrong, maybe it's already bind mounted.
         (void)VFSNodeClose(vfs, handle);
         return oserr;
@@ -236,15 +236,15 @@ static oserr_t __MountSpecial(
     TRACE("__MountSpecial()");
 
     if (fsType == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Verify against supported special fs's
     if (!strcmp(fsType, "memfs")) {
         // TODO support mounting temporary fs's, this should be pretty easy
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
-    return OsInvalidParameters;
+    return OS_EINVALPARAMS;
 }
 
 void Mount(
@@ -260,7 +260,7 @@ void Mount(
     _CRT_UNUSED(cancellationToken);
 
     if (fsScope == NULL) {
-        sys_mount_mount_response(request->message, OsInvalidPermissions);
+        sys_mount_mount_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -273,7 +273,7 @@ void Mount(
             0, // TODO what kind of access should we have here
             &atHandle
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
@@ -297,7 +297,7 @@ cleanup:
     sys_mount_mount_response(request->message, oserr);
 
     // Cleanup resources allocated by us and the request
-    if (oserr != OsOK && atHandle != UUID_INVALID) {
+    if (oserr != OS_EOK && atHandle != UUID_INVALID) {
         (void)VFSNodeClose(fsScope, atHandle);
     }
     free((void*)request->parameters.mount.path);
@@ -316,13 +316,13 @@ void Unmount(
     _CRT_UNUSED(cancellationToken);
 
     if (fsScope == NULL) {
-        sys_mount_unmount_response(request->message, OsInvalidPermissions);
+        sys_mount_unmount_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
     path = mstr_new_u8(request->parameters.unmount.path);
     oserr = VFSNodeUnmountPath(fsScope, path);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 

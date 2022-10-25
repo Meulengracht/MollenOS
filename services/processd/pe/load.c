@@ -190,7 +190,7 @@ PeHandleSections(
 
         // Iterate pages and map them in our memory space
         osStatus = PeImplAcquireImageMapping(image->MemorySpace, &VirtualDestination, SectionSize, PageFlags, &mapHandle);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR("%ms: Failed to map section %s at 0x%" PRIxIN ": %u",
                   image->Name, &sectionName[0], VirtualDestination, osStatus);
             return osStatus;
@@ -248,7 +248,7 @@ PeHandleSections(
 
     if (parent != NULL) parent->NextLoadingAddress = currentAddress;
     else image->NextLoadingAddress  = currentAddress;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -272,7 +272,7 @@ PeResolveImportDescriptor(
     ResolvedLibrary = PeResolveLibrary(ParentImage, Image, ImportDescriptorName);
     if (ResolvedLibrary == NULL || ResolvedLibrary->ExportedFunctions == NULL) {
         ERROR("(%ms): Failed to resolve library %ms", Image->Name, ImportDescriptorName);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     Exports              = ResolvedLibrary->ExportedFunctions;
     NumberOfExports      = ResolvedLibrary->NumberOfExportedFunctions;
@@ -292,7 +292,7 @@ PeResolveImportDescriptor(
                 Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
                 if (!Function) {
                     ERROR("Failed to locate function (%i)", Ordinal);
-                    return OsError;
+                    return OS_EUNKNOWN;
                 }
             }
             else {
@@ -300,7 +300,7 @@ PeResolveImportDescriptor(
                 Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
                 if (!Function) {
                     ERROR("Failed to locate function (%s)", &NameDescriptor->Name[0]);
-                    return OsError;
+                    return OS_EUNKNOWN;
                 }
             }
 
@@ -319,7 +319,7 @@ PeResolveImportDescriptor(
                 Function    = GetExportedFunctionByOrdinal(Exports, NumberOfExports, Ordinal);
                 if (!Function) {
                     ERROR("Failed to locate function (%i)", Ordinal);
-                    return OsError;
+                    return OS_EUNKNOWN;
                 }
             }
             else {
@@ -327,14 +327,14 @@ PeResolveImportDescriptor(
                 Function       = GetExportedFunctionByNameDescriptor(Exports, NumberOfExports, NameDescriptor);
                 if (!Function) {
                     ERROR("Failed to locate function (%s)", &NameDescriptor->Name[0]);
-                    return OsError;
+                    return OS_EUNKNOWN;
                 }
             }
             *ThunkPointer = (uint64_t)Function->Address;
             ThunkPointer++;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -355,7 +355,7 @@ PeHandleRelocations(
 
     // Sanitize the image delta
     if (imageDelta == 0) {
-        return OsOK;
+        return OS_EOK;
     }
 
     while (bytesLeft > 0) {
@@ -441,7 +441,7 @@ PeHandleRelocations(
         relocationPointer += (blockSize / sizeof(uint32_t));
         bytesLeft         -= blockSize;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 PACKED_TYPESTRUCT(RuntimeRelocationHeader, {
@@ -537,7 +537,7 @@ static oserr_t HandleRelocationsV2(
 #endif
             default: {
                 ERROR("HandleRelocationsV2 invalid relocation size %u", relocSize);
-                return OsError;
+                return OS_EUNKNOWN;
             }
         }
 
@@ -558,7 +558,7 @@ static oserr_t HandleRelocationsV2(
         }
         entry++;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t PeHandleRuntimeRelocations(
@@ -574,7 +574,7 @@ oserr_t PeHandleRuntimeRelocations(
     TRACE("PeHandleRuntimeRelocations(size=%" PRIuIN ")", DirectorySize);
 
     if (DirectorySize < 8) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (DirectorySize >= 12 && header->Magic0 == 0 && header->Magic1 == 0) {
@@ -586,11 +586,11 @@ oserr_t PeHandleRuntimeRelocations(
             return HandleRelocationsV2(Image, Sections, SectionCount, entries, endOfEntries);
         }
         else {
-            return OsInvalidParameters;
+            return OS_EINVALPARAMS;
         }
     }
     HandleRelocationsV1(Sections, SectionCount, DirectoryContent, endOfEntries);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -629,7 +629,7 @@ PeHandleExports(
                 DirectoryContent[Index + 10], DirectoryContent[Index + 11], DirectoryContent[Index + 12],
                 DirectoryContent[Index + 13], DirectoryContent[Index + 14], DirectoryContent[Index + 15]);
         }
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     Section               = GetSectionFromRVA(Sections, SectionCount, ExportTable->AddressOfFunctions);
@@ -699,7 +699,7 @@ PeHandleExports(
         ExFunc->Name         = NameBuffer;
         FunctionNameLengths += FunctionLength;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -719,12 +719,12 @@ PeHandleImports(
         oserr_t        Status          = PeResolveImportDescriptor(ParentImage, Image, Section, ImportDescriptor, Name);
         mstr_delete(Name);
 
-        if (Status != OsOK) {
-            return OsError;
+        if (Status != OS_EOK) {
+            return OS_EUNKNOWN;
         }
         ImportDescriptor++;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -749,9 +749,9 @@ PeParseAndMapImage(
     // Copy metadata of image to base address
     osStatus = PeImplAcquireImageMapping(Image->MemorySpace, &VirtualAddress, SizeOfMetaData,
                                          MEMORY_READ | MEMORY_WRITE, &MapHandle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to map pe's metadata, out of memory?");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     memcpy((void*)VirtualAddress, ImageBuffer, SizeOfMetaData);
     PeImplReleaseImageMapping(MapHandle);
@@ -763,8 +763,8 @@ PeParseAndMapImage(
     // Now we want to handle all the directories and sections in the image
     TRACE("Handling sections and data directory mappings");
     osStatus = PeHandleSections(Parent, Image, ImageBuffer, SectionBase, SectionCount, SectionMappings);
-    if (osStatus != OsOK) {
-        return OsError;
+    if (osStatus != OS_EOK) {
+        return OS_EUNKNOWN;
     }
     
     // Do we have a data directory in this section? Or multiple?
@@ -804,7 +804,7 @@ PeParseAndMapImage(
             osStatus = DataDirectoryHandlers[i].Handler(Parent, Image, SectionMappings, SectionCount,
                                                         DirectoryContents[dataDirectoryIndex],
                                                         Directories[dataDirectoryIndex].Size);
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 ERROR("handling of data-directory failed, status %u", osStatus);
             }
             TRACE("directory[%i]: %u ms", dataDirectoryIndex, PeImplGetTimestampMs() - Timing);
@@ -840,14 +840,14 @@ __ResolveImagePath(
             path,
             &fullPath
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to resolve path for executable: %ms (%u)", path, osStatus);
         return osStatus;
     }
     
     // Load the file
     osStatus = PeImplLoadFile(fullPath, (void**)&buffer, &length);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to load file for path %ms (%u)", fullPath, osStatus);
         mstr_delete(fullPath);
         return osStatus;
@@ -884,7 +884,7 @@ PeLoadImage(
     TRACE("PeLoadImage(Path %ms, Parent %ms)", path, (parent == NULL) ? NULL : parent->Name);
 
     osStatus = __ResolveImagePath(owner, parent, path, &buffer, &fullPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         if (fullPath != NULL) {
             mstr_delete(fullPath);
         }
@@ -898,7 +898,7 @@ PeLoadImage(
         ERROR("The image as built for machine type 0x%x, "
                 "which is not the current machine type.",
                 peHeader->Machine);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Validate the current architecture,
@@ -907,7 +907,7 @@ PeLoadImage(
         ERROR("The image was built for architecture 0x%x, "
                 "and was not supported by the current architecture.",
                 optionalHeader->Architecture);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // We need to re-cast based on architecture 
@@ -932,12 +932,12 @@ PeLoadImage(
     }
     else {
         ERROR("Unsupported architecture %u", optionalHeader->Architecture);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     image = (PeExecutable_t*)malloc(sizeof(PeExecutable_t));
     if (!image) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     memset(image, 0, sizeof(PeExecutable_t));
@@ -961,13 +961,13 @@ PeLoadImage(
 
     if (parent == NULL) {
         osStatus = PeImplCreateImageSpace(&image->MemorySpace);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR("Failed to create pe's memory space");
             mstr_delete(image->Name);
             mstr_delete(image->FullPath);
             free(image->Libraries);
             free(image);
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
     else {
@@ -978,12 +978,12 @@ PeLoadImage(
     osStatus = PeParseAndMapImage(parent, image, buffer, sizeOfMetaData, sectionAddress,
                                   (int)peHeader->NumSections, directoryPtr);
     PeImplUnloadFile((void*)buffer);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         PeUnloadLibrary(parent, image);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     *imageOut = image;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -991,7 +991,7 @@ PeUnloadImage(
     _In_ PeExecutable_t* image)
 {
     if (!image) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     TRACE("PeUnloadImage(image=%ms)", image->Name);
@@ -1012,7 +1012,7 @@ PeUnloadImage(
         }
     }
     free(image);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -1036,5 +1036,5 @@ PeUnloadLibrary(
         }
         return PeUnloadImage(library);
     }
-    return OsOK;
+    return OS_EOK;
 }

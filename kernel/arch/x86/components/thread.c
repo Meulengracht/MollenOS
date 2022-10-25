@@ -60,28 +60,28 @@ ArchThreadInitialize(
     _In_ Thread_t* thread)
 {
     PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
-    oserr_t             osStatus;
+    oserr_t                oserr;
 
     if (!threadData) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Are we creating the idle thread? Then perform some additional setup for the core
     if (ThreadFlags(thread) & THREADING_IDLE) {
         SystemCpuCore_t* currentCore = GetProcessorCore(ArchGetProcessorCoreId());
-        osStatus = TssInitialize(CpuCorePlatformBlock(currentCore));
-        if (osStatus != OsOK) {
-            return osStatus;
+        oserr = TssInitialize(CpuCorePlatformBlock(currentCore));
+        if (oserr != OS_EOK) {
+            return oserr;
         }
     }
 
     threadData->Flags      = X86_THREAD_UPDATETLS;
     threadData->MathBuffer = kmalloc(0x1000);
     if (!threadData->MathBuffer) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(threadData->MathBuffer, 0, 0x1000);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -90,13 +90,13 @@ ArchThreadDestroy(
 {
     PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
     if (!threadData) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (threadData->MathBuffer) {
         kfree(threadData->MathBuffer);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -105,23 +105,23 @@ ThreadingFpuException(
 {
     PlatformThreadBlock_t* threadData = ThreadPlatformBlock(thread);
     if (!threadData) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Clear the task-switch bit
     clear_ts();
 
     if (!(threadData->Flags & X86_THREAD_USEDFPU)) {
-        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsOK) {
+        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OS_EOK) {
             load_fpu_extended((uintptr_t*)threadData->MathBuffer);
         }
         else {
             load_fpu((uintptr_t*)threadData->MathBuffer);
         }
         threadData->Flags |= X86_THREAD_USEDFPU;
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 void
@@ -133,7 +133,7 @@ ArchThreadYield(void)
     if (InterruptGetActiveStatus()) {
         if (ThreadIsCurrentIdle(ArchGetProcessorCoreId())) {
             oserr_t osStatus = ApicSendInterrupt(InterruptTarget_SELF, UUID_INVALID, INTERRUPT_LAPIC);
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
             }
         }
@@ -153,7 +153,7 @@ ArchThreadLeave(
     // Save FPU/MMX/SSE information if it's
     // been used, otherwise skip this and save time
     if (threadData->Flags & X86_THREAD_USEDFPU) {
-        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsOK) {
+        if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OS_EOK) {
             save_fpu_extended((uintptr_t*)threadData->MathBuffer);
         }
         else {

@@ -379,7 +379,7 @@ void usched_timedwait(const struct timespec* until)
     MutexLock(&queue->mutex);
     while (queue->ready == NULL) {
         oserr_t oserr = ConditionTimedWait(&queue->condition, &queue->mutex, until);
-        if (oserr == OsTimeout) {
+        if (oserr == OS_ETIMEOUT) {
             break;
         }
     }

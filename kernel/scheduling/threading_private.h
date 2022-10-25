@@ -61,7 +61,7 @@ typedef struct Thread {
     Mutex_t                 SyncObject;
     Semaphore_t             EventObject;
     _Atomic(int)            References;
-    UInteger64_t         StartedAt;
+    UInteger64_t            StartedAt;
     struct Thread*          Children;
     struct Thread*          Sibling;
 

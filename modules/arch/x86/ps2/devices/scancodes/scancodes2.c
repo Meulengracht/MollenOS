@@ -69,11 +69,11 @@ ScancodeSet2ToVKey(
     // Handle special cases
     if (scancode == PS2_CODE_EXTENDED) {
         keyState->modifiers |= KEY_MODIFIER_EXTENDED;
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else if (scancode == PS2_CODE_RELEASED) {
         keyState->modifiers |= VK_MODIFIER_RELEASED;
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Get appropriate scancode
@@ -83,5 +83,5 @@ ScancodeSet2ToVKey(
     else {
         keyState->keycode = g_scancodeSet2Table[scancode];
     }
-    return OsOK;
+    return OS_EOK;
 }

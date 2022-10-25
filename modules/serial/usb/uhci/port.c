@@ -67,9 +67,9 @@ HciPortReset(
 	// Sanitize the result
 	if (TempValue != 0) {
 		WARNING("UHCI: Port %u enable time-out!", Index);
-		return OsError;
+		return OS_EUNKNOWN;
 	}
-	return OsOK;
+	return OS_EOK;
 }
 
 void
@@ -97,7 +97,7 @@ UhciPortCheck(
 {
 	uint16_t pStatus = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (Index * 2)));
 	if (!(pStatus & UHCI_PORT_CONNECT_EVENT)) {
-		return OsOK;
+		return OS_EOK;
     }
 
     // Debug
@@ -115,7 +115,7 @@ UhciPortsCheck(
 	for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
 		UhciPortCheck(Controller, i);
 	}
-	return OsOK;
+	return OS_EOK;
 }
 
 oserr_t

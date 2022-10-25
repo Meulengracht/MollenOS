@@ -72,7 +72,7 @@ io_buffer_flush(
         // Flush them
         if (cnt > 0 && write(file->_fd, file->_base, (unsigned int)cnt) != cnt) {
             file->_flag |= _IOERR;
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         // If it's rw, clear WRITE flag
@@ -82,7 +82,7 @@ io_buffer_flush(
         file->_ptr = file->_base;
         file->_cnt = 0;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 struct __flush_context {
@@ -132,13 +132,13 @@ _lock_stream(
 {
     TRACE("_lock_stream(0x%" PRIxIN ")", file);
     if (!file) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!(file->_flag & _IOSTRG)) {
-        return iolock(file->_fd) == 0 ? OsOK : OsBusy;
+        return iolock(file->_fd) == 0 ? OS_EOK : OS_EBUSY;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -147,11 +147,11 @@ _unlock_stream(
 {
     TRACE("_unlock_stream(0x%" PRIxIN ")", file);
     if (!file) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (!(file->_flag & _IOSTRG)) {
-        return iounlock(file->_fd) == 0 ? OsOK : OsError;
+        return iounlock(file->_fd) == 0 ? OS_EOK : OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }

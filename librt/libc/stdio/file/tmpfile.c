@@ -43,7 +43,7 @@ FILE* tmpfile(void)
 
     if (stdio_handle_create(-1, WX_DONTINHERIT | WX_TEMP, &object)) {
         osStatus = OSCloseFile(handle);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             WARNING("tmpfile(path=%s) failed to cleanup handle");
         }
         return NULL;

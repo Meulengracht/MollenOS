@@ -91,7 +91,7 @@ EhciTransferFill(
             }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OsOK) {
+            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OS_EOK) {
                 if (Type == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
@@ -155,9 +155,9 @@ EhciTransferFill(
         // Set last td to generate a interrupt (not null)
         PreviousTd->Token         |= EHCI_TD_IOC;
         PreviousTd->OriginalToken |= EHCI_TD_IOC;
-        return OsOK;
+        return OS_EOK;
     }
-    return OsBusy;
+    return OS_EBUSY;
 }
 
 UsbTransferStatus_t
@@ -176,7 +176,7 @@ HciQueueTransferGeneric(
     // Step 1 - Allocate queue head
     if (!transfer->EndpointDescriptor) {
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
-                                        EHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsOK) {
+                                        EHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OS_EOK) {
             goto queued;
         }
         assert(endpointDescriptor != NULL);
@@ -185,7 +185,7 @@ HciQueueTransferGeneric(
         // Store and initialize the qh
         if (EhciQhInitialize(controller, transfer,
                              transfer->Transfer.Address.DeviceAddress,
-                             transfer->Transfer.Address.EndpointAddress) != OsOK) {
+                             transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;
@@ -194,7 +194,7 @@ HciQueueTransferGeneric(
     }
 
     // If it fails to queue up => restore toggle
-    if (EhciTransferFill(controller, transfer) != OsOK) {
+    if (EhciTransferFill(controller, transfer) != OS_EOK) {
         goto queued;
     }
 

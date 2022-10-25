@@ -91,9 +91,9 @@ SystemMemoryAllocate(
 
     SpinlockAcquireIrq(&region->Lock);
     osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
-    if (osStatus == OsIncomplete) {
+    if (osStatus == OS_EINCOMPLETE) {
         MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
-        osStatus = OsOutOfMemory;
+        osStatus = OS_EOOM;
     }
     SpinlockReleaseIrq(&region->Lock);
     return osStatus;
@@ -106,7 +106,7 @@ SystemMemoryFree(
         _In_ uintptr_t*      pages)
 {
 
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -116,7 +116,7 @@ SystemMemoryContainsAddress(
 {
     if (address >= systemMemory->PhysicalBase &&
         address < (systemMemory->PhysicalBase + systemMemory->Size)) {
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }

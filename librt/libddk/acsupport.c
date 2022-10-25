@@ -42,16 +42,16 @@ AcpiQueryTable(
     oserr_t         osStatus;
 
     osStatus = Syscall_AcpiGetHeader(signature, &header);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     table = (ACPI_TABLE_HEADER*)malloc(header.Length);
     if (!table) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     osStatus = Syscall_AcpiGetTable(signature, table);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         free(table);
         return osStatus;
     }
@@ -68,7 +68,7 @@ oserr_t AcpiQueryInterrupt(
     _Out_ unsigned int*  AcpiConform)
 {
     if (Interrupt == NULL || AcpiConform == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return Syscall_AcpiQueryInterrupt(Bus, Device, Pin, Interrupt, AcpiConform);
 }

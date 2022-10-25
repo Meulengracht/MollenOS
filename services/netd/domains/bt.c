@@ -33,5 +33,5 @@ oserr_t
 DomainBluetoothCreate(
     _Out_ SocketDomain_t** DomainOut)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }

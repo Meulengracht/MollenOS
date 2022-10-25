@@ -28,14 +28,14 @@ oserr_t VFSNodeGetPosition(uuid_t fileHandle, uint64_t* positionOut)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     *positionOut = handle->Position;
 
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeGetAccess(uuid_t fileHandle, uint32_t* accessKindOut)
@@ -44,14 +44,14 @@ oserr_t VFSNodeGetAccess(uuid_t fileHandle, uint32_t* accessKindOut)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     *accessKindOut = handle->AccessKind;
 
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeSetAccess(uuid_t fileHandle, uint32_t access)
@@ -60,7 +60,7 @@ oserr_t VFSNodeSetAccess(uuid_t fileHandle, uint32_t access)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -70,7 +70,7 @@ oserr_t VFSNodeSetAccess(uuid_t fileHandle, uint32_t access)
     // TODO: implement support for this
 
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeGetSize(uuid_t fileHandle, uint64_t* sizeOut)
@@ -79,7 +79,7 @@ oserr_t VFSNodeGetSize(uuid_t fileHandle, uint64_t* sizeOut)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -92,7 +92,7 @@ oserr_t VFSNodeGetSize(uuid_t fileHandle, uint64_t* sizeOut)
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeSetSize(uuid_t fileHandle, UInteger64_t* size)
@@ -101,20 +101,20 @@ oserr_t VFSNodeSetSize(uuid_t fileHandle, UInteger64_t* size)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     // Ensure the node we are truncating is a file, and not something else
     if (!__NodeIsFile(handle->Node)) {
-        osStatus = OsNotSupported;
+        osStatus = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Interface->Operations.Truncate(
             handle->Node->FileSystem->Data, handle->Data, size->QuadPart);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         handle->Node->Stats.Size = size->QuadPart;
     }
     usched_rwlock_w_unlock(&handle->Node->Lock);
@@ -130,7 +130,7 @@ oserr_t VFSNodeStatHandle(uuid_t fileHandle, struct VFSStat* stat)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -139,7 +139,7 @@ oserr_t VFSNodeStatHandle(uuid_t fileHandle, struct VFSStat* stat)
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeStatFsHandle(uuid_t fileHandle, struct VFSStatFS* stat)
@@ -148,7 +148,7 @@ oserr_t VFSNodeStatFsHandle(uuid_t fileHandle, struct VFSStatFS* stat)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -167,7 +167,7 @@ oserr_t VFSNodeStatStorageHandle(uuid_t fileHandle, StorageDescriptor_t* stat)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -179,7 +179,7 @@ oserr_t VFSNodeStatStorageHandle(uuid_t fileHandle, StorageDescriptor_t* stat)
    );
     usched_rwlock_r_unlock(&handle->Node->Lock);
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t** pathOut)
@@ -188,7 +188,7 @@ oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t** pathOut)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(handleID, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -196,5 +196,5 @@ oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t** pathOut)
     *pathOut = VFSNodeMakePath(handle->Node, 0);
     usched_rwlock_r_unlock(&handle->Node->Lock);
     VFSNodeHandlePut(handle);
-    return OsOK;
+    return OS_EOK;
 }

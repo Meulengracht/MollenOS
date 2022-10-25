@@ -30,11 +30,11 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -42,7 +42,7 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
     VFSNodePut(node);
 
     mstr_delete(nodePath);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSStatFS* stat)
@@ -52,11 +52,11 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -75,16 +75,16 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageD
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     memcpy(stat, &node->FileSystem->Storage->Stats, sizeof(StorageDescriptor_t));
     VFSNodePut(node);
     mstr_delete(nodePath);
-    return OsOK;
+    return OS_EOK;
 }

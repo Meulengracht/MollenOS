@@ -131,21 +131,21 @@ RegisterSystemDeviceIo(
     TRACE("RegisterSystemDeviceIo(ioSpace=0x%" PRIxIN ")", ioSpace);
 
     if (!ioSpace) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Before doing anything, we should do a over-lap
     // check before trying to register this
     list_enumerate(&g_ioSpaces, __DetectIoOverlaps, &context);
     if (!context.Valid) {
-        return OsBusy;
+        return OS_EBUSY;
     }
 
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
     systemIo = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
     if (!systemIo) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     memset(systemIo, 0, sizeof(SystemDeviceIo_t));
@@ -174,7 +174,7 @@ AcquireSystemDeviceIo(
     // Sanitize the system copy
     if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     SystemIo->Owner = GetCurrentMemorySpaceHandle();
 
@@ -188,7 +188,7 @@ AcquireSystemDeviceIo(
                                                           &MappedAddress, BaseAddress, Length,
                 MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
                                                           MAPPING_VIRTUAL_PROCESS);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 ERROR(" > Failed to allocate memory for device io memory");
                 SystemIo->Owner = UUID_INVALID;
                 return Status;
@@ -198,14 +198,14 @@ AcquireSystemDeviceIo(
             MappedAddress                       += BaseAddress % PageSize;
             IoSpace->Access.Memory.VirtualBase   = MappedAddress;
             SystemIo->MappedAddress              = MappedAddress;
-            return OsOK;
+            return OS_EOK;
         } break;
 
         case DeviceIoPortBased: {
             for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
                 SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
             }
-            return OsOK;
+            return OS_EOK;
         } break;
 
         default:
@@ -213,7 +213,7 @@ AcquireSystemDeviceIo(
             break;
     }
     SystemIo->Owner = UUID_INVALID;
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 oserr_t
@@ -232,7 +232,7 @@ ReleaseSystemDeviceIo(
     // Sanitize the system copy and do some security checks
     if (SystemIo == NULL || SystemIo->Owner != GetCurrentMemorySpaceHandle()) {
         ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     switch (SystemIo->Io.Type) {
@@ -257,7 +257,7 @@ ReleaseSystemDeviceIo(
     IoSpace->Access.Memory.VirtualBase      = 0;
     SystemIo->MappedAddress                 = 0;
     SystemIo->Owner                         = UUID_INVALID;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -269,7 +269,7 @@ CreateKernelSystemDeviceIo(
     
     SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(SourceIoSpace->Id));
     if (!SystemIo) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     switch (SystemIo->Io.Type) {
@@ -281,9 +281,9 @@ CreateKernelSystemDeviceIo(
                                                           &SystemIo->Io.Access.Memory.VirtualBase, BaseAddress, Length,
                 MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
                                                           MAPPING_VIRTUAL_GLOBAL);
-            if (Status != OsOK) {
+            if (Status != OS_EOK) {
                 ERROR(" > failed to create mapping");
-                return OsError;
+                return OS_EUNKNOWN;
             }
         } break;
 
@@ -292,7 +292,7 @@ CreateKernelSystemDeviceIo(
             break;
     }
     *SystemIoSpace = &SystemIo->Io;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -303,7 +303,7 @@ ReleaseKernelSystemDeviceIo(
     
     SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(SystemIoSpace->Id));
     if (!SystemIo) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     switch (SystemIo->Io.Type) {
@@ -319,7 +319,7 @@ ReleaseKernelSystemDeviceIo(
         default:
             break;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 // @interrupt context

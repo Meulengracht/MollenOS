@@ -53,7 +53,7 @@ static oserr_t __ParseEntry(
     char* fsHint = NULL;
 
     if (!IS_PARTITION_PRESENT(entry)) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // Check extended partitions first
@@ -75,7 +75,7 @@ static oserr_t __ParseEntry(
     // ??? Shouldn't happen ever we reach this
     // otherwise the GPT is invalid
     else if (entry->Type == 0xEE) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Check MFS
@@ -151,26 +151,26 @@ static oserr_t __EnumeratePartitions(
             &(UInteger64_t) { .QuadPart = sector },
             1, &sectorsRead
     );
-    if (oserr != OsOK) {
-        return OsError;
+    if (oserr != OS_EOK) {
+        return OS_EUNKNOWN;
     }
 
     // Allocate a buffer where we can store a copy of the mbr 
     // it might be overwritten by recursion here
     mbr = (MasterBootRecord_t*)malloc(sizeof(MasterBootRecord_t));
     if (!mbr) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memcpy(mbr, buffer, sizeof(MasterBootRecord_t));
 
     for (i = 0; i < MBR_PARTITION_COUNT; i++) {
-        if (__ParseEntry(storage, context, bufferHandle, buffer, sector, mbr, &mbr->Partitions[i]) == OsOK) {
+        if (__ParseEntry(storage, context, bufferHandle, buffer, sector, mbr, &mbr->Partitions[i]) == OS_EOK) {
             partitionCount++;
         }
     }
     
     free(mbr);
-    return partitionCount != 0 ? OsOK : OsError;
+    return partitionCount != 0 ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t
@@ -188,7 +188,7 @@ MbrEnumerate(
     // First, we want to detect whether there is a partition table available
     // otherwise we treat the entire disk as one partition
     oserr = __EnumeratePartitions(storage, &context, bufferHandle, buffer, 0);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return VFSStorageDetectFileSystem(storage, bufferHandle, buffer, 0);
     }
     return oserr;

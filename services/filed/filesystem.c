@@ -159,7 +159,7 @@ static mstring_t* __GetLabel(
 
     if (fileSystem->Interface && fileSystem->Interface->Operations.Stat) {
         oserr_t oserr = fileSystem->Interface->Operations.Stat(fileSystem->Data, &stat);
-        if (oserr == OsOK && stat.Label) {
+        if (oserr == OS_EOK && stat.Label) {
             return mstr_clone(stat.Label);
         }
     }
@@ -183,13 +183,13 @@ __MountFileSystemAtDefault(
 
     label = __GetLabel(fileSystem);
     if (label == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     path = mstr_fmt("/storage/%s/%ms", &fileSystem->Storage->Stats.Serial[0], label);
     mstr_delete(label);
     if (path == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = VFSNodeMkdir(
@@ -198,20 +198,20 @@ __MountFileSystemAtDefault(
             FILE_PERMISSION_READ,
             &nodeHandle
     );
-    if (osStatus != OsOK && osStatus != OsExists) {
+    if (osStatus != OS_EOK && osStatus != OS_EEXISTS) {
         ERROR("__MountFileSystemAtDefault failed to create node %ms", path);
         mstr_delete(path);
         return osStatus;
     }
 
     osStatus = VFSNodeMount(fsScope, nodeHandle, fileSystem->VFS);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("__MountFileSystemAtDefault failed to mount filesystem at %ms", path);
         mstr_delete(path);
         return osStatus;
     }
     fileSystem->MountHandle = nodeHandle;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -230,7 +230,7 @@ __MountFileSystemAt(
             FILE_PERMISSION_READ,
             &bindHandle
     );
-    if (oserr != OsOK && oserr != OsExists) {
+    if (oserr != OS_EOK && oserr != OS_EEXISTS) {
         ERROR("__MountFileSystemAt failed to create node %ms", path);
         return oserr;
     }
@@ -268,7 +268,7 @@ __InitializeInterface(
 
     // We do certainly not require an interface
     if (interface == NULL || interface->Operations.Initialize == NULL) {
-        return OsOK;
+        return OS_EOK;
     }
     __BuildStorageParameters(fileSystem, &storageParameters);
     return interface->Operations.Initialize(&storageParameters, &fileSystem->Data);
@@ -283,7 +283,7 @@ __Connect(
     TRACE("__Connect(fs=%u)", fileSystem->ID);
 
     oserr = __InitializeInterface(fileSystem, interface);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__Connect failed to initialize the underlying fs");
         return oserr;
     }
@@ -296,7 +296,7 @@ __Connect(
             fileSystem->Data,
             &fileSystem->VFS
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__Connect failed to initialize vfs data");
     }
     return oserr;
@@ -310,7 +310,7 @@ VFSFileSystemConnectInterface(
     oserr_t osStatus;
 
     if (fileSystem == NULL || interface == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     TRACE("VFSFileSystemConnectInterface(fs=%u)", fileSystem->ID);
 
@@ -320,7 +320,7 @@ VFSFileSystemConnectInterface(
     }
 
     osStatus = __Connect(fileSystem, interface);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         goto exit;
     }
 
@@ -331,7 +331,7 @@ VFSFileSystemConnectInterface(
     // Start out by mounting access to this partition under the device node
 enable:
     osStatus = __MountFileSystemAtDefault(fileSystem);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         mstring_t* label = __GetLabel(fileSystem);
         ERROR("VFSFileSystemConnectInterface failed to mount filesystem %ms", label);
         mstr_delete(label);
@@ -350,17 +350,17 @@ VFSFileSystemMount(
         _In_ FileSystem_t* fileSystem,
         _In_ mstring_t*    mountPoint)
 {
-    oserr_t    osStatus = OsOK;
+    oserr_t    osStatus = OS_EOK;
     mstring_t* path;
 
     if (fileSystem == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     TRACE("VFSFileSystemMount(fs=%u)", fileSystem->ID);
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State != FileSystemState_MOUNTED) {
-        osStatus = OsNotSupported;
+        osStatus = OS_ENOTSUPPORTED;
         goto exit;
     }
 
@@ -369,13 +369,13 @@ VFSFileSystemMount(
     mstring_t* fsLabel = __GetLabel(fileSystem);
     if (mountPoint) {
         osStatus = __MountFileSystemAt(fileSystem, mountPoint);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                     fsLabel, mountPoint);
         }
 
         osStatus = VFSNodeGetPathHandle(fileSystem->MountHandle, &path);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             goto exit;
         }
 
@@ -389,7 +389,7 @@ VFSFileSystemMount(
             if (label && !mstr_cmp(label, fsLabel)) {
                 mstring_t* bindPath = mstr_new_u8(g_defaultMounts[i].path);
                 osStatus = __MountFileSystemAt(fileSystem, bindPath);
-                if (osStatus != OsOK) {
+                if (osStatus != OS_EOK) {
                     WARNING("VFSFileSystemMount failed to bind mount filesystem %ms at %ms",
                             fsLabel, bindPath);
                     mstr_delete(label);
@@ -415,11 +415,11 @@ VFSFileSystemUnmount(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
-    oserr_t osStatus = OsNotSupported;
+    oserr_t osStatus = OS_ENOTSUPPORTED;
     _CRT_UNUSED(flags);
 
     if (fileSystem == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     TRACE("VFSFileSystemUnmount(fs=%u)", fileSystem->ID);
 
@@ -435,7 +435,7 @@ VFSFileSystemUnmount(
         // TODO this is also wrong fs scope!
         VFSNodeClose(fileSystem->VFS, fileSystem->MountHandle);
         fileSystem->State = FileSystemState_CONNECTED;
-        osStatus = OsOK;
+        osStatus = OS_EOK;
     }
     usched_mtx_unlock(&fileSystem->Lock);
     return osStatus;
@@ -446,10 +446,10 @@ VFSFileSystemDisconnectInterface(
         _In_ FileSystem_t* fileSystem,
         _In_ unsigned int  flags)
 {
-    oserr_t osStatus = OsBusy;
+    oserr_t osStatus = OS_EBUSY;
 
     if (fileSystem == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     TRACE("VFSFileSystemDisconnectInterface(fs=%u)", fileSystem->ID);
 

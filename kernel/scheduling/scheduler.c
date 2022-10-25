@@ -215,12 +215,12 @@ __RemoveFromQueue(
             
             // Reset link
             object->Link = NULL;
-            return OsOK;
+            return OS_EOK;
         }
         previous = current;
         current  = current->Link;
     }
-    return OsNotExists;
+    return OS_ENOENT;
 }
 
 static void
@@ -276,7 +276,7 @@ __QueueObjectImmediately(
         if (scheduler->Enabled && ThreadIsCurrentIdle(CpuCoreId(core))) {
             ArchThreadYield();
         }
-        return OsOK;
+        return OS_EOK;
     }
     else {
         return TxuMessageSend(object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, object, 1);
@@ -391,13 +391,13 @@ SchedulerSleep(
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
         SystemTimerStall(nanoseconds);
-        return OsOK;
+        return OS_EOK;
     }
 
     // Since we rely on this value not being zero in cases of timeouts
     // we would a minimum value of 1
     object->TimeLeft        = MAX(nanoseconds, 1);
-    object->TimeoutReason   = OsOK;
+    object->TimeoutReason   = OS_EOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = NULL;
     
@@ -410,11 +410,11 @@ SchedulerSleep(
     ArchThreadYield();
     
     smp_rmb();
-    if (object->TimeoutReason != OsTimeout) {
+    if (object->TimeoutReason != OS_ETIMEOUT) {
         *interruptedAt = object->InterruptedAt;
-        return OsInterrupted;
+        return OS_EINTERRUPTED;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -429,7 +429,7 @@ SchedulerBlock(
     assert(object != NULL);
 
     object->TimeLeft        = timeout;
-    object->TimeoutReason   = OsOK;
+    object->TimeoutReason   = OS_EOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = blockQueue;
 
@@ -454,7 +454,7 @@ SchedulerExpediteObject(
             (void)list_remove(object->WaitQueueHandle, &object->Header);
         }
 
-        object->TimeoutReason = OsInterrupted;
+        object->TimeoutReason = OS_EINTERRUPTED;
         SystemTimerGetTimestamp(&object->InterruptedAt);
         
         // Either the resulting state is RUNNING which means we cancelled the block,
@@ -473,7 +473,7 @@ oserr_t
 SchedulerQueueObject(
     _In_ SchedulerObject_t* object)
 {
-    oserr_t osStatus = OsOK;
+    oserr_t osStatus = OS_EOK;
     int        resultState;
     
     TRACE("SchedulerQueueObject()");
@@ -483,7 +483,7 @@ SchedulerQueueObject(
     resultState = ExecuteEvent(object, EVENT_QUEUE);
     if (resultState == STATE_INVALID) {
         WARNING("SchedulerQueueObject object %s was in invalid state", GetNameOfObject(object));
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     // Either the resulting state is RUNNING which means we cancelled the block,
@@ -587,7 +587,7 @@ __PerformObjectTimeout(
             (void)list_remove(object->WaitQueueHandle, &object->Header);
         }
 
-        object->TimeoutReason = OsTimeout;
+        object->TimeoutReason = OS_ETIMEOUT;
         SystemTimerGetTimestamp(&object->InterruptedAt);
         __QueueForScheduler(scheduler, object, 0);
     }

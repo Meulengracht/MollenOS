@@ -107,7 +107,7 @@ StartApplicationCore(
 
     // Perform the IPI
     TRACE(" > booting core %" PRIuIN "", coreId);
-    if (ApicPerformIPI(coreId, 1) != OsOK) {
+    if (ApicPerformIPI(coreId, 1) != OS_EOK) {
         ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", coreId);
         return;
     }
@@ -116,7 +116,7 @@ StartApplicationCore(
     // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
     // Perform the SIPI - some cpu's require two SIPI's.
-    if (ApicPerformSIPI(coreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsOK) {
+    if (ApicPerformSIPI(coreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OS_EOK) {
         ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", coreId);
         return;
     }
@@ -130,7 +130,7 @@ StartApplicationCore(
     }
     
     if (!(CpuCoreState(core) & CpuStateRunning)) {
-        if (ApicPerformSIPI(coreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OsOK) {
+        if (ApicPerformSIPI(coreId, MEMORY_LOCATION_TRAMPOLINE_CODE) != OS_EOK) {
             ERROR(" > failed to boot core %" PRIuIN " (sipi failed)", coreId);
             return;
         }

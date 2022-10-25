@@ -46,7 +46,7 @@ __CreateNode(
 
     node = malloc(sizeof(struct VFSNode));
     if (node == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     node->FileSystem = vfs;
@@ -70,7 +70,7 @@ __CreateNode(
                         sizeof(struct __VFSMount),
                         __MountsHash, __MountsCmp);
     *nodeOut = node;
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -101,7 +101,7 @@ __CreateRootNode(
 
     root = malloc(sizeof(struct VFSNode));
     if (root == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     root->FileSystem = vfs;
@@ -124,7 +124,7 @@ __CreateRootNode(
                         sizeof(struct __VFSMount),
                         __MountsHash, __MountsCmp);
     *nodeOut = root;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -155,7 +155,7 @@ VFSNew(
 
     vfs = malloc(sizeof(struct VFS));
     if (vfs == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(vfs, 0, sizeof(struct VFS));
 
@@ -167,19 +167,19 @@ VFSNew(
     usched_rwlock_init(&vfs->Lock);
 
     osStatus = __CreateRootNode(vfs, &vfs->Root);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         VFSDestroy(vfs);
         return osStatus;
     }
 
     osStatus = __CreateDMABuffer(&vfs->Buffer);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         VFSDestroy(vfs);
         return osStatus;
     }
 
     *vfsOut = vfs;
-    return OsOK;
+    return OS_EOK;
 }
 
 void VFSDestroy(struct VFS* vfs)
@@ -208,7 +208,7 @@ void VFSDestroy(struct VFS* vfs)
 oserr_t VFSChildNew(struct VFS* parent, struct VFS** childOut)
 {
     // TODO: implement VFS scopes
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* stats, struct VFSNode** nodeOut)
@@ -218,7 +218,7 @@ oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* s
     TRACE("VFSNodeChildNew(node=%ms, stats=%ms)", node->Name, stats->Name);
 
     oserr = __CreateNode(vfs, VFS_NODE_TYPE_REGULAR, stats, &result);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -232,7 +232,7 @@ oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* s
             }
     );
     *nodeOut = result;
-    return OsOK;
+    return OS_EOK;
 }
 
 void __CleanupHandle(int index, const void* element, void* userContext)
@@ -242,7 +242,7 @@ void __CleanupHandle(int index, const void* element, void* userContext)
 
     // Unregister any handle with the filesystem
     osStatus = VFSNodeHandleRemove(handle->Id);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // LOG
     }
 }

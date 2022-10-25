@@ -92,7 +92,7 @@ HciPortReset(
     WaitForConditionWithFault(Temp, (READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]) & EHCI_PORT_RESET) == 0, 250, 10);
     if (Temp != 0) {
         ERROR("EHCI::Host controller failed to reset the port in time.");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     EhciPortSetBits(EhciHci, Index, EHCI_PORT_RWC);
 
@@ -102,9 +102,9 @@ HciPortReset(
         if (EHCI_SPARAM_CCCOUNT(EhciHci->SParameters) != 0) {
             EhciPortSetBits(EhciHci, Index, EHCI_PORT_COMPANION_HC);
         }
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -142,7 +142,7 @@ EhciPortCheck(
     // is now disabled and to disable anything related to this device
     if (Status & EHCI_PORT_OC_EVENT) {
         ERROR("Port %u reported over current. TODO");
-        return OsOK;
+        return OS_EOK;
     }
 
     // Connection event?
@@ -157,7 +157,7 @@ EhciPortCheck(
                 if (EHCI_SPARAM_CCCOUNT(Controller->SParameters) != 0) {
                     EhciPortSetBits(Controller, Index, EHCI_PORT_COMPANION_HC);
                 }
-                return OsOK;
+                return OS_EOK;
             }
         }
         return UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
@@ -167,9 +167,9 @@ EhciPortCheck(
     // like suspend or that i imagine.
     if (Status & EHCI_PORT_ENABLE_EVENT) {
         ERROR("Port %u is now disabled. TODO");
-        return OsOK;
+        return OS_EOK;
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 void

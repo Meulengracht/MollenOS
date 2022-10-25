@@ -26,7 +26,7 @@
 int fflush(
 	_In_ FILE *file)
 {
-	oserr_t Result = OsOK;
+	oserr_t Result = OS_EOK;
 
 	// If fflush is called with NULL argument
 	// we need to flush all buffers present
@@ -40,7 +40,7 @@ int fflush(
         if(!res && (file->_flag & _IOCOMMIT))
             res = _commit(file->_file) ? EOF : 0; */
 		_unlock_stream(file);
-		return (Result == OsOK) ? 0 : 1;
+		return (Result == OS_EOK) ? 0 : 1;
 	}
 	// Flushing read files is just resetting the buffer pointer
 	else if (file->_flag & _IOREAD) {

@@ -101,7 +101,7 @@ RtcInitialize(
     deviceInterrupt.Line                  = CMOS_RTC_IRQ;
     deviceInterrupt.Pin                   = INTERRUPT_NONE;
     deviceInterrupt.Vectors[0]            = INTERRUPT_NONE;
-    deviceInterrupt.ResourceTable.Handler = (HpetIsEmulatingLegacyController() == OsOK ? RtcHpetInterrupt : RtcInterrupt);
+    deviceInterrupt.ResourceTable.Handler = (HpetIsEmulatingLegacyController() == OS_EOK ? RtcHpetInterrupt : RtcInterrupt);
     deviceInterrupt.Context               = cmos;
 
     cmos->Irq = InterruptRegister(
@@ -110,7 +110,7 @@ RtcInitialize(
     );
     if (cmos->Irq == UUID_INVALID) {
         ERROR("RtcInitialize failed to register interrupt for rtc");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Store the interrupt line for the RTC
@@ -119,7 +119,7 @@ RtcInitialize(
     // Set calibration mode
     RtcSetCalibrationMode(1);
 
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -136,7 +136,7 @@ RtcSetCalibrationMode(
 
     // In calibration mode, we request a frequency of 1000hz, in default mode
     // we just want an interrupt once every second
-    if (HpetIsEmulatingLegacyController() == OsOK) {
+    if (HpetIsEmulatingLegacyController() == OS_EOK) {
         uint64_t frequency = MAX(1, 1000 * enable);
         if (!enable) {
             // very naive attempt at syncing the comparator with the CMOS clock update

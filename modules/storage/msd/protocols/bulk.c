@@ -50,10 +50,10 @@ BulkReset(
     TRACE("Reset done after %i iterations", Iterations);
     if (Status != TransferFinished) {
         ERROR("Reset bulk returned error %u", Status);
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -66,7 +66,7 @@ ClearAndResetEndpoint(
         USBPACKET_DIRECTION_ENDPOINT, USB_ENDPOINT_ADDRESS(endpoint->Address), 
         USB_FEATURE_HALT);
     if (status != TransferFinished) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     
     return UsbEndpointReset(&device->Device->DeviceContext,
@@ -86,16 +86,16 @@ BulkResetRecovery(
     // Perform an initial reset
     if (resetType & BULK_RESET) {
         status = BulkReset(device);
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             ERROR("Failed to reset bulk interface");
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
 
     // Clear HALT/STALL features on both in and out endpoints
     if (resetType & BULK_RESET_IN) {
         status = ClearAndResetEndpoint(device, device->In);
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             ERROR("Failed to clear STALL on endpoint (in)");
             return status;
         }
@@ -103,7 +103,7 @@ BulkResetRecovery(
     
     if (resetType & BULK_RESET_OUT) {
         status = ClearAndResetEndpoint(device, device->Out);
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             ERROR("Failed to clear STALL on endpoint (out)");
             return status;
         }
@@ -366,29 +366,29 @@ BulkInitialize(
     // Sanitize found endpoints
     if (Device->In == NULL || Device->Out == NULL) {
         ERROR("Either in or out endpoint not available on device");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Perform a bulk reset
-    if (BulkReset(Device) != OsOK) {
+    if (BulkReset(Device) != OS_EOK) {
         ERROR("Failed to reset the bulk interface");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Reset data toggles for bulk-endpoints
     if (UsbEndpointReset(&Device->Device->DeviceContext,
-            USB_ENDPOINT_ADDRESS(Device->In->Address)) != OsOK) {
+            USB_ENDPOINT_ADDRESS(Device->In->Address)) != OS_EOK) {
         ERROR("Failed to reset endpoint (in)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     if (UsbEndpointReset(&Device->Device->DeviceContext, 
-            USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OsOK) {
+            USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OS_EOK) {
         ERROR("Failed to reset endpoint (out)");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Done
-    return OsOK;
+    return OS_EOK;
 }
 
 UsbTransferStatus_t
@@ -456,7 +456,7 @@ BulkSendCommand(
         ERROR("Failed to send the CBW command, transfer-code %u", Result);
         if (Result == TransferStalled) {
             ERROR("Performing a recovery-reset on device.");
-            if (BulkResetRecovery(Device, BULK_RESET_ALL) != OsOK) {
+            if (BulkResetRecovery(Device, BULK_RESET_ALL) != OS_EOK) {
                 ERROR("Failed to reset device, it is now unusable.");
             }
         }

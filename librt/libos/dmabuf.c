@@ -32,7 +32,7 @@ DmaCreate(
     _In_ DMAAttachment_t* attachment)
 {
     if (!info || !attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaCreate(info, attachment);
 }
@@ -44,7 +44,7 @@ DmaExport(
     _In_ DMAAttachment_t* attachment)
 {
     if (!buffer || !info || !attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaExport(buffer, info, attachment);
 }
@@ -55,7 +55,7 @@ DmaAttach(
         _In_ DMAAttachment_t* attachment)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaAttach(handle, attachment);
 }
@@ -66,7 +66,7 @@ DmaAttachmentMap(
     _In_ unsigned int     accessFlags)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaAttachmentMap(attachment, accessFlags);
 }
@@ -77,7 +77,7 @@ DmaAttachmentResize(
     _In_ size_t           length)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaAttachmentResize(attachment, length);
 }
@@ -87,7 +87,7 @@ DmaAttachmentRefresh(
     DMAAttachment_t* attachment)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaAttachmentRefresh(attachment);
 }
@@ -99,7 +99,7 @@ DmaAttachmentCommit(
         _In_ size_t           length)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaAttachmentCommit(attachment, address, length);
 }
@@ -109,7 +109,7 @@ DmaAttachmentUnmap(
     DMAAttachment_t* attachment)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaAttachmentUnmap(attachment);
 }
@@ -119,7 +119,7 @@ DmaDetach(
     DMAAttachment_t* attachment)
 {
     if (!attachment) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return Syscall_DmaDetach(attachment);
 }
@@ -133,7 +133,7 @@ DmaGetSGTable(
     oserr_t status;
     
     if (!attachment || !sgTable) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     // get count unless provided, 
@@ -141,14 +141,14 @@ DmaGetSGTable(
     sgTable->count = maxCount;
     if (maxCount <= 0) {
         status = Syscall_DmaGetMetrics(attachment->handle, &sgTable->count, NULL);
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             return status;
         }
     }
 
     sgTable->entries = malloc(sizeof(DMASG_t) * sgTable->count);
     if (!sgTable->entries) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     return Syscall_DmaGetMetrics(attachment->handle, &sgTable->count, sgTable->entries);
 }
@@ -162,16 +162,16 @@ DmaSGTableOffset(
     _Out_ size_t*       sgOffset)
 {
     if (!sgTable || !sgIndex || !sgOffset) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     for (int i = 0; i < sgTable->count; i++) {
         if (offset < sgTable->entries[i].length) {
             *sgIndex  = i;
             *sgOffset = offset;
-            return OsOK;
+            return OS_EOK;
         }
         offset -= sgTable->entries[i].length;
     }
-    return OsInvalidParameters;
+    return OS_EINVALPARAMS;
 }

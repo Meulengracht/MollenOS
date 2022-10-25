@@ -40,7 +40,7 @@ UsbControllerRegister(
     sys_usb_register_controller(GetGrachtClient(), &msg.base, serverHandle,
                                 &protoDevice, (int)type, (int)portCount);
     sys_device_destroy(&protoDevice);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -50,7 +50,7 @@ UsbControllerUnregister(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
     sys_usb_unregister_controller(GetGrachtClient(), &msg.base, deviceId);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -66,7 +66,7 @@ UsbHubRegister(
                          usbDevice->Base.Id,
                          serverHandle,
                          portCount);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -76,7 +76,7 @@ UsbHubUnregister(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
 
     sys_usb_unregister_hub(GetGrachtClient(), &msg.base, deviceId);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -93,7 +93,7 @@ UsbEventPort(
             DeviceId,
             PortAddress
     );
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -105,7 +105,7 @@ UsbPortError(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
 
     status = sys_usb_port_error(GetGrachtClient(), &msg.base, deviceId, portAddress);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -118,7 +118,7 @@ UsbQueryControllerCount(
     status = sys_usb_get_controller_count(GetGrachtClient(), &msg.base);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_usb_get_controller_count_result(GetGrachtClient(), &msg.base, ControllerCount);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -132,5 +132,5 @@ UsbQueryController(
     status = sys_usb_get_controller(GetGrachtClient(), &msg.base, Index);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_usb_get_controller_result(GetGrachtClient(), &msg.base, (uint8_t*)Controller, sizeof(struct UsbHcController));
-    return OsOK;
+    return OS_EOK;
 }

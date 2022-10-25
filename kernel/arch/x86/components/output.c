@@ -86,7 +86,7 @@ VesaDrawCharacter(
             break;
     }
     if (i == MCoreFontNumChars) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 #else
     i = (unsigned)Character
@@ -117,7 +117,7 @@ VesaDrawCharacter(
         bbPointer = (uint32_t*)_bb;
     }
 
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -178,7 +178,7 @@ VesaScroll(
     // We did the scroll, modify cursor
     g_bootTerminal.CursorY -= (MCoreFontHeight * lineCount);
     VideoFlush();
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -226,7 +226,7 @@ VesaPutCharacter(
     if ((g_bootTerminal.CursorY + MCoreFontHeight) >= g_bootTerminal.CursorLimitY) {
         VesaScroll(1);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -246,7 +246,7 @@ TextDrawCharacter(
     // Plot it on the screen
     *Video = Data;
 
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -278,7 +278,7 @@ TextScroll(
     g_bootTerminal.CursorY = (g_bootTerminal.Info.Height - ByLines);
 
     // Done - no errors
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -336,7 +336,7 @@ TextPutCharacter(
     // Send the low byte.
     WriteDirectIo(DeviceIoPortBased, 0x3D4, 1, 15);
     WriteDirectIo(DeviceIoPortBased, 0x3D5, 1, (uint8_t)CursorLoc);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __SetTerminalMode(
@@ -458,7 +458,7 @@ VideoDrawCharacter(
     else if (g_bootTerminal.AvailableOutputs & VIDEO_GRAPHICS) {
         return VesaDrawCharacter(X, Y, Character, Fg, Bg);
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 void
@@ -498,7 +498,7 @@ SerialPortInitialize(void)
 #ifdef __OSCONFIG_DEBUGMODE
     g_bootTerminal.AvailableOutputs |= VIDEO_UART;
 #endif
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -521,7 +521,7 @@ InitializeFramebufferOutput(void)
                     MAPPING_COMMIT,
                     MAPPING_VIRTUAL_GLOBAL
             );
-            if (status == OsOK) {
+            if (status == OS_EOK) {
                 g_bootTerminal.BackBufferAddress = backBuffer;
             }
             kfree(pages);
@@ -535,5 +535,5 @@ InitializeFramebufferOutput(void)
             g_bootTerminal.AvailableOutputs |= VIDEO_TEXT;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }

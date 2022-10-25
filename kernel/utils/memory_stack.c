@@ -63,7 +63,7 @@ __ExtendStack(
                    &space, NULL, newSize, 0,
                    MAPPING_COMMIT | MAPPING_DOMAIN,
                    MAPPING_VIRTUAL_GLOBAL);
-    assert(osStatus == OsOK);
+    assert(osStatus == OS_EOK);
 
     // copy the data
     memcpy((void*)space, stack->items, stack->data_size);
@@ -72,7 +72,7 @@ __ExtendStack(
     osStatus = MemorySpaceUnmap(GetCurrentMemorySpace(),
                                 (vaddr_t)stack->items,
                                 stack->data_size);
-    assert(osStatus == OsOK);
+    assert(osStatus == OS_EOK);
 
     // update the stack with new space, capacity and pointer
     stack->capacity = (int)(newSize / sizeof(struct MemoryStackItem));
@@ -169,7 +169,7 @@ MemoryStackPop(
     assert(blocksLeft != 0);
 
     if (!stack->index) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // check if we can remove from the last entry instead of removing an entire
@@ -194,7 +194,7 @@ MemoryStackPop(
             stack->index--;
             if (!stack->index && blocksLeft) {
                 *blockCount = j;
-                return OsIncomplete;
+                return OS_EINCOMPLETE;
             }
         }
         else {
@@ -203,5 +203,5 @@ MemoryStackPop(
         }
     }
 
-    return OsOK;
+    return OS_EOK;
 }

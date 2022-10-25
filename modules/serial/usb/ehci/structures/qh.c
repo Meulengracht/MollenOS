@@ -37,7 +37,7 @@ EhciQhInitialize(
     _In_ uint8_t               endpointAddress)
 {
     EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->EndpointDescriptor;
-    oserr_t       Status      = OsOK;
+    oserr_t       Status      = OS_EOK;
     size_t           EpBandwidth = MAX(3, transfer->Transfer.PeriodicBandwith);
 
     // Initialize links
@@ -105,7 +105,7 @@ EhciQhInitialize(
             transfer->Transfer.PeriodicInterval, transfer->Transfer.MaxPacketSize,
             transfer->Transfer.Transactions[0].Type, BytesToTransfer,
             transfer->Transfer.Type, transfer->Transfer.Speed, (uint8_t*)Qh);
-        if (Status == OsOK) {
+        if (Status == OS_EOK) {
             // Calculate both the frame start and completion mask
             // If the transfer was to spand over a boundary, starting with subframes in
             // one frame, ending with subframes in next frame, we would have to use

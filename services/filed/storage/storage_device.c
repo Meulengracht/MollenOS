@@ -45,7 +45,7 @@ static oserr_t __DeviceQueryStats(
     ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         from_sys_disk_descriptor_dkk(&gdescriptor, stats);
     }
     return osStatus;
@@ -71,7 +71,7 @@ VFSStorageCreateDeviceBacked(
     storage->Protocol.Storage.Device.DeviceID = deviceID;
 
     oserr = __DeviceQueryStats(deviceID, driverID, &storage->Stats);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         VFSStorageDelete(storage);
         return NULL;
     }

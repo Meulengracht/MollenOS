@@ -48,7 +48,7 @@ __RegisterDomainCore(
     else {
 
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 /**
@@ -199,7 +199,7 @@ __EnumerateSystemCoresForDomainSRAT(
                     DomainId         |= (uint32_t)CpuAffinity->ProximityDomainHi[0] << 8;
                     DomainId         |= CpuAffinity->ProximityDomainLo;
                     if (Domain->Id == DomainId) {
-                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OsOK) {
+                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 0) != OS_EOK) {
                             ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
@@ -211,7 +211,7 @@ __EnumerateSystemCoresForDomainSRAT(
                 if (CpuAffinity->Flags & ACPI_SRAT_CPU_USE_AFFINITY) {
                     uint32_t DomainId = CpuAffinity->ProximityDomain;
                     if (Domain->Id == DomainId) {
-                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OsOK) {
+                        if (__RegisterDomainCore(Domain, CpuAffinity->ApicId, 1) != OS_EOK) {
                             ERROR("Failed to register domain core %" PRIuIN "", CpuAffinity->ApicId);
                         }
                     }
@@ -347,14 +347,14 @@ __EnumerateSystemHardwareMADT(
             case ACPI_MADT_TYPE_IO_APIC: {
                 ACPI_MADT_IO_APIC *IoApic = (ACPI_MADT_IO_APIC*)madtEntry;
                 TRACE(" > io-apic: %" PRIuIN "", IoApic->Id);
-                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OsOK) {
+                if (CreateInterruptController(IoApic->Id, (int)IoApic->GlobalIrqBase, 24, IoApic->Address) != OS_EOK) {
                     ERROR("Failed to register interrupt-controller");   
                 }
             } break;
 
             case ACPI_MADT_TYPE_INTERRUPT_OVERRIDE: {
                 ACPI_MADT_INTERRUPT_OVERRIDE *Override = (ACPI_MADT_INTERRUPT_OVERRIDE*)madtEntry;
-                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OsOK) {
+                if (RegisterInterruptOverride(Override->SourceIrq, Override->GlobalIrq, Override->IntiFlags) != OS_EOK) {
                     ERROR("Failed to register interrupt-override");
                 }
             } break;
@@ -470,14 +470,14 @@ __ParseMADT(
 
     // Now enumerate the present hardware as now know where they go
     __EnumerateSystemHardwareMADT(madtStart, madtEnd);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
 AcpiInitializeEarly(void)
 {
     ACPI_TABLE_HEADER* header;
-    oserr_t         osStatus = OsOK;
+    oserr_t         osStatus = OS_EOK;
     ACPI_STATUS        acpiStatus;
     TRACE("AcpiInitializeEarly()");
 
@@ -486,7 +486,7 @@ AcpiInitializeEarly(void)
     if (ACPI_FAILURE(acpiStatus)) {
         ERROR("AcpiInitializeEarly acpi is not available (acpi disabled %" PRIuIN ")", acpiStatus);
         g_acpiStatus = ACPI_NOT_AVAILABLE;
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Do the early table enumeration
@@ -494,7 +494,7 @@ AcpiInitializeEarly(void)
     if (ACPI_FAILURE(acpiStatus)) {
         ERROR("AcpiInitializeEarly failed to obtain acpi tables (acpi disabled %" PRIuIN ")", acpiStatus);
         g_acpiStatus = ACPI_NOT_AVAILABLE;
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else {
         g_acpiStatus = ACPI_AVAILABLE;
@@ -506,7 +506,7 @@ AcpiInitializeEarly(void)
         AcpiPutTable(header);
     }
     else {
-        osStatus = OsError;
+        osStatus = OS_EUNKNOWN;
     }
 
     // Check for ECDT presence and enumerate. This table is not present on

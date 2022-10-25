@@ -54,7 +54,7 @@ MpInitialize(void)
    SEARCH_AREA(EBDA_START, EBDA_START + EBDA_SEARCH_SZ)
    SEARCH_AREA(BASE_START, BASE_START + BASE_SEARCH_SZ)
    SEARCH_AREA(ROM_START, ROM_END)
-   return OsError;
+   return OS_EUNKNOWN;
 }
 
 oserr_t
@@ -63,8 +63,8 @@ MpGetLocalApicAddress(
 {
     // Sanitize state
     if (MpHeader.Signature != MP_HEADER_MAGIC) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     *Address = (uintptr_t)MpConfigurationTable.LocalApicAddress;
-    return OsOK;
+    return OS_EOK;
 }

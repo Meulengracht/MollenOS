@@ -32,18 +32,18 @@ oserr_t VFSNodeFlush(struct VFSRequest* request)
     position.u.HighPart = request->parameters.seek.position_high;
 
     oserr = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     // We only support the flush operation on regular files.
     if (!__NodeIsFile(handle->Node)) {
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
     // TODO implement
-    oserr = OsNotSupported;
+    oserr = OS_ENOTSUPPORTED;
 
 cleanup:
     VFSNodeHandlePut(handle);

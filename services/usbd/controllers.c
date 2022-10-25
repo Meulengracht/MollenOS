@@ -48,7 +48,7 @@ UsbCoreControllerRegister(
     // Allocate a new instance and reset all members
     controller = (UsbController_t*)malloc(sizeof(UsbController_t));
     if (!controller) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(controller, 0, sizeof(UsbController_t));
 
@@ -62,13 +62,13 @@ UsbCoreControllerRegister(
 
     // Register root hub
     osStatus = UsbCoreHubsRegister(device->Id, device->Id, driverId, rootPorts);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         free(controller);
         return osStatus;
     }
 
     list_append(&g_controllers, &controller->Header);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -80,14 +80,14 @@ UsbCoreControllerUnregister(
 
     controller = UsbCoreControllerGet(deviceId);
     if (controller == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     list_remove(&g_controllers, &controller->Header);
     free(controller->Device);
     free(controller);
 
     UsbCoreHubsUnregister(deviceId);
-    return OsOK;
+    return OS_EOK;
 }
 
 UsbController_t*
@@ -115,11 +115,11 @@ UsbCoreControllerReserveAddress(
             if (!(controller->AddressMap[i] & (1 << j))) {
                 controller->AddressMap[i] |= (1 << j);
                 *address = (i * 4) + j;
-                return OsOK;
+                return OS_EOK;
             }
         }
     }
-    return OsNotExists;
+    return OS_ENOENT;
 }
 
 void

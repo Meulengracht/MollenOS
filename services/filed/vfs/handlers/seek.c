@@ -24,7 +24,7 @@
 static oserr_t __FlushHandle(struct VFSNodeHandle* handle)
 {
     // TODO Implement
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
@@ -38,7 +38,7 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     position.u.HighPart = request->parameters.seek.position_high;
 
     oserr = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -46,7 +46,7 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     // for directories. You can only seek to ith entry, not byte offset. So if you try to seek
     // out of the directory, it will fail
     if (!__NodeIsFile(handle->Node) && !__NodeIsDirectory(handle->Node)) {
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
@@ -54,14 +54,14 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
         // When seeking in directories only the low-part of the position
         // will be used. Ignore the high-part.
         if (position.u.LowPart >= handle->Node->Children.element_count) {
-            oserr = OsInvalidParameters;
+            oserr = OS_EINVALPARAMS;
             goto cleanup;
         }
 
         // Otherwise update position
         handle->Position = position.u.LowPart;
         *positionOut = position.u.LowPart;
-        oserr = OsOK;
+        oserr = OS_EOK;
         goto cleanup;
     }
 
@@ -72,7 +72,7 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     usched_rwlock_r_lock(&handle->Node->Lock);
     if (handle->Mode == MODE_WRITE) {
         oserr = __FlushHandle(handle);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             usched_rwlock_r_unlock(&handle->Node->Lock);
             goto cleanup;
         }
@@ -81,7 +81,7 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     oserr = nodeVfs->Interface->Operations.Seek(
             nodeVfs->Data, handle->Data,
             position.QuadPart, &result.QuadPart);
-    if (oserr == OsOK) {
+    if (oserr == OS_EOK) {
         handle->Mode     = MODE_NONE;
         handle->Position = result.QuadPart;
     }

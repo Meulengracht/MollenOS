@@ -572,14 +572,14 @@ AcpiDeviceGetInterrupt(
     // routings by checking the given device
     acpiDevice = AcpiDeviceLookupBusRoutings(bus);
     if (!acpiDevice || !acpiDevice->Routings) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     TRACE("AcpiDeviceGetInterrupt found bus-device <%s>, accessing index %i",
           &acpiDevice->HId[0], index);
     interruptSource = acpiDevice->Routings->InterruptEntries[index].InterruptSource;
     if (!interruptSource || !interruptSource->CurrentInterrupt) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // convert flags
@@ -594,7 +594,7 @@ AcpiDeviceGetInterrupt(
 
     TRACE("AcpiDeriveInterrupt found irq=%u, flags=0x%x",
           interruptSource->CurrentInterrupt->Irq, flags);
-    return OsOK;
+    return OS_EOK;
 }
 
 int

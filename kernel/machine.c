@@ -114,13 +114,13 @@ InitializeMachine(
     // and should leave the system ready to allocate memory at will. After this call Per-Core memory
     // should also be set up
     osStatus = MachineMemoryInitialize(&g_machine, &g_bootCore);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initalize system memory system");
         ArchProcessorHalt();
     }
 
     osStatus = ConsoleInitialize();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
     }
@@ -130,7 +130,7 @@ InitializeMachine(
     // mode and there is no hardware seperation
 #ifdef __OSCONFIG_ACPI_SUPPORT
     osStatus = AcpiInitializeEarly();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         // Assume UMA machine and put the machine into UMA modKERNELAPI e
         SetMachineUmaMode();
     }
@@ -141,13 +141,13 @@ InitializeMachine(
     // Create the rest of the OS systems
     LogInitializeFull();
     osStatus = InitializeHandles();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initialize the handle subsystem.");
         ArchProcessorHalt();
     }
 
     osStatus = HandleSetsInitialize();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initialize the handle set subsystem.");
         ArchProcessorHalt();
     }
@@ -159,7 +159,7 @@ InitializeMachine(
     InitializeInterruptTable();
     InitializeInterruptHandlers();
     osStatus = PlatformInterruptInitialize();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initialize interrupts for system.");
         ArchProcessorHalt();
     }
@@ -176,7 +176,7 @@ InitializeMachine(
     }
 #endif
     osStatus = PlatformTimersInitialize();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initialize timers for system.");
         ArchProcessorHalt();
     }
@@ -186,7 +186,7 @@ InitializeMachine(
     // them when they aren't active. So we clean them in a seperate thread, and as threads are handles, we
     // simply invest in a janitor to clean.
     osStatus = InitializeHandleJanitor();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to initialize system janitor.");
         ArchProcessorHalt();
     }
@@ -258,7 +258,7 @@ AllocatePhysicalMemory(
         SpinlockReleaseIrq(&region->Lock);
 
         // if it returns out of memory, then no pages are available here
-        if (osStatus != OsOutOfMemory) {
+        if (osStatus != OS_EOOM) {
             // otherwise, we subtract the number of pages allocated from this
             pagesLeftToAllocate -= pagesAllocated;
         }
@@ -267,7 +267,7 @@ AllocatePhysicalMemory(
         region = &GetMachine()->PhysicalMemory.Region[--i];
     }
 
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pageCount;
     }
     return osStatus;

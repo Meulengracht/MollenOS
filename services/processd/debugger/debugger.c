@@ -48,7 +48,7 @@ GetModuleAndOffset(
     if (address < process->image->CodeBase) {
         *moduleBase = process->image->VirtualAddress;
         *moduleName = process->image->Name;
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // Was it not main executable?
@@ -60,17 +60,17 @@ GetModuleAndOffset(
                 if (address >= Library->CodeBase && address < (Library->CodeBase + Library->CodeSize)) {
                     *moduleName = Library->Name;
                     *moduleBase = Library->VirtualAddress;
-                    return OsOK;
+                    return OS_EOK;
                 }
             }
         }
 
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     *moduleBase = process->image->VirtualAddress;
     *moduleName = process->image->Name;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -88,7 +88,7 @@ HandleProcessCrashReport(
     TRACE("HandleProcessCrashReport(%i)", crashReason);
 
     if (!crashContext) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     crashAddress = CONTEXT_IP(crashContext);
@@ -110,23 +110,23 @@ HandleProcessCrashReport(
                 &topOfStack,
                 &stack
         );
-        if (status == OsOK) {
+        if (status == OS_EOK) {
             // Traverse the memory region up to stack max
             uintptr_t* stackAddress = (uintptr_t*)stack;
             uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
             ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
             while (stackAddress < stackLimit && i < max) {
                 uintptr_t stackValue = *stackAddress;
-                if (GetModuleAndOffset(process, stackValue, &moduleName, &moduleBase) == OsOK) {
+                if (GetModuleAndOffset(process, stackValue, &moduleName, &moduleBase) == OS_EOK) {
                     char*       moduleu8;
                     const char* symbolName;
                     uintptr_t   symbolOffset;
 
                     moduleu8 = mstr_u8(moduleName);
                     if (moduleu8 == NULL) {
-                        return OsOutOfMemory;
+                        return OS_EOOM;
                     }
-                    if (SymbolLookup(moduleu8, stackValue - moduleBase, &symbolName, &symbolOffset) == OsOK) {
+                    if (SymbolLookup(moduleu8, stackValue - moduleBase, &symbolName, &symbolOffset) == OS_EOK) {
                         ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
                     }
                     else {
@@ -149,7 +149,7 @@ HandleProcessCrashReport(
         ERROR("HandleProcessCrashReport failed to load user stack value: 0x%" PRIxIN, CONTEXT_USERSP(crashContext));
     }
 
-    return OsOK;
+    return OS_EOK;
 }
 
 void PmHandleCrash(
@@ -162,7 +162,7 @@ void PmHandleCrash(
     process = RegisterProcessRequest(request->parameters.crash.process_handle, request);
     if (!process) {
         // what the *?
-        sys_process_report_crash_response(request->message, OsNotExists);
+        sys_process_report_crash_response(request->message, OS_ENOENT);
         goto cleanup;
     }
 

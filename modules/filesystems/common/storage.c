@@ -87,7 +87,7 @@ __StatDevice(
     ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         from_sys_disk_descriptor_dkk(&gdescriptor, stats);
     }
     return osStatus;
@@ -184,7 +184,7 @@ __StatFile(
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_result(GetGrachtClient(), &msg.base, &osStatus, &fstats);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -241,7 +241,7 @@ FSStorageRead(
             );
         } break;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -276,7 +276,7 @@ FSStorageWrite(
             );
         } break;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -299,7 +299,7 @@ FSStorageStat(
             );
         } break;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 // Because we had to include a client file which defines events

@@ -43,7 +43,7 @@ __NewMemFS(
 
     interface = MemFSNewInterface();
     if (interface == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Create a new, empty memory backend which the memory-fs will
@@ -52,7 +52,7 @@ __NewMemFS(
     storage = VFSStorageCreateMemoryBacked(UUID_INVALID, 0, NULL, 0);
     if (storage == NULL) {
         VFSInterfaceDelete(interface);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Normally the FileSystem interface will take care of initializing for us,
@@ -60,7 +60,7 @@ __NewMemFS(
     // and destructing manually
     if (interface->Operations.Initialize) {
         osStatus = interface->Operations.Initialize(&storageParameters, &interfaceData);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             VFSInterfaceDelete(interface);
             VFSStorageDelete(storage);
             return osStatus;
@@ -75,7 +75,7 @@ __NewMemFS(
             interfaceData,
             vfsOut
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         VFSInterfaceDelete(interface);
         VFSStorageDelete(storage);
     }
@@ -101,13 +101,13 @@ void VFSScopeInitialize(void)
     oserr_t osStatus;
 
     osStatus = __NewMemFS(&g_globalName, &g_rootGuid, &g_rootScope);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("VFSScopeInitialize failed to create root filesystem scope");
         return;
     }
 
     osStatus = __MountDefaultDirectories();
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("VFSScopeInitialize failed to mount default directories: %u", osStatus);
     }
 }

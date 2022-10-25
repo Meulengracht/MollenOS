@@ -62,7 +62,7 @@ FsOpen(
             &mfs->RootEntry,
             path,
             &mfsEntry);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -96,7 +96,7 @@ FsCreate(
             MFS_ENDOFCHAIN, 0,
             &result
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
     TRACE("FsCreate returned %u (0x%llx) %ms", osStatus, result, result->Name);
@@ -110,7 +110,7 @@ FsClose(
         _In_ void* data)
 {
     MFSEntry_t* entry    = (MFSEntry_t*)data;
-    oserr_t     osStatus = OsOK;
+    oserr_t     osStatus = OS_EOK;
     TRACE("FsClose(%i)", entry->ActionOnClose);
 
     if (entry->ActionOnClose) {
@@ -134,7 +134,7 @@ FsStat(
     stat->BlocksPerSegment = mfs->SectorsPerBucket;
     stat->SegmentsTotal = mfs->BucketsInMap;
     stat->SegmentsFree = mfs->MasterRecord.FreeBucket; // TODO we don't know how many free
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -151,12 +151,12 @@ FsUnlink(
             &mfs->RootEntry,
             path,
             &mfsEntry);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     osStatus = MfsFreeBuckets(mfs, mfsEntry->StartBucket, mfsEntry->StartLength);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
               mfsEntry->StartBucket, mfsEntry->StartLength);
         goto cleanup;
@@ -177,7 +177,7 @@ FsLink(
         _In_ int        symbolic)
 {
     // TODO implement MFS::Link
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -187,7 +187,7 @@ FsReadLink(
         _In_ mstring_t** pathOut)
 {
     // TODO implement MFS::ReadLink
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -214,9 +214,9 @@ FsMove(
             &mfs->RootEntry,
             to,
             &targetEntry);
-    if (oserr != OsNotExists) {
-        if (oserr == OsOK) {
-            oserr = OsExists;
+    if (oserr != OS_ENOENT) {
+        if (oserr == OS_EOK) {
+            oserr = OS_EEXISTS;
         }
         return oserr;
     }
@@ -226,7 +226,7 @@ FsMove(
     if (fromDirectoryPath == NULL || fromBaseName == NULL) {
         mstr_delete(fromDirectoryPath);
         mstr_delete(fromBaseName);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     oserr = MfsLocateRecord(
@@ -234,7 +234,7 @@ FsMove(
             &mfs->RootEntry,
             fromDirectoryPath,
             &targetEntry);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         mstr_delete(fromDirectoryPath);
         mstr_delete(fromBaseName);
         return oserr;
@@ -246,7 +246,7 @@ FsMove(
             &mfs->RootEntry,
             from,
             &sourceEntry);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
@@ -264,7 +264,7 @@ FsMove(
             sourceEntry->StartLength,
             &newEntry
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
@@ -279,13 +279,13 @@ FsMove(
     newEntry->StartBucket = MFS_ENDOFCHAIN;
     newEntry->StartLength = 0;
     oserr = MfsEnsureRecordSpace(mfs, newEntry, sourceEntry->ActualSize);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         (void)MfsUpdateRecord(mfs, newEntry, MFS_ACTION_DELETE);
         goto cleanup;
     }
 
     oserr = MFSCloneBucketData(mfs, sourceEntry->StartBucket, sourceEntry->StartLength, newEntry->StartBucket, newEntry->StartLength);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         (void)MfsUpdateRecord(mfs, newEntry, MFS_ACTION_DELETE);
         goto cleanup;
     }
@@ -338,7 +338,7 @@ FsWrite(
     if (!(entry->Flags & FILE_FLAG_DIRECTORY)) {
         return FsWriteToFile(instanceData, entry, bufferHandle, buffer, bufferOffset, unitCount, unitsWritten);
     }
-    return OsInvalidParameters;
+    return OS_EINVALPARAMS;
 }
 
 oserr_t
@@ -356,7 +356,7 @@ FsSeek(
     } else {
         osStatus = FsSeekInFile(instanceData, entry, absolutePosition);
     }
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         *absolutePositionOut = entry->Position;
     }
     return osStatus;
@@ -390,7 +390,7 @@ static FileSystemMFS_t* __FileSystemMFSNew(
     bufferInfo.type     = DMA_TYPE_DRIVER_32;
 
     oserr = DmaCreate(&bufferInfo, &mfs->TransferBuffer);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         free(mfs);
         return NULL;
     }
@@ -415,7 +415,7 @@ static oserr_t __ParseBootRecord(
     if (bootRecord->Magic != MFS_BOOTRECORD_MAGIC) {
         ERROR("__ParseBootRecord invalid boot-record signature (0x%x, expected 0x%x)",
               bootRecord->Magic, MFS_BOOTRECORD_MAGIC);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     TRACE("Fs-Version: %u", bootRecord->Version);
 
@@ -429,7 +429,7 @@ static oserr_t __ParseBootRecord(
 
     // Bucket entries are 64 bit (8 bytes) in map
     mfs->BucketsPerSectorInMap = mfs->SectorSize / sizeof(struct MapRecord);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __ResizeTransferBuffer(
@@ -461,9 +461,9 @@ static oserr_t __ValidateMasterRecord(
     if (masterRecord->Magic != MFS_BOOTRECORD_MAGIC) {
         ERROR("__ValidateMasterRecord invalid master-record signature (0x%x, expected 0x%x)",
               masterRecord->Magic, MFS_BOOTRECORD_MAGIC);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -490,7 +490,7 @@ __ParseAndProcessMasterRecord(
     mfs->BucketsInMap = mfs->MasterRecord.MapSize / sizeof(struct MapRecord);
     mfs->BucketMap    = (uint32_t*)malloc((size_t)mfs->MasterRecord.MapSize + mfs->SectorSize);
     if (mfs->BucketMap == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Load map
@@ -514,7 +514,7 @@ __ParseAndProcessMasterRecord(
                 sectorCount,
                 &sectorsTransferred
         );
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR("Failed to read sector 0x%x (map) into cache", LODWORD(mapSector));
             return oserr;
         }
@@ -524,7 +524,7 @@ __ParseAndProcessMasterRecord(
                   LODWORD(sectorsTransferred), LODWORD(sectorCount),
                   LODWORD(mfs->Storage.SectorStart.QuadPart + mapSector),
                   LODWORD(bytesLeft));
-            return OsDeviceError;
+            return OS_EDEVFAULT;
         }
 
         // Reset buffer position to 0 and read the data into the map
@@ -571,7 +571,7 @@ __ParseAndProcessMasterRecord(
 
     dma_detach(&mapAttachment);
 #endif
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __InitializeRootEntry(
@@ -610,7 +610,7 @@ FsInitialize(
     mfs = __FileSystemMFSNew(storageParameters, &storageStats);
     if (mfs == NULL) {
         ERROR("FsInitialize Failed to allocate memory for the fileystem");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Read the boot-sector
@@ -622,7 +622,7 @@ FsInitialize(
             1,
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("FsInitialize Failed to read mfs boot-sector record");
         goto error_exit;
     }
@@ -631,7 +631,7 @@ FsInitialize(
             mfs,
             (BootRecord_t*)mfs->TransferBuffer.buffer
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to parse the boot record");
         goto error_exit;
     }
@@ -645,7 +645,7 @@ FsInitialize(
             1,
             &sectorsTransferred
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
@@ -653,27 +653,27 @@ FsInitialize(
     // Validate and store the master record immediately, so we can resize the
     // transfer buffer. The moment we do, the data is lost.
     oserr = __ValidateMasterRecord((MasterRecord_t*)mfs->TransferBuffer.buffer);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
     memcpy(&mfs->MasterRecord, mfs->TransferBuffer.buffer, sizeof(MasterRecord_t));
 
     oserr = __ResizeTransferBuffer(mfs);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to allocate memory for resized transfer buffer");
         goto error_exit;
     }
 
     oserr = __ParseAndProcessMasterRecord(mfs);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
 
     __InitializeRootEntry(mfs);
     *instanceData = mfs;
-    return OsOK;
+    return OS_EOK;
 
 error_exit:
     __FileSystemMFSDelete(mfs);
@@ -687,7 +687,7 @@ FsDestroy(
 {
     FileSystemMFS_t* fileSystem = instanceData;
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Which kind of unmount is it?
@@ -697,5 +697,5 @@ FsDestroy(
     }
 
     __FileSystemMFSDelete(fileSystem);
-    return OsOK;
+    return OS_EOK;
 }

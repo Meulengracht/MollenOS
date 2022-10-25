@@ -45,36 +45,36 @@ static int __CreateDirectoryIfNotExists(
 oserr_t ServerEnsurePaths(void)
 {
     if (__CreateDirectoryIfNotExists("/apps")) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (__CreateDirectoryIfNotExists("/data/served")) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (__CreateDirectoryIfNotExists("/data/served/apps")) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (__CreateDirectoryIfNotExists("/data/served/mount")) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (__CreateDirectoryIfNotExists("/data/served/cache")) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __MountApplications(void)
 {
     struct State* state = State();
-    oserr_t       oserr = OsOK;
+    oserr_t       oserr = OS_EOK;
 
     StateLock();
     foreach(i, &state->Applications) {
         oserr = ApplicationMount((struct Application*)i);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // TODO ERROR report
         }
     }
@@ -85,12 +85,12 @@ static oserr_t __MountApplications(void)
 static oserr_t __StartServices(void)
 {
     struct State* state = State();
-    oserr_t       oserr = OsOK;
+    oserr_t       oserr = OS_EOK;
 
     StateLock();
     foreach(i, &state->Applications) {
         oserr = ApplicationStartServices((struct Application*)i);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // TODO ERROR report
         }
     }
@@ -103,7 +103,7 @@ oserr_t ServerLoad(void)
     oserr_t oserr;
 
     oserr = __MountApplications();
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 

@@ -58,7 +58,7 @@ void __HandlePortEvent(
 
     // Query port status so we know the status of the port
     // Also compare to the current state to see if the change was valid
-    if (UsbHubQueryPort(hub->DriverId, hubDeviceId, portAddress, &portDescriptor) != OsOK) {
+    if (UsbHubQueryPort(hub->DriverId, hubDeviceId, portAddress, &portDescriptor) != OS_EOK) {
         ERROR("__HandlePortEvent Query port failed");
         return;
     }
@@ -74,7 +74,7 @@ void __HandlePortEvent(
         // Connected event
         // This function updates port-status after reset
         oserr = UsbCoreDevicesCreate(controller, hub, port);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // TODO
         }
     }
@@ -82,7 +82,7 @@ void __HandlePortEvent(
         // Disconnected event, remember that the descriptor pointer
         // becomes unavailable the moment we call the destroy device
         oserr = UsbCoreDevicesDestroy(controller, port);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // TODO
         }
 

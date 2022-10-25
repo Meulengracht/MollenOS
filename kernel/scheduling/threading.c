@@ -57,13 +57,13 @@ void
 ThreadingEnable(
         _In_ SystemCpuCore_t* cpuCore)
 {
-    Thread_t*  thread;
-    oserr_t osStatus;
+    Thread_t* thread;
+    oserr_t   oserr;
 
     assert(cpuCore != NULL);
 
     thread = CpuCoreIdleThread(cpuCore);
-    osStatus = __InitializeDefaultsForThread(
+    oserr = __InitializeDefaultsForThread(
             thread,
             "idle",
             NULL,
@@ -72,7 +72,7 @@ ThreadingEnable(
             THREADING_KERNEL_STACK_SIZE,
             0
     );
-    if (osStatus != OsOK) {
+    if (oserr != OS_EOK) {
         assert(0);
     }
     
@@ -80,6 +80,133 @@ ThreadingEnable(
     thread->MemorySpace       = GetCurrentMemorySpace();
     thread->MemorySpaceHandle = GetCurrentMemorySpaceHandle();
     CpuCoreSetCurrentThread(CpuCoreCurrent(), thread);
+}
+
+static oserr_t
+__InheritAddressSpace(
+        _In_ Thread_t* parent,
+        _In_ Thread_t* thread)
+{
+    MemorySpace_t* memorySpace;
+    oserr_t        oserr;
+
+    oserr = AcquireHandleOfType(
+            parent->MemorySpaceHandle,
+            HandleTypeMemorySpace,
+            (void**)&memorySpace
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    thread->MemorySpace       = memorySpace;
+    thread->MemorySpaceHandle = parent->MemorySpaceHandle;
+    return OS_EOK;
+}
+
+static void
+__SetDefaultName(
+        _In_ Thread_t* thread)
+{
+    char buffer[16];
+    memset(&buffer[0], 0, sizeof(buffer));
+    sprintf(&buffer[0], "thread %" PRIuIN, thread->Handle);
+    thread->Name = strdup(&buffer[0]);
+}
+
+oserr_t
+ThreadFork(void)
+{
+    Thread_t* parent;
+    Thread_t* thread;
+    Context_t returnContext;
+    oserr_t   oserr;
+
+    // Clone the current kernel context
+    if (GetContext(&returnContext)) {
+        // We are the forked thread
+        return OS_EFORKED;
+    }
+
+    // Set the return code to non-zero, so when the thread resumes from
+    // GetContext, we catch this
+    CONTEXT_SC_RET0(&returnContext) = 1;
+
+    // Create new thread structure
+    thread = (Thread_t*)kmalloc(sizeof(Thread_t));
+    if (!thread) {
+        return OS_EOOM;
+    }
+    memset(thread, 0, sizeof(Thread_t));
+    MutexConstruct(&thread->SyncObject, MUTEX_FLAG_PLAIN);
+    SemaphoreConstruct(&thread->EventObject, 0, 1);
+    thread->References = ATOMIC_VAR_INIT(0);
+
+    // Get current stack pointer, get top of stack, clone it.
+    parent = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    oserr = ArchThreadContextFork(
+            parent->Contexts[THREADING_CONTEXT_LEVEL0],
+            &returnContext,
+            THREADING_CONTEXT_LEVEL0,
+            parent->KernelStackSize,
+            &thread->Contexts[THREADING_CONTEXT_LEVEL0],
+            &thread->ContextActive
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Create new resources for some things
+    thread->Handle = CreateHandle(HandleTypeThread, __DestroyThread, thread);
+    if (thread->Handle == UUID_INVALID) {
+        __DestroyThread(thread);
+        return OS_EOOM;
+    }
+
+    oserr = streambuffer_create(
+            sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
+            STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
+            &thread->Signaling.Signals
+    );
+    if (oserr != OS_EOK) {
+        __DestroyThread(thread);
+        return OS_EOOM;
+    }
+
+    __SetDefaultName(thread);
+    if (!thread->Name) {
+        __DestroyThread(thread);
+        return OS_EOOM;
+    }
+
+    thread->SchedulerObject = SchedulerCreateObject(thread, parent->Flags | THREADING_FORKED);
+    oserr = ArchThreadInitialize(thread);
+    if (oserr != OS_EOK) {
+        __DestroyThread(thread);
+        return oserr;
+    }
+
+    // Inherit all the following
+    thread->Function        = parent->Function;
+    thread->Arguments       = parent->Arguments;
+    thread->Flags           = parent->Flags | THREADING_FORKED;
+    thread->ParentHandle    = parent->Handle;
+    thread->KernelStackSize = parent->KernelStackSize;
+    thread->UserStackSize   = 0; // Forked threads are kernel only
+    SystemTimerGetClockTick(&thread->StartedAt);
+
+    // Inherit the same address space, even if an application.
+    oserr = __InheritAddressSpace(parent, thread);
+    if (oserr != OS_EOK) {
+        __DestroyThread(thread);
+        return oserr;
+    }
+
+    // Schedule the thread
+    __AddChild(parent, thread);
+    TRACE("ThreadFork new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
+    SchedulerQueueObject(thread->SchedulerObject);
+    return OS_EOK;
 }
 
 oserr_t
@@ -106,7 +233,7 @@ ThreadCreate(
 
     thread = (Thread_t*)kmalloc(sizeof(Thread_t));
     if (!thread) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     oserr_t status = __InitializeDefaultsForThread(
@@ -118,7 +245,7 @@ ThreadCreate(
             kernelMaxStackSize,
             userMaxStackSize
     );
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         __DestroyThread(thread);
         return status;
     }
@@ -141,7 +268,7 @@ ThreadCreate(
                 HandleTypeMemorySpace,
                 (void**)&memorySpace
         );
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             __DestroyThread(thread);
             return status;
         }
@@ -151,13 +278,11 @@ ThreadCreate(
         }
         thread->MemorySpace        = memorySpace;
         thread->MemorySpaceHandle  = memorySpaceHandle;
-    }
-    else {
+    } else {
         if (THREADING_RUNMODE(flags) == THREADING_KERNELMODE) {
             thread->MemorySpace       = GetDomainMemorySpace();
             thread->MemorySpaceHandle = UUID_INVALID;
-        }
-        else {
+        } else {
             unsigned int memorySpaceFlags = 0;
 
             if (THREADING_RUNMODE(flags) == THREADING_USERMODE) {
@@ -168,9 +293,9 @@ ThreadCreate(
             }
 
             status = CreateMemorySpace(memorySpaceFlags, &thread->MemorySpaceHandle);
-            if (status != OsOK) {
+            if (status != OS_EOK) {
                 __DestroyThread(thread);
-                return OsError;
+                return OS_EUNKNOWN;
             }
             thread->MemorySpace = MEMORYSPACE_GET(thread->MemorySpaceHandle);
         }
@@ -183,30 +308,32 @@ ThreadCreate(
     TRACE("[ThreadCreate] new thread %s on core %u", thread->Name, SchedulerObjectGetAffinity(thread->SchedulerObject));
     SchedulerQueueObject(thread->SchedulerObject);
     *handle = thread->Handle;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
 ThreadDetach(
         _In_ uuid_t ThreadId)
 {
-    Thread_t*  Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    Thread_t*  Target = THREAD_GET(ThreadId);
-    oserr_t Status = OsNotExists;
+    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    Thread_t* target = THREAD_GET(ThreadId);
+    oserr_t   oserr = OS_ENOENT;
+
+    if (target == NULL) {
+        return oserr;
+    }
     
     // Detach is allowed if the caller is the spawner or the caller is in same process
-    if (Target != NULL) {
-        Status = AreMemorySpacesRelated(Thread->MemorySpace, Target->MemorySpace);
-        if (Target->ParentHandle == Thread->Handle || Status == OsOK) {
-            Thread_t* Parent = THREAD_GET(Target->ParentHandle);
-            if (Parent) {
-                __RemoveChild(Parent, Target);
-            }
-            Target->ParentHandle = UUID_INVALID;
-            Status               = OsOK;
+    oserr = AreMemorySpacesRelated(thread->MemorySpace, target->MemorySpace);
+    if (target->ParentHandle == thread->Handle || oserr == OS_EOK) {
+        Thread_t* Parent = THREAD_GET(target->ParentHandle);
+        if (Parent) {
+            __RemoveChild(Parent, target);
         }
+        target->ParentHandle = UUID_INVALID;
+        oserr = OS_EOK;
     }
-    return Status;
+    return oserr;
 }
 
 static oserr_t
@@ -221,20 +348,20 @@ __TerminateWithChildren(
 
     // Never, ever kill system idle threads
     if (thread->Flags & THREADING_IDLE) {
-        return OsInvalidPermissions;
+        return OS_EPERMISSIONS;
     }
 
     MutexLock(&thread->SyncObject);
     value = atomic_load(&thread->Cleanup);
     if (value) {
         MutexUnlock(&thread->SyncObject);
-        return OsOK;
+        return OS_EOK;
     }
 
     child = thread->Children;
     while (child) {
         oserr_t Status = __TerminateWithChildren(child, exitCode);
-        if (Status != OsOK) {
+        if (Status != OS_EOK) {
             ERROR("__TerminateWithChildren failed to terminate child %s of %s", child->Name, thread->Name);
         }
         child = child->Sibling;
@@ -249,7 +376,7 @@ __TerminateWithChildren(
     if (thread->Handle != ThreadCurrentHandle()) {
         SchedulerExpediteObject(thread->SchedulerObject);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -262,12 +389,12 @@ ThreadTerminate(
     int       value;
     
     if (!thread) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     // Never, ever kill system idle threads
     if (thread->Flags & THREADING_IDLE) {
-        return OsInvalidPermissions;
+        return OS_EPERMISSIONS;
     }
     
     TRACE("ThreadTerminate(%s, %i, %i)", thread->Name, ExitCode, TerminateChildren);
@@ -276,7 +403,7 @@ ThreadTerminate(
     value = atomic_load(&thread->Cleanup);
     if (value) {
         MutexUnlock(&thread->SyncObject);
-        return OsOK;
+        return OS_EOK;
     }
 
     if (thread->ParentHandle != UUID_INVALID) {
@@ -295,7 +422,7 @@ ThreadTerminate(
         Thread_t* child = thread->Children;
         while (child) {
             oserr_t osStatus = __TerminateWithChildren(child, ExitCode);
-            if (osStatus != OsOK) {
+            if (osStatus != OS_EOK) {
                 ERROR("[terminate_thread] failed to terminate child %s of %s", child->Name, thread->Name);
             }
             child = child->Sibling;
@@ -310,7 +437,7 @@ ThreadTerminate(
     if (ThreadId != ThreadCurrentHandle()) {
         SchedulerExpediteObject(thread->SchedulerObject);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 int
@@ -359,7 +486,7 @@ __EnterUsermode(
             MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
             MAPPING_VIRTUAL_THREAD
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         FATAL(FATAL_SCOPE_THREAD, "__EnterUsermode failed to map TLS page");
     }
 
@@ -409,7 +536,7 @@ ThreadIsRelated(
     Thread_t* First  = THREAD_GET(Thread1);
     Thread_t* Second = THREAD_GET(Thread2);
     if (First == NULL || Second == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     return AreMemorySpacesRelated(First->MemorySpace, Second->MemorySpace);
 }
@@ -470,18 +597,18 @@ ThreadSetName(
     char*       nameCopy;
 
     if (!Thread || !Name) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     previousName = Thread->Name;
     nameCopy = strdup(Name);
     if (!nameCopy) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     Thread->Name = (const char*)nameCopy;
     kfree((void*)previousName);
-    return OsOK;
+    return OS_EOK;
 }
 
 const char*
@@ -569,7 +696,7 @@ ThreadingAdvance(
 
     // Is threading disabled?
     if (!currentThread) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     cleanup = atomic_load(&currentThread->Cleanup);
@@ -653,7 +780,7 @@ GetNextThread:
     }
 
     CpuCoreSetInterruptContext(core, nextThread->ContextActive);
-    return OsOK;
+    return OS_EOK;
 }
 
 // Common entry point for everything
@@ -749,7 +876,7 @@ static oserr_t
 __CreateThreadContexts(
         _In_ Thread_t* thread)
 {
-    oserr_t status = OsOK;
+    oserr_t status = OS_EOK;
     TRACE("__CreateThreadContexts(thread=0x%" PRIxIN ")", thread);
 
     // Create the kernel context, for an userspace thread this is always the default
@@ -758,7 +885,7 @@ __CreateThreadContexts(
             thread->KernelStackSize
     );
     if (!thread->Contexts[THREADING_CONTEXT_LEVEL0]) {
-        status = OsOutOfMemory;
+        status = OS_EOOM;
         goto exit;
     }
 
@@ -787,9 +914,8 @@ __InitializeDefaultsForThread(
         _In_ size_t        kernelStackSize,
         _In_ size_t        userStackSize)
 {
-    oserr_t osStatus;
-    uuid_t     handle;
-    char       buffer[16];
+    oserr_t oserr;
+    uuid_t  handle;
 
     if (!kernelStackSize) {
         kernelStackSize = __GetDefaultStackSize(THREADING_KERNELMODE);
@@ -814,32 +940,28 @@ __InitializeDefaultsForThread(
     thread->UserStackSize   = userStackSize;
     SystemTimerGetClockTick(&thread->StartedAt);
 
-    osStatus = streambuffer_create(
+    oserr = streambuffer_create(
             sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,
             STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL,
             &thread->Signaling.Signals);
-    if (osStatus != OsOK) {
-        return OsOutOfMemory;
+    if (oserr != OS_EOK) {
+        return OS_EOOM;
     }
 
     // Sanitize name, if NULL generate a new thread name of format 'thread x'
     if (name == NULL) {
-        memset(&buffer[0], 0, sizeof(buffer));
-        sprintf(&buffer[0], "thread %" PRIuIN, thread->Handle);
-        thread->Name = strdup(&buffer[0]);
-    }
-    else {
+        __SetDefaultName(thread);
+        if (thread->Name == NULL) {
+            return OS_EOOM;
+        }
+    } else {
         thread->Name = strdup(name);
     }
 
-    if (!thread->Name) {
-        return OsOutOfMemory;
-    }
-
     thread->SchedulerObject = SchedulerCreateObject(thread, flags);
-    osStatus = ArchThreadInitialize(thread);
-    if (osStatus != OsOK) {
-        return osStatus;
+    oserr = ArchThreadInitialize(thread);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     return __CreateThreadContexts(thread);

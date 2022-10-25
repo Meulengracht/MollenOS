@@ -38,7 +38,7 @@ ScThreadCreate(
     uuid_t       memorySpaceHandle = UUID_INVALID;
     const char*  name              = NULL;
     if (Entry == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     // Handle additional paramaters
@@ -74,7 +74,7 @@ ScThreadJoin(
     int        ResultCode;
     oserr_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
 
-    if (Result == OsOK) {
+    if (Result == OS_EOK) {
         ResultCode = ThreadJoin(ThreadId);
         if (ExitCode != NULL) {
             *ExitCode = ResultCode;
@@ -97,7 +97,7 @@ ScThreadSignal(
         _In_ int    SignalCode)
 {
     oserr_t Result = ThreadIsRelated(ThreadId, ThreadCurrentHandle());
-    if (Result == OsOK) {
+    if (Result == OS_EOK) {
         Result = SignalSend(ThreadId, SignalCode, NULL);
     }
     return Result;
@@ -113,7 +113,7 @@ oserr_t
 ScThreadYield(void)
 {
     ArchThreadYield();
-    return OsOK;
+    return OS_EOK;
 }
 
 uuid_t
@@ -134,9 +134,9 @@ ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength)
 {
     const char* threadName = ThreadName(ThreadCurrentForCore(ArchGetProcessorCoreId()));
     if (!threadName || !ThreadNameBuffer) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     strncpy(ThreadNameBuffer, threadName, MaxLength);
-    return OsOK;
+    return OS_EOK;
 }

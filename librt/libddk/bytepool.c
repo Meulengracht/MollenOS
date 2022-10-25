@@ -615,7 +615,7 @@ bpool(
     /* Definition of ESent assumes two's complement! */
     assert((~0) == -1);
     bn->bsize = ESent;
-	return OsOK;
+	return OS_EOK;
 }
 
 #ifdef BufStats
@@ -811,14 +811,14 @@ bpoolv(
 
 	    assert(bs > 0);
 	    if (bs <= 0) {
-		return OsError;
+		return OS_EUNKNOWN;
 	    }
 	    if ((b->ql.blink->ql.flink != b) ||
 		(b->ql.flink->ql.blink != b)) {
                 V printf("Free block: size %6ld bytes.  (Bad free list links)\n",
 		     (long) bs);
 		assert(0);
-		return OsError;
+		return OS_EUNKNOWN;
 	    }
 #ifdef FreeWipe
 	    lerr = ((char *) b) + sizeof(struct bfhead);
@@ -829,12 +829,12 @@ bpoolv(
                     "(Contents of above free block have been overstored.)\n");
 		bufdump(pool, (void *) (((char *) b) + sizeof(struct bhead)));
 		assert(0);
-		return OsError;
+		return OS_EUNKNOWN;
 	    }
 #endif
 	}
 	b = BFH(((char *) b) + bs);
     }
-    return OsOK;
+    return OS_EOK;
 }
 #endif /* BufValid */

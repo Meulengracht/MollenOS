@@ -43,7 +43,7 @@ EhciTdIsochronous(
 {
     uintptr_t  BufferIterator = bufferAddress;
     uintptr_t  PageMask       = ~((uintptr_t)0xFFF);
-    oserr_t Status         = OsOK;
+    oserr_t Status         = OS_EOK;
     size_t     BytesLeft      = byteCount;
     size_t     PageIndex      = 0;
     int        i;

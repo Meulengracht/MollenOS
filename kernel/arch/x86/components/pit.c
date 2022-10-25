@@ -115,7 +115,7 @@ PitInitialize(
     TRACE("PitInitialize(rtcAvailable=%i)", rtcAvailable);
     if (rtcAvailable) {
         TRACE("PitInitialize PIT will be disabled as the RTC is enabled");
-        return OsOK;
+        return OS_EOK;
     }
 
     // Otherwise, we set the PIT as enabled
@@ -130,7 +130,7 @@ PitInitialize(
     irq = InterruptRegister(&deviceInterrupt, INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL);
     if (irq == UUID_INVALID) {
         ERROR("Failed to register interrupt");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Store updated interrupt line
@@ -148,10 +148,10 @@ PitInitialize(
             SystemTimeAttributes_IRQ,
             irq,
             &g_pit);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         WARNING("PitInitialize failed to register the platform timer");
     }
-	return OsOK;
+	return OS_EOK;
 }
 
 void
@@ -175,7 +175,7 @@ PitSetCalibrationMode(
         // Initialize the PIT to the lowest frequency possible, this is determined by whether
         // we are emulated by the HPET or this is a native PIT chip. The lowest we can go in
         // the native PIT, is 18.2065Hz.
-        if (HpetIsEmulatingLegacyController() == OsOK) {
+        if (HpetIsEmulatingLegacyController() == OS_EOK) {
             g_pit.Frequency = 1;
             g_pit.Drift     = 0;
         }
@@ -186,7 +186,7 @@ PitSetCalibrationMode(
         }
     }
 
-    if (HpetIsEmulatingLegacyController() == OsOK) {
+    if (HpetIsEmulatingLegacyController() == OS_EOK) {
         // Counter 0 is the IRQ 0 emulator
         HpetComparatorStart(0, g_pit.Frequency, 1, g_pit.InterruptLine);
     }

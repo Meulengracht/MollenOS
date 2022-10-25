@@ -109,7 +109,7 @@ SymbolParseMapFile(
           sectionBytes, fileBytes, symbolBytes, symbolCount);
 
     if (!symbolCount) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     symbolContext->section_storage = (char*)malloc(sectionBytes);
@@ -122,7 +122,7 @@ SymbolParseMapFile(
         free(symbolContext->file_storage);
         free(symbolContext->symbol_storage);
         free(symbolContext->symbols);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     memset(symbolContext->section_storage, 0, sectionBytes);
@@ -133,7 +133,7 @@ SymbolParseMapFile(
 
     TRACE(STR("[SymbolParseMapFile] Loading objects.."));
     LoadObjectsInMap(symbolContext, fileBuffer, fileLength);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void

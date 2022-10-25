@@ -95,7 +95,7 @@ DmDiscoverAddDriver(
 
     driver = malloc(sizeof(struct DmDriver));
     if (!driver) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(driver, 0, sizeof(struct DmDriver));
 
@@ -110,20 +110,20 @@ DmDiscoverAddDriver(
     driver->path = mstr_clone(driverPath);
     if (!driver->path) {
         __DestroyDriver(driver);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     usched_mtx_lock(&g_driversLock);
     list_append(&g_drivers, &driver->list_header);
     usched_mtx_unlock(&g_driversLock);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
 DmDiscoverRemoveDriver(
         _In_ mstring_t* driverPath)
 {
-    oserr_t osStatus = OsNotExists;
+    oserr_t osStatus = OS_ENOENT;
 
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
@@ -135,7 +135,7 @@ DmDiscoverRemoveDriver(
                 __DestroyDriver(driver);
             }
 
-            osStatus =  OsOK;
+            osStatus =  OS_EOK;
             break;
         }
     }
@@ -154,21 +154,21 @@ __SpawnDriver(
 
     driverPath = mstr_u8(driver->path);
     if (driverPath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     sprintf(&args[0], "--id %u", driver->id);
 
     osStatus = ProcessSpawn(driverPath, &args[0], &handle);
     free(driverPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     // update driver state
     driver->state = DmDriverState_LOADING;
 
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -223,7 +223,7 @@ DmDiscoverFindDriver(
         _In_ uuid_t                       deviceId,
         _In_ struct DriverIdentification* deviceIdentification)
 {
-    oserr_t osStatus = OsNotExists;
+    oserr_t osStatus = OS_ENOENT;
     TRACE("DmDiscoverFindDriver(deviceId=%u, class=%u, subclass=%u)",
           deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
 
@@ -237,7 +237,7 @@ DmDiscoverFindDriver(
             } else if (driver->state == DmDriverState_AVAILABLE) {
                 osStatus = DmDevicesRegister(driver->handle, deviceId);
             } else {
-                osStatus = OsOK;
+                osStatus = OS_EOK;
             }
             break;
         }
@@ -280,7 +280,7 @@ __NotifyDevices(
     foreach (i, &driver->devices) {
         struct DmDevice* device = i->value;
         oserr_t          oserr  = DmDevicesRegister(driver->handle, device->id);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING("__NotifyDevices failed to notify driver of device %u", device->id);
         }
     }

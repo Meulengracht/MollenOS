@@ -59,14 +59,14 @@ static oserr_t __ReadCurrentBucket(
 
     // Get the length of the bucket
     osStatus = MFSBucketMapGetLengthAndLink(mfs, currentBucket, mapRecord);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("__ReadCurrentBucket: failed to get length of bucket %u", currentBucket);
         return osStatus;
     }
 
     if (!mapRecord->Length) {
         ERROR("__ReadCurrentBucket: length of bucket %u was 0", currentBucket);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Start out by loading the bucket buffer with data
@@ -78,7 +78,7 @@ static oserr_t __ReadCurrentBucket(
             MFS_SECTORCOUNT(mfs, mapRecord->Length),
             &sectorsTransferred
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("__ReadCurrentBucket: failed to read directory-bucket %u", currentBucket);
     }
 
@@ -93,7 +93,7 @@ static oserr_t __ExpandDirectory(
     oserr_t oserr;
 
     oserr = MFSBucketMapAllocate(mfs, MFS_DIRECTORYEXPANSION, mapRecord);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__ExpandDirectory failed to allocate bucket for expansion");
         return oserr;
     }
@@ -105,13 +105,13 @@ static oserr_t __ExpandDirectory(
             mapRecord->Length,
             true
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__ExpandDirectory failed to update bucket-link for expansion");
         return oserr;
     }
 
     oserr = MfsZeroBucket(mfs, mapRecord->Link, mapRecord->Length);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__ExpandDirectory failed to zero bucket %u", mapRecord->Link);
     }
     return oserr;
@@ -128,7 +128,7 @@ static oserr_t __InitiateDirectory(
 
     // Allocate bucket
     oserr = MFSBucketMapAllocate(mfs, MFS_DIRECTORYEXPANSION, &record);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__InitiateDirectory failed to allocate bucket for expansion");
         return oserr;
     }
@@ -144,14 +144,14 @@ static oserr_t __InitiateDirectory(
 
     // Update the stored record
     oserr = MfsUpdateRecord(mfs, entry, MFS_ACTION_UPDATE);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__InitiateDirectory failed to update bucket-link for expansion");
         return oserr;
     }
 
     // Zero the bucket
     oserr = MfsZeroBucket(mfs, record.Link, record.Length);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__InitiateDirectory failed to zero bucket %u", record.Link);
     }
 
@@ -187,10 +187,10 @@ static oserr_t __FindEntryOrFreeInDirectory(
     // if expansion is allowed, we must allocate a new bucket for it first.
     if (currentBucket == MFS_ENDOFCHAIN) {
         if (!allowExpansion) {
-            return OsNotExists;
+            return OS_ENOENT;
         }
         oserr = __InitiateDirectory(mfs, directory, &currentBucket);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
     }
@@ -206,7 +206,7 @@ static oserr_t __FindEntryOrFreeInDirectory(
         int           exitLoop = 0;
 
         oserr = __ReadCurrentBucket(mfs, currentBucket, &link);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR("__FindEntryOrFreeInDirectory failed to read directory bucket");
             break;
         }
@@ -250,7 +250,7 @@ static oserr_t __FindEntryOrFreeInDirectory(
                         i,
                         resultEntry
                 );
-                oserr    = OsExists;
+                oserr    = OS_EEXISTS;
                 exitLoop = 1;
                 break;
             }
@@ -271,7 +271,7 @@ static oserr_t __FindEntryOrFreeInDirectory(
 
                 // Expand directory as we have not found a free record
                 oserr = __ExpandDirectory(mfs, currentBucket, &link);
-                if (oserr != OsOK) {
+                if (oserr != OS_EOK) {
                     ERROR("__FindEntryOrFreeInDirectory failed to expand directory");
                     break;
                 }
@@ -282,7 +282,7 @@ static oserr_t __FindEntryOrFreeInDirectory(
                 resultEntry->DirectoryIndex  = 0;
             } else {
                 TRACE("__FindEntryOrFreeInDirectory didn't exist!");
-                oserr = OsNotExists;
+                oserr = OS_ENOENT;
             }
             break;
         }
@@ -356,7 +356,7 @@ static oserr_t __CreateEntryInDirectory(
 
     entry = __MFSEntryNew(name, owner, flags, permissions);
     if (entry == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     entry->AllocatedSize = allocatedSize;
@@ -368,14 +368,14 @@ static oserr_t __CreateEntryInDirectory(
     entry->DirectoryIndex = directoryIndex;
 
     osStatus = MfsUpdateRecord(mfs, entry, MFS_ACTION_CREATE);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         mstr_delete(entry->Name);
         free(entry);
         return osStatus;
     }
     TRACE("__CreateEntryInDirectory entry->Name=%ms", entry->Name);
     *entryOut = entry;
-    return OsOK;
+    return OS_EOK;
 }
 
 static inline bool __PathIsRoot(mstring_t* path) {
@@ -409,15 +409,15 @@ MfsLocateRecord(
     if (__PathIsRoot(path)) {
         MFSEntry_t* entry = __MFSEntryClone(&mfs->RootEntry);
         if (entry == NULL) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
         *entryOut = entry;
-        return OsOK;
+        return OS_EOK;
     }
 
     tokenCount = mstr_path_tokens(path, &tokens);
     if (tokenCount <= 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Copy the entry we are looking inside, into currentEntry, we will use that
@@ -437,14 +437,14 @@ MfsLocateRecord(
         );
 
         // If the entry was located, we must do some checks
-        if (oserr == OsExists) {
+        if (oserr == OS_EEXISTS) {
             if (isLast) {
                 MFSEntry_t* entry = __MFSEntryClone(&currentEntry);
                 __CleanupEntryIterator(&currentEntry);
                 if (entry == NULL) {
-                    return OsOutOfMemory;
+                    return OS_EOOM;
                 }
-                oserr = OsOK;
+                oserr = OS_EOK;
                 *entryOut = entry;
                 break;
             }
@@ -454,14 +454,14 @@ MfsLocateRecord(
             // 2. The directory must have been initialized, otherwise it is empty.
             if (!(currentEntry.NativeFlags & MFS_FILERECORD_DIRECTORY)) {
                 TRACE("MfsLocateRecord %ms was not a directory", currentEntry.Name);
-                oserr = OsPathIsNotDirectory;
+                oserr = OS_ENOTDIR;
                 __CleanupEntryIterator(&currentEntry);
                 break;
             }
 
             if (currentEntry.StartBucket == MFS_ENDOFCHAIN) {
                 TRACE("MfsLocateRecord %ms was an empty directory", currentEntry.Name);
-                oserr = OsNotExists;
+                oserr = OS_ENOENT;
                 __CleanupEntryIterator(&currentEntry);
                 break;
             }
@@ -503,7 +503,7 @@ MfsCreateRecord(
             1,
             &nextEntry
     );
-    if (osStatus == OsNotExists) {
+    if (osStatus == OS_ENOENT) {
         osStatus = __CreateEntryInDirectory(
                 mfs,
                 name,

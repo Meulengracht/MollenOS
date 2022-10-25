@@ -271,13 +271,13 @@ __CloneKernelDirectory(
     sourcePdp = (PageDirectoryTable_t*)source->vTables[kernelPml4Entry];
     if (!sourcePdp) {
         ERROR("__CloneKernelDirectory kernel PML4 was not present in source directory!");
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // create the pml4 entry, we create a custom copy of this for each PML4.
     destinationPdp = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &physicalAddress);
     if (!destinationPdp) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(destinationPdp, 0, sizeof(PageDirectoryTable_t));
 
@@ -294,12 +294,12 @@ __CloneKernelDirectory(
     virtualAddress = (vaddr_t)kmalloc_p(sizeof(PageDirectory_t), &physicalAddress);
     if (!virtualAddress) {
         kfree(destinationPdp);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset((void*)virtualAddress, 0, sizeof(PageDirectory_t));
     atomic_store(&destinationPdp->pTables[kernelTlsEntry], physicalAddress | PAGE_PRESENT | PAGE_WRITE);
     destinationPdp->vTables[kernelTlsEntry] = virtualAddress;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -333,13 +333,13 @@ MmVirtualClone(
     // create the new PML4
     pageMasterTable = (PageMasterTable_t*)kmalloc_p(sizeof(PageMasterTable_t), &masterAddress);
     if (!pageMasterTable) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(pageMasterTable, 0, sizeof(PageMasterTable_t));
 
     // transfer over the shared pml4 entry and mark inherited, we are not allowed to free anything on cleanup
     osStatus = __CloneKernelDirectory(kernelMasterTable, pageMasterTable);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         kfree(pageMasterTable);
         return osStatus;
     }
@@ -348,7 +348,7 @@ MmVirtualClone(
     directoryTable = (PageDirectoryTable_t*)kmalloc_p(sizeof(PageDirectoryTable_t), &physicalAddress);
     if (!directoryTable) {
         kfree(pageMasterTable);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset((void*)directoryTable, 0, sizeof(PageDirectoryTable_t));
     pageMasterTable->vTables[appTlsPml4Entry] = (uint64_t)directoryTable;
@@ -370,7 +370,7 @@ MmVirtualClone(
     }
     *cr3Out  = masterAddress;
     *pdirOut = (uintptr_t)pageMasterTable;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -387,7 +387,7 @@ MmVirtualDestroyPageTable(
         FreePhysicalMemory(1, &address);
     }
     kfree(pageTable);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -403,7 +403,7 @@ MmVirtualDestroyPageDirectory(
         MmVirtualDestroyPageTable((PageTable_t*)pageDirectory->vTables[i]);
     }
     kfree(pageDirectory);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -419,7 +419,7 @@ MmVirtualDestroyPageDirectoryTable(
         MmVirtualDestroyPageDirectory((PageDirectory_t*)pageDirectoryTable->vTables[i]);
     }
     kfree(pageDirectoryTable);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -445,7 +445,7 @@ MmuDestroyVirtualSpace(
     if (memorySpace->ParentHandle == UUID_INVALID) {
         kfree((void*)memorySpace->PlatfromData.TssIoMap);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 #if defined(__clang__)

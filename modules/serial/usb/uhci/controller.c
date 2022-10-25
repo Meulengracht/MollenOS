@@ -88,7 +88,7 @@ HciControllerCreate(
           ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
 
     // Acquire the io-space
-    if (AcquireDeviceIo(ioBase) != OsOK) {
+    if (AcquireDeviceIo(ioBase) != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for uhci-controller");
         free(controller);
         return NULL;
@@ -111,7 +111,7 @@ HciControllerCreate(
     // Enable device
     if (IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                     (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OsOK) {
+            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OS_EOK) {
         ERROR("Failed to enable the uhci-controller");
         UnregisterInterruptSource(controller->Base.Interrupt);
         ReleaseDeviceIo(controller->Base.IoBase);
@@ -122,7 +122,7 @@ HciControllerCreate(
     // Claim the BIOS ownership and enable pci interrupts
     ioctlValue = 0x2000;
     if (IoctlDeviceEx(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE,
-                      UHCI_USBLEGEACY, &ioctlValue, 2) != OsOK) {
+                      UHCI_USBLEGEACY, &ioctlValue, 2) != OS_EOK) {
         return NULL;
     }
 
@@ -130,14 +130,14 @@ HciControllerCreate(
     if (controller->Base.Device->Base.VendorId == 0x8086) {
         ioctlValue = 0x00;
         if (IoctlDeviceEx(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_EXT_WRITE,
-                          UHCI_USBRES_INTEL, &ioctlValue, 1) != OsOK) {
+                          UHCI_USBRES_INTEL, &ioctlValue, 1) != OS_EOK) {
             return NULL;
         }
     }
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (UhciSetup(controller) == OsOK) {
+    if (UhciSetup(controller) == OS_EOK) {
         return &controller->Base;
     }
     else {
@@ -163,7 +163,7 @@ HciControllerDestroy(
     ReleaseDeviceIo(Controller->IoBase);
 
     free(Controller);
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -194,14 +194,14 @@ UhciStart(
     // Update
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
     if (Wait == 0) {
-        return OsOK;
+        return OS_EOK;
     }
 
     // Wait for controller to start
     OldCmd = 0;
     WaitForConditionWithFault(OldCmd, 
         (UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0, 100, 10);
-    return (OldCmd == 0) ? OsOK : OsError;
+    return (OldCmd == 0) ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t
@@ -217,7 +217,7 @@ UhciStop(
 
     // Update
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -236,7 +236,7 @@ UhciReset(
         thrd_sleepex(200); // give it another try
         if (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) {
             ERROR("UHCI::Giving up on controller reset");
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
 
@@ -254,7 +254,7 @@ UhciReset(
     UhciWrite16(Controller, UHCI_REGISTER_INTR, 
         (UHCI_INTR_TIMEOUT | UHCI_INTR_SHORT_PACKET
         | UHCI_INTR_RESUME | UHCI_INTR_COMPLETION));
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -280,9 +280,9 @@ UhciSetup(
     TRACE(" > Initializing queue system");
     UhciQueueInitialize(Controller);
     TRACE(" > Resetting controller");
-    if (UhciReset(Controller) != OsOK) {
+    if (UhciReset(Controller) != OS_EOK) {
         ERROR("UHCI::Failed to reset controller");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Enumerate all available ports
@@ -301,7 +301,7 @@ UhciSetup(
 
     // Register the controller before starting
     TRACE(" > Registering");
-    if (UsbManagerRegisterController(&Controller->Base) != OsOK) {
+    if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {
         ERROR("Failed to register uhci controller with the system.");
     }
 

@@ -201,7 +201,7 @@ ArchProcessorSendInterrupt(
         _In_ uuid_t interruptId)
 {
     oserr_t osStatus = ApicSendInterrupt(InterruptTarget_SPECIFIC, coreId, interruptId & 0xFF);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         FATAL(FATAL_SCOPE_KERNEL, "Failed to deliver IPI signal");
     }
     return osStatus;
@@ -212,24 +212,24 @@ CpuInitializeFeatures(void)
 {
     // Can we use global pages? We will use this for kernel mappings
     // to speed up refill performance
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OS_EOK) {
         CpuEnableGpe();
     }
 
 	// Can we enable FPU?
-	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OsOK) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_FPU) == OS_EOK) {
 		CpuEnableFpu();
 	}
 
 	// Can we enable SSE?
-	if (CpuHasFeatures(0, CPUID_FEAT_EDX_SSE) == OsOK) {
+	if (CpuHasFeatures(0, CPUID_FEAT_EDX_SSE) == OS_EOK) {
 		CpuEnableSse();
 	}
     
     // Can we enable xsave? (and maybe avx?)
-    if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OsOK) {
+    if (CpuHasFeatures(CPUID_FEAT_ECX_XSAVE | CPUID_FEAT_ECX_OSXSAVE, 0) == OS_EOK) {
         CpuEnableXSave();
-        if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OsOK) {
+        if (CpuHasFeatures(CPUID_FEAT_ECX_AVX, 0) == OS_EOK) {
             CpuEnableAvx();
         }
     }
@@ -253,23 +253,23 @@ CpuHasFeatures(
 	// Check ECX features @todo multiple cpus
 	if (ecx != 0) {
 		if ((GetMachine()->Processor.PlatformData.EcxFeatures & ecx) != ecx) {
-			return OsError;
+			return OS_EUNKNOWN;
 		}
 	}
 
 	// Check EDX features @todo multiple cpus
 	if (edx != 0) {
 		if ((GetMachine()->Processor.PlatformData.EdxFeatures & edx) != edx) {
-			return OsError;
+			return OS_EUNKNOWN;
 		}
 	}
-	return OsOK;
+	return OS_EOK;
 }
 
 uuid_t
 ArchGetProcessorCoreId(void)
 {
-    if (ApicIsInitialized() == OsOK) {
+    if (ApicIsInitialized() == OS_EOK) {
         return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
     }
 
@@ -329,7 +329,7 @@ CpuInvalidateMemoryCache(
 
 void CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
 {
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsOK) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OS_EOK) {
         _rdmsr(registerIndex, pointerToValue);
     }
     else {
@@ -339,7 +339,7 @@ void CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
 
 void CpuWriteModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)
 {
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OsOK) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_MSR) == OS_EOK) {
         _wrmsr(registerIndex, pointerToValue);
     }
     else {

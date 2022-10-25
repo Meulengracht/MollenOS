@@ -46,7 +46,7 @@ GptEnumeratePartitionTable(
     // No partitions on this disk, skip parse!
     if (!gptHeader->PartitionCount) {
         TRACE("GptEnumeratePartitionTable no partitions present on disk");
-        return OsOK;
+        return OS_EOK;
     }
 
     // Calculate the number of sectors we need to parse
@@ -64,8 +64,8 @@ GptEnumeratePartitionTable(
                 &(UInteger64_t) { .QuadPart = gptHeader->PartitionTableLBA },
                 1, &sectorsRead
         );
-        if (oserr != OsOK) {
-            return OsError;
+        if (oserr != OS_EOK) {
+            return OS_EUNKNOWN;
         }
 
         entry = (GptPartitionEntry_t*)buffer;
@@ -100,7 +100,7 @@ GptEnumeratePartitionTable(
     }
 
 parse_done:
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -112,7 +112,7 @@ GptValidateHeader(
     // Check for matching signature, probably the most important for this to determine
     // whether the GPT is present
     if (memcmp(&gptHeader->Signature[0], GPT_SIGNATURE, 8) != 0) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     if (gptHeader->Revision != GPT_REVISION || gptHeader->HeaderSize < 92 ||
@@ -120,13 +120,13 @@ GptValidateHeader(
         WARNING("GptValidateHeader header data was corrupt");
         WARNING("GptValidateHeader revision=0x%x, headerSize=%u, reserved=%u",
                 gptHeader->Revision, gptHeader->HeaderSize, gptHeader->Reserved);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Perform CRC check of header
     // @todo
 
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -146,20 +146,20 @@ GptEnumerate(
             .QuadPart = 1
     };
     oserr = storage->Operations.Read(storage, bufferHandle, 0, &sector, 1, &sectorsRead);
-    if (oserr != OsOK) {
-        return OsError;
+    if (oserr != OS_EOK) {
+        return OS_EUNKNOWN;
     }
 
     // Allocate a buffer where we can store a copy of the mbr
     // it might be overwritten by recursion here
     gpt = (GptHeader_t *)malloc(sizeof(GptHeader_t));
     if (!gpt) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memcpy(gpt, buffer, sizeof(GptHeader_t));
 
     oserr = GptValidateHeader(gpt);
-    if (oserr == OsOK) {
+    if (oserr == OS_EOK) {
         oserr = GptEnumeratePartitionTable(storage, gpt, bufferHandle, buffer);
     }
     free(gpt);

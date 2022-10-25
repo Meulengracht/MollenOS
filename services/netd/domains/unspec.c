@@ -33,5 +33,5 @@ oserr_t
 DomainUnspecCreate(
     _Out_ SocketDomain_t** DomainOut)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }

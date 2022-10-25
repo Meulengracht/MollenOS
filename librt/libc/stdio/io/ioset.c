@@ -50,7 +50,7 @@ int ioset(int flags)
     }
 
     oserr = notification_queue_create(0, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         (void)OsErrToErrNo(oserr);
         stdio_handle_destroy(ioObject, 0);
         return -1;
@@ -117,7 +117,7 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 
     oserr = notification_queue_ctrl(setObject->object.handle, op,
                                     ioObject->object.handle, event);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         (void)OsErrToErrNo(oserr);
         return -1;
     }
@@ -157,7 +157,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
     
     status = notification_queue_wait(setObject->object.handle, &events[0],
                                      max_events, i, timeout, &numEvents);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         return OsErrToErrNo(status);
     }
     return numEvents;

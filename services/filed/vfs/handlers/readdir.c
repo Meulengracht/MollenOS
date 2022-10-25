@@ -53,13 +53,13 @@ oserr_t VFSNodeReadDirectory(uuid_t fileHandle, struct VFSStat* stats, uint32_t*
     oserr_t                       oserr;
 
     oserr = VFSNodeHandleGet(fileHandle, &handle);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     // Like the name implies, this operation is solely supported for directories nodes.
     if (!__NodeIsDirectory(handle->Node) || __NodeIsSymlink(handle->Node)) {
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
         goto cleanup;
     }
 
@@ -74,7 +74,7 @@ oserr_t VFSNodeReadDirectory(uuid_t fileHandle, struct VFSStat* stats, uint32_t*
     // Ensure directory is loaded before accessing entries. We do this on
     // demand to optimize for the case where we just check if directory exists.
     oserr = VFSNodeEnsureLoaded(handle->Node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         usched_rwlock_r_unlock(&handle->Node->Lock);
         goto cleanup;
     }
@@ -86,11 +86,11 @@ oserr_t VFSNodeReadDirectory(uuid_t fileHandle, struct VFSStat* stats, uint32_t*
     );
     usched_rwlock_r_unlock(&handle->Node->Lock);
     if (!context.Found) {
-        oserr = OsNotExists;
+        oserr = OS_ENOENT;
         goto cleanup;
     } else {
         handle->Position++;
-        oserr = OsOK;
+        oserr = OS_EOK;
     }
 
 cleanup:

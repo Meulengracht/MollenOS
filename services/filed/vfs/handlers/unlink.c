@@ -26,24 +26,24 @@ static oserr_t __VerifyCanDelete(struct VFSNode* node)
 {
     // We do not allow bind mounted nodes to be deleted.
     if (!__NodeIsRegular(node)) {
-        return OsInvalidPermissions;
+        return OS_EPERMISSIONS;
     }
 
     // We do not allow deletion on nodes with children
     if (node->Children.element_count != 0) {
-        return OsDirectoryNotEmpty;
+        return OS_EDIRNOTEMPTY;
     }
 
     // We do not allow deletion on nodes with open handles
     if (node->Handles.element_size != 0) {
-        return OsBusy;
+        return OS_EBUSY;
     }
 
     // We do not allow deletion of nodes that are currently mounted
     if (node->Mounts.element_count != 0) {
-        return OsBusy;
+        return OS_EBUSY;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 // __DeleteNode is a helper for deleting a VFS node. The node that has been
@@ -60,7 +60,7 @@ static oserr_t __DeleteNode(struct VFSNode* node)
 
     nodePath = VFSNodeMakePath(node, 1);
     if (nodePath == NULL)  {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     ops = &node->FileSystem->Interface->Operations;
@@ -77,18 +77,18 @@ static oserr_t __DeleteNode(struct VFSNode* node)
     // Load node before deletion to make sure the node
     // is up-to-date
     oserr = VFSNodeEnsureLoaded(node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto error;
     }
 
     oserr = __VerifyCanDelete(node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto error;
     }
 
     // OK at this point we are now allowed to perform the deletion
     oserr = ops->Unlink(vfs->Data, nodePath);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto error;
     }
 
@@ -112,7 +112,7 @@ oserr_t VFSNodeUnlink(struct VFS* vfs, const char* cpath)
 
     path = mstr_path_new_u8(cpath);
     if (path == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Unlinking root is a special case, as we do not allow that do not
@@ -120,7 +120,7 @@ oserr_t VFSNodeUnlink(struct VFS* vfs, const char* cpath)
     if (__PathIsRoot(path)) {
         mstr_delete(path); // we don't need the path from this point
         WARNING("VFSNodeUnlink deletion of root was requested, returning no-no");
-        return OsInvalidPermissions;
+        return OS_EPERMISSIONS;
     }
 
     mstring_t* containingDirectoryPath = mstr_path_dirname(path);
@@ -133,14 +133,14 @@ oserr_t VFSNodeUnlink(struct VFS* vfs, const char* cpath)
             1, &containingDirectory);
 
     mstr_delete(containingDirectoryPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     // Find the requested entry in the containing folder
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
-    if (osStatus != OsOK && osStatus != OsNotExists) {
+    if (osStatus != OS_EOK && osStatus != OS_ENOENT) {
         goto exit;
     }
 

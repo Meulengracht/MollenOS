@@ -201,7 +201,7 @@ static int __get_startup_info(void)
             &osStatus,
             &g_processId
     );
-    assert(osStatus == OsOK);
+    assert(osStatus == OS_EOK);
 
     status = __parse_startup_info(&mapping);
     DmaAttachmentUnmap(&mapping);

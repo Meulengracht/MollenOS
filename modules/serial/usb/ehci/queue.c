@@ -90,7 +90,7 @@ EhciQueueResetInternalData(
     NullTd->Status                      = EHCI_TD_HALTED;
     NullTd->Link                        = EHCI_LINK_END;
     NullTd->AlternativeLink             = EHCI_LINK_END;
-    return OsOK;
+    return OS_EOK;
 }
 
 /* EhciQueueInitialize
@@ -180,7 +180,7 @@ EhciQueueDestroy(
     // Reset first
     EhciQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OsOK;
+    return OS_EOK;
 }
 
 /* EhciConditionCodeToIndex
@@ -232,7 +232,7 @@ EhciSetPrefetching(
 {
     reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
     if (!(Controller->CParameters & EHCI_CPARAM_HWPREFETCH)) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     
     // Detect type of prefetching
@@ -258,7 +258,7 @@ EhciSetPrefetching(
             WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void

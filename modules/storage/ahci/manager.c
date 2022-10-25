@@ -75,7 +75,7 @@ AhciManagerInitialize(void)
 
     TRACE("AhciManagerInitialize()");
     Status = SystemQuery(&Descriptor);
-    if (Status == OsOK) {
+    if (Status == OS_EOK) {
         g_frameSize = Descriptor.PageSizeBytes;
     }
     return Status;
@@ -166,26 +166,26 @@ AhciManagerRegisterDevice(
         default: {
             WARNING("AhciManagerRegisterDevice unsupported device type 0x%x on port %i",
                     signature, port->Id);
-            return OsNotSupported;
+            return OS_ENOTSUPPORTED;
         };
     }
 
     ahciDevice = __CreateInitialDevice(controller, port, deviceType);
     if (!ahciDevice) {
         ERROR("AhciManagerRegisterDevice ahciDevice was null");
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = AhciTransactionControlCreate(ahciDevice, AtaPIOIdentifyDevice,
                                             sizeof(ATAIdentify_t), __STORAGE_OPERATION_READ);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("AhciManagerRegisterDevice osStatus=%u", osStatus);
         free(ahciDevice);
         return osStatus;
     }
 
     list_append(&devices, &ahciDevice->header);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -335,11 +335,11 @@ AhciManagerHandleControlResponse(
 void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
-    oserr_t                 status = OsNotExists;
+    oserr_t                 status = OS_ENOENT;
     AhciDevice_t*              device = AhciManagerGetDevice(deviceId);
     if (device) {
         to_sys_disk_descriptor_dkk(&device->Descriptor, &gdescriptor);
-        status = OsOK;
+        status = OS_EOK;
     }
     
     ctt_storage_stat_response(message, status, &gdescriptor);

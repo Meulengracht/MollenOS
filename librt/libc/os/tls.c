@@ -111,7 +111,7 @@ DMAAttachment_t* __tls_current_dmabuf(void)
         info.flags    = DMA_PERSISTANT;
         info.type     = DMA_TYPE_DRIVER_32;
         oserr = DmaExport(buffer, &info, &tls->dma);
-        assert(oserr == OsOK);
+        assert(oserr == OS_EOK);
     }
     return &tls->dma;
 };

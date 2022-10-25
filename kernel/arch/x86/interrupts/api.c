@@ -238,7 +238,7 @@ InterruptResolve(
         // Bits 07-00: Vector
         deviceInterrupt->MsiValue = (0x100 | (*tableIndex & 0xFF));
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void InterruptSetMode(
@@ -272,7 +272,7 @@ InterruptConfigure(
 
     // Is this a software interrupt? Don't install
     if (systemInterrupt->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
-        return OsOK;
+        return OS_EOK;
     }
 
     // Are we disabling? Skip configuration
@@ -330,10 +330,10 @@ UpdateEntry:
         }
         else {
             ERROR("Failed to derive io-apic for source %i", systemInterrupt->Source);
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 irqstate_t

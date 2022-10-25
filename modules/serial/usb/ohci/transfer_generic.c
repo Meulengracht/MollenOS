@@ -98,7 +98,7 @@ OhciTransferFill(
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
             TRACE("... address 0x%" PRIxIN ", length %u, toggle %i", Address, LODWORD(Length), Toggle);
-            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OsOK) {
+            if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OS_EOK) {
                 if (Type == USB_TRANSACTION_SETUP) {
                     TRACE("... setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
@@ -163,11 +163,11 @@ OhciTransferFill(
         // Enable ioc
         PreviousTd->Flags         &= ~OHCI_TD_IOC_NONE;
         PreviousTd->OriginalFlags = PreviousTd->Flags;
-        return OsOK;
+        return OS_EOK;
     }
     
     // Queue up for later
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 UsbTransferStatus_t
@@ -186,7 +186,7 @@ HciQueueTransferGeneric(
     // Step 1 - Allocate queue head
     if (transfer->EndpointDescriptor == NULL) {
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
-                                        OHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OsOK) {
+                                        OHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OS_EOK) {
             goto queued;
         }
         assert(endpointDescriptor != NULL);
@@ -195,7 +195,7 @@ HciQueueTransferGeneric(
         // Store and initialize the qh
         if (OhciQhInitialize(controller, transfer,
                              transfer->Transfer.Address.DeviceAddress,
-                             transfer->Transfer.Address.EndpointAddress) != OsOK) {
+                             transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;
@@ -204,7 +204,7 @@ HciQueueTransferGeneric(
     }
 
     // If it fails to queue up => restore toggle
-    if (OhciTransferFill(controller, transfer) != OsOK) {
+    if (OhciTransferFill(controller, transfer) != OS_EOK) {
         goto queued;
     }
 

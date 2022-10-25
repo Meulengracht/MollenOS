@@ -59,13 +59,13 @@ CreateSocketPipe(
     Buffer.type     = 0;
     
     Status = DmaCreate(&Buffer, &Pipe->DmaAttachment);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         return Status;
     }
     
     Pipe->Stream = Pipe->DmaAttachment.buffer;
     InitializeStreambuffer(Pipe->Stream);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -99,7 +99,7 @@ SocketCreateImpl(
     
     Socket = malloc(sizeof(Socket_t));
     if (!Socket) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     memset(Socket, 0, sizeof(Socket_t));
@@ -114,14 +114,14 @@ SocketCreateImpl(
     queue_construct(&Socket->AcceptRequests);
     
     Status = handle_create(&Handle);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR("Failed to create socket handle");
         return Status;
     }
     RB_LEAF_INIT(&Socket->Header, Handle, Socket);
     
     Status = DomainCreate(Domain, &Socket->Domain);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket domain");
         (void)handle_destroy(Handle);
         free(Socket);
@@ -129,7 +129,7 @@ SocketCreateImpl(
     }
     
     Status = DomainAllocateAddress(Socket);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket domain address");
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Handle);
@@ -138,7 +138,7 @@ SocketCreateImpl(
     }
     
     Status = CreateSocketPipe(&Socket->Receive);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(Socket->Domain);
         (void)handle_destroy(Handle);
@@ -147,7 +147,7 @@ SocketCreateImpl(
     }
     
     Status = CreateSocketPipe(&Socket->Send);
-    if (Status != OsOK) {
+    if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
@@ -157,7 +157,7 @@ SocketCreateImpl(
     }
     
     *SocketOut = Socket;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -177,7 +177,7 @@ SocketShutdownImpl(
         DestroySocketPipe(&Socket->Send);
         (void)handle_destroy((uuid_t)(uintptr_t)Socket->Header.key);
         free(Socket);
-        return OsOK;
+        return OS_EOK;
     }
     else {
         if (Options & SYS_CLOSE_OPTIONS_WRITE) {
@@ -191,7 +191,7 @@ SocketShutdownImpl(
         }
     }
     mtx_unlock(&Socket->SyncObject);
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -200,12 +200,12 @@ SocketListenImpl(
     _In_ int       ConnectionCount)
 {
     if (ConnectionCount < 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     Socket->Configuration.Passive = 1;
     Socket->Configuration.Backlog = ConnectionCount;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -216,7 +216,7 @@ SetSocketOptionImpl(
     _In_ const void*      Data,
     _In_ socklen_t        DataLength)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
     
 oserr_t
@@ -227,7 +227,7 @@ GetSocketOptionImpl(
     _In_  void*            Data,
     _Out_ socklen_t*       DataLengthOut)
 {
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 streambuffer_t*
@@ -252,7 +252,7 @@ SocketSetQueuedPacket(
 {
     Socket->QueuedPacket.Length = Length;
     Socket->QueuedPacket.Data   = (void*)Payload;
-    return OsOK;
+    return OS_EOK;
 }
 
 size_t

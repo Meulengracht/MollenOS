@@ -87,7 +87,7 @@ HciPortReset(
     else {
         WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -114,7 +114,7 @@ OhciPortCheck(
     _In_ int               Index,
     _In_ int               IgnorePowerOn)
 {
-    oserr_t Result     = OsOK;
+    oserr_t Result     = OS_EOK;
     reg32_t    PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
     TRACE("OhciPortCheck(%i): 0x%x", Index, PortStatus);
 
@@ -136,12 +136,12 @@ OhciPortsCheck(
     int Status = spinlock_try_acquire(&Controller->Base.Lock);
     if (Status != spinlock_acquired) {
         // check in progress
-        return OsError;
+        return OS_EUNKNOWN;
     }
     
     for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
         OhciPortCheck(Controller, i, IgnorePowerOn);
     }
     spinlock_release(&Controller->Base.Lock);
-    return OsOK;
+    return OS_EOK;
 }

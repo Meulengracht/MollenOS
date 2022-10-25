@@ -89,6 +89,25 @@ ArchThreadContextCreate(
     _In_ size_t contextSize);
 
 /**
+ * @brief
+ * @param baseContext
+ * @param returnContext
+ * @param contextType
+ * @param contextSize
+ * @param baseContextOut
+ * @param contextOut
+ * @return
+ */
+KERNELAPI oserr_t KERNELABI
+ArchThreadContextFork(
+        _In_  Context_t*  baseContext,
+        _In_  Context_t*  returnContext,
+        _In_  int         contextType,
+        _In_  size_t      contextSize,
+        _Out_ Context_t** baseContextOut,
+        _Out_ Context_t** contextOut);
+
+/**
  * @brief Destroys the context for the thread and releases resources.
  *
  * @param context

@@ -83,12 +83,12 @@ streambuffer_create(
     // without the buffer[1] and then capacity
     streambuffer_t* stream = (streambuffer_t*)dsalloc(sizeof(streambuffer_t) + capacity);
     if (!stream) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     streambuffer_construct(stream, capacity, options);
     *stream_out = stream;
-    return OsOK;
+    return OS_EOK;
 }
 
 void

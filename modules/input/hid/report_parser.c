@@ -569,7 +569,7 @@ HidCollectionDestroy(
     UsbHidReportCollectionItem_t *ChildIterator = NULL, *Temporary = NULL;
 
     if (!reportCollection) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Iterate it's children
@@ -592,7 +592,7 @@ HidCollectionDestroy(
 
     // Last step is to free the given collection
     free(reportCollection);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -600,7 +600,7 @@ HidCollectionCleanup(
     _In_ HidDevice_t* hidDevice)
 {
     if (!hidDevice) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     return HidCollectionDestroy(hidDevice->Collection);
 }

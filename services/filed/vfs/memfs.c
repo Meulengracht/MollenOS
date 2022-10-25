@@ -216,11 +216,11 @@ __MemFSInitialize(
 
     struct MemFS* memfs = __MemFS_new();
     if (memfs == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *instanceData = memfs;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -230,10 +230,10 @@ __MemFSDestroy(
 {
     TRACE("__MemFSDestroy()");
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     __MemFS_delete(instanceData);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __MemFSHandle_delete(struct MemFSHandle* handle)
@@ -262,20 +262,20 @@ static oserr_t __FindNode(
 {
     mstring_t** tokens;
     int         tokensCount;
-    oserr_t     oserr = OsOK;
+    oserr_t     oserr = OS_EOK;
 
     TRACE("__FindNode(root=%ms, path=%ms)", root->Name, path);
 
     // Special case, we are trying to open root path
     if (__PathIsRoot(path)) {
         *entryOut = root;
-        return OsOK;
+        return OS_EOK;
     }
 
     // Otherwise split path into tokens and find the entry requested
     tokensCount = mstr_path_tokens(path, &tokens);
     if (tokensCount <= 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     struct MemFSEntry* n = root;
@@ -295,13 +295,13 @@ static oserr_t __FindNode(
         usched_mtx_unlock(&n->Mutex);
 
         if (entry == NULL) {
-            oserr = OsNotExists;
+            oserr = OS_ENOENT;
             break;
         }
 
         // The entry we've found must be a directory if we are not at the last entry
         if (!isLastEntry && entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
-            oserr = OsPathIsNotDirectory;
+            oserr = OS_ENOTDIR;
             break;
         }
         p = n;
@@ -328,11 +328,11 @@ __MemFSOpen(
 
     TRACE("__MemFSOpen(path=%ms)", path);
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     oserr = __FindNode(memfs->Root, path, &parent, &entry);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -340,7 +340,7 @@ __MemFSOpen(
     handle = __MemFSHandle_new(entry);
     if (handle == NULL) {
         usched_mtx_unlock(&entry->Mutex);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Update the accessed time of entry before continuing
@@ -348,7 +348,7 @@ __MemFSOpen(
     usched_mtx_unlock(&entry->Mutex);
 
     *dataOut = handle;
-    return OsOK;
+    return OS_EOK;
 }
 
 static int __TypeFromFlags(uint32_t flags) {
@@ -375,13 +375,13 @@ static oserr_t __CreateInNode(
     lookup = hashtable_get(&entry->Data.Directory.Entries, &(struct __DirectoryEntry) { .Name = name });
     if (lookup) {
         usched_mtx_unlock(&entry->Mutex);
-        return OsExists;
+        return OS_EEXISTS;
     }
 
     newEntry = __MemFSEntry_new(name, owner, __TypeFromFlags(flags), permissions);
     if (newEntry == NULL) {
         usched_mtx_unlock(&entry->Mutex);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *entryOut = newEntry;
@@ -393,7 +393,7 @@ static oserr_t __CreateInNode(
             &(struct __DirectoryEntry) { .Name = newEntry->Name, newEntry }
     );
     usched_mtx_unlock(&entry->Mutex);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -414,17 +414,17 @@ __MemFSCreate(
 
     TRACE("__MemFSCreate(name=%ms)", name);
     if (instanceData == NULL || data == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // The handle must point to a directory
     if (handle->Entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
         WARNING("__MemFSCreate %ms is not a directory (%i)", handle->Entry->Name, handle->Entry->Type);
-        return OsPathIsNotDirectory;
+        return OS_ENOTDIR;
     }
 
     oserr = __CreateInNode(handle->Entry, name, owner, flags, permissions, &entry);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -432,14 +432,14 @@ __MemFSCreate(
     newHandle = __MemFSHandle_new(entry);
     if (newHandle == NULL) {
         usched_mtx_unlock(&entry->Mutex);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Update the accessed time of entry before continuing
     timespec_get(&entry->Accessed, TIME_UTC);
     usched_mtx_unlock(&entry->Mutex);
     *dataOut = newHandle;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -449,11 +449,11 @@ __MemFSClose(
 {
     TRACE("__MemFSClose()");
     if (instanceData == NULL || data == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     __MemFSHandle_delete(data);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -463,7 +463,7 @@ __MemFSStat(
 {
     TRACE("__MemFSStat()");
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     stat->Label = NULL;
@@ -472,7 +472,7 @@ __MemFSStat(
     stat->MaxFilenameLength = 255;
     stat->SegmentsFree = 0;
     stat->SegmentsTotal = 0;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __SymlinkInNode(
@@ -490,7 +490,7 @@ static oserr_t __SymlinkInNode(
     lookup = hashtable_get(&entry->Data.Directory.Entries, &(struct __DirectoryEntry) { .Name = name });
     if (lookup) {
         usched_mtx_unlock(&entry->Mutex);
-        return OsExists;
+        return OS_EEXISTS;
     }
 
     newEntry = __MemFSEntry_new(
@@ -499,7 +499,7 @@ static oserr_t __SymlinkInNode(
     );
     if (newEntry == NULL) {
         usched_mtx_unlock(&entry->Mutex);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // setup symlink-specific data
@@ -507,7 +507,7 @@ static oserr_t __SymlinkInNode(
     if (newEntry->Data.Symlink.Target == NULL) {
         usched_mtx_unlock(&entry->Mutex);
         __MemFSEntry_delete(newEntry);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *entryOut = newEntry;
@@ -519,7 +519,7 @@ static oserr_t __SymlinkInNode(
             &(struct __DirectoryEntry) { .Name = newEntry->Name, newEntry }
     );
     usched_mtx_unlock(&entry->Mutex);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -537,13 +537,13 @@ __MemFSLink(
 
     TRACE("__MemFSLink(name=%ms, target=%ms)", linkName, linkTarget);
     if (instanceData == NULL || data == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // The handle must point to a directory
     if (handle->Entry->Type != MEMFS_ENTRY_TYPE_DIRECTORY) {
         WARNING("__MemFSLink %ms is not a directory (%i)", handle->Entry->Name, handle->Entry->Type);
-        return OsPathIsNotDirectory;
+        return OS_ENOTDIR;
     }
 
     if (symbolic) {
@@ -554,7 +554,7 @@ __MemFSLink(
                 handle->Entry->Owner,
                 &entry
         );
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
 
@@ -564,7 +564,7 @@ __MemFSLink(
         usched_mtx_unlock(&entry->Mutex);
     } else {
         // TODO hard links
-        oserr = OsNotSupported;
+        oserr = OS_ENOTSUPPORTED;
     }
     return oserr;
 }
@@ -581,11 +581,11 @@ __MemFSUnlink(
 
     TRACE("__MemFSUnlink(path=%ms)", path);
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     oserr = __FindNode(memfs->Root, path, &parent, &node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -599,7 +599,7 @@ __MemFSUnlink(
 
     // Remove one link to the entry
     __MemFSEntry_delete(node);
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -615,23 +615,23 @@ __MemFSReadLink(
 
     TRACE("__MemFSReadLink(path=%ms)", path);
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     oserr = __FindNode(memfs->Root, path, &parent, &node);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     if (node->Type != MEMFS_ENTRY_TYPE_SYMLINK) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     *pathOut = mstr_clone(node->Data.Symlink.Target);
     if (*pathOut == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -643,10 +643,10 @@ __MemFSMove(
 {
     TRACE("__MemFSMove(from=%ms, to=%ms, copy=%i)", from, to, copy);
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t __ReadFile(
@@ -675,7 +675,7 @@ static oserr_t __ReadFile(
     }
 
     *unitsRead = bytesToRead;
-    return OsOK;
+    return OS_EOK;
 }
 
 struct __ReadDirectoryContext {
@@ -746,7 +746,7 @@ static oserr_t __ReadDirectory(
     // Ensure that a minimum of *one* stat structure can fit
     if (unitCount < sizeof(struct VFSStat)) {
         *unitsRead = 0;
-        return OsCancelled;
+        return OS_ECANCELLED;
     }
 
     usched_mtx_lock(&handle->Entry->Mutex);
@@ -758,7 +758,7 @@ static oserr_t __ReadDirectory(
 
     handle->Position += unitCount - context.BytesLeftInBuffer;
     *unitsRead = unitCount - context.BytesLeftInBuffer;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -775,7 +775,7 @@ __MemFSRead(
 
     TRACE("__MemFSRead(entry=%ms)", handle ? handle->Entry->Name : NULL);
     if (instanceData == NULL || data == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // All data is sourced locally, so we do not really need to use
@@ -791,7 +791,7 @@ __MemFSRead(
             return __ReadDirectory(handle, buffer, bufferOffset, unitCount, unitsRead);
         default: break;
     }
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t
@@ -806,10 +806,10 @@ __MemFSWrite(
 {
     TRACE("__MemFSWrite()");
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t
@@ -820,10 +820,10 @@ __MemFSTruncate(
 {
     TRACE("__MemFSTruncate()");
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t
@@ -835,10 +835,10 @@ __MemFSSeek(
 {
     TRACE("__MemFSSeek()");
     if (instanceData == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static struct VFSOperations g_memfsOperations = {

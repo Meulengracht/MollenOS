@@ -415,8 +415,8 @@ ApicInitialize(void)
         originalApAddress = MadtTable->Address;
         AcpiPutTable(header);
     }
-    else if (MpInitialize() == OsOK) {
-        if (MpGetLocalApicAddress(&originalApAddress) != OsOK) {
+    else if (MpInitialize() == OS_EOK) {
+        if (MpGetLocalApicAddress(&originalApAddress) != OS_EOK) {
             // Fallback to msr
             uint64_t Value = 0;
             CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &Value);
@@ -488,7 +488,7 @@ GetApicInterruptMode(void)
 oserr_t
 ApicIsInitialized(void)
 {
-    return (g_localApicBaseAddress == 0) ? OsNotSupported : OsOK;
+    return (g_localApicBaseAddress == 0) ? OS_ENOTSUPPORTED : OS_EOK;
 }
 
 void

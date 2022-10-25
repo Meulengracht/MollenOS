@@ -30,9 +30,9 @@ static oserr_t __RemoveHandle(struct VFSNode* node, uuid_t handleId)
     usched_mtx_unlock(&node->HandlesLock);
 
     if (handle == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
@@ -42,7 +42,7 @@ oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(handleID, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 
@@ -58,15 +58,15 @@ oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
     // call we handle cleanup of this file-handle. This also acts as a barrier for
     // synchronization.
     osStatus = handle_destroy(handleID);
-    if (osStatus == OsIncomplete) {
-        return OsOK;
-    } else if (osStatus != OsOK) {
+    if (osStatus == OS_EINCOMPLETE) {
+        return OS_EOK;
+    } else if (osStatus != OS_EOK) {
         return osStatus;
     }
 
     // Ok last reference was destroyed
     osStatus = VFSNodeHandleRemove(handleID);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 

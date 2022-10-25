@@ -31,7 +31,7 @@ void OpenFile(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_open_response(request->message, OsInvalidPermissions, UUID_INVALID);
+        sys_file_open_response(request->message, OS_EPERMISSIONS, UUID_INVALID);
         return;
     }
 
@@ -54,7 +54,7 @@ void CloseFile(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_close_response(request->message, OsInvalidPermissions);
+        sys_file_close_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -70,7 +70,7 @@ void DeletePath(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_delete_response(request->message, OsInvalidPermissions);
+        sys_file_delete_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -87,7 +87,7 @@ void ReadFile(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_transfer_response(request->message, OsInvalidPermissions, 0);
+        sys_file_transfer_response(request->message, OS_EPERMISSIONS, 0);
         return;
     }
 
@@ -104,7 +104,7 @@ void WriteFile(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_transfer_response(request->message, OsInvalidPermissions, 0);
+        sys_file_transfer_response(request->message, OS_EPERMISSIONS, 0);
         return;
     }
 
@@ -121,7 +121,7 @@ void ReadFileAbsolute(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_transfer_absolute_response(request->message, OsInvalidPermissions, 0);
+        sys_file_transfer_absolute_response(request->message, OS_EPERMISSIONS, 0);
         return;
     }
 
@@ -148,7 +148,7 @@ void WriteFileAbsolute(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_transfer_absolute_response(request->message, OsInvalidPermissions, 0);
+        sys_file_transfer_absolute_response(request->message, OS_EPERMISSIONS, 0);
         return;
     }
 
@@ -175,7 +175,7 @@ void MakeDirectory(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_mkdir_response(request->message, OsInvalidPermissions);
+        sys_file_mkdir_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -188,7 +188,7 @@ void MakeDirectory(
             &handle
     );
     mstr_delete(path);
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         // We don't need it.
         VFSNodeClose(fsScope, handle);
     }
@@ -216,7 +216,7 @@ void ReadDirectory(
 
     fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_readdir_response(request->message, OsInvalidPermissions, &entry);
+        sys_file_readdir_response(request->message, OS_EPERMISSIONS, &entry);
         return;
     }
 
@@ -225,7 +225,7 @@ void ReadDirectory(
             request->parameters.readdir.fileHandle,
             &stats, &index
     );
-    if (osStatus == OsOK) {
+    if (osStatus == OS_EOK) {
         __ToSysDirectoryEntry(&stats, &entry, index);
     }
     sys_file_readdir_response(request->message, osStatus, &entry);
@@ -245,7 +245,7 @@ void Seek(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_seek_response(request->message, OsInvalidPermissions);
+        sys_file_seek_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -262,7 +262,7 @@ void Flush(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_flush_response(request->message, OsInvalidPermissions);
+        sys_file_flush_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -278,7 +278,7 @@ void Move(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_move_response(request->message, OsInvalidPermissions);
+        sys_file_move_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -294,7 +294,7 @@ void Link(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_link_response(request->message, OsInvalidPermissions);
+        sys_file_link_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -310,7 +310,7 @@ void Duplicate(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_duplicate_response(request->message, OsInvalidPermissions, UUID_INVALID);
+        sys_file_duplicate_response(request->message, OS_EPERMISSIONS, UUID_INVALID);
         return;
     }
 
@@ -327,7 +327,7 @@ void GetPosition(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_get_position_response(request->message, OsInvalidPermissions, 0, 0);
+        sys_file_get_position_response(request->message, OS_EPERMISSIONS, 0, 0);
         return;
     }
 
@@ -347,7 +347,7 @@ void GetAccess(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_get_access_response(request->message, OsInvalidPermissions, 0);
+        sys_file_get_access_response(request->message, OS_EPERMISSIONS, 0);
         return;
     }
 
@@ -367,7 +367,7 @@ void SetAccess(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_set_access_response(request->message, OsInvalidPermissions);
+        sys_file_set_access_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -386,7 +386,7 @@ void GetSize(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_get_size_response(request->message, OsInvalidPermissions, 0, 0);
+        sys_file_get_size_response(request->message, OS_EPERMISSIONS, 0, 0);
         return;
     }
 
@@ -408,7 +408,7 @@ void SetSize(
     oserr_t      oserr;
     struct VFS*  fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_set_size_response(request->message, OsInvalidPermissions);
+        sys_file_set_size_response(request->message, OS_EPERMISSIONS);
         return;
     }
 
@@ -440,7 +440,7 @@ void StatFromHandle(
     struct sys_file_descriptor result;
     struct VFS*                fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_fstat_response(request->message, OsInvalidPermissions, &result);
+        sys_file_fstat_response(request->message, OS_EPERMISSIONS, &result);
         return;
     }
 
@@ -459,7 +459,7 @@ void StatFromPath(
     struct sys_file_descriptor result;
     struct VFS*                fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_fstat_path_response(request->message, OsInvalidPermissions, &result);
+        sys_file_fstat_path_response(request->message, OS_EPERMISSIONS, &result);
         return;
     }
 
@@ -496,7 +496,7 @@ void StatFileSystemByHandle(
     struct sys_filesystem_descriptor result;
     struct VFS*                      fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_fsstat_response(request->message, OsInvalidPermissions, &result);
+        sys_file_fsstat_response(request->message, OS_EPERMISSIONS, &result);
         return;
     }
 
@@ -515,7 +515,7 @@ void StatFileSystemByPath(
     struct sys_filesystem_descriptor result;
     struct VFS*                      fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_fsstat_path_response(request->message, OsInvalidPermissions, &result);
+        sys_file_fsstat_path_response(request->message, OS_EPERMISSIONS, &result);
         return;
     }
 
@@ -535,7 +535,7 @@ void StatStorageByHandle(
     struct sys_disk_descriptor result;
     struct VFS*                fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_ststat_response(request->message, OsInvalidPermissions, &result);
+        sys_file_ststat_response(request->message, OS_EPERMISSIONS, &result);
         return;
     }
 
@@ -554,7 +554,7 @@ void StatStorageByPath(
     struct sys_disk_descriptor result;
     struct VFS*                fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_ststat_path_response(request->message, OsInvalidPermissions, &result);
+        sys_file_ststat_path_response(request->message, OS_EPERMISSIONS, &result);
         return;
     }
 
@@ -572,19 +572,19 @@ void StatLinkPathFromPath(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_fstat_link_response(request->message, OsInvalidPermissions, "");
+        sys_file_fstat_link_response(request->message, OS_EPERMISSIONS, "");
         return;
     }
 
     mstring_t* linkPath;
     oserr_t osStatus = VFSNodeReadLink(fsScope, request, &linkPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         sys_file_fstat_link_response(request->message, osStatus, "");
         return;
     }
 
     char* pathu8 = mstr_u8(linkPath);
-    sys_file_fstat_link_response(request->message, OsOK, pathu8);
+    sys_file_fstat_link_response(request->message, OS_EOK, pathu8);
     mstr_delete(linkPath);
     free(pathu8);
 }
@@ -595,19 +595,19 @@ void GetFullPathByHandle(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_get_path_response(request->message, OsInvalidPermissions, "");
+        sys_file_get_path_response(request->message, OS_EPERMISSIONS, "");
         return;
     }
 
     mstring_t* fullPath;
     oserr_t osStatus = VFSNodeGetPathHandle(request->parameters.stat_handle.fileHandle, &fullPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         sys_file_get_path_response(request->message, osStatus, "");
         return;
     }
 
     char* pathu8 = mstr_u8(fullPath);
-    sys_file_get_path_response(request->message, OsOK, pathu8);
+    sys_file_get_path_response(request->message, OS_EOK, pathu8);
     mstr_delete(fullPath);
     free(pathu8);
 }
@@ -618,19 +618,19 @@ void RealPath(
 {
     struct VFS* fsScope = VFSScopeGet(request->processId);
     if (fsScope == NULL) {
-        sys_file_realpath_response(request->message, OsInvalidPermissions, "");
+        sys_file_realpath_response(request->message, OS_EPERMISSIONS, "");
         return;
     }
 
     mstring_t* realPath;
     oserr_t    osStatus = VFSNodeRealPath(fsScope, request, &realPath);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         sys_file_realpath_response(request->message, osStatus, "");
         return;
     }
 
     char* pathu8 = mstr_u8(realPath);
-    sys_file_realpath_response(request->message, OsOK, pathu8);
+    sys_file_realpath_response(request->message, OS_EOK, pathu8);
     mstr_delete(realPath);
     free(pathu8);
 }

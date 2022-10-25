@@ -26,7 +26,7 @@ oserr_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
     oserr_t               osStatus;
 
     osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         return osStatus;
     }
 

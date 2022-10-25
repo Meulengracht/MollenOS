@@ -118,7 +118,7 @@ OnUnload(void)
 {
     list_clear(&controllers, ClearControllerCallback, NULL);
     AhciManagerDestroy();
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t OnEvent(struct ioset_event* event)
@@ -129,13 +129,13 @@ oserr_t OnEvent(struct ioset_event* event)
         unsigned int      value;
         
         if (read(controller->event_descriptor, &value, sizeof(unsigned int)) != sizeof(unsigned int)) {
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         OnInterrupt(controller);
-        return OsOK;
+        return OS_EOK;
     }
-    return OsNotExists;
+    return OS_ENOENT;
 }
 
 oserr_t
@@ -144,11 +144,11 @@ OnRegister(
 {
     AhciController_t* controller = AhciControllerCreate((BusDevice_t*)device);
     if (controller == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     list_append(&controllers, &controller->header);
-    return OsOK;
+    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
@@ -162,7 +162,7 @@ OnUnregister(
 {
     AhciController_t* controller = list_find_value(&controllers, (void*)(uintptr_t)device->Id);
     if (controller == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     list_remove(&controllers, &controller->header);

@@ -79,7 +79,7 @@ HciControllerCreate(
     dmaBuffer.type     = DMA_TYPE_DRIVER_32LOW;
 
     oserr = DmaCreate(&dmaBuffer, &controller->HccaDMA);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("Failed to allocate space for HCCA");
         free(controller);
         return NULL;
@@ -92,7 +92,7 @@ HciControllerCreate(
     controller->Base.IoBase = ioBase;
     
     // Acquire the io-space
-    if (AcquireDeviceIo(ioBase) != OsOK) {
+    if (AcquireDeviceIo(ioBase) != OS_EOK) {
         ERROR("Failed to create and acquire the io-space for ohci-controller");
         free(controller);
         return NULL;
@@ -124,7 +124,7 @@ HciControllerCreate(
     oserr = IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
                         (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
             | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("Failed to enable the ohci-controller");
         UnregisterInterruptSource(controller->Base.Interrupt);
         ReleaseDeviceIo(controller->Base.IoBase);
@@ -133,7 +133,7 @@ HciControllerCreate(
     }
 
     TRACE("... initializing device");
-    if (OhciSetup(controller) == OsOK) {
+    if (OhciSetup(controller) == OS_EOK) {
         return &controller->Base;
     }
     else {
@@ -165,7 +165,7 @@ HciControllerDestroy(
     ReleaseDeviceIo(Controller->IoBase);
     
     free(Controller);
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -217,7 +217,7 @@ OhciTakeControl(
             if (i != 0) {
                 ERROR("failed to clear routing bit");
                 ERROR("SMM Won't give us the Controller, we're backing down >(");
-                return OsError;
+                return OS_EUNKNOWN;
             }
         }
     }
@@ -233,7 +233,7 @@ OhciTakeControl(
         // Cold boot, wait 10 ms
         thrd_sleepex(10);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -286,7 +286,7 @@ OhciReset(
     if (i != 0) {
         ERROR("Controller failed to reboot");
         ERROR("Reset Timeout :(");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     //**************************************
@@ -339,7 +339,7 @@ OhciReset(
     
     Controller->QueuesActive = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
     TRACE(" > Wrote control 0x%x to controller", Temporary);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -356,7 +356,7 @@ OhciSetup(
     Temporary = READ_VOLATILE(Controller->Registers->HcRevision) & 0xFF;
     if (Temporary != OHCI_REVISION1 && Temporary != OHCI_REVISION11) {
         ERROR("Invalid OHCI Revision (0x%x)", Temporary);
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Initialize the queue system
@@ -364,9 +364,9 @@ OhciSetup(
 
     // Last step is to take ownership, reset the controller and initialize
     // the registers, all resource must be allocated before this
-    if (OhciTakeControl(Controller) != OsOK || OhciReset(Controller) != OsOK) {
+    if (OhciTakeControl(Controller) != OS_EOK || OhciReset(Controller) != OS_EOK) {
         ERROR("Failed to initialize the ohci-controller");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     
     // Controller should now be in a running state
@@ -429,7 +429,7 @@ OhciSetup(
         Controller->Base.PortCount, Controller->PowerMode, Temporary);
     
     // Register the controller before starting
-    if (UsbManagerRegisterController(&Controller->Base) != OsOK) {
+    if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {
         ERROR("Failed to register uhci controller with the system.");
     }
 

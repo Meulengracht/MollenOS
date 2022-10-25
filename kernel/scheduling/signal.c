@@ -105,16 +105,16 @@ SignalSend(
     
     if (!target) {
         ERROR("[signal] [send] thread %" PRIuIN " did not exist", ThreadId, Signal);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     if (Signal < 0 || Signal >= NUMSIGNALS) {
         ERROR("[signal] [send] signal %i was not in range");
-        return OsInvalidParameters; // Invalid
+        return OS_EINVALPARAMS; // Invalid
     }
     
     if (target->Signaling.Mask & (1 << Signal)) {
-        return OsBlocked;
+        return OS_EBLOCKED;
     }
     
     TRACE("[signal] [send] thread %s, signal %i", target->Name, Signal);
@@ -127,10 +127,16 @@ SignalSend(
     targetCore = SchedulerObjectGetAffinity(target->SchedulerObject);
     if (targetCore == ArchGetProcessorCoreId()) {
         ExecuteSignalOnCoreFunction(target);
-        return OsOK;
+        return OS_EOK;
     }
     else {
-        return TxuMessageSend(targetCore, CpuFunctionCustom, ExecuteSignalOnCoreFunction, target, 1);
+        return TxuMessageSend(
+                targetCore,
+                CpuFunctionCustom,
+                ExecuteSignalOnCoreFunction,
+                target,
+                1
+        );
     }
 }
 
@@ -217,7 +223,7 @@ SignalProcessQueued(
                 alternativeStack,
                 handler,
                 flags,
-                (uintptr_t) threadSignal.Argument,
+                (uintptr_t)threadSignal.Argument,
                 0
         );
         atomic_fetch_sub(&thread->Signaling.Pending, 1);

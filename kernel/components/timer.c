@@ -65,7 +65,7 @@ SystemTimerRegister(
 
     systemTimer = (SystemTimer_t*)kmalloc(sizeof(SystemTimer_t));
     if (!systemTimer) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // query frequency immediately to calculate the resolution of the timer
@@ -102,7 +102,7 @@ SystemTimerRegister(
 
     // Store it in the list of available system timers
     list_append(&GetMachine()->SystemTimers.Timers, &systemTimer->ListHeader);
-    return OsOK;
+    return OS_EOK;
 }
 
 // Our system wall clock is valid down to microseconds precision, which allows us for
@@ -147,12 +147,12 @@ SystemWallClockRegister(
     SystemWallClock_t* clock;
 
     if (GetMachine()->SystemTimers.WallClock != NULL) {
-        return OsExists;
+        return OS_EEXISTS;
     }
 
     clock = kmalloc(sizeof(SystemWallClock_t));
     if (clock == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     clock->BaseTick.QuadPart = 0;
@@ -161,7 +161,7 @@ SystemWallClockRegister(
 
     // store it as our primary wall clock
     GetMachine()->SystemTimers.WallClock = clock;
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -249,10 +249,10 @@ SystemTimerGetPerformanceFrequency(
 {
     SystemTimer_t* hpc = GetMachine()->SystemTimers.Hpc;
     if (!hpc) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
     hpc->Operations.GetFrequency(hpc->Context, frequency);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -261,10 +261,10 @@ SystemTimerGetPerformanceTick(
 {
     SystemTimer_t* hpc = GetMachine()->SystemTimers.Hpc;
     if (!hpc) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
     hpc->Operations.Read(hpc->Context, tick);
-    return OsOK;
+    return OS_EOK;
 }
 
 void

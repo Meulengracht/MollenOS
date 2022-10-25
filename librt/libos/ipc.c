@@ -39,17 +39,17 @@ IPCContextCreate(
     TRACE("IPCContextCreate(len=%u, addr=0x" PRIxIN ")", length, address);
     
     if (length == 0 || handleOut == NULL || ipcContextOut == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     oserr = Syscall_IpcContextCreate(length, &handle, &stream);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
     
     if (address && address->Type == IPC_ADDRESS_PATH) {
         oserr = handle_set_path(handle, address->Data.Path);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             handle_destroy(handle);
             return oserr;
         }
@@ -57,7 +57,7 @@ IPCContextCreate(
 
     *handleOut = handle;
     *ipcContextOut = stream;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -100,7 +100,7 @@ IPCContextRecv(
     uuid_t          sender;
 
     if (ipcContext == NULL || buffer == NULL || length == 0) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (flags & IPC_DONTWAIT) {
@@ -112,7 +112,7 @@ IPCContextRecv(
     if (!bytesAvailable) {
         *fromHandle = UUID_INVALID;
         *bytesReceived = 0;
-        return OsOK;
+        return OS_EOK;
     }
 
     streambuffer_read_packet_data(stream, &sender, sizeof(uuid_t), &state);
@@ -121,5 +121,5 @@ IPCContextRecv(
 
     *fromHandle = sender;
     *bytesReceived = bytesAvailable;
-    return OsOK;
+    return OS_EOK;
 }

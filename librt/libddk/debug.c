@@ -32,7 +32,7 @@ oserr_t MapThreadMemoryRegion(
         _Out_ void**    pointerOut)
 {
     if (!pointerOut || !topOfStack) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     return Syscall_MapThreadMemoryRegion(threadHandle, address, topOfStack, pointerOut);

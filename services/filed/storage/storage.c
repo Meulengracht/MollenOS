@@ -110,7 +110,7 @@ VFSStorageRegisterPartition(
     );
     if (!fileSystem) {
         VFSIdentifierFree(storage, id);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     *fileSystemOut = fileSystem;
@@ -118,7 +118,7 @@ VFSStorageRegisterPartition(
     usched_mtx_lock(&storage->Lock);
     list_append(&storage->Filesystems, &fileSystem->Header);
     usched_mtx_unlock(&storage->Lock);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -149,7 +149,7 @@ VFSStorageRegisterAndSetupPartition(
         storage, partitionIndex, sector,
         guid, &fileSystem
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -158,18 +158,18 @@ VFSStorageRegisterAndSetupPartition(
     // right now. A module may be present later, so we still register it as disconnected
     if (interfaceDriverID == UUID_INVALID) {
         oserr = VFSInterfaceLoadInternal(fsType, &interface);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING("VFSStorageRegisterFileSystem no module for filesystem type %s", fsType);
         }
     } else {
         oserr = VFSInterfaceLoadDriver(interfaceDriverID, &interface);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING("VFSStorageRegisterFileSystem no module for filesystem type %s", fsType);
         }
     }
 
     oserr = VFSFileSystemConnectInterface(fileSystem, interface);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         // If the interface fails to connect, then the filesystem will go into
         // state NO_INTERFACE. We bail early then as there is no reason to mount the
         // filesystem
@@ -177,10 +177,10 @@ VFSStorageRegisterAndSetupPartition(
     }
 
     oserr = VFSFileSystemMount(fileSystem, mountPoint);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -195,7 +195,7 @@ __StorageMount(
 
     path = mstr_fmt("/storage/%s", &storage->Stats.Serial[0]);
     if (path == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     TRACE("__StorageMount mounting at %ms", path);
 
@@ -206,7 +206,7 @@ __StorageMount(
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE,
             &deviceNode
     );
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("__StorageMount failed to create node %ms", path);
     }
 
@@ -272,7 +272,7 @@ __StorageSetup(
 
     // Next thing is mounting the storage device as a folder
     oserr = __StorageMount(storage);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("__StorageSetup mounting storage device failed: %u", oserr);
         goto error;
     }
@@ -280,7 +280,7 @@ __StorageSetup(
     // Detect the disk layout, and if it fails
     // try to detect which kind of filesystem is present
     oserr = VFSStorageParse(storage);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         goto error;
     }
 

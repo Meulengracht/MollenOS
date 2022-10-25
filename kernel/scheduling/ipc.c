@@ -60,12 +60,12 @@ IpcContextCreate(
     TRACE("IpcContextCreate(%u)", Size);
     
     if (!HandleOut || !UserContextOut) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     ipcContext = kmalloc(sizeof(IPCContext_t));
     if (!ipcContext) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     ipcContext->CreatorThreadHandle = ThreadCurrentHandle();
@@ -79,7 +79,7 @@ IpcContextCreate(
             UserContextOut,
             &ipcContext->MemoryRegionHandle
     );
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         kfree(ipcContext);
         return oserr;
     }
@@ -115,7 +115,7 @@ __AllocateMessage(
     } else {
         uuid_t  handle;
         oserr_t oserr = LookupHandleByPath(message->Address->Data.Path, &handle);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             ERROR("__AllocateMessage could not find target path %s", message->Address->Data.Path);
             return oserr;
         }
@@ -125,7 +125,7 @@ __AllocateMessage(
     
     if (!ipcContext) {
         ERROR("__AllocateMessage could not find target handle %u", message->Address->Data.Handle);
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     bytesAvailable = streambuffer_write_packet_start(
@@ -135,11 +135,11 @@ __AllocateMessage(
     );
     if (!bytesAvailable) {
         ERROR("__AllocateMessage timeout allocating space for message");
-        return OsTimeout;
+        return OS_ETIMEOUT;
     }
     
     *targetContext = ipcContext;
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -191,7 +191,7 @@ IpcContextSendMultiple(
     TRACE("[ipc] [send] count %i, timeout %u", messageCount, LODWORD(timeout));
     
     if (!messages || !messageCount) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     for (int i = 0; i < messageCount; i++) {
@@ -202,12 +202,12 @@ IpcContextSendMultiple(
                 &state,
                 &targetContext
         );
-        if (status != OsOK) {
+        if (status != OS_EOK) {
             // todo store status in context and return incomplete
-            return OsIncomplete;
+            return OS_EINCOMPLETE;
         }
         __WriteMessage(targetContext, messages[i], &state);
         SendMessage(targetContext, messages[i], &state);
     }
-    return OsOK;
+    return OS_EOK;
 }

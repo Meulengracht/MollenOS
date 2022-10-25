@@ -88,7 +88,7 @@ DmDevicesRegister(
           driverHandle, deviceId);
 
     if (!device) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // store the driver loaded
@@ -98,7 +98,7 @@ DmDevicesRegister(
     ctt_driver_register_device(GetGrachtClient(), &msg.base, &protoDevice);
     ctt_driver_get_device_protocols(GetGrachtClient(), &msg.base, device->device->Id);
     sys_device_destroy(&protoDevice);
-    return OsOK;
+    return OS_EOK;
 }
 
 void DmHandleDeviceCreate(
@@ -111,7 +111,7 @@ void DmHandleDeviceCreate(
 
     device = from_sys_device(&request->parameters.create.device);
     if (device == NULL) {
-        status = OsInvalidParameters;
+        status = OS_EINVALPARAMS;
         goto respond;
     }
 
@@ -132,7 +132,7 @@ void DmHandleDeviceDestroy(
         _In_ Request_t* request,
         _In_ void*      cancellationToken)
 {
-    sys_device_unregister_response(request->message, OsNotSupported);
+    sys_device_unregister_response(request->message, OS_ENOTSUPPORTED);
     RequestDestroy(request);
 }
 
@@ -170,7 +170,7 @@ void DmHandleIoctl(
         _In_ void*      cancellationToken)
 {
     struct DmDevice* device = __GetDevice(request->parameters.ioctl.device_id);
-    oserr_t       result = OsInvalidParameters;
+    oserr_t       result = OS_EINVALPARAMS;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
         result = DmIoctlDevice(
@@ -189,7 +189,7 @@ void DmHandleIoctl2(
         _In_ void*      cancellationToken)
 {
     struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
-    oserr_t          result  = OsInvalidParameters;
+    oserr_t          result  = OS_EINVALPARAMS;
     size_t           storage = request->parameters.ioctl2.value;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
@@ -249,7 +249,7 @@ static void __TryLocateDriver(
     };
 
     oserr_t oserr = DmDiscoverFindDriver(device->device->Id, &driverIdentification);
-    if (oserr == OsOK) {
+    if (oserr == OS_EOK) {
         // a driver was found for the device
         device->has_driver = true;
     }
@@ -269,7 +269,7 @@ DmDeviceCreate(
 
     deviceNode = (struct DmDevice*)malloc(sizeof(struct DmDevice));
     if (!deviceNode) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // assign a unique device id for this instance
@@ -297,7 +297,7 @@ DmDeviceCreate(
         __TryLocateDriver(deviceNode);
     }
 #endif
-    return OsOK;
+    return OS_EOK;
 }
 
 void DmDeviceRefreshDrivers(void)

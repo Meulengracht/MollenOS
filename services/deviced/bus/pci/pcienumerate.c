@@ -76,13 +76,13 @@ void BusEnumerate(void)
     g_rootDevice->IsBridge = 1;
 
     // Are we on an acpi-capable system?
-    if (AcpiQueryStatus(&acpi) == OsOK) {
+    if (AcpiQueryStatus(&acpi) == OS_EOK) {
         TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)",
               acpi.Version, acpi.BootFlags);
         g_acpiAvailable = 1;
 
         // Uh, even better, do we have PCI-e controllers?
-        if (AcpiQueryTable(ACPI_SIG_MCFG, &header) == OsOK) {
+        if (AcpiQueryTable(ACPI_SIG_MCFG, &header) == OS_EOK) {
             TRACE("PCI-Express Controller (mcfg length 0x%x)", header->Length);
             //McfgTable = (ACPI_TABLE_MCFG*)Header;
             //remember to free(McfgTable)
@@ -119,7 +119,7 @@ void BusEnumerate(void)
             memset(bus, 0, sizeof(PciBus_t));
 
             length = (mcfgEntry->EndBus - mcfgEntry->StartBus + 1) << 20;
-            if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, length) != OsOK) {
+            if (CreateDeviceMemoryIo(&bus->IoSpace, (uintptr_t)mcfgEntry->BaseAddress, length) != OS_EOK) {
                 ERROR(" > failed to create pcie address space");
                 return;
             }
@@ -151,13 +151,13 @@ void BusEnumerate(void)
 
         // PCI buses use io
         osStatus = CreateDevicePortIo(&bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR(" > failed to initialize pci io space");
             return;
         }
 
         osStatus = AcquireDeviceIo(&bus->IoSpace);
-        if (osStatus != OsOK) {
+        if (osStatus != OS_EOK) {
             ERROR(" > failed to acquire pci io space");
             return;
         }
@@ -341,7 +341,7 @@ static void __ResolveInterruptLineAndPin(
         unsigned int acpiConform   = 0;
         int          interruptLine = pciDevice->Header->InterruptLine;
         int          interruptPin  = pciDevice->Header->InterruptPin;
-        oserr_t   hasRouting    = OsNotExists;
+        oserr_t   hasRouting    = OS_ENOENT;
         TRACE("__ResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
 
         // Sanitize legals
@@ -365,7 +365,7 @@ static void __ResolveInterruptLineAndPin(
                         &interruptLine, &acpiConform);
 
                 // Did routing exist?
-                if (hasRouting == OsOK) {
+                if (hasRouting == OS_EOK) {
                     break;
                 }
 
@@ -376,7 +376,7 @@ static void __ResolveInterruptLineAndPin(
             }
 
             // Update the irq-line if we found a new line
-            if (hasRouting == OsOK) {
+            if (hasRouting == OS_EOK) {
                 TRACE("__ResolveInterruptLineAndPin updating device, line=%i, pin=%i", interruptLine, interruptPin);
                 __UpdateInterruptLine(parent, bus, slot, function, interruptLine, pciDevice);
                 pciDevice->AcpiConform = acpiConform;
@@ -396,14 +396,14 @@ static oserr_t __GetPciDeviceNativeHeader(
 
     nativeHeader = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
     if (!nativeHeader) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Read entire function information
     PciReadFunction(nativeHeader, parent->BusIo, (unsigned int)bus, (unsigned int)slot, (unsigned int)function);
 
     *headerOut = nativeHeader;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -419,11 +419,11 @@ PciCheckFunction(
 
     device = (PciDevice_t*)malloc(sizeof(PciDevice_t));
     if (!device) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     osStatus = __GetPciDeviceNativeHeader(parent, bus, slot, function, &device->Header);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         free(device);
         return osStatus;
     }
@@ -466,7 +466,7 @@ PciCheckFunction(
     else {
         __ResolveInterruptLineAndPin(parent, bus, slot, function, device);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 void
@@ -534,7 +534,7 @@ CreateBusDeviceFromPciDevice(
 
     device = malloc(sizeof(BusDevice_t));
     if (device == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     memset(device, 0, sizeof(BusDevice_t));
@@ -640,7 +640,7 @@ __InstallPS2Controller(void)
 
     device = malloc(sizeof(BusDevice_t));
     if (device == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(device, 0, sizeof(BusDevice_t));
 
@@ -652,15 +652,15 @@ __InstallPS2Controller(void)
     // oserr/Command port - 0x64
     // one byte each
     oserr = CreateDevicePortIo(&device->IoSpaces[0], 0x60, 1);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR(" > failed to initialize ps2 data io space");
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     oserr = CreateDevicePortIo(&device->IoSpaces[1], 0x64, 1);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR(" > failed to initialize ps2 command/status io space");
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return __InstallFixedBusDevice(device, "PS/2 Controller");
 }
@@ -688,7 +688,7 @@ DmIoctlDevice(
     // Sanitize
     if (pciDevice == NULL) {
         ERROR(" > failed to locate pci-device for ioctl");
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     // Read value, modify and write back
@@ -728,7 +728,7 @@ DmIoctlDevice(
 
     // Write back settings
     PciWrite16(pciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04, settings);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -754,7 +754,7 @@ DmIoctlDeviceEx(
 
     if (pciDevice == NULL) {
         ERROR(" > failed to locate pci-device for ioctl");
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     if (direction == __DEVICEMANAGER_IOCTL_EXT_READ) {
@@ -771,7 +771,7 @@ DmIoctlDeviceEx(
                                        device->Slot, device->Function, Register);
         }
         else {
-            return OsInvalidParameters;
+            return OS_EINVALPARAMS;
         }
     }
     else {
@@ -788,8 +788,8 @@ DmIoctlDeviceEx(
                        device->Slot, device->Function, Register, LODWORD(*value));
         }
         else {
-            return OsInvalidParameters;
+            return OS_EINVALPARAMS;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }

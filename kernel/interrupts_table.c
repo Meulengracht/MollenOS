@@ -63,7 +63,7 @@ static oserr_t __FunctionWriteIoSpace(
     if (IoSpace->Type == DeviceIoPortBased) {
         return WriteDirectIo(IoSpace->Type, IoSpace->Access.Port.Base + Offset, Length, Value);
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 static oserr_t __FunctionWriteStream(
@@ -73,10 +73,10 @@ static oserr_t __FunctionWriteStream(
 {
     streambuffer_t* stream;
 
-    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OsOK) {
+    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OS_EOK) {
         streambuffer_stream_out(stream, (void*)buffer, length, STREAMBUFFER_NO_BLOCK);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __FunctionTrace(const char* format, ...)

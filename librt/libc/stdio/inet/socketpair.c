@@ -57,7 +57,7 @@ int socketpair(int domain, int type, int protocol, int* iods)
         io_object2->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_socket_pair_result(GetGrachtClient(), &msg.base, &status);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         (void)OsErrToErrNo(status);
         return -1;
     }

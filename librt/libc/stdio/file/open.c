@@ -123,7 +123,7 @@ int open(const char* file, int flags, ...)
 
     // Try to open the file by directly communicating with the file-service
     osStatus = OSOpenPath(file, _fopts(flags), _faccess(flags),&handle);
-    if (osStatus != OsOK) {
+    if (osStatus != OS_EOK) {
         ERROR("open(path=%s) failed with code: %u", file, osStatus);
         return OsErrToErrNo(osStatus);
     }

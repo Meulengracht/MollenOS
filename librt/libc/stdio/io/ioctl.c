@@ -41,7 +41,7 @@ int ioctl(int iod, unsigned long request, ...)
     status = handle->ops.ioctl(handle, request, args);
     va_end(args);
 
-    if (status == OsNotSupported) {
+    if (status == OS_ENOTSUPPORTED) {
         _set_errno(EBADF);
         return -1;
     }

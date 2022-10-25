@@ -111,7 +111,7 @@ MmBootPrepareKernel(void)
 	TRACE("MmBootPrepareKernel()");
 
     // Can we use global pages for kernel table?
-    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OsOK) {
+    if (CpuHasFeatures(0, CPUID_FEAT_EDX_PGE) == OS_EOK) {
         kernelPageFlags |= PAGE_GLOBAL;
     }
 
@@ -120,7 +120,7 @@ MmBootPrepareKernel(void)
             &virtualBase,
             (paddr_t*)&pageDirectory
     );
-    assert(osStatus == OsOK);
+    assert(osStatus == OS_EOK);
 
     memset((void*)pageDirectory, 0, sizeof(PageDirectory_t));
     g_kernelcr3 = (uintptr_t)pageDirectory;

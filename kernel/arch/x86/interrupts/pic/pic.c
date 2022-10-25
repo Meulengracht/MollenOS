@@ -36,18 +36,18 @@ PicGetElcr(
     size_t Storage      = 0;
 
     // Read registers and combine values
-    if (ReadDirectIo(DeviceIoPortBased, PIC_PORT_ELCR + 1, 1, &Storage) != OsOK) {
-        return OsError;
+    if (ReadDirectIo(DeviceIoPortBased, PIC_PORT_ELCR + 1, 1, &Storage) != OS_EOK) {
+        return OS_EUNKNOWN;
     }
     Status = (Storage & 0xFF) << 8;
-    if (ReadDirectIo(DeviceIoPortBased, PIC_PORT_ELCR, 1, &Storage) != OsOK) {
-        return OsError;
+    if (ReadDirectIo(DeviceIoPortBased, PIC_PORT_ELCR, 1, &Storage) != OS_EOK) {
+        return OS_EUNKNOWN;
     }
     Status |= (Storage & 0xFF);
 
     // Update out and return
     *Elcr = Status;
-    return OsOK;
+    return OS_EOK;
 }
 
 /* PicInitialize

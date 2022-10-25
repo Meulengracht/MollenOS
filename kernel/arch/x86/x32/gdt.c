@@ -102,7 +102,7 @@ TssInitialize(
 
     coreBlock->Tss = kmalloc(sizeof(TssDescriptor_t));
     if (!coreBlock->Tss) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     tssDescriptor = coreBlock->Tss;
@@ -141,7 +141,7 @@ TssInitialize(
                     0x00
             )
     );
-    return OsOK;
+    return OS_EOK;
 }
 
 void

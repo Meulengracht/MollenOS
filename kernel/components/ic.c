@@ -55,7 +55,7 @@ CreateInterruptController(
         }
         IcHead->Link = Ic;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -76,7 +76,7 @@ CreateInterruptOverrides(
     for (i = 0; i < NumberOfInterruptOverrides; i++) {
         GetMachine()->Overrides[i].SourceLine = -1;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -95,10 +95,10 @@ RegisterInterruptOverride(
             GetMachine()->Overrides[i].SourceLine       = SourceInterruptLine;
             GetMachine()->Overrides[i].DestinationLine  = DestinationInterruptLine;
             GetMachine()->Overrides[i].OverrideFlags    = ConvertAcpiFlagsToConformFlags(InterruptFlags, DestinationInterruptLine);
-            return OsOK;
+            return OS_EOK;
         }
     }
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 int

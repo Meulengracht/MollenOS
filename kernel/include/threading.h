@@ -72,6 +72,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_KERNELENTRY           0x00000004U  // Mark this thread as requiring transition mode
 #define THREADING_IDLE                  0x00000008U  // Mark this thread as an idle thread
 #define THREADING_INHERIT               0x00000010U  // Inherit from creator
+#define THREADING_FORKED                0x00000020U  // Thread was forked during blockage
 #define THREADING_TRANSITION_USERMODE   0x10000000U
 
 #define THREAD_GET(Handle) (Thread_t*)LookupHandleOfType(Handle, HandleTypeThread)

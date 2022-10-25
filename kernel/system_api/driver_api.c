@@ -36,18 +36,18 @@ ScAcpiQueryStatus(
    _In_ AcpiDescriptor_t*   AcpiDescriptor)
 {
     if (AcpiDescriptor == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else {
         AcpiDescriptor->Century         = AcpiGbl_FADT.Century;
         AcpiDescriptor->BootFlags       = AcpiGbl_FADT.BootFlags;
         AcpiDescriptor->ArmBootFlags    = AcpiGbl_FADT.ArmBootFlags;
         AcpiDescriptor->Version         = ACPI_VERSION_6_0;
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -57,17 +57,17 @@ ScAcpiQueryTableHeader(
     _In_ ACPI_TABLE_HEADER* header)
 {
     if (!signature || !header) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     if (ACPI_FAILURE(AcpiGetTableHeader((ACPI_STRING)signature, 0, header))) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -78,19 +78,19 @@ ScAcpiQueryTable(
     ACPI_TABLE_HEADER* header = NULL;
 
     if (!signature || !table) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OsNotSupported;
+        return OS_ENOTSUPPORTED;
     }
 
     if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)signature, 0, &header))) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     memcpy(table, header, header->Length);
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -109,7 +109,7 @@ ScIoSpaceRegister(
     _In_ DeviceIo_t* ioSpace)
 {
     if (ioSpace == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return RegisterSystemDeviceIo(ioSpace);
 }
@@ -119,7 +119,7 @@ ScIoSpaceAcquire(
     _In_ DeviceIo_t* IoSpace)
 {
     if (IoSpace == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return AcquireSystemDeviceIo(IoSpace);
 }
@@ -129,7 +129,7 @@ ScIoSpaceRelease(
     _In_ DeviceIo_t* ioSpace)
 {
     if (ioSpace == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return ReleaseSystemDeviceIo(ioSpace);
 }
@@ -139,10 +139,10 @@ ScIoSpaceDestroy(
     _In_ DeviceIo_t* ioSpace)
 {
     if (ioSpace == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     DestroyHandle(ioSpace->Id);
-    return OsOK;
+    return OS_EOK;
 }
 
 uuid_t
@@ -170,7 +170,7 @@ ScGetProcessBaseAddress(
 {
     if (baseAddress != NULL) {
         *baseAddress = GetMachine()->MemoryMap.UserCode.Start;
-        return OsOK;
+        return OS_EOK;
     }
-    return OsInvalidParameters;
+    return OS_EINVALPARAMS;
 }

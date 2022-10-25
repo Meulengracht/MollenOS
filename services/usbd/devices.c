@@ -147,7 +147,7 @@ __LoadDeviceDriver(
     free(coreDevice.Base.Identification.Manufacturer);
     free(coreDevice.Base.Identification.Product);
     free(coreDevice.Base.Identification.Serial);
-    return device->DeviceId == UUID_INVALID ? OsError : OsOK;
+    return device->DeviceId == UUID_INVALID ? OS_EUNKNOWN : OS_EOK;
 }
 
 static UsbTransferStatus_t __GetDeviceDescriptor(
@@ -263,20 +263,20 @@ UsbCoreDevicesCreate(
     // Make sure that there isn't already one device
     // setup on the port
     if (usbPort->Connected && usbPort->Device != NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
 
     // Allocate a new instance of the usb device and reset it
     device = (UsbPortDevice_t*)malloc(sizeof(UsbPortDevice_t));
     if (!device) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     memset(device, 0, sizeof(UsbPortDevice_t));
 
     usbPort->Device = device;
 
     // Initialize the port by resetting it
-    if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OsOK) {
+    if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OS_EOK) {
         ERROR("[usb] [%u:%u] UsbHubResetPort %u failed",
               usbHub->PortAddress, usbPort->Address, usbHub->DeviceId);
         goto device_error;
@@ -310,7 +310,7 @@ UsbCoreDevicesCreate(
 	thrd_sleepex(100);
 
     // Allocate a device-address
-    if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OsOK) {
+    if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OS_EOK) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
               usbController->Device, usbHub->PortAddress, usbPort->Address);
         goto device_error;
@@ -364,7 +364,7 @@ UsbCoreDevicesCreate(
 device_error:
     TRACE("[usb] [%u:%u] setup failed", usbHub->PortAddress, usbPort->Address);
     UsbCoreDevicesDestroy(usbController, usbPort);
-    return OsError;
+    return OS_EUNKNOWN;
 }
 
 oserr_t
@@ -377,7 +377,7 @@ UsbCoreDevicesDestroy(
     TRACE("UsbCoreDevicesDestroy()");
 
     if (port == NULL || port->Device == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     // Instantiate the device pointer
@@ -393,5 +393,5 @@ UsbCoreDevicesDestroy(
     mstr_delete(device->Serial);
     free(device);
     port->Device = NULL;
-    return OsOK;
+    return OS_EOK;
 }

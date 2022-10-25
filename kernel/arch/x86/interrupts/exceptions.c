@@ -55,7 +55,7 @@ HardFault(
         // Bit 2 - write access
         // Bit 4 - user/kernel
         DEBUG("page-fault address: 0x%" PRIxIN ", error-code 0x%" PRIxIN "", pfAddress, context->ErrorCode);
-        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), pfAddress, 1, &physicalBase) == OsOK) {
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), pfAddress, 1, &physicalBase) == OS_EOK) {
             GetMemorySpaceAttributes(GetCurrentMemorySpace(), pfAddress, PAGE_SIZE, &attributes);
             DEBUG("existing mapping for address: 0x%" PRIxIN "", physicalBase);
             DEBUG("existing attribs for address: 0x%" PRIxIN "", attributes);
@@ -90,7 +90,7 @@ ExceptionEntry(
         issueFixed = 1;
     }
     else if (context->Irq == 1) { // Single Step
-        if (DebugSingleStep(context) == OsOK) {
+        if (DebugSingleStep(context) == OS_EOK) {
             // Re-enable single-step
         }
         issueFixed = 1;
@@ -121,7 +121,7 @@ ExceptionEntry(
 
         assert(thread != NULL);
 
-        if (ThreadingFpuException(thread) != OsOK) {
+        if (ThreadingFpuException(thread) != OS_EOK) {
             SignalExecuteLocalThreadTrap(context, SIGFPE, NULL, NULL);
         }
         issueFixed = 1;
@@ -200,7 +200,7 @@ ExceptionEntry(
         } else {
             // Page was not present, this could be because of lazy-comitting, lets try
             // to fix it by comitting the address.
-            if (address > 0x1000 && DebugPageFault(context, address) == OsOK) {
+            if (address > 0x1000 && DebugPageFault(context, address) == OS_EOK) {
                 issueFixed = 1;
             } else {
                 SignalExecuteLocalThreadTrap(context, SIGSEGV, (void*)address, NULL);

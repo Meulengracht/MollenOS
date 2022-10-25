@@ -212,7 +212,7 @@ static oserr_t __CreateCommandSymlink(
     if (symlinkPath == NULL || mountPath == NULL) {
         free(symlinkPath);
         free(mountPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = link(symlinkPath, mountPath, 1);
@@ -221,16 +221,16 @@ static oserr_t __CreateCommandSymlink(
 
     if (status) {
         ERROR("__CreateCommandSymlink link failed with code: %i", errno);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __PrepareMountNamespace(
         _In_ struct Application* application)
 {
     // TODO interface for filesystem scope is missing
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __CreateDirectoryIfNotExists(
@@ -241,16 +241,16 @@ static oserr_t __CreateDirectoryIfNotExists(
     int   status;
 
     if (cpath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = mkdir(cpath, mode);
     free(cpath);
     if (status && errno != EEXIST) {
         ERROR("__CreateDirectoryIfNotExists failed to create path %ms", path);
-        return OsError;
+        return OS_EUNKNOWN;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __EnsureApplicationRuntimePaths(
@@ -261,7 +261,7 @@ static oserr_t __EnsureApplicationRuntimePaths(
 
     // /data/served/mount/<name>
     oserr = __CreateDirectoryIfNotExists(application->MountPath);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -278,11 +278,11 @@ oserr_t ApplicationMount(
     TRACE("ApplicationMount(app=%ms)", application ? application->Name : NULL);
 
     if (application == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     oserr = __EnsureApplicationRuntimePaths(application);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
@@ -291,13 +291,13 @@ oserr_t ApplicationMount(
     if (packPath == NULL || mountPath == NULL) {
         free(packPath);
         free(mountPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // First thing we do is mount the application, and then we prepare a mount space
     // for the application.
     oserr = Mount(packPath, mountPath, "valifs", MOUNT_FLAG_READ);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("ApplicationMount failed to mount application %ms: %u",
               application->Name, oserr);
         goto cleanup;
@@ -308,7 +308,7 @@ oserr_t ApplicationMount(
     foreach(i, &application->Commands) {
         struct Command* command = (struct Command*)i;
         oserr = __CreateCommandSymlink(application, command);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             WARNING("ApplicationMount failed to prepare command %ms", command->Name);
         }
     }
@@ -316,7 +316,7 @@ oserr_t ApplicationMount(
     // Lastly, we prepare the filesystem scope for the application, which all commmands
     // for this application will be spawned under
     oserr = __PrepareMountNamespace(application);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("ApplicationMount failed to prepare mount namespace for %ms", application->Name);
     }
 
@@ -333,7 +333,7 @@ static oserr_t __KillCommand(
     TRACE("__RemoveCommandSymlink(app=%ms, cmd=%ms)", application->Name, command->Name);
     // TODO not implemented yet, we need somehow track processes spawned here
     // or some other system in place
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __RemoveCommandSymlink(
@@ -347,7 +347,7 @@ static oserr_t __RemoveCommandSymlink(
     symlinkPath  = mstr_u8(command->SymlinkPath);
     if (symlinkPath == NULL) {
         free(symlinkPath);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     status = unlink(symlinkPath);
@@ -355,9 +355,9 @@ static oserr_t __RemoveCommandSymlink(
 
     if (status) {
         ERROR("__RemoveCommandSymlink unlink failed with code: %i", errno);
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t ApplicationUnmount(struct Application* application)
@@ -367,12 +367,12 @@ oserr_t ApplicationUnmount(struct Application* application)
     TRACE("ApplicationUnmount(app=%ms)", application ? application->Name : NULL);
 
     if (application == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     mountPath = mstr_u8(application->MountPath);
     if (mountPath == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     // Start out by going through all the commands and remove their
@@ -383,7 +383,7 @@ oserr_t ApplicationUnmount(struct Application* application)
 
         // Kill all processes spawned by this command
         oserr = __KillCommand(application, command);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // Uh this is not good, then we cannot unmount.
             ERROR("ApplicationUnmount failed to stop processes spawned by command %ms",
                   command->Name);
@@ -393,7 +393,7 @@ oserr_t ApplicationUnmount(struct Application* application)
 
         // Now we remove any traces of this left when we mounted it
         oserr = __RemoveCommandSymlink(application, command);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             // Can we live with broken symlinks?
             ERROR("ApplicationUnmount failed to remove symlinks for command %ms",
                   command->Name);
@@ -401,7 +401,7 @@ oserr_t ApplicationUnmount(struct Application* application)
     }
 
     oserr = Unmount(mountPath);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         ERROR("ApplicationUnmount failed to unmount application %ms", application->Name);
     }
     free(mountPath);
@@ -484,7 +484,7 @@ static oserr_t __SpawnService(
         ERROR("__SpawnService path or args was null");
         free(path);
         free(args);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     ProcessConfigurationInitialize(&config);
@@ -502,7 +502,7 @@ static oserr_t __SpawnService(
     environment = __BuildCommandEnvironment(application, command);
     if (environment == NULL) {
         ERROR("__SpawnService failed to build environment for command %ms", command->Name);
-        oserr = OsOutOfMemory;
+        oserr = OS_EOOM;
         goto cleanup;
     }
 
@@ -536,13 +536,13 @@ oserr_t ApplicationStartServices(struct Application* application)
         struct Command* command = (struct Command*)i;
         if (command->Type == CHEF_COMMAND_TYPE_DAEMON) {
             oserr_t oserr = __SpawnService(application, command);
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 // Again, continue here, but we log the error for the user
                 ERROR("ApplicationStartServices failed to spawn service %ms", command->Name);
             }
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t ApplicationStopServices(struct Application* application)
@@ -555,11 +555,11 @@ oserr_t ApplicationStopServices(struct Application* application)
         struct Command* command = (struct Command*)i;
         if (command->Type == CHEF_COMMAND_TYPE_DAEMON) {
             oserr_t oserr = __KillCommand(application, command);
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 // Again, continue here, but we log the error for the user
                 ERROR("ApplicationStopServices failed to stop service %ms", command->Name);
             }
         }
     }
-    return OsOK;
+    return OS_EOK;
 }

@@ -98,7 +98,7 @@ HandleInvalidType(
     _In_ Socket_t* Socket)
 {
     ERROR("[socket] [local] HandleInvalidType() send packet");
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t
@@ -116,16 +116,16 @@ DomainLocalGetAddress(
     switch (source) {
         case SYS_ADDRESS_TYPE_THIS: {
             if (!record) {
-                return OsNotExists;
+                return OS_ENOENT;
             }
             strcpy(&lcAddress->slc_addr[0], (const char*)record->Header.key);
-            return OsOK;
+            return OS_EOK;
         } break;
         
         case SYS_ADDRESS_TYPE_PEER: {
             Socket_t* peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
             if (!peerSocket) {
-                return OsNotExists;
+                return OS_ENOENT;
             }
             return DomainLocalGetAddress(peerSocket,
                                          SYS_ADDRESS_TYPE_THIS,
@@ -135,7 +135,7 @@ DomainLocalGetAddress(
         default:
             break;
     }
-    return OsInvalidParameters;
+    return OS_EINVALPARAMS;
 }
 
 static oserr_t
@@ -156,7 +156,7 @@ HandleSocketStreamData(
     if (!TargetSocket) {
         TRACE("[socket] [local] [send_stream] target socket %u was not found",
             LODWORD(socket->Domain->ConnectedSocket));
-        return OsNotExists;
+        return OS_ENOENT;
     }
     
     TargetStream = GetSocketRecvStream(TargetSocket);
@@ -175,7 +175,7 @@ HandleSocketStreamData(
                 // This can happen if the first event or last event got out of sync
                 // we handle this by ignoring the event and just returning. Do not mark
                 // anything
-                return OsOK;
+                return OS_EOK;
             }
         }
         DoRead = 1;
@@ -187,7 +187,7 @@ HandleSocketStreamData(
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
                 handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
-                return OsOutOfMemory;
+                return OS_EOOM;
             }
             
             memcpy(StoredBuffer, &TemporaryBuffer[BytesWritten], BytesRead - BytesWritten);
@@ -200,7 +200,7 @@ HandleSocketStreamData(
         }
     }
     handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
-    return OsOK;
+    return OS_EOK;
 }
 
 static Socket_t*
@@ -279,7 +279,7 @@ HandleSocketPacketData(
             Buffer = malloc(BytesRead + sizeof(struct sockaddr_lc));
             if (!Buffer) {
                 ERROR("[socket] [local] [send_packet] out of memory, failed to allocate buffer");
-                return OsOutOfMemory;
+                return OS_EOOM;
             }
             
             streambuffer_read_packet_data(SourceStream, Buffer, BytesRead, &State);
@@ -309,7 +309,7 @@ HandleSocketPacketData(
         }
         free(Buffer);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -325,7 +325,7 @@ DomainLocalReceive(
     _In_ Socket_t* Socket)
 {
     TRACE("DomainLocalReceive()");
-    return OsNotSupported;
+    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t
@@ -335,7 +335,7 @@ DomainLocalPair(
 {
     Socket1->Domain->ConnectedSocket = (uuid_t)(uintptr_t)Socket2->Header.key;
     Socket2->Domain->ConnectedSocket = (uuid_t)(uintptr_t)Socket1->Header.key;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -350,12 +350,12 @@ DomainLocalAllocateAddress(
     if (Socket->Domain->Record) {
         ERROR("[socket] [local] domain address 0x%" PRIxIN " already registered",
             Socket->Domain->Record);
-        return OsExists;
+        return OS_EEXISTS;
     }
     
     Record = malloc(sizeof(AddressRecord_t));
     if (!Record) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     // Create a new address of the form /lc/{id}
@@ -364,14 +364,14 @@ DomainLocalAllocateAddress(
     if (list_find(&AddressRegister, &AddressBuffer[0]) != NULL) {
         ERROR("[socket] [local] address %s exists in register", &AddressBuffer[0]);
         free(Record);
-        return OsExists;
+        return OS_EEXISTS;
     }
     
     ELEMENT_INIT(&Record->Header, strdup(&AddressBuffer[0]), Record);
     Record->Socket = Socket;
     Socket->Domain->Record = Record;
     list_append(&AddressRegister, &Record->Header);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -405,19 +405,19 @@ DomainLocalBind(
     
     if (!Socket->Domain->Record) {
         ERROR("[domain] [local] [bind] no record");
-        return OsError; // Should not happen tho
+        return OS_EUNKNOWN; // Should not happen tho
     }
     
     if (list_find(&AddressRegister, (void*)&Address->sa_data[0]) != NULL) {
         ERROR("[domain] [local] [bind] address already bound");
-        return OsExists;
+        return OS_EEXISTS;
     }
     
     // Update key
     PreviousBuffer = (char*)Socket->Domain->Record->Header.key;
     Socket->Domain->Record->Header.key = strdup(&Address->sa_data[0]);
     free(PreviousBuffer);
-    return OsOK;
+    return OS_EOK;
 }
 
 static ConnectionRequest_t*
@@ -470,7 +470,7 @@ AcceptConnectionRequest(
     status = NetworkManagerSocketCreate(connectSocket->DomainType,
         connectSocket->Type, connectSocket->Protocol, &handle,
         &recv_handle, &send_handle);
-    if (status == OsOK) {
+    if (status == OS_EOK) {
         NetworkManagerSocketPair(handle, (uuid_t)(uintptr_t)connectSocket->Header.key);
     }
     
@@ -505,7 +505,7 @@ HandleLocalConnectionRequest(
         if (!connectionRequest) {
             mtx_unlock(&targetSocket->SyncObject);
             ERROR("[domain] [local] [handle_connect] failed to allocate memory for connection request");
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
         
         // TODO If the backlog is full, reject
@@ -522,7 +522,7 @@ HandleLocalConnectionRequest(
         AcceptConnectionRequest(&acceptRequest->Response[0], sourceSocket, message);
         free(acceptRequest);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t
@@ -536,13 +536,13 @@ DomainLocalConnect(
     
     if (!target) {
         TRACE("[domain] [local] [connect] %s did not exist", &address->sa_data[0]);
-        return OsHostUnreachable;
+        return OS_EHOSTUNREACHABLE;
     }
     
     if (socket->Type != target->Type) {
         TRACE("[domain] [local] [connect] target is valid, but protocol was invalid source (%i, %i, %i) != target (%i, %i, %i)",
             socket->DomainType, socket->Type, socket->Protocol, target->DomainType, target->Type, target->Protocol);
-        return OsInvalidProtocol;
+        return OS_EPROTOCOL;
     }
     
     if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
@@ -550,7 +550,7 @@ DomainLocalConnect(
     }
     else {
         // Don't handle this scenario. It is handled locally in libc
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -559,7 +559,7 @@ DomainLocalDisconnect(
     _In_ Socket_t* socket)
 {
     Socket_t*  peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
-    oserr_t osStatus   = OsNotConnected;
+    oserr_t osStatus   = OS_ENOTCONNECTED;
     TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
         LODWORD(socket->Domain->ConnectedSocket));
     
@@ -569,7 +569,7 @@ DomainLocalDisconnect(
         peerSocket->Domain->ConnectedSocket = UUID_INVALID;
         peerSocket->Configuration.Connected = 0;
         handle_post_notification(socket->Domain->ConnectedSocket, IOSETCTL);
-        osStatus = OsOK;
+        osStatus = OS_EOK;
     }
 
     // update our stats
@@ -587,7 +587,7 @@ DomainLocalAccept(
     ConnectionRequest_t* connectionRequest;
     AcceptRequest_t*     acceptRequest;
     element_t*           element;
-    oserr_t           status = OsOK;
+    oserr_t           status = OS_EOK;
     TRACE("[domain] [local] [accept] %u", LODWORD(socket->Header.key));
     
     // Check if there is any requests available
@@ -604,7 +604,7 @@ DomainLocalAccept(
                 &connectionRequest->Response[0]);
         }
         else {
-            status = OsConnectionAborted;
+            status = OS_ECONNABORTED;
         }
         free(connectionRequest);
     }
@@ -616,11 +616,11 @@ DomainLocalAccept(
                 queue_push(&socket->AcceptRequests, &acceptRequest->Header);
             }
             else {
-                status = OsOutOfMemory;
+                status = OS_EOOM;
             }
         }
         else {
-            status = OsBusy; // TODO: OsTryAgain
+            status = OS_EBUSY; // TODO: OsTryAgain
         }
         mtx_unlock(&socket->SyncObject);
     }
@@ -667,7 +667,7 @@ DomainLocalCreate(
 {
     SocketDomain_t* Domain = malloc(sizeof(SocketDomain_t));
     if (!Domain) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     TRACE("DomainLocalCreate()");
     
@@ -688,5 +688,5 @@ DomainLocalCreate(
     Domain->Record          = NULL;
     
     *DomainOut = Domain;
-    return OsOK;
+    return OS_EOK;
 }

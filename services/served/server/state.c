@@ -29,27 +29,27 @@ struct usched_mtx   g_stateMutex  = { 0 };
 static oserr_t __ReadState(const char* path, void** bufferOut, size_t* bufferSize)
 {
     FILE*   stateFile = fopen(path, "r");
-    oserr_t oserr     = OsOK;
+    oserr_t oserr     = OS_EOK;
     if (stateFile == NULL) {
-        return OsNotExists;
+        return OS_ENOENT;
     }
 
     fseek(stateFile, 0, SEEK_END);
     long size = ftell(stateFile);
     if (size == 0) {
-        oserr = OsIncomplete;
+        oserr = OS_EINCOMPLETE;
         goto exit;
     }
 
     void* data = malloc(size);
     if (data == NULL) {
-        oserr = OsOutOfMemory;
+        oserr = OS_EOOM;
         goto exit;
     }
 
     size_t read = fread(data, 1, size, stateFile);
     if (read != (size_t)size) {
-        oserr = OsIncomplete;
+        oserr = OS_EINCOMPLETE;
         goto exit;
     }
 
@@ -87,7 +87,7 @@ static oserr_t __ParseCommands(struct Application* application, cJSON* in)
     for (int i = 0; i < cmdCount; i++) {
         cJSON* cmdObject = cJSON_GetArrayItem(in, i);
         if (cmdObject == NULL) {
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         // Get command members
@@ -100,10 +100,10 @@ static oserr_t __ParseCommands(struct Application* application, cJSON* in)
                 argumentsObject, typeObject
         );
         if (command == NULL) {
-            return OsError;
+            return OS_EUNKNOWN;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static struct Application* __ApplicationFromJson(
@@ -136,7 +136,7 @@ static oserr_t __ParseApplications(list_t* out, const cJSON* in)
     for (int i = 0; i < appCount; i++) {
         cJSON* appObject = cJSON_GetArrayItem(in, i);
         if (appObject == NULL) {
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         // Get application members
@@ -152,27 +152,27 @@ static oserr_t __ParseApplications(list_t* out, const cJSON* in)
                 majorObject, minorObject,
                 patchObject, revisionObject);
         if (application == NULL) {
-            return OsError;
+            return OS_EUNKNOWN;
         }
 
         // Get application members
         cJSON* commands = cJSON_GetObjectItem(appObject, "commands");
         if (commands != NULL) {
             oserr_t oserr = __ParseCommands(application, commands);
-            if (oserr != OsOK) {
+            if (oserr != OS_EOK) {
                 return oserr;
             }
         }
         list_append(out, &application->ListHeader);
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t __ParseState(struct State* state, const void* buffer, size_t bufferLength)
 {
     cJSON* root = cJSON_ParseWithLength(buffer, bufferLength);
     if (root == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     cJSON* firstBoot = cJSON_GetObjectItem(root, "first-boot");
@@ -181,14 +181,14 @@ oserr_t __ParseState(struct State* state, const void* buffer, size_t bufferLengt
     cJSON* applications = cJSON_GetObjectItem(root, "applications");
     if (applications != NULL) {
         oserr_t oserr = __ParseApplications(&state->Applications, applications);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             cJSON_Delete(root);
             return oserr;
         }
     }
 
     cJSON_Delete(root);
-    return OsOK;
+    return OS_EOK;
 }
 
 static void __StateConstruct(struct State* state)
@@ -208,9 +208,9 @@ oserr_t StateLoad(void)
     __StateConstruct(&g_globalState);
 
     oserr = __ReadState("/data/served/state.json", &stateData, &stateDataLength);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         // Use a new state
-        return OsOK;
+        return OS_EOK;
     }
 
     oserr = __ParseState(&g_globalState, stateData, stateDataLength);
@@ -229,7 +229,7 @@ static oserr_t __SerializeCommand(cJSON** out, struct Command* in)
 {
     cJSON* command = cJSON_CreateObject();
     if (command == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     __AddStringToObject(command, "name", in->Name);
@@ -238,7 +238,7 @@ static oserr_t __SerializeCommand(cJSON** out, struct Command* in)
     cJSON_AddNumberToObject(command, "type", in->Type);
 
     *out = command;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __SerializeCommands(cJSON* out, list_t* in)
@@ -248,22 +248,22 @@ static oserr_t __SerializeCommands(cJSON* out, list_t* in)
         oserr_t oserr;
 
         oserr = __SerializeCommand(&command, (struct Command*)i);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
 
         if (cJSON_AddItemToArray(out, command)) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __SerializeApplication(cJSON** out, struct Application* in)
 {
     cJSON* application = cJSON_CreateObject();
     if (application == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     __AddStringToObject(application, "name", in->Name);
@@ -275,13 +275,13 @@ static oserr_t __SerializeApplication(cJSON** out, struct Application* in)
     cJSON_AddNumberToObject(application, "revision", in->Revision);
 
     oserr_t oserr = __SerializeCommands(cJSON_AddArrayToObject(application, "commands"), &in->Commands);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         cJSON_Delete(application);
         return oserr;
     }
 
     *out = application;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __SerializeApplications(cJSON* out, list_t* in)
@@ -291,15 +291,15 @@ static oserr_t __SerializeApplications(cJSON* out, list_t* in)
         oserr_t oserr;
 
         oserr = __SerializeApplication(&application, (struct Application*)i);
-        if (oserr != OsOK) {
+        if (oserr != OS_EOK) {
             return oserr;
         }
 
         if (cJSON_AddItemToArray(out, application)) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __SerializeState(struct State* state, cJSON** rootOut)
@@ -307,32 +307,32 @@ static oserr_t __SerializeState(struct State* state, cJSON** rootOut)
     cJSON*  root = cJSON_CreateObject();
     oserr_t oserr;
     if (root == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     cJSON_AddBoolToObject(root, "first-boot", state->FirstBoot ? cJSON_True : cJSON_False);
     oserr = __SerializeApplications(cJSON_AddArrayToObject(root, "applications"), &state->Applications);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         cJSON_Delete(root);
         return oserr;
     }
 
     *rootOut = root;
-    return OsOK;
+    return OS_EOK;
 }
 
 static oserr_t __WriteState(const char* path, const char* buffer)
 {
     FILE*   stateFile = fopen(path, "w+");
-    oserr_t oserr     = OsOK;
+    oserr_t oserr     = OS_EOK;
     if (stateFile == NULL) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     size_t length = strlen(buffer);
     size_t written = fwrite(buffer, 1, length, stateFile);
     if (written != length) {
-        oserr = OsIncomplete;
+        oserr = OS_EINCOMPLETE;
     }
 
     fclose(stateFile);
@@ -345,14 +345,14 @@ oserr_t StateSave(void)
     oserr_t oserr;
 
     oserr = __SerializeState(&g_globalState, &root);
-    if (oserr != OsOK) {
+    if (oserr != OS_EOK) {
         return oserr;
     }
 
     char* data = cJSON_Print(root);
     cJSON_Delete(root);
     if (data == NULL) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
 
     oserr = __WriteState("/data/served/state.json", data);

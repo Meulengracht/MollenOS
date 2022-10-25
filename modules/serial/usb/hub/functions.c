@@ -32,10 +32,10 @@ HubGetStatus(
                          USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                          USBPACKET_TYPE_GET_STATUS, 0, 0,
                          0, 4, status) != TransferFinished) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -50,10 +50,10 @@ HubGetPortStatus(
                          USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                          USBPACKET_TYPE_GET_STATUS, 0, 0,
                          portIndex, 4, status) != TransferFinished) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     else {
-        return OsOK;
+        return OS_EOK;
     }
 }
 
@@ -69,9 +69,9 @@ HubClearChange(
                               USBPACKET_TYPE_CLR_FEATURE, change,
                               0, 0, 0, NULL);
     if (transferStatus != TransferFinished) {
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -89,9 +89,9 @@ HubPortClearChange(
                                       USBPACKET_TYPE_CLR_FEATURE, change,
                                       0, portIndex, 0, NULL);
     if (transferStatus != TransferFinished) {
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -107,9 +107,9 @@ HubPowerOnPort(
                                    portIndex,
                                    HUB_FEATURE_PORT_POWER);
     if (transferStatus != TransferFinished) {
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -125,9 +125,9 @@ HubResetPort(
                                    portIndex,
                                    HUB_FEATURE_PORT_RESET);
     if (transferStatus != TransferFinished) {
-        return OsDeviceError;
+        return OS_EDEVFAULT;
     }
 
     thrd_sleepex(100);
-    return OsOK;
+    return OS_EOK;
 }

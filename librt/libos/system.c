@@ -26,7 +26,7 @@ SystemQuery(
 	_In_ SystemDescriptor_t* descriptor)
 {
 	if (!descriptor) {
-		return OsInvalidParameters;
+		return OS_EINVALPARAMS;
 	}
 	return Syscall_SystemQuery(descriptor);
 }

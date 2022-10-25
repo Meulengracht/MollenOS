@@ -30,7 +30,7 @@ CreateMemorySpace(
         _Out_ uuid_t* Handle)
 {
     if (Handle == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return Syscall_CreateMemorySpace(Flags, Handle);
 }
@@ -41,7 +41,7 @@ GetMemorySpaceForThread(
         _Out_ uuid_t* Handle)
 {
     if (Handle == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return Syscall_GetMemorySpaceForThread(Thread, Handle);
 }
@@ -53,7 +53,7 @@ CreateMemoryMapping(
         _Out_ void**                          AddressOut)
 {
     if (Parameters == NULL || AddressOut == NULL) {
-        return OsError;
+        return OS_EUNKNOWN;
     }
     return Syscall_CreateMemorySpaceMapping(Handle, Parameters, AddressOut);
 }

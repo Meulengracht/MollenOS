@@ -43,12 +43,12 @@ dma_pool_create(
     oserr_t       status;
     
     if (!attachment || !poolOut || !attachment->buffer) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
     
     pool = (struct dma_pool*)malloc(sizeof(struct dma_pool));
     if (!pool) {
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     pool->attachment = attachment;
@@ -67,7 +67,7 @@ dma_pool_destroy(
     free(pool->table.entries);
     free(pool->pool);
     free(pool);
-    return OsOK;
+    return OS_EOK;
 }
 
 static uintptr_t
@@ -79,7 +79,7 @@ dma_pool_get_dma(
     size_t     sg_offset;
     oserr_t status = DmaSGTableOffset(
             &pool->table, offset, &entry_index, &sg_offset);
-    return status != OsOK ? 0 : pool->table.entries[entry_index].address + sg_offset;
+    return status != OS_EOK ? 0 : pool->table.entries[entry_index].address + sg_offset;
 }
 
 oserr_t
@@ -95,11 +95,11 @@ dma_pool_allocate(
     allocation = bget(pool->pool, length);
     if (!allocation) {
         ERROR("Failed to allocate bufferpool memory (size %u)", length);
-        return OsOutOfMemory;
+        return OS_EOOM;
     }
     
     *address_out = allocation;
-    return OsOK;
+    return OS_EOK;
 }
 
 oserr_t
@@ -108,7 +108,7 @@ dma_pool_free(
     _In_ void*            address)
 {
     brel(pool->pool, address);
-    return OsOK;
+    return OS_EOK;
 }
 
 uuid_t
