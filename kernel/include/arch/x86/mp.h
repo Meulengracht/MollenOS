@@ -63,7 +63,7 @@ PACKED_TYPESTRUCT(MpConfigurationTable, {
 
 /* MpInitialize
  * Searches known memory places where the mp-tables can exist, returns 
- * OsOK if they exist - otherwise OsError */
+ * OS_EOK if they exist - otherwise OS_EUNKNOWN */
 KERNELAPI oserr_t KERNELABI
 MpInitialize(void);
 

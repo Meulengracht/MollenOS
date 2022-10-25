@@ -102,7 +102,7 @@ ArchGetPageMaskFromDmaType(
 #if defined(__amd64__)
         case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
 #else
-        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OsOK;
+        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 #endif
         case DMA_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OS_EOK;
         case DMA_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OS_EOK;
@@ -111,7 +111,7 @@ ArchGetPageMaskFromDmaType(
 #if defined(__amd64__)
         case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
 #else
-        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OsOK;
+        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 #endif
 
         default:

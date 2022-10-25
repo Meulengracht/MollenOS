@@ -59,7 +59,7 @@ FsReadFromFile(
 
     if (entry->DataBucketPosition == MFS_ENDOFCHAIN) {
         // No buckets allocated for this file. Guard against this as there are two cases;
-        // Case 1 - Newly created file, return OsOK;
+        // Case 1 - Newly created file, return OS_EOK;
         if (entry->ActualSize == 0) {
             return OS_EOK;
         } else {

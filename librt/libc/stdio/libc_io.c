@@ -110,7 +110,7 @@ StdioIsHandleInheritable(
     _In_ ProcessConfiguration_t* configuration,
     _In_ stdio_handle_t*         handle)
 {
-    oserr_t osSuccess = OsOK;
+    oserr_t osSuccess = OS_EOK;
 
     if (handle->wxflag & WX_DONTINHERIT) {
         osSuccess = OsError;
@@ -137,7 +137,7 @@ StdioIsHandleInheritable(
 
     TRACE("[can_inherit] iod %i, handle %u: %s",
             handle->fd, handle->object.handle,
-          (osSuccess == OsOK) ? "yes" : "no");
+          (osSuccess == OS_EOK) ? "yes" : "no");
     return osSuccess;
 }
 
@@ -156,7 +156,7 @@ static void __count_inherit_entry(
     struct __get_inherit_context*    context = userContext;
     _CRT_UNUSED(index);
 
-    if (StdioIsHandleInheritable(context->configuration, object) == OsOK) {
+    if (StdioIsHandleInheritable(context->configuration, object) == OS_EOK) {
         context->file_count++;
     }
 }
@@ -195,7 +195,7 @@ static void __create_inherit_entry(
     struct __create_inherit_context* context = userContext;
     _CRT_UNUSED(index);
 
-    if (StdioIsHandleInheritable(context->configuration, object) == OsOK) {
+    if (StdioIsHandleInheritable(context->configuration, object) == OS_EOK) {
         memcpy(
                 &context->inheritation_block->handles[context->i],
                 object,
@@ -230,7 +230,7 @@ StdioCreateInheritanceBlock(
     assert(configuration != NULL);
 
     if (configuration->InheritFlags == PROCESS_INHERIT_NONE) {
-        return OsOK;
+        return OS_EOK;
     }
 
     numberOfObjects = StdioGetNumberOfInheritableHandles(configuration);
@@ -261,7 +261,7 @@ StdioCreateInheritanceBlock(
         *inheritationBlockOut       = (void*)inheritationBlock;
         *inheritationBlockLengthOut = inheritationBlockLength;
     }
-    return OsOK;
+    return OS_EOK;
 }
 
 static void
@@ -285,7 +285,7 @@ StdioInheritObject(
         }
 
         stdio_handle_clone(handle, inheritHandle);
-        if (handle->ops.inherit(handle) != OsOK) {
+        if (handle->ops.inherit(handle) != OS_EOK) {
             TRACE(" > failed to inherit fd %i", inheritHandle->fd);
             stdio_handle_destroy(handle, 0);
         }
@@ -551,7 +551,7 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
     oserr_t status = handle_post_notification(handle->object.handle, activity);
-    if (status != OsOK) {
+    if (status != OS_EOK) {
         OsErrToErrNo(status);
         return -1;
     }

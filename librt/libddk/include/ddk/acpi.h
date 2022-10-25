@@ -74,7 +74,7 @@ typedef struct AcpiDescriptor {
 #define ACPI_ARM_PSCI_USE_HVC		(1<<1)      /* 01: [V5+] HVC must be used instead of SMC as the PSCI conduit */
 
 /* AcpiQueryStatus
- * Queries basic acpi information and returns either OsOK
+ * Queries basic acpi information and returns either OS_EOK
  * or OsError if Acpi is not supported on the running platform */
 DDKDECL(oserr_t, AcpiQueryStatus(AcpiDescriptor_t * AcpiDescriptor));
 

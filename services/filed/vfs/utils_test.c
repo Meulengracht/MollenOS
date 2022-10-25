@@ -59,12 +59,12 @@ static struct VFS* __MockVirtualFileSystem(void)
     oserr_t     err;
 
     err = VFSNew(UUID_INVALID, &guid, NULL, NULL, &vfs);
-    assert_int_equal(err, OsOK);
+    assert_int_equal(err, OS_EOK);
     assert_non_null(vfs);
 
     struct VFSNode* bootDirectory = NULL;
     err = VFSNodeNewDirectory(vfs, &g_boot_root, 0, &bootDirectory);
-    assert_int_equal(err, OsOK);
+    assert_int_equal(err, OS_EOK);
     assert_non_null(bootDirectory);
 }
 

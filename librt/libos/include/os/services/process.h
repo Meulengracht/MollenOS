@@ -75,9 +75,9 @@ ProcessSpawnEx(
  *
  * @param handle The handle of the process to wait for.
  * @param timeout The timeout for this operation. If 0 is given the operation returns immediately.
- * @param exitCode If this function returns OsOK the exit code will be a valid value.
+ * @param exitCode If this function returns OS_EOK the exit code will be a valid value.
  * @return OsTimeout if the timeout was reached without the process terminating
- *         OsOK if the process has terminated within the given timeout or at the time at the call
+ *         OS_EOK if the process has terminated within the given timeout or at the time at the call
  *         OsError in any other case.
  */
 CRTDECL(oserr_t,

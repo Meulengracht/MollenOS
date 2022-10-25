@@ -214,6 +214,7 @@ InitializeMachine(
     UserEventInitialize();
 
     // Start the bootstrap module if present
+    ThreadFork
     SpawnBootstrapper();
 
     // yield before going to assume new threads

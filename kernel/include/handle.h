@@ -56,7 +56,7 @@ CreateHandle(
  * reaching 0 references.
  * @param handleId
  * @return OsIncomplete if there are still active references
- *         OsOK if the handle was destroyed
+ *         OS_EOK if the handle was destroyed
  */
 KERNELAPI oserr_t KERNELABI
 DestroyHandle(

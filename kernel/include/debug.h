@@ -78,7 +78,7 @@ DebugBreakpoint(
 /* DebugPageFault
  * Handles page-fault and either validates or invalidates
  * that the address is valid. In case of valid address it automatically
- * maps in the page and returns OsOK */
+ * maps in the page and returns OS_EOK */
 KERNELAPI oserr_t KERNELABI
 DebugPageFault(
     _In_ Context_t* context,

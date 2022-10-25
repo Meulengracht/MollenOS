@@ -29,7 +29,7 @@ _CODE_BEGIN
  *
  * @param[In]            duration  The duration to sleep in nanoseconds.
  * @param[Out, Optional] remaining The remaining time if less time was slept than the value in timeout.
- * @return OsOK if the sleep was not interrupted. Otherwise returns OsInterrupted.
+ * @return OS_EOK if the sleep was not interrupted. Otherwise returns OsInterrupted.
  */
 CRTDECL(oserr_t,
 VaSleep(
@@ -53,7 +53,7 @@ VaStall(
  * is represented in microseconds since Jaunary 1, 2020 UTC.
  *
  * @param[Out] time Pointer to where the time will be stored.
- * @return     Returns OsOK if the clock was read, otherwise OsNotSupported.
+ * @return     Returns OS_EOK if the clock was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
 VaGetWallClock(
@@ -66,7 +66,7 @@ VaGetWallClock(
  *
  * @param[In]  source  The clock source to read the tick for.
  * @param[Out] tickOut Pointer to a large integer value that can hold the current tick value.
- * @return     Returns OsOK if the tick was read, otherwise OsNotSupported.
+ * @return     Returns OS_EOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
 VaGetClockTick(
@@ -79,7 +79,7 @@ VaGetClockTick(
  *
  * @param[In]  source       The clock source to read the frequency for
  * @param[Out] frequencyOut Pointer to a large integer value that can hold the frequency value.
- * @return     Returns OsOK if the tick was read, otherwise OsNotSupported.
+ * @return     Returns OS_EOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
 VaGetClockFrequency(

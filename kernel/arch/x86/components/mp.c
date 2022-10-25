@@ -37,7 +37,7 @@
                                             memcpy((void*)&MpHeader, (void*)i, sizeof(MpHeader_t)); \
                                             i = (uintptr_t*)(uintptr_t)MpHeader.ConfigurationTableAddress; \
                                             memcpy((void*)&MpConfigurationTable, (void*)i, sizeof(MpConfigurationTable_t)); \
-                                            return OsOK; \
+                                            return OS_EOK; \
                                         } \
                                     } \
 

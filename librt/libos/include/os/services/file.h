@@ -117,7 +117,7 @@ OSGetFileSize(
  * @param[In] from The source file that should be copied or moved.
  * @param[In] to The destination of the file
  * @param[In] copy If set, copy the file instead of moving it
- * @return OsOK if the operation succeeded, otherwise the an error code.
+ * @return OS_EOK if the operation succeeded, otherwise the an error code.
  */
 CRTDECL(oserr_t,
 OSMoveFile(
