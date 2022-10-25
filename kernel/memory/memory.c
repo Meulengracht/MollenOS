@@ -20,6 +20,7 @@
 
 //#define __TRACE
 #define __need_quantity
+#define __need_minmax
 #include <assert.h>
 #include <arch/mmu.h>
 #include <ddk/io.h>

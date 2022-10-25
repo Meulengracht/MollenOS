@@ -21,6 +21,7 @@
 
 //#define __TRACE
 
+#define __need_minmax
 #include <errno.h>
 #include <ddk/initrd.h>
 #include <ddk/utils.h>

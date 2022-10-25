@@ -113,25 +113,25 @@ StdioIsHandleInheritable(
     oserr_t osSuccess = OS_EOK;
 
     if (handle->wxflag & WX_DONTINHERIT) {
-        osSuccess = OsError;
+        osSuccess = OS_EUNKNOWN;
     }
 
     // If we didn't request to inherit one of the handles, then we don't account it
     // for being the one requested.
     if (handle->fd == configuration->StdOutHandle &&
         !(configuration->InheritFlags & PROCESS_INHERIT_STDOUT)) {
-        osSuccess = OsError;
+        osSuccess = OS_EUNKNOWN;
     } else if (handle->fd == configuration->StdInHandle &&
              !(configuration->InheritFlags & PROCESS_INHERIT_STDIN)) {
-        osSuccess = OsError;
+        osSuccess = OS_EUNKNOWN;
     } else if (handle->fd == configuration->StdErrHandle &&
              !(configuration->InheritFlags & PROCESS_INHERIT_STDERR)) {
-        osSuccess = OsError;
+        osSuccess = OS_EUNKNOWN;
     } else if (!(configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
         if (handle->fd != configuration->StdOutHandle &&
             handle->fd != configuration->StdInHandle &&
             handle->fd != configuration->StdErrHandle) {
-            osSuccess = OsError;
+            osSuccess = OS_EUNKNOWN;
         }
     }
 
@@ -240,7 +240,7 @@ StdioCreateInheritanceBlock(
         inheritationBlockLength = sizeof(stdio_inheritation_block_t) + (numberOfObjects * sizeof(struct stdio_handle));
         inheritationBlock       = (stdio_inheritation_block_t*)malloc(inheritationBlockLength);
         if (!inheritationBlock) {
-            return OsOutOfMemory;
+            return OS_EOOM;
         }
 
         TRACE("[add_inherit] length %u", inheritationBlockLength);

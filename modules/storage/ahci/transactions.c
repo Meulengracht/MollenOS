@@ -24,7 +24,7 @@
  */
 
 //#define __TRACE
-
+#define __need_minmax
 #include <assert.h>
 #include "dispatch.h"
 #include <ddk/utils.h>

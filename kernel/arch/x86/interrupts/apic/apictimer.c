@@ -21,6 +21,7 @@
 #define __MODULE "APIC"
 #define __TRACE
 
+#define __need_minmax
 #include <assert.h>
 #include <arch/io.h>
 #include <arch/x86/arch.h>

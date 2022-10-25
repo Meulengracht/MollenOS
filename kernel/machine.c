@@ -84,7 +84,7 @@ _Noreturn void
 InitializeMachine(
     _In_ struct VBoot* bootInformation)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
 
     // Initialize all our static memory systems and global variables
     LogInitialize();
@@ -113,14 +113,14 @@ InitializeMachine(
     // Initialize memory environment. This should enable and initialize all forms of memory management
     // and should leave the system ready to allocate memory at will. After this call Per-Core memory
     // should also be set up
-    osStatus = MachineMemoryInitialize(&g_machine, &g_bootCore);
-    if (osStatus != OS_EOK) {
+    oserr = MachineMemoryInitialize(&g_machine, &g_bootCore);
+    if (oserr != OS_EOK) {
         ERROR("Failed to initalize system memory system");
         ArchProcessorHalt();
     }
 
-    osStatus = ConsoleInitialize();
-    if (osStatus != OS_EOK) {
+    oserr = ConsoleInitialize();
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize output for system.");
         ArchProcessorHalt();
     }
@@ -129,8 +129,8 @@ InitializeMachine(
     // If ACPI is not present or the SRAT is missing the system is running in UMA
     // mode and there is no hardware seperation
 #ifdef __OSCONFIG_ACPI_SUPPORT
-    osStatus = AcpiInitializeEarly();
-    if (osStatus != OS_EOK) {
+    oserr = AcpiInitializeEarly();
+    if (oserr != OS_EOK) {
         // Assume UMA machine and put the machine into UMA modKERNELAPI e
         SetMachineUmaMode();
     }
@@ -140,14 +140,14 @@ InitializeMachine(
 
     // Create the rest of the OS systems
     LogInitializeFull();
-    osStatus = InitializeHandles();
-    if (osStatus != OS_EOK) {
+    oserr = InitializeHandles();
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize the handle subsystem.");
         ArchProcessorHalt();
     }
 
-    osStatus = HandleSetsInitialize();
-    if (osStatus != OS_EOK) {
+    oserr = HandleSetsInitialize();
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize the handle set subsystem.");
         ArchProcessorHalt();
     }
@@ -158,8 +158,8 @@ InitializeMachine(
     // initialize the interrupt subsystem
     InitializeInterruptTable();
     InitializeInterruptHandlers();
-    osStatus = PlatformInterruptInitialize();
-    if (osStatus != OS_EOK) {
+    oserr = PlatformInterruptInitialize();
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize interrupts for system.");
         ArchProcessorHalt();
     }
@@ -175,8 +175,8 @@ InitializeMachine(
         HpetInitialize();
     }
 #endif
-    osStatus = PlatformTimersInitialize();
-    if (osStatus != OS_EOK) {
+    oserr = PlatformTimersInitialize();
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize timers for system.");
         ArchProcessorHalt();
     }
@@ -185,8 +185,8 @@ InitializeMachine(
     // way because of threads. Threads are like dirty teenagers refusing to take a bath, so we have to clean
     // them when they aren't active. So we clean them in a seperate thread, and as threads are handles, we
     // simply invest in a janitor to clean.
-    osStatus = InitializeHandleJanitor();
-    if (osStatus != OS_EOK) {
+    oserr = InitializeHandleJanitor();
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize system janitor.");
         ArchProcessorHalt();
     }
@@ -214,16 +214,19 @@ InitializeMachine(
     UserEventInitialize();
 
     // Start the bootstrap module if present
-    ThreadFork
-    SpawnBootstrapper();
+    oserr = ThreadFork(NULL);
+    if (oserr == OS_EFORKED) {
+        TRACE("HELLO FROM FORK! YAY");
+        for(;;);
+    }
+    TRACE("HELLO FROM MAIN!");
+    //SpawnBootstrapper();
 
     // yield before going to assume new threads
-    WARNING("End of initialization, yielding control");
+    TRACE("End of initialization, yielding control");
     SchedulerEnable();
     ArchThreadYield();
-    goto IdleProcessor;
 
-IdleProcessor:
     for (;;) {
         ArchProcessorIdle();
     }

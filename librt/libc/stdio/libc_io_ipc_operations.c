@@ -16,6 +16,7 @@
  *
  */
 
+#define __need_minmax
 #include <ddk/handle.h>
 #include <errno.h>
 #include <internal/_io.h>

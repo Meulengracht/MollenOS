@@ -17,6 +17,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __need_minmax
 #include <ddk/handle.h>
 #include <event.h>
 #include <internal/_io.h>

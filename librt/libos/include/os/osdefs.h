@@ -191,16 +191,18 @@ static inline size_t NextPowerOfTwo(size_t value) {
 
 #define _MAXPATH                                512
 #define NAME_MAX                                4096
-#define MIN(a,b)                                (((a)<(b))?(a):(b))
-#define MAX(a,b)                                (((a)>(b))?(a):(b))
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) < (max)))
 #define DIVUP(a, b)                             (((a) + ((b) - 1)) / (b))
 #define ADDLIMIT(Base, Current, Step, Limit)    (((Current) + (Step)) >= (Limit)) ? (Base) : ((Current) + (Step))
 #define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
 
+#ifdef __need_minmax
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#endif
 
-#ifdef __COMPILE_ASSERT
+#ifdef __need_static_assert
 #define STATIC_ASSERT(COND,MSG)                 typedef char static_assertion_##MSG[(!!(COND))*2-1]
 #define COMPILE_TIME_ASSERT3(X,L)               STATIC_ASSERT(X,static_assertion_at_line_##L)
 #define COMPILE_TIME_ASSERT2(X,L)               COMPILE_TIME_ASSERT3(X,L)

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -47,6 +45,7 @@
 
 //#define __TRACE
 
+#define __need_minmax
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>

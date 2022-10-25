@@ -10,18 +10,6 @@
 #endif
 #define SCPARAM(Arg) ((SCTYPE)(Arg))
 
-/**
- * @brief The system call context is neccessary for system calls that want to support
- * asynchronous calls. We implement this to support green threads in userspace, where it's
- * unwanted to ever block. Instead the system call should keep running and allow the thread
- * to return immediately to userspace, and instead be signalled once the result is ready.
- */
-typedef struct OSSyscallContext {
-    // struct usched_mtx Mutex;
-    // struct usched_cnd Condition;
-    oserr_t ErrorCode;
-} OSSyscallContext_t;
-
 _CODE_BEGIN
 CRTDECL(SCTYPE, syscall0(SCTYPE Function));
 CRTDECL(SCTYPE, syscall1(SCTYPE Function, SCTYPE Arg0));

@@ -22,6 +22,7 @@
  *     funnels all logging out to com ports
  */
 
+#define __need_minmax
 #include <machine.h>
 #include <arch/output.h>
 #include <arch/io.h>

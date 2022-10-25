@@ -104,7 +104,7 @@ oscode_t OnRegister(Device_t *Device)
 
 	// Sanitize
 	if (Controller == NULL) {
-		return OsError;
+		return OS_EUNKNOWN;
 	}
 
 	// Use the device-id as key
@@ -136,7 +136,7 @@ oscode_t OnUnregister(Device_t *Device)
 
 	// Sanitize lookup
 	if (Controller == NULL) {
-		return OsError;
+		return OS_EUNKNOWN;
 	}
 
 	// Remove node from list
@@ -164,7 +164,7 @@ OnQuery(
 
 	// Sanitize the QueryType
 	if (QueryType != ContractDisk) {
-		return OsError;
+		return OS_EUNKNOWN;
 	}
 
 	// Which kind of function has been invoked?
@@ -185,7 +185,7 @@ OnQuery(
 				(void*)&Device->Descriptor, sizeof(DiskDescriptor_t));
 		}
 		else {
-            oscode_t Result = OsError;
+            oscode_t Result = OS_EUNKNOWN;
 			return SendPipe(Queryee, ResponsePort,
 				(void*)&Result, sizeof(OsStatus_t));
 		}
@@ -219,7 +219,7 @@ OnQuery(
 		if (Transaction->Device != NULL
 			&& Operation->Direction == __DISK_OPERATION_READ) {
 			if (AhciReadSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
+				OsStatus_t Result = OS_EUNKNOWN;
 				return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 			}
 			else {
@@ -229,7 +229,7 @@ OnQuery(
 		else if (Transaction->Device != NULL
 			&& Operation->Direction == __DISK_OPERATION_WRITE) {
 			if (AhciWriteSectors(Transaction, Operation->AbsSector) != OsSuccess) {
-				OsStatus_t Result = OsError;
+				OsStatus_t Result = OS_EUNKNOWN;
 				return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 			}
 			else {
@@ -237,7 +237,7 @@ OnQuery(
 			}
 		}
 		else {
-			OsStatus_t Result = OsError;
+			OsStatus_t Result = OS_EUNKNOWN;
 			return SendPipe(Queryee, ResponsePort, (void*)&Result, sizeof(OsStatus_t));
 		}
 
@@ -245,7 +245,7 @@ OnQuery(
 
 		// Other cases not supported
 	default: {
-		return OsError;
+		return OS_EUNKNOWN;
 	}
 	}
 }

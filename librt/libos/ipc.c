@@ -18,6 +18,7 @@
 
 //#define __TRACE
 
+#define __need_minmax
 #include <ddk/handle.h>
 #include <ddk/utils.h>
 #include <ds/streambuffer.h>

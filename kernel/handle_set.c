@@ -23,6 +23,7 @@
 #define __MODULE "handle_set"
 //#define __TRACE
 
+#define __need_minmax
 #include <debug.h>
 #include <ddk/barrier.h>
 #include <ds/list.h>

@@ -75,7 +75,7 @@ typedef struct AcpiDescriptor {
 
 /* AcpiQueryStatus
  * Queries basic acpi information and returns either OS_EOK
- * or OsError if Acpi is not supported on the running platform */
+ * or OS_EUNKNOWN if Acpi is not supported on the running platform */
 DDKDECL(oserr_t, AcpiQueryStatus(AcpiDescriptor_t * AcpiDescriptor));
 
 /* AcpiQueryTable

@@ -23,8 +23,8 @@
  */
 
 //#define __TRACE
-#define __COMPILE_ASSERT
-
+#define __need_static_assert
+#define __need_minmax
 #include <assert.h>
 #include <usb/usb.h>
 #include <ddk/utils.h>

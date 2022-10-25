@@ -23,6 +23,7 @@
 
 #define __TRACE
 
+#define __need_minmax
 #include <debug.h>
 #include <ddk/io.h>
 #include <hpet.h>

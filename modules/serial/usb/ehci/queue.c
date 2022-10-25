@@ -23,15 +23,11 @@
  * - Split-Isochronous Transport
  */
 //#define __TRACE
-
-/* Includes
- * - System */
+#define __need_minmax
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "ehci.h"
 
-/* Includes
- * - Library */
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>

@@ -16,7 +16,7 @@
  */
 
 #define __TRACE
-
+#define __need_minmax
 #include <ddk/utils.h>
 #include "hub.h"
 #include <internal/_utils.h>

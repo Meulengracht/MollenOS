@@ -23,6 +23,7 @@
 #define __MODULE "ACPI"
 //#define __TRACE
 
+#define __need_minmax
 #include <arch/utils.h>
 #include <acpiinterface.h>
 #include <assert.h>

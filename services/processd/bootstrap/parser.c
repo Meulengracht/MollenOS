@@ -563,12 +563,12 @@ DmParseDriverYaml(
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
             ERROR("DmParseDriverYaml failed to parse driver configuration");
-            return OsError;
+            return OS_EUNKNOWN;
         }
         status = __ConsumeEvent(&state, &event);
         if (status == 0) {
             ERROR("DmParseDriverYaml failed to parse driver configuration");
-            return OsError;
+            return OS_EUNKNOWN;
         }
         yaml_event_delete(&event);
     } while (state.state != STATE_STOP);

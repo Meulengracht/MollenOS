@@ -25,6 +25,7 @@
 #define __MODULE "memory_region"
 //#define __TRACE
 
+#define __need_minmax
 #include <arch/utils.h>
 #include <assert.h>
 #include <ddk/io.h>

@@ -17,7 +17,7 @@
 
 //#define __TRACE
 #define CACHE_SEGMENTED
-
+#define __need_minmax
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/types/file.h>

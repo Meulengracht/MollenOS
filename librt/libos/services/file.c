@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __need_minmax
 #include <ddk/convert.h>
 #include <ds/list.h>
 #include <internal/_io.h>

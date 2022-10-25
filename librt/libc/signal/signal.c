@@ -162,8 +162,7 @@ StdInvokeSignal(
         if (sig->handler != SIG_IGN) {
             if (sig->handler == SIG_DFL || sig->handler == SIG_ERR) {
                 __CrashHandler(context, sig, options);
-            }
-            else {
+            } else {
                 __sa_process_t ext_handler = (__sa_process_t)sig->handler;
                 ext_handler(sigNo, argument0, argument1);
             }

@@ -23,7 +23,7 @@
  */
 
 //#define __TRACE
-#define __COMPILE_ASSERT
+#define __need_static_assert
 
 #include <assert.h>
 #include <ddk/utils.h>
