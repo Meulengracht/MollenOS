@@ -76,6 +76,13 @@ ArchThreadEnter(
         _In_ Thread_t*        thread);
 
 /**
+ * @brief Initialize the idle context from the existing stack.
+ * @return
+ */
+KERNELAPI Context_t* KERNELABI
+ArchThreadContextIdle(void);
+
+/**
  * @brief Creates a new context for a thread, a type and the flags for which
  * the thread is been created under is passed.
  *

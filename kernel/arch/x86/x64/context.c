@@ -19,7 +19,7 @@
  */
 
 #define __MODULE "context"
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <arch/x86/cpu.h>
@@ -244,6 +244,22 @@ __AllocateStackInMemory(
 }
 
 Context_t*
+ArchThreadContextIdle(void)
+{
+    Context_t*  idleContext;
+    Context_t** currentStack = &idleContext;
+    uintptr_t   stackAligned;
+
+    // The way we currently calculate the stack-top is by block-aligning it. We expect
+    // the stack to be block-aligned, and this probably *does not hold true* for all architectures.
+    // For our current architectures we expect this
+    stackAligned = (uintptr_t)currentStack & PAGE_MASK;
+    stackAligned += PAGE_SIZE;
+    stackAligned -= sizeof(Context_t);
+    return (Context_t*)stackAligned;
+}
+
+Context_t*
 ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
@@ -252,7 +268,6 @@ ArchThreadContextCreate(
     uintptr_t    contextAddress;
     unsigned int placementFlags;
     unsigned int memoryFlags;
-    TRACE("ArchThreadContextCreate(type=%i, size=0x%llx)", contextType, contextSize);
 
     __GetContextFlags(contextType, &placementFlags, &memoryFlags);
     oserr = __AllocateStackInMemory(
@@ -267,7 +282,6 @@ ArchThreadContextCreate(
     }
 
     contextAddress += contextSize - sizeof(Context_t);
-    TRACE("ArchThreadContextCreate returns 0x%llx", contextAddress);
 	return (Context_t*)contextAddress;
 }
 
@@ -305,7 +319,6 @@ ArchThreadContextFork(
     __GetContextFlags(contextType, &placementFlags, &memoryFlags);
 
     // Commit enough space for the extra Context_t we add below
-    TRACE("ArchThreadContextFork mapping the new stack");
     oserr = __AllocateStackInMemory(
             placementFlags,
             memoryFlags,
@@ -317,7 +330,6 @@ ArchThreadContextFork(
         return oserr;
     }
 
-    TRACE("ArchThreadContextFork new stack at 0x%llx", contextAddress);
     // contextAddress now points to the bottom of the stack, but we need it
     // to point to the top, so we can calculate a new 'current'. So let's fix
     // it up and then calculate new addresses
@@ -326,18 +338,15 @@ ArchThreadContextFork(
     contextAddress -= stackUsage;     // point to bottom
 
     // Now we copy from <stack> to <contextAddress>
-    TRACE("ArchThreadContextFork cloning stack from 0x%llx to 0x%llx", stack, contextAddress);
     memcpy((void*)contextAddress, (const void*)stack, stackUsage);
 
     // And then, finally, we must set up a new context on top of this, which when unwound
     // somehow lands us back at the caller function. This is where the <returnContext> comes
     // into play, except we need to fix up the stack pointers in it
-    TRACE("ArchThreadContextFork setting up return context");
     contextAddress -= sizeof(Context_t);
     memcpy((void*)contextAddress, returnContext, sizeof(Context_t));
 
     // Fix up the stack pointers, which must not be their original values
-    TRACE("ArchThreadContextFork fixing up addresses");
     newContext = (Context_t*)contextAddress;
     newContext->Rbp = __FixupAddress(returnContext->Rbp, stackTop, newStackTop);
     newContext->Rsp = __FixupAddress(returnContext->Rsp, stackTop, newStackTop);

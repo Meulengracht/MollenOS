@@ -249,6 +249,22 @@ __AllocateStackInMemory(
 }
 
 Context_t*
+ArchThreadContextIdle(void)
+{
+    Context_t*  idleContext;
+    Context_t** currentStack = &idleContext;
+    uintptr_t   stackAligned;
+
+    // The way we currently calculate the stack-top is by block-aligning it. We expect
+    // the stack to be block-aligned, and this probably *does not hold true* for all architectures.
+    // For our current architectures we expect this
+    stackAligned = (uintptr_t)currentStack & PAGE_MASK;
+    stackAligned += PAGE_SIZE;
+    stackAligned -= sizeof(Context_t);
+    return (Context_t*)stackAligned;
+}
+
+Context_t*
 ArchThreadContextCreate(
     _In_ int    contextType,
     _In_ size_t contextSize)
@@ -302,6 +318,8 @@ ArchThreadContextFork(
     size_t       stackUsage = stackTop - stack;
     unsigned int placementFlags;
     unsigned int memoryFlags;
+    TRACE("ArchThreadContextFork(stackTop=0x%x, stack=0x%x, stackUsage=0x%x)",
+          stackTop, stack, stackUsage);
 
     __GetContextFlags(contextType, &placementFlags, &memoryFlags);
 
@@ -317,11 +335,12 @@ ArchThreadContextFork(
         return oserr;
     }
 
-    // contextAddress now points to the top of the new stack - sizeof(Context_t),
-    // so let's fix it up and then calculate new addresses
-    contextAddress += sizeof(Context_t); // point to top
-    newStackTop    = contextAddress;     // save it for fix ups
-    contextAddress -= stackUsage;        // point to bottom
+    // contextAddress now points to the bottom of the stack, but we need it
+    // to point to the top, so we can calculate a new 'current'. So let's fix
+    // it up and then calculate new addresses
+    contextAddress += contextSize;    // point to top
+    newStackTop    = contextAddress;  // save it for fix ups
+    contextAddress -= stackUsage;     // point to bottom
 
     // Now we copy from <stack> to <contextAddress>
     memcpy((void*)contextAddress, (const void*)stack, stackUsage);
@@ -336,6 +355,14 @@ ArchThreadContextFork(
     newContext = (Context_t*)contextAddress;
     newContext->Ebp = __FixupAddress(returnContext->Ebp, stackTop, newStackTop);
     newContext->Esp = __FixupAddress(returnContext->Esp, stackTop, newStackTop);
+
+    // Fixup IRQ values which definitely needs to be reset. It's important that the entire Context_t is
+    // consumed, otherwise we will be left with values on the stack, messing up the original stack.
+    // TODO: this works on bochs, does it work on real HW?
+    newContext->Eflags  = CPU_EFLAGS_DEFAULT;
+    newContext->Cs      = GDT_KCODE_SEGMENT;
+    newContext->UserEsp = (uint64_t)&newContext->Arguments[5]; // point stack pointer beyond the structure
+    newContext->UserSs  = GDT_KDATA_SEGMENT;
 
     *baseContextOut = (Context_t*)(newStackTop - sizeof(Context_t));
     *contextOut = newContext;
