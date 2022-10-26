@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "thread"
-#define __TRACE
+//#define __TRACE
 //#define __OSCONFIG_DEBUG_SCHEDULER
 #define __need_quantity
 
@@ -53,26 +53,6 @@ static uuid_t __CreateCookie(Thread_t* thread, Thread_t* parent);
 static void   __AddChild(Thread_t* parent, Thread_t* child);
 static void   __RemoveChild(Thread_t* parent, Thread_t* child);
 
-static void
-__SetupIdleContext(
-        _In_ Thread_t* thread)
-{
-    Context_t*  idleContext;
-    Context_t** currentStack = &idleContext;
-    uintptr_t   stackAligned;
-    size_t      blockSize = GetMemorySpacePageSize();
-    TRACE("__SetupIdleContext(current=0x%llx)", currentStack);
-
-    // The way we currently calculate the stack-top is by block-aligning it. We expect
-    // the stack to be block-aligned, and this probably *does not hold true* for all architectures.
-    // For our current architectures we expect this
-    stackAligned = (uintptr_t)currentStack & ~(blockSize - 1);
-    stackAligned += blockSize;
-    stackAligned -= sizeof(Context_t);
-    TRACE("__SetupIdleContext top=0x%llx", stackAligned);
-    thread->Contexts[THREADING_CONTEXT_LEVEL0] = (Context_t*)stackAligned;
-}
-
 void
 ThreadingEnable(
         _In_ SystemCpuCore_t* cpuCore)
@@ -98,7 +78,7 @@ ThreadingEnable(
 
     // The idle threads have pre-allocated stacks, and must manually
     // be setup according to the current stack.
-    __SetupIdleContext(thread);
+    thread->Contexts[THREADING_CONTEXT_LEVEL0] = ArchThreadContextIdle();
 
     // Handle setup of memory space as that is not covered.
     thread->MemorySpace       = GetCurrentMemorySpace();

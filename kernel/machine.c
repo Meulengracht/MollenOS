@@ -214,13 +214,7 @@ InitializeMachine(
     UserEventInitialize();
 
     // Start the bootstrap module if present
-    oserr = ThreadFork(NULL);
-    if (oserr == OS_EFORKED) {
-        TRACE("HELLO FROM FORK! YAY");
-        for(;;);
-    }
-    TRACE("HELLO FROM MAIN!");
-    //SpawnBootstrapper();
+    SpawnBootstrapper();
 
     // yield before going to assume new threads
     TRACE("End of initialization, yielding control");
@@ -239,7 +233,7 @@ AllocatePhysicalMemory(
         _In_ uintptr_t* pages)
 {
     SystemMemoryAllocatorRegion_t* region;
-    oserr_t                     osStatus;
+    oserr_t                        osStatus;
     int                            pagesLeftToAllocate = pageCount;
     int                            i = GetMachine()->PhysicalMemory.MaskCount - 1;
 
