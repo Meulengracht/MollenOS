@@ -110,12 +110,20 @@ ScControlHandleSet(
 oserr_t
 ScListenHandleSet(
         _In_  uuid_t                     handle,
+        _In_  OSSyscallContext_t*        syscallContext,
         _In_  HandleSetWaitParameters_t* parameters,
         _Out_ int*                       numberOfEventsOut)
 {
     if (!parameters || !numberOfEventsOut) {
         return OS_EINVALPARAMS;
     }
-    return WaitForHandleSet(handle, parameters->events, parameters->maxEvents,
-        parameters->pollEvents, parameters->timeout, numberOfEventsOut);
+    return WaitForHandleSet(
+            handle,
+            syscallContext,
+            parameters->events,
+            parameters->maxEvents,
+            parameters->pollEvents,
+            parameters->timeout,
+            numberOfEventsOut
+    );
 }

@@ -23,22 +23,24 @@
 //#define __TRACE
 
 #include <internal/_utils.h>
-#include <os/osdefs.h>
 #include <futex.h>
 #include <userevent.h>
 
 oserr_t
 ScFutexWait(
-    _In_ FutexParameters_t* parameters)
+        _In_ OSSyscallContext_t* syscallContext,
+        _In_ FutexParameters_t*  parameters)
 {
-    // Two version of wait
-    if (parameters->_flags & FUTEX_FLAG_OP) {
-        return FutexWaitOperation(parameters->_futex0, parameters->_val0,
-                                  parameters->_futex1, parameters->_val1, parameters->_val2,
-                                  parameters->_flags, parameters->_timeout);
-    }
-    return FutexWait(parameters->_futex0, parameters->_val0, parameters->_flags,
-                     parameters->_timeout);
+    return FutexWait(
+            syscallContext,
+            parameters->_futex0,
+            parameters->_val0,
+            parameters->_flags,
+            parameters->_futex1,
+            parameters->_val1,
+            parameters->_val2,
+            parameters->_timeout
+    );
 }
 
 oserr_t

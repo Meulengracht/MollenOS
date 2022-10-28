@@ -354,7 +354,6 @@ ArchThreadContextFork(
     // Fixup IRQ values which definitely needs to be reset. It's important that the entire Context_t is
     // consumed, otherwise we will be left with values on the stack, messing up the original stack.
     // TODO: this works on bochs, does it work on real HW?
-    newContext->Rflags  = CPU_EFLAGS_DEFAULT;
     newContext->Cs      = GDT_KCODE_SEGMENT;
     newContext->UserRsp = (uint64_t)&newContext->ShadowSpace[4]; // point stack pointer beyond the structure
     newContext->UserSs  = GDT_KDATA_SEGMENT;

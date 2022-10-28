@@ -22,9 +22,10 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <ddk/handle.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <ddk/handle.h>
+#include <os/types/syscall.h>
 
 oserr_t
 handle_create(
@@ -92,6 +93,8 @@ notification_queue_wait(
         _In_  size_t              timeout,
         _Out_ int*                numEventsOut)
 {
+    OSSyscallContext_t        context;
+    oserr_t                   oserr;
     HandleSetWaitParameters_t parameters = {
         .events = events,
         .maxEvents = maxEvents,
@@ -102,6 +105,18 @@ notification_queue_wait(
     if (!events || !numEventsOut) {
         return OS_EINVALPARAMS;
     }
-    
-    return Syscall_ListenHandleSet(handle, &parameters, numEventsOut);
+
+    OSSyscallContextInitialize(&context);
+    oserr = Syscall_ListenHandleSet(handle, &context, &parameters, numEventsOut);
+    if (oserr == OS_EFORKED) {
+        // The system call was postponed, so we should coordinate with the
+        // userspace threading system right here.
+        usched_mtx_lock(&context.Mutex);
+        while (context.ErrorCode == OS_ESCSTARTED) {
+            usched_cnd_wait(&context.Condition, &context.Mutex);
+        }
+        usched_mtx_unlock(&context.Mutex);
+        return context.ErrorCode;
+    }
+    return oserr;
 }

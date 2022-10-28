@@ -25,7 +25,7 @@
 #ifndef __HANDLE_SET_H__
 #define __HANDLE_SET_H__
 
-#include <os/osdefs.h>
+#include <os/types/syscall.h>
 
 struct ioset_event;
 
@@ -69,6 +69,7 @@ ControlHandleSet(
 KERNELAPI oserr_t KERNELABI
 WaitForHandleSet(
         _In_  uuid_t              handle,
+        _In_  OSSyscallContext_t* syscallContext,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,

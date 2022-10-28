@@ -23,7 +23,7 @@
 #ifndef __FUTEX_H__
 #define __FUTEX_H__
 
-#include <os/osdefs.h>
+#include <os/types/syscall.h>
 #include <os/futex.h>
 
 KERNELAPI void KERNELABI
@@ -34,23 +34,14 @@ FutexInitialize(void);
  * the expected value otherwise the wait is ignored. */
 KERNELAPI oserr_t KERNELABI
 FutexWait(
-    _In_ _Atomic(int)* Futex,
-    _In_ int           ExpectedValue,
-    _In_ int           Flags,
-    _In_ size_t        Timeout);
-
-/* FutexWaitOperation
- * Performs an atomic check-and-wait operation on the given atomic variable. It must match
- * the expected value otherwise the wait is ignored. */    
-KERNELAPI oserr_t KERNELABI
-FutexWaitOperation(
-    _In_ _Atomic(int)* Futex,
-    _In_ int           ExpectedValue,
-    _In_ _Atomic(int)* Futex2,
-    _In_ int           Count2,
-    _In_ int           Operation,
-    _In_ int           Flags,
-    _In_ size_t        Timeout);
+        _In_ OSSyscallContext_t* syscallContext,
+        _In_ _Atomic(int)*       futex,
+        _In_ int                 expectedValue,
+        _In_ int                 flags,
+        _In_ _Atomic(int)*       futex2,
+        _In_ int                 count,
+        _In_ int                 operation,
+        _In_ size_t              timeout);
 
 /* FutexWake
  * Wakes up a blocked thread on the given atomic variable. */

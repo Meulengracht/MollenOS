@@ -19,6 +19,7 @@
 #define	__OS_TYPES_SYSCALL_H__
 
 #include <os/osdefs.h>
+#include <os/usched/cond.h>
 
 /**
  * @brief The system call context is neccessary for system calls that want to support
@@ -27,7 +28,15 @@
  * to return immediately to userspace, and instead be signalled once the result is ready.
  */
 typedef struct OSSyscallContext {
-    oserr_t ErrorCode;
+    struct usched_mtx Mutex;
+    struct usched_cnd Condition;
+    oserr_t           ErrorCode;
 } OSSyscallContext_t;
+
+static inline void OSSyscallContextInitialize(OSSyscallContext_t* context) {
+    usched_cnd_init(&context->Condition);
+    usched_mtx_init(&context->Mutex);
+    context->ErrorCode = OS_ESCSTARTED;
+}
 
 #endif //!__OS_TYPES_SYSCALL_H__
