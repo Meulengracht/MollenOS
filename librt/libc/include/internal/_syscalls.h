@@ -58,7 +58,7 @@ _CODE_END
 #define Syscall_ThreadSetCurrentName(Name)                                 (uuid_t)syscall1(28, SCPARAM(Name))
 #define Syscall_ThreadGetCurrentName(NameBuffer, MaxLength)                (uuid_t)syscall2(29, SCPARAM(NameBuffer), SCPARAM(MaxLength))
 
-#define Syscall_FutexWait(Parameters)                                      (oserr_t)syscall1(30, SCPARAM(Parameters))
+#define Syscall_FutexWait(context, params)                                 (oserr_t)syscall2(30, SCPARAM(context), SCPARAM(params))
 #define Syscall_FutexWake(Parameters)                                      (oserr_t)syscall1(31, SCPARAM(Parameters))
 #define Syscall_EventCreate(InitialValue, Flags, HandleOut, SyncAddress)   (oserr_t)syscall4(32, SCPARAM(InitialValue), SCPARAM(Flags), SCPARAM(HandleOut), SCPARAM(SyncAddress))
 
@@ -90,7 +90,7 @@ _CODE_END
 
 #define Syscall_CreateHandleSet(Flags, HandleOut)                          (oserr_t)syscall2(55, SCPARAM(Flags), SCPARAM(HandleOut))
 #define Syscall_ControlHandleSet(SetHandle, Operation, Handle, Event)      (oserr_t)syscall4(56, SCPARAM(SetHandle), SCPARAM(Operation), SCPARAM(Handle), SCPARAM(Event))
-#define Syscall_ListenHandleSet(Handle, WaitContext, EventsOut)            (oserr_t)syscall3(57, SCPARAM(Handle), SCPARAM(WaitContext), SCPARAM(EventsOut))
+#define Syscall_ListenHandleSet(handle, context, params, eventsOut)        (oserr_t)syscall4(57, SCPARAM(handle), SCPARAM(context), SCPARAM(params), SCPARAM(eventsOut))
 
 #define Syscall_InstallSignalHandler(HandlerAddress)                       (oserr_t)syscall1(58, SCPARAM(HandlerAddress))
 #define Syscall_FlushHardwareCache(CacheType, AddressStart, Length)        (oserr_t)syscall3(59, SCPARAM(CacheType), SCPARAM(AddressStart), SCPARAM(Length))

@@ -36,6 +36,7 @@ const int g_errorCodeTable[__OS_ECOUNT] = {
     ECANCELED,    // OS_ECANCELLED
     ECANCELED,    // OS_EBLOCKED
     EINPROGRESS,  // OS_EINPROGRESS,
+    EINPROGRESS,  // OS_ESCSTARTED
     ENXIO,        // OS_EFORKED
 
     ENOTDIR,      // OS_ENOTDIR

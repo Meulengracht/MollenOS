@@ -68,21 +68,21 @@ GetContext:
     mov [rcx + REGISTER_R14], r14
     mov [rcx + REGISTER_R15], r15
 
-    ; store eip/esp
+    ; store eip/esp/eflags
     lea rax, [rsp + 8]
     mov [rcx + REGISTER_RSP], rax
     mov rax, [rsp]
     mov [rcx + REGISTER_RIP], rax
+	pushfq
+	pop rax
+    mov [rcx + REGISTER_EFLAGS], rax
 
     ; zero values not stored
     mov qword [rcx + REGISTER_IRQ], 0
     mov qword [rcx + REGISTER_ERR], 0
     mov qword [rcx + REGISTER_CS], 0
-    mov qword [rcx + REGISTER_EFLAGS], 0
     mov qword [rcx + REGISTER_USERESP], 0
     mov qword [rcx + REGISTER_USERSS], 0
-    
-    ; store fpregs TODO
 
 	xor rax, rax
 	ret 

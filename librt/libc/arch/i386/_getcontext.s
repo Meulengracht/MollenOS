@@ -62,13 +62,21 @@ _GetContext:
     mov dx, fs
     mov [eax + REGISTER_FS], edx
     
-    ; store eip/esp
+    ; store eip/esp/eflags
     lea ecx, [esp + 4]
     mov [eax + REGISTER_ESP], ecx
     mov ecx, [esp]
     mov [eax + REGISTER_EIP], ecx
-    
-    ; store fpregs TODO
+    pushfd
+    pop ecx
+    mov [eax + REGISTER_EFLAGS], ecx
+
+    ; zero values not stored
+    mov qword [eax + REGISTER_IRQ], 0
+    mov qword [eax + REGISTER_ERR], 0
+    mov qword [eax + REGISTER_CS], 0
+    mov qword [eax + REGISTER_USERESP], 0
+    mov qword [eax + REGISTER_USERSS], 0
 
 	xor eax, eax
 	ret 

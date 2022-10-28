@@ -36,7 +36,7 @@
 
 // One per memory context
 typedef struct FutexItem {
-    element_t     Header;
+    element_t    Header;
     list_t       BlockQueue;
     Spinlock_t   BlockQueueSyncObject;
     _Atomic(int) Waiters;
@@ -82,7 +82,7 @@ SchedulerGetCurrentObject(
 }
 
 static FutexBucket_t*
-FutexGetBucket(
+__GetBucket(
         _In_ uintptr_t futexAddress)
 {
     return &FutexBuckets[GetIntegerHash(futexAddress) & (FUTEX_HASHTABLE_CAPACITY - 1)];
@@ -241,86 +241,21 @@ FutexInitialize(void)
 
 oserr_t
 FutexWait(
-    _In_ _Atomic(int)* Futex,
-    _In_ int           ExpectedValue,
-    _In_ int           Flags,
-    _In_ size_t        Timeout)
-{
-    MemorySpaceContext_t* Context = NULL;
-    FutexBucket_t*        Bucket;
-    FutexItem_t*          FutexItem;
-    uintptr_t             FutexAddress;
-    irqstate_t           CpuState;
-    TRACE("FutexWait(f 0x%llx, t %u)", Futex, Timeout);
-    
-    if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
-        // This is called by the ACPICA implemention indirectly through the Semaphore
-        // implementation, which occurs during boot up of cores before a scheduler is running.
-        // In this case we want the semaphore to act like a spinlock, which it will if we just
-        // return anything else than OsTimeout.
-        return OS_ENOTSUPPORTED;
-    }
-    
-    // Get the futex context, if the context is private
-    // we can stick to the virtual address for sleeping
-    // otherwise we need to look up the physical page
-    if (Flags & FUTEX_FLAG_PRIVATE) {
-        Context = GetCurrentMemorySpace()->Context;
-        FutexAddress = (uintptr_t)Futex;
-    }
-    else {
-        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
-                1, &FutexAddress) != OS_EOK) {
-            return OS_ENOENT;
-        }
-    }
-
-    Bucket = FutexGetBucket(FutexAddress);
-    
-    // Disable interrupts here to gain safe passage, as we don't want to be
-    // interrupted in this 'atomic' action. However, when competing with other
-    // cpus here, we must take care to flush any changes and reload any changes
-    CpuState = InterruptDisable();
-
-    FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
-    if (!FutexItem) {
-        FutexItem = FutexCreateNode(Bucket, FutexAddress, Context);
-        if (!FutexItem) {
-            return OS_EOOM;
-        }
-    }
-    
-    (void)atomic_fetch_add(&FutexItem->Waiters, 1);
-    if (atomic_load(Futex) != ExpectedValue) {
-        (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-        InterruptRestoreState(CpuState);
-        return OS_EINTERRUPTED;
-    }
-    
-    SchedulerBlock(&FutexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
-    InterruptRestoreState(CpuState);
-    ArchThreadYield();
-
-    (void)atomic_fetch_sub(&FutexItem->Waiters, 1);
-    return SchedulerGetTimeoutReason();
-}
-
-oserr_t
-FutexWaitOperation(
-    _In_ _Atomic(int)* Futex,
-    _In_ int           ExpectedValue,
-    _In_ _Atomic(int)* Futex2,
-    _In_ int           Count2,
-    _In_ int           Operation,
-    _In_ int           Flags,
-    _In_ size_t        Timeout)
+        _In_ OSSyscallContext_t* syscallContext,
+        _In_ _Atomic(int)*       futex,
+        _In_ int                 expectedValue,
+        _In_ int                 flags,
+        _In_ _Atomic(int)*       futex2,
+        _In_ int                 count,
+        _In_ int                 operation,
+        _In_ size_t              timeout)
 {
     MemorySpaceContext_t* context = NULL;
-    FutexBucket_t*        bucket;
+    FutexBucket_t*        futexBucket;
     FutexItem_t*          futexItem;
     uintptr_t             futexAddress;
-    irqstate_t            irqstate;
-    TRACE("FutexWaitOperation(f 0x%llx, f 0x%llx, t %u)", Futex, Futex2, Timeout);
+    irqstate_t            irqState;
+    TRACE("FutexWait(f 0x%llx, t %u)", futex, timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -333,44 +268,69 @@ FutexWaitOperation(
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
     // otherwise we need to look up the physical page
-    if (Flags & FUTEX_FLAG_PRIVATE) {
-        context = GetCurrentMemorySpace()->Context;
-        futexAddress = (uintptr_t)Futex;
+    if (flags & FUTEX_FLAG_PRIVATE) {
+        context      = GetCurrentMemorySpace()->Context;
+        futexAddress = (uintptr_t)futex;
     } else {
-        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)Futex, 
+        if (GetMemorySpaceMapping(GetCurrentMemorySpace(), (uintptr_t)futex,
                 1, &futexAddress) != OS_EOK) {
             return OS_ENOENT;
         }
     }
 
-    bucket = FutexGetBucket(futexAddress);
+    futexBucket = __GetBucket(futexAddress);
     
     // Disable interrupts here to gain safe passage, as we don't want to be
     // interrupted in this 'atomic' action. However, when competing with other
     // cpus here, we must take care to flush any changes and reload any changes
-    irqstate = InterruptDisable();
+    irqState = InterruptDisable();
 
-    futexItem = FutexGetNodeLocked(bucket, futexAddress, context);
+    futexItem = FutexGetNodeLocked(futexBucket, futexAddress, context);
     if (!futexItem) {
-        futexItem = FutexCreateNode(bucket, futexAddress, context);
+        futexItem = FutexCreateNode(futexBucket, futexAddress, context);
         if (!futexItem) {
             return OS_EOOM;
         }
     }
-    
+
     (void)atomic_fetch_add(&futexItem->Waiters, 1);
-    if (atomic_load(Futex) != ExpectedValue) {
+CheckValue:
+    if (atomic_load(futex) != expectedValue) {
         (void)atomic_fetch_sub(&futexItem->Waiters, 1);
-        InterruptRestoreState(irqstate);
+        InterruptRestoreState(irqState);
         return OS_EINTERRUPTED;
     }
+
+    // Are we running in a supported async syscall context? Then we can fork
+    // the thread that were supposed to wait.
+    if (syscallContext != NULL) {
+        oserr_t oserr = ThreadFork(syscallContext);
+        if (oserr != OS_EFORKED) {
+            // If fork returned an actual error, then we are aborting the operation,
+            // and we should remember to do clenaup
+            if (oserr != OS_EOK) {
+                (void)atomic_fetch_sub(&futexItem->Waiters, 1);
+            }
+            // In either case, we must restore irqs for the primary thread
+            InterruptRestoreState(irqState);
+            return OS_EFORKED;
+        }
+
+        // If fork returned OS_EFORKED then continue operation, but we *MUST* perform an
+        // additional value check here, as we've done a thread switch at this point. Make sure
+        // we don't end up in a fork loop, so NULL the syscallContext
+        syscallContext = NULL;
+        goto CheckValue;
+    }
     
-    SchedulerBlock(&futexItem->BlockQueue, Timeout * NSEC_PER_MSEC);
-    FutexPerformOperation(Futex2, Operation);
-    FutexWake(Futex2, Count2, Flags);
-    InterruptRestoreState(irqstate);
+    SchedulerBlock(&futexItem->BlockQueue, timeout * NSEC_PER_MSEC);
+    if (flags & FUTEX_FLAG_OP) {
+        FutexPerformOperation(futex2, operation);
+        FutexWake(futex2, count, flags);
+    }
+    InterruptRestoreState(irqState);
     ArchThreadYield();
-    
+
     (void)atomic_fetch_sub(&futexItem->Waiters, 1);
     return SchedulerGetTimeoutReason();
 }
@@ -403,7 +363,7 @@ FutexWake(
         }
     }
     
-    Bucket = FutexGetBucket(FutexAddress);
+    Bucket = __GetBucket(FutexAddress);
 
     FutexItem = FutexGetNodeLocked(Bucket, FutexAddress, Context);
     if (!FutexItem) {

@@ -95,6 +95,7 @@ typedef enum oserr {
     OS_ECANCELLED,          // Operation was cancelled
     OS_EBLOCKED,            // Operating was blocked
     OS_EINPROGRESS,         // Operation was in progress
+    OS_ESCSTARTED,          // Syscall has been started
     OS_EFORKED,             // Thread is now running in forked context
 
     OS_ENOTDIR,             // Path is not a directory
