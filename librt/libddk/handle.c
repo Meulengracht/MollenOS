@@ -22,13 +22,15 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#define __TRACE
+
 #include <ddk/handle.h>
+#include <ddk/utils.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
-#include <os/types/syscall.h>
 
 oserr_t
-handle_create(
+OSHandleCreate(
         _Out_ uuid_t* handleOut)
 {
     if (!handleOut) {
@@ -38,14 +40,14 @@ handle_create(
 }
 
 oserr_t
-handle_destroy(
+OSHandleDestroy(
         _In_ uuid_t handle)
 {
     return Syscall_DestroyHandle(handle);
 }
 
 oserr_t
-handle_set_path(
+OSHandleSetPath(
         _In_ uuid_t      handle,
         _In_ const char* path)
 {
@@ -56,7 +58,7 @@ handle_set_path(
 }
 
 oserr_t
-handle_post_notification(
+OSNotificationQueuePost(
         _In_ uuid_t       handle,
         _In_ unsigned int flags)
 {
@@ -64,7 +66,7 @@ handle_post_notification(
 }
 
 oserr_t
-notification_queue_create(
+OSNotificationQueueCreate(
         _In_  unsigned int flags,
         _Out_ uuid_t*      handleOut)
 {
@@ -75,7 +77,7 @@ notification_queue_create(
 }
 
 oserr_t
-notification_queue_ctrl(
+OSNotificationQueueCtrl(
         _In_ uuid_t              setHandle,
         _In_ int                 operation,
         _In_ uuid_t              handle,
@@ -85,16 +87,16 @@ notification_queue_ctrl(
 }
 
 oserr_t
-notification_queue_wait(
+OSNotificationQueueWait(
         _In_  uuid_t              handle,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
         _In_  size_t              timeout,
-        _Out_ int*                numEventsOut)
+        _Out_ int*                numEventsOut,
+        _In_  OSAsyncContext_t*   asyncContext)
 {
-    OSSyscallContext_t        context;
-    oserr_t                   oserr;
+    oserr_t          oserr;
     HandleSetWaitParameters_t parameters = {
         .events = events,
         .maxEvents = maxEvents,
@@ -106,17 +108,16 @@ notification_queue_wait(
         return OS_EINVALPARAMS;
     }
 
-    OSSyscallContextInitialize(&context);
-    oserr = Syscall_ListenHandleSet(handle, &context, &parameters, numEventsOut);
+    oserr = Syscall_ListenHandleSet(handle, asyncContext, &parameters, numEventsOut);
     if (oserr == OS_EFORKED) {
         // The system call was postponed, so we should coordinate with the
         // userspace threading system right here.
-        usched_mtx_lock(&context.Mutex);
-        while (context.ErrorCode == OS_ESCSTARTED) {
-            usched_cnd_wait(&context.Condition, &context.Mutex);
+        usched_mtx_lock(&asyncContext->Mutex);
+        while (asyncContext->ErrorCode == OS_ESCSTARTED) {
+            usched_cnd_wait(&asyncContext->Condition, &asyncContext->Mutex);
         }
-        usched_mtx_unlock(&context.Mutex);
-        return context.ErrorCode;
+        usched_mtx_unlock(&asyncContext->Mutex);
+        return asyncContext->ErrorCode;
     }
     return oserr;
 }

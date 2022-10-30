@@ -72,7 +72,7 @@ BinarySemaphoreWait(
 
 	// Wait for value to become set before waiting
 	while (binarySemaphore->Value != 1) {
-		ConditionWait(&binarySemaphore->Condition, &binarySemaphore->Mutex);
+		ConditionWait(&binarySemaphore->Condition, &binarySemaphore->Mutex, NULL);
 	}
     binarySemaphore->Value = 0;
 	MutexUnlock(&binarySemaphore->Mutex);

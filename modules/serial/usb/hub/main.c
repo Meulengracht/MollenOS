@@ -69,11 +69,11 @@ DestroyElement(
     HubDeviceDestroy(Element->value);
 }
 
-oserr_t
+void
 OnUnload(void)
 {
     list_clear(&g_devices, DestroyElement, NULL);
-    return UsbCleanup();
+    UsbCleanup();
 }
 
 oserr_t OnRegister(

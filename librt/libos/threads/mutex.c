@@ -62,7 +62,7 @@ void
 MutexDestroy(
         _In_ Mutex_t* mutex)
 {
-    FutexParameters_t parameters;
+    OSFutexParameters_t parameters;
     
     if (mutex != NULL) {
         mutex->Flags |= MUTEX_DESTROYED;
@@ -70,7 +70,7 @@ MutexDestroy(
         parameters._futex0 = &mutex->Value;
         parameters._val0   = INT_MAX;
         parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-        Futex(&parameters);
+        Futex(&parameters, NULL);
     }
 }
 
@@ -129,8 +129,8 @@ __perform_lock(
     _In_ Mutex_t* mutex,
     _In_ size_t   timeout)
 {
-    FutexParameters_t parameters;
-    int               status;
+    OSFutexParameters_t parameters;
+    int                 status;
     int               z = 0;
     int               i;
 
@@ -173,7 +173,7 @@ __perform_lock(
             }
 
             while (z != 0) {
-                if (Futex(&parameters) == OS_ETIMEOUT) {
+                if (Futex(&parameters, NULL) == OS_ETIMEOUT) {
                     return OS_ETIMEOUT;
                 }
 
@@ -232,8 +232,8 @@ oserr_t
 MutexUnlock(
         _In_ Mutex_t* mutex)
 {
-    FutexParameters_t parameters;
-    unsigned int      state, newState;
+    OSFutexParameters_t parameters;
+    unsigned int        state, newState;
     uuid_t            owner;
     unsigned int      refcount;
     int               status;
@@ -281,7 +281,7 @@ MutexUnlock(
         parameters._futex0 = &mutex->Value;
         parameters._val0   = 1;
         parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-        Futex(&parameters);
+        Futex(&parameters, NULL);
     }
     return OS_EOK;
 }

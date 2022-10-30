@@ -90,7 +90,7 @@ DestroyProcess(
     if (process->image) {
         PeUnloadImage(process->image);
     }
-    handle_destroy(process->handle);
+    OSHandleDestroy(process->handle);
     free(process);
 }
 
@@ -367,7 +367,7 @@ PmCreateProcessInternal(
         goto exit;
     }
 
-    osStatus = handle_create(&handle);
+    osStatus = OSHandleCreate(&handle);
     if (osStatus != OS_EOK) {
         ERROR("PmCreateProcessInternal failed to allocate a system handle for process");
         PeUnloadImage(image);

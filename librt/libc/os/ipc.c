@@ -47,7 +47,7 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
 
     status = stdio_handle_create(-1, WX_OPEN | WX_PIPE | WX_DONTINHERIT, &io_object);
     if (status) {
-        handle_destroy(handle);
+        OSHandleDestroy(handle);
         return -1;
     }
     

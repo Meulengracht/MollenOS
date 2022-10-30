@@ -241,7 +241,7 @@ FutexInitialize(void)
 
 oserr_t
 FutexWait(
-        _In_ OSSyscallContext_t* syscallContext,
+        _In_ OSAsyncContext_t* asyncContext,
         _In_ _Atomic(int)*       futex,
         _In_ int                 expectedValue,
         _In_ int                 flags,
@@ -303,8 +303,8 @@ CheckValue:
 
     // Are we running in a supported async syscall context? Then we can fork
     // the thread that were supposed to wait.
-    if (syscallContext != NULL) {
-        oserr_t oserr = ThreadFork(syscallContext);
+    if (asyncContext != NULL) {
+        oserr_t oserr = ThreadFork(asyncContext);
         if (oserr != OS_EFORKED) {
             // If fork returned an actual error, then we are aborting the operation,
             // and we should remember to do clenaup
@@ -318,8 +318,8 @@ CheckValue:
 
         // If fork returned OS_EFORKED then continue operation, but we *MUST* perform an
         // additional value check here, as we've done a thread switch at this point. Make sure
-        // we don't end up in a fork loop, so NULL the syscallContext
-        syscallContext = NULL;
+        // we don't end up in a fork loop, so NULL the asyncContext
+        asyncContext = NULL;
         goto CheckValue;
     }
     

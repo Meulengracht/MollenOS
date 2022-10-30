@@ -49,7 +49,7 @@ int ioset(int flags)
         return -1;
     }
 
-    oserr = notification_queue_create(0, &handle);
+    oserr = OSNotificationQueueCreate(0, &handle);
     if (oserr != OS_EOK) {
         (void)OsErrToErrNo(oserr);
         stdio_handle_destroy(ioObject, 0);
@@ -68,7 +68,6 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 {
     stdio_handle_t*     setObject = stdio_handle_get(evt_iod);
     stdio_handle_t*     ioObject  = stdio_handle_get(iod);
-    oserr_t             oserr;
     struct ioset_entry* entry;
     
     if (!event) {
@@ -93,43 +92,42 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
         entry->event.data   = event->data;
         entry->link         = NULL;
         ioset_append(setObject, entry);
-    }
-    else if (op == IOSET_MOD) {
+    } else if (op == IOSET_MOD) {
         entry = ioset_get(setObject, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
         }
         entry->event.events = event->events;
-    }
-    else if (op == IOSET_DEL) {
+    } else if (op == IOSET_DEL) {
         entry = ioset_remove(setObject, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
         }
         free(entry);
-    }
-    else {
+    } else {
         _set_errno(EINVAL);
         return -1;
     }
 
-    oserr = notification_queue_ctrl(setObject->object.handle, op,
-                                    ioObject->object.handle, event);
-    if (oserr != OS_EOK) {
-        (void)OsErrToErrNo(oserr);
-        return -1;
-    }
-    return 0;
+    return OsErrToErrNo(
+            OSNotificationQueueCtrl(
+                    setObject->object.handle,
+                    op,
+                    ioObject->object.handle,
+                    event
+            )
+    );
 }
 
 int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int timeout)
 {
+    OSAsyncContext_t    asyncContext;
     stdio_handle_t*     setObject = stdio_handle_get(set_iod);
     int                 numEvents;
     struct ioset_entry* entry;
-    oserr_t          status;
+    oserr_t             oserr;
     int                 i = 0;
     
     TRACE("[ioset] [wait] %i, %i", set_iod, max_events);
@@ -154,11 +152,19 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
         }
         entry = entry->link;
     }
-    
-    status = notification_queue_wait(setObject->object.handle, &events[0],
-                                     max_events, i, timeout, &numEvents);
-    if (status != OS_EOK) {
-        return OsErrToErrNo(status);
+
+    OSAsyncContextInitialize(&asyncContext);
+    oserr = OSNotificationQueueWait(
+            setObject->object.handle,
+            &events[0],
+            max_events,
+            i,
+            timeout,
+            &numEvents,
+            &asyncContext
+    );
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
     }
     return numEvents;
 }

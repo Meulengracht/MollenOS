@@ -45,17 +45,17 @@ __calculate_resolution(
 }
 
 
-static enum VaClockSourceType
+static enum OSClockSource
 __get_va_type(
         _In_ int base)
 {
     if (base == TIME_THREAD) {
-        return VaClockSourceType_THREAD;
+        return OSClockSource_THREAD;
     }
     else if (base == TIME_PROCESS) {
-        return VaClockSourceType_PROCESS;
+        return OSClockSource_PROCESS;
     }
-    return VaClockSourceType_MONOTONIC;
+    return OSClockSource_MONOTONIC;
 }
 
 int

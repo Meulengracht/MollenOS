@@ -379,7 +379,7 @@ void usched_timedwait(const struct timespec* until)
     struct usched_scheduler_queue* queue = __get_scheduler_queue();
     MutexLock(&queue->mutex);
     while (queue->ready == NULL) {
-        oserr_t oserr = ConditionTimedWait(&queue->condition, &queue->mutex, until);
+        oserr_t oserr = ConditionTimedWait(&queue->condition, &queue->mutex, until, NULL);
         if (oserr == OS_ETIMEOUT) {
             break;
         }
@@ -392,7 +392,7 @@ void usched_wait(void)
     struct usched_scheduler_queue* queue = __get_scheduler_queue();
     MutexLock(&queue->mutex);
     while (queue->ready == NULL) {
-        ConditionWait(&queue->condition, &queue->mutex);
+        ConditionWait(&queue->condition, &queue->mutex, NULL);
     }
     MutexUnlock(&queue->mutex);
 }

@@ -192,7 +192,7 @@ ControlHandleSet(
 oserr_t
 WaitForHandleSet(
         _In_  uuid_t              handle,
-        _In_  OSSyscallContext_t* syscallContext,
+        _In_  OSAsyncContext_t* asyncContext,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
@@ -221,7 +221,7 @@ WaitForHandleSet(
     // Wait for response by 'polling' the value
     while (!numberOfEvents) {
         oserr_t oserr = FutexWait(
-                syscallContext,
+                asyncContext,
                 &set->events_pending,
                 numberOfEvents,
                 0,

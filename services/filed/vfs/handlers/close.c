@@ -57,7 +57,7 @@ oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
     // which means we try to destroy the handle first, and only if we were the final
     // call we handle cleanup of this file-handle. This also acts as a barrier for
     // synchronization.
-    osStatus = handle_destroy(handleID);
+    osStatus = OSHandleDestroy(handleID);
     if (osStatus == OS_EINCOMPLETE) {
         return OS_EOK;
     } else if (osStatus != OS_EOK) {

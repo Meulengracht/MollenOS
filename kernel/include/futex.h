@@ -23,7 +23,7 @@
 #ifndef __FUTEX_H__
 #define __FUTEX_H__
 
-#include <os/types/syscall.h>
+#include <os/types/async.h>
 #include <os/futex.h>
 
 KERNELAPI void KERNELABI
@@ -34,7 +34,7 @@ FutexInitialize(void);
  * the expected value otherwise the wait is ignored. */
 KERNELAPI oserr_t KERNELABI
 FutexWait(
-        _In_ OSSyscallContext_t* syscallContext,
+        _In_ OSAsyncContext_t* asyncContext,
         _In_ _Atomic(int)*       futex,
         _In_ int                 expectedValue,
         _In_ int                 flags,

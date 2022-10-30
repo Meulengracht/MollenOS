@@ -28,11 +28,11 @@
 
 oserr_t
 ScFutexWait(
-        _In_ OSSyscallContext_t* syscallContext,
-        _In_ FutexParameters_t*  parameters)
+        _In_ OSAsyncContext_t* asyncContext,
+        _In_ OSFutexParameters_t*  parameters)
 {
     return FutexWait(
-            syscallContext,
+            asyncContext,
             parameters->_futex0,
             parameters->_val0,
             parameters->_flags,
@@ -45,7 +45,7 @@ ScFutexWait(
 
 oserr_t
 ScFutexWake(
-    _In_ FutexParameters_t* parameters)
+        _In_ OSFutexParameters_t* parameters)
 {
     // Also two versions of wake
     if (parameters->_flags & FUTEX_FLAG_OP) {

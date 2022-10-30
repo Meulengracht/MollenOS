@@ -186,7 +186,7 @@ HandleSocketStreamData(
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
-                handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+                OSNotificationQueuePost((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
                 return OS_EOOM;
             }
             
@@ -199,7 +199,7 @@ HandleSocketStreamData(
             break;
         }
     }
-    handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+    OSNotificationQueuePost((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
     return OS_EOK;
 }
 
@@ -302,7 +302,7 @@ HandleSocketPacketData(
             
             streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
             streambuffer_write_packet_end(TargetStream, Base, BytesRead);
-            handle_post_notification((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+            OSNotificationQueuePost((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
@@ -511,7 +511,7 @@ HandleLocalConnectionRequest(
         // TODO If the backlog is full, reject
         // return OsConnectionRefused
         queue_push(&targetSocket->ConnectionRequests, &connectionRequest->Header);
-        handle_post_notification((uuid_t)(uintptr_t)targetSocket->Header.key, IOSETCTL);
+        OSNotificationQueuePost((uuid_t)(uintptr_t)targetSocket->Header.key, IOSETCTL);
     }
     mtx_unlock(&targetSocket->SyncObject);
     
@@ -568,7 +568,7 @@ DomainLocalDisconnect(
         // disconnect peer-socket as-well, and notify them of the disconnect
         peerSocket->Domain->ConnectedSocket = UUID_INVALID;
         peerSocket->Configuration.Connected = 0;
-        handle_post_notification(socket->Domain->ConnectedSocket, IOSETCTL);
+        OSNotificationQueuePost(socket->Domain->ConnectedSocket, IOSETCTL);
         osStatus = OS_EOK;
     }
 

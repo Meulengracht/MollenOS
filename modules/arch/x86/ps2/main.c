@@ -229,7 +229,7 @@ OnLoad(void)
     return OS_EOK;
 }
 
-oserr_t
+void
 OnUnload(void)
 {
     // Destroy the io-spaces we created
@@ -241,7 +241,6 @@ OnUnload(void)
         ReleaseDeviceIo(Ps2Controller->Data);
     }
     free(Ps2Controller);
-    return OS_EOK;
 }
 
 oserr_t OnEvent(struct ioset_event* event)

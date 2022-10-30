@@ -22,6 +22,7 @@
 struct timespec;
 
 #include <os/osdefs.h>
+#include <os/types/async.h>
 #include <os/mutex.h>
 
 typedef struct Condition {
@@ -73,8 +74,9 @@ ConditionBroadcast(
  */
 CRTDECL(oserr_t,
 ConditionWait(
-        _In_ Condition_t* cond,
-        _In_ Mutex_t*     mutex));
+        _In_ Condition_t*        cond,
+        _In_ Mutex_t*            mutex,
+        _In_ OSAsyncContext_t* asyncContext));
 
 /**
  * @brief Atomically unlocks the mutex pointed to by mutex and blocks on the
@@ -91,7 +93,8 @@ CRTDECL(oserr_t,
 ConditionTimedWait(
         _In_ Condition_t* restrict           cond,
         _In_ Mutex_t* restrict               mutex,
-        _In_ const struct timespec* restrict timePoint));
+        _In_ const struct timespec* restrict timePoint,
+        _In_ OSAsyncContext_t*             asyncContext));
 
 /**
  * @brief Destroys the condition variable pointed to by cond. If there are threads

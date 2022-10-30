@@ -22,11 +22,16 @@
 #ifndef __TYPES_TIME_H__
 #define __TYPES_TIME_H__
 
-enum VaClockSourceType {
-    VaClockSourceType_MONOTONIC, // Provides a monotonic tick since the computer was booted
-    VaClockSourceType_THREAD,    // Provides a monotonic tick since the calling thread was started.
-    VaClockSourceType_PROCESS,   // Provides a monotonic tick since the current process was started.
-    VaClockSourceType_HPC        // Provides a high-precision tick counter
+enum OSClockSource {
+    OSClockSource_MONOTONIC, // Provides a monotonic tick since the computer was booted
+    OSClockSource_THREAD,    // Provides a monotonic tick since the calling thread was started.
+    OSClockSource_PROCESS,   // Provides a monotonic tick since the current process was started.
+    OSClockSource_HPC        // Provides a high-precision tick counter
 };
+
+typedef struct OSTime {
+    int64_t Seconds;
+    int64_t Nanoseconds;
+} OSTime_t;
 
 #endif //!__TYPES_TIME_H__

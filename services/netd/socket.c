@@ -113,7 +113,7 @@ SocketCreateImpl(
     queue_construct(&Socket->ConnectionRequests);
     queue_construct(&Socket->AcceptRequests);
     
-    Status = handle_create(&Handle);
+    Status = OSHandleCreate(&Handle);
     if (Status != OS_EOK) {
         ERROR("Failed to create socket handle");
         return Status;
@@ -123,7 +123,7 @@ SocketCreateImpl(
     Status = DomainCreate(Domain, &Socket->Domain);
     if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket domain");
-        (void)handle_destroy(Handle);
+        (void)OSHandleDestroy(Handle);
         free(Socket);
         return Status;
     }
@@ -132,7 +132,7 @@ SocketCreateImpl(
     if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket domain address");
         DomainDestroy(Socket->Domain);
-        (void)handle_destroy(Handle);
+        (void)OSHandleDestroy(Handle);
         free(Socket);
         return Status;
     }
@@ -141,7 +141,7 @@ SocketCreateImpl(
     if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(Socket->Domain);
-        (void)handle_destroy(Handle);
+        (void)OSHandleDestroy(Handle);
         free(Socket);
         return Status;
     }
@@ -151,7 +151,7 @@ SocketCreateImpl(
         ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
-        (void)handle_destroy(Handle);
+        (void)OSHandleDestroy(Handle);
         free(Socket);
         return Status;
     }
@@ -175,7 +175,7 @@ SocketShutdownImpl(
         DomainDestroy(Socket->Domain);
         DestroySocketPipe(&Socket->Receive);
         DestroySocketPipe(&Socket->Send);
-        (void)handle_destroy((uuid_t)(uintptr_t)Socket->Header.key);
+        (void)OSHandleDestroy((uuid_t)(uintptr_t)Socket->Header.key);
         free(Socket);
         return OS_EOK;
     }

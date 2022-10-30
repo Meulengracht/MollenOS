@@ -22,6 +22,6 @@ clock_t
 clock(void)
 {
     UInteger64_t tick = {{0 } };
-    VaGetClockTick(VaClockSourceType_MONOTONIC, &tick);
+    VaGetClockTick(OSClockSource_MONOTONIC, &tick);
     return (clock_t)tick.QuadPart;
 }

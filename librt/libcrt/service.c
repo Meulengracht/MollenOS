@@ -27,16 +27,11 @@
 #include <os/usched/job.h>
 #include <stdlib.h>
 
-struct __gracht_job_context {
-    int set_iod;
-};
-
 extern void GetServiceAddress(IPCAddress_t*);
 extern void ServiceInitialize(void);
 
-static gracht_server_t*            g_server     = NULL;
-static struct gracht_link_vali*    g_serverLink = NULL;
-static struct __gracht_job_context g_grachtContext = { 0 };
+static gracht_server_t*         g_server     = NULL;
+static struct gracht_link_vali* g_serverLink = NULL;
 
 extern void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 
@@ -55,28 +50,13 @@ __crt_get_service_server(void)
 static void
 __gracht_job(void* argument, void* cancellationToken)
 {
-    struct __gracht_job_context* context = argument;
-    struct ioset_event           events[32];
-    int                          num_events;
-
-    while (usched_is_cancelled(cancellationToken) == false) {
-        num_events = ioset_wait(context->set_iod, &events[0], 32, 0);
-        for (int i = 0; i < num_events; i++) {
-            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
-                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
-            }
-            else {
-                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
-            }
-        }
-    }
-}
-
-static void __crt_service_init(void)
-{
+    struct ioset_event            events[32];
+    int                           num_events;
     gracht_server_configuration_t config;
     IPCAddress_t                  addr = { .Type = IPC_ADDRESS_PATH };
     int                           status;
+
+    _CRT_UNUSED(argument);
     GetServiceAddress(&addr);
 
     // initialize the link
@@ -103,28 +83,39 @@ static void __crt_service_init(void)
     }
 
     // listen to client events as well
-    ioset_ctrl(config.set_descriptor, IOSET_ADD,
-               gracht_client_iod(GetGrachtClient()),
-               &(struct ioset_event) {
-                       .data.iod = gracht_client_iod(GetGrachtClient()),
-                       .events   = IOSETIN | IOSETCTL | IOSETLVT
-   });
+    ioset_ctrl(
+            config.set_descriptor, IOSET_ADD,
+            gracht_client_iod(GetGrachtClient()),
+            &(struct ioset_event) {
+                .data.iod = gracht_client_iod(GetGrachtClient()),
+                .events   = IOSETIN | IOSETCTL | IOSETLVT
+            }
+    );
 
+    while (usched_is_cancelled(cancellationToken) == false) {
+        num_events = ioset_wait(config.set_descriptor, &events[0], 32, 0);
+        for (int i = 0; i < num_events; i++) {
+            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
+                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
+            }
+            else {
+                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
+            }
+        }
+    }
+}
+
+static void __crt_service_init(void)
+{
     // Initialize the userspace scheduler to support request based
     // services in an async matter, and do this before we call ServiceInitialize
     // as the service might queue tasks up on load.
     usched_xunit_init();
 
-    // Queue up the __gracht_job as a detached job, as it does not run in
-    // green-thread context. So any blocking that makes will stall the execution
-    // unit. To counter this we run it isolated
-    struct usched_job_parameters jobParameters;
-    usched_job_parameters_init(&jobParameters);
-    usched_job_parameters_set_detached(&jobParameters, true);
-
-    g_grachtContext.set_iod = config.set_descriptor;
-
-    usched_job_queue3(__gracht_job, &g_grachtContext, &jobParameters);
+    // Queue the gracht job up ot allow for server initialization first. This should be
+    // queued before the main initializer, as that will most likely register gracht protocols,
+    // and that needs gracht server and client to be setup
+    usched_job_queue(__gracht_job, NULL);
 
     // Enter the eternal program loop. This will execute jobs untill exit() is called.
     // We use ServiceInitialize as the programs main function, we expect it to return relatively quick

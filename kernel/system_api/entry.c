@@ -87,8 +87,8 @@ extern oserr_t ScThreadSetCurrentName(const char* ThreadName);
 extern oserr_t ScThreadGetCurrentName(char* ThreadNameBuffer, size_t MaxLength);
 
 // Synchronization system calls
-extern oserr_t ScFutexWait(OSSyscallContext_t*, FutexParameters_t*);
-extern oserr_t ScFutexWake(FutexParameters_t*);
+extern oserr_t ScFutexWait(OSAsyncContext_t*, OSFutexParameters_t*);
+extern oserr_t ScFutexWake(OSFutexParameters_t*);
 extern oserr_t ScEventCreate(unsigned int, unsigned int, uuid_t*, atomic_int**);
 
 // Memory system calls
@@ -117,7 +117,7 @@ extern oserr_t ScSetHandleActivity(uuid_t, unsigned int);
 
 extern oserr_t ScCreateHandleSet(unsigned int, uuid_t*);
 extern oserr_t ScControlHandleSet(uuid_t, int, uuid_t, unsigned int, struct ioset_event*);
-extern oserr_t ScListenHandleSet(uuid_t, OSSyscallContext_t*, HandleSetWaitParameters_t*, int*);
+extern oserr_t ScListenHandleSet(uuid_t, OSAsyncContext_t*, HandleSetWaitParameters_t*, int*);
 
 // Misc interface
 extern oserr_t ScInstallSignalHandler(uintptr_t handler);
@@ -125,8 +125,8 @@ extern oserr_t ScFlushHardwareCache(int Cache, void* Start, size_t Length);
 extern oserr_t ScSystemQuery(SystemDescriptor_t*);
 
 // Timing interface
-extern oserr_t ScSystemClockTick(enum VaClockSourceType, UInteger64_t*);
-extern oserr_t ScSystemClockFrequency(enum VaClockSourceType, UInteger64_t*);
+extern oserr_t ScSystemClockTick(enum OSClockSource, UInteger64_t*);
+extern oserr_t ScSystemClockFrequency(enum OSClockSource, UInteger64_t*);
 extern oserr_t ScSystemWallClock(Integer64_t*);
 extern oserr_t ScTimeSleep(UInteger64_t*, UInteger64_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
@@ -260,7 +260,6 @@ SyscallHandle(
             (void*)CONTEXT_SC_ARG0(context), (void*)CONTEXT_SC_ARG1(context),
             (void*)CONTEXT_SC_ARG2(context), (void*)CONTEXT_SC_ARG3(context),
             (void*)CONTEXT_SC_ARG4(context));
-    CONTEXT_SC_RET0(context) = returnValue;
 
     // Is the thread that is handling the system call a fork? Then the original
     // thread has already returned to userspace and this thread should notify
@@ -269,10 +268,12 @@ SyscallHandle(
     // than we were on entry.
     thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
     if (ThreadFlags(thread) & THREADING_FORKED) {
+        OSAsyncContext_t* asyncContext = ThreadSyscallContext(thread);
+        asyncContext->ErrorCode = (oserr_t)returnValue;
         oserr_t oserr = SignalSend(
                 ThreadParent(thread),
                 SIGSYSCALL,
-                ThreadSyscallContext(thread)
+                asyncContext
         );
         assert(oserr == OS_EOK);
 
@@ -283,6 +284,9 @@ SyscallHandle(
         // catch all, the thread must not escape
         for (;;) { }
     }
+
+    // Set the return code for the context before exitting the syscall handler
+    CONTEXT_SC_RET0(context) = returnValue;
 
     // Before returning to userspace code, queue up any signals that might
     // have been queued up for us.
