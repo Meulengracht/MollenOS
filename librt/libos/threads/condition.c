@@ -57,7 +57,7 @@ ConditionSignal(
     parameters._futex0  = &cond->Value;
     parameters._val0    = 1;
     parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-	return Futex(&parameters, NULL);
+	return OSFutex(&parameters, NULL);
 }
 
 oserr_t
@@ -73,7 +73,7 @@ ConditionBroadcast(
     parameters._futex0  = &cond->Value;
     parameters._val0    = atomic_load(&cond->Value);
     parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-	return Futex(&parameters, NULL);
+	return OSFutex(&parameters, NULL);
 }
 
 oserr_t
@@ -96,7 +96,7 @@ ConditionWait(
     parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
     parameters._timeout = 0;
 
-    oserr = Futex(&parameters, asyncContext);
+    oserr = OSFutex(&parameters, asyncContext);
     (void)MutexLock(mutex);
     return oserr;
 }
@@ -137,7 +137,7 @@ ConditionTimedWait(
     parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
     parameters._timeout = msec;
     
-    status = Futex(&parameters, asyncContext);
+    status = OSFutex(&parameters, asyncContext);
     MutexLock(mutex);
     return status;
 }

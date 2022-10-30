@@ -89,9 +89,9 @@ ScTimeSleep(
         _In_      UInteger64_t* duration,
         _Out_Opt_ UInteger64_t* remainingOut)
 {
-    oserr_t osStatus;
-    clock_t    start;
-    clock_t    end;
+    oserr_t oserr;
+    clock_t start;
+    clock_t end;
 
     if (!duration) {
         return OS_EINVALPARAMS;
@@ -99,13 +99,13 @@ ScTimeSleep(
     TRACE("ScTimeSleep(duration=%llu)", duration->QuadPart);
 
     SystemTimerGetTimestamp(&start);
-    osStatus = SchedulerSleep(duration->QuadPart, &end);
-    if (osStatus == OS_EINTERRUPTED && remainingOut) {
+    oserr = SchedulerSleep(duration->QuadPart, &end);
+    if (oserr == OS_EINTERRUPTED && remainingOut) {
         SystemTimerGetTimestamp(&end);
         remainingOut->QuadPart = duration->QuadPart - MAX((end - start), duration->QuadPart);
     }
-    TRACE("ScTimeSleep returns=%u", osStatus);
-    return osStatus;
+    TRACE("ScTimeSleep returns=%u", oserr);
+    return oserr;
 }
 
 oserr_t

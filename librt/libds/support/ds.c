@@ -31,8 +31,8 @@
 #include <debug.h>
 #include <heap.h>
 
-extern oserr_t ScFutexWait(OSAsyncContext_t*, FutexParameters_t*);
-extern oserr_t ScFutexWake(FutexParameters_t*);
+extern oserr_t ScFutexWait(OSAsyncContext_t*, OSFutexParameters_t*);
+extern oserr_t ScFutexWake(OSFutexParameters_t*);
 #else
 #include <os/futex.h>
 #include <ddk/utils.h>
@@ -80,7 +80,7 @@ void dswait(OSFutexParameters_t* params)
 #ifdef __LIBDS_KERNEL_BUILD
     ScFutexWait(NULL, params);
 #else
-    Futex(params, NULL);
+    OSFutex(params, NULL);
 #endif
 }
 
@@ -89,7 +89,7 @@ void dswake(OSFutexParameters_t* params)
 #ifdef __LIBDS_KERNEL_BUILD
     ScFutexWake(params);
 #else
-    Futex(params, NULL);
+    OSFutex(params, NULL);
 #endif
 }
 

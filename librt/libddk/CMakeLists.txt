@@ -58,7 +58,6 @@ add_library(libddk
         debug.c
         device.c
         deviceio.c
-        eventqueue.c
         handle.c
         interrupt.c
         io.c

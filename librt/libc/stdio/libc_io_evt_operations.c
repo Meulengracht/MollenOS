@@ -44,7 +44,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
             }
 
             parameters._val0 = value;
-            oserr = Futex(&parameters, NULL);
+            oserr = OSFutex(&parameters, NULL);
             if (oserr != OS_EOK) {
                 break;
             }
@@ -85,7 +85,7 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
     }
 
     if (parameters._val0) {
-        Futex(&parameters, NULL);
+        OSFutex(&parameters, NULL);
         status = OS_EOK;
     }
 
