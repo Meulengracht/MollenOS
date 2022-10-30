@@ -24,7 +24,7 @@
 
 #include <ds/dsdefs.h>
 
-typedef struct FutexParameters FutexParameters_t;
+typedef struct FutexParameters OSFutexParameters_t;
 
 DSDECL(void*, dsalloc(size_t size));
 DSDECL(void,  dsfree(void* pointer));

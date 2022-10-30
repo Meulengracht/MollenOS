@@ -27,7 +27,7 @@
 
 #include <os/osdefs.h>
 #include <os/context.h>
-#include <os/types/syscall.h>
+#include <os/types/async.h>
 #include <ds/list.h>
 #include <semaphore.h>
 #include <mutex.h>
@@ -95,12 +95,12 @@ ThreadCreate(
 
 /**
  * @brief
- * @param syscallContext
+ * @param asyncContext
  * @return
  */
 KERNELAPI oserr_t KERNELABI
 ThreadFork(
-        _In_ OSSyscallContext_t* syscallContext);
+        _In_ OSAsyncContext_t* asyncContext);
 
 /**
  * @brief Marks the thread with the given id for finished, and it will be cleaned up
@@ -268,7 +268,7 @@ ThreadPlatformBlock(
  * @param[In] thread The thread to retrieve the syscall context pointer from.
  * @return    A pointer to the system call context.
  */
-KERNELAPI OSSyscallContext_t* KERNELABI
+KERNELAPI OSAsyncContext_t* KERNELABI
 ThreadSyscallContext(
         _In_ Thread_t* thread);
 

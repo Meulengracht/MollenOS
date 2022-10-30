@@ -70,7 +70,7 @@ VaGetWallClock(
  */
 CRTDECL(oserr_t,
 VaGetClockTick(
-        _In_ enum VaClockSourceType source,
+        _In_ enum OSClockSource source,
         _In_ UInteger64_t*       tickOut));
 
 /**
@@ -83,7 +83,7 @@ VaGetClockTick(
  */
 CRTDECL(oserr_t,
 VaGetClockFrequency(
-        _In_ enum VaClockSourceType source,
+        _In_ enum OSClockSource source,
         _In_ UInteger64_t*       frequencyOut));
 
 _CODE_END

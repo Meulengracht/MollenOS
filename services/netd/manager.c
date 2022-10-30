@@ -34,7 +34,6 @@
 #include "socket.h"
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
 
 #include "sys_socket_service_server.h"
 
@@ -108,11 +107,10 @@ static int
 SocketMonitor(
     _In_ void* Context)
 {
-    int                 RunForever = 1;
-    struct ioset_event * Events;
+    struct ioset_event* Events;
     int                 EventCount;
     int                 i;
-    oserr_t          Status;
+    oserr_t             oserr;
     
     _CRT_UNUSED(Context);
     TRACE("[socket monitor] starting");
@@ -122,11 +120,18 @@ SocketMonitor(
         return ENOMEM;
     }
     
-    while (RunForever) {
-        Status = notification_queue_wait(g_socketSet, Events,
-                                         NETWORK_MANAGER_MONITOR_MAX_EVENTS, 0, 0, &EventCount);
-        if (Status != OS_EOK && Status != OS_EINTERRUPTED) {
-            ERROR("[socket_monitor] notification_queue_wait FAILED: %u", Status);
+    for (;;) {
+        oserr = OSNotificationQueueWait(
+                g_socketSet,
+                Events,
+                NETWORK_MANAGER_MONITOR_MAX_EVENTS,
+                0,
+                0,
+                &EventCount,
+                NULL
+        );
+        if (oserr != OS_EOK && oserr != OS_EINTERRUPTED) {
+            ERROR("[socket_monitor] OSNotificationQueueWait FAILED: %u", oserr);
             continue;
         }
         
@@ -166,27 +171,22 @@ NetworkMonitor(
 oserr_t
 NetworkManagerInitialize(void)
 {
-    oserr_t Status;
-    int        Code;
-    TRACE("[net_manager] initialize");
+    oserr_t oserr;
+    int     code;
     
     rb_tree_construct(&g_sockets);
-    Status = notification_queue_create(0, &g_socketSet);
-    if (Status != OS_EOK) {
-        ERROR("[net_manager] failed to create socket handle set");
-        return Status;
+    oserr = OSNotificationQueueCreate(0, &g_socketSet);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     
     // Spawn the socket monitor thread, the network monitor threads are
     // only spawned once a network card is registered.
-    TRACE("[net_manager] creating thread");
-    Code = thrd_create(&g_socketMonitorHandle, SocketMonitor, NULL);
-    if (Code != thrd_success) {
-        ERROR("[net_manager] thrd_create failed %i", Code);
+    code = thrd_create(&g_socketMonitorHandle, SocketMonitor, NULL);
+    if (code != thrd_success) {
         return OS_EUNKNOWN;
     }
-    TRACE("[net_manager] done");
-    return Status;
+    return oserr;
 }
 
 oserr_t
@@ -218,7 +218,7 @@ NetworkManagerSocketCreate(
     // Add it to the handle set
     event.events = IOSETOUT;
     event.data.handle = (uuid_t)(uintptr_t)Socket->Header.key;
-    Status = notification_queue_ctrl(g_socketSet, IOSET_ADD,
+    Status = OSNotificationQueueCtrl(g_socketSet, IOSET_ADD,
                                      (uuid_t)(uintptr_t)Socket->Header.key, &event);
     if (Status != OS_EOK) {
         // what the fuck TODO
@@ -265,7 +265,7 @@ NetworkManagerSocketShutdown(
             return OS_ENOENT;
         }
         
-        Status = notification_queue_ctrl(g_socketSet, IOSET_DEL, Handle, NULL);
+        Status = OSNotificationQueueCtrl(g_socketSet, IOSET_DEL, Handle, NULL);
         if (Status != OS_EOK) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }

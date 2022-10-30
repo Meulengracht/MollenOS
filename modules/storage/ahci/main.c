@@ -113,12 +113,11 @@ ClearControllerCallback(
     AhciControllerDestroy((AhciController_t*)element->value);
 }
 
-oserr_t
+void
 OnUnload(void)
 {
     list_clear(&controllers, ClearControllerCallback, NULL);
     AhciManagerDestroy();
-    return OS_EOK;
 }
 
 oserr_t OnEvent(struct ioset_event* event)

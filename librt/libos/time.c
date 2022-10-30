@@ -35,14 +35,14 @@ VaGetWallClock(
 
 oserr_t
 VaGetClockTick(
-        _In_ enum VaClockSourceType source,
+        _In_ enum OSClockSource source,
         _In_ UInteger64_t*          tickOut)
 {
     if (!tickOut) {
         return OS_EINVALPARAMS;
     }
 
-    if (source == VaClockSourceType_PROCESS && !__crt_is_phoenix()) {
+    if (source == OSClockSource_PROCESS && !__crt_is_phoenix()) {
         clock_t tickBase;
         oserr_t oserr = ProcessGetTickBase(&tickBase);
         if (oserr != OS_EOK) {
@@ -57,7 +57,7 @@ VaGetClockTick(
 
 oserr_t
 VaGetClockFrequency(
-        _In_ enum VaClockSourceType source,
+        _In_ enum OSClockSource source,
         _In_ UInteger64_t*       frequencyOut)
 {
     if (!frequencyOut) {

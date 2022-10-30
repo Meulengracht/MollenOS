@@ -550,7 +550,7 @@ int stdio_handle_destroy(stdio_handle_t* handle, int flags)
 
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
-    oserr_t status = handle_post_notification(handle->object.handle, activity);
+    oserr_t status = OSNotificationQueuePost(handle->object.handle, activity);
     if (status != OS_EOK) {
         OsErrToErrNo(status);
         return -1;

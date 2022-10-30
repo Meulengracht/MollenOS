@@ -49,9 +49,9 @@ IPCContextCreate(
     }
     
     if (address && address->Type == IPC_ADDRESS_PATH) {
-        oserr = handle_set_path(handle, address->Data.Path);
+        oserr = OSHandleSetPath(handle, address->Data.Path);
         if (oserr != OS_EOK) {
-            handle_destroy(handle);
+            OSHandleDestroy(handle);
             return oserr;
         }
     }

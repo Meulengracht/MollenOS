@@ -16,19 +16,17 @@
  */
 
 #include <os/futex.h>
-#include <os/types/syscall.h>
 #include <internal/_syscalls.h>
 
 oserr_t
-Futex(
-        _In_ FutexParameters_t* parameters)
+OSFutex(
+        _In_ OSFutexParameters_t* parameters,
+        _In_ OSAsyncContext_t*    asyncContext)
 {
-    OSSyscallContext_t context;
-    oserr_t            oserr;
+    oserr_t oserr;
 
     if (FUTEX_FLAG_ACTION(parameters->_flags) == FUTEX_FLAG_WAIT) {
-        OSSyscallContextInitialize(&context);
-        oserr = Syscall_FutexWait(&context, parameters);
+        oserr = Syscall_FutexWait(asyncContext, parameters);
     } else {
         return Syscall_FutexWake(parameters);
     }
@@ -36,12 +34,12 @@ Futex(
     if (oserr == OS_EFORKED) {
         // The system call was postponed, so we should coordinate with the
         // userspace threading system right here.
-        usched_mtx_lock(&context.Mutex);
-        while (context.ErrorCode == OS_ESCSTARTED) {
-            usched_cnd_wait(&context.Condition, &context.Mutex);
+        usched_mtx_lock(&asyncContext->Mutex);
+        while (asyncContext->ErrorCode == OS_ESCSTARTED) {
+            usched_cnd_wait(&asyncContext->Condition, &asyncContext->Mutex);
         }
-        usched_mtx_unlock(&context.Mutex);
-        return context.ErrorCode;
+        usched_mtx_unlock(&asyncContext->Mutex);
+        return asyncContext->ErrorCode;
     }
     return oserr;
 }

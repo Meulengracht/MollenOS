@@ -22,19 +22,26 @@
 #include <gracht/server.h>
 #include <internal/_tls.h>
 #include <internal/_utils.h>
+#include <os/usched/xunit.h>
+#include <os/usched/job.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ioset.h>
 
 #include <sys_device_service_client.h>
 
+struct __ModuleOptions {
+    uuid_t ID;
+};
+
 // Module Interface
 extern oserr_t OnLoad(void);
-extern oserr_t OnUnload(void);
+extern void    OnUnload(void);
 extern oserr_t OnEvent(struct ioset_event* event);
 
-static gracht_server_t*         g_server     = NULL;
-static struct gracht_link_vali* g_serverLink = NULL;
+static gracht_server_t*         g_server        = NULL;
+static struct gracht_link_vali* g_serverLink    = NULL;
+static struct __ModuleOptions   g_moduleOptions = { UUID_INVALID };
 
 extern void   __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 extern char** __crt_argv(int* argcOut);
@@ -49,91 +56,42 @@ gracht_server_t* __crt_get_module_server(void)
     return g_server;
 }
 
-void __crt_module_load(
-        _In_ uuid_t moduleId)
+static void
+__crt_module_load(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
+    struct __ModuleOptions*  moduleOptions = argument;
+    _CRT_UNUSED(cancellationToken);
 
     // Call the driver load function 
     // - This will be run once, before loop
     if (OnLoad() != OS_EOK) {
         exit(-2001);
     }
+    atexit(OnUnload);
+    at_quick_exit(OnUnload);
 
     // Notify the devicemanager of our successful startup
     sys_device_notify(
             GetGrachtClient(),
             &msg.base,
-            moduleId,
+            moduleOptions->ID,
             GetNativeHandle(__crt_get_server_iod())
     );
 }
 
-_Noreturn static void
-__crt_module_main(
-        _In_ int setIod)
+static void
+__gracht_job(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
 {
-    struct ioset_event events[32];
-
-    while (1) {
-        int num_events = ioset_wait(setIod, &events[0], 32, 0);
-        for (int i = 0; i < num_events; i++) {
-            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
-                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
-            } else {
-                // Check if the driver had any IRQs registered
-                if (OnEvent(&events[i]) == OS_EOK) {
-                    continue;
-                }
-                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
-            }
-        }
-    }
-}
-
-static oserr_t
-__ParseModuleOptions(
-        _In_  char**  argv,
-        _In_  int     argc,
-        _Out_ uuid_t* moduleIdOut)
-{
-    for (int i = 0; i < argc; i++) {
-        if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
-            long moduleId = strtol(argv[i + 1], NULL, 10);
-            if (moduleId != 0) {
-                *moduleIdOut = (uuid_t)moduleId;
-                return OS_EOK;
-            }
-        }
-    }
-    return OS_ENOENT;
-}
-
-void __CrtModuleEntry(void)
-{
-    thread_storage_t              threadStorage;
+    struct ioset_event            events[32];
     gracht_server_configuration_t config;
     IPCAddress_t                  addr = { .Type = IPC_ADDRESS_HANDLE };
-    oserr_t                       oserr;
-    uuid_t                        moduleId;
     int                           status;
-    char**                        argv;
-    int                           argc;
-
-    // initialize runtime environment
-    __crt_initialize(&threadStorage, 0);
-    argv = __crt_argv(&argc);
-    if (!argv || argc < 3) {
-        ERROR("__CrtModuleEntry invalid argument count for module");
-        exit(-1);
-    }
-
-    // parse the options provided for this module
-    oserr = __ParseModuleOptions(argv, argc, &moduleId);
-    if (oserr != OS_EOK) {
-        ERROR("__CrtModuleEntry missing --id parameter for module");
-        exit(-1);
-    }
+    _CRT_UNUSED(argument);
 
     // initialize the link
     status = gracht_link_vali_create(&g_serverLink);
@@ -164,19 +122,80 @@ void __CrtModuleEntry(void)
             IOSET_ADD,
             gracht_client_iod(GetGrachtClient()),
             &(struct ioset_event) {
-                .data.iod = gracht_client_iod(GetGrachtClient()),
-                .events   = IOSETIN | IOSETCTL | IOSETLVT
+                    .data.iod = gracht_client_iod(GetGrachtClient()),
+                    .events   = IOSETIN | IOSETCTL | IOSETLVT
             }
     );
 
-    // Wait for the device-manager service, as all modules require the device-manager
-    // service to perform requests.
-    if (WaitForDeviceService(2000) != OS_EOK) {
-        exit(-2002);
+    while (usched_is_cancelled(cancellationToken) == false) {
+        int num_events = ioset_wait(config.set_descriptor, &events[0], 32, 0);
+        for (int i = 0; i < num_events; i++) {
+            if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
+                gracht_client_wait_message(GetGrachtClient(), NULL, 0);
+            } else {
+                // Check if the driver had any IRQs registered
+                if (OnEvent(&events[i]) == OS_EOK) {
+                    continue;
+                }
+                gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
+            }
+        }
+    }
+}
+
+static oserr_t
+__ParseModuleOptions(
+        _In_ char**                  argv,
+        _In_ int                     argc,
+        _In_ struct __ModuleOptions* options)
+{
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
+            long moduleId = strtol(argv[i + 1], NULL, 10);
+            if (moduleId != 0) {
+                options->ID = (uuid_t)moduleId;
+                return OS_EOK;
+            }
+        }
+    }
+    return OS_ENOENT;
+}
+
+void __CrtModuleEntry(void)
+{
+    thread_storage_t threadStorage;
+    oserr_t          oserr;
+    uuid_t           moduleId;
+    char**           argv;
+    int              argc;
+
+    // initialize runtime environment
+    __crt_initialize(&threadStorage, 0);
+    argv = __crt_argv(&argc);
+    if (!argv || argc < 3) {
+        ERROR("__CrtModuleEntry invalid argument count for module");
+        exit(-1);
     }
 
-    __crt_module_load(moduleId);
-    atexit((void (*)(void))OnUnload);
-    at_quick_exit((void (*)(void))OnUnload);
-    __crt_module_main(config.set_descriptor);
+    // parse the options provided for this module
+    oserr = __ParseModuleOptions(argv, argc, &g_moduleOptions);
+    if (oserr != OS_EOK) {
+        ERROR("__CrtModuleEntry missing --id parameter for module");
+        exit(-1);
+    }
+
+    // Initialize the userspace scheduler to support request based
+    // services in an async matter, and do this before we call ServiceInitialize
+    // as the service might queue tasks up on load.
+    usched_xunit_init();
+
+    // Queue the gracht job up ot allow for server initialization first. This should be
+    // queued before the main initializer, as that will most likely register gracht protocols,
+    // and that needs gracht server and client to be setup
+    usched_job_queue(__gracht_job, NULL);
+
+    // Enter the eternal program loop. This will execute jobs untill exit() is called.
+    // We use ServiceInitialize as the programs main function, we expect it to return relatively quick
+    // and should be only used to initialize service subsystems.
+    usched_xunit_main_loop(__crt_module_load, &g_moduleOptions);
 }

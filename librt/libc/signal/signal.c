@@ -21,6 +21,8 @@
  * - Definitions, prototypes and information needed.
  */
 
+#define __TRACE
+
 #include <assert.h>
 #include <ddk/utils.h>
 #include <errno.h>
@@ -30,7 +32,7 @@
 #include <internal/_syscalls.h>
 #include <os/context.h>
 #include <os/threads.h>
-#include <os/types/syscall.h>
+#include <os/types/async.h>
 #include <os/usched/job.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -136,9 +138,10 @@ static void __HandleSystemCallCompletion(
         _In_ void* argument0,
         _In_ void* cancellationToken)
 {
-    OSSyscallContext_t* context = argument0;
+    OSAsyncContext_t* context = argument0;
     assert(context != NULL);
     _CRT_UNUSED(cancellationToken);
+    TRACE("__HandleSystemCallCompletion()");
 
     usched_mtx_lock(&context->Mutex);
     usched_cnd_notify_one(&context->Condition);

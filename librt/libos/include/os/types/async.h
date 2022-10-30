@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __OS_TYPES_SYSCALL_H__
-#define	__OS_TYPES_SYSCALL_H__
+#ifndef __OS_TYPES_ASYNC_H__
+#define	__OS_TYPES_ASYNC_H__
 
 #include <os/osdefs.h>
 #include <os/usched/cond.h>
@@ -27,16 +27,16 @@
  * unwanted to ever block. Instead the system call should keep running and allow the thread
  * to return immediately to userspace, and instead be signalled once the result is ready.
  */
-typedef struct OSSyscallContext {
+typedef struct OSAsyncContext {
     struct usched_mtx Mutex;
     struct usched_cnd Condition;
     oserr_t           ErrorCode;
-} OSSyscallContext_t;
+} OSAsyncContext_t;
 
-static inline void OSSyscallContextInitialize(OSSyscallContext_t* context) {
+static inline void OSAsyncContextInitialize(OSAsyncContext_t* context) {
     usched_cnd_init(&context->Condition);
     usched_mtx_init(&context->Mutex);
     context->ErrorCode = OS_ESCSTARTED;
 }
 
-#endif //!__OS_TYPES_SYSCALL_H__
+#endif //!__OS_TYPES_ASYNC_H__

@@ -106,13 +106,13 @@ static void __CleanupDeviceEntry(
     // not really used
 }
 
-oserr_t
+void
 UsbCoreDestroy(void)
 {
     UsbCoreHubsCleanup();
     UsbCoreControllersCleanup();
     list_clear(&g_devices, __CleanupDeviceEntry, NULL);
-    return UsbCleanup();
+    UsbCleanup();
 }
 
 oserr_t

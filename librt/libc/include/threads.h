@@ -630,7 +630,7 @@ static inline int cnd_broadcast(cnd_t* cond) {
  * @return
  */
 static inline int cnd_wait(cnd_t* cond, mtx_t* mutex) {
-    return __to_thrd_error(ConditionWait(cond, mutex));
+    return __to_thrd_error(ConditionWait(cond, mutex, NULL));
 }
 
 /**
@@ -645,7 +645,7 @@ static inline int cnd_wait(cnd_t* cond, mtx_t* mutex) {
  * @return
  */
 static inline int cnd_timedwait(cnd_t* restrict cond, mtx_t* restrict mutex, const struct timespec* restrict time_point) {
-    return __to_thrd_error(ConditionTimedWait(cond, mutex, time_point));
+    return __to_thrd_error(ConditionTimedWait(cond, mutex, time_point, NULL));
 }
 
 /**

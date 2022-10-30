@@ -292,6 +292,7 @@ DmDeviceCreate(
 
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up
+#define __OSCONFIG_NODRIVERS
 #ifndef __OSCONFIG_NODRIVERS
     if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
         __TryLocateDriver(deviceNode);
@@ -302,6 +303,7 @@ DmDeviceCreate(
 
 void DmDeviceRefreshDrivers(void)
 {
+#ifndef __OSCONFIG_NODRIVERS
     usched_mtx_lock(&g_devicesLock);
     foreach (i, &g_devices) {
         struct DmDevice* device = i->value;
@@ -311,4 +313,5 @@ void DmDeviceRefreshDrivers(void)
         __TryLocateDriver(device);
     }
     usched_mtx_unlock(&g_devicesLock);
+#endif
 }

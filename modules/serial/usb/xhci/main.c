@@ -76,7 +76,7 @@ oscode_t OnLoad(void)
 /* OnUnload
  * This is called when the driver is being unloaded
  * and should free all resources allocated by the system */
-oscode_t OnUnload(void)
+void OnUnload(void)
 {
 	// Iterate registered controllers
 	foreach(cNode, GlbControllers) {

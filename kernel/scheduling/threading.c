@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "thread"
-//#define __TRACE
+#define __TRACE
 //#define __OSCONFIG_DEBUG_SCHEDULER
 #define __need_quantity
 
@@ -137,7 +137,7 @@ static unsigned int __InheritThreadFlags(unsigned int flags)
 
 oserr_t
 ThreadFork(
-        _In_ OSSyscallContext_t* syscallContext)
+        _In_ OSAsyncContext_t* asyncContext)
 {
     Thread_t* parent;
     Thread_t* thread;
@@ -218,7 +218,7 @@ ThreadFork(
     thread->ParentHandle    = parent->Handle;
     thread->KernelStackSize = parent->KernelStackSize;
     thread->UserStackSize   = 0; // Forked threads are kernel only
-    thread->SyscallContext  = syscallContext;
+    thread->SyscallContext  = asyncContext;
     SystemTimerGetClockTick(&thread->StartedAt);
 
     // Inherit the same address space, even if an application.
@@ -677,7 +677,7 @@ ThreadFlags(
     return Thread->Flags;
 }
 
-OSSyscallContext_t*
+OSAsyncContext_t*
 ThreadSyscallContext(
         _In_ Thread_t* thread)
 {

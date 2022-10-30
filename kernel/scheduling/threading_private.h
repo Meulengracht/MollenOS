@@ -24,7 +24,7 @@
 #define __VALI_THREADING_PRIVATE_H__
 
 #include <os/osdefs.h>
-#include <os/types/syscall.h>
+#include <os/types/async.h>
 #include <arch/platform.h>
 
 // Forward some structures we need
@@ -84,7 +84,7 @@ typedef struct Thread {
     // is forked, this structure must be provided and will be returned to userspace
     // once the forked thread is done, by signalling the parent thread that we are
     // done handling the system call.
-    OSSyscallContext_t* SyscallContext;
+    OSAsyncContext_t* SyscallContext;
 
     // Signaling is used to supprt the per-thread signals and contains
     // a mask, and a signal queue. The signal queue is then handled on exit

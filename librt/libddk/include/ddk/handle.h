@@ -27,6 +27,7 @@
 
 #include <ddk/ddkdefs.h>
 #include <ioset.h>
+#include <os/types/async.h>
 
 /**
  * Allocates a new handle for a system resource with a reference of 1.
@@ -34,8 +35,8 @@
  * @return          Status of the handle creation
  */
 DDKDECL(oserr_t,
-        handle_create(
-    _Out_ uuid_t* handleOut));
+OSHandleCreate(
+        _Out_ uuid_t* handleOut));
 
 /**
  * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
@@ -43,8 +44,8 @@ DDKDECL(oserr_t,
  * @return       Status of the operation
  */
 DDKDECL(oserr_t,
-        handle_destroy(
-    _In_ uuid_t handle));
+OSHandleDestroy(
+        _In_ uuid_t handle));
 
 /**
  * Registers a unique system wide path for the handle, so the handle can be accessed across the system
@@ -54,9 +55,9 @@ DDKDECL(oserr_t,
  * @return       Whether or not the path was successfully registered for the handle
  */
 DDKDECL(oserr_t,
-        handle_set_path(
-    _In_ uuid_t      handle,
-    _In_ const char* path));
+OSHandleSetPath(
+        _In_ uuid_t      handle,
+        _In_ const char* path));
 
 /**
  * Creates a new handle set that can be used for asynchronus events.
@@ -65,12 +66,12 @@ DDKDECL(oserr_t,
  * @return          status of the queue creation
  */
 DDKDECL(oserr_t,
-        notification_queue_create(
-    _In_  unsigned int flags,
-    _Out_ uuid_t*      handleOut));
+OSNotificationQueueCreate(
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut));
 
 /**
- * notification_queue_ctrl
+ * OSNotificationQueueCtrl
  * * Add, remove or modify a handle in the set.
  * @param setHandle [In] The handle of the handle set.
  * @param operation [In] The operation that should be performed.
@@ -78,14 +79,14 @@ DDKDECL(oserr_t,
  * @param event     [In] The configuration for the event to be recieved.
  */
 DDKDECL(oserr_t,
-        notification_queue_ctrl(
-    _In_ uuid_t              setHandle,
-    _In_ int                 operation,
-    _In_ uuid_t              handle,
-    _In_ struct ioset_event* event));
+OSNotificationQueueCtrl(
+        _In_ uuid_t              setHandle,
+        _In_ int                 operation,
+        _In_ uuid_t              handle,
+        _In_ struct ioset_event* event));
 
 /**
- * notification_queue_wait
+ * OSNotificationQueueWait
  * * Waits for the given handle set and stores the events that occurred in the
  * * provided array.
  * @param handle    [In]
@@ -94,24 +95,25 @@ DDKDECL(oserr_t,
  * @param timeout   [In]
  */
 DDKDECL(oserr_t,
-        notification_queue_wait(
-    _In_  uuid_t              handle,
-    _In_  struct ioset_event * events,
-    _In_  int                 maxEvents,
-    _In_  int                 pollEvents,
-    _In_  size_t              timeout,
-    _Out_ int*                numEventsOut));
+OSNotificationQueueWait(
+        _In_  uuid_t              handle,
+        _In_  struct ioset_event * events,
+        _In_  int                 maxEvents,
+        _In_  int                 pollEvents,
+        _In_  size_t              timeout,
+        _Out_ int*                numEventsOut,
+        _In_  OSAsyncContext_t*   asyncContext));
 
 /** 
- * handle_post_notification
+ * OSNotificationQueuePost
  * * Marks a handle that an event has been completed. If the handle has any
  * * sets registered they will be notified.
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags which denote which kind of event.
  */
 DDKDECL(oserr_t,
-        handle_post_notification(
-    _In_ uuid_t       handle,
-    _In_ unsigned int flags));
+OSNotificationQueuePost(
+        _In_ uuid_t       handle,
+        _In_ unsigned int flags));
 
 #endif //!__DDK_HANDLE_H__

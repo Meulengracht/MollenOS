@@ -79,7 +79,7 @@ typedef struct UsbController {
 } UsbController_t;
 
 __EXTERN oserr_t UsbCoreInitialize(void);
-__EXTERN oserr_t UsbCoreDestroy(void);
+__EXTERN void    UsbCoreDestroy(void);
 
 __EXTERN void UsbCoreHubsInitialize(void);
 __EXTERN void UsbCoreHubsCleanup(void);

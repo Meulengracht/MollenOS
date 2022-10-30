@@ -48,7 +48,7 @@ oserr_t
 ConditionSignal(
         _In_ Condition_t* cond)
 {
-    FutexParameters_t parameters;
+    OSFutexParameters_t parameters;
     
 	if (cond == NULL) {
 		return OS_EINVALPARAMS;
@@ -57,14 +57,14 @@ ConditionSignal(
     parameters._futex0  = &cond->Value;
     parameters._val0    = 1;
     parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-	return Futex(&parameters);
+	return Futex(&parameters, NULL);
 }
 
 oserr_t
 ConditionBroadcast(
         _In_ Condition_t* cond)
 {
-    FutexParameters_t parameters;
+    OSFutexParameters_t parameters;
     
 	if (cond == NULL) {
         return OS_EINVALPARAMS;
@@ -73,16 +73,17 @@ ConditionBroadcast(
     parameters._futex0  = &cond->Value;
     parameters._val0    = atomic_load(&cond->Value);
     parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-	return Futex(&parameters);
+	return Futex(&parameters, NULL);
 }
 
 oserr_t
 ConditionWait(
-        _In_ Condition_t* cond,
-        _In_ Mutex_t*     mutex)
+        _In_ Condition_t*        cond,
+        _In_ Mutex_t*            mutex,
+        _In_ OSAsyncContext_t* asyncContext)
 {
-    FutexParameters_t parameters;
-    oserr_t           oserr;
+    OSFutexParameters_t parameters;
+    oserr_t             oserr;
 	if (cond == NULL || mutex == NULL) {
 		return OS_EINVALPARAMS;
 	}
@@ -95,7 +96,7 @@ ConditionWait(
     parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
     parameters._timeout = 0;
 
-    oserr = Futex(&parameters);
+    oserr = Futex(&parameters, asyncContext);
     (void)MutexLock(mutex);
     return oserr;
 }
@@ -104,10 +105,11 @@ oserr_t
 ConditionTimedWait(
         _In_ Condition_t* restrict           cond,
         _In_ Mutex_t* restrict               mutex,
-        _In_ const struct timespec* restrict timePoint)
+        _In_ const struct timespec* restrict timePoint,
+        _In_ OSAsyncContext_t*             asyncContext)
 {
-    FutexParameters_t parameters;
-	oserr_t           status;
+    OSFutexParameters_t parameters;
+	oserr_t             status;
     time_t            msec;
 	struct timespec   now, result;
 
@@ -135,7 +137,7 @@ ConditionTimedWait(
     parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
     parameters._timeout = msec;
     
-    status = Futex(&parameters);
+    status = Futex(&parameters, asyncContext);
     MutexLock(mutex);
     return status;
 }

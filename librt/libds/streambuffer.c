@@ -225,8 +225,8 @@ streambuffer_stream_out(
     _In_ unsigned int    options)
 {
     const uint8_t*    casted_ptr    = (const uint8_t*)buffer;
-    size_t            bytes_written = 0;
-    FutexParameters_t parameters;
+    size_t              bytes_written = 0;
+    OSFutexParameters_t parameters;
     dstrace("[streambuffer_stream_out] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",
         buffer, length, options);
     //streambuffer_dump(stream);
@@ -313,9 +313,9 @@ streambuffer_write_packet_start(
     _Out_ unsigned int*   base_out,
     _Out_ unsigned int*   state_out)
 {
-    size_t            bytes_allocated = 0;
-    FutexParameters_t parameters;
-    size_t            adjusted_length;
+    size_t              bytes_allocated = 0;
+    OSFutexParameters_t parameters;
+    size_t              adjusted_length;
     sb_packethdr_t    header = { .packet_len = length };
     
     // Has the streambuffer been disabled?
@@ -399,8 +399,8 @@ streambuffer_write_packet_end(
     _In_ unsigned int    base,
     _In_ size_t          length)
 {
-    FutexParameters_t parameters;
-    size_t            adjusted_length;
+    OSFutexParameters_t parameters;
+    size_t              adjusted_length;
     
     // Synchronize with other producers, we must wait for our turn to increament
     // the comitted index, otherwise we could end up telling readers that the wrong
@@ -431,8 +431,8 @@ streambuffer_stream_in(
     _In_ unsigned int    options)
 {
     uint8_t*          casted_ptr = (uint8_t*)buffer;
-    size_t            bytes_read = 0;
-    FutexParameters_t parameters;
+    size_t              bytes_read = 0;
+    OSFutexParameters_t parameters;
     dstrace("[streambuffer_stream_in] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",
         buffer, length, options);
     //streambuffer_dump(stream);
@@ -509,8 +509,8 @@ streambuffer_read_packet_start(
     _Out_ unsigned int*   state_out)
 {
     size_t            bytes_read = 0;
-    sb_packethdr_t    header;
-    FutexParameters_t parameters;
+    sb_packethdr_t      header;
+    OSFutexParameters_t parameters;
     //streambuffer_dump(stream);
     
     // Has the streambuffer been disabled?
@@ -597,7 +597,7 @@ streambuffer_read_packet_end(
     _In_ unsigned int    base,
     _In_ size_t          length)
 {
-    FutexParameters_t parameters;
+    OSFutexParameters_t parameters;
 
     // Synchronize with other consumers, we must wait for our turn to increament
     // the comitted index, otherwise we could end up telling writers that the wrong

@@ -79,7 +79,7 @@ oserr_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     (void) DmaAttachmentUnmap(&handle->object.data.pipe.attachment);
     (void) DmaDetach(&handle->object.data.pipe.attachment);
     if (options & STDIO_CLOSE_FULL) {
-        handle_destroy(handle->object.handle);
+        OSHandleDestroy(handle->object.handle);
     }
     return OS_EOK;
 }

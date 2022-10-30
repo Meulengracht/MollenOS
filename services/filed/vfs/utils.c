@@ -400,7 +400,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
         goto cleanup;
     }
 
-    osStatus = handle_create(&handleId);
+    osStatus = OSHandleCreate(&handleId);
     if (osStatus != OS_EOK) {
         goto cleanup;
     }
@@ -412,7 +412,7 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
 
     osStatus = VFSNodeHandleAdd(handleId, node, data, accessKind);
     if (osStatus != OS_EOK) {
-        handle_destroy(handleId);
+        OSHandleDestroy(handleId);
         goto error;
     }
 

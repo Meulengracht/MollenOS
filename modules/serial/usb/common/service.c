@@ -43,11 +43,10 @@ OnLoad(void)
     return UsbManagerInitialize();
 }
 
-oserr_t
+void
 OnUnload(void)
 {
     UsbManagerDestroy();
-    return OS_EOK;
 }
 
 oserr_t OnEvent(struct ioset_event* event)

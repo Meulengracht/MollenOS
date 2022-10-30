@@ -169,7 +169,7 @@ typedef struct usb_transfer {
 #define USB_TRANSFER_ENDPOINT_CONTROL NULL
 
 __EXTERN oserr_t       UsbInitialize(void);
-__EXTERN oserr_t       UsbCleanup(void);
+__EXTERN void          UsbCleanup(void);
 __EXTERN struct dma_pool* UsbRetrievePool(void);
 
 /**

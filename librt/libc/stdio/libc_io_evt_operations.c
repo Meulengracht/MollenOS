@@ -28,8 +28,8 @@
 
 static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
-    FutexParameters_t parameters;
-    oserr_t           oserr = OS_EOK;
+    OSFutexParameters_t parameters;
+    oserr_t             oserr = OS_EOK;
     int               value;
 
     parameters._futex0  = sync_address;
@@ -44,7 +44,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
             }
 
             parameters._val0 = value;
-            oserr = Futex(&parameters);
+            oserr = Futex(&parameters, NULL);
             if (oserr != OS_EOK) {
                 break;
             }
@@ -61,8 +61,8 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 
 static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsigned int value)
 {
-    FutexParameters_t parameters;
-    oserr_t           status = OS_EINCOMPLETE;
+    OSFutexParameters_t parameters;
+    oserr_t             status = OS_EINCOMPLETE;
     int               currentValue;
     int               i;
     int               result;
@@ -85,7 +85,7 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
     }
 
     if (parameters._val0) {
-        Futex(&parameters);
+        Futex(&parameters, NULL);
         status = OS_EOK;
     }
 
@@ -133,7 +133,7 @@ oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t le
 
         result = evt_unlock(handle->object.data.evt.sync_address, 1, 1);
         if (result == OS_EOK) {
-            handle_post_notification(handle->object.handle, IOSETSYN);
+            OSNotificationQueuePost(handle->object.handle, IOSETSYN);
         }
     }
     else if (EVT_TYPE(handle->object.data.evt.flags) == EVT_SEM_EVENT) {
@@ -143,7 +143,7 @@ oserr_t stdio_evt_op_write(stdio_handle_t* handle, const void* buffer, size_t le
                             handle->object.data.evt.initialValue,
                             value);
         if (result == OS_EOK) {
-            handle_post_notification(handle->object.handle, IOSETSYN);
+            OSNotificationQueuePost(handle->object.handle, IOSETSYN);
         }
         *bytes_written = sizeof(size_t);
     }
@@ -165,7 +165,7 @@ oserr_t stdio_evt_op_close(stdio_handle_t* handle, int options)
 {
     if (options & STDIO_CLOSE_FULL) {
         if (handle->object.handle != UUID_INVALID) {
-            return handle_destroy(handle->object.handle);
+            return OSHandleDestroy(handle->object.handle);
         }
     }
     return OS_EOK;

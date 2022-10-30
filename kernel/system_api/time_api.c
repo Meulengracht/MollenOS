@@ -30,7 +30,7 @@
 
 oserr_t
 ScSystemClockTick(
-        _In_ enum VaClockSourceType source,
+        _In_ enum OSClockSource source,
         _In_ UInteger64_t*          tickOut)
 {
     if (!tickOut) {
@@ -38,10 +38,10 @@ ScSystemClockTick(
     }
 
     switch (source) {
-        case VaClockSourceType_HPC:
+        case OSClockSource_HPC:
             return SystemTimerGetPerformanceTick(tickOut);
 
-        case VaClockSourceType_THREAD:
+        case OSClockSource_THREAD:
             SystemTimerGetClockTick(tickOut);
             Thread_t* Thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
             if (Thread != NULL) {
@@ -58,14 +58,14 @@ ScSystemClockTick(
 
 oserr_t
 ScSystemClockFrequency(
-        _In_ enum VaClockSourceType source,
+        _In_ enum OSClockSource source,
         _In_ UInteger64_t*       frequencyOut)
 {
     if (!frequencyOut) {
         return OS_EINVALPARAMS;
     }
 
-    if (source == VaClockSourceType_HPC) {
+    if (source == OSClockSource_HPC) {
         return SystemTimerGetPerformanceFrequency(frequencyOut);
     }
 

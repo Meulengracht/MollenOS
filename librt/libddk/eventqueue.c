@@ -225,7 +225,7 @@ static int EventQueueWorker(void* context)
             }
 
             TRACE("EventQueueWorker waiting");
-            if (ConditionTimedWait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint) == OS_ETIMEOUT) {
+            if (ConditionTimedWait(&eventQueue->EventCondition, &eventQueue->EventLock, &timePoint, NULL) == OS_ETIMEOUT) {
                 if (!eventQueue->IsRunning) {
                     break;
                 }
@@ -271,7 +271,7 @@ static int EventQueueWorker(void* context)
         }
         else {
             // Wait for event to be added
-            ConditionWait(&eventQueue->EventCondition, &eventQueue->EventLock);
+            ConditionWait(&eventQueue->EventCondition, &eventQueue->EventLock, NULL);
         }
     }
     MutexUnlock(&eventQueue->EventLock);

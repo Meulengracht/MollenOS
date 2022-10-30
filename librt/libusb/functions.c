@@ -62,17 +62,16 @@ UsbInitialize(void)
     return status;
 }
 
-oserr_t
+void
 UsbCleanup(void)
 {
     if (!DmaPool) {
-        return OS_ENOTSUPPORTED;
+        return;
     }
 
     dma_pool_destroy(DmaPool);
     DmaDetach(&DmaAttachment);
     DmaPool = NULL;
-    return OS_EOK;
 }
 
 struct dma_pool*

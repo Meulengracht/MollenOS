@@ -48,7 +48,7 @@ oserr_t stdio_null_op_resize(stdio_handle_t* handle, long long resize_by)
 oserr_t stdio_null_op_close(stdio_handle_t* handle, int options)
 {
     if (handle->object.handle != UUID_INVALID) {
-        return handle_destroy(handle->object.handle);
+        return OSHandleDestroy(handle->object.handle);
     }
     return OS_ENOTSUPPORTED;
 }

@@ -110,7 +110,7 @@ ScControlHandleSet(
 oserr_t
 ScListenHandleSet(
         _In_  uuid_t                     handle,
-        _In_  OSSyscallContext_t*        syscallContext,
+        _In_  OSAsyncContext_t*        asyncContext,
         _In_  HandleSetWaitParameters_t* parameters,
         _Out_ int*                       numberOfEventsOut)
 {
@@ -119,7 +119,7 @@ ScListenHandleSet(
     }
     return WaitForHandleSet(
             handle,
-            syscallContext,
+            asyncContext,
             parameters->events,
             parameters->maxEvents,
             parameters->pollEvents,
