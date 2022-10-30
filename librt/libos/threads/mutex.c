@@ -70,7 +70,7 @@ MutexDestroy(
         parameters._futex0 = &mutex->Value;
         parameters._val0   = INT_MAX;
         parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-        Futex(&parameters, NULL);
+        OSFutex(&parameters, NULL);
     }
 }
 
@@ -173,7 +173,7 @@ __perform_lock(
             }
 
             while (z != 0) {
-                if (Futex(&parameters, NULL) == OS_ETIMEOUT) {
+                if (OSFutex(&parameters, NULL) == OS_ETIMEOUT) {
                     return OS_ETIMEOUT;
                 }
 
@@ -281,7 +281,7 @@ MutexUnlock(
         parameters._futex0 = &mutex->Value;
         parameters._val0   = 1;
         parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
-        Futex(&parameters, NULL);
+        OSFutex(&parameters, NULL);
     }
     return OS_EOK;
 }

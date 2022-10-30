@@ -34,6 +34,7 @@
 #include <ioset.h>
 #include <io.h>
 #include <ioctl.h>
+#include <os/usched/job.h>
 #include "manager.h"
 #include <stdlib.h>
 
@@ -53,6 +54,7 @@ struct usb_controller_endpoint {
 };
 
 static void UsbManagerQueryUHCIPorts(void*);
+static void __UHCIPortMonitor(void*,void*);
 
 static uint64_t default_dev_hash(const void*);
 static int      default_dev_cmp(const void*, const void*);
@@ -60,7 +62,6 @@ static int      default_dev_cmp(const void*, const void*);
 static uint64_t endpoint_hash(const void*);
 static int      endpoint_cmp(const void*, const void*);
 
-static EventQueue_t* g_eventQueue = NULL;
 static int           g_hciCheckupRegistered = 0;
 static uint8_t       g_hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
 static hashtable_t   g_controllers;
@@ -75,18 +76,19 @@ UsbManagerInitialize(void)
         return OS_ETIMEOUT;
     }
 
-    CreateEventQueue(&g_eventQueue);
-    hashtable_construct(&g_controllers, 0,
-                        sizeof(struct usb_controller_device_index),
-                        default_dev_hash, default_dev_cmp);
-
+    hashtable_construct(
+            &g_controllers,
+            0,
+            sizeof(struct usb_controller_device_index),
+                    default_dev_hash,
+                    default_dev_cmp
+    );
     return OS_EOK;
 }
 
 void
 UsbManagerDestroy(void)
 {
-    DestroyEventQueue(g_eventQueue);
     hashtable_destroy(&g_controllers);
 }
 
@@ -131,7 +133,7 @@ UsbManagerCreateController(
 
     // UHCI does not support hub events, so we install a timer if not already
     if (type == UsbUHCI && !g_hciCheckupRegistered) {
-        QueuePeriodicEvent(g_eventQueue, UsbManagerQueryUHCIPorts, NULL, MSEC_PER_SEC);
+        usched_job_queue(__UHCIPortMonitor, NULL);
         g_hciCheckupRegistered = 1;
     }
     return controller;
@@ -182,10 +184,37 @@ UsbManagerQueryUHCIController(
 }
 
 static void
-UsbManagerQueryUHCIPorts(
-    _In_ void* unusedContext)
+__timespec_add_nsec(struct timespec* spec, int64_t nsec)
 {
-    hashtable_enumerate(&g_controllers, UsbManagerQueryUHCIController, unusedContext);
+    spec->tv_sec += (nsec / NSEC_PER_SEC);
+    spec->tv_nsec += (nsec % NSEC_PER_SEC);
+    if (spec->tv_nsec >= NSEC_PER_SEC) {
+        spec->tv_sec++;
+        spec->tv_nsec -= NSEC_PER_SEC;
+    } else if (spec->tv_nsec < 0) {
+        spec->tv_sec--;
+        spec->tv_nsec += NSEC_PER_SEC;
+    }
+}
+
+static void
+__UHCIPortMonitor(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
+{
+    struct timespec wakeUp, remaining;
+    _CRT_UNUSED(argument);
+
+    while (usched_is_cancelled(cancellationToken) == false) {
+        timespec_get(&wakeUp, TIME_MONOTONIC);
+        __timespec_add_nsec(&wakeUp, NSEC_PER_SEC);
+        usched_job_sleep(&wakeUp, &remaining);
+        hashtable_enumerate(
+                &g_controllers,
+                UsbManagerQueryUHCIController,
+                NULL
+        );
+    }
 }
 
 void

@@ -24,7 +24,6 @@
 #ifndef _USB_MANAGER_H_
 #define _USB_MANAGER_H_
 
-#include <ddk/eventqueue.h>
 #include <ddk/busdevice.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
