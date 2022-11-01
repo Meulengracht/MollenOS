@@ -27,6 +27,7 @@
 #include <ds/hashtable.h>
 #include <internal/_io.h>
 #include <io.h>
+#include <stdlib.h>
 
 extern hashtable_t* stdio_get_handles(void);
 

@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 
 #define __need_quantity
 #include <ddk/utils.h>
@@ -123,17 +123,20 @@ FsInitialize(
     oserr_t                 oserr;
 
     // Start out by stat'ing the storage device, we don't need
-    // need to do any cleanup if this should fail.
+    // to do any cleanup if this should fail.
+    TRACE("FsInitialize 1");
     oserr = FSStorageStat(storageParameters, &stats);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
+    TRACE("FsInitialize 2");
     context = __ValiFSContextNew(storageParameters, &stats);
     if (context == NULL) {
         return OS_EOOM;
     }
 
+    TRACE("FsInitialize 3");
     status = vafs_open_ops(
             &g_vafsOperations,
             context,
@@ -144,11 +147,13 @@ FsInitialize(
         return OS_EDEVFAULT;
     }
 
+    TRACE("FsInitialize 4");
     status = __ValiFSHandleFilter(context->ValiFS);
     if (status) {
         __ValiFSContextDelete(context);
         return OS_ENOTSUPPORTED;
     }
+    TRACE("FsInitialize 5");
 
     *instanceData = context;
     return OS_EOK;

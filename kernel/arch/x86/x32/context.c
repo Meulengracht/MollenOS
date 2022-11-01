@@ -381,14 +381,18 @@ ArchThreadContextDestroy(
         return;
     }
 
-    TRACE("[ArchThreadContextDestroy] 0x%llx", context);
+    TRACE("ArchThreadContextDestroy(context=0x%llx, size=0x%llx)", context, contextSize);
 
     // adjust for size of context_t and then adjust back to base address
     contextAddress  = (uintptr_t)context;
     contextAddress += sizeof(Context_t);
     contextAddress -= contextSize;
 
-    MemorySpaceUnmap(GetCurrentMemorySpace(), contextAddress, contextSize);
+    MemorySpaceUnmap(
+            GetCurrentMemorySpace(),
+            contextAddress,
+            contextSize
+    );
 }
 
 oserr_t

@@ -511,9 +511,9 @@ MemorySpaceMap(
         _In_    unsigned int   memoryFlags,
         _In_    unsigned int   placementFlags)
 {
-    int        pageCount = DIVUP(length, GetMemorySpacePageSize());
-    int        pagesUpdated;
-    vaddr_t    virtualBase;
+    int     pageCount = DIVUP(length, GetMemorySpacePageSize());
+    int     pagesUpdated;
+    vaddr_t virtualBase;
     oserr_t osStatus;
     TRACE("MemorySpaceMap(len=%" PRIuIN ", attribs=0x%x, placement=0x%x)",
           length, memoryFlags, placementFlags);
@@ -531,8 +531,7 @@ MemorySpaceMap(
     // In case the mappings are provided, we would like to force the COMMIT flag.
     if (placementFlags & MAPPING_PHYSICAL_FIXED) {
         memoryFlags |= MAPPING_COMMIT;
-    }
-    else if (memoryFlags & MAPPING_COMMIT) {
+    } else if (memoryFlags & MAPPING_COMMIT) {
         osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
         if (osStatus != OS_EOK) {
             ERROR("MemorySpaceMap failed to allocate physical memory for mapping");
@@ -763,11 +762,11 @@ __ClearPhysicalPages(
         _In_ vaddr_t        address,
         _In_ size_t         size)
 {
-    paddr_t*   addresses;
-    oserr_t osStatus;
-    int        pageCount;
-    int        pagesCleared = 0;
-    int        pagesFreed = 0;
+    paddr_t* addresses;
+    oserr_t  oserr;
+    int      pageCount;
+    int      pagesCleared = 0;
+    int      pagesFreed = 0;
     TRACE("__ClearPhysicalPages(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
 
@@ -775,13 +774,19 @@ __ClearPhysicalPages(
     pageCount = DIVUP(size, GetMemorySpacePageSize());
     addresses = kmalloc(sizeof(paddr_t) * pageCount);
     if (!addresses) {
-        osStatus = OS_EOOM;
+        oserr = OS_EOOM;
         goto exit;
     }
 
     // Free the underlying resources first, before freeing the upper resources
-    osStatus = ArchMmuClearVirtualPages(memorySpace, address, pageCount,
-                                        &addresses[0], &pagesFreed, &pagesCleared);
+    oserr = ArchMmuClearVirtualPages(
+            memorySpace,
+            address,
+            pageCount,
+            &addresses[0],
+            &pagesFreed,
+            &pagesCleared
+    );
     if (pagesCleared) {
         // free the physical memory
         if (pagesFreed) {
@@ -792,8 +797,8 @@ __ClearPhysicalPages(
     kfree(addresses);
 
 exit:
-    TRACE("__ClearPhysicalPages returns=%u", osStatus);
-    return osStatus;
+    TRACE("__ClearPhysicalPages returns=%u", oserr);
+    return oserr;
 }
 
 static oserr_t
@@ -804,7 +809,7 @@ __ReleaseAllocation(
 {
     struct MemorySpaceAllocation* allocation = NULL;
     size_t                        storedSize = size;
-    oserr_t                    osStatus;
+    oserr_t                       oserr;
 
     TRACE("__ReleaseAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
@@ -819,7 +824,7 @@ __ReleaseAllocation(
             if (allocation->References) {
                 // still has references so we just free virtual
                 MutexUnlock(&memorySpace->Context->SyncObject);
-                osStatus = OS_EOK;
+                oserr = OS_EOK;
                 goto exit;
             }
 
@@ -830,7 +835,7 @@ __ReleaseAllocation(
     }
 
     // clear our copy first
-    osStatus = __ClearPhysicalPages(memorySpace, address, storedSize);
+    oserr = __ClearPhysicalPages(memorySpace, address, storedSize);
 
     // then clear original copy if there was any
     if (allocation) {
@@ -846,8 +851,8 @@ __ReleaseAllocation(
     }
 
 exit:
-    TRACE("__ReleaseAllocation returns=%u", osStatus);
-    return osStatus;
+    TRACE("__ReleaseAllocation returns=%u", oserr);
+    return oserr;
 }
 
 static void
@@ -974,11 +979,9 @@ MemorySpaceUnmap(
     // Free the range in either GAM or Process memory
     if (memorySpace->Context != NULL && DynamicMemoryPoolContains(&memorySpace->Context->Heap, address)) {
         DynamicMemoryPoolFree(&memorySpace->Context->Heap, address);
-    }
-    else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, address)) {
+    } else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, address)) {
         StaticMemoryPoolFree(&GetMachine()->GlobalAccessMemory, address);
-    }
-    else if (DynamicMemoryPoolContains(&memorySpace->ThreadMemory, address)) {
+    } else if (DynamicMemoryPoolContains(&memorySpace->ThreadMemory, address)) {
         DynamicMemoryPoolFree(&memorySpace->ThreadMemory, address);
     }
 

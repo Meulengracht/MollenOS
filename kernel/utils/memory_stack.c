@@ -56,24 +56,33 @@ __ExtendStack(
         _In_ MemoryStack_t* stack)
 {
     // double up each time
-    oserr_t osStatus;
-    size_t     newSize = stack->data_size << 1;
-    vaddr_t    space;
+    oserr_t   oserr;
+    size_t    newSize = stack->data_size << 1;
+    size_t    pageCount = newSize / GetMemorySpacePageSize();
+    vaddr_t   space;
+    uintptr_t pages[pageCount];
 
-    osStatus = MemorySpaceMap(GetCurrentMemorySpace(),
-                   &space, NULL, newSize, 0,
-                   MAPPING_COMMIT | MAPPING_DOMAIN,
-                   MAPPING_VIRTUAL_GLOBAL);
-    assert(osStatus == OS_EOK);
+    oserr = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &space,
+            &pages[0],
+            newSize,
+            0,
+            MAPPING_COMMIT | MAPPING_DOMAIN,
+            MAPPING_VIRTUAL_GLOBAL
+    );
+    assert(oserr == OS_EOK);
 
     // copy the data
     memcpy((void*)space, stack->items, stack->data_size);
 
     // free the old space
-    osStatus = MemorySpaceUnmap(GetCurrentMemorySpace(),
-                                (vaddr_t)stack->items,
-                                stack->data_size);
-    assert(osStatus == OS_EOK);
+    oserr = MemorySpaceUnmap(
+            GetCurrentMemorySpace(),
+            (vaddr_t)stack->items,
+            stack->data_size
+    );
+    assert(oserr == OS_EOK);
 
     // update the stack with new space, capacity and pointer
     stack->capacity = (int)(newSize / sizeof(struct MemoryStackItem));

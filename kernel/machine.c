@@ -15,9 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #define __MODULE "MACH"
 #define __TRACE
 
+#include <assert.h>
 #include <arch/interrupts.h>
 #include <arch/io.h>
 #include <arch/platform.h>
@@ -276,15 +278,29 @@ FreePhysicalMemory(
         _In_ int              pageCount,
         _In_ const uintptr_t* pages)
 {
-    SystemMemoryAllocatorRegion_t* region;
+    SystemMemoryAllocatorRegion_t* region = NULL;
     int                            i;
 
     for (i = 0; i < pageCount; i++) {
         uintptr_t address = pages[i];
-        for (int j = GetMachine()->PhysicalMemory.MaskCount - 1; j >= 0; j--) {
-            if (address >= GetMachine()->PhysicalMemory.Masks[j]) {
+        assert(address != 0);
+
+        for (int j = 0; j < GetMachine()->PhysicalMemory.MaskCount; j++) {
+            if (address < GetMachine()->PhysicalMemory.Masks[j]) {
                 region = &GetMachine()->PhysicalMemory.Region[j];
+                break;
             }
+        }
+
+        if (region == NULL) {
+            // Tring to free an invalid address
+            ERROR("FreePhysicalMemory tried to free an invalid page");
+            ERROR("FreePhysicalMemory pageCount=%i, i=%i", pageCount, i);
+            ERROR("FreePhysicalMemory PAGES:");
+            for (int j = 0; j < pageCount; j++) {
+                ERROR("FreePhysicalMemory 0x%llx", pages[j]);
+            }
+            assert(0);
         }
 
         SpinlockAcquireIrq(&region->Lock);

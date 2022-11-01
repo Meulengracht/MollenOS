@@ -300,8 +300,8 @@ __InitializePhysicalMemory(
         _In_ SystemMemoryAllocator_t*       physicalMemory,
         _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
-    oserr_t osStatus;
-    int        i;
+    oserr_t oserr;
+    int     i;
     TRACE("__InitializePhysicalMemory()");
 
     physicalMemory->MaskCount = memoryConfiguration->MemoryMaskCount;
@@ -311,9 +311,9 @@ __InitializePhysicalMemory(
 
     for (i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
         uintptr_t memory;
-        osStatus = __AllocateIdentity(bootContext, memoryConfiguration->PageSize, (void**)&memory);
-        if (osStatus != OS_EOK) {
-            return osStatus;
+        oserr = __AllocateIdentity(bootContext, memoryConfiguration->PageSize, (void**)&memory);
+        if (oserr != OS_EOK) {
+            return oserr;
         }
 
         // update the address in the boot context
@@ -478,7 +478,7 @@ MachineMemoryInitialize(
     struct MemoryBootContext      bootContext;
     PlatformMemoryConfiguration_t configuration;
     size_t                        memorySize;
-    oserr_t                    osStatus;
+    oserr_t                       oserr;
     TRACE("MachineMemoryInitialize()");
 
     if (!machine) {
@@ -507,52 +507,52 @@ MachineMemoryInitialize(
     // Find a suitable area where we can allocate continous physical pages for systems
     // that require (ident-mapped) memory. This is memory where the pointers need to be valid
     // both before and after we switch to the new virtual address space.
-    osStatus = __InitializeIdentityMemory(
+    oserr = __InitializeIdentityMemory(
             &bootContext,
             &machine->BootInformation,
             &configuration
     );
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // Initialize the kernel mappings first. Kernel mappings are mappings we want the platform the do when
     // switching to the new virtual addressing space. This is to avoid having identity mapped memory when we are
     // done allocating for basic systems.
-    osStatus = __InitializeKernelMappings(&bootContext, &configuration);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = __InitializeKernelMappings(&bootContext, &configuration);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // initialize the subsystems
-    osStatus = __InitializePhysicalMemory(
+    oserr = __InitializePhysicalMemory(
             &bootContext,
             &machine->PhysicalMemory,
             &configuration
     );
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // Create the Global Access Memory Region which will be used to allocate kernel/system
     // virtual mappings that can be used to facilitate system services
     // It will start from the next free lower physical region and go up to
     // memoryMap->KernelRegion.Length
-    osStatus = __InitializeGlobalAccessMemory(
+    oserr = __InitializeGlobalAccessMemory(
             &bootContext,
             &machine->GlobalAccessMemory,
             &machine->MemoryMap,
             machine->MemoryGranularity
     );
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // At this point no further boot allocations will be made, and thus we can start adding
     // the remaining free physical pages to the physical memory manager
-    osStatus = __DisableIdentityMemory(&bootContext, &machine->GlobalAccessMemory);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = __DisableIdentityMemory(&bootContext, &machine->GlobalAccessMemory);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // fill the memory allocators, as we need them for allocating boot memory
@@ -565,13 +565,13 @@ MachineMemoryInitialize(
 
     // Switch to the new virtual space
 #ifdef __OSCONFIG_HAS_MMIO
-    osStatus = MemorySpaceInitialize(
+    oserr = MemorySpaceInitialize(
             &machine->SystemSpace,
             &machine->BootInformation,
             g_kernelMappings
     );
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // At this point our physical memory managers and GA memory needs

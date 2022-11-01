@@ -59,10 +59,8 @@ _flsbuf(
     }
 
     // lock file and reset count
-    _lock_stream(stream);
     res = __prepare_flush_otherwise_set_IOERR(stream);
     if (res) {
-        _unlock_stream(stream);
         TRACE("_flsbuf return=%i", res);
         return res;
     }
@@ -79,8 +77,7 @@ _flsbuf(
         stream->_ptr = stream->_base + sizeof(TCHAR);
         stream->_cnt = stream->_bufsiz - sizeof(TCHAR);
         *(TCHAR*)stream->_base = charTyped;
-    }
-    else {
+    } else {
         // no buffer, write directly
         count   = sizeof(TCHAR);
         written = write(stream->_fd, &ch, sizeof(TCHAR));
@@ -92,7 +89,6 @@ _flsbuf(
         charTyped = EOF;
     }
 
-    _unlock_stream(stream);
     TRACE("_flsbuf return=%i", (int)charTyped);
     return charTyped;
 }

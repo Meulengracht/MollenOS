@@ -143,20 +143,17 @@ static oserr_t __RegisterApplication(struct Application* application)
     struct State* state = State();
     TRACE("__RegisterApplication(app=%ms)", application->Name);
 
-    StateLock();
     // we should definitely do a check here that we are not double installing
     // something we shouldn't
     foreach(i, &state->Applications) {
         struct Application* a = (struct Application*)i;
         // TODO do some kind of security check here
         if (!mstr_cmp(a->Name, application->Name)) {
-            StateUnlock();
             return OS_EEXISTS;
         }
     }
 
     list_append(&state->Applications, &application->ListHeader);
-    StateUnlock();
     return OS_EOK;
 }
 

@@ -110,8 +110,13 @@ UsbManagerCreateController(
     controller->Device = device;
     controller->Type = type;
     list_construct(&controller->TransactionList);
-    hashtable_construct(&controller->Endpoints, 0,
-            sizeof(struct usb_controller_endpoint), endpoint_hash, endpoint_cmp);
+    hashtable_construct(
+            &controller->Endpoints,
+            0,
+            sizeof(struct usb_controller_endpoint),
+                    endpoint_hash,
+                    endpoint_cmp
+    );
     spinlock_init(&controller->Lock);
 
     // create the event descriptor to allow listening for interrupts
@@ -143,11 +148,15 @@ oserr_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller)
 {
-    oserr_t status = UsbControllerRegister(&controller->Device->Base, controller->Type, controller->PortCount);
-    if (status != OS_EOK) {
-        ERROR("[UsbManagerRegisterController] failed with code %u", status);
+    oserr_t oserr = UsbControllerRegister(
+            &controller->Device->Base,
+            controller->Type,
+            controller->PortCount
+    );
+    if (oserr != OS_EOK) {
+        ERROR("[UsbManagerRegisterController] failed with code %u", oserr);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t

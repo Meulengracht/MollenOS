@@ -68,7 +68,7 @@ typedef void(*ThreadEntry_t)(void*);
 #define THREADING_MODEMASK              0x00000001U
 #define THREADING_RUNMODE(Flags)        ((Flags) & THREADING_MODEMASK)
 
-/* MCoreThread::Flags Bit Definitions 
+/* Thread::Flags Bit Definitions
  * The rest of the bits denode special other run-modes */
 #define THREADING_KERNELENTRY           0x00000004U  // Mark this thread as requiring transition mode
 #define THREADING_IDLE                  0x00000008U  // Mark this thread as an idle thread

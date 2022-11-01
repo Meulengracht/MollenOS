@@ -141,7 +141,6 @@ static void __HandleSystemCallCompletion(
     OSAsyncContext_t* context = argument0;
     assert(context != NULL);
     _CRT_UNUSED(cancellationToken);
-    TRACE("__HandleSystemCallCompletion()");
 
     usched_mtx_lock(&context->Mutex);
     usched_cnd_notify_one(&context->Condition);
