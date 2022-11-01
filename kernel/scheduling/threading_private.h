@@ -86,7 +86,7 @@ typedef struct Thread {
     // done handling the system call.
     OSAsyncContext_t* SyscallContext;
 
-    // Signaling is used to supprt the per-thread signals and contains
+    // Signaling is used to support the per-thread signals and contains
     // a mask, and a signal queue. The signal queue is then handled on exit
     // of each system-call, or scheduled directly while the thread is in
     // userspace.

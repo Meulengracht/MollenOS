@@ -112,7 +112,7 @@ __AllocateVirtualPages(
     unsigned int memoryFlags = MAPPING_COMMIT | MAPPING_DOMAIN;
     uintptr_t    pages[pageCount];
     uintptr_t    address;
-    oserr_t   status;
+    oserr_t      status;
 
     if (flags & HEAP_CACHE_USERSPACE) {
         memoryFlags |= MAPPING_USERSPACE;
@@ -911,6 +911,10 @@ void kfree(void* Object)
 {
     struct FixedCache* selected = NULL;
     int                i = 0;
+
+    if (Object == NULL) {
+        return;
+    }
 
     // Find the cache that the allocation was done in
     while (g_defaultCaches[i].ObjectSize != 0) {

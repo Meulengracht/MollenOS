@@ -21,7 +21,7 @@
  */
 
 #define __MODULE "thread"
-#define __TRACE
+//#define __TRACE
 //#define __OSCONFIG_DEBUG_SCHEDULER
 #define __need_quantity
 
@@ -166,7 +166,6 @@ ThreadFork(
     thread->References = ATOMIC_VAR_INIT(0);
 
     // Get current stack pointer, get top of stack, clone it.
-    TRACE("ThreadFork forking context");
     parent = ThreadCurrentForCore(ArchGetProcessorCoreId());
     oserr = ArchThreadContextFork(
             parent->Contexts[THREADING_CONTEXT_LEVEL0],
@@ -211,7 +210,6 @@ ThreadFork(
     }
 
     // Inherit all the following
-    TRACE("ThreadFork initializing thread");
     thread->Function        = parent->Function;
     thread->Arguments       = parent->Arguments;
     thread->Flags           = __InheritThreadFlags(parent->Flags) | THREADING_FORKED;
@@ -507,10 +505,10 @@ __EnterUsermode(
     _In_ ThreadEntry_t threadEntry,
     _In_ void*         argument)
 {
-    Thread_t*  thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    vaddr_t    tlsAddress;
-    paddr_t    tlsPhysicalAddress;
-    oserr_t osStatus;
+    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    vaddr_t   tlsAddress;
+    paddr_t   tlsPhysicalAddress;
+    oserr_t   osStatus;
 
     // Allocate the TLS segment (1 page) (x86 only, should be another place)
     osStatus = MemorySpaceMap(
@@ -916,13 +914,8 @@ __DestroyThread(
         DestroyHandle(thread->MemorySpaceHandle);
     }
 
-    if (thread->Name) {
-        kfree((void*)thread->Name);
-    }
-
-    if (thread->Signaling.Signals) {
-        kfree(thread->Signaling.Signals);
-    }
+    kfree((void*)thread->Name);
+    kfree(thread->Signaling.Signals);
 
     ArchThreadDestroy(thread);
     kfree(thread);

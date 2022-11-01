@@ -529,8 +529,7 @@ InitializeFramebufferOutput(void)
         }
 
         g_bootTerminal.AvailableOutputs |= VIDEO_GRAPHICS;
-    }
-    else {
+    } else {
         // Either headless or terminal mode
         if (GetMachine()->BootInformation.Video.Pitch) {
             g_bootTerminal.AvailableOutputs |= VIDEO_TEXT;

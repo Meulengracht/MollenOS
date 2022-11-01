@@ -292,7 +292,6 @@ DmDeviceCreate(
 
     // Now, we want to try to find a driver for the new device, spawn a new thread
     // for dealing with this to avoid any waiting for the ipc to open up
-#define __OSCONFIG_NODRIVERS
 #ifndef __OSCONFIG_NODRIVERS
     if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
         __TryLocateDriver(deviceNode);

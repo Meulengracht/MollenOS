@@ -79,7 +79,7 @@ static oserr_t __PerformAllocation(
     uintptr_t  allocatedAddress;
     int        pageCount;
     uintptr_t* pages;
-    oserr_t osStatus;
+    oserr_t    osStatus;
 
     pageCount = DIVUP(length, GetMemorySpacePageSize());
     pages     = kmalloc(sizeof(uintptr_t) * pageCount);

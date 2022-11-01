@@ -110,7 +110,7 @@ SpinlockRelease(
     // detect if a thread releases multiple times and there
     // are enough waiters in queue to cover the additional
     // releases
-    assert(current <= atomic_load(&spinlock->Next));
+    assert(current < atomic_load(&spinlock->Next));
 }
 
 void

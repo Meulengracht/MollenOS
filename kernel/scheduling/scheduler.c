@@ -371,7 +371,7 @@ void
 SchedulerDestroyObject(
     _In_ SchedulerObject_t* object)
 {
-    Scheduler_t * scheduler = SchedulerGetFromCore(object->CoreId);
+    Scheduler_t* scheduler = SchedulerGetFromCore(object->CoreId);
     
     // Remove pressure, and explicit put a memory barrier to push the
     // memory writes to other cores that allocate objects
