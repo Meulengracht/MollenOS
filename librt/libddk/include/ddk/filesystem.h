@@ -16,25 +16,14 @@
  *
  */
 
-#ifndef __DDK_FILESYSTEM_H_
-#define __DDK_FILESYSTEM_H_
+#ifndef __DDK_FILESYSTEM_H__
+#define __DDK_FILESYSTEM_H__
 
 #include <ddk/storage.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <os/mollenos.h>
 #include <time.h>
-
-/* FileSystem Export 
- * This is define the interface between user (filemanager)
- * and the implementer (the filesystem) */
-#ifdef __FILEMANAGER_IMPL
-#define __FSAPI            typedef
-#define __FSDECL(Function) (*Function##_t)
-#else
-#define __FSAPI            CRTEXPORT
-#define __FSDECL(Function) Function
-#endif
 
 enum VFSStorageType {
     VFSSTORAGE_TYPE_DEVICE,
@@ -95,109 +84,4 @@ struct VFSStatFS {
     uint64_t   SegmentsFree;
 };
 
-/**
- * @brief Initializes a new instance of the given filesystem.
- * @param setupParameters The parameters for how the filesystem can interact with the underlying storage device.
- * @param instanceData    This should be set to whatever context the fileystem expects to be passed for each operation
- *                        done on the filesystem.
- * @return Status of the operation
- */
-__FSAPI oserr_t
-__FSDECL(FsInitialize)(
-        _In_  struct VFSStorageParameters* storageParameters,
-        _Out_ void**                       instanceData);
-
-/* FsDestroy 
- * Destroys the given filesystem descriptor and cleans
- * up any resources allocated by the filesystem instance */
-__FSAPI oserr_t
-__FSDECL(FsDestroy)(
-        _In_ void*         instanceData,
-        _In_ unsigned int  unmountFlags);
-
-__FSAPI oserr_t
-__FSDECL(FsOpen)(
-        _In_      void*      instanceData,
-        _In_      mstring_t* path,
-        _Out_Opt_ void**     dataOut);
-
-__FSAPI oserr_t
-__FSDECL(FsCreate)(
-        _In_  void*      instanceData,
-        _In_  void*      data,
-        _In_  mstring_t* name,
-        _In_  uint32_t   owner,
-        _In_  uint32_t   flags,
-        _In_  uint32_t   permissions,
-        _Out_ void**     dataOut);
-
-__FSAPI oserr_t
-__FSDECL(FsClose)(
-        _In_ void* instanceData,
-        _In_ void* data);
-
-__FSAPI oserr_t
-__FSDECL(FsStat)(
-        _In_ void*             instanceData,
-        _In_ struct VFSStatFS* stat);
-
-__FSAPI oserr_t
-__FSDECL(FsLink)(
-        _In_ void*      instanceData,
-        _In_ void*      data,
-        _In_ mstring_t* linkName,
-        _In_ mstring_t* linkTarget,
-        _In_ int        symbolic);
-
-__FSAPI oserr_t
-__FSDECL(FsUnlink)(
-        _In_ void*      instanceData,
-        _In_ mstring_t* path);
-
-__FSAPI oserr_t
-__FSDECL(FsReadLink)(
-        _In_ void*       instanceData,
-        _In_ mstring_t*  path,
-        _In_ mstring_t** pathOut);
-
-__FSAPI oserr_t
-__FSDECL(FsMove)(
-        _In_ void*      instanceData,
-        _In_ mstring_t* from,
-        _In_ mstring_t* to,
-        _In_ int        copy);
-
-__FSAPI oserr_t
-__FSDECL(FsRead)(
-        _In_  void*   instanceData,
-        _In_  void*   data,
-        _In_  uuid_t  bufferHandle,
-        _In_  void*   buffer,
-        _In_  size_t  bufferOffset,
-        _In_  size_t  unitCount,
-        _Out_ size_t* unitsRead);
-
-__FSAPI oserr_t
-__FSDECL(FsWrite)(
-        _In_  void*   instanceData,
-        _In_  void*   data,
-        _In_  uuid_t  bufferHandle,
-        _In_  void*   buffer,
-        _In_  size_t  bufferOffset,
-        _In_  size_t  unitCount,
-        _Out_ size_t* unitsWritten);
-
-__FSAPI oserr_t
-__FSDECL(FsTruncate)(
-        _In_ void*    instanceData,
-        _In_ void*    data,
-        _In_ uint64_t size);
-
-__FSAPI oserr_t
-__FSDECL(FsSeek)(
-        _In_  void*     instanceData,
-        _In_  void*     data,
-        _In_  uint64_t  absolutePosition,
-        _Out_ uint64_t* absolutePositionOut);
-
-#endif //!__DDK_FILESYSTEM_H_
+#endif //!__DDK_FILESYSTEM_H__

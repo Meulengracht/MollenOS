@@ -103,7 +103,7 @@ static void __CrashHandler(
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
         status = sys_process_report_crash(GetGrachtClient(), &msg.base, ThreadsCurrentId(),
-                                          *__crt_processid_ptr(), (const uint8_t*)context,
+                                          __crt_process_id(), (const uint8_t*)context,
                                           sizeof(Context_t), signal->signal);
         if (status) {
             // @todo log and return

@@ -1,5 +1,5 @@
 set(SERVICES  "device;file;mount;net/sys/socket;process;served/chef/served;session;storage;usb")
-set(CONTRACTS "driver;input;storage;usbhost;usbhub")
+set(CONTRACTS "driver;filesystem;input;storage;usbhost;usbhub")
 set(GENERATOR_PATH "${CMAKE_SOURCE_DIR}/librt/libgracht/generator/parser.py")
 
 # Generate all the service files

@@ -132,7 +132,7 @@ oserr_t ProcessTerminate(int exitCode)
     oserr_t                  oserr = OS_EOK;
 
     if (!__crt_is_phoenix()) {
-        sys_process_terminate(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), exitCode);
+        sys_process_terminate(GetGrachtClient(), &msg.base, __crt_process_id(), exitCode);
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
     }
@@ -142,7 +142,7 @@ oserr_t ProcessTerminate(int exitCode)
 uuid_t
 ProcessGetCurrentId(void)
 {
-    return *__crt_processid_ptr();
+    return __crt_process_id();
 }
 
 oserr_t

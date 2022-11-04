@@ -61,8 +61,7 @@ __crt_module_load(
         _In_ void* argument,
         _In_ void* cancellationToken)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    struct __ModuleOptions*  moduleOptions = argument;
+    struct __ModuleOptions* moduleOptions = argument;
     _CRT_UNUSED(cancellationToken);
 
     // Call the driver load function 
@@ -74,12 +73,15 @@ __crt_module_load(
     at_quick_exit(OnUnload);
 
     // Notify the devicemanager of our successful startup
-    sys_device_notify(
-            GetGrachtClient(),
-            &msg.base,
-            moduleOptions->ID,
-            GetNativeHandle(__crt_get_server_iod())
-    );
+    if (moduleOptions->ID != UUID_INVALID) {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
+        sys_device_notify(
+                GetGrachtClient(),
+                &msg.base,
+                moduleOptions->ID,
+                GetNativeHandle(__crt_get_server_iod())
+        );
+    }
 }
 
 static void
@@ -143,7 +145,7 @@ __gracht_job(
     }
 }
 
-static oserr_t
+static void
 __ParseModuleOptions(
         _In_ char**                  argv,
         _In_ int                     argc,
@@ -154,11 +156,9 @@ __ParseModuleOptions(
             long moduleId = strtol(argv[i + 1], NULL, 10);
             if (moduleId != 0) {
                 options->ID = (uuid_t)moduleId;
-                return OS_EOK;
             }
         }
     }
-    return OS_ENOENT;
 }
 
 void __CrtModuleEntry(void)
@@ -172,17 +172,13 @@ void __CrtModuleEntry(void)
     // initialize runtime environment
     __crt_initialize(&threadStorage, 0);
     argv = __crt_argv(&argc);
-    if (!argv || argc < 3) {
-        ERROR("__CrtModuleEntry invalid argument count for module");
+    if (argv == NULL) {
+        ERROR("__CrtModuleEntry failed to parse arguments");
         exit(-1);
     }
 
     // parse the options provided for this module
-    oserr = __ParseModuleOptions(argv, argc, &g_moduleOptions);
-    if (oserr != OS_EOK) {
-        ERROR("__CrtModuleEntry missing --id parameter for module");
-        exit(-1);
-    }
+    __ParseModuleOptions(argv, argc, &g_moduleOptions);
 
     // Initialize the userspace scheduler to support request based
     // services in an async matter, and do this before we call ServiceInitialize

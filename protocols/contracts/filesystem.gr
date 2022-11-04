@@ -1,0 +1,90 @@
+/**
+ * Filesystem Contract
+ * Any application or driver can implement this contract and provide filesystem functionality. Not
+ * all calls are required, but open/read/close must be supported.
+ */
+
+import "../types"
+
+namespace ctt
+
+struct fsstat {
+    string label;
+    uint   max_filename_length;
+    uint   block_size;
+    uint   blocks_per_segment;
+    uint64 segments_total;
+    uint64 segments_free;
+}
+
+struct fstat {
+    string name;
+    string link_target;
+    uint32 owner;
+    uint32 permissions;
+    uint   flags;
+    uint64 size;
+    uint   links;
+
+    timestamp accessed;
+    timestamp modified;
+    timestamp created;
+}
+
+enum fs_storage_type {
+    DEVICE,
+    FILE,
+    EPHEMERAL
+}
+
+struct fs_storage_file {
+    uuid_t id;
+}
+
+struct fs_storage_device {
+    uuid_t driver_id;
+    uuid_t device_id;
+}
+
+struct fs_setup_params {
+    uint type;
+    variant storage {
+        fs_storage_file file;
+        fs_storage_device device;
+    }
+    uint   flags;
+    uint64 sector;
+}
+
+struct fs_open_params {
+    string name;
+    uint32 owner;
+    uint   flags;
+    uint32 permissions;
+}
+
+struct fs_transfer_params {
+    uuid_t buffer_id;
+    uint   offset;
+    uint64 count;
+}
+
+service filesystem (11) {
+    func setup(fs_setup_params params) : (oserr_t err, uintptr_t fsctx) = 1;
+    func destroy(uintptr_t fsctx) : (oserr_t err) = 2;
+    func fsstat(uintptr_t fsctx) : (oserr_t err, fsstat stats) = 3;
+
+    func open(uintptr_t fsctx, string path) : (oserr_t err, uintptr_t fctx) = 4;
+    func create(uintptr_t fsctx, uintptr_t fctx, fs_open_params params) : (oserr_t err, uintptr_t fctx) = 5;
+    func close(uintptr_t fsctx, uintptr_t fctx) : (oserr_t err) = 6;
+
+    func link(uintptr_t fsctx, uintptr_t fctx, string name, string target, bool symbolic) : (oserr_t err) = 7;
+    func unlink(uintptr_t fsctx, string path) : (oserr_t err) = 8;
+    func readlink(uintptr_t fsctx, string path) : (oserr_t err, string link) = 9;
+    func read(uintptr_t fsctx, uintptr_t fctx, fs_transfer_params params) : (oserr_t err, uint64 read) = 10;
+    func write(uintptr_t fsctx, uintptr_t fctx, fs_transfer_params params) : (oserr_t err, uint64 written) = 11;
+
+    func move(uintptr_t fsctx, string source, string target, bool copy) : (oserr_t err) = 12;
+    func truncate(uintptr_t fsctx, uintptr_t fctx, uint64 size) : (oserr_t err) = 13;
+    func seek(uintptr_t fsctx, uintptr_t fctx, uint64 position) : (oserr_t err, uint64 result) = 14;
+}

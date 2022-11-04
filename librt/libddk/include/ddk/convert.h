@@ -29,6 +29,7 @@
 #include <ddk/device.h>
 #include <ddk/usbdevice.h>
 #include <ddk/busdevice.h>
+#include <ddk/filesystem.h>
 
 #include <os/types/file.h>
 #include <os/types/storage.h>
@@ -39,6 +40,7 @@
 #include <sys_device_service.h>
 #include <sys_file_service.h>
 #include <sys_process_service.h>
+#include <ctt_filesystem_service.h>
 
 static void from_sys_timestamp(struct sys_timestamp* in, struct timespec* out)
 {
@@ -406,6 +408,62 @@ static Device_t* from_sys_device(const struct sys_device* in)
         default: break;
     }
     return out;
+}
+
+static void from_fs_setup_params(const struct ctt_fs_setup_params* in, struct VFSStorageParameters* out)
+{
+    switch(in->type) {
+        case CTT_FS_SETUP_PARAMS_STORAGE_DEVICE: {
+            out->StorageType = VFSSTORAGE_TYPE_DEVICE;
+            out->Storage.Device.DeviceID = in->storage.device.device_id;
+            out->Storage.Device.DriverID = in->storage.device.driver_id;
+        } break;
+        case CTT_FS_SETUP_PARAMS_STORAGE_FILE: {
+            out->StorageType = VFSSTORAGE_TYPE_FILE;
+            out->Storage.File.HandleID = in->storage.file.id;
+        } break;
+        default: break;
+    }
+    out->Flags = in->flags;
+    out->SectorStart.QuadPart = in->sector;
+}
+
+static void to_fs_setup_params(const struct VFSStorageParameters* in, struct ctt_fs_setup_params* out)
+{
+    switch(in->StorageType) {
+        case VFSSTORAGE_TYPE_DEVICE: {
+            out->type = CTT_FS_SETUP_PARAMS_STORAGE_DEVICE;
+            out->storage.device.device_id = in->Storage.Device.DeviceID;
+            out->storage.device.driver_id = in->Storage.Device.DriverID;
+        } break;
+        case VFSSTORAGE_TYPE_FILE: {
+            out->type = CTT_FS_SETUP_PARAMS_STORAGE_FILE;
+            out->storage.file.id = in->Storage.File.HandleID;
+        } break;
+        default: break;
+    }
+    out->flags = in->Flags;
+    out->sector = in->SectorStart.QuadPart;
+}
+
+static void from_fsstat(const struct ctt_fsstat* in, struct VFSStatFS* out)
+{
+    out->Label = mstr_new_u8(in->label);
+    out->BlockSize = in->block_size;
+    out->BlocksPerSegment = in->blocks_per_segment;
+    out->MaxFilenameLength = in->max_filename_length;
+    out->SegmentsFree = in->segments_free;
+    out->SegmentsTotal = in->segments_total;
+}
+
+static void to_fsstat(const struct VFSStatFS* in, struct ctt_fsstat* out)
+{
+    out->label = mstr_u8(in->Label);
+    out->block_size = in->BlockSize;
+    out->blocks_per_segment = in->BlocksPerSegment;
+    out->max_filename_length = in->MaxFilenameLength;
+    out->segments_free = in->SegmentsFree;
+    out->segments_total = in->SegmentsTotal;
 }
 
 #endif //!__DDK_CONVERT_H__
