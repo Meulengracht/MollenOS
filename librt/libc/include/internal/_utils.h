@@ -13,7 +13,7 @@ typedef struct HandleSetWaitParameters {
 } HandleSetWaitParameters_t;
 
 extern int                __crt_is_phoenix(void);
-extern uuid_t*            __crt_processid_ptr(void);
+extern uuid_t             __crt_process_id(void);
 extern uuid_t             __crt_primary_thread(void);
 extern uuid_t             __crt_thread_id(void);
 extern const char*        __crt_cmdline(void);

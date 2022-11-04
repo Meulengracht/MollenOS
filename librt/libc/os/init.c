@@ -296,9 +296,9 @@ uuid_t __crt_thread_id(void)
     return ThreadsCurrentId();
 }
 
-uuid_t* __crt_processid_ptr(void)
+uuid_t __crt_process_id(void)
 {
-    return &g_processId;
+    return g_processId;
 }
 
 const char* __crt_cmdline(void)

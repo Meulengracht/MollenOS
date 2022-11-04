@@ -38,7 +38,7 @@ int link(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), from, to, symbolic);
+    sys_file_link(GetGrachtClient(), &msg.base, __crt_process_id(), from, to, symbolic);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_link_result(GetGrachtClient(), &msg.base, &status);
     return OsErrToErrNo(status);

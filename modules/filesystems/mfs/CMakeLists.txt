@@ -3,7 +3,7 @@ include_directories (
     ${CMAKE_BINARY_DIR}/protocols
 )
 
-add_filesystem_target(mfs
+add_module_target(mfs ""
         bucket_map.c
         directory_operations.c
         file_operations.c
@@ -11,4 +11,5 @@ add_filesystem_target(mfs
         records.c
         utilities.c
 )
+target_link_libraries(mfs PRIVATE fs-common)
 deploy_file_to_initrd(mfs "modules" mfs.yaml)

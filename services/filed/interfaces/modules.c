@@ -21,14 +21,19 @@
 
 #define __TRACE
 
+#include <ddk/convert.h>
 #include <ddk/utils.h>
-#include "os/services/sharedobject.h"
+#include <os/services/process.h>
 #include <os/usched/cond.h>
 #include <os/usched/job.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <vfs/interface.h>
+
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
+#include <ctt_filesystem_service_client.h>
 
 static const char* g_modulePaths[] = {
         "/modules",
@@ -37,44 +42,219 @@ static const char* g_modulePaths[] = {
 };
 
 static oserr_t
-__LoadInternalAPI(
-        _In_ struct VFSInterface* interface,
-        _In_ Handle_t             handle)
+__DriverInitialize(struct VFSInterface* interface, struct VFSStorageParameters* params, void** instanceData)
 {
-    TRACE("__LoadInternalAPI()");
+    struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    struct ctt_fs_setup_params cttParams;
+    oserr_t                    oserr;
+    uintptr_t                  fsctx;
 
-    interface->Operations.Initialize = (FsInitialize_t)SharedObjectGetFunction(handle, "FsInitialize");
-    interface->Operations.Destroy    = (FsDestroy_t)SharedObjectGetFunction(handle, "FsDestroy");
-    interface->Operations.Stat       = (FsStat_t)SharedObjectGetFunction(handle, "FsStat");
+    to_fs_setup_params(params, &cttParams);
+    ctt_filesystem_setup(GetGrachtClient(), &msg.base, &cttParams);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_setup_result(GetGrachtClient(), &msg.base, &oserr, &fsctx);
+    *instanceData = (void*)fsctx;
+    return oserr;
+}
 
-    interface->Operations.Open     = (FsOpen_t)SharedObjectGetFunction(handle, "FsOpen");
-    interface->Operations.Close    = (FsClose_t)SharedObjectGetFunction(handle, "FsClose");
-    interface->Operations.Link     = (FsLink_t)SharedObjectGetFunction(handle, "FsLink");
-    interface->Operations.Unlink   = (FsUnlink_t)SharedObjectGetFunction(handle, "FsUnlink");
-    interface->Operations.ReadLink = (FsReadLink_t)SharedObjectGetFunction(handle, "FsReadLink");
-    interface->Operations.Create   = (FsCreate_t)SharedObjectGetFunction(handle, "FsCreate");
-    interface->Operations.Move     = (FsMove_t)SharedObjectGetFunction(handle, "FsMove");
-    interface->Operations.Truncate = (FsTruncate_t)SharedObjectGetFunction(handle, "FsTruncate");
-    interface->Operations.Read     = (FsRead_t)SharedObjectGetFunction(handle, "FsRead");
-    interface->Operations.Write    = (FsWrite_t)SharedObjectGetFunction(handle, "FsWrite");
-    interface->Operations.Seek     = (FsSeek_t)SharedObjectGetFunction(handle, "FsSeek");
+static oserr_t
+__DriverDestroy(struct VFSInterface* interface, void* instanceData, unsigned int unmountFlags)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
 
-    // Sanitize required functions
-    if (interface->Operations.Open == NULL) {
-        WARNING("__LoadInternalAPI FsOpen is required, was not present");
-        return OS_ENOTSUPPORTED;
-    }
+    ctt_filesystem_destroy(GetGrachtClient(), &msg.base, (uintptr_t)instanceData);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_destroy_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
 
-    if (interface->Operations.Read == NULL) {
-        WARNING("__LoadInternalAPI FsRead is required, was not present");
-        return OS_ENOTSUPPORTED;
-    }
+static oserr_t
+__DriverOpen(struct VFSInterface* interface, void* instanceData, mstring_t* path, void** dataOut)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+    uintptr_t                fctx;
+    char*                    cpath = mstr_u8(path);
 
-    if (interface->Operations.Close == NULL) {
-        WARNING("__LoadInternalAPI FsClose is required, was not present");
-        return OS_ENOTSUPPORTED;
-    }
-    return OS_EOK;
+    ctt_filesystem_open(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cpath);
+    free(cpath);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_open_result(GetGrachtClient(), &msg.base, &oserr, &fctx);
+    *dataOut = (void*)fctx;
+    return oserr;
+}
+
+static oserr_t
+__DriverCreate(struct VFSInterface* interface, void* instanceData, void* data, mstring_t* name, uint32_t owner, uint32_t flags, uint32_t permissions, void** dataOut)
+{
+    struct vali_link_message  msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                   oserr;
+    uintptr_t                 fctx;
+    struct ctt_fs_open_params params;
+
+    ctt_fs_open_params_init(&params);
+    params.name = mstr_u8(name);
+    params.owner = owner;
+    params.flags = flags;
+    params.permissions = permissions;
+
+    ctt_filesystem_create(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
+    ctt_fs_open_params_destroy(&params);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_create_result(GetGrachtClient(), &msg.base, &oserr, &fctx);
+    *dataOut = (void*)fctx;
+    return oserr;
+}
+
+static oserr_t
+__DriverClose(struct VFSInterface* interface, void* instanceData, void* data)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+
+    ctt_filesystem_close(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_close_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+static oserr_t
+__DriverStat(struct VFSInterface* interface, void* instanceData, struct VFSStatFS* stats)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+    struct ctt_fsstat        cttStats;
+
+    ctt_filesystem_fsstat(GetGrachtClient(), &msg.base, (uintptr_t)instanceData);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_fsstat_result(GetGrachtClient(), &msg.base, &oserr, &cttStats);
+    from_fsstat(&cttStats, stats);
+    ctt_fsstat_destroy(&cttStats);
+    return oserr;
+}
+
+static oserr_t
+__DriverLink(struct VFSInterface* interface, void* instanceData, void* data, mstring_t* linkName, mstring_t* linkTarget, int symbolic)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+    char*                    name = mstr_u8(linkName);
+    char*                    target = mstr_u8(linkTarget);
+
+    ctt_filesystem_link(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, name, target, symbolic);
+    free(name); free(target);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_link_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+static oserr_t
+__DriverUnlink(struct VFSInterface* interface, void* instanceData, mstring_t* path)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+    char*                    cpath = mstr_u8(path);
+
+    ctt_filesystem_unlink(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cpath);
+    free(cpath);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_unlink_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+static oserr_t
+__DriverReadlink(struct VFSInterface* interface, void* instanceData, mstring_t* path, mstring_t** pathOut)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+    char*                    cpath = mstr_u8(path);
+    char*                    buffer = malloc(_MAXPATH);
+
+    ctt_filesystem_readlink(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cpath);
+    free(cpath);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_readlink_result(GetGrachtClient(), &msg.base, &oserr, buffer, _MAXPATH);
+    *pathOut = mstr_new_u8(buffer);
+    free(buffer);
+    return oserr;
+}
+
+static oserr_t
+__DriverMove(struct VFSInterface* interface, void* instanceData, mstring_t* from, mstring_t* to, int copy)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+    char*                    cfrom = mstr_u8(from);
+    char*                    cto = mstr_u8(to);
+
+    ctt_filesystem_move(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cfrom, cto, copy);
+    free(cfrom); free(cto);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_move_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+static oserr_t
+__DriverRead(struct VFSInterface* interface, void* instanceData, void* data, uuid_t bufferHandle, size_t bufferOffset, size_t unitCount, size_t* unitsRead)
+{
+    struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                       oserr;
+    struct ctt_fs_transfer_params params;
+    uint64_t                      read;
+
+    params.buffer_id = bufferHandle;
+    params.offset = bufferOffset;
+    params.count = unitCount;
+
+    ctt_filesystem_read(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_read_result(GetGrachtClient(), &msg.base, &oserr, &read);
+    *unitsRead = read;
+    return oserr;
+}
+
+static oserr_t
+__DriverWrite(struct VFSInterface* interface, void* instanceData, void* data, uuid_t bufferHandle, size_t bufferOffset, size_t unitCount, size_t* unitsWritten)
+{
+    struct vali_link_message      msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                       oserr;
+    struct ctt_fs_transfer_params params;
+    uint64_t                      written;
+
+    params.buffer_id = bufferHandle;
+    params.offset = bufferOffset;
+    params.count = unitCount;
+
+    ctt_filesystem_write(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_write_result(GetGrachtClient(), &msg.base, &oserr, &written);
+    *unitsWritten = (size_t)written;
+    return oserr;
+}
+
+static oserr_t
+__DriverTruncate(struct VFSInterface* interface, void* instanceData, void* data, uint64_t size)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+
+    ctt_filesystem_truncate(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, size);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_truncate_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+static oserr_t
+__DriverSeek(struct VFSInterface* interface, void* instanceData, void* data, uint64_t absolutePosition, uint64_t* absolutePositionOut)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(interface->DriverID);
+    oserr_t                  oserr;
+
+    ctt_filesystem_seek(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, absolutePosition);
+    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    ctt_filesystem_seek_result(GetGrachtClient(), &msg.base, &oserr, absolutePositionOut);
+    return oserr;
 }
 
 struct VFSInterface*
@@ -102,7 +282,7 @@ struct __DetachedContext {
     const char* Type;
 
     // return
-    Handle_t Handle;
+    uuid_t ProcessID;
 };
 
 static struct __DetachedContext* __DetachedContext_new(const char* type)
@@ -129,15 +309,16 @@ __TryLocateModule(
     struct __DetachedContext* context = argument;
     char                      tmp[256];
     int                       i;
+    uuid_t                    processID;
     ENTRY("__TryLocateModule()");
 
     i = 0;
     while (g_modulePaths[i] && !usched_is_cancelled(cancellationToken)) {
         snprintf(&tmp[0], sizeof(tmp), "%s/%s.dll", g_modulePaths[i], context->Type);
-        Handle_t handle = SharedObjectLoad(&tmp[0]);
-        if (handle != HANDLE_INVALID) {
-            context->Handle = handle;
-            return;
+        oserr_t oserr = ProcessSpawn(&tmp[0], NULL, &processID);
+        if (oserr == OS_EOK) {
+            context->ProcessID = processID;
+            break;
         }
         i++;
     }

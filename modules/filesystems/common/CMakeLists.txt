@@ -6,7 +6,10 @@ set_source_files_properties(${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE)
 
 add_library(fs-common STATIC
         ${ADDITONAL_SOURCES}
+        requests.c
+        service.c
         storage.c
+        wrappers.c
 )
 target_include_directories(fs-common PUBLIC include)
 target_include_directories(fs-common PRIVATE ../../../librt/libos/include)

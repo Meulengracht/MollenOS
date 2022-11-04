@@ -53,7 +53,7 @@ OSOpenPath(
     sys_file_open(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             path,
             flags,
             permissions
@@ -74,7 +74,7 @@ OSCloseFile(
     sys_file_close(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -97,7 +97,7 @@ OSMakeDirectory(
     sys_file_mkdir(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             path,
             permissions
     );
@@ -130,7 +130,7 @@ OSReadDirectory(
     sys_file_readdir(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -157,7 +157,7 @@ OSSeekFile(
     sys_file_seek(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             handle,
             position->u.LowPart,
             position->u.HighPart
@@ -181,7 +181,7 @@ OSUnlinkPath(
     sys_file_delete(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             path,
             0
     );
@@ -206,7 +206,7 @@ OSMoveFile(
     sys_file_move(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             from,
             to,
             copy
@@ -232,7 +232,7 @@ OSGetFilePosition(
     sys_file_get_position(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -260,7 +260,7 @@ OSGetFileSize(
     sys_file_get_size(
             GetGrachtClient(),
             &msg.base,
-            *__crt_processid_ptr(),
+            __crt_process_id(),
             handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -312,12 +312,12 @@ SetFileSizeFromFd(
     value.QuadPart = size;
     
     sys_file_set_size(
-        GetGrachtClient(), 
-        &msg.base, 
-        *__crt_processid_ptr(),
-        handle->object.handle,
-        value.u.LowPart,
-        value.u.HighPart
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle,
+            value.u.LowPart,
+            value.u.HighPart
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_set_size_result(GetGrachtClient(), &msg.base, &status);
@@ -362,20 +362,20 @@ ChangeFilePermissionsFromFd(
     }
 
     sys_file_get_access(
-        GetGrachtClient(),
-        &msg.base,
-        *__crt_processid_ptr(),
-        handle->object.handle
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_get_access_result(GetGrachtClient(), &msg.base, &status, &access);
     
     sys_file_set_access(
-        GetGrachtClient(),
-        &msg.base,
-        *__crt_processid_ptr(),
-        handle->object.handle,
-        access
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle,
+            access
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
@@ -395,7 +395,7 @@ GetFileLink(
         return OS_EINVALPARAMS;
     }
 
-    sys_file_fstat_link(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path);
+    sys_file_fstat_link(GetGrachtClient(), &msg.base, __crt_process_id(), path);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_link_result(GetGrachtClient(), &msg.base, &status, linkPathBuffer, bufferLength);
     return status;
@@ -415,7 +415,7 @@ GetFilePathFromFd(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_get_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
+    sys_file_get_path(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_get_path_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
     return status;
@@ -435,7 +435,7 @@ GetStorageInformationFromPath(
         return OS_EINVALPARAMS;
     }
 
-    sys_file_ststat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
+    sys_file_ststat_path(GetGrachtClient(), &msg.base, __crt_process_id(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_ststat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -460,7 +460,7 @@ GetStorageInformationFromFd(
         return OS_EINVALPARAMS;
     }
 
-    sys_file_ststat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
+    sys_file_ststat(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_ststat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -484,7 +484,7 @@ GetFileSystemInformationFromPath(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fsstat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
+    sys_file_fsstat_path(GetGrachtClient(), &msg.base, __crt_process_id(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -509,7 +509,7 @@ GetFileSystemInformationFromFd(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fsstat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
+    sys_file_fsstat(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fsstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -533,7 +533,7 @@ GetFileInformationFromPath(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fstat_path(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), path, followLinks);
+    sys_file_fstat_path(GetGrachtClient(), &msg.base, __crt_process_id(), path, followLinks);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -558,7 +558,7 @@ GetFileInformationFromFd(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fstat(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), handle->object.handle);
+    sys_file_fstat(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_fstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
@@ -693,7 +693,7 @@ oserr_t FlushFileMapping(
             struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
             size_t                   bytesTransferred;
 
-            sys_file_transfer_absolute(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), fileView->file_handle,
+            sys_file_transfer_absolute(GetGrachtClient(), &msg.base, __crt_process_id(), fileView->file_handle,
                                        1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->dmaAttachment.handle,
                                        i * __GetPageSize(), dirtyPageCount * __GetPageSize());
             gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
@@ -765,7 +765,7 @@ oserr_t HandleMemoryMappingEvent(
     }
 
     // Now we perform the actual filling on the memory area
-    sys_file_transfer_absolute(GetGrachtClient(), &msg.base, *__crt_processid_ptr(), fileView->file_handle,
+    sys_file_transfer_absolute(GetGrachtClient(), &msg.base, __crt_process_id(), fileView->file_handle,
                                0, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->dmaAttachment.handle,
                                virtualAddress - (uintptr_t)fileView->dmaAttachment.buffer, __GetPageSize());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
