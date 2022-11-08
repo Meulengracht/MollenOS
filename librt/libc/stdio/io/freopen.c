@@ -54,7 +54,7 @@ FILE* freopen(
 
 		// Open a new file descriptor
 		_fflags(mode, &open_flags, &stream_flags);
-		fd = open(filename, open_flags, S_IREAD | S_IWRITE);
+		fd = open(filename, open_flags, 0755);
 		if (fd == -1) {
 			return NULL;
 		}

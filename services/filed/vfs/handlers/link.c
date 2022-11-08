@@ -47,7 +47,6 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     mstring_t* nodeName                = mstr_path_basename(path);
     mstr_delete(path);
 
-    TRACE("VFSNodeLink 1");
     struct VFSNode* containingDirectory;
     oserr_t         osStatus = VFSNodeGet(
             vfs, containingDirectoryPath,
@@ -61,7 +60,6 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
     // Verify that the node is not already something that exists. I Don't know if
     // we should support overwriting symlinks or ask users explicitly to delete an existing
     // symlink. Of course this would require we verify this node is a symlink already.
-    TRACE("VFSNodeLink 2");
     struct VFSNode* node;
     osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
     if (osStatus != OS_EOK && osStatus != OS_ENOENT) {
@@ -71,7 +69,6 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
         goto exit;
     }
 
-    TRACE("VFSNodeLink 3");
     osStatus = VFSNodeCreateLinkChild(
             containingDirectory, nodeName, target,
             request->parameters.link.symbolic,

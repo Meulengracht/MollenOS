@@ -63,7 +63,7 @@
 #define O_NOINHERIT     0x0080  /* child process doesn't inherit file */
 
 /* Temporary file bit - file is deleted when last handle is closed */
-#define O_TEMPORARY     0x0040  /* temporary file bit */
+#define O_TMPFILE       0x0040  /* temporary file bit */
 
 /* temporary access hint */
 #define O_SHORT_LIVED   0x1000  /* temporary storage file, try not to flush */

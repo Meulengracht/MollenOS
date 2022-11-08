@@ -77,9 +77,9 @@ FileSystemParseGuid(
     return NULL;
 }
 
-void VFSFileSystemInitialize(void)
+void VFSFileSystemStartup(void)
 {
-    TRACE("VFSFileSystemInitialize()");
+    TRACE("VFSFileSystemStartup()");
 
     guid_parse_string(&g_efiGuid, "C12A7328-F81F-11D2-BA4B-00A0C93EC93B");
     guid_parse_string(&g_fatGuid, "21686148-6449-6E6F-744E-656564454649");
@@ -128,7 +128,7 @@ static void __DestroyDriver(
     }
 
     if (fileSystem->Interface && fileSystem->Interface->Operations.Destroy) {
-        fileSystem->Interface->Operations.Destroy(fileSystem->Data, 0);
+        fileSystem->Interface->Operations.Destroy(fileSystem->Interface, fileSystem->Data, 0);
     }
     VFSInterfaceDelete(fileSystem->Interface);
 }
@@ -158,7 +158,7 @@ static mstring_t* __GetLabel(
     struct VFSStatFS stat = { 0 };
 
     if (fileSystem->Interface && fileSystem->Interface->Operations.Stat) {
-        oserr_t oserr = fileSystem->Interface->Operations.Stat(fileSystem->Data, &stat);
+        oserr_t oserr = fileSystem->Interface->Operations.Stat(fileSystem->Interface, fileSystem->Data, &stat);
         if (oserr == OS_EOK && stat.Label) {
             return mstr_clone(stat.Label);
         }
@@ -266,12 +266,13 @@ __InitializeInterface(
     struct VFSStorageParameters storageParameters;
     TRACE("__InitializeInterface(fs=%u)", fileSystem->ID);
 
-    // We do certainly not require an interface
-    if (interface == NULL || interface->Operations.Initialize == NULL) {
+    // The initialize function is optional
+    if (interface->Operations.Initialize == NULL) {
         return OS_EOK;
     }
+
     __BuildStorageParameters(fileSystem, &storageParameters);
-    return interface->Operations.Initialize(&storageParameters, &fileSystem->Data);
+    return interface->Operations.Initialize(fileSystem->Interface, &storageParameters, &fileSystem->Data);
 }
 
 oserr_t
@@ -455,7 +456,7 @@ VFSFileSystemDisconnectInterface(
 
     usched_mtx_lock(&fileSystem->Lock);
     if (fileSystem->State == FileSystemState_CONNECTED) {
-        osStatus = fileSystem->Interface->Operations.Destroy(&fileSystem->Data, flags);
+        osStatus = fileSystem->Interface->Operations.Destroy(fileSystem->Interface, &fileSystem->Data, flags);
         fileSystem->State = FileSystemState_NO_INTERFACE;
     }
     usched_mtx_unlock(&fileSystem->Lock);

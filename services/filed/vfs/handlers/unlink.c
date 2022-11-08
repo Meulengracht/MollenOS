@@ -87,7 +87,7 @@ static oserr_t __DeleteNode(struct VFSNode* node)
     }
 
     // OK at this point we are now allowed to perform the deletion
-    oserr = ops->Unlink(vfs->Data, nodePath);
+    oserr = ops->Unlink(vfs->Interface, vfs->Data, nodePath);
     if (oserr != OS_EOK) {
         goto error;
     }

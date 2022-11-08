@@ -164,8 +164,6 @@ __ParseModuleOptions(
 void __CrtModuleEntry(void)
 {
     thread_storage_t threadStorage;
-    oserr_t          oserr;
-    uuid_t           moduleId;
     char**           argv;
     int              argc;
 

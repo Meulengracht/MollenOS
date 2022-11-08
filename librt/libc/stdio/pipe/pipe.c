@@ -48,7 +48,7 @@ static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
     if ((unsupp = oflags & ~(
             O_BINARY|O_TEXT|O_APPEND|
             O_TRUNC|O_EXCL|O_CREAT|
-            O_RDWR|O_WRONLY|O_TEMPORARY|
+            O_RDWR|O_WRONLY|O_TMPFILE|
             O_NOINHERIT|
             O_SEQUENTIAL|O_RANDOM|O_SHORT_LIVED|
             O_WTEXT|O_U16TEXT|O_U8TEXT

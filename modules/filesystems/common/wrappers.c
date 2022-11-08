@@ -235,8 +235,7 @@ void FsMoveWrapper(
         _In_ FileSystemRequest_t* request,
         _In_ void*                cancellationToken)
 {
-    mstring_t* path;
-    oserr_t    oserr;
+    oserr_t oserr;
 
     oserr = FsMove(
             request->parameters.move.fscontext,

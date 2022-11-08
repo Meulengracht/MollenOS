@@ -56,7 +56,7 @@ typedef struct FileSystem {
 /**
  * Initializes the filesystem interface.
  */
-extern void VFSFileSystemInitialize(void);
+extern void VFSFileSystemStartup(void);
 
 /**
  * @brief Creates a new filesystem instance from the parameters provided. This does not register

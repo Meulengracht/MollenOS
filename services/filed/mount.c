@@ -162,8 +162,8 @@ static oserr_t __MountFile(
 
     oserr = VFSNodeOpen(
             vfs, cpath,
-            0,
             __AccessFlagsFromMountFlags(flags),
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
             &handle
     );
     if (oserr != OS_EOK) {
@@ -208,8 +208,8 @@ static oserr_t __MountPath(
 
     oserr = VFSNodeOpen(
             vfs, cpath,
-            __FILE_DIRECTORY,
-            0, // TODO what kind of access should we have here
+            __FILE_DIRECTORY,  // TODO what kind of access should we have here
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
             &handle
     );
     if (oserr != OS_EOK) {
@@ -269,8 +269,8 @@ void Mount(
     oserr = VFSNodeOpen(
             fsScope,
             request->parameters.mount.at,
-            __FILE_DIRECTORY,
-            0, // TODO what kind of access should we have here
+            __FILE_DIRECTORY, // TODO what kind of access should we have here
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
             &atHandle
     );
     if (oserr != OS_EOK) {

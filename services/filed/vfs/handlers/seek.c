@@ -79,8 +79,12 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     }
 
     oserr = nodeVfs->Interface->Operations.Seek(
-            nodeVfs->Data, handle->Data,
-            position.QuadPart, &result.QuadPart);
+            nodeVfs->Interface,
+            nodeVfs->Data,
+            handle->Data,
+            position.QuadPart,
+            &result.QuadPart
+    );
     if (oserr == OS_EOK) {
         handle->Mode     = MODE_NONE;
         handle->Position = result.QuadPart;

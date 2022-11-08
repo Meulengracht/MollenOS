@@ -208,8 +208,9 @@ static struct MemFS* __MemFS_new(void)
 
 static oserr_t
 __MemFSInitialize(
-        _In_ struct VFSStorageParameters* storageParameters,
-        _Out_ void**                      instanceData)
+        _In_  struct VFSInterface*         interface,
+        _In_  struct VFSStorageParameters* storageParameters,
+        _Out_ void**                       instanceData)
 {
     TRACE("__MemFSInitialize()");
     _CRT_UNUSED(storageParameters);
@@ -225,8 +226,9 @@ __MemFSInitialize(
 
 static oserr_t
 __MemFSDestroy(
-        _In_ void*        instanceData,
-        _In_ unsigned int unmountFlags)
+        _In_ struct VFSInterface* interface,
+        _In_ void*                instanceData,
+        _In_ unsigned int         unmountFlags)
 {
     TRACE("__MemFSDestroy()");
     if (instanceData == NULL) {
@@ -316,9 +318,10 @@ static oserr_t __FindNode(
 
 static oserr_t
 __MemFSOpen(
-        _In_      void*      instanceData,
-        _In_      mstring_t* path,
-        _Out_Opt_ void**     dataOut)
+        _In_      struct VFSInterface* interface,
+        _In_      void*                instanceData,
+        _In_      mstring_t*           path,
+        _Out_Opt_ void**               dataOut)
 {
     struct MemFS*       memfs = instanceData;
     struct MemFSHandle* handle;
@@ -398,13 +401,14 @@ static oserr_t __CreateInNode(
 
 static oserr_t
 __MemFSCreate(
-        _In_  void*      instanceData,
-        _In_  void*      data,
-        _In_  mstring_t* name,
-        _In_  uint32_t   owner,
-        _In_  uint32_t   flags,
-        _In_  uint32_t   permissions,
-        _Out_ void**     dataOut)
+        _In_  struct VFSInterface* interface,
+        _In_  void*                instanceData,
+        _In_  void*                data,
+        _In_  mstring_t*           name,
+        _In_  uint32_t             owner,
+        _In_  uint32_t             flags,
+        _In_  uint32_t             permissions,
+        _Out_ void**               dataOut)
 {
     //struct MemFS*       memfs  = instanceData;
     struct MemFSHandle* handle = data;
@@ -444,8 +448,9 @@ __MemFSCreate(
 
 static oserr_t
 __MemFSClose(
-        _In_ void* instanceData,
-        _In_ void* data)
+        _In_ struct VFSInterface* interface,
+        _In_ void*                instanceData,
+        _In_ void*                data)
 {
     TRACE("__MemFSClose()");
     if (instanceData == NULL || data == NULL) {
@@ -458,8 +463,9 @@ __MemFSClose(
 
 static oserr_t
 __MemFSStat(
-        _In_ void*             instanceData,
-        _In_ struct VFSStatFS* stat)
+        _In_ struct VFSInterface* interface,
+        _In_ void*                instanceData,
+        _In_ struct VFSStatFS*    stat)
 {
     TRACE("__MemFSStat()");
     if (instanceData == NULL) {
@@ -524,11 +530,12 @@ static oserr_t __SymlinkInNode(
 
 static oserr_t
 __MemFSLink(
-        _In_ void*      instanceData,
-        _In_ void*      data,
-        _In_ mstring_t* linkName,
-        _In_ mstring_t* linkTarget,
-        _In_ int        symbolic)
+        _In_ struct VFSInterface* interface,
+        _In_ void*                instanceData,
+        _In_ void*                data,
+        _In_ mstring_t*           linkName,
+        _In_ mstring_t*           linkTarget,
+        _In_ int                  symbolic)
 {
     //struct MemFS*       memfs  = instanceData;
     struct MemFSHandle* handle = data;
@@ -571,8 +578,9 @@ __MemFSLink(
 
 static oserr_t
 __MemFSUnlink(
-        _In_ void*      instanceData,
-        _In_ mstring_t* path)
+        _In_  struct VFSInterface* interface,
+        _In_ void*                 instanceData,
+        _In_ mstring_t*            path)
 {
     struct MemFS*      memfs = instanceData;
     struct MemFSEntry* parent;
@@ -604,9 +612,10 @@ __MemFSUnlink(
 
 static oserr_t
 __MemFSReadLink(
-        _In_ void*       instanceData,
-        _In_ mstring_t*  path,
-        _In_ mstring_t** pathOut)
+        _In_  struct VFSInterface* interface,
+        _In_ void*                 instanceData,
+        _In_ mstring_t*            path,
+        _In_ mstring_t**           pathOut)
 {
     struct MemFS*      memfs = instanceData;
     struct MemFSEntry* parent;
@@ -636,10 +645,11 @@ __MemFSReadLink(
 
 static oserr_t
 __MemFSMove(
-        _In_ void*      instanceData,
-        _In_ mstring_t* from,
-        _In_ mstring_t* to,
-        _In_ int        copy)
+        _In_ struct VFSInterface* interface,
+        _In_ void*                instanceData,
+        _In_ mstring_t*           from,
+        _In_ mstring_t*           to,
+        _In_ int                  copy)
 {
     TRACE("__MemFSMove(from=%ms, to=%ms, copy=%i)", from, to, copy);
     if (instanceData == NULL) {
@@ -762,16 +772,41 @@ static oserr_t __ReadDirectory(
 }
 
 static oserr_t
+__MapUserBufferRead(
+        _In_ uuid_t           handle,
+        _In_ DMAAttachment_t* attachment)
+{
+    oserr_t osStatus;
+
+    osStatus = DmaAttach(handle, attachment);
+    if (osStatus != OS_EOK) {
+        return osStatus;
+    }
+
+    // When mapping the buffer for reading, we need write access to the buffer,
+    // so we can do buffer combining.
+    osStatus = DmaAttachmentMap(attachment, DMA_ACCESS_WRITE);
+    if (osStatus != OS_EOK) {
+        DmaDetach(attachment);
+        return osStatus;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
 __MemFSRead(
-        _In_  void*   instanceData,
-        _In_  void*   data,
-        _In_  uuid_t  bufferHandle,
-        _In_  void*   buffer,
-        _In_  size_t  bufferOffset,
-        _In_  size_t  unitCount,
-        _Out_ size_t* unitsRead)
+        _In_  struct VFSInterface* interface,
+        _In_  void*                instanceData,
+        _In_  void*                data,
+        _In_  uuid_t               bufferHandle,
+        _In_  void*                buffer,
+        _In_  size_t               bufferOffset,
+        _In_  size_t               unitCount,
+        _Out_ size_t*              unitsRead)
 {
     struct MemFSHandle* handle = data;
+    DMAAttachment_t     attachment;
+    oserr_t             oserr;
 
     TRACE("__MemFSRead(entry=%ms)", handle ? handle->Entry->Name : NULL);
     if (instanceData == NULL || data == NULL) {
@@ -780,29 +815,48 @@ __MemFSRead(
 
     // All data is sourced locally, so we do not really need to use
     // the buffer-handle in this type of FS.
-    _CRT_UNUSED(bufferHandle);
+    if (buffer == NULL) {
+        oserr = __MapUserBufferRead(
+                bufferHandle,
+                &attachment
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    } else {
+        // use the provided local buffer
+        attachment.buffer = buffer;
+    }
 
     // Handle reading of data differently based on the type of file
     // entry.
     switch (handle->Entry->Type) {
         case MEMFS_ENTRY_TYPE_FILE:
-            return __ReadFile(handle, buffer, bufferOffset, unitCount, unitsRead);
+            oserr = __ReadFile(handle, attachment.buffer, bufferOffset, unitCount, unitsRead);
+            break;
         case MEMFS_ENTRY_TYPE_DIRECTORY:
-            return __ReadDirectory(handle, buffer, bufferOffset, unitCount, unitsRead);
-        default: break;
+            oserr = __ReadDirectory(handle, attachment.buffer, bufferOffset, unitCount, unitsRead);
+            break;
+        default:
+            oserr = OS_ENOTSUPPORTED;
+            break;
     }
-    return OS_ENOTSUPPORTED;
+    if (buffer == NULL) {
+        (void)DmaDetach(&attachment);
+    }
+    return oserr;
 }
 
 static oserr_t
 __MemFSWrite(
-        _In_  void*   instanceData,
-        _In_  void*   data,
-        _In_  uuid_t  bufferHandle,
-        _In_  void*   buffer,
-        _In_  size_t  bufferOffset,
-        _In_  size_t  unitCount,
-        _Out_ size_t* unitsWritten)
+        _In_  struct VFSInterface* interface,
+        _In_  void*                instanceData,
+        _In_  void*                data,
+        _In_  uuid_t               bufferHandle,
+        _In_  const void*          buffer,
+        _In_  size_t               bufferOffset,
+        _In_  size_t               unitCount,
+        _Out_ size_t*              unitsWritten)
 {
     TRACE("__MemFSWrite()");
     if (instanceData == NULL) {
@@ -814,9 +868,10 @@ __MemFSWrite(
 
 static oserr_t
 __MemFSTruncate(
-        _In_ void*    instanceData,
-        _In_ void*    data,
-        _In_ uint64_t size)
+        _In_ struct VFSInterface* interface,
+        _In_ void*                instanceData,
+        _In_ void*                data,
+        _In_ uint64_t             size)
 {
     TRACE("__MemFSTruncate()");
     if (instanceData == NULL) {
@@ -828,10 +883,11 @@ __MemFSTruncate(
 
 static oserr_t
 __MemFSSeek(
-        _In_  void*     instanceData,
-        _In_  void*     data,
-        _In_  uint64_t  absolutePosition,
-        _Out_ uint64_t* absolutePositionOut)
+        _In_  struct VFSInterface* interface,
+        _In_  void*                instanceData,
+        _In_  void*                data,
+        _In_  uint64_t             absolutePosition,
+        _Out_ uint64_t*            absolutePositionOut)
 {
     TRACE("__MemFSSeek()");
     if (instanceData == NULL) {
@@ -859,7 +915,7 @@ static struct VFSOperations g_memfsOperations = {
 };
 
 struct VFSInterface* MemFSNewInterface(void) {
-    return VFSInterfaceNew(NULL, &g_memfsOperations);
+    return VFSInterfaceNew(UUID_INVALID, &g_memfsOperations);
 }
 
 static uint64_t __directory_entries_hash(const void* element)

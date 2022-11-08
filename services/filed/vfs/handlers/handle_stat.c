@@ -113,7 +113,11 @@ oserr_t VFSNodeSetSize(uuid_t fileHandle, UInteger64_t* size)
 
     usched_rwlock_w_lock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Interface->Operations.Truncate(
-            handle->Node->FileSystem->Data, handle->Data, size->QuadPart);
+            handle->Node->FileSystem->Interface,
+            handle->Node->FileSystem->Data,
+            handle->Data,
+            size->QuadPart
+    );
     if (osStatus == OS_EOK) {
         handle->Node->Stats.Size = size->QuadPart;
     }
@@ -154,7 +158,10 @@ oserr_t VFSNodeStatFsHandle(uuid_t fileHandle, struct VFSStatFS* stat)
 
     usched_rwlock_r_unlock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Interface->Operations.Stat(
-            handle->Node->FileSystem->Data, stat);
+            handle->Node->FileSystem->Interface,
+            handle->Node->FileSystem->Data,
+            stat
+    );
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
     VFSNodeHandlePut(handle);

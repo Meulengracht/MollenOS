@@ -14,10 +14,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO file operation implementations.
  */
 
 //#define __TRACE
@@ -101,7 +97,7 @@ int open(const char* file, int flags, ...)
     oserr_t         osStatus;
     stdio_handle_t* object;
     uuid_t          handle;
-    int             pmode = 0;
+    unsigned int    mode = 0;
     va_list         ap;
 
     if (!file) {
@@ -109,22 +105,22 @@ int open(const char* file, int flags, ...)
         return -1;
     }
 
-    // Extract pmode flags
-    if (flags & O_CREAT) {
+    // Extract mode flags
+    if (flags & (O_CREAT | O_TMPFILE)) {
         va_start(ap, flags);
-        pmode = va_arg(ap, int);
+        mode = va_arg(ap, unsigned int);
         va_end(ap);
     }
 
-    // handle pmode flags
-    if (pmode) {
-        // @todo check permission flags for creation
-    }
-
     // Try to open the file by directly communicating with the file-service
-    osStatus = OSOpenPath(file, _fopts(flags), _faccess(flags),&handle);
+    osStatus = OSOpenPath(
+            file,
+            _fopts(flags) | _faccess(flags),
+            _fperms(mode),
+            &handle
+    );
     if (osStatus != OS_EOK) {
-        ERROR("open(path=%s) failed with code: %u", file, osStatus);
+        TRACE("open(path=%s) failed with code: %u", file, osStatus);
         return OsErrToErrNo(osStatus);
     }
 

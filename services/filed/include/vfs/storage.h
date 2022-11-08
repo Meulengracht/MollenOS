@@ -74,7 +74,7 @@ struct VFSStorage {
 /**
  * Initializes the storage subsystem of the VFS manager
  */
-extern void VFSStorageInitialize(void);
+extern void VFSStorageStartup(void);
 
 /**
  * @brief

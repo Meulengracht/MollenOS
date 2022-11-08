@@ -59,7 +59,7 @@ __NewMemFS(
     // but when dealing with our VFS* directly, we have to take care of initializing
     // and destructing manually
     if (interface->Operations.Initialize) {
-        osStatus = interface->Operations.Initialize(&storageParameters, &interfaceData);
+        osStatus = interface->Operations.Initialize(interface, &storageParameters, &interfaceData);
         if (osStatus != OS_EOK) {
             VFSInterfaceDelete(interface);
             VFSStorageDelete(storage);
@@ -96,19 +96,19 @@ __MountDefaultDirectories(void)
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE, &node);
 }
 
-void VFSScopeInitialize(void)
+void VFSScopeStartup(void)
 {
     oserr_t osStatus;
 
     osStatus = __NewMemFS(&g_globalName, &g_rootGuid, &g_rootScope);
     if (osStatus != OS_EOK) {
-        ERROR("VFSScopeInitialize failed to create root filesystem scope");
+        ERROR("VFSScopeStartup failed to create root filesystem scope");
         return;
     }
 
     osStatus = __MountDefaultDirectories();
     if (osStatus != OS_EOK) {
-        ERROR("VFSScopeInitialize failed to mount default directories: %u", osStatus);
+        ERROR("VFSScopeStartup failed to mount default directories: %u", osStatus);
     }
 }
 

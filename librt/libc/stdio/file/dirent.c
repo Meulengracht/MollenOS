@@ -19,22 +19,8 @@
 
 #include <errno.h>
 #include <io.h>
+#include <internal/_io.h>
 #include <os/services/file.h>
-#include <os/mollenos.h>
-#include <stdlib.h>
-#include <string.h>
-
-unsigned int __ToOSFilePermssions(unsigned int mode)
-{
-    unsigned int permissions = 0;
-    if (mode & S_IXOTH) permissions |= FILE_PERMISSION_OTHER_EXECUTE;
-    if (mode & S_IWOTH) permissions |= FILE_PERMISSION_OTHER_WRITE;
-    if (mode & S_IROTH) permissions |= FILE_PERMISSION_OTHER_READ;
-    if (mode & S_IEXEC) permissions |= FILE_PERMISSION_OWNER_EXECUTE;
-    if (mode & S_IWRITE) permissions |= FILE_PERMISSION_OWNER_WRITE;
-    if (mode & S_IREAD) permissions |= FILE_PERMISSION_OWNER_READ;
-    return permissions;
-}
 
 int
 mkdir(
@@ -44,7 +30,7 @@ mkdir(
     return OsErrToErrNo(
             OSMakeDirectory(
                     path,
-                    __ToOSFilePermssions(mode)
+                    _fperms(mode)
             )
     );
 }
