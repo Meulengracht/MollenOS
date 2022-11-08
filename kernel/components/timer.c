@@ -186,9 +186,9 @@ void
 SystemTimerGetTimestamp(
         _Out_ tick_t* timestampOut)
 {
-    SystemTimer_t*  clock = GetMachine()->SystemTimers.Clock;
-    UInteger64_t frequency;
-    UInteger64_t tick;
+    SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
+    UInteger64_t   frequency;
+    UInteger64_t   tick;
 
     // guard against early calls from the log
     if (!clock) {
@@ -275,7 +275,7 @@ SystemTimerStall(
     UInteger64_t frequency;
     UInteger64_t tick;
     UInteger64_t tickEnd;
-    uint64_t        vPerTicks;
+    uint64_t     vPerTicks;
 
     assert(clock != NULL);
 

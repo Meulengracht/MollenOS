@@ -29,9 +29,14 @@ enum OSClockSource {
     OSClockSource_HPC        // Provides a high-precision tick counter
 };
 
-typedef struct OSTime {
+/**
+ * @brief Timestamps are fixed places in time. It's equivalent to the
+ * timespec of C, however it describes the absolute place in time, with
+ * the epoch of January 1,
+ */
+typedef struct OSTimestamp {
     int64_t Seconds;
     int64_t Nanoseconds;
-} OSTime_t;
+} OSTimestamp_t;
 
 #endif //!__TYPES_TIME_H__

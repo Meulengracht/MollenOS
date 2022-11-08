@@ -112,6 +112,9 @@ void usched_xunit_init(void)
     // like the current scheduler etc.
     __set_reserved(2, (uintptr_t)&g_executionManager.primary.tls);
 
+    // Initialize all the one-time systems, these only need to run once
+    __usched_startup();
+
     // Initialize all the subsystems for the primary execution unit. Each unit needs
     // to run this
     __usched_init(&g_executionManager.primary.scheduler, &(struct usched_init_params) {
