@@ -19,7 +19,7 @@
 #define	__OS_TYPES_ASYNC_H__
 
 #include <os/osdefs.h>
-#include <os/usched/cond.h>
+#include <os/usched/usched.h>
 
 /**
  * @brief The system call context is neccessary for system calls that want to support
@@ -28,14 +28,12 @@
  * to return immediately to userspace, and instead be signalled once the result is ready.
  */
 typedef struct OSAsyncContext {
-    struct usched_mtx Mutex;
-    struct usched_cnd Condition;
-    oserr_t           ErrorCode;
+    uuid_t  NotificationQueue;
+    oserr_t ErrorCode;
 } OSAsyncContext_t;
 
 static inline void OSAsyncContextInitialize(OSAsyncContext_t* context) {
-    usched_cnd_init(&context->Condition);
-    usched_mtx_init(&context->Mutex);
+    context->NotificationQueue = usched_notification_queue();
     context->ErrorCode = OS_ESCSTARTED;
 }
 

@@ -22,6 +22,7 @@
 #include <internal/_tls.h>
 #include <os/mutex.h>
 #include <os/threads.h>
+#include <os/types/async.h>
 #include <os/usched/types.h>
 #include <os/usched/cond.h>
 #include <os/usched/job.h>
@@ -96,15 +97,24 @@ struct usched_timeout {
     struct usched_timeout*   next;
 };
 
+struct usched_syscall {
+    struct usched_job*     job;
+    OSAsyncContext_t*      async_context;
+    struct usched_syscall* next;
+};
+
 struct usched_scheduler {
     int                    magic;
     jmp_buf                context;
     struct thread_storage* tls;
+    uuid_t                 notification_queue;
+    uuid_t                 syscall_handle;
 
     // internal_queue is the queue that is only specific to this scheduler.
     // If this is non-NULL, then the scheduler is using a seperate queue for jobs
     // and not the global queue.
     struct usched_scheduler_queue* internal_queue;
+    struct usched_syscall*         syscalls_pending;
 
     struct usched_job* current;
     struct usched_job* garbage_bin;

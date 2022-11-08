@@ -233,11 +233,19 @@ char* mstr_u8(mstring_t* string)
     return u8;
 }
 
-int is_surrogate(short uc) { return (uc - 0xd800u) < 2048u; }
-int is_high_surrogate(short uc) { return (uc & 0xfffffc00) == 0xd800; }
-int is_low_surrogate(short uc) { return (uc & 0xfffffc00) == 0xdc00; }
+static inline int __is_surrogate(short uc) {
+    return (uc - 0xd800u) < 2048u;
+}
 
-mchar_t surrogate_to_utf32(short high, short low) {
+static inline int __is_high_surrogate(short uc) {
+    return (uc & 0xfffffc00) == 0xd800;
+}
+
+static inline int __is_low_surrogate(short uc) {
+    return (uc & 0xfffffc00) == 0xdc00;
+}
+
+static mchar_t __surrogate_to_utf32(short high, short low) {
     return (high << 10) + low - 0x35fdc00;
 }
 
@@ -246,11 +254,11 @@ size_t mstr_len_u16(const short* u16)
     size_t length = 0;
     int    index  = 0;
     while (u16[index]) {
-        if (!is_surrogate(u16[index])) {
+        if (!__is_surrogate(u16[index])) {
             length++;
         } else {
             // Is there enough characters to convert?
-            if (is_high_surrogate(u16[index]) && u16[index + 1] && is_low_surrogate(u16[index + 1])) {
+            if (__is_high_surrogate(u16[index]) && u16[index + 1] && __is_low_surrogate(u16[index + 1])) {
                 length++;
             }
             index++;
@@ -265,12 +273,12 @@ void mstr_u16_to_internal(const short* u16, mchar_t* out)
     size_t outIndex = 0;
     int    index    = 0;
     while (u16[index]) {
-        if (!is_surrogate(u16[index])) {
+        if (!__is_surrogate(u16[index])) {
             out[outIndex++] = u16[index];
         } else {
             // Is there enough characters to convert?
-            if (is_high_surrogate(u16[index]) && u16[index + 1] && is_low_surrogate(u16[index + 1])) {
-                out[outIndex++] = surrogate_to_utf32(u16[index], u16[index + 1]);
+            if (__is_high_surrogate(u16[index]) && u16[index + 1] && __is_low_surrogate(u16[index + 1])) {
+                out[outIndex++] = __surrogate_to_utf32(u16[index], u16[index + 1]);
             }
             index++;
         }

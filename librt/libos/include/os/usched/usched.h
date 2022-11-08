@@ -26,6 +26,9 @@
 // imported from time.h
 struct timespec;
 
+// imported from async.h
+typedef struct OSAsyncContext OSAsyncContext_t;
+
 /**
  * @brief Yields control of the current task and executes the next task in line. If no tasks
  * are ready to execute, control is returned to original caller of this function.
@@ -54,5 +57,20 @@ CRTDECL(void, usched_wait(void));
  * @param[In] until A point in time for which the execution unit must be woken up by.
  */
 CRTDECL(void, usched_timedwait(const struct timespec* until));
+
+/**
+ * @brief Blocks the current job until the async context has completed its
+ * action.
+ * @param asyncContext The async context associated with the async action.
+ */
+CRTDECL(void, usched_wait_async(OSAsyncContext_t* asyncContext));
+
+/**
+ * @brief Retrieves the notification queue handle for the current scheduler.
+ * This is used by the system call subsystem to notify the scheduler of new syscall
+ * completion events.
+ * @return The handle of the scheduler notification queue.
+ */
+CRTDECL(uuid_t, usched_notification_queue(void));
 
 #endif //!__OS_USCHED_H__

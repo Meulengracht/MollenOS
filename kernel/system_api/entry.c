@@ -26,6 +26,7 @@
 #include <ddk/video.h>
 #include <ddk/io.h>
 #include <debug.h>
+#include <handle_set.h>
 #include <internal/_utils.h>
 #include <ipc_context.h>
 #include <os/futex.h>
@@ -270,15 +271,8 @@ SyscallHandle(
     if (ThreadFlags(thread) & THREADING_FORKED) {
         OSAsyncContext_t* asyncContext = ThreadSyscallContext(thread);
         asyncContext->ErrorCode = (oserr_t)returnValue;
-        oserr_t oserr = SignalSend(
-                ThreadParent(thread),
-                SIGSYSCALL,
-                asyncContext
-        );
-        assert(oserr == OS_EOK);
-
-        oserr = ThreadTerminate(ThreadCurrentHandle(), 0, 1);
-        assert(oserr == OS_EOK);
+        (void)MarkHandle(asyncContext->NotificationQueue, 0x8);
+        (void)ThreadTerminate(ThreadCurrentHandle(), 0, 1);
         ArchThreadYield();
 
         // catch all, the thread must not escape

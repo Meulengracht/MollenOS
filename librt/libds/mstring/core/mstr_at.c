@@ -21,7 +21,7 @@
 
 mchar_t mstr_at(mstring_t* string, int index)
 {
-    // We support negative indexing, so abs it so we can make sure
+    // We support negative indexing, so abs it, so we can make sure
     // we don't go out of index for either way
     int absIndex = abs(index);
     if (string == NULL || absIndex >= string->__length) {
