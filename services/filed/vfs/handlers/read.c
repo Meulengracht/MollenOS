@@ -21,29 +21,11 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oserr_t __MapUserBuffer(uuid_t handle, DMAAttachment_t* attachment)
-{
-    oserr_t osStatus;
-
-    osStatus = DmaAttach(handle, attachment);
-    if (osStatus != OS_EOK) {
-        return osStatus;
-    }
-
-    osStatus = DmaAttachmentMap(attachment, DMA_ACCESS_WRITE);
-    if (osStatus != OS_EOK) {
-        DmaDetach(attachment);
-        return osStatus;
-    }
-    return OS_EOK;
-}
-
 oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t               oserr, oserr2;
-    DMAAttachment_t       attachment;
+    oserr_t               oserr;
 
     oserr = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
     if (oserr != OS_EOK) {
@@ -57,17 +39,13 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
         goto cleanup;
     }
 
-    oserr = __MapUserBuffer(request->parameters.transfer.bufferHandle, &attachment);
-    if (oserr != OS_EOK) {
-        goto cleanup;
-    }
-
     nodeVfs = handle->Node->FileSystem;
 
     usched_rwlock_r_lock(&handle->Node->Lock);
     oserr = nodeVfs->Interface->Operations.Read(
-            nodeVfs->Data, handle->Data,
-            attachment.handle, attachment.buffer,
+            nodeVfs->Interface, nodeVfs->Data, handle->Data,
+            request->parameters.transfer.bufferHandle,
+            NULL, /* No buffer can be supplied on this code path */
             request->parameters.transfer.offset,
             request->parameters.transfer.length,
             readOut);
@@ -75,11 +53,6 @@ oserr_t VFSNodeRead(struct VFSRequest* request, size_t* readOut)
     if (oserr == OS_EOK) {
         handle->Mode     = MODE_READ;
         handle->Position += *readOut;
-    }
-
-    oserr2 = DmaDetach(&attachment);
-    if (oserr2 != OS_EOK) {
-        WARNING("VFSNodeRead failed to detach read buffer");
     }
 
 cleanup:
@@ -91,8 +64,7 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
-    oserr_t               oserr, oserr2;
-    DMAAttachment_t       attachment;
+    oserr_t               oserr;
     UInteger64_t          result;
 
     oserr = VFSNodeHandleGet(fileHandle, &handle);
@@ -107,25 +79,28 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
         goto cleanup;
     }
 
-    oserr = __MapUserBuffer(bufferHandle, &attachment);
-    if (oserr != OS_EOK) {
-        goto cleanup;
-    }
-
     nodeVfs = handle->Node->FileSystem;
 
+            NULL, /* No buffer can be supplied on this code path */
     usched_rwlock_r_lock(&handle->Node->Lock);
     oserr = nodeVfs->Interface->Operations.Seek(
-            nodeVfs->Data, handle->Data,
-            position->QuadPart, &result.QuadPart);
+            nodeVfs->Interface,
+            nodeVfs->Data,
+            handle->Data,
+            position->QuadPart,
+            &result.QuadPart
+    );
     if (oserr != OS_EOK) {
-        goto unmap;
+        goto unlock;
     }
     handle->Position = result.QuadPart;
 
     oserr = nodeVfs->Interface->Operations.Read(
-            nodeVfs->Data, handle->Data,
-            attachment.handle, attachment.buffer,
+            nodeVfs->Interface,
+            nodeVfs->Data,
+            handle->Data,
+            bufferHandle,
+            NULL, /* No buffer can be supplied on this code path */
             offset, length, readOut
     );
     if (oserr == OS_EOK) {
@@ -133,12 +108,8 @@ oserr_t VFSNodeReadAt(uuid_t fileHandle, UInteger64_t* position, uuid_t bufferHa
         handle->Position += *readOut;
     }
 
-unmap:
+unlock:
     usched_rwlock_r_unlock(&handle->Node->Lock);
-    oserr2 = DmaDetach(&attachment);
-    if (oserr2 != OS_EOK) {
-        WARNING("VFSNodeReadAt failed to detach read buffer");
-    }
 
 cleanup:
     VFSNodeHandlePut(handle);

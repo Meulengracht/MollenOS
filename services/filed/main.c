@@ -15,8 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ddk/utils.h>
 #include <internal/_ipc.h>
 #include <vfs/filesystem.h>
+#include <vfs/interface.h>
 #include <vfs/scope.h>
 #include <vfs/storage.h>
 #include <vfs/vfs.h>
@@ -35,11 +37,19 @@ void GetServiceAddress(IPCAddress_t* address)
 
 void ServiceInitialize(void)
 {
+    oserr_t oserr;
+
     // Initialize subsystems
-    VFSNodeHandleInitialize();
-    VFSStorageInitialize();
-    VFSFileSystemInitialize();
-    VFSScopeInitialize();
+    VFSNodeHandleStartup();
+    VFSStorageStartup();
+    VFSFileSystemStartup();
+    VFSScopeStartup();
+
+    oserr = VFSInterfaceStartup();
+    if (oserr != OS_EOK) {
+        ERROR("VFSInterfaceStartup failed to startup: %u", oserr);
+        exit(-1);
+    }
 
     // Register supported interfaces
     gracht_server_register_protocol(__crt_get_service_server(), &sys_file_server_protocol);

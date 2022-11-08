@@ -20,11 +20,13 @@
 #include <ddk/convert.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
+#include <os/services/process.h>
 
 #include <ctt_filesystem_service_server.h>
 #include <sys_file_service_client.h>
 
 extern gracht_server_t* __crt_get_module_server(void);
+extern int __crt_get_server_iod(void);
 
 oserr_t
 OnLoad(void)
@@ -35,7 +37,12 @@ OnLoad(void)
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_filesystem_server_protocol);
 
     // notify the file manager that we are now ready for requests
-    sys_file_fsready(GetGrachtClient(), &msg.base, __crt_process_id());
+    sys_file_fsready(
+            GetGrachtClient(),
+            &msg.base,
+            ProcessGetCurrentId(),
+            GetNativeHandle(__crt_get_server_iod())
+    );
     return OS_EOK;
 }
 

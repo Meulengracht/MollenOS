@@ -58,7 +58,7 @@ service file (3) {
     // waits for the driver to be ready, and this is signalled by the driver by invoking
     // fsready. The file manager don't expect this to be called by user-provided drivers,
     // as they should be loaded already before calling mount
-    func fsready(uuid_t processId) : () = 1;
+    func fsready(uuid_t processId, uuid_t serverHandle) : () = 1;
 
     func open(uuid_t processId, string path, uint options, uint access) : (oserr_t result, uuid_t handle) = 2;
     func close(uuid_t processId, uuid_t handle) : (oserr_t result) = 3;

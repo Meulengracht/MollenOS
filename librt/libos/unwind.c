@@ -33,7 +33,7 @@ ProcessGetLibraryHandles(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     
-    sys_process_get_modules(GetGrachtClient(), &msg.base, *__crt_process_id());
+    sys_process_get_modules(GetGrachtClient(), &msg.base, __crt_process_id());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_process_get_modules_result(GetGrachtClient(), &msg.base, (uintptr_t*)ModuleList,
                                    PROCESS_MAXMODULES, ModuleCountOut);

@@ -74,7 +74,7 @@ FILE *fopen(const char* filename, const char* mode)
     _fflags(mode, &open_flags, &stream_flags);
 
     // Open file as file-descriptor
-    fd = open(filename, open_flags, S_IREAD | S_IWRITE);
+    fd = open(filename, open_flags, 0755);
     if (fd == -1) {
         return NULL;
     }

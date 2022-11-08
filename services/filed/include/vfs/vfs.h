@@ -33,7 +33,7 @@ struct VFSRequest;
 struct VFSStat;
 struct VFSStatFS;
 
-extern void VFSNodeHandleInitialize(void);
+extern void VFSNodeHandleStartup(void);
 
 extern oserr_t
 VFSNew(
@@ -52,7 +52,7 @@ extern oserr_t    VFSNodeChildNew(struct VFS*, struct VFSNode*, struct VFSStat*,
 extern void       VFSNodeDestroy(struct VFSNode*);
 extern mstring_t* VFSNodeMakePath(struct VFSNode* node, int local);
 
-extern oserr_t VFSNodeOpen(struct VFS*, const char* cpath, uint32_t options, uint32_t access, uuid_t* handleOut);
+extern oserr_t VFSNodeOpen(struct VFS*, const char* cpath, uint32_t options, uint32_t permissions, uuid_t* handleOut);
 extern oserr_t VFSNodeClose(struct VFS*, uuid_t handleID);
 extern oserr_t VFSNodeMove(struct VFS*, struct VFSRequest*);
 extern oserr_t VFSNodeStat(struct VFS*, struct VFSRequest*, struct VFSStat*);

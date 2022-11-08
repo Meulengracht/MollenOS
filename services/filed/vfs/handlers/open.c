@@ -21,7 +21,7 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32_t access, uuid_t* handleOut)
+oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32_t permissions, uuid_t* handleOut)
 {
     mstring_t* path;
     TRACE("VFSNodeOpen(%s)", cpath);
@@ -45,7 +45,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
         // Allow this only if requested to be opened as a dir
         if (options & __FILE_DIRECTORY) {
             TRACE("VFSNodeOpen returning root handle");
-            return VFSNodeOpenHandle(vfs->Root, access, handleOut);
+            return VFSNodeOpenHandle(vfs->Root, options, handleOut);
         }
         return OS_EISDIR;
     }
@@ -81,7 +81,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
                     containingDirectory,
                     nodeName,
                     FILE_FLAG_FILE,
-                    FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
+                    permissions,
                     &node
             );
             if (osStatus != OS_EOK) {
@@ -101,7 +101,7 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
         goto exit;
     }
     
-    osStatus = VFSNodeOpenHandle(node, access, handleOut);
+    osStatus = VFSNodeOpenHandle(node, options, handleOut);
 
 exit:
     VFSNodePut(containingDirectory);

@@ -18,6 +18,7 @@ set (SERVICE_HEADERS
 )
 
 set (SERVICE_SOURCES
+        interfaces/driver_ops.c
         interfaces/modules.c
 
         storage/layouts/detect.c
@@ -40,6 +41,7 @@ set (ADDITONAL_SOURCES
         ${CMAKE_BINARY_DIR}/protocols/sys_file_service_server.c
         ${CMAKE_BINARY_DIR}/protocols/sys_mount_service_server.c
         ${CMAKE_BINARY_DIR}/protocols/sys_storage_service_server.c
+        ${CMAKE_BINARY_DIR}/protocols/ctt_filesystem_service_client.c
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 

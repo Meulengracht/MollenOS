@@ -37,7 +37,7 @@ struct VfsRemoveDiskRequest {
 static list_t            g_disks = LIST_INIT;
 static struct usched_mtx g_diskLock;
 
-void VFSStorageInitialize(void)
+void VFSStorageStartup(void)
 {
     usched_mtx_init(&g_diskLock);
 }

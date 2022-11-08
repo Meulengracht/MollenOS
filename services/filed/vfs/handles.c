@@ -28,7 +28,7 @@ static hashtable_t          g_handles;
 static struct usched_rwlock g_handlesLock;
 
 void
-VFSNodeHandleInitialize(void)
+VFSNodeHandleStartup(void)
 {
     usched_rwlock_init(&g_handlesLock);
     hashtable_construct(&g_handles, 0,

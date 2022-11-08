@@ -156,6 +156,7 @@ extern int _flswbuf(int ch, FILE *stream);
 
 extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
+extern unsigned int _fperms(unsigned int mode);
 extern unsigned int _fopts(int oflags);
 extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
 extern oserr_t      _lock_stream(FILE * stream);

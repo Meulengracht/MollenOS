@@ -76,7 +76,7 @@ _fflags(
                 *open_flags &= ~O_BINARY;
                 break;
             case 'D':
-                *open_flags |= O_TEMPORARY;
+                *open_flags |= O_TMPFILE;
                 break;
             case 'T':
                 *open_flags |= O_SHORT_LIVED;
@@ -177,8 +177,21 @@ _faccess(
     return mFlags;
 }
 
-/* _fopts
- * Converts the ANSI-C-mode flags into our option flags */
+unsigned int _fperms(unsigned int mode)
+{
+    unsigned int permissions = 0;
+    if (mode & S_IXOTH) permissions |= FILE_PERMISSION_OTHER_EXECUTE;
+    if (mode & S_IWOTH) permissions |= FILE_PERMISSION_OTHER_WRITE;
+    if (mode & S_IROTH) permissions |= FILE_PERMISSION_OTHER_READ;
+    if (mode & S_IXGRP) permissions |= FILE_PERMISSION_GROUP_EXECUTE;
+    if (mode & S_IWGRP) permissions |= FILE_PERMISSION_GROUP_WRITE;
+    if (mode & S_IRGRP) permissions |= FILE_PERMISSION_GROUP_READ;
+    if (mode & S_IEXEC) permissions |= FILE_PERMISSION_OWNER_EXECUTE;
+    if (mode & S_IWRITE) permissions |= FILE_PERMISSION_OWNER_WRITE;
+    if (mode & S_IREAD) permissions |= FILE_PERMISSION_OWNER_READ;
+    return permissions;
+}
+
 unsigned int
 _fopts(
     _In_ int oflags)
@@ -199,7 +212,7 @@ _fopts(
     if (oflags & O_EXCL) {
         mFlags |= __FILE_FAILONEXIST;
     }
-    if (oflags & O_TEMPORARY) {
+    if (oflags & O_TMPFILE) {
         mFlags |= __FILE_TEMPORARY;
     }
     if (oflags & O_BINARY) {

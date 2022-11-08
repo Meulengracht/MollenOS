@@ -109,7 +109,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
         return OS_EOOM;
     }
 
-    osStatus = ops->Open(vfs->Data, nodePath, &data);
+    osStatus = ops->Open(vfs->Interface, vfs->Data, nodePath, &data);
     if (osStatus != OS_EOK) {
         goto cleanup;
     }
@@ -117,7 +117,15 @@ static oserr_t __LoadNode(struct VFSNode* node)
     while (1) {
         size_t read;
 
-        osStatus = ops->Read(vfs->Data, data, vfs->Buffer.handle, vfs->Buffer.buffer, 0, vfs->Buffer.length, &read);
+        osStatus = ops->Read(
+                vfs->Interface,
+                vfs->Data, data,
+                vfs->Buffer.handle,
+                vfs->Buffer.buffer,
+                0,
+                vfs->Buffer.length,
+                &read
+        );
         if (osStatus != OS_EOK || read == 0) {
             break;
         }
@@ -128,7 +136,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
         }
     }
 
-    osStatus2 = ops->Close(vfs->Data, data);
+    osStatus2 = ops->Close(vfs->Interface, vfs->Data, data);
     if (osStatus2 != OS_EOK) {
         WARNING("__LoadNode failed to cleanup handle with code %u", osStatus2);
     }
@@ -233,12 +241,12 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
         return OS_EEXISTS;
     }
 
-    osStatus = ops->Open(vfs->Data, nodePath, &parentData);
+    osStatus = ops->Open(vfs->Interface, vfs->Data, nodePath, &parentData);
     if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Create(vfs->Data, parentData, name, 0, flags, permissions, &childData);
+    osStatus = ops->Create(vfs->Interface, vfs->Data, parentData, name, 0, flags, permissions, &childData);
     if (osStatus != OS_EOK) {
         goto close;
     }
@@ -251,13 +259,13 @@ oserr_t VFSNodeCreateChild(struct VFSNode* node, mstring_t* name, uint32_t flags
             .Permissions = permissions
     }, nodeOut);
 
-    osStatus2 = ops->Close(vfs->Data, childData);
+    osStatus2 = ops->Close(vfs->Interface, vfs->Data, childData);
     if (osStatus2 != OS_EOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
 
 close:
-    osStatus2 = ops->Close(vfs->Data, parentData);
+    osStatus2 = ops->Close(vfs->Interface, vfs->Data, parentData);
     if (osStatus2 != OS_EOK) {
         WARNING("VFSNodeCreateChild failed to cleanup handle with code %u", osStatus2);
     }
@@ -300,12 +308,12 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
         goto cleanup;
     }
 
-    osStatus = ops->Open(vfs->Data, nodePath, &data);
+    osStatus = ops->Open(vfs->Interface, vfs->Data, nodePath, &data);
     if (osStatus != OS_EOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Link(vfs->Data, data, name, target, symbolic);
+    osStatus = ops->Link(vfs->Interface, vfs->Data, data, name, target, symbolic);
     if (osStatus != OS_EOK) {
         goto close;
     }
@@ -319,7 +327,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     }, nodeOut);
 
 close:
-    osStatus2 = ops->Close(vfs->Data, data);
+    osStatus2 = ops->Close(vfs->Interface, vfs->Data, data);
     if (osStatus2 != OS_EOK) {
         WARNING("__CreateInNode failed to cleanup handle with code %u", osStatus2);
     }
@@ -405,7 +413,12 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
         goto cleanup;
     }
 
-    osStatus = node->FileSystem->Interface->Operations.Open(node->FileSystem->Data, nodePath, &data);
+    osStatus = node->FileSystem->Interface->Operations.Open(
+            node->FileSystem->Interface,
+            node->FileSystem->Data,
+            nodePath,
+            &data
+    );
     if (osStatus != OS_EOK) {
         goto cleanup;
     }
@@ -425,7 +438,11 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     goto cleanup;
 
 error:
-    node->FileSystem->Interface->Operations.Close(node->FileSystem->Data, data);
+    node->FileSystem->Interface->Operations.Close(
+            node->FileSystem->Interface,
+            node->FileSystem->Data,
+            data
+    );
 
 cleanup:
     usched_mtx_unlock(&node->HandlesLock);

@@ -24,6 +24,8 @@
 #include <os/osdefs.h>
 #include <os/usched/mutex.h>
 
+struct VFSInterface;
+
 typedef oserr_t (*FsInitialize_t)(struct VFSInterface*, struct VFSStorageParameters*, void** instanceData);
 typedef oserr_t (*FsDestroy_t)(struct VFSInterface*, void* instanceData, unsigned int unmountFlags);
 typedef oserr_t (*FsOpen_t)(struct VFSInterface*, void* instanceData, mstring_t* path, void** dataOut);
@@ -34,8 +36,8 @@ typedef oserr_t (*FsLink_t)(struct VFSInterface*, void* instanceData, void* data
 typedef oserr_t (*FsUnlink_t)(struct VFSInterface*, void* instanceData, mstring_t* path);
 typedef oserr_t (*FsReadLink_t)(struct VFSInterface*, void* instanceData, mstring_t* path, mstring_t** pathOut);
 typedef oserr_t (*FsMove_t)(struct VFSInterface*, void* instanceData, mstring_t* from, mstring_t* to, int copy);
-typedef oserr_t (*FsRead_t)(struct VFSInterface*, void* instanceData, void* data, uuid_t bufferHandle, size_t bufferOffset, size_t unitCount, size_t* unitsRead);
-typedef oserr_t (*FsWrite_t)(struct VFSInterface*, void* instanceData, void* data, uuid_t bufferHandle, size_t bufferOffset, size_t unitCount, size_t* unitsWritten);
+typedef oserr_t (*FsRead_t)(struct VFSInterface*, void* instanceData, void* data, uuid_t bufferHandle, void* buffer, size_t bufferOffset, size_t unitCount, size_t* unitsRead);
+typedef oserr_t (*FsWrite_t)(struct VFSInterface*, void* instanceData, void* data, uuid_t bufferHandle, const void* buffer, size_t bufferOffset, size_t unitCount, size_t* unitsWritten);
 typedef oserr_t (*FsTruncate_t)(struct VFSInterface*, void* instanceData, void* data, uint64_t size);
 typedef oserr_t (*FsSeek_t)(struct VFSInterface*, void* instanceData, void* data, uint64_t absolutePosition, uint64_t* absolutePositionOut);
 
@@ -59,11 +61,16 @@ struct VFSOperations {
 };
 
 struct VFSInterface {
-    Handle_t             Handle;
     uuid_t               DriverID;
     struct usched_mtx    Lock;
     struct VFSOperations Operations;
 };
+
+/**
+ * @brief
+ * @return
+ */
+extern oserr_t VFSInterfaceStartup(void);
 
 /**
  * @brief
@@ -82,7 +89,7 @@ MemFSNewInterface(void);
  */
 struct VFSInterface*
 VFSInterfaceNew(
-        _In_  Handle_t              dllHandle,
+        _In_  uuid_t                driverID,
         _In_  struct VFSOperations* operations);
 
 /**
