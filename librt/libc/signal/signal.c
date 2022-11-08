@@ -32,8 +32,6 @@
 #include <internal/_syscalls.h>
 #include <os/context.h>
 #include <os/threads.h>
-#include <os/types/async.h>
-#include <os/usched/job.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -134,19 +132,6 @@ static void __CreateSignalInformation(
     }
 }
 
-static void __HandleSystemCallCompletion(
-        _In_ void* argument0,
-        _In_ void* cancellationToken)
-{
-    OSAsyncContext_t* context = argument0;
-    assert(context != NULL);
-    _CRT_UNUSED(cancellationToken);
-
-    usched_mtx_lock(&context->Mutex);
-    usched_cnd_notify_one(&context->Condition);
-    usched_mtx_unlock(&context->Mutex);
-}
-
 // Called by assembler functions in arch/_signal.s
 void
 StdInvokeSignal(
@@ -163,10 +148,6 @@ StdInvokeSignal(
 
     // SPECIAL CASE MEMORY HANDLERS
     if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OS_EOK) {
-        return;
-    }
-    if (sigNo == SIGSYSCALL) {
-        usched_job_queue(__HandleSystemCallCompletion, argument0);
         return;
     }
     

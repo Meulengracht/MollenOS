@@ -18,8 +18,8 @@
 #define __need_minmax
 #include <assert.h>
 #include <errno.h>
+#include <ddk/handle.h>
 #include <os/mutex.h>
-#include <os/condition.h>
 #include <os/usched/usched.h>
 #include <setjmp.h>
 #include <string.h>
@@ -29,11 +29,11 @@
 struct usched_scheduler_queue {
     struct usched_job* ready;
     Mutex_t            mutex;
-    Condition_t        condition;
+    uuid_t             notification_handle;
 };
 
 static atomic_int                    g_timerid     = ATOMIC_VAR_INIT(1);
-static struct usched_scheduler_queue g_globalQueue = { NULL, MUTEX_INIT(MUTEX_PLAIN), COND_INIT };
+static struct usched_scheduler_queue g_globalQueue = { NULL, MUTEX_INIT(MUTEX_PLAIN), UUID_INVALID };
 
 struct usched_scheduler* __usched_get_scheduler(void) {
     return __usched_xunit_tls_current()->scheduler;
@@ -48,8 +48,70 @@ static struct usched_scheduler_queue* __usched_scheduler_queue_new(struct usched
 
     queue->ready = job;
     MutexInitialize(&queue->mutex, MUTEX_PLAIN);
-    ConditionInitialize(&queue->condition);
+    if (OSHandleCreate(&queue->notification_handle) != OS_EOK) {
+        free(queue);
+        return NULL;
+    }
     return queue;
+}
+
+static oserr_t __usched_init_notification_queue(struct usched_scheduler* sched)
+{
+    oserr_t oserr;
+
+    oserr = OSNotificationQueueCreate(0, &sched->notification_queue);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = OSHandleCreate(&sched->syscall_handle);
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(sched->notification_queue);
+    }
+
+    // Either we add the global queue, or we add the internal queue.
+    if (sched->internal_queue != NULL) {
+        oserr = OSNotificationQueueCtrl(
+                sched->notification_queue,
+                IOSET_ADD,
+                sched->internal_queue->notification_handle,
+                &(struct ioset_event) {
+                    .events = IOSETSYN,
+                    .data.handle = sched->internal_queue->notification_handle
+                }
+        );
+    } else {
+        oserr = OSNotificationQueueCtrl(
+                sched->notification_queue,
+                IOSET_ADD,
+                g_globalQueue.notification_handle,
+                &(struct ioset_event) {
+                        .events = IOSETSYN,
+                        .data.handle = g_globalQueue.notification_handle
+                }
+        );
+    }
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(sched->syscall_handle);
+        OSHandleDestroy(sched->notification_queue);
+        return oserr;
+    }
+
+    oserr = OSNotificationQueueCtrl(
+            sched->notification_queue,
+            IOSET_ADD,
+            sched->syscall_handle,
+            &(struct ioset_event) {
+                    .events = IOSETSYN,
+                    .data.handle = sched->syscall_handle
+            }
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(sched->syscall_handle);
+        OSHandleDestroy(sched->notification_queue);
+        return oserr;
+    }
+    return OS_EOK;
 }
 
 void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
@@ -75,6 +137,16 @@ void __usched_init(struct usched_scheduler* sched, struct usched_init_params* pa
         // Also bind the job to the internal queue
         params->detached_job->queue = sched->internal_queue;
     }
+
+    // Create a new notification queue for this scheduler. Schedulers will listen for two different
+    // types of events; Syscall completions and the global queue posts. If either of these happen the
+    // scheduler should wake and act immediately. The global queue will be shared amongst each scheduler
+    // and that means a random one will take new jobs posted, and the syscall completion queue will be
+    // per-scheduler.
+    if (__usched_init_notification_queue(sched) != OS_EOK) {
+        // Should not happen, in that case the system ran out of memory, so quit.
+        exit(-1);
+    }
 }
 
 void __usched_destroy(struct usched_scheduler* sched)
@@ -82,7 +154,12 @@ void __usched_destroy(struct usched_scheduler* sched)
     if (sched->magic != SCHEDULER_MAGIC) {
         return;
     }
-    free(sched->internal_queue);
+    OSHandleDestroy(sched->notification_queue);
+    OSHandleDestroy(sched->syscall_handle);
+    if (sched->internal_queue != NULL) {
+        OSHandleDestroy(sched->internal_queue->notification_handle);
+        free(sched->internal_queue);
+    }
 }
 
 static void
@@ -120,8 +197,8 @@ void __usched_add_job_ready(struct usched_job* job)
 
     MutexLock(&queue->mutex);
     __usched_append_job(&queue->ready, job);
-    ConditionSignal(&queue->condition);
     MutexUnlock(&queue->mutex);
+    OSNotificationQueuePost(queue->notification_handle, IOSETSYN);
 }
 
 int __usched_prepare_migrate(void)
@@ -313,6 +390,35 @@ static int __get_next_deadline(
     return result;
 }
 
+static void __parse_syscall_completions(
+        struct usched_scheduler* sched)
+{
+    struct usched_syscall* i, *p;
+
+    // Reset the event count back to zero and store the actual number
+    // of completions. Then we iterate through the syscalls and check
+    // their status
+    i = sched->syscalls_pending;
+    p = NULL;
+    while (i) {
+        // TODO: This should be read atomically as the status is updated from
+        // *maybe* another core. Even though we should probably always execute
+        // these kinds of syscalls on the same core? (We can consider this)
+        if (i->async_context->ErrorCode != OS_ESCSTARTED) {
+            // unlink it and schedule the job
+            if (p == NULL) {
+                sched->syscalls_pending = i->next;
+            } else {
+                p->next = i->next;
+            }
+            __usched_add_job_ready(i->job);
+        }
+
+        p = i;
+        i = i->next;
+    }
+}
+
 int usched_yield(struct timespec* deadline)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
@@ -322,6 +428,7 @@ int usched_yield(struct timespec* deadline)
     // update timers before we check the scheduler as we might trigger a job to
     // be ready
     __update_timers(sched);
+    __parse_syscall_completions(sched);
 
     next = __get_next_ready(sched);
     if (sched->current == NULL) {
@@ -365,36 +472,55 @@ int usched_yield(struct timespec* deadline)
     return 0;
 }
 
-static inline struct usched_scheduler_queue* __get_scheduler_queue(void)
-{
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    if (sched->internal_queue) {
-        return sched->internal_queue;
-    }
-    return &g_globalQueue;
-}
-
 void usched_timedwait(const struct timespec* until)
 {
-    struct usched_scheduler_queue* queue = __get_scheduler_queue();
-    MutexLock(&queue->mutex);
-    while (queue->ready == NULL) {
-        oserr_t oserr = ConditionTimedWait(&queue->condition, &queue->mutex, until, NULL);
-        if (oserr == OS_ETIMEOUT) {
-            break;
-        }
-    }
-    MutexUnlock(&queue->mutex);
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct ioset_event       events[2];
+    int                      numEvents;
+    oserr_t                  oserr;
+
+    // We have two handles in the notification queue, so we can be supplied
+    // with *at most* two events. We can actually in detail detect which type
+    // of event occurred, but we do not care.
+    oserr = OSNotificationQueueWait(
+            sched->notification_queue,
+            &events[2],
+            2,
+            0,
+            0,
+            &numEvents,
+            NULL
+    );
+
+    // Either it should return timeout or it should return OK. I don't really
+    // see the point in doing error detection here, maybe that will change.
+    _CRT_UNUSED(oserr);
 }
 
 void usched_wait(void)
 {
-    struct usched_scheduler_queue* queue = __get_scheduler_queue();
-    MutexLock(&queue->mutex);
-    while (queue->ready == NULL) {
-        ConditionWait(&queue->condition, &queue->mutex, NULL);
-    }
-    MutexUnlock(&queue->mutex);
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct ioset_event       events[2];
+    int                      numEvents;
+    oserr_t                  oserr;
+
+    // We have two handles in the notification queue, so we can be supplied
+    // with *at most* two events. We can actually in detail detect which type
+    // of event occurred, but we do not care.
+    oserr = OSNotificationQueueWait(
+            sched->notification_queue,
+            &events[2],
+            2,
+            0,
+            0,
+            &numEvents,
+            NULL
+    );
+
+    // do not expect any issues from oserr at this point as
+    // we do not supply a timeout, nor do we have an async context
+    // for this.
+    _CRT_UNUSED(oserr);
 }
 
 int __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType)
@@ -466,4 +592,34 @@ __usched_timeout_finish(int id)
         free(timer);
     }
     return result;
+}
+
+void usched_wait_async(OSAsyncContext_t* asyncContext)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_syscall    syscall = {
+            .job = sched->current,
+            .async_context = asyncContext,
+            .next = NULL
+    };
+    if (sched->syscalls_pending == NULL) {
+        sched->syscalls_pending = &syscall;
+    } else {
+        struct usched_syscall* i = sched->syscalls_pending;
+        while (i->next) {
+            i = i->next;
+        }
+        i->next = &syscall;
+    }
+
+    // set us blocked, so we won't be rescheduled and then
+    // yield for the next job.
+    sched->current->state = JobState_BLOCKED;
+    usched_yield(NULL);
+}
+
+uuid_t usched_notification_queue(void)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    return sched->notification_queue;
 }

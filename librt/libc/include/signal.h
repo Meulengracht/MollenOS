@@ -52,8 +52,7 @@
 #define SIGSOCK     15 /* Socket transmission error */
 #define SIGEXIT     16 /* Requesting exit for the thread */
 #define SIGEXITQ    17 /* Requesting quick-exit for the thread */
-#define SIGSYSCALL  18 /* Indicating the completion of a system call */
-#define NUMSIGNALS  19
+#define NUMSIGNALS  18
 
 // Unsupported Vali signals
 #define SIGBUS      -1 /* Bus error (device error) */

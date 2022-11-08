@@ -96,7 +96,7 @@ OSNotificationQueueWait(
         _Out_ int*                numEventsOut,
         _In_  OSAsyncContext_t*   asyncContext)
 {
-    oserr_t          oserr;
+    oserr_t                   oserr;
     HandleSetWaitParameters_t parameters = {
         .events = events,
         .maxEvents = maxEvents,
@@ -112,11 +112,7 @@ OSNotificationQueueWait(
     if (oserr == OS_EFORKED) {
         // The system call was postponed, so we should coordinate with the
         // userspace threading system right here.
-        usched_mtx_lock(&asyncContext->Mutex);
-        while (asyncContext->ErrorCode == OS_ESCSTARTED) {
-            usched_cnd_wait(&asyncContext->Condition, &asyncContext->Mutex);
-        }
-        usched_mtx_unlock(&asyncContext->Mutex);
+        usched_wait_async(asyncContext);
         return asyncContext->ErrorCode;
     }
     return oserr;

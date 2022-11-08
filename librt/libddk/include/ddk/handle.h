@@ -97,7 +97,7 @@ OSNotificationQueueCtrl(
 DDKDECL(oserr_t,
 OSNotificationQueueWait(
         _In_  uuid_t              handle,
-        _In_  struct ioset_event * events,
+        _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
         _In_  size_t              timeout,
