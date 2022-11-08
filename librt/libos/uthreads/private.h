@@ -202,6 +202,12 @@ struct usched_init_params {
 };
 
 /**
+ * @brief Should run once during XU startup. This initializes a few resources
+ * that only need to run once.
+ */
+extern void __usched_startup(void);
+
+/**
  * @brief Initializes the usched scheduler for the current execution unit. Only
  * called once per execution unit.
  * @param sched

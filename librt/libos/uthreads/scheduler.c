@@ -114,6 +114,18 @@ static oserr_t __usched_init_notification_queue(struct usched_scheduler* sched)
     return OS_EOK;
 }
 
+extern void __usched_startup(void)
+{
+    oserr_t oserr;
+
+    // Create the handle for the global queue. This will be added to all
+    // scheduler's notification queue, so they can track new job postings.
+    oserr = OSHandleCreate(&g_globalQueue.notification_handle);
+    if (oserr != OS_EOK) {
+        exit(-1);
+    }
+}
+
 void __usched_init(struct usched_scheduler* sched, struct usched_init_params* params)
 {
     if (sched->magic == SCHEDULER_MAGIC) {
