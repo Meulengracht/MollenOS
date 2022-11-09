@@ -24,7 +24,6 @@
 #include <component/timer.h>
 #include <debug.h>
 #include <machine.h>
-#include <os/types/time.h>
 #include <string.h>
 #include <threading.h>
 
@@ -75,7 +74,7 @@ ScSystemClockFrequency(
 
 oserr_t
 ScSystemWallClock(
-        _In_ Integer64_t* time)
+        _In_ OSTimestamp_t* time)
 {
     if (time == NULL) {
         return OS_EINVALPARAMS;

@@ -499,7 +499,9 @@ void usched_timedwait(const struct timespec* until)
             &events[2],
             2,
             0,
-            0,
+            until == NULL ? NULL : &(OSTimestamp_t) {
+                .Seconds = until->tv_sec, .Nanoseconds = until->tv_nsec
+            },
             &numEvents,
             NULL
     );
@@ -524,7 +526,7 @@ void usched_wait(void)
             &events[2],
             2,
             0,
-            0,
+            NULL,
             &numEvents,
             NULL
     );

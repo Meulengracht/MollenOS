@@ -27,13 +27,13 @@
 #include <ddk/io.h>
 #include <debug.h>
 #include <handle_set.h>
-#include <internal/_utils.h>
 #include <ipc_context.h>
 #include <os/futex.h>
 #include <os/types/dma.h>
 #include <os/types/thread.h>
 #include <os/types/memory.h>
 #include <os/types/time.h>
+#include <os/types/syscall.h>
 #include <threading.h>
 
 DECL_STRUCT(DeviceInterrupt);

@@ -35,13 +35,13 @@ FutexInitialize(void);
 KERNELAPI oserr_t KERNELABI
 FutexWait(
         _In_ OSAsyncContext_t* asyncContext,
-        _In_ _Atomic(int)*       futex,
-        _In_ int                 expectedValue,
-        _In_ int                 flags,
-        _In_ _Atomic(int)*       futex2,
-        _In_ int                 count,
-        _In_ int                 operation,
-        _In_ size_t              timeout);
+        _In_ _Atomic(int)*     futex,
+        _In_ int               expectedValue,
+        _In_ int               flags,
+        _In_ _Atomic(int)*     futex2,
+        _In_ int               count,
+        _In_ int               operation,
+        _In_ size_t            timeout);
 
 /* FutexWake
  * Wakes up a blocked thread on the given atomic variable. */

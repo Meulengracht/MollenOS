@@ -5,13 +5,6 @@
 
 typedef struct gracht_client gracht_client_t;
 
-typedef struct HandleSetWaitParameters {
-    struct ioset_event* events;
-    int                 maxEvents;
-    size_t              timeout;
-    int                 pollEvents;
-} HandleSetWaitParameters_t;
-
 extern int                __crt_is_phoenix(void);
 extern uuid_t             __crt_process_id(void);
 extern uuid_t             __crt_primary_thread(void);

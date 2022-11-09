@@ -183,6 +183,14 @@ InitializeMachine(
         ArchProcessorHalt();
     }
 
+    // Spawn the time synchronizer after initiating the timer subsystem. This should run in a separate thread
+    // as it will wait up to 1 second (worst-case) before being able to synchronize clock sources.
+    oserr = SystemSynchronizeTimeSources();
+    if (oserr != OS_EOK) {
+        ERROR("Failed to spawn time sync thread: %u", oserr);
+        ArchProcessorHalt();
+    }
+
     // The handle janitor, which is simply just a thread waiting for handles to destroy, is only made this
     // way because of threads. Threads are like dirty teenagers refusing to take a bath, so we have to clean
     // them when they aren't active. So we clean them in a seperate thread, and as threads are handles, we

@@ -108,13 +108,13 @@ ScMapBootFramebuffer(
     uintptr_t      addressPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
     uintptr_t      fbVirtual       = 0;
     size_t         fbSize          = VideoGetTerminal()->Info.BytesPerScanline * VideoGetTerminal()->Info.Height;
-    oserr_t     osStatus;
+    oserr_t        oserr;
 
     if (!VideoGetTerminal()->FrameBufferAddressPhysical) {
         return OS_ENOTSUPPORTED;
     }
 
-    osStatus = MemorySpaceMapContiguous(
+    oserr = MemorySpaceMapContiguous(
             memorySpace,
             &fbVirtual,
             addressPhysical,
@@ -123,10 +123,10 @@ ScMapBootFramebuffer(
             MAPPING_VIRTUAL_PROCESS
     );
 
-    if (osStatus == OS_EOK) {
+    if (oserr == OS_EOK) {
         *bufferOut = (void*)fbVirtual;
     }
-    return osStatus;
+    return oserr;
 }
 
 oserr_t

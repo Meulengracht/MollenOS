@@ -117,7 +117,11 @@ static void __ReadSystemTime(
         century = CmosRead(g_cmos.AcpiCentury);
     }
 
-    // Fill in variables
+    // Synchronize the clock before reading it to get the most precise reading.
+    // This is also the expected behaviour for the timer component, it should be
+    // read as little as possible as this is quite an expensive operation.
+    // TODO: parameterize this.
+    CmosWaitForUpdate();
     systemTime->Second     = CmosRead(CMOS_REGISTER_SECOND);
     systemTime->Minute     = CmosRead(CMOS_REGISTER_MINUTE);
     systemTime->Hour       = CmosRead(CMOS_REGISTER_HOUR);
@@ -143,8 +147,7 @@ static void __ReadSystemTime(
 
     if (century != 0) {
         systemTime->Year += century * 100;
-    }
-    else {
+    } else {
         systemTime->Year += (CMOS_CURRENT_YEAR / 100) * 100;
         if (systemTime->Year < CMOS_CURRENT_YEAR) {
             systemTime->Year += 100;

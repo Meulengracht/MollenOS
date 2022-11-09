@@ -22,6 +22,8 @@
 #ifndef __TYPES_TIME_H__
 #define __TYPES_TIME_H__
 
+#include <os/osdefs.h>
+
 enum OSClockSource {
     OSClockSource_MONOTONIC, // Provides a monotonic tick since the computer was booted
     OSClockSource_THREAD,    // Provides a monotonic tick since the calling thread was started.
@@ -32,11 +34,39 @@ enum OSClockSource {
 /**
  * @brief Timestamps are fixed places in time. It's equivalent to the
  * timespec of C, however it describes the absolute place in time, with
- * the epoch of January 1,
+ * the epoch of January 1, 2000.
  */
 typedef struct OSTimestamp {
     int64_t Seconds;
     int64_t Nanoseconds;
 } OSTimestamp_t;
+
+/**
+ * @brief Normalizes the timestamp. This is called after performing time arethmetics
+ * to facilitate some reuse.
+ * @param timestamp The timestamp that should be normalized.
+ */
+static inline void OSTimestampNormalize(OSTimestamp_t* timestamp) {
+    while (timestamp->Nanoseconds >= NSEC_PER_SEC) {
+        timestamp->Seconds++;
+        timestamp->Nanoseconds -= NSEC_PER_SEC;
+    }
+    while (timestamp->Nanoseconds < 0) {
+        timestamp->Seconds--;
+        timestamp->Nanoseconds += NSEC_PER_SEC;
+    }
+}
+
+/**
+ * @brief Subtracts two timestamps and stores the result into <result>
+ * @param result The timestamp where the result should be stored
+ * @param a The left operand.
+ * @param b The right operand.
+ */
+static inline void OSTimestampSubtract(OSTimestamp_t* result, OSTimestamp_t* a, OSTimestamp_t* b){
+    result->Seconds = a->Seconds - b->Seconds;
+    result->Nanoseconds = a->Nanoseconds - b->Nanoseconds;
+    OSTimestampNormalize(result);
+}
 
 #endif //!__TYPES_TIME_H__

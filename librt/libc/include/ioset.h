@@ -25,6 +25,7 @@
 #define __IOSET_H__
 
 #include <os/osdefs.h>
+#include <time.h>
 
 enum ioset_flags
 {
@@ -58,7 +59,7 @@ _CODE_BEGIN
 
 CRTDECL(int, ioset(int flags));
 CRTDECL(int, ioset_ctrl(int set_iod, int op, int iod, struct ioset_event*));
-CRTDECL(int, ioset_wait(int set_iod, struct ioset_event*, int max_events, int timeout));
+CRTDECL(int, ioset_wait(int set_iod, struct ioset_event*, int max_events, const struct timespec* until));
 
 _CODE_END
 

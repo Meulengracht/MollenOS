@@ -83,16 +83,14 @@ SystemTimerRegister(
     // See if the timer can be used for anything
     if (attributes & SystemTimeAttributes_HPC) {
         GetMachine()->SystemTimers.Hpc = systemTimer;
-    }
-    else if (attributes & SystemTimeAttributes_COUNTER) {
+    } else if (attributes & SystemTimeAttributes_COUNTER) {
         operations->Read(context, &systemTimer->InitialTick);
 
         // Might be a new tick counter, lets compare resolution of
         // what we already have
         if (!GetMachine()->SystemTimers.Clock) {
             GetMachine()->SystemTimers.Clock = systemTimer;
-        }
-        else {
+        } else {
             // always prefer the clock with the highest resolution
             if (GetMachine()->SystemTimers.Clock->Resolution > systemTimer->Resolution) {
                 GetMachine()->SystemTimers.Clock = systemTimer;
@@ -164,22 +162,55 @@ SystemWallClockRegister(
     return OS_EOK;
 }
 
+static inline uint64_t __CalculateTimestamp(
+        _In_ UInteger64_t* tick,
+        _In_ UInteger64_t* frequency)
+{
+    if (frequency->QuadPart <= MSEC_PER_SEC) {
+        return (MSEC_PER_SEC / frequency->QuadPart) * tick->QuadPart * NSEC_PER_MSEC;
+    } else if (frequency->QuadPart <= USEC_PER_SEC) {
+        return ((USEC_PER_SEC / frequency->QuadPart) * tick->QuadPart) * NSEC_PER_USEC;
+    } else if (frequency->QuadPart < NSEC_PER_SEC) {
+        return ((NSEC_PER_SEC / frequency->QuadPart) * tick->QuadPart);
+    } else {
+        return tick->QuadPart;
+    }
+}
+
 void
 SystemTimerGetWallClockTime(
-        _In_ Integer64_t* time)
+        _In_ OSTimestamp_t* time)
 {
-    tick_t timestamp;
+    SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
+    UInteger64_t   frequency;
+    UInteger64_t   tick;
+
+    // Should there be no wall clock in the system, then we just
+    // convert the ticks from the clock.
+    if (GetMachine()->SystemTimers.WallClock == NULL) {
+        tick_t ticks;
+        SystemTimerGetTimestamp(&ticks);
+        time->Seconds = (int64_t)(ticks / NSEC_PER_SEC);
+        time->Nanoseconds = (int64_t)(ticks % NSEC_PER_SEC);
+        return;
+    }
 
     // The wall clock and default system timer are synchronized. Which means
     // we use the BaseTick of the wall clock, and then add clock timestamp
     // to that to get the final time.
-    time->QuadPart = GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
+    time->Seconds = GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
+    if (!clock) {
+        time->Nanoseconds = 0;
+        return;
+    }
 
-    // The timestamp is in nanosecond precision, however we want microsecond
-    // precision here, so we adjust
-    SystemTimerGetTimestamp(&timestamp);
-    timestamp /= 1000UL;
-    time->QuadPart += (int64_t)timestamp;
+    // get clock precision metrics
+    clock->Operations.Read(clock->Context, &tick);
+    clock->Operations.GetFrequency(clock->Context, &frequency);
+
+    // subtract base offset
+    tick.QuadPart -= GetMachine()->SystemTimers.WallClock->BaseOffset.QuadPart;
+    time->Nanoseconds = (int64_t)__CalculateTimestamp(&tick, &frequency);
 }
 
 void
@@ -202,19 +233,7 @@ SystemTimerGetTimestamp(
 
     // subtract initial timestamp
     tick.QuadPart -= clock->InitialTick.QuadPart;
-
-    if (frequency.QuadPart <= MSEC_PER_SEC) {
-        *timestampOut = (MSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart * NSEC_PER_MSEC;
-    }
-    else if (frequency.QuadPart <= USEC_PER_SEC) {
-        *timestampOut = ((USEC_PER_SEC / frequency.QuadPart) * tick.QuadPart) * NSEC_PER_USEC;
-    }
-    else if (frequency.QuadPart < NSEC_PER_SEC) {
-        *timestampOut = ((NSEC_PER_SEC / frequency.QuadPart) * tick.QuadPart);
-    }
-    else {
-        *timestampOut = tick.QuadPart;
-    }
+    *timestampOut = __CalculateTimestamp(&tick, &frequency);
 }
 
 void
@@ -271,11 +290,11 @@ void
 SystemTimerStall(
         _In_ tick_t ns)
 {
-    SystemTimer_t*  clock = GetMachine()->SystemTimers.Clock;
-    UInteger64_t frequency;
-    UInteger64_t tick;
-    UInteger64_t tickEnd;
-    uint64_t     vPerTicks;
+    SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
+    UInteger64_t   frequency;
+    UInteger64_t   tick;
+    UInteger64_t   tickEnd;
+    uint64_t       vPerTicks;
 
     assert(clock != NULL);
 
@@ -308,4 +327,50 @@ SystemTimerStall(
     while (tick.QuadPart < tickEnd.QuadPart) {
         clock->Operations.Read(clock->Context, &tick);
     }
+}
+
+static void
+__SynchronizeWallClockAndClocks(
+        _In_ void* argument)
+{
+    SystemTime_t systemTime;
+    _CRT_UNUSED(argument);
+
+    // Two requirements must be satisfied for us to do so. There must
+    // be a wall clock registered, and there must be a clock source. Otherwise,
+    // there is nothing to do.
+    if (GetMachine()->SystemTimers.Clock == NULL ||
+        GetMachine()->SystemTimers.WallClock == NULL) {
+        TRACE("__SynchronizeWallClockAndClocks no clocks to synchronize");
+        return;
+    }
+
+    // Read the system time, and then read the wall-clock
+    GetMachine()->SystemTimers.WallClock->Operations.Read(
+            GetMachine()->SystemTimers.WallClock->Context,
+            &systemTime
+    );
+    GetMachine()->SystemTimers.Clock->Operations.Read(
+            GetMachine()->SystemTimers.Clock->Context,
+            &GetMachine()->SystemTimers.WallClock->BaseOffset
+    );
+
+    // Convert the system time to a time-point based on the epoch of January 1, 2000
+    __LinearTime(&systemTime, &GetMachine()->SystemTimers.WallClock->BaseTick);
+}
+
+oserr_t SystemSynchronizeTimeSources(void)
+{
+    // Attempts to synchronize time sources
+    oserr_t oserr = ThreadCreate(
+            "time-sync",
+            __SynchronizeWallClockAndClocks,
+            NULL,
+            0,
+            UUID_INVALID,
+            0,
+            0,
+            NULL
+    );
+    return oserr;
 }

@@ -25,7 +25,7 @@
 
 oserr_t
 VaGetWallClock(
-        _In_ Integer64_t* time)
+        _In_ OSTimestamp_t* time)
 {
     if (!time) {
         return OS_EINVALPARAMS;

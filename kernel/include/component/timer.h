@@ -23,6 +23,7 @@
 #define __COMPONENT_TIMER__
 
 #include <os/mollenos.h>
+#include <os/types/time.h>
 #include <ds/list.h>
 #include <time.h>
 
@@ -59,7 +60,7 @@ typedef struct SystemTimer {
     enum SystemTimeAttributes Attributes;
     uuid_t                    Interrupt;
     tick_t                    Resolution;
-    UInteger64_t           InitialTick;
+    UInteger64_t              InitialTick;
     void*                     Context;
 } SystemTimer_t;
 
@@ -69,8 +70,20 @@ typedef struct SystemWallClockOperations {
 
 typedef struct SystemWallClock {
     SystemWallClockOperations_t Operations;
-    Integer64_t              BaseTick;
-    void*                       Context;
+    // BaseTick is the number of seconds from the epoch of
+    // January 1, 2000. If the value is negative, then it pre-dates
+    // January 1, 2000, and if its positive, it's set after that date.
+    // The base tick is set by the time-sync thread, and will be 0 untill
+    // that has run.
+    Integer64_t BaseTick;
+    // BaseOffset is the nanosecond offset from the clock the wall-clock was
+    // synchronized against. When calculating the absolute time with nanosecond
+    // precision, the clock should be subtracted with this value before setting
+    // the nanosecond part.
+    UInteger64_t BaseOffset;
+    // Context is the value passed to the underlying driver when reading
+    // the date.
+    void* Context;
 } SystemWallClock_t;
 
 typedef struct SystemTimers {
@@ -119,7 +132,7 @@ SystemWallClockRegister(
  */
 KERNELAPI void KERNELABI
 SystemTimerGetWallClockTime(
-        _In_ Integer64_t* time);
+        _In_ OSTimestamp_t* time);
 
 /**
  * @brief Retrieves the current system tick as a timestamp
@@ -177,4 +190,13 @@ KERNELAPI void KERNELABI
 SystemTimerStall(
         _In_ tick_t ns);
 
-#endif // !__COMPONENT_MEMORY__
+/**
+ * @brief Synchronizes timer sources. This is vital for correct information when
+ * calling SystemTimerGetWallClockTime. This synchronizes the wall-clock and the
+ * clock source, allowing up to nanosecond precision for timestamps.
+ * @return The status of the operation.
+ */
+KERNELAPI oserr_t KERNELABI
+SystemSynchronizeTimeSources(void);
+
+#endif // !__COMPONENT_TIMER__

@@ -121,7 +121,7 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
     );
 }
 
-int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int timeout)
+int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const struct timespec* until)
 {
     OSAsyncContext_t    asyncContext;
     stdio_handle_t*     setObject = stdio_handle_get(set_iod);
@@ -159,7 +159,9 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, int time
             &events[0],
             max_events,
             i,
-            timeout,
+            until == NULL ? NULL : &(OSTimestamp_t) {
+                .Seconds = until->tv_sec, .Nanoseconds = until->tv_nsec
+            },
             &numEvents,
             &asyncContext
     );

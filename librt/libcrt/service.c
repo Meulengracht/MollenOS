@@ -93,7 +93,7 @@ __gracht_job(void* argument, void* cancellationToken)
     );
 
     while (usched_is_cancelled(cancellationToken) == false) {
-        num_events = ioset_wait(config.set_descriptor, &events[0], 32, 0);
+        num_events = ioset_wait(config.set_descriptor, &events[0], 32, NULL);
         for (int i = 0; i < num_events; i++) {
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, 0);
