@@ -28,6 +28,7 @@
 #include <ddk/ddkdefs.h>
 #include <ioset.h>
 #include <os/types/async.h>
+#include <os/types/time.h>
 
 /**
  * Allocates a new handle for a system resource with a reference of 1.
@@ -100,7 +101,7 @@ OSNotificationQueueWait(
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
-        _In_  size_t              timeout,
+        _In_  OSTimestamp_t*      deadline,
         _Out_ int*                numEventsOut,
         _In_  OSAsyncContext_t*   asyncContext));
 

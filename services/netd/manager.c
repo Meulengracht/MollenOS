@@ -126,7 +126,7 @@ SocketMonitor(
                 Events,
                 NETWORK_MANAGER_MONITOR_MAX_EVENTS,
                 0,
-                0,
+                NULL,
                 &EventCount,
                 NULL
         );

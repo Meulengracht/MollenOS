@@ -26,6 +26,7 @@
 #define __HANDLE_SET_H__
 
 #include <os/types/async.h>
+#include <os/types/time.h>
 
 struct ioset_event;
 
@@ -73,7 +74,7 @@ WaitForHandleSet(
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
-        _In_  size_t              timeout,
+        _In_  OSTimestamp_t*      deadline,
         _Out_ int*                numEventsOut);
 
 /** 

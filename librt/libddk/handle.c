@@ -25,9 +25,8 @@
 #define __TRACE
 
 #include <ddk/handle.h>
-#include <ddk/utils.h>
 #include <internal/_syscalls.h>
-#include <internal/_utils.h>
+#include <os/types/syscall.h>
 
 oserr_t
 OSHandleCreate(
@@ -92,16 +91,16 @@ OSNotificationQueueWait(
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
-        _In_  size_t              timeout,
+        _In_  OSTimestamp_t*      deadline,
         _Out_ int*                numEventsOut,
         _In_  OSAsyncContext_t*   asyncContext)
 {
     oserr_t                   oserr;
     HandleSetWaitParameters_t parameters = {
-        .events = events,
-        .maxEvents = maxEvents,
-        .timeout = timeout,
-        .pollEvents = pollEvents
+        .Events = events,
+        .MaxEvents = maxEvents,
+        .Deadline = deadline,
+        .PollEvents = pollEvents
     };
     
     if (!events || !numEventsOut) {

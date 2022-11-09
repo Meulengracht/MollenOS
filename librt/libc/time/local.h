@@ -9,6 +9,8 @@
 #define DAYSPERWEEK  7
 #define MONSPERYEAR  12
 
+// Both UTC and TAI uses an epic of 1970 (January 1), so we need to add
+// 30 years to the timestamp (946,684,800 seconds between those two dates)
 #define EPOCH_DIFFERENCE               946684800LL
 #define YEAR_BASE                      1900
 #define EPOCH_YEAR                     1970

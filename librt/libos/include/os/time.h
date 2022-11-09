@@ -57,7 +57,7 @@ VaStall(
  */
 CRTDECL(oserr_t,
 VaGetWallClock(
-        _In_ Integer64_t* time));
+        _In_ OSTimestamp_t* time));
 
 /**
  * @brief Reads the current clock tick for the given clock source type. No guarantees are made for their

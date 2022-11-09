@@ -28,13 +28,14 @@
 #include <ddk/barrier.h>
 #include <ds/list.h>
 #include <ds/rbtree.h>
+#include <ds/hashtable.h>
 #include <futex.h>
 #include <handle.h>
 #include <handle_set.h>
 #include <heap.h>
 #include <ioset.h>
 #include <string.h>
-#include <ds/hashtable.h>
+#include <component/timer.h>
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
 
@@ -189,14 +190,26 @@ ControlHandleSet(
     return osStatus;
 }
 
+static size_t __convert_timeout(
+        _In_ OSTimestamp_t* deadline)
+{
+    OSTimestamp_t now;
+    if (deadline == NULL) {
+        return 0;
+    }
+    SystemTimerGetWallClockTime(&now);
+    OSTimestampSubtract(&now, &now, deadline);
+    return now.Seconds * MSEC_PER_SEC + (now.Nanoseconds / NSEC_PER_MSEC) + 1;
+}
+
 oserr_t
 WaitForHandleSet(
         _In_  uuid_t              handle,
-        _In_  OSAsyncContext_t* asyncContext,
+        _In_  OSAsyncContext_t*   asyncContext,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
-        _In_  size_t              timeout,
+        _In_  OSTimestamp_t*      deadline,
         _Out_ int*                numEventsOut)
 {
     struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
@@ -228,7 +241,7 @@ WaitForHandleSet(
                 NULL,
                 0,
                 0,
-                timeout
+                __convert_timeout(deadline)
         );
         if (oserr != OS_EOK) {
             return oserr;

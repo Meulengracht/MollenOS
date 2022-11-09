@@ -32,8 +32,7 @@ __get_va_type(
 {
     if (base == TIME_THREAD) {
         return OSClockSource_THREAD;
-    }
-    else if (base == TIME_PROCESS) {
+    } else if (base == TIME_PROCESS) {
         return OSClockSource_PROCESS;
     }
     return OSClockSource_MONOTONIC;
@@ -72,17 +71,15 @@ timespec_get(
     switch (base) {
         case TIME_TAI:
         case TIME_UTC: {
-            Integer64_t timeValue;
+            OSTimestamp_t timeValue;
 
             osStatus = VaGetWallClock(&timeValue);
             if (osStatus != OS_EOK) {
                 return OsErrToErrNo(osStatus);
             }
 
-            // Both UTC and TAI uses an epic of 1970 (January 1), so we need to add
-            // 30 years to the timestamp (946,684,800 seconds between those two dates)
-            ts->tv_sec  = (timeValue.QuadPart / USEC_PER_SEC) + EPOCH_DIFFERENCE;
-            ts->tv_nsec = timeValue.QuadPart % USEC_PER_SEC;
+            ts->tv_sec  = timeValue.Seconds;
+            ts->tv_nsec = timeValue.Nanoseconds;
             if (base == TIME_TAI) {
                 // TODO adjust for leap seconds
             }

@@ -14,20 +14,16 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS MCore - System Calls
  */
+
 #define __MODULE "SCIF"
 //#define __TRACE
 
 #include <assert.h>
 #include <handle.h>
 #include <handle_set.h>
-#include <heap.h>
-#include <internal/_utils.h>
+#include <os/types/syscall.h>
 #include <memoryspace.h>
-#include <threading.h>
 
 oserr_t
 ScInstallSignalHandler(
@@ -83,15 +79,15 @@ ScDestroyHandle(
 
 oserr_t
 ScCreateHandleSet(
-        _In_  unsigned int Flags,
-        _Out_ uuid_t* HandleOut)
+        _In_  unsigned int flags,
+        _Out_ uuid_t*      handleOut)
 {
-    if (!HandleOut) {
+    if (!handleOut) {
         return OS_EINVALPARAMS;
     }
     
-    *HandleOut = CreateHandleSet(Flags);
-    if (*HandleOut != UUID_INVALID) {
+    *handleOut = CreateHandleSet(flags);
+    if (*handleOut != UUID_INVALID) {
         return OS_EOK;
     }
     return OS_EOOM;
@@ -110,7 +106,7 @@ ScControlHandleSet(
 oserr_t
 ScListenHandleSet(
         _In_  uuid_t                     handle,
-        _In_  OSAsyncContext_t*        asyncContext,
+        _In_  OSAsyncContext_t*          asyncContext,
         _In_  HandleSetWaitParameters_t* parameters,
         _Out_ int*                       numberOfEventsOut)
 {
@@ -120,10 +116,10 @@ ScListenHandleSet(
     return WaitForHandleSet(
             handle,
             asyncContext,
-            parameters->events,
-            parameters->maxEvents,
-            parameters->pollEvents,
-            parameters->timeout,
+            parameters->Events,
+            parameters->MaxEvents,
+            parameters->PollEvents,
+            parameters->Deadline,
             numberOfEventsOut
     );
 }
