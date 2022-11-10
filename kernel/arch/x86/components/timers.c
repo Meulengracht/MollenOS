@@ -35,7 +35,7 @@ oserr_t
 TimersDiscover(void)
 {
     oserr_t osStatus;
-    int        rtcAvailable = 1;
+    int     rtcAvailable = 1;
     
     TRACE("TimersDiscover()");
 

@@ -337,7 +337,7 @@ HandleJanitorThread(
     _CRT_UNUSED(arg);
     
     for (;;) {
-        SemaphoreWait(&g_eventHandle, 0);
+        SemaphoreWait(&g_eventHandle, NULL);
 
         element = queue_pop(&g_cleanQueue);
         while (element) {

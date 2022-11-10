@@ -32,9 +32,9 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
     oserr_t             oserr = OS_EOK;
     int               value;
 
-    parameters._futex0  = sync_address;
-    parameters._flags   = FUTEX_FLAG_WAIT;
-    parameters._timeout = 0;
+    parameters.Futex0   = sync_address;
+    parameters.Flags    = FUTEX_FLAG_WAIT;
+    parameters.Deadline = NULL;
 
     while (1) {
         value = atomic_load(sync_address);
@@ -43,7 +43,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
                 return OS_EBUSY;
             }
 
-            parameters._val0 = value;
+            parameters.Expected0 = value;
             oserr = OSFutex(&parameters, NULL);
             if (oserr != OS_EOK) {
                 break;
@@ -67,9 +67,9 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
     int               i;
     int               result;
 
-    parameters._futex0 = sync_address;
-    parameters._val0   = 0;
-    parameters._flags  = FUTEX_FLAG_WAKE;
+    parameters.Futex0 = sync_address;
+    parameters.Expected0   = 0;
+    parameters.Flags  = FUTEX_FLAG_WAKE;
 
     // assert not max
     currentValue = atomic_load(sync_address);
@@ -79,12 +79,12 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
             while (!result && currentValue < maxValue) {
                 result = atomic_compare_exchange_weak(sync_address,
                         &currentValue, currentValue + 1);
-                parameters._val0++;
+                parameters.Expected0++;
             }
         }
     }
 
-    if (parameters._val0) {
+    if (parameters.Expected0) {
         OSFutex(&parameters, NULL);
         status = OS_EOK;
     }

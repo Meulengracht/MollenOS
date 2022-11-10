@@ -9,6 +9,7 @@
 
 #include <os/osdefs.h>
 #include <os/types/async.h>
+#include <os/types/syscall.h>
 
 #define FUTEX_OP_SET        0  /* uaddr2 = oparg; */
 #define FUTEX_OP_ADD        1  /* uaddr2 += oparg; */
@@ -36,16 +37,6 @@
 #define FUTEX_FLAG_ACTION(Flags) ((Flags) & 0x3)
 #define FUTEX_FLAG_OP            0x10U
 #define FUTEX_FLAG_PRIVATE       0x20U
-
-typedef struct OSFutexParameters {
-    _Atomic(int)* _futex0;
-    _Atomic(int)* _futex1;
-    int           _val0;
-    int           _val1;
-    int           _val2;
-    int           _flags;
-    size_t        _timeout; // todo struct timespec
-} OSFutexParameters_t;
 
 CRTDECL(oserr_t,
 OSFutex(

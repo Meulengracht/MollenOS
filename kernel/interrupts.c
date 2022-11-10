@@ -553,7 +553,7 @@ InterruptHandle(
 {
     uint32_t           initialPriority = InterruptsGetPriority();
     int                interruptSource = INTERRUPT_NONE;
-    irqstatus_t  interruptStatus;
+    irqstatus_t        interruptStatus;
     SystemInterrupt_t* entry;
 
     InterruptsSetPriority(tableIndex);
@@ -564,8 +564,7 @@ InterruptHandle(
     while (entry != NULL) {
         if (entry->Flags & INTERRUPT_KERNEL) {
             interruptStatus = entry->Handler(GetFastInterruptTable(), entry->Context);
-        }
-        else {
+        } else {
             interruptStatus = entry->KernelResources.Handler(GetFastInterruptTable(), &entry->KernelResources);
         }
 

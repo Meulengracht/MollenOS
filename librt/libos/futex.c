@@ -25,7 +25,7 @@ OSFutex(
 {
     oserr_t oserr;
 
-    if (FUTEX_FLAG_ACTION(parameters->_flags) == FUTEX_FLAG_WAIT) {
+    if (FUTEX_FLAG_ACTION(parameters->Flags) == FUTEX_FLAG_WAIT) {
         oserr = Syscall_FutexWait(asyncContext, parameters);
     } else {
         return Syscall_FutexWake(parameters);

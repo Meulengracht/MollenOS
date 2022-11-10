@@ -242,13 +242,13 @@ FutexInitialize(void)
 oserr_t
 FutexWait(
         _In_ OSAsyncContext_t* asyncContext,
-        _In_ _Atomic(int)*       futex,
-        _In_ int                 expectedValue,
-        _In_ int                 flags,
-        _In_ _Atomic(int)*       futex2,
-        _In_ int                 count,
-        _In_ int                 operation,
-        _In_ size_t              timeout)
+        _In_ _Atomic(int)*     futex,
+        _In_ int               expectedValue,
+        _In_ int               flags,
+        _In_ _Atomic(int)*     futex2,
+        _In_ int               count,
+        _In_ int               operation,
+        _In_ OSTimestamp_t*    deadline)
 {
     MemorySpaceContext_t* context = NULL;
     FutexBucket_t*        futexBucket;
@@ -323,7 +323,7 @@ CheckValue:
         goto CheckValue;
     }
     
-    SchedulerBlock(&futexItem->BlockQueue, timeout * NSEC_PER_MSEC);
+    SchedulerBlock(&futexItem->BlockQueue, deadline);
     if (flags & FUTEX_FLAG_OP) {
         FutexPerformOperation(futex2, operation);
         FutexWake(futex2, count, flags);

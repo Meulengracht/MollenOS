@@ -24,6 +24,7 @@
 #define __SEMAPHORE_H__
 
 #include <os/osdefs.h>
+#include <os/types/time.h>
 
 typedef struct Semaphore {
 	_Atomic(int) Value;
@@ -52,8 +53,8 @@ SemaphoreDestruct(
  * Waits for the semaphore signal with the optional time-out. */
 KERNELAPI oserr_t KERNELABI
 SemaphoreWait(
-    _In_ Semaphore_t* Semaphore,
-    _In_ size_t       Timeout);
+    _In_ Semaphore_t*   semaphore,
+    _In_ OSTimestamp_t* deadline);
 
 /* SemaphoreSignal
  * Signals the semaphore with the given value, default is 1 */

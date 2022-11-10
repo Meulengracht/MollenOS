@@ -25,7 +25,6 @@
 
 #define __need_minmax
 #include <debug.h>
-#include <ddk/barrier.h>
 #include <ds/list.h>
 #include <ds/rbtree.h>
 #include <ds/hashtable.h>
@@ -35,7 +34,6 @@
 #include <heap.h>
 #include <ioset.h>
 #include <string.h>
-#include <component/timer.h>
 
 #define VOID_KEY(key) (void*)(uintptr_t)key
 
@@ -190,18 +188,6 @@ ControlHandleSet(
     return osStatus;
 }
 
-static size_t __convert_timeout(
-        _In_ OSTimestamp_t* deadline)
-{
-    OSTimestamp_t now;
-    if (deadline == NULL) {
-        return 0;
-    }
-    SystemTimerGetWallClockTime(&now);
-    OSTimestampSubtract(&now, &now, deadline);
-    return now.Seconds * MSEC_PER_SEC + (now.Nanoseconds / NSEC_PER_MSEC) + 1;
-}
-
 oserr_t
 WaitForHandleSet(
         _In_  uuid_t              handle,
@@ -241,7 +227,7 @@ WaitForHandleSet(
                 NULL,
                 0,
                 0,
-                __convert_timeout(deadline)
+                deadline
         );
         if (oserr != OS_EOK) {
             return oserr;

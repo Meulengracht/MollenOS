@@ -109,12 +109,12 @@ SchedulerSleep(
  * @brief Blocks the current scheduler object, and adds it to the given blocking queue.
  *
  * @param[In] blockQueue The block queue the current scheduler object should be queued at.
- * @param[In] timeout    The timeout in nanoseconds granularity.
+ * @param[In] deadline   The deadline for which to wake up the thread.
  */
 KERNELAPI void KERNELABI
 SchedulerBlock(
-    _In_ list_t* blockQueue,
-    _In_ clock_t timeout);
+    _In_ list_t*        blockQueue,
+    _In_ OSTimestamp_t* deadline);
 
 /**
  * @brief Returns the last timeout reason for the current thread.

@@ -37,11 +37,14 @@
 #endif
 #define MAX_SUPPORTED_INTERRUPTS        256
 
+#define X86_CPU_FLAG_INVARIANT_TSC 0x1
+
 typedef struct PlatformCpuBlock {
     uint32_t MaxLevel;
     uint32_t MaxLevelExtended;
     uint32_t EcxFeatures;
     uint32_t EdxFeatures;
+    uint32_t Flags;
 } PlatformCpuBlock_t;
 
 typedef struct PlatformCpuCoreBlock {

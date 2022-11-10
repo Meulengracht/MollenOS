@@ -25,6 +25,7 @@
 #include <arch/x86/tsc.h>
 #include <ddk/io.h>
 #include <debug.h>
+#include <machine.h>
 
 // import the calibration ticker
 extern uint32_t g_calibrationTick;
@@ -58,6 +59,11 @@ TscInitialize(void)
         WARNING("TscInitialize TSC is not available for this CPU");
         return;
     }
+    
+    if (GetMachine()->Processor.PlatformData.Flags & X86_CPU_FLAG_INVARIANT_TSC) {
+        WARNING("TscInitialize the TSC is non-invariant, will not use it for time-keeping");
+        return;
+    }
 
     // Use the read timestamp counter
     ticker = READ_VOLATILE(g_calibrationTick);
@@ -88,7 +94,7 @@ TscInitialize(void)
 
 static void
 TscGetCount(
-        _In_ void*            context,
+        _In_ void*         context,
         _In_ UInteger64_t* tick)
 {
     _CRT_UNUSED(context);
@@ -97,7 +103,7 @@ TscGetCount(
 
 static void
 TscGetFrequency(
-        _In_ void*            context,
+        _In_ void*         context,
         _In_ UInteger64_t* frequency)
 {
     _CRT_UNUSED(context);

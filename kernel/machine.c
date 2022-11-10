@@ -174,7 +174,7 @@ InitializeMachine(
     if (AcpiAvailable() == ACPI_AVAILABLE) {
         // There is no return code here because to be honest we don't really care
         // if the HPET is present or not. If it is, great, otherwise wow bad platform.
-        HpetInitialize();
+        HPETInitialize();
     }
 #endif
     oserr = PlatformTimersInitialize();
@@ -224,7 +224,7 @@ InitializeMachine(
     UserEventInitialize();
 
     // Start the bootstrap module if present
-    SpawnBootstrapper();
+    //SpawnBootstrapper();
 
     // yield before going to assume new threads
     TRACE("End of initialization, yielding control");

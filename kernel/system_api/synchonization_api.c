@@ -28,18 +28,18 @@
 
 oserr_t
 ScFutexWait(
-        _In_ OSAsyncContext_t* asyncContext,
-        _In_ OSFutexParameters_t*  parameters)
+        _In_ OSAsyncContext_t*    asyncContext,
+        _In_ OSFutexParameters_t* parameters)
 {
     return FutexWait(
             asyncContext,
-            parameters->_futex0,
-            parameters->_val0,
-            parameters->_flags,
-            parameters->_futex1,
-            parameters->_val1,
-            parameters->_val2,
-            parameters->_timeout
+            parameters->Futex0,
+            parameters->Expected0,
+            parameters->Flags,
+            parameters->Futex1,
+            parameters->Count,
+            parameters->Op,
+            parameters->Deadline
     );
 }
 
@@ -48,12 +48,20 @@ ScFutexWake(
         _In_ OSFutexParameters_t* parameters)
 {
     // Also two versions of wake
-    if (parameters->_flags & FUTEX_FLAG_OP) {
-        return FutexWakeOperation(parameters->_futex0, parameters->_val0,
-                                  parameters->_futex1, parameters->_val1, parameters->_val2,
-                                  parameters->_flags);
+    if (parameters->Flags & FUTEX_FLAG_OP) {
+        return FutexWakeOperation(
+                parameters->Futex0,
+                parameters->Expected0,
+                parameters->Futex1,
+                parameters->Count,
+                parameters->Op,
+                parameters->Flags);
     }
-    return FutexWake(parameters->_futex0, parameters->_val0, parameters->_flags);
+    return FutexWake(
+            parameters->Futex0,
+            parameters->Expected0,
+            parameters->Flags
+    );
 }
 
 oserr_t ScEventCreate(unsigned int initialValue, unsigned int flags, uuid_t* handleOut, atomic_int** syncAddressOut)
