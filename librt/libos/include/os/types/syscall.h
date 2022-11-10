@@ -27,4 +27,14 @@ typedef struct HandleSetWaitParameters {
     int                 PollEvents;
 } HandleSetWaitParameters_t;
 
+typedef struct OSFutexParameters {
+    _Atomic(int)*  Futex0;
+    _Atomic(int)*  Futex1;
+    int            Expected0;
+    int            Count;
+    int            Op;
+    int            Flags;
+    OSTimestamp_t* Deadline;
+} OSFutexParameters_t;
+
 #endif //!__TYPES_SYSCALL_H__

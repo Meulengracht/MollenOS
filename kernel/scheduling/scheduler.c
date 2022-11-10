@@ -418,10 +418,22 @@ SchedulerSleep(
     return OS_EOK;
 }
 
+static size_t __to_timeout(
+        _In_ OSTimestamp_t* deadline)
+{
+    OSTimestamp_t now;
+    if (deadline == NULL) {
+        return 0;
+    }
+    SystemTimerGetWallClockTime(&now);
+    OSTimestampSubtract(&now, &now, deadline);
+    return now.Seconds * MSEC_PER_SEC + (now.Nanoseconds / NSEC_PER_MSEC) + 1;
+}
+
 void
 SchedulerBlock(
-    _In_ list_t* blockQueue,
-    _In_ clock_t timeout)
+    _In_ list_t*        blockQueue,
+    _In_ OSTimestamp_t* deadline)
 {
     SchedulerObject_t* object;
     TRACE("[scheduler] [block] %" PRIuIN, timeout);
@@ -429,7 +441,7 @@ SchedulerBlock(
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     assert(object != NULL);
 
-    object->TimeLeft        = timeout;
+    object->TimeLeft        = __to_timeout(deadline);
     object->TimeoutReason   = OS_EOK;
     object->InterruptedAt   = 0;
     object->WaitQueueHandle = blockQueue;

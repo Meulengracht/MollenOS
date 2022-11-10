@@ -94,7 +94,10 @@ static oserr_t __TrySpinOnOwner(Mutex_t* mutex, uuid_t owner)
     return OS_EUNKNOWN;
 }
 
-static oserr_t __SlowLock(Mutex_t* mutex, size_t timeout)
+static oserr_t
+__SlowLock(
+        _In_ Mutex_t*       mutex,
+        _In_ OSTimestamp_t* deadline)
 {
     irqstate_t intStatus;
     uuid_t      owner;
@@ -119,7 +122,7 @@ static oserr_t __SlowLock(Mutex_t* mutex, size_t timeout)
     __SetFlags(mutex, MUTEX_FLAG_PENDING);
     for (;;) {
         // block task and then reenable interrupts
-        SchedulerBlock(&mutex->BlockQueue, timeout * NSEC_PER_MSEC);
+        SchedulerBlock(&mutex->BlockQueue, deadline);
         SpinlockRelease(&mutex->Lock);
         InterruptRestoreState(intStatus);
         ArchThreadYield();
@@ -210,13 +213,13 @@ MutexLock(
 
 oserr_t
 MutexLockTimed(
-    _In_ Mutex_t* mutex,
-    _In_ size_t   timeout)
+    _In_ Mutex_t*       mutex,
+    _In_ OSTimestamp_t* deadline)
 {
     if (!mutex || !__HasFlags(mutex, MUTEX_FLAG_TIMED)) {
         return OS_EINVALPARAMS;
     }
-    return __SlowLock(mutex, timeout);
+    return __SlowLock(mutex, deadline);
 }
 
 void

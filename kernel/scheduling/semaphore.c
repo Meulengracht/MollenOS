@@ -63,36 +63,36 @@ SemaphoreDestruct(
 
 oserr_t
 SemaphoreWait(
-    _In_ Semaphore_t* Semaphore,
-    _In_ size_t       Timeout)
+    _In_ Semaphore_t*   semaphore,
+    _In_ OSTimestamp_t* deadline)
 {
     oserr_t Status = OS_EOK;
     int        Value;
     
     for (;;) {
-        Value = atomic_load(&(Semaphore->Value));
+        Value = atomic_load(&(semaphore->Value));
         while (Value < 1) {
             Status = FutexWait(
                     NULL,
-                    &(Semaphore->Value),
+                    &(semaphore->Value),
                     Value,
                     0,
                     NULL,
                     0,
                     0,
-                    Timeout
+                    deadline
             );
             if (Status != OS_EOK) {
                 break;
             }
-            Value = atomic_load(&(Semaphore->Value));
+            Value = atomic_load(&(semaphore->Value));
         }
         
-        Value = atomic_fetch_sub(&(Semaphore->Value), 1);
+        Value = atomic_fetch_sub(&(semaphore->Value), 1);
         if (Value >= 1) {
             break;
         }
-        atomic_fetch_add(&(Semaphore->Value), 1);
+        atomic_fetch_add(&(semaphore->Value), 1);
     }
     return Status;
 }

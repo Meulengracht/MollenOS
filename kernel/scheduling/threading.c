@@ -493,7 +493,7 @@ ThreadJoin(
         value = atomic_fetch_add(&target->References, 1);
         MutexUnlock(&target->SyncObject);
 
-        SemaphoreWait(&target->EventObject, 0);
+        SemaphoreWait(&target->EventObject, NULL);
         value = atomic_fetch_sub(&target->References, 1);
         return target->RetCode;
     }

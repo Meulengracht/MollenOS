@@ -108,8 +108,13 @@
 /**
  * @brief Initializes the HPET if present. This requires the presence of ACPI tables.
  */
-KERNELAPI void KERNELABI
-HpetInitialize(void);
+KERNELAPI void KERNELABI HPETInitialize(void);
+
+/**
+ * @brief Detects whether or not the HPET is present.
+ * @return True if present, otherwise false.
+ */
+KERNELAPI bool KERNELABI HPETIsPresent(void);
 
 /**
  * @brief
@@ -121,18 +126,25 @@ HpetInitialize(void);
  * @return
  */
 KERNELAPI oserr_t KERNELABI
-HpetComparatorStart(
+HPETComparatorStart(
     _In_ int      index,
     _In_ uint64_t frequency,
     _In_ int      periodic,
     _In_ int      legacyIrq);
 
 /**
- * @brief Returns whether or not the hpet is configured to use legacy routings.
- *
- * @return OS_EOK if the HPET has legacy routings
+ * @brief Stops a previously started comparator.
+ * @param index The comparator index to stop.
+ * @return
  */
 KERNELAPI oserr_t KERNELABI
-HpetIsEmulatingLegacyController(void);
+HPETComparatorStop(
+        _In_ int index);
+
+/**
+ * @brief Returns whether or not the hpet is configured to use legacy routings.
+ * @return True if the HPET has legacy routings
+ */
+KERNELAPI bool KERNELABI HPETIsEmulatingLegacyController(void);
 
 #endif //!_HPET_H_

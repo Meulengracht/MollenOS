@@ -257,10 +257,10 @@ streambuffer_stream_out(
                 break;
             }
             
-            parameters._futex0  = (atomic_int*)&stream->consumer_comitted_index;
-            parameters._val0    = (int)read_index;
-            parameters._timeout = 0;
-            parameters._flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0  = (atomic_int*)&stream->consumer_comitted_index;
+            parameters.Expected0    = (int)read_index;
+            parameters.Deadline = NULL;
+            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->producer_count, 1);
             dswait(&parameters);
             continue; // Start over
@@ -295,10 +295,10 @@ streambuffer_stream_out(
         }
 
         atomic_fetch_add(&stream->producer_comitted_index, bytes_comitted);
-        parameters._val0 = atomic_exchange(&stream->consumer_count, 0);
-        if (parameters._val0 != 0) {
-            parameters._futex0 = (atomic_int*)&stream->producer_comitted_index;
-            parameters._flags  = STREAMBUFFER_WAKE_FLAGS(stream);
+        parameters.Expected0 = atomic_exchange(&stream->consumer_count, 0);
+        if (parameters.Expected0 != 0) {
+            parameters.Futex0 = (atomic_int*)&stream->producer_comitted_index;
+            parameters.Flags  = STREAMBUFFER_WAKE_FLAGS(stream);
             dswake(&parameters);
         }
     }
@@ -346,10 +346,10 @@ streambuffer_write_packet_start(
                 break;
             }
             
-            parameters._futex0  = (atomic_int*)&stream->consumer_comitted_index;
-            parameters._val0    = (int)read_index;
-            parameters._timeout = 0;
-            parameters._flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0  = (atomic_int*)&stream->consumer_comitted_index;
+            parameters.Expected0    = (int)read_index;
+            parameters.Deadline = NULL;
+            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->producer_count, 1);
             dswait(&parameters);
             continue; // Start over
@@ -415,10 +415,10 @@ streambuffer_write_packet_end(
 
     adjusted_length = length + sizeof(sb_packethdr_t);
     atomic_fetch_add(&stream->producer_comitted_index, adjusted_length);
-    parameters._val0 = atomic_exchange(&stream->consumer_count, 0);
-    if (parameters._val0 != 0) {
-        parameters._futex0 = (atomic_int*)&stream->producer_comitted_index;
-        parameters._flags  = STREAMBUFFER_WAKE_FLAGS(stream);
+    parameters.Expected0 = atomic_exchange(&stream->consumer_count, 0);
+    if (parameters.Expected0 != 0) {
+        parameters.Futex0 = (atomic_int*)&stream->producer_comitted_index;
+        parameters.Flags  = STREAMBUFFER_WAKE_FLAGS(stream);
         dswake(&parameters);
     }
 }
@@ -458,10 +458,10 @@ streambuffer_stream_in(
                 break;
             }
             
-            parameters._futex0  = (atomic_int*)&stream->producer_comitted_index;
-            parameters._val0    = (int)write_index;
-            parameters._timeout = 0;
-            parameters._flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0  = (atomic_int*)&stream->producer_comitted_index;
+            parameters.Expected0    = (int)write_index;
+            parameters.Deadline = NULL;
+            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->consumer_count, 1);
             dswait(&parameters);
             continue; // Start over
@@ -490,10 +490,10 @@ streambuffer_stream_in(
         }
 
         atomic_fetch_add(&stream->consumer_comitted_index, bytes_comitted);
-        parameters._val0 = atomic_exchange(&stream->producer_count, 0);
-        if (parameters._val0 != 0) {
-            parameters._futex0 = (atomic_int*)&stream->consumer_comitted_index;
-            parameters._flags  = STREAMBUFFER_WAKE_FLAGS(stream);
+        parameters.Expected0 = atomic_exchange(&stream->producer_count, 0);
+        if (parameters.Expected0 != 0) {
+            parameters.Futex0 = (atomic_int*)&stream->consumer_comitted_index;
+            parameters.Flags  = STREAMBUFFER_WAKE_FLAGS(stream);
             dswake(&parameters);
         }
         break;
@@ -543,10 +543,10 @@ streambuffer_read_packet_start(
                 break;
             }
             
-            parameters._futex0  = (atomic_int*)&stream->producer_comitted_index;
-            parameters._val0    = (int)write_index;
-            parameters._timeout = 0;
-            parameters._flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0  = (atomic_int*)&stream->producer_comitted_index;
+            parameters.Expected0    = (int)write_index;
+            parameters.Deadline = NULL;
+            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->consumer_count, 1);
             dswait(&parameters);
             continue; // Start over
@@ -614,10 +614,10 @@ streambuffer_read_packet_end(
     length += sizeof(sb_packethdr_t);
     
     atomic_fetch_add(&stream->consumer_comitted_index, length);
-    parameters._val0 = atomic_exchange(&stream->producer_count, 0);
-    if (parameters._val0 != 0) {
-        parameters._futex0 = (atomic_int*)&stream->consumer_comitted_index;
-        parameters._flags  = STREAMBUFFER_WAKE_FLAGS(stream);
+    parameters.Expected0 = atomic_exchange(&stream->producer_count, 0);
+    if (parameters.Expected0 != 0) {
+        parameters.Futex0 = (atomic_int*)&stream->consumer_comitted_index;
+        parameters.Flags  = STREAMBUFFER_WAKE_FLAGS(stream);
         dswake(&parameters);
     }
 }

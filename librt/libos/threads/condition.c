@@ -54,9 +54,9 @@ ConditionSignal(
 		return OS_EINVALPARAMS;
 	}
 
-    parameters._futex0  = &cond->Value;
-    parameters._val0    = 1;
-    parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+    parameters.Futex0    = &cond->Value;
+    parameters.Expected0 = 1;
+    parameters.Flags     = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
 	return OSFutex(&parameters, NULL);
 }
 
@@ -70,16 +70,16 @@ ConditionBroadcast(
         return OS_EINVALPARAMS;
 	}
 	
-    parameters._futex0  = &cond->Value;
-    parameters._val0    = atomic_load(&cond->Value);
-    parameters._flags   = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+    parameters.Futex0    = &cond->Value;
+    parameters.Expected0 = atomic_load(&cond->Value);
+    parameters.Flags     = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
 	return OSFutex(&parameters, NULL);
 }
 
 oserr_t
 ConditionWait(
-        _In_ Condition_t*        cond,
-        _In_ Mutex_t*            mutex,
+        _In_ Condition_t*      cond,
+        _In_ Mutex_t*          mutex,
         _In_ OSAsyncContext_t* asyncContext)
 {
     OSFutexParameters_t parameters;
@@ -88,13 +88,13 @@ ConditionWait(
 		return OS_EINVALPARAMS;
 	}
 
-    parameters._futex0  = &cond->Value;
-    parameters._futex1  = &mutex->Value;
-    parameters._val0    = atomic_load(&cond->Value);
-    parameters._val1    = 1; // Wakeup one on the mutex
-    parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0);
-    parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
-    parameters._timeout = 0;
+    parameters.Futex0    = &cond->Value;
+    parameters.Futex1    = &mutex->Value;
+    parameters.Expected0 = atomic_load(&cond->Value);
+    parameters.Count     = 1; // Wakeup one on the mutex
+    parameters.Op        = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0);
+    parameters.Flags     = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
+    parameters.Deadline  = NULL;
 
     oserr = OSFutex(&parameters, asyncContext);
     (void)MutexLock(mutex);
@@ -106,36 +106,25 @@ ConditionTimedWait(
         _In_ Condition_t* restrict           cond,
         _In_ Mutex_t* restrict               mutex,
         _In_ const struct timespec* restrict timePoint,
-        _In_ OSAsyncContext_t*             asyncContext)
+        _In_ OSAsyncContext_t*               asyncContext)
 {
     OSFutexParameters_t parameters;
 	oserr_t             status;
-    time_t            msec;
-	struct timespec   now, result;
 
 	if (cond == NULL || mutex == NULL || timePoint == NULL) {
 		return OS_EINVALPARAMS;
 	}
-    
-    // Calculate time to sleep
-	timespec_get(&now, TIME_UTC);
-    timespec_diff(&now, timePoint, &result);
-    if (result.tv_sec < 0) {
-        return OS_ETIMEOUT;
-    }
 
-    msec = result.tv_sec * MSEC_PER_SEC;
-    if (result.tv_nsec != 0) {
-        msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
-    }
-
-    parameters._futex0  = &cond->Value;
-    parameters._futex1  = &mutex->Value;
-    parameters._val0    = atomic_load(&cond->Value);
-    parameters._val1    = 1; // Wakeup one on the mutex
-    parameters._val2    = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
-    parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
-    parameters._timeout = msec;
+    parameters.Futex0    = &cond->Value;
+    parameters.Futex1    = &mutex->Value;
+    parameters.Expected0 = atomic_load(&cond->Value);
+    parameters.Count     = 1; // Wakeup one on the mutex
+    parameters.Op        = FUTEX_OP(FUTEX_OP_SET, 0, 0, 0); // Reset mutex to 0
+    parameters.Flags     = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE | FUTEX_FLAG_OP;
+    parameters.Deadline  = timePoint == NULL ? NULL : &(OSTimestamp_t) {
+        .Seconds = timePoint->tv_sec,
+        .Nanoseconds = timePoint->tv_nsec
+    };
     
     status = OSFutex(&parameters, asyncContext);
     MutexLock(mutex);

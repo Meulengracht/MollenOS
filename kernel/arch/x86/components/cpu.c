@@ -99,8 +99,7 @@ __ExtractCoreTopology(
     if (!strncmp(Brand, CPUID_VENDOR_OLDAMD, 12) ||
         !strncmp(Brand, CPUID_VENDOR_AMD, 12)) {
         __get_cpuid(0x80000008, cpuRegisters);
-    }
-    else if (!strncmp(Brand, CPUID_VENDOR_INTEL, 12)) {
+    } else if (!strncmp(Brand, CPUID_VENDOR_INTEL, 12)) {
         __get_cpuid(0xB, cpuRegisters);
         *LogicalBits = 0;
     }
@@ -168,6 +167,14 @@ ArchPlatformInitialize(
         memcpy(&temporaryBrand[32], &cpuRegisters[0], 16);
         brandPointer = TrimWhitespaces(brandPointer);
         memcpy(&cpu->Brand[0], brandPointer, strlen(brandPointer));
+    }
+
+    if (cpu->PlatformData.MaxLevelExtended >= 0x80000007) {
+        __get_cpuid(0x80000007, cpuRegisters);
+        // EDX[8] = Invariant TSC
+        if (cpuRegisters[3] & (1 << 8)) {
+            cpu->PlatformData.Flags |= X86_CPU_FLAG_INVARIANT_TSC;
+        }
     }
 
     // Initialize kernel GDT/IDT and perform some other things while we are doing pre-memory setup.

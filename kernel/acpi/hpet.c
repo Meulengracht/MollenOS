@@ -130,7 +130,7 @@ __StartHpet(void)
 }
 
 oserr_t
-HpetIsEmulatingLegacyController(void)
+HPETIsEmulatingLegacyController(void)
 {
     if (g_hpet.BaseAddress != 0) {
         size_t hpetConfig;
@@ -156,8 +156,7 @@ __ReadMainCounter(
 #if __BITS == 64
     if (g_hpet.Is64Bit) {
         HP_READ_64(HPET_REGISTER_MAINCOUNTER, (size_t*)&Value->QuadPart);
-    }
-    else {
+    } else {
         Value->QuadPart = 0;
         HP_READ_32(HPET_REGISTER_MAINCOUNTER, (size_t*)&Value->QuadPart);
     }
@@ -170,8 +169,7 @@ __ReadMainCounter(
             Value->u.HighPart = *(Register + 1);
             Value->u.LowPart  = *Register;
         } while (Value->u.HighPart != *(Register + 1));
-    }
-    else {
+    } else {
         Value->u.HighPart = 0;
         HP_READ_32(HPET_REGISTER_MAINCOUNTER, (size_t*)&Value->u.LowPart);
     }
@@ -238,8 +236,7 @@ __InitializeComparator(
         // 0 = Irq 0
         // 1 = Irq 8
         interruptMap = 1 << (index * 8);
-    }
-    else {
+    } else {
         HP_READ_32(HPET_TIMER_CONFIG(index) + 4, &interruptMap);
     }
     
@@ -320,19 +317,19 @@ __AllocateInterrupt(
 }
 
 oserr_t
-HpetComparatorStart(
+HPETComparatorStart(
     _In_ int      index,
     _In_ uint64_t frequency,
     _In_ int      periodic,
     _In_ int      legacyIrq)
 {
     HpetComparator_t* comparator = &g_hpet.Timers[index];
-    UInteger64_t   now;
+    UInteger64_t      now;
     uint64_t          delta;
     size_t            tempValue;
     size_t            tempValue2;
 
-    TRACE("HpetComparatorStart(index=%i, frequency=%" PRIuIN ", periodic=%i)",
+    TRACE("HPETComparatorStart(index=%i, frequency=%" PRIuIN ", periodic=%i)",
           index, LODWORD(Frequency), periodic);
 
     // Calculate the delta
@@ -340,7 +337,7 @@ HpetComparatorStart(
     if (delta < g_hpet.TickMinimum) {
         delta = g_hpet.TickMinimum;
     }
-    TRACE("HpetComparatorStart delta=0x%x", LODWORD(delta));
+    TRACE("HPETComparatorStart delta=0x%x", LODWORD(delta));
 
     // Stop main timer and calculate the next irq
     __StopHpet();
@@ -366,7 +363,7 @@ HpetComparatorStart(
     
     // Set some extra bits if periodic
     if (comparator->PeriodicSupport && periodic) {
-        TRACE("HpetComparatorStart configuring for periodic");
+        TRACE("HPETComparatorStart configuring for periodic");
         tempValue |= HPET_TIMER_CONFIG_PERIODIC;
         tempValue |= HPET_TIMER_CONFIG_SET_CMP_VALUE;
     }
@@ -388,9 +385,9 @@ HpetComparatorStart(
     // Update configuration and comparator
     tempValue2 = (1 << index);
     HP_WRITE_32(HPET_REGISTER_INTSTATUS, tempValue2);
-    TRACE("HpetComparatorStart writing config value 0x%" PRIxIN "", tempValue);
+    TRACE("HPETComparatorStart writing config value 0x%" PRIxIN "", tempValue);
     HP_WRITE_32(HPET_TIMER_CONFIG(index), tempValue);
-    __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), (reg64_t) now.QuadPart);
+    __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), (reg64_t)now.QuadPart);
     if (comparator->PeriodicSupport && periodic) {
         __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), delta);
     }
@@ -409,7 +406,7 @@ __GetHpetTable(void)
 }
 
 void
-HpetInitialize(void)
+HPETInitialize(void)
 {
     ACPI_TABLE_HPET* hpetTable;
     int              legacy;
@@ -418,15 +415,15 @@ HpetInitialize(void)
     size_t           tempValue;
     int              numTimers;
     int              i;
-    TRACE("HpetInitialize()");
+    TRACE("HPETInitialize()");
 
     hpetTable = __GetHpetTable();
     if (!hpetTable) {
-        WARNING("HpetInitialize no HPET detected.");
+        WARNING("HPETInitialize no HPET detected.");
         return;
     }
 
-    TRACE("HpetInitialize address 0x%" PRIxIN ", sequence %" PRIuIN ")",
+    TRACE("HPETInitialize address 0x%" PRIxIN ", sequence %" PRIuIN ")",
           (uintptr_t)(hpetTable->Address.Address), hpetTable->Sequence);
 
     memset(&g_hpet, 0, sizeof(HpetController_t));
@@ -443,7 +440,7 @@ HpetInitialize(void)
             MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
     );
     if (osStatus != OS_EOK) {
-        ERROR("HpetInitialize failed to map address for hpet.");
+        ERROR("HPETInitialize failed to map address for hpet.");
         return;
     }
     g_hpet.BaseAddress = updatedAddress;
@@ -459,16 +456,16 @@ HpetInitialize(void)
 
     // Did system fail to initialize
     if (tempValue == 0xFFFFFFFF) {
-        ERROR("HpetInitialize failed to initialize HPET (AMD SB700).");
+        ERROR("HPETInitialize failed to initialize HPET (AMD SB700).");
         return;
     }
 
     // Check the period for a sane value
     HP_READ_32(HPET_REGISTER_CAPABILITIES + 4, &g_hpet.Period);
-    TRACE("HpetInitialize Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", g_hpet.TickMinimum, g_hpet.Period);
+    TRACE("HPETInitialize Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", g_hpet.TickMinimum, g_hpet.Period);
 
     if ((g_hpet.Period == 0) || (g_hpet.Period > HPET_MAXPERIOD)) {
-        ERROR("HpetInitialize failed to initialize HPET, period is invalid.");
+        ERROR("HPETInitialize failed to initialize HPET, period is invalid.");
         return;
     }
 
@@ -486,17 +483,17 @@ HpetInitialize(void)
     g_hpet.Is64Bit = (tempValue & HPET_64BITSUPPORT) ? 1 : 0;
     legacy    = (tempValue & HPET_LEGACYMODESUPPORT) ? 1 : 0;
     numTimers = (int)HPET_TIMERCOUNT(tempValue);
-    TRACE("HpetInitialize Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "",
+    TRACE("HPETInitialize Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN ", MHz %" PRIuIN "",
           TempValue, numTimers, (g_hpet.Frequency.u.LowPart / 1000));
 
     if (legacy && numTimers < 2) {
-        ERROR("HpetInitialize failed to initialize HPET, legacy is available but not enough timers.");
+        ERROR("HPETInitialize failed to initialize HPET, legacy is available but not enough timers.");
         return;
     }
 
     // Sanitize the number of timers, must be above 0
     if (numTimers == 0) {
-        ERROR("HpetInitialize there was no timers present in HPET");
+        ERROR("HPETInitialize there was no timers present in HPET");
         return;
     }
 
@@ -510,7 +507,7 @@ HpetInitialize(void)
     // Loop through all comparators and configurate them
     for (i = 0; i < numTimers; i++) {
         if (__InitializeComparator(i, legacy) == OS_EUNKNOWN) {
-            ERROR("HpetInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
+            ERROR("HPETInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
             g_hpet.Timers[i].Present = 0;
         }
     }
@@ -523,7 +520,7 @@ HpetInitialize(void)
         &g_hpet
     );
     if (osStatus != OS_EOK) {
-        WARNING("HpetInitialize failed to register platform timer");
+        WARNING("HPETInitialize failed to register platform timer");
     }
 }
 

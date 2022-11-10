@@ -59,13 +59,27 @@ static inline void OSTimestampNormalize(OSTimestamp_t* timestamp) {
 
 /**
  * @brief Subtracts two timestamps and stores the result into <result>
- * @param result The timestamp where the result should be stored
+ * @param result The timestamp where the result should be stored.
  * @param a The left operand.
  * @param b The right operand.
  */
 static inline void OSTimestampSubtract(OSTimestamp_t* result, OSTimestamp_t* a, OSTimestamp_t* b){
     result->Seconds = a->Seconds - b->Seconds;
     result->Nanoseconds = a->Nanoseconds - b->Nanoseconds;
+    OSTimestampNormalize(result);
+}
+
+/**
+ * @brief Adds nanoseconds to the timestamp. This will automatically
+ * normalize the resulting timestamp.
+ * @param result The timestamp where the result should be stored.
+ * @param a The base operand for which nanoseconds should be added to.
+ * @param nsec The number of nanoseconds that should be added.
+ */
+static inline void OSTimestampAddNsec(OSTimestamp_t* result, OSTimestamp_t* a, int64_t nsec)
+{
+    result->Seconds = a->Seconds;
+    result->Nanoseconds = a->Nanoseconds + nsec;
     OSTimestampNormalize(result);
 }
 

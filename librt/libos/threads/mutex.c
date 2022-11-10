@@ -67,9 +67,9 @@ MutexDestroy(
     if (mutex != NULL) {
         mutex->Flags |= MUTEX_DESTROYED;
 
-        parameters._futex0 = &mutex->Value;
-        parameters._val0   = INT_MAX;
-        parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+        parameters.Futex0    = &mutex->Value;
+        parameters.Expected0 = INT_MAX;
+        parameters.Flags     = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
         OSFutex(&parameters, NULL);
     }
 }
@@ -126,8 +126,8 @@ MutexTryLock(
 
 static int
 __perform_lock(
-    _In_ Mutex_t* mutex,
-    _In_ size_t   timeout)
+        _In_ Mutex_t* restrict               mutex,
+        _In_ const struct timespec *restrict timePoint)
 {
     OSFutexParameters_t parameters;
     int                 status;
@@ -143,10 +143,13 @@ __perform_lock(
         }
     }
     
-    parameters._futex0  = &mutex->Value;
-    parameters._val0    = 2; // we always sleep on expecting a two
-    parameters._timeout = timeout;
-    parameters._flags   = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE;
+    parameters.Futex0    = &mutex->Value;
+    parameters.Expected0 = 2; // we always sleep on expecting a two
+    parameters.Deadline  = timePoint == NULL ? NULL : &(OSTimestamp_t) {
+        .Seconds = timePoint->tv_sec,
+        .Nanoseconds = timePoint->tv_nsec
+    };
+    parameters.Flags     = FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE;
     
     // On multicore systems the lock might be released rather quickly,
     // so we perform a number of initial spins before going to sleep,
@@ -199,7 +202,7 @@ MutexLock(
     if (mutex == NULL) {
         return OS_EINVALPARAMS;
     }
-    return __perform_lock(mutex, 0);
+    return __perform_lock(mutex, NULL);
 }
 
 oserr_t
@@ -207,25 +210,11 @@ MutexTimedLock(
         _In_ Mutex_t* restrict               mutex,
         _In_ const struct timespec *restrict timePoint)
 {
-    time_t          msec;
-	struct timespec now, result;
-    
     if (mutex == NULL || !(mutex->Flags & MUTEX_TIMED)) {
         return OS_EINVALPARAMS;
     }
-    
-    // Calculate time to sleep
-	timespec_get(&now, TIME_UTC);
-    timespec_diff(&now, timePoint, &result);
-    if (result.tv_sec < 0) {
-        return OS_ETIMEOUT;
-    }
 
-    msec = result.tv_sec * MSEC_PER_SEC;
-    if (result.tv_nsec != 0) {
-        msec += ((result.tv_nsec - 1) / NSEC_PER_MSEC) + 1;
-    }
-    return __perform_lock(mutex, msec);
+    return __perform_lock(mutex, timePoint);
 }
 
 oserr_t
@@ -234,10 +223,10 @@ MutexUnlock(
 {
     OSFutexParameters_t parameters;
     unsigned int        state, newState;
-    uuid_t            owner;
-    unsigned int      refcount;
-    int               status;
-    int               lockState;
+    uuid_t              owner;
+    unsigned int        refcount;
+    int                 status;
+    int                 lockState;
     if (mutex == NULL) {
         return OS_EINVALPARAMS;
     }
@@ -278,9 +267,9 @@ MutexUnlock(
     // get current lock state and act accordinly
     lockState = atomic_exchange(&mutex->Value, 0);
     if (lockState == 2) {
-        parameters._futex0 = &mutex->Value;
-        parameters._val0   = 1;
-        parameters._flags  = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
+        parameters.Futex0    = &mutex->Value;
+        parameters.Expected0 = 1;
+        parameters.Flags     = FUTEX_FLAG_WAKE | FUTEX_FLAG_PRIVATE;
         OSFutex(&parameters, NULL);
     }
     return OS_EOK;

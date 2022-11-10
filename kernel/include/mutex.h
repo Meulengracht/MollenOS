@@ -26,6 +26,7 @@
 #define __VALI_MUTEX_H__
 
 #include <os/osdefs.h>
+#include <os/types/time.h>
 #include <ds/list.h>
 #include <spinlock.h>
 
@@ -82,14 +83,14 @@ MutexLock(
 
 /**
  * Attemps to acquire the mutex in a given time-frame.
- * @param mutex   [In] A pointer to a Mutex_t structure
- * @param timeout [In] Timeout in milliseconds
+ * @param[In] mutex    A pointer to a Mutex_t structure
+ * @param[In] deadline Timeout in milliseconds
  * @return        Returns OsTimeout if it failed to acquire within the timeout
  */
 KERNELAPI oserr_t KERNELABI
 MutexLockTimed(
-    _In_ Mutex_t* mutex,
-    _In_ size_t   timeout);
+    _In_ Mutex_t*       mutex,
+    _In_ OSTimestamp_t* deadline);
 
 /**
  * Releases the given mutex

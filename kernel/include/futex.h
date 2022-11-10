@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,15 +13,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Synchronization (Futex)
  */
 
 #ifndef __FUTEX_H__
 #define __FUTEX_H__
 
 #include <os/types/async.h>
+#include <os/types/time.h>
 #include <os/futex.h>
 
 KERNELAPI void KERNELABI
@@ -41,7 +37,7 @@ FutexWait(
         _In_ _Atomic(int)*     futex2,
         _In_ int               count,
         _In_ int               operation,
-        _In_ size_t            timeout);
+        _In_ OSTimestamp_t*    deadline);
 
 /* FutexWake
  * Wakes up a blocked thread on the given atomic variable. */

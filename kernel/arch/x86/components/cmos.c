@@ -37,7 +37,7 @@ CmosInitialize(
     _In_ int initializeRtc)
 {
     SystemWallClockOperations_t ops;
-    oserr_t                    status;
+    oserr_t                     oserr;
     
     TRACE("CmosInitialize(rtc %" PRIiIN ")", initializeRtc);
 
@@ -48,17 +48,15 @@ CmosInitialize(
     
     ops.Read = __ReadSystemTime;
 
-    status = SystemWallClockRegister(&ops, &g_cmos);
-    if (status != OS_EOK) {
-        return status;
+    oserr = SystemWallClockRegister(&ops, &g_cmos);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     
     if (g_cmos.RtcAvailable) {
         return RtcInitialize(&g_cmos);
     }
-    else {
-        return OS_EOK;
-    }
+    return OS_EOK;
 }
 
 uint8_t
@@ -107,7 +105,8 @@ CmosWaitForUpdate(void)
     while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
 }
 
-static void __ReadSystemTime(
+static void
+__ReadSystemTime(
         _In_ void*         context,
         _In_ SystemTime_t* systemTime)
 {
