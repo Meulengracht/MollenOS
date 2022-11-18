@@ -206,6 +206,7 @@ void
 RtcSetCalibrationMode(
         _In_ int enable)
 {
+    TRACE("RtcSetCalibrationMode(enable=%i)", enable);
     if (!g_cmos.RtcAvailable) {
         return;
     }

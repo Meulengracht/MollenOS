@@ -60,7 +60,7 @@ SystemTimerRegister(
         _In_ void*                     context)
 {
     SystemTimer_t* systemTimer;
-    TRACE("SystemTimerRegister(attributes=0x%x)", attributes);
+    TRACE("SystemTimerRegister(name=%s, attributes=0x%x)", name, attributes);
 
     systemTimer = (SystemTimer_t*)kmalloc(sizeof(SystemTimer_t));
     if (!systemTimer) {
@@ -306,6 +306,7 @@ __SynchronizeWallClockAndClocks(
 {
     SystemTime_t systemTime;
     _CRT_UNUSED(argument);
+    TRACE("__SynchronizeWallClockAndClocks");
 
     // Two requirements must be satisfied for us to do so. There must
     // be a wall clock registered, and there must be a clock source. Otherwise,
@@ -413,6 +414,7 @@ static void __ConfigureTimerSources(void)
     SystemTimer_t* irqCandidate     = NULL;
     SystemTimer_t* counterCandidate = NULL;
     oserr_t        oserr;
+    TRACE("__ConfigureTimerSources");
 
     // We always prefer counters against IRQ triggered timers, but sometimes
     // these are not available. Let's loop through counters and find the best counter
@@ -463,6 +465,7 @@ oserr_t SystemSynchronizeTimeSources(void)
     __ConfigureTimerSources();
 
     // Attempts to synchronize time sources
+    uuid_t  timeSyncThreadID;
     oserr_t oserr = ThreadCreate(
             "time-sync",
             __SynchronizeWallClockAndClocks,
@@ -471,7 +474,7 @@ oserr_t SystemSynchronizeTimeSources(void)
             UUID_INVALID,
             0,
             0,
-            NULL
+            &timeSyncThreadID
     );
     return oserr;
 }
