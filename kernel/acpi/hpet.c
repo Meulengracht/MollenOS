@@ -62,7 +62,6 @@ typedef struct HpetController {
 
 static void HpetGetCount(void*, UInteger64_t*);
 static void HpetGetFrequency(void*, UInteger64_t*);
-static void HpetNoOperation(void*);
 
 /**
  * Recalibrate is registered as a no-op as the TSC never needs to be calibrated again
@@ -71,9 +70,9 @@ static SystemTimerOperations_t g_hpetOperations = {
         .Enable = NULL,
         .Configure = NULL,
         .GetFrequencyRange = NULL,
+        .Recalibrate = NULL,
         .Read = HpetGetCount,
         .GetFrequency = HpetGetFrequency,
-        .Recalibrate = HpetNoOperation
 };
 static HpetController_t g_hpet = { 0 };
 
@@ -549,16 +548,9 @@ HpetGetCount(
 
 static void
 HpetGetFrequency(
-        _In_  void*         context,
-        _Out_ UInteger64_t* frequencyOut)
+        _In_ void*         context,
+        _In_ UInteger64_t* frequency)
 {
     _CRT_UNUSED(context);
-    frequencyOut->QuadPart = g_hpet.Frequency.QuadPart;
-}
-
-static void
-HpetNoOperation(
-        _In_ void* context)
-{
-    _CRT_UNUSED(context);
+    frequency->QuadPart = g_hpet.Frequency.QuadPart;
 }
