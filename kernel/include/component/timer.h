@@ -49,18 +49,39 @@ enum SystemTimeAttributes {
 };
 
 typedef struct SystemTimerOperations {
-    void (*Read)(void*, UInteger64_t*);
-    void (*GetFrequency)(void*, UInteger64_t*);
+    // Enable can be used to either turn on or turn off the timer
+    // if provided. This function is optional to provide for timers
+    // that are counters, and not IRQs.
+    oserr_t (*Enable)(void*, bool enable);
+    // Configure can be used to configure the frequency of the system
+    // timer. The supported frequency range will be read first and then
+    // determined by the timer component system. If this function is provided
+    // then GetFrequencyRange must also be supported.
+    oserr_t (*Configure)(void*, UInteger64_t* frequency);
+    // GetFrequencyRange is used to determine the supported frequency range of
+    // the timer. Some timers support variable frequency ranges.
+    void (*GetFrequencyRange)(void*, UInteger64_t* low, UInteger64_t* high);
+    // Recalibrate is used to recalibrate the timer in events of power management
+    // changes, like the CPU speed changing. This will be invoked if the callback is
+    // provided.
     void (*Recalibrate)(void*);
+    // GetFrequency is used to read the current frequency of the timer. This operation must
+    // always be provided.
+    void (*GetFrequency)(void*, UInteger64_t*);
+    // Read reads the current counter/tick from the timer. The tick is then
+    // converted by using the current frequency of the timer to a time value.
+    void (*Read)(void*, UInteger64_t*);
 } SystemTimerOperations_t;
 
 typedef struct SystemTimer {
     element_t                 ListHeader;
+    const char*               Name;
     SystemTimerOperations_t   Operations;
     enum SystemTimeAttributes Attributes;
     uuid_t                    Interrupt;
     tick_t                    Resolution;
     UInteger64_t              InitialTick;
+    UInteger64_t              Frequency;
     void*                     Context;
 } SystemTimer_t;
 
@@ -99,15 +120,14 @@ typedef struct SystemTimers {
  *
  * @param[In] operations A pointer to various operations the timer supports
  * @param[In] attributes The attributes/features of the timer
- * @param[In] interrupt  If the timer is occupying an interrupt, this is its interrupt handle
  * @param[In] context    A context pointer that will be passed to operations
  * @return
  */
 KERNELAPI oserr_t KERNELABI
 SystemTimerRegister(
+        _In_ const char*               name,
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
-        _In_ uuid_t                    interrupt,
         _In_ void*                     context);
 
 /**

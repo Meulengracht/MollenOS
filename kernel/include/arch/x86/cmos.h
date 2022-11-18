@@ -57,14 +57,17 @@
 
 /**
  * Rate selection Bits for divider output
- * 32768 >> (Rate - 1), 15 = 2, 14 = 4, 13 = 8/s (125 ms)
- * Rate must be between 1 and 15, however values 1 or 2 can be too high for most hardware
- * Rate of 6 equals 1.024kHz
+ * 32768 >> (Rate - 1)
+ * 15 = 2, 14 = 4, 13 = 8/s (125 ms), 12 = 16, 11 = 32, 10 = 64, 9 = 128
+ * 8 = 256, 7 = 512, 6 = 1024, 5 = 2048, 4 = 4096, 3 = 8192, ...
  *
  * 22 stage divider, time base being used
  * 2 (0x20) = 32.768kHz
  */
 #define CMOSA_DIVIDER_32KHZ 0x20
+
+#define RTC_FREQUENCY_LOWEST  2    // Lowest supported is 2hz
+#define RTC_FREQUENCY_HIGHEST 8192 // Highest possible precision we can get on most machines
 
 #define CMOS_NMI_BIT            0x80
 #define CMOS_ALLBITS_NONMI      0x7F
@@ -114,11 +117,14 @@
 #define CMOS_RTC_IRQ 0x08
 
 typedef struct Cmos {
-    uint8_t AcpiCentury;
-    int     RtcAvailable;
-    int     RtcLine;
-    int     CalibrationMode;
-    uuid_t  Irq;
+    uint8_t  AcpiCentury;
+    bool     RtcAvailable;
+    bool     RtcEnabled;
+    bool     CalibrationMode;
+    int      InterruptLine;
+    uuid_t   Irq;
+    uint32_t Frequency;
+    uint64_t Ticks;
 } Cmos_t;
 
 /**

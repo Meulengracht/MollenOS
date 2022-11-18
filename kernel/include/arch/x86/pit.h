@@ -59,6 +59,8 @@
 #define	PIT_COMMAND_COUNTER_2		0x80
 
 #define PIT_FREQUENCY               1193181
+#define PIT_FREQUENCY_LOWEST        18       // The lowest supported frequency by PIT is 18 hz (0 divisor)
+#define PIT_FREQUENCY_HIGHEST       10000
 
 /* The IRQ line the PIT uses, it's an ISA line, so it's fixed */
 #define PIT_IRQ						0x0
