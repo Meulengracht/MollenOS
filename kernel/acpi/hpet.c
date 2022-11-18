@@ -68,6 +68,9 @@ static void HpetNoOperation(void*);
  * Recalibrate is registered as a no-op as the TSC never needs to be calibrated again
  */
 static SystemTimerOperations_t g_hpetOperations = {
+        .Enable = NULL,
+        .Configure = NULL,
+        .GetFrequencyRange = NULL,
         .Read = HpetGetCount,
         .GetFrequency = HpetGetFrequency,
         .Recalibrate = HpetNoOperation
@@ -129,24 +132,26 @@ __StartHpet(void)
     HP_WRITE_32(HPET_REGISTER_CONFIG, Config);
 }
 
-oserr_t
+bool
+HPETIsPresent(void)
+{
+    if (g_hpet.BaseAddress != 0) {
+        return true;
+    }
+    return false;
+}
+
+bool
 HPETIsEmulatingLegacyController(void)
 {
     if (g_hpet.BaseAddress != 0) {
         size_t hpetConfig;
         HP_READ_32(HPET_REGISTER_CONFIG, &hpetConfig);
         if (hpetConfig & HPET_CONFIG_LEGACY) {
-            return OS_EOK;
+            return true;
         }     
     }
-    return OS_ENOTSUPPORTED;
-}
-
-static void
-__ReadFrequency(
-        _Out_ UInteger64_t *Value)
-{
-    Value->QuadPart = g_hpet.Frequency.QuadPart;
+    return false;
 }
 
 static void
@@ -374,8 +379,7 @@ HPETComparatorStart(
         tempValue |= HPET_TIMER_CONFIG_FSBMODE;
         HP_WRITE_32(HPET_TIMER_FSB(index), comparator->MsiValue);
         HP_WRITE_32(HPET_TIMER_FSB(index) + 4, comparator->MsiAddress);
-    }
-    else {
+    } else {
         tempValue |= HPET_TIMER_CONFIG_IRQ(comparator->Irq);
         if (comparator->Irq > 15) {
             tempValue |= HPET_TIMER_CONFIG_POLARITY;
@@ -392,6 +396,16 @@ HPETComparatorStart(
         __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), delta);
     }
     __StartHpet();
+    return OS_EOK;
+}
+
+oserr_t
+HPETComparatorStop(
+        _In_ int index)
+{
+    size_t tempValue = 0;
+    HP_WRITE_32(HPET_TIMER_CONFIG(index), tempValue);
+    __WriteComparatorValue(HPET_TIMER_COMPARATOR(index), 0);
     return OS_EOK;
 }
 
@@ -514,9 +528,9 @@ HPETInitialize(void)
 
     // Register the HPET as an available HPC
     osStatus = SystemTimerRegister(
+            "acpi-hpet",
         &g_hpetOperations,
         SystemTimeAttributes_COUNTER | SystemTimeAttributes_HPC,
-        UUID_INVALID,
         &g_hpet
     );
     if (osStatus != OS_EOK) {
@@ -535,11 +549,11 @@ HpetGetCount(
 
 static void
 HpetGetFrequency(
-        _In_  void*            context,
+        _In_  void*         context,
         _Out_ UInteger64_t* frequencyOut)
 {
     _CRT_UNUSED(context);
-    __ReadFrequency(frequencyOut);
+    frequencyOut->QuadPart = g_hpet.Frequency.QuadPart;
 }
 
 static void

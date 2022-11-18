@@ -117,6 +117,12 @@ KERNELAPI void KERNELABI HPETInitialize(void);
 KERNELAPI bool KERNELABI HPETIsPresent(void);
 
 /**
+ * @brief Returns whether or not the hpet is configured to use legacy routings.
+ * @return True if the HPET has legacy routings
+ */
+KERNELAPI bool KERNELABI HPETIsEmulatingLegacyController(void);
+
+/**
  * @brief
  *
  * @param[In] index
@@ -140,11 +146,5 @@ HPETComparatorStart(
 KERNELAPI oserr_t KERNELABI
 HPETComparatorStop(
         _In_ int index);
-
-/**
- * @brief Returns whether or not the hpet is configured to use legacy routings.
- * @return True if the HPET has legacy routings
- */
-KERNELAPI bool KERNELABI HPETIsEmulatingLegacyController(void);
 
 #endif //!_HPET_H_

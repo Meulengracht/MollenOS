@@ -33,37 +33,44 @@
 #include <arch/x86/pit.h>
 
 typedef struct Pit {
-    int      Enabled;
+    bool     Available;
+    bool     Enabled;
+    bool     CalibrationMode;
     int      InterruptLine;
     uuid_t   Irq;
-    uint64_t Frequency;
+    uint32_t Frequency;
     uint64_t Tick;
 } Pit_t;
 
 // import the calibration ticker
 extern uint32_t g_calibrationTick;
 
-static void PitGetCount(void*, UInteger64_t*);
-static void PitGetFrequency(void*, UInteger64_t*);
-static void PitNoOperation(void*);
+static oserr_t PITEnable(void*, bool enable);
+static oserr_t PITConfigure(void*, UInteger64_t* frequency);
+static void    PITGetFrequencyRange(void*, UInteger64_t* low, UInteger64_t* high);
+static void    PITGetFrequency(void*, UInteger64_t*);
+static void    PITGetCount(void*, UInteger64_t*);
 
 static SystemTimerOperations_t g_pitOperations = {
-        .Read = PitGetCount,
-        .GetFrequency = PitGetFrequency,
-        .Recalibrate = PitNoOperation
+        .Enable = PITEnable,
+        .Configure = PITConfigure,
+        .Recalibrate = NULL,
+        .GetFrequencyRange = PITGetFrequencyRange,
+        .GetFrequency = PITGetFrequency,
+        .Read = PITGetCount,
 };
 static Pit_t g_pit = { 0 };
 
 irqstatus_t
 PitInterrupt(
-        _In_ InterruptFunctionTable_t*  NotUsed,
-        _In_ void*                      Context)
+        _In_ InterruptFunctionTable_t* NotUsed,
+        _In_ void*                     Context)
 {
     _CRT_UNUSED(NotUsed);
 	_CRT_UNUSED(Context);
 
     // Are we in calibration mode?
-    if (g_pit.Frequency == 1000) {
+    if (g_pit.CalibrationMode) {
         uint32_t ticker = READ_VOLATILE(g_calibrationTick);
         WRITE_VOLATILE(g_calibrationTick, ticker + 1);
         return IRQSTATUS_HANDLED;
@@ -77,7 +84,7 @@ PitInterrupt(
 }
 
 static void
-__StartPit(
+__ConfigurePIT(
         _In_ uint16_t divisor)
 {
     // We use counter 0, select counter 0 and configure it
@@ -119,8 +126,7 @@ oserr_t
 PitInitialize(
         _In_ int rtcAvailable)
 {
-	DeviceInterrupt_t deviceInterrupt = { { 0 } };
-    oserr_t           oserr;
+    oserr_t oserr;
 
     TRACE("PitInitialize(rtcAvailable=%i)", rtcAvailable);
     if (rtcAvailable) {
@@ -128,39 +134,26 @@ PitInitialize(
         return OS_EOK;
     }
 
-    // Otherwise, we set the PIT as enabled
-    g_pit.Enabled = 1;
-
-    // Initialize the device interrupt
-    deviceInterrupt.Line                  = PIT_IRQ;
-    deviceInterrupt.Pin                   = INTERRUPT_NONE;
-    deviceInterrupt.Vectors[0]            = INTERRUPT_NONE;
-    deviceInterrupt.ResourceTable.Handler = PitInterrupt;
-    deviceInterrupt.Context               = &g_pit;
-    g_pit.Irq = InterruptRegister(&deviceInterrupt, INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL);
-    if (g_pit.Irq == UUID_INVALID) {
-        ERROR("PitInitialize Failed to register interrupt");
-        return OS_EUNKNOWN;
-    }
-
-    // Store updated interrupt line
-    g_pit.InterruptLine = deviceInterrupt.Line;
+    // Mark PIT as available, which means we enable the use of calibration mode
+    g_pit.Available = true;
 
     // Initialize the PIT to a frequency of 1000hz during boot so that the rest of the system
-    // can calibrate its timers. When calibration is over, we then reinitialize the PIT to the lowest
-    // frequency since we do not use the PIT for any high precision, but instead only use it for
-    // time-keeping if the RTC is not available.
+    // can calibrate its timers. When calibration is over, we disable the PIT and let the kernel
+    // timer system deterimine whether it wants to reenable us.
     PitSetCalibrationMode(1);
 
-    // Register us as a system timer
-    oserr = SystemTimerRegister(
-            &g_pitOperations,
-            SystemTimeAttributes_IRQ,
-            irq,
-            &g_pit
-    );
-    if (oserr != OS_EOK) {
-        WARNING("PitInitialize failed to register the platform timer");
+    // Register us as a system timer, but only if we are not emulated by the HPET, otherwise
+    // the system is better off using the HPET
+    if (!HPETIsEmulatingLegacyController()) {
+        oserr = SystemTimerRegister(
+                "x86-pit",
+                &g_pitOperations,
+                SystemTimeAttributes_IRQ,
+                &g_pit
+        );
+        if (oserr != OS_EOK) {
+            WARNING("PitInitialize failed to register the platform timer");
+        }
     }
 	return OS_EOK;
 }
@@ -169,82 +162,113 @@ void
 PitSetCalibrationMode(
         _In_ int enable)
 {
-    uint16_t divisor = 0;
-    oserr_t  oserr;
-
     TRACE("PitSetCalibrationMode(enable=%i)", enable);
-    if (!g_pit.Enabled) {
+    if (!g_pit.Available) {
         return;
     }
 
-    if (!enable) {
-        // After calibration period, we will stop using the PIT timer if
-        // the HPET is present. The PIT has a way to large overhead when reading
-        // the counter values, which is neccessary if we want better precision. We should
-        // in case that the HPET is not present, increase the rate of fire for the PIT to
-        // 1000hz and stick to 1ms accuracy. This is an TODO
-        if (HPETIsPresent()) {
-            if (HPETIsEmulatingLegacyController()) {
-                oserr = HPETComparatorStop(0);
-                if (oserr != OS_EOK) {
-                    WARNING("PitSetCalibrationMode failed to stop hpet comparator.");
-                }
-            } else {
-                oserr = InterruptUnregister(g_pit.Irq);
-                if (oserr != OS_EOK) {
-                    WARNING("PitSetCalibrationMode failed to mask the PIT irq");
-                }
-                g_pit.Irq = UUID_INVALID;
-            }
-            return;
-        }
-
-        // Otherwise, the HPET is not present, then we must use the PIT.
-    }
-
-    // In both calibration mode and non-calibration mode we would like to stick
-    // to a 1ms accuracy. If we really need to fall back to the PIT, that means we
-    // have no better means of measuring accuracy.
     if (enable) {
-        g_pit.Frequency = 1000;
-        divisor         = PIT_FREQUENCY / 1000;
-    } else {
-        // Initialize the PIT to the lowest frequency possible, this is determined by whether
-        // we are emulated by the HPET or this is a native PIT chip. The lowest we can go in
-        // the native PIT, is 18.2065Hz.
-        if (HPETIsEmulatingLegacyController()) {
-            g_pit.Frequency = 1000;
-        } else {
-            g_pit.Frequency = 18;
-            divisor         = 0;
+        PITConfigure(&g_pit, &(UInteger64_t) { .QuadPart = 1000 });
+    }
+    PITEnable(&g_pit, enable);
+}
+
+static oserr_t
+PITEnable(
+        _In_ void* context,
+        _In_ bool  enable)
+{
+    Pit_t* pit = context;
+
+    if (enable) {
+        DeviceInterrupt_t deviceInterrupt = { { 0 } };
+        if (pit->Enabled) {
+            return OS_EOK;
         }
+
+        // Install the PIT interrupt line, we cannot enable/disable the PIT in
+        // other ways if the device itself is actually present, so the only way
+        // is to mask/unmask irq lines
+        deviceInterrupt.Line                  = PIT_IRQ;
+        deviceInterrupt.Pin                   = INTERRUPT_NONE;
+        deviceInterrupt.Vectors[0]            = INTERRUPT_NONE;
+        deviceInterrupt.ResourceTable.Handler = PitInterrupt;
+        deviceInterrupt.Context               = &g_pit;
+        pit->Irq = InterruptRegister(
+                &deviceInterrupt,
+                INTERRUPT_EXCLUSIVE | INTERRUPT_KERNEL
+        );
+        if (pit->Irq == UUID_INVALID) {
+            ERROR("PITEnable failed to register interrupt");
+            return OS_EUNKNOWN;
+        }
+
+        // Store updated interrupt line
+        pit->InterruptLine = deviceInterrupt.Line;
+        pit->Enabled = true;
+    } else {
+        oserr_t oserr;
+
+        if (!pit->Enabled) {
+            return OS_EOK;
+        }
+
+        if (HPETIsEmulatingLegacyController()) {
+            oserr = HPETComparatorStop(0);
+            if (oserr != OS_EOK) {
+                WARNING("PITEnable failed to stop hpet comparator.");
+            }
+        }
+
+        oserr = InterruptUnregister(pit->Irq);
+        if (oserr != OS_EOK) {
+            WARNING("PITEnable failed to mask the PIT irq");
+            return oserr;
+        }
+        pit->Irq = UUID_INVALID;
+        pit->Enabled = false;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+PITConfigure(
+        _In_ void*         context,
+        _In_ UInteger64_t* frequency)
+{
+    Pit_t* pit = context;
+
+    // sanitize the frequency request, we don't want to do any invalid
+    // divisions
+    if (frequency->u.LowPart > PIT_FREQUENCY_HIGHEST ||
+        frequency->u.LowPart < PIT_FREQUENCY_LOWEST) {
+        return OS_EINVALPARAMS;
     }
 
     if (HPETIsEmulatingLegacyController()) {
         // Counter 0 is the IRQ 0 emulator
-        HPETComparatorStart(0, g_pit.Frequency, 1, g_pit.InterruptLine);
+        HPETComparatorStart(0, frequency->u.LowPart, 1, pit->InterruptLine);
     } else {
-        __StartPit(divisor);
+        uint16_t divisor = PIT_FREQUENCY / frequency->u.LowPart;
+        __ConfigurePIT(divisor);
     }
+    pit->Frequency = frequency->u.LowPart;
+    return OS_EOK;
 }
 
 static void
-PitGetCount(
+PITGetFrequencyRange(
         _In_ void*         context,
-        _In_ UInteger64_t* tick)
+        _In_ UInteger64_t* low,
+        _In_ UInteger64_t* high)
 {
-    Pit_t*   pit          = context;
-    uint16_t currentValue = __ReadCurrentTick();
-
-    // So we need to do two things here, we both need to read the tick part,
-    // but also the current value of the PIT to accurately calculate the current
-    // time into the current tick. Each tick is 55ms (54.93ms)
-    tick->QuadPart = (pit->Tick * 55) * NSEC_PER_MSEC;
-    tick->QuadPart += (((currentValue * 100) / 0xFFFF) * 55) / 100;
+    _CRT_UNUSED(context);
+    low->QuadPart = PIT_FREQUENCY_LOWEST;
+    high->QuadPart = PIT_FREQUENCY_HIGHEST;
 }
 
 static void
-PitGetFrequency(
+PITGetFrequency(
         _In_ void*         context,
         _In_ UInteger64_t* frequency)
 {
@@ -253,9 +277,10 @@ PitGetFrequency(
 }
 
 static void
-PitNoOperation(
-        _In_ void* context)
+PITGetCount(
+        _In_ void*         context,
+        _In_ UInteger64_t* tick)
 {
-    // no-op
-    _CRT_UNUSED(context);
+    Pit_t* pit = context;
+    tick->QuadPart = pit->Tick;
 }

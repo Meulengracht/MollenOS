@@ -54,13 +54,12 @@ __CalculateResolution(
 
 oserr_t
 SystemTimerRegister(
+        _In_ const char*               name,
         _In_ SystemTimerOperations_t*  operations,
         _In_ enum SystemTimeAttributes attributes,
-        _In_ uuid_t                    interrupt,
         _In_ void*                     context)
 {
-    SystemTimer_t*  systemTimer;
-    UInteger64_t frequency;
+    SystemTimer_t* systemTimer;
     TRACE("SystemTimerRegister(attributes=0x%x)", attributes);
 
     systemTimer = (SystemTimer_t*)kmalloc(sizeof(SystemTimer_t));
@@ -68,37 +67,12 @@ SystemTimerRegister(
         return OS_EOOM;
     }
 
-    // query frequency immediately to calculate the resolution of the timer
-    operations->GetFrequency(context, &frequency);
-    TRACE("SystemTimerRegister frequency=0x%llx", frequency.QuadPart);
-
+    memset(systemTimer, 0, sizeof(SystemTimer_t));
     ELEMENT_INIT(&systemTimer->ListHeader, 0, systemTimer);
     memcpy(&systemTimer->Operations, operations, sizeof(SystemTimerOperations_t));
+    systemTimer->Name       = name;
     systemTimer->Attributes = attributes;
-    systemTimer->Interrupt  = interrupt;
     systemTimer->Context    = context;
-    systemTimer->Resolution = __CalculateResolution(&frequency);
-    TRACE("SystemTimerRegister resolution=0x%llx", systemTimer->Resolution);
-
-    // See if the timer can be used for anything
-    if (attributes & SystemTimeAttributes_HPC) {
-        GetMachine()->SystemTimers.Hpc = systemTimer;
-    } else if (attributes & SystemTimeAttributes_COUNTER) {
-        operations->Read(context, &systemTimer->InitialTick);
-
-        // Might be a new tick counter, lets compare resolution of
-        // what we already have
-        if (!GetMachine()->SystemTimers.Clock) {
-            GetMachine()->SystemTimers.Clock = systemTimer;
-        } else {
-            // always prefer the clock with the highest resolution
-            if (GetMachine()->SystemTimers.Clock->Resolution > systemTimer->Resolution) {
-                GetMachine()->SystemTimers.Clock = systemTimer;
-            }
-        }
-    }
-
-    // Store it in the list of available system timers
     list_append(&GetMachine()->SystemTimers.Timers, &systemTimer->ListHeader);
     return OS_EOK;
 }
@@ -305,20 +279,17 @@ SystemTimerStall(
     // calculate end tick
     if (NSEC_PER_SEC >= frequency.QuadPart) {
         tickEnd.QuadPart = tick.QuadPart + ns;
-    }
-    else {
+    } else {
         vPerTicks = NSEC_PER_SEC / frequency.QuadPart;
         if (vPerTicks >= NSEC_PER_USEC) { // USEC precision
             vPerTicks = USEC_PER_SEC / frequency.QuadPart;
             if (vPerTicks >= USEC_PER_MSEC) { // MS precision
                 vPerTicks = MSEC_PER_SEC / frequency.QuadPart;
                 tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_MSEC) / vPerTicks) + 1;
-            }
-            else {
+            } else {
                 tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_USEC) / vPerTicks) + 1;
             }
-        }
-        else {
+        } else {
             tickEnd.QuadPart = tick.QuadPart + (ns / vPerTicks) + 1;
         }
     }
@@ -359,8 +330,138 @@ __SynchronizeWallClockAndClocks(
     __LinearTime(&systemTime, &GetMachine()->SystemTimers.WallClock->BaseTick);
 }
 
+static void __SelectTimerFrequency(
+        UInteger64_t* low,
+        UInteger64_t* high,
+        UInteger64_t* result)
+{
+    UInteger64_t target = { .QuadPart = 1000 };
+
+    // TODO: this should be dynamic based on current cpu speed. On high speed CPUs
+    // we can go for higher clocks, but on low speed we should aim to go as high as 10ms
+    // precision, or as low as 100hz. Optimally we go for 1000-10000hz.
+    if (low->QuadPart >= target.QuadPart) {
+        target.QuadPart = low->QuadPart;
+    }
+    if (high->QuadPart < target.QuadPart) {
+        target.QuadPart = high->QuadPart;
+    }
+    TRACE("__SelectTimerFrequency selected speed %u hz", target.u.LowPart);
+    result->QuadPart = target.QuadPart;
+}
+
+static void  __CalculateTimerFrequency(
+        _In_ SystemTimer_t* timer)
+{
+    assert(timer->Operations.GetFrequency != NULL);
+
+    // Does the timer support variadic frequency?
+    if (timer->Operations.GetFrequencyRange != NULL) {
+        UInteger64_t low, high;
+
+        // If we support the frequency range, then we must support configure.
+        assert(timer->Operations.Configure != NULL);
+        timer->Operations.GetFrequencyRange(timer->Context, &low, &high);
+        __SelectTimerFrequency(&low, &high, &timer->Frequency);
+    } else {
+        timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
+    }
+}
+
+static inline void __SelectIfFrequencyIsHigher(
+        _In_ SystemTimer_t** current,
+        _In_ SystemTimer_t*  candidate)
+{
+    if (*current == NULL) {
+        *current = candidate;
+        return;
+    }
+    if ((*current)->Frequency.QuadPart < candidate->Frequency.QuadPart) {
+        *current = candidate;
+    }
+}
+
+static oserr_t __EnableTimer(
+        _In_ SystemTimer_t* timer)
+{
+    TRACE("__EnableTimer %s", timer->Name);
+
+    // Recalculate a few things, including the frequency if it's variadic
+    __CalculateTimerFrequency(timer);
+    timer->Resolution = __CalculateResolution(&timer->Frequency);
+
+    // Configure the timer if it was supported
+    if (timer->Operations.Configure != NULL) {
+        oserr_t oserr = timer->Operations.Configure(timer->Context, &timer->Frequency);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+
+    // Enable it if the operation is supported
+    if (timer->Operations.Enable != NULL) {
+        oserr_t oserr = timer->Operations.Enable(timer->Context, true);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+    return OS_EOK;
+}
+
+static void __ConfigureTimerSources(void)
+{
+    SystemTimer_t* irqCandidate     = NULL;
+    SystemTimer_t* counterCandidate = NULL;
+    oserr_t        oserr;
+
+    // We always prefer counters against IRQ triggered timers, but sometimes
+    // these are not available. Let's loop through counters and find the best counter
+    // and irq timers, then we make a decision between both.
+    foreach (i, &GetMachine()->SystemTimers.Timers) {
+        SystemTimer_t* timer = i->value;
+        __CalculateTimerFrequency(timer);
+        if (timer->Attributes & SystemTimeAttributes_IRQ) {
+            __SelectIfFrequencyIsHigher(&irqCandidate, timer);
+        } else if (timer->Attributes & SystemTimeAttributes_COUNTER) {
+            // Only counters can be considered HPC
+            if (timer->Attributes & SystemTimeAttributes_HPC) {
+                GetMachine()->SystemTimers.Hpc = timer;
+            }
+            __SelectIfFrequencyIsHigher(&counterCandidate, timer);
+        }
+    }
+
+    // Did we find a counter candidate? Then we will use that as the primary
+    // system clock.
+    if (counterCandidate != NULL) {
+        oserr = __EnableTimer(counterCandidate);
+        if (oserr == OS_EOK) {
+            GetMachine()->SystemTimers.Clock = counterCandidate;
+            return;
+        }
+        ERROR("__ConfigureTimerSources failed to enable counter candidate (%u), falling back to irq", oserr);
+    }
+
+    // Otherwise we have to fall back onto an irq timer, which sucks, but such
+    // is life on platforms that suck.
+    if (irqCandidate == NULL) {
+        WARNING("__ConfigureTimerSources no timer sources present on the system!!");
+        return;
+    }
+
+    oserr = __EnableTimer(irqCandidate);
+    if (oserr != OS_EOK) {
+        ERROR("__ConfigureTimerSources failed to enable irq candidate (%u), no counter sources available!!", oserr);
+        return;
+    }
+    GetMachine()->SystemTimers.Clock = irqCandidate;
+}
+
 oserr_t SystemSynchronizeTimeSources(void)
 {
+    // Determine which timer sources to use
+    __ConfigureTimerSources();
+
     // Attempts to synchronize time sources
     oserr_t oserr = ThreadCreate(
             "time-sync",

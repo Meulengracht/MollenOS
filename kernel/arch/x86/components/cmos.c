@@ -26,7 +26,6 @@
 #include <arch/io.h>
 #include <component/timer.h>
 #include <debug.h>
-#include <string.h>
 
 static void __ReadSystemTime(void*, SystemTime_t*);
 

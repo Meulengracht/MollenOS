@@ -39,6 +39,9 @@ static void TscNoOperation(void*);
  * Recalibrate is registered as a no-op as the TSC never needs to be calibrated again
  */
 static SystemTimerOperations_t g_tscOperations = {
+        .Enable = NULL,
+        .Configure = NULL,
+        .GetFrequencyRange = NULL,
         .Read = TscGetCount,
         .GetFrequency = TscGetFrequency,
         .Recalibrate = TscNoOperation
@@ -48,11 +51,11 @@ static tick_t g_tscFrequency = 0;
 void
 TscInitialize(void)
 {
-    oserr_t osStatus;
-    uint64_t   tscStart;
-    uint64_t   tscEnd;
-    uint32_t   ticker;
-    uint32_t   tickEnd;
+    oserr_t  oserr;
+    uint64_t tscStart;
+    uint64_t tscEnd;
+    uint32_t ticker;
+    uint32_t tickEnd;
     TRACE("TscInitialize()");
 
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_TSC) != OS_EOK) {
@@ -82,12 +85,12 @@ TscInitialize(void)
     g_tscFrequency = tscEnd;
 
     // register as available platform timer
-    osStatus = SystemTimerRegister(
+    oserr = SystemTimerRegister(
+            "x86-rtc",
             &g_tscOperations,
             SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
-            UUID_INVALID,
             NULL);
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         WARNING("TscInitialize failed to register platform timer");
     }
 }
