@@ -156,7 +156,6 @@ SystemTimerGetWallClockTime(
         _In_ OSTimestamp_t* time)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
-    UInteger64_t   frequency;
     UInteger64_t   tick;
 
     // Should there be no wall clock in the system, then we just
@@ -178,13 +177,12 @@ SystemTimerGetWallClockTime(
         return;
     }
 
-    // get clock precision metrics
+    // get current clock tick
     clock->Operations.Read(clock->Context, &tick);
-    clock->Operations.GetFrequency(clock->Context, &frequency);
 
     // subtract base offset
     tick.QuadPart -= GetMachine()->SystemTimers.WallClock->BaseOffset.QuadPart;
-    time->Nanoseconds = (int64_t)__CalculateTimestamp(&tick, &frequency);
+    time->Nanoseconds = (int64_t)__CalculateTimestamp(&tick, &clock->Frequency);
 }
 
 void
@@ -192,7 +190,6 @@ SystemTimerGetTimestamp(
         _Out_ tick_t* timestampOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
-    UInteger64_t   frequency;
     UInteger64_t   tick;
 
     // guard against early calls from the log
@@ -201,13 +198,12 @@ SystemTimerGetTimestamp(
         return;
     }
 
-    // get clock precision metrics
+    // get current clock tick
     clock->Operations.Read(clock->Context, &tick);
-    clock->Operations.GetFrequency(clock->Context, &frequency);
 
     // subtract initial timestamp
     tick.QuadPart -= clock->InitialTick.QuadPart;
-    *timestampOut = __CalculateTimestamp(&tick, &frequency);
+    *timestampOut = __CalculateTimestamp(&tick, &clock->Frequency);
 }
 
 void
@@ -219,7 +215,6 @@ SystemTimerGetClockTick(
         tickOut->QuadPart = 0;
         return;
     }
-
     clock->Operations.Read(clock->Context, tickOut);
 }
 
@@ -232,7 +227,6 @@ SystemTimerGetClockFrequency(
         frequencyOut->QuadPart = 0;
         return;
     }
-
     clock->Operations.GetFrequency(clock->Context, frequencyOut);
 }
 
@@ -265,7 +259,6 @@ SystemTimerStall(
         _In_ tick_t ns)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
-    UInteger64_t   frequency;
     UInteger64_t   tick;
     UInteger64_t   tickEnd;
     uint64_t       vPerTicks;
@@ -274,17 +267,16 @@ SystemTimerStall(
 
     // get clock precision metrics
     clock->Operations.Read(clock->Context, &tick);
-    clock->Operations.GetFrequency(clock->Context, &frequency);
 
     // calculate end tick
-    if (NSEC_PER_SEC >= frequency.QuadPart) {
+    if (NSEC_PER_SEC >= clock->Frequency.QuadPart) {
         tickEnd.QuadPart = tick.QuadPart + ns;
     } else {
-        vPerTicks = NSEC_PER_SEC / frequency.QuadPart;
+        vPerTicks = NSEC_PER_SEC / clock->Frequency.QuadPart;
         if (vPerTicks >= NSEC_PER_USEC) { // USEC precision
-            vPerTicks = USEC_PER_SEC / frequency.QuadPart;
+            vPerTicks = USEC_PER_SEC / clock->Frequency.QuadPart;
             if (vPerTicks >= USEC_PER_MSEC) { // MS precision
-                vPerTicks = MSEC_PER_SEC / frequency.QuadPart;
+                vPerTicks = MSEC_PER_SEC / clock->Frequency.QuadPart;
                 tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_MSEC) / vPerTicks) + 1;
             } else {
                 tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_USEC) / vPerTicks) + 1;
@@ -325,6 +317,11 @@ __SynchronizeWallClockAndClocks(
     GetMachine()->SystemTimers.Clock->Operations.Read(
             GetMachine()->SystemTimers.Clock->Context,
             &GetMachine()->SystemTimers.WallClock->BaseOffset
+    );
+
+    TRACE("__SynchronizeWallClockAndClocks synced at %i:%i:%i (0x%llx)",
+          systemTime.Hour, systemTime.Minute, systemTime.Second,
+          GetMachine()->SystemTimers.WallClock->BaseOffset.QuadPart
     );
 
     // Convert the system time to a time-point based on the epoch of January 1, 2000
@@ -397,6 +394,11 @@ static oserr_t __EnableTimer(
         if (oserr != OS_EOK) {
             return oserr;
         }
+
+        // After the timer has been configured, the frequency we requested may or may not
+        // end up being exactly that due to hardware limitations. So it's important that we
+        // re-read the *actual* frequency we ended up with
+        timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
     }
 
     // Enable it if the operation is supported
@@ -406,6 +408,9 @@ static oserr_t __EnableTimer(
             return oserr;
         }
     }
+
+    // Update initial tick for that timer
+    timer->Operations.Read(timer->Context, &timer->InitialTick);
     return OS_EOK;
 }
 

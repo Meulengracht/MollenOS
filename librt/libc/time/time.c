@@ -32,7 +32,7 @@ time_t time(time_t* tim)
         // but the time epoch in Vali is January 1, 2000. So we fix this by adding
         // the below difference which is the exact number of seconds between those
         // dates
-        converted = timeValue.Seconds + EPOCH_DIFFERENCE;
+        converted = (time_t)(timeValue.Seconds + EPOCH_DIFFERENCE);
 
         // TODO time-zone support?
         if (tim != NULL) {
