@@ -341,7 +341,7 @@ static void __ParseReportTagInput(
 
     // Adjust BitOffset now to past this item
     // and also sanitize current length, make sure we store the longest report
-    context->BitOffset += context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
+    context->BitOffset += (size_t)context->GlobalStats.ReportCount * (size_t)context->GlobalStats.ReportSize;
     if ((context->GlobalStats.ReportCount * context->GlobalStats.ReportSize) > context->LongestReport) {
         context->LongestReport = context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
     }

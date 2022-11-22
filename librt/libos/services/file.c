@@ -701,7 +701,7 @@ oserr_t FlushFileMapping(
 
             // update iterator values and account for the auto inc
             i = j;
-            fileOffset.QuadPart += dirtyPageCount * __GetPageSize();
+            fileOffset.QuadPart += (uint64_t)dirtyPageCount * (uint64_t)__GetPageSize();
         }
         else { i++; fileOffset.QuadPart += __GetPageSize(); }
     }
