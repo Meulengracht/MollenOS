@@ -23,7 +23,6 @@
 #define __TRACE
 
 #include "hid.h"
-#include <usb/usb.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 
@@ -111,7 +110,7 @@ void __ParseGlobalStateTag(
             globalStats->HasLogicalMin = 1;
 
             // If we have it's counter-part we have to sanitize
-            // it's value, because if low-part is higher/equal to
+            // its value, because if low-part is higher/equal to
             // higher part, then we have to negate the value by
             // signing it. (It means the low-part is negative)
             if (globalStats->HasLogicalMax != 0) {
@@ -135,7 +134,7 @@ void __ParseGlobalStateTag(
             globalStats->HasLogicalMax = 1;
 
             // If we have it's counter-part we have to sanitize
-            // it's value, because if low-part is higher/equal to
+            // its value, because if low-part is higher/equal to
             // higher part, then we have to negate the value by
             // signing it. (It means the low-part is negative)
             if (globalStats->HasLogicalMin != 0) {
@@ -159,7 +158,7 @@ void __ParseGlobalStateTag(
             globalStats->HasPhysicalMin = 1;
 
             // If we have it's counter-part we have to sanitize
-            // it's value, because if low-part is higher/equal to
+            // its value, because if low-part is higher/equal to
             // higher part, then we have to negate the value by
             // signing it. (It means the low-part is negative)
             if (globalStats->HasPhysicalMax != 0) {
@@ -183,7 +182,7 @@ void __ParseGlobalStateTag(
             globalStats->HasPhysicalMax = 1;
 
             // If we have it's counter-part we have to sanitize
-            // it's value, because if low-part is higher/equal to
+            // its value, because if low-part is higher/equal to
             // higher part, then we have to negate the value by
             // signing it. (It means the low-part is negative)
             if (globalStats->HasPhysicalMin != 0) {
@@ -204,7 +203,7 @@ void __ParseGlobalStateTag(
             globalStats->UnitExponent = (int32_t)value;
         } break;
 
-        // Report items like Id, Count and Size tells about the actual
+        // Report items like ID, Count and Size tells about the actual
         // report that we recieve from the device under data-transfers.
         // These must be present if the device can send us reports. (Except Id)
         case HID_GLOBAL_REPORT_ID: {
@@ -217,7 +216,7 @@ void __ParseGlobalStateTag(
             globalStats->ReportSize = value;
         } break;
 
-        // If there is anything we don't handle it's not vital
+        // If there is anything we don't handle it's not vital,
         // but we should trace it in case we want to handle it
         default: {
             TRACE("Global Item %u", tag);
@@ -234,8 +233,8 @@ struct ReportParserContext {
     uint8_t                   InputType;
     int                       ParseDepth;
     int                       ReportIdsUsed;
-    size_t                    LongestReport;
-    size_t                    BitOffset;
+    uint32_t                  LongestReport;
+    uint32_t                  BitOffset;
 };
 
 static void __ParseReportTagMainCollection(
@@ -341,7 +340,7 @@ static void __ParseReportTagInput(
 
     // Adjust BitOffset now to past this item
     // and also sanitize current length, make sure we store the longest report
-    context->BitOffset += (size_t)context->GlobalStats.ReportCount * (size_t)context->GlobalStats.ReportSize;
+    context->BitOffset += context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
     if ((context->GlobalStats.ReportCount * context->GlobalStats.ReportSize) > context->LongestReport) {
         context->LongestReport = context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
     }
@@ -365,7 +364,7 @@ static void __ParseReportTypeMain(
         } break;
 
             // The end of collection marker means our collection is
-            // closed and we should switch to parent collection context
+            // closed, and we should switch to parent collection context
         case HID_MAIN_ENDCOLLECTION: {
             __ParseReportTagMainCollectionEnd(context);
         } break;
@@ -430,7 +429,7 @@ static void __ParseReportTypeLocal(
                 context->InputType = CTT_INPUT_TYPE_GAMEPAD;
             }
 
-            // There can be multiple usages for an descriptor
+            // There can be multiple usages for a descriptor
             // so store up to 16 usages
             for (j = 0; j < 16; j++) {
                 if (context->ItemStats.Usages[j] == 0) {
@@ -449,7 +448,7 @@ static void __ParseReportTypeLocal(
             context->ItemStats.UsageMax = packet;
         } break;
 
-            // If there is anything we don't handle it's not vital
+            // If there is anything we don't handle it's not vital,
             // but we should trace it in case we want to handle it
         default: {
             TRACE("%u: Local Item %u", context->ParseDepth, tag);
@@ -572,7 +571,7 @@ HidCollectionDestroy(
         return OS_EINVALPARAMS;
     }
 
-    // Iterate it's children
+    // Iterate its children
     ChildIterator = reportCollection->Childs;
     while (ChildIterator != NULL) {
         switch (ChildIterator->CollectionType) {
