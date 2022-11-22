@@ -222,13 +222,13 @@ AhciTakeOwnership(
     WRITE_VOLATILE(Controller->Registers->OSControlAndStatus, osCtrl | AHCI_CONTROLSTATUS_OOS);
 
     // Wait 25 ms, to determine how long time BIOS needs to release
-    thrd_sleepex(25);
+    thrd_sleep2(25);
 
     // If the BIOS Busy (BOHC.BB) has been set to 1 within 25 milliseconds, 
     // then the OS driver shall provide the BIOS a minimum of two seconds 
     // for finishing outstanding commands on the HBA.
     if (READ_VOLATILE(Controller->Registers->OSControlAndStatus) & AHCI_CONTROLSTATUS_BB) {
-        thrd_sleepex(2000);
+        thrd_sleep2(2000);
     }
 
     // Step 2. Spin on the BIOS Ownership (BOHC.BOS) bit, waiting for it to be cleared to 0.

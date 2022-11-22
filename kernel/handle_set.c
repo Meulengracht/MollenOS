@@ -201,9 +201,8 @@ WaitForHandleSet(
     struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
     int                numberOfEvents;
     list_t             spliced;
-    element_t*         i;
-    int                j, k = pollEvents;
-    TRACE("WaitForHandleSet(%u, %i, %i, %" PRIuIN ")", handle, maxEvents, pollEvents, timeout);
+    int                k = pollEvents;
+    TRACE("WaitForHandleSet(%u, %i, %i)", handle, maxEvents, pollEvents);
 
     if (!set) {
         return OS_ENOENT;
@@ -244,13 +243,13 @@ WaitForHandleSet(
     }
     
     TRACE("WaitForHandleSet numberOfEvents=%i", numberOfEvents);
-    _foreach(i, &spliced) {
+    foreach(i, &spliced) {
         struct handleset_element* element = i->value;
         
         // reuse an existing structure (combine events)?
         if (pollEvents) {
             struct ioset_event* reuse = NULL;
-            for (j = 0; j < pollEvents; j++) {
+            for (int j = 0; j < pollEvents; j++) {
                 if (events[j].data.context == element->Context.context) {
                     reuse = &events[j];
                     break;

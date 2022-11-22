@@ -27,6 +27,6 @@ clock_getfreq(void)
         return (clock_t)g_clockFrequency.QuadPart;
     }
 
-    VaGetClockFrequency(OSClockSource_MONOTONIC, &g_clockFrequency);
+    OSGetClockFrequency(OSClockSource_MONOTONIC, &g_clockFrequency);
     return (clock_t)g_clockFrequency.QuadPart;
 }

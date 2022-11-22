@@ -6,7 +6,7 @@ endif ()
 
 set (ARCH_FLAGS "--target=amd64-uml-vali")
 set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function")
-set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3")
+set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3") # -flto
 
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_MMIO")
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_ACPI_SUPPORT")

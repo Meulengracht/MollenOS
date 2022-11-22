@@ -44,6 +44,8 @@ typedef uuid_t       thrd_t;
 #define TSS_DTOR_ITERATIONS 4
 #define TSS_KEY_INVALID     UINT_MAX
 
+_CODE_BEGIN
+
 //#define __OSCONFIG_GREEN_THREADS
 #ifdef __OSCONFIG_GREEN_THREADS
 #include <errno.h>
@@ -203,23 +205,6 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  */
 static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
     return __to_thrd_error(usched_job_sleep(duration, remaining));
-}
-
-/**
- * @brief Blocks the execution of the current thread for at least given milliseconds.
- * Extensions in Vali/MollenOS. Will be obsoleted at some point.
- */
-static inline int thrd_sleepex(size_t msec) {
-    struct timespec ts;
-    struct timespec remaining;
-    timespec_get(&ts, TIME_UTC);
-    ts.tv_sec += (time_t)(msec / MSEC_PER_SEC);
-    ts.tv_nsec += (long)(msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
-    if (ts.tv_nsec >= NSEC_PER_SEC) {
-        ts.tv_sec++;
-        ts.tv_nsec -= NSEC_PER_SEC;
-    }
-    return thrd_sleep(&ts, &remaining);
 }
 
 /**
@@ -517,20 +502,6 @@ static inline int thrd_sleep(const struct timespec* duration, struct timespec* r
 }
 
 /**
- * @brief Blocks the execution of the current thread for at least given milliseconds.
- * Extensions in Vali/MollenOS. Will be obsoleted at some point.
- */
-static inline int thrd_sleepex(size_t msec) {
-    UInteger64_t remaining;
-    UInteger64_t nanoseconds = {
-            .QuadPart = msec * NSEC_PER_MSEC
-    };
-    return __to_thrd_error(
-            VaSleep(&nanoseconds, &remaining)
-    );
-}
-
-/**
  * @brief Creates a new mutex object with type. The object pointed to by mutex is set to an
  * identifier of the newly created mutex.
  * @param mutex
@@ -659,7 +630,22 @@ static inline void cnd_destroy(cnd_t* cond) {
 
 #endif //__OSCONFIG_GREEN_THREADS
 
-_CODE_BEGIN
+/**
+ * @brief Blocks the execution of the current thread for at least given milliseconds.
+ * Extension for Vali/MollenOS.
+ */
+static inline int thrd_sleep2(size_t msec) {
+    struct timespec ts;
+    struct timespec remaining;
+    timespec_get(&ts, TIME_UTC);
+    ts.tv_sec += (time_t)(msec / MSEC_PER_SEC);
+    ts.tv_nsec += (long)(msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
+    if (ts.tv_nsec >= NSEC_PER_SEC) {
+        ts.tv_sec++;
+        ts.tv_nsec -= NSEC_PER_SEC;
+    }
+    return thrd_sleep(&ts, &remaining);
+}
 
 /**
  * @brief Creates new thread-specific storage key and stores it in the object pointed to by tss_key.

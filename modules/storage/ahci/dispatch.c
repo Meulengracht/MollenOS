@@ -241,7 +241,7 @@ static oserr_t __DispatchCommand(
 
 #ifdef __TRACE
     // Dump state
-    //thrd_sleepex(5000);
+    //thrd_sleep2(5000);
     __DumpCurrentState(controller, port);
 #endif
     return OS_EOK;

@@ -104,6 +104,7 @@
 #define CMOSC_IRQ_UPDATE   0x10
 #define CMOSC_IRQ_ALARM    0x20
 #define CMOSC_IRQ_PERIODIC 0x40
+#define CMOSC_IRQ_FLAG     0x80
 
 /**
  * CMOS Conversion (BCD) Macros
@@ -157,12 +158,6 @@ KERNELAPI void KERNELABI
 CmosWrite(
     _In_ uint8_t cmosRegister,
     _In_ uint8_t data);
-
-/**
- * @brief Waits for the cmos time to perform a full tick
- */
-KERNELAPI void KERNELABI
-CmosWaitForUpdate(void);
 
 /**
  * @brief Initializes the RTC chip and neccessary interrupts. The RTC will be initialized

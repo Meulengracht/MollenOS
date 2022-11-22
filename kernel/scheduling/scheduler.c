@@ -67,15 +67,14 @@ typedef struct SchedulerObject {
     
     list_t*                 WaitQueueHandle;
     clock_t                 TimeLeft;
-    oserr_t              TimeoutReason;
-    clock_t                 InterruptedAt;
+    oserr_t                 TimeoutReason;
 } SchedulerObject_t;
 
 static struct Transition {
     int SourceState;
     int Event;
     int TargetState;
-} StateTransitions[] = {
+} g_stateTransitions[] = {
     { STATE_INITIAL,  EVENT_QUEUE,        STATE_QUEUEING },
     { STATE_QUEUEING, EVENT_QUEUE_FINISH, STATE_QUEUED   },
     { STATE_QUEUED,   EVENT_EXECUTE,      STATE_RUNNING  },
@@ -111,11 +110,10 @@ GetAvailableTransition(
     _In_ int State,
     _In_ int Event)
 {
-    int i;
-    for (i = 0; i < SIZEOF_ARRAY(StateTransitions); i++) {
-        struct Transition* Transition = &StateTransitions[i];
-        if (Transition->SourceState == State && Transition->Event == Event) {
-            return Transition->TargetState;            
+    for (int i = 0; i < SIZEOF_ARRAY(g_stateTransitions); i++) {
+        struct Transition* transition = &g_stateTransitions[i];
+        if (transition->SourceState == State && transition->Event == Event) {
+            return transition->TargetState;
         }
     }
     return STATE_INVALID;
@@ -137,13 +135,12 @@ TryAgain:
         if (!update) {
             goto TryAgain;
         }
-    }
-    else {
-        TRACE("[scheduler] [execute_event] unhandled %s in %s",
+    } else {
+        TRACE("ExecuteEvent unhandled %s in %s",
               EventDescriptions[event], StateDescriptions[state]);
     }
 
-    TRACE("[scheduler] [execute_event] %s, %s => %s",
+    TRACE("ExecuteEvent %s, %s => %s",
           EventDescriptions[event], StateDescriptions[state], StateDescriptions[resultState]);
     return resultState;
 }
@@ -187,8 +184,7 @@ __AppendToQueue(
     if (queue->Head == NULL) {
         queue->Head = start;
         queue->Tail = end;
-    }
-    else {
+    } else {
         queue->Tail->Link = start;
         queue->Tail       = end;
     }
@@ -242,7 +238,7 @@ __QueueForScheduler(
 
     resultState = ExecuteEvent(object, EVENT_QUEUE_FINISH);
     if (resultState == STATE_INVALID) {
-        FATAL(FATAL_SCOPE_KERNEL, "[scheduler] [queue] object was NOT in correct state for queueing");
+        FATAL(FATAL_SCOPE_KERNEL, "__QueueForScheduler object was NOT in correct state for queueing");
     }
     __AppendToQueue(&scheduler->Queues[object->Queue], object, object);
 }
@@ -278,8 +274,7 @@ __QueueObjectImmediately(
             ArchThreadYield();
         }
         return OS_EOK;
-    }
-    else {
+    } else {
         return TxuMessageSend(object->CoreId, CpuFunctionCustom, __QueueOnCoreFunction, object, 1);
     }
 }
@@ -355,8 +350,7 @@ SchedulerCreateObject(
         object->CoreId    = ArchGetProcessorCoreId();
         WRITE_VOLATILE(object->Flags, SCHEDULER_FLAG_BOUND);
         // This only happens on the running core, no need for barriers.
-    }
-    else {
+    } else {
         object->Queue     = 0;
         object->TimeSlice = SCHEDULER_TIMESLICE_INITIAL;
         __AllocateScheduler(object);
@@ -381,25 +375,56 @@ SchedulerDestroyObject(
     kfree(object);
 }
 
+static oserr_t
+__to_timeout(
+        _In_  OSTimestamp_t* deadline,
+        _Out_ clock_t*       nsOut)
+{
+    OSTimestamp_t now;
+    if (deadline == NULL) {
+        *nsOut = 0;
+        return OS_EOK;
+    }
+    SystemTimerGetWallClockTime(&now);
+    OSTimestampSubtract(&now, deadline, &now);
+
+    // If the result is zero or negative, then the deadline has already been passed.
+    if (now.Seconds < 0 || now.Nanoseconds < 0 ||
+        (now.Seconds == 0 && now.Nanoseconds == 0)) {
+        return OS_ETIMEOUT;
+    }
+    *nsOut = (now.Seconds * NSEC_PER_SEC) + now.Nanoseconds;
+    return OS_EOK;
+}
+
 oserr_t
 SchedulerSleep(
-    _In_  clock_t  nanoseconds,
-    _Out_ clock_t* interruptedAt)
+    _In_ OSTimestamp_t* deadline)
 {
     SchedulerObject_t* object;
-    TRACE("SchedulerSleep %" PRIuIN, nanoseconds);
+    oserr_t            oserr;
+    clock_t            ns;
+
+    // Calculate the deadline for the object, we do a deadline to ms conversion
+    // for now until we do the deadline implementation in the scheduler. Currently,
+    // deadlines are in UTC which is a bit inconvenient. I don't know if this will be
+    // OK or what, but I don't like that we have to read the timestamp each schedule.
+    oserr = __to_timeout(deadline, &ns);
+    if (oserr != OS_EOK) {
+        return OS_EOK;
+    }
+    TRACE("SchedulerSleep(ns=%" PRIuIN ")", ns);
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
-        SystemTimerStall(nanoseconds);
+        SystemTimerStall(ns);
         return OS_EOK;
     }
 
     // Since we rely on this value not being zero in cases of timeouts
     // we would a minimum value of 1
-    object->TimeLeft        = MAX(nanoseconds, 1);
+    object->TimeLeft        = MAX(ns, 1);
     object->TimeoutReason   = OS_EOK;
-    object->InterruptedAt   = 0;
     object->WaitQueueHandle = NULL;
     
     // We don't check return state here as we can only ever be in running
@@ -412,38 +437,35 @@ SchedulerSleep(
     
     smp_rmb();
     if (object->TimeoutReason != OS_ETIMEOUT) {
-        *interruptedAt = object->InterruptedAt;
         return OS_EINTERRUPTED;
     }
     return OS_EOK;
 }
 
-static size_t __to_timeout(
-        _In_ OSTimestamp_t* deadline)
-{
-    OSTimestamp_t now;
-    if (deadline == NULL) {
-        return 0;
-    }
-    SystemTimerGetWallClockTime(&now);
-    OSTimestampSubtract(&now, &now, deadline);
-    return now.Seconds * MSEC_PER_SEC + (now.Nanoseconds / NSEC_PER_MSEC) + 1;
-}
-
-void
+oserr_t
 SchedulerBlock(
     _In_ list_t*        blockQueue,
     _In_ OSTimestamp_t* deadline)
 {
     SchedulerObject_t* object;
-    TRACE("[scheduler] [block] %" PRIuIN, timeout);
+    oserr_t            oserr;
+    clock_t            ns;
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     assert(object != NULL);
 
-    object->TimeLeft        = __to_timeout(deadline);
+    // Calculate the deadline for the object, we do a deadline to ms conversion
+    // for now until we do the deadline implementation in the scheduler. Currently,
+    // deadlines are in UTC which is a bit inconvenient. I don't know if this will be
+    // OK or what, but I don't like that we have to read the timestamp each schedule.
+    oserr = __to_timeout(deadline, &ns);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    TRACE("SchedulerBlock(ns=%" PRIuIN ")", ns);
+
+    object->TimeLeft        = ns;
     object->TimeoutReason   = OS_EOK;
-    object->InterruptedAt   = 0;
     object->WaitQueueHandle = blockQueue;
 
     // We don't check return state here as we can only ever be in running
@@ -452,6 +474,7 @@ SchedulerBlock(
     
     // For now the lists include a lock, which perform memory barriers
     list_append(blockQueue, &object->Header);
+    return OS_EOK;
 }
 
 void
@@ -466,9 +489,7 @@ SchedulerExpediteObject(
         if (object->WaitQueueHandle != NULL) {
             (void)list_remove(object->WaitQueueHandle, &object->Header);
         }
-
         object->TimeoutReason = OS_EINTERRUPTED;
-        SystemTimerGetTimestamp(&object->InterruptedAt);
         
         // Either the resulting state is RUNNING which means we cancelled the block,
         // the rest is then up to the scheduler, or we update the state to QUEUEING,
@@ -601,7 +622,6 @@ __PerformObjectTimeout(
         }
 
         object->TimeoutReason = OS_ETIMEOUT;
-        SystemTimerGetTimestamp(&object->InterruptedAt);
         __QueueForScheduler(scheduler, object, 0);
     }
     else {

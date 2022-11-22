@@ -15,10 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+//#define __TRACE
 #define __need_minmax
+
 #include <assert.h>
 #include <errno.h>
 #include <ddk/service.h>
+#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include "os/services/process.h"
@@ -73,14 +76,22 @@ ProcessSpawnEx(
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     void*                            inheritationBlock       = NULL;
     size_t                           inheritationBlockLength = 0;
-    oserr_t                       status;
+    oserr_t                          oserr;
     struct sys_process_configuration gconfiguration;
+    TRACE("ProcessSpawnEx(path=%s)", path);
     
     if (!path || !configuration || !handleOut) {
         return OS_EINVALPARAMS;
     }
-    
-    StdioCreateInheritanceBlock(configuration, &inheritationBlock, &inheritationBlockLength);
+
+    oserr = StdioCreateInheritanceBlock(
+            configuration,
+            &inheritationBlock,
+            &inheritationBlockLength
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     to_sys_process_configuration(configuration, &gconfiguration);
     sys_process_spawn(GetGrachtClient(), &msg.base, path,
@@ -89,12 +100,12 @@ ProcessSpawnEx(
                       inheritationBlockLength,
                       &gconfiguration);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_process_spawn_result(GetGrachtClient(), &msg.base, &status, handleOut);
+    sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
     
     if (inheritationBlock) {
         free(inheritationBlock);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -104,7 +115,7 @@ ProcessJoin(
         _Out_ int*   exitCodeOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    oserr_t               osStatus;
+    oserr_t                  osStatus;
     
     sys_process_join(GetGrachtClient(), &msg.base, handle, timeout);
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);

@@ -24,10 +24,14 @@
 #include <acpiinterface.h>
 #include <arch/x86/cmos.h>
 #include <arch/io.h>
+#include <arch/interrupts.h>
 #include <component/timer.h>
 #include <debug.h>
+#include <hpet.h>
 
 static void __ReadSystemTime(void*, SystemTime_t*);
+static void __WaitForUpdate(void* context);
+static void __RequestUpdate(void* context);
 
 Cmos_t g_cmos = { 0 };
 
@@ -35,7 +39,7 @@ oserr_t
 CmosInitialize(
     _In_ int initializeRtc)
 {
-    SystemWallClockOperations_t ops;
+    SystemWallClockOperations_t ops = { NULL, NULL, NULL };
     oserr_t                     oserr;
     
     TRACE("CmosInitialize(rtc %" PRIiIN ")", initializeRtc);
@@ -44,8 +48,14 @@ CmosInitialize(
         g_cmos.AcpiCentury = AcpiGbl_FADT.Century;
     }
     g_cmos.RtcAvailable = initializeRtc;
-    
-    ops.Read = __ReadSystemTime;
+
+    // If the HPET is emulating the RTC then we cannot rely on correct clock
+    // updates. Instead, do other kinds of clock syncs
+    if (!HPETIsEmulatingLegacyController()) {
+        ops.RequestSync = __RequestUpdate;
+    }
+    ops.PerformSync = __WaitForUpdate;
+    ops.Read        = __ReadSystemTime;
 
     oserr = SystemWallClockRegister(&ops, &g_cmos);
     if (oserr != OS_EOK) {
@@ -97,11 +107,34 @@ CmosWrite(
     WriteDirectIo(DeviceIoPortBased, CMOS_IO_BASE + CMOS_IO_DATA, 1, data);
 }
 
-void
-CmosWaitForUpdate(void)
+static void
+__WaitForUpdate(
+        _In_ void* context)
 {
+    _CRT_UNUSED(context);
+    TRACE("__WaitForUpdate()");
     while (!(CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING));
     while (CmosRead(CMOS_REGISTER_STATUS_A) & CMOSA_TIME_UPDATING);
+}
+
+static void
+__RequestUpdate(
+        _In_ void* context)
+{
+    uint8_t    statusB;
+    irqstate_t irqstate;
+    _CRT_UNUSED(context);
+    TRACE("__RequestUpdate()");
+
+    // Enable the update IRQ, this is automatically handled in RTC irq callback
+    // as a one-shot irq, and cleared again.
+    irqstate = InterruptDisable();
+    statusB = CmosRead(CMOS_REGISTER_STATUS_B);
+    statusB |= CMOSB_IRQ_UPDATE;
+    (void)CmosRead(CMOS_REGISTER_STATUS_C);
+    CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
+    (void)CmosRead(CMOS_REGISTER_STATUS_B);
+    InterruptRestoreState(irqstate);
 }
 
 static void
@@ -111,15 +144,12 @@ __ReadSystemTime(
 {
     uint8_t century = 0;
     uint8_t statusB = CmosRead(CMOS_REGISTER_STATUS_B);
+    _CRT_UNUSED(context);
+
     if (g_cmos.AcpiCentury != 0) {
         century = CmosRead(g_cmos.AcpiCentury);
     }
 
-    // Synchronize the clock before reading it to get the most precise reading.
-    // This is also the expected behaviour for the timer component, it should be
-    // read as little as possible as this is quite an expensive operation.
-    // TODO: parameterize this.
-    CmosWaitForUpdate();
     systemTime->Second     = CmosRead(CMOS_REGISTER_SECOND);
     systemTime->Minute     = CmosRead(CMOS_REGISTER_MINUTE);
     systemTime->Hour       = CmosRead(CMOS_REGISTER_HOUR);

@@ -28,12 +28,12 @@
  * to return immediately to userspace, and instead be signalled once the result is ready.
  */
 typedef struct OSAsyncContext {
-    uuid_t  NotificationQueue;
+    uuid_t  NotificationHandle;
     oserr_t ErrorCode;
 } OSAsyncContext_t;
 
 static inline void OSAsyncContextInitialize(OSAsyncContext_t* context) {
-    context->NotificationQueue = usched_notification_queue();
+    context->NotificationHandle = usched_notification_handle();
     context->ErrorCode = OS_ESCSTARTED;
 }
 

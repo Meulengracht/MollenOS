@@ -21,6 +21,7 @@
  */
 
 #define __TRACE
+//#define __OSCONFIG_NODRIVERS
 
 #include <assert.h>
 #include <devices.h>

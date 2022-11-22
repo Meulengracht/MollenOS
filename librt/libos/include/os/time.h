@@ -27,14 +27,14 @@ _CODE_BEGIN
  * @brief Puts the calling thread to sleep for the requested duration. The actual time
  * slept is not guaranteed, but will be returned in the remaining value.
  *
- * @param[In]            duration  The duration to sleep in nanoseconds.
+ * @param[In]            deadline  The UTC timestamp to sleep untill.
  * @param[Out, Optional] remaining The remaining time if less time was slept than the value in timeout.
  * @return OS_EOK if the sleep was not interrupted. Otherwise returns OsInterrupted.
  */
 CRTDECL(oserr_t,
-VaSleep(
-        _In_      UInteger64_t* duration,
-        _Out_Opt_ UInteger64_t* remaining));
+OSSleep(
+        _In_      OSTimestamp_t* deadline,
+        _Out_Opt_ OSTimestamp_t* remaining));
 
 /**
  * @brief Stalls the current thread for the given duration. It will stall for atleast the duration
@@ -44,7 +44,7 @@ VaSleep(
  * @return Will always succeed.
  */
 CRTDECL(oserr_t,
-VaStall(
+OSStall(
         _In_ UInteger64_t* duration));
 
 /**
@@ -56,7 +56,7 @@ VaStall(
  * @return     Returns OS_EOK if the clock was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
-VaGetWallClock(
+OSGetWallClock(
         _In_ OSTimestamp_t* time));
 
 /**
@@ -69,7 +69,7 @@ VaGetWallClock(
  * @return     Returns OS_EOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
-VaGetClockTick(
+OSGetClockTick(
         _In_ enum OSClockSource source,
         _In_ UInteger64_t*       tickOut));
 
@@ -82,7 +82,7 @@ VaGetClockTick(
  * @return     Returns OS_EOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
-VaGetClockFrequency(
+OSGetClockFrequency(
         _In_ enum OSClockSource source,
         _In_ UInteger64_t*       frequencyOut));
 

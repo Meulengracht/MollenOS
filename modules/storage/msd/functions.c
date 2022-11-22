@@ -340,7 +340,7 @@ MsdDeviceStart(
         if (device->IsReady == 1) {
             break; 
         }
-        thrd_sleepex(100);
+        thrd_sleep2(100);
         i--;
     }
 

@@ -69,7 +69,7 @@ HciPortReset(
     TRACE("HciPortReset()");
     
     // Let power stabilize
-    thrd_sleepex(OhciCtrl->PowerOnDelayMs);
+    thrd_sleep2(OhciCtrl->PowerOnDelayMs);
 
     // Set reset bit to initialize reset-procedure
     WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET);

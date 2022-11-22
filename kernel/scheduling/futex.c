@@ -255,6 +255,7 @@ FutexWait(
     FutexItem_t*          futexItem;
     uintptr_t             futexAddress;
     irqstate_t            irqState;
+    oserr_t               oserr;
     TRACE("FutexWait(f 0x%llx, t %u)", futex, timeout);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
@@ -304,7 +305,7 @@ CheckValue:
     // Are we running in a supported async syscall context? Then we can fork
     // the thread that were supposed to wait.
     if (asyncContext != NULL) {
-        oserr_t oserr = ThreadFork(asyncContext);
+        oserr = ThreadFork(asyncContext);
         if (oserr != OS_EFORKED) {
             // If fork returned an actual error, then we are aborting the operation,
             // and we should remember to do clenaup
@@ -323,16 +324,19 @@ CheckValue:
         goto CheckValue;
     }
     
-    SchedulerBlock(&futexItem->BlockQueue, deadline);
-    if (flags & FUTEX_FLAG_OP) {
-        FutexPerformOperation(futex2, operation);
-        FutexWake(futex2, count, flags);
+    oserr = SchedulerBlock(&futexItem->BlockQueue, deadline);
+    if (oserr == OS_EOK) {
+        if (flags & FUTEX_FLAG_OP) {
+            FutexPerformOperation(futex2, operation);
+            FutexWake(futex2, count, flags);
+        }
+        InterruptRestoreState(irqState);
+        ArchThreadYield();
+        oserr = SchedulerGetTimeoutReason();
     }
-    InterruptRestoreState(irqState);
-    ArchThreadYield();
 
     (void)atomic_fetch_sub(&futexItem->Waiters, 1);
-    return SchedulerGetTimeoutReason();
+    return oserr;
 }
 
 oserr_t

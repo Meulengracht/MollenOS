@@ -56,13 +56,13 @@ __WaitForService(
     uuid_t handle   = getHandleCallback();
     if (!timeout) {
         while (handle == UUID_INVALID) {
-            thrd_sleepex(10);
+            thrd_sleep2(10);
             handle = getHandleCallback();
         }
     }
     else {
         while (timeLeft && handle == UUID_INVALID) {
-            thrd_sleepex(10);
+            thrd_sleep2(10);
             timeLeft -= 10;
             handle = getHandleCallback();
         }

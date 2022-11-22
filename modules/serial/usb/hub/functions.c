@@ -128,6 +128,6 @@ HubResetPort(
         return OS_EDEVFAULT;
     }
 
-    thrd_sleepex(100);
+    thrd_sleep2(100);
     return OS_EOK;
 }

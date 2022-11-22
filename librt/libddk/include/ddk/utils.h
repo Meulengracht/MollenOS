@@ -62,19 +62,19 @@
 
 /* Threading Utility
  * Waits for a condition to set in a busy-loop using
- * thrd_sleepex */
+ * thrd_sleep2 */
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
              SystemDebug(SYSTEM_DEBUG_WARNING, message, __VA_ARGS__);\
              break;\
 		}\
-        thrd_sleepex(wait);\
+        thrd_sleep2(wait);\
 	}
 
 /* Threading Utility
  * Waits for a condition to set in a busy-loop using
- * thrd_sleepex */
+ * thrd_sleep2 */
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 	fault = 0; \
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
@@ -82,7 +82,7 @@
 			 (fault) = 1; \
              break;\
 		}\
-        thrd_sleepex(wait);\
+        thrd_sleep2(wait);\
 	}
 
 _CODE_BEGIN

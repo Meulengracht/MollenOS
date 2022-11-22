@@ -19,6 +19,7 @@
 #include <internal/_syscalls.h>
 #include <internal/_tls.h>
 #include <os/threads.h>
+#include <os/time.h>
 #include <stdlib.h>
 #include "../../libc/threads/tss.h"
 
@@ -116,34 +117,20 @@ ThreadsSleep(
         _In_      const struct timespec* until,
         _Out_Opt_ struct timespec*       remaining)
 {
-    UInteger64_t    ns;
-    UInteger64_t    nsRemaining = {0 };
-    struct timespec current;
-    oserr_t         oserr;
+    oserr_t       oserr;
+    OSTimestamp_t tsRemaining;
 
     if (until == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    // the duration value is actually a timepoint specified in UTC. So we actually need to
-    // convert this to a relative value here.
-    timespec_get(&current, TIME_UTC);
-
-    // make sure that we haven't already stepped over the timeline
-    if (current.tv_sec > until->tv_sec || (current.tv_sec == until->tv_sec && current.tv_nsec >= until->tv_nsec)) {
-        return thrd_success;
-    }
-
-    // calculate duration
-    ns.QuadPart = (until->tv_sec * NSEC_PER_SEC) + until->tv_nsec;
-    ns.QuadPart -= (current.tv_sec * NSEC_PER_SEC) + current.tv_nsec;
-
-    oserr = Syscall_Sleep(&ns, &nsRemaining);
-    if (oserr == OS_EINTERRUPTED) {
-        if (remaining) {
-            remaining->tv_sec  = (time_t)(nsRemaining.QuadPart / NSEC_PER_SEC);
-            remaining->tv_nsec = (long)(nsRemaining.QuadPart % NSEC_PER_SEC);
-        }
+    oserr = OSSleep(&(OSTimestamp_t) {
+        .Seconds = until->tv_sec,
+        .Nanoseconds = until->tv_nsec
+    }, remaining == NULL ? NULL : &tsRemaining);
+    if (oserr == OS_EINTERRUPTED && remaining != NULL) {
+        remaining->tv_sec  = tsRemaining.Seconds;
+        remaining->tv_nsec = tsRemaining.Nanoseconds;
     }
     return oserr;
 }

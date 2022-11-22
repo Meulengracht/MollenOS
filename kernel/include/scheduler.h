@@ -96,22 +96,22 @@ SchedulerExpediteObject(
  * @brief Blocks the currently running thread. Can return different
  * sleep-state results. SCHEDULER_SLEEP_OK or SCHEDULER_SLEEP_INTERRUPTED.
  *
- * @param[In]  nanoseconds   The minimum number of nanoseconds to sleep for.
- * @param[Out] interruptedAt The timestamp the thread were awakened at if return is SCHEDULER_SLEEP_INTERRUPTED.
- * @return     Returns SCHEDULER_SLEEP_INTERRUPTED if a full sleep was not done, otherwise SCHEDULER_SLEEP_OK.
+ * @param[In] deadline   The deadline for which to wake up the thread.
+ * @return SCHEDULER_SLEEP_INTERRUPTED if a full sleep was not done, otherwise SCHEDULER_SLEEP_OK.
  */
 KERNELAPI oserr_t KERNELABI
 SchedulerSleep(
-    _In_  clock_t  nanoseconds,
-    _Out_ clock_t* interruptedAt);
+        _In_ OSTimestamp_t* deadline);
 
 /**
  * @brief Blocks the current scheduler object, and adds it to the given blocking queue.
  *
  * @param[In] blockQueue The block queue the current scheduler object should be queued at.
  * @param[In] deadline   The deadline for which to wake up the thread.
+ * @return Returns OS_ETIMEOUT if the deadline has already been reached at the moment of
+ *         deadline conversion. Otherwise returns OS_EOK.
  */
-KERNELAPI void KERNELABI
+KERNELAPI oserr_t KERNELABI
 SchedulerBlock(
     _In_ list_t*        blockQueue,
     _In_ OSTimestamp_t* deadline);
