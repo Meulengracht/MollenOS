@@ -199,7 +199,7 @@ __StatFile(
     // generate model and serial
     snprintf(
             &stats->Serial[0], sizeof(stats->Serial),
-            "%u-%u", fstats.storageId, fstats.id
+            "%li-%li", fstats.storageId, fstats.id
     );
     snprintf(
             &stats->Model[0], sizeof(stats->Model),
