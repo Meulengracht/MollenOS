@@ -72,11 +72,11 @@ _GetContext:
     mov [eax + REGISTER_EFLAGS], ecx
 
     ; zero values not stored
-    mov qword [eax + REGISTER_IRQ], 0
-    mov qword [eax + REGISTER_ERR], 0
-    mov qword [eax + REGISTER_CS], 0
-    mov qword [eax + REGISTER_USERESP], 0
-    mov qword [eax + REGISTER_USERSS], 0
+    mov dword [eax + REGISTER_IRQ], 0
+    mov dword [eax + REGISTER_ERR], 0
+    mov dword [eax + REGISTER_CS], 0
+    mov dword [eax + REGISTER_USERESP], 0
+    mov dword [eax + REGISTER_USERSS], 0
 
 	xor eax, eax
 	ret 
