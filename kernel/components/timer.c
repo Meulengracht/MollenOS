@@ -155,7 +155,7 @@ void
 SystemTimerGetWallClockTime(
         _In_ OSTimestamp_t* time)
 {
-    SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
+    SystemTimer_t* clock;
     UInteger64_t   tick;
 
     // Should there be no wall clock in the system, then we just
@@ -167,6 +167,8 @@ SystemTimerGetWallClockTime(
         time->Nanoseconds = (int64_t)(ticks % NSEC_PER_SEC);
         return;
     }
+
+    clock = GetMachine()->SystemTimers.Clock;
 
     // The wall clock and default system timer are synchronized. Which means
     // we use the BaseTick of the wall clock, and then add clock timestamp
@@ -296,7 +298,9 @@ static void
 __SynchronizeWallClockAndClocks(
         _In_ void* argument)
 {
-    SystemTime_t systemTime;
+    SystemTime_t       systemTime;
+    SystemWallClock_t* wallClock;
+
     _CRT_UNUSED(argument);
     TRACE("__SynchronizeWallClockAndClocks");
 
@@ -309,23 +313,23 @@ __SynchronizeWallClockAndClocks(
         return;
     }
 
+    wallClock = GetMachine()->SystemTimers.WallClock;
+
     // Read the system time, and then read the wall-clock
-    GetMachine()->SystemTimers.WallClock->Operations.Read(
-            GetMachine()->SystemTimers.WallClock->Context,
-            &systemTime
-    );
+    wallClock->Operations.PerformSync(wallClock->Context);
+    wallClock->Operations.Read(wallClock->Context, &systemTime);
     GetMachine()->SystemTimers.Clock->Operations.Read(
             GetMachine()->SystemTimers.Clock->Context,
-            &GetMachine()->SystemTimers.WallClock->BaseOffset
+            &wallClock->BaseOffset
     );
 
     TRACE("__SynchronizeWallClockAndClocks synced at %i:%i:%i (0x%llx)",
           systemTime.Hour, systemTime.Minute, systemTime.Second,
-          GetMachine()->SystemTimers.WallClock->BaseOffset.QuadPart
+          wallClock->BaseOffset.QuadPart
     );
 
     // Convert the system time to a time-point based on the epoch of January 1, 2000
-    __LinearTime(&systemTime, &GetMachine()->SystemTimers.WallClock->BaseTick);
+    __LinearTime(&systemTime, &wallClock->BaseTick);
 }
 
 static void __SelectTimerFrequency(
@@ -466,20 +470,67 @@ static void __ConfigureTimerSources(void)
 
 oserr_t SystemSynchronizeTimeSources(void)
 {
+    SystemWallClock_t* wallClock;
+    oserr_t            oserr = OS_EOK;
+
     // Determine which timer sources to use
     __ConfigureTimerSources();
 
     // Attempts to synchronize time sources
-    uuid_t  timeSyncThreadID;
-    oserr_t oserr = ThreadCreate(
-            "time-sync",
-            __SynchronizeWallClockAndClocks,
-            NULL,
-            0,
-            UUID_INVALID,
-            0,
-            0,
-            &timeSyncThreadID
-    );
+    // If the underlying RTC supports asynchronous sync, then we utilize that
+    // instead of having a thread sleeping which will give us less accurate sync
+    // anyway.
+    wallClock = GetMachine()->SystemTimers.WallClock;
+    if (wallClock && wallClock->Operations.RequestSync) {
+        wallClock->Operations.RequestSync(wallClock->Context);
+    } else if (wallClock && wallClock->Operations.PerformSync) {
+        // Fall back to manual synchronization of the clock.
+        uuid_t  timeSyncThreadID;
+        oserr = ThreadCreate(
+                "time-sync",
+                __SynchronizeWallClockAndClocks,
+                NULL,
+                0,
+                UUID_INVALID,
+                0,
+                0,
+                &timeSyncThreadID
+        );
+    } else {
+        WARNING("SystemSynchronizeTimeSources sync was not supported.");
+    }
     return oserr;
+}
+
+void
+SystemTimerHandleSync(void)
+{
+    SystemTime_t       systemTime;
+    SystemWallClock_t* wallClock;
+    TRACE("SystemTimerHandleSync()");
+
+    // Two requirements must be satisfied for us to do so. There must
+    // be a wall clock registered, and there must be a clock source. Otherwise,
+    // there is nothing to do.
+    if (GetMachine()->SystemTimers.Clock == NULL) {
+        TRACE("SystemTimerHandleSync no clocks to synchronize");
+        return;
+    }
+
+    wallClock = GetMachine()->SystemTimers.WallClock;
+
+    // Read the system time, and then read the wall-clock
+    wallClock->Operations.Read(wallClock->Context, &systemTime);
+    GetMachine()->SystemTimers.Clock->Operations.Read(
+            GetMachine()->SystemTimers.Clock->Context,
+            &wallClock->BaseOffset
+    );
+
+    TRACE("SystemTimerHandleSync synced at %i:%i:%i (0x%llx)",
+          systemTime.Hour, systemTime.Minute, systemTime.Second,
+          wallClock->BaseOffset.QuadPart
+    );
+
+    // Convert the system time to a time-point based on the epoch of January 1, 2000
+    __LinearTime(&systemTime, &wallClock->BaseTick);
 }

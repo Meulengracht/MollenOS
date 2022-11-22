@@ -41,7 +41,7 @@ HciPortReset(
 	UhciWrite16((UhciController_t*)Controller, pOffset, UHCI_PORT_RESET);
 
 	// Wait atlest 50 ms (per USB specification)
-	thrd_sleepex(60);
+	thrd_sleep2(60);
 
 	// Now re-read port and deassert the signal
 	// We preserve the state now

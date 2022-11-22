@@ -179,7 +179,7 @@ PS2PortWaitForState(
 
     ActiveState = (volatile PS2CommandState_t*)&Command->State;
     while (*ActiveState != State && Timeout > 0) {
-        thrd_sleepex(10);
+        thrd_sleep2(10);
         Timeout -= 10;
 
         // If it returns OS_EOK all done

@@ -230,8 +230,7 @@ list_splice(
     LIST_LOCK;
     if (!list->head) {
         list->head = head;
-    }
-    else {
+    } else {
         list->tail->next = head;
     }
     list->tail = tail;

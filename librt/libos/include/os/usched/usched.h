@@ -71,6 +71,6 @@ CRTDECL(void, usched_wait_async(OSAsyncContext_t* asyncContext));
  * completion events.
  * @return The handle of the scheduler notification queue.
  */
-CRTDECL(uuid_t, usched_notification_queue(void));
+CRTDECL(uuid_t, usched_notification_handle(void));
 
 #endif //!__OS_USCHED_H__

@@ -85,23 +85,21 @@ ScSystemWallClock(
 
 oserr_t
 ScTimeSleep(
-        _In_      UInteger64_t* duration,
-        _Out_Opt_ UInteger64_t* remainingOut)
+        _In_      OSTimestamp_t* deadline,
+        _Out_Opt_ OSTimestamp_t* remainingOut)
 {
     oserr_t oserr;
-    clock_t start;
-    clock_t end;
 
-    if (!duration) {
+    if (deadline == NULL) {
         return OS_EINVALPARAMS;
     }
-    TRACE("ScTimeSleep(duration=%llu)", duration->QuadPart);
+    TRACE("ScTimeSleep(duration=xx)");
 
-    SystemTimerGetTimestamp(&start);
-    oserr = SchedulerSleep(duration->QuadPart, &end);
+    oserr = SchedulerSleep(deadline);
     if (oserr == OS_EINTERRUPTED && remainingOut) {
-        SystemTimerGetTimestamp(&end);
-        remainingOut->QuadPart = duration->QuadPart - MAX((end - start), duration->QuadPart);
+        OSTimestamp_t now;
+        SystemTimerGetWallClockTime(&now);
+        OSTimestampSubtract(remainingOut, &now, deadline);
     }
     TRACE("ScTimeSleep returns=%u", oserr);
     return oserr;

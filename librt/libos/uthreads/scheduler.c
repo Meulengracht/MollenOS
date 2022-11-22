@@ -496,11 +496,12 @@ void usched_timedwait(const struct timespec* until)
     // of event occurred, but we do not care.
     oserr = OSNotificationQueueWait(
             sched->notification_queue,
-            &events[2],
+            &events[0],
             2,
             0,
             until == NULL ? NULL : &(OSTimestamp_t) {
-                .Seconds = until->tv_sec, .Nanoseconds = until->tv_nsec
+                .Seconds = until->tv_sec,
+                .Nanoseconds = until->tv_nsec
             },
             &numEvents,
             NULL
@@ -523,7 +524,7 @@ void usched_wait(void)
     // of event occurred, but we do not care.
     oserr = OSNotificationQueueWait(
             sched->notification_queue,
-            &events[2],
+            &events[0],
             2,
             0,
             NULL,
@@ -632,8 +633,8 @@ void usched_wait_async(OSAsyncContext_t* asyncContext)
     usched_yield(NULL);
 }
 
-uuid_t usched_notification_queue(void)
+uuid_t usched_notification_handle(void)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
-    return sched->notification_queue;
+    return sched->syscall_handle;
 }

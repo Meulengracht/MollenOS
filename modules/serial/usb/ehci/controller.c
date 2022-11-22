@@ -228,7 +228,7 @@ EhciDisableLegacySupport(
                         TRACE("EHCI: Failed to release BIOS Semaphore");
                         break;
                     }
-                    thrd_sleepex(10);
+                    thrd_sleep2(10);
                 }
                 One = 1;
                 while (One++) {
@@ -242,7 +242,7 @@ EhciDisableLegacySupport(
                         TRACE("EHCI: Failed to set OS Semaphore");
                         break;
                     }
-                    thrd_sleepex(10);
+                    thrd_sleep2(10);
                 }
             }
 
@@ -331,7 +331,7 @@ EhciReset(
     if (Fault) {
         ERROR("EHCI-Failure: Reset signal won't deassert, waiting one last long wait",
             Controller->OpRegisters->UsbCommand, Controller->OpRegisters->UsbStatus);
-        thrd_sleepex(250);
+        thrd_sleep2(250);
         return ((READ_VOLATILE(Controller->OpRegisters->UsbCommand) & EHCI_COMMAND_HCRESET) == 0) ? OS_EOK : OS_EUNKNOWN;
     }
     else {
@@ -436,7 +436,7 @@ EhciWaitForCompanionControllers(
     TRACE("EhciWaitForCompanionControllers waiting for %i cc's to boot", ccToStart);
     while (ccStarted < ccToStart && (timeout > 0)) {
         int updatedControllerCount = 0;
-        thrd_sleepex(500);
+        thrd_sleep2(500);
         timeout -= 500;
 
         if (UsbQueryControllerCount(&updatedControllerCount) != OS_EOK) {
@@ -507,7 +507,7 @@ EhciSetup(
     }
 
     // Wait 20 ms for power to stabilize
-    thrd_sleepex(20);
+    thrd_sleep2(20);
 
     // Last step is to enumerate all ports that are connected with low-speed
     // devices and release them to companion hc's for bandwidth.

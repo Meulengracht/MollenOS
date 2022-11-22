@@ -224,7 +224,7 @@ InitializeMachine(
     UserEventInitialize();
 
     // Start the bootstrap module if present
-    //SpawnBootstrapper();
+    SpawnBootstrapper();
 
     // yield before going to assume new threads
     TRACE("End of initialization, yielding control");

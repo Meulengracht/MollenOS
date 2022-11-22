@@ -53,7 +53,7 @@ WaitForPs2StatusFlagsSet(
         if (PS2ReadStatus() & Flags) {
             return OS_EOK;
         }
-        thrd_sleepex(5);
+        thrd_sleep2(5);
         Timeout -= 5;
     }
     return OS_EUNKNOWN; // If we reach here - it never set
@@ -68,7 +68,7 @@ WaitForPs2StatusFlagsClear(
         if (!(PS2ReadStatus() & Flags)) {
             return OS_EOK;
         }
-        thrd_sleepex(5);
+        thrd_sleep2(5);
         Timeout -= 5;
     }
     return OS_EUNKNOWN; // If we reach here - it never set

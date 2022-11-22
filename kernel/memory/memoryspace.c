@@ -30,6 +30,7 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <component/cpu.h>
+#include <component/timer.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -93,16 +94,16 @@ __SyncMemoryRegion(
 {
     // We can easily allocate this object on the stack as the stack is globally
     // visible to all kernel code. This spares us allocation on heap
-    struct MemorySynchronizationObject Object = {
+    struct MemorySynchronizationObject syncObject = {
         .Address        = address,
         .Length         = size,
         .CallsCompleted = 0
     };
     
-    int     numberOfCores;
-    int     numberOfActiveCores;
-    clock_t interruptedAt;
-    size_t  timeout = 1000;
+    int           numberOfCores;
+    int           numberOfActiveCores;
+    size_t        timeout = 1000;
+    OSTimestamp_t wakeUp;
 
     // Skip this entire step if there is no multiple cores active
     numberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
@@ -112,26 +113,34 @@ __SyncMemoryRegion(
 
     // Check for global address, in that case invalidate all cores
     if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, address)) {
-        Object.MemorySpaceHandle = UUID_INVALID; // Everyone must update
+        syncObject.MemorySpaceHandle = UUID_INVALID; // Everyone must update
     }
     else {
         if (memorySpace->ParentHandle == UUID_INVALID) {
-            Object.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
+            syncObject.MemorySpaceHandle = GetCurrentMemorySpaceHandle(); // Children of us must update
         }
         else {
-            Object.MemorySpaceHandle = memorySpace->ParentHandle; // Parent and siblings!
+            syncObject.MemorySpaceHandle = memorySpace->ParentHandle; // Parent and siblings!
         }
     }
 
-    numberOfCores = ProcessorMessageSend(1, CpuFunctionCustom, __MemorySyncCallback, &Object, 1);
-    while (atomic_load(&Object.CallsCompleted) != numberOfCores && timeout > 0) {
-        SchedulerSleep(5 * NSEC_PER_MSEC, &interruptedAt);
+    numberOfCores = ProcessorMessageSend(
+            1,
+            CpuFunctionCustom,
+            __MemorySyncCallback,
+            &syncObject,
+            1
+    );
+    SystemTimerGetWallClockTime(&wakeUp);
+    while (atomic_load(&syncObject.CallsCompleted) != numberOfCores && timeout > 0) {
+        OSTimestampAddNsec(&wakeUp, &wakeUp, 5 * NSEC_PER_MSEC);
+        SchedulerSleep(&wakeUp);
         timeout -= 5;
     }
     
     if (!timeout) {
         ERROR("[memory] [sync] timeout trying to synchronize with cores actual %i != target %i",
-              atomic_load(&Object.CallsCompleted), numberOfCores);
+              atomic_load(&syncObject.CallsCompleted), numberOfCores);
     }
 }
 

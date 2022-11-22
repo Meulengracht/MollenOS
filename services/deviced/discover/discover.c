@@ -174,9 +174,10 @@ __SpawnDriver(
 static void
 __RegisterDeviceForDriver(
         _In_ struct DmDriver* driver,
-        _In_ uuid_t         deviceId)
+        _In_ uuid_t           deviceId)
 {
     struct DmDevice* device;
+    TRACE("__RegisterDeviceForDriver()");
 
     device = malloc(sizeof(struct DmDevice));
     if (!device) {

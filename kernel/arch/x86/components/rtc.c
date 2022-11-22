@@ -24,12 +24,13 @@
 #define __TRACE
 
 #define __need_minmax
+#include <arch/x86/cmos.h>
+#include <arch/interrupts.h>
 #include <debug.h>
 #include <ddk/io.h>
 #include <hpet.h>
 #include <interrupts.h>
 #include <machine.h>
-#include <arch/x86/cmos.h>
 
 // import the calibration ticker as we use it during boot
 extern uint32_t g_calibrationTick;
@@ -56,13 +57,26 @@ RtcInterrupt(
         _In_ void*                      Context)
 {
     uint8_t irqstat;
+    uint8_t irqstatus;
 
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(Context);
 
     // use the result of the status register to determine mode
-    irqstat = CmosRead(CMOS_REGISTER_STATUS_B);
-    if (irqstat & CMOSC_IRQ_PERIODIC) {
+    irqstatus = CmosRead(CMOS_REGISTER_STATUS_C);
+
+    // If it was a sync event, then we clear it again, as we treat this
+    // as a one-shot event
+    if (irqstatus & CMOSC_IRQ_UPDATE) {
+        SystemTimerHandleSync();
+        irqstat = CmosRead(CMOS_REGISTER_STATUS_B);
+        irqstat &= ~(CMOSB_IRQ_UPDATE);
+        CmosWrite(CMOS_REGISTER_STATUS_B, irqstat);
+        (void)CmosRead(CMOS_REGISTER_STATUS_C);
+    }
+
+    // Periodic events we use for time-keeping
+    if (irqstatus & CMOSC_IRQ_PERIODIC) {
         if (g_cmos.CalibrationMode) {
             uint32_t tick = READ_VOLATILE(g_calibrationTick);
             WRITE_VOLATILE(g_calibrationTick, tick + 1);
@@ -70,7 +84,6 @@ RtcInterrupt(
             g_cmos.Ticks++;
         }
     }
-    (void)CmosRead(CMOS_REGISTER_STATUS_C);
     return IRQSTATUS_HANDLED;
 }
 
@@ -78,12 +91,16 @@ static void
 __DisableRtc(
         _In_ Cmos_t* cmos)
 {
-    uint8_t statusB;
+    uint8_t    statusB;
+    irqstate_t irqstate;
+    TRACE("__DisableRtc()");
 
+    irqstate = InterruptDisable();
     statusB = CmosRead(CMOS_REGISTER_STATUS_B);
     statusB &= ~(CMOSB_IRQ_PERIODIC | CMOSB_IRQ_ALARM | CMOSB_IRQ_UPDATE | CMOSB_IRQ_SQWAVFRQ);
     CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
     (void)CmosRead(CMOS_REGISTER_STATUS_B);
+    InterruptRestoreState(irqstate);
 
     if (HPETIsEmulatingLegacyController()) {
         HPETComparatorStop(1);
@@ -95,15 +112,19 @@ static void
 __EnableRTC(
         _In_ Cmos_t* cmos)
 {
-    uint8_t statusB;
+    uint8_t    statusB;
+    irqstate_t irqstate;
+    TRACE("__EnableRTC()");
 
+    irqstate = InterruptDisable();
     statusB = CmosRead(CMOS_REGISTER_STATUS_B);
-    statusB |= CMOSB_IRQ_UPDATE | CMOSB_IRQ_PERIODIC | CMOSB_IRQ_SQWAVFRQ;
+    statusB |= CMOSB_IRQ_PERIODIC | CMOSB_IRQ_SQWAVFRQ;
 
     // make sure the StatusC register is acked before we start it
-    CmosRead(CMOS_REGISTER_STATUS_C);
+    (void)CmosRead(CMOS_REGISTER_STATUS_C);
     CmosWrite(CMOS_REGISTER_STATUS_B, statusB);
     (void)CmosRead(CMOS_REGISTER_STATUS_B);
+    InterruptRestoreState(irqstate);
 
     if (HPETIsEmulatingLegacyController()) {
         HPETComparatorStart(1, cmos->Frequency, 1, cmos->InterruptLine);

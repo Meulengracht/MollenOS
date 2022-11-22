@@ -129,7 +129,7 @@ extern oserr_t ScSystemQuery(SystemDescriptor_t*);
 extern oserr_t ScSystemClockTick(enum OSClockSource, UInteger64_t*);
 extern oserr_t ScSystemClockFrequency(enum OSClockSource, UInteger64_t*);
 extern oserr_t ScSystemWallClock(Integer64_t*);
-extern oserr_t ScTimeSleep(UInteger64_t*, UInteger64_t*);
+extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
 #define SYSTEM_CALL_COUNT 66
@@ -271,7 +271,7 @@ SyscallHandle(
     if (ThreadFlags(thread) & THREADING_FORKED) {
         OSAsyncContext_t* asyncContext = ThreadSyscallContext(thread);
         asyncContext->ErrorCode = (oserr_t)returnValue;
-        (void)MarkHandle(asyncContext->NotificationQueue, 0x8);
+        (void)MarkHandle(asyncContext->NotificationHandle, 0x8);
         (void)ThreadTerminate(ThreadCurrentHandle(), 0, 1);
         ArchThreadYield();
 

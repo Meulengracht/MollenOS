@@ -100,7 +100,7 @@ __SlowLock(
         _In_ OSTimestamp_t* deadline)
 {
     irqstate_t intStatus;
-    uuid_t      owner;
+    uuid_t     owner;
 
     // Disable interrupts and try to acquire the lock or wait for the lock
     // to unlock if it's held on another CPU - however we only wait for a brief period
@@ -122,13 +122,16 @@ __SlowLock(
     __SetFlags(mutex, MUTEX_FLAG_PENDING);
     for (;;) {
         // block task and then reenable interrupts
-        SchedulerBlock(&mutex->BlockQueue, deadline);
-        SpinlockRelease(&mutex->Lock);
-        InterruptRestoreState(intStatus);
-        ArchThreadYield();
+        oserr_t oserr = SchedulerBlock(&mutex->BlockQueue, deadline);
+        if (oserr == OS_EOK) {
+            SpinlockRelease(&mutex->Lock);
+            InterruptRestoreState(intStatus);
+            ArchThreadYield();
+            oserr = SchedulerGetTimeoutReason();
+        }
 
         // at this point we've been waken up either by an unlock or timeout
-        if (SchedulerGetTimeoutReason() == OS_ETIMEOUT) {
+        if (oserr == OS_ETIMEOUT) {
             return OS_ETIMEOUT;
         }
 

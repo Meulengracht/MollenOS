@@ -86,6 +86,18 @@ typedef struct SystemTimer {
 } SystemTimer_t;
 
 typedef struct SystemWallClockOperations {
+    // RequestSync requests the underlying hardware to perform an asynchronous
+    // synchronization of the wall clock. This means that it allows the underlying
+    // hardware to utilize any interrupts mechanism instead to perform the sync. Once
+    // the interrupt occurs, the interrupt handler must call SystemTimerHandleSync to
+    // complete the sync.
+    void (*RequestSync)(void*);
+    // PerformSync performs a synchronous synchronization of the
+    // current time. It is expected this function only returns once
+    // the hardware clock has updated. For a CMOS this usually means
+    // once the 'second' register rolls over.
+    void (*PerformSync)(void*);
+    // Read the current wall clock time.
     void (*Read)(void*, SystemTime_t*);
 } SystemWallClockOperations_t;
 
@@ -143,6 +155,14 @@ KERNELAPI oserr_t KERNELABI
 SystemWallClockRegister(
         _In_ SystemWallClockOperations_t* operations,
         _In_ void*                        context);
+
+/**
+ * @brief If a wall-clock has had a async synchronize operation requested,
+ * it should call this when the clock has synced, this allows the timer subsystem
+ * to recalculate it's counter stamp for the new time.
+ */
+KERNELAPI void KERNELABI
+SystemTimerHandleSync(void);
 
 /**
  * @brief Retrieves the current system wall clock. The wall clock is retrieved as

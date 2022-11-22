@@ -24,7 +24,7 @@
 #include <os/services/process.h>
 
 oserr_t
-VaGetWallClock(
+OSGetWallClock(
         _In_ OSTimestamp_t* time)
 {
     if (!time) {
@@ -34,7 +34,7 @@ VaGetWallClock(
 }
 
 oserr_t
-VaGetClockTick(
+OSGetClockTick(
         _In_ enum OSClockSource source,
         _In_ UInteger64_t*          tickOut)
 {
@@ -56,7 +56,7 @@ VaGetClockTick(
 }
 
 oserr_t
-VaGetClockFrequency(
+OSGetClockFrequency(
         _In_ enum OSClockSource source,
         _In_ UInteger64_t*       frequencyOut)
 {
@@ -70,19 +70,18 @@ VaGetClockFrequency(
 }
 
 oserr_t
-VaSleep(
-        _In_      UInteger64_t* duration,
-        _Out_Opt_ UInteger64_t* remaining)
+OSSleep(
+        _In_      OSTimestamp_t* deadline,
+        _Out_Opt_ OSTimestamp_t* remaining)
 {
-    if (!duration || !duration->QuadPart) {
+    if (deadline == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    return Syscall_Sleep(duration, remaining);
+    return Syscall_Sleep(deadline, remaining);
 }
 
 oserr_t
-VaStall(
+OSStall(
         _In_ UInteger64_t* duration)
 {
     if (!duration || !duration->QuadPart) {

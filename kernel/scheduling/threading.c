@@ -864,12 +864,34 @@ __ThreadStart(void)
 }
 
 static void
+__WaitForReferences(
+        _In_ Thread_t* thread)
+{
+    int           references;
+    OSTimestamp_t wakeUp;
+
+    references = atomic_load(&thread->References);
+    if (references != 0) {
+        int timeout = 200;
+        SemaphoreSignal(&thread->EventObject, references + 1);
+        SystemTimerGetWallClockTime(&wakeUp);
+        while (timeout > 0) {
+            OSTimestampAddNsec(&wakeUp, &wakeUp, 10 * NSEC_PER_MSEC);
+            timeout -= 10;
+
+            references = atomic_load(&thread->References);
+            if (!references) {
+                break;
+            }
+        }
+    }
+}
+
+static void
 __DestroyThread(
         _In_ void* resource)
 {
     Thread_t* thread = resource;
-    int       references;
-    clock_t   unused;
 
     TRACE("__DestroyThread(resource=0x%" PRIxIN ")", resource);
 
@@ -880,20 +902,7 @@ __DestroyThread(
     // Make sure we are completely removed as reference
     // from the entire system. We also signal all waiters for this
     // thread again before continueing just in case
-    references = atomic_load(&thread->References);
-    if (references != 0) {
-        int Timeout = 200;
-        SemaphoreSignal(&thread->EventObject, references + 1);
-        while (Timeout > 0) {
-            SchedulerSleep(10 * NSEC_PER_MSEC, &unused);
-            Timeout -= 10;
-
-            references = atomic_load(&thread->References);
-            if (!references) {
-                break;
-            }
-        }
-    }
+    __WaitForReferences(thread);
 
     // Cleanup resources now that we have no external dependancies
     if (thread->SchedulerObject) {

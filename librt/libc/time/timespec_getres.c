@@ -70,7 +70,7 @@ timespec_getres(
         return -1;
     }
 
-    VaGetClockFrequency(__get_va_type(base), &frequency);
+    OSGetClockFrequency(__get_va_type(base), &frequency);
 
     ts->tv_sec = 0;
     ts->tv_nsec = __calculate_resolution(&frequency);

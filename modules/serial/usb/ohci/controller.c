@@ -226,12 +226,12 @@ OhciTakeControl(
         // If it's suspended, resume and wait 10 ms
         if ((HcControl & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_ACTIVE) {
             OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
-            thrd_sleepex(10);
+            thrd_sleep2(10);
         }
     }
     else {
         // Cold boot, wait 10 ms
-        thrd_sleepex(10);
+        thrd_sleep2(10);
     }
     return OS_EOK;
 }
@@ -270,7 +270,7 @@ OhciReset(
     // Suspend the controller just in case it's running
     // and wait for it to suspend
     OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
-    thrd_sleepex(10);
+    thrd_sleep2(10);
 
     // Toggle bit 0 to initiate a reset
     Temporary = READ_VOLATILE(Controller->Registers->HcCommandStatus);
@@ -450,6 +450,6 @@ OhciSetup(
     }
     
     // Wait for ports to power up in any case, even if power is always on/global
-    thrd_sleepex(Controller->PowerOnDelayMs);
+    thrd_sleep2(Controller->PowerOnDelayMs);
     return OhciPortsCheck(Controller, 1);
 }

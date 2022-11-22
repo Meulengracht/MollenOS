@@ -73,7 +73,7 @@ timespec_get(
         case TIME_UTC: {
             OSTimestamp_t timeValue;
 
-            osStatus = VaGetWallClock(&timeValue);
+            osStatus = OSGetWallClock(&timeValue);
             if (osStatus != OS_EOK) {
                 return OsErrToErrNo(osStatus);
             }
@@ -90,7 +90,7 @@ timespec_get(
             UInteger64_t tick;
             clock_t         timestamp;
 
-            osStatus = VaGetClockTick(__get_va_type(base), &tick);
+            osStatus = OSGetClockTick(__get_va_type(base), &tick);
             if (osStatus != OS_EOK) {
                 return OsErrToErrNo(osStatus);
             }
