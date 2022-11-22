@@ -177,12 +177,10 @@ PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
  * Describes an HID-item for which kind of usages, and where in the report (bit index) its data is
  */
 typedef struct UsbHidReportItemStats {
-    int                             Usages[16];
-
-    uint32_t                        UsageMin;
-    uint32_t                        UsageMax;
-
-    uint32_t                        BitOffset;
+    uint32_t Usages[16];
+    uint32_t UsageMin;
+    uint32_t UsageMax;
+    uint32_t BitOffset;
 } UsbHidReportItemStats_t;
 
 /**
