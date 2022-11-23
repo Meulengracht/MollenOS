@@ -81,7 +81,7 @@ CreateRequest(struct gracht_message* message, uuid_t processId)
     request->state = FileSystemRequest_CREATED;
     request->processId = processId;
     gracht_server_defer_message(message, &request->message[0]);
-    usched_mtx_init(&request->lock);
+    usched_mtx_init(&request->lock, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&request->signal);
     return request;
 }

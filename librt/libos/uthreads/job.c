@@ -32,7 +32,7 @@ static struct job_entry_context* __job_entry_context_new(struct usched_job* job)
     if (context == NULL) {
         return NULL;
     }
-    usched_mtx_init(&context->mtx);
+    usched_mtx_init(&context->mtx, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&context->cond);
     context->job = job;
     context->exit_code = 0;
@@ -348,12 +348,12 @@ int usched_job_signal(uuid_t jobID, int signal)
     return -1;
 }
 
-int usched_job_sleep(const struct timespec* duration, struct timespec* remaining)
+int usched_job_sleep(const struct timespec* until, struct timespec* remaining)
 {
     union usched_timer_queue queue = { NULL };
     int                      timer;
 
-    timer = __usched_timeout_start(duration, &queue, __QUEUE_TYPE_SLEEP);
+    timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_SLEEP);
     usched_job_yield();
     if (__usched_timeout_finish(timer)) {
         if (errno == ETIME) {

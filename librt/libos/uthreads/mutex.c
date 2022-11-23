@@ -21,13 +21,15 @@
 #include <assert.h>
 #include "private.h"
 
-void usched_mtx_init(struct usched_mtx* mutex)
+void usched_mtx_init(struct usched_mtx* mutex, int type)
 {
     assert(mutex != NULL);
 
     spinlock_init(&mutex->lock);
-    mutex->owner = NULL;
-    mutex->queue = NULL;
+    mutex->type       = type;
+    mutex->references = 0;
+    mutex->owner      = NULL;
+    mutex->queue      = NULL;
 }
 
 static int BlockAndWait(
@@ -72,12 +74,16 @@ int usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restri
     spinlock_acquire(&mutex->lock);
     assert(mutex->owner != current);
     if (mutex->owner) {
-        if (BlockAndWait(mutex, current, until) == -1) {
+        // support recursive mutexes
+        if (mutex->owner == current && (mutex->type & MUTEX_RECURSIVE)) {
+            mutex->references++;
+        } else if (BlockAndWait(mutex, current, until) == -1) {
             errno  = ETIME;
             status = -1;
         }
     } else {
-        mutex->owner = current;
+        mutex->owner      = current;
+        mutex->references = 1;
     }
     spinlock_release(&mutex->lock);
     return status;
@@ -86,7 +92,7 @@ int usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restri
 int usched_mtx_trylock(struct usched_mtx* mutex)
 {
     struct usched_job* current;
-    int                status;
+    int                status = 0;
     assert(mutex != NULL);
 
     current = __usched_get_scheduler()->current;
@@ -94,11 +100,16 @@ int usched_mtx_trylock(struct usched_mtx* mutex)
 
     spinlock_acquire(&mutex->lock);
     if (mutex->owner) {
-        errno  = EBUSY;
-        status = -1;
+        // support recursive mutexes
+        if (mutex->owner == current && (mutex->type & MUTEX_RECURSIVE)) {
+            mutex->references++;
+        } else {
+            errno  = EBUSY;
+            status = -1;
+        }
     } else {
-        mutex->owner = current;
-        status       = 0;
+        mutex->owner      = current;
+        mutex->references = 1;
     }
     spinlock_release(&mutex->lock);
     return status;
@@ -113,7 +124,7 @@ void usched_mtx_lock(struct usched_mtx* mutex)
 void usched_mtx_unlock(struct usched_mtx* mutex)
 {
     struct usched_job* current;
-    struct usched_job* next;
+    struct usched_job* next = NULL;
     assert(mutex != NULL);
 
     current = __usched_get_scheduler()->current;
@@ -121,12 +132,14 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
 
     spinlock_acquire(&mutex->lock);
     assert(mutex->owner == current);
-
-    next = mutex->queue;
-    mutex->owner = next;
-    if (next) {
-        mutex->queue = next->next;
-        next->next = NULL;
+    mutex->references--;
+    if (!mutex->references) {
+        next = mutex->queue;
+        mutex->owner = next;
+        if (next) {
+            mutex->queue = next->next;
+            next->next = NULL;
+        }
     }
     spinlock_release(&mutex->lock);
 

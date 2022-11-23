@@ -101,7 +101,7 @@ int main(void)
 
 // mocks
 oserr_t OSHandleCreate(uuid_t* handleOut) { }
-void usched_mtx_init(struct usched_mtx* mutex) { }
+void usched_mtx_init(struct usched_mtx* mutex, int type) { }
 void usched_mtx_lock(struct usched_mtx* mtx) { }
 void usched_mtx_unlock(struct usched_mtx* mtx) { }
 void usched_cnd_init(struct usched_cnd* condition) { }

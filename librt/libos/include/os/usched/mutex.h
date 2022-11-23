@@ -33,6 +33,7 @@ enum {
 
 struct usched_mtx {
     int                type;
+    int                references;
     spinlock_t         lock;
     struct usched_job* owner;
     struct usched_job* queue;
@@ -43,7 +44,7 @@ struct usched_mtx {
  *
  * @param mutex A pointer to a mutex that should be initialized.
  */
-CRTDECL(void, usched_mtx_init(struct usched_mtx* mutex));
+CRTDECL(void, usched_mtx_init(struct usched_mtx* mutex, int type));
 
 /**
  * @brief Blocks the current thread until the mutex pointed to by mutex is

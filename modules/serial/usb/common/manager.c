@@ -193,20 +193,6 @@ UsbManagerQueryUHCIController(
 }
 
 static void
-__timespec_add_nsec(struct timespec* spec, int64_t nsec)
-{
-    spec->tv_sec += (nsec / NSEC_PER_SEC);
-    spec->tv_nsec += (nsec % NSEC_PER_SEC);
-    if (spec->tv_nsec >= NSEC_PER_SEC) {
-        spec->tv_sec++;
-        spec->tv_nsec -= NSEC_PER_SEC;
-    } else if (spec->tv_nsec < 0) {
-        spec->tv_sec--;
-        spec->tv_nsec += NSEC_PER_SEC;
-    }
-}
-
-static void
 __UHCIPortMonitor(
         _In_ void* argument,
         _In_ void* cancellationToken)
@@ -214,9 +200,9 @@ __UHCIPortMonitor(
     struct timespec wakeUp, remaining;
     _CRT_UNUSED(argument);
 
+    timespec_get(&wakeUp, TIME_UTC);
     while (usched_is_cancelled(cancellationToken) == false) {
-        timespec_get(&wakeUp, TIME_MONOTONIC);
-        __timespec_add_nsec(&wakeUp, NSEC_PER_SEC);
+        wakeUp.tv_sec += 1;
         usched_job_sleep(&wakeUp, &remaining);
         hashtable_enumerate(
                 &g_controllers,

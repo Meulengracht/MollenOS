@@ -15,10 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __TRACE
 #define __need_minmax
+
 #include <assert.h>
 #include <errno.h>
 #include <ddk/handle.h>
+#include <ddk/utils.h>
 #include <os/mutex.h>
 #include <os/usched/usched.h>
 #include <setjmp.h>
@@ -436,6 +439,7 @@ int usched_yield(struct timespec* deadline)
     struct usched_scheduler* sched = __usched_get_scheduler();
     struct usched_job*       current;
     struct usched_job*       next;
+    TRACE("usched_yield()");
 
     // update timers before we check the scheduler as we might trigger a job to
     // be ready
@@ -555,6 +559,7 @@ int __usched_timeout_start(const struct timespec *restrict until, union usched_t
     }
 
     timer->id = atomic_fetch_add(&g_timerid, 1);
+    timer->active = 1;
     timer->deadline.tv_sec = until->tv_sec;
     timer->deadline.tv_nsec = until->tv_nsec;
     timer->queue = *queue;
@@ -617,6 +622,7 @@ void usched_wait_async(OSAsyncContext_t* asyncContext)
             .async_context = asyncContext,
             .next = NULL
     };
+    TRACE("usched_wait_async()");
     if (sched->syscalls_pending == NULL) {
         sched->syscalls_pending = &syscall;
     } else {

@@ -57,7 +57,7 @@ static uuid_t            g_nextDeviceId = 1;
 
 void DmDevicesInitialize(void)
 {
-    usched_mtx_init(&g_devicesLock);
+    usched_mtx_init(&g_devicesLock, USCHED_MUTEX_PLAIN);
 }
 
 static struct DmDevice*
@@ -124,7 +124,6 @@ void DmHandleDeviceCreate(
 
 respond:
     sys_device_register_response(request->message, status, result);
-
     sys_device_destroy(&request->parameters.create.device);
     RequestDestroy(request);
 }

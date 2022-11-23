@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,19 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Service Definitions & Structures
- * - This header describes the base service-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
+
 //#define __TRACE
 
 #include <internal/_syscalls.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
+#include <os/threads.h>
 #include <threads.h>
-#include <assert.h>
 
 static uuid_t g_sessionServiceId = UUID_INVALID;
 static uuid_t g_deviceServiceId  = UUID_INVALID;

@@ -39,7 +39,7 @@ static struct usched_mtx g_diskLock;
 
 void VFSStorageStartup(void)
 {
-    usched_mtx_init(&g_diskLock);
+    usched_mtx_init(&g_diskLock, USCHED_MUTEX_PLAIN);
 }
 
 struct VFSStorage*
@@ -56,7 +56,7 @@ VFSStorageNew(
     memset(storage, 0, sizeof(struct VFSStorage));
 
     ELEMENT_INIT(&storage->ListHeader, 0, 0);
-    usched_mtx_init(&storage->Lock);
+    usched_mtx_init(&storage->Lock, USCHED_MUTEX_PLAIN);
     storage->State = VFSSTORAGE_STATE_INITIALIZING;
     memcpy(&storage->Operations, operations, sizeof(struct VFSStorageOperations));
     list_construct(&storage->Filesystems);

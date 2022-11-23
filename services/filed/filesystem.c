@@ -87,7 +87,7 @@ void VFSFileSystemStartup(void)
     guid_parse_string(&g_mfsUserDataGuid, "80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53");
     guid_parse_string(&g_mfsUserGuid, "8874F880-E7AD-4EE2-839E-6FFA54F19A72");
     guid_parse_string(&g_mfsDataGuid, "B8E1A523-5865-4651-9548-8A43A9C21384");
-    usched_mtx_init(&g_mountsLock);
+    usched_mtx_init(&g_mountsLock, USCHED_MUTEX_PLAIN);
 }
 
 FileSystem_t*
@@ -116,7 +116,7 @@ FileSystemNew(
     fileSystem->Interface              = NULL;
     fileSystem->SectorStart.QuadPart   = sector->QuadPart;
     memcpy(&fileSystem->GUID, guid, sizeof(guid_t));
-    usched_mtx_init(&fileSystem->Lock);
+    usched_mtx_init(&fileSystem->Lock, USCHED_MUTEX_PLAIN);
     return fileSystem;
 }
 

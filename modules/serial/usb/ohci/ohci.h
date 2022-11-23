@@ -334,8 +334,8 @@ OhciPortsCheck(
  * Changes the state of the OHCI controller to the given mode */
 __EXTERN void
 OhciSetMode(
-    _In_ OhciController_t* Controller, 
-    _In_ reg32_t           Mode);
+    _In_ OhciController_t* controller,
+    _In_ reg32_t           mode);
 
 /*******************************************************************************
  * Queue Head Methods

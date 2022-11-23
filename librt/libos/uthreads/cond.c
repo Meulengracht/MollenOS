@@ -25,7 +25,7 @@
 void usched_cnd_init(struct usched_cnd* condition)
 {
     assert(condition != NULL);
-    usched_mtx_init(&condition->lock);
+    usched_mtx_init(&condition->lock, USCHED_MUTEX_PLAIN);
     condition->queue = NULL;
 }
 

@@ -58,14 +58,14 @@ __CreateNode(
     usched_rwlock_init(&node->Lock);
     memcpy(&node->Stats, stats, sizeof(struct VFSStat));
 
-    usched_mtx_init(&node->HandlesLock);
+    usched_mtx_init(&node->HandlesLock, USCHED_MUTEX_PLAIN);
     hashtable_construct(&node->Handles, 0,
                         sizeof(struct __VFSHandle),
                         __HandlesHash, __HandlesCmp);
     hashtable_construct(&node->Children, 0,
                         sizeof(struct __VFSChild),
                         __ChildrenHash, __ChildrenCmp);
-    usched_mtx_init(&node->MountsLock);
+    usched_mtx_init(&node->MountsLock, USCHED_MUTEX_PLAIN);
     hashtable_construct(&node->Mounts, 0,
                         sizeof(struct __VFSMount),
                         __MountsHash, __MountsCmp);
@@ -113,7 +113,7 @@ __CreateRootNode(
     usched_rwlock_init(&root->Lock);
     __StatRootNode(vfs, &root->Stats);
 
-    usched_mtx_init(&root->HandlesLock);
+    usched_mtx_init(&root->HandlesLock, USCHED_MUTEX_PLAIN);
     hashtable_construct(&root->Handles, 0,
                         sizeof(struct __VFSHandle),
                         __HandlesHash, __HandlesCmp);
