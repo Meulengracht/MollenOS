@@ -196,13 +196,13 @@ struct __locale_t
 };
 
 #ifdef _MB_CAPABLE
-extern char *__loadlocale (struct __locale_t *, int, __CONST char *);
+extern char *__loadlocale (struct __locale_t *, int, const char *);
 extern const char *__get_locale_env(struct _reent *, int);
 #endif /* _MB_CAPABLE */
 
 extern struct lconv *__localeconv_l (struct __locale_t *locale);
 
-extern size_t _wcsnrtombs_l(char *, __CONST wchar_t **,
+extern size_t _wcsnrtombs_l(char *, const wchar_t **,
 	size_t, size_t, mbstate_t *, struct __locale_t *);
 
 /* In POSIX terms the global locale is the process-wide locale.  Use this
@@ -242,37 +242,37 @@ __CRT_INLINE struct __locale_t *__get_C_locale(void)
 #ifndef _MB_CAPABLE
   return __get_global_locale();
 #else
-	extern __CONST struct __locale_t __C_locale;
+	extern const struct __locale_t __C_locale;
   return (struct __locale_t *) &__C_locale;
 #endif
 }
 
 #ifdef __CYGWIN__
-_ELIDABLE_INLINE __CONST struct lc_collate_T *
+_ELIDABLE_INLINE const struct lc_collate_T *
 __get_collate_locale (struct __locale_t *locale)
 {
-	return (__CONST struct lc_collate_T *) locale->lc_cat[LC_COLLATE].ptr;
+	return (const struct lc_collate_T *) locale->lc_cat[LC_COLLATE].ptr;
 }
 
 _ELIDABLE_INLINE const struct lc_collate_T *
 __get_current_collate_locale (void)
 {
-	return (__CONST struct lc_collate_T *)
+	return (const struct lc_collate_T *)
 	 __get_current_locale ()->lc_cat[LC_COLLATE].ptr;
 }
 #endif
 
 #ifdef __HAVE_LOCALE_INFO__
-_ELIDABLE_INLINE __CONST struct lc_ctype_T *
+_ELIDABLE_INLINE const struct lc_ctype_T *
 __get_ctype_locale (struct __locale_t *locale)
 {
-	return (__CONST struct lc_ctype_T *) (locale)->lc_cat[LC_CTYPE].ptr;
+	return (const struct lc_ctype_T *) (locale)->lc_cat[LC_CTYPE].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_ctype_T *
+_ELIDABLE_INLINE const struct lc_ctype_T *
 __get_current_ctype_locale (void)
 {
-	return (__CONST struct lc_ctype_T *)
+	return (const struct lc_ctype_T *)
 	 __get_current_locale ()->lc_cat[LC_CTYPE].ptr;
 }
 #endif
@@ -288,112 +288,112 @@ __locale_mb_cur_max_l(struct __locale_t *locale)
 }
 
 #ifdef __HAVE_LOCALE_INFO__
-_ELIDABLE_INLINE __CONST struct lc_monetary_T *
+_ELIDABLE_INLINE const struct lc_monetary_T *
 __get_monetary_locale (struct __locale_t *locale)
 {
-	return (__CONST struct lc_monetary_T *) (locale)->lc_cat[LC_MONETARY].ptr;
+	return (const struct lc_monetary_T *) (locale)->lc_cat[LC_MONETARY].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_monetary_T *
+_ELIDABLE_INLINE const struct lc_monetary_T *
 __get_current_monetary_locale (void)
 {
-	return (__CONST struct lc_monetary_T *)
+	return (const struct lc_monetary_T *)
 	 __get_current_locale ()->lc_cat[LC_MONETARY].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_numeric_T *
+_ELIDABLE_INLINE const struct lc_numeric_T *
 __get_numeric_locale (struct __locale_t *locale)
 {
-	return (__CONST struct lc_numeric_T *) (locale)->lc_cat[LC_NUMERIC].ptr;
+	return (const struct lc_numeric_T *) (locale)->lc_cat[LC_NUMERIC].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_numeric_T *
+_ELIDABLE_INLINE const struct lc_numeric_T *
 __get_current_numeric_locale (void)
 {
-	return (__CONST struct lc_numeric_T *)
+	return (const struct lc_numeric_T *)
 	 __get_current_locale ()->lc_cat[LC_NUMERIC].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_time_T *
+_ELIDABLE_INLINE const struct lc_time_T *
 __get_time_locale (struct __locale_t *locale)
 {
-	return (__CONST struct lc_time_T *) (locale)->lc_cat[LC_TIME].ptr;
+	return (const struct lc_time_T *) (locale)->lc_cat[LC_TIME].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_time_T *
+_ELIDABLE_INLINE const struct lc_time_T *
 __get_current_time_locale (void)
 {
-	return (__CONST struct lc_time_T *)
+	return (const struct lc_time_T *)
 	 __get_current_locale ()->lc_cat[LC_TIME].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_messages_T *
+_ELIDABLE_INLINE const struct lc_messages_T *
 __get_messages_locale (struct __locale_t *locale)
 {
-	return (__CONST struct lc_messages_T *) (locale)->lc_cat[LC_MESSAGES].ptr;
+	return (const struct lc_messages_T *) (locale)->lc_cat[LC_MESSAGES].ptr;
 }
 
-_ELIDABLE_INLINE __CONST struct lc_messages_T *
+_ELIDABLE_INLINE const struct lc_messages_T *
 __get_current_messages_locale (void)
 {
-	return (__CONST struct lc_messages_T *)
+	return (const struct lc_messages_T *)
 	 __get_current_locale ()->lc_cat[LC_MESSAGES].ptr;
 }
 #else /* ! __HAVE_LOCALE_INFO__ */
-__CRT_INLINE __CONST struct lc_monetary_T *
+__CRT_INLINE const struct lc_monetary_T *
 __get_monetary_locale(struct __locale_t *locale)
 {
 	_CRT_UNUSED(locale);
 	return &_C_monetary_locale;
 }
 
-__CRT_INLINE __CONST struct lc_monetary_T *
+__CRT_INLINE const struct lc_monetary_T *
 __get_current_monetary_locale(void)
 {
 	return &_C_monetary_locale;
 }
 
-__CRT_INLINE __CONST struct lc_numeric_T *
+__CRT_INLINE const struct lc_numeric_T *
 __get_numeric_locale(struct __locale_t *locale)
 {
 	_CRT_UNUSED(locale);
 	return &_C_numeric_locale;
 }
 
-__CRT_INLINE __CONST struct lc_numeric_T *
+__CRT_INLINE const struct lc_numeric_T *
 __get_current_numeric_locale(void)
 {
 	return &_C_numeric_locale;
 }
 
-__CRT_INLINE __CONST struct lc_time_T *
+__CRT_INLINE const struct lc_time_T *
 __get_time_locale(struct __locale_t *locale)
 {
 	_CRT_UNUSED(locale);
 	return &_C_time_locale;
 }
 
-__CRT_INLINE __CONST struct lc_time_T *
+__CRT_INLINE const struct lc_time_T *
 __get_current_time_locale(void)
 {
 	return &_C_time_locale;
 }
 
-__CRT_INLINE __CONST struct lc_messages_T *
+__CRT_INLINE const struct lc_messages_T *
 __get_messages_locale(struct __locale_t *locale)
 {
 	_CRT_UNUSED(locale);
 	return &_C_messages_locale;
 }
 
-__CRT_INLINE __CONST struct lc_messages_T *
+__CRT_INLINE const struct lc_messages_T *
 __get_current_messages_locale(void)
 {
 	return &_C_messages_locale;
 }
 #endif /* !__HAVE_LOCALE_INFO__ */
 
-__CRT_INLINE __CONST char *
+__CRT_INLINE const char *
 __locale_charset(struct __locale_t *locale)
 {
 #ifdef __HAVE_LOCALE_INFO__
@@ -403,7 +403,7 @@ __locale_charset(struct __locale_t *locale)
 #endif
 }
 
-__CRT_INLINE __CONST char *
+__CRT_INLINE const char *
 __current_locale_charset(void)
 {
 #ifdef __HAVE_LOCALE_INFO__
@@ -413,7 +413,7 @@ __current_locale_charset(void)
 #endif
 }
 
-__CRT_INLINE __CONST char *
+__CRT_INLINE const char *
 __locale_msgcharset(void)
 {
 #ifdef __HAVE_LOCALE_INFO__
@@ -428,22 +428,22 @@ __CRT_INLINE int __locale_cjk_lang(void)
 	return __get_current_locale()->cjk_lang;
 }
 
-int __ctype_load_locale(struct __locale_t *, __CONST char *, void *,
-	__CONST char *, int);
-int __monetary_load_locale(struct __locale_t *, __CONST char *, void *,
-	__CONST char *);
-int __numeric_load_locale(struct __locale_t *, __CONST char *, void *,
-	__CONST char *);
-int __time_load_locale(struct __locale_t *, __CONST char *, void *,
-	__CONST char *);
-int __messages_load_locale(struct __locale_t *, __CONST char *, void *,
-	__CONST char *);
+int __ctype_load_locale(struct __locale_t *, const char *, void *,
+	const char *, int);
+int __monetary_load_locale(struct __locale_t *, const char *, void *,
+	const char *);
+int __numeric_load_locale(struct __locale_t *, const char *, void *,
+	const char *);
+int __time_load_locale(struct __locale_t *, const char *, void *,
+	const char *);
+int __messages_load_locale(struct __locale_t *, const char *, void *,
+	const char *);
 #ifdef __CYGWIN__
-int __collate_load_locale(struct __locale_t *, __CONST char *, void *,
-	__CONST char *);
+int __collate_load_locale(struct __locale_t *, const char *, void *,
+	const char *);
 
-extern void __set_charset_from_locale(__CONST char *locale, char *charset);
-extern char *__set_locale_from_locale_alias(__CONST char *, char *);
+extern void __set_charset_from_locale(const char *locale, char *charset);
+extern char *__set_locale_from_locale_alias(const char *, char *);
 #endif
 
 #ifdef __cplusplus

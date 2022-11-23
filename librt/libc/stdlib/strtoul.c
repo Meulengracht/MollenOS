@@ -111,7 +111,7 @@ unsigned long strtoul_l (
 }
 
 unsigned long strtoul(
-	__CONST char *__restrict s,
+	const char *__restrict s,
 	char **__restrict ptr,
 	int base)
 {

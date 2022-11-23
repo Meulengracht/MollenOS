@@ -40,7 +40,7 @@ QUICKREF
 #include <wchar.h>
 #include <wctype.h>
 
-int wcscasecmp(__CONST wchar_t *s1, __CONST wchar_t *s2)
+int wcscasecmp(const wchar_t *s1, const wchar_t *s2)
 {
   int d = 0;
   for ( ; ; )

@@ -47,7 +47,7 @@ effects vary with the locale.
 #include "../local.h"
 
 int mblen( 
-    __CONST char *s,
+    const char *s,
     size_t n)
 {
 #ifdef _MB_CAPABLE

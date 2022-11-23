@@ -136,8 +136,8 @@
 #define __EXTERN extern
 #endif
 
-#ifndef __CONST
-#define __CONST const
+#ifndef const
+#define const const
 #endif
 
 #ifndef _CODE_TAGS

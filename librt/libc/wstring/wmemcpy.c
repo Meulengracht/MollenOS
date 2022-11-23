@@ -65,7 +65,7 @@ No supporting OS subroutines are required.
 #include <wchar.h>
 
 wchar_t *wmemcpy(wchar_t *__restrict d,
-	__CONST wchar_t *__restrict s, size_t n)
+	const wchar_t *__restrict s, size_t n)
 {
   return (wchar_t *) memcpy (d, s, n * sizeof (wchar_t));
 }

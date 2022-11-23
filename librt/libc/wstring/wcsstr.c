@@ -63,12 +63,12 @@ PORTABILITY
 #include <stddef.h>
 #include <wchar.h>
 
-wchar_t *wcsstr(__CONST wchar_t *__restrict big,
-	__CONST wchar_t *__restrict little)
+wchar_t *wcsstr(const wchar_t *__restrict big,
+	const wchar_t *__restrict little)
 {
-  __CONST wchar_t *p;
-  __CONST wchar_t *q;
-  __CONST wchar_t *r;
+  const wchar_t *p;
+  const wchar_t *q;
+  const wchar_t *r;
 
   if (!*little)
     {

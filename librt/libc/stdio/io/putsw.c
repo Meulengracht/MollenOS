@@ -29,7 +29,7 @@ int putws(
     _In_ const wchar_t *s)
 {
     // Variables
-    static __CONST wchar_t nl = '\n';
+    static const wchar_t nl = '\n';
     size_t len = wcslen(s);
     int ret;
 

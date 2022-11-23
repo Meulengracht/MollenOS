@@ -357,7 +357,7 @@ streamout_mstring(FILE *stream, const mstring_t *string, size_t count)
 
 int streamout(
     _In_ FILE *stream, 
-    _In_ __CONST TCHAR *format, 
+    _In_ const TCHAR *format,
     _In_ va_list argptr)
 {
     static const TCHAR digits_l[] = _T("0123456789abcdef0x");

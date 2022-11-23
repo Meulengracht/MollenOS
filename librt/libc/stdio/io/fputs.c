@@ -28,7 +28,7 @@
 #include <stdio.h>
 
 int fputs(
-	_In_ __CONST char *s, 
+	_In_ const char *s,
 	_In_ FILE* file)
 {
     size_t len = strlen(s);

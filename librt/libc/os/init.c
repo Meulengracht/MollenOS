@@ -26,6 +26,8 @@
 #include <internal/_utils.h>
 #include <internal/_tls.h>
 #include <os/threads.h>
+#include <os/usched/xunit.h>
+#include <os/usched/job.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -209,28 +211,13 @@ static int __get_startup_info(void)
     return status;
 }
 
-void __crt_process_initialize(
-        _In_ int isPhoenix)
+static void __setup_client(void* argument, void* cancellationToken)
 {
     gracht_client_configuration_t clientConfig;
     int                           status;
-    TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
-    
-    // We must set IsModule before anything
-    g_isPhoenix = isPhoenix;
-
-    // Get the handle of the startup thread, so we always know
-    // the thread id of the primary process thread.
-    g_startupThreadId = ThreadsCurrentId();
-
-    // Initialize the standard C library
-    TRACE("__crt_process_initialize initializing stdio");
-    StdioInitialize();
-    TRACE("__crt_process_initialize initializing stdsig");
-    StdSignalInitialize();
+    TRACE("__setup_client()");
 
     // initialite the ipc link
-    TRACE("__crt_process_initialize creating rpc link");
     status = gracht_link_vali_create(&g_gclientLink);
     if (status) {
         ERROR("__crt_process_initialize gracht_link_vali_create failed %i", status);
@@ -258,14 +245,18 @@ void __crt_process_initialize(
     // mark the client priority as we need the client for shutting
     // down during crt finalizing
     __mark_iod_priority(gracht_client_iod(g_gclient));
-    
+}
+
+static void __startup(void* argument, void* cancellationToken)
+{
+    TRACE("__startup()");
+
     // Unless it's the phoenix bootstrapper, we retrieve startup information
     // and various process related configurations before proceeding.
-    TRACE("__crt_process_initialize receiving startup configuration");
-    if (!isPhoenix) {
-        status = __get_startup_info();
+    if (!g_isPhoenix) {
+        int status = __get_startup_info();
         if (status) {
-            ERROR("__crt_process_initialize failed to get process startup information");
+            ERROR("__startup failed to get process startup information");
             _Exit(status);
         }
     }
@@ -273,6 +264,37 @@ void __crt_process_initialize(
     // now that we have the startup information, we can proceed to setup systems
     // that require it.
     StdioConfigureStandardHandles(g_inheritBlock);
+}
+
+void __crt_process_initialize(int isPhoenix)
+{
+    TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
+    
+    // We must set IsModule before anything
+    g_isPhoenix = isPhoenix;
+
+    // Get the handle of the startup thread, so we always know
+    // the thread id of the primary process thread.
+    g_startupThreadId = ThreadsCurrentId();
+
+    // Initialize the standard C library
+    TRACE("__crt_process_initialize initializing stdio");
+    StdioInitialize();
+    TRACE("__crt_process_initialize initializing stdsig");
+    StdSignalInitialize();
+
+    // Initialize the userspace scheduler to support request based
+    // asynchronous programs, and do this before we do any further
+    // initialization, as it might require the usched scheduler to be working
+    usched_xunit_init();
+
+    // Queue the client setup job, we need this before anything else. Jobs
+    // run sequentially before we add more execution units.
+    usched_job_queue(__setup_client, NULL);
+
+    // Queue up the startup job which retrieves vital startup information, but
+    // requires the gracht client to be running.
+    usched_job_queue(__startup, NULL);
 }
 
 int __crt_is_phoenix(void)

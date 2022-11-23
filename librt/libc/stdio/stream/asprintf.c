@@ -21,7 +21,7 @@
 
 int asprintf(
 	_In_ char **ret, 
-	_In_ __CONST char *format, 
+	_In_ const char *format,
 	...)
 {
 	// Hold a temporary buffer

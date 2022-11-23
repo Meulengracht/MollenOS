@@ -63,9 +63,9 @@ No supporting OS subroutines are required.
 #include <stddef.h>
 #include <wchar.h>
 
-wchar_t *wcsrchr(__CONST wchar_t *s, wchar_t c)
+wchar_t *wcsrchr(const wchar_t *s, wchar_t c)
 {
-  __CONST wchar_t *p;
+  const wchar_t *p;
 
   p = s;
   while (*p)

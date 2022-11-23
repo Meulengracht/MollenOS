@@ -5,7 +5,7 @@
 
 size_t mbsrtowcs(
 	wchar_t *__restrict dst,
-	__CONST char **__restrict src,
+	const char **__restrict src,
 	size_t len,
 	mbstate_t *__restrict ps)
 {

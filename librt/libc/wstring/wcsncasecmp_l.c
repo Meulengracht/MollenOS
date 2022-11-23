@@ -41,15 +41,15 @@ QUICKREF
 #include <wchar.h>
 #include <wctype.h>
 
-int wcsncasecmp_l(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, size_t n, 
+int wcsncasecmp_l(const wchar_t *s1,
+	const wchar_t *s2, size_t n,
 	locale_t locale)
 {
   int d = 0;
   for ( ; n != 0; n--)
     {
-      __CONST int c1 = towlower_l (*s1++, locale);
-      __CONST int c2 = towlower_l (*s2++, locale);
+      const int c1 = towlower_l (*s1++, locale);
+      const int c2 = towlower_l (*s2++, locale);
       if (((d = c1 - c2) != 0) || (c2 == '\0'))
         break;
     }

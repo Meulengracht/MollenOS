@@ -43,14 +43,14 @@ QUICKREF
 #include <wchar.h>
 #include <wctype.h>
 
-int wcsncasecmp(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, size_t n)
+int wcsncasecmp(const wchar_t *s1,
+	const wchar_t *s2, size_t n)
 {
   int d = 0;
   for ( ; n != 0; n--)
 	{
-		__CONST int c1 = towlower (*s1++);
-		__CONST int c2 = towlower (*s2++);
+		const int c1 = towlower (*s1++);
+		const int c2 = towlower (*s2++);
       if (((d = c1 - c2) != 0) || (c2 == '\0'))
         break;
     }

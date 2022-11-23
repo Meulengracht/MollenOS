@@ -94,10 +94,10 @@ ANSI C requires <<gmtime>>.
 
 /* Reentrency version of gmtime 
  * Modified implementation by newlib */
-struct tm *gmtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res)
+struct tm *gmtime_r(const time_t *__restrict tim_p, struct tm *__restrict res)
 {
 	long days, rem;
-	__CONST time_t lcltime = *tim_p;
+	const time_t lcltime = *tim_p;
 	int era, weekday, year;
 	unsigned erayear, yearday, month, day;
 	unsigned long eraday;
@@ -148,7 +148,7 @@ struct tm *gmtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res)
 
 /* Normal version of gmtime 
  * Modified implementation by newlib */
-struct tm *gmtime(__CONST time_t *tim_p) {
+struct tm *gmtime(const time_t *tim_p) {
 	struct tm *gmbuf = &(__tls_current()->tm_buffer);
 	memset(gmbuf, 0, sizeof(struct tm));
 	return gmtime_r(tim_p, gmbuf);

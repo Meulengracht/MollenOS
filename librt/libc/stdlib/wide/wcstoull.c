@@ -156,10 +156,10 @@ PORTABILITY
  * Convert a wide string to an unsigned long long integer.
  */
 unsigned long long
-_wcstoull_l (__CONST wchar_t *nptr, wchar_t **endptr,
+_wcstoull_l (const wchar_t *nptr, wchar_t **endptr,
 	     int base, locale_t loc)
 {
-	register __CONST wchar_t *s = nptr;
+	register const wchar_t *s = nptr;
 	register unsigned long long acc;
 	register int c;
 	register unsigned long long cutoff;
@@ -220,7 +220,7 @@ _wcstoull_l (__CONST wchar_t *nptr, wchar_t **endptr,
 }
 
 unsigned long long _wcstoull_r(
-	__CONST wchar_t *nptr ,
+	const wchar_t *nptr ,
 	wchar_t **endptr,
 	int base)
 {
@@ -228,14 +228,14 @@ unsigned long long _wcstoull_r(
 }
 
 unsigned long long
-wcstoull_l (__CONST wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
+wcstoull_l (const wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
 	    locale_t loc)
 {
 	return _wcstoull_l (s, ptr, base, loc);
 }
 
 unsigned long long wcstoull(
-	__CONST wchar_t *__restrict s,
+	const wchar_t *__restrict s,
 	wchar_t **__restrict ptr,
 	int base)
 {

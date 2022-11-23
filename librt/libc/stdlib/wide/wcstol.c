@@ -143,10 +143,10 @@ No supporting OS subroutines are required.
  * Convert a wide string to a long integer.
  */
 static long
-_wcstol_l (__CONST wchar_t *nptr, wchar_t **endptr,
+_wcstol_l (const wchar_t *nptr, wchar_t **endptr,
 	   int base, locale_t loc)
 {
-	register __CONST wchar_t *s = nptr;
+	register const wchar_t *s = nptr;
 	register unsigned long acc;
 	register int c;
 	register unsigned long cutoff;
@@ -224,7 +224,7 @@ _wcstol_l (__CONST wchar_t *nptr, wchar_t **endptr,
 }
 
 long _wcstol_r(
-	__CONST wchar_t *nptr,
+	const wchar_t *nptr,
 	wchar_t **endptr,
 	int base)
 {
@@ -232,14 +232,14 @@ long _wcstol_r(
 }
 
 long
-wcstol_l (__CONST wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
+wcstol_l (const wchar_t *__restrict s, wchar_t **__restrict ptr, int base,
 	  locale_t loc)
 {
 	return _wcstol_l (s, ptr, base, loc);
 }
 
 long wcstol(
-	__CONST wchar_t *__restrict s,
+	const wchar_t *__restrict s,
 	wchar_t **__restrict ptr,
 	int base)
 {

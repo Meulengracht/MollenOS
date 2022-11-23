@@ -21,7 +21,7 @@
 
 int vasprintf(
 	_In_ char **ret, 
-	_In_ __CONST char *format, 
+	_In_ const char *format,
 	_In_ va_list ap)
 {
 	// Hold a temporary buffer

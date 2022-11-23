@@ -132,7 +132,7 @@ long strtol_l (
 }
 
 long strtol(
-	__CONST char *__restrict s,
+	const char *__restrict s,
 	char **__restrict ptr,
 	int base)
 {

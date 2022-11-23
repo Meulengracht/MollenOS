@@ -392,29 +392,6 @@ static int __close_io_descriptors(unsigned int excludeFlags)
     return context.filesClosed;
 }
 
-void StdioInitialize(void)
-{
-    // initialize the hashtable of handles
-    hashtable_construct(
-            &g_stdioObjects, 0, sizeof(struct stdio_object_entry),
-            stdio_hash, stdio_cmp
-    );
-
-    // initialize subsystems for stdio
-    stdio_bitmap_initialize();
-}
-
-CRTDECL(void, StdioCleanup(void))
-{
-    // flush all file buffers and close handles
-    io_buffer_flush_all(_IOWRT | _IOREAD);
-
-    // close all handles that are not marked _PRIO, and then lastly
-    // close the _PRIO handles
-    __close_io_descriptors(WX_PRIORITY);
-    __close_io_descriptors(0);
-}
-
 int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
 {
     stdio_handle_t* handle;
@@ -629,4 +606,31 @@ static int stdio_cmp(const void* element1, const void* element2)
     return entry1->id == entry2->id ? 0 : -1;
 }
 
+void __CleanupSTDIO(void)
+{
+    // flush all file buffers and close handles
+    io_buffer_flush_all(_IOWRT | _IOREAD);
+
+    // close all handles that are not marked _PRIO, and then lastly
+    // close the _PRIO handles
+    __close_io_descriptors(WX_PRIORITY);
+    __close_io_descriptors(0);
+}
+
+void StdioInitialize(void)
+{
+    // initialize the hashtable of handles
+    hashtable_construct(
+            &g_stdioObjects,
+            0,
+            sizeof(struct stdio_object_entry),
+            stdio_hash, stdio_cmp
+    );
+
+    // initialize subsystems for stdio
+    stdio_bitmap_initialize();
+
+    // register the cleanup handler
+    atexit(__CleanupSTDIO);
+}
 #endif

@@ -58,10 +58,10 @@ No supporting OS subroutines are required.
  */
 #include <wchar.h>
 
-size_t wcscspn(__CONST wchar_t *s, wchar_t *set)
+size_t wcscspn(const wchar_t *s, wchar_t *set)
 {
-  __CONST wchar_t *p;
-  __CONST wchar_t *q;
+  const wchar_t *p;
+  const wchar_t *q;
 
   p = s;
   while (*p)

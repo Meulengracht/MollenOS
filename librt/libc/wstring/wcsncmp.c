@@ -66,8 +66,8 @@ No supporting OS subroutines are required.
  */
 #include <wchar.h>
 
-int wcsncmp(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, size_t n)
+int wcsncmp(const wchar_t *s1,
+	const wchar_t *s2, size_t n)
 {
 
   if (n == 0)

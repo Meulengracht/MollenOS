@@ -65,7 +65,7 @@ No supporting OS subroutines are required.
  */
 #include <wchar.h>
 
-wchar_t	*wmemchr(__CONST wchar_t *s, wchar_t c, size_t n)
+wchar_t	*wmemchr(const wchar_t *s, wchar_t c, size_t n)
 {
   size_t i;
 

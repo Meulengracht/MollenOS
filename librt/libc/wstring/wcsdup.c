@@ -39,7 +39,7 @@ QUICKREF
 #include <stdlib.h>
 #include <wchar.h>
 
-wchar_t *wcsdup (__CONST wchar_t *str)
+wchar_t *wcsdup (const wchar_t *str)
 {
 	size_t len = wcslen (str) + 1;
 	wchar_t *copy = malloc(len * sizeof (wchar_t));

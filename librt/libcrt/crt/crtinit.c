@@ -38,7 +38,7 @@ char** __crt_argv(int* argcOut) {
     char** argv = NULL;
     int    argc = 0;
 
-    if (strlen(__crt_cmdline()) != 0) {
+    if (__crt_cmdline() != NULL && strlen(__crt_cmdline()) != 0) {
         argc = __crt_parse_cmdline(__crt_cmdline(), NULL);
         argv = (char**)calloc(sizeof(char*), argc + 1);
         if (argv == NULL) {

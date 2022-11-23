@@ -105,7 +105,7 @@ PORTABILITY
 #include "../local.h"
 
 size_t
-_wcsnrtombs_l (char *dst, __CONST wchar_t **src, size_t nwc,
+_wcsnrtombs_l (char *dst, const wchar_t **src, size_t nwc,
 	       size_t len, mbstate_t *ps, struct __locale_t *loc)
 {
   char *ptr = dst;

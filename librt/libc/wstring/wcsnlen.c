@@ -54,9 +54,9 @@ PORTABILITY
  */
 #include <wchar.h>
 
-size_t wcsnlen(__CONST wchar_t *s, size_t maxlen)
+size_t wcsnlen(const wchar_t *s, size_t maxlen)
 {
-    __CONST wchar_t *p;
+    const wchar_t *p;
 
   p = s;
   while (*p && maxlen-- > 0)

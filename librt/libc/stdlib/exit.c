@@ -49,7 +49,6 @@ extern void  __cxa_exithandlers(void);
 extern int   __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle);
 extern int   __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle);
 extern void  __cxa_threadfinalize(void);
-extern void  StdioCleanup(void);
 extern void* __dso_handle;
 
 struct atexit_handler_entry {
@@ -393,10 +392,6 @@ void exit(int exitCode)
     // program cleanup, the moment we get killed, the rest of threads will be aborted
     __at_exit_run(&g_at_exit, UUID_INVALID, NULL, ec);
     __cxa_exithandlers();
-
-    // Cleanup the c-library stuff last, this includes closing opened io descriptors,
-    // flushing buffers etc.
-    StdioCleanup();
 
     // Exit the primary thread
     Syscall_ThreadExit(ec);

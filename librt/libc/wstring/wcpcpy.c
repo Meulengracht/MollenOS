@@ -28,7 +28,7 @@ No supporting OS subroutines are required.
 */
 #include <wchar.h>
 
-wchar_t *wcpcpy(wchar_t *__restrict s1, __CONST wchar_t *__restrict s2)
+wchar_t *wcpcpy(wchar_t *__restrict s1, const wchar_t *__restrict s2)
 {
   while ((*s1++ = *s2++))
     ;

@@ -66,10 +66,10 @@ No supporting OS subroutines are required.
  * will be copied.  Always NUL terminates (unless siz == 0).
  * Returns wcslen(src); if retval >= siz, truncation occurred.
  */
-size_t wcslcpy(wchar_t *dst, __CONST wchar_t *src, size_t siz)
+size_t wcslcpy(wchar_t *dst, const wchar_t *src, size_t siz)
 {
   wchar_t *d = dst;
-  __CONST wchar_t *s = src;
+  const wchar_t *s = src;
   size_t n = siz;
 
   /* Copy as many bytes as will fit */

@@ -39,7 +39,7 @@ PORTABILITY
 #include <wchar.h>
 
 int wcsxfrm_l(wchar_t *__restrict a,
-	__CONST wchar_t *__restrict b, size_t n,
+	const wchar_t *__restrict b, size_t n,
 	locale_t locale)
 {
 	return wcslcpy (a, b, n);

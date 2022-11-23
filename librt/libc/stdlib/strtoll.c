@@ -42,7 +42,7 @@
  * Convert a string to a long long integer.
  */
 static long long
-_strtoll_l (__CONST char *__restrict nptr,
+_strtoll_l (const char *__restrict nptr,
 	    char **__restrict endptr, int base, locale_t loc)
 {
 	register const unsigned char *s = (const unsigned char *)nptr;
@@ -130,7 +130,7 @@ strtoll_l (const char *__restrict s, char **__restrict ptr, int base,
 }
 
 long long strtoll(
-	__CONST char *__restrict s,
+	const char *__restrict s,
 	char **__restrict ptr,
 	int base) {
 	return _strtoll_l(s, ptr, base, __get_current_locale());
