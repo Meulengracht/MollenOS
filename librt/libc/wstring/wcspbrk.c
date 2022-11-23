@@ -59,11 +59,11 @@ No supporting OS subroutines are required.
 #include <stddef.h>
 #include <wchar.h>
 
-wchar_t *wcspbrk(__CONST wchar_t *s,
-	__CONST wchar_t *set)
+wchar_t *wcspbrk(const wchar_t *s,
+	const wchar_t *set)
 {
-  __CONST wchar_t *p;
-  __CONST wchar_t *q;
+  const wchar_t *p;
+  const wchar_t *q;
 
   p = s;
   while (*p)

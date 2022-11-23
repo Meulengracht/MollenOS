@@ -4,7 +4,7 @@
 
 size_t wcsrtombs(
 	char *__restrict dst,
-	__CONST wchar_t **__restrict src,
+	const wchar_t **__restrict src,
 	size_t len,
 	mbstate_t *__restrict ps)
 {

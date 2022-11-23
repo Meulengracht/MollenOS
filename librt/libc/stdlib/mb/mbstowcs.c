@@ -54,7 +54,7 @@ effects vary with the locale.
 size_t
 _mbstowcs_r(     
   wchar_t       *__restrict pwcs,
-  __CONST char    *__restrict s,
+  const char    *__restrict s,
   size_t         n,
   mbstate_t     *state)
 {
@@ -87,7 +87,7 @@ _mbstowcs_r(
 
 size_t mbstowcs(
   wchar_t *__restrict pwcs,
-  __CONST char *__restrict s,
+  const char *__restrict s,
   size_t n)
 {
 #ifdef _MB_CAPABLE

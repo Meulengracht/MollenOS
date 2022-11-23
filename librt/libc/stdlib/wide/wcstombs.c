@@ -53,7 +53,7 @@ effects vary with the locale.
 
 size_t _wcstombs_r(
     char          *__restrict s,
-    __CONST wchar_t *__restrict pwcs,
+    const wchar_t *__restrict pwcs,
     size_t         n,
     mbstate_t     *state)
 {
@@ -96,7 +96,7 @@ size_t _wcstombs_r(
 
 size_t wcstombs(
     char *__restrict s,
-    __CONST wchar_t *__restrict pwcs,
+    const wchar_t *__restrict pwcs,
     size_t n)
 {
 #ifdef _MB_CAPABLE

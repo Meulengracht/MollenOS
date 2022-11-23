@@ -61,8 +61,8 @@ CRTDECL(
         oserr_t,
         Sha1Add(
 	_In_ Sha1Context_t *Context, 
-	_In_ __CONST uint8_t *Data,
-	_In_ __CONST size_t Length));
+	_In_ const uint8_t *Data,
+	_In_ const size_t Length));
 
 /* Sha1Finalize
  * Finalizes the Sha1 context and outputs the

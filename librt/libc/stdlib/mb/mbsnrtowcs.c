@@ -103,7 +103,7 @@ PORTABILITY
 
 size_t _mbsnrtowcs_r(
 	wchar_t *dst,
-	__CONST char **src,
+	const char **src,
 	size_t nms,
 	size_t len,
 	mbstate_t *ps)
@@ -164,7 +164,7 @@ size_t _mbsnrtowcs_r(
 
 size_t mbsnrtowcs(
 	wchar_t *__restrict dst,
-	__CONST char **__restrict src,
+	const char **__restrict src,
 	size_t nms,
 	size_t len,
 	mbstate_t *__restrict ps) {

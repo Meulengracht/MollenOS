@@ -36,9 +36,9 @@ PORTABILITY
 */
 #include <wchar.h>
 #include "../ctype/local.h"
-__EXTERN int __wcwidth(__CONST wint_t ucs);
+__EXTERN int __wcwidth(const wint_t ucs);
 
-int wcswidth(__CONST wchar_t *pwcs, size_t n)
+int wcswidth(const wchar_t *pwcs, size_t n)
 {
   int w, len = 0;
   if (!pwcs || n == 0)

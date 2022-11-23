@@ -40,12 +40,12 @@ POSSIBILITY OF SUCH DAMAGE.
 #ifdef _HAVE_LONG_DOUBLE
 
 __EXTERN double wcstod_l(
-  __CONST wchar_t *__restrict nptr, 
+  const wchar_t *__restrict nptr,
   wchar_t **__restrict endptr,
   locale_t loc);
 
 long double wcstold_l(
-  __CONST wchar_t *__restrict nptr, 
+  const wchar_t *__restrict nptr,
   wchar_t **__restrict endptr,
   locale_t loc)
 {
@@ -121,7 +121,7 @@ long double wcstold_l(
 }
 
 long double wcstold(
-  __CONST wchar_t *__restrict nptr, 
+  const wchar_t *__restrict nptr,
   wchar_t **__restrict endptr)
 {
 #ifdef _LDBL_EQ_DBL

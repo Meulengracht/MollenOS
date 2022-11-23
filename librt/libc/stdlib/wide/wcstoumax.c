@@ -48,10 +48,10 @@
  *Reentrant version of wcstoumax.
  */
 static uintmax_t _wcstoumax_l(
-	__CONST wchar_t * __restrict nptr,
+	const wchar_t * __restrict nptr,
 	wchar_t ** __restrict endptr, int base, locale_t loc)
 {
-	__CONST wchar_t *s = nptr;
+	const wchar_t *s = nptr;
 	uintmax_t acc;
 	wchar_t c;
 	uintmax_t cutoff;
@@ -123,14 +123,14 @@ noconv:
 }
 
 uintmax_t
-wcstoumax_l(__CONST wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
+wcstoumax_l(const wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
 	    int base, locale_t loc)
 {
 	return _wcstoumax_l(nptr, endptr, base, loc);
 }
 
 uintmax_t wcstoumax(
-	__CONST wchar_t* __restrict nptr, 
+	const wchar_t* __restrict nptr,
 	wchar_t** __restrict endptr, 
 	int base)
 {

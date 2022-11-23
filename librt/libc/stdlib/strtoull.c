@@ -113,7 +113,7 @@ unsigned long long strtoull_l(
 }
 
 unsigned long long strtoull(
-	__CONST char *__restrict s,
+	const char *__restrict s,
 	char **__restrict ptr,
 	int base)
 {

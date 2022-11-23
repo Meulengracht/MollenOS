@@ -49,11 +49,11 @@
  *Reentrant version of wcstoimax.
  */
 static intmax_t _wcstoimax_l(
-	__CONST wchar_t * __restrict nptr,
+	const wchar_t * __restrict nptr,
 		 wchar_t ** __restrict endptr, 
 		 int base, locale_t loc)
 {
-	__CONST wchar_t *s = nptr;
+	const wchar_t *s = nptr;
 	uintmax_t acc;
 	wchar_t c;
 	uintmax_t cutoff;
@@ -126,14 +126,14 @@ _set_errno(EINVAL);
 }
 
 intmax_t
-wcstoimax_l(__CONST wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
+wcstoimax_l(const wchar_t * __restrict nptr, wchar_t ** __restrict endptr,
 	    int base, locale_t loc)
 {
 	return _wcstoimax_l(nptr, endptr, base, loc);
 }
 
 intmax_t wcstoimax(
-	__CONST wchar_t* __restrict nptr, 
+	const wchar_t* __restrict nptr,
 	wchar_t** __restrict endptr, int base)
 {
 	return _wcstoimax_l(nptr, endptr, base, __get_current_locale());

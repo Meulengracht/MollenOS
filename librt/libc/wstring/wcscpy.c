@@ -60,10 +60,10 @@ No supporting OS subroutines are required.
 #include <wchar.h>
 
 wchar_t *wcscpy(wchar_t *__restrict s1,
-	__CONST wchar_t *__restrict s2)
+	const wchar_t *__restrict s2)
 {
   wchar_t *p;
-  __CONST wchar_t *q;
+  const wchar_t *q;
 
   *s1 = '\0';
   p = s1;

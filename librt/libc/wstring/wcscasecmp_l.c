@@ -40,14 +40,14 @@ QUICKREF
 #include <wchar.h>
 #include <wctype.h>
 
-int wcscasecmp_l(__CONST wchar_t *s1, 
-	__CONST wchar_t *s2, locale_t locale)
+int wcscasecmp_l(const wchar_t *s1,
+	const wchar_t *s2, locale_t locale)
 {
   int d = 0;
   for ( ; ; )
     {
-      __CONST int c1 = towlower_l (*s1++, locale);
-      __CONST int c2 = towlower_l (*s2++, locale);
+      const int c1 = towlower_l (*s1++, locale);
+      const int c2 = towlower_l (*s2++, locale);
       if (((d = c1 - c2) != 0) || (c2 == '\0'))
         break;
     }

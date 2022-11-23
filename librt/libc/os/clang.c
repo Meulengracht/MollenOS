@@ -35,7 +35,6 @@ typedef void(*_PVFI)(int);
 typedef void(*_PVTLS)(void*, unsigned long, void*);
 #endif
 
-extern void StdioCleanup(void);
 extern int  __at_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
 extern int  __at_quick_exit_impl(_In_ thrd_t threadID, _In_ void (*atExitFn)(void*), _In_ void* argument, _In_ void* dsoHandle);
 extern void __cxa_at_exit_run(thrd_t threadID, void* dsoHandle, int exitCode);

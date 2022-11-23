@@ -43,7 +43,7 @@
 
 #define _ctloc(x) (_CurrentTimeLocale->x)
 
-static __CONST int _DAYS_BEFORE_MONTH[12] =
+static const int _DAYS_BEFORE_MONTH[12] =
 {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
 
 #define SET_MDAY 1
@@ -56,7 +56,7 @@ static __CONST int _DAYS_BEFORE_MONTH[12] =
 /*
  * tm_year is relative this year 
  */
-__CONST int tm_year_base = 1900;
+const int tm_year_base = 1900;
 
 /*
  * Return TRUE iff `year' was a leap year.
@@ -68,8 +68,8 @@ static int is_leap_year(int year)
 }
 
 /* Needed for strptime. */
-static int match_string(__CONST char *__restrict *buf, 
-	__CONST char * const*strs, locale_t locale)
+static int match_string(const char *__restrict *buf,
+	const char * const*strs, locale_t locale)
 {
     int i = 0;
 
@@ -145,7 +145,7 @@ static void set_week_number_mon4(struct tm *timeptr, int wnum)
     }
 }
 
-char *strptime_l(__CONST char *buf, __CONST char *format, 
+char *strptime_l(const char *buf, const char *format,
 	struct tm *timeptr, locale_t locale)
 {
     char c;
@@ -466,6 +466,6 @@ char *strptime_l(__CONST char *buf, __CONST char *format,
     return (char *)buf;
 }
 
-char *strptime(__CONST char *buf, __CONST char *format, struct tm *timeptr) {
+char *strptime(const char *buf, const char *format, struct tm *timeptr) {
   return strptime_l (buf, format, timeptr, __get_current_locale ());
 }

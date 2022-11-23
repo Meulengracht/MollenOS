@@ -51,13 +51,13 @@ ANSI C requires <<localtime>>.
 
 /* Reentrency version of gmtime 
  * Modified implementation by newlib */
-struct tm *localtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict res)
+struct tm *localtime_r(const time_t *__restrict tim_p, struct tm *__restrict res)
 {
 	long offset;
 	int hours, mins, secs;
 	int year;
-	__tzinfo_type *__CONST tz = __gettzinfo();
-	__CONST int *ip;
+	__tzinfo_type *const tz = __gettzinfo();
+	const int *ip;
 
 	res = gmtime_r(tim_p, res);
 
@@ -161,7 +161,7 @@ struct tm *localtime_r(__CONST time_t *__restrict tim_p, struct tm *__restrict r
 
 /* Normal version of localtime 
  * Modified implementation by newlib */
-struct tm *localtime(__CONST time_t * tim_p) {
+struct tm *localtime(const time_t * tim_p) {
 	struct tm *lclbuf = &(__tls_current()->tm_buffer);
 	memset(lclbuf, 0, sizeof(struct tm));
 	return localtime_r(tim_p, lclbuf);

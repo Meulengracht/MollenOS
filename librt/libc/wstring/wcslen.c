@@ -56,9 +56,9 @@ No supporting OS subroutines are required.
  */
 #include <wchar.h>
 
-size_t wcslen(__CONST wchar_t *s)
+size_t wcslen(const wchar_t *s)
 {
-	__CONST wchar_t *p;
+	const wchar_t *p;
 
   p = s;
   while (*p)

@@ -26,7 +26,7 @@
 #include <stdio.h>
 
 int puts(
-    _In_ __CONST char *s)
+    _In_ const char *s)
 {
     size_t len = strlen(s);
     int    ret;

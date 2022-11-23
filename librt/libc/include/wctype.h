@@ -66,8 +66,8 @@ CRTDECL(int, iswxdigit(wint_t));
 CRTDECL(wint_t, towctrans(wint_t, wctrans_t));
 CRTDECL(wint_t, towupper(wint_t));
 CRTDECL(wint_t, towlower(wint_t));
-CRTDECL(wctrans_t, wctrans(__CONST char *));
-CRTDECL(wctype_t, wctype(__CONST char *));
+CRTDECL(wctrans_t, wctrans(const char *));
+CRTDECL(wctype_t, wctype(const char *));
 
 CRTDECL(int, iswalpha_l (wint_t, locale_t));
 CRTDECL(int, iswalnum_l (wint_t, locale_t));
@@ -85,8 +85,8 @@ CRTDECL(int, iswxdigit_l (wint_t, locale_t));
 CRTDECL(wint_t, towctrans_l (wint_t, wctrans_t, locale_t));
 CRTDECL(wint_t, towupper_l (wint_t, locale_t));
 CRTDECL(wint_t, towlower_l (wint_t, locale_t));
-CRTDECL(wctrans_t, wctrans_l (__CONST char *, locale_t));
-CRTDECL(wctype_t, wctype_l (__CONST char *, locale_t));
+CRTDECL(wctrans_t, wctrans_l (const char *, locale_t));
+CRTDECL(wctype_t, wctype_l (const char *, locale_t));
 _CODE_END
 
 #endif /* _WCTYPE_H_ */

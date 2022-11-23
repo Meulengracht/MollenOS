@@ -165,7 +165,7 @@ bisearch(wint_t ucs, const struct interval *table, int max)
  * in ISO 10646.
  */
 
-int __wcwidth(__CONST wint_t ucs)
+int __wcwidth(const wint_t ucs)
 {
 #ifdef _MB_CAPABLE
   /* sorted list of non-overlapping intervals of East Asian Ambiguous
@@ -329,7 +329,7 @@ int __wcwidth(__CONST wint_t ucs)
 #endif /* _MB_CAPABLE */
 }
 
-int wcwidth(__CONST wchar_t wc)
+int wcwidth(const wchar_t wc)
 { 
   wint_t wi = wc;
 

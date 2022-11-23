@@ -65,7 +65,7 @@ No supporting OS subroutines are required.
  */
 #include <wchar.h>
 
-int wmemcmp(__CONST wchar_t *s1, __CONST wchar_t *s2, size_t n)
+int wmemcmp(const wchar_t *s1, const wchar_t *s2, size_t n)
 {
   size_t i;
 

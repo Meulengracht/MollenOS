@@ -64,11 +64,11 @@ No supporting OS subroutines are required.
 #include <wchar.h>
 
 wchar_t *wcscat(wchar_t *__restrict s1,
-	__CONST wchar_t *__restrict s2)
+	const wchar_t *__restrict s2)
 {
   wchar_t *p;
   wchar_t *q;
-  __CONST wchar_t *r;
+  const wchar_t *r;
 
   p = s1;
   while (*p)

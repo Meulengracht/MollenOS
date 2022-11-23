@@ -37,7 +37,7 @@ No supporting OS subroutines are required.
 #include <wchar.h>
 
 wchar_t *wcpncpy(wchar_t *__restrict dst,
-	__CONST wchar_t *__restrict src, size_t count)
+	const wchar_t *__restrict src, size_t count)
 {
   wchar_t *ret = NULL;
 

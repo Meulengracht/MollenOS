@@ -41,7 +41,6 @@ extern oserr_t OnEvent(struct ioset_event* event);
 
 static gracht_server_t*         g_server        = NULL;
 static struct gracht_link_vali* g_serverLink    = NULL;
-static struct __ModuleOptions   g_moduleOptions = { UUID_INVALID };
 
 extern void   __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
 extern char** __crt_argv(int* argcOut);
@@ -57,12 +56,41 @@ gracht_server_t* __crt_get_module_server(void)
 }
 
 static void
-__crt_module_load(
+__ParseModuleOptions(
+        _In_ char**                  argv,
+        _In_ int                     argc,
+        _In_ struct __ModuleOptions* options)
+{
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
+            long moduleId = strtol(argv[i + 1], NULL, 10);
+            if (moduleId != 0) {
+                options->ID = (uuid_t)moduleId;
+            }
+        }
+    }
+}
+
+static void
+__ModuleMain(
         _In_ void* argument,
         _In_ void* cancellationToken)
 {
-    struct __ModuleOptions* moduleOptions = argument;
+    struct __ModuleOptions moduleOptions = { UUID_INVALID };
+    char**                 argv;
+    int                    argc;
+
+    _CRT_UNUSED(argument);
     _CRT_UNUSED(cancellationToken);
+
+    argv = __crt_argv(&argc);
+    if (argv == NULL) {
+        ERROR("__CrtModuleEntry failed to parse arguments");
+        exit(-1);
+    }
+
+    // parse the options provided for this module
+    __ParseModuleOptions(argv, argc, &moduleOptions);
 
     // Call the driver load function 
     // - This will be run once, before loop
@@ -73,19 +101,19 @@ __crt_module_load(
     at_quick_exit(OnUnload);
 
     // Notify the devicemanager of our successful startup
-    if (moduleOptions->ID != UUID_INVALID) {
+    if (moduleOptions.ID != UUID_INVALID) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
         sys_device_notify(
                 GetGrachtClient(),
                 &msg.base,
-                moduleOptions->ID,
+                moduleOptions.ID,
                 GetNativeHandle(__crt_get_server_iod())
         );
     }
 }
 
 static void
-__gracht_job(
+__StartGrachtServer(
         _In_ void* argument,
         _In_ void* cancellationToken)
 {
@@ -145,51 +173,18 @@ __gracht_job(
     }
 }
 
-static void
-__ParseModuleOptions(
-        _In_ char**                  argv,
-        _In_ int                     argc,
-        _In_ struct __ModuleOptions* options)
-{
-    for (int i = 0; i < argc; i++) {
-        if (!strcmp(argv[i], "--id") && (i + 1) < argc) {
-            long moduleId = strtol(argv[i + 1], NULL, 10);
-            if (moduleId != 0) {
-                options->ID = (uuid_t)moduleId;
-            }
-        }
-    }
-}
-
 void __CrtModuleEntry(void)
 {
     thread_storage_t threadStorage;
-    char**           argv;
-    int              argc;
-
-    // initialize runtime environment
     __crt_initialize(&threadStorage, 0);
-    argv = __crt_argv(&argc);
-    if (argv == NULL) {
-        ERROR("__CrtModuleEntry failed to parse arguments");
-        exit(-1);
-    }
-
-    // parse the options provided for this module
-    __ParseModuleOptions(argv, argc, &g_moduleOptions);
-
-    // Initialize the userspace scheduler to support request based
-    // services in an async matter, and do this before we call ServiceInitialize
-    // as the service might queue tasks up on load.
-    usched_xunit_init();
 
     // Queue the gracht job up ot allow for server initialization first. This should be
     // queued before the main initializer, as that will most likely register gracht protocols,
     // and that needs gracht server and client to be setup
-    usched_job_queue(__gracht_job, NULL);
+    usched_job_queue(__StartGrachtServer, NULL);
 
     // Enter the eternal program loop. This will execute jobs untill exit() is called.
     // We use ServiceInitialize as the programs main function, we expect it to return relatively quick
     // and should be only used to initialize service subsystems.
-    usched_xunit_main_loop(__crt_module_load, &g_moduleOptions);
+    usched_xunit_main_loop(__ModuleMain, NULL);
 }

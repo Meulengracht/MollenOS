@@ -8,7 +8,7 @@
 
 int mbtowc(
 	wchar_t *__restrict pwc,
-	__CONST char *__restrict s,
+	const char *__restrict s,
 	size_t n)
 {
 #ifdef _MB_CAPABLE
@@ -37,7 +37,7 @@ int mbtowc(
 
 int _mbtowc_r(
 	wchar_t *__restrict pwc, 
-	__CONST char *__restrict s, 
+	const char *__restrict s,
 	size_t n, 
 	mbstate_t *state)
 {

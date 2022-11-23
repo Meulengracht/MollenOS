@@ -110,7 +110,7 @@ static int wchar2digit(wchar_t c, int base) {
 
 int fscanf(
     _In_ FILE *file, 
-    _In_ __CONST char *format, 
+    _In_ const char *format,
     ...)
 {
     va_list valist;
@@ -123,7 +123,7 @@ int fscanf(
 }
 
 int scanf(
-    _In_ __CONST char *format, 
+    _In_ const char *format,
     ...)
 {
     va_list valist;
@@ -137,7 +137,7 @@ int scanf(
 
 int fwscanf(
     _In_ FILE *file, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format,
     ...)
 {
     va_list valist;
@@ -150,7 +150,7 @@ int fwscanf(
 }
 
 int wscanf(
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format,
     ...)
 {
     va_list valist;
@@ -163,8 +163,8 @@ int wscanf(
 }
 
 int sscanf(
-    _In_ __CONST char *str, 
-    _In_ __CONST char *format, 
+    _In_ const char *str,
+    _In_ const char *format,
     ...)
 {
     va_list valist;
@@ -177,8 +177,8 @@ int sscanf(
 }
 
 int swscanf(
-    _In_ __CONST wchar_t *str, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *str,
+    _In_ const wchar_t *format,
     ...)
 {
     va_list valist;
@@ -191,7 +191,7 @@ int swscanf(
 }
 
 int vscanf(
-    _In_ __CONST char *format,
+    _In_ const char *format,
     _In_ va_list vlist)
 {
     return vcscanf_l(format, NULL, vlist);
@@ -199,15 +199,15 @@ int vscanf(
 
 int vfscanf(
     FILE *stream,
-    __CONST char *format, 
+    const char *format,
     va_list vlist)
 {
     return vfscanf_l(stream, format, NULL, vlist);
 }
 
 int vsscanf(
-    __CONST char *buffer,
-    __CONST char *format, 
+    const char *buffer,
+    const char *format,
     va_list vlist )
 {
     return vsscanf_l(buffer, format, NULL, vlist);
@@ -222,15 +222,15 @@ int vwscanf(
 
 int vfwscanf(
     FILE *stream,
-    __CONST wchar_t *format,
+    const wchar_t *format,
     va_list vlist )
 {
     return vfwscanf_l(stream, format, NULL, vlist);
 }
 
 int vswscanf(
-    __CONST wchar_t *buffer,
-    __CONST wchar_t *format,
+    const wchar_t *buffer,
+    const wchar_t *format,
     va_list vlist )
 {
     return vswscanf_l(buffer, format, NULL, vlist);

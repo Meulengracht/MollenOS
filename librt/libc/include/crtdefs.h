@@ -137,10 +137,6 @@
 #define __EXTERN extern
 #endif
 
-#ifndef __CONST
-#define __CONST const
-#endif
-
 #ifndef _CODE_TAGS
 #define _CODE_TAGS
 #ifdef __cplusplus
@@ -162,14 +158,14 @@
 #ifndef SERVICEAPI
 #define SERVICEAPI static __inline
 #define SERVICEABI __STDC_CONVENTION
-#endif
+#endif //!SERVICEAPI
 
 /* Kernel Export for Modules */
 #ifndef KERNELAPI
 #define KERNELAPI __EXTERN
 #define KERNELABI __STDC_CONVENTION
-#endif
-#endif
+#endif //!KERNELAPI
+#endif //MOLLENOS
 
 #if (defined (__clang__))
 #define PACKED_STRUCT(name, body) struct __attribute__((packed)) name body 
@@ -191,10 +187,6 @@
 #error Please define packed struct for the used compiler
 #endif
 
-#ifndef _Check_return_
-#define _Check_return_
-#endif
-
 #ifndef _In_
 #define _In_
 #define _In_Opt_
@@ -212,27 +204,6 @@
 
 #ifndef _M_IX86
 #define _M_IX86 600
-#endif
-
-#ifndef _CRTIMP_PURE
- #define _CRTIMP_PURE _CRTIMP
-#endif
-
-#ifndef _CRTIMP_ALTERNATIVE
- #define _CRTIMP_ALTERNATIVE _CRTIMP
- #define _CRT_ALTERNATIVE_IMPORTED
-#endif
-
-#ifndef _CRTIMP_NOIA64
- #ifdef __ia64__
-  #define _CRTIMP_NOIA64
- #else
-  #define _CRTIMP_NOIA64 _CRTIMP
- #endif
-#endif
-
-#ifndef _CONST_RETURN
- #define _CONST_RETURN
 #endif
 
 #ifndef UNALIGNED
@@ -275,16 +246,6 @@
 
 #ifndef _CRT_UNUSED
 #define _CRT_UNUSED(x) (void)x
-#endif
-
-/** Deprecated ***************************************************************/
-
-#ifdef __GNUC__
-#define _CRT_DEPRECATE_TEXT(_Text) __attribute__ ((deprecated))
-#elif defined(_MSC_VER)
-#define _CRT_DEPRECATE_TEXT(_Text) __declspec(deprecated(_Text))
-#else
-#define _CRT_DEPRECATE_TEXT(_Text)
 #endif
 
 /* Sometimes it's necessary to define __LITTLE_ENDIAN explicitly

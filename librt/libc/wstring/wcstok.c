@@ -97,7 +97,7 @@ QUICKREF
 #include <wchar.h>
 
 wchar_t *wcstok(wchar_t *__restrict source,
-	__CONST wchar_t *__restrict delimiters,
+	const wchar_t *__restrict delimiters,
 	wchar_t **__restrict lasts)
 {
 	register const wchar_t *spanp;

@@ -47,7 +47,7 @@ effects vary with the locale.
 #include "../local.h"
 
 int _mblen_r(
-  __CONST char *s,
+  const char *s,
   size_t n,
   mbstate_t *state)
 {

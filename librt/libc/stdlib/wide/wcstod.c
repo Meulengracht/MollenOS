@@ -161,14 +161,14 @@ Supporting OS subroutines required: <<close>>, <<fstat>>, <<isatty>>,
 #include "../mprec.h"
 
 double
-_wcstod_l (__CONST wchar_t *nptr, wchar_t **endptr,
+_wcstod_l (const wchar_t *nptr, wchar_t **endptr,
 	   locale_t loc)
 {
-        static __CONST mbstate_t initial;
+        static const mbstate_t initial;
         mbstate_t mbs;
         double val;
         char *buf, *end;
-        __CONST wchar_t *wcp;
+        const wchar_t *wcp;
         size_t len;
 
         while (iswspace_l(*nptr, loc))
@@ -232,14 +232,14 @@ _wcstod_l (__CONST wchar_t *nptr, wchar_t **endptr,
 }
 
 double _wcstod_r(
-	__CONST wchar_t *nptr,
+	const wchar_t *nptr,
 	wchar_t **endptr)
 {
   return _wcstod_l (nptr, endptr, __get_current_locale ());
 }
 
 float _wcstof_r(
-	__CONST wchar_t *nptr,
+	const wchar_t *nptr,
 	wchar_t **endptr)
 {
   double retval = _wcstod_l (nptr, endptr, __get_current_locale ());
@@ -248,21 +248,21 @@ float _wcstof_r(
   return (float)retval;
 }
 
-double wcstod_l (__CONST wchar_t *__restrict nptr, wchar_t **__restrict endptr,
+double wcstod_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
 	  locale_t loc)
 {
   return _wcstod_l (nptr, endptr, loc);
 }
 
 double wcstod(
-  __CONST wchar_t *__restrict nptr,
+  const wchar_t *__restrict nptr,
   wchar_t **__restrict endptr)
 {
   return _wcstod_l (nptr, endptr, __get_current_locale ());
 }
 
 float
-wcstof_l (__CONST wchar_t *__restrict nptr, wchar_t **__restrict endptr,
+wcstof_l (const wchar_t *__restrict nptr, wchar_t **__restrict endptr,
 	  locale_t loc)
 {
   double val = _wcstod_l (nptr, endptr, loc);
@@ -277,7 +277,7 @@ wcstof_l (__CONST wchar_t *__restrict nptr, wchar_t **__restrict endptr,
 }
 
 float wcstof(
-	__CONST wchar_t *__restrict nptr,
+	const wchar_t *__restrict nptr,
 	wchar_t **__restrict endptr)
 {
   double val = _wcstod_l (nptr, endptr, __get_current_locale ());

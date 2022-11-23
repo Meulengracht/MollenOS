@@ -5,7 +5,7 @@
 
 int vfprintf(
     _In_ FILE *file, 
-    _In_ __CONST char *format, 
+    _In_ const char *format,
     _In_ va_list argptr)
 {
     int result;

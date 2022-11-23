@@ -48,7 +48,7 @@ __crt_get_service_server(void)
 }
 
 static void
-__gracht_job(void* argument, void* cancellationToken)
+__StartGrachtServer(void* argument, void* cancellationToken)
 {
     struct ioset_event            events[32];
     int                           num_events;
@@ -107,15 +107,10 @@ __gracht_job(void* argument, void* cancellationToken)
 
 static void __crt_service_init(void)
 {
-    // Initialize the userspace scheduler to support request based
-    // services in an async matter, and do this before we call ServiceInitialize
-    // as the service might queue tasks up on load.
-    usched_xunit_init();
-
     // Queue the gracht job up ot allow for server initialization first. This should be
     // queued before the main initializer, as that will most likely register gracht protocols,
     // and that needs gracht server and client to be setup
-    usched_job_queue(__gracht_job, NULL);
+    usched_job_queue(__StartGrachtServer, NULL);
 
     // Enter the eternal program loop. This will execute jobs untill exit() is called.
     // We use ServiceInitialize as the programs main function, we expect it to return relatively quick

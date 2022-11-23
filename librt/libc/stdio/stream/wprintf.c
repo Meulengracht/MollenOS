@@ -2,7 +2,7 @@
 #include <stdarg.h>
 
 int wprintf(
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format,
     ...)
 {
     va_list argptr;

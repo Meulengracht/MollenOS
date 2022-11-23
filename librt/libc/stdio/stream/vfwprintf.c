@@ -5,7 +5,7 @@
 
 int vfwprintf(
     _In_ FILE* file, 
-    _In_ __CONST wchar_t *format, 
+    _In_ const wchar_t *format,
     _In_ va_list argptr)
 {
     int ret;
