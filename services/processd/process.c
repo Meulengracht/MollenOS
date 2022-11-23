@@ -174,11 +174,11 @@ PmInitialize(void)
     hashtable_construct(&g_processes, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct process_entry), process_hash,
                         process_cmp);
-    usched_mtx_init(&g_processesLock);
+    usched_mtx_init(&g_processesLock, USCHED_MUTEX_PLAIN);
     hashtable_construct(&g_processHistory, HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct process_history_entry), processhistory_hash,
                         processhistory_cmp);
-    usched_mtx_init(&g_processHistoryLock);
+    usched_mtx_init(&g_processHistoryLock, USCHED_MUTEX_PLAIN);
 }
 
 static oserr_t
@@ -294,7 +294,7 @@ __ProcessNew(
     process->state = ProcessState_RUNNING;
     process->image = image;
     memcpy(&process->config, config, sizeof(ProcessConfiguration_t));
-    usched_mtx_init(&process->lock);
+    usched_mtx_init(&process->lock, USCHED_MUTEX_PLAIN);
     list_construct(&process->requests);
 
     process->path = mstr_clone(process->image->FullPath);

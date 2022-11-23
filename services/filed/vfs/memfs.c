@@ -172,7 +172,7 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int 
         return NULL;
     }
 
-    usched_mtx_init(&entry->Mutex);
+    usched_mtx_init(&entry->Mutex, USCHED_MUTEX_PLAIN);
     entry->Owner = UUID_INVALID;
     return entry;
 }

@@ -177,14 +177,14 @@ HciTimerCallback(
 
 void
 OhciSetMode(
-    _In_ OhciController_t* Controller, 
-    _In_ reg32_t           Mode)
+    _In_ OhciController_t* controller,
+    _In_ reg32_t           mode)
 {
     // Read in value, mask it off, then update
-    reg32_t Value = READ_VOLATILE(Controller->Registers->HcControl);
-    Value                            &= ~(OHCI_CONTROL_SUSPEND);
-    Value                            |= Mode;
-    WRITE_VOLATILE(Controller->Registers->HcControl, Value);
+    reg32_t value = READ_VOLATILE(controller->Registers->HcControl);
+    value &= ~(OHCI_CONTROL_SUSPEND);
+    value |= mode;
+    WRITE_VOLATILE(controller->Registers->HcControl, value);
 }
 
 oserr_t
@@ -240,31 +240,31 @@ oserr_t
 OhciReset(
     _In_ OhciController_t* Controller)
 {
-    reg32_t Temporary = 0;
-    reg32_t FmInt     = 0;
-    int     i         = 0;
+    reg32_t tempValue;
+    reg32_t fmInterval;
+    int     i = 0;
 
     TRACE("OhciReset()");
 
     // Verify HcFmInterval and store the original value
-    FmInt = READ_VOLATILE(Controller->Registers->HcFmInterval);
+    fmInterval = READ_VOLATILE(Controller->Registers->HcFmInterval);
 
     // What the hell? You are supposed to be able 
     // to set this yourself!
-    if (OHCI_FMINTERVAL_GETFSMP(FmInt) == 0) {
-        FmInt |= OHCI_FMINTERVAL_FSMP(FmInt) << 16;
+    if (OHCI_FMINTERVAL_GETFSMP(fmInterval) == 0) {
+        fmInterval |= OHCI_FMINTERVAL_FSMP(fmInterval) << 16;
     }
 
     // Sanitize the FI.. this should also be set but there
     // are cases it isn't....
-    if ((FmInt & OHCI_FMINTERVAL_FIMASK) == 0) {
-        FmInt |= OHCI_FMINTERVAL_FI;
+    if ((fmInterval & OHCI_FMINTERVAL_FIMASK) == 0) {
+        fmInterval |= OHCI_FMINTERVAL_FI;
     }
 
     // We should check here if HcControl has RemoteWakeup Connected 
     // and then set device to remote wake capable
     // Disable interrupts during this reset
-    TRACE(" > Suspending controller");
+    TRACE("OhciReset suspending controller");
     WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Suspend the controller just in case it's running
@@ -273,9 +273,9 @@ OhciReset(
     thrd_sleep2(10);
 
     // Toggle bit 0 to initiate a reset
-    Temporary = READ_VOLATILE(Controller->Registers->HcCommandStatus);
-    Temporary |= OHCI_COMMAND_RESET;
-    WRITE_VOLATILE(Controller->Registers->HcCommandStatus, Temporary);
+    tempValue = READ_VOLATILE(Controller->Registers->HcCommandStatus);
+    tempValue |= OHCI_COMMAND_RESET;
+    WRITE_VOLATILE(Controller->Registers->HcCommandStatus, tempValue);
 
     // Wait for reboot (takes maximum of 10 ms)
     // But the world is not perfect, given it up to 50
@@ -294,9 +294,9 @@ OhciReset(
     // and put it in Operational Mode
     //**************************************
 
-    // Restore the FmInt and toggle the FIT
-    FmInt ^= 0x80000000;
-    WRITE_VOLATILE(Controller->Registers->HcFmInterval, FmInt);
+    // Restore the fmInterval and toggle the FIT
+    fmInterval ^= 0x80000000;
+    WRITE_VOLATILE(Controller->Registers->HcFmInterval, fmInterval);
 
     // Setup the Hcca Address and initiate some members of the HCCA
     TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDMATable.entries[0].address);
@@ -323,22 +323,22 @@ OhciReset(
 
     // Set HcPeriodicStart to a value that is 90% of 
     // FrameInterval in HcFmInterval
-    Temporary = (FmInt & OHCI_FMINTERVAL_FIMASK);
-    WRITE_VOLATILE(Controller->Registers->HcPeriodicStart, (Temporary / 10U) * 9U);
+    tempValue = (fmInterval & OHCI_FMINTERVAL_FIMASK);
+    WRITE_VOLATILE(Controller->Registers->HcPeriodicStart, (tempValue / 10U) * 9U);
 
     // Clear Lists, Mode, Ratio and IR
-    Temporary = READ_VOLATILE(Controller->Registers->HcControl);
-    Temporary &= ~(OHCI_CONTROL_ALL_ACTIVE | OHCI_CONTROL_SUSPEND | OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_IR);
+    tempValue = READ_VOLATILE(Controller->Registers->HcControl);
+    tempValue &= ~(OHCI_CONTROL_ALL_ACTIVE | OHCI_CONTROL_SUSPEND | OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_IR);
 
     // Set Ratio (4:1) and Mode (Operational)
-    Temporary |= (OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_ACTIVE);
-    Temporary |= OHCI_CONTROL_PERIODIC_ACTIVE;
-    Temporary |= OHCI_CONTROL_ISOC_ACTIVE;
-    Temporary |= OHCI_CONTROL_REMOTEWAKE;
-    WRITE_VOLATILE(Controller->Registers->HcControl, Temporary);
+    tempValue |= (OHCI_CONTROL_RATIO_MASK | OHCI_CONTROL_ACTIVE);
+    tempValue |= OHCI_CONTROL_PERIODIC_ACTIVE;
+    tempValue |= OHCI_CONTROL_ISOC_ACTIVE;
+    tempValue |= OHCI_CONTROL_REMOTEWAKE;
+    WRITE_VOLATILE(Controller->Registers->HcControl, tempValue);
     
     Controller->QueuesActive = OHCI_CONTROL_PERIODIC_ACTIVE | OHCI_CONTROL_ISOC_ACTIVE;
-    TRACE(" > Wrote control 0x%x to controller", Temporary);
+    TRACE(" > Wrote control 0x%x to controller", tempValue);
     return OS_EOK;
 }
 
@@ -346,16 +346,16 @@ oserr_t
 OhciSetup(
     _In_ OhciController_t* Controller)
 {
-    reg32_t Temporary;
+    reg32_t tempValue;
     int     i;
 
     // Trace
     TRACE("OhciSetup()");
 
     // Retrieve the revision of the controller, we support 0x10 && 0x11
-    Temporary = READ_VOLATILE(Controller->Registers->HcRevision) & 0xFF;
-    if (Temporary != OHCI_REVISION1 && Temporary != OHCI_REVISION11) {
-        ERROR("Invalid OHCI Revision (0x%x)", Temporary);
+    tempValue = READ_VOLATILE(Controller->Registers->HcRevision) & 0xFF;
+    if (tempValue != OHCI_REVISION1 && tempValue != OHCI_REVISION11) {
+        ERROR("Invalid OHCI Revision (0x%x)", tempValue);
         return OS_EUNKNOWN;
     }
 
@@ -404,9 +404,9 @@ OhciSetup(
     }
 
     // Clear RhA
-    Temporary = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
-    Temporary &= ~(0x00000000 | OHCI_DESCRIPTORA_DEVICETYPE);
-    WRITE_VOLATILE(Controller->Registers->HcRhDescriptorA, Temporary);
+    tempValue = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
+    tempValue &= ~(0x00000000 | OHCI_DESCRIPTORA_DEVICETYPE);
+    WRITE_VOLATILE(Controller->Registers->HcRhDescriptorA, tempValue);
 
     // Get Power On Delay
     // PowerOnToPowerGoodTime (24 - 31)
@@ -414,19 +414,19 @@ OhciSetup(
     // accessing a powered-on Port of the Root Hub.
     // It is implementation-specific.  The unit of time is 2 ms.
     // The duration is calculated as POTPGT * 2 ms.
-    Temporary = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
-    Temporary >>= 24;
-    Temporary &= 0x000000FF;
-    Temporary *= 2;
+    tempValue = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
+    tempValue >>= 24;
+    tempValue &= 0x000000FF;
+    tempValue *= 2;
 
     // Anything under 100 ms is not good in OHCI
-    if (Temporary < 100) {
-        Temporary = 100;
+    if (tempValue < 100) {
+        tempValue = 100;
     }
-    Controller->PowerOnDelayMs = Temporary;
+    Controller->PowerOnDelayMs = tempValue;
 
     TRACE("Ports %u (power mode %u, power delay %u)",
-        Controller->Base.PortCount, Controller->PowerMode, Temporary);
+          Controller->Base.PortCount, Controller->PowerMode, tempValue);
     
     // Register the controller before starting
     if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {

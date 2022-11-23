@@ -19,7 +19,7 @@
 
 void usched_rwlock_init(struct usched_rwlock* lock)
 {
-    usched_mtx_init(&lock->sync_object);
+    usched_mtx_init(&lock->sync_object, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&lock->signal);
     lock->readers = 0;
 }

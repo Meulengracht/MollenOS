@@ -54,7 +54,7 @@ CreateRequest(struct gracht_message* message)
 
     request->id = atomic_fetch_add(&g_requestId, 1);
     gracht_server_defer_message(message, &request->message[0]);
-    usched_mtx_init(&request->lock);
+    usched_mtx_init(&request->lock, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&request->signal);
     return request;
 }

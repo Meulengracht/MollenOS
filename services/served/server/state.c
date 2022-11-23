@@ -204,7 +204,7 @@ oserr_t StateLoad(void)
     oserr_t oserr;
 
     // initialize globals
-    usched_mtx_init(&g_stateMutex);
+    usched_mtx_init(&g_stateMutex, USCHED_MUTEX_PLAIN);
     __StateConstruct(&g_globalState);
 
     oserr = __ReadState("/data/served/state.json", &stateData, &stateDataLength);

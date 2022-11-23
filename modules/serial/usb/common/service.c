@@ -18,6 +18,7 @@
  * - Contains the implementation of a shared controller manager
  *   for all the usb drivers
  */
+
 //#define __TRACE
 
 #include <ioset.h>
@@ -35,22 +36,23 @@ extern gracht_server_t* __crt_get_module_server(void);
 oserr_t
 OnLoad(void)
 {
-    // Register supported protocols
+    TRACE("OnLoad()");
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_driver_server_protocol);
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_usbhost_server_protocol);
     gracht_server_register_protocol(__crt_get_module_server(), &ctt_usbhub_server_protocol);
-    
     return UsbManagerInitialize();
 }
 
 void
 OnUnload(void)
 {
+    TRACE("OnUnload()");
     UsbManagerDestroy();
 }
 
 oserr_t OnEvent(struct ioset_event* event)
 {
+    TRACE("OnEvent()");
     if (event->events & IOSETSYN) {
         UsbManagerController_t* controller = event->data.context;
         unsigned int            value;
@@ -72,6 +74,7 @@ oserr_t
 OnRegister(
     _In_ Device_t* device)
 {
+    TRACE("OnRegister()");
     if (device == NULL) {
         ERROR("OnRegister: device provided was NULL");
         return OS_EINVALPARAMS;
@@ -96,6 +99,7 @@ oserr_t
 OnUnregister(
     _In_ Device_t *Device)
 {
+    TRACE("OnUnregister()");
     UsbManagerController_t* Controller = UsbManagerGetController(Device->Id);
     if (Controller == NULL) {
         return OS_EUNKNOWN;
@@ -107,6 +111,7 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid
 {
     UsbHcPortDescriptor_t   descriptor;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    TRACE("ctt_usbhub_query_port_invocation()");
     if (!controller) {
         ctt_usbhub_query_port_response(message, OS_EINVALPARAMS, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
         return;
@@ -119,8 +124,9 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid
 void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
     UsbHcPortDescriptor_t   descriptor;
-    oserr_t              status;
+    oserr_t                 status;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    TRACE("ctt_usbhub_reset_port_invocation()");
     if (!controller) {
         ctt_usbhub_reset_port_response(message, OS_EINVALPARAMS, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
         return;

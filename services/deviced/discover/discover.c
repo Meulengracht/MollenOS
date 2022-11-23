@@ -64,7 +64,7 @@ void
 DmDiscoverInitialize(void)
 {
     // Initialize all our dependencies first before we start discovering drivers
-    usched_mtx_init(&g_driversLock);
+    usched_mtx_init(&g_driversLock, USCHED_MUTEX_PLAIN);
 
     // Start parsing the ramdisk as that is all we have initially, do it in usched
     // context, so we spawn a job to do this. After discovering drivers, we want to do
@@ -105,7 +105,7 @@ DmDiscoverAddDriver(
     driver->state             = DmDriverState_NOTLOADED;
     driver->configuration     = driverConfig;
     list_construct(&driver->devices);
-    usched_mtx_init(&driver->devices_lock);
+    usched_mtx_init(&driver->devices_lock, USCHED_MUTEX_PLAIN);
 
     driver->path = mstr_clone(driverPath);
     if (!driver->path) {

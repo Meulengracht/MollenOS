@@ -59,7 +59,7 @@ oserr_t VFSInterfaceStartup(void)
     if (status) {
         return OS_EOOM;
     }
-    usched_mtx_init(&g_modulesMutex);
+    usched_mtx_init(&g_modulesMutex, USCHED_MUTEX_PLAIN);
     return OS_EOK;
 }
 
@@ -76,7 +76,7 @@ VFSInterfaceNew(
     }
 
     interface->DriverID = driverID;
-    usched_mtx_init(&interface->Lock);
+    usched_mtx_init(&interface->Lock, USCHED_MUTEX_PLAIN);
     if (operations) {
         memcpy(&interface->Operations, operations, sizeof(struct VFSOperations));
     }

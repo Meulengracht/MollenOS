@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C11-Support Threading Implementation
- * - Definitions, prototypes and information needed.
  */
 
 #ifndef __STDC_THREADS__
@@ -46,8 +40,8 @@ typedef uuid_t       thrd_t;
 
 _CODE_BEGIN
 
-//#define __OSCONFIG_GREEN_THREADS
-#ifdef __OSCONFIG_GREEN_THREADS
+//#define __OSCONFIG_C11_GREEN_THREADS_DISABLED
+#ifndef __OSCONFIG_C11_GREEN_THREADS_DISABLED
 #include <errno.h>
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
@@ -199,12 +193,12 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  * In such case, if remaining is not NULL, the remaining time duration is stored
  * into the object pointed to by remaining.
  *
- * @param[In]            duration Pointer to the duration to sleep for
+ * @param[In]            until Pointer to the UTC timestamp to sleep until
  * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
-static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
-    return __to_thrd_error(usched_job_sleep(duration, remaining));
+static inline int thrd_sleep(const struct timespec* until, struct timespec* remaining) {
+    return __to_thrd_error(usched_job_sleep(until, remaining));
 }
 
 /**
@@ -215,7 +209,7 @@ static inline int thrd_sleep(const struct timespec* duration, struct timespec* r
  * @return
  */
 static inline int mtx_init(mtx_t* mutex, int type) {
-    usched_mtx_init(mutex);
+    usched_mtx_init(mutex, type);
     return thrd_success;
 }
 
