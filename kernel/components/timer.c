@@ -100,14 +100,14 @@ static void __LinearTime(SystemTime_t* time, Integer64_t* linear)
         }
 
         // do the last conversion of days to seconds and return that value as a negative
-        linear->QuadPart = -(((days * SECSPERDAY) + seconds) * USEC_PER_SEC);
+        linear->QuadPart = -((days * SECSPERDAY) + seconds);
     } else {
         seconds = time->Second + (time->Minute * (int)SECSPERMIN) + (time->Hour * (int)SECSPERHOUR);
         days    = __days_before_month[isLeap][time->Month] + time->DayOfMonth;
         for (int i = 2000; i < time->Year; i++) {
             days += DAYSPERYEAR(i);
         }
-        linear->QuadPart = ((days * SECSPERDAY) + seconds) * USEC_PER_SEC;
+        linear->QuadPart = (days * SECSPERDAY) + seconds;
     }
 }
 

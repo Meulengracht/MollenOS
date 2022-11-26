@@ -351,7 +351,12 @@ int usched_job_signal(uuid_t jobID, int signal)
 int usched_job_sleep(const struct timespec* until, struct timespec* remaining)
 {
     union usched_timer_queue queue = { NULL };
+    struct usched_job*       current;
     int                      timer;
+
+    // set us blocked
+    current = __usched_get_scheduler()->current;
+    current->state = JobState_BLOCKED;
 
     timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_SLEEP);
     usched_job_yield();

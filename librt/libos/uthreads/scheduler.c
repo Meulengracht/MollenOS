@@ -373,8 +373,12 @@ static int __get_next_deadline(
                 currentDiff.tv_sec  = 0;
                 currentDiff.tv_nsec = 0;
             } else {
+                TRACE("current time %li:%li, deadline %li:%li",
+                      currentTime.tv_sec, currentTime.tv_nsec,
+                      timer->deadline.tv_sec, timer->deadline.tv_nsec);
                 timespec_diff(&currentTime, &timer->deadline , &currentDiff);
             }
+            TRACE("found active timer with deadline in %li:%li", currentDiff.tv_sec, currentDiff.tv_nsec);
 
             clock_t diff = (clock_t)((currentDiff.tv_sec * NSEC_PER_SEC) + (clock_t)currentDiff.tv_nsec);
             if (diff < shortest) {
