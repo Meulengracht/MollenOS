@@ -20,10 +20,11 @@
 #define	__IPCONTEXT_H__
 
 #include <os/types/ipc.h>
+#include <time.h>
 
 _CODE_BEGIN
 CRTDECL(int, ipcontext(unsigned int len, IPCAddress_t* addr));
-CRTDECL(int, ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, int timeout));
+CRTDECL(int, ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, const struct timespec* deadline));
 
 /**
  * @brief Recieve an IPC message from an IPC stream. Unless IPC_DONTWAIT is passed in flags this

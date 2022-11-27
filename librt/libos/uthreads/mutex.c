@@ -16,9 +16,9 @@
  *
  */
 
+#include <assert.h>
 #include <os/usched/job.h>
 #include <os/usched/mutex.h>
-#include <assert.h>
 #include "private.h"
 
 void usched_mtx_init(struct usched_mtx* mutex, int type)
@@ -32,7 +32,8 @@ void usched_mtx_init(struct usched_mtx* mutex, int type)
     mutex->queue      = NULL;
 }
 
-static int BlockAndWait(
+static int
+__BlockAndWait(
         struct usched_mtx*              mutex,
         struct usched_job*              current,
         const struct timespec *restrict until)
@@ -59,6 +60,11 @@ static int BlockAndWait(
         }
         spinlock_acquire(&mutex->lock);
     }
+
+    if (status == 0) {
+        // we got ownership, reset reference count
+        mutex->references = 1;
+    }
     return status;
 }
 
@@ -72,12 +78,11 @@ int usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restri
     assert(current != NULL);
 
     spinlock_acquire(&mutex->lock);
-    assert(mutex->owner != current);
     if (mutex->owner) {
         // support recursive mutexes
         if (mutex->owner == current && (mutex->type & MUTEX_RECURSIVE)) {
             mutex->references++;
-        } else if (BlockAndWait(mutex, current, until) == -1) {
+        } else if (__BlockAndWait(mutex, current, until) == -1) {
             errno  = ETIME;
             status = -1;
         }

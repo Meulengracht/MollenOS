@@ -38,13 +38,13 @@ IpcContextCreate(
         _Out_ void**  UserContextOut);
 
 /**
- * IpcContextSendMultiple
- * * 
+ * @brief
  */
 KERNELAPI oserr_t KERNELABI
 IpcContextSendMultiple(
-    _In_ IPCMessage_t** messages,
-    _In_ int            messageCount,
-    _In_ size_t         timeout);
+        _In_ IPCMessage_t**    messages,
+        _In_ int               messageCount,
+        _In_ OSTimestamp_t*    deadline,
+        _In_ OSAsyncContext_t* asyncContext);
 
 #endif //!__VALI_IPC_CONTEXT_H__

@@ -50,8 +50,7 @@
 #include <errno.h>
 #include <internal/_io.h>
 #include <inet/local.h>
-#include <os/mollenos.h>
-#include <string.h>
+#include <os/types/async.h>
 
 static inline unsigned int
 get_streambuffer_flags(int flags)
@@ -77,7 +76,7 @@ get_streambuffer_flags(int flags)
     return sb_options;
 }
 
-static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, int flags, unsigned int sb_options)
+static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
 {
     intmax_t numbytes = 0;
     int      i;
@@ -85,10 +84,10 @@ static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, 
     for (i = 0; i < msg->msg_iovlen; i++) {
         struct iovec* iov = &msg->msg_iov[i];
         TRACE("[libc] [socket] [recv] reading %" PRIuIN "bytes", iov->iov_len);
-        numbytes += streambuffer_stream_in(stream, iov->iov_base, iov->iov_len, sb_options);
+        numbytes += (intmax_t)streambuffer_stream_in(stream, iov->iov_base, iov->iov_len, rwOptions);
         TRACE("[libc] [socket] [recv] read %i bytes", numbytes);
         if (numbytes < iov->iov_len) {
-            if (!(flags & MSG_DONTWAIT)) {
+            if (!(rwOptions->flags & STREAMBUFFER_NO_BLOCK)) {
                 _set_errno(EPIPE);
                 numbytes = -1;
             }
@@ -105,29 +104,27 @@ static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, 
 // MSG_DONTWAIT     (Supported)
 // MSG_NOSIGNAL     (Ignored on Vali)
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
-static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int flags)
+static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
 {
-    streambuffer_t*   stream     = handle->object.data.socket.recv_buffer.buffer;
-    intmax_t          numbytes   = 0;
-    unsigned int      sb_options = get_streambuffer_flags(flags);
-    struct packethdr  packet;
-    int               i;
-    unsigned int      base, state;
+    streambuffer_t*           stream   = handle->object.data.socket.recv_buffer.buffer;
+    intmax_t                  numbytes = 0;
+    struct packethdr          packet;
+    int                       i;
+    streambuffer_packet_ctx_t packetCtx;
 
     // In case of stream sockets we simply just read as many bytes as requested
     // or available and return, unless WAITALL has been specified.
     if (handle->object.data.socket.type == SOCK_STREAM) {
-        return perform_recv_stream(stream, msg, flags, sb_options);
+        return perform_recv_stream(stream, msg, rwOptions);
     }
     
-    // Reading an packet is an atomic action and the entire packet must be read
+    // Reading a packet is an atomic action and the entire packet must be read
     // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
-    sb_options &= ~(STREAMBUFFER_ALLOW_PARTIAL);
-    
-    numbytes = streambuffer_read_packet_start(stream, sb_options, &base, &state);
+    rwOptions->flags &= ~(STREAMBUFFER_ALLOW_PARTIAL);
+    numbytes = (intmax_t)streambuffer_read_packet_start(stream, rwOptions, &packetCtx);
     if (numbytes < sizeof(struct packethdr)) {
         if (!numbytes) {
-            if (flags & MSG_WAITALL) {
+            if (!(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
                 _set_errno(EPIPE);
                 return -1;
             }
@@ -135,13 +132,13 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
         }
         
         // If we read an invalid number of bytes then something evil happened.
-        streambuffer_read_packet_end(stream, base, numbytes);
+        streambuffer_read_packet_end(&packetCtx);
         _set_errno(EPIPE);
         return -1;
     }
     
     // Reset the message flag so we can properly report status of message.
-    streambuffer_read_packet_data(stream, &packet, sizeof(struct packethdr), &state);
+    streambuffer_read_packet_data(&packet, sizeof(struct packethdr), &packetCtx);
     msg->msg_flags = packet.flags;
     
     // Handle the source address that is given in the packet
@@ -149,11 +146,11 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
         size_t bytes_to_copy    = MIN(msg->msg_namelen, packet.addresslen);
         size_t bytes_to_discard = packet.addresslen - bytes_to_copy;
         
-        streambuffer_read_packet_data(stream, msg->msg_name, bytes_to_copy, &state);
-        state += bytes_to_discard; // hack
+        streambuffer_read_packet_data(msg->msg_name, bytes_to_copy, &packetCtx);
+        packetCtx._state += bytes_to_discard; // hack
     }
     else {
-        state += packet.addresslen; // discard, hack
+        packetCtx._state += packet.addresslen; // discard, hack
         msg->msg_namelen = 0;
     }
     
@@ -163,11 +160,11 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
         size_t bytes_to_copy    = MIN(msg->msg_controllen, packet.controllen);
         size_t bytes_to_discard = packet.controllen - bytes_to_copy;
         
-        streambuffer_read_packet_data(stream, msg->msg_control, bytes_to_copy, &state);
-        state += bytes_to_discard; // hack
+        streambuffer_read_packet_data(msg->msg_control, bytes_to_copy, &packetCtx);
+        packetCtx._state += bytes_to_discard; // hack
     }
     else {
-        state += packet.controllen; // discard, hack
+        packetCtx._state += packet.controllen; // discard, hack
         msg->msg_controllen = 0;
     }
     
@@ -191,10 +188,10 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
                 iov_not_filled = 1;
             }
             
-            streambuffer_read_packet_data(stream, iov->iov_base, bytes_to_copy, &state);
+            streambuffer_read_packet_data(iov->iov_base, bytes_to_copy, &packetCtx);
             bytes_remaining -= bytes_to_copy;
         }
-        streambuffer_read_packet_end(stream, base, numbytes);
+        streambuffer_read_packet_end(&packetCtx);
         
         // The first special case is when there is more data available than we
         // requested, that means we simply trunc the data.
@@ -205,14 +202,14 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
         // The second case is a lot more complex, that means we are missing data
         // though we requested more, if WAITALL is set, then we need to keep reading
         // untill we read all the data
-        else if (!bytes_remaining && iov_not_filled && (flags & MSG_WAITALL)) {
+        else if (!bytes_remaining && iov_not_filled && !(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
             // However on message-based sockets, we must read datagrams as atomic
             // operations, and thus MSG_WAITALL has no effect as this is effectively
             // the standard mode of operation.
         }
     }
     else {
-        streambuffer_read_packet_end(stream, base, numbytes);
+        streambuffer_read_packet_end(&packetCtx);
         for (i = 0; i < msg->msg_iovlen; i++) {
             struct iovec* iov = &msg->msg_iov[i];
             iov->iov_len = 0;
@@ -223,9 +220,10 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, int fla
 
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    streambuffer_t* stream;
-    intmax_t        numbytes;
+    stdio_handle_t*  handle = stdio_handle_get(iod);
+    streambuffer_t*  stream;
+    intmax_t         numbytes;
+    OSAsyncContext_t asyncContext;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -247,8 +245,13 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         _set_errno(ESHUTDOWN);
         return 0; // Should return 0
     }
-    
-    numbytes = perform_recv(handle, msg_hdr, flags);
+
+    OSAsyncContextInitialize(&asyncContext);
+    numbytes = perform_recv(handle, msg_hdr, &(streambuffer_rw_options_t) {
+            .flags =  get_streambuffer_flags(flags),
+            &asyncContext,
+            NULL
+    });
     
     // Fill in the source address if one was provided already, and overwrite
     // the one provided by the packet.

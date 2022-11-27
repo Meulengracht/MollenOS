@@ -32,12 +32,20 @@
 oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
-    unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesRead;
     TRACE("stdio_pipe_op_read(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
 
-    bytesRead = streambuffer_stream_in(stream, buffer, length, options);
+    bytesRead = streambuffer_stream_in(
+            stream,
+            buffer,
+            length,
+            &(streambuffer_rw_options_t) {
+                .flags = handle->object.data.pipe.options,
+                .async_context = NULL,
+                .deadline = NULL
+            }
+    );
     *bytes_read = bytesRead;
     TRACE("stdio_pipe_op_read returns %" PRIuIN, bytesRead);
     return OS_EOK;
@@ -46,12 +54,20 @@ oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
 oserr_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
-    unsigned int    options = handle->object.data.pipe.options;
     size_t          bytesWritten;
     TRACE("stdio_pipe_op_write(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
 
-    bytesWritten = streambuffer_stream_out(stream, (void*)buffer, length, options);
+    bytesWritten = streambuffer_stream_out(
+            stream,
+            (void*)buffer,
+            length,
+            &(streambuffer_rw_options_t) {
+                    .flags = handle->object.data.pipe.options,
+                    .async_context = NULL,
+                    .deadline = NULL
+            }
+    );
     stdio_handle_activity(handle, IOSETIN); // Mark pipe for recieved data
 
     *bytes_written = bytesWritten;

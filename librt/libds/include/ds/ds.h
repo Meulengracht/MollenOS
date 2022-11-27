@@ -23,6 +23,7 @@
 #define __DATASTRUCTURES__
 
 #include <ds/dsdefs.h>
+#include <os/types/async.h>
 
 typedef struct OSFutexParameters OSFutexParameters_t;
 
@@ -37,7 +38,7 @@ DSDECL(void, dstrace(const char* fmt, ...));
 DSDECL(void, dswarning(const char* fmt, ...));
 DSDECL(void, dserror(const char* fmt, ...));
 
-DSDECL(void, dswait(OSFutexParameters_t*));
+DSDECL(void, dswait(OSFutexParameters_t*, OSAsyncContext_t*));
 DSDECL(void, dswake(OSFutexParameters_t*));
 
 #endif //!__DATASTRUCTURES__

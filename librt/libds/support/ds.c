@@ -75,12 +75,12 @@ void dsfree(void* pointer)
 #endif
 }
 
-void dswait(OSFutexParameters_t* params)
+void dswait(OSFutexParameters_t* params, OSAsyncContext_t* asyncContext)
 {
 #ifdef __LIBDS_KERNEL_BUILD
     ScFutexWait(NULL, params);
 #else
-    OSFutex(params, NULL);
+    OSFutex(params, asyncContext);
 #endif
 }
 

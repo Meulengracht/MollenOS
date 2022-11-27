@@ -60,9 +60,10 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
     return io_object->fd;
 }
 
-int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, int timeout)
+int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, const struct timespec* deadline)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
+    stdio_handle_t*  handle = stdio_handle_get(iod);
+    OSAsyncContext_t asyncContext;
     if (!handle) {
         _set_errno(EBADF);
         return -1;
@@ -72,23 +73,29 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, int 
         _set_errno(EBADFD);
         return -1;
     }
+    OSAsyncContextInitialize(&asyncContext);
     return OsErrToErrNo(
             IPCContextSend(
                     handle->object.handle,
                     addr,
                     data,
                     len,
-                    timeout
+                    deadline == NULL ? NULL : &(OSTimestamp_t) {
+                            .Seconds = deadline->tv_sec,
+                            .Nanoseconds = deadline->tv_nsec
+                        },
+                    &asyncContext
             )
     );
 }
 
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    size_t          bytesRead = 0;
-    oserr_t         oserr = OS_EINVALPARAMS;
-    int             status = -1;
+    stdio_handle_t*  handle = stdio_handle_get(iod);
+    size_t           bytesRead = 0;
+    oserr_t          oserr;
+    int              status = -1;
+    OSAsyncContext_t asyncContext;
     TRACE("iprecv(len=%u, flags=0x%x)");
 
     if (!handle || !buffer || !len) {
@@ -101,11 +108,13 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
         goto exit;
     }
 
+    OSAsyncContextInitialize(&asyncContext);
     oserr = IPCContextRecv(
             handle->object.data.ipcontext.stream,
             buffer,
             len,
             flags,
+            &asyncContext,
             fromHandle,
             &bytesRead
     );

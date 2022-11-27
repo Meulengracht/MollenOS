@@ -18,8 +18,9 @@
 #ifndef __OS_IPCCONTEXT_H__
 #define	__OS_IPCCONTEXT_H__
 
-#include <os/osdefs.h>
 #include <os/types/ipc.h>
+#include <os/types/async.h>
+#include <os/types/time.h>
 
 _CODE_BEGIN
 
@@ -49,11 +50,12 @@ IPCContextCreate(
  */
 CRTDECL(oserr_t,
 IPCContextSend(
-        _In_ uuid_t        handle,
-        _In_ IPCAddress_t* address,
-        _In_ const void*   data,
-        _In_ unsigned int  length,
-        _In_ int           timeout));
+        _In_ uuid_t            handle,
+        _In_ IPCAddress_t*     address,
+        _In_ const void*       data,
+        _In_ unsigned int      length,
+        _In_ OSTimestamp_t*    deadline,
+        _In_ OSAsyncContext_t* asyncContext));
 
 /**
  * @brief
@@ -67,12 +69,13 @@ IPCContextSend(
  */
 CRTDECL(oserr_t,
 IPCContextRecv(
-        _In_  void*        ipcContext,
-        _In_  void*        buffer,
-        _In_  unsigned int length,
-        _In_  int          flags,
-        _Out_ uuid_t*      fromHandle,
-        _Out_ size_t*      bytesReceived));
+        _In_  void*             ipcContext,
+        _In_  void*             buffer,
+        _In_  unsigned int      length,
+        _In_  int               flags,
+        _In_  OSAsyncContext_t* asyncContext,
+        _Out_ uuid_t*           fromHandle,
+        _Out_ size_t*           bytesReceived));
 
 _CODE_END
 #endif //!__OS_IPCCONTEXT_H__

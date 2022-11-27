@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -26,6 +24,8 @@
 #define __STREAMBUFFER_H__
 
 #include <ds/dsdefs.h>
+#include <os/types/async.h>
+#include <os/types/time.h>
 
 // Configuration flags for the stream
 #define STREAMBUFFER_MULTIPLE_READERS     0x1U
@@ -53,6 +53,19 @@ typedef struct streambuffer {
     
     uint8_t buffer[];
 } streambuffer_t;
+
+typedef struct streambuffer_packet_ctx {
+    streambuffer_t* _stream;
+    unsigned int    _base;
+    unsigned int    _state;
+    size_t          _length;
+} streambuffer_packet_ctx_t;
+
+typedef struct streambuffer_rw_options {
+    unsigned int      flags;
+    OSAsyncContext_t* async_context;
+    OSTimestamp_t*    deadline;
+} streambuffer_rw_options_t;
 
 DSDECL(void,
 streambuffer_construct(
@@ -93,57 +106,49 @@ streambuffer_get_bytes_available_out(
 
 DSDECL(size_t,
 streambuffer_stream_out(
-    _In_ streambuffer_t* stream,
-    _In_ void*           buffer,
-    _In_ size_t          length,
-    _In_ unsigned int    options));
+        _In_ streambuffer_t*            stream,
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_rw_options_t* options));
 
 DSDECL(size_t,
 streambuffer_write_packet_start(
-    _In_  streambuffer_t* stream,
-    _In_  size_t          length,
-    _In_  unsigned int    options,
-    _Out_ unsigned int*   base_out,
-    _Out_ unsigned int*   state_out));
+        _In_ streambuffer_t*            stream,
+        _In_ size_t                     length,
+        _In_ streambuffer_rw_options_t* options,
+        _In_ streambuffer_packet_ctx_t* packetCtx));
 
 DSDECL(void,
 streambuffer_write_packet_data(
-    _In_    streambuffer_t* stream,
-    _In_    void*           buffer,
-    _In_    size_t          length,
-    _InOut_ unsigned int*   state));
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_packet_ctx_t* packetCtx));
 
 DSDECL(void,
 streambuffer_write_packet_end(
-    _In_ streambuffer_t* stream,
-    _In_ unsigned int    base,
-    _In_ size_t          length));
+        _In_ streambuffer_packet_ctx_t* packetCtx));
 
 DSDECL(size_t,
 streambuffer_stream_in(
-    _In_ streambuffer_t* stream,
-    _In_ void*           buffer,
-    _In_ size_t          length,
-    _In_ unsigned int    options));
+        _In_ streambuffer_t*            stream,
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_rw_options_t* options));
 
 DSDECL(size_t,
 streambuffer_read_packet_start(
-    _In_  streambuffer_t* stream,
-    _In_  unsigned int    options,
-    _Out_ unsigned int*   base_out,
-    _Out_ unsigned int*   state_out));
+        _In_ streambuffer_t*            stream,
+        _In_ streambuffer_rw_options_t* options,
+        _In_ streambuffer_packet_ctx_t* packetCtx));
 
 DSDECL(void,
 streambuffer_read_packet_data(
-    _In_    streambuffer_t* stream,
-    _In_    void*           buffer,
-    _In_    size_t          length,
-    _InOut_ unsigned int*   state));
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_packet_ctx_t* packetCtx));
 
 DSDECL(void,
 streambuffer_read_packet_end(
-    _In_ streambuffer_t* stream,
-    _In_ unsigned int    base,
-    _In_ size_t          length));
+        _In_ streambuffer_packet_ctx_t* packetCtx));
 
 #endif //!__RINGBUFFER_H__

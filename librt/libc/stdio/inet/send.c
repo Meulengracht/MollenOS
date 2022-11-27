@@ -29,7 +29,7 @@
 #include <os/mollenos.h>
 #include <string.h>
 
-static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, unsigned int sb_options)
+static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
 {
     streambuffer_t* stream    = handle->object.data.socket.send_buffer.buffer;
     size_t          total_len = 0;
@@ -38,7 +38,7 @@ static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr*
     for (i = 0; i < msg->msg_iovlen; i++) {
         struct iovec* iov            = &msg->msg_iov[i];
         size_t        bytes_streamed = streambuffer_stream_out(stream, 
-            iov->iov_base, iov->iov_len, sb_options);
+            iov->iov_base, iov->iov_len, rwOptions);
         if (!bytes_streamed) {
             break;
         }
@@ -46,10 +46,10 @@ static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr*
     }
     
     stdio_handle_activity(handle, IOSETOUT);
-    return total_len;
+    return (intmax_t)total_len;
 }
 
-static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* msg, int flags, unsigned int sb_options)
+static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* msg, int flags, streambuffer_rw_options_t* rwOptions)
 {
     intmax_t         numbytes    = 0;
     size_t           payload_len = 0;
@@ -57,12 +57,12 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
     streambuffer_t*  stream      = handle->object.data.socket.send_buffer.buffer;
     struct packethdr packet;
     size_t           avail_len;
-    unsigned int     base, state;
+    streambuffer_packet_ctx_t packetCtx;
     int              i;
     
     // Writing an packet is an atomic action and the entire packet must be written
     // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
-    sb_options &= ~(STREAMBUFFER_ALLOW_PARTIAL);
+    rwOptions->flags &= ~(STREAMBUFFER_ALLOW_PARTIAL);
     
     // Otherwise we must build a packet, to do this we need to know the entire
     // length of the message before committing.
@@ -76,7 +76,7 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
     packet.payloadlen = payload_len;
     
     avail_len = streambuffer_write_packet_start(stream, 
-        meta_len + payload_len, sb_options, &base, &state);
+        meta_len + payload_len, rwOptions, &packetCtx);
     if (avail_len < (meta_len + payload_len)) {
         if (!(flags & MSG_DONTWAIT)) {
             _set_errno(EPIPE);
@@ -85,12 +85,12 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
         return 0;
     }
     
-    streambuffer_write_packet_data(stream, &packet, sizeof(struct packethdr), &state);
+    streambuffer_write_packet_data(&packet, sizeof(struct packethdr), &packetCtx);
     if (msg->msg_name && msg->msg_namelen) {
-        streambuffer_write_packet_data(stream, msg->msg_name, msg->msg_namelen, &state);
+        streambuffer_write_packet_data(msg->msg_name, msg->msg_namelen, &packetCtx);
     }
     if (msg->msg_control && msg->msg_controllen) {
-        streambuffer_write_packet_data(stream, msg->msg_control, msg->msg_controllen, &state);
+        streambuffer_write_packet_data(msg->msg_control, msg->msg_controllen, &packetCtx);
     }
     
     for (i = 0; i < msg->msg_iovlen; i++) {
@@ -100,12 +100,12 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
             break;
         }
         
-        streambuffer_write_packet_data(stream, iov->iov_base, iov->iov_len, &state);
+        streambuffer_write_packet_data(iov->iov_base, iov->iov_len, &packetCtx);
         
         meta_len += byte_count;
         numbytes += byte_count;
     }
-    streambuffer_write_packet_end(stream, base, avail_len);
+    streambuffer_write_packet_end(&packetCtx);
     stdio_handle_activity(handle, IOSETOUT);
     return numbytes;
 }
@@ -121,28 +121,34 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
 static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
 {
-    unsigned int sb_options = 0;
+    OSAsyncContext_t          asyncContext;
+    streambuffer_rw_options_t rwOptions = {
+            .flags = 0,
+            .async_context = &asyncContext,
+            .deadline = NULL
+    };
     
     if (flags & MSG_OOB) {
-        sb_options |= STREAMBUFFER_PRIORITY;
+        rwOptions.flags |= STREAMBUFFER_PRIORITY;
     }
     
     if (flags & MSG_DONTWAIT) {
-        sb_options |= STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL;
+        rwOptions.flags |= STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL;
     }
     
     // For stream sockets we don't need to build the packet header. Simply just
     // write all the bytes possible to the send socket and return
+    OSAsyncContextInitialize(&asyncContext);
     if (handle->object.data.socket.type == SOCK_STREAM) {
-        return perform_send_stream(handle, msg, sb_options);
+        return perform_send_stream(handle, msg, &rwOptions);
     }
-    return perform_send_msg(handle, msg, flags, sb_options);
+    return perform_send_msg(handle, msg, flags, &rwOptions);
 }
 
 intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    streambuffer_t* stream;
+    stdio_handle_t*  handle = stdio_handle_get(iod);
+    streambuffer_t*  stream;
     
     if (!handle) {
         _set_errno(EBADF);

@@ -168,8 +168,16 @@ HandleSocketStreamData(
     }
     while (1) {
         if (DoRead) {
-            BytesRead = streambuffer_stream_in(SourceStream, &TemporaryBuffer[0], 
-                sizeof(TemporaryBuffer), STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
+            BytesRead = streambuffer_stream_in(
+                    SourceStream,
+                    &TemporaryBuffer[0],
+                    sizeof(TemporaryBuffer),
+                    &(streambuffer_rw_options_t) {
+                        .flags = STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL,
+                        .async_context = NULL,
+                        .deadline = NULL
+                    }
+            );
             TRACE("[socket] [local] [send_stream] read %" PRIuIN " bytes from source", BytesRead);
             if (!BytesRead) {
                 // This can happen if the first event or last event got out of sync
@@ -180,8 +188,16 @@ HandleSocketStreamData(
         }
         DoRead = 1;
         
-        BytesWritten = streambuffer_stream_out(TargetStream, &TemporaryBuffer[0], 
-            BytesRead, STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL);
+        BytesWritten = streambuffer_stream_out(
+                TargetStream,
+                &TemporaryBuffer[0],
+                BytesRead,
+                &(streambuffer_rw_options_t) {
+                    .flags = STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL,
+                    .async_context = NULL,
+                    .deadline = NULL
+                }
+        );
         TRACE("[socket] [local] [send_stream] wrote %" PRIuIN " bytes to target", BytesWritten);
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
@@ -251,24 +267,31 @@ static oserr_t
 HandleSocketPacketData(
     _In_ Socket_t* Socket)
 {
-    streambuffer_t* SourceStream = GetSocketSendStream(Socket);
-    Socket_t*       TargetSocket;
-    unsigned int    Base, State;
-    void*           Buffer;
-    size_t          BytesRead;
-    int             DoRead = 1;
+    streambuffer_t*           sourceStream = GetSocketSendStream(Socket);
+    Socket_t*                 targetSocket;
+    void*                     buffer;
+    size_t                    bytesRead;
+    int                       doRead = 1;
+    streambuffer_packet_ctx_t packetCtx;
     TRACE("[socket] [local] [send_packet]");
-    
-    BytesRead = SocketGetQueuedPacket(Socket, &Buffer);
-    if (BytesRead) {
-        DoRead = 0;
+
+    bytesRead = SocketGetQueuedPacket(Socket, &buffer);
+    if (bytesRead) {
+        doRead = 0;
     }
     
     while (1) {
-        if (DoRead) {
-            BytesRead = streambuffer_read_packet_start(SourceStream, 
-                STREAMBUFFER_NO_BLOCK, &Base, &State);
-            if (!BytesRead) {
+        if (doRead) {
+            bytesRead = streambuffer_read_packet_start(
+                    sourceStream,
+                    &(streambuffer_rw_options_t) {
+                        .flags = STREAMBUFFER_NO_BLOCK,
+                        .async_context = NULL,
+                        .deadline = NULL
+                    },
+                    &packetCtx
+            );
+            if (!bytesRead) {
                 TRACE("[socket] [local] [send_packet] no bytes read from stream");
                 break;
             }
@@ -276,38 +299,46 @@ HandleSocketPacketData(
             // Read the entire packet in one go, then process the data. Due to possible
             // alterations in the data, like having to add an address that was not provided
             // we would like to allocate extra space for the address
-            Buffer = malloc(BytesRead + sizeof(struct sockaddr_lc));
-            if (!Buffer) {
+            buffer = malloc(bytesRead + sizeof(struct sockaddr_lc));
+            if (!buffer) {
                 ERROR("[socket] [local] [send_packet] out of memory, failed to allocate buffer");
                 return OS_EOOM;
             }
             
-            streambuffer_read_packet_data(SourceStream, Buffer, BytesRead, &State);
-            streambuffer_read_packet_end(SourceStream, Base, BytesRead);
+            streambuffer_read_packet_data(buffer, bytesRead, &packetCtx);
+            streambuffer_read_packet_end(&packetCtx);
         }
         else {
-            DoRead = 1;
+            doRead = 1;
         }
-        
-        TargetSocket = ProcessSocketPacket(Socket, Buffer, BytesRead);
-        if (TargetSocket) {
-            streambuffer_t* TargetStream = GetSocketRecvStream(TargetSocket);
-            size_t          BytesWritten = streambuffer_write_packet_start(TargetStream,
-                BytesRead, STREAMBUFFER_NO_BLOCK, &Base, &State);
+
+        targetSocket = ProcessSocketPacket(Socket, buffer, bytesRead);
+        if (targetSocket) {
+            streambuffer_t* TargetStream = GetSocketRecvStream(targetSocket);
+            size_t          BytesWritten = streambuffer_write_packet_start(
+                    TargetStream,
+                    bytesRead,
+                    &(streambuffer_rw_options_t) {
+                            .flags = STREAMBUFFER_NO_BLOCK,
+                            .async_context = NULL,
+                            .deadline = NULL
+                    },
+                    &packetCtx
+            );
             if (!BytesWritten) {
-                WARNING("[socket] [local] [send_packet] ran out of space in target stream, requested %" PRIuIN, BytesRead);
-                SocketSetQueuedPacket(Socket, Buffer, BytesRead);
+                WARNING("[socket] [local] [send_packet] ran out of space in target stream, requested %" PRIuIN, bytesRead);
+                SocketSetQueuedPacket(Socket, buffer, bytesRead);
                 break;
             }
             
-            streambuffer_write_packet_data(TargetStream, Buffer, BytesRead, &State);
-            streambuffer_write_packet_end(TargetStream, Base, BytesRead);
-            OSNotificationQueuePost((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+            streambuffer_write_packet_data(buffer, bytesRead, &packetCtx);
+            streambuffer_write_packet_end(&packetCtx);
+            OSNotificationQueuePost((uuid_t)(uintptr_t)targetSocket->Header.key, IOSETIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
         }
-        free(Buffer);
+        free(buffer);
     }
     return OS_EOK;
 }

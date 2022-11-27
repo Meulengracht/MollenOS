@@ -63,11 +63,12 @@ IPCContextCreate(
 
 oserr_t
 IPCContextSend(
-        _In_ uuid_t        handle,
-        _In_ IPCAddress_t* address,
-        _In_ const void*   data,
-        _In_ unsigned int  length,
-        _In_ int           timeout)
+        _In_ uuid_t            handle,
+        _In_ IPCAddress_t*     address,
+        _In_ const void*       data,
+        _In_ unsigned int      length,
+        _In_ OSTimestamp_t*    deadline,
+        _In_ OSAsyncContext_t* asyncContext)
 {
     IPCMessage_t  msg;
     IPCMessage_t* msgArray = &msg;
@@ -81,44 +82,48 @@ IPCContextSend(
     msg.Address      = address;
     msg.Payload      = data;
     msg.Length       = length;
-    return Syscall_IpcContextSend(&msgArray, 1, timeout);
+    return Syscall_IpcContextSend(&msgArray, 1, deadline, asyncContext);
 }
 
 oserr_t
 IPCContextRecv(
-        _In_  void*        ipcContext,
-        _In_  void*        buffer,
-        _In_  unsigned int length,
-        _In_  int          flags,
-        _Out_ uuid_t*      fromHandle,
-        _Out_ size_t*      bytesReceived)
+        _In_  void*             ipcContext,
+        _In_  void*             buffer,
+        _In_  unsigned int      length,
+        _In_  int               flags,
+        _In_  OSAsyncContext_t* asyncContext,
+        _Out_ uuid_t*           fromHandle,
+        _Out_ size_t*           bytesReceived)
 {
-    size_t          bytesAvailable;
-    unsigned int    base;
-    unsigned int    state;
-    streambuffer_t* stream;
-    unsigned int    sbOptions = 0;
-    uuid_t          sender;
+    size_t                    bytesAvailable;
+    streambuffer_packet_ctx_t packetCtx;
+    streambuffer_t*           stream;
+    uuid_t                    sender;
+    streambuffer_rw_options_t rwOptions = {
+            .flags = 0,
+            .async_context = asyncContext,
+            .deadline = NULL
+    };
 
     if (ipcContext == NULL || buffer == NULL || length == 0) {
         return OS_EINVALPARAMS;
     }
 
     if (flags & IPC_DONTWAIT) {
-        sbOptions |= STREAMBUFFER_NO_BLOCK;
+        rwOptions.flags |= STREAMBUFFER_NO_BLOCK;
     }
     
     stream         = ipcContext;
-    bytesAvailable = streambuffer_read_packet_start(stream, sbOptions, &base, &state);
+    bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
     if (!bytesAvailable) {
         *fromHandle = UUID_INVALID;
         *bytesReceived = 0;
         return OS_EOK;
     }
 
-    streambuffer_read_packet_data(stream, &sender, sizeof(uuid_t), &state);
-    streambuffer_read_packet_data(stream, buffer, MIN(length, bytesAvailable - sizeof(uuid_t)), &state);
-    streambuffer_read_packet_end(stream, base, bytesAvailable);
+    streambuffer_read_packet_data(&sender, sizeof(uuid_t), &packetCtx);
+    streambuffer_read_packet_data(buffer, MIN(length, bytesAvailable - sizeof(uuid_t)), &packetCtx);
+    streambuffer_read_packet_end(&packetCtx);
 
     *fromHandle = sender;
     *bytesReceived = bytesAvailable;

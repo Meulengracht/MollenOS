@@ -219,10 +219,10 @@ streambuffer_get_bytes_available_out(
 
 size_t
 streambuffer_stream_out(
-    _In_ streambuffer_t* stream,
-    _In_ void*           buffer,
-    _In_ size_t          length,
-    _In_ unsigned int    options)
+        _In_ streambuffer_t*            stream,
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_rw_options_t* options)
 {
     const uint8_t*    casted_ptr    = (const uint8_t*)buffer;
     size_t              bytes_written = 0;
@@ -252,23 +252,23 @@ streambuffer_stream_out(
             bytes_writable(stream->capacity, read_index, write_index),
             length - bytes_written);
         size_t       bytes_comitted  = bytes_available;
-        if (!STREAMBUFFER_CAN_STREAM(stream, options, bytes_available, (length - bytes_written))) {
-            if (!STREAMBUFFER_CAN_BLOCK(options)) {
+        if (!STREAMBUFFER_CAN_STREAM(stream, options->flags, bytes_available, (length - bytes_written))) {
+            if (!STREAMBUFFER_CAN_BLOCK(options->flags)) {
                 break;
             }
             
-            parameters.Futex0  = (atomic_int*)&stream->consumer_comitted_index;
-            parameters.Expected0    = (int)read_index;
-            parameters.Deadline = NULL;
-            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0    = (atomic_int*)&stream->consumer_comitted_index;
+            parameters.Expected0 = (int)read_index;
+            parameters.Deadline  = options->deadline;
+            parameters.Flags     = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->producer_count, 1);
-            dswait(&parameters);
+            dswait(&parameters, options->async_context);
             continue; // Start over
         }
         
         // Handle overwrite, empty the queue by the needed amount of bytes
         if (bytes_available < (length - bytes_written)) {
-            streambuffer_try_truncate(stream, options, (length - bytes_written));
+            streambuffer_try_truncate(stream, options->flags, (length - bytes_written));
             continue;
         }
         
@@ -307,16 +307,15 @@ streambuffer_stream_out(
 
 size_t
 streambuffer_write_packet_start(
-    _In_  streambuffer_t* stream,
-    _In_  size_t          length,
-    _In_  unsigned int    options,
-    _Out_ unsigned int*   base_out,
-    _Out_ unsigned int*   state_out)
+        _In_ streambuffer_t*            stream,
+        _In_ size_t                     length,
+        _In_ streambuffer_rw_options_t* options,
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
     size_t              bytes_allocated = 0;
     OSFutexParameters_t parameters;
     size_t              adjusted_length;
-    sb_packethdr_t    header = { .packet_len = length };
+    sb_packethdr_t      header = { .packet_len = length };
     
     // Has the streambuffer been disabled?
     if (stream->options & STREAMBUFFER_DISABLED) {
@@ -342,16 +341,16 @@ streambuffer_write_packet_start(
             adjusted_length);
         
         if (bytes_available < adjusted_length) {
-            if (!STREAMBUFFER_CAN_BLOCK(options)) {
+            if (!STREAMBUFFER_CAN_BLOCK(options->flags)) {
                 break;
             }
             
-            parameters.Futex0  = (atomic_int*)&stream->consumer_comitted_index;
-            parameters.Expected0    = (int)read_index;
-            parameters.Deadline = NULL;
-            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0    = (atomic_int*)&stream->consumer_comitted_index;
+            parameters.Expected0 = (int)read_index;
+            parameters.Deadline  = options->deadline;
+            parameters.Flags     = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->producer_count, 1);
-            dswait(&parameters);
+            dswait(&parameters, options->async_context);
             continue; // Start over
         }
         
@@ -362,10 +361,15 @@ streambuffer_write_packet_start(
         }
         
         // Store base before writing the packet header
-        *base_out = write_index;
-        streambuffer_write_packet_data(stream, &header, sizeof(sb_packethdr_t), &write_index);
-        
-        *state_out      = write_index;
+        packetCtx->_stream = stream;
+        packetCtx->_base   = write_index;
+        packetCtx->_state  = write_index;
+        packetCtx->_length = header.packet_len;
+        streambuffer_write_packet_data(
+                &header,
+                sizeof(sb_packethdr_t),
+                packetCtx
+        );
         bytes_allocated = header.packet_len;
     }
     return bytes_allocated;
@@ -373,14 +377,14 @@ streambuffer_write_packet_start(
 
 void
 streambuffer_write_packet_data(
-    _In_  streambuffer_t* stream,
-    _In_  void*           buffer,
-    _In_  size_t          length,
-    _Out_ unsigned int*   state)
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
-    uint8_t*     casted_ptr    = (uint8_t*)buffer;
-    unsigned int write_index   = (*state % stream->capacity);
-    size_t       bytes_written = 0;
+    streambuffer_t* stream        = packetCtx->_stream;
+    uint8_t*        casted_ptr    = (uint8_t*)buffer;
+    unsigned int    write_index   = (packetCtx->_state % stream->capacity);
+    size_t          bytes_written = 0;
     
     while (length--) {
         // write_index++ & (stream->capacity - 1)
@@ -389,16 +393,15 @@ streambuffer_write_packet_data(
             write_index = 0;
         }
     }
-    
-    *state = write_index;
+
+    packetCtx->_state = write_index;
 }
 
 void
 streambuffer_write_packet_end(
-    _In_ streambuffer_t* stream,
-    _In_ unsigned int    base,
-    _In_ size_t          length)
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
+    streambuffer_t*     stream = packetCtx->_stream;
     OSFutexParameters_t parameters;
     size_t              adjusted_length;
     
@@ -406,14 +409,14 @@ streambuffer_write_packet_end(
     // the comitted index, otherwise we could end up telling readers that the wrong
     // index is readable. This can be skipped for single writer
     if (STREAMBUFFER_HAS_MULTIPLE_WRITERS(stream)) {
-        unsigned int write_index    = base;
+        unsigned int write_index    = packetCtx->_base;
         unsigned int current_commit = atomic_load(&stream->producer_comitted_index);
         while (current_commit < write_index) {
             current_commit = atomic_load(&stream->producer_comitted_index);
         }
     }
 
-    adjusted_length = length + sizeof(sb_packethdr_t);
+    adjusted_length = packetCtx->_length + sizeof(sb_packethdr_t);
     atomic_fetch_add(&stream->producer_comitted_index, adjusted_length);
     parameters.Expected0 = atomic_exchange(&stream->consumer_count, 0);
     if (parameters.Expected0 != 0) {
@@ -425,10 +428,10 @@ streambuffer_write_packet_end(
 
 size_t
 streambuffer_stream_in(
-    _In_ streambuffer_t* stream,
-    _In_ void*           buffer,
-    _In_ size_t          length,
-    _In_ unsigned int    options)
+        _In_ streambuffer_t*            stream,
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_rw_options_t* options)
 {
     uint8_t*          casted_ptr = (uint8_t*)buffer;
     size_t              bytes_read = 0;
@@ -453,17 +456,17 @@ streambuffer_stream_in(
             bytes_readable(stream->capacity, read_index, write_index), 
             length - bytes_read);
         size_t       bytes_comitted  = bytes_available;
-        if (!STREAMBUFFER_CAN_READ(options, bytes_available, (length - bytes_read))) {
-            if (!STREAMBUFFER_CAN_BLOCK(options)) {
+        if (!STREAMBUFFER_CAN_READ(options->flags, bytes_available, (length - bytes_read))) {
+            if (!STREAMBUFFER_CAN_BLOCK(options->flags)) {
                 break;
             }
             
-            parameters.Futex0  = (atomic_int*)&stream->producer_comitted_index;
-            parameters.Expected0    = (int)write_index;
-            parameters.Deadline = NULL;
-            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0    = (atomic_int*)&stream->producer_comitted_index;
+            parameters.Expected0 = (int)write_index;
+            parameters.Deadline  = options->deadline;
+            parameters.Flags     = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->consumer_count, 1);
-            dswait(&parameters);
+            dswait(&parameters, options->async_context);
             continue; // Start over
         }
 
@@ -503,12 +506,11 @@ streambuffer_stream_in(
 
 size_t
 streambuffer_read_packet_start(
-    _In_  streambuffer_t* stream,
-    _In_  unsigned int    options,
-    _Out_ unsigned int*   base_out,
-    _Out_ unsigned int*   state_out)
+        _In_ streambuffer_t*            stream,
+        _In_ streambuffer_rw_options_t* options,
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
-    size_t            bytes_read = 0;
+    size_t              bytes_read = 0;
     sb_packethdr_t      header;
     OSFutexParameters_t parameters;
     //streambuffer_dump(stream);
@@ -532,53 +534,61 @@ streambuffer_read_packet_start(
         // the number of bytes available, since we want to block as long as the entire packet
         // is not written into the pipe
         if (bytes_available) {
-            unsigned int temp_read_index = read_index;
-            streambuffer_read_packet_data(stream, &header, sizeof(sb_packethdr_t), &temp_read_index);
+            streambuffer_read_packet_data(
+                    &header,
+                    sizeof(sb_packethdr_t),
+                    &(streambuffer_packet_ctx_t) {
+                        ._stream = stream,
+                        ._state = read_index,
+                    }
+            );
             length = header.packet_len + sizeof(sb_packethdr_t);
         }
         bytes_available = MIN(bytes_available, length);
         
         if (bytes_available < length) {
-            if (!STREAMBUFFER_CAN_BLOCK(options)) {
+            if (!STREAMBUFFER_CAN_BLOCK(options->flags)) {
                 break;
             }
             
-            parameters.Futex0  = (atomic_int*)&stream->producer_comitted_index;
-            parameters.Expected0    = (int)write_index;
-            parameters.Deadline = NULL;
-            parameters.Flags   = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Futex0    = (atomic_int*)&stream->producer_comitted_index;
+            parameters.Expected0 = (int)write_index;
+            parameters.Deadline  = options->deadline;
+            parameters.Flags     = STREAMBUFFER_WAIT_FLAGS(stream);
             atomic_fetch_add(&stream->consumer_count, 1);
-            dswait(&parameters);
+            dswait(&parameters, options->async_context);
             continue; // Start over
         }
         
         // Perform the actual allocation if PEEK was not specified.
-        if (!(options & STREAMBUFFER_PEEK)) {
+        if (!(options->flags & STREAMBUFFER_PEEK)) {
             if (!atomic_compare_exchange_strong(&stream->consumer_index, 
                     &read_index, read_index + bytes_available)) {
                 continue;
             }
         }
-        
+
         // Set the base at the actual base, but adjust the state_index so the user
         // of this do not read the sb_packethdr_t instance
-        *base_out  = read_index;
-        *state_out = read_index + sizeof(sb_packethdr_t);
         bytes_read = bytes_available - sizeof(sb_packethdr_t);
+        packetCtx->_stream = stream;
+        packetCtx->_base   = read_index;
+        packetCtx->_state  = read_index + sizeof(sb_packethdr_t);
+        packetCtx->_length = bytes_read;
     }
     return bytes_read;
 }
 
 void
 streambuffer_read_packet_data(
-    _In_    streambuffer_t* stream,
-    _In_    void*           buffer,
-    _In_    size_t          length,
-    _InOut_ unsigned int*   state)
+        _In_ void*                      buffer,
+        _In_ size_t                     length,
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
-    uint8_t*     casted_ptr = (uint8_t*)buffer;
-    unsigned int read_index = (*state % stream->capacity);
-    size_t       bytes_read = 0;
+    streambuffer_t* stream = packetCtx->_stream;
+    uint8_t*        casted_ptr = (uint8_t*)buffer;
+    unsigned int    read_index = (packetCtx->_state % stream->capacity);
+    size_t          bytes_read = 0;
     
     // Write the data to the provided buffer
     while (length--) {
@@ -587,23 +597,22 @@ streambuffer_read_packet_data(
             read_index = 0;
         }
     }
-    
-    *state = read_index;
+
+    packetCtx->_state = read_index;
 }
 
 void
 streambuffer_read_packet_end(
-    _In_ streambuffer_t* stream,
-    _In_ unsigned int    base,
-    _In_ size_t          length)
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
     OSFutexParameters_t parameters;
+    streambuffer_t*     stream = packetCtx->_stream;
 
     // Synchronize with other consumers, we must wait for our turn to increament
     // the comitted index, otherwise we could end up telling writers that the wrong
     // index is writable. This can be skipped for single reader
     if (STREAMBUFFER_HAS_MULTIPLE_READERS(stream)) {
-        unsigned int read_index     = base;
+        unsigned int read_index     = packetCtx->_base;
         unsigned int current_commit = atomic_load(&stream->consumer_comitted_index);
         while (current_commit < read_index) {
             current_commit = atomic_load(&stream->consumer_comitted_index);
@@ -611,9 +620,9 @@ streambuffer_read_packet_end(
     }
 
     // Take into account an invisible instance of sb_packethdr_t
-    length += sizeof(sb_packethdr_t);
+    packetCtx->_length += sizeof(sb_packethdr_t);
     
-    atomic_fetch_add(&stream->consumer_comitted_index, length);
+    atomic_fetch_add(&stream->consumer_comitted_index, packetCtx->_length);
     parameters.Expected0 = atomic_exchange(&stream->producer_count, 0);
     if (parameters.Expected0 != 0) {
         parameters.Futex0 = (atomic_int*)&stream->consumer_comitted_index;
