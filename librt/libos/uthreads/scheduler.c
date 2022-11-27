@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 
 #include <assert.h>
@@ -373,12 +373,8 @@ static int __get_next_deadline(
                 currentDiff.tv_sec  = 0;
                 currentDiff.tv_nsec = 0;
             } else {
-                TRACE("current time %li:%li, deadline %li:%li",
-                      currentTime.tv_sec, currentTime.tv_nsec,
-                      timer->deadline.tv_sec, timer->deadline.tv_nsec);
                 timespec_diff(&currentTime, &timer->deadline , &currentDiff);
             }
-            TRACE("found active timer with deadline in %li:%li", currentDiff.tv_sec, currentDiff.tv_nsec);
 
             clock_t diff = (clock_t)((currentDiff.tv_sec * NSEC_PER_SEC) + (clock_t)currentDiff.tv_nsec);
             if (diff < shortest) {
@@ -498,6 +494,7 @@ void usched_timedwait(const struct timespec* until)
     struct ioset_event       events[2];
     int                      numEvents;
     oserr_t                  oserr;
+    TRACE("usched_timedwait()");
 
     // We have two handles in the notification queue, so we can be supplied
     // with *at most* two events. We can actually in detail detect which type
@@ -526,6 +523,7 @@ void usched_wait(void)
     struct ioset_event       events[2];
     int                      numEvents;
     oserr_t                  oserr;
+    TRACE("usched_wait()");
 
     // We have two handles in the notification queue, so we can be supplied
     // with *at most* two events. We can actually in detail detect which type

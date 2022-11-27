@@ -24,20 +24,23 @@
 
 oserr_t stdio_ipc_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    streambuffer_t* stream  = handle->object.data.ipcontext.stream;
-    unsigned int    options = handle->object.data.ipcontext.options;
-    unsigned int    base;
-    unsigned int    state;
-    size_t          bytesAvailable;
+    streambuffer_t*           stream = handle->object.data.ipcontext.stream;
+    streambuffer_packet_ctx_t packetCtx;
+    streambuffer_rw_options_t rwOptions;
+    size_t                    bytesAvailable;
 
-    bytesAvailable = streambuffer_read_packet_start(stream, options, &base, &state);
+    rwOptions.flags = handle->object.data.ipcontext.options;
+    rwOptions.async_context = NULL;
+    rwOptions.deadline = NULL;
+
+    bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
     if (!bytesAvailable) {
         _set_errno(ENODATA);
         return -1;
     }
 
-    streambuffer_read_packet_data(stream, buffer, MIN(length, bytesAvailable), &state);
-    streambuffer_read_packet_end(stream, base, bytesAvailable);
+    streambuffer_read_packet_data(buffer, MIN(length, bytesAvailable), &packetCtx);
+    streambuffer_read_packet_end(&packetCtx);
 
     *bytes_read = MIN(length, bytesAvailable);
     return OS_EOK;

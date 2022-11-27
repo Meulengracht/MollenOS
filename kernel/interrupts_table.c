@@ -74,7 +74,16 @@ static oserr_t __FunctionWriteStream(
     streambuffer_t* stream;
 
     if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OS_EOK) {
-        streambuffer_stream_out(stream, (void*)buffer, length, STREAMBUFFER_NO_BLOCK);
+        streambuffer_stream_out(
+                stream,
+                (void*)buffer,
+                length,
+                &(streambuffer_rw_options_t) {
+                    .flags = STREAMBUFFER_NO_BLOCK,
+                    .async_context = NULL,
+                    .deadline = NULL
+                }
+        );
     }
     return OS_EOK;
 }

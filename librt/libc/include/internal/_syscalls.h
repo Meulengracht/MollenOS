@@ -63,7 +63,7 @@ _CODE_END
 #define Syscall_EventCreate(InitialValue, Flags, HandleOut, SyncAddress)   (oserr_t)syscall4(32, SCPARAM(InitialValue), SCPARAM(Flags), SCPARAM(HandleOut), SCPARAM(SyncAddress))
 
 #define Syscall_IpcContextCreate(Size, HandleOut, UserContextOut)          (oserr_t)syscall3(33, SCPARAM(Size), SCPARAM(HandleOut), SCPARAM(UserContextOut))
-#define Syscall_IpcContextSend(Messages, MessageCount, Timeout)            (oserr_t)syscall3(34, SCPARAM(Messages), SCPARAM(MessageCount), SCPARAM(Timeout))
+#define Syscall_IpcContextSend(Messages, MessageCount, Deadline, Context)  (oserr_t)syscall4(34, SCPARAM(Messages), SCPARAM(MessageCount), SCPARAM(Deadline), SCPARAM(Context))
 
 #define Syscall_MemoryAllocate(Hint, Size, Flags, MemoryOut)               (oserr_t)syscall4(35, SCPARAM(Hint), SCPARAM(Size), SCPARAM(Flags), SCPARAM(MemoryOut))
 #define Syscall_MemoryFree(Pointer, Size)                                  (oserr_t)syscall2(36, SCPARAM(Pointer), SCPARAM(Size))

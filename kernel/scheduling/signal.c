@@ -204,7 +204,11 @@ SignalProcessQueued(
                 thread->Signaling.Signals,
                 &threadSignal,
                 sizeof(ThreadSignal_t),
-                STREAMBUFFER_NO_BLOCK
+                &(streambuffer_rw_options_t) {
+                    .flags = STREAMBUFFER_NO_BLOCK,
+                    .async_context = NULL,
+                    .deadline = NULL
+                }
         );
         if (!bytesRead) {
             break;

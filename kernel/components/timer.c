@@ -31,25 +31,35 @@
 // for time macros and length of months
 #include "../../librt/libc/time/local.h"
 
-static tick_t
+static inline tick_t
 __CalculateResolution(
         _In_ UInteger64_t* frequency)
 {
+    // 0-1000 = ms
     if (frequency->QuadPart <= MSEC_PER_SEC) {
-        // ms resolution
-        return NSEC_PER_MSEC * (MSEC_PER_SEC / frequency->QuadPart);
+        return MSEC_PER_SEC;
     }
 
+    // 1001-1000000 = us
     if (frequency->QuadPart <= USEC_PER_SEC) {
-        // us resolution
-        return NSEC_PER_USEC * (USEC_PER_SEC / frequency->QuadPart);
+        return USEC_PER_SEC;
     }
 
-    if (frequency->QuadPart <= NSEC_PER_SEC) {
-        // ns resolution
-        return NSEC_PER_SEC / frequency->QuadPart;
-    }
-    return frequency->QuadPart / NSEC_PER_SEC;
+    // otherwise *always* default to ns resolution as that is what the
+    // OS accounts in
+    return NSEC_PER_SEC;
+}
+
+static inline void
+__ToTimestamp(
+        _In_  tick_t        resolution,
+        _In_  UInteger64_t* frequency,
+        _In_  UInteger64_t* tick,
+        _Out_ tick_t*       secondsOut,
+        _Out_ tick_t*       nanosecondsOut)
+{
+    *secondsOut = tick->QuadPart / frequency->QuadPart;
+    *nanosecondsOut = ((((tick->QuadPart % frequency->QuadPart) * 100) / frequency->QuadPart) * resolution) / 100;
 }
 
 oserr_t
@@ -136,27 +146,13 @@ SystemWallClockRegister(
     return OS_EOK;
 }
 
-static inline uint64_t __CalculateTimestamp(
-        _In_ UInteger64_t* tick,
-        _In_ UInteger64_t* frequency)
-{
-    if (frequency->QuadPart <= MSEC_PER_SEC) {
-        return (MSEC_PER_SEC / frequency->QuadPart) * tick->QuadPart * NSEC_PER_MSEC;
-    } else if (frequency->QuadPart <= USEC_PER_SEC) {
-        return ((USEC_PER_SEC / frequency->QuadPart) * tick->QuadPart) * NSEC_PER_USEC;
-    } else if (frequency->QuadPart < NSEC_PER_SEC) {
-        return ((NSEC_PER_SEC / frequency->QuadPart) * tick->QuadPart);
-    } else {
-        return tick->QuadPart;
-    }
-}
-
 void
 SystemTimerGetWallClockTime(
         _In_ OSTimestamp_t* time)
 {
     SystemTimer_t* clock;
     UInteger64_t   tick;
+    tick_t         secs, ns;
 
     // Should there be no wall clock in the system, then we just
     // convert the ticks from the clock.
@@ -179,12 +175,14 @@ SystemTimerGetWallClockTime(
         return;
     }
 
-    // get current clock tick
+    // get current clock tick & subtract base offset
     clock->Operations.Read(clock->Context, &tick);
-
-    // subtract base offset
     tick.QuadPart -= GetMachine()->SystemTimers.WallClock->BaseOffset.QuadPart;
-    time->Nanoseconds = (int64_t)__CalculateTimestamp(&tick, &clock->Frequency);
+
+    // Convert from raw ticks to something we recognize
+    __ToTimestamp(clock->Resolution, &clock->Frequency, &tick, &secs, &ns);
+    time->Seconds    += (int64_t)secs;
+    time->Nanoseconds = (int64_t)ns;
 }
 
 void
@@ -193,6 +191,7 @@ SystemTimerGetTimestamp(
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
     UInteger64_t   tick;
+    tick_t         secs, ns;
 
     // guard against early calls from the log
     if (!clock) {
@@ -200,12 +199,13 @@ SystemTimerGetTimestamp(
         return;
     }
 
-    // get current clock tick
+    // get current clock tick & subtract inital reading
     clock->Operations.Read(clock->Context, &tick);
-
-    // subtract initial timestamp
     tick.QuadPart -= clock->InitialTick.QuadPart;
-    *timestampOut = __CalculateTimestamp(&tick, &clock->Frequency);
+
+    // Convert from raw ticks to something we recognize
+    __ToTimestamp(clock->Resolution, &clock->Frequency, &tick, &secs, &ns);
+    *timestampOut = (secs * NSEC_PER_SEC) + ns;
 }
 
 void

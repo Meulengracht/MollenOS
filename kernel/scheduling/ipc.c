@@ -93,17 +93,12 @@ IpcContextCreate(
     return oserr;
 }
 
-struct __MessageState {
-    unsigned int base;
-    unsigned int state;
-};
-
 static oserr_t
 __AllocateMessage(
-        _In_  IPCMessage_t*          message,
-        _In_  size_t                 timeout,
-        _In_  struct __MessageState* state,
-        _Out_ IPCContext_t**         targetContext)
+        _In_  IPCMessage_t*              message,
+        _In_  streambuffer_rw_options_t* options,
+        _In_  streambuffer_packet_ctx_t* packetCtx,
+        _Out_ IPCContext_t**             targetContext)
 {
     IPCContext_t* ipcContext;
     size_t        bytesAvailable;
@@ -130,8 +125,9 @@ __AllocateMessage(
 
     bytesAvailable = streambuffer_write_packet_start(
             ipcContext->KernelStream,
-            bytesToAllocate, 0,
-            &state->base, &state->state
+            bytesToAllocate,
+            options,
+            packetCtx
     );
     if (!bytesAvailable) {
         ERROR("__AllocateMessage timeout allocating space for message");
@@ -144,50 +140,49 @@ __AllocateMessage(
 
 static void
 __WriteMessage(
-        _In_ IPCContext_t*          context,
-        _In_ IPCMessage_t*          message,
-        _In_ struct __MessageState* state)
+        _In_ IPCMessage_t*              message,
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
     TRACE("__WriteMessage()");
     
     // write the header (senders handle)
     streambuffer_write_packet_data(
-            context->KernelStream,
             &message->SenderHandle,
             sizeof(uuid_t),
-            &state->state
+            packetCtx
     );
 
     // write the actual payload
     streambuffer_write_packet_data(
-            context->KernelStream,
             (void*)message->Payload,
             message->Length,
-            &state->state
+            packetCtx
     );
 }
 
 static inline void
 SendMessage(
-        _In_ IPCContext_t*          context,
-        _In_ IPCMessage_t*          message,
-        _In_ struct __MessageState* state)
+        _In_ IPCContext_t*              context,
+        _In_ streambuffer_packet_ctx_t* packetCtx)
 {
-    size_t bytesToCommit;
     TRACE("SendMessage()");
-
-    bytesToCommit = sizeof(uuid_t) + message->Length;
-    streambuffer_write_packet_end(context->KernelStream, state->base, bytesToCommit);
+    streambuffer_write_packet_end(packetCtx);
     MarkHandle(context->Handle, IOSETIN);
 }
 
 oserr_t
 IpcContextSendMultiple(
-    _In_ IPCMessage_t** messages,
-    _In_ int            messageCount,
-    _In_ size_t         timeout)
+        _In_ IPCMessage_t**    messages,
+        _In_ int               messageCount,
+        _In_ OSTimestamp_t*    deadline,
+        _In_ OSAsyncContext_t* asyncContext)
 {
-    struct __MessageState state;
+    streambuffer_packet_ctx_t packetCtx;
+    streambuffer_rw_options_t options = {
+            .flags = 0,
+            .async_context = asyncContext,
+            .deadline = deadline,
+    };
     TRACE("[ipc] [send] count %i, timeout %u", messageCount, LODWORD(timeout));
     
     if (!messages || !messageCount) {
@@ -198,16 +193,16 @@ IpcContextSendMultiple(
         IPCContext_t* targetContext;
         oserr_t       status = __AllocateMessage(
                 messages[i],
-                timeout,
-                &state,
+                &options,
+                &packetCtx,
                 &targetContext
         );
         if (status != OS_EOK) {
             // todo store status in context and return incomplete
             return OS_EINCOMPLETE;
         }
-        __WriteMessage(targetContext, messages[i], &state);
-        SendMessage(targetContext, messages[i], &state);
+        __WriteMessage(messages[i], &packetCtx);
+        SendMessage(targetContext, &packetCtx);
     }
     return OS_EOK;
 }
