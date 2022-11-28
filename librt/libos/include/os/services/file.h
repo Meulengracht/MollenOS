@@ -126,6 +126,19 @@ OSMoveFile(
         _In_ bool        copy));
 
 /**
+ * @brief Creates either a hard link or symbolic link to a path
+ * @param[In] from The source path that should be linked.
+ * @param[In] to The path of the link
+ * @param[In] symbolic If set, creates a symbolic link
+ * @return OS_EOK if the operation succeeded, otherwise the an error code.
+ */
+CRTDECL(oserr_t,
+OSLinkPath(
+        _In_ const char* from,
+        _In_ const char* to,
+        _In_ bool        symbolic));
+
+/**
  * @brief
  * @param path
  * @param size

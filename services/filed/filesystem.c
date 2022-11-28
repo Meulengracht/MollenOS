@@ -272,7 +272,7 @@ __InitializeInterface(
     }
 
     __BuildStorageParameters(fileSystem, &storageParameters);
-    return interface->Operations.Initialize(fileSystem->Interface, &storageParameters, &fileSystem->Data);
+    return interface->Operations.Initialize(interface, &storageParameters, &fileSystem->Data);
 }
 
 oserr_t

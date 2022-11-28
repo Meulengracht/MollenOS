@@ -35,7 +35,7 @@ __DriverInitialize(
 
     to_fs_setup_params(params, &cttParams);
     ctt_filesystem_setup(GetGrachtClient(), &msg.base, &cttParams);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_setup_result(GetGrachtClient(), &msg.base, &oserr, &fsctx);
     *instanceData = (void*)fsctx;
     return oserr;
@@ -48,7 +48,7 @@ __DriverDestroy(struct VFSInterface* interface, void* instanceData, unsigned int
     oserr_t                  oserr;
 
     ctt_filesystem_destroy(GetGrachtClient(), &msg.base, (uintptr_t)instanceData);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_destroy_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -63,7 +63,7 @@ __DriverOpen(struct VFSInterface* interface, void* instanceData, mstring_t* path
 
     ctt_filesystem_open(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cpath);
     free(cpath);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_open_result(GetGrachtClient(), &msg.base, &oserr, &fctx);
     *dataOut = (void*)fctx;
     return oserr;
@@ -85,7 +85,7 @@ __DriverCreate(struct VFSInterface* interface, void* instanceData, void* data, m
 
     ctt_filesystem_create(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
     ctt_fs_open_params_destroy(&params);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_create_result(GetGrachtClient(), &msg.base, &oserr, &fctx);
     *dataOut = (void*)fctx;
     return oserr;
@@ -98,7 +98,7 @@ __DriverClose(struct VFSInterface* interface, void* instanceData, void* data)
     oserr_t                  oserr;
 
     ctt_filesystem_close(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_close_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -111,7 +111,7 @@ __DriverStat(struct VFSInterface* interface, void* instanceData, struct VFSStatF
     struct ctt_fsstat        cttStats;
 
     ctt_filesystem_fsstat(GetGrachtClient(), &msg.base, (uintptr_t)instanceData);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_fsstat_result(GetGrachtClient(), &msg.base, &oserr, &cttStats);
     from_fsstat(&cttStats, stats);
     ctt_fsstat_destroy(&cttStats);
@@ -128,7 +128,7 @@ __DriverLink(struct VFSInterface* interface, void* instanceData, void* data, mst
 
     ctt_filesystem_link(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, name, target, symbolic);
     free(name); free(target);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_link_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -142,7 +142,7 @@ __DriverUnlink(struct VFSInterface* interface, void* instanceData, mstring_t* pa
 
     ctt_filesystem_unlink(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cpath);
     free(cpath);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_unlink_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -157,7 +157,7 @@ __DriverReadlink(struct VFSInterface* interface, void* instanceData, mstring_t* 
 
     ctt_filesystem_readlink(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cpath);
     free(cpath);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_readlink_result(GetGrachtClient(), &msg.base, &oserr, buffer, _MAXPATH);
     *pathOut = mstr_new_u8(buffer);
     free(buffer);
@@ -174,7 +174,7 @@ __DriverMove(struct VFSInterface* interface, void* instanceData, mstring_t* from
 
     ctt_filesystem_move(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, cfrom, cto, copy);
     free(cfrom); free(cto);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_move_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -201,7 +201,7 @@ __DriverRead(
     params.count = unitCount;
 
     ctt_filesystem_read(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_read_result(GetGrachtClient(), &msg.base, &oserr, &read);
     *unitsRead = read;
     return oserr;
@@ -229,7 +229,7 @@ __DriverWrite(
     params.count = unitCount;
 
     ctt_filesystem_write(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, &params);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_write_result(GetGrachtClient(), &msg.base, &oserr, &written);
     *unitsWritten = (size_t)written;
     return oserr;
@@ -242,7 +242,7 @@ __DriverTruncate(struct VFSInterface* interface, void* instanceData, void* data,
     oserr_t                  oserr;
 
     ctt_filesystem_truncate(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, size);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_truncate_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -254,7 +254,7 @@ __DriverSeek(struct VFSInterface* interface, void* instanceData, void* data, uin
     oserr_t                  oserr;
 
     ctt_filesystem_seek(GetGrachtClient(), &msg.base, (uintptr_t)instanceData, (uintptr_t)data, absolutePosition);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_filesystem_seek_result(GetGrachtClient(), &msg.base, &oserr, absolutePositionOut);
     return oserr;
 }

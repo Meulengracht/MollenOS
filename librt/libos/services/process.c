@@ -118,7 +118,7 @@ ProcessJoin(
     oserr_t                  osStatus;
     
     sys_process_join(GetGrachtClient(), &msg.base, handle, timeout);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_join_result(GetGrachtClient(), &msg.base, &osStatus, exitCodeOut);
     return osStatus;
 }
@@ -132,7 +132,7 @@ ProcessSignal(
     oserr_t               osStatus;
     
     sys_process_signal(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), handle, signal);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_signal_result(GetGrachtClient(), &msg.base, &osStatus);
     return osStatus;
 }
@@ -144,7 +144,7 @@ oserr_t ProcessTerminate(int exitCode)
 
     if (!__crt_is_phoenix()) {
         sys_process_terminate(GetGrachtClient(), &msg.base, __crt_process_id(), exitCode);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
     }
     return oserr;
@@ -169,7 +169,7 @@ ProcessGetTickBase(
     }
     
     sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status, &tick.u.LowPart, &tick.u.HighPart);
     
     *tickOut = (clock_t)tick.QuadPart;
@@ -212,7 +212,7 @@ ProcessGetCurrentName(
     assert(__crt_is_phoenix() == 0);
 
     sys_process_get_name(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_get_name_result(GetGrachtClient(), &msg.base,
                                 &status,
                                 buffer,
@@ -239,7 +239,7 @@ ProcessGetAssemblyDirectory(
     }
     
     sys_process_get_assembly_directory(GetGrachtClient(), &msg.base, handle);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_get_assembly_directory_result(GetGrachtClient(), &msg.base,
                                               &status,
                                               buffer,
@@ -266,7 +266,7 @@ ProcessGetWorkingDirectory(
     }
 	
     sys_process_get_working_directory(GetGrachtClient(), &msg.base, handle);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_get_working_directory_result(GetGrachtClient(), &msg.base,
                                              &status,
                                              buffer,
@@ -287,7 +287,7 @@ ProcessSetWorkingDirectory(
     assert(__crt_is_phoenix() == 0);
 	
     sys_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), path);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_set_working_directory_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }

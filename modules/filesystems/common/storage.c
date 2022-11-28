@@ -16,7 +16,10 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/convert.h>
+#include <ddk/utils.h>
 #include <fs/common.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
@@ -45,7 +48,7 @@ __ReadDevice(
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, read);
     return status;
 }
@@ -69,7 +72,7 @@ __WriteDevice(
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, written);
     return status;
 }
@@ -85,7 +88,7 @@ __StatDevice(
     struct sys_disk_descriptor gdescriptor;
 
     ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
     if (osStatus == OS_EOK) {
         from_sys_disk_descriptor_dkk(&gdescriptor, stats);
@@ -121,7 +124,7 @@ __ReadFile(
             offset,
             count*512
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &status, &transferred);
 
     // convert result from bytes to sectors
@@ -158,7 +161,7 @@ __WriteFile(
             offset,
             count*512
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &status, &transferred);
 
     // convert result from bytes to sectors
@@ -182,7 +185,7 @@ __StatFile(
             ProcessGetCurrentId(),
             handleID
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_fstat_result(GetGrachtClient(), &msg.base, &osStatus, &fstats);
     if (osStatus != OS_EOK) {
         return osStatus;

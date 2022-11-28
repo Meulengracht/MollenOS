@@ -22,8 +22,8 @@
  */
 
 #include <errno.h>
-#include <internal/_ipc.h>
 #include <io.h>
+#include <os/services/file.h>
 #include <os/mollenos.h>
 
 int link(
@@ -31,15 +31,5 @@ int link(
     _In_ const char* to, 
     _In_ int         symbolic)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t               status;
-
-    if (!from || !to) {
-        return OS_EINVALPARAMS;
-    }
-    
-    sys_file_link(GetGrachtClient(), &msg.base, __crt_process_id(), from, to, symbolic);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_link_result(GetGrachtClient(), &msg.base, &status);
-    return OsErrToErrNo(status);
+    return OsErrToErrNo(OSLinkPath(from, to, symbolic));
 }

@@ -91,7 +91,7 @@ SharedObjectLoad(
     }
 
     sys_library_load(GetGrachtClient(), &msg.base, __crt_process_id(), SharedObject);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_library_load_result(GetGrachtClient(), &msg.base, &oserr, (uintptr_t*)&handle, &entryAddress);
 
     if (oserr == OS_EOK && handle != HANDLE_INVALID) {
@@ -152,7 +152,7 @@ SharedObjectGetFunction(
     uintptr_t                functionAddress;
 
     sys_library_get_function(GetGrachtClient(), &msg.base, __crt_process_id(), (uintptr_t)handle, function);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_library_get_function_result(GetGrachtClient(), &msg.base, &oserr, &functionAddress);
     OsErrToErrNo(oserr);
     if (oserr != OS_EOK) {
@@ -212,7 +212,7 @@ SharedObjectUnload(
 
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
         sys_library_unload(GetGrachtClient(), &msg.base, __crt_process_id(), (uintptr_t)handle);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         sys_library_unload_result(GetGrachtClient(), &msg.base, &status);
         OsErrToErrNo(status);
     }
