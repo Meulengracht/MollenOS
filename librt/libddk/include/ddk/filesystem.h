@@ -23,7 +23,7 @@
 #include <ds/list.h>
 #include <ds/mstring.h>
 #include <os/mollenos.h>
-#include <time.h>
+#include <os/types/time.h>
 
 enum VFSStorageType {
     VFSSTORAGE_TYPE_DEVICE,
@@ -52,6 +52,24 @@ struct VFSStorageParameters {
     UInteger64_t SectorStart;
 };
 
+struct VFSDirectoryEntry {
+    // NameLength describes the data length of the entry's name. The name
+    // is encoded as UTF-8 bytes.
+    uint32_t NameLength;
+    // LinkLength describes the data length of the entry's link target. The
+    // string is encoded as UTF-8 bytes.
+    uint32_t LinkLength;
+    uint32_t UserID;
+    uint32_t GroupID;
+    uint64_t Size;
+    uint64_t SizeOnDisk;
+    uint32_t Permissions; // Permissions come from os/file/types.h
+    uint32_t Flags;       // Flags come from os/file/types.h
+    OSTimestamp_t Accessed;
+    OSTimestamp_t Modified;
+    OSTimestamp_t Created;
+};
+
 struct VFSStat {
     // These are filled in by the VFS
     uuid_t ID;
@@ -65,9 +83,9 @@ struct VFSStat {
     uint64_t   Size;
     uint32_t   Links;
 
-    struct timespec Accessed;
-    struct timespec Modified;
-    struct timespec Created;
+    OSTimestamp_t Accessed;
+    OSTimestamp_t Modified;
+    OSTimestamp_t Created;
 };
 
 struct VFSStatFS {

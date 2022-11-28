@@ -99,7 +99,7 @@ SymbolLookup(
 {
     struct symbol_context* symbolContext;
     struct map_symbol*     symbol = NULL;
-    oserr_t             status;
+    oserr_t                status;
     int                    i;
 
     if (!binaryName) {
@@ -157,7 +157,7 @@ SymbolLoadMapFile(
         strcpy(&tmp[0], binaryName);
     }
 
-    sprintf(&path[0], "$bin/../maps/%s.map", &tmp[0]);
+    sprintf(&path[0], "/initfs/maps/%s.map", &tmp[0]);
 
     TRACE("[SymbolsLoadContext] trying to load %s", &path[0]);
     file = fopen(&path[0], "r");

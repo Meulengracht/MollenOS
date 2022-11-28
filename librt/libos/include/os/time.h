@@ -71,7 +71,7 @@ OSGetWallClock(
 CRTDECL(oserr_t,
 OSGetClockTick(
         _In_ enum OSClockSource source,
-        _In_ UInteger64_t*       tickOut));
+        _In_ UInteger64_t*      tickOut));
 
 /**
  * @brief Reads the frequency of the clock source type. Use this to calculate the resolution of a given
@@ -84,7 +84,7 @@ OSGetClockTick(
 CRTDECL(oserr_t,
 OSGetClockFrequency(
         _In_ enum OSClockSource source,
-        _In_ UInteger64_t*       frequencyOut));
+        _In_ UInteger64_t*      frequencyOut));
 
 _CODE_END
 #endif //!__OS_TIME_H__

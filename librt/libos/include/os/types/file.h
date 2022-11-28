@@ -24,8 +24,7 @@
 #ifndef __TYPES_FILE_H__
 #define __TYPES_FILE_H__
 
-#include <os/osdefs.h>
-#include <time.h>
+#include <os/types/time.h>
 
 typedef struct OsDirectoryEntry {
     // ID is the file node ID. This is not consistent across boots, and is
@@ -53,14 +52,14 @@ typedef struct OsFileSystemDescriptor {
 } OsFileSystemDescriptor_t;
 
 typedef struct OsFileDescriptor {
-    long            Id;
-    long            StorageId;
-    unsigned int    Flags;
-    unsigned int    Permissions;
-    UInteger64_t    Size;
-    struct timespec CreatedAt;
-    struct timespec ModifiedAt;
-    struct timespec AccessedAt;
+    long          Id;
+    long          StorageId;
+    unsigned int  Flags;
+    unsigned int  Permissions;
+    UInteger64_t  Size;
+    OSTimestamp_t CreatedAt;
+    OSTimestamp_t ModifiedAt;
+    OSTimestamp_t AccessedAt;
 } OsFileDescriptor_t;
 
 // OsFileDescriptor_t::Flags

@@ -19,6 +19,7 @@
 //#define __TRACE
 #define __need_quantity
 #include <ddk/utils.h>
+#include <os/time.h>
 #include <vfs/vfs.h>
 #include <vfs/interface.h>
 #include <vfs/storage.h>
@@ -87,9 +88,9 @@ __StatRootNode(
     stat->Flags = FILE_FLAG_DIRECTORY;
     stat->Size = 0;
 
-    timespec_get(&stat->Created, TIME_UTC);
-    stat->Modified.tv_nsec = stat->Created.tv_nsec; stat->Modified.tv_sec = stat->Created.tv_sec;
-    stat->Accessed.tv_nsec = stat->Created.tv_nsec; stat->Accessed.tv_sec = stat->Created.tv_sec;
+    OSGetWallClock(&stat->Created);
+    stat->Modified.Nanoseconds = stat->Created.Nanoseconds; stat->Modified.Seconds = stat->Created.Seconds;
+    stat->Accessed.Nanoseconds = stat->Created.Nanoseconds; stat->Accessed.Seconds = stat->Created.Seconds;
 }
 
 static oserr_t

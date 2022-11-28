@@ -22,6 +22,7 @@
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
+#include <string.h>
 #include "private.h"
 
 static mstring_t g_rootToken   = mstr_const(U"/");
@@ -72,18 +73,56 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
     return path;
 }
 
+static void __ToVFSStat(struct VFSDirectoryEntry* in, struct VFSStat* out)
+{
+    const char* name = (const char*)((uint8_t*)in + sizeof(struct VFSDirectoryEntry));
+    const char* link = (const char*)((uint8_t*)in + sizeof(struct VFSDirectoryEntry) + in->NameLength);
+
+    memset(out, 0, sizeof(struct VFSStat));
+    if (in->NameLength) {
+        out->Name = mstr_new_u8(name);
+    }
+    if (in->LinkLength) {
+        out->LinkTarget = mstr_new_u8(link);
+    }
+    out->Owner = in->UserID;
+    out->Permissions = in->Permissions;
+    out->Flags = in->Flags;
+    out->Size = in->Size;
+
+    out->Accessed.Seconds = in->Accessed.Seconds;
+    out->Accessed.Nanoseconds = in->Accessed.Nanoseconds;
+    out->Modified.Seconds = in->Modified.Seconds;
+    out->Modified.Nanoseconds = in->Modified.Nanoseconds;
+    out->Created.Seconds = in->Created.Seconds;
+    out->Created.Nanoseconds = in->Created.Nanoseconds;
+}
+
+static void __CleanupVFSStat(struct VFSStat* stats)
+{
+    mstr_delete(stats->Name);
+    mstr_delete(stats->LinkTarget);
+}
+
 static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
-    struct VFSStat* i              = (struct VFSStat*)buffer;
+    uint8_t*        i = buffer;
     size_t          bytesAvailable = length;
     struct VFSNode* result;
 
     while (bytesAvailable) {
-        oserr_t osStatus = VFSNodeChildNew(node->FileSystem, node, i, &result);
+        struct VFSDirectoryEntry* entry = (struct VFSDirectoryEntry*)i;
+        size_t                    entryLength = sizeof(struct VFSDirectoryEntry) + entry->NameLength + entry->LinkLength;
+        oserr_t                   osStatus;
+        struct VFSStat            stats;
+
+        __ToVFSStat(entry, &stats);
+        osStatus = VFSNodeChildNew(node->FileSystem, node, &stats, &result);
+        __CleanupVFSStat(&stats);
         if (osStatus != OS_EOK) {
             return osStatus;
         }
-        bytesAvailable -= sizeof(struct VFSStat);
-        i++;
+        bytesAvailable -= entryLength;
+        i += entryLength;
     }
     return OS_EOK;
 }

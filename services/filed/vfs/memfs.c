@@ -21,6 +21,7 @@
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <os/usched/mutex.h>
+#include <os/time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/vfs.h>
@@ -53,11 +54,12 @@ enum {
 
 struct MemFSEntry {
     mstring_t*        Name;
-    uint32_t          Owner;
+    uint32_t          UserID;
+    uint32_t          GroupID;
     uint32_t          Permissions;
-    struct timespec   Accessed;
-    struct timespec   Modified;
-    struct timespec   Created;
+    OSTimestamp_t     Accessed;
+    OSTimestamp_t     Modified;
+    OSTimestamp_t     Created;
     struct usched_mtx Mutex;
     int               Type;
     int               Links;
@@ -91,9 +93,9 @@ struct MemFSHandle {
 
 static mstring_t g_rootName = mstr_const(U"/");
 
-static inline void __CopyTime(struct timespec* destination, struct timespec* source) {
-    destination->tv_sec = source->tv_sec;
-    destination->tv_nsec = source->tv_nsec;
+static inline void __CopyTime(OSTimestamp_t* destination, OSTimestamp_t* source) {
+    destination->Seconds = source->Seconds;
+    destination->Nanoseconds = source->Nanoseconds;
 }
 
 static void __directory_entries_delete(int index, const void* element, void* userContext)
@@ -151,10 +153,11 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int 
     memset(entry, 0, sizeof(struct MemFSEntry));
 
     entry->Type = type;
-    entry->Owner = owner;
+    entry->UserID = owner;
+    entry->GroupID = 0; // TODO: add support
     entry->Permissions = permissions;
     entry->Links = 1;
-    timespec_get(&entry->Created, TIME_UTC);
+    OSGetWallClock(&entry->Created);
 
     // Do some type based initialization where we don't need additional parameters
     // to set up. The rest of the initialization should be handled by the create/link
@@ -173,7 +176,6 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int 
     }
 
     usched_mtx_init(&entry->Mutex, USCHED_MUTEX_PLAIN);
-    entry->Owner = UUID_INVALID;
     return entry;
 }
 
@@ -240,7 +242,6 @@ __MemFSDestroy(
 
 static void __MemFSHandle_delete(struct MemFSHandle* handle)
 {
-
     free(handle);
 }
 
@@ -347,7 +348,7 @@ __MemFSOpen(
     }
 
     // Update the accessed time of entry before continuing
-    timespec_get(&entry->Accessed, TIME_UTC);
+    OSGetWallClock(&entry->Accessed);
     usched_mtx_unlock(&entry->Mutex);
 
     *dataOut = handle;
@@ -440,7 +441,7 @@ __MemFSCreate(
     }
 
     // Update the accessed time of entry before continuing
-    timespec_get(&entry->Accessed, TIME_UTC);
+    OSGetWallClock(&entry->Accessed);
     usched_mtx_unlock(&entry->Mutex);
     *dataOut = newHandle;
     return OS_EOK;
@@ -558,7 +559,7 @@ __MemFSLink(
                 handle->Entry,
                 linkName,
                 linkTarget,
-                handle->Entry->Owner,
+                handle->Entry->UserID,
                 &entry
         );
         if (oserr != OS_EOK) {
@@ -567,7 +568,7 @@ __MemFSLink(
 
         // Update the accessed time of entry before continuing
         usched_mtx_lock(&entry->Mutex);
-        timespec_get(&entry->Accessed, TIME_UTC);
+        OSGetWallClock(&entry->Accessed);
         usched_mtx_unlock(&entry->Mutex);
     } else {
         // TODO hard links
@@ -689,10 +690,10 @@ static oserr_t __ReadFile(
 }
 
 struct __ReadDirectoryContext {
-    struct VFSStat* Buffer;
-    size_t          BytesToSkip;
-    size_t          BytesLeftInBuffer;
-    int             EntriesRead;
+    uint8_t* Buffer;
+    size_t   EntriesToSkip;
+    size_t   BytesLeftInBuffer;
+    int      EntriesRead;
 };
 
 static uint32_t __TypeToFlags(int type) {
@@ -708,34 +709,48 @@ static void __ReadDirectoryEntry(int index, const void* element, void* userConte
 {
     const struct __DirectoryEntry* entry   = element;
     struct __ReadDirectoryContext* context = userContext;
+    struct VFSDirectoryEntry*      entryOut = (struct VFSDirectoryEntry*)context->Buffer;
+    size_t                         entrySize;
+    char*                          name = (char*)(context->Buffer + sizeof(struct VFSDirectoryEntry));
+    char*                          nameu8;
     TRACE("__ReadDirectoryEntry(entry=%ms)", entry->Name);
 
     // ensure enough buffer space for this
-    if (context->BytesLeftInBuffer < sizeof(struct VFSStat)) {
+    entrySize = sizeof(struct VFSDirectoryEntry) + mstr_bsize(entry->Name);
+    if (context->BytesLeftInBuffer < entrySize) {
         return;
     }
 
     // ensure that we have skipped enough entries
-    if (context->BytesToSkip) {
-        context->BytesToSkip -= sizeof(struct VFSStat);
+    if (context->EntriesToSkip) {
+        context->EntriesToSkip--;
+        return;
+    }
+
+    nameu8 = mstr_u8(entry->Name);
+    if (nameu8 == NULL) {
         return;
     }
 
     // Fill in the VFS structure
-    context->Buffer->Name = mstr_clone(entry->Name);
-    context->Buffer->LinkTarget = NULL;
-    context->Buffer->Size = (entry->Entry->Type == MEMFS_ENTRY_TYPE_FILE) ? entry->Entry->Data.File.BufferSize : 0;
-    context->Buffer->Owner = entry->Entry->Owner;
-    context->Buffer->Permissions = entry->Entry->Permissions;
-    context->Buffer->Flags = __TypeToFlags(entry->Entry->Type);
-    __CopyTime(&context->Buffer->Accessed, &entry->Entry->Accessed);
-    __CopyTime(&context->Buffer->Modified, &entry->Entry->Modified);
-    __CopyTime(&context->Buffer->Created, &entry->Entry->Created);
+    entryOut->NameLength = strlen(nameu8);
+    entryOut->LinkLength = 0;
+    entryOut->UserID = entry->Entry->UserID;
+    entryOut->GroupID = entry->Entry->GroupID;
+    entryOut->Size = (entry->Entry->Type == MEMFS_ENTRY_TYPE_FILE) ? entry->Entry->Data.File.BufferSize : 0;
+    entryOut->SizeOnDisk = 0;
+    entryOut->Permissions = entry->Entry->Permissions;
+    entryOut->Flags = __TypeToFlags(entry->Entry->Type);
+    __CopyTime(&entryOut->Accessed, &entry->Entry->Accessed);
+    __CopyTime(&entryOut->Modified, &entry->Entry->Modified);
+    __CopyTime(&entryOut->Created, &entry->Entry->Created);
+    memcpy(name, nameu8, entryOut->NameLength);
+    free(nameu8);
 
     // Update iterators
-    context->Buffer++;
     context->EntriesRead++;
-    context->BytesLeftInBuffer -= sizeof(struct VFSStat);
+    context->Buffer += entrySize;
+    context->BytesLeftInBuffer -= entrySize;
 }
 
 static oserr_t __ReadDirectory(
@@ -746,15 +761,15 @@ static oserr_t __ReadDirectory(
         _Out_ size_t*             unitsRead)
 {
     struct __ReadDirectoryContext context = {
-            .Buffer = (struct VFSStat*)((uint8_t*)buffer + bufferOffset),
-            .BytesToSkip = handle->Position,
+            .Buffer = (uint8_t*)buffer + bufferOffset,
+            .EntriesToSkip = handle->Position,
             .BytesLeftInBuffer = unitCount,
             .EntriesRead = 0
     };
     TRACE("__ReadDirectory()");
 
     // Ensure that a minimum of *one* stat structure can fit
-    if (unitCount < sizeof(struct VFSStat)) {
+    if (unitCount < sizeof(struct VFSDirectoryEntry)) {
         *unitsRead = 0;
         return OS_ECANCELLED;
     }
@@ -766,7 +781,7 @@ static oserr_t __ReadDirectory(
     );
     usched_mtx_unlock(&handle->Entry->Mutex);
 
-    handle->Position += unitCount - context.BytesLeftInBuffer;
+    handle->Position += context.EntriesRead;
     *unitsRead = unitCount - context.BytesLeftInBuffer;
     return OS_EOK;
 }

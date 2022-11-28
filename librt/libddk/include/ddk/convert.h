@@ -42,16 +42,16 @@
 #include <sys_process_service.h>
 #include <ctt_filesystem_service.h>
 
-static void from_sys_timestamp(struct sys_timestamp* in, struct timespec* out)
+static void from_sys_timestamp(struct sys_timestamp* in, OSTimestamp_t* out)
 {
-    out->tv_sec = in->tv_sec;
-    out->tv_nsec = in->tv_nsec;
+    out->Seconds = in->tv_sec;
+    out->Nanoseconds = in->tv_nsec;
 }
 
-static void to_sys_timestamp(struct timespec* in, struct sys_timestamp* out)
+static void to_sys_timestamp(OSTimestamp_t* in, struct sys_timestamp* out)
 {
-    out->tv_sec = in->tv_sec;
-    out->tv_nsec = in->tv_nsec;
+    out->tv_sec = in->Seconds;
+    out->tv_nsec = in->Nanoseconds;
 }
 
 static void from_sys_disk_descriptor(struct sys_disk_descriptor* in, OsStorageDescriptor_t* out)
