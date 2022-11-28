@@ -524,26 +524,27 @@ ScMapThreadMemoryRegion(
     Thread_t*  thread;
     uintptr_t  copiedAddress;
     oserr_t    status;
-    size_t     correctLength;
 
     thread = THREAD_GET(threadHandle);
     if (!thread) {
         return OS_ENOENT;
     }
 
-    correctLength = (uintptr_t)ThreadContext(thread, THREADING_CONTEXT_LEVEL1) - stackPointer;
-    status        = MemorySpaceCloneMapping(ThreadMemorySpace(thread), GetCurrentMemorySpace(),
-                                            stackPointer, &copiedAddress, correctLength,
-                                     MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-                                            MAPPING_VIRTUAL_PROCESS);
+    // Map in the first page of the stack
+    status = MemorySpaceCloneMapping(
+            ThreadMemorySpace(thread),
+            GetCurrentMemorySpace(),
+            stackPointer,
+            &copiedAddress,
+            GetMemorySpacePageSize() * 2,
+            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+            MAPPING_VIRTUAL_PROCESS
+    );
     if (status != OS_EOK) {
         return status;
     }
 
-    // add the correct offset to the address
-    copiedAddress += stackPointer & 0xFFF;
-
-    *pointerOut = (void*)copiedAddress;
-    *topOfStack = (void*)(copiedAddress + correctLength);
+    *pointerOut = (void*)(copiedAddress + (stackPointer & 0xFFF));
+    *topOfStack = (void*)(copiedAddress + (GetMemorySpacePageSize() * 2));
     return OS_EOK;
 }

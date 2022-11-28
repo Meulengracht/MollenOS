@@ -22,12 +22,46 @@
 #include <string.h>
 #include "mfs.h"
 
-static void __ConvertEntry(FileRecord_t* record, struct VFSStat* stat)
+static size_t
+__WriteDirectoryEntry(
+        _In_ FileRecord_t* record,
+        _In_ uint8_t*      buffer,
+        _In_ size_t        maxBytesToWrite)
 {
-    stat->Name  = mstr_new_u8((const char*)&record->Name[0]);
-    stat->Owner = 0; // TODO not supported by MFS
-    stat->Size  = record->Size;
-    MFSFromNativeFlags(record, &stat->Flags, &stat->Permissions);
+    struct VFSDirectoryEntry* entry = (struct VFSDirectoryEntry*)buffer;
+    char*                     stringData = (char*)buffer + sizeof(struct VFSDirectoryEntry);
+    size_t                    bytesWritten = sizeof(struct VFSDirectoryEntry);
+
+    // fill out the entry itself, then write string data
+    entry->NameLength = strlen((const char*)&record->Name[0]);
+    entry->LinkLength = 0; // TODO: add this
+
+    // If we can't safely write all data, then abort
+    if (bytesWritten + entry->NameLength + entry->LinkLength < maxBytesToWrite) {
+        return 0;
+    }
+
+    entry->UserID = 0; // TODO: add this
+    entry->GroupID = 0; // TODO: add this
+    entry->Size = record->Size;
+    entry->SizeOnDisk = record->AllocatedSize;
+    MFSFromNativeFlags(
+            record,
+            &entry->Flags,
+            &entry->Permissions
+    );
+
+    // TODO write timestamps
+
+    // write out the string data
+    if (entry->NameLength) {
+        memcpy(stringData, (const void*)&record->Name[0], entry->NameLength);
+        stringData += entry->NameLength;
+    }
+    if (entry->LinkLength) {
+        memcpy(stringData, (const void*)&record->Integrated[0], entry->LinkLength);
+    }
+    return bytesWritten + entry->NameLength + entry->LinkLength;
 }
 
 oserr_t
@@ -39,21 +73,16 @@ FsReadFromDirectory(
         _In_  size_t           unitCount,
         _Out_ size_t*          unitsRead)
 {
-    oserr_t          osStatus    = OS_EOK;
-    size_t           bytesToRead = unitCount;
-    uint64_t         position    = entry->Position;
-    struct VFSStat*  currentEntry = (struct VFSStat*)((uint8_t*)buffer + bufferOffset);
+    oserr_t  oserr       = OS_EOK;
+    size_t   bytesToRead = unitCount;
+    uint64_t position    = entry->Position * sizeof(FileRecord_t);
+    uint8_t* bufferPointer = ((uint8_t*)buffer + bufferOffset);
 
     TRACE("FsReadFromDirectory(entry=%ms, position=%u, count=%u)",
           entry->Name, LODWORD(position), LODWORD(unitCount));
 
     // Indicate zero bytes read to start with
     *unitsRead = 0;
-
-    // Readjust the stored position since it's stored in units of DIRENT, however we
-    // iterate in units of MfsRecords
-    position /= sizeof(struct VFSStat);
-    position *= sizeof(FileRecord_t);
 
     // Guard against empty directories, we just return OS_EOK and
     // unitsRead=0
@@ -68,7 +97,7 @@ FsReadFromDirectory(
     TRACE(" > sec %u, count %u, offset %u", LODWORD(MFS_GETSECTOR(mfs, entry->DataBucketPosition)),
           LODWORD(MFS_SECTORCOUNT(mfs, entry->DataBucketLength)), LODWORD(position - entry->BucketByteBoundary));
 
-    while (bytesToRead > sizeof(struct VFSStat)) {
+    while (bytesToRead > sizeof(struct VFSDirectoryEntry)) {
         uint64_t sector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
         size_t   sectorCount  = MFS_SECTORCOUNT(mfs, entry->DataBucketLength);
         size_t   bucketOffset = position - entry->BucketByteBoundary;
@@ -80,7 +109,7 @@ FsReadFromDirectory(
 
         if (bucketSize > bucketOffset) {
             // The code here is simple because we assume we can fit entire bucket at any time
-            osStatus = FSStorageRead(
+            oserr = FSStorageRead(
                     &mfs->Storage,
                     mfs->TransferBuffer.handle,
                     0,
@@ -88,7 +117,7 @@ FsReadFromDirectory(
                     sectorCount,
                     &sectorsRead
             );
-            if (osStatus != OS_EOK) {
+            if (oserr != OS_EOK) {
                 ERROR("Failed to read sector");
                 break;
             }
@@ -99,9 +128,9 @@ FsReadFromDirectory(
                     fileRecord++, bucketOffset += sizeof(FileRecord_t), position += sizeof(FileRecord_t)) {
                 if (fileRecord->Flags & MFS_FILERECORD_INUSE) {
                     TRACE("Gathering entry %s", &fileRecord->Name[0]);
-                    __ConvertEntry(fileRecord, currentEntry);
-                    bytesToRead -= sizeof(struct VFSStat);
-                    currentEntry++;
+                    size_t written = __WriteDirectoryEntry(fileRecord, bufferPointer, bytesToRead);
+                    bytesToRead -= written;
+                    bufferPointer += written;
                 }
             }
         }
@@ -111,28 +140,22 @@ FsReadFromDirectory(
         if (position == (entry->BucketByteBoundary + bucketSize)) {
             TRACE("read_metrics::position %u, limit %u", LODWORD(position),
                 LODWORD(entry->BucketByteBoundary + bucketSize));
-            osStatus = MFSAdvanceToNextBucket(
+            oserr = MFSAdvanceToNextBucket(
                     mfs, entry,
                     mfs->SectorsPerBucket * mfs->SectorSize
             );
-            if (osStatus != OS_EOK) {
-                if (osStatus == OS_ENOENT) {
-                    osStatus = OS_EOK;
+            if (oserr != OS_EOK) {
+                if (oserr == OS_ENOENT) {
+                    oserr = OS_EOK;
                 }
                 break;
             }
         }
     }
-    
-    // Readjust the position to the current position, but it has to be in units
-    // of DIRENT instead of MfsRecords, and then readjust again for the number of
-    // bytes read, since they are added to position in the vfs layer
-    position        /= sizeof(FileRecord_t);
-    position        *= sizeof(struct VFSStat);
-    entry->Position = position - (unitCount - bytesToRead);
-    
+
+    entry->Position = position / sizeof(FileRecord_t);
     *unitsRead = (unitCount - bytesToRead);
-    return osStatus;
+    return oserr;
 }
 
 // TODO this is wrong

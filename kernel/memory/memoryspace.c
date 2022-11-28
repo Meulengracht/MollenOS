@@ -696,7 +696,7 @@ static oserr_t __GetAndVerifyPhysicalMapping(
         _Out_ int*           pagesRetrievedOut)
 {
     uintptr_t* physicalAddresses;
-    oserr_t osStatus;
+    oserr_t    osStatus;
     int        pagesRetrieved;
     int        i;
     TRACE("__GetAndVerifyPhysicalMapping(address=0x%" PRIxIN ", pageCount=%i",
@@ -898,7 +898,7 @@ MemorySpaceCloneMapping(
     int                           pagesRetrieved;
     int                           pagesUpdated;
     uintptr_t*                    physicalAddressValues = NULL;
-    oserr_t                    osStatus;
+    oserr_t                       osStatus;
 
     TRACE("MemorySpaceCloneMapping(sourceSpace=0x%" PRIxIN ", destinationSpace=0x%" PRIxIN
           ", sourceAddress=0x%" PRIxIN ", length=0x%" PRIxIN ", memoryFlags=0x%x)",

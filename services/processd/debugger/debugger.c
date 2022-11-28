@@ -20,7 +20,7 @@
  *  invoked once a process crashes
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ds/mstring.h>
 #include <ddk/debug.h>
@@ -128,8 +128,7 @@ HandleProcessCrashReport(
                     }
                     if (SymbolLookup(moduleu8, stackValue - moduleBase, &symbolName, &symbolOffset) == OS_EOK) {
                         ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
-                    }
-                    else {
+                    } else {
                         ERROR("%i: At offset 0x%" PRIxIN " in module %ms (0x%" PRIxIN ")",
                               i, stackValue - moduleBase, moduleName, stackValue);
                     }
@@ -140,12 +139,10 @@ HandleProcessCrashReport(
             }
             ERROR("HandleProcessCrashReport end of stack trace");
             MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
-        }
-        else {
+        } else {
             ERROR("HandleProcessCrashReport failed to map thread stack: %u", status);
         }
-    }
-    else {
+    } else {
         ERROR("HandleProcessCrashReport failed to load user stack value: 0x%" PRIxIN, CONTEXT_USERSP(crashContext));
     }
 
