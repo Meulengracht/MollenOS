@@ -691,8 +691,8 @@ static oserr_t __ReadFile(
 
 struct __ReadDirectoryContext {
     uint8_t* Buffer;
-    size_t   EntriesToSkip;
     size_t   BytesLeftInBuffer;
+    int      EntriesToSkip;
     int      EntriesRead;
 };
 
@@ -749,8 +749,8 @@ static void __ReadDirectoryEntry(int index, const void* element, void* userConte
 
     // Update iterators
     context->EntriesRead++;
-    context->Buffer += entrySize;
-    context->BytesLeftInBuffer -= entrySize;
+    context->Buffer += (sizeof(struct VFSDirectoryEntry) + entryOut->NameLength);
+    context->BytesLeftInBuffer -= (sizeof(struct VFSDirectoryEntry) + entryOut->NameLength);
 }
 
 static oserr_t __ReadDirectory(
@@ -762,8 +762,8 @@ static oserr_t __ReadDirectory(
 {
     struct __ReadDirectoryContext context = {
             .Buffer = (uint8_t*)buffer + bufferOffset,
-            .EntriesToSkip = handle->Position,
             .BytesLeftInBuffer = unitCount,
+            .EntriesToSkip = (int)handle->Position,
             .EntriesRead = 0
     };
     TRACE("__ReadDirectory()");
