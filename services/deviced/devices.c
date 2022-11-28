@@ -302,10 +302,13 @@ DmDeviceCreate(
 
 void DmDeviceRefreshDrivers(void)
 {
+    TRACE("DmDeviceRefreshDrivers()");
 #ifndef __OSCONFIG_NODRIVERS
     usched_mtx_lock(&g_devicesLock);
     foreach (i, &g_devices) {
         struct DmDevice* device = i->value;
+        TRACE("DmDeviceRefreshDrivers device=%s, hasDriver=%i",
+              device->device->Identification.Description, device->has_driver);
         if (device->has_driver) {
             continue;
         }
@@ -313,4 +316,5 @@ void DmDeviceRefreshDrivers(void)
     }
     usched_mtx_unlock(&g_devicesLock);
 #endif
+    TRACE("DmDeviceRefreshDrivers done");
 }

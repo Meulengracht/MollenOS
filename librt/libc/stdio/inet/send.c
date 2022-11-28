@@ -25,8 +25,8 @@
 #include <ddk/handle.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 #include <inet/local.h>
-#include <os/mollenos.h>
 #include <string.h>
 
 static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
@@ -121,10 +121,10 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
 static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, int flags)
 {
-    OSAsyncContext_t          asyncContext;
+    OSAsyncContext_t*         asyncContext = __tls_current()->async_context;
     streambuffer_rw_options_t rwOptions = {
             .flags = 0,
-            .async_context = &asyncContext,
+            .async_context = asyncContext,
             .deadline = NULL
     };
     
@@ -138,7 +138,9 @@ static intmax_t perform_send(stdio_handle_t* handle, const struct msghdr* msg, i
     
     // For stream sockets we don't need to build the packet header. Simply just
     // write all the bytes possible to the send socket and return
-    OSAsyncContextInitialize(&asyncContext);
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
     if (handle->object.data.socket.type == SOCK_STREAM) {
         return perform_send_stream(handle, msg, &rwOptions);
     }

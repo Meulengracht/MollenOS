@@ -104,6 +104,7 @@ IPCContextRecv(
             .async_context = asyncContext,
             .deadline = NULL
     };
+    TRACE("IPCContextRecv(async=%i, flags=0x%x)", asyncContext != NULL ? 1 : 0, flags);
 
     if (ipcContext == NULL || buffer == NULL || length == 0) {
         return OS_EINVALPARAMS;
@@ -115,6 +116,7 @@ IPCContextRecv(
     
     stream         = ipcContext;
     bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
+    TRACE("IPCContextRecv bytes=%u", (uint32_t)bytesAvailable);
     if (!bytesAvailable) {
         *fromHandle = UUID_INVALID;
         *bytesReceived = 0;

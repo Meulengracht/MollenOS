@@ -58,7 +58,7 @@ OSOpenPath(
             flags,
             permissions
    );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_open_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
     return oserr;
 }

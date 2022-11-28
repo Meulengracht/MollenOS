@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 
 #include <assert.h>
@@ -99,7 +99,7 @@ ProcessSpawnEx(
                       inheritationBlock,
                       inheritationBlockLength,
                       &gconfiguration);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
     
     if (inheritationBlock) {

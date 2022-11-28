@@ -20,6 +20,7 @@
 #include <ddk/handle.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 #include <ioctl.h>
 
 oserr_t stdio_ipc_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
@@ -30,7 +31,7 @@ oserr_t stdio_ipc_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
     size_t                    bytesAvailable;
 
     rwOptions.flags = handle->object.data.ipcontext.options;
-    rwOptions.async_context = NULL;
+    rwOptions.async_context = __tls_current()->async_context;
     rwOptions.deadline = NULL;
 
     bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);

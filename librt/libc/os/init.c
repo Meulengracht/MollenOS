@@ -15,8 +15,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
-
 #define __need_quantity
 
 #include <assert.h>
@@ -254,11 +252,22 @@ static void __startup(void* argument, void* cancellationToken)
     // Unless it's the phoenix bootstrapper, we retrieve startup information
     // and various process related configurations before proceeding.
     if (!g_isPhoenix) {
-        int status = __get_startup_info();
+        OSAsyncContext_t* asyncContext;
+        int               status;
+
+        // during startup, we disable async operations as we need the queued
+        // jobs to run sequentially.
+        asyncContext = __tls_current()->async_context;
+        __tls_current()->async_context = NULL;
+
+        status = __get_startup_info();
         if (status) {
             ERROR("__startup failed to get process startup information");
             _Exit(status);
         }
+
+        // restore async context again
+        __tls_current()->async_context = asyncContext;
     }
 
     // now that we have the startup information, we can proceed to setup systems

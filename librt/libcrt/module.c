@@ -16,6 +16,8 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
@@ -79,6 +81,7 @@ __ModuleMain(
     struct __ModuleOptions moduleOptions = { UUID_INVALID };
     char**                 argv;
     int                    argc;
+    TRACE("__ModuleMain()");
 
     _CRT_UNUSED(argument);
     _CRT_UNUSED(cancellationToken);
@@ -121,6 +124,7 @@ __StartGrachtServer(
     gracht_server_configuration_t config;
     IPCAddress_t                  addr = { .Type = IPC_ADDRESS_HANDLE };
     int                           status;
+    TRACE("__StartGrachtServer()");
     _CRT_UNUSED(argument);
 
     // initialize the link

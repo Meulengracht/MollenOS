@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <os/osdefs.h>
 #include <os/types/dma.h>
+#include <os/types/async.h>
 #include <stdio.h>
 #include <wchar.h>
 
@@ -24,6 +25,7 @@ typedef struct thread_storage {
     char                  asc_buffer[26];
     char                  tmpname_buffer[L_tmpnam];
     DMAAttachment_t       dma;
+    OSAsyncContext_t*     async_context;
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 } thread_storage_t;
 

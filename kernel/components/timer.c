@@ -368,6 +368,7 @@ static void  __CalculateTimerFrequency(
     } else {
         timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
     }
+    timer->Resolution = __CalculateResolution(&timer->Frequency);
 }
 
 static inline void __SelectIfFrequencyIsHigher(
@@ -390,7 +391,6 @@ static oserr_t __EnableTimer(
 
     // Recalculate a few things, including the frequency if it's variadic
     __CalculateTimerFrequency(timer);
-    timer->Resolution = __CalculateResolution(&timer->Frequency);
 
     // Configure the timer if it was supported
     if (timer->Operations.Configure != NULL) {

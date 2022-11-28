@@ -111,7 +111,7 @@ OSNotificationQueueWait(
     if (oserr == OS_EFORKED) {
         // The system call was postponed, so we should coordinate with the
         // userspace threading system right here.
-        usched_wait_async(asyncContext);
+        usched_wait_async();
         return asyncContext->ErrorCode;
     }
     return oserr;

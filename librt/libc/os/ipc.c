@@ -22,6 +22,7 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 #include <ipcontext.h>
 #include <os/ipc.h>
 
@@ -62,8 +63,8 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
 
 int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, const struct timespec* deadline)
 {
-    stdio_handle_t*  handle = stdio_handle_get(iod);
-    OSAsyncContext_t asyncContext;
+    stdio_handle_t*   handle = stdio_handle_get(iod);
+    OSAsyncContext_t* asyncContext = __tls_current()->async_context;
     if (!handle) {
         _set_errno(EBADF);
         return -1;
@@ -73,7 +74,10 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, cons
         _set_errno(EBADFD);
         return -1;
     }
-    OSAsyncContextInitialize(&asyncContext);
+
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
     return OsErrToErrNo(
             IPCContextSend(
                     handle->object.handle,
@@ -84,18 +88,18 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, cons
                             .Seconds = deadline->tv_sec,
                             .Nanoseconds = deadline->tv_nsec
                         },
-                    &asyncContext
+                    asyncContext
             )
     );
 }
 
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
-    stdio_handle_t*  handle = stdio_handle_get(iod);
-    size_t           bytesRead = 0;
-    oserr_t          oserr;
-    int              status = -1;
-    OSAsyncContext_t asyncContext;
+    stdio_handle_t*   handle = stdio_handle_get(iod);
+    size_t            bytesRead = 0;
+    oserr_t           oserr;
+    int               status = -1;
+    OSAsyncContext_t* asyncContext = __tls_current()->async_context;
     TRACE("iprecv(len=%u, flags=0x%x)");
 
     if (!handle || !buffer || !len) {
@@ -108,13 +112,15 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
         goto exit;
     }
 
-    OSAsyncContextInitialize(&asyncContext);
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
     oserr = IPCContextRecv(
             handle->object.data.ipcontext.stream,
             buffer,
             len,
             flags,
-            &asyncContext,
+            asyncContext,
             fromHandle,
             &bytesRead
     );

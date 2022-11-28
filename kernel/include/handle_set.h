@@ -70,7 +70,7 @@ ControlHandleSet(
 KERNELAPI oserr_t KERNELABI
 WaitForHandleSet(
         _In_  uuid_t              handle,
-        _In_  OSAsyncContext_t* asyncContext,
+        _In_  OSAsyncContext_t*   asyncContext,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,

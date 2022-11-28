@@ -28,6 +28,7 @@
 #include <ddk/utils.h>
 #include <ioctl.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 
 oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
@@ -42,7 +43,7 @@ oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
             length,
             &(streambuffer_rw_options_t) {
                 .flags = handle->object.data.pipe.options,
-                .async_context = NULL,
+                .async_context = __tls_current()->async_context,
                 .deadline = NULL
             }
     );
@@ -64,7 +65,7 @@ oserr_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t l
             length,
             &(streambuffer_rw_options_t) {
                     .flags = handle->object.data.pipe.options,
-                    .async_context = NULL,
+                    .async_context = __tls_current()->async_context,
                     .deadline = NULL
             }
     );
