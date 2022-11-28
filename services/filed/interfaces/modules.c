@@ -119,11 +119,15 @@ __TryLocateDriver(
 
     // wait for the module to report loaded
     usched_mtx_lock(&g_modulesMutex);
-    hashtable_set(&g_modules, &newEntry);
-
-    // TODO use timedwait here, as waiting indefinitely will be bad.
-    usched_cnd_wait(&condition, &g_modulesMutex);
     entry = hashtable_get(&g_modules, &(struct __ModuleEntry) { .ProcessID = processID });
+    if (!entry) {
+        hashtable_set(&g_modules, &newEntry);
+
+        // TODO use timedwait here, as waiting indefinitely will be bad.
+        usched_cnd_wait(&condition, &g_modulesMutex);
+        entry = hashtable_get(&g_modules, &(struct __ModuleEntry) { .ProcessID = processID });
+    }
+
     if (entry) {
         handle = entry->ServerHandle;
         hashtable_remove(&g_modules, &(struct __ModuleEntry) { .ProcessID = processID });
@@ -196,7 +200,11 @@ void sys_file_fsready_invocation(struct gracht_message* message, const uuid_t pr
         entry->ServerHandle = serverHandle;
         usched_cnd_notify_one(entry->Condition);
     } else {
-        WARNING("sys_file_fsready_invocation module was not present, hang is now ocurring");
+        hashtable_set(&g_modules, &(struct __ModuleEntry) {
+            .ProcessID = processId,
+            .ServerHandle = serverHandle,
+            .Condition = NULL
+        });
     }
     usched_mtx_unlock(&g_modulesMutex);
 }

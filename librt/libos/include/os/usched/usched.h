@@ -61,9 +61,8 @@ CRTDECL(void, usched_timedwait(const struct timespec* until));
 /**
  * @brief Blocks the current job until the async context has completed its
  * action.
- * @param asyncContext The async context associated with the async action.
  */
-CRTDECL(void, usched_wait_async(OSAsyncContext_t* asyncContext));
+CRTDECL(void, usched_wait_async(void));
 
 /**
  * @brief Retrieves the notification queue handle for the current scheduler.

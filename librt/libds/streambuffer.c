@@ -224,7 +224,7 @@ streambuffer_stream_out(
         _In_ size_t                     length,
         _In_ streambuffer_rw_options_t* options)
 {
-    const uint8_t*    casted_ptr    = (const uint8_t*)buffer;
+    const uint8_t*      casted_ptr    = (const uint8_t*)buffer;
     size_t              bytes_written = 0;
     OSFutexParameters_t parameters;
     dstrace("[streambuffer_stream_out] 0x%" PRIxIN ", length %" PRIuIN ", options 0x%x",

@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_ioset.h>
+#include <internal/_tls.h>
 #include <ioctl.h>
 #include <ioset.h>
 #include <os/mollenos.h>
@@ -123,12 +124,12 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 
 int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const struct timespec* until)
 {
-    OSAsyncContext_t    asyncContext;
     stdio_handle_t*     setObject = stdio_handle_get(set_iod);
     int                 numEvents;
     struct ioset_entry* entry;
     oserr_t             oserr;
     int                 i = 0;
+    OSAsyncContext_t*   asyncContext = __tls_current()->async_context;
     
     TRACE("[ioset] [wait] %i, %i", set_iod, max_events);
     
@@ -153,7 +154,9 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const st
         entry = entry->link;
     }
 
-    OSAsyncContextInitialize(&asyncContext);
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
     oserr = OSNotificationQueueWait(
             setObject->object.handle,
             &events[0],
@@ -163,7 +166,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const st
                 .Seconds = until->tv_sec, .Nanoseconds = until->tv_nsec
             },
             &numEvents,
-            &asyncContext
+            asyncContext
     );
     if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);

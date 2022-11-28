@@ -49,8 +49,8 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 #include <inet/local.h>
-#include <os/types/async.h>
 
 static inline unsigned int
 get_streambuffer_flags(int flags)
@@ -220,10 +220,10 @@ static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, streamb
 
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
 {
-    stdio_handle_t*  handle = stdio_handle_get(iod);
-    streambuffer_t*  stream;
-    intmax_t         numbytes;
-    OSAsyncContext_t asyncContext;
+    stdio_handle_t*   handle = stdio_handle_get(iod);
+    streambuffer_t*   stream;
+    intmax_t          numbytes;
+    OSAsyncContext_t* asyncContext = __tls_current()->async_context;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -246,10 +246,12 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         return 0; // Should return 0
     }
 
-    OSAsyncContextInitialize(&asyncContext);
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
     numbytes = perform_recv(handle, msg_hdr, &(streambuffer_rw_options_t) {
             .flags =  get_streambuffer_flags(flags),
-            &asyncContext,
+            asyncContext,
             NULL
     });
     

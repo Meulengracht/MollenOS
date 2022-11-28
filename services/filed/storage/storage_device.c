@@ -43,7 +43,7 @@ static oserr_t __DeviceQueryStats(
     TRACE("__DeviceQueryStats()");
 
     ctt_storage_stat(GetGrachtClient(), &msg.base, deviceID);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_storage_stat_result(GetGrachtClient(), &msg.base, &osStatus, &gdescriptor);
     if (osStatus == OS_EOK) {
         from_sys_disk_descriptor_dkk(&gdescriptor, stats);
@@ -96,7 +96,7 @@ static oserr_t __ReadDevice(
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, read);
     return status;
 }
@@ -119,7 +119,7 @@ static oserr_t __WriteDevice(
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_storage_transfer_result(GetGrachtClient(), &msg.base, &status, written);
     return status;
 }

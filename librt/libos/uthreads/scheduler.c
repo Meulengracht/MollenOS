@@ -298,6 +298,7 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
     // things are not practical for us to do at job creation, so we have
     // deferred them to just-in-time initialization.
     __tls_current()->job_id = next->id;
+    __tls_current()->async_context = &next->async_context;
 
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.
@@ -616,12 +617,13 @@ __usched_timeout_finish(int id)
     return result;
 }
 
-void usched_wait_async(OSAsyncContext_t* asyncContext)
+void usched_wait_async(void)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
+    struct usched_job*       current = sched->current;
     struct usched_syscall    syscall = {
-            .job = sched->current,
-            .async_context = asyncContext,
+            .job = current,
+            .async_context = &current->async_context,
             .next = NULL
     };
     TRACE("usched_wait_async()");

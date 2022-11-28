@@ -52,6 +52,10 @@ struct usched_job {
     jmp_buf        context;
     enum job_state state;
 
+    // async_context is the job specific async context
+    // which is used implicitly by the libc functions.
+    OSAsyncContext_t async_context;
+
     // entry is the job entry function.
     usched_task_fn entry;
 

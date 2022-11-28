@@ -151,6 +151,7 @@ __SpawnDriver(
     oserr_t osStatus;
     char    args[32];
     char*   driverPath;
+    TRACE("__SpawnDriver(%ms)", driver->path);
 
     driverPath = mstr_u8(driver->path);
     if (driverPath == NULL) {
