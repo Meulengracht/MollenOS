@@ -43,7 +43,7 @@ Mount(
             type,
             flags
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_mount_mount_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }
@@ -61,7 +61,7 @@ Unmount(
             ProcessGetCurrentId(),
             path
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_mount_unmount_result(GetGrachtClient(), &msg.base, &status);
     return status;
 }

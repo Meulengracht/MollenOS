@@ -141,12 +141,12 @@ GetFullPath(
         }
 
         sys_file_realpath(GetGrachtClient(), &msg.base, fullPath, followLinks);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         sys_file_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
         free(fullPath);
     } else {
         sys_file_realpath(GetGrachtClient(), &msg.base, path, followLinks);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         sys_file_realpath_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
     }
     return status;

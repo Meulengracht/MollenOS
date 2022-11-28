@@ -31,12 +31,6 @@ struct fstat {
     timestamp created;
 }
 
-enum fs_storage_type {
-    DEVICE,
-    FILE,
-    EPHEMERAL
-}
-
 struct fs_storage_file {
     uuid_t id;
 }
@@ -47,7 +41,6 @@ struct fs_storage_device {
 }
 
 struct fs_setup_params {
-    uint type;
     variant storage {
         fs_storage_file file;
         fs_storage_device device;

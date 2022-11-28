@@ -412,7 +412,7 @@ static Device_t* from_sys_device(const struct sys_device* in)
 
 static void from_fs_setup_params(const struct ctt_fs_setup_params* in, struct VFSStorageParameters* out)
 {
-    switch(in->type) {
+    switch (in->storage_type) {
         case CTT_FS_SETUP_PARAMS_STORAGE_DEVICE: {
             out->StorageType = VFSSTORAGE_TYPE_DEVICE;
             out->Storage.Device.DeviceID = in->storage.device.device_id;
@@ -430,15 +430,18 @@ static void from_fs_setup_params(const struct ctt_fs_setup_params* in, struct VF
 
 static void to_fs_setup_params(const struct VFSStorageParameters* in, struct ctt_fs_setup_params* out)
 {
-    switch(in->StorageType) {
+    ctt_fs_setup_params_init(out);
+    switch (in->StorageType) {
         case VFSSTORAGE_TYPE_DEVICE: {
-            out->type = CTT_FS_SETUP_PARAMS_STORAGE_DEVICE;
-            out->storage.device.device_id = in->Storage.Device.DeviceID;
-            out->storage.device.driver_id = in->Storage.Device.DriverID;
+            ctt_fs_setup_params_storage_set_fs_storage_device(out, &(struct ctt_fs_storage_device) {
+                .device_id = in->Storage.Device.DeviceID,
+                .driver_id = in->Storage.Device.DriverID
+            });
         } break;
         case VFSSTORAGE_TYPE_FILE: {
-            out->type = CTT_FS_SETUP_PARAMS_STORAGE_FILE;
-            out->storage.file.id = in->Storage.File.HandleID;
+            ctt_fs_setup_params_storage_set_fs_storage_file(out, &(struct ctt_fs_storage_file) {
+                    .id = in->Storage.File.HandleID
+            });
         } break;
         default: break;
     }
