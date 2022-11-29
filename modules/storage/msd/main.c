@@ -24,6 +24,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <ioset.h>
+#include <os/usched/job.h>
 #include "msd.h"
 
 #include <ctt_driver_service_server.h>
@@ -69,24 +70,25 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOTSUPPORTED;
 }
 
-oserr_t
+void
 OnRegister(
-    _In_ Device_t *Device)
+    _In_ void* context,
+    _In_ void* cancellationToken)
 {
-    MsdDevice_t* MsdDevice;
-    
-    MsdDevice = MsdDeviceCreate((UsbDevice_t*)Device);
-    if (MsdDevice == NULL) {
-        return OS_EUNKNOWN;
-    }
+    UsbDevice_t* usbDevice = context;
+    MsdDevice_t* msdDevice;
 
-    list_append(&g_devices, &MsdDevice->Header);
-    return OS_EOK;
+    msdDevice = MsdDeviceCreate(usbDevice);
+    if (msdDevice == NULL) {
+        ERROR("OnRegister failed to create MSD device");
+        return;
+    }
+    list_append(&g_devices, &msdDevice->Header);
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister(from_sys_device(device));
+    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 oserr_t

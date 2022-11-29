@@ -70,29 +70,34 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOENT;
 }
 
-oserr_t
+void
 OnRegister(
-    _In_ Device_t* device)
+    _In_ void* context,
+    _In_ void* cancellationToken)
 {
+    Device_t*               device = context;
+    UsbManagerController_t* controller;
+
     TRACE("OnRegister()");
     if (device == NULL) {
-        ERROR("OnRegister: device provided was NULL");
-        return OS_EINVALPARAMS;
+        ERROR("OnRegister device provided was NULL");
+        return;
     }
 
     if (device->Length != sizeof(BusDevice_t)) {
-        return OS_EINVALPARAMS;
+        ERROR("OnRegister device provided was of invalid type");
+        return;
     }
-    
-    if (HciControllerCreate((BusDevice_t*)device) == NULL) {
-        return OS_EUNKNOWN;
+
+    controller = HciControllerCreate((BusDevice_t*)device);
+    if (controller == NULL) {
+        ERROR("OnRegister failed to create the hci controller");
     }
-    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister(from_sys_device(device));
+    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 oserr_t

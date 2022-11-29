@@ -44,7 +44,7 @@ int socket_create(int domain, int type, int protocol, uuid_t handle,
         
         ERROR("[socket] stdio_handle_create failed with code %u", status);
         sys_socket_close(GetGrachtClient(), &msg.base, handle, SYS_CLOSE_OPTIONS_DESTROY);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         sys_socket_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return -1;
     }

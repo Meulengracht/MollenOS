@@ -112,7 +112,7 @@ static void __CrashHandler(
                 sizeof(Context_t),
                 signal->signal
         );
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, 0);
         sys_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
     else {

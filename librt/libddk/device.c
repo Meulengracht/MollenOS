@@ -40,7 +40,7 @@ RegisterDevice(
     to_sys_device(device, &sysDevice);
 
     status = sys_device_register(GetGrachtClient(), &msg.base, &sysDevice,  flags);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_device_register_result(GetGrachtClient(), &msg.base, &oserr, &id);
 
     sys_device_destroy(&sysDevice);
@@ -65,7 +65,7 @@ UnregisterDevice(
     oserr_t                  oserr;
     
     sys_device_unregister(GetGrachtClient(), &msg.base, deviceId);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_device_unregister_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -80,7 +80,7 @@ IoctlDevice(
     oserr_t                  oserr;
     
     sys_device_ioctl(GetGrachtClient(), &msg.base, deviceId, command, flags);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_device_ioctl_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
 }
@@ -97,7 +97,7 @@ IoctlDeviceEx(
     oserr_t                  oserr;
     
     sys_device_ioctlex(GetGrachtClient(), &msg.base, deviceId, direction, offset, *value, width);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_device_ioctlex_result(GetGrachtClient(), &msg.base, &oserr, value);
     return oserr;
 }

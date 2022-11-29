@@ -94,7 +94,7 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
     }
     
     sys_socket_accept(GetGrachtClient(), &msg.base, handle->object.handle);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_accept_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address, *address_length,
         &socket_handle, &recv_handle, &send_handle);
     if (status != OS_EOK) {

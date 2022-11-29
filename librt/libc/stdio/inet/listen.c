@@ -60,7 +60,7 @@ int listen(int iod, int backlog)
     }
     
     sys_socket_listen(GetGrachtClient(), &msg.base, handle->object.handle, backlog);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_listen_result(GetGrachtClient(), &msg.base, &status);
     if (status != OS_EOK) {
         OsErrToErrNo(status);

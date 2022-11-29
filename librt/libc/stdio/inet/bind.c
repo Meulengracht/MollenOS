@@ -55,7 +55,7 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
     }
     
     sys_socket_bind(GetGrachtClient(), &msg.base, handle->object.handle, (const uint8_t*)address, address_length);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_bind_result(GetGrachtClient(), &msg.base, &status);
     if (status != OS_EOK) {
         OsErrToErrNo(status);

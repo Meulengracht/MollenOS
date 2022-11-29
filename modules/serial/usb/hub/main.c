@@ -26,6 +26,7 @@
 #include <ddk/convert.h>
 #include <ds/list.h>
 #include <ioset.h>
+#include <os/usched/job.h>
 #include "hub.h"
 
 #include <ctt_driver_service_server.h>
@@ -76,23 +77,25 @@ OnUnload(void)
     UsbCleanup();
 }
 
-oserr_t OnRegister(
-    _In_ Device_t* device)
+void
+OnRegister(
+    _In_ void* context,
+    _In_ void* cancellationToken)
 {
+    UsbDevice_t* usbDevice = context;
     HubDevice_t* hubDevice;
 
-    hubDevice = HubDeviceCreate((UsbDevice_t*)device);
+    hubDevice = HubDeviceCreate(usbDevice);
     if (!hubDevice) {
-        return OS_EUNKNOWN;
+        ERROR("OnRegister failed to create hub device");
+        return;
     }
-
     list_append(&g_devices, &hubDevice->Header);
-    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister(from_sys_device(device));
+    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 oserr_t OnUnregister(

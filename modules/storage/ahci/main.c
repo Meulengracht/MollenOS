@@ -137,22 +137,23 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOENT;
 }
 
-oserr_t
+void
 OnRegister(
-    _In_ Device_t* device)
+    _In_ void* context,
+    _In_ void* cancellationToken)
 {
-    AhciController_t* controller = AhciControllerCreate((BusDevice_t*)device);
+    BusDevice_t*      busDevice = context;
+    AhciController_t* controller = AhciControllerCreate(busDevice);
     if (controller == NULL) {
-        return OS_EUNKNOWN;
+        ERROR("OnRegister failed to create ahci device");
+        return;
     }
-
     list_append(&controllers, &controller->header);
-    return OS_EOK;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister(from_sys_device(device));
+    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 oserr_t
