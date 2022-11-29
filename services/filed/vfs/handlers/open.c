@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #define __TRACE
 
 #include <ddk/utils.h>
@@ -106,5 +107,6 @@ oserr_t VFSNodeOpen(struct VFS* vfs, const char* cpath, uint32_t options, uint32
 exit:
     VFSNodePut(containingDirectory);
     mstr_delete(nodeName);
+    TRACE("VFSNodeOpen done");
     return osStatus;
 }

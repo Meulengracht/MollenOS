@@ -18,6 +18,9 @@
  * setup sequence for all OS services.
  */
 
+#define __TRACE
+
+#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
 #include <internal/_tls.h>
@@ -95,10 +98,10 @@ __StartGrachtServer(void* argument, void* cancellationToken)
     while (usched_is_cancelled(cancellationToken) == false) {
         num_events = ioset_wait(config.set_descriptor, &events[0], 32, NULL);
         for (int i = 0; i < num_events; i++) {
+            TRACE("event from %i", events[i].data.iod);
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, 0);
-            }
-            else {
+            } else {
                 gracht_server_handle_event(g_server, events[i].data.iod, events[i].events);
             }
         }

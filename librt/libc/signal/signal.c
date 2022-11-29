@@ -30,6 +30,7 @@
 #include <internal/_all.h>
 #include <internal/_ipc.h>
 #include <internal/_syscalls.h>
+#include <internal/_tls.h>
 #include <os/context.h>
 #include <os/threads.h>
 #include <signal.h>
@@ -94,19 +95,23 @@ static void __CrashHandler(
     _In_ sig_element* signal,
     _In_ size_t       flags)
 {
+    // When we enter the crash handler, we disable all async operations
+    // as we don't want any other userspace threads to run on this XU
+    __tls_current()->async_context = NULL;
+
     // Not supported by phoenix
     if (!__crt_is_phoenix()) {
         oserr_t               osStatus;
-        int                      status;
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
 
-        status = sys_process_report_crash(GetGrachtClient(), &msg.base, ThreadsCurrentId(),
-                                          __crt_process_id(), (const uint8_t*)context,
-                                          sizeof(Context_t), signal->signal);
-        if (status) {
-            // @todo log and return
-            return;
-        }
+        sys_process_report_crash(
+                GetGrachtClient(), &msg.base,
+                ThreadsCurrentId(),
+                __crt_process_id(),
+                (const uint8_t*)context,
+                sizeof(Context_t),
+                signal->signal
+        );
         gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
         sys_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
     }
@@ -115,8 +120,7 @@ static void __CrashHandler(
     }
     
     // Last thing is to exit application
-    ERROR("Received signal %i (%s). Terminating application",
-          signal->signal, signal->name);
+    ERROR("Received signal %i (%s). Terminating application", signal->signal, signal->name);
     _Exit(EXIT_FAILURE);
 }
 

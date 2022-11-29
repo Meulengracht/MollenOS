@@ -203,6 +203,7 @@ void InstallBundledApplications(void)
         return;
     }
 
+    TRACE("parsing entries");
     while ((entry = readdir(setupDir)) != NULL) {
         mstring_t* path = mstr_fmt("/data/setup/%s", &entry->d_name[0]);
         oserr_t oserr = InstallApplication(path, &entry->d_name[0]);
