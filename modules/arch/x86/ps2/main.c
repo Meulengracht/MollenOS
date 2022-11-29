@@ -264,17 +264,23 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOENT;
 }
 
-oserr_t
+void
 OnRegister(
-    _In_ Device_t* device)
+    _In_ void* context,
+    _In_ void* cancellationToken)
 {
+    Device_t*  device = context;
     oserr_t    oserr;
     PS2Port_t* port;
 
     // First register call is the ps2-controller and all sequent calls here is ps2-devices
     // So install the contract as soon as it arrives
     if (Ps2Controller->Device->Base.Id == UUID_INVALID) {
-        return PS2Initialize(device);
+        oserr = PS2Initialize(device);
+        if (oserr != OS_EOK) {
+            ERROR(" > failed to initalize ps2 driver");
+        }
+        return;
     }
 
     // Select port from device-id
@@ -283,8 +289,9 @@ OnRegister(
     } else if (Ps2Controller->Ports[1].DeviceId == device->Id) {
         port = &Ps2Controller->Ports[1];
     } else {
+        WARNING("OnRegister unknown ps2 device");
         free(device);
-        return OS_EUNKNOWN;
+        return;
     }
 
     // Ok .. It's a new device
@@ -305,15 +312,14 @@ OnRegister(
             ERROR(" > failed to initalize ps2-mouse");
         }
     } else {
-        oserr = OS_EUNKNOWN;
+        WARNING("OnRegister unknown ps2 device");
     }
     free(device); // not used for ports atm
-    return oserr;
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    OnRegister(from_sys_device(device));
+    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)

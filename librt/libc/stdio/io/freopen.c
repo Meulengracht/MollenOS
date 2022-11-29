@@ -72,7 +72,7 @@ FILE* freopen(
 			
 			sys_file_set_access(GetGrachtClient(), &msg.base, __crt_process_id(),
                                 handle->object.handle, _fopts(open_flags));
-            gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+            gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
 			sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
 			OsErrToErrNo(status);
 		}

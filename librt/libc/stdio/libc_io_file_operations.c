@@ -47,7 +47,7 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
             bytesToTransfer, offset);
         sys_file_transfer(GetGrachtClient(), &msg.base, __crt_process_id(),
                           file_handle, direction, buffer_handle, offset, bytesToTransfer);
-        gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
         sys_file_transfer_result(GetGrachtClient(), &msg.base, &status, &bytesTransferred);
         
         TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",

@@ -48,7 +48,7 @@ int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length
     }
     
     sys_socket_get_address(GetGrachtClient(), &msg.base, handle->object.handle, SYS_ADDRESS_TYPE_THIS);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_get_address_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address_out, *address_length_out);
     if (status != OS_EOK) {
         OsErrToErrNo(status);

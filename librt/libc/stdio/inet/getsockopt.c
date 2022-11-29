@@ -44,7 +44,7 @@ int getsockopt(int iod, int protocol, int option, void* data, socklen_t* length_
     }
     
     sys_socket_get_option(GetGrachtClient(), &msg.base, handle->object.handle, protocol, option);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_get_option_result(GetGrachtClient(), &msg.base, &status, data, (uint32_t)(*length_out), length_out);
     if (status != OS_EOK) {
         OsErrToErrNo(status);

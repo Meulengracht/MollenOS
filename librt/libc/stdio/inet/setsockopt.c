@@ -45,7 +45,7 @@ int setsockopt(int iod, int protocol, int option, const void* data, socklen_t le
     
     sys_socket_set_option(GetGrachtClient(), &msg.base, handle->object.handle,
         protocol, option, data, length, length);
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_set_option_result(GetGrachtClient(), &msg.base, &status);
     if (status != OS_EOK) {
         OsErrToErrNo(status);
