@@ -17,17 +17,16 @@
  */
 
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
+oserr_t VFSNodeWrite(uuid_t fileHandle, uuid_t bufferHandle, size_t offset, size_t length, size_t* writtenOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
     oserr_t               oserr;
 
-    oserr = VFSNodeHandleGet(request->parameters.transfer.fileHandle, &handle);
+    oserr = VFSNodeHandleGet(fileHandle, &handle);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -52,10 +51,10 @@ oserr_t VFSNodeWrite(struct VFSRequest* request, size_t* writtenOut)
             nodeVfs->Interface,
             nodeVfs->Data,
             handle->Data,
-            request->parameters.transfer.bufferHandle,
+            bufferHandle,
             NULL, /* No buffer can be supplied on this code path */
-            request->parameters.transfer.offset,
-            request->parameters.transfer.length,
+            offset,
+            length,
             writtenOut
     );
     usched_rwlock_r_unlock(&handle->Node->Lock);

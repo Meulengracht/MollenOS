@@ -19,14 +19,13 @@
 #define __TRACE
 
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
+oserr_t VFSNodeLink(struct VFS* vfs, const char* cfrom, const char* cto, bool symbolic)
 {
-    mstring_t* path   = mstr_path_new_u8(request->parameters.link.from);
-    mstring_t* target = mstr_new_u8(request->parameters.link.to);
+    mstring_t* path   = mstr_path_new_u8(cfrom);
+    mstring_t* target = mstr_new_u8(cto);
     TRACE("VFSNodeLink(path=%ms, target=%ms)", path, target);
 
     if (path == NULL || target == NULL) {
@@ -71,7 +70,7 @@ oserr_t VFSNodeLink(struct VFS* vfs, struct VFSRequest* request)
 
     osStatus = VFSNodeCreateLinkChild(
             containingDirectory, nodeName, target,
-            request->parameters.link.symbolic,
+            symbolic,
             &node);
 
 exit:

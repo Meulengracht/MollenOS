@@ -18,22 +18,21 @@
 
 #include <ddk/utils.h>
 #include <string.h>
-#include <vfs/requests.h>
 #include <vfs/storage.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat* stat)
+oserr_t VFSNodeStat(struct VFS* vfs, const char* cpath, int followLinks, struct VFSStat* stat)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
+    mstring_t*      nodePath = mstr_path_new_u8(cpath);
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OS_EOOM;
     }
 
-    osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
+    osStatus = VFSNodeGet(vfs, nodePath, followLinks, &node);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
@@ -45,17 +44,17 @@ oserr_t VFSNodeStat(struct VFS* vfs, struct VFSRequest* request, struct VFSStat*
     return OS_EOK;
 }
 
-oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSStatFS* stat)
+oserr_t VFSNodeStatFs(struct VFS* vfs, const char* cpath, int followLinks, struct VFSStatFS* stat)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
+    mstring_t*      nodePath = mstr_path_new_u8(cpath);
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OS_EOOM;
     }
 
-    osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
+    osStatus = VFSNodeGet(vfs, nodePath, followLinks, &node);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
@@ -72,17 +71,17 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, struct VFSRequest* request, struct VFSSta
     return osStatus;
 }
 
-oserr_t VFSNodeStatStorage(struct VFS* vfs, struct VFSRequest* request, StorageDescriptor_t* stat)
+oserr_t VFSNodeStatStorage(struct VFS* vfs, const char* cpath, int followLinks, StorageDescriptor_t* stat)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
+    mstring_t*      nodePath = mstr_path_new_u8(cpath);
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OS_EOOM;
     }
 
-    osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
+    osStatus = VFSNodeGet(vfs, nodePath, followLinks, &node);
     if (osStatus != OS_EOK) {
         return osStatus;
     }

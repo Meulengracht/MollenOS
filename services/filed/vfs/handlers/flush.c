@@ -17,21 +17,16 @@
  */
 
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeFlush(struct VFSRequest* request)
+oserr_t VFSNodeFlush(uuid_t fileHandle)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
     oserr_t               oserr;
-    UInteger64_t          position;
 
-    position.u.LowPart  = request->parameters.seek.position_low;
-    position.u.HighPart = request->parameters.seek.position_high;
-
-    oserr = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
+    oserr = VFSNodeHandleGet(fileHandle, &handle);
     if (oserr != OS_EOK) {
         return oserr;
     }

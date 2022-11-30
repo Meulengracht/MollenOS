@@ -73,6 +73,7 @@ __StartGrachtServer(void* argument, void* cancellationToken)
     // initialize configurations for server
     gracht_server_configuration_init(&config);
     gracht_server_configuration_set_aio_descriptor(&config, ioset(0));
+    gracht_server_configuration_set_num_workers(&config, 2); // doesn't matter, just enables it
 
     status = gracht_server_create(&config, &g_server);
     if (status) {
@@ -98,7 +99,6 @@ __StartGrachtServer(void* argument, void* cancellationToken)
     while (usched_is_cancelled(cancellationToken) == false) {
         num_events = ioset_wait(config.set_descriptor, &events[0], 32, NULL);
         for (int i = 0; i < num_events; i++) {
-            TRACE("event from %i", events[i].data.iod);
             if (events[i].data.iod == gracht_client_iod(GetGrachtClient())) {
                 gracht_client_wait_message(GetGrachtClient(), NULL, 0);
             } else {

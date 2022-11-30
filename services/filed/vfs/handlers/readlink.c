@@ -17,11 +17,10 @@
  */
 
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeReadLink(struct VFS* vfs, struct VFSRequest* request, mstring_t** linkOut)
+oserr_t VFSNodeReadLink(struct VFS* vfs, const char* cpath, mstring_t** linkOut)
 {
     struct VFSNodeHandle* handle;
     oserr_t               osStatus;

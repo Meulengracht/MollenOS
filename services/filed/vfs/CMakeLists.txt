@@ -20,7 +20,6 @@ endif ()
 add_subdirectory(handlers)
 
 add_library(filed-vfs
-        api.c
         bind.c
         handles.c
         memfs.c
