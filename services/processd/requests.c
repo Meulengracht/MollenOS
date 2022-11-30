@@ -17,346 +17,232 @@
 
 //#define __TRACE
 
-#include <assert.h>
-#include <ddk/barrier.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/server.h>
-#include <os/usched/job.h>
+#include <os/context.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ddk/convert.h>
-#include "requests.h"
+#include <process.h>
 
 #include "sys_library_service_server.h"
 #include "sys_process_service_server.h"
 
-extern void PmCreateProcess(Request_t* request, void*);
-extern void PmGetProcessStartupInformation(Request_t* request, void*);
-extern void PmJoinProcess(Request_t* request, void*);
-extern void PmTerminateProcess(Request_t* request, void*);
-extern void PmSignalProcess(Request_t* request, void*);
-extern void PmLoadLibrary(Request_t* request, void*);
-extern void PmGetLibraryFunction(Request_t* request, void*);
-extern void PmUnloadLibrary(Request_t* request, void*);
-extern void PmGetModules(Request_t* request, void*);
-extern void PmGetName(Request_t* request, void*);
-extern void PmGetTickBase(Request_t* request, void*);
-extern void PmGetWorkingDirectory(Request_t* request, void*);
-extern void PmSetWorkingDirectory(Request_t* request, void*);
-extern void PmGetAssemblyDirectory(Request_t* request, void*);
-extern void PmHandleCrash(Request_t* request, void*);
-
-static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
-
-static inline const void* memdup(const void* source, size_t count) {
-    void* dest;
-    if (!count) {
-        return NULL;
-    }
-    dest = malloc(count);
-    if (!dest) {
-        return NULL;
-    }
-    memcpy(dest, source, count);
-    return dest;
-}
-
-static Request_t*
-CreateRequest(struct gracht_message* message)
-{
-    Request_t* request;
-
-    request = malloc(sizeof(Request_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message));
-    if (!request) {
-        ERROR("CreateRequest out of memory for message allocation!");
-        return NULL;
-    }
-
-    request->id = atomic_fetch_add(&g_requestId, 1);
-    request->state = RequestState_CREATED;
-    gracht_server_defer_message(message, &request->message[0]);
-    usched_cnd_init(&request->signal);
-    ELEMENT_INIT(&request->leaf, 0, request);
-    return request;
-}
-
-void RequestDestroy(Request_t* request)
-{
-    assert(request != NULL);
-
-    free(request);
-}
-
-void RequestSetState(Request_t* request, enum RequestState state)
-{
-    assert(request != NULL);
-
-    request->state = state;
-}
+extern oserr_t PmCreateProcess(const char* path, const char* args, const void* inherit, ProcessConfiguration_t* processConfiguration, uuid_t* handleOut);
+extern oserr_t PmGetProcessStartupInformation(uuid_t threadHandle, uuid_t bufferHandle, size_t bufferOffset, uuid_t* processHandleOut);
+extern oserr_t PmJoinProcess(uuid_t processHandle, unsigned int timeout, int* exitCodeOut);
+extern oserr_t PmTerminateProcess(uuid_t processHandle, int exitCode);
+extern oserr_t PmSignalProcess(uuid_t processHandle, uuid_t victimHandle, int signal);
+extern oserr_t PmLoadLibrary(uuid_t processHandle, const char* cpath, Handle_t* handleOut, uintptr_t* entryPointOut);
+extern oserr_t PmGetLibraryFunction(uuid_t processHandle, Handle_t libraryHandle, const char* name, uintptr_t* functionAddressOut);
+extern oserr_t PmUnloadLibrary(uuid_t processHandle, Handle_t libraryHandle);
+extern oserr_t PmGetModules(uuid_t processHandle, Handle_t* modules, int* modulesCount);
+extern oserr_t PmGetName(uuid_t processHandle, mstring_t** nameOut);
+extern oserr_t PmGetTickBase(uuid_t processHandle, UInteger64_t* tick);
+extern oserr_t PmGetWorkingDirectory(uuid_t processHandle, mstring_t** pathOut);
+extern oserr_t PmSetWorkingDirectory(uuid_t processHandle, const char* path);
+extern oserr_t PmGetAssemblyDirectory(uuid_t processHandle, mstring_t** pathOut);
+extern oserr_t HandleProcessCrashReport(Process_t* process, uuid_t threadHandle, const Context_t* crashContext, int crashReason);
 
 void sys_process_spawn_invocation(struct gracht_message* message, const char* path, const char* arguments,
                                   const uint8_t* inheritBlock, const uint32_t inheritBlock_count,
                                   const struct sys_process_configuration* configuration)
 {
-    Request_t* request;
-    TRACE("sys_process_spawn_invocation()");
+    ProcessConfiguration_t conf;
+    uuid_t                 handle;
+    oserr_t                osStatus;
+    ENTRY("sys_process_spawn_invocation(path=%s, args=%s)", path, args);
 
     if (!strlen(path)) {
         sys_process_spawn_response(message, OS_EINVALPARAMS, UUID_INVALID);
-        return;
+        goto exit;
     }
 
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_spawn_response(message, OS_EOOM, UUID_INVALID);
-        return;
+    from_sys_process_configuration(configuration, &conf);
+    osStatus = PmCreateProcess(
+            path,
+            arguments,
+            inheritBlock,
+            &conf,
+            &handle
+    );
+    if (osStatus != OS_EOK) {
+        sys_process_spawn_response(message, osStatus, UUID_INVALID);
+        goto exit;
     }
+    sys_process_spawn_response(message, osStatus, handle);
 
-    // initialize parameters
-    request->parameters.spawn.path = strdup(path);
-    request->parameters.spawn.args = strdup(arguments);
-    request->parameters.spawn.inherit = memdup(inheritBlock, inheritBlock_count);
-    from_sys_process_configuration(configuration, &request->parameters.spawn.conf);
-    usched_job_queue((usched_task_fn)PmCreateProcess, request);
+exit:
+    EXIT("PmCreateProcess");
 }
 
 void sys_process_get_startup_information_invocation(struct gracht_message* message, const uuid_t handle,
                                                     const uuid_t bufferHandle, const size_t offset)
 {
-    Request_t* request;
     TRACE("sys_process_get_startup_information_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_get_startup_information_response(message, OS_EOOM, UUID_INVALID);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.get_initblock.threadHandle = handle;
-    request->parameters.get_initblock.bufferHandle = bufferHandle;
-    request->parameters.get_initblock.bufferOffset = offset;
-    usched_job_queue((usched_task_fn)PmGetProcessStartupInformation, request);
+    uuid_t  processHandle = UUID_INVALID;
+    oserr_t oserr = PmGetProcessStartupInformation(
+            handle,
+            bufferHandle,
+            offset,
+            &processHandle
+    );
+    sys_process_get_startup_information_response(message, oserr, processHandle);
 }
 
 void sys_process_join_invocation(struct gracht_message* message, const uuid_t handle, const unsigned int timeout)
 {
-    Request_t* request;
     TRACE("sys_process_join_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_join_response(message, OS_EOOM, 0);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.join.handle  = handle;
-    request->parameters.join.timeout = timeout;
-    usched_job_queue((usched_task_fn)PmJoinProcess, request);
+    int     exitCode = 0;
+    oserr_t oserr = PmJoinProcess(handle, timeout, &exitCode);
+    sys_process_join_response(message, oserr, exitCode);
 }
 
 void sys_process_terminate_invocation(struct gracht_message* message, const uuid_t handle, const int exitCode)
 {
-    Request_t* request;
     TRACE("sys_process_terminate_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_terminate_response(message, OS_EOOM);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.terminate.handle    = handle;
-    request->parameters.terminate.exit_code = exitCode;
-    usched_job_queue((usched_task_fn)PmTerminateProcess, request);
+    oserr_t oserr = PmTerminateProcess(handle, exitCode);
+    sys_process_terminate_response(message, oserr);
 }
 
 void sys_process_signal_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle, const int signal)
 {
-    Request_t* request;
     TRACE("sys_process_signal_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_signal_response(message, OS_EOOM);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.signal.killer_handle = processId;
-    request->parameters.signal.victim_handle = handle;
-    usched_job_queue((usched_task_fn)PmSignalProcess, request);
+    oserr_t oserr = PmSignalProcess(processId, handle, signal);
+    sys_process_signal_response(message, oserr);
 }
 
 void sys_library_load_invocation(struct gracht_message* message, const uuid_t processId, const char* path)
 {
-    Request_t* request;
     TRACE("sys_library_load_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_library_load_response(message, OS_EOOM, UUID_INVALID, 0);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.load_library.handle = processId;
-    request->parameters.load_library.path   = strdup(path);
-    usched_job_queue((usched_task_fn)PmLoadLibrary, request);
+    Handle_t  handle;
+    uintptr_t address;
+    oserr_t   oserr = PmLoadLibrary(processId, path, &handle, &address);
+    sys_library_load_response(message, oserr, (uintptr_t)handle, address);
 }
 
 void sys_library_get_function_invocation(struct gracht_message* message, const uuid_t processId,
                                          const uintptr_t handle, const char* name)
 {
-    Request_t* request;
     TRACE("sys_library_get_function_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_library_get_function_response(message, OS_EOOM, 0);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.get_function.handle         = processId;
-    request->parameters.get_function.library_handle = (Handle_t)handle;
-    request->parameters.get_function.name           = strdup(name);
-    usched_job_queue((usched_task_fn)PmGetLibraryFunction, request);
+    uintptr_t functionAddress;
+    oserr_t   oserr = PmGetLibraryFunction(processId, (Handle_t)handle, name, &functionAddress);
+    sys_library_get_function_response(message, oserr, functionAddress);
 }
 
 void sys_library_unload_invocation(struct gracht_message* message, const uuid_t processId, const uintptr_t handle)
 {
-    Request_t* request;
     TRACE("sys_library_unload_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_library_unload_response(message, OS_EOOM);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.unload_library.handle         = processId;
-    request->parameters.unload_library.library_handle = (Handle_t)handle;
-    usched_job_queue((usched_task_fn)PmUnloadLibrary, request);
+    oserr_t oserr = PmUnloadLibrary(processId, (Handle_t)handle);
+    sys_library_unload_response(message, oserr);
 }
 
 void sys_process_get_modules_invocation(struct gracht_message* message, const uuid_t handle)
 {
-    Request_t* request;
     TRACE("sys_process_get_modules_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
+    int      moduleCount = PROCESS_MAXMODULES;
+    Handle_t buffer[PROCESS_MAXMODULES];
+    oserr_t  oserr = PmGetModules(handle, &buffer[0], &moduleCount);
+    if (oserr != OS_EOK) {
         sys_process_get_modules_response(message, NULL, 0, 0);
         return;
     }
-
-    // initialize parameters
-    request->parameters.stat_handle.handle = handle;
-    usched_job_queue((usched_task_fn)PmGetModules, request);
+    sys_process_get_modules_response(message, (uintptr_t*)&buffer[0], moduleCount, moduleCount);
 }
 
 void sys_process_get_tick_base_invocation(struct gracht_message* message, const uuid_t handle)
 {
-    Request_t* request;
     TRACE("sys_process_get_tick_base_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_get_tick_base_response(message, OS_EOOM, 0, 0);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.stat_handle.handle = handle;
-    usched_job_queue((usched_task_fn)PmGetTickBase, request);
+    UInteger64_t tick;
+    oserr_t      oserr = PmGetTickBase(handle, &tick);
+    sys_process_get_tick_base_response(message, oserr, tick.u.LowPart, tick.u.HighPart);
 }
 
 void sys_process_get_assembly_directory_invocation(struct gracht_message* message, const uuid_t handle)
 {
-    Request_t* request;
     TRACE("sys_process_get_assembly_directory_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
+    mstring_t* directory;
+    oserr_t    oserr = PmGetAssemblyDirectory(handle, &directory);
+    char*      cdirectory;
+    if (oserr != OS_EOK) {
+        sys_process_get_assembly_directory_response(message, oserr, "");
+        return;
+    }
+    cdirectory = mstr_u8(directory);
+    if (cdirectory == NULL) {
         sys_process_get_assembly_directory_response(message, OS_EOOM, "");
         return;
     }
-
-    // initialize parameters
-    request->parameters.stat_handle.handle = handle;
-    usched_job_queue((usched_task_fn)PmGetAssemblyDirectory, request);
+    sys_process_get_assembly_directory_response(message, OS_EOK, cdirectory);
+    free(cdirectory);
 }
 
 void sys_process_get_working_directory_invocation(struct gracht_message* message, const uuid_t handle)
 {
-    Request_t* request;
     TRACE("sys_process_get_working_directory_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
+    mstring_t* directory;
+    oserr_t    oserr = PmGetWorkingDirectory(handle, &directory);
+    char*      cdirectory;
+    if (oserr != OS_EOK) {
+        sys_process_get_working_directory_response(message, oserr, "");
+        return;
+    }
+    cdirectory = mstr_u8(directory);
+    if (cdirectory == NULL) {
         sys_process_get_working_directory_response(message, OS_EOOM, "");
         return;
     }
-
-    // initialize parameters
-    request->parameters.stat_handle.handle = handle;
-    usched_job_queue((usched_task_fn)PmGetWorkingDirectory, request);
+    sys_process_get_working_directory_response(message, OS_EOK, cdirectory);
+    free(cdirectory);
 }
 
 void sys_process_set_working_directory_invocation(struct gracht_message* message, const uuid_t handle, const char* path)
 {
-    Request_t* request;
     TRACE("sys_process_set_working_directory_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_set_working_directory_response(message, OS_EOOM);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.set_cwd.handle = handle;
-    request->parameters.set_cwd.path   = strdup(path);
-    usched_job_queue((usched_task_fn)PmSetWorkingDirectory, request);
+    oserr_t oserr = PmSetWorkingDirectory(handle, path);
+    sys_process_set_working_directory_response(message, oserr);
 }
 
 void sys_process_get_name_invocation(struct gracht_message* message, const uuid_t handle)
 {
-    Request_t* request;
     TRACE("sys_process_get_name_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
+    mstring_t* name;
+    oserr_t    oserr = PmGetName(handle, &name);
+    char*      cname;
+    if (oserr != OS_EOK) {
+        sys_process_get_name_response(message, oserr, "");
+        return;
+    }
+    cname = mstr_u8(name);
+    if (cname == NULL) {
         sys_process_get_name_response(message, OS_EOOM, "");
         return;
     }
-
-    // initialize parameters
-    request->parameters.stat_handle.handle = handle;
-    usched_job_queue((usched_task_fn)PmGetName, request);
+    sys_process_get_name_response(message, OS_EOK, cname);
+    free(cname);
 }
 
 void sys_process_report_crash_invocation(struct gracht_message* message, const uuid_t threadId,
                                          const uuid_t processId, const uint8_t* crashContext,
                                          const uint32_t crashContext_count, const int reason)
 {
-    Request_t* request;
-    TRACE("sys_process_report_crash_invocation(crashContext_count=%u)", crashContext_count);
+    Process_t* process;
+    oserr_t    oserr;
 
-    request = CreateRequest(message);
-    if (!request) {
-        sys_process_report_crash_response(message, OS_EOOM);
+    TRACE("sys_process_report_crash_invocation(crashContext_count=%u)", crashContext_count);
+    process = RegisterProcessRequest(processId, request);
+    if (!process) {
+        // what the *?
+        sys_process_report_crash_response(message, OS_ENOENT);
         return;
     }
 
-    // initialize parameters
-    request->parameters.crash.thread_handle = threadId;
-    request->parameters.crash.process_handle = processId;
-    request->parameters.crash.context = memdup(crashContext, crashContext_count);
-    request->parameters.crash.reason = reason;
-    usched_job_queue((usched_task_fn)PmHandleCrash, request);
+    oserr = HandleProcessCrashReport(
+            process,
+            threadId,
+            (const Context_t*)crashContext,
+            reason
+    );
+    sys_process_report_crash_response(message, oserr);
+    UnregisterProcessRequest(process, request);
 }

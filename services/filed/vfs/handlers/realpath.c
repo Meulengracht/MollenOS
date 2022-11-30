@@ -16,21 +16,20 @@
  *
  */
 
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeRealPath(struct VFS* vfs, struct VFSRequest* request , mstring_t** pathOut)
+oserr_t VFSNodeRealPath(struct VFS* vfs, const char* cpath, int followLink, mstring_t** pathOut)
 {
     struct VFSNode* node;
-    mstring_t*      nodePath = mstr_path_new_u8(request->parameters.stat_path.path);
+    mstring_t*      nodePath = mstr_path_new_u8(cpath);
     oserr_t         osStatus;
 
     if (nodePath == NULL) {
         return OS_EOOM;
     }
 
-    osStatus = VFSNodeGet(vfs, nodePath, request->parameters.stat_path.follow_links, &node);
+    osStatus = VFSNodeGet(vfs, nodePath, followLink, &node);
     if (osStatus != OS_EOK) {
         return osStatus;
     }

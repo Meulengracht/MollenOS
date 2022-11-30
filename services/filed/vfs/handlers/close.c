@@ -17,7 +17,6 @@
  */
 
 #include <ddk/handle.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 

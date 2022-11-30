@@ -17,7 +17,6 @@
  */
 
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -27,17 +26,14 @@ static oserr_t __FlushHandle(struct VFSNodeHandle* handle)
     return OS_EOK;
 }
 
-oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
+oserr_t VFSNodeSeek(uuid_t fileHandle, UInteger64_t* position, uint64_t* positionOut)
 {
     struct VFSNodeHandle* handle;
     struct VFS*           nodeVfs;
     oserr_t               oserr;
-    UInteger64_t          position, result;
+    UInteger64_t          result;
 
-    position.u.LowPart  = request->parameters.seek.position_low;
-    position.u.HighPart = request->parameters.seek.position_high;
-
-    oserr = VFSNodeHandleGet(request->parameters.seek.fileHandle, &handle);
+    oserr = VFSNodeHandleGet(fileHandle, &handle);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -53,14 +49,14 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
     if (__NodeIsDirectory(handle->Node)) {
         // When seeking in directories only the low-part of the position
         // will be used. Ignore the high-part.
-        if (position.u.LowPart >= handle->Node->Children.element_count) {
+        if (position->u.LowPart >= handle->Node->Children.element_count) {
             oserr = OS_EINVALPARAMS;
             goto cleanup;
         }
 
         // Otherwise update position
-        handle->Position = position.u.LowPart;
-        *positionOut = position.u.LowPart;
+        handle->Position = position->u.LowPart;
+        *positionOut = position->u.LowPart;
         oserr = OS_EOK;
         goto cleanup;
     }
@@ -82,7 +78,7 @@ oserr_t VFSNodeSeek(struct VFSRequest* request, uint64_t* positionOut)
             nodeVfs->Interface,
             nodeVfs->Data,
             handle->Data,
-            position.QuadPart,
+            position->QuadPart,
             &result.QuadPart
     );
     if (oserr == OS_EOK) {

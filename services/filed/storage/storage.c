@@ -29,11 +29,6 @@
 
 #include <sys_storage_service_server.h>
 
-struct VfsRemoveDiskRequest {
-    uuid_t       disk_id;
-    unsigned int flags;
-};
-
 static list_t            g_disks = LIST_INIT;
 static struct usched_mtx g_diskLock;
 
@@ -214,54 +209,14 @@ __StorageMount(
     return osStatus;
 }
 
-struct __StorageSetupParameters {
-    uuid_t                 DriverId;
-    uuid_t                 DeviceId;
-    enum sys_storage_flags Flags;
-};
-
-static struct __StorageSetupParameters*
-__StorageSetupParametersNew(
-        _In_ uuid_t                 driverId,
-        _In_ uuid_t                 deviceId,
-        _In_ enum sys_storage_flags flags)
-{
-    struct __StorageSetupParameters* setupParameters;
-
-    setupParameters = malloc(sizeof(struct __StorageSetupParameters));
-    if (setupParameters == NULL) {
-        return NULL;
-    }
-
-    setupParameters->DriverId = driverId;
-    setupParameters->DeviceId = deviceId;
-    setupParameters->Flags = flags;
-    return setupParameters;
-}
-
-static void
-__StorageSetupParametersDelete(
-        struct __StorageSetupParameters* setupParameters)
-{
-    free(setupParameters);
-}
-
-static void
-__StorageSetup(
-        _In_ struct __StorageSetupParameters* setupParameters,
-        _In_ void*                            cancellationToken)
+void sys_storage_register_invocation(struct gracht_message* message,
+                                     const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
 {
     struct VFSStorage* storage;
     oserr_t            oserr;
-    _CRT_UNUSED(cancellationToken);
-    TRACE("__StorageSetup()");
+    TRACE("sys_storage_register_invocation()");
 
-    storage = VFSStorageCreateDeviceBacked(
-            setupParameters->DeviceId,
-            setupParameters->DriverId,
-            setupParameters->Flags
-    );
-    __StorageSetupParametersDelete(setupParameters);
+    storage = VFSStorageCreateDeviceBacked(deviceId, driverId, flags);
     if (storage == NULL) {
         return;
     }
@@ -290,20 +245,6 @@ error:
     storage->State = VFSSTORAGE_STATE_DISCONNECTED;
 }
 
-void sys_storage_register_invocation(struct gracht_message* message,
-                                     const uuid_t driverId, const uuid_t deviceId, const enum sys_storage_flags flags)
-{
-    struct __StorageSetupParameters* setupParameters;
-    _CRT_UNUSED(message);
-
-    setupParameters = __StorageSetupParametersNew(driverId, deviceId, (unsigned int)flags);
-    if (setupParameters == NULL) {
-        ERROR("sys_storage_register_invocation failed to allocate memory");
-        return;
-    }
-    usched_job_queue((usched_task_fn)__StorageSetup, setupParameters);
-}
-
 static void
 __StorageUnmount(
         _In_ struct VFSStorage* fsStorage,
@@ -321,16 +262,12 @@ __StorageUnmount(
     usched_mtx_unlock(&fsStorage->Lock);
 }
 
-static void
-__StorageDestroy(
-        _In_ struct VfsRemoveDiskRequest* request,
-        _In_ void*                        cancellationToken)
+void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
 {
     element_t* header;
-    _CRT_UNUSED(cancellationToken);
 
     usched_mtx_lock(&g_diskLock);
-    header = list_find(&g_disks, (void*)(uintptr_t)request->disk_id);
+    header = list_find(&g_disks, (void*)(uintptr_t)deviceId);
     if (header) {
         list_remove(&g_disks, header);
     }
@@ -338,24 +275,7 @@ __StorageDestroy(
 
     if (header) {
         struct VFSStorage* fsStorage = header->value;
-        __StorageUnmount(fsStorage, request->flags);
+        __StorageUnmount(fsStorage, forced);
         free(fsStorage);
     }
-    free(request);
-}
-
-void sys_storage_unregister_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t forced)
-{
-    struct VfsRemoveDiskRequest* request;
-    _CRT_UNUSED(message);
-
-    request = malloc(sizeof(struct VfsRemoveDiskRequest));
-    if (!request) {
-        ERROR("sys_storage_unregister_invocation FAILED TO UNREGISTER DISK");
-        return;
-    }
-
-    request->disk_id = deviceId;
-    request->flags = forced;
-    usched_job_queue((usched_task_fn) __StorageDestroy, request);
 }

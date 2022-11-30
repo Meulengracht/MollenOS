@@ -16,23 +16,22 @@
  *
  */
 
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
-oserr_t VFSNodeDuplicate(struct VFSRequest* request, uuid_t* handleOut)
+oserr_t VFSNodeDuplicate(uuid_t handle, uuid_t* handleOut)
 {
-    struct VFSNodeHandle* handle;
+    struct VFSNodeHandle* nodeHandle;
     oserr_t               osStatus;
 
-    osStatus = VFSNodeHandleGet(request->parameters.get_position.fileHandle, &handle);
+    osStatus = VFSNodeHandleGet(handle, &nodeHandle);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
 
-    usched_rwlock_r_lock(&handle->Node->Lock);
-    osStatus = VFSNodeOpenHandle(handle->Node, handle->AccessKind, handleOut);
-    usched_rwlock_r_unlock(&handle->Node->Lock);
-    VFSNodeHandlePut(handle);
+    usched_rwlock_r_lock(&nodeHandle->Node->Lock);
+    osStatus = VFSNodeOpenHandle(nodeHandle->Node, nodeHandle->AccessKind, handleOut);
+    usched_rwlock_r_unlock(&nodeHandle->Node->Lock);
+    VFSNodeHandlePut(nodeHandle);
     return osStatus;
 }

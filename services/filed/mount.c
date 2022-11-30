@@ -24,7 +24,6 @@
 #include <os/types/file.h>
 #include <vfs/filesystem.h>
 #include <vfs/interface.h>
-#include <vfs/requests.h>
 #include <vfs/scope.h>
 #include <vfs/storage.h>
 #include <vfs/vfs.h>
@@ -247,28 +246,22 @@ static oserr_t __MountSpecial(
     return OS_EINVALPARAMS;
 }
 
-void Mount(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
+oserr_t
+Mount(
+        _In_ struct VFS*  fsScope,
+        _In_ const char*  path,
+        _In_ const char*  at,
+        _In_ const char*  fsType,
+        _In_ unsigned int flags)
 {
-    struct VFS* fsScope = VFSScopeGet(request->processId);
-    uuid_t      atHandle = UUID_INVALID;
-    oserr_t     oserr;
-    TRACE("Mount(what=%s, at=%s)",
-          request->parameters.mount.path,
-          request->parameters.mount.at);
-    _CRT_UNUSED(cancellationToken);
-
-    if (fsScope == NULL) {
-        sys_mount_mount_response(request->message, OS_EPERMISSIONS);
-        return;
-    }
+    uuid_t  atHandle = UUID_INVALID;
+    oserr_t oserr;
 
     // Get a handle on the directory we are mounting on top of. This directory
     // must exist for the length of the mount.
     oserr = VFSNodeOpen(
             fsScope,
-            request->parameters.mount.at,
+            at,
             __FILE_DIRECTORY, // TODO what kind of access should we have here
             FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE | FILE_PERMISSION_OWNER_EXECUTE,
             &atHandle
@@ -280,57 +273,19 @@ void Mount(
     // If a path is provided, then we are either mounting a directory or
     // an image file. If no path is provided, then we are mounting a special
     // filesystem on top of the path given in <at>
-    if (request->parameters.mount.path) {
+    if (path) {
         oserr = __MountPath(
-                fsScope, request->parameters.mount.path, atHandle,
-                request->parameters.mount.fs_type,
-                (enum sys_mount_flags)request->parameters.mount.flags
+                fsScope, path, atHandle, fsType,
+                (enum sys_mount_flags)flags
         );
     } else {
-        oserr = __MountSpecial(
-                fsScope, atHandle,
-                request->parameters.mount.fs_type
-        );
+        oserr = __MountSpecial(fsScope, atHandle, fsType);
     }
 
 cleanup:
-    sys_mount_mount_response(request->message, oserr);
-
     // Cleanup resources allocated by us and the request
     if (oserr != OS_EOK && atHandle != UUID_INVALID) {
         (void)VFSNodeClose(fsScope, atHandle);
     }
-    free((void*)request->parameters.mount.path);
-    free((void*)request->parameters.mount.at);
-    free((void*)request->parameters.mount.fs_type);
-    VfsRequestDestroy(request);
-}
-
-void Unmount(
-        _In_ FileSystemRequest_t* request,
-        _In_ void*                cancellationToken)
-{
-    struct VFS* fsScope = VFSScopeGet(request->processId);
-    mstring_t*  path;
-    oserr_t     oserr;
-    _CRT_UNUSED(cancellationToken);
-
-    if (fsScope == NULL) {
-        sys_mount_unmount_response(request->message, OS_EPERMISSIONS);
-        return;
-    }
-
-    path = mstr_new_u8(request->parameters.unmount.path);
-    oserr = VFSNodeUnmountPath(fsScope, path);
-    if (oserr != OS_EOK) {
-        goto cleanup;
-    }
-
-cleanup:
-    sys_mount_unmount_response(request->message, oserr);
-
-    // Cleanup resources allocated by us and the request
-    mstr_delete(path);
-    free((void*)request->parameters.unmount.path);
-    VfsRequestDestroy(request);
+    return oserr;
 }

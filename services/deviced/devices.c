@@ -26,12 +26,12 @@
 #include <assert.h>
 #include <devices.h>
 #include <discover.h>
-#include <requests.h>
 #include <ddk/busdevice.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
+#include <os/usched/mutex.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -102,46 +102,11 @@ DmDevicesRegister(
     return OS_EOK;
 }
 
-void DmHandleDeviceCreate(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
-{
-    uuid_t    result = UUID_INVALID;
-    oserr_t   status;
-    Device_t* device;
-
-    device = from_sys_device(&request->parameters.create.device);
-    if (device == NULL) {
-        status = OS_EINVALPARAMS;
-        goto respond;
-    }
-
-    status = DmDeviceCreate(
-            device,
-            request->parameters.create.flags,
-            &result
-    );
-
-respond:
-    sys_device_register_response(request->message, status, result);
-    sys_device_destroy(&request->parameters.create.device);
-    RequestDestroy(request);
-}
-
-void DmHandleDeviceDestroy(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
-{
-    sys_device_unregister_response(request->message, OS_ENOTSUPPORTED);
-    RequestDestroy(request);
-}
-
 void DmHandleGetDevicesByProtocol(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ struct gracht_message* message,
+        _In_ uint8_t                protocolID)
 {
-    TRACE("DmHandleGetDevicesByProtocol(protocol=%u)",
-          request->parameters.get_devices_by_protocol.protocol);
+    TRACE("DmHandleGetDevicesByProtocol(protocol=%u)", protocolID);
 
     usched_mtx_lock(&g_devicesLock);
     foreach(node, &g_devices) {
@@ -149,66 +114,65 @@ void DmHandleGetDevicesByProtocol(
         foreach(protoNode, &device->protocols) {
             struct DmDeviceProtocol* protocol = protoNode->value;
             uint8_t                  id = (uint8_t)(uintptr_t)protocol->header.key;
-            if (id == request->parameters.get_devices_by_protocol.protocol) {
+            if (id == protocolID) {
                 sys_device_event_protocol_device_single(
                         __crt_get_service_server(),
-                        request->message[0].client,
+                        message->client,
                         device->device->Id,
                         device->driver_id,
-                        request->parameters.get_devices_by_protocol.protocol
+                        protocolID
                 );
             }
         }
     }
     usched_mtx_unlock(&g_devicesLock);
-
-    RequestDestroy(request);
 }
 
-void DmHandleIoctl(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+oserr_t
+DmHandleIoctl(
+        _In_ uuid_t       deviceID,
+        _In_ unsigned int command,
+        _In_ unsigned int flags)
 {
-    struct DmDevice* device = __GetDevice(request->parameters.ioctl.device_id);
+    struct DmDevice* device = __GetDevice(deviceID);
     oserr_t       result = OS_EINVALPARAMS;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
-        result = DmIoctlDevice(
-                (BusDevice_t*)device->device,
-                request->parameters.ioctl.command,
-                request->parameters.ioctl.flags
-        );
+        result = DmIoctlDevice((BusDevice_t*)device->device, command, flags);
     }
-
-    sys_device_ioctl_response(request->message, result);
-    RequestDestroy(request);
+    return result;
 }
 
-void DmHandleIoctl2(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+oserr_t
+DmHandleIoctl2(
+        _In_  uuid_t       deviceID,
+        _In_  int          direction,
+        _In_  unsigned int command,
+        _In_  size_t       value,
+        _In_  unsigned int width,
+        _Out_ size_t*      valueOut)
 {
-    struct DmDevice* device  = __GetDevice(request->parameters.ioctl2.device_id);
+    struct DmDevice* device  = __GetDevice(deviceID);
     oserr_t          result  = OS_EINVALPARAMS;
-    size_t           storage = request->parameters.ioctl2.value;
+    size_t           storage = value;
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
         result = DmIoctlDeviceEx(
                 (BusDevice_t*)device->device,
-                request->parameters.ioctl2.direction,
-                request->parameters.ioctl2.command,
+                direction,
+                command,
                 &storage,
-                request->parameters.ioctl2.width
+                width
         );
+        *valueOut = storage;
     }
-
-    sys_device_ioctlex_response(request->message, result, (size_t)storage);
-    RequestDestroy(request);
+    return result;
 }
 
 static void
 __AddProtocolToDevice(
-        _In_ Request_t*       request,
+        _In_ const char*      protocolName,
+        _In_ uint8_t          protocolID,
         _In_ struct DmDevice* device)
 {
     struct DmDeviceProtocol* protocol = malloc(sizeof(struct DmDeviceProtocol));
@@ -216,25 +180,22 @@ __AddProtocolToDevice(
         return;
     }
 
-    ELEMENT_INIT(&protocol->header, (uintptr_t)request->parameters.register_protocol.protocol_id, protocol);
-    protocol->name = strdup(request->parameters.register_protocol.protocol_name);
+    ELEMENT_INIT(&protocol->header, (uintptr_t)protocolID, protocol);
+    protocol->name = strdup(protocolName);
     list_append(&device->protocols, &protocol->header);
 }
 
 void DmHandleRegisterProtocol(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ uuid_t      deviceID,
+        _In_ const char* protocolName,
+        _In_ uint8_t     protocolID)
 {
     struct DmDevice* device;
-    _CRT_UNUSED(cancellationToken);
 
-    device = __GetDevice(request->parameters.ioctl2.device_id);
+    device = __GetDevice(deviceID);
     if (device) {
-        __AddProtocolToDevice(request, device);
+        __AddProtocolToDevice(protocolName, protocolID, device);
     }
-
-    free((void*)request->parameters.register_protocol.protocol_name);
-    RequestDestroy(request);
 }
 
 static void __TryLocateDriver(

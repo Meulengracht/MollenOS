@@ -21,172 +21,74 @@
 
 //#define __TRACE
 
-#include <assert.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <gracht/server.h>
 #include <gracht/client.h>
-#include <os/usched/job.h>
-#include <stdlib.h>
-#include <string.h>
-#include "requests.h"
+#include <devices.h>
 
 #include <sys_device_service_server.h>
 
-extern void DmHandleNotify(Request_t* request, void*);
-extern void DmHandleDeviceCreate(Request_t* request, void*);
-extern void DmHandleDeviceDestroy(Request_t* request, void*);
-extern void DmHandleGetDevicesByProtocol(Request_t* request, void*);
-extern void DmHandleIoctl(Request_t* request, void*);
-extern void DmHandleIoctl2(Request_t* request, void*);
-extern void DmHandleRegisterProtocol(Request_t* request, void*);
-
-static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
-
-static Request_t*
-CreateRequest(struct gracht_message* message)
-{
-    Request_t* request;
-    size_t     requestSize = sizeof(Request_t);
-
-    if (message) {
-        requestSize += GRACHT_MESSAGE_DEFERRABLE_SIZE(message);
-    }
-
-    request = malloc(requestSize);
-    if (!request) {
-        ERROR("CreateRequest out of memory for message allocation!");
-        return NULL;
-    }
-
-    request->id = atomic_fetch_add(&g_requestId, 1);
-    request->state = RequestState_CREATED;
-    gracht_server_defer_message(message, &request->message[0]);
-    usched_cnd_init(&request->signal);
-    ELEMENT_INIT(&request->leaf, 0, request);
-    return request;
-}
-
-void RequestDestroy(Request_t* request)
-{
-    assert(request != NULL);
-
-    free(request);
-}
-
-void RequestSetState(Request_t* request, enum RequestState state)
-{
-    assert(request != NULL);
-
-    request->state = state;
-}
+extern void DmHandleNotify(uuid_t driverId, uuid_t driverHandle);
+extern void DmHandleGetDevicesByProtocol(struct gracht_message* message, uint8_t protocolID);
+extern oserr_t DmHandleIoctl(uuid_t deviceID, unsigned int command, unsigned int flags);
+extern oserr_t DmHandleIoctl2(uuid_t device_id, int direction, unsigned int command, size_t value, unsigned int width, size_t*);
+extern void DmHandleRegisterProtocol(uuid_t deviceID, const char* protocolName, uint8_t protocolID);
 
 void sys_device_notify_invocation(struct gracht_message* message,
                                   const uuid_t driverId, const uuid_t driverHandle)
 {
-    Request_t* request;
     TRACE("sys_device_notify_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        ERROR("sys_device_notify_invocation out of memory for request!");
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.notify.driver_id     = driverId;
-    request->parameters.notify.driver_handle = driverHandle;
-    usched_job_queue((usched_task_fn)DmHandleNotify, request);
+    DmHandleNotify(driverId, driverHandle);
 }
 
 void sys_device_register_invocation(
-        struct gracht_message* message, const struct sys_device* device, const unsigned int flags)
+        struct gracht_message* message, const struct sys_device* sysDevice, const unsigned int flags)
 {
-    Request_t* request;
+    Device_t* device;
+    uuid_t    result = UUID_INVALID;
+    oserr_t   status;
     TRACE("sys_device_register_invocation()");
 
-    request = CreateRequest(message);
-    if (!request) {
-        sys_device_register_response(message, OS_EOOM, UUID_INVALID);
-        return;
+    device = from_sys_device(sysDevice);
+    if (device == NULL) {
+        status = OS_EINVALPARAMS;
+        goto respond;
     }
 
-    // initialize parameters
-    sys_device_copy(device, &request->parameters.create.device);
-    request->parameters.create.flags  = flags;
-    usched_job_queue((usched_task_fn)DmHandleDeviceCreate, request);
+    status = DmDeviceCreate(device, flags, &result);
+
+respond:
+    sys_device_register_response(message, status, result);
 }
 
 void sys_device_unregister_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
-    Request_t* request;
     TRACE("sys_device_unregister_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_device_unregister_response(message, OS_EOOM);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.destroy.device_id = deviceId;
-    usched_job_queue((usched_task_fn)DmHandleDeviceDestroy, request);
+    sys_device_unregister_response(message, OS_ENOTSUPPORTED);
 }
 
 void sys_device_ioctl_invocation(struct gracht_message* message,
                                  const uuid_t deviceId, const unsigned int command, const unsigned int flags)
 {
-    Request_t* request;
     TRACE("sys_device_ioctl_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_device_ioctl_response(message, OS_EOOM);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.ioctl.device_id = deviceId;
-    request->parameters.ioctl.command   = command;
-    request->parameters.ioctl.flags     = flags;
-    usched_job_queue((usched_task_fn)DmHandleIoctl, request);
+    oserr_t oserr = DmHandleIoctl(deviceId, command, flags);
+    sys_device_ioctl_response(message, oserr);
 }
 
 void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t deviceId,
                                    const int direction, const unsigned int command,
                                    const size_t value, const unsigned int width)
 {
-    Request_t* request;
     TRACE("sys_device_ioctlex_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_device_ioctlex_response(message, OS_EOOM, 0);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.ioctl2.device_id = deviceId;
-    request->parameters.ioctl2.direction = direction;
-    request->parameters.ioctl2.command   = command;
-    request->parameters.ioctl2.value     = value;
-    request->parameters.ioctl2.width     = width;
-    usched_job_queue((usched_task_fn)DmHandleIoctl2, request);
+    size_t  result;
+    oserr_t oserr = DmHandleIoctl2(deviceId, direction, command, value, width, &result);
+    sys_device_ioctlex_response(message, oserr, result);
 }
 
 void sys_device_get_devices_by_protocol_invocation(struct gracht_message* message, const uint8_t protocolId)
 {
-    Request_t* request;
     TRACE("sys_device_get_devices_by_protocol_invocation()");
-
-    request = CreateRequest(message);
-    if (!request) {
-        sys_device_ioctlex_response(message, OS_EOOM, 0);
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.get_devices_by_protocol.protocol = protocolId;
-    usched_job_queue((usched_task_fn)DmHandleGetDevicesByProtocol, request);
+    DmHandleGetDevicesByProtocol(message, protocolId);
 }
 
 void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
@@ -194,17 +96,6 @@ void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
                                                  const char* protocolName,
                                                  const uint8_t protocolId)
 {
-    Request_t* request;
     TRACE("ctt_driver_event_device_protocol_invocation()");
-
-    request = CreateRequest(NULL);
-    if (!request) {
-        return;
-    }
-
-    // initialize parameters
-    request->parameters.register_protocol.device_id     = deviceId;
-    request->parameters.register_protocol.protocol_id   = protocolId;
-    request->parameters.register_protocol.protocol_name = strdup(protocolName);
-    usched_job_queue((usched_task_fn)DmHandleRegisterProtocol, request);
+    DmHandleRegisterProtocol(deviceId, protocolName, protocolId);
 }

@@ -11,7 +11,6 @@ set (SERVICE_HEADERS
         include/vfs/filesystem.h
         include/vfs/gpt.h
         include/vfs/mbr.h
-        include/vfs/requests.h
         include/vfs/scope.h
         include/vfs/storage.h
         include/vfs/vfs.h
@@ -30,10 +29,10 @@ set (SERVICE_SOURCES
         storage/storage_memory.c
         storage/utils.c
 
+        api.c
         filesystem.c
         main.c
         mount.c
-        requests.c
         scope.c
 )
 

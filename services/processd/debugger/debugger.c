@@ -73,7 +73,7 @@ GetModuleAndOffset(
     return OS_EOK;
 }
 
-static oserr_t
+oserr_t
 HandleProcessCrashReport(
         _In_ Process_t*       process,
         _In_ uuid_t           threadHandle,
@@ -147,31 +147,4 @@ HandleProcessCrashReport(
     }
 
     return OS_EOK;
-}
-
-void PmHandleCrash(
-        _In_ Request_t* request)
-{
-    Process_t* process;
-    oserr_t osStatus;
-    TRACE("PmHandleCrash(process=%u)", request->parameters.crash.process_handle);
-
-    process = RegisterProcessRequest(request->parameters.crash.process_handle, request);
-    if (!process) {
-        // what the *?
-        sys_process_report_crash_response(request->message, OS_ENOENT);
-        goto cleanup;
-    }
-
-    osStatus = HandleProcessCrashReport(process,
-                                        request->parameters.crash.thread_handle,
-                                        request->parameters.crash.context,
-                                        request->parameters.crash.reason);
-
-    sys_process_report_crash_response(request->message, osStatus);
-    UnregisterProcessRequest(process, request);
-
-cleanup:
-    free((void*)request->parameters.crash.context);
-    RequestDestroy(request);
 }

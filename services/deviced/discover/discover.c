@@ -24,11 +24,11 @@
 #include <discover.h>
 #include <devices.h>
 #include <configparser.h>
-#include <requests.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include "os/services/process.h"
+#include <os/services/process.h>
+#include <os/usched/mutex.h>
 #include <os/usched/job.h>
 #include <stdio.h>
 
@@ -290,26 +290,24 @@ __NotifyDevices(
 }
 
 void DmHandleNotify(
-        _In_ Request_t* request,
-        _In_ void*      cancellationToken)
+        _In_ uuid_t driverId,
+        _In_ uuid_t driverHandle)
 {
     // driver is now booted, we can send all the devices that have
     // been registered
     struct DmDriver* driver;
-    TRACE("DmHandleNotify(driverId=%u)",
-          request->parameters.notify.driver_id);
+    TRACE("DmHandleNotify(driverId=%u)", driverId);
 
-    driver = __GetDriver(request->parameters.notify.driver_id);
+    driver = __GetDriver(driverId);
     if (!driver) {
         ERROR("DmHandleNotify driver provided an invalid id");
         return;
     }
 
     // Update the driver with the provided handle
-    driver->handle = request->parameters.notify.driver_handle;
+    driver->handle = driverHandle;
     __SubscribeToDriver(driver);
 
     // iterate all devices attached and send them
     __NotifyDevices(driver);
-    RequestDestroy(request);
 }

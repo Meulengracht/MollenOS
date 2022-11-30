@@ -19,7 +19,6 @@
 #define __need_quantity
 #include <os/dmabuf.h>
 #include <ddk/utils.h>
-#include <vfs/requests.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -272,12 +271,12 @@ cleanup:
     return osStatus;
 }
 
-oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
+oserr_t VFSNodeMove(struct VFS* vfs, const char* cfrom, const char* cto, bool copy)
 {
     struct VFSNode* from;
-    mstring_t*      fromPath = mstr_path_new_u8(request->parameters.move.from);
+    mstring_t*      fromPath = mstr_path_new_u8(cfrom);
     struct VFSNode* to;
-    mstring_t*      toPath = mstr_path_new_u8(request->parameters.move.to);
+    mstring_t*      toPath = mstr_path_new_u8(cto);
     mstring_t*      path = NULL;
     mstring_t*      targetName;
     oserr_t         osStatus;
@@ -314,9 +313,9 @@ oserr_t VFSNodeMove(struct VFS* vfs, struct VFSRequest* request)
     // Now we have both nodes, and can now do an informed decision
     targetName = __SubtractPath(toPath, path);
     if (from->FileSystem == to->FileSystem) {
-        osStatus = __MoveLocal(from, to, targetName, request->parameters.move.copy);
+        osStatus = __MoveLocal(from, to, targetName, copy);
     } else {
-        osStatus = __MoveCross(from, to, targetName, request->parameters.move.copy);
+        osStatus = __MoveCross(from, to, targetName, copy);
     }
 
     VFSNodePut(to);
