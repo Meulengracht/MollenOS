@@ -70,12 +70,9 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOTSUPPORTED;
 }
 
-void
-OnRegister(
-    _In_ void* context,
-    _In_ void* cancellationToken)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    UsbDevice_t* usbDevice = context;
+    UsbDevice_t* usbDevice = (UsbDevice_t*)from_sys_device(device);
     MsdDevice_t* msdDevice;
 
     msdDevice = MsdDeviceCreate(usbDevice);
@@ -84,11 +81,6 @@ OnRegister(
         return;
     }
     list_append(&g_devices, &msdDevice->Header);
-}
-
-void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
-{
-    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 oserr_t

@@ -58,6 +58,7 @@ __CreateNode(
     node->IsLoaded   = false;
     usched_rwlock_init(&node->Lock);
     memcpy(&node->Stats, stats, sizeof(struct VFSStat));
+    node->Stats.Name = node->Name;
 
     usched_mtx_init(&node->HandlesLock, USCHED_MUTEX_PLAIN);
     hashtable_construct(&node->Handles, 0,

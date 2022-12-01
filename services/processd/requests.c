@@ -230,7 +230,7 @@ void sys_process_report_crash_invocation(struct gracht_message* message, const u
     oserr_t    oserr;
 
     TRACE("sys_process_report_crash_invocation(crashContext_count=%u)", crashContext_count);
-    process = RegisterProcessRequest(processId, request);
+    process = PmGetProcessByHandle(processId);
     if (!process) {
         // what the *?
         sys_process_report_crash_response(message, OS_ENOENT);
@@ -244,5 +244,4 @@ void sys_process_report_crash_invocation(struct gracht_message* message, const u
             reason
     );
     sys_process_report_crash_response(message, oserr);
-    UnregisterProcessRequest(process, request);
 }

@@ -10,7 +10,6 @@ add_library(fs-common STATIC
         requests.c
         service.c
         storage.c
-        wrappers.c
 )
 target_include_directories(fs-common PUBLIC include)
 target_link_libraries(fs-common PUBLIC libos-api gracht libddk libds c)

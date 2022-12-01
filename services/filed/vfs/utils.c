@@ -104,7 +104,8 @@ static void __CleanupVFSStat(struct VFSStat* stats)
     mstr_delete(stats->LinkTarget);
 }
 
-static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length) {
+static oserr_t __ParseEntries(struct VFSNode* node, void* buffer, size_t length)
+{
     uint8_t*        i = buffer;
     size_t          bytesAvailable = length;
     struct VFSNode* result;
@@ -150,6 +151,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
 
     osStatus = ops->Open(vfs->Interface, vfs->Data, nodePath, &data);
     if (osStatus != OS_EOK) {
+        TRACE("__LoadNode failed to open nodePath %ms: %u", nodePath);
         goto cleanup;
     }
 
@@ -166,6 +168,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
                 &read
         );
         if (osStatus != OS_EOK || read == 0) {
+            TRACE("__LoadNode done reading entries");
             break;
         }
 
@@ -191,6 +194,7 @@ cleanup:
 oserr_t VFSNodeEnsureLoaded(struct VFSNode* node)
 {
     oserr_t osStatus;
+    TRACE("VFSNodeEnsureLoaded(node=%ms)", node->Name);
 
     if (node == NULL) {
         return OS_EINVALPARAMS;
@@ -236,7 +240,12 @@ oserr_t VFSNodeFind(struct VFSNode* node, mstring_t* name, struct VFSNode** node
         return oserr;
     }
 
-    result = hashtable_get(&node->Children, &(struct __VFSChild) { .Key = name });
+    result = hashtable_get(
+            &node->Children,
+            &(struct __VFSChild) {
+                .Key = name
+            }
+    );
     if (result == NULL) {
         return OS_ENOENT;
     }

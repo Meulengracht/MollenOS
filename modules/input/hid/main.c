@@ -82,20 +82,19 @@ OnRegister(
     _In_ void* context,
     _In_ void* cancellationToken)
 {
-    UsbDevice_t* usbDevice = context;
-    HidDevice_t* hidDevice;
-
-    hidDevice = HidDeviceCreate(usbDevice);
-    if (!hidDevice) {
-        ERROR("OnRegister failed to create HID device");
-        return;
-    }
-    list_append(&g_devices, &hidDevice->Header);
 }
 
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
-    usched_job_queue(OnRegister, from_sys_device(device));
+    UsbDevice_t* usbDevice = (UsbDevice_t*)from_sys_device(device);
+    HidDevice_t* hidDevice;
+
+    hidDevice = HidDeviceCreate(usbDevice);
+    if (!hidDevice) {
+        ERROR("ctt_driver_register_device_invocation failed to create HID device");
+        return;
+    }
+    list_append(&g_devices, &hidDevice->Header);
 }
 
 oserr_t OnUnregister(

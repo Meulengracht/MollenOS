@@ -733,8 +733,8 @@ static void __ReadDirectoryEntry(int index, const void* element, void* userConte
     }
 
     // Fill in the VFS structure
-    entryOut->NameLength = strlen(nameu8);
-    entryOut->LinkLength = 0;
+    entryOut->NameLength = strlen(nameu8) + 1;
+    entryOut->LinkLength = 0; // TODO support for links
     entryOut->UserID = entry->Entry->UserID;
     entryOut->GroupID = entry->Entry->GroupID;
     entryOut->Size = (entry->Entry->Type == MEMFS_ENTRY_TYPE_FILE) ? entry->Entry->Data.File.BufferSize : 0;

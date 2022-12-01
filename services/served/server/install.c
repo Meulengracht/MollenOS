@@ -199,11 +199,11 @@ void InstallBundledApplications(void)
 
     setupDir = opendir("/data/setup");
     if (setupDir == NULL) {
+        TRACE("InstallBundledApplications no bundled apps!");
         // directory did not exist, no bundled apps to install
         return;
     }
 
-    TRACE("parsing entries");
     while ((entry = readdir(setupDir)) != NULL) {
         mstring_t* path = mstr_fmt("/data/setup/%s", &entry->d_name[0]);
         oserr_t oserr = InstallApplication(path, &entry->d_name[0]);

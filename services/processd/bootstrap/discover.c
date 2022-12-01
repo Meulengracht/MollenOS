@@ -114,7 +114,7 @@ __ParseRamdisk(
 
             snprintf(pathBuffer, 128-1, "/initfs/services/%s", entry.Name);
             TRACE("__ParseRamdisk file found: %s", &pathBuffer[0]);
-            osStatus = PmCreateProcessInternal(
+            osStatus = PmCreateProcess(
                     (const char*)pathBuffer,
                     NULL,
                     NULL,

@@ -14,20 +14,16 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Process Manager
- * - Contains the implementation of the process-manager which keeps track
- *   of running applications.
  */
 
 #ifndef __PROCESS_INTERFACE__
 #define __PROCESS_INTERFACE__
 
-#include <ds/list.h>
+#include <ds/mstring.h>
 #include <gracht/server.h>
 #include <os/osdefs.h>
 #include <os/services/process.h>
+#include <os/usched/cond.h>
 #include <os/usched/mutex.h>
 #include <time.h>
 
@@ -44,8 +40,9 @@ typedef struct Process {
     uuid_t                 primary_thread_id;
     clock_t                tick_base;
     enum ProcessState      state;
-    struct usched_mtx      lock;
-    list_t                 requests;
+    struct usched_mtx      mutex;
+    struct usched_cnd      condition;
+    int                    references;
     PeExecutable_t*        image;
     ProcessConfiguration_t config;
     int                    exit_code;
@@ -97,31 +94,6 @@ PmBootstrapFindRamdiskFile(
         _Out_ size_t*    bufferSizeOut);
 
 /**
- * @brief Registers a request to the process. As long as a request is registered to a process the process
- * termination will not complete before all requests has been handled.
- *
- * @param[In] handle  A handle for the process to register the request for
- * @param[In] request The request that should be registered.
- * @return
- */
-extern Process_t*
-RegisterProcessRequest(
-        _In_ uuid_t     handle,
-        _In_ Request_t* request);
-
-/**
- * @brief Unregisters a registered request, if the process is terminating and the number of requests reach 0,
- * then process destruction will also occur.
- *
- * @param[In] process A process instance that the request is registered too
- * @param[In] request The request that should be unregistered.
- */
-extern void
-UnregisterProcessRequest(
-        _In_ Process_t* process,
-        _In_ Request_t* request);
-
-/**
  * @brief Spawns a new process with the given configuration. The process assumes a valid PE image
  * and builds all required tables for the new process.
  *
@@ -133,7 +105,7 @@ UnregisterProcessRequest(
  * @return
  */
 extern oserr_t
-PmCreateProcessInternal(
+PmCreateProcess(
         _In_  const char*             path,
         _In_  const char*             args,
         _In_  const void*             inherit,

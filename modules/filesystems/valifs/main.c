@@ -530,7 +530,7 @@ static long __ValiFS_Seek(void* userData, long offset, int whence)
             pos = offset;
             break;
         case SEEK_END:
-            pos = (long)__GetSize(context);;
+            pos = (long)__GetSize(context);
             pos += offset;
             break;
         default:
