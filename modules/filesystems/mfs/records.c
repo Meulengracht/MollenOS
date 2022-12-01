@@ -29,7 +29,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-static inline void __StoreRecord(
+static inline void
+__StoreRecord(
         _In_ FileSystemMFS_t* mfs,
         _In_ FileRecord_t*    record,
         _In_ uint32_t         currentBucket,
@@ -49,7 +50,8 @@ static inline void __StoreRecord(
     entry->DataBucketLength = entry->StartLength;
 }
 
-static oserr_t __ReadCurrentBucket(
+static oserr_t
+__ReadCurrentBucket(
         _In_ FileSystemMFS_t* mfs,
         _In_ uint32_t         currentBucket,
         _In_ MapRecord_t*     mapRecord)
@@ -85,7 +87,8 @@ static oserr_t __ReadCurrentBucket(
     return osStatus;
 }
 
-static oserr_t __ExpandDirectory(
+static oserr_t
+__ExpandDirectory(
         _In_ FileSystemMFS_t* mfs,
         _In_ uint32_t         currentBucket,
         _In_ MapRecord_t*     mapRecord)
@@ -117,7 +120,8 @@ static oserr_t __ExpandDirectory(
     return oserr;
 }
 
-static oserr_t __InitiateDirectory(
+static oserr_t
+__InitiateDirectory(
         _In_ FileSystemMFS_t* mfs,
         _In_ MFSEntry_t*      entry,
         _In_ uint32_t*        bucketOut)
@@ -171,7 +175,8 @@ static oserr_t __InitiateDirectory(
  * @return                  OsExists if entry with <entryName> was found, OsNotExists if a free entry was found.
  *                          Any other Os* value is indicative of an error.
  */
-static oserr_t __FindEntryOrFreeInDirectory(
+static oserr_t
+__FindEntryOrFreeInDirectory(
         _In_ FileSystemMFS_t* mfs,
         _In_ MFSEntry_t*      directory,
         _In_ mstring_t*       entryName,
@@ -293,10 +298,14 @@ static oserr_t __FindEntryOrFreeInDirectory(
     return oserr;
 }
 
-static MFSEntry_t* __MFSEntryClone(
+static MFSEntry_t*
+__MFSEntryClone(
         _In_ MFSEntry_t* entry)
 {
-    MFSEntry_t* cloned = malloc(sizeof(MFSEntry_t));
+    MFSEntry_t* cloned;
+    TRACE("__MFSEntryClone()");
+
+    cloned = malloc(sizeof(MFSEntry_t));
     if (cloned == NULL) {
         return NULL;
     }
@@ -308,13 +317,17 @@ static MFSEntry_t* __MFSEntryClone(
     return cloned;
 }
 
-static MFSEntry_t* __MFSEntryNew(
-        _In_  mstring_t*       name,
-        _In_  uint32_t         owner,
-        _In_  uint32_t         flags,
-        _In_  uint32_t         permissions)
+static MFSEntry_t*
+__MFSEntryNew(
+        _In_  mstring_t* name,
+        _In_  uint32_t   owner,
+        _In_  uint32_t   flags,
+        _In_  uint32_t   permissions)
 {
-    MFSEntry_t* entry = malloc(sizeof(MFSEntry_t));
+    MFSEntry_t* entry;
+    TRACE("__MFSEntryNew()");
+
+    entry = malloc(sizeof(MFSEntry_t));
     if (entry == NULL) {
         return NULL;
     }
@@ -335,7 +348,8 @@ static MFSEntry_t* __MFSEntryNew(
     return entry;
 }
 
-static oserr_t __CreateEntryInDirectory(
+static oserr_t
+__CreateEntryInDirectory(
         _In_  FileSystemMFS_t* mfs,
         _In_  mstring_t*       name,
         _In_  uint32_t         owner,
@@ -350,8 +364,8 @@ static oserr_t __CreateEntryInDirectory(
         _In_  size_t           directoryIndex,
         _Out_ MFSEntry_t**     entryOut)
 {
-    MFSEntry_t*  entry;
-    oserr_t      osStatus;
+    MFSEntry_t* entry;
+    oserr_t     osStatus;
     TRACE("__CreateEntryInDirectory(name=%ms)", name);
 
     entry = __MFSEntryNew(name, owner, flags, permissions);
@@ -385,7 +399,8 @@ static inline bool __PathIsRoot(mstring_t* path) {
     return false;
 }
 
-static void __CleanupEntryIterator(
+static void
+__CleanupEntryIterator(
         _In_ MFSEntry_t* entry)
 {
     mstr_delete(entry->Name);
@@ -402,7 +417,6 @@ MfsLocateRecord(
     MFSEntry_t  currentEntry;
     mstring_t** tokens;
     int         tokenCount;
-
     TRACE("MfsLocateRecord(fileSystem=%ms, directory=%ms, path=%ms)",
           mfs->Label, directory->Name, path);
 
@@ -517,7 +531,8 @@ MfsCreateRecord(
                 nextEntry.DirectoryBucket,
                 nextEntry.DirectoryLength,
                 nextEntry.DirectoryIndex,
-                entryOut);
+                entryOut
+        );
     }
     __CleanupEntryIterator(&nextEntry);
     TRACE("MfsCreateRecord returns=%u", osStatus);

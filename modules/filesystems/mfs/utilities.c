@@ -35,14 +35,11 @@ MFSToNativeFlags(
     _In_ unsigned int flags)
 {
     unsigned int nativeFlags = 0;
-    TRACE("MFSToNativeFlags(flags=0x%x)", flags);
-
     if (flags & FILE_FLAG_DIRECTORY) {
         nativeFlags |= MFS_FILERECORD_DIRECTORY;
     } else if (flags & FILE_FLAG_LINK) {
         nativeFlags |= MFS_FILERECORD_LINK;
     }
-    TRACE("MFSToNativeFlags returns 0x%x", nativeFlags)
     return nativeFlags;
 }
 
@@ -99,7 +96,6 @@ MfsUpdateRecord(
     oserr_t       oserr;
     FileRecord_t* record;
     size_t        sectorsTransferred;
-
     TRACE("MfsUpdateEntry(File %ms)", entry->Name);
 
     // Read the stored data bucket where the record is
@@ -229,6 +225,7 @@ MFSCloneBucketData(
         _In_ uint32_t         destinationBucket,
         _In_ uint32_t         destinationLength)
 {
+    TRACE("MFSCloneBucketData()");
     return OS_ENOTSUPPORTED;
 }
 

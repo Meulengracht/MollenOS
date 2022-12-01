@@ -61,7 +61,8 @@ FsOpen(
             mfs,
             &mfs->RootEntry,
             path,
-            &mfsEntry);
+            &mfsEntry
+    );
     if (osStatus != OS_EOK) {
         return osStatus;
     }
@@ -92,8 +93,10 @@ FsCreate(
             owner,
             flags,
             permissions,
-            0, 0,
-            MFS_ENDOFCHAIN, 0,
+            0,
+            0,
+            MFS_ENDOFCHAIN,
+            0,
             &result
     );
     if (osStatus != OS_EOK) {

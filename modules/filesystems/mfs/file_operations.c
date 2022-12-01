@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -468,7 +468,6 @@ FsTruncate(
     FileSystemMFS_t* mfs = instanceData;
     MFSEntry_t*      entry    = (MFSEntry_t*)data;
     oserr_t          osStatus = OS_EOK;
-
     TRACE("FsChangeFileSize(Name %ms, Size 0x%x)", entry->Name, LODWORD(size));
 
     // Handle a special case of 0

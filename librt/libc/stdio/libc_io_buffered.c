@@ -156,3 +156,7 @@ _unlock_stream(
     }
     return OS_EOK;
 }
+
+CRTDECL(void,  flockfile(FILE* stream));
+CRTDECL(int,   ftrylockfile(FILE* stream));
+CRTDECL(void,  funlockfile(FILE* stream));

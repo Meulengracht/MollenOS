@@ -16,7 +16,6 @@
  *
  */
 
-#include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <vfs/vfs.h>
 #include "private.h"
@@ -70,15 +69,14 @@ VFSNodeHandleRemove(
 {
     struct VFSNodeHandle* handle;
 
-    usched_rwlock_w_lock(&g_handlesLock);
+    usched_rwlock_w_promote(&g_handlesLock);
     handle = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
     if (handle == NULL) {
-        usched_rwlock_w_unlock(&g_handlesLock);
+        usched_rwlock_w_demote(&g_handlesLock);
         return OS_ENOENT;
     }
-
     hashtable_remove(&g_handles, handle);
-    usched_rwlock_w_unlock(&g_handlesLock);
+    usched_rwlock_w_demote(&g_handlesLock);
     return OS_EOK;
 }
 

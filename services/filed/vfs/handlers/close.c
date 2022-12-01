@@ -17,58 +17,51 @@
  */
 
 #include <ddk/handle.h>
+#include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include "../private.h"
-
-static oserr_t __RemoveHandle(struct VFSNode* node, uuid_t handleId)
-{
-    struct __VFSHandle* handle;
-
-    usched_mtx_lock(&node->HandlesLock);
-    handle = hashtable_remove(&node->Handles, &(struct __VFSHandle) { .Id = handleId });
-    usched_mtx_unlock(&node->HandlesLock);
-
-    if (handle == NULL) {
-        return OS_ENOENT;
-    }
-    return OS_EOK;
-}
 
 oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
 {
     struct VFSNodeHandle* handle;
     struct VFSNode*       node;
+    void*                 data;
     oserr_t               osStatus;
+    _CRT_UNUSED(vfs);
 
     osStatus = VFSNodeHandleGet(handleID, &handle);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
 
+    // store data we need from the handle
     node = handle->Node;
+    data = handle->Data;
 
-    // After this, we can free the handle lock,
-    // as we don't need it anymore after retrieving the
-    // node instance
-    VFSNodeHandlePut(handle);
-
-    // When processes inherit files, they gain additional references for a handle
-    // which means we try to destroy the handle first, and only if we were the final
-    // call we handle cleanup of this file-handle. This also acts as a barrier for
-    // synchronization.
-    osStatus = OSHandleDestroy(handleID);
-    if (osStatus == OS_EINCOMPLETE) {
-        return OS_EOK;
-    } else if (osStatus != OS_EOK) {
-        return osStatus;
-    }
-
-    // Ok last reference was destroyed
     osStatus = VFSNodeHandleRemove(handleID);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
+    VFSNodeHandlePut(handle);
 
-    // Also remove the handle from the node
-    return __RemoveHandle(node, handleID);
+    // Start out by closing the handle
+    usched_mtx_lock(&node->HandlesLock);
+    osStatus = node->FileSystem->Interface->Operations.Close(
+            node->FileSystem->Interface,
+            node->FileSystem->Data,
+            data
+    );
+    if (osStatus != OS_EOK) {
+        WARNING("VFSNodeClose failed to close the underlying handle");
+    }
+
+    // Remove the handle from the node
+    (void)hashtable_remove(
+            &node->Handles,
+            &(struct __VFSHandle) {
+                    .Id = handleID
+            }
+    );
+    usched_mtx_unlock(&node->HandlesLock);
+    return OSHandleDestroy(handleID);
 }
