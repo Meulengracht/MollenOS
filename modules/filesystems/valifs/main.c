@@ -583,5 +583,6 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
             context->Buffer.buffer,
             count
     );
+    *bytesRead = count;
     return OS_EOK;
 }

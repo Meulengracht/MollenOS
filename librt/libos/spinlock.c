@@ -108,5 +108,9 @@ spinlock_release(
     // detect if a thread releases multiple times and there
     // are enough waiters in queue to cover the additional
     // releases
+    if (current >= atomic_load(&lock->next)) {
+        BOCHSBREAK;
+        return;
+    }
     assert(current < atomic_load(&lock->next));
 }

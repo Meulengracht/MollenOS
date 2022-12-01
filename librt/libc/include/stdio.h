@@ -133,6 +133,9 @@ CRTDECL(void,  setbuf(FILE* file, char *buf));
 CRTDECL(int,   setvbuf(FILE* file, char *buf, int mode, size_t size));
 CRTDECL(int,   fileno(FILE* stream));
 CRTDECL(int,   fwide(FILE *stream, int mode));
+CRTDECL(void,  flockfile(FILE* stream));
+CRTDECL(int,   ftrylockfile(FILE* stream));
+CRTDECL(void,  funlockfile(FILE* stream));
 
 /*******************************
  *       Formatted IO          *

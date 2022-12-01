@@ -240,13 +240,21 @@ oserr_t VFSNodeChildNew(struct VFS* vfs, struct VFSNode* node, struct VFSStat* s
 void __CleanupHandle(int index, const void* element, void* userContext)
 {
     const struct __VFSHandle* handle = element;
+    struct VFSNodeHandle*     nodeHandle;
     oserr_t                   osStatus;
 
     // Unregister any handle with the filesystem
+    osStatus = VFSNodeHandleGet(handle->Id, &nodeHandle);
+    if (osStatus != OS_EOK) {
+        // didn't exist?
+        return;
+    }
+
     osStatus = VFSNodeHandleRemove(handle->Id);
     if (osStatus != OS_EOK) {
         // LOG
     }
+    VFSNodeHandlePut(nodeHandle);
 }
 
 void __CleanupChild(int index, const void* element, void* userContext)
