@@ -54,10 +54,11 @@ struct VFSStorageParameters {
 
 struct VFSDirectoryEntry {
     // NameLength describes the data length of the entry's name. The name
-    // is encoded as UTF-8 bytes.
+    // is encoded as UTF-8 bytes. The data must be zero-terminated.
     uint32_t NameLength;
     // LinkLength describes the data length of the entry's link target. The
-    // string is encoded as UTF-8 bytes.
+    // string is encoded as UTF-8 bytes. The data must be zero terminated if
+    // non-zero.
     uint32_t LinkLength;
     uint32_t UserID;
     uint32_t GroupID;

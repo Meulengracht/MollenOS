@@ -32,12 +32,14 @@ __WriteDirectoryEntry(
     char*                     stringData = (char*)buffer + sizeof(struct VFSDirectoryEntry);
     size_t                    bytesWritten = sizeof(struct VFSDirectoryEntry);
 
-    // fill out the entry itself, then write string data
-    entry->NameLength = strlen((const char*)&record->Name[0]);
+    // fill out the entry itself, then write string data, string data is always
+    // zero-terminated
+    entry->NameLength = strlen((const char*)&record->Name[0]) + 1;
     entry->LinkLength = 0; // TODO: add this
 
     // If we can't safely write all data, then abort
-    if (bytesWritten + entry->NameLength + entry->LinkLength < maxBytesToWrite) {
+    if ((bytesWritten + entry->NameLength + entry->LinkLength) > maxBytesToWrite) {
+        TRACE("skipping entry %s, not enough buffer room", &record->Name[0]);
         return 0;
     }
 
@@ -128,7 +130,14 @@ FsReadFromDirectory(
                     fileRecord++, bucketOffset += sizeof(FileRecord_t), position += sizeof(FileRecord_t)) {
                 if (fileRecord->Flags & MFS_FILERECORD_INUSE) {
                     TRACE("Gathering entry %s", &fileRecord->Name[0]);
-                    size_t written = __WriteDirectoryEntry(fileRecord, bufferPointer, bytesToRead);
+                    size_t written = __WriteDirectoryEntry(
+                            fileRecord,
+                            bufferPointer,
+                            bytesToRead
+                    );
+                    if (!written) {
+                        goto exit;
+                    }
                     bytesToRead -= written;
                     bufferPointer += written;
                 }
@@ -153,6 +162,7 @@ FsReadFromDirectory(
         }
     }
 
+exit:
     entry->Position = position / sizeof(FileRecord_t);
     *unitsRead = (unitCount - bytesToRead);
     return oserr;

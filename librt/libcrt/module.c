@@ -138,6 +138,7 @@ __StartGrachtServer(
     // initialize configurations for server
     gracht_server_configuration_init(&config);
     gracht_server_configuration_set_aio_descriptor(&config, ioset(0));
+    gracht_server_configuration_set_num_workers(&config, 2); // doesn't matter, should just be > 1
 
     status = gracht_server_create(&config, &g_server);
     if (status) {

@@ -22,22 +22,28 @@
 
 oserr_t VFSNodeReadLink(struct VFS* vfs, const char* cpath, mstring_t** linkOut)
 {
-    struct VFSNodeHandle* handle;
-    oserr_t               osStatus;
+    mstring_t*      path;
+    struct VFSNode* node;
+    oserr_t         osStatus;
 
-    osStatus = VFSNodeHandleGet(request->parameters.stat_handle.fileHandle, &handle);
+    path = mstr_new_u8(cpath);
+    if (path == NULL) {
+        return OS_EOOM;
+    }
+
+    osStatus = VFSNodeFind(vfs->Root, path, &node);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
 
-    usched_rwlock_r_lock(&handle->Node->Lock);
-    if (handle->Node->Stats.Flags & __FILE_LINK) {
-        *linkOut = mstr_clone(handle->Node->Stats.LinkTarget);
+    usched_rwlock_r_lock(&node->Lock);
+    if (node->Stats.Flags & __FILE_LINK) {
+        *linkOut = mstr_clone(node->Stats.LinkTarget);
         osStatus = OS_EOK;
     } else {
         osStatus = OS_ELINKINVAL;
     }
-    usched_rwlock_r_unlock(&handle->Node->Lock);
-    VFSNodeHandlePut(handle);
+    usched_rwlock_r_unlock(&node->Lock);
+    VFSNodePut(node);
     return osStatus;
 }

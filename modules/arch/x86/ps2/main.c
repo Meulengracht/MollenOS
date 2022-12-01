@@ -264,12 +264,9 @@ oserr_t OnEvent(struct ioset_event* event)
     return OS_ENOENT;
 }
 
-void
-OnRegister(
-    _In_ void* context,
-    _In_ void* cancellationToken)
+void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* sysDevice)
 {
-    Device_t*  device = context;
+    Device_t*  device = from_sys_device(sysDevice);
     oserr_t    oserr;
     PS2Port_t* port;
 
@@ -315,11 +312,6 @@ OnRegister(
         WARNING("OnRegister unknown ps2 device");
     }
     free(device); // not used for ports atm
-}
-
-void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
-{
-    usched_job_queue(OnRegister, from_sys_device(device));
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)

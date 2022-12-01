@@ -20,299 +20,414 @@
 #include <ioset.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <fs/requests.h>
+#include <os/dmabuf.h>
 #include <os/usched/job.h>
 
 #include <ctt_filesystem_service_server.h>
 
-extern void FsInitializeWrapper(void*,void*);
-extern void FsDestroyWrapper(void*,void*);
-extern void FsOpenWrapper(void*,void*);
-extern void FsCreateWrapper(void*,void*);
-extern void FsCloseWrapper(void*,void*);
-extern void FsStatWrapper(void*,void*);
-extern void FsLinkWrapper(void*,void*);
-extern void FsUnlinkWrapper(void*,void*);
-extern void FsReadLinkWrapper(void*,void*);
-extern void FsMoveWrapper(void*,void*);
-extern void FsReadWrapper(void*,void*);
-extern void FsWriteWrapper(void*,void*);
-extern void FsTruncateWrapper(void*,void*);
-extern void FsSeekWrapper(void*,void*);
-
-static _Atomic(uuid_t) g_requestId = ATOMIC_VAR_INIT(1);
-
-static FileSystemRequest_t*
-CreateRequest(struct gracht_message* message)
-{
-    FileSystemRequest_t* request;
-
-    request = malloc(sizeof(FileSystemRequest_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message));
-    if (!request) {
-        ERROR("CreateRequest out of memory for message allocation!");
-        return NULL;
-    }
-
-    request->id = atomic_fetch_add(&g_requestId, 1);
-    gracht_server_defer_message(message, &request->message[0]);
-    usched_mtx_init(&request->lock, USCHED_MUTEX_PLAIN);
-    usched_cnd_init(&request->signal);
-    return request;
-}
-
-void FSRequestDestroy(FileSystemRequest_t* request)
-{
-    assert(request != NULL);
-
-    free(request);
-}
+extern oserr_t
+FsInitialize(
+        _In_  struct VFSStorageParameters* storageParameters,
+        _Out_ void**                       instanceData);
 
 void ctt_filesystem_setup_invocation(struct gracht_message* message, const struct ctt_fs_setup_params* params)
 {
-    FileSystemRequest_t* request;
-
+    struct VFSStorageParameters vfsParams;
+    void*   fscontext;
+    oserr_t oserr;
     TRACE("ctt_filesystem_setup_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_setup_response(message, OS_EOOM, 0);
-        return;
-    }
 
-    from_fs_setup_params(params, &request->parameters.init);
-    usched_job_queue((usched_task_fn)FsInitializeWrapper, request);
+    from_fs_setup_params(params, &vfsParams);
+    oserr = FsInitialize(&vfsParams, &fscontext);
+    ctt_filesystem_setup_response(message, oserr, (uintptr_t)fscontext);
 }
+
+extern oserr_t
+FsDestroy(
+        _In_ void*         instanceData,
+        _In_ unsigned int  unmountFlags);
 
 void ctt_filesystem_destroy_invocation(struct gracht_message* message, const uintptr_t fsctx)
 {
-    FileSystemRequest_t* request;
-
+    oserr_t oserr;
     TRACE("ctt_filesystem_destroy_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_destroy_response(message, OS_EOOM);
-        return;
-    }
 
-    request->parameters.destroy.context = (void*)fsctx;
-    usched_job_queue((usched_task_fn)FsDestroyWrapper, request);
+    oserr = FsDestroy((void*)fsctx, 0);
+    ctt_filesystem_destroy_response(message, oserr);
 }
+
+extern oserr_t
+FsStat(
+        _In_ void*             instanceData,
+        _In_ struct VFSStatFS* stat);
 
 void ctt_filesystem_fsstat_invocation(struct gracht_message* message, const uintptr_t fsctx)
 {
-    FileSystemRequest_t* request;
-
+    struct VFSStatFS  stats;
+    struct ctt_fsstat response;
+    oserr_t           oserr;
     TRACE("ctt_filesystem_fsstat_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        struct ctt_fsstat zero;
-        ctt_fsstat_init(&zero);
-        ctt_filesystem_fsstat_response(message, OS_EOOM, &zero);
-        return;
-    }
 
-    request->parameters.stat.fscontext = (void*)fsctx;
-    usched_job_queue((usched_task_fn)FsStatWrapper, request);
+    oserr = FsStat((void*)fsctx, &stats);
+    to_fsstat(&stats, &response);
+    ctt_filesystem_fsstat_response(message, oserr, &response);
 }
+
+extern oserr_t
+FsOpen(
+        _In_      void*      instanceData,
+        _In_      mstring_t* path,
+        _Out_Opt_ void**     dataOut);
 
 void ctt_filesystem_open_invocation(struct gracht_message* message, const uintptr_t fsctx, const char* path)
 {
-    FileSystemRequest_t* request;
-
+    void*      fcontext;
+    mstring_t* mpath;
+    oserr_t    oserr;
     TRACE("ctt_filesystem_open_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
+
+    mpath = mstr_new_u8(path);
+    if (mpath == NULL) {
         ctt_filesystem_open_response(message, OS_EOOM, 0);
         return;
     }
 
-    request->parameters.open.context = (void*)fsctx;
-    request->parameters.open.path = mstr_new_u8(path);
-    assert(request->parameters.open.path != NULL);
-    usched_job_queue((usched_task_fn)FsOpenWrapper, request);
+    oserr = FsOpen((void*)fsctx, mpath, &fcontext);
+    ctt_filesystem_open_response(message, oserr, (uintptr_t)fcontext);
+    mstr_delete(mpath);
 }
+
+extern oserr_t
+FsCreate(
+        _In_  void*      instanceData,
+        _In_  void*      data,
+        _In_  mstring_t* name,
+        _In_  uint32_t   owner,
+        _In_  uint32_t   flags,
+        _In_  uint32_t   permissions,
+        _Out_ void**     dataOut);
 
 void ctt_filesystem_create_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_open_params* params)
 {
-    FileSystemRequest_t* request;
-
+    void*      fcontext;
+    mstring_t* mname;
+    oserr_t    oserr;
     TRACE("ctt_filesystem_create_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
+
+    mname = mstr_new_u8(params->name);
+    if (mname == NULL) {
         ctt_filesystem_create_response(message, OS_EOOM, 0);
         return;
     }
 
-    request->parameters.create.fscontext = (void*)fsctx;
-    request->parameters.create.fcontext = (void*)fctx;
-    request->parameters.create.name = mstr_new_u8(params->name);
-    assert(request->parameters.create.name != NULL);
-    request->parameters.create.owner = params->owner;
-    request->parameters.create.flags = params->flags;
-    request->parameters.create.permissions = params->permissions;
-    usched_job_queue((usched_task_fn)FsCreateWrapper, request);
+    oserr = FsCreate(
+            (void*)fsctx,
+            (void*)fctx,
+            mname,
+            params->owner,
+            params->flags,
+            params->permissions,
+            &fcontext
+    );
+    ctt_filesystem_create_response(message, oserr, (uintptr_t)fcontext);
+    mstr_delete(mname);
 }
+
+extern
+oserr_t
+FsClose(
+        _In_ void* instanceData,
+        _In_ void* data);
 
 void ctt_filesystem_close_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx)
 {
-    FileSystemRequest_t* request;
-
+    oserr_t oserr;
     TRACE("ctt_filesystem_close_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_close_response(message, OS_EOOM);
-        return;
-    }
 
-    request->parameters.close.fscontext = (void*)fsctx;
-    request->parameters.close.fcontext = (void*)fctx;
-    usched_job_queue((usched_task_fn)FsCloseWrapper, request);
+    oserr = FsClose((void*)fsctx, (void*)fctx);
+    ctt_filesystem_close_response(message, oserr);
 }
+
+extern oserr_t
+FsLink(
+        _In_ void*      instanceData,
+        _In_ void*      data,
+        _In_ mstring_t* linkName,
+        _In_ mstring_t* linkTarget,
+        _In_ int        symbolic);
 
 void ctt_filesystem_link_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx,
         const char* name, const char* target, const uint8_t symbolic)
 {
-    FileSystemRequest_t* request;
-
+    mstring_t* mname;
+    mstring_t* mtarget;
+    oserr_t    oserr;
     TRACE("ctt_filesystem_link_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
+
+    mname = mstr_new_u8(name);
+    if (mname == NULL) {
         ctt_filesystem_link_response(message, OS_EOOM);
         return;
     }
 
-    request->parameters.link.fscontext = (void*)fsctx;
-    request->parameters.link.fcontext = (void*)fctx;
-    request->parameters.link.name = mstr_new_u8(name);
-    assert(request->parameters.link.name != NULL);
-    request->parameters.link.target = mstr_new_u8(target);
-    assert(request->parameters.link.target != NULL);
-    request->parameters.link.symbolic = symbolic;
-    usched_job_queue((usched_task_fn)FsLinkWrapper, request);
+    mtarget = mstr_new_u8(target);
+    if (mtarget == NULL) {
+        mstr_delete(mname);
+        ctt_filesystem_link_response(message, OS_EOOM);
+        return;
+    }
+
+    oserr = FsLink(
+            (void*)fsctx,
+            (void*)fctx,
+            mname,
+            mtarget,
+            symbolic
+    );
+    ctt_filesystem_link_response(message, oserr);
+    mstr_delete(mname); mstr_delete(mtarget);
 }
+
+extern oserr_t
+FsUnlink(
+        _In_  void*     instanceData,
+        _In_ mstring_t* path);
 
 void ctt_filesystem_unlink_invocation(struct gracht_message* message, const uintptr_t fsctx, const char* path)
 {
-    FileSystemRequest_t* request;
-
+    mstring_t* mpath;
+    oserr_t    oserr;
     TRACE("ctt_filesystem_unlink_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
+
+    mpath = mstr_new_u8(path);
+    if (mpath == NULL) {
         ctt_filesystem_unlink_response(message, OS_EOOM);
         return;
     }
 
-    request->parameters.unlink.fscontext = (void*)fsctx;
-    request->parameters.unlink.path = mstr_new_u8(path);
-    assert(request->parameters.unlink.path != NULL);
-    usched_job_queue((usched_task_fn)FsUnlinkWrapper, request);
+    oserr = FsUnlink((void*)fsctx, mpath);
+    ctt_filesystem_unlink_response(message, oserr);
+    mstr_delete(mpath);
 }
+
+extern oserr_t
+FsReadLink(
+        _In_ void*       instanceData,
+        _In_ mstring_t*  path,
+        _In_ mstring_t** pathOut);
 
 void ctt_filesystem_readlink_invocation(struct gracht_message* message, const uintptr_t fsctx, const char* path)
 {
-    FileSystemRequest_t* request;
-
+    mstring_t* mpath;
+    mstring_t* resultPath = NULL;
+    oserr_t    oserr;
     TRACE("ctt_filesystem_readlink_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_readlink_response(message, OS_EOOM, NULL);
+
+    mpath = mstr_new_u8(path);
+    if (mpath == NULL) {
+        ctt_filesystem_readlink_response(message, OS_EOOM, "");
         return;
     }
 
-    request->parameters.readlink.fscontext = (void*)fsctx;
-    request->parameters.readlink.path = mstr_new_u8(path);
-    assert(request->parameters.readlink.path != NULL);
-    usched_job_queue((usched_task_fn)FsReadLinkWrapper, request);
+    oserr = FsReadLink((void*)fsctx, mpath,  &resultPath);
+    ctt_filesystem_readlink_response(message, oserr, mstr_u8(resultPath));
+    mstr_delete(mpath);
+}
+
+extern oserr_t
+FsRead(
+        _In_  void*   instanceData,
+        _In_  void*   data,
+        _In_  uuid_t  bufferHandle,
+        _In_  void*   buffer,
+        _In_  size_t  bufferOffset,
+        _In_  size_t  unitCount,
+        _Out_ size_t* unitsRead);
+
+static oserr_t
+__MapUserBufferRead(
+        _In_ uuid_t           handle,
+        _In_ DMAAttachment_t* attachment)
+{
+    oserr_t osStatus;
+
+    osStatus = DmaAttach(handle, attachment);
+    if (osStatus != OS_EOK) {
+        return osStatus;
+    }
+
+    // When mapping the buffer for reading, we need write access to the buffer,
+    // so we can do buffer combining.
+    osStatus = DmaAttachmentMap(attachment, DMA_ACCESS_WRITE);
+    if (osStatus != OS_EOK) {
+        DmaDetach(attachment);
+        return osStatus;
+    }
+    return OS_EOK;
 }
 
 void ctt_filesystem_read_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx,
         const struct ctt_fs_transfer_params* params)
 {
-    FileSystemRequest_t* request;
-
+    oserr_t         oserr;
+    DMAAttachment_t attachment;
+    size_t          read;
     TRACE("ctt_filesystem_read_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_read_response(message, OS_EOOM, 0);
+
+    oserr = __MapUserBufferRead(params->buffer_id, &attachment);
+    if (oserr != OS_EOK) {
+        ctt_filesystem_read_response(message, oserr, 0);
         return;
     }
 
-    request->parameters.transfer.fscontext = (void*)fsctx;
-    request->parameters.transfer.fcontext = (void*)fctx;
-    request->parameters.transfer.buffer_id = params->buffer_id;
-    request->parameters.transfer.offset = params->offset;
-    request->parameters.transfer.count = params->count;
-    usched_job_queue((usched_task_fn)FsReadWrapper, request);
+    oserr = FsRead(
+            (void*)fsctx,
+            (void*)fctx,
+            params->buffer_id,
+            attachment.buffer,
+            params->offset,
+            (size_t)params->count, // TODO: be consistent with size units
+            &read
+    );
+    ctt_filesystem_read_response(message, oserr, read);
+
+    oserr = DmaDetach(&attachment);
+    if (oserr != OS_EOK) {
+        WARNING("ctt_filesystem_read_invocation failed to detach read buffer");
+    }
+}
+
+extern oserr_t
+FsWrite(
+        _In_  void*   instanceData,
+        _In_  void*   data,
+        _In_  uuid_t  bufferHandle,
+        _In_  void*   buffer,
+        _In_  size_t  bufferOffset,
+        _In_  size_t  unitCount,
+        _Out_ size_t* unitsWritten);
+
+static oserr_t
+__MapUserBufferWrite(
+        _In_ uuid_t           handle,
+        _In_ DMAAttachment_t* attachment)
+{
+    oserr_t oserr;
+
+    oserr = DmaAttach(handle, attachment);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = DmaAttachmentMap(attachment, 0);
+    if (oserr != OS_EOK) {
+        DmaDetach(attachment);
+        return oserr;
+    }
+    return OS_EOK;
 }
 
 void ctt_filesystem_write_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_transfer_params* params)
 {
-    FileSystemRequest_t* request;
-
+    oserr_t         oserr;
+    DMAAttachment_t attachment;
+    size_t          written;
     TRACE("ctt_filesystem_write_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_write_response(message, OS_EOOM, 0);
+
+    oserr = __MapUserBufferWrite(params->buffer_id, &attachment);
+    if (oserr != OS_EOK) {
+        ctt_filesystem_write_response(message, oserr, 0);
         return;
     }
 
-    request->parameters.transfer.fscontext = (void*)fsctx;
-    request->parameters.transfer.fcontext = (void*)fctx;
-    request->parameters.transfer.buffer_id = params->buffer_id;
-    request->parameters.transfer.offset = params->offset;
-    request->parameters.transfer.count = params->count;
-    usched_job_queue((usched_task_fn)FsWriteWrapper, request);
+    oserr = FsWrite(
+            (void*)fsctx,
+            (void*)fctx,
+            params->buffer_id,
+            attachment.buffer,
+            params->offset,
+            (size_t)params->count, // TODO: be consistent with size units
+            &written
+    );
+    ctt_filesystem_write_response(message, oserr, written);
+
+    oserr = DmaDetach(&attachment);
+    if (oserr != OS_EOK) {
+        WARNING("FsWriteWrapper failed to detach read buffer");
+    }
 }
+
+extern oserr_t
+FsMove(
+        _In_ void*      instanceData,
+        _In_ mstring_t* from,
+        _In_ mstring_t* to,
+        _In_ int        copy);
 
 void ctt_filesystem_move_invocation(struct gracht_message* message, const uintptr_t fsctx, const char* source, const char* target, const uint8_t copy)
 {
-    FileSystemRequest_t* request;
-
+    oserr_t    oserr;
+    mstring_t* msource;
+    mstring_t* mdestination;
     TRACE("ctt_filesystem_move_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
+
+    msource = mstr_new_u8(source);
+    if (msource == NULL) {
         ctt_filesystem_move_response(message, OS_EOOM);
         return;
     }
 
-    request->parameters.move.fscontext = (void*)fsctx;
-    request->parameters.move.from = mstr_new_u8(source);
-    assert(request->parameters.move.from != NULL);
-    request->parameters.move.to = mstr_new_u8(target);
-    assert(request->parameters.move.to != NULL);
-    request->parameters.move.copy = copy;
-    usched_job_queue((usched_task_fn)FsMoveWrapper, request);
+    mdestination = mstr_new_u8(target);
+    if (mdestination == NULL) {
+        mstr_delete(msource);
+        ctt_filesystem_move_response(message, OS_EOOM);
+        return;
+    }
+
+    oserr = FsMove(
+            (void*)fsctx,
+            msource,
+            mdestination,
+            copy
+    );
+    ctt_filesystem_move_response(message, oserr);
+    mstr_delete(msource);
+    mstr_delete(mdestination);
 }
+
+extern oserr_t
+FsTruncate(
+        _In_ void*    instanceData,
+        _In_ void*    data,
+        _In_ uint64_t size);
 
 void ctt_filesystem_truncate_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const uint64_t size)
 {
-    FileSystemRequest_t* request;
-
+    oserr_t oserr;
     TRACE("ctt_filesystem_truncate_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_truncate_response(message, OS_EOOM);
-        return;
-    }
 
-    request->parameters.truncate.fscontext = (void*)fsctx;
-    request->parameters.truncate.fcontext = (void*)fctx;
-    request->parameters.truncate.size = size;
-    usched_job_queue((usched_task_fn)FsTruncateWrapper, request);
+    oserr = FsTruncate((void*)fsctx, (void*)fctx, size);
+    ctt_filesystem_truncate_response(message, oserr);
 }
+
+extern oserr_t
+FsSeek(
+        _In_  void*     instanceData,
+        _In_  void*     data,
+        _In_  uint64_t  absolutePosition,
+        _Out_ uint64_t* absolutePositionOut);
 
 void ctt_filesystem_seek_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const uint64_t position)
 {
-    FileSystemRequest_t* request;
-
+    uint64_t positionResult;
+    oserr_t  oserr;
     TRACE("ctt_filesystem_seek_invocation()");
-    request = CreateRequest(message);
-    if (!request) {
-        ctt_filesystem_seek_response(message, OS_EOOM, 0);
-        return;
-    }
 
-    request->parameters.seek.fscontext = (void*)fsctx;
-    request->parameters.seek.fcontext = (void*)fctx;
-    request->parameters.seek.position = position;
-    usched_job_queue((usched_task_fn)FsSeekWrapper, request);
+    oserr = FsSeek(
+            (void*)fsctx,
+            (void*)fctx,
+            position,
+            &positionResult
+    );
+    ctt_filesystem_seek_response(message, oserr, position);
 }

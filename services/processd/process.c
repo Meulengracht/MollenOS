@@ -94,50 +94,6 @@ DestroyProcess(
     free(process);
 }
 
-void
-UnregisterProcessRequest(
-        _In_ Process_t* process,
-        _In_ Request_t* request)
-{
-    if (!process) {
-        return;
-    }
-
-    usched_mtx_lock(&process->lock);
-    list_remove(&process->requests, &request->leaf);
-    if (process->state == ProcessState_TERMINATING) {
-        // check for outstanding requests
-        if (!list_count(&process->requests)) {
-            DestroyProcess(process);
-            return; // no need to free that mutex
-        }
-    }
-    usched_mtx_unlock(&process->lock);
-}
-
-Process_t*
-RegisterProcessRequest(
-        _In_ uuid_t     handle,
-        _In_ Request_t* request)
-{
-    struct process_entry* entry;
-
-    usched_mtx_lock(&g_processesLock);
-    entry = hashtable_get(&g_processes, &(struct process_entry) { .process_id = handle });
-    usched_mtx_unlock(&g_processesLock);
-
-    if (entry) {
-        usched_mtx_lock(&entry->process->lock);
-        if (entry->process->state == ProcessState_RUNNING) {
-            list_append(&entry->process->requests, &request->leaf);
-            usched_mtx_unlock(&entry->process->lock);
-            return entry->process;
-        }
-        usched_mtx_unlock(&entry->process->lock);
-    }
-    return NULL;
-}
-
 Process_t*
 PmGetProcessByHandle(
         _In_ uuid_t handle)
@@ -293,9 +249,10 @@ __ProcessNew(
     process->tick_base = clock();
     process->state = ProcessState_RUNNING;
     process->image = image;
+    process->references = 1;
     memcpy(&process->config, config, sizeof(ProcessConfiguration_t));
-    usched_mtx_init(&process->lock, USCHED_MUTEX_PLAIN);
-    list_construct(&process->requests);
+    usched_mtx_init(&process->mutex, USCHED_MUTEX_PLAIN);
+    usched_cnd_init(&process->condition);
 
     process->path = mstr_clone(process->image->FullPath);
     if (!process->path) {
@@ -360,7 +317,7 @@ PmCreateProcess(
     Process_t*      process;
     uuid_t          handle;
     oserr_t         osStatus;
-    ENTRY("PmCreateProcessInternal(path=%s, args=%s)", path, args);
+    ENTRY("PmCreateProcess(path=%s, args=%s)", path, args);
 
     osStatus = __LoadProcessImage(path, &image);
     if (osStatus != OS_EOK) {
@@ -369,7 +326,7 @@ PmCreateProcess(
 
     osStatus = OSHandleCreate(&handle);
     if (osStatus != OS_EOK) {
-        ERROR("PmCreateProcessInternal failed to allocate a system handle for process");
+        ERROR("PmCreateProcess failed to allocate a system handle for process");
         PeUnloadImage(image);
         goto exit;
     }
@@ -404,7 +361,7 @@ PmCreateProcess(
     }
 
     // Add it to the list of processes
-    TRACE("PmCreateProcessInternal registering process %u/%u", handle, process->primary_thread_id);
+    TRACE("PmCreateProcess registering process %u/%u", handle, process->primary_thread_id);
     hashtable_set(&g_threadmappings, &(struct thread_mapping) {
             .process_id = handle,
             .thread_id  = process->primary_thread_id
@@ -417,7 +374,7 @@ PmCreateProcess(
 
     *handleOut = handle;
 exit:
-    EXIT("PmCreateProcessInternal");
+    EXIT("PmCreateProcess");
     return osStatus;
 }
 
@@ -488,7 +445,7 @@ __get_timestamp_from_now(unsigned int ms, struct timespec* ts)
 {
     timespec_get(ts, TIME_UTC);
     ts->tv_nsec += (NSEC_PER_MSEC * ms);
-    if (ts->tv_nsec >= NSEC_PER_SEC) {
+    while (ts->tv_nsec >= NSEC_PER_SEC) {
         ts->tv_sec++;
         ts->tv_nsec -= NSEC_PER_SEC;
     }
@@ -505,7 +462,7 @@ PmJoinProcess(
 
     TRACE("PmJoinProcess(process=%u, timeout=%u)", handle, timeout);
 
-    target = RegisterProcessRequest(handle, request);
+    target = PmGetProcessByHandle(handle);
     if (!target) {
         struct process_history_entry* entry;
 
@@ -524,23 +481,33 @@ PmJoinProcess(
     }
 
     // ok so the process is still running/terminating
-    usched_mtx_lock(&target->lock);
+    usched_mtx_lock(&target->mutex);
     if (target->state == ProcessState_RUNNING) {
         struct timespec ts;
         int             status;
+
+        target->references++;
         __get_timestamp_from_now(timeout, &ts);
-        status = usched_cnd_timedwait(&request->signal, &target->lock, &ts);
+        status = usched_cnd_timedwait(&target->condition, &target->mutex, &ts);
         if (status) {
-            usched_mtx_unlock(&target->lock);
+            usched_mtx_unlock(&target->mutex);
             oserr = OS_ETIMEOUT;
             goto exit;
         }
+
+        // store exit code and handle cleanup
+        *exitCodeOut = target->exit_code;
+        target->references--;
+        if (target->references == 0) {
+            DestroyProcess(target);
+            goto exit;
+        }
+    } else {
+        *exitCodeOut = target->exit_code;
     }
-    *exitCodeOut = target->exit_code;
-    usched_mtx_unlock(&target->lock);
+    usched_mtx_unlock(&target->mutex);
 
 exit:
-    UnregisterProcessRequest(target, request);
     return oserr;
 }
 
@@ -549,18 +516,14 @@ PmTerminateProcess(
         _In_ uuid_t processHandle,
         _In_ int    exitCode)
 {
-    Process_t* process;
-    element_t* i;
+    struct process_entry* entry;
+    Process_t*            process;
 
     TRACE("PmTerminateProcess process %u exitted with code: %i",
           processHandle, exitCode);
 
-    process = PmGetProcessByHandle(processHandle);
-    if (!process) {
-        return OS_ENOENT;
-    }
-
-    // Add a new entry in our history archive and then wake up all waiters
+    // Add a new entry in our history archive before removing to avoid
+    // any data races when other requests look for this.
     usched_mtx_lock(&g_processHistoryLock);
     hashtable_set(&g_processHistory, &(struct process_history_entry) {
             .process_id = processHandle,
@@ -568,17 +531,45 @@ PmTerminateProcess(
     });
     usched_mtx_unlock(&g_processHistoryLock);
 
-    usched_mtx_lock(&process->lock);
+    // Do manual lookup here as we might be altering the list. We do not want some race
+    // where someone gets a hold of the process pointer while we are in the process of
+    // removing it.
+    usched_mtx_lock(&g_processesLock);
+    entry = hashtable_remove(
+            &g_processes,
+            &(struct process_entry) {
+                .process_id = processHandle
+            }
+    );
+    if (entry == NULL) {
+        usched_mtx_unlock(&g_processesLock);
+        return OS_ENOENT;
+    }
+
+    // get a pointer to the actual process before we release the lock
+    process = entry->process;
+    usched_mtx_unlock(&g_processesLock);
+
+    // At this point it's possible for other requests to hold a pointer to
+    // the process (waiters), which means we must wait for all these requests to
+    // finish.
+    usched_mtx_lock(&process->mutex);
+
+    // update state of process first
     process->state     = ProcessState_TERMINATING;
     process->exit_code = exitCode;
 
-    // go through all registered requests and wake them in case they were sleeping on
-    // this process
-    _foreach(i, &process->requests) {
-        Request_t* subRequest = (Request_t*)i->value;
-        usched_cnd_notify_one(&subRequest->signal);
+    // handle all waiters (if any)
+    if (process->references > 1) {
+        process->references--;
+        // Wake them, and let them handle cleanup. Let the last waiter
+        // cleanup the actual process. Maybe we should spawn a cleanup task or
+        // something, but not now.
+        usched_cnd_notify_all(&process->condition);
+        usched_mtx_unlock(&process->mutex);
+    } else {
+        DestroyProcess(process);
     }
-    usched_mtx_unlock(&process->lock);
     return OS_EOK;
 }
 
@@ -594,22 +585,20 @@ PmSignalProcess(
 
     // ok how to handle this, optimally we should check that the process
     // has license to kill before executing the signal
-    victim = RegisterProcessRequest(victimHandle, request);
+    victim = PmGetProcessByHandle(victimHandle);
     if (!victim) {
         oserr = OS_ENOENT;
         goto exit;
     }
 
     // try to send a kill signal to primary thread
-    usched_mtx_lock(&victim->lock);
+    usched_mtx_lock(&victim->mutex);
     if (victim->state == ProcessState_RUNNING) {
         oserr = Syscall_ThreadSignal(victim->primary_thread_id, signal);
-    }
-    else {
+    } else {
         oserr = OS_EINPROGRESS;
     }
-    usched_mtx_unlock(&victim->lock);
-    UnregisterProcessRequest(victim, request);
+    usched_mtx_unlock(&victim->mutex);
 
 exit:
     return oserr;
@@ -629,9 +618,9 @@ PmLoadLibrary(
 
     ENTRY("PmLoadLibrary(%u, %s)", processHandle, (cpath == NULL) ? "Global" : cpath);
 
-    process = RegisterProcessRequest(processHandle, request);
+    process = PmGetProcessByHandle(processHandle);
     if (!process) {
-        goto exit1;
+        goto exit;
     }
 
     if (!strlen(cpath)) {
@@ -650,9 +639,6 @@ PmLoadLibrary(
     mstr_delete(path);
 
 exit:
-    UnregisterProcessRequest(process, request);
-
-exit1:
     EXIT("LoadProcessLibrary");
     return oserr;
 }
@@ -667,7 +653,6 @@ PmGetLibraryFunction(
     Process_t*      process;
     PeExecutable_t* executable;
     oserr_t         oserr   = OS_ENOENT;
-    uintptr_t       address = 0;
     TRACE("PmGetLibraryFunction(process=%u, func=%s)", processHandle, name);
 
     process = PmGetProcessByHandle(processHandle);
@@ -675,17 +660,18 @@ PmGetLibraryFunction(
         return OS_ENOENT;
     }
 
-    usched_mtx_lock(&process->lock);
+    usched_mtx_lock(&process->mutex);
     if (libraryHandle != HANDLE_GLOBAL) {
         executable = (PeExecutable_t*)libraryHandle;
     } else {
         executable = process->image;
     }
-    address = PeResolveFunction(executable, name);
-    if (address != 0) {
+
+    *functionAddressOut = PeResolveFunction(executable, name);
+    if (*functionAddressOut != 0) {
         oserr = OS_EOK;
     }
-    usched_mtx_unlock(&process->lock);
+    usched_mtx_unlock(&process->mutex);
     return oserr;
 }
 
@@ -695,22 +681,25 @@ PmUnloadLibrary(
         _In_ Handle_t libraryHandle)
 {
     Process_t* process;
-    oserr_t    oserr = OS_ENOENT;
+    oserr_t    oserr;
     TRACE("PmUnloadLibrary(process=%u)", processHandle);
 
     if (libraryHandle == HANDLE_GLOBAL) {
         oserr = OS_EOK;
-        goto respond;
+        goto exit;
     }
 
     process = PmGetProcessByHandle(processHandle);
-    if (process) {
-        usched_mtx_lock(&process->lock);
-        oserr = PeUnloadLibrary(process->image, (PeExecutable_t *)libraryHandle);
-        usched_mtx_unlock(&process->lock);
+    if (process == NULL) {
+        oserr = OS_ENOENT;
+        goto exit;
     }
 
-respond:
+    usched_mtx_lock(&process->mutex);
+    oserr = PeUnloadLibrary(process->image, (PeExecutable_t *)libraryHandle);
+    usched_mtx_unlock(&process->mutex);
+
+exit:
     return oserr;
 }
 
@@ -726,9 +715,10 @@ PmGetModules(
     if (process == NULL) {
         return OS_ENOENT;
     }
-    usched_mtx_lock(&process->lock);
+
+    usched_mtx_lock(&process->mutex);
     PeGetModuleHandles(process->image, modules, modulesCount);
-    usched_mtx_unlock(&process->lock);
+    usched_mtx_unlock(&process->mutex);
     return OS_EOK;
 }
 
@@ -774,9 +764,10 @@ PmGetWorkingDirectory(
     if (process == NULL) {
         return OS_ENOENT;
     }
-    usched_mtx_lock(&process->lock);
+
+    usched_mtx_lock(&process->mutex);
     *pathOut = process->working_directory;
-    usched_mtx_unlock(&process->lock);
+    usched_mtx_unlock(&process->mutex);
     return OS_EOK;
 }
 
@@ -798,11 +789,11 @@ PmSetWorkingDirectory(
         return OS_EOOM;
     }
 
-    usched_mtx_lock(&process->lock);
+    usched_mtx_lock(&process->mutex);
     TRACE("PmSetWorkingDirectory path=%s", path);
     mstr_delete(process->working_directory);
     process->working_directory = newCwd;
-    usched_mtx_unlock(&process->lock);
+    usched_mtx_unlock(&process->mutex);
     return OS_EOK;
 }
 
