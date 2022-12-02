@@ -20,11 +20,11 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <io.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
 #include <os/mollenos.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
 
 int write(int fd, const void* buffer, unsigned int length)
 {
@@ -71,7 +71,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 	
 	// Write the bytes in a loop in case we can't
 	// flush it all at once
-	_lock_stream(stream);
+	flockfile(stream);
 	while (wrcnt) {
 
 		// Sanitize output buffer count
@@ -142,8 +142,6 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 			vptr = (const char *)vptr + 1;
 		}
 	}
-
-	// Unlock stream and return member-count written
-	_unlock_stream(stream);
+	funlockfile(stream);
 	return written / size;
 }

@@ -7,7 +7,6 @@
 #include <internal/_pipe.h>
 #include <internal/_socket.h>
 #include <os/osdefs.h>
-#include <os/spinlock.h>
 #include <os/types/process.h>
 #include <stdio.h>
 
@@ -91,7 +90,6 @@ typedef struct stdio_ops {
 typedef struct stdio_handle {
     int            fd;
     unsigned int   wxflag;
-    spinlock_t     lock;
     stdio_object_t object;
     stdio_ops_t    ops;
     char           lookahead[3];
@@ -124,10 +122,10 @@ extern stdio_handle_t* stdio_handle_get(int iod);
 #define IO_IS_BUFFERED(stream)     !IO_IS_NOT_BUFFERED(stream)
 #define IO_HAS_BUFFER_DATA(stream) ((stream)->_cnt > 0)
 
-extern void       io_buffer_ensure(FILE* stream);
-extern void       io_buffer_allocate(FILE* stream);
+extern void    io_buffer_ensure(FILE* stream);
+extern void    io_buffer_allocate(FILE* stream);
 extern oserr_t io_buffer_flush(FILE* file);
-extern int        io_buffer_flush_all(int mask);
+extern int     io_buffer_flush_all(int mask);
 
 // io-operation types
 extern void stdio_get_null_operations(stdio_ops_t* ops);
@@ -139,9 +137,9 @@ extern void stdio_get_set_operations(stdio_ops_t* ops);
 extern void stdio_get_evt_operations(stdio_ops_t* ops);
 
 // helpers
-extern int          stdio_bitmap_initialize(void);
-extern int          stdio_bitmap_allocate(int fd);
-extern void         stdio_bitmap_free(int fd);
+extern int  stdio_bitmap_initialize(void);
+extern int  stdio_bitmap_allocate(int fd);
+extern void stdio_bitmap_free(int fd);
 
 /**
  * @brief _flsbuf/_flswbuf does not lock the stream it is given. It is expected that the stream must be
@@ -153,19 +151,17 @@ extern void         stdio_bitmap_free(int fd);
 extern int _flsbuf(int ch, FILE *stream);
 extern int _flswbuf(int ch, FILE *stream);
 
-
 extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fperms(unsigned int mode);
 extern unsigned int _fopts(int oflags);
 extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
-extern oserr_t      _lock_stream(FILE * stream);
-extern oserr_t      _unlock_stream(FILE * stream);
 extern int          streamout(FILE *stream, const char *format, va_list argptr);
 extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
 
 
 // Must be reentrancy spinlocks (critical sections)
+// TODO: implement this
 #define LOCK_FILES() do { } while(0)
 #define UNLOCK_FILES() do { } while(0)
 

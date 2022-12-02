@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,18 +13,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Returns the current value of the position indicator of the stream.
  */
 
-#include <stdio.h>
-#include <errno.h>
 #include <assert.h>
-#include <string.h>
+#include <errno.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
 #include <io.h>
+#include <stdio.h>
 
 long tell(
 	_In_ int fd)
@@ -50,17 +45,17 @@ long long ftelli64(
 		return -1LL;
 	}
 	
-	_lock_stream(stream);
+	flockfile(stream);
 	handle = stdio_handle_get(stream->_fd);
     if (handle == NULL) {
-		_unlock_stream(stream);
+		funlockfile(stream);
         _set_errno(EBADFD);
         return -1;
     }
 
 	position = telli64(stream->_fd);
 	if (position == -1) {
-		_unlock_stream(stream);
+		funlockfile(stream);
 		return -1;
 	}
 
@@ -104,7 +99,7 @@ long long ftelli64(
 
 			// Restore stream cursor in case we seeked to end
 			if (lseeki64(stream->_fd, position, SEEK_SET) != position) {
-				_unlock_stream(stream);
+				funlockfile(stream);
 				return -1;
 			}
 
@@ -126,7 +121,7 @@ long long ftelli64(
 			}
 		}
 	}
-	_unlock_stream(stream);
+	funlockfile(stream);
 	return position;
 }
 
@@ -137,12 +132,12 @@ off_t ftello(
 }
 
 long ftell(
-	_In_ FILE *stream)
+	_In_ FILE* stream)
 {
-	off_t rOffset = ftello(stream);
-	if ((long)rOffset != rOffset) {
+	off_t offset = ftello(stream);
+	if ((long)offset != offset) {
 		_set_errno(EOVERFLOW);
 		return -1L;
 	}
-	return rOffset;
+	return offset;
 }

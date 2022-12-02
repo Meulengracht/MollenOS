@@ -184,6 +184,16 @@ ChangeFilePermissionsFromFd(
 
 /**
  * @brief
+ * @param fileDescriptor
+ * @param access
+ * @return
+ */
+CRTDECL(oserr_t,
+ChangeFileHandleAccessFromFd(
+        _In_ int          fileDescriptor,
+        _In_ unsigned int access));
+/**
+ * @brief
  * @param path
  * @param linkPathBuffer
  * @param bufferLength

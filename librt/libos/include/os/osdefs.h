@@ -190,8 +190,14 @@ static inline size_t NextPowerOfTwo(size_t value) {
     return next;
 }
 
-#define _MAXPATH                                512
-#define NAME_MAX                                4096
+#ifndef _MAXPATH
+#define _MAXPATH 512
+#endif //!_MAXPATH
+
+#ifndef NAME_MAX
+#define NAME_MAX 4096
+#endif //!NAME_MAX
+
 #define ISINRANGE(val, min, max)                (((val) >= (min)) && ((val) < (max)))
 #define DIVUP(a, b)                             (((a) + ((b) - 1)) / (b))
 #define ADDLIMIT(Base, Current, Step, Limit)    (((Current) + (Step)) >= (Limit)) ? (Base) : ((Current) + (Step))

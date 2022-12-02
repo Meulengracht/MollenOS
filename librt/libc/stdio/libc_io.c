@@ -15,55 +15,47 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <internal/_file.h>
+
 #ifdef LIBC_KERNEL
+#include <assert.h>
 #include <spinlock.h>
 #include <threading.h>
 #include <stdio.h>
 
-Spinlock_t __GlbPrintLock = OS_SPINLOCK_INIT;
-FILE __GlbStdout = { 0 }, __GlbStdin = { 0 }, __GlbStderr = { 0 };
+static Spinlock_t g_printLock = OS_SPINLOCK_INIT;
+static FILE g_stdout = { 0 };
+static FILE g_stdin  = { 0 };
+static FILE g_stderr = { 0 };
 
-oserr_t
-_lock_stream(
-    _In_ FILE *file)
-{
-    if (!file) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (!(file->_flag & _IOSTRG)) {
-        SpinlockAcquire(&__GlbPrintLock);
-    }
-    return OS_EOK;
+void usched_mtx_init(struct usched_mtx* mutex, int type) {
+    _CRT_UNUSED(mutex);
+    _CRT_UNUSED(type);
 }
 
-oserr_t
-_unlock_stream(
-    _In_ FILE *file)
-{
-    if (!file) {
-        return OS_EINVALPARAMS;
-    }
-    
-    if (!(file->_flag & _IOSTRG)) {
-        SpinlockRelease(&__GlbPrintLock);
-    }
-    return OS_EOK;
+void flockfile(FILE* stream) {
+    assert(stream != NULL);
+    SpinlockAcquire(&g_printLock);
 }
 
-FILE *
-stdio_get_std(
+void funlockfile(FILE* stream) {
+    assert(stream != NULL);
+    SpinlockRelease(&g_printLock);
+}
+
+FILE*
+__get_std_handle(
     _In_ int n)
 {
     switch (n) {
         case STDOUT_FILENO: {
-            return &__GlbStdout;
+            return &g_stdout;
         }
         case STDIN_FILENO: {
-            return &__GlbStdin;
+            return &g_stdin;
         }
         case STDERR_FILENO: {
-            return &__GlbStderr;
+            return &g_stderr;
         }
         default: {
             return NULL;
@@ -71,8 +63,7 @@ stdio_get_std(
     }
 }
 
-int wctomb(char *mbchar, wchar_t wchar)
-{
+int wctomb(char *mbchar, wchar_t wchar) {
     _CRT_UNUSED(mbchar);
     _CRT_UNUSED(wchar);
     return 0;
@@ -331,6 +322,12 @@ void StdioConfigureStandardHandles(
         stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
     }
 
+    // pre-initialize some of the data members which are not reset by
+    // stdio_handle_set_buffered.
+    usched_mtx_init(&g_stdout._lock, USCHED_MUTEX_RECURSIVE);
+    usched_mtx_init(&g_stdint._lock, USCHED_MUTEX_RECURSIVE);
+    usched_mtx_init(&g_stderr._lock, USCHED_MUTEX_RECURSIVE);
+
     stdio_handle_set_buffered(handle_out, &g_stdout, _IOWRT | _IOLBF); // we buffer stdout as default
     stdio_handle_set_buffered(handle_in, &g_stdint, _IOREAD | _IOLBF); // we also buffer stdint as default
     stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT | _IONBF);
@@ -416,11 +413,10 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     handle->object.handle = UUID_INVALID;
     handle->object.type   = STDIO_HANDLE_INVALID;
     
-    handle->wxflag          = WX_OPEN | flags;
-    handle->lookahead[0]    = '\n';
-    handle->lookahead[1]    = '\n';
-    handle->lookahead[2]    = '\n';
-    spinlock_init(&handle->lock);
+    handle->wxflag       = WX_OPEN | flags;
+    handle->lookahead[0] = '\n';
+    handle->lookahead[1] = '\n';
+    handle->lookahead[2] = '\n';
     stdio_get_null_operations(&handle->ops);
 
     hashtable_set(&g_stdioObjects, &(struct stdio_object_entry) {
@@ -499,6 +495,9 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
         if (!stream) {
             return ENOMEM;
         }
+
+        // TODO move to construct function
+        usched_mtx_init(&stream->_lock, USCHED_MUTEX_RECURSIVE);
     }
     
     // Reset the stream structure
@@ -552,7 +551,7 @@ stdio_handle_t* stdio_handle_get(int iod)
     return NULL;
 }
 
-FILE* stdio_get_std(int n)
+FILE* __get_std_handle(int n)
 {
     switch (n) {
         case STDOUT_FILENO: {

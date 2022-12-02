@@ -30,5 +30,5 @@ void perror(
 
 void wperror(
 	_In_ const wchar_t *str) {
-	fwprintf(stderr, L"%s: %S\n", str, strerror(errno));
+	fwprintf(stderr, (const wchar_t*)L"%S: %s\n", str, strerror(errno));
 }

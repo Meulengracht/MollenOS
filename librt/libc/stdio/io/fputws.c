@@ -29,21 +29,20 @@
 #include <stdio.h>
 
 int fputws(
-    _In_ const wchar_t *str,
-    _In_ FILE *stream)
+    _In_ const wchar_t* str,
+    _In_ FILE*          stream)
 {
-    // Variables
-    static const wchar_t nl = '\n';
-    size_t len = wcslen(str);
-    int ret;
+    static const wchar_t nl = L'\n';
+    size_t               len = wcslen(str);
+    int                  ret;
 
-    _lock_stream(stream);
+    flockfile(stream);
     if(fwrite(str, sizeof(*str), len, stream) != len) {
-        _unlock_stream(stream);
+        funlockfile(stream);
         return EOF;
     }
 
     ret = fwrite(&nl,sizeof(nl),1,stream) == 1 ? 0 : EOF;
-    _unlock_stream(stream);
+    funlockfile(stream);
     return ret;
 }

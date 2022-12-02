@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,31 +13,27 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
  */
 
-#include <internal/_io.h>
-#include <stdio.h>
 #include <io.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdio.h>
 
 int putw(
-    _In_ int val, 
-    _In_ FILE *file)
+    _In_ int   val,
+    _In_ FILE* file)
 {
     int len;
 
-    _lock_stream(file);
+    flockfile(file);
     len = write(file->_fd, &val, sizeof(val));
-    if (len == sizeof(val))
-    {
-        _unlock_stream(file);
+    if (len == sizeof(val)) {
+        funlockfile(file);
         return val;
     }
 
     file->_flag |= _IOERR;
-    _unlock_stream(file);
+    funlockfile(file);
     return EOF;
 }

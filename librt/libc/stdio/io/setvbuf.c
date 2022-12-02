@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,14 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO Support functions
  */
 
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_file.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -61,7 +56,7 @@ int setvbuf(
         return -1;
     }
 
-    _lock_stream(file);
+    flockfile(file);
     __flush_existing(file);
 
     file->_flag &= ~(_IONBF | _IOMYBUF | _USERBUF | _IOLBF);
@@ -73,11 +68,10 @@ int setvbuf(
         file->_flag  |= _USERBUF;
         file->_base   = file->_ptr = buf;
         file->_bufsiz = size;
-    }
-    else {
+    } else {
         // no buffer provided, allocate a new
         io_buffer_allocate(file);
     }
-    _unlock_stream(file);
+    funlockfile(file);
     return 0;
 }

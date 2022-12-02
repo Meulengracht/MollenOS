@@ -27,6 +27,7 @@
 #ifndef __TEST
 //#define __TRACE
 #include <ddk/utils.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
 #include <io.h>
 #include <stdio.h>
@@ -495,7 +496,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		return 0;
 	}
 
-	_lock_stream(stream);
+	flockfile(stream);
 	if (stream_ensure_mode(_IOREAD, stream)) {
 	    goto exit;
 	}
@@ -572,7 +573,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 	cread += pread;
 
 exit:
-    _unlock_stream(stream);
+    funlockfile(stream);
     TRACE("fread returns=%" PRIuIN ", errno=%i", (cread / size), errno);
 	return (cread / size);
 }

@@ -6,6 +6,7 @@
  * PROGRAMMER:      Timo Kreuzer
  */
 
+#include <internal/_file.h>
 #include <internal/_io.h>
 #include <os/osdefs.h>
 #include <stdio.h>
@@ -50,6 +51,7 @@ int _sxprintf(
     stream._bufsiz = 0;
     stream._flag = _IOSTRG | _IOWRT;
     stream._tmpfname = 0;
+    usched_mtx_init(&stream._lock, USCHED_MUTEX_RECURSIVE);
 
 #if USE_VIRTUAL
     stream._flag |= _IOVRT;

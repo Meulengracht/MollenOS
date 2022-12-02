@@ -92,30 +92,18 @@ _CODE_BEGIN
  *       File Structures       *
  *******************************/
 #ifndef _FILE_DEFINED
-struct _iobuf {
-	int      _fd;
-    char    *_ptr;
-    int      _cnt;
-    char    *_base;
-    int      _flag;
-    int      _charbuf;
-    int      _bufsiz;
-    char    *_tmpfname;
-};
-typedef struct _iobuf FILE;
 #define _FILE_DEFINED
+typedef struct _FILE FILE;
 #endif
 
-/* Stdio Standard Handles
- * Contains definitions for standard input and output handles used in C */
-CRTDECL(FILE*,                      stdio_get_std(int n));
-#define STDOUT_FILENO               (int)0
-#define STDIN_FILENO                (int)1
-#define STDERR_FILENO               (int)2
-#define stdout						stdio_get_std(STDOUT_FILENO)
-#define stdin						stdio_get_std(STDIN_FILENO)
-#define	stderr						stdio_get_std(STDERR_FILENO)
-#define L_tmpnam                    32
+CRTDECL(FILE*,         __get_std_handle(int n));
+#define STDOUT_FILENO  (int)0
+#define STDIN_FILENO   (int)1
+#define STDERR_FILENO  (int)2
+#define stdout         __get_std_handle(STDOUT_FILENO)
+#define stdin          __get_std_handle(STDIN_FILENO)
+#define	stderr         __get_std_handle(STDERR_FILENO)
+#define L_tmpnam       32
 
 /*******************************
  *       File Access           *
@@ -188,7 +176,7 @@ CRTDECL(int,   fputchar(int character));
 CRTDECL(int,   fputc(int character, FILE* file));
 CRTDECL(int,   fputs(const char *s, FILE* file));
 CRTDECL(int,   fgetc(FILE *file));
-CRTDECL(char*, fgets(char *s, int size, FILE *file));
+CRTDECL(char*, fgets(char *str, int size, FILE *file));
 
 /*******************************
  *      Wide Character IO      *

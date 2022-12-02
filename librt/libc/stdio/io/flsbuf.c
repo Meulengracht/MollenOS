@@ -10,6 +10,7 @@
 
 #include <ddk/utils.h>
 #include <io.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
 #include <stdio.h>
 

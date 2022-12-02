@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,21 +13,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- *   - Method for reopening files with modified permissions or modified
- *     underlying file-descriptor
  */
 
 #include <errno.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
-#include <internal/_ipc.h>
 #include <io.h>
-#include <os/mollenos.h>
+#include <os/services/file.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 FILE* freopen(
 	_In_ const char* filename, 
@@ -49,6 +41,7 @@ FILE* freopen(
 	}
 
 	// Ok, if filename is not null we must open a new file
+    flockfile(stream);
 	if (filename != NULL) {
 		close(stream->_fd);
 
@@ -56,27 +49,23 @@ FILE* freopen(
 		_fflags(mode, &open_flags, &stream_flags);
 		fd = open(filename, open_flags, 0755);
 		if (fd == -1) {
+            funlockfile(stream);
 			return NULL;
 		}
 		handle = stdio_handle_get(fd);
 		stdio_handle_set_buffered(handle, stream, stream_flags);
-	}
-	else {
+	} else {
 		if (mode != NULL) {
-			struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-			oserr_t               status;
-			
-			handle = stdio_handle_get(stream->_fd);
-			_fflags(mode, &open_flags, &stream_flags);
+			oserr_t status;
+
+            _fflags(mode, &open_flags, &stream_flags);
+
 			// TODO: support multiple types of streams
-			
-			sys_file_set_access(GetGrachtClient(), &msg.base, __crt_process_id(),
-                                handle->object.handle, _fopts(open_flags));
-            gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-			sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
+            status = ChangeFileHandleAccessFromFd(stream->_fd, _fopts(open_flags));
 			OsErrToErrNo(status);
 		}
 	}
 	stream->_flag &= ~(_IOEOF | _IOERR);
+    funlockfile(stream);
 	return stream;
 }

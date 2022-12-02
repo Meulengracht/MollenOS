@@ -5,8 +5,10 @@
  * PURPOSE:         Implementation of streamout
  * PROGRAMMER:      Timo Kreuzer
  */
+
 #include <os/osdefs.h>
 #include <ds/mstring.h>
+#include <internal/_file.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>

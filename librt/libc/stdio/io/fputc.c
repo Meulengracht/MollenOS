@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,14 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Writes a character to the stream and advances the position indicator.
  */
 
-#include <stdio.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
+#include <stdio.h>
 
 int fputc(
     _In_ int   character,
@@ -30,7 +25,7 @@ int fputc(
 {
     int res = 0;
 
-    _lock_stream(file);
+    flockfile(file);
     if (file->_cnt > 0) {
         file->_cnt--;
         *file->_ptr++ = (char)(character & 0xFF);
@@ -38,11 +33,9 @@ int fputc(
         if ((file->_flag & _IOLBF) && character == '\n') {
             res = io_buffer_flush(file);
         }
-    }
-    else {
+    } else {
         res = _flsbuf(character, file);
     }
-
-    _unlock_stream(file);
+    funlockfile(file);
     return res ? res : character;
 }

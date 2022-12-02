@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,28 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Writes the C string pointed by str to the stream.
- * - The function begins copying from the address specified (str) until it 
- *   reaches the terminating null character ('\0'). 
- *   This terminating null-character is not copied to the stream.
  */
 
-#include <internal/_io.h>
 #include <string.h>
 #include <stdio.h>
 
 int fputs(
-	_In_ const char *s,
-	_In_ FILE* file)
+	_In_ const char* s,
+	_In_ FILE*       file)
 {
     size_t len = strlen(s);
-    int ret;
-
-    _lock_stream(file);
-    ret = fwrite(s, sizeof(*s), len, file) == len ? 0 : EOF;
-    _unlock_stream(file);
-    return ret;
+    return fwrite(s, sizeof(*s), len, file) == len ? 0 : EOF;
 }

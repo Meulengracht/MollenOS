@@ -4,15 +4,15 @@
 #include <stdarg.h>
 
 int vfwprintf(
-    _In_ FILE* file, 
-    _In_ const wchar_t *format,
-    _In_ va_list argptr)
+    _In_ FILE*          file,
+    _In_ const wchar_t* format,
+    _In_ va_list        argptr)
 {
     int ret;
 
-    _lock_stream(file);
+    flockfile(file);
     ret = wstreamout(file, format, argptr);
-    _unlock_stream(file);
+    funlockfile(file);
 
     return ret;
 }

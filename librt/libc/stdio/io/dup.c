@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Standard IO operation implementations.
  */
 
 #include <errno.h>
@@ -32,7 +26,7 @@ int dup(int iod)
     int             duplicatedIod;
 
     if (!objectToCopy) {
-        _set_errno(EBADFD);
+        errno = (EBADFD);
         return -1;
     }
 
