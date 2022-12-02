@@ -388,13 +388,29 @@ static uint32_t __ConvertTypeToFlags(
     return 0;
 }
 
-static void __ConvertStatEntry(
-        _In_ struct VFSStat*   out,
+static size_t
+__WriteDirectoryEntry(
+        _In_ uint8_t*          buffer,
+        _In_ size_t            bufferSize,
         _In_ struct VaFsEntry* in)
 {
-    memset(out, 0, sizeof(struct VFSStat));
-    out->Name = mstr_new_u8(in->Name);
-    out->Flags = __ConvertTypeToFlags(in->Type);
+    struct VFSDirectoryEntry* entry = (struct VFSDirectoryEntry*)buffer;
+    char*                     data  = (char*)(buffer + sizeof(struct VFSDirectoryEntry));
+
+    memset(entry, 0, sizeof(struct VFSDirectoryEntry));
+    entry->NameLength = strlen(in->Name) + 1;
+    entry->Flags = __ConvertTypeToFlags(in->Type);
+
+    // guard against not enough space
+    if (sizeof(struct VFSDirectoryEntry) + entry->NameLength > bufferSize) {
+        return 0;
+    }
+
+    if (entry->NameLength) {
+        memcpy(data, in->Name, entry->NameLength);
+        data += entry->NameLength;
+    }
+    return sizeof(struct VFSDirectoryEntry) + entry->NameLength;
 }
 
 oserr_t
@@ -421,11 +437,11 @@ FsRead(
             );
             return OS_EOK;
         case VALIFS_HANDLE_TYPE_DIR:
-            size_t          entriesToRead = unitCount / sizeof(struct VFSStat);
-            size_t          entriesLeft = entriesToRead;
-            struct VFSStat* stat = buffer;
-            while (entriesLeft) {
+            size_t   bytesToRead = unitCount;
+            uint8_t* bufferPointer = buffer;
+            while (bytesToRead > sizeof(struct VFSDirectoryEntry)) {
                 struct VaFsEntry entry;
+                size_t           bytesWritten;
                 int status = vafs_directory_read(
                         handle->Value.Directory,
                         &entry
@@ -434,11 +450,14 @@ FsRead(
                     break;
                 }
 
-                __ConvertStatEntry(stat, &entry);
-                entriesLeft--;
-                stat++;
+                bytesWritten = __WriteDirectoryEntry(bufferPointer, bytesToRead, &entry);
+                if (bytesWritten == 0) {
+                    break;
+                }
+                bufferPointer += bytesWritten;
+                bytesToRead   -= bytesWritten;
             }
-            *unitsRead = (entriesToRead - entriesLeft) * sizeof(struct VFSStat);
+            *unitsRead = (size_t)(bufferPointer - (uint8_t*)buffer);
             return OS_EOK;
     }
     return OS_ENOTSUPPORTED;

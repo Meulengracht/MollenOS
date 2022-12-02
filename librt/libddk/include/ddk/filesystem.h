@@ -71,24 +71,6 @@ struct VFSDirectoryEntry {
     OSTimestamp_t Created;
 };
 
-struct VFSStat {
-    // These are filled in by the VFS
-    uuid_t ID;
-    uuid_t StorageID;
-
-    mstring_t* Name;
-    mstring_t* LinkTarget;
-    uint32_t   Owner;
-    uint32_t   Permissions; // Permissions come from os/file/types.h
-    uint32_t   Flags;       // Flags come from os/file/types.h
-    uint64_t   Size;
-    uint32_t   Links;
-
-    OSTimestamp_t Accessed;
-    OSTimestamp_t Modified;
-    OSTimestamp_t Created;
-};
-
 struct VFSStatFS {
     // These are filled in by the VFS
     uuid_t     ID;

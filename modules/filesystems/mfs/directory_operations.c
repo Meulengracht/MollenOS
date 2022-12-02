@@ -175,7 +175,7 @@ FsSeekInDirectory(
         _In_ MFSEntry_t*      entry,
         _In_ uint64_t         absolutePosition)
 {
-    uint64_t actualPosition = absolutePosition * sizeof(struct VFSStat);
+    uint64_t actualPosition = absolutePosition * sizeof(struct VFSDirectoryEntry);
     size_t   initialBucketMax;
 
     // Trace

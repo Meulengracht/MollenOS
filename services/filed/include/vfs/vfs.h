@@ -29,7 +29,6 @@ struct VFSStorageParameters;
 struct VFSInterface;
 struct VFSNode;
 struct VFSNodeHandle;
-struct VFSRequest;
 struct VFSStat;
 struct VFSStatFS;
 
