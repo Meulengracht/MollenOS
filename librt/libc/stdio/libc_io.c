@@ -495,6 +495,7 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
         if (!stream) {
             return ENOMEM;
         }
+        memset(stream, 0, sizeof(FILE));
 
         // TODO move to construct function
         usched_mtx_init(&stream->_lock, USCHED_MUTEX_RECURSIVE);

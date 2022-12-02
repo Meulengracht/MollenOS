@@ -178,17 +178,7 @@ oserr_t InstallApplication(mstring_t* path, const char* basename)
     if (oserr != OS_EOK) {
         return oserr;
     }
-
-    oserr = __RegisterApplication(application);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = ApplicationMount(application);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    return ApplicationStartServices(application);
+    return __RegisterApplication(application);
 }
 
 void InstallBundledApplications(void)

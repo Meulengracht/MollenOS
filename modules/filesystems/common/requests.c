@@ -71,6 +71,7 @@ void ctt_filesystem_fsstat_invocation(struct gracht_message* message, const uint
     oserr = FsStat((void*)fsctx, &stats);
     to_fsstat(&stats, &response);
     ctt_filesystem_fsstat_response(message, oserr, &response);
+    free(response.label);
 }
 
 extern oserr_t

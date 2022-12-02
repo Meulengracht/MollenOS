@@ -51,7 +51,7 @@ __QueryFileStats(
     // generate model and serial
     snprintf(
             &stats->Serial[0], sizeof(stats->Serial),
-            "%u-%u", fstats.StorageID, fstats.ID
+            "file-%u", fileHandleID
     );
     snprintf(
             &stats->Model[0], sizeof(stats->Model),
@@ -73,6 +73,7 @@ VFSStorageCreateFileBacked(
     }
 
     // setup protocol stuff
+    storage->ID = fileHandleID;
     storage->Protocol.StorageType = VFSSTORAGE_TYPE_FILE;
     storage->Protocol.Storage.File.HandleID = fileHandleID;
 

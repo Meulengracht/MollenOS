@@ -21,9 +21,11 @@
  * - Standard IO null operation implementations.
  */
 
-#include <errno.h>
-#include <internal/_io.h>
+#define __TRACE
+
 #include <ddk/handle.h>
+#include <ddk/utils.h>
+#include <internal/_io.h>
 
 oserr_t stdio_null_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
@@ -32,7 +34,8 @@ oserr_t stdio_null_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
 
 oserr_t stdio_null_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    return OS_ENOTSUPPORTED;
+    *bytes_written = length;
+    return OS_EOK;
 }
 
 oserr_t stdio_null_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
