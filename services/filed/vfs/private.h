@@ -28,6 +28,7 @@
 #include <os/usched/rwlock.h>
 #include <os/types/file.h>
 #include <vfs/interface.h>
+#include <vfs/stat.h>
 
 struct VFS {
     uuid_t                 ID;

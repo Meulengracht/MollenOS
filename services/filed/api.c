@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vfs/scope.h>
+#include <vfs/stat.h>
 #include <vfs/vfs.h>
 
 #include <sys_file_service_server.h>

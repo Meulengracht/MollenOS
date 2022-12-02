@@ -16,6 +16,7 @@
  */
 
 #include <vfs/storage.h>
+#include <vfs/stat.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
 #include <stdio.h>
