@@ -202,7 +202,7 @@ __StatFile(
     // generate model and serial
     snprintf(
             &stats->Serial[0], sizeof(stats->Serial),
-            "%li-%li", fstats.storageId, fstats.id
+            "file-%li", fstats.storageId
     );
     snprintf(
             &stats->Model[0], sizeof(stats->Model),
@@ -238,7 +238,7 @@ FSStorageRead(
                     storageParameters->Storage.File.HandleID,
                     buffer,
                     offset,
-                    &(UInteger64_t) { .QuadPart = storageParameters->SectorStart.QuadPart + sector->QuadPart },
+                    sector,
                     count,
                     read
             );

@@ -36,6 +36,8 @@ static int      __ChildrenCmp(const void* lh, const void* rh);
 static uint64_t __MountsHash(const void* element);
 static int      __MountsCmp(const void* lh, const void* rh);
 
+static uuid_t g_nodeID = 1;
+
 static oserr_t
 __CreateNode(
         _In_  struct VFS*      vfs,
@@ -57,8 +59,11 @@ __CreateNode(
     node->Type       = type;
     node->IsLoaded   = false;
     usched_rwlock_init(&node->Lock);
+
     memcpy(&node->Stats, stats, sizeof(struct VFSStat));
     node->Stats.Name = node->Name;
+    node->Stats.StorageID = vfs->Storage->ID;
+    node->Stats.ID = g_nodeID++;
 
     usched_mtx_init(&node->HandlesLock, USCHED_MUTEX_PLAIN);
     hashtable_construct(&node->Handles, 0,

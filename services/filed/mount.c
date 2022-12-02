@@ -80,6 +80,37 @@ static oserr_t __DetectFileSystem(
     return oserr;
 }
 
+static oserr_t
+__StorageMount(
+        _In_ struct VFSStorage* storage)
+{
+    struct VFS*     fsScope = VFSScopeGet(UUID_INVALID);
+    struct VFSNode* deviceNode;
+    oserr_t         osStatus;
+    mstring_t*      path;
+    TRACE("__StorageMount()");
+
+    path = mstr_fmt("/storage/%s", &storage->Stats.Serial[0]);
+    if (path == NULL) {
+        return OS_EOOM;
+    }
+    TRACE("__StorageMount mounting at %ms", path);
+
+    // TODO we should probably be using VFSNodeMkdir instead and keep a handle
+    // on the directory for the lifetime of the storage.
+    osStatus = VFSNodeNewDirectory(
+            fsScope, path,
+            FILE_PERMISSION_READ | FILE_PERMISSION_OWNER_WRITE,
+            &deviceNode
+    );
+    if (osStatus != OS_EOK) {
+        ERROR("__StorageMount failed to create node %ms", path);
+    }
+
+    mstr_delete(path);
+    return osStatus;
+}
+
 static oserr_t __SetupFileBackedStorage(
         _In_  struct VFSStorage*  storage,
         _In_  size_t              offset,
@@ -136,6 +167,14 @@ static oserr_t __SetupFileBackedStorage(
         if (oserr != OS_EOK) {
             WARNING("__SetupFileBackedStorage failed to register driver for %s", fsType);
         }
+    }
+
+    // TODO: we cannot do multiple mounts of a file right now because the path generated
+    // is non-unique.
+    oserr = __StorageMount(storage);
+    if (oserr != OS_EOK) {
+        WARNING("__SetupFileBackedStorage failed to mount file storage folder");
+        return oserr;
     }
 
     // If the interface fails to connect, then the filesystem will go into

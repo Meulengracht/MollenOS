@@ -60,6 +60,7 @@ extern int __ValiFSHandleFilter(struct VaFs* vafs);
 static long __ValiFS_Seek(void* userData, long offset, int whence);
 static int  __ValiFS_Read(void* userData, void*, size_t, size_t*);
 
+static mstring_t g_label = mstr_const(U"valifs");
 static struct VaFsOperations g_vafsOperations = {
         .seek = __ValiFS_Seek,
         .read = __ValiFS_Read,
@@ -124,36 +125,32 @@ FsInitialize(
 
     // Start out by stat'ing the storage device, we don't need
     // to do any cleanup if this should fail.
-    TRACE("FsInitialize 1");
     oserr = FSStorageStat(storageParameters, &stats);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    TRACE("FsInitialize 2");
     context = __ValiFSContextNew(storageParameters, &stats);
     if (context == NULL) {
         return OS_EOOM;
     }
 
-    TRACE("FsInitialize 3");
     status = vafs_open_ops(
             &g_vafsOperations,
             context,
             &context->ValiFS
     );
     if (status) {
+        ERROR("FsInitialize failed to load vafs: %i [%i]", status, errno);
         __ValiFSContextDelete(context);
         return OS_EDEVFAULT;
     }
 
-    TRACE("FsInitialize 4");
     status = __ValiFSHandleFilter(context->ValiFS);
     if (status) {
         __ValiFSContextDelete(context);
         return OS_ENOTSUPPORTED;
     }
-    TRACE("FsInitialize 5");
 
     *instanceData = context;
     return OS_EOK;
@@ -281,6 +278,7 @@ FsStat(
 {
     struct __ValiFSContext* context = instanceData;
 
+    stat->Label = &g_label;
     stat->MaxFilenameLength = VAFS_NAME_MAX;
     stat->BlockSize = context->Stats.SectorSize;
     stat->BlocksPerSegment = 1;
@@ -580,9 +578,10 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
     count = MIN(length, sectorsRead * context->Stats.SectorSize);
     memcpy(
             buffer,
-            context->Buffer.buffer,
+            (void*)((uint8_t*)context->Buffer.buffer + (context->Position.QuadPart % context->Stats.SectorSize)),
             count
     );
+    context->Position.QuadPart += count;
     *bytesRead = count;
     return OS_EOK;
 }
