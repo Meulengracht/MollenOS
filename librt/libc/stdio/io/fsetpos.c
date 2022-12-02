@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,16 +13,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Sets the position indicator associated with the stream to a new position.
  */
 
-#include <io.h>
-#include <stdio.h>
 #include <errno.h>
+#include <io.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
+#include <stdio.h>
 
 int fsetpos(
 	_In_ FILE*         stream, 
@@ -35,7 +31,8 @@ int fsetpos(
 		_set_errno(EINVAL);
 		return -1;
 	}
-	_lock_stream(stream);
+
+    flockfile(stream);
 
 	// If the input stream is buffered we flush it
 	if (stream->_flag & _IOWRT) {
@@ -53,8 +50,6 @@ int fsetpos(
 
 	// Now actually set the position
 	ret = (lseeki64(stream->_fd, *pos, SEEK_SET) == -1) ? -1 : 0;
-
-	// Unlock and return
-	_unlock_stream(stream);
+	funlockfile(stream);
 	return ret;
 }

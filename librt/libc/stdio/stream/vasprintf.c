@@ -14,6 +14,7 @@
  will return -1, and the contents of strp is undefined.
 */
 
+#include <internal/_file.h>
 #include <internal/_io.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -24,32 +25,25 @@ int vasprintf(
 	_In_ const char *format,
 	_In_ va_list ap)
 {
-	// Hold a temporary buffer
-	char Buffer[512];
-	int Result;
-	FILE Stream;
+	char buffer[512];
+	int  result;
+	FILE stream;
 
-	// Sanity check parameters
 	if(format == NULL || ret == NULL) {
 		return -1;
 	}
 
-	// Reset stream-buffer
-	memset(&Buffer[0], 0, 512);
+	memset(&buffer[0], 0, 512);
+    stream._base = &buffer[0];
+    stream._ptr = stream._base;
+    stream._charbuf = 0;
+    stream._cnt = 512;
+    stream._bufsiz = 0;
+    stream._flag = _IOSTRG | _IOWRT;
+    stream._tmpfname = 0;
+    usched_mtx_init(&stream._lock, USCHED_MUTEX_RECURSIVE);
 
-	// Setup intermediate stream
-    Stream._base = &Buffer[0];
-    Stream._ptr = Stream._base;
-    Stream._charbuf = 0;
-    Stream._cnt = 512;
-    Stream._bufsiz = 0;
-    Stream._flag = _IOSTRG | _IOWRT;
-    Stream._tmpfname = 0;
-
-	// Store result
-	Result = streamout(&Stream, format, ap);
-
-	// Allocate a new copy of the string
-	*ret = strdup(&Buffer[0]);
-	return Result;
+	result = streamout(&stream, format, ap);
+	*ret = strdup(&buffer[0]);
+	return result;
 }

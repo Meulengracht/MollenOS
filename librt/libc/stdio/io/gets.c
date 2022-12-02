@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,33 +13,23 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Reads characters from the standard input (stdin) and 
- *   stores them as a C string into str until a newline character or 
- *   the end-of-file is reached. 
- * - The newline character, if found, is not copied into str.
  */
 
-#include <internal/_io.h>
-#include <wchar.h>
 #include <stdio.h>
- 
-char *gets(
+
+char* gets(
     _In_ char *buf)
 {
-  int    cc;
-  char * buf_start = buf;
+  char* buf_start = buf;
 
-  _lock_stream(stdin);
-  for(cc = fgetc(stdin); cc != EOF && cc != '\n';
-      cc = fgetc(stdin))
-  if(cc != '\r') *buf++ = (char)cc;
-
+  flockfile(stdin);
+  for (int cc = fgetc(stdin); cc != EOF && cc != '\n'; cc = fgetc(stdin)) {
+      if (cc != '\r') {
+          *buf++ = (char)cc;
+      }
+  }
   *buf = '\0';
-  
-  _unlock_stream(stdin);
+  funlockfile(stdin);
   return buf_start;
 }
  

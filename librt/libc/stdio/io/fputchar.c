@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,16 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
  */
 
 #include <stdio.h>
 
 int fputchar(
-    _In_ int character)
-{
+    _In_ int character) {
     return fputc(character, stdout);
 }

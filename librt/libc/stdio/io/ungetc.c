@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,30 +13,30 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Returns a character back into the stream
  */
 
-#include <stdio.h>
 #include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdio.h>
 
 int ungetc(
-    _In_ int character, 
-    _In_ FILE *file)
+    _In_ int   character,
+    _In_ FILE* file)
 {
-    if (file == NULL)
+    if (file == NULL) {
         return EOF;
+    }
 
-    if (character == EOF || !(file->_flag & _IOREAD || (file->_flag & _IORW && !(file->_flag & _IOWRT))))
-        return EOF;
+    flockfile(file);
+    if (character == EOF || !(file->_flag & _IOREAD || (file->_flag & _IORW && !(file->_flag & _IOWRT)))) {
+        goto eof;
+    }
 
-    _lock_stream(file);
     io_buffer_ensure(file);
 
-    if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) || (!file->_cnt && file->_ptr == file->_base))
+    if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) || (!file->_cnt && file->_ptr == file->_base)) {
         file->_ptr++;
+    }
 
     if (file->_ptr > file->_base) {
         file->_ptr--;
@@ -46,21 +44,20 @@ int ungetc(
         if (file->_flag & _IOSTRG) {
             if (*file->_ptr != character) {
                 file->_ptr++;
-                _unlock_stream(file);
-                return EOF;
+                goto eof;
             }
-        }
-        else {
+        } else {
             *file->_ptr = character;
         }
 
         file->_cnt++;
         clearerr(file);
         file->_flag |= _IOREAD;
-        _unlock_stream(file);
+        funlockfile(file);
         return character;
     }
 
-    _unlock_stream(file);
+eof:
+    funlockfile(file);
     return EOF;
 }

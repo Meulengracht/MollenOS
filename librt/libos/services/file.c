@@ -409,6 +409,31 @@ ChangeFilePermissionsFromFd(
 }
 
 oserr_t
+ChangeFileHandleAccessFromFd(
+        _In_ int          fileDescriptor,
+        _In_ unsigned int access)
+{
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
+    oserr_t                  status;
+
+    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+        return OS_EINVALPARAMS;
+    }
+
+    sys_file_set_access(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle,
+            access
+    );
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
+    return status;
+}
+
+oserr_t
 GetFileLink(
         _In_ const char* path,
         _In_ char*       linkPathBuffer,

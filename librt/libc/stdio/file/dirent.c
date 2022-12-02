@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <io.h>
+#include <internal/_dirent.h>
 #include <internal/_io.h>
 #include <os/services/file.h>
 
@@ -124,9 +125,9 @@ readdir(
         OsErrToErrNo(oserr);
         return NULL;
     }
-    __ToDirent(&entry, &dir->cdirent);
+    __ToDirent(&entry, &dir->_cdirent);
     free((void*)entry.Name);
-    return &dir->cdirent;
+    return &dir->_cdirent;
 }
 
 int rewinddir(struct DIR* dir)

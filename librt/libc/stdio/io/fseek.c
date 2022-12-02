@@ -21,11 +21,11 @@
  * - Sets the position indicator associated with the stream to a new position.
  */
 
-#include <io.h>
-#include <stdio.h>
 #include <errno.h>
-#include <string.h>
+#include <io.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
+#include <stdio.h>
 
 long long lseeki64(
 	_In_ int        fd, 
@@ -62,8 +62,6 @@ long lseek(
 	return (long)lseeki64(fd, offset, whence);
 }
 
-/* fseeki64
- * Sets the position indicator associated with the stream to a new position. */
 int fseeki64(
 	_In_ FILE*      file, 
 	_In_ long long  offset, 
@@ -72,7 +70,7 @@ int fseeki64(
 	int ret;
 
 	// Lock access to stream
-	_lock_stream(file);
+	flockfile(file);
 	if (file->_flag & _IOWRT) {
         io_buffer_flush(file);
 	}
@@ -93,8 +91,7 @@ int fseeki64(
 	}
 	file->_flag &= ~_IOEOF;
 	ret = (lseeki64(file->_fd, offset, whence) == -1) ? -1 : 0;
-
-	_unlock_stream(file);
+	funlockfile(file);
 	return ret;
 }
 

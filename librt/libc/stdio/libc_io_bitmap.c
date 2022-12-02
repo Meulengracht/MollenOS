@@ -21,6 +21,7 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <os/spinlock.h>
 #include <stdlib.h>
 #include <string.h>
 

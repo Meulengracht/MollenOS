@@ -22,6 +22,7 @@
  */
 
 #define __need_NULL
+#include <internal/_file.h>
 #include <stdio.h>
 
 int fwide(

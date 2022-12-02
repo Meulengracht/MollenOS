@@ -21,6 +21,8 @@
  * - Standard IO Support functions
  */
 
+#include <errno.h>
+#include <internal/_file.h>
 #include <internal/_io.h>
 
 int stream_ensure_mode(int mode, FILE* stream)
@@ -34,6 +36,6 @@ int stream_ensure_mode(int mode, FILE* stream)
         return 0;
     }
 
-    _set_errno(EACCES);
+    errno = (EACCES);
     return -1;
 }

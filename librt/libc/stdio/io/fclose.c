@@ -18,13 +18,13 @@
  *
  */
 
-#include <io.h>
-#include <stdio.h>
 #include <errno.h>
+#include <io.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <assert.h>
-#include <internal/_io.h>
 
 int close(int fd)
 {
@@ -53,16 +53,14 @@ int fclose(FILE *stream)
 {
 	int r, flag, fd;
 
-    assert(stream != NULL);
-    
-	_lock_stream(stream);
+	flockfile(stream);
 	if (stream->_flag & _IOWRT) {
 		fflush(stream);
 	}
 	flag    = stream->_flag;
     fd      = stream->_fd;
 
-	// Flush and free associated buffers
+	// Flush and free all the associated buffers
 	if (stream->_tmpfname != NULL) {
 		free(stream->_tmpfname);
 	}
@@ -73,12 +71,12 @@ int fclose(FILE *stream)
 	// Call underlying close and never unlock the file as 
 	// underlying stream is closed and not safe anymore
 	r = close(fd);
-    
+    funlockfile(stream);
+
     // Never free the standard handles, so handle that here
     if (stream != stdout && stream != stdin && stream != stderr) {
         free(stream);
-    }
-    else {
+    } else {
         memset(stream, 0, sizeof(FILE));
         stream->_fd = fd;
     }

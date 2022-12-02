@@ -91,7 +91,6 @@ set(SRCS
         io/getwchar.c
         io/ioctl.c
         io/ioset.c
-        io/lock.c
         io/marktty.c
         io/perror.c
         io/putc.c

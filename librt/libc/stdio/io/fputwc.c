@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,21 +13,18 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Writes a character to the stream and advances the position indicator.
  */
 
-#include <wchar.h>
+#include <errno.h>
+#include <internal/_file.h>
+#include <internal/_io.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <internal/_io.h>
+#include <wchar.h>
  
 wint_t fputwc(
     _In_ wchar_t c,
-    _In_ FILE* stream)
+    _In_ FILE*   stream)
 {
     stdio_handle_t* handle;
     if (!stream) {
@@ -57,8 +53,7 @@ wint_t fputwc(
         if (fwrite(mbc, mb_return, 1, stream) != 1) {
             return WEOF;
         }
-    }
-    else {
+    } else {
         if (fwrite(&c, sizeof(c), 1, stream) != 1)
             return WEOF;
     }

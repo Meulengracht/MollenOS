@@ -18,7 +18,11 @@
 #ifndef __IO_H__
 #define __IO_H__
 
-#include <os/osdefs.h>
+#include <crtdefs.h>
+
+#ifndef NAME_MAX
+#define NAME_MAX 4096
+#endif //!NAME_MAX
 
 #define S_IXOTH         0x0001
 #define S_IWOTH         0x0002
@@ -107,11 +111,6 @@ struct dirent {
     char d_name[NAME_MAX];
 };
 typedef struct dirent dirent;
-
-struct DIR {
-    uuid_t _handle;
-    struct dirent cdirent;
-};
 typedef struct DIR DIR;
 
 _CODE_BEGIN
@@ -123,8 +122,6 @@ CRTDECL(int, open(const char *file, int flags, ...));
 CRTDECL(int, close(int fd));
 CRTDECL(int, read(int fd, void *buffer, unsigned int len));
 CRTDECL(int, write(int fd, const void *buffer, unsigned int length));
-CRTDECL(int, iolock(int fd));
-CRTDECL(int, iounlock(int fd));
 
 // file interface
 CRTDECL(long,      lseek(int fd, long offset, int whence));

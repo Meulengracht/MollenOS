@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,22 +13,16 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Read current stream pointer
  */
 
 #include <stdio.h>
 
-/* fgetpos
- * Read current stream pointer */
 int fgetpos(
-	_In_ FILE *stream, 
-	_Out_ fpos_t *pos)
+        _In_  FILE*   stream,
+        _Out_ fpos_t* pos)
 {
 	*pos = ftello(stream);
-    if(*pos == -1) {
+    if (*pos == -1) {
         return -1;
 	}
     return 0;

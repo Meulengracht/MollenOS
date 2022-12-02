@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO Support functions
  */
 //#define __TRACE
 
@@ -26,6 +20,7 @@
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <internal/_io.h>
+#include <internal/_file.h>
 #include <io.h>
 #include <stdlib.h>
 
@@ -127,36 +122,22 @@ io_buffer_flush_all(
     return context.files_flushed;
 }
 
-oserr_t
-_lock_stream(
-    _In_ FILE *file)
+void flockfile(FILE* stream)
 {
-    TRACE("_lock_stream(0x%" PRIxIN ")", file);
-    if (!file) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (!(file->_flag & _IOSTRG)) {
-        return iolock(file->_fd) == 0 ? OS_EOK : OS_EBUSY;
-    }
-    return OS_EOK;
+    assert(stream != NULL);
+    usched_mtx_lock(&stream->_lock);
 }
 
-oserr_t
-_unlock_stream(
-    _In_ FILE *file)
+int ftrylockfile(FILE* stream)
 {
-    TRACE("_unlock_stream(0x%" PRIxIN ")", file);
-    if (!file) {
+    if (stream == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    if (!(file->_flag & _IOSTRG)) {
-        return iounlock(file->_fd) == 0 ? OS_EOK : OS_EUNKNOWN;
-    }
-    return OS_EOK;
+    return usched_mtx_trylock(&stream->_lock);
 }
 
-CRTDECL(void,  flockfile(FILE* stream));
-CRTDECL(int,   ftrylockfile(FILE* stream));
-CRTDECL(void,  funlockfile(FILE* stream));
+void funlockfile(FILE* stream)
+{
+    assert(stream != NULL);
+    usched_mtx_unlock(&stream->_lock);
+}

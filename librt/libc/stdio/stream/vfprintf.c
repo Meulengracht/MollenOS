@@ -10,9 +10,9 @@ int vfprintf(
 {
     int result;
 
-    _lock_stream(file);
+    flockfile(file);
     result = streamout(file, format, argptr);
-    _unlock_stream(file);
+    funlockfile(file);
 
     return result;
 }

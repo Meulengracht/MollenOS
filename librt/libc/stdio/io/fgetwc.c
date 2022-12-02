@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,73 +13,63 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Returns the next character from the given stream.
  */
 
-#include <wchar.h>
+#include <errno.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
+#include <wchar.h>
 #include "../stdlib/mb/mbctype.h"
-#include <internal/_io.h>
 
 wint_t fgetwc(FILE *stream)
 {
 	stdio_handle_t* handle;
-    wint_t          Result;
+    wint_t          result;
     int             ch;
     
     if (!stream) {
-        _set_errno(EINVAL);
+        errno = (EINVAL);
         return WEOF;
     }
 
-    _lock_stream(stream);
     handle = stdio_handle_get(stream->_fd);
     if (!handle) {
-        _unlock_stream(stream);
         _set_errno(EBADFD);
         return WEOF;
     }
 
     if ((handle->wxflag & WX_UTF) || !(handle->wxflag & WX_TEXT)) {
-        char *p;
-        for (p = (char *)&Result; (wint_t *)p < &Result + 1; p++) {
+        for (char* p = (char *)&result; (wint_t *)p < &result + 1; p++) {
             ch = fgetc(stream);
             if (ch == EOF) {
-                Result = WEOF;
+                result = WEOF;
                 break;
             }
             *p = (char)ch;
         }
-    }
-    else
-    {
+    } else {
         char mbs[MB_LEN_MAX];
-        int len = 0;
+        int  len = 0;
 
         ch = fgetc(stream);
         if (ch != EOF) {
             mbs[0] = (char)ch;
             if (_issjis1((unsigned char)mbs[0])) {
                 ch = fgetc(stream);
-                if (ch != EOF)
-                {
+                if (ch != EOF) {
                     mbs[1] = (char)ch;
                     len = 2;
                 }
-            }
-            else {
+            } else {
                 len = 1;
             }
         }
 
-        if (!len || mbtowc((wchar_t*)&Result, mbs, len) == -1)
-            Result = WEOF;
+        if (!len || mbtowc((wchar_t*)&result, mbs, len) == -1) {
+            result = WEOF;
+        }
     }
-    _unlock_stream(stream);
-    return Result;
+    return result;
 }

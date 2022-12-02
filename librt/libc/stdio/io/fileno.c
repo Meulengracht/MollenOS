@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,17 +13,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - C Standard Library
- * - Writes a character to the stream and advances the position indicator.
  */
 
 #define __need_NULL
+#include <internal/_file.h>
 #include <stdio.h>
 #include <errno.h>
 
-int fileno(FILE * stream) {
+int fileno(FILE* stream) {
     if (stream == NULL) {
         _set_errno(EINVAL);
         return -1;
