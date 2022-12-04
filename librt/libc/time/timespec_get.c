@@ -38,21 +38,15 @@ __get_va_type(
     return OSClockSource_MONOTONIC;
 }
 
-static clock_t
+static void
 __calculate_timestamp(
-        _In_ UInteger64_t* tick)
+        _In_ struct timespec* ts,
+        _In_ UInteger64_t*    tick)
 {
-    clock_t freq = CLOCKS_PER_SEC;
-
-    if (freq <= MSEC_PER_SEC) {
-        return (MSEC_PER_SEC / freq) * tick->QuadPart * NSEC_PER_MSEC;
-    }
-    else if (freq <= USEC_PER_SEC) {
-        return ((USEC_PER_SEC / freq) * tick->QuadPart) * NSEC_PER_USEC;
-    }
-    else { // we assume ns
-        return ((NSEC_PER_SEC / freq) * tick->QuadPart);
-    }
+    uint64_t freq = CLOCKS_PER_SEC;
+    uint64_t mult = NSEC_PER_SEC / freq;
+    ts->tv_sec = (time_t)(tick->QuadPart / freq);
+    ts->tv_nsec = (long)((tick->QuadPart % freq) * mult);
 }
 
 int
@@ -88,16 +82,13 @@ timespec_get(
         case TIME_PROCESS:
         case TIME_THREAD: {
             UInteger64_t tick;
-            clock_t         timestamp;
 
+            // TODO: introduce a new syscall for this case
             osStatus = OSGetClockTick(__get_va_type(base), &tick);
             if (osStatus != OS_EOK) {
                 return OsErrToErrNo(osStatus);
             }
-
-            timestamp = __calculate_timestamp(&tick);
-            ts->tv_sec  = (time_t)(timestamp / NSEC_PER_SEC);
-            ts->tv_nsec = (long)(timestamp % NSEC_PER_SEC);
+            __calculate_timestamp(ts, &tick);
         } break;
 
         default:

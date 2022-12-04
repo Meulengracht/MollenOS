@@ -35,19 +35,11 @@ static inline tick_t
 __CalculateResolution(
         _In_ UInteger64_t* frequency)
 {
-    // 0-1000 = ms
-    if (frequency->QuadPart <= MSEC_PER_SEC) {
-        return MSEC_PER_SEC;
-    }
-
-    // 1001-1000000 = us
-    if (frequency->QuadPart <= USEC_PER_SEC) {
-        return USEC_PER_SEC;
-    }
-
-    // otherwise *always* default to ns resolution as that is what the
-    // OS accounts in
-    return NSEC_PER_SEC;
+    // TODO: should support both a multipler and a divider to account
+    // for any timer with a frequency above 1Ghz. Since we account for time in NS
+    // we will end up with a zero resolution in this case.
+    assert(frequency->QuadPart <= NSEC_PER_SEC);
+    return NSEC_PER_SEC / frequency->QuadPart;
 }
 
 static inline void
@@ -59,7 +51,7 @@ __ToTimestamp(
         _Out_ tick_t*       nanosecondsOut)
 {
     *secondsOut = tick->QuadPart / frequency->QuadPart;
-    *nanosecondsOut = ((((tick->QuadPart % frequency->QuadPart) * 100) / frequency->QuadPart) * resolution) / 100;
+    *nanosecondsOut = ((tick->QuadPart % frequency->QuadPart) * resolution);
 }
 
 oserr_t
@@ -157,10 +149,10 @@ SystemTimerGetWallClockTime(
     // Should there be no wall clock in the system, then we just
     // convert the ticks from the clock.
     if (GetMachine()->SystemTimers.WallClock == NULL) {
-        tick_t ticks;
-        SystemTimerGetTimestamp(&ticks);
-        time->Seconds = (int64_t)(ticks / NSEC_PER_SEC);
-        time->Nanoseconds = (int64_t)(ticks % NSEC_PER_SEC);
+        tick_t timestamp;
+        SystemTimerGetTimestamp(&timestamp);
+        time->Seconds = (int64_t)(timestamp / NSEC_PER_SEC);
+        time->Nanoseconds = (int64_t)(timestamp % NSEC_PER_SEC);
         return;
     }
 
@@ -415,6 +407,7 @@ static oserr_t __EnableTimer(
 
     // Update initial tick for that timer
     timer->Operations.Read(timer->Context, &timer->InitialTick);
+    TRACE("__EnableTimer frequency=%llu, tick=%llu", timer->Frequency.QuadPart, timer->InitialTick.QuadPart);
     return OS_EOK;
 }
 
