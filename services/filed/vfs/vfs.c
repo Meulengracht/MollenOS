@@ -94,7 +94,7 @@ __StatRootNode(
     stat->Flags = FILE_FLAG_DIRECTORY;
     stat->Size = 0;
 
-    OSGetWallClock(&stat->Created);
+    OSGetTime(OSTimeSource_UTC, &stat->Created);
     stat->Modified.Nanoseconds = stat->Created.Nanoseconds; stat->Modified.Seconds = stat->Created.Seconds;
     stat->Accessed.Nanoseconds = stat->Created.Nanoseconds; stat->Accessed.Seconds = stat->Created.Seconds;
 }

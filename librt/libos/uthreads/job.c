@@ -348,6 +348,7 @@ int usched_job_signal(uuid_t jobID, int signal)
     return -1;
 }
 
+// TODO: implement remaining
 int usched_job_sleep(const struct timespec* until, struct timespec* remaining)
 {
     union usched_timer_queue queue = { NULL };

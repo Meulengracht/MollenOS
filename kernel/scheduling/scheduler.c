@@ -682,8 +682,7 @@ __HandleObjectRequeue(
             }
         }
         __QueueForScheduler(scheduler, object, 0);
-    }
-    else if (object->TimeLeft != 0) {
+    } else if (object->TimeLeft != 0) {
         TRACE("__HandleObjectRequeue sleep 0x%llx (Head 0x%llx, Tail 0x%llx)",
               object->Link, scheduler->SleepQueue.Head, scheduler->SleepQueue.Tail);
         // OK, so we are blocking this object which means we won't be
@@ -712,7 +711,10 @@ SchedulerAdvance(
     
     // In one case we can skip the whole requeue etc. etc. This happens when there
     // was a sleep event before the objects time-slice is out. Adjust and continue
-    if (object != NULL && preemptive && nanosecondsPassed < object->TimeSliceLeft) {
+    if (object != NULL &&
+        preemptive &&
+        nanosecondsPassed < object->TimeSliceLeft &&
+        atomic_load(&object->State) == STATE_RUNNING) {
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
         object->TimeSliceLeft -= nanosecondsPassed;

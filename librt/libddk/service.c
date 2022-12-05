@@ -53,8 +53,7 @@ __WaitForService(
             thrd_sleep2(10);
             handle = getHandleCallback();
         }
-    }
-    else {
+    } else {
         while (timeLeft && handle == UUID_INVALID) {
             thrd_sleep2(10);
             timeLeft -= 10;

@@ -97,7 +97,7 @@ _CODE_END
 #define Syscall_SystemQuery(SystemInformation)                             (oserr_t)syscall1(60, SCPARAM(SystemInformation))
 #define Syscall_ClockTick(Source, TickOut)                                 (oserr_t)syscall2(61, SCPARAM(Source), SCPARAM(TickOut))
 #define Syscall_ClockFrequency(Source, FrequencyOut)                       (oserr_t)syscall2(62, SCPARAM(Source), SCPARAM(FrequencyOut))
-#define Syscall_ReadWallClock(Time)                                        (oserr_t)syscall1(63, SCPARAM(Time))
+#define Syscall_Time(source, timeOut)                                      (oserr_t)syscall2(63, SCPARAM(source), SCPARAM(timeOut))
 #define Syscall_Sleep(DurationNs, RemainingNs)                             (oserr_t)syscall2(64, SCPARAM(DurationNs), SCPARAM(RemainingNs))
 #define Syscall_Stall(DurationNs)                                          (oserr_t)syscall1(65, SCPARAM(DurationNs))
 

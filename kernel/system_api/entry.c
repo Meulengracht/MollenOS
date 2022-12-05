@@ -128,7 +128,7 @@ extern oserr_t ScSystemQuery(SystemDescriptor_t*);
 // Timing interface
 extern oserr_t ScSystemClockTick(enum OSClockSource, UInteger64_t*);
 extern oserr_t ScSystemClockFrequency(enum OSClockSource, UInteger64_t*);
-extern oserr_t ScSystemWallClock(Integer64_t*);
+extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
@@ -235,7 +235,7 @@ static struct SystemCallDescriptor {
         // Timing interface
         DefineSyscall(61, ScSystemClockTick),
         DefineSyscall(62, ScSystemClockFrequency),
-        DefineSyscall(63, ScSystemWallClock),
+        DefineSyscall(63, ScSystemTime),
         DefineSyscall(64, ScTimeSleep),
         DefineSyscall(65, ScTimeStall)
 };

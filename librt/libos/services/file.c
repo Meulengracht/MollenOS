@@ -44,20 +44,24 @@ OSOpenPath(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (path == NULL || handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
-    sys_file_open(
+    status = sys_file_open(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             path,
             flags,
             permissions
-   );
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_open_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
     return oserr;
@@ -69,14 +73,18 @@ OSCloseFile(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     // Try to open the file by directly communicating with the file-service
-    sys_file_close(
+    status = sys_file_close(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_close_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
@@ -88,22 +96,26 @@ OSMakeDirectory(
         _In_ unsigned int permissions)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                  status;
+    oserr_t                  oserr;
+    int                      status;
 
     if (path == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_mkdir(
+    status = sys_file_mkdir(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             path,
             permissions
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_mkdir_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_file_mkdir_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
 static void __ToOSDirectoryEntry(struct sys_directory_entry* in, OsDirectoryEntry_t* out)
@@ -121,24 +133,28 @@ OSReadDirectory(
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
     struct sys_directory_entry sysEntry;
-    oserr_t                    status;
+    oserr_t                    oserr;
+    int                        status;
 
     if (entry == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_readdir(
+    status = sys_file_readdir(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_readdir_result(GetGrachtClient(), &msg.base, &status, &sysEntry);
-    if (status == OS_EOK) {
+    sys_file_readdir_result(GetGrachtClient(), &msg.base, &oserr, &sysEntry);
+    if (oserr == OS_EOK) {
         __ToOSDirectoryEntry(&sysEntry, entry);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -148,13 +164,14 @@ OSSeekFile(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (position == NULL) {
         return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
-    sys_file_seek(
+    status = sys_file_seek(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
@@ -162,6 +179,9 @@ OSSeekFile(
             position->u.LowPart,
             position->u.HighPart
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_seek_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
@@ -173,18 +193,22 @@ OSUnlinkPath(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (path == NULL ) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_delete(
+    status = sys_file_delete(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             path,
             0
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_delete_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
@@ -198,12 +222,13 @@ OSMoveFile(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (from == NULL || to == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_move(
+    status = sys_file_move(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
@@ -211,6 +236,9 @@ OSMoveFile(
             to,
             copy
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_move_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
@@ -224,12 +252,13 @@ OSLinkPath(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (from == NULL || to == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_link(
+    status = sys_file_link(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
@@ -237,6 +266,9 @@ OSLinkPath(
             to,
             symbolic
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_link_result(GetGrachtClient(), &msg.base, &oserr);
     return oserr;
@@ -249,18 +281,22 @@ OSGetFilePosition(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (position == NULL) {
         return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
-    sys_file_get_position(
+    status = sys_file_get_position(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_get_position_result(
             GetGrachtClient(), &msg.base, &oserr,
@@ -277,18 +313,22 @@ OSGetFileSize(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
+    int                      status;
 
     if (size == NULL) {
         return OS_EINVALPARAMS;
     }
 
     // Try to open the file by directly communicating with the file-service
-    sys_file_get_size(
+    status = sys_file_get_size(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_file_get_size_result(
             GetGrachtClient(), &msg.base, &oserr,
@@ -303,8 +343,8 @@ SetFileSizeFromPath(
         _In_ const char* path,
         _In_ size_t      size)
 {
-    oserr_t status;
-    int        fd;
+    oserr_t oserr;
+    int     fd;
     
     if (!path) {
         return OS_EINVALPARAMS;
@@ -315,10 +355,10 @@ SetFileSizeFromPath(
         return OsErrToErrNo(fd);
     }
 
-    status = SetFileSizeFromFd(fd, size);
+    oserr = SetFileSizeFromFd(fd, size);
 
     close(fd);
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -328,8 +368,9 @@ SetFileSizeFromFd(
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t               status;
-    UInteger64_t          value;
+    oserr_t                  oserr;
+    UInteger64_t             value;
+    int                      status;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
         return OS_EINVALPARAMS;
@@ -337,7 +378,7 @@ SetFileSizeFromFd(
 
     value.QuadPart = size;
     
-    sys_file_set_size(
+    status = sys_file_set_size(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
@@ -345,9 +386,12 @@ SetFileSizeFromFd(
             value.u.LowPart,
             value.u.HighPart
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_set_size_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_file_set_size_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
 oserr_t
@@ -355,8 +399,8 @@ ChangeFilePermissionsFromPath(
         _In_ const char*  path,
         _In_ unsigned int permissions)
 {
-    oserr_t status;
-    int        fd;
+    oserr_t oserr;
+    int     fd;
     
     if (!path) {
         return OS_EINVALPARAMS;
@@ -367,10 +411,10 @@ ChangeFilePermissionsFromPath(
         return OsErrToErrNo(fd);
     }
 
-    status = ChangeFilePermissionsFromFd(fd, permissions);
+    oserr = ChangeFilePermissionsFromFd(fd, permissions);
     
     close(fd);
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -380,32 +424,39 @@ ChangeFilePermissionsFromFd(
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t                 status;
+    oserr_t                  oserr;
     unsigned int             access;
+    int                      status;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_get_access(
+    status = sys_file_get_access(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle->object.handle
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_get_access_result(GetGrachtClient(), &msg.base, &status, &access);
+    sys_file_get_access_result(GetGrachtClient(), &msg.base, &oserr, &access);
     
-    sys_file_set_access(
+    status = sys_file_set_access(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle->object.handle,
             access
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_file_set_access_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
 oserr_t
@@ -415,22 +466,26 @@ ChangeFileHandleAccessFromFd(
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t                  status;
+    oserr_t                  oserr;
+    int                      status;
 
     if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_set_access(
+    status = sys_file_set_access(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
             handle->object.handle,
             access
     );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_set_access_result(GetGrachtClient(), &msg.base, &status);
-    return status;
+    sys_file_set_access_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
 oserr_t
@@ -440,16 +495,20 @@ GetFileLink(
         _In_ size_t      bufferLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t               status;
+    oserr_t                  oserr;
+    int                      status;
     
     if (!path || !linkPathBuffer || bufferLength == 0) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_fstat_link(GetGrachtClient(), &msg.base, __crt_process_id(), path);
+    status = sys_file_fstat_link(GetGrachtClient(), &msg.base, __crt_process_id(), path);
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_fstat_link_result(GetGrachtClient(), &msg.base, &status, linkPathBuffer, bufferLength);
-    return status;
+    sys_file_fstat_link_result(GetGrachtClient(), &msg.base, &oserr, linkPathBuffer, bufferLength);
+    return oserr;
 }
 
 oserr_t
@@ -460,16 +519,25 @@ GetFilePathFromFd(
 {
     struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t               status;
+    oserr_t                  oserr;
+    int                      status;
 
     if (!handle || !buffer || handle->object.type != STDIO_HANDLE_FILE) {
         return OS_EINVALPARAMS;
     }
     
-    sys_file_get_path(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
+    status = sys_file_get_path(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_get_path_result(GetGrachtClient(), &msg.base, &status, buffer, maxLength);
-    return status;
+    sys_file_get_path_result(GetGrachtClient(), &msg.base, &oserr, buffer, maxLength);
+    return oserr;
 }
 
 oserr_t
@@ -479,21 +547,31 @@ GetStorageInformationFromPath(
     _In_ OsStorageDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                 status;
+    oserr_t                    oserr;
+    int                        status;
     struct sys_disk_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    sys_file_ststat_path(GetGrachtClient(), &msg.base, __crt_process_id(), path, followLinks);
+    status = sys_file_ststat_path(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            path,
+            followLinks
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_ststat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_ststat_path_result(GetGrachtClient(), &msg.base, &oserr, &gdescriptor);
 
-    if (status == OS_EOK) {
+    if (oserr == OS_EOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -501,9 +579,10 @@ GetStorageInformationFromFd(
     _In_ int                    fileDescriptor,
     _In_ OsStorageDescriptor_t* descriptor)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t                  status;
+    struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
+    stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
+    oserr_t                    oserr;
+    int                        status;
     struct sys_disk_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -511,14 +590,22 @@ GetStorageInformationFromFd(
         return OS_EINVALPARAMS;
     }
 
-    sys_file_ststat(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
+    status = sys_file_ststat(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_ststat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_ststat_result(GetGrachtClient(), &msg.base, &oserr, &gdescriptor);
 
-    if (status == OS_EOK) {
+    if (oserr == OS_EOK) {
         from_sys_disk_descriptor(&gdescriptor, descriptor);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -528,21 +615,31 @@ GetFileSystemInformationFromPath(
     _In_ OsFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                          status;
+    oserr_t                          oserr;
+    int                              status;
     struct sys_filesystem_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fsstat_path(GetGrachtClient(), &msg.base, __crt_process_id(), path, followLinks);
+    status = sys_file_fsstat_path(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            path,
+            followLinks
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_fsstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_fsstat_path_result(GetGrachtClient(), &msg.base, &oserr, &gdescriptor);
 
-    if (status == OS_EOK) {
+    if (oserr == OS_EOK) {
         from_sys_filesystem_descriptor(&gdescriptor, descriptor);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -552,7 +649,8 @@ GetFileSystemInformationFromFd(
 {
     struct vali_link_message         msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*                  handle = stdio_handle_get(fileDescriptor);
-    oserr_t                       status;
+    oserr_t                          oserr;
+    int                              status;
     struct sys_filesystem_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
@@ -560,14 +658,22 @@ GetFileSystemInformationFromFd(
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fsstat(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
+    status = sys_file_fsstat(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_fsstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_fsstat_result(GetGrachtClient(), &msg.base, &oserr, &gdescriptor);
 
-    if (status == OS_EOK) {
+    if (oserr == OS_EOK) {
         from_sys_filesystem_descriptor(&gdescriptor, descriptor);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -577,21 +683,31 @@ GetFileInformationFromPath(
     _In_ OsFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                 status;
+    oserr_t                    oserr;
+    int                        status;
     struct sys_file_descriptor gdescriptor;
     
     if (descriptor == NULL || path == NULL) {
         return OS_EINVALPARAMS;
     }
     
-    sys_file_fstat_path(GetGrachtClient(), &msg.base, __crt_process_id(), path, followLinks);
+    status = sys_file_fstat_path(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            path,
+            followLinks
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_fstat_path_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
+    sys_file_fstat_path_result(GetGrachtClient(), &msg.base, &oserr, &gdescriptor);
 
-    if (status == OS_EOK) {
+    if (oserr == OS_EOK) {
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -601,22 +717,31 @@ GetFileInformationFromFd(
 {
     struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
-    oserr_t                 status;
+    oserr_t                    oserr;
+    int                        status;
     struct sys_file_descriptor gdescriptor;
 
     if (handle == NULL || descriptor == NULL ||
         handle->object.type != STDIO_HANDLE_FILE) {
         return OS_EINVALPARAMS;
     }
-    
-    sys_file_fstat(GetGrachtClient(), &msg.base, __crt_process_id(), handle->object.handle);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_fstat_result(GetGrachtClient(), &msg.base, &status, &gdescriptor);
 
-    if (status == OS_EOK) {
+    status = sys_file_fstat(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle->object.handle
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_file_fstat_result(GetGrachtClient(), &msg.base, &oserr, &gdescriptor);
+
+    if (oserr == OS_EOK) {
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
-    return status;
+    return oserr;
 }
 
 static struct file_view* __GetFileView(uintptr_t virtualBase)

@@ -157,7 +157,7 @@ static struct MemFSEntry* __MemFSEntry_new(mstring_t* name, uint32_t owner, int 
     entry->GroupID = 0; // TODO: add support
     entry->Permissions = permissions;
     entry->Links = 1;
-    OSGetWallClock(&entry->Created);
+    OSGetTime(OSTimeSource_UTC, &entry->Created);
 
     // Do some type based initialization where we don't need additional parameters
     // to set up. The rest of the initialization should be handled by the create/link
@@ -348,7 +348,7 @@ __MemFSOpen(
     }
 
     // Update the accessed time of entry before continuing
-    OSGetWallClock(&entry->Accessed);
+    OSGetTime(OSTimeSource_UTC, &entry->Accessed);
     usched_mtx_unlock(&entry->Mutex);
 
     *dataOut = handle;
@@ -441,7 +441,7 @@ __MemFSCreate(
     }
 
     // Update the accessed time of entry before continuing
-    OSGetWallClock(&entry->Accessed);
+    OSGetTime(OSTimeSource_UTC, &entry->Accessed);
     usched_mtx_unlock(&entry->Mutex);
     *dataOut = newHandle;
     return OS_EOK;
@@ -568,7 +568,7 @@ __MemFSLink(
 
         // Update the accessed time of entry before continuing
         usched_mtx_lock(&entry->Mutex);
-        OSGetWallClock(&entry->Accessed);
+        OSGetTime(OSTimeSource_UTC, &entry->Accessed);
         usched_mtx_unlock(&entry->Mutex);
     } else {
         // TODO hard links
