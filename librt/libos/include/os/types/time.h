@@ -24,6 +24,13 @@
 
 #include <os/osdefs.h>
 
+enum OSTimeSource {
+    OSTimeSource_MONOTONIC,
+    OSTimeSource_THREAD,
+    OSTimeSource_PROCESS,
+    OSTimeSource_UTC,
+};
+
 enum OSClockSource {
     OSClockSource_MONOTONIC, // Provides a monotonic tick since the computer was booted
     OSClockSource_THREAD,    // Provides a monotonic tick since the calling thread was started.

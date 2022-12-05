@@ -369,15 +369,20 @@ static int __get_next_deadline(
     timer = sched->timers;
     while (timer) {
         if (timer->active) {
+            SystemDebug(SYSTEM_DEBUG_TRACE, "deadline at %llu:%li, current time %llu:%li",
+                  timer->deadline.tv_sec, timer->deadline.tv_nsec,
+                  currentTime.tv_sec, currentTime.tv_nsec);
             if (__is_before_or_equal(&timer->deadline, &currentTime)) {
                 // timer ready, let it run again
                 currentDiff.tv_sec  = 0;
                 currentDiff.tv_nsec = 0;
             } else {
-                timespec_diff(&currentTime, &timer->deadline , &currentDiff);
+                timespec_diff(&timer->deadline, &currentTime,  &currentDiff);
             }
 
             clock_t diff = (clock_t)((currentDiff.tv_sec * NSEC_PER_SEC) + (clock_t)currentDiff.tv_nsec);
+            SystemDebug(SYSTEM_DEBUG_TRACE, "deadline in %lli:%li (nsecs %llu)",
+                        currentDiff.tv_sec, currentDiff.tv_nsec, diff);
             if (diff < shortest) {
                 deadline->tv_sec = timer->deadline.tv_sec;
                 deadline->tv_nsec = timer->deadline.tv_nsec;

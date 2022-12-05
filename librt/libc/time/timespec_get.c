@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,40 +13,26 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * TimeSpec Support Definitions & Structures
- * - This header describes the base timespec-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <errno.h>
-#include <os/mollenos.h>
 #include <os/time.h>
+#include <os/mollenos.h>
 #include <time.h>
 #include "local.h"
 
-static enum OSClockSource
+static enum OSTimeSource
 __get_va_type(
         _In_ int base)
 {
     if (base == TIME_THREAD) {
-        return OSClockSource_THREAD;
+        return OSTimeSource_THREAD;
     } else if (base == TIME_PROCESS) {
-        return OSClockSource_PROCESS;
+        return OSTimeSource_PROCESS;
+    } else if (base == TIME_UTC || base == TIME_TAI) {
+        return OSTimeSource_UTC;
     }
-    return OSClockSource_MONOTONIC;
-}
-
-static void
-__calculate_timestamp(
-        _In_ struct timespec* ts,
-        _In_ UInteger64_t*    tick)
-{
-    uint64_t freq = CLOCKS_PER_SEC;
-    uint64_t mult = NSEC_PER_SEC / freq;
-    ts->tv_sec = (time_t)(tick->QuadPart / freq);
-    ts->tv_nsec = (long)((tick->QuadPart % freq) * mult);
+    return OSTimeSource_MONOTONIC;
 }
 
 int
@@ -54,45 +40,23 @@ timespec_get(
     _In_ struct timespec* ts,
     _In_ int              base)
 {
-    oserr_t osStatus;
+    OSTimestamp_t timeValue;
+    oserr_t       oserr;
 
     if (!ts) {
         _set_errno(EINVAL);
         return -1;
     }
 
-    // Update based on type
-    switch (base) {
-        case TIME_TAI:
-        case TIME_UTC: {
-            OSTimestamp_t timeValue;
+    oserr = OSGetTime(__get_va_type(base), &timeValue);
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
+    }
 
-            osStatus = OSGetWallClock(&timeValue);
-            if (osStatus != OS_EOK) {
-                return OsErrToErrNo(osStatus);
-            }
-
-            ts->tv_sec  = timeValue.Seconds;
-            ts->tv_nsec = timeValue.Nanoseconds;
-            if (base == TIME_TAI) {
-                // TODO adjust for leap seconds
-            }
-        } break;
-        case TIME_MONOTONIC:
-        case TIME_PROCESS:
-        case TIME_THREAD: {
-            UInteger64_t tick;
-
-            // TODO: introduce a new syscall for this case
-            osStatus = OSGetClockTick(__get_va_type(base), &tick);
-            if (osStatus != OS_EOK) {
-                return OsErrToErrNo(osStatus);
-            }
-            __calculate_timestamp(ts, &tick);
-        } break;
-
-        default:
-            break;
+    ts->tv_sec  = timeValue.Seconds;
+    ts->tv_nsec = timeValue.Nanoseconds;
+    if (base == TIME_TAI) {
+        // TODO adjust for leap seconds
     }
     return 0;
 }

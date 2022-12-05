@@ -73,13 +73,32 @@ ScSystemClockFrequency(
 }
 
 oserr_t
-ScSystemWallClock(
-        _In_ OSTimestamp_t* time)
+ScSystemTime(
+        _In_ enum OSTimeSource source,
+        _In_ OSTimestamp_t*    time)
 {
     if (time == NULL) {
         return OS_EINVALPARAMS;
     }
-    SystemTimerGetWallClockTime(time);
+
+    switch (source) {
+        case OSTimeSource_MONOTONIC:
+            tick_t timestamp;
+            SystemTimerGetTimestamp(&timestamp);
+            time->Seconds     = (int64_t)(timestamp / NSEC_PER_SEC);
+            time->Nanoseconds = (int64_t)(timestamp % NSEC_PER_SEC);
+            break;
+        case OSTimeSource_THREAD:
+        case OSTimeSource_PROCESS:
+            // TODO: implement this conversion
+            return OS_ENOTSUPPORTED;
+        case OSTimeSource_UTC:
+            SystemTimerGetWallClockTime(time);
+            break;
+        default:
+            return OS_EINVALPARAMS;
+    }
+
     return OS_EOK;
 }
 

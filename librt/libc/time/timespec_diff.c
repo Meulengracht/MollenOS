@@ -14,28 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * TimeSpec Support Definitions & Structures
- * - This header describes the base timespec-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <time.h>
 #include "local.h"
-
-/*
-
-static inline void timespec_diff(struct timespec *a, struct timespec *b,
-    struct timespec *result) {
-    result->tv_sec  = a->tv_sec  - b->tv_sec;
-    result->tv_nsec = a->tv_nsec - b->tv_nsec;
-    if (result->tv_nsec < 0) {
-        --result->tv_sec;
-        result->tv_nsec += 1000000000L;
-    }
-}
-
- */
 
 void
 timespec_diff(
@@ -43,11 +25,10 @@ timespec_diff(
     _In_ const struct timespec* stop,
     _In_ struct timespec*       result)
 {
-    if ((stop->tv_nsec - start->tv_nsec) < 0) {
-        result->tv_sec = stop->tv_sec - start->tv_sec - 1;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
-    } else {
-        result->tv_sec = stop->tv_sec - start->tv_sec;
-        result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+    result->tv_sec  = start->tv_sec  - stop->tv_sec;
+    result->tv_nsec = start->tv_nsec - stop->tv_nsec;
+    while (result->tv_nsec < 0) {
+        --result->tv_sec;
+        result->tv_nsec += NSEC_PER_SEC;
     }
 }

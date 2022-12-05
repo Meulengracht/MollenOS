@@ -56,8 +56,9 @@ OSStall(
  * @return     Returns OS_EOK if the clock was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
-OSGetWallClock(
-        _In_ OSTimestamp_t* time));
+OSGetTime(
+        _In_ enum OSTimeSource source,
+        _In_ OSTimestamp_t*    time));
 
 /**
  * @brief Reads the current clock tick for the given clock source type. No guarantees are made for their

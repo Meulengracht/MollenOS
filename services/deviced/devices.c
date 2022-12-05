@@ -277,5 +277,4 @@ void DmDeviceRefreshDrivers(void)
     }
     usched_mtx_unlock(&g_devicesLock);
 #endif
-    TRACE("DmDeviceRefreshDrivers done");
 }

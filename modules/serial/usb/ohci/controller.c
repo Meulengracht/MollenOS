@@ -22,7 +22,7 @@
  *    - Power Management
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/interrupt.h>
@@ -32,7 +32,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-oserr_t        OhciSetup(OhciController_t *Controller);
+oserr_t     OhciSetup(OhciController_t *Controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*

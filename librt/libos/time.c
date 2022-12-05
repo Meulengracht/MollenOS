@@ -24,13 +24,14 @@
 #include <os/services/process.h>
 
 oserr_t
-OSGetWallClock(
-        _In_ OSTimestamp_t* time)
+OSGetTime(
+        _In_ enum OSTimeSource source,
+        _In_ OSTimestamp_t*    time)
 {
     if (!time) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_ReadWallClock(time);
+    return Syscall_Time(source, time);
 }
 
 oserr_t
