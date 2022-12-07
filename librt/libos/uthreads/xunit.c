@@ -16,10 +16,7 @@
  *
  */
 
-#define __TRACE
-
 #include <ddk/ddkdefs.h> // for __reserved
-#include <ddk/utils.h>
 #include <internal/_tls.h>
 #include <internal/_syscalls.h>
 #include <os/usched/job.h>
@@ -142,10 +139,8 @@ _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
         // Wait now for new tasks to enter the ready queue. If errno is set
         // to EWOULDBLOCK, this means we should wait until the deadline is
         // reached.
-        TRACE("%i: block until %llu:%li", errno, deadline.tv_sec, deadline.tv_nsec);
         if (errno == EWOULDBLOCK) { usched_timedwait(&deadline); }
         else                      { usched_wait(); }
-        TRACE("we're back");
     }
 }
 
@@ -258,7 +253,7 @@ static int __spawn_execution_unit(struct usched_execution_unit* unit, unsigned i
     // Use default thread parameters for now until we decide on another
     // course of action.
     ThreadParametersInitialize(&parameters);
-    //ThreadParametersSetAffinityMask(affinityMask);
+    //ThreadParametersSetAffinityMask(affinityMask); TODO: implement this
 
     // Spawn a thread in the raw fashion to allow us to control the CRT initalization
     // a bit more fine-grained as we want to inject another per-thread value.

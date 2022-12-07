@@ -81,10 +81,26 @@ CRTDECL(uuid_t, usched_job_queue(usched_task_fn entry, void* argument));
  */
 CRTDECL(uuid_t, usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params));
 
+/**
+ * @brief Returns the job ID of the currently running job.
+ * @return The job ID.
+ */
 CRTDECL(uuid_t, usched_job_current(void));
 
+/**
+ * @brief Initiates a cancellation request for the specified job. The job is not required
+ * to react to these requests, and must itself check periodically if anyone has requested
+ * a cancellation by using usched_is_cancelled.
+ * @param jobID
+ * @return
+ */
 CRTDECL(int, usched_job_cancel(uuid_t jobID));
 
+/**
+ * @brief Yields the current job, allowing for other jobs to run on the current
+ * execution unit. The current job will run once again any other job has finished
+ * running.
+ */
 CRTDECL(void, usched_job_yield(void));
 
 /**
@@ -93,18 +109,50 @@ CRTDECL(void, usched_job_yield(void));
  */
 CRTDECL(void, usched_job_exit(int exitCode));
 
+/**
+ * @brief Detaches the job with the specified ID. This means that it will move
+ * to a seperate, unique execution unit, where only the specified job is allowed
+ * execution. This means it will not take up one of the execution units in the pool
+ * and instead be isolated in it's own, kernel-managed thread.
+ * @param jobID The ID of the job that should be detached.
+ * @return 0 if the detachment was succesful.
+ *         -1 On any errors, consult errno.
+ */
 CRTDECL(int, usched_job_detach(uuid_t jobID));
 
+/**
+ * @brief Blocks the current job until the requested job has finished execution. The
+ * exit code of that job will be then be returned.
+ * @param jobID The ID of the job to wait for.
+ * @param exitCode The exit code of the job will be placed here.
+ * @return 0 If the job finished execution.
+ *         -1 On any errors, consult errno.
+ */
 CRTDECL(int, usched_job_join(uuid_t jobID, int* exitCode));
 
+/**
+ * @brief Sends a signal to a job.
+ * @param jobID The job ID that should receive the signal.
+ * @param signal The signal that should be sent.
+ * @return 0 If the signal was sent.
+ *         -1 On any errors, consult errno.
+ */
 CRTDECL(int, usched_job_signal(uuid_t jobID, int signal));
 
-CRTDECL(int, usched_job_sleep(const struct timespec* duration, struct timespec* remaining));
+/**
+ * @brief Sleeps the current job until the UTC-based time point has been reached.
+ * @param until An UTC-based time_point that the job will sleep until.
+ * @return 0 If the sleep was done, -1 on any errors.
+ */
+CRTDECL(int, usched_job_sleep(const struct timespec* until));
 
 /**
- * @brief
- * @param cancellationToken
- * @return
+ * @brief Used for checking by the currently running job if anyone has requested it
+ * to be cancelled. Cancellation policy is co-operative, so that means the job is not
+ * required to respect any cancellation requests, but rather should be used on a
+ * per-application basis. The scheduling system will never request a job to be cancelled.
+ * @param cancellationToken The cancellation token that is provided on job entry.
+ * @return True if a cancellation request is pending. Otherwise false.
  */
 CRTDECL(bool, usched_is_cancelled(const void* cancellationToken));
 

@@ -15,10 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
-
 #include <assert.h>
-#include <ddk/utils.h>
 #include <os/usched/cond.h>
 #include <os/usched/job.h>
 #include <os/usched/usched.h>
@@ -351,25 +348,17 @@ int usched_job_signal(uuid_t jobID, int signal)
     return -1;
 }
 
-int usched_job_sleep(const struct timespec* duration, struct timespec* remaining)
+int usched_job_sleep(const struct timespec* until)
 {
     union usched_timer_queue queue = { NULL };
     struct usched_job*       current;
     int                      timer;
-    struct timespec          utc;
-    _CRT_UNUSED(remaining);
-
-    timespec_get(&utc, TIME_UTC);
-    timespec_add(&utc, duration, &utc);
-    TRACE("sleep wake me in %llu:%li (deadline %llu:%li)",
-          duration->tv_sec, duration->tv_nsec,
-          utc.tv_sec, utc.tv_nsec);
 
     // set us blocked
     current = __usched_get_scheduler()->current;
     current->state = JobState_BLOCKED;
 
-    timer = __usched_timeout_start(&utc, &queue, __QUEUE_TYPE_SLEEP);
+    timer = __usched_timeout_start(until, &queue, __QUEUE_TYPE_SLEEP);
     usched_job_yield();
     if (__usched_timeout_finish(timer)) {
         if (errno == ETIME) {

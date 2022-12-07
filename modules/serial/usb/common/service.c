@@ -60,7 +60,7 @@ oserr_t OnEvent(struct ioset_event* event)
         int bytesRead = read(controller->event_descriptor, &value, sizeof(unsigned int));
         if (bytesRead != sizeof(unsigned int)) {
             ERROR("[OnEvent] read failed %i :(", bytesRead);
-            //return OS_EUNKNOWN;
+            return OS_EUNKNOWN;
         }
 
         HciInterruptCallback(controller);

@@ -18,11 +18,9 @@
 #ifndef __OS_THREADS_H__
 #define __OS_THREADS_H__
 
-// imported from time.h
-struct timespec;
-
 #include <os/osdefs.h>
 #include <os/types/thread.h>
+#include <os/types/time.h>
 
 typedef int (*ThreadEntry_t)(void*);
 
@@ -90,8 +88,8 @@ ThreadsCurrentId(void));
  */
 CRTDECL(oserr_t,
 ThreadsSleep(
-        _In_      const struct timespec* until,
-        _Out_Opt_ struct timespec*       remaining));
+        _In_      const OSTimestamp_t* until,
+        _Out_Opt_ OSTimestamp_t*       remaining));
 
 /**
  * @brief rovides a hint to the to reschedule the execution of the current thread,

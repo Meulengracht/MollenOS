@@ -114,25 +114,13 @@ ThreadsCurrentId(void)
 
 oserr_t
 ThreadsSleep(
-        _In_      const struct timespec* until,
-        _Out_Opt_ struct timespec*       remaining)
+        _In_      const OSTimestamp_t* until,
+        _Out_Opt_ OSTimestamp_t*       remaining)
 {
-    oserr_t       oserr;
-    OSTimestamp_t tsRemaining;
-
     if (until == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    oserr = OSSleep(&(OSTimestamp_t) {
-        .Seconds = until->tv_sec,
-        .Nanoseconds = until->tv_nsec
-    }, remaining == NULL ? NULL : &tsRemaining);
-    if (oserr == OS_EINTERRUPTED && remaining != NULL) {
-        remaining->tv_sec  = tsRemaining.Seconds;
-        remaining->tv_nsec = tsRemaining.Nanoseconds;
-    }
-    return oserr;
+    return OSSleep(until, remaining);
 }
 
 void

@@ -198,7 +198,19 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
 static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
-    return __to_thrd_error(usched_job_sleep(duration, remaining));
+    struct timespec deadline;
+
+    // Remaining is not supported in userspace threads, as all sleeps will be resolved
+    // without any interruptions. Only blocking operations can be interrupted before their
+    // timeout, and thus remaining will never be relevant.
+    (void)remaining;
+
+    // Sleep for userspace threads deal in absolute time points (UTC-based), and thus
+    // we must convert it here. Luckily duration is expected to be in UTC as well, so we
+    // can simply add it.
+    timespec_get(&deadline, TIME_UTC);
+    timespec_add(&deadline, duration, &deadline);
+    return __to_thrd_error(usched_job_sleep(&deadline));
 }
 
 /**
@@ -492,10 +504,20 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
 static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
-    struct timespec utc;
-    timespec_get(&utc, TIME_UTC);
-    timespec_add(&utc, duration, &utc);
-    return __to_thrd_error(ThreadsSleep(duration, remaining));
+    OSTimestamp_t utc, _remaining;
+    int           error;
+
+    // Sleep for threads deal in absolute time points (UTC-based), and thus
+    // we must convert it here. Luckily duration is expected to be in UTC as well, so we
+    // can simply add it.
+    OSGetTime(OSTimeSource_UTC, &utc);
+    OSTimestampAddTs(&utc, &utc, duration->tv_sec, duration->tv_nsec);
+    error = __to_thrd_error(ThreadsSleep(&utc, &_remaining));
+    if (error == thrd_timedout && remaining) {
+        remaining->tv_sec = _remaining.Seconds;
+        remaining->tv_nsec = _remaining.Nanoseconds;
+    }
+    return error;
 }
 
 /**
