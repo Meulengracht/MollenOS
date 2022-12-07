@@ -220,7 +220,7 @@ static inline size_t NextPowerOfTwo(size_t value) {
 #define FSEC_PER_SEC  1000000000000000ULL
 #define NSEC_PER_USEC 1000L    // Nanoseconds per microsecond
 #define NSEC_PER_MSEC 1000000L // Nanoseconds per millisecond
-#define NSEC_PER_SEC  1000000000L
+#define NSEC_PER_SEC  1000000000LL
 #define USEC_PER_MSEC 1000L
 #define USEC_PER_SEC  1000000L
 #define MSEC_PER_SEC  1000L

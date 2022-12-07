@@ -31,7 +31,7 @@
 // for time macros and length of months
 #include "../../librt/libc/time/local.h"
 
-static inline tick_t
+static inline uint32_t
 __CalculateResolution(
         _In_ UInteger64_t* frequency)
 {
@@ -39,19 +39,19 @@ __CalculateResolution(
     // for any timer with a frequency above 1Ghz. Since we account for time in NS
     // we will end up with a zero resolution in this case.
     assert(frequency->QuadPart <= NSEC_PER_SEC);
-    return NSEC_PER_SEC / frequency->QuadPart;
+    return (uint32_t)(NSEC_PER_SEC / frequency->QuadPart);
 }
 
 static inline void
 __ToTimestamp(
-        _In_  tick_t        resolution,
-        _In_  UInteger64_t* frequency,
-        _In_  UInteger64_t* tick,
-        _Out_ tick_t*       secondsOut,
-        _Out_ tick_t*       nanosecondsOut)
+        _In_ uint32_t       multiplier,
+        _In_ uint32_t       divider,
+        _In_ UInteger64_t*  frequency,
+        _In_ UInteger64_t*  tick,
+        _In_ OSTimestamp_t* timestamp)
 {
-    *secondsOut = tick->QuadPart / frequency->QuadPart;
-    *nanosecondsOut = ((tick->QuadPart % frequency->QuadPart) * resolution);
+    timestamp->Seconds = (int64_t)(tick->QuadPart / frequency->QuadPart);
+    timestamp->Nanoseconds = (int64_t)(((tick->QuadPart % frequency->QuadPart) * multiplier) / divider);
 }
 
 oserr_t
@@ -144,7 +144,6 @@ SystemTimerGetWallClockTime(
 {
     SystemTimer_t* clock;
     UInteger64_t   tick;
-    tick_t         secs, ns;
 
     // Should there be no wall clock in the system, then we just
     // convert the ticks from the clock.
@@ -161,8 +160,8 @@ SystemTimerGetWallClockTime(
     // The wall clock and default system timer are synchronized. Which means
     // we use the BaseTick of the wall clock, and then add clock timestamp
     // to that to get the final time.
-    time->Seconds = GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
     if (!clock) {
+        time->Seconds = GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
         time->Nanoseconds = 0;
         return;
     }
@@ -172,9 +171,14 @@ SystemTimerGetWallClockTime(
     tick.QuadPart -= GetMachine()->SystemTimers.WallClock->BaseOffset.QuadPart;
 
     // Convert from raw ticks to something we recognize
-    __ToTimestamp(clock->Resolution, &clock->Frequency, &tick, &secs, &ns);
-    time->Seconds    += (int64_t)secs;
-    time->Nanoseconds = (int64_t)ns;
+    __ToTimestamp(
+            clock->Multiplier,
+            1,
+            &clock->Frequency,
+            &tick,
+            time
+    );
+    time->Seconds += GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
 }
 
 void
@@ -183,7 +187,7 @@ SystemTimerGetTimestamp(
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
     UInteger64_t   tick;
-    tick_t         secs, ns;
+    OSTimestamp_t  timestamp;
 
     // guard against early calls from the log
     if (!clock) {
@@ -196,8 +200,14 @@ SystemTimerGetTimestamp(
     tick.QuadPart -= clock->InitialTick.QuadPart;
 
     // Convert from raw ticks to something we recognize
-    __ToTimestamp(clock->Resolution, &clock->Frequency, &tick, &secs, &ns);
-    *timestampOut = (secs * NSEC_PER_SEC) + ns;
+    __ToTimestamp(
+            clock->Multiplier,
+            1,
+            &clock->Frequency,
+            &tick,
+            &timestamp
+    );
+    *timestampOut = (timestamp.Seconds * NSEC_PER_SEC) + timestamp.Nanoseconds;
 }
 
 void
@@ -360,7 +370,7 @@ static void  __CalculateTimerFrequency(
     } else {
         timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
     }
-    timer->Resolution = __CalculateResolution(&timer->Frequency);
+    timer->Multiplier = __CalculateResolution(&timer->Frequency);
 }
 
 static inline void __SelectIfFrequencyIsHigher(

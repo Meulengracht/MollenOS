@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <debug.h>
 #include <interrupts.h>
@@ -203,7 +203,7 @@ HPETComparatorStart(
           index, frequency, periodic);
 
     // Calculate the delta
-    delta.QuadPart = g_hpet.Period / frequency;
+    delta.QuadPart = (FSEC_PER_SEC / (uint64_t)g_hpet.Period) / frequency;
     if (delta.QuadPart < g_hpet.TickMinimum) {
         delta.QuadPart = g_hpet.TickMinimum;
     }
@@ -270,7 +270,11 @@ HPETComparatorStop(
 {
     size_t tempValue = 0;
     HPET_WRITE_32(&g_hpet, HPET_TIMER_CONFIG(index), tempValue);
-    __WriteComparatorValue(&g_hpet, HPET_TIMER_COMPARATOR(index), &(UInteger64_t){ .QuadPart = 0 });
+    __WriteComparatorValue(
+            &g_hpet,
+            HPET_TIMER_COMPARATOR(index),
+            &(UInteger64_t){ .QuadPart = 0 }
+    );
     return OS_EOK;
 }
 

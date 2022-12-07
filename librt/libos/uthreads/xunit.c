@@ -16,7 +16,10 @@
  *
  */
 
+#define __TRACE
+
 #include <ddk/ddkdefs.h> // for __reserved
+#include <ddk/utils.h>
 #include <internal/_tls.h>
 #include <internal/_syscalls.h>
 #include <os/usched/job.h>
@@ -124,13 +127,13 @@ void usched_xunit_init(void)
 
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
-    struct timespec deadline;
 
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
     (void)usched_job_queue(startFn, argument);
     while (1) {
-        int status;
+        struct timespec deadline;
+        int             status;
 
         do {
             status = usched_yield(&deadline);
@@ -139,8 +142,10 @@ _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
         // Wait now for new tasks to enter the ready queue. If errno is set
         // to EWOULDBLOCK, this means we should wait until the deadline is
         // reached.
+        TRACE("%i: block until %llu:%li", errno, deadline.tv_sec, deadline.tv_nsec);
         if (errno == EWOULDBLOCK) { usched_timedwait(&deadline); }
         else                      { usched_wait(); }
+        TRACE("we're back");
     }
 }
 

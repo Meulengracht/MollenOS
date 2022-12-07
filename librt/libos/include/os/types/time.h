@@ -102,4 +102,25 @@ static inline void OSTimestampAddNsec(OSTimestamp_t* result, OSTimestamp_t* a, i
     OSTimestampNormalize(result);
 }
 
+/**
+ * @brief Compares two timestamp values.
+ * @param a The timestamp to compare.
+ * @param b The timestamp to compare a against.
+ * @return 1  if a > b.
+ *         0  if a == b.
+ *         -1 if a < b.
+ */
+static inline int OSTimestampCompare(OSTimestamp_t* a, OSTimestamp_t* b)
+{
+    OSTimestampNormalize(a);
+    OSTimestampNormalize(b);
+
+    if (a->Seconds == b->Seconds && a->Nanoseconds == b->Nanoseconds) {
+        return 0;
+    } else if ((a->Seconds > b->Seconds) || (a->Seconds == b->Seconds && a->Nanoseconds > b->Nanoseconds)) {
+        return 1;
+    }
+    return -1;
+}
+
 #endif //!__TYPES_TIME_H__

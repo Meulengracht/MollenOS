@@ -307,7 +307,7 @@ UsbCoreDevicesCreate(
 	// Wait 100 for device to stabilize after port-reset 
 	// I found this wait to be EXTREMELY crucical, otherwise devices would stall. 
 	// because I accessed them to quickly after the reset
-	thrd_sleep2(100);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
 
     // Allocate a device-address
     if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OS_EOK) {
@@ -331,7 +331,7 @@ UsbCoreDevicesCreate(
     
     // After SetAddress device is allowed at-least 10 ms recovery
     device->Base.device_address = reservedAddress;
-    thrd_sleep2(10);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
 
     tStatus = __GetDeviceDescriptor(device);
     if (tStatus != TransferFinished) {

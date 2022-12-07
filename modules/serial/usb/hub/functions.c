@@ -128,6 +128,6 @@ HubResetPort(
         return OS_EDEVFAULT;
     }
 
-    thrd_sleep2(100);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
     return OS_EOK;
 }

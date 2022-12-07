@@ -21,6 +21,7 @@
 #include <ddk/handle.h>
 #include <event.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 #include <os/futex.h>
 #include <ioctl.h>
 
@@ -30,13 +31,13 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
 {
     OSFutexParameters_t parameters;
     oserr_t             oserr = OS_EOK;
-    int               value;
+    int                 value;
 
     parameters.Futex0   = sync_address;
     parameters.Flags    = FUTEX_FLAG_WAIT;
     parameters.Deadline = NULL;
 
-    while (1) {
+    for (;;) {
         value = atomic_load(sync_address);
         while (value < 1) {
             if (options & EVT_OPTION_NON_BLOCKING) {
@@ -44,7 +45,7 @@ static oserr_t evt_lock(atomic_int* sync_address, unsigned int options)
             }
 
             parameters.Expected0 = value;
-            oserr = OSFutex(&parameters, NULL);
+            oserr = OSFutex(&parameters, __tls_current()->async_context);
             if (oserr != OS_EOK) {
                 break;
             }
@@ -67,9 +68,9 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
     int               i;
     int               result;
 
-    parameters.Futex0 = sync_address;
-    parameters.Expected0   = 0;
-    parameters.Flags  = FUTEX_FLAG_WAKE;
+    parameters.Futex0    = sync_address;
+    parameters.Expected0 = 0;
+    parameters.Flags     = FUTEX_FLAG_WAKE;
 
     // assert not max
     currentValue = atomic_load(sync_address);
@@ -85,7 +86,7 @@ static oserr_t evt_unlock(atomic_int* sync_address, unsigned int maxValue, unsig
     }
 
     if (parameters.Expected0) {
-        OSFutex(&parameters, NULL);
+        OSFutex(&parameters, __tls_current()->async_context);
         status = OS_EOK;
     }
 
@@ -184,14 +185,12 @@ oserr_t stdio_evt_op_ioctl(stdio_handle_t* handle, int request, va_list args)
         if (nonBlocking) {
             if (*nonBlocking) {
                 handle->object.data.evt.options |= EVT_OPTION_NON_BLOCKING;
-            }
-            else {
+            } else {
                 handle->object.data.evt.options &= ~(EVT_OPTION_NON_BLOCKING);
             }
         }
         return OS_EOK;
-    }
-    else if ((unsigned int)request == FIONREAD) {
+    } else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             *bytesAvailableOut = atomic_load(handle->object.data.evt.sync_address);

@@ -193,12 +193,12 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  * In such case, if remaining is not NULL, the remaining time duration is stored
  * into the object pointed to by remaining.
  *
- * @param[In]            until Pointer to the UTC timestamp to sleep until
+ * @param[In]            duration Pointer to the duration that the thread should sleep for
  * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
-static inline int thrd_sleep(const struct timespec* until, struct timespec* remaining) {
-    return __to_thrd_error(usched_job_sleep(until, remaining));
+static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
+    return __to_thrd_error(usched_job_sleep(duration, remaining));
 }
 
 /**
@@ -492,6 +492,9 @@ static inline int thrd_signal(thrd_t thr, int sig) {
  * @return 0 on successful sleep, -1 if a signal occurred, other negative value if an error occurred.
  */
 static inline int thrd_sleep(const struct timespec* duration, struct timespec* remaining) {
+    struct timespec utc;
+    timespec_get(&utc, TIME_UTC);
+    timespec_add(&utc, duration, &utc);
     return __to_thrd_error(ThreadsSleep(duration, remaining));
 }
 
@@ -623,23 +626,6 @@ static inline void cnd_destroy(cnd_t* cond) {
 }
 
 #endif //__OSCONFIG_GREEN_THREADS
-
-/**
- * @brief Blocks the execution of the current thread for at least given milliseconds.
- * Extension for Vali/MollenOS.
- */
-static inline int thrd_sleep2(size_t msec) {
-    struct timespec ts;
-    struct timespec remaining;
-    timespec_get(&ts, TIME_UTC);
-    ts.tv_sec += (time_t)(msec / MSEC_PER_SEC);
-    ts.tv_nsec += (long)(msec % MSEC_PER_SEC) * NSEC_PER_MSEC;
-    if (ts.tv_nsec >= NSEC_PER_SEC) {
-        ts.tv_sec++;
-        ts.tv_nsec -= NSEC_PER_SEC;
-    }
-    return thrd_sleep(&ts, &remaining);
-}
 
 /**
  * @brief Creates new thread-specific storage key and stores it in the object pointed to by tss_key.

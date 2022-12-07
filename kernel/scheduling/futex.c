@@ -16,7 +16,7 @@
  *
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/thread.h>
@@ -256,7 +256,10 @@ FutexWait(
     uintptr_t             futexAddress;
     irqstate_t            irqState;
     oserr_t               oserr;
-    TRACE("FutexWait(f 0x%llx, t %u)", futex, timeout);
+    TRACE("FutexWait(async=%i, futex=0x%llx, deadline=%llu:%li)",
+          asyncContext != NULL, futex,
+          deadline != NULL ? deadline->Seconds : 0,
+          deadline != NULL ? deadline->Nanoseconds : 0);
     
     if (!SchedulerGetCurrentObject(ArchGetProcessorCoreId())) {
         // This is called by the ACPICA implemention indirectly through the Semaphore
@@ -323,7 +326,8 @@ CheckValue:
         asyncContext = NULL;
         goto CheckValue;
     }
-    
+
+    TRACE("blocking");
     oserr = SchedulerBlock(&futexItem->BlockQueue, deadline);
     if (oserr == OS_EOK) {
         if (flags & FUTEX_FLAG_OP) {
@@ -422,7 +426,6 @@ FutexWakeOperation(
 {
     oserr_t oserr;
     int     initialValue;
-    TRACE("FutexWakeOperation(f 0x%llx)", Futex);
 
     initialValue = atomic_load(Futex);
     FutexPerformOperation(Futex2, Operation);

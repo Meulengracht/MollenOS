@@ -79,7 +79,7 @@ typedef struct SystemTimer {
     SystemTimerOperations_t   Operations;
     enum SystemTimeAttributes Attributes;
     uuid_t                    Interrupt;
-    tick_t                    Resolution;
+    uint32_t                  Multiplier;
     UInteger64_t              InitialTick;
     UInteger64_t              Frequency;
     void*                     Context;
