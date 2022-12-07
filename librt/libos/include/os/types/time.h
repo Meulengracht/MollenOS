@@ -49,6 +49,25 @@ typedef struct OSTimestamp {
 } OSTimestamp_t;
 
 /**
+ * @brief Checks the timestamp for being zero
+ * @param timestamp The timestamp that should be checked.
+ * @return true if the timestamp is zero, otherwise false.
+ */
+static inline bool OSTimestampIsZero(OSTimestamp_t* timestamp) {
+    return timestamp->Seconds == 0 && timestamp->Nanoseconds == 0;
+}
+
+/**
+ * @brief Clones the timstamp from src to dest.
+ * @param dest The destination where the cloned timestamp should be stored.
+ * @param src The timestamp that should be cloned.
+ */
+static inline void OSTimestampCopy(OSTimestamp_t* dest, OSTimestamp_t* src) {
+    dest->Seconds = src->Seconds;
+    dest->Nanoseconds = src->Nanoseconds;
+}
+
+/**
  * @brief Normalizes the timestamp. This is called after performing time arethmetics
  * to facilitate some reuse.
  * @param timestamp The timestamp that should be normalized.
@@ -95,9 +114,22 @@ static inline void OSTimestampAdd(OSTimestamp_t* result, OSTimestamp_t* a, OSTim
  * @param a The base operand for which nanoseconds should be added to.
  * @param nsec The number of nanoseconds that should be added.
  */
-static inline void OSTimestampAddNsec(OSTimestamp_t* result, OSTimestamp_t* a, int64_t nsec)
-{
+static inline void OSTimestampAddNsec(OSTimestamp_t* result, OSTimestamp_t* a, int64_t nsec) {
     result->Seconds = a->Seconds;
+    result->Nanoseconds = a->Nanoseconds + nsec;
+    OSTimestampNormalize(result);
+}
+
+/**
+ * @brief Adds individual timestamp components to the given timestamp, and stores the result
+ * in the result timestamp. This solely exists as a conveniency function for C11 timespec's.
+ * @param result The timestamp where the result should be stored.
+ * @param a The base operand for which nanoseconds should be added to.
+ * @param sec The number of seconds that should be added.
+ * @param nsec The number of nanoseconds that should be added.
+ */
+static inline void OSTimestampAddTs(OSTimestamp_t* result, OSTimestamp_t* a, int64_t sec, int64_t nsec) {
+    result->Seconds = a->Seconds + sec;
     result->Nanoseconds = a->Nanoseconds + nsec;
     OSTimestampNormalize(result);
 }
@@ -110,8 +142,7 @@ static inline void OSTimestampAddNsec(OSTimestamp_t* result, OSTimestamp_t* a, i
  *         0  if a == b.
  *         -1 if a < b.
  */
-static inline int OSTimestampCompare(OSTimestamp_t* a, OSTimestamp_t* b)
-{
+static inline int OSTimestampCompare(OSTimestamp_t* a, OSTimestamp_t* b) {
     OSTimestampNormalize(a);
     OSTimestampNormalize(b);
 

@@ -33,8 +33,8 @@ _CODE_BEGIN
  */
 CRTDECL(oserr_t,
 OSSleep(
-        _In_      OSTimestamp_t* deadline,
-        _Out_Opt_ OSTimestamp_t* remaining));
+        _In_      const OSTimestamp_t* deadline,
+        _Out_Opt_ OSTimestamp_t*       remaining));
 
 /**
  * @brief Stalls the current thread for the given duration. It will stall for atleast the duration

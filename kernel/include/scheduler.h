@@ -53,11 +53,11 @@ typedef struct SchedulerQueue {
 } SchedulerQueue_t;
 
 typedef struct Scheduler {
-    int                    Enabled;
-    clock_t          LastBoost;
+    int              Enabled;
+    OSTimestamp_t    LastBoost;
     Spinlock_t       SyncObject;
     SchedulerQueue_t SleepQueue;
-    SchedulerQueue_t       Queues[SCHEDULER_LEVEL_COUNT];
+    SchedulerQueue_t Queues[SCHEDULER_LEVEL_COUNT];
 
     // TODO bandwidth should be 64 bit, remove use of atomic here and protect
     // with a lock insteasd

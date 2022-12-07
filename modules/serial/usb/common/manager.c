@@ -197,10 +197,13 @@ __UHCIPortMonitor(
         _In_ void* argument,
         _In_ void* cancellationToken)
 {
+    struct timespec wakeUp;
     _CRT_UNUSED(argument);
 
+    timespec_get(&wakeUp, TIME_UTC);
     while (usched_is_cancelled(cancellationToken) == false) {
-        usched_job_sleep(&(struct timespec) { .tv_sec = 1 }, NULL);
+        wakeUp.tv_sec += 1;
+        usched_job_sleep(&wakeUp);
         hashtable_enumerate(
                 &g_controllers,
                 UsbManagerQueryUHCIController,

@@ -624,20 +624,19 @@ __HasDeadlineSet(
 static clock_t
 __UpdateSleepQueue(
         _In_ Scheduler_t*       scheduler,
+        _In_ OSTimestamp_t*     currentTime,
         _In_ SchedulerObject_t* ignoreObject)
 {
     clock_t            nextUpdate = __MASK;
     SchedulerObject_t* i          = scheduler->SleepQueue.Head;
-    OSTimestamp_t      currentTime;
     OSTimestamp_t      timeDiff;
 
-    SystemTimerGetWallClockTime(&currentTime);
     while (i) {
         if (i != ignoreObject && __HasDeadlineSet(i)) {
-            if (OSTimestampCompare(&currentTime, &i->WakeUpTime) >= 0) {
+            if (OSTimestampCompare(currentTime, &i->WakeUpTime) >= 0) {
                 __PerformObjectTimeout(scheduler, i);
             } else {
-                OSTimestampSubtract(&timeDiff, &i->WakeUpTime, &currentTime);
+                OSTimestampSubtract(&timeDiff, &i->WakeUpTime, currentTime);
                 nextUpdate = (timeDiff.Seconds * NSEC_PER_SEC) + timeDiff.Nanoseconds;
             }
         }
@@ -691,13 +690,18 @@ SchedulerAdvance(
     SchedulerObject_t* nextObject = NULL;
     clock_t            currentClock;
     clock_t            nextDeadline;
+    OSTimestamp_t      currentTime;
     int                i;
     TRACE("SchedulerAdvance(current 0x%llx, forced %i, ns-passed %llu)",
           object, preemptive, nanosecondsPassed);
-    
+
     // Allow Object to be NULL but not NextDeadlineOut
     assert(nextDeadlineOut != NULL);
-    
+
+    // Get current timestamp, we need it to look at sleep queue and
+    // calculate time until next boost
+    SystemTimerGetWallClockTime(&currentTime);
+
     // In one case we can skip the whole requeue etc. etc. This happens when there
     // was a sleep event before the objects time-slice is out. Adjust and continue
     if (object != NULL &&
@@ -707,7 +711,7 @@ SchedulerAdvance(
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
         object->TimeSliceLeft -= nanosecondsPassed;
-        nextDeadline = __UpdateSleepQueue(scheduler, NULL);
+        nextDeadline = __UpdateSleepQueue(scheduler, &currentTime, NULL);
         *nextDeadlineOut = MIN(object->TimeSliceLeft, nextDeadline);
         TRACE("SchedulerAdvance redeploy next deadline %llu", *nextDeadlineOut);
         return object->Object;
@@ -719,7 +723,7 @@ SchedulerAdvance(
     if (object != NULL) {
         __HandleObjectRequeue(scheduler, object, preemptive);
     }
-    nextDeadline = __UpdateSleepQueue(scheduler, object);
+    nextDeadline = __UpdateSleepQueue(scheduler, &currentTime, object);
 
     // Get next object
     for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
@@ -736,25 +740,26 @@ SchedulerAdvance(
     // Handle the boost timer as long as there are active objects running
     // if we run out of objects then boosting makes no sense
     if (nextObject != NULL) {
-        SystemTimerGetTimestamp(&currentClock);
-        
         // Handle the boost timer
-        if (scheduler->LastBoost == 0) {
-            scheduler->LastBoost = currentClock;
-        }
-        else {
-            clock_t timeDiff = currentClock - scheduler->LastBoost;
-            if ((timeDiff / NSEC_PER_MSEC) >= SCHEDULER_BOOST_MS) {
+        if (OSTimestampIsZero(&scheduler->LastBoost)) {
+            OSTimestampCopy(&scheduler->LastBoost, &currentTime);
+        } else {
+            OSTimestamp_t boostDiff;
+            clock_t       timeDiff;
+            OSTimestampSubtract(&boostDiff, &currentTime, &scheduler->LastBoost);
+
+            timeDiff = (boostDiff.Seconds * MSEC_PER_SEC) + (boostDiff.Nanoseconds / NSEC_PER_MSEC);
+            if (timeDiff >= SCHEDULER_BOOST_MS) {
                 __Boost(scheduler);
-                scheduler->LastBoost = currentClock;
+                OSTimestampCopy(&scheduler->LastBoost, &currentTime);
             }
         }
         *nextDeadlineOut = nextDeadline;
         TRACE("SchedulerAdvance next 0x%llx, deadline in %llu", nextObject, nextDeadline);
-    }
-    else {
+    } else {
         // Reset boost
-        scheduler->LastBoost = 0;
+        scheduler->LastBoost.Seconds = 0;
+        scheduler->LastBoost.Nanoseconds = 0;
         *nextDeadlineOut = (nextDeadline == __MASK) ? 0 : nextDeadline;
         TRACE("SchedulerAdvance no next object, deadline in %llu", *nextDeadlineOut);
     }

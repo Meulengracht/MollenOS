@@ -72,8 +72,8 @@ OSGetClockFrequency(
 
 oserr_t
 OSSleep(
-        _In_      OSTimestamp_t* deadline,
-        _Out_Opt_ OSTimestamp_t* remaining)
+        _In_      const OSTimestamp_t* deadline,
+        _Out_Opt_ OSTimestamp_t*       remaining)
 {
     if (deadline == NULL) {
         return OS_EINVALPARAMS;

@@ -16,7 +16,7 @@
  *
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <arch/interrupts.h>
 #include <arch/thread.h>
@@ -327,7 +327,6 @@ CheckValue:
         goto CheckValue;
     }
 
-    TRACE("blocking");
     oserr = SchedulerBlock(&futexItem->BlockQueue, deadline);
     if (oserr == OS_EOK) {
         if (flags & FUTEX_FLAG_OP) {
