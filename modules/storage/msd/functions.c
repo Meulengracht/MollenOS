@@ -340,7 +340,7 @@ MsdDeviceStart(
         if (device->IsReady == 1) {
             break; 
         }
-        thrd_sleep2(100);
+        thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
         i--;
     }
 

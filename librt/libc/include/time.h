@@ -148,24 +148,24 @@ timespec_get(
  * @param[In] base TIME_UTC or another nonzero integer value indicating the time base
  * @return The value of base if base is supported, zero otherwise.
  */
-CRTDECL(int,
-timespec_getres(
-        _In_ struct timespec* ts,
-        _In_ int              base));
+CRTDECL(int, timespec_getres(struct timespec* ts, int base));
 
 /**
- * @brief The difference between two timespec with the same base. Result
- * is stored in static storage provided by user.
- *
- * @param start
- * @param stop
- * @param result
+ * @brief Subtracts two timespecs and stores the result into <result>
+ * @param result The timespec where the result should be stored.
+ * @param a The left operand.
+ * @param b The right operand.
  */
-CRTDECL(void,
-timespec_diff(
-    _In_ const struct timespec* start,
-    _In_ const struct timespec* stop,
-    _In_ struct timespec*       result));
+CRTDECL(void, timespec_sub(const struct timespec* a, const struct timespec* b, struct timespec* result));
+#define timespec_diff timespec_sub
+
+/**
+ * @brief Adds two timespecs and stores the result into <result>
+ * @param result The timespec where the result should be stored.
+ * @param a The left operand.
+ * @param b The right operand.
+ */
+CRTDECL(void, timespec_add(const struct timespec* a, const struct timespec* b, struct timespec* result));
 
 /**
  * @brief Renormalizes local calendar tm expressed as a struct tm object and also

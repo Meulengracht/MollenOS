@@ -50,12 +50,12 @@ __WaitForService(
     uuid_t handle   = getHandleCallback();
     if (!timeout) {
         while (handle == UUID_INVALID) {
-            thrd_sleep2(10);
+            thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
             handle = getHandleCallback();
         }
     } else {
         while (timeLeft && handle == UUID_INVALID) {
-            thrd_sleep2(10);
+            thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
             timeLeft -= 10;
             handle = getHandleCallback();
         }

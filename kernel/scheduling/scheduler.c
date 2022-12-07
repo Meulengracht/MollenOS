@@ -66,7 +66,7 @@ typedef struct SchedulerObject {
     void*                   Object;
     
     list_t*                 WaitQueueHandle;
-    clock_t                 TimeLeft;
+    OSTimestamp_t           WakeUpTime;
     oserr_t                 TimeoutReason;
 } SchedulerObject_t;
 
@@ -375,55 +375,39 @@ SchedulerDestroyObject(
     kfree(object);
 }
 
-static oserr_t
-__to_timeout(
-        _In_  OSTimestamp_t* deadline,
-        _Out_ clock_t*       nsOut)
+static inline void
+__SetDeadline(
+        _In_ OSTimestamp_t* in,
+        _In_ OSTimestamp_t* out)
 {
-    OSTimestamp_t now;
-    if (deadline == NULL) {
-        *nsOut = 0;
-        return OS_EOK;
+    if (in == NULL) {
+        out->Seconds = 0;
+        out->Nanoseconds = 0;
+    } else {
+        out->Seconds = in->Seconds;
+        out->Nanoseconds = in->Nanoseconds;
     }
-    SystemTimerGetWallClockTime(&now);
-    OSTimestampSubtract(&now, deadline, &now);
-
-    // If the result is zero or negative, then the deadline has already been passed.
-    if (now.Seconds < 0 || now.Nanoseconds < 0 ||
-        (now.Seconds == 0 && now.Nanoseconds == 0)) {
-        return OS_ETIMEOUT;
-    }
-    *nsOut = (now.Seconds * NSEC_PER_SEC) + now.Nanoseconds;
-    return OS_EOK;
 }
 
 oserr_t
 SchedulerSleep(
-    _In_ OSTimestamp_t* deadline)
+        _In_ OSTimestamp_t* deadline)
 {
     SchedulerObject_t* object;
-    oserr_t            oserr;
-    clock_t            ns;
 
-    // Calculate the deadline for the object, we do a deadline to ms conversion
-    // for now until we do the deadline implementation in the scheduler. Currently,
-    // deadlines are in UTC which is a bit inconvenient. I don't know if this will be
-    // OK or what, but I don't like that we have to read the timestamp each schedule.
-    oserr = __to_timeout(deadline, &ns);
-    if (oserr != OS_EOK) {
-        return OS_EOK;
+    TRACE("SchedulerSleep(deadline=%" PRIuIN ")", deadline->Seconds);
+    if (deadline == NULL) {
+        ERROR("SchedulerSleep deadline must be provided");
+        return OS_EINVALPARAMS;
     }
-    TRACE("SchedulerSleep(ns=%" PRIuIN ")", ns);
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     if (!object) { // This can be called before scheduler is available
-        SystemTimerStall(ns);
+        SystemTimerStall(deadline);
         return OS_EOK;
     }
 
-    // Since we rely on this value not being zero in cases of timeouts
-    // we would a minimum value of 1
-    object->TimeLeft        = MAX(ns, 1);
+    __SetDeadline(deadline, &object->WakeUpTime);
     object->TimeoutReason   = OS_EOK;
     object->WaitQueueHandle = NULL;
     
@@ -448,23 +432,13 @@ SchedulerBlock(
     _In_ OSTimestamp_t* deadline)
 {
     SchedulerObject_t* object;
-    oserr_t            oserr;
-    clock_t            ns;
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
     assert(object != NULL);
 
-    // Calculate the deadline for the object, we do a deadline to ms conversion
-    // for now until we do the deadline implementation in the scheduler. Currently,
-    // deadlines are in UTC which is a bit inconvenient. I don't know if this will be
-    // OK or what, but I don't like that we have to read the timestamp each schedule.
-    oserr = __to_timeout(deadline, &ns);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
     TRACE("SchedulerBlock(ns=%" PRIuIN ")", ns);
 
-    object->TimeLeft        = ns;
+    __SetDeadline(deadline, &object->WakeUpTime);
     object->TimeoutReason   = OS_EOK;
     object->WaitQueueHandle = blockQueue;
 
@@ -615,6 +589,10 @@ __PerformObjectTimeout(
 {
     int resultState;
 
+    // clear timeout
+    object->WakeUpTime.Seconds = 0;
+    object->WakeUpTime.Nanoseconds = 0;
+
     resultState = ExecuteEvent(object, EVENT_QUEUE);
     if (resultState != STATE_INVALID) {
         if (object->WaitQueueHandle != NULL) {
@@ -629,28 +607,39 @@ __PerformObjectTimeout(
     }
 }
 
+static inline bool
+__HasDeadlineSet(
+        _In_ SchedulerObject_t* schedulerObject)
+{
+    if (schedulerObject->WakeUpTime.Seconds != 0 &&
+        schedulerObject->WakeUpTime.Nanoseconds != 0) {
+        return true;
+    }
+    return false;
+}
+
 // The sleep list is thread-safe due to the fact that the function that removes
 // from the sleep queue is only called on this core, while the function that adds
 // is also only called on this core, and the list here is only iterated on this core.
 static clock_t
 __UpdateSleepQueue(
         _In_ Scheduler_t*       scheduler,
-        _In_ SchedulerObject_t* ignoreObject,
-        _In_ clock_t            nanosecondsPassed)
+        _In_ SchedulerObject_t* ignoreObject)
 {
     clock_t            nextUpdate = __MASK;
     SchedulerObject_t* i          = scheduler->SleepQueue.Head;
-    
+    OSTimestamp_t      currentTime;
+    OSTimestamp_t      timeDiff;
+
+    SystemTimerGetWallClockTime(&currentTime);
     while (i) {
-        if (i != ignoreObject && i->TimeLeft) {
-            i->TimeLeft -= MIN(i->TimeLeft, nanosecondsPassed);
-            if (!i->TimeLeft) {
+        if (i != ignoreObject && __HasDeadlineSet(i)) {
+            if (OSTimestampCompare(&currentTime, &i->WakeUpTime) >= 0) {
                 __PerformObjectTimeout(scheduler, i);
+            } else {
+                OSTimestampSubtract(&timeDiff, &i->WakeUpTime, &currentTime);
+                nextUpdate = (timeDiff.Seconds * NSEC_PER_SEC) + timeDiff.Nanoseconds;
             }
-        }
-        
-        if (i->TimeLeft) {
-            nextUpdate = MIN(i->TimeLeft, nextUpdate);
         }
         i = i->Link;
     }
@@ -682,7 +671,7 @@ __HandleObjectRequeue(
             }
         }
         __QueueForScheduler(scheduler, object, 0);
-    } else if (object->TimeLeft != 0) {
+    } else if (__HasDeadlineSet(object)) {
         TRACE("__HandleObjectRequeue sleep 0x%llx (Head 0x%llx, Tail 0x%llx)",
               object->Link, scheduler->SleepQueue.Head, scheduler->SleepQueue.Tail);
         // OK, so we are blocking this object which means we won't be
@@ -718,7 +707,7 @@ SchedulerAdvance(
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
         object->TimeSliceLeft -= nanosecondsPassed;
-        nextDeadline = __UpdateSleepQueue(scheduler, NULL, nanosecondsPassed);
+        nextDeadline = __UpdateSleepQueue(scheduler, NULL);
         *nextDeadlineOut = MIN(object->TimeSliceLeft, nextDeadline);
         TRACE("SchedulerAdvance redeploy next deadline %llu", *nextDeadlineOut);
         return object->Object;
@@ -730,7 +719,7 @@ SchedulerAdvance(
     if (object != NULL) {
         __HandleObjectRequeue(scheduler, object, preemptive);
     }
-    nextDeadline = __UpdateSleepQueue(scheduler, object, nanosecondsPassed);
+    nextDeadline = __UpdateSleepQueue(scheduler, object);
 
     // Get next object
     for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {

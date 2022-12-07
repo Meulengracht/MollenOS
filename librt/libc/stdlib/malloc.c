@@ -502,10 +502,10 @@ static FORCEINLINE void x86_clear_lock(int* sl) {
 /* How to yield for a spin lock */
 #define SPINS_PER_YIELD       63
 #if defined(_MSC_VER)
-#define SLEEP_EX_DURATION     50 /* delay for yield/sleep */
+#define SLEEP_EX_DURATION     50 * NSEC_PER_MSEC /* delay for yield/sleep */
 #ifdef MOLLENOS
 #include <threads.h>
-#define SPIN_LOCK_YIELD  thrd_sleep2(SLEEP_EX_DURATION)
+#define SPIN_LOCK_YIELD  thrd_sleep(&(struct timespec) { .tv_nsec = SLEEP_EX_DURATION }, NULL);
 #else
 #define SPIN_LOCK_YIELD  SleepEx(SLEEP_EX_DURATION, FALSE)
 #endif

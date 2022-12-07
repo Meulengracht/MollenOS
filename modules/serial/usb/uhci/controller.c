@@ -233,7 +233,7 @@ UhciReset(
     WaitForConditionWithFault(Temp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) == 0, 100, 25);
     if (Temp == 1) {
         WARNING("UHCI: Reset signal is still active..");
-        thrd_sleep2(200); // give it another try
+        thrd_sleep(&(struct timespec) { .tv_nsec = 200 * NSEC_PER_MSEC }, NULL); // give it another try
         if (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) {
             ERROR("UHCI::Giving up on controller reset");
             return OS_EUNKNOWN;
@@ -273,7 +273,7 @@ UhciSetup(
 
     // Perform a global reset, we must wait 100 ms for this complete
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND,  UHCI_COMMAND_GRESET);
-    thrd_sleep2(100);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND,  0x0000);
 
     // Initialize queues and controller

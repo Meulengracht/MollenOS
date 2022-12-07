@@ -369,9 +369,6 @@ static int __get_next_deadline(
     timer = sched->timers;
     while (timer) {
         if (timer->active) {
-            SystemDebug(SYSTEM_DEBUG_TRACE, "deadline at %llu:%li, current time %llu:%li",
-                  timer->deadline.tv_sec, timer->deadline.tv_nsec,
-                  currentTime.tv_sec, currentTime.tv_nsec);
             if (__is_before_or_equal(&timer->deadline, &currentTime)) {
                 // timer ready, let it run again
                 currentDiff.tv_sec  = 0;
@@ -381,8 +378,6 @@ static int __get_next_deadline(
             }
 
             clock_t diff = (clock_t)((currentDiff.tv_sec * NSEC_PER_SEC) + (clock_t)currentDiff.tv_nsec);
-            SystemDebug(SYSTEM_DEBUG_TRACE, "deadline in %lli:%li (nsecs %llu)",
-                        currentDiff.tv_sec, currentDiff.tv_nsec, diff);
             if (diff < shortest) {
                 deadline->tv_sec = timer->deadline.tv_sec;
                 deadline->tv_nsec = timer->deadline.tv_nsec;
@@ -523,31 +518,8 @@ void usched_timedwait(const struct timespec* until)
     _CRT_UNUSED(oserr);
 }
 
-void usched_wait(void)
-{
-    struct usched_scheduler* sched = __usched_get_scheduler();
-    struct ioset_event       events[2];
-    int                      numEvents;
-    oserr_t                  oserr;
-    TRACE("usched_wait()");
-
-    // We have two handles in the notification queue, so we can be supplied
-    // with *at most* two events. We can actually in detail detect which type
-    // of event occurred, but we do not care.
-    oserr = OSNotificationQueueWait(
-            sched->notification_queue,
-            &events[0],
-            2,
-            0,
-            NULL,
-            &numEvents,
-            NULL
-    );
-
-    // do not expect any issues from oserr at this point as
-    // we do not supply a timeout, nor do we have an async context
-    // for this.
-    _CRT_UNUSED(oserr);
+void usched_wait(void) {
+    usched_timedwait(NULL);
 }
 
 int __usched_timeout_start(const struct timespec *restrict until, union usched_timer_queue* queue, int queueType)

@@ -19,16 +19,27 @@
 #include <time.h>
 #include "local.h"
 
-void
-timespec_diff(
-    _In_ const struct timespec* start,
-    _In_ const struct timespec* stop,
-    _In_ struct timespec*       result)
-{
-    result->tv_sec  = start->tv_sec  - stop->tv_sec;
-    result->tv_nsec = start->tv_nsec - stop->tv_nsec;
-    while (result->tv_nsec < 0) {
-        --result->tv_sec;
-        result->tv_nsec += NSEC_PER_SEC;
+static inline void __normalize(struct timespec* ts) {
+    while (ts->tv_nsec >= NSEC_PER_SEC) {
+        ts->tv_sec++;
+        ts->tv_nsec -= NSEC_PER_SEC;
     }
+    while (ts->tv_nsec < 0) {
+        ts->tv_sec--;
+        ts->tv_nsec += NSEC_PER_SEC;
+    }
+}
+
+void timespec_sub(const struct timespec* a, const struct timespec* b, struct timespec* result)
+{
+    result->tv_sec  = a->tv_sec  - b->tv_sec;
+    result->tv_nsec = a->tv_nsec - b->tv_nsec;
+    __normalize(result);
+}
+
+void timespec_add(const struct timespec* a, const struct timespec* b, struct timespec* result)
+{
+    result->tv_sec  = a->tv_sec  + b->tv_sec;
+    result->tv_nsec = a->tv_nsec + b->tv_nsec;
+    __normalize(result);
 }

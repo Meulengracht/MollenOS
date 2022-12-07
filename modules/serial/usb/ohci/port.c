@@ -69,7 +69,7 @@ HciPortReset(
     TRACE("HciPortReset()");
     
     // Let power stabilize
-    thrd_sleep2(OhciCtrl->PowerOnDelayMs);
+    thrd_sleep(&(struct timespec) { .tv_nsec = OhciCtrl->PowerOnDelayMs * NSEC_PER_MSEC }, NULL);
 
     // Set reset bit to initialize reset-procedure
     WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_RESET);

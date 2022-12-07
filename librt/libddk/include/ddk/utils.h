@@ -61,20 +61,18 @@
 #endif
 
 /* Threading Utility
- * Waits for a condition to set in a busy-loop using
- * thrd_sleep2 */
+ * Waits for a condition to set in a busy-loop using thrd_sleep */
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
              SystemDebug(SYSTEM_DEBUG_WARNING, message, __VA_ARGS__);\
              break;\
 		}\
-        thrd_sleep2(wait);\
+        thrd_sleep(&(struct timespec) { .tv_nsec = wait * NSEC_PER_MSEC }, NULL);\
 	}
 
 /* Threading Utility
- * Waits for a condition to set in a busy-loop using
- * thrd_sleep2 */
+ * Waits for a condition to set in a busy-loop using thrd_sleep */
 #define WaitForConditionWithFault(fault, condition, runs, wait)\
 	fault = 0; \
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
@@ -82,7 +80,7 @@
 			 (fault) = 1; \
              break;\
 		}\
-        thrd_sleep2(wait);\
+        thrd_sleep(&(struct timespec) { .tv_nsec = wait * NSEC_PER_MSEC }, NULL);\
 	}
 
 _CODE_BEGIN

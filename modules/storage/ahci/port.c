@@ -166,7 +166,7 @@ AhciPortFinishSetup(
         AHCI_PORT_SCTL_DISABLE_PARTIAL_STATE |
         AHCI_PORT_SCTL_DISABLE_SLUMBER_STATE |
         AHCI_PORT_SCTL_RESET);
-    thrd_sleep2(50);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 50 * NSEC_PER_MSEC }, NULL);
 
     // After clearing PxSCTL.DET to 0h, software should wait for 
     // communication to be re-established as indicated by PxSSTS.DET being set to 3h.

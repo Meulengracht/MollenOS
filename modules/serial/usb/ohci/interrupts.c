@@ -113,7 +113,7 @@ ProcessInterrupt:
     // Resume Detection? 
     // We must wait 20 ms before putting Controller to Operational
     if (InterruptStatus & OHCI_RESUMEDETECT_EVENT) {
-        thrd_sleep2(20);
+        thrd_sleep(&(struct timespec) { .tv_nsec = 20 * NSEC_PER_MSEC }, NULL);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
     }
 

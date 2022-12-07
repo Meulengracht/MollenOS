@@ -22,7 +22,7 @@
 #include "local.h"
 
 static enum OSTimeSource
-__get_va_type(
+__OSTimeSource(
         _In_ int base)
 {
     if (base == TIME_THREAD) {
@@ -48,7 +48,7 @@ timespec_get(
         return -1;
     }
 
-    oserr = OSGetTime(__get_va_type(base), &timeValue);
+    oserr = OSGetTime(__OSTimeSource(base), &timeValue);
     if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }

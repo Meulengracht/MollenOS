@@ -234,7 +234,7 @@ static void __EnumeratePorts(
     }
 
     // Wait for the specified power on delay
-    thrd_sleep2(hubDevice->PowerOnDelay);
+    thrd_sleep(&(struct timespec) { .tv_nsec = hubDevice->PowerOnDelay * NSEC_PER_MSEC }, NULL);
 
     // Now we iterate through each port again, get the connection status and
     // then send a notification to the usb service that its ready for enumeration
@@ -409,7 +409,7 @@ static void __EnumerateSinglePort(
     }
 
     // Wait for the specified power on delay
-    thrd_sleep2(hubDevice->PowerOnDelay);
+    thrd_sleep(&(struct timespec) { .tv_nsec = hubDevice->PowerOnDelay * NSEC_PER_MSEC }, NULL);
 
     osStatus = HubGetPortStatus(hubDevice, portIndex, &portStatus);
     if (osStatus != OS_EOK) {

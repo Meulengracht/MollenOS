@@ -99,7 +99,7 @@ CRTDECL(int, usched_job_join(uuid_t jobID, int* exitCode));
 
 CRTDECL(int, usched_job_signal(uuid_t jobID, int signal));
 
-CRTDECL(int, usched_job_sleep(const struct timespec* until, struct timespec* remaining));
+CRTDECL(int, usched_job_sleep(const struct timespec* duration, struct timespec* remaining));
 
 /**
  * @brief

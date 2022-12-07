@@ -64,7 +64,7 @@ HciPortReset(
     // then switch it on, and give it some time to recover
     if (!(Temp & EHCI_PORT_POWER)) {
         EhciPortSetBits(EhciHci, Index, EHCI_PORT_POWER);
-        thrd_sleep2(20);
+        thrd_sleep(&(struct timespec) { .tv_nsec = 20 * NSEC_PER_MSEC }, NULL);
     }
 
     // The USBSTS:HcHalted bit must be zero, hence, the schedule must be running
@@ -82,7 +82,7 @@ HciPortReset(
     WRITE_VOLATILE(EhciHci->OpRegisters->Ports[Index], Temp);
 
     // Wait 200 ms for reset
-    thrd_sleep2(200);
+    thrd_sleep(&(struct timespec) { .tv_nsec = 200 * NSEC_PER_MSEC }, NULL);
     EhciPortClearBits(EhciHci, Index, EHCI_PORT_RESET);
 
     // Wait for deassertion: 

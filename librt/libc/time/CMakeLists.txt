@@ -13,7 +13,7 @@ add_libc_target(libc-time
         time.c
         timespec_get.c
         timespec_getres.c
-        timespec_diff.c
+        timespec_ops.c
         tzcalc_limits.c
         tzlock.c
         tzset.c
