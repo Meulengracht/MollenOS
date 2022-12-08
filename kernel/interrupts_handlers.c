@@ -32,16 +32,6 @@
 #include <interrupts.h>
 #include <machine.h>
 
-#define WaitForConditionWithFault(fault, condition, runs, wait)\
-fault = OS_EOK; \
-for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-    if (timeout_ >= (runs)) {\
-         (fault) = OS_ETIMEOUT; \
-         break;\
-                                            }\
-    SystemTimerStall((wait) * NSEC_PER_MSEC);\
-                    }
-
 static uuid_t         InterruptHandlers[CpuFunctionCount] = {0 };
 static MemoryCache_t* TxuMessageCache                     = NULL;
 static queue_t        TxuReusableBin                      = QUEUE_INIT;
@@ -126,8 +116,14 @@ TxuMessageSend(
     }
     
     if (!Asynchronous) {
-        WaitForConditionWithFault(Status, atomic_load(&Message->Delivered) == 0, 100, 10)
-        if (Status != OS_EOK) {
+        OSTimestamp_t deadline;
+        int           tries = 100;
+        SystemTimerGetWallClockTime(&deadline);
+        do {
+            OSTimestampAddNsec(&deadline, &deadline, 10 * NSEC_PER_MSEC);
+            SystemTimerStall(&deadline);
+        } while(atomic_load(&Message->Delivered) == 0 && (--tries) > 0);
+        if (!tries) {
             ERROR("[txu] [send] timeout executing synchronous handler");
         }
     }

@@ -96,8 +96,9 @@ void
 StartApplicationCore(
     _In_ SystemCpuCore_t* core)
 {
-    uuid_t coreId = CpuCoreId(core);
-    int    timeout;
+    OSTimestamp_t deadline;
+    uuid_t        coreId = CpuCoreId(core);
+    int           timeout;
 
     // Initialize jump space
     if (!g_jumpSpaceInitialized) {
@@ -111,7 +112,10 @@ StartApplicationCore(
         ERROR(" > failed to boot core %" PRIuIN " (ipi failed)", coreId);
         return;
     }
-    SystemTimerStall(10 * NSEC_PER_MSEC);
+
+    SystemTimerGetWallClockTime(&deadline);
+    OSTimestampAddNsec(&deadline, &deadline, 10 * NSEC_PER_MSEC);
+    SystemTimerStall(&deadline);
     // ApicPerformIPI(Core->Id, 0); is needed on older cpus, but not supported on newer.
     // If there is an external DX the AP's will execute code in bios and won't support SIPI
 
@@ -124,8 +128,10 @@ StartApplicationCore(
     // Wait - check if it booted, give it 10ms
     // If it didn't boot then send another SIPI and give up
     timeout = 10;
+    SystemTimerGetWallClockTime(&deadline);
     while (!(CpuCoreState(core) & CpuStateRunning) && timeout) {
-        SystemTimerStall(NSEC_PER_MSEC);
+        OSTimestampAddNsec(&deadline, &deadline, NSEC_PER_MSEC);
+        SystemTimerStall(&deadline);
         timeout--;
     }
     

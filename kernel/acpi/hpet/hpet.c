@@ -305,7 +305,7 @@ __HPETGetCount(
         } while (value->u.HighPart != *(counterRegister + 1));
     } else {
         value->u.HighPart = 0;
-        HPET_READ_32(HPET_REGISTER_MAINCOUNTER, value->u.LowPart);
+        HPET_READ_32(hpet, HPET_REGISTER_MAINCOUNTER, value->u.LowPart);
     }
 #endif
 }

@@ -260,40 +260,12 @@ SystemTimerGetPerformanceTick(
 
 void
 SystemTimerStall(
-        _In_ tick_t ns)
+        _In_ OSTimestamp_t* deadline)
 {
-    SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
-    UInteger64_t   tick;
-    UInteger64_t   tickEnd;
-    uint64_t       vPerTicks;
-
-    assert(clock != NULL);
-
-    // get clock precision metrics
-    clock->Operations.Read(clock->Context, &tick);
-
-    // calculate end tick
-    if (NSEC_PER_SEC >= clock->Frequency.QuadPart) {
-        tickEnd.QuadPart = tick.QuadPart + ns;
-    } else {
-        vPerTicks = NSEC_PER_SEC / clock->Frequency.QuadPart;
-        if (vPerTicks >= NSEC_PER_USEC) { // USEC precision
-            vPerTicks = USEC_PER_SEC / clock->Frequency.QuadPart;
-            if (vPerTicks >= USEC_PER_MSEC) { // MS precision
-                vPerTicks = MSEC_PER_SEC / clock->Frequency.QuadPart;
-                tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_MSEC) / vPerTicks) + 1;
-            } else {
-                tickEnd.QuadPart = tick.QuadPart + ((ns / NSEC_PER_USEC) / vPerTicks) + 1;
-            }
-        } else {
-            tickEnd.QuadPart = tick.QuadPart + (ns / vPerTicks) + 1;
-        }
-    }
-
-    // wait for it
-    while (tick.QuadPart < tickEnd.QuadPart) {
-        clock->Operations.Read(clock->Context, &tick);
-    }
+    OSTimestamp_t currentTime;
+    do {
+        SystemTimerGetWallClockTime(&currentTime);
+    } while (OSTimestampCompare(&currentTime, deadline) == -1);
 }
 
 static void

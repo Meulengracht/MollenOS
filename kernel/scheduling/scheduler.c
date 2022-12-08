@@ -688,7 +688,6 @@ SchedulerAdvance(
 {
     Scheduler_t*       scheduler  = CpuCoreScheduler(CpuCoreCurrent());
     SchedulerObject_t* nextObject = NULL;
-    clock_t            currentClock;
     clock_t            nextDeadline;
     OSTimestamp_t      currentTime;
     int                i;
