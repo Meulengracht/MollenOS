@@ -160,7 +160,7 @@ PeHandleSections(
 {
     PeSectionHeader_t* section        = (PeSectionHeader_t*)sectionsAddress;
     uintptr_t          currentAddress = image->VirtualAddress;
-    oserr_t         osStatus;
+    oserr_t            osStatus;
     MemoryMapHandle_t  mapHandle;
     char               sectionName[PE_SECTION_NAME_LENGTH + 1];
     int                i;
