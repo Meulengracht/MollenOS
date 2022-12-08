@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,57 +13,75 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Advanced Programmable Interrupt Controller Driver
- *  - Ipi and synchronization utility functions
  */
-#define __MODULE "APIC"
-#define __TRACE
 
+#include <assert.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/x86/apic.h>
-#include <assert.h>
 #include <component/timer.h>
-#include <debug.h>
 
-#define WaitForConditionWithFault(fault, condition, runs, wait)\
-fault = 0; \
-for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
-    if (timeout_ >= (runs)) {\
-         (fault) = 1; \
-         break;\
-                                            }\
-    SystemTimerStall(wait * NSEC_PER_MSEC);\
-                    }
+#define WaitForConditionWithFault(fault, condition, runs, wait) \
+    fault = OS_EOK;                                             \
+    OSTimestamp_t deadline;                                     \
+    SystemTimerGetWallClockTime(&deadline);                     \
+    for (unsigned int tries_ = 0; !(condition); tries_++) {     \
+        OSTimestampAddNsec(&deadline, &deadline, wait);         \
+        SystemTimerStall(&deadline);                            \
+        if (tries_ == runs - 1) {                               \
+             fault = OS_ETIMEOUT;                               \
+             break;                                             \
+        }                                                       \
+    }
 
-oserr_t
-ApicWaitForIdle(void)
+static oserr_t
+__WaitForAPICIdle(void)
 {
-    int Error = 0;
-    WaitForConditionWithFault(Error, (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0, 200, 1);
-	return (Error == 0) ? OS_EOK : OS_EUNKNOWN;
+    oserr_t oserr;
+    WaitForConditionWithFault(
+            oserr,
+            (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0,
+            200,
+            NSEC_PER_MSEC
+    );
+	return oserr;
 }
 
-void
+static oserr_t
+__SendIPI(
+        _In_ UInteger64_t* ipi)
+{
+    irqstate_t irqstate;
+    oserr_t    oserr;
+
+    // Are we sending to ourselves? Handle this a bit differently, if the ICR is already
+    // busy we don't want to clear it as we already an ipi pending, just queue up interrupt
+    // TODO I don't see this handled
+    irqstate = InterruptDisable();
+    oserr    = __WaitForAPICIdle();
+    if (oserr == OS_ETIMEOUT) {
+        InterruptRestoreState(irqstate);
+        return oserr;
+    }
+
+    ApicWriteLocal(APIC_ICR_HIGH, ipi->u.HighPart);
+    ApicWriteLocal(APIC_ICR_LOW,  ipi->u.LowPart);
+    oserr = __WaitForAPICIdle();
+    InterruptRestoreState(irqstate);
+    return oserr;
+}
+
+// This function is not needed on AMD and not supported on P4
+// So we need a check here in place to do it @todo
+oserr_t
 ApicSynchronizeArbIds(void)
 {
-    irqstate_t interruptStatus;
-    oserr_t  osStatus;
+    UInteger64_t ipiValue;
 
-	// Not needed on AMD and not supported on P4 
-	// So we need a check here in place to do it @todo
-    interruptStatus = InterruptDisable();
-    osStatus        = ApicWaitForIdle();
-    assert(osStatus != OS_EUNKNOWN);
+    ipiValue.u.HighPart = 0;
+    ipiValue.u.LowPart = APIC_ICR_SH_ALL | APIC_TRIGGER_LEVEL | APIC_DELIVERY_MODE(APIC_MODE_INIT);
 
-	ApicWriteLocal(APIC_ICR_HIGH,   0);
-	ApicWriteLocal(APIC_ICR_LOW,    APIC_ICR_SH_ALL | APIC_TRIGGER_LEVEL | APIC_DELIVERY_MODE(APIC_MODE_INIT));
-
-    osStatus = ApicWaitForIdle();
-    assert(osStatus != OS_EUNKNOWN);
-    InterruptRestoreState(interruptStatus);
+    return __SendIPI(&ipiValue);
 }
 
 oserr_t
@@ -73,47 +90,32 @@ ApicSendInterrupt(
         _In_ uuid_t             specific,
         _In_ uint32_t           vector)
 {
-	uint32_t    IpiLow  = 0;
-	uint32_t    IpiHigh = 0;
-    uuid_t      CoreId  = ArchGetProcessorCoreId();
-    irqstate_t InterruptStatus;
-    oserr_t  Status;
+    UInteger64_t ipiValue;
+    uuid_t       id  = ArchGetProcessorCoreId();
 
-    if (type == InterruptTarget_SPECIFIC && specific == CoreId) {
+    if (type == InterruptTarget_SPECIFIC && specific == id) {
         type = InterruptTarget_SELF;
     }
 
+    ipiValue.QuadPart = 0;
+
     // Handle target types
     if (type == InterruptTarget_SPECIFIC) {
-	    IpiHigh = APIC_DESTINATION(specific);
-    }
-    else if (type == InterruptTarget_SELF) {
-        IpiLow |= (1 << 18);
-    }
-    else if (type == InterruptTarget_ALL) {
-        IpiLow |= (1 << 19);
-    }
-    else {
-        IpiLow |= (1 << 19) | (1 << 18);
+        ipiValue.u.HighPart = APIC_DESTINATION(specific);
+    } else if (type == InterruptTarget_SELF) {
+        ipiValue.u.LowPart |= (1 << 18);
+    } else if (type == InterruptTarget_ALL) {
+        ipiValue.u.LowPart |= (1 << 19);
+    } else {
+        ipiValue.u.LowPart |= (1 << 19) | (1 << 18);
     }
 
 	// Physical Destination (Bit 11 = 0)
 	// Fixed Delivery
 	// Assert (Bit 14 = 1)
     // Edge (Bit 15 = 0)
-	IpiLow |= APIC_VECTOR(vector) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
-
-    // Are we sending to ourself? Handle this a bit differently, if the ICR is already
-    // busy we don't want to clear it as we already a send pending, just queue up interrupt
-    InterruptStatus = InterruptDisable();
-	Status          = ApicWaitForIdle();
-    if (Status == OS_EOK) {
-        ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
-        ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
-        Status = ApicWaitForIdle();
-    }
-    InterruptRestoreState(InterruptStatus);
-    return Status;
+    ipiValue.u.LowPart |= APIC_VECTOR(vector) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
+    return __SendIPI(&ipiValue);
 }
 
 oserr_t
@@ -121,58 +123,36 @@ ApicPerformIPI(
         _In_ uuid_t coreId,
         _In_ int    assert)
 {
-	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
-	uint32_t    IpiLow  = 0;
-    irqstate_t InterruptStatus;
-    oserr_t  Status;
+    UInteger64_t ipiValue;
+
+    ipiValue.u.LowPart = 0;
+    ipiValue.u.HighPart = APIC_DESTINATION(coreId);
 
     // Determine assert or deassert
     if (assert) {
-        IpiLow = APIC_DELIVERY_MODE(APIC_MODE_INIT) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
+        ipiValue.u.LowPart = APIC_DELIVERY_MODE(APIC_MODE_INIT) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
+    } else {
+        ipiValue.u.LowPart = APIC_DELIVERY_MODE(APIC_MODE_INIT) | APIC_TRIGGER_LEVEL | APIC_DESTINATION_PHYSICAL;
     }
-    else {
-        IpiLow = APIC_DELIVERY_MODE(APIC_MODE_INIT) | APIC_TRIGGER_LEVEL | APIC_DESTINATION_PHYSICAL;
-    }
-    
-	// Wait for ICR to clear
-    InterruptStatus = InterruptDisable();
-	Status          = ApicWaitForIdle();
-    if (Status == OS_EOK) {
-        // Always write upper first, irq is sent when low is written
-        ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
-        ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
-        Status = ApicWaitForIdle(); 
-    }
-    InterruptRestoreState(InterruptStatus);
-    return Status;
+    return __SendIPI(&ipiValue);
 }
 
 oserr_t
 ApicPerformSIPI(
         _In_ uuid_t    coreId,
-        _In_ uintptr_t Address)
+        _In_ uintptr_t address)
 {
-	uint32_t    IpiLow  = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
-	uint32_t    IpiHigh = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
-    uint8_t     Vector  = 0;
-    irqstate_t InterruptStatus;
-    oserr_t  Status;
-    
-    // Sanitize address given
-    assert((Address % 0x1000) == 0);
-    Vector = Address / 0x1000;
-    assert(Vector <= 0xF);
-    IpiLow |= Vector;
+    UInteger64_t ipiValue;
+	uint8_t      irqVector;
 
-	// Wait for ICR to clear
-    InterruptStatus = InterruptDisable();
-	Status          = ApicWaitForIdle();
-    if (Status == OS_EOK) {
-        // Always write upper first, irq is sent when low is written
-        ApicWriteLocal(APIC_ICR_HIGH, IpiHigh);
-        ApicWriteLocal(APIC_ICR_LOW,  IpiLow);
-        Status = ApicWaitForIdle();
-    }
-    InterruptRestoreState(InterruptStatus);
-    return Status;
+    ipiValue.u.LowPart = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
+    ipiValue.u.HighPart = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
+
+    // Sanitize address given
+    assert((address % 0x1000) == 0);
+    irqVector = address / 0x1000;
+    assert(irqVector <= 0xF);
+    ipiValue.u.LowPart |= irqVector;
+
+    return __SendIPI(&ipiValue);
 }

@@ -222,13 +222,12 @@ SystemTimerGetPerformanceTick(
         _Out_ UInteger64_t* tick);
 
 /**
- * @brief Stalls the CPU for the a specified amount of time in nanoseconds resolution.
- *
- * @param[In] ns The minimum number of nanoseconds to stall for.
+ * @brief Stalls the CPU until the specified UTC-based deadline has been reached.
+ * @param[In] deadline The UTC-based point in time.
  */
 KERNELAPI void KERNELABI
 SystemTimerStall(
-        _In_ tick_t ns);
+        _In_ OSTimestamp_t* deadline);
 
 /**
  * @brief Synchronizes timer sources. This is vital for correct information when
