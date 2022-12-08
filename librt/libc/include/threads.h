@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,7 +40,6 @@ typedef uuid_t       thrd_t;
 
 _CODE_BEGIN
 
-//#define __OSCONFIG_C11_GREEN_THREADS_DISABLED
 #ifndef __OSCONFIG_C11_GREEN_THREADS_DISABLED
 #include <errno.h>
 #include <os/usched/cond.h>

@@ -24,6 +24,7 @@ add_executable (phoenix
 
         pe/glue.c
         pe/load.c
+        pe/mapper.c
         pe/utilities.c
         pe/verify.c
 
