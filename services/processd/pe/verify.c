@@ -1,5 +1,5 @@
 /**
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,104 +13,106 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * PE/COFF Image Loader
- *    - Implements support for loading and processing pe/coff image formats
- *      and implemented as a part of libds to share between services and kernel
  */
 
-#include <ds/ds.h>
+#define __TRACE
+
+#include <ddk/utils.h>
 #include "pe.h"
 
-uint32_t
-PeCalculateChecksum(
+static uint32_t
+__CalculateChecksum(
     _In_ uint8_t* Data,
     _In_ size_t   DataLength,
     _In_ size_t   PeChkSumOffset)
 {
-    uint32_t* DataPtr  = (uint32_t*)Data;
-    uint64_t  Limit    = 4294967296;
-    uint64_t  CheckSum = 0;
+    uint32_t* ptr  = (uint32_t*)Data;
+    uint64_t  limit    = 4294967296;
+    uint64_t  checkSum = 0;
 
-    for (size_t i = 0; i < (DataLength / 4); i++, DataPtr++) {
-        uint32_t Val = *DataPtr;
+    for (size_t i = 0; i < (DataLength / 4); i++, ptr++) {
+        uint32_t _val = *ptr;
 
         // Skip the checksum index
         if (i == (PeChkSumOffset / 4)) {
             continue;
         }
-        CheckSum = (CheckSum & UINT32_MAX) + Val + (CheckSum >> 32);
-        if (CheckSum > Limit) {
-            CheckSum = (CheckSum & UINT32_MAX) + (CheckSum >> 32);
+        checkSum = (checkSum & UINT32_MAX) + _val + (checkSum >> 32);
+        if (checkSum > limit) {
+            checkSum = (checkSum & UINT32_MAX) + (checkSum >> 32);
         }
     }
 
-    CheckSum = (CheckSum & UINT16_MAX) + (CheckSum >> 16);
-    CheckSum = (CheckSum) + (CheckSum >> 16);
-    CheckSum = CheckSum & UINT16_MAX;
-    CheckSum += (uint32_t)DataLength;
-    return (uint32_t)(CheckSum & UINT32_MAX);
+    checkSum = (checkSum & UINT16_MAX) + (checkSum >> 16);
+    checkSum = (checkSum) + (checkSum >> 16);
+    checkSum = checkSum & UINT16_MAX;
+    checkSum += (uint32_t)DataLength;
+    return (uint32_t)(checkSum & UINT32_MAX);
 }
 
 oserr_t
-PeValidateImageBuffer(
-    _In_ uint8_t* Buffer,
-    _In_ size_t   Length)
+PEValidateImageChecksum(
+        _In_  uint8_t*  buffer,
+        _In_  size_t    length,
+        _Out_ uint32_t* checksumOut)
 {
-    PeOptionalHeader_t* OptHeader;
-    PeHeader_t*         BaseHeader;
-    MzHeader_t*         DosHeader;
-    size_t              HeaderCheckSum     = 0;
-    size_t              CalculatedCheckSum = 0;
-    size_t              CheckSumAddress    = 0;
+    PeOptionalHeader_t* optionalHeader;
+    PeHeader_t*         peHeader;
+    MzHeader_t*         dosHeader;
+    size_t              calculatedCheckSum;
+    size_t              headerCheckSum  = 0;
+    size_t              checkSumAddress = 0;
 
-    if (Buffer == NULL || Length == 0) {
+    if (buffer == NULL || length == 0) {
         return OS_EINVALPARAMS;
     }
-    DosHeader = (MzHeader_t*)Buffer;
+    dosHeader = (MzHeader_t*)buffer;
 
     // Check magic for DOS
-    if (DosHeader->Signature != MZ_MAGIC) {
-        dserror("Invalid MZ Signature 0x%x", DosHeader->Signature);
+    if (dosHeader->Signature != MZ_MAGIC) {
+        ERROR("Invalid MZ Signature 0x%x", dosHeader->Signature);
         return OS_EUNKNOWN;
     }
-    BaseHeader = (PeHeader_t*)(Buffer + DosHeader->PeHeaderAddress);
+    peHeader = (PeHeader_t*)(buffer + dosHeader->PeHeaderAddress);
 
     // Check magic for PE
-    if (BaseHeader->Magic != PE_MAGIC) {
-        dserror("Invalid PE File Magic 0x%x", BaseHeader->Magic);
+    if (peHeader->Magic != PE_MAGIC) {
+        ERROR("Invalid PE File Magic 0x%x", peHeader->Magic);
         return OS_EUNKNOWN;
     }
-    OptHeader = (PeOptionalHeader_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+    optionalHeader = (PeOptionalHeader_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
 
     // Ok, time to validate the contents of the file
     // by performing a checksum of the PE file
     // We need to re-cast based on architecture
-    if (OptHeader->Architecture == PE_ARCHITECTURE_32) {
+    if (optionalHeader->Architecture == PE_ARCHITECTURE_32) {
         PeOptionalHeader32_t *OptHeader32 = 
-            (PeOptionalHeader32_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        CheckSumAddress = (size_t)&(OptHeader32->ImageChecksum);
-        HeaderCheckSum = OptHeader32->ImageChecksum;
+            (PeOptionalHeader32_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+        checkSumAddress = (size_t)&(OptHeader32->ImageChecksum);
+        headerCheckSum = OptHeader32->ImageChecksum;
     }
-    else if (OptHeader->Architecture == PE_ARCHITECTURE_64) {
+    else if (optionalHeader->Architecture == PE_ARCHITECTURE_64) {
         PeOptionalHeader64_t *OptHeader64 = 
-            (PeOptionalHeader64_t*)(Buffer + DosHeader->PeHeaderAddress + sizeof(PeHeader_t));
-        CheckSumAddress = (size_t)&(OptHeader64->ImageChecksum);
-        HeaderCheckSum = OptHeader64->ImageChecksum;
+            (PeOptionalHeader64_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
+        checkSumAddress = (size_t)&(OptHeader64->ImageChecksum);
+        headerCheckSum = OptHeader64->ImageChecksum;
     }
 
-    // Now do the actual checksum calc if the checksum
-    // of the PE header is not 0
-    if (HeaderCheckSum != 0) {
-        dstrace("Checksum validation phase");
-        CalculatedCheckSum = PeCalculateChecksum(
-            Buffer, Length, CheckSumAddress - ((size_t)Buffer));
-        if (CalculatedCheckSum != HeaderCheckSum) {
-            dserror("Invalid checksum of file (Header 0x%x, Calculated 0x%x)", 
-                HeaderCheckSum, CalculatedCheckSum);
-            return OS_EUNKNOWN;
-        }
+    // Do the checksum calculation in any case, the caller might want to know
+    // of it. Like our mapper that uses it for hashtables :-)
+    calculatedCheckSum = __CalculateChecksum(
+            buffer,
+            length,
+            checkSumAddress - ((size_t) buffer)
+    );
+    *checksumOut = calculatedCheckSum;
+
+    // However we only do image validation if the header actually provides
+    // us a checksum, otherwise what would the point be.
+    if (headerCheckSum != 0 && calculatedCheckSum != headerCheckSum) {
+        ERROR("Invalid checksum of file (Header 0x%x, Calculated 0x%x)",
+                headerCheckSum, calculatedCheckSum);
+        return OS_EUNKNOWN;
     }
     return OS_EOK;
 }

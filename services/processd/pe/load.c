@@ -846,7 +846,7 @@ __ResolveImagePath(
     }
     
     // Load the file
-    osStatus = PeImplLoadFile(fullPath, (void**)&buffer, &length);
+    osStatus = PELoadImage(fullPath, (void**)&buffer, &length);
     if (osStatus != OS_EOK) {
         ERROR("Failed to load file for path %ms (%u)", fullPath, osStatus);
         mstr_delete(fullPath);
@@ -855,7 +855,7 @@ __ResolveImagePath(
 
     *bufferOut   = buffer;
     *fullPathOut = fullPath;
-    return PeValidateImageBuffer(buffer, length);
+    return PEValidateImageChecksum(buffer, length);
 }
 
 oserr_t

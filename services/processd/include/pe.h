@@ -80,7 +80,7 @@ __EXTERN uintptr_t  PeImplGetPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
 __EXTERN oserr_t PeImplResolveFilePath(uuid_t, mstring_t*, mstring_t*, mstring_t**);
-__EXTERN oserr_t PeImplLoadFile(mstring_t*, void**, size_t*);
+__EXTERN oserr_t PELoadImage(mstring_t*, void**, size_t*);
 __EXTERN void       PeImplUnloadFile(void*);
 __EXTERN oserr_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
 __EXTERN oserr_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
@@ -94,14 +94,16 @@ __EXTERN void       PeImplReleaseImageMapping(MemoryMapHandle_t mapHandle);
  * @brief Validates a file-buffer of the given length, does initial header checks and
  * performs a checksum validation.
  *
- * @param Buffer
- * @param Length
+ * @param buffer
+ * @param length
+ * @param checksumOut
  * @return
  */
 extern oserr_t
-PeValidateImageBuffer(
-    _In_ uint8_t* Buffer,
-    _In_ size_t   Length);
+PEValidateImageChecksum(
+        _In_  uint8_t*  buffer,
+        _In_  size_t    length,
+        _Out_ uint32_t* checksumOut);
 
 /**
  * @brief Loads the given file-buffer as a pe image into the current address space
