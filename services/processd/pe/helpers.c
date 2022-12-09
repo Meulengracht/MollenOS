@@ -195,7 +195,7 @@ PeImplResolveFilePath(
 }
 
 oserr_t
-PeImplLoadFile(
+PELoadImage(
         _In_  mstring_t* fullPath,
         _Out_ void**     bufferOut,
         _Out_ size_t*    lengthOut)
