@@ -35,19 +35,9 @@
 #include <string.h>
 #include <time.h>
 
-typedef struct MemoryMappingState {
-    MemorySpaceHandle_t Handle;
-    uintptr_t           Address;
-    size_t              Length;
-    unsigned int        Flags;
-} MemoryMappingState_t;
-
 static SystemDescriptor_t g_systemInformation = { 0 };
 static uintptr_t          g_systemBaseAddress = 0;
 
-/*******************************************************************************
- * Support Methods (PE)
- *******************************************************************************/
 static inline oserr_t
 __TestFilePath(
         _In_ mstring_t* path)
@@ -253,14 +243,6 @@ exit:
     return osStatus;
 }
 
-void
-PeImplUnloadFile(
-        _In_ void* buffer)
-{
-    // When we implement caching we will check if it should stay cached
-    free(buffer);
-}
-
 uintptr_t
 PeImplGetPageSize(void)
 {
@@ -291,62 +273,13 @@ PeImplGetTimestampMs(void)
 
 oserr_t
 PeImplCreateImageSpace(
-        _Out_ MemorySpaceHandle_t* handleOut)
+        _Out_ uuid_t* handleOut)
 {
-    uuid_t     memorySpaceHandle = UUID_INVALID;
+    uuid_t  memorySpaceHandle = UUID_INVALID;
     oserr_t osStatus          = CreateMemorySpace(0, &memorySpaceHandle);
     if (osStatus != OS_EOK) {
         return osStatus;
     }
-    *handleOut = (MemorySpaceHandle_t)(uintptr_t)memorySpaceHandle;
+    *handleOut = memorySpaceHandle;
     return OS_EOK;
-}
-
-// Acquires (and creates) a memory mapping in the given memory space handle. The mapping is directly
-// accessible in kernel mode, and in usermode a transfer-buffer is transparently provided as proxy.
-oserr_t
-PeImplAcquireImageMapping(
-        _In_    MemorySpaceHandle_t memorySpaceHandle,
-        _InOut_ uintptr_t*          address,
-        _In_    size_t              length,
-        _In_    unsigned int        flags,
-        _In_    MemoryMapHandle_t*  handleOut)
-{
-    MemoryMappingState_t* stateObject = (MemoryMappingState_t*)malloc(sizeof(MemoryMappingState_t));
-    oserr_t            osStatus;
-
-    if (!stateObject) {
-        return OS_EOOM;
-    }
-
-    stateObject->Handle  = memorySpaceHandle;
-    stateObject->Address = *address;
-    stateObject->Length  = length;
-    stateObject->Flags   = flags;
-    *handleOut = (MemoryMapHandle_t)stateObject;
-
-    // When creating these mappings we must always
-    // map in with write flags, and then clear the 'write' flag on release if it was requested
-    struct MemoryMappingParameters Parameters;
-    Parameters.VirtualAddress = *address;
-    Parameters.Length         = length;
-    Parameters.Flags          = flags;
-
-    osStatus = CreateMemoryMapping((uuid_t)(uintptr_t)memorySpaceHandle, &Parameters, (void**)&stateObject->Address);
-    *address = stateObject->Address;
-    if (osStatus != OS_EOK) {
-        free(stateObject);
-    }
-    return osStatus;
-}
-
-// Releases the access previously granted to the mapping, however this is not something
-// that is neccessary in kernel mode, so this function does nothing
-void
-PeImplReleaseImageMapping(
-        _In_ MemoryMapHandle_t mapHandle)
-{
-    MemoryMappingState_t* StateObject = (MemoryMappingState_t*)mapHandle;
-    MemoryFree((void*)StateObject->Address, StateObject->Length);
-    free(StateObject);
 }

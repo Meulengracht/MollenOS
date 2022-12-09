@@ -24,22 +24,24 @@
 
 struct ExportedFunction {
     const char* Name;
-    const char* ForwardName; // Library.Function
+    // ForwardName gives the DLL name and the name of the export
+    // (for example, "MYDLL.expfunc") or the DLL name and the
+    // ordinal number of the export (for example, "MYDLL.#27").
+    const char* ForwardName;
     int         Ordinal;
     uintptr_t   RVA;
 };
 
 struct SectionMapping {
-    uintptr_t MappedAddress;
-    uint8_t*  LocalAddress;
-    uintptr_t RVA;
-    size_t    Length;
+    uuid_t       Handle;
+    unsigned int Flags;
+    uintptr_t    MappedAddress;
+    uint8_t*     LocalAddress;
+    uintptr_t    RVA;
+    size_t       Length;
 };
 
 struct MapperModule {
-    // Sections is sctions defined in the Module.
-    list_t Sections;
-
     // ExportedFunctions is a hashtable with the following
     // structure: <ordinal, struct ExportedFunction>. It contains
     // all the functions exported by the module.

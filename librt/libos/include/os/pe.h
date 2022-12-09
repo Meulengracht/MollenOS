@@ -312,17 +312,34 @@ PACKED_TYPESTRUCT(PePdbInformation, {
 });
 
 PACKED_TYPESTRUCT(PeExportDirectory, {
-    uint32_t            Flags;
-    uint32_t            TimeStamp;
-    uint16_t            VersionMajor;
-    uint16_t            VersionMinor;
-    uint32_t            DllName;
-    uint32_t            OrdinalBase;
-    uint32_t            NumberOfFunctions;
-    uint32_t            NumberOfNames;
-    uint32_t            AddressOfFunctions;
-    uint32_t            AddressOfNames;
-    uint32_t            AddressOfOrdinals;
+    // Flags is reserved, must be 0.
+    uint32_t Flags;
+    // TimeStamp is the time and date that the export data was created.
+    uint32_t TimeStamp;
+    // VersionMajor/VersionMinor is the major and minor version number.
+    // The major and minor version numbers can be set by the user.
+    uint16_t VersionMajor;
+    uint16_t VersionMinor;
+    // DllName is the address of the ASCII string that contains the name of the DLL.
+    // This address is relative to the image base. It is possible for one DLL to export
+    // functions from another DLL.
+    uint32_t DllName;
+    // OrdinalBase is the starting ordinal number for exports in this image.
+    // This field specifies the starting ordinal number for the export address table.
+    // It is usually set to 1.
+    uint32_t OrdinalBase;
+    // NumberOfFunctions is the number of entries in the export address table.
+    uint32_t NumberOfFunctions;
+    // NumberOfNames is the number of entries in the name pointer table.
+    // This is also the number of entries in the ordinal table.
+    uint32_t NumberOfNames;
+    // AddressOfFunctions is the address of the export address table, relative to the image base.
+    uint32_t AddressOfFunctions;
+    // AddressOfNames is the address of the export name pointer table, relative to the image base.
+    // The table size is given by the NumberOfNames field.
+    uint32_t AddressOfNames;
+    // AddressOfOrdinals is the address of the ordinal table, relative to the image base.
+    uint32_t AddressOfOrdinals;
 });
 
 PACKED_TYPESTRUCT(PeImportDirectory, {
