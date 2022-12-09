@@ -30,9 +30,6 @@
 #include <os/pe.h>
 #include <time.h>
 
-typedef void* MemorySpaceHandle_t;
-typedef void* MemoryMapHandle_t;
-
 #if defined(i386) || defined(__i386__)
 #define PE_CURRENT_MACHINE                  PE_MACHINE_X32
 #define PE_CURRENT_ARCH                     PE_ARCHITECTURE_32
@@ -55,7 +52,7 @@ typedef struct PeExecutable {
     mstring_t*            Name;
     mstring_t*            FullPath;
     atomic_int            References;
-    MemorySpaceHandle_t   MemorySpace;
+    uuid_t                MemorySpace;
     element_t             Header;
 
     uint32_t              Architecture;
@@ -76,15 +73,19 @@ typedef struct PeExecutable {
 /*******************************************************************************
  * Support Methods 
  *******************************************************************************/
+struct MemoryMappingState {
+    uuid_t       Handle;
+    uintptr_t    Address;
+    size_t       Length;
+    unsigned int Flags;
+};
+
 __EXTERN uintptr_t  PeImplGetPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
 __EXTERN oserr_t PeImplResolveFilePath(uuid_t, mstring_t*, mstring_t*, mstring_t**);
 __EXTERN oserr_t PELoadImage(mstring_t*, void**, size_t*);
-__EXTERN void       PeImplUnloadFile(void*);
-__EXTERN oserr_t PeImplCreateImageSpace(MemorySpaceHandle_t* handleOut);
-__EXTERN oserr_t PeImplAcquireImageMapping(MemorySpaceHandle_t memorySpaceHandle, uintptr_t* address, size_t length, unsigned int flags, MemoryMapHandle_t* handleOut);
-__EXTERN void       PeImplReleaseImageMapping(MemoryMapHandle_t mapHandle);
+__EXTERN oserr_t PeImplCreateImageSpace(uuid_t* handleOut);
 
 /*******************************************************************************
  * Public API 

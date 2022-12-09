@@ -19,8 +19,8 @@
 #define __need_minmax
 #include <assert.h>
 #include <ds/hashtable.h>
-#include <ds/list.h>
 #include <ds/mstring.h>
+#include <ddk/memory.h>
 #include <ddk/utils.h>
 #include <os/usched/mutex.h>
 #include <os/memory.h>
@@ -33,7 +33,7 @@ struct Section {
     char        Name[PE_SECTION_NAME_LENGTH + 1];
     bool        Zero;
     const void* FileData;
-    uintptr_t   RVA;
+    uint32_t    RVA;
     size_t      FileLength;
     size_t      MappedLength;
     uint32_t    MapFlags;
@@ -49,6 +49,8 @@ struct Module {
 
     uintptr_t ImageBase;
     size_t    MetaDataSize;
+
+    PeDataDirectory_t DataDirectories[PE_NUM_DIRECTORIES];
 
     // ExportedFunctions is a hashtable with the following
     // structure: <ordinal, struct ExportedFunction>. It contains
@@ -78,6 +80,8 @@ static uint64_t __module_hash(const void* element);
 static int      __module_cmp(const void* element1, const void* element2);
 static uint64_t __path_hash(const void* element);
 static int      __path_cmp(const void* element1, const void* element2);
+static uint64_t __expfn_hash(const void* element);
+static int      __expfn_cmp(const void* element1, const void* element2);
 
 static struct MappingManager g_mapper = { 0 };
 
@@ -192,13 +196,40 @@ __ModuleNew(
         _In_ void*  moduleBuffer,
         _In_ size_t bufferSize)
 {
+    struct Module* module;
+    int            status;
 
+    module = malloc(sizeof(struct Module));
+    if (module == NULL) {
+        return NULL;
+    }
+    memset(module, 0, sizeof(struct Module));
+
+    module->ImageBuffer = moduleBuffer;
+    module->ImageBufferSize = bufferSize;
+    usched_mtx_init(&module->Mutex, USCHED_MUTEX_PLAIN);
+    status = hashtable_construct(
+            &module->ExportedFunctions, 0, sizeof(struct ExportedFunction),
+            __expfn_hash, __expfn_cmp);
+    if (status) {
+        free(module);
+        return NULL;
+    }
+    return module;
 }
 
 static void
 __ModuleDelete(
         _In_ struct Module* module)
 {
+    if (module == NULL) {
+        return;
+    }
+
+    // No further cleanup is needed for exported functions, as no allocations
+    // are made for the structs themselves.
+    hashtable_destroy(&module->ExportedFunctions);
+    free(module->Sections);
     free(module->ImageBuffer);
     free(module);
 }
@@ -257,7 +288,11 @@ __CopyDirectories(
         _In_ struct Module*     module,
         _In_ PeDataDirectory_t* directories)
 {
-
+    memcpy(
+            &module->DataDirectories[0],
+            directories,
+            sizeof(PeDataDirectory_t) * PE_NUM_DIRECTORIES
+    );
 }
 
 static void
@@ -377,11 +412,75 @@ __ParseModuleSections(
     return OS_EOK;
 }
 
+static void*
+__ConvertRVAToDataPointer(
+        _In_ struct Module* module,
+        _In_ uint32_t       rva)
+{
+    for (int i = 0; i < module->SectionCount; i++) {
+        if (rva >= module->Sections[i].RVA && rva < (module->Sections[i].RVA + module->Sections[i].MappedLength)) {
+            return (void*)((uint8_t*)module->Sections[i].FileData + (rva - module->Sections[i].RVA));
+        }
+    }
+    return NULL;
+}
+
 static oserr_t
 __ParseModuleExportedFunctions(
         _In_ struct Module* module)
 {
+    PeDataDirectory_t*   directory;
+    PeExportDirectory_t* exportDirectory;
+    uint32_t*            nameTable;
+    uint16_t*            ordinalTable;
+    uint32_t*            addressTable;
 
+    directory = &module->DataDirectories[PE_SECTION_EXPORT];
+    if (directory->AddressRVA == 0 || directory->Size == 0) {
+        // No exports
+        return OS_EOK;
+    }
+
+    // Get the file data which the RVA points to
+    exportDirectory = __ConvertRVAToDataPointer(
+            module,
+            module->DataDirectories[PE_SECTION_EXPORT].AddressRVA);
+    if (exportDirectory == NULL) {
+        ERROR("__ParseModuleExportedFunctions export directory was invalid");
+        return OS_EUNKNOWN;
+    }
+
+    // Ordinals and names can exceed the number of exported function addresses. This is because
+    // modules can export symbols from other modules, which may then exceed the number of actual
+    // functions exported local to the module.
+    nameTable = __ConvertRVAToDataPointer(module, exportDirectory->AddressOfNames);
+    ordinalTable = __ConvertRVAToDataPointer(module, exportDirectory->AddressOfOrdinals);
+    addressTable = __ConvertRVAToDataPointer(module, exportDirectory->AddressOfFunctions);
+    for (int i = 0; i < exportDirectory->NumberOfNames; i++) {
+        const char* name        = __ConvertRVAToDataPointer(module, nameTable[i]);
+        uint32_t    ordinal     = (uint32_t)ordinalTable[i] - exportDirectory->OrdinalBase;
+        uint32_t    fnRVA       = addressTable[ordinal];
+        const char* forwardName = NULL;
+
+        // The function RVA (fnRVA) is a field that uses one of two formats in the following table.
+        // If the address specified is not within the export section (as defined by the address and
+        // length that are indicated in the optional header), the field is an export RVA, which
+        // is an actual address in code or data. Otherwise, the field is a forwarder RVA, which
+        // names a symbol in another DLL.
+        if (fnRVA >= directory->AddressRVA && fnRVA < (directory->AddressRVA + directory->Size)) {
+            // The field is a forwarder RVA, which names a symbol in another DLL.
+            forwardName = __ConvertRVAToDataPointer(module, fnRVA);
+            fnRVA = 0; // fnRVA is invalid
+        }
+
+        hashtable_set(&module->ExportedFunctions, &(struct ExportedFunction) {
+            .Name = name,
+            .ForwardName = forwardName,
+            .Ordinal = (int)ordinalTable[i],
+            .RVA = fnRVA
+        });
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -407,11 +506,41 @@ __ParseModule(
         return oserr;
     }
 
-    // more?
-
-    // mark module parsed
     module->Parsed = true;
     return OS_EOK;
+}
+
+static oserr_t
+__CreateMapping(
+        _In_ uuid_t                 memorySpaceHandle,
+        _In_ struct SectionMapping* mapping)
+{
+    struct MemoryMappingParameters Parameters;
+    Parameters.VirtualAddress = mapping->MappedAddress;
+    Parameters.Length         = mapping->Length;
+    Parameters.Flags          = mapping->Flags;
+    return CreateMemoryMapping(
+            memorySpaceHandle,
+            &Parameters,
+            (void**)&mapping->LocalAddress
+    );
+}
+
+static void
+__DestroyMapping(
+        _In_ struct SectionMapping* mapping)
+{
+    MemoryFree((void*)mapping->LocalAddress, mapping->Length);
+}
+
+
+static oserr_t
+__MapMetaData(
+        _In_    struct Module* module,
+        _In_    uuid_t         memorySpace,
+        _InOut_ uintptr_t*     loadAddress)
+{
+    oserr_t oserr;
 }
 
 static oserr_t
@@ -470,14 +599,32 @@ __MapModule(
         }
     }
     usched_mtx_unlock(&module->Mutex);
-    return __MapSections(module, memorySpace, loadAddress, mappingsOut);
+
+    oserr = __MapMetaData(module, memorySpace, loadAddress);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = __MapSections(module, memorySpace, loadAddress, mappingsOut);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return OS_EOK;
 }
 
 static struct MapperModule*
 __MapperModuleNew(
         _In_ struct Module* module)
 {
+    struct MapperModule* mapperModule;
 
+    mapperModule = malloc(sizeof(struct MapperModule));
+    if (mapperModule == NULL) {
+        return NULL;
+    }
+
+    mapperModule->ExportedFunctions = &module->ExportedFunctions;
+    return mapperModule;
 }
 
 oserr_t
@@ -543,21 +690,39 @@ MapperUnloadModule(
 
 static uint64_t __module_hash(const void* element)
 {
-
+    const struct __ModuleEntry* moduleEntry = element;
+    return moduleEntry->Hash;
 }
 
 static int __module_cmp(const void* element1, const void* element2)
 {
-
+    const struct __ModuleEntry* moduleEntry1 = element1;
+    const struct __ModuleEntry* moduleEntry2 = element2;
+    return moduleEntry1->Hash == moduleEntry2->Hash ? 0 : -1;
 }
 
 static uint64_t __path_hash(const void* element)
 {
-
+    const struct __PathEntry* pathEntry = element;
+    return mstr_hash(pathEntry->Path);
 }
 
 static int __path_cmp(const void* element1, const void* element2)
 {
-
+    const struct __PathEntry* pathEntry1 = element1;
+    const struct __PathEntry* pathEntry2 = element2;
+    return mstr_hash(pathEntry1->Path) == mstr_hash(pathEntry2->Path) ? 0 : -1;
 }
 
+static uint64_t __expfn_hash(const void* element)
+{
+    const struct ExportedFunction* function = element;
+    return (uint64_t)function->Ordinal;
+}
+
+static int __expfn_cmp(const void* element1, const void* element2)
+{
+    const struct ExportedFunction* function1 = element1;
+    const struct ExportedFunction* function2 = element2;
+    return function1->Ordinal == function2->Ordinal ? 0 : -1;
+}
