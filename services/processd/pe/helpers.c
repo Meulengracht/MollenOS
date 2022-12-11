@@ -244,7 +244,7 @@ exit:
 }
 
 uintptr_t
-PeImplGetPageSize(void)
+PECurrentPageSize(void)
 {
     if (g_systemInformation.PageSizeBytes == 0) {
         SystemQuery(&g_systemInformation);

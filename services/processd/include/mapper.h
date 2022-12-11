@@ -33,7 +33,6 @@ struct ExportedFunction {
 };
 
 struct SectionMapping {
-    uuid_t       Handle;
     unsigned int Flags;
     uintptr_t    MappedAddress;
     uint8_t*     LocalAddress;
@@ -41,7 +40,9 @@ struct SectionMapping {
     size_t       Length;
 };
 
-struct MapperModule {
+struct ModuleMapping {
+    struct SectionMapping* Mappings;
+
     // ExportedFunctions is a hashtable with the following
     // structure: <ordinal, struct ExportedFunction>. It contains
     // all the functions exported by the module.

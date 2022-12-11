@@ -260,7 +260,7 @@ __LoadModule(
     __AddModuleHash(path, *hashOut);
     // TODO: this has one huge weakness, and that is two scopes share paths
     // but in reality use different versions of programs. I think it's vital
-    // that we are aware of the scope the caller is loading in. In reality
+    // that we are aware of the scope the caller is loading in. In reality,
     // we need to know this *anyway* as the caller may load a path that doesn't exist
     // in our root scope.
 
@@ -526,13 +526,24 @@ __CreateMapping(
     );
 }
 
-static void
+static inline void
 __DestroyMapping(
         _In_ struct SectionMapping* mapping)
 {
     MemoryFree((void*)mapping->LocalAddress, mapping->Length);
 }
 
+static uintptr_t
+__AllocateLoadSpace(
+        _InOut_ uintptr_t* loadAddress,
+        _In_    size_t     size)
+{
+    size_t    pageSize  = PECurrentPageSize();
+    size_t    pageCount = DIVUP(size, pageSize);
+    uintptr_t address   = *loadAddress;
+    *loadAddress += pageCount * pageSize;
+    return address;
+}
 
 static oserr_t
 __MapMetaData(
@@ -540,7 +551,22 @@ __MapMetaData(
         _In_    uuid_t         memorySpace,
         _InOut_ uintptr_t*     loadAddress)
 {
-    oserr_t oserr;
+    struct SectionMapping metaData;
+    oserr_t               oserr;
+    TRACE("__MapMetaData()");
+
+    metaData.MappedAddress = __AllocateLoadSpace(loadAddress, module->MetaDataSize);
+    metaData.Length = module->MetaDataSize;
+    metaData.Flags = MEMORY_READ | MEMORY_WRITE;
+    oserr = __CreateMapping(memorySpace, &metaData);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Now we have mapping into the memory space, let's copy the metadata
+    memcpy(metaData.LocalAddress, module->ImageBuffer, module->MetaDataSize);
+    __DestroyMapping(&metaData);
+    return OS_EOK;
 }
 
 static oserr_t
@@ -550,7 +576,36 @@ __MapSection(
         _InOut_ uintptr_t*             loadAddress,
         _In_    struct SectionMapping* mapping)
 {
+    size_t  sectionLength;
+    oserr_t oserr;
+    TRACE("__MapSection(%s)", &section->Name[0]);
 
+    sectionLength = MAX(section->FileLength, section->MappedLength);
+
+    // Initialize the section mapping
+    mapping->RVA    = section->RVA;
+    mapping->Length = sectionLength;
+    mapping->Flags  = section->MapFlags;
+    mapping->MappedAddress = __AllocateLoadSpace(loadAddress, sectionLength);
+    oserr = __CreateMapping(memorySpace, mapping);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Copy the section in, there are different kinds of sections here we need
+    // to handle.
+    if (section->Zero) {
+        memset(mapping->LocalAddress, 0, sectionLength);
+    } else {
+        uint8_t* pointer = mapping->LocalAddress;
+        memcpy(pointer, section->FileData, section->FileLength);
+        // In some cases, we will need to zero extend
+        if (section->MappedLength > section->FileLength) {
+            pointer += section->FileLength;
+            memset(pointer, 0, section->MappedLength - section->FileLength);
+        }
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -612,13 +667,140 @@ __MapModule(
     return OS_EOK;
 }
 
-static struct MapperModule*
+static void*
+__GetMappedSectionFromRVA(
+        _In_ struct SectionMapping* mappings,
+        _In_ int                    mappingCount,
+        _In_ uint32_t               rva)
+{
+    for (int i = 0; i < mappingCount; i++) {
+        if (rva >= mappings->RVA && rva < (mappings->RVA + mappings->Length)) {
+            return (mappings->LocalAddress + (rva - mappings->RVA));
+        }
+    }
+    return NULL;
+}
+
+static oserr_t
+__ProcessBaseRelocationTableEntry(
+        _In_ uintptr_t imageDelta,
+        _In_ uint8_t*  sectionData,
+        _In_ uint16_t  entry)
+{
+    uint16_t type  = (entry >> 12);
+    uint16_t value = entry & 0x0FFF;
+
+    if (type == PE_RELOCATION_HIGHLOW || type == PE_RELOCATION_RELATIVE64) {
+        uintptr_t* fixupAddress = (uintptr_t*)(sectionData + value);
+        uintptr_t  fixupValue = *fixupAddress + imageDelta;
+        *fixupAddress = fixupValue;
+    } else if (type != PE_RELOCATION_ALIGN) {
+        ERROR("__ProcessBaseRelocationTableEntry implement support for reloc type: %u", type);
+        return OS_ENOTSUPPORTED;
+    }
+    return OS_EOK;
+}
+
+struct __RelocationTable {
+    uint32_t RVA;
+    uint32_t TableLength;
+    uint16_t Entries[];
+};
+
+static oserr_t
+__ProcessBaseRelocationTable(
+        _In_ struct Module*            module,
+        _In_ struct SectionMapping*    mappings,
+        _In_ uintptr_t                 imageDelta,
+        _In_ struct __RelocationTable* relocationTable)
+{
+    uint32_t numberOfEntries;
+    uint8_t* sectionData;
+    TRACE("__ProcessBaseRelocationTable()");
+    if (relocationTable->RVA == 0 || relocationTable->TableLength == 0) {
+        ERROR("__ProcessBaseRelocationTable invalid relocation table with zero length/rva");
+        return OS_EUNKNOWN;
+    }
+
+    // When doing the base relocations, we must use the mappings created for this
+    // instance of the module. Unfortunately we must do this for each time.
+    numberOfEntries = (relocationTable->TableLength - 8) / sizeof(uint16_t);
+    sectionData     = __GetMappedSectionFromRVA(mappings, module->SectionCount, relocationTable->RVA);
+    if (numberOfEntries == 0) {
+        ERROR("__ProcessBaseRelocationTable invalid relocation table with zero entries");
+        return OS_EUNKNOWN;
+    }
+
+    for (uint32_t i = 0; i < numberOfEntries; i++) {
+        oserr_t oserr = __ProcessBaseRelocationTableEntry(
+                imageDelta,
+                sectionData,
+                relocationTable->Entries[i]
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__ProcessBaseRelocations(
+        _In_ struct Module*         module,
+        _In_ struct SectionMapping* mappings,
+        _In_ uintptr_t              imageDelta)
+{
+    uint32_t rva  = module->DataDirectories[PE_SECTION_BASE_RELOCATION].AddressRVA;
+    uint32_t size = module->DataDirectories[PE_SECTION_BASE_RELOCATION].Size;
+    uint8_t* data;
+    TRACE("__ProcessBaseRelocations(rva=0x%x, size=0x%x)", rva, size);
+
+    if (rva == 0 || size == 0) {
+        // no relocations present
+        return OS_EOK;
+    }
+
+    data = __ConvertRVAToDataPointer(module, rva);
+    while (size) {
+        struct __RelocationTable* table = (struct __RelocationTable*)data;
+        oserr_t                   oserr;
+
+        oserr = __ProcessBaseRelocationTable(module, mappings, imageDelta, table);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        data += table->TableLength;
+        size -= table->TableLength;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__ProcessModule(
+        _In_ struct Module*         module,
+        _In_ struct SectionMapping* mappings,
+        _In_ uintptr_t              imageDelta)
+{
+    oserr_t oserr;
+    TRACE("__ProcessModule()");
+
+    // Run relocations, we can do this as it's independant of other
+    // modules.
+    oserr = __ProcessBaseRelocations(module, mappings, imageDelta);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    return OS_EOK;
+}
+
+static struct ModuleMapping*
 __MapperModuleNew(
         _In_ struct Module* module)
 {
-    struct MapperModule* mapperModule;
+    struct ModuleMapping* mapperModule;
 
-    mapperModule = malloc(sizeof(struct MapperModule));
+    mapperModule = malloc(sizeof(struct ModuleMapping));
     if (mapperModule == NULL) {
         return NULL;
     }
@@ -629,19 +811,19 @@ __MapperModuleNew(
 
 oserr_t
 MapperLoadModule(
-        _In_    mstring_t*              path,
-        _In_    uuid_t                  memorySpace,
-        _InOut_ uintptr_t*              loadAddress,
-        _Out_   uint32_t*               moduleKeyOut,
-        _Out_   struct MapperModule**   moduleOut,
-        _Out_   struct SectionMapping** mappingsOut)
+        _In_    mstring_t*             path,
+        _In_    uuid_t                 memorySpace,
+        _InOut_ uintptr_t*             loadAddress,
+        _Out_   struct ModuleMapping** moduleMappingOut)
 {
-    uint32_t       moduleHash;
-    struct Module* module;
-    oserr_t        oserr;
+    struct SectionMapping* mappings;
+    struct Module*         module;
+    uint32_t               moduleHash;
+    oserr_t                oserr;
+    uintptr_t              imageDelta;
     TRACE("MapperLoadModule(path=%ms)", path);
 
-    if (path == NULL || loadAddress == NULL || moduleKeyOut == NULL) {
+    if (path == NULL || loadAddress == NULL) {
         return OS_EINVALPARAMS;
     }
 
@@ -663,29 +845,32 @@ MapperLoadModule(
         return oserr;
     }
 
-    // Store the module hash so the loader can reduce the reference
-    // count again later
-    *moduleOut = __MapperModuleNew(module);
-    *moduleKeyOut = moduleHash;
+    // Calculate the image delta for processings
+    imageDelta = (*loadAddress - module->ImageBase);
 
     // Map the module into the memory space provided
-    return __MapModule(module, memorySpace, loadAddress, mappingsOut);
+    oserr = __MapModule(module, memorySpace, loadAddress, &mappings);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Run fixup's on the new mappings
+    oserr = __ProcessModule(module, mappings, imageDelta);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Store the module hash so the loader can reduce the reference
+    // count again later
+    *moduleMappingOut = __MapperModuleNew(module);
+    return OS_EOK;
 }
 
 oserr_t
 MapperUnloadModule(
-        _In_ uint32_t moduleKey)
+        _In_ struct ModuleMapping* moduleMapping)
 {
-    struct __ModuleEntry* entry;
-    oserr_t               oserr = OS_ENOENT;
-    usched_mtx_lock(&g_mapper.ModulesMutex);
-    entry = hashtable_get(&g_mapper.Modules, &(struct __ModuleEntry) { .Hash = moduleKey });
-    if (entry) {
-        entry->References--;
-        oserr = OS_EOK;
-    }
-    usched_mtx_unlock(&g_mapper.ModulesMutex);
-    return oserr;
+    return OS_EOK;
 }
 
 static uint64_t __module_hash(const void* element)

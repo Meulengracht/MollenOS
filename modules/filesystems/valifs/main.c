@@ -260,12 +260,15 @@ FsClose(
     switch (handle->Type) {
         case VALIFS_HANDLE_TYPE_FILE:
             vafs_file_close(handle->Value.File);
+            free(handle);
             return OS_EOK;
         case VALIFS_HANDLE_TYPE_DIR:
             vafs_directory_close(handle->Value.Directory);
+            free(handle);
             return OS_EOK;
         case VALIFS_HANDLE_TYPE_SYMLINK:
             vafs_symlink_close(handle->Value.Symlink);
+            free(handle);
             return OS_EOK;
     }
     return OS_ENOTSUPPORTED;
