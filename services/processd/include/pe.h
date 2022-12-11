@@ -73,14 +73,7 @@ typedef struct PeExecutable {
 /*******************************************************************************
  * Support Methods 
  *******************************************************************************/
-struct MemoryMappingState {
-    uuid_t       Handle;
-    uintptr_t    Address;
-    size_t       Length;
-    unsigned int Flags;
-};
-
-__EXTERN uintptr_t  PeImplGetPageSize(void);
+__EXTERN uintptr_t  PECurrentPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
 __EXTERN oserr_t PeImplResolveFilePath(uuid_t, mstring_t*, mstring_t*, mstring_t**);

@@ -242,8 +242,8 @@ PeHandleSections(
 
     // Return a page-aligned address that points to the
     // next free relocation address
-    if (currentAddress % PeImplGetPageSize()) {
-        currentAddress += (PeImplGetPageSize() - (currentAddress % PeImplGetPageSize()));
+    if (currentAddress % PECurrentPageSize()) {
+        currentAddress += (PECurrentPageSize() - (currentAddress % PECurrentPageSize()));
     }
 
     if (parent != NULL) parent->NextLoadingAddress = currentAddress;
