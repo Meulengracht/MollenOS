@@ -26,6 +26,7 @@ add_executable (phoenix
         pe/load.c
         pe/loader.c
         pe/mapper.c
+        pe/resolver.c
         pe/utilities.c
         pe/verify.c
 

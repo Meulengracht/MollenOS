@@ -30,5 +30,21 @@ PEImageLoad(
         _In_  mstring_t*       path,
         _Out_ struct PEImage** imageOut)
 {
+    mstring_t* parentImagePath = NULL;
+    mstring_t* resolvedPath;
+    oserr_t    oserr;
 
+    if (parent) {
+        parentImagePath = parent->FullPath;
+    }
+
+    oserr = PeImplResolveFilePath(
+            owner,
+            parentImagePath,
+            path,
+            &resolvedPath
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 }
