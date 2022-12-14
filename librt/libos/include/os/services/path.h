@@ -22,6 +22,18 @@
 #include <os/types/path.h>
 
 _CODE_BEGIN
+
+/**
+ * @brief
+ * @param path1
+ * @param path2
+ * @return
+ */
+CRTDECL(char*,
+OSPathJoin(
+        _In_ const char* path1,
+        _In_ const char* path2));
+
 /**
  * @brief Resolves the full path of the relative/incomplete path provided.
  *
@@ -33,7 +45,7 @@ _CODE_BEGIN
  *         OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetFullPath(
+OSGetFullPath(
         _In_ const char* path,
         _In_ int         followLinks,
         _In_ char*       buffer,
@@ -49,7 +61,7 @@ GetFullPath(
  *         OsPathIsNotDirectory If the path is not a directory
  */
 CRTDECL(oserr_t,
-ChangeWorkingDirectory(
+OSChangeWorkingDirectory(
         _In_ const char *path));
 
 /**
@@ -60,7 +72,7 @@ ChangeWorkingDirectory(
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetWorkingDirectory(
+OSGetWorkingDirectory(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -71,7 +83,7 @@ GetWorkingDirectory(
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetAssemblyDirectory(
+OSGetAssemblyDirectory(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -82,7 +94,7 @@ GetAssemblyDirectory(
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetUserDirectory(
+OSGetUserDirectory(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -93,7 +105,7 @@ GetUserDirectory(
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetUserCacheDirectory(
+OSGetUserCacheDirectory(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -104,7 +116,7 @@ GetUserCacheDirectory(
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetApplicationDirectory(
+OSGetApplicationDirectory(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -115,7 +127,7 @@ GetApplicationDirectory(
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
-GetApplicationTemporaryDirectory(
+OSGetApplicationTemporaryDirectory(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 

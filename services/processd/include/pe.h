@@ -77,7 +77,7 @@ __EXTERN uintptr_t  PECurrentPageSize(void);
 __EXTERN uintptr_t  PeImplGetBaseAddress(void);
 __EXTERN clock_t    PeImplGetTimestampMs(void);
 __EXTERN oserr_t PeImplResolveFilePath(uuid_t, mstring_t*, mstring_t*, mstring_t**);
-__EXTERN oserr_t PELoadImage(mstring_t*, void**, size_t*);
+__EXTERN oserr_t __LoadFile(mstring_t *fullPath, void **bufferOut, size_t *lengthOut);
 __EXTERN oserr_t PeImplCreateImageSpace(uuid_t* handleOut);
 
 /*******************************************************************************
@@ -167,5 +167,15 @@ PeGetModuleEntryPoints(
     _In_  PeExecutable_t* executable,
     _Out_ Handle_t*       moduleList,
     _Out_ int*            moduleCount);
+
+struct PEImageLoadContext;
+struct PEImage;
+
+extern oserr_t
+PEImageLoad(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  struct PEImage*            parent,
+        _In_  mstring_t*                 path,
+        _Out_ struct PEImage**           imageOut);
 
 #endif //!__PE_IMAGE_LOADER__

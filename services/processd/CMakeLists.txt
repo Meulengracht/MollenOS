@@ -22,6 +22,7 @@ add_executable (phoenix
 
         bootstrap/discover.c
 
+        pe/cache.c
         pe/helpers.c
         pe/load.c
         pe/loader.c

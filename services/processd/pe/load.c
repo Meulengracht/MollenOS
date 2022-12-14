@@ -846,7 +846,7 @@ __ResolveImagePath(
     }
     
     // Load the file
-    osStatus = PELoadImage(fullPath, (void**)&buffer, &length);
+    osStatus = __LoadFile(fullPath, (void **) &buffer, &length);
     if (osStatus != OS_EOK) {
         ERROR("Failed to load file for path %ms (%u)", fullPath, osStatus);
         mstr_delete(fullPath);

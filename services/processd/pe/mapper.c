@@ -18,181 +18,21 @@
 #define __TRACE
 #define __need_minmax
 #include <assert.h>
-#include <ds/hashtable.h>
 #include <ds/mstring.h>
 #include <ddk/memory.h>
 #include <ddk/utils.h>
-#include <os/usched/mutex.h>
 #include <os/memory.h>
 #include <string.h>
 #include <stdlib.h>
 #include "pe.h"
 #include "mapper.h"
+#include "private.h"
 
-struct Section {
-    char        Name[PE_SECTION_NAME_LENGTH + 1];
-    bool        Zero;
-    const void* FileData;
-    uint32_t    RVA;
-    size_t      FileLength;
-    size_t      MappedLength;
-    uint32_t    MapFlags;
-};
-
-struct Module {
-    bool              Parsed;
-    void*             ImageBuffer;
-    size_t            ImageBufferSize;
-    struct usched_mtx Mutex;
-    struct Section*   Sections;
-    int               SectionCount;
-
-    uintptr_t ImageBase;
-    size_t    MetaDataSize;
-
-    PeDataDirectory_t DataDirectories[PE_NUM_DIRECTORIES];
-
-    // ExportedFunctions is a hashtable with the following
-    // structure: <ordinal, struct ExportedFunction>. It contains
-    // all the functions exported by the module.
-    hashtable_t ExportedFunctions;
-};
-
-struct __PathEntry {
-    mstring_t* Path;
-    uint32_t   ModuleHash;
-};
-
-struct __ModuleEntry {
-    uint32_t       Hash;
-    int            References;
-    struct Module* Module;
-};
-
-struct MappingManager {
-    hashtable_t       Paths;    // hashtable<string, hash>
-    struct usched_mtx PathsMutex;
-    hashtable_t       Modules;  // hashtable<hash, module>
-    struct usched_mtx ModulesMutex;
-};
-
-static uint64_t __module_hash(const void* element);
-static int      __module_cmp(const void* element1, const void* element2);
-static uint64_t __path_hash(const void* element);
-static int      __path_cmp(const void* element1, const void* element2);
 static uint64_t __expfn_hash(const void* element);
 static int      __expfn_cmp(const void* element1, const void* element2);
 
-static struct MappingManager g_mapper = { 0 };
-
-oserr_t
-MapperInitialize(void)
-{
-    int status;
-
-    usched_mtx_init(&g_mapper.ModulesMutex, USCHED_MUTEX_PLAIN);
-    usched_mtx_init(&g_mapper.PathsMutex, USCHED_MUTEX_PLAIN);
-
-    status = hashtable_construct(
-            &g_mapper.Modules, 0, sizeof(struct __ModuleEntry),
-            __module_hash, __module_cmp);
-    if (status) {
-        return OS_EOOM;
-    }
-
-    status = hashtable_construct(
-            &g_mapper.Paths, 0, sizeof(struct __PathEntry),
-            __path_hash, __path_cmp);
-    if (status) {
-        return OS_EOOM;
-    }
-    return OS_EOK;
-}
-
-void
-MapperDestroy(void)
-{
-    hashtable_destroy(&g_mapper.Modules);
-    hashtable_destroy(&g_mapper.Paths);
-}
-
-static oserr_t
-__GetModuleHash(
-        _In_  mstring_t* path,
-        _Out_ uint32_t*  hashOut)
-{
-    struct __PathEntry* entry;
-    oserr_t             oserr = OS_ENOENT;
-    usched_mtx_lock(&g_mapper.PathsMutex);
-    entry = hashtable_get(&g_mapper.Paths, &(struct __PathEntry) { .Path = path });
-    if (entry) {
-        *hashOut = entry->ModuleHash;
-        oserr = OS_EOK;
-    }
-    usched_mtx_unlock(&g_mapper.PathsMutex);
-    return oserr;
-}
-
-static void
-__AddModuleHash(
-        _In_ mstring_t* path,
-        _In_ uint32_t   hash)
-{
-    usched_mtx_lock(&g_mapper.PathsMutex);
-    hashtable_set(
-            &g_mapper.Paths,
-            &(struct __PathEntry) {
-                .Path = path, .ModuleHash = hash
-            }
-    );
-    usched_mtx_unlock(&g_mapper.PathsMutex);
-}
-
-static oserr_t
-__GetModule(
-        _In_  uint32_t        hash,
-        _Out_ struct Module** moduleOut)
-{
-    struct __ModuleEntry* entry;
-    oserr_t               oserr = OS_ENOENT;
-    usched_mtx_lock(&g_mapper.ModulesMutex);
-    entry = hashtable_get(&g_mapper.Modules, &(struct __ModuleEntry) { .Hash = hash });
-    if (entry) {
-        entry->References++;
-        *moduleOut = entry->Module;
-        oserr = OS_EOK;
-    }
-    usched_mtx_unlock(&g_mapper.ModulesMutex);
-    return oserr;
-}
-
-static oserr_t
-__AddModule(
-        _In_ struct Module* module,
-        _In_ uint32_t       moduleHash)
-{
-    struct __ModuleEntry  entry;
-    struct __ModuleEntry* existingEntry;
-    oserr_t               oserr;
-
-    entry.Hash = moduleHash;
-    entry.References = 0;
-    entry.Module = module;
-
-    usched_mtx_lock(&g_mapper.ModulesMutex);
-    existingEntry = hashtable_get(&g_mapper.Modules, &(struct __ModuleEntry) { .Hash = moduleHash });
-    if (existingEntry) {
-        oserr = OS_EEXISTS;
-    } else {
-        hashtable_set(&g_mapper.Paths, &entry);
-        oserr = OS_EOK;
-    }
-    usched_mtx_unlock(&g_mapper.ModulesMutex);
-    return oserr;
-}
-
-static struct Module*
-__ModuleNew(
+struct Module*
+ModuleNew(
         _In_ void*  moduleBuffer,
         _In_ size_t bufferSize)
 {
@@ -218,8 +58,8 @@ __ModuleNew(
     return module;
 }
 
-static void
-__ModuleDelete(
+void
+ModuleDelete(
         _In_ struct Module* module)
 {
     if (module == NULL) {
@@ -232,55 +72,6 @@ __ModuleDelete(
     free(module->Sections);
     free(module->ImageBuffer);
     free(module);
-}
-
-static oserr_t
-__LoadModule(
-        _In_  mstring_t* path,
-        _Out_ uint32_t*  hashOut)
-{
-    void*          moduleBuffer;
-    struct Module* module;
-    size_t         bufferSize;
-    oserr_t        oserr;
-
-    oserr = PELoadImage(path, (void**)&moduleBuffer, &bufferSize);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = PEValidateImageChecksum(moduleBuffer, bufferSize, hashOut);
-    if (oserr != OS_EOK) {
-        free(moduleBuffer);
-        return oserr;
-    }
-
-    // Insert the hash with the path, now that it's calculated we atleast
-    // do not need to do this again in the future for this absolute path.
-    __AddModuleHash(path, *hashOut);
-    // TODO: this has one huge weakness, and that is two scopes share paths
-    // but in reality use different versions of programs. I think it's vital
-    // that we are aware of the scope the caller is loading in. In reality,
-    // we need to know this *anyway* as the caller may load a path that doesn't exist
-    // in our root scope.
-
-    // Pre-create the module instance, so we can try to insert it immediately,
-    // and then modify it after insertion. This is to avoid too much pre-init
-    // if the module already exists.
-    module = __ModuleNew(moduleBuffer, bufferSize);
-    if (module == NULL) {
-        return OS_EOOM;
-    }
-
-    oserr = __AddModule(module, *hashOut);
-    if (oserr == OS_EEXISTS) {
-        // Module was already loaded, but we are loading under a new path.
-        // This is now registered, so we can actually just abort here and return
-        // OK as it should find it now with the hash.
-        __ModuleDelete(moduleBuffer);
-        return OS_EOK;
-    }
-    return oserr;
 }
 
 static void
@@ -538,6 +329,7 @@ __AllocateLoadSpace(
         _InOut_ uintptr_t* loadAddress,
         _In_    size_t     size)
 {
+    // TODO: this should use SectionAlignment not page size
     size_t    pageSize  = PECurrentPageSize();
     size_t    pageCount = DIVUP(size, pageSize);
     uintptr_t address   = *loadAddress;
@@ -667,20 +459,6 @@ __MapModule(
     return OS_EOK;
 }
 
-static void*
-__GetMappedSectionFromRVA(
-        _In_ struct SectionMapping* mappings,
-        _In_ int                    mappingCount,
-        _In_ uint32_t               rva)
-{
-    for (int i = 0; i < mappingCount; i++) {
-        if (rva >= mappings->RVA && rva < (mappings->RVA + mappings->Length)) {
-            return (mappings->LocalAddress + (rva - mappings->RVA));
-        }
-    }
-    return NULL;
-}
-
 static oserr_t
 __ProcessBaseRelocationTableEntry(
         _In_ uintptr_t imageDelta,
@@ -725,7 +503,7 @@ __ProcessBaseRelocationTable(
     // When doing the base relocations, we must use the mappings created for this
     // instance of the module. Unfortunately we must do this for each time.
     numberOfEntries = (relocationTable->TableLength - 8) / sizeof(uint16_t);
-    sectionData     = __GetMappedSectionFromRVA(mappings, module->SectionCount, relocationTable->RVA);
+    sectionData     = SectionMappingFromRVA(mappings, module->SectionCount, relocationTable->RVA);
     if (numberOfEntries == 0) {
         ERROR("__ProcessBaseRelocationTable invalid relocation table with zero entries");
         return OS_EUNKNOWN;
@@ -811,10 +589,9 @@ __MapperModuleNew(
 
 oserr_t
 MapperLoadModule(
-        _In_    mstring_t*             path,
-        _In_    uuid_t                 memorySpace,
-        _InOut_ uintptr_t*             loadAddress,
-        _Out_   struct ModuleMapping** moduleMappingOut)
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  mstring_t*                 path,
+        _Out_ struct ModuleMapping**     moduleMappingOut)
 {
     struct SectionMapping* mappings;
     struct Module*         module;
@@ -823,33 +600,25 @@ MapperLoadModule(
     uintptr_t              imageDelta;
     TRACE("MapperLoadModule(path=%ms)", path);
 
-    if (path == NULL || loadAddress == NULL) {
+    if (path == NULL || loadContext == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    oserr = __GetModuleHash(path, &moduleHash);
+    oserr = PECacheGet(path, &module);
     if (oserr != OS_EOK) {
-        TRACE("MapperLoadModule module path entry was not stored, loading...");
-        // path was not found, instantiate a load of the library
-        oserr = __LoadModule(path, &moduleHash);
-        if (oserr != OS_EOK) {
-            ERROR("MapperLoadModule failed to load module: %u", oserr);
-            return oserr;
-        }
-    }
-
-    oserr = __GetModule(moduleHash, &module);
-    if (oserr != OS_EOK) {
-        // should not happen at this point
-        ERROR("MapperLoadModule failed to find module hash (0x%x): %u", moduleHash, oserr);
         return oserr;
     }
 
     // Calculate the image delta for processings
-    imageDelta = (*loadAddress - module->ImageBase);
+    imageDelta = (loadContext->LoadAddress - module->ImageBase);
 
     // Map the module into the memory space provided
-    oserr = __MapModule(module, memorySpace, loadAddress, &mappings);
+    oserr = __MapModule(
+            module,
+            loadContext->MemorySpace,
+            &loadContext->LoadAddress,
+            &mappings
+    );
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -871,32 +640,6 @@ MapperUnloadModule(
         _In_ struct ModuleMapping* moduleMapping)
 {
     return OS_EOK;
-}
-
-static uint64_t __module_hash(const void* element)
-{
-    const struct __ModuleEntry* moduleEntry = element;
-    return moduleEntry->Hash;
-}
-
-static int __module_cmp(const void* element1, const void* element2)
-{
-    const struct __ModuleEntry* moduleEntry1 = element1;
-    const struct __ModuleEntry* moduleEntry2 = element2;
-    return moduleEntry1->Hash == moduleEntry2->Hash ? 0 : -1;
-}
-
-static uint64_t __path_hash(const void* element)
-{
-    const struct __PathEntry* pathEntry = element;
-    return mstr_hash(pathEntry->Path);
-}
-
-static int __path_cmp(const void* element1, const void* element2)
-{
-    const struct __PathEntry* pathEntry1 = element1;
-    const struct __PathEntry* pathEntry2 = element2;
-    return mstr_hash(pathEntry1->Path) == mstr_hash(pathEntry2->Path) ? 0 : -1;
 }
 
 static uint64_t __expfn_hash(const void* element)
