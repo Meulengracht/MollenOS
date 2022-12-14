@@ -33,7 +33,8 @@
 
 #include <sys_file_service_client.h>
 
-char* PathJoin(
+char*
+OSPathJoin(
         _In_ const char* path1,
         _In_ const char* path2)
 {
@@ -96,7 +97,7 @@ PathIsAbsolute(
 }
 
 oserr_t
-GetFullPath(
+OSGetFullPath(
         _In_ const char* path,
         _In_ int         followLinks,
         _In_ char*       buffer,
@@ -113,10 +114,10 @@ GetFullPath(
         OsFileDescriptor_t descriptor;
         char*              fullPath = NULL;
 
-        // Test current working directory, we are a bit out of line here but we reuse
+        // Test current working directory, we are a bit out of line here, but we reuse
         // the provided buffer :-)
-        GetWorkingDirectory(&buffer[0], maxLength);
-        fullPath = PathJoin(&buffer[0], path);
+        OSGetWorkingDirectory(&buffer[0], maxLength);
+        fullPath = OSPathJoin(&buffer[0], path);
         if (GetFileInformationFromPath(fullPath, 0, &descriptor) != OS_EOK) {
             free(fullPath);
             fullPath = NULL;
@@ -126,7 +127,7 @@ GetFullPath(
         if (fullPath == NULL) {
             char* token = getenv("PATH");
             for (char* i = strtok( token, ";"); i; i = strtok(NULL, ";")) {
-                char* combined = PathJoin(i, path);
+                char* combined = OSPathJoin(i, path);
                 if (GetFileInformationFromPath(combined, 0, &descriptor) == OS_EOK) {
                     fullPath = combined;
                     break;
@@ -153,7 +154,7 @@ GetFullPath(
 }
 
 oserr_t
-GetWorkingDirectory(
+OSGetWorkingDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
@@ -164,7 +165,7 @@ GetWorkingDirectory(
 }
 
 oserr_t
-ChangeWorkingDirectory(
+OSChangeWorkingDirectory(
     _In_ const char* path)
 {
 	char        canonBuffer[_MAXPATH];
@@ -182,7 +183,7 @@ ChangeWorkingDirectory(
         memcpy(&canonBuffer[0], path, strnlen(path, _MAXPATH - 1));
     } else {
         TRACE("ChangeWorkingDirectory relative path detected");
-        oserr = GetWorkingDirectory(&canonBuffer[0], _MAXPATH);
+        oserr = OSGetWorkingDirectory(&canonBuffer[0], _MAXPATH);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -204,7 +205,7 @@ ChangeWorkingDirectory(
 }
 
 oserr_t
-GetAssemblyDirectory(
+OSGetAssemblyDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
@@ -215,7 +216,7 @@ GetAssemblyDirectory(
 }
 
 oserr_t
-GetUserDirectory(
+OS1GetUserDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
@@ -233,7 +234,7 @@ GetUserDirectory(
 }
 
 oserr_t
-GetUserCacheDirectory(
+OSGetUserCacheDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
@@ -252,7 +253,7 @@ GetUserCacheDirectory(
 }
 
 oserr_t
-GetApplicationDirectory(
+OSGetApplicationDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
@@ -270,7 +271,7 @@ GetApplicationDirectory(
 }
 
 oserr_t
-GetApplicationTemporaryDirectory(
+OSGetApplicationTemporaryDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {

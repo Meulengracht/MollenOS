@@ -21,6 +21,7 @@
 #include <os/osdefs.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
+#include <pe.h>
 
 struct ExportedFunction {
     const char* Name;
@@ -42,11 +43,25 @@ struct SectionMapping {
 
 struct ModuleMapping {
     struct SectionMapping* Mappings;
+    int                    MappingCount;
 
-    // ExportedFunctions is a hashtable with the following
-    // structure: <ordinal, struct ExportedFunction>. It contains
-    // all the functions exported by the module.
-    hashtable_t* ExportedFunctions;
+    // DataDirectories is the data directory list
+    // of the loaded module.
+    PeDataDirectory_t* DataDirectories;
 };
+
+static void*
+SectionMappingFromRVA(
+        _In_ struct SectionMapping* mappings,
+        _In_ int                    mappingCount,
+        _In_ uint32_t               rva)
+{
+    for (int i = 0; i < mappingCount; i++) {
+        if (rva >= mappings->RVA && rva < (mappings->RVA + mappings->Length)) {
+            return (mappings->LocalAddress + (rva - mappings->RVA));
+        }
+    }
+    return NULL;
+}
 
 #endif //!__PE_MAPPER_H__
