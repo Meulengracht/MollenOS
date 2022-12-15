@@ -28,8 +28,12 @@
 #include "mapper.h"
 #include "private.h"
 
-static uint64_t __expfn_hash(const void* element);
-static int      __expfn_cmp(const void* element1, const void* element2);
+// Reuse the ordinal_cmp for name as well, the hashtable only calls cmp
+// once hashes match, and if hashes match on function names, we just do
+// an ordinal compare.
+static uint64_t __expfn_ordinal_hash(const void* element);
+static int      __expfn_ordinal_cmp(const void* element1, const void* element2);
+static uint64_t __expfn_name_hash(const void* element);
 
 struct Module*
 ModuleNew(
@@ -49,9 +53,17 @@ ModuleNew(
     module->ImageBufferSize = bufferSize;
     usched_mtx_init(&module->Mutex, USCHED_MUTEX_PLAIN);
     status = hashtable_construct(
-            &module->ExportedFunctions, 0, sizeof(struct ExportedFunction),
-            __expfn_hash, __expfn_cmp);
+            &module->ExportedOrdinals, 0, sizeof(struct ExportedFunction),
+            __expfn_ordinal_hash, __expfn_ordinal_cmp);
     if (status) {
+        free(module);
+        return NULL;
+    }
+    status = hashtable_construct(
+            &module->ExportedNames, 0, sizeof(struct ExportedFunction),
+            __expfn_name_hash, __expfn_ordinal_cmp);
+    if (status) {
+        hashtable_destroy(&module->ExportedOrdinals);
         free(module);
         return NULL;
     }
@@ -68,7 +80,8 @@ ModuleDelete(
 
     // No further cleanup is needed for exported functions, as no allocations
     // are made for the structs themselves.
-    hashtable_destroy(&module->ExportedFunctions);
+    hashtable_destroy(&module->ExportedOrdinals);
+    hashtable_destroy(&module->ExportedNames);
     free(module->Sections);
     free(module->ImageBuffer);
     free(module);
@@ -264,11 +277,17 @@ __ParseModuleExportedFunctions(
             fnRVA = 0; // fnRVA is invalid
         }
 
-        hashtable_set(&module->ExportedFunctions, &(struct ExportedFunction) {
-            .Name = name,
-            .ForwardName = forwardName,
-            .Ordinal = (int)ordinalTable[i],
-            .RVA = fnRVA
+        hashtable_set(&module->ExportedOrdinals, &(struct ExportedFunction) {
+                .Name = name,
+                .ForwardName = forwardName,
+                .Ordinal = (int)ordinalTable[i],
+                .RVA = fnRVA
+        });
+        hashtable_set(&module->ExportedNames, &(struct ExportedFunction) {
+                .Name = name,
+                .ForwardName = forwardName,
+                .Ordinal = (int)ordinalTable[i],
+                .RVA = fnRVA
         });
     }
     return OS_EOK;
@@ -582,8 +601,6 @@ __MapperModuleNew(
     if (mapperModule == NULL) {
         return NULL;
     }
-
-    mapperModule->ExportedFunctions = &module->ExportedFunctions;
     return mapperModule;
 }
 
@@ -642,15 +659,34 @@ MapperUnloadModule(
     return OS_EOK;
 }
 
-static uint64_t __expfn_hash(const void* element)
+static uint64_t __expfn_ordinal_hash(const void* element)
 {
     const struct ExportedFunction* function = element;
     return (uint64_t)function->Ordinal;
 }
 
-static int __expfn_cmp(const void* element1, const void* element2)
+static int __expfn_ordinal_cmp(const void* element1, const void* element2)
 {
     const struct ExportedFunction* function1 = element1;
     const struct ExportedFunction* function2 = element2;
     return function1->Ordinal == function2->Ordinal ? 0 : -1;
+}
+
+uint32_t __hash(const char* string)
+{
+    uint32_t hash = 5381;
+    size_t   i    = 0;
+    if (string == NULL) {
+        return 0;
+    }
+    while (string[i]) {
+        hash = ((hash << 5) + hash) + string[i]; /* hash * 33 + c */
+    }
+    return hash;
+}
+
+static uint64_t __expfn_name_hash(const void* element)
+{
+    const struct ExportedFunction* function = element;
+    return __hash(function->Name);
 }

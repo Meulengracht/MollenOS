@@ -359,7 +359,7 @@ PACKED_TYPESTRUCT(PeImportDirectory, {
 PACKED_TYPESTRUCT(PeImportDescriptor, {
     union {
         uint32_t Attributes;
-        // ImportLookupTable is the RVA of the ILT
+        // ImportLookupTable is the RVA of the ILT.
         uint32_t ImportLookupTable;
     } Variable;
     // TimeStamp is initially set to 0 if not bound and set to -1 if bound.
@@ -371,13 +371,17 @@ PACKED_TYPESTRUCT(PeImportDescriptor, {
     uint32_t TimeStamp;
     // ForwarderChainId is the index of the first forwarder chain reference.
     // This is something responsible for DLL forwarding. (DLL forwarding is when
-    // a DLL forwards some of its exported functions to another DLL.)
+    // a DLL forwards some of its exported functions to another DLL.) This has the
+    // value of -1 if there are no forwarder chains. Originally used for old-style
+    // binding.
     uint32_t ForwarderChainId;
     // ModuleName is an RVA of an ASCII string that contains the name of the imported DLL.
     uint32_t ModuleName;
     // ImportAddressTable is the RVA of the IAT. On disk, the IAT is identical to the ILT,
     // however during bounding when the binary is being loaded into memory, the entries
     // of the IAT get overwritten with the addresses of the functions that are being imported.
+    // If this is bound, then this IAT contains a table of fixed address. The IAT is a duplicate
+    // of the ILT.
     uint32_t ImportAddressTable;
 });
 

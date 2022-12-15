@@ -45,6 +45,10 @@ struct ModuleMapping {
     struct SectionMapping* Mappings;
     int                    MappingCount;
 
+    // ModuleArchitecture is the architecture that the module
+    // was compiled for.
+    uint32_t ModuleArchitecture;
+
     // DataDirectories is the data directory list
     // of the loaded module.
     PeDataDirectory_t* DataDirectories;
