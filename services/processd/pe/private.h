@@ -30,6 +30,7 @@ struct ModuleMapping;
 struct ModuleMapEntry {
     mstring_t*     Name;
     struct Module* Module;
+    uintptr_t      BaseMapping;
 };
 
 struct PEImageLoadContext {
@@ -70,7 +71,12 @@ struct Module {
     // ExportedFunctions is a hashtable with the following
     // structure: <ordinal, struct ExportedFunction>. It contains
     // all the functions exported by the module.
-    hashtable_t ExportedFunctions;
+    hashtable_t ExportedOrdinals;
+
+    // ExportedNames is a hashtable with the following
+    // structure: <string, struct ExportedFunction>. It contains
+    // all the functions exported by the module, keyed with name.
+    hashtable_t ExportedNames;
 };
 
 /**
