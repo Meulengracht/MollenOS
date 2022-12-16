@@ -25,7 +25,38 @@
 #include <pe.h>
 
 struct Module;
-struct ModuleMapping;
+
+struct ExportedFunction {
+    const char* Name;
+    // ForwardName gives the DLL name and the name of the export
+    // (for example, "MYDLL.expfunc") or the DLL name and the
+    // ordinal number of the export (for example, "MYDLL.#27").
+    const char* ForwardName;
+    int         Ordinal;
+    uintptr_t   RVA;
+};
+
+struct SectionMapping {
+    unsigned int Flags;
+    uintptr_t    MappedAddress;
+    uint8_t*     LocalAddress;
+    uintptr_t    RVA;
+    size_t       Length;
+};
+
+struct ModuleMapping {
+    uintptr_t              MappingBase;
+    struct SectionMapping* Mappings;
+    int                    MappingCount;
+
+    // ModuleArchitecture is the architecture that the module
+    // was compiled for.
+    uint32_t ModuleArchitecture;
+
+    // DataDirectories is the data directory list
+    // of the loaded module.
+    PeDataDirectory_t* DataDirectories;
+};
 
 struct ModuleMapEntry {
     mstring_t*     Name;
@@ -45,58 +76,19 @@ struct PEImageLoadContext {
     hashtable_t ModuleMap;
 };
 
-struct Section {
-    char        Name[PE_SECTION_NAME_LENGTH + 1];
-    bool        Zero;
-    const void* FileData;
-    uint32_t    RVA;
-    size_t      FileLength;
-    size_t      MappedLength;
-    uint32_t    MapFlags;
-};
-
-struct Module {
-    bool              Parsed;
-    void*             ImageBuffer;
-    size_t            ImageBufferSize;
-    struct usched_mtx Mutex;
-    struct Section*   Sections;
-    int               SectionCount;
-
-    uintptr_t ImageBase;
-    size_t    MetaDataSize;
-
-    PeDataDirectory_t DataDirectories[PE_NUM_DIRECTORIES];
-
-    // ExportedFunctions is a hashtable with the following
-    // structure: <ordinal, struct ExportedFunction>. It contains
-    // all the functions exported by the module.
-    hashtable_t ExportedOrdinals;
-
-    // ExportedNames is a hashtable with the following
-    // structure: <string, struct ExportedFunction>. It contains
-    // all the functions exported by the module, keyed with name.
-    hashtable_t ExportedNames;
-};
-
-/**
- * @brief
- * @param moduleBuffer
- * @param bufferSize
- * @return
- */
-struct Module*
-ModuleNew(
-        _In_ void*  moduleBuffer,
-        _In_ size_t bufferSize);
-
-/**
- * @brief
- * @param module
- */
-void
-ModuleDelete(
-        _In_ struct Module* module);
+static void*
+SectionMappingFromRVA(
+        _In_ struct SectionMapping* mappings,
+        _In_ int                    mappingCount,
+        _In_ uint32_t               rva)
+{
+    for (int i = 0; i < mappingCount; i++) {
+        if (rva >= mappings->RVA && rva < (mappings->RVA + mappings->Length)) {
+            return (mappings->LocalAddress + (rva - mappings->RVA));
+        }
+    }
+    return NULL;
+}
 
 /**
  * @brief
@@ -122,6 +114,15 @@ PEResolvePath(
         _In_  struct PEImageLoadContext* loadContext,
         _In_  mstring_t*                 path,
         _Out_ mstring_t**                fullPathOut);
+
+/**
+ * @brief
+ * @param module
+ * @return
+ */
+oserr_t
+PEParseModule(
+        _In_ struct Module* module);
 
 /**
  * @brief

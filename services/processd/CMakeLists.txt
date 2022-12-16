@@ -27,6 +27,8 @@ add_executable (phoenix
         pe/imports.c
         pe/loader.c
         pe/mapper.c
+        pe/module.c
+        pe/parse.c
         pe/resolver.c
         pe/rtrelocs.c
         pe/utilities.c

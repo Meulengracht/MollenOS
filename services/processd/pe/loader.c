@@ -19,7 +19,6 @@
 #include <ddk/utils.h>
 #include "private.h"
 #include "pe.h"
-#include "mapper.h"
 
 static oserr_t
 __PostProcessImage(

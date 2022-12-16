@@ -19,7 +19,7 @@
 #include <ddk/utils.h>
 #include "private.h"
 #include "pe.h"
-#include "mapper.h"
+#include <module.h>
 #include <string.h>
 
 static oserr_t
