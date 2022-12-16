@@ -47,7 +47,6 @@ __ParsePE32Headers(
     module->ImageBase        = header->BaseAddress;
     module->MetaDataSize     = header->SizeOfHeaders;
     module->SectionAlignment = header->SectionAlignment;
-    module->Architecture     = header->Base.Architecture;
     __CopyDirectories(module, (PeDataDirectory_t*)&header->Directories[0]);
 
     *sectionHeadersOut = (void*)((uint8_t*)header + sizeof(PeOptionalHeader32_t));
@@ -64,7 +63,6 @@ __ParsePE64Headers(
     module->ImageBase        = (uintptr_t)header->BaseAddress;
     module->MetaDataSize     = header->SizeOfHeaders;
     module->SectionAlignment = header->SectionAlignment;
-    module->Architecture     = header->Base.Architecture;
     __CopyDirectories(module, (PeDataDirectory_t*)&header->Directories[0]);
 
     *sectionHeadersOut = (void*)((uint8_t*)header + sizeof(PeOptionalHeader64_t));
@@ -97,6 +95,9 @@ __ParseModuleHeaders(
               "and was not supported by the current architecture.", optionalHeader->Architecture);
         return OS_EUNKNOWN;
     }
+
+    module->Architecture = optionalHeader->Architecture;
+    module->EntryPointRVA = optionalHeader->EntryPointRVA;
 
     if (optionalHeader->Architecture == PE_ARCHITECTURE_32) {
         __ParsePE32Headers(module, optionalHeader, sectionHeadersOut);

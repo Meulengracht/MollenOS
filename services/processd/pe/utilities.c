@@ -1,5 +1,5 @@
 /**
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * PE/COFF Image Loader
- *    - Implements support for loading and processing pe/coff image formats
- *      and implemented as a part of libds to share between services and kernel
  */
 
 //#define __TRACE
@@ -29,11 +24,6 @@
 #include <string.h>
 #include <assert.h>
 #include "pe.h"
-
-#ifndef __TRACE
-#undef dstrace
-#define dstrace(...)
-#endif
 
 PeExecutable_t*
 PeResolveLibrary(
