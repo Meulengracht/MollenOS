@@ -73,5 +73,19 @@ PEImageLoad(
     if (oserr != OS_EOK) {
         return oserr;
     }
+
+    // Only after a successful parse of the image do we insert
+    // it into the maps and trees.
+    hashtable_set(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                .Name = mstr_path_basename(path),
+                .BaseMapping = moduleMapping->MappingBase,
+                .Module = moduleMapping->Module
+            }
+    );
+
+    // Cleanup the mappings
+    ModuleMappingDelete(moduleMapping);
     return OS_EOK;
 }
