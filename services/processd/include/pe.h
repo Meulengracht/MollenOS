@@ -169,13 +169,10 @@ PeGetModuleEntryPoints(
     _Out_ int*            moduleCount);
 
 struct PEImageLoadContext;
-struct PEImage;
 
 extern oserr_t
 PEImageLoad(
         _In_  struct PEImageLoadContext* loadContext,
-        _In_  struct PEImage*            parent,
-        _In_  mstring_t*                 path,
-        _Out_ struct PEImage**           imageOut);
+        _In_  mstring_t*                 path);
 
 #endif //!__PE_IMAGE_LOADER__
