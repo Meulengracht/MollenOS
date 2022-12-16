@@ -137,4 +137,15 @@ MapperLoadModule(
         _In_  mstring_t*                 path,
         _Out_ struct ModuleMapping**     moduleMappingOut);
 
+
+oserr_t
+PEImportsProcess(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ struct ModuleMapping*      moduleMapping);
+
+
+oserr_t
+PERuntimeRelocationsProcess(
+        _In_ struct ModuleMapping* moduleMapping);
+
 #endif //!__PRIVATE_H__

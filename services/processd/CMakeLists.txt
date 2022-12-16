@@ -24,10 +24,11 @@ add_executable (phoenix
 
         pe/cache.c
         pe/helpers.c
-        pe/load.c
+        pe/imports.c
         pe/loader.c
         pe/mapper.c
         pe/resolver.c
+        pe/rtrelocs.c
         pe/utilities.c
         pe/verify.c
 

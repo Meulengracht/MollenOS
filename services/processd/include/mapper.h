@@ -42,6 +42,7 @@ struct SectionMapping {
 };
 
 struct ModuleMapping {
+    uintptr_t              MappingBase;
     struct SectionMapping* Mappings;
     int                    MappingCount;
 
