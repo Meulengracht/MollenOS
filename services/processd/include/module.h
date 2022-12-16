@@ -41,6 +41,7 @@ struct Module {
     int               SectionCount;
 
     uintptr_t ImageBase;
+    uint32_t  EntryPointRVA;
     size_t    MetaDataSize;
     uint32_t  SectionAlignment;
     uint32_t  Architecture;

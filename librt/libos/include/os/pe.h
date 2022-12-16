@@ -229,7 +229,7 @@ PACKED_TYPESTRUCT(PeOptionalHeader, {
     uint32_t SizeOfCode;
     uint32_t SizeOfData;
     uint32_t SizeOfBss;
-    uint32_t EntryPoint; // Relative offset
+    uint32_t EntryPointRVA;
     uint32_t BaseOfCode;
 });
 
