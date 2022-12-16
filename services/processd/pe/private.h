@@ -48,14 +48,7 @@ struct ModuleMapping {
     uintptr_t              MappingBase;
     struct SectionMapping* Mappings;
     int                    MappingCount;
-
-    // ModuleArchitecture is the architecture that the module
-    // was compiled for.
-    uint32_t ModuleArchitecture;
-
-    // DataDirectories is the data directory list
-    // of the loaded module.
-    PeDataDirectory_t* DataDirectories;
+    struct Module*         Module;
 };
 
 struct ModuleMapEntry {
@@ -72,7 +65,7 @@ struct PEImageLoadContext {
 
     // ModuleMap is the map of loaded modules for
     // this process context. It's constructed with the following
-    // format: <string, Module*>
+    // format: <string, ModuleMapEntry>
     hashtable_t ModuleMap;
 };
 
@@ -138,6 +131,13 @@ MapperLoadModule(
         _In_  mstring_t*                 path,
         _Out_ struct ModuleMapping**     moduleMappingOut);
 
+/**
+ * @brief
+ * @param moduleMapping
+ */
+void
+ModuleMappingDelete(
+        _In_ struct ModuleMapping* moduleMapping);
 
 oserr_t
 PEImportsProcess(

@@ -195,9 +195,10 @@ __ProcessUnboundImportTable(
         _In_ struct ModuleMapping*  moduleMapping,
         _In_ void*                  iatData)
 {
-    if (moduleMapping->ModuleArchitecture == PE_ARCHITECTURE_32) {
+    uint32_t architecture = ModuleArchitecture(moduleMapping->Module);
+    if (architecture == PE_ARCHITECTURE_32) {
         return __ProcessUnboundImportTable32(moduleMapEntry, moduleMapping, iatData);
-    } else if (moduleMapping->ModuleArchitecture == PE_ARCHITECTURE_64) {
+    } else if (architecture == PE_ARCHITECTURE_64) {
         return __ProcessUnboundImportTable64(moduleMapEntry, moduleMapping, iatData);
     }
     return OS_ENOTSUPPORTED;
@@ -271,8 +272,9 @@ PEImportsProcess(
         _In_ struct PEImageLoadContext* loadContext,
         _In_ struct ModuleMapping*      moduleMapping)
 {
-    uint32_t rva  = moduleMapping->DataDirectories[PE_SECTION_IMPORT].AddressRVA;
-    uint32_t size = moduleMapping->DataDirectories[PE_SECTION_IMPORT].Size;
+    PeDataDirectory_t* directories = ModuleDataDirectories(moduleMapping->Module);
+    uint32_t rva  = directories[PE_SECTION_IMPORT].AddressRVA;
+    uint32_t size = directories[PE_SECTION_IMPORT].Size;
     void*    data;
     TRACE("PEImportsProcess()");
 

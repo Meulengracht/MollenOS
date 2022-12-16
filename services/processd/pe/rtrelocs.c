@@ -18,7 +18,7 @@
 #define __TRACE
 #include <ddk/utils.h>
 #include "private.h"
-#include "pe.h"
+#include <module.h>
 
 PACKED_TYPESTRUCT(RuntimeRelocationHeader, {
     uint32_t Magic0;
@@ -157,8 +157,9 @@ PERuntimeRelocationsProcess(
         _In_ struct ModuleMapping* moduleMapping)
 {
     RuntimeRelocationHeader_t* header;
-    uint32_t rva  = moduleMapping->DataDirectories[PE_SECTION_GLOBAL_PTR].AddressRVA;
-    uint32_t size = moduleMapping->DataDirectories[PE_SECTION_GLOBAL_PTR].Size;
+    PeDataDirectory_t* directories = ModuleDataDirectories(moduleMapping->Module);
+    uint32_t rva  = directories[PE_SECTION_GLOBAL_PTR].AddressRVA;
+    uint32_t size = directories[PE_SECTION_GLOBAL_PTR].Size;
     TRACE("PERuntimeRelocationsProcess()");
 
     if (rva == 0 || size == 0) {

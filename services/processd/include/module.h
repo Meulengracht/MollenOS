@@ -77,4 +77,22 @@ void
 ModuleDelete(
         _In_ struct Module* module);
 
+/**
+ * @brief
+ * @param module
+ * @return
+ */
+uint32_t
+ModuleArchitecture(
+        _In_ struct Module* module);
+
+/**
+ * @brief
+ * @param module
+ * @return
+ */
+PeDataDirectory_t*
+ModuleDataDirectories(
+        _In_ struct Module* module);
+
 #endif //!__MODULE_H__

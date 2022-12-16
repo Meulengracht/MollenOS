@@ -135,6 +135,7 @@ __MapSections(
         _Out_   struct SectionMapping** mappingsOut)
 {
     struct SectionMapping* mappings;
+    oserr_t                oserr = OS_EOK;
 
     mappings = malloc(sizeof(struct SectionMapping) * module->SectionCount);
     if (mappings == NULL) {
@@ -143,20 +144,40 @@ __MapSections(
     memset(mappings, 0, sizeof(struct SectionMapping) * module->SectionCount);
 
     for (int i = 0; i < module->SectionCount; i++) {
-        oserr_t oserr = __MapSection(
+        oserr = __MapSection(
                 module,
                 &module->Sections[i],
                 memorySpace,
                 loadAddress,
                 &mappings[i]
         );
+        // On errors, we break, the cleanup of all this mess must
+        // be cleaned up, otherwise we pollute the memory space of
+        // the process loader, which is unwarranted.
+        // Let the caller handle the cleanup.
         if (oserr != OS_EOK) {
-            free(mappings);
-            return oserr;
+            break;
         }
     }
     *mappingsOut = mappings;
-    return OS_EOK;
+    return oserr;
+}
+
+static void
+__SectionMappingsDelete(
+        _In_ struct SectionMapping* mappings,
+        _In_ int                    count)
+{
+    if (mappings == NULL) {
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        if (mappings[i].Length == 0) {
+            continue;
+        }
+        __DestroyMapping(&mappings[i]);
+    }
 }
 
 static oserr_t
@@ -166,7 +187,8 @@ __MapModule(
         _InOut_ uintptr_t*              loadAddress,
         _Out_   struct SectionMapping** mappingsOut)
 {
-    oserr_t oserr;
+    struct SectionMapping* mappings = NULL;
+    oserr_t                oserr;
 
     // Let's get a lock on the module, we want to avoid any
     // double init of the module in a multithreaded scenario.
@@ -182,13 +204,19 @@ __MapModule(
 
     oserr = __MapMetaData(module, memorySpace, loadAddress);
     if (oserr != OS_EOK) {
+        // Nothing to clean up here
         return oserr;
     }
 
-    oserr = __MapSections(module, memorySpace, loadAddress, mappingsOut);
+    oserr = __MapSections(module, memorySpace, loadAddress, &mappings);
     if (oserr != OS_EOK) {
+        // If this fails, we may end up with partial mappings, so we need to clean
+        // them up here.
+        __SectionMappingsDelete(mappings, module->SectionCount);
         return oserr;
     }
+
+    *mappingsOut = mappings;
     return OS_EOK;
 }
 
@@ -334,8 +362,7 @@ __MapperModuleNew(
     moduleMapping->MappingBase = mappingBase;
     moduleMapping->Mappings    = mappings;
     moduleMapping->MappingCount = module->SectionCount;
-    moduleMapping->ModuleArchitecture = module->Architecture;
-    moduleMapping->DataDirectories = &module->DataDirectories[0];
+    moduleMapping->Module = module;
     return moduleMapping;
 }
 
@@ -345,9 +372,8 @@ MapperLoadModule(
         _In_  mstring_t*                 path,
         _Out_ struct ModuleMapping**     moduleMappingOut)
 {
-    struct SectionMapping* mappings;
+    struct SectionMapping* mappings = NULL;
     struct Module*         module;
-    uint32_t               moduleHash;
     oserr_t                oserr;
     uintptr_t              baseAddress;
     uintptr_t              imageDelta;
@@ -374,24 +400,41 @@ MapperLoadModule(
             &mappings
     );
     if (oserr != OS_EOK) {
-        return oserr;
+        goto cleanup;
     }
 
     // Run fixup's on the new mappings
     oserr = __ProcessModule(module, mappings, imageDelta);
     if (oserr != OS_EOK) {
-        return oserr;
+        goto cleanup;
     }
 
     // Store the module hash so the loader can reduce the reference
     // count again later
     *moduleMappingOut = __MapperModuleNew(module, mappings, baseAddress);
+    if (*moduleMappingOut == NULL) {
+        oserr = OS_EOOM;
+        goto cleanup;
+    }
     return OS_EOK;
+
+cleanup:
+    __SectionMappingsDelete(mappings, module->SectionCount);
+    loadContext->LoadAddress = baseAddress;
+    return oserr;
 }
 
-oserr_t
-MapperUnloadModule(
+void
+ModuleMappingDelete(
         _In_ struct ModuleMapping* moduleMapping)
 {
-    return OS_EOK;
+    if (moduleMapping == NULL) {
+        return;
+    }
+
+    __SectionMappingsDelete(
+            moduleMapping->Mappings,
+            moduleMapping->MappingCount
+    );
+    free(moduleMapping);
 }
