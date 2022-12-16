@@ -26,17 +26,7 @@
 #include <stdio.h>
 #include <time.h>
 
-static SystemDescriptor_t g_systemInformation = { 0 };
 static uintptr_t          g_systemBaseAddress = 0;
-
-uintptr_t
-PECurrentPageSize(void)
-{
-    if (g_systemInformation.PageSizeBytes == 0) {
-        SystemQuery(&g_systemInformation);
-    }
-    return g_systemInformation.PageSizeBytes;
-}
 
 uintptr_t
 PeImplGetBaseAddress(void)
@@ -45,16 +35,6 @@ PeImplGetBaseAddress(void)
         Syscall_GetProcessBaseAddress(&g_systemBaseAddress);
     }
     return g_systemBaseAddress;
-}
-
-clock_t
-PeImplGetTimestampMs(void)
-{
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-
-    // return timestamp in ms
-    return (ts.tv_sec * MSEC_PER_SEC) + (ts.tv_nsec / NSEC_PER_MSEC);
 }
 
 oserr_t

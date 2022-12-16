@@ -19,6 +19,7 @@
 
 #include <errno.h>
 #include <ddk/utils.h>
+#include <module.h>
 #include "private.h"
 #include "process.h"
 #include <stdlib.h>
