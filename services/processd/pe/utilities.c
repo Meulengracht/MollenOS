@@ -15,71 +15,78 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
-
-#include <ds/ds.h>
-#include <ds/list.h>
-#include <os/mollenos.h>
-#include <ds/mstring.h>
-#include <string.h>
-#include <assert.h>
+#define __TRACE
+#include <ddk/utils.h>
+#include "private.h"
 #include "pe.h"
 
-PeExecutable_t*
-PeResolveLibrary(
-    _In_    PeExecutable_t* Parent,
-    _In_    PeExecutable_t* Image,
-    _In_    mstring_t*      LibraryName)
+struct __ModuleMapElement {
+    int            ID;
+    struct Module* Module;
+    int            Vertices[64];
+};
+
+struct __ModuleMapEnumContext {
+    struct Module* ModuleList;
+    int            Index;
+};
+
+static uint64_t __hash(const void* element)
 {
-    PeExecutable_t* ExportParent = Parent;
-    PeExecutable_t* Exports      = NULL;
-    oserr_t Status;
-
-    //dstrace("PeResolveLibrary(Name %ms)", LibraryName);
-    if (ExportParent == NULL) {
-        ExportParent = Image;
-    }
-
-    // Before actually loading the file, we want to
-    // try to locate the library in the parent first.
-    foreach(i, ExportParent->Libraries) {
-        PeExecutable_t *Library = i->value;
-        if (!mstr_cmp(Library->Name, LibraryName)) {
-            dstrace("Library %ms was already resolved, increasing ref count", Library->Name);
-            Library->References++;
-            Exports = Library;
-            break;
-        }
-    }
-
-    // Sanitize the exports, if its null we have to resolve the library
-    if (Exports == NULL) {
-        Status = PeLoadImage(ExportParent->Owner, ExportParent, LibraryName, &Exports);
-        if (Status != OS_EOK) {
-            dserror("Library %ms could not be loaded %u", LibraryName, Status);
-        }
-    }
-
-    if (Exports == NULL) {
-        dserror("Library %ms was unable to be resolved", LibraryName);
-    }
-    return Exports;
+    const struct __ModuleMapElement* el = element;
+    return (uint64_t)el->ID;
 }
 
-uintptr_t
-PeResolveFunction(
-    _In_ PeExecutable_t* Library, 
-    _In_ const char*    Function)
+static int __cmp(const void* element1, const void* element2)
 {
-    PeExportedFunction_t* Exports = Library->ExportedFunctions;
-    if (Exports != NULL) {
-        for (int i = 0; i < Library->NumberOfExportedFunctions; i++) {
-            if (Exports[i].Name != NULL && !strcmp(Exports[i].Name, Function)) {
-                return Exports[i].Address;
-            }
-        }
-    }
-    return 0;
+    const struct __ModuleMapElement* el1 = element1;
+    const struct __ModuleMapElement* el2 = element2;
+    return el1->ID == el2->ID ? 0 : -1;
+}
+
+static oserr_t
+__BuildModuleHashtable(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ hashtable_t*               out)
+{
+
+}
+
+void __enum(int index, const void* element, void* userContext)
+{
+    struct __ModuleMapEnumContext*   context = userContext;
+    const struct __ModuleMapElement* mapElement = element;
+    _CRT_UNUSED(index);
+
+    // Start by filtering out any previously cleared vertice
+
+    // Clear us if we have no vertices left
+}
+
+static oserr_t
+__BuildModuleDependencyList(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ struct Module*             moduleList)
+{
+    hashtable_t                   moduleMap;
+    struct __ModuleMapEnumContext context = {
+            .ModuleList = moduleList,
+            .Index = 0
+    };
+
+    // Construct the module map with an identical size to the module map
+    // in load context.
+    hashtable_construct(
+            &moduleMap,
+            loadContext->ModuleMap.capacity,
+            sizeof(struct __ModuleMapElement),
+            __hash, __cmp
+    );
+
+    // Iterate through the hashmap, removing entries as we go that has no external
+    // dependencies.
+    hashtable_enumerate(&moduleMap, __enum, &context);
+    return OS_EOK;
 }
 
 oserr_t

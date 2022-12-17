@@ -20,11 +20,39 @@
 #include "private.h"
 #include "pe.h"
 #include <module.h>
+#include <stdlib.h>
 #include <string.h>
+
+static oserr_t
+__AddImportDependency(
+        _In_ list_t*    importsList,
+        _In_ mstring_t* moduleName)
+{
+    element_t* importLeaf;
+    mstring_t* nameCopy;
+
+    // Copy the name for the import dependency, the name we are
+    // given is temporary.
+    nameCopy = mstr_clone(moduleName);
+    if (nameCopy == NULL) {
+        return OS_EOOM;
+    }
+
+    // Module was loaded, add an entry to the imports list.
+    importLeaf = malloc(sizeof(element_t));
+    if (importLeaf == NULL) {
+        mstr_delete(nameCopy);
+        return OS_EOOM;
+    }
+    ELEMENT_INIT(importLeaf, NULL, nameCopy);
+    list_append(importsList, importLeaf);
+    return OS_EOK;
+}
 
 static oserr_t
 __ResolveImport(
         _In_ struct PEImageLoadContext* loadContext,
+        _In_ list_t*                    importsList,
         _In_ mstring_t*                 moduleName,
         _In_ struct ModuleMapEntry*     moduleMapEntry)
 {
@@ -41,11 +69,11 @@ __ResolveImport(
     }
 
     // We need to load the module into the namespace
-    oserr = PEImageLoad(loadContext, moduleName);
+    oserr = PEImageLoad(loadContext, moduleName, true);
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return OS_EOK;
+    return __AddImportDependency(importsList, moduleName);
 }
 
 static inline oserr_t
@@ -204,10 +232,27 @@ __ProcessUnboundImportTable(
     return OS_ENOTSUPPORTED;
 }
 
+static void
+__ClearImportListEntry(
+        _In_ element_t* element,
+        _In_ void*      context)
+{
+    _CRT_UNUSED(context);
+    free(element);
+}
+
+static inline void
+__ClearImportList(
+        _In_ list_t* importsList)
+{
+    list_clear(importsList, __ClearImportListEntry, NULL);
+}
+
 static oserr_t
 __ProcessImportDescriptorTable(
         _In_ struct PEImageLoadContext* loadContext,
         _In_ struct ModuleMapping*      moduleMapping,
+        _In_ list_t*                    importsList,
         _In_ void*                      data)
 {
     struct ModuleMapEntry moduleMapEntry;
@@ -252,9 +297,11 @@ __ProcessImportDescriptorTable(
             return OS_EOOM;
         }
 
-        oserr = __ResolveImport(loadContext, moduleName, &moduleMapEntry);
+        oserr = __ResolveImport(loadContext, importsList, moduleName, &moduleMapEntry);
         mstr_delete(moduleName);
         if (oserr != OS_EOK) {
+            // Let's do cleanup if we fail to import a library
+            __ClearImportList(importsList);
             return oserr;
         }
 
@@ -270,7 +317,8 @@ __ProcessImportDescriptorTable(
 oserr_t
 PEImportsProcess(
         _In_ struct PEImageLoadContext* loadContext,
-        _In_ struct ModuleMapping*      moduleMapping)
+        _In_ struct ModuleMapping*      moduleMapping,
+        _In_ list_t*                    importsList)
 {
     PeDataDirectory_t* directories = ModuleDataDirectories(moduleMapping->Module);
     uint32_t rva  = directories[PE_SECTION_IMPORT].AddressRVA;
@@ -291,5 +339,10 @@ PEImportsProcess(
     if (data == NULL) {
         return OS_EUNKNOWN;
     }
-    return __ProcessImportDescriptorTable(loadContext, moduleMapping, data);
+    return __ProcessImportDescriptorTable(
+            loadContext,
+            moduleMapping,
+            importsList,
+            data
+    );
 }

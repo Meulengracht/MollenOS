@@ -27,6 +27,7 @@
 #include <os/types/process.h>
 #include <ds/list.h>
 #include <ds/mstring.h>
+#include <ds/hashtable.h>
 #include <os/pe.h>
 #include <time.h>
 
@@ -39,6 +40,37 @@
 #else
 #error "Unhandled PE architecture used"
 #endif
+
+struct PEImageLoadContext {
+    uuid_t    Scope;
+    uuid_t    MemorySpace;
+    uintptr_t LoadAddress;
+    char*     Paths;
+
+    // ModuleMap is the map of loaded modules for
+    // this process context. It's constructed with the following
+    // format: <string, ModuleMapEntry>
+    hashtable_t ModuleMap;
+};
+
+/**
+ * @brief
+ * @param scope
+ * @param paths
+ * @return
+ */
+struct PEImageLoadContext*
+PEImageLoadContextNew(
+        _In_ uuid_t scope,
+        _In_ char*  paths);
+
+/**
+ * @brief
+ * @param loadContext
+ */
+void
+PEImageLoadContextDelete(
+        _In_ struct PEImageLoadContext* loadContext);
 
 typedef struct PeExportedFunction {
     const char* Name;
@@ -168,7 +200,8 @@ struct PEImageLoadContext;
 
 extern oserr_t
 PEImageLoad(
-        _In_  struct PEImageLoadContext* loadContext,
-        _In_  mstring_t*                 path);
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ mstring_t*                 path,
+        _In_ bool                       dependency);
 
 #endif //!__PE_IMAGE_LOADER__

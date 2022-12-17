@@ -55,18 +55,8 @@ struct ModuleMapEntry {
     mstring_t*     Name;
     struct Module* Module;
     uintptr_t      BaseMapping;
-};
-
-struct PEImageLoadContext {
-    uuid_t    Scope;
-    uuid_t    MemorySpace;
-    uintptr_t LoadAddress;
-    char*     Paths;
-
-    // ModuleMap is the map of loaded modules for
-    // this process context. It's constructed with the following
-    // format: <string, ModuleMapEntry>
-    hashtable_t ModuleMap;
+    bool           Dependency;
+    list_t         Imports; // list<name>
 };
 
 static void*
@@ -142,8 +132,8 @@ ModuleMappingDelete(
 oserr_t
 PEImportsProcess(
         _In_ struct PEImageLoadContext* loadContext,
-        _In_ struct ModuleMapping*      moduleMapping);
-
+        _In_ struct ModuleMapping*      moduleMapping,
+        _In_ list_t*                    importsList);
 
 oserr_t
 PERuntimeRelocationsProcess(
