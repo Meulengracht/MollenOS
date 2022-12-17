@@ -25,6 +25,7 @@ add_executable (phoenix
         pe/cache.c
         pe/helpers.c
         pe/imports.c
+        pe/load_context.c
         pe/loader.c
         pe/mapper.c
         pe/module.c
