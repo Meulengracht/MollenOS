@@ -110,6 +110,7 @@ PEImageLoadContextDelete(
         return;
     }
 
+    PEImageUnload(loadContext, loadContext->RootModule, true);
     hashtable_enumerate(&loadContext->ModuleMap, __module_cleanup_enum, NULL);
     hashtable_destroy(&loadContext->ModuleMap);
     free(loadContext);
