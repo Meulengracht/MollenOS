@@ -21,6 +21,12 @@
 #include "private.h"
 #include "pe.h"
 
+extern oserr_t
+__AddImportDependency(
+        _In_ list_t*    importsList,
+        _In_ mstring_t* moduleName,
+        _In_ int        moduleID);
+
 static oserr_t
 __PostProcessImage(
         _In_ struct PEImageLoadContext* loadContext,
@@ -82,10 +88,14 @@ PEImageLoad(
 
     // Only after a successful parse of the image do we insert
     // it into the maps and trees.
+    moduleMapEntry.ID = loadContext->NextID++;
     moduleMapEntry.Name = mstr_path_basename(path);
     moduleMapEntry.BaseMapping = moduleMapping->MappingBase;
     moduleMapEntry.Module = moduleMapping->Module;
     moduleMapEntry.Dependency = dependency;
+    if (moduleMapEntry.ID == 0) {
+        loadContext->RootModule = moduleMapEntry.Name;
+    }
     hashtable_set(&loadContext->ModuleMap, &moduleMapEntry);
 
     // Cleanup the mappings
@@ -102,6 +112,7 @@ PEImageLoadLibrary(
     struct ModuleMapEntry* existingEntry;
     mstring_t*             baseName;
     oserr_t                oserr;
+    int                    id = loadContext->NextID;
 
     // Get basename of path, we use it as the key for the hashtable
     baseName = mstr_path_basename(libraryPath);
@@ -129,8 +140,18 @@ PEImageLoadLibrary(
     }
 
     // Insert this as a dependency of the root image of the load context.
-    // TODO
-    return OS_EOK;
+    existingEntry = hashtable_get(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                    .Name = loadContext->RootModule
+            }
+    );
+    if (existingEntry == NULL) {
+        return OS_EUNKNOWN;
+    }
+    // NOTE here: we are actually modifying the object directly in the hashtable doing this.
+    // If we ever expect this to be remotely safe, we should wrap this in a lock.
+    return __AddImportDependency(&existingEntry->Imports, baseName, id);
 }
 
 uintptr_t

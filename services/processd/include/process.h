@@ -26,9 +26,7 @@
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
 #include <time.h>
-
-// Forward declarations
-DECL_STRUCT(PeExecutable);
+#include <pe.h>
 
 enum ProcessState {
     ProcessState_RUNNING,
@@ -36,16 +34,16 @@ enum ProcessState {
 };
 
 typedef struct Process {
-    uuid_t                 handle;
-    uuid_t                 primary_thread_id;
-    clock_t                tick_base;
-    enum ProcessState      state;
-    struct usched_mtx      mutex;
-    struct usched_cnd      condition;
-    int                    references;
-    PeExecutable_t*        image;
-    ProcessConfiguration_t config;
-    int                    exit_code;
+    uuid_t                     handle;
+    uuid_t                     primary_thread_id;
+    clock_t                    tick_base;
+    enum ProcessState          state;
+    struct usched_mtx          mutex;
+    struct usched_cnd          condition;
+    int                        references;
+    struct PEImageLoadContext* load_context;
+    ProcessConfiguration_t     config;
+    int                        exit_code;
 
     mstring_t* name;
     mstring_t* path;

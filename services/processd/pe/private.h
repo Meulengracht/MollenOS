@@ -52,7 +52,8 @@ struct ModuleMapping {
 };
 
 struct ModuleMapEntry {
-    mstring_t*     Name;
+    mstring_t*     Name; // Primary Key
+    int            ID; // Secondary Key
     struct Module* Module;
     uintptr_t      BaseMapping;
     bool           Dependency;

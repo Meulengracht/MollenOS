@@ -17,18 +17,29 @@
 
 #define __TRACE
 #include <ddk/utils.h>
+#include <module.h>
 #include "private.h"
 #include "pe.h"
+#include <stdlib.h>
+
+struct __ModuleElement {
+    struct Module* Module;
+    uintptr_t      BaseMapping;
+    void*          ModuleKey;
+};
 
 struct __ModuleMapElement {
     int            ID;
     struct Module* Module;
+    uintptr_t      BaseMapping;
+    void*          ModuleKey;
     int            Vertices[64];
+    int            VerticeCount;
 };
 
 struct __ModuleMapEnumContext {
-    struct Module* ModuleList;
-    int            Index;
+    struct __ModuleMapElement* Elements;
+    int                        Index;
 };
 
 static uint64_t __hash(const void* element)
@@ -44,116 +55,151 @@ static int __cmp(const void* element1, const void* element2)
     return el1->ID == el2->ID ? 0 : -1;
 }
 
-static oserr_t
-__BuildModuleHashtable(
-        _In_ struct PEImageLoadContext* loadContext,
-        _In_ hashtable_t*               out)
-{
-
-}
-
 void __enum(int index, const void* element, void* userContext)
 {
-    struct __ModuleMapEnumContext*   context = userContext;
-    const struct __ModuleMapElement* mapElement = element;
+    struct __ModuleMapEnumContext* context = userContext;
+    const struct ModuleMapEntry*   entry   = element;
+    int                            i       = 0;
     _CRT_UNUSED(index);
 
-    // Start by filtering out any previously cleared vertice
+    // Create a new element at elements[index]
+    context->Elements[context->Index].ID = entry->ID;
+    context->Elements[context->Index].Module = entry->Module;
+    context->Elements[context->Index].BaseMapping = entry->BaseMapping;
+    context->Elements[context->Index].ModuleKey = entry->Name;
 
-    // Clear us if we have no vertices left
+    // Copy over vertices
+    foreach (n, &entry->Imports) {
+        context->Elements[context->Index].Vertices[i++] = (int)(uintptr_t)n->key;
+    }
+    context->Elements[context->Index].VerticeCount = i;
+    context->Index++;
 }
 
-static oserr_t
+
+// __BuildModuleDependencyList converts the following tree structure
+//               foo.app
+//                /   \           \
+//             c.dll  gracht.dll   bar.dll
+//             /                    \
+//          some.dll                c.dll
+// into the following linear structure, where dependencies are resolved such
+// that we get a dependency-free list where the first element represents some.dll that
+// contains no dependencies.
+// [some.dll, c.dll, gracht.dll, bar.dll, foo.app]
+static struct __ModuleElement*
 __BuildModuleDependencyList(
-        _In_ struct PEImageLoadContext* loadContext,
-        _In_ struct Module*             moduleList)
+        _In_ struct PEImageLoadContext* loadContext)
 {
-    hashtable_t                   moduleMap;
-    struct __ModuleMapEnumContext context = {
-            .ModuleList = moduleList,
-            .Index = 0
-    };
+    struct __ModuleMapEnumContext context;
+    struct __ModuleElement*       moduleList;
+    int                           elementCount;
+    int                           mli;
+
+    // Allocate the result structure, we can preallocate the correct memory as
+    // we know the number of output elements.
+    moduleList = malloc(sizeof(struct __ModuleElement) * loadContext->ModuleMap.element_count);
+    if (moduleList == NULL) {
+        return NULL;
+    }
 
     // Construct the module map with an identical size to the module map
     // in load context.
-    hashtable_construct(
-            &moduleMap,
-            loadContext->ModuleMap.capacity,
-            sizeof(struct __ModuleMapElement),
-            __hash, __cmp
-    );
+    context.Elements = malloc(sizeof(struct __ModuleMapElement) * loadContext->ModuleMap.element_count);
+    if (context.Elements == NULL) {
+        free(moduleList);
+        return NULL;
+    }
+    context.Index = 0;
 
-    // Iterate through the hashmap, removing entries as we go that has no external
-    // dependencies.
-    hashtable_enumerate(&moduleMap, __enum, &context);
+    // Build the element list up with correct list of vertices.
+    hashtable_enumerate(&loadContext->ModuleMap, __enum, &context);
+
+    // Run over the list, removing freestanding elements, and then removing
+    // those from vertices untill nothing's left.
+    mli = 0;
+    elementCount = (int)loadContext->ModuleMap.element_count;
+    while (elementCount > 0) {
+        for (size_t i = 0; i < loadContext->ModuleMap.element_count; i++) {
+            if (context.Elements[i].ID == -1) {
+                continue;
+            }
+
+            if (context.Elements[i].VerticeCount == 0) {
+                // we can remove this one and remove any reference to this in
+                // other elements, unfortunately requires us to re-iterate.
+                for (size_t j = 0; j < loadContext->ModuleMap.element_count; j++) {
+                    if (context.Elements[j].ID == -1) {
+                        continue;
+                    }
+                    for (int k = 0; k < context.Elements[j].VerticeCount; k++) {
+                        if (context.Elements[j].Vertices[k] == context.Elements[i].ID) {
+                            context.Elements[j].VerticeCount--;
+                            break;
+                        }
+                    }
+                }
+
+                // insert into module list
+                moduleList[mli].ModuleKey = context.Elements[i].ModuleKey;
+                moduleList[mli].BaseMapping = context.Elements[i].BaseMapping;
+                moduleList[mli].Module = context.Elements[i].Module;
+                context.Elements[i].ID = -1;
+                elementCount--;
+                mli++;
+            }
+        }
+    }
+    free(context.Elements);
+    return moduleList;
+}
+
+oserr_t
+PEModuleKeys(
+        _In_  struct PEImageLoadContext* loadContext,
+        _Out_ Handle_t*                  moduleKeys,
+        _Out_ int*                       moduleCountOut)
+{
+    struct __ModuleElement* moduleList;
+
+    if (loadContext == NULL || moduleKeys == NULL || moduleCountOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    moduleList = __BuildModuleDependencyList(loadContext);
+    if (moduleList == NULL) {
+        return OS_EOOM;
+    }
+
+    for (size_t i = 0; i < loadContext->ModuleMap.element_count; i++) {
+        moduleKeys[i] = moduleList[i].ModuleKey;
+    }
+    free(moduleList);
+    *moduleCountOut = (int)loadContext->ModuleMap.element_count;
     return OS_EOK;
 }
 
 oserr_t
-PeGetModuleHandles(
-    _In_  PeExecutable_t* executable,
-    _Out_ Handle_t*       moduleList,
-    _Out_ int*            moduleCount)
+PEModuleEntryPoints(
+        _In_  struct PEImageLoadContext* loadContext,
+        _Out_ uintptr_t*                 moduleAddresses,
+        _Out_ int*                       moduleCountOut)
 {
-    int maxCount;
-    int index;
+    struct __ModuleElement* moduleList;
 
-    if (!executable || !moduleList || !moduleCount) {
+    if (loadContext == NULL || moduleAddresses == NULL || moduleCountOut == NULL) {
         return OS_EINVALPARAMS;
     }
-    
-    index    = 0;
-    maxCount = *moduleCount;
 
-    // Copy base over
-    moduleList[index++] = (Handle_t)executable->VirtualAddress;
-    if (executable->Libraries != NULL) {
-        foreach(i, executable->Libraries) {
-            PeExecutable_t *Library = i->value;
-            moduleList[index++]     = (Handle_t)Library->VirtualAddress;
-        
-            if (index == maxCount) {
-                break;
-            }
-        }
+    moduleList = __BuildModuleDependencyList(loadContext);
+    if (moduleList == NULL) {
+        return OS_EOOM;
     }
-    
-    *moduleCount = index;
-    return OS_EOK;
-}
 
-oserr_t
-PeGetModuleEntryPoints(
-    _In_  PeExecutable_t* executable,
-    _Out_ Handle_t*       moduleList,
-    _Out_ int*            moduleCount)
-{
-    int maxCount;
-    int index;
-
-    if (!executable || !moduleList || !moduleCount) {
-        return OS_EINVALPARAMS;
+    for (size_t i = 0; i < loadContext->ModuleMap.element_count; i++) {
+        moduleAddresses[i] = moduleList[i].BaseMapping + moduleList[i].Module->EntryPointRVA;
     }
-    
-    index    = 0;
-    maxCount = *moduleCount;
-
-    if (executable->Libraries != NULL) {
-        foreach(i, executable->Libraries) {
-            PeExecutable_t *Library = i->value;
-            
-            dstrace("[pe] [get_modules] %i: library %ms => 0x%" PRIxIN,
-                index, Library->Name, Library->EntryAddress);
-            if (Library->EntryAddress != 0) {
-                moduleList[index++] = (Handle_t)Library->EntryAddress;
-            }
-        
-            if (index == maxCount) {
-                break;
-            }
-        }
-    }
-    
-    *moduleCount = index;
+    free(moduleList);
+    *moduleCountOut = (int)loadContext->ModuleMap.element_count;
     return OS_EOK;
 }
