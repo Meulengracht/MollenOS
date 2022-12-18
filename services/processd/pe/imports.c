@@ -23,10 +23,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static oserr_t
+// Exported for use in loader.c
+oserr_t
 __AddImportDependency(
         _In_ list_t*    importsList,
-        _In_ mstring_t* moduleName)
+        _In_ mstring_t* moduleName,
+        _In_ int        moduleID)
 {
     element_t* importLeaf;
     mstring_t* nameCopy;
@@ -44,7 +46,7 @@ __AddImportDependency(
         mstr_delete(nameCopy);
         return OS_EOOM;
     }
-    ELEMENT_INIT(importLeaf, NULL, nameCopy);
+    ELEMENT_INIT(importLeaf, (uintptr_t)moduleID, nameCopy);
     list_append(importsList, importLeaf);
     return OS_EOK;
 }
@@ -58,6 +60,7 @@ __ResolveImport(
 {
     struct ModuleMapEntry* mapEntry;
     oserr_t                oserr;
+    int                    id = loadContext->NextID;
 
     mapEntry = hashtable_get(
             &loadContext->ModuleMap,
@@ -73,7 +76,7 @@ __ResolveImport(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return __AddImportDependency(importsList, moduleName);
+    return __AddImportDependency(importsList, moduleName, id);
 }
 
 static inline oserr_t

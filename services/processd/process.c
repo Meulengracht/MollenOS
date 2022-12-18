@@ -87,9 +87,7 @@ DestroyProcess(
     mstr_delete(process->path);
     mstr_delete(process->working_directory);
     mstr_delete(process->assembly_directory);
-    if (process->image) {
-        PeUnloadImage(process->image);
-    }
+    PEImageLoadContextDelete(process->load_context);
     OSHandleDestroy(process->handle);
     free(process);
 }
@@ -209,36 +207,52 @@ __BuildInheritationBlock(
 
 static oserr_t
 __LoadProcessImage(
-        _In_  const char*      path,
-        _Out_ PeExecutable_t** image)
+        _In_  uuid_t                      scope,
+        _In_  char*                       envPaths,
+        _In_  const char*                 cpath,
+        _Out_ struct PEImageLoadContext** loadContextOut)
 {
-    oserr_t    osStatus;
-    mstring_t* pathUnified;
+    struct PEImageLoadContext* loadContext;
+    mstring_t*                 path;
+    oserr_t                    oserr;
+    ENTRY("__LoadProcessImage(path=%s)", cpath);
 
-    ENTRY("__LoadProcessImage(path=%s)", path);
-
-    pathUnified = mstr_new_u8(path);
-    if (pathUnified == NULL) {
-        return OS_EOOM;
+    loadContext = PEImageLoadContextNew(scope, envPaths);
+    if (loadContext == NULL) {
+        oserr = OS_EOOM;
+        goto exit;
     }
 
-    osStatus = PeLoadImage(UUID_INVALID, NULL, pathUnified, image);
+    path = mstr_new_u8(cpath);
+    if (path == NULL) {
+        oserr = OS_EOOM;
+        goto exit;
+    }
 
+    oserr = PEImageLoad(loadContext, path, true);
+    if (oserr != OS_EOK) {
+        goto exit;
+    }
+    *loadContextOut = loadContext;
+exit:
+    if (oserr != OS_EOK) {
+        PEImageLoadContextDelete(loadContext);
+    }
     EXIT("__LoadProcessImage");
-    return osStatus;
+    return oserr;
 }
 
 static oserr_t
 __ProcessNew(
-        _In_  ProcessConfiguration_t* config,
-        _In_  uuid_t                  handle,
-        _In_  PeExecutable_t*         image,
-        _Out_ Process_t**             processOut)
+        _In_  ProcessConfiguration_t*    config,
+        _In_  uuid_t                     handle,
+        _In_  struct PEImageLoadContext* loadContext,
+        _Out_ Process_t**                processOut)
 {
     Process_t* process;
     int        index;
 
-    process = (Process_t *)malloc(sizeof(Process_t));
+    process = (Process_t*)malloc(sizeof(Process_t));
     if (!process) {
         return OS_EOOM;
     }
@@ -248,7 +262,7 @@ __ProcessNew(
     process->primary_thread_id = UUID_INVALID;
     process->tick_base = clock();
     process->state = ProcessState_RUNNING;
-    process->image = image;
+    process->load_context = loadContext;
     process->references = 1;
     memcpy(&process->config, config, sizeof(ProcessConfiguration_t));
     usched_mtx_init(&process->mutex, USCHED_MUTEX_PLAIN);
@@ -287,7 +301,7 @@ __StartProcess(
 
     // Initialize threading paramaters for the new thread
     ThreadParametersInitialize(&threadParameters);
-    threadParameters.MemorySpaceHandle = (uuid_t)(uintptr_t)process->image->MemorySpace;
+    threadParameters.MemorySpaceHandle = (uuid_t)(uintptr_t)process->load_context->MemorySpace;
     threadParameters.Name              = mstr_u8(process->name);
     if (threadParameters.Name == NULL) {
         return OS_EOOM;
@@ -313,13 +327,18 @@ PmCreateProcess(
         _In_  ProcessConfiguration_t* processConfiguration,
         _Out_ uuid_t*                 handleOut)
 {
-    PeExecutable_t* image;
-    Process_t*      process;
-    uuid_t          handle;
-    oserr_t         osStatus;
+    struct PEImageLoadContext* loadContext;
+    Process_t*                 process;
+    uuid_t                     handle;
+    oserr_t                    osStatus;
     ENTRY("PmCreateProcess(path=%s, args=%s)", path, args);
 
-    osStatus = __LoadProcessImage(path, &image);
+    osStatus = __LoadProcessImage(
+            UUID_INVALID,
+            NULL,
+            path,
+            &loadContext
+    );
     if (osStatus != OS_EOK) {
         goto exit;
     }
@@ -331,7 +350,7 @@ PmCreateProcess(
         goto exit;
     }
 
-    osStatus = __ProcessNew(processConfiguration, handle, image, &process);
+    osStatus = __ProcessNew(processConfiguration, handle, loadContext, &process);
     if (osStatus != OS_EOK) {
         PeUnloadImage(image);
         goto exit;
@@ -419,10 +438,11 @@ PmGetProcessStartupInformation(
         );
     }
 
-    oserr = PeGetModuleEntryPoints(
-            process->image,
-            (Handle_t *)&buffer[process->arguments_length + process->inheritation_block_length],
-            &moduleCount);
+    oserr = PEModuleEntryPoints(
+            process->load_context,
+            (uintptr_t*)&buffer[process->arguments_length + process->inheritation_block_length],
+            &moduleCount
+    );
 
     // fill in the startup header as we now have all info
     startupInfo->ArgumentsLength = process->arguments_length;
@@ -717,7 +737,7 @@ PmGetModules(
     }
 
     usched_mtx_lock(&process->mutex);
-    PeGetModuleHandles(process->image, modules, modulesCount);
+    PEModuleKeys(process->load_context, modules, modulesCount);
     usched_mtx_unlock(&process->mutex);
     return OS_EOK;
 }
