@@ -20,6 +20,7 @@
 #include <module.h>
 #include "private.h"
 #include "pe.h"
+#include <string.h>
 
 extern oserr_t
 __AddImportDependency(
@@ -100,6 +101,57 @@ PEImageLoad(
 
     // Cleanup the mappings
     ModuleMappingDelete(moduleMapping);
+    return OS_EOK;
+}
+
+oserr_t
+PEImageUnload(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ void*                      imageKey,
+        _In_ bool                       force)
+{
+    struct ModuleMapEntry* entry;
+    oserr_t                oserr;
+    list_t                 imports;
+    mstring_t*             name;
+
+    // Verify library isn't already loaded, and if it is, we should
+    // increase the reference count.
+    entry = hashtable_get(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                    .Name = imageKey
+            }
+    );
+    if (entry == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // If the module we are trying to unload is marked a dependency, then
+    // we *can* only allow it if <force> is set, which it only will be when
+    // we unload the entire memory space.
+    if (entry->Dependency && !force) {
+        return OS_EPERMISSIONS;
+    }
+
+    // Store some resources before we unload, as we are going to have a data-race
+    // with nested unloads
+    name = entry->Name;
+    memcpy(&imports, &entry->Imports, sizeof(list_t));
+
+    // At this point, we allow to unload.
+    hashtable_remove(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                .Name = imageKey
+            }
+    );
+
+    // Cleanup the ModuleMapEntry resources.
+    mstr_delete(name);
+    foreach (n, &imports) {
+        PEImageUnload(loadContext, n->value, force);
+    }
     return OS_EOK;
 }
 

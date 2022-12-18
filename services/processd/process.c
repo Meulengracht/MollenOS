@@ -346,13 +346,13 @@ PmCreateProcess(
     osStatus = OSHandleCreate(&handle);
     if (osStatus != OS_EOK) {
         ERROR("PmCreateProcess failed to allocate a system handle for process");
-        PeUnloadImage(image);
+        PEImageLoadContextDelete(loadContext);
         goto exit;
     }
 
     osStatus = __ProcessNew(processConfiguration, handle, loadContext, &process);
     if (osStatus != OS_EOK) {
-        PeUnloadImage(image);
+        PEImageLoadContextDelete(loadContext);
         goto exit;
     }
 
@@ -632,7 +632,7 @@ PmLoadLibrary(
         _Out_ uintptr_t*  entryPointOut)
 {
     Process_t*      process;
-    PeExecutable_t* executable;
+    void*           imageKey;
     mstring_t*      path;
     oserr_t         oserr  = OS_ENOENT;
 
@@ -651,9 +651,9 @@ PmLoadLibrary(
     }
 
     path  = mstr_new_u8((void *)cpath);
-    oserr = PeLoadImage(process->handle, process->image, path, &executable);
+    oserr = PEImageLoadLibrary(process->load_context, path, &imageKey);
     if (oserr == OS_EOK) {
-        *handleOut    = executable;
+        *handleOut    = imageKey;
         *entryPointOut = executable->EntryAddress;
     }
     mstr_delete(path);
@@ -671,7 +671,7 @@ PmGetLibraryFunction(
         _Out_ uintptr_t*  functionAddressOut)
 {
     Process_t*      process;
-    PeExecutable_t* executable;
+    void*           imageKey;
     oserr_t         oserr   = OS_ENOENT;
     TRACE("PmGetLibraryFunction(process=%u, func=%s)", processHandle, name);
 
@@ -687,7 +687,7 @@ PmGetLibraryFunction(
         executable = process->image;
     }
 
-    *functionAddressOut = PeResolveFunction(executable, name);
+    *functionAddressOut = PEFindExport(imageKey, name);
     if (*functionAddressOut != 0) {
         oserr = OS_EOK;
     }
@@ -716,7 +716,7 @@ PmUnloadLibrary(
     }
 
     usched_mtx_lock(&process->mutex);
-    oserr = PeUnloadLibrary(process->image, (PeExecutable_t *)libraryHandle);
+    oserr = PEImageUnload(process->load_context, libraryHandle, false);
     usched_mtx_unlock(&process->mutex);
 
 exit:

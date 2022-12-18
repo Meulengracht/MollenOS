@@ -90,6 +90,32 @@ PEImageLoad(
 /**
  * @brief
  * @param loadContext
+ * @param imageKey
+ * @param force
+ * @return
+ */
+oserr_t
+PEImageUnload(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ void*                      imageKey,
+        _In_ bool                       force);
+
+/**
+ * @brief
+ * @param loadContext
+ * @param libraryPath
+ * @param imageKey
+ * @return
+ */
+oserr_t
+PEImageLoadLibrary(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  mstring_t*                 libraryPath,
+        _Out_ void**                     imageKey);
+
+/**
+ * @brief
+ * @param loadContext
  * @param moduleKeys
  * @param moduleCountOut
  * @return
