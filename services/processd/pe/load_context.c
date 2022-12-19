@@ -118,6 +118,58 @@ PEImageLoadContextDelete(
     free(loadContext);
 }
 
+struct __ImageDetailsContext {
+    bool      Resolved;
+    uintptr_t MappedAddress;
+
+    mstring_t* Name;
+    uintptr_t  MappedBase;
+};
+
+static void
+__module_imgdt_enum(
+        _In_ int         index,
+        _In_ const void* element,
+        _In_ void*       userContext)
+{
+    const struct ModuleMapEntry*  entry = element;
+    struct __ImageDetailsContext* context = userContext;
+    uintptr_t                     mapStart, mapEnd;
+    _CRT_UNUSED(index);
+
+    if (context->Resolved) {
+        return;
+    }
+
+    mapStart = entry->BaseMapping + entry->Module->CodeBaseRVA;
+    mapEnd = entry->BaseMapping + entry->Module->CodeBaseRVA + entry->Module->CodeSize;
+    if (context->MappedAddress >= mapStart && context->MappedAddress < mapEnd) {
+        context->Name = entry->Name;
+        context->MappedBase = entry->BaseMapping;
+        context->Resolved = true;
+    }
+}
+
+oserr_t
+PEImageLoadContextImageDetailsByAddress(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  uintptr_t                  mappedAddress,
+        _Out_ uintptr_t*                 moduleBaseOut,
+        _Out_ mstring_t**                moduleNameOut)
+{
+    struct __ImageDetailsContext context = {
+            .Resolved = false,
+            .MappedAddress = mappedAddress
+    };
+    hashtable_enumerate(&loadContext->ModuleMap, __module_imgdt_enum, &context);
+    if (context.Resolved) {
+        *moduleBaseOut = context.MappedBase;
+        *moduleNameOut = context.Name;
+        return OS_EOK;
+    }
+    return OS_ENOENT;
+}
+
 oserr_t
 PEImageLoadContextModulePath(
         _In_  struct PEImageLoadContext* loadContext,

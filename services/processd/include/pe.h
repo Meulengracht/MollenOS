@@ -79,6 +79,21 @@ PEImageLoadContextDelete(
 /**
  * @brief
  * @param loadContext
+ * @param mappedAddress
+ * @param moduleBaseOut
+ * @param moduleNameOut
+ * @return
+ */
+oserr_t
+PEImageLoadContextImageDetailsByAddress(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  uintptr_t                  mappedAddress,
+        _Out_ uintptr_t*                 moduleBaseOut,
+        _Out_ mstring_t**                moduleNameOut);
+
+/**
+ * @brief
+ * @param loadContext
  * @param moduleName
  * @param modulePathOut
  * @return

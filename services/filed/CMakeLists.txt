@@ -44,7 +44,7 @@ set (ADDITONAL_SOURCES
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
 
-add_service_target(filed "-D__FILEMANAGER_IMPL"
+add_service_target(filed ""
         ${SERVICE_HEADERS}
         ${SERVICE_SOURCES}
         ${ADDITONAL_SOURCES}

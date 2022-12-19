@@ -81,6 +81,20 @@ ModuleDelete(
     free(module);
 }
 
+uint32_t
+ModuleArchitecture(
+        _In_ struct Module* module)
+{
+    return module->Architecture;
+}
+
+PeDataDirectory_t*
+ModuleDataDirectories(
+        _In_ struct Module* module)
+{
+    return &module->DataDirectories[0];
+}
+
 static uint64_t __expfn_ordinal_hash(const void* element)
 {
     const struct ExportedFunction* function = element;

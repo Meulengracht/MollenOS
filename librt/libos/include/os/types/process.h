@@ -35,6 +35,9 @@
 #define PROCESS_INHERIT_FILES       0x00000008
 #define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
 
+// TODO: inherit block + environment block should be moved onto
+// the transfer buffer and shared instead. These data blocks can
+// be way to big to share through IPC.
 typedef struct ProcessConfiguration {
     uuid_t       Scope;
     uint8_t*     InheritBlock;
@@ -45,7 +48,8 @@ typedef struct ProcessConfiguration {
     int          StdErrHandle;
     size_t       MemoryLimit;
     const char*  WorkingDirectory;
-    const char*  FlatEnvironment;
+    const char*  EnvironmentBlock;
+    uint32_t     EnvironmentBlockLength;
 } ProcessConfiguration_t;
 
 typedef struct ProcessStartupInformation {

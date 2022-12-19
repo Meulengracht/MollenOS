@@ -9,7 +9,6 @@ if (VALI_BUILD_UNIT_TESTS)
 
     add_unit_test(FILE utils_test.c
             INCLUDES ${VFS_INCLUDES}
-            DEFINES "-D__FILEMANAGER_IMPL"
             LIBS libds
     )
 
@@ -29,6 +28,6 @@ add_library(filed-vfs
 )
 set_target_properties (filed-vfs
         PROPERTIES
-        COMPILE_FLAGS "-Wno-address-of-packed-member -D__FILEMANAGER_IMPL"
+        COMPILE_FLAGS "-Wno-address-of-packed-member"
 )
 target_link_libraries(filed-vfs PUBLIC filed-vfs-handlers)

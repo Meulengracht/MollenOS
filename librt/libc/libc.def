@@ -1,9 +1,9 @@
 LIBRARY c
 EXPORTS
-GetFullPath
-GetWorkingDirectory
-ChangeWorkingDirectory
-GetApplicationTemporaryDirectory
+OSGetFullPath
+OSGetWorkingDirectory
+OSChangeWorkingDirectory
+OSGetApplicationTemporaryDirectory
 UnwindGetSection
 usched_mtx_init
 usched_mtx_lock

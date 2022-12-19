@@ -32,9 +32,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sys_library_service_server.h>
-#include <sys_process_service_server.h>
-
 struct thread_mapping {
     uuid_t     process_id;
     uuid_t     thread_id;
@@ -352,16 +349,16 @@ __GetLoadPaths(
 {
     const char* ldpaths = NULL;
 
-    if (processConfiguration->FlatEnvironment == NULL ||
-        strlen(processConfiguration->FlatEnvironment) == 0) {
+    if (processConfiguration->EnvironmentBlock == NULL ||
+        processConfiguration->EnvironmentBlockLength <= 1) {
         return NULL;
     }
 
-    // Try to locate LDPATHS in a double zero-terminated array
-    for (size_t i = 0; processConfiguration->FlatEnvironment[i];
-        i += strlen(&processConfiguration->FlatEnvironment[i]) + 1) {
-        if (!strcmp(&processConfiguration->FlatEnvironment[i], "LDPATHS=")) {
-            ldpaths = &processConfiguration->FlatEnvironment[i];
+    // Try to locate LDPATH in a double zero-terminated array
+    for (size_t i = 0; processConfiguration->EnvironmentBlock[i];
+        i += strlen(&processConfiguration->EnvironmentBlock[i]) + 1) {
+        if (!strcmp(&processConfiguration->EnvironmentBlock[i], "LDPATH=")) {
+            ldpaths = &processConfiguration->EnvironmentBlock[i];
             break;
         }
     }
@@ -384,7 +381,7 @@ PmCreateProcess(
 
     loadPaths = __GetLoadPaths(processConfiguration);
     if (loadPaths == NULL) {
-        ERROR("PmCreateProcess no LDPATHS were supplied.");
+        ERROR("PmCreateProcess no LDPATH were supplied.");
         return OS_EOOM;
     }
 
@@ -457,16 +454,65 @@ exit:
     return oserr;
 }
 
+static oserr_t
+__WriteProcessStartupInformation(
+        _In_ Process_t* process,
+        _In_ void*      dmaBuffer,
+        _In_ size_t     bufferOffset)
+{
+    ProcessStartupInformation_t* startupInfo = (void*)((char*)dmaBuffer + bufferOffset);
+    char*                        buffer      = (char*)startupInfo + sizeof(ProcessStartupInformation_t);
+    size_t                       infoIndex   = 0;
+    int                          moduleCount = PROCESS_MAXMODULES;
+    oserr_t                      oserr;
+
+    memcpy(&buffer[infoIndex], process->arguments, process->arguments_length);
+    infoIndex += process->arguments_length;
+
+    if (process->inheritation_block_length) {
+        memcpy(
+                &buffer[infoIndex],
+                process->inheritation_block,
+                process->inheritation_block_length
+        );
+        infoIndex += process->inheritation_block_length;
+    }
+
+    oserr = PEModuleEntryPoints(
+            process->load_context,
+            (uintptr_t*)&buffer[infoIndex],
+            &moduleCount
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    infoIndex += sizeof(uintptr_t) * moduleCount;
+
+    if (process->environment_block_length) {
+        memcpy(
+                &buffer[infoIndex],
+                process->environment_block,
+                process->environment_block_length
+        );
+    }
+
+    // fill in the startup header as we now have all info
+    startupInfo->ArgumentsLength = process->arguments_length;
+    startupInfo->InheritationLength = process->inheritation_block_length;
+    startupInfo->LibraryEntriesLength = moduleCount * sizeof(Handle_t);
+    startupInfo->EnvironmentBlockLength = process->environment_block_length;
+    return OS_EOK;
+}
+
 oserr_t
 PmGetProcessStartupInformation(
-        _In_ uuid_t   threadHandle,
-        _In_ uuid_t   bufferHandle,
-        _In_ size_t   bufferOffset,
+        _In_  uuid_t  threadHandle,
+        _In_  uuid_t  bufferHandle,
+        _In_  size_t  bufferOffset,
         _Out_ uuid_t* processHandleOut)
 {
     Process_t* process;
-    oserr_t    oserr       = OS_ENOENT;
-    int        moduleCount = PROCESS_MAXMODULES;
+    oserr_t    oserr = OS_ENOENT;
     TRACE("PmGetProcessStartupInformation(thread=%u)", threadHandle);
 
     process = GetProcessByThread(threadHandle);
@@ -487,28 +533,8 @@ PmGetProcessStartupInformation(
         goto detach;
     }
 
-    ProcessStartupInformation_t* startupInfo = dmaAttachment.buffer;
-    char*                        buffer      = (char*)dmaAttachment.buffer + sizeof(ProcessStartupInformation_t);
-    memcpy(&buffer[0], process->arguments, process->arguments_length);
-    if (process->inheritation_block_length) {
-        memcpy(
-                &buffer[process->arguments_length],
-                process->inheritation_block,
-                process->inheritation_block_length
-        );
-    }
-
-    oserr = PEModuleEntryPoints(
-            process->load_context,
-            (uintptr_t*)&buffer[process->arguments_length + process->inheritation_block_length],
-            &moduleCount
-    );
-
-    // fill in the startup header as we now have all info
-    startupInfo->ArgumentsLength = process->arguments_length;
-    startupInfo->InheritationLength = process->inheritation_block_length;
-    startupInfo->LibraryEntriesLength = moduleCount * sizeof(Handle_t);
-    startupInfo->EnvironmentBlockLength = 0;
+    // Write the header
+    oserr = __WriteProcessStartupInformation(process, dmaAttachment.buffer, bufferOffset);
 
     // unmap and cleanup
     DmaAttachmentUnmap(&dmaAttachment);

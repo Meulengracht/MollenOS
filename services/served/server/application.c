@@ -505,18 +505,13 @@ static oserr_t __SpawnService(
         oserr = OS_EOOM;
         goto cleanup;
     }
+    ProcessConfigurationSetEnvironment(&config, (const char* const*)environment);
 
     // Spawn the process, what we should do here is to actually monitor the
     // processes spawned, so we can make sure to kill them again later. Or maybe
     // this should be tracked somewhere else
     // TODO not implemented
-    oserr = ProcessSpawnEx(
-            path,
-            args,
-            (const char* const*)environment,
-            &config,
-            &handle
-    );
+    oserr = ProcessSpawnEx(path, args, &config, &handle);
 
 cleanup:
     free(path);

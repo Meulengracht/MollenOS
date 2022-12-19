@@ -54,6 +54,7 @@ typedef struct Process {
     void*       inheritation_block;
     size_t      inheritation_block_length;
     char*       environment_block;
+    size_t      environment_block_length;
 } Process_t;
 
 /**

@@ -31,7 +31,8 @@
 
 static char*
 __FlattenEnvironment(
-        _In_ const char* const* environment)
+        _In_  const char* const* environment,
+        _Out_ size_t*            lengthOut)
 {
     size_t totalLength;
     char*  flat;
@@ -42,14 +43,16 @@ __FlattenEnvironment(
 
     totalLength = 1;
     for (int i = 0; environment[i]; i++) {
-        totalLength += strlen(environment[i]);
+        totalLength += strlen(environment[i]) + 1;
     }
 
     flat = malloc(totalLength);
     flat[0] = '\0';
     for (int i = 0; environment[i]; i++) {
         flat = strcat(flat, environment[i]);
+        flat++; flat[0] = '\0';
     }
+    *lengthOut = totalLength;
     return flat;
 }
 
@@ -57,10 +60,13 @@ void
 ProcessConfigurationInitialize(
     _In_ ProcessConfiguration_t* configuration)
 {
+    size_t length;
+
     memset(configuration, 0, sizeof(ProcessConfiguration_t));
 
     configuration->Scope = UUID_INVALID;
-    configuration->FlatEnvironment = __FlattenEnvironment(__crt_environment());
+    configuration->EnvironmentBlock = __FlattenEnvironment(__crt_environment(), &length);
+    configuration->EnvironmentBlockLength = (uint32_t)length;
     configuration->StdOutHandle = STDOUT_FILENO;
     configuration->StdInHandle  = STDIN_FILENO;
     configuration->StdErrHandle = STDERR_FILENO;
@@ -70,9 +76,9 @@ ProcessConfigurationInitialize(
 void
 ProcessConfigurationSetWorkingDirectory(
         _In_ ProcessConfiguration_t* configuration,
-        _In_ const char* const*      environment)
+        _In_ const char*             workingDirectory)
 {
-
+    configuration->WorkingDirectory = workingDirectory;
 }
 
 void
@@ -80,7 +86,14 @@ ProcessConfigurationSetEnvironment(
         _In_ ProcessConfiguration_t* configuration,
         _In_ const char* const*      environment)
 {
+    size_t length;
 
+    // Free any previously allocated environment block
+    free((void*)configuration->EnvironmentBlock);
+
+    // Create the new one
+    configuration->EnvironmentBlock = __FlattenEnvironment(environment, &length);
+    configuration->EnvironmentBlockLength = (uint32_t)length;
 }
 
 void
@@ -88,7 +101,7 @@ ProcessConfigurationSetScope(
         _In_ ProcessConfiguration_t* configuration,
         _In_ uuid_t                  scope)
 {
-
+    configuration->Scope = scope;
 }
 
 oserr_t
@@ -146,7 +159,7 @@ ProcessSpawnEx(
                       path,
                       arguments,
                       &gconfiguration
-  );
+    );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
     free(configuration->InheritBlock);

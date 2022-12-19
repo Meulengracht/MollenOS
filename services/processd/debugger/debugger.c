@@ -38,41 +38,6 @@ PmDebuggerInitialize(void)
     SymbolInitialize();
 }
 
-static oserr_t
-GetModuleAndOffset(
-        _In_  Process_t*   process,
-        _In_  uintptr_t    address,
-        _Out_ mstring_t**  moduleName,
-        _Out_ uintptr_t*   moduleBase)
-{
-    if (address < process->image->CodeBase) {
-        *moduleBase = process->image->VirtualAddress;
-        *moduleName = process->image->Name;
-        return OS_ENOENT;
-    }
-
-    // Was it not main executable?
-    if (address > (process->image->CodeBase + process->image->CodeSize)) {
-        // Iterate libraries to find the sinner
-        if (process->image->Libraries != NULL) {
-            foreach(i, process->image->Libraries) {
-                PeExecutable_t* Library = (PeExecutable_t*) i->value;
-                if (address >= Library->CodeBase && address < (Library->CodeBase + Library->CodeSize)) {
-                    *moduleName = Library->Name;
-                    *moduleBase = Library->VirtualAddress;
-                    return OS_EOK;
-                }
-            }
-        }
-
-        return OS_ENOENT;
-    }
-
-    *moduleBase = process->image->VirtualAddress;
-    *moduleName = process->image->Name;
-    return OS_EOK;
-}
-
 oserr_t
 HandleProcessCrashReport(
         _In_ Process_t*       process,
@@ -84,6 +49,7 @@ HandleProcessCrashReport(
     mstring_t* moduleName;
     mstring_t* programName;
     uintptr_t  crashAddress;
+    oserr_t    oserr;
     int        i = 0, max = 12;
     TRACE("HandleProcessCrashReport(%i)", crashReason);
 
@@ -92,9 +58,19 @@ HandleProcessCrashReport(
     }
 
     crashAddress = CONTEXT_IP(crashContext);
-    programName  = process->image->Name;
+    programName  = process->load_context->RootModule;
 
-    GetModuleAndOffset(process, crashAddress, &moduleName, &moduleBase);
+    oserr = PEImageLoadContextImageDetailsByAddress(
+            process->load_context,
+            crashAddress,
+            &moduleBase,
+            &moduleName
+    );
+    if (oserr != OS_EOK) {
+        ERROR("%ms: Crashed at address " PRIxIN "with reason %i  [lookup failed]",
+              programName, crashAddress, crashReason);
+        return oserr;
+    }
     ERROR("%ms: Crashed in module %ms, at offset 0x%" PRIxIN " (0x%" PRIxIN ") with reason %i",
           programName, moduleName, crashAddress - moduleBase, crashAddress, crashReason);
 
@@ -102,22 +78,28 @@ HandleProcessCrashReport(
     if (CONTEXT_USERSP(crashContext)) {
         void*   stack;
         void*   topOfStack;
-        oserr_t status;
 
-        status = MapThreadMemoryRegion(
+        oserr = MapThreadMemoryRegion(
                 threadHandle,
                 CONTEXT_USERSP(crashContext),
                 &topOfStack,
                 &stack
         );
-        if (status == OS_EOK) {
+        if (oserr == OS_EOK) {
             // Traverse the memory region up to stack max
             uintptr_t* stackAddress = (uintptr_t*)stack;
             uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
             ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
             while (stackAddress < stackLimit && i < max) {
                 uintptr_t stackValue = *stackAddress;
-                if (GetModuleAndOffset(process, stackValue, &moduleName, &moduleBase) == OS_EOK) {
+                oserr = PEImageLoadContextImageDetailsByAddress(
+                        process->load_context,
+                        stackValue,
+                        &moduleBase,
+                        &moduleName
+                );
+
+                if (oserr == OS_EOK) {
                     char*       moduleu8;
                     const char* symbolName;
                     uintptr_t   symbolOffset;
@@ -140,7 +122,7 @@ HandleProcessCrashReport(
             ERROR("HandleProcessCrashReport end of stack trace");
             MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
         } else {
-            ERROR("HandleProcessCrashReport failed to map thread stack: %u", status);
+            ERROR("HandleProcessCrashReport failed to map thread stack: %u", oserr);
         }
     } else {
         ERROR("HandleProcessCrashReport failed to load user stack value: 0x%" PRIxIN, CONTEXT_USERSP(crashContext));
