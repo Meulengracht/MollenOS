@@ -91,7 +91,7 @@ PEImageLoad(
 
     // Only after a successful parse of the image do we insert
     // it into the maps and trees.
-    moduleMapEntry.ID = loadContext->NextID++;
+    moduleMapEntry.ID = PEImageLoadContextGetID(loadContext);
     moduleMapEntry.Name = mstr_path_basename(path);
     moduleMapEntry.Path = resolvedPath;
     moduleMapEntry.BaseMapping = moduleMapping->MappingBase;
@@ -148,6 +148,7 @@ PEImageUnload(
     memcpy(&imports, &entry->Imports, sizeof(list_t));
 
     // At this point, we allow to unload.
+    PEImageLoadContextPutID(loadContext, entry->ID);
     hashtable_remove(
             &loadContext->ModuleMap,
             &(struct ModuleMapEntry) {
@@ -177,7 +178,12 @@ PEImageLoadLibrary(
     struct ModuleMapEntry* existingEntry;
     mstring_t*             baseName;
     oserr_t                oserr;
-    int                    id = loadContext->NextID;
+    int                    id;
+
+    // We want to know in advance which id is assinged to the loaded image. To do this
+    // we allocate and deallocate the id.
+    id = PEImageLoadContextGetID(loadContext);
+    PEImageLoadContextPutID(loadContext, id);
 
     // Get basename of path, we use it as the key for the hashtable
     baseName = mstr_path_basename(libraryPath);

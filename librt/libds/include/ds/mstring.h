@@ -172,6 +172,14 @@ DSDECL(mstring_t*, mstr_path_dirname(mstring_t*));
  */
 DSDECL(mstring_t*, mstr_path_basename(mstring_t*));
 
+/**
+ * @brief If present, changes the extension in the path to the one provided. For instance;
+ * /usr/lib/ld.so, .dll becomes /usr/lib/ld.dll.
+ * /usr/lib, .dll becomes /usr/lib
+ * @return A new string with the changed file extension.
+ */
+DSDECL(mstring_t*, mstr_path_change_extension_u8(mstring_t*, const char*));
+
 _CODE_END
 
 #endif //!__MSTRING_INTERFACE_H__

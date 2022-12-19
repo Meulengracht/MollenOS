@@ -27,6 +27,7 @@
 
 #ifndef __TEST
 #include <os/osdefs.h>
+#include <ds/mstring.h>
 #endif
 
 struct map_symbol {
@@ -38,7 +39,7 @@ struct map_symbol {
 };
 
 struct symbol_context {
-    const char*        key;
+    mstring_t*         key;
     char*              section_storage;
     char*              file_storage;
     char*              symbol_storage;
@@ -55,7 +56,7 @@ SymbolInitialize(void);
 /**
  * @brief Retrieves the symbol name given an offset into a binary file. Will try to locate any matching symbol file.
  *
- * @param binaryName   Name of the binary file, ex processmanager.dll
+ * @param moduleName   Name of the module file, ex processmanager.dll
  * @param binaryOffset Address offset into the binary file
  * @param symbolName   A pointer where the resulting symbol name can be stored, does not need to be freed
  * @param symbolOffset A pointer to a uintptr_t where the offset into the symbol that was found
@@ -63,7 +64,7 @@ SymbolInitialize(void);
  */
 __EXTERN oserr_t
 SymbolLookup(
-        _In_  const char*  binaryName,
+        _In_  mstring_t*   moduleName,
         _In_  uintptr_t    binaryOffset,
         _Out_ const char** symbolName,
         _Out_ uintptr_t*   symbolOffset);
