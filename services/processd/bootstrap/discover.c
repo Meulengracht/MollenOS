@@ -117,7 +117,6 @@ __ParseRamdisk(
             osStatus = PmCreateProcess(
                     (const char*)pathBuffer,
                     NULL,
-                    NULL,
                     &processConfiguration,
                     &handle
             );

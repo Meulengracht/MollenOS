@@ -21,6 +21,7 @@
 #include "private.h"
 #include "pe.h"
 #include <stdlib.h>
+#include <string.h>
 
 struct __ModuleElement {
     struct Module* Module;
@@ -33,7 +34,7 @@ struct __ModuleMapElement {
     struct Module* Module;
     uintptr_t      BaseMapping;
     void*          ModuleKey;
-    int            Vertices[64];
+    bool           Vertices[PROCESS_MAXMODULES];
     int            VerticeCount;
 };
 
@@ -41,19 +42,6 @@ struct __ModuleMapEnumContext {
     struct __ModuleMapElement* Elements;
     int                        Index;
 };
-
-static uint64_t __hash(const void* element)
-{
-    const struct __ModuleMapElement* el = element;
-    return (uint64_t)el->ID;
-}
-
-static int __cmp(const void* element1, const void* element2)
-{
-    const struct __ModuleMapElement* el1 = element1;
-    const struct __ModuleMapElement* el2 = element2;
-    return el1->ID == el2->ID ? 0 : -1;
-}
 
 void __enum(int index, const void* element, void* userContext)
 {
@@ -67,15 +55,20 @@ void __enum(int index, const void* element, void* userContext)
     context->Elements[context->Index].Module = entry->Module;
     context->Elements[context->Index].BaseMapping = entry->BaseMapping;
     context->Elements[context->Index].ModuleKey = entry->Name;
+    memset(
+            &context->Elements[context->Index].Vertices[0],
+            0,
+            sizeof(bool) * PROCESS_MAXMODULES
+    );
 
-    // Copy over vertices
+    // Go over all imports and mark their respective id's
     foreach (n, &entry->Imports) {
-        context->Elements[context->Index].Vertices[i++] = (int)(uintptr_t)n->key;
+        int importID = (int)(uintptr_t)n->key;
+        context->Elements[context->Index].Vertices[importID] = true;
     }
     context->Elements[context->Index].VerticeCount = i;
     context->Index++;
 }
-
 
 // __BuildModuleDependencyList converts the following tree structure
 //               foo.app
@@ -132,11 +125,9 @@ __BuildModuleDependencyList(
                     if (context.Elements[j].ID == -1) {
                         continue;
                     }
-                    for (int k = 0; k < context.Elements[j].VerticeCount; k++) {
-                        if (context.Elements[j].Vertices[k] == context.Elements[i].ID) {
-                            context.Elements[j].VerticeCount--;
-                            break;
-                        }
+                    if (context.Elements[j].Vertices[context.Elements[i].ID]) {
+                        context.Elements[j].Vertices[context.Elements[i].ID] = false;
+                        context.Elements[j].VerticeCount--;
                     }
                 }
 

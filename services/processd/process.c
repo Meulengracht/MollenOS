@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Process Manager
- * - Contains the implementation of the process-manager which keeps track
- *   of running applications.
  */
 
 #define __TRACE
@@ -84,7 +77,6 @@ DestroyProcess(
     usched_mtx_unlock(&g_processesLock);
 
     mstr_delete(process->name);
-    mstr_delete(process->path);
     mstr_delete(process->working_directory);
     mstr_delete(process->assembly_directory);
     PEImageLoadContextDelete(process->load_context);
@@ -140,10 +132,12 @@ __BuildArguments(
         _In_ Process_t*  process,
         _In_ const char* argsIn)
 {
-    size_t pathLength;
-    size_t argumentsLength = 0;
-    char*  argumentsPointer;
-    char*  processPath;
+    mstring_t* fullPath;
+    size_t     pathLength;
+    size_t     argumentsLength = 0;
+    char*      argumentsPointer;
+    char*      processPath;
+    oserr_t    oserr;
 
     // check for null or empty
     if (argsIn && strlen(argsIn)) {
@@ -151,7 +145,16 @@ __BuildArguments(
         argumentsLength = strlen(argsIn) + 1;
     }
 
-    processPath = mstr_u8(process->path);
+    oserr = PEImageLoadContextModulePath(
+            process->load_context,
+            process->load_context->RootModule,
+            &fullPath
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    processPath = mstr_u8(fullPath);
     if (processPath == NULL) {
         return OS_EOOM;
     }
@@ -208,7 +211,7 @@ __BuildInheritationBlock(
 static oserr_t
 __LoadProcessImage(
         _In_  uuid_t                      scope,
-        _In_  char*                       envPaths,
+        _In_  const char*                 ldPaths,
         _In_  const char*                 cpath,
         _Out_ struct PEImageLoadContext** loadContextOut)
 {
@@ -217,7 +220,7 @@ __LoadProcessImage(
     oserr_t                    oserr;
     ENTRY("__LoadProcessImage(path=%s)", cpath);
 
-    loadContext = PEImageLoadContextNew(scope, envPaths);
+    loadContext = PEImageLoadContextNew(scope, ldPaths);
     if (loadContext == NULL) {
         oserr = OS_EOOM;
         goto exit;
@@ -242,6 +245,17 @@ exit:
     return oserr;
 }
 
+static mstring_t*
+__SelectWorkingDirectory(
+        _In_ ProcessConfiguration_t* config,
+        _In_ mstring_t*              fullPath)
+{
+    if (config->WorkingDirectory == NULL || strlen(config->WorkingDirectory) == 0) {
+        return mstr_path_dirname(fullPath);
+    }
+    return mstr_new_u8(config->WorkingDirectory);
+}
+
 static oserr_t
 __ProcessNew(
         _In_  ProcessConfiguration_t*    config,
@@ -250,7 +264,8 @@ __ProcessNew(
         _Out_ Process_t**                processOut)
 {
     Process_t* process;
-    int        index;
+    mstring_t* fullPath;
+    oserr_t    oserr;
 
     process = (Process_t*)malloc(sizeof(Process_t));
     if (!process) {
@@ -268,18 +283,20 @@ __ProcessNew(
     usched_mtx_init(&process->mutex, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&process->condition);
 
-    process->path = mstr_clone(process->image->FullPath);
-    if (!process->path) {
+    oserr = PEImageLoadContextModulePath(
+            loadContext,
+            loadContext->RootModule,
+            &fullPath
+    );
+    if (oserr != OS_EOK) {
         free(process);
-        return OS_EOOM;
+        return oserr;
     }
 
-    index = mstr_rfind_u8(process->path, "/", -1);
-    process->name               = mstr_substr(process->path, index + 1, -1);
-    process->working_directory  = mstr_substr(process->path, 0, index);
-    process->assembly_directory = mstr_substr(process->path, 0, index);
+    process->name               = mstr_path_basename(fullPath);
+    process->working_directory  = __SelectWorkingDirectory(config, fullPath);
+    process->assembly_directory = mstr_path_dirname(fullPath);
     if (!process->name || !process->working_directory || !process->assembly_directory) {
-        mstr_delete(process->path);
         mstr_delete(process->name);
         mstr_delete(process->working_directory);
         mstr_delete(process->assembly_directory);
@@ -296,8 +313,18 @@ __StartProcess(
         _In_ Process_t* process)
 {
     ThreadParameters_t threadParameters;
+    uintptr_t          entryPoint;
     oserr_t            oserr;
     TRACE("__StartProcess(process=%ms)", process->name);
+
+    oserr = PEImageLoadContextModuleEntryPoint(
+            process->load_context,
+            process->load_context->RootModule,
+            &entryPoint
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Initialize threading paramaters for the new thread
     ThreadParametersInitialize(&threadParameters);
@@ -308,7 +335,7 @@ __StartProcess(
     }
 
     oserr = Syscall_ThreadCreate(
-            process->image->EntryAddress,
+            entryPoint,
             NULL, // Argument
             &threadParameters,
             &process->primary_thread_id);
@@ -319,51 +346,84 @@ __StartProcess(
     return oserr;
 }
 
+static const char*
+__GetLoadPaths(
+        _In_  ProcessConfiguration_t* processConfiguration)
+{
+    const char* ldpaths = NULL;
+
+    if (processConfiguration->FlatEnvironment == NULL ||
+        strlen(processConfiguration->FlatEnvironment) == 0) {
+        return NULL;
+    }
+
+    // Try to locate LDPATHS in a double zero-terminated array
+    for (size_t i = 0; processConfiguration->FlatEnvironment[i];
+        i += strlen(&processConfiguration->FlatEnvironment[i]) + 1) {
+        if (!strcmp(&processConfiguration->FlatEnvironment[i], "LDPATHS=")) {
+            ldpaths = &processConfiguration->FlatEnvironment[i];
+            break;
+        }
+    }
+    return ldpaths;
+}
+
 oserr_t
 PmCreateProcess(
         _In_  const char*             path,
         _In_  const char*             args,
-        _In_  const void*             inherit,
         _In_  ProcessConfiguration_t* processConfiguration,
         _Out_ uuid_t*                 handleOut)
 {
     struct PEImageLoadContext* loadContext;
     Process_t*                 process;
     uuid_t                     handle;
-    oserr_t                    osStatus;
+    oserr_t                    oserr;
+    const char*                loadPaths;
     ENTRY("PmCreateProcess(path=%s, args=%s)", path, args);
 
-    osStatus = __LoadProcessImage(
-            UUID_INVALID,
-            NULL,
+    loadPaths = __GetLoadPaths(processConfiguration);
+    if (loadPaths == NULL) {
+        ERROR("PmCreateProcess no LDPATHS were supplied.");
+        return OS_EOOM;
+    }
+
+    oserr = __LoadProcessImage(
+            processConfiguration->Scope,
+            loadPaths,
             path,
             &loadContext
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         goto exit;
     }
 
-    osStatus = OSHandleCreate(&handle);
-    if (osStatus != OS_EOK) {
+    oserr = OSHandleCreate(&handle);
+    if (oserr != OS_EOK) {
         ERROR("PmCreateProcess failed to allocate a system handle for process");
         PEImageLoadContextDelete(loadContext);
         goto exit;
     }
 
-    osStatus = __ProcessNew(processConfiguration, handle, loadContext, &process);
-    if (osStatus != OS_EOK) {
+    oserr = __ProcessNew(
+            processConfiguration,
+            handle,
+            loadContext,
+            &process
+    );
+    if (oserr != OS_EOK) {
         PEImageLoadContextDelete(loadContext);
         goto exit;
     }
 
-    osStatus = __BuildArguments(process, args);
-    if (osStatus != OS_EOK) {
+    oserr = __BuildArguments(process, args);
+    if (oserr != OS_EOK) {
         DestroyProcess(process);
         goto exit;
     }
 
-    osStatus = __BuildInheritationBlock(process, inherit);
-    if (osStatus != OS_EOK) {
+    oserr = __BuildInheritationBlock(process, processConfiguration->InheritBlock);
+    if (oserr != OS_EOK) {
         DestroyProcess(process);
         goto exit;
     }
@@ -372,8 +432,8 @@ PmCreateProcess(
     // to the hashtable, but we need the thread id before adding it. So to avoid any data races
     // in a multicore environment, hold the lock untill we've added it.
     usched_mtx_lock(&g_processesLock);
-    osStatus = __StartProcess(process);
-    if (osStatus != OS_EOK) {
+    oserr = __StartProcess(process);
+    if (oserr != OS_EOK) {
         usched_mtx_unlock(&g_processesLock);
         DestroyProcess(process);
         goto exit;
@@ -394,7 +454,7 @@ PmCreateProcess(
     *handleOut = handle;
 exit:
     EXIT("PmCreateProcess");
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -633,6 +693,7 @@ PmLoadLibrary(
 {
     Process_t*      process;
     void*           imageKey;
+    uintptr_t       imageEntryPoint;
     mstring_t*      path;
     oserr_t         oserr  = OS_ENOENT;
 
@@ -644,17 +705,24 @@ PmLoadLibrary(
     }
 
     if (!strlen(cpath)) {
-        *handleOut     = HANDLE_GLOBAL;
-        *entryPointOut = process->image->EntryAddress;
-        oserr = OS_EOK;
+        oserr = PEImageLoadContextModuleEntryPoint(
+                process->load_context,
+                process->load_context->RootModule,
+                entryPointOut
+        );
         goto exit;
     }
 
-    path  = mstr_new_u8((void *)cpath);
-    oserr = PEImageLoadLibrary(process->load_context, path, &imageKey);
+    path  = mstr_new_u8((void*)cpath);
+    oserr = PEImageLoadLibrary(
+            process->load_context,
+            path,
+            &imageKey,
+            &imageEntryPoint
+    );
     if (oserr == OS_EOK) {
-        *handleOut    = imageKey;
-        *entryPointOut = executable->EntryAddress;
+        *handleOut     = imageKey;
+        *entryPointOut = imageEntryPoint;
     }
     mstr_delete(path);
 
@@ -682,12 +750,16 @@ PmGetLibraryFunction(
 
     usched_mtx_lock(&process->mutex);
     if (libraryHandle != HANDLE_GLOBAL) {
-        executable = (PeExecutable_t*)libraryHandle;
+        imageKey = libraryHandle;
     } else {
-        executable = process->image;
+        imageKey = process->load_context->RootModule;
     }
 
-    *functionAddressOut = PEFindExport(imageKey, name);
+    *functionAddressOut = PEImageFindExport(
+            process->load_context,
+            imageKey,
+            name
+    );
     if (*functionAddressOut != 0) {
         oserr = OS_EOK;
     }

@@ -54,6 +54,7 @@ struct ModuleMapping {
 struct ModuleMapEntry {
     mstring_t*     Name; // Primary Key
     int            ID; // Secondary Key
+    mstring_t*     Path; // Resolved path of module
     struct Module* Module;
     uintptr_t      BaseMapping;
     bool           Dependency;

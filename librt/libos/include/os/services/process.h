@@ -29,13 +29,31 @@
 _CODE_BEGIN
 
 /**
- * @brief Resets all values of the startup information structure to default values.
+ * @brief Initializes the process configuration to default values.
+ * The environment for the new process will per default inherit the
+ * current environment.
+ *
  *
  * @param Configuration
  */
 CRTDECL(void,
 ProcessConfigurationInitialize(
 	_In_ ProcessConfiguration_t* configuration));
+
+CRTDECL(void,
+ProcessConfigurationSetWorkingDirectory(
+        _In_ ProcessConfiguration_t* configuration,
+        _In_ const char* const*      environment));
+
+CRTDECL(void,
+ProcessConfigurationSetEnvironment(
+        _In_ ProcessConfiguration_t* configuration,
+        _In_ const char* const*      environment));
+
+CRTDECL(void,
+ProcessConfigurationSetScope(
+        _In_ ProcessConfiguration_t* configuration,
+        _In_ uuid_t                  scope));
 
 /**
  * @brief Spawn a new process with default parameters. The process will inherit the current process's environment
@@ -66,7 +84,6 @@ CRTDECL(oserr_t,
 ProcessSpawnEx(
     _In_     const char*             path,
     _In_Opt_ const char*             arguments,
-    _In_Opt_ const char* const*      environment,
     _In_     ProcessConfiguration_t* configuration,
     _Out_    uuid_t*                 handleOut));
 

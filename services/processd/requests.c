@@ -19,7 +19,6 @@
 
 #include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <gracht/server.h>
 #include <os/context.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,7 +27,6 @@
 #include "sys_library_service_server.h"
 #include "sys_process_service_server.h"
 
-extern oserr_t PmCreateProcess(const char* path, const char* args, const void* inherit, ProcessConfiguration_t* processConfiguration, uuid_t* handleOut);
 extern oserr_t PmGetProcessStartupInformation(uuid_t threadHandle, uuid_t bufferHandle, size_t bufferOffset, uuid_t* processHandleOut);
 extern oserr_t PmJoinProcess(uuid_t processHandle, unsigned int timeout, int* exitCodeOut);
 extern oserr_t PmTerminateProcess(uuid_t processHandle, int exitCode);
@@ -44,36 +42,25 @@ extern oserr_t PmSetWorkingDirectory(uuid_t processHandle, const char* path);
 extern oserr_t PmGetAssemblyDirectory(uuid_t processHandle, mstring_t** pathOut);
 extern oserr_t HandleProcessCrashReport(Process_t* process, uuid_t threadHandle, const Context_t* crashContext, int crashReason);
 
-void sys_process_spawn_invocation(struct gracht_message* message, const char* path, const char* arguments,
-                                  const uint8_t* inheritBlock, const uint32_t inheritBlock_count,
-                                  const struct sys_process_configuration* configuration)
+void sys_process_spawn_invocation(
+        struct gracht_message*                          message,
+                const char*                             path,
+                const char*                             arguments,
+                const struct sys_process_configuration* configuration)
 {
     ProcessConfiguration_t conf;
-    uuid_t                 handle;
-    oserr_t                osStatus;
-    ENTRY("sys_process_spawn_invocation(path=%s, args=%s)", path, args);
+    uuid_t                 handle = UUID_INVALID;
+    oserr_t                oserr;
+    TRACE("void sys_process_spawn_invocation(()");
 
     if (!strlen(path)) {
         sys_process_spawn_response(message, OS_EINVALPARAMS, UUID_INVALID);
-        goto exit;
+        return;
     }
 
     from_sys_process_configuration(configuration, &conf);
-    osStatus = PmCreateProcess(
-            path,
-            arguments,
-            inheritBlock,
-            &conf,
-            &handle
-    );
-    if (osStatus != OS_EOK) {
-        sys_process_spawn_response(message, osStatus, UUID_INVALID);
-        goto exit;
-    }
-    sys_process_spawn_response(message, osStatus, handle);
-
-exit:
-    EXIT("PmCreateProcess");
+    oserr = PmCreateProcess(path, arguments, &conf, &handle);
+    sys_process_spawn_response(message, oserr, handle);
 }
 
 void sys_process_get_startup_information_invocation(struct gracht_message* message, const uuid_t handle,

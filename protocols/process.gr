@@ -10,15 +10,19 @@ import "types"
 namespace sys
 
 struct process_configuration {
-    uint  inherit_flags;
-    int   stdout_handle;
-    int   stdin_handle;
-    int   stderr_handle;
-    ulong memory_limit;
+    uuid_t  scope;
+    uint8[] inherit_block;
+    uint    inherit_flags;
+    int     stdout_handle;
+    int     stdin_handle;
+    int     stderr_handle;
+    ulong   memory_limit;
+    string  working_directory;
+    string  environment;
 }
 
 service process (5) {
-    func spawn(string path, string arguments, uint8[] inheritBlock, process_configuration configuration) : (oserr_t result, uuid_t handle) = 1;
+    func spawn(string path, string arguments, process_configuration configuration) : (oserr_t result, uuid_t handle) = 1;
     func join(uuid_t handle, uint timeout) : (oserr_t result, int exitCode) = 2;
     func signal(uuid_t processId, uuid_t handle, int signal) : (oserr_t result) = 3;
     func terminate(uuid_t handle, int exitCode) : (oserr_t result) = 4;

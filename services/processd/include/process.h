@@ -46,7 +46,6 @@ typedef struct Process {
     int                        exit_code;
 
     mstring_t* name;
-    mstring_t* path;
     mstring_t* working_directory;
     mstring_t* assembly_directory;
 
@@ -54,6 +53,7 @@ typedef struct Process {
     size_t      arguments_length;
     void*       inheritation_block;
     size_t      inheritation_block_length;
+    char*       environment_block;
 } Process_t;
 
 /**
@@ -106,7 +106,6 @@ extern oserr_t
 PmCreateProcess(
         _In_  const char*             path,
         _In_  const char*             args,
-        _In_  const void*             inherit,
         _In_  ProcessConfiguration_t* processConfiguration,
         _Out_ uuid_t*                 handleOut);
 
