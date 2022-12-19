@@ -60,7 +60,12 @@ __ResolveImport(
 {
     struct ModuleMapEntry* mapEntry;
     oserr_t                oserr;
-    int                    id = loadContext->NextID;
+    int                    id;
+
+    // We want to know in advance which id is assinged to the loaded image. To do this
+    // we allocate and deallocate the id.
+    id = PEImageLoadContextGetID(loadContext);
+    PEImageLoadContextPutID(loadContext, id);
 
     mapEntry = hashtable_get(
             &loadContext->ModuleMap,

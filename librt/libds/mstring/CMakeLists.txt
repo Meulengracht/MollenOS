@@ -19,6 +19,7 @@ set(MSTRING_SRCS
         core/mstr_unicode.c
 
         path/mstr_path_basename.c
+        path/mstr_path_change_extension.c
         path/mstr_path_dirname.c
         path/mstr_path_join.c
         path/mstr_path_new_u8.c

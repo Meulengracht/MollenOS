@@ -29,8 +29,8 @@
 #include <os/memory.h>
 #include "pe.h"
 #include "process.h"
-#include "sys_process_service_server.h"
 #include "symbols.h"
+#include <stdlib.h>
 
 void
 PmDebuggerInitialize(void)
@@ -74,59 +74,54 @@ HandleProcessCrashReport(
     ERROR("%ms: Crashed in module %ms, at offset 0x%" PRIxIN " (0x%" PRIxIN ") with reason %i",
           programName, moduleName, crashAddress - moduleBase, crashAddress, crashReason);
 
-    // Print stack trace for application
-    if (CONTEXT_USERSP(crashContext)) {
-        void*   stack;
-        void*   topOfStack;
-
-        oserr = MapThreadMemoryRegion(
-                threadHandle,
-                CONTEXT_USERSP(crashContext),
-                &topOfStack,
-                &stack
-        );
-        if (oserr == OS_EOK) {
-            // Traverse the memory region up to stack max
-            uintptr_t* stackAddress = (uintptr_t*)stack;
-            uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
-            ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
-            while (stackAddress < stackLimit && i < max) {
-                uintptr_t stackValue = *stackAddress;
-                oserr = PEImageLoadContextImageDetailsByAddress(
-                        process->load_context,
-                        stackValue,
-                        &moduleBase,
-                        &moduleName
-                );
-
-                if (oserr == OS_EOK) {
-                    char*       moduleu8;
-                    const char* symbolName;
-                    uintptr_t   symbolOffset;
-
-                    moduleu8 = mstr_u8(moduleName);
-                    if (moduleu8 == NULL) {
-                        return OS_EOOM;
-                    }
-                    if (SymbolLookup(moduleu8, stackValue - moduleBase, &symbolName, &symbolOffset) == OS_EOK) {
-                        ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
-                    } else {
-                        ERROR("%i: At offset 0x%" PRIxIN " in module %ms (0x%" PRIxIN ")",
-                              i, stackValue - moduleBase, moduleName, stackValue);
-                    }
-                    free(moduleu8);
-                    i++;
-                }
-                stackAddress++;
-            }
-            ERROR("HandleProcessCrashReport end of stack trace");
-            MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
-        } else {
-            ERROR("HandleProcessCrashReport failed to map thread stack: %u", oserr);
-        }
-    } else {
+    // Verify the stack pointer of the context
+    if (!CONTEXT_USERSP(crashContext)) {
         ERROR("HandleProcessCrashReport failed to load user stack value: 0x%" PRIxIN, CONTEXT_USERSP(crashContext));
+        return OS_EUNKNOWN;
     }
 
+    // Print stack trace for application
+    void*   stack;
+    void*   topOfStack;
+
+    oserr = MapThreadMemoryRegion(
+            threadHandle,
+            CONTEXT_USERSP(crashContext),
+            &topOfStack,
+            &stack
+    );
+    if (oserr != OS_EOK) {
+        ERROR("HandleProcessCrashReport failed to map thread stack: %u", oserr);
+        return oserr;
+    }
+
+    // Traverse the memory region up to stack max
+    uintptr_t* stackAddress = (uintptr_t*)stack;
+    uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
+    ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
+    while (stackAddress < stackLimit && i < max) {
+        uintptr_t stackValue = *stackAddress;
+        oserr = PEImageLoadContextImageDetailsByAddress(
+                process->load_context,
+                stackValue,
+                &moduleBase,
+                &moduleName
+        );
+
+        if (oserr == OS_EOK) {
+            const char* symbolName;
+            uintptr_t   symbolOffset;
+            if (SymbolLookup(moduleName, stackValue - moduleBase, &symbolName, &symbolOffset) == OS_EOK) {
+                ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
+            } else {
+                ERROR("%i: At offset 0x%" PRIxIN " in module %ms (0x%" PRIxIN ")",
+                      i, stackValue - moduleBase, moduleName, stackValue);
+            }
+            i++;
+        }
+        stackAddress++;
+    }
+    ERROR("HandleProcessCrashReport end of stack trace");
+    MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
     return OS_EOK;
 }

@@ -253,6 +253,25 @@ __SelectWorkingDirectory(
     return mstr_new_u8(config->WorkingDirectory);
 }
 
+static uint8_t*
+__memdup(
+        _In_ const char* data,
+        _In_ size_t      length)
+{
+    uint8_t* mem;
+
+    if (data == NULL || length == 0) {
+        return NULL;
+    }
+
+    mem = malloc(length);
+    if (mem == NULL) {
+        return NULL;
+    }
+    memcpy(mem, data, length);
+    return mem;
+}
+
 static oserr_t
 __ProcessNew(
         _In_  ProcessConfiguration_t*    config,
@@ -276,6 +295,8 @@ __ProcessNew(
     process->state = ProcessState_RUNNING;
     process->load_context = loadContext;
     process->references = 1;
+    process->environment_block = (char*)__memdup(config->EnvironmentBlock, config->EnvironmentBlockLength);
+    process->environment_block_length = config->EnvironmentBlockLength;
     memcpy(&process->config, config, sizeof(ProcessConfiguration_t));
     usched_mtx_init(&process->mutex, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&process->condition);

@@ -46,10 +46,10 @@ struct PEImageLoadContext {
     uuid_t     MemorySpace;
     uintptr_t  LoadAddress;
     char*      Paths;
-    // NextID is the next ID assigned to the next loaded module in
-    // this load context. TODO: make a bitmap and reuse id's.
-    int NextID;
     mstring_t* RootModule;
+
+    // IDBitmap is a bitmap tracking used loader IDs.
+    uint8_t IDBitmap[PROCESS_MAXMODULES/sizeof(uint8_t)];
 
     // ModuleMap is the map of loaded modules for
     // this process context. It's constructed with the following
@@ -75,6 +75,25 @@ PEImageLoadContextNew(
 void
 PEImageLoadContextDelete(
         _In_ struct PEImageLoadContext* loadContext);
+
+/**
+ * @brief
+ * @param loadContext
+ * @return
+ */
+int
+PEImageLoadContextGetID(
+        _In_ struct PEImageLoadContext* loadContext);
+
+/**
+ * @brief
+ * @param loadContext
+ * @param id
+ */
+void
+PEImageLoadContextPutID(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ int                        id);
 
 /**
  * @brief

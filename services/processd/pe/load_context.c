@@ -61,6 +61,7 @@ PEImageLoadContextNew(
     if (loadContext == NULL) {
         return NULL;
     }
+    memset(loadContext, 0, sizeof(struct PEImageLoadContext));
 
     oserr = CreateMemorySpace(0, &loadContext->MemorySpace);
     if (oserr != OS_EOK) {
@@ -77,8 +78,6 @@ PEImageLoadContextNew(
     loadContext->Scope = scope;
     loadContext->Paths = strdup(paths);
     loadContext->LoadAddress = __GetLoadAddress();
-    loadContext->NextID = 0;
-    loadContext->RootModule = NULL;
     return loadContext;
 }
 
@@ -116,6 +115,31 @@ PEImageLoadContextDelete(
     hashtable_destroy(&loadContext->ModuleMap);
     free(loadContext->Paths);
     free(loadContext);
+}
+
+int
+PEImageLoadContextGetID(
+        _In_ struct PEImageLoadContext* loadContext)
+{
+    if (loadContext == NULL) {
+        return -1;
+    }
+
+    for (int i = 0; i < PROCESS_MAXMODULES; i++) {
+        if (!(loadContext->IDBitmap[i/sizeof(uint8_t)] & (1 << (i % sizeof(uint8_t))))) {
+            loadContext->IDBitmap[i/sizeof(uint8_t)] |= (1 << (i % sizeof(uint8_t)));
+            return i;
+        }
+    }
+    return -1;
+}
+
+void
+PEImageLoadContextPutID(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ int                        id)
+{
+    loadContext->IDBitmap[id/sizeof(uint8_t)] &= ~(1 << (id % sizeof(uint8_t)));
 }
 
 struct __ImageDetailsContext {

@@ -28,19 +28,16 @@
 #include <ds/hashtable.h>
 #include "symbols.h"
 #include <stdio.h>
-#include <string.h>
 #include <malloc.h>
-#include <strings.h>
-#include <ctype.h>
 
 static oserr_t
 SymbolLoadMapFile(
-        _In_  const char* binaryName,
-        _Out_ void**      fileBufferOut,
-        _Out_ long*       fileSizeOut);
+        _In_  mstring_t* moduleName,
+        _Out_ void**     fileBufferOut,
+        _Out_ long*      fileSizeOut);
 
-static uint64_t SymbolContextHash(const void* element);
-static int      SymbolContextCmp(const void* element1, const void* element2);
+static uint64_t __symbol_hash(const void* element);
+static int      __symbol_cmp(const void* element1, const void* element2);
 
 static hashtable_t g_loadedSymbolContexts;
 
@@ -51,48 +48,54 @@ SymbolInitialize(void)
     hashtable_construct(&g_loadedSymbolContexts,
                         HASHTABLE_MINIMUM_CAPACITY,
                         sizeof(struct symbol_context),
-                        SymbolContextHash,
-                        SymbolContextCmp);
+                        __symbol_hash,
+                        __symbol_cmp);
 }
 
 oserr_t
 SymbolsLoadContext(
-        _In_  const char*             binaryName,
+        _In_  mstring_t*              moduleName,
         _Out_ struct symbol_context** symbolContextOut)
 {
     // replace extension with .map and see if it exists
     struct symbol_context symbolContext = { 0 };
     long                  fileSize;
     void*                 fileBuffer;
-    oserr_t            status;
+    oserr_t               oserr;
+    TRACE("SymbolsLoadContext(moduleName=%ms)", moduleName);
 
-    TRACE("[SymbolsLoadContext] loading map file");
-    status = SymbolLoadMapFile(binaryName, &fileBuffer, &fileSize);
-    if (status != OS_EOK) {
-        WARNING("[SymbolsLoadContext] failed to load map for %s", binaryName);
-        return status;
+    oserr = SymbolLoadMapFile(moduleName, &fileBuffer, &fileSize);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     TRACE("[SymbolsLoadContext] parsing map file, 0x%llx - %llu", fileBuffer, fileSize);
-    status = SymbolParseMapFile(&symbolContext, fileBuffer, fileSize);
+    oserr = SymbolParseMapFile(&symbolContext, fileBuffer, fileSize);
     free(fileBuffer);
-    if (status != OS_EOK) {
-        WARNING("[SymbolsLoadContext] failed to parse map for %s", binaryName);
-        return status;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // ok create key now everything is done
-    symbolContext.key = strdup(binaryName);
+    symbolContext.key = mstr_clone(moduleName);
 
     TRACE("[SymbolsLoadContext] context loaded %s", symbolContext.key);
-    hashtable_set(&g_loadedSymbolContexts, &symbolContext);
-    *symbolContextOut = hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
+    hashtable_set(
+            &g_loadedSymbolContexts,
+            &symbolContext
+    );
+    *symbolContextOut = hashtable_get(
+            &g_loadedSymbolContexts,
+            &(struct symbol_context) {
+                .key = moduleName
+            }
+    );
     return OS_EOK;
 }
 
 oserr_t
 SymbolLookup(
-        _In_  const char*  binaryName,
+        _In_  mstring_t*   moduleName,
         _In_  uintptr_t    binaryOffset,
         _Out_ const char** symbolName,
         _Out_ uintptr_t*   symbolOffset)
@@ -100,16 +103,20 @@ SymbolLookup(
     struct symbol_context* symbolContext;
     struct map_symbol*     symbol = NULL;
     oserr_t                status;
-    int                    i;
 
-    if (!binaryName) {
+    if (moduleName == NULL) {
         return OS_EINVALPARAMS;
     }
 
     // Check for loaded context
-    symbolContext = (struct symbol_context*)hashtable_get(&g_loadedSymbolContexts, &(struct symbol_context) { .key = binaryName });
+    symbolContext = (struct symbol_context*)hashtable_get(
+            &g_loadedSymbolContexts,
+            &(struct symbol_context) {
+                .key = moduleName
+            }
+    );
     if (!symbolContext) {
-        status = SymbolsLoadContext(binaryName, &symbolContext);
+        status = SymbolsLoadContext(moduleName, &symbolContext);
         if (status != OS_EOK) {
             return status;
         }
@@ -117,7 +124,7 @@ SymbolLookup(
 
     // iterate symbols and find matching symbol, always selects last
     // symbol if the loop reaches end of list
-    for (i = 0; i < symbolContext->symbol_count; i++) {
+    for (int i = 0; i < symbolContext->symbol_count; i++) {
         if (i == (symbolContext->symbol_count - 1)) {
             symbol = &symbolContext->symbols[i];
             break;
@@ -137,35 +144,35 @@ SymbolLookup(
 
 static oserr_t
 SymbolLoadMapFile(
-        _In_  const char* binaryName,
-        _Out_ void**      fileBufferOut,
-        _Out_ long*       fileSizeOut)
+        _In_  mstring_t* moduleName,
+        _Out_ void**     fileBufferOut,
+        _Out_ long*      fileSizeOut)
 {
-    char                   path[_MAXPATH];
-    char                   tmp[_MAXPATH] = { 0 };
-    const char*            lastDot = strrchr(binaryName, '.');
-    FILE*                  file;
-    long                   fileSize;
-    void*                  fileBuffer;
-    size_t                 bytesRead;
+    FILE*      file;
+    long       fileSize;
+    void*      fileBuffer;
+    size_t     bytesRead;
+    mstring_t* mapFileName;
+    mstring_t* mapFilePath;
+    char*      mapFilePathu8;
 
-    if (lastDot) {
-        size_t length = (size_t)((uintptr_t)lastDot - (uintptr_t)binaryName);
-        strncpy(&tmp[0], binaryName, length);
-    }
-    else {
-        strcpy(&tmp[0], binaryName);
-    }
+    mapFileName = mstr_path_change_extension_u8(moduleName, ".map");
+    mapFilePath = mstr_fmt("/initfs/maps/%ms", mapFileName);
+    mapFilePathu8 = mstr_u8(mapFilePath);
 
-    sprintf(&path[0], "/initfs/maps/%s.map", &tmp[0]);
-
-    TRACE("[SymbolsLoadContext] trying to load %s", &path[0]);
-    file = fopen(&path[0], "r");
+    TRACE("[SymbolsLoadContext] trying to load %s", mapFilePathu8);
+    file = fopen(mapFilePathu8, "r");
+    // After the open call, we do not need any of the path data anymore, so lets
+    // just free it immediately, so we don't have to take care of it anymore
+    mstr_delete(mapFileName);
+    mstr_delete(mapFilePath);
     if (!file) {
         // map did not exist
-        ERROR("[SymbolsLoadContext] map file not found at %s", &path[0]);
+        ERROR("[SymbolsLoadContext] map file not found at %s", mapFilePathu8);
+        free(mapFilePathu8);
         return OS_ENOENT;
     }
+    free(mapFilePathu8);
 
     fseek(file, 0, SEEK_END);
     fileSize = ftell(file);
@@ -195,29 +202,15 @@ SymbolLoadMapFile(
     return OS_EOK;
 }
 
-static uint64_t SymbolContextHash(const void* element)
+static uint64_t __symbol_hash(const void* element)
 {
     const struct symbol_context* context = element;
-    uint8_t*                     pointer;
-    uint64_t                     hash = 5381;
-    int                          character;
-
-    if (!context || !context->key) {
-        return 0;
-    }
-
-    pointer = (uint8_t*)context->key;
-    while ((character = tolower(*pointer)) != 0) {
-        hash = ((hash << 5) + hash) + character; /* hash * 33 + c */
-        pointer++;
-    }
-
-    return hash;
+    return mstr_hash(context->key);
 }
 
-static int SymbolContextCmp(const void* element1, const void* element2)
+static int __symbol_cmp(const void* element1, const void* element2)
 {
     const struct symbol_context* lh = element1;
     const struct symbol_context* rh = element2;
-    return strcasecmp(lh->key, rh->key);
+    return mstr_cmp(lh->key, rh->key);
 }
