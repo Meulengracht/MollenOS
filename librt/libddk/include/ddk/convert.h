@@ -143,11 +143,16 @@ static void to_sys_file_descriptor(OsFileDescriptor_t* in, struct sys_file_descr
 
 static void from_sys_process_configuration(const struct sys_process_configuration* in, ProcessConfiguration_t* out)
 {
+    out->Scope = in->scope;
     out->InheritFlags = in->inherit_flags;
     out->MemoryLimit = in->memory_limit;
     out->StdOutHandle = in->stdout_handle;
     out->StdErrHandle = in->stderr_handle;
     out->StdInHandle = in->stdin_handle;
+    out->WorkingDirectory = in->working_directory;
+    out->FlatEnvironment = in->environment;
+    out->InheritBlock = in->inherit_block;
+    out->InheritBlockLength = in->inherit_block_count;
 }
 
 static void to_sys_process_configuration(ProcessConfiguration_t* in, struct sys_process_configuration* out)

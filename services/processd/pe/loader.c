@@ -21,6 +21,7 @@
 #include "private.h"
 #include "pe.h"
 #include <string.h>
+#include <stdlib.h>
 
 extern oserr_t
 __AddImportDependency(
@@ -75,8 +76,8 @@ PEImageLoad(
             resolvedPath,
             &moduleMapping
     );
-    mstr_delete(resolvedPath);
     if (oserr != OS_EOK) {
+        mstr_delete(resolvedPath);
         return oserr;
     }
 
@@ -84,6 +85,7 @@ PEImageLoad(
     list_construct(&moduleMapEntry.Imports);
     oserr = __PostProcessImage(loadContext, moduleMapping, &moduleMapEntry.Imports);
     if (oserr != OS_EOK) {
+        mstr_delete(resolvedPath);
         return oserr;
     }
 
@@ -91,6 +93,7 @@ PEImageLoad(
     // it into the maps and trees.
     moduleMapEntry.ID = loadContext->NextID++;
     moduleMapEntry.Name = mstr_path_basename(path);
+    moduleMapEntry.Path = resolvedPath;
     moduleMapEntry.BaseMapping = moduleMapping->MappingBase;
     moduleMapEntry.Module = moduleMapping->Module;
     moduleMapEntry.Dependency = dependency;
@@ -111,9 +114,13 @@ PEImageUnload(
         _In_ bool                       force)
 {
     struct ModuleMapEntry* entry;
-    oserr_t                oserr;
     list_t                 imports;
     mstring_t*             name;
+    mstring_t*             path;
+
+    if (loadContext == NULL || imageKey == NULL) {
+        return OS_EINVALPARAMS;
+    }
 
     // Verify library isn't already loaded, and if it is, we should
     // increase the reference count.
@@ -137,6 +144,7 @@ PEImageUnload(
     // Store some resources before we unload, as we are going to have a data-race
     // with nested unloads
     name = entry->Name;
+    path = entry->Path;
     memcpy(&imports, &entry->Imports, sizeof(list_t));
 
     // At this point, we allow to unload.
@@ -148,9 +156,13 @@ PEImageUnload(
     );
 
     // Cleanup the ModuleMapEntry resources.
+    mstr_delete(path);
     mstr_delete(name);
-    foreach (n, &imports) {
+    foreach_nolink (n, &imports) {
+        element_t* tmp = n->next;
         PEImageUnload(loadContext, n->value, force);
+        free(n);
+        n = tmp;
     }
     return OS_EOK;
 }
@@ -159,7 +171,8 @@ oserr_t
 PEImageLoadLibrary(
         _In_  struct PEImageLoadContext* loadContext,
         _In_  mstring_t*                 libraryPath,
-        _Out_ void**                     imageKey)
+        _Out_ void**                     imageKeyOut,
+        _Out_ uintptr_t*                 imageEntryPointOut)
 {
     struct ModuleMapEntry* existingEntry;
     mstring_t*             baseName;
@@ -182,7 +195,8 @@ PEImageLoadLibrary(
     );
     if (existingEntry != NULL) {
         mstr_delete(baseName);
-        *imageKey = existingEntry->Name;
+        *imageKeyOut = existingEntry->Name;
+        *imageEntryPointOut = existingEntry->BaseMapping + existingEntry->Module->EntryPointRVA;
         return OS_EEXISTS;
     }
 
@@ -201,6 +215,11 @@ PEImageLoadLibrary(
     if (existingEntry == NULL) {
         return OS_EUNKNOWN;
     }
+
+    // Store data from the new entry
+    *imageKeyOut = existingEntry->Name;
+    *imageEntryPointOut = existingEntry->BaseMapping + existingEntry->Module->EntryPointRVA;
+
     // NOTE here: we are actually modifying the object directly in the hashtable doing this.
     // If we ever expect this to be remotely safe, we should wrap this in a lock.
     return __AddImportDependency(&existingEntry->Imports, baseName, id);

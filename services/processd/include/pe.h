@@ -46,7 +46,9 @@ struct PEImageLoadContext {
     uuid_t     MemorySpace;
     uintptr_t  LoadAddress;
     char*      Paths;
-    int        NextID;
+    // NextID is the next ID assigned to the next loaded module in
+    // this load context. TODO: make a bitmap and reuse id's.
+    int NextID;
     mstring_t* RootModule;
 
     // ModuleMap is the map of loaded modules for
@@ -63,8 +65,8 @@ struct PEImageLoadContext {
  */
 struct PEImageLoadContext*
 PEImageLoadContextNew(
-        _In_ uuid_t scope,
-        _In_ char*  paths);
+        _In_ uuid_t      scope,
+        _In_ const char* paths);
 
 /**
  * @brief
@@ -73,6 +75,32 @@ PEImageLoadContextNew(
 void
 PEImageLoadContextDelete(
         _In_ struct PEImageLoadContext* loadContext);
+
+/**
+ * @brief
+ * @param loadContext
+ * @param moduleName
+ * @param modulePathOut
+ * @return
+ */
+oserr_t
+PEImageLoadContextModulePath(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  mstring_t*                 moduleName,
+        _Out_ mstring_t**                modulePathOut);
+
+/**
+ * @brief
+ * @param loadContext
+ * @param moduleName
+ * @param moduleEntryPointOut
+ * @return
+ */
+oserr_t
+PEImageLoadContextModuleEntryPoint(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  mstring_t*                 moduleName,
+        _Out_ uintptr_t*                 moduleEntryPointOut);
 
 /**
  * @brief
@@ -111,7 +139,21 @@ oserr_t
 PEImageLoadLibrary(
         _In_  struct PEImageLoadContext* loadContext,
         _In_  mstring_t*                 libraryPath,
-        _Out_ void**                     imageKey);
+        _Out_ void**                     imageKeyOut,
+        _Out_ uintptr_t*                 imageEntryPointOut);
+
+/**
+ * @brief
+ * @param loadContext
+ * @param imageKey
+ * @param functionName
+ * @return
+ */
+uintptr_t
+PEImageFindExport(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ void*                      imageKey,
+        _In_ const char*                functionName);
 
 /**
  * @brief

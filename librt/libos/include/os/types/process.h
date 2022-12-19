@@ -36,11 +36,16 @@
 #define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
 
 typedef struct ProcessConfiguration {
+    uuid_t       Scope;
+    uint8_t*     InheritBlock;
+    uint32_t     InheritBlockLength;
     unsigned int InheritFlags;
     int          StdOutHandle;
     int          StdInHandle;
     int          StdErrHandle;
     size_t       MemoryLimit;
+    const char*  WorkingDirectory;
+    const char*  FlatEnvironment;
 } ProcessConfiguration_t;
 
 typedef struct ProcessStartupInformation {

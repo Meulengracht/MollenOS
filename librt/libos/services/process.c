@@ -29,16 +29,66 @@
 
 #include <sys_process_service_client.h>
 
+static char*
+__FlattenEnvironment(
+        _In_ const char* const* environment)
+{
+    size_t totalLength;
+    char*  flat;
+
+    if (environment == NULL) {
+        return NULL;
+    }
+
+    totalLength = 1;
+    for (int i = 0; environment[i]; i++) {
+        totalLength += strlen(environment[i]);
+    }
+
+    flat = malloc(totalLength);
+    flat[0] = '\0';
+    for (int i = 0; environment[i]; i++) {
+        flat = strcat(flat, environment[i]);
+    }
+    return flat;
+}
+
 void
 ProcessConfigurationInitialize(
     _In_ ProcessConfiguration_t* configuration)
 {
     memset(configuration, 0, sizeof(ProcessConfiguration_t));
 
-    // Reset handles
+    configuration->Scope = UUID_INVALID;
+    configuration->FlatEnvironment = __FlattenEnvironment(__crt_environment());
     configuration->StdOutHandle = STDOUT_FILENO;
     configuration->StdInHandle  = STDIN_FILENO;
     configuration->StdErrHandle = STDERR_FILENO;
+    configuration->InheritFlags = PROCESS_INHERIT_NONE;
+}
+
+void
+ProcessConfigurationSetWorkingDirectory(
+        _In_ ProcessConfiguration_t* configuration,
+        _In_ const char* const*      environment)
+{
+
+}
+
+void
+ProcessConfigurationSetEnvironment(
+        _In_ ProcessConfiguration_t* configuration,
+        _In_ const char* const*      environment)
+{
+
+}
+
+void
+ProcessConfigurationSetScope(
+        _In_ ProcessConfiguration_t* configuration,
+        _In_ uuid_t                  scope)
+{
+
 }
 
 oserr_t
@@ -55,11 +105,9 @@ ProcessSpawn(
     }
 
     ProcessConfigurationInitialize(&configuration);
-    configuration.InheritFlags = PROCESS_INHERIT_NONE;
     return ProcessSpawnEx(
             path,
             arguments,
-            __crt_environment(),
             &configuration,
             handleOut
     );
@@ -69,13 +117,11 @@ oserr_t
 ProcessSpawnEx(
         _In_     const char*             path,
         _In_Opt_ const char*             arguments,
-        _In_Opt_ const char* const*      environment,
         _In_     ProcessConfiguration_t* configuration,
         _Out_    uuid_t*                 handleOut)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    void*                            inheritationBlock       = NULL;
-    size_t                           inheritationBlockLength = 0;
+    size_t                           length = 0;
     oserr_t                          oserr;
     struct sys_process_configuration gconfiguration;
     TRACE("ProcessSpawnEx(path=%s)", path);
@@ -86,25 +132,24 @@ ProcessSpawnEx(
 
     oserr = StdioCreateInheritanceBlock(
             configuration,
-            &inheritationBlock,
-            &inheritationBlockLength
+            (void**)&configuration->InheritBlock,
+            &length
     );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
+    configuration->InheritBlockLength = (uint32_t)length;
+
     to_sys_process_configuration(configuration, &gconfiguration);
-    sys_process_spawn(GetGrachtClient(), &msg.base, path,
+    sys_process_spawn(GetGrachtClient(), &msg.base,
+                      path,
                       arguments,
-                      inheritationBlock,
-                      inheritationBlockLength,
-                      &gconfiguration);
+                      &gconfiguration
+  );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
-    
-    if (inheritationBlock) {
-        free(inheritationBlock);
-    }
+    free(configuration->InheritBlock);
     return oserr;
 }
 

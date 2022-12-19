@@ -23,6 +23,7 @@
 #include "private.h"
 #include "pe.h"
 #include <stdlib.h>
+#include <string.h>
 
 static uintptr_t g_systemBaseAddress = 0;
 
@@ -50,8 +51,8 @@ static int __module_cmp(const void* element1, const void* element2)
 
 struct PEImageLoadContext*
 PEImageLoadContextNew(
-        _In_ uuid_t scope,
-        _In_ char*  paths)
+        _In_ uuid_t      scope,
+        _In_ const char* paths)
 {
     struct PEImageLoadContext* loadContext;
     oserr_t                    oserr;
@@ -74,7 +75,7 @@ PEImageLoadContextNew(
     );
 
     loadContext->Scope = scope;
-    loadContext->Paths = paths;
+    loadContext->Paths = strdup(paths);
     loadContext->LoadAddress = __GetLoadAddress();
     loadContext->NextID = 0;
     loadContext->RootModule = NULL;
@@ -113,5 +114,56 @@ PEImageLoadContextDelete(
     PEImageUnload(loadContext, loadContext->RootModule, true);
     hashtable_enumerate(&loadContext->ModuleMap, __module_cleanup_enum, NULL);
     hashtable_destroy(&loadContext->ModuleMap);
+    free(loadContext->Paths);
     free(loadContext);
+}
+
+oserr_t
+PEImageLoadContextModulePath(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  mstring_t*                 moduleName,
+        _Out_ mstring_t**                modulePathOut)
+{
+    struct ModuleMapEntry* entry;
+
+    if (loadContext == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    entry = hashtable_get(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                .Name = moduleName
+            }
+    );
+    if (entry == NULL) {
+        return OS_ENOENT;
+    }
+    *modulePathOut = entry->Path;
+    return OS_EOK;
+}
+
+oserr_t
+PEImageLoadContextModuleEntryPoint(
+        _In_  struct PEImageLoadContext* loadContext,
+        _In_  mstring_t*                 moduleName,
+        _Out_ uintptr_t*                 moduleEntryPointOut)
+{
+    struct ModuleMapEntry* entry;
+
+    if (loadContext == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    entry = hashtable_get(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                    .Name = moduleName
+            }
+    );
+    if (entry == NULL) {
+        return OS_ENOENT;
+    }
+    *moduleEntryPointOut = entry->BaseMapping + entry->Module->EntryPointRVA;
+    return OS_EOK;
 }
