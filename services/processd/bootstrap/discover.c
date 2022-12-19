@@ -1,5 +1,5 @@
 /**
- * Copyright 2020, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * Process Manager - Bootstrapper
- * Provides system bootstrap functionality, parses ramdisk for additional system
- * services and boots them.
  */
 
 //#define __TRACE
@@ -39,6 +35,10 @@
 static struct VaFs* g_vafs          = NULL;
 static void*        g_ramdiskBuffer = NULL;
 static size_t       g_ramdiskSize   = 0;
+static const char*  g_svcEnvironment[] = {
+        "LDPATH=/initfs/bin",
+        NULL
+};
 
 static int
 __EndsWith(
@@ -103,6 +103,7 @@ __ParseRamdisk(
     }
 
     ProcessConfigurationInitialize(&processConfiguration);
+    ProcessConfigurationSetEnvironment(&processConfiguration, g_svcEnvironment);
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
         TRACE("__ParseRamdisk found entry %s", entry.Name);
         if (entry.Type != VaFsEntryType_File) {

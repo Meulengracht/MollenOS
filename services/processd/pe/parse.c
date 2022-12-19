@@ -98,6 +98,8 @@ __ParseModuleHeaders(
 
     module->Architecture = optionalHeader->Architecture;
     module->EntryPointRVA = optionalHeader->EntryPointRVA;
+    module->CodeBaseRVA = optionalHeader->BaseOfCode;
+    module->CodeSize = optionalHeader->SizeOfCode;
 
     if (optionalHeader->Architecture == PE_ARCHITECTURE_32) {
         __ParsePE32Headers(module, optionalHeader, sectionHeadersOut);

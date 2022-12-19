@@ -43,7 +43,7 @@ ProcessConfigurationInitialize(
 CRTDECL(void,
 ProcessConfigurationSetWorkingDirectory(
         _In_ ProcessConfiguration_t* configuration,
-        _In_ const char* const*      environment));
+        _In_ const char*             workingDirectory));
 
 CRTDECL(void,
 ProcessConfigurationSetEnvironment(

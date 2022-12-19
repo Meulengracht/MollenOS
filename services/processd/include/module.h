@@ -45,6 +45,8 @@ struct Module {
     size_t    MetaDataSize;
     uint32_t  SectionAlignment;
     uint32_t  Architecture;
+    uint32_t  CodeBaseRVA;
+    uint32_t  CodeSize;
 
     PeDataDirectory_t DataDirectories[PE_NUM_DIRECTORIES];
 
