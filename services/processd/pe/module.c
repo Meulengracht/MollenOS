@@ -26,7 +26,7 @@
 // once hashes match, and if hashes match on function names, we just do
 // an ordinal compare.
 static uint64_t __expfn_ordinal_hash(const void* element);
-static int      __expfn_ordinal_cmp(const void* element1, const void* element2);
+static int      __expfn_noop_cmp(const void* element1, const void* element2);
 static uint64_t __expfn_name_hash(const void* element);
 
 struct Module*
@@ -48,14 +48,14 @@ ModuleNew(
     usched_mtx_init(&module->Mutex, USCHED_MUTEX_PLAIN);
     status = hashtable_construct(
             &module->ExportedOrdinals, 0, sizeof(struct ExportedFunction),
-            __expfn_ordinal_hash, __expfn_ordinal_cmp);
+            __expfn_ordinal_hash, __expfn_noop_cmp);
     if (status) {
         free(module);
         return NULL;
     }
     status = hashtable_construct(
             &module->ExportedNames, 0, sizeof(struct ExportedFunction),
-            __expfn_name_hash, __expfn_ordinal_cmp);
+            __expfn_name_hash, __expfn_noop_cmp);
     if (status) {
         hashtable_destroy(&module->ExportedOrdinals);
         free(module);
@@ -101,11 +101,12 @@ static uint64_t __expfn_ordinal_hash(const void* element)
     return (uint64_t)function->Ordinal;
 }
 
-static int __expfn_ordinal_cmp(const void* element1, const void* element2)
+static int __expfn_noop_cmp(const void* element1, const void* element2)
 {
-    const struct ExportedFunction* function1 = element1;
-    const struct ExportedFunction* function2 = element2;
-    return function1->Ordinal == function2->Ordinal ? 0 : -1;
+    _CRT_UNUSED(element1);
+    _CRT_UNUSED(element2);
+    // We do not have a secondary key to match against, so we assume OK.
+    return 0;
 }
 
 uint32_t __hash(const char* string)

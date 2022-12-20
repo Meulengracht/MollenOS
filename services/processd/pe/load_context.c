@@ -45,9 +45,12 @@ static uint64_t __module_hash(const void* element)
 
 static int __module_cmp(const void* element1, const void* element2)
 {
-    const struct ModuleMapEntry* entry1 = element1;
-    const struct ModuleMapEntry* entry2 = element2;
-    return entry1->ID == entry2->ID ? 0 : -1;
+    _CRT_UNUSED(element1);
+    _CRT_UNUSED(element2);
+    // Make the assumption that the primary key (hashed name) is safe enough,
+    // and that we do not need a secondary ID. So if this is called, the hashes
+    // match, and thus we just assume OK.
+    return 0;
 }
 
 struct PEImageLoadContext*
