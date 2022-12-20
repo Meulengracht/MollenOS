@@ -233,8 +233,9 @@ __ProcessBaseRelocationTableEntry(
 
     if (type == PE_RELOCATION_HIGHLOW || type == PE_RELOCATION_RELATIVE64) {
         uintptr_t* fixupAddress = (uintptr_t*)(sectionData + value);
-        uintptr_t  fixupValue = *fixupAddress + imageDelta;
-        *fixupAddress = fixupValue;
+        intptr_t   fixupValue = (intptr_t)(*fixupAddress);
+        TRACE("__ProcessBaseRelocationTableEntry 0x%" PRIxIN " => 0x%" PRIxIN, fixupValue, fixupValue + imageDelta);
+        *fixupAddress = fixupValue + imageDelta;
     } else if (type != PE_RELOCATION_ALIGN) {
         ERROR("__ProcessBaseRelocationTableEntry implement support for reloc type: %u", type);
         return OS_ENOTSUPPORTED;
@@ -257,7 +258,7 @@ __ProcessBaseRelocationTable(
 {
     uint32_t numberOfEntries;
     uint8_t* sectionData;
-    TRACE("__ProcessBaseRelocationTable()");
+    TRACE("__ProcessBaseRelocationTable(imageDelta=0x%" PRIxIN ")", imageDelta);
     if (relocationTable->RVA == 0 || relocationTable->TableLength == 0) {
         ERROR("__ProcessBaseRelocationTable invalid relocation table with zero length/rva");
         return OS_EUNKNOWN;
@@ -391,6 +392,8 @@ MapperLoadModule(
     }
 
     // Calculate the image delta for processings
+    TRACE("MapperLoadModule NewBase=0x%" PRIxIN ", ImageBase=0x%" PRIxIN,
+          loadContext->LoadAddress, module->ImageBase);
     baseAddress = loadContext->LoadAddress;
     imageDelta  = (loadContext->LoadAddress - module->ImageBase);
 
