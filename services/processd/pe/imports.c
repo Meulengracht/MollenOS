@@ -245,6 +245,7 @@ __ProcessUnboundImportTable64(
             }
         }
 
+        TRACE("__ProcessUnboundImportTable64 import address: 0x%" PRIxIN, moduleMapEntry->BaseMapping + rva);
         *thunk = (uint64_t)moduleMapEntry->BaseMapping + rva;
         thunk++;
     }
