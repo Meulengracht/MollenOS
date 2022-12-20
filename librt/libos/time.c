@@ -45,7 +45,7 @@ OSGetClockTick(
 
     if (source == OSClockSource_PROCESS && !__crt_is_phoenix()) {
         clock_t tickBase;
-        oserr_t oserr = ProcessGetTickBase(&tickBase);
+        oserr_t oserr = OSProcessTickBase(&tickBase);
         if (oserr != OS_EOK) {
             return oserr;
         }

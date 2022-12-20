@@ -237,7 +237,7 @@ UsbTransferQueue(
     uuid_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      transferStatus = TransferInvalid;
 
-    ctt_usbhost_queue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
+    ctt_usbhost_queue(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
         deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &transferStatus, bytesTransferred);
@@ -254,7 +254,7 @@ UsbTransferQueuePeriodic(
     uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
     UsbTransferStatus_t      status;
     
-    ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
+    ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
         deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &status);
@@ -271,7 +271,7 @@ UsbTransferResetPeriodic(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     oserr_t               status;
 
-    ctt_usbhost_reset_periodic(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
+    ctt_usbhost_reset_periodic(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
                         deviceContext->controller_device_id, transferId);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_reset_periodic_result(GetGrachtClient(), &msg.base, &status);
@@ -286,7 +286,7 @@ UsbTransferDequeuePeriodic(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     oserr_t                  status;
     
-    ctt_usbhost_dequeue(GetGrachtClient(), &msg.base, ProcessGetCurrentId(),
+    ctt_usbhost_dequeue(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
         deviceContext->controller_device_id, transferId);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_dequeue_result(GetGrachtClient(), &msg.base, &status);

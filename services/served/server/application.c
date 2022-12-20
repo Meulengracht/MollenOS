@@ -470,12 +470,12 @@ static oserr_t __SpawnService(
         _In_ struct Application* application,
         _In_ struct Command*     command)
 {
-    ProcessConfiguration_t config;
-    oserr_t                oserr;
-    uuid_t                 handle;
-    char*                  path;
-    char*                  args;
-    char**                 environment;
+    OSProcessOptions_t* procOpts;
+    oserr_t             oserr;
+    uuid_t              handle;
+    char*               path;
+    char*               args;
+    char**              environment;
     TRACE("__SpawnService(app=%ms)", application->Name, command->Name);
 
     path = mstr_u8(command->MountedPath);
@@ -487,7 +487,12 @@ static oserr_t __SpawnService(
         return OS_EOOM;
     }
 
-    ProcessConfigurationInitialize(&config);
+    procOpts = OSProcessOptionsNew();
+    if (procOpts == NULL) {
+        free(path);
+        free(args);
+        return OS_EOOM;
+    }
 
     // Each application gets their own log stream setup, which will be connected
     // to each command on startup. This way it's possible to query log output for
@@ -505,13 +510,15 @@ static oserr_t __SpawnService(
         oserr = OS_EOOM;
         goto cleanup;
     }
-    ProcessConfigurationSetEnvironment(&config, (const char* const*)environment);
+    OSProcessOptionsSetArguments(procOpts, args);
+    OSProcessOptionsSetEnvironment(procOpts, (const char* const*)environment);
 
     // Spawn the process, what we should do here is to actually monitor the
     // processes spawned, so we can make sure to kill them again later. Or maybe
     // this should be tracked somewhere else
     // TODO not implemented
-    oserr = ProcessSpawnEx(path, args, &config, &handle);
+    oserr = OSProcessSpawnOpts(path,  procOpts, &handle);
+    OSProcessOptionsDelete(procOpts);
 
 cleanup:
     free(path);

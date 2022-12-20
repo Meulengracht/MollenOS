@@ -26,7 +26,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pe.h"
 #include "process.h"
 #include <vafs/vafs.h>
 #include <vafs/directory.h>
@@ -35,10 +34,7 @@
 static struct VaFs* g_vafs          = NULL;
 static void*        g_ramdiskBuffer = NULL;
 static size_t       g_ramdiskSize   = 0;
-static const char*  g_svcEnvironment[] = {
-        "LDPATH=/initfs/bin",
-        NULL
-};
+static const char*  g_svcFlatEnvironment = "LDPATH=/initfs/bin\0";
 
 static int
 __EndsWith(
@@ -70,8 +66,8 @@ __ParseRamdisk(
     struct VaFsEntry            entry;
     int                         status;
     char*                       pathBuffer;
-    oserr_t                     osStatus;
-    ProcessConfiguration_t      processConfiguration;
+    oserr_t                     oserr;
+    struct ProcessOptions       procOpts;
     TRACE("__ParseRamdisk(buffer=0x%llx, size=%llu)", ramdiskBuffer, ramdiskSize);
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
@@ -102,8 +98,16 @@ __ParseRamdisk(
         return OS_EOOM;
     }
 
-    ProcessConfigurationInitialize(&processConfiguration);
-    ProcessConfigurationSetEnvironment(&processConfiguration, g_svcEnvironment);
+    // Carefully construct the process options structure. We have to be
+    // a bit hacky now some data is moved onto the dma buffer.
+    procOpts.Scope = UUID_INVALID;
+    procOpts.MemoryLimit.QuadPart = 0;
+    procOpts.WorkingDirectory = NULL;
+    procOpts.InheritationBlockLength = 0;
+    // TODO: if the environment gets more keys we need to write a function
+    procOpts.EnvironmentBlockLength = strlen(g_svcFlatEnvironment) + 2; // two terminating zeroes
+    procOpts.DataBuffer.buffer = (void*)g_svcFlatEnvironment;
+
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
         TRACE("__ParseRamdisk found entry %s", entry.Name);
         if (entry.Type != VaFsEntryType_File) {
@@ -115,13 +119,13 @@ __ParseRamdisk(
 
             snprintf(pathBuffer, 128-1, "/initfs/services/%s", entry.Name);
             TRACE("__ParseRamdisk file found: %s", &pathBuffer[0]);
-            osStatus = PmCreateProcess(
+            oserr = PmCreateProcess(
                     (const char*)pathBuffer,
                     NULL,
-                    &processConfiguration,
+                    &procOpts,
                     &handle
             );
-            if (osStatus != OS_EOK) {
+            if (oserr != OS_EOK) {
                 WARNING("__ParseRamdisk failed to spawn service %s", pathBuffer);
             }
         }

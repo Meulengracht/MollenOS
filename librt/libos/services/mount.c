@@ -37,7 +37,7 @@ Mount(
     sys_mount_mount(
             GetGrachtClient(),
             &msg.base,
-            ProcessGetCurrentId(),
+            OSProcessCurrentID(),
             path,
             at,
             type,
@@ -58,7 +58,7 @@ Unmount(
     sys_mount_unmount(
             GetGrachtClient(),
             &msg.base,
-            ProcessGetCurrentId(),
+            OSProcessCurrentID(),
             path
     );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);

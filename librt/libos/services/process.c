@@ -24,21 +24,136 @@
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_tls.h>
 #include "os/services/process.h"
 #include <ddk/convert.h>
 
 #include <sys_process_service_client.h>
 
-static char*
-__FlattenEnvironment(
+typedef struct OSProcessOptions {
+    uuid_t                    Scope;
+    const char* const*        Environment;
+    const char*               Arguments;
+    const char*               WorkingDirectory;
+    struct InheritanceOptions InheritanceOptions;
+    UInteger64_t              MemoryLimit;
+    uint32_t                  InheritationBlockLength;
+    uint32_t                  EnvironmentBlockLength;
+} OSProcessOptions_t;
+
+void
+__OSProcessOptionsConstruct(
+        _In_ OSProcessOptions_t* options)
+{
+    options->Scope = UUID_INVALID;
+    options->Environment = __crt_environment();
+    options->Arguments = NULL;
+    options->WorkingDirectory = NULL;
+    options->InheritanceOptions.Flags = PROCESS_INHERIT_NONE;
+    options->InheritanceOptions.StdOutHandle = STDOUT_FILENO;
+    options->InheritanceOptions.StdInHandle  = STDIN_FILENO;
+    options->InheritanceOptions.StdErrHandle = STDERR_FILENO;
+    options->MemoryLimit.QuadPart = 0;
+
+    // Calculated before passed on to protocol
+    options->InheritationBlockLength = 0;
+    options->EnvironmentBlockLength = 0;
+}
+
+OSProcessOptions_t*
+OSProcessOptionsNew(void)
+{
+    OSProcessOptions_t* options;
+
+    options = malloc(sizeof(OSProcessOptions_t));
+    if (options == NULL) {
+        return NULL;
+    }
+    __OSProcessOptionsConstruct(options);
+    return options;
+}
+
+void
+OSProcessOptionsDelete(
+        _In_ OSProcessOptions_t* options)
+{
+    free(options);
+}
+
+void
+OSProcessOptionsSetArguments(
+        _In_ OSProcessOptions_t* options,
+        _In_ const char*         arguments)
+{
+    options->Arguments = arguments;
+}
+
+void
+OSProcessOptionsSetWorkingDirectory(
+        _In_ OSProcessOptions_t* options,
+        _In_ const char*         workingDirectory)
+{
+    options->WorkingDirectory = workingDirectory;
+}
+
+void
+OSProcessOptionsSetEnvironment(
+        _In_ OSProcessOptions_t* options,
+        _In_ const char* const*  environment)
+{
+    options->Environment = environment;
+}
+
+void
+OSProcessOptionsSetScope(
+        _In_ OSProcessOptions_t* options,
+        _In_ uuid_t              scope)
+{
+    options->Scope = scope;
+}
+
+void
+OSProcessOptionsSetMemoryLimit(
+        _In_ OSProcessOptions_t* options,
+        _In_ size_t              memoryLimit)
+{
+    options->MemoryLimit.QuadPart = memoryLimit;
+}
+
+oserr_t
+OSProcessSpawn(
+        _In_     const char* path,
+        _In_Opt_ const char* arguments,
+        _Out_    uuid_t*     handleOut)
+{
+    OSProcessOptions_t options;
+
+    if (path == NULL) {
+        _set_errno(EINVAL);
+        return UUID_INVALID;
+    }
+
+    __OSProcessOptionsConstruct(&options);
+    OSProcessOptionsSetArguments(&options, arguments);
+    return OSProcessSpawnOpts(
+            path,
+            &options,
+            handleOut
+    );
+}
+
+static void
+__WriteFlattenedEnvironment(
         _In_  const char* const* environment,
-        _Out_ size_t*            lengthOut)
+        _In_  void*              buffer,
+        _Out_ uint32_t*          bytesWrittenOut)
 {
     size_t totalLength;
     char*  flat;
 
     if (environment == NULL) {
-        return NULL;
+        *bytesWrittenOut = 0;
+        return;
     }
 
     totalLength = 1;
@@ -46,128 +161,77 @@ __FlattenEnvironment(
         totalLength += strlen(environment[i]) + 1;
     }
 
-    flat = malloc(totalLength);
+    flat = buffer;
     flat[0] = '\0';
     for (int i = 0; environment[i]; i++) {
         flat = strcat(flat, environment[i]);
         flat++; flat[0] = '\0';
     }
-    *lengthOut = totalLength;
-    return flat;
+    *bytesWrittenOut = totalLength;
 }
 
-void
-ProcessConfigurationInitialize(
-    _In_ ProcessConfiguration_t* configuration)
+static void
+__to_sys_process_configuration(
+        _In_ OSProcessOptions_t* in,
+        _In_ uuid_t              bufferIn,
+        _In_ struct sys_process_configuration* out)
 {
-    size_t length;
-
-    memset(configuration, 0, sizeof(ProcessConfiguration_t));
-
-    configuration->Scope = UUID_INVALID;
-    configuration->EnvironmentBlock = __FlattenEnvironment(__crt_environment(), &length);
-    configuration->EnvironmentBlockLength = (uint32_t)length;
-    configuration->StdOutHandle = STDOUT_FILENO;
-    configuration->StdInHandle  = STDIN_FILENO;
-    configuration->StdErrHandle = STDERR_FILENO;
-    configuration->InheritFlags = PROCESS_INHERIT_NONE;
-}
-
-void
-ProcessConfigurationSetWorkingDirectory(
-        _In_ ProcessConfiguration_t* configuration,
-        _In_ const char*             workingDirectory)
-{
-    configuration->WorkingDirectory = workingDirectory;
-}
-
-void
-ProcessConfigurationSetEnvironment(
-        _In_ ProcessConfiguration_t* configuration,
-        _In_ const char* const*      environment)
-{
-    size_t length;
-
-    // Free any previously allocated environment block
-    free((void*)configuration->EnvironmentBlock);
-
-    // Create the new one
-    configuration->EnvironmentBlock = __FlattenEnvironment(environment, &length);
-    configuration->EnvironmentBlockLength = (uint32_t)length;
-}
-
-void
-ProcessConfigurationSetScope(
-        _In_ ProcessConfiguration_t* configuration,
-        _In_ uuid_t                  scope)
-{
-    configuration->Scope = scope;
+    out->scope = in->Scope;
+    out->memory_limit = in->MemoryLimit.QuadPart;
+    out->working_directory = (char*)in->WorkingDirectory;
+    out->inherit_block_length = in->InheritationBlockLength;
+    out->environ_block_length = in->EnvironmentBlockLength;
+    out->data_buffer = bufferIn;
 }
 
 oserr_t
-ProcessSpawn(
-        _In_     const char* path,
-        _In_Opt_ const char* arguments,
-        _Out_    uuid_t*     handleOut)
-{
-    ProcessConfiguration_t configuration;
-
-    if (path == NULL) {
-        _set_errno(EINVAL);
-        return UUID_INVALID;
-    }
-
-    ProcessConfigurationInitialize(&configuration);
-    return ProcessSpawnEx(
-            path,
-            arguments,
-            &configuration,
-            handleOut
-    );
-}
-
-oserr_t
-ProcessSpawnEx(
-        _In_     const char*             path,
-        _In_Opt_ const char*             arguments,
-        _In_     ProcessConfiguration_t* configuration,
-        _Out_    uuid_t*                 handleOut)
+OSProcessSpawnOpts(
+        _In_     const char*         path,
+        _In_     OSProcessOptions_t* options,
+        _Out_    uuid_t*             handleOut)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    size_t                           length = 0;
     oserr_t                          oserr;
     struct sys_process_configuration gconfiguration;
-    TRACE("ProcessSpawnEx(path=%s)", path);
+    DMAAttachment_t*                 dmaBuffer;
+    char*                            buffer;
+    TRACE("OSProcessSpawnOpts(path=%s)", path);
     
-    if (!path || !configuration || !handleOut) {
+    if (path == NULL || options == NULL || handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    oserr = StdioCreateInheritanceBlock(
-            configuration,
-            (void**)&configuration->InheritBlock,
-            &length
+    // get the current TLS transfer buffer where we will store most
+    // of the process setup data.
+    dmaBuffer = __tls_current_dmabuf();
+    buffer = dmaBuffer->buffer;
+
+    CRTWriteInheritanceBlock(
+            &options->InheritanceOptions,
+            buffer,
+            &options->InheritationBlockLength
     );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
+    buffer += options->InheritationBlockLength;
+    __WriteFlattenedEnvironment(
+            options->Environment,
+            buffer,
+            &options->EnvironmentBlockLength
+    );
+    buffer += options->EnvironmentBlockLength;
 
-    configuration->InheritBlockLength = (uint32_t)length;
-
-    to_sys_process_configuration(configuration, &gconfiguration);
+    __to_sys_process_configuration(options, dmaBuffer->handle, &gconfiguration);
     sys_process_spawn(GetGrachtClient(), &msg.base,
                       path,
-                      arguments,
+                      options->Arguments,
                       &gconfiguration
     );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_spawn_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
-    free(configuration->InheritBlock);
     return oserr;
 }
 
 oserr_t
-ProcessJoin(
+OSProcessJoin(
         _In_  uuid_t handle,
         _In_  size_t timeout,
         _Out_ int*   exitCodeOut)
@@ -182,20 +246,20 @@ ProcessJoin(
 }
 
 oserr_t
-ProcessSignal(
+OSProcessSignal(
         _In_ uuid_t handle,
         _In_ int    signal)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     oserr_t               osStatus;
     
-    sys_process_signal(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), handle, signal);
+    sys_process_signal(GetGrachtClient(), &msg.base, OSProcessCurrentID(), handle, signal);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_signal_result(GetGrachtClient(), &msg.base, &osStatus);
     return osStatus;
 }
 
-oserr_t ProcessTerminate(int exitCode)
+oserr_t OSProcessTerminate(int exitCode)
 {
     struct vali_link_message msg   = VALI_MSG_INIT_HANDLE(GetProcessService());
     oserr_t                  oserr = OS_EOK;
@@ -209,13 +273,13 @@ oserr_t ProcessTerminate(int exitCode)
 }
 
 uuid_t
-ProcessGetCurrentId(void)
+OSProcessCurrentID(void)
 {
     return __crt_process_id();
 }
 
 oserr_t
-ProcessGetTickBase(
+OSProcessTickBase(
     _Out_ clock_t* tickOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
@@ -226,7 +290,7 @@ ProcessGetTickBase(
         return OS_EINVALPARAMS;
     }
     
-    sys_process_get_tick_base(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
+    sys_process_get_tick_base(GetGrachtClient(), &msg.base, OSProcessCurrentID());
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_get_tick_base_result(GetGrachtClient(), &msg.base, &status, &tick.u.LowPart, &tick.u.HighPart);
     
@@ -235,7 +299,7 @@ ProcessGetTickBase(
 }
 
 oserr_t
-GetProcessCommandLine(
+OSProcessCommandLine(
     _In_    char*   buffer,
     _InOut_ size_t* length)
 {
@@ -256,7 +320,7 @@ GetProcessCommandLine(
 }
 
 oserr_t
-ProcessGetCurrentName(
+OSProcessCurrentName(
         _In_ char*  buffer,
         _In_ size_t maxLength)
 {
@@ -269,7 +333,7 @@ ProcessGetCurrentName(
 
     assert(__crt_is_phoenix() == 0);
 
-    sys_process_get_name(GetGrachtClient(), &msg.base, ProcessGetCurrentId());
+    sys_process_get_name(GetGrachtClient(), &msg.base, OSProcessCurrentID());
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_get_name_result(GetGrachtClient(), &msg.base,
                                 &status,
@@ -279,7 +343,7 @@ ProcessGetCurrentName(
 }
 
 oserr_t
-ProcessGetAssemblyDirectory(
+OSProcessAssemblyDirectory(
         _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength)
@@ -293,7 +357,7 @@ ProcessGetAssemblyDirectory(
 
     if (handle == UUID_INVALID) {
         assert(__crt_is_phoenix() == 0);
-        handle = ProcessGetCurrentId();
+        handle = OSProcessCurrentID();
     }
     
     sys_process_get_assembly_directory(GetGrachtClient(), &msg.base, handle);
@@ -306,7 +370,7 @@ ProcessGetAssemblyDirectory(
 }
 
 oserr_t
-ProcessGetWorkingDirectory(
+OSProcessWorkingDirectory(
         _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength)
@@ -320,7 +384,7 @@ ProcessGetWorkingDirectory(
     
     if (handle == UUID_INVALID) {
         assert(__crt_is_phoenix() == 0);
-        handle = ProcessGetCurrentId();
+        handle = OSProcessCurrentID();
     }
 	
     sys_process_get_working_directory(GetGrachtClient(), &msg.base, handle);
@@ -333,7 +397,7 @@ ProcessGetWorkingDirectory(
 }
 
 oserr_t
-ProcessSetWorkingDirectory(
+OSProcessSetWorkingDirectory(
     _In_ const char* path)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
@@ -344,7 +408,7 @@ ProcessSetWorkingDirectory(
     }
     assert(__crt_is_phoenix() == 0);
 	
-    sys_process_set_working_directory(GetGrachtClient(), &msg.base, ProcessGetCurrentId(), path);
+    sys_process_set_working_directory(GetGrachtClient(), &msg.base, OSProcessCurrentID(), path);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_process_set_working_directory_result(GetGrachtClient(), &msg.base, &status);
     return status;

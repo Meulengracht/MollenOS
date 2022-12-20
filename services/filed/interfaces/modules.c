@@ -104,7 +104,7 @@ __TryLocateDriver(
     i = 0;
     while (g_modulePaths[i]) {
         snprintf(&tmp[0], sizeof(tmp), "%s/%s.dll", g_modulePaths[i], fsType);
-        oserr_t oserr = ProcessSpawn(&tmp[0], NULL, &processID);
+        oserr_t oserr = OSProcessSpawn(&tmp[0], NULL, &processID);
         if (oserr == OS_EOK) {
             newEntry.ProcessID = processID;
             break;

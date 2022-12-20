@@ -38,6 +38,62 @@ PmDebuggerInitialize(void)
     SymbolInitialize();
 }
 
+static oserr_t
+__DoStackTrace(
+        _In_ struct PEImageLoadContext* loadContext,
+        _In_ uuid_t                     threadHandle,
+        _In_ uintptr_t                  stackAtCrash)
+{
+    oserr_t    oserr;
+    void*      stack;
+    void*      topOfStack;
+    uintptr_t* stackAddress;
+    uintptr_t* stackLimit;
+    uintptr_t  moduleBase;
+    mstring_t* moduleName;
+    int        i = 0, max = 12;
+
+    oserr = MapThreadMemoryRegion(
+            threadHandle,
+            stackAtCrash,
+            &topOfStack,
+            &stack
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__DoStackTrace failed to map thread stack: %u", oserr);
+        return oserr;
+    }
+
+    // Traverse the memory region up to stack max
+    stackAddress = (uintptr_t*)stack;
+    stackLimit   = (uintptr_t*)topOfStack;
+    ERROR("__DoStackTrace 0x%llx => 0x%llx", stackAddress, stackLimit);
+    while (stackAddress < stackLimit && i < max) {
+        uintptr_t stackValue = *stackAddress;
+        oserr = PEImageLoadContextImageDetailsByAddress(
+                loadContext,
+                stackValue,
+                &moduleBase,
+                &moduleName
+        );
+
+        if (oserr == OS_EOK) {
+            const char* symbolName;
+            uintptr_t   symbolOffset;
+            if (SymbolLookup(moduleName, stackValue - moduleBase, &symbolName, &symbolOffset) == OS_EOK) {
+                ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
+            } else {
+                ERROR("%i: At offset 0x%" PRIxIN " in module %ms (0x%" PRIxIN ")",
+                      i, stackValue - moduleBase, moduleName, stackValue);
+            }
+            i++;
+        }
+        stackAddress++;
+    }
+    ERROR("__DoStackTrace end of stack trace");
+    return MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
+}
+
 oserr_t
 HandleProcessCrashReport(
         _In_ Process_t*       process,
@@ -50,7 +106,6 @@ HandleProcessCrashReport(
     mstring_t* programName;
     uintptr_t  crashAddress;
     oserr_t    oserr;
-    int        i = 0, max = 12;
     TRACE("HandleProcessCrashReport(%i)", crashReason);
 
     if (!crashContext) {
@@ -80,48 +135,6 @@ HandleProcessCrashReport(
         return OS_EUNKNOWN;
     }
 
-    // Print stack trace for application
-    void*   stack;
-    void*   topOfStack;
-
-    oserr = MapThreadMemoryRegion(
-            threadHandle,
-            CONTEXT_USERSP(crashContext),
-            &topOfStack,
-            &stack
-    );
-    if (oserr != OS_EOK) {
-        ERROR("HandleProcessCrashReport failed to map thread stack: %u", oserr);
-        return oserr;
-    }
-
-    // Traverse the memory region up to stack max
-    uintptr_t* stackAddress = (uintptr_t*)stack;
-    uintptr_t* stackLimit   = (uintptr_t*)topOfStack;
-    ERROR("Stack Trace 0x%llx => 0x%llx", stackAddress, stackLimit);
-    while (stackAddress < stackLimit && i < max) {
-        uintptr_t stackValue = *stackAddress;
-        oserr = PEImageLoadContextImageDetailsByAddress(
-                process->load_context,
-                stackValue,
-                &moduleBase,
-                &moduleName
-        );
-
-        if (oserr == OS_EOK) {
-            const char* symbolName;
-            uintptr_t   symbolOffset;
-            if (SymbolLookup(moduleName, stackValue - moduleBase, &symbolName, &symbolOffset) == OS_EOK) {
-                ERROR("%i: %s+%x in module %ms", i, symbolName, symbolOffset, moduleName);
-            } else {
-                ERROR("%i: At offset 0x%" PRIxIN " in module %ms (0x%" PRIxIN ")",
-                      i, stackValue - moduleBase, moduleName, stackValue);
-            }
-            i++;
-        }
-        stackAddress++;
-    }
-    ERROR("HandleProcessCrashReport end of stack trace");
-    MemoryFree(stack, (uintptr_t)topOfStack - (uintptr_t)stack);
-    return OS_EOK;
+    oserr = __DoStackTrace(process->load_context, threadHandle, CONTEXT_USERSP(crashContext));
+    return oserr;
 }

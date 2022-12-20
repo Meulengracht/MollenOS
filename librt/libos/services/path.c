@@ -161,7 +161,7 @@ OSGetWorkingDirectory(
     if (buffer == NULL || maxLength == 0) {
         return OS_EINVALPARAMS;
     }
-    return ProcessGetWorkingDirectory(UUID_INVALID, buffer, maxLength);
+    return OSProcessWorkingDirectory(UUID_INVALID, buffer, maxLength);
 }
 
 oserr_t
@@ -201,7 +201,7 @@ OSChangeWorkingDirectory(
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return ProcessSetWorkingDirectory(&canonBuffer[0]);
+    return OSProcessSetWorkingDirectory(&canonBuffer[0]);
 }
 
 oserr_t
@@ -212,7 +212,7 @@ OSGetAssemblyDirectory(
     if (buffer == NULL || maxLength == 0) {
         return OS_EINVALPARAMS;
     }
-    return ProcessGetAssemblyDirectory(UUID_INVALID, buffer, maxLength);
+    return OSProcessAssemblyDirectory(UUID_INVALID, buffer, maxLength);
 }
 
 oserr_t

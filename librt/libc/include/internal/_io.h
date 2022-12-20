@@ -165,10 +165,17 @@ extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argp
 #define LOCK_FILES() do { } while(0)
 #define UNLOCK_FILES() do { } while(0)
 
-extern oserr_t
-StdioCreateInheritanceBlock(
-	_In_  ProcessConfiguration_t* configuration,
-    _Out_ void**                  inheritationBlockOut,
-    _Out_ size_t*                 inheritationBlockLengthOut);
+struct InheritanceOptions {
+    unsigned int Flags;
+    int          StdOutHandle;
+    int          StdInHandle;
+    int          StdErrHandle;
+};
+
+extern void
+CRTWriteInheritanceBlock(
+	_In_  struct InheritanceOptions* options,
+    _In_  void*                      buffer,
+    _Out_ uint32_t*                  lengthWrittenOut);
 
 #endif //!__INTERNAL_IO_H__

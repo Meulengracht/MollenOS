@@ -160,7 +160,7 @@ __SpawnDriver(
 
     sprintf(&args[0], "--id %u", driver->id);
 
-    osStatus = ProcessSpawn(driverPath, &args[0], &handle);
+    osStatus = OSProcessSpawn(driverPath, &args[0], &handle);
     free(driverPath);
     if (osStatus != OS_EOK) {
         return osStatus;

@@ -103,7 +103,14 @@ SymbolParseMapFile(
     int    symbolCount;
     TRACE(STR("[SymbolParseMapFile]"));
 
-    CalculateSpaceRequirements(fileBuffer, fileLength, &sectionBytes, &fileBytes, &symbolBytes, &symbolCount);
+    CalculateSpaceRequirements(
+            fileBuffer,
+            fileLength,
+            &sectionBytes,
+            &fileBytes,
+            &symbolBytes,
+            &symbolCount
+    );
 
     TRACE(STR("[SymbolParseMapFile] sectionBytes 0x%" PRIxIN ", fileBytes 0x%" PRIxIN ", symbolBytes 0x%" PRIxIN ", symbolCount 0x%x"),
           sectionBytes, fileBytes, symbolBytes, symbolCount);

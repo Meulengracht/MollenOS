@@ -115,7 +115,7 @@ __ReadFile(
     sys_file_transfer_absolute(
             GetGrachtClient(),
             &msg.base,
-            ProcessGetCurrentId(),
+            OSProcessCurrentID(),
             handleID,
             SYS_TRANSFER_DIRECTION_READ,
             seek.u.LowPart,
@@ -152,7 +152,7 @@ __WriteFile(
     sys_file_transfer_absolute(
             GetGrachtClient(),
             &msg.base,
-            ProcessGetCurrentId(),
+            OSProcessCurrentID(),
             handleID,
             SYS_TRANSFER_DIRECTION_WRITE,
             seek.u.LowPart,
@@ -182,7 +182,7 @@ __StatFile(
     sys_file_fstat(
             GetGrachtClient(),
             &msg.base,
-            ProcessGetCurrentId(),
+            OSProcessCurrentID(),
             handleID
     );
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
