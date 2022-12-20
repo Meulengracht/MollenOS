@@ -93,9 +93,12 @@ __LoadFile(
     size_t  bytesRead;
     oserr_t osStatus = OS_EOK;
     char*   pathu8;
+    ENTRY("__LoadFile %ms", fullPath);
 
     pathu8 = mstr_u8(fullPath);
-    ENTRY("LoadFile %s", pathu8);
+    if (pathu8 == NULL) {
+        return OS_EOOM;
+    }
 
     // special case:
     // load from ramdisk
@@ -106,7 +109,7 @@ __LoadFile(
     file = fopen(pathu8, "rb");
     free(pathu8);
     if (!file) {
-        ERROR("LoadFile fopen failed: %i", errno);
+        ERROR("__LoadFile fopen failed: %i", errno);
         osStatus = OS_ENOENT;
         goto exit;
     }
@@ -115,10 +118,10 @@ __LoadFile(
     fileSize = ftell(file);
     rewind(file);
 
-    TRACE("[load_file] size %" PRIuIN, fileSize);
+    TRACE("__LoadFile size %" PRIuIN, fileSize);
     fileBuffer = malloc(fileSize);
     if (!fileBuffer) {
-        ERROR("LoadFile null");
+        ERROR("__LoadFile null");
         fclose(file);
         osStatus = OS_EOOM;
         goto exit;
@@ -127,7 +130,7 @@ __LoadFile(
     bytesRead = fread(fileBuffer, 1, fileSize, file);
     fclose(file);
 
-    TRACE("LoadFile read %" PRIuIN " bytes from file", bytesRead);
+    TRACE("__LoadFile read %" PRIuIN " bytes from file", bytesRead);
     if (bytesRead != fileSize) {
         osStatus = OS_EINCOMPLETE;
     }
@@ -135,8 +138,8 @@ __LoadFile(
     *bufferOut = fileBuffer;
     *lengthOut = fileSize;
 
-    exit:
-EXIT("LoadFile");
+exit:
+EXIT("__LoadFile");
     return osStatus;
 }
 
@@ -147,8 +150,14 @@ __GetModuleHash(
 {
     struct __PathEntry* entry;
     oserr_t             oserr = OS_ENOENT;
+    TRACE("__GetModuleHash(path=%ms)", path);
     usched_mtx_lock(&g_mapper.PathsMutex);
-    entry = hashtable_get(&g_mapper.Paths, &(struct __PathEntry) { .Path = path });
+    entry = hashtable_get(
+            &g_mapper.Paths,
+            &(struct __PathEntry) {
+                .Path = path
+            }
+    );
     if (entry) {
         *hashOut = entry->ModuleHash;
         oserr = OS_EOK;
@@ -162,6 +171,7 @@ __AddModuleHash(
         _In_ mstring_t* path,
         _In_ uint32_t   hash)
 {
+    TRACE("__AddModuleHash(path=%ms)", path);
     usched_mtx_lock(&g_mapper.PathsMutex);
     hashtable_set(
             &g_mapper.Paths,
@@ -179,8 +189,14 @@ __GetModule(
 {
     struct __ModuleEntry* entry;
     oserr_t               oserr = OS_ENOENT;
+    TRACE("__GetModule(hash=0x%x)", hash);
     usched_mtx_lock(&g_mapper.ModulesMutex);
-    entry = hashtable_get(&g_mapper.Modules, &(struct __ModuleEntry) { .Hash = hash });
+    entry = hashtable_get(
+            &g_mapper.Modules,
+            &(struct __ModuleEntry) {
+                .Hash = hash
+            }
+    );
     if (entry) {
         entry->References++;
         *moduleOut = entry->Module;
@@ -198,17 +214,23 @@ __AddModule(
     struct __ModuleEntry  entry;
     struct __ModuleEntry* existingEntry;
     oserr_t               oserr;
+    TRACE("__AddModule(hash=0x%x)", moduleHash);
 
     entry.Hash = moduleHash;
     entry.References = 0;
     entry.Module = module;
 
     usched_mtx_lock(&g_mapper.ModulesMutex);
-    existingEntry = hashtable_get(&g_mapper.Modules, &(struct __ModuleEntry) { .Hash = moduleHash });
+    existingEntry = hashtable_get(
+            &g_mapper.Modules,
+            &(struct __ModuleEntry) {
+                .Hash = moduleHash
+            }
+    );
     if (existingEntry) {
         oserr = OS_EEXISTS;
     } else {
-        hashtable_set(&g_mapper.Paths, &entry);
+        hashtable_set(&g_mapper.Modules, &entry);
         oserr = OS_EOK;
     }
     usched_mtx_unlock(&g_mapper.ModulesMutex);
@@ -224,6 +246,7 @@ __LoadModule(
     struct Module* module;
     size_t         bufferSize;
     oserr_t        oserr;
+    TRACE("__LoadModule(path=%ms)", path);
 
     oserr = __LoadFile(path, (void **) &moduleBuffer, &bufferSize);
     if (oserr != OS_EOK) {
@@ -317,7 +340,9 @@ static uint64_t __path_hash(const void* element)
 
 static int __path_cmp(const void* element1, const void* element2)
 {
-    const struct __PathEntry* pathEntry1 = element1;
-    const struct __PathEntry* pathEntry2 = element2;
-    return mstr_hash(pathEntry1->Path) == mstr_hash(pathEntry2->Path) ? 0 : -1;
+    _CRT_UNUSED(element1);
+    _CRT_UNUSED(element2);
+    // we have no secondary keys to check against, assume the hash check is
+    // enough.
+    return 0;
 }

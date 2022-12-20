@@ -136,6 +136,7 @@ __MapSections(
 {
     struct SectionMapping* mappings;
     oserr_t                oserr = OS_EOK;
+    TRACE("__MapSections()");
 
     mappings = malloc(sizeof(struct SectionMapping) * module->SectionCount);
     if (mappings == NULL) {
@@ -189,6 +190,7 @@ __MapModule(
 {
     struct SectionMapping* mappings = NULL;
     oserr_t                oserr;
+    TRACE("__MapModule()");
 
     // Let's get a lock on the module, we want to avoid any
     // double init of the module in a multithreaded scenario.

@@ -15,6 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+//#define __TRACE
+
 #include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <os/services/file.h>
@@ -31,7 +33,7 @@ __TestRamdiskPath(
 {
     oserr_t    osStatus;
     mstring_t* temporaryResult;
-    TRACE("__TestRamdiskPath(basePath=%s, path=%ms)", basePath, path);
+    TRACE("__TestRamdiskPath(basePath=%s, path=%s)", basePath, path);
 
     // create the full path for the ramdisk
     temporaryResult = mstr_fmt("%s/%s", basePath, path);
@@ -56,11 +58,16 @@ __ResolveRelativePath(
 {
     oserr_t            oserr;
     OsFileDescriptor_t fileDescriptor;
-    TRACE("__ResolveRelativePath(processId=%u, parentPath=%ms, path=%ms)",
-          processId, parentPath, path);
+    char*              ldPathValue;
+    TRACE("__ResolveRelativePath(path=%s)", path);
 
-    for (char* i = strtok(loadContext->Paths, ";"); i; i = strtok(NULL, ";")) {
+    // get the other side of LDPATH=
+    ldPathValue = strchr(loadContext->Paths, '=');
+    ldPathValue++;
+
+    for (char* i = strtok(ldPathValue, ";"); i; i = strtok(NULL, ";")) {
         char* combined = OSPathJoin(i, path);
+        TRACE("__ResolveRelativePath testing %s", combined);
         if (strstr(combined, "/initfs/") != NULL) {
             mstring_t* result = __TestRamdiskPath(i, path);
             if (result) {
@@ -93,7 +100,7 @@ PEResolvePath(
 {
     oserr_t oserr = OS_EOK;
     char*   cpath;
-    ENTRY("ResolveFilePath(processId=%u, path=%ms)", processId, path);
+    ENTRY("ResolveFilePath(path=%ms)", path);
 
     if (mstr_at(path, 0) != U'/') {
         cpath = mstr_u8(path);

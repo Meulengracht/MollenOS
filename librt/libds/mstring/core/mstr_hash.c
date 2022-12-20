@@ -22,15 +22,13 @@ uint32_t mstr_hash(mstring_t* string)
 {
     uint32_t hash = 5381;
     size_t   i    = 0;
-    mchar_t  val;
 
     if (string == NULL || string->__length == 0) {
         return 0;
     }
 
     while (i < string->__length) {
-        val  = string->__data[i];
-        hash = ((hash << 5) + hash) + val; /* hash * 33 + c */
+        hash = ((hash << 5) + hash) + string->__data[i++]; /* hash * 33 + c */
     }
     return hash;
 }

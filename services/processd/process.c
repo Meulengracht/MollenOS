@@ -151,6 +151,7 @@ __BuildArguments(
     char*      argumentsPointer;
     char*      processPath;
     oserr_t    oserr;
+    TRACE("__BuildArguments()");
 
     // check for null or empty
     if (argsIn && strlen(argsIn)) {
@@ -275,6 +276,7 @@ __ProcessNew(
     Process_t* process;
     mstring_t* fullPath;
     oserr_t    oserr;
+    TRACE("__ProcessNew()");
 
     process = (Process_t*)malloc(sizeof(Process_t));
     if (!process) {
@@ -333,6 +335,10 @@ __ProcessNew(
         return OS_EOOM;
     }
 
+    TRACE("__ProcessNew name=%ms", process->name);
+    TRACE("__ProcessNew working_directory=%ms", process->working_directory);
+    TRACE("__ProcessNew assembly_directory=%ms", process->assembly_directory);
+
     *processOut = process;
     return OS_EOK;
 }
@@ -381,6 +387,7 @@ __GetLoadPaths(
 {
     const char* ldpaths = NULL;
     const char* environ;
+    TRACE("__GetLoadPaths(length=%u)", procOpts->EnvironmentBlockLength);
 
     if (procOpts->EnvironmentBlockLength == 0) {
         return NULL;
@@ -389,7 +396,8 @@ __GetLoadPaths(
     // Try to locate LDPATH in a double zero-terminated array
     environ = __ProcOptsEnvironmentBlock(procOpts);
     for (size_t i = 0; environ[i]; i += strlen(&environ[i]) + 1) {
-        if (!strcmp(&environ[i], "LDPATH=")) {
+        TRACE("__GetLoadPaths checking %s", &environ[i]);
+        if (!strncmp(&environ[i], "LDPATH=", 7)) {
             ldpaths = &environ[i];
             break;
         }
@@ -477,6 +485,7 @@ PmCreateProcess(
     *handleOut = handle;
 exit:
     EXIT("PmCreateProcess");
+    for (;;);
     return oserr;
 }
 
