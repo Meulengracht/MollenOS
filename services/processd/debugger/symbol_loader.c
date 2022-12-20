@@ -44,12 +44,12 @@ static hashtable_t g_loadedSymbolContexts;
 void
 SymbolInitialize(void)
 {
-    // Initialize the hashtable
-    hashtable_construct(&g_loadedSymbolContexts,
-                        HASHTABLE_MINIMUM_CAPACITY,
-                        sizeof(struct symbol_context),
-                        __symbol_hash,
-                        __symbol_cmp);
+    hashtable_construct(
+            &g_loadedSymbolContexts,
+            HASHTABLE_MINIMUM_CAPACITY,
+            sizeof(struct symbol_context),
+            __symbol_hash,__symbol_cmp
+    );
 }
 
 oserr_t
@@ -78,6 +78,10 @@ SymbolsLoadContext(
 
     // ok create key now everything is done
     symbolContext.key = mstr_clone(moduleName);
+    if (symbolContext.key == NULL) {
+        // TODO: implement SymbolContextDelete
+        return OS_EOOM;
+    }
 
     TRACE("[SymbolsLoadContext] context loaded %s", symbolContext.key);
     hashtable_set(
@@ -142,6 +146,30 @@ SymbolLookup(
     return OS_EOK;
 }
 
+static char*
+__GetMapPath(
+        _In_  mstring_t* moduleName)
+{
+    mstring_t* mapFileName;
+    mstring_t* mapFilePath;
+    char*      mapFilePathu8;
+
+    mapFileName = mstr_path_change_extension_u8(moduleName, ".map");
+    if (mapFileName == NULL) {
+        return NULL;
+    }
+
+    mapFilePath = mstr_fmt("/initfs/maps/%ms", mapFileName);
+    mstr_delete(mapFileName);
+    if (mapFilePath == NULL) {
+        return NULL;
+    }
+
+    mapFilePathu8 = mstr_u8(mapFilePath);
+    mstr_delete(mapFilePath);
+    return mapFilePathu8;
+}
+
 static oserr_t
 SymbolLoadMapFile(
         _In_  mstring_t* moduleName,
@@ -152,27 +180,24 @@ SymbolLoadMapFile(
     long       fileSize;
     void*      fileBuffer;
     size_t     bytesRead;
-    mstring_t* mapFileName;
-    mstring_t* mapFilePath;
-    char*      mapFilePathu8;
+    char*      mapFilePath;
 
-    mapFileName = mstr_path_change_extension_u8(moduleName, ".map");
-    mapFilePath = mstr_fmt("/initfs/maps/%ms", mapFileName);
-    mapFilePathu8 = mstr_u8(mapFilePath);
+    mapFilePath = __GetMapPath(moduleName);
+    if (mapFilePath == NULL) {
+        return OS_EOOM;
+    }
+    TRACE("[SymbolsLoadContext] trying to load %s", mapFilePath);
 
-    TRACE("[SymbolsLoadContext] trying to load %s", mapFilePathu8);
-    file = fopen(mapFilePathu8, "r");
+    file = fopen(mapFilePath, "r");
     // After the open call, we do not need any of the path data anymore, so lets
     // just free it immediately, so we don't have to take care of it anymore
-    mstr_delete(mapFileName);
-    mstr_delete(mapFilePath);
     if (!file) {
         // map did not exist
-        ERROR("[SymbolsLoadContext] map file not found at %s", mapFilePathu8);
-        free(mapFilePathu8);
+        ERROR("[SymbolsLoadContext] map file not found at %s", mapFilePath);
+        free(mapFilePath);
         return OS_ENOENT;
     }
-    free(mapFilePathu8);
+    free(mapFilePath);
 
     fseek(file, 0, SEEK_END);
     fileSize = ftell(file);

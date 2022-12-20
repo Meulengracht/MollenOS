@@ -40,7 +40,7 @@ OnLoad(void)
     sys_file_fsready(
             GetGrachtClient(),
             &msg.base,
-            ProcessGetCurrentId(),
+            OSProcessCurrentID(),
             GetNativeHandle(__crt_get_server_iod())
     );
     return OS_EOK;

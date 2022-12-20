@@ -98,8 +98,8 @@ static FILE        g_stderr       = { 0 };
  */
 static oserr_t
 StdioIsHandleInheritable(
-    _In_ ProcessConfiguration_t* configuration,
-    _In_ stdio_handle_t*         handle)
+    _In_ struct InheritanceOptions* options,
+    _In_ stdio_handle_t*            handle)
 {
     oserr_t osSuccess = OS_EOK;
 
@@ -109,19 +109,19 @@ StdioIsHandleInheritable(
 
     // If we didn't request to inherit one of the handles, then we don't account it
     // for being the one requested.
-    if (handle->fd == configuration->StdOutHandle &&
-        !(configuration->InheritFlags & PROCESS_INHERIT_STDOUT)) {
+    if (handle->fd == options->StdOutHandle &&
+        !(options->Flags & PROCESS_INHERIT_STDOUT)) {
         osSuccess = OS_EUNKNOWN;
-    } else if (handle->fd == configuration->StdInHandle &&
-             !(configuration->InheritFlags & PROCESS_INHERIT_STDIN)) {
+    } else if (handle->fd == options->StdInHandle &&
+             !(options->Flags & PROCESS_INHERIT_STDIN)) {
         osSuccess = OS_EUNKNOWN;
-    } else if (handle->fd == configuration->StdErrHandle &&
-             !(configuration->InheritFlags & PROCESS_INHERIT_STDERR)) {
+    } else if (handle->fd == options->StdErrHandle &&
+             !(options->Flags & PROCESS_INHERIT_STDERR)) {
         osSuccess = OS_EUNKNOWN;
-    } else if (!(configuration->InheritFlags & PROCESS_INHERIT_FILES)) {
-        if (handle->fd != configuration->StdOutHandle &&
-            handle->fd != configuration->StdInHandle &&
-            handle->fd != configuration->StdErrHandle) {
+    } else if (!(options->Flags & PROCESS_INHERIT_FILES)) {
+        if (handle->fd != options->StdOutHandle &&
+            handle->fd != options->StdInHandle &&
+            handle->fd != options->StdErrHandle) {
             osSuccess = OS_EUNKNOWN;
         }
     }
@@ -133,8 +133,8 @@ StdioIsHandleInheritable(
 }
 
 struct __get_inherit_context {
-    ProcessConfiguration_t* configuration;
-    int                     file_count;
+    struct InheritanceOptions* options;
+    int                        file_count;
 };
 
 static void __count_inherit_entry(
@@ -147,17 +147,17 @@ static void __count_inherit_entry(
     struct __get_inherit_context*    context = userContext;
     _CRT_UNUSED(index);
 
-    if (StdioIsHandleInheritable(context->configuration, object) == OS_EOK) {
+    if (StdioIsHandleInheritable(context->options, object) == OS_EOK) {
         context->file_count++;
     }
 }
 
 static int
 StdioGetNumberOfInheritableHandles(
-    _In_ ProcessConfiguration_t* configuration)
+    _In_ struct InheritanceOptions* options)
 {
     struct __get_inherit_context context = {
-            .configuration = configuration,
+            .options = options,
             .file_count = 0
     };
     LOCK_FILES();
@@ -171,7 +171,7 @@ StdioGetNumberOfInheritableHandles(
 }
 
 struct __create_inherit_context {
-    ProcessConfiguration_t*     configuration;
+    struct InheritanceOptions*  options;
     stdio_inheritation_block_t* inheritation_block;
     int                         i;
 };
@@ -186,7 +186,7 @@ static void __create_inherit_entry(
     struct __create_inherit_context* context = userContext;
     _CRT_UNUSED(index);
 
-    if (StdioIsHandleInheritable(context->configuration, object) == OS_EOK) {
+    if (StdioIsHandleInheritable(context->options, object) == OS_EOK) {
         memcpy(
                 &context->inheritation_block->handles[context->i],
                 object,
@@ -195,64 +195,63 @@ static void __create_inherit_entry(
 
         // Check for this fd to be equal to one of the custom handles
         // if it is equal, we need to update the fd of the handle to our reserved
-        if (object->fd == context->configuration->StdOutHandle) {
+        if (object->fd == context->options->StdOutHandle) {
             context->inheritation_block->handles[context->i].fd = STDOUT_FILENO;
         }
-        if (object->fd == context->configuration->StdInHandle) {
+        if (object->fd == context->options->StdInHandle) {
             context->inheritation_block->handles[context->i].fd = STDIN_FILENO;
         }
-        if (object->fd == context->configuration->StdErrHandle) {
+        if (object->fd == context->options->StdErrHandle) {
             context->inheritation_block->handles[context->i].fd = STDERR_FILENO;
         }
         context->i++;
     }
 }
 
-oserr_t
-StdioCreateInheritanceBlock(
-    _In_  ProcessConfiguration_t* configuration,
-    _Out_ void**                  inheritationBlockOut,
-    _Out_ size_t*                 inheritationBlockLengthOut)
+void
+CRTWriteInheritanceBlock(
+	_In_  struct InheritanceOptions* options,
+    _In_  void*                      buffer,
+    _Out_ uint32_t*                  lengthWrittenOut)
 {
     struct __create_inherit_context context;
     stdio_inheritation_block_t*     inheritationBlock;
+    uint32_t                        inheritationBlockLength;
     int                             numberOfObjects;
 
-    assert(configuration != NULL);
+    assert(options != NULL);
 
-    if (configuration->InheritFlags == PROCESS_INHERIT_NONE) {
-        return OS_EOK;
+    if (options->Flags == PROCESS_INHERIT_NONE) {
+        *lengthWrittenOut = 0;
+        return;
     }
 
-    numberOfObjects = StdioGetNumberOfInheritableHandles(configuration);
-    if (numberOfObjects != 0) {
-        size_t inheritationBlockLength;
-
-        inheritationBlockLength = sizeof(stdio_inheritation_block_t) + (numberOfObjects * sizeof(struct stdio_handle));
-        inheritationBlock       = (stdio_inheritation_block_t*)malloc(inheritationBlockLength);
-        if (!inheritationBlock) {
-            return OS_EOOM;
-        }
-
-        TRACE("[add_inherit] length %u", inheritationBlockLength);
-        inheritationBlock->handle_count = numberOfObjects;
-
-        context.configuration = configuration;
-        context.inheritation_block = inheritationBlock;
-        context.i = 0;
-        
-        LOCK_FILES();
-        hashtable_enumerate(
-                &g_stdioObjects,
-                __create_inherit_entry,
-                &context
-        );
-        UNLOCK_FILES();
-        
-        *inheritationBlockOut       = (void*)inheritationBlock;
-        *inheritationBlockLengthOut = inheritationBlockLength;
+    numberOfObjects = StdioGetNumberOfInheritableHandles(options);
+    if (numberOfObjects == 0) {
+        *lengthWrittenOut = 0;
+        return;
     }
-    return OS_EOK;
+
+    inheritationBlockLength =
+            sizeof(stdio_inheritation_block_t) +
+            (numberOfObjects * sizeof(struct stdio_handle));
+    inheritationBlock = buffer;
+
+    TRACE("[add_inherit] length %u", inheritationBlockLength);
+    inheritationBlock->handle_count = numberOfObjects;
+
+    context.options = options;
+    context.inheritation_block = inheritationBlock;
+    context.i = 0;
+
+    LOCK_FILES();
+    hashtable_enumerate(
+            &g_stdioObjects,
+            __create_inherit_entry,
+            &context
+    );
+    UNLOCK_FILES();
+    *lengthWrittenOut = inheritationBlockLength;
 }
 
 static void
@@ -322,7 +321,7 @@ void StdioConfigureStandardHandles(
         stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
     }
 
-    // pre-initialize some of the data members which are not reset by
+    // pre-initialize some data members which are not reset by
     // stdio_handle_set_buffered.
     usched_mtx_init(&g_stdout._lock, USCHED_MUTEX_RECURSIVE);
     usched_mtx_init(&g_stdint._lock, USCHED_MUTEX_RECURSIVE);

@@ -387,7 +387,7 @@ void exit(int exitCode)
     }
 
     // important here that we use the gracht client BEFORE cleaning up the entire C runtime
-    ProcessTerminate(exitCode);
+    OSProcessTerminate(exitCode);
 
     // Otherwise, we are the main thread, which means we will go ahead and do primary
     // program cleanup, the moment we get killed, the rest of threads will be aborted
@@ -434,7 +434,7 @@ void quick_exit(int exitCode)
         __thrd_quick_exit(EXIT_SUCCESS);
     }
 
-    ProcessTerminate(exitCode);
+    OSProcessTerminate(exitCode);
     Syscall_ThreadExit(ec);
     for(;;);
 }
@@ -468,7 +468,7 @@ void _Exit(int exitCode)
         for(;;);
     }
 
-    ProcessTerminate(exitCode);
+    OSProcessTerminate(exitCode);
     Syscall_ThreadExit(ec);
     for(;;);
 }

@@ -141,36 +141,6 @@ static void to_sys_file_descriptor(OsFileDescriptor_t* in, struct sys_file_descr
     to_sys_timestamp(&in->ModifiedAt, &out->modified);
 }
 
-static void from_sys_process_configuration(const struct sys_process_configuration* in, ProcessConfiguration_t* out)
-{
-    out->Scope = in->scope;
-    out->InheritFlags = in->inherit_flags;
-    out->MemoryLimit = in->memory_limit;
-    out->StdOutHandle = in->stdout_handle;
-    out->StdErrHandle = in->stderr_handle;
-    out->StdInHandle = in->stdin_handle;
-    out->WorkingDirectory = in->working_directory;
-    out->EnvironmentBlock = (const char*)in->environment_block;
-    out->EnvironmentBlockLength = in->environment_block_count;
-    out->InheritBlock = in->inherit_block;
-    out->InheritBlockLength = in->inherit_block_count;
-}
-
-static void to_sys_process_configuration(ProcessConfiguration_t* in, struct sys_process_configuration* out)
-{
-    out->scope = in->Scope;
-    out->inherit_flags = in->InheritFlags;
-    out->memory_limit  = in->MemoryLimit;
-    out->stdout_handle = in->StdOutHandle;
-    out->stderr_handle = in->StdErrHandle;
-    out->stdin_handle  = in->StdInHandle;
-    out->working_directory = (char*)in->WorkingDirectory;
-    out->environment_block = (uint8_t*)in->EnvironmentBlock;
-    out->environment_block_count = in->EnvironmentBlockLength;
-    out->inherit_block = in->InheritBlock;
-    out->inherit_block_count = in->InheritBlockLength;
-}
-
 static char* to_protocol_string(const char* in)
 {
     if (!in || strlen(in) == 0) {

@@ -20,6 +20,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <os/context.h>
+#include <os/dmabuf.h>
 #include <stdlib.h>
 #include <string.h>
 #include <process.h>
@@ -42,24 +43,51 @@ extern oserr_t PmSetWorkingDirectory(uuid_t processHandle, const char* path);
 extern oserr_t PmGetAssemblyDirectory(uuid_t processHandle, mstring_t** pathOut);
 extern oserr_t HandleProcessCrashReport(Process_t* process, uuid_t threadHandle, const Context_t* crashContext, int crashReason);
 
+static void
+__from_sys_process_configuration(
+        _In_ const struct sys_process_configuration* in,
+        _In_ struct ProcessOptions*                  out)
+{
+    out->Scope = in->scope;
+    out->WorkingDirectory = in->working_directory;
+    out->MemoryLimit.QuadPart = in->memory_limit;
+    out->InheritationBlockLength = in->inherit_block_length;
+    out->EnvironmentBlockLength = in->environ_block_length;
+}
+
 void sys_process_spawn_invocation(
         struct gracht_message*                          message,
                 const char*                             path,
                 const char*                             arguments,
                 const struct sys_process_configuration* configuration)
 {
-    ProcessConfiguration_t conf;
-    uuid_t                 handle = UUID_INVALID;
-    oserr_t                oserr;
+    struct ProcessOptions options;
+    uuid_t                handle = UUID_INVALID;
+    oserr_t               oserr;
     TRACE("void sys_process_spawn_invocation(()");
 
-    if (!strlen(path)) {
+    if (path == NULL || !strlen(path)) {
         sys_process_spawn_response(message, OS_EINVALPARAMS, UUID_INVALID);
         return;
     }
+    __from_sys_process_configuration(configuration, &options);
 
-    from_sys_process_configuration(configuration, &conf);
-    oserr = PmCreateProcess(path, arguments, &conf, &handle);
+    oserr = DmaAttach(configuration->data_buffer, &options.DataBuffer);
+    if (oserr != OS_EOK) {
+        sys_process_spawn_response(message, oserr, UUID_INVALID);
+        return;
+    }
+
+    // We only need read access to the buffer
+    oserr = DmaAttachmentMap(&options.DataBuffer, 0);
+    if (oserr != OS_EOK) {
+        DmaDetach(&options.DataBuffer);
+        sys_process_spawn_response(message, oserr, UUID_INVALID);
+        return;
+    }
+
+    oserr = PmCreateProcess(path, arguments, &options, &handle);
+    DmaDetach(&options.DataBuffer);
     sys_process_spawn_response(message, oserr, handle);
 }
 

@@ -36,24 +36,42 @@ _CODE_BEGIN
  *
  * @param Configuration
  */
-CRTDECL(void,
-ProcessConfigurationInitialize(
-	_In_ ProcessConfiguration_t* configuration));
+CRTDECL(OSProcessOptions_t*, OSProcessOptionsNew(void));
 
 CRTDECL(void,
-ProcessConfigurationSetWorkingDirectory(
-        _In_ ProcessConfiguration_t* configuration,
-        _In_ const char*             workingDirectory));
+OSProcessOptionsDelete(
+        _In_ OSProcessOptions_t* options));
 
 CRTDECL(void,
-ProcessConfigurationSetEnvironment(
-        _In_ ProcessConfiguration_t* configuration,
-        _In_ const char* const*      environment));
+OSProcessOptionsSetArguments(
+        _In_ OSProcessOptions_t* options,
+        _In_ const char*         arguments));
 
 CRTDECL(void,
-ProcessConfigurationSetScope(
-        _In_ ProcessConfiguration_t* configuration,
-        _In_ uuid_t                  scope));
+OSProcessOptionsSetWorkingDirectory(
+        _In_ OSProcessOptions_t* options,
+        _In_ const char*         workingDirectory));
+
+CRTDECL(void,
+OSProcessOptionsSetEnvironment(
+        _In_ OSProcessOptions_t* options,
+        _In_ const char* const*  environment));
+
+CRTDECL(void,
+OSProcessOptionsSetScope(
+        _In_ OSProcessOptions_t* options,
+        _In_ uuid_t              scope));
+
+/**
+ * @brief
+ * TODO: Should be it's own API entirely
+ * @param options
+ * @param memoryLimit
+ */
+CRTDECL(void,
+OSProcessOptionsSetMemoryLimit(
+        _In_ OSProcessOptions_t* options,
+        _In_ size_t              memoryLimit));
 
 /**
  * @brief Spawn a new process with default parameters. The process will inherit the current process's environment
@@ -65,7 +83,7 @@ ProcessConfigurationSetScope(
  * @return
  */
 CRTDECL(oserr_t,
-ProcessSpawn(
+OSProcessSpawn(
 	_In_     const char* path,
 	_In_Opt_ const char* arguments,
     _Out_    uuid_t*     handleOut));
@@ -76,16 +94,15 @@ ProcessSpawn(
  *
  * @param path
  * @param arguments
- * @param configuration
+ * @param options
  * @param handleOut
  * @return
  */
 CRTDECL(oserr_t,
-ProcessSpawnEx(
-    _In_     const char*             path,
-    _In_Opt_ const char*             arguments,
-    _In_     ProcessConfiguration_t* configuration,
-    _Out_    uuid_t*                 handleOut));
+OSProcessSpawnOpts(
+    _In_     const char*         path,
+    _In_     OSProcessOptions_t* options,
+    _Out_    uuid_t*             handleOut));
 
 /**
  * @brief Wait for a process to terminate, and retrieve the exit code of the process.
@@ -98,7 +115,7 @@ ProcessSpawnEx(
  *         OS_EUNKNOWN in any other case.
  */
 CRTDECL(oserr_t,
-ProcessJoin(
+OSProcessJoin(
 	_In_  uuid_t handle,
     _In_  size_t timeout,
     _Out_ int*   exitCodeOut));
@@ -113,7 +130,7 @@ ProcessJoin(
  * @return       The status of the operation
  */
 CRTDECL(oserr_t,
-ProcessSignal(
+OSProcessSignal(
     _In_ uuid_t handle,
     _In_ int    signal));
 
@@ -123,7 +140,7 @@ ProcessSignal(
  * @return The ID of the current process.
  */
 CRTDECL(uuid_t,
-ProcessGetCurrentId(void));
+OSProcessCurrentID(void));
 
 /**
  * @brief Signals to the process server that this process is terminating. This does not
@@ -132,7 +149,8 @@ ProcessGetCurrentId(void));
  * @return The status of the termination.
  */
 CRTDECL(oserr_t,
-ProcessTerminate(int exitCode));
+OSProcessTerminate(
+        _In_ int exitCode));
 
 /**
  * @brief Retrieves the current process tick base. The tick base is set upon process startup. The
@@ -142,7 +160,7 @@ ProcessTerminate(int exitCode));
  * @return
  */
 CRTDECL(oserr_t,
-ProcessGetTickBase(
+OSProcessTickBase(
     _Out_ clock_t* tickOut));
 
 /**
@@ -155,7 +173,7 @@ ProcessGetTickBase(
  * @return OsInvalidParameters if both parameters are invalid.
  */
 CRTDECL(oserr_t,
-        GetProcessCommandLine(
+OSProcessCommandLine(
         _In_    char*   buffer,
         _InOut_ size_t* length));
 
@@ -167,7 +185,7 @@ CRTDECL(oserr_t,
  * @return OsInvalidParameters if either of the inputs are nil.
  */
 CRTDECL(oserr_t,
-        ProcessGetCurrentName(
+OSProcessCurrentName(
         _In_ char*  buffer,
         _In_ size_t maxLength));
 
@@ -182,7 +200,7 @@ CRTDECL(oserr_t,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
 CRTDECL(oserr_t,
-        ProcessGetAssemblyDirectory(
+OSProcessAssemblyDirectory(
         _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength));
@@ -198,7 +216,7 @@ CRTDECL(oserr_t,
  *         OsInvalidParameters if either of buffer/length are invalid.
  */
 CRTDECL(oserr_t,
-        ProcessGetWorkingDirectory(
+OSProcessWorkingDirectory(
         _In_ uuid_t handle,
         _In_ char*  buffer,
         _In_ size_t maxLength));
@@ -210,7 +228,7 @@ CRTDECL(oserr_t,
  * @return
  */
 CRTDECL(oserr_t,
-        ProcessSetWorkingDirectory(
+OSProcessSetWorkingDirectory(
     _In_ const char* path));
 
 _CODE_END

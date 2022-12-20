@@ -124,6 +124,22 @@ PmInitialize(void)
     usched_mtx_init(&g_processHistoryLock, USCHED_MUTEX_PLAIN);
 }
 
+// The process options data block is built like this
+// InheritationBlock | EnvironmentBlock
+static void*
+__ProcOptsInheritationBlock(
+        _In_ struct ProcessOptions* procOpts)
+{
+    return procOpts->DataBuffer.buffer;
+}
+
+static void*
+__ProcOptsEnvironmentBlock(
+        _In_ struct ProcessOptions* procOpts)
+{
+    return (char*)procOpts->DataBuffer.buffer + procOpts->InheritationBlockLength;
+}
+
 static oserr_t
 __BuildArguments(
         _In_ Process_t*  process,
@@ -183,29 +199,6 @@ __BuildArguments(
 }
 
 static oserr_t
-__BuildInheritationBlock(
-        _In_ Process_t*  process,
-        _In_ const void* inheritationBuffer)
-{
-    size_t inheritationBlockLength;
-
-    if (inheritationBuffer != NULL) {
-        const stdio_inheritation_block_t* block = inheritationBuffer;
-
-        inheritationBlockLength = sizeof(stdio_inheritation_block_t) +
-                                  (block->handle_count * sizeof(struct stdio_handle));
-        process->inheritation_block = malloc(inheritationBlockLength);
-        if (!process->inheritation_block) {
-            return OS_EOOM;
-        }
-
-        process->inheritation_block_length = inheritationBlockLength;
-        memcpy(process->inheritation_block, block, inheritationBlockLength);
-    }
-    return OS_EOK;
-}
-
-static oserr_t
 __LoadProcessImage(
         _In_  uuid_t                      scope,
         _In_  const char*                 ldPaths,
@@ -244,13 +237,13 @@ exit:
 
 static mstring_t*
 __SelectWorkingDirectory(
-        _In_ ProcessConfiguration_t* config,
-        _In_ mstring_t*              fullPath)
+        _In_ struct ProcessOptions* procOpts,
+        _In_ mstring_t*             fullPath)
 {
-    if (config->WorkingDirectory == NULL || strlen(config->WorkingDirectory) == 0) {
+    if (procOpts->WorkingDirectory == NULL || strlen(procOpts->WorkingDirectory) == 0) {
         return mstr_path_dirname(fullPath);
     }
-    return mstr_new_u8(config->WorkingDirectory);
+    return mstr_new_u8(procOpts->WorkingDirectory);
 }
 
 static uint8_t*
@@ -274,7 +267,7 @@ __memdup(
 
 static oserr_t
 __ProcessNew(
-        _In_  ProcessConfiguration_t*    config,
+        _In_  struct ProcessOptions*     procOpts,
         _In_  uuid_t                     handle,
         _In_  struct PEImageLoadContext* loadContext,
         _Out_ Process_t**                processOut)
@@ -295,9 +288,25 @@ __ProcessNew(
     process->state = ProcessState_RUNNING;
     process->load_context = loadContext;
     process->references = 1;
-    process->environment_block = (char*)__memdup(config->EnvironmentBlock, config->EnvironmentBlockLength);
-    process->environment_block_length = config->EnvironmentBlockLength;
-    memcpy(&process->config, config, sizeof(ProcessConfiguration_t));
+
+    process->inheritation_block = (char*)__memdup(
+            __ProcOptsInheritationBlock(procOpts),
+            procOpts->InheritationBlockLength
+    );
+    process->inheritation_block_length = procOpts->InheritationBlockLength;
+    process->environment_block = (char*)__memdup(
+            __ProcOptsEnvironmentBlock(procOpts),
+            procOpts->EnvironmentBlockLength
+    );
+    process->environment_block_length = procOpts->EnvironmentBlockLength;
+    if ((process->inheritation_block == NULL && process->inheritation_block_length != 0) ||
+        (process->environment_block == NULL && process->environment_block_length != 0)) {
+        free(process->inheritation_block);
+        free(process->environment_block);
+        free(process);
+        return OS_EOOM;
+    }
+
     usched_mtx_init(&process->mutex, USCHED_MUTEX_PLAIN);
     usched_cnd_init(&process->condition);
 
@@ -312,12 +321,14 @@ __ProcessNew(
     }
 
     process->name               = mstr_path_basename(fullPath);
-    process->working_directory  = __SelectWorkingDirectory(config, fullPath);
+    process->working_directory  = __SelectWorkingDirectory(procOpts, fullPath);
     process->assembly_directory = mstr_path_dirname(fullPath);
     if (!process->name || !process->working_directory || !process->assembly_directory) {
         mstr_delete(process->name);
         mstr_delete(process->working_directory);
         mstr_delete(process->assembly_directory);
+        free(process->inheritation_block);
+        free(process->environment_block);
         free(process);
         return OS_EOOM;
     }
@@ -366,20 +377,20 @@ __StartProcess(
 
 static const char*
 __GetLoadPaths(
-        _In_  ProcessConfiguration_t* processConfiguration)
+        _In_ struct ProcessOptions* procOpts)
 {
     const char* ldpaths = NULL;
+    const char* environ;
 
-    if (processConfiguration->EnvironmentBlock == NULL ||
-        processConfiguration->EnvironmentBlockLength <= 1) {
+    if (procOpts->EnvironmentBlockLength == 0) {
         return NULL;
     }
 
     // Try to locate LDPATH in a double zero-terminated array
-    for (size_t i = 0; processConfiguration->EnvironmentBlock[i];
-        i += strlen(&processConfiguration->EnvironmentBlock[i]) + 1) {
-        if (!strcmp(&processConfiguration->EnvironmentBlock[i], "LDPATH=")) {
-            ldpaths = &processConfiguration->EnvironmentBlock[i];
+    environ = __ProcOptsEnvironmentBlock(procOpts);
+    for (size_t i = 0; environ[i]; i += strlen(&environ[i]) + 1) {
+        if (!strcmp(&environ[i], "LDPATH=")) {
+            ldpaths = &environ[i];
             break;
         }
     }
@@ -388,10 +399,10 @@ __GetLoadPaths(
 
 oserr_t
 PmCreateProcess(
-        _In_  const char*             path,
-        _In_  const char*             args,
-        _In_  ProcessConfiguration_t* processConfiguration,
-        _Out_ uuid_t*                 handleOut)
+        _In_  const char*            path,
+        _In_  const char*            args,
+        _In_  struct ProcessOptions* procOpts,
+        _Out_ uuid_t*                handleOut)
 {
     struct PEImageLoadContext* loadContext;
     Process_t*                 process;
@@ -400,14 +411,14 @@ PmCreateProcess(
     const char*                loadPaths;
     ENTRY("PmCreateProcess(path=%s, args=%s)", path, args);
 
-    loadPaths = __GetLoadPaths(processConfiguration);
+    loadPaths = __GetLoadPaths(procOpts);
     if (loadPaths == NULL) {
         ERROR("PmCreateProcess no LDPATH were supplied.");
         return OS_EOOM;
     }
 
     oserr = __LoadProcessImage(
-            processConfiguration->Scope,
+            procOpts->Scope,
             loadPaths,
             path,
             &loadContext
@@ -424,7 +435,7 @@ PmCreateProcess(
     }
 
     oserr = __ProcessNew(
-            processConfiguration,
+            procOpts,
             handle,
             loadContext,
             &process
@@ -435,12 +446,6 @@ PmCreateProcess(
     }
 
     oserr = __BuildArguments(process, args);
-    if (oserr != OS_EOK) {
-        DestroyProcess(process);
-        goto exit;
-    }
-
-    oserr = __BuildInheritationBlock(process, processConfiguration->InheritBlock);
     if (oserr != OS_EOK) {
         DestroyProcess(process);
         goto exit;

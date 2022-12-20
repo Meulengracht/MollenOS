@@ -10,21 +10,12 @@ import "types"
 namespace sys
 
 struct process_configuration {
-    uuid_t  scope;
-    uint    inherit_flags;
-    int     stdout_handle;
-    int     stdin_handle;
-    int     stderr_handle;
-    ulong   memory_limit;
-    string  working_directory;
-    // inherit_block is a binary block of inherit-objects, descriping
-    // which stdio objects should be transferred from the spawner to the
-    // spawnee.
-    uint8[] inherit_block;
-    // environment_block is a doubly-zero terminated string, which describes
-    // a list of key=pair\0 values. Due to the nature of this data, this is
-    // represented by a simple byte array instead of flat string.
-    uint8[] environment_block;
+    uuid_t scope;
+    ulong  memory_limit;
+    string working_directory;
+    uint   inherit_block_length;
+    uint   environ_block_length;
+    uuid_t data_buffer;
 }
 
 service process (5) {

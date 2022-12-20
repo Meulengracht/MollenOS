@@ -21,8 +21,8 @@
 
 #include <ds/mstring.h>
 #include <gracht/server.h>
-#include <os/osdefs.h>
 #include <os/services/process.h>
+#include <os/types/dma.h>
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
 #include <time.h>
@@ -31,6 +31,15 @@
 enum ProcessState {
     ProcessState_RUNNING,
     ProcessState_TERMINATING
+};
+
+struct ProcessOptions {
+    uuid_t          Scope;
+    UInteger64_t    MemoryLimit;
+    const char*     WorkingDirectory;
+    uint32_t        InheritationBlockLength;
+    uint32_t        EnvironmentBlockLength;
+    DMAAttachment_t DataBuffer;
 };
 
 typedef struct Process {
@@ -42,7 +51,6 @@ typedef struct Process {
     struct usched_cnd          condition;
     int                        references;
     struct PEImageLoadContext* load_context;
-    ProcessConfiguration_t     config;
     int                        exit_code;
 
     mstring_t* name;
@@ -98,17 +106,16 @@ PmBootstrapFindRamdiskFile(
  *
  * @param[In] path
  * @param[In] args
- * @param[In] inherit
- * @param[In] processConfiguration
+ * @param[In] procOpts
  * @param[Out] handleOut
  * @return
  */
 extern oserr_t
 PmCreateProcess(
-        _In_  const char*             path,
-        _In_  const char*             args,
-        _In_  ProcessConfiguration_t* processConfiguration,
-        _Out_ uuid_t*                 handleOut);
+        _In_  const char*            path,
+        _In_  const char*            args,
+        _In_  struct ProcessOptions* procOpts,
+        _Out_ uuid_t*                handleOut);
 
 /**
  * @brief Retrieves the process associated by the handle.
