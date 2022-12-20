@@ -81,9 +81,9 @@ CalculateSpaceRequirements(
 
 static void
 LoadObjectsInMap(
-        _In_ struct symbol_context* symbolContext,
-        _In_ void*                  fileBuffer,
-        _In_ size_t                 fileLength);
+        _In_ struct MapContext* mapContext,
+        _In_ void*              fileBuffer,
+        _In_ size_t             fileLength);
 
 // Structure
 // 1.       Address  Size     Align Out     In      Symbol
@@ -93,9 +93,9 @@ LoadObjectsInMap(
 // Section. 01dc5000 007bad6d  4096 .rdata
 oserr_t
 SymbolParseMapFile(
-    _In_ struct symbol_context* symbolContext,
-    _In_ void*                  fileBuffer,
-    _In_ size_t                 fileLength)
+        _In_ struct MapContext* mapContext,
+        _In_ void*              fileBuffer,
+        _In_ size_t             fileLength)
 {
     size_t sectionBytes;
     size_t fileBytes;
@@ -119,28 +119,39 @@ SymbolParseMapFile(
         return OS_EUNKNOWN;
     }
 
-    symbolContext->section_storage = (char*)malloc(sectionBytes);
-    symbolContext->file_storage   = (char*)malloc(fileBytes);
-    symbolContext->symbol_storage = (char*)malloc(symbolBytes);
-    symbolContext->symbols        = (struct map_symbol*)malloc(sizeof(struct map_symbol) * symbolCount);
-    if (!symbolContext->section_storage || !symbolContext->file_storage ||
-        !symbolContext->symbol_storage || !symbolContext->symbols) {
-        free(symbolContext->section_storage);
-        free(symbolContext->file_storage);
-        free(symbolContext->symbol_storage);
-        free(symbolContext->symbols);
+    mapContext->SectionStorage = (char*)malloc(sectionBytes);
+    mapContext->FileStorage   = (char*)malloc(fileBytes);
+    mapContext->SymbolStorage = (char*)malloc(symbolBytes);
+    mapContext->Symbols        = (struct map_symbol*)malloc(sizeof(struct map_symbol) * symbolCount);
+    if (!mapContext->SectionStorage || !mapContext->FileStorage ||
+        !mapContext->SymbolStorage || !mapContext->Symbols) {
+        MapContextDelete(mapContext);
         return OS_EOOM;
     }
 
-    memset(symbolContext->section_storage, 0, sectionBytes);
-    memset(symbolContext->file_storage, 0, fileBytes);
-    memset(symbolContext->symbol_storage, 0, symbolBytes);
+    memset(mapContext->SectionStorage, 0, sectionBytes);
+    memset(mapContext->FileStorage, 0, fileBytes);
+    memset(mapContext->SymbolStorage, 0, symbolBytes);
 
-    symbolContext->symbol_count = symbolCount;
+    mapContext->SymbolCount = symbolCount;
 
     TRACE(STR("[SymbolParseMapFile] Loading objects.."));
-    LoadObjectsInMap(symbolContext, fileBuffer, fileLength);
+    LoadObjectsInMap(mapContext, fileBuffer, fileLength);
     return OS_EOK;
+}
+
+void
+MapContextDelete(
+        _In_ struct MapContext* mapContext)
+{
+    if (mapContext == NULL) {
+        return;
+    }
+
+    free(mapContext->SectionStorage);
+    free(mapContext->FileStorage);
+    free(mapContext->SymbolStorage);
+    free(mapContext->Symbols);
 }
 
 static void
@@ -199,9 +210,9 @@ CalculateSpaceRequirements(
 
 static void
 LoadObjectsInMap(
-        _In_ struct symbol_context* symbolContext,
-        _In_ void*                  fileBuffer,
-        _In_ size_t                 fileLength)
+        _In_ struct MapContext* mapContext,
+        _In_ void*              fileBuffer,
+        _In_ size_t             fileLength)
 {
     const char* iterator        = (const char*)fileBuffer;
     const char* endOfFile       = (const char*)((uintptr_t)fileBuffer + fileLength);
@@ -216,26 +227,26 @@ LoadObjectsInMap(
 
     while (iterator && iterator < endOfFile) {
         const char* parsed = ParseSymbol(iterator, endOfFile,
-                               &symbolContext->section_storage[sectionIndex],
-                               &symbolContext->file_storage[headerIndex],
-                               &symbolContext->symbol_storage[symbolNameIndex],
-                               &symbolContext->symbols[symbolIndex]);
+                               &mapContext->SectionStorage[sectionIndex],
+                               &mapContext->FileStorage[headerIndex],
+                               &mapContext->SymbolStorage[symbolNameIndex],
+                               &mapContext->Symbols[symbolIndex]);
         if (parsed) {
             iterator = parsed;
-            symbolNameIndex += strlen(&symbolContext->symbol_storage[symbolNameIndex]) + 1;
+            symbolNameIndex += strlen(&mapContext->SymbolStorage[symbolNameIndex]) + 1;
             symbolIndex++;
             continue;
         }
 
         // try to parse as file / header
         {
-            size_t lastLength = strlen(&symbolContext->file_storage[headerIndex]);
+            size_t lastLength = strlen(&mapContext->FileStorage[headerIndex]);
             size_t nextIndex  = headerIndex;
             if (lastLength) {
                 nextIndex += lastLength + 1;
             }
 
-            parsed = ParseHeader(iterator, endOfFile, &symbolContext->file_storage[nextIndex]);
+            parsed = ParseHeader(iterator, endOfFile, &mapContext->FileStorage[nextIndex]);
             if (parsed) {
                 iterator = parsed;
                 headerIndex = nextIndex;
@@ -245,13 +256,13 @@ LoadObjectsInMap(
 
         // try to parse as section
         {
-            size_t lastLength = strlen(&symbolContext->section_storage[sectionIndex]);
+            size_t lastLength = strlen(&mapContext->SectionStorage[sectionIndex]);
             size_t nextIndex  = sectionIndex;
             if (lastLength) {
                 nextIndex += lastLength + 1;
             }
 
-            parsed = ParseSection(iterator, endOfFile, &symbolContext->section_storage[nextIndex]);
+            parsed = ParseSection(iterator, endOfFile, &mapContext->SectionStorage[nextIndex]);
             if (parsed) {
                 iterator = parsed;
                 sectionIndex = nextIndex;

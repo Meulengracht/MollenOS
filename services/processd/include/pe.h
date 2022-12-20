@@ -218,7 +218,6 @@ PEModuleEntryPoints(
 /**
  * @brief Validates a file-buffer of the given length, does initial header checks and
  * performs a checksum validation.
- *
  * @param buffer
  * @param length
  * @param checksumOut

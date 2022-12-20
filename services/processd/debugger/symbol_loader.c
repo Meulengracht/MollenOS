@@ -31,7 +31,7 @@
 #include <malloc.h>
 
 static oserr_t
-SymbolLoadMapFile(
+__LoadMapFile(
         _In_  mstring_t* moduleName,
         _Out_ void**     fileBufferOut,
         _Out_ long*      fileSizeOut);
@@ -64,22 +64,22 @@ SymbolsLoadContext(
     oserr_t               oserr;
     TRACE("SymbolsLoadContext(moduleName=%ms)", moduleName);
 
-    oserr = SymbolLoadMapFile(moduleName, &fileBuffer, &fileSize);
+    oserr = __LoadMapFile(moduleName, &fileBuffer, &fileSize);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
     TRACE("[SymbolsLoadContext] parsing map file, 0x%llx - %llu", fileBuffer, fileSize);
-    oserr = SymbolParseMapFile(&symbolContext, fileBuffer, fileSize);
+    oserr = SymbolParseMapFile(&symbolContext.MapContext, fileBuffer, fileSize);
     free(fileBuffer);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
     // ok create key now everything is done
-    symbolContext.key = mstr_clone(moduleName);
-    if (symbolContext.key == NULL) {
-        // TODO: implement SymbolContextDelete
+    symbolContext.Key = mstr_clone(moduleName);
+    if (symbolContext.Key == NULL) {
+        MapContextDelete(&symbolContext.MapContext);
         return OS_EOOM;
     }
 
@@ -91,7 +91,7 @@ SymbolsLoadContext(
     *symbolContextOut = hashtable_get(
             &g_loadedSymbolContexts,
             &(struct symbol_context) {
-                .key = moduleName
+                .Key = moduleName
             }
     );
     return OS_EOK;
@@ -116,7 +116,7 @@ SymbolLookup(
     symbolContext = (struct symbol_context*)hashtable_get(
             &g_loadedSymbolContexts,
             &(struct symbol_context) {
-                .key = moduleName
+                .Key = moduleName
             }
     );
     if (!symbolContext) {
@@ -128,15 +128,15 @@ SymbolLookup(
 
     // iterate symbols and find matching symbol, always selects last
     // symbol if the loop reaches end of list
-    for (int i = 0; i < symbolContext->symbol_count; i++) {
-        if (i == (symbolContext->symbol_count - 1)) {
-            symbol = &symbolContext->symbols[i];
+    for (int i = 0; i < symbolContext->MapContext.SymbolCount; i++) {
+        if (i == (symbolContext->MapContext.SymbolCount - 1)) {
+            symbol = &symbolContext->MapContext.Symbols[i];
             break;
         }
 
-        if (binaryOffset >= symbolContext->symbols[i].address &&
-            binaryOffset <  symbolContext->symbols[i + 1].address) {
-            symbol = &symbolContext->symbols[i];
+        if (binaryOffset >= symbolContext->MapContext.Symbols[i].address &&
+            binaryOffset <  symbolContext->MapContext.Symbols[i + 1].address) {
+            symbol = &symbolContext->MapContext.Symbols[i];
             break;
         }
     }
@@ -171,33 +171,20 @@ __GetMapPath(
 }
 
 static oserr_t
-SymbolLoadMapFile(
-        _In_  mstring_t* moduleName,
-        _Out_ void**     fileBufferOut,
-        _Out_ long*      fileSizeOut)
+__LoadFile(
+        _In_  const char* path,
+        _Out_ void**      fileBufferOut,
+        _Out_ long*       fileSizeOut)
 {
-    FILE*      file;
-    long       fileSize;
-    void*      fileBuffer;
-    size_t     bytesRead;
-    char*      mapFilePath;
+    FILE*  file;
+    long   fileSize;
+    void*  fileBuffer;
+    size_t bytesRead;
 
-    mapFilePath = __GetMapPath(moduleName);
-    if (mapFilePath == NULL) {
-        return OS_EOOM;
-    }
-    TRACE("[SymbolsLoadContext] trying to load %s", mapFilePath);
-
-    file = fopen(mapFilePath, "r");
-    // After the open call, we do not need any of the path data anymore, so lets
-    // just free it immediately, so we don't have to take care of it anymore
+    file = fopen(path, "r");
     if (!file) {
-        // map did not exist
-        ERROR("[SymbolsLoadContext] map file not found at %s", mapFilePath);
-        free(mapFilePath);
         return OS_ENOENT;
     }
-    free(mapFilePath);
 
     fseek(file, 0, SEEK_END);
     fileSize = ftell(file);
@@ -216,9 +203,8 @@ SymbolLoadMapFile(
 
     bytesRead = fread(fileBuffer, 1, fileSize, file);
     fclose(file);
-
     if (bytesRead != fileSize) {
-        ERROR("[SymbolsLoadContext] fread returned %i", (int)bytesRead);
+        ERROR("__LoadFile partial fread of %li/%li bytes", (long)bytesRead, fileSize);
         return OS_EUNKNOWN;
     }
 
@@ -227,15 +213,36 @@ SymbolLoadMapFile(
     return OS_EOK;
 }
 
+static oserr_t
+__LoadMapFile(
+        _In_  mstring_t* moduleName,
+        _Out_ void**     fileBufferOut,
+        _Out_ long*      fileSizeOut)
+{
+    oserr_t oserr;
+    char*   mapFilePath;
+    TRACE("__LoadMapFile(moduleName=%ms)", moduleName);
+
+    mapFilePath = __GetMapPath(moduleName);
+    if (mapFilePath == NULL) {
+        return OS_EOOM;
+    }
+    TRACE("__LoadMapFile resolved path %s", mapFilePath);
+
+    oserr = __LoadFile(mapFilePath, fileBufferOut, fileSizeOut);
+    free(mapFilePath);
+    return oserr;
+}
+
 static uint64_t __symbol_hash(const void* element)
 {
     const struct symbol_context* context = element;
-    return mstr_hash(context->key);
+    return mstr_hash(context->Key);
 }
 
 static int __symbol_cmp(const void* element1, const void* element2)
 {
     const struct symbol_context* lh = element1;
     const struct symbol_context* rh = element2;
-    return mstr_cmp(lh->key, rh->key);
+    return mstr_cmp(lh->Key, rh->Key);
 }

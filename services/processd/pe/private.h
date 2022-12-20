@@ -87,9 +87,8 @@ PECacheGet(
         _Out_ struct Module** moduleOut);
 
 /**
- * @brief Resolves a path for a binary based on th
- * @param processId
- * @param paths
+ * @brief
+ * @param loadContext
  * @param path
  * @param fullPathOut
  * @return
@@ -111,9 +110,8 @@ PEParseModule(
 
 /**
  * @brief
+ * @param loadContext
  * @param path
- * @param memorySpace
- * @param loadAddress
  * @param moduleMappingOut
  * @return
  */
@@ -131,12 +129,24 @@ void
 ModuleMappingDelete(
         _In_ struct ModuleMapping* moduleMapping);
 
+/**
+ * @brief
+ * @param loadContext
+ * @param moduleMapping
+ * @param importsList
+ * @return
+ */
 oserr_t
 PEImportsProcess(
         _In_ struct PEImageLoadContext* loadContext,
         _In_ struct ModuleMapping*      moduleMapping,
         _In_ list_t*                    importsList);
 
+/**
+ * @brief
+ * @param moduleMapping
+ * @return
+ */
 oserr_t
 PERuntimeRelocationsProcess(
         _In_ struct ModuleMapping* moduleMapping);
