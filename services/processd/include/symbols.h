@@ -38,13 +38,17 @@ struct map_symbol {
     size_t      length;
 };
 
+struct MapContext {
+    char*              SectionStorage;
+    char*              FileStorage;
+    char*              SymbolStorage;
+    struct map_symbol* Symbols;
+    int                SymbolCount;
+};
+
 struct symbol_context {
-    mstring_t*         key;
-    char*              section_storage;
-    char*              file_storage;
-    char*              symbol_storage;
-    struct map_symbol* symbols;
-    int                symbol_count;
+    mstring_t*         Key;
+    struct MapContext  MapContext;
 };
 
 /**
@@ -72,15 +76,23 @@ SymbolLookup(
 /**
  * @brief Parses the provided map file data and stores all information into the provided symbol context
  *
- * @param symbolContext
+ * @param mapContext
  * @param fileBuffer
  * @param fileLength
  * @return
  */
 __EXTERN oserr_t
 SymbolParseMapFile(
-        _In_ struct symbol_context* symbolContext,
-        _In_ void*                  fileBuffer,
-        _In_ size_t                 fileLength);
+        _In_ struct MapContext* mapContext,
+        _In_ void*              fileBuffer,
+        _In_ size_t             fileLength);
+
+/**
+ * @brief Frees any resources allocated in regards to the map context.
+ * @param mapContext The map context filled by SymbolParseMapFile
+ */
+__EXTERN void
+MapContextDelete(
+        _In_ struct MapContext* mapContext);
 
 #endif //__PROCESSMANAGER_SYMBOLS_H__

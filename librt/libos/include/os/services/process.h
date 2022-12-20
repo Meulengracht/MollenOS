@@ -32,41 +32,69 @@ _CODE_BEGIN
  * @brief Initializes the process configuration to default values.
  * The environment for the new process will per default inherit the
  * current environment.
- *
- *
- * @param Configuration
  */
 CRTDECL(OSProcessOptions_t*, OSProcessOptionsNew(void));
 
+/**
+ * @brief Frees any resources allocated during the use of OSProcessOptions*
+ * functions.
+ * @param options The options structure that should be freed.
+ */
 CRTDECL(void,
 OSProcessOptionsDelete(
         _In_ OSProcessOptions_t* options));
 
+/**
+ * @brief Sets the process command line arguments that should be provided. The arguments
+ * will be prefixed with the path of the program that is being spawned.
+ * @param options The options structure to set arguments for.
+ * @param arguments The arguments that should be provided for the process.
+ */
 CRTDECL(void,
 OSProcessOptionsSetArguments(
         _In_ OSProcessOptions_t* options,
         _In_ const char*         arguments));
 
+/**
+ * @brief Sets the working directory of the process that will be spawned. This will
+ * provide the process with a specific starting working directory.
+ * @param options The options structure to update.
+ * @param workingDirectory The working directory that should be provided for the process.
+ */
 CRTDECL(void,
 OSProcessOptionsSetWorkingDirectory(
         _In_ OSProcessOptions_t* options,
         _In_ const char*         workingDirectory));
 
+/**
+ * @brief Sets the environment of the process that will be spawned. If no environment
+ * is explicitly specified, it will inherit the current environment.
+ * @param options The options structure to update.
+ * @param environment The environment that should be provided for the process.
+ */
 CRTDECL(void,
 OSProcessOptionsSetEnvironment(
         _In_ OSProcessOptions_t* options,
         _In_ const char* const*  environment));
 
+/**
+ * @brief Isolates the process in the provided scope. The scope dictates every resource
+ * the process wil have access to. A child scope can be created through the Scope API, in
+ * which a process can be isolated.
+ * @param options The options structure to update.
+ * @param environment The scope that should be provided for the process.
+ */
 CRTDECL(void,
 OSProcessOptionsSetScope(
         _In_ OSProcessOptions_t* options,
         _In_ uuid_t              scope));
 
 /**
- * @brief
- * TODO: Should be it's own API entirely
- * @param options
- * @param memoryLimit
+ * @brief Provide a memory limit for the process. This memory cannot be exceeded and
+ * all memory allocations exceeding this will return NULL pointers.
+ * TODO: Should be it's own Limit API entirely, and support many other types of limits.
+ * @param options The options structure to update.
+ * @param memoryLimit The memory limit in bytes.
  */
 CRTDECL(void,
 OSProcessOptionsSetMemoryLimit(
@@ -76,10 +104,10 @@ OSProcessOptionsSetMemoryLimit(
 /**
  * @brief Spawn a new process with default parameters. The process will inherit the current process's environment
  * block, but run in it's own context (no io-descriptor share and does not inherit std handles).
- *
- * @param path
- * @param arguments
- * @param handleOut
+ * @param path The path of the process to spawn. The path will be resolved in the current
+ *             filesystem scope.
+ * @param arguments The arguments that should be provided for the process.
+ * @param handleOut The handle of the new process.
  * @return
  */
 CRTDECL(oserr_t,
@@ -91,18 +119,18 @@ OSProcessSpawn(
 /**
  * @brief Spawn a new process with a more detailed configuration. Allows for customization of io
  * descriptors, environmental block and custom limitations.
- *
- * @param path
- * @param arguments
- * @param options
- * @param handleOut
+ * @param path The path of the process to spawn. The path will be resolved in the current
+ *             filesystem scope if none is provided in the options structure. If a scope is
+ *             set in the options structure, then the path will be resolved using that scope.
+ * @param options The process options structure that will configure certain elements of the process.
+ * @param handleOut The handle of the new process.
  * @return
  */
 CRTDECL(oserr_t,
 OSProcessSpawnOpts(
-    _In_     const char*         path,
-    _In_     OSProcessOptions_t* options,
-    _Out_    uuid_t*             handleOut));
+    _In_  const char*         path,
+    _In_  OSProcessOptions_t* options,
+    _Out_ uuid_t*             handleOut));
 
 /**
  * @brief Wait for a process to terminate, and retrieve the exit code of the process.
@@ -124,7 +152,6 @@ OSProcessJoin(
  * @brief Dispatches a signal to the target process, the target process must be listening to asynchronous signals
  * otherwise the signal is ignored. Both SIGKILL and SIGQUIT will terminate the process in any event, if security
  * checks are passed.
- *
  * @param handle The handle of the target process
  * @param signal The signal that should be sent to the process
  * @return       The status of the operation
@@ -136,7 +163,6 @@ OSProcessSignal(
 
 /**
  * @brief Retrieves the current process identifier.
- *
  * @return The ID of the current process.
  */
 CRTDECL(uuid_t,
@@ -155,7 +181,6 @@ OSProcessTerminate(
 /**
  * @brief Retrieves the current process tick base. The tick base is set upon process startup. The
  * frequency can be retrieved by CLOCKS_PER_SEC in time.h
- *
  * @param tickOut
  * @return
  */
@@ -165,7 +190,6 @@ OSProcessTickBase(
 
 /**
  * @brief Retrieves a copy of the command line that the current process was invoked with.
- *
  * @param buffer The buffer to store the command line in.
  * @param length If buffer is NULL then length will be set the length of the command line. Otherwise
  *               this shall be the max length of the buffer provided. This parameter will also be updated
@@ -179,7 +203,6 @@ OSProcessCommandLine(
 
 /**
  * @brief Retrieves the current process name.
- *
  * @param buffer The buffer to store the name in.
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
  * @return OsInvalidParameters if either of the inputs are nil.
@@ -192,8 +215,7 @@ OSProcessCurrentName(
 /**
  * @brief Retrieves the current assembly directory of a process handle. Use UUID_INVALID for the
  * current process.
- *
- * @param handle
+ * @param handle Handle of the process to get the assembly directory of.
  * @param buffer The buffer to store the path in.
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
  * @return OsNotExists if the handle was invalid,
@@ -208,8 +230,7 @@ OSProcessAssemblyDirectory(
 /**
  * @brief Retrieves the current working directory of a process handle. Use UUID_INVALID for the
  * current process.
- *
- * @param handle
+ * @param handle Handle of the process to get the working directory of.
  * @param buffer The buffer to store the path in.
  * @param maxLength The maximum number of bytes to be stored in the provided buffer.
  * @return OsNotExists if the handle was invalid,
@@ -223,7 +244,6 @@ OSProcessWorkingDirectory(
 
 /**
  * @brief Sets the working directory of the current process.
- *
  * @param path
  * @return
  */

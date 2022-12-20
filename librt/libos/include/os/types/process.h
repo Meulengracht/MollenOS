@@ -26,17 +26,26 @@
 
 #include <os/osdefs.h>
 
+// PROCESS_MAXMODULES is the maximum number of PE modules that can be loaded
+// into a process space. This is an arbitrary limit, and can be raised as fit.
+// This limit should always be a multiple of 8, to account for the bitmap allocator.
 #define PROCESS_MAXMODULES 64
 
-#define PROCESS_INHERIT_NONE        0x00000000
-#define PROCESS_INHERIT_STDOUT      0x00000001
-#define PROCESS_INHERIT_STDIN       0x00000002
-#define PROCESS_INHERIT_STDERR      0x00000004
-#define PROCESS_INHERIT_FILES       0x00000008
-#define PROCESS_INHERIT_ALL         (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
+// PROCESS_INHERIT_* flags denote which kind of file-descriptor inheritation that
+// should be done when spawning processes. None simply means nothing will be inheritted,
+// and even std{in,out,err} should be NULL file-descriptors.
+#define PROCESS_INHERIT_NONE   0x00000000
+#define PROCESS_INHERIT_STDOUT 0x00000001
+#define PROCESS_INHERIT_STDIN  0x00000002
+#define PROCESS_INHERIT_STDERR 0x00000004
+#define PROCESS_INHERIT_FILES  0x00000008
+#define PROCESS_INHERIT_ALL    (PROCESS_INHERIT_STDOUT | PROCESS_INHERIT_STDIN | PROCESS_INHERIT_STDERR | PROCESS_INHERIT_FILES)
 
 typedef struct OSProcessOptions OSProcessOptions_t;
 
+// ProcessStartupInformation is used internally for processes during startup
+// to transfer certain configuration data between the process manager and the
+// new process itself.
 typedef struct ProcessStartupInformation {
     size_t ArgumentsLength;
     size_t InheritationLength;
