@@ -81,25 +81,31 @@ PEImageLoad(
         return oserr;
     }
 
-    // prepare the list for dependencies
+    // Before we process imports and other stuff, we register this module
+    // as loaded, and allocate an ID. We want to ensure the root module is set
+    // and allocated.
+    // Unfortunately doing it like this, we must after processing imports update
+    // the list of dependencies for the image.
+    moduleMapEntry.ID = PEImageLoadContextGetID(loadContext);
+    moduleMapEntry.Name = mstr_path_basename(resolvedPath);
+    moduleMapEntry.Path = resolvedPath;
+    moduleMapEntry.BaseMapping = moduleMapping->MappingBase;
+    moduleMapEntry.Module = moduleMapping->Module;
+    moduleMapEntry.Dependency = dependency;
     list_construct(&moduleMapEntry.Imports);
+    if (moduleMapEntry.ID == 0) {
+        loadContext->RootModule = moduleMapEntry.Name;
+    }
+    hashtable_set(&loadContext->ModuleMap, &moduleMapEntry);
+
+    // prepare the list for dependencies
     oserr = __PostProcessImage(loadContext, moduleMapping, &moduleMapEntry.Imports);
     if (oserr != OS_EOK) {
         mstr_delete(resolvedPath);
         return oserr;
     }
 
-    // Only after a successful parse of the image do we insert
-    // it into the maps and trees.
-    moduleMapEntry.ID = PEImageLoadContextGetID(loadContext);
-    moduleMapEntry.Name = mstr_path_basename(path);
-    moduleMapEntry.Path = resolvedPath;
-    moduleMapEntry.BaseMapping = moduleMapping->MappingBase;
-    moduleMapEntry.Module = moduleMapping->Module;
-    moduleMapEntry.Dependency = dependency;
-    if (moduleMapEntry.ID == 0) {
-        loadContext->RootModule = moduleMapEntry.Name;
-    }
+    // Update the entry by overwriting it
     hashtable_set(&loadContext->ModuleMap, &moduleMapEntry);
 
     // Cleanup the mappings

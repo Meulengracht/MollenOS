@@ -137,11 +137,16 @@ __ParseRamdisk(
     return OS_EOK;
 }
 
-void PmBootstrap(void)
+void
+PmBootstrap(
+        void* __unused0,
+        void* __unused1)
 {
     oserr_t osStatus;
     void*   ramdisk;
     size_t  ramdiskSize;
+    _CRT_UNUSED(__unused0);
+    _CRT_UNUSED(__unused1);
     TRACE("PmBootstrap()");
 
     // Let's map in the ramdisk and discover various service modules

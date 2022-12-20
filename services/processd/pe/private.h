@@ -68,8 +68,8 @@ SectionMappingFromRVA(
         _In_ uint32_t               rva)
 {
     for (int i = 0; i < mappingCount; i++) {
-        if (rva >= mappings->RVA && rva < (mappings->RVA + mappings->Length)) {
-            return (mappings->LocalAddress + (rva - mappings->RVA));
+        if (rva >= mappings[i].RVA && rva < (mappings[i].RVA + mappings[i].Length)) {
+            return (mappings[i].LocalAddress + (rva - mappings[i].RVA));
         }
     }
     return NULL;

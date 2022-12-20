@@ -78,7 +78,7 @@ extern void PmDebuggerInitialize(void);
 /**
  * @brief Bootstraps the entire system by parsing ramdisk for system services.
  */
-extern void PmBootstrap(void);
+extern void PmBootstrap(void*, void*);
 
 /**
  * @brief Cleans up any resources related to bootstrapping. This includes the mapped

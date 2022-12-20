@@ -18,6 +18,7 @@
 #define __TRACE
 #include <ddk/memory.h>
 #include <ddk/utils.h>
+#include <ds/mstring.h>
 #include <internal/_syscalls.h>
 #include <module.h>
 #include "private.h"
@@ -126,8 +127,10 @@ PEImageLoadContextGetID(
     }
 
     for (int i = 0; i < PROCESS_MAXMODULES; i++) {
-        if (!(loadContext->IDBitmap[i/sizeof(uint8_t)] & (1 << (i % sizeof(uint8_t))))) {
-            loadContext->IDBitmap[i/sizeof(uint8_t)] |= (1 << (i % sizeof(uint8_t)));
+        int     block  = i / sizeof(uint8_t);
+        uint8_t offset = i % sizeof(uint8_t);
+        if (!(loadContext->IDBitmap[block] & (1 << offset))) {
+            loadContext->IDBitmap[block] |= (1 << offset);
             return i;
         }
     }
@@ -139,7 +142,9 @@ PEImageLoadContextPutID(
         _In_ struct PEImageLoadContext* loadContext,
         _In_ int                        id)
 {
-    loadContext->IDBitmap[id/sizeof(uint8_t)] &= ~(1 << (id % sizeof(uint8_t)));
+    int     block  = id / sizeof(uint8_t);
+    uint8_t offset = id % sizeof(uint8_t);
+    loadContext->IDBitmap[block] &= ~(1 << offset);
 }
 
 struct __ImageDetailsContext {

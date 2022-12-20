@@ -21,7 +21,8 @@
  */
 
 #include <internal/_ipc.h>
-#include "process.h"
+#include <os/usched/job.h>
+#include <process.h>
 
 #include <sys_library_service_server.h>
 #include <sys_process_service_server.h>
@@ -43,5 +44,8 @@ void ServiceInitialize(void)
     // Initialize all our subsystems for Phoenix
     PmInitialize();
     PmDebuggerInitialize();
-    PmBootstrap();
+    PECacheInitialize();
+
+    // Queue up the bootstrap function
+    usched_job_queue(PmBootstrap, NULL);
 }

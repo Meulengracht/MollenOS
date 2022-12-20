@@ -70,14 +70,14 @@ PEValidateImageChecksum(
 
     // Check magic for DOS
     if (dosHeader->Signature != MZ_MAGIC) {
-        ERROR("Invalid MZ Signature 0x%x", dosHeader->Signature);
+        ERROR("Not a valid PE executable: invalid mz sig 0x%x", dosHeader->Signature);
         return OS_EUNKNOWN;
     }
     peHeader = (PeHeader_t*)(buffer + dosHeader->PeHeaderAddress);
 
     // Check magic for PE
     if (peHeader->Magic != PE_MAGIC) {
-        ERROR("Invalid PE File Magic 0x%x", peHeader->Magic);
+        ERROR("Not a valid PE executable: invalid pe sig 0x%x", peHeader->Magic);
         return OS_EUNKNOWN;
     }
     optionalHeader = (PeOptionalHeader_t*)(buffer + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));

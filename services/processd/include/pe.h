@@ -137,6 +137,20 @@ PEImageLoadContextModuleEntryPoint(
         _Out_ uintptr_t*                 moduleEntryPointOut);
 
 /**
+ * @brief Initializes the PE cache subsystem.
+ * @return OS_EOK if successful
+ *         OS_EOOM if no memory could be allocated.
+ */
+oserr_t
+PECacheInitialize(void);
+
+/**
+ * Frees any resources allocated by the PE cache subsystem.
+ */
+void
+PECacheDestroy(void);
+
+/**
  * @brief
  * @param loadContext
  * @param path

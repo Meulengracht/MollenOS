@@ -32,6 +32,7 @@ __AddImportDependency(
 {
     element_t* importLeaf;
     mstring_t* nameCopy;
+    TRACE("__AddImportDependency(module=%ms)", moduleName);
 
     // Copy the name for the import dependency, the name we are
     // given is temporary.
@@ -61,27 +62,46 @@ __ResolveImport(
     struct ModuleMapEntry* mapEntry;
     oserr_t                oserr;
     int                    id;
-
-    // We want to know in advance which id is assinged to the loaded image. To do this
-    // we allocate and deallocate the id.
-    id = PEImageLoadContextGetID(loadContext);
-    PEImageLoadContextPutID(loadContext, id);
+    TRACE("__ResolveImport(module=%ms)", moduleName);
 
     mapEntry = hashtable_get(
             &loadContext->ModuleMap,
-            &(struct ModuleMapEntry) { .Name = moduleName }
+            &(struct ModuleMapEntry) {
+                .Name = moduleName
+            }
     );
     if (mapEntry) {
         memcpy(moduleMapEntry, mapEntry, sizeof(struct ModuleMapEntry));
         return OS_EOK;
     }
 
+    // We want to know in advance which id is assinged to the loaded image. To do this
+    // we allocate and deallocate the id.
+    id = PEImageLoadContextGetID(loadContext);
+    PEImageLoadContextPutID(loadContext, id);
+
     // We need to load the module into the namespace
     oserr = PEImageLoad(loadContext, moduleName, true);
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return __AddImportDependency(importsList, moduleName, id);
+
+    oserr = __AddImportDependency(importsList, moduleName, id);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    mapEntry = hashtable_get(
+            &loadContext->ModuleMap,
+            &(struct ModuleMapEntry) {
+                    .Name = moduleName
+            }
+    );
+    if (mapEntry == NULL) {
+        return OS_EUNKNOWN;
+    }
+    memcpy(moduleMapEntry, mapEntry, sizeof(struct ModuleMapEntry));
+    return OS_EOK;
 }
 
 static inline oserr_t
@@ -91,6 +111,7 @@ __GetFunctionByOrdinal(
         _Out_ uint32_t*              functionRVA)
 {
     struct ExportedFunction* function;
+    TRACE("__GetFunctionByOrdinal(ordinal=%u)", ordinal);
 
     function = hashtable_get(
             &moduleMapEntry->Module->ExportedOrdinals,
@@ -116,9 +137,10 @@ __GetFunctionByName(
         _Out_ uint32_t*              functionRVA)
 {
     struct ExportedFunction* function;
+    TRACE("__GetFunctionByName(name=%s)", name);
 
     function = hashtable_get(
-            &moduleMapEntry->Module->ExportedOrdinals,
+            &moduleMapEntry->Module->ExportedNames,
             &(struct ExportedFunction) {
                     .Name = name
             }
@@ -127,7 +149,7 @@ __GetFunctionByName(
         return OS_ENOENT;
     }
     if (function->ForwardName != NULL) {
-        ERROR("__GetFunctionByOrdinal encounted forwarded export: %s", function->ForwardName);
+        ERROR("__GetFunctionByName encounted forwarded export: %s", function->ForwardName);
         return OS_ENOTSUPPORTED;
     }
     *functionRVA = function->RVA;
@@ -141,6 +163,8 @@ __ProcessUnboundImportTable32(
         _In_ void*                  iatData)
 {
     uint32_t* thunk = iatData;
+    TRACE("__ProcessUnboundImportTable32()");
+
     while (*thunk) {
         uint32_t thunkValue = *thunk;
         uint32_t rva;
@@ -187,6 +211,8 @@ __ProcessUnboundImportTable64(
         _In_ void*                  iatData)
 {
     uint64_t* thunk = iatData;
+    TRACE("__ProcessUnboundImportTable64()");
+
     while (*thunk) {
         uint64_t thunkValue = *thunk;
         uint32_t rva;
@@ -265,6 +291,7 @@ __ProcessImportDescriptorTable(
 {
     struct ModuleMapEntry moduleMapEntry;
     PeImportDescriptor_t* i = data;
+    TRACE("__ProcessImportDescriptorTable()");
 
     // The import descriptor table is a list of import tables. Each entry describes
     // a DLL that it imports from, and an import entry table that contains a list of

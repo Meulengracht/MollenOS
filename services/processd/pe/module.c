@@ -116,7 +116,7 @@ uint32_t __hash(const char* string)
         return 0;
     }
     while (string[i]) {
-        hash = ((hash << 5) + hash) + string[i]; /* hash * 33 + c */
+        hash = ((hash << 5) + hash) + string[i++]; /* hash * 33 + c */
     }
     return hash;
 }
