@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 #include <ddk/utils.h>
 #include <module.h>
 #include "private.h"
@@ -47,7 +47,6 @@ void __enum(int index, const void* element, void* userContext)
 {
     struct __ModuleMapEnumContext* context = userContext;
     const struct ModuleMapEntry*   entry   = element;
-    int                            i       = 0;
     _CRT_UNUSED(index);
 
     // Create a new element at elements[index]
@@ -55,6 +54,7 @@ void __enum(int index, const void* element, void* userContext)
     context->Elements[context->Index].Module = entry->Module;
     context->Elements[context->Index].BaseMapping = entry->BaseMapping;
     context->Elements[context->Index].ModuleKey = entry->Name;
+    context->Elements[context->Index].VerticeCount = 0;
     memset(
             &context->Elements[context->Index].Vertices[0],
             0,
@@ -65,8 +65,8 @@ void __enum(int index, const void* element, void* userContext)
     foreach (n, &entry->Imports) {
         int importID = (int)(uintptr_t)n->key;
         context->Elements[context->Index].Vertices[importID] = true;
+        context->Elements[context->Index].VerticeCount++;
     }
-    context->Elements[context->Index].VerticeCount = i;
     context->Index++;
 }
 
@@ -88,6 +88,7 @@ __BuildModuleDependencyList(
     struct __ModuleElement*       moduleList;
     int                           elementCount;
     int                           mli;
+    TRACE("__BuildModuleDependencyList()");
 
     // Allocate the result structure, we can preallocate the correct memory as
     // we know the number of output elements.
@@ -106,10 +107,13 @@ __BuildModuleDependencyList(
     context.Index = 0;
 
     // Build the element list up with correct list of vertices.
+    TRACE("__BuildModuleDependencyList preparing module list");
     hashtable_enumerate(&loadContext->ModuleMap, __enum, &context);
 
     // Run over the list, removing freestanding elements, and then removing
     // those from vertices untill nothing's left.
+    TRACE("__BuildModuleDependencyList building dependency list of %u items",
+          (uint32_t)loadContext->ModuleMap.element_count);
     mli = 0;
     elementCount = (int)loadContext->ModuleMap.element_count;
     while (elementCount > 0) {
@@ -117,12 +121,14 @@ __BuildModuleDependencyList(
             if (context.Elements[i].ID == -1) {
                 continue;
             }
+            TRACE("__BuildModuleDependencyList checking %i: vertices left: %i",
+                  context.Elements[i].ID, context.Elements[i].VerticeCount);
 
             if (context.Elements[i].VerticeCount == 0) {
                 // we can remove this one and remove any reference to this in
                 // other elements, unfortunately requires us to re-iterate.
                 for (size_t j = 0; j < loadContext->ModuleMap.element_count; j++) {
-                    if (context.Elements[j].ID == -1) {
+                    if (j == i || context.Elements[j].ID == -1) {
                         continue;
                     }
                     if (context.Elements[j].Vertices[context.Elements[i].ID]) {
@@ -152,6 +158,7 @@ PEModuleKeys(
         _Out_ int*                       moduleCountOut)
 {
     struct __ModuleElement* moduleList;
+    TRACE("PEModuleKeys()");
 
     if (loadContext == NULL || moduleKeys == NULL || moduleCountOut == NULL) {
         return OS_EINVALPARAMS;
@@ -177,6 +184,7 @@ PEModuleEntryPoints(
         _Out_ int*                       moduleCountOut)
 {
     struct __ModuleElement* moduleList;
+    TRACE("PEModuleEntryPoints()");
 
     if (loadContext == NULL || moduleAddresses == NULL || moduleCountOut == NULL) {
         return OS_EINVALPARAMS;
@@ -189,6 +197,7 @@ PEModuleEntryPoints(
 
     for (size_t i = 0; i < loadContext->ModuleMap.element_count; i++) {
         moduleAddresses[i] = moduleList[i].BaseMapping + moduleList[i].Module->EntryPointRVA;
+        TRACE("PEModuleEntryPoints entry 0x%" PRIxIN, moduleAddresses[i]);
     }
     free(moduleList);
     *moduleCountOut = (int)loadContext->ModuleMap.element_count;
