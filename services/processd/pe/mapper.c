@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 #include <assert.h>
 #include <ds/mstring.h>
@@ -95,11 +95,10 @@ __MapSection(
         _InOut_ uintptr_t*             loadAddress,
         _In_    struct SectionMapping* mapping)
 {
-    size_t  sectionLength;
+    size_t  sectionLength = MAX(section->FileLength, section->MappedLength);
     oserr_t oserr;
-    TRACE("__MapSection(%s)", &section->Name[0]);
-
-    sectionLength = MAX(section->FileLength, section->MappedLength);
+    TRACE("__MapSection(name=%s, size=%" PRIuIN ", rva=0x%x)",
+          &section->Name[0], sectionLength, section->RVA);
 
     // Initialize the section mapping
     mapping->RVA    = section->RVA;
@@ -117,10 +116,13 @@ __MapSection(
         memset(mapping->LocalAddress, 0, sectionLength);
     } else {
         uint8_t* pointer = mapping->LocalAddress;
-        memcpy(pointer, section->FileData, section->FileLength);
+        if (section->FileData != NULL) {
+            memcpy(pointer, section->FileData, section->FileLength);
+            pointer += section->FileLength;
+        }
+
         // In some cases, we will need to zero extend
         if (section->MappedLength > section->FileLength) {
-            pointer += section->FileLength;
             memset(pointer, 0, section->MappedLength - section->FileLength);
         }
     }
@@ -391,11 +393,8 @@ MapperLoadModule(
         return oserr;
     }
 
-    // Calculate the image delta for processings
-    TRACE("MapperLoadModule NewBase=0x%" PRIxIN ", ImageBase=0x%" PRIxIN,
-          loadContext->LoadAddress, module->ImageBase);
+    // Store the initial load address for delta calculation
     baseAddress = loadContext->LoadAddress;
-    imageDelta  = (loadContext->LoadAddress - module->ImageBase);
 
     // Map the module into the memory space provided
     oserr = __MapModule(
@@ -407,6 +406,11 @@ MapperLoadModule(
     if (oserr != OS_EOK) {
         goto cleanup;
     }
+
+    // Calculate the image delta for processings
+    TRACE("MapperLoadModule NewBase=0x%" PRIxIN ", ImageBase=0x%" PRIxIN,
+          baseAddress, module->ImageBase);
+    imageDelta = (baseAddress - module->ImageBase);
 
     // Run fixup's on the new mappings
     oserr = __ProcessModule(module, mappings, imageDelta);

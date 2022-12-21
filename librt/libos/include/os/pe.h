@@ -28,11 +28,6 @@
 #define MZ_MAGIC                            0x5A4D
 #define PE_MAGIC                            0x00004550
 
-/* Used by PeValidate, and is returned in either case
- * to indicate whether or not the PE file is a valid file */
-#define PE_INVALID                          0
-#define PE_VALID                            1
-
 /* The available values for the machine field in the
  * PE headers, and must of course match the current machine
  * that is running the pe-file, otherwise its build for a 

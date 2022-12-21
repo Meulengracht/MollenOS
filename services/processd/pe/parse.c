@@ -15,7 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
+//#define __DUMP
 
 #include <ddk/utils.h>
 #include <os/memory.h>
@@ -23,6 +24,68 @@
 #include "private.h"
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef __DUMP
+static void
+__DumpOptionalHeader32(
+        _In_ PeOptionalHeader_t* optionalHeader)
+{
+    PeOptionalHeader32_t* header = (PeOptionalHeader32_t*)optionalHeader;
+    TRACE("******************************");
+    TRACE("PE Optional Header 32:");
+    TRACE("BaseOfData:         0x%x", header->BaseOfData);
+    TRACE("BaseAddress:        0x%x", header->BaseAddress);
+    TRACE("SectionAlignment:   0x%x", header->SectionAlignment);
+    TRACE("FileAlignment:      0x%x", header->FileAlignment);
+    TRACE("SizeOfImage:        0x%x", header->SizeOfImage);
+    TRACE("SizeOfHeaders:      0x%x", header->SizeOfHeaders);
+    TRACE("ImageChecksum:      0x%x", header->ImageChecksum);
+    TRACE("SubSystem:          0x%x", header->SubSystem);
+    TRACE("DllAttributes:      0x%x", header->DllAttributes);
+    TRACE("LoaderFlags:        0x%x", header->LoaderFlags);
+    TRACE("NumDataDirectories: 0x%x", header->NumDataDirectories);
+}
+
+static void
+__DumpOptionalHeader64(
+        _In_ PeOptionalHeader_t* optionalHeader)
+{
+    PeOptionalHeader64_t* header = (PeOptionalHeader64_t*)optionalHeader;
+    TRACE("******************************");
+    TRACE("PE Optional Header 64:");
+    TRACE("BaseAddress:        0x%llx", header->BaseAddress);
+    TRACE("SectionAlignment:   0x%x", header->SectionAlignment);
+    TRACE("FileAlignment:      0x%x", header->FileAlignment);
+    TRACE("SizeOfImage:        0x%x", header->SizeOfImage);
+    TRACE("SizeOfHeaders:      0x%x", header->SizeOfHeaders);
+    TRACE("ImageChecksum:      0x%x", header->ImageChecksum);
+    TRACE("SubSystem:          0x%x", header->SubSystem);
+    TRACE("DllAttributes:      0x%x", header->DllAttributes);
+    TRACE("LoaderFlags:        0x%x", header->LoaderFlags);
+    TRACE("NumDataDirectories: 0x%x", header->NumDataDirectories);
+}
+
+static void
+__DumpOptionalHeader(
+        _In_ PeOptionalHeader_t* optionalHeader)
+{
+    TRACE("******************************");
+    TRACE("PE Optional Header:");
+    TRACE("Architecture:       0x%x", optionalHeader->Architecture);
+    TRACE("LinkerVersionMajor: 0x%x", optionalHeader->LinkerVersionMajor);
+    TRACE("LinkerVersionMinor: 0x%x", optionalHeader->LinkerVersionMinor);
+    TRACE("SizeOfCode:         0x%x", optionalHeader->SizeOfCode);
+    TRACE("SizeOfData:         0x%x", optionalHeader->SizeOfData);
+    TRACE("SizeOfBss:          0x%x", optionalHeader->SizeOfBss);
+    TRACE("EntryPointRVA:      0x%x", optionalHeader->EntryPointRVA);
+    TRACE("BaseOfCode:         0x%x", optionalHeader->BaseOfCode);
+    if (optionalHeader->Architecture == PE_ARCHITECTURE_32) {
+        __DumpOptionalHeader32(optionalHeader);
+    } else if (optionalHeader->Architecture == PE_ARCHITECTURE_64) {
+        __DumpOptionalHeader64(optionalHeader);
+    }
+}
+#endif
 
 static void
 __CopyDirectories(
@@ -96,6 +159,10 @@ __ParseModuleHeaders(
         return OS_EUNKNOWN;
     }
 
+#ifdef __DUMP
+    __DumpOptionalHeader(optionalHeader);
+#endif
+
     module->Architecture = optionalHeader->Architecture;
     module->EntryPointRVA = optionalHeader->EntryPointRVA;
     module->CodeBaseRVA = optionalHeader->BaseOfCode;
@@ -145,10 +212,10 @@ __ParseModuleSections(
 
         // Calculate page flags for the section
         memcpy(&module->Sections[i].Name[0], &section->Name[0], PE_SECTION_NAME_LENGTH);
-        module->Sections[i].FileData     = (const void*)sectionFileData;
+        module->Sections[i].FileData     = section->RawAddress != 0 ? (const void*)sectionFileData : NULL;
         module->Sections[i].MapFlags     = __GetSectionPageFlags(section);
         module->Sections[i].FileLength   = section->RawSize;
-        module->Sections[i].MappedLength = section->VirtualSize;
+        module->Sections[i].MappedLength = section->VirtualSize != 0 ? section->VirtualSize : section->RawSize;
         module->Sections[i].RVA          = section->VirtualAddress;
 
         // Is it a zero section?

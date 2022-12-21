@@ -485,7 +485,6 @@ PmCreateProcess(
     *handleOut = handle;
 exit:
     EXIT("PmCreateProcess");
-    for (;;);
     return oserr;
 }
 
@@ -500,6 +499,7 @@ __WriteProcessStartupInformation(
     size_t                       infoIndex   = 0;
     int                          moduleCount = PROCESS_MAXMODULES;
     oserr_t                      oserr;
+    TRACE("__WriteProcessStartupInformation()");
 
     memcpy(&buffer[infoIndex], process->arguments, process->arguments_length);
     infoIndex += process->arguments_length;
@@ -521,6 +521,11 @@ __WriteProcessStartupInformation(
     if (oserr != OS_EOK) {
         return oserr;
     }
+
+    // Reduce the module count by one. The last element is the main program,
+    // and we do not supply this to the process as it's not a module that it
+    // needs to initialize.
+    moduleCount--;
     infoIndex += sizeof(uintptr_t) * moduleCount;
 
     if (process->environment_block_length) {
@@ -858,11 +863,12 @@ exit:
 
 oserr_t
 PmGetModules(
-        _In_ uuid_t    processHandle,
-        _In_ Handle_t* modules,
-        _In_ int*      modulesCount)
+        _In_  uuid_t    processHandle,
+        _Out_ Handle_t* modules,
+        _Out_ int*      modulesCount)
 {
     Process_t* process;
+    oserr_t    oserr;
 
     process = PmGetProcessByHandle(processHandle);
     if (process == NULL) {
@@ -870,8 +876,18 @@ PmGetModules(
     }
 
     usched_mtx_lock(&process->mutex);
-    PEModuleKeys(process->load_context, modules, modulesCount);
+    oserr = PEModuleKeys(
+            process->load_context,
+            modules,
+            modulesCount
+    );
     usched_mtx_unlock(&process->mutex);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Do not return the module key for the main program
+    *modulesCount--;
     return OS_EOK;
 }
 
