@@ -3182,9 +3182,6 @@ static void* tmalloc_small(mstate m, size_t nb) {
 
 #if !ONLY_MSPACES
 
-#define __TRACE
-#include <ddk/utils.h>
-
 void* dlmalloc(size_t bytes) {
   /*
      Basic algorithm:

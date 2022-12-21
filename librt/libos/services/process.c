@@ -148,26 +148,23 @@ __WriteFlattenedEnvironment(
         _In_  void*              buffer,
         _Out_ uint32_t*          bytesWrittenOut)
 {
-    size_t totalLength;
-    char*  flat;
+    char* flat = buffer;
 
     if (environment == NULL) {
         *bytesWrittenOut = 0;
         return;
     }
 
-    totalLength = 1;
     for (int i = 0; environment[i]; i++) {
-        totalLength += strlen(environment[i]) + 1;
+        size_t entryLength = strlen(environment[i]) + 1;
+        memcpy(flat, environment[i], entryLength);
+        flat += entryLength;
     }
 
-    flat = buffer;
+    // write terminating null for the array
     flat[0] = '\0';
-    for (int i = 0; environment[i]; i++) {
-        flat = strcat(flat, environment[i]);
-        flat++; flat[0] = '\0';
-    }
-    *bytesWrittenOut = totalLength;
+    flat++;
+    *bytesWrittenOut = (uint32_t)(flat - (char*)buffer);
 }
 
 static void

@@ -408,8 +408,7 @@ MapperLoadModule(
     }
 
     // Calculate the image delta for processings
-    TRACE("MapperLoadModule NewBase=0x%" PRIxIN ", ImageBase=0x%" PRIxIN,
-          baseAddress, module->ImageBase);
+    DEBUG("MapperLoadModule(%s) loaded at 0x%" PRIxIN, path, baseAddress);
     imageDelta = (baseAddress - module->ImageBase);
 
     // Run fixup's on the new mappings
