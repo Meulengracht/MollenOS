@@ -30,7 +30,7 @@ struct __PathEntry {
     uint32_t   ModuleHash;
 };
 
-struct __ModuleEntry {
+struct __ModuleLoaderEntry {
     uint32_t       Hash;
     int            References;
     struct Module* Module;
@@ -59,7 +59,7 @@ PECacheInitialize(void)
     usched_mtx_init(&g_mapper.PathsMutex, USCHED_MUTEX_PLAIN);
 
     status = hashtable_construct(
-            &g_mapper.Modules, 0, sizeof(struct __ModuleEntry),
+            &g_mapper.Modules, 0, sizeof(struct __ModuleLoaderEntry),
             __module_hash, __module_cmp);
     if (status) {
         return OS_EOOM;
@@ -187,13 +187,13 @@ __GetModule(
         _In_  uint32_t        hash,
         _Out_ struct Module** moduleOut)
 {
-    struct __ModuleEntry* entry;
+    struct __ModuleLoaderEntry* entry;
     oserr_t               oserr = OS_ENOENT;
     TRACE("__GetModule(hash=0x%x)", hash);
     usched_mtx_lock(&g_mapper.ModulesMutex);
     entry = hashtable_get(
             &g_mapper.Modules,
-            &(struct __ModuleEntry) {
+            &(struct __ModuleLoaderEntry) {
                 .Hash = hash
             }
     );
@@ -211,8 +211,8 @@ __AddModule(
         _In_ struct Module* module,
         _In_ uint32_t       moduleHash)
 {
-    struct __ModuleEntry  entry;
-    struct __ModuleEntry* existingEntry;
+    struct __ModuleLoaderEntry entry;
+    struct __ModuleLoaderEntry* existingEntry;
     oserr_t               oserr;
     TRACE("__AddModule(hash=0x%x)", moduleHash);
 
@@ -223,7 +223,7 @@ __AddModule(
     usched_mtx_lock(&g_mapper.ModulesMutex);
     existingEntry = hashtable_get(
             &g_mapper.Modules,
-            &(struct __ModuleEntry) {
+            &(struct __ModuleLoaderEntry) {
                 .Hash = moduleHash
             }
     );
@@ -321,14 +321,14 @@ PECacheGet(
 
 static uint64_t __module_hash(const void* element)
 {
-    const struct __ModuleEntry* moduleEntry = element;
+    const struct __ModuleLoaderEntry* moduleEntry = element;
     return moduleEntry->Hash;
 }
 
 static int __module_cmp(const void* element1, const void* element2)
 {
-    const struct __ModuleEntry* moduleEntry1 = element1;
-    const struct __ModuleEntry* moduleEntry2 = element2;
+    const struct __ModuleLoaderEntry* moduleEntry1 = element1;
+    const struct __ModuleLoaderEntry* moduleEntry2 = element2;
     return moduleEntry1->Hash == moduleEntry2->Hash ? 0 : -1;
 }
 
