@@ -887,7 +887,7 @@ PmGetModules(
     }
 
     // Do not return the module key for the main program
-    *modulesCount--;
+    (*modulesCount)--;
     return OS_EOK;
 }
 

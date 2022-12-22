@@ -25,10 +25,17 @@
 #include <stdio.h>
 #include <vfs/interface.h>
 
-struct __ModuleEntry {
-    const char* Type;
-    bool        Loaded;
-    uuid_t      ServerHandle;
+enum __ModuleState {
+    __ModuleState_UNLOADED,
+    __ModuleState_LOADING,
+    __ModuleState_LOADED
+};
+
+struct __KnownModule {
+    const char*        Name;
+    enum __ModuleState State;
+    uuid_t             DriverID;
+    struct usched_mtx  Mutex;
 };
 
 struct __ModuleLoaderEntry {
@@ -47,12 +54,26 @@ static const char* g_modulePaths[] = {
         "/initfs/modules",
         NULL
 };
-static hashtable_t       g_modules;
-static struct usched_mtx g_modulesMutex;
-static struct usched_cnd g_modulesCondition;
+static struct __KnownModule g_modules[] = {
+#define __MODULE_ENTRY(_name) { .Name = _name, .State = __ModuleState_UNLOADED, .DriverID = UUID_INVALID }
+        __MODULE_ENTRY("mfs"),
+        __MODULE_ENTRY("valifs"),
+        __MODULE_ENTRY(NULL)
+#undef __MODULE_ENTRY
+};
 
 static hashtable_t       g_moduleLoaders;
 static struct usched_mtx g_moduleLoadersMutex;
+
+static void
+__KnownModulesInitialize(void)
+{
+    struct __KnownModule* i = &g_modules[0];
+    while (i->Name != NULL) {
+        usched_mtx_init(&i->Mutex, USCHED_MUTEX_PLAIN);
+        i++;
+    }
+}
 
 oserr_t VFSInterfaceStartup(void)
 {
@@ -66,6 +87,7 @@ oserr_t VFSInterfaceStartup(void)
         return OS_EOOM;
     }
     usched_mtx_init(&g_moduleLoadersMutex, USCHED_MUTEX_PLAIN);
+    __KnownModulesInitialize();
     return OS_EOK;
 }
 
@@ -91,7 +113,7 @@ VFSInterfaceNew(
 
 static uuid_t
 __TryLoadModule(
-        _In_ const char* fsType)
+        _In_ struct __KnownModule* module)
 {
     struct __ModuleLoaderEntry  newEntry;
     struct __ModuleLoaderEntry* entry;
@@ -109,7 +131,7 @@ __TryLoadModule(
 
     i = 0;
     while (g_modulePaths[i]) {
-        snprintf(&tmp[0], sizeof(tmp), "%s/%s.dll", g_modulePaths[i], fsType);
+        snprintf(&tmp[0], sizeof(tmp), "%s/%s.dll", g_modulePaths[i], module->Name);
         oserr_t oserr = OSProcessSpawn(&tmp[0], NULL, &processID);
         if (oserr == OS_EOK) {
             newEntry.ProcessID = processID;
@@ -119,9 +141,12 @@ __TryLoadModule(
     }
 
     if (processID == UUID_INVALID) {
-        ERROR("__TryLoadModule no module could be located for %s", fsType);
+        ERROR("__TryLoadModule no module could be located for %s", module->Name);
         goto exit;
     }
+
+    // The module is now loading, and we are waiting for it to return OK
+    module->State = __ModuleState_LOADING;
 
     // wait for the module to report loaded
     usched_mtx_lock(&g_moduleLoadersMutex);
@@ -135,8 +160,11 @@ __TryLoadModule(
     }
 
     if (entry) {
+        module->State = __ModuleState_LOADED;
         handle = entry->ServerHandle;
         hashtable_remove(&g_moduleLoaders, &(struct __ModuleLoaderEntry) { .ProcessID = processID });
+    } else {
+        module->State = __ModuleState_UNLOADED;
     }
     usched_mtx_unlock(&g_moduleLoadersMutex);
 
@@ -145,19 +173,45 @@ exit:
     return handle;
 }
 
+static struct __KnownModule*
+__GetKnownModule(
+        _In_ const char* type)
+{
+    struct __KnownModule* i = &g_modules[0];
+    while (i->Name != NULL) {
+        if (!strcmp(i->Name, type)) {
+            return i;
+        }
+        i++;
+    }
+    return NULL;
+}
+
 oserr_t
 VFSInterfaceLoadInternal(
         _In_  const char*           type,
         _Out_ struct VFSInterface** interfaceOut)
 {
-	uuid_t driverID;
+    struct __KnownModule* knownModule;
+	uuid_t                driverID;
     TRACE("VFSInterfaceLoadInternal(%s)", type);
 
 	if (type == NULL || interfaceOut == NULL) {
 	    return OS_EINVALPARAMS;
 	}
 
-    driverID = __TryLoadModule(type);
+    knownModule = __GetKnownModule(type);
+    if (knownModule == NULL) {
+        return OS_ENOENT;
+    }
+
+    usched_mtx_lock(&knownModule->Mutex);
+    if (knownModule->State == __ModuleState_UNLOADED) {
+        knownModule->DriverID = __TryLoadModule(knownModule);
+    }
+    driverID = knownModule->DriverID;
+    usched_mtx_unlock(&knownModule->Mutex);
+
     if (driverID == UUID_INVALID) {
         ERROR("VFSInterfaceLoadInternal failed to load %s", type);
         return OS_ENOENT;
