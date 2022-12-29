@@ -13,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * Device Manager - Bootstrapper
- * Provides system bootstrap functionality, parses ramdisk for additional system
- * drivers and loads them if any matching device is present.
  */
 
 //#define __TRACE
@@ -27,24 +23,11 @@
 #include <yaml/yaml.h>
 
 /**
- * driver configuration values
- * driver:
- *   type:
- *   - class: 0
- *   - subclass: 0
- *
- *   vendors:
- *   - 0x8086:
- *      - productid0
- *      - productid1
- *
- *   resources:
- *   - type: io
- *     base: 0x70
- *     length: 0x71
- *   - type: mmio
- *     base: 0xE0000000
- *     length: 0x1000
+ * service configuration values
+ * service:
+ *   name: sessiond
+ *   path: /service/session
+ *   #depends: none
  *
  * stream-start-event (1)
  *  document-start-event (3)
@@ -153,25 +136,6 @@ struct parser_state {
     struct yaml_vendor*   vendor;
     struct yaml_resource* resource;
 };
-
-static oscode_t
-__AddProduct(
-        _In_ struct yaml_vendor* vendor,
-        _In_ uint32_t            productId)
-{
-    struct yaml_product* product;
-
-    product = malloc(sizeof(struct yaml_product));
-    if (!product) {
-        ERROR("__AddProduct out of memory for product!");
-        return OsOutOfMemory;
-    }
-
-    ELEMENT_INIT(&product->list_header, 0, product);
-    product->product_id = productId;
-    list_append(&vendor->products, &product->list_header);
-    return OsSuccess;
-}
 
 static int
 __ParseBoolean(
@@ -537,19 +501,20 @@ __ConsumeEvent(
     return 0;
 }
 
-oscode_t
-DmParseDriverYaml(
-        _In_ const uint8_t* yaml,
-        _In_ size_t         length)
+oserr_t
+PSParseServiceYAML(
+        _In_ struct SystemService* systemService,
+        _In_ const uint8_t*        yaml,
+        _In_ size_t                length)
 {
     yaml_parser_t       parser;
     yaml_event_t        event;
     struct parser_state state;
     int                 status;
 
-    TRACE("DmParseDriverYaml()");
+    TRACE("PSParseServiceYAML()");
     if (!yaml || !length) {
-        return OsInvalidParameters;
+        return OS_EINVALPARAMS;
     }
 
     memset(&state, 0, sizeof(state));
@@ -574,6 +539,5 @@ DmParseDriverYaml(
     } while (state.state != STATE_STOP);
 
     yaml_parser_delete(&parser);
-
-    return OsSuccess;
+    return OS_EOK;
 }

@@ -20,6 +20,7 @@
  *   of running applications.
  */
 
+#include <discover.h>
 #include <internal/_ipc.h>
 #include <os/usched/job.h>
 #include <process.h>
@@ -47,5 +48,5 @@ void ServiceInitialize(void)
     PECacheInitialize();
 
     // Queue up the bootstrap function
-    usched_job_queue(PmBootstrap, NULL);
+    usched_job_queue(PSBootstrap, NULL);
 }

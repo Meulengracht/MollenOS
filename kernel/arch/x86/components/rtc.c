@@ -31,6 +31,7 @@
 #include <hpet.h>
 #include <interrupts.h>
 #include <machine.h>
+#include <stdlib.h>
 
 // import the calibration ticker as we use it during boot
 extern uint32_t g_calibrationTick;
