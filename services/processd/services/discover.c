@@ -24,7 +24,6 @@
 #include <discover.h>
 #include <ds/mstring.h>
 #include <os/memory.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "process.h"
@@ -39,6 +38,7 @@ static struct VaFs* g_vafs          = NULL;
 static void*        g_ramdiskBuffer = NULL;
 static size_t       g_ramdiskSize   = 0;
 static const char*  g_svcFlatEnvironment = "LDPATH=/initfs/bin\0";
+static int          g_serviceID     = 1;
 static hashtable_t  g_services;
 
 static int
@@ -100,8 +100,39 @@ __ReadFile(
     return OS_EOK;
 }
 
+static mstring_t*
+__ServiceNameFromYaml(
+        _In_ const char* yamlName)
+{
+    // Replace .yaml with .dll
+    mstring_t* result;
+    mstring_t* name = mstr_new_u8(yamlName);
+    if (name == NULL) {
+        return NULL;
+    }
+
+    result = mstr_path_change_extension_u8(name, ".dll");
+    mstr_delete(name);
+    return result;
+}
+
+static void
+__SystemServiceDelete(
+        _In_ struct SystemService* systemService)
+{
+    if (systemService == NULL) {
+        return;
+    }
+
+    mstr_delete(systemService->Name);
+    mstr_delete(systemService->Path);
+    mstr_delete(systemService->APIPath);
+    free(systemService);
+}
+
 static struct SystemService*
-__SystemServiceNew(void)
+__SystemServiceNew(
+        _In_ const char* yamlName)
 {
     struct SystemService* systemService;
 
@@ -110,6 +141,16 @@ __SystemServiceNew(void)
         return NULL;
     }
     memset(systemService, 0, sizeof(struct SystemService));
+    systemService->Path = __ServiceNameFromYaml(yamlName);
+    if (systemService->Path == NULL) {
+        free(systemService);
+        return NULL;
+    }
+    systemService->Path = mstr_fmt("/initfs/services/%ms", systemService->Name);
+    if (systemService->Path == NULL) {
+        __SystemServiceDelete(systemService);
+        return NULL;
+    }
     return systemService;
 }
 
@@ -117,7 +158,9 @@ static void
 __RegisterSystemService(
         _In_ struct SystemService* systemService)
 {
-
+    // Assign an idea before we insert
+    systemService->ID = g_serviceID++;
+    hashtable_set(&g_services, systemService);
 }
 
 static oserr_t
@@ -126,40 +169,24 @@ __ParseServiceConfiguration(
         _In_ const char*                 name)
 {
     struct SystemService* systemService;
-    mstring_t*            path;
-    mstring_t*            yamlPath;
-    char*                 yamlPathu8;
     oserr_t               oserr;
     void*                 buffer;
     size_t                length;
     TRACE("__ParseServiceConfiguration(name=%s)", name);
 
-    // build the path for the config first
-    path = mstr_new_u8(name);
-    if (!path) {
-        return OS_EOOM;
-    }
-
-    // we make an assumption here that .dll exists as that was what triggered this function
-    yamlPath   = mstr_replace_u8(path, ".dll", ".yaml");
-    yamlPathu8 = mstr_u8(yamlPath);
-    oserr      = __ReadFile(directoryHandle, yamlPathu8, &buffer, &length);
-    mstr_delete(yamlPath);
-    free(yamlPathu8);
+    oserr = __ReadFile(directoryHandle, name, &buffer, &length);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    systemService = __SystemServiceNew();
+    systemService = __SystemServiceNew(name);
     if (!systemService) {
-        mstr_delete(path);
         free(buffer);
         return OS_EOOM;
     }
 
     oserr = PSParseServiceYAML(systemService, buffer, length);
     free(buffer);
-    mstr_delete(path);
 
     if (oserr != OS_EOK) {
         free(systemService);
@@ -182,12 +209,18 @@ __SpawnService(
     char*                       path;
     _CRT_UNUSED(index);
 
-    snprintf(path, 128-1, "/initfs/services/%s", systemService->Name);
+    path = mstr_u8(systemService->Path);
+    if (path == NULL) {
+        ERROR("__SpawnService failed to allocate memory for path");
+        return;
+    }
+
     TRACE("__SpawnService %s", &pathBuffer[0]);
     oserr = PmCreateProcess(path, NULL, procOpts, &handle);
     if (oserr != OS_EOK) {
-        WARNING("__ParseRamdisk failed to spawn service %s", path);
+        ERROR("__SpawnService failed to spawn service %s", path);
     }
+    free(path);
 }
 
 static void
