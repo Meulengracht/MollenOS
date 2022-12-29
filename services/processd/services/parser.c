@@ -55,25 +55,6 @@
  *            sequence-end-event (8)
  *          mapping-end-event (10)
  *        sequence-end-event (8)
- *        scalar-event (6) = {value="resources", length=9}
- *        sequence-start-event (7)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="type", length=4}
- *            scalar-event (6) = {value="io", length=2}
- *            scalar-event (6) = {value="base", length=4}
- *            scalar-event (6) = {value="0x70", length=4}
- *            scalar-event (6) = {value="length", length=6}
- *            scalar-event (6) = {value="0x71", length=4}
- *          mapping-end-event (10)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="type", length=4}
- *            scalar-event (6) = {value="mmio", length=4}
- *            scalar-event (6) = {value="base", length=4}
- *            scalar-event (6) = {value="0xE0000000", length=10}
- *            scalar-event (6) = {value="length", length=6}
- *            scalar-event (6) = {value="0x1000", length=6}
- *          mapping-end-event (10)
- *        sequence-end-event (8)
  *      mapping-end-event (10)
  *    mapping-end-event (10)
  *  document-end-event (4)
@@ -105,61 +86,12 @@ enum state {
     STATE_STOP
 };
 
-struct yaml_product {
-    element_t list_header;
-    uint32_t  product_id;
-};
-
-struct yaml_vendor {
-    element_t list_header;
-    uint32_t  vendor_id;
-    list_t    products;
-};
-
-struct yaml_resource {
-    element_t list_header;
-    int       type;
-    uintptr_t base;
-    size_t    length;
-};
-
-struct yaml_driver {
-    uint32_t class;
-    uint32_t subclass;
-    list_t vendors;
-    list_t resources;
-};
-
 struct parser_state {
-    enum state            state;
-    struct yaml_driver    driver;
-    struct yaml_vendor*   vendor;
-    struct yaml_resource* resource;
+    enum state state;
+    mstring_t* name;
+    mstring_t* api_path;
+    list_t     dependencies;
 };
-
-static int
-__ParseBoolean(
-        _In_  const char* string,
-        _Out_ int*        value)
-{
-    char*  t[] = {"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON", NULL};
-    char*  f[] = {"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF", NULL};
-    char** p;
-
-    for (p = t; *p; p++) {
-        if (strcmp(string, *p) == 0) {
-            *value = 1;
-            return 0;
-        }
-    }
-    for (p = f; *p; p++) {
-        if (strcmp(string, *p) == 0) {
-            *value = 0;
-            return 0;
-        }
-    }
-    return EINVAL;
-}
 
 static int
 __ConsumeEvent(
@@ -519,24 +451,27 @@ PSParseServiceYAML(
 
     memset(&state, 0, sizeof(state));
     state.state = STATE_START;
-    list_construct(&state.driver.vendors);
-    list_construct(&state.driver.resources);
+    list_construct(&state.dependencies);
 
     yaml_parser_initialize(&parser);
     yaml_parser_set_input_string(&parser, yaml, length);
     do {
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
-            ERROR("DmParseDriverYaml failed to parse driver configuration");
+            ERROR("PSParseServiceYAML failed to parse driver configuration");
             return OS_EUNKNOWN;
         }
         status = __ConsumeEvent(&state, &event);
         if (status == 0) {
-            ERROR("DmParseDriverYaml failed to parse driver configuration");
+            ERROR("PSParseServiceYAML failed to parse driver configuration");
             return OS_EUNKNOWN;
         }
         yaml_event_delete(&event);
     } while (state.state != STATE_STOP);
+
+    // copy all the data into the structure provided
+    systemService->APIPath = state.api_path;
+    memcpy(&systemService->Dependencies, &state.dependencies, sizeof(list_t));
 
     yaml_parser_delete(&parser);
     return OS_EOK;
