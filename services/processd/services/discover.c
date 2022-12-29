@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <ddk/initrd.h>
 #include <ddk/utils.h>
+#include <discover.h>
 #include <ds/mstring.h>
 #include <os/memory.h>
 #include <stdio.h>
@@ -31,10 +32,14 @@
 #include <vafs/directory.h>
 #include <vafs/file.h>
 
+static uint64_t __svc_hash(const void* element);
+static int      __svc_cmp(const void* element1, const void* element2);
+
 static struct VaFs* g_vafs          = NULL;
 static void*        g_ramdiskBuffer = NULL;
 static size_t       g_ramdiskSize   = 0;
 static const char*  g_svcFlatEnvironment = "LDPATH=/initfs/bin\0";
+static hashtable_t  g_services;
 
 static int
 __EndsWith(
@@ -58,6 +63,153 @@ __EndsWith(
 }
 
 static oserr_t
+__ReadFile(
+        _In_  struct VaFsDirectoryHandle* directoryHandle,
+        _In_  const char*                 filename,
+        _Out_ void**                      bufferOut,
+        _Out_ size_t*                     lengthOut)
+{
+    struct VaFsFileHandle* fileHandle;
+    size_t                 bytesRead;
+    size_t                 fileSize;
+    void*                  fileBuffer;
+    int                    status;
+
+    // now lets access the file
+    status = vafs_directory_open_file(directoryHandle, filename, &fileHandle);
+    if (status) {
+        ERROR("__ReadFile file %s was not found", filename);
+        return OS_ENOENT;
+    }
+
+    // allocate a buffer for the file, and read the data
+    fileSize = vafs_file_length(fileHandle);
+    fileBuffer = malloc(fileSize);
+    if (!fileBuffer) {
+        return OS_EUNKNOWN;
+    }
+
+    bytesRead = vafs_file_read(fileHandle, fileBuffer, fileSize);
+    if (bytesRead != fileSize) {
+        WARNING("__ReadFile read %" PRIuIN "/%" PRIuIN " bytes from file", bytesRead, fileSize);
+    }
+
+    vafs_file_close(fileHandle);
+    *bufferOut = fileBuffer;
+    *lengthOut = fileSize;
+    return OS_EOK;
+}
+
+static struct SystemService*
+__SystemServiceNew(void)
+{
+    struct SystemService* systemService;
+
+    systemService = malloc(sizeof(struct SystemService));
+    if (systemService == NULL) {
+        return NULL;
+    }
+    memset(systemService, 0, sizeof(struct SystemService));
+    return systemService;
+}
+
+static void
+__RegisterSystemService(
+        _In_ struct SystemService* systemService)
+{
+
+}
+
+static oserr_t
+__ParseServiceConfiguration(
+        _In_ struct VaFsDirectoryHandle* directoryHandle,
+        _In_ const char*                 name)
+{
+    struct SystemService* systemService;
+    mstring_t*            path;
+    mstring_t*            yamlPath;
+    char*                 yamlPathu8;
+    oserr_t               oserr;
+    void*                 buffer;
+    size_t                length;
+    TRACE("__ParseServiceConfiguration(name=%s)", name);
+
+    // build the path for the config first
+    path = mstr_new_u8(name);
+    if (!path) {
+        return OS_EOOM;
+    }
+
+    // we make an assumption here that .dll exists as that was what triggered this function
+    yamlPath   = mstr_replace_u8(path, ".dll", ".yaml");
+    yamlPathu8 = mstr_u8(yamlPath);
+    oserr      = __ReadFile(directoryHandle, yamlPathu8, &buffer, &length);
+    mstr_delete(yamlPath);
+    free(yamlPathu8);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    systemService = __SystemServiceNew();
+    if (!systemService) {
+        mstr_delete(path);
+        free(buffer);
+        return OS_EOOM;
+    }
+
+    oserr = PSParseServiceYAML(systemService, buffer, length);
+    free(buffer);
+    mstr_delete(path);
+
+    if (oserr != OS_EOK) {
+        free(systemService);
+        return oserr;
+    }
+    __RegisterSystemService(systemService);
+    return oserr;
+}
+
+static void
+__SpawnService(
+        _In_ int         index,
+        _In_ const void* element,
+        _In_ void*       userContext)
+{
+    const struct SystemService* systemService = element;
+    struct ProcessOptions*      procOpts      = userContext;
+    oserr_t                     oserr;
+    uuid_t                      handle;
+    char*                       path;
+    _CRT_UNUSED(index);
+
+    snprintf(path, 128-1, "/initfs/services/%s", systemService->Name);
+    TRACE("__SpawnService %s", &pathBuffer[0]);
+    oserr = PmCreateProcess(path, NULL, procOpts, &handle);
+    if (oserr != OS_EOK) {
+        WARNING("__ParseRamdisk failed to spawn service %s", path);
+    }
+}
+
+static void
+__SpawnServices(void)
+{
+    struct ProcessOptions procOpts;
+
+    // Carefully construct the process options structure. We have to be
+    // a bit hacky now some data is moved onto the dma buffer.
+    procOpts.Scope = UUID_INVALID;
+    procOpts.MemoryLimit.QuadPart = 0;
+    procOpts.WorkingDirectory = NULL;
+    procOpts.InheritationBlockLength = 0;
+    // TODO: if the environment gets more keys we need to write a function
+    procOpts.EnvironmentBlockLength = strlen(g_svcFlatEnvironment) + 2; // two terminating zeroes
+    procOpts.DataBuffer.buffer = (void*)g_svcFlatEnvironment;
+
+    // TODO: resolve by dependencies. do exactly like we do with PE images
+    hashtable_enumerate(&g_services, __SpawnService, &procOpts);
+}
+
+static oserr_t
 __ParseRamdisk(
         _In_ void*  ramdiskBuffer,
         _In_ size_t ramdiskSize)
@@ -65,9 +217,7 @@ __ParseRamdisk(
     struct VaFsDirectoryHandle* directoryHandle;
     struct VaFsEntry            entry;
     int                         status;
-    char*                       pathBuffer;
     oserr_t                     oserr;
-    struct ProcessOptions       procOpts;
     TRACE("__ParseRamdisk(buffer=0x%llx, size=%llu)", ramdiskBuffer, ramdiskSize);
 
     status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
@@ -90,69 +240,51 @@ __ParseRamdisk(
         return OS_ENOTSUPPORTED;
     }
 
-    pathBuffer = malloc(128);
-    if (!pathBuffer) {
-        ERROR("__ParseRamdisk out of memory");
-        vafs_directory_close(directoryHandle);
-        vafs_close(g_vafs);
-        return OS_EOOM;
-    }
-
-    // Carefully construct the process options structure. We have to be
-    // a bit hacky now some data is moved onto the dma buffer.
-    procOpts.Scope = UUID_INVALID;
-    procOpts.MemoryLimit.QuadPart = 0;
-    procOpts.WorkingDirectory = NULL;
-    procOpts.InheritationBlockLength = 0;
-    // TODO: if the environment gets more keys we need to write a function
-    procOpts.EnvironmentBlockLength = strlen(g_svcFlatEnvironment) + 2; // two terminating zeroes
-    procOpts.DataBuffer.buffer = (void*)g_svcFlatEnvironment;
-
     while (vafs_directory_read(directoryHandle, &entry) == 0) {
         TRACE("__ParseRamdisk found entry %s", entry.Name);
+        // Skip all entries that are not regular files
         if (entry.Type != VaFsEntryType_File) {
             continue;
         }
 
-        if (!__EndsWith(entry.Name, ".dll")) {
-            uuid_t handle;
+        // Skip any file that is not a yaml
+        if (__EndsWith(entry.Name, ".yaml") != 0) {
+            continue;
+        }
 
-            snprintf(pathBuffer, 128-1, "/initfs/services/%s", entry.Name);
-            TRACE("__ParseRamdisk file found: %s", &pathBuffer[0]);
-            oserr = PmCreateProcess(
-                    (const char*)pathBuffer,
-                    NULL,
-                    &procOpts,
-                    &handle
-            );
-            if (oserr != OS_EOK) {
-                WARNING("__ParseRamdisk failed to spawn service %s", pathBuffer);
-            }
+        // Parse the YAML configuration to check for valid service entry
+        oserr = __ParseServiceConfiguration(directoryHandle, entry.Name);
+        if (oserr != OS_EOK) {
+            WARNING("__ParseRamdisk failed to parse service confguration %s", entry.Name);
         }
     }
 
     // close the directory and cleanup
     vafs_directory_close(directoryHandle);
-    free(pathBuffer);
     return OS_EOK;
 }
 
 void
-PmBootstrap(
+PSBootstrap(
         void* __unused0,
         void* __unused1)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
     void*   ramdisk;
     size_t  ramdiskSize;
     _CRT_UNUSED(__unused0);
     _CRT_UNUSED(__unused1);
-    TRACE("PmBootstrap()");
+    TRACE("PSBootstrap()");
+
+    // Initialize resources
+    hashtable_construct(
+            &g_services, 0, sizeof(struct SystemService),
+            __svc_hash, __svc_cmp);
 
     // Let's map in the ramdisk and discover various service modules
-    osStatus = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
-    if (osStatus != OS_EOK) {
-        TRACE("ProcessBootstrap failed to map ramdisk into address space %u", osStatus);
+    oserr = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
+    if (oserr != OS_EOK) {
+        TRACE("ProcessBootstrap failed to map ramdisk into address space %u", oserr);
         return;
     }
 
@@ -160,15 +292,16 @@ PmBootstrap(
     g_ramdiskBuffer = ramdisk;
     g_ramdiskSize   = ramdiskSize;
 
-    osStatus = __ParseRamdisk(ramdisk, ramdiskSize);
-    if (osStatus != OS_EOK) {
+    oserr = __ParseRamdisk(ramdisk, ramdiskSize);
+    if (oserr != OS_EOK) {
         ERROR("ProcessBootstrap failed to parse ramdisk");
         return;
     }
+    __SpawnServices();
 }
 
 void
-PmBootstrapCleanup(void)
+PSBootstrapCleanup(void)
 {
     oserr_t osStatus;
 
@@ -258,4 +391,18 @@ PmBootstrapFindRamdiskFile(
     vafs_directory_close(directoryHandle);
     free(pathu8);
     return OS_EOK;
+}
+
+static uint64_t __svc_hash(const void* element)
+{
+    const struct SystemService* systemService = element;
+    return systemService->ID;
+}
+
+static int __svc_cmp(const void* element1, const void* element2)
+{
+    _CRT_UNUSED(element1);
+    _CRT_UNUSED(element2);
+    // We can safely assume the uniquness of the ID. So always return 0 here.
+    return 0;
 }
