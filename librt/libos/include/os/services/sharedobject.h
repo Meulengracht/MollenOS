@@ -33,7 +33,7 @@ _CODE_BEGIN
  * @return
  */
 CRTDECL(Handle_t,
-SharedObjectLoad(
+OSLibraryLoad(
         _In_ const char* library));
 
 /**
@@ -44,18 +44,19 @@ SharedObjectLoad(
  * @return
  */
 CRTDECL(void*,
-SharedObjectGetFunction(
+OSLibraryLookupFunction(
         _In_ Handle_t    handle,
         _In_ const char* function));
 
 /**
  * @brief Unloads a valid shared object handle
- * @param Handle
+ * @param handle
  * @return
  */
 CRTDECL(oserr_t,
-SharedObjectUnload(
-        _In_ Handle_t Handle));
+OSLibraryUnload(
+        _In_ Handle_t handle));
+
 _CODE_END
 
 #endif //!__OS_SERVICES_SHAREDOBJECT_H__

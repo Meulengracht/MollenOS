@@ -22,8 +22,8 @@ usched_rwlock_w_promote
 usched_rwlock_w_demote
 usched_rwlock_w_lock
 usched_rwlock_w_unlock
-Mount
-Unmount
+OSMount
+OSUnmount
 __crt_process_initialize
 __crt_cmdline
 abort

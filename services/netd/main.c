@@ -25,23 +25,16 @@
 //#define __TRACE
 
 #include <ddk/service.h>
-#include <ddk/utils.h>
 #include "manager.h"
+#include <stdlib.h>
 
 #include <sys_socket_service_server.h>
 
-extern gracht_server_t* __crt_get_service_server(void);
-
-void GetServiceAddress(IPCAddress_t* address)
-{
-    address->Type = IPC_ADDRESS_PATH;
-    address->Data.Path = SERVICE_NET_PATH;
-}
-
-void ServiceInitialize(void)
+void ServiceInitialize(
+        _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_socket_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &sys_socket_server_protocol);
 
     // Initialize the subsystems
     if (NetworkManagerInitialize() != OS_EOK) {

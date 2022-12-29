@@ -28,18 +28,11 @@
 
 #include <sys_session_service_server.h>
 
-extern gracht_server_t* __crt_get_service_server(void);
-
-void GetServiceAddress(IPCAddress_t* address)
-{
-    address->Type = IPC_ADDRESS_PATH;
-    address->Data.Path = SERVICE_SESSION_PATH;
-}
-
-void ServiceInitialize(void)
+void ServiceInitialize(
+        _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_session_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &sys_session_server_protocol);
 }
 
 void sys_session_login_invocation(struct gracht_message* message, const char* user, const char* password)

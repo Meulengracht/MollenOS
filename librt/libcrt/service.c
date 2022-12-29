@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 
 #define __TRACE
 
+#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <gracht/server.h>
@@ -29,14 +30,20 @@
 #include <os/usched/xunit.h>
 #include <os/usched/job.h>
 #include <stdlib.h>
+#include <string.h>
 
-extern void GetServiceAddress(IPCAddress_t*);
-extern void ServiceInitialize(void);
+struct __ServiceOptions {
+    const char* Token;
+    const char* APIPath;
+};
+
+extern void ServiceInitialize(struct ServiceStartupOptions*);
 
 static gracht_server_t*         g_server     = NULL;
 static struct gracht_link_vali* g_serverLink = NULL;
 
-extern void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
+extern void   __crt_initialize(thread_storage_t* threadStorage, int isPhoenix);
+extern char** __crt_argv(int* argcOut);
 
 int
 __crt_get_server_iod(void)
@@ -51,16 +58,62 @@ __crt_get_service_server(void)
 }
 
 static void
-__StartGrachtServer(void* argument, void* cancellationToken)
+__ParseServiceOptions(
+        _In_ char**                   argv,
+        _In_ int                      argc,
+        _In_ struct __ServiceOptions* options)
 {
+    for (int i = 0; i < argc; i++) {
+        if (!strcmp(argv[i], "--api-path") && (i + 1) < argc) {
+            options->APIPath = argv[i + 1];
+        } else if (!strcmp(argv[i], "--token") && (i + 1) < argc) {
+            options->Token = argv[i + 1];
+        }
+    }
+}
+
+static void
+__ParseStartupOptions(
+        _In_ struct __ServiceOptions* options)
+{
+    char** argv;
+    int    argc;
+
+    argv = __crt_argv(&argc);
+    if (argv == NULL) {
+        ERROR("__ParseStartupOptions failed to parse arguments");
+        exit(-1);
+    }
+
+    // parse the options provided for this module
+    __ParseServiceOptions(argv, argc, options);
+
+    // validate what has been passed
+    if (options->APIPath == NULL) {
+        ERROR("__ParseStartupOptions --api-path was not supplied, aborting");
+        exit(-1);
+    }
+}
+
+static void
+__StartGrachtServer(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
+{
+    struct __ServiceOptions       serviceOptions = { 0 };
     struct ioset_event            events[32];
     int                           num_events;
     gracht_server_configuration_t config;
-    IPCAddress_t                  addr = { .Type = IPC_ADDRESS_PATH };
     int                           status;
+    bool                          phoenix = argument == (void*)0xDEADBEEF;
 
-    _CRT_UNUSED(argument);
-    GetServiceAddress(&addr);
+    // parse the startup options first, it is required for services to provide
+    // the API path and security Token on boot.
+    if (!phoenix) {
+        __ParseStartupOptions(&serviceOptions);
+    } else {
+        serviceOptions.APIPath = SERVICE_PROCESS_PATH;
+    }
 
     // initialize the link
     status = gracht_link_vali_create(&g_serverLink);
@@ -68,7 +121,13 @@ __StartGrachtServer(void* argument, void* cancellationToken)
         exit(-2010);
     }
     gracht_link_vali_set_listen(g_serverLink, 1);
-    gracht_link_vali_set_address(g_serverLink, &addr);
+    gracht_link_vali_set_address(
+            g_serverLink,
+            &(IPCAddress_t) {
+                .Type = IPC_ADDRESS_PATH,
+                .Data.Path = serviceOptions.APIPath
+            }
+    );
 
     // initialize configurations for server
     gracht_server_configuration_init(&config);
@@ -108,29 +167,46 @@ __StartGrachtServer(void* argument, void* cancellationToken)
     }
 }
 
-static void __crt_service_init(void)
+static void
+__ServiceMain(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
+{
+    struct ServiceStartupOptions startupOptions;
+    TRACE("__ServiceMain()");
+
+    _CRT_UNUSED(argument);
+    _CRT_UNUSED(cancellationToken);
+
+    startupOptions.Server = g_server;
+    startupOptions.ServerHandle = GetNativeHandle( gracht_link_get_handle((struct gracht_link*)g_serverLink));
+
+    ServiceInitialize(&startupOptions);
+}
+
+static void __crt_service_init(bool isPhoenix)
 {
     // Queue the gracht job up ot allow for server initialization first. This should be
     // queued before the main initializer, as that will most likely register gracht protocols,
     // and that needs gracht server and client to be setup
-    usched_job_queue(__StartGrachtServer, NULL);
+    usched_job_queue(__StartGrachtServer, isPhoenix ? (void*)0xDEADBEEF : NULL);
 
-    // Enter the eternal program loop. This will execute jobs untill exit() is called.
+    // Enter the eternal program loop. This will execute jobs until exit() is called.
     // We use ServiceInitialize as the programs main function, we expect it to return relatively quick
     // and should be only used to initialize service subsystems.
-    usched_xunit_main_loop((usched_task_fn)ServiceInitialize, NULL);
+    usched_xunit_main_loop(__ServiceMain, NULL);
 }
 
 void __CrtServiceEntry(void)
 {
     thread_storage_t threadStorage;
-    __crt_initialize(&threadStorage, 0);
-    __crt_service_init();
+    __crt_initialize(&threadStorage, false);
+    __crt_service_init(false);
 }
 
 void __phoenix_main(void)
 {
     thread_storage_t threadStorage;
-    __crt_initialize(&threadStorage, 1);
-    __crt_service_init();
+    __crt_initialize(&threadStorage, true);
+    __crt_service_init(true);
 }
