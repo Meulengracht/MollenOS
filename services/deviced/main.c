@@ -33,20 +33,11 @@
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
 
-extern gracht_server_t* __crt_get_service_server(void);
-
-void
-GetServiceAddress(
-        _In_ IPCAddress_t* address)
-{
-    address->Type = IPC_ADDRESS_PATH;
-    address->Data.Path = SERVICE_DEVICE_PATH;
-}
-
-void ServiceInitialize(void)
+void ServiceInitialize(
+        _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_device_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &sys_device_server_protocol);
 
     // Register the client control protocol
     gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);

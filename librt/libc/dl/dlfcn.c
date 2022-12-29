@@ -31,7 +31,7 @@ dlopen (
     // RTLD_LAZY is not supported
     // RTLD_NOW is default behaviour
     _CRT_UNUSED(mode);
-    return (void*)SharedObjectLoad(filepath);
+    return (void*)OSLibraryLoad(filepath);
 }
 
 int
@@ -39,7 +39,7 @@ dlclose(
     _In_ void* handle)
 {
     // OS_EOK resolves to 0 luckily
-    return (int)SharedObjectUnload((Handle_t)handle);
+    return (int)OSLibraryUnload((Handle_t)handle);
 }
 
 void*
@@ -47,7 +47,7 @@ dlsym(
     _In_ void* restrict       handle,
     _In_ const char* restrict name)
 {
-    return SharedObjectGetFunction((Handle_t)handle, name);
+    return OSLibraryLookupFunction((Handle_t)handle, name);
 }
 
 char*

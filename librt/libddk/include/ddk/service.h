@@ -29,6 +29,23 @@
 
 _CODE_BEGIN
 
+// imported from gracht types.h, to avoid including that header
+typedef struct gracht_server gracht_server_t;
+
+struct ServiceStartupOptions {
+    // Server is the handle to the gracht server itself. This is exposed to allow
+    // services to register the protocols they support.
+    gracht_server_t* Server;
+    // ServerHandle is the handle of gracht server link. This is exposed to allow
+    // services to share their handle with other procceses to allow communication.
+    // While this is possible to discover with just the above Server handle, we add
+    // it here for convenience.
+    uuid_t ServerHandle;
+};
+
+// While we no longer hardcode these paths in the code when setting them, we still hardcode
+// them when discovering. This means that we cannot remove these just yet, and instead they must
+// match the service YAML paths.
 #define SERVICE_SESSION_PATH "/service/session"
 #define SERVICE_DEVICE_PATH "/service/device"
 #define SERVICE_USB_PATH "/service/usb"

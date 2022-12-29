@@ -28,19 +28,12 @@
 #include <sys_library_service_server.h>
 #include <sys_process_service_server.h>
 
-extern gracht_server_t* __crt_get_service_server(void);
-
-void GetServiceAddress(IPCAddress_t* address)
-{
-    address->Type = IPC_ADDRESS_PATH;
-    address->Data.Path = SERVICE_PROCESS_PATH;
-}
-
-void ServiceInitialize(void)
+void ServiceInitialize(
+        _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_library_server_protocol);
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_process_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &sys_library_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &sys_process_server_protocol);
 
     // Initialize all our subsystems for Phoenix
     PmInitialize();

@@ -26,21 +26,15 @@
 #include <gracht/link/vali.h>
 #include "manager.h"
 #include <usb/usb.h>
+#include <stdlib.h>
 
 #include <sys_usb_service_server.h>
 
-extern gracht_server_t* __crt_get_service_server(void);
-
-void GetServiceAddress(IPCAddress_t* address)
-{
-    address->Type = IPC_ADDRESS_PATH;
-    address->Data.Path = SERVICE_USB_PATH;
-}
-
-void ServiceInitialize(void)
+void ServiceInitialize(
+        _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Register supported interfaces
-    gracht_server_register_protocol(__crt_get_service_server(), &sys_usb_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &sys_usb_server_protocol);
 
     // Initialize all subsystems
     if (UsbCoreInitialize() != OS_EOK) {

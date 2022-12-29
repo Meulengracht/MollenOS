@@ -25,7 +25,7 @@
 #include <sys_mount_service_client.h>
 
 oserr_t
-Mount(
+OSMount(
         _In_ const char*  path,
         _In_ const char*  at,
         _In_ const char*  type,
@@ -49,7 +49,7 @@ Mount(
 }
 
 oserr_t
-Unmount(
+OSUnmount(
         _In_ const char* path)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());

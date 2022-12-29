@@ -22,8 +22,8 @@
 #include <ddk/initrd.h>
 #include <ddk/utils.h>
 #include <discover.h>
-#include <ds/mstring.h>
 #include <os/memory.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "process.h"
@@ -196,6 +196,26 @@ __ParseServiceConfiguration(
     return oserr;
 }
 
+static char*
+__BuildArguments(
+        _In_ const struct SystemService* systemService)
+{
+    // Always allocate a base length of 128 to cover argument specifiers.
+    size_t argsLength = 128;
+    char*  args;
+
+    // TODO: we should convert the mstring to a C string before taking the length, this should
+    // however in almost any case be OK and allocate enought space.
+    argsLength += mstr_bsize(systemService->APIPath);
+    args = malloc(argsLength);
+    if (args == NULL) {
+        return NULL;
+    }
+
+    snprintf(args, argsLength - 1, "--api-path %ms", systemService->APIPath);
+    return args;
+}
+
 static void
 __SpawnService(
         _In_ int         index,
@@ -207,6 +227,7 @@ __SpawnService(
     oserr_t                     oserr;
     uuid_t                      handle;
     char*                       path;
+    char*                       args;
     _CRT_UNUSED(index);
 
     path = mstr_u8(systemService->Path);
@@ -215,12 +236,20 @@ __SpawnService(
         return;
     }
 
+    args = __BuildArguments(systemService);
+    if (args == NULL) {
+        ERROR("__SpawnService failed to allocate memory for arguments");
+        free(path);
+        return;
+    }
+
     TRACE("__SpawnService %s", &pathBuffer[0]);
-    oserr = PmCreateProcess(path, NULL, procOpts, &handle);
+    oserr = PmCreateProcess(path, args, procOpts, &handle);
     if (oserr != OS_EOK) {
         ERROR("__SpawnService failed to spawn service %s", path);
     }
     free(path);
+    free(args);
 }
 
 static void

@@ -18,23 +18,18 @@
 
 #define __TRACE
 
+#include <errno.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/usched/job.h>
 #include <served/setup.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <chef_served_service_server.h>
 #include <sys_file_service_client.h>
-
-extern gracht_server_t* __crt_get_service_server(void);
-
-void GetServiceAddress(IPCAddress_t* address)
-{
-    address->Type = IPC_ADDRESS_PATH;
-    address->Data.Path = SERVICE_SERVED_PATH;
-}
 
 static int __SubscribeToFileEvents(void)
 {
@@ -42,7 +37,8 @@ static int __SubscribeToFileEvents(void)
     return sys_file_subscribe(GetGrachtClient(), &msg.base);
 }
 
-void ServiceInitialize(void)
+void ServiceInitialize(
+        _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Wait for the file server to present itself, if it doesn't come online after 2 seconds
     // of waiting, then assume that the file server is dead or not included. In this case
@@ -57,7 +53,7 @@ void ServiceInitialize(void)
     gracht_client_register_protocol(GetGrachtClient(), &sys_file_client_protocol);
 
     // Register supported server interfaces.
-    gracht_server_register_protocol(__crt_get_service_server(), &chef_served_server_protocol);
+    gracht_server_register_protocol(startupOptions->Server, &chef_served_server_protocol);
 
     // Connect to the file server and listen for events
     if (__SubscribeToFileEvents()) {

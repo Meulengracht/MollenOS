@@ -58,7 +58,7 @@ static void __InitializeSO(void)
 }
 
 Handle_t 
-SharedObjectLoad(
+OSLibraryLoad(
 	_In_ const char* SharedObject)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
@@ -130,7 +130,7 @@ SharedObjectLoad(
 }
 
 void*
-SharedObjectGetFunction(
+OSLibraryLookupFunction(
 	_In_ Handle_t       handle,
 	_In_ const char*    function)
 {
@@ -167,7 +167,7 @@ struct so_enum_context {
 };
 
 oserr_t
-SharedObjectUnload(
+OSLibraryUnload(
 	_In_ Handle_t handle)
 {
     SOInitializer_t        initialize = NULL;

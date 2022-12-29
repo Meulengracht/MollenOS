@@ -296,7 +296,7 @@ oserr_t ApplicationMount(
 
     // First thing we do is mount the application, and then we prepare a mount space
     // for the application.
-    oserr = Mount(packPath, mountPath, "valifs", MOUNT_FLAG_READ);
+    oserr = OSMount(packPath, mountPath, "valifs", MOUNT_FLAG_READ);
     if (oserr != OS_EOK) {
         ERROR("ApplicationMount failed to mount application %ms: %u",
               application->Name, oserr);
@@ -400,7 +400,7 @@ oserr_t ApplicationUnmount(struct Application* application)
         }
     }
 
-    oserr = Unmount(mountPath);
+    oserr = OSUnmount(mountPath);
     if (oserr != OS_EOK) {
         ERROR("ApplicationUnmount failed to unmount application %ms", application->Name);
     }

@@ -37,7 +37,7 @@ _CODE_BEGIN
  * @return
  */
 CRTDECL(oserr_t,
-Mount(
+OSMount(
         _In_ const char*  path,
         _In_ const char*  at,
         _In_ const char*  type,
@@ -49,7 +49,7 @@ Mount(
  * @return
  */
 CRTDECL(oserr_t,
-Unmount(
+OSUnmount(
         _In_ const char* path));
 
 _CODE_END

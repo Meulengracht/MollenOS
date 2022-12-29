@@ -1,5 +1,5 @@
-# Standard yaml configuration for services in the OS
 service:
-  name: sessiond
+  # The service API path, for other instances to expect connection through.
+  # These API paths are registered upon startup of the service, and allows an
+  # easy way to recognize system services.
   path: /service/session
-  #depends: none

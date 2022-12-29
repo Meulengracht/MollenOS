@@ -19,46 +19,25 @@
 
 #include <discover.h>
 #include <ddk/utils.h>
-#include <ds/list.h>
 #include <yaml/yaml.h>
 
 /**
- * service configuration values
- * service:
- *   name: sessiond
- *   path: /service/session
- *   #depends: none
+ * service configuration valuesservice:
+ * # The service API path, for other instances to expect connection through.
+ * # These API paths are registered upon startup of the service, and allows an
+ * # easy way to recognize system services.
+ * path: /service/serve
  *
- * stream-start-event (1)
- *  document-start-event (3)
- *    mapping-start-event (9)
- *      scalar-event (6) = {value="driver", length=6}
- *      mapping-start-event (9)
- *        scalar-event (6) = {value="type", length=4}
- *        sequence-start-event (7)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="class", length=5}
- *            scalar-event (6) = {value="0", length=1}
- *          mapping-end-event (10)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="subclass", length=8}
- *            scalar-event (6) = {value="0", length=1}
- *          mapping-end-event (10)
- *        sequence-end-event (8)
- *        scalar-event (6) = {value="vendors", length=7}
- *        sequence-start-event (7)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="0x8086", length=6}
- *            sequence-start-event (7)
- *              scalar-event (6) = {value="productid0", length=10}
- *              scalar-event (6) = {value="productid1", length=10}
- *            sequence-end-event (8)
- *          mapping-end-event (10)
- *        sequence-end-event (8)
- *      mapping-end-event (10)
- *    mapping-end-event (10)
- *  document-end-event (4)
- * stream-end-event (2)
+ * # Dependencies allow for different criterias to be met before the service is
+ * # started. Services can depend on other services, paths or devices to be registered
+ * # with the system before being started up.
+ * depends:
+ *   # The list of services that should be running before starting this service.
+ *   services:
+ *     - filed # Require filed to be running as we need FS access
+ *     - sessiond # Require sessiond to be running for user functionality
+ *   paths:
+ *   devices:
  */
 enum state {
     STATE_START,    /* start state */
@@ -66,32 +45,47 @@ enum state {
     STATE_DOCUMENT, /* start/end document */
     STATE_SECTION,  /* top level */
 
-    STATE_DRIVER,          // driver object discovered
-    STATE_DRIVERKEY,       // driver key discovered, followed by scalar
-    STATE_DRIVERTYPE,      // driver type mapping
-    STATE_DRIVERVENDORS,   // driver vendors mapping
-    STATE_DRIVERRESOURCES, // driver resource mappings
+    STATE_SERVICE,          // service object discovered
+    STATE_SERVICEKEY,       // service key discovered, followed by scalar
+    STATE_SERVICEPATH,      // service path mapping
+    STATE_SERVICEDEPS,      // service depends mapping
 
-    STATE_TYPECLASS,       // inside driver.type.class
-    STATE_TYPESUBCLASS,    // inside driver.type.subclass
-
-    STATE_VENDOR,          // found key/value pair inside driver.vendors
-    STATE_VENDORPRODUCT,   // vendor product list
-
-    STATE_RESOURCE,       // new resource entry found
-    STATE_RESOURCETYPE,   // resource.type found
-    STATE_RESOURCEBASE,   // resource.base found
-    STATE_RESOURCELENGTH, // resource.length found
+    STATE_DEPS_SERVICES,
 
     STATE_STOP
 };
 
 struct parser_state {
     enum state state;
-    mstring_t* name;
     mstring_t* api_path;
     list_t     dependencies;
 };
+
+static int
+__AddDependency(
+        _In_ struct parser_state* s,
+        _In_ const char*          d)
+{
+    element_t* entry;
+    mstring_t* name;
+
+    entry = malloc(sizeof(element_t));
+    if (entry == NULL) {
+        ERROR("__AddDependency failed to allocate memory for dependency");
+        return -1;
+    }
+
+    name = mstr_new_u8(d);
+    if (name == NULL) {
+        ERROR("__AddDependency failed to allocate memory for dependency name");
+        free(entry);
+        return -1;
+    }
+
+    ELEMENT_INIT(entry, NULL, name);
+    list_append(&s->dependencies, entry);
+    return 0;
+}
 
 static int
 __ConsumeEvent(
@@ -145,10 +139,10 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
-                    if (strcmp(value, "driver") == 0) {
-                        s->state = STATE_DRIVER;
+                    if (strcmp(value, "service") == 0) {
+                        s->state = STATE_SERVICE;
                     } else {
-                        ERROR("__ConsumeEvent Unexpected scalar: %s, expected 'driver'", value);
+                        ERROR("__ConsumeEvent Unexpected scalar: %s, expected 'service'", value);
                         return -1;
                     } break;
                 case YAML_DOCUMENT_END_EVENT:
@@ -160,10 +154,10 @@ __ConsumeEvent(
             }
             break;
 
-        case STATE_DRIVER:
+        case STATE_SERVICE:
             switch (event->type) {
                 case YAML_MAPPING_START_EVENT:
-                    s->state = STATE_DRIVERKEY;
+                    s->state = STATE_SERVICEKEY;
                     break;
                 case YAML_MAPPING_END_EVENT:
                     s->state = STATE_SECTION;
@@ -174,23 +168,21 @@ __ConsumeEvent(
             }
             break;
 
-        case STATE_DRIVERKEY:
+        case STATE_SERVICEKEY:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
-                    if (strcmp(value, "type") == 0) {
-                        s->state = STATE_DRIVERTYPE;
-                    } else if (strcmp(value, "vendors") == 0) {
-                        s->state = STATE_DRIVERVENDORS;
-                    } else if (strcmp(value, "resources") == 0) {
-                        s->state = STATE_DRIVERRESOURCES;
+                    if (strcmp(value, "path") == 0) {
+                        s->state = STATE_SERVICEPATH;
+                    } else if (strcmp(value, "depends") == 0) {
+                        s->state = STATE_SERVICEDEPS;
                     } else {
                         ERROR("__ConsumeEvent Unexpected key: %s", value);
                         return -1;
                     } break;
                 case YAML_MAPPING_END_EVENT:
                     // end of driver structure
-                    s->state = STATE_DRIVER;
+                    s->state = STATE_SERVICE;
                     break;
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
@@ -198,43 +190,17 @@ __ConsumeEvent(
             }
             break;
 
-        // Handle events when inside driver.type
-        case STATE_DRIVERTYPE:
+        // Handle the value for the key service.path
+        case STATE_SERVICEPATH:
             switch (event->type) {
-                case YAML_SEQUENCE_START_EVENT:
-                case YAML_MAPPING_START_EVENT:
-                    // The type will start with a sequence event, then a mapping event
-                    break;
-
-                case YAML_SEQUENCE_END_EVENT:
-                    // we are done parsing driver.type
-                    s->state = STATE_DRIVERKEY;
-                    break;
-
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    if (strcmp(value, "class") == 0) {
-                        s->state = STATE_TYPECLASS;
-                    } else if (strcmp(value, "subclass") == 0) {
-                        s->state = STATE_TYPESUBCLASS;
-                    } else {
-                        ERROR("__ConsumeEvent Unexpected key: %s", value);
+                    if (strlen(value) == 0 || strchr(value, '/') == NULL) {
+                        ERROR("__ConsumeEvent Invalid path set for service.key=%s", value);
                         return -1;
-                    } break;
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_TYPECLASS:
-            switch (event->type) {
-                case YAML_SCALAR_EVENT:
-                    s->driver.class = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
-                    break;
-
-                case YAML_MAPPING_END_EVENT:
-                    s->state = STATE_DRIVERTYPE;
+                    }
+                    s->api_path = mstr_new_u8(value);
+                    s->state = STATE_SERVICEKEY;
                     break;
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
@@ -242,184 +208,46 @@ __ConsumeEvent(
             }
             break;
 
-        case STATE_TYPESUBCLASS:
+        case STATE_SERVICEDEPS:
             switch (event->type) {
-                case YAML_SCALAR_EVENT:
-                    s->driver.subclass = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 10);
-                    break;
-
-                case YAML_MAPPING_END_EVENT:
-                    s->state = STATE_DRIVERTYPE;
-                    break;
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_DRIVERVENDORS:
-            switch (event->type) {
-                case YAML_SEQUENCE_START_EVENT:
-                    // list start of vendors
-                    break;
-
-                case YAML_SEQUENCE_END_EVENT:
-                    // list end
-                    s->state = STATE_DRIVERKEY;
-                    break;
-
                 case YAML_MAPPING_START_EVENT:
-                    // new list entry.
-                    s->state = STATE_VENDOR;
+                    // Start of dependencies
                     break;
-
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_VENDOR:
-            switch (s->state) {
                 case YAML_MAPPING_END_EVENT:
-                    list_append(&s->driver.vendors, &s->vendor->list_header);
-                    s->vendor = NULL;
-                    s->state = STATE_DRIVERVENDORS;
-                    break;
-
-                case YAML_SEQUENCE_START_EVENT:
-                    // start of products
-                    s->state = STATE_VENDORPRODUCT;
-                    break;
-
-                case YAML_SCALAR_EVENT:
-                    // Occurs on a new vendor entry
-                    s->vendor = malloc(sizeof(struct yaml_vendor));
-                    if (!s->vendor) {
-                        ERROR("__ConsumeEvent out of memory allocating yaml vendor");
-                        return -1;
-                    }
-                    ELEMENT_INIT(&s->vendor->list_header, 0, s->vendor);
-                    list_construct(&s->vendor->products);
-                    s->vendor->vendor_id = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
-                    break;
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_VENDORPRODUCT:
-            switch (s->state) {
-                case YAML_SEQUENCE_END_EVENT:
-                    // end of products, go back to vendor
-                    s->state = STATE_VENDOR;
-                    break;
-
-                case YAML_SCALAR_EVENT:
-                    uint32_t productId = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
-                    if (!productId) {
-                        WARNING("__ConsumeEvent failed to parse product id: %s",
-                                (const char*)event->data.scalar.value);
-                    }
-                    else {
-                        if (__AddProduct(s->vendor, productId) != OsSuccess) {
-                            return -1;
-                        }
-                    }
-                    break;
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_DRIVERRESOURCES:
-            switch (event->type) {
-                case YAML_SEQUENCE_START_EVENT:
-                    // start of list
-                    break;
-
-                case YAML_MAPPING_START_EVENT:
-                    // Occurs on a new resource entry
-                    s->resource = malloc(sizeof(struct yaml_resource));
-                    if (!s->resource) {
-                        ERROR("__ConsumeEvent out of memory allocating yaml resource");
-                        return -1;
-                    }
-                    memset(s->resource, 0, sizeof(struct yaml_resource));
-                    ELEMENT_INIT(&s->resource->list_header, 0, s->resource);
-                    s->state = STATE_RESOURCE;
-                    break;
-
-                case YAML_SEQUENCE_END_EVENT:
-                    // end of resource list
-                    s->state = STATE_DRIVERKEY;
-                    break;
-
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_RESOURCE:
-            switch (event->type) {
-                case YAML_MAPPING_END_EVENT:
-                    // end of resource
-                    list_append(&s->driver.resources, &s->resource->list_header);
-                    s->resource = NULL;
-                    s->state = STATE_DRIVERRESOURCES;
+                    // End of dependencies
+                    s->state = STATE_SERVICEKEY;
                     break;
 
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
-                    if (strcmp(value, "type") == 0) {
-                        s->state = STATE_RESOURCETYPE;
-                    } else if (strcmp(value, "base") == 0) {
-                        s->state = STATE_RESOURCEBASE;
-                    } else if (strcmp(value, "length") == 0) {
-                        s->state = STATE_RESOURCELENGTH;
+                    if (strcmp(value, "services") == 0) {
+                        s->state = STATE_DEPS_SERVICES;
                     } else {
-                        ERROR("__ConsumeEvent Unexpected key: %s", value);
+                        ERROR("__ConsumeEvent Unexpected scalar: %s, expected 'services'", value);
                         return -1;
                     } break;
-
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.\n", event->type, s->state);
-                    return -1;
-            }
-            break;
-
-        case STATE_RESOURCETYPE:
-            switch (event->type) {
-                case YAML_SCALAR_EVENT:
-                    s->resource->type = (int)strtol((const char*)event->data.scalar.value, NULL, 10);
-                    s->state = STATE_RESOURCE;
-                    break;
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
                     return -1;
             }
             break;
 
-        case STATE_RESOURCEBASE:
+        case STATE_DEPS_SERVICES:
             switch (event->type) {
-                case YAML_SCALAR_EVENT:
-                    s->resource->base = (uintptr_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
-                    s->state = STATE_RESOURCE;
+                case YAML_SEQUENCE_START_EVENT:
+                    // list start of dependencies
                     break;
-                default:
-                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
-                    return -1;
-            }
-            break;
 
-        case STATE_RESOURCELENGTH:
-            switch (event->type) {
+                case YAML_SEQUENCE_END_EVENT:
+                    // list end
+                    s->state = STATE_SERVICEDEPS;
+                    break;
+
                 case YAML_SCALAR_EVENT:
-                    s->resource->length = (size_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
-                    s->state = STATE_RESOURCE;
+                    // Occurs on a new dependency entry
+                    if (__AddDependency(s, (const char*)event->data.scalar.value)) {
+                        return -1;
+                    }
                     break;
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
