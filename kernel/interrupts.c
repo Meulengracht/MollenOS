@@ -48,7 +48,7 @@ typedef struct InterruptTableEntry {
 
 static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
 static Spinlock_t            g_interruptTableLock                       = OS_SPINLOCK_INIT;
-static _Atomic(uuid_t)       g_nextInterruptId                          = ATOMIC_VAR_INIT(0);
+static _Atomic(uuid_t)       g_nextInterruptId                          = 0;
 
 oserr_t
 InterruptIncreasePenalty(

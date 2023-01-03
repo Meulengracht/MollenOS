@@ -77,7 +77,7 @@ OSMakeDirectory(
 CRTDECL(oserr_t,
 OSReadDirectory(
         _In_ uuid_t              handle,
-        _In_ OsDirectoryEntry_t* entry));
+        _In_ OSDirectoryEntry_t* entry));
 
 /**
  * @brief
@@ -229,7 +229,7 @@ CRTDECL(oserr_t,
 GetStorageInformationFromPath(
         _In_ const char*            path,
         _In_ int                    followLinks,
-        _In_ OsStorageDescriptor_t* descriptor));
+        _In_ OSStorageDescriptor_t* descriptor));
 
 /**
  * @brief
@@ -240,7 +240,7 @@ GetStorageInformationFromPath(
 CRTDECL(oserr_t,
 GetStorageInformationFromFd(
         _In_ int                    fileDescriptor,
-        _In_ OsStorageDescriptor_t* descriptor));
+        _In_ OSStorageDescriptor_t* descriptor));
 
 /**
  * @brief
@@ -253,7 +253,7 @@ CRTDECL(oserr_t,
 GetFileSystemInformationFromPath(
         _In_ const char*               path,
         _In_ int                       followLinks,
-        _In_ OsFileSystemDescriptor_t* descriptor));
+        _In_ OSFileSystemDescriptor_t* descriptor));
 
 /**
  * @brief
@@ -264,7 +264,7 @@ GetFileSystemInformationFromPath(
 CRTDECL(oserr_t,
 GetFileSystemInformationFromFd(
         _In_ int                       fileDescriptor,
-        _In_ OsFileSystemDescriptor_t* descriptor));
+        _In_ OSFileSystemDescriptor_t* descriptor));
 
 /**
  * @brief
@@ -277,7 +277,7 @@ CRTDECL(oserr_t,
 GetFileInformationFromPath(
         const char*         path,
         int                 followLinks,
-        OsFileDescriptor_t* descriptor));
+        OSFileDescriptor_t* descriptor));
 
 /**
  * @brief
@@ -288,7 +288,7 @@ GetFileInformationFromPath(
 CRTDECL(oserr_t,
 GetFileInformationFromFd(
         _In_ int                 fileDescriptor,
-        _In_ OsFileDescriptor_t* descriptor));
+        _In_ OSFileDescriptor_t* descriptor));
 
 // CreateFileMapping::Flags
 #define FILE_MAPPING_READ       0x00000001U

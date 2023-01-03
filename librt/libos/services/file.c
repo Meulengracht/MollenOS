@@ -118,7 +118,7 @@ OSMakeDirectory(
     return oserr;
 }
 
-static void __ToOSDirectoryEntry(struct sys_directory_entry* in, OsDirectoryEntry_t* out)
+static void __ToOSDirectoryEntry(struct sys_directory_entry* in, OSDirectoryEntry_t* out)
 {
     out->Name = in->name;
     out->ID = in->id;
@@ -129,7 +129,7 @@ static void __ToOSDirectoryEntry(struct sys_directory_entry* in, OsDirectoryEntr
 oserr_t
 OSReadDirectory(
         _In_ uuid_t              handle,
-        _In_ OsDirectoryEntry_t* entry)
+        _In_ OSDirectoryEntry_t* entry)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
     struct sys_directory_entry sysEntry;
@@ -542,9 +542,9 @@ GetFilePathFromFd(
 
 oserr_t
 GetStorageInformationFromPath(
-    _In_ const char*            path,
-    _In_ int                    followLinks,
-    _In_ OsStorageDescriptor_t* descriptor)
+        _In_ const char*            path,
+        _In_ int                    followLinks,
+        _In_ OSStorageDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                    oserr;
@@ -576,8 +576,8 @@ GetStorageInformationFromPath(
 
 oserr_t
 GetStorageInformationFromFd(
-    _In_ int                    fileDescriptor,
-    _In_ OsStorageDescriptor_t* descriptor)
+        _In_ int                    fileDescriptor,
+        _In_ OSStorageDescriptor_t* descriptor)
 {
     struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);
@@ -610,9 +610,9 @@ GetStorageInformationFromFd(
 
 oserr_t
 GetFileSystemInformationFromPath(
-    _In_ const char*               path,
-    _In_ int                       followLinks,
-    _In_ OsFileSystemDescriptor_t* descriptor)
+        _In_ const char*               path,
+        _In_ int                       followLinks,
+        _In_ OSFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                          oserr;
@@ -644,8 +644,8 @@ GetFileSystemInformationFromPath(
 
 oserr_t
 GetFileSystemInformationFromFd(
-    _In_ int                       fileDescriptor,
-    _In_ OsFileSystemDescriptor_t* descriptor)
+        _In_ int                       fileDescriptor,
+        _In_ OSFileSystemDescriptor_t* descriptor)
 {
     struct vali_link_message         msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*                  handle = stdio_handle_get(fileDescriptor);
@@ -678,9 +678,9 @@ GetFileSystemInformationFromFd(
 
 oserr_t
 GetFileInformationFromPath(
-    _In_ const char*         path,
-    _In_ int                 followLinks,
-    _In_ OsFileDescriptor_t* descriptor)
+        _In_ const char*         path,
+        _In_ int                 followLinks,
+        _In_ OSFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                    oserr;
@@ -712,8 +712,8 @@ GetFileInformationFromPath(
 
 oserr_t
 GetFileInformationFromFd(
-    _In_ int                 fileDescriptor,
-    _In_ OsFileDescriptor_t* descriptor)
+        _In_ int                 fileDescriptor,
+        _In_ OSFileDescriptor_t* descriptor)
 {
     struct vali_link_message   msg    = VALI_MSG_INIT_HANDLE(GetFileService());
     stdio_handle_t*            handle = stdio_handle_get(fileDescriptor);

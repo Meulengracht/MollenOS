@@ -163,7 +163,7 @@ ThreadFork(
     memset(thread, 0, sizeof(Thread_t));
     MutexConstruct(&thread->SyncObject, MUTEX_FLAG_PLAIN);
     SemaphoreConstruct(&thread->EventObject, 0, 1);
-    thread->References = ATOMIC_VAR_INIT(0);
+    thread->References = 0;
 
     // Get current stack pointer, get top of stack, clone it.
     parent = ThreadCurrentForCore(ArchGetProcessorCoreId());
@@ -989,7 +989,7 @@ __InitializeDefaultsForThread(
 
     handle = CreateHandle(HandleTypeThread, __DestroyThread, thread);
     thread->Handle          = handle;
-    thread->References      = ATOMIC_VAR_INIT(0);
+    thread->References      = 0;
     thread->Function        = threadEntry;
     thread->Arguments       = arguments;
     thread->Flags           = flags;

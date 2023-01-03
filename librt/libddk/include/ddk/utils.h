@@ -36,7 +36,7 @@
 #define WARNING(...)           SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
 #define WARNING_IF(cond, ...)  { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
 #define WARNING_ONCE(id, ...)  { \
-                                    static _Atomic(int) __gi_ ##id ## _trigger = ATOMIC_VAR_INIT(0); \
+                                    static _Atomic(int) __gi_ ##id ## _trigger = 0; \
                                     if (!atomic_exchange(&__gi_ ##id ## _trigger, 1)) { \
                                         SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); \
                                     } \

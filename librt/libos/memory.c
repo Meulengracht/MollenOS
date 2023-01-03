@@ -65,7 +65,7 @@ MemoryProtect(
 oserr_t
 MemoryQueryAllocation(
         _In_ void*                 Memory,
-        _In_ OsMemoryDescriptor_t* DescriptorOut)
+        _In_ OSMemoryDescriptor_t* DescriptorOut)
 {
     if (!Memory || !DescriptorOut) {
         return OS_EINVALPARAMS;

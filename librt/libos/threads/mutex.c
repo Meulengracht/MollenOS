@@ -53,8 +53,8 @@ MutexInitialize(
     }
     
     mutex->Flags = flags;
-    mutex->Value = ATOMIC_VAR_INIT(0);
-    mutex->State = ATOMIC_VAR_INIT(__BUILD_STATE(UUID_INVALID, 0));
+    mutex->Value = 0;
+    mutex->State = __BUILD_STATE(UUID_INVALID, 0);
     return OS_EOK;
 }
 

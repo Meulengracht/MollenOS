@@ -35,7 +35,7 @@ struct usched_scheduler_queue {
     uuid_t             notification_handle;
 };
 
-static atomic_int                    g_timerid     = ATOMIC_VAR_INIT(1);
+static atomic_int                    g_timerid     = 1;
 static struct usched_scheduler_queue g_globalQueue = { NULL, MUTEX_INIT(MUTEX_PLAIN), UUID_INVALID };
 
 struct usched_scheduler* __usched_get_scheduler(void) {

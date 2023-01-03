@@ -38,7 +38,7 @@ _CODE_BEGIN
 CRTDECL(oserr_t,
 ThreadsCreate(
         _Out_ uuid_t*             threadId,
-        _In_  ThreadParameters_t* parameters,
+        _In_  OSThreadParameters_t* parameters,
         _In_  ThreadEntry_t       function,
         _In_  void*               argument));
 
@@ -48,7 +48,7 @@ ThreadsCreate(
  */
 CRTDECL(void,
 ThreadParametersInitialize(
-        _In_ ThreadParameters_t* parameters));
+        _In_ OSThreadParameters_t* parameters));
 
 /**
  * @brief First, for every thread-specific storage key which was created with a non-null

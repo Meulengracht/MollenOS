@@ -31,7 +31,7 @@ typedef struct Semaphore {
     int          MaxValue;
 } Semaphore_t;
 
-#define SEMAPHORE_INIT(Value, MaxValue) { ATOMIC_VAR_INIT(Value), MaxValue }
+#define SEMAPHORE_INIT(Value, MaxValue) { Value, MaxValue }
 
 /* SemaphoreConstruct
  * Constructs an already allocated semaphore and resets

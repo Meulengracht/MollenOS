@@ -39,7 +39,7 @@ typedef struct Mutex {
 #if defined(__cplusplus)
 #define MUTEX_INIT(type) { type, 0, 0 }
 #else
-#define MUTEX_INIT(type) { type, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#define MUTEX_INIT(type) { type, 0, 0 }
 #endif
 
 _CODE_BEGIN

@@ -43,7 +43,7 @@ typedef struct Mutex {
     Spinlock_t            Lock;
 } Mutex_t;
 
-#define OS_MUTEX_INIT(Flags) { ATOMIC_VAR_INIT(Flags), ATOMIC_VAR_INIT(UUID_INVALID), 0, LIST_INIT, SPINLOCK_INIT }
+#define OS_MUTEX_INIT(Flags) { Flags, UUID_INVALID, 0, LIST_INIT, SPINLOCK_INIT }
 
 /**
  * Initializes a mutex to default values.

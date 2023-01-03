@@ -52,8 +52,8 @@ static SystemMachine_t g_machine = {
     { 0 }, { { 0 } }, LIST_INIT, // GAMemory, Memory Map, SystemDomains
     NULL, 0, NULL,                                     // InterruptControllers
     SYSTEM_TIMERS_INIT,                                     // SystemTimers
-    ATOMIC_VAR_INIT(1), ATOMIC_VAR_INIT(1), 
-    ATOMIC_VAR_INIT(1), 0, 0, 0 // Total Information
+    1, 1,
+    1, 0, 0, 0 // Total Information
 };
 static SystemCpuCore_t g_bootCore = { 0 };
 

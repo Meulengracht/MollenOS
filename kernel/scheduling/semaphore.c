@@ -47,7 +47,7 @@ SemaphoreConstruct(
 	assert(InitialValue >= 0);
     assert(MaximumValue >= InitialValue);
 
-	Semaphore->Value    = ATOMIC_VAR_INIT(InitialValue);
+	Semaphore->Value    = InitialValue;
     Semaphore->MaxValue = MaximumValue;
 }
 

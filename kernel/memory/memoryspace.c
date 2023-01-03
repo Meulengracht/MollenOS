@@ -1029,7 +1029,7 @@ oserr_t
 MemorySpaceQuery(
         _In_ MemorySpace_t*        memorySpace,
         _In_ vaddr_t               address,
-        _In_ OsMemoryDescriptor_t* descriptor)
+        _In_ OSMemoryDescriptor_t* descriptor)
 {
     struct MemorySpaceAllocation* allocation;
 

@@ -31,7 +31,7 @@ oserr_t
 ScThreadCreate(
         _In_  ThreadEntry_t       Entry,
         _In_  void*               Arguments,
-        _In_  ThreadParameters_t* Parameters,
+        _In_  OSThreadParameters_t* Parameters,
         _Out_ uuid_t*             HandleOut)
 {
     unsigned int threadCurrentMode = ThreadCurrentMode();

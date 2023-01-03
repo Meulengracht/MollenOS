@@ -57,7 +57,7 @@ __ResolveRelativePath(
         _Out_ mstring_t**                fullPathOut)
 {
     oserr_t            oserr;
-    OsFileDescriptor_t fileDescriptor;
+    OSFileDescriptor_t fileDescriptor;
     char*              ldPathValue;
     TRACE("__ResolveRelativePath(path=%s)", path);
 

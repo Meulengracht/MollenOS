@@ -26,15 +26,15 @@
 
 #include <os/osdefs.h>
 
-typedef struct {
+typedef struct OSStorageDescriptor {
     long           Id;
     unsigned int   Flags;
     char           SerialNumber[32];
     unsigned long  SectorSize;
     UInteger64_t   SectorsTotal;
-} OsStorageDescriptor_t;
+} OSStorageDescriptor_t;
 
-// OsStorageDescriptor_t::Flags
+// OSStorageDescriptor_t::Flags
 #define STORAGE_STATIC          0x00000001 // Storage is not hot
 #define STORAGE_READONLY        0x00000002 // Storage cannot be modified
 

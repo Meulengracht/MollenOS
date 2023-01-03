@@ -30,7 +30,7 @@ typedef struct spinlock {
     _Atomic(unsigned int) current;
 } spinlock_t;
 
-#define _SPN_INITIALIZER_NP { ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#define _SPN_INITIALIZER_NP { 0, 0 }
 
 _CODE_BEGIN
 

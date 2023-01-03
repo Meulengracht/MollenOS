@@ -32,7 +32,7 @@ typedef struct Condition {
 #if defined(__cplusplus)
 #define COND_INIT           { 0 }
 #else
-#define COND_INIT           { ATOMIC_VAR_INIT(0) }
+#define COND_INIT           { 0 }
 #endif
 
 _CODE_BEGIN

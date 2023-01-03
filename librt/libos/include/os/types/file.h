@@ -26,7 +26,7 @@
 
 #include <os/types/time.h>
 
-typedef struct OsDirectoryEntry {
+typedef struct OSDirectoryEntry {
     // ID is the file node ID. This is not consistent across boots, and is
     // assigned during when first enumerated on a fresh boot.
     uuid_t ID;
@@ -35,12 +35,12 @@ typedef struct OsDirectoryEntry {
     // Index into the directory. This can be used in conjunction with
     // seekdir()
     long Index;
-    // Flags match the field OsFileDescriptor_t::Flags and describe
+    // Flags match the field OSFileDescriptor_t::Flags and describe
     // the type of directory entry.
     unsigned int Flags;
-} OsDirectoryEntry_t;
+} OSDirectoryEntry_t;
 
-typedef struct OsFileSystemDescriptor {
+typedef struct OSFileSystemDescriptor {
     long          Id;
     unsigned int  Flags;
     size_t        MaxFilenameLength;
@@ -49,9 +49,9 @@ typedef struct OsFileSystemDescriptor {
     unsigned long BlocksPerSegment;
     UInteger64_t  SegmentsTotal;
     UInteger64_t  SegmentsFree;
-} OsFileSystemDescriptor_t;
+} OSFileSystemDescriptor_t;
 
-typedef struct OsFileDescriptor {
+typedef struct OSFileDescriptor {
     long          Id;
     long          StorageId;
     unsigned int  Flags;
@@ -60,15 +60,15 @@ typedef struct OsFileDescriptor {
     OSTimestamp_t CreatedAt;
     OSTimestamp_t ModifiedAt;
     OSTimestamp_t AccessedAt;
-} OsFileDescriptor_t;
+} OSFileDescriptor_t;
 
-// OsFileDescriptor_t::Flags
+// OSFileDescriptor_t::Flags
 #define FILE_FLAG_FILE          0x00000000
 #define FILE_FLAG_DIRECTORY     0x00000001
 #define FILE_FLAG_LINK          0x00000002
 #define FILE_FLAG_TYPE(Flags)   ((Flags) & 0x00000003)
 
-// OsFileDescriptor_t::Permissions
+// OSFileDescriptor_t::Permissions
 #define FILE_PERMISSION_OWNER_READ    0x0001
 #define FILE_PERMISSION_OWNER_WRITE   0x0002
 #define FILE_PERMISSION_OWNER_EXECUTE 0x0004

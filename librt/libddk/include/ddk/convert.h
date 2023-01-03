@@ -54,7 +54,7 @@ static void to_sys_timestamp(OSTimestamp_t* in, struct sys_timestamp* out)
     out->tv_nsec = in->Nanoseconds;
 }
 
-static void from_sys_disk_descriptor(struct sys_disk_descriptor* in, OsStorageDescriptor_t* out)
+static void from_sys_disk_descriptor(struct sys_disk_descriptor* in, OSStorageDescriptor_t* out)
 {
     size_t len = strnlen(in->serial, sizeof(out->SerialNumber) - 1);
 
@@ -99,7 +99,7 @@ static void to_sys_disk_descriptor_dkk(StorageDescriptor_t* in, struct sys_disk_
     out->model = &in->Model[0];
 }
 
-static void from_sys_filesystem_descriptor(struct sys_filesystem_descriptor* in, OsFileSystemDescriptor_t* out)
+static void from_sys_filesystem_descriptor(struct sys_filesystem_descriptor* in, OSFileSystemDescriptor_t* out)
 {
     size_t len = strnlen(in->serial, sizeof(out->SerialNumber) - 1);
 
@@ -115,7 +115,7 @@ static void from_sys_filesystem_descriptor(struct sys_filesystem_descriptor* in,
     out->SerialNumber[len] = 0;
 }
 
-static void from_sys_file_descriptor(struct sys_file_descriptor* in, OsFileDescriptor_t* out)
+static void from_sys_file_descriptor(struct sys_file_descriptor* in, OSFileDescriptor_t* out)
 {
     out->Id = in->id;
     out->StorageId = in->storageId;
@@ -128,7 +128,7 @@ static void from_sys_file_descriptor(struct sys_file_descriptor* in, OsFileDescr
     from_sys_timestamp(&in->modified, &out->ModifiedAt);
 }
 
-static void to_sys_file_descriptor(OsFileDescriptor_t* in, struct sys_file_descriptor* out)
+static void to_sys_file_descriptor(OSFileDescriptor_t* in, struct sys_file_descriptor* out)
 {
     out->id = in->Id;
     out->storageId = in->StorageId;

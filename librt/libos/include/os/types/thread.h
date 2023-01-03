@@ -27,11 +27,11 @@
 
 #include <os/osdefs.h>
 
-typedef struct ThreadParameters {
+typedef struct OSThreadParameters {
     const char*  Name;
     unsigned int Configuration;
     uuid_t       MemorySpaceHandle;
     size_t       MaximumStackSize;
-} ThreadParameters_t;
+} OSThreadParameters_t;
 
 #endif //!__TYPES_THREAD_H__
