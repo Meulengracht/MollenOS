@@ -347,7 +347,7 @@ static oserr_t
 __StartProcess(
         _In_ Process_t* process)
 {
-    ThreadParameters_t threadParameters;
+    OSThreadParameters_t threadParameters;
     uintptr_t          entryPoint;
     oserr_t            oserr;
     TRACE("__StartProcess(process=%ms)", process->name);

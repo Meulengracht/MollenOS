@@ -111,7 +111,7 @@ OSGetFullPath(
     }
 
     if (!PathIsAbsolute(path)) {
-        OsFileDescriptor_t descriptor;
+        OSFileDescriptor_t descriptor;
         char*              fullPath = NULL;
 
         // Test current working directory, we are a bit out of line here, but we reuse

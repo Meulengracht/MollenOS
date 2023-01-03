@@ -32,7 +32,7 @@ typedef struct Spinlock {
     _Atomic(unsigned int) Next;
 } Spinlock_t;
 
-#define OS_SPINLOCK_INIT { 0, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0) }
+#define OS_SPINLOCK_INIT { 0, 0, 0 }
 
 /**
  * @brief

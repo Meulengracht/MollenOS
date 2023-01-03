@@ -31,7 +31,7 @@ extern void TssInstall(int gdtIndex);
 
 GdtObject_t            __GdtTableObject; // Don't make static, used in asm
 static GdtDescriptor_t g_descriptors[GDT_MAX_DESCRIPTORS] = { { 0 } };
-static _Atomic(int)    g_gdtIndex                         = ATOMIC_VAR_INIT(0);
+static _Atomic(int)    g_gdtIndex                         = 0;
 
 static int
 __InstallDescriptor(

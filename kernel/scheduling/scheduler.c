@@ -341,7 +341,7 @@ SchedulerCreateObject(
     
     memset(object, 0, sizeof(SchedulerObject_t));
     ELEMENT_INIT(&object->Header, 0, object);
-    object->State  = ATOMIC_VAR_INIT(STATE_INITIAL);
+    object->State  = STATE_INITIAL;
     object->Object = payload;
 
     if (flags & THREADING_IDLE) {

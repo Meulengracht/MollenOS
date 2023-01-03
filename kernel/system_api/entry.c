@@ -76,7 +76,7 @@ extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
 // - Unprotected, all
 
 // Threading system calls
-extern oserr_t ScThreadCreate(ThreadEntry_t, void*, ThreadParameters_t*, uuid_t*);
+extern oserr_t ScThreadCreate(ThreadEntry_t, void*, OSThreadParameters_t*, uuid_t*);
 extern oserr_t ScThreadExit(int ExitCode);
 extern oserr_t ScThreadJoin(uuid_t ThreadId, int* ExitCode);
 extern oserr_t ScThreadDetach(uuid_t ThreadId);
@@ -96,7 +96,7 @@ extern oserr_t ScEventCreate(unsigned int, unsigned int, uuid_t*, atomic_int**);
 extern oserr_t ScMemoryAllocate(void*, size_t, unsigned int, void**);
 extern oserr_t ScMemoryFree(uintptr_t, size_t);
 extern oserr_t ScMemoryProtect(void*, size_t, unsigned int, unsigned int*);
-extern oserr_t ScMemoryQueryAllocation(void*, OsMemoryDescriptor_t*);
+extern oserr_t ScMemoryQueryAllocation(void*, OSMemoryDescriptor_t*);
 extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
 extern oserr_t ScDmaCreate(DMABuffer_t*, DMAAttachment_t*);

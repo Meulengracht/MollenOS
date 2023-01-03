@@ -122,11 +122,13 @@ include_directories(../include)
 
 set(SRCS)
 set(ASM_SRCS)
+set(BINARY_TARGET)
 
 # initialize sources for specific platforms
 if ("${VALI_ARCH}" STREQUAL "amd64")
     set (CMAKE_ASM_NASM_OBJECT_FORMAT win64)
     set (NASM_DEFAULT_FORMAT win64)
+    set (BINARY_TARGET x86_64-pc-win32-coff)
     add_compile_options(--target=x86_64-pc-win32-coff)
 
     include_directories(include/efi/X64)
@@ -149,6 +151,7 @@ if ("${VALI_ARCH}" STREQUAL "amd64")
 elseif ("${VALI_ARCH}" STREQUAL "i386")
     set (CMAKE_ASM_NASM_OBJECT_FORMAT win32)
     set (NASM_DEFAULT_FORMAT win32)
+    set (BINARY_TARGET i386-pc-win32-coff)
     add_compile_options(--target=i386-pc-win32-coff)
 
     include_directories(include/efi/Ia32)
@@ -238,7 +241,7 @@ add_executable(vboot ${SRCS} ${ASM_SRCS})
 set_target_properties(vboot
     PROPERTIES
         OUTPUT_NAME "VBOOT.efi"
-        LINK_FLAGS "-Xlinker -subsystem:efi_application -Xlinker -entry:EfiMain -nostdlib"
+        LINK_FLAGS "--target=${BINARY_TARGET} -fuse-ld=lld -Xlinker -subsystem:efi_application -Xlinker -entry:EfiMain -nostdlib"
 )
 
 install(TARGETS vboot)

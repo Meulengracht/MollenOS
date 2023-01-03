@@ -103,7 +103,7 @@ SocketCreateImpl(
     }
     
     memset(Socket, 0, sizeof(Socket_t));
-    Socket->PendingPackets      = ATOMIC_VAR_INIT(0);
+    Socket->PendingPackets      = 0;
     Socket->DomainType          = Domain;
     Socket->Type                = Type;
     Socket->Protocol            = Protocol;

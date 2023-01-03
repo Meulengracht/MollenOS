@@ -97,7 +97,7 @@ static int __ToDirentType(unsigned int flags)
     }
 }
 
-static void __ToDirent(OsDirectoryEntry_t* in, struct dirent* out)
+static void __ToDirent(OSDirectoryEntry_t* in, struct dirent* out)
 {
     size_t nameLength = strlen(in->Name);
 
@@ -112,7 +112,7 @@ struct dirent*
 readdir(
     _In_ struct DIR* dir)
 {
-    OsDirectoryEntry_t entry;
+    OSDirectoryEntry_t entry;
     oserr_t            oserr;
 
     if (dir == NULL) {

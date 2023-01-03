@@ -19,7 +19,6 @@
 #define __OS_SERVICES_PATH_H__
 
 #include <os/osdefs.h>
-#include <os/types/path.h>
 
 _CODE_BEGIN
 

@@ -406,7 +406,7 @@ static inline void call_once(once_flag* flag, void (*func)(void)) {
  * @return
  */
 static inline int thrd_create(thrd_t* thr, thrd_start_t func, void* arg) {
-    ThreadParameters_t threadParameters;
+    OSThreadParameters_t threadParameters;
     ThreadParametersInitialize(&threadParameters);
     return __to_thrd_error(
             ThreadsCreate(thr, &threadParameters, func, arg)

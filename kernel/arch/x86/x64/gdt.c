@@ -33,7 +33,7 @@ extern void TssInstall(int GdtIndex);
 
 GdtObject_t            g_gdtTable; // Don't make static, used in asm
 static GdtDescriptor_t g_descriptorTable[GDT_MAX_DESCRIPTORS] = { { 0 } };
-static _Atomic(int)    g_nextGdtIndex                         = ATOMIC_VAR_INIT(0);
+static _Atomic(int)    g_nextGdtIndex                         = 0;
 
 /**
  * @brief Create safe stacks for #NMI, #DF, #DB, #PF and #MCE. These are then

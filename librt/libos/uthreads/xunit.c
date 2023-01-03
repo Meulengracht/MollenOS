@@ -247,7 +247,7 @@ static struct usched_execution_unit* __execution_unit_new(void)
 
 static int __spawn_execution_unit(struct usched_execution_unit* unit, unsigned int* affinityMask)
 {
-    ThreadParameters_t parameters;
+    OSThreadParameters_t parameters;
     oserr_t            oserr;
 
     // Use default thread parameters for now until we decide on another

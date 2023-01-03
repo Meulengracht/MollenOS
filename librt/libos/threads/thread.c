@@ -69,7 +69,7 @@ __ThreadStartup(
 oserr_t
 ThreadsCreate(
         _Out_ uuid_t*             threadId,
-        _In_  ThreadParameters_t* parameters,
+        _In_  OSThreadParameters_t* parameters,
         _In_  ThreadEntry_t       function,
         _In_  void*               argument)
 {
@@ -168,7 +168,7 @@ ThreadsSignal(
 
 void
 ThreadParametersInitialize(
-        _In_ ThreadParameters_t* parameters)
+        _In_ OSThreadParameters_t* parameters)
 {
     parameters->Name              = NULL;
     parameters->Configuration     = 0;

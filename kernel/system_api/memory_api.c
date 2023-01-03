@@ -181,7 +181,7 @@ ScMemoryProtect(
 oserr_t
 ScMemoryQueryAllocation(
         _In_ void*                 memoryPointer,
-        _In_ OsMemoryDescriptor_t* descriptor)
+        _In_ OSMemoryDescriptor_t* descriptor)
 {
     oserr_t osStatus;
 

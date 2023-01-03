@@ -53,7 +53,7 @@ DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address)
 {
-    OsMemoryDescriptor_t descriptor;
+    OSMemoryDescriptor_t descriptor;
     MemorySpace_t*       memorySpace = GetCurrentMemorySpace();
     uintptr_t            physicalAddress;
     oserr_t              osStatus;

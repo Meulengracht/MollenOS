@@ -43,8 +43,8 @@ lf_bounded_stack_construct(
         return -1;
     }
     
-    stack->head  = ATOMIC_VAR_INIT(head);
-    stack->count = ATOMIC_VAR_INIT(0);
+    stack->head  = head;
+    stack->count = 0;
 
     stack->nodes = dsalloc(capacity * sizeof(struct lf_bounded_stack_node));
     if (stack->nodes == NULL) {
@@ -57,7 +57,7 @@ lf_bounded_stack_construct(
     stack->nodes[capacity - 1].next = NULL;
     
     freeList.node = stack->nodes;
-    stack->free = ATOMIC_VAR_INIT(freeList);
+    stack->free = freeList;
     return 0;
 }
 

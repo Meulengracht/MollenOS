@@ -127,7 +127,7 @@ CreateHandleSet(
     // initialize the handle set
     list_construct(&handleSet->events);
     rb_tree_construct(&handleSet->handles);
-    handleSet->events_pending = ATOMIC_VAR_INIT(0);
+    handleSet->events_pending = 0;
     handleSet->flags          = flags;
 
     return handleId;

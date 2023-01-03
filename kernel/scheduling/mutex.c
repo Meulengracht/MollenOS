@@ -163,8 +163,8 @@ MutexConstruct(
 
     list_construct(&mutex->BlockQueue);
     SpinlockConstruct(&mutex->Lock);
-    mutex->Owner          = ATOMIC_VAR_INIT(UUID_INVALID);
-    mutex->Flags          = ATOMIC_VAR_INIT(configuration);
+    mutex->Owner          = UUID_INVALID;
+    mutex->Flags          = configuration;
     mutex->ReferenceCount = 0;
 }
 

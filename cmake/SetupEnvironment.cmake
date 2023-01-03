@@ -1,6 +1,16 @@
 # Make sure all the proper env are set
-if(NOT DEFINED ENV{CROSS})
-    message(FATAL_ERROR "CROSS environmental variable must point to a clang cross-compiler for Vali")
+set (CCROOT)
+set (CCROOT_FOUND FALSE)
+if(DEFINED ENV{CROSS})
+    set (CCROOT "$ENV{CROSS}")
+    set (CCROOT_FOUND TRUE)
+elseif(DEFINED ENV{VALICC})
+    set (CCROOT "$ENV{VALICC}")
+    set (CCROOT_FOUND TRUE)
+endif()
+
+if(NOT ${CCROOT_FOUND})
+    message(FATAL_ERROR "CROSS/VALICC environmental variable must point to a clang cross-compiler for Vali")
 endif()
 
 if(NOT DEFINED ENV{VALI_ARCH})
@@ -19,10 +29,10 @@ if (VALI_BOOTSTRAP)
 endif ()
 
 set (CMAKE_SYSTEM_NAME valicc)
-set (CMAKE_C_COMPILER "$ENV{CROSS}/bin/clang" CACHE FILEPATH "")
-set (CMAKE_CXX_COMPILER "$ENV{CROSS}/bin/clang++" CACHE FILEPATH "")
-set (CMAKE_AR "$ENV{CROSS}/bin/llvm-ar" CACHE FILEPATH "")
-set (CMAKE_RANLIB "$ENV{CROSS}/bin/llvm-ranlib" CACHE FILEPATH "")
+set (CMAKE_C_COMPILER "${CCROOT}/bin/clang" CACHE FILEPATH "")
+set (CMAKE_CXX_COMPILER "${CCROOT}/bin/clang++" CACHE FILEPATH "")
+set (CMAKE_AR "${CCROOT}/bin/llvm-ar" CACHE FILEPATH "")
+set (CMAKE_RANLIB "${CCROOT}/bin/llvm-ranlib" CACHE FILEPATH "")
 set (VERBOSE 1)
 
 # Setup the default for the linker to create .map files so we can debug

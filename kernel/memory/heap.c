@@ -461,7 +461,7 @@ __CacheInitializeAtomicCache(
         memset((void*)cache->AtomicCaches, 0, atomicCacheSize);
         for (i = 0; i < numberOfCores; i++) {
             MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(cache, i);
-            AtomicCache->Available           = ATOMIC_VAR_INIT(0);
+            AtomicCache->Available           = 0;
             AtomicCache->Limit               = cache->ObjectCount;
         }
     }

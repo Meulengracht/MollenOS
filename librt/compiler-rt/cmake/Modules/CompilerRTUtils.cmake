@@ -277,22 +277,10 @@ macro(load_llvm_config)
     endif()
   endif()
 
-  # Compute path to LLVM sources assuming the monorepo layout.
-  # We don't set `LLVM_MAIN_SRC_DIR` directly to avoid overriding a user provided
-  # CMake cache value.
-  get_compiler_rt_root_source_dir(COMPILER_RT_ROOT_SRC_PATH)
-  get_filename_component(LLVM_MAIN_SRC_DIR_DEFAULT "${COMPILER_RT_ROOT_SRC_PATH}/../llvm" ABSOLUTE)
-  if (NOT EXISTS "${LLVM_MAIN_SRC_DIR_DEFAULT}")
-    # TODO(dliew): Remove this legacy fallback path.
-    message(WARNING
-      "LLVM source tree not found at \"${LLVM_MAIN_SRC_DIR_DEFAULT}\". "
-      "You are not using the monorepo layout. This configuration is DEPRECATED.")
-  endif()
-
   set(FOUND_LLVM_CMAKE_PATH FALSE)
   if (LLVM_CONFIG_PATH)
     execute_process(
-      COMMAND ${LLVM_CONFIG_PATH} "--obj-root" "--bindir" "--libdir" "--src-root" "--includedir"
+      COMMAND ${LLVM_CONFIG_PATH} "--obj-root" "--bindir" "--libdir" "--includedir"
       RESULT_VARIABLE HAD_ERROR
       OUTPUT_VARIABLE CONFIG_OUTPUT)
     if (HAD_ERROR)
@@ -302,24 +290,12 @@ macro(load_llvm_config)
     list(GET CONFIG_OUTPUT 0 BINARY_DIR)
     list(GET CONFIG_OUTPUT 1 TOOLS_BINARY_DIR)
     list(GET CONFIG_OUTPUT 2 LIBRARY_DIR)
-    list(GET CONFIG_OUTPUT 3 MAIN_SRC_DIR)
-    list(GET CONFIG_OUTPUT 4 INCLUDE_DIR)
+    list(GET CONFIG_OUTPUT 3 INCLUDE_DIR)
 
     set(LLVM_BINARY_DIR ${BINARY_DIR} CACHE PATH "Path to LLVM build tree")
     set(LLVM_LIBRARY_DIR ${LIBRARY_DIR} CACHE PATH "Path to llvm/lib")
     set(LLVM_TOOLS_BINARY_DIR ${TOOLS_BINARY_DIR} CACHE PATH "Path to llvm/bin")
     set(LLVM_INCLUDE_DIR ${INCLUDE_DIR} CACHE PATH "Paths to LLVM headers")
-
-    if (NOT EXISTS "${LLVM_MAIN_SRC_DIR_DEFAULT}")
-      # TODO(dliew): Remove this legacy fallback path.
-      message(WARNING
-        "Consulting llvm-config for the LLVM source path "
-        "as a fallback. This behavior will be removed in the future.")
-      # We don't set `LLVM_MAIN_SRC_DIR` directly to avoid overriding a user
-      # provided CMake cache value.
-      set(LLVM_MAIN_SRC_DIR_DEFAULT "${MAIN_SRC_DIR}")
-      message(STATUS "Using LLVM source path (${LLVM_MAIN_SRC_DIR_DEFAULT}) from llvm-config")
-    endif()
 
     # Detect if we have the LLVMXRay and TestingSupport library installed and
     # available from llvm-config.
@@ -393,20 +369,6 @@ macro(load_llvm_config)
 
     set(LLVM_LIBRARY_OUTPUT_INTDIR
       ${LLVM_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib${LLVM_LIBDIR_SUFFIX})
-  endif()
-
-  # Finally set the cache variable now that `llvm-config` has also had a chance
-  # to set `LLVM_MAIN_SRC_DIR_DEFAULT`.
-  set(LLVM_MAIN_SRC_DIR "${LLVM_MAIN_SRC_DIR_DEFAULT}" CACHE PATH "Path to LLVM source tree")
-  message(STATUS "LLVM_MAIN_SRC_DIR: \"${LLVM_MAIN_SRC_DIR}\"")
-  if (NOT EXISTS "${LLVM_MAIN_SRC_DIR}")
-    # TODO(dliew): Make this a hard error
-    message(WARNING "LLVM_MAIN_SRC_DIR (${LLVM_MAIN_SRC_DIR}) does not exist. "
-                    "You can override the inferred path by adding "
-                    "`-DLLVM_MAIN_SRC_DIR=<path_to_llvm_src>` to your CMake invocation "
-                    "where `<path_to_llvm_src>` is the path to the `llvm` directory in "
-                    "the `llvm-project` repo. "
-                    "This will be treated as error in the future.")
   endif()
 
   if (NOT FOUND_LLVM_CMAKE_PATH)
