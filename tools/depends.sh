@@ -13,6 +13,13 @@ if ! [ -x "$(command -v dotnet)" ]; then
 fi
 
 # Install the cmake platform template
+# /usr/share/cmake-3.22/Modules/Compiler/Clang.cmake
+# elseif(VALI)
+#  include(Platform/valicc)
+#  macro(__compiler_clang lang)
+#    __valicc_compiler(${lang})
+#  endmacro()
+# else()
 echo "** configuring platform cmake"
 CMAKE_VERSION="$(cmake --version)";
 CMAKE_REGEX="cmake version ([0-9]+\.[0-9]+)\.[0-9]+"
