@@ -25,6 +25,7 @@ endif()
 
 # Setup environment stuff for cmake configuration
 set(CMAKE_SYSTEM_NAME valicc)
+set(CMAKE_SYSTEM_PROCESSOR $ENV{VALI_ARCH})
 set(CMAKE_SYSTEM_VERSION 1)
 set(CMAKE_C_COMPILER "${CCROOT}/bin/clang" CACHE FILEPATH "")
 set(CMAKE_CXX_COMPILER "${CCROOT}/bin/clang++" CACHE FILEPATH "")
