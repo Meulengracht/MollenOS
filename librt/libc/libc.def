@@ -5,6 +5,7 @@ OSGetWorkingDirectory
 OSChangeWorkingDirectory
 OSGetApplicationTemporaryDirectory
 UnwindGetSection
+usched_call_once
 usched_mtx_init
 usched_mtx_lock
 usched_mtx_unlock
