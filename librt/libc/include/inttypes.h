@@ -15,8 +15,6 @@
 
 #include <crtdefs.h>
 #include <stdint.h>
-#define __need_wchar_t
-#include <stddef.h>
 
 #ifndef _IMAX_DEFINED
 #define _IMAX_DEFINED
