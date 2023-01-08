@@ -22,6 +22,7 @@
  *   and functionality, refer to the individual things for descriptions
  */
 
+#include <errno.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <internal/_ipc.h>

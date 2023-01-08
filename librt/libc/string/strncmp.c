@@ -3,9 +3,10 @@
  *     Comparison
  */
 
-#include <string.h>
+#include <stdint.h>
 #include <internal/_string.h>
 #include <limits.h>
+#include <string.h>
 
 /* DETECTNULL returns nonzero if (long)X contains a NULL byte. */
 #if LONG_MAX == 2147483647L

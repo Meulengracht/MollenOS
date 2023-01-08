@@ -22,7 +22,12 @@
 #ifndef __STDC_TIME__
 #define __STDC_TIME__
 
-#include <os/osdefs.h>
+#define __need_size_t
+#define __need_NULL
+#define __need_tm
+#include <crtdefs.h>
+#include <stddef.h>
+#include <_types.h>
 #include <locale.h>
 
 #ifndef _CLOCK_T_DEFINED
@@ -64,23 +69,6 @@ CRTDECL(clock_t, clock_getfreq(void));
 #define TIME_MONOTONIC 2 // The epoch is when the computer was booted.
 #define TIME_PROCESS   3 // The epoch for this clock is at some time during the generation of the current process.
 #define TIME_THREAD    4 // The epic is like TIME_PROCESS, but locally for the calling thread.
-
-#ifndef _TM_DEFINED
-#define _TM_DEFINED
-struct tm {
-    int tm_sec;     //Seconds
-    int tm_min;     //Minutes
-    int tm_hour;    //Hours
-    int tm_mday;    //Day of the month
-    int tm_mon;     //Months
-    int tm_year;    //Years
-    int tm_wday;    //Days since sunday
-    int tm_yday;    //Days since January 1'st
-    int tm_isdst;   //Is daylight saving?
-    long tm_gmtoff; //Offset from UTC in seconds
-    char *tm_zone;
-};
-#endif
 
 struct timespec {
     time_t tv_sec;
@@ -215,12 +203,9 @@ gmtime(
  * Same as gmtime, except that the function uses user-provided storage result for the 
  * result and that the following errors are detected at runtime and call the currently 
  * installed constraint handler function. */
-#ifdef __STDC_LIB_EXT1__
-CRTDECL(struct tm*,
-gmtime_s(
+CRTDECL_EX(struct tm*, gmtime_s(
     _In_ const time_t *restrict time,
     _In_ struct tm *restrict result));
-#endif
 
 /* localtime
  * Uses the value pointed by timer to fill a tm structure with the 
@@ -239,13 +224,10 @@ asctime(
  * Same as asctime, except that the message is copied into user-provided storage buf, 
  * which is guaranteed to be null-terminated, and the following errors are 
  * detected at runtime and call the currently installed constraint handler function */
-#ifdef __STDC_LIB_EXT1__
-CRTDECL(errno_t,
-asctime_s(
+CRTDECL_EX(errno_t, asctime_s(
     _In_ char *buf,
     _In_ rsize_t bufsz,
     _In_ const struct tm *time_ptr));
-#endif
 
 /* ctime
  * Interprets the value pointed by timer as a calendar time and 
@@ -259,13 +241,11 @@ ctime(
  * Same as ctime, except that the function is equivalent to 
  * asctime_s(buffer, bufsz, localtime_s(time, &(struct tm){0})), and the following 
  * errors are detected at runtime and call the currently installed constraint handler function: */
-#ifdef __STDC_LIB_EXT1__
-CRTDECL(errno_t,
+CRTDECL_EX(errno_t,
 ctime_s(
-    _In_ char *buffer,
-    _In_ rsize_t bufsz,
-    _In_ const time_t *time));
-#endif
+    _In_ char*         buffer,
+    _In_ rsize_t       bufsz,
+    _In_ const time_t* time));
 
 /* strftime
  * Copies into ptr the content of format, expanding its format 
@@ -283,24 +263,5 @@ CRTDECL(size_t, strftime_l(
 	_In_ const struct tm *__restrict tim_p,
     _In_ struct __locale_t *locale));
 
-/* wcsftime
- * Converts the date and time information from a given calendar time time 
- * to a null-terminated wide character string str according to format string format. 
- * Up to count bytes are written. */
-#ifndef _WCSFTIME_DEFINED
-#define _WCSFTIME_DEFINED
-CRTDECL(size_t, wcsftime(
-    _In_ wchar_t*__restrict str,
-    _In_ size_t maxsize,
-    _In_ const wchar_t*__restrict format, 
-    _In_ const struct tm*__restrict time));
-CRTDECL(size_t, wcsftime_l(
-    _In_ wchar_t*__restrict str,
-    _In_ size_t maxsize,
-    _In_ const wchar_t*__restrict format, 
-    _In_ const struct tm*__restrict time,
-    _In_ struct __locale_t *locale));
-#endif
 _CODE_END
-
 #endif //!__STDC_TIME__

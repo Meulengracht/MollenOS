@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,9 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS C Library - CRT Definitions
  */
 #ifndef __STDC_CRTDEF__
 #define __STDC_CRTDEF__
@@ -59,10 +55,6 @@
 #define __i386__ 1
 #elif (defined(amd64) || defined(__amd64__)) && !defined(__x86_64__)
 #define __x86_64__ 1
-#endif
-
-#if !defined(__STDC_VERSION__)
-#define __STDC_VERSION__ 199901L
 #endif
 
 #if defined(__i386__)
@@ -118,6 +110,7 @@
 #else
 #define CRTDECL_NORETURN(Function)    __STDC_DECORATION void Function
 #endif
+
 #ifdef __STDC_LIB_EXT1__
 #define CRTDECL_EX(ReturnType, Function) __STDC_DECORATION ReturnType Function;
 #else

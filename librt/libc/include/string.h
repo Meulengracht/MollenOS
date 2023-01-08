@@ -18,11 +18,12 @@
 #ifndef __STDC_STRING__
 #define __STDC_STRING__
 
+#define __need_size_t
+#define __need_NULL
+#define __need_STDDEF_H_misc
 #include <crtdefs.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <locale.h>
-#include <errno.h>
 
 _CODE_BEGIN
 CRTDECL(char*, strdup(const char *str));
@@ -32,9 +33,9 @@ CRTDECL(char*, strndup(const char *str, size_t len));
  * Copies count characters from the object pointed to by src to the object pointed to by dest. 
  * Both objects are interpreted as arrays of unsigned char. */
 CRTDECL(void*, memcpy(
-    _In_ void *destination,
-    _In_ const void *source,
-    _In_ size_t count));
+    _In_ void*       destination,
+    _In_ const void* source,
+    _In_ size_t      count));
 
 /* memmove 
  * Copies count characters from the object pointed to by src to the object pointed to by dest. 
@@ -84,9 +85,9 @@ CRTDECL_EX(errno_t, strcpy_s(
  * (including the terminating null character, but not any of the characters that follow 
  * the null character) to character array pointed to by dest. */
 CRTDECL(char*, strncpy(
-    char* destination,
-    const char* source,
-    size_t num));
+    _In_ char*       destination,
+    _In_ const char* source,
+    _In_ size_t      num));
 
 /* strncpy_s 
  * Same as (1), except that the function does not continue writing zeroes into the destination 
@@ -100,15 +101,15 @@ CRTDECL(char*, strncpy(
  * 4. overlap would occur between the source and the destination strings*/
 CRTDECL_EX(errno_t, strncpy_s(
     _In_ char *restrict dest,
-    _In_ rsize_t destsz,
-    _In_ const char *restrict src,
-    _In_ rsize_t count))
+    _In_ rsize_t        destsz,
+    _In_ const char*    restrict src,
+    _In_ rsize_t        count))
 
 /*******************************
  *       String Concenation    *
  *******************************/
-CRTDECL(char*,      strcat(char* destination, const char* source));
-CRTDECL(char*,      strncat(char* destination, const char* source, size_t num));
+CRTDECL(char*, strcat(char* destination, const char* source));
+CRTDECL(char*, strncat(char* destination, const char* source, size_t num));
 
 /*******************************
  *      String Comparison      *
@@ -162,10 +163,10 @@ CRTDECL(size_t, strnlen(const char *str, size_t max));
 /*******************************
  *     String Conversions      *
  *******************************/
-CRTDECL(char*, i64toa(int64_t value, char *string, int radix));
-CRTDECL(int,   i64toa_s(int64_t value, char *str, size_t size, int radix));
-CRTDECL(char*, ui64toa(uint64_t value, char *string, int radix));
-CRTDECL(int,   ui64toa_s(uint64_t value, char *str, size_t size, int radix));
+CRTDECL(char*, i64toa(__int64 value, char *string, int radix));
+CRTDECL(int,   i64toa_s(__int64 value, char *str, size_t size, int radix));
+CRTDECL(char*, ui64toa(unsigned __int64 value, char *string, int radix));
+CRTDECL(int,   ui64toa_s(unsigned __int64 value, char *str, size_t size, int radix));
 CRTDECL(int,   itoa_s(int value, char *str, size_t size, int radix));
 CRTDECL(char*, itoa(int value, char *string, int radix));
 CRTDECL(char*, ltoa(long value, char *string, int radix));

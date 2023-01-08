@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,14 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- * Dynamic library support
  */
 
 #ifndef __DLFCN_H__
 #define __DLFCN_H__
-
-#include <os/osdefs.h>
 
 #define RTLD_LAZY    0
 #define RTLD_NOW     0

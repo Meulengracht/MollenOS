@@ -21,6 +21,7 @@
  * wait/set.
  */
 
+#include <errno.h>
 #include <event.h>
 #include <internal/_io.h>
 #include <internal/_syscalls.h>

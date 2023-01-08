@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,16 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C-Signal Implementation
- * - Definitions, prototypes and information needed.
  */
 
 #ifndef __SIGNAL_H__
 #define __SIGNAL_H__
 
-#include <os/osdefs.h>
+#include <crtdefs.h>
 
 #ifndef _SIG_ATOMIC_T_DEFINED
 #define _SIG_ATOMIC_T_DEFINED
@@ -55,28 +50,28 @@
 #define NUMSIGNALS  18
 
 // Unsupported Vali signals
-#define SIGBUS      -1 /* Bus error (device error) */
-#define SIGEMT      -1 /* Emulation trap XXX */
-#define SIGHUP      -1 /* Hangup */
-#define SIGSYS      -1 /* Bad system call */
-#define SIGCHLD     -1 /* Child status report */
-#define SIGPWR      -1 /* We need moar powah! */
-#define SIGWINCH    -1 /* Your containing terminal has changed size */
-#define SIGPOLL     -1 /* XXX OBSOLETE; socket i/o possible */
-#define SIGSTOP     -1 /* Stopped (signal) */
-#define SIGTSTP     -1 /* ^Z (suspend) */
-#define SIGCONT     -1 /* Unsuspended (please, continue) */
-#define SIGTTIN     -1 /* TTY input has stopped */
-#define SIGTTOUT    -1 /* TTY output has stopped */
-#define SIGVTALRM   -1 /* Virtual timer has expired */
-#define SIGPROF     -1 /* Profiling timer expired */
-#define SIGXCPU     -1 /* CPU time limit exceeded */
-#define SIGXFSZ     -1 /* File size limit exceeded */
-#define SIGWAITING  -1 /* Herp */
-#define SIGDIAF     -1 /* Die in a fire */
-#define SIGHATE     -1 /* The sending process does not like you */
-#define SIGWINEVENT -1 /* Window server event */
-#define SIGCAT      -1 /* Everybody loves cats */
+#define SIGBUS      (int)(-1) /* Bus error (device error) */
+#define SIGEMT      (int)(-1) /* Emulation trap XXX */
+#define SIGHUP      (int)(-1) /* Hangup */
+#define SIGSYS      (int)(-1) /* Bad system call */
+#define SIGCHLD     (int)(-1) /* Child status report */
+#define SIGPWR      (int)(-1) /* We need moar powah! */
+#define SIGWINCH    (int)(-1) /* Your containing terminal has changed size */
+#define SIGPOLL     (int)(-1) /* XXX OBSOLETE; socket i/o possible */
+#define SIGSTOP     (int)(-1) /* Stopped (signal) */
+#define SIGTSTP     (int)(-1) /* ^Z (suspend) */
+#define SIGCONT     (int)(-1) /* Unsuspended (please, continue) */
+#define SIGTTIN     (int)(-1) /* TTY input has stopped */
+#define SIGTTOUT    (int)(-1) /* TTY output has stopped */
+#define SIGVTALRM   (int)(-1) /* Virtual timer has expired */
+#define SIGPROF     (int)(-1) /* Profiling timer expired */
+#define SIGXCPU     (int)(-1) /* CPU time limit exceeded */
+#define SIGXFSZ     (int)(-1) /* File size limit exceeded */
+#define SIGWAITING  (int)(-1) /* Herp */
+#define SIGDIAF     (int)(-1) /* Die in a fire */
+#define SIGHATE     (int)(-1) /* The sending process does not like you */
+#define SIGWINEVENT (int)(-1) /* Window server event */
+#define SIGCAT      (int)(-1) /* Everybody loves cats */
 
 #ifndef __SIGTYPE_DEFINED__
 #define __SIGTYPE_DEFINED__
@@ -92,7 +87,7 @@ typedef struct sigset {
 
 #define SIG_DFL (__sa_handler_t)0
 #define SIG_IGN (__sa_handler_t)1
-#define SIG_ERR (__sa_handler_t)-1
+#define SIG_ERR (__sa_handler_t)(-1)
 
 _CODE_BEGIN
 

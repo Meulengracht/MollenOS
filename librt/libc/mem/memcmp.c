@@ -35,6 +35,8 @@ PORTABILITY
 QUICKREF
 	memcmp ansi pure
 */
+
+#include <stdint.h>
 #include <string.h>
 
 /* Nonzero if either X or Y is not aligned on a "long" boundary.  */

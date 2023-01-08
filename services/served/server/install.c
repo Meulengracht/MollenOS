@@ -18,6 +18,7 @@
 
 #define __TRACE
 
+#include <errno.h>
 #include <chef/package.h>
 #include <ddk/utils.h>
 #include <ds/mstring.h>

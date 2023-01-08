@@ -3,6 +3,7 @@
  *     Other (Memset)
  */
 
+#include <stdint.h>
 #include <string.h>
 
 #define LBLOCKSIZE (sizeof(long))

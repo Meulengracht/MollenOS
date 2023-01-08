@@ -18,7 +18,6 @@
 #ifndef __OS_USCHED_ONCE_H__
 #define __OS_USCHED_ONCE_H__
 
-#include <os/osdefs.h>
 #include <os/usched/mutex.h>
 
 struct usched_once_flag {
@@ -38,7 +37,6 @@ CRTDECL(void,
 usched_call_once(
     _In_ struct usched_once_flag* flag,
     _In_ void                   (*func)(void)));
-
 
 _CODE_END
 #endif //!__OS_USCHED_ONCE_H__

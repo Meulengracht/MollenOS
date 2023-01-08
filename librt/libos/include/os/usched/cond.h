@@ -30,12 +30,13 @@ struct timespec;
 #include <os/usched/mutex.h>
 
 struct usched_job;
-struct usched_mtx;
 
 struct usched_cnd {
     struct usched_mtx  lock;
     struct usched_job* queue;
 };
+
+_CODE_BEGIN
 
 /**
  * @brief Initializes a new condition variable instance.
@@ -76,4 +77,5 @@ CRTDECL(void, usched_cnd_notify_one(struct usched_cnd* condition));
  */
 CRTDECL(void, usched_cnd_notify_all(struct usched_cnd* condition));
 
+_CODE_END
 #endif //!__OS_USCHED_COND_H__

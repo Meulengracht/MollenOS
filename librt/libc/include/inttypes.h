@@ -16,14 +16,6 @@
 #include <crtdefs.h>
 #include <stdint.h>
 
-#ifndef _IMAX_DEFINED
-#define _IMAX_DEFINED
-typedef struct _imaxdiv_t {
-  intmax_t quot;
-  intmax_t rem;
-} imaxdiv_t;
-#endif
-
 #if !defined(__cplusplus) || defined(__STDC_FORMAT_MACROS)
 
 /* 7.8.1 Macros for format specifiers
@@ -281,6 +273,14 @@ typedef struct _imaxdiv_t {
 #endif /* __STDC_VERSION__ >= 199901 */
 
 #endif	/* !defined(__cplusplus) || defined(__STDC_FORMAT_MACROS) */
+
+#ifndef _IMAX_DEFINED
+#define _IMAX_DEFINED
+typedef struct _imaxdiv_t {
+  intmax_t quot;
+  intmax_t rem;
+} imaxdiv_t;
+#endif
 
 _CODE_BEGIN
 /* C++11 Added functions, to support 128 bit integers */

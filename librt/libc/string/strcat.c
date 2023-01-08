@@ -3,8 +3,9 @@
  *     Concenation
  */
 
-#include <string.h>
+#include <stdint.h>
 #include <limits.h>
+#include <string.h>
 
 /* Nonzero if X is aligned on a "long" boundary.  */
 #define ALIGNED(X) \
