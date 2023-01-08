@@ -21,6 +21,7 @@
 
 //#define __TRACE
 
+#include <errno.h>
 #include <discover.h>
 #include <ddk/utils.h>
 #include <ds/list.h>

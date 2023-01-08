@@ -16,8 +16,9 @@
  *
  */
 
-#include <time.h>
+#include <os/osdefs.h>
 #include "local.h"
+#include <time.h>
 
 static inline void __normalize(struct timespec* ts) {
     while (ts->tv_nsec >= NSEC_PER_SEC) {

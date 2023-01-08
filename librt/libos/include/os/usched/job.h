@@ -47,6 +47,8 @@ struct usched_job_parameters {
     unsigned int* affinity_mask;
 };
 
+_CODE_BEGIN
+
 /**
  * @brief Initialize the job parameters to the default values.
  * @param params
@@ -156,4 +158,5 @@ CRTDECL(int, usched_job_sleep(const struct timespec* until));
  */
 CRTDECL(bool, usched_is_cancelled(const void* cancellationToken));
 
+_CODE_END
 #endif //!__OS_USCHED_JOB_H__

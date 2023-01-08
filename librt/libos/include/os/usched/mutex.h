@@ -39,6 +39,8 @@ struct usched_mtx {
     struct usched_job* queue;
 };
 
+_CODE_BEGIN
+
 /**
  * @brief Initializes the mutex provided to its default state.
  *
@@ -76,4 +78,5 @@ CRTDECL(void, usched_mtx_lock(struct usched_mtx* mutex));
  */
 CRTDECL(void, usched_mtx_unlock(struct usched_mtx* mutex));
 
+_CODE_END
 #endif //!__OS_USCHED_MUTEX_H__

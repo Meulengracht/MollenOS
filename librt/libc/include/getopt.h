@@ -40,7 +40,6 @@
 #define required_argument  1
 #define optional_argument  2
 
-/* Includes */
 #include <crtdefs.h>
 
 _CODE_BEGIN

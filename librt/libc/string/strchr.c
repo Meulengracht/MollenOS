@@ -33,9 +33,9 @@ QUICKREF
 	strchr ansi pure
 */
 
-#include <stddef.h>
-#include <string.h>
+#include <stdint.h>
 #include <limits.h>
+#include <string.h>
 
 /* Nonzero if X is not aligned on a "long" boundary.  */
 #define _strchrUNALIGNED(X) ((long)(intptr_t)(X) & (sizeof (long) - 1))

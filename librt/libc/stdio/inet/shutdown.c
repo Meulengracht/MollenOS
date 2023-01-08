@@ -21,6 +21,7 @@
  * - Standard Socket IO Implementation
  */
 
+#include <errno.h>
 #include <internal/_io.h>
 
 int shutdown(int iod, int how)

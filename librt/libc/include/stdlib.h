@@ -23,39 +23,15 @@
 #ifndef __STDLIB_INC__
 #define __STDLIB_INC__
 
+#define __need_NULL
+#define __need_size_t
+#include <stddef.h>
 #include <malloc.h>
 #include <locale.h>
 #include <wchar.h>
 
 #define EXIT_FAILURE    (int)(-1)
 #define EXIT_SUCCESS    0
-
-#ifndef _SIZE_T_DEFINED
-#define _SIZE_T_DEFINED
-#undef size_t
-#if defined(_WIN64) || defined(__x86_64__)
-#if defined(__GNUC__) && defined(__STRICT_ANSI__)
-    typedef unsigned int size_t __attribute__((mode(DI)));
-#else
-    typedef unsigned long long size_t;
-#endif
-#define SIZET_MAX 0xffffffffffffffffULL
-#else
-    typedef unsigned int size_t;
-#define SIZET_MAX 0xFFFFFFFF
-#endif
-#endif
-
-#ifndef _NULL_DEFINED
-#define _NULL_DEFINED
-#ifndef NULL
-#ifdef __cplusplus
-#define NULL 0
-#else
-#define NULL ((void*)0)
-#endif
-#endif
-#endif
 
 #ifndef RAND_MAX
 #define RAND_MAX 65535

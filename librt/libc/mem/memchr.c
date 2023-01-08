@@ -36,9 +36,9 @@ QUICKREF
 	memchr ansi pure
 */
 
-#include <string.h>
+#include <stdint.h>
 #include <limits.h>
-#include <stddef.h>
+#include <string.h>
 
 /* Nonzero if either X or Y is not aligned on a "long" boundary.  */
 #define _memchrUNALIGNED(X) ((long)(intptr_t)(X) & (sizeof (long) - 1))

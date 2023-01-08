@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2016, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,18 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS C Library - Standard Definitions - C
  */
 
 #ifndef _LOCALE_H_
 #define _LOCALE_H_
 
-/* Includes */
-#define __need_NULL
 #include <crtdefs.h>
-#include <stddef.h>
 
 /* Shorthands for the locale-structures
  * they are private and not exposed to the
@@ -54,10 +47,7 @@ typedef struct __locale_t *locale_t;
 
 #define LC_GLOBAL_LOCALE	((struct __locale_t *) -1)
 
-/* Cpp-Guard */
-#ifdef __cplusplus
-extern "C" {
-#endif
+_CODE_BEGIN
 
 /* The lconv structure 
  * Formatting info for numeric values  */
@@ -121,8 +111,5 @@ CRTDECL(void,     freelocale(locale_t));
 CRTDECL(locale_t, duplocale(locale_t));
 CRTDECL(locale_t, uselocale(locale_t));
 
-#ifdef __cplusplus
-}
-#endif
-
+_CODE_END
 #endif /* _LOCALE_H_ */

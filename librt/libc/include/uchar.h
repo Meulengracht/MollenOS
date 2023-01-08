@@ -23,19 +23,10 @@
 #ifndef __STDC_UCHAR__
 #define __STDC_UCHAR__
 
-/* Includes
- * - Library */
-#include <os/osdefs.h>
+#include <crtdefs.h>
 #define __need_size_t
 #include <stddef.h>
-#define __need_mbstate_t
 #include <wchar.h>
-
-#ifndef __mbstate_t_defined
-typedef __mbstate_t mbstate_t;
-# define __mbstate_t_defined 1
-#endif
-
 
 #if defined __GNUC__ && !defined __USE_ISOCXX11
 /* Define the 16-bit and 32-bit character types.  Use the information

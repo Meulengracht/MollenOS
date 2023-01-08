@@ -24,7 +24,6 @@
 #define __EVENT_H__
 
 #include <crtdefs.h>
-#include <stddef.h>
 
 /**
  * Reset events are either set or not set. When writing or reading from a reset event

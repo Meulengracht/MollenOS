@@ -1,0 +1,12 @@
+{
+    "cmake.configureArgs": [
+        "-DVALI_ARCH=amd64",
+        "-DCMAKE_C_COMPILER=/usr/local/vali-toolchain/bin/clang",
+        "-DCMAKE_CXX_COMPILER=/usr/local/vali-toolchain/bin/clang"
+    ],
+    "files.associations": {
+        "baseiolibintrinsicinternal.h": "c",
+        "registerfilterlib.h": "c",
+        "processorbind.h": "c"
+    }
+}
