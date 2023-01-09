@@ -36,8 +36,8 @@ typedef struct mstring {
 _CODE_BEGIN
 
 // Length of const strings include the zero terminator
-// mstr_const *MUST* be used with the 'U' keyword
-#define mstr_const(c_str) { __MSTRING_FLAG_CONST, (sizeof(c_str) / sizeof(mchar_t)) - 1, (mchar_t*)(c_str) };
+#define __mstr_unicode(str) U ## str
+#define mstr_const(c_str) { __MSTRING_FLAG_CONST, (sizeof(__mstr_unicode(c_str)) / sizeof(mchar_t)) - 1, (mchar_t*)(__mstr_unicode(c_str)) };
 #define mstr_len(str)     ((str) != NULL ? (str)->__length : 0)
 #define mstr_bsize(str)   ((str) != NULL ? (str)->__length*sizeof(mchar_t) : 0)
 

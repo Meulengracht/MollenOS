@@ -60,7 +60,7 @@ extern int __ValiFSHandleFilter(struct VaFs* vafs);
 static long __ValiFS_Seek(void* userData, long offset, int whence);
 static int  __ValiFS_Read(void* userData, void*, size_t, size_t*);
 
-static mstring_t g_label = mstr_const(U"valifs");
+static mstring_t g_label = mstr_const("valifs");
 static struct VaFsOperations g_vafsOperations = {
         .seek = __ValiFS_Seek,
         .read = __ValiFS_Read,

@@ -13,18 +13,16 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C11-Support Time Implementation
- * - Definitions, prototypes and information needed.
  */
 
 #ifndef __STDC_TIME__
 #define __STDC_TIME__
 
+// list of types exposed through time.h
 #define __need_size_t
 #define __need_NULL
 #define __need_tm
+
 #include <crtdefs.h>
 #include <stddef.h>
 #include <_types.h>

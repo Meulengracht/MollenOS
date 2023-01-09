@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -23,8 +22,10 @@
 #ifndef __STDC_UCHAR__
 #define __STDC_UCHAR__
 
-#include <crtdefs.h>
+// list of types exposed through uchar.h
 #define __need_size_t
+
+#include <crtdefs.h>
 #include <stddef.h>
 #include <wchar.h>
 

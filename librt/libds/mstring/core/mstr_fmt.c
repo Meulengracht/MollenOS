@@ -28,7 +28,7 @@ struct fmt_context {
 };
 
 #define __FMT_CHECK(__f) if (__f) { mstring_builder_destroy(builder); va_end(args); return NULL; }
-static mstring_t g_nullMessage = mstr_const(U"<null>");
+static mstring_t g_nullMessage = mstr_const("<null>");
 
 static int __append_mstring(struct mstring_builder* builder, mstring_t* string)
 {

@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _LOCALE_H_
-#define _LOCALE_H_
+#ifndef __STDC_LOCALE__
+#define __STDC_LOCALE__
 
 #include <crtdefs.h>
 
@@ -112,4 +112,4 @@ CRTDECL(locale_t, duplocale(locale_t));
 CRTDECL(locale_t, uselocale(locale_t));
 
 _CODE_END
-#endif /* _LOCALE_H_ */
+#endif /* __STDC_LOCALE__ */

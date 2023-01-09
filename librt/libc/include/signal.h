@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SIGNAL_H__
-#define __SIGNAL_H__
+#ifndef __STDC_SIGNAL__
+#define __STDC_SIGNAL__
 
 #include <crtdefs.h>
 
@@ -120,4 +120,4 @@ CRTDECL(__sa_handler_t, signal(int sig, __sa_handler_t handler));
 CRTDECL(int, raise(int sig));
 _CODE_END
 
-#endif //__SIGNAL_H__
+#endif //__STDC_SIGNAL__

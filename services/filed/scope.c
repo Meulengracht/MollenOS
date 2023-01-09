@@ -26,7 +26,7 @@
 
 static struct VFS*          g_rootScope      = NULL;
 static guid_t               g_rootGuid       = GUID_EMPTY;
-static mstring_t            g_globalName     = mstr_const(U"vfs-root");
+static mstring_t            g_globalName     = mstr_const("vfs-root");
 
 static oserr_t
 __NewMemFS(
@@ -86,7 +86,7 @@ static oserr_t
 __MountDefaultDirectories(void)
 {
     struct VFSNode* node;
-    mstring_t       storage = mstr_const(U"/storage/");
+    mstring_t       storage = mstr_const("/storage/");
     TRACE("__MountDefaultDirectories()");
 
     // Mount the storage folder, this is the responsibility of the storage

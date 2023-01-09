@@ -91,7 +91,7 @@ struct MemFSHandle {
     struct MemFSEntry* Entry;
 };
 
-static mstring_t g_rootName = mstr_const(U"/");
+static mstring_t g_rootName = mstr_const("/");
 
 static inline void __CopyTime(OSTimestamp_t* destination, OSTimestamp_t* source) {
     destination->Seconds = source->Seconds;
