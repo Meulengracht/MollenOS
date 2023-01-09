@@ -16,15 +16,16 @@
  */
 
 #if !defined(__ITYPES_H) || defined(__need_tm) || \
-    defined(__need_mbstate)
+    defined(__need_mbstate) || defined(__need_imaxdiv)
 
-#if !defined(__need_tm) && !defined(__need_mbstate)
-/* Always define miscellaneous pieces when modules are available. */
+#if !defined(__need_tm) && !defined(__need_mbstate) && \
+    !defined(__need_imaxdiv)
 #if !__has_feature(modules)
 #define __ITYPES_H
 #endif
 #define __need_tm
 #define __need_mbstate
+#define __need_imaxdiv
 #endif
 
 #if defined(__need_tm)
@@ -69,5 +70,19 @@ typedef _mbstate_t mbstate_t;
 #endif
 #undef __need_mbstate
 #endif /* defined(__need_mbstate) */
+
+#if defined(__need_imaxdiv)
+#if !defined(_IMAXDIV_DEFINED) || __has_feature(modules)
+#if !__has_feature(modules)
+#define _IMAXDIV_DEFINED
+#endif
+#include <stdint.h>
+typedef struct _imaxdiv {
+  intmax_t quot;
+  intmax_t rem;
+} imaxdiv_t;
+#endif
+#undef __need_imaxdiv
+#endif /* defined(__need_imaxdiv) */
 
 #endif

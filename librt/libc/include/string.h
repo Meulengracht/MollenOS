@@ -18,9 +18,11 @@
 #ifndef __STDC_STRING__
 #define __STDC_STRING__
 
+// list of types exposed in string.h
 #define __need_size_t
 #define __need_NULL
 #define __need_STDDEF_H_misc
+
 #include <crtdefs.h>
 #include <stddef.h>
 #include <locale.h>

@@ -175,9 +175,9 @@ CRTDECL(int, __signbitl(long double));
  * but keep them here for compat */
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
-CRTDECL(int,        abs(int));
-CRTDECL(long,       labs(long));
-CRTDECL(long long,  llabs(long long));
+CRTDECL(int,       abs(int));
+CRTDECL(long,      labs(long));
+CRTDECL(long long, llabs(long long));
 #endif
 
 /* 7.12.3.1 */

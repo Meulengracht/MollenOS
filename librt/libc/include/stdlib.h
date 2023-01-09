@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,20 +13,23 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS - Standard C Library (Stdlib)
- *  - Contains the implementation of the stdlib interface
  */
-#ifndef __STDLIB_INC__
-#define __STDLIB_INC__
 
+#ifndef __STDC_STDLIB__
+#define __STDC_STDLIB__
+
+// list of types that should be exposed through <stdlib.h>
 #define __need_NULL
 #define __need_size_t
+#define __need_imaxdiv
+#define __need_mbstate
+#define __need_wint_t
+
+#include <crtdefs.h>
+#include <_types.h>
 #include <stddef.h>
 #include <malloc.h>
 #include <locale.h>
-#include <wchar.h>
 
 #define EXIT_FAILURE    (int)(-1)
 #define EXIT_SUCCESS    0
@@ -42,31 +43,20 @@
 #endif
 #define MB_CUR_MAX 10 // TODO __locale_mb_cur_max()
 
-#ifndef _DIV_T_DEFINED
-#define _DIV_T_DEFINED
-typedef struct _div_t {
+typedef struct _div {
     int quot;
     int rem;
 } div_t;
 
-typedef struct _ldiv_t {
+typedef struct _ldiv {
     long quot;
     long rem;
 } ldiv_t;
 
-typedef struct _lldiv_t {
+typedef struct _lldiv {
     long long quot;
     long long rem;
 } lldiv_t;
-#endif
-
-#ifndef _IMAX_DEFINED
-#define _IMAX_DEFINED
-typedef struct _imaxdiv_t {
-  intmax_t quot;
-  intmax_t rem;
-} imaxdiv_t;
-#endif
 
 _CODE_BEGIN
 /* String Conversion functions 
@@ -133,15 +123,13 @@ CRTDECL(void,  qsort(void *base, size_t num, size_t width, int(*comp)(const void
 /* Integer Arethmetic functions 
  * Used to do integer divisions and to calculate
  * the absolute integer value of a signed integer */
-#ifndef _CRT_DIV_DEFINED
-#define _CRT_DIV_DEFINED
 CRTDECL(div_t,   div(int n, int denom));
 CRTDECL(ldiv_t,  ldiv(long n, long denom));
 CRTDECL(lldiv_t, lldiv(long long n, long long denom));
-#endif
 
-/* Abs functions are defined in math header aswell
- * and thus we protect it by a guard */
+/**
+ * defined in both math.h and here, so protect with a guard
+ */
 #ifndef _CRT_ABS_DEFINED
 #define _CRT_ABS_DEFINED
 CRTDECL(int,       abs(int));
@@ -149,7 +137,9 @@ CRTDECL(long,      labs(long));
 CRTDECL(long long, llabs(long long));
 #endif
 
-/* C++11 Added functions, to support 128 bit integers */
+/**
+ * defined in both inttypes.h and here, so protect with guard
+ */
 #ifndef _CRT_IMAX_DEFINED
 #define _CRT_IMAX_DEFINED
 CRTDECL(imaxdiv_t, imaxdiv(intmax_t numer, intmax_t denomer));
@@ -163,8 +153,8 @@ CRTDECL(size_t, mbstowcs(wchar_t *__restrict pwcs, const char *__restrict s, siz
 CRTDECL(size_t, mbsnrtowcs(wchar_t *__restrict dst, const char **__restrict src, size_t nms, size_t len, mbstate_t *__restrict ps));
 CRTDECL(size_t, mbsrtowcs(wchar_t *__restrict dst, const char **__restrict src, size_t len, mbstate_t *__restrict ps));
 
-CRTDECL(wint_t, btowc (int c));
-CRTDECL(int,    wctob (wint_t wc));
+CRTDECL(wint_t, btowc(int c));
+CRTDECL(int,    wctob(wint_t wc));
 CRTDECL(size_t, wcrtomb(char *__restrict, wchar_t, mbstate_t *__restrict));
 CRTDECL(size_t, wcsnrtombs(char *__restrict, const wchar_t **__restrict, size_t, size_t, mbstate_t *__restrict));
 CRTDECL(size_t, wcsrtombs(char *__restrict dst, const wchar_t **__restrict src, size_t len, mbstate_t *__restrict ps));
@@ -181,8 +171,6 @@ CRTDECL(long,               wcstol(const wchar_t *__restrict s, wchar_t **__rest
 CRTDECL(long long,          wcstoll(const wchar_t *__restrict s, wchar_t **__restrict ptr, int base));
 CRTDECL(unsigned long,      wcstoul(const wchar_t *__restrict s, wchar_t **__restrict ptr, int base));
 CRTDECL(unsigned long long, wcstoull(const wchar_t *__restrict s, wchar_t **__restrict ptr, int base));
-_CODE_END
-
 
 #if defined(__BSD_VISIBLE)
 CRTDECL(intmax_t,  strtoimax_l(const char *__restrict, char **_restrict, int, locale_t));
@@ -191,4 +179,5 @@ CRTDECL(intmax_t,  wcstoimax_l(const wchar_t *__restrict, wchar_t **_restrict, i
 CRTDECL(uintmax_t, wcstoumax_l(const wchar_t *__restrict, wchar_t **_restrict, int, locale_t));
 #endif
 
-#endif
+_CODE_END
+#endif //!__STDC_STDLIB__

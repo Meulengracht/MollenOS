@@ -19,8 +19,8 @@
  * - Performs state storing and restoring
  */
 
-#ifndef __SETJMP_INC__
-#define __SETJMP_INC__
+#ifndef __STDC_SETJMP__
+#define __STDC_SETJMP__
 
 #include <crtdefs.h>
 #include <stdint.h>
@@ -182,4 +182,4 @@ _CODE_END
 
 #pragma pack(pop, _CRT_PACKING)
 
-#endif //!__SETJMP_INC__
+#endif //!__STDC_SETJMP__

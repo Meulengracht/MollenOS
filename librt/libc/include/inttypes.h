@@ -13,8 +13,11 @@
 #ifndef _INTTYPES_H
 #define _INTTYPES_H
 
+// list of types that should be exposed through <inttypes.h>
+#define __need_imaxdiv
+
 #include <crtdefs.h>
-#include <stdint.h>
+#include <_types.h> // <stdint.h> automatically included by __need_imaxdiv
 
 #if !defined(__cplusplus) || defined(__STDC_FORMAT_MACROS)
 
@@ -273,14 +276,6 @@
 #endif /* __STDC_VERSION__ >= 199901 */
 
 #endif	/* !defined(__cplusplus) || defined(__STDC_FORMAT_MACROS) */
-
-#ifndef _IMAX_DEFINED
-#define _IMAX_DEFINED
-typedef struct _imaxdiv_t {
-  intmax_t quot;
-  intmax_t rem;
-} imaxdiv_t;
-#endif
 
 _CODE_BEGIN
 /* C++11 Added functions, to support 128 bit integers */

@@ -15,11 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STRINGS_H_
-#define _STRINGS_H_
+#ifndef __STDC_STRINGS__
+#define __STDC_STRINGS__
+
+// list of types exposed through strings.h
+#define __need_size_t
 
 #include <crtdefs.h>
-#define __need_size_t
 #include <stddef.h>
 
 _CODE_BEGIN
@@ -27,4 +29,4 @@ CRTDECL(int, strcasecmp(const char *, const char *));
 CRTDECL(int, strncasecmp(const char *, const char *, size_t));
 _CODE_END
 
-#endif /* _STRINGS_H_ */
+#endif /* __STDC_STRINGS__ */

@@ -24,23 +24,24 @@
 #ifndef __STDC_STDIO__
 #define __STDC_STDIO__
 
-#include <crtdefs.h>
+// list of types that should be exposed in stdio.h
 #define __need_size_t
 #define __need_wchar_t
 #define __need_wint_t
+
+#include <crtdefs.h>
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdint.h>
 
-_CODE_BEGIN
 /*******************************
  *        Definitions          *
  *******************************/
-#define EOF				(-1)
-#define SEEK_SET        0 /* Seek from beginning of file.  */
-#define SEEK_CUR        1 /* Seek from current position.  */
-#define SEEK_END        2 /* Set file pointer to EOF plus "offset" */
-#define BUFSIZ          (int)2048
+#define EOF      (-1)
+#define SEEK_SET 0 /* Seek from beginning of file.  */
+#define SEEK_CUR 1 /* Seek from current position.  */
+#define SEEK_END 2 /* Set file pointer to EOF plus "offset" */
+#define BUFSIZ   (int)2048
 
 /* Set fpos_t to the arch-specific width */
 #ifndef FPOS_T_DEFINED
@@ -96,6 +97,7 @@ _CODE_BEGIN
 typedef struct _FILE FILE;
 #endif
 
+_CODE_BEGIN
 CRTDECL(FILE*,         __get_std_handle(int n));
 #define STDOUT_FILENO  (int)0
 #define STDIN_FILENO   (int)1

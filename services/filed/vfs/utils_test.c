@@ -44,13 +44,13 @@ int TestTeardown(void** state)
 // /system/myfolder/myuser/
 // /system/myfolder/myuser/myfile.txt
 // /system/myfolder/myuser/myfile2.txt
-static mstring_t g_boot_root = mstr_const(U"/boot");
-static mstring_t g_boot_bootloader_bin = mstr_const(U"/boot/bootloader.bin");
-static mstring_t g_system_root = mstr_const(U"/system");
-static mstring_t g_system_myfolder = mstr_const(U"/system/myfolder");
-static mstring_t g_system_myfolder_myuser = mstr_const(U"/system/myfolder/myuser");
-static mstring_t g_system_myfolder_myuser_myfile = mstr_const(U"/system/myfolder/myuser/myfile.txt");
-static mstring_t g_system_myfolder_myuser_myfile2 = mstr_const(U"/system/myfolder/myuser/myfile2.txt");
+static mstring_t g_boot_root = mstr_const("/boot");
+static mstring_t g_boot_bootloader_bin = mstr_const("/boot/bootloader.bin");
+static mstring_t g_system_root = mstr_const("/system");
+static mstring_t g_system_myfolder = mstr_const("/system/myfolder");
+static mstring_t g_system_myfolder_myuser = mstr_const("/system/myfolder/myuser");
+static mstring_t g_system_myfolder_myuser_myfile = mstr_const("/system/myfolder/myuser/myfile.txt");
+static mstring_t g_system_myfolder_myuser_myfile2 = mstr_const("/system/myfolder/myuser/myfile2.txt");
 
 static struct VFS* __MockVirtualFileSystem(void)
 {

@@ -18,6 +18,8 @@
 #ifndef __DLFCN_H__
 #define __DLFCN_H__
 
+#include <crtdefs.h>
+
 #define RTLD_LAZY    0
 #define RTLD_NOW     0
 

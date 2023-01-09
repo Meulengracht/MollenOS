@@ -34,17 +34,6 @@
 #endif
 
 /** Properties ***************************************************************/
-
-#ifndef _CRT_STRINGIZE
-#define __CRT_STRINGIZE(_Value) #_Value
-#define _CRT_STRINGIZE(_Value) __CRT_STRINGIZE(_Value)
-#endif
-
-#ifndef _CRT_WIDE
-#define __CRT_WIDE(_String) L ## _String
-#define _CRT_WIDE(_String) __CRT_WIDE(_String)
-#endif
-
 #ifdef __cplusplus
 #ifndef restrict
 #define restrict /*restrict*/
@@ -105,7 +94,7 @@
 
 #define CRTDECL(ReturnType, Function) __STDC_DECORATION ReturnType Function
 #define CRTDECL_DATA(Type, Name)      __STDC_DECORATION Type Name
-#if __STDC_VERSION__ >= 201112L || __cplusplus >= 201103L
+#if __STDC_VERSION__ >= 201112L || (defined(__cplusplus) && __cplusplus >= 201103L)
 #define CRTDECL_NORETURN(Function)    __STDC_DECORATION _Noreturn void Function
 #else
 #define CRTDECL_NORETURN(Function)    __STDC_DECORATION void Function
@@ -198,30 +187,6 @@
 #ifndef _M_IX86
 #define _M_IX86 600
 #endif
-
-#ifndef UNALIGNED
-#if defined(__ia64__) || defined(__x86_64)
-#define CRT_UNALIGNED __unaligned
-#else
-#define CRT_UNALIGNED
-#endif
-#endif
-
-#ifndef DECLSPEC_NOTHROW
-#if !defined(MIDL_PASS)
-#define DECLSPEC_NOTHROW __declspec(nothrow)
-#else
-#define DECLSPEC_NOTHROW
-#endif
-#endif /* DECLSPEC_NOTHROW */
-
-#ifndef NOP_FUNCTION
-#if defined(_MSC_VER)
-#define NOP_FUNCTION __noop
-#else
-#define NOP_FUNCTION (void)0
-#endif
-#endif /* NOP_FUNCTION */
 
 #ifndef _CRT_ALIGN
 #if defined (__midl) || defined(__WIDL__)

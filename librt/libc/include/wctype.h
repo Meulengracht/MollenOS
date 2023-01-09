@@ -15,19 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _WCTYPE_H_
-#define _WCTYPE_H_
+#ifndef __STDC_WCTYPE__
+#define __STDC_WCTYPE__
+
+// list of imported types that are exposed by wctype.h
+#define __need_wint_t
 
 #include <crtdefs.h>
+#include <stddef.h>
 #include <locale.h>
-
-#ifndef _WINT_T 
-#define _WINT_T 
-#ifndef __WINT_TYPE__ 
-#define __WINT_TYPE__ unsigned int 
-#endif 
-typedef __WINT_TYPE__ wint_t; 
-#endif
 
 #ifndef WEOF
 # define WEOF ((wint_t)-1)
@@ -83,4 +79,4 @@ CRTDECL(wctrans_t, wctrans_l (const char *, locale_t));
 CRTDECL(wctype_t, wctype_l (const char *, locale_t));
 _CODE_END
 
-#endif /* _WCTYPE_H_ */
+#endif /* __STDC_WCTYPE__ */

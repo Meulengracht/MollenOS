@@ -25,9 +25,9 @@
 #include <string.h>
 #include "private.h"
 
-static mstring_t g_rootToken   = mstr_const(U"/");
-static mstring_t g_dotToken    = mstr_const(U".");
-static mstring_t g_dotdotToken = mstr_const(U"..");
+static mstring_t g_rootToken   = mstr_const("/");
+static mstring_t g_dotToken    = mstr_const(".");
+static mstring_t g_dotdotToken = mstr_const("..");
 
 mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
 {

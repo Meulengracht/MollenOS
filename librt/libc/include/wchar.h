@@ -15,15 +15,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _WCHAR_H_
-#define _WCHAR_H_
+#ifndef __STDC_WCHAR__
+#define __STDC_WCHAR__
 
+// list of types exported by wchar.h
 #define __need_wchar_t
 #define __need_size_t
 #define __need_wint_t
 #define __need_NULL
 #define __need_tm
 #define __need_mbstate
+
 #include <crtdefs.h>
 #include <stddef.h>
 #include <_types.h>
@@ -100,4 +102,4 @@ CRTDECL(size_t, wcsftime_l(
     _In_ struct __locale_t *locale));
 
 _CODE_END
-#endif /* _WCHAR_H_ */
+#endif /* __STDC_WCHAR__ */
