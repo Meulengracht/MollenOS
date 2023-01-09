@@ -4,6 +4,7 @@ OSGetFullPath
 OSGetWorkingDirectory
 OSChangeWorkingDirectory
 OSGetApplicationTemporaryDirectory
+OSGetUserDirectory
 UnwindGetSection
 usched_call_once
 usched_mtx_init

@@ -216,7 +216,7 @@ OSGetAssemblyDirectory(
 }
 
 oserr_t
-OS1GetUserDirectory(
+OSGetUserDirectory(
     _In_ char*  buffer,
     _In_ size_t maxLength)
 {
