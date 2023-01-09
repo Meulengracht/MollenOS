@@ -20,19 +20,15 @@
 
 #if !defined(__need_tm) && !defined(__need_mbstate) && \
     !defined(__need_imaxdiv)
-#if !__has_feature(modules)
 #define __ITYPES_H
-#endif
 #define __need_tm
 #define __need_mbstate
 #define __need_imaxdiv
-#endif
+#endif //!defined(...)
 
 #if defined(__need_tm)
-#if !defined(_TM_DEFINED) || __has_feature(modules)
-#if !__has_feature(modules)
+#if !defined(_TM_DEFINED)
 #define _TM_DEFINED
-#endif
 struct tm {
     int tm_sec;     //Seconds
     int tm_min;     //Minutes
@@ -48,13 +44,11 @@ struct tm {
 };
 #endif
 #undef __need_tm
-#endif /* defined(__need_tm) */
+#endif //defined(__need_tm)
 
 #if defined(__need_mbstate)
-#if !defined(_MBSTATE_DEFINED) || __has_feature(modules)
-#if !__has_feature(modules)
+#if !defined(_MBSTATE_DEFINED)
 #define _MBSTATE_DEFINED
-#endif
 #define __need_wint_t
 #include <stddef.h>
 typedef struct
@@ -69,13 +63,11 @@ typedef struct
 typedef _mbstate_t mbstate_t;
 #endif
 #undef __need_mbstate
-#endif /* defined(__need_mbstate) */
+#endif //defined(__need_mbstate)
 
 #if defined(__need_imaxdiv)
-#if !defined(_IMAXDIV_DEFINED) || __has_feature(modules)
-#if !__has_feature(modules)
+#if !defined(_IMAXDIV_DEFINED)
 #define _IMAXDIV_DEFINED
-#endif
 #include <stdint.h>
 typedef struct _imaxdiv {
   intmax_t quot;
@@ -83,6 +75,6 @@ typedef struct _imaxdiv {
 } imaxdiv_t;
 #endif
 #undef __need_imaxdiv
-#endif /* defined(__need_imaxdiv) */
+#endif //defined(__need_imaxdiv)
 
-#endif
+#endif //!__ITYPES_H && !defined(...)
