@@ -22,15 +22,31 @@
 
 /**
  * Configuration flags for creation of a new SHM region
+ * SHM_PERSISTANT  is used to indicate underlying memory should not be freed
+ *                 upon cleanup of the memory region.
+ * SHM_UNCACHEABLE is used to mark the underlying memory as uncachable.
+ * SHM_CLEAN       will zero out any allocated memory for the dma buffer
+ * SHM_COMMIT      will pre-allocate memory for the region, instead of lazily allocate
+ *                 pages on page-faults.
+ * SHM_TRAP        will mark the region a trap region. Only in use for OS services.
+ * SHM_IPC         will mark region for IPC and needs a kernel accessible copy.
+ * SHM_STACK       also ensures that memory expansion will grow down-wards
+ *                 to ensure that the memory region is appropriate for stack use.
+ * SHM_DEVICE      will mark the region device memory accessible. This allows for using
+ *                 the different types in SHM_TYPE_* to request specifiy memory attributes for
+ *                 the underlying physical memory pages. This type of memory also indirectly specifies
+ *                 SHM_COMMIT as the underlying pages must be allocated immediately.
+ * SHM_PRIVATE     region is intended for private use (private to the process memory space).
  */
-#define SHM_PERSISTANT  0x00000001U // Used to indicate underlying memory should not be freed upon dma destruction
-#define SHM_UNCACHEABLE 0x00000002U // Used to indicate that the dma buffer should be disabled caching of the memory
-#define SHM_CLEAN       0x00000004U // Zero out any allocated memory for the dma buffer
-#define SHM_TRAP        0x00000008U // SHM region is a trap region. This can not be used in normal circumstances.
-#define SHM_RESERVE     0x00000010U // SHM region is only reserved in memory
-#define SHM_IPC         0x00000020U // SHM region is for IPC and needs a kernel copy.
-#define SHM_STACK       0x00000040U // SHM region is intended for stack-use.
-#define SHM_PRIVATE     0x00000080U // SHM region is intended for private use.
+#define SHM_PERSISTANT  0x00000001U
+#define SHM_UNCACHEABLE 0x00000002U
+#define SHM_CLEAN       0x00000004U
+#define SHM_COMMIT      0x00000008U
+#define SHM_PRIVATE     0x00000010U
+#define SHM_TRAP        0x00000100U
+#define SHM_IPC         0x00000200U
+#define SHM_STACK       0x00000300U
+#define SHM_DEVICE      0x00000400U
 
 /**
  * SHM type which can indicate which kind of memory will be allocated
@@ -42,16 +58,56 @@
 #define SHM_TYPE_DRIVER_64    4  // Memory should be located in 64 bit memory
 
 /**
- * SHM Access flags that are available when mapping or attaching.
- * Read is always implied when mapping a region.
+ * SHM Access flags that are available when creating and mapping.
  */
-#define SHM_ACCESS_WRITE   0x00000001U
-#define SHM_ACCESS_EXECUTE 0x00000002U
+#define SHM_ACCESS_READ    0x00000001U
+#define SHM_ACCESS_WRITE   0x00000002U
+#define SHM_ACCESS_EXECUTE 0x00000004U
 
-/**
- * SHM attachment flags
- */
-#define SHM_ATTACH_MAP 0x00000001U
+// These are only available when mapping
+#define SHM_ACCESS_COMMIT  0x00000008U
+
+typedef struct SHM {
+    // Name is the global identifier for this buffer. When listing
+    // active shared memory buffers on the system, this is the name
+    // that is shown.
+    const char* Name;
+    // Flags is the buffer capabilities. This describes the functionality
+    // and traits of the buffer.
+    unsigned int Flags;
+    // Access is the allowed access when mapping the buffer. When sharing
+    // a buffer with another process, this describes the allowed mapping
+    // access.
+    unsigned int Access;
+    // Type is the memory type that should be allocated. For most uses this
+    // should always be 0, and is only supported for mapping device-accessible
+    // memory.
+    unsigned int Type;
+    // Size is the size of the memory region. This size will not be backed,
+    // but initially only be reserved in memory, unless SHM_COMMIT is specified
+    // when creating the buffer. Only when memory is accessed
+    // will there be allocated space for it on the underlying storage.
+    size_t Size;
+} SHM_t;
+
+typedef struct SHMHandle {
+    // ID is the global memory region key that identifies the memory
+    // buffer. This is set on the first call to SHMAttach.
+    uuid_t ID;
+    // Capacity is the maximum size of the buffer region. This is set
+    // on the first call to SHMAttach.
+    size_t Capacity;
+    // Buffer is the raw data pointer to a mapped region of memory
+    // representing the buffer. This member is only set when calling
+    // SHMMap.
+    void* Buffer;
+    // Offset is the offset into the underlying storage, where the mapping
+    // of the buffer starts. This is updated with each call to SHMMap
+    size_t Offset;
+    // Length is the currently mapped size of <Buffer>. This member is only
+    // updated with each call to SHMMap.
+    size_t Length;
+} SHMHandle_t;
 
 typedef struct SHMSG {
     uintptr_t Address;
@@ -63,18 +119,4 @@ typedef struct SHMSGTable {
     int      Count;
 } SHMSGTable_t;
 
-typedef struct SHM {
-    const char*  Name;
-    unsigned int Flags;
-    unsigned int Type;
-    size_t       Length;
-    size_t       Capacity;
-} SHM_t;
-
-typedef struct SHMHandle {
-    uuid_t Handle;
-    void*  Buffer;
-    size_t Length;
-} SHMHandle_t;
-
-#endif //!__OS_TYPES_DMABUF_H__
+#endif //!__OS_TYPES_SHM_H__

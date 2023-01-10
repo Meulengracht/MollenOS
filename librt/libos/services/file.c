@@ -916,7 +916,8 @@ DestroyFileMapping(
     return osStatus;
 }
 
-oserr_t HandleMemoryMappingEvent(
+oserr_t
+HandleMemoryMappingEvent(
         _In_ int   signal,
         _In_ void* vaddressPtr)
 {
@@ -935,7 +936,11 @@ oserr_t HandleMemoryMappingEvent(
     virtualAddress &= (__GetPageSize() - 1);
 
     fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)fileView->dmaAttachment.buffer);
-    osStatus            = DmaAttachmentCommit(&fileView->dmaAttachment, (vaddr_t) vaddressPtr, __GetPageSize());
+    osStatus            = DmaAttachmentCommit(
+            &fileView->dmaAttachment,
+            (vaddr_t)vaddressPtr,
+            __GetPageSize()
+    );
     if (osStatus != OS_EOK) {
         return OS_ENOENT;
     }

@@ -22,10 +22,10 @@
 
 _CODE_BEGIN
 /**
- * Creates a new page aligned dma buffer and provides the initial attachment.
+ * Creates a new page aligned memory buffer and provides the initial attachment.
  * The attachment will already be mapped into current address space and provided mappings.
- * @param info       [In] The information related to the buffer that should be created.
- * @param attachment [In] The structure to fill with the attachment information.
+ * @param shm    [In] The information related to the buffer that should be created.
+ * @param handle [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
@@ -34,11 +34,11 @@ SHMCreate(
         _In_ SHMHandle_t* handle));
 
 /**
- * Exports the dma buffer provided. The structure must be prefilled with most
+ * Exports the memory buffer provided. The structure must be prefilled with most
  * of the information before being passed.
- * @param buffer     [In] Information about the buffer that should be exported by the kernel.
- * @param info       [In] Options related to the export of the buffer.
- * @param attachment [In] The structure to fill with the attachment information.
+ * @param buffer [In] Information about the buffer that should be exported by the kernel.
+ * @param shm    [In] Options related to the export of the buffer.
+ * @param handle [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
@@ -48,22 +48,21 @@ SHMExport(
         _In_ SHMHandle_t* handle));
 
 /**
- * Attach to a dma buffer handle, but does not perform further actions.
- * @param handle     [In] The dma buffer handle to attach to.
- * @param attachment [In] The structure to fill with the attachment information.
+ * Attach to a memory buffer handle, but does not perform further actions.
+ * @param shmID  [In] The memory buffer handle to attach to.
+ * @param handle [In] The structure to fill with the attachment information.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
 SHMAttach(
-        _In_ uuid_t       shmKey,
-        _In_ unsigned int attachFlags,
-        _In_ unsigned int accessFlags,
+        _In_ uuid_t       shmID,
         _In_ SHMHandle_t* handle));
 
 /**
- * Should be called both by attachers and the creator when the memory
- * dma buffer should be released. The dma regions are not released before all attachers have detachted.
- * @param attachment [In] The dma buffer to detach from.
+ * Each SHMAttach/SHMCreate/SHMExport call should be matched with one SHMDetach, to properly
+ * cleanup any resources that are allocated, and unexport the memory buffer. When detaching, any
+ * previous mapping done will be unmapped.
+ * @param handle [In] The memory buffer to detach from.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
@@ -71,55 +70,42 @@ SHMDetach(
         _In_ SHMHandle_t* handle));
 
 /**
- * Map the dma buffer into current memory space and get the metrics of the buffer
- * @param attachment  [In] The dma buffer attachment to map into memory space.
- * @param accessFlags [In] The memory access flags the mapping should be created with.
+ * Map into or update an existing memory buffer in the current memory space. When re-mapping an already
+ * existing SHMHandle object, the buffer pointer may change and thus invalidating the current mapping that
+ * SHMHandle_t.Buffer is pointing to. Only when extending or shrinking a mapping does SHMHandle_t.Buffer
+ * not change. When moving (when offset != initial offset) a mapping, the existing buffer will be destroyed
+ * and a new one will be provided.
+ * If the access flags change from the original mapping, the entire mapping will get the new flags applied.
+ * @param handle [In] The memory buffer attachment to map.
+ * @param offset [In] The offset into the buffer the mapping should start.
+ * @param length [In] The length of the buffer that should be mapped.
+ * @param flags  [In] The memory access flags the mapping should be created with. A buffer originally created
+ *                    with read access, cannot be mapped with any other access than read.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
 SHMMap(
         _In_ SHMHandle_t* handle,
-        _In_ unsigned int accessFlags));
+        _In_ size_t       offset,
+        _In_ size_t       length,
+        _In_ unsigned int flags));
 
 /**
  * Commits the address by allocating physical page to backup the virtual address
- * @param attachment [In] The dma buffer attachment that should be resized.
- * @param address    [In] The starting virtual address to commit from.
- * @param length     [In] The number of bytes to commit (will be rounded up to page-size).
+ * @param handle  [In] The memory buffer attachment that should be resized.
+ * @param address [In] The starting virtual address to commit from.
+ * @param length  [In] The number of bytes to commit (will be rounded up to page-size).
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
-SHMMapCommit(
+SHMCommit(
         _In_ SHMHandle_t* handle,
         _In_ vaddr_t      address,
         _In_ size_t       length));
 
 /**
- * Resizes the dma buffer to the given length argument. This must be within
- * the provided capacity, otherwise the call will fail.
- * @param attachment [In] The dma buffer attachment that should be resized.
- * @param length     [In] The new length of the buffer attachment segment.
- * @return Status of the operation.
- */
-CRTDECL(oserr_t,
-SHMResize(
-        _In_ SHMHandle_t* handle,
-        _In_ size_t       length,
-        _In_ unsigned int flags));
-
-/**
- * Used by the attachers to refresh their memory mappings of the provided dma buffer.
- * @param attachment [In] The dma buffer attachment mapping that should be refreshed.
- * @return Status of the operation.
- */
-CRTDECL(oserr_t,
-SHMRefresh(
-        _In_ SHMHandle_t* handle,
-        _In_ unsigned int flags));
-
-/**
  * Remove the mapping that has been previously created by its counterpart.
- * @param attachment [In] The dma buffer attachment to unmap from current addressing space.
+ * @param handle [In] The memory buffer attachment to unmap from current addressing space.
  * @return Status of the operation.
  */
 CRTDECL(oserr_t,
@@ -128,9 +114,9 @@ SHMUnmap(
 
 /**
  * Call this once with the count parameter to get the number of
- * scatter-gather entries, then the second time with the dma_sg parameter
+ * scatter-gather entries, then the second time with the memory_sg parameter
  * to retrieve a list of all the entries
- * @param attachment [In]  Attachment to the dma buffer to query the list of dma entries
+ * @param handle [In]  Attachment to the memory buffer to query the list of memory entries
  * @param sg_table   [Out] Pointer to storage for the sg_table. This must be manually freed.
  * @param max_count  [In]  Max number of entries, if 0 or below it will get all number of entries.
  * @return Status of the operation.
@@ -142,7 +128,7 @@ SHMGetSGTable(
         _In_ int           maxCount));
 
 /**
- * Converts a virtual buffer offset into a dma_sg index + offset
+ * Converts a virtual buffer offset into a memory_sg index + offset
  * @param sgTable  [In]  Scatter-gather table to perform the lookup in.
  * @param offset    [In]  The offset that should be converted to a sg-index/offset 
  * @param sg_index  [Out] A pointer to the variable for the index.
@@ -157,4 +143,4 @@ SHMSGTableOffset(
         _Out_ size_t*       sgOffset));
 
 _CODE_END
-#endif //!__OS_DMABUF_H__
+#endif //!__OS_memoryBUF_H__

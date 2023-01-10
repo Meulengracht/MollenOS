@@ -11,6 +11,7 @@ add_library(libos STATIC
         ipc.c
         memory.c
         sha1.c
+        shm.c
         spinlock.c
         syscalls.c
         system.c
