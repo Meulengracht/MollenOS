@@ -52,14 +52,6 @@ ScSetHandleActivity(
 }
 
 oserr_t
-ScRegisterHandlePath(
-        _In_ uuid_t      Handle,
-        _In_ const char* Path)
-{
-    return RegisterHandlePath(Handle, Path);
-}
-
-oserr_t
 ScLookupHandle(
         _In_  const char* Path,
         _Out_ uuid_t*     HandleOut)

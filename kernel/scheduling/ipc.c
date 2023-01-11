@@ -1,5 +1,5 @@
 /**
- * Copyright 2020, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * IP-Communication
- * - Implementation of inter-thread communication. 
  */
 
 //#define __TRACE
@@ -29,69 +25,8 @@
 #include <heap.h>
 #include <ioset.h>
 #include <ipc_context.h>
-#include <memory_region.h>
+#include <shm.h>
 #include <threading.h>
-
-typedef struct IPCContext {
-    uuid_t          Handle;
-    uuid_t          CreatorThreadHandle;
-    uuid_t          MemoryRegionHandle;
-    streambuffer_t* KernelStream;
-} IPCContext_t;
-
-static void
-IpcContextDestroy(
-    _In_ void* resource)
-{
-    IPCContext_t* context = resource;
-    DestroyHandle(context->MemoryRegionHandle);
-    kfree(context);
-}
-
-oserr_t
-IpcContextCreate(
-        _In_  size_t  Size,
-        _Out_ uuid_t* HandleOut,
-        _Out_ void**  UserContextOut)
-{
-    IPCContext_t* ipcContext;
-    oserr_t       oserr;
-    void*         kernelMapping;
-    TRACE("IpcContextCreate(%u)", Size);
-    
-    if (!HandleOut || !UserContextOut) {
-        return OS_EINVALPARAMS;
-    }
-
-    ipcContext = kmalloc(sizeof(IPCContext_t));
-    if (!ipcContext) {
-        return OS_EOOM;
-    }
-
-    ipcContext->CreatorThreadHandle = ThreadCurrentHandle();
-
-    oserr = MemoryRegionCreate(
-            Size,
-            Size,
-            0,
-            0,
-            &kernelMapping,
-            UserContextOut,
-            &ipcContext->MemoryRegionHandle
-    );
-    if (oserr != OS_EOK) {
-        kfree(ipcContext);
-        return oserr;
-    }
-
-    ipcContext->Handle       = CreateHandle(HandleTypeIpcContext, IpcContextDestroy, ipcContext);
-    ipcContext->KernelStream = (streambuffer_t*)kernelMapping;
-    streambuffer_construct(ipcContext->KernelStream, Size - sizeof(streambuffer_t),
-        STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS);
-    
-    *HandleOut = ipcContext->Handle;
-    return oserr;
-}
 
 static oserr_t
 __AllocateMessage(

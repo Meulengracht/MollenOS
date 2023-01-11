@@ -46,17 +46,6 @@ OSHandleDestroy(
 }
 
 oserr_t
-OSHandleSetPath(
-        _In_ uuid_t      handle,
-        _In_ const char* path)
-{
-    if (!path) {
-        return OS_EINVALPARAMS;
-    }
-    return Syscall_RegisterHandlePath(handle, path);
-}
-
-oserr_t
 OSNotificationQueuePost(
         _In_ uuid_t       handle,
         _In_ unsigned int flags)

@@ -5,7 +5,6 @@ add_subdirectory(services)
 
 # setup primary library
 add_library(libos STATIC
-        dmabuf.c
         error_codes.c
         futex.c
         ipc.c

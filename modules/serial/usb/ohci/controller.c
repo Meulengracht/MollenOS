@@ -23,6 +23,7 @@
  */
 
 #define __TRACE
+#define __need_quantity
 
 #include <os/mollenos.h>
 #include <ddk/interrupt.h>
@@ -39,7 +40,7 @@ UsbManagerController_t*
 HciControllerCreate(
     _In_ BusDevice_t* Device)
 {
-    DMABuffer_t       dmaBuffer;
+    SHM_t             shm;
     DeviceIo_t*       ioBase  = NULL;
     DeviceInterrupt_t interrupt;
     OhciController_t* controller;
@@ -73,12 +74,13 @@ HciControllerCreate(
 
     // Allocate the HCCA-space in low memory as controllers
     // have issues with higher memory (<2GB)
-    dmaBuffer.length   = 0x1000;
-    dmaBuffer.capacity = 0x1000;
-    dmaBuffer.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-    dmaBuffer.type     = DMA_TYPE_DRIVER_32LOW;
+    shm.Key    = NULL;
+    shm.Flags  = SHM_DEVICE | SHM_CLEAN | SHM_PRIVATE;
+    shm.Size   = KB(4);
+    shm.Type   = SHM_TYPE_DRIVER_32LOW;
+    shm.Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE;
 
-    oserr = DmaCreate(&dmaBuffer, &controller->HccaDMA);
+    oserr = SHMCreate(&shm, &controller->HccaDMA);
     if (oserr != OS_EOK) {
         ERROR("Failed to allocate space for HCCA");
         free(controller);
@@ -86,9 +88,9 @@ HciControllerCreate(
     }
     
     // Retrieve the physical location of the HCCA
-    (void) DmaGetSGTable(&controller->HccaDMA, &controller->HccaDMATable, -1);
+    (void)SHMGetSGTable(&controller->HccaDMA, &controller->HccaDMATable, -1);
 
-    controller->Hcca        = (OhciHCCA_t*)controller->HccaDMA.buffer;
+    controller->Hcca        = (OhciHCCA_t*)controller->HccaDMA.Buffer;
     controller->Base.IoBase = ioBase;
     
     // Acquire the io-space
@@ -154,8 +156,7 @@ HciControllerDestroy(
 
     // Free resources
     if (((OhciController_t*)Controller)->Hcca != NULL) {
-        DmaAttachmentUnmap(&((OhciController_t *) Controller)->HccaDMA);
-        DmaDetach(&((OhciController_t *) Controller)->HccaDMA);
+        SHMDetach(&((OhciController_t *) Controller)->HccaDMA);
     }
 
     // Unregister the interrupt
@@ -220,16 +221,13 @@ OhciTakeControl(
                 return OS_EUNKNOWN;
             }
         }
-    }
-    // Did BIOS play tricks on us?
-    else if ((HcControl & OHCI_CONTROL_STATE_MASK) != 0) {
+    } else if ((HcControl & OHCI_CONTROL_STATE_MASK) != 0) { // Did BIOS play tricks on us?
         // If it's suspended, resume and wait 10 ms
         if ((HcControl & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_ACTIVE) {
             OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
             thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
         }
-    }
-    else {
+    } else {
         // Cold boot, wait 10 ms
         thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
     }

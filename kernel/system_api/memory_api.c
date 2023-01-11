@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -25,12 +23,12 @@
 
 #include <arch/utils.h>
 #include <ddk/memory.h>
-#include <os/types/dma.h>
+#include <os/types/shm.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
 #include <memoryspace.h>
-#include <memory_region.h>
+#include <shm.h>
 #include <threading.h>
 #include <string.h>
 
@@ -226,199 +224,186 @@ ScMemoryQueryAttributes(
 }
 
 oserr_t
-ScDmaCreate(
-    _In_ DMABuffer_t*     info,
-    _In_ DMAAttachment_t* attachment)
+ScSHMCreate(
+    _In_ SHM_t*       shm,
+    _In_ SHMHandle_t* handle)
 {
-    oserr_t   osStatus;
-    unsigned int flags = 0;
-    size_t       pageMask;
-    void*        kernelMapping;
+    oserr_t oserr;
+    void*   kernelMapping;
+    void*   userMapping;
+    uuid_t  shmKey;
 
-    if (!info || !attachment) {
+    if (shm == NULL || handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    
-    TRACE("[sc_mem] [DmaCreate] %u, 0x%x", LODWORD(info->length), info->flags);
-    osStatus = ArchGetPageMaskFromDmaType(info->type, &pageMask);
-    if (osStatus != OS_EOK) {
-        ERROR("ScDmaCreate unsupported dma buffer type %u on this platform", info->type);
-        return osStatus;
+
+    oserr = SHMCreate(shm, &kernelMapping, &userMapping, &shmKey);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    if (info->flags & DMA_PERSISTANT)  { flags |= MAPPING_PERSISTENT; }
-    if (info->flags & DMA_UNCACHEABLE) { flags |= MAPPING_NOCACHE; }
-    if (info->flags & DMA_TRAP)        { flags |= MAPPING_TRAPPAGE; }
+    // set up the initial shm handle.
+    handle->ID = shmKey;
+    handle->Capacity = shm->Size;
+    handle->Length = shm->Size;
+    handle->Offset = 0;
+    handle->Buffer = userMapping;
+    return oserr;
+}
 
-    osStatus = MemoryRegionCreate(
-            info->length,
-            info->capacity,
-            flags,
-            pageMask,
-            &kernelMapping,
-            &attachment->buffer,
-            &attachment->handle
+oserr_t
+ScSHMExport(
+    _In_ void*        buffer,
+    _In_ SHM_t*       shm,
+    _In_ SHMHandle_t* handle)
+{
+    uuid_t  shmKey;
+    oserr_t oserr;
+
+    if (shm == NULL || handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = SHMExport(
+            buffer,
+            shm->Size,
+            shm->Flags,
+            shm->Access,
+            &shmKey
     );
-    if (osStatus != OS_EOK) {
-        return osStatus;
-    }
-    
-    if (info->length && info->flags & DMA_CLEAN) {
-        memset(attachment->buffer, 0, info->length);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    attachment->length = info->length;
-    return osStatus;
+    // set up the exported shm handle.
+    handle->ID = shmKey;
+    handle->Capacity = shm->Size;
+    handle->Length = shm->Size;
+    handle->Offset = 0;
+    handle->Buffer = buffer;
+    return oserr;
 }
 
 oserr_t
-ScDmaExport(
-    _In_ void*            buffer,
-    _In_ DMABuffer_t*     info,
-    _In_ DMAAttachment_t* attachment)
+ScSHMAttach(
+        _In_ uuid_t       shmID,
+        _In_ SHMHandle_t* handle)
 {
-    oserr_t   osStatus;
-    unsigned int flags = 0;
+    oserr_t oserr;
+    size_t  size;
 
-    if (!info || !attachment) {
+    if (!handle) {
         return OS_EINVALPARAMS;
     }
 
-    // DMA_TRAP not supported for exported buffers. Different rules apply.
-    // DMA_CLEAN not supported for exported buffers. We will not touch preexisting ones.
-    if (info->flags & DMA_PERSISTANT)  { flags |= MAPPING_PERSISTENT; }
-    if (info->flags & DMA_UNCACHEABLE) { flags |= MAPPING_NOCACHE; }
-    
-    TRACE("ScDmaExport(0x%" PRIxIN ", %u)", buffer, LODWORD(info->length));
-
-    osStatus = MemoryRegionCreateExisting(buffer, info->length,
-                                          flags, &attachment->handle);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = SHMAttach(shmID, &size);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    attachment->buffer = buffer;
-    attachment->length = info->length;
-    return osStatus;
-}
-
-oserr_t
-ScDmaAttach(
-        _In_ uuid_t           handle,
-        _In_ DMAAttachment_t* attachment)
-{
-    if (!attachment) {
-        ERROR("[sc_dma_attach] null attachment pointer");
-        return OS_EINVALPARAMS;
-    }
-    
-    // Update the attachment with info as it were correct
-    attachment->handle = handle;
-    attachment->length = 0;
-    attachment->buffer = NULL;
-    return MemoryRegionAttach(handle, &attachment->length);
-}
-
-oserr_t
-ScDmaDetach(
-    _In_ DMAAttachment_t* attachment)
-{
-    if (!attachment) {
-        return OS_EINVALPARAMS;
-    }
-    DestroyHandle(attachment->handle);
+    memset(handle, 0, sizeof(SHMHandle_t));
+    handle->ID = shmID;
+    handle->Capacity = size;
     return OS_EOK;
 }
 
 oserr_t
-ScDmaRead(
-        _In_  uuid_t  Handle,
-        _In_  size_t  Offset,
-        _In_  void*   Buffer,
-        _In_  size_t  Length,
-        _Out_ size_t* BytesRead)
+ScSHMDetach(
+    _In_ SHMHandle_t* handle)
 {
-    return MemoryRegionRead(Handle, Offset, Buffer, Length, BytesRead);
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return DestroyHandle(handle->ID);
 }
 
 oserr_t
-ScDmaWrite(
-        _In_  uuid_t      Handle,
-        _In_  size_t      Offset,
-        _In_  const void* Buffer,
-        _In_  size_t      Length,
-        _Out_ size_t*     BytesWritten)
+ScSHMRead(
+        _In_  uuid_t  shmID,
+        _In_  size_t  offset,
+        _In_  void*   buffer,
+        _In_  size_t  length,
+        _Out_ size_t* bytesReadOut)
 {
-    return MemoryRegionWrite(Handle, Offset, Buffer, Length, BytesWritten);
+    return SHMRead(
+            shmID,
+            offset,
+            buffer,
+            length,
+            bytesReadOut
+    );
 }
 
 oserr_t
-ScDmaGetMetrics(
-        _In_  uuid_t   Handle,
-        _Out_ int*     SgCountOut,
-        _Out_ DMASG_t* SgListOut)
+ScSHMWrite(
+        _In_  uuid_t  shmID,
+        _In_  size_t  offset,
+        _In_  void*   buffer,
+        _In_  size_t  length,
+        _Out_ size_t* bytesWrittenOut)
 {
-    return MemoryRegionGetSg(Handle, SgCountOut, SgListOut);
+    return SHMWrite(
+            shmID,
+            offset,
+            buffer,
+            length,
+            bytesWrittenOut
+    );
 }
 
 oserr_t
-ScDmaAttachmentMap(
-    _In_ DMAAttachment_t* attachment,
-    _In_ unsigned int           accessFlags)
+ScSHMMetrics(
+        _In_  uuid_t   shmID,
+        _Out_ int*     sgCountOut,
+        _Out_ SHMSG_t* sgOut)
 {
-    unsigned int memoryFlags = 0;
-    if (!attachment) {
+    return SHMBuildSG(shmID, sgCountOut, sgOut);
+}
+
+oserr_t
+ScSHMMap(
+    _In_ SHMHandle_t* handle,
+    _In_ size_t       offset,
+    _In_ size_t       length,
+    _In_ unsigned int flags)
+{
+    if (handle == NULL || length == 0) {
         return OS_EINVALPARAMS;
     }
 
-    if (!(accessFlags & DMA_ACCESS_WRITE))   { memoryFlags |= MAPPING_READONLY; }
-    if (!(accessFlags & DMA_ACCESS_EXECUTE)) { memoryFlags |= MAPPING_EXECUTABLE; }
-
-    return MemoryRegionInherit(attachment->handle, &attachment->buffer, &attachment->length, memoryFlags);
+    return SHMMap(
+            handle->ID,
+            &attachment->buffer,
+            &attachment->length,
+            memoryFlags
+    );
 }
 
 oserr_t
-ScDmaAttachmentResize(
-    _In_ DMAAttachment_t* attachment,
-    _In_ size_t           length)
+ScSHMCommit(
+        _In_ SHMHandle_t* handle,
+        _In_ void*        address,
+        _In_ size_t       length)
 {
-    if (!attachment) {
+    if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    return MemoryRegionResize(attachment->handle, attachment->buffer, length);
+    return SHMCommit(
+            attachment->handle,
+            attachment->buffer,
+            address,
+            length
+    );
 }
 
 oserr_t
-ScDmaAttachmentRefresh(
-    _In_ DMAAttachment_t* attachment)
+ScSHMUnmap(
+    _In_ SHMHandle_t* handle)
 {
-    if (!attachment) {
+    if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    return MemoryRegionRefresh(attachment->handle, attachment->buffer, 
-        attachment->length, &attachment->length);
-}
-
-oserr_t
-ScDmaAttachmentCommit(
-        _In_ DMAAttachment_t* attachment,
-        _In_ void*            address,
-        _In_ size_t           length)
-{
-    if (!attachment) {
-        return OS_EINVALPARAMS;
-    }
-    return MemoryRegionCommit(attachment->handle, attachment->buffer, address, length);
-}
-
-oserr_t
-ScDmaAttachmentUnmap(
-    _In_ DMAAttachment_t* attachment)
-{
-    if (!attachment) {
-        return OS_EINVALPARAMS;
-    }
-    return MemoryRegionUnherit(attachment->handle, attachment->buffer);
+    return SHMUnmap(attachment->handle, attachment->buffer);
 }
 
 oserr_t

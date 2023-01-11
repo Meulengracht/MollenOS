@@ -49,18 +49,6 @@ OSHandleDestroy(
         _In_ uuid_t handle));
 
 /**
- * Registers a unique system wide path for the handle, so the handle can be accessed across the system
- * without knowing handle itself
- * @param handle A generic OS handle
- * @param path   The path to be registered for the handle
- * @return       Whether or not the path was successfully registered for the handle
- */
-DDKDECL(oserr_t,
-OSHandleSetPath(
-        _In_ uuid_t      handle,
-        _In_ const char* path));
-
-/**
  * Creates a new handle set that can be used for asynchronus events.
  * @param flags     Creation flags that configure the new handle set behaviour.
  * @param handleOut A unique identifier to an OS handle of the type Set

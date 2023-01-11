@@ -25,8 +25,7 @@
 #ifndef __USB_OHCI__
 #define __USB_OHCI__
 
-#include <os/dmabuf.h>
-#include <os/osdefs.h>
+#include <os/shm.h>
 
 #include "../common/manager.h"
 #include "../common/scheduler.h"
@@ -285,13 +284,13 @@ typedef struct {
 
     // Registers and resources
     OhciRegisters_t* Registers;
-    DMAAttachment_t  HccaDMA;
-    DMASGTable_t     HccaDMATable;
+    SHMHandle_t      HccaDMA;
+    SHMSGTable_t     HccaDMATable;
     OhciHCCA_t*      Hcca;
 
     // State information
-    size_t                  PowerOnDelayMs;
-    OhciPowerMode_t         PowerMode;
+    unsigned int    PowerOnDelayMs;
+    OhciPowerMode_t PowerMode;
 } OhciController_t;
 
 /*******************************************************************************

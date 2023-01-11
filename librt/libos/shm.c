@@ -15,7 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <internal/_syscalls.h>
 #include <os/shm.h>
+#include <stdlib.h>
 
 static oserr_t
 __ValidateNewBuffer(
@@ -44,8 +46,7 @@ SHMCreate(
     if (oserr != OS_EOK) {
         return oserr;
     }
-
-    return OS_ENOTSUPPORTED;
+    return Syscall_SHMCreate(shm, handle);
 }
 
 static oserr_t
@@ -76,8 +77,7 @@ SHMExport(
     if (oserr != OS_EOK) {
         return oserr;
     }
-
-    return OS_ENOTSUPPORTED;
+    return Syscall_SHMExport(buffer, shm, handle);
 }
 
 oserr_t
@@ -85,16 +85,20 @@ SHMAttach(
         _In_ uuid_t       shmID,
         _In_ SHMHandle_t* handle)
 {
-
-    return OS_ENOTSUPPORTED;
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_SHMAttach(shmID, handle);
 }
 
 oserr_t
 SHMDetach(
         _In_ SHMHandle_t* handle)
 {
-
-    return OS_ENOTSUPPORTED;
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_SHMDetach(handle);
 }
 
 oserr_t
@@ -104,8 +108,10 @@ SHMMap(
         _In_ size_t       length,
         _In_ unsigned int flags)
 {
-
-    return OS_ENOTSUPPORTED;
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_SHMMap(handle, offset, length, flags);
 }
 
 oserr_t
@@ -114,16 +120,20 @@ SHMCommit(
         _In_ vaddr_t      address,
         _In_ size_t       length)
 {
-
-    return OS_ENOTSUPPORTED;
+    if (handle == NULL || handle->Buffer == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_SHMCommit(handle, address, length);
 }
 
 oserr_t
 SHMUnmap(
         _In_ SHMHandle_t* handle)
 {
-
-    return OS_ENOTSUPPORTED;
+    if (handle == NULL || handle->Buffer == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_SHMUnmap(handle);
 }
 
 oserr_t
@@ -132,8 +142,27 @@ SHMGetSGTable(
         _In_ SHMSGTable_t* sgTable,
         _In_ int           maxCount)
 {
+    oserr_t status;
 
-    return OS_ENOTSUPPORTED;
+    if (handle == NULL || sgTable == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // get count unless provided,
+    // then allocate space and then retrieve full list
+    sgTable->Count = maxCount;
+    if (maxCount <= 0) {
+        status = Syscall_SHMMetrics(handle->ID, &sgTable->Count, NULL);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+
+    sgTable->Entries = malloc(sizeof(SHMSG_t) * sgTable->Count);
+    if (sgTable->Entries == NULL) {
+        return OS_EOOM;
+    }
+    return Syscall_SHMMetrics(handle->ID, &sgTable->Count, sgTable->Entries);
 }
 
 oserr_t
