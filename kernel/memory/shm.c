@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,14 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Memory Region Interface
- * - Implementation of shared memory buffers between kernel and processes. This
- *   can be used for conveniently transfering memory.
  */
 
-#define __MODULE "memory_region"
 //#define __TRACE
 
 #define __need_minmax
@@ -32,9 +24,9 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
-#include <os/types/dma.h>
 #include <memoryspace.h>
 #include <threading.h>
+#include <shm.h>
 
 typedef struct MemoryRegion {
     Mutex_t      SyncObject;
@@ -739,8 +731,264 @@ MemoryRegionGetSg(
     return OS_EOK;
 }
 
+struct SHMBuffer {
+    Mutex_t      SyncObject;
+    uintptr_t    KernelMapping;
+    size_t       Length;
+    size_t       PageMask;
+    unsigned int Flags;
+    int          PageCount;
+    uintptr_t    Pages[];
+};
+
+static struct SHMBuffer*
+__SHMBufferNew(
+        _In_ size_t size)
+{
+    struct SHMBuffer* buffer;
+    size_t            pageSize  = GetMemorySpacePageSize();
+    size_t            pageCount = DIVUP(size, pageSize);
+    size_t            structSize = sizeof(struct SHMBuffer) + (pageCount * sizeof(uintptr_t));
+
+    buffer = kmalloc(structSize);
+    if (buffer == NULL) {
+        return NULL;
+    }
+    memset(buffer, 0, structSize);
+    return buffer;
+}
+
+static void
+__SHMBufferDelete(
+        _In_ struct SHMBuffer* buffer)
+{
+
+}
+
+static unsigned int
+__MapFlagsForDevice(
+        _In_ SHM_t* shm)
+{
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_COMMIT;
+    if (!(shm->Access & SHM_ACCESS_WRITE)) {
+        flags |= MAPPING_READONLY;
+    }
+    if (shm->Access & SHM_ACCESS_EXECUTE) {
+        flags |= MAPPING_EXECUTABLE;
+    }
+    return flags;
+}
+
+static oserr_t
+__CreateDeviceBuffer(
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMapping)
+{
+    unsigned int mapFlags = __MapFlagsForDevice(shm);
+    oserr_t      oserr;
+    size_t       pageMask;
+    vaddr_t      mapping;
+
+    ArchSHMTypeToPageMask(shm->Type, &pageMask);
+    oserr = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &mapping,
+            &buffer->Pages[0],
+            shm->Size,
+            pageMask,
+            mapFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    *userMapping = (void*)mapping;
+    return OS_EOK;
+}
+
+static unsigned int
+__MapFlagsForStack(
+        _In_ SHM_t* shm)
+{
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_GUARDPAGE;
+    if (!(shm->Access & SHM_ACCESS_WRITE)) {
+        flags |= MAPPING_READONLY;
+    }
+    if (shm->Access & SHM_ACCESS_EXECUTE) {
+        flags |= MAPPING_EXECUTABLE;
+    }
+    return flags;
+}
+
+static oserr_t
+__CreateStackBuffer(
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMapping)
+{
+    unsigned int mapFlags = __MapFlagsForStack(shm);
+    oserr_t      oserr;
+
+    // Reserve the region and map only the top page. The returned
+    // mapping should point to the end of the region. A guard page must
+    // be reserved.
+}
+
+static oserr_t
+__CreateIPCBuffer(
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            kernelMapping,
+        _Out_ void**            userMapping)
+{
+    // Needs both a userspace mapping and a kernel mapping
+}
+
+static oserr_t
+__CreateTrapBuffer(
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMapping)
+{
+    // Trap buffers use only reserved memory and trigger signals when
+    // an unmapped page has been accessed.
+}
+
+static oserr_t
+__CreateRegularBuffer(
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMapping)
+{
+
+}
+
 oserr_t
-MemoryRegionGetKernelMapping(
+SHMCreate(
+        _In_  SHM_t*  shm,
+        _Out_ void**  kernelMapping,
+        _Out_ void**  userMapping,
+        _Out_ uuid_t* handleOut)
+{
+    struct SHMBuffer* buffer;
+    oserr_t           oserr;
+
+    if (shm == NULL || kernelMapping == NULL ||
+        userMapping == NULL || handleOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (shm->Size == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    buffer = __SHMBufferNew(shm->Size);
+    if (buffer == NULL) {
+        return OS_EOOM;
+    }
+
+    // Determine the type of shared memory that should be setup from
+    // the flags.
+    if (SHM_KIND(shm->Flags) == SHM_DEVICE) {
+        oserr = __CreateDeviceBuffer(buffer, shm, userMapping);
+    } else if (SHM_KIND(shm->Flags) == SHM_STACK) {
+        oserr = __CreateStackBuffer(buffer, shm, userMapping);
+    } else if (SHM_KIND(shm->Flags) == SHM_IPC) {
+        oserr = __CreateIPCBuffer(buffer, shm, kernelMapping, userMapping);
+    } else if (SHM_KIND(shm->Flags) == SHM_TRAP) {
+        oserr = __CreateTrapBuffer(buffer, shm, userMapping);
+    } else {
+        oserr = __CreateRegularBuffer(buffer, shm, userMapping);
+    }
+
+    if (oserr != OS_EOK) {
+        __SHMBufferDelete(buffer);
+    }
+    return oserr;
+}
+
+oserr_t
+SHMExport(
+        _In_  void*        memory,
+        _In_  size_t       size,
+        _In_  unsigned int flags,
+        _In_  unsigned int accessFlags,
+        _Out_ uuid_t*      handleOut)
+{
+
+}
+
+oserr_t
+SHMAttach(
+        _In_ uuid_t  shmID,
+        _In_ size_t* sizeOut)
+{
+
+}
+
+oserr_t
+SHMMap(
+        _In_ SHMHandle_t* handle,
+        _In_ size_t       offset,
+        _In_ size_t       length,
+        _In_ unsigned int flags)
+{
+
+}
+
+oserr_t
+SHMUnmap(
+        _In_ uuid_t handle,
+        _In_ void*  memory)
+{
+
+}
+
+oserr_t
+SHMCommit(
+        _In_ uuid_t handle,
+        _In_ void*  memoryBase,
+        _In_ void*  memory,
+        _In_ size_t length)
+{
+
+}
+
+oserr_t
+SHMRead(
+        _In_  uuid_t  Handle,
+        _In_  size_t  Offset,
+        _In_  void*   Buffer,
+        _In_  size_t  Length,
+        _Out_ size_t* BytesRead)
+{
+
+}
+
+oserr_t
+SHMWrite(
+        _In_  uuid_t      Handle,
+        _In_  size_t      Offset,
+        _In_  const void* Buffer,
+        _In_  size_t      Length,
+        _Out_ size_t*     BytesWritten)
+{
+
+}
+
+oserr_t
+SHMBuildSG(
+        _In_  uuid_t   handle,
+        _Out_ int*     sgCountOut,
+        _Out_ SHMSG_t* sgOut)
+{
+
+}
+
+oserr_t
+SHMKernelMapping(
         _In_  uuid_t handle,
         _Out_ void** bufferOut)
 {

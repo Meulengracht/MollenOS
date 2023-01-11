@@ -38,14 +38,16 @@
  *                 SHM_COMMIT will be set.
  * SHM_PRIVATE     region is intended for private use (private to the process memory space).
  */
-#define SHM_PERSISTANT  0x00000001U
-#define SHM_CLEAN       0x00000002U
-#define SHM_COMMIT      0x00000004U
-#define SHM_PRIVATE     0x00000008U
-#define SHM_TRAP        0x00000100U
-#define SHM_IPC         0x00000200U
-#define SHM_STACK       0x00000300U
-#define SHM_DEVICE      0x00000400U
+#define SHM_PERSISTANT   0x00000001U
+#define SHM_CLEAN        0x00000002U
+#define SHM_COMMIT       0x00000004U
+#define SHM_PRIVATE      0x00000008U
+#define SHM_TRAP         0x00000100U
+#define SHM_IPC          0x00000200U
+#define SHM_STACK        0x00000300U
+#define SHM_DEVICE       0x00000400U
+#define SHM_KIND_MASK    0x00000F00U
+#define SHM_KIND(_flags) ((_flags) & SHM_KIND_MASK)
 
 /**
  * SHM type which can indicate which kind of memory will be allocated

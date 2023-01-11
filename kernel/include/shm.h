@@ -74,11 +74,10 @@ SHMAttach(
  */
 KERNELAPI oserr_t KERNELABI
 SHMMap(
-        _In_ uuid_t       shmID,
+        _In_ SHMHandle_t* handle,
         _In_ size_t       offset,
         _In_ size_t       length,
-        _In_ unsigned int flags,
-        _In_ SHMHandle_t* handle);
+        _In_ unsigned int flags);
 
 /**
  *

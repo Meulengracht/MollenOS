@@ -39,7 +39,7 @@ DECL_STRUCT(SystemCpuCore);
  * @return
  */
 KERNELAPI oserr_t KERNELABI
-ArchGetPageMaskFromDmaType(
+ArchSHMTypeToPageMask(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut);
 
