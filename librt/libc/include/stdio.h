@@ -41,7 +41,7 @@
 #define SEEK_SET 0 /* Seek from beginning of file.  */
 #define SEEK_CUR 1 /* Seek from current position.  */
 #define SEEK_END 2 /* Set file pointer to EOF plus "offset" */
-#define BUFSIZ   (int)2048
+#define BUFSIZ   (int)8192
 
 /* Set fpos_t to the arch-specific width */
 #ifndef FPOS_T_DEFINED

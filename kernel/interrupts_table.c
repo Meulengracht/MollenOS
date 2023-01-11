@@ -73,7 +73,7 @@ static oserr_t __FunctionWriteStream(
 {
     streambuffer_t* stream;
 
-    if (MemoryRegionGetKernelMapping(handle, (void**)&stream) == OS_EOK) {
+    if (SHMKernelMapping(handle, (void**)&stream) == OS_EOK) {
         streambuffer_stream_out(
                 stream,
                 (void*)buffer,

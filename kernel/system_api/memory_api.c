@@ -372,10 +372,10 @@ ScSHMMap(
     }
 
     return SHMMap(
-            handle->ID,
-            &attachment->buffer,
-            &attachment->length,
-            memoryFlags
+            handle,
+            offset,
+            length,
+            flags
     );
 }
 
@@ -389,8 +389,8 @@ ScSHMCommit(
         return OS_EINVALPARAMS;
     }
     return SHMCommit(
-            attachment->handle,
-            attachment->buffer,
+            handle->ID,
+            handle->Buffer,
             address,
             length
     );
@@ -403,7 +403,7 @@ ScSHMUnmap(
     if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    return SHMUnmap(attachment->handle, attachment->buffer);
+    return SHMUnmap(handle->ID, handle->Buffer);
 }
 
 oserr_t
@@ -497,7 +497,6 @@ ScCreateMemorySpaceMapping(
     *addressOut = (void*)copyPlacement;
     return osStatus;
 }
-
 
 oserr_t
 ScMapThreadMemoryRegion(

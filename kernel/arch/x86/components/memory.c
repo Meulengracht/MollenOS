@@ -33,7 +33,7 @@
 #include <debug.h>
 #include <heap.h>
 #include <machine.h>
-#include <os/types/dma.h>
+#include <os/types/shm.h>
 #include <string.h>
 
 #if defined(__i386__)
@@ -94,24 +94,24 @@ MmuGetMemoryConfiguration(
 
 
 oserr_t
-ArchGetPageMaskFromDmaType(
+ArchSHMTypeToPageMask(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut)
 {
     switch (dmaType) {
 #if defined(__amd64__)
-        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
+        case SHM_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
 #else
-        case DMA_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
+        case SHM_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 #endif
-        case DMA_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OS_EOK;
-        case DMA_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OS_EOK;
-        case DMA_TYPE_DRIVER_32:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
+        case SHM_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OS_EOK;
+        case SHM_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OS_EOK;
+        case SHM_TYPE_DRIVER_32:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 
 #if defined(__amd64__)
-        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
+        case SHM_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
 #else
-        case DMA_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
+        case SHM_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 #endif
 
         default:
