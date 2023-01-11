@@ -24,18 +24,7 @@
 #ifndef __VALI_IPC_CONTEXT_H__
 #define __VALI_IPC_CONTEXT_H__
 
-#include <os/osdefs.h>
 #include <os/types/ipc.h>
-
-/**
- * IpcContextCreate
- * * 
- */
-KERNELAPI oserr_t KERNELABI
-IpcContextCreate(
-        _In_  size_t  Size,
-        _Out_ uuid_t* HandleOut,
-        _Out_ void**  UserContextOut);
 
 /**
  * @brief

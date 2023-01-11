@@ -25,6 +25,62 @@
 #include <errno.h>
 #include <internal/_syscalls.h>
 #include <os/ipc.h>
+#include <os/shm.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct _IPCContext {
+    SHMHandle_t Handle;
+};
+
+struct _IPCContext*
+__IPCContextNew(
+        _In_ SHMHandle_t* handle)
+{
+    struct _IPCContext* ipcContext;
+
+    ipcContext = malloc(sizeof(struct _IPCContext));
+    if (ipcContext == NULL) {
+        return NULL;
+    }
+    memcpy(&ipcContext->Handle, handle, sizeof(SHMHandle_t));
+
+    streambuffer_construct(
+            handle->Buffer,
+            handle->Length - sizeof(streambuffer_t),
+            STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS
+    );
+    return ipcContext;
+}
+
+oserr_t
+__Create(
+        _In_  const char*          key,
+        _In_  size_t               length,
+        _Out_ struct _IPCContext** ipcContextOut)
+{
+    SHM_t shm = {
+            .Key = key,
+            .Flags = SHM_IPC,
+            .Type = 0,
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+            .Size = length
+    };
+    SHMHandle_t handle;
+    oserr_t     oserr;
+
+    oserr = SHMCreate(&shm, &handle);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    *ipcContextOut = __IPCContextNew(&handle);
+    if (*ipcContextOut == NULL) {
+        (void)SHMDetach(&handle);
+        return OS_EOOM;
+    }
+    return OS_EOK;
+}
 
 oserr_t
 IPCContextCreate(
@@ -33,31 +89,27 @@ IPCContextCreate(
         _Out_ uuid_t*       handleOut,
         _Out_ void**        ipcContextOut)
 {
-    oserr_t         oserr;
-    streambuffer_t* stream;
-    uuid_t          handle;
+    oserr_t             oserr;
+    struct _IPCContext* ipcContext;
+    const char*         key;
 
     TRACE("IPCContextCreate(len=%u, addr=0x" PRIxIN ")", length, address);
-    
+
     if (length == 0 || handleOut == NULL || ipcContextOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    oserr = Syscall_IpcContextCreate(length, &handle, &stream);
+    if (address && address->Type == IPC_ADDRESS_PATH) {
+        key = address->Data.Path;
+    }
+
+    oserr = __Create(key, length, &ipcContext);
     if (oserr != OS_EOK) {
         return oserr;
     }
-    
-    if (address && address->Type == IPC_ADDRESS_PATH) {
-        oserr = OSHandleSetPath(handle, address->Data.Path);
-        if (oserr != OS_EOK) {
-            OSHandleDestroy(handle);
-            return oserr;
-        }
-    }
 
-    *handleOut = handle;
-    *ipcContextOut = stream;
+    *handleOut = ipcContext->Handle.ID;
+    *ipcContextOut = ipcContext;
     return OS_EOK;
 }
 
@@ -82,7 +134,7 @@ IPCContextSend(
     msg.Address      = address;
     msg.Payload      = data;
     msg.Length       = length;
-    return Syscall_IpcContextSend(&msgArray, 1, deadline, asyncContext);
+    return Syscall_IPCSend(&msgArray, 1, deadline, asyncContext);
 }
 
 oserr_t

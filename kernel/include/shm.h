@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,43 +13,31 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Memory Region Interface
- * - Implementation of shared memory buffers between kernel and processes. This
- *   can be used for conveniently transfering memory.
  */
 
-#ifndef __MEMORY_REGION_H__
-#define __MEMORY_REGION_H__
+#ifndef __SHM_H__
+#define __SHM_H__
 
-#include <os/osdefs.h>
-#include <os/types/dma.h>
+#include <os/types/shm.h>
 
 /**
- * Create a new page-aligned memory region that stretches over <Capacity>. The
+ * @brief Create a new page-aligned memory region that stretches over <Capacity>. The
  * entire region is only committed directly to memory for <Length> bytes.
- * @param length        [In]  The number of bytes that should be committed initially.
- * @param capacity      [In]  The number of bytes that we should reserve for continuity.
- * @param flags         [In]  Configuration of the memory region and behaviour.
- * @param pageMask      [In]  The accepted pagemask for any physical pages allocated.
+ * @param shm           [In]  Configuration details of the new shared memory buffer.
  * @param kernelMapping [Out] The allocated virtual buffer address for the kernel mapping.
  * @param userMapping   [Out] The allocated virtual buffer address for the user mapping.
  * @param handleOut     [Out] The global handle for the memory region.
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionCreate(
-        _In_  size_t       length,
-        _In_  size_t       capacity,
-        _In_  unsigned int flags,
-        _In_  size_t       pageMask,
-        _Out_ void**       kernelMapping,
-        _Out_ void**       userMapping,
-        _Out_ uuid_t*      handleOut);
+SHMCreate(
+        _In_  SHM_t*  shm,
+        _Out_ void**  kernelMapping,
+        _Out_ void**  userMapping,
+        _Out_ uuid_t* handleOut);
 
 /**
- * Exports an existing memory region that stretches over <Length>. Makes sure
+ * @brief Exports an existing memory region that stretches over <Length>. Makes sure
  * all the memory from <Memory> to <Memory + Length> is committed.
  * @param memory [In]  The buffer that should be exported.
  * @param size   [In]  Length of the buffer.
@@ -60,25 +46,26 @@ MemoryRegionCreate(
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionCreateExisting(
-        _In_  void*   memory,
-        _In_  size_t  size,
+SHMExport(
+        _In_  void*        memory,
+        _In_  size_t       size,
         _In_  unsigned int flags,
-        _Out_ uuid_t* handleOut);
+        _In_  unsigned int accessFlags,
+        _Out_ uuid_t*      handleOut);
 
 /**
- *
- * @param Handle
- * @param Length
+ * @brief
+ * @param shmID
+ * @param sizeOut
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionAttach(
-        _In_  uuid_t  Handle,
-        _Out_ size_t* Length);
+SHMAttach(
+        _In_ uuid_t  shmID,
+        _In_ size_t* sizeOut);
 
 /**
- *
+ * @brief
  * @param regionHandle
  * @param memoryOut
  * @param sizeOut
@@ -86,11 +73,12 @@ MemoryRegionAttach(
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionInherit(
-        _In_  uuid_t       regionHandle,
-        _Out_ void**       memoryOut,
-        _Out_ size_t*      sizeOut,
-        _In_  unsigned int accessFlags);
+SHMMap(
+        _In_ uuid_t       shmID,
+        _In_ size_t       offset,
+        _In_ size_t       length,
+        _In_ unsigned int flags,
+        _In_ SHMHandle_t* handle);
 
 /**
  *
@@ -99,39 +87,9 @@ MemoryRegionInherit(
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionUnherit(
+SHMUnmap(
         _In_ uuid_t handle,
         _In_ void*  memory);
-
-/**
- * Resizes the committed memory portion of the memory region. This automatically
- * commits any holes in the memory region.
- * @param handle
- * @param memory
- * @param newLength
- * @return Status of the operation
- */
-KERNELAPI oserr_t KERNELABI
-MemoryRegionResize(
-        _In_ uuid_t handle,
-        _In_ void*  memory,
-        _In_ size_t newLength);
-
-/**
- * Refreshes the current memory mapping to align with the memory region.
- * This is neccessary for all users of an memory region that has been resized.
- * @param handle        [In]
- * @param memory        [In]
- * @param currentLength [In]
- * @param newLength     [Out]
- * @return Status of the operation
- */
-KERNELAPI oserr_t KERNELABI
-MemoryRegionRefresh(
-        _In_  uuid_t  handle,
-        _In_  void*   memory,
-        _In_  size_t  currentLength,
-        _Out_ size_t* newLength);
 
 /**
  * Commits a certain area of a memory region.
@@ -142,7 +100,7 @@ MemoryRegionRefresh(
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionCommit(
+SHMCommit(
         _In_ uuid_t handle,
         _In_ void*  memoryBase,
         _In_ void*  memory,
@@ -158,7 +116,7 @@ MemoryRegionCommit(
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionRead(
+SHMRead(
         _In_  uuid_t  Handle,
         _In_  size_t  Offset,
         _In_  void*   Buffer,
@@ -175,7 +133,7 @@ MemoryRegionRead(
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionWrite(
+SHMWrite(
         _In_  uuid_t      Handle,
         _In_  size_t      Offset,
         _In_  const void* Buffer,
@@ -186,14 +144,14 @@ MemoryRegionWrite(
  * Retrieves a scatter gather list of the physical memory blocks for the given memory region.
  * @param handle
  * @param sgCountOut
- * @param sgListOut
+ * @param sgOut
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionGetSg(
+SHMBuildSG(
         _In_  uuid_t   handle,
         _Out_ int*     sgCountOut,
-        _Out_ DMASG_t* sgListOut);
+        _Out_ SHMSG_t* sgOut);
 
 /**
  * Retrieves the kernel memory mapping for a given memory region handle
@@ -202,8 +160,8 @@ MemoryRegionGetSg(
  * @return          The status of the operation.
  */
 KERNELAPI oserr_t KERNELABI
-MemoryRegionGetKernelMapping(
+SHMKernelMapping(
         _In_  uuid_t handle,
         _Out_ void** bufferOut);
 
-#endif //!__MEMORY_REGION_H__
+#endif //!__SHM_H__

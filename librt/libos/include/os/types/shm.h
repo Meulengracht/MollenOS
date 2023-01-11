@@ -34,15 +34,14 @@
  *                 to ensure that the memory region is appropriate for stack use.
  * SHM_DEVICE      will mark the region device memory accessible. This allows for using
  *                 the different types in SHM_TYPE_* to request specifiy memory attributes for
- *                 the underlying physical memory pages. This type of memory also indirectly specifies
- *                 SHM_COMMIT as the underlying pages must be allocated immediately.
+ *                 the underlying physical memory pages. This flag automatically implies that
+ *                 SHM_COMMIT will be set.
  * SHM_PRIVATE     region is intended for private use (private to the process memory space).
  */
 #define SHM_PERSISTANT  0x00000001U
-#define SHM_UNCACHEABLE 0x00000002U
-#define SHM_CLEAN       0x00000004U
-#define SHM_COMMIT      0x00000008U
-#define SHM_PRIVATE     0x00000010U
+#define SHM_CLEAN       0x00000002U
+#define SHM_COMMIT      0x00000004U
+#define SHM_PRIVATE     0x00000008U
 #define SHM_TRAP        0x00000100U
 #define SHM_IPC         0x00000200U
 #define SHM_STACK       0x00000300U
@@ -68,10 +67,10 @@
 #define SHM_ACCESS_COMMIT  0x00000008U
 
 typedef struct SHM {
-    // Name is the global identifier for this buffer. When listing
+    // Key is the global identifier for this buffer. When listing
     // active shared memory buffers on the system, this is the name
     // that is shown.
-    const char* Name;
+    const char* Key;
     // Flags is the buffer capabilities. This describes the functionality
     // and traits of the buffer.
     unsigned int Flags;
@@ -98,8 +97,8 @@ typedef struct SHMHandle {
     // on the first call to SHMAttach.
     size_t Capacity;
     // Buffer is the raw data pointer to a mapped region of memory
-    // representing the buffer. This member is only set when calling
-    // SHMMap.
+    // representing the buffer. This member is set when calling either of
+    // SHMCreate/SHMExport/SHMMap.
     void* Buffer;
     // Offset is the offset into the underlying storage, where the mapping
     // of the buffer starts. This is updated with each call to SHMMap

@@ -29,7 +29,7 @@
 #include <handle_set.h>
 #include <ipc_context.h>
 #include <os/futex.h>
-#include <os/types/dma.h>
+#include <os/types/shm.h>
 #include <os/types/thread.h>
 #include <os/types/memory.h>
 #include <os/types/time.h>
@@ -99,20 +99,17 @@ extern oserr_t ScMemoryProtect(void*, size_t, unsigned int, unsigned int*);
 extern oserr_t ScMemoryQueryAllocation(void*, OSMemoryDescriptor_t*);
 extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
-extern oserr_t ScDmaCreate(DMABuffer_t*, DMAAttachment_t*);
-extern oserr_t ScDmaExport(void*, DMABuffer_t*, DMAAttachment_t*);
-extern oserr_t ScDmaAttach(uuid_t, DMAAttachment_t*);
-extern oserr_t ScDmaAttachmentMap(DMAAttachment_t*, unsigned int);
-extern oserr_t ScDmaAttachmentResize(DMAAttachment_t*, size_t);
-extern oserr_t ScDmaAttachmentRefresh(DMAAttachment_t*);
-extern oserr_t ScDmaAttachmentCommit(DMAAttachment_t*, void*, size_t);
-extern oserr_t ScDmaAttachmentUnmap(DMAAttachment_t*);
-extern oserr_t ScDmaDetach(DMAAttachment_t*);
-extern oserr_t ScDmaGetMetrics(uuid_t, int*, DMASG_t*);
+extern oserr_t ScSHMCreate(SHM_t*, SHMHandle_t*);
+extern oserr_t ScSHMExport(void*, SHM_t*, SHMHandle_t*);
+extern oserr_t ScSHMAttach(uuid_t, SHMHandle_t*);
+extern oserr_t ScSHMMap(SHMHandle_t*, size_t, size_t, unsigned int);
+extern oserr_t ScSHMCommit(SHMHandle_t*, void*, size_t);
+extern oserr_t ScSHMUnmap(SHMHandle_t*);
+extern oserr_t ScSHMDetach(SHMHandle_t*);
+extern oserr_t ScSHMMetrics(uuid_t, int*, SHMSG_t*);
 
 extern oserr_t ScCreateHandle(uuid_t*);
 extern oserr_t ScDestroyHandle(uuid_t Handle);
-extern oserr_t ScRegisterHandlePath(uuid_t, const char*);
 extern oserr_t ScLookupHandle(const char*, uuid_t*);
 extern oserr_t ScSetHandleActivity(uuid_t, unsigned int);
 
@@ -132,7 +129,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 66
+#define SYSTEM_CALL_COUNT 63
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -143,7 +140,7 @@ static struct SystemCallDescriptor {
     int         Index;
     const char* Name;
     uintptr_t   HandlerAddress;
-} SystemCallsTable[SYSTEM_CALL_COUNT] = {
+} g_systemCallsTable[SYSTEM_CALL_COUNT] = {
         ///////////////////////////////////////////////
         // Operating System Interface
         // - Protected, services/modules
@@ -196,48 +193,44 @@ static struct SystemCallDescriptor {
         DefineSyscall(32, ScEventCreate),
 
         // Communication interface
-        DefineSyscall(33, IpcContextCreate),
-        DefineSyscall(34, IpcContextSendMultiple),
+        DefineSyscall(33, IpcContextSendMultiple),
 
         // Memory interface
-        DefineSyscall(35, ScMemoryAllocate),
-        DefineSyscall(36, ScMemoryFree),
-        DefineSyscall(37, ScMemoryProtect),
-        DefineSyscall(38, ScMemoryQueryAllocation),
-        DefineSyscall(39, ScMemoryQueryAttributes),
+        DefineSyscall(34, ScMemoryAllocate),
+        DefineSyscall(35, ScMemoryFree),
+        DefineSyscall(36, ScMemoryProtect),
+        DefineSyscall(37, ScMemoryQueryAllocation),
+        DefineSyscall(38, ScMemoryQueryAttributes),
     
-        DefineSyscall(40, ScDmaCreate),
-        DefineSyscall(41, ScDmaExport),
-        DefineSyscall(42, ScDmaAttach),
-        DefineSyscall(43, ScDmaAttachmentMap),
-        DefineSyscall(44, ScDmaAttachmentResize),
-        DefineSyscall(45, ScDmaAttachmentRefresh),
-        DefineSyscall(46, ScDmaAttachmentCommit),
-        DefineSyscall(47, ScDmaAttachmentUnmap),
-        DefineSyscall(48, ScDmaDetach),
-        DefineSyscall(49, ScDmaGetMetrics),
+        DefineSyscall(39, ScSHMCreate),
+        DefineSyscall(40, ScSHMExport),
+        DefineSyscall(41, ScSHMAttach),
+        DefineSyscall(42, ScSHMMap),
+        DefineSyscall(43, ScSHMCommit),
+        DefineSyscall(44, ScSHMUnmap),
+        DefineSyscall(45, ScSHMDetach),
+        DefineSyscall(46, ScSHMMetrics),
     
-        DefineSyscall(50, ScCreateHandle),
-        DefineSyscall(51, ScDestroyHandle),
-        DefineSyscall(52, ScRegisterHandlePath),
-        DefineSyscall(53, ScLookupHandle),
-        DefineSyscall(54, ScSetHandleActivity),
+        DefineSyscall(47, ScCreateHandle),
+        DefineSyscall(48, ScDestroyHandle),
+        DefineSyscall(49, ScLookupHandle),
+        DefineSyscall(50, ScSetHandleActivity),
 
-        DefineSyscall(55, ScCreateHandleSet),
-        DefineSyscall(56, ScControlHandleSet),
-        DefineSyscall(57, ScListenHandleSet),
+        DefineSyscall(51, ScCreateHandleSet),
+        DefineSyscall(52, ScControlHandleSet),
+        DefineSyscall(53, ScListenHandleSet),
     
         // Misc interface
-        DefineSyscall(58, ScInstallSignalHandler),
-        DefineSyscall(59, ScFlushHardwareCache),
-        DefineSyscall(60, ScSystemQuery),
+        DefineSyscall(54, ScInstallSignalHandler),
+        DefineSyscall(55, ScFlushHardwareCache),
+        DefineSyscall(56, ScSystemQuery),
 
         // Timing interface
-        DefineSyscall(61, ScSystemClockTick),
-        DefineSyscall(62, ScSystemClockFrequency),
-        DefineSyscall(63, ScSystemTime),
-        DefineSyscall(64, ScTimeSleep),
-        DefineSyscall(65, ScTimeStall)
+        DefineSyscall(57, ScSystemClockTick),
+        DefineSyscall(59, ScSystemClockFrequency),
+        DefineSyscall(60, ScSystemTime),
+        DefineSyscall(61, ScTimeSleep),
+        DefineSyscall(62, ScTimeStall)
 };
 
 Context_t*
@@ -254,7 +247,7 @@ SyscallHandle(
         return context;
     }
 
-    handler = &SystemCallsTable[index];
+    handler = &g_systemCallsTable[index];
 
     TRACE("SyscallHandle %s", handler->Name);
     returnValue = ((SystemCallHandlerFn)handler->HandlerAddress)(

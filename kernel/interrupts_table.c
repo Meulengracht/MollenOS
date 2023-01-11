@@ -28,7 +28,7 @@
 #include <ds/streambuffer.h>
 #include <interrupts.h>
 #include <userevent.h>
-#include <memory_region.h>
+#include <shm.h>
 #include <stdarg.h>
 #include <stdio.h>
 
