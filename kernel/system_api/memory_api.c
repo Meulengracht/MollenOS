@@ -400,10 +400,7 @@ oserr_t
 ScSHMUnmap(
     _In_ SHMHandle_t* handle)
 {
-    if (handle == NULL) {
-        return OS_EINVALPARAMS;
-    }
-    return SHMUnmap(handle->ID, handle->Buffer);
+    return SHMUnmap(handle);
 }
 
 oserr_t

@@ -131,6 +131,7 @@ CreateHandle(
     _In_ void*              resource)
 {
     struct resource_handle handle;
+    void*                  existing;
 
     handle.id         = atomic_fetch_add(&g_nextHandleId, 1);
     handle.type       = handleType;
@@ -141,7 +142,8 @@ CreateHandle(
     handle.flags      = 0;
 
     SpinlockAcquireIrq(&g_handlesLock);
-    hashtable_set(&g_handles, &handle);
+    existing = hashtable_set(&g_handles, &handle);
+    assert(existing == NULL);
     SpinlockReleaseIrq(&g_handlesLock);
     return handle.id;
 }

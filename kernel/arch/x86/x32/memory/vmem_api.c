@@ -49,7 +49,7 @@ MmVirtualGetMasterTable(
         _Out_ PageDirectory_t** parentDirectory,
         _Out_ int*              isCurrentOut)
 {
-    PageDirectory_t* directory = (PageDirectory_t*)memorySpace->PlatfromData.Cr3VirtualAddress;
+    PageDirectory_t* directory = (PageDirectory_t*)memorySpace->PlatformData.Cr3VirtualAddress;
     PageDirectory_t* parent    = NULL;
 
     if (!directory) {
@@ -62,7 +62,7 @@ MmVirtualGetMasterTable(
         if (address < MEMORY_LOCATION_RING3_THREAD_START) {
             MemorySpace_t * MemorySpaceParent = (MemorySpace_t*)LookupHandleOfType(
                     memorySpace->ParentHandle, HandleTypeMemorySpace);
-            parent = (PageDirectory_t*)MemorySpaceParent->PlatfromData.Cr3VirtualAddress;
+            parent = (PageDirectory_t*)MemorySpaceParent->PlatformData.Cr3VirtualAddress;
         }
     }
 
@@ -160,7 +160,7 @@ MmVirtualClone(
         _Out_ paddr_t*      cr3Out,
         _Out_ vaddr_t*      pdirOut)
 {
-    PageDirectory_t* kernelDirectory = (PageDirectory_t*)GetDomainMemorySpace()->PlatfromData.Cr3VirtualAddress;
+    PageDirectory_t* kernelDirectory = (PageDirectory_t*)GetDomainMemorySpace()->PlatformData.Cr3VirtualAddress;
     PageDirectory_t* sourceDirectory = NULL;
     PageDirectory_t* pageDirectory;
     paddr_t          pagedirectoryPhysical;
@@ -181,7 +181,7 @@ MmVirtualClone(
 
     // determine parent
     if (source != NULL) {
-        sourceDirectory = (PageDirectory_t*)source->PlatfromData.Cr3VirtualAddress;
+        sourceDirectory = (PageDirectory_t*)source->PlatformData.Cr3VirtualAddress;
     }
 
     // initialize the kernel TLS pagetable as we will need it right away
@@ -232,7 +232,7 @@ oserr_t
 MmuDestroyVirtualSpace(
         _In_ MemorySpace_t* memorySpace)
 {
-    PageDirectory_t* pageDirectory = (PageDirectory_t*)memorySpace->PlatfromData.Cr3VirtualAddress;
+    PageDirectory_t* pageDirectory = (PageDirectory_t*)memorySpace->PlatformData.Cr3VirtualAddress;
     int              i, j;
 
     // Iterate page-mappings
@@ -273,7 +273,7 @@ MmuDestroyVirtualSpace(
 
     // Free the resources allocated specifically for this
     if (memorySpace->ParentHandle == UUID_INVALID) {
-        kfree((void*)memorySpace->PlatfromData.TssIoMap);
+        kfree((void*)memorySpace->PlatformData.TssIoMap);
     }
     return OS_EOK;
 }

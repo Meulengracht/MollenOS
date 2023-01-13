@@ -118,11 +118,11 @@ CreateHandleSet(
         return UUID_INVALID;
     }
 
-    handleId = CreateHandle(HandleTypeSet, DestroyHandleSet, handleSet);
-    if (handleId == UUID_INVALID) {
-        kfree(handleSet);
-        return UUID_INVALID;
-    }
+    handleId = CreateHandle(
+            HandleTypeSet,
+            DestroyHandleSet,
+            handleSet
+    );
 
     // initialize the handle set
     list_construct(&handleSet->events);

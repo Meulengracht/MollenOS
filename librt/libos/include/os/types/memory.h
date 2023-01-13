@@ -42,6 +42,7 @@
 #define MEMORY_DIRTY         0x00000800U                  // Memory is dirty
 
 typedef struct OSMemoryDescriptor {
+    uuid_t       SHMTag;
     uintptr_t    StartAddress;
     uintptr_t    AllocationSize;
     unsigned int Attributes;

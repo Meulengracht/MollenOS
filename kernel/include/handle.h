@@ -31,9 +31,8 @@ typedef enum HandleType {
     HandleTypeGeneric = 0,
     HandleTypeSet,
     HandleTypeMemorySpace,
-    HandleTypeMemoryRegion,
+    HandleTypeSHM,
     HandleTypeThread,
-    HandleTypeIpcContext,
     HandleTypeUserEvent
 } HandleType_t;
 

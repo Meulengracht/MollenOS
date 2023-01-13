@@ -86,7 +86,7 @@ InitializeApplicationJumpSpace(void)
     assert(stackSpace != NULL);
 
     *(codePointer - 1) = entryCode;
-    *(codePointer - 2) = (uint64_t)GetCurrentMemorySpace()->PlatfromData.Cr3PhysicalAddress;
+    *(codePointer - 2) = (uint64_t)GetCurrentMemorySpace()->PlatformData.Cr3PhysicalAddress;
     *(codePointer - 3) = (uint64_t)stackSpace + 0x1000;
     *(codePointer - 4) = 0x1000ULL;
     memcpy((void*)MEMORY_LOCATION_TRAMPOLINE_CODE, (char*)__GlbTramplineCode, __GlbTramplineCode_length);
