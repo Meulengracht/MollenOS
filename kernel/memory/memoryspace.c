@@ -43,6 +43,7 @@
 struct MemorySpaceAllocation {
     element_t                     Header;
     MemorySpace_t*                MemorySpace;
+    uuid_t                        SHMTag;
     vaddr_t                       Address;
     size_t                        Length;
     unsigned int                  Flags;
@@ -254,8 +255,8 @@ CreateMemorySpace(
         // for the new memory space, and then let the Platfrom call correct anything.
         if (GetCurrentMemorySpace() != NULL) {
             memcpy(
-                    &memorySpace->PlatfromData,
-                    &GetCurrentMemorySpace()->PlatfromData,
+                    &memorySpace->PlatformData,
+                    &GetCurrentMemorySpace()->PlatformData,
                     sizeof(PlatformMemoryBlock_t)
             );
         }
@@ -298,7 +299,7 @@ CreateMemorySpace(
                         HandleTypeMemorySpace,
                         NULL
                 );
-                memcpy(&memorySpace->PlatfromData, &parent->PlatfromData, sizeof(PlatformMemoryBlock_t));
+                memcpy(&memorySpace->PlatformData, &parent->PlatformData, sizeof(PlatformMemoryBlock_t));
             }
             else {
                 parent = NULL;
@@ -622,10 +623,10 @@ MemorySpaceMapReserved(
         _In_    unsigned int   memoryFlags,
         _In_    unsigned int   placementFlags)
 {
-    int        pageCount = DIVUP(size, GetMemorySpacePageSize());
-    int        pagesReserved;
-    vaddr_t    virtualBase;
-    oserr_t osStatus;
+    int     pageCount = DIVUP(size, GetMemorySpacePageSize());
+    int     pagesReserved;
+    vaddr_t virtualBase;
+    oserr_t oserr;
     
     TRACE("[memory_map_reserve] %u, 0x%x, 0x%x", LODWORD(size), memoryFlags, placementFlags);
 
@@ -643,13 +644,13 @@ MemorySpaceMapReserved(
         return OS_EINVALPARAMS;
     }
 
-    osStatus = ArchMmuReserveVirtualPages(memorySpace, virtualBase, pageCount, memoryFlags, &pagesReserved);
-    if (osStatus != OS_EOK) {
+    oserr = ArchMmuReserveVirtualPages(memorySpace, virtualBase, pageCount, memoryFlags, &pagesReserved);
+    if (oserr != OS_EOK) {
         // Handle cleanup of the pages not mapped
         // TODO
         ERROR("[memory_map_reserve] implement cleanup");
     }
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -972,7 +973,7 @@ MemorySpaceUnmap(
         _In_ vaddr_t        address,
         _In_ size_t         size)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
     TRACE("MemorySpaceUnmap(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
 
@@ -980,8 +981,8 @@ MemorySpaceUnmap(
         return OS_EINVALPARAMS;
     }
 
-    osStatus = __ReleaseAllocation(memorySpace, address, size);
-    if (osStatus != OS_EOK) {
+    oserr = __ReleaseAllocation(memorySpace, address, size);
+    if (oserr != OS_EOK) {
         goto exit;
     }
 
@@ -995,8 +996,8 @@ MemorySpaceUnmap(
     }
 
 exit:
-    TRACE("MemorySpaceUnmap returns=%u", osStatus);
-    return osStatus;
+    TRACE("MemorySpaceUnmap returns=%u", oserr);
+    return oserr;
 }
 
 oserr_t
@@ -1007,22 +1008,27 @@ MemorySpaceChangeProtection(
         _In_    unsigned int   attributes,
         _Out_   unsigned int*  previousAttributes)
 {
-    int        pageCount = DIVUP((length + (address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
-    int        pagesUpdated;
-    oserr_t osStatus;
+    int     pageCount = DIVUP((length + (address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
+    int     pagesUpdated;
+    oserr_t oserr;
 
     if (!memorySpace || !length || !previousAttributes) {
         return OS_EINVALPARAMS;
     }
 
     *previousAttributes = attributes;
-    osStatus = ArchMmuUpdatePageAttributes(memorySpace, address, pageCount,
-                                           previousAttributes, &pagesUpdated);
-    if (osStatus != OS_EOK && osStatus != OS_EINCOMPLETE) {
-        return osStatus;
+    oserr = ArchMmuUpdatePageAttributes(
+            memorySpace,
+            address,
+            pageCount,
+            previousAttributes,
+            &pagesUpdated
+    );
+    if (oserr != OS_EOK && oserr != OS_EINCOMPLETE) {
+        return oserr;
     }
     __SyncMemoryRegion(memorySpace, address, length);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -1045,7 +1051,14 @@ MemorySpaceQuery(
         return OS_ENOENT;
     }
 
+    // If guard page was set, then adjust the start address, so we don't
+    // promise the callers of this that the guard page is actually available.
     descriptor->StartAddress = allocation->Address;
+    if (allocation->Flags & MAPPING_GUARDPAGE) {
+        descriptor->StartAddress += GetMemorySpacePageSize();
+    }
+
+    descriptor->SHMTag = allocation->SHMTag;
     descriptor->AllocationSize = allocation->Length;
     descriptor->Attributes = allocation->Flags;
     return OS_EOK;

@@ -87,8 +87,7 @@ SHMMap(
  */
 KERNELAPI oserr_t KERNELABI
 SHMUnmap(
-        _In_ uuid_t handle,
-        _In_ void*  memory);
+        _In_ SHMHandle_t* handle);
 
 /**
  * Commits a certain area of a memory region.
@@ -116,28 +115,28 @@ SHMCommit(
  */
 KERNELAPI oserr_t KERNELABI
 SHMRead(
-        _In_  uuid_t  Handle,
-        _In_  size_t  Offset,
-        _In_  void*   Buffer,
-        _In_  size_t  Length,
-        _Out_ size_t* BytesRead);
+        _In_  uuid_t  handle,
+        _In_  size_t  offset,
+        _In_  void*   buffer,
+        _In_  size_t  length,
+        _Out_ size_t* bytesReadOut);
 
 /**
  * Performs a DMA write to the memory region
- * @param Handle
- * @param Offset
- * @param Buffer
- * @param Length
- * @param BytesWritten
+ * @param handle
+ * @param offset
+ * @param buffer
+ * @param length
+ * @param bytesWrittenOut
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
 SHMWrite(
-        _In_  uuid_t      Handle,
-        _In_  size_t      Offset,
-        _In_  const void* Buffer,
-        _In_  size_t      Length,
-        _Out_ size_t*     BytesWritten);
+        _In_  uuid_t      handle,
+        _In_  size_t      offset,
+        _In_  const void* buffer,
+        _In_  size_t      length,
+        _Out_ size_t*     bytesWrittenOut);
 
 /**
  * Retrieves a scatter gather list of the physical memory blocks for the given memory region.

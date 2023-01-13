@@ -179,12 +179,11 @@ ThreadFork(
         return oserr;
     }
 
-    // Create new resources for some things
-    thread->Handle = CreateHandle(HandleTypeThread, __DestroyThread, thread);
-    if (thread->Handle == UUID_INVALID) {
-        __DestroyThread(thread);
-        return OS_EOOM;
-    }
+    thread->Handle = CreateHandle(
+            HandleTypeThread,
+            __DestroyThread,
+            thread
+    );
 
     oserr = streambuffer_create(
             sizeof(ThreadSignal_t) * THREADING_MAX_QUEUED_SIGNALS,

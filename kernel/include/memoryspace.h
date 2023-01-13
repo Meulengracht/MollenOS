@@ -64,6 +64,7 @@ DECL_STRUCT(PlatformMemoryMapping);
 #define MAPPING_LOWFIRST                0x00000100U  // Memory resources should be allocated by low-addresses first
 #define MAPPING_GUARDPAGE               0x00000200U  // Memory resource is a stack and needs a guard page
 #define MAPPING_TRAPPAGE                0x00000400U  // Memory pages should trigger a trpap
+#define MAPPING_CLEAN                   0x00000800U
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 
@@ -83,7 +84,7 @@ typedef struct MemorySpace {
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;
     MemorySpaceContext_t* Context;
-    PlatformMemoryBlock_t PlatfromData;
+    PlatformMemoryBlock_t PlatformData;
 } MemorySpace_t;
 
 /**
@@ -138,6 +139,16 @@ KERNELAPI oserr_t KERNELABI
 AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2);
+
+struct MemorySpaceMapParams {
+     uuid_t   SHMTag;
+     vaddr_t* Mapping;
+     paddr_t* PagesOrPhysicalStart;
+     size_t   Length;
+     size_t   Mask;
+     unsigned int Flags;
+     unsigned int PlacementFlags;
+};
 
 /**
  * @brief Creates a new virtual to physical memory mapping.

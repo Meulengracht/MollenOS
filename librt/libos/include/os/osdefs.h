@@ -97,6 +97,7 @@ typedef enum oserr {
     OS_EINPROGRESS,         // Operation was in progress
     OS_ESCSTARTED,          // Syscall has been started
     OS_EFORKED,             // Thread is now running in forked context
+    OS_EOVERFLOW,           // Stack has overflown
 
     OS_ENOTDIR,             // Path is not a directory
     OS_EISDIR,              // Path is a directory

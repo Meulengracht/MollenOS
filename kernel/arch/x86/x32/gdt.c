@@ -128,8 +128,8 @@ TssInitialize(
 
     // The core might be missing the io-map, so update it now
     memorySpace = GetCurrentMemorySpace();
-    if (memorySpace && !memorySpace->PlatfromData.TssIoMap) {
-        memorySpace->PlatfromData.TssIoMap = &tssDescriptor->IoMap[0];
+    if (memorySpace && !memorySpace->PlatformData.TssIoMap) {
+        memorySpace->PlatformData.TssIoMap = &tssDescriptor->IoMap[0];
     }
 
 	// Install TSS into table and hardware

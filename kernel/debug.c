@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS Debugging Interface
- * - Contains the shared kernel debugging interface and tools
- *   available for tracing and debugging
  */
 
 #define __MODULE "DBGI"
@@ -28,7 +23,9 @@
 #include <debug.h>
 #include <memoryspace.h>
 #include <machine.h>
+#include <shm.h>
 #include <stdio.h>
+#include <string.h>
 
 oserr_t
 DebugSingleStep(
@@ -53,44 +50,66 @@ DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address)
 {
-    OSMemoryDescriptor_t descriptor;
+    OSMemoryDescriptor_t descriptor  = { 0 };
     MemorySpace_t*       memorySpace = GetCurrentMemorySpace();
+    size_t               pageSize    = GetMemorySpacePageSize();
     uintptr_t            physicalAddress;
-    oserr_t              osStatus;
+    oserr_t              oserr;
     TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
 
     // get information about the allocation
-    osStatus = MemorySpaceQuery(memorySpace, address, &descriptor);
-    if (osStatus == OS_EOK) {
+    oserr = MemorySpaceQuery(memorySpace, address, &descriptor);
+    if (oserr == OS_EOK) {
         // userspace allocation, perform additional checks.
         // 1) Was a guard page hit?
-        // 2) Should the exception be propegated (i.e. memory handlers)
+        // 2) Should the exception be propegated (i.e. memory handlers) instead
+        //    of handled here? Return an error in this case.
         if (descriptor.Attributes & MAPPING_GUARDPAGE) {
-            // detect stack overflow
-        }
-        if (descriptor.Attributes & MAPPING_TRAPPAGE) {
+            // Detect stack overflow. If the guard page was hit, we've exceeded
+            // allocation size set in descriptor.AllocationSize. If the guard page
+            // was hit, we've beyound bounds.
+            if (address < descriptor.StartAddress) {
+                oserr = OS_EOVERFLOW;
+                goto exit;
+            }
+        } else if (descriptor.Attributes & MAPPING_TRAPPAGE) {
             TRACE("DebugPageFault trappage hit 0x%" PRIxIN, address);
-            osStatus = OS_EUNKNOWN; // return error
+            oserr = OS_EUNKNOWN; // return error
             goto exit;
         }
     }
 
     // Otherwise, commit the page and continue without anyone noticing, and handle race-conditions
     // if two different threads have accessed a reserved page. OsExists will be returned.
-    osStatus = MemorySpaceCommit(
-            memorySpace,
-            address,
-            &physicalAddress,
-            GetMemorySpacePageSize(),
-            0,
-            0
-    );
-    if (osStatus == OS_EEXISTS) {
-        osStatus = OS_EOK;
+    if (descriptor.SHMTag != UUID_INVALID) {
+        oserr = SHMCommit(
+                descriptor.SHMTag,
+                (void*)descriptor.StartAddress,
+                (void*)address,
+                pageSize
+        );
+    } else {
+        oserr = MemorySpaceCommit(
+                memorySpace,
+                address,
+                &physicalAddress,
+                pageSize,
+                0,
+                0
+        );
+    }
+    if (oserr == OS_EOK) {
+        // If the mapping has the attribute CLEAN, then we zero each
+        // allocated page.
+        if (descriptor.Attributes & MAPPING_CLEAN) {
+            memset((void*)(address & (pageSize - 1)), 0, pageSize);
+        }
+    } else if (oserr == OS_EEXISTS) {
+        oserr = OS_EOK;
     }
 
 exit:
-    return osStatus;
+    return oserr;
 }
 
 static oserr_t
@@ -98,19 +117,29 @@ DebugHaltAllProcessorCores(
         _In_ uuid_t         ExcludeId,
         _In_ SystemCpu_t*   Processor)
 {
-    SystemCpuCore_t* Iter;
-    
-    Iter = Processor->Cores;
-    while (Iter) {
-        if (CpuCoreId(Iter) == ExcludeId) {
-            Iter = CpuCoreNext(Iter);
+    SystemCpuCore_t* i;
+
+    i = Processor->Cores;
+    while (i) {
+        uuid_t coreID = CpuCoreId(i);
+        if (coreID == ExcludeId) {
+            i = CpuCoreNext(i);
             continue;
         }
         
-        if (CpuCoreState(Iter) & CpuStateRunning) {
-            TxuMessageSend(CpuCoreId(Iter), CpuFunctionHalt, NULL, NULL, 1);
+        if (CpuCoreState(i) & CpuStateRunning) {
+            oserr_t oserr = TxuMessageSend(
+                    coreID,
+                    CpuFunctionHalt,
+                    NULL,
+                    NULL,
+                    1
+            );
+            if (oserr != OS_EOK) {
+                WARNING("DebugHaltAllProcessorCores failed to halt core %u", coreID);
+            }
         }
-        Iter = CpuCoreNext(Iter);
+        i = CpuCoreNext(i);
     }
     return OS_EOK;
 }
@@ -124,21 +153,21 @@ DebugPanic(
     Thread_t* currentThread;
     char      messageBuffer[256];
     va_list   arguments;
-    uuid_t    coreId;
+    uuid_t    coreID;
 
     ERROR("DebugPanic(Scope %" PRIiIN ")", FatalityScope);
 
     // Disable all other cores in system if the fault is kernel scope
-    coreId = ArchGetProcessorCoreId();
+    coreID = ArchGetProcessorCoreId();
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
         if (list_count(&GetMachine()->SystemDomains) != 0) {
             foreach(i, &GetMachine()->SystemDomains) {
                 SystemDomain_t* Domain = (SystemDomain_t*)i->value;
-                DebugHaltAllProcessorCores(coreId, &Domain->CoreGroup);
+                DebugHaltAllProcessorCores(coreID, &Domain->CoreGroup);
             }
         }
         else {
-            DebugHaltAllProcessorCores(coreId, &GetMachine()->Processor);
+            DebugHaltAllProcessorCores(coreID, &GetMachine()->Processor);
         }
     }
 
@@ -150,10 +179,10 @@ DebugPanic(
     LogAppendMessage(LOG_ERROR, &messageBuffer[0]);
     
     // Log cpu and threads
-    currentThread = ThreadCurrentForCore(coreId);
+    currentThread = ThreadCurrentForCore(coreID);
     if (currentThread != NULL) {
         LogAppendMessage(LOG_ERROR, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-                         ThreadName(currentThread), ThreadHandle(currentThread), coreId);
+                         ThreadName(currentThread), ThreadHandle(currentThread), coreID);
     }
     
     if (Context) {
@@ -185,42 +214,40 @@ DebugStackTrace(
     _In_ size_t     maxFrames)
 {
     // Derive stack pointer from the argument
-    uintptr_t* StackPtr;
-    uintptr_t  StackLmt;
-    uintptr_t  PageMask = ~(GetMemorySpacePageSize() - 1);
-    size_t     Itr      = maxFrames;
+    uintptr_t* stackPtr;
+    uintptr_t  stackTop;
+    uintptr_t  pageMask = ~(GetMemorySpacePageSize() - 1);
+    size_t     i        = maxFrames;
 
     // Use local or given?
     if (context == NULL) {
-        StackPtr = (uintptr_t*)&maxFrames;
-        StackLmt = ((uintptr_t)StackPtr & PageMask) + GetMemorySpacePageSize();
-    }
-    else if (IS_USER_STACK(&GetMachine()->MemoryMap, CONTEXT_USERSP(context))) {
-        StackPtr = (uintptr_t*)CONTEXT_USERSP(context);
-        StackLmt = (CONTEXT_USERSP(context) & PageMask) + GetMemorySpacePageSize();
-    }
-    else {
-        StackPtr = (uintptr_t*)CONTEXT_SP(context);
-        StackLmt = (CONTEXT_SP(context) & PageMask) + GetMemorySpacePageSize();
+        stackPtr = (uintptr_t*)&maxFrames;
+        stackTop = ((uintptr_t)stackPtr & pageMask) + GetMemorySpacePageSize();
+    } else if (IS_USER_STACK(&GetMachine()->MemoryMap, CONTEXT_USERSP(context))) {
+        stackPtr = (uintptr_t*)CONTEXT_USERSP(context);
+        stackTop = (CONTEXT_USERSP(context) & pageMask) + GetMemorySpacePageSize();
+    } else {
+        stackPtr = (uintptr_t*)CONTEXT_SP(context);
+        stackTop = (CONTEXT_SP(context) & pageMask) + GetMemorySpacePageSize();
     }
 
-    while (Itr && (uintptr_t)StackPtr < StackLmt) {
-        uintptr_t Value = StackPtr[0];
+    while (i && (uintptr_t)stackPtr < stackTop) {
+        uintptr_t value = stackPtr[0];
 
         // Check for userspace code address
-        if (Value >= GetMachine()->MemoryMap.UserCode.Start && 
-            Value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
+        if (value >= GetMachine()->MemoryMap.UserCode.Start &&
+            value < (GetMachine()->MemoryMap.UserCode.Start + GetMachine()->MemoryMap.UserCode.Length) &&
             context != NULL) {
-            DEBUG("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
-            Itr--;
+            DEBUG("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - i, value);
+            i--;
         }
 
         // Check for kernelspace code address
-        if (Value >= 0x100000 && Value < 0x200000 && context == NULL) {
-            DEBUG("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - Itr, Value);
-            Itr--;
+        if (value >= 0x100000 && value < 0x200000 && context == NULL) {
+            DEBUG("%" PRIuIN " - 0x%" PRIxIN "", maxFrames - i, value);
+            i--;
         }
-        StackPtr++;
+        stackPtr++;
     }
     return OS_EOK;
 }

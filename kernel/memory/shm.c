@@ -39,294 +39,6 @@ typedef struct MemoryRegion {
     uintptr_t    Pages[];
 } MemoryRegion_t;
 
-static oserr_t __CreateUserMapping(
-        _In_ MemoryRegion_t* region,
-        _In_ MemorySpace_t*  memorySpace,
-        _In_ uintptr_t*      allocatedMapping,
-        _In_ unsigned int    accessFlags)
-{
-    // This is more tricky, for the calling process we must make a new
-    // mapping that spans the entire Capacity, but is uncommitted, and then commit
-    // the Length of it.
-    unsigned int requiredFlags = MAPPING_USERSPACE | MAPPING_PERSISTENT;
-    oserr_t   status = MemorySpaceMapReserved(
-            memorySpace,
-            (vaddr_t*)allocatedMapping, region->Capacity,
-            requiredFlags | region->Flags | accessFlags,
-            MAPPING_VIRTUAL_PROCESS);
-    if (status != OS_EOK) {
-        return status;
-    }
-    
-    // Now commit <Length> in pages, reuse the mappings from the kernel
-    if (region->Length) {
-        vaddr_t address = *allocatedMapping;
-        for (int i = 0; i < region->PageCount; i++, address += GetMemorySpacePageSize()) {
-            if (region->Pages[i]) {
-                status = MemorySpaceCommit(memorySpace, address,
-                                           &region->Pages[i],
-                                           GetMemorySpacePageSize(),
-                                           region->PageMask,
-                                           MAPPING_PHYSICAL_FIXED);
-            }
-        }
-    }
-    return status;
-}
-
-static oserr_t __CreateKernelMapping(
-        _In_ MemoryRegion_t* region,
-        _In_ MemorySpace_t*  memorySpace)
-{
-    oserr_t status = MemorySpaceMapReserved(
-            memorySpace,
-            (vaddr_t*)&region->KernelMapping, region->Capacity,
-            region->Flags, MAPPING_VIRTUAL_GLOBAL);
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    if (region->Length) {
-        status = MemorySpaceCommit(
-                memorySpace, (vaddr_t)region->KernelMapping,
-                &region->Pages[0], region->Length,
-                region->PageMask, 0);
-    }
-    return status;
-}
-
-static oserr_t __CreateKernelMappingFromExisting(
-        _In_ MemoryRegion_t* region,
-        _In_ MemorySpace_t*  memorySpace,
-        _In_ uintptr_t       userAddress)
-{
-    oserr_t status = GetMemorySpaceMapping(
-            memorySpace, (uintptr_t)userAddress,
-            region->PageCount, &region->Pages[0]);
-    if (status != OS_EOK) {
-        return status;
-    }
-
-    status = MemorySpaceMap(
-            memorySpace,
-            (uintptr_t*)&region->KernelMapping,
-            &region->Pages[0],
-            region->Length,
-            region->PageMask,
-            region->Flags,
-            MAPPING_VIRTUAL_GLOBAL
-    );
-    return status;
-}
-
-static void
-MemoryRegionDestroy(
-    _In_ void* resource)
-{
-    MemoryRegion_t* region = (MemoryRegion_t*)resource;
-    if (region->KernelMapping) {
-        MemorySpaceUnmap(GetCurrentMemorySpace(), region->KernelMapping, region->Capacity);
-    }
-    kfree(region);
-}
-
-oserr_t
-MemoryRegionCreate(
-        _In_  size_t       length,
-        _In_  size_t       capacity,
-        _In_  unsigned int flags,
-        _In_  size_t       pageMask,
-        _Out_ void**       kernelMapping,
-        _Out_ void**       userMapping,
-        _Out_ uuid_t*      handleOut)
-{
-    MemoryRegion_t* memoryRegion;
-    oserr_t         osStatus;
-    int             pageCount;
-
-    // Capacity is the expected maximum size of the region. Regions
-    // are resizable, but to ensure that enough continious space is
-    // allocated we must do it like this. Otherwise, one must create a new.
-    pageCount    = DIVUP(capacity, GetMemorySpacePageSize());
-    memoryRegion = (MemoryRegion_t*)kmalloc(
-        sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
-    if (!memoryRegion) {
-        return OS_EOOM;
-    }
-    
-    memset(memoryRegion, 0, sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
-    MutexConstruct(&memoryRegion->SyncObject, MUTEX_FLAG_PLAIN);
-    memoryRegion->Flags     = flags;
-    memoryRegion->Length    = length;
-    memoryRegion->Capacity  = capacity;
-    memoryRegion->PageCount = pageCount;
-    memoryRegion->PageMask  = pageMask;
-
-    osStatus = __CreateKernelMapping(memoryRegion, GetCurrentMemorySpace());
-    if (osStatus != OS_EOK) {
-        ERROR("[shared_region] [create] __CreateKernelMapping failed with %u", osStatus);
-        goto ErrorHandler;
-    }
-
-    osStatus = __CreateUserMapping(memoryRegion, GetCurrentMemorySpace(), (uintptr_t*) userMapping, 0);
-    if (osStatus != OS_EOK) {
-        ERROR("[shared_region] [create] __CreateUserMapping failed with %u", osStatus);
-        goto ErrorHandler;
-    }
-    
-    *kernelMapping = (void*)memoryRegion->KernelMapping;
-    *handleOut     = CreateHandle(
-            HandleTypeMemoryRegion,
-            MemoryRegionDestroy,
-            memoryRegion
-    );
-    return osStatus;
-    
-ErrorHandler:
-    MemoryRegionDestroy(memoryRegion);
-    return osStatus;
-}
-
-oserr_t
-MemoryRegionCreateExisting(
-        _In_  void*        memory,
-        _In_  size_t       size,
-        _In_  unsigned int flags,
-        _Out_ uuid_t*      handleOut)
-{
-    MemoryRegion_t* region;
-    oserr_t         osStatus;
-    int             pageCount;
-    size_t          capacityWithOffset;
-
-    if (!memory || !size || !handleOut) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Capacity is the expected maximum size of the region. Regions
-    // are resizable, but to ensure that enough continious space is
-    // allocated we must do it like this. Otherwise, one must create a new.
-    capacityWithOffset = size + ((uintptr_t)memory % GetMemorySpacePageSize());
-    pageCount          = DIVUP(capacityWithOffset, GetMemorySpacePageSize());
-
-    region = (MemoryRegion_t*)kmalloc(sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
-    if (!region) {
-        return OS_EOOM;
-    }
-    
-    memset(region, 0, sizeof(MemoryRegion_t) + (sizeof(uintptr_t) * pageCount));
-    MutexConstruct(&region->SyncObject, MUTEX_FLAG_PLAIN);
-    region->Flags     = flags;
-    region->Length    = capacityWithOffset;
-    region->Capacity  = capacityWithOffset;
-    region->PageCount = pageCount;
-    region->PageMask  = __MASK;    // not relevant on exported regions
-
-    osStatus = __CreateKernelMappingFromExisting(region, GetCurrentMemorySpace(), (uintptr_t) memory);
-    if (osStatus != OS_EOK) {
-        ERROR("[shared_region] [create_existing] __CreateKernelMappingFromExisting failed with %u", osStatus);
-        goto ErrorHandler;
-    }
-    
-    *handleOut = CreateHandle(HandleTypeMemoryRegion, MemoryRegionDestroy, region);
-    return osStatus;
-    
-ErrorHandler:
-    MemoryRegionDestroy(region);
-    return osStatus;
-}
-
-oserr_t
-MemoryRegionAttach(
-        _In_  uuid_t  Handle,
-        _Out_ size_t* Length)
-{
-    MemoryRegion_t* region;
-    oserr_t         oserr;
-
-    oserr = AcquireHandleOfType(
-            Handle,
-            HandleTypeMemoryRegion,
-            (void**)&region
-    );
-    if (oserr != OS_EOK) {
-        ERROR("MemoryRegionAttach handle %u was invalid", Handle);
-        return OS_ENOENT;
-    }
-    
-    *Length = region->Length;
-    return OS_EOK;
-}
-
-oserr_t
-MemoryRegionInherit(
-        _In_  uuid_t       regionHandle,
-        _Out_ void**       memoryOut,
-        _Out_ size_t*      sizeOut,
-        _In_  unsigned int accessFlags)
-{
-    MemoryRegion_t* region;
-    oserr_t      osStatus;
-    uintptr_t       offset;
-    uintptr_t       address;
-    size_t          size;
-    TRACE("MemoryRegionInherit(0x%x)", regionHandle);
-    
-    if (!memoryOut) {
-        return OS_EINVALPARAMS;
-    }
-
-    region = (MemoryRegion_t*)LookupHandleOfType(regionHandle, HandleTypeMemoryRegion);
-    if (!region) {
-        return OS_ENOENT;
-    }
-    
-    MutexLock(&region->SyncObject);
-    // This is more tricky, for the calling process we must make a new
-    // mapping that spans the entire Capacity, but is uncommitted, and then commit
-    // the Length of it.
-    offset   = (region->Pages[0] % GetMemorySpacePageSize());
-    size     = region->Length;
-    osStatus = __CreateUserMapping(region, GetCurrentMemorySpace(), &address, accessFlags);
-    MutexUnlock(&region->SyncObject);
-    
-    if (osStatus != OS_EOK) {
-        ERROR("[shared_region] [create] __CreateUserMapping failed with %u", osStatus);
-        return osStatus;
-    }
-    
-    *memoryOut = (void*)(address + offset);
-    *sizeOut   = size;
-    return osStatus;
-}
-
-oserr_t
-MemoryRegionUnherit(
-        _In_ uuid_t handle,
-        _In_ void*  memory)
-{
-    MemoryRegion_t* memoryRegion;
-    uintptr_t       address;
-    uintptr_t       offset;
-    TRACE("MemoryRegionUnherit(0x%x)", handle);
-    
-    if (!memory) {
-        return OS_EINVALPARAMS;
-    }
-
-    memoryRegion = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
-    if (!memoryRegion) {
-        return OS_ENOENT;
-    }
-
-    address = (uintptr_t)memory;
-    offset  = address % GetMemorySpacePageSize();
-    address -= offset;
-    
-    TRACE("... free vmem mappings of length 0x%x", LODWORD(memoryRegion->Capacity));
-    return MemorySpaceUnmap(GetCurrentMemorySpace(), address, memoryRegion->Capacity);
-}
-
 static oserr_t __FillInMemoryRegion(
         _In_ MemoryRegion_t* memoryRegion,
         _In_ uintptr_t       userStart,
@@ -427,7 +139,7 @@ MemoryRegionResize(
     oserr_t      osStatus;
     
     // Lookup region
-    memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
+    memoryRegion = LookupHandleOfType(handle, HandleTypeSHM);
     if (!memoryRegion) {
         return OS_ENOENT;
     }
@@ -502,7 +214,7 @@ MemoryRegionRefresh(
     oserr_t      osStatus;
     
     // Lookup region
-    memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
+    memoryRegion = LookupHandleOfType(handle, HandleTypeSHM);
     if (!memoryRegion) {
         return OS_ENOENT;
     }
@@ -549,201 +261,28 @@ exit:
     return osStatus;
 }
 
-oserr_t
-MemoryRegionCommit(
-        _In_ uuid_t handle,
-        _In_ void*  memoryBase,
-        _In_ void*  memory,
-        _In_ size_t length)
-{
-    MemoryRegion_t* memoryRegion;
-    oserr_t      osStatus;
-    uintptr_t       userAddress = (uintptr_t)memory;
-    uintptr_t       kernelAddress;
-    int             limit;
-    int             i;
-
-    // Lookup region
-    memoryRegion = LookupHandleOfType(handle, HandleTypeMemoryRegion);
-    if (!memoryRegion) {
-        return OS_ENOENT;
-    }
-
-    i     = DIVUP((uintptr_t)memoryBase - userAddress, GetMemorySpacePageSize());
-    limit = i + (int)(DIVUP(length, GetMemorySpacePageSize()));
-    kernelAddress = memoryRegion->KernelMapping;
-
-    MutexLock(&memoryRegion->SyncObject);
-    for (; i < limit; i++, kernelAddress += GetMemorySpacePageSize(), userAddress += GetMemorySpacePageSize()) {
-        if (!memoryRegion->Pages[i]) {
-            // handle kernel mapping first
-            osStatus = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    kernelAddress,
-                    &memoryRegion->Pages[i],
-                    GetMemorySpacePageSize(),
-                    memoryRegion->PageMask,
-                    0
-            );
-            if (osStatus != OS_EOK) {
-                ERROR("MemoryRegionCommit failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
-                break;
-            }
-
-            // then user mapping
-            osStatus = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    userAddress,
-                    &memoryRegion->Pages[i],
-                    GetMemorySpacePageSize(),
-                    memoryRegion->PageMask,
-                    MAPPING_PHYSICAL_FIXED
-            );
-            if (osStatus != OS_EOK) {
-                ERROR("MemoryRegionCommit failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
-                break;
-            }
-        }
-    }
-
-    MutexUnlock(&memoryRegion->SyncObject);
-    return osStatus;
-}
-
-oserr_t
-MemoryRegionRead(
-        _In_  uuid_t  Handle,
-        _In_  size_t  Offset,
-        _In_  void*   Buffer,
-        _In_  size_t  Length,
-        _Out_ size_t* BytesRead)
-{
-    MemoryRegion_t* Region;
-    size_t          ClampedLength;
-    
-    if (!Buffer || !Length) {
-        return OS_EINVALPARAMS;
-    }
-    
-    Region = (MemoryRegion_t*)LookupHandleOfType(Handle, HandleTypeMemoryRegion);
-    if (!Region) {
-        return OS_ENOENT;
-    }
-    
-    if (Offset >= Region->Length) {
-        return OS_EINVALPARAMS;
-    }
-    
-    ClampedLength = MIN(Region->Length - Offset, Length);
-    ReadVolatileMemory((const volatile void*)(Region->KernelMapping + Offset),
-        (volatile void*)Buffer, ClampedLength);
-    
-    *BytesRead = ClampedLength;
-    return OS_EOK;
-}
-
-oserr_t
-MemoryRegionWrite(
-        _In_  uuid_t      Handle,
-        _In_  size_t      Offset,
-        _In_  const void* Buffer,
-        _In_  size_t      Length,
-        _Out_ size_t*     BytesWritten)
-{
-    MemoryRegion_t* Region;
-    size_t          ClampedLength;
-    
-    if (!Buffer || !Length) {
-        return OS_EINVALPARAMS;
-    }
-    
-    Region = (MemoryRegion_t*)LookupHandleOfType(Handle, HandleTypeMemoryRegion);
-    if (!Region) {
-        return OS_ENOENT;
-    }
-    
-    if (Offset >= Region->Length) {
-        return OS_EINVALPARAMS;
-    }
-    
-    ClampedLength = MIN(Region->Length - Offset, Length);
-    WriteVolatileMemory((volatile void*)(Region->KernelMapping + Offset),
-        (void*)Buffer, ClampedLength);
-    
-    *BytesWritten = ClampedLength;
-    return OS_EOK;
-}
-
-#define SG_IS_SAME_REGION(memory_region, idx, idx2, pageSize) \
-    (((memory_region)->Pages[idx] + (pageSize) == (memory_region)->Pages[idx2]) || \
-     ((memory_region)->Pages[idx] == 0 && (memory_region)->Pages[idx2] == 0))
-
-oserr_t
-MemoryRegionGetSg(
-        _In_  uuid_t   handle,
-        _Out_ int*     sgCountOut,
-        _Out_ DMASG_t* sgListOut)
-{
-    MemoryRegion_t* memoryRegion;
-    size_t          pageSize = GetMemorySpacePageSize();
-    
-    if (!sgCountOut) {
-        return OS_EINVALPARAMS;
-    }
-
-    memoryRegion = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
-    if (!memoryRegion) {
-        return OS_ENOENT;
-    }
-    
-    // Requested count of the scatter-gather units, so count
-    // how many entries it would take to fill a list
-    // Assume that if both pointers are supplied we are trying to fill
-    // the list with the requested amount, and thus skip this step.
-    if (!sgListOut) {
-        int sgCount = 0;
-        for (int i = 0; i < memoryRegion->PageCount; i++) {
-            if (i == 0 || !SG_IS_SAME_REGION(memoryRegion, i - 1, i, pageSize)) {
-                sgCount++;
-            }
-        }
-        *sgCountOut = sgCount;
-    }
-    
-    // In order to get the list both counters must be filled
-    if (sgListOut) {
-        int sgCount = *sgCountOut;
-        for (int i = 0, j = 0; (i < sgCount) && (j < memoryRegion->PageCount); i++) {
-            DMASG_t* sg = &sgListOut[i];
-
-            sg->address = memoryRegion->Pages[j++];
-            sg->length  = pageSize;
-            
-            while ((j < memoryRegion->PageCount) && SG_IS_SAME_REGION(memoryRegion, j - 1, j, pageSize)) {
-                sg->length += pageSize;
-                j++;
-            }
-        }
-        
-        // Adjust the initial sg entry for offset
-        sgListOut[0].length -= sgListOut[0].address % pageSize;
-    }
-    return OS_EOK;
-}
-
 struct SHMBuffer {
-    Mutex_t      SyncObject;
-    uintptr_t    KernelMapping;
+    uuid_t       ID;
+    Mutex_t      Mutex;
+    vaddr_t      KernelMapping;
     size_t       Length;
     size_t       PageMask;
     unsigned int Flags;
     int          PageCount;
-    uintptr_t    Pages[];
+    paddr_t      Pages[];
 };
+
+static void
+__SHMBufferDelete(
+        _In_ struct SHMBuffer* buffer)
+{
+
+}
 
 static struct SHMBuffer*
 __SHMBufferNew(
-        _In_ size_t size)
+        _In_ size_t       size,
+        _In_ unsigned int flags)
 {
     struct SHMBuffer* buffer;
     size_t            pageSize  = GetMemorySpacePageSize();
@@ -755,14 +294,18 @@ __SHMBufferNew(
         return NULL;
     }
     memset(buffer, 0, structSize);
+
+    MutexConstruct(&buffer->Mutex, MUTEX_FLAG_PLAIN);
+    buffer->ID = CreateHandle(
+            HandleTypeSHM,
+            (HandleDestructorFn)__SHMBufferDelete,
+            buffer
+    );
+    buffer->PageCount = (int)pageCount;
+    buffer->Length = size;
+    buffer->Flags = flags;
+    buffer->PageMask = __MASK;
     return buffer;
-}
-
-static void
-__SHMBufferDelete(
-        _In_ struct SHMBuffer* buffer)
-{
-
 }
 
 static unsigned int
@@ -775,6 +318,9 @@ __MapFlagsForDevice(
     }
     if (shm->Access & SHM_ACCESS_EXECUTE) {
         flags |= MAPPING_EXECUTABLE;
+    }
+    if (shm->Flags & SHM_CLEAN) {
+        flags |= MAPPING_CLEAN;
     }
     return flags;
 }
@@ -804,6 +350,7 @@ __CreateDeviceBuffer(
         return oserr;
     }
 
+    buffer->PageMask = pageMask;
     *userMapping = (void*)mapping;
     return OS_EOK;
 }
@@ -819,6 +366,9 @@ __MapFlagsForStack(
     if (shm->Access & SHM_ACCESS_EXECUTE) {
         flags |= MAPPING_EXECUTABLE;
     }
+    if (shm->Flags & SHM_CLEAN) {
+        flags |= MAPPING_CLEAN;
+    }
     return flags;
 }
 
@@ -828,41 +378,222 @@ __CreateStackBuffer(
         _In_  SHM_t*            shm,
         _Out_ void**            userMapping)
 {
-    unsigned int mapFlags = __MapFlagsForStack(shm);
-    oserr_t      oserr;
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    unsigned int   mapFlags = __MapFlagsForStack(shm);
+    size_t         pageSize = GetMemorySpacePageSize();
+    oserr_t        oserr;
+    vaddr_t        contextAddress;
 
     // Reserve the region and map only the top page. The returned
     // mapping should point to the end of the region. A guard page must
     // be reserved.
+    oserr = MemorySpaceMapReserved(
+            memorySpace,
+            &contextAddress,
+            shm->Size,
+            mapFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Adjust pointer to top of stack and then commit the first stack page
+    oserr = MemorySpaceCommit(
+            memorySpace,
+            contextAddress + (shm->Size - pageSize),
+            &buffer->Pages[buffer->PageCount - 1],
+            pageSize,
+            0, 0
+    );
+    if (oserr != OS_EOK) {
+        MemorySpaceUnmap(memorySpace, contextAddress, shm->Size);
+    }
+
+    // Return a pointer to STACK_TOP
+    *userMapping = (void*)(contextAddress + shm->Size);
+    return oserr;
+}
+
+static unsigned int
+__MapFlagsForIPC(
+        _In_  SHM_t* shm)
+{
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_COMMIT;
+    if (shm->Flags & MAPPING_CLEAN) {
+        flags |= MAPPING_CLEAN;
+    }
+    return flags;
 }
 
 static oserr_t
 __CreateIPCBuffer(
         _In_  struct SHMBuffer* buffer,
         _In_  SHM_t*            shm,
-        _Out_ void**            kernelMapping,
-        _Out_ void**            userMapping)
+        _Out_ void**            kernelMappingOut,
+        _Out_ void**            userMappingOut)
 {
-    // Needs both a userspace mapping and a kernel mapping
+    MemorySpace_t* memorySpace    = GetCurrentMemorySpace();
+    unsigned int   userMapFlags   = __MapFlagsForIPC(shm);
+    unsigned int   kernelMapFlags = MAPPING_PERSISTENT;
+    oserr_t        oserr;
+    vaddr_t        userMapping;
+    vaddr_t        kernelMapping;
+
+    // Needs both an userspace mapping and a kernel mapping. IPC buffers
+    // are special in this sense, since we want to anonomously be able to
+    // send messages, without having direct access to the buffer itself from
+    // the view of the process.
+    oserr = MemorySpaceMap(
+            memorySpace,
+            &userMapping,
+            &buffer->Pages[0],
+            shm->Size,
+            0,
+            userMapFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceMap(
+            memorySpace,
+            &kernelMapping,
+            &buffer->Pages[0],
+            shm->Size,
+            0,
+            kernelMapFlags,
+            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+    );
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, userMapping, shm->Size);
+        return oserr;
+    }
+
+    buffer->KernelMapping = kernelMapping;
+    *kernelMappingOut = (void*)kernelMapping;
+    *userMappingOut = (void*)userMapping;
+    return OS_EOK;
+}
+
+static unsigned int
+__MapFlagsForTrap(
+        _In_  SHM_t* shm)
+{
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_TRAPPAGE;
+    if (shm->Flags & MAPPING_CLEAN) {
+        flags |= MAPPING_CLEAN;
+    }
+    return flags;
 }
 
 static oserr_t
 __CreateTrapBuffer(
-        _In_  struct SHMBuffer* buffer,
-        _In_  SHM_t*            shm,
-        _Out_ void**            userMapping)
+        _In_  SHM_t* shm,
+        _Out_ void** userMappingOut)
 {
+    unsigned int mapFlags = __MapFlagsForTrap(shm);
+    oserr_t      oserr;
+    vaddr_t      mapping;
+
     // Trap buffers use only reserved memory and trigger signals when
     // an unmapped page has been accessed.
+    oserr = MemorySpaceMapReserved(
+            GetCurrentMemorySpace(),
+            &mapping,
+            shm->Size,
+            mapFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    *userMappingOut = (void*)mapping;
+    return OS_EOK;
+}
+
+static unsigned int
+__MapFlagsForRegular(
+        _In_  SHM_t* shm)
+{
+    unsigned int flags = MAPPING_USERSPACE;
+    if (shm->Flags & SHM_CLEAN) {
+        flags |= MAPPING_CLEAN;
+    }
+    if (shm->Flags & SHM_COMMIT) {
+        flags |= MAPPING_COMMIT;
+    }
+    if (!(shm->Access & SHM_ACCESS_WRITE)) {
+        flags |= MAPPING_READONLY;
+    }
+    if (shm->Access & SHM_ACCESS_EXECUTE) {
+        flags |= MAPPING_EXECUTABLE;
+    }
+    return flags;
+}
+
+static oserr_t
+__CreateRegularMappedBuffer(
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMappingOut)
+{
+    unsigned int mapFlags = __MapFlagsForRegular(shm);
+    oserr_t      oserr;
+    vaddr_t      mapping;
+
+    oserr = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &mapping,
+            &buffer->Pages[0],
+            shm->Size,
+            0,
+            mapFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    *userMappingOut = (void*)mapping;
+    return OS_EOK;
+}
+
+static oserr_t
+__CreateRegularUnmappedBuffer(
+        _In_  SHM_t* shm,
+        _Out_ void** userMappingOut)
+{
+    unsigned int mapFlags = __MapFlagsForRegular(shm);
+    oserr_t      oserr;
+    vaddr_t      mapping;
+
+    // Trap buffers use only reserved memory and trigger signals when
+    // an unmapped page has been accessed.
+    oserr = MemorySpaceMapReserved(
+            GetCurrentMemorySpace(),
+            &mapping,
+            shm->Size,
+            mapFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    *userMappingOut = (void*)mapping;
+    return OS_EOK;
 }
 
 static oserr_t
 __CreateRegularBuffer(
         _In_  struct SHMBuffer* buffer,
         _In_  SHM_t*            shm,
-        _Out_ void**            userMapping)
+        _Out_ void**            userMappingOut)
 {
-
+    if (shm->Flags & SHM_COMMIT) {
+        return __CreateRegularMappedBuffer(buffer, shm, userMappingOut);
+    }
+    return __CreateRegularUnmappedBuffer(shm, userMappingOut);
 }
 
 oserr_t
@@ -884,7 +615,7 @@ SHMCreate(
         return OS_EINVALPARAMS;
     }
 
-    buffer = __SHMBufferNew(shm->Size);
+    buffer = __SHMBufferNew(shm->Size, shm->Flags);
     if (buffer == NULL) {
         return OS_EOOM;
     }
@@ -898,15 +629,28 @@ SHMCreate(
     } else if (SHM_KIND(shm->Flags) == SHM_IPC) {
         oserr = __CreateIPCBuffer(buffer, shm, kernelMapping, userMapping);
     } else if (SHM_KIND(shm->Flags) == SHM_TRAP) {
-        oserr = __CreateTrapBuffer(buffer, shm, userMapping);
+        oserr = __CreateTrapBuffer(shm, userMapping);
     } else {
         oserr = __CreateRegularBuffer(buffer, shm, userMapping);
     }
 
     if (oserr != OS_EOK) {
         __SHMBufferDelete(buffer);
+    } else {
+        *handleOut = buffer->ID;
     }
     return oserr;
+}
+
+static unsigned int
+__FilterFlagsForExport(
+        _In_ unsigned int flags)
+{
+    unsigned int filtered = SHM_PERSISTANT | SHM_COMMIT;
+    if (flags & SHM_PRIVATE) {
+        filtered |= SHM_PRIVATE;
+    }
+    return filtered;
 }
 
 oserr_t
@@ -917,13 +661,116 @@ SHMExport(
         _In_  unsigned int accessFlags,
         _Out_ uuid_t*      handleOut)
 {
+    struct SHMBuffer* buffer;
+    oserr_t           oserr;
 
+    if (memory == NULL || size == 0 || handleOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    buffer = __SHMBufferNew(size, __FilterFlagsForExport(flags));
+    if (buffer == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = GetMemorySpaceMapping(
+            GetCurrentMemorySpace(),
+            (vaddr_t)memory,
+            buffer->PageCount,
+            &buffer->Pages[0]
+    );
+    if (oserr != OS_EOK) {
+        __SHMBufferDelete(buffer);
+    } else {
+        *handleOut = buffer->ID;
+    }
+    return oserr;
 }
 
 oserr_t
 SHMAttach(
         _In_ uuid_t  shmID,
         _In_ size_t* sizeOut)
+{
+    struct SHMBuffer* shmBuffer;
+    oserr_t           oserr;
+
+    oserr = AcquireHandleOfType(
+            shmID,
+            HandleTypeSHM,
+            (void**)&shmBuffer
+    );
+    if (oserr != OS_EOK) {
+        ERROR("SHMAttach handle %u was invalid", shmID);
+        return OS_ENOENT;
+    }
+
+    *sizeOut = shmBuffer->Length;
+    return OS_EOK;
+}
+
+static oserr_t
+__UpdateMappingFlags(
+        _In_ SHMHandle_t* handle,
+        _In_ unsigned int flags)
+{
+    unsigned int previousFlags;
+    return MemorySpaceChangeProtection(
+            GetCurrentMemorySpace(),
+            (vaddr_t)handle->Buffer,
+            handle->Length,
+            flags,
+            &previousFlags
+    );
+}
+
+static oserr_t
+__ShrinkMapping(
+        _In_ SHMHandle_t* handle,
+        _In_ size_t       length)
+{
+    // Calculate the start of the unmapping and the length
+    size_t    pageSize        = GetMemorySpacePageSize();
+    size_t    correctedLength = DIVUP(length, pageSize) * pageSize;
+    uintptr_t startOfUnmap    = (uintptr_t)handle->Buffer + correctedLength;
+    size_t    lengthOfUnmap   = handle->Length - correctedLength;
+    return MemorySpaceUnmap(GetCurrentMemorySpace(), startOfUnmap, lengthOfUnmap);
+}
+
+static oserr_t
+__ExpandMapping(
+        _In_ struct SHMBuffer* shmBuffer,
+        _In_ SHMHandle_t*      handle,
+        _In_ size_t            length,
+        _In_ unsigned int      flags)
+{
+
+}
+
+static oserr_t
+__UpdateMapping(
+        _In_ struct SHMBuffer* shmBuffer,
+        _In_ SHMHandle_t*      handle,
+        _In_ size_t            length,
+        _In_ unsigned int      flags)
+{
+    // TODO use MemorySpaceMap
+    if (length == handle->Length) {
+        return __UpdateMappingFlags(handle, flags);
+    } else if (length < handle->Length) {
+        return __ShrinkMapping(handle, length);
+    } else {
+        return __ExpandMapping(shmBuffer, handle, length, flags);
+    }
+}
+
+oserr_t
+__CreateMapping(
+        _In_  struct SHMBuffer* shmBuffer,
+        _In_  size_t            offset,
+        _In_  size_t            length,
+        _In_  unsigned int      flags,
+        _Out_ void**            mappingOut)
 {
 
 }
@@ -935,15 +782,77 @@ SHMMap(
         _In_ size_t       length,
         _In_ unsigned int flags)
 {
+    struct SHMBuffer* shmBuffer;
+    oserr_t           oserr;
+    void*             mapping;
 
+    if (handle == NULL || length == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    shmBuffer = LookupHandleOfType(handle->ID, HandleTypeSHM);
+    if (!shmBuffer) {
+        return OS_ENOENT;
+    }
+
+    if (handle->Buffer != NULL) {
+        // There is a few cases here. If we are trying to modify an already
+        // mapped buffer, and the offsets are identical, then we are either
+        // expanding or shrinking, or changing protections flags
+        if (handle->Offset == offset) {
+            return __UpdateMapping(shmBuffer, handle, length, flags);
+        }
+
+        // Ok mapping has changed. We do not unmap the previous
+        // mapping before having created a new mapping.
+    }
+
+    oserr = __CreateMapping(shmBuffer, offset, length, flags, &mapping);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (handle->Buffer != NULL) {
+        oserr = SHMUnmap(handle);
+        if (oserr != OS_EOK) {
+            (void)MemorySpaceUnmap(
+                    GetCurrentMemorySpace(),
+                    (vaddr_t)mapping,
+                    length
+            );
+            return oserr;
+        }
+    }
+
+    handle->Buffer = mapping;
+    handle->Offset = offset;
+    handle->Length = length;
+    return OS_EOK;
 }
 
 oserr_t
 SHMUnmap(
-        _In_ uuid_t handle,
-        _In_ void*  memory)
+        _In_ SHMHandle_t* handle)
 {
+    oserr_t oserr;
 
+    if (handle == NULL || handle->Buffer == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = MemorySpaceUnmap(
+            GetCurrentMemorySpace(),
+            (vaddr_t)handle->Buffer,
+            handle->Length
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    handle->Buffer = NULL;
+    handle->Offset = 0;
+    handle->Length = 0;
+    return OS_EOK;
 }
 
 oserr_t
@@ -953,30 +862,126 @@ SHMCommit(
         _In_ void*  memory,
         _In_ size_t length)
 {
+    struct SHMBuffer* shmBuffer;
+    oserr_t           oserr;
+    size_t            pageSize = GetMemorySpacePageSize();
+    uintptr_t         userAddress = (uintptr_t)memory;
+    uintptr_t         kernelAddress;
+    int               limit;
+    int               i;
 
+    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    if (!shmBuffer) {
+        return OS_ENOENT;
+    }
+
+    i     = DIVUP((uintptr_t)memoryBase - userAddress, pageSize);
+    limit = i + (int)(DIVUP(length, pageSize));
+    kernelAddress = shmBuffer->KernelMapping;
+
+    MutexLock(&shmBuffer->Mutex);
+    for (; i < limit; i++, kernelAddress += pageSize, userAddress += pageSize) {
+        if (!shmBuffer->Pages[i]) {
+            // handle kernel mapping first
+            oserr = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    kernelAddress,
+                    &shmBuffer->Pages[i],
+                    pageSize,
+                    shmBuffer->PageMask,
+                    0
+            );
+            if (oserr != OS_EOK) {
+                ERROR("SHMCommit failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
+                break;
+            }
+
+            // then user mapping
+            oserr = MemorySpaceCommit(
+                    GetCurrentMemorySpace(),
+                    userAddress,
+                    &shmBuffer->Pages[i],
+                    pageSize,
+                    shmBuffer->PageMask,
+                    MAPPING_PHYSICAL_FIXED
+            );
+            if (oserr != OS_EOK) {
+                ERROR("SHMCommit failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
+                break;
+            }
+        }
+    }
+    MutexUnlock(&shmBuffer->Mutex);
+    return oserr;
 }
 
 oserr_t
 SHMRead(
-        _In_  uuid_t  Handle,
-        _In_  size_t  Offset,
-        _In_  void*   Buffer,
-        _In_  size_t  Length,
-        _Out_ size_t* BytesRead)
+        _In_  uuid_t  handle,
+        _In_  size_t  offset,
+        _In_  void*   buffer,
+        _In_  size_t  length,
+        _Out_ size_t* bytesReadOut)
 {
+    struct SHMBuffer* shmBuffer;
+    size_t            clampedLength;
 
+    if (buffer == NULL || length == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    if (!shmBuffer) {
+        return OS_ENOENT;
+    }
+
+    if (offset >= shmBuffer->Length) {
+        return OS_EINVALPARAMS;
+    }
+
+    clampedLength = MIN(shmBuffer->Length - offset, length);
+    ReadVolatileMemory((const volatile void*)(shmBuffer->KernelMapping + offset),
+                       (volatile void*)buffer, clampedLength);
+
+    *bytesReadOut = clampedLength;
+    return OS_EOK;
 }
 
 oserr_t
 SHMWrite(
-        _In_  uuid_t      Handle,
-        _In_  size_t      Offset,
-        _In_  const void* Buffer,
-        _In_  size_t      Length,
-        _Out_ size_t*     BytesWritten)
+        _In_  uuid_t      handle,
+        _In_  size_t      offset,
+        _In_  const void* buffer,
+        _In_  size_t      length,
+        _Out_ size_t*     bytesWrittenOut)
 {
+    struct SHMBuffer* shmBuffer;
+    size_t            clampedLength;
 
+    if (buffer == NULL || length == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    if (!shmBuffer) {
+        return OS_ENOENT;
+    }
+
+    if (offset >= shmBuffer->Length) {
+        return OS_EINVALPARAMS;
+    }
+
+    clampedLength = MIN(shmBuffer->Length - offset, length);
+    WriteVolatileMemory((volatile void*)(shmBuffer->KernelMapping + offset),
+                        (void*)buffer, clampedLength);
+
+    *bytesWrittenOut = clampedLength;
+    return OS_EOK;
 }
+
+#define SG_IS_SAME_REGION(memory_region, idx, idx2, pageSize) \
+    (((memory_region)->Pages[idx] + (pageSize) == (memory_region)->Pages[idx2]) || \
+     ((memory_region)->Pages[idx] == 0 && (memory_region)->Pages[idx2] == 0))
 
 oserr_t
 SHMBuildSG(
@@ -984,7 +989,51 @@ SHMBuildSG(
         _Out_ int*     sgCountOut,
         _Out_ SHMSG_t* sgOut)
 {
+    struct SHMBuffer* shmBuffer;
+    size_t            pageSize = GetMemorySpacePageSize();
 
+    if (!sgCountOut) {
+        return OS_EINVALPARAMS;
+    }
+
+    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    if (!shmBuffer) {
+        return OS_ENOENT;
+    }
+
+    // Requested count of the scatter-gather units, so count
+    // how many entries it would take to fill a list
+    // Assume that if both pointers are supplied we are trying to fill
+    // the list with the requested amount, and thus skip this step.
+    if (!sgOut) {
+        int sgCount = 0;
+        for (int i = 0; i < shmBuffer->PageCount; i++) {
+            if (i == 0 || !SG_IS_SAME_REGION(shmBuffer, i - 1, i, pageSize)) {
+                sgCount++;
+            }
+        }
+        *sgCountOut = sgCount;
+    }
+
+    // In order to get the list both counters must be filled
+    if (sgOut) {
+        int sgCount = *sgCountOut;
+        for (int i = 0, j = 0; (i < sgCount) && (j < shmBuffer->PageCount); i++) {
+            SHMSG_t* sg = &sgOut[i];
+
+            sg->Address = shmBuffer->Pages[j++];
+            sg->Length  = pageSize;
+
+            while ((j < shmBuffer->PageCount) && SG_IS_SAME_REGION(shmBuffer, j - 1, j, pageSize)) {
+                sg->Length += pageSize;
+                j++;
+            }
+        }
+
+        // Adjust the initial sg entry for offset
+        sgOut[0].Length -= sgOut[0].Address % pageSize;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -992,17 +1041,17 @@ SHMKernelMapping(
         _In_  uuid_t handle,
         _Out_ void** bufferOut)
 {
-    MemoryRegion_t* region;
+    struct SHMBuffer* shmBuffer;
 
     if (!bufferOut) {
         return OS_EINVALPARAMS;
     }
 
-    region = (MemoryRegion_t*)LookupHandleOfType(handle, HandleTypeMemoryRegion);
-    if (!region) {
+    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    if (!shmBuffer) {
         return OS_ENOENT;
     }
 
-    *bufferOut = (void*)region->KernelMapping;
+    *bufferOut = (void*)shmBuffer->KernelMapping;
     return OS_EOK;
 }

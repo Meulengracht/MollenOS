@@ -181,7 +181,7 @@ ArchThreadEnter(
         __set_reserved(0, (uintptr_t)cpuCore);
     }
     
-    TssUpdateIo(coreBlock, (uint8_t*)memorySpace->PlatfromData.TssIoMap);
+    TssUpdateIo(coreBlock, (uint8_t*)memorySpace->PlatformData.TssIoMap);
     TssUpdateThreadStack(coreBlock, (uintptr_t)ThreadContext(thread, THREADING_CONTEXT_LEVEL0));
     set_ts(); // Set task switch bit, so we get faults on fpu instructions
 }
