@@ -291,7 +291,10 @@ FreePhysicalMemory(
 
     for (i = 0; i < pageCount; i++) {
         uintptr_t address = pages[i];
-        assert(address != 0);
+        if (address == 0) {
+            // Let's be OK with partially filled lists
+            continue;
+        }
 
         for (int j = 0; j < GetMachine()->PhysicalMemory.MaskCount; j++) {
             if (address < GetMachine()->PhysicalMemory.Masks[j]) {

@@ -19,264 +19,41 @@
 
 #define __need_minmax
 #include <arch/utils.h>
-#include <assert.h>
 #include <ddk/io.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
+#include <machine.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <shm.h>
 
-typedef struct MemoryRegion {
-    Mutex_t      SyncObject;
-    uintptr_t    KernelMapping;
-    size_t       Length;
-    size_t       Capacity;
-    size_t       PageMask;
-    unsigned int Flags;
-    int          PageCount;
-    uintptr_t    Pages[];
-} MemoryRegion_t;
-
-static oserr_t __FillInMemoryRegion(
-        _In_ MemoryRegion_t* memoryRegion,
-        _In_ uintptr_t       userStart,
-        _In_ int             pageCount)
-{
-
-    uintptr_t  kernelAddress = memoryRegion->KernelMapping;
-    uintptr_t  userAddress   = userStart;
-    oserr_t osStatus      = OS_EOK;
-
-    for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize(), kernelAddress += GetMemorySpacePageSize()) {
-        if (!memoryRegion->Pages[i]) {
-            // handle kernel mapping first
-            osStatus = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    kernelAddress,
-                    &memoryRegion->Pages[i],
-                    GetMemorySpacePageSize(),
-                    memoryRegion->PageMask,
-                    0
-            );
-            if (osStatus != OS_EOK) {
-                ERROR("MemoryRegionResize failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
-                break;
-            }
-
-            // then user mapping
-            osStatus = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    userAddress,
-                    &memoryRegion->Pages[i],
-                    GetMemorySpacePageSize(),
-                    memoryRegion->PageMask,
-                    MAPPING_PHYSICAL_FIXED
-            );
-            if (osStatus != OS_EOK) {
-                ERROR("MemoryRegionResize failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
-                break;
-            }
-        }
-    }
-    return osStatus;
-}
-
-static oserr_t __ExpandMemoryRegion(
-        _In_ MemoryRegion_t* memoryRegion,
-        _In_ uintptr_t       userAddress,
-        _In_ int             currentPageCount,
-        _In_ size_t          newLength)
-{
-    oserr_t osStatus;
-    uintptr_t  end;
-
-    // The behaviour for scattered regions will be that when resize is called
-    // then we now treat it as one continously buffered region, and this means
-    // we fill in all blanks
-    osStatus = __FillInMemoryRegion(memoryRegion, userAddress, currentPageCount);
-    if (osStatus != OS_EOK) {
-        return osStatus;
-    }
-
-    // commit the new pages as one continous operation, this we can do
-    end      = memoryRegion->KernelMapping + (currentPageCount * GetMemorySpacePageSize());
-    osStatus = MemorySpaceCommit(
-            GetCurrentMemorySpace(),
-            end,
-            &memoryRegion->Pages[currentPageCount],
-            newLength - memoryRegion->Length,
-            memoryRegion->PageMask,
-            0
-    );
-    if (osStatus != OS_EOK) {
-        return osStatus;
-    }
-
-    // Calculate from where we should start committing new pages
-    end      = userAddress + (currentPageCount * GetMemorySpacePageSize());
-    osStatus = MemorySpaceCommit(
-            GetCurrentMemorySpace(),
-            end,
-            &memoryRegion->Pages[currentPageCount],
-            newLength - memoryRegion->Length,
-            memoryRegion->PageMask,
-            MAPPING_PHYSICAL_FIXED
-    );
-    return osStatus;
-}
-
-oserr_t
-MemoryRegionResize(
-        _In_ uuid_t handle,
-        _In_ void*  memory,
-        _In_ size_t newLength)
-{
-    MemoryRegion_t* memoryRegion;
-    int             currentPages;
-    int             newPages;
-    oserr_t      osStatus;
-    
-    // Lookup region
-    memoryRegion = LookupHandleOfType(handle, HandleTypeSHM);
-    if (!memoryRegion) {
-        return OS_ENOENT;
-    }
-    
-    // Verify that the new length is not exceeding capacity
-    if (newLength > memoryRegion->Capacity) {
-        return OS_EINVALPARAMS;
-    }
-    
-    MutexLock(&memoryRegion->SyncObject);
-    currentPages = DIVUP(memoryRegion->Length, GetMemorySpacePageSize());
-    newPages     = DIVUP(newLength, GetMemorySpacePageSize());
-    
-    // If we are shrinking (not supported atm) or equal then simply move on
-    // and report success. We won't perform any unmapping
-    if (currentPages >= newPages) {
-        osStatus = OS_ENOTSUPPORTED;
-        goto exit;
-    }
-    else {
-        osStatus = __ExpandMemoryRegion(memoryRegion, (uintptr_t)memory, currentPages, newLength);
-    }
-
-    if (osStatus == OS_EOK) {
-        memoryRegion->Length = newLength;
-    }
-
-exit:
-    MutexUnlock(&memoryRegion->SyncObject);
-    TRACE("MemoryRegionResize returns=%u", osStatus);
-    return osStatus;
-}
-
-static oserr_t __RefreshMemoryRegion(
-        _In_ MemoryRegion_t* memoryRegion,
-        _In_ uintptr_t       userStart,
-        _In_ int             pageCount)
-{
-    uintptr_t  userAddress   = userStart;
-    oserr_t osStatus      = OS_EOK;
-
-    for (int i = 0; i < pageCount; i++, userAddress += GetMemorySpacePageSize()) {
-        if (memoryRegion->Pages[i] && IsMemorySpacePagePresent(GetCurrentMemorySpace(), userAddress) != OS_EOK) {
-            osStatus = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    userAddress,
-                    &memoryRegion->Pages[i],
-                    GetMemorySpacePageSize(),
-                    memoryRegion->PageMask,
-                    MAPPING_PHYSICAL_FIXED
-            );
-            if (osStatus != OS_EOK) {
-                ERROR("__RefreshMemoryRegion failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
-                break;
-            }
-        }
-    }
-    return osStatus;
-}
-
-oserr_t
-MemoryRegionRefresh(
-        _In_  uuid_t  handle,
-        _In_  void*   memory,
-        _In_  size_t  currentLength,
-        _Out_ size_t* newLength)
-{
-    MemoryRegion_t* memoryRegion;
-    int             currentPages;
-    int             newPages;
-    uintptr_t       end;
-    oserr_t      osStatus;
-    
-    // Lookup region
-    memoryRegion = LookupHandleOfType(handle, HandleTypeSHM);
-    if (!memoryRegion) {
-        return OS_ENOENT;
-    }
-    
-    MutexLock(&memoryRegion->SyncObject);
-    
-    // Update the out first
-    *newLength = memoryRegion->Length;
-    
-    // Calculate the new number of pages that should be mapped,
-    // but instead of using the provided argument as new, it must be the previous
-    currentPages = DIVUP(currentLength, GetMemorySpacePageSize());
-    newPages     = DIVUP(memoryRegion->Length, GetMemorySpacePageSize());
-
-    // Before expanding or shrinking, we want to make sure we fill in any blanks in the existing region
-    // if the region has been scattered. It's not that we need to do this, but it's the behaviour we want
-    // the region to have
-    osStatus = __RefreshMemoryRegion(memoryRegion, (uintptr_t)memory, currentPages);
-    if (osStatus != OS_EOK) {
-        goto exit;
-    }
-    
-    // If we are shrinking (not supported atm) or equal then simply move on
-    // and report success. We won't perform any unmapping
-    if (currentPages >= newPages) {
-        osStatus = OS_ENOTSUPPORTED;
-        goto exit;
-    }
-    
-    // Otherwise, commit mappings, but instead of doing like the Resize
-    // operation we will tell that we provide them ourselves
-    end    = (uintptr_t)memory + (currentPages * GetMemorySpacePageSize());
-    osStatus = MemorySpaceCommit(
-            GetCurrentMemorySpace(),
-            end,
-            &memoryRegion->Pages[currentPages],
-            memoryRegion->Length - currentLength,
-            memoryRegion->PageMask,
-            MAPPING_PHYSICAL_FIXED
-    );
-
-exit:
-    MutexUnlock(&memoryRegion->SyncObject);
-    return osStatus;
-}
-
 struct SHMBuffer {
-    uuid_t       ID;
-    Mutex_t      Mutex;
-    vaddr_t      KernelMapping;
-    size_t       Length;
-    size_t       PageMask;
-    unsigned int Flags;
-    int          PageCount;
-    paddr_t      Pages[];
+    uuid_t          ID;
+    MemorySpace_t* Owner;
+    Mutex_t        Mutex;
+    vaddr_t        KernelMapping;
+    size_t         Length;
+    size_t         PageMask;
+    unsigned int   Flags;
+    int            PageCount;
+    paddr_t        Pages[];
 };
 
 static void
 __SHMBufferDelete(
-        _In_ struct SHMBuffer* buffer)
+        _In_ struct SHMBuffer* shmBuffer)
 {
+    if (shmBuffer == NULL) {
+        return;
+    }
 
+    if (!(shmBuffer->Flags & SHM_PERSISTANT)) {
+        FreePhysicalMemory(shmBuffer->PageCount, &shmBuffer->Pages[0]);
+    }
+
+    MutexDestruct(&shmBuffer->Mutex);
+    kfree(shmBuffer);
 }
 
 static struct SHMBuffer*
@@ -301,6 +78,7 @@ __SHMBufferNew(
             (HandleDestructorFn)__SHMBufferDelete,
             buffer
     );
+    buffer->Owner = GetCurrentMemorySpace();
     buffer->PageCount = (int)pageCount;
     buffer->Length = size;
     buffer->Flags = flags;
@@ -312,7 +90,7 @@ static unsigned int
 __MapFlagsForDevice(
         _In_ SHM_t* shm)
 {
-    unsigned int flags = MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_COMMIT;
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_NOCACHE | MAPPING_COMMIT;
     if (!(shm->Access & SHM_ACCESS_WRITE)) {
         flags |= MAPPING_READONLY;
     }
@@ -359,7 +137,7 @@ static unsigned int
 __MapFlagsForStack(
         _In_ SHM_t* shm)
 {
-    unsigned int flags = MAPPING_USERSPACE | MAPPING_GUARDPAGE;
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_GUARDPAGE;
     if (!(shm->Access & SHM_ACCESS_WRITE)) {
         flags |= MAPPING_READONLY;
     }
@@ -419,7 +197,7 @@ static unsigned int
 __MapFlagsForIPC(
         _In_  SHM_t* shm)
 {
-    unsigned int flags = MAPPING_USERSPACE | MAPPING_COMMIT;
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_COMMIT;
     if (shm->Flags & MAPPING_CLEAN) {
         flags |= MAPPING_CLEAN;
     }
@@ -481,7 +259,7 @@ static unsigned int
 __MapFlagsForTrap(
         _In_  SHM_t* shm)
 {
-    unsigned int flags = MAPPING_USERSPACE | MAPPING_TRAPPAGE;
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_TRAPPAGE;
     if (shm->Flags & MAPPING_CLEAN) {
         flags |= MAPPING_CLEAN;
     }
@@ -705,46 +483,76 @@ SHMAttach(
         return OS_ENOENT;
     }
 
+    // If the buffer is marked PRIVATE, then we cannot let anyone else try
+    // to map this buffer, except for the buffer owner.
+    if (shmBuffer->Flags & SHM_PRIVATE) {
+        oserr = AreMemorySpacesRelated(shmBuffer->Owner, GetCurrentMemorySpace());
+        if (oserr != OS_EOK) {
+            return OS_EPERMISSIONS;
+        }
+    }
+
     *sizeOut = shmBuffer->Length;
     return OS_EOK;
 }
 
 static oserr_t
-__UpdateMappingFlags(
-        _In_ SHMHandle_t* handle,
-        _In_ unsigned int flags)
-{
-    unsigned int previousFlags;
-    return MemorySpaceChangeProtection(
-            GetCurrentMemorySpace(),
-            (vaddr_t)handle->Buffer,
-            handle->Length,
-            flags,
-            &previousFlags
-    );
-}
-
-static oserr_t
-__ShrinkMapping(
-        _In_ SHMHandle_t* handle,
-        _In_ size_t       length)
-{
-    // Calculate the start of the unmapping and the length
-    size_t    pageSize        = GetMemorySpacePageSize();
-    size_t    correctedLength = DIVUP(length, pageSize) * pageSize;
-    uintptr_t startOfUnmap    = (uintptr_t)handle->Buffer + correctedLength;
-    size_t    lengthOfUnmap   = handle->Length - correctedLength;
-    return MemorySpaceUnmap(GetCurrentMemorySpace(), startOfUnmap, lengthOfUnmap);
-}
-
-static oserr_t
-__ExpandMapping(
+__EnsurePhysicalPages(
         _In_ struct SHMBuffer* shmBuffer,
-        _In_ SHMHandle_t*      handle,
-        _In_ size_t            length,
-        _In_ unsigned int      flags)
+        _In_ int               pageStart,
+        _In_ int               pageCount)
 {
+    MutexLock(&shmBuffer->Mutex);
+    for (int i = 0; i < pageCount; i++) {
+        oserr_t oserr;
 
+        if (shmBuffer->Pages[pageStart + i]) {
+            continue;
+        }
+
+        oserr = AllocatePhysicalMemory(shmBuffer->PageMask, 1, &shmBuffer->Pages[pageStart + i]);
+        if (oserr != OS_EOK) {
+            MutexUnlock(&shmBuffer->Mutex);
+            return oserr;
+        }
+    }
+    MutexUnlock(&shmBuffer->Mutex);
+    return OS_EOK;
+}
+
+static unsigned int
+__RecalculateFlags(
+        _In_ unsigned int shmFlags,
+        _In_ unsigned int accessFlags)
+{
+    // All mappings must be marked USERSPACE and PERSISTENT. We do not allow
+    // the underlying virtual memory system to automatically free any physical
+    // pages as we want the full control over them until the SHM buffer is freed.
+    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT;
+
+    // SHM_CLEAN we include when doing maps
+    if (shmFlags & SHM_CLEAN) {
+        flags |= MAPPING_CLEAN;
+    }
+
+    // SHM_COMMIT we ignore as we already have this handled by
+    // SHM_ACCESS_COMMIT.
+
+    // Ignore MAPPING_TRAPPAGE and MAPPING_GUARDPAGE attributes for
+    // stack and trap SHM buffers. When they are originally mapped in,
+    // by the owners of the buffers, they are correctly mapped with these
+    // attributes, and consumers of these SHM buffers don't actually need
+    // those mappings.
+    // TODO: do we actually encounter issues with this?
+
+    // Handle access modifiers last
+    if (!(accessFlags & SHM_ACCESS_WRITE)) {
+        flags |= MAPPING_READONLY;
+    }
+    if (accessFlags & SHM_ACCESS_EXECUTE) {
+        flags |= MAPPING_EXECUTABLE;
+    }
+    return flags;
 }
 
 static oserr_t
@@ -754,14 +562,31 @@ __UpdateMapping(
         _In_ size_t            length,
         _In_ unsigned int      flags)
 {
-    // TODO use MemorySpaceMap
-    if (length == handle->Length) {
-        return __UpdateMappingFlags(handle, flags);
-    } else if (length < handle->Length) {
-        return __ShrinkMapping(handle, length);
-    } else {
-        return __ExpandMapping(shmBuffer, handle, length, flags);
+    size_t  pageSize        = GetMemorySpacePageSize();
+    size_t  correctedOffset = handle->Offset % pageSize;
+    size_t  pageCount       = DIVUP(length + correctedOffset, pageSize);
+    size_t  correctedLength = pageCount * pageSize;
+    size_t  pageIndex       = handle->Offset / pageSize;
+    oserr_t oserr;
+
+    // Ensure that physical pages are allocated for this mapping, so we can
+    // map with PHYSICAL_FIXED, but *only* if SHM_ACCESS_COMMIT is provided
+    if (flags & SHM_ACCESS_COMMIT) {
+        oserr = __EnsurePhysicalPages(shmBuffer, (int)pageIndex, (int)pageCount);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
     }
+
+    return MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            (vaddr_t*)handle->Buffer,
+            &shmBuffer->Pages[0],
+            correctedLength,
+            shmBuffer->PageMask,
+            __RecalculateFlags(shmBuffer->Flags, flags),
+            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED
+    );
 }
 
 oserr_t
@@ -772,7 +597,31 @@ __CreateMapping(
         _In_  unsigned int      flags,
         _Out_ void**            mappingOut)
 {
+    size_t  pageSize        = GetMemorySpacePageSize();
+    size_t  correctedOffset = offset % pageSize;
+    size_t  pageCount       = DIVUP(length + correctedOffset, pageSize);
+    size_t  correctedLength = pageCount * pageSize;
+    size_t  pageIndex       = offset / pageSize;
+    oserr_t oserr;
 
+    // Ensure that physical pages are allocated for this mapping, so we can
+    // map with PHYSICAL_FIXED, but *only* if SHM_ACCESS_COMMIT is provided
+    if (flags & SHM_ACCESS_COMMIT) {
+        oserr = __EnsurePhysicalPages(shmBuffer, (int)pageIndex, (int)pageCount);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+
+    return MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            (vaddr_t*)mappingOut,
+            &shmBuffer->Pages[pageIndex],
+            correctedLength,
+            shmBuffer->PageMask,
+            __RecalculateFlags(shmBuffer->Flags, flags),
+            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+    );
 }
 
 oserr_t
@@ -793,6 +642,15 @@ SHMMap(
     shmBuffer = LookupHandleOfType(handle->ID, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
+    }
+
+    // If the buffer is marked PRIVATE, then we cannot let anyone else try
+    // to map this buffer, except for the buffer owner.
+    if (shmBuffer->Flags & SHM_PRIVATE) {
+        oserr = AreMemorySpacesRelated(shmBuffer->Owner, GetCurrentMemorySpace());
+        if (oserr != OS_EOK) {
+            return OS_EPERMISSIONS;
+        }
     }
 
     if (handle->Buffer != NULL) {
