@@ -43,7 +43,6 @@ static void __ConvertToKernelMemoryFlags(
     // Convert flags from memory domain to memory space domain
     if (userFlags & MEMORY_COMMIT)       { memoryFlags |= MAPPING_COMMIT; }
     if (userFlags & MEMORY_UNCHACHEABLE) { memoryFlags |= MAPPING_NOCACHE; }
-    if (userFlags & MEMORY_LOWFIRST)     { memoryFlags |= MAPPING_LOWFIRST; }
     //if (!(userFlags & MEMORY_WRITE))   { memoryFlags |= MAPPING_READONLY; }
     if (userFlags & MEMORY_EXECUTABLE)   { memoryFlags |= MAPPING_EXECUTABLE; }
 
@@ -58,7 +57,6 @@ static unsigned int __ConvertToUserMemoryFlags(
 
     if (memoryFlags & MAPPING_COMMIT)      { flags |= MEMORY_COMMIT; }
     if (memoryFlags & MAPPING_NOCACHE)     { flags |= MEMORY_UNCHACHEABLE; }
-    if (memoryFlags & MAPPING_LOWFIRST)    { flags |= MEMORY_LOWFIRST; }
     if (!(memoryFlags & MAPPING_READONLY)) { flags |= MEMORY_WRITE; }
     if (memoryFlags & MAPPING_EXECUTABLE)  { flags |= MEMORY_EXECUTABLE; }
     if (memoryFlags & MAPPING_ISDIRTY)     { flags |= MEMORY_DIRTY; }

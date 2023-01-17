@@ -273,8 +273,7 @@ CreateMemorySpace(
         }
 
         *handleOut = GetCurrentMemorySpaceHandle();
-    }
-    else if (flags & MEMORY_SPACE_APPLICATION) {
+    } else if (flags & MEMORY_SPACE_APPLICATION) {
         MemorySpace_t* parent = NULL;
 
         // Parent must be the uppermost instance of the address-space
@@ -287,8 +286,7 @@ CreateMemorySpace(
                     memorySpace->Context      = parent->Context;
                     parent = (MemorySpace_t*)LookupHandleOfType(
                             parent->ParentHandle, HandleTypeMemorySpace);
-                }
-                else {
+                } else {
                     memorySpace->ParentHandle = GetCurrentMemorySpaceHandle();
                     memorySpace->Context      = parent->Context;
                 }
@@ -300,8 +298,7 @@ CreateMemorySpace(
                         NULL
                 );
                 memcpy(&memorySpace->PlatformData, &parent->PlatformData, sizeof(PlatformMemoryBlock_t));
-            }
-            else {
+            } else {
                 parent = NULL;
             }
         }
@@ -317,8 +314,7 @@ CreateMemorySpace(
         }
 
         *handleOut = CreateHandle(HandleTypeMemorySpace, DestroyMemorySpace, memorySpace);
-    }
-    else {
+    } else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }
     return OS_EOK;
@@ -382,7 +378,9 @@ GetCurrentMemorySpaceHandle(void)
 MemorySpace_t*
 GetDomainMemorySpace(void)
 {
-    return (GetCurrentDomain() != NULL) ? &GetCurrentDomain()->SystemSpace : &GetMachine()->SystemSpace;
+    return (GetCurrentDomain() != NULL) ?
+        &GetCurrentDomain()->SystemSpace :
+        &GetMachine()->SystemSpace;
 }
 
 oserr_t
@@ -401,7 +399,7 @@ __CreateAllocation(
         _In_ unsigned int   flags)
 {
     struct MemorySpaceAllocation* allocation;
-    oserr_t                    osStatus = OS_EOK;
+    oserr_t                       oserr = OS_EOK;
 
     TRACE("__CreateAllocation(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
           memorySpace, address, length, flags);
@@ -413,7 +411,7 @@ __CreateAllocation(
 
     allocation = kmalloc(sizeof(struct MemorySpaceAllocation));
     if (!allocation) {
-        osStatus = OS_EOOM;
+        oserr = OS_EOOM;
         goto exit;
     }
 
@@ -430,8 +428,8 @@ __CreateAllocation(
     MutexUnlock(&memorySpace->Context->SyncObject);
 
 exit:
-    TRACE("__CreateAllocation returns=%u", osStatus);
-    return osStatus;
+    TRACE("__CreateAllocation returns=%u", oserr);
+    return oserr;
 }
 
 static vaddr_t
@@ -512,40 +510,38 @@ __AllocateVirtualMemory(
 }
 
 oserr_t
-MemorySpaceMap(
-        _In_    MemorySpace_t* memorySpace,
-        _InOut_ vaddr_t*       address,
-        _InOut_ uintptr_t*     physicalAddressValues,
-        _In_    size_t         length,
-        _In_    size_t         pageMask,
-        _In_    unsigned int   memoryFlags,
-        _In_    unsigned int   placementFlags)
+MemorySpaceMap2(
+        _In_  MemorySpace_t*                memorySpace,
+        _In_  struct MemorySpaceMapOptions* options,
+        _Out_ vaddr_t*                      mappingOut)
 {
-    int     pageCount = DIVUP(length, GetMemorySpacePageSize());
+    int     pageCount;
     int     pagesUpdated;
     vaddr_t virtualBase;
-    oserr_t osStatus;
+    oserr_t oserr;
+
+    if (memorySpace == NULL || options == NULL) {
+        return OS_EINVALPARAMS;
+    }
     TRACE("MemorySpaceMap(len=%" PRIuIN ", attribs=0x%x, placement=0x%x)",
           length, memoryFlags, placementFlags);
-    
+
+    pageCount = DIVUP(options->Length, GetMemorySpacePageSize());
+
     // If we are trying to reserve memory through this call, redirect it to the
     // dedicated reservation method. 
-    if (!(memoryFlags & MAPPING_COMMIT)) {
-        return MemorySpaceMapReserved(memorySpace, address, length, memoryFlags, placementFlags);
+    if (!(options->Flags & MAPPING_COMMIT)) {
+        return MemorySpaceMapReserved(memorySpace, options, mappingOut);
     }
-    
-    assert(memorySpace != NULL);
-    assert(physicalAddressValues != NULL);
-    assert(placementFlags != 0);
-    
+
     // In case the mappings are provided, we would like to force the COMMIT flag.
     if (placementFlags & MAPPING_PHYSICAL_FIXED) {
         memoryFlags |= MAPPING_COMMIT;
     } else if (memoryFlags & MAPPING_COMMIT) {
-        osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
-        if (osStatus != OS_EOK) {
+        oserr = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
+        if (oserr != OS_EOK) {
             ERROR("MemorySpaceMap failed to allocate physical memory for mapping");
-            return osStatus;
+            return oserr;
         }
     }
     
@@ -559,7 +555,7 @@ MemorySpaceMap(
         return OS_EINVALPARAMS;
     }
 
-    osStatus = ArchMmuSetVirtualPages(
+    oserr = ArchMmuSetVirtualPages(
             memorySpace,
             virtualBase,
             physicalAddressValues,
@@ -567,12 +563,12 @@ MemorySpaceMap(
             memoryFlags,
             &pagesUpdated
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         // Handle cleanup of the pages not mapped
         // TODO
         ERROR("MemorySpaceMap implement cleanup of phys/virt");
     }
-    return osStatus;
+    return oserr;
 }
 
 oserr_t

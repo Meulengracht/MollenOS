@@ -133,6 +133,8 @@ __CreateDeviceBuffer(
     return OS_EOK;
 }
 
+// TODO: remove this once memoryspace supports stack mapping
+#if 0
 static unsigned int
 __MapFlagsForStack(
         _In_ SHM_t* shm)
@@ -192,6 +194,7 @@ __CreateStackBuffer(
     *userMapping = (void*)(contextAddress + shm->Size);
     return oserr;
 }
+#endif
 
 static unsigned int
 __MapFlagsForIPC(
@@ -402,8 +405,6 @@ SHMCreate(
     // the flags.
     if (SHM_KIND(shm->Flags) == SHM_DEVICE) {
         oserr = __CreateDeviceBuffer(buffer, shm, userMapping);
-    } else if (SHM_KIND(shm->Flags) == SHM_STACK) {
-        oserr = __CreateStackBuffer(buffer, shm, userMapping);
     } else if (SHM_KIND(shm->Flags) == SHM_IPC) {
         oserr = __CreateIPCBuffer(buffer, shm, kernelMapping, userMapping);
     } else if (SHM_KIND(shm->Flags) == SHM_TRAP) {
