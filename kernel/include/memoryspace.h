@@ -61,10 +61,10 @@ DECL_STRUCT(PlatformMemoryMapping);
 #define MAPPING_PERSISTENT              0x00000020U  // Memory should not be freed when mapping is removed
 #define MAPPING_DOMAIN                  0x00000040U  // Memory allocated for mapping must be domain local
 #define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
-#define MAPPING_LOWFIRST                0x00000100U  // Memory resources should be allocated by low-addresses first
-#define MAPPING_GUARDPAGE               0x00000200U  // Memory resource is a stack and needs a guard page
-#define MAPPING_TRAPPAGE                0x00000400U  // Memory pages should trigger a trpap
-#define MAPPING_CLEAN                   0x00000800U
+#define MAPPING_GUARDPAGE               0x00000100U  // Memory resource is a stack and needs a guard page
+#define MAPPING_TRAPPAGE                0x00000200U  // Memory pages should trigger a trpap
+#define MAPPING_CLEAN                   0x00000400U
+#define MAPPING_STACK                   0x00000800U
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 
@@ -76,6 +76,12 @@ DECL_STRUCT(PlatformMemoryMapping);
 
 #define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
 
+// Addressing spaces are seperated into two layers. Because the kernel
+// has no concept of processes, it instead has 'thread clusters', which
+// are represented by a <MemorySpaceContext> (Tbh, I want a different name).
+// These represent groups of addressing spaces, which are bound to threads.
+// So MemorySpaceContext is shared across multiple threads, even though each
+// thread technically has their own address space.
 typedef struct MemorySpaceContext MemorySpaceContext_t;
 
 // one per thread
@@ -140,14 +146,34 @@ AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2);
 
-struct MemorySpaceMapParams {
-     uuid_t   SHMTag;
-     vaddr_t* Mapping;
-     paddr_t* PagesOrPhysicalStart;
-     size_t   Length;
-     size_t   Mask;
-     unsigned int Flags;
-     unsigned int PlacementFlags;
+struct MemorySpaceMapOptions {
+    // SHMTag is the ID of the shared memory region associated
+    // with this mapping. This is only used for internal bookkeeping
+    // and should just be supplied with SHM mappings.
+    uuid_t SHMTag;
+    // VirtualStart is the start of the virtual memory mapping. When mapping
+    // specific addresses or resizing an existing mapping, this must be provided
+    // instead.
+    vaddr_t VirtualStart;
+    // PhysicalStart is the start of the physical memory that should be used
+    // for the virtual mapping. This is only used when mapping contigious memory,
+    // otherwise <Pages> should be used instead.
+    paddr_t PhysicalStart;
+    // Pages is a pointer to an array of physical memory pages. If MAPPING_PHYSICAL_FIXED
+    // is set, then this array contains physical pages which will be supplied to the
+    // underlying virtual memory system as the source of physical memory pages. If the
+    // flag is not supplied, this array will be filled with the physical pages that has
+    // been allocated during the mapping.
+    // *MUST* match the length / PAGE_SIZE.
+    paddr_t* Pages;
+    // Length is the length of the mapping to create. If updating an existing mapping
+    // this is the new length of the mapping.
+    size_t Length;
+    // Mask is used when allocating physical pages. If physical pages is not supplied,
+    // then the memory space system will allocate them using this mask.
+    size_t Mask;
+    unsigned int Flags;
+    unsigned int PlacementFlags;
 };
 
 /**
@@ -170,6 +196,12 @@ MemorySpaceMap(
         _In_    size_t         pageMask,
         _In_    unsigned int   memoryFlags,
         _In_    unsigned int   placementFlags);
+
+KERNELAPI oserr_t KERNELABI
+MemorySpaceMap2(
+        _In_  MemorySpace_t*                memorySpace,
+        _In_  struct MemorySpaceMapOptions* options,
+        _Out_ vaddr_t*                      mappingOut);
 
 /**
  * @brief Creates a new virtual to contiguous physical memory mapping.

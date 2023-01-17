@@ -18,7 +18,6 @@
 #ifndef __OS_MEMORY_H__
 #define __OS_MEMORY_H__
 
-#include <os/osdefs.h>
 #include <os/types/memory.h>
 
 _CODE_BEGIN

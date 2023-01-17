@@ -30,8 +30,6 @@
  *                 pages on page-faults.
  * SHM_TRAP        will mark the region a trap region. Only in use for OS services.
  * SHM_IPC         will mark region for IPC and needs a kernel accessible copy.
- * SHM_STACK       also ensures that memory expansion will grow down-wards
- *                 to ensure that the memory region is appropriate for stack use.
  * SHM_DEVICE      will mark the region device memory accessible. This allows for using
  *                 the different types in SHM_TYPE_* to request specifiy memory attributes for
  *                 the underlying physical memory pages. This flag automatically implies that
@@ -44,8 +42,7 @@
 #define SHM_PRIVATE      0x00000008U
 #define SHM_TRAP         0x00000100U
 #define SHM_IPC          0x00000200U
-#define SHM_STACK        0x00000300U
-#define SHM_DEVICE       0x00000400U
+#define SHM_DEVICE       0x00000300U
 #define SHM_KIND_MASK    0x00000F00U
 #define SHM_KIND(_flags) ((_flags) & SHM_KIND_MASK)
 

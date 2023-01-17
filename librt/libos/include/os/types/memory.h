@@ -30,11 +30,11 @@
 // Memory Allocation Definitions
 // Flags that can be used when requesting virtual memory
 #define MEMORY_COMMIT        0x00000001U                  // If commit is not passed, memory will only be reserved.
-#define MEMORY_LOWFIRST      0x00000002U                  // Allocate from low memory
-#define MEMORY_CLEAN         0x00000004U                  // Memory should be cleaned
-#define MEMORY_UNCHACHEABLE  0x00000008U                  // Memory must not be cached
-#define MEMORY_CLONE         0x00000010U                  // Clone the memory mapping passed in as hint
-#define MEMORY_FIXED         0x00000020U                  // Use the value provided in Hint
+#define MEMORY_CLEAN         0x00000002U                  // Memory should be cleaned
+#define MEMORY_UNCHACHEABLE  0x00000004U                  // Memory must not be cached
+#define MEMORY_CLONE         0x00000008U                  // Clone the memory mapping passed in as hint
+#define MEMORY_FIXED         0x00000010U                  // Use the value provided in Hint
+#define MEMORY_STACK         0x00000020U                  // Memory is used as a stack, and should grow downwards
 
 #define MEMORY_READ          0x00000100U                  // Memory is readable
 #define MEMORY_WRITE         0x00000200U                  // Memory is writable
