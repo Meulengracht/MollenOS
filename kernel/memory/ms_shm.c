@@ -117,12 +117,15 @@ __CreateDeviceBuffer(
     ArchSHMTypeToPageMask(shm->Type, &pageMask);
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &mapping,
-            &buffer->Pages[0],
-            shm->Size,
-            pageMask,
-            mapFlags,
-            MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Pages = &buffer->Pages[0],
+                .Length = shm->Size,
+                .Mask = pageMask,
+                .Flags = mapFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -227,12 +230,15 @@ __CreateIPCBuffer(
     // the view of the process.
     oserr = MemorySpaceMap(
             memorySpace,
-            &userMapping,
-            &buffer->Pages[0],
-            shm->Size,
-            0,
-            userMapFlags,
-            MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Pages = &buffer->Pages[0],
+                .Length = shm->Size,
+                .Mask = buffer->PageMask,
+                .Flags = userMapFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &userMapping
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -240,12 +246,15 @@ __CreateIPCBuffer(
 
     oserr = MemorySpaceMap(
             memorySpace,
-            &kernelMapping,
-            &buffer->Pages[0],
-            shm->Size,
-            0,
-            kernelMapFlags,
-            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Pages = &buffer->Pages[0],
+                .Length = shm->Size,
+                .Mask = buffer->PageMask,
+                .Flags = kernelMapFlags,
+                .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+            },
+            &kernelMapping
     );
     if (oserr != OS_EOK) {
         (void)MemorySpaceUnmap(memorySpace, userMapping, shm->Size);
@@ -271,8 +280,9 @@ __MapFlagsForTrap(
 
 static oserr_t
 __CreateTrapBuffer(
-        _In_  SHM_t* shm,
-        _Out_ void** userMappingOut)
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMappingOut)
 {
     unsigned int mapFlags = __MapFlagsForTrap(shm);
     oserr_t      oserr;
@@ -280,12 +290,15 @@ __CreateTrapBuffer(
 
     // Trap buffers use only reserved memory and trigger signals when
     // an unmapped page has been accessed.
-    oserr = MemorySpaceMapReserved(
+    oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &mapping,
-            shm->Size,
-            mapFlags,
-            MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Length = shm->Size,
+                .Flags = mapFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -326,12 +339,15 @@ __CreateRegularMappedBuffer(
 
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &mapping,
-            &buffer->Pages[0],
-            shm->Size,
-            0,
-            mapFlags,
-            MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Pages = &buffer->Pages[0],
+                .Length = shm->Size,
+                .Mask = buffer->PageMask,
+                .Flags = mapFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -342,8 +358,9 @@ __CreateRegularMappedBuffer(
 
 static oserr_t
 __CreateRegularUnmappedBuffer(
-        _In_  SHM_t* shm,
-        _Out_ void** userMappingOut)
+        _In_  struct SHMBuffer* buffer,
+        _In_  SHM_t*            shm,
+        _Out_ void**            userMappingOut)
 {
     unsigned int mapFlags = __MapFlagsForRegular(shm);
     oserr_t      oserr;
@@ -351,12 +368,16 @@ __CreateRegularUnmappedBuffer(
 
     // Trap buffers use only reserved memory and trigger signals when
     // an unmapped page has been accessed.
-    oserr = MemorySpaceMapReserved(
+    oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &mapping,
-            shm->Size,
-            mapFlags,
-            MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Length = shm->Size,
+                .Mask = buffer->PageMask,
+                .Flags = mapFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -374,7 +395,7 @@ __CreateRegularBuffer(
     if (shm->Flags & SHM_COMMIT) {
         return __CreateRegularMappedBuffer(buffer, shm, userMappingOut);
     }
-    return __CreateRegularUnmappedBuffer(shm, userMappingOut);
+    return __CreateRegularUnmappedBuffer(buffer, shm, userMappingOut);
 }
 
 oserr_t
@@ -408,7 +429,7 @@ SHMCreate(
     } else if (SHM_KIND(shm->Flags) == SHM_IPC) {
         oserr = __CreateIPCBuffer(buffer, shm, kernelMapping, userMapping);
     } else if (SHM_KIND(shm->Flags) == SHM_TRAP) {
-        oserr = __CreateTrapBuffer(shm, userMapping);
+        oserr = __CreateTrapBuffer(buffer, shm, userMapping);
     } else {
         oserr = __CreateRegularBuffer(buffer, shm, userMapping);
     }
@@ -581,12 +602,16 @@ __UpdateMapping(
 
     return MemorySpaceMap(
             GetCurrentMemorySpace(),
-            (vaddr_t*)handle->Buffer,
-            &shmBuffer->Pages[0],
-            correctedLength,
-            shmBuffer->PageMask,
-            __RecalculateFlags(shmBuffer->Flags, flags),
-            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = shmBuffer->ID,
+                .VirtualStart = (vaddr_t)handle->Buffer,
+                .Pages = &shmBuffer->Pages[0],
+                .Length = correctedLength,
+                .Mask = shmBuffer->PageMask,
+                .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
+                .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED
+            },
+            (vaddr_t*)&handle->Buffer
     );
 }
 
@@ -616,12 +641,15 @@ __CreateMapping(
 
     return MemorySpaceMap(
             GetCurrentMemorySpace(),
-            (vaddr_t*)mappingOut,
-            &shmBuffer->Pages[pageIndex],
-            correctedLength,
-            shmBuffer->PageMask,
-            __RecalculateFlags(shmBuffer->Flags, flags),
-            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = shmBuffer->ID,
+                .Pages = &shmBuffer->Pages[pageIndex],
+                .Length = correctedLength,
+                .Mask = shmBuffer->PageMask,
+                .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
+                .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+            },
+            (vaddr_t*)mappingOut
     );
 }
 

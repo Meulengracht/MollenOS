@@ -82,14 +82,14 @@ DECL_STRUCT(PlatformMemoryMapping);
 // These represent groups of addressing spaces, which are bound to threads.
 // So MemorySpaceContext is shared across multiple threads, even though each
 // thread technically has their own address space.
-typedef struct MemorySpaceContext MemorySpaceContext_t;
+struct MSContext;
 
 // one per thread
 typedef struct MemorySpace {
     uuid_t                ParentHandle;
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;
-    MemorySpaceContext_t* Context;
+    struct MSContext*     Context;
     PlatformMemoryBlock_t PlatformData;
 } MemorySpace_t;
 
@@ -178,27 +178,12 @@ struct MemorySpaceMapOptions {
 
 /**
  * @brief Creates a new virtual to physical memory mapping.
- *
- * @param memorySpace           [In]      The memory space where the mapping should be created.
- * @param address               [In, Out] The virtual address that should be mapped.
- *                                        Can also be auto assigned if not provided.
- * @param physicalAddressValues [In]      Contains physical addresses for the mappings done.
- * @param pageMask              [In]      The accepted page mask for physical pages allocated.
- * @param memoryFlags           [In]      Memory mapping configuration flags.
- * @param placementFlags        [In]      The physical mappings that are allocated are only allowed in this memory mask.
+ * @param[In]  memorySpace The memory space where the mapping should be created.
+ * @param[In]  options     Configuration options for the mapping
+ * @param[Out] mappingOut  The resulting virtual memory mapping.
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceMap(
-        _In_    MemorySpace_t* memorySpace,
-        _InOut_ vaddr_t*       address,
-        _InOut_ uintptr_t*     physicalAddressValues,
-        _In_    size_t         length,
-        _In_    size_t         pageMask,
-        _In_    unsigned int   memoryFlags,
-        _In_    unsigned int   placementFlags);
-
-KERNELAPI oserr_t KERNELABI
-MemorySpaceMap2(
         _In_  MemorySpace_t*                memorySpace,
         _In_  struct MemorySpaceMapOptions* options,
         _Out_ vaddr_t*                      mappingOut);
@@ -221,23 +206,6 @@ MemorySpaceMapContiguous(
         _In_    size_t         Length,
         _In_    unsigned int   MemoryFlags,
         _In_    unsigned int   PlacementFlags);
-
-/**
- * @brief Marks a virtual region of memory as reserved
- *
- * @param memorySpace          [In]      The memory space where the mapping should be created.
- * @param address              [In, Out] The virtual address that should be mapped.
- *                                       Can also be auto assigned if not provided.
- * @param memoryFlags          [In]      Memory mapping configuration flags.
- * @param placementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
- */
-KERNELAPI oserr_t KERNELABI
-MemorySpaceMapReserved(
-        _In_    MemorySpace_t* memorySpace,
-        _InOut_ vaddr_t*       address,
-        _In_    size_t         size,
-        _In_    unsigned int   memoryFlags,
-        _In_    unsigned int   placementFlags);
 
 /**
  * @brief Unmaps a virtual memory region from an address space.
