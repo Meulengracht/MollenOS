@@ -63,17 +63,6 @@ __WaitForService(
     return (handle == UUID_INVALID) ? OS_ETIMEOUT : OS_EOK;
 }
 
-oserr_t
-RegisterPath(
-    _In_ const char* Path)
-{
-    TRACE("RegisterPath(%s) => %u", Path, ThreadsCurrentId());
-    if (!Path) {
-        return OS_EINVALPARAMS;
-    }
-    return Syscall_RegisterHandlePath(ThreadsCurrentId(), Path);
-}
-
 uuid_t GetSessionService(void)
 {
     if (g_sessionServiceId == UUID_INVALID) {

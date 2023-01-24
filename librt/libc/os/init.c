@@ -24,6 +24,7 @@
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <internal/_tls.h>
+#include <os/shm.h>
 #include <os/threads.h>
 #include <os/usched/xunit.h>
 #include <os/usched/job.h>
@@ -95,16 +96,6 @@ static int __build_environment(const char* environment)
     return 0;
 }
 
-static int __create_startup_buffer(DMABuffer_t* buffer, DMAAttachment_t* mapping)
-{
-    buffer->capacity = KB(64);
-    buffer->length   = KB(64);
-    buffer->name     = "startup-info";
-    buffer->flags    = 0;
-    buffer->type     = DMA_TYPE_REGULAR;
-    return DmaCreate(buffer, mapping);
-}
-
 static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
 {
     size_t     entries = length / sizeof(uintptr_t);
@@ -126,14 +117,14 @@ static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
     return libraries;
 }
 
-static int __parse_startup_info(DMAAttachment_t* dmaAttachment)
+static int __parse_startup_info(SHMHandle_t* shm)
 {
     ProcessStartupInformation_t* source;
     const char*                  data;
     TRACE("__parse_startup_info()");
 
-    source = (ProcessStartupInformation_t*)dmaAttachment->buffer;
-    data   = (char*)dmaAttachment->buffer + sizeof(ProcessStartupInformation_t);
+    source = (ProcessStartupInformation_t*)shm->Buffer;
+    data   = (char*)shm->Buffer + sizeof(ProcessStartupInformation_t);
     TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
           source->ArgumentsLength,
           source->InheritationLength,
@@ -176,37 +167,44 @@ static int __parse_startup_info(DMAAttachment_t* dmaAttachment)
 
 static int __get_startup_info(void)
 {
-    DMABuffer_t              buffer;
-    DMAAttachment_t          mapping;
+    SHMHandle_t              mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     int                      status;
-    oserr_t                  osStatus;
+    oserr_t                  oserr;
     TRACE("__get_startup_info()");
 
-    status = __create_startup_buffer(&buffer, &mapping);
-    if (status) {
-        return status;
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Key = NULL,
+                .Flags = SHM_COMMIT,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                .Type = SHM_TYPE_REGULAR,
+                .Size = KB(64)
+        },
+        &mapping);
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
     }
 
     sys_process_get_startup_information(
             GetGrachtClient(),
             &msg.base,
             ThreadsCurrentId(),
-            mapping.handle,
+            mapping.ID,
             0
     );
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_process_get_startup_information_result(
             GetGrachtClient(),
             &msg.base,
-            &osStatus,
+            &oserr,
             &g_processId
     );
-    assert(osStatus == OS_EOK);
+    assert(oserr == OS_EOK);
 
     status = __parse_startup_info(&mapping);
-    DmaAttachmentUnmap(&mapping);
-    DmaDetach(&mapping);
+    SHMUnmap(&mapping);
+    SHMDetach(&mapping);
     return status;
 }
 

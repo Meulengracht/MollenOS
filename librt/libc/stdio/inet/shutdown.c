@@ -44,12 +44,12 @@ int shutdown(int iod, int how)
     }
     
     if (how & SHUT_WR) {
-        streambuffer_t* stream = handle->object.data.socket.send_buffer.buffer;
+        streambuffer_t* stream = handle->object.data.socket.send_buffer.Buffer;
         streambuffer_set_option(stream, STREAMBUFFER_DISABLED);
     }
     
     if (how & SHUT_RD) {
-        streambuffer_t* stream = handle->object.data.socket.recv_buffer.buffer;
+        streambuffer_t* stream = handle->object.data.socket.recv_buffer.Buffer;
         streambuffer_set_option(stream, STREAMBUFFER_DISABLED);
     }
     return 0;

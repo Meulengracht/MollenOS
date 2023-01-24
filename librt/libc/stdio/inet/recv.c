@@ -106,7 +106,7 @@ static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, 
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
 static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
 {
-    streambuffer_t*           stream   = handle->object.data.socket.recv_buffer.buffer;
+    streambuffer_t*           stream   = handle->object.data.socket.recv_buffer.Buffer;
     intmax_t                  numbytes = 0;
     struct packethdr          packet;
     int                       i;
@@ -240,7 +240,7 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         return -1;
     }
     
-    stream = handle->object.data.socket.recv_buffer.buffer;
+    stream = handle->object.data.socket.recv_buffer.Buffer;
     if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
         _set_errno(ESHUTDOWN);
         return 0; // Should return 0

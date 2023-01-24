@@ -259,6 +259,31 @@ OSLinkPath(
     return oserr;
 }
 
+
+oserr_t
+OSTransferFile(
+        _In_  uuid_t handle,
+        _In_  uuid_t bufferID,
+        _In_  size_t bufferOffset,
+        _In_  bool   write,
+        _In_  size_t length,
+        _Out_ size_t* bytesTransferred)
+{
+    struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  status;
+
+    sys_file_transfer(GetGrachtClient(), &msg.base, __crt_process_id(),
+                      handle,
+                      (int)write,
+                      bufferID,
+                      bufferOffset,
+                      length
+    );
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_file_transfer_result(GetGrachtClient(), &msg.base, &status, bytesTransferred);
+    return status;
+}
+
 oserr_t
 OSGetFilePosition(
         _In_ uuid_t        handle,

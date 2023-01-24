@@ -25,24 +25,24 @@
 #include <ddk/bufferpool.h>
 #include <ddk/bytepool.h>
 #include <ddk/utils.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <stdlib.h>
 
 struct dma_pool {
     struct bytepool* pool;
-    DMAAttachment_t* attachment;
-    DMASGTable_t     table;
+    SHMHandle_t*     handle;
+    SHMSGTable_t     table;
 };
 
 oserr_t
 dma_pool_create(
-    _In_  DMAAttachment_t*  attachment,
+    _In_  SHMHandle_t*      shm,
     _Out_ struct dma_pool** poolOut)
 {
     struct dma_pool* pool;
-    oserr_t       status;
+    oserr_t          oserr;
     
-    if (!attachment || !poolOut || !attachment->buffer) {
+    if (shm == NULL || poolOut == NULL) {
         return OS_EINVALPARAMS;
     }
     
@@ -51,35 +51,33 @@ dma_pool_create(
         return OS_EOOM;
     }
     
-    pool->attachment = attachment;
-    
-    status = DmaGetSGTable(attachment, &pool->table, -1);
-    status = bpool(attachment->buffer, attachment->length, &pool->pool);
-    
+    pool->handle = shm;
+
+    oserr = SHMGetSGTable(shm, &pool->table, -1);
+    if (oserr != OS_EOK) {
+        free(pool);
+        return oserr;
+    }
+
+    oserr = bpool(shm->Buffer, (long)shm->Length, &pool->pool);
+    if (oserr != OS_EOK) {
+        free(pool->table.Entries);
+        free(pool);
+        return oserr;
+    }
+
     *poolOut = pool;
-    return status;
+    return oserr;
 }
 
 oserr_t
 dma_pool_destroy(
     _In_ struct dma_pool* pool)
 {
-    free(pool->table.entries);
+    free(pool->table.Entries);
     free(pool->pool);
     free(pool);
     return OS_EOK;
-}
-
-static uintptr_t
-dma_pool_get_dma(
-    _In_ struct dma_pool* pool,
-    _In_ size_t           offset)
-{
-    int        entry_index;
-    size_t     sg_offset;
-    oserr_t status = DmaSGTableOffset(
-            &pool->table, offset, &entry_index, &sg_offset);
-    return status != OS_EOK ? 0 : pool->table.entries[entry_index].address + sg_offset;
 }
 
 oserr_t
@@ -92,7 +90,7 @@ dma_pool_allocate(
 
     TRACE("dma_pool_allocate(Size %u)", length);
 
-    allocation = bget(pool->pool, length);
+    allocation = bget(pool->pool, (long)length);
     if (!allocation) {
         ERROR("Failed to allocate bufferpool memory (size %u)", length);
         return OS_EOOM;
@@ -115,10 +113,10 @@ uuid_t
 dma_pool_handle(
     _In_ struct dma_pool* pool)
 {
-    if (!pool || !pool->attachment) {
+    if (!pool || !pool->handle) {
         return UUID_INVALID;
     }
-    return pool->attachment->handle;
+    return pool->handle->ID;
 }
 
 size_t
@@ -126,8 +124,8 @@ dma_pool_offset(
     _In_ struct dma_pool* pool,
     _In_ void*            address)
 {
-    if (!pool || !pool->attachment || !address) {
+    if (!pool || !pool->handle || !address) {
         return 0;
     }
-    return (uintptr_t)address - (uintptr_t)pool->attachment->buffer;
+    return (uintptr_t)address - (uintptr_t)pool->handle->Buffer;
 }

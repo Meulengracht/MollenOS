@@ -190,7 +190,7 @@ OSProcessSpawnOpts(
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     oserr_t                          oserr;
     struct sys_process_configuration gconfiguration;
-    DMAAttachment_t*                 dmaBuffer;
+    SHMHandle_t*                     dmaBuffer;
     char*                            buffer;
     TRACE("OSProcessSpawnOpts(path=%s)", path);
     
@@ -201,7 +201,7 @@ OSProcessSpawnOpts(
     // get the current TLS transfer buffer where we will store most
     // of the process setup data.
     dmaBuffer = __tls_current_dmabuf();
-    buffer = dmaBuffer->buffer;
+    buffer = dmaBuffer->Buffer;
 
     CRTWriteInheritanceBlock(
             &options->InheritanceOptions,
@@ -216,7 +216,7 @@ OSProcessSpawnOpts(
     );
     buffer += options->EnvironmentBlockLength;
 
-    __to_sys_process_configuration(options, dmaBuffer->handle, &gconfiguration);
+    __to_sys_process_configuration(options, dmaBuffer->ID, &gconfiguration);
     sys_process_spawn(GetGrachtClient(), &msg.base,
                       path,
                       options->Arguments,

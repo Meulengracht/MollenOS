@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO pipe operation implementations.
  */
 
 //#define __TRACE
@@ -29,10 +23,11 @@
 #include <ioctl.h>
 #include <internal/_io.h>
 #include <internal/_tls.h>
+#include <os/shm.h>
 
 oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    streambuffer_t* stream  = handle->object.data.pipe.attachment.buffer;
+    streambuffer_t* stream  = handle->object.data.pipe.shm.Buffer;
     size_t          bytesRead;
     TRACE("stdio_pipe_op_read(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
@@ -54,7 +49,7 @@ oserr_t stdio_pipe_op_read(stdio_handle_t* handle, void* buffer, size_t length, 
 
 oserr_t stdio_pipe_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+    streambuffer_t* stream = handle->object.data.pipe.shm.Buffer;
     size_t          bytesWritten;
     TRACE("stdio_pipe_op_write(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
@@ -93,8 +88,8 @@ oserr_t stdio_pipe_op_close(stdio_handle_t* handle, int options)
     // Depending on the setup of the pipe. If the pipe is local, then we 
     // can simply free the structure. If the pipe is global/inheritable, we need
     // to free the memory used, and destroy the handle.
-    (void) DmaAttachmentUnmap(&handle->object.data.pipe.attachment);
-    (void) DmaDetach(&handle->object.data.pipe.attachment);
+    (void)SHMUnmap(&handle->object.data.pipe.shm);
+    (void)SHMDetach(&handle->object.data.pipe.shm);
     if (options & STDIO_CLOSE_FULL) {
         OSHandleDestroy(handle->object.handle);
     }
@@ -105,19 +100,25 @@ oserr_t stdio_pipe_op_inherit(stdio_handle_t* handle)
 {
     oserr_t status;
 
-    status = DmaAttach(handle->object.data.pipe.attachment.handle,
-        &handle->object.data.pipe.attachment);
+    status = SHMAttach(
+            handle->object.data.pipe.shm.ID,
+            &handle->object.data.pipe.shm
+    );
     if (status != OS_EOK) {
         return status;
     }
     
-    status = DmaAttachmentMap(&handle->object.data.pipe.attachment, DMA_ACCESS_WRITE);
+    status = SHMMap(
+            &handle->object.data.pipe.shm,
+            0, handle->object.data.pipe.shm.Capacity,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
     return status;
 }
 
 oserr_t stdio_pipe_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
-    streambuffer_t* stream = handle->object.data.pipe.attachment.buffer;
+    streambuffer_t* stream = handle->object.data.pipe.shm.Buffer;
 
     if ((unsigned int)request == FIONBIO) {
         int* nonBlocking = va_arg(args, int*);

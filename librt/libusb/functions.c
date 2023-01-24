@@ -28,7 +28,7 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include "os/services/process.h"
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <stdlib.h>
 
 #include <ctt_usbhost_service_client.h>
@@ -36,48 +36,51 @@
 
 static _Atomic(uuid_t)  TransferIdGenerator      = 1;
 static const size_t     LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
-static struct dma_pool* DmaPool                  = NULL;
-static DMAAttachment_t  DmaAttachment;
+static struct dma_pool* g_dmaPool                = NULL;
+static SHMHandle_t      g_shmHandle;
 
 oserr_t
 UsbInitialize(void)
 {
-    DMABuffer_t info;
-    oserr_t     status;
-    
-    info.length   = LIBUSB_SHAREDBUFFER_SIZE;
-    info.capacity = LIBUSB_SHAREDBUFFER_SIZE;
-    info.flags    = 0;
-    info.type     = DMA_TYPE_DRIVER_32;
-    
-    status = DmaCreate(&info, &DmaAttachment);
-    if (status != OS_EOK) {
-        return status;
+    oserr_t oserr;
+
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Key = NULL,
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = LIBUSB_SHAREDBUFFER_SIZE,
+                .Access = SHM_ACCESS_WRITE | SHM_ACCESS_READ
+            },
+            &g_shmHandle
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    
-    status = dma_pool_create(&DmaAttachment, &DmaPool);
-    if (status != OS_EOK) {
-        (void) DmaDetach(&DmaAttachment);
+
+    oserr = dma_pool_create(&g_shmHandle, &g_dmaPool);
+    if (oserr != OS_EOK) {
+        (void)SHMDetach(&g_shmHandle);
     }
-    return status;
+    return oserr;
 }
 
 void
 UsbCleanup(void)
 {
-    if (!DmaPool) {
+    if (!g_dmaPool) {
         return;
     }
 
-    dma_pool_destroy(DmaPool);
-    DmaDetach(&DmaAttachment);
-    DmaPool = NULL;
+    dma_pool_destroy(g_dmaPool);
+    SHMDetach(&g_shmHandle);
+    g_dmaPool = NULL;
 }
 
 struct dma_pool*
 UsbRetrievePool(void)
 {
-    return DmaPool;
+    return g_dmaPool;
 }
 
 void
@@ -360,16 +363,16 @@ UsbExecutePacket(
     usb_packet_t*       packet;
     UsbTransfer_t       transfer;
     
-    if (dma_pool_allocate(DmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OS_EOK) {
+    if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OS_EOK) {
         ERROR("Failed to allocate a transfer buffer");
         return TransferInvalid;
     }
 
     if (length != 0) {
-        oserr_t osStatus = dma_pool_allocate(DmaPool, length, &dmaStorage);
+        oserr_t osStatus = dma_pool_allocate(g_dmaPool, length, &dmaStorage);
         if (osStatus != OS_EOK) {
             ERROR("Failed to allocate a transfer data buffer");
-            dma_pool_free(DmaPool, dmaPacketStorage);
+            dma_pool_free(g_dmaPool, dmaPacketStorage);
             return TransferInvalid;
         }
     }
@@ -395,8 +398,8 @@ UsbExecutePacket(
     // Initialize setup transfer
     UsbTransferInitialize(&transfer, deviceContext, USB_TRANSFER_ENDPOINT_CONTROL,
         USB_TRANSFER_CONTROL, 0);
-    UsbTransferSetup(&transfer, dma_pool_handle(DmaPool), dma_pool_offset(DmaPool, dmaPacketStorage),
-        dma_pool_handle(DmaPool), dma_pool_offset(DmaPool, dmaStorage), length, dataDirection);
+    UsbTransferSetup(&transfer, dma_pool_handle(g_dmaPool), dma_pool_offset(g_dmaPool, dmaPacketStorage),
+                     dma_pool_handle(g_dmaPool), dma_pool_offset(g_dmaPool, dmaStorage), length, dataDirection);
 
     // Execute the transaction and cleanup the buffer
     transferStatus = UsbTransferQueue(deviceContext, &transfer, &bytesTransferred);
@@ -410,9 +413,9 @@ UsbExecutePacket(
     }
 
     if (length != 0) {
-        dma_pool_free(DmaPool, dmaStorage);
+        dma_pool_free(g_dmaPool, dmaStorage);
     }
-    dma_pool_free(DmaPool, dmaPacketStorage);
+    dma_pool_free(g_dmaPool, dmaPacketStorage);
     return transferStatus;
 }
 
