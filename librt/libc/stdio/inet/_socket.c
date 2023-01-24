@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Support
- * - Standard Socket IO Implementation
  */
 #define __TRACE
 
@@ -57,8 +51,8 @@ int socket_create(int domain, int type, int protocol, uuid_t handle,
     ioObject->object.data.socket.type     = type;
     ioObject->object.data.socket.protocol = protocol;
     
-    ioObject->object.data.socket.send_buffer.handle = send_handle;
-    ioObject->object.data.socket.recv_buffer.handle = recv_handle;
+    ioObject->object.data.socket.send_buffer.ID = send_handle;
+    ioObject->object.data.socket.recv_buffer.ID = recv_handle;
     
     TRACE("[socket] mapping pipes");
     osStatus = ioObject->ops.inherit(ioObject);

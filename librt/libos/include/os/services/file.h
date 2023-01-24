@@ -139,6 +139,25 @@ OSLinkPath(
         _In_ bool        symbolic));
 
 /**
+ * brief Reads or writes a number of bytes to a file.
+ * @param handle
+ * @param bufferID
+ * @param bufferOffset
+ * @param write
+ * @param length
+ * @param bytesTransferred
+ * @return
+ */
+CRTDECL(oserr_t,
+OSTransferFile(
+        _In_  uuid_t  handle,
+        _In_  uuid_t  bufferID,
+        _In_  size_t  bufferOffset,
+        _In_  bool    write,
+        _In_  size_t  length,
+        _Out_ size_t* bytesTransferred));
+
+/**
  * @brief
  * @param path
  * @param size

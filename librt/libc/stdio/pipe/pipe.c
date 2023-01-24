@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Pipe function, opens a new pipe
  */
 
 //#define __TRACE
@@ -25,7 +20,7 @@
 #include <ddk/utils.h>
 #include <internal/_io.h>
 #include <io.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <os/mollenos.h>
 #include <string.h>
 
@@ -61,40 +56,40 @@ static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
 int pipe(long size, int flags)
 {
     stdio_handle_t* ioObject;
-    oserr_t         osStatus;
+    oserr_t         oserr;
     int             status;
-    DMABuffer_t     bufferInfo;
-    DMAAttachment_t attachment;
+    SHMHandle_t     attachment;
     unsigned int    wxflags = __convert_o_to_wx_flags(flags);
 
-    // create the dma attachment
-    bufferInfo.name     = "libc_pipe";
-    bufferInfo.length   = size;
-    bufferInfo.capacity = size;
-    bufferInfo.flags    = 0;
-    bufferInfo.type     = DMA_TYPE_REGULAR;
-
-    osStatus = DmaCreate(&bufferInfo, &attachment);
-    if (osStatus != OS_EOK) {
-        return OsErrToErrNo(osStatus);
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Key = NULL,
+                .Flags = SHM_COMMIT,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                .Type = SHM_TYPE_REGULAR,
+                .Size = size
+            },
+            &attachment
+    );
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
     }
 
     streambuffer_construct(
-        attachment.buffer,
+        attachment.Buffer,
         size - sizeof(struct streambuffer),
         STREAMBUFFER_MULTIPLE_WRITERS | STREAMBUFFER_GLOBAL);
 
     status = stdio_handle_create(-1, WX_OPEN | wxflags, &ioObject);
     if (status) {
-        DmaDetach(&attachment);
+        SHMDetach(&attachment);
         return status;
     }
 
-    stdio_handle_set_handle(ioObject, attachment.handle);
+    stdio_handle_set_handle(ioObject, attachment.ID);
     stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_PIPE);
     
-    memcpy(&ioObject->object.data.pipe.attachment, &attachment,
-        sizeof(DMAAttachment_t));
+    memcpy(&ioObject->object.data.pipe.shm, &attachment, sizeof(SHMHandle_t));
     ioObject->object.data.pipe.options = STREAMBUFFER_ALLOW_PARTIAL;
     return ioObject->fd;
 }

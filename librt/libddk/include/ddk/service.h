@@ -54,12 +54,6 @@ struct ServiceStartupOptions {
 #define SERVICE_NET_PATH "/service/net"
 #define SERVICE_SERVED_PATH "/service/serve"
 
-// The ability to associate the current thread handle 
-// with a global path to access services without knowing the thread
-DDKDECL(oserr_t,
-RegisterPath(
-    _In_ const char* Path));
-
 // Service targets that are available for Vali
 DDKDECL(uuid_t, GetSessionService(void));
 DDKDECL(uuid_t, GetDeviceService(void));

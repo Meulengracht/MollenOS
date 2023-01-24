@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,16 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Standard IO socket operation implementations.
  */
 
 #include <internal/_io.h>
 #include <internal/_ipc.h>
 #include <ioctl.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 
 oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
@@ -69,14 +63,14 @@ oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
         sys_socket_close_result(GetGrachtClient(), &msg.base, &status);
     }
     
-    if (handle->object.data.socket.send_buffer.buffer) {
-        (void) DmaAttachmentUnmap(&handle->object.data.socket.send_buffer);
-        (void) DmaDetach(&handle->object.data.socket.send_buffer);
+    if (handle->object.data.socket.send_buffer.Buffer) {
+        (void)SHMUnmap(&handle->object.data.socket.send_buffer);
+        (void)SHMDetach(&handle->object.data.socket.send_buffer);
     }
     
-    if (handle->object.data.socket.recv_buffer.buffer) {
-        (void) DmaAttachmentUnmap(&handle->object.data.socket.recv_buffer);
-        (void) DmaDetach(&handle->object.data.socket.recv_buffer);
+    if (handle->object.data.socket.recv_buffer.Buffer) {
+        (void)SHMUnmap(&handle->object.data.socket.recv_buffer);
+        (void)SHMDetach(&handle->object.data.socket.recv_buffer);
     }
     return status;
 }
@@ -84,23 +78,31 @@ oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
 oserr_t stdio_net_op_inherit(stdio_handle_t* handle)
 {
     oserr_t status1, status2;
-    uuid_t     send_buffer_handle = handle->object.data.socket.send_buffer.handle;
-    uuid_t     recv_buffer_handle = handle->object.data.socket.recv_buffer.handle;
+    uuid_t  send_buffer_handle = handle->object.data.socket.send_buffer.ID;
+    uuid_t  recv_buffer_handle = handle->object.data.socket.recv_buffer.ID;
     
     // When we inherit a socket from another application, we must reattach
     // the handle that is stored in dma_attachment.
-    status1 = DmaAttach(send_buffer_handle, &handle->object.data.socket.send_buffer);
-    status2 = DmaAttach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
+    status1 = SHMAttach(send_buffer_handle, &handle->object.data.socket.send_buffer);
+    status2 = SHMAttach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
     if (status1 != OS_EOK || status2 != OS_EOK) {
         return status1 != OS_EOK ? status1 : status2;
     }
     
-    status1 = DmaAttachmentMap(&handle->object.data.socket.send_buffer, DMA_ACCESS_WRITE);
+    status1 = SHMMap(
+            &handle->object.data.socket.send_buffer,
+            0, handle->object.data.socket.send_buffer.Capacity,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
     if (status1 != OS_EOK) {
         return status1;
     }
     
-    status1 = DmaAttachmentMap(&handle->object.data.socket.recv_buffer, DMA_ACCESS_WRITE);
+    status1 = SHMMap(
+            &handle->object.data.socket.recv_buffer,
+            0, handle->object.data.socket.recv_buffer.Capacity,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
     if (status1 != OS_EOK) {
         return status1;
     }
@@ -109,7 +111,7 @@ oserr_t stdio_net_op_inherit(stdio_handle_t* handle)
 
 oserr_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
-    streambuffer_t* recvStream = handle->object.data.socket.recv_buffer.buffer;
+    streambuffer_t* recvStream = handle->object.data.socket.recv_buffer.Buffer;
 
     if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);

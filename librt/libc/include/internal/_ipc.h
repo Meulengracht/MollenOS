@@ -17,7 +17,6 @@
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include <os/dmabuf.h>
 
 struct ipcontext {
     streambuffer_t* stream;

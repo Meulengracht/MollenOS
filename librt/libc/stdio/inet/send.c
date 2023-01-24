@@ -31,7 +31,7 @@
 
 static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
 {
-    streambuffer_t* stream    = handle->object.data.socket.send_buffer.buffer;
+    streambuffer_t* stream    = handle->object.data.socket.send_buffer.Buffer;
     size_t          total_len = 0;
     int             i;
     
@@ -54,7 +54,7 @@ static intmax_t perform_send_msg(stdio_handle_t* handle, const struct msghdr* ms
     intmax_t         numbytes    = 0;
     size_t           payload_len = 0;
     size_t           meta_len    = sizeof(struct packethdr) + msg->msg_namelen + msg->msg_controllen;
-    streambuffer_t*  stream      = handle->object.data.socket.send_buffer.buffer;
+    streambuffer_t*  stream      = handle->object.data.socket.send_buffer.Buffer;
     struct packethdr packet;
     size_t           avail_len;
     streambuffer_packet_ctx_t packetCtx;
@@ -169,7 +169,7 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
     
     // We must return ESHUTDOWN if the sending socket has been requested shut
     // on this socket handle.
-    stream = handle->object.data.socket.send_buffer.buffer;
+    stream = handle->object.data.socket.send_buffer.Buffer;
     if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
         _set_errno(ESHUTDOWN);
         return -1;

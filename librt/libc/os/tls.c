@@ -20,7 +20,7 @@
 #include <ddk/ddkdefs.h> // for __reserved
 #include <internal/_locale.h>
 #include <internal/_utils.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 
 static const char* g_nullEnvironment[] = {
         NULL
@@ -82,10 +82,10 @@ static void __destroy_env_block(char** env)
 void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
-    if (tls->dma.buffer != NULL) {
-        DmaDetach(&tls->dma);
-        free(tls->dma.buffer);
-        tls->dma.buffer = NULL;
+    if (tls->shm.Buffer != NULL) {
+        SHMDetach(&tls->shm);
+        free(tls->shm.Buffer);
+        tls->shm.Buffer = NULL;
     }
 
     if (tls->env_block != NULL && tls->env_block != g_nullEnvironment) {
@@ -94,26 +94,26 @@ void __tls_destroy(struct thread_storage* tls)
     }
 }
 
-DMAAttachment_t* __tls_current_dmabuf(void)
+SHMHandle_t* __tls_current_dmabuf(void)
 {
     struct thread_storage* tls = __tls_current();
-    if (tls->dma.buffer == NULL) {
-        DMABuffer_t info;
-        void*       buffer;
-        oserr_t     oserr;
+    if (tls->shm.Buffer == NULL) {
+        void*   buffer;
+        oserr_t oserr;
 
         buffer = malloc(BUFSIZ);
         assert(buffer != NULL);
 
-        info.name     = "thread_tls";
-        info.length   = BUFSIZ;
-        info.capacity = BUFSIZ;
-        info.flags    = DMA_PERSISTANT;
-        info.type     = DMA_TYPE_DRIVER_32;
-        oserr = DmaExport(buffer, &info, &tls->dma);
+        oserr = SHMExport(
+                buffer,
+                &(SHM_t) {
+                    .Size = BUFSIZ,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            }, &tls->shm
+        );
         assert(oserr == OS_EOK);
     }
-    return &tls->dma;
+    return &tls->shm;
 };
 
 struct thread_storage* __tls_current(void) {

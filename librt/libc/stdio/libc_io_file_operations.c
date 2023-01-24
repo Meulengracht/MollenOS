@@ -21,21 +21,40 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <internal/_ipc.h>
 #include <internal/_tls.h>
 #include <io.h>
+#include <os/shm.h>
 #include <os/services/file.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+oserr_t
+stdio_file_op_read(
+        _In_  stdio_handle_t* handle,
+        _In_  void*           buffer,
+        _In_  size_t          length,
+        _Out_ size_t*         bytesReadOut);
+
+oserr_t
+stdio_file_op_write(
+        _In_  stdio_handle_t* handle,
+        _In_  const void*     buffer,
+        _In_  size_t          length,
+        _Out_ size_t*         bytesWrittenOut);
+
 static inline oserr_t
-perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
-                 size_t chunkSize, off_t offset, size_t length, size_t* bytesTransferreOut)
+__transfer(
+        _In_  uuid_t  fileID,
+        _In_  uuid_t  bufferID,
+        _In_  bool    write,
+        _In_  size_t  chunkSize,
+        _In_  size_t  offset,
+        _In_  size_t  length,
+        _Out_ size_t* bytesTransferreOut)
 {
-    struct vali_link_message msg       = VALI_MSG_INIT_HANDLE(GetFileService());
-    size_t                   bytesLeft = length;
-    oserr_t                  status;
+    size_t  bytesLeft = length;
+    oserr_t oserr;
     TRACE("[libc] [file-io] [perform_transfer] length %" PRIuIN, length);
     
     // Keep reading chunks untill we've read all requested
@@ -45,14 +64,10 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
 
         TRACE("[libc] [file-io] [perform_transfer] chunk size %" PRIuIN ", offset %" PRIuIN,
             bytesToTransfer, offset);
-        sys_file_transfer(GetGrachtClient(), &msg.base, __crt_process_id(),
-                          file_handle, direction, buffer_handle, offset, bytesToTransfer);
-        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-        sys_file_transfer_result(GetGrachtClient(), &msg.base, &status, &bytesTransferred);
-        
+        oserr = OSTransferFile(fileID, bufferID, offset, write, bytesToTransfer, &bytesTransferred)
         TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",
-            bytesTransferred, status);
-        if (status != OS_EOK || bytesTransferred == 0) {
+              bytesTransferred, oserr);
+        if (oserr != OS_EOK || bytesTransferred == 0) {
             break;
         }
 
@@ -61,124 +76,162 @@ perform_transfer(uuid_t file_handle, uuid_t buffer_handle, int direction,
     }
     
     *bytesTransferreOut = length - bytesLeft;
-    return status;
+    return oserr;
 }
 
-oserr_t stdio_file_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytesReadOut)
+static oserr_t
+__read_large(
+        _In_  stdio_handle_t* handle,
+        _In_  void*           buffer,
+        _In_  size_t          length,
+        _Out_ size_t*         bytesReadOut)
 {
-    DMAAttachment_t* dmaAttachment = __tls_current_dmabuf();
-    uuid_t  builtinHandle = dmaAttachment->handle;
-    size_t  builtinLength = dmaAttachment->length;
-    size_t  bytesRead;
-    oserr_t status;
+    SHMHandle_t shm;
+    void*       adjustedPointer = (void*)buffer;
+    size_t      adjustedLength  = length;
+    oserr_t     oserr;
+
+    // enforce dword alignment on the buffer
+    // which means if someone passes us a byte or word aligned
+    // buffer we must account for that
+    if ((uintptr_t)buffer & 0x3) {
+        size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
+        oserr = stdio_file_op_read(handle, buffer, bytesToAlign, bytesReadOut);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
+        adjustedLength -= bytesToAlign;
+    }
+
+    oserr = SHMExport(
+            adjustedPointer,
+            &(SHM_t) {
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                .Size = adjustedLength
+            },
+            &shm
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Pass the callers pointer directly here
+    oserr = __transfer(
+            handle->object.handle,
+            shm.ID,
+            false,
+            adjustedLength,
+            0,
+            adjustedLength,
+            bytesReadOut
+    );
+    if (*bytesReadOut == adjustedLength) {
+        *bytesReadOut = length;
+    }
+
+    SHMDetach(&shm);
+    return oserr;
+}
+
+oserr_t
+stdio_file_op_read(
+        _In_  stdio_handle_t* handle,
+        _In_  void*           buffer,
+        _In_  size_t          length,
+        _Out_ size_t*         bytesReadOut)
+{
+    SHMHandle_t* shmHandle = __tls_current_dmabuf();
+    uuid_t       builtinHandle = shmHandle->ID;
+    size_t       builtinLength = shmHandle->Length;
+    size_t       bytesRead;
+    oserr_t      oserr;
     TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length > builtinLength) {
-        DMABuffer_t     info;
-        DMAAttachment_t attachment;
-        void*           adjustedPointer = (void*)buffer;
-        size_t          adjustedLength  = length;
-
-        // enforce dword alignment on the buffer
-        // which means if someone passes us a byte or word aligned
-        // buffer we must account for that
-        if ((uintptr_t)buffer & 0x3) {
-            size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
-            status = stdio_file_op_read(handle, buffer, bytesToAlign, bytesReadOut);
-            if (status != OS_EOK) {
-                return status;
-            }
-            adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
-            adjustedLength -= bytesToAlign;
-        }
-        
-        info.name     = "stdio_transfer";
-        info.length   = adjustedLength;
-        info.capacity = adjustedLength;
-        info.flags    = DMA_PERSISTANT;
-        info.type     = DMA_TYPE_DRIVER_32;
-        
-        status = DmaExport(adjustedPointer, &info, &attachment);
-        if (status != OS_EOK) {
-            return status;
-        }
-        
-        // Pass the callers pointer directly here
-        status = perform_transfer(handle->object.handle, attachment.handle,
-            0, adjustedLength, 0, adjustedLength, bytesReadOut);
-        if (*bytesReadOut == adjustedLength) {
-            *bytesReadOut = length;
-        }
-
-        DmaDetach(&attachment);
-        return status;
+        return __read_large(handle, buffer, length, bytesReadOut);
     }
-    
-    status = perform_transfer(handle->object.handle, builtinHandle, 0,
-        builtinLength, 0, length, &bytesRead);
-    if (status == OS_EOK && bytesRead > 0) {
-        memcpy(buffer, __tls_current_dmabuf()->buffer, bytesRead);
+
+    oserr = __transfer(handle->object.handle, builtinHandle, 0,
+                       builtinLength, 0, length, &bytesRead);
+    if (oserr == OS_EOK && bytesRead > 0) {
+        memcpy(buffer, shmHandle->Buffer, bytesRead);
     }
     
     *bytesReadOut = bytesRead;
-    return status;
+    return oserr;
 }
 
-oserr_t stdio_file_op_write(stdio_handle_t* handle, const void* buffer,
-                            size_t length, size_t* bytesWrittenOut)
+static oserr_t
+__write_large(
+        _In_  stdio_handle_t* handle,
+        _In_  const void*     buffer,
+        _In_  size_t          length,
+        _Out_ size_t*         bytesWrittenOut)
 {
-    DMAAttachment_t* dmaAttachment = __tls_current_dmabuf();
-    uuid_t           builtinHandle = dmaAttachment->handle;
-    size_t           builtinLength = dmaAttachment->length;
-    oserr_t          oserr;
+    SHMHandle_t shm;
+    void*       adjustedPointer = (void*)buffer;
+    size_t      adjustedLength  = length;
+    oserr_t     oserr;
+
+    // enforce dword alignment on the buffer
+    // which means if someone passes us a byte or word aligned
+    // buffer we must account for that
+    if ((uintptr_t)buffer & 0x3) {
+        size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
+        oserr = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+        adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
+        adjustedLength -= bytesToAlign;
+    }
+
+    oserr = SHMExport(
+            adjustedPointer,
+            &(SHM_t) {
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                    .Size = adjustedLength
+            },
+            &shm
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = __transfer(handle->object.handle, shm.ID,
+                       1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
+    SHMDetach(&shm);
+    if (*bytesWrittenOut == adjustedLength) {
+        *bytesWrittenOut = length;
+    }
+    return oserr;
+}
+
+oserr_t
+stdio_file_op_write(
+        _In_  stdio_handle_t* handle,
+        _In_  const void*     buffer,
+        _In_  size_t          length,
+        _Out_ size_t*         bytesWrittenOut)
+{
+    SHMHandle_t* shmHandle = __tls_current_dmabuf();
+    uuid_t       builtinHandle = shmHandle->ID;
+    size_t       builtinLength = shmHandle->Length;
+    oserr_t      oserr;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
     
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once. 
     if (length > builtinLength) {
-        DMABuffer_t     info;
-        DMAAttachment_t attachment;
-        void*           adjustedPointer = (void*)buffer;
-        size_t          adjustedLength  = length;
-        
-        // enforce dword alignment on the buffer
-        // which means if someone passes us a byte or word aligned
-        // buffer we must account for that
-        if ((uintptr_t)buffer & 0x3) {
-            size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
-            oserr = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
-            if (oserr != OS_EOK) {
-                return oserr;
-            }
-            adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
-            adjustedLength -= bytesToAlign;
-        }
-
-        
-        info.length   = adjustedLength;
-        info.capacity = adjustedLength;
-        info.flags    = DMA_PERSISTANT;
-        info.type     = DMA_TYPE_DRIVER_32;
-
-        oserr = DmaExport(adjustedPointer, &info, &attachment);
-        if (oserr != OS_EOK) {
-            return oserr;
-        }
-
-        oserr = perform_transfer(handle->object.handle, attachment.handle,
-                                 1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
-        DmaDetach(&attachment);
-        if (*bytesWrittenOut == adjustedLength) {
-            *bytesWrittenOut = length;
-        }
-        return oserr;
+        return __write_large(handle, buffer, length, bytesWrittenOut);
     }
     
-    memcpy(__tls_current_dmabuf()->buffer, buffer, length);
-    oserr = perform_transfer(handle->object.handle, builtinHandle, 1,
-                             builtinLength, 0, length, bytesWrittenOut);
+    memcpy(shmHandle->Buffer, buffer, length);
+    oserr = __transfer(handle->object.handle, builtinHandle, 1,
+                       builtinLength, 0, length, bytesWrittenOut);
     return oserr;
 }
 
