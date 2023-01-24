@@ -438,7 +438,7 @@ ArchMmuReserveVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesReserved = 0;
-    oserr_t         status        = OS_EOK;
+    oserr_t            status        = OS_EOK;
     uintptr_t          zero          = 0;
 
     if (!pagesReservedOut) {
@@ -559,9 +559,9 @@ ArchMmuClearVirtualPages(
     int                index;
     int                pagesCleared = 0;
     int                freedPages   = 0;
-    oserr_t         status       = OS_EOK;
+    oserr_t            status       = OS_EOK;
 
-    if (!freedAddresses || !freedAddressesCountOut || !pagesClearedOut) {
+    if (!freedAddressesCountOut || !pagesClearedOut) {
         return OS_EINVALPARAMS;
     }
 
@@ -581,7 +581,7 @@ ArchMmuClearVirtualPages(
             // should not free the physical page. We only do this if the memory
             // is marked as present, otherwise we don't
             if (mapping & PAGE_PRESENT) {
-                if (!(mapping & PAGE_PERSISTENT)) {
+                if (freedAddresses && !(mapping & PAGE_PERSISTENT)) {
                     freedAddresses[freedPages++] = mapping & PAGE_MASK;
                 }
 

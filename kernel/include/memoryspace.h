@@ -26,14 +26,10 @@
 #define __MEMORY_SPACE_INTERFACE__
 
 #include <arch/platform.h>
-#include <os/osdefs.h>
 #include <os/types/memory.h>
-#include <ds/list.h>
-#include <mutex.h>
 #include <utils/dynamic_memory_pool.h>
 #include <vboot/vboot.h>
 
-DECL_STRUCT(Context);
 DECL_STRUCT(PlatformMemoryMapping);
 
 /**
@@ -62,17 +58,19 @@ DECL_STRUCT(PlatformMemoryMapping);
 #define MAPPING_DOMAIN                  0x00000040U  // Memory allocated for mapping must be domain local
 #define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
 #define MAPPING_GUARDPAGE               0x00000100U  // Memory resource is a stack and needs a guard page
-#define MAPPING_TRAPPAGE                0x00000200U  // Memory pages should trigger a trpap
+#define MAPPING_TRAPPAGE                0x00000200U  // Memory pages should trigger a trap
 #define MAPPING_CLEAN                   0x00000400U
 #define MAPPING_STACK                   0x00000800U
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
+#define MAPPING_PHYSICAL_CONTIGUOUS     0x00000002U  // (Physical) Mapping shall be physically contigious
+#define MAPPING_PHYSICAL_MASK           0x0000000FU
 
-#define MAPPING_VIRTUAL_GLOBAL          0x00000002U  // (Virtual) Mapping is done in global access memory
-#define MAPPING_VIRTUAL_PROCESS         0x00000004U  // (Virtual) Mapping is process specific
-#define MAPPING_VIRTUAL_THREAD          0x00000008U  // (Virtual) Mapping is thread specific
-#define MAPPING_VIRTUAL_FIXED           0x00000010U  // (Virtual) Mapping is supplied
-#define MAPPING_VIRTUAL_MASK            0x0000001EU
+#define MAPPING_VIRTUAL_GLOBAL          0x00000010U  // (Virtual) Mapping is done in global access memory
+#define MAPPING_VIRTUAL_PROCESS         0x00000020U  // (Virtual) Mapping is process specific
+#define MAPPING_VIRTUAL_THREAD          0x00000030U  // (Virtual) Mapping is thread specific
+#define MAPPING_VIRTUAL_FIXED           0x00000040U  // (Virtual) Mapping is supplied
+#define MAPPING_VIRTUAL_MASK            0x000000F0U
 
 #define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
 
@@ -109,10 +107,10 @@ MemorySpaceInitialize(
         _In_ PlatformMemoryMapping_t* kernelMappings);
 
 /**
- * @brief Initialize a new memory space, depending on what user is requesting we
- * might recycle a already existing address space
- *
- *
+ * @brief
+ * @param flags
+ * @param handleOut
+ * @return
  */
 KERNELAPI oserr_t KERNELABI
 CreateMemorySpace(
@@ -189,25 +187,6 @@ MemorySpaceMap(
         _Out_ vaddr_t*                      mappingOut);
 
 /**
- * @brief Creates a new virtual to contiguous physical memory mapping.
- *
- * @param MemorySpace          [In]      The memory space where the mapping should be created.
- * @param Address              [In, Out] The virtual address that should be mapped. 
- *                                       Can also be auto assigned if not provided.
- * @param PhysicalStartAddress [In]      Contains physical addresses for the mappings done.
- * @param MemoryFlags          [In]      Memory mapping configuration flags.
- * @param PlacementFlags       [In]      The physical mappings that are allocated are only allowed in this memory mask.
- */
-KERNELAPI oserr_t KERNELABI
-MemorySpaceMapContiguous(
-        _In_    MemorySpace_t* MemorySpace,
-        _InOut_ vaddr_t*       Address,
-        _In_    uintptr_t      PhysicalStartAddress,
-        _In_    size_t         Length,
-        _In_    unsigned int   MemoryFlags,
-        _In_    unsigned int   PlacementFlags);
-
-/**
  * @brief Unmaps a virtual memory region from an address space.
  *
  * @param memorySpace
@@ -253,11 +232,11 @@ MemorySpaceCommit(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceChangeProtection(
-        _In_        MemorySpace_t* memorySpace,
-        _InOut_Opt_ vaddr_t        address,
-        _In_        size_t         length,
-        _In_        unsigned int   attributes,
-        _Out_       unsigned int*  previousAttributes);
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        address,
+        _In_  size_t         length,
+        _In_  unsigned int   attributes,
+        _Out_ unsigned int*  previousAttributes);
 
 /**
  * @brief Clones a region of memory mappings into the address space provided. The new mapping

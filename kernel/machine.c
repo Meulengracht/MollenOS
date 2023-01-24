@@ -243,7 +243,7 @@ AllocatePhysicalMemory(
         _In_ uintptr_t* pages)
 {
     SystemMemoryAllocatorRegion_t* region;
-    oserr_t                        osStatus;
+    oserr_t                        oserr;
     int                            pagesLeftToAllocate = pageCount;
     int                            i = GetMachine()->PhysicalMemory.MaskCount - 1;
 
@@ -262,11 +262,11 @@ AllocatePhysicalMemory(
 
         // try to allocate all neccessary pages from this memory mask allocator
         SpinlockAcquireIrq(&region->Lock);
-        osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
+        oserr = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
         SpinlockReleaseIrq(&region->Lock);
 
         // if it returns out of memory, then no pages are available here
-        if (osStatus != OS_EOOM) {
+        if (oserr != OS_EOOM) {
             // otherwise, we subtract the number of pages allocated from this
             pagesLeftToAllocate -= pagesAllocated;
         }
@@ -275,10 +275,10 @@ AllocatePhysicalMemory(
         region = &GetMachine()->PhysicalMemory.Region[--i];
     }
 
-    if (osStatus == OS_EOK) {
+    if (oserr == OS_EOK) {
         GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pageCount;
     }
-    return osStatus;
+    return oserr;
 }
 
 void
