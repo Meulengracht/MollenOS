@@ -240,14 +240,14 @@ IterativeFree(
 	while (CurrentNode) {
 		CurrentLength = Depth != 0 ? (Pool->Length >> Depth) : Pool->Length;
 
-		// Perform book-keeping and also make sure we iterate up the chain again
+		// Perform bookkeeping and also make sure we iterate up the chain again
 		if (Finish) {
 			if (!Result) {
-				// Book-keeping task 1 - If both children are now free, mark our node as free as well.
+				// Bookkeeping task 1 - If both children are now free, mark our node as free as well.
 				if (!CurrentNode->Left->Allocated && !CurrentNode->Right->Allocated) {
 					CurrentNode->Allocated = 0;
 
-					// Book-keeping task 2 - If both children are free and no longer split, then we can also
+					// Bookkeeping task 2 - If both children are free and no longer split, then we can also
 					// perform un-split on this node
 					if (!CurrentNode->Left->Split && !CurrentNode->Right->Split) {
 						CurrentNode->Split = 0;
@@ -263,14 +263,12 @@ IterativeFree(
 			RightChildLimit = AccumulatedAddress + (CurrentLength >> 1);
 			if (Address < RightChildLimit) {
 				GO_RIGHT;
-			}
-			else {
+			} else {
 				AccumulatedAddress += CurrentLength >> 1;
 				GO_LEFT;
 			}
 			continue;
-		}
-		else {
+		} else {
 			if (CurrentNode->Allocated) {
 				NodeLimit = AccumulatedAddress + CurrentLength;
 				if (Address >= AccumulatedAddress && Address < NodeLimit) {

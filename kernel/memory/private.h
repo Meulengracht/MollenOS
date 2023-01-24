@@ -79,6 +79,21 @@ MSAllocationCreate(
         _In_ unsigned int   flags);
 
 /**
+ * @brief
+ * @param context
+ * @param address
+ * @param size
+ * @param clonedFrom
+ * @return
+ */
+oserr_t
+MSAllocationFree(
+        _In_  struct MSContext*     context,
+        _In_  vaddr_t*              address,
+        _In_  size_t*               size,
+        _Out_ struct MSAllocation** clonedFrom);
+
+/**
  * @brief Looks up an existing allocation.
  * @param context
  * @param address
@@ -101,6 +116,34 @@ MSAllocationAcquire(
         _In_ struct MSContext* context,
         _In_ vaddr_t           address);
 
+/**
+ * @brief
+ * @param context
+ * @param address
+ * @param link
+ */
+void
+MSAllocationLink(
+        _In_ struct MSContext*    context,
+        _In_ vaddr_t              address,
+        _In_ struct MSAllocation* link);
+
+/**
+ * @brief
+ * @param flags
+ * @return
+ */
+MemorySpace_t*
+MemorySpaceNew(
+        _In_ unsigned int flags);
+
+/**
+ * @brief
+ * @param memorySpace
+ */
+void
+MemorySpaceDelete(
+        _In_ MemorySpace_t* memorySpace);
 
 /**
  * @brief Synchronizes a region of memory with all active memory spaces across CPU cores.
