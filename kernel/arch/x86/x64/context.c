@@ -216,12 +216,14 @@ __AllocateStackInMemory(
     oserr_t        oserr;
 
     // Return a pointer to (STACK_TOP - SIZEOF(CONTEXT))
-    oserr = MemorySpaceMapReserved(
+    oserr = MemorySpaceMap(
             memorySpace,
-            &contextAddress,
-            contextReservedSize,
-            memoryFlags,
-            placementFlags
+            &(struct MemorySpaceMapOptions) {
+                .Length = contextReservedSize,
+                .Flags = memoryFlags,
+                .PlacementFlags = placementFlags
+            },
+            &contextAddress
     );
     if (oserr != OS_EOK) {
         return oserr;

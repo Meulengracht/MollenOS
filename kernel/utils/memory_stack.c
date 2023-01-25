@@ -64,12 +64,14 @@ __ExtendStack(
 
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &space,
-            &pages[0],
-            newSize,
-            0,
-            MAPPING_COMMIT | MAPPING_DOMAIN,
-            MAPPING_VIRTUAL_GLOBAL
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &pages[0],
+                .Length = newSize,
+                .Mask = __MASK,
+                .Flags = MAPPING_COMMIT | MAPPING_DOMAIN,
+                .PlacementFlags = MAPPING_VIRTUAL_GLOBAL
+            },
+            &space
     );
     assert(oserr == OS_EOK);
 

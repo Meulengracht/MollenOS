@@ -120,12 +120,14 @@ __AllocateVirtualPages(
 
     status = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &address,
-            &pages[0],
-            pageSize * pageCount,
-            0,
-            memoryFlags,
-            MAPPING_VIRTUAL_GLOBAL
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &pages[0],
+                .Length = pageSize * pageCount,
+                .Mask = __MASK,
+                .Flags = memoryFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_GLOBAL
+            },
+            &address
     );
     if (status != OS_EOK) {
         ERROR("__AllocateVirtualPages Ran out of memory for allocation in the heap");

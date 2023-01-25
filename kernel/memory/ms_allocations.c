@@ -16,7 +16,9 @@
  */
 
 #include <debug.h>
+#include <ds/list.h>
 #include <heap.h>
+#include <mutex.h>
 #include "private.h"
 
 #define __SZ_TO_PGSZ(_sz, _out) { \

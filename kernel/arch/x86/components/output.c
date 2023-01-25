@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -515,12 +513,14 @@ InitializeFramebufferOutput(void)
         if (pages) {
             oserr_t status = MemorySpaceMap(
                     GetCurrentMemorySpace(),
-                    &backBuffer,
-                    &pages[0],
-                    backBufferSize,
-                    0,
-                    MAPPING_COMMIT,
-                    MAPPING_VIRTUAL_GLOBAL
+                    &(struct MemorySpaceMapOptions) {
+                        .Pages = &pages[0],
+                        .Length = backBufferSize,
+                        .Mask = __MASK,
+                        .Flags = MAPPING_COMMIT,
+                        .PlacementFlags = MAPPING_VIRTUAL_GLOBAL
+                    },
+                    &backBuffer
             );
             if (status == OS_EOK) {
                 g_bootTerminal.BackBufferAddress = backBuffer;

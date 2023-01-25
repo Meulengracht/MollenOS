@@ -41,8 +41,8 @@ typedef struct FutexItem {
     Spinlock_t   BlockQueueSyncObject;
     _Atomic(int) Waiters;
     
-    MemorySpaceContext_t* Context;
-    uintptr_t             FutexAddress;
+    struct MSContext* Context;
+    uintptr_t         FutexAddress;
 } FutexItem_t;
 
 // One per futex key
@@ -91,9 +91,9 @@ __GetBucket(
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexGetNode(
-        _In_ FutexBucket_t*        bucket,
-        _In_ uintptr_t             futexAddress,
-        _In_ MemorySpaceContext_t* context)
+        _In_ FutexBucket_t*    bucket,
+        _In_ uintptr_t         futexAddress,
+        _In_ struct MSContext* context)
 {
     foreach(i, &bucket->Futexes) {
         FutexItem_t* Item = (FutexItem_t*)i->value;
@@ -107,9 +107,9 @@ FutexGetNode(
 
 static FutexItem_t*
 FutexGetNodeLocked(
-        _In_ FutexBucket_t*        bucket,
-        _In_ uintptr_t             futexAddress,
-        _In_ MemorySpaceContext_t* context)
+        _In_ FutexBucket_t*    bucket,
+        _In_ uintptr_t         futexAddress,
+        _In_ struct MSContext* context)
 {
     FutexItem_t* item;
 
@@ -123,9 +123,9 @@ FutexGetNodeLocked(
 // Must be called with the bucket lock held
 static FutexItem_t*
 FutexCreateNode(
-        _In_ FutexBucket_t*        bucket,
-        _In_ uintptr_t             futexAddress,
-        _In_ MemorySpaceContext_t* context)
+        _In_ FutexBucket_t*    bucket,
+        _In_ uintptr_t         futexAddress,
+        _In_ struct MSContext* context)
 {
     FutexItem_t* existing;
     FutexItem_t* item = (FutexItem_t*)kmalloc(sizeof(FutexItem_t));
@@ -250,12 +250,12 @@ FutexWait(
         _In_ int               operation,
         _In_ OSTimestamp_t*    deadline)
 {
-    MemorySpaceContext_t* context = NULL;
-    FutexBucket_t*        futexBucket;
-    FutexItem_t*          futexItem;
-    uintptr_t             futexAddress;
-    irqstate_t            irqState;
-    oserr_t               oserr;
+    struct MSContext* context = NULL;
+    FutexBucket_t*    futexBucket;
+    FutexItem_t*      futexItem;
+    uintptr_t         futexAddress;
+    irqstate_t        irqState;
+    oserr_t           oserr;
     TRACE("FutexWait(async=%i, futex=0x%llx, deadline=%llu:%li)",
           asyncContext != NULL, futex,
           deadline != NULL ? deadline->Seconds : 0,
@@ -348,13 +348,13 @@ FutexWake(
     _In_ int           Count,
     _In_ int           Flags)
 {
-    MemorySpaceContext_t* Context = NULL;
-    FutexBucket_t*        Bucket;
-    FutexItem_t*          FutexItem;
-    oserr_t               Status = OS_ENOENT;
-    uintptr_t             FutexAddress;
-    int                   WaiterCount;
-    int                   i;
+    struct MSContext* Context = NULL;
+    FutexBucket_t*    Bucket;
+    FutexItem_t*      FutexItem;
+    oserr_t           Status = OS_ENOENT;
+    uintptr_t         FutexAddress;
+    int               WaiterCount;
+    int               i;
     
     // Get the futex context, if the context is private
     // we can stick to the virtual address for sleeping
