@@ -681,12 +681,14 @@ MmuCloneVirtualSpace(
     virtualAddress = MEMORY_LOCATION_TLS_START;
     osStatus       = MemorySpaceMap(
             child,
-            &virtualAddress,
-            &physicalAddress,
-            PAGE_SIZE,
-            0,
-            MAPPING_COMMIT,
-            MAPPING_VIRTUAL_FIXED
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &physicalAddress,
+                .Length = PAGE_SIZE,
+                .Mask = __MASK,
+                .Flags = MAPPING_COMMIT,
+                .PlacementFlags = MAPPING_VIRTUAL_FIXED
+            },
+            &virtualAddress
     );
     if (osStatus != OS_EOK) {
         MmuDestroyVirtualSpace(child);

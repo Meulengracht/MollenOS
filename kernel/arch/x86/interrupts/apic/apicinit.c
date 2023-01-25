@@ -133,19 +133,26 @@ __InitializeIoApic(
     uintptr_t originalAddress, remappedAddress;
     uint32_t  ioEntryCount;
     int       i, j;
+    oserr_t   oserr;
     TRACE("__InitializeIoApic(ioApic=%" PRIuIN ")", ioApic->Id);
 
     // Relocate the io-apic
     originalAddress = ioApic->MemoryAddress;
-    MemorySpaceMap(
+    oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &remappedAddress,
-            &originalAddress,
-            GetMemorySpacePageSize(),
-            MEMORY_MASK_32BIT,
-            MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &originalAddress,
+                .Length = GetMemorySpacePageSize(),
+                .Mask = MEMORY_MASK_32BIT,
+                .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+            },
+            &remappedAddress
     );
+    if (oserr != OS_EOK) {
+        ERROR("__InitializeIoApic cannot map address of io-apic");
+        return;
+    }
     ioApic->MemoryAddress = remappedAddress + (originalAddress & 0xFFF);
 
     /**
@@ -399,6 +406,7 @@ ApicInitialize(void)
     uintptr_t remappedApAddress = 0;
     uuid_t    bspApicId;
     uint32_t  temporaryValue;
+    oserr_t   oserr;
     TRACE("ApicInitialize()");
 
     // Step 1. Disable IMCR if present (to-do)
@@ -432,15 +440,21 @@ ApicInitialize(void)
 
     // Perform the remap
     TRACE("ApicInitialize local apic at 0x%" PRIxIN "", originalApAddress);
-    MemorySpaceMap(
+    oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &remappedApAddress,
-            &originalApAddress,
-            GetMemorySpacePageSize(),
-            MEMORY_MASK_32BIT,
-            MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-            MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &originalApAddress,
+                .Length = GetMemorySpacePageSize(),
+                .Mask = MEMORY_MASK_32BIT,
+                .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                .PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+            },
+            &remappedApAddress
     );
+    if (oserr != OS_EOK) {
+        ERROR("ApicInitialize cannot map the local apic");
+        return;
+    }
     g_localApicBaseAddress = remappedApAddress + (originalApAddress & 0xFFF);
     bspApicId              = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
     TRACE("ApicInitialize local bsp id %u", bspApicId);

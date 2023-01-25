@@ -54,12 +54,14 @@ __RemapHPET(
     uintptr_t remappedAddress;
     oserr_t oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &remappedAddress,
-            &address,
-            GetMemorySpacePageSize(),
-            0,
-            MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE,
-            MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &address,
+                .Length = GetMemorySpacePageSize(),
+                .Mask = __MASK,
+                .Flags = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_NOCACHE,
+                .PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+            },
+            &remappedAddress
     );
     if (oserr != OS_EOK) {
         return oserr;

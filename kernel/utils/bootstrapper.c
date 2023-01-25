@@ -27,10 +27,10 @@
 void
 SpawnBootstrapper(void)
 {
-    uuid_t     memorySpaceHandle;
-    uuid_t     threadHandle;
-    oserr_t osStatus;
-    vaddr_t    codeAddress;
+    uuid_t  memorySpaceHandle;
+    uuid_t  threadHandle;
+    oserr_t oserr;
+    vaddr_t codeAddress;
     TRACE("SpawnBootstrapper(base=0x%llx, entry=0x%llx, len=0x%x)",
           GetMachine()->BootInformation.Phoenix.Base,
           GetMachine()->BootInformation.Phoenix.EntryPoint,
@@ -42,27 +42,30 @@ SpawnBootstrapper(void)
     }
 
     // Create a new memoryspace that is application specific
-    osStatus = CreateMemorySpace(MEMORY_SPACE_APPLICATION, &memorySpaceHandle);
-    if (osStatus != OS_EOK) {
+    oserr = CreateMemorySpace(MEMORY_SPACE_APPLICATION, &memorySpaceHandle);
+    if (oserr != OS_EOK) {
         ERROR("SpawnBootstrapper failed to create memory space for bootstrapper");
     }
 
     codeAddress = GetMachine()->MemoryMap.UserCode.Start;
 
     // Create one big continous mapping that maps in the entire image
-    osStatus = MemorySpaceMapContiguous(
+    oserr = MemorySpaceMap(
             MEMORYSPACE_GET(memorySpaceHandle),
-            &codeAddress,
-            (paddr_t)GetMachine()->BootInformation.Phoenix.Base,
-            GetMachine()->BootInformation.Phoenix.Length,
-            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_EXECUTABLE | MAPPING_PERSISTENT,
-            MAPPING_VIRTUAL_FIXED
+            &(struct MemorySpaceMapOptions) {
+                .PhysicalStart = (paddr_t)GetMachine()->BootInformation.Phoenix.Base,
+                .VirtualStart = (vaddr_t)GetMachine()->MemoryMap.UserCode.Start,
+                .Length = GetMachine()->BootInformation.Phoenix.Length,
+                .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_EXECUTABLE | MAPPING_PERSISTENT,
+                .PlacementFlags = MAPPING_VIRTUAL_FIXED | MAPPING_PHYSICAL_CONTIGUOUS
+            },
+            &codeAddress
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         ERROR("SpawnBootstrapper failed to map image into bootstrapper memory space");
     }
 
-    osStatus = ThreadCreate(
+    oserr = ThreadCreate(
             "phoenix.mos",
             (ThreadEntry_t)GetMachine()->BootInformation.Phoenix.EntryPoint,
             NULL,
@@ -72,7 +75,7 @@ SpawnBootstrapper(void)
             0,
             &threadHandle
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         ERROR("SpawnBootstrapper failed to create thread for bootstrapper");
     }
 }

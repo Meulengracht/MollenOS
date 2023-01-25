@@ -75,8 +75,8 @@ SystemMemoryAllocate(
         _In_ int             pageCount,
         _In_ uintptr_t*      pages)
 {
-    oserr_t osStatus;
-    int        pagesAllocated = pageCount;
+    oserr_t oserr;
+    int     pagesAllocated = pageCount;
     SystemMemoryAllocatorRegion_t* region;
 
     // default to highest allocator
@@ -90,13 +90,13 @@ SystemMemoryAllocate(
     }
 
     SpinlockAcquireIrq(&region->Lock);
-    osStatus = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
-    if (osStatus == OS_EINCOMPLETE) {
+    oserr = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
+    if (oserr == OS_EINCOMPLETE) {
         MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
-        osStatus = OS_EOOM;
+        oserr = OS_EOOM;
     }
     SpinlockReleaseIrq(&region->Lock);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t

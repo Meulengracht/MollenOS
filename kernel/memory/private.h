@@ -18,7 +18,9 @@
 #ifndef __MS_PRIVATE_H__
 #define __MS_PRIVATE_H__
 
+#include <ds/list.h>
 #include <memoryspace.h>
+#include <mutex.h>
 
 struct MSAllocation {
     element_t            Header;

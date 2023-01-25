@@ -323,7 +323,13 @@ MemorySpaceMap(
 
     // If we are doing a contigious physical mapping, then we should use another underlying call
     if (__PMTYPE(options->PlacementFlags) == MAPPING_PHYSICAL_CONTIGUOUS) {
-        oserr = __ContiguousMapping(memorySpace, virtualBase, options->PhysicalStart, pageCount, options->Flags);
+        oserr = __ContiguousMapping(
+                memorySpace,
+                virtualBase,
+                options->PhysicalStart,
+                pageCount,
+                options->Flags
+        );
         if (oserr != OS_EOK) {
             goto cleanup;
         }
