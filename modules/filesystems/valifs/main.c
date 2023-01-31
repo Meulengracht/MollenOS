@@ -34,7 +34,7 @@
 struct __ValiFSContext {
     struct VFSStorageParameters Storage;
     UInteger64_t                Position;
-    DMAAttachment_t             Buffer;
+    SHMHandle_t             Buffer;
     StorageDescriptor_t         Stats;
     struct VaFs*                ValiFS;
 };
@@ -74,7 +74,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
 {
     struct __ValiFSContext* context;
     DMABuffer_t             dma;
-    DMAAttachment_t         dmaAttachment;
+    SHMHandle_t         dmaAttachment;
     oserr_t                 oserr;
 
     dma.name = "vafs_transfer_buffer";
@@ -94,7 +94,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
 
     memcpy(&context->Storage, storageParameters,sizeof(struct VFSStorageParameters));
     memcpy(&context->Stats, storageStats, sizeof(StorageDescriptor_t));
-    memcpy(&context->Buffer, &dmaAttachment, sizeof(DMAAttachment_t));
+    memcpy(&context->Buffer, &dmaAttachment, sizeof(SHMHandle_t));
     context->Position.QuadPart = 0;
     context->ValiFS = NULL;
     return context;

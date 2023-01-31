@@ -40,14 +40,14 @@ RegisterSystemDeviceIo(
  * at a time, to avoid two drivers using the same device */
 KERNELAPI oserr_t KERNELABI
 AcquireSystemDeviceIo(
-    _In_ DeviceIo_t* IoSpace);
+    _In_ DeviceIo_t* devIO);
 
 /* ReleaseSystemDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
 KERNELAPI oserr_t KERNELABI
 ReleaseSystemDeviceIo(
-    _In_ DeviceIo_t* IoSpace);
+    _In_ DeviceIo_t* devIO);
 
 /* AcquireKernelSystemDeviceIo
  * Creates a kernel mapped copy of the passed device-io. This can then be released

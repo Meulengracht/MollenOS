@@ -20,7 +20,7 @@
 #include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <ds/guid.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <os/types/file.h>
 #include <vfs/filesystem.h>
 #include <vfs/interface.h>
@@ -48,35 +48,33 @@ static oserr_t __DetectFileSystem(
         _In_  UInteger64_t*       sector,
         _Out_ const char**        fsHintOut)
 {
-
-    DMABuffer_t     dmaInfo;
-    DMAAttachment_t dmaAttachment;
-    oserr_t         oserr;
+    SHMHandle_t shm;
+    oserr_t     oserr;
     TRACE("__DetectFileSystem()");
 
     // Allocate a generic transfer buffer for disk operations
     // on the given disk, we need it to parse the disk
-    dmaInfo.name     = "disk_temp_buffer";
-    dmaInfo.capacity = storage->Stats.SectorSize;
-    dmaInfo.length   = storage->Stats.SectorSize;
-    dmaInfo.flags    = 0;
-    dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
-
-    oserr = DmaCreate(&dmaInfo, &dmaAttachment);
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = storage->Stats.SectorSize,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+        &shm
+    );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
     oserr = VFSStorageDeriveFileSystemType(
             storage,
-            dmaAttachment.handle,
-            dmaAttachment.buffer,
+            shm.ID,
+            shm.Buffer,
             sector,
             fsHintOut
     );
-
-    DmaAttachmentUnmap(&dmaAttachment);
-    DmaDetach(&dmaAttachment);
+    (void)SHMDetach(&shm);
     return oserr;
 }
 

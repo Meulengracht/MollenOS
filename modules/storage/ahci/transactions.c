@@ -148,7 +148,7 @@ static AhciTransaction_t* __CreateTransaction(
         _In_ struct gracht_message* message,
         _In_ int                    direction,
         _In_ uint64_t               sector,
-        _In_ DMAAttachment_t*       dmaAttachment,
+        _In_ SHMHandle_t*       dmaAttachment,
         _In_ unsigned int           bufferOffset)
 {
     uuid_t             transactionId;
@@ -166,7 +166,7 @@ static AhciTransaction_t* __CreateTransaction(
 
     // Do not bother about zeroing the array
     memset(transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&transaction->DmaAttachment, dmaAttachment, sizeof(DMAAttachment_t));
+    memcpy(&transaction->DmaAttachment, dmaAttachment, sizeof(SHMHandle_t));
 
     ELEMENT_INIT(&transaction->Header, (void*)(uintptr_t)-1, transaction);
     transaction->Id      = transactionId;
@@ -204,7 +204,7 @@ AhciTransactionControlCreate(
 {
     AhciTransaction_t*    transaction;
     oserr_t               status;
-    DMAAttachment_t       dmaAttachment;
+    SHMHandle_t       dmaAttachment;
 
     TRACE("AhciTransactionControlCreate(ahciDevice=0x%" PRIxIN ", ataCommand=0x%x, length=0x%" PRIxIN ", direction=%i)",
           ahciDevice, ataCommand, length, direction);
@@ -271,7 +271,7 @@ AhciTransactionStorageCreate(
         _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
-    DMAAttachment_t                 dmaAttachment;
+    SHMHandle_t                 dmaAttachment;
     AhciTransaction_t*              transaction = NULL;
     oserr_t                      status;
     TRACE("AhciTransactionStorageCreate(device=0x%" PRIxIN ", sector=0x%" PRIxIN ", sectorCount=0x%" PRIxIN ", direction=%i)",

@@ -32,17 +32,25 @@
 #include <threading.h>
 #include <string.h>
 
-static void __ConvertToKernelMemoryFlags(
+static void
+__ConvertToKernelMemoryFlags(
         _In_  unsigned int  userFlags,
         _Out_ unsigned int* memoryFlagsOut,
         _Out_ unsigned int* placementFlagsOut)
 {
     unsigned int memoryFlags    = MAPPING_USERSPACE;
-    unsigned int placementFlags = MAPPING_VIRTUAL_PROCESS;
+    unsigned int placementFlags = 0;
 
     // Convert flags from memory domain to memory space domain
     if (userFlags & MEMORY_COMMIT)       { memoryFlags |= MAPPING_COMMIT; }
+    if (userFlags & MEMORY_CLEAN)        { memoryFlags |= MAPPING_CLEAN; }
     if (userFlags & MEMORY_UNCHACHEABLE) { memoryFlags |= MAPPING_NOCACHE; }
+
+    if (userFlags & MEMORY_FIXED)        { placementFlags |= MAPPING_VIRTUAL_FIXED; }
+    else                                 { placementFlags |= MAPPING_VIRTUAL_PROCESS; }
+
+    if (userFlags & MEMORY_STACK)        { memoryFlags |= MAPPING_STACK; }
+
     //if (!(userFlags & MEMORY_WRITE))   { memoryFlags |= MAPPING_READONLY; }
     if (userFlags & MEMORY_EXECUTABLE)   { memoryFlags |= MAPPING_EXECUTABLE; }
 
@@ -50,8 +58,9 @@ static void __ConvertToKernelMemoryFlags(
     *placementFlagsOut = placementFlags;
 }
 
-static unsigned int __ConvertToUserMemoryFlags(
-        _In_  unsigned int memoryFlags)
+static unsigned int
+__ConvertToUserMemoryFlags(
+        _In_ unsigned int memoryFlags)
 {
     unsigned int flags = MEMORY_READ;
 
@@ -64,7 +73,8 @@ static unsigned int __ConvertToUserMemoryFlags(
     return flags;
 }
 
-static oserr_t __PerformAllocation(
+static oserr_t
+__PerformAllocation(
         _In_  MemorySpace_t* memorySpace,
         _In_  void*          hint,
         _In_  size_t         length,
@@ -75,30 +85,32 @@ static oserr_t __PerformAllocation(
     uintptr_t  allocatedAddress;
     int        pageCount;
     uintptr_t* pages;
-    oserr_t    osStatus;
+    oserr_t    oserr;
 
     pageCount = DIVUP(length, GetMemorySpacePageSize());
     pages     = kmalloc(sizeof(uintptr_t) * pageCount);
     if (!pages) {
-        WARNING("[api] [mem_allocate] failed to allocate size 0x%llx, page count %i", length, pageCount);
+        WARNING("__PerformAllocation: cannot allocate size 0x%" PRIxIN ", page count %i", length, pageCount);
         return OS_EOOM;
     }
 
-    // handle commit act
-    if (hint && ((memoryFlags & (MEMORY_COMMIT | MEMORY_FIXED)) == (MEMORY_COMMIT | MEMORY_FIXED))) {
-        osStatus = MemorySpaceCommit(memorySpace, (vaddr_t)hint, pages, length, 0, placementFlags);
-        allocatedAddress = pages[0];
-    }
-    else {
-        osStatus = MemorySpaceMap(memorySpace, &allocatedAddress, pages, length, 0, memoryFlags, placementFlags);
-    }
-
-    if (osStatus == OS_EOK) {
+    oserr = MemorySpaceMap(
+            memorySpace,
+            &(struct MemorySpaceMapOptions) {
+                .VirtualStart = (vaddr_t)hint,
+                .Pages = pages,
+                .Length = length,
+                .Mask = __MASK,
+                .Flags = memoryFlags,
+                .PlacementFlags = placementFlags
+            },
+            &allocatedAddress
+    );
+    if (oserr == OS_EOK) {
         *memoryOut = (void*)allocatedAddress;
     }
-
     kfree(pages);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -111,7 +123,7 @@ ScMemoryAllocate(
     unsigned int   memoryFlags;
     unsigned int   placementFlags;
     MemorySpace_t* memorySpace;
-    oserr_t     osStatus;
+    oserr_t        oserr;
     TRACE("ScMemoryAllocate(length=0x%" PRIxIN ", flags=%u)", length, flags);
     
     if (!length || !memoryOut) {
@@ -119,7 +131,11 @@ ScMemoryAllocate(
     }
 
     memorySpace = GetCurrentMemorySpace();
-    __ConvertToKernelMemoryFlags(flags, &memoryFlags, &placementFlags);
+    __ConvertToKernelMemoryFlags(
+            flags,
+            &memoryFlags,
+            &placementFlags
+    );
 
     // Is user requesting a clone operation or just a normal allocation
     if (flags & MEMORY_CLONE) {
@@ -129,22 +145,23 @@ ScMemoryAllocate(
             return OS_EINVALPARAMS;
         }
 
-        osStatus = MemorySpaceCloneMapping(memorySpace, memorySpace, (vaddr_t)hint, &allocatedAddress,
-                                           length, memoryFlags, placementFlags);
-        if (osStatus == OS_EOK) {
+        oserr = MemorySpaceCloneMapping(
+                memorySpace,
+                memorySpace,
+                (vaddr_t)hint,
+                &allocatedAddress,
+                length,
+                memoryFlags,
+                placementFlags
+        );
+        if (oserr == OS_EOK) {
             *memoryOut = (void*)allocatedAddress;
         }
-    }
-    else {
-        osStatus = __PerformAllocation(memorySpace, hint, length, memoryFlags, placementFlags, memoryOut);
-        if (osStatus == OS_EOK) {
-            if ((flags & (MEMORY_COMMIT | MEMORY_CLEAN)) == (MEMORY_COMMIT | MEMORY_CLEAN)) {
-                memset((void*)*memoryOut, 0, length);
-            }
-        }
+    } else {
+        oserr = __PerformAllocation(memorySpace, hint, length, memoryFlags, placementFlags, memoryOut);
     }
     TRACE("ScMemoryAllocate returns=0x%" PRIxIN, *memoryOut);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -441,7 +458,7 @@ ScCreateMemorySpaceMapping(
     vaddr_t        copyPlacement = 0;
     int            pageCount;
     uintptr_t*     pages;
-    oserr_t     osStatus;
+    oserr_t        oserr;
     TRACE("[sc_map] target address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
           mappingParameters->VirtualAddress, mappingParameters->Flags, mappingParameters->Length);
     
@@ -468,29 +485,45 @@ ScCreateMemorySpaceMapping(
 
     // Create the original mapping in the memory space passed, with the correct
     // access flags. The copied one must have all kinds of access.
-    osStatus = MemorySpaceMap(memorySpace, &mappingParameters->VirtualAddress, pages,
-                              mappingParameters->Length, 0, memoryFlags, MAPPING_VIRTUAL_FIXED);
+    oserr = MemorySpaceMap(
+            memorySpace,
+            &(struct MemorySpaceMapOptions) {
+                .VirtualStart = mappingParameters->VirtualAddress,
+                .Pages = pages,
+                .Length = mappingParameters->Length,
+                .Mask = __MASK,
+                .Flags = memoryFlags,
+                .PlacementFlags = MAPPING_VIRTUAL_FIXED
+            },
+            &mappingParameters->VirtualAddress
+    );
     kfree(pages);
     
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in original space");
-        return osStatus;
+        return oserr;
     }
     
     // Create a cloned copy in our own memory space, however we will set new placement and
     // access flags
     memoryFlags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT;
-    osStatus = MemorySpaceCloneMapping(memorySpace, GetCurrentMemorySpace(),
-                                       mappingParameters->VirtualAddress, &copyPlacement, mappingParameters->Length,
-                                       memoryFlags, MAPPING_VIRTUAL_PROCESS);
-    if (osStatus != OS_EOK) {
+    oserr = MemorySpaceCloneMapping(
+            memorySpace,
+            GetCurrentMemorySpace(),
+            mappingParameters->VirtualAddress,
+            &copyPlacement,
+            mappingParameters->Length,
+            memoryFlags,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr != OS_EOK) {
         ERROR("ScCreateMemorySpaceMapping::Failed the create mapping in parent space");
         MemorySpaceUnmap(memorySpace, mappingParameters->VirtualAddress, mappingParameters->Length);
     }
     TRACE("[sc_map] local address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
           copyPlacement, memoryFlags, mappingParameters->Length);
     *addressOut = (void*)copyPlacement;
-    return osStatus;
+    return oserr;
 }
 
 oserr_t

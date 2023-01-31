@@ -52,7 +52,7 @@ typedef struct QueuedPacket {
 } QueuedPacket_t;
 
 typedef struct SocketPipe {
-    DMAAttachment_t DmaAttachment;
+    SHMHandle_t DmaAttachment;
     streambuffer_t* Stream;
 } SocketPipe_t;
 

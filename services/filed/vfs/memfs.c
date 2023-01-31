@@ -788,22 +788,22 @@ static oserr_t __ReadDirectory(
 
 static oserr_t
 __MapUserBufferRead(
-        _In_ uuid_t           handle,
-        _In_ DMAAttachment_t* attachment)
+        _In_ uuid_t       handle,
+        _In_ SHMHandle_t* shm)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
 
-    osStatus = DmaAttach(handle, attachment);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = SHMAttach(handle, shm);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // When mapping the buffer for reading, we need write access to the buffer,
     // so we can do buffer combining.
-    osStatus = DmaAttachmentMap(attachment, DMA_ACCESS_WRITE);
-    if (osStatus != OS_EOK) {
-        DmaDetach(attachment);
-        return osStatus;
+    oserr = SHMMap(shm, 0, shm->Capacity, SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    if (oserr != OS_EOK) {
+        SHMDetach(shm);
+        return oserr;
     }
     return OS_EOK;
 }
@@ -820,7 +820,7 @@ __MemFSRead(
         _Out_ size_t*              unitsRead)
 {
     struct MemFSHandle* handle = data;
-    DMAAttachment_t     attachment;
+    SHMHandle_t         shm;
     oserr_t             oserr;
 
     TRACE("__MemFSRead(entry=%ms)", handle ? handle->Entry->Name : NULL);
@@ -833,31 +833,31 @@ __MemFSRead(
     if (buffer == NULL) {
         oserr = __MapUserBufferRead(
                 bufferHandle,
-                &attachment
+                &shm
         );
         if (oserr != OS_EOK) {
             return oserr;
         }
     } else {
         // use the provided local buffer
-        attachment.buffer = buffer;
+        shm.Buffer = buffer;
     }
 
     // Handle reading of data differently based on the type of file
     // entry.
     switch (handle->Entry->Type) {
         case MEMFS_ENTRY_TYPE_FILE:
-            oserr = __ReadFile(handle, attachment.buffer, bufferOffset, unitCount, unitsRead);
+            oserr = __ReadFile(handle, shm.Buffer, bufferOffset, unitCount, unitsRead);
             break;
         case MEMFS_ENTRY_TYPE_DIRECTORY:
-            oserr = __ReadDirectory(handle, attachment.buffer, bufferOffset, unitCount, unitsRead);
+            oserr = __ReadDirectory(handle, shm.Buffer, bufferOffset, unitCount, unitsRead);
             break;
         default:
             oserr = OS_ENOTSUPPORTED;
             break;
     }
     if (buffer == NULL) {
-        (void)DmaDetach(&attachment);
+        (void)SHMDetach(&shm);
     }
     return oserr;
 }

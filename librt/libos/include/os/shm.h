@@ -60,7 +60,7 @@ SHMAttach(
 
 /**
  * Each SHMAttach/SHMCreate/SHMExport call should be matched with one SHMDetach, to properly
- * cleanup any resources that are allocated, and unexport the memory buffer. When detaching, any
+ * cleanup any resources that are allocated, and unexports the memory buffer. When detaching, any
  * previous mapping done will be unmapped.
  * @param handle [In] The memory buffer to detach from.
  * @return Status of the operation.

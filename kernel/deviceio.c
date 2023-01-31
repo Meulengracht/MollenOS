@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * IO Space Interface
- * - Contains the shared kernel io space interface
- *   that all sub-layers / architectures must conform to
  */
 #define __MODULE        "DVIO"
 //#define __TRACE
@@ -38,12 +31,12 @@
 
 #define VOID_KEY(Key) (void*)(uintptr_t)Key
 
-typedef struct SystemDeviceIo {
+typedef struct DeviceIOEntry {
     element_t  Header;
     DeviceIo_t Io;
     uuid_t     Owner;
     uintptr_t  MappedAddress;
-} SystemDeviceIo_t;
+} DeviceIOEntry_t;
 
 static list_t g_ioSpaces = LIST_INIT;
 
@@ -57,16 +50,16 @@ static int __DetectIoOverlaps(
     _In_ element_t* element,
     _In_ void*      context)
 {
-    SystemDeviceIo_t*     systemIo      = element->value;
+    DeviceIOEntry_t*      pIoEntry      = element->value;
     struct VerifyContext* verifyContext = context;
 
-    if (verifyContext->IoSpace->Type != systemIo->Io.Type) {
+    if (verifyContext->IoSpace->Type != pIoEntry->Io.Type) {
         return LIST_ENUMERATE_CONTINUE;
     }
 
-    if (systemIo->Io.Type == DeviceIoPortBased) {
-        size_t systemIoStart = systemIo->Io.Access.Port.Base;
-        size_t systemIoLimit = systemIo->Io.Access.Port.Base + systemIo->Io.Access.Port.Length;
+    if (pIoEntry->Io.Type == DeviceIoPortBased) {
+        size_t systemIoStart = pIoEntry->Io.Access.Port.Base;
+        size_t systemIoLimit = pIoEntry->Io.Access.Port.Base + pIoEntry->Io.Access.Port.Length;
         size_t verifyIoLimit = verifyContext->IoSpace->Access.Port.Base + verifyContext->IoSpace->Access.Port.Length;
 
         verifyContext->Valid =
@@ -80,9 +73,9 @@ static int __DetectIoOverlaps(
                     systemIoStart, systemIoLimit);
         }
     }
-    else if (systemIo->Io.Type == DeviceIoMemoryBased) {
-        size_t systemIoStart = systemIo->Io.Access.Memory.PhysicalBase;
-        size_t systemIoLimit = systemIo->Io.Access.Memory.PhysicalBase + systemIo->Io.Access.Memory.Length;
+    else if (pIoEntry->Io.Type == DeviceIoMemoryBased) {
+        size_t systemIoStart = pIoEntry->Io.Access.Memory.PhysicalBase;
+        size_t systemIoLimit = pIoEntry->Io.Access.Memory.PhysicalBase + pIoEntry->Io.Access.Memory.Length;
         size_t verifyIoLimit = verifyContext->IoSpace->Access.Memory.PhysicalBase + verifyContext->IoSpace->Access.Memory.Length;
 
         verifyContext->Valid =
@@ -109,11 +102,11 @@ DestroySystemDeviceIo(
     _In_ void* Resource)
 {
     DeviceIo_t*       IoSpace = Resource;
-    SystemDeviceIo_t* SystemIo;
+    DeviceIOEntry_t* SystemIo;
     
     TRACE("DestroySystemDeviceIo(Id %" PRIuIN ")", IoSpace);
 
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
+    SystemIo = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
     if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
         return;
     }
@@ -126,7 +119,7 @@ oserr_t
 RegisterSystemDeviceIo(
     _In_ DeviceIo_t* ioSpace)
 {
-    SystemDeviceIo_t*    systemIo;
+    DeviceIOEntry_t*     ioEntry;
     struct VerifyContext context = { .IoSpace = ioSpace, .Valid = 1 };
     TRACE("RegisterSystemDeviceIo(ioSpace=0x%" PRIxIN ")", ioSpace);
 
@@ -143,120 +136,129 @@ RegisterSystemDeviceIo(
 
     // Allocate a new system only copy of the io-space
     // as we don't want anyone to edit our copy
-    systemIo = (SystemDeviceIo_t*)kmalloc(sizeof(SystemDeviceIo_t));
-    if (!systemIo) {
+    ioEntry = (DeviceIOEntry_t*)kmalloc(sizeof(DeviceIOEntry_t));
+    if (!ioEntry) {
         return OS_EOOM;
     }
     
-    memset(systemIo, 0, sizeof(SystemDeviceIo_t));
-    systemIo->Owner = UUID_INVALID;
-    ioSpace->Id     = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, systemIo);
-    ELEMENT_INIT(&systemIo->Header, VOID_KEY(ioSpace->Id), systemIo);
-    memcpy(&systemIo->Io, ioSpace, sizeof(DeviceIo_t));
+    memset(ioEntry, 0, sizeof(DeviceIOEntry_t));
+    ioEntry->Owner = UUID_INVALID;
+    ioSpace->Id     = CreateHandle(HandleTypeGeneric, DestroySystemDeviceIo, ioEntry);
+    ELEMENT_INIT(&ioEntry->Header, VOID_KEY(ioSpace->Id), ioEntry);
+    memcpy(&ioEntry->Io, ioSpace, sizeof(DeviceIo_t));
     
-    return list_append(&g_ioSpaces, &systemIo->Header);
+    return list_append(&g_ioSpaces, &ioEntry->Header);
 }
 
 oserr_t
 AcquireSystemDeviceIo(
-    _In_ DeviceIo_t* IoSpace)
+    _In_ DeviceIo_t* devIO)
 {
-    SystemDeviceIo_t *    SystemIo;
-    MemorySpace_t    * Space       = GetCurrentMemorySpace();
-    uuid_t               CoreId = ArchGetProcessorCoreId();
-    assert(IoSpace != NULL);
+    DeviceIOEntry_t* ioEntry;
+    MemorySpace_t*   memorySpace = GetCurrentMemorySpace();
+    uuid_t           coreId = ArchGetProcessorCoreId();
 
-    TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
+    if (devIO == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    TRACE("AcquireSystemDeviceIo(Id %" PRIuIN ")", devIO->Id);
 
     // Lookup the system copy to validate this requested operation
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
+    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(devIO->Id));
 
     // Sanitize the system copy
-    if (SystemIo == NULL || SystemIo->Owner != UUID_INVALID) {
-        ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
+    if (ioEntry == NULL || ioEntry->Owner != UUID_INVALID) {
+        ERROR(" > failed to find the requested io-space, id %" PRIuIN "", devIO->Id);
         return OS_EUNKNOWN;
     }
-    SystemIo->Owner = GetCurrentMemorySpaceHandle();
+    ioEntry->Owner = GetCurrentMemorySpaceHandle();
 
-    switch (SystemIo->Io.Type) {
+    switch (ioEntry->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t MappedAddress;
-            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t    PageSize    = GetMemorySpacePageSize();
-            size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            oserr_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
-                                                          &MappedAddress, BaseAddress, Length,
-                MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-                                                          MAPPING_VIRTUAL_PROCESS);
-            if (Status != OS_EOK) {
+            vaddr_t mappedAddress;
+            paddr_t physicalBase = ioEntry->Io.Access.Memory.PhysicalBase;
+            size_t  pageSize    = GetMemorySpacePageSize();
+            size_t  length      = ioEntry->Io.Access.Memory.Length + (physicalBase % pageSize);
+            oserr_t oserr       = MemorySpaceMap(
+                    GetCurrentMemorySpace(),
+                    &(struct MemorySpaceMapOptions) {
+                        .PhysicalStart = physicalBase,
+                        .Length = length,
+                        .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                        .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_PROCESS
+                    },
+                    &mappedAddress
+            );
+            if (oserr != OS_EOK) {
                 ERROR(" > Failed to allocate memory for device io memory");
-                SystemIo->Owner = UUID_INVALID;
-                return Status;
+                ioEntry->Owner = UUID_INVALID;
+                return oserr;
             }
 
             // Adjust for offset and store in io copies
-            MappedAddress                       += BaseAddress % PageSize;
-            IoSpace->Access.Memory.VirtualBase   = MappedAddress;
-            SystemIo->MappedAddress              = MappedAddress;
+            mappedAddress                       += physicalBase % pageSize;
+            devIO->Access.Memory.VirtualBase   = mappedAddress;
+            ioEntry->MappedAddress              = mappedAddress;
             return OS_EOK;
         } break;
 
         case DeviceIoPortBased: {
-            for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 1);
+            for (size_t i = 0; i < ioEntry->Io.Access.Port.Length; i++) {
+                SetDirectIoAccess(coreId, memorySpace, ((uint16_t)(ioEntry->Io.Access.Port.Base + i)), 1);
             }
             return OS_EOK;
         } break;
 
         default:
-            ERROR(" > unimplemented device-io type %" PRIuIN "", SystemIo->Io.Type);
+            ERROR(" > unimplemented device-io type %" PRIuIN "", ioEntry->Io.Type);
             break;
     }
-    SystemIo->Owner = UUID_INVALID;
+    ioEntry->Owner = UUID_INVALID;
     return OS_EUNKNOWN;
 }
 
 oserr_t
 ReleaseSystemDeviceIo(
-    _In_ DeviceIo_t*    IoSpace)
+    _In_ DeviceIo_t* devIO)
 {
-    SystemDeviceIo_t *    SystemIo;
-    MemorySpace_t    * Space       = GetCurrentMemorySpace();
-    uuid_t               CoreId = ArchGetProcessorCoreId();
+    DeviceIOEntry_t* ioEntry;
+    MemorySpace_t*   memorySpace = GetCurrentMemorySpace();
+    uuid_t           coreId = ArchGetProcessorCoreId();
     
-    assert(IoSpace != NULL);
-    TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", IoSpace->Id);
+    assert(devIO != NULL);
+    TRACE("ReleaseSystemDeviceIo(Id %" PRIuIN ")", devIO->Id);
 
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(IoSpace->Id));
+    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(devIO->Id));
 
     // Sanitize the system copy and do some security checks
-    if (SystemIo == NULL || SystemIo->Owner != GetCurrentMemorySpaceHandle()) {
-        ERROR(" > failed to find the requested io-space, id %" PRIuIN "", IoSpace->Id);
+    if (ioEntry == NULL || ioEntry->Owner != GetCurrentMemorySpaceHandle()) {
+        ERROR(" > failed to find the requested io-space, id %" PRIuIN "", devIO->Id);
         return OS_EUNKNOWN;
     }
 
-    switch (SystemIo->Io.Type) {
+    switch (ioEntry->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
+            uintptr_t BaseAddress = ioEntry->Io.Access.Memory.PhysicalBase;
             size_t    PageSize    = GetMemorySpacePageSize();
-            size_t    Length      = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            assert(Space->Context != NULL);
-            MemorySpaceUnmap(Space, SystemIo->MappedAddress, Length);
+            size_t    Length      = ioEntry->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            assert(memorySpace->Context != NULL);
+            MemorySpaceUnmap(memorySpace, ioEntry->MappedAddress, Length);
         } break;
 
         case DeviceIoPortBased: {
-            for (size_t i = 0; i < SystemIo->Io.Access.Port.Length; i++) {
-                SetDirectIoAccess(CoreId, Space, ((uint16_t)(SystemIo->Io.Access.Port.Base + i)), 0);
+            for (size_t i = 0; i < ioEntry->Io.Access.Port.Length; i++) {
+                SetDirectIoAccess(coreId, memorySpace, ((uint16_t)(ioEntry->Io.Access.Port.Base + i)), 0);
             }
         } break;
 
         default:
-            ERROR(" > unimplemented device-io type %" PRIuIN "", SystemIo->Io.Type);
+            ERROR(" > unimplemented device-io type %" PRIuIN "", ioEntry->Io.Type);
             break;
     }
-    IoSpace->Access.Memory.VirtualBase      = 0;
-    SystemIo->MappedAddress                 = 0;
-    SystemIo->Owner                         = UUID_INVALID;
+    devIO->Access.Memory.VirtualBase      = 0;
+    ioEntry->MappedAddress                 = 0;
+    ioEntry->Owner                         = UUID_INVALID;
     return OS_EOK;
 }
 
@@ -265,23 +267,29 @@ CreateKernelSystemDeviceIo(
     _In_  DeviceIo_t*  SourceIoSpace,
     _Out_ DeviceIo_t** SystemIoSpace)
 {
-    SystemDeviceIo_t* SystemIo;
-    
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(SourceIoSpace->Id));
-    if (!SystemIo) {
+    DeviceIOEntry_t* ioEntry;
+
+    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(SourceIoSpace->Id));
+    if (!ioEntry) {
         return OS_EUNKNOWN;
     }
 
-    switch (SystemIo->Io.Type) {
+    switch (ioEntry->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress = SystemIo->Io.Access.Memory.PhysicalBase;
-            size_t PageSize       = GetMemorySpacePageSize();
-            size_t Length         = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            oserr_t Status     = MemorySpaceMapContiguous(GetCurrentMemorySpace(),
-                                                          &SystemIo->Io.Access.Memory.VirtualBase, BaseAddress, Length,
-                MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-                                                          MAPPING_VIRTUAL_GLOBAL);
-            if (Status != OS_EOK) {
+            paddr_t physicalBase = ioEntry->Io.Access.Memory.PhysicalBase;
+            size_t  pageSize     = GetMemorySpacePageSize();
+            size_t  length       = ioEntry->Io.Access.Memory.Length + (physicalBase % pageSize);
+            oserr_t oserr        = MemorySpaceMap(
+                    GetCurrentMemorySpace(),
+                    &(struct MemorySpaceMapOptions) {
+                        .PhysicalStart = physicalBase,
+                        .Length = length,
+                        .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                        .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
+                    },
+                    &ioEntry->Io.Access.Memory.VirtualBase
+            );
+            if (oserr != OS_EOK) {
                 ERROR(" > failed to create mapping");
                 return OS_EUNKNOWN;
             }
@@ -291,7 +299,7 @@ CreateKernelSystemDeviceIo(
         default:
             break;
     }
-    *SystemIoSpace = &SystemIo->Io;
+    *SystemIoSpace = &ioEntry->Io;
     return OS_EOK;
 }
 
@@ -299,20 +307,20 @@ oserr_t
 ReleaseKernelSystemDeviceIo(
     _In_ DeviceIo_t* SystemIoSpace)
 {
-    SystemDeviceIo_t* SystemIo;
-    
-    SystemIo = (SystemDeviceIo_t*)list_find_value(&g_ioSpaces, VOID_KEY(SystemIoSpace->Id));
-    if (!SystemIo) {
+    DeviceIOEntry_t* ioEntry;
+
+    ioEntry = (DeviceIOEntry_t*)list_find_value(&g_ioSpaces, VOID_KEY(SystemIoSpace->Id));
+    if (!ioEntry) {
         return OS_EUNKNOWN;
     }
 
-    switch (SystemIo->Io.Type) {
+    switch (ioEntry->Io.Type) {
         case DeviceIoMemoryBased: {
-            uintptr_t BaseAddress   = SystemIo->Io.Access.Memory.PhysicalBase;
+            uintptr_t BaseAddress   = ioEntry->Io.Access.Memory.PhysicalBase;
             size_t PageSize         = GetMemorySpacePageSize();
-            size_t Length           = SystemIo->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            MemorySpaceUnmap(GetCurrentMemorySpace(), SystemIo->Io.Access.Memory.VirtualBase, Length);
-            SystemIo->Io.Access.Memory.VirtualBase = 0;
+            size_t Length           = ioEntry->Io.Access.Memory.Length + (BaseAddress % PageSize);
+            MemorySpaceUnmap(GetCurrentMemorySpace(), ioEntry->Io.Access.Memory.VirtualBase, Length);
+            ioEntry->Io.Access.Memory.VirtualBase = 0;
         } break;
 
         // Both port and port/pin are not needed to remap here
@@ -331,7 +339,7 @@ ValidateDeviceIoMemoryAddress(
 
     // Iterate and check each io-space if the process has this mapped in
     foreach(i, &g_ioSpaces) {
-        SystemDeviceIo_t* IoSpace     = (SystemDeviceIo_t*)i->value;
+        DeviceIOEntry_t* IoSpace     = (DeviceIOEntry_t*)i->value;
         uintptr_t         VirtualBase = IoSpace->MappedAddress;
 
         // Two things has to be true before the io-space

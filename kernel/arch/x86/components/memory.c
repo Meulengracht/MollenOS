@@ -678,10 +678,10 @@ MmuCloneVirtualSpace(
     child->PlatformData.Cr3VirtualAddress  = virtualAddress;
 
     // Install the TLS mapping immediately and have it ready for thread switch
-    virtualAddress = MEMORY_LOCATION_TLS_START;
-    osStatus       = MemorySpaceMap(
+    osStatus = MemorySpaceMap(
             child,
             &(struct MemorySpaceMapOptions) {
+                .VirtualStart = MEMORY_LOCATION_TLS_START,
                 .Pages = &physicalAddress,
                 .Length = PAGE_SIZE,
                 .Mask = __MASK,

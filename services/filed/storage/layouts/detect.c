@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,15 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * File Manager Service
- * - Handles all file related services and disk services
  */
 #define __TRACE
 
 #include <ddk/utils.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <string.h>
 #include <vfs/storage.h>
 #include <vfs/gpt.h>
@@ -119,32 +113,31 @@ oserr_t
 VFSStorageParse(
         _In_ struct VFSStorage* storage)
 {
-    DMABuffer_t     dmaInfo;
-	DMAAttachment_t dmaAttachment;
-    oserr_t         oserr;
+	SHMHandle_t shm;
+    oserr_t     oserr;
 
 	TRACE("VFSStorageParse(SectorSize %u)", storage->Stats.SectorSize);
 
 	// Allocate a generic transfer buffer for disk operations
 	// on the given disk, we need it to parse the disk
-	dmaInfo.name     = "disk_temp_buffer";
-	dmaInfo.capacity = storage->Stats.SectorSize;
-	dmaInfo.length   = storage->Stats.SectorSize;
-	dmaInfo.flags    = 0;
-    dmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
-
-    oserr = DmaCreate(&dmaInfo, &dmaAttachment);
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = storage->Stats.SectorSize,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &shm
+    );
 	if (oserr != OS_EOK) {
 		return oserr;
 	}
 
     // Always check for GPT table first
-    oserr = GptEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
+    oserr = GptEnumerate(storage, shm.ID, shm.Buffer);
     if (oserr == OS_ENOENT) {
-        oserr = MbrEnumerate(storage, dmaAttachment.handle, dmaAttachment.buffer);
+        oserr = MbrEnumerate(storage, shm.ID, shm.Buffer);
     }
-
-    DmaAttachmentUnmap(&dmaAttachment);
-    DmaDetach(&dmaAttachment);
+    (void)SHMDetach(&shm);
 	return oserr;
 }
