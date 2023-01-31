@@ -17,7 +17,6 @@
  */
 
 #define __need_quantity
-#include <os/dmabuf.h>
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include "../private.h"
@@ -113,51 +112,52 @@ unlock:
 
 static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VFS* targetVFS, void* targetFile)
 {
-    DMABuffer_t     buffer;
-    DMAAttachment_t attachment;
-    oserr_t         osStatus;
+    SHMHandle_t shm;
+    oserr_t     oserr;
 
-    buffer.name     = "vfs_transfer_file";
-    buffer.flags    = 0;
-    buffer.type     = DMA_TYPE_DRIVER_32;
-    buffer.length   = MB(1);
-    buffer.capacity = MB(1);
-    osStatus = DmaCreate(&buffer, &attachment);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = MB(1),
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &shm
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     while (1) {
         size_t read, written;
 
-        osStatus = sourceVFS->Interface->Operations.Read(
+        oserr = sourceVFS->Interface->Operations.Read(
                 sourceVFS->Interface,
                 sourceVFS->Data,
                 sourceFile,
-                attachment.handle,
-                attachment.buffer,
+                shm.ID,
+                shm.Buffer,
                 0,
                 MB(1), &read
         );
-        if (osStatus != OS_EOK || read == 0) {
+        if (oserr != OS_EOK || read == 0) {
             break;
         }
 
-        osStatus = targetVFS->Interface->Operations.Write(
+        oserr = targetVFS->Interface->Operations.Write(
                 sourceVFS->Interface,
                 targetVFS->Data, targetFile,
-                attachment.handle,
-                attachment.buffer,
+                shm.ID,
+                shm.Buffer,
                 0,
                 read, &written
         );
-        if (osStatus != OS_EOK) {
+        if (oserr != OS_EOK) {
             break;
         }
     }
 
-    DmaAttachmentUnmap(&attachment);
-    DmaDetach(&attachment);
+    SHMDetach(&shm);
     return OS_EOK;
 }
 
@@ -263,6 +263,16 @@ unlock:
     );
     if (osStatus2 != OS_EOK) {
         WARNING("__MoveCross failed to cleanup handle with code %u", osStatus);
+    }
+    if (!copy) {
+        osStatus2 = sourceOps->Unlink(
+                sourceNode->FileSystem->Interface,
+                sourceNode->FileSystem->Data,
+                sourcePath
+        );
+        if (osStatus2 != OS_EOK) {
+            WARNING("__MoveCross failed to delete original file with code %u", osStatus);
+        }
     }
 
 cleanup:

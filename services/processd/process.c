@@ -561,7 +561,7 @@ PmGetProcessStartupInformation(
     }
     *processHandleOut = process->handle;
 
-    DMAAttachment_t dmaAttachment;
+    SHMHandle_t dmaAttachment;
     oserr = DmaAttach(bufferHandle, &dmaAttachment);
     if (oserr != OS_EOK) {
         ERROR("PmGetProcessStartupInformation failed to attach to user buffer");

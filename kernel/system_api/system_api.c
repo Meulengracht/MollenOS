@@ -114,15 +114,17 @@ ScMapBootFramebuffer(
         return OS_ENOTSUPPORTED;
     }
 
-    oserr = MemorySpaceMapContiguous(
+    oserr = MemorySpaceMap(
             memorySpace,
-            &fbVirtual,
-            addressPhysical,
-            fbSize,
-            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-            MAPPING_VIRTUAL_PROCESS
-    );
+            &(struct MemorySpaceMapOptions) {
+                .PhysicalStart = addressPhysical,
+                .Length = fbSize,
+                .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_PROCESS
+            },
+            &fbVirtual
 
+    );
     if (oserr == OS_EOK) {
         *bufferOut = (void*)fbVirtual;
     }

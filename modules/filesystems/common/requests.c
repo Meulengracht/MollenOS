@@ -248,7 +248,7 @@ FsRead(
 static oserr_t
 __MapUserBufferRead(
         _In_ uuid_t           handle,
-        _In_ DMAAttachment_t* attachment)
+        _In_ SHMHandle_t* attachment)
 {
     oserr_t osStatus;
 
@@ -271,7 +271,7 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
         const struct ctt_fs_transfer_params* params)
 {
     oserr_t         oserr;
-    DMAAttachment_t attachment;
+    SHMHandle_t attachment;
     size_t          read;
     TRACE("ctt_filesystem_read_invocation()");
 
@@ -311,7 +311,7 @@ FsWrite(
 static oserr_t
 __MapUserBufferWrite(
         _In_ uuid_t           handle,
-        _In_ DMAAttachment_t* attachment)
+        _In_ SHMHandle_t* attachment)
 {
     oserr_t oserr;
 
@@ -331,7 +331,7 @@ __MapUserBufferWrite(
 void ctt_filesystem_write_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_transfer_params* params)
 {
     oserr_t         oserr;
-    DMAAttachment_t attachment;
+    SHMHandle_t attachment;
     size_t          written;
     TRACE("ctt_filesystem_write_invocation()");
 

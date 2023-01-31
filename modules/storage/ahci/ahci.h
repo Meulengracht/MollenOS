@@ -324,10 +324,10 @@ typedef struct AhciPort {
     int                     Connected;
     AHCIPortRegisters_t*    Registers;
     
-    DMAAttachment_t         InternalBuffer;
-    DMAAttachment_t         CommandListDMA;
-    DMAAttachment_t         CommandTableDMA;
-    DMAAttachment_t         RecievedFisDMA;
+    SHMHandle_t         InternalBuffer;
+    SHMHandle_t         CommandListDMA;
+    SHMHandle_t         CommandTableDMA;
+    SHMHandle_t         RecievedFisDMA;
 
     _Atomic(int)            Slots;
     int                     SlotCount;

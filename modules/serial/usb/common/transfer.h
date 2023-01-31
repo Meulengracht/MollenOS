@@ -56,7 +56,7 @@ typedef struct UsbManagerTransfer {
     
     // Per-transaction data
     struct UsbManagerTransaction {
-        DMAAttachment_t DmaAttachment;
+        SHMHandle_t DmaAttachment;
         DMASGTable_t    DmaTable;
         int             SgIndex;
         size_t          SgOffset;

@@ -22,7 +22,7 @@
 #include <ddk/filesystem.h>
 #include <ds/guid.h>
 #include <ds/hashtable.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
 #include <os/usched/rwlock.h>
@@ -38,7 +38,7 @@ struct VFS {
     struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;
-    DMAAttachment_t        Buffer;
+    SHMHandle_t            Buffer;
 };
 
 enum VFSNodeType {

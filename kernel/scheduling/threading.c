@@ -512,12 +512,14 @@ __EnterUsermode(
     // Allocate the TLS segment (1 page) (x86 only, should be another place)
     osStatus = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            &tlsAddress,
-            &tlsPhysicalAddress,
-            GetMemorySpacePageSize(),
-            0,
-            MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
-            MAPPING_VIRTUAL_THREAD
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &tlsPhysicalAddress,
+                .Length = GetMemorySpacePageSize(),
+                .Mask = __MASK,
+                .Flags = MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_COMMIT,
+                .PlacementFlags = MAPPING_VIRTUAL_THREAD
+            },
+            &tlsAddress
     );
     if (osStatus != OS_EOK) {
         FATAL(FATAL_SCOPE_THREAD, "__EnterUsermode failed to map TLS page");

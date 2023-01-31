@@ -29,10 +29,10 @@
 #include <userevent.h>
 
 typedef struct UserEvent {
-    unsigned int inital_value;
+    unsigned int InitialValue;
     unsigned int flags;
-    atomic_int*  kernel_mapping;
-    atomic_int*  userspace_mapping;
+    atomic_int*  KernelMapping;
+    atomic_int*  UserspaceMapping;
 } UserEvent_t;
 
 static MemoryCache_t* syncAddressCache = NULL;
@@ -59,7 +59,7 @@ UserEventDestroy(
         return;
     }
 
-    MemoryCacheFree(syncAddressCache, event->kernel_mapping);
+    MemoryCacheFree(syncAddressCache, event->KernelMapping);
     kfree(event);
 }
 
@@ -67,40 +67,41 @@ static oserr_t
 AllocateSyncAddress(
     _In_ UserEvent_t* event)
 {
-    uintptr_t   offsetInPage;
-    uintptr_t   dmaAddress;
-    oserr_t  status;
-    uintptr_t   userAddress;
-    void*       kernelAddress = MemoryCacheAllocate(syncAddressCache);
+    uintptr_t offsetInPage;
+    uintptr_t dmaAddress;
+    oserr_t   oserr;
+    uintptr_t userAddress;
+    void*     kernelAddress = MemoryCacheAllocate(syncAddressCache);
     if (!kernelAddress) {
         return OS_EOOM;
     }
 
     offsetInPage = (uintptr_t)kernelAddress % GetMemorySpacePageSize();
-    status       = GetMemorySpaceMapping(GetCurrentMemorySpace(),
-                                         (vaddr_t)kernelAddress, 1, &dmaAddress);
-    if (status != OS_EOK) {
+    oserr        = GetMemorySpaceMapping(GetCurrentMemorySpace(),
+                                        (vaddr_t)kernelAddress, 1, &dmaAddress);
+    if (oserr != OS_EOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
-        return status;
+        return oserr;
     }
 
-    status = MemorySpaceMap(
+    oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
-            (vaddr_t*)&userAddress,
-            &dmaAddress,
-            GetMemorySpacePageSize(),
-            0,
-            MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-            MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+            &(struct MemorySpaceMapOptions) {
+                .Pages = &dmaAddress,
+                .Length = GetMemorySpacePageSize(),
+                .Flags = MAPPING_COMMIT | MAPPING_DOMAIN | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+                .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+            },
+            (vaddr_t*)&userAddress
     );
-    if (status != OS_EOK) {
+    if (oserr != OS_EOK) {
         MemoryCacheFree(syncAddressCache, kernelAddress);
-        return status;
+        return oserr;
     }
 
-    event->kernel_mapping    = (atomic_int*)kernelAddress;
-    event->userspace_mapping = (atomic_int*)(userAddress + offsetInPage);
-    atomic_store(event->kernel_mapping, 0);
+    event->KernelMapping    = (atomic_int*)kernelAddress;
+    event->UserspaceMapping = (atomic_int*)(userAddress + offsetInPage);
+    atomic_store(event->KernelMapping, 0);
     return OS_EOK;
 }
 
@@ -130,12 +131,12 @@ UserEventCreate(
         return status;
     }
 
-    event->inital_value = initialValue;
+    event->InitialValue = initialValue;
     event->flags        = flags;
 
     handle = CreateHandle(HandleTypeUserEvent, UserEventDestroy, event);
     if (handle == UUID_INVALID) {
-        MemoryCacheFree(syncAddressCache, event->kernel_mapping);
+        MemoryCacheFree(syncAddressCache, event->KernelMapping);
         kfree(event);
         return OS_EUNKNOWN;
     }
@@ -145,7 +146,7 @@ UserEventCreate(
     }
 
     *handleOut      = handle;
-    *syncAddressOut = event->userspace_mapping;
+    *syncAddressOut = event->UserspaceMapping;
     return OS_EOK;
 }
 
@@ -165,18 +166,18 @@ UserEventSignal(
     }
 
     // assert not max
-    currentValue = atomic_load(event->kernel_mapping);
-    if ((currentValue + value) <= event->inital_value) {
+    currentValue = atomic_load(event->KernelMapping);
+    if ((currentValue + value) <= event->InitialValue) {
         for (i = 0; i < value; i++) {
-            while ((currentValue + 1) <= event->inital_value) {
-                result = atomic_compare_exchange_weak(event->kernel_mapping,
+            while ((currentValue + 1) <= event->InitialValue) {
+                result = atomic_compare_exchange_weak(event->KernelMapping,
                         &currentValue, currentValue + 1);
                 if (result) {
                     break;
                 }
 
                 if (currentValue >= 0) {
-                    FutexWake(event->kernel_mapping, 1, 0);
+                    FutexWake(event->KernelMapping, 1, 0);
                 }
             }
         }

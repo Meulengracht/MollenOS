@@ -22,54 +22,52 @@
 #include <debug.h>
 #include <handle.h>
 #include <handle_set.h>
-#include <heap.h>
 #include <ioset.h>
 #include <ipc_context.h>
 #include <shm.h>
-#include <threading.h>
 
 static oserr_t
 __AllocateMessage(
         _In_  IPCMessage_t*              message,
         _In_  streambuffer_rw_options_t* options,
         _In_  streambuffer_packet_ctx_t* packetCtx,
-        _Out_ IPCContext_t**             targetContext)
+        _Out_ uuid_t*                    streamIDOut)
 {
-    IPCContext_t* ipcContext;
-    size_t        bytesAvailable;
-    size_t        bytesToAllocate = sizeof(uuid_t) + message->Length;
+    streambuffer_t* stream;
+    size_t          bytesAvailable;
+    size_t          bytesToAllocate = sizeof(uuid_t) + message->Length;
+    uuid_t          streamID;
+    oserr_t         oserr;
     TRACE("__AllocateMessage(target=%u, len=%" PRIuIN ")", message->Address->Data.Handle, bytesToAllocate);
     
     if (message->Address->Type == IPC_ADDRESS_HANDLE) {
-        ipcContext = LookupHandleOfType(message->Address->Data.Handle, HandleTypeIpcContext);
+        streamID = message->Address->Data.Handle;
     } else {
-        uuid_t  handle;
-        oserr_t oserr = LookupHandleByPath(message->Address->Data.Path, &handle);
+        oserr = LookupHandleByPath(message->Address->Data.Path, &streamID);
         if (oserr != OS_EOK) {
             ERROR("__AllocateMessage could not find target path %s", message->Address->Data.Path);
             return oserr;
         }
-
-        ipcContext = LookupHandleOfType(handle, HandleTypeIpcContext);
     }
-    
-    if (!ipcContext) {
-        ERROR("__AllocateMessage could not find target handle %u", message->Address->Data.Handle);
-        return OS_ENOENT;
+
+    oserr = SHMKernelMapping(streamID, (void**)&stream);
+    if (oserr != OS_EOK) {
+        ERROR("__AllocateMessage could not find target handle %u", streamID);
+        return oserr;
     }
 
     bytesAvailable = streambuffer_write_packet_start(
-            ipcContext->KernelStream,
+            stream,
             bytesToAllocate,
             options,
             packetCtx
     );
     if (!bytesAvailable) {
         ERROR("__AllocateMessage timeout allocating space for message");
-        return OS_ETIMEOUT;
+        return OS_ENOENT;
     }
     
-    *targetContext = ipcContext;
+    *streamIDOut = streamID;
     return OS_EOK;
 }
 
@@ -97,12 +95,12 @@ __WriteMessage(
 
 static inline void
 SendMessage(
-        _In_ IPCContext_t*              context,
+        _In_ uuid_t                     streamID,
         _In_ streambuffer_packet_ctx_t* packetCtx)
 {
     TRACE("SendMessage()");
     streambuffer_write_packet_end(packetCtx);
-    MarkHandle(context->Handle, IOSETIN);
+    MarkHandle(streamID, IOSETIN);
 }
 
 oserr_t
@@ -118,26 +116,26 @@ IpcContextSendMultiple(
             .async_context = asyncContext,
             .deadline = deadline,
     };
-    TRACE("[ipc] [send] count %i, timeout %u", messageCount, LODWORD(timeout));
+    TRACE("IpcContextSendMultiple(count=%i)", messageCount);
     
     if (!messages || !messageCount) {
         return OS_EINVALPARAMS;
     }
     
     for (int i = 0; i < messageCount; i++) {
-        IPCContext_t* targetContext;
-        oserr_t       status = __AllocateMessage(
+        uuid_t  streamID;
+        oserr_t status = __AllocateMessage(
                 messages[i],
                 &options,
                 &packetCtx,
-                &targetContext
+                &streamID
         );
         if (status != OS_EOK) {
             // todo store status in context and return incomplete
             return OS_EINCOMPLETE;
         }
         __WriteMessage(messages[i], &packetCtx);
-        SendMessage(targetContext, &packetCtx);
+        SendMessage(streamID, &packetCtx);
     }
     return OS_EOK;
 }

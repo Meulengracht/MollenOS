@@ -39,7 +39,7 @@ struct ProcessOptions {
     const char*     WorkingDirectory;
     uint32_t        InheritationBlockLength;
     uint32_t        EnvironmentBlockLength;
-    DMAAttachment_t DataBuffer;
+    SHMHandle_t DataBuffer;
 };
 
 typedef struct Process {

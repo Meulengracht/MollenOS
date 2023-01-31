@@ -543,7 +543,7 @@ __ParseAndProcessMasterRecord(
     TRACE("Bucket map was cached");
 #else
     DMABuffer_t     mapInfo;
-    DMAAttachment_t mapAttachment;
+    SHMHandle_t mapAttachment;
     uint64_t        mapSector   = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
     size_t          sectorCount = DIVUP((size_t)Mfs->MasterRecord.MapSize,
         Descriptor->Disk.descriptor.SectorSize);

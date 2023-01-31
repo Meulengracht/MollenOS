@@ -40,7 +40,6 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
         return NULL;
     }
 
-
     i = node;
     do {
         tokenCount++;
@@ -161,10 +160,10 @@ static oserr_t __LoadNode(struct VFSNode* node)
         osStatus = ops->Read(
                 vfs->Interface,
                 vfs->Data, data,
-                vfs->Buffer.handle,
-                vfs->Buffer.buffer,
+                vfs->Buffer.ID,
+                vfs->Buffer.Buffer,
                 0,
-                vfs->Buffer.length,
+                vfs->Buffer.Length,
                 &read
         );
         if (osStatus != OS_EOK || read == 0) {
@@ -172,7 +171,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
             break;
         }
 
-        osStatus = __ParseEntries(node, vfs->Buffer.buffer, read);
+        osStatus = __ParseEntries(node, vfs->Buffer.Buffer, read);
         if (osStatus != OS_EOK) {
             break;
         }
@@ -544,7 +543,7 @@ oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, uint32_t permissio
 
 oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, struct VFSNode** nodeOut)
 {
-    oserr_t     osStatus = OS_EOK;
+    oserr_t     oserr = OS_EOK;
     mstring_t** tokens;
     int         tokenCount;
     ENTRY("__GetRelative(path=%ms, followLinks=1)", path, followLinks);
@@ -579,8 +578,8 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
 
         // Find the next entry in the folder. This will automatically handle
         // folder loading and whatnot if the folder is not currently loaded.
-        osStatus = VFSNodeFind(node, tokens[i], &next);
-        if (osStatus != OS_EOK) {
+        oserr = VFSNodeFind(node, tokens[i], &next);
+        if (oserr != OS_EOK) {
             ERROR("__GetRelative failed to find %ms in %ms", tokens[i], node->Name);
             break;
         }
@@ -604,9 +603,9 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
 
                 // OK in all other cases we *must* follow the symlink
                 // NOTE: we now end up with two reader locks on 'node'
-                osStatus = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
+                oserr = __GetRelative(node, next->Stats.LinkTarget, followLinks, &real);
                 usched_rwlock_r_unlock(&next->Lock);
-                if (osStatus != OS_EOK) {
+                if (oserr != OS_EOK) {
                     break;
                 }
 
@@ -617,7 +616,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
                 if (real == NULL) {
                     // *should* never happen
                     ERROR("__GetRelative discovered node having a NULL type-data but marked as bind mount");
-                    osStatus = OS_EUNKNOWN;
+                    oserr = OS_EUNKNOWN;
                     usched_rwlock_r_unlock(&next->Lock);
                     break;
                 }
@@ -632,7 +631,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
                 if (fs == NULL) {
                     // *should* never happen
                     ERROR("__GetRelative discovered node having a NULL type-data but marked as mountpoint");
-                    osStatus = OS_EUNKNOWN;
+                    oserr = OS_EUNKNOWN;
                     usched_rwlock_r_unlock(&next->Lock);
                     break;
                 }
@@ -653,7 +652,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         node = next;
     }
 
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         // Don't keep the lock if we failed to get the target node
         usched_rwlock_r_unlock(&node->Lock);
     }
@@ -663,7 +662,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
     mstrv_delete(tokens);
     *nodeOut = node;
     EXIT("__GetRelative");
-    return osStatus;
+    return oserr;
 }
 
 oserr_t VFSNodeGet(struct VFS* vfs, mstring_t* path, int followLinks, struct VFSNode** nodeOut)

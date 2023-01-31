@@ -136,16 +136,17 @@ __CreateRootNode(
 
 static oserr_t
 __CreateDMABuffer(
-        _In_ DMAAttachment_t* attachment)
+        _In_ SHMHandle_t* shm)
 {
-    DMABuffer_t buffer;
-
-    buffer.name     = "vfs_fs_buffer";
-    buffer.flags    = 0;
-    buffer.type     = DMA_TYPE_DRIVER_32;
-    buffer.length   = MB(1);
-    buffer.capacity = MB(1);
-    return DmaCreate(&buffer, attachment);
+    return SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = MB(1),
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            shm
+    );
 }
 
 oserr_t
@@ -204,9 +205,8 @@ void VFSDestroy(struct VFS* vfs)
     // Cleanup children of this? If someone has cloned this tree
     // we have to make sure that there are no links back to this
 
-    if (vfs->Buffer.buffer != NULL) {
-        DmaAttachmentUnmap(&vfs->Buffer);
-        DmaDetach(&vfs->Buffer);
+    if (vfs->Buffer.Buffer != NULL) {
+        SHMDetach(&vfs->Buffer);
     }
     VFSNodeDestroy(vfs->Root);
     free(vfs);
