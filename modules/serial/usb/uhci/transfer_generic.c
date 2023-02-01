@@ -46,11 +46,11 @@ UhciTransferFillIsochronous(
         size_t                    bytesStep;
 
         bytesStep = MIN(bytesToTransfer, transfer->Transfer.MaxPacketSize);
-        bytesStep = MIN(bytesStep, transfer->Transactions[0].DmaTable.entries[
-            transfer->Transactions[0].SgIndex].length - transfer->Transactions[0].SgOffset);
+        bytesStep = MIN(bytesStep, transfer->Transactions[0].SHMTable.Entries[
+            transfer->Transactions[0].SGIndex].Length - transfer->Transactions[0].SGOffset);
 
-        addressPointer = transfer->Transactions[0].DmaTable.entries[
-            transfer->Transactions[0].SgIndex].address + transfer->Transactions[0].SgOffset;
+        addressPointer = transfer->Transactions[0].SHMTable.Entries[
+            transfer->Transactions[0].SGIndex].Address + transfer->Transactions[0].SGOffset;
         
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OS_EOK) {
             bytesStep = UhciTdIo(td, transfer->Transfer.Type, transactionType,
@@ -86,13 +86,13 @@ UhciTransferFillIsochronous(
                 previousTd = td;
             }
 
-            // Increase the DmaTable metrics
-            transfer->Transactions[0].SgOffset += bytesStep;
-            if (transfer->Transactions[0].SgOffset ==
-                transfer->Transactions[0].DmaTable.entries[
-                        transfer->Transactions[0].SgIndex].length) {
-                transfer->Transactions[0].SgIndex++;
-                transfer->Transactions[0].SgOffset = 0;
+            // Increase the SHMTable metrics
+            transfer->Transactions[0].SGOffset += bytesStep;
+            if (transfer->Transactions[0].SGOffset ==
+                transfer->Transactions[0].SHMTable.Entries[
+                        transfer->Transactions[0].SGIndex].Length) {
+                transfer->Transactions[0].SGIndex++;
+                transfer->Transactions[0].SGOffset = 0;
             }
             bytesToTransfer -= bytesStep;
         }
@@ -162,14 +162,14 @@ UhciTransferFill(
         // Keep adding td's
         TRACE(" > BytesToTransfer(%u)", bytesToTransfer);
         while (bytesToTransfer || isZlp) {
-            DMASG_t*  Dma     = NULL;
+            SHMSG_t*  SG     = NULL;
             size_t    Length  = bytesToTransfer;
             uintptr_t Address = 0;
             
             if (Length && transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
-                Dma     = &transfer->Transactions[i].DmaTable.entries[transfer->Transactions[i].SgIndex];
-                Address = Dma->address + transfer->Transactions[i].SgOffset;
-                Length  = MIN(Length, Dma->length - transfer->Transactions[i].SgOffset);
+                SG      = &transfer->Transactions[i].SHMTable.Entries[transfer->Transactions[i].SGIndex];
+                Address = SG->Address + transfer->Transactions[i].SGOffset;
+                Length  = MIN(Length, SG->Length - transfer->Transactions[i].SGOffset);
                 Length  = MIN(Length, transfer->Transfer.MaxPacketSize);
             }
 
@@ -216,10 +216,10 @@ UhciTransferFill(
                 // Make sure we handle the one where we run out of bytes
                 if (Length) {
                     bytesToTransfer                    -= Length;
-                    transfer->Transactions[i].SgOffset += Length;
-                    if (Dma && transfer->Transactions[i].SgOffset == Dma->length) {
-                        transfer->Transactions[i].SgIndex++;
-                        transfer->Transactions[i].SgOffset = 0;
+                    transfer->Transactions[i].SGOffset += Length;
+                    if (SG && transfer->Transactions[i].SGOffset == SG->Length) {
+                        transfer->Transactions[i].SGIndex++;
+                        transfer->Transactions[i].SGOffset = 0;
                     }
                 }
                 else {

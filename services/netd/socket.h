@@ -30,8 +30,7 @@
 #include <ds/rbtree.h>
 #include <ds/queue.h>
 #include <inet/socket.h>
-#include <os/dmabuf.h>
-#include <os/osdefs.h>
+#include <os/types/shm.h>
 
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
 #define SOCKET_SYSMAX_BUFFER_SIZE  (256 * 4096)
@@ -52,7 +51,7 @@ typedef struct QueuedPacket {
 } QueuedPacket_t;
 
 typedef struct SocketPipe {
-    SHMHandle_t DmaAttachment;
+    SHMHandle_t     SHM;
     streambuffer_t* Stream;
 } SocketPipe_t;
 

@@ -27,6 +27,7 @@
 #include <ddk/handle.h>
 #include <ddk/utils.h>
 #include "domains/domains.h"
+#include <os/shm.h>
 #include "socket.h"
 #include <stdlib.h>
 #include <string.h>
@@ -48,32 +49,30 @@ static oserr_t
 CreateSocketPipe(
     _In_ SocketPipe_t* Pipe)
 {
-    DMABuffer_t Buffer;
-    oserr_t     Status;
+    oserr_t oserr;
     TRACE("CreateSocketPipe()");
-    
-    Buffer.name     = "socket_buffer";
-    Buffer.length   = SOCKET_DEFAULT_BUFFER_SIZE;
-    Buffer.capacity = SOCKET_SYSMAX_BUFFER_SIZE; // Should be from global settings
-    Buffer.flags    = 0;
-    Buffer.type     = 0;
-    
-    Status = DmaCreate(&Buffer, &Pipe->DmaAttachment);
-    if (Status != OS_EOK) {
-        return Status;
+
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Size = SOCKET_SYSMAX_BUFFER_SIZE,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &Pipe->SHM
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     
-    Pipe->Stream = Pipe->DmaAttachment.buffer;
+    Pipe->Stream = Pipe->SHM.Buffer;
     InitializeStreambuffer(Pipe->Stream);
     return OS_EOK;
 }
 
 static void
-DestroySocketPipe(
-    _In_ SocketPipe_t* Pipe)
+__SocketPipeDestroy(
+    _In_ SocketPipe_t* socketPipe)
 {
-    (void) DmaAttachmentUnmap(&Pipe->DmaAttachment);
-    (void) DmaDetach(&Pipe->DmaAttachment);
+    (void)SHMDetach(&socketPipe->SHM);
 }
 
 static void
@@ -150,7 +149,7 @@ SocketCreateImpl(
     if (Status != OS_EOK) {
         ERROR("Failed to initialize the socket send pipe");
         DomainDestroy(Socket->Domain);
-        DestroySocketPipe(&Socket->Receive);
+        __SocketPipeDestroy(&Socket->Receive);
         (void)OSHandleDestroy(Handle);
         free(Socket);
         return Status;
@@ -173,8 +172,8 @@ SocketShutdownImpl(
         
         mtx_destroy(&Socket->SyncObject);
         DomainDestroy(Socket->Domain);
-        DestroySocketPipe(&Socket->Receive);
-        DestroySocketPipe(&Socket->Send);
+        __SocketPipeDestroy(&Socket->Receive);
+        __SocketPipeDestroy(&Socket->Send);
         (void)OSHandleDestroy((uuid_t)(uintptr_t)Socket->Header.key);
         free(Socket);
         return OS_EOK;

@@ -21,6 +21,7 @@
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/types/file.h>
+#include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
 #include "mfs.h"
@@ -365,12 +366,12 @@ FsSeek(
     return osStatus;
 }
 
-static FileSystemMFS_t* __FileSystemMFSNew(
+static FileSystemMFS_t*
+__FileSystemMFSNew(
         _In_ struct VFSStorageParameters* storageParameters,
         _In_ StorageDescriptor_t*         storageStats)
 {
     FileSystemMFS_t* mfs;
-    DMABuffer_t      bufferInfo;
     oserr_t          oserr;
 
     mfs = (FileSystemMFS_t*)malloc(sizeof(FileSystemMFS_t));
@@ -385,14 +386,16 @@ static FileSystemMFS_t* __FileSystemMFSNew(
     memcpy(&mfs->Storage, storageParameters, sizeof(struct VFSStorageParameters));
     mfs->SectorSize = storageStats->SectorSize;
 
-    // Create a generic transferbuffer for us to use
-    bufferInfo.name     = "mfs_transfer_buffer";
-    bufferInfo.length   = storageStats->SectorSize;
-    bufferInfo.capacity = storageStats->SectorSize;
-    bufferInfo.flags    = 0;
-    bufferInfo.type     = DMA_TYPE_DRIVER_32;
-
-    oserr = DmaCreate(&bufferInfo, &mfs->TransferBuffer);
+    // Create a generic transfer buffer for us to use
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = storageStats->SectorSize,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &mfs->TransferBuffer
+    );
     if (oserr != OS_EOK) {
         free(mfs);
         return NULL;
@@ -403,9 +406,8 @@ static FileSystemMFS_t* __FileSystemMFSNew(
 static void __FileSystemMFSDelete(
         _In_ FileSystemMFS_t* mfs)
 {
-    if (mfs->TransferBuffer.buffer != NULL) {
-        (void) DmaAttachmentUnmap(&mfs->TransferBuffer);
-        (void) DmaDetach(&mfs->TransferBuffer);
+    if (mfs->TransferBuffer.Buffer != NULL) {
+        (void)SHMDetach(&mfs->TransferBuffer);
     }
     free(mfs->BucketMap);
     free(mfs);
@@ -435,27 +437,24 @@ static oserr_t __ParseBootRecord(
     return OS_EOK;
 }
 
-static oserr_t __ResizeTransferBuffer(
+static oserr_t
+__ResizeTransferBuffer(
         _In_ FileSystemMFS_t* mfs)
 {
-    DMABuffer_t bufferInfo;
-
     // TODO should probably error check these
-    (void) DmaAttachmentUnmap(&mfs->TransferBuffer);
-    (void) DmaDetach(&mfs->TransferBuffer);
-
-    bufferInfo.length   = mfs->SectorSize;
-    bufferInfo.capacity = mfs->SectorSize;
+    (void)SHMDetach(&mfs->TransferBuffer);
 
     // Create a new transfer buffer that is more persistant and attached to the fs
     // and will provide the primary intermediate buffer for general usage.
-    bufferInfo.name     = "mfs_transfer_buffer";
-    bufferInfo.length   = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE;
-    bufferInfo.capacity = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE;
-    bufferInfo.flags    = 0;
-    bufferInfo.type     = DMA_TYPE_DRIVER_32;
-
-    return DmaCreate(&bufferInfo, &mfs->TransferBuffer);
+    return SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_DEVICE,
+                    .Type = SHM_TYPE_DRIVER_32LOW,
+                    .Size = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &mfs->TransferBuffer
+    );
 }
 
 static oserr_t __ValidateMasterRecord(
@@ -511,7 +510,7 @@ __ParseAndProcessMasterRecord(
 
         oserr = FSStorageRead(
                 &mfs->Storage,
-                mfs->TransferBuffer.handle,
+                mfs->TransferBuffer.ID,
                 0,
                 &(UInteger64_t) { .QuadPart = mapSector },
                 sectorCount,
@@ -531,7 +530,7 @@ __ParseAndProcessMasterRecord(
         }
 
         // Reset buffer position to 0 and read the data into the map
-        memcpy(bMap, mfs->TransferBuffer.buffer, transferSize);
+        memcpy(bMap, mfs->TransferBuffer.Buffer, transferSize);
         bytesLeft -= transferSize;
         bytesRead += transferSize;
         bMap      += transferSize;
@@ -619,7 +618,7 @@ FsInitialize(
     // Read the boot-sector
     oserr = FSStorageRead(
             storageParameters,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = 0 },
             1,
@@ -632,7 +631,7 @@ FsInitialize(
 
     oserr = __ParseBootRecord(
             mfs,
-            (BootRecord_t*)mfs->TransferBuffer.buffer
+            (BootRecord_t*)mfs->TransferBuffer.Buffer
     );
     if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to parse the boot record");
@@ -642,7 +641,7 @@ FsInitialize(
     // Read the master-record
     oserr = FSStorageRead(
             storageParameters,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = mfs->MasterRecordSector },
             1,
@@ -655,12 +654,12 @@ FsInitialize(
 
     // Validate and store the master record immediately, so we can resize the
     // transfer buffer. The moment we do, the data is lost.
-    oserr = __ValidateMasterRecord((MasterRecord_t*)mfs->TransferBuffer.buffer);
+    oserr = __ValidateMasterRecord((MasterRecord_t*)mfs->TransferBuffer.Buffer);
     if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
-    memcpy(&mfs->MasterRecord, mfs->TransferBuffer.buffer, sizeof(MasterRecord_t));
+    memcpy(&mfs->MasterRecord, mfs->TransferBuffer.Buffer, sizeof(MasterRecord_t));
 
     oserr = __ResizeTransferBuffer(mfs);
     if (oserr != OS_EOK) {

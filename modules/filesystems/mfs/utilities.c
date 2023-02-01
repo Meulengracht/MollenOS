@@ -101,7 +101,7 @@ MfsUpdateRecord(
     // Read the stored data bucket where the record is
     oserr = FSStorageRead(
             &mfs->Storage,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = MFS_GETSECTOR(mfs, entry->DirectoryBucket) },
             MFS_SECTORCOUNT(mfs, entry->DirectoryLength),
@@ -112,7 +112,7 @@ MfsUpdateRecord(
         goto Cleanup;
     }
 
-    record = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.buffer + (sizeof(FileRecord_t) * entry->DirectoryIndex));
+    record = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.Buffer + (sizeof(FileRecord_t) * entry->DirectoryIndex));
 
     // We have two over-all cases here, as create/modify share
     // some code, and that is delete as the second. If we delete
@@ -149,7 +149,7 @@ MfsUpdateRecord(
     // Write the bucket back to the disk
     oserr = FSStorageWrite(
             &mfs->Storage,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = MFS_GETSECTOR(mfs, entry->DirectoryBucket) },
             MFS_SECTORCOUNT(mfs, entry->DirectoryLength),

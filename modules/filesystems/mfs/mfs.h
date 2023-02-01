@@ -32,7 +32,7 @@
 
 #include <ddk/filesystem.h>
 #include <os/mollenos.h>
-#include <os/dmabuf.h>
+#include <os/types/shm.h>
 #include <ds/mstring.h>
 
 /**

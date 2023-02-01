@@ -60,11 +60,11 @@ HciQueueTransferIsochronous(
         // we must transfer lower bytes because of the requested amount, or the limit
         // of a descriptor, or the limit of the DMA table
         BytesStep = MIN(bytesToTransfer, maxBytesPerDescriptor);
-        BytesStep = MIN(BytesStep, transfer->Transactions[0].DmaTable.entries[
-            transfer->Transactions[0].SgIndex].length - transfer->Transactions[0].SgOffset);
+        BytesStep = MIN(BytesStep, transfer->Transactions[0].SHMTable.Entries[
+            transfer->Transactions[0].SGIndex].Length - transfer->Transactions[0].SGOffset);
         
-        AddressPointer = transfer->Transactions[0].DmaTable.entries[
-            transfer->Transactions[0].SgIndex].address + transfer->Transactions[0].SgOffset;
+        AddressPointer = transfer->Transactions[0].SHMTable.Entries[
+            transfer->Transactions[0].SGIndex].Address + transfer->Transactions[0].SGOffset;
         
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OS_EOK) {
             if (EhciTdIsochronous(controller, &transfer->Transfer, iTd,
@@ -102,13 +102,13 @@ HciQueueTransferIsochronous(
             previousTd = iTd;
         }
         
-        // Increase the DmaTable metrics
-        transfer->Transactions[0].SgOffset += BytesStep;
-        if (transfer->Transactions[0].SgOffset ==
-            transfer->Transactions[0].DmaTable.entries[
-                    transfer->Transactions[0].SgIndex].length) {
-            transfer->Transactions[0].SgIndex++;
-            transfer->Transactions[0].SgOffset = 0;
+        // Increase the SHMTable metrics
+        transfer->Transactions[0].SGOffset += BytesStep;
+        if (transfer->Transactions[0].SGOffset ==
+            transfer->Transactions[0].SHMTable.Entries[
+                    transfer->Transactions[0].SGIndex].Length) {
+            transfer->Transactions[0].SGIndex++;
+            transfer->Transactions[0].SGOffset = 0;
         }
         bytesToTransfer -= BytesStep;
     }

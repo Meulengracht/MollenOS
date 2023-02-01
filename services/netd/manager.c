@@ -227,8 +227,8 @@ NetworkManagerSocketCreate(
     
     rb_tree_append(&g_sockets, &Socket->Header);
     *HandleOut           = (uuid_t)(uintptr_t)Socket->Header.key;
-    *SendBufferHandleOut = Socket->Send.DmaAttachment.handle;
-    *RecvBufferHandleOut = Socket->Receive.DmaAttachment.handle;
+    *SendBufferHandleOut = Socket->Send.SHM.ID;
+    *RecvBufferHandleOut = Socket->Receive.SHM.ID;
     TRACE("[net_manager] [create] => %u", *HandleOut);
     return Status;
 }

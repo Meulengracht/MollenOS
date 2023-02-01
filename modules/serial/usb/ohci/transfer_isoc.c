@@ -60,11 +60,11 @@ OhciTransferFill(
         // we must transfer lower bytes because of the requested amount, or the limit
         // of a descriptor, or the limit of the DMA table
         BytesStep = MIN(BytesToTransfer, MaxBytesPerDescriptor);
-        BytesStep = MIN(BytesStep, Transfer->Transactions[0].DmaTable.entries[
-            Transfer->Transactions[0].SgIndex].length - Transfer->Transactions[0].SgOffset);
+        BytesStep = MIN(BytesStep, Transfer->Transactions[0].SHMTable.Entries[
+            Transfer->Transactions[0].SGIndex].Length - Transfer->Transactions[0].SGOffset);
         
-        AddressPointer = Transfer->Transactions[0].DmaTable.entries[
-            Transfer->Transactions[0].SgIndex].address + Transfer->Transactions[0].SgOffset;
+        AddressPointer = Transfer->Transactions[0].SHMTable.Entries[
+            Transfer->Transactions[0].SGIndex].Address + Transfer->Transactions[0].SGOffset;
         
         if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&iTd) == OS_EOK) {
             OhciTdIsochronous(iTd, Transfer->Transfer.MaxPacketSize, 
@@ -83,13 +83,13 @@ OhciTransferFill(
             PreviousTd = iTd;
         }
 
-        // Increase the DmaTable metrics
-        Transfer->Transactions[0].SgOffset += BytesStep;
-        if (Transfer->Transactions[0].SgOffset == 
-                Transfer->Transactions[0].DmaTable.entries[
-                    Transfer->Transactions[0].SgIndex].length) {
-            Transfer->Transactions[0].SgIndex++;
-            Transfer->Transactions[0].SgOffset = 0;
+        // Increase the SHMTable metrics
+        Transfer->Transactions[0].SGOffset += BytesStep;
+        if (Transfer->Transactions[0].SGOffset ==
+                Transfer->Transactions[0].SHMTable.Entries[
+                    Transfer->Transactions[0].SGIndex].Length) {
+            Transfer->Transactions[0].SGIndex++;
+            Transfer->Transactions[0].SGOffset = 0;
         }
         BytesToTransfer -= BytesStep;
     }

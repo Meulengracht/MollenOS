@@ -243,7 +243,7 @@ HandleIdentifyCommand(
     _In_ AhciDevice_t* device)
 {
     ATAIdentify_t* deviceInformation =
-        (ATAIdentify_t*)device->Port->InternalBuffer.buffer;
+        (ATAIdentify_t*)device->Port->InternalBuffer.Buffer;
 
     // Flip the data in the strings as it's inverted
     __flipbuffer(deviceInformation->SerialNo, 20);

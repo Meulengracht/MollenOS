@@ -27,6 +27,7 @@
 #include <internal/_io.h>
 #include <os/threads.h>
 #include <os/usched/cond.h>
+#include <os/shm.h>
 #include <pe.h>
 #include <process.h>
 #include <stdlib.h>
@@ -130,14 +131,14 @@ static void*
 __ProcOptsInheritationBlock(
         _In_ struct ProcessOptions* procOpts)
 {
-    return procOpts->DataBuffer.buffer;
+    return procOpts->DataBuffer.Buffer;
 }
 
 static void*
 __ProcOptsEnvironmentBlock(
         _In_ struct ProcessOptions* procOpts)
 {
-    return (char*)procOpts->DataBuffer.buffer + procOpts->InheritationBlockLength;
+    return (char*)procOpts->DataBuffer.Buffer + procOpts->InheritationBlockLength;
 }
 
 static oserr_t
@@ -561,26 +562,23 @@ PmGetProcessStartupInformation(
     }
     *processHandleOut = process->handle;
 
-    SHMHandle_t dmaAttachment;
-    oserr = DmaAttach(bufferHandle, &dmaAttachment);
+    SHMHandle_t shm;
+    oserr = SHMAttach(bufferHandle, &shm);
     if (oserr != OS_EOK) {
         ERROR("PmGetProcessStartupInformation failed to attach to user buffer");
         goto exit;
     }
 
-    oserr = DmaAttachmentMap(&dmaAttachment, DMA_ACCESS_WRITE);
+    oserr = SHMMap(&shm, 0, shm.Capacity, SHM_ACCESS_READ | SHM_ACCESS_WRITE);
     if (oserr != OS_EOK) {
         goto detach;
     }
 
     // Write the header
-    oserr = __WriteProcessStartupInformation(process, dmaAttachment.buffer, bufferOffset);
-
-    // unmap and cleanup
-    DmaAttachmentUnmap(&dmaAttachment);
+    oserr = __WriteProcessStartupInformation(process, shm.Buffer, bufferOffset);
 
 detach:
-    DmaDetach(&dmaAttachment);
+    SHMDetach(&shm);
 
 exit:
     return oserr;

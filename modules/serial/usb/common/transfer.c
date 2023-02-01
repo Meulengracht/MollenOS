@@ -27,6 +27,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
+#include <os/shm.h>
 #include "hci.h"
 #include <stdlib.h>
 #include "transfer.h"
@@ -81,22 +82,28 @@ UsbManagerCreateTransfer(
                 usbTransfer->Transfer.Transactions[i - 1].BufferHandle) {
             memcpy(&usbTransfer->Transactions[i], &usbTransfer->Transactions[i - 1],
                 sizeof(struct UsbManagerTransaction));
-        }
-        else if (i == 2 && usbTransfer->Transfer.Transactions[i].BufferHandle ==
+        } else if (i == 2 && usbTransfer->Transfer.Transactions[i].BufferHandle ==
                 usbTransfer->Transfer.Transactions[i - 2].BufferHandle) {
             memcpy(&usbTransfer->Transactions[i], &usbTransfer->Transactions[i - 2],
                 sizeof(struct UsbManagerTransaction));
+        } else {
+            SHMAttach(
+                    usbTransfer->Transfer.Transactions[i].BufferHandle,
+                    &usbTransfer->Transactions[i].SHM
+            );
+
+            SHMGetSGTable(
+                    &usbTransfer->Transactions[i].SHM,
+                    &usbTransfer->Transactions[i].SHMTable,
+                    -1
+            );
         }
-        else {
-            DmaAttach(usbTransfer->Transfer.Transactions[i].BufferHandle,
-                &usbTransfer->Transactions[i].DmaAttachment);
-            DmaGetSGTable(&usbTransfer->Transactions[i].DmaAttachment,
-                          &usbTransfer->Transactions[i].DmaTable, -1);
-        }
-        DmaSGTableOffset(&usbTransfer->Transactions[i].DmaTable,
-                         usbTransfer->Transfer.Transactions[i].BufferOffset,
-                         &usbTransfer->Transactions[i].SgIndex,
-                         &usbTransfer->Transactions[i].SgOffset);
+        SHMSGTableOffset(
+                &usbTransfer->Transactions[i].SHMTable,
+                usbTransfer->Transfer.Transactions[i].BufferOffset,
+                &usbTransfer->Transactions[i].SGIndex,
+                &usbTransfer->Transactions[i].SGOffset
+        );
     }
 
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
@@ -127,14 +134,12 @@ UsbManagerDestroyTransfer(
         if (i != 0 && transfer->Transfer.Transactions[i].BufferHandle ==
                       transfer->Transfer.Transactions[i - 1].BufferHandle) {
             // do nothing, we already freed
-        }
-        else if (i == 2 && transfer->Transfer.Transactions[i].BufferHandle ==
+        } else if (i == 2 && transfer->Transfer.Transactions[i].BufferHandle ==
                            transfer->Transfer.Transactions[i - 2].BufferHandle) {
             // do nothing, we already freed
-        }
-        else {
-            free(transfer->Transactions[i].DmaTable.entries);
-            DmaDetach(&transfer->Transactions[i].DmaAttachment);
+        } else {
+            free(transfer->Transactions[i].SHMTable.Entries);
+            SHMDetach(&transfer->Transactions[i].SHM);
         }
     }
     free(transfer);
@@ -167,8 +172,7 @@ UsbManagerSendNotification(
 
         TRACE("UsbManagerSendNotification is notifiyng");
         ctt_usbhost_queue_response(&transfer->DeferredMessage[0], transfer->Status, bytesTransferred);
-    }
-    else if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
+    } else if (transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
         ctt_usbhost_event_transfer_status_single(__crt_get_module_server(), transfer->DeferredMessage[0].client,
                                               transfer->Id, transfer->Status, transfer->CurrentDataIndex);
         if (transfer->Status == TransferFinished) {
@@ -176,8 +180,7 @@ UsbManagerSendNotification(
                                                   transfer->Transfer.Transactions[0].Length,
                                                   transfer->Transfer.PeriodicBufferSize);
         }
-    }
-    else {
+    } else {
         WARNING("UsbManagerSendNotification ISOCHRONOUS WHAT TO DO");
     }
 }

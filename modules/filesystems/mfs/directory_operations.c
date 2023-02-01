@@ -103,7 +103,7 @@ FsReadFromDirectory(
         uint64_t sector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
         size_t   sectorCount  = MFS_SECTORCOUNT(mfs, entry->DataBucketLength);
         size_t   bucketOffset = position - entry->BucketByteBoundary;
-        uint8_t* transferBuffer = (uint8_t*)mfs->TransferBuffer.buffer;
+        uint8_t* transferBuffer = (uint8_t*)mfs->TransferBuffer.Buffer;
         size_t   bucketSize = sectorCount * mfs->SectorSize;
         size_t   sectorsRead;
         TRACE("read_metrics:: sector=%u, sectorCount=%u, bucketOffset=%u, bucketSize=%u",
@@ -113,7 +113,7 @@ FsReadFromDirectory(
             // The code here is simple because we assume we can fit entire bucket at any time
             oserr = FSStorageRead(
                     &mfs->Storage,
-                    mfs->TransferBuffer.handle,
+                    mfs->TransferBuffer.ID,
                     0,
                     &(UInteger64_t) { .QuadPart = sector },
                     sectorCount,

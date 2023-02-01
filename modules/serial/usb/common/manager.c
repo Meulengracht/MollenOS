@@ -538,54 +538,61 @@ UsbManagerIterateChain(
     _In_ UsbSchedulerElementCallback ElementCallback,
     _In_ void*                       Context)
 {
-    UsbSchedulerObject_t* Object  = NULL;
-    UsbSchedulerPool_t*   Pool    = NULL;
-    uint8_t*              Element = ElementRoot;
-    oserr_t            Result;
-    uint16_t              RootIndex;
-    uint16_t              LinkIndex;
-    int                   Status;
+    UsbSchedulerObject_t* object  = NULL;
+    UsbSchedulerPool_t*   pool    = NULL;
+    uint8_t*              element = ElementRoot;
+    oserr_t               oserr;
+    uint16_t              rootIndex;
+    uint16_t              linkIndex;
+    int                   status;
     
     // Debug
     assert(Controller != NULL);
     assert(ElementRoot != NULL);
 
     // Validate element and lookup pool
-    Result = UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
-    assert(Result == OS_EOK);
-    Object = USB_ELEMENT_OBJECT(Pool, Element);
+    oserr = UsbSchedulerGetPoolFromElement(
+            Controller->Scheduler,
+            element,
+            &pool
+    );
+    if (oserr != OS_EOK) {
+        WARNING("UsbManagerIterateChain: cannot get object from pool");
+        return;
+    }
+    object = USB_ELEMENT_OBJECT(pool, element);
     
     // Get indices
-    RootIndex = Object->Index;
-    LinkIndex = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
+    rootIndex = object->Index;
+    linkIndex = (Direction == USB_CHAIN_BREATH) ? object->BreathIndex : object->DepthIndex;
 
     // Iterate to end, support cyclic queues
-    while (Element) {
+    while (element) {
         // Support null-elements
         if (Controller->Scheduler->Settings.Flags & USB_SCHEDULER_NULL_ELEMENT) {
-            if (LinkIndex == USB_ELEMENT_NO_INDEX) {
+            if (linkIndex == USB_ELEMENT_NO_INDEX) {
                 break;
             }
         }
-        
-        Status = ElementCallback(Controller, Element, Reason, Context);
-        if (Status & ITERATOR_STOP) {
+
+        status = ElementCallback(Controller, element, Reason, Context);
+        if (status & ITERATOR_STOP) {
             break;
         }
-        if (Status & ITERATOR_REMOVE) {
+        if (status & ITERATOR_REMOVE) {
             WARNING("ElementCallback returned ITERATOR_REMOVE");
         }
         
         // Should we stop?
-        if (LinkIndex == USB_ELEMENT_NO_INDEX || LinkIndex == RootIndex) {
+        if (linkIndex == USB_ELEMENT_NO_INDEX || linkIndex == rootIndex) {
             break;
         }
         
         // Move to next object
-        Pool      = USB_ELEMENT_GET_POOL(Controller->Scheduler, LinkIndex);
-        Element   = USB_ELEMENT_INDEX(Pool, LinkIndex);
-        Object    = USB_ELEMENT_OBJECT(Pool, Element);
-        LinkIndex = (Direction == USB_CHAIN_BREATH) ? Object->BreathIndex : Object->DepthIndex;
+        pool      = USB_ELEMENT_GET_POOL(Controller->Scheduler, linkIndex);
+        element   = USB_ELEMENT_INDEX(pool, linkIndex);
+        object    = USB_ELEMENT_OBJECT(pool, element);
+        linkIndex = (Direction == USB_CHAIN_BREATH) ? object->BreathIndex : object->DepthIndex;
     }
 }
 

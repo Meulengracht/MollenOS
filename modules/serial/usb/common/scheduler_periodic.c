@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,19 +13,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * USB Controller Scheduler
- * - Contains the implementation of a shared controller scheduker
- *   for all the usb drivers
  */
+
 //#define __TRACE
 
 #include <assert.h>
 #include <ddk/barrier.h>
 #include <usb/usb.h>
 #include <ddk/utils.h>
-#include <os/mollenos.h>
 #include "scheduler.h"
 
 oserr_t
@@ -35,86 +29,90 @@ UsbSchedulerLinkPeriodicElement(
     _In_ int             ElementPool,
     _In_ uint8_t*        Element)
 {
-    oserr_t            Result;
-    UsbSchedulerObject_t* sObject         = NULL;
-    UsbSchedulerPool_t*   sPool           = NULL;
-    uintptr_t             PhysicalAddress = 0;
+    oserr_t               oserr;
+    UsbSchedulerObject_t* object;
+    UsbSchedulerPool_t*   pool;
+    uintptr_t             physicalAddress;
     size_t                i;
     
     assert(ElementPool < Scheduler->Settings.PoolCount);
 
     // Validate element and lookup pool
-    sPool           = &Scheduler->Settings.Pools[ElementPool];
-    sObject         = USB_ELEMENT_OBJECT(sPool, Element);
-    PhysicalAddress = USB_ELEMENT_PHYSICAL(sPool, sObject->Index);
+    pool            = &Scheduler->Settings.Pools[ElementPool];
+    object          = USB_ELEMENT_OBJECT(pool, Element);
+    physicalAddress = USB_ELEMENT_PHYSICAL(pool, object->Index);
 
     // Now loop through the bandwidth-phases and link it
-    for (i = sObject->StartFrame; i < Scheduler->Settings.FrameCount; i += sObject->FrameInterval) {
+    for (i = object->StartFrame; i < Scheduler->Settings.FrameCount; i += object->FrameInterval) {
         // Two cases, first or not first
         if (Scheduler->VirtualFrameList[i] == 0) {
             Scheduler->VirtualFrameList[i]   = (uintptr_t)Element;
-            Scheduler->Settings.FrameList[i] = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(sObject->Flags); //@todo if 64 bit support in xhci
-        }
-        else {
-            // Ok, so we need to index us by Interval
+            Scheduler->Settings.FrameList[i] = LODWORD(physicalAddress) | USB_ELEMENT_LINKFLAGS(object->Flags); //@todo if 64 bit support in xhci
+        } else {
+            // Ok, so we need to index us by Interval.
             // Lowest interval must come last
-            UsbSchedulerObject_t *ExistingObject = NULL;
-            UsbSchedulerPool_t *ExistingPool     = NULL;
-            uint8_t *ExistingElement             = (uint8_t*)Scheduler->VirtualFrameList[i];
+            UsbSchedulerObject_t* existingObject;
+            UsbSchedulerPool_t*   existingPool;
+            uint8_t*              existingElement = (uint8_t*)Scheduler->VirtualFrameList[i];
 
             // Get element and validate existance
-            Result = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
-            assert(Result == OS_EOK);
-            ExistingObject = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
+            oserr = UsbSchedulerGetPoolFromElement(Scheduler, existingElement, &existingPool);
+            if (oserr != OS_EOK) {
+                WARNING("UsbSchedulerLinkPeriodicElement: cannot get object from pool");
+                return oserr;
+            }
+            existingObject = USB_ELEMENT_OBJECT(existingPool, existingElement);
 
             // Isochronous always have first right regardless of interval
             // so if this is not isochronous loop past all isochronous
-            //if (!(sObject->Flags & USB_ELEMENT_ISOCHRONOUS)) {
-            //    while (ExistingObject->Flags & USB_ELEMENT_ISOCHRONOUS) {
-            //        if (ExistingObject->BreathIndex == USB_ELEMENT_NO_INDEX ||
-            //            ExistingObject == sObject) {
+            //if (!(object->Flags & USB_ELEMENT_ISOCHRONOUS)) {
+            //    while (existingObject->Flags & USB_ELEMENT_ISOCHRONOUS) {
+            //        if (existingObject->BreathIndex == USB_ELEMENT_NO_INDEX ||
+            //            existingObject == object) {
             //            break;
             //        }
 
             //        // Move to next object
-            //        ExistingPool    = USB_ELEMENT_GET_POOL(Scheduler, ExistingObject->BreathIndex);
-            //        ExistingElement = USB_ELEMENT_INDEX(ExistingPool, ExistingObject->BreathIndex);
-            //        ExistingObject  = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
+            //        existingPool    = USB_ELEMENT_GET_POOL(Scheduler, existingObject->BreathIndex);
+            //        existingElement = USB_ELEMENT_INDEX(existingPool, existingObject->BreathIndex);
+            //        existingObject  = USB_ELEMENT_OBJECT(existingPool, existingElement);
             //    }
             //}
             // @todo as this will break the linkage
 
             // Iterate to correct spot based on interval
-            while (ExistingObject->BreathIndex != USB_ELEMENT_NO_INDEX && ExistingObject != sObject) {
-                if (sObject->FrameInterval > ExistingObject->FrameInterval) {
+            while (existingObject->BreathIndex != USB_ELEMENT_NO_INDEX && existingObject != object) {
+                if (object->FrameInterval > existingObject->FrameInterval) {
                     break;
                 }
 
                 // Move to next object
-                ExistingPool    = USB_ELEMENT_GET_POOL(Scheduler, ExistingObject->BreathIndex);
-                ExistingElement = USB_ELEMENT_INDEX(ExistingPool, ExistingObject->BreathIndex);
-                ExistingObject  = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
+                existingPool    = USB_ELEMENT_GET_POOL(Scheduler, existingObject->BreathIndex);
+                existingElement = USB_ELEMENT_INDEX(existingPool, existingObject->BreathIndex);
+                existingObject  = USB_ELEMENT_OBJECT(existingPool, existingElement);
             }
 
             // Link us in only if we are not ourselves
-            if (ExistingObject != sObject) {
+            if (existingObject != object) {
                 // Two insertion cases. To front or not to front
                 // We must have a larger interval and existingelement must be front
-                if (ExistingElement == (uint8_t*)Scheduler->VirtualFrameList[i] &&
-                    sObject->FrameInterval > ExistingObject->FrameInterval) {
-                    USB_ELEMENT_LINK(sPool, Element, USB_CHAIN_BREATH) = Scheduler->Settings.FrameList[i];
-                    sObject->BreathIndex                               = ExistingObject->Index;
+                if (existingElement == (uint8_t*)Scheduler->VirtualFrameList[i] &&
+                    object->FrameInterval > existingObject->FrameInterval) {
+                    USB_ELEMENT_LINK(pool, Element, USB_CHAIN_BREATH) = Scheduler->Settings.FrameList[i];
+                    object->BreathIndex                               = existingObject->Index;
                     dma_mb();
                     Scheduler->VirtualFrameList[i]   = (uintptr_t)Element;
-                    Scheduler->Settings.FrameList[i] = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(sObject->Flags); //@todo if 64 bit support in xhci
+                    Scheduler->Settings.FrameList[i] = LODWORD(physicalAddress) | USB_ELEMENT_LINKFLAGS(object->Flags); //@todo if 64 bit support in xhci
                     dma_wmb();
-                }
-                else {
-                    USB_ELEMENT_LINK(sPool, Element, USB_CHAIN_BREATH) = USB_ELEMENT_LINK(ExistingPool, ExistingElement, USB_CHAIN_BREATH);
-                    sObject->BreathIndex                               = ExistingObject->BreathIndex;
+                } else {
+                    USB_ELEMENT_LINK(pool, Element, USB_CHAIN_BREATH)
+                        = USB_ELEMENT_LINK(existingPool, existingElement, USB_CHAIN_BREATH);
+                    object->BreathIndex = existingObject->BreathIndex;
                     dma_mb();
-                    USB_ELEMENT_LINK(ExistingPool, ExistingElement, USB_CHAIN_BREATH) = LODWORD(PhysicalAddress) | USB_ELEMENT_LINKFLAGS(sObject->Flags);
-                    ExistingObject->BreathIndex                                       = sObject->Index;
+
+                    USB_ELEMENT_LINK(existingPool, existingElement, USB_CHAIN_BREATH)
+                        = LODWORD(physicalAddress) | USB_ELEMENT_LINKFLAGS(object->Flags);
+                    existingObject->BreathIndex = object->Index;
                     dma_wmb();
                 }
             }
@@ -129,47 +127,48 @@ UsbSchedulerUnlinkPeriodicElement(
     _In_ int             ElementPool,
     _In_ uint8_t*        Element)
 {
-    oserr_t            Result;
-    UsbSchedulerObject_t* sObject = NULL;
-    UsbSchedulerPool_t*   sPool   = NULL;
-    reg32_t               NoLink  = (Scheduler->Settings.Flags & USB_SCHEDULER_LINK_BIT_EOL) ? USB_ELEMENT_LINK_END : 0;
+    oserr_t               oserr;
+    UsbSchedulerObject_t* object;
+    UsbSchedulerPool_t*   pool;
+    reg32_t               noLink = (Scheduler->Settings.Flags & USB_SCHEDULER_LINK_BIT_EOL) ? USB_ELEMENT_LINK_END : 0;
     size_t                i;
 
     assert(ElementPool < Scheduler->Settings.PoolCount);
 
     // Validate element and lookup pool
-    sPool   = &Scheduler->Settings.Pools[ElementPool];
-    sObject = USB_ELEMENT_OBJECT(sPool, Element);
+    pool   = &Scheduler->Settings.Pools[ElementPool];
+    object = USB_ELEMENT_OBJECT(pool, Element);
 
     // Iterate the bandwidth phases
-    for (i = sObject->StartFrame; i < Scheduler->Settings.FrameCount; i += sObject->FrameInterval) {
+    for (i = object->StartFrame; i < Scheduler->Settings.FrameCount; i += object->FrameInterval) {
         UsbSchedulerObject_t *ExistingObject = NULL;
         UsbSchedulerPool_t *ExistingPool     = NULL;
         uint8_t *ExistingElement             = (uint8_t*)Scheduler->VirtualFrameList[i];
 
         // Get element and validate existance
-        Result = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
-        assert(Result == OS_EOK);
+        oserr = UsbSchedulerGetPoolFromElement(Scheduler, ExistingElement, &ExistingPool);
+        if (oserr != OS_EOK) {
+            WARNING("UsbSchedulerUnlinkPeriodicElement: cannot get object from pool");
+            return;
+        }
         ExistingObject = USB_ELEMENT_OBJECT(ExistingPool, ExistingElement);
 
         // Two cases, root or not
         if (ExistingElement == Element) {
-            if (sObject->BreathIndex != USB_ELEMENT_NO_INDEX) {
+            if (object->BreathIndex != USB_ELEMENT_NO_INDEX) {
                 // Move to next object
-                ExistingPool    = USB_ELEMENT_GET_POOL(Scheduler, sObject->BreathIndex);
-                ExistingElement = USB_ELEMENT_INDEX(ExistingPool, sObject->BreathIndex);
+                ExistingPool    = USB_ELEMENT_GET_POOL(Scheduler, object->BreathIndex);
+                ExistingElement = USB_ELEMENT_INDEX(ExistingPool, object->BreathIndex);
 
                 Scheduler->VirtualFrameList[i]   = (uintptr_t)ExistingElement;
-                Scheduler->Settings.FrameList[i] = USB_ELEMENT_LINK(sPool, Element, USB_CHAIN_BREATH);
-            }
-            else {
+                Scheduler->Settings.FrameList[i] = USB_ELEMENT_LINK(pool, Element, USB_CHAIN_BREATH);
+            } else {
                 Scheduler->VirtualFrameList[i]   = 0;
-                Scheduler->Settings.FrameList[i] = NoLink;
+                Scheduler->Settings.FrameList[i] = noLink;
             }
-        }
-        else {
-            while (ExistingObject->BreathIndex != USB_ELEMENT_NO_INDEX && 
-                   ExistingObject->BreathIndex != sObject->Index) {
+        } else {
+            while (ExistingObject->BreathIndex != USB_ELEMENT_NO_INDEX &&
+                   ExistingObject->BreathIndex != object->Index) {
                 // Move to next object
                 ExistingPool    = USB_ELEMENT_GET_POOL(Scheduler, ExistingObject->BreathIndex);
                 ExistingElement = USB_ELEMENT_INDEX(ExistingPool, ExistingObject->BreathIndex);
@@ -177,9 +176,10 @@ UsbSchedulerUnlinkPeriodicElement(
             }
 
             // Unlink if found
-            if (ExistingObject->BreathIndex == sObject->Index) {
-                ExistingObject->BreathIndex                                       = sObject->BreathIndex;
-                USB_ELEMENT_LINK(ExistingPool, ExistingElement, USB_CHAIN_BREATH) = USB_ELEMENT_LINK(sPool, Element, USB_CHAIN_BREATH);
+            if (ExistingObject->BreathIndex == object->Index) {
+                ExistingObject->BreathIndex = object->BreathIndex;
+                USB_ELEMENT_LINK(ExistingPool, ExistingElement, USB_CHAIN_BREATH)
+                    = USB_ELEMENT_LINK(pool, Element, USB_CHAIN_BREATH);
             }
         }
     }

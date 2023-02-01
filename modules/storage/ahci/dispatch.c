@@ -85,11 +85,11 @@ static void __BuildPRDTTable(
 
     for (i = 0; i < AHCI_COMMAND_TABLE_PRDT_COUNT && transaction->BytesLeft > 0; i++) {
         AHCIPrdtEntry_t* prdt = &commandTable->PrdtEntry[i];
-        uintptr_t        address = transaction->DmaTable.entries[transaction->SgIndex].address + transaction->SgOffset;
+        uintptr_t        address = transaction->SHMTable.Entries[transaction->SgIndex].Address + transaction->SgOffset;
         size_t           transferLength = MIN(AHCI_PRDT_MAX_LENGTH,
                                               MIN(
                                                transaction->BytesLeft,
-                                               transaction->DmaTable.entries[transaction->SgIndex].length - transaction->SgOffset));
+                                               transaction->SHMTable.Entries[transaction->SgIndex].Length - transaction->SgOffset));
         
         // On some transfers (sector transfers) we would like to have sector alignment
         // on the transfer we read. This should only ever be neccessary if we cannot fit
@@ -121,7 +121,7 @@ static void __BuildPRDTTable(
 
         // Adjust frame index and offset
         transaction->SgOffset += transferLength;
-        if (transaction->SgOffset == transaction->DmaTable.entries[transaction->SgIndex].length) {
+        if (transaction->SgOffset == transaction->SHMTable.Entries[transaction->SgIndex].Length) {
             transaction->SgOffset = 0;
             transaction->SgIndex++;
         }
@@ -150,8 +150,8 @@ static size_t __PrepareCommandSlot(
           port, transaction, sectorSize);
 
     // Get a reference to the command slot and reset the data in the command table
-    commandList   = (AHCICommandList_t*)port->CommandListDMA.buffer;
-    commandTable  = (AHCICommandTable_t*)port->CommandTableDMA.buffer;
+    commandList   = (AHCICommandList_t*)port->CommandListDMA.Buffer;
+    commandTable  = (AHCICommandTable_t*)port->CommandTableDMA.Buffer;
     commandHeader = &commandList->Headers[commandSlot];
 
     // Build the PRDT table
@@ -202,8 +202,8 @@ static oserr_t __DispatchCommand(
         return OS_EINVALPARAMS;
     }
 
-    commandList   = (AHCICommandList_t*)port->CommandListDMA.buffer;
-    commandTable  = (AHCICommandTable_t*)port->CommandTableDMA.buffer;
+    commandList   = (AHCICommandList_t*)port->CommandListDMA.Buffer;
+    commandTable  = (AHCICommandTable_t*)port->CommandTableDMA.Buffer;
     commandHeader = &commandList->Headers[commandSlot];
 
     if (ataCommand != NULL) {

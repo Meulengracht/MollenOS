@@ -28,6 +28,7 @@
 #include <assert.h>
 #include "dispatch.h"
 #include <ddk/utils.h>
+#include <os/shm.h>
 #include "manager.h"
 #include <stdlib.h>
 #include <string.h>
@@ -138,8 +139,8 @@ AhciTransactionDestroy(
     // Detach from our buffer reference
     list_remove(&port->Transactions, &transaction->Header);
     AhciPortFreeCommandSlot(port, portSlot);
-    DmaDetach(&transaction->DmaAttachment);
-    free(transaction->DmaTable.entries);
+    SHMDetach(&transaction->SHM);
+    free(transaction->SHMTable.Entries);
     free(transaction);
 }
 
@@ -166,7 +167,7 @@ static AhciTransaction_t* __CreateTransaction(
 
     // Do not bother about zeroing the array
     memset(transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&transaction->DmaAttachment, dmaAttachment, sizeof(SHMHandle_t));
+    memcpy(&transaction->SHM, dmaAttachment, sizeof(SHMHandle_t));
 
     ELEMENT_INIT(&transaction->Header, (void*)(uintptr_t)-1, transaction);
     transaction->Id      = transactionId;
@@ -190,8 +191,8 @@ static AhciTransaction_t* __CreateTransaction(
     }
 
     // Do not bother to check return code again, things should go ok now
-    DmaGetSGTable(dmaAttachment, &transaction->DmaTable, -1);
-    DmaSGTableOffset(&transaction->DmaTable, bufferOffset, &transaction->SgIndex, &transaction->SgOffset);
+    SHMGetSGTable(dmaAttachment, &transaction->SHMTable, -1);
+    SHMSGTableOffset(&transaction->SHMTable, bufferOffset, &transaction->SgIndex, &transaction->SgOffset);
     return transaction;
 }
 
@@ -204,7 +205,7 @@ AhciTransactionControlCreate(
 {
     AhciTransaction_t*    transaction;
     oserr_t               status;
-    SHMHandle_t       dmaAttachment;
+    SHMHandle_t           shm;
 
     TRACE("AhciTransactionControlCreate(ahciDevice=0x%" PRIxIN ", ataCommand=0x%x, length=0x%" PRIxIN ", direction=%i)",
           ahciDevice, ataCommand, length, direction);
@@ -214,14 +215,14 @@ AhciTransactionControlCreate(
         goto exit;
     }
 
-    status = DmaAttach(ahciDevice->Port->InternalBuffer.handle, &dmaAttachment);
+    status = SHMAttach(ahciDevice->Port->InternalBuffer.ID, &shm);
     if (status != OS_EOK) {
         goto exit;
     }
 
-    transaction = __CreateTransaction(ahciDevice, NULL, direction, 0, &dmaAttachment, 0);
+    transaction = __CreateTransaction(ahciDevice, NULL, direction, 0, &shm, 0);
     if (!transaction) {
-        DmaDetach(&dmaAttachment);
+        SHMDetach(&shm);
         status = OS_EOOM;
         goto exit;
     }
@@ -271,9 +272,9 @@ AhciTransactionStorageCreate(
         _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
-    SHMHandle_t                 dmaAttachment;
+    SHMHandle_t                     shm;
     AhciTransaction_t*              transaction = NULL;
-    oserr_t                      status;
+    oserr_t                         status;
     TRACE("AhciTransactionStorageCreate(device=0x%" PRIxIN ", sector=0x%" PRIxIN ", sectorCount=0x%" PRIxIN ", direction=%i)",
           device, sector, sectorCount, direction);
 
@@ -282,15 +283,15 @@ AhciTransactionStorageCreate(
         goto exit;
     }
     
-    status = DmaAttach(bufferHandle, &dmaAttachment);
+    status = SHMAttach(bufferHandle, &shm);
     if (status != OS_EOK) {
         status = OS_EINVALPARAMS;
         goto exit;
     }
 
-    transaction = __CreateTransaction(device, message, direction, sector, &dmaAttachment, bufferOffset);
+    transaction = __CreateTransaction(device, message, direction, sector, &shm, bufferOffset);
     if (!transaction) {
-        DmaDetach(&dmaAttachment);
+        SHMDetach(&shm);
         status = OS_EOOM;
         goto exit;
     }

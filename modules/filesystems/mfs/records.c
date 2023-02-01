@@ -74,7 +74,7 @@ __ReadCurrentBucket(
     // Start out by loading the bucket buffer with data
     osStatus = FSStorageRead(
             &mfs->Storage,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = MFS_GETSECTOR(mfs, currentBucket) },
             MFS_SECTORCOUNT(mfs, mapRecord->Length),
@@ -218,7 +218,7 @@ __FindEntryOrFreeInDirectory(
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        record = (FileRecord_t*)mfs->TransferBuffer.buffer;
+        record = (FileRecord_t*)mfs->TransferBuffer.Buffer;
         for (size_t i = 0; i < ((mfs->SectorsPerBucket * link.Length) / 2); i++) {
             mstring_t* filename;
             int        compareResult;
