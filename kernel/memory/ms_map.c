@@ -263,6 +263,7 @@ __ContiguousMapping(
     }
     return oserr;
 }
+
 oserr_t
 MemorySpaceMap(
         _In_  MemorySpace_t*                memorySpace,

@@ -37,6 +37,7 @@
 
 #ifdef TESTING
 #include <stdio.h>
+#define PRIxIN "zx"
 #endif
 
 // __func__ 
@@ -68,6 +69,7 @@
 #else //!TESTING
 #define WARNING(...)            printf(__VA_ARGS__)
 #define ERROR(...)              fprintf(stderr, __VA_ARGS__)
+#define FATAL(Scope, ...)       fprintf(stderr, __VA_ARGS__)
 #endif //!TESTING
 
 /* DebugSingleStep

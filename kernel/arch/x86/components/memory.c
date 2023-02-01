@@ -359,12 +359,12 @@ ArchMmuCommitVirtualPage(
 
 oserr_t
 ArchMmuSetContiguousVirtualPages(
-        _In_  MemorySpace_t*    memorySpace,
-        _In_  vaddr_t  startAddress,
-        _In_  paddr_t physicalStartAddress,
-        _In_  int               pageCount,
-        _In_  unsigned int      attributes,
-        _Out_ int*              pagesUpdatedOut)
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        startAddress,
+        _In_  paddr_t        physicalStartAddress,
+        _In_  int            pageCount,
+        _In_  unsigned int   attributes,
+        _Out_ int*           pagesUpdatedOut)
 {
     PAGE_MASTER_LEVEL* parentDirectory;
     PAGE_MASTER_LEVEL* directory;

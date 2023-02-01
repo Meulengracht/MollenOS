@@ -8,6 +8,7 @@ if (__BUILD_UNIT_TESTS)
 
     add_unit_test(FILE ms_allocations_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
     add_unit_test(FILE ms_context_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
+    add_unit_test(FILE ms_map_test.c INCLUDES ${KMEM_INCLUDES} LIBS libds)
     return ()
 endif ()
 
