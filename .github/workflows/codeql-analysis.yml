@@ -50,7 +50,6 @@ jobs:
         chmod +x ./tools/depends.sh
         chmod +x ./tools/dotnet-install.sh
         ./tools/depends.sh install-ci
-        apt-get install gcc-multilib g++-multilib
         cmake -G "Unix Makefiles" -B build -DVALI_ARCH=$VALI_ARCH
         PATH="/github/home/.dotnet:${PATH}" cmake --build build
 
