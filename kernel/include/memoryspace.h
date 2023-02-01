@@ -252,13 +252,13 @@ MemorySpaceChangeProtection(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceCloneMapping(
-        _In_        MemorySpace_t* sourceSpace,
-        _In_        MemorySpace_t* destinationSpace,
-        _In_        vaddr_t        sourceAddress,
-        _InOut_Opt_ vaddr_t*       destinationAddress,
-        _In_        size_t         length,
-        _In_        unsigned int   memoryFlags,
-        _In_        unsigned int   placementFlags);
+        _In_    MemorySpace_t* sourceSpace,
+        _In_    MemorySpace_t* destinationSpace,
+        _In_    vaddr_t        sourceAddress,
+        _InOut_ vaddr_t*       destinationAddress,
+        _In_    size_t         length,
+        _In_    unsigned int   memoryFlags,
+        _In_    unsigned int   placementFlags);
 
 /**
  * @brief Converts a virtual address range into the mapped physical range.

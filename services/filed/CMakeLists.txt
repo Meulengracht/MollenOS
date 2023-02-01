@@ -1,4 +1,4 @@
-if (VALI_BUILD_UNIT_TESTS)
+if (__BUILD_UNIT_TESTS)
     # add all targets that support unit testing
     add_subdirectory (vfs)
     return ()

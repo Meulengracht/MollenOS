@@ -22,10 +22,14 @@
  *    linked structure, allowing O(1) add/remove, and O(n) lookups.
  */
 
-#define __need_minmax
 #include <assert.h>
 #include <ds/list.h>
 #include <string.h>
+
+// avoid pulling in too much
+#ifndef MIN
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#endif
 
 #define LIST_LOCK   SYNC_LOCK(list)
 #define LIST_UNLOCK SYNC_UNLOCK(list)

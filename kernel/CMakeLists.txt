@@ -1,5 +1,9 @@
-cmake_minimum_required(VERSION 3.13.4)
-project (ValiKernel)
+if (__BUILD_UNIT_TESTS)
+	# add all targets that support unit testing
+	add_subdirectory (memory)
+	return ()
+endif ()
+
 enable_language (C)
 
 # Configure include paths

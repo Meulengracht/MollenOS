@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -75,7 +73,7 @@ rb_tree_construct_cmp(
  * @param RBTree     [In] The red-black tree to append the item to.
  * @param RBTreeItem [In] The item to append to the tree, the key must not exist.
  */
-DSDECL(oserr_t,
+DSDECL(int,
 rb_tree_append(
     _In_ rb_tree_t*,
     _In_ rb_leaf_t*));

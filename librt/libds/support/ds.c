@@ -46,8 +46,10 @@ extern oserr_t ScFutexWake(OSFutexParameters_t*);
 #include <stdlib.h>
 #include <stdatomic.h>
 #include <stdarg.h>
-extern void Syscall_FutexWait(FutexParameters_t*);
-extern void Syscall_FutexWake(FutexParameters_t*);
+extern void Syscall_FutexWait(OSFutexParameters_t*);
+extern void Syscall_FutexWake(OSFutexParameters_t*);
+extern oserr_t OSFutex(OSFutexParameters_t* parameters, OSAsyncContext_t* asyncContext);
+
 #define TRACE(...)   printf("%s\n", __VA_ARGS__)
 #define WARNING(...) printf("%s\n", __VA_ARGS__)
 #define ERROR(...)   fprintf(stderr, "%s\n", __VA_ARGS__)

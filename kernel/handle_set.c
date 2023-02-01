@@ -349,7 +349,7 @@ AddHandleToSet(
 {
     struct handle_sets*       element;
     struct handleset_element* setElement;
-    oserr_t                osStatus;
+    int                       status;
 
     SpinlockAcquireIrq(&g_handleSetsLock);
     element = hashtable_get(&g_handleSets, &(struct handle_sets) { .id = handle });
@@ -385,12 +385,12 @@ AddHandleToSet(
     list_append(&element->sets, &setElement->set_header);
     
     // Register the target handle in the current set, so we can clean up again
-    osStatus = rb_tree_append(&set->handles, &setElement->handle_header);
-    if (osStatus != OS_EOK) {
-        ERROR("AddHandleToSet rb_tree_append failed with %u", osStatus);
+    status = rb_tree_append(&set->handles, &setElement->handle_header);
+    if (status) {
+        ERROR("AddHandleToSet rb_tree_append failed with %i", status);
         list_remove(&element->sets, &setElement->set_header);
         kfree(setElement);
-        return osStatus;
+        return OS_EINVALPARAMS;
     }
     return OS_EOK;
 }

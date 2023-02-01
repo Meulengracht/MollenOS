@@ -27,7 +27,7 @@ set(MSTRING_SRCS
 )
 
 # Build the host library if we are unit testing
-if (VALI_BUILD_UNIT_TESTS)
+if (__BUILD_UNIT_TESTS)
     add_library(mstring STATIC ${MSTRING_SRCS})
     target_include_directories(mstring PUBLIC ../include)
 

@@ -23,7 +23,7 @@
 #undef _USE_32BIT_TIME_T
 #endif
 #else
-#if _INTEGRAL_MAX_BITS < 64
+#if defined(_INTEGRAL_MAX_BITS) && _INTEGRAL_MAX_BITS < 64
 #define _USE_32BIT_TIME_T
 #endif
 #endif
