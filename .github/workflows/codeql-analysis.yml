@@ -25,7 +25,7 @@ jobs:
         # Learn more about CodeQL language support at https://git.io/codeql-language-support
 
     container:
-      image: valios/vali-toolchain:v1.9
+      image: valios/vali-toolchain:v1.11
       
     steps:
     - name: Checkout repository
@@ -50,6 +50,7 @@ jobs:
         chmod +x ./tools/depends.sh
         chmod +x ./tools/dotnet-install.sh
         ./tools/depends.sh install-ci
+        apt-get install gcc-multilib g++-multilib
         cmake -G "Unix Makefiles" -B build -DVALI_ARCH=$VALI_ARCH
         PATH="/github/home/.dotnet:${PATH}" cmake --build build
 
