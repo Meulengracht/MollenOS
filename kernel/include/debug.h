@@ -35,12 +35,18 @@
 #include <os/osdefs.h>
 #include <log.h>
 
+#ifdef TESTING
+#include <stdio.h>
+#endif
+
 // __func__ 
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
 #define TRACE(...) LogAppendMessage(LOG_TRACE, __VA_ARGS__)
 #define TRACE2(...) LogAppendMessage(LOG_TRACE, "[" __MODULE "] [" __FUNC__ "] " __VA_ARGS__)
+#elif defined(__TRACE) && defined(TESTING)
+#define TRACE(...) printf(__VA_ARGS__)
 #else
 #define TRACE(...)
 #endif
@@ -51,6 +57,7 @@
 #define FATAL_SCOPE_PROCESS       	0x00000002
 #define FATAL_SCOPE_THREAD         	0x00000003
 
+#ifndef TESTING
 #define DEBUG(...)              LogAppendMessage(LOG_DEBUG, __VA_ARGS__)
 #define WARNING(...)            LogAppendMessage(LOG_WARNING, __VA_ARGS__)
 #define WARNING_IF(cond, ...)   { if ((cond)) { LogAppendMessage(LOG_WARNING, __VA_ARGS__); } }
@@ -58,6 +65,10 @@
 #define FATAL(Scope, ...)       DebugPanic(Scope, NULL, __VA_ARGS__)
 #define NOTIMPLEMENTED(Message) DebugPanic(FATAL_SCOPE_KERNEL, NULL, "NOT-IMPLEMENTED: %s, line %d, %s", __FILE__, __LINE__, Message)
 #define TODO(Message)           LogAppendMessage(LOG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, Message)
+#else //!TESTING
+#define WARNING(...)            printf(__VA_ARGS__)
+#define ERROR(...)              fprintf(stderr, __VA_ARGS__)
+#endif //!TESTING
 
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 

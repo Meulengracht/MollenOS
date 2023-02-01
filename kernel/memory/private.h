@@ -123,8 +123,9 @@ MSAllocationAcquire(
  * @param context
  * @param address
  * @param link
+ * @return
  */
-void
+oserr_t
 MSAllocationLink(
         _In_ struct MSContext*    context,
         _In_ vaddr_t              address,
