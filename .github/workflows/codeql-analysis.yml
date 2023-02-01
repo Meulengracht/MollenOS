@@ -49,7 +49,7 @@ jobs:
         sed -i 's/\r$//' ./tools/depends.sh
         chmod +x ./tools/depends.sh
         chmod +x ./tools/dotnet-install.sh
-        ./tools/depends.sh
+        ./tools/depends.sh install-ci
         cmake -G "Unix Makefiles" -B build -DVALI_ARCH=$VALI_ARCH
         PATH="/github/home/.dotnet:${PATH}" cmake --build build
 

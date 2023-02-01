@@ -210,6 +210,300 @@ void TestMSAllocationAcquire_InvalidContext(void** state)
     assert_int_equal(g_testContext.MutexUnlockCalls, 0);
 }
 
+void TestMSAllocationFree_Simple(void** state)
+{
+    MemorySpace_t memorySpace = {
+            .Context = &g_testContext.MSContext
+    };
+    struct MSAllocation* clonedFrom;
+    vaddr_t startAddress;
+    size_t size;
+    oserr_t oserr;
+
+    (void)state;
+
+    // Create the clonedFrom we will use for testing
+    oserr = MSAllocationCreate(
+            &memorySpace,
+            0x1000,
+            0x1000,
+            0
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // Free the entire allocation
+    startAddress = 0x1000;
+    size = 0x1000;
+
+    // Now let's do a simple free case
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(g_testContext.MutexLockCalls, 1);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 1);
+    assert_int_equal(size, 0); // 0 bytes left
+    assert_int_equal(startAddress, 0x1000); // original mapping started here
+    assert_null(clonedFrom);
+}
+
+void TestMSAllocationFree_PartialFree(void** state)
+{
+    MemorySpace_t memorySpace = {
+            .Context = &g_testContext.MSContext
+    };
+    struct MSAllocation* clonedFrom;
+    vaddr_t startAddress;
+    size_t size;
+    oserr_t oserr;
+
+    (void)state;
+
+    // Create the allocation we will use for testing
+    oserr = MSAllocationCreate(
+            &memorySpace,
+            0x1000,
+            0x2000,
+            0
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // Free a part of the allocation, since partial frees will
+    // always be rounded up by page size, actually 0x1000 will be freed.
+    startAddress = 0x1000;
+    size = 0xA00;
+
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(g_testContext.MutexLockCalls, 1);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 1);
+    assert_int_equal(size, 0x1000); // 0x1000 freed, 0x1000 bytes left
+    assert_int_equal(startAddress, 0x1000); // original mapping started here
+    assert_null(clonedFrom);
+
+    // Free the remainder of the allocation, which size will be set
+    // to by the last call
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(g_testContext.MutexLockCalls, 2);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 2);
+    assert_int_equal(size, 0); // 0x1000 freed, 0 bytes left
+    assert_int_equal(startAddress, 0x1000); // original mapping started here
+    assert_null(clonedFrom);
+}
+
+void TestMSAllocationFree_MultipleReferencesSimple(void** state)
+{
+    MemorySpace_t memorySpace = {
+            .Context = &g_testContext.MSContext
+    };
+    struct MSAllocation* clonedFrom;
+    vaddr_t startAddress;
+    size_t size;
+    oserr_t oserr;
+
+    (void)state;
+
+    // Create the allocation we will use for testing
+    oserr = MSAllocationCreate(
+            &memorySpace,
+            0x1000,
+            0x1000,
+            0
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // must increase ref count on the allocation
+    (void)MSAllocationAcquire(memorySpace.Context, 0x1000);
+    assert_int_equal(g_testContext.MutexLockCalls, 1);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 1);
+
+    // Free half of allocation
+    startAddress = 0x1000;
+    size = 0x800;
+
+    // Try to reduce the mapping first, this must fail when
+    // there are multiple references
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EPERMISSIONS);
+    assert_int_equal(g_testContext.MutexLockCalls, 2);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 2);
+
+    // Free the entire allocation
+    startAddress = 0x1000;
+    size = 0x1000;
+
+    // Expect nothing really to happen, except that references are reduced
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EINCOMPLETE);
+    assert_int_equal(g_testContext.MutexLockCalls, 3);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 3);
+    assert_int_equal(size, 0x1000); // all bytes left
+    assert_int_equal(startAddress, 0x1000); // original mapping started here
+
+    // Now expect this to actually free the allocation
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(g_testContext.MutexLockCalls, 4);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 4);
+    assert_int_equal(size, 0); // 0 bytes left
+    assert_int_equal(startAddress, 0x1000); // original mapping started here
+}
+
+void TestMSAllocationFree_InvalidParams(void** state)
+{
+    struct MSAllocation* clonedFrom;
+    vaddr_t startAddress = 0;
+    size_t size = 0;
+    oserr_t oserr;
+
+    (void)state;
+
+    oserr = MSAllocationFree(
+            NULL,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+    assert_int_equal(g_testContext.MutexLockCalls, 0);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 0);
+
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            NULL,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+    assert_int_equal(g_testContext.MutexLockCalls, 0);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 0);
+
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            NULL,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+    assert_int_equal(g_testContext.MutexLockCalls, 0);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 0);
+
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            NULL
+    );
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+    assert_int_equal(g_testContext.MutexLockCalls, 0);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 0);
+}
+
+void TestMSAllocationFree_InvalidAddress(void** state)
+{
+    struct MSAllocation* clonedFrom;
+    vaddr_t startAddress = 0;
+    size_t size = 0;
+    oserr_t oserr;
+
+    (void)state;
+
+    oserr = MSAllocationFree(
+            &g_testContext.MSContext,
+            &startAddress,
+            &size,
+            &clonedFrom
+    );
+    assert_int_equal(oserr, OS_ENOENT);
+    assert_int_equal(g_testContext.MutexLockCalls, 1);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 1);
+}
+
+void TestMSAllocationLink_Happy(void** state)
+{
+    MemorySpace_t memorySpace = {
+            .Context = &g_testContext.MSContext
+    };
+    struct MSAllocation allocation;
+    oserr_t oserr;
+
+    (void)state;
+
+    // Create the allocation we will use for testing
+    oserr = MSAllocationCreate(
+            &memorySpace,
+            0x1000,
+            0x1000,
+            0
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // must increase ref count on the allocation
+    oserr = MSAllocationLink(memorySpace.Context, 0x1000, &allocation);
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(g_testContext.MutexLockCalls, 1);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 1);
+
+    // cleanup allocations made
+    list_clear(&g_testContext.MSContext.Allocations, __CleanupAllocation, NULL);
+}
+
+void TestMSAllocationLink_InvalidContext(void** state)
+{
+    oserr_t oserr;
+    (void)state;
+
+    // Create the allocation we will use for testing
+    oserr = MSAllocationLink(NULL, 0x1000, NULL);
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+    assert_int_equal(g_testContext.MutexLockCalls, 0);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 0);
+}
+
+void TestMSAllocationLink_InvalidAddress(void** state)
+{
+    MemorySpace_t memorySpace = {
+            .Context = &g_testContext.MSContext
+    };
+    oserr_t oserr;
+    (void)state;
+
+    // Create the allocation we will use for testing
+    oserr = MSAllocationLink(memorySpace.Context, 0x1000, NULL);
+    assert_int_equal(oserr, OS_ENOENT);
+    assert_int_equal(g_testContext.MutexLockCalls, 1);
+    assert_int_equal(g_testContext.MutexUnlockCalls, 1);
+}
+
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -220,6 +514,14 @@ int main(void)
             cmocka_unit_test_setup(TestMSAllocationLookup_InvalidContext, SetupTest),
             cmocka_unit_test_setup(TestMSAllocationAcquire_Happy, SetupTest),
             cmocka_unit_test_setup(TestMSAllocationAcquire_InvalidContext, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationFree_Simple, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationFree_PartialFree, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationFree_MultipleReferencesSimple, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationFree_InvalidParams, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationFree_InvalidAddress, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationLink_Happy, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationLink_InvalidContext, SetupTest),
+            cmocka_unit_test_setup(TestMSAllocationLink_InvalidAddress, SetupTest),
     };
     return cmocka_run_group_tests(tests, Setup, Teardown);
 }

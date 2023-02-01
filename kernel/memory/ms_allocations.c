@@ -23,7 +23,7 @@
 
 #define __SZ_TO_PGSZ(_sz, _out) { \
     size_t _pgsz = GetMemorySpacePageSize(); \
-    _out = DIVUP(_sz, _pgsz) * _pgsz; \
+    _out = ((_sz) / _pgsz) * _pgsz; \
 }
 
 oserr_t
@@ -128,7 +128,8 @@ MSAllocationFree(
     struct MSAllocation* allocation = NULL;
     oserr_t              oserr;
 
-    if (context == NULL) {
+    if (context == NULL || address == NULL ||
+        size == NULL || clonedFrom == NULL) {
         return OS_EINVALPARAMS;
     }
 
@@ -151,14 +152,6 @@ MSAllocationFree(
         }
     }
 
-    // If other callers are using the same memory, for instance when cloned,
-    // then we must not neccesarily free the actual allocation.
-    allocation->References--;
-    if (allocation->References) {
-        oserr = OS_EINCOMPLETE;
-        goto exit;
-    }
-
     // store the start of the actual allocation address so the caller
     // knows where to start freeing from.
     *address = allocation->Address;
@@ -172,6 +165,14 @@ MSAllocationFree(
         *size = alignedLength;
         *clonedFrom = NULL;
     } else {
+        // If other callers are using the same memory, for instance when cloned,
+        // then we must not neccesarily free the actual allocation.
+        allocation->References--;
+        if (allocation->References) {
+            oserr = OS_EINCOMPLETE;
+            goto exit;
+        }
+
         // full free
         *size = 0;
         *clonedFrom = allocation->CloneOf;
@@ -185,17 +186,26 @@ exit:
     return oserr;
 }
 
-void
+oserr_t
 MSAllocationLink(
         _In_ struct MSContext*    context,
         _In_ vaddr_t              address,
         _In_ struct MSAllocation* link)
 {
     struct MSAllocation* allocation;
+
+    if (context == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
     MutexLock(&context->SyncObject);
     allocation = __FindAllocation(context, address);
-    if (allocation) {
-        allocation->CloneOf = link;
+    if (allocation == NULL) {
+        MutexUnlock(&context->SyncObject);
+        return OS_ENOENT;
     }
+
+    allocation->CloneOf = link;
     MutexUnlock(&context->SyncObject);
+    return OS_EOK;
 }
