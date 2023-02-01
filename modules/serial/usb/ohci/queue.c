@@ -114,7 +114,7 @@ OhciQueueInitialize(
     UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_NULL_ELEMENT);
 
     UsbSchedulerSettingsConfigureFrameList(&Settings, (reg32_t*)&Controller->Hcca->InterruptTable[0],
-        Controller->HccaDMATable.entries[0].address + offsetof(OhciHCCA_t, InterruptTable));
+        Controller->HccaDMATable.Entries[0].Address + offsetof(OhciHCCA_t, InterruptTable));
 
     UsbSchedulerSettingsAddPool(&Settings, sizeof(OhciQueueHead_t), OHCI_QH_ALIGNMENT, OHCI_QH_COUNT, 
         OHCI_QH_START, offsetof(OhciQueueHead_t, LinkPointer), 

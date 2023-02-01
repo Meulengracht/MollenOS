@@ -100,9 +100,9 @@ UhciQhRestart(
     uintptr_t        linkPhysical = 0;
     
     // Do some extra processing for periodics
-    queueHead->BufferBase = transfer->Transactions[0].DmaTable.entries[
-        transfer->Transactions[0].SgIndex].address;
-    queueHead->BufferBase += transfer->Transactions[0].SgOffset;
+    queueHead->BufferBase = transfer->Transactions[0].SHMTable.Entries[
+        transfer->Transactions[0].SGIndex].Address;
+    queueHead->BufferBase += transfer->Transactions[0].SGOffset;
 
     // Reinitialize the queue-head
     UsbSchedulerGetPoolElement(controller->Base.Scheduler, UHCI_TD_POOL,

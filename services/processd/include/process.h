@@ -22,7 +22,7 @@
 #include <ds/mstring.h>
 #include <gracht/server.h>
 #include <os/services/process.h>
-#include <os/types/dma.h>
+#include <os/types/shm.h>
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
 #include <time.h>
@@ -34,12 +34,12 @@ enum ProcessState {
 };
 
 struct ProcessOptions {
-    uuid_t          Scope;
-    UInteger64_t    MemoryLimit;
-    const char*     WorkingDirectory;
-    uint32_t        InheritationBlockLength;
-    uint32_t        EnvironmentBlockLength;
-    SHMHandle_t DataBuffer;
+    uuid_t       Scope;
+    UInteger64_t MemoryLimit;
+    const char*  WorkingDirectory;
+    uint32_t     InheritationBlockLength;
+    uint32_t     EnvironmentBlockLength;
+    SHMHandle_t  DataBuffer;
 };
 
 typedef struct Process {

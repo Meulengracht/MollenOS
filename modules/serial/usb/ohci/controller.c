@@ -297,8 +297,8 @@ OhciReset(
     WRITE_VOLATILE(Controller->Registers->HcFmInterval, fmInterval);
 
     // Setup the Hcca Address and initiate some members of the HCCA
-    TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDMATable.entries[0].address);
-    WRITE_VOLATILE(Controller->Registers->HcHCCA, Controller->HccaDMATable.entries[0].address);
+    TRACE("... hcca address 0x%" PRIxIN, Controller->HccaDMATable.Entries[0].Address);
+    WRITE_VOLATILE(Controller->Registers->HcHCCA, Controller->HccaDMATable.Entries[0].Address);
     Controller->Hcca->CurrentFrame = 0;
     Controller->Hcca->HeadDone     = 0;
 

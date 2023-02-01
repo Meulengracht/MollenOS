@@ -86,14 +86,14 @@ OhciTransferFill(
 
         TRACE("[usb] [ohci] trimmed length %u", BytesToTransfer);
         while (BytesToTransfer || IsZLP) {
-            DMASG_t*   Dma     = NULL;
+            SHMSG_t*   SG      = NULL;
             size_t     Length  = BytesToTransfer;
             uintptr_t  Address = 0;
             
             if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
-                Dma     = &Transfer->Transactions[i].DmaTable.entries[Transfer->Transactions[i].SgIndex];
-                Address = Dma->address + Transfer->Transactions[i].SgOffset;
-                Length  = MIN(Length, Dma->length - Transfer->Transactions[i].SgOffset);
+                SG      = &Transfer->Transactions[i].SHMTable.Entries[Transfer->Transactions[i].SGIndex];
+                Address = SG->Address + Transfer->Transactions[i].SGOffset;
+                Length  = MIN(Length, SG->Length - Transfer->Transactions[i].SGOffset);
             }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
@@ -136,10 +136,10 @@ OhciTransferFill(
                 // Make sure we handle the one where we run out of bytes
                 if (Length) {
                     BytesToTransfer                    -= Length;
-                    Transfer->Transactions[i].SgOffset += Length;
-                    if (Dma && Transfer->Transactions[i].SgOffset == Dma->length) {
-                        Transfer->Transactions[i].SgIndex++;
-                        Transfer->Transactions[i].SgOffset = 0;
+                    Transfer->Transactions[i].SGOffset += Length;
+                    if (SG && Transfer->Transactions[i].SGOffset == SG->Length) {
+                        Transfer->Transactions[i].SGIndex++;
+                        Transfer->Transactions[i].SGOffset = 0;
                     }
                 }
                 else {

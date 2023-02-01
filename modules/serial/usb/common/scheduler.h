@@ -23,7 +23,7 @@
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
-#include <os/dmabuf.h>
+#include <os/types/shm.h>
 #include <os/osdefs.h>
 #include <os/spinlock.h>
 
@@ -32,8 +32,8 @@
 #define FRAME_TIME_MAX_BITS_ALLOC       (90L * FRAME_TIME_BITS / 100L)
 #define FRAME_TIME_MAX_USECS_ALLOC      (90L * FRAME_TIME_USECS / 100L)
 
-#define BitTime(ByteCount)              (7 * 8 * ByteCount / 6)
-#define NS_TO_US(ns)                    DIVUP(ns, 1000L)
+#define BitTime(_length) (7 * 8 * ((long)(_length)) / 6)
+#define NS_TO_US(ns)     DIVUP(ns, 1000L)
 
 /* Full/low speed bandwidth allocation constants/support. */
 #define BW_HOST_DELAY   1000L
@@ -98,22 +98,21 @@ typedef struct UsbSchedulerPool {
     size_t    ElementDepthBreathOffset;   // Offset to the physical breath link member
     size_t    ElementObjectOffset;        // Offset to the UsbSchedulerObject
     
-    SHMHandle_t ElementPoolDMA;         // Frame element pool DMA attachment
-    DMASGTable_t    ElementPoolDMATable;
-    uint8_t*        ElementPool;
+    SHMHandle_t  ElementPoolDMA;         // Frame element pool DMA attachment
+    SHMSGTable_t ElementPoolDMATable;
+    uint8_t*     ElementPool;
 } UsbSchedulerPool_t;
 
 typedef struct UsbSchedulerSettings {
-    unsigned int     Flags;                          // Flags
-    size_t      FrameCount;                     // Number of frames
-    size_t      SubframeCount;                  // Number of sub-frames
-    size_t      MaxBandwidthPerFrame;           // Max bandwidth per frame
-    
-    SHMHandle_t FrameListDMA;         // Frame list DMA attachment
-    DMASGTable_t    FrameListDMATable;
-    reg32_t*        FrameList;            // Physical frame list
-    uintptr_t       FrameListPhysical;
-    
+    unsigned int Flags;                          // Flags
+    size_t       FrameCount;                     // Number of frames
+    size_t       SubframeCount;                  // Number of sub-frames
+    size_t       MaxBandwidthPerFrame;           // Max bandwidth per frame
+    SHMHandle_t  FrameListDMA;         // Frame list DMA attachment
+    SHMSGTable_t FrameListDMATable;
+    reg32_t*     FrameList;            // Physical frame list
+    uintptr_t    FrameListPhysical;
+
     int                PoolCount;               // Number of pools in use
     UsbSchedulerPool_t Pools[USB_POOL_MAXCOUNT];// Pools
 } UsbSchedulerSettings_t;
@@ -133,12 +132,12 @@ typedef struct UsbScheduler {
     size_t     TotalBandwidth;         // Total bandwidth
 } UsbScheduler_t;
 
-#define USB_ELEMENT_INDEX(Pool, Index)              (uint8_t*)&(Pool->ElementPool[(Index & USB_ELEMENT_INDEX_MASK) * Pool->ElementAlignedSize])
-#define USB_ELEMENT_PHYSICAL(Pool, Index)           (UsbSchedulerGetDma(Pool, USB_ELEMENT_INDEX(Pool, Index)))
-#define USB_ELEMENT_GET_POOL(Scheduler, Index)      &Scheduler->Settings.Pools[(Index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK]
+#define USB_ELEMENT_INDEX(_pool, _index)     ((uint8_t*)&((_pool)->ElementPool[((_index) & USB_ELEMENT_INDEX_MASK) * (_pool)->ElementAlignedSize]))
+#define USB_ELEMENT_PHYSICAL(_pool, _index)  (UsbSchedulerGetDma((_pool), USB_ELEMENT_INDEX((_pool), (_index))))
+#define USB_ELEMENT_GET_POOL(_sched, _index) (&(_sched)->Settings.Pools[((_index) >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK])
 
-#define USB_ELEMENT_LINK(Pool, Element, Direction)  *(reg32_t*)((uint8_t*)Element + ((Direction == USB_CHAIN_BREATH) ? Pool->ElementLinkBreathOffset : Pool->ElementDepthBreathOffset))
-#define USB_ELEMENT_OBJECT(Pool, Element)           (UsbSchedulerObject_t*)((uint8_t*)Element + Pool->ElementObjectOffset)
+#define USB_ELEMENT_LINK(_pool, _elem, _dir) (*(reg32_t*)((uint8_t*)(_elem) + (((_dir) == USB_CHAIN_BREATH) ? (_pool)->ElementLinkBreathOffset : (_pool)->ElementDepthBreathOffset)))
+#define USB_ELEMENT_OBJECT(_pool, _elem)     ((UsbSchedulerObject_t*)((uint8_t*)(_elem) + (_pool)->ElementObjectOffset))
 
 /* UsbSchedulerSettingsCreate
  * Initializes a new instance of the settings to customize the
@@ -202,8 +201,8 @@ UsbSchedulerResetInternalData(
 
 __EXTERN uintptr_t
 UsbSchedulerGetDma(
-    _In_ UsbSchedulerPool_t* Pool,
-    _In_ uint8_t*            ElementPointer);
+    _In_ UsbSchedulerPool_t* schedulerPool,
+    _In_ const uint8_t*      elementPointer);
 
 /* UsbSchedulerGetPoolElement
  * Retrieves the element at the given pool and index. */
@@ -238,8 +237,8 @@ UsbSchedulerAllocateElement(
  * frees any bandwidth associated with the element. */
 __EXTERN void
 UsbSchedulerFreeElement(
-    _In_ UsbScheduler_t* Scheduler,
-    _In_ uint8_t*        Element);
+    _In_ UsbScheduler_t* usbScheduler,
+    _In_ uint8_t*        element);
 
 /* UsbSchedulerAllocateBandwidth
  * Allocates bandwidth for a scheduler element. The bandwidth will automatically

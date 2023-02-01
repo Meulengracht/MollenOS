@@ -35,6 +35,12 @@ install_dotnet() {
   fi
 }
 
+install_ci() {
+  install_deps
+  install_dotnet
+  install_cmake
+}
+
 show_help() {
   echo "usage: depends.sh <command>"
   echo "commands:"

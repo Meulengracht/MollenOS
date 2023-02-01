@@ -32,13 +32,13 @@ __UpdateMasterRecords(
 
     TRACE("__UpdateMasterRecords()");
 
-    memset(mfs->TransferBuffer.buffer, 0, mfs->SectorSize);
-    memcpy(mfs->TransferBuffer.buffer, &mfs->MasterRecord, sizeof(MasterRecord_t));
+    memset(mfs->TransferBuffer.Buffer, 0, mfs->SectorSize);
+    memcpy(mfs->TransferBuffer.Buffer, &mfs->MasterRecord, sizeof(MasterRecord_t));
 
     // Flush the secondary copy first, so we can detect failures
     oserr = FSStorageWrite(
             &mfs->Storage,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = mfs->MasterRecordMirrorSector},
             1,
@@ -52,7 +52,7 @@ __UpdateMasterRecords(
     // Flush the primary copy
     oserr = FSStorageWrite(
             &mfs->Storage,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = mfs->MasterRecordSector},
             1,
@@ -75,14 +75,14 @@ MfsZeroBucket(
 
     TRACE("MfsZeroBucket(Bucket %u, Count %u)", bucket, count);
 
-    memset(mfs->TransferBuffer.buffer, 0, mfs->TransferBuffer.length);
+    memset(mfs->TransferBuffer.Buffer, 0, mfs->TransferBuffer.Length);
     for (i = 0; i < count; i++) {
         uint64_t sector = MFS_GETSECTOR(mfs, bucket + i);
         oserr_t  oserr;
 
         oserr = FSStorageWrite(
                 &mfs->Storage,
-                mfs->TransferBuffer.handle,
+                mfs->TransferBuffer.ID,
                 0,
                 &(UInteger64_t) { .QuadPart = sector },
                 mfs->SectorsPerBucket,
@@ -142,12 +142,12 @@ MFSBucketMapSetLinkAndLength(
     bufferOffset += (sectorOffset * mfs->SectorSize);
 
     // Copy a sector's worth of data into the buffer
-    memcpy(mfs->TransferBuffer.buffer, bufferOffset, mfs->SectorSize);
+    memcpy(mfs->TransferBuffer.Buffer, bufferOffset, mfs->SectorSize);
 
     // Flush buffer to disk
     oserr = FSStorageWrite(
             &mfs->Storage,
-            mfs->TransferBuffer.handle,
+            mfs->TransferBuffer.ID,
             0,
             &(UInteger64_t) { .QuadPart = mfs->MasterRecord.MapSector + sectorOffset },
             1,

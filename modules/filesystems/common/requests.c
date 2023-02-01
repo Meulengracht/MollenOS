@@ -20,7 +20,7 @@
 #include <ioset.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <os/usched/job.h>
 
 #include <ctt_filesystem_service_server.h>
@@ -247,22 +247,22 @@ FsRead(
 
 static oserr_t
 __MapUserBufferRead(
-        _In_ uuid_t           handle,
-        _In_ SHMHandle_t* attachment)
+        _In_ uuid_t       handle,
+        _In_ SHMHandle_t* shm)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
 
-    osStatus = DmaAttach(handle, attachment);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = SHMAttach(handle, shm);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // When mapping the buffer for reading, we need write access to the buffer,
     // so we can do buffer combining.
-    osStatus = DmaAttachmentMap(attachment, DMA_ACCESS_WRITE);
-    if (osStatus != OS_EOK) {
-        DmaDetach(attachment);
-        return osStatus;
+    oserr = SHMMap(shm, 0, shm->Capacity, SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    if (oserr != OS_EOK) {
+        SHMDetach(shm);
+        return oserr;
     }
     return OS_EOK;
 }
@@ -270,12 +270,12 @@ __MapUserBufferRead(
 void ctt_filesystem_read_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx,
         const struct ctt_fs_transfer_params* params)
 {
-    oserr_t         oserr;
-    SHMHandle_t attachment;
-    size_t          read;
+    oserr_t     oserr;
+    SHMHandle_t shm;
+    size_t      read;
     TRACE("ctt_filesystem_read_invocation()");
 
-    oserr = __MapUserBufferRead(params->buffer_id, &attachment);
+    oserr = __MapUserBufferRead(params->buffer_id, &shm);
     if (oserr != OS_EOK) {
         ctt_filesystem_read_response(message, oserr, 0);
         return;
@@ -285,14 +285,14 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
             (void*)fsctx,
             (void*)fctx,
             params->buffer_id,
-            attachment.buffer,
+            shm.Buffer,
             params->offset,
             (size_t)params->count, // TODO: be consistent with size units
             &read
     );
     ctt_filesystem_read_response(message, oserr, read);
 
-    oserr = DmaDetach(&attachment);
+    oserr = SHMDetach(&shm);
     if (oserr != OS_EOK) {
         WARNING("ctt_filesystem_read_invocation failed to detach read buffer");
     }
@@ -310,19 +310,19 @@ FsWrite(
 
 static oserr_t
 __MapUserBufferWrite(
-        _In_ uuid_t           handle,
-        _In_ SHMHandle_t* attachment)
+        _In_ uuid_t       handle,
+        _In_ SHMHandle_t* shm)
 {
     oserr_t oserr;
 
-    oserr = DmaAttach(handle, attachment);
+    oserr = SHMAttach(handle, shm);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    oserr = DmaAttachmentMap(attachment, 0);
+    oserr = SHMMap(shm, 0, shm->Capacity, SHM_ACCESS_READ);
     if (oserr != OS_EOK) {
-        DmaDetach(attachment);
+        SHMDetach(shm);
         return oserr;
     }
     return OS_EOK;
@@ -330,12 +330,12 @@ __MapUserBufferWrite(
 
 void ctt_filesystem_write_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_transfer_params* params)
 {
-    oserr_t         oserr;
-    SHMHandle_t attachment;
-    size_t          written;
+    oserr_t     oserr;
+    SHMHandle_t shm;
+    size_t      written;
     TRACE("ctt_filesystem_write_invocation()");
 
-    oserr = __MapUserBufferWrite(params->buffer_id, &attachment);
+    oserr = __MapUserBufferWrite(params->buffer_id, &shm);
     if (oserr != OS_EOK) {
         ctt_filesystem_write_response(message, oserr, 0);
         return;
@@ -345,14 +345,14 @@ void ctt_filesystem_write_invocation(struct gracht_message* message, const uintp
             (void*)fsctx,
             (void*)fctx,
             params->buffer_id,
-            attachment.buffer,
+            shm.Buffer,
             params->offset,
             (size_t)params->count, // TODO: be consistent with size units
             &written
     );
     ctt_filesystem_write_response(message, oserr, written);
 
-    oserr = DmaDetach(&attachment);
+    oserr = SHMDetach(&shm);
     if (oserr != OS_EOK) {
         WARNING("FsWriteWrapper failed to detach read buffer");
     }

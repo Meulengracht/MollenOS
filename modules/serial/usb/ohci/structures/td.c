@@ -229,8 +229,10 @@ OhciTdRestart(
 
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {
-        BufferBaseUpdated = ADDLIMIT(Transfer->Transactions[0].DmaTable.entries[0].address, Td->OriginalCbp, 
-            BufferStep, (Transfer->Transactions[0].DmaTable.entries[0].address + Transfer->Transactions[0].DmaTable.entries[0].length));
+        BufferBaseUpdated = ADDLIMIT(
+                Transfer->Transactions[0].SHMTable.Entries[0].Address, Td->OriginalCbp,
+                BufferStep, (Transfer->Transactions[0].SHMTable.Entries[0].Address
+                                + Transfer->Transactions[0].SHMTable.Entries[0].Length));
         Td->OriginalCbp   = LODWORD(BufferBaseUpdated);
     }
 

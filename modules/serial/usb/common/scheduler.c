@@ -29,6 +29,7 @@
 #include <usb/usb.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
+#include <os/shm.h>
 #include "scheduler.h"
 #include <stdlib.h>
 #include <string.h>
@@ -76,63 +77,81 @@ UsbSchedulerResetInternalData(
 }
 
 static oserr_t
-AllocateMemoryForPool(
-    _In_ UsbSchedulerPool_t* Pool)
+__AllocatePoolMemory(
+    _In_ UsbSchedulerPool_t* schedulerPool)
 {
-    size_t      elementBytes = Pool->ElementCount * Pool->ElementAlignedSize;
-    DMABuffer_t dmaBufferInfo;
-    oserr_t     osStatus;
+    size_t  elementBytes = schedulerPool->ElementCount * schedulerPool->ElementAlignedSize;
+    oserr_t oserr;
+    TRACE("__AllocatePoolMemory(size=%" PRIuIN ")", elementBytes);
         
     // Setup required memory allocation flags
     // Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
-    // Require contigious memory to make allocation/address conversion easier
-    dmaBufferInfo.length   = elementBytes;
-    dmaBufferInfo.capacity = elementBytes;
-    dmaBufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-    dmaBufferInfo.type     = DMA_TYPE_DRIVER_32LOW;
-
-    TRACE("... allocating element pool memory (%u bytes)", elementBytes);
-    osStatus = DmaCreate(&dmaBufferInfo, &Pool->ElementPoolDMA);
-    if (osStatus != OS_EOK) {
-        ERROR("... failed! %u", osStatus);
-        return osStatus;
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE | SHM_PRIVATE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = elementBytes,
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &schedulerPool->ElementPoolDMA
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__AllocatePoolMemory: cannot allocate memory region for pool: %u", oserr);
+        return oserr;
     }
-    (void) DmaGetSGTable(&Pool->ElementPoolDMA, &Pool->ElementPoolDMATable, -1);
 
-    TRACE("... address 0x%" PRIxIN, Pool->ElementPoolDMATable.entries[0].address);
-    Pool->ElementPool = Pool->ElementPoolDMA.buffer;
+    oserr = SHMGetSGTable(
+            &schedulerPool->ElementPoolDMA,
+            &schedulerPool->ElementPoolDMATable,
+            -1
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__AllocatePoolMemory: cannot retrieve SG table for memory region: %u", oserr);
+        return oserr;
+    }
+
+    schedulerPool->ElementPool = schedulerPool->ElementPoolDMA.Buffer;
     return OS_EOK;
 }
 
 static oserr_t
-AllocateMemoryForFrameList(
-    _In_ UsbScheduler_t* Scheduler)
+__AllocateFrameMemory(
+    _In_ UsbScheduler_t* usbScheduler)
 {
-    size_t      FrameListBytes = Scheduler->Settings.FrameCount * 4;
-    DMABuffer_t DmaInfo;
-    oserr_t     Status;
+    size_t  frameSize = usbScheduler->Settings.FrameCount * 4;
+    oserr_t oserr;
+    TRACE("__AllocateFrameMemory(size=%" PRIuIN ")", frameSize);
     
     // Setup required memory allocation flags
     // Require low memory as most usb controllers don't work with physical memory above 2GB
     // Require uncacheable memory as it's hardware accessible memory.
-    DmaInfo.length   = FrameListBytes;
-    DmaInfo.capacity = FrameListBytes;
-    DmaInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-    DmaInfo.type     = DMA_TYPE_DRIVER_32LOW;
-
-    TRACE("... allocating frame list memory (%u bytes)", FrameListBytes);
-    Status = DmaCreate(&DmaInfo, &Scheduler->Settings.FrameListDMA);
-    if (Status != OS_EOK) {
-        ERROR("... failed! %u", Status);
-        return Status;
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
+                    .Type = SHM_TYPE_DRIVER_32LOW,
+                    .Size = frameSize,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &usbScheduler->Settings.FrameListDMA
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__AllocateFrameMemory: cannot allocate memory region: %u", oserr);
+        return oserr;
     }
-    (void) DmaGetSGTable(&Scheduler->Settings.FrameListDMA,
-                         &Scheduler->Settings.FrameListDMATable, -1);
-    
-    TRACE("... address 0x%" PRIxIN, Scheduler->Settings.FrameListDMATable.entries[0].address);
-    Scheduler->Settings.FrameList = (reg32_t*)Scheduler->Settings.FrameListDMA.buffer;
-    Scheduler->Settings.FrameListPhysical = Scheduler->Settings.FrameListDMATable.entries[0].address;
+
+    oserr = SHMGetSGTable(
+            &usbScheduler->Settings.FrameListDMA,
+            &usbScheduler->Settings.FrameListDMATable,
+            -1
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__AllocateFrameMemory: cannot retrieve SG table for memory region: %u", oserr);
+        return oserr;
+    }
+
+    usbScheduler->Settings.FrameList = (reg32_t*)usbScheduler->Settings.FrameListDMA.Buffer;
+    usbScheduler->Settings.FrameListPhysical = usbScheduler->Settings.FrameListDMATable.Entries[0].Address;
     return OS_EOK;
 }
 
@@ -162,7 +181,7 @@ UsbSchedulerInitialize(
 
     // Start out by allocating the frame list if requested by the user
     if (Scheduler->Settings.Flags & USB_SCHEDULER_FRAMELIST) {
-        Status = AllocateMemoryForFrameList(Scheduler);
+        Status = __AllocateFrameMemory(Scheduler);
         if (Status != OS_EOK) {
             UsbSchedulerDestroy(Scheduler);
             return Status;
@@ -184,7 +203,7 @@ UsbSchedulerInitialize(
     // Initialize all the requested pools. Memory resources must be allocated
     // for them.
     for (i = 0; i < Scheduler->Settings.PoolCount; i++) {
-        Status = AllocateMemoryForPool(&Scheduler->Settings.Pools[i]);
+        Status = __AllocatePoolMemory(&Scheduler->Settings.Pools[i]);
         if (Status != OS_EOK) {
             UsbSchedulerDestroy(Scheduler);
             return Status;
@@ -208,26 +227,24 @@ static void
 FreePoolMemory(
     _In_ UsbSchedulerPool_t* Pool)
 {
-    if (!Pool->ElementPoolDMA.buffer) {
+    if (!Pool->ElementPoolDMA.Buffer) {
         return;
     }
-    
-    (void) DmaAttachmentUnmap(&Pool->ElementPoolDMA);
-    (void) DmaDetach(&Pool->ElementPoolDMA);
-    free(Pool->ElementPoolDMATable.entries);
+
+    (void)SHMDetach(&Pool->ElementPoolDMA);
+    free(Pool->ElementPoolDMATable.Entries);
 }
 
 static void
 FreeFrameListMemory(
     _In_ UsbScheduler_t* Scheduler)
 {
-    if (!Scheduler->Settings.FrameListDMA.buffer) {
+    if (!Scheduler->Settings.FrameListDMA.Buffer) {
         return;
     }
-    
-    (void) DmaAttachmentUnmap(&Scheduler->Settings.FrameListDMA);
-    (void) DmaDetach(&Scheduler->Settings.FrameListDMA);
-    free(Scheduler->Settings.FrameListDMATable.entries);
+
+    (void)SHMDetach(&Scheduler->Settings.FrameListDMA);
+    free(Scheduler->Settings.FrameListDMATable.Entries);
 }
 
 void
@@ -269,8 +286,7 @@ UsbSchedulerCalculateBandwidth(
             if (transactionType == USB_TRANSACTION_IN) {
                 result = (67667L * (31L + 10L * BitTime(length))) / 1000L;
                 return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
-            }
-            else {
+            } else {
                 result = (66700L * (31L + 10L * BitTime(length))) / 1000L;
                 return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
             }
@@ -278,18 +294,18 @@ UsbSchedulerCalculateBandwidth(
             if (transferType == USB_TRANSFER_ISOCHRONOUS) {
                 result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
                 return ((transactionType == USB_TRANSACTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + result;
-            }
-            else {
+            } else {
                 result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
                 return 9107L + BW_HOST_DELAY + result;
             }
         case USB_SPEED_SUPER_PLUS:
         case USB_SPEED_SUPER:
         case USB_SPEED_HIGH:
-            if (transferType == USB_TRANSFER_ISOCHRONOUS)
+            if (transferType == USB_TRANSFER_ISOCHRONOUS) {
                 result = HS_NSECS_ISO(length);
-            else
+            } else {
                 result = HS_NSECS(length);
+            }
         
         default:
             break;
@@ -571,75 +587,85 @@ UsbSchedulerAllocateBandwidth(
 
 oserr_t
 UsbSchedulerFreeBandwidth(
-    _In_  UsbScheduler_t* Scheduler,
-    _In_  uint8_t*        Element)
+    _In_  UsbScheduler_t* usbScheduler,
+    _In_  uint8_t*        element)
 {
-    UsbSchedulerObject_t* sObject = NULL;
-    UsbSchedulerPool_t*   sPool   = NULL;
-    oserr_t            Result  = OS_EOK;
+    UsbSchedulerObject_t* object = NULL;
+    UsbSchedulerPool_t*   pool   = NULL;
+    oserr_t               oserr;
     size_t                i, j;
 
     // Validate element and lookup pool
-    Result = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
-    assert(Result == OS_EOK);
-    sObject = USB_ELEMENT_OBJECT(sPool, Element);
+    oserr = UsbSchedulerGetPoolFromElement(usbScheduler, element, &pool);
+    if (oserr != OS_EOK) {
+        WARNING("UsbSchedulerFreeBandwidth: cannot get object from pool");
+        return oserr;
+    }
+    object = USB_ELEMENT_OBJECT(pool, element);
 
     // Iterate the requested period and clean up
-    spinlock_acquire(&Scheduler->Lock);
-    for (i = sObject->StartFrame; i < Scheduler->Settings.FrameCount; i += (sObject->FrameInterval * Scheduler->Settings.SubframeCount)) {
+    spinlock_acquire(&usbScheduler->Lock);
+    for (i = object->StartFrame; i < usbScheduler->Settings.FrameCount; i += (object->FrameInterval * usbScheduler->Settings.SubframeCount)) {
         // Reduce allocated bandwidth
-        Scheduler->Bandwidth[i] -= MIN(sObject->Bandwidth, Scheduler->Bandwidth[i]);
+        usbScheduler->Bandwidth[i] -= MIN(object->Bandwidth, usbScheduler->Bandwidth[i]);
 
         // For EHCI we must support bandwidth sizes
         // instead of having a scheduler with multiple
         // levels, we have it flattened
-        if (sObject->FrameMask != 0 && Scheduler->Settings.SubframeCount > 1) {
+        if (object->FrameMask != 0 && usbScheduler->Settings.SubframeCount > 1) {
             // Free bandwidth in 'sub' schedule
-            for (j = 1; j < Scheduler->Settings.SubframeCount; j++) {
-                if (sObject->FrameMask & (1 << j)) {
-                    Scheduler->Bandwidth[i + j] -= sObject->Bandwidth;
+            for (j = 1; j < usbScheduler->Settings.SubframeCount; j++) {
+                if (object->FrameMask & (1 << j)) {
+                    usbScheduler->Bandwidth[i + j] -= object->Bandwidth;
                 }
             }
         }
     }
-    spinlock_release(&Scheduler->Lock);
-    return Result;
+    spinlock_release(&usbScheduler->Lock);
+    return oserr;
 }
 
 void
 UsbSchedulerFreeElement(
-    _In_ UsbScheduler_t* Scheduler,
-    _In_ uint8_t*        Element)
+    _In_ UsbScheduler_t* usbScheduler,
+    _In_ uint8_t*        element)
 {
-    UsbSchedulerObject_t* sObject = NULL;
-    UsbSchedulerPool_t*   sPool   = NULL;
-    oserr_t            Result  = OS_EOK;
+    UsbSchedulerObject_t* object = NULL;
+    UsbSchedulerPool_t*   pool   = NULL;
+    oserr_t               oserr;
     
     // Validate element and lookup pool
-    Result = UsbSchedulerGetPoolFromElement(Scheduler, Element, &sPool);
-    assert(Result == OS_EOK);
-    sObject = USB_ELEMENT_OBJECT(sPool, Element);
+    oserr = UsbSchedulerGetPoolFromElement(
+            usbScheduler,
+            element,
+            &pool
+    );
+    if (oserr != OS_EOK) {
+        WARNING("UsbSchedulerFreeElement: cannot get object from pool");
+        return;
+    }
+    object = USB_ELEMENT_OBJECT(pool, element);
 
     // Should we free bandwidth?
-    if (sObject->Flags & USB_ELEMENT_BANDWIDTH) {
-        UsbSchedulerFreeBandwidth(Scheduler, Element);
+    if (object->Flags & USB_ELEMENT_BANDWIDTH) {
+        UsbSchedulerFreeBandwidth(usbScheduler, element);
     }
-    memset((void*)Element, 0, sPool->ElementAlignedSize);
+    memset((void*)element, 0, pool->ElementAlignedSize);
 }
 
 uintptr_t
 UsbSchedulerGetDma(
-    _In_ UsbSchedulerPool_t* Pool,
-    _In_ uint8_t*            ElementPointer)
+    _In_ UsbSchedulerPool_t* schedulerPool,
+    _In_ const uint8_t*      elementPointer)
 {
-    size_t Offset = (uintptr_t)ElementPointer - (uintptr_t)Pool->ElementPoolDMA.buffer;
+    size_t offset = (uintptr_t)elementPointer - (uintptr_t)schedulerPool->ElementPoolDMA.Buffer;
     int    i;
     
-    for (i = 0; i < Pool->ElementPoolDMATable.count; i++) {
-        if (Offset < Pool->ElementPoolDMATable.entries[i].length) {
-            return Pool->ElementPoolDMATable.entries[i].address + Offset;
+    for (i = 0; i < schedulerPool->ElementPoolDMATable.Count; i++) {
+        if (offset < schedulerPool->ElementPoolDMATable.Entries[i].Length) {
+            return schedulerPool->ElementPoolDMATable.Entries[i].Address + offset;
         }
-        Offset -= Pool->ElementPoolDMATable.entries[i].length;
+        offset -= schedulerPool->ElementPoolDMATable.Entries[i].Length;
     }
     return 0;
 }

@@ -20,7 +20,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <os/context.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
 #include <process.h>
@@ -56,10 +56,10 @@ __from_sys_process_configuration(
 }
 
 void sys_process_spawn_invocation(
-        struct gracht_message*                          message,
-                const char*                             path,
-                const char*                             arguments,
-                const struct sys_process_configuration* configuration)
+        struct gracht_message*                  message,
+        const char*                             path,
+        const char*                             arguments,
+        const struct sys_process_configuration* configuration)
 {
     struct ProcessOptions options;
     uuid_t                handle = UUID_INVALID;
@@ -72,22 +72,22 @@ void sys_process_spawn_invocation(
     }
     __from_sys_process_configuration(configuration, &options);
 
-    oserr = DmaAttach(configuration->data_buffer, &options.DataBuffer);
+    oserr = SHMAttach(configuration->data_buffer, &options.DataBuffer);
     if (oserr != OS_EOK) {
         sys_process_spawn_response(message, oserr, UUID_INVALID);
         return;
     }
 
     // We only need read access to the buffer
-    oserr = DmaAttachmentMap(&options.DataBuffer, 0);
+    oserr = SHMMap(&options.DataBuffer, 0, options.DataBuffer.Capacity, 0);
     if (oserr != OS_EOK) {
-        DmaDetach(&options.DataBuffer);
+        SHMDetach(&options.DataBuffer);
         sys_process_spawn_response(message, oserr, UUID_INVALID);
         return;
     }
 
     oserr = PmCreateProcess(path, arguments, &options, &handle);
-    DmaDetach(&options.DataBuffer);
+    SHMDetach(&options.DataBuffer);
     sys_process_spawn_response(message, oserr, handle);
 }
 

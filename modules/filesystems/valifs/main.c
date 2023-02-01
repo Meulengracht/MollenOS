@@ -20,7 +20,7 @@
 #define __need_quantity
 #include <ddk/utils.h>
 #include <fs/common.h>
-#include <os/dmabuf.h>
+#include <os/shm.h>
 #include <os/types/file.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,7 +34,7 @@
 struct __ValiFSContext {
     struct VFSStorageParameters Storage;
     UInteger64_t                Position;
-    SHMHandle_t             Buffer;
+    SHMHandle_t                 Buffer;
     StorageDescriptor_t         Stats;
     struct VaFs*                ValiFS;
 };
@@ -73,16 +73,18 @@ static struct __ValiFSContext* __ValiFSContextNew(
         _In_ StorageDescriptor_t*         storageStats)
 {
     struct __ValiFSContext* context;
-    DMABuffer_t             dma;
-    SHMHandle_t         dmaAttachment;
+    SHMHandle_t             shm;
     oserr_t                 oserr;
 
-    dma.name = "vafs_transfer_buffer";
-    dma.type = DMA_TYPE_DRIVER_32LOW;
-    dma.flags = 0;
-    dma.length = MB(1);
-    dma.capacity = MB(1);
-    oserr = DmaCreate(&dma, &dmaAttachment);
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE,
+                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Size = MB(1),
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &shm
+    );
     if (oserr != OS_EOK) {
         return NULL;
     }
@@ -94,7 +96,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
 
     memcpy(&context->Storage, storageParameters,sizeof(struct VFSStorageParameters));
     memcpy(&context->Stats, storageStats, sizeof(StorageDescriptor_t));
-    memcpy(&context->Buffer, &dmaAttachment, sizeof(SHMHandle_t));
+    memcpy(&context->Buffer, &shm, sizeof(SHMHandle_t));
     context->Position.QuadPart = 0;
     context->ValiFS = NULL;
     return context;
@@ -106,9 +108,8 @@ static void __ValiFSContextDelete(
     if (context->ValiFS) {
         (void)vafs_close(context->ValiFS);
     }
-    if (context->Buffer.buffer) {
-        DmaAttachmentUnmap(&context->Buffer);
-        DmaDetach(&context->Buffer);
+    if (context->Buffer.Buffer) {
+        SHMDetach(&context->Buffer);
     }
     free(context);
 }
@@ -584,7 +585,7 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
 
     oserr = FSStorageRead(
             &context->Storage,
-            context->Buffer.handle,
+            context->Buffer.ID,
             0,
             &sector,
             count,
@@ -600,7 +601,7 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
     count = MIN(length, sectorsRead * context->Stats.SectorSize);
     memcpy(
             buffer,
-            (void*)((uint8_t*)context->Buffer.buffer + (context->Position.QuadPart % context->Stats.SectorSize)),
+            (void*)((uint8_t*)context->Buffer.Buffer + (context->Position.QuadPart % context->Stats.SectorSize)),
             count
     );
     context->Position.QuadPart += count;

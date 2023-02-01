@@ -43,7 +43,8 @@ static uint32_t __AccessFlagsFromMountFlags(enum sys_mount_flags mountFlags)
     return access;
 }
 
-static oserr_t __DetectFileSystem(
+static oserr_t
+__DetectFileSystem(
         _In_  struct VFSStorage*  storage,
         _In_  UInteger64_t*       sector,
         _Out_ const char**        fsHintOut)

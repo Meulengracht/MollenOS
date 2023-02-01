@@ -30,6 +30,7 @@
 #include <ddk/io.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
+#include <os/shm.h>
 #include "manager.h"
 #include "dispatch.h"
 #include <stdlib.h>
@@ -42,7 +43,6 @@ AhciPortCreate(
     _In_ int                portIndex,
     _In_ int                mapIndex)
 {
-    DMABuffer_t bufferInfo;
     AhciPort_t* port;
     TRACE("AhciPortCreate(controller=0x%" PRIxIN ", portIndex=%i, mapIndex=%i)",
           controller, portIndex, mapIndex);
@@ -69,11 +69,15 @@ AhciPortCreate(
     port->SlotCount = AHCI_CAPABILITIES_NCS(controller->Registers->Capabilities);
 
     // Allocate a transfer buffer for internal transactions
-    bufferInfo.length   = AhciManagerGetFrameSize();
-    bufferInfo.capacity = AhciManagerGetFrameSize();
-    bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-    bufferInfo.type     = DMA_TYPE_DRIVER_32;
-    DmaCreate(&bufferInfo, &port->InternalBuffer);
+    SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
+                .Type = SHM_TYPE_DRIVER_32,
+                .Size = AhciManagerGetFrameSize(),
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &port->InternalBuffer
+    );
     
     // TODO: port nr or bit index? Right now use the Index in the validity map
     port->Registers = (AHCIPortRegisters_t*)((uintptr_t)controller->Registers + AHCI_REGISTER_PORTBASE(mapIndex));
@@ -100,8 +104,7 @@ AhciPortCleanup(
     AhciManagerUnregisterDevice(Controller, Port);
     
     // Destroy the internal transfer buffer
-    DmaAttachmentUnmap(&Port->InternalBuffer);
-    DmaDetach(&Port->InternalBuffer);
+    SHMDetach(&Port->InternalBuffer);
     free(Port);
 }
 
@@ -213,8 +216,7 @@ AllocateOperationalMemory(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
-    DMABuffer_t bufferInfo;
-    oserr_t     osStatus;
+    oserr_t oserr;
 
     TRACE("AllocateOperationalMemory(controller=0x%" PRIxIN ", port=0x%" PRIxIN ")",
           controller, port);
@@ -222,26 +224,33 @@ AllocateOperationalMemory(
     // Allocate some shared resources. The resource we need is 
     // 1K for the Command List per port
     // A Command table for each command header (32) per port
-    bufferInfo.length   = sizeof(AHCICommandList_t);
-    bufferInfo.capacity = sizeof(AHCICommandList_t);
-    bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-    bufferInfo.type     = DMA_TYPE_DRIVER_32;
-
-    osStatus = DmaCreate(&bufferInfo, &port->CommandListDMA);
-    if (osStatus != OS_EOK) {
+    oserr = SHMCreate(
+            &(SHM_t) {
+                .Flags = SHM_DEVICE | SHM_PRIVATE,
+                .Type = SHM_TYPE_DRIVER_32,
+                .Size = sizeof(AHCICommandList_t),
+                .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &port->CommandListDMA
+    );
+    if (oserr != OS_EOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command list.");
         return OS_EOOM;
     }
     
     // Allocate memory for the 32 command tables, one for each command header.
     // 32 Command headers = 4K memory, but command headers must be followed by
-    // 1..63365 prdt entries. 
-    bufferInfo.length   = AHCI_COMMAND_TABLE_SIZE * 32;
-    bufferInfo.capacity = AHCI_COMMAND_TABLE_SIZE * 32;
-    bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-
-    osStatus = DmaCreate(&bufferInfo, &port->CommandTableDMA);
-    if (osStatus != OS_EOK) {
+    // 1..63365 prdt entries.
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
+                    .Type = SHM_TYPE_DRIVER_32,
+                    .Size = AHCI_COMMAND_TABLE_SIZE * 32,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &port->CommandTableDMA
+    );
+    if (oserr != OS_EOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OS_EOOM;
     }
@@ -249,12 +258,16 @@ AllocateOperationalMemory(
     // We have to take into account FIS based switching here, 
     // if it's supported we need 4K per port, otherwise 256 bytes. 
     // But don't allcoate anything below 4K anyway
-    bufferInfo.length   = 0x1000;
-    bufferInfo.capacity = 0x1000;
-    bufferInfo.flags    = DMA_UNCACHEABLE | DMA_CLEAN;
-
-    osStatus = DmaCreate(&bufferInfo, &port->RecievedFisDMA);
-    if (osStatus != OS_EOK) {
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
+                    .Type = SHM_TYPE_DRIVER_32,
+                    .Size = 0x1000,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            },
+            &port->RecievedFisDMA
+    );
+    if (oserr != OS_EOK) {
         ERROR("AllocateOperationalMemory failed to allocate memory for the command table.");
         return OS_EOOM;
     }
@@ -268,8 +281,8 @@ AhciPortRebase(
 {
     reg32_t             Caps = READ_VOLATILE(controller->Registers->Capabilities);
     AHCICommandList_t*  CommandList;
-    oserr_t             Status;
-    DMASGTable_t        SgTable;
+    oserr_t             oserr;
+    SHMSGTable_t        sgTable;
     uintptr_t           PhysicalAddress;
     int                 i;
     int                 j;
@@ -277,16 +290,16 @@ AhciPortRebase(
     TRACE("AhciPortRebase(controller=0x%" PRIxIN ", port=0x%" PRIxIN ")",
           controller, port);
 
-    Status = AllocateOperationalMemory(controller, port);
-    if (Status != OS_EOK) {
-        return Status;
+    oserr = AllocateOperationalMemory(controller, port);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     
-    (void) DmaGetSGTable(&port->CommandTableDMA, &SgTable, -1);
+    (void)SHMGetSGTable(&port->CommandTableDMA, &sgTable, -1);
 
     // Iterate the 32 command headers
-    CommandList     = (AHCICommandList_t*)port->CommandListDMA.buffer;
-    PhysicalAddress = SgTable.entries[0].address;
+    CommandList     = (AHCICommandList_t*)port->CommandListDMA.Buffer;
+    PhysicalAddress = sgTable.Entries[0].Address;
     for (i = 0, j = 0; i < 32; i++) {
         // Load the command table address (physical)
         CommandList->Headers[i].CmdTableBaseAddress = LODWORD(PhysicalAddress);
@@ -298,14 +311,14 @@ AhciPortRebase(
         }
 
         PhysicalAddress           += AHCI_COMMAND_TABLE_SIZE;
-        SgTable.entries[j].length -= AHCI_COMMAND_TABLE_SIZE;
-        if (!SgTable.entries[j].length) {
+        sgTable.Entries[j].Length -= AHCI_COMMAND_TABLE_SIZE;
+        if (!sgTable.Entries[j].Length) {
             j++;
-            PhysicalAddress = SgTable.entries[j].address;
+            PhysicalAddress = sgTable.Entries[j].Address;
         }
     }
 
-    free(SgTable.entries);
+    free(sgTable.Entries);
     return OS_EOK;
 }
 
@@ -363,7 +376,7 @@ AhciPortStart(
     _In_ AhciController_t* controller,
     _In_ AhciPort_t*       port)
 {
-    DMASGTable_t dmaTable;
+    SHMSGTable_t sgTable;
     reg32_t      capabilities = READ_VOLATILE(controller->Registers->Capabilities);
     reg32_t      status;
     int          hung;
@@ -372,31 +385,29 @@ AhciPortStart(
           controller, port);
 
     // Setup the physical data addresses
-    DmaGetSGTable(&port->RecievedFisDMA, &dmaTable, -1);
+    SHMGetSGTable(&port->RecievedFisDMA, &sgTable, -1);
 
-    TRACE("AhciPortStart FISBaseAddress=0x%" PRIxIN, dmaTable.entries[0].address);
-    WRITE_VOLATILE(port->Registers->FISBaseAddress, LOWORD(dmaTable.entries[0].address));
+    TRACE("AhciPortStart FISBaseAddress=0x%" PRIxIN, sgTable.Entries[0].Address);
+    WRITE_VOLATILE(port->Registers->FISBaseAddress, LOWORD(sgTable.Entries[0].Address));
     if (capabilities & AHCI_CAPABILITIES_S64A) {
         WRITE_VOLATILE(port->Registers->FISBaseAdressUpper,
-                       (sizeof(void*) > 4) ? HIDWORD(dmaTable.entries[0].address) : 0);
-    }
-    else {
+                       (sizeof(void*) > 4) ? HIDWORD(sgTable.Entries[0].Address) : 0);
+    } else {
         WRITE_VOLATILE(port->Registers->FISBaseAdressUpper, 0);
     }
-    free(dmaTable.entries);
+    free(sgTable.Entries);
 
-    DmaGetSGTable(&port->CommandListDMA, &dmaTable, -1);
+    SHMGetSGTable(&port->CommandListDMA, &sgTable, -1);
 
-    TRACE("AhciPortStart CmdListBaseAddress=0x%" PRIxIN, dmaTable.entries[0].address);
-    WRITE_VOLATILE(port->Registers->CmdListBaseAddress, LODWORD(dmaTable.entries[0].address));
+    TRACE("AhciPortStart CmdListBaseAddress=0x%" PRIxIN, sgTable.Entries[0].Address);
+    WRITE_VOLATILE(port->Registers->CmdListBaseAddress, LODWORD(sgTable.Entries[0].Address));
     if (capabilities & AHCI_CAPABILITIES_S64A) {
         WRITE_VOLATILE(port->Registers->CmdListBaseAddressUpper,
-                       (sizeof(void*) > 4) ? HIDWORD(dmaTable.entries[0].address) : 0);
-    }
-    else {
+                       (sizeof(void*) > 4) ? HIDWORD(sgTable.Entries[0].Address) : 0);
+    } else {
         WRITE_VOLATILE(port->Registers->CmdListBaseAddressUpper, 0);
     }
-    free(dmaTable.entries);
+    free(sgTable.Entries);
 
     // Setup the interesting interrupts we want
     status = AHCI_PORT_IE_PCE |  // Port Change
@@ -418,8 +429,8 @@ AhciPortStart(
 
     // Make sure AHCI_PORT_CR and AHCI_PORT_FR is not set
     WaitForConditionWithFault(hung, (
-                                            READ_VOLATILE(port->Registers->CommandAndStatus) &
-                                            (AHCI_PORT_CR | AHCI_PORT_FR)) == 0, 10, 25);
+            READ_VOLATILE(port->Registers->CommandAndStatus) &
+            (AHCI_PORT_CR | AHCI_PORT_FR)) == 0, 10, 25);
     if (hung) {
         // In this case we should reset the entire controller @todo
         ERROR("AhciPortStart command engine is hung: 0x%x", port->Registers->CommandAndStatus);
@@ -509,14 +520,14 @@ static inline void __UpdateTransaction(
         return;
     }
 
-    commandList   = (AHCICommandList_t*)port->CommandListDMA.buffer;
+    commandList   = (AHCICommandList_t*)port->CommandListDMA.Buffer;
     commandHeader = &commandList->Headers[portSlot];
 
     bytesTransferred = commandHeader->PRDByteCount;
 
     // Handle transaction completion, release slot, queue up a new command if any
     // and then handle the event
-    memcpy((void*)&transaction->Response, port->RecievedFisDMA.buffer, sizeof(AHCIFis_t));
+    memcpy((void*)&transaction->Response, port->RecievedFisDMA.Buffer, sizeof(AHCIFis_t));
     AhciTransactionHandleResponse(controller, port, transaction, bytesTransferred);
 }
 
