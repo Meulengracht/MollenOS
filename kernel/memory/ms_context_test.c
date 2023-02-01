@@ -92,7 +92,7 @@ void TestMSContextDelete_Happy(void** state)
 {
     struct MSContext*   context;
     struct MSAllocation allocation = {
-            .Header = { 0 },
+            .Header = { .value = &allocation },
             .Address = 0x13444,
             .Length = 0x1000
     };

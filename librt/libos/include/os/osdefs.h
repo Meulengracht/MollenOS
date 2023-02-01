@@ -55,15 +55,15 @@
  * TODO move paddr_t/vaddr_t to kernel.h
  */
 #if defined(i386) || defined(__i386__)
-#define __BITS       32
-#define __MASK       0xFFFFFFFF
-typedef unsigned int paddr_t;
-typedef unsigned int vaddr_t;
+#define __BITS   32
+#define __MASK   0xFFFFFFFF
+typedef uint32_t paddr_t;
+typedef uint32_t vaddr_t;
 #elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
-#define __BITS             64
-#define __MASK             0xFFFFFFFFFFFFFFFF
-typedef unsigned long long paddr_t;
-typedef unsigned long long vaddr_t;
+#define __BITS   64
+#define __MASK   0xFFFFFFFFFFFFFFFF
+typedef uint64_t paddr_t;
+typedef uint64_t vaddr_t;
 #endif
 
 /**
