@@ -1,0 +1,29 @@
+name: Test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ 'amd64', 'i386' ]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DVALI_ARCH=${{ matrix.platform }} -D__BUILD_UNIT_TESTS=ON
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ./run-tests.sh

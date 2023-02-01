@@ -39,6 +39,10 @@ MSAllocationCreate(
     TRACE("MSAllocationCreate(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
           memorySpace, address, length, flags);
 
+    if (memorySpace == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
     // We only support allocation tracking for spaces with context
     if (memorySpace->Context == NULL) {
         goto exit;
@@ -52,6 +56,7 @@ MSAllocationCreate(
 
     ELEMENT_INIT(&allocation->Header, 0, allocation);
     allocation->MemorySpace = memorySpace;
+    allocation->SHMTag      = UUID_INVALID;
     allocation->Address     = address;
     allocation->Length      = length;
     allocation->Flags       = flags;
@@ -60,7 +65,6 @@ MSAllocationCreate(
     MSContextAddAllocation(memorySpace->Context, allocation);
 
 exit:
-    TRACE("MSAllocationCreate returns=%u", oserr);
     return oserr;
 }
 
