@@ -1,4 +1,18 @@
-project (vali-kernel-memory)
+if (__BUILD_UNIT_TESTS)
+    set (KMEM_INCLUDES
+            ../include
+            ${CMAKE_SOURCE_DIR}/librt/libds/include
+            ${CMAKE_SOURCE_DIR}/librt/libos/include
+            ${CMAKE_SOURCE_DIR}/boot/include
+    )
+
+    add_unit_test(FILE ms_allocations_test.c
+            INCLUDES ${KMEM_INCLUDES}
+            LIBS libds
+    )
+    return ()
+endif ()
+
 enable_language (C)
 
 # Configure source files

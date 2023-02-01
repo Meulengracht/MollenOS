@@ -39,15 +39,15 @@ typedef spinlock_t syncobject_t;
 // Host build used for unit test
 #include <stdatomic.h>
 typedef struct spinlock {
-    int locked;
+    _Atomic(int) locked;
 } syncobject_t;
 
-void spinlock_lock(struct spinlock* spinlock) {
+static inline void spinlock_lock(struct spinlock* spinlock) {
     int zero = 0;
     while (!atomic_compare_exchange_weak(&spinlock->locked, &zero, 1)) {
     }
 }
-void spinlock_unlock(struct spinlock* spinlock) {
+static inline void spinlock_unlock(struct spinlock* spinlock) {
     atomic_store(&spinlock->locked, 0);
 }
 

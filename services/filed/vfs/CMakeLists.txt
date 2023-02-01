@@ -1,4 +1,4 @@
-if (VALI_BUILD_UNIT_TESTS)
+if (__BUILD_UNIT_TESTS)
     set (VFS_INCLUDES
             ${CMAKE_SOURCE_DIR}/librt/libgracht/include
             ${CMAKE_SOURCE_DIR}/librt/libddk/include

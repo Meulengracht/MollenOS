@@ -1,5 +1,5 @@
 # handle all unit test libraries that should be built for host
-if (VALI_BUILD_UNIT_TESTS)
+if (__BUILD_UNIT_TESTS)
     add_subdirectory (libds)
     return ()
 endif ()

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,13 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Red-Black tree Implementation
- *  - Implements a binary tree with the red-black distribution
  */
 
 #include <assert.h>
+#include <errno.h>
 #include <ddk/barrier.h>
 #include <ds/rbtree.h>
 #include <string.h>
@@ -200,7 +195,7 @@ fixup_tree(
     tree->root->color = COLOR_BLACK;
 }
 
-oserr_t
+int
 rb_tree_append(
     _In_ rb_tree_t* tree,
     _In_ rb_leaf_t* leaf)
@@ -209,7 +204,8 @@ rb_tree_append(
     int        result;
     
     if (!tree || !leaf) {
-        return OS_EINVALPARAMS;
+        errno = EINVAL;
+        return -1;
     }
     
     leaf->left  = ITEM_NIL(tree);
@@ -250,13 +246,14 @@ rb_tree_append(
             }
             else {
                 TREE_UNLOCK;
-                return OS_EEXISTS;
+                errno = EEXIST;
+                return -1;
             }
         }
         fixup_tree(tree, leaf);
     }
     TREE_UNLOCK;
-    return OS_EOK;
+    return 0;
 }
 
 static rb_leaf_t*

@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.13.4)
 
-if (VALI_BUILD_UNIT_TESTS)
+if (__BUILD_UNIT_TESTS)
     project (vali-testing C)
     include(CMakeParseArguments)
     function (add_unit_test)
@@ -21,13 +21,24 @@ if (VALI_BUILD_UNIT_TESTS)
         add_test (NAME ${TEST_FILENAME} COMMAND ${TEST_FILENAME})
     endfunction ()
 
+    if (${VALI_ARCH} STREQUAL "amd64")
+        add_definitions (-m64 -DMOLLENOS -DTESTING)
+    elseif (${VALI_ARCH} STREQUAL "i386")
+        add_definitions (-m32 -DMOLLENOS -DTESTING)
+    else ()
+        message (FATAL_ERROR "Unsupported unit test architecture: ${VALI_ARCH}")
+    endif ()
+
     # enable testing
     enable_testing()
     add_subdirectory(testing)
 
+    # a lot of support libraries reside here, so add this first
+    add_subdirectory(librt)
+
     # add all projects that support unit tests
-    add_subdirectory (librt)
-    add_subdirectory (services)
+    add_subdirectory(kernel)
+    #add_subdirectory(services)
 
     return()
 endif ()
@@ -41,16 +52,16 @@ project (ValiOS)
 
 # Setup options and defaults
 option (VALI_ENABLE_KERNEL_TRACE "Enable debug tracing in the kernel" ON)
-option (VALI_ENABLE_SMP "Enable multicore support in the kernel" ON)
+option (VALI_ENABLE_SMP "Enable support for multiple cores" ON)
 option (VALI_ENABLE_DEBUG_CONSOLE "Enable the debug console on boot instead of splash" ON)
 option (VALI_ENABLE_DEBUG_MODE "Enter the debug console mode after boot instead of normal system startup" ON)
-option (VALI_ENABLE_NESTED_IRQS "Enter the debug console mode after boot instead of normal system startup" OFF)
-option (VALI_ENABLE_SIGNALS "Enter the debug console mode after boot instead of normal system startup" ON)
-option (VALI_ENABLE_DRIVERS "Enter the debug console mode after boot instead of normal system startup" ON)
-option (VALI_ENABLE_EHCI "Enter the debug console mode after boot instead of normal system startup" ON)
-option (VALI_ENABLE_EHCI_64BIT "Enter the debug console mode after boot instead of normal system startup" OFF)
+option (VALI_ENABLE_NESTED_IRQS "Enable nested IRQs instead of traditional single IRQs" OFF)
+option (VALI_ENABLE_SIGNALS "Enable support for thread signals" ON)
+option (VALI_ENABLE_DRIVERS "Allow loading drivers, otherwise boot stops after loading services" ON)
+option (VALI_ENABLE_EHCI "Enable support for USB 2.0" ON)
+option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mode" OFF)
 
-option (VALI_RUN_KERNEL_TESTS "Enable kernel-mode testing suites of the operating system" OFF)
+option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
 
 set (VALI_INIT_APP "vioarr.run" CACHE STRING "The application to execute for system initialization")
 
@@ -162,12 +173,13 @@ add_subdirectory (tools)
 add_subdirectory (apps)
 
 # build unit tests
-if (VALI_ENABLE_TESTING)
+if (VALI_BUILD_UNIT_TESTS)
     include (ExternalProject)
     ExternalProject_Add(unit_tests
             SOURCE_DIR ${CMAKE_SOURCE_DIR}
             CMAKE_CACHE_ARGS
-                -DVALI_BUILD_UNIT_TESTS:BOOL=ON
+                -DVALI_ARCH:STRING=${VALI_ARCH}
+                -D__BUILD_UNIT_TESTS:BOOL=ON
                 -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/testing
     )
 endif ()

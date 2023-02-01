@@ -14,11 +14,11 @@ set (LIBDS_SRCS
 
 # handle unit test support, we need to combine some libDS specific
 # support for services and modules that uses data-structures
-if (VALI_BUILD_UNIT_TESTS)
+if (__BUILD_UNIT_TESTS)
     add_subdirectory(mstring)
 
     add_library(libds ${LIBDS_SRCS} support/ds.c)
-    target_include_directories(libds PRIVATE ../libddk/include ../libos/include)
+    target_include_directories(libds PRIVATE ../libddk/include ../libos/include ../../testing/include)
     target_include_directories(libds PUBLIC include)
     target_link_libraries(libds PUBLIC mstring)
 

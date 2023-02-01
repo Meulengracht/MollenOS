@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * DDK Definitions & Structures
- * - This header describes the base ddk-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #ifndef __DDK_DEFINITIONS_H__
@@ -36,6 +29,7 @@ typedef uint64_t reg64_t;
 #define DDKDECL(ReturnType, Function) extern ReturnType Function
 #define DDKDECL_DATA(Type, Name) extern Type Name
 
+#ifndef TESTING
 #if defined(i386) || defined(__i386__)
 typedef reg32_t reg_t;
 
@@ -50,7 +44,12 @@ typedef reg64_t reg_t;
 #define TLS_WRITE(offset, value) __asm { __asm mov rbx, [offset] __asm mov rax, [value] __asm mov gs:[rbx], rax }
 #else
 #error "Implement rw for tls for this architecture"
-#endif
+#endif //defined(i386) || defined(__i386__)
+#else  //TESTING
+#define TLS_VALUE int
+#define TLS_READ(offset, value) (value = offset)
+#define TLS_WRITE(offset, value) (value = offset)
+#endif //!TESTING
 
 /**
  * Introduce interrupt status codes for drivers, these are used in the fast interrupt handlers.
