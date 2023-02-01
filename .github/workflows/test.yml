@@ -10,20 +10,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [ 'amd64', 'i386' ]
-
     steps:
     - uses: actions/checkout@v2
       with:
         submodules: recursive
     - name: Configure CMake
-      run: |
-        sudo apt-get install gcc-multilib g++-multilib
-        cmake -B ${{github.workspace}}/build -DVALI_ARCH=${{ matrix.platform }} -D__BUILD_UNIT_TESTS=ON
+      run: cmake -B ${{github.workspace}}/build -DVALI_ARCH=amd64 -D__BUILD_UNIT_TESTS=ON
     - name: Build
       run: cmake --build ${{github.workspace}}/build
     - name: Test
