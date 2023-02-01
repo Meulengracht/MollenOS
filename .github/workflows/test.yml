@@ -22,7 +22,7 @@ jobs:
         submodules: recursive
     - name: Configure CMake
       run: |
-        apt-get install gcc-multilib g++-multilib
+        sudo apt-get install gcc-multilib g++-multilib
         cmake -B ${{github.workspace}}/build -DVALI_ARCH=${{ matrix.platform }} -D__BUILD_UNIT_TESTS=ON
     - name: Build
       run: cmake --build ${{github.workspace}}/build
