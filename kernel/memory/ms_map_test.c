@@ -99,10 +99,18 @@ struct __StaticMemoryPoolAllocate {
     int       Calls;
 };
 
+struct __DynamicMemoryPoolAllocate {
+    size_t ExpectedLength;
+    bool   CheckLength;
+
+    uintptr_t ReturnValue;
+    int       Calls;
+};
+
 static struct __TestContext {
-    SystemMachine_t           Machine;
-    MemorySpace_t             MemorySpace;
-    struct MSContext          Context;
+    SystemMachine_t  Machine;
+    MemorySpace_t    MemorySpace;
+    struct MSContext Context;
 
     // Function mocks
     struct __AllocatePhysicalMemory AllocatePhysicalMemory;
@@ -111,6 +119,7 @@ static struct __TestContext {
     struct __ArchMmuReserveVirtualPages ArchMmuReserveVirtualPages;
     struct __MSAllocationLookup MSAllocationLookup;
     struct __StaticMemoryPoolAllocate StaticMemoryPoolAllocate;
+    struct __DynamicMemoryPoolAllocate DynamicMemoryPoolAllocate;
 } g_testContext;
 
 int Setup(void** state) {
@@ -129,6 +138,7 @@ int SetupTest(void** state) {
 
     // Initialize the memory space
     g_testContext.MemorySpace.Context = &g_testContext.Context;
+    g_testContext.MemorySpace.Flags   = MEMORY_SPACE_APPLICATION;
 
     // Default to a page size of 4KB. If a test needs something else
     // the individual test can change this.
@@ -879,7 +889,145 @@ void TestMemorySpaceMap_PHYSICAL_CONTIGUOUS(void** state)
 void TestMemorySpaceMap_VIRTUAL_GLOBAL(void** state)
 {
     oserr_t oserr;
-    vaddr_t mapping = 0x1000000;
+    vaddr_t mapping;
+    paddr_t page = 0x10000;
+    (void)state;
+
+    // Expected calls to happen:
+    // 1. StaticMemoryPoolAllocate.
+    g_testContext.StaticMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize();
+    g_testContext.StaticMemoryPoolAllocate.CheckLength    = true;
+    g_testContext.StaticMemoryPoolAllocate.ReturnValue    = 0x1000000;
+
+    // 2. ArchMmuSetVirtualPages.
+    g_testContext.ArchMmuSetVirtualPages.ExpectedAddress    = 0x1000000;
+    g_testContext.ArchMmuSetVirtualPages.CheckAddress       = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedPageCount  = 1;
+    g_testContext.ArchMmuSetVirtualPages.CheckPageCount     = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedPageValues = &page;
+    g_testContext.ArchMmuSetVirtualPages.CheckPageValues    = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_COMMIT;
+    g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
+    g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
+
+    // Test the basic usage of the MAPPING_VIRTUAL_GLOBAL. MAPPING_VIRTUAL_GLOBAL
+    // will allocate memory from the global kernel memory. We use fixed physical addresses
+    // simplify the mocking process.
+    oserr = MemorySpaceMap(
+            &g_testContext.MemorySpace,
+            &(struct MemorySpaceMapOptions) {
+                    .Pages = &page,
+                    .Length = GetMemorySpacePageSize(),
+                    .Mask = __MASK,
+                    .Flags = MAPPING_COMMIT,
+                    .PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+            },
+            &mapping
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(mapping, 0x1000000);
+
+    // Expected function calls
+    assert_int_equal(g_testContext.StaticMemoryPoolAllocate.Calls, 1);
+    assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 1);
+}
+
+void TestMemorySpaceMap_VIRTUAL_PROCESS(void** state)
+{
+    oserr_t oserr;
+    vaddr_t mapping;
+    paddr_t page = 0x10000;
+    (void)state;
+
+    // Expected calls to happen:
+    // 1. DynamicMemoryPoolAllocate.
+    g_testContext.DynamicMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize();
+    g_testContext.DynamicMemoryPoolAllocate.CheckLength    = true;
+    g_testContext.DynamicMemoryPoolAllocate.ReturnValue    = 0x10000000;
+
+    // 2. ArchMmuSetVirtualPages.
+    g_testContext.ArchMmuSetVirtualPages.ExpectedAddress    = 0x10000000;
+    g_testContext.ArchMmuSetVirtualPages.CheckAddress       = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedPageCount  = 1;
+    g_testContext.ArchMmuSetVirtualPages.CheckPageCount     = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedPageValues = &page;
+    g_testContext.ArchMmuSetVirtualPages.CheckPageValues    = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_COMMIT;
+    g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
+    g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
+
+    // Test the basic usage of the MAPPING_VIRTUAL_PROCESS. MAPPING_VIRTUAL_PROCESS
+    // will allocate memory from process-specific memory. We use fixed physical addresses
+    // simplify the mocking process.
+    oserr = MemorySpaceMap(
+            &g_testContext.MemorySpace,
+            &(struct MemorySpaceMapOptions) {
+                    .Pages = &page,
+                    .Length = GetMemorySpacePageSize(),
+                    .Mask = __MASK,
+                    .Flags = MAPPING_COMMIT,
+                    .PlacementFlags = MAPPING_VIRTUAL_PROCESS | MAPPING_PHYSICAL_FIXED
+            },
+            &mapping
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(mapping, 0x10000000);
+
+    // Expected function calls
+    assert_int_equal(g_testContext.DynamicMemoryPoolAllocate.Calls, 1);
+    assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 1);
+}
+
+void TestMemorySpaceMap_VIRTUAL_THREAD(void** state)
+{
+    oserr_t oserr;
+    vaddr_t mapping;
+    paddr_t page = 0x10000;
+    (void)state;
+
+    // Expected calls to happen:
+    // 1. DynamicMemoryPoolAllocate.
+    g_testContext.DynamicMemoryPoolAllocate.ExpectedLength = GetMemorySpacePageSize();
+    g_testContext.DynamicMemoryPoolAllocate.CheckLength    = true;
+    g_testContext.DynamicMemoryPoolAllocate.ReturnValue    = 0x40000000;
+
+    // 2. ArchMmuSetVirtualPages.
+    g_testContext.ArchMmuSetVirtualPages.ExpectedAddress    = 0x40000000;
+    g_testContext.ArchMmuSetVirtualPages.CheckAddress       = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedPageCount  = 1;
+    g_testContext.ArchMmuSetVirtualPages.CheckPageCount     = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedPageValues = &page;
+    g_testContext.ArchMmuSetVirtualPages.CheckPageValues    = true;
+    g_testContext.ArchMmuSetVirtualPages.ExpectedAttributes = MAPPING_COMMIT;
+    g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
+    g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
+
+    // Test the basic usage of the MAPPING_VIRTUAL_THREAD. MAPPING_VIRTUAL_THREAD
+    // will allocate memory from the local thread memory. We use fixed physical addresses
+    // simplify the mocking process.
+    oserr = MemorySpaceMap(
+            &g_testContext.MemorySpace,
+            &(struct MemorySpaceMapOptions) {
+                    .Pages = &page,
+                    .Length = GetMemorySpacePageSize(),
+                    .Mask = __MASK,
+                    .Flags = MAPPING_COMMIT,
+                    .PlacementFlags = MAPPING_VIRTUAL_THREAD | MAPPING_PHYSICAL_FIXED
+            },
+            &mapping
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(mapping, 0x40000000);
+
+    // Expected function calls
+    assert_int_equal(g_testContext.DynamicMemoryPoolAllocate.Calls, 1);
+    assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 1);
+}
+
+void TestMemorySpaceMap_VIRTUAL_FIXED(void** state)
+{
+    oserr_t oserr;
+    vaddr_t mapping;
     paddr_t page = 0x10000;
     (void)state;
 
@@ -898,13 +1046,34 @@ void TestMemorySpaceMap_VIRTUAL_GLOBAL(void** state)
     g_testContext.ArchMmuSetVirtualPages.CheckAttributes    = true;
     g_testContext.ArchMmuSetVirtualPages.ReturnValue        = OS_EOK;
 
-    // Test the basic usage of the MAPPING_PHYSICAL_FIXED. MAPPING_PHYSICAL_FIXED
-    // will pass the provided physical pages (.Pages) to the underlying system. This
-    // test ensures that ArchMmuSetVirtualPages is invoked with the expected values.
+    // Test the basic usage of the MAPPING_VIRTUAL_FIXED. MAPPING_VIRTUAL_FIXED
+    // will use the provided address, assuming it is valid. We also provide fixed
+    // physical addreses to simplify mocking
+
+    // Test the zero case where the provided value is 0, we don't allow this
     oserr = MemorySpaceMap(
             &g_testContext.MemorySpace,
             &(struct MemorySpaceMapOptions) {
-                    .VirtualStart = mapping,
+                    .VirtualStart = 0,
+                    .Pages = &page,
+                    .Length = GetMemorySpacePageSize(),
+                    .Mask = __MASK,
+                    .Flags = MAPPING_COMMIT,
+                    .PlacementFlags = MAPPING_VIRTUAL_FIXED | MAPPING_PHYSICAL_FIXED
+            },
+            &mapping
+    );
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+
+    // Expected function calls
+    assert_int_equal(g_testContext.MSAllocationLookup.Calls, 1);
+    assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 0);
+
+    // Test a valid case
+    oserr = MemorySpaceMap(
+            &g_testContext.MemorySpace,
+            &(struct MemorySpaceMapOptions) {
+                    .VirtualStart = 0x1000000,
                     .Pages = &page,
                     .Length = GetMemorySpacePageSize(),
                     .Mask = __MASK,
@@ -917,9 +1086,42 @@ void TestMemorySpaceMap_VIRTUAL_GLOBAL(void** state)
     assert_int_equal(mapping, 0x1000000);
 
     // Expected function calls
-    assert_int_equal(g_testContext.MSAllocationLookup.Calls, 1);
+    assert_int_equal(g_testContext.MSAllocationLookup.Calls, 2);
     assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 1);
 }
+
+void TestMemorySpaceMap_VirtualMissing(void** state)
+{
+    oserr_t oserr;
+    vaddr_t mapping;
+    paddr_t page = 0x10000;
+    (void)state;
+
+    // Test the case where placement flags for virtual is missing, should
+    // fail
+    oserr = MemorySpaceMap(
+            &g_testContext.MemorySpace,
+            &(struct MemorySpaceMapOptions) {
+                    .Pages = &page,
+                    .Length = GetMemorySpacePageSize(),
+                    .Mask = __MASK,
+                    .Flags = 0,
+                    .PlacementFlags = 0
+            },
+            &mapping
+    );
+    assert_int_equal(oserr, OS_EINVALPARAMS);
+
+    // Expected function calls
+    assert_int_equal(g_testContext.MSAllocationLookup.Calls, 0);
+    assert_int_equal(g_testContext.ArchMmuSetVirtualPages.Calls, 0);
+}
+
+// TODO:
+// 1. Modification of existing allocations
+// 2. Error recovery
+// 3. MemorySpaceCommit Tests
+// 4. MemorySpaceCloneMapping Tests
 
 int main(void)
 {
@@ -938,6 +1140,11 @@ int main(void)
             cmocka_unit_test_setup(TestMemorySpaceMap_PhysicalSimple, SetupTest),
             cmocka_unit_test_setup(TestMemorySpaceMap_PHYSICAL_FIXED, SetupTest),
             cmocka_unit_test_setup(TestMemorySpaceMap_PHYSICAL_CONTIGUOUS, SetupTest),
+            cmocka_unit_test_setup(TestMemorySpaceMap_VIRTUAL_GLOBAL, SetupTest),
+            cmocka_unit_test_setup(TestMemorySpaceMap_VIRTUAL_PROCESS, SetupTest),
+            cmocka_unit_test_setup(TestMemorySpaceMap_VIRTUAL_THREAD, SetupTest),
+            cmocka_unit_test_setup(TestMemorySpaceMap_VIRTUAL_FIXED, SetupTest),
+            cmocka_unit_test_setup(TestMemorySpaceMap_VirtualMissing, SetupTest),
     };
     return cmocka_run_group_tests(tests, Setup, Teardown);
 }
@@ -1186,12 +1393,15 @@ oserr_t MSAllocationLink(
 
 // Mocks from dynamic_pool
 uintptr_t DynamicMemoryPoolAllocate(
-        _In_ DynamicMemoryPool_t* Pool,
-        _In_ size_t               Length) {
+        _In_ DynamicMemoryPool_t* pool,
+        _In_ size_t               length) {
     printf("DynamicMemoryPoolAllocate()\n");
-    assert_non_null(Pool);
-    assert_int_not_equal(Length, 0);
-    return 0;
+    assert_non_null(pool);
+    if (g_testContext.DynamicMemoryPoolAllocate.CheckLength) {
+        assert_int_equal(length, g_testContext.DynamicMemoryPoolAllocate.ExpectedLength);
+    }
+    g_testContext.DynamicMemoryPoolAllocate.Calls++;
+    return g_testContext.DynamicMemoryPoolAllocate.ReturnValue;
 }
 
 void DynamicMemoryPoolFree(

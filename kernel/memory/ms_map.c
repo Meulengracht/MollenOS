@@ -28,7 +28,6 @@
 
 #include <arch/mmu.h>
 #include <arch/utils.h>
-#include <assert.h>
 #include <debug.h>
 #include <heap.h>
 #include <machine.h>
@@ -37,10 +36,6 @@
 #include <threading.h>
 #include "private.h"
 
-#define __SZ_TO_PGSZ(_sz, _out) { \
-    size_t _pgsz = GetMemorySpacePageSize(); \
-    _out = DIVUP(_sz, _pgsz) * _pgsz; \
-}
 #define __PMTYPE(_flags) ((_flags) & MAPPING_PHYSICAL_MASK)
 #define __VMTYPE(_flags) ((_flags) & MAPPING_VIRTUAL_MASK)
 
@@ -124,11 +119,18 @@ __AllocateVirtualMemory(
         } break;
 
         case MAPPING_VIRTUAL_PROCESS: {
+            if (!(memorySpace->Flags & MEMORY_SPACE_APPLICATION)) {
+                ERROR("__AllocateVirtualMemory cannot allocate process memory for non-userspace memory space");
+                return OS_ENOTSUPPORTED;
+            }
             virtualBase = __AllocateProcessMemory(memorySpace, length, options->Flags);
         } break;
 
         case MAPPING_VIRTUAL_THREAD: {
-            assert((memorySpace->Flags & MEMORY_SPACE_APPLICATION) != 0);
+            if (!(memorySpace->Flags & MEMORY_SPACE_APPLICATION)) {
+                ERROR("__AllocateVirtualMemory cannot allocate TLS memory for non-userspace memory space");
+                return OS_ENOTSUPPORTED;
+            }
             virtualBase = DynamicMemoryPoolAllocate(&memorySpace->ThreadMemory, length);
         } break;
 

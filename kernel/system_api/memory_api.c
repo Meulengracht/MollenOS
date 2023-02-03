@@ -333,40 +333,6 @@ ScSHMDetach(
 }
 
 oserr_t
-ScSHMRead(
-        _In_  uuid_t  shmID,
-        _In_  size_t  offset,
-        _In_  void*   buffer,
-        _In_  size_t  length,
-        _Out_ size_t* bytesReadOut)
-{
-    return SHMRead(
-            shmID,
-            offset,
-            buffer,
-            length,
-            bytesReadOut
-    );
-}
-
-oserr_t
-ScSHMWrite(
-        _In_  uuid_t  shmID,
-        _In_  size_t  offset,
-        _In_  void*   buffer,
-        _In_  size_t  length,
-        _Out_ size_t* bytesWrittenOut)
-{
-    return SHMWrite(
-            shmID,
-            offset,
-            buffer,
-            length,
-            bytesWrittenOut
-    );
-}
-
-oserr_t
 ScSHMMetrics(
         _In_  uuid_t   shmID,
         _Out_ int*     sgCountOut,

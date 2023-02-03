@@ -105,40 +105,6 @@ SHMCommit(
         _In_ size_t length);
 
 /**
- * Performs a DMA read from the memory region
- * @param Handle
- * @param Offset
- * @param Buffer
- * @param Length
- * @param BytesRead
- * @return Status of the operation
- */
-KERNELAPI oserr_t KERNELABI
-SHMRead(
-        _In_  uuid_t  handle,
-        _In_  size_t  offset,
-        _In_  void*   buffer,
-        _In_  size_t  length,
-        _Out_ size_t* bytesReadOut);
-
-/**
- * Performs a DMA write to the memory region
- * @param handle
- * @param offset
- * @param buffer
- * @param length
- * @param bytesWrittenOut
- * @return Status of the operation
- */
-KERNELAPI oserr_t KERNELABI
-SHMWrite(
-        _In_  uuid_t      handle,
-        _In_  size_t      offset,
-        _In_  const void* buffer,
-        _In_  size_t      length,
-        _Out_ size_t*     bytesWrittenOut);
-
-/**
  * Retrieves a scatter gather list of the physical memory blocks for the given memory region.
  * @param handle
  * @param sgCountOut
