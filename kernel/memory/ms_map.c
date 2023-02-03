@@ -44,6 +44,34 @@
 #define __PMTYPE(_flags) ((_flags) & MAPPING_PHYSICAL_MASK)
 #define __VMTYPE(_flags) ((_flags) & MAPPING_VIRTUAL_MASK)
 
+static oserr_t
+__VerifyFixedVirtualAddress(
+        _In_  struct MemorySpaceMapOptions* options,
+        _Out_ vaddr_t*                      baseAddressOut)
+{
+    if (options->VirtualStart == 0) {
+        ERROR("__AllocateVirtualMemory: MAPPING_VIRTUAL_FIXED was set, but options->VirtualStart not provided");
+        return OS_EINVALPARAMS;
+    }
+
+    // With pre-provided virtual regions for stacks, the region size *must* be
+    // atleast two pages long. Otherwise, there is not enough room for the guard
+    // page in the mapping.
+    if ((options->Flags & MAPPING_STACK) && options->Length <= GetMemorySpacePageSize()) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Align the provided value on a page-boundary
+    *baseAddressOut = options->VirtualStart & ~(GetMemorySpacePageSize() - 1);
+
+    // Now fixup the allocated address if the allocation was a stack, but not
+    // for pre-provided
+    if (options->Flags & MAPPING_STACK) {
+        *baseAddressOut += GetMemorySpacePageSize();
+    }
+    return OS_EOK;
+}
+
 static vaddr_t
 __AllocateProcessMemory(
         _In_ MemorySpace_t* memorySpace,
@@ -74,28 +102,25 @@ __AllocateProcessMemory(
     return address;
 }
 
-static vaddr_t
+static oserr_t
 __AllocateVirtualMemory(
-        _In_ MemorySpace_t*                memorySpace,
-        _In_ struct MemorySpaceMapOptions* options)
+        _In_  MemorySpace_t*                memorySpace,
+        _In_  struct MemorySpaceMapOptions* options,
+        _Out_ vaddr_t*                      baseAddressOut)
 {
-    vaddr_t virtualBase = 0;
-    size_t  length      = options->Length;
+    vaddr_t virtualBase;
+    size_t  length = options->Length;
 
     // Is this a stack allocation? Then we need to allocate another page
     // for the allocation, which will be the first page in the segment of memory.
     // this segment will be unmapped, but allocated in virtual memory.
-    if (options->Flags & MAPPING_GUARDPAGE) {
+    if (options->Flags & MAPPING_STACK) {
         length += GetMemorySpacePageSize();
     }
 
     switch (__VMTYPE(options->PlacementFlags)) {
         case MAPPING_VIRTUAL_FIXED: {
-            if (options->VirtualStart == 0) {
-                ERROR("__AllocateVirtualMemory: MAPPING_VIRTUAL_FIXED was set, but options->VirtualStart not provided");
-                return 0;
-            }
-            virtualBase = options->VirtualStart;
+            return __VerifyFixedVirtualAddress(options, baseAddressOut);
         } break;
 
         case MAPPING_VIRTUAL_PROCESS: {
@@ -105,30 +130,31 @@ __AllocateVirtualMemory(
         case MAPPING_VIRTUAL_THREAD: {
             assert((memorySpace->Flags & MEMORY_SPACE_APPLICATION) != 0);
             virtualBase = DynamicMemoryPoolAllocate(&memorySpace->ThreadMemory, length);
-            if (virtualBase == 0) {
-                ERROR("__AllocateVirtualMemory: cannot allocate size 0x%" PRIxIN " (tls)", length);
-            }
         } break;
 
         case MAPPING_VIRTUAL_GLOBAL: {
             virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, length);
-            if (virtualBase == 0) {
-                ERROR("__AllocateVirtualMemory: cannot allocate size 0x%" PRIxIN " (ga-memory)", length);
-            }
         } break;
 
         default: {
-            FATAL(FATAL_SCOPE_KERNEL, "cannot allocate virtual memory for flags: 0x%x", options->PlacementFlags);
+            ERROR("__AllocateVirtualMemory: cannot allocate virtual memory for flags: 0x%x", options->PlacementFlags);
+            return OS_EINVALPARAMS;
         } break;
     }
 
-    // Now fixup the allocated address if the allocation was a stack
-    if (virtualBase) {
-        if (options->Flags & MAPPING_GUARDPAGE) {
-            virtualBase += GetMemorySpacePageSize();
-        }
+    if (virtualBase == 0) {
+        ERROR("__AllocateVirtualMemory: cannot allocate size 0x%" PRIxIN, length);
+        return OS_EOOM;
     }
-    return virtualBase;
+
+    // Now fixup the allocated address if the allocation was a stack, but not
+    // for pre-provided
+    if (options->Flags & MAPPING_STACK) {
+        virtualBase += GetMemorySpacePageSize();
+    }
+
+    *baseAddressOut = virtualBase;
+    return OS_EOK;
 }
 
 static void
@@ -142,7 +168,7 @@ __FreeVirtualMemory(
     // Is this a stack allocation? Then we need to allocate another page
     // for the allocation, which will be the first page in the segment of memory.
     // this segment will be unmapped, but allocated in virtual memory.
-    if (memoryFlags & MAPPING_GUARDPAGE) {
+    if (memoryFlags & MAPPING_STACK) {
         address -= GetMemorySpacePageSize();
         size += GetMemorySpacePageSize();
     }
@@ -227,8 +253,17 @@ __CommitMapping(
                 &freedCount,
                 &pagesClearedCount
         );
+        return oserr;
     }
-    return oserr;
+
+    if (flags & MAPPING_CLEAN) {
+        memset(
+                (void*)address,
+                0,
+                (pagesUpdated * GetMemorySpacePageSize())
+        );
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -297,20 +332,30 @@ MemorySpaceMap(
             }
             return OS_ENOTSUPPORTED;
         }
+
+        // Reserve one of the pages for the STACK mappings if the mappings
+        // are pre-provided.
+        if (options->Flags & MAPPING_STACK) {
+            pageCount--;
+        }
     }
 
     // We must allocate a virtual region first, because once we start filling in
     // physical pages it becomes impossible to properly track what we filled in our
     // self and what was provided. It is a lot easier to clean up a single virtual
     // mapping.
-    virtualBase = __AllocateVirtualMemory(memorySpace, options);
-    if (!virtualBase) {
-        return OS_EOOM;
+    oserr = __AllocateVirtualMemory(memorySpace, options, &virtualBase);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // Update the mapping pointer supplied before continuing, so we don't do this
     // multiple places. No corrections will be done to virtualBase from here.
-    *mappingOut = virtualBase;
+    if (options->Flags & MAPPING_STACK) {
+        *mappingOut = (virtualBase + (pageCount * GetMemorySpacePageSize()));
+    } else {
+        *mappingOut = virtualBase;
+    }
 
     // If we are trying to reserve memory through this call, redirect it to the
     // dedicated reservation method. 
@@ -493,17 +538,17 @@ MemorySpaceCloneMapping(
         goto exit;
     }
 
-    virtualBase = __AllocateVirtualMemory(
+    oserr = __AllocateVirtualMemory(
             destinationSpace,
             &(struct MemorySpaceMapOptions) {
                 .VirtualStart = *destinationAddress,
                 .Length = length,
                 .Flags = memoryFlags,
                 .PlacementFlags = placementFlags
-            }
+            },
+            &virtualBase
     );
-    if (virtualBase == 0) {
-        oserr = OS_EOOM;
+    if (oserr != OS_EOK) {
         goto exit;
     }
 
