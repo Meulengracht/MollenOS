@@ -57,10 +57,9 @@ DECL_STRUCT(PlatformMemoryMapping);
 #define MAPPING_PERSISTENT              0x00000020U  // Memory should not be freed when mapping is removed
 #define MAPPING_DOMAIN                  0x00000040U  // Memory allocated for mapping must be domain local
 #define MAPPING_COMMIT                  0x00000080U  // Memory should be comitted immediately
-#define MAPPING_GUARDPAGE               0x00000100U  // Memory resource is a stack and needs a guard page
+#define MAPPING_CLEAN                   0x00000400U  // Memory should be zeroed when underlying physical pages are allocated
+#define MAPPING_STACK                   0x00000100U  // Memory resource is a stack and needs a guard page
 #define MAPPING_TRAPPAGE                0x00000200U  // Memory pages should trigger a trap
-#define MAPPING_CLEAN                   0x00000400U
-#define MAPPING_STACK                   0x00000800U
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 #define MAPPING_PHYSICAL_CONTIGUOUS     0x00000002U  // (Physical) Mapping shall be physically contigious
