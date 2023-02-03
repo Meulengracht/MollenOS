@@ -19,7 +19,6 @@
 
 #define __need_minmax
 #include <arch/utils.h>
-#include <ddk/io.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -27,6 +26,7 @@
 #include <memoryspace.h>
 #include <threading.h>
 #include <shm.h>
+#include <string.h>
 
 struct SHMBuffer {
     uuid_t          ID;
@@ -135,69 +135,6 @@ __CreateDeviceBuffer(
     *userMapping = (void*)mapping;
     return OS_EOK;
 }
-
-// TODO: remove this once memoryspace supports stack mapping
-#if 0
-static unsigned int
-__MapFlagsForStack(
-        _In_ SHM_t* shm)
-{
-    unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_GUARDPAGE;
-    if (!(shm->Access & SHM_ACCESS_WRITE)) {
-        flags |= MAPPING_READONLY;
-    }
-    if (shm->Access & SHM_ACCESS_EXECUTE) {
-        flags |= MAPPING_EXECUTABLE;
-    }
-    if (shm->Flags & SHM_CLEAN) {
-        flags |= MAPPING_CLEAN;
-    }
-    return flags;
-}
-
-static oserr_t
-__CreateStackBuffer(
-        _In_  struct SHMBuffer* buffer,
-        _In_  SHM_t*            shm,
-        _Out_ void**            userMapping)
-{
-    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
-    unsigned int   mapFlags = __MapFlagsForStack(shm);
-    size_t         pageSize = GetMemorySpacePageSize();
-    oserr_t        oserr;
-    vaddr_t        contextAddress;
-
-    // Reserve the region and map only the top page. The returned
-    // mapping should point to the end of the region. A guard page must
-    // be reserved.
-    oserr = MemorySpaceMapReserved(
-            memorySpace,
-            &contextAddress,
-            shm->Size,
-            mapFlags,
-            MAPPING_VIRTUAL_PROCESS
-    );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // Adjust pointer to top of stack and then commit the first stack page
-    oserr = MemorySpaceCommit(
-            memorySpace,
-            contextAddress + (shm->Size - pageSize),
-            &buffer->Pages[buffer->PageCount - 1],
-            pageSize,
-            0, 0
-    );
-    if (oserr != OS_EOK) {
-        MemorySpaceUnmap(memorySpace, contextAddress, shm->Size);
-    }
-
-    // Return a pointer to STACK_TOP
-    *userMapping = (void*)(contextAddress + shm->Size);
-    return oserr;
-}
-#endif
 
 static unsigned int
 __MapFlagsForIPC(
@@ -800,70 +737,6 @@ SHMCommit(
     }
     MutexUnlock(&shmBuffer->Mutex);
     return oserr;
-}
-
-oserr_t
-SHMRead(
-        _In_  uuid_t  handle,
-        _In_  size_t  offset,
-        _In_  void*   buffer,
-        _In_  size_t  length,
-        _Out_ size_t* bytesReadOut)
-{
-    struct SHMBuffer* shmBuffer;
-    size_t            clampedLength;
-
-    if (buffer == NULL || length == 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
-    if (!shmBuffer) {
-        return OS_ENOENT;
-    }
-
-    if (offset >= shmBuffer->Length) {
-        return OS_EINVALPARAMS;
-    }
-
-    clampedLength = MIN(shmBuffer->Length - offset, length);
-    ReadVolatileMemory((const volatile void*)(shmBuffer->KernelMapping + offset),
-                       (volatile void*)buffer, clampedLength);
-
-    *bytesReadOut = clampedLength;
-    return OS_EOK;
-}
-
-oserr_t
-SHMWrite(
-        _In_  uuid_t      handle,
-        _In_  size_t      offset,
-        _In_  const void* buffer,
-        _In_  size_t      length,
-        _Out_ size_t*     bytesWrittenOut)
-{
-    struct SHMBuffer* shmBuffer;
-    size_t            clampedLength;
-
-    if (buffer == NULL || length == 0) {
-        return OS_EINVALPARAMS;
-    }
-
-    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
-    if (!shmBuffer) {
-        return OS_ENOENT;
-    }
-
-    if (offset >= shmBuffer->Length) {
-        return OS_EINVALPARAMS;
-    }
-
-    clampedLength = MIN(shmBuffer->Length - offset, length);
-    WriteVolatileMemory((volatile void*)(shmBuffer->KernelMapping + offset),
-                        (void*)buffer, clampedLength);
-
-    *bytesWrittenOut = clampedLength;
-    return OS_EOK;
 }
 
 #define SG_IS_SAME_REGION(memory_region, idx, idx2, pageSize) \
