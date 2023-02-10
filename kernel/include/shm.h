@@ -105,7 +105,8 @@ SHMCommit(
         _In_ size_t length);
 
 /**
- * Retrieves a scatter gather list of the physical memory blocks for the given memory region.
+ * Retrieves a scatter gather list of the physical memory block
+ * s for the given memory region.
  * @param handle
  * @param sgCountOut
  * @param sgOut

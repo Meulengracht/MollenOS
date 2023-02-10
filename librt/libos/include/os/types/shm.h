@@ -22,8 +22,6 @@
 
 /**
  * Configuration flags for creation of a new SHM region
- * SHM_PERSISTANT  is used to indicate underlying memory should not be freed
- *                 upon cleanup of the memory region.
  * SHM_UNCACHEABLE is used to mark the underlying memory as uncachable.
  * SHM_CLEAN       will zero out any allocated memory for the dma buffer
  * SHM_COMMIT      will pre-allocate memory for the region, instead of lazily allocate
@@ -36,10 +34,9 @@
  *                 SHM_COMMIT will be set.
  * SHM_PRIVATE     region is intended for private use (private to the process memory space).
  */
-#define SHM_PERSISTANT   0x00000001U
+#define SHM_COMMIT       0x00000001U
 #define SHM_CLEAN        0x00000002U
-#define SHM_COMMIT       0x00000004U
-#define SHM_PRIVATE      0x00000008U
+#define SHM_PRIVATE      0x00000004U
 #define SHM_TRAP         0x00000100U
 #define SHM_IPC          0x00000200U
 #define SHM_DEVICE       0x00000300U
