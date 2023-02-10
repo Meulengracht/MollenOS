@@ -36,6 +36,7 @@ struct SHMBuffer {
     size_t         Length;
     size_t         PageMask;
     unsigned int   Flags;
+    bool           Exported;
     int            PageCount;
     paddr_t        Pages[];
 };
@@ -48,7 +49,7 @@ __SHMBufferDelete(
         return;
     }
 
-    if (!(shmBuffer->Flags & SHM_PERSISTANT)) {
+    if (!(shmBuffer->Exported)) {
         FreePhysicalMemory(shmBuffer->PageCount, &shmBuffer->Pages[0]);
     }
 
@@ -59,7 +60,8 @@ __SHMBufferDelete(
 static struct SHMBuffer*
 __SHMBufferNew(
         _In_ size_t       size,
-        _In_ unsigned int flags)
+        _In_ unsigned int flags,
+        _In_ bool         exported)
 {
     struct SHMBuffer* buffer;
     size_t            pageSize  = GetMemorySpacePageSize();
@@ -82,6 +84,7 @@ __SHMBufferNew(
     buffer->PageCount = (int)pageCount;
     buffer->Length = size;
     buffer->Flags = flags;
+    buffer->Exported = exported;
     buffer->PageMask = __MASK;
     return buffer;
 }
@@ -156,7 +159,7 @@ __CreateIPCBuffer(
 {
     MemorySpace_t* memorySpace    = GetCurrentMemorySpace();
     unsigned int   userMapFlags   = __MapFlagsForIPC(shm);
-    unsigned int   kernelMapFlags = MAPPING_PERSISTENT;
+    unsigned int   kernelMapFlags = MAPPING_COMMIT | MAPPING_PERSISTENT;
     oserr_t        oserr;
     vaddr_t        userMapping;
     vaddr_t        kernelMapping;
@@ -248,7 +251,7 @@ static unsigned int
 __MapFlagsForRegular(
         _In_  SHM_t* shm)
 {
-    unsigned int flags = MAPPING_USERSPACE;
+    unsigned int flags = MAPPING_PERSISTENT | MAPPING_USERSPACE;
     if (shm->Flags & SHM_CLEAN) {
         flags |= MAPPING_CLEAN;
     }
@@ -354,7 +357,7 @@ SHMCreate(
         return OS_EINVALPARAMS;
     }
 
-    buffer = __SHMBufferNew(shm->Size, shm->Flags);
+    buffer = __SHMBufferNew(shm->Size, shm->Flags, false);
     if (buffer == NULL) {
         return OS_EOOM;
     }
@@ -383,7 +386,7 @@ static unsigned int
 __FilterFlagsForExport(
         _In_ unsigned int flags)
 {
-    unsigned int filtered = SHM_PERSISTANT | SHM_COMMIT;
+    unsigned int filtered = SHM_COMMIT;
     if (flags & SHM_PRIVATE) {
         filtered |= SHM_PRIVATE;
     }
@@ -405,7 +408,7 @@ SHMExport(
         return OS_EINVALPARAMS;
     }
 
-    buffer = __SHMBufferNew(size, __FilterFlagsForExport(flags));
+    buffer = __SHMBufferNew(size, __FilterFlagsForExport(flags), true);
     if (buffer == NULL) {
         return OS_EOOM;
     }
