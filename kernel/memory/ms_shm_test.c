@@ -572,7 +572,397 @@ void TestSHMExport_Simple(void** state)
     test_free(g_testContext.CreateHandle.CreatedResource);
 }
 
-// 2. SHMAttach
+void TestSHMExport_PRIVATE(void** state)
+{
+    oserr_t oserr;
+    uuid_t  shmID;
+    paddr_t page = 0x10000;
+    (void)state;
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, nothing really we care enough to check here except
+    //    that it gets invoked as expected. The default returned value is 1
+
+    // 2. GetMemorySpaceMapping
+    g_testContext.GetMemorySpaceMapping.ExpectedAddress    = 0x1000000;
+    g_testContext.GetMemorySpaceMapping.CheckAddress       = true;
+    g_testContext.GetMemorySpaceMapping.ExpectedPageCount  = 1;
+    g_testContext.GetMemorySpaceMapping.CheckPageCount     = true;
+    g_testContext.GetMemorySpaceMapping.PageValues         = &page;
+    g_testContext.GetMemorySpaceMapping.PageValuesProvided = true;
+    g_testContext.GetMemorySpaceMapping.ReturnValue        = OS_EOK;
+
+    // We use garbage values as the memory contents are not accessed
+    oserr = SHMExport(
+            (void*)0x1000000,
+            0x1000,
+            SHM_PRIVATE,
+            0,
+            &shmID
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(shmID, 1);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
+void TestSHMAttach_Simple(void** state)
+{
+    oserr_t oserr;
+    void*   kernelMapping = NULL;
+    void*   userMapping = NULL;
+    uuid_t  shmID;
+    size_t  cap;
+    (void)state;
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, nothing really we care enough to check here except
+    //    that it gets invoked as expected. The default returned value is 1
+
+    // 2. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x1000;
+    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS;
+    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x10000;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
+
+    // What we are testing here, is that specifically MemorySpaceMap is invoked
+    // with the correct parameters.
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                    .Size = 0x1000,
+            },
+            &kernelMapping,
+            &userMapping,
+            &shmID
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // 3. AcquireHandleOfType
+    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.CreatedResource;
+    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    g_testContext.AcquireHandleOfType.ReturnValue = OS_EOK;
+
+    oserr = SHMAttach(shmID, &cap);
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(cap, 0x1000);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
+void TestSHMAttach_PrivateFailed(void** state)
+{
+    oserr_t oserr;
+    void*   kernelMapping = NULL;
+    void*   userMapping = NULL;
+    uuid_t  shmID;
+    size_t  cap;
+    (void)state;
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, nothing really we care enough to check here except
+    //    that it gets invoked as expected. The default returned value is 1
+
+    // 2. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x1000;
+    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS;
+    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x10000;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
+
+    // What we are testing here, is that specifically MemorySpaceMap is invoked
+    // with the correct parameters.
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_PRIVATE,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                    .Size = 0x1000,
+            },
+            &kernelMapping,
+            &userMapping,
+            &shmID
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // 3. AcquireHandleOfType
+    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.CreatedResource;
+    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+    g_testContext.AcquireHandleOfType.ReturnValue = OS_EOK;
+
+    // 4. AreMemorySpacesRelated
+    g_testContext.AreMemorySpacesRelated.ReturnValue = OS_EUNKNOWN;
+
+    oserr = SHMAttach(shmID, &cap);
+    assert_int_equal(oserr, OS_EPERMISSIONS);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
+void TestSHMAttach_InvalidID(void** state)
+{
+    oserr_t oserr;
+    void*   kernelMapping = NULL;
+    void*   userMapping = NULL;
+    uuid_t  shmID;
+    size_t  cap;
+    (void)state;
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, nothing really we care enough to check here except
+    //    that it gets invoked as expected. The default returned value is 1
+
+    // 2. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x1000;
+    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS;
+    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x10000;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
+
+    // What we are testing here, is that specifically MemorySpaceMap is invoked
+    // with the correct parameters.
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_PRIVATE,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                    .Size = 0x1000,
+            },
+            &kernelMapping,
+            &userMapping,
+            &shmID
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    // 3. AcquireHandleOfType
+    g_testContext.AcquireHandleOfType.ReturnValue = OS_ENOENT;
+
+    oserr = SHMAttach(14, &cap);
+    assert_int_equal(oserr, OS_ENOENT);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
+static void __CreateRegularSHM(SHMHandle_t* shm, size_t size)
+{
+    oserr_t oserr;
+    void*   kernelMapping = NULL;
+    void*   userMapping = NULL;
+    uuid_t  shmID;
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, nothing really we care enough to check here except
+    //    that it gets invoked as expected. The default returned value is 1
+
+    // 2. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = size;
+    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS;
+    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x10000;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                    .Size = size,
+            },
+            &kernelMapping,
+            &userMapping,
+            &shmID
+    );
+    assert_int_equal(oserr, OS_EOK);
+
+    shm->ID = shmID;
+    shm->Capacity = size;
+    shm->Length = size;
+    shm->Buffer = userMapping;
+    shm->Offset = 0;
+}
+
+void TestSHMMap_Simple(void** state)
+{
+    oserr_t     oserr;
+    SHMHandle_t shm;
+    (void)state;
+
+    // Create a normal buffer we can use. It must not be comitted. The SHM
+    // is already filled, which we don't want as we are trying to make a separate
+    // mapping that is not the original.
+    __CreateRegularSHM(&shm, 0x1000);
+
+    // Ensure new mapping
+    shm.Buffer = NULL;
+
+    // 1. LookupHandleOfType
+    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.CreatedResource;
+
+    // 2. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[1].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedLength          = 0x1000;
+    g_testContext.MemorySpaceMap.Calls[1].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[1].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS | MAPPING_PHYSICAL_FIXED;
+    g_testContext.MemorySpaceMap.Calls[1].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMapping         = 0x80000;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnValue             = OS_EOK;
+
+    // Remap, uncommitted.
+    oserr = SHMMap(
+            &shm,
+            0,
+            shm.Capacity,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(shm.Buffer, 0x80000);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
+void TestSHMMap_CanCommit(void** state)
+{
+    oserr_t     oserr;
+    SHMHandle_t shm;
+    (void)state;
+
+    // Create a normal buffer we can use. It must not be comitted.
+    __CreateRegularSHM(&shm, 0x1000);
+
+    // 1. LookupHandleOfType
+    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.CreatedResource;
+
+    // 2. AllocatePhysicalMemory
+    paddr_t page = 0x25000;
+    g_testContext.AllocatePhysicalMemory.PageValues = &page;
+    g_testContext.AllocatePhysicalMemory.PageValuesProvided = true;
+    g_testContext.AllocatePhysicalMemory.ExpectedPageCount = 1;
+    g_testContext.AllocatePhysicalMemory.CheckPageCount = true;
+    g_testContext.AllocatePhysicalMemory.ReturnValue = OS_EOK;
+
+    // 3. MemorySpaceMap
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[1].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedLength          = 0x1000;
+    g_testContext.MemorySpaceMap.Calls[1].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[1].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedPlacement       = MAPPING_VIRTUAL_FIXED | MAPPING_PHYSICAL_FIXED;
+    g_testContext.MemorySpaceMap.Calls[1].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMapping         = (vaddr_t)shm.Buffer;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedPages           = &page;
+    g_testContext.MemorySpaceMap.Calls[1].CheckPages              = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedVirtualStart    = (vaddr_t)shm.Buffer;
+    g_testContext.MemorySpaceMap.Calls[1].CheckVirtualStart       = true;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnValue             = OS_EOK;
+
+    // Commit entire original mapping
+    oserr = SHMMap(
+            &shm,
+            0,
+            shm.Capacity,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE | SHM_ACCESS_COMMIT
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(shm.Buffer, 0x10000);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
+void TestSHMMap_CanRemap(void** state)
+{
+    oserr_t     oserr;
+    SHMHandle_t shm;
+    (void)state;
+
+    // Create a normal buffer we can use. It must not be comitted. We make it
+    // a bit larger than the other tests, so we can move the virtual mapping
+    __CreateRegularSHM(&shm, 0x4000);
+
+    // 1. LookupHandleOfType
+    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.CreatedResource;
+
+    // 3. MemorySpaceMap, expect a new mapping of 0x3000 when we map from page 2-4
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[1].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedLength          = 0x3000;
+    g_testContext.MemorySpaceMap.Calls[1].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[1].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedPlacement       = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS;
+    g_testContext.MemorySpaceMap.Calls[1].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMapping         = (vaddr_t)0x4000000;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[1].ReturnValue             = OS_EOK;
+
+    // Now we remap the original mapping, say we only want half
+    oserr = SHMMap(
+            &shm,
+            6000, // 1800 bytes into page two
+            shm.Capacity, // rest of buffer, but we are lazy this should be handled
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(shm.Buffer, 0x4000000);
+    assert_int_equal(shm.Length, 0x3000);
+
+    // Cleanup the SHM context manually, it's a bit hacky, but to avoid
+    // that the test complains about leaking memory.
+    test_free(g_testContext.CreateHandle.CreatedResource);
+}
+
 // 3. SHMMap
 // 4. SHMUnmap
 // 5. SHMCommit
@@ -588,6 +978,14 @@ int main(void)
             cmocka_unit_test_setup(TestSHMCreate_COMMIT, SetupTest),
             cmocka_unit_test_setup(TestSHMCreate_CLEAN, SetupTest),
             cmocka_unit_test_setup(TestSHMCreate_PRIVATE, SetupTest),
+            cmocka_unit_test_setup(TestSHMExport_Simple, SetupTest),
+            cmocka_unit_test_setup(TestSHMExport_PRIVATE, SetupTest),
+            cmocka_unit_test_setup(TestSHMAttach_Simple, SetupTest),
+            cmocka_unit_test_setup(TestSHMAttach_PrivateFailed, SetupTest),
+            cmocka_unit_test_setup(TestSHMAttach_InvalidID, SetupTest),
+            cmocka_unit_test_setup(TestSHMMap_Simple, SetupTest),
+            cmocka_unit_test_setup(TestSHMMap_CanCommit, SetupTest),
+            cmocka_unit_test_setup(TestSHMMap_CanRemap, SetupTest),
     };
     return cmocka_run_group_tests(tests, Setup, Teardown);
 }
