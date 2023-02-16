@@ -441,7 +441,6 @@ SHMAttach(
             (void**)&shmBuffer
     );
     if (oserr != OS_EOK) {
-        ERROR("SHMAttach handle %u was invalid", shmID);
         return OS_ENOENT;
     }
 
@@ -565,10 +564,17 @@ __CreateMapping(
 {
     size_t  pageSize        = GetMemorySpacePageSize();
     size_t  correctedOffset = offset % pageSize;
-    size_t  pageCount       = DIVUP(length + correctedOffset, pageSize);
-    size_t  correctedLength = pageCount * pageSize;
     size_t  pageIndex       = offset / pageSize;
+    size_t  clampedLength   = MIN(length + correctedOffset, (shmBuffer->PageCount - pageIndex) * pageSize);
+    size_t  pageCount       = DIVUP(clampedLength, pageSize);
+    size_t  correctedLength = pageCount * pageSize;
     oserr_t oserr;
+
+    // Ensure that the page index is not oob, if it is we cannot trust
+    // the above calculations
+    if (pageIndex >= shmBuffer->PageCount) {
+        return OS_EINVALPARAMS;
+    }
 
     // Ensure that physical pages are allocated for this mapping, so we can
     // map with PHYSICAL_FIXED, but *only* if SHM_ACCESS_COMMIT is provided
