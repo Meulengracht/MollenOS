@@ -17,14 +17,14 @@
  */
 //#define __TRACE
 
-#include <ddk/utils.h>
-#include <strings.h>
-#include <string.h>
-#include <errno.h>
-#include <stdio.h>
-#include <io.h>
-#include <internal/_io.h>
-#include <os/services/file.h>
+#include "ddk/utils.h"
+#include "strings.h"
+#include "string.h"
+#include "errno.h"
+#include "stdio.h"
+#include "io.h"
+#include "internal/_io.h"
+#include "os/services/file.h"
 
 int
 _fflags(

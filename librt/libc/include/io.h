@@ -79,7 +79,7 @@
 #define O_SEQUENTIAL    0x0020  /* file access is primarily sequential */
 #define O_RANDOM        0x0010  /* file access is primarily random */
 
-/*
+/**
  * @brief Types used in dirent::d_type. Most of these are here for completeness
  * and not neccessarily because they are used in Vali.
  */

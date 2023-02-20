@@ -51,7 +51,7 @@ set(SRCS
 
         io/chsize.c
         io/clearerr.c
-        io/convflags.c
+        utils.c
         io/dup.c
         io/fclose.c
         io/feof.c
@@ -110,6 +110,8 @@ set(SRCS
         io/ungetwc.c
 
         pipe/pipe.c
+
+        mem/fmemopen.c
 
         libc_io.c
         libc_io_bitmap.c

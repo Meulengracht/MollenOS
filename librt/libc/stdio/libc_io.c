@@ -448,6 +448,24 @@ int stdio_handle_set_handle(stdio_handle_t* handle, uuid_t io_handle)
     return EOK;
 }
 
+int stdio_handle_set_ops(stdio_handle_t* handle, stdio_ops_t* ops)
+{
+    if (!handle) {
+        return EBADF;
+    }
+    memcpy(&handle->ops, ops, sizeof(stdio_ops_t));
+    return EOK;
+}
+
+int stdio_handle_set_ops_ctx(stdio_handle_t* handle, void* ctx)
+{
+    if (!handle) {
+        return EBADF;
+    }
+    handle->ops_ctx = ctx;
+    return EOK;
+}
+
 int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
 {
     if (!handle) {

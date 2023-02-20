@@ -128,6 +128,12 @@ CRTDECL(int,   ftrylockfile(FILE* stream));
 CRTDECL(void,  funlockfile(FILE* stream));
 
 /*******************************
+ *       Memory Access         *
+ *******************************/
+CRTDECL(FILE*, fmemopen(void *buf, size_t size, const char *mode));
+CRTDECL(FILE*, open_memstream(char **ptr, size_t *sizeloc));
+
+/*******************************
  *       Formatted IO          *
  *******************************/
 CRTDECL(int, printf(const char *format, ...));

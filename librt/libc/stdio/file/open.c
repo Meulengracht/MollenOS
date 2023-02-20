@@ -18,23 +18,20 @@
 
 //#define __TRACE
 
-#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <internal/_utils.h>
 #include <io.h>
 #include <os/mollenos.h>
 #include <os/services/file.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define BOM_MAX_LEN 4
 
 static const struct bom_mode {
     const char*   name;
-    size_t        len;
+    long          len;
     unsigned int  flags;
     unsigned char identifier[BOM_MAX_LEN];
 } supported_bom_modes[] = {
@@ -47,9 +44,9 @@ static const struct bom_mode {
 };
 
 // Convert O_* flags to WX_* flags
-static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
+static int __convert_o_to_wx_flags(int oflags)
 {
-    unsigned int wxflags = 0;
+    int wxflags = 0;
 
     // detect options
     if (oflags & O_APPEND)    wxflags |= WX_APPEND;
@@ -57,7 +54,6 @@ static unsigned int __convert_o_to_wx_flags(unsigned int oflags)
 
     // detect mode
     if (oflags & O_BINARY)       {/* Nothing to do */}
-    else if (oflags & O_TEXT)    wxflags |= WX_TEXT;
     else if (oflags & O_WTEXT)   wxflags |= WX_WIDE;
     else if (oflags & O_U16TEXT) wxflags |= WX_UTF16;
     else if (oflags & O_U8TEXT)  wxflags |= WX_UTF;
@@ -125,7 +121,7 @@ int open(const char* file, int flags, ...)
     }
 
     TRACE("open retrieved handle %u", handle);
-    status = stdio_handle_create(-1, __convert_o_to_wx_flags((unsigned int) flags), &object);
+    status = stdio_handle_create(-1, __convert_o_to_wx_flags(flags), &object);
     if (status) {
         (void)OSCloseFile(handle);
         return status;
