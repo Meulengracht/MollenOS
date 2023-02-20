@@ -64,7 +64,7 @@ DebugPageFault(
         // 1) Was a guard page hit?
         // 2) Should the exception be propegated (i.e. memory handlers) instead
         //    of handled here? Return an error in this case.
-        if (descriptor.Attributes & MAPPING_GUARDPAGE) {
+        if (descriptor.Attributes & MAPPING_STACK) {
             // Detect stack overflow. If the guard page was hit, we've exceeded
             // allocation size set in descriptor.AllocationSize. If the guard page
             // was hit, we've beyound bounds.

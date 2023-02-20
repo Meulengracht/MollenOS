@@ -62,6 +62,12 @@ struct __MemorySpaceMap {
     int                          CallCount;
 };
 
+struct __MemorySpaceUnmap {
+    MOCK_STRUCT_INPUT(vaddr_t, Address);
+    MOCK_STRUCT_INPUT(vaddr_t, Size);
+    MOCK_STRUCT_RETURN(oserr_t);
+};
+
 struct __GetMemorySpaceMapping {
     MOCK_STRUCT_INPUT(vaddr_t, Address);
     MOCK_STRUCT_INPUT(int, PageCount);
@@ -101,6 +107,7 @@ DEFINE_TEST_CONTEXT({
     struct __CreateHandle CreateHandle;
     struct __ArchSHMTypeToPageMask ArchSHMTypeToPageMask;
     struct __MemorySpaceMap MemorySpaceMap;
+    struct __MemorySpaceUnmap MemorySpaceUnmap;
     struct __GetMemorySpaceMapping GetMemorySpaceMapping;
     struct __AreMemorySpacesRelated AreMemorySpacesRelated;
     struct __AcquireHandleOfType AcquireHandleOfType;
@@ -934,7 +941,7 @@ void TestSHMMap_CanRemap(void** state)
     // 1. LookupHandleOfType
     g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.CreatedResource;
 
-    // 3. MemorySpaceMap, expect a new mapping of 0x3000 when we map from page 2-4
+    // 2. MemorySpaceMap, expect a new mapping of 0x3000 when we map from page 2-4
     g_testContext.MemorySpaceMap.Calls[1].ExpectedSHMTag          = 1; // expect 1
     g_testContext.MemorySpaceMap.Calls[1].CheckSHMTag             = true;
     g_testContext.MemorySpaceMap.Calls[1].ExpectedLength          = 0x3000;
@@ -946,6 +953,13 @@ void TestSHMMap_CanRemap(void** state)
     g_testContext.MemorySpaceMap.Calls[1].ReturnedMapping         = (vaddr_t)0x4000000;
     g_testContext.MemorySpaceMap.Calls[1].ReturnedMappingProvided = true;
     g_testContext.MemorySpaceMap.Calls[1].ReturnValue             = OS_EOK;
+
+    // 3. MemorySpaceUnmap
+    g_testContext.MemorySpaceUnmap.ExpectedAddress = 0x10000;
+    g_testContext.MemorySpaceUnmap.CheckAddress    = true;
+    g_testContext.MemorySpaceUnmap.ExpectedSize    = 0x4000;
+    g_testContext.MemorySpaceUnmap.CheckSize       = true;
+    g_testContext.MemorySpaceUnmap.ReturnValue     = OS_EOK;
 
     // Now we remap the original mapping, say we only want half
     oserr = SHMMap(
@@ -963,7 +977,6 @@ void TestSHMMap_CanRemap(void** state)
     test_free(g_testContext.CreateHandle.CreatedResource);
 }
 
-// 3. SHMMap
 // 4. SHMUnmap
 // 5. SHMCommit
 // 6. SHMBuildSG
@@ -1116,7 +1129,17 @@ oserr_t MemorySpaceUnmap(
         _In_ size_t         size)
 {
     printf("MemorySpaceUnmap()\n");
-    return OS_EOK;
+    assert_non_null(memorySpace);
+
+    if (g_testContext.MemorySpaceUnmap.CheckAddress) {
+        assert_int_equal(address, g_testContext.MemorySpaceUnmap.ExpectedAddress);
+    }
+
+    if (g_testContext.MemorySpaceUnmap.CheckSize) {
+        assert_int_equal(size, g_testContext.MemorySpaceUnmap.ExpectedSize);
+    }
+    g_testContext.MemorySpaceUnmap.Calls++;
+    return g_testContext.MemorySpaceUnmap.ReturnValue;
 }
 
 oserr_t MemorySpaceCommit(

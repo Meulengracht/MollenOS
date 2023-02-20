@@ -15,10 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stddef.h>
-#include <setjmp.h>
-#include <stdarg.h>
-#include <cmocka.h>
+#include <testbase.h>
 #include <machine.h>
 #include "private.h"
 #include <string.h>
@@ -1122,6 +1119,7 @@ void TestMemorySpaceMap_VirtualMissing(void** state)
 // 2. Error recovery
 // 3. MemorySpaceCommit Tests
 // 4. MemorySpaceCloneMapping Tests
+// 5. MemorySpaceQuery (test that we can check we hit guard page)
 
 int main(void)
 {

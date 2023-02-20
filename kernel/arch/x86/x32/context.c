@@ -191,7 +191,7 @@ __GetContextFlags(
         _Out_ unsigned int* memoryFlagsOut)
 {
     unsigned int   placementFlags = 0;
-    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_GUARDPAGE;
+    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_STACK;
 
     if (contextType == THREADING_CONTEXT_LEVEL0) {
         placementFlags = MAPPING_VIRTUAL_GLOBAL;
@@ -288,7 +288,7 @@ ArchThreadContextCreate(
         return NULL;
     }
 
-    contextAddress += contextSize - sizeof(Context_t);
+    contextAddress -= sizeof(Context_t);
     return (Context_t*)contextAddress;
 }
 

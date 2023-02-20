@@ -87,7 +87,7 @@ MemorySpaceQuery(
     // If guard page was set, then adjust the start address, so we don't
     // promise the callers of this that the guard page is actually available.
     descriptor->StartAddress = allocation->Address;
-    if (allocation->Flags & MAPPING_GUARDPAGE) {
+    if (allocation->Flags & MAPPING_STACK) {
         descriptor->StartAddress += GetMemorySpacePageSize();
     }
 
