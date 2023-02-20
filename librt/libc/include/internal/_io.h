@@ -92,6 +92,7 @@ typedef struct stdio_handle {
     unsigned int   wxflag;
     stdio_object_t object;
     stdio_ops_t    ops;
+    void*          ops_ctx;
     char           lookahead[3];
     FILE*          buffered_stream;
 } stdio_handle_t;
@@ -108,14 +109,72 @@ struct stdio_object_entry {
 
 // io-object interface
 extern int             stdio_handle_create(int iod, int flags, stdio_handle_t**);
+
 extern void            stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
 extern int             stdio_handle_set_handle(stdio_handle_t*, uuid_t);
+extern int             stdio_handle_set_ops(stdio_handle_t*, stdio_ops_t*);
+extern int             stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
 extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern int             stdio_handle_destroy(stdio_handle_t*, int);
 extern int             stdio_handle_activity(stdio_handle_t*, int);
 extern void            stdio_handle_flag(stdio_handle_t*, unsigned int);
-extern stdio_handle_t* stdio_handle_get(int iod);
+
+/**
+ * @brief Creates a new stdio resource handle
+ * @param iod     If not -1, then attempts to pre-assign it this io-descriptor.
+ * @param ioFlags The O_* flags the handle should be configured with.
+ * @param wxFlags The WX_* flags the handle should be created with.
+ * @param ops     The underlying stdio operations.
+ * @param opsCtx  The context that should be passed to operations.
+ * @param handleOut Where the resulting handle should be stored.
+ * @return
+ */
+extern int
+stdio_handle_create2(
+        _In_  int              iod,
+        _In_  int              ioFlags,
+        _In_  int              wxFlags,
+        _In_  unsigned int     signature,
+        _In_  stdio_ops_t*     ops,
+        _In_  void*            opsCtx,
+        _Out_ stdio_handle_t** handleOut);
+
+/**
+ * @brief Destroys any resources associated with the stdio handle object.
+ * @param handle The stdio handle to delete.
+ */
+extern void
+stdio_handle_delete(
+        _In_ stdio_handle_t* handle);
+
+/**
+ * @brief Retrieves the signature for the stdio handle. This can be used
+ * to differentiate the types of handles by operation functions.
+ * @param handle
+ * @return
+ */
+extern unsigned int
+stdio_handle_signature(
+        _In_ stdio_handle_t* handle);
+
+/**
+ * @brief Returns the FILE stream associated with this stdio handle.
+ * @param handle The stdio handle to retrieve the asssociated FILE stream from.
+ * @return The retrieved FILE stream. NULL if the handle is not buffered.
+ */
+extern FILE*
+stdio_handle_stream(
+        _In_ stdio_handle_t* handle);
+
+/**
+ * Retrievs the stdio handle object from the io-descriptor.
+ * @param iod The io-descriptor to lookup.
+ * @return The stdio_handle_t object.
+ */
+extern stdio_handle_t*
+stdio_handle_get(
+        _In_ int iod);
 
 // io-buffer interface
 #define IO_IS_NOT_BUFFERED(stream) ((stream)->_flag & _IONBF)
