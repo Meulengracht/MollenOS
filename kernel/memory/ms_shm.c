@@ -523,11 +523,9 @@ __UpdateMapping(
         _In_ size_t            length,
         _In_ unsigned int      flags)
 {
-    size_t  pageSize        = GetMemorySpacePageSize();
-    size_t  correctedOffset = handle->Offset % pageSize;
-    size_t  pageCount       = DIVUP(length + correctedOffset, pageSize);
-    size_t  correctedLength = pageCount * pageSize;
-    size_t  pageIndex       = handle->Offset / pageSize;
+    size_t  pageSize  = GetMemorySpacePageSize();
+    size_t  pageCount = DIVUP(length, pageSize);
+    size_t  pageIndex = handle->Offset / pageSize;
     oserr_t oserr;
 
     // Ensure that physical pages are allocated for this mapping, so we can
@@ -545,7 +543,7 @@ __UpdateMapping(
                 .SHMTag = shmBuffer->ID,
                 .VirtualStart = (vaddr_t)handle->Buffer,
                 .Pages = &shmBuffer->Pages[0],
-                .Length = correctedLength,
+                .Length = length,
                 .Mask = shmBuffer->PageMask,
                 .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
                 .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED
@@ -563,10 +561,8 @@ __CreateMapping(
         _Out_ void**            mappingOut)
 {
     size_t  pageSize        = GetMemorySpacePageSize();
-    size_t  correctedOffset = offset % pageSize;
     size_t  pageIndex       = offset / pageSize;
-    size_t  clampedLength   = MIN(length + correctedOffset, (shmBuffer->PageCount - pageIndex) * pageSize);
-    size_t  pageCount       = DIVUP(clampedLength, pageSize);
+    size_t  pageCount       = DIVUP(length, pageSize);
     size_t  correctedLength = pageCount * pageSize;
     oserr_t oserr;
 
@@ -599,6 +595,18 @@ __CreateMapping(
     );
 }
 
+static size_t
+__ClampLength(
+        _In_ struct SHMBuffer* shmBuffer,
+        _In_ size_t            offset,
+        _In_ size_t            length)
+{
+    size_t pageSize        = GetMemorySpacePageSize();
+    size_t correctedOffset = offset % pageSize;
+    size_t pageIndex       = offset / pageSize;
+    return MIN(length + correctedOffset, (shmBuffer->PageCount - pageIndex) * pageSize);
+}
+
 oserr_t
 SHMMap(
         _In_ SHMHandle_t* handle,
@@ -609,6 +617,7 @@ SHMMap(
     struct SHMBuffer* shmBuffer;
     oserr_t           oserr;
     void*             mapping;
+    size_t            clampedLength;
 
     if (handle == NULL || length == 0) {
         return OS_EINVALPARAMS;
@@ -628,19 +637,22 @@ SHMMap(
         }
     }
 
+    // Calculate the actual length of the mapping
+    clampedLength = __ClampLength(shmBuffer, offset, length);
+
     if (handle->Buffer != NULL) {
         // There is a few cases here. If we are trying to modify an already
         // mapped buffer, and the offsets are identical, then we are either
         // expanding or shrinking, or changing protections flags
         if (handle->Offset == offset) {
-            return __UpdateMapping(shmBuffer, handle, length, flags);
+            return __UpdateMapping(shmBuffer, handle, clampedLength, flags);
         }
 
         // Ok mapping has changed. We do not unmap the previous
         // mapping before having created a new mapping.
     }
 
-    oserr = __CreateMapping(shmBuffer, offset, length, flags, &mapping);
+    oserr = __CreateMapping(shmBuffer, offset, clampedLength, flags, &mapping);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -651,7 +663,7 @@ SHMMap(
             (void)MemorySpaceUnmap(
                     GetCurrentMemorySpace(),
                     (vaddr_t)mapping,
-                    length
+                    clampedLength
             );
             return oserr;
         }
@@ -659,7 +671,7 @@ SHMMap(
 
     handle->Buffer = mapping;
     handle->Offset = offset;
-    handle->Length = length;
+    handle->Length = clampedLength;
     return OS_EOK;
 }
 

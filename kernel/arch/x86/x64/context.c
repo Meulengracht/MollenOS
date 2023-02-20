@@ -186,7 +186,7 @@ __GetContextFlags(
         _Out_ unsigned int* memoryFlagsOut)
 {
     unsigned int   placementFlags = 0;
-    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_GUARDPAGE;
+    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_STACK;
 
     if (contextType == THREADING_CONTEXT_LEVEL0) {
         placementFlags = MAPPING_VIRTUAL_GLOBAL;
@@ -332,10 +332,7 @@ ArchThreadContextFork(
         return oserr;
     }
 
-    // contextAddress now points to the bottom of the stack, but we need it
-    // to point to the top, so we can calculate a new 'current'. So let's fix
-    // it up and then calculate new addresses
-    contextAddress += contextSize;    // point to top
+    // contextAddress now points to the top of the stack
     newStackTop    = contextAddress;  // save it for fix ups
     contextAddress -= stackUsage;     // point to bottom
 
