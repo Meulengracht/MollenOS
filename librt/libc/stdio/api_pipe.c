@@ -17,12 +17,12 @@
 
 //#define __TRACE
 
-#include <ddk/utils.h>
-#include <internal/_io.h>
-#include <io.h>
-#include <os/shm.h>
-#include <os/mollenos.h>
-#include <string.h>
+#include "ddk/utils.h"
+#include "internal/_io.h"
+#include "io.h"
+#include "os/shm.h"
+#include "os/mollenos.h"
+#include "string.h"
 
 // Convert O_* flags to WX_* flags
 static unsigned int __convert_o_to_wx_flags(unsigned int oflags)

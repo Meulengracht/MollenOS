@@ -19,7 +19,8 @@
 #ifndef __STDIO_PRIVATE_H__
 #define __STDIO_PRIVATE_H__
 
-#define MEMORYSTREAM_SIGNATURE 0x80000001
+#define FMEM_SIGNATURE         0x80000001
+#define MEMORYSTREAM_SIGNATURE 0x80000002
 
 /**
  * @brief Convert from file mode ASCII string to O_* flags.
