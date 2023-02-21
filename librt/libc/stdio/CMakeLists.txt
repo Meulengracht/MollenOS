@@ -109,9 +109,10 @@ set(SRCS
         io/ungetc.c
         io/ungetwc.c
 
-        pipe/pipe.c
+        api_pipe.c
 
-        mem/fmemopen.c
+        api_fmem.c
+        api_memstream.c
 
         libc_io.c
         libc_io_bitmap.c
