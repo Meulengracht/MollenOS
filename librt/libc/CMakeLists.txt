@@ -23,7 +23,7 @@ set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
 set (SOURCES_LIBK
         time/common/month_lengths.c
         locale/locale.c
-        stdio/libc_io.c
+        stdio/core/core.c
         stdlib/itoa.c
         stdlib/strtoul.c
         stdlib/abs.c
@@ -88,6 +88,8 @@ add_subdirectory(ctype)
 add_subdirectory(dl)
 add_subdirectory(errno)
 add_subdirectory(getopt)
+add_subdirectory(inet)
+add_subdirectory(io)
 add_subdirectory(locale)
 add_subdirectory(mem)
 add_subdirectory(os)
