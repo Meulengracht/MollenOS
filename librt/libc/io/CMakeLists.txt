@@ -1,0 +1,13 @@
+add_libc_target(libc-io
+        chsize.c
+        close.c
+        dirent.c
+        dup.c
+        link.c
+        marktty.c
+        open.c
+        pipe.c
+        read.c
+        unlink.c
+        write.c
+)

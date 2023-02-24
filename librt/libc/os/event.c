@@ -43,7 +43,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
     }
 
     if (Syscall_EventCreate(initialValue, flags, &handle, &syncAddress) != OS_EOK) {
-        stdio_handle_destroy(ioObject, 0);
+        stdio_handle_destroy(ioObject);
         errno = ENOSYS;
         return -1;
     }

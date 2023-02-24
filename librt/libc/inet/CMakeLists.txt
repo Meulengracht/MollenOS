@@ -1,0 +1,17 @@
+add_libc_target(libc-inet
+        _socket.c
+        accept.c
+        bind.c
+        connect.c
+        getpeername.c
+        getsockname.c
+        getsockopt.c
+        listen.c
+        recv.c
+        send.c
+        setsockopt.c
+        shutdown.c
+        socket.c
+        socketatmark.c
+        socketpair.c
+)

@@ -56,8 +56,6 @@ typedef struct stdio_object {
     int    type;
     union {
         struct socket    socket;
-        struct ipcontext ipcontext;
-        struct pipe      pipe;
         struct ioset     ioset;
         struct evt       evt;
     } data;
@@ -73,7 +71,7 @@ typedef oserr_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
 typedef oserr_t(*stdio_resize)(stdio_handle_t*, long long);
 typedef oserr_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
 typedef oserr_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
-typedef oserr_t(*stdio_close)(stdio_handle_t*, int);
+typedef void   (*stdio_close)(stdio_handle_t*, int);
 
 typedef struct stdio_ops {
     stdio_inherit inherit;
@@ -116,9 +114,22 @@ extern int             stdio_handle_set_ops(stdio_handle_t*, stdio_ops_t*);
 extern int             stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
 extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
-extern int             stdio_handle_destroy(stdio_handle_t*, int);
+extern void            stdio_handle_destroy(stdio_handle_t*);
 extern int             stdio_handle_activity(stdio_handle_t*, int);
 extern void            stdio_handle_flag(stdio_handle_t*, unsigned int);
+
+#define FMEM_SIGNATURE         0x80000001
+#define MEMORYSTREAM_SIGNATURE 0x80000002
+#define PIPE_SIGNATURE         0x80000003
+#define FILE_SIGNATURE         0x80000004
+
+/**
+ * @brief Convert from file mode ASCII string to O_* flags.
+ * @param mode An ASCII string containing valid file mode string
+ * @param flagsOut O_* style flags
+ * @return -1 if the string contained illegal characters, otherwise 0.
+ */
+extern int __fmode_to_flags(const char* mode, int* flagsOut);
 
 /**
  * @brief Creates a new stdio resource handle
