@@ -18,7 +18,7 @@
 
 #define __TRACE
 
-#include <ddk/handle.h>
+#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>

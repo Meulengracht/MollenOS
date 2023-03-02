@@ -14,16 +14,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 //#define __TRACE
 
-#include "assert.h"
-#include "ddk/utils.h"
-#include "ds/hashtable.h"
-#include "errno.h"
-#include "internal/_io.h"
-#include "internal/_file.h"
-#include "io.h"
-#include "stdlib.h"
+#include <assert.h>
+#include <ddk/utils.h>
+#include <ds/hashtable.h>
+#include <errno.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <io.h>
+#include <stdlib.h>
 
 extern hashtable_t* stdio_get_handles(void);
 

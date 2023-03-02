@@ -6,9 +6,13 @@ add_subdirectory(services)
 # setup primary library
 add_library(libos STATIC
         error_codes.c
+        event.c
         futex.c
+        handles.c
+        handles_setup.c
         ipc.c
         memory.c
+        notification_queue.c
         sha1.c
         shm.c
         spinlock.c

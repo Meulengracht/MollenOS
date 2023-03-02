@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2020, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Event Descriptors for C - This implements synchronization primitives
- * and other types of events that can be interfaced like descriptors.
  */
 
 #ifndef __EVENT_H__

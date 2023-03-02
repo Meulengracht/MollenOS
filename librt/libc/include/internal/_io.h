@@ -7,6 +7,7 @@
 #include <internal/_pipe.h>
 #include <internal/_socket.h>
 #include <os/osdefs.h>
+#include <os/types/handle.h>
 #include <os/types/process.h>
 #include <stdio.h>
 
@@ -49,18 +50,6 @@
 
 typedef struct stdio_handle stdio_handle_t;
 
-// Inheritable handle that is shared with child processes
-// should contain only portable information
-typedef struct stdio_object {
-    uuid_t handle;
-    int    type;
-    union {
-        struct socket    socket;
-        struct ioset     ioset;
-        struct evt       evt;
-    } data;
-} stdio_object_t;
-
 #define STDIO_CLOSE_FULL    1
 #define STDIO_CLOSE_DELETE  2
 
@@ -88,7 +77,7 @@ typedef struct stdio_ops {
 typedef struct stdio_handle {
     int            fd;
     unsigned int   wxflag;
-    stdio_object_t object;
+    OSHandle_t     handle;
     stdio_ops_t    ops;
     void*          ops_ctx;
     char           lookahead[3];
@@ -106,22 +95,25 @@ struct stdio_object_entry {
 };
 
 // io-object interface
-extern int             stdio_handle_create(int iod, int flags, stdio_handle_t**);
+extern int  stdio_handle_create(int iod, int flags, stdio_handle_t**);
 
-extern void            stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
-extern int             stdio_handle_set_handle(stdio_handle_t*, uuid_t);
-extern int             stdio_handle_set_ops(stdio_handle_t*, stdio_ops_t*);
-extern int             stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
-extern int             stdio_handle_set_ops_type(stdio_handle_t*, int);
-extern int             stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
-extern void            stdio_handle_destroy(stdio_handle_t*);
-extern int             stdio_handle_activity(stdio_handle_t*, int);
-extern void            stdio_handle_flag(stdio_handle_t*, unsigned int);
+extern void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
+extern int  stdio_handle_set_ops(stdio_handle_t*, stdio_ops_t*);
+extern int  stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
+extern int  stdio_handle_set_ops_type(stdio_handle_t*, int);
+extern int  stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
+extern void stdio_handle_destroy(stdio_handle_t*);
+extern int  stdio_handle_activity(stdio_handle_t*, int);
+extern void stdio_handle_flag(stdio_handle_t*, unsigned int);
 
 #define FMEM_SIGNATURE         0x80000001
 #define MEMORYSTREAM_SIGNATURE 0x80000002
 #define PIPE_SIGNATURE         0x80000003
 #define FILE_SIGNATURE         0x80000004
+#define IPC_SIGNATURE          0x80000005
+#define EVENT_SIGNATURE        0x80000006
+#define IOSET_SIGNATURE        0x80000007
+#define NET_SIGNATURE          0x80000008
 
 /**
  * @brief Convert from file mode ASCII string to O_* flags.
@@ -158,6 +150,17 @@ stdio_handle_create2(
 extern void
 stdio_handle_delete(
         _In_ stdio_handle_t* handle);
+
+/**
+ * @brief Attaches an OSHandle with the io handle.
+ * @param handle
+ * @param osHandle
+ * @return
+ */
+extern int
+stdio_handle_set_handle(
+        _In_ stdio_handle_t* handle,
+        _In_ OSHandle_t*     osHandle);
 
 /**
  * @brief Retrieves the signature for the stdio handle. This can be used

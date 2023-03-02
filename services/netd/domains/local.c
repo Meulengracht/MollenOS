@@ -28,7 +28,7 @@
 #include "domains.h"
 #include "../socket.h"
 #include "../manager.h"
-#include <ddk/handle.h>
+#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <ds/list.h>
 #include <internal/_socket.h>

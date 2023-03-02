@@ -114,7 +114,7 @@ UserEventCreate(
 {
     UserEvent_t* event;
     uuid_t       handle;
-    oserr_t   status;
+    oserr_t      oserr;
 
     if (!handleOut || !syncAddressOut) {
         return OS_EINVALPARAMS;
@@ -125,10 +125,10 @@ UserEventCreate(
         return OS_EOOM;
     }
 
-    status = AllocateSyncAddress(event);
-    if (status != OS_EOK) {
+    oserr = AllocateSyncAddress(event);
+    if (oserr != OS_EOK) {
         kfree(event);
-        return status;
+        return oserr;
     }
 
     event->InitialValue = initialValue;

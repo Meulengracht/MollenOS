@@ -84,6 +84,7 @@ endmacro ()
 
 # add subprojects
 add_subdirectory(assert)
+add_subdirectory(compat)
 add_subdirectory(ctype)
 add_subdirectory(dl)
 add_subdirectory(errno)

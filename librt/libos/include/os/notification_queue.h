@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,38 +13,14 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Handle and HandleSets Support Definitions & Structures
- * - This header describes the base handle-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __DDK_HANDLE_H__
-#define __DDK_HANDLE_H__
+#ifndef __OS_NOTIFICATIONQUEUE_H__
+#define __OS_NOTIFICATIONQUEUE_H__
 
-#include <ddk/ddkdefs.h>
 #include <ioset.h>
 #include <os/types/async.h>
 #include <os/types/time.h>
-
-/**
- * Allocates a new handle for a system resource with a reference of 1.
- * @param handleOut A unique identifier to a generic OS handle
- * @return          Status of the handle creation
- */
-DDKDECL(oserr_t,
-OSHandleCreate(
-        _Out_ uuid_t* handleOut));
-
-/**
- * Reduces the refcount by 1, when it reaches 0 the handle is destroyed.
- * @param handle A generic OS handle
- * @return       Status of the operation
- */
-DDKDECL(oserr_t,
-OSHandleDestroy(
-        _In_ uuid_t handle));
 
 /**
  * Creates a new handle set that can be used for asynchronus events.
@@ -54,7 +28,7 @@ OSHandleDestroy(
  * @param handleOut A unique identifier to an OS handle of the type Set
  * @return          status of the queue creation
  */
-DDKDECL(oserr_t,
+CRTDECL(oserr_t,
 OSNotificationQueueCreate(
         _In_  unsigned int flags,
         _Out_ uuid_t*      handleOut));
@@ -67,7 +41,7 @@ OSNotificationQueueCreate(
  * @param handle    [In] The handle that should be operated on.
  * @param event     [In] The configuration for the event to be recieved.
  */
-DDKDECL(oserr_t,
+CRTDECL(oserr_t,
 OSNotificationQueueCtrl(
         _In_ uuid_t              setHandle,
         _In_ int                 operation,
@@ -83,7 +57,7 @@ OSNotificationQueueCtrl(
  * @param maxEvents [In]
  * @param timeout   [In]
  */
-DDKDECL(oserr_t,
+CRTDECL(oserr_t,
 OSNotificationQueueWait(
         _In_  uuid_t              handle,
         _In_  struct ioset_event* events,
@@ -100,9 +74,9 @@ OSNotificationQueueWait(
  * @param handle [In] The handle upon which an event has taken place
  * @param flags  [In] The event flags which denote which kind of event.
  */
-DDKDECL(oserr_t,
+CRTDECL(oserr_t,
 OSNotificationQueuePost(
         _In_ uuid_t       handle,
         _In_ unsigned int flags));
 
-#endif //!__DDK_HANDLE_H__
+#endif //!__OS_NOTIFICATIONQUEUE_H__
