@@ -19,18 +19,20 @@
 #define __need_minmax
 //#define __TRACE
 
-#include <ddk/handle.h>
+#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_tls.h>
 #include <ioctl.h>
+#include <io.h>
 #include <ipcontext.h>
 #include <os/ipc.h>
 
 struct IPCContext {
-    streambuffer_t* stream;
-    unsigned int    options;
+    uuid_t          ID;
+    streambuffer_t* Stream;
+    unsigned int    Options;
 };
 
 static oserr_t __ipc_inherit(stdio_handle_t*);
@@ -52,24 +54,50 @@ static stdio_ops_t g_ipcOps = {
 };
 
 static struct IPCContext*
-__ipccontext_new()
+__ipccontext_new(
+        _In_ unsigned int  len,
+        _In_ IPCAddress_t* addr)
 {
     struct IPCContext* ipc;
+    oserr_t            oserr;
 
     ipc = malloc(sizeof(struct IPCContext));
     if (ipc == NULL) {
         return NULL;
     }
 
+    oserr = IPCContextCreate(
+            len,
+            addr,
+            &ipc->ID,
+            (void**)&ipc->Stream
+    );
+    if (oserr != OS_EOK) {
+        (void)OsErrToErrNo(oserr);
+        free(ipc);
+        return NULL;
+    }
+    ipc->Options = 0;
+    return ipc;
+}
+
+static void
+__ipccontext_delete(
+        _In_ struct IPCContext* ipc)
+{
+    if (ipc == NULL) {
+        return;
+    }
+
+    OSHandleDestroy(ipc->ID);
+    free(ipc);
 }
 
 int ipcontext(unsigned int len, IPCAddress_t* addr)
 {
-    stdio_handle_t* io_object;
-    int             status;
-    oserr_t         oserr;
-    void*           ipcContext;
-    uuid_t          handle;
+    stdio_handle_t*    object;
+    int                status;
+    struct IPCContext* ipc;
     TRACE("ipcontext(len=%u, addr=0x" PRIxIN ")", len, addr);
     
     if (!len) {
@@ -77,25 +105,27 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
         return -1;
     }
 
-    oserr = IPCContextCreate(len, addr, &handle, &ipcContext);
-    if (oserr != OS_EOK) {
-        OsErrToErrNo(oserr);
+    ipc = __ipccontext_new(len, addr);
+    if (ipc == NULL) {
         return -1;
     }
 
-    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE | WX_DONTINHERIT, &io_object);
+    status = stdio_handle_create2(
+            -1,
+            O_RDWR | O_NOINHERIT,
+            WX_PIPE,
+            IPC_SIGNATURE,
+            &g_ipcOps,
+            ipc,
+            &object
+    );
     if (status) {
-        OSHandleDestroy(handle);
+        __ipccontext_delete(ipc);
         return -1;
     }
-    
-    stdio_handle_set_handle(io_object, handle);
-    stdio_handle_set_ops_type(io_object, STDIO_HANDLE_IPCONTEXT);
-    
-    io_object->object.data.ipcontext.stream  = ipcContext;
-    io_object->object.data.ipcontext.options = 0;
-    
-    return io_object->fd;
+
+    stdio_handle_set_handle(object, ipc->ID);
+    return object->fd;
 }
 
 int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, const struct timespec* deadline)
@@ -132,11 +162,12 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, cons
 
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
-    stdio_handle_t*   handle = stdio_handle_get(iod);
-    size_t            bytesRead = 0;
-    oserr_t           oserr;
-    int               status = -1;
-    OSAsyncContext_t* asyncContext = __tls_current()->async_context;
+    stdio_handle_t*    handle = stdio_handle_get(iod);
+    struct IPCContext* ipc;
+    size_t             bytesRead = 0;
+    oserr_t            oserr;
+    int                status = -1;
+    OSAsyncContext_t*  asyncContext = __tls_current()->async_context;
     TRACE("iprecv(len=%u, flags=0x%x)");
 
     if (!handle || !buffer || !len) {
@@ -149,11 +180,13 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
         goto exit;
     }
 
+    ipc = handle->ops_ctx;
+
     if (asyncContext) {
         OSAsyncContextInitialize(asyncContext);
     }
     oserr = IPCContextRecv(
-            handle->object.data.ipcontext.stream,
+            ipc->Stream,
             buffer,
             len,
             flags,
@@ -175,16 +208,20 @@ exit:
 
 oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    streambuffer_t*           stream = handle->object.data.ipcontext.stream;
+    struct IPCContext*        ipc = handle->ops_ctx;
     streambuffer_packet_ctx_t packetCtx;
     streambuffer_rw_options_t rwOptions;
     size_t                    bytesAvailable;
 
-    rwOptions.flags = handle->object.data.ipcontext.options;
+    rwOptions.flags = ipc->Options;
     rwOptions.async_context = __tls_current()->async_context;
     rwOptions.deadline = NULL;
 
-    bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
+    bytesAvailable = streambuffer_read_packet_start(
+            ipc->Stream,
+            &rwOptions,
+            &packetCtx
+    );
     if (!bytesAvailable) {
         _set_errno(ENODATA);
         return -1;
@@ -230,16 +267,16 @@ oserr_t __ipc_inherit(stdio_handle_t* handle)
 
 oserr_t __ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
-    streambuffer_t* stream = handle->object.data.ipcontext.stream;
+    struct IPCContext* ipc = handle->ops_ctx;
 
     if ((unsigned int)request == FIONBIO) {
         int* nonBlocking = va_arg(args, int*);
         if (nonBlocking) {
             if (*nonBlocking) {
-                handle->object.data.ipcontext.options |= STREAMBUFFER_NO_BLOCK;
+                ipc->Options |= STREAMBUFFER_NO_BLOCK;
             }
             else {
-                handle->object.data.ipcontext.options &= ~(STREAMBUFFER_NO_BLOCK);
+                ipc->Options &= ~(STREAMBUFFER_NO_BLOCK);
             }
         }
         return OS_EOK;
@@ -248,7 +285,7 @@ oserr_t __ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             size_t bytesAvailable;
-            streambuffer_get_bytes_available_in(stream, &bytesAvailable);
+            streambuffer_get_bytes_available_in(ipc->Stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
         return OS_EOK;

@@ -24,26 +24,9 @@
 
 #define __TRACE
 
-#include <ddk/handle.h>
-#include <internal/_syscalls.h>
-#include <os/types/syscall.h>
-
-oserr_t
-OSHandleCreate(
-        _Out_ uuid_t* handleOut)
-{
-    if (!handleOut) {
-        return OS_EINVALPARAMS;
-    }
-    return Syscall_CreateHandle(handleOut);
-}
-
-oserr_t
-OSHandleDestroy(
-        _In_ uuid_t handle)
-{
-    return Syscall_DestroyHandle(handle);
-}
+#include "os/notification_queue.h"
+#include "internal/_syscalls.h"
+#include "os/types/syscall.h"
 
 oserr_t
 OSNotificationQueuePost(

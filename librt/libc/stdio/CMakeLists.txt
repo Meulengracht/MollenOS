@@ -89,10 +89,6 @@ set(SRCS
         core/utils.c
         core/iod_bitmap.c
         core/file_stream.c
-
-        libc_io_set_operations.c
-        libc_io_net_operations.c
-        libc_io_evt_operations.c
 )
 add_libk_target(libk-stdio ${SRCS_COMMON} core/corek.c)
 add_libc_target(libc-stdio ${SRCS} core/core.c)

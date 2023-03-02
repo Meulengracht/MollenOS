@@ -19,7 +19,7 @@
 
 //#define __TRACE
 #include "assert.h"
-#include "ddk/handle.h"
+#include "os/notification_queue.h"
 #include "ddk/utils.h"
 #include "ds/hashtable.h"
 #include "errno.h"

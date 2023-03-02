@@ -21,7 +21,7 @@
 #include <ds/mstring.h>
 #include <ds/hashtable.h>
 #include <ddk/barrier.h>
-#include <ddk/handle.h>
+#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include <internal/_io.h>

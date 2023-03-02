@@ -19,7 +19,7 @@
 //#define __TRACE
 
 #define __need_minmax
-#include <ddk/handle.h>
+#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <ds/streambuffer.h>
 #include <errno.h>

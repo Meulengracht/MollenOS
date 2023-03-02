@@ -34,6 +34,7 @@
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
 extern void StdSignalInitialize(void);
+extern void OSHandlesSetup(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
@@ -290,6 +291,8 @@ void __crt_process_initialize(int isPhoenix)
     StdioInitialize();
     TRACE("__crt_process_initialize initializing stdsig");
     StdSignalInitialize();
+    TRACE("__crt_process_initialize initializing oshandles");
+    OSHandlesSetup();
 
     // Initialize the userspace scheduler to support request based
     // asynchronous programs, and do this before we do any further

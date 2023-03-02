@@ -22,7 +22,7 @@
  */
 
 #define __need_minmax
-#include "ddk/handle.h"
+#include "os/notification_queue.h"
 #include "errno.h"
 #include "internal/_io.h"
 #include "internal/_tls.h"

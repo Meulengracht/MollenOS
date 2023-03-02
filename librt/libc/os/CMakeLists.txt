@@ -1,5 +1,4 @@
 add_libc_target(libc-os
-        event.c
         keymaps/en-us.c
         clang.c
         init.c

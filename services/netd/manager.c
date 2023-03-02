@@ -26,7 +26,7 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <ddk/handle.h>
+#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include "domains/domains.h"
 #include <inet/local.h>
