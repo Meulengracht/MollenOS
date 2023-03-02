@@ -70,5 +70,14 @@ OSEventUnlock(
         _In_ OSHandle_t*  handle,
         _In_ unsigned int count));
 
+/**
+ * @brief
+ * @param handle
+ * @return
+ */
+CRTDECL(int,
+OSEventValue(
+        _In_ OSHandle_t* handle));
+
 _CODE_END
 #endif //!__EVENT_H__

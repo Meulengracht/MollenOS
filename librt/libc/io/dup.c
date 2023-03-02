@@ -1,5 +1,5 @@
 /**
- * Copyright 2022, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ int dup(int iod)
 {
     stdio_handle_t* objectToCopy = stdio_handle_get(iod);
     stdio_handle_t* duplicatedObject;
-    int             duplicatedIod;
+    int             status;
 
     if (!objectToCopy) {
         errno = (EBADFD);
@@ -31,16 +31,9 @@ int dup(int iod)
     }
 
     // So duplicated handles we never inherit unless specifically requested
-    duplicatedIod = stdio_handle_create(
-            -1,
-            objectToCopy->wxflag | WX_DONTINHERIT,
-            &duplicatedObject
-    );
-    if (duplicatedIod < 0) {
-        return -1;
+    status = stdio_handle_clone(objectToCopy, &duplicatedObject);
+    if (status) {
+        return status;
     }
-
-    // copy data
-    stdio_handle_clone(duplicatedObject, objectToCopy);
-    return duplicatedIod;
+    return duplicatedObject->fd;
 }

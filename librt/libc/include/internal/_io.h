@@ -40,36 +40,34 @@
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
 
-#define STDIO_HANDLE_INVALID    0
-#define STDIO_HANDLE_PIPE       1
-#define STDIO_HANDLE_FILE       2
-#define STDIO_HANDLE_SOCKET     3
-#define STDIO_HANDLE_IPCONTEXT  4
-#define STDIO_HANDLE_SET        5
-#define STDIO_HANDLE_EVENT      6
-
 typedef struct stdio_handle stdio_handle_t;
 
 #define STDIO_CLOSE_FULL    1
 #define STDIO_CLOSE_DELETE  2
 
 // Stdio descriptor operations
-typedef oserr_t(*stdio_inherit)(stdio_handle_t*);
+typedef oserr_t(*stdio_serialize)(stdio_handle_t*, void*);
+typedef oserr_t(*stdio_deserialize)(stdio_handle_t*, const void*);
 typedef oserr_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
 typedef oserr_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
 typedef oserr_t(*stdio_resize)(stdio_handle_t*, long long);
 typedef oserr_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
 typedef oserr_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
+typedef oserr_t(*stdio_mmap)(stdio_handle_t*, void *addr, size_t length, int prot, int flags, off_t offset, void**);
+typedef oserr_t(*stdio_munmap)(stdio_handle_t*, void *addr, size_t length);
 typedef void   (*stdio_close)(stdio_handle_t*, int);
 
 typedef struct stdio_ops {
-    stdio_inherit inherit;
-    stdio_read    read;
-    stdio_write   write;
-    stdio_resize  resize;
-    stdio_seek    seek;
-    stdio_ioctl   ioctl;
-    stdio_close   close;
+    stdio_serialize   serialize;
+    stdio_deserialize deserialize;
+    stdio_read        read;
+    stdio_write       write;
+    stdio_resize      resize;
+    stdio_seek        seek;
+    stdio_ioctl       ioctl;
+    stdio_mmap        mmap;
+    stdio_munmap      munmap;
+    stdio_close       close;
 } stdio_ops_t;
 
 // Local to application handle that also handles state, stream and buffer
@@ -97,10 +95,8 @@ struct stdio_object_entry {
 // io-object interface
 extern int  stdio_handle_create(int iod, int flags, stdio_handle_t**);
 
-extern void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source);
 extern int  stdio_handle_set_ops(stdio_handle_t*, stdio_ops_t*);
 extern int  stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
-extern int  stdio_handle_set_ops_type(stdio_handle_t*, int);
 extern int  stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern void stdio_handle_destroy(stdio_handle_t*);
 extern int  stdio_handle_activity(stdio_handle_t*, int);
@@ -150,6 +146,17 @@ stdio_handle_create2(
 extern void
 stdio_handle_delete(
         _In_ stdio_handle_t* handle);
+
+/**
+ * @brief
+ * @param handle
+ * @param handleOut
+ * @return
+ */
+extern int
+stdio_handle_clone(
+        _In_  stdio_handle_t*  handle,
+        _Out_ stdio_handle_t** handleOut);
 
 /**
  * @brief Attaches an OSHandle with the io handle.

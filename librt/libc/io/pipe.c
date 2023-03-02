@@ -236,7 +236,7 @@ __pipe_inherit(
     oserr_t      oserr;
 
     oserr = SHMAttach(
-            handle->object.handle,
+            handle->handle.ID,
             &pipe->SHM
     );
     if (oserr != OS_EOK) {
