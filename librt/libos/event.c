@@ -192,3 +192,17 @@ OSEventUnlock(
 
     return status;
 }
+
+int
+OSEventValue(
+        _In_ OSHandle_t* handle)
+{
+    struct Event* event;
+
+    if (handle == NULL) {
+        return 0;
+    }
+
+    event = handle->Payload;
+    return atomic_load(event->SyncAddress);
+}

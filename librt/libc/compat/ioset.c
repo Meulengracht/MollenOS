@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Generic IO Events. These are functions that may be supported by all
- * io descriptors. If they are not supported errno is set to ENOTSUPP
  */
 
 //#define __TRACE
@@ -27,62 +21,124 @@
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <internal/_ioset.h>
 #include <internal/_tls.h>
+#include <io.h>
 #include <ioctl.h>
 #include <ioset.h>
 #include <os/mollenos.h>
+#include <os/handle.h>
 #include <stdlib.h>
 
-static void                ioset_append(stdio_handle_t*, struct ioset_entry*);
-static struct ioset_entry* ioset_get(stdio_handle_t*, int);
-static struct ioset_entry* ioset_remove(stdio_handle_t*, int);
+struct IOSetEntry {
+    int                iod;
+    struct ioset_event event;
+    struct IOSetEntry* link;
+};
+
+struct IOSet {
+    struct IOSetEntry* entries;
+};
+
+static void               ioset_append(struct IOSet*, struct IOSetEntry*);
+static struct IOSetEntry* ioset_get(struct IOSet*, int);
+static struct IOSetEntry* ioset_remove(struct IOSet*, int);
+
+static void __ioset_close(stdio_handle_t*, int);
+
+static stdio_ops_t g_iosetOps = {
+        .close = __ioset_close
+};
+
+static struct IOSet*
+__ioset_new(void)
+{
+    struct IOSet* ios;
+
+    ios = malloc(sizeof(struct IOSet));
+    if (ios == NULL) {
+        return NULL;
+    }
+    ios->entries = NULL;
+    return ios;
+}
+
+static void
+__ioset_delete(
+        _In_ struct IOSet* ios)
+{
+    struct IOSetEntry* i;
+    if (ios == NULL) {
+        return;
+    }
+
+    i = ios->entries;
+    while (i) {
+        void* tmp = i->link;
+        free(i);
+        i = tmp;
+    }
+    free(ios);
+}
 
 int ioset(int flags)
 {
-    stdio_handle_t* ioObject;
+    stdio_handle_t* object;
+    struct IOSet*   ios;
     oserr_t         oserr;
-    uuid_t          handle;
+    OSHandle_t      handle;
     int             status;
-    
-    status = stdio_handle_create(-1, WX_OPEN | WX_DONTINHERIT, &ioObject);
-    if (status) {
+
+    ios = __ioset_new();
+    if (ios == NULL) {
         return -1;
     }
 
     oserr = OSNotificationQueueCreate(0, &handle);
     if (oserr != OS_EOK) {
+        free(ios);
         (void)OsErrToErrNo(oserr);
-        stdio_handle_destroy(ioObject);
         return -1;
     }
-    
-    stdio_handle_set_handle(ioObject, handle);
-    stdio_handle_set_ops_type(ioObject, STDIO_HANDLE_SET);
-    
-    ioObject->object.data.ioset.entries = NULL;
-    
-    return ioObject->fd;
+
+    status = stdio_handle_create2(
+            -1,
+            flags | O_NOINHERIT,
+            WX_OPEN,
+            IOSET_SIGNATURE,
+            &g_iosetOps,
+            ios,
+            &object
+    );
+    if (status) {
+        (void)OSHandleDestroy(handle.ID);
+        free(ios);
+        return -1;
+    }
+
+    stdio_handle_set_handle(object, &handle);
+    return object->fd;
 }
 
 int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 {
-    stdio_handle_t*     setObject = stdio_handle_get(evt_iod);
-    stdio_handle_t*     ioObject  = stdio_handle_get(iod);
-    struct ioset_entry* entry;
+    stdio_handle_t*    setObject = stdio_handle_get(evt_iod);
+    stdio_handle_t*    ioObject  = stdio_handle_get(iod);
+    struct IOSet*      ios;
+    struct IOSetEntry* entry;
     
     if (!event) {
         _set_errno(EINVAL);
         return -1;
     }
     
-    if (!setObject || !ioObject) {
+    if (!setObject || stdio_handle_signature(setObject) != IOSET_SIGNATURE || !ioObject) {
         _set_errno(EBADF);
         return -1;
     }
-    
+
+    ios = setObject->ops_ctx;
     if (op == IOSET_ADD) {
-        entry = malloc(sizeof(struct ioset_entry));
+        entry = malloc(sizeof(struct IOSetEntry));
         if (!entry) {
             _set_errno(ENOMEM);
             return -1;
@@ -92,16 +148,16 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
         entry->event.events = event->events;
         entry->event.data   = event->data;
         entry->link         = NULL;
-        ioset_append(setObject, entry);
+        ioset_append(ios, entry);
     } else if (op == IOSET_MOD) {
-        entry = ioset_get(setObject, iod);
+        entry = ioset_get(ios, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
         }
         entry->event.events = event->events;
     } else if (op == IOSET_DEL) {
-        entry = ioset_remove(setObject, iod);
+        entry = ioset_remove(ios, iod);
         if (!entry) {
             _set_errno(ENOENT);
             return -1;
@@ -114,9 +170,9 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 
     return OsErrToErrNo(
             OSNotificationQueueCtrl(
-                    setObject->object.handle,
+                    &setObject->handle,
                     op,
-                    ioObject->object.handle,
+                    ioObject->handle.ID,
                     event
             )
     );
@@ -124,21 +180,23 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 
 int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const struct timespec* until)
 {
-    stdio_handle_t*     setObject = stdio_handle_get(set_iod);
-    int                 numEvents;
-    struct ioset_entry* entry;
-    oserr_t             oserr;
-    int                 i = 0;
-    OSAsyncContext_t*   asyncContext = __tls_current()->async_context;
+    stdio_handle_t*    setObject = stdio_handle_get(set_iod);
+    int                numEvents;
+    struct IOSet*      ios;
+    struct IOSetEntry* entry;
+    oserr_t            oserr;
+    int                i = 0;
+    OSAsyncContext_t*  asyncContext = __tls_current()->async_context;
     
     TRACE("[ioset] [wait] %i, %i", set_iod, max_events);
     
-    if (!setObject) {
+    if (!setObject || stdio_handle_signature(setObject) != IOSET_SIGNATURE) {
         _set_errno(EBADF);
         return -1;
     }
-    
-    entry = setObject->object.data.ioset.entries;
+
+    ios = setObject->ops_ctx;
+    entry = ios->entries;
     while (entry && i < max_events) {
         TRACE("[ioset] [wait] %i = 0x%x", entry->iod, entry->event.events);
         if ((entry->event.events & (IOSETIN | IOSETLVT)) == (IOSETIN | IOSETLVT)) {
@@ -158,7 +216,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const st
         OSAsyncContextInitialize(asyncContext);
     }
     oserr = OSNotificationQueueWait(
-            setObject->object.handle,
+            &setObject->handle,
             &events[0],
             max_events,
             i,
@@ -174,14 +232,14 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const st
     return numEvents;
 }
 
-static void ioset_append(stdio_handle_t* handle, struct ioset_entry* entry)
+static void
+ioset_append(struct IOSet* ios, struct IOSetEntry* entry)
 {
-    struct ioset_entry * itr = handle->object.data.ioset.entries;
+    struct IOSetEntry* itr = ios->entries;
     
-    if (!handle->object.data.ioset.entries) {
-        handle->object.data.ioset.entries = entry;
-    }
-    else {
+    if (!ios->entries) {
+        ios->entries = entry;
+    } else {
         while (itr->link) {
             itr = itr->link;
         }
@@ -189,9 +247,10 @@ static void ioset_append(stdio_handle_t* handle, struct ioset_entry* entry)
     }
 }
 
-static struct ioset_entry* ioset_get(stdio_handle_t* handle, int iod)
+static struct IOSetEntry*
+ioset_get(struct IOSet* ios, int iod)
 {
-    struct ioset_entry * itr = handle->object.data.ioset.entries;
+    struct IOSetEntry* itr = ios->entries;
     while (itr) {
         if (itr->iod == iod) {
             return itr;
@@ -200,12 +259,13 @@ static struct ioset_entry* ioset_get(stdio_handle_t* handle, int iod)
     return NULL;
 }
 
-static struct ioset_entry* ioset_remove(stdio_handle_t* handle, int iod)
+static struct IOSetEntry*
+ioset_remove(struct IOSet* ios, int iod)
 {
-    struct ioset_entry * itr = handle->object.data.ioset.entries;
-    struct ioset_entry * prev;
+    struct IOSetEntry* itr = ios->entries;
+    struct IOSetEntry* prev;
     if (itr && itr->iod == iod) {
-        handle->object.data.ioset.entries = itr->link;
+        ios->entries = itr->link;
         return itr;
     }
     
@@ -223,40 +283,10 @@ static struct ioset_entry* ioset_remove(stdio_handle_t* handle, int iod)
     return NULL;
 }
 
-oserr_t stdio_set_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+static void __ioset_close(stdio_handle_t* handle, int options)
 {
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_set_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_set_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_set_op_resize(stdio_handle_t* handle, long long resize_by)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_set_op_close(stdio_handle_t* handle, int options)
-{
-    if (handle->object.handle != UUID_INVALID) {
-        return OSHandleDestroy(handle->object.handle);
+    if (options & STDIO_CLOSE_FULL) {
+        (void)OSHandleDestroy(handle->handle.ID);
+        __ioset_delete(handle->ops_ctx);
     }
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_set_op_inherit(stdio_handle_t* handle)
-{
-    return OS_EOK;
-}
-
-oserr_t stdio_set_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
-{
-    return OS_ENOTSUPPORTED;
 }

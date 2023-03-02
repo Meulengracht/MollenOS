@@ -17,11 +17,12 @@
  */
 
 #include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <internal/_io.h>
 #include <io.h>
 #include <ioctl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 struct MemoryStream {
     void*  Buffer;
@@ -30,7 +31,6 @@ struct MemoryStream {
     bool   Cleanup;
 };
 
-static oserr_t __memstream_inherit(stdio_handle_t*);
 static oserr_t __memstream_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __memstream_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __memstream_resize(stdio_handle_t*, long long);
@@ -39,7 +39,6 @@ static oserr_t __memstream_ioctl(stdio_handle_t*, int, va_list);
 static void    __memstream_close(stdio_handle_t*, int);
 
 static stdio_ops_t g_memoryOps = {
-    .inherit = __memstream_inherit,
     .read = __memstream_read,
     .write = __memstream_write,
     .resize = __memstream_resize,
@@ -133,16 +132,6 @@ FILE* fmemopen(void *buf, size_t size, const char *mode)
         return NULL;
     }
     return stdio_handle_stream(object);
-}
-
-// Inherit is not supported, memory-streams are local to processes
-// and thus cannot be inheritted
-static oserr_t
-__memstream_inherit(
-        _In_ stdio_handle_t* handle)
-{
-    _CRT_UNUSED(handle);
-    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t

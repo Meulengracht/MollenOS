@@ -19,6 +19,7 @@
 #define __OS_NOTIFICATIONQUEUE_H__
 
 #include <ioset.h>
+#include <os/types/handle.h>
 #include <os/types/async.h>
 #include <os/types/time.h>
 
@@ -31,7 +32,7 @@
 CRTDECL(oserr_t,
 OSNotificationQueueCreate(
         _In_  unsigned int flags,
-        _Out_ uuid_t*      handleOut));
+        _Out_ OSHandle_t*  handleOut));
 
 /**
  * OSNotificationQueueCtrl
@@ -43,7 +44,7 @@ OSNotificationQueueCreate(
  */
 CRTDECL(oserr_t,
 OSNotificationQueueCtrl(
-        _In_ uuid_t              setHandle,
+        _In_ OSHandle_t*         setHandle,
         _In_ int                 operation,
         _In_ uuid_t              handle,
         _In_ struct ioset_event* event));
@@ -59,7 +60,7 @@ OSNotificationQueueCtrl(
  */
 CRTDECL(oserr_t,
 OSNotificationQueueWait(
-        _In_  uuid_t              handle,
+        _In_ OSHandle_t*          setHandle,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
@@ -76,7 +77,7 @@ OSNotificationQueueWait(
  */
 CRTDECL(oserr_t,
 OSNotificationQueuePost(
-        _In_ uuid_t       handle,
+        _In_ OSHandle_t*  handle,
         _In_ unsigned int flags));
 
 #endif //!__OS_NOTIFICATIONQUEUE_H__
