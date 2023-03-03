@@ -32,19 +32,20 @@ enum OSHandleType {
 // must also be immutable.
 typedef struct OSHandle {
     // Members that will be serialized
-    uuid_t            ID;
-    enum OSHandleType Type;
+    uuid_t   ID;
+    uint16_t Type;
+    uint16_t Flags;
 
     // Not serialized, kept locally.
 
-    // Payload is a implementation-specific pointer that
+    // Payload is an implementation-specific pointer that
     // may point to additional data that needs to be
     // serialized or deserialized. This value is immutable
     // and cannot change once added.
     void* Payload;
 } OSHandle_t;
 
-#define __HEADER_SIZE_RAW (sizeof(uuid_t) + sizeof(uint32_t))
+#define __HEADER_SIZE_RAW (sizeof(uuid_t) + sizeof(uint16_t) + sizeof(uint16_t))
 
 typedef void    (*OSHandleDestroyFn)(struct OSHandle*);
 typedef oserr_t (*OSHandleSerializeFn)(struct OSHandle*, void*);

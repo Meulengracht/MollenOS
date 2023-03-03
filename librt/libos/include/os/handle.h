@@ -44,6 +44,7 @@ OSHandleCreate(
  * @param id The global system handle ID.
  * @param type The type of the global system handle.
  * @param payload An implementation specific payload that is paired with the handle.
+ * @param ownership Whether or not this OSHandle has ownership of the global system handle.
  * @param handle An OSHandle structure that describes this system handle. This
  *               is filled on a succesful operation.
  * @return OS_EOK if the handle was succesfully created.
@@ -53,6 +54,7 @@ OSHandleWrap(
         _In_ uuid_t            id,
         _In_ enum OSHandleType type,
         _In_ void*             payload,
+        _In_ bool              ownership,
         _In_ struct OSHandle*  handle));
 
 /**

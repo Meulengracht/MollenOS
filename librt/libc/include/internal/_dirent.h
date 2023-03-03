@@ -1,11 +1,11 @@
 #ifndef __INTERNAL_DIRENT_H__
 #define __INTERNAL_DIRENT_H__
 
-#include <os/osdefs.h>
+#include <os/types/handle.h>
 #include <io.h>
 
 typedef struct DIR {
-    uuid_t        _handle;
+    OSHandle_t    _handle;
     struct dirent _cdirent;
 } DIR;
 

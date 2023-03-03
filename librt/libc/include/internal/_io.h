@@ -207,15 +207,6 @@ extern void    io_buffer_allocate(FILE* stream);
 extern oserr_t io_buffer_flush(FILE* file);
 extern int     io_buffer_flush_all(int mask);
 
-// io-operation types
-extern void stdio_get_null_operations(stdio_ops_t* ops);
-extern void stdio_get_pipe_operations(stdio_ops_t* ops);
-extern void stdio_get_file_operations(stdio_ops_t* ops);
-extern void stdio_get_net_operations(stdio_ops_t* ops);
-extern void stdio_get_ipc_operations(stdio_ops_t* ops);
-extern void stdio_get_set_operations(stdio_ops_t* ops);
-extern void stdio_get_evt_operations(stdio_ops_t* ops);
-
 // helpers
 extern int  stdio_bitmap_initialize(void);
 extern int  stdio_bitmap_allocate(int fd);

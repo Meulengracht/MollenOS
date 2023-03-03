@@ -19,17 +19,42 @@
 #include <internal/_io.h>
 #include <io.h>
 #include <os/services/file.h>
+#include <os/handle.h>
+
+static oserr_t
+__CloseHandle(
+        _In_ uuid_t handleID)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+    int                      status;
+
+    // Try to open the file by directly communicating with the file-service
+    status = sys_file_close(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handleID
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_file_close_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
 
 oserr_t
 OSOpenPath(
         _In_  const char*  path,
         _In_  unsigned int flags,
         _In_  unsigned int permissions,
-        _Out_ uuid_t*      handleOut)
+        _Out_ OSHandle_t*  handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
     oserr_t                  oserr;
     int                      status;
+    uuid_t                   handleID;
 
     if (path == NULL || handleOut == NULL) {
         return OS_EINVALPARAMS;
@@ -47,31 +72,46 @@ OSOpenPath(
     if (status) {
         return OS_EPROTOCOL;
     }
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_open_result(GetGrachtClient(), &msg.base, &oserr, handleOut);
+    gracht_client_await(
+            GetGrachtClient(),
+            &msg.base,
+            GRACHT_AWAIT_ASYNC
+    );
+    sys_file_open_result(
+            GetGrachtClient(),
+            &msg.base,
+            &oserr,
+            &handleID
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            handleID,
+            OSHANDLE_FILE,
+            NULL,
+            false,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        (void)__CloseHandle(handleID);
+    }
     return oserr;
 }
 
 oserr_t
 OSCloseFile(
-        _In_ uuid_t handle)
+        _In_ OSHandle_t* handle)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    oserr_t                  oserr;
-    int                      status;
+    oserr_t oserr;
 
-    // Try to open the file by directly communicating with the file-service
-    status = sys_file_close(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
-            handle
-    );
-    if (status) {
-        return OS_EPROTOCOL;
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
     }
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_close_result(GetGrachtClient(), &msg.base, &oserr);
+
+    oserr = __CloseHandle(handle->ID);
+    OSHandleDestroy(handle->ID);
     return oserr;
 }
 
@@ -382,7 +422,7 @@ SetFileSizeFromFd(
     UInteger64_t             value;
     int                      status;
 
-    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
@@ -392,7 +432,7 @@ SetFileSizeFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle,
+            handle->handle.ID,
             value.u.LowPart,
             value.u.HighPart
     );
@@ -438,7 +478,7 @@ ChangeFilePermissionsFromFd(
     unsigned int             access;
     int                      status;
 
-    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
@@ -446,7 +486,7 @@ ChangeFilePermissionsFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle
+            handle->handle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -458,7 +498,7 @@ ChangeFilePermissionsFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle,
+            handle->handle.ID,
             access
     );
     if (status) {
@@ -479,7 +519,7 @@ ChangeFileHandleAccessFromFd(
     oserr_t                  oserr;
     int                      status;
 
-    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
@@ -487,7 +527,7 @@ ChangeFileHandleAccessFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle,
+            handle->handle.ID,
             access
     );
     if (status) {
@@ -532,7 +572,7 @@ GetFilePathFromFd(
     oserr_t                  oserr;
     int                      status;
 
-    if (!handle || !buffer || handle->object.type != STDIO_HANDLE_FILE) {
+    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
     
@@ -540,7 +580,7 @@ GetFilePathFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle
+            handle->handle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -595,8 +635,7 @@ GetStorageInformationFromFd(
     int                        status;
     struct sys_disk_descriptor gdescriptor;
 
-    if (handle == NULL || descriptor == NULL ||
-        handle->object.type != STDIO_HANDLE_FILE) {
+    if (descriptor == NULL || stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
@@ -604,7 +643,7 @@ GetStorageInformationFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle
+            handle->handle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -663,8 +702,7 @@ GetFileSystemInformationFromFd(
     int                              status;
     struct sys_filesystem_descriptor gdescriptor;
 
-    if (handle == NULL || descriptor == NULL ||
-        handle->object.type != STDIO_HANDLE_FILE) {
+    if (descriptor == NULL || stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
     
@@ -672,7 +710,7 @@ GetFileSystemInformationFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle
+            handle->handle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -731,8 +769,7 @@ GetFileInformationFromFd(
     int                        status;
     struct sys_file_descriptor gdescriptor;
 
-    if (handle == NULL || descriptor == NULL ||
-        handle->object.type != STDIO_HANDLE_FILE) {
+    if (descriptor == NULL || stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
@@ -740,7 +777,7 @@ GetFileInformationFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->object.handle
+            handle->handle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
