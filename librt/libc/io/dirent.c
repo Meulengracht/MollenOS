@@ -37,15 +37,15 @@ mkdir(
 }
 
 static struct DIR*
-__DIR_new(uuid_t handle)
+__DIR_new(
+        _In_ OSHandle_t* handle)
 {
     struct DIR* dir = malloc(sizeof(struct DIR));
     if (!dir) {
         return NULL;
     }
     memset(dir, 0, sizeof(struct DIR));
-
-    dir->_handle = handle;
+    memcpy(&dir->_handle, handle, sizeof(OSHandle_t));
     return dir;
 }
 
@@ -54,7 +54,7 @@ opendir(
     _In_  const char* path)
 {
     struct DIR* dir;
-    uuid_t      handle;
+    OSHandle_t  handle;
     oserr_t     oserr = OSOpenPath(
             path,
             __FILE_DIRECTORY,
@@ -66,9 +66,9 @@ opendir(
         return NULL;
     }
 
-    dir = __DIR_new(handle);
+    dir = __DIR_new(&handle);
     if (dir == NULL) {
-        (void)OSCloseFile(handle);
+        (void)OSCloseFile(&handle);
         return NULL;
     }
     return dir;
@@ -78,14 +78,16 @@ int
 closedir(
     _In_ struct DIR* dir)
 {
-    uuid_t handle;
+    oserr_t oserr;
+
     if (dir == NULL) {
         _set_errno(EINVAL);
         return -1;
     }
-    handle = dir->_handle;
+
+    oserr = OSCloseFile(&dir->_handle);
     free(dir);
-    return OsErrToErrNo(OSCloseFile(handle));
+    return OsErrToErrNo(oserr);
 }
 
 static int __ToDirentType(unsigned int flags)
@@ -121,7 +123,7 @@ readdir(
         return NULL;
     }
 
-    oserr = OSReadDirectory(dir->_handle, &entry);
+    oserr = OSReadDirectory(dir->_handle.ID, &entry);
     if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);
         return NULL;
@@ -143,7 +145,7 @@ int seekdir(struct DIR* dir, long index)
         errno = EINVAL;
         return -1;
     }
-    return OsErrToErrNo(OSSeekFile(dir->_handle, &position));
+    return OsErrToErrNo(OSSeekFile(dir->_handle.ID, &position));
 }
 
 long telldir(struct DIR* dir)
@@ -155,7 +157,7 @@ long telldir(struct DIR* dir)
         return -1;
     }
 
-    oserr = OSGetFilePosition(dir->_handle, &position);
+    oserr = OSGetFilePosition(dir->_handle.ID, &position);
     if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }

@@ -17,19 +17,14 @@
 
 //#define __TRACE
 #define __need_minmax
-#include "ddk/utils.h"
-#include "errno.h"
-#include "internal/_io.h"
-#include "internal/_tls.h"
-#include "io.h"
-#include "os/mollenos.h"
-#include "os/services/file.h"
-#include "os/shm.h"
-#include "stdio.h"
-#include "string.h"
-#include "../stdio/core/private.h"
+#include <ddk/utils.h>
+#include <errno.h>
+#include <internal/_io.h>
+#include <internal/_tls.h>
+#include <io.h>
+#include <os/services/file.h>
+#include <os/shm.h>
 
-static oserr_t __file_inherit(stdio_handle_t*);
 static oserr_t __file_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __file_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __file_resize(stdio_handle_t*, long long);
@@ -53,7 +48,6 @@ static const struct bom_mode {
         { NULL, 0, 0, { 0 }}
 };
 static stdio_ops_t g_fileOps = {
-        .inherit = __file_inherit,
         .read = __file_read,
         .write = __file_write,
         .resize = __file_resize,
@@ -93,7 +87,7 @@ int open(const char* file, int flags, ...)
     int             status;
     oserr_t         osStatus;
     stdio_handle_t* object;
-    uuid_t          handle;
+    OSHandle_t      handle;
     unsigned int    mode = 0;
     va_list         ap;
 
@@ -122,7 +116,7 @@ int open(const char* file, int flags, ...)
 
     status = stdio_handle_create2(
             -1,
-            flags | O_NOINHERIT,
+            flags,
             0,
             FILE_SIGNATURE,
             &g_fileOps,
@@ -130,10 +124,10 @@ int open(const char* file, int flags, ...)
             &object
     );
     if (status) {
-        (void)OSCloseFile(handle);
+        (void)OSCloseFile(&handle);
         return status;
     }
-    stdio_handle_set_handle(object, handle);
+    stdio_handle_set_handle(object, &handle);
 
     // detect filemode automatically
     if (flags & O_TEXT) {
@@ -239,7 +233,7 @@ __read_large(
 
     // Pass the callers pointer directly here
     oserr = __transfer(
-            handle->object.handle,
+            handle->handle.ID,
             shm.ID,
             false,
             adjustedLength,
@@ -275,7 +269,7 @@ __file_read(
         return __read_large(handle, buffer, length, bytesReadOut);
     }
 
-    oserr = __transfer(handle->object.handle, builtinHandle, 0,
+    oserr = __transfer(handle->handle.ID, builtinHandle, 0,
                        builtinLength, 0, length, &bytesRead);
     if (oserr == OS_EOK && bytesRead > 0) {
         memcpy(buffer, shmHandle->Buffer, bytesRead);
@@ -322,7 +316,7 @@ __write_large(
         return oserr;
     }
 
-    oserr = __transfer(handle->object.handle, shm.ID,
+    oserr = __transfer(handle->handle.ID, shm.ID,
                        1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
     SHMDetach(&shm);
     if (*bytesWrittenOut == adjustedLength) {
@@ -351,7 +345,7 @@ __file_write(
     }
 
     memcpy(shmHandle->Buffer, buffer, length);
-    oserr = __transfer(handle->object.handle, builtinHandle, 1,
+    oserr = __transfer(handle->handle.ID, builtinHandle, 1,
                        builtinLength, 0, length, bytesWrittenOut);
     return oserr;
 }
@@ -369,7 +363,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
-            status = OSGetFilePosition(handle->object.handle, &currentOffset);
+            status = OSGetFilePosition(handle->handle.ID, &currentOffset);
             if (status != OS_EOK) {
                 ERROR("failed to get file position");
                 return status;
@@ -382,7 +376,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
                 return OS_EUNKNOWN;
             }
         } else {
-            status = OSGetFileSize(handle->object.handle, &currentOffset);
+            status = OSGetFileSize(handle->handle.ID, &currentOffset);
             if (status != OS_EOK) {
                 ERROR("failed to get file size");
                 return status;
@@ -400,7 +394,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
     }
 
     // Now perform the seek
-    status = OSSeekFile(handle->object.handle, &seekFinal);
+    status = OSSeekFile(handle->handle.ID, &seekFinal);
     if (status == OS_EOK) {
         *position_out = (long long int)seekFinal.QuadPart;
         return OS_EOK;
@@ -413,6 +407,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
 static oserr_t
 __file_resize(stdio_handle_t* handle, long long resize_by)
 {
+    // TODO: OSFileTruncate()
     return OS_ENOTSUPPORTED;
 }
 
@@ -420,14 +415,8 @@ static void
 __file_close(stdio_handle_t* handle, int options)
 {
     if (options & STDIO_CLOSE_FULL) {
-        (void)OSCloseFile(handle->object.handle);
+        (void)OSCloseFile(&handle->handle);
     }
-}
-
-static oserr_t
-__file_inherit(stdio_handle_t* handle)
-{
-    return OS_EOK;
 }
 
 static oserr_t

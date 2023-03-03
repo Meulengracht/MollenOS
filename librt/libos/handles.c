@@ -22,6 +22,8 @@
 #include <os/spinlock.h>
 #include <string.h>
 
+#define OSHANDLE_FLAG_OWNERSHIP 0x0001
+
 static uint64_t handle_hash(const void* element);
 static int      handle_cmp(const void* element1, const void* element2);
 
@@ -84,6 +86,7 @@ OSHandleCreate(
     }
 
     handle->Type = type;
+    handle->Flags = OSHANDLE_FLAG_OWNERSHIP;
     handle->Payload = payload;
 
     spinlock_acquire(&g_osHandlesLock);
@@ -101,12 +104,14 @@ OSHandleWrap(
         _In_ uuid_t            id,
         _In_ enum OSHandleType type,
         _In_ void*             payload,
+        _In_ bool              ownership,
         _In_ struct OSHandle*  handle)
 {
     void* result;
 
     handle->ID = id;
     handle->Type = type;
+    handle->Flags = ownership ? OSHANDLE_FLAG_OWNERSHIP : 0;
     handle->Payload = payload;
 
     spinlock_acquire(&g_osHandlesLock);
@@ -123,17 +128,25 @@ void
 OSHandleDestroy(
         _In_ uuid_t id)
 {
+    struct OSHandle* handle;
+    uint16_t         flags = 0;
+
     spinlock_acquire(&g_osHandlesLock);
-    hashtable_remove(
+    handle = hashtable_remove(
             &g_osHandles,
             &(struct OSHandle) {
                 .ID = id
             }
     );
+    if (handle != NULL) {
+        flags = handle->Flags;
+    }
     spinlock_release(&g_osHandlesLock);
 
     // Finally destroy the handle
-    (void)Syscall_DestroyHandle(id);
+    if (flags & OSHANDLE_FLAG_OWNERSHIP) {
+        (void)Syscall_DestroyHandle(id);
+    }
 }
 
 oserr_t
@@ -166,7 +179,8 @@ __SerializeHandle(
         _In_ uint8_t*         buffer)
 {
     *((uuid_t*)buffer) = handle->ID;
-    *((uint32_t*)&buffer[sizeof(uuid_t)]) = (uint32_t)handle->Type;
+    *((uint16_t*)&buffer[sizeof(uuid_t)]) = handle->Type;
+    *((uint16_t*)&buffer[sizeof(uuid_t) + sizeof(uint16_t)]) = handle->Flags;
 }
 
 oserr_t
@@ -197,7 +211,8 @@ __DeserializeHandle(
         _In_ const uint8_t*   buffer)
 {
     handle->ID = *((uuid_t*)&buffer[0]);
-    handle->Type = *((uint32_t*)&buffer[sizeof(uuid_t)]);
+    handle->Type = *((uint16_t*)&buffer[sizeof(uuid_t)]);
+    handle->Flags = *((uint16_t*)&buffer[sizeof(uuid_t) + sizeof(uint16_t)]);
     handle->Payload = NULL;
 }
 

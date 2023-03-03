@@ -18,9 +18,9 @@
 #ifndef __OS_SERVICES_FILE_H__
 #define __OS_SERVICES_FILE_H__
 
-#include <os/osdefs.h>
 #include <os/types/file.h>
 #include <os/types/storage.h>
+#include <os/types/handle.h>
 
 _CODE_BEGIN
 
@@ -37,7 +37,7 @@ OSOpenPath(
         _In_  const char*  path,
         _In_  unsigned int flags,
         _In_  unsigned int permissions,
-        _Out_ uuid_t*      handleOut));
+        _Out_ OSHandle_t*  handleOut));
 
 /**
  * @brief
@@ -46,7 +46,7 @@ OSOpenPath(
  */
 CRTDECL(oserr_t,
 OSCloseFile(
-        _In_ uuid_t handle));
+        _In_ OSHandle_t* handle));
 
 /**
  * @brief Unlinks/removes a path.

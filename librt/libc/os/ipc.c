@@ -35,20 +35,12 @@ struct IPCContext {
     unsigned int    Options;
 };
 
-static oserr_t __ipc_inherit(stdio_handle_t*);
 static oserr_t __ipc_read(stdio_handle_t*, void*, size_t, size_t*);
-static oserr_t __ipc_write(stdio_handle_t*, const void*, size_t, size_t*);
-static oserr_t __ipc_resize(stdio_handle_t*, long long);
-static oserr_t __ipc_seek(stdio_handle_t*, int, off64_t, long long*);
 static oserr_t __ipc_ioctl(stdio_handle_t*, int, va_list);
 static void    __ipc_close(stdio_handle_t*, int);
 
 static stdio_ops_t g_ipcOps = {
-        .inherit = __ipc_inherit,
         .read = __ipc_read,
-        .write = __ipc_write,
-        .resize = __ipc_resize,
-        .seek = __ipc_seek,
         .ioctl = __ipc_ioctl,
         .close = __ipc_close
 };
@@ -234,35 +226,11 @@ oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* 
     return OS_EOK;
 }
 
-oserr_t __ipc_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
-{
-    // Write is not supported
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t __ipc_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
-{
-    // Seek is not supported
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t __ipc_resize(stdio_handle_t* handle, long long resize_by)
-{
-    // Resize is not supported
-    return OS_ENOTSUPPORTED;
-}
-
-void __ipc_close(stdio_handle_t* handle, int options)
+static void __ipc_close(stdio_handle_t* handle, int options)
 {
     if (handle->object.handle != UUID_INVALID) {
         (void)OSHandleDestroy(handle->object.handle);
     }
-}
-
-oserr_t __ipc_inherit(stdio_handle_t* handle)
-{
-    // Is not supported
-    return OS_EOK;
 }
 
 oserr_t __ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
