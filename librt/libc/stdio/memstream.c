@@ -40,7 +40,7 @@ static oserr_t __memstream_seek(stdio_handle_t*, int, off64_t, long long*);
 static oserr_t __memstream_ioctl(stdio_handle_t*, int, va_list);
 static oserr_t __memstream_close(stdio_handle_t*, int);
 
-static stdio_ops_t g_memoryOps = {
+stdio_ops_t g_memstreamOps = {
     .inherit = __memstream_inherit,
     .read = __memstream_read,
     .write = __memstream_write,
@@ -98,7 +98,7 @@ FILE* open_memstream(char** ptr, size_t* sizeloc)
             O_WRONLY | O_NOINHERIT,
             0,
             MEMORYSTREAM_SIGNATURE,
-            &g_memoryOps,
+            &g_memstreamOps,
             memoryStream,
             &object
     );

@@ -183,7 +183,7 @@ __SerializeHandle(
     *((uint16_t*)&buffer[sizeof(uuid_t) + sizeof(uint16_t)]) = handle->Flags;
 }
 
-oserr_t
+size_t
 OSHandleSerialize(
         _In_ struct OSHandle* handle,
         _In_ void*            buffer)
@@ -191,18 +191,15 @@ OSHandleSerialize(
     struct OSHandler* handlers;
     uint8_t*          buffer8 = buffer;
 
-    if (handle == NULL) {
-        return OS_EINVALPARAMS;
-    }
-    if (handle->Type >= __OSHANDLE_COUNT) {
-        return OS_ENOTSUPPORTED;
+    if (handle == NULL || handle->Type >= __OSHANDLE_COUNT) {
+        return 0;
     }
 
     handlers = &g_osHandlers[handle->ID];
     if (handlers->ExportFn) {
         return handlers->ExportFn(handle, &buffer8[__HEADER_SIZE_RAW]);
     }
-    return OS_EOK;
+    return 0;
 }
 
 static void
@@ -216,7 +213,7 @@ __DeserializeHandle(
     handle->Payload = NULL;
 }
 
-oserr_t
+size_t
 OSHandleDeserialize(
         _In_ struct OSHandle* handle,
         _In_ const void*      buffer)

@@ -38,7 +38,7 @@ static oserr_t __memstream_seek(stdio_handle_t*, int, off64_t, long long*);
 static oserr_t __memstream_ioctl(stdio_handle_t*, int, va_list);
 static void    __memstream_close(stdio_handle_t*, int);
 
-static stdio_ops_t g_memoryOps = {
+stdio_ops_t g_fmemOps = {
     .read = __memstream_read,
     .write = __memstream_write,
     .resize = __memstream_resize,
@@ -116,7 +116,7 @@ FILE* fmemopen(void *buf, size_t size, const char *mode)
             flags | O_NOINHERIT,
             0,
             FMEM_SIGNATURE,
-            &g_memoryOps,
+            &g_fmemOps,
             memoryStream,
             &object
     );

@@ -47,7 +47,7 @@ static const struct bom_mode {
         { "UTF8", 3, WX_UTF, { 0xEF, 0xBB, 0xBF } },
         { NULL, 0, 0, { 0 }}
 };
-static stdio_ops_t g_fileOps = {
+stdio_ops_t g_fileOps = {
         .read = __file_read,
         .write = __file_write,
         .resize = __file_resize,

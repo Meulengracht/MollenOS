@@ -39,7 +39,7 @@ static oserr_t __ipc_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __ipc_ioctl(stdio_handle_t*, int, va_list);
 static void    __ipc_close(stdio_handle_t*, int);
 
-static stdio_ops_t g_ipcOps = {
+stdio_ops_t g_ipcOps = {
         .read = __ipc_read,
         .ioctl = __ipc_ioctl,
         .close = __ipc_close

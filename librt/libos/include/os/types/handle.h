@@ -48,7 +48,7 @@ typedef struct OSHandle {
 #define __HEADER_SIZE_RAW (sizeof(uuid_t) + sizeof(uint16_t) + sizeof(uint16_t))
 
 typedef void    (*OSHandleDestroyFn)(struct OSHandle*);
-typedef oserr_t (*OSHandleSerializeFn)(struct OSHandle*, void*);
+typedef size_t  (*OSHandleSerializeFn)(struct OSHandle*, void*);
 typedef oserr_t (*OSHandleDeserializeFn)(struct OSHandle*, const void*);
 
 #endif //!__OS_TYPES_HANDLE_H__

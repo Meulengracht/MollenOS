@@ -36,7 +36,7 @@ static oserr_t __evt_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __evt_ioctl(stdio_handle_t*, int, va_list);
 static void    __evt_close(stdio_handle_t*, int);
 
-static stdio_ops_t g_evtOps = {
+stdio_ops_t g_evtOps = {
         .read = __evt_read,
         .write = __evt_write,
         .ioctl = __evt_ioctl,
