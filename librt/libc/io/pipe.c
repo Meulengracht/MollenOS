@@ -41,7 +41,7 @@ static oserr_t __pipe_seek(stdio_handle_t*, int, off64_t, long long*);
 static oserr_t __pipe_ioctl(stdio_handle_t*, int, va_list);
 static void    __pipe_close(stdio_handle_t*, int);
 
-static stdio_ops_t g_pipeOps = {
+stdio_ops_t g_pipeOps = {
         .inherit = __pipe_inherit,
         .read = __pipe_read,
         .write = __pipe_write,

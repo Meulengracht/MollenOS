@@ -19,4 +19,21 @@
 #ifndef __STDIO_PRIVATE_H__
 #define __STDIO_PRIVATE_H__
 
+#include <ds/hashtable.h>
+
+/**
+ * @brief Retrieves the hashtable of IO descriptors.
+ * @return A pointer to the hashtable of io-descriptors.
+ */
+extern hashtable_t* IODescriptors(void);
+
+/**
+ * @brief Parses the inheritance block and initializes any
+ * io-descriptors inheritted.
+ * @param inheritanceBlock A pointer to the inheritance data.
+ */
+extern void
+CRTReadInheritanceBlock(
+        _In_ void* inheritanceBlock);
+
 #endif //!__STDIO_PRIVATE_H__

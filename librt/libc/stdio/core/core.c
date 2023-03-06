@@ -18,13 +18,14 @@
 #include "internal/_file.h"
 
 //#define __TRACE
-#include "assert.h"
-#include "os/notification_queue.h"
-#include "ddk/utils.h"
-#include "ds/hashtable.h"
-#include "errno.h"
-#include "internal/_io.h"
-#include "io.h"
+#include <assert.h>
+#include <os/notification_queue.h>
+#include <ddk/utils.h>
+#include <ds/hashtable.h>
+#include <errno.h>
+#include <internal/_io.h>
+#include <io.h>
+#include "private.h"
 
 // hashtable functions for g_stdioObjects
 static uint64_t stdio_hash(const void* element);
@@ -35,215 +36,24 @@ static FILE        g_stdout       = { 0 };
 static FILE        g_stdint       = { 0 };
 static FILE        g_stderr       = { 0 };
 
-/**
- * Returns whether or not the handle should be inheritted by sub-processes based on the requested
- * startup information and the handle settings.
- */
-static oserr_t
-StdioIsHandleInheritable(
-    _In_ struct InheritanceOptions* options,
-    _In_ stdio_handle_t*            handle)
+hashtable_t* IODescriptors(void)
 {
-    oserr_t osSuccess = OS_EOK;
-
-    if (handle->wxflag & WX_DONTINHERIT) {
-        osSuccess = OS_EUNKNOWN;
-    }
-
-    // If we didn't request to inherit one of the handles, then we don't account it
-    // for being the one requested.
-    if (handle->fd == options->StdOutHandle &&
-        !(options->Flags & PROCESS_INHERIT_STDOUT)) {
-        osSuccess = OS_EUNKNOWN;
-    } else if (handle->fd == options->StdInHandle &&
-             !(options->Flags & PROCESS_INHERIT_STDIN)) {
-        osSuccess = OS_EUNKNOWN;
-    } else if (handle->fd == options->StdErrHandle &&
-             !(options->Flags & PROCESS_INHERIT_STDERR)) {
-        osSuccess = OS_EUNKNOWN;
-    } else if (!(options->Flags & PROCESS_INHERIT_FILES)) {
-        if (handle->fd != options->StdOutHandle &&
-            handle->fd != options->StdInHandle &&
-            handle->fd != options->StdErrHandle) {
-            osSuccess = OS_EUNKNOWN;
-        }
-    }
-
-    TRACE("[can_inherit] iod %i, handle %u: %s",
-            handle->fd, handle->object.handle,
-          (osSuccess == OS_EOK) ? "yes" : "no");
-    return osSuccess;
-}
-
-struct __get_inherit_context {
-    struct InheritanceOptions* options;
-    int                        file_count;
-};
-
-static void __count_inherit_entry(
-        _In_ int         index,
-        _In_ const void* element,
-        _In_ void*       userContext)
-{
-    const struct stdio_object_entry* entry  = element;
-    stdio_handle_t*                  object = entry->handle;
-    struct __get_inherit_context*    context = userContext;
-    _CRT_UNUSED(index);
-
-    if (StdioIsHandleInheritable(context->options, object) == OS_EOK) {
-        context->file_count++;
-    }
-}
-
-static int
-StdioGetNumberOfInheritableHandles(
-    _In_ struct InheritanceOptions* options)
-{
-    struct __get_inherit_context context = {
-            .options = options,
-            .file_count = 0
-    };
-    LOCK_FILES();
-    hashtable_enumerate(
-            &g_stdioObjects,
-            __count_inherit_entry,
-            &context
-    );
-    UNLOCK_FILES();
-    return context.file_count;
-}
-
-struct __create_inherit_context {
-    struct InheritanceOptions*  options;
-    stdio_inheritation_block_t* inheritation_block;
-    int                         i;
-};
-
-static void __create_inherit_entry(
-        _In_ int         index,
-        _In_ const void* element,
-        _In_ void*       userContext)
-{
-    const struct stdio_object_entry* entry  = element;
-    stdio_handle_t*                  object = entry->handle;
-    struct __create_inherit_context* context = userContext;
-    _CRT_UNUSED(index);
-
-    if (StdioIsHandleInheritable(context->options, object) == OS_EOK) {
-        memcpy(
-                &context->inheritation_block->handles[context->i],
-                object,
-                sizeof(struct stdio_handle)
-        );
-
-        // Check for this fd to be equal to one of the custom handles
-        // if it is equal, we need to update the fd of the handle to our reserved
-        if (object->fd == context->options->StdOutHandle) {
-            context->inheritation_block->handles[context->i].fd = STDOUT_FILENO;
-        }
-        if (object->fd == context->options->StdInHandle) {
-            context->inheritation_block->handles[context->i].fd = STDIN_FILENO;
-        }
-        if (object->fd == context->options->StdErrHandle) {
-            context->inheritation_block->handles[context->i].fd = STDERR_FILENO;
-        }
-        context->i++;
-    }
+    return &g_stdioObjects;
 }
 
 void
-CRTWriteInheritanceBlock(
-	_In_  struct InheritanceOptions* options,
-    _In_  void*                      buffer,
-    _Out_ uint32_t*                  lengthWrittenOut)
+StdioConfigureStandardHandles(
+        _In_ void* inheritanceBlock)
 {
-    struct __create_inherit_context context;
-    stdio_inheritation_block_t*     inheritationBlock;
-    uint32_t                        inheritationBlockLength;
-    int                             numberOfObjects;
-
-    assert(options != NULL);
-
-    if (options->Flags == PROCESS_INHERIT_NONE) {
-        *lengthWrittenOut = 0;
-        return;
-    }
-
-    numberOfObjects = StdioGetNumberOfInheritableHandles(options);
-    if (numberOfObjects == 0) {
-        *lengthWrittenOut = 0;
-        return;
-    }
-
-    inheritationBlockLength =
-            sizeof(stdio_inheritation_block_t) +
-            (numberOfObjects * sizeof(struct stdio_handle));
-    inheritationBlock = buffer;
-
-    TRACE("[add_inherit] length %u", inheritationBlockLength);
-    inheritationBlock->handle_count = numberOfObjects;
-
-    context.options = options;
-    context.inheritation_block = inheritationBlock;
-    context.i = 0;
-
-    LOCK_FILES();
-    hashtable_enumerate(
-            &g_stdioObjects,
-            __create_inherit_entry,
-            &context
-    );
-    UNLOCK_FILES();
-    *lengthWrittenOut = inheritationBlockLength;
-}
-
-static void
-StdioInheritObject(
-    _In_ struct stdio_handle* inheritHandle)
-{
-    stdio_handle_t* handle;
-    int             status;
-    TRACE("[inhert] iod %i, handle %u", inheritHandle->fd, inheritHandle->object.handle);
-    
-    status = stdio_handle_create(inheritHandle->fd, inheritHandle->wxflag | WX_INHERITTED, &handle);
-    if (!status) {
-        if (handle->fd == STDOUT_FILENO) {
-            g_stdout._fd = handle->fd;
-        }
-        else if (handle->fd == STDIN_FILENO) {
-            g_stdint._fd = handle->fd;
-        }
-        else if (handle->fd == STDERR_FILENO) {
-            g_stderr._fd = handle->fd;
-        }
-
-        stdio_handle_clone(handle, inheritHandle);
-        if (handle->ops.inherit(handle) != OS_EOK) {
-            TRACE(" > failed to inherit fd %i", inheritHandle->fd);
-            stdio_handle_destroy(handle);
-        }
-    }
-    else {
-        WARNING(" > failed to create inheritted handle with fd %i", inheritHandle->fd);
-    }
-}
-
-void StdioConfigureStandardHandles(
-    _In_ void* inheritanceBlock)
-{
-    stdio_inheritation_block_t* block = inheritanceBlock;
-    stdio_handle_t*             handle_out;
-    stdio_handle_t*             handle_in;
-    stdio_handle_t*             handle_err;
-    int                         i;
+    stdio_handle_t*           handle_out;
+    stdio_handle_t*           handle_in;
+    stdio_handle_t*           handle_err;
+    int                       i;
     TRACE("[libc] [parse_inherit] 0x%" PRIxIN, block);
-    
-    // Handle inheritance
-    if (block != NULL) {
-        for (i = 0; i < block->handle_count; i++) {
-            StdioInheritObject(&block->handles[i]);
-        }
-    }
+
+    // Before ensuring the state of the std* FILE descriptors, we must
+    // parse the inheritance block as it can affect their state.
+    CRTReadInheritanceBlock(inheritanceBlock);
 
     // Make sure all default handles have been set for std. The operations for
     // stdout and stderr will be null operations, as no output has been specified
@@ -258,7 +68,7 @@ void StdioConfigureStandardHandles(
     if (!handle_in) {
         stdio_handle_create(STDIN_FILENO, WX_DONTINHERIT, &handle_in);
     }
-    
+
     handle_err = stdio_handle_get(STDERR_FILENO);
     if (!handle_err) {
         stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
@@ -280,7 +90,8 @@ struct __iod_close_context {
     int          filesClosed;
 };
 
-static void __close_entry(
+static void
+__close_entry(
         _In_ int         index,
         _In_ const void* element,
         _In_ void*       userContext)
@@ -295,15 +106,15 @@ static void __close_entry(
         return;
     }
 
-    if (context->excludeFlags && (handle->wxflag & context->excludeFlags)) {
+    if (context->excludeFlags && (handle->XTFlags & context->excludeFlags)) {
         return;
     }
 
     // Is it a buffered stream or raw?
-    if (handle->buffered_stream) {
-        fclose(handle->buffered_stream);
+    if (handle->Stream) {
+        fclose(handle->Stream);
     } else {
-        close(handle->fd);
+        close(handle->IOD);
     }
 
     // Cleanup handle, and mark the handle NULL to not cleanup twice.
@@ -314,7 +125,9 @@ static void __close_entry(
     context->filesClosed++;
 }
 
-static int __close_io_descriptors(unsigned int excludeFlags)
+static int
+__close_io_descriptors(
+        _In_ unsigned int excludeFlags)
 {
     struct __iod_close_context context = {
             .excludeFlags = excludeFlags,
@@ -331,14 +144,21 @@ static int __close_io_descriptors(unsigned int excludeFlags)
     return context.filesClosed;
 }
 
-int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
+int stdio_handle_create2(
+        _In_  int              iod,
+        _In_  int              ioFlags,
+        _In_  int              wxFlags,
+        _In_  unsigned int     signature,
+        _In_  stdio_ops_t*     ops,
+        _In_  void*            opsCtx,
+        _Out_ stdio_handle_t** handleOut)
 {
     stdio_handle_t* handle;
     int             updated_fd;
 
     // the bitmap allocator handles both cases if we want to allocate a specific
     // or just the first free fd
-    updated_fd = stdio_bitmap_allocate(fd);
+    updated_fd = stdio_bitmap_allocate(iod);
     if (updated_fd == -1) {
         _set_errno(EMFILE);
         return -1;
@@ -351,15 +171,12 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     }
     memset(handle, 0, sizeof(stdio_handle_t));
     
-    handle->fd            = updated_fd;
-    handle->object.handle = UUID_INVALID;
-    handle->object.type   = STDIO_HANDLE_INVALID;
-    
-    handle->wxflag       = WX_OPEN | flags;
-    handle->lookahead[0] = '\n';
-    handle->lookahead[1] = '\n';
-    handle->lookahead[2] = '\n';
-    stdio_get_null_operations(&handle->ops);
+    handle->IOD            = updated_fd;
+    handle->XTFlags       = WX_OPEN | flags;
+    handle->Peek[0] = '\n';
+    handle->Peek[1] = '\n';
+    handle->Peek[2] = '\n';
+
 
     hashtable_set(&g_stdioObjects, &(struct stdio_object_entry) {
         .id = updated_fd,
@@ -371,7 +188,9 @@ int stdio_handle_create(int fd, int flags, stdio_handle_t** handle_out)
     return EOK;
 }
 
-void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source)
+void stdio_handle_clone(
+        _In_  stdio_handle_t*  handle,
+        _Out_ stdio_handle_t** handleOut)
 {
     if (!target || !source) {
         return;
@@ -382,21 +201,14 @@ void stdio_handle_clone(stdio_handle_t* target, stdio_handle_t* source)
     stdio_handle_set_ops_type(target, source->object.type);
 }
 
-int stdio_handle_set_handle(stdio_handle_t* handle, uuid_t io_handle)
+int stdio_handle_set_handle(
+        _In_ stdio_handle_t* handle,
+        _In_ OSHandle_t*     osHandle)
 {
     if (!handle) {
         return EBADF;
     }
-    handle->object.handle = io_handle;
-    return EOK;
-}
-
-int stdio_handle_set_ops(stdio_handle_t* handle, stdio_ops_t* ops)
-{
-    if (!handle) {
-        return EBADF;
-    }
-    memcpy(&handle->ops, ops, sizeof(stdio_ops_t));
+    memcpy(&handle->OSHandle, osHandle, sizeof(OSHandle_t));
     return EOK;
 }
 
@@ -405,42 +217,7 @@ int stdio_handle_set_ops_ctx(stdio_handle_t* handle, void* ctx)
     if (!handle) {
         return EBADF;
     }
-    handle->ops_ctx = ctx;
-    return EOK;
-}
-
-int stdio_handle_set_ops_type(stdio_handle_t* handle, int type)
-{
-    if (!handle) {
-        return EBADF;
-    }
-    
-    // Get io operations
-    handle->object.type = type;
-    switch (type) {
-        case STDIO_HANDLE_PIPE: {
-            stdio_get_pipe_operations(&handle->ops);
-        } break;
-        case STDIO_HANDLE_FILE: {
-            stdio_get_file_operations(&handle->ops);
-        } break;
-        case STDIO_HANDLE_SOCKET: {
-            stdio_get_net_operations(&handle->ops);
-        } break;
-        case STDIO_HANDLE_IPCONTEXT: {
-            stdio_get_ipc_operations(&handle->ops);
-        } break;
-        case STDIO_HANDLE_SET: {
-            stdio_get_set_operations(&handle->ops);
-        } break;
-        case STDIO_HANDLE_EVENT: {
-            stdio_get_evt_operations(&handle->ops);
-        } break;
-        
-        default: {
-            stdio_get_null_operations(&handle->ops);
-        } break;
-    }
+    handle->OpsContext = ctx;
     return EOK;
 }
 
@@ -464,12 +241,12 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
     // Reset the stream structure
     stream->_ptr      = stream->_base = NULL;
     stream->_cnt      = 0;
-    stream->_fd       = handle->fd;
+    stream->_fd       = handle->IOD;
     stream->_flag     = (int)stream_flags;
     stream->_tmpfname = NULL;
     
     // associate the stream object
-    handle->buffered_stream = stream;
+    handle->Stream = stream;
     return EOK;
 }
 
@@ -482,18 +259,18 @@ void stdio_handle_destroy(stdio_handle_t* handle)
     hashtable_remove(
             &g_stdioObjects,
             &(struct stdio_object_entry) {
-                .id = handle->fd
+                .id = handle->IOD
             }
     );
-    stdio_bitmap_free(handle->fd);
+    stdio_bitmap_free(handle->IOD);
     free(handle);
 }
 
 int stdio_handle_activity(stdio_handle_t* handle , int activity)
 {
-    oserr_t status = OSNotificationQueuePost(handle->object.handle, activity);
-    if (status != OS_EOK) {
-        OsErrToErrNo(status);
+    oserr_t oserr = OSNotificationQueuePost(&handle->OSHandle, activity);
+    if (oserr != OS_EOK) {
+        OsErrToErrNo(oserr);
         return -1;
     }
     return 0;
@@ -502,7 +279,7 @@ int stdio_handle_activity(stdio_handle_t* handle , int activity)
 void stdio_handle_flag(stdio_handle_t* handle, unsigned int flag)
 {
     assert(handle != NULL);
-    handle->wxflag |= flag;
+    handle->XTFlags |= flag;
 }
 
 stdio_handle_t* stdio_handle_get(int iod)
@@ -540,7 +317,7 @@ int isatty(int fd)
     if (!handle) {
         return EBADF;
     }
-    return (handle->wxflag & WX_TTY) != 0;
+    return (handle->XTFlags & WX_TTY) != 0;
 }
 
 hashtable_t* stdio_get_handles(void)
@@ -554,7 +331,7 @@ uuid_t GetNativeHandle(int iod)
     if (!handle) {
         return UUID_INVALID;
     }
-    return handle->object.handle;
+    return handle->OSHandle.ID;
 }
 
 static uint64_t stdio_hash(const void* element)
@@ -596,53 +373,4 @@ void StdioInitialize(void)
 
     // register the cleanup handler
     atexit(__CleanupSTDIO);
-}
-
-oserr_t stdio_null_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_null_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
-{
-    *bytes_written = length;
-    return OS_EOK;
-}
-
-oserr_t stdio_null_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_null_op_resize(stdio_handle_t* handle, long long resize_by)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-void stdio_null_op_close(stdio_handle_t* handle, int options)
-{
-    if (handle->object.handle != UUID_INVALID) {
-        (void)OSHandleDestroy(handle->object.handle);
-    }
-}
-
-oserr_t stdio_null_op_inherit(stdio_handle_t* handle)
-{
-    return OS_EOK;
-}
-
-oserr_t stdio_null_op_ioctl(stdio_handle_t* handle, int request, va_list vlist)
-{
-    return OS_ENOTSUPPORTED;
-}
-
-void stdio_get_null_operations(stdio_ops_t* ops)
-{
-    ops->inherit = stdio_null_op_inherit;
-    ops->read    = stdio_null_op_read;
-    ops->write   = stdio_null_op_write;
-    ops->seek    = stdio_null_op_seek;
-    ops->resize  = stdio_null_op_resize;
-    ops->ioctl   = stdio_null_op_ioctl;
-    ops->close   = stdio_null_op_close;
 }

@@ -21,7 +21,6 @@
 #define WX_READNL           0x04U  // read started with \n
 #define WX_READEOF          0x04U  // like ATEOF, but for underlying file rather than buffer
 #define WX_PIPE             0x08U
-#define WX_TEMP             0x10U  // delete underlying resource on close
 #define WX_DONTINHERIT      0x20U
 #define WX_APPEND           0x40U
 #define WX_TTY              0x80U
@@ -40,13 +39,13 @@
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
 
-typedef struct stdio_handle stdio_handle_t;
+typedef struct StdioDescriptor stdio_handle_t;
 
 #define STDIO_CLOSE_FULL    1
 #define STDIO_CLOSE_DELETE  2
 
 // Stdio descriptor operations
-typedef oserr_t(*stdio_serialize)(stdio_handle_t*, void*);
+typedef size_t (*stdio_serialize)(stdio_handle_t*, void*);
 typedef oserr_t(*stdio_deserialize)(stdio_handle_t*, const void*);
 typedef oserr_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
 typedef oserr_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
@@ -72,20 +71,34 @@ typedef struct stdio_ops {
 
 // Local to application handle that also handles state, stream and buffer
 // support for a handle.
-typedef struct stdio_handle {
-    int            fd;
-    unsigned int   wxflag;
-    OSHandle_t     handle;
-    stdio_ops_t    ops;
-    void*          ops_ctx;
-    char           lookahead[3];
-    FILE*          buffered_stream;
+typedef struct StdioDescriptor {
+    int          IOD;
+    unsigned int Signature;
+    int          IOFlags;
+    unsigned int XTFlags;
+    OSHandle_t   OSHandle;
+    stdio_ops_t* Ops;
+    void*        OpsContext;
+    char         Peek[3];
+    FILE*        Stream;
 } stdio_handle_t;
 
-typedef struct stdio_inheritation_block {
-    int                 handle_count;
-    struct stdio_handle handles[];
-} stdio_inheritation_block_t;
+/**
+ * @brief The inheritation header consists of the minimum
+ * information we can get away with. Any per-handle data
+ * must be serialized by each subsystem.
+ */
+struct InheritationHeader {
+    int IOD;
+    unsigned int Signature;
+    int IOFlags;
+    int XTFlags;
+};
+
+struct InheritationBlock {
+    int     Count;
+    uint8_t Data[];
+};
 
 struct stdio_object_entry {
     int             id;
@@ -93,9 +106,6 @@ struct stdio_object_entry {
 };
 
 // io-object interface
-extern int  stdio_handle_create(int iod, int flags, stdio_handle_t**);
-
-extern int  stdio_handle_set_ops(stdio_handle_t*, stdio_ops_t*);
 extern int  stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
 extern int  stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
 extern void stdio_handle_destroy(stdio_handle_t*);
@@ -153,7 +163,7 @@ stdio_handle_delete(
  * @param handleOut
  * @return
  */
-extern int
+extern void
 stdio_handle_clone(
         _In_  stdio_handle_t*  handle,
         _Out_ stdio_handle_t** handleOut);
