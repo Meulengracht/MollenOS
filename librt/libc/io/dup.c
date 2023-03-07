@@ -25,7 +25,7 @@ int dup(int iod)
     stdio_handle_t* duplicatedObject;
     int             status;
 
-    if (!objectToCopy) {
+    if (objectToCopy == NULL) {
         errno = (EBADFD);
         return -1;
     }
@@ -35,5 +35,5 @@ int dup(int iod)
     if (status) {
         return status;
     }
-    return duplicatedObject->fd;
+    return stdio_handle_iod(duplicatedObject);
 }

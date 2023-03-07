@@ -37,8 +37,8 @@ __ValidateNewBuffer(
 
 oserr_t
 SHMCreate(
-        _In_ SHM_t*       shm,
-        _In_ SHMHandle_t* handle)
+        _In_  SHM_t*      shm,
+        _Out_ OSHandle_t* handleOut)
 {
     oserr_t oserr;
 
@@ -67,9 +67,9 @@ __ValidateExistingBuffer(
 
 oserr_t
 SHMExport(
-        _In_ void*        buffer,
-        _In_ SHM_t*       shm,
-        _In_ SHMHandle_t* handle)
+        _In_  void*       buffer,
+        _In_  SHM_t*      shm,
+        _Out_ OSHandle_t* handleOut)
 {
     oserr_t oserr;
 
@@ -82,10 +82,10 @@ SHMExport(
 
 oserr_t
 SHMAttach(
-        _In_ uuid_t       shmID,
-        _In_ SHMHandle_t* handle)
+        _In_  uuid_t      shmID,
+        _Out_ OSHandle_t* handleOut)
 {
-    if (handle == NULL) {
+    if (handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
     return Syscall_SHMAttach(shmID, handle);
@@ -103,7 +103,7 @@ SHMDetach(
 
 oserr_t
 SHMMap(
-        _In_ SHMHandle_t* handle,
+        _In_ OSHandle_t*  handle,
         _In_ size_t       offset,
         _In_ size_t       length,
         _In_ unsigned int flags)
@@ -116,9 +116,9 @@ SHMMap(
 
 oserr_t
 SHMCommit(
-        _In_ SHMHandle_t* handle,
-        _In_ vaddr_t      address,
-        _In_ size_t       length)
+        _In_ OSHandle_t* handle,
+        _In_ vaddr_t     address,
+        _In_ size_t      length)
 {
     if (handle == NULL || handle->Buffer == NULL) {
         return OS_EINVALPARAMS;
@@ -128,7 +128,7 @@ SHMCommit(
 
 oserr_t
 SHMUnmap(
-        _In_ SHMHandle_t* handle)
+        _In_ OSHandle_t* handle)
 {
     if (handle == NULL || handle->Buffer == NULL) {
         return OS_EINVALPARAMS;
@@ -136,9 +136,23 @@ SHMUnmap(
     return Syscall_SHMUnmap(handle);
 }
 
+void*
+SHMBuffer(
+        _In_ OSHandle_t* handle)
+{
+
+}
+
+size_t
+SHMBufferLength(
+        _In_ OSHandle_t* handle)
+{
+
+}
+
 oserr_t
 SHMGetSGTable(
-        _In_ SHMHandle_t*  handle,
+        _In_ OSHandle_t*   handle,
         _In_ SHMSGTable_t* sgTable,
         _In_ int           maxCount)
 {

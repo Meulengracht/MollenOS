@@ -38,7 +38,7 @@ _CODE_BEGIN
  * * Retrieve the unwind section for the module containing the given address
  */
 CRTDECL(oserr_t,
-        UnwindGetSection(
+UnwindGetSection(
 	_In_ void*            MemoryAddress,
 	_In_ UnwindSection_t* Section));
 

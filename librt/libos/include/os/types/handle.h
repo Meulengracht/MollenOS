@@ -23,6 +23,9 @@
 enum OSHandleType {
     OSHANDLE_FILE,
     OSHANDLE_EVENT,
+    OSHANDLE_HQUEUE,
+    OSHANDLE_IPC,
+    OSHANDLE_SHM,
     __OSHANDLE_COUNT
 };
 

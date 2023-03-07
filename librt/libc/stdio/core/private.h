@@ -20,12 +20,23 @@
 #define __STDIO_PRIVATE_H__
 
 #include <ds/hashtable.h>
+#include <internal/_io.h>
 
 /**
  * @brief Retrieves the hashtable of IO descriptors.
  * @return A pointer to the hashtable of io-descriptors.
  */
 extern hashtable_t* IODescriptors(void);
+
+/**
+ * @brief Converts a signature to their respective implementation
+ * operations.
+ * @param signature The signature of the stdio operations.
+ * @return A pointer to operations.
+ */
+stdio_ops_t*
+CRTSignatureOps(
+        _In_ unsigned int signature);
 
 /**
  * @brief Parses the inheritance block and initializes any

@@ -36,8 +36,7 @@ CRTDECL(oserr_t,
 IPCContextCreate(
         _In_  size_t        length,
         _In_  IPCAddress_t* address,
-        _Out_ uuid_t*       handleOut,
-        _Out_ void**        ipcContextOut));
+        _Out_ OSHandle_t*   handleOut));
 
 /**
  * @brief
@@ -50,7 +49,7 @@ IPCContextCreate(
  */
 CRTDECL(oserr_t,
 IPCContextSend(
-        _In_ uuid_t            handle,
+        _In_ OSHandle_t*       handle,
         _In_ IPCAddress_t*     address,
         _In_ const void*       data,
         _In_ unsigned int      length,
@@ -69,7 +68,7 @@ IPCContextSend(
  */
 CRTDECL(oserr_t,
 IPCContextRecv(
-        _In_  void*             ipcContext,
+        _In_  OSHandle_t*       handle,
         _In_  void*             buffer,
         _In_  unsigned int      length,
         _In_  int               flags,

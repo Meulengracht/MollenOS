@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2020, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,9 +35,15 @@ int ioctl(int iod, unsigned long request, ...)
         return -1;
     }
 
-    va_start(args, request);
-    status = handle->ops.ioctl(handle, request, args);
-    va_end(args);
+    if (handle->Ops->ioctl) {
+        va_start(args, request);
+        status = handle->Ops->ioctl(handle, request, args);
+        va_end(args);
+    } else {
+        // wasn't supported on this io-descriptor
+        _set_errno(EBADF);
+        return -1;
+    }
 
     if (status == OS_ENOTSUPPORTED) {
         _set_errno(EBADF);

@@ -41,14 +41,43 @@ hashtable_t* IODescriptors(void)
     return &g_stdioObjects;
 }
 
+extern stdio_ops_t g_fmemOps;
+extern stdio_ops_t g_memstreamOps;
+extern stdio_ops_t g_evtOps;
+extern stdio_ops_t g_iosetOps;
+extern stdio_ops_t g_fileOps;
+extern stdio_ops_t g_pipeOps;
+extern stdio_ops_t g_ipcOps;
+
+stdio_ops_t*
+CRTSignatureOps(
+        _In_ unsigned int signature)
+{
+    switch (signature) {
+        case NULL_SIGNATURE: return NULL;
+        case FMEM_SIGNATURE: return &g_fmemOps;
+        case MEMORYSTREAM_SIGNATURE: return &g_memstreamOps;
+        case PIPE_SIGNATURE: return &g_pipeOps;
+        case FILE_SIGNATURE: return &g_fileOps;
+        case IPC_SIGNATURE: return &g_ipcOps;
+        case EVENT_SIGNATURE: return &g_evtOps;
+        case IOSET_SIGNATURE: return &g_iosetOps;
+        case NET_SIGNATURE: return NULL;
+        default: {
+            assert(0 && "unsupported io-descriptor signature");
+        }
+    }
+    return NULL;
+}
+
 void
 StdioConfigureStandardHandles(
         _In_ void* inheritanceBlock)
 {
-    stdio_handle_t*           handle_out;
-    stdio_handle_t*           handle_in;
-    stdio_handle_t*           handle_err;
-    int                       i;
+    stdio_handle_t* stdoutHandle;
+    stdio_handle_t* stdinHandle;
+    stdio_handle_t* stderrHandle;
+    int             status;
     TRACE("[libc] [parse_inherit] 0x%" PRIxIN, block);
 
     // Before ensuring the state of the std* FILE descriptors, we must
@@ -59,20 +88,49 @@ StdioConfigureStandardHandles(
     // stdout and stderr will be null operations, as no output has been specified
     // for this process. If the process wants to get output it must reopen the
     // stdout/stderr handles.
-    handle_out = stdio_handle_get(STDOUT_FILENO);
-    if (!handle_out) {
-        stdio_handle_create(STDOUT_FILENO, WX_DONTINHERIT, &handle_out);
+    stdoutHandle = stdio_handle_get(STDOUT_FILENO);
+    if (!stdoutHandle) {
+        status = stdio_handle_create2(
+                STDOUT_FILENO,
+                0,
+                WX_TEXT | WX_DONTINHERIT,
+                NULL_SIGNATURE,
+                0,
+                &stdoutHandle
+        );
+        assert(status == 0);
     }
 
-    handle_in = stdio_handle_get(STDIN_FILENO);
-    if (!handle_in) {
-        stdio_handle_create(STDIN_FILENO, WX_DONTINHERIT, &handle_in);
+    stdinHandle = stdio_handle_get(STDIN_FILENO);
+    if (!stdinHandle) {
+        status = stdio_handle_create2(
+                STDIN_FILENO,
+                0,
+                WX_TEXT | WX_DONTINHERIT,
+                NULL_SIGNATURE,
+                0,
+                &stdinHandle
+        );
+        assert(status == 0);
     }
 
-    handle_err = stdio_handle_get(STDERR_FILENO);
-    if (!handle_err) {
-        stdio_handle_create(STDERR_FILENO, WX_DONTINHERIT, &handle_err);
+    stderrHandle = stdio_handle_get(STDERR_FILENO);
+    if (!stderrHandle) {
+        status = stdio_handle_create2(
+                STDERR_FILENO,
+                0,
+                WX_TEXT | WX_DONTINHERIT,
+                NULL_SIGNATURE,
+                0,
+                &stderrHandle
+        );
+        assert(status == 0);
     }
+
+    // Ensure that the correct io-descriptor is assigned std*
+    g_stdout._fd = stdoutHandle->IOD;
+    g_stdint._fd = stdinHandle->IOD;
+    g_stderr._fd = stderrHandle->IOD;
 
     // pre-initialize some data members which are not reset by
     // stdio_handle_set_buffered.
@@ -80,9 +138,9 @@ StdioConfigureStandardHandles(
     usched_mtx_init(&g_stdint._lock, USCHED_MUTEX_RECURSIVE);
     usched_mtx_init(&g_stderr._lock, USCHED_MUTEX_RECURSIVE);
 
-    stdio_handle_set_buffered(handle_out, &g_stdout, _IOWRT | _IOLBF); // we buffer stdout as default
-    stdio_handle_set_buffered(handle_in, &g_stdint, _IOREAD | _IOLBF); // we also buffer stdint as default
-    stdio_handle_set_buffered(handle_err, &g_stderr, _IOWRT | _IONBF);
+    stdio_handle_set_buffered(stdoutHandle, &g_stdout, _IOWRT | _IOLBF); // we buffer stdout as default
+    stdio_handle_set_buffered(stdinHandle, &g_stdint, _IOREAD | _IOLBF); // we also buffer stdint as default
+    stdio_handle_set_buffered(stderrHandle, &g_stderr, _IOWRT | _IONBF);
 }
 
 struct __iod_close_context {
@@ -144,61 +202,119 @@ __close_io_descriptors(
     return context.filesClosed;
 }
 
+static stdio_handle_t*
+__descriptor_new(
+        _In_  int          iod,
+        _In_  int          ioFlags,
+        _In_  unsigned int wxFlags,
+        _In_  unsigned int signature,
+        _In_  void*        opsCtx)
+{
+    stdio_handle_t* handle;
+
+    handle = (stdio_handle_t*)malloc(sizeof(stdio_handle_t));
+    if (!handle) {
+        return NULL;
+    }
+    memset(handle, 0, sizeof(stdio_handle_t));
+
+    handle->IOD     = iod;
+    handle->Signature = signature;
+    handle->IOFlags = ioFlags;
+    handle->XTFlags = WX_OPEN | wxFlags;
+    handle->Ops = CRTSignatureOps(signature);
+    handle->OpsContext = opsCtx;
+    handle->Peek[0] = '\n';
+    handle->Peek[1] = '\n';
+    handle->Peek[2] = '\n';
+    return handle;
+}
+
 int stdio_handle_create2(
         _In_  int              iod,
         _In_  int              ioFlags,
         _In_  int              wxFlags,
         _In_  unsigned int     signature,
-        _In_  stdio_ops_t*     ops,
         _In_  void*            opsCtx,
         _Out_ stdio_handle_t** handleOut)
 {
     stdio_handle_t* handle;
-    int             updated_fd;
+    int             allocatedIOD;
 
     // the bitmap allocator handles both cases if we want to allocate a specific
     // or just the first free fd
-    updated_fd = stdio_bitmap_allocate(iod);
-    if (updated_fd == -1) {
+    allocatedIOD = stdio_bitmap_allocate(iod);
+    if (allocatedIOD == -1) {
         _set_errno(EMFILE);
         return -1;
     }
 
-    handle = (stdio_handle_t*)malloc(sizeof(stdio_handle_t));
-    if (!handle) {
-        _set_errno(ENOMEM);
+    handle = __descriptor_new(
+            allocatedIOD,
+            ioFlags,
+            wxFlags,
+            signature,
+            opsCtx
+    );
+    if (handle == NULL) {
         return -1;
     }
-    memset(handle, 0, sizeof(stdio_handle_t));
-    
-    handle->IOD            = updated_fd;
-    handle->XTFlags       = WX_OPEN | flags;
-    handle->Peek[0] = '\n';
-    handle->Peek[1] = '\n';
-    handle->Peek[2] = '\n';
 
-
-    hashtable_set(&g_stdioObjects, &(struct stdio_object_entry) {
-        .id = updated_fd,
-        .handle = handle
-    });
-    TRACE("[stdio_handle_create] success %i", updated_fd);
-    
-    *handle_out = handle;
+    hashtable_set(
+            &g_stdioObjects,
+            &(struct stdio_object_entry) {
+            .id = allocatedIOD,
+            .handle = handle
+        }
+    );
+    *handleOut = handle;
     return EOK;
 }
 
-void stdio_handle_clone(
+int stdio_handle_clone(
         _In_  stdio_handle_t*  handle,
         _Out_ stdio_handle_t** handleOut)
 {
-    if (!target || !source) {
-        return;
+    stdio_handle_t* duplicated;
+    int             allocatedIOD;
+
+    if (handle == NULL || handleOut == NULL) {
+        _set_errno(EINVAL);
+        return -1;
     }
 
-    // Copy the stdio object data, and then update ops
-    memcpy(&target->object, &source->object, sizeof(stdio_object_t));
-    stdio_handle_set_ops_type(target, source->object.type);
+    // When duplicating a IOD everything is identical, except for the
+    // iod itself.
+    allocatedIOD = stdio_bitmap_allocate(-1);
+    if (allocatedIOD == -1) {
+        _set_errno(EMFILE);
+        return -1;
+    }
+
+    duplicated = __descriptor_new(
+            allocatedIOD,
+             handle->IOFlags,
+            handle->XTFlags | WX_PERSISTANT,
+            handle->Signature,
+            NULL
+    );
+    if (duplicated == NULL) {
+        return -1;
+    }
+
+    // Clone the associated OS handle
+    stdio_handle_set_handle(duplicated, &handle->OSHandle);
+
+    // Clone any neccessary stdio-implementation specific data
+    if (duplicated->Ops->clone) {
+        oserr_t oserr = duplicated->Ops->clone(handle->OpsContext, &duplicated->OpsContext);
+        if (oserr != OS_EOK) {
+            stdio_handle_delete(duplicated);
+            return OsErrToErrNo(oserr);
+        }
+    }
+    *handleOut = duplicated;
+    return 0;
 }
 
 int stdio_handle_set_handle(
@@ -209,15 +325,6 @@ int stdio_handle_set_handle(
         return EBADF;
     }
     memcpy(&handle->OSHandle, osHandle, sizeof(OSHandle_t));
-    return EOK;
-}
-
-int stdio_handle_set_ops_ctx(stdio_handle_t* handle, void* ctx)
-{
-    if (!handle) {
-        return EBADF;
-    }
-    handle->OpsContext = ctx;
     return EOK;
 }
 
@@ -250,7 +357,7 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
     return EOK;
 }
 
-void stdio_handle_destroy(stdio_handle_t* handle)
+void stdio_handle_delete(stdio_handle_t* handle)
 {
     if (!handle) {
         return;

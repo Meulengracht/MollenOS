@@ -34,11 +34,11 @@ int close(int fd)
 
     // The cases where we close is when the handle is
     // not inheritted or the handle is not persistant
-    if (!(handle->wxflag & (WX_INHERITTED | WX_PERSISTANT))) {
+    if (!(handle->XTFlags & (WX_INHERITTED | WX_PERSISTANT))) {
         options |= STDIO_CLOSE_FULL;
     }
 
-    handle->ops.close(handle, options);
-    stdio_handle_destroy(handle);
+    handle->Ops->close(handle, options);
+    stdio_handle_delete(handle);
     return 0;
 }

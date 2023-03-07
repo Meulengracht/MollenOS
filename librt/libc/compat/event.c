@@ -99,7 +99,6 @@ int eventd(unsigned int initialValue, unsigned int flags)
             O_RDWR | O_NOINHERIT,
             0,
             EVENT_SIGNATURE,
-            &g_evtOps,
             event,
             &object
     );
@@ -109,7 +108,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
     }
 
     stdio_handle_set_handle(object, &handle);
-    return object->fd;
+    return stdio_handle_iod(object);
 }
 
 static oserr_t
@@ -119,7 +118,7 @@ __evt_read(
         _In_  size_t          length,
         _Out_ size_t*         bytes_read)
 {
-    struct Event* event = handle->ops_ctx;
+    struct Event* event = handle->OpsContext;
     oserr_t       oserr;
 
     // Sanitize buffer and length for RESET and SEM events
@@ -129,7 +128,7 @@ __evt_read(
         }
     }
 
-    oserr = OSEventLock(&handle->handle, event->Options);
+    oserr = OSEventLock(&handle->OSHandle, event->Options);
     if (oserr != OS_EOK) {
         return oserr;
     }
@@ -152,7 +151,7 @@ __evt_write(
         _In_  size_t          length,
         _Out_ size_t*         bytes_written)
 {
-    struct Event* event = handle->ops_ctx;
+    struct Event* event = handle->OpsContext;
     oserr_t       result = OS_ENOTSUPPORTED;
     if (!buffer || length < sizeof(unsigned int)) {
         return OS_EPERMISSIONS;
@@ -162,16 +161,16 @@ __evt_write(
         event->InitialValue = *(unsigned int*)buffer;
         *bytes_written = sizeof(unsigned int);
 
-        result = OSEventUnlock(&handle->handle, 1);
+        result = OSEventUnlock(&handle->OSHandle, 1);
         if (result == OS_EOK) {
-            OSNotificationQueuePost(&handle->handle, IOSETSYN);
+            OSNotificationQueuePost(&handle->OSHandle, IOSETSYN);
         }
     } else if (EVT_TYPE(event->Flags) == EVT_SEM_EVENT) {
         unsigned int value = *(unsigned int*)buffer;
 
-        result = OSEventUnlock(&handle->handle, value);
+        result = OSEventUnlock(&handle->OSHandle, value);
         if (result == OS_EOK) {
-            OSNotificationQueuePost(&handle->handle, IOSETSYN);
+            OSNotificationQueuePost(&handle->OSHandle, IOSETSYN);
         }
         *bytes_written = sizeof(size_t);
     }
@@ -184,8 +183,8 @@ __evt_close(
         _In_ int             options)
 {
     if (options & STDIO_CLOSE_FULL) {
-        (void)OSHandleDestroy(handle->handle.ID);
-        free(handle->ops_ctx);
+        (void)OSHandleDestroy(handle->OSHandle.ID);
+        free(handle->OpsContext);
     }
 }
 
@@ -195,7 +194,7 @@ __evt_ioctl(
         _In_ int             request,
         _In_ va_list         args)
 {
-    struct Event* event = handle->ops_ctx;
+    struct Event* event = handle->OpsContext;
     if ((unsigned int)request == FIONBIO) {
         int* nonBlocking = va_arg(args, int*);
         if (nonBlocking) {
@@ -209,7 +208,7 @@ __evt_ioctl(
     } else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
-            *bytesAvailableOut = OSEventValue(&handle->handle);
+            *bytesAvailableOut = OSEventValue(&handle->OSHandle);
         }
         return OS_EOK;
     }

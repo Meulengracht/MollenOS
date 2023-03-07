@@ -32,17 +32,13 @@ struct MemoryStream {
     size_t* UserSize;
 };
 
-static oserr_t __memstream_inherit(stdio_handle_t*);
-static oserr_t __memstream_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __memstream_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __memstream_resize(stdio_handle_t*, long long);
 static oserr_t __memstream_seek(stdio_handle_t*, int, off64_t, long long*);
 static oserr_t __memstream_ioctl(stdio_handle_t*, int, va_list);
-static oserr_t __memstream_close(stdio_handle_t*, int);
+static void    __memstream_close(stdio_handle_t*, int);
 
 stdio_ops_t g_memstreamOps = {
-    .inherit = __memstream_inherit,
-    .read = __memstream_read,
     .write = __memstream_write,
     .resize = __memstream_resize,
     .seek = __memstream_seek,
@@ -98,7 +94,6 @@ FILE* open_memstream(char** ptr, size_t* sizeloc)
             O_WRONLY | O_NOINHERIT,
             0,
             MEMORYSTREAM_SIGNATURE,
-            &g_memstreamOps,
             memoryStream,
             &object
     );
@@ -114,30 +109,6 @@ FILE* open_memstream(char** ptr, size_t* sizeloc)
         return NULL;
     }
     return stdio_handle_stream(object);
-}
-
-// Inherit is not supported, memory-streams are local to processes
-// and thus cannot be inheritted
-static oserr_t
-__memstream_inherit(
-        _In_ stdio_handle_t* handle)
-{
-    _CRT_UNUSED(handle);
-    return OS_ENOTSUPPORTED;
-}
-
-static oserr_t
-__memstream_read(
-        _In_  stdio_handle_t* handle,
-        _In_  void*           buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesRead)
-{
-    _CRT_UNUSED(handle);
-    _CRT_UNUSED(buffer);
-    _CRT_UNUSED(length);
-    _CRT_UNUSED(bytesRead);
-    return OS_ENOTSUPPORTED;
 }
 
 static oserr_t
@@ -175,7 +146,7 @@ __memstream_write(
         _In_  size_t          length,
         _Out_ size_t*         bytesWritten)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     oserr_t              oserr;
 
     // Ensure that the stream has enough bytes
@@ -207,7 +178,7 @@ __memstream_resize(
         _In_ stdio_handle_t* handle,
         _In_ long long       size)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     return __ensure_capacity(memoryStream, (size_t)size);
 }
 
@@ -218,7 +189,7 @@ __memstream_seek(
         _In_  off64_t         offset,
         _Out_ long long*      positionOut)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     off64_t              position;
 
     if (origin == SEEK_CUR) {
@@ -246,7 +217,7 @@ __memstream_ioctl(
         _In_ int             request,
         _In_ va_list         args)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
@@ -258,12 +229,11 @@ __memstream_ioctl(
     return OS_ENOTSUPPORTED;
 }
 
-static oserr_t
+static void
 __memstream_close(
         _In_ stdio_handle_t* handle,
         _In_ int             __unused)
 {
     _CRT_UNUSED(__unused);
-    __memstream_delete(handle->ops_ctx);
-    return OS_EOK;
+    __memstream_delete(handle->OpsContext);
 }

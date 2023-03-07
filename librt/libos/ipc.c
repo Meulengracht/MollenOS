@@ -19,45 +19,20 @@
 //#define __TRACE
 
 #define __need_minmax
-#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <ds/streambuffer.h>
 #include <errno.h>
 #include <internal/_syscalls.h>
+#include <os/handle.h>
 #include <os/ipc.h>
 #include <os/shm.h>
-#include <stdlib.h>
 #include <string.h>
-
-struct _IPCContext {
-    SHMHandle_t Handle;
-};
-
-struct _IPCContext*
-__IPCContextNew(
-        _In_ SHMHandle_t* handle)
-{
-    struct _IPCContext* ipcContext;
-
-    ipcContext = malloc(sizeof(struct _IPCContext));
-    if (ipcContext == NULL) {
-        return NULL;
-    }
-    memcpy(&ipcContext->Handle, handle, sizeof(SHMHandle_t));
-
-    streambuffer_construct(
-            handle->Buffer,
-            handle->Length - sizeof(streambuffer_t),
-            STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS
-    );
-    return ipcContext;
-}
 
 oserr_t
 __Create(
-        _In_  const char*          key,
-        _In_  size_t               length,
-        _Out_ struct _IPCContext** ipcContextOut)
+        _In_ const char* key,
+        _In_ size_t      length,
+        _In_ OSHandle_t* handle)
 {
     SHM_t shm = {
             .Key = key,
@@ -66,19 +41,18 @@ __Create(
             .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
             .Size = length
     };
-    SHMHandle_t handle;
-    oserr_t     oserr;
+    oserr_t oserr;
 
-    oserr = SHMCreate(&shm, &handle);
+    oserr = SHMCreate(&shm, handle);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    *ipcContextOut = __IPCContextNew(&handle);
-    if (*ipcContextOut == NULL) {
-        (void)SHMDetach(&handle);
-        return OS_EOOM;
-    }
+    streambuffer_construct(
+            SHMBuffer(handle),
+            SHMBufferLength(handle) - sizeof(streambuffer_t),
+            STREAMBUFFER_GLOBAL | STREAMBUFFER_MULTIPLE_WRITERS
+    );
     return OS_EOK;
 }
 
@@ -86,36 +60,25 @@ oserr_t
 IPCContextCreate(
         _In_  size_t        length,
         _In_  IPCAddress_t* address,
-        _Out_ uuid_t*       handleOut,
-        _Out_ void**        ipcContextOut)
+        _Out_ OSHandle_t*   handleOut)
 {
-    oserr_t             oserr;
-    struct _IPCContext* ipcContext;
-    const char*         key;
+    const char* key;
 
     TRACE("IPCContextCreate(len=%u, addr=0x" PRIxIN ")", length, address);
 
-    if (length == 0 || handleOut == NULL || ipcContextOut == NULL) {
+    if (length == 0 || handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
     if (address && address->Type == IPC_ADDRESS_PATH) {
         key = address->Data.Path;
     }
-
-    oserr = __Create(key, length, &ipcContext);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    *handleOut = ipcContext->Handle.ID;
-    *ipcContextOut = ipcContext;
-    return OS_EOK;
+    return __Create(key, length, handleOut);
 }
 
 oserr_t
 IPCContextSend(
-        _In_ uuid_t            handle,
+        _In_ OSHandle_t*       handle,
         _In_ IPCAddress_t*     address,
         _In_ const void*       data,
         _In_ unsigned int      length,
@@ -130,7 +93,7 @@ IPCContextSend(
         return -1;
     }
 
-    msg.SenderHandle = handle;
+    msg.SenderHandle = handle->ID;
     msg.Address      = address;
     msg.Payload      = data;
     msg.Length       = length;
@@ -139,7 +102,7 @@ IPCContextSend(
 
 oserr_t
 IPCContextRecv(
-        _In_  void*             ipcContext,
+        _In_  OSHandle_t*       handle,
         _In_  void*             buffer,
         _In_  unsigned int      length,
         _In_  int               flags,
@@ -158,7 +121,7 @@ IPCContextRecv(
     };
     TRACE("IPCContextRecv(async=%i, flags=0x%x)", asyncContext != NULL ? 1 : 0, flags);
 
-    if (ipcContext == NULL || buffer == NULL || length == 0) {
+    if (handle == NULL || buffer == NULL || length == 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -166,7 +129,7 @@ IPCContextRecv(
         rwOptions.flags |= STREAMBUFFER_NO_BLOCK;
     }
     
-    stream         = ipcContext;
+    stream         = SHMBuffer(handle);
     bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
     TRACE("IPCContextRecv bytes=%u", (uint32_t)bytesAvailable);
     if (!bytesAvailable) {

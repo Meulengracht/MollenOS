@@ -19,7 +19,6 @@
 #define __need_minmax
 //#define __TRACE
 
-#include "os/notification_queue.h"
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
@@ -27,12 +26,12 @@
 #include <ioctl.h>
 #include <io.h>
 #include <ipcontext.h>
+#include <os/handle.h>
 #include <os/ipc.h>
+#include <os/shm.h>
 
 struct IPCContext {
-    uuid_t          ID;
-    streambuffer_t* Stream;
-    unsigned int    Options;
+    unsigned int Options;
 };
 
 static oserr_t __ipc_read(stdio_handle_t*, void*, size_t, size_t*);
@@ -46,27 +45,12 @@ stdio_ops_t g_ipcOps = {
 };
 
 static struct IPCContext*
-__ipccontext_new(
-        _In_ unsigned int  len,
-        _In_ IPCAddress_t* addr)
+__ipccontext_new(void)
 {
     struct IPCContext* ipc;
-    oserr_t            oserr;
 
     ipc = malloc(sizeof(struct IPCContext));
     if (ipc == NULL) {
-        return NULL;
-    }
-
-    oserr = IPCContextCreate(
-            len,
-            addr,
-            &ipc->ID,
-            (void**)&ipc->Stream
-    );
-    if (oserr != OS_EOK) {
-        (void)OsErrToErrNo(oserr);
-        free(ipc);
         return NULL;
     }
     ipc->Options = 0;
@@ -80,8 +64,6 @@ __ipccontext_delete(
     if (ipc == NULL) {
         return;
     }
-
-    OSHandleDestroy(ipc->ID);
     free(ipc);
 }
 
@@ -89,6 +71,8 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
 {
     stdio_handle_t*    object;
     int                status;
+    oserr_t            oserr;
+    OSHandle_t         osHandle;
     struct IPCContext* ipc;
     TRACE("ipcontext(len=%u, addr=0x" PRIxIN ")", len, addr);
     
@@ -97,8 +81,14 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
         return -1;
     }
 
-    ipc = __ipccontext_new(len, addr);
+    oserr = IPCContextCreate(len, addr, &osHandle);
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
+    }
+
+    ipc = __ipccontext_new();
     if (ipc == NULL) {
+        OSHandleDestroy(osHandle.ID);
         return -1;
     }
 
@@ -107,30 +97,25 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
             O_RDWR | O_NOINHERIT,
             WX_PIPE,
             IPC_SIGNATURE,
-            &g_ipcOps,
             ipc,
             &object
     );
     if (status) {
         __ipccontext_delete(ipc);
+        OSHandleDestroy(osHandle.ID);
         return -1;
     }
 
-    stdio_handle_set_handle(object, ipc->ID);
-    return object->fd;
+    stdio_handle_set_handle(object, &osHandle);
+    return stdio_handle_iod(object);
 }
 
 int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, const struct timespec* deadline)
 {
     stdio_handle_t*   handle = stdio_handle_get(iod);
     OSAsyncContext_t* asyncContext = __tls_current()->async_context;
-    if (!handle) {
+    if (!handle || stdio_handle_signature(handle) != IPC_SIGNATURE) {
         _set_errno(EBADF);
-        return -1;
-    }
-
-    if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
-        _set_errno(EBADFD);
         return -1;
     }
 
@@ -139,7 +124,7 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, cons
     }
     return OsErrToErrNo(
             IPCContextSend(
-                    handle->object.handle,
+                    &handle->OSHandle,
                     addr,
                     data,
                     len,
@@ -155,7 +140,6 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, cons
 int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
 {
     stdio_handle_t*    handle = stdio_handle_get(iod);
-    struct IPCContext* ipc;
     size_t             bytesRead = 0;
     oserr_t            oserr;
     int                status = -1;
@@ -167,18 +151,16 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
         goto exit;
     }
     
-    if (handle->object.type != STDIO_HANDLE_IPCONTEXT) {
+    if (stdio_handle_signature(handle) != IPC_SIGNATURE) {
         _set_errno(EBADF);
         goto exit;
     }
-
-    ipc = handle->ops_ctx;
 
     if (asyncContext) {
         OSAsyncContextInitialize(asyncContext);
     }
     oserr = IPCContextRecv(
-            ipc->Stream,
+            &handle->OSHandle,
             buffer,
             len,
             flags,
@@ -200,7 +182,8 @@ exit:
 
 oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    struct IPCContext*        ipc = handle->ops_ctx;
+    struct IPCContext*        ipc = handle->OpsContext;
+    streambuffer_t*           stream = SHMBuffer(&handle->OSHandle);
     streambuffer_packet_ctx_t packetCtx;
     streambuffer_rw_options_t rwOptions;
     size_t                    bytesAvailable;
@@ -210,7 +193,7 @@ oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* 
     rwOptions.deadline = NULL;
 
     bytesAvailable = streambuffer_read_packet_start(
-            ipc->Stream,
+            stream,
             &rwOptions,
             &packetCtx
     );
@@ -228,32 +211,31 @@ oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* 
 
 static void __ipc_close(stdio_handle_t* handle, int options)
 {
-    if (handle->object.handle != UUID_INVALID) {
-        (void)OSHandleDestroy(handle->object.handle);
+    if (options != STDIO_CLOSE_FULL) {
+        OSHandleDestroy(handle->OSHandle.ID);
     }
 }
 
-oserr_t __ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
+static oserr_t __ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
-    struct IPCContext* ipc = handle->ops_ctx;
+    struct IPCContext* ipc = handle->OpsContext;
+    streambuffer_t*    stream = SHMBuffer(&handle->OSHandle);
 
     if ((unsigned int)request == FIONBIO) {
         int* nonBlocking = va_arg(args, int*);
         if (nonBlocking) {
             if (*nonBlocking) {
                 ipc->Options |= STREAMBUFFER_NO_BLOCK;
-            }
-            else {
+            } else {
                 ipc->Options &= ~(STREAMBUFFER_NO_BLOCK);
             }
         }
         return OS_EOK;
-    }
-    else if ((unsigned int)request == FIONREAD) {
+    } else if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
             size_t bytesAvailable;
-            streambuffer_get_bytes_available_in(ipc->Stream, &bytesAvailable);
+            streambuffer_get_bytes_available_in(stream, &bytesAvailable);
             *bytesAvailableOut = (int)bytesAvailable;
         }
         return OS_EOK;

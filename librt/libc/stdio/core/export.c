@@ -29,25 +29,25 @@ __IsInheritable(
 {
     oserr_t oserr = OS_EOK;
 
-    if (handle->wxflag & WX_DONTINHERIT) {
+    if (handle->XTFlags & WX_DONTINHERIT) {
         oserr = OS_EUNKNOWN;
     }
 
     // If we didn't request to inherit one of the handles, then we don't account it
     // for being the one requested.
-    if (handle->fd == options->StdOutHandle &&
+    if (handle->IOD == options->StdOutHandle &&
         !(options->Flags & PROCESS_INHERIT_STDOUT)) {
         oserr = OS_EUNKNOWN;
-    } else if (handle->fd == options->StdInHandle &&
+    } else if (handle->IOD == options->StdInHandle &&
                !(options->Flags & PROCESS_INHERIT_STDIN)) {
         oserr = OS_EUNKNOWN;
-    } else if (handle->fd == options->StdErrHandle &&
+    } else if (handle->IOD == options->StdErrHandle &&
                !(options->Flags & PROCESS_INHERIT_STDERR)) {
         oserr = OS_EUNKNOWN;
     } else if (!(options->Flags & PROCESS_INHERIT_FILES)) {
-        if (handle->fd != options->StdOutHandle &&
-            handle->fd != options->StdInHandle &&
-            handle->fd != options->StdErrHandle) {
+        if (handle->IOD != options->StdOutHandle &&
+            handle->IOD != options->StdInHandle &&
+            handle->IOD != options->StdErrHandle) {
             oserr = OS_EUNKNOWN;
         }
     }
@@ -126,18 +126,18 @@ __create_inherit_callback(
 
     // Check for this fd to be equal to one of the custom handles
     // if it is equal, we need to update the fd of the handle to our reserved
-    if (object->fd == context->options->StdOutHandle) {
+    if (object->IOD == context->options->StdOutHandle) {
         header->IOD = STDOUT_FILENO;
-    } else if (object->fd == context->options->StdInHandle) {
+    } else if (object->IOD == context->options->StdInHandle) {
         header->IOD = STDIN_FILENO;
-    } else if (object->fd == context->options->StdErrHandle) {
+    } else if (object->IOD == context->options->StdErrHandle) {
         header->IOD = STDERR_FILENO;
     } else {
-        header->IOD = object->fd;
+        header->IOD = object->IOD;
     }
     header->Signature = object->Signature;
     header->IOFlags = object->IOFlags;
-    header->XTFlags = (int)object->wxflag;
+    header->XTFlags = (int)object->XTFlags;
 
     // Mark that we have now written the header
     context->bytes_written += sizeof(struct InheritationHeader);
@@ -145,11 +145,11 @@ __create_inherit_callback(
     // Write the OS handle data. This is needed to reconstruct the full
     // io descriptor
     payload = &context->inheritation_block->Data[context->bytes_written];
-    context->bytes_written += OSHandleSerialize(&object->handle, payload);
+    context->bytes_written += OSHandleSerialize(&object->OSHandle, payload);
 
-    if (object->ops.serialize) {
+    if (object->Ops->serialize) {
         payload = &context->inheritation_block->Data[context->bytes_written];
-        context->bytes_written += object->ops.serialize(object, payload);
+        context->bytes_written += object->Ops->serialize(object->OpsContext, payload);
     }
 }
 

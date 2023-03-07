@@ -18,65 +18,6 @@
 #include <internal/_io.h>
 #include "private.h"
 
-static void
-StdioInheritObject(
-        _In_ struct stdio_handle* inheritHandle)
-{
-    stdio_handle_t* handle;
-    int             status;
-    TRACE("[inhert] iod %i, handle %u", inheritHandle->fd, inheritHandle->object.handle);
-
-    status = stdio_handle_create(inheritHandle->fd, inheritHandle->wxflag | WX_INHERITTED, &handle);
-    if (!status) {
-        if (handle->fd == STDOUT_FILENO) {
-            g_stdout._fd = handle->fd;
-        }
-        else if (handle->fd == STDIN_FILENO) {
-            g_stdint._fd = handle->fd;
-        }
-        else if (handle->fd == STDERR_FILENO) {
-            g_stderr._fd = handle->fd;
-        }
-
-        stdio_handle_clone(handle, inheritHandle);
-        if (handle->ops.inherit(handle) != OS_EOK) {
-            TRACE(" > failed to inherit fd %i", inheritHandle->fd);
-            stdio_handle_destroy(handle);
-        }
-    }
-    else {
-        WARNING(" > failed to create inheritted handle with fd %i", inheritHandle->fd);
-    }
-}
-
-extern stdio_ops_t g_fmemOps;
-extern stdio_ops_t g_memstreamOps;
-extern stdio_ops_t g_evtOps;
-extern stdio_ops_t g_iosetOps;
-extern stdio_ops_t g_fileOps;
-extern stdio_ops_t g_pipeOps;
-extern stdio_ops_t g_ipcOps;
-
-static stdio_ops_t*
-__GetOpsFromSignature(
-        _In_ unsigned int signature)
-{
-    switch (signature) {
-        case FMEM_SIGNATURE: return &g_fmemOps;
-        case MEMORYSTREAM_SIGNATURE: return &g_memstreamOps;
-        case PIPE_SIGNATURE: return &g_pipeOps;
-        case FILE_SIGNATURE: return &g_fileOps;
-        case IPC_SIGNATURE: return &g_ipcOps;
-        case EVENT_SIGNATURE: return &g_evtOps;
-        case IOSET_SIGNATURE: return &g_iosetOps;
-        case NET_SIGNATURE: return NULL;
-        default: {
-            assert(0 && "unsupported io-descriptor signature");
-        }
-    }
-    return NULL;
-}
-
 size_t
 OSHandleDeserialize(
         _In_ struct OSHandle* handle,
@@ -96,9 +37,8 @@ __ParseInheritationHeader(
     status = stdio_handle_create2(
             header->IOD,
             header->IOFlags,
-            header->XTFlags,
+            header->XTFlags | WX_PERSISTANT,
             header->Signature,
-            __GetOpsFromSignature(header->Signature),
             NULL,
             &handle
     );
@@ -107,11 +47,11 @@ __ParseInheritationHeader(
 
     // We've parsed the initial data required to set up a new io object.
     // Now we import the OS handle stuff
-    bytesParsed += OSHandleDeserialize(&handle->handle, &headerData[bytesParsed]);
+    bytesParsed += OSHandleDeserialize(&handle->OSHandle, &headerData[bytesParsed]);
 
     // Handle any implementation specific importation
-    if (handle->ops.deserialize) {
-        bytesParsed += handle->ops.deserialize(handle, &headerData[bytesParsed]);
+    if (handle->Ops->deserialize) {
+        bytesParsed += handle->Ops->deserialize(&headerData[bytesParsed], &handle->OpsContext);
     }
     return bytesParsed;
 }

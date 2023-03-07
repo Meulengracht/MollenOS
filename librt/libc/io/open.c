@@ -22,6 +22,7 @@
 #include <internal/_io.h>
 #include <internal/_tls.h>
 #include <io.h>
+#include <os/handle.h>
 #include <os/services/file.h>
 #include <os/shm.h>
 
@@ -119,7 +120,6 @@ int open(const char* file, int flags, ...)
             flags,
             0,
             FILE_SIGNATURE,
-            &g_fileOps,
             NULL,
             &object
     );
@@ -133,15 +133,15 @@ int open(const char* file, int flags, ...)
     if (flags & O_TEXT) {
         unsigned int detectedMode;
 
-        object->wxflag &= ~WX_TEXT;
-        detectedMode = __detect_filemode(object->fd);
-        object->wxflag |= WX_TEXT;
+        object->XTFlags &= ~WX_TEXT;
+        detectedMode = __detect_filemode(stdio_handle_iod(object));
+        object->XTFlags |= WX_TEXT;
         if (detectedMode) {
-            object->wxflag &= ~WX_TEXT_FLAGS;
-            object->wxflag |= detectedMode;
+            object->XTFlags &= ~WX_TEXT_FLAGS;
+            object->XTFlags |= detectedMode;
         }
     }
-    return object->fd;
+    return stdio_handle_iod(object);
 }
 
 oserr_t
@@ -201,10 +201,10 @@ __read_large(
         _In_  size_t          length,
         _Out_ size_t*         bytesReadOut)
 {
-    SHMHandle_t shm;
-    void*       adjustedPointer = (void*)buffer;
-    size_t      adjustedLength  = length;
-    oserr_t     oserr;
+    OSHandle_t shm;
+    void*      adjustedPointer = (void*)buffer;
+    size_t     adjustedLength  = length;
+    oserr_t    oserr;
 
     // enforce dword alignment on the buffer
     // which means if someone passes us a byte or word aligned
@@ -233,7 +233,7 @@ __read_large(
 
     // Pass the callers pointer directly here
     oserr = __transfer(
-            handle->handle.ID,
+            handle->OSHandle.ID,
             shm.ID,
             false,
             adjustedLength,
@@ -245,7 +245,7 @@ __read_large(
         *bytesReadOut = length;
     }
 
-    SHMDetach(&shm);
+    OSHandleDestroy(shm.ID);
     return oserr;
 }
 
@@ -269,7 +269,7 @@ __file_read(
         return __read_large(handle, buffer, length, bytesReadOut);
     }
 
-    oserr = __transfer(handle->handle.ID, builtinHandle, 0,
+    oserr = __transfer(handle->OSHandle.ID, builtinHandle, 0,
                        builtinLength, 0, length, &bytesRead);
     if (oserr == OS_EOK && bytesRead > 0) {
         memcpy(buffer, shmHandle->Buffer, bytesRead);
@@ -286,10 +286,10 @@ __write_large(
         _In_  size_t          length,
         _Out_ size_t*         bytesWrittenOut)
 {
-    SHMHandle_t shm;
-    void*       adjustedPointer = (void*)buffer;
-    size_t      adjustedLength  = length;
-    oserr_t     oserr;
+    OSHandle_t shm;
+    void*      adjustedPointer = (void*)buffer;
+    size_t     adjustedLength  = length;
+    oserr_t    oserr;
 
     // enforce dword alignment on the buffer
     // which means if someone passes us a byte or word aligned
@@ -316,9 +316,9 @@ __write_large(
         return oserr;
     }
 
-    oserr = __transfer(handle->handle.ID, shm.ID,
+    oserr = __transfer(handle->OSHandle.ID, shm.ID,
                        1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
-    SHMDetach(&shm);
+    OSHandleDestroy(shm.ID);
     if (*bytesWrittenOut == adjustedLength) {
         *bytesWrittenOut = length;
     }
@@ -345,7 +345,7 @@ __file_write(
     }
 
     memcpy(shmHandle->Buffer, buffer, length);
-    oserr = __transfer(handle->handle.ID, builtinHandle, 1,
+    oserr = __transfer(handle->OSHandle.ID, builtinHandle, 1,
                        builtinLength, 0, length, bytesWrittenOut);
     return oserr;
 }
@@ -363,7 +363,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
 
         // Adjust for seek origin
         if (origin == SEEK_CUR) {
-            status = OSGetFilePosition(handle->handle.ID, &currentOffset);
+            status = OSGetFilePosition(handle->OSHandle.ID, &currentOffset);
             if (status != OS_EOK) {
                 ERROR("failed to get file position");
                 return status;
@@ -376,7 +376,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
                 return OS_EUNKNOWN;
             }
         } else {
-            status = OSGetFileSize(handle->handle.ID, &currentOffset);
+            status = OSGetFileSize(handle->OSHandle.ID, &currentOffset);
             if (status != OS_EOK) {
                 ERROR("failed to get file size");
                 return status;
@@ -394,7 +394,7 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
     }
 
     // Now perform the seek
-    status = OSSeekFile(handle->handle.ID, &seekFinal);
+    status = OSSeekFile(handle->OSHandle.ID, &seekFinal);
     if (status == OS_EOK) {
         *position_out = (long long int)seekFinal.QuadPart;
         return OS_EOK;
@@ -415,7 +415,7 @@ static void
 __file_close(stdio_handle_t* handle, int options)
 {
     if (options & STDIO_CLOSE_FULL) {
-        (void)OSCloseFile(&handle->handle);
+        (void)OSCloseFile(&handle->OSHandle);
     }
 }
 

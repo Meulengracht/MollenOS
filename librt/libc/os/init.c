@@ -24,6 +24,7 @@
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <internal/_tls.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <os/threads.h>
 #include <os/usched/xunit.h>
@@ -168,7 +169,7 @@ static int __parse_startup_info(SHMHandle_t* shm)
 
 static int __get_startup_info(void)
 {
-    SHMHandle_t              mapping;
+    OSHandle_t               mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     int                      status;
     oserr_t                  oserr;
@@ -204,8 +205,7 @@ static int __get_startup_info(void)
     assert(oserr == OS_EOK);
 
     status = __parse_startup_info(&mapping);
-    SHMUnmap(&mapping);
-    SHMDetach(&mapping);
+    OSHandleDestroy(mapping.ID);
     return status;
 }
 

@@ -32,7 +32,7 @@ int socket_create(int domain, int type, int protocol, uuid_t handle,
     oserr_t      osStatus;
     TRACE("[socket] creating from handle %u", LODWORD(handle));
     
-    status = stdio_handle_create(-1, WX_OPEN | WX_PIPE, &ioObject);
+    status = stdio_handle_create(-1, WX_PIPE, &ioObject);
     if (status) {
         struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
         
@@ -59,7 +59,7 @@ int socket_create(int domain, int type, int protocol, uuid_t handle,
     if (osStatus != OS_EOK) {
         (void)OsErrToErrNo(osStatus);
         ioObject->ops.close(ioObject, 0);
-        stdio_handle_destroy(ioObject);
+        stdio_handle_delete(ioObject);
         return -1;
     }
     TRACE("[socket] done %i", ioObject->fd);

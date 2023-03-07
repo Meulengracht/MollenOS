@@ -103,9 +103,8 @@ int ioset(int flags)
     status = stdio_handle_create2(
             -1,
             flags | O_NOINHERIT,
-            WX_OPEN,
+            0,
             IOSET_SIGNATURE,
-            &g_iosetOps,
             ios,
             &object
     );
@@ -116,7 +115,7 @@ int ioset(int flags)
     }
 
     stdio_handle_set_handle(object, &handle);
-    return object->fd;
+    return stdio_handle_iod(object);
 }
 
 int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
@@ -136,7 +135,7 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
         return -1;
     }
 
-    ios = setObject->ops_ctx;
+    ios = setObject->OpsContext;
     if (op == IOSET_ADD) {
         entry = malloc(sizeof(struct IOSetEntry));
         if (!entry) {
@@ -170,9 +169,9 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
 
     return OsErrToErrNo(
             OSNotificationQueueCtrl(
-                    &setObject->handle,
+                    &setObject->OSHandle,
                     op,
-                    ioObject->handle.ID,
+                    ioObject->OSHandle.ID,
                     event
             )
     );
@@ -195,7 +194,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const st
         return -1;
     }
 
-    ios = setObject->ops_ctx;
+    ios = setObject->OpsContext;
     entry = ios->entries;
     while (entry && i < max_events) {
         TRACE("[ioset] [wait] %i = 0x%x", entry->iod, entry->event.events);
@@ -216,7 +215,7 @@ int ioset_wait(int set_iod, struct ioset_event* events, int max_events, const st
         OSAsyncContextInitialize(asyncContext);
     }
     oserr = OSNotificationQueueWait(
-            &setObject->handle,
+            &setObject->OSHandle,
             &events[0],
             max_events,
             i,
@@ -286,7 +285,7 @@ ioset_remove(struct IOSet* ios, int iod)
 static void __ioset_close(stdio_handle_t* handle, int options)
 {
     if (options & STDIO_CLOSE_FULL) {
-        (void)OSHandleDestroy(handle->handle.ID);
-        __ioset_delete(handle->ops_ctx);
+        (void)OSHandleDestroy(handle->OSHandle.ID);
+        __ioset_delete(handle->OpsContext);
     }
 }
