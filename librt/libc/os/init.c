@@ -119,14 +119,14 @@ static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
     return libraries;
 }
 
-static int __parse_startup_info(SHMHandle_t* shm)
+static int __parse_startup_info(OSHandle_t* osHandle)
 {
     ProcessStartupInformation_t* source;
     const char*                  data;
     TRACE("__parse_startup_info()");
 
-    source = (ProcessStartupInformation_t*)shm->Buffer;
-    data   = (char*)shm->Buffer + sizeof(ProcessStartupInformation_t);
+    source = (ProcessStartupInformation_t*)SHMBuffer(osHandle);
+    data   = (char*)SHMBuffer(osHandle) + sizeof(ProcessStartupInformation_t);
     TRACE("[init] args-len %" PRIuIN ", inherit-len %" PRIuIN ", modules-len %" PRIuIN,
           source->ArgumentsLength,
           source->InheritationLength,

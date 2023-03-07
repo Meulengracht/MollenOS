@@ -3,7 +3,7 @@
 
 #include <errno.h>
 #include <os/osdefs.h>
-#include <os/types/shm.h>
+#include <os/types/handle.h>
 #include <os/types/async.h>
 #include <stdio.h>
 #include <wchar.h>
@@ -24,7 +24,7 @@ typedef struct thread_storage {
     struct tm             tm_buffer;
     char                  asc_buffer[26];
     char                  tmpname_buffer[L_tmpnam];
-    SHMHandle_t           shm;
+    OSHandle_t            shm;
     OSAsyncContext_t*     async_context;
     uintptr_t             tls_array[TLS_NUMBER_ENTRIES];
 } thread_storage_t;
@@ -60,6 +60,6 @@ CRTDECL(struct thread_storage*, __tls_current(void));
  * allocated on demand.
  * @return The current dma buffer for the calling thread
  */
-CRTDECL(SHMHandle_t*, __tls_current_dmabuf(void));
+CRTDECL(OSHandle_t*, __tls_current_dmabuf(void));
 
 #endif //!__INTERNAL_TLS__
