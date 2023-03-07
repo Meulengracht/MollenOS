@@ -20,13 +20,15 @@
 #include <ddk/ddkdefs.h> // for __reserved
 #include <internal/_locale.h>
 #include <internal/_utils.h>
+#include <os/handle.h>
 #include <os/shm.h>
 
 static const char* g_nullEnvironment[] = {
         NULL
 };
 
-static const char* const* __clone_env_block(void)
+static const char* const*
+__clone_env_block(void)
 {
     const char* const* source = __crt_environment();
     char**             copy;
@@ -71,7 +73,8 @@ int __tls_initialize(struct thread_storage* tls)
     return 0;
 }
 
-static void __destroy_env_block(char** env)
+static void
+__destroy_env_block(char** env)
 {
     for (int i = 0; env[i] != NULL; i++) {
         free(env[i]);
@@ -82,10 +85,8 @@ static void __destroy_env_block(char** env)
 void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
-    if (tls->shm.Buffer != NULL) {
-        SHMDetach(&tls->shm);
-        free(tls->shm.Buffer);
-        tls->shm.Buffer = NULL;
+    if (SHMBuffer(&tls->shm) != NULL) {
+        OSHandleDestroy(tls->shm.ID);
     }
 
     if (tls->env_block != NULL && tls->env_block != g_nullEnvironment) {
@@ -94,10 +95,10 @@ void __tls_destroy(struct thread_storage* tls)
     }
 }
 
-SHMHandle_t* __tls_current_dmabuf(void)
+OSHandle_t* __tls_current_dmabuf(void)
 {
     struct thread_storage* tls = __tls_current();
-    if (tls->shm.Buffer == NULL) {
+    if (SHMBuffer(&tls->shm) == NULL) {
         void*   buffer;
         oserr_t oserr;
 

@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C Standard Library
- * - Keymap implementation. Supports key translation from native keycodes to
- *   the standard en-US keyboard. Supports Ascii for now
  */
 
 #include <os/keycodes.h>
