@@ -20,8 +20,9 @@
 
 #include <assert.h>
 #include <errno.h>
-#include "os/notification_queue.h"
 #include <ddk/utils.h>
+#include <os/handle.h>
+#include <os/notification_queue.h>
 #include <os/mutex.h>
 #include <os/usched/usched.h>
 #include <setjmp.h>

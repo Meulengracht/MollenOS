@@ -116,7 +116,6 @@ FILE* fmemopen(void *buf, size_t size, const char *mode)
             flags | O_NOINHERIT,
             0,
             FMEM_SIGNATURE,
-            &g_fmemOps,
             memoryStream,
             &object
     );
@@ -141,7 +140,7 @@ __memstream_read(
         _In_  size_t          length,
         _Out_ size_t*         bytesRead)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     size_t               bytesToRead = memoryStream->Capacity - memoryStream->Position;
 
     // clamp to smallest size
@@ -168,7 +167,7 @@ __memstream_write(
         _In_  size_t          length,
         _Out_ size_t*         bytesWritten)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     size_t               bytesToWrite = memoryStream->Capacity - memoryStream->Position;
 
     // There must always be space available for a zero byte at end of buffer
@@ -200,7 +199,7 @@ __memstream_resize(
         _In_ stdio_handle_t* handle,
         _In_ long long       size)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     char*                replacementBuffer;
 
     replacementBuffer = malloc((size_t)size);
@@ -222,7 +221,7 @@ __memstream_seek(
         _In_  off64_t         offset,
         _Out_ long long*      positionOut)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     off64_t              position;
 
     if (origin == SEEK_CUR) {
@@ -250,7 +249,7 @@ __memstream_ioctl(
         _In_ int             request,
         _In_ va_list         args)
 {
-    struct MemoryStream* memoryStream = handle->ops_ctx;
+    struct MemoryStream* memoryStream = handle->OpsContext;
     if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);
         if (bytesAvailableOut) {
@@ -268,6 +267,6 @@ __memstream_close(
         _In_ int             options)
 {
     if (options & STDIO_CLOSE_FULL) {
-        __memstream_delete(handle->ops_ctx);
+        __memstream_delete(handle->OpsContext);
     }
 }

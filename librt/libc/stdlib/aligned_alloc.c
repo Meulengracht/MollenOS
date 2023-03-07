@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,16 +13,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Aligned Allocation Implementation
- * - Definitions, prototypes and information needed.
  */
+
 #include <stdlib.h>
 
 void* aligned_alloc(
-    _In_ size_t alignment,
-    _In_ size_t size)
+        _In_ size_t alignment,
+        _In_ size_t size)
 {
     return memalign(alignment, size);
 }

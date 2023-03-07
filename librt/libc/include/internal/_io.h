@@ -1,10 +1,7 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
-#include <internal/_evt.h>
 #include <internal/_ipc.h>
-#include <internal/_ioset.h>
-#include <internal/_pipe.h>
 #include <internal/_socket.h>
 #include <os/osdefs.h>
 #include <os/types/handle.h>
@@ -44,29 +41,30 @@ typedef struct StdioDescriptor stdio_handle_t;
 #define STDIO_CLOSE_FULL    1
 #define STDIO_CLOSE_DELETE  2
 
-// Stdio descriptor operations
-typedef size_t (*stdio_serialize)(stdio_handle_t*, void*);
-typedef oserr_t(*stdio_deserialize)(stdio_handle_t*, const void*);
-typedef oserr_t(*stdio_read)(stdio_handle_t*, void*, size_t, size_t*);
-typedef oserr_t(*stdio_write)(stdio_handle_t*, const void*, size_t, size_t*);
-typedef oserr_t(*stdio_resize)(stdio_handle_t*, long long);
-typedef oserr_t(*stdio_seek)(stdio_handle_t*, int, off64_t, long long*);
-typedef oserr_t(*stdio_ioctl)(stdio_handle_t*, int, va_list);
-typedef oserr_t(*stdio_mmap)(stdio_handle_t*, void *addr, size_t length, int prot, int flags, off_t offset, void**);
-typedef oserr_t(*stdio_munmap)(stdio_handle_t*, void *addr, size_t length);
-typedef void   (*stdio_close)(stdio_handle_t*, int);
+typedef struct StdioOperations {
+    // serialize, if provided, indicates support for exporting the
+    // specific stdio descriptor. The function must serialize any
+    // required data needed to reconstruct it in another process.
+    // Serialize/Deserialize is optional, but if one of these are provided
+    // the other must also be provided.
+    size_t (*serialize)(void* context, void* out);
 
-typedef struct stdio_ops {
-    stdio_serialize   serialize;
-    stdio_deserialize deserialize;
-    stdio_read        read;
-    stdio_write       write;
-    stdio_resize      resize;
-    stdio_seek        seek;
-    stdio_ioctl       ioctl;
-    stdio_mmap        mmap;
-    stdio_munmap      munmap;
-    stdio_close       close;
+    // deserialize, if provided, indicates support for importing
+    // a stdio descriptor which was serialized in another process using
+    // the <serialize> function.
+    // Serialize/Deserialize is optional, but if one of these are provided
+    // the other must also be provided.
+    size_t (*deserialize)(const void* in, void** contextOut);
+
+    oserr_t (*clone)(const void* context, void** contextOut);
+    oserr_t (*read)(stdio_handle_t*, void*, size_t, size_t*);
+    oserr_t (*write)(stdio_handle_t*, const void*, size_t, size_t*);
+    oserr_t (*resize)(stdio_handle_t*, long long);
+    oserr_t (*seek)(stdio_handle_t*, int, off64_t, long long*);
+    oserr_t (*ioctl)(stdio_handle_t*, int, va_list);
+    oserr_t (*mmap)(stdio_handle_t*, void *addr, size_t length, int prot, int flags, off_t offset, void**);
+    oserr_t (*munmap)(stdio_handle_t*, void *addr, size_t length);
+    void    (*close)(stdio_handle_t*, int);
 } stdio_ops_t;
 
 // Local to application handle that also handles state, stream and buffer
@@ -105,13 +103,7 @@ struct stdio_object_entry {
     stdio_handle_t* handle;
 };
 
-// io-object interface
-extern int  stdio_handle_set_ops_ctx(stdio_handle_t*, void*);
-extern int  stdio_handle_set_buffered(stdio_handle_t*, FILE*, unsigned int);
-extern void stdio_handle_destroy(stdio_handle_t*);
-extern int  stdio_handle_activity(stdio_handle_t*, int);
-extern void stdio_handle_flag(stdio_handle_t*, unsigned int);
-
+#define NULL_SIGNATURE         0x80000000
 #define FMEM_SIGNATURE         0x80000001
 #define MEMORYSTREAM_SIGNATURE 0x80000002
 #define PIPE_SIGNATURE         0x80000003
@@ -145,7 +137,6 @@ stdio_handle_create2(
         _In_  int              ioFlags,
         _In_  int              wxFlags,
         _In_  unsigned int     signature,
-        _In_  stdio_ops_t*     ops,
         _In_  void*            opsCtx,
         _Out_ stdio_handle_t** handleOut);
 
@@ -163,7 +154,7 @@ stdio_handle_delete(
  * @param handleOut
  * @return
  */
-extern void
+extern int
 stdio_handle_clone(
         _In_  stdio_handle_t*  handle,
         _Out_ stdio_handle_t** handleOut);
@@ -178,6 +169,22 @@ extern int
 stdio_handle_set_handle(
         _In_ stdio_handle_t* handle,
         _In_ OSHandle_t*     osHandle);
+
+/**
+ * @brief
+ * @param handle
+ * @param stream
+ * @param flags
+ * @return
+ */
+extern int
+stdio_handle_set_buffered(
+        _In_ stdio_handle_t* handle,
+        _In_ FILE*           stream,
+        _In_ unsigned int    flags);
+
+extern int  stdio_handle_activity(stdio_handle_t*, int);
+extern void stdio_handle_flag(stdio_handle_t*, unsigned int);
 
 /**
  * @brief Retrieves the signature for the stdio handle. This can be used
@@ -196,6 +203,15 @@ stdio_handle_signature(
  */
 extern FILE*
 stdio_handle_stream(
+        _In_ stdio_handle_t* handle);
+
+/**
+ * @brief Retrieves the IOD of the stdio handle.
+ * @param handle The stdio handle.
+ * @return The IOD of the handle.
+ */
+extern int
+stdio_handle_iod(
         _In_ stdio_handle_t* handle);
 
 /**

@@ -73,11 +73,9 @@ UnwindGetSection(
         optHeader   = (PeOptionalHeader_t*)(((uint8_t*)dosHeader) + dosHeader->PeHeaderAddress + sizeof(PeHeader_t));
         if (optHeader->Architecture == PE_ARCHITECTURE_32) {
             peSection = (PeSectionHeader_t*)(((uint8_t*)dosHeader) + dosHeader->PeHeaderAddress + sizeof(PeHeader_t) + sizeof(PeOptionalHeader32_t));
-        }
-        else if (optHeader->Architecture == PE_ARCHITECTURE_64) {
+        } else if (optHeader->Architecture == PE_ARCHITECTURE_64) {
             peSection = (PeSectionHeader_t*)(((uint8_t*)dosHeader) + dosHeader->PeHeaderAddress + sizeof(PeHeader_t) + sizeof(PeOptionalHeader64_t));
-        }
-        else {
+        } else {
             continue;
         }
 

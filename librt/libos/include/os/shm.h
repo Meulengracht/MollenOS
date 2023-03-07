@@ -19,6 +19,7 @@
 #define __OS_SHM_H__
 
 #include <os/types/shm.h>
+#include <os/types/handle.h>
 
 _CODE_BEGIN
 /**
@@ -30,8 +31,8 @@ _CODE_BEGIN
  */
 CRTDECL(oserr_t,
 SHMCreate(
-        _In_ SHM_t*       shm,
-        _In_ SHMHandle_t* handle));
+        _In_  SHM_t*      shm,
+        _Out_ OSHandle_t* handleOut));
 
 /**
  * Exports the memory buffer provided. The structure must be prefilled with most
@@ -43,9 +44,9 @@ SHMCreate(
  */
 CRTDECL(oserr_t,
 SHMExport(
-        _In_ void*        buffer,
-        _In_ SHM_t*       shm,
-        _In_ SHMHandle_t* handle));
+        _In_  void*       buffer,
+        _In_  SHM_t*      shm,
+        _Out_ OSHandle_t* handleOut));
 
 /**
  * Attach to a memory buffer handle, but does not perform further actions.
@@ -55,19 +56,8 @@ SHMExport(
  */
 CRTDECL(oserr_t,
 SHMAttach(
-        _In_ uuid_t       shmID,
-        _In_ SHMHandle_t* handle));
-
-/**
- * Each SHMAttach/SHMCreate/SHMExport call should be matched with one SHMDetach, to properly
- * cleanup any resources that are allocated, and unexports the memory buffer. When detaching, any
- * previous mapping done will be unmapped.
- * @param handle [In] The memory buffer to detach from.
- * @return Status of the operation.
- */
-CRTDECL(oserr_t,
-SHMDetach(
-        _In_ SHMHandle_t* handle));
+        _In_  uuid_t      shmID,
+        _Out_ OSHandle_t* handleOut));
 
 /**
  * Map into or update an existing memory buffer in the current memory space. When re-mapping an already
@@ -85,7 +75,7 @@ SHMDetach(
  */
 CRTDECL(oserr_t,
 SHMMap(
-        _In_ SHMHandle_t* handle,
+        _In_ OSHandle_t*  handle,
         _In_ size_t       offset,
         _In_ size_t       length,
         _In_ unsigned int flags));
@@ -99,9 +89,9 @@ SHMMap(
  */
 CRTDECL(oserr_t,
 SHMCommit(
-        _In_ SHMHandle_t* handle,
-        _In_ vaddr_t      address,
-        _In_ size_t       length));
+        _In_ OSHandle_t* handle,
+        _In_ vaddr_t     address,
+        _In_ size_t      length));
 
 /**
  * Remove the mapping that has been previously created by its counterpart.
@@ -110,7 +100,25 @@ SHMCommit(
  */
 CRTDECL(oserr_t,
 SHMUnmap(
-        _In_ SHMHandle_t* handle));
+        _In_ OSHandle_t* handle));
+
+/**
+ * @brief
+ * @param handle
+ * @return
+ */
+CRTDECL(void*,
+SHMBuffer(
+        _In_ OSHandle_t* handle));
+
+/**
+ * @brief
+ * @param handle
+ * @return
+ */
+CRTDECL(size_t,
+SHMBufferLength(
+        _In_ OSHandle_t* handle));
 
 /**
  * Call this once with the count parameter to get the number of
@@ -123,7 +131,7 @@ SHMUnmap(
  */
 CRTDECL(oserr_t,
 SHMGetSGTable(
-        _In_ SHMHandle_t*  handle,
+        _In_ OSHandle_t*   handle,
         _In_ SHMSGTable_t* sgTable,
         _In_ int           maxCount));
 
@@ -143,4 +151,4 @@ SHMSGTableOffset(
         _Out_ size_t*       sgOffset));
 
 _CODE_END
-#endif //!__OS_memoryBUF_H__
+#endif //!__OS_SHM_H__
