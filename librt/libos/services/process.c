@@ -20,13 +20,14 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <ddk/convert.h>
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_tls.h>
-#include "os/services/process.h"
-#include <ddk/convert.h>
+#include <os/services/process.h>
+#include <os/shm.h>
 
 #include <sys_process_service_client.h>
 
@@ -190,7 +191,7 @@ OSProcessSpawnOpts(
     struct vali_link_message         msg = VALI_MSG_INIT_HANDLE(GetProcessService());
     oserr_t                          oserr;
     struct sys_process_configuration gconfiguration;
-    SHMHandle_t*                     dmaBuffer;
+    OSHandle_t*                      dmaBuffer;
     char*                            buffer;
     TRACE("OSProcessSpawnOpts(path=%s)", path);
     
@@ -201,7 +202,7 @@ OSProcessSpawnOpts(
     // get the current TLS transfer buffer where we will store most
     // of the process setup data.
     dmaBuffer = __tls_current_dmabuf();
-    buffer = dmaBuffer->Buffer;
+    buffer = SHMBuffer(dmaBuffer);
 
     CRTWriteInheritanceBlock(
             &options->InheritanceOptions,

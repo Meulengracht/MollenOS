@@ -35,7 +35,7 @@
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
 extern void StdSignalInitialize(void);
-extern void OSHandlesSetup(void);
+extern void OSHandlesInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
 // internally for calls to services and modules.
@@ -205,7 +205,7 @@ static int __get_startup_info(void)
     assert(oserr == OS_EOK);
 
     status = __parse_startup_info(&mapping);
-    OSHandleDestroy(mapping.ID);
+    OSHandleDestroy(&mapping);
     return status;
 }
 
@@ -278,7 +278,7 @@ static void __startup(void* argument, void* cancellationToken)
 void __crt_process_initialize(int isPhoenix)
 {
     TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
-    
+
     // We must set IsModule before anything
     g_isPhoenix = isPhoenix;
 
@@ -292,7 +292,7 @@ void __crt_process_initialize(int isPhoenix)
     TRACE("__crt_process_initialize initializing stdsig");
     StdSignalInitialize();
     TRACE("__crt_process_initialize initializing oshandles");
-    OSHandlesSetup();
+    OSHandlesInitialize();
 
     // Initialize the userspace scheduler to support request based
     // asynchronous programs, and do this before we do any further

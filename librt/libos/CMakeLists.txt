@@ -9,7 +9,6 @@ add_library(libos STATIC
         event.c
         futex.c
         handles.c
-        handles_setup.c
         ipc.c
         memory.c
         notification_queue.c

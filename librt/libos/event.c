@@ -27,6 +27,12 @@ struct Event {
     unsigned int  MaxValue;
 };
 
+static void __EventDestroy(struct OSHandle*);
+
+const OSHandleOps_t g_eventOps = {
+        .Destroy = __EventDestroy
+};
+
 static struct Event*
 __EventNew(
         _In_ unsigned int maxValue)
@@ -40,14 +46,6 @@ __EventNew(
     event->SyncAddress = NULL,
     event->MaxValue = maxValue;
     return event;
-}
-
-// Referred in handles_setup.c
-void
-OSEventDctor(
-        _In_ OSHandle_t* handle)
-{
-    free(handle->Payload);
 }
 
 oserr_t
@@ -75,6 +73,7 @@ OSEvent(
             handleID,
             OSHANDLE_EVENT,
             event,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {
@@ -109,6 +108,7 @@ OSTimeoutEvent(
             handleID,
             OSHANDLE_EVENT,
             event,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {
@@ -205,4 +205,10 @@ OSEventValue(
 
     event = handle->Payload;
     return atomic_load(event->SyncAddress);
+}
+
+static void __EventDestroy(struct OSHandle* handle)
+{
+    (void)Syscall_DestroyHandle(handle->ID);
+    free(handle->Payload);
 }

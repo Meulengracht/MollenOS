@@ -45,7 +45,7 @@ static struct IOSetEntry* ioset_remove(struct IOSet*, int);
 
 static void __ioset_close(stdio_handle_t*, int);
 
-static stdio_ops_t g_iosetOps = {
+stdio_ops_t g_iosetOps = {
         .close = __ioset_close
 };
 
@@ -109,7 +109,7 @@ int ioset(int flags)
             &object
     );
     if (status) {
-        (void)OSHandleDestroy(handle.ID);
+        OSHandleDestroy(&handle);
         free(ios);
         return -1;
     }
@@ -171,7 +171,7 @@ int ioset_ctrl(int evt_iod, int op, int iod, struct ioset_event* event)
             OSNotificationQueueCtrl(
                     &setObject->OSHandle,
                     op,
-                    ioObject->OSHandle.ID,
+                    &ioObject->OSHandle,
                     event
             )
     );
@@ -285,7 +285,6 @@ ioset_remove(struct IOSet* ios, int iod)
 static void __ioset_close(stdio_handle_t* handle, int options)
 {
     if (options & STDIO_CLOSE_FULL) {
-        (void)OSHandleDestroy(handle->OSHandle.ID);
         __ioset_delete(handle->OpsContext);
     }
 }

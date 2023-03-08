@@ -33,11 +33,15 @@
 struct usched_scheduler_queue {
     struct usched_job* ready;
     Mutex_t            mutex;
-    uuid_t             notification_handle;
+    OSHandle_t         notification_handle;
 };
 
 static atomic_int                    g_timerid     = 1;
-static struct usched_scheduler_queue g_globalQueue = { NULL, MUTEX_INIT(MUTEX_PLAIN), UUID_INVALID };
+static struct usched_scheduler_queue g_globalQueue = {
+        NULL,
+        MUTEX_INIT(MUTEX_PLAIN),
+        { 0 }
+};
 
 struct usched_scheduler* __usched_get_scheduler(void) {
     return __usched_xunit_tls_current()->scheduler;
@@ -52,7 +56,7 @@ static struct usched_scheduler_queue* __usched_scheduler_queue_new(struct usched
 
     queue->ready = job;
     MutexInitialize(&queue->mutex, MUTEX_PLAIN);
-    if (OSHandleCreate(&queue->notification_handle) != OS_EOK) {
+    if (OSHandleCreate(OSHANDLE_NULL, NULL, &queue->notification_handle) != OS_EOK) {
         free(queue);
         return NULL;
     }
@@ -68,51 +72,52 @@ static oserr_t __usched_init_notification_queue(struct usched_scheduler* sched)
         return oserr;
     }
 
-    oserr = OSHandleCreate(&sched->syscall_handle);
+    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &sched->syscall_handle);
     if (oserr != OS_EOK) {
-        OSHandleDestroy(sched->notification_queue);
+        OSHandleDestroy(&sched->notification_queue);
+        return oserr;
     }
 
     // Either we add the global queue, or we add the internal queue.
     if (sched->internal_queue != NULL) {
         oserr = OSNotificationQueueCtrl(
-                sched->notification_queue,
+                &sched->notification_queue,
                 IOSET_ADD,
-                sched->internal_queue->notification_handle,
+                &sched->internal_queue->notification_handle,
                 &(struct ioset_event) {
                     .events = IOSETSYN,
-                    .data.handle = sched->internal_queue->notification_handle
+                    .data.handle = sched->internal_queue->notification_handle.ID
                 }
         );
     } else {
         oserr = OSNotificationQueueCtrl(
-                sched->notification_queue,
+                &sched->notification_queue,
                 IOSET_ADD,
-                g_globalQueue.notification_handle,
+                &g_globalQueue.notification_handle,
                 &(struct ioset_event) {
                         .events = IOSETSYN,
-                        .data.handle = g_globalQueue.notification_handle
+                        .data.handle = g_globalQueue.notification_handle.ID
                 }
         );
     }
     if (oserr != OS_EOK) {
-        OSHandleDestroy(sched->syscall_handle);
-        OSHandleDestroy(sched->notification_queue);
+        OSHandleDestroy(&sched->syscall_handle);
+        OSHandleDestroy(&sched->notification_queue);
         return oserr;
     }
 
     oserr = OSNotificationQueueCtrl(
-            sched->notification_queue,
+            &sched->notification_queue,
             IOSET_ADD,
-            sched->syscall_handle,
+            &sched->syscall_handle,
             &(struct ioset_event) {
                     .events = IOSETSYN,
-                    .data.handle = sched->syscall_handle
+                    .data.handle = sched->syscall_handle.ID
             }
     );
     if (oserr != OS_EOK) {
-        OSHandleDestroy(sched->syscall_handle);
-        OSHandleDestroy(sched->notification_queue);
+        OSHandleDestroy(&sched->syscall_handle);
+        OSHandleDestroy(&sched->notification_queue);
         return oserr;
     }
     return OS_EOK;
@@ -124,7 +129,7 @@ extern void __usched_startup(void)
 
     // Create the handle for the global queue. This will be added to all
     // scheduler's notification queue, so they can track new job postings.
-    oserr = OSHandleCreate(&g_globalQueue.notification_handle);
+    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &g_globalQueue.notification_handle);
     if (oserr != OS_EOK) {
         exit(-1);
     }
@@ -170,10 +175,10 @@ void __usched_destroy(struct usched_scheduler* sched)
     if (sched->magic != SCHEDULER_MAGIC) {
         return;
     }
-    OSHandleDestroy(sched->notification_queue);
-    OSHandleDestroy(sched->syscall_handle);
+    OSHandleDestroy(&sched->notification_queue);
+    OSHandleDestroy(&sched->syscall_handle);
     if (sched->internal_queue != NULL) {
-        OSHandleDestroy(sched->internal_queue->notification_handle);
+        OSHandleDestroy(&sched->internal_queue->notification_handle);
         free(sched->internal_queue);
     }
 }
@@ -214,7 +219,7 @@ void __usched_add_job_ready(struct usched_job* job)
     MutexLock(&queue->mutex);
     __usched_append_job(&queue->ready, job);
     MutexUnlock(&queue->mutex);
-    OSNotificationQueuePost(queue->notification_handle, IOSETSYN);
+    OSNotificationQueuePost(&queue->notification_handle, IOSETSYN);
 }
 
 int __usched_prepare_migrate(void)
@@ -502,7 +507,7 @@ void usched_timedwait(const struct timespec* until)
     // with *at most* two events. We can actually in detail detect which type
     // of event occurred, but we do not care.
     oserr = OSNotificationQueueWait(
-            sched->notification_queue,
+            &sched->notification_queue,
             &events[0],
             2,
             0,
@@ -624,5 +629,5 @@ void usched_wait_async(void)
 uuid_t usched_notification_handle(void)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
-    return sched->syscall_handle;
+    return sched->syscall_handle.ID;
 }

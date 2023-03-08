@@ -31,7 +31,6 @@ static oserr_t __file_write(stdio_handle_t*, const void*, size_t, size_t*);
 static oserr_t __file_resize(stdio_handle_t*, long long);
 static oserr_t __file_seek(stdio_handle_t*, int, off64_t, long long*);
 static oserr_t __file_ioctl(stdio_handle_t*, int, va_list);
-static void    __file_close(stdio_handle_t*, int);
 
 #define BOM_MAX_LEN 4
 
@@ -53,8 +52,7 @@ stdio_ops_t g_fileOps = {
         .write = __file_write,
         .resize = __file_resize,
         .seek = __file_seek,
-        .ioctl = __file_ioctl,
-        .close = __file_close
+        .ioctl = __file_ioctl
 };
 
 static unsigned int __detect_filemode(int iod)
@@ -124,7 +122,7 @@ int open(const char* file, int flags, ...)
             &object
     );
     if (status) {
-        (void)OSCloseFile(&handle);
+        OSHandleDestroy(&handle);
         return status;
     }
     stdio_handle_set_handle(object, &handle);
@@ -245,7 +243,7 @@ __read_large(
         *bytesReadOut = length;
     }
 
-    OSHandleDestroy(shm.ID);
+    OSHandleDestroy(&shm);
     return oserr;
 }
 
@@ -318,7 +316,7 @@ __write_large(
 
     oserr = __transfer(handle->OSHandle.ID, shm.ID,
                        1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
-    OSHandleDestroy(shm.ID);
+    OSHandleDestroy(&shm);
     if (*bytesWrittenOut == adjustedLength) {
         *bytesWrittenOut = length;
     }
@@ -407,16 +405,8 @@ __file_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* posit
 static oserr_t
 __file_resize(stdio_handle_t* handle, long long resize_by)
 {
-    // TODO: OSFileTruncate()
-    return OS_ENOTSUPPORTED;
-}
-
-static void
-__file_close(stdio_handle_t* handle, int options)
-{
-    if (options & STDIO_CLOSE_FULL) {
-        (void)OSCloseFile(&handle->OSHandle);
-    }
+    UInteger64_t size = { .QuadPart = (uint64_t)resize_by };
+    return OSSetFileSize(handle->OSHandle.ID, &size);
 }
 
 static oserr_t

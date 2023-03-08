@@ -27,13 +27,19 @@
 static uint64_t handle_hash(const void* element);
 static int      handle_cmp(const void* element1, const void* element2);
 
-static struct OSHandler {
-    bool                  Valid;
-    OSHandleDestroyFn     DctorFn;
-    OSHandleSerializeFn   ExportFn;
-    OSHandleDeserializeFn ImportFn;
-} g_osHandlers[__OSHANDLE_COUNT] = {
-        { NULL, NULL }
+static const OSHandleOps_t g_nullOps = {};
+extern const OSHandleOps_t g_fileOps;
+extern const OSHandleOps_t g_eventOps;
+extern const OSHandleOps_t g_hqueueOps;
+extern const OSHandleOps_t g_ipcOps;
+extern const OSHandleOps_t g_shmOps;
+
+static const OSHandleOps_t* g_osHandlers[__OSHANDLE_COUNT] = {
+        &g_nullOps,
+        &g_fileOps,
+        &g_eventOps,
+        &g_hqueueOps,
+        &g_shmOps
 };
 static hashtable_t g_osHandles;
 static spinlock_t  g_osHandlesLock;
@@ -48,23 +54,6 @@ void OSHandlesInitialize(void)
             handle_cmp
     );
     spinlock_init(&g_osHandlesLock);
-}
-
-oserr_t
-OSHandlesRegisterHandlers(
-        _In_ uint32_t              type,
-        _In_ OSHandleDestroyFn     dctorFn,
-        _In_ OSHandleSerializeFn   exportFn,
-        _In_ OSHandleDeserializeFn importFn)
-{
-    if (g_osHandlers[type].Valid) {
-        return OS_EEXISTS;
-    }
-    g_osHandlers[type].Valid = true;
-    g_osHandlers[type].DctorFn = dctorFn;
-    g_osHandlers[type].ExportFn = exportFn;
-    g_osHandlers[type].ImportFn = importFn;
-    return OS_EOK;
 }
 
 oserr_t
@@ -126,26 +115,31 @@ OSHandleWrap(
 
 void
 OSHandleDestroy(
-        _In_ uuid_t id)
+        _In_ struct OSHandle* handle)
 {
-    struct OSHandle* handle;
-    uint16_t         flags = 0;
+    const struct OSHandleOps* handlers;
+    struct OSHandle*          entry = NULL;
 
     spinlock_acquire(&g_osHandlesLock);
-    handle = hashtable_remove(
+    entry = hashtable_remove(
             &g_osHandles,
-            &(struct OSHandle) {
-                .ID = id
-            }
+            handle
     );
-    if (handle != NULL) {
-        flags = handle->Flags;
-    }
     spinlock_release(&g_osHandlesLock);
+    if (entry == NULL) {
+        return;
+    }
 
-    // Finally destroy the handle
-    if (flags & OSHANDLE_FLAG_OWNERSHIP) {
-        (void)Syscall_DestroyHandle(id);
+    // Let the custom destructor handle it if it's set.
+    handlers = g_osHandlers[handle->Type];
+    if (handlers->Destroy) {
+        handlers->Destroy(handle);
+        return;
+    }
+
+    // Otherwise we do the default destructor
+    if (handle->Flags & OSHANDLE_FLAG_OWNERSHIP) {
+        (void)Syscall_DestroyHandle(handle->ID);
     }
 }
 
@@ -188,18 +182,19 @@ OSHandleSerialize(
         _In_ struct OSHandle* handle,
         _In_ void*            buffer)
 {
-    struct OSHandler* handlers;
-    uint8_t*          buffer8 = buffer;
+    const struct OSHandleOps* handlers;
+    uint8_t*                  buffer8 = buffer;
 
     if (handle == NULL || handle->Type >= __OSHANDLE_COUNT) {
         return 0;
     }
 
-    handlers = &g_osHandlers[handle->ID];
-    if (handlers->ExportFn) {
-        return handlers->ExportFn(handle, &buffer8[__HEADER_SIZE_RAW]);
+    __SerializeHandle(handle, buffer);
+    handlers = g_osHandlers[handle->Type];
+    if (handlers->Serialize) {
+        return __HEADER_SIZE_RAW + handlers->Serialize(handle, &buffer8[__HEADER_SIZE_RAW]);
     }
-    return 0;
+    return __HEADER_SIZE_RAW;
 }
 
 static void
@@ -218,19 +213,19 @@ OSHandleDeserialize(
         _In_ struct OSHandle* handle,
         _In_ const void*      buffer)
 {
-    struct OSHandler* handlers;
-    const uint8_t*    buffer8 = buffer;
+    const struct OSHandleOps* handlers;
+    const uint8_t*            buffer8 = buffer;
 
     if (buffer == NULL) {
-        return OS_EINVALPARAMS;
+        return 0;
     }
 
     __DeserializeHandle(handle, buffer8);
-    handlers = &g_osHandlers[handle->ID];
-    if (handlers->ImportFn) {
-        return handlers->ImportFn(handle, &buffer8[__HEADER_SIZE_RAW]);
+    handlers = g_osHandlers[handle->Type];
+    if (handlers->Deserialize) {
+        return __HEADER_SIZE_RAW + handlers->Deserialize(handle, &buffer8[__HEADER_SIZE_RAW]);
     }
-    return OS_EOK;
+    return __HEADER_SIZE_RAW;
 }
 
 static uint64_t handle_hash(const void* element)

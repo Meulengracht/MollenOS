@@ -20,6 +20,7 @@
 #include <io.h>
 #include <internal/_io.h>
 #include <internal/_file.h>
+#include <os/handle.h>
 
 int close(int fd)
 {
@@ -38,7 +39,16 @@ int close(int fd)
         options |= STDIO_CLOSE_FULL;
     }
 
-    handle->Ops->close(handle, options);
+    // If the implementation has a close method, we invoke that to
+    // do any neccessary cleanup.
+    if (handle->Ops->close) {
+        handle->Ops->close(handle, options);
+    }
+
+    // If an OS handle is in use, we free that for the underlying system.
+    if (handle->OSHandle.ID != UUID_INVALID) {
+        OSHandleDestroy(&handle->OSHandle);
+    }
     stdio_handle_delete(handle);
     return 0;
 }

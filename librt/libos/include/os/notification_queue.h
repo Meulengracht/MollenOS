@@ -46,7 +46,7 @@ CRTDECL(oserr_t,
 OSNotificationQueueCtrl(
         _In_ OSHandle_t*         setHandle,
         _In_ int                 operation,
-        _In_ uuid_t              handle,
+        _In_ OSHandle_t*         handle,
         _In_ struct ioset_event* event));
 
 /**
@@ -60,7 +60,7 @@ OSNotificationQueueCtrl(
  */
 CRTDECL(oserr_t,
 OSNotificationQueueWait(
-        _In_ OSHandle_t*          setHandle,
+        _In_  OSHandle_t*         setHandle,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,

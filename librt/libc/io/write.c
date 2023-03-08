@@ -19,36 +19,39 @@
 
 #include <ddk/utils.h>
 #include <errno.h>
-#include <io.h>
 #include <internal/_file.h>
 #include <internal/_io.h>
-#include <os/mollenos.h>
-#include <string.h>
+#include <io.h>
 
 int write(int fd, const void* buffer, unsigned int length)
 {
     stdio_handle_t* handle       = stdio_handle_get(fd);
     size_t          bytesWritten = 0;
     int             res;
-    oserr_t      status;
+    oserr_t         oserr;
     TRACE("write(fd=%i, buffer=0x%" PRIxIN ", length=%u)", fd, buffer, length);
 
+    if (!handle->Ops->write) {
+        errno = ENOTSUP;
+        return -1;
+    }
+
     // Don't write uneven bytes in case of UTF8/16
-    if ((handle->wxflag & WX_UTF) == WX_UTF && (length & 1)) {
-        _set_errno(EINVAL);
+    if ((handle->XTFlags & WX_UTF) == WX_UTF && (length & 1)) {
+        errno = EINVAL;
         res = -1;
         goto exit;
     }
 
     // If appending, go to EOF
-    if (handle->wxflag & WX_APPEND) {
+    if (handle->XTFlags & WX_APPEND) {
         lseek(fd, 0, SEEK_END);
     }
 
     // If we aren't in text mode, raw write the data without any text-processing
-    status = handle->ops.write(handle, (char*)buffer, length, &bytesWritten);
-    if (status != OS_EOK) {
-        res = OsErrToErrNo(status);
+    oserr = handle->Ops->write(handle, (char*)buffer, length, &bytesWritten);
+    if (oserr != OS_EOK) {
+        res = OsErrToErrNo(oserr);
     } else {
         res = (int)bytesWritten;
     }

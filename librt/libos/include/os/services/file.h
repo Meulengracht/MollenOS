@@ -40,15 +40,6 @@ OSOpenPath(
         _Out_ OSHandle_t*  handleOut));
 
 /**
- * @brief
- * @param handle
- * @return
- */
-CRTDECL(oserr_t,
-OSCloseFile(
-        _In_ OSHandle_t* handle));
-
-/**
  * @brief Unlinks/removes a path.
  * @param path The path to unlink.
  * @return The status of the operation.
@@ -109,6 +100,17 @@ OSGetFilePosition(
  */
 CRTDECL(oserr_t,
 OSGetFileSize(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* size));
+
+/**
+ * @brief
+ * @param handle
+ * @param size
+ * @return
+ */
+CRTDECL(oserr_t,
+OSSetFileSize(
         _In_ uuid_t        handle,
         _In_ UInteger64_t* size));
 

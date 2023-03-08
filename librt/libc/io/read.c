@@ -22,10 +22,11 @@
 #include <internal/_io.h>
 #include <io.h>
 
-static inline void __set_eof(stdio_handle_t* handle)
+static inline void
+__set_eof(stdio_handle_t* handle)
 {
-    if (handle->object.type == STDIO_HANDLE_FILE) {
-        handle->wxflag |= WX_ATEOF;
+    if (stdio_handle_signature(handle) == FILE_SIGNATURE) {
+        handle->XTFlags |= WX_ATEOF;
     }
 }
 
@@ -36,7 +37,7 @@ __read_as_binary(stdio_handle_t* handle, char* buf, unsigned int count)
     size_t     bytesRead;
     oserr_t status;
 
-    status = handle->ops.read(handle, pointer, count, &bytesRead);
+    status = handle->Ops->read(handle, pointer, count, &bytesRead);
     if (status == OS_EOK) {
         // Test against EOF
         if (count != 0 && bytesRead == 0) {
@@ -89,24 +90,24 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
         memset(readbuf, 0, sizeof(min_buf));
     }
 
-    if (handle->lookahead[0] != '\n') {
-        readbuf[pos++] = handle->lookahead[0];
-        handle->lookahead[0] = '\n';
+    if (handle->Peek[0] != '\n') {
+        readbuf[pos++] = handle->Peek[0];
+        handle->Peek[0] = '\n';
 
-        if (handle->lookahead[1] != '\n') {
-            readbuf[pos++] = handle->lookahead[1];
-            handle->lookahead[1] = '\n';
+        if (handle->Peek[1] != '\n') {
+            readbuf[pos++] = handle->Peek[1];
+            handle->Peek[1] = '\n';
 
-            if (handle->lookahead[2] != '\n') {
-                readbuf[pos++] = handle->lookahead[2];
-                handle->lookahead[2] = '\n';
+            if (handle->Peek[2] != '\n') {
+                readbuf[pos++] = handle->Peek[2];
+                handle->Peek[2] = '\n';
             }
         }
     }
 
     // Handle the small case with the local buffer
     if (count < 4) {
-        if(!pos && handle->ops.read(handle, readbuf, 1, &bytesRead) == OS_EOK) {
+        if(!pos && handle->Ops->read(handle, readbuf, 1, &bytesRead) == OS_EOK) {
             if(!bytesRead) {
                 __set_eof(handle);
                 if (readbuf != &min_buf[0]) {
@@ -122,17 +123,17 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
         // Read the rest of the character bytes
         char_len = __get_utf8_character_bytes(readbuf[0]);
         if(char_len > pos) {
-            if(handle->ops.read(handle, readbuf + pos, char_len - pos, &bytesRead) == OS_EOK) {
+            if(handle->Ops->read(handle, readbuf + pos, char_len - pos, &bytesRead) == OS_EOK) {
                 pos += bytesRead;
             }
         }
 
         // Handle newline checks
         if(readbuf[0] == '\n') {
-            handle->wxflag |= WX_READNL;
+            handle->XTFlags |= WX_READNL;
         }
         else {
-            handle->wxflag &= ~WX_READNL;
+            handle->XTFlags &= ~WX_READNL;
         }
 
         // Check for ctrl-z
@@ -146,7 +147,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 
         // Handle CR
         if (readbuf[0] == '\r') {
-            if (handle->ops.read(handle, &lookahead, 1, &bytesRead) == OS_EOK && bytesRead == 1) {
+            if (handle->Ops->read(handle, &lookahead, 1, &bytesRead) == OS_EOK && bytesRead == 1) {
                 buf[0] = '\r';
             }
             else if (lookahead == '\n') {
@@ -154,11 +155,11 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
             }
             else {
                 buf[0] = '\r';
-                if(handle->wxflag & (WX_PIPE | WX_TTY)) {
-                    handle->lookahead[0] = lookahead;
+                if(handle->XTFlags & (WX_PIPE | WX_TTY)) {
+                    handle->Peek[0] = lookahead;
                 }
                 else {
-                    handle->ops.seek(handle, SEEK_CUR, -1, &noppos);
+                    handle->Ops->seek(handle, SEEK_CUR, -1, &noppos);
                 }
             }
 
@@ -181,7 +182,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     }
 
     // perform the read operation to fill the read buffer up
-    if (handle->ops.read(handle, readbuf + pos, readbuf_size - pos, &bytesRead) != OS_EOK) {
+    if (handle->Ops->read(handle, readbuf + pos, readbuf_size - pos, &bytesRead) != OS_EOK) {
         // EOF?
         if (!pos && !bytesRead) {
             __set_eof(handle);
@@ -205,10 +206,10 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     // Increase position and do a check for newline
     pos += bytesRead;
     if (readbuf[0] == '\n') {
-        handle->wxflag |= WX_READNL;
+        handle->XTFlags |= WX_READNL;
     }
     else {
-        handle->wxflag &= ~WX_READNL;
+        handle->XTFlags &= ~WX_READNL;
     }
 
     // Find first byte of last character (may be incomplete)
@@ -225,19 +226,19 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     }
 
     // If it's a terminal or pipe handle, use lookahead buffer
-    if (handle->wxflag & (WX_PIPE | WX_TTY)) {
+    if (handle->XTFlags & (WX_PIPE | WX_TTY)) {
         if (i < pos) {
-            handle->lookahead[0] = readbuf[i];
+            handle->Peek[0] = readbuf[i];
         }
         if (i+1 < pos) {
-            handle->lookahead[1] = readbuf[i + 1];
+            handle->Peek[1] = readbuf[i + 1];
         }
         if (i+2 < pos) {
-            handle->lookahead[2] = readbuf[i + 2];
+            handle->Peek[2] = readbuf[i + 2];
         }
     }
     else if (i < pos) {
-        handle->ops.seek(handle, SEEK_CUR, i - pos, &noppos);
+        handle->Ops->seek(handle, SEEK_CUR, i - pos, &noppos);
     }
 
     // Store i
@@ -252,8 +253,8 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 
         // strip '\r' if followed by '\n'
         if (readbuf[i] == '\r' && (i + 1) == pos) {
-            if (handle->lookahead[0] != '\n'
-                || handle->ops.read(handle, &lookahead, 1, &bytesRead) == OS_EOK) {
+            if (handle->Peek[0] != '\n'
+                || handle->Ops->read(handle, &lookahead, 1, &bytesRead) == OS_EOK) {
                 readbuf[j++] = '\r';
             }
             else if (lookahead == '\n' && j == 0) {
@@ -264,11 +265,11 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
                     readbuf[j++] = '\r';
                 }
 
-                if (handle->wxflag & (WX_PIPE | WX_TTY)) {
-                    handle->lookahead[0] = lookahead;
+                if (handle->XTFlags & (WX_PIPE | WX_TTY)) {
+                    handle->Peek[0] = lookahead;
                 }
                 else {
-                    handle->ops.seek(handle, SEEK_CUR, -1, &noppos);
+                    handle->Ops->seek(handle, SEEK_CUR, -1, &noppos);
                 }
             }
         }
@@ -305,25 +306,25 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
     long long pos;
 
     // Determine if we are reading UTF16
-    isUtf16 = (handle->wxflag & WX_UTF16) == WX_UTF16;
+    isUtf16 = (handle->XTFlags & WX_UTF16) == WX_UTF16;
     if (isUtf16 && (count & 0x1)) {
         _set_errno(EINVAL);
         return -1;
     }
 
     // Now do the actual read of either binary or UTF16
-    if (handle->lookahead[0] != '\n' ||
-        handle->ops.read(handle, bufferPointer, count, &bytesRead) == OS_EOK) {
-        if (handle->lookahead[0] != '\n') {
-            bufferPointer[0]     = handle->lookahead[0];
-            handle->lookahead[0] = '\n';
+    if (handle->Peek[0] != '\n' ||
+        handle->Ops->read(handle, bufferPointer, count, &bytesRead) == OS_EOK) {
+        if (handle->Peek[0] != '\n') {
+            bufferPointer[0]     = handle->Peek[0];
+            handle->Peek[0] = '\n';
 
             if (isUtf16) {
-                bufferPointer[1]     = handle->lookahead[1];
-                handle->lookahead[1] = '\n';
+                bufferPointer[1]     = handle->Peek[1];
+                handle->Peek[1] = '\n';
             }
 
-            if (count > (1 + isUtf16) && handle->ops.read(handle,
+            if (count > (1 + isUtf16) && handle->Ops->read(handle,
                                                           bufferPointer + 1 + isUtf16,
                                                           count - 1 - isUtf16,
                                                           &bytesRead) == OS_EOK) {
@@ -348,10 +349,10 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
 
             // Detect reading newline
             if (bufferPointer[0] == '\n' && (!isUtf16 || bufferPointer[1] == 0)) {
-                handle->wxflag |= WX_READNL;
+                handle->XTFlags |= WX_READNL;
             }
             else {
-                handle->wxflag &= ~WX_READNL;
+                handle->XTFlags &= ~WX_READNL;
             }
 
             for (i = 0, j = 0; i < bytesRead; i += 1 + isUtf16)
@@ -371,7 +372,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
                     size_t localBytesRead;
 
                     lookahead[1] = '\n';
-                    if (handle->ops.read(handle, lookahead, 1 + isUtf16, &localBytesRead) == OS_EOK
+                    if (handle->Ops->read(handle, lookahead, 1 + isUtf16, &localBytesRead) == OS_EOK
                         && localBytesRead) {
                         if (lookahead[0] == '\n' && (!isUtf16 || lookahead[1] == 0) && j == 0) {
                             bufferPointer[j++] = '\n';
@@ -389,7 +390,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
                                 }
                             }
 
-                            if (handle->wxflag & (WX_PIPE | WX_TTY)) {
+                            if (handle->XTFlags & (WX_PIPE | WX_TTY)) {
                                 if (lookahead[0] == '\n' && (!isUtf16 || !lookahead[1])) {
                                     bufferPointer[j++] = '\n';
 
@@ -398,12 +399,12 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
                                     }
                                 }
                                 else {
-                                    handle->lookahead[0] = lookahead[0];
-                                    handle->lookahead[1] = lookahead[1];
+                                    handle->Peek[0] = lookahead[0];
+                                    handle->Peek[1] = lookahead[1];
                                 }
                             }
                             else {
-                                handle->ops.seek(handle, SEEK_CUR, -1 - isUtf16, &pos);
+                                handle->Ops->seek(handle, SEEK_CUR, -1 - isUtf16, &pos);
                             }
                         }
                     }
@@ -440,22 +441,27 @@ int read(int fd, void* buffer, unsigned int len)
     TRACE("read(int fd=%i, buffer=0x%" PRIxIN ", len=%u)", fd, buffer, len);
 
     if (!handle) {
-        _set_errno(EBADFD);
+        errno = EBADFD;
+        return -1;
+    }
+
+    if (!handle->Ops->read) {
+        errno = ENOTSUP;
         return -1;
     }
 
     // Predetermine if we are eof or zero read
-    if (len == 0 || (handle->wxflag & WX_ATEOF)) {
+    if (len == 0 || (handle->XTFlags & WX_ATEOF)) {
         return 0;
     }
 
     // handle binary mode
-    if (!(handle->wxflag & WX_TEXT)) {
+    if (!(handle->XTFlags & WX_TEXT)) {
         return __read_as_binary(handle, buffer, len);
     }
 
     // Determine if we are reading UTF8
-    if ((handle->wxflag & WX_UTF) == WX_UTF) {
+    if ((handle->XTFlags & WX_UTF) == WX_UTF) {
         return __read_as_utf8(handle, (wchar_t*)buffer, len);
     }
     return __read_as_text_or_wide(handle, buffer, len);

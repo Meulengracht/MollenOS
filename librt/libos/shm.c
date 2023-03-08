@@ -16,8 +16,16 @@
  */
 
 #include <internal/_syscalls.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <stdlib.h>
+#include <string.h>
+
+static void __SHMDestroy(struct OSHandle*);
+
+const OSHandleOps_t g_shmOps = {
+        .Destroy = __SHMDestroy
+};
 
 static oserr_t
 __ValidateNewBuffer(
@@ -35,18 +43,55 @@ __ValidateNewBuffer(
     return OS_EOK;
 }
 
+static SHMHandle_t*
+__shm_handle_new(void)
+{
+    SHMHandle_t* shmHandle;
+
+    shmHandle = malloc(sizeof(SHMHandle_t));
+    if (shmHandle == NULL) {
+        return NULL;
+    }
+    memset(shmHandle, 0, sizeof(SHMHandle_t));
+    return shmHandle;
+}
+
 oserr_t
 SHMCreate(
         _In_  SHM_t*      shm,
         _Out_ OSHandle_t* handleOut)
 {
-    oserr_t oserr;
+    SHMHandle_t* shmHandle;
+    oserr_t      oserr;
 
     oserr = __ValidateNewBuffer(shm);
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return Syscall_SHMCreate(shm, handle);
+
+    shmHandle = __shm_handle_new();
+    if (shmHandle == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = Syscall_SHMCreate(shm, shmHandle);
+    if (oserr != OS_EOK) {
+        free(shmHandle);
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            shmHandle->ID,
+            OSHANDLE_SHM,
+            shmHandle,
+            false,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        (void)Syscall_SHMDetach(shmHandle);
+        return oserr;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -71,13 +116,37 @@ SHMExport(
         _In_  SHM_t*      shm,
         _Out_ OSHandle_t* handleOut)
 {
-    oserr_t oserr;
+    SHMHandle_t* shmHandle;
+    oserr_t      oserr;
 
     oserr = __ValidateExistingBuffer(shm);
     if (oserr != OS_EOK) {
         return oserr;
     }
-    return Syscall_SHMExport(buffer, shm, handle);
+
+    shmHandle = __shm_handle_new();
+    if (shmHandle == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = Syscall_SHMExport(buffer, shm, shmHandle);
+    if (oserr != OS_EOK) {
+        free(shmHandle);
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            shmHandle->ID,
+            OSHANDLE_SHM,
+            shmHandle,
+            false,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        (void)Syscall_SHMDetach(shmHandle);
+        return oserr;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -85,20 +154,36 @@ SHMAttach(
         _In_  uuid_t      shmID,
         _Out_ OSHandle_t* handleOut)
 {
+    SHMHandle_t* shmHandle;
+    oserr_t      oserr;
+
     if (handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_SHMAttach(shmID, handle);
-}
 
-oserr_t
-SHMDetach(
-        _In_ SHMHandle_t* handle)
-{
-    if (handle == NULL) {
-        return OS_EINVALPARAMS;
+    shmHandle = __shm_handle_new();
+    if (shmHandle == NULL) {
+        return OS_EOOM;
     }
-    return Syscall_SHMDetach(handle);
+
+    oserr = Syscall_SHMAttach(shmID, shmHandle);
+    if (oserr != OS_EOK) {
+        free(shmHandle);
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            shmHandle->ID,
+            OSHANDLE_SHM,
+            shmHandle,
+            false,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        (void)Syscall_SHMDetach(shmHandle);
+        return oserr;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -111,7 +196,7 @@ SHMMap(
     if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_SHMMap(handle, offset, length, flags);
+    return Syscall_SHMMap(handle->Payload, offset, length, flags);
 }
 
 oserr_t
@@ -120,34 +205,40 @@ SHMCommit(
         _In_ vaddr_t     address,
         _In_ size_t      length)
 {
-    if (handle == NULL || handle->Buffer == NULL) {
+    if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_SHMCommit(handle, address, length);
+    return Syscall_SHMCommit(handle->Payload, address, length);
 }
 
 oserr_t
 SHMUnmap(
         _In_ OSHandle_t* handle)
 {
-    if (handle == NULL || handle->Buffer == NULL) {
+    if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_SHMUnmap(handle);
+    return Syscall_SHMUnmap(handle->Payload);
 }
 
 void*
 SHMBuffer(
         _In_ OSHandle_t* handle)
 {
-
+    if (handle == NULL) {
+        return NULL;
+    }
+    return ((SHMHandle_t*)handle->Payload)->Buffer;
 }
 
 size_t
 SHMBufferLength(
         _In_ OSHandle_t* handle)
 {
-
+    if (handle == NULL) {
+        return 0;
+    }
+    return ((SHMHandle_t*)handle->Payload)->Length;
 }
 
 oserr_t
@@ -199,4 +290,13 @@ SHMSGTableOffset(
         offset -= sgTable->Entries[i].Length;
     }
     return OS_ENOENT;
+}
+
+static void
+__SHMDestroy(
+        _In_ struct OSHandle* handle)
+{
+    // Start out by detaching, then free the payload
+    (void)Syscall_SHMDetach(handle->Payload);
+    free(handle->Payload);
 }

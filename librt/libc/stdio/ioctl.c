@@ -31,22 +31,20 @@ int ioctl(int iod, unsigned long request, ...)
     va_list         args;
     
     if (!handle) {
-        _set_errno(EBADF);
+        errno = EBADF;
         return -1;
     }
 
-    if (handle->Ops->ioctl) {
-        va_start(args, request);
-        status = handle->Ops->ioctl(handle, request, args);
-        va_end(args);
-    } else {
-        // wasn't supported on this io-descriptor
-        _set_errno(EBADF);
+    if (!handle->Ops->ioctl) {
+        errno = ENOTSUP;
         return -1;
     }
 
+    va_start(args, request);
+    status = handle->Ops->ioctl(handle, request, args);
+    va_end(args);
     if (status == OS_ENOTSUPPORTED) {
-        _set_errno(EBADF);
+        errno = EBADF;
         return -1;
     }
     return OsErrToErrNo(status);

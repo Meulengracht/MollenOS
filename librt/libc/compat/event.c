@@ -103,7 +103,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
             &object
     );
     if (status) {
-        OSHandleDestroy(handle.ID);
+        OSHandleDestroy(&handle);
         return -1;
     }
 
@@ -177,17 +177,6 @@ __evt_write(
     return result;
 }
 
-static void
-__evt_close(
-        _In_ stdio_handle_t* handle,
-        _In_ int             options)
-{
-    if (options & STDIO_CLOSE_FULL) {
-        (void)OSHandleDestroy(handle->OSHandle.ID);
-        free(handle->OpsContext);
-    }
-}
-
 static oserr_t
 __evt_ioctl(
         _In_ stdio_handle_t* handle,
@@ -213,4 +202,14 @@ __evt_ioctl(
         return OS_EOK;
     }
     return OS_ENOTSUPPORTED;
+}
+
+static void
+__evt_close(
+        _In_ stdio_handle_t* handle,
+        _In_ int             options)
+{
+    if (options & STDIO_CLOSE_FULL) {
+        free(handle->OpsContext);
+    }
 }
