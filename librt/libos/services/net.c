@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,26 +14,3 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <assert.h>
-#include <os/handle.h>
-
-extern void    OSHandlesInitialize(void);
-extern oserr_t OSHandlesRegisterHandlers(uint32_t type, OSHandleDestroyFn, OSHandleSerializeFn, OSHandleDeserializeFn);
-
-// Event callbacks
-extern void OSEventDctor(OSHandle_t*);
-
-void OSHandlesSetup(void)
-{
-    oserr_t oserr;
-
-    // Initialize handle subsystem
-    OSHandlesInitialize();
-
-    // Register all callbacks
-
-    // Events
-    oserr = OSHandlesRegisterHandlers(OSHANDLE_EVENT, OSEventDctor, NULL, NULL);
-    assert(oserr == OS_EOK);
-}

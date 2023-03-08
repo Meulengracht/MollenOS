@@ -16,13 +16,13 @@
  */
 #define __TRACE
 
-#include "sys_socket_service_client.h"
-#include "ddk/service.h"
-#include "ddk/utils.h"
-#include "gracht/link/vali.h"
-#include "internal/_io.h"
-#include "internal/_utils.h"
-#include "os/mollenos.h"
+#include <sys_socket_service_client.h>
+#include <ddk/service.h>
+#include <ddk/utils.h>
+#include <gracht/link/vali.h>
+#include <internal/_io.h>
+#include <internal/_utils.h>
+#include <os/mollenos.h>
 
 int socket_create(int domain, int type, int protocol, uuid_t handle,
                   uuid_t send_handle, uuid_t recv_handle)

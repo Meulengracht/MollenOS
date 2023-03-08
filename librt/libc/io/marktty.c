@@ -26,8 +26,9 @@ int marktty(int iod)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
     if (!handle) {
-        return EBADF;
+        errno = EBADF;
+        return -1;
     }
-    handle->wxflag |= WX_TTY;
+    handle->XTFlags |= WX_TTY;
     return 0;
 }

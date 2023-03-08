@@ -24,42 +24,63 @@
 
 #define __TRACE
 
-#include "os/notification_queue.h"
-#include "internal/_syscalls.h"
-#include "os/types/syscall.h"
+#include <internal/_syscalls.h>
+#include <os/types/syscall.h>
+#include <os/notification_queue.h>
+#include <os/handle.h>
 
-oserr_t
-OSNotificationQueuePost(
-        _In_ uuid_t       handle,
-        _In_ unsigned int flags)
-{
-    return Syscall_HandleSetActivity(handle, flags);
-}
+static void __QueueDestroy(struct OSHandle*);
+
+const OSHandleOps_t g_hqueueOps = {
+        .Destroy = __QueueDestroy
+};
 
 oserr_t
 OSNotificationQueueCreate(
         _In_  unsigned int flags,
-        _Out_ uuid_t*      handleOut)
+        _Out_ OSHandle_t*  handleOut)
 {
+    oserr_t oserr;
+    uuid_t  handleID;
+
     if (!handleOut) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_CreateHandleSet(flags, handleOut);
+
+    oserr = Syscall_CreateHandleSet(flags, &handleID);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            handleID,
+            OSHANDLE_HQUEUE,
+            NULL,
+            true,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        Syscall_DestroyHandle(handleID);
+    }
+    return oserr;
 }
 
 oserr_t
 OSNotificationQueueCtrl(
-        _In_ uuid_t              setHandle,
+        _In_ OSHandle_t*         setHandle,
         _In_ int                 operation,
-        _In_ uuid_t              handle,
+        _In_ OSHandle_t*         handle,
         _In_ struct ioset_event* event)
 {
-    return Syscall_ControlHandleSet(setHandle, operation, handle, event);
+    if (setHandle == NULL || handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_ControlHandleSet(setHandle->ID, operation, handle->ID, event);
 }
 
 oserr_t
 OSNotificationQueueWait(
-        _In_  uuid_t              handle,
+        _In_  OSHandle_t*         setHandle,
         _In_  struct ioset_event* events,
         _In_  int                 maxEvents,
         _In_  int                 pollEvents,
@@ -75,11 +96,11 @@ OSNotificationQueueWait(
         .PollEvents = pollEvents
     };
     
-    if (!events || !numEventsOut) {
+    if (setHandle == NULL || events == NULL || numEventsOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    oserr = Syscall_ListenHandleSet(handle, asyncContext, &parameters, numEventsOut);
+    oserr = Syscall_ListenHandleSet(setHandle->ID, asyncContext, &parameters, numEventsOut);
     if (oserr == OS_EFORKED) {
         // The system call was postponed, so we should coordinate with the
         // userspace threading system right here.
@@ -87,4 +108,21 @@ OSNotificationQueueWait(
         return asyncContext->ErrorCode;
     }
     return oserr;
+}
+
+oserr_t
+OSNotificationQueuePost(
+        _In_ OSHandle_t*  handle,
+        _In_ unsigned int flags)
+{
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    return Syscall_HandleSetActivity(handle->ID, flags);
+}
+
+static void
+__QueueDestroy(struct OSHandle* handle)
+{
+    (void)Syscall_DestroyHandle(handle->ID);
 }

@@ -36,12 +36,10 @@ struct IPCContext {
 
 static oserr_t __ipc_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __ipc_ioctl(stdio_handle_t*, int, va_list);
-static void    __ipc_close(stdio_handle_t*, int);
 
 stdio_ops_t g_ipcOps = {
         .read = __ipc_read,
-        .ioctl = __ipc_ioctl,
-        .close = __ipc_close
+        .ioctl = __ipc_ioctl
 };
 
 static struct IPCContext*
@@ -88,7 +86,7 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
 
     ipc = __ipccontext_new();
     if (ipc == NULL) {
-        OSHandleDestroy(osHandle.ID);
+        OSHandleDestroy(&osHandle);
         return -1;
     }
 
@@ -102,7 +100,7 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
     );
     if (status) {
         __ipccontext_delete(ipc);
-        OSHandleDestroy(osHandle.ID);
+        OSHandleDestroy(&osHandle);
         return -1;
     }
 
@@ -180,7 +178,8 @@ exit:
     return status;
 }
 
-oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+static oserr_t
+__ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     struct IPCContext*        ipc = handle->OpsContext;
     streambuffer_t*           stream = SHMBuffer(&handle->OSHandle);
@@ -209,14 +208,8 @@ oserr_t __ipc_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* 
     return OS_EOK;
 }
 
-static void __ipc_close(stdio_handle_t* handle, int options)
-{
-    if (options != STDIO_CLOSE_FULL) {
-        OSHandleDestroy(handle->OSHandle.ID);
-    }
-}
-
-static oserr_t __ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
+static oserr_t
+__ipc_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
     struct IPCContext* ipc = handle->OpsContext;
     streambuffer_t*    stream = SHMBuffer(&handle->OSHandle);

@@ -111,8 +111,8 @@ struct usched_scheduler {
     int                    magic;
     jmp_buf                context;
     struct thread_storage* tls;
-    uuid_t                 notification_queue;
-    uuid_t                 syscall_handle;
+    OSHandle_t             notification_queue;
+    OSHandle_t             syscall_handle;
 
     // internal_queue is the queue that is only specific to this scheduler.
     // If this is non-NULL, then the scheduler is using a seperate queue for jobs

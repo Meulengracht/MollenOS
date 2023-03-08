@@ -21,10 +21,10 @@
 #include <os/osdefs.h>
 
 enum OSHandleType {
+    OSHANDLE_NULL,
     OSHANDLE_FILE,
     OSHANDLE_EVENT,
     OSHANDLE_HQUEUE,
-    OSHANDLE_IPC,
     OSHANDLE_SHM,
     __OSHANDLE_COUNT
 };
@@ -50,8 +50,16 @@ typedef struct OSHandle {
 
 #define __HEADER_SIZE_RAW (sizeof(uuid_t) + sizeof(uint16_t) + sizeof(uint16_t))
 
-typedef void    (*OSHandleDestroyFn)(struct OSHandle*);
-typedef size_t  (*OSHandleSerializeFn)(struct OSHandle*, void*);
-typedef oserr_t (*OSHandleDeserializeFn)(struct OSHandle*, const void*);
+typedef struct OSHandleOps {
+    // Destroy function can override the default behaviour
+    // of destroying a system handle. The default destroy
+    // behaviour is to just free the global system handle. If
+    // the handle needs a custom method of freeing, then destroy
+    // must be overriden. Destroy is responsible for freeing the
+    // global system handle.
+    void   (*Destroy)(struct OSHandle*);
+    size_t (*Serialize)(struct OSHandle*, void*);
+    size_t (*Deserialize)(struct OSHandle*, const void*);
+} OSHandleOps_t;
 
 #endif //!__OS_TYPES_HANDLE_H__

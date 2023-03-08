@@ -69,7 +69,7 @@ OSHandleWrap(
  */
 CRTDECL(void,
 OSHandleDestroy(
-        _In_ uuid_t id));
+        _In_ struct OSHandle* handle));
 
 /**
  * @brief

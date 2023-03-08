@@ -17,9 +17,16 @@
 
 #include <ddk/convert.h>
 #include <internal/_io.h>
+#include <internal/_syscalls.h>
 #include <io.h>
 #include <os/services/file.h>
 #include <os/handle.h>
+
+static void __FileDestroy(struct OSHandle*);
+
+const OSHandleOps_t g_fileOps = {
+        .Destroy = __FileDestroy
+};
 
 static oserr_t
 __CloseHandle(
@@ -97,21 +104,6 @@ OSOpenPath(
     if (oserr != OS_EOK) {
         (void)__CloseHandle(handleID);
     }
-    return oserr;
-}
-
-oserr_t
-OSCloseFile(
-        _In_ OSHandle_t* handle)
-{
-    oserr_t oserr;
-
-    if (handle == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    oserr = __CloseHandle(handle->ID);
-    OSHandleDestroy(handle->ID);
     return oserr;
 }
 
@@ -389,6 +381,35 @@ OSGetFileSize(
 }
 
 oserr_t
+OSSetFileSize(
+        _In_ uuid_t        handle,
+        _In_ UInteger64_t* size)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
+    oserr_t                  oserr;
+    int                      status;
+
+    if (size == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = sys_file_set_size(
+            GetGrachtClient(),
+            &msg.base,
+            __crt_process_id(),
+            handle,
+            size->u.LowPart,
+            size->u.HighPart
+    );
+    if (status) {
+        return OS_EPROTOCOL;
+    }
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_file_set_size_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
 SetFileSizeFromPath(
         _In_ const char* path,
         _In_ size_t      size)
@@ -416,32 +437,15 @@ SetFileSizeFromFd(
         _In_ int    fileDescriptor,
         _In_ size_t size)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t                  oserr;
-    UInteger64_t             value;
-    int                      status;
+    stdio_handle_t* handle = stdio_handle_get(fileDescriptor);
+    UInteger64_t    value;
 
     if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
     value.QuadPart = size;
-    
-    status = sys_file_set_size(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
-            handle->handle.ID,
-            value.u.LowPart,
-            value.u.HighPart
-    );
-    if (status) {
-        return OS_EPROTOCOL;
-    }
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_set_size_result(GetGrachtClient(), &msg.base, &oserr);
-    return oserr;
+    return OSSetFileSize(handle->OSHandle.ID, &value);
 }
 
 oserr_t
@@ -486,7 +490,7 @@ ChangeFilePermissionsFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID
+            handle->OSHandle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -498,7 +502,7 @@ ChangeFilePermissionsFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID,
+            handle->OSHandle.ID,
             access
     );
     if (status) {
@@ -527,7 +531,7 @@ ChangeFileHandleAccessFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID,
+            handle->OSHandle.ID,
             access
     );
     if (status) {
@@ -580,7 +584,7 @@ GetFilePathFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID
+            handle->OSHandle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -643,7 +647,7 @@ GetStorageInformationFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID
+            handle->OSHandle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -710,7 +714,7 @@ GetFileSystemInformationFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID
+            handle->OSHandle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -777,7 +781,7 @@ GetFileInformationFromFd(
             GetGrachtClient(),
             &msg.base,
             __crt_process_id(),
-            handle->handle.ID
+            handle->OSHandle.ID
     );
     if (status) {
         return OS_EPROTOCOL;
@@ -789,6 +793,15 @@ GetFileInformationFromFd(
         from_sys_file_descriptor(&gdescriptor, descriptor);
     }
     return oserr;
+}
+
+static void
+__FileDestroy(struct OSHandle* handle)
+{
+    if (handle == NULL) {
+        return;
+    }
+    (void)__CloseHandle(handle->ID);
 }
 
 // add default event handlers

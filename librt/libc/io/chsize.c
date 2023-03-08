@@ -28,16 +28,21 @@ int chsize(
     oserr_t         oserr;
 
     if (handle == NULL) {
-        _set_errno(EBADFD);
+        errno = EBADFD;
         return -1;
     }
 
-    oserr = handle->ops.resize(handle, size);
-	if (oserr != OS_EOK) {
-		return OsErrToErrNo(oserr);
-	}
+    if (handle->Ops->resize) {
+        oserr = handle->Ops->resize(handle, size);
+        if (oserr != OS_EOK) {
+            return OsErrToErrNo(oserr);
+        }
+    } else {
+        errno = ENOTSUP;
+        return -1;
+    }
 	
 	// clear out eof after resizes
-	handle->wxflag &= ~(WX_ATEOF|WX_READEOF);
+	handle->XTFlags &= ~(WX_ATEOF|WX_READEOF);
 	return EOK;
 }

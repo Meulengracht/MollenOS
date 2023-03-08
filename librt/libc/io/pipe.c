@@ -139,7 +139,7 @@ int pipe(long size, int flags)
 
     pipe = __pipe_new();
     if (pipe == NULL) {
-        OSHandleDestroy(osHandle.ID);
+        OSHandleDestroy(&osHandle);
         return -1;
     }
 

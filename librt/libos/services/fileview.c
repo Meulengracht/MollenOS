@@ -19,24 +19,25 @@
 #include <ddk/convert.h>
 #include <ds/list.h>
 #include <internal/_io.h>
-#include <io.h>
 #include <os/services/file.h>
+#include <os/handle.h>
 #include <os/memory.h>
 #include <os/shm.h>
 
 struct file_view {
-    element_t       header;
-    SHMHandle_t     shm;
-    uuid_t          file_handle;
-    unsigned int    flags;
-    size_t          offset;
-    size_t          length;
+    element_t    header;
+    OSHandle_t   shm;
+    uuid_t       file_handle;
+    unsigned int flags;
+    size_t       offset;
+    size_t       length;
 };
 
 static list_t g_fileViews = LIST_INIT;
 static size_t g_pageSize  = 0;
 
-static struct file_view* __GetFileView(uintptr_t virtualBase)
+static struct file_view*
+__GetFileView(uintptr_t virtualBase)
 {
     if (!virtualBase) {
         return NULL;
@@ -44,9 +45,8 @@ static struct file_view* __GetFileView(uintptr_t virtualBase)
 
     foreach(element, &g_fileViews) {
         struct file_view* fileView = element->value;
-        if (ISINRANGE(virtualBase,
-                      (uintptr_t)fileView->shm.Buffer,
-                      (uintptr_t)fileView->shm.Buffer + fileView->length)) {
+        void*             buffer   = SHMBuffer(&fileView->shm);
+        if (ISINRANGE(virtualBase, (uintptr_t)buffer, (uintptr_t)buffer + fileView->length)) {
             return fileView;
         }
     }
@@ -78,8 +78,8 @@ CreateFileMapping(
     size_t             fileOffset = Offset & (__GetPageSize() - 1);
     SHM_t              shm;
 
-    // Sanitize that the descritor is valid
-    if (!handle || handle->object.type != STDIO_HANDLE_FILE) {
+    // Sanitize that the descriptor is valid
+    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
         return OS_EINVALPARAMS;
     }
 
@@ -106,14 +106,14 @@ CreateFileMapping(
     }
 
     ELEMENT_INIT(&fileView->header, 0, fileView);
-    fileView->file_handle = handle->object.handle;
+    fileView->file_handle = handle->OSHandle.ID;
     fileView->offset = fileOffset;
     fileView->length = Length;
     fileView->flags  = Flags;
 
     list_append(&g_fileViews, &fileView->header);
 
-    *MemoryPointer = fileView->shm.Buffer;
+    *MemoryPointer = SHMBuffer(&fileView->shm);
     return osStatus;
 }
 
@@ -141,7 +141,11 @@ oserr_t FlushFileMapping(
         goto exit;
     }
 
-    osStatus = MemoryQueryAttributes(fileView->shm.Buffer, fileView->length, &attributes[0]);
+    osStatus = MemoryQueryAttributes(
+            SHMBuffer(&fileView->shm),
+            fileView->length,
+            &attributes[0]
+    );
     if (osStatus != OS_EOK) {
         goto exit;
     }
@@ -183,7 +187,7 @@ DestroyFileMapping(
         _In_ void* MemoryPointer)
 {
     struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
-    oserr_t        osStatus;
+    oserr_t           oserr;
     if (!fileView) {
         return OS_EINVALPARAMS;
     }
@@ -193,19 +197,15 @@ DestroyFileMapping(
         (void)FlushFileMapping(MemoryPointer, fileView->length);
     }
 
-    osStatus = SHMUnmap(&fileView->shm);
-    if (osStatus != OS_EOK) {
+    oserr = SHMUnmap(&fileView->shm);
+    if (oserr != OS_EOK) {
         // ignore for now
     }
 
-    osStatus = SHMDetach(&fileView->shm);
-    if (osStatus != OS_EOK) {
-        // ignore for now
-    }
-
+    OSHandleDestroy(&fileView->shm);
     list_remove(&g_fileViews, &fileView->header);
     free(fileView);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -217,7 +217,7 @@ HandleMemoryMappingEvent(
     struct file_view*        fileView       = __GetFileView((uintptr_t)vaddressPtr);
     uintptr_t                virtualAddress = (uintptr_t)vaddressPtr;
     UInteger64_t             fileOffset;
-    oserr_t                  osStatus;
+    oserr_t                  oserr;
     size_t                   bytesTransferred;
 
     if (!fileView) {
@@ -227,21 +227,21 @@ HandleMemoryMappingEvent(
     // Prepare the memory that we want to fill
     virtualAddress &= (__GetPageSize() - 1);
 
-    fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)fileView->shm.Buffer);
-    osStatus            = SHMCommit(
+    fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)SHMBuffer(&fileView->shm));
+    oserr            = SHMCommit(
             &fileView->shm,
             (vaddr_t)vaddressPtr,
             __GetPageSize()
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         return OS_ENOENT;
     }
 
     // Now we perform the actual filling on the memory area
     sys_file_transfer_absolute(GetGrachtClient(), &msg.base, __crt_process_id(), fileView->file_handle,
                                0, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->shm.ID,
-                               virtualAddress - (uintptr_t)fileView->shm.Buffer, __GetPageSize());
+                               virtualAddress - (uintptr_t)SHMBuffer(&fileView->shm), __GetPageSize());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &osStatus, &bytesTransferred);
-    return osStatus;
+    sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &bytesTransferred);
+    return oserr;
 }

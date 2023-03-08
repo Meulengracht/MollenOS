@@ -86,7 +86,7 @@ void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
     if (SHMBuffer(&tls->shm) != NULL) {
-        OSHandleDestroy(tls->shm.ID);
+        OSHandleDestroy(&tls->shm);
     }
 
     if (tls->env_block != NULL && tls->env_block != g_nullEnvironment) {
