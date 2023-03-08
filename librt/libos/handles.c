@@ -33,13 +33,15 @@ extern const OSHandleOps_t g_eventOps;
 extern const OSHandleOps_t g_hqueueOps;
 extern const OSHandleOps_t g_ipcOps;
 extern const OSHandleOps_t g_shmOps;
+extern const OSHandleOps_t g_socketOps;
 
 static const OSHandleOps_t* g_osHandlers[__OSHANDLE_COUNT] = {
         &g_nullOps,
         &g_fileOps,
         &g_eventOps,
         &g_hqueueOps,
-        &g_shmOps
+        &g_shmOps,
+        &g_socketOps
 };
 static hashtable_t g_osHandles;
 static spinlock_t  g_osHandlesLock;
