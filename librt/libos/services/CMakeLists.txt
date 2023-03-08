@@ -3,6 +3,7 @@ add_library(libos-services STATIC
         file.c
         fileview.c
         mount.c
+        net.c
         path.c
         process.c
         shared_objects.c

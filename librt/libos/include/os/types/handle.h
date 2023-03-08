@@ -26,6 +26,7 @@ enum OSHandleType {
     OSHANDLE_EVENT,
     OSHANDLE_HQUEUE,
     OSHANDLE_SHM,
+    OSHANDLE_SOCKET,
     __OSHANDLE_COUNT
 };
 
