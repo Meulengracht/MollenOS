@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,20 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Support
- * - Standard Socket IO Implementation
  */
 
-#include "errno.h"
-#include "internal/_io.h"
-#include "internal/_ipc.h"
-#include "os/mollenos.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <os/mollenos.h>
+#include <os/services/net.h>
 
 int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
     stdio_handle_t*          handle = stdio_handle_get(iod);
     oserr_t               status;
     
@@ -46,15 +39,13 @@ int getsockname(int iod, struct sockaddr* address_out, socklen_t* address_length
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
-    sys_socket_get_address(GetGrachtClient(), &msg.base, handle->object.handle, SYS_ADDRESS_TYPE_THIS);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_get_address_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address_out, *address_length_out);
-    if (status != OS_EOK) {
-        OsErrToErrNo(status);
-        return -1;
-    }
-    
+
+    status = OSSocketAddress(
+            &handle->OSHandle,
+            SOCKET_ADDRESS_THIS,
+            address_out,
+            *address_length_out
+    );
     *address_length_out = address_out->sa_len;
     return 0;
 }

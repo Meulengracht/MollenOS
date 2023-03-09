@@ -1,9 +1,6 @@
 #ifndef __INTERNAL_IO_H__
 #define __INTERNAL_IO_H__
 
-#include <internal/_ipc.h>
-#include <internal/_socket.h>
-#include <os/osdefs.h>
 #include <os/types/handle.h>
 #include <os/types/process.h>
 #include <stdio.h>

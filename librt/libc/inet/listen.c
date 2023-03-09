@@ -30,18 +30,16 @@
  * a later reattempt at connection succeeds.
  */
 
-#include "internal/_io.h"
-#include "internal/_ipc.h"
-#include "inet/local.h"
-#include "inet/socket.h"
-#include "errno.h"
-#include "os/mollenos.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
+#include <inet/socket.h>
+#include <os/mollenos.h>
+#include <os/services/net.h>
 
 int listen(int iod, int backlog)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
-    stdio_handle_t*          handle = stdio_handle_get(iod);
-    oserr_t                  status;
+    stdio_handle_t* handle = stdio_handle_get(iod);
     
     if (!handle) {
         _set_errno(EBADF);
@@ -52,19 +50,8 @@ int listen(int iod, int backlog)
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
-    if (handle->object.data.socket.type != SOCK_STREAM &&
-        handle->object.data.socket.type != SOCK_SEQPACKET) {
-        _set_errno(ESOCKTNOSUPPORT);
-        return -1;
-    }
-    
-    sys_socket_listen(GetGrachtClient(), &msg.base, handle->object.handle, backlog);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_listen_result(GetGrachtClient(), &msg.base, &status);
-    if (status != OS_EOK) {
-        OsErrToErrNo(status);
-        return -1;
-    }
-    return 0;
+
+    return OsErrToErrNo(
+            OSSocketListen(&handle->OSHandle, backlog)
+    );
 }

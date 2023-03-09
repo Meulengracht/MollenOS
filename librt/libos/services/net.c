@@ -20,12 +20,14 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/handle.h>
-#include <os/types/net.h>
+#include <os/services/net.h>
 #include <sys_socket_service_client.h>
 
 struct Socket {
-    OSHandle_t Send;
-    OSHandle_t Recv;
+    int                     Type;
+    struct sockaddr_storage ConnectedAddress;
+    OSHandle_t              Send;
+    OSHandle_t              Recv;
 };
 
 static void __SocketDestroy(struct OSHandle*);
@@ -102,6 +104,20 @@ OSSocketOpen(
 }
 
 oserr_t
+OSSocketPair(
+        _In_  OSHandle_t* sock0,
+        _In_  OSHandle_t* sock1)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    oserr_t                  oserr;
+
+    sys_socket_pair(GetGrachtClient(), &msg.base, sock0->ID, sock1->ID);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_pair_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
 OSSocketAccept(
         _In_  OSHandle_t*      handle,
         _In_  struct sockaddr* address,
@@ -109,31 +125,39 @@ OSSocketAccept(
         _Out_ OSHandle_t*      handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    struct Socket*           source;
     uuid_t                   socket_handle;
     uuid_t                   send_handle;
     uuid_t                   recv_handle;
     oserr_t                  status;
-    int                      accept_iod;
 
-    if (!handle) {
-        return -1;
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
     }
 
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
-        _set_errno(ENOTSOCK);
-        return -1;
+    // Accept is only valid on handles that are of socket type
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
     }
 
-    if (handle->object.data.socket.type != SOCK_SEQPACKET &&
-        handle->object.data.socket.type != SOCK_STREAM) {
-        _set_errno(ESOCKTNOSUPPORT);
-        return -1;
+    // Accept is only supported on sockets that are sequential or streams
+    source = handle->Payload;
+    if (source->Type != SOCK_SEQPACKET && source->Type != SOCK_STREAM) {
+        return OS_ENOTSUPPORTED;
     }
 
-    sys_socket_accept(GetGrachtClient(), &msg.base, handle->object.handle);
+    sys_socket_accept(GetGrachtClient(), &msg.base, handle->ID);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_accept_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address, *addressLength,
-                             &socket_handle, &recv_handle, &send_handle);
+    sys_socket_accept_result(
+            GetGrachtClient(),
+            &msg.base,
+            &status,
+            (uint8_t*)address,
+            *addressLength,
+            &socket_handle,
+            &recv_handle,
+            &send_handle
+    );
     if (status != OS_EOK) {
         OsErrToErrNo(status);
         return -1;
@@ -141,6 +165,192 @@ OSSocketAccept(
 
     *addressLength = (socklen_t)(uint32_t)address->sa_len;
 
+}
+
+oserr_t
+OSSocketBind(
+        _In_ OSHandle_t*            handle,
+        _In_ const struct sockaddr* address,
+        _In_ socklen_t              addressLength)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    oserr_t                  oserr;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Accept is only valid on handles that are of socket type
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    sys_socket_bind(
+            GetGrachtClient(),
+            &msg.base,
+            handle->ID,
+            (const uint8_t*)address,
+            addressLength
+    );
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_bind_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
+OSSocketConnect(
+        _In_ OSHandle_t*            handle,
+        _In_ const struct sockaddr* address,
+        _In_ socklen_t              addressLength)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    struct Socket*           socket;
+    oserr_t                  oserr;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Accept is only valid on handles that are of socket type
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    socket = handle->Payload;
+    sys_socket_connect(
+            GetGrachtClient(),
+            &msg.base,
+            handle->ID,
+            (const uint8_t*)address,
+            addressLength
+    );
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_connect_result(GetGrachtClient(), &msg.base, &oserr);
+    if (oserr == OS_EOK) {
+        memcpy(&socket->ConnectedAddress, address, addressLength);
+    }
+    return oserr;
+}
+
+oserr_t
+OSSocketAddress(
+        _In_ OSHandle_t*      handle,
+        _In_ int              type,
+        _In_ struct sockaddr* address,
+        _In_ socklen_t        addressMaxSize)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    oserr_t                  oserr;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Accept is only valid on handles that are of socket type
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    sys_socket_get_address(GetGrachtClient(), &msg.base, handle->ID, type);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_get_address_result(
+            GetGrachtClient(),
+            &msg.base,
+            &oserr,
+            (uint8_t*)address,
+            addressMaxSize
+    );
+    return oserr;
+}
+
+oserr_t
+OSSocketListen(
+        _In_ OSHandle_t* handle,
+        _In_ int         queueSize)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    struct Socket*           socket;
+    oserr_t                  oserr;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    socket = handle->Payload;
+    if (socket->Type != SOCK_SEQPACKET && socket->Type != SOCK_STREAM) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    sys_socket_listen(GetGrachtClient(), &msg.base, handle->ID, queueSize);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_listen_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
+OSSocketSetOption(
+        _In_ OSHandle_t* handle,
+        _In_ int         protocol,
+        _In_ int         option,
+        _In_ const void* data,
+        _In_ socklen_t   length)
+{
+    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
+    oserr_t                  oserr;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    sys_socket_set_option(GetGrachtClient(), &msg.base, handle->ID,
+                          protocol, option, data, length, length);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_set_option_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
+}
+
+oserr_t
+OSSocketOption(
+        _In_    OSHandle_t* handle,
+        _In_    int         protocol,
+        _In_    int         option,
+        _In_    void*       data,
+        _InOut_ socklen_t*  length)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    oserr_t                  oserr;
+    int                      sizeOfData;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    sys_socket_get_option(GetGrachtClient(), &msg.base, handle->ID, protocol, option);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    sys_socket_get_option_result(
+            GetGrachtClient(),
+            &msg.base,
+            &oserr,
+            data,
+            (uint32_t)(*length),
+            &sizeOfData
+    );
+    if (oserr == OS_EOK) {
+        *length = (socklen_t)sizeOfData;
+    }
+    return oserr;
 }
 
 static void

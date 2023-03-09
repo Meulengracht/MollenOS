@@ -21,18 +21,17 @@
  * - Standard Socket IO Implementation
  */
 
-#include "errno.h"
-#include "internal/_io.h"
-#include "internal/_ipc.h"
-#include "io.h"
-#include "os/mollenos.h"
+#include <errno.h>
+#include <inet/socket.h>
+#include <internal/_io.h>
+#include <io.h>
+#include <os/mollenos.h>
+#include <os/services/net.h>
 
 int socketpair(int domain, int type, int protocol, int* iods)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    stdio_handle_t*          io_object1;
-    stdio_handle_t*          io_object2;
-    oserr_t               status;
+    stdio_handle_t* io_object1;
+    stdio_handle_t* io_object2;
     
     if (!iods) {
         _set_errno(EINVAL);
@@ -52,14 +51,10 @@ int socketpair(int domain, int type, int protocol, int* iods)
     
     io_object1 = stdio_handle_get(iods[0]);
     io_object2 = stdio_handle_get(iods[1]);
-    
-    sys_socket_pair(GetGrachtClient(), &msg.base, io_object1->object.handle,
-        io_object2->object.handle);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_pair_result(GetGrachtClient(), &msg.base, &status);
-    if (status != OS_EOK) {
-        (void)OsErrToErrNo(status);
-        return -1;
-    }
-    return 0;
+    return OsErrToErrNo(
+            OSSocketPair(
+                    &io_object1->OSHandle,
+                    &io_object2->OSHandle
+            )
+    );
 }

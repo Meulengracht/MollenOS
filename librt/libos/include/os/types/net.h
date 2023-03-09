@@ -164,4 +164,7 @@ struct cmsghdr {
 // Maximum queue length specifiable by listen(2).
 #define	SOMAXCONN	128
 
+#define SOCKET_ADDRESS_THIS 0
+#define SOCKET_ADDRESS_PEER 1
+
 #endif //!__TYPES_NET_H__

@@ -22,12 +22,11 @@
  */
 
 #define __need_minmax
-#include "os/notification_queue.h"
-#include "errno.h"
-#include "internal/_io.h"
-#include "internal/_tls.h"
-#include "inet/local.h"
-#include "string.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <internal/_tls.h>
+#include <inet/local.h>
+#include <string.h>
 
 static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
 {

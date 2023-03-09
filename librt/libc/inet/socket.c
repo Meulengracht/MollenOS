@@ -22,15 +22,16 @@
  */
 #define __TRACE
 
-#include "ddk/utils.h"
-#include "internal/_io.h"
-#include "internal/_ipc.h"
-#include "inet/socket.h"
+#include <ddk/utils.h>
+#include <internal/_io.h>
+#include <inet/socket.h>
+#include <os/services/net.h>
 
 int socket(int domain, int type, int protocol)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
+    OSHandle_t               osHandle;
     uuid_t                   handle;
     uuid_t                   send_handle;
     uuid_t                   recv_handle;
@@ -41,15 +42,11 @@ int socket(int domain, int type, int protocol)
     // all system sockets. They are the foundation of the microkernel for
     // communication between processes and are needed long before anything else.
     TRACE("[socket] remote create");
-    sys_socket_create(GetGrachtClient(), &msg.base, domain, type, protocol);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_create_result(GetGrachtClient(), &msg.base, &oserr, &handle, &recv_handle, &send_handle);
+    oserr = OSSocketOpen(domain, type, protocol, &osHandle);
     if (oserr != OS_EOK) {
-        ERROR("[socket] CreateSocket failed with code %u", oserr);
-        (void)OsErrToErrNo(oserr);
-        return -1;
+        return OsErrToErrNo(oserr);
     }
-    
+
     fd = socket_create(domain, type, protocol, handle, send_handle, recv_handle);
     if (fd == -1) {
         ERROR("[socket] socket_create failed");
@@ -60,7 +57,7 @@ int socket(int domain, int type, int protocol)
 
 oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
-    intmax_t num_bytes = recv(handle->fd, buffer, length, 0);
+    intmax_t num_bytes = recv(handle->IOD, buffer, length, 0);
     if (num_bytes >= 0) {
         *bytes_read = (size_t)num_bytes;
         return OS_EOK;
@@ -70,7 +67,7 @@ oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
 
 oserr_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
-    intmax_t num_bytes = send(handle->fd, buffer, length, 0);
+    intmax_t num_bytes = send(handle->IOD, buffer, length, 0);
     if (num_bytes >= 0) {
         *bytes_written = (size_t)num_bytes;
         return OS_EOK;
@@ -95,10 +92,8 @@ oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
     oserr_t status = OS_EOK;
 
     if (options & STDIO_CLOSE_FULL) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-        sys_socket_close(GetGrachtClient(), &msg.base, handle->object.handle,
-                         SYS_CLOSE_OPTIONS_DESTROY);
-        sys_socket_close_result(GetGrachtClient(), &msg.base, &status);
+        // In case of a full close, just let the socket system handle it
+        return OS_EOK;
     }
 
     if (handle->object.data.socket.send_buffer.Buffer) {

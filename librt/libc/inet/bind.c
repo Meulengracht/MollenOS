@@ -27,23 +27,17 @@
  * It is normally necessary to assign a local address using bind() before a SOCK_STREAM socket may receive connections (see accept(2)).
  */
 
-#include "sys_socket_service_client.h"
-#include "ddk/service.h"
-#include "ddk/utils.h"
-#include "errno.h"
-#include "gracht/link/vali.h"
-#include "internal/_io.h"
-#include "internal/_utils.h"
-#include "inet/local.h"
-#include "inet/socket.h"
-#include "os/mollenos.h"
+#include <errno.h>
+#include <ddk/utils.h>
+#include <internal/_io.h>
+#include <inet/local.h>
+#include <inet/socket.h>
+#include <os/mollenos.h>
+#include <os/services/net.h>
 
 int bind(int iod, const struct sockaddr* address, socklen_t address_length)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    stdio_handle_t*          handle = stdio_handle_get(iod);
-    oserr_t               status;
-    
+    stdio_handle_t* handle = stdio_handle_get(iod);
     if (!handle) {
         _set_errno(EBADF);
         return -1;
@@ -53,13 +47,12 @@ int bind(int iod, const struct sockaddr* address, socklen_t address_length)
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
-    sys_socket_bind(GetGrachtClient(), &msg.base, handle->object.handle, (const uint8_t*)address, address_length);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_bind_result(GetGrachtClient(), &msg.base, &status);
-    if (status != OS_EOK) {
-        OsErrToErrNo(status);
-        return -1;
-    }
-    return 0;
+
+    return OsErrToErrNo(
+            OSSocketBind(
+                    &handle->OSHandle,
+                    address,
+                    address_length
+            )
+    );
 }
