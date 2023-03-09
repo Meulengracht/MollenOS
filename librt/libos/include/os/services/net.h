@@ -22,6 +22,7 @@
 #ifndef __OS_SERVICE_NET_H__
 #define __OS_SERVICE_NET_H__
 
+#include <ds/streambuffer.h>
 #include <os/types/net.h>
 #include <os/types/handle.h>
 
@@ -153,6 +154,16 @@ OSSocketOption(
         _In_    int         option,
         _In_    void*       data,
         _InOut_ socklen_t*  length));
+
+CRTDECL(oserr_t,
+OSSocketSendPipe(
+        _In_  OSHandle_t*      handle,
+        _Out_ streambuffer_t** pipeOut));
+
+CRTDECL(oserr_t,
+OSSocketRecvPipe(
+        _In_  OSHandle_t*      handle,
+        _Out_ streambuffer_t** pipeOut));
 
 _CODE_END
 #endif //!__OS_SERVICE_NET_H__

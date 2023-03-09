@@ -51,6 +51,7 @@
 #include <internal/_io.h>
 #include <internal/_tls.h>
 #include <inet/local.h>
+#include <os/services/net.h>
 
 static inline unsigned int
 get_streambuffer_flags(int flags)
@@ -224,18 +225,13 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
     streambuffer_t*   stream;
     intmax_t          numbytes;
     OSAsyncContext_t* asyncContext = __tls_current()->async_context;
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
+
     if (!msg_hdr) {
         _set_errno(EINVAL);
         return -1;
     }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+
+    if (stdio_handle_signature(handle) != NET_SIGNATURE) {
         _set_errno(ENOTSOCK);
         return -1;
     }
@@ -250,7 +246,7 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         OSAsyncContextInitialize(asyncContext);
     }
     numbytes = perform_recv(handle, msg_hdr, &(streambuffer_rw_options_t) {
-            .flags =  get_streambuffer_flags(flags),
+            .flags = get_streambuffer_flags(flags),
             asyncContext,
             NULL
     });

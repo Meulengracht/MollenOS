@@ -24,13 +24,8 @@
 int setsockopt(int iod, int protocol, int option, const void* data, socklen_t length)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+
+    if (stdio_handle_signature(handle) != NET_SIGNATURE) {
         _set_errno(ENOTSOCK);
         return -1;
     }

@@ -24,31 +24,26 @@
 int getpeername(int iod, struct sockaddr* address_out, socklen_t* address_length_out)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    oserr_t               status;
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
-    if (!address_out || !address_length_out) {
-        _set_errno(EINVAL);
-        return -1;
-    }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+    oserr_t oserr;
+
+    if (stdio_handle_signature(handle) != NET_SIGNATURE) {
         _set_errno(ENOTSOCK);
         return -1;
     }
 
-    status = OSSocketAddress(
+    if (!address_out || !address_length_out) {
+        _set_errno(EINVAL);
+        return -1;
+    }
+
+    oserr = OSSocketAddress(
             &handle->OSHandle,
             SOCKET_ADDRESS_PEER,
             address_out,
             *address_length_out
     );
-    if (status != OS_EOK) {
-        return OsErrToErrNo(status);
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
     }
     *address_length_out = address_out->sa_len;
     return 0;

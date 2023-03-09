@@ -62,40 +62,44 @@
 #include <inet/local.h>
 #include <inet/socket.h>
 #include <os/mollenos.h>
+#include <os/handle.h>
 #include <os/services/net.h>
 
 int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
-    stdio_handle_t* handle = stdio_handle_get(iod);
-    uuid_t          socket_handle;
-    OSHandle_t      acceptedHandle;
-    uuid_t          send_handle;
-    uuid_t          recv_handle;
+    stdio_handle_t* source = stdio_handle_get(iod);
+    stdio_handle_t* handle;
+    OSHandle_t      osHandle;
     oserr_t         oserr;
-    int             accept_iod;
-    
-    if (!handle) {
-        _set_errno(EBADF);
+    int             status;
+
+    if (stdio_handle_signature(source) != NET_SIGNATURE) {
+        _set_errno(ENOTSOCK);
         return -1;
     }
 
     oserr = OSSocketAccept(
-            &handle->OSHandle,
+            &source->OSHandle,
             address,
             address_length,
-            &acceptedHandle
+            &osHandle
     );
     if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }
 
-    accept_iod = socket_create(handle->object.data.socket.domain,
-        handle->object.data.socket.type, handle->object.data.socket.protocol,
-        socket_handle, send_handle, recv_handle);
-    if (accept_iod == -1) {
-        return -1;
+    status = stdio_handle_create2(
+            -1,
+            0,
+            0,
+            NET_SIGNATURE,
+            NULL,
+            &handle
+    );
+    if (status) {
+        OSHandleDestroy(&osHandle);
+        return status;
     }
-    
     *address_length = (socklen_t)(uint32_t)address->sa_len;
-    return accept_iod;
+    return stdio_handle_iod(handle);
 }

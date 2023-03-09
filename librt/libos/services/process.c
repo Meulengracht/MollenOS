@@ -26,6 +26,7 @@
 #include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_tls.h>
+#include <internal/_utils.h>
 #include <os/services/process.h>
 #include <os/shm.h>
 

@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2019, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,47 +13,54 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Support
- * - Standard Socket IO Implementation
  */
 #define __TRACE
 
 #include <ddk/utils.h>
 #include <internal/_io.h>
 #include <inet/socket.h>
+#include <ioctl.h>
+#include <os/handle.h>
 #include <os/services/net.h>
+
+static oserr_t __net_read(stdio_handle_t*, void*, size_t, size_t*);
+static oserr_t __net_write(stdio_handle_t*, const void*, size_t, size_t*);
+static oserr_t __net_ioctl(stdio_handle_t*, int, va_list);
+
+stdio_ops_t g_netOps = {
+        .read = __net_read,
+        .write = __net_write,
+        .ioctl = __net_ioctl
+};
 
 int socket(int domain, int type, int protocol)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oserr_t                  oserr;
-    OSHandle_t               osHandle;
-    uuid_t                   handle;
-    uuid_t                   send_handle;
-    uuid_t                   recv_handle;
-    int                      fd;
-    
-    // We need to create the socket object at kernel level, as we need
-    // kernel assisted functionality to support a centralized storage of
-    // all system sockets. They are the foundation of the microkernel for
-    // communication between processes and are needed long before anything else.
-    TRACE("[socket] remote create");
+    stdio_handle_t* handle;
+    OSHandle_t      osHandle;
+    oserr_t         oserr;
+    int             status;
+
     oserr = OSSocketOpen(domain, type, protocol, &osHandle);
     if (oserr != OS_EOK) {
         return OsErrToErrNo(oserr);
     }
 
-    fd = socket_create(domain, type, protocol, handle, send_handle, recv_handle);
-    if (fd == -1) {
-        ERROR("[socket] socket_create failed");
-        return -1;
+    status = stdio_handle_create2(
+            -1,
+            0,
+            0,
+            NET_SIGNATURE,
+            NULL,
+            &handle
+    );
+    if (status) {
+        OSHandleDestroy(&osHandle);
+        return status;
     }
-    return fd;
+    return stdio_handle_iod(handle);
 }
 
-oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
+static oserr_t __net_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     intmax_t num_bytes = recv(handle->IOD, buffer, length, 0);
     if (num_bytes >= 0) {
@@ -65,7 +70,7 @@ oserr_t stdio_net_op_read(stdio_handle_t* handle, void* buffer, size_t length, s
     return OS_EUNKNOWN;
 }
 
-oserr_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
+static oserr_t __net_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     intmax_t num_bytes = send(handle->IOD, buffer, length, 0);
     if (num_bytes >= 0) {
@@ -75,76 +80,15 @@ oserr_t stdio_net_op_write(stdio_handle_t* handle, const void* buffer, size_t le
     return OS_EUNKNOWN;
 }
 
-oserr_t stdio_net_op_seek(stdio_handle_t* handle, int origin, off64_t offset, long long* position_out)
+static oserr_t __net_ioctl(stdio_handle_t* handle, int request, va_list args)
 {
-    // It is not possible to seek in sockets.
-    return OS_ENOTSUPPORTED;
-}
+    streambuffer_t* recvStream;
+    oserr_t         oserr;
 
-oserr_t stdio_net_op_resize(stdio_handle_t* handle, long long resize_by)
-{
-    // TODO: Implement resizing of socket buffers
-    return OS_ENOTSUPPORTED;
-}
-
-oserr_t stdio_net_op_close(stdio_handle_t* handle, int options)
-{
-    oserr_t status = OS_EOK;
-
-    if (options & STDIO_CLOSE_FULL) {
-        // In case of a full close, just let the socket system handle it
-        return OS_EOK;
+    oserr = OSSocketRecvPipe(&handle->OSHandle, &recvStream);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-
-    if (handle->object.data.socket.send_buffer.Buffer) {
-        (void)SHMUnmap(&handle->object.data.socket.send_buffer);
-        (void)SHMDetach(&handle->object.data.socket.send_buffer);
-    }
-
-    if (handle->object.data.socket.recv_buffer.Buffer) {
-        (void)SHMUnmap(&handle->object.data.socket.recv_buffer);
-        (void)SHMDetach(&handle->object.data.socket.recv_buffer);
-    }
-    return status;
-}
-
-oserr_t stdio_net_op_inherit(stdio_handle_t* handle)
-{
-    oserr_t status1, status2;
-    uuid_t  send_buffer_handle = handle->object.data.socket.send_buffer.ID;
-    uuid_t  recv_buffer_handle = handle->object.data.socket.recv_buffer.ID;
-
-    // When we inherit a socket from another application, we must reattach
-    // the handle that is stored in dma_attachment.
-    status1 = SHMAttach(send_buffer_handle, &handle->object.data.socket.send_buffer);
-    status2 = SHMAttach(recv_buffer_handle, &handle->object.data.socket.recv_buffer);
-    if (status1 != OS_EOK || status2 != OS_EOK) {
-        return status1 != OS_EOK ? status1 : status2;
-    }
-
-    status1 = SHMMap(
-            &handle->object.data.socket.send_buffer,
-            0, handle->object.data.socket.send_buffer.Capacity,
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    );
-    if (status1 != OS_EOK) {
-        return status1;
-    }
-
-    status1 = SHMMap(
-            &handle->object.data.socket.recv_buffer,
-            0, handle->object.data.socket.recv_buffer.Capacity,
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    );
-    if (status1 != OS_EOK) {
-        return status1;
-    }
-    return status1;
-}
-
-oserr_t stdio_net_op_ioctl(stdio_handle_t* handle, int request, va_list args)
-{
-    streambuffer_t* recvStream = handle->object.data.socket.recv_buffer.Buffer;
 
     if ((unsigned int)request == FIONREAD) {
         int* bytesAvailableOut = va_arg(args, int*);

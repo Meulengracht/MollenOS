@@ -26,6 +26,7 @@
 #include <internal/_io.h>
 #include <internal/_tls.h>
 #include <inet/local.h>
+#include <os/services/net.h>
 #include <string.h>
 
 static intmax_t perform_send_stream(stdio_handle_t* handle, const struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
@@ -150,18 +151,13 @@ intmax_t sendmsg(int iod, const struct msghdr* msg_hdr, int flags)
 {
     stdio_handle_t*  handle = stdio_handle_get(iod);
     streambuffer_t*  stream;
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
+
     if (!msg_hdr) {
         _set_errno(EINVAL);
         return -1;
     }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+
+    if (stdio_handle_signature(handle) != NET_SIGNATURE) {
         _set_errno(ENOTSOCK);
         return -1;
     }
