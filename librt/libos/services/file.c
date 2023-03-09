@@ -15,12 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ddk/service.h>
 #include <ddk/convert.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
-#include <internal/_syscalls.h>
+#include <internal/_utils.h>
 #include <io.h>
 #include <os/services/file.h>
 #include <os/handle.h>
+#include <sys_file_service_client.h>
 
 static void __FileDestroy(struct OSHandle*);
 

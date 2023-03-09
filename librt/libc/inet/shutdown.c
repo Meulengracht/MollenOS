@@ -21,35 +21,44 @@
  * - Standard Socket IO Implementation
  */
 
-#include "errno.h"
-#include "internal/_io.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <inet/socket.h>
+#include <os/services/net.h>
+#include <os/mollenos.h>
 
 int shutdown(int iod, int how)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
+    oserr_t         oserr;
+
     if (how <= 0 || how > SHUT_RDWR) {
         _set_errno(EINVAL);
         return -1;
     }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+
+    if (stdio_handle_signature(handle) != NET_SIGNATURE) {
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
+
     if (how & SHUT_WR) {
-        streambuffer_t* stream = handle->object.data.socket.send_buffer.Buffer;
+        streambuffer_t* stream;
+
+        oserr = OSSocketSendPipe(&handle->OSHandle, &stream);
+        if (oserr != OS_EOK) {
+            return OsErrToErrNo(oserr);
+        }
         streambuffer_set_option(stream, STREAMBUFFER_DISABLED);
     }
     
     if (how & SHUT_RD) {
-        streambuffer_t* stream = handle->object.data.socket.recv_buffer.Buffer;
+        streambuffer_t* stream;
+
+        oserr = OSSocketRecvPipe(&handle->OSHandle, &stream);
+        if (oserr != OS_EOK) {
+            return OsErrToErrNo(oserr);
+        }
         streambuffer_set_option(stream, STREAMBUFFER_DISABLED);
     }
     return 0;

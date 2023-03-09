@@ -18,11 +18,14 @@
 #define __need_minmax
 #include <ddk/convert.h>
 #include <ds/list.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
+#include <internal/_utils.h>
 #include <os/services/file.h>
 #include <os/handle.h>
 #include <os/memory.h>
 #include <os/shm.h>
+#include <sys_file_service_client.h>
 
 struct file_view {
     element_t    header;

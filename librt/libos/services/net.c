@@ -16,10 +16,10 @@
  */
 
 #include <ddk/service.h>
-#include <gracht/client.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/handle.h>
+#include <os/shm.h>
 #include <os/services/net.h>
 #include <sys_socket_service_client.h>
 
@@ -42,7 +42,75 @@ __SocketNew(
         _In_  int type,
         _In_  int protocol)
 {
+    struct Socket* socket;
 
+    socket = malloc(sizeof(struct Socket));
+    if (socket == NULL) {
+        return NULL;
+    }
+
+    memset(socket, 0, sizeof(struct Socket));
+    socket->Type = type;
+    return socket;
+}
+
+static oserr_t
+__SocketMap(
+        _In_ struct Socket* socket,
+        _In_ uuid_t         handleID,
+        _In_ uuid_t         outHandleID,
+        _In_ uuid_t         inHandleID,
+        _In_ OSHandle_t*    handle)
+{
+    oserr_t oserr;
+
+    oserr = SHMAttach(outHandleID, &socket->Send);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = SHMAttach(inHandleID, &socket->Recv);
+    if (oserr != OS_EOK){
+        OSHandleDestroy(&socket->Send);
+        return oserr;
+    }
+
+    oserr = SHMMap(
+            &socket->Send,
+            0,
+            SHMBufferCapacity(&socket->Send),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Send);
+        OSHandleDestroy(&socket->Recv);
+        return oserr;
+    }
+
+    oserr = SHMMap(
+            &socket->Recv,
+            0,
+            SHMBufferCapacity(&socket->Recv),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Send);
+        OSHandleDestroy(&socket->Recv);
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            handleID,
+            OSHANDLE_SOCKET,
+            NULL,
+            true,
+            handle
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Send);
+        OSHandleDestroy(&socket->Recv);
+    }
+    return oserr;
 }
 
 static void
@@ -88,11 +156,11 @@ OSSocketOpen(
         return oserr;
     }
 
-    oserr = OSHandleWrap(
+    oserr = __SocketMap(
+            socket,
             handleID,
-            OSHANDLE_SOCKET,
-            NULL,
-            true,
+            send_handle,
+            recv_handle,
             handleOut
     );
     if (oserr != OS_EOK) {
@@ -125,11 +193,11 @@ OSSocketAccept(
         _Out_ OSHandle_t*      handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    struct Socket*           source;
-    uuid_t                   socket_handle;
+    struct Socket*           source, *accepted;
+    uuid_t                   handleID;
     uuid_t                   send_handle;
     uuid_t                   recv_handle;
-    oserr_t                  status;
+    oserr_t                  oserr;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -146,25 +214,42 @@ OSSocketAccept(
         return OS_ENOTSUPPORTED;
     }
 
+    accepted = __SocketNew(0, source->Type, 0);
+    if (accepted == NULL) {
+        return OS_EOOM;
+    }
+
     sys_socket_accept(GetGrachtClient(), &msg.base, handle->ID);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_accept_result(
             GetGrachtClient(),
             &msg.base,
-            &status,
+            &oserr,
             (uint8_t*)address,
             *addressLength,
-            &socket_handle,
+            &handleID,
             &recv_handle,
             &send_handle
     );
-    if (status != OS_EOK) {
-        OsErrToErrNo(status);
-        return -1;
+    if (oserr != OS_EOK) {
+        free(accepted);
+        return OsErrToErrNo(oserr);
     }
 
+    oserr = __SocketMap(
+            accepted,
+            handleID,
+            send_handle,
+            recv_handle,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        __SocketClose(handleID);
+        free(accepted);
+        return oserr;
+    }
     *addressLength = (socklen_t)(uint32_t)address->sa_len;
-
+    return OS_EOK;
 }
 
 oserr_t
@@ -299,7 +384,7 @@ OSSocketSetOption(
         _In_ const void* data,
         _In_ socklen_t   length)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
 
     if (handle == NULL) {
@@ -353,8 +438,27 @@ OSSocketOption(
     return oserr;
 }
 
-static void
-__SocketDestroy(struct OSHandle*)
+oserr_t
+OSSocketSendPipe(
+        _In_  OSHandle_t*      handle,
+        _Out_ streambuffer_t** pipeOut)
 {
 
+}
+
+oserr_t
+OSSocketRecvPipe(
+        _In_  OSHandle_t*      handle,
+        _Out_ streambuffer_t** pipeOut)
+{
+
+}
+
+static void
+__SocketDestroy(struct OSHandle* handle)
+{
+    struct Socket* socket = handle->Payload;
+    OSHandleDestroy(&socket->Send);
+    OSHandleDestroy(&socket->Recv);
+    __SocketClose(handle->ID);
 }

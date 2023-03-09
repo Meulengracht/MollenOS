@@ -29,25 +29,11 @@
 int sockatmark(int iod)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    
-    if (!handle) {
-        _set_errno(EBADF);
-        return -1;
-    }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
+
+    if (stdio_handle_signature(handle) != NET_SIGNATURE) {
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
-    if (handle->object.data.socket.type == SOCK_STREAM ||
-        handle->object.data.socket.type == SOCK_SEQPACKET) {
-        // Only supported on stream sockets
-        _set_errno(ENOSYS);
-    }
-    else {
-        _set_errno(ENOSYS);
-        return -1;
-    }
+    _set_errno(ENOSYS);
     return -1;
 }

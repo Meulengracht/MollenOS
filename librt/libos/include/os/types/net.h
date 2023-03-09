@@ -94,6 +94,13 @@ struct sockaddr_storage {
 #define	PF_BLUETOOTH	AF_BLUETOOTH
 #define	PF_MAX		    AF_MAX
 
+struct packethdr {
+    int      flags;
+    intmax_t controllen;
+    intmax_t addresslen;
+    intmax_t payloadlen;
+};
+
 struct iovec {
     void*  iov_base;    /* Starting address */
     size_t iov_len;     /* Number of bytes to transfer */

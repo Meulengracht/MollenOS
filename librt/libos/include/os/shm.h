@@ -121,6 +121,15 @@ SHMBufferLength(
         _In_ OSHandle_t* handle));
 
 /**
+ * @brief
+ * @param handle
+ * @return
+ */
+CRTDECL(size_t,
+SHMBufferCapacity(
+        _In_ OSHandle_t* handle));
+
+/**
  * Call this once with the count parameter to get the number of
  * scatter-gather entries, then the second time with the memory_sg parameter
  * to retrieve a list of all the entries

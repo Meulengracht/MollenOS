@@ -24,7 +24,7 @@
 #define __DMA_POOL_H__
 
 #include <ddk/ddkdefs.h>
-#include <os/types/shm.h>
+#include <os/types/handle.h>
 
 _CODE_BEGIN
 
@@ -35,7 +35,7 @@ struct dma_pool;
  * This allows sub-allocations from a buffer-object. */
 DDKDECL(oserr_t,
 dma_pool_create(
-    _In_  SHMHandle_t*      shm,
+    _In_  OSHandle_t*       shm,
     _Out_ struct dma_pool** poolOut));
 
 /* BufferPoolDestroy

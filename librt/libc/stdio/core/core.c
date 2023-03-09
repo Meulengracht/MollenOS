@@ -48,6 +48,7 @@ extern stdio_ops_t g_iosetOps;
 extern stdio_ops_t g_fileOps;
 extern stdio_ops_t g_pipeOps;
 extern stdio_ops_t g_ipcOps;
+extern stdio_ops_t g_netOps;
 
 stdio_ops_t*
 CRTSignatureOps(
@@ -62,7 +63,7 @@ CRTSignatureOps(
         case IPC_SIGNATURE: return &g_ipcOps;
         case EVENT_SIGNATURE: return &g_evtOps;
         case IOSET_SIGNATURE: return &g_iosetOps;
-        case NET_SIGNATURE: return NULL;
+        case NET_SIGNATURE: return &g_netOps;
         default: {
             assert(0 && "unsupported io-descriptor signature");
         }

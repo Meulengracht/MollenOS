@@ -241,6 +241,16 @@ SHMBufferLength(
     return ((SHMHandle_t*)handle->Payload)->Length;
 }
 
+size_t
+SHMBufferCapacity(
+        _In_ OSHandle_t* handle)
+{
+    if (handle == NULL) {
+        return 0;
+    }
+    return ((SHMHandle_t*)handle->Payload)->Capacity;
+}
+
 oserr_t
 SHMGetSGTable(
         _In_ OSHandle_t*   handle,

@@ -27,16 +27,17 @@
 #include <ddk/utils.h>
 #include <os/shm.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct dma_pool {
     struct bytepool* pool;
-    SHMHandle_t*     handle;
+    OSHandle_t       handle;
     SHMSGTable_t     table;
 };
 
 oserr_t
 dma_pool_create(
-    _In_  SHMHandle_t*      shm,
+    _In_  OSHandle_t*       shm,
     _Out_ struct dma_pool** poolOut)
 {
     struct dma_pool* pool;
@@ -51,7 +52,7 @@ dma_pool_create(
         return OS_EOOM;
     }
     
-    pool->handle = shm;
+    memcpy(&pool->handle, shm, sizeof(OSHandle_t));
 
     oserr = SHMGetSGTable(shm, &pool->table, -1);
     if (oserr != OS_EOK) {
@@ -59,7 +60,7 @@ dma_pool_create(
         return oserr;
     }
 
-    oserr = bpool(shm->Buffer, (long)shm->Length, &pool->pool);
+    oserr = bpool(SHMBuffer(shm), (long)SHMBufferLength(shm), &pool->pool);
     if (oserr != OS_EOK) {
         free(pool->table.Entries);
         free(pool);
@@ -113,10 +114,10 @@ uuid_t
 dma_pool_handle(
     _In_ struct dma_pool* pool)
 {
-    if (!pool || !pool->handle) {
+    if (pool == NULL) {
         return UUID_INVALID;
     }
-    return pool->handle->ID;
+    return pool->handle.ID;
 }
 
 size_t
@@ -124,8 +125,8 @@ dma_pool_offset(
     _In_ struct dma_pool* pool,
     _In_ void*            address)
 {
-    if (!pool || !pool->handle || !address) {
+    if (pool == NULL || !address) {
         return 0;
     }
-    return (uintptr_t)address - (uintptr_t)pool->handle->Buffer;
+    return (uintptr_t)address - (uintptr_t)SHMBuffer(&pool->handle);
 }

@@ -1,5 +1,4 @@
 add_libc_target(libc-inet
-        _socket.c
         accept.c
         bind.c
         connect.c

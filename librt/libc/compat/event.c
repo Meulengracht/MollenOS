@@ -21,6 +21,7 @@
 #include <os/handle.h>
 #include <os/notification_queue.h>
 #include <os/event.h>
+#include <os/mollenos.h>
 #include <io.h>
 #include <ioctl.h>
 #include <stdlib.h>
