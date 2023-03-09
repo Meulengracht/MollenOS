@@ -34,22 +34,17 @@
  * sa_family member of sockaddr set to AF_UNSPEC.
  */
 
-#include "sys_socket_service_client.h"
-#include "ddk/service.h"
-#include "errno.h"
-#include "gracht/link/vali.h"
-#include "internal/_io.h"
-#include "internal/_utils.h"
-#include "inet/local.h"
-#include "inet/socket.h"
-#include "os/mollenos.h"
-#include "string.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
+#include <inet/socket.h>
+#include <os/mollenos.h>
+#include <os/services/net.h>
 
 int connect(int iod, const struct sockaddr* address, socklen_t address_length)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetNetService());
-    stdio_handle_t*          handle = stdio_handle_get(iod);
-    oserr_t               status;
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    oserr_t         status;
     
     if (!handle) {
         _set_errno(EBADF);
@@ -60,19 +55,12 @@ int connect(int iod, const struct sockaddr* address, socklen_t address_length)
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
-    if (handle->object.data.socket.type == SOCK_STREAM ||
-        handle->object.data.socket.type == SOCK_SEQPACKET) {
-        sys_socket_connect(GetGrachtClient(), &msg.base, handle->object.handle, (const uint8_t*)address, address_length);
-        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-        sys_socket_connect_result(GetGrachtClient(), &msg.base, &status);
-        if (status != OS_EOK) {
-            OsErrToErrNo(status);
-            return -1;
-        }
-    }
-    else {
-        memcpy(&handle->object.data.socket.default_address, address, address_length);
-    }
-    return 0;
+
+    return OsErrToErrNo(
+            OSSocketConnect(
+                    &handle->OSHandle,
+                    address,
+                    address_length
+            )
+    );
 }

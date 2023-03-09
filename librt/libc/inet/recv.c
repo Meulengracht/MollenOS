@@ -46,11 +46,11 @@
 //#define __TRACE
 
 #define __need_minmax
-#include "ddk/utils.h"
-#include "errno.h"
-#include "internal/_io.h"
-#include "internal/_tls.h"
-#include "inet/local.h"
+#include <ddk/utils.h>
+#include <errno.h>
+#include <internal/_io.h>
+#include <internal/_tls.h>
+#include <inet/local.h>
 
 static inline unsigned int
 get_streambuffer_flags(int flags)

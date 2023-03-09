@@ -21,10 +21,10 @@
  * - Standard Socket IO Implementation
  */
 
-#include "errno.h"
-#include "inet/socket.h"
-#include "internal/_io.h"
-#include "io.h"
+#include <errno.h>
+#include <inet/socket.h>
+#include <internal/_io.h>
+#include <io.h>
 
 int sockatmark(int iod)
 {

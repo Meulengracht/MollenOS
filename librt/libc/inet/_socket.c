@@ -16,12 +16,8 @@
  */
 #define __TRACE
 
-#include <sys_socket_service_client.h>
-#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <gracht/link/vali.h>
 #include <internal/_io.h>
-#include <internal/_utils.h>
 #include <os/mollenos.h>
 
 int socket_create(int domain, int type, int protocol, uuid_t handle,
@@ -34,12 +30,6 @@ int socket_create(int domain, int type, int protocol, uuid_t handle,
     
     status = stdio_handle_create(-1, WX_PIPE, &ioObject);
     if (status) {
-        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-        
-        ERROR("[socket] stdio_handle_create failed with code %u", status);
-        sys_socket_close(GetGrachtClient(), &msg.base, handle, SYS_CLOSE_OPTIONS_DESTROY);
-        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-        sys_socket_close_result(GetGrachtClient(), &msg.base, &osStatus);
         return -1;
     }
     

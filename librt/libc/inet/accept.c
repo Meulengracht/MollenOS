@@ -57,51 +57,38 @@
  * the new socket. Currently only DECNet has these semantics on Linux.
  */
 
-#include "sys_process_service_client.h"
-#include "ddk/service.h"
-#include "errno.h"
-#include "gracht/link/vali.h"
-#include "internal/_io.h"
-#include "internal/_utils.h"
-#include "inet/local.h"
-#include "inet/socket.h"
-#include "os/mollenos.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <inet/local.h>
+#include <inet/socket.h>
+#include <os/mollenos.h>
+#include <os/services/net.h>
 
 int accept(int iod, struct sockaddr* address, socklen_t* address_length)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    stdio_handle_t*          handle = stdio_handle_get(iod);
-    uuid_t                   socket_handle;
-    uuid_t                   send_handle;
-    uuid_t                   recv_handle;
-    oserr_t               status;
-    int                      accept_iod;
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    uuid_t          socket_handle;
+    OSHandle_t      acceptedHandle;
+    uuid_t          send_handle;
+    uuid_t          recv_handle;
+    oserr_t         oserr;
+    int             accept_iod;
     
     if (!handle) {
         _set_errno(EBADF);
         return -1;
     }
-    
-    if (handle->object.type != STDIO_HANDLE_SOCKET) {
-        _set_errno(ENOTSOCK);
-        return -1;
+
+    oserr = OSSocketAccept(
+            &handle->OSHandle,
+            address,
+            address_length,
+            &acceptedHandle
+    );
+    if (oserr != OS_EOK) {
+        return OsErrToErrNo(oserr);
     }
-    
-    if (handle->object.data.socket.type != SOCK_SEQPACKET &&
-        handle->object.data.socket.type != SOCK_STREAM) {
-        _set_errno(ESOCKTNOSUPPORT);
-        return -1;        
-    }
-    
-    sys_socket_accept(GetGrachtClient(), &msg.base, handle->object.handle);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_socket_accept_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)address, *address_length,
-        &socket_handle, &recv_handle, &send_handle);
-    if (status != OS_EOK) {
-        OsErrToErrNo(status);
-        return -1;
-    }
-    
+
     accept_iod = socket_create(handle->object.data.socket.domain,
         handle->object.data.socket.type, handle->object.data.socket.protocol,
         socket_handle, send_handle, recv_handle);
