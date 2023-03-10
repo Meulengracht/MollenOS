@@ -45,186 +45,17 @@
 
 //#define __TRACE
 
-#define __need_minmax
 #include <ddk/utils.h>
 #include <errno.h>
 #include <internal/_io.h>
-#include <internal/_tls.h>
 #include <inet/local.h>
 #include <os/services/net.h>
 
-static inline unsigned int
-get_streambuffer_flags(int flags)
-{
-    unsigned int sb_options = 0;
-    
-    if (flags & MSG_OOB) {
-        sb_options |= STREAMBUFFER_PRIORITY;
-    }
-    
-    if (flags & MSG_DONTWAIT) {
-        sb_options |= STREAMBUFFER_NO_BLOCK;
-    }
-    
-    if (!(flags & MSG_WAITALL)) {
-        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
-    }
-    
-    if (flags & MSG_PEEK) {
-        sb_options |= STREAMBUFFER_PEEK;
-    }
-    
-    return sb_options;
-}
-
-static intmax_t perform_recv_stream(streambuffer_t* stream, struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
-{
-    intmax_t numbytes = 0;
-    int      i;
-    
-    for (i = 0; i < msg->msg_iovlen; i++) {
-        struct iovec* iov = &msg->msg_iov[i];
-        TRACE("[libc] [socket] [recv] reading %" PRIuIN "bytes", iov->iov_len);
-        numbytes += (intmax_t)streambuffer_stream_in(stream, iov->iov_base, iov->iov_len, rwOptions);
-        TRACE("[libc] [socket] [recv] read %i bytes", numbytes);
-        if (numbytes < iov->iov_len) {
-            if (!(rwOptions->flags & STREAMBUFFER_NO_BLOCK)) {
-                _set_errno(EPIPE);
-                numbytes = -1;
-            }
-            break;
-        }
-    }
-    return numbytes;
-}
-
-// Valid flags for recv are
-// MSG_OOB          (No OOB support)
-// MSG_PEEK         (No peek support)
-// MSG_WAITALL      (Supported)
-// MSG_DONTWAIT     (Supported)
-// MSG_NOSIGNAL     (Ignored on Vali)
-// MSG_CMSG_CLOEXEC (Ignored on Vali)
-static intmax_t perform_recv(stdio_handle_t* handle, struct msghdr* msg, streambuffer_rw_options_t* rwOptions)
-{
-    streambuffer_t*           stream   = handle->object.data.socket.recv_buffer.Buffer;
-    intmax_t                  numbytes = 0;
-    struct packethdr          packet;
-    int                       i;
-    streambuffer_packet_ctx_t packetCtx;
-
-    // In case of stream sockets we simply just read as many bytes as requested
-    // or available and return, unless WAITALL has been specified.
-    if (handle->object.data.socket.type == SOCK_STREAM) {
-        return perform_recv_stream(stream, msg, rwOptions);
-    }
-    
-    // Reading a packet is an atomic action and the entire packet must be read
-    // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
-    rwOptions->flags &= ~(STREAMBUFFER_ALLOW_PARTIAL);
-    numbytes = (intmax_t)streambuffer_read_packet_start(stream, rwOptions, &packetCtx);
-    if (numbytes < sizeof(struct packethdr)) {
-        if (!numbytes) {
-            if (!(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
-                _set_errno(EPIPE);
-                return -1;
-            }
-            return 0;
-        }
-        
-        // If we read an invalid number of bytes then something evil happened.
-        streambuffer_read_packet_end(&packetCtx);
-        _set_errno(EPIPE);
-        return -1;
-    }
-    
-    // Reset the message flag so we can properly report status of message.
-    streambuffer_read_packet_data(&packet, sizeof(struct packethdr), &packetCtx);
-    msg->msg_flags = packet.flags;
-    
-    // Handle the source address that is given in the packet
-    if (packet.addresslen && msg->msg_name && msg->msg_namelen) {
-        size_t bytes_to_copy    = MIN(msg->msg_namelen, packet.addresslen);
-        size_t bytes_to_discard = packet.addresslen - bytes_to_copy;
-        
-        streambuffer_read_packet_data(msg->msg_name, bytes_to_copy, &packetCtx);
-        packetCtx._state += bytes_to_discard; // hack
-    }
-    else {
-        packetCtx._state += packet.addresslen; // discard, hack
-        msg->msg_namelen = 0;
-    }
-    
-    // Handle control data, and set the appropriate flags and update the actual
-    // length read of control data if it is shorter than the buffer provided.
-    if (packet.controllen && msg->msg_control && msg->msg_controllen) {
-        size_t bytes_to_copy    = MIN(msg->msg_controllen, packet.controllen);
-        size_t bytes_to_discard = packet.controllen - bytes_to_copy;
-        
-        streambuffer_read_packet_data(msg->msg_control, bytes_to_copy, &packetCtx);
-        packetCtx._state += bytes_to_discard; // hack
-    }
-    else {
-        packetCtx._state += packet.controllen; // discard, hack
-        msg->msg_controllen = 0;
-    }
-    
-    if (packet.controllen > msg->msg_controllen) {
-        msg->msg_flags |= MSG_CTRUNC;
-    }
-    
-    // Finally read the payload data
-    if (packet.payloadlen) {
-        size_t bytes_remaining = packet.payloadlen;
-        int    iov_not_filled  = 0;
-        
-        for (i = 0; i < msg->msg_iovlen && bytes_remaining; i++) {
-            struct iovec* iov = &msg->msg_iov[i];
-            if (!iov->iov_len) {
-                break;
-            }
-            
-            size_t bytes_to_copy = MIN(iov->iov_len, bytes_remaining);
-            if (iov->iov_len > bytes_to_copy) {
-                iov_not_filled = 1;
-            }
-            
-            streambuffer_read_packet_data(iov->iov_base, bytes_to_copy, &packetCtx);
-            bytes_remaining -= bytes_to_copy;
-        }
-        streambuffer_read_packet_end(&packetCtx);
-        
-        // The first special case is when there is more data available than we
-        // requested, that means we simply trunc the data.
-        if (bytes_remaining) {
-            msg->msg_flags |= MSG_TRUNC;
-        }
-        
-        // The second case is a lot more complex, that means we are missing data
-        // though we requested more, if WAITALL is set, then we need to keep reading
-        // untill we read all the data
-        else if (!bytes_remaining && iov_not_filled && !(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
-            // However on message-based sockets, we must read datagrams as atomic
-            // operations, and thus MSG_WAITALL has no effect as this is effectively
-            // the standard mode of operation.
-        }
-    }
-    else {
-        streambuffer_read_packet_end(&packetCtx);
-        for (i = 0; i < msg->msg_iovlen; i++) {
-            struct iovec* iov = &msg->msg_iov[i];
-            iov->iov_len = 0;
-        }
-    }
-    return packet.payloadlen;
-}
-
 intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
 {
-    stdio_handle_t*   handle = stdio_handle_get(iod);
-    streambuffer_t*   stream;
-    intmax_t          numbytes;
-    OSAsyncContext_t* asyncContext = __tls_current()->async_context;
+    stdio_handle_t* handle = stdio_handle_get(iod);
+    size_t          bytesRecv;
+    oserr_t         oserr;
 
     if (!msg_hdr) {
         _set_errno(EINVAL);
@@ -235,32 +66,12 @@ intmax_t recvmsg(int iod, struct msghdr* msg_hdr, int flags)
         _set_errno(ENOTSOCK);
         return -1;
     }
-    
-    stream = handle->object.data.socket.recv_buffer.Buffer;
-    if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
-        _set_errno(ESHUTDOWN);
-        return 0; // Should return 0
-    }
 
-    if (asyncContext) {
-        OSAsyncContextInitialize(asyncContext);
+    oserr = OSSocketRecv(&handle->OSHandle, msg_hdr, flags, &bytesRecv);
+    if (oserr != OS_EOK) {
+        return (intmax_t)OsErrToErrNo(oserr);
     }
-    numbytes = perform_recv(handle, msg_hdr, &(streambuffer_rw_options_t) {
-            .flags = get_streambuffer_flags(flags),
-            asyncContext,
-            NULL
-    });
-    
-    // Fill in the source address if one was provided already, and overwrite
-    // the one provided by the packet.
-    if (numbytes > 0 && msg_hdr->msg_name != NULL) {
-        if (handle->object.data.socket.default_address.__ss_family != AF_UNSPEC) {
-            memcpy(msg_hdr->msg_name, &handle->object.data.socket.default_address,
-                handle->object.data.socket.default_address.__ss_len);
-            msg_hdr->msg_namelen = handle->object.data.socket.default_address.__ss_len;
-        }
-    }
-    return numbytes;
+    return (intmax_t)bytesRecv;
 }
 
 intmax_t recvfrom(int iod, void* buffer, size_t length, int flags, struct sockaddr* address_out, socklen_t* address_length_out)

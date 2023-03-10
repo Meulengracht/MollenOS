@@ -15,19 +15,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __need_minmax
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
+#include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <os/handle.h>
+#include <os/notification_queue.h>
 #include <os/shm.h>
 #include <os/services/net.h>
+#include <os/mutex.h>
 #include <sys_socket_service_client.h>
 
 struct Socket {
     int                     Type;
     struct sockaddr_storage ConnectedAddress;
     OSHandle_t              Send;
+    bool                    SendMapped;
+    bool                    SendValid;
     OSHandle_t              Recv;
+    bool                    RecvMapped;
+    bool                    RecvValid;
+    Mutex_t                 Lock;
 };
 
 static void __SocketDestroy(struct OSHandle*);
@@ -51,6 +60,7 @@ __SocketNew(
 
     memset(socket, 0, sizeof(struct Socket));
     socket->Type = type;
+    MutexInitialize(&socket->Lock, MUTEX_PLAIN);
     return socket;
 }
 
@@ -443,7 +453,253 @@ OSSocketSendPipe(
         _In_  OSHandle_t*      handle,
         _Out_ streambuffer_t** pipeOut)
 {
+    struct Socket* socket;
+    oserr_t        oserr = OS_EOK;
 
+    if (handle == NULL || handle->Type != OSHANDLE_SOCKET) {
+        return OS_EINVALPARAMS;
+    }
+
+    socket = handle->Payload;
+    // Two cases can happen here, either the pipe is not mapped (socket was
+    // created by this process), or the pipe may already be mapped (it has
+    // been mapped by a previous call to OSSocketSendPipe, or it has been
+    // inheritted).
+    MutexLock(&socket->Lock);
+    if (socket->SendMapped) {
+        // OK so the pipe is mapped, then it may still not be valid
+        if (!socket->SendValid) {
+            oserr = OSHandlesFind(socket->Send.ID, &socket->Send);
+            if (oserr != OS_EOK) {
+                // Something is horrible wrong
+                goto exit;
+            }
+            socket->SendValid = true;
+        }
+        *pipeOut = SHMBuffer(&socket->Send);
+        goto exit;
+    }
+
+    oserr = SHMAttach(socket->Send.ID, &socket->Send);
+    if (oserr != OS_EOK){
+        goto exit;
+    }
+
+    oserr = SHMMap(
+            &socket->Send,
+            0,
+            SHMBufferCapacity(&socket->Send),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Send);
+        goto exit;
+    }
+
+    socket->SendMapped = true;
+    socket->SendValid = true;
+    *pipeOut = SHMBuffer(&socket->Send);
+
+    exit:
+    MutexUnlock(&socket->Lock);
+    return oserr;
+}
+
+static oserr_t
+__SendStream(
+        _In_  OSHandle_t*                handle,
+        _In_  streambuffer_t*            stream,
+        _In_  const struct msghdr*       message,
+        _In_  streambuffer_rw_options_t* rwOptions,
+        _Out_ size_t*                    bytesSentOut)
+{
+    size_t  bytesSent = 0;
+    oserr_t oserr;
+
+    for (int i = 0; i < message->msg_iovlen; i++) {
+        struct iovec* iov = &message->msg_iov[i];
+        size_t bytes_streamed = streambuffer_stream_out(
+                stream,
+                iov->iov_base,
+                iov->iov_len,
+                rwOptions
+        );
+        if (!bytes_streamed) {
+            break;
+        }
+        bytesSent += bytes_streamed;
+    }
+
+    oserr = OSNotificationQueuePost(handle,IOSETOUT);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    *bytesSentOut = bytesSent;
+    return OS_EOK;
+}
+
+static oserr_t
+__SendPacket(
+        _In_  OSHandle_t*                handle,
+        _In_  streambuffer_t*            stream,
+        _In_  const struct msghdr*       message,
+        _In_  int                        flags,
+        _In_  streambuffer_rw_options_t* rwOptions,
+        _Out_ size_t*                    bytesSentOut)
+{
+    size_t           bytesSent   = 0;
+    size_t           payload_len = 0;
+    size_t           meta_len    = sizeof(struct packethdr) + message->msg_namelen + message->msg_controllen;
+    struct packethdr packet;
+    size_t           avail_len;
+    oserr_t          oserr;
+    streambuffer_packet_ctx_t packetCtx;
+    int              i;
+
+    // Writing an packet is an atomic action and the entire packet must be written
+    // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
+    rwOptions->flags &= ~(STREAMBUFFER_ALLOW_PARTIAL);
+
+    // Otherwise we must build a packet, to do this we need to know the entire
+    // length of the message before committing.
+    for (i = 0; i < message->msg_iovlen; i++) {
+        payload_len += message->msg_iov[i].iov_len;
+    }
+
+    packet.flags = flags & (MSG_OOB | MSG_DONTROUTE);
+    packet.controllen = (message->msg_control != NULL) ? message->msg_controllen : 0;
+    packet.addresslen = (message->msg_name != NULL) ? message->msg_namelen : 0;
+    packet.payloadlen = payload_len;
+
+    avail_len = streambuffer_write_packet_start(
+            stream,
+            meta_len + payload_len,
+            rwOptions,
+            &packetCtx
+    );
+    if (avail_len < (meta_len + payload_len)) {
+        if (!(flags & MSG_DONTWAIT)) {
+            _set_errno(EPIPE);
+            return -1;
+        }
+        return 0;
+    }
+
+    streambuffer_write_packet_data(&packet, sizeof(struct packethdr), &packetCtx);
+    if (message->msg_name && message->msg_namelen) {
+        streambuffer_write_packet_data(message->msg_name, message->msg_namelen, &packetCtx);
+    }
+    if (message->msg_control && message->msg_controllen) {
+        streambuffer_write_packet_data(message->msg_control, message->msg_controllen, &packetCtx);
+    }
+
+    for (i = 0; i < message->msg_iovlen; i++) {
+        struct iovec* iov = &message->msg_iov[i];
+        size_t        count = MIN(avail_len - meta_len, iov->iov_len);
+        if (!count) {
+            break;
+        }
+
+        streambuffer_write_packet_data(iov->iov_base, iov->iov_len, &packetCtx);
+        meta_len += count;
+        bytesSent += count;
+    }
+    streambuffer_write_packet_end(&packetCtx);
+    oserr = OSNotificationQueuePost(handle,IOSETOUT);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    *bytesSentOut = bytesSent;
+    return OS_EOK;
+}
+
+// Valid flags for send are
+// MSG_CONFIRM      (Not supported)
+// MSG_EOR          (Not supported)
+// MSG_OOB          (No OOB support)
+// MSG_MORE         (Not supported)
+// MSG_DONTROUTE    (Dunno what this is)
+// MSG_DONTWAIT     (Supported)
+// MSG_NOSIGNAL     (Ignored on Vali)
+// MSG_CMSG_CLOEXEC (Ignored on Vali)
+static oserr_t
+__SendMessage(
+        _In_  OSHandle_t*          handle,
+        _In_  streambuffer_t*      stream,
+        _In_  const struct msghdr* message,
+        _In_  int                  flags,
+        _Out_ size_t*              bytesSentOut)
+{
+    struct Socket*            socket = handle->Payload;
+    OSAsyncContext_t*         asyncContext = __tls_current()->async_context;
+    streambuffer_rw_options_t rwOptions = {
+            .flags = 0,
+            .async_context = asyncContext,
+            .deadline = NULL
+    };
+
+    if (flags & MSG_OOB) {
+        rwOptions.flags |= STREAMBUFFER_PRIORITY;
+    }
+
+    if (flags & MSG_DONTWAIT) {
+        rwOptions.flags |= STREAMBUFFER_NO_BLOCK | STREAMBUFFER_ALLOW_PARTIAL;
+    }
+
+    // For stream sockets we don't need to build the packet header. Simply just
+    // write all the bytes possible to the send socket and return
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
+    if (socket->Type == SOCK_STREAM) {
+        return __SendStream(handle, stream, message, &rwOptions, bytesSentOut);
+    }
+    return __SendPacket(handle, stream, message, flags, &rwOptions, bytesSentOut);
+}
+
+oserr_t
+OSSocketSend(
+        _In_  OSHandle_t*          handle,
+        _In_  const struct msghdr* message,
+        _In_  int                  flags,
+        _Out_ size_t*              bytesSentOut)
+{
+    struct Socket*  socket;
+    streambuffer_t* stream;
+    oserr_t         oserr;
+
+    oserr = OSSocketSendPipe(handle, &stream);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (message == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
+        return OS_ELINKINVAL;
+    }
+
+    // Lastly, make sure we actually have a destination address. For the rest of
+    // the socket types, we use the stored address ('connected address'), or the
+    // one provided.
+    socket = handle->Payload;
+    if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
+        // TODO return ENOTCONN / EISCONN before writing data. Lack of effecient way
+    } else {
+        if (message->msg_name == NULL) {
+            if (socket->ConnectedAddress.__ss_family == AF_UNSPEC) {
+                return OS_ENOTCONNECTED;
+            }
+            struct msghdr* msg_ptr = (struct msghdr*)message;
+            msg_ptr->msg_name    = &socket->ConnectedAddress;
+            msg_ptr->msg_namelen = socket->ConnectedAddress.__ss_len;
+        }
+    }
+    return __SendMessage(handle, stream, message, flags, bytesSentOut);
 }
 
 oserr_t
@@ -451,7 +707,295 @@ OSSocketRecvPipe(
         _In_  OSHandle_t*      handle,
         _Out_ streambuffer_t** pipeOut)
 {
+    struct Socket* socket;
+    oserr_t        oserr = OS_EOK;
 
+    if (handle == NULL || handle->Type != OSHANDLE_SOCKET) {
+        return OS_EINVALPARAMS;
+    }
+
+    socket = handle->Payload;
+    // Two cases can happen here, either the pipe is not mapped (socket was
+    // created by this process), or the pipe may already be mapped (it has
+    // been mapped by a previous call to OSSocketRecvPipe, or it has been
+    // inheritted).
+    MutexLock(&socket->Lock);
+    if (socket->RecvMapped) {
+        // OK so the pipe is mapped, then it may still not be valid
+        if (!socket->RecvValid) {
+            oserr = OSHandlesFind(socket->Recv.ID, &socket->Recv);
+            if (oserr != OS_EOK) {
+                // Something is horrible wrong
+                goto exit;
+            }
+            socket->RecvValid = true;
+        }
+        *pipeOut = SHMBuffer(&socket->Recv);
+        goto exit;
+    }
+
+    oserr = SHMAttach(socket->Recv.ID, &socket->Recv);
+    if (oserr != OS_EOK){
+        goto exit;
+    }
+
+    oserr = SHMMap(
+            &socket->Recv,
+            0,
+            SHMBufferCapacity(&socket->Recv),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Recv);
+        goto exit;
+    }
+
+    socket->RecvMapped = true;
+    socket->RecvValid = true;
+    *pipeOut = SHMBuffer(&socket->Recv);
+
+exit:
+    MutexUnlock(&socket->Lock);
+    return oserr;
+}
+
+static inline unsigned int
+__StreambufferFlags(int flags)
+{
+    unsigned int sb_options = 0;
+
+    if (flags & MSG_OOB) {
+        sb_options |= STREAMBUFFER_PRIORITY;
+    }
+
+    if (flags & MSG_DONTWAIT) {
+        sb_options |= STREAMBUFFER_NO_BLOCK;
+    }
+
+    if (!(flags & MSG_WAITALL)) {
+        sb_options |= STREAMBUFFER_ALLOW_PARTIAL;
+    }
+
+    if (flags & MSG_PEEK) {
+        sb_options |= STREAMBUFFER_PEEK;
+    }
+
+    return sb_options;
+}
+
+static oserr_t
+__RecvStream(
+        _In_  streambuffer_t*            stream,
+        _In_  struct msghdr*             message,
+        _In_  streambuffer_rw_options_t* rwOptions,
+        _Out_ size_t*                    bytesRecievedOut)
+{
+    size_t bytesRecieved = 0;
+    int    i;
+
+    for (i = 0; i < message->msg_iovlen; i++) {
+        struct iovec* iov = &message->msg_iov[i];
+        bytesRecieved += (intmax_t)streambuffer_stream_in(
+                stream,
+                iov->iov_base,
+                iov->iov_len,
+                rwOptions
+        );
+        if (bytesRecieved < iov->iov_len) {
+            if (!(rwOptions->flags & STREAMBUFFER_NO_BLOCK)) {
+                return OS_ELINKINVAL;
+            }
+            break;
+        }
+    }
+    *bytesRecievedOut = bytesRecieved;
+    return OS_EOK;
+}
+
+// Valid flags for recv are
+// MSG_OOB          (No OOB support)
+// MSG_PEEK         (No peek support)
+// MSG_WAITALL      (Supported)
+// MSG_DONTWAIT     (Supported)
+// MSG_NOSIGNAL     (Ignored on Vali)
+// MSG_CMSG_CLOEXEC (Ignored on Vali)
+static oserr_t
+__RecvMessage(
+        _In_  OSHandle_t*                handle,
+        _In_  streambuffer_t*            stream,
+        _In_  struct msghdr*             message,
+        _In_  streambuffer_rw_options_t* rwOptions,
+        _Out_ size_t*                    bytesRecievedOut)
+{
+    struct Socket*            socket = handle->Payload;
+    intmax_t                  numbytes;
+    struct packethdr          packet;
+    int                       i;
+    streambuffer_packet_ctx_t packetCtx;
+
+    // In case of stream sockets we simply just read as many bytes as requested
+    // or available and return, unless WAITALL has been specified.
+    if (socket->Type == SOCK_STREAM) {
+        return __RecvStream(stream, message, rwOptions, bytesRecievedOut);
+    }
+
+    // Reading a packet is an atomic action and the entire packet must be read
+    // at once. So don't support STREAMBUFFER_ALLOW_PARTIAL
+    rwOptions->flags &= ~(STREAMBUFFER_ALLOW_PARTIAL);
+    numbytes = (intmax_t)streambuffer_read_packet_start(stream, rwOptions, &packetCtx);
+    if (numbytes < sizeof(struct packethdr)) {
+        if (!numbytes) {
+            if (!(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
+                _set_errno(EPIPE);
+                return -1;
+            }
+            return 0;
+        }
+
+        // If we read an invalid number of bytes then something evil happened.
+        streambuffer_read_packet_end(&packetCtx);
+        _set_errno(EPIPE);
+        return -1;
+    }
+
+    // Reset the message flag so we can properly report status of message.
+    streambuffer_read_packet_data(&packet, sizeof(struct packethdr), &packetCtx);
+    message->msg_flags = packet.flags;
+
+    // Handle the source address that is given in the packet
+    if (packet.addresslen && message->msg_name && message->msg_namelen) {
+        size_t bytes_to_copy    = MIN(message->msg_namelen, packet.addresslen);
+        size_t bytes_to_discard = packet.addresslen - bytes_to_copy;
+
+        streambuffer_read_packet_data(message->msg_name, bytes_to_copy, &packetCtx);
+        packetCtx._state += bytes_to_discard; // hack
+    }
+    else {
+        packetCtx._state += packet.addresslen; // discard, hack
+        message->msg_namelen = 0;
+    }
+
+    // Handle control data, and set the appropriate flags and update the actual
+    // length read of control data if it is shorter than the buffer provided.
+    if (packet.controllen && message->msg_control && message->msg_controllen) {
+        size_t bytes_to_copy    = MIN(message->msg_controllen, packet.controllen);
+        size_t bytes_to_discard = packet.controllen - bytes_to_copy;
+
+        streambuffer_read_packet_data(message->msg_control, bytes_to_copy, &packetCtx);
+        packetCtx._state += bytes_to_discard; // hack
+    }
+    else {
+        packetCtx._state += packet.controllen; // discard, hack
+        message->msg_controllen = 0;
+    }
+
+    if (packet.controllen > message->msg_controllen) {
+        message->msg_flags |= MSG_CTRUNC;
+    }
+
+    // Finally read the payload data
+    if (packet.payloadlen) {
+        size_t bytes_remaining = packet.payloadlen;
+        int    iov_not_filled  = 0;
+
+        for (i = 0; i < message->msg_iovlen && bytes_remaining; i++) {
+            struct iovec* iov = &message->msg_iov[i];
+            if (!iov->iov_len) {
+                break;
+            }
+
+            size_t bytes_to_copy = MIN(iov->iov_len, bytes_remaining);
+            if (iov->iov_len > bytes_to_copy) {
+                iov_not_filled = 1;
+            }
+
+            streambuffer_read_packet_data(iov->iov_base, bytes_to_copy, &packetCtx);
+            bytes_remaining -= bytes_to_copy;
+        }
+        streambuffer_read_packet_end(&packetCtx);
+
+        // The first special case is when there is more data available than we
+        // requested, that means we simply trunc the data.
+        if (bytes_remaining) {
+            message->msg_flags |= MSG_TRUNC;
+        }
+
+            // The second case is a lot more complex, that means we are missing data
+            // though we requested more, if WAITALL is set, then we need to keep reading
+            // untill we read all the data
+        else if (iov_not_filled && !(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
+            // However on message-based sockets, we must read datagrams as atomic
+            // operations, and thus MSG_WAITALL has no effect as this is effectively
+            // the standard mode of operation.
+        }
+    }
+    else {
+        streambuffer_read_packet_end(&packetCtx);
+        for (i = 0; i < message->msg_iovlen; i++) {
+            struct iovec* iov = &message->msg_iov[i];
+            iov->iov_len = 0;
+        }
+    }
+
+    *bytesRecievedOut = packet.payloadlen;
+    return OS_EOK;
+}
+
+oserr_t
+OSSocketRecv(
+        _In_  OSHandle_t*    handle,
+        _In_  struct msghdr* message,
+        _In_  int            flags,
+        _Out_ size_t*        bytesRecievedOut)
+{
+    struct Socket*    socket;
+    streambuffer_t*   stream;
+    oserr_t           oserr;
+    OSAsyncContext_t* asyncContext;
+
+    oserr = OSSocketRecvPipe(handle, &stream);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (message == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (streambuffer_has_option(stream, STREAMBUFFER_DISABLED)) {
+        return OS_ELINKINVAL;
+    }
+
+    socket = handle->Payload;
+    asyncContext = __tls_current()->async_context;
+    if (asyncContext) {
+        OSAsyncContextInitialize(asyncContext);
+    }
+    oserr = __RecvMessage(
+            handle,
+            stream,
+            message,
+            &(streambuffer_rw_options_t) {
+                    .flags = __StreambufferFlags(flags),
+                    .async_context = asyncContext,
+                    .deadline = NULL
+            },
+            bytesRecievedOut
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Fill in the source address if one was provided already, and overwrite
+    // the one provided by the packet.
+    if (*bytesRecievedOut > 0 && message->msg_name != NULL) {
+        if (socket->ConnectedAddress.__ss_family != AF_UNSPEC) {
+            memcpy(message->msg_name, &socket->ConnectedAddress,
+                   socket->ConnectedAddress.__ss_len);
+            message->msg_namelen = socket->ConnectedAddress.__ss_len;
+        }
+    }
+    return OS_EOK;
 }
 
 static void

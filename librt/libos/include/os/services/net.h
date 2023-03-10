@@ -155,15 +155,57 @@ OSSocketOption(
         _In_    void*       data,
         _InOut_ socklen_t*  length));
 
+/**
+ * @brief
+ * @param handle
+ * @param pipeOut
+ * @return
+ */
 CRTDECL(oserr_t,
 OSSocketSendPipe(
         _In_  OSHandle_t*      handle,
         _Out_ streambuffer_t** pipeOut));
 
+/**
+ * @brief
+ * @param handle
+ * @param message
+ * @param flags
+ * @param bytesSentOut
+ * @return
+ */
+CRTDECL(oserr_t,
+OSSocketSend(
+        _In_  OSHandle_t*          handle,
+        _In_  const struct msghdr* message,
+        _In_  int                  flags,
+        _Out_ size_t*              bytesSentOut));
+
+/**
+ * @brief
+ * @param handle
+ * @param pipeOut
+ * @return
+ */
 CRTDECL(oserr_t,
 OSSocketRecvPipe(
         _In_  OSHandle_t*      handle,
         _Out_ streambuffer_t** pipeOut));
+
+/**
+ * @brief
+ * @param handle
+ * @param message
+ * @param flags
+ * @param bytesRecievedOut
+ * @return
+ */
+CRTDECL(oserr_t,
+OSSocketRecv(
+        _In_  OSHandle_t*    handle,
+        _In_  struct msghdr* message,
+        _In_  int            flags,
+        _Out_ size_t*        bytesRecievedOut));
 
 _CODE_END
 #endif //!__OS_SERVICE_NET_H__
