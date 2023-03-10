@@ -28,7 +28,7 @@ static inline void
 __set_eof(stdio_handle_t* handle)
 {
     if (stdio_handle_signature(handle) == FILE_SIGNATURE) {
-        handle->XTFlags |= WX_ATEOF;
+        handle->XTFlags |= __IO_ATEOF;
     }
 }
 
@@ -132,10 +132,10 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 
         // Handle newline checks
         if(readbuf[0] == '\n') {
-            handle->XTFlags |= WX_READNL;
+            handle->XTFlags |= __IO_READNL;
         }
         else {
-            handle->XTFlags &= ~WX_READNL;
+            handle->XTFlags &= ~__IO_READNL;
         }
 
         // Check for ctrl-z
@@ -157,7 +157,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
             }
             else {
                 buf[0] = '\r';
-                if(handle->XTFlags & (WX_PIPE | WX_TTY)) {
+                if(handle->XTFlags & (__IO_PIPE | __IO_TTY)) {
                     handle->Peek[0] = lookahead;
                 }
                 else {
@@ -208,10 +208,10 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     // Increase position and do a check for newline
     pos += bytesRead;
     if (readbuf[0] == '\n') {
-        handle->XTFlags |= WX_READNL;
+        handle->XTFlags |= __IO_READNL;
     }
     else {
-        handle->XTFlags &= ~WX_READNL;
+        handle->XTFlags &= ~__IO_READNL;
     }
 
     // Find first byte of last character (may be incomplete)
@@ -228,7 +228,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     }
 
     // If it's a terminal or pipe handle, use lookahead buffer
-    if (handle->XTFlags & (WX_PIPE | WX_TTY)) {
+    if (handle->XTFlags & (__IO_PIPE | __IO_TTY)) {
         if (i < pos) {
             handle->Peek[0] = readbuf[i];
         }
@@ -266,7 +266,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
                     readbuf[j++] = '\r';
                 }
 
-                if (handle->XTFlags & (WX_PIPE | WX_TTY)) {
+                if (handle->XTFlags & (__IO_PIPE | __IO_TTY)) {
                     handle->Peek[0] = lookahead;
                 }
                 else {
@@ -307,7 +307,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
     long long pos;
 
     // Determine if we are reading UTF16
-    isUtf16 = (handle->XTFlags & WX_UTF16) == WX_UTF16;
+    isUtf16 = (handle->XTFlags & __IO_UTF16) == __IO_UTF16;
     if (isUtf16 && (count & 0x1)) {
         _set_errno(EINVAL);
         return -1;
@@ -350,10 +350,10 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
 
             // Detect reading newline
             if (bufferPointer[0] == '\n' && (!isUtf16 || bufferPointer[1] == 0)) {
-                handle->XTFlags |= WX_READNL;
+                handle->XTFlags |= __IO_READNL;
             }
             else {
-                handle->XTFlags &= ~WX_READNL;
+                handle->XTFlags &= ~__IO_READNL;
             }
 
             for (i = 0, j = 0; i < bytesRead; i += 1 + isUtf16)
@@ -391,7 +391,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
                                 }
                             }
 
-                            if (handle->XTFlags & (WX_PIPE | WX_TTY)) {
+                            if (handle->XTFlags & (__IO_PIPE | __IO_TTY)) {
                                 if (lookahead[0] == '\n' && (!isUtf16 || !lookahead[1])) {
                                     bufferPointer[j++] = '\n';
 
@@ -452,17 +452,17 @@ int read(int fd, void* buffer, unsigned int len)
     }
 
     // Predetermine if we are eof or zero read
-    if (len == 0 || (handle->XTFlags & WX_ATEOF)) {
+    if (len == 0 || (handle->XTFlags & __IO_ATEOF)) {
         return 0;
     }
 
     // handle binary mode
-    if (!(handle->XTFlags & WX_TEXT)) {
+    if (!(handle->XTFlags & __IO_TEXTMODE)) {
         return __read_as_binary(handle, buffer, len);
     }
 
     // Determine if we are reading UTF8
-    if ((handle->XTFlags & WX_UTF) == WX_UTF) {
+    if ((handle->XTFlags & __IO_UTF) == __IO_UTF) {
         return __read_as_utf8(handle, (wchar_t*)buffer, len);
     }
     return __read_as_text_or_wide(handle, buffer, len);

@@ -71,7 +71,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 			/* If the buffer fill reaches eof but fread wouldn't, clear eof. */
 			if (i > 0 && i < stream->_cnt) {
-				stdio_handle_get(stream->_fd)->XTFlags &= ~WX_ATEOF;
+				stdio_handle_get(stream->_fd)->XTFlags &= ~__IO_ATEOF;
 				stream->_flag &= ~_IOEOF;
 			}
 			
@@ -98,7 +98,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 		// Check for EOF condition
 		// also for error conditions
-		if (stdio_handle_get(stream->_fd)->XTFlags & WX_ATEOF) {
+		if (stdio_handle_get(stream->_fd)->XTFlags & __IO_ATEOF) {
 			stream->_flag |= _IOEOF;
 		}
 		else if (i == -1) {

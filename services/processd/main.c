@@ -20,8 +20,10 @@
  *   of running applications.
  */
 
+#include <ddk/service.h>
 #include <discover.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 #include <os/usched/job.h>
 #include <process.h>
 

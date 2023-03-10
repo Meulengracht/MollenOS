@@ -66,7 +66,7 @@ long long ftelli64(
 			position += stream->_ptr - stream->_base;
 
 			// Extra special case in case of text stream
-			if (handle->XTFlags & WX_TEXT) {
+			if (handle->XTFlags & __IO_TEXTMODE) {
 				char *p;
 
 				for (p = stream->_base; p < stream->_ptr; p++) {
@@ -86,7 +86,7 @@ long long ftelli64(
 			position -= stream->_cnt;
 
 			// Special case for text streams again
-			if (handle->XTFlags & WX_TEXT) {
+			if (handle->XTFlags & __IO_TEXTMODE) {
 				for (i = 0; i < stream->_cnt; i++) {
 					if (stream->_ptr[i] == '\n') {
 						position--;
@@ -108,8 +108,8 @@ long long ftelli64(
 			position += stream->_ptr - stream->_base;
 
 			// And lastly, special text case
-			if (handle->XTFlags & WX_TEXT) {
-				if (handle->XTFlags & WX_READNL) {
+			if (handle->XTFlags & __IO_TEXTMODE) {
+				if (handle->XTFlags & __IO_READNL) {
 					position--;
 				}
 

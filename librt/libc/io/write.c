@@ -37,14 +37,14 @@ int write(int fd, const void* buffer, unsigned int length)
     }
 
     // Don't write uneven bytes in case of UTF8/16
-    if ((handle->XTFlags & WX_UTF) == WX_UTF && (length & 1)) {
+    if ((handle->XTFlags & __IO_UTF) == __IO_UTF && (length & 1)) {
         errno = EINVAL;
         res = -1;
         goto exit;
     }
 
     // If appending, go to EOF
-    if (handle->XTFlags & WX_APPEND) {
+    if (handle->XTFlags & __IO_APPEND) {
         lseek(fd, 0, SEEK_END);
     }
 

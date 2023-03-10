@@ -40,7 +40,7 @@ wint_t ungetwc(
 
     flockfile(file);
     handle = stdio_handle_get(file->_fd);
-    if ((handle->XTFlags & WX_UTF) || !(handle->XTFlags & WX_TEXT)) {
+    if ((handle->XTFlags & __IO_UTF) || !(handle->XTFlags & __IO_TEXTMODE)) {
         unsigned char *pp = (unsigned char *)&mwc;
         int i;
 

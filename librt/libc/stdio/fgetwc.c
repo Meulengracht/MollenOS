@@ -40,7 +40,7 @@ wint_t fgetwc(FILE *stream)
         return WEOF;
     }
 
-    if ((handle->XTFlags & WX_UTF) || !(handle->XTFlags & WX_TEXT)) {
+    if ((handle->XTFlags & __IO_UTF) || !(handle->XTFlags & __IO_TEXTMODE)) {
         for (char* p = (char *)&result; (wint_t *)p < &result + 1; p++) {
             ch = fgetc(stream);
             if (ch == EOF) {

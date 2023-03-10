@@ -5,26 +5,30 @@
 #include <os/types/process.h>
 #include <stdio.h>
 
-// Values for wxflag
-#define WX_OPEN             0x01U
-#define WX_ATEOF            0x02U
-#define WX_READNL           0x04U  // read started with \n
-#define WX_READEOF          0x04U  // like ATEOF, but for underlying file rather than buffer
-#define WX_PIPE             0x08U
-#define WX_DONTINHERIT      0x20U
-#define WX_APPEND           0x40U
-#define WX_TTY              0x80U
-#define WX_TEXT             0x100U
-#define WX_WIDE             (WX_TEXT | 0x200U)
-#define WX_UTF              (WX_TEXT | 0x400U)
-#define WX_UTF16            (WX_WIDE | 0x800U)
-#define WX_UTF32            (WX_WIDE | 0x1000U)
-#define WX_BIGENDIAN        0x2000U
-#define WX_TEXT_FLAGS       (WX_TEXT | WX_WIDE | WX_UTF | WX_UTF16 | WX_UTF32 | WX_BIGENDIAN)
+// Values for XTFlags
+#define __IO_READ       0x1
+#define __IO_WRITE      0x2
+#define __IO_RW         (__IO_READ | __IO_WRITE)
+#define __IO_APPEND     0x4U
+#define __IO_NOINHERIT  0x8U
 
-#define WX_INHERITTED       0x00004000U
-#define WX_PERSISTANT       0x00008000U
-#define WX_PRIORITY         0x00010000U
+#define __IO_TEXTMODE  0x10U
+#define __IO_WIDE      (__IO_TEXTMODE | 0x20U)
+#define __IO_UTF       (__IO_TEXTMODE | 0x40U)
+#define __IO_UTF16     (__IO_WIDE | 0x80U)
+#define __IO_UTF32     (__IO_WIDE | 0x100U)
+#define __IO_BIGENDIAN 0x200U
+#define __IO_TEXTMASK  (__IO_TEXTMODE | __IO_WIDE | __IO_UTF | __IO_UTF16 | __IO_UTF32 | __IO_BIGENDIAN)
+
+#define __IO_ATEOF          0x00001000U
+#define __IO_READNL         0x00002000U  // read started with \n
+#define __IO_READEOF        0x00004000U  // like ATEOF, but for underlying file rather than buffer
+#define __IO_PIPE           0x00008000U
+#define __IO_TTY            0x00010000U
+#define __IO_OPEN           0x00020000U
+#define __IO_INHERITTED     0x00040000U
+#define __IO_PERSISTANT     0x00080000U
+#define __IO_PRIORITY       0x00100000U
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
@@ -65,7 +69,6 @@ typedef struct StdioOperations {
 typedef struct StdioDescriptor {
     int          IOD;
     unsigned int Signature;
-    int          IOFlags;
     unsigned int XTFlags;
     OSHandle_t   OSHandle;
     stdio_ops_t* Ops;
@@ -82,8 +85,7 @@ typedef struct StdioDescriptor {
 struct InheritationHeader {
     int IOD;
     unsigned int Signature;
-    int IOFlags;
-    int XTFlags;
+    unsigned int XTFlags;
 };
 
 struct InheritationBlock {
@@ -118,17 +120,17 @@ extern int __fmode_to_flags(const char* mode, int* flagsOut);
  * @brief Creates a new stdio resource handle
  * @param iod     If not -1, then attempts to pre-assign it this io-descriptor.
  * @param ioFlags The O_* flags the handle should be configured with.
- * @param wxFlags The WX_* flags the handle should be created with.
+ * @param xtFlags The WX_* flags the handle should be created with.
  * @param ops     The underlying stdio operations.
  * @param opsCtx  The context that should be passed to operations.
  * @param handleOut Where the resulting handle should be stored.
  * @return
  */
 extern int
-stdio_handle_create2(
+stdio_handle_create(
         _In_  int              iod,
         _In_  int              ioFlags,
-        _In_  int              wxFlags,
+        _In_  unsigned int     xtFlags,
         _In_  unsigned int     signature,
         _In_  void*            opsCtx,
         _Out_ stdio_handle_t** handleOut);
@@ -176,8 +178,26 @@ stdio_handle_set_buffered(
         _In_ FILE*           stream,
         _In_ unsigned int    flags);
 
-extern int  stdio_handle_activity(stdio_handle_t*, int);
-extern void stdio_handle_flag(stdio_handle_t*, unsigned int);
+/**
+ * @brief
+ * @param handle
+ * @param activity
+ * @return
+ */
+extern int
+stdio_handle_activity(
+        _In_ stdio_handle_t* handle,
+        _In_ int             activity);
+
+/**
+ * @brief
+ * @param handle
+ * @param xtFlags
+ */
+extern void
+stdio_handle_set_flags(
+        _In_ stdio_handle_t* handle,
+        _In_ unsigned int    xtFlags);
 
 /**
  * @brief Retrieves the signature for the stdio handle. This can be used
@@ -247,7 +267,6 @@ extern unsigned int _fperms(unsigned int mode);
 extern unsigned int _fopts(int oflags);
 extern int          streamout(FILE *stream, const char *format, va_list argptr);
 extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
-
 
 // Must be reentrancy spinlocks (critical sections)
 // TODO: implement this

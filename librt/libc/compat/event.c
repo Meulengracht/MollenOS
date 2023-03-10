@@ -95,7 +95,7 @@ int eventd(unsigned int initialValue, unsigned int flags)
         return OsErrToErrNo(oserr);
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             O_RDWR | O_NOINHERIT,
             0,

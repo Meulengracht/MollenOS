@@ -19,11 +19,13 @@
 #define __need_quantity
 
 #include <assert.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
 #include <internal/_io.h>
 #include <internal/_utils.h>
 #include <internal/_tls.h>
+#include <internal/_utils.h>
 #include <os/handle.h>
 #include <os/shm.h>
 #include <os/threads.h>
@@ -31,6 +33,7 @@
 #include <os/usched/job.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys_process_service_client.h>
 
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
@@ -57,7 +60,7 @@ __mark_iod_priority(int iod)
     if (!handle) {
         return;
     }
-    stdio_handle_flag(handle, WX_PRIORITY);
+    stdio_handle_set_flags(handle, __IO_PRIORITY);
 }
 
 static uint8_t* memdup(const char* data, size_t length)

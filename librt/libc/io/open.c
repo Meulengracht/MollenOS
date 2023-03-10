@@ -41,12 +41,12 @@ static const struct bom_mode {
     unsigned int  flags;
     unsigned char identifier[BOM_MAX_LEN];
 } supported_bom_modes[] = {
-        { "UTF32BE", 4, WX_UTF32 | WX_BIGENDIAN, { 0x00, 0x00, 0xFE, 0xFF } },
-        { "UTF32LE", 4, WX_UTF32, { 0xFF, 0xFE, 0x00, 0x00 } },
-        { "UTF16BE", 2, WX_UTF16 | WX_BIGENDIAN, { 0xFE, 0xFF } },
-        { "UTF16LE", 2, WX_UTF16, { 0xFF, 0xFE } },
-        { "UTF8", 3, WX_UTF, { 0xEF, 0xBB, 0xBF } },
-        { NULL, 0, 0, { 0 }}
+        { "UTF32BE", 4, __IO_UTF32 | __IO_BIGENDIAN, {0x00, 0x00, 0xFE, 0xFF } },
+        { "UTF32LE", 4, __IO_UTF32, {0xFF, 0xFE, 0x00, 0x00 } },
+        { "UTF16BE", 2, __IO_UTF16 | __IO_BIGENDIAN, {0xFE, 0xFF } },
+        { "UTF16LE", 2, __IO_UTF16, {0xFF, 0xFE } },
+        { "UTF8", 3,    __IO_UTF,   {0xEF, 0xBB, 0xBF } },
+        { NULL, 0, 0,               {0 }}
 };
 stdio_ops_t g_fileOps = {
         .read = __file_read,
@@ -114,7 +114,7 @@ int open(const char* file, int flags, ...)
         return OsErrToErrNo(osStatus);
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             flags,
             0,
@@ -132,11 +132,11 @@ int open(const char* file, int flags, ...)
     if (flags & O_TEXT) {
         unsigned int detectedMode;
 
-        object->XTFlags &= ~WX_TEXT;
+        object->XTFlags &= ~__IO_TEXTMODE;
         detectedMode = __detect_filemode(stdio_handle_iod(object));
-        object->XTFlags |= WX_TEXT;
+        object->XTFlags |= __IO_TEXTMODE;
         if (detectedMode) {
-            object->XTFlags &= ~WX_TEXT_FLAGS;
+            object->XTFlags &= ~__IO_TEXTMASK;
             object->XTFlags |= detectedMode;
         }
     }

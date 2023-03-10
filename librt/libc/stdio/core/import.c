@@ -35,10 +35,10 @@ __ParseInheritationHeader(
 
     // First we create the stdio handle, for this we only need what we can read
     // in the header. The payload will then be parsed, and last, the OS handle
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             header->IOD,
-            header->IOFlags,
-            header->XTFlags | WX_PERSISTANT,
+            0,
+            header->XTFlags | __IO_PERSISTANT,
             header->Signature,
             NULL,
             &handle

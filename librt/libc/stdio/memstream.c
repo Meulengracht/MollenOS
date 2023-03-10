@@ -90,7 +90,7 @@ FILE* open_memstream(char** ptr, size_t* sizeloc)
         return NULL;
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             O_WRONLY | O_NOINHERIT,
             0,
