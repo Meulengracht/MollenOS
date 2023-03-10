@@ -88,7 +88,7 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         return OsErrToErrNo(oserr);
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             0,
             0,

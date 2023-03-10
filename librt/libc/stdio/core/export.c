@@ -30,7 +30,7 @@ __IsInheritable(
 {
     oserr_t oserr = OS_EOK;
 
-    if (handle->XTFlags & WX_DONTINHERIT) {
+    if (handle->XTFlags & __IO_NOINHERIT) {
         oserr = OS_EUNKNOWN;
     }
 
@@ -137,8 +137,7 @@ __create_inherit_callback(
         header->IOD = object->IOD;
     }
     header->Signature = object->Signature;
-    header->IOFlags = object->IOFlags;
-    header->XTFlags = (int)object->XTFlags;
+    header->XTFlags = object->XTFlags;
 
     // Mark that we have now written the header
     context->bytes_written += sizeof(struct InheritationHeader);

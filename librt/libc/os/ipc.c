@@ -92,10 +92,10 @@ int ipcontext(unsigned int len, IPCAddress_t* addr)
         return -1;
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             O_RDWR | O_NOINHERIT,
-            WX_PIPE,
+            __IO_PIPE,
             IPC_SIGNATURE,
             ipc,
             &object

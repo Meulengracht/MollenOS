@@ -29,6 +29,6 @@ int marktty(int iod)
         errno = EBADF;
         return -1;
     }
-    handle->XTFlags |= WX_TTY;
+    handle->XTFlags |= __IO_TTY;
     return 0;
 }

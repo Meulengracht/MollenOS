@@ -17,8 +17,12 @@
 
 #include <errno.h>
 #include <ddk/convert.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
+
+#include <sys_device_service_client.h>
 
 uuid_t
 RegisterDevice(

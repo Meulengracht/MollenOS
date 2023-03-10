@@ -146,10 +146,10 @@ int pipe(long size, int flags)
         return -1;
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             flags,
-            WX_PIPE | WX_APPEND,
+            __IO_PIPE | __IO_APPEND,
             PIPE_SIGNATURE,
             pipe,
             &object

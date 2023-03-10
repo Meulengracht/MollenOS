@@ -111,7 +111,7 @@ FILE* fmemopen(void *buf, size_t size, const char *mode)
         return NULL;
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             flags | O_NOINHERIT,
             0,

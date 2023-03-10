@@ -49,7 +49,7 @@ long long lseeki64(
 	}
 	
 	// clear out eof after seeks
-	handle->XTFlags &= ~(WX_ATEOF|WX_READEOF);
+	handle->XTFlags &= ~(__IO_ATEOF | __IO_READEOF);
 	return position;
 }
 

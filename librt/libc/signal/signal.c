@@ -24,18 +24,22 @@
 #define __TRACE
 
 #include <assert.h>
+#include <ddk/service.h>
 #include <ddk/utils.h>
 #include <errno.h>
+#include <gracht/link/vali.h>
 #include <fenv.h>
 #include <internal/_all.h>
-#include <internal/_ipc.h>
 #include <internal/_syscalls.h>
 #include <internal/_tls.h>
+#include <internal/_utils.h>
 #include <os/context.h>
 #include <os/threads.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <sys_process_service_client.h>
 
 typedef void (*__sa_process_t)(int, void*, void*);
 

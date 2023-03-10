@@ -1,5 +1,5 @@
 /**
- * Copyright 2022, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,37 +13,18 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
  */
 
 #include <errno.h>
 #include <io.h>
 #include <internal/_io.h>
-#include <os/mollenos.h>
-#include <stdio.h>
 
-int chsize(
-    _In_ int  fd,
-    _In_ long size)
+int isatty(int fd)
 {
     stdio_handle_t* handle = stdio_handle_get(fd);
-    oserr_t         oserr;
-
-    if (handle == NULL) {
-        errno = EBADFD;
-        return -1;
+    if (!handle) {
+        return EBADF;
     }
-
-    if (handle->Ops->resize) {
-        oserr = handle->Ops->resize(handle, size);
-        if (oserr != OS_EOK) {
-            return OsErrToErrNo(oserr);
-        }
-    } else {
-        errno = ENOTSUP;
-        return -1;
-    }
-	
-	// clear out eof after resizes
-	handle->XTFlags &= ~(__IO_ATEOF | __IO_READEOF);
-	return EOK;
+    return (handle->XTFlags & __IO_TTY) != 0;
 }

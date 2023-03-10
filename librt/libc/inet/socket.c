@@ -45,7 +45,7 @@ int socket(int domain, int type, int protocol)
         return OsErrToErrNo(oserr);
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             0,
             0,

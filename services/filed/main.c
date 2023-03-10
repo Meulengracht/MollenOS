@@ -15,8 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <ddk/service.h>
 #include <ddk/utils.h>
-#include <internal/_ipc.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 #include <vfs/filesystem.h>
 #include <vfs/interface.h>
 #include <vfs/scope.h>

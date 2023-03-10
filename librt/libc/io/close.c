@@ -35,7 +35,7 @@ int close(int fd)
 
     // The cases where we close is when the handle is
     // not inheritted or the handle is not persistant
-    if (!(handle->XTFlags & (WX_INHERITTED | WX_PERSISTANT))) {
+    if (!(handle->XTFlags & (__IO_INHERITTED | __IO_PERSISTANT))) {
         options |= STDIO_CLOSE_FULL;
     }
 

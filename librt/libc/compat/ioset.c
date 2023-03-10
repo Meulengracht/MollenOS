@@ -100,7 +100,7 @@ int ioset(int flags)
         return -1;
     }
 
-    status = stdio_handle_create2(
+    status = stdio_handle_create(
             -1,
             flags | O_NOINHERIT,
             0,

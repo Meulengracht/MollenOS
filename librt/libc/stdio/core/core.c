@@ -94,10 +94,10 @@ StdioConfigureStandardHandles(
     // stdout/stderr handles.
     stdoutHandle = stdio_handle_get(STDOUT_FILENO);
     if (!stdoutHandle) {
-        status = stdio_handle_create2(
+        status = stdio_handle_create(
                 STDOUT_FILENO,
                 0,
-                WX_TEXT | WX_DONTINHERIT,
+                __IO_TEXTMODE | __IO_NOINHERIT,
                 NULL_SIGNATURE,
                 0,
                 &stdoutHandle
@@ -107,10 +107,10 @@ StdioConfigureStandardHandles(
 
     stdinHandle = stdio_handle_get(STDIN_FILENO);
     if (!stdinHandle) {
-        status = stdio_handle_create2(
+        status = stdio_handle_create(
                 STDIN_FILENO,
                 0,
-                WX_TEXT | WX_DONTINHERIT,
+                __IO_TEXTMODE | __IO_NOINHERIT,
                 NULL_SIGNATURE,
                 0,
                 &stdinHandle
@@ -120,10 +120,10 @@ StdioConfigureStandardHandles(
 
     stderrHandle = stdio_handle_get(STDERR_FILENO);
     if (!stderrHandle) {
-        status = stdio_handle_create2(
+        status = stdio_handle_create(
                 STDERR_FILENO,
                 0,
-                WX_TEXT | WX_DONTINHERIT,
+                __IO_TEXTMODE | __IO_NOINHERIT,
                 NULL_SIGNATURE,
                 0,
                 &stderrHandle
@@ -206,6 +206,26 @@ __close_io_descriptors(
     return context.filesClosed;
 }
 
+static unsigned int
+__oflags_to_xtflags(
+        _In_ int oflags)
+{
+    unsigned int xtflags = 0;
+
+    if ((oflags & O_RDWR) == O_RDWR) xtflags |= __IO_RW;
+    else if (oflags & O_RDONLY)      xtflags |= __IO_READ;
+    else if (oflags & O_WRONLY)      xtflags |= __IO_WRITE;
+    if (oflags & O_APPEND)           xtflags |= __IO_APPEND;
+    if (oflags & O_NOINHERIT)        xtflags |= __IO_NOINHERIT;
+
+    if (oflags & O_TEXT)         xtflags |= __IO_TEXTMODE;
+    else if (oflags & O_WTEXT)   xtflags |= __IO_WIDE;
+    else if (oflags & O_U8TEXT)  xtflags |= __IO_UTF;
+    else if (oflags & O_U16TEXT) xtflags |= __IO_UTF16;
+
+    return xtflags;
+}
+
 static stdio_handle_t*
 __descriptor_new(
         _In_  int          iod,
@@ -224,8 +244,7 @@ __descriptor_new(
 
     handle->IOD     = iod;
     handle->Signature = signature;
-    handle->IOFlags = ioFlags;
-    handle->XTFlags = WX_OPEN | wxFlags;
+    handle->XTFlags = __IO_OPEN | wxFlags | __oflags_to_xtflags(ioFlags);
     handle->Ops = CRTSignatureOps(signature);
     handle->OpsContext = opsCtx;
     handle->Peek[0] = '\n';
@@ -234,10 +253,10 @@ __descriptor_new(
     return handle;
 }
 
-int stdio_handle_create2(
+int stdio_handle_create(
         _In_  int              iod,
         _In_  int              ioFlags,
-        _In_  int              wxFlags,
+        _In_  unsigned int     xtFlags,
         _In_  unsigned int     signature,
         _In_  void*            opsCtx,
         _Out_ stdio_handle_t** handleOut)
@@ -256,7 +275,7 @@ int stdio_handle_create2(
     handle = __descriptor_new(
             allocatedIOD,
             ioFlags,
-            wxFlags,
+            xtFlags,
             signature,
             opsCtx
     );
@@ -297,8 +316,8 @@ int stdio_handle_clone(
 
     duplicated = __descriptor_new(
             allocatedIOD,
-             handle->IOFlags,
-            handle->XTFlags | WX_PERSISTANT,
+             0,
+            handle->XTFlags | __IO_PERSISTANT,
             handle->Signature,
             NULL
     );
@@ -388,14 +407,14 @@ int stdio_handle_activity(stdio_handle_t* handle , int activity)
 }
 
 void
-stdio_handle_flag(
+stdio_handle_set_flags(
         _In_ stdio_handle_t* handle,
-        _In_ unsigned int    flag)
+        _In_ unsigned int    xtFlags)
 {
     if (!handle) {
         return;
     }
-    handle->XTFlags |= flag;
+    handle->XTFlags |= xtFlags;
 }
 
 unsigned int
@@ -457,15 +476,6 @@ FILE* __get_std_handle(int n)
     }
 }
 
-int isatty(int fd)
-{
-    stdio_handle_t* handle = stdio_handle_get(fd);
-    if (!handle) {
-        return EBADF;
-    }
-    return (handle->XTFlags & WX_TTY) != 0;
-}
-
 hashtable_t* stdio_get_handles(void)
 {
     return &g_stdioObjects;
@@ -500,7 +510,7 @@ void __CleanupSTDIO(void)
 
     // close all handles that are not marked _PRIO, and then lastly
     // close the _PRIO handles
-    __close_io_descriptors(WX_PRIORITY);
+    __close_io_descriptors(__IO_PRIORITY);
     __close_io_descriptors(0);
 }
 
