@@ -47,9 +47,11 @@ const OSHandleOps_t g_socketOps = {
 
 struct Socket*
 __SocketNew(
-        _In_  int domain,
-        _In_  int type,
-        _In_  int protocol)
+        _In_ int    domain,
+        _In_ int    type,
+        _In_ int    protocol,
+        _In_ uuid_t sendHandleID,
+        _In_ uuid_t recvHandleID)
 {
     struct Socket* socket;
 
@@ -60,67 +62,10 @@ __SocketNew(
 
     memset(socket, 0, sizeof(struct Socket));
     socket->Type = type;
+    socket->Send.ID = sendHandleID;
+    socket->Recv.ID = recvHandleID;
     MutexInitialize(&socket->Lock, MUTEX_PLAIN);
     return socket;
-}
-
-static oserr_t
-__SocketMap(
-        _In_ struct Socket* socket,
-        _In_ uuid_t         handleID,
-        _In_ uuid_t         outHandleID,
-        _In_ uuid_t         inHandleID,
-        _In_ OSHandle_t*    handle)
-{
-    oserr_t oserr;
-
-    oserr = SHMAttach(outHandleID, &socket->Send);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = SHMAttach(inHandleID, &socket->Recv);
-    if (oserr != OS_EOK){
-        OSHandleDestroy(&socket->Send);
-        return oserr;
-    }
-
-    oserr = SHMMap(
-            &socket->Send,
-            0,
-            SHMBufferCapacity(&socket->Send),
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&socket->Send);
-        OSHandleDestroy(&socket->Recv);
-        return oserr;
-    }
-
-    oserr = SHMMap(
-            &socket->Recv,
-            0,
-            SHMBufferCapacity(&socket->Recv),
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
-    );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&socket->Send);
-        OSHandleDestroy(&socket->Recv);
-        return oserr;
-    }
-
-    oserr = OSHandleWrap(
-            handleID,
-            OSHANDLE_SOCKET,
-            NULL,
-            true,
-            handle
-    );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(&socket->Send);
-        OSHandleDestroy(&socket->Recv);
-    }
-    return oserr;
 }
 
 static void
@@ -149,11 +94,6 @@ OSSocketOpen(
     uuid_t                   send_handle;
     uuid_t                   recv_handle;
 
-    socket = __SocketNew(domain, type, protocol);
-    if (socket == NULL) {
-        return OS_EOOM;
-    }
-
     // We need to create the socket object at kernel level, as we need
     // kernel assisted functionality to support a centralized storage of
     // all system sockets. They are the foundation of the microkernel for
@@ -162,15 +102,20 @@ OSSocketOpen(
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_create_result(GetGrachtClient(), &msg.base, &oserr, &handleID, &recv_handle, &send_handle);
     if (oserr != OS_EOK) {
-        free(socket);
         return oserr;
     }
 
-    oserr = __SocketMap(
-            socket,
+    socket = __SocketNew(domain, type, protocol, send_handle, recv_handle);
+    if (socket == NULL) {
+        __SocketClose(handleID);
+        return OS_EOOM;
+    }
+
+    oserr = OSHandleWrap(
             handleID,
-            send_handle,
-            recv_handle,
+            OSHANDLE_SOCKET,
+            NULL,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {
@@ -224,11 +169,6 @@ OSSocketAccept(
         return OS_ENOTSUPPORTED;
     }
 
-    accepted = __SocketNew(0, source->Type, 0);
-    if (accepted == NULL) {
-        return OS_EOOM;
-    }
-
     sys_socket_accept(GetGrachtClient(), &msg.base, handle->ID);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_accept_result(
@@ -242,15 +182,20 @@ OSSocketAccept(
             &send_handle
     );
     if (oserr != OS_EOK) {
-        free(accepted);
         return OsErrToErrNo(oserr);
     }
 
-    oserr = __SocketMap(
-            accepted,
+    accepted = __SocketNew(0, source->Type, 0, send_handle, recv_handle);
+    if (accepted == NULL) {
+        __SocketClose(handleID);
+        return OS_EOOM;
+    }
+
+    oserr = OSHandleWrap(
             handleID,
-            send_handle,
-            recv_handle,
+            OSHANDLE_SOCKET,
+            NULL,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {
