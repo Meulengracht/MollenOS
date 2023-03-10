@@ -18,9 +18,11 @@
  *
  */
 
-#include "io.h"
-#include "internal/_io.h"
-#include "internal/_file.h"
+#include <io.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdlib.h>
+#include <string.h>
 
 int fclose(FILE *stream)
 {

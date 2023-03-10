@@ -21,6 +21,8 @@
 #include <internal/_file.h>
 #include <internal/_io.h>
 #include <io.h>
+#include <string.h>
+#include <stdlib.h>
 
 static inline void
 __set_eof(stdio_handle_t* handle)
@@ -236,8 +238,7 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
         if (i+2 < pos) {
             handle->Peek[2] = readbuf[i + 2];
         }
-    }
-    else if (i < pos) {
+    } else if (i < pos) {
         handle->Ops->seek(handle, SEEK_CUR, i - pos, &noppos);
     }
 

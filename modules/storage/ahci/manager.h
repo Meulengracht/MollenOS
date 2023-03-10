@@ -84,7 +84,7 @@ typedef struct AhciTransation {
     AtaCommand_t          Command;
     int                   Direction;
     AHCIFis_t             Response;
-    SHMHandle_t           SHM;
+    OSHandle_t            SHM;
     SHMSGTable_t          SHMTable;
 
     struct {

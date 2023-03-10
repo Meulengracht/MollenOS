@@ -19,6 +19,8 @@
 //#define __TRACE
 #define __need_quantity
 #include <ddk/utils.h>
+#include <os/handle.h>
+#include <os/shm.h>
 #include <os/time.h>
 #include <vfs/vfs.h>
 #include <vfs/interface.h>
@@ -136,7 +138,7 @@ __CreateRootNode(
 
 static oserr_t
 __CreateDMABuffer(
-        _In_ SHMHandle_t* shm)
+        _In_ OSHandle_t* shmHandle)
 {
     return SHMCreate(
             &(SHM_t) {
@@ -145,7 +147,7 @@ __CreateDMABuffer(
                 .Size = MB(1),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
-            shm
+            shmHandle
     );
 }
 
@@ -205,9 +207,7 @@ void VFSDestroy(struct VFS* vfs)
     // Cleanup children of this? If someone has cloned this tree
     // we have to make sure that there are no links back to this
 
-    if (vfs->Buffer.Buffer != NULL) {
-        SHMDetach(&vfs->Buffer);
-    }
+    OSHandleDestroy(&vfs->Buffer);
     VFSNodeDestroy(vfs->Root);
     free(vfs);
 }
@@ -249,13 +249,13 @@ void __CleanupHandle(int index, const void* element, void* userContext)
     oserr_t                   osStatus;
 
     // Unregister any handle with the filesystem
-    osStatus = VFSNodeHandleGet(handle->Id, &nodeHandle);
+    osStatus = VFSNodeHandleGet(handle->OSHandle.ID, &nodeHandle);
     if (osStatus != OS_EOK) {
         // didn't exist?
         return;
     }
 
-    osStatus = VFSNodeHandleRemove(handle->Id);
+    osStatus = VFSNodeHandleRemove(handle->OSHandle.ID);
     if (osStatus != OS_EOK) {
         // LOG
     }
@@ -298,14 +298,14 @@ void VFSNodeDestroy(struct VFSNode* node)
 static uint64_t __HandlesHash(const void* element)
 {
     const struct __VFSHandle* handle = element;
-    return handle->Id;
+    return handle->OSHandle.ID;
 }
 
 static int __HandlesCmp(const void* lh, const void* rh)
 {
     const struct __VFSHandle* handle1 = lh;
     const struct __VFSHandle* handle2 = rh;
-    return handle1->Id == handle2->Id ? 0 : 1;
+    return handle1->OSHandle.ID == handle2->OSHandle.ID ? 0 : 1;
 }
 
 static uint64_t __ChildrenHash(const void* element)

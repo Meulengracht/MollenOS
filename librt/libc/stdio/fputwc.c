@@ -41,7 +41,7 @@ wint_t fputwc(
     /* If this is a real file stream (and not some temporary one for
        sprintf-like functions), check whether it is opened in text mode.
        In this case, we have to perform an implicit conversion to ANSI. */
-    if (!(stream->_flag & _IOSTRG) && handle->wxflag & WX_TEXT) {
+    if (!(stream->_flag & _IOSTRG) && handle->XTFlags & WX_TEXT) {
         /* Convert to multibyte in text mode */
         char mbc[MB_LEN_MAX];
         int mb_return;

@@ -20,6 +20,7 @@
 #define __need_quantity
 #include <ddk/utils.h>
 #include <fs/common.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <os/types/file.h>
 #include <stdlib.h>
@@ -34,7 +35,7 @@
 struct __ValiFSContext {
     struct VFSStorageParameters Storage;
     UInteger64_t                Position;
-    SHMHandle_t                 Buffer;
+    OSHandle_t                  Buffer;
     StorageDescriptor_t         Stats;
     struct VaFs*                ValiFS;
 };
@@ -73,7 +74,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
         _In_ StorageDescriptor_t*         storageStats)
 {
     struct __ValiFSContext* context;
-    SHMHandle_t             shm;
+    OSHandle_t              shm;
     oserr_t                 oserr;
 
     oserr = SHMCreate(
@@ -96,7 +97,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
 
     memcpy(&context->Storage, storageParameters,sizeof(struct VFSStorageParameters));
     memcpy(&context->Stats, storageStats, sizeof(StorageDescriptor_t));
-    memcpy(&context->Buffer, &shm, sizeof(SHMHandle_t));
+    memcpy(&context->Buffer, &shm, sizeof(OSHandle_t));
     context->Position.QuadPart = 0;
     context->ValiFS = NULL;
     return context;
@@ -108,9 +109,7 @@ static void __ValiFSContextDelete(
     if (context->ValiFS) {
         (void)vafs_close(context->ValiFS);
     }
-    if (context->Buffer.Buffer) {
-        SHMDetach(&context->Buffer);
-    }
+    OSHandleDestroy(&context->Buffer);
     free(context);
 }
 
@@ -601,7 +600,7 @@ static int __ValiFS_Read(void* userData, void* buffer, size_t length, size_t* by
     count = MIN(length, sectorsRead * context->Stats.SectorSize);
     memcpy(
             buffer,
-            (void*)((uint8_t*)context->Buffer.Buffer + (context->Position.QuadPart % context->Stats.SectorSize)),
+            (void*)((uint8_t*)SHMBuffer(&context->Buffer) + (context->Position.QuadPart % context->Stats.SectorSize)),
             count
     );
     context->Position.QuadPart += count;

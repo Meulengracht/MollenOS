@@ -15,9 +15,10 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "stdio.h"
-#include "internal/_io.h"
-#include "internal/_file.h"
+#include <stdio.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <os/mollenos.h>
 
 int fflush(
 	_In_ FILE* file)
@@ -33,9 +34,6 @@ int fflush(
     flockfile(file);
     if (file->_flag & _IOWRT) {
         oserr = io_buffer_flush(file);
-		/* @todo
-        if(!res && (file->_flag & _IOCOMMIT))
-            res = _commit(file->_file) ? EOF : 0; */
 	} else if (file->_flag & _IOREAD) {
         // Flushing read files is just resetting the buffer pointer
 		file->_cnt = 0;

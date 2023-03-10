@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,20 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- *   - File Opening & File Creation
  */
 
-#include "io.h"
-#include "stdio.h"
-#include "errno.h"
-#include "string.h"
-#include "stdlib.h"
-#include "internal/_io.h"
+#include <io.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <internal/_io.h>
 
-/* Information 
+/**
 "r"    read: Open file for input operations. The file must exist.
 "w"    write: Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
 "a"    append: Open file for output at the end of a file. Output operations always write data at the end of the file, expanding it. 
@@ -40,14 +33,17 @@
 */
 FILE* fdopen(int fd, const char *mode)
 {
-    int open_flags, stream_flags;
     stdio_handle_t* handle;
+    int             flags;
 
     if (fd < 0 || mode == NULL) {
         _set_errno(EINVAL);
         return NULL;
     }
-    _fflags(mode, &open_flags, &stream_flags);
+
+    if (__fmode_to_flags(mode, &flags)) {
+        return NULL;
+    }
     
     handle = stdio_handle_get(fd);
     if (!handle) {
@@ -55,15 +51,15 @@ FILE* fdopen(int fd, const char *mode)
         return NULL;
     }
     
-    if (stdio_handle_set_buffered(handle, NULL, stream_flags)) {
+    if (stdio_handle_set_buffered(handle, NULL, 0)) {
         return NULL;
     }
-    return handle->buffered_stream;
+    return stdio_handle_stream(handle);
 }
 
 FILE *fopen(const char* filename, const char* mode)
 {
-    int open_flags, stream_flags;
+    int flags;
     int fd;
 
     if (filename == NULL || mode == NULL) {
@@ -71,10 +67,12 @@ FILE *fopen(const char* filename, const char* mode)
         return NULL;
     }
 
-    _fflags(mode, &open_flags, &stream_flags);
+    if (__fmode_to_flags(mode, &flags)) {
+        return NULL;
+    }
 
     // Open file as file-descriptor
-    fd = open(filename, open_flags, 0755);
+    fd = open(filename, flags, 0755);
     if (fd == -1) {
         return NULL;
     }

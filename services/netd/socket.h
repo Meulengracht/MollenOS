@@ -30,6 +30,7 @@
 #include <ds/rbtree.h>
 #include <ds/queue.h>
 #include <inet/socket.h>
+#include <os/types/handle.h>
 #include <os/types/shm.h>
 
 #define SOCKET_DEFAULT_BUFFER_SIZE (16 * 4096)
@@ -51,12 +52,13 @@ typedef struct QueuedPacket {
 } QueuedPacket_t;
 
 typedef struct SocketPipe {
-    SHMHandle_t     SHM;
+    OSHandle_t      SHM;
     streambuffer_t* Stream;
 } SocketPipe_t;
 
 typedef struct Socket {
     rb_leaf_t             Header;
+    OSHandle_t            Handle;
     _Atomic(int)          PendingPackets;
     int                   DomainType;
     int                   Type;

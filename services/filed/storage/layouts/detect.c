@@ -17,6 +17,7 @@
 #define __TRACE
 
 #include <ddk/utils.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <string.h>
 #include <vfs/storage.h>
@@ -113,8 +114,8 @@ oserr_t
 VFSStorageParse(
         _In_ struct VFSStorage* storage)
 {
-	SHMHandle_t shm;
-    oserr_t     oserr;
+	OSHandle_t shm;
+    oserr_t    oserr;
 
 	TRACE("VFSStorageParse(SectorSize %u)", storage->Stats.SectorSize);
 
@@ -134,10 +135,10 @@ VFSStorageParse(
 	}
 
     // Always check for GPT table first
-    oserr = GptEnumerate(storage, shm.ID, shm.Buffer);
+    oserr = GptEnumerate(storage, shm.ID, SHMBuffer(&shm));
     if (oserr == OS_ENOENT) {
-        oserr = MbrEnumerate(storage, shm.ID, shm.Buffer);
+        oserr = MbrEnumerate(storage, shm.ID, SHMBuffer(&shm));
     }
-    (void)SHMDetach(&shm);
+    OSHandleDestroy(&shm);
 	return oserr;
 }

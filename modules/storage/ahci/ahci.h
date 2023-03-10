@@ -30,9 +30,9 @@
 #include <ddk/storage.h>
 #include <ddk/interrupt.h>
 #include <ds/list.h>
-#include <os/osdefs.h>
-#include <os/spinlock.h>
+#include <os/types/handle.h>
 #include <os/types/shm.h>
+#include <os/spinlock.h>
 
 // SATA includes
 #include <commands.h>
@@ -324,10 +324,10 @@ typedef struct AhciPort {
     int                     Connected;
     AHCIPortRegisters_t*    Registers;
     
-    SHMHandle_t             InternalBuffer;
-    SHMHandle_t             CommandListDMA;
-    SHMHandle_t             CommandTableDMA;
-    SHMHandle_t             RecievedFisDMA;
+    OSHandle_t              InternalBuffer;
+    OSHandle_t              CommandListDMA;
+    OSHandle_t              CommandTableDMA;
+    OSHandle_t              RecievedFisDMA;
 
     _Atomic(int)            Slots;
     int                     SlotCount;

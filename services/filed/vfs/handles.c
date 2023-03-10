@@ -37,7 +37,7 @@ VFSNodeHandleStartup(void)
 
 oserr_t
 VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
+        _In_ OSHandle_t*     handle,
         _In_ struct VFSNode* node,
         _In_ void*           data,
         _In_ uint32_t        accessKind)
@@ -45,14 +45,14 @@ VFSNodeHandleAdd(
     void* existing;
 
     usched_rwlock_w_lock(&g_handlesLock);
-    existing = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handleId });
+    existing = hashtable_get(&g_handles, &(struct VFSNodeHandle) { .Id = handle->ID });
     if (existing != NULL) {
         usched_rwlock_w_unlock(&g_handlesLock);
         return OS_EEXISTS;
     }
 
     hashtable_set(&g_handles, &(struct VFSNodeHandle) {
-        .Id = handleId,
+        .Id = handle->ID,
         .Position = 0,
         .Data = data,
         .Node = node,

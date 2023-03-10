@@ -21,6 +21,7 @@
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/types/file.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -406,9 +407,7 @@ __FileSystemMFSNew(
 static void __FileSystemMFSDelete(
         _In_ FileSystemMFS_t* mfs)
 {
-    if (mfs->TransferBuffer.Buffer != NULL) {
-        (void)SHMDetach(&mfs->TransferBuffer);
-    }
+    OSHandleDestroy(&mfs->TransferBuffer);
     free(mfs->BucketMap);
     free(mfs);
 }
@@ -441,8 +440,7 @@ static oserr_t
 __ResizeTransferBuffer(
         _In_ FileSystemMFS_t* mfs)
 {
-    // TODO should probably error check these
-    (void)SHMDetach(&mfs->TransferBuffer);
+    OSHandleDestroy(&mfs->TransferBuffer);
 
     // Create a new transfer buffer that is more persistant and attached to the fs
     // and will provide the primary intermediate buffer for general usage.
@@ -530,7 +528,7 @@ __ParseAndProcessMasterRecord(
         }
 
         // Reset buffer position to 0 and read the data into the map
-        memcpy(bMap, mfs->TransferBuffer.Buffer, transferSize);
+        memcpy(bMap, SHMBuffer(&mfs->TransferBuffer), transferSize);
         bytesLeft -= transferSize;
         bytesRead += transferSize;
         bMap      += transferSize;
@@ -542,7 +540,7 @@ __ParseAndProcessMasterRecord(
     TRACE("Bucket map was cached");
 #else
     DMABuffer_t     mapInfo;
-    SHMHandle_t mapAttachment;
+    OSHandle_t      mapAttachment;
     uint64_t        mapSector   = Mfs->MasterRecord.MapSector + (i * Mfs->SectorsPerBucket);
     size_t          sectorCount = DIVUP((size_t)Mfs->MasterRecord.MapSize,
         Descriptor->Disk.descriptor.SectorSize);
@@ -631,7 +629,7 @@ FsInitialize(
 
     oserr = __ParseBootRecord(
             mfs,
-            (BootRecord_t*)mfs->TransferBuffer.Buffer
+            (BootRecord_t*)SHMBuffer(&mfs->TransferBuffer)
     );
     if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to parse the boot record");
@@ -654,12 +652,12 @@ FsInitialize(
 
     // Validate and store the master record immediately, so we can resize the
     // transfer buffer. The moment we do, the data is lost.
-    oserr = __ValidateMasterRecord((MasterRecord_t*)mfs->TransferBuffer.Buffer);
+    oserr = __ValidateMasterRecord((MasterRecord_t*)SHMBuffer(&mfs->TransferBuffer));
     if (oserr != OS_EOK) {
         ERROR("FsInitialize failed to read the master record");
         goto error_exit;
     }
-    memcpy(&mfs->MasterRecord, mfs->TransferBuffer.Buffer, sizeof(MasterRecord_t));
+    memcpy(&mfs->MasterRecord, SHMBuffer(&mfs->TransferBuffer), sizeof(MasterRecord_t));
 
     oserr = __ResizeTransferBuffer(mfs);
     if (oserr != OS_EOK) {

@@ -284,7 +284,7 @@ typedef struct {
 
     // Registers and resources
     OhciRegisters_t* Registers;
-    SHMHandle_t      HccaDMA;
+    OSHandle_t       HccaDMA;
     SHMSGTable_t     HccaDMATable;
     OhciHCCA_t*      Hcca;
 

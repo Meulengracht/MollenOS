@@ -18,6 +18,8 @@
 
 #define __need_quantity
 #include <ddk/utils.h>
+#include <os/handle.h>
+#include <os/shm.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -112,8 +114,8 @@ unlock:
 
 static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VFS* targetVFS, void* targetFile)
 {
-    SHMHandle_t shm;
-    oserr_t     oserr;
+    OSHandle_t shm;
+    oserr_t    oserr;
 
     oserr = SHMCreate(
             &(SHM_t) {
@@ -136,7 +138,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
                 sourceVFS->Data,
                 sourceFile,
                 shm.ID,
-                shm.Buffer,
+                SHMBuffer(&shm),
                 0,
                 MB(1), &read
         );
@@ -148,7 +150,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
                 sourceVFS->Interface,
                 targetVFS->Data, targetFile,
                 shm.ID,
-                shm.Buffer,
+                SHMBuffer(&shm),
                 0,
                 read, &written
         );
@@ -157,7 +159,7 @@ static oserr_t __TransferFile(struct VFS* sourceVFS, void* sourceFile, struct VF
         }
     }
 
-    SHMDetach(&shm);
+    OSHandleDestroy(&shm);
     return OS_EOK;
 }
 

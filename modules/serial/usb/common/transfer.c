@@ -27,6 +27,7 @@
 
 #include <assert.h>
 #include <ddk/utils.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include "hci.h"
 #include <stdlib.h>
@@ -139,7 +140,7 @@ UsbManagerDestroyTransfer(
             // do nothing, we already freed
         } else {
             free(transfer->Transactions[i].SHMTable.Entries);
-            SHMDetach(&transfer->Transactions[i].SHM);
+            OSHandleDestroy(&transfer->Transactions[i].SHM);
         }
     }
     free(transfer);

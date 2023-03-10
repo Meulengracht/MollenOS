@@ -17,11 +17,15 @@
 
 //#define __TRACE
 
-#include "errno.h"
-#include "io.h"
-#include "internal/_dirent.h"
-#include "internal/_io.h"
-#include "os/services/file.h"
+#include <errno.h>
+#include <internal/_dirent.h>
+#include <internal/_io.h>
+#include <io.h>
+#include <os/services/file.h>
+#include <os/mollenos.h>
+#include <os/handle.h>
+#include <string.h>
+#include <stdlib.h>
 
 int
 mkdir(
@@ -68,7 +72,7 @@ opendir(
 
     dir = __DIR_new(&handle);
     if (dir == NULL) {
-        (void)OSCloseFile(&handle);
+        OSHandleDestroy(&handle);
         return NULL;
     }
     return dir;
@@ -78,16 +82,14 @@ int
 closedir(
     _In_ struct DIR* dir)
 {
-    oserr_t oserr;
-
     if (dir == NULL) {
         _set_errno(EINVAL);
         return -1;
     }
 
-    oserr = OSCloseFile(&dir->_handle);
+    OSHandleDestroy(&dir->_handle);
     free(dir);
-    return OsErrToErrNo(oserr);
+    return 0;
 }
 
 static int __ToDirentType(unsigned int flags)

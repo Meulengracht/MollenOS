@@ -25,6 +25,7 @@
 #include <os/handle.h>
 #include <os/services/file.h>
 #include <os/shm.h>
+#include <string.h>
 
 static oserr_t __file_read(stdio_handle_t*, void*, size_t, size_t*);
 static oserr_t __file_write(stdio_handle_t*, const void*, size_t, size_t*);
@@ -142,20 +143,6 @@ int open(const char* file, int flags, ...)
     return stdio_handle_iod(object);
 }
 
-oserr_t
-stdio_file_op_read(
-        _In_  stdio_handle_t* handle,
-        _In_  void*           buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesReadOut);
-
-oserr_t
-stdio_file_op_write(
-        _In_  stdio_handle_t* handle,
-        _In_  const void*     buffer,
-        _In_  size_t          length,
-        _Out_ size_t*         bytesWrittenOut);
-
 static inline oserr_t
 __transfer(
         _In_  uuid_t  fileID,
@@ -209,7 +196,7 @@ __read_large(
     // buffer we must account for that
     if ((uintptr_t)buffer & 0x3) {
         size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
-        oserr = stdio_file_op_read(handle, buffer, bytesToAlign, bytesReadOut);
+        oserr = __file_read(handle, buffer, bytesToAlign, bytesReadOut);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -254,11 +241,11 @@ __file_read(
         _In_  size_t          length,
         _Out_ size_t*         bytesReadOut)
 {
-    SHMHandle_t* shmHandle = __tls_current_dmabuf();
-    uuid_t       builtinHandle = shmHandle->ID;
-    size_t       builtinLength = shmHandle->Length;
-    size_t       bytesRead;
-    oserr_t      oserr;
+    OSHandle_t* shmHandle = __tls_current_dmabuf();
+    uuid_t      builtinHandle = shmHandle->ID;
+    size_t      builtinLength = SHMBufferLength(shmHandle);
+    size_t      bytesRead;
+    oserr_t     oserr;
     TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
     // There is a time when reading more than a couple of times is considerably slower
@@ -270,7 +257,7 @@ __file_read(
     oserr = __transfer(handle->OSHandle.ID, builtinHandle, 0,
                        builtinLength, 0, length, &bytesRead);
     if (oserr == OS_EOK && bytesRead > 0) {
-        memcpy(buffer, shmHandle->Buffer, bytesRead);
+        memcpy(buffer, SHMBuffer(shmHandle), bytesRead);
     }
 
     *bytesReadOut = bytesRead;
@@ -294,7 +281,7 @@ __write_large(
     // buffer we must account for that
     if ((uintptr_t)buffer & 0x3) {
         size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
-        oserr = stdio_file_op_write(handle, buffer, bytesToAlign, bytesWrittenOut);
+        oserr = __file_write(handle, buffer, bytesToAlign, bytesWrittenOut);
         if (oserr != OS_EOK) {
             return oserr;
         }
@@ -330,10 +317,10 @@ __file_write(
         _In_  size_t          length,
         _Out_ size_t*         bytesWrittenOut)
 {
-    SHMHandle_t* shmHandle = __tls_current_dmabuf();
-    uuid_t       builtinHandle = shmHandle->ID;
-    size_t       builtinLength = shmHandle->Length;
-    oserr_t      oserr;
+    OSHandle_t* shmHandle = __tls_current_dmabuf();
+    uuid_t      builtinHandle = shmHandle->ID;
+    size_t      builtinLength = SHMBufferLength(shmHandle);
+    oserr_t     oserr;
     TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
     // There is a time when reading more than a couple of times is considerably slower
@@ -342,7 +329,7 @@ __file_write(
         return __write_large(handle, buffer, length, bytesWrittenOut);
     }
 
-    memcpy(shmHandle->Buffer, buffer, length);
+    memcpy(SHMBuffer(shmHandle), buffer, length);
     oserr = __transfer(handle->OSHandle.ID, builtinHandle, 1,
                        builtinLength, 0, length, bytesWrittenOut);
     return oserr;

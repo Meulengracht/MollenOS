@@ -1,3 +1,4 @@
+
 /**
  * Copyright 2022, Philip Meulengracht
  *
@@ -16,8 +17,8 @@
  *
  */
 
-#include "os/notification_queue.h"
 #include <ddk/utils.h>
+#include <os/handle.h>
 #include <vfs/vfs.h>
 #include "../private.h"
 
@@ -25,6 +26,7 @@ oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
 {
     struct VFSNodeHandle* handle;
     struct VFSNode*       node;
+    struct __VFSHandle*   vfsHandle;
     void*                 data;
     oserr_t               osStatus;
     _CRT_UNUSED(vfs);
@@ -56,12 +58,15 @@ oserr_t VFSNodeClose(struct VFS* vfs, uuid_t handleID)
     }
 
     // Remove the handle from the node
-    (void)hashtable_remove(
+    vfsHandle = hashtable_remove(
             &node->Handles,
             &(struct __VFSHandle) {
-                    .Id = handleID
+                    .OSHandle.ID = handleID
             }
     );
+    if (vfsHandle != NULL) {
+        OSHandleDestroy(&vfsHandle->OSHandle);
+    }
     usched_mtx_unlock(&node->HandlesLock);
-    return OSHandleDestroy(handleID);
+    return OS_EOK;
 }

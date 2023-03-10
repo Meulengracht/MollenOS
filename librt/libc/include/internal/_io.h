@@ -5,10 +5,6 @@
 #include <os/types/process.h>
 #include <stdio.h>
 
-#ifndef _IOCOMMIT
-#define _IOCOMMIT 0x4000
-#endif
-
 // Values for wxflag
 #define WX_OPEN             0x01U
 #define WX_ATEOF            0x02U
@@ -249,7 +245,6 @@ extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fperms(unsigned int mode);
 extern unsigned int _fopts(int oflags);
-extern int          _fflags(const char *mode, int *open_flags, int *stream_flags);
 extern int          streamout(FILE *stream, const char *format, va_list argptr);
 extern int          wstreamout(FILE *stream, const wchar_t *format, va_list argptr);
 

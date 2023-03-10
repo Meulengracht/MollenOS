@@ -27,7 +27,7 @@
 
 static void __FileDestroy(struct OSHandle*);
 
-const OSHandleOps_t g_fileOps = {
+const OSHandleOps_t g_osFileOps = {
         .Destroy = __FileDestroy
 };
 

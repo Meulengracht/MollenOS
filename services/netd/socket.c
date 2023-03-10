@@ -24,7 +24,7 @@
  */
 //#define __TRACE
 
-#include "os/notification_queue.h"
+#include <os/handle.h>
 #include <ddk/utils.h>
 #include "domains/domains.h"
 #include <os/shm.h>
@@ -63,7 +63,7 @@ CreateSocketPipe(
         return oserr;
     }
     
-    Pipe->Stream = Pipe->SHM.Buffer;
+    Pipe->Stream = SHMBuffer(&Pipe->SHM);
     InitializeStreambuffer(Pipe->Stream);
     return OS_EOK;
 }
@@ -72,7 +72,7 @@ static void
 __SocketPipeDestroy(
     _In_ SocketPipe_t* socketPipe)
 {
-    (void)SHMDetach(&socketPipe->SHM);
+    OSHandleDestroy(&socketPipe->SHM);
 }
 
 static void
@@ -90,72 +90,72 @@ SocketCreateImpl(
     _In_  int        Protocol,
     _Out_ Socket_t** SocketOut)
 {
-    Socket_t*  Socket;
-    oserr_t Status;
-    uuid_t     Handle;
+    Socket_t*  socket;
+    oserr_t    oserr;
+    OSHandle_t osHandle;
     TRACE("[net_manager] [socket_create_impl] %i, %i, %i", 
         Domain, Type, Protocol);
-    
-    Socket = malloc(sizeof(Socket_t));
-    if (!Socket) {
+
+    socket = malloc(sizeof(Socket_t));
+    if (!socket) {
         return OS_EOOM;
     }
     
-    memset(Socket, 0, sizeof(Socket_t));
-    Socket->PendingPackets      = 0;
-    Socket->DomainType          = Domain;
-    Socket->Type                = Type;
-    Socket->Protocol            = Protocol;
-    SetDefaultConfiguration(&Socket->Configuration);
+    memset(socket, 0, sizeof(Socket_t));
+    socket->PendingPackets      = 0;
+    socket->DomainType          = Domain;
+    socket->Type                = Type;
+    socket->Protocol            = Protocol;
+    SetDefaultConfiguration(&socket->Configuration);
     
-    mtx_init(&Socket->SyncObject, mtx_plain);
-    queue_construct(&Socket->ConnectionRequests);
-    queue_construct(&Socket->AcceptRequests);
-    
-    Status = OSHandleCreate(&Handle);
-    if (Status != OS_EOK) {
+    mtx_init(&socket->SyncObject, mtx_plain);
+    queue_construct(&socket->ConnectionRequests);
+    queue_construct(&socket->AcceptRequests);
+
+    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &osHandle);
+    if (oserr != OS_EOK) {
         ERROR("Failed to create socket handle");
-        return Status;
+        return oserr;
     }
-    RB_LEAF_INIT(&Socket->Header, Handle, Socket);
-    
-    Status = DomainCreate(Domain, &Socket->Domain);
-    if (Status != OS_EOK) {
+    RB_LEAF_INIT(&socket->Header, osHandle.ID, socket);
+
+    oserr = DomainCreate(Domain, &socket->Domain);
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket domain");
-        (void)OSHandleDestroy(Handle);
-        free(Socket);
-        return Status;
+        OSHandleDestroy(&osHandle);
+        free(socket);
+        return oserr;
     }
-    
-    Status = DomainAllocateAddress(Socket);
-    if (Status != OS_EOK) {
+
+    oserr = DomainAllocateAddress(socket);
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket domain address");
-        DomainDestroy(Socket->Domain);
-        (void)OSHandleDestroy(Handle);
-        free(Socket);
-        return Status;
+        DomainDestroy(socket->Domain);
+        OSHandleDestroy(&osHandle);
+        free(socket);
+        return oserr;
     }
-    
-    Status = CreateSocketPipe(&Socket->Receive);
-    if (Status != OS_EOK) {
+
+    oserr = CreateSocketPipe(&socket->Receive);
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket receive pipe");
-        DomainDestroy(Socket->Domain);
-        (void)OSHandleDestroy(Handle);
-        free(Socket);
-        return Status;
+        DomainDestroy(socket->Domain);
+        OSHandleDestroy(&osHandle);
+        free(socket);
+        return oserr;
     }
-    
-    Status = CreateSocketPipe(&Socket->Send);
-    if (Status != OS_EOK) {
+
+    oserr = CreateSocketPipe(&socket->Send);
+    if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket send pipe");
-        DomainDestroy(Socket->Domain);
-        __SocketPipeDestroy(&Socket->Receive);
-        (void)OSHandleDestroy(Handle);
-        free(Socket);
-        return Status;
+        DomainDestroy(socket->Domain);
+        __SocketPipeDestroy(&socket->Receive);
+        OSHandleDestroy(&osHandle);
+        free(socket);
+        return oserr;
     }
     
-    *SocketOut = Socket;
+    *SocketOut = socket;
     return OS_EOK;
 }
 
@@ -174,7 +174,7 @@ SocketShutdownImpl(
         DomainDestroy(Socket->Domain);
         __SocketPipeDestroy(&Socket->Receive);
         __SocketPipeDestroy(&Socket->Send);
-        (void)OSHandleDestroy((uuid_t)(uintptr_t)Socket->Header.key);
+        OSHandleDestroy(&Socket->Handle);
         free(Socket);
         return OS_EOK;
     }

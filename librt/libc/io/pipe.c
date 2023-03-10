@@ -17,7 +17,9 @@
 
 //#define __TRACE
 
+#include <assert.h>
 #include <ddk/utils.h>
+#include <ds/streambuffer.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_tls.h>
@@ -28,6 +30,7 @@
 #include <os/shm.h>
 #include <os/mollenos.h>
 #include <string.h>
+#include <stdlib.h>
 
 struct Pipe {
     unsigned int Options;

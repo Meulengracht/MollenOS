@@ -35,7 +35,7 @@ typedef struct Socket Socket_t;
 typedef struct SocketDomain SocketDomain_t;
 
 typedef oserr_t (*DomainAllocateAddressFn)(Socket_t*);
-typedef void       (*DomainFreeAddressFn)(Socket_t*);
+typedef void    (*DomainFreeAddressFn)(Socket_t*);
 typedef oserr_t (*DomainBindFn)(Socket_t*, const struct sockaddr*);
 typedef oserr_t (*DomainConnectFn)(struct gracht_message*, Socket_t*, const struct sockaddr*);
 typedef oserr_t (*DomainDisconnectFn)(Socket_t*);
@@ -44,7 +44,7 @@ typedef oserr_t (*DomainSendFn)(Socket_t*);
 typedef oserr_t (*DomainReceiveFn)(Socket_t*);
 typedef oserr_t (*DomainPairFn)(Socket_t*, Socket_t*);
 typedef oserr_t (*DomainGetAddressFn)(Socket_t*, int, struct sockaddr*);
-typedef void       (*DomainDestroyFn)(SocketDomain_t*);
+typedef void    (*DomainDestroyFn)(SocketDomain_t*);
 
 typedef struct SocketDomainOps {
     DomainAllocateAddressFn  AddressAllocate;

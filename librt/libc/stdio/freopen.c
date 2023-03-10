@@ -15,12 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "errno.h"
-#include "internal/_file.h"
-#include "internal/_io.h"
-#include "io.h"
-#include "os/services/file.h"
-#include "stdio.h"
+#include <errno.h>
+#include <internal/_file.h>
+#include <internal/_io.h>
+#include <io.h>
+#include <os/services/file.h>
+#include <stdio.h>
+#include <os/mollenos.h>
 
 FILE* freopen(
 	_In_ const char* filename, 
@@ -28,8 +29,7 @@ FILE* freopen(
 	_In_ FILE*       stream)
 {
 	stdio_handle_t* handle;
-	int             open_flags;
-	int             stream_flags;
+	int             flags;
 	int             fd;
 
 	// Sanitize parameters
@@ -40,29 +40,30 @@ FILE* freopen(
 		return NULL;
 	}
 
+    if (__fmode_to_flags(mode, &flags)) {
+        return NULL;
+    }
+
 	// Ok, if filename is not null we must open a new file
     flockfile(stream);
 	if (filename != NULL) {
 		close(stream->_fd);
 
 		// Open a new file descriptor
-		_fflags(mode, &open_flags, &stream_flags);
-		fd = open(filename, open_flags, 0755);
+		fd = open(filename, flags, 0755);
 		if (fd == -1) {
             funlockfile(stream);
 			return NULL;
 		}
 		handle = stdio_handle_get(fd);
-		stdio_handle_set_buffered(handle, stream, stream_flags);
+		stdio_handle_set_buffered(handle, stream, 0);
 	} else {
 		if (mode != NULL) {
 			oserr_t status;
 
-            _fflags(mode, &open_flags, &stream_flags);
-
 			// TODO: support multiple types of streams
-            status = ChangeFileHandleAccessFromFd(stream->_fd, _fopts(open_flags));
-			OsErrToErrNo(status);
+            status = ChangeFileHandleAccessFromFd(stream->_fd, _fopts(flags));
+            (void)OsErrToErrNo(status);
 		}
 	}
 	stream->_flag &= ~(_IOEOF | _IOERR);

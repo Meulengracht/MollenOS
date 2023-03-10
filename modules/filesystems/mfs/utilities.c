@@ -26,6 +26,7 @@
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/types/file.h>
+#include <os/shm.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -112,7 +113,7 @@ MfsUpdateRecord(
         goto Cleanup;
     }
 
-    record = (FileRecord_t*)((uint8_t*)mfs->TransferBuffer.Buffer + (sizeof(FileRecord_t) * entry->DirectoryIndex));
+    record = (FileRecord_t*)((uint8_t*)SHMBuffer(&mfs->TransferBuffer) + (sizeof(FileRecord_t) * entry->DirectoryIndex));
 
     // We have two over-all cases here, as create/modify share
     // some code, and that is delete as the second. If we delete

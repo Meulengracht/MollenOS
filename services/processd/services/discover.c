@@ -265,7 +265,7 @@ __SpawnServices(void)
     procOpts.InheritationBlockLength = 0;
     // TODO: if the environment gets more keys we need to write a function
     procOpts.EnvironmentBlockLength = strlen(g_svcFlatEnvironment) + 2; // two terminating zeroes
-    procOpts.DataBuffer.Buffer = (void*)g_svcFlatEnvironment;
+    procOpts.DataBuffer = (const void*)g_svcFlatEnvironment;
 
     // TODO: resolve by dependencies. do exactly like we do with PE images
     hashtable_enumerate(&g_services, __SpawnService, &procOpts);

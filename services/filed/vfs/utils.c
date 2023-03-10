@@ -18,8 +18,9 @@
 
 #define __TRACE
 
-#include "os/notification_queue.h"
 #include <ddk/utils.h>
+#include <os/handle.h>
+#include <os/shm.h>
 #include <vfs/vfs.h>
 #include <stdlib.h>
 #include <string.h>
@@ -161,9 +162,9 @@ static oserr_t __LoadNode(struct VFSNode* node)
                 vfs->Interface,
                 vfs->Data, data,
                 vfs->Buffer.ID,
-                vfs->Buffer.Buffer,
+                SHMBuffer(&vfs->Buffer),
                 0,
-                vfs->Buffer.Length,
+                SHMBufferLength(&vfs->Buffer),
                 &read
         );
         if (osStatus != OS_EOK || read == 0) {
@@ -171,7 +172,7 @@ static oserr_t __LoadNode(struct VFSNode* node)
             break;
         }
 
-        osStatus = __ParseEntries(node, vfs->Buffer.Buffer, read);
+        osStatus = __ParseEntries(node, SHMBuffer(&vfs->Buffer), read);
         if (osStatus != OS_EOK) {
             break;
         }
@@ -429,8 +430,8 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
 {
     struct __HandleExcCheckContext context;
     void*                          data;
-    oserr_t                        osStatus;
-    uuid_t                         handleId;
+    oserr_t                        oserr;
+    struct __VFSHandle             vfsHandle;
     mstring_t*                     nodePath;
 
     TRACE("VFSNodeOpenHandle(node=%ms)", node ? node->Name : NULL);
@@ -451,37 +452,35 @@ oserr_t VFSNodeOpenHandle(struct VFSNode* node, uint32_t accessKind, uuid_t* han
     context.AccessKind = accessKind;
     hashtable_enumerate(&node->Handles, __VerifyHandleExclusivityEnum, &context);
     if (!context.Success) {
-        osStatus = OS_EPERMISSIONS;
+        oserr = OS_EPERMISSIONS;
         goto cleanup;
     }
 
-    osStatus = OSHandleCreate(&handleId);
-    if (osStatus != OS_EOK) {
+    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &vfsHandle.OSHandle);
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
-    osStatus = node->FileSystem->Interface->Operations.Open(
+    oserr = node->FileSystem->Interface->Operations.Open(
             node->FileSystem->Interface,
             node->FileSystem->Data,
             nodePath,
             &data
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
-    osStatus = VFSNodeHandleAdd(handleId, node, data, accessKind);
-    if (osStatus != OS_EOK) {
-        OSHandleDestroy(handleId);
+    oserr = VFSNodeHandleAdd(&vfsHandle.OSHandle, node, data, accessKind);
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&vfsHandle.OSHandle);
         goto error;
     }
 
     // Everything OK, we can add a new handle
-    hashtable_set(&node->Handles, &(struct __VFSHandle) {
-            .Id = handleId,
-            .AccessKind = accessKind
-    });
-    *handleOut = handleId;
+    vfsHandle.AccessKind = accessKind;
+    hashtable_set(&node->Handles, &vfsHandle);
+    *handleOut = vfsHandle.OSHandle.ID;
     goto cleanup;
 
 error:
@@ -494,7 +493,7 @@ error:
 cleanup:
     usched_mtx_unlock(&node->HandlesLock);
     mstr_delete(nodePath);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t VFSNodeNewDirectory(struct VFS* vfs, mstring_t* path, uint32_t permissions, struct VFSNode** nodeOut)

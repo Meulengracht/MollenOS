@@ -26,7 +26,7 @@
 //#define __TRACE
 
 #include <assert.h>
-#include "os/notification_queue.h"
+#include <os/notification_queue.h>
 #include <ddk/utils.h>
 #include "domains/domains.h"
 #include <inet/local.h>
@@ -39,9 +39,9 @@
 
 // This socket tree contains all the local system sockets that were created by
 // this machine. All remote sockets are maintained by the domains
-static rb_tree_t g_sockets;
-static uuid_t    g_socketSet;
-static thrd_t    g_socketMonitorHandle;
+static rb_tree_t  g_sockets;
+static OSHandle_t g_socketSet;
+static thrd_t     g_socketMonitorHandle;
 
 /////////////////////////////////////////////////////
 // APPLICATIONS => NetworkService
@@ -122,7 +122,7 @@ SocketMonitor(
     
     for (;;) {
         oserr = OSNotificationQueueWait(
-                g_socketSet,
+                &g_socketSet,
                 Events,
                 NETWORK_MANAGER_MONITOR_MAX_EVENTS,
                 0,
@@ -198,8 +198,8 @@ NetworkManagerSocketCreate(
         _Out_ uuid_t* RecvBufferHandleOut,
         _Out_ uuid_t* SendBufferHandleOut)
 {
-    Socket_t*          Socket;
-    oserr_t         Status;
+    Socket_t*          socket;
+    oserr_t            oserr;
     struct ioset_event event;
     
     TRACE("[net_manager] [create] %i, %i, %i", Domain, Type, Protocol);
@@ -208,29 +208,30 @@ NetworkManagerSocketCreate(
         WARNING("Invalid Domain type specified %i", Domain);
         return OS_EINVALPARAMS;
     }
-    
-    Status = SocketCreateImpl(Domain, Type, Protocol, &Socket);
-    if (Status != OS_EOK) {
-        WARNING("SocketCreateImpl failed with %u", Status);
-        return Status;
+
+    oserr = SocketCreateImpl(Domain, Type, Protocol, &socket);
+    if (oserr != OS_EOK) {
+        WARNING("SocketCreateImpl failed with %u", oserr);
+        return oserr;
     }
     
     // Add it to the handle set
     event.events = IOSETOUT;
-    event.data.handle = (uuid_t)(uintptr_t)Socket->Header.key;
-    Status = OSNotificationQueueCtrl(g_socketSet, IOSET_ADD,
-                                     (uuid_t)(uintptr_t)Socket->Header.key, &event);
-    if (Status != OS_EOK) {
+    event.data.handle = (uuid_t)(uintptr_t)socket->Header.key;
+    oserr = OSNotificationQueueCtrl(
+            &g_socketSet, IOSET_ADD,
+            &socket->Handle, &event);
+    if (oserr != OS_EOK) {
         // what the fuck TODO
         assert(0);
     }
     
-    rb_tree_append(&g_sockets, &Socket->Header);
-    *HandleOut           = (uuid_t)(uintptr_t)Socket->Header.key;
-    *SendBufferHandleOut = Socket->Send.SHM.ID;
-    *RecvBufferHandleOut = Socket->Receive.SHM.ID;
+    rb_tree_append(&g_sockets, &socket->Header);
+    *HandleOut           = (uuid_t)(uintptr_t)socket->Header.key;
+    *SendBufferHandleOut = socket->Send.SHM.ID;
+    *RecvBufferHandleOut = socket->Receive.SHM.ID;
     TRACE("[net_manager] [create] => %u", *HandleOut);
-    return Status;
+    return oserr;
 }
 
 void sys_socket_create_invocation(struct gracht_message* message, const int domain, const int type, const int protocol)
@@ -246,13 +247,13 @@ NetworkManagerSocketShutdown(
         _In_ uuid_t Handle,
         _In_ int    Options)
 {
-    Socket_t*  Socket;
-    oserr_t Status;
+    Socket_t* socket;
+    oserr_t   oserr;
     
     TRACE("[net_manager] [shutdown] %u, %i", Handle, Options);
-    
-    Socket = NetworkManagerSocketGet(Handle);
-    if (!Socket) {
+
+    socket = NetworkManagerSocketGet(Handle);
+    if (!socket) {
         ERROR("[net_manager] [shutdown] invalid handle %u", Handle);
         return OS_ENOENT;
     }
@@ -264,13 +265,18 @@ NetworkManagerSocketShutdown(
         if (!rb_tree_remove(&g_sockets, (void*)(uintptr_t)Handle)) {
             return OS_ENOENT;
         }
-        
-        Status = OSNotificationQueueCtrl(g_socketSet, IOSET_DEL, Handle, NULL);
-        if (Status != OS_EOK) {
+
+        oserr = OSNotificationQueueCtrl(
+                &g_socketSet,
+                IOSET_DEL,
+                &socket->Handle,
+                NULL
+        );
+        if (oserr != OS_EOK) {
             ERROR("[net_manager] [shutdown] failed to remove handle %u from socket set", Handle);
         }
     }
-    return SocketShutdownImpl(Socket, Options);
+    return SocketShutdownImpl(socket, Options);
 }
 
 void sys_socket_close_invocation(struct gracht_message* message, const uuid_t handle, const enum sys_close_options options)

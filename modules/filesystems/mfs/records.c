@@ -25,6 +25,7 @@
 
 #include <ddk/utils.h>
 #include <fs/common.h>
+#include <os/shm.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -218,7 +219,7 @@ __FindEntryOrFreeInDirectory(
 
         // Iterate the number of records in a bucket
         // A record spans two sectors
-        record = (FileRecord_t*)mfs->TransferBuffer.Buffer;
+        record = (FileRecord_t*)SHMBuffer(&mfs->TransferBuffer);
         for (size_t i = 0; i < ((mfs->SectorsPerBucket * link.Length) / 2); i++) {
             mstring_t* filename;
             int        compareResult;

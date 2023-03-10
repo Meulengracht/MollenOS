@@ -22,11 +22,11 @@
 #include <ddk/filesystem.h>
 #include <ds/guid.h>
 #include <ds/hashtable.h>
-#include <os/shm.h>
 #include <os/usched/mutex.h>
 #include <os/usched/cond.h>
 #include <os/usched/rwlock.h>
 #include <os/types/file.h>
+#include <os/types/handle.h>
 #include <vfs/interface.h>
 #include <vfs/stat.h>
 
@@ -38,7 +38,7 @@ struct VFS {
     struct VFSInterface*   Interface;
     struct VFSNode*        Root;
     struct usched_rwlock   Lock;
-    SHMHandle_t            Buffer;
+    OSHandle_t             Buffer;
 };
 
 enum VFSNodeType {
@@ -101,8 +101,8 @@ struct __VFSChild {
 };
 
 struct __VFSHandle {
-    uuid_t   Id;
-    uint32_t AccessKind;
+    OSHandle_t OSHandle;
+    uint32_t   AccessKind;
 };
 
 enum VFSNodeMode {
@@ -177,7 +177,7 @@ static inline bool __PathIsRoot(mstring_t* path) {
  */
 extern oserr_t
 VFSNodeHandleAdd(
-        _In_ uuid_t          handleId,
+        _In_ OSHandle_t*     handle,
         _In_ struct VFSNode* node,
         _In_ void*           data,
         _In_ uint32_t        accessKind);
