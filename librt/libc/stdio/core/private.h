@@ -26,7 +26,8 @@
  * @brief Retrieves the hashtable of IO descriptors.
  * @return A pointer to the hashtable of io-descriptors.
  */
-extern hashtable_t* IODescriptors(void);
+extern hashtable_t*
+IODescriptors(void);
 
 /**
  * @brief Converts a signature to their respective implementation
