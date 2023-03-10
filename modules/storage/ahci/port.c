@@ -30,6 +30,7 @@
 #include <ddk/io.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include "manager.h"
 #include "dispatch.h"
@@ -104,7 +105,7 @@ AhciPortCleanup(
     AhciManagerUnregisterDevice(Controller, Port);
     
     // Destroy the internal transfer buffer
-    SHMDetach(&Port->InternalBuffer);
+    OSHandleDestroy(&Port->InternalBuffer);
     free(Port);
 }
 
@@ -298,7 +299,7 @@ AhciPortRebase(
     (void)SHMGetSGTable(&port->CommandTableDMA, &sgTable, -1);
 
     // Iterate the 32 command headers
-    CommandList     = (AHCICommandList_t*)port->CommandListDMA.Buffer;
+    CommandList     = (AHCICommandList_t*)SHMBuffer(&port->CommandListDMA);
     PhysicalAddress = sgTable.Entries[0].Address;
     for (i = 0, j = 0; i < 32; i++) {
         // Load the command table address (physical)
@@ -520,14 +521,14 @@ static inline void __UpdateTransaction(
         return;
     }
 
-    commandList   = (AHCICommandList_t*)port->CommandListDMA.Buffer;
+    commandList   = (AHCICommandList_t*)SHMBuffer(&port->CommandListDMA);
     commandHeader = &commandList->Headers[portSlot];
 
     bytesTransferred = commandHeader->PRDByteCount;
 
     // Handle transaction completion, release slot, queue up a new command if any
     // and then handle the event
-    memcpy((void*)&transaction->Response, port->RecievedFisDMA.Buffer, sizeof(AHCIFis_t));
+    memcpy((void*)&transaction->Response, SHMBuffer(&port->RecievedFisDMA), sizeof(AHCIFis_t));
     AhciTransactionHandleResponse(controller, port, transaction, bytesTransferred);
 }
 

@@ -27,6 +27,7 @@
 
 #include <usb/usb.h>
 #include <gracht/link/vali.h>
+#include <os/types/handle.h>
 #include <os/types/shm.h>
 #include <os/spinlock.h>
 #include <threads.h>
@@ -55,7 +56,7 @@ typedef struct UsbManagerTransfer {
     
     // Per-transaction data
     struct UsbManagerTransaction {
-        SHMHandle_t  SHM;
+        OSHandle_t   SHM;
         SHMSGTable_t SHMTable;
         int          SGIndex;
         size_t       SGOffset;

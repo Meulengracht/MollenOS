@@ -28,10 +28,11 @@
 #include "domains.h"
 #include "../socket.h"
 #include "../manager.h"
-#include "os/notification_queue.h"
+#include <os/handle.h>
+#include <os/notification_queue.h>
+#include <os/services/net.h>
 #include <ddk/utils.h>
 #include <ds/list.h>
-#include <internal/_socket.h>
 #include <inet/local.h>
 #include <ioset.h>
 #include <stdlib.h>
@@ -202,7 +203,7 @@ HandleSocketStreamData(
         if (BytesWritten < BytesRead) {
             StoredBuffer = malloc(BytesRead - BytesWritten);
             if (!StoredBuffer) {
-                OSNotificationQueuePost((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+                OSNotificationQueuePost(&TargetSocket->Handle, IOSETIN);
                 return OS_EOOM;
             }
             
@@ -215,7 +216,7 @@ HandleSocketStreamData(
             break;
         }
     }
-    OSNotificationQueuePost((uuid_t)(uintptr_t)TargetSocket->Header.key, IOSETIN);
+    OSNotificationQueuePost(&TargetSocket->Handle, IOSETIN);
     return OS_EOK;
 }
 
@@ -333,7 +334,7 @@ HandleSocketPacketData(
             
             streambuffer_write_packet_data(buffer, bytesRead, &packetCtx);
             streambuffer_write_packet_end(&packetCtx);
-            OSNotificationQueuePost((uuid_t)(uintptr_t)targetSocket->Header.key, IOSETIN);
+            OSNotificationQueuePost(&targetSocket->Handle, IOSETIN);
         }
         else {
             WARNING("[socket] [local] [send_packet] target was not found");
@@ -542,7 +543,7 @@ HandleLocalConnectionRequest(
         // TODO If the backlog is full, reject
         // return OsConnectionRefused
         queue_push(&targetSocket->ConnectionRequests, &connectionRequest->Header);
-        OSNotificationQueuePost((uuid_t)(uintptr_t)targetSocket->Header.key, IOSETCTL);
+        OSNotificationQueuePost(&targetSocket->Handle, IOSETCTL);
     }
     mtx_unlock(&targetSocket->SyncObject);
     
@@ -589,8 +590,8 @@ static oserr_t
 DomainLocalDisconnect(
     _In_ Socket_t* socket)
 {
-    Socket_t*  peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
-    oserr_t osStatus   = OS_ENOTCONNECTED;
+    Socket_t* peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
+    oserr_t   oserr      = OS_ENOTCONNECTED;
     TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
         LODWORD(socket->Domain->ConnectedSocket));
     
@@ -599,14 +600,14 @@ DomainLocalDisconnect(
         // disconnect peer-socket as-well, and notify them of the disconnect
         peerSocket->Domain->ConnectedSocket = UUID_INVALID;
         peerSocket->Configuration.Connected = 0;
-        OSNotificationQueuePost(socket->Domain->ConnectedSocket, IOSETCTL);
-        osStatus = OS_EOK;
+        OSNotificationQueuePost(&peerSocket->Handle, IOSETCTL);
+        oserr = OS_EOK;
     }
 
     // update our stats
     socket->Domain->ConnectedSocket = UUID_INVALID;
     socket->Configuration.Connected = 0;
-    return osStatus;
+    return oserr;
 }
 
 static oserr_t

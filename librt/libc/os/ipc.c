@@ -20,6 +20,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
+#include <ds/streambuffer.h>
 #include <errno.h>
 #include <internal/_io.h>
 #include <internal/_tls.h>
@@ -29,6 +30,7 @@
 #include <os/handle.h>
 #include <os/ipc.h>
 #include <os/shm.h>
+#include <stdlib.h>
 
 struct IPCContext {
     unsigned int Options;

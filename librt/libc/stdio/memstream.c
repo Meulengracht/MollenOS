@@ -16,12 +16,13 @@
  *
  */
 
-#include "errno.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "internal/_io.h"
-#include "io.h"
-#include "ioctl.h"
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <internal/_io.h>
+#include <io.h>
+#include <ioctl.h>
+#include <string.h>
 
 struct MemoryStream {
     void*  Buffer;

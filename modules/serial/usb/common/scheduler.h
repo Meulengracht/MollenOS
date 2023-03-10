@@ -23,8 +23,8 @@
 #ifndef __USB_SCHEDULER__
 #define __USB_SCHEDULER__
 
+#include <os/types/handle.h>
 #include <os/types/shm.h>
-#include <os/osdefs.h>
 #include <os/spinlock.h>
 
 #define FRAME_TIME_USECS                1000L
@@ -98,7 +98,7 @@ typedef struct UsbSchedulerPool {
     size_t    ElementDepthBreathOffset;   // Offset to the physical breath link member
     size_t    ElementObjectOffset;        // Offset to the UsbSchedulerObject
     
-    SHMHandle_t  ElementPoolDMA;         // Frame element pool DMA attachment
+    OSHandle_t   ElementPoolDMA;         // Frame element pool DMA attachment
     SHMSGTable_t ElementPoolDMATable;
     uint8_t*     ElementPool;
 } UsbSchedulerPool_t;
@@ -108,7 +108,7 @@ typedef struct UsbSchedulerSettings {
     size_t       FrameCount;                     // Number of frames
     size_t       SubframeCount;                  // Number of sub-frames
     size_t       MaxBandwidthPerFrame;           // Max bandwidth per frame
-    SHMHandle_t  FrameListDMA;         // Frame list DMA attachment
+    OSHandle_t   FrameListDMA;         // Frame list DMA attachment
     SHMSGTable_t FrameListDMATable;
     reg32_t*     FrameList;            // Physical frame list
     uintptr_t    FrameListPhysical;

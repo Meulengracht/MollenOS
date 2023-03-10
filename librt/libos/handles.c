@@ -28,7 +28,7 @@ static uint64_t handle_hash(const void* element);
 static int      handle_cmp(const void* element1, const void* element2);
 
 static const OSHandleOps_t g_nullOps = {};
-extern const OSHandleOps_t g_fileOps;
+extern const OSHandleOps_t g_osFileOps;
 extern const OSHandleOps_t g_eventOps;
 extern const OSHandleOps_t g_hqueueOps;
 extern const OSHandleOps_t g_ipcOps;
@@ -37,7 +37,7 @@ extern const OSHandleOps_t g_socketOps;
 
 static const OSHandleOps_t* g_osHandlers[__OSHANDLE_COUNT] = {
         &g_nullOps,
-        &g_fileOps,
+        &g_osFileOps,
         &g_eventOps,
         &g_hqueueOps,
         &g_shmOps,

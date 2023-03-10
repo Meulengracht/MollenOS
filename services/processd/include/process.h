@@ -22,6 +22,7 @@
 #include <ds/mstring.h>
 #include <gracht/server.h>
 #include <os/services/process.h>
+#include <os/types/handle.h>
 #include <os/types/shm.h>
 #include <os/usched/cond.h>
 #include <os/usched/mutex.h>
@@ -39,11 +40,15 @@ struct ProcessOptions {
     const char*  WorkingDirectory;
     uint32_t     InheritationBlockLength;
     uint32_t     EnvironmentBlockLength;
-    SHMHandle_t  DataBuffer;
+    OSHandle_t   DataBufferHandle;
+    // DataBuffer is set if it should used instead of the
+    // DataBufferHandle. This is needed when doing internal
+    // spawning.
+    const void* DataBuffer;
 };
 
 typedef struct Process {
-    uuid_t                     handle;
+    OSHandle_t                 handle;
     uuid_t                     primary_thread_id;
     clock_t                    tick_base;
     enum ProcessState          state;

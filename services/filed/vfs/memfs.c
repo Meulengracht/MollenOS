@@ -21,6 +21,8 @@
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
 #include <os/usched/mutex.h>
+#include <os/handle.h>
+#include <os/shm.h>
 #include <os/time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -788,8 +790,8 @@ static oserr_t __ReadDirectory(
 
 static oserr_t
 __MapUserBufferRead(
-        _In_ uuid_t       handle,
-        _In_ SHMHandle_t* shm)
+        _In_ uuid_t      handle,
+        _In_ OSHandle_t* shm)
 {
     oserr_t oserr;
 
@@ -800,9 +802,9 @@ __MapUserBufferRead(
 
     // When mapping the buffer for reading, we need write access to the buffer,
     // so we can do buffer combining.
-    oserr = SHMMap(shm, 0, shm->Capacity, SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    oserr = SHMMap(shm, 0, SHMBufferCapacity(shm), SHM_ACCESS_READ | SHM_ACCESS_WRITE);
     if (oserr != OS_EOK) {
-        SHMDetach(shm);
+        OSHandleDestroy(shm);
         return oserr;
     }
     return OS_EOK;
@@ -820,7 +822,8 @@ __MemFSRead(
         _Out_ size_t*              unitsRead)
 {
     struct MemFSHandle* handle = data;
-    SHMHandle_t         shm;
+    OSHandle_t          shmHandle;
+    void*               pointer;
     oserr_t             oserr;
 
     TRACE("__MemFSRead(entry=%ms)", handle ? handle->Entry->Name : NULL);
@@ -833,31 +836,32 @@ __MemFSRead(
     if (buffer == NULL) {
         oserr = __MapUserBufferRead(
                 bufferHandle,
-                &shm
+                &shmHandle
         );
         if (oserr != OS_EOK) {
             return oserr;
         }
+        pointer = SHMBuffer(&shmHandle);
     } else {
         // use the provided local buffer
-        shm.Buffer = buffer;
+        pointer = buffer;
     }
 
     // Handle reading of data differently based on the type of file
     // entry.
     switch (handle->Entry->Type) {
         case MEMFS_ENTRY_TYPE_FILE:
-            oserr = __ReadFile(handle, shm.Buffer, bufferOffset, unitCount, unitsRead);
+            oserr = __ReadFile(handle, pointer, bufferOffset, unitCount, unitsRead);
             break;
         case MEMFS_ENTRY_TYPE_DIRECTORY:
-            oserr = __ReadDirectory(handle, shm.Buffer, bufferOffset, unitCount, unitsRead);
+            oserr = __ReadDirectory(handle, pointer, bufferOffset, unitCount, unitsRead);
             break;
         default:
             oserr = OS_ENOTSUPPORTED;
             break;
     }
     if (buffer == NULL) {
-        (void)SHMDetach(&shm);
+        OSHandleDestroy(&shmHandle);
     }
     return oserr;
 }

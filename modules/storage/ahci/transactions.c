@@ -28,6 +28,7 @@
 #include <assert.h>
 #include "dispatch.h"
 #include <ddk/utils.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include "manager.h"
 #include <stdlib.h>
@@ -127,10 +128,6 @@ AhciTransactionDestroy(
 {
     int portSlot;
 
-    if (!transaction) {
-        return;
-    }
-
     portSlot = __GetTransferKey(transaction);
     if (portSlot != -1) {
         // we need port
@@ -139,7 +136,7 @@ AhciTransactionDestroy(
     // Detach from our buffer reference
     list_remove(&port->Transactions, &transaction->Header);
     AhciPortFreeCommandSlot(port, portSlot);
-    SHMDetach(&transaction->SHM);
+    OSHandleDestroy(&transaction->SHM);
     free(transaction->SHMTable.Entries);
     free(transaction);
 }
@@ -149,7 +146,7 @@ static AhciTransaction_t* __CreateTransaction(
         _In_ struct gracht_message* message,
         _In_ int                    direction,
         _In_ uint64_t               sector,
-        _In_ SHMHandle_t*       dmaAttachment,
+        _In_ OSHandle_t*            dmaAttachment,
         _In_ unsigned int           bufferOffset)
 {
     uuid_t             transactionId;
@@ -167,7 +164,7 @@ static AhciTransaction_t* __CreateTransaction(
 
     // Do not bother about zeroing the array
     memset(transaction, 0, sizeof(AhciTransaction_t));
-    memcpy(&transaction->SHM, dmaAttachment, sizeof(SHMHandle_t));
+    memcpy(&transaction->SHM, dmaAttachment, sizeof(OSHandle_t));
 
     ELEMENT_INIT(&transaction->Header, (void*)(uintptr_t)-1, transaction);
     transaction->Id      = transactionId;
@@ -203,9 +200,9 @@ AhciTransactionControlCreate(
     _In_ size_t        length,
     _In_ int           direction)
 {
-    AhciTransaction_t*    transaction;
-    oserr_t               status;
-    SHMHandle_t           shm;
+    AhciTransaction_t* transaction;
+    oserr_t            status;
+    OSHandle_t         shm;
 
     TRACE("AhciTransactionControlCreate(ahciDevice=0x%" PRIxIN ", ataCommand=0x%x, length=0x%" PRIxIN ", direction=%i)",
           ahciDevice, ataCommand, length, direction);
@@ -222,7 +219,7 @@ AhciTransactionControlCreate(
 
     transaction = __CreateTransaction(ahciDevice, NULL, direction, 0, &shm, 0);
     if (!transaction) {
-        SHMDetach(&shm);
+        OSHandleDestroy(&shm);
         status = OS_EOOM;
         goto exit;
     }
@@ -272,7 +269,7 @@ AhciTransactionStorageCreate(
         _In_ size_t                 sectorCount)
 {
     struct __AhciCommandTableEntry* command;
-    SHMHandle_t                     shm;
+    OSHandle_t                      shm;
     AhciTransaction_t*              transaction = NULL;
     oserr_t                         status;
     TRACE("AhciTransactionStorageCreate(device=0x%" PRIxIN ", sector=0x%" PRIxIN ", sectorCount=0x%" PRIxIN ", direction=%i)",
@@ -291,7 +288,7 @@ AhciTransactionStorageCreate(
 
     transaction = __CreateTransaction(device, message, direction, sector, &shm, bufferOffset);
     if (!transaction) {
-        SHMDetach(&shm);
+        OSHandleDestroy(&shm);
         status = OS_EOOM;
         goto exit;
     }

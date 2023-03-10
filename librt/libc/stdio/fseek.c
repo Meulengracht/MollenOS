@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Sets the position indicator associated with the stream to a new position.
  */
 
 #include "errno.h"
@@ -44,13 +38,18 @@ long long lseeki64(
 		_set_errno(EINVAL);
 		return -1;
 	}
+
+    if (!handle->Ops->seek) {
+        _set_errno(ENOTSUP);
+        return -1;
+    }
 	
-	if (handle->ops.seek(handle, whence, offset, &position)) {
+	if (handle->Ops->seek(handle, whence, offset, &position)) {
 		return -1;
 	}
 	
 	// clear out eof after seeks
-	handle->wxflag &= ~(WX_ATEOF|WX_READEOF);
+	handle->XTFlags &= ~(WX_ATEOF|WX_READEOF);
 	return position;
 }
 

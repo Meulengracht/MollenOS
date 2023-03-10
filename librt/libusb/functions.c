@@ -29,6 +29,7 @@
 #include <internal/_utils.h>
 #include "os/services/process.h"
 #include <os/shm.h>
+#include <os/handle.h>
 #include <stdlib.h>
 
 #include <ctt_usbhost_service_client.h>
@@ -37,7 +38,7 @@
 static _Atomic(uuid_t)  TransferIdGenerator      = 1;
 static const size_t     LIBUSB_SHAREDBUFFER_SIZE = 0x2000;
 static struct dma_pool* g_dmaPool                = NULL;
-static SHMHandle_t      g_shmHandle;
+static OSHandle_t       g_shmHandle;
 
 oserr_t
 UsbInitialize(void)
@@ -60,7 +61,7 @@ UsbInitialize(void)
 
     oserr = dma_pool_create(&g_shmHandle, &g_dmaPool);
     if (oserr != OS_EOK) {
-        (void)SHMDetach(&g_shmHandle);
+        OSHandleDestroy(&g_shmHandle);
     }
     return oserr;
 }
@@ -73,7 +74,7 @@ UsbCleanup(void)
     }
 
     dma_pool_destroy(g_dmaPool);
-    SHMDetach(&g_shmHandle);
+    OSHandleDestroy(&g_shmHandle);
     g_dmaPool = NULL;
 }
 

@@ -32,6 +32,7 @@
 
 #include <ddk/filesystem.h>
 #include <os/mollenos.h>
+#include <os/types/handle.h>
 #include <os/types/shm.h>
 #include <ds/mstring.h>
 
@@ -257,7 +258,7 @@ typedef struct FileSystemMFS {
     unsigned int                Flags;
     int                         Version;
     size_t                      SectorsPerBucket;
-    SHMHandle_t             TransferBuffer;
+    OSHandle_t                  TransferBuffer;
     struct VFSStorageParameters Storage;
     size_t                      SectorSize;
     uint16_t                    ReservedSectorCount;

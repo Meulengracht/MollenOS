@@ -88,7 +88,8 @@ struct __flush_context {
     int files_flushed;
 };
 
-static void __flush_entry(
+static void
+__flush_entry(
         _In_ int         index,
         _In_ const void* element,
         _In_ void*       userContext)
@@ -96,7 +97,7 @@ static void __flush_entry(
     const struct stdio_object_entry* entry   = element;
     stdio_handle_t*                  object  = entry->handle;
     struct __flush_context*          context = userContext;
-    FILE*                            file    = object->buffered_stream;
+    FILE*                            file    = object->Stream;
     _CRT_UNUSED(index);
 
     if (file && (file->_flag & context->mask)) {

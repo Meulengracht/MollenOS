@@ -19,6 +19,7 @@
 #include <ddk/utils.h>
 #include <fs/common.h>
 #include <os/types/file.h>
+#include <os/shm.h>
 #include "mfs.h"
 #include <stdlib.h>
 #include <string.h>
@@ -29,11 +30,12 @@ __UpdateMasterRecords(
 {
     size_t  sectorsTransferred;
     oserr_t oserr;
+    void*   buffer = SHMBuffer(&mfs->TransferBuffer);
 
     TRACE("__UpdateMasterRecords()");
 
-    memset(mfs->TransferBuffer.Buffer, 0, mfs->SectorSize);
-    memcpy(mfs->TransferBuffer.Buffer, &mfs->MasterRecord, sizeof(MasterRecord_t));
+    memset(buffer, 0, mfs->SectorSize);
+    memcpy(buffer, &mfs->MasterRecord, sizeof(MasterRecord_t));
 
     // Flush the secondary copy first, so we can detect failures
     oserr = FSStorageWrite(
@@ -75,7 +77,7 @@ MfsZeroBucket(
 
     TRACE("MfsZeroBucket(Bucket %u, Count %u)", bucket, count);
 
-    memset(mfs->TransferBuffer.Buffer, 0, mfs->TransferBuffer.Length);
+    memset(SHMBuffer(&mfs->TransferBuffer), 0, SHMBufferLength(&mfs->TransferBuffer));
     for (i = 0; i < count; i++) {
         uint64_t sector = MFS_GETSECTOR(mfs, bucket + i);
         oserr_t  oserr;
@@ -142,7 +144,7 @@ MFSBucketMapSetLinkAndLength(
     bufferOffset += (sectorOffset * mfs->SectorSize);
 
     // Copy a sector's worth of data into the buffer
-    memcpy(mfs->TransferBuffer.Buffer, bufferOffset, mfs->SectorSize);
+    memcpy(SHMBuffer(&mfs->TransferBuffer), bufferOffset, mfs->SectorSize);
 
     // Flush buffer to disk
     oserr = FSStorageWrite(

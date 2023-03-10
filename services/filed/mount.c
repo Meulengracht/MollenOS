@@ -20,6 +20,7 @@
 #include <ddk/utils.h>
 #include <ds/mstring.h>
 #include <ds/guid.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <os/types/file.h>
 #include <vfs/filesystem.h>
@@ -49,8 +50,8 @@ __DetectFileSystem(
         _In_  UInteger64_t*       sector,
         _Out_ const char**        fsHintOut)
 {
-    SHMHandle_t shm;
-    oserr_t     oserr;
+    OSHandle_t shm;
+    oserr_t    oserr;
     TRACE("__DetectFileSystem()");
 
     // Allocate a generic transfer buffer for disk operations
@@ -71,11 +72,11 @@ __DetectFileSystem(
     oserr = VFSStorageDeriveFileSystemType(
             storage,
             shm.ID,
-            shm.Buffer,
+            SHMBuffer(&shm),
             sector,
             fsHintOut
     );
-    (void)SHMDetach(&shm);
+    OSHandleDestroy(&shm);
     return oserr;
 }
 

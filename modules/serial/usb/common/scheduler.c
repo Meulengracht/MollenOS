@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -29,6 +27,7 @@
 #include <usb/usb.h>
 #include <ddk/utils.h>
 #include <os/mollenos.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include "scheduler.h"
 #include <stdlib.h>
@@ -111,7 +110,7 @@ __AllocatePoolMemory(
         return oserr;
     }
 
-    schedulerPool->ElementPool = schedulerPool->ElementPoolDMA.Buffer;
+    schedulerPool->ElementPool = SHMBuffer(&schedulerPool->ElementPoolDMA);
     return OS_EOK;
 }
 
@@ -150,7 +149,7 @@ __AllocateFrameMemory(
         return oserr;
     }
 
-    usbScheduler->Settings.FrameList = (reg32_t*)usbScheduler->Settings.FrameListDMA.Buffer;
+    usbScheduler->Settings.FrameList = (reg32_t*)SHMBuffer(&usbScheduler->Settings.FrameListDMA);
     usbScheduler->Settings.FrameListPhysical = usbScheduler->Settings.FrameListDMATable.Entries[0].Address;
     return OS_EOK;
 }
@@ -227,11 +226,7 @@ static void
 FreePoolMemory(
     _In_ UsbSchedulerPool_t* Pool)
 {
-    if (!Pool->ElementPoolDMA.Buffer) {
-        return;
-    }
-
-    (void)SHMDetach(&Pool->ElementPoolDMA);
+    OSHandleDestroy(&Pool->ElementPoolDMA);
     free(Pool->ElementPoolDMATable.Entries);
 }
 
@@ -239,11 +234,7 @@ static void
 FreeFrameListMemory(
     _In_ UsbScheduler_t* Scheduler)
 {
-    if (!Scheduler->Settings.FrameListDMA.Buffer) {
-        return;
-    }
-
-    (void)SHMDetach(&Scheduler->Settings.FrameListDMA);
+    OSHandleDestroy(&Scheduler->Settings.FrameListDMA);
     free(Scheduler->Settings.FrameListDMATable.Entries);
 }
 
@@ -658,7 +649,7 @@ UsbSchedulerGetDma(
     _In_ UsbSchedulerPool_t* schedulerPool,
     _In_ const uint8_t*      elementPointer)
 {
-    size_t offset = (uintptr_t)elementPointer - (uintptr_t)schedulerPool->ElementPoolDMA.Buffer;
+    size_t offset = (uintptr_t)elementPointer - (uintptr_t)SHMBuffer(&schedulerPool->ElementPoolDMA);
     int    i;
     
     for (i = 0; i < schedulerPool->ElementPoolDMATable.Count; i++) {

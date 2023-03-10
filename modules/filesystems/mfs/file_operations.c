@@ -25,6 +25,7 @@
 #define __need_minmax
 #include <ddk/utils.h>
 #include <fs/common.h>
+#include <os/shm.h>
 #include <string.h>
 #include "mfs.h"
 
@@ -107,7 +108,7 @@ FsReadFromFile(
         // room for <SectorOffset> and also the spill-over bytes thats left for the sector
         else if ((SectorOffset + bytesToRead + (mfs->SectorSize -
                                                 ((SectorOffset + bytesToRead) % mfs->SectorSize))) <=
-                 mfs->TransferBuffer.Length) {
+                SHMBufferLength(&mfs->TransferBuffer)) {
             SectorCount = DIVUP(bytesToRead, mfs->SectorSize);
             if (SectorOffset != 0 && (SectorOffset + bytesToRead > mfs->SectorSize)) {
                 SectorCount++; // Take into account the extra sector we have to read
@@ -161,7 +162,7 @@ FsReadFromFile(
             // If we used the intermediate buffer for the transfer we now have to copy
             // <ByteCount> amount of bytes from <TransferBuffer> + <SectorOffset> to <Buffer> + <BufferOffset>
             if (SelectedHandle == mfs->TransferBuffer.ID) {
-                memcpy(((uint8_t*)buffer + bufferOffset), ((uint8_t*)mfs->TransferBuffer.Buffer + SectorOffset), ByteCount);
+                memcpy(((uint8_t*)buffer + bufferOffset), ((uint8_t*)SHMBuffer(&mfs->TransferBuffer) + SectorOffset), ByteCount);
             }
             
             // Increament all read-state variables
@@ -281,7 +282,7 @@ FsWriteToFile(
             // First of all, calculate the bounds as we might need to read
             // in existing data - Start out by clearing our combination buffer
             if (SelectedHandle == mfs->TransferBuffer.ID) {
-                memset(mfs->TransferBuffer.Buffer, 0, mfs->TransferBuffer.Length);
+                memset(SHMBuffer(&mfs->TransferBuffer), 0, SHMBufferLength(&mfs->TransferBuffer));
                 
                 // CASE READ-WRITE: We do this to support appending to sectors and overwriting
                 // bytes in a sector. This must occur when we either have a <SectorOffset> != 0
@@ -302,7 +303,7 @@ FsWriteToFile(
                 
                 // Now perform the user copy operation where we overwrite some of the data
                 // Copy from <Buffer> + <BufferOffset> to <TransferBuffer> + <SectorOffset>
-                memcpy(((uint8_t*)mfs->TransferBuffer.Buffer + SectorOffset), ((uint8_t*)buffer + bufferOffset), ByteCount);
+                memcpy(((uint8_t*)SHMBuffer(&mfs->TransferBuffer) + SectorOffset), ((uint8_t*)buffer + bufferOffset), ByteCount);
             }
             
             // Write either the intermediate buffer or directly from user

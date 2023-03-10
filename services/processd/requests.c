@@ -20,6 +20,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <os/context.h>
+#include <os/handle.h>
 #include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,6 +54,7 @@ __from_sys_process_configuration(
     out->MemoryLimit.QuadPart = in->memory_limit;
     out->InheritationBlockLength = in->inherit_block_length;
     out->EnvironmentBlockLength = in->environ_block_length;
+    out->DataBuffer = NULL;
 }
 
 void sys_process_spawn_invocation(
@@ -72,22 +74,22 @@ void sys_process_spawn_invocation(
     }
     __from_sys_process_configuration(configuration, &options);
 
-    oserr = SHMAttach(configuration->data_buffer, &options.DataBuffer);
+    oserr = SHMAttach(configuration->data_buffer, &options.DataBufferHandle);
     if (oserr != OS_EOK) {
         sys_process_spawn_response(message, oserr, UUID_INVALID);
         return;
     }
 
     // We only need read access to the buffer
-    oserr = SHMMap(&options.DataBuffer, 0, options.DataBuffer.Capacity, 0);
+    oserr = SHMMap(&options.DataBufferHandle, 0, SHMBufferCapacity(&options.DataBufferHandle), 0);
     if (oserr != OS_EOK) {
-        SHMDetach(&options.DataBuffer);
+        OSHandleDestroy(&options.DataBufferHandle);
         sys_process_spawn_response(message, oserr, UUID_INVALID);
         return;
     }
 
     oserr = PmCreateProcess(path, arguments, &options, &handle);
-    SHMDetach(&options.DataBuffer);
+    OSHandleDestroy(&options.DataBufferHandle);
     sys_process_spawn_response(message, oserr, handle);
 }
 

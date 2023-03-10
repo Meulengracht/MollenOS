@@ -25,6 +25,7 @@
 #define __TRACE
 #define __need_quantity
 
+#include <os/handle.h>
 #include <os/mollenos.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
@@ -90,7 +91,7 @@ HciControllerCreate(
     // Retrieve the physical location of the HCCA
     (void)SHMGetSGTable(&controller->HccaDMA, &controller->HccaDMATable, -1);
 
-    controller->Hcca        = (OhciHCCA_t*)controller->HccaDMA.Buffer;
+    controller->Hcca        = (OhciHCCA_t*)SHMBuffer(&controller->HccaDMA);
     controller->Base.IoBase = ioBase;
     
     // Acquire the io-space
@@ -156,7 +157,7 @@ HciControllerDestroy(
 
     // Free resources
     if (((OhciController_t*)Controller)->Hcca != NULL) {
-        SHMDetach(&((OhciController_t *) Controller)->HccaDMA);
+        OSHandleDestroy(&((OhciController_t *) Controller)->HccaDMA);
     }
 
     // Unregister the interrupt

@@ -19,6 +19,7 @@
 
 #include <ddk/utils.h>
 #include <fs/common.h>
+#include <os/shm.h>
 #include <string.h>
 #include "mfs.h"
 
@@ -103,7 +104,7 @@ FsReadFromDirectory(
         uint64_t sector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
         size_t   sectorCount  = MFS_SECTORCOUNT(mfs, entry->DataBucketLength);
         size_t   bucketOffset = position - entry->BucketByteBoundary;
-        uint8_t* transferBuffer = (uint8_t*)mfs->TransferBuffer.Buffer;
+        uint8_t* transferBuffer = (uint8_t*)SHMBuffer(&mfs->TransferBuffer);
         size_t   bucketSize = sectorCount * mfs->SectorSize;
         size_t   sectorsRead;
         TRACE("read_metrics:: sector=%u, sectorCount=%u, bucketOffset=%u, bucketSize=%u",

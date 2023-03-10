@@ -21,7 +21,7 @@
 #include <ds/mstring.h>
 #include <ds/hashtable.h>
 #include <ddk/barrier.h>
-#include "os/notification_queue.h"
+#include <os/handle.h>
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include <internal/_io.h>
@@ -71,14 +71,14 @@ DestroyProcess(
     // so nowhere in this code can we do the opposite acq/rel pattern
     usched_mtx_lock(&g_processesLock);
     hashtable_remove(&g_threadmappings, &(struct thread_mapping){ .thread_id = process->primary_thread_id });
-    hashtable_remove(&g_processes, &(struct process_entry){ .process_id = process->handle });
+    hashtable_remove(&g_processes, &(struct process_entry){ .process_id = process->handle.ID });
     usched_mtx_unlock(&g_processesLock);
 
     mstr_delete(process->name);
     mstr_delete(process->working_directory);
     mstr_delete(process->assembly_directory);
     PEImageLoadContextDelete(process->load_context);
-    OSHandleDestroy(process->handle);
+    OSHandleDestroy(&process->handle);
     free(process);
 }
 
@@ -131,14 +131,18 @@ static void*
 __ProcOptsInheritationBlock(
         _In_ struct ProcessOptions* procOpts)
 {
-    return procOpts->DataBuffer.Buffer;
+    if (procOpts->DataBuffer != NULL) {
+        return (void*)procOpts->DataBuffer;
+    }
+    return SHMBuffer(&procOpts->DataBufferHandle);
 }
 
 static void*
 __ProcOptsEnvironmentBlock(
         _In_ struct ProcessOptions* procOpts)
 {
-    return (char*)procOpts->DataBuffer.Buffer + procOpts->InheritationBlockLength;
+    void* buffer = __ProcOptsInheritationBlock(procOpts);
+    return (char*)buffer + procOpts->InheritationBlockLength;
 }
 
 static oserr_t
@@ -270,7 +274,7 @@ __memdup(
 static oserr_t
 __ProcessNew(
         _In_  struct ProcessOptions*     procOpts,
-        _In_  uuid_t                     handle,
+        _In_  OSHandle_t*                handle,
         _In_  struct PEImageLoadContext* loadContext,
         _Out_ Process_t**                processOut)
 {
@@ -285,7 +289,7 @@ __ProcessNew(
     }
     memset(process, 0, sizeof(Process_t));
 
-    process->handle = handle;
+    memcpy(&process->handle, handle, sizeof(OSHandle_t));
     process->primary_thread_id = UUID_INVALID;
     process->tick_base = clock();
     process->state = ProcessState_RUNNING;
@@ -415,7 +419,7 @@ PmCreateProcess(
 {
     struct PEImageLoadContext* loadContext;
     Process_t*                 process;
-    uuid_t                     handle;
+    OSHandle_t                 handle;
     oserr_t                    oserr;
     const char*                loadPaths;
     ENTRY("PmCreateProcess(path=%s, args=%s)", path, args);
@@ -436,7 +440,7 @@ PmCreateProcess(
         goto exit;
     }
 
-    oserr = OSHandleCreate(&handle);
+    oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &handle);
     if (oserr != OS_EOK) {
         ERROR("PmCreateProcess failed to allocate a system handle for process");
         PEImageLoadContextDelete(loadContext);
@@ -445,7 +449,7 @@ PmCreateProcess(
 
     oserr = __ProcessNew(
             procOpts,
-            handle,
+            &handle,
             loadContext,
             &process
     );
@@ -472,18 +476,18 @@ PmCreateProcess(
     }
 
     // Add it to the list of processes
-    TRACE("PmCreateProcess registering process %u/%u", handle, process->primary_thread_id);
+    TRACE("PmCreateProcess registering process %u/%u", handle.ID, process->primary_thread_id);
     hashtable_set(&g_threadmappings, &(struct thread_mapping) {
-            .process_id = handle,
+            .process_id = handle.ID,
             .thread_id  = process->primary_thread_id
     });
     hashtable_set(&g_processes, &(struct process_entry) {
-            .process_id = handle,
+            .process_id = handle.ID,
             .process    = process
     });
     usched_mtx_unlock(&g_processesLock);
 
-    *handleOut = handle;
+    *handleOut = handle.ID;
 exit:
     EXIT("PmCreateProcess");
     return oserr;
@@ -553,6 +557,7 @@ PmGetProcessStartupInformation(
         _Out_ uuid_t* processHandleOut)
 {
     Process_t* process;
+    OSHandle_t shm;
     oserr_t    oserr = OS_ENOENT;
     TRACE("PmGetProcessStartupInformation(thread=%u)", threadHandle);
 
@@ -560,25 +565,24 @@ PmGetProcessStartupInformation(
     if (process == NULL) {
         goto exit;
     }
-    *processHandleOut = process->handle;
+    *processHandleOut = process->handle.ID;
 
-    SHMHandle_t shm;
     oserr = SHMAttach(bufferHandle, &shm);
     if (oserr != OS_EOK) {
         ERROR("PmGetProcessStartupInformation failed to attach to user buffer");
         goto exit;
     }
 
-    oserr = SHMMap(&shm, 0, shm.Capacity, SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    oserr = SHMMap(&shm, 0, SHMBufferCapacity(&shm), SHM_ACCESS_READ | SHM_ACCESS_WRITE);
     if (oserr != OS_EOK) {
         goto detach;
     }
 
     // Write the header
-    oserr = __WriteProcessStartupInformation(process, shm.Buffer, bufferOffset);
+    oserr = __WriteProcessStartupInformation(process, SHMBuffer(&shm), bufferOffset);
 
 detach:
-    SHMDetach(&shm);
+    OSHandleDestroy(&shm);
 
 exit:
     return oserr;

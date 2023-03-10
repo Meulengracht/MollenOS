@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -15,23 +13,18 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Standard C Library
- * - Reads an array of count elements, 
- *   each one with a size of size bytes, from the stream and stores 
- *   them in the block of memory specified by ptr.
  */
 
 #define __need_minmax
 //#define __TRACE
-#include "ddk/utils.h"
-#include "errno.h"
-#include "internal/_file.h"
-#include "internal/_io.h"
-#include "io.h"
-#include "stdio.h"
+#include <ddk/utils.h>
+#include <errno.h>
+#include <internal/_file.h>
+#include <internal/_io.h>
+#include <io.h>
+#include <stdio.h>
 #include <limits.h>
+#include <string.h>
 
 size_t
 fread(void *vptr, size_t size, size_t count, FILE *stream)
@@ -78,7 +71,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 			/* If the buffer fill reaches eof but fread wouldn't, clear eof. */
 			if (i > 0 && i < stream->_cnt) {
-				stdio_handle_get(stream->_fd)->wxflag &= ~WX_ATEOF;
+				stdio_handle_get(stream->_fd)->XTFlags &= ~WX_ATEOF;
 				stream->_flag &= ~_IOEOF;
 			}
 			
@@ -105,7 +98,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 		// Check for EOF condition
 		// also for error conditions
-		if (stdio_handle_get(stream->_fd)->wxflag & WX_ATEOF) {
+		if (stdio_handle_get(stream->_fd)->XTFlags & WX_ATEOF) {
 			stream->_flag |= _IOEOF;
 		}
 		else if (i == -1) {

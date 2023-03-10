@@ -24,8 +24,11 @@
 #include <ds/hashtable.h>
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_utils.h>
 #include <io.h>
 #include "private.h"
+#include <stdlib.h>
+#include <string.h>
 
 // hashtable functions for g_stdioObjects
 static uint64_t stdio_hash(const void* element);
@@ -384,10 +387,45 @@ int stdio_handle_activity(stdio_handle_t* handle , int activity)
     return 0;
 }
 
-void stdio_handle_flag(stdio_handle_t* handle, unsigned int flag)
+void
+stdio_handle_flag(
+        _In_ stdio_handle_t* handle,
+        _In_ unsigned int    flag)
 {
-    assert(handle != NULL);
+    if (!handle) {
+        return;
+    }
     handle->XTFlags |= flag;
+}
+
+unsigned int
+stdio_handle_signature(
+        _In_ stdio_handle_t* handle)
+{
+    if (!handle) {
+        return 0;
+    }
+    return handle->Signature;
+}
+
+FILE*
+stdio_handle_stream(
+        _In_ stdio_handle_t* handle)
+{
+    if (!handle) {
+        return NULL;
+    }
+    return handle->Stream;
+}
+
+int
+stdio_handle_iod(
+        _In_ stdio_handle_t* handle)
+{
+    if (!handle) {
+        return -1;
+    }
+    return handle->IOD;
 }
 
 stdio_handle_t* stdio_handle_get(int iod)

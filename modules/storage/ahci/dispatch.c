@@ -27,6 +27,7 @@
 #define __need_minmax
 #include <assert.h>
 #include <ddk/utils.h>
+#include <os/shm.h>
 #include "manager.h"
 #include "dispatch.h"
 #include <string.h>
@@ -150,8 +151,8 @@ static size_t __PrepareCommandSlot(
           port, transaction, sectorSize);
 
     // Get a reference to the command slot and reset the data in the command table
-    commandList   = (AHCICommandList_t*)port->CommandListDMA.Buffer;
-    commandTable  = (AHCICommandTable_t*)port->CommandTableDMA.Buffer;
+    commandList   = (AHCICommandList_t*)SHMBuffer(&port->CommandListDMA);
+    commandTable  = (AHCICommandTable_t*)SHMBuffer(&port->CommandTableDMA);
     commandHeader = &commandList->Headers[commandSlot];
 
     // Build the PRDT table
@@ -202,8 +203,8 @@ static oserr_t __DispatchCommand(
         return OS_EINVALPARAMS;
     }
 
-    commandList   = (AHCICommandList_t*)port->CommandListDMA.Buffer;
-    commandTable  = (AHCICommandTable_t*)port->CommandTableDMA.Buffer;
+    commandList   = (AHCICommandList_t*)SHMBuffer(&port->CommandListDMA);
+    commandTable  = (AHCICommandTable_t*)SHMBuffer(&port->CommandTableDMA);
     commandHeader = &commandList->Headers[commandSlot];
 
     if (ataCommand != NULL) {

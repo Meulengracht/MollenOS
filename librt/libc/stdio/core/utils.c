@@ -17,49 +17,57 @@
  */
 //#define __TRACE
 
-#include "ddk/utils.h"
-#include "strings.h"
-#include "string.h"
-#include "errno.h"
-#include "stdio.h"
-#include "io.h"
-#include "internal/_io.h"
-#include "os/services/file.h"
+#include <ddk/utils.h>
+#include <strings.h>
+#include <string.h>
+#include <errno.h>
+#include <io.h>
+#include <internal/_io.h>
+#include <os/services/file.h>
+
+static int
+__HandleAccess(
+        _In_  const char* mode,
+        _In_  bool        plus,
+        _Out_ int*        flagsOut)
+{
+    // The first character of the mode must be either of
+    // 'r', 'w' and 'a'
+    switch (*mode++) {
+        case 'R':
+        case 'r':
+            *flagsOut = O_TEXT | (plus ? O_RDWR : O_RDONLY);
+            break;
+        case 'W':
+        case 'w':
+            *flagsOut = O_CREAT | O_TRUNC | O_TEXT | (plus ? O_RDWR : O_WRONLY);
+            break;
+        case 'A':
+        case 'a':
+            *flagsOut = O_CREAT | O_APPEND | O_TEXT | (plus ? O_RDWR : O_WRONLY);
+            break;
+        default:
+            _set_errno(EINVAL);
+            return -1;
+    }
+    return 0;
+}
 
 int
-_fflags(
-    _In_  const char* mode, 
-    _Out_ int*        open_flags, 
-    _Out_ int*        stream_flags)
+__fmode_to_flags(
+        _In_  const char* mode,
+        _Out_ int*        flagsOut)
 {
-    int plus = strchr(mode, '+') != NULL;
-    TRACE("_fflags(%s)", mode);
+    bool plus = strchr(mode, '+') != NULL;
 
     // Skip leading whitespaces
     while (*mode == ' ') {
         mode++;
     }
 
-    // Handle 'r', 'w' and 'a'
-    switch (*mode++) {
-        case 'R':
-        case 'r':
-            *open_flags = O_TEXT | (plus ? O_RDWR : O_RDONLY);
-            *stream_flags = plus ? _IORW : _IOREAD;
-            break;
-        case 'W':
-        case 'w':
-            *open_flags = O_CREAT | O_TRUNC | O_TEXT | (plus ? O_RDWR : O_WRONLY);
-            *stream_flags = plus ? _IORW : _IOWRT;
-            break;
-        case 'A':
-        case 'a':
-            *open_flags = O_CREAT | O_APPEND | O_TEXT | (plus ? O_RDWR : O_WRONLY);
-            *stream_flags = plus ? _IORW : _IOWRT;
-            break;
-        default:
-            _set_errno(EINVAL);
-            return -1;
+    // Handle the access type, it *must* be set
+    if (__HandleAccess(mode, plus, flagsOut)) {
+        return -1;
     }
 
     // Now handle all the other options for opening
@@ -68,27 +76,21 @@ _fflags(
         switch (*mode++) {
             case 'B':
             case 'b':
-                *open_flags |= O_BINARY;
-                *open_flags &= ~O_TEXT;
+                *flagsOut |= O_BINARY;
+                *flagsOut &= ~O_TEXT;
                 break;
             case 't':
-                *open_flags |= O_TEXT;
-                *open_flags &= ~O_BINARY;
+                *flagsOut |= O_TEXT;
+                *flagsOut &= ~O_BINARY;
                 break;
             case 'D':
-                *open_flags |= O_TMPFILE;
+                *flagsOut |= O_TMPFILE;
                 break;
             case 'T':
-                *open_flags |= O_SHORT_LIVED;
-                break;
-            case 'c':
-                *stream_flags |= _IOCOMMIT;
-                break;
-            case 'n':
-                *stream_flags &= ~_IOCOMMIT;
+                *flagsOut |= O_SHORT_LIVED;
                 break;
             case 'N':
-                *open_flags |= O_NOINHERIT;
+                *flagsOut |= O_NOINHERIT;
                 break;
             case '+':
             case ' ':
@@ -126,22 +128,16 @@ _fflags(
         while (*mode == ' ')
             mode++;
 
-        if (!strncasecmp(utf8, mode, sizeof(utf8) / sizeof(utf8[0])))
-        {
-            *open_flags |= O_U8TEXT;
+        if (!strncasecmp(utf8, mode, sizeof(utf8) / sizeof(utf8[0]))) {
+            *flagsOut |= O_U8TEXT;
             mode += sizeof(utf8) / sizeof(utf8[0]);
-        }
-        else if (!strncasecmp(utf16le, mode, sizeof(utf16le) / sizeof(utf16le[0])))
-        {
-            *open_flags |= O_U16TEXT;
+        } else if (!strncasecmp(utf16le, mode, sizeof(utf16le) / sizeof(utf16le[0]))) {
+            *flagsOut |= O_U16TEXT;
             mode += sizeof(utf16le) / sizeof(utf16le[0]);
-        }
-        else if (!strncasecmp(unicode, mode, sizeof(unicode) / sizeof(unicode[0])))
-        {
-            *open_flags |= O_WTEXT;
+        } else if (!strncasecmp(unicode, mode, sizeof(unicode) / sizeof(unicode[0]))) {
+            *flagsOut |= O_WTEXT;
             mode += sizeof(unicode) / sizeof(unicode[0]);
-        }
-        else {
+        } else {
             _set_errno(EINVAL);
             return -1;
         }
