@@ -83,11 +83,15 @@ SHMMap(
  *
  * @param handle
  * @param memory
+ * @param address
+ * @param length
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
 SHMUnmap(
-        _In_ SHMHandle_t* handle);
+        _In_ SHMHandle_t* handle,
+        _In_ vaddr_t      address,
+        _In_ size_t       length);
 
 /**
  * Commits a certain area of a memory region.

@@ -100,7 +100,9 @@ SHMCommit(
  */
 CRTDECL(oserr_t,
 SHMUnmap(
-        _In_ OSHandle_t* handle));
+        _In_ OSHandle_t* handle,
+        _In_ void*       address,
+        _In_ size_t      length));
 
 /**
  * @brief

@@ -104,7 +104,7 @@ extern oserr_t ScSHMExport(void*, SHM_t*, SHMHandle_t*);
 extern oserr_t ScSHMAttach(uuid_t, SHMHandle_t*);
 extern oserr_t ScSHMMap(SHMHandle_t*, size_t, size_t, unsigned int);
 extern oserr_t ScSHMCommit(SHMHandle_t*, void*, size_t);
-extern oserr_t ScSHMUnmap(SHMHandle_t*);
+extern oserr_t ScSHMUnmap(SHMHandle_t*, void*, size_t);
 extern oserr_t ScSHMDetach(SHMHandle_t*);
 extern oserr_t ScSHMMetrics(uuid_t, int*, SHMSG_t*);
 

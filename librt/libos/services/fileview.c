@@ -37,7 +37,6 @@ struct __FileView {
 };
 
 static list_t g_fileViews = LIST_INIT;
-static size_t g_pageSize  = 0;
 
 static struct __FileView*
 __GetFileView(
@@ -49,24 +48,12 @@ __GetFileView(
 
     foreach(element, &g_fileViews) {
         struct __FileView* fileView = element->value;
-        void*             buffer   = SHMBuffer(&fileView->shm);
+        void*              buffer   = SHMBuffer(&fileView->shm);
         if (ISINRANGE(virtualBase, (uintptr_t)buffer, (uintptr_t)buffer + fileView->length)) {
             return fileView;
         }
     }
     return NULL;
-}
-
-static inline uintptr_t
-__GetPageSize(void)
-{
-    if (!g_pageSize) {
-        SystemDescriptor_t descriptor;
-        SystemQuery(&descriptor);
-
-        g_pageSize = descriptor.PageSizeBytes;
-    }
-    return g_pageSize;
 }
 
 static unsigned int
@@ -95,8 +82,8 @@ OSFileViewCreate(
         _Out_ void**       mappingOut)
 {
     oserr_t            oserr;
-    struct __FileView*  fileView;
-    size_t             fileOffset = offset & (__GetPageSize() - 1);
+    struct __FileView* fileView;
+    size_t             fileOffset = offset & (MemoryPageSize() - 1);
     SHM_t              shm;
 
     // Sanitize that the handle is valid
@@ -140,6 +127,7 @@ OSFileViewFlush(
 {
     struct __FileView* fileView = __GetFileView((uintptr_t)mapping);
     UInteger64_t      fileOffset;
+    size_t            pageSize = MemoryPageSize();
     oserr_t           oserr;
     int               pageCount;
     unsigned int*     attributes;
@@ -154,7 +142,7 @@ OSFileViewFlush(
         return OS_EPERMISSIONS;
     }
 
-    pageCount  = DIVUP(MIN(fileView->length, length), __GetPageSize());
+    pageCount  = DIVUP(MIN(fileView->length, length), pageSize);
     attributes = malloc(sizeof(unsigned int) * pageCount);
     if (!attributes) {
         oserr = OS_EOOM;
@@ -187,15 +175,15 @@ OSFileViewFlush(
 
             sys_file_transfer_absolute(GetGrachtClient(), &msg.base, __crt_process_id(), fileView->file_handle,
                                        1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->shm.ID,
-                                       i * __GetPageSize(), dirtyPageCount * __GetPageSize());
+                                       i * pageSize, dirtyPageCount * pageSize);
             gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
             sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &bytesTransferred);
 
             // update iterator values and account for the auto inc
             i = j;
-            fileOffset.QuadPart += (uint64_t)dirtyPageCount * (uint64_t)__GetPageSize();
+            fileOffset.QuadPart += (uint64_t)dirtyPageCount * (uint64_t)pageSize;
         }
-        else { i++; fileOffset.QuadPart += __GetPageSize(); }
+        else { i++; fileOffset.QuadPart += pageSize; }
     }
 
 exit:
@@ -208,21 +196,25 @@ OSFileViewUnmap(
         _In_ size_t length)
 {
     struct __FileView* fileView = __GetFileView((uintptr_t)mapping);
-    oserr_t           oserr;
+    oserr_t            oserr;
     if (!fileView) {
         return OS_EINVALPARAMS;
     }
 
     // is the mapping write enabled, then flush pages
     if (fileView->flags & FILEVIEW_WRITE) {
-        (void)OSFileViewFlush(mapping, fileView->length, 0);
+        oserr = OSFileViewFlush(mapping, fileView->length, 0);
+        if (oserr != OS_EOK) {
+            // log
+        }
     }
 
-    oserr = SHMUnmap(&fileView->shm);
+    oserr = SHMUnmap(&fileView->shm, mapping, length);
     if (oserr != OS_EOK) {
-        // ignore for now
+        // log
     }
 
+    // TODO: do not delete unless all is unmapped
     OSHandleDestroy(&fileView->shm);
     list_remove(&g_fileViews, &fileView->header);
     free(fileView);
@@ -235,7 +227,7 @@ HandleMemoryMappingEvent(
         _In_ void* vaddressPtr)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    struct __FileView*        fileView       = __GetFileView((uintptr_t)vaddressPtr);
+    struct __FileView*       fileView       = __GetFileView((uintptr_t)vaddressPtr);
     uintptr_t                virtualAddress = (uintptr_t)vaddressPtr;
     UInteger64_t             fileOffset;
     oserr_t                  oserr;

@@ -17,6 +17,7 @@
 
 #include <internal/_syscalls.h>
 #include <os/handle.h>
+#include <os/memory.h>
 #include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -213,12 +214,27 @@ SHMCommit(
 
 oserr_t
 SHMUnmap(
-        _In_ OSHandle_t* handle)
+        _In_ OSHandle_t* handle,
+        _In_ void*       address,
+        _In_ size_t      length)
 {
-    if (handle == NULL) {
+    size_t pageSize = MemoryPageSize();
+    size_t alignedLength = length;
+
+    if (handle == NULL || address == NULL || length == 0) {
         return OS_EINVALPARAMS;
     }
-    return Syscall_SHMUnmap(handle->Payload);
+
+    // Address must be aligned on a page-boundary.
+    if ((uintptr_t)address & (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Length will be rounded up
+    if (alignedLength & (pageSize - 1)) {
+        alignedLength += pageSize - (alignedLength & (pageSize - 1));
+    }
+    return Syscall_SHMUnmap(handle->Payload, address, alignedLength);
 }
 
 void*

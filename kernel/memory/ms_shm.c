@@ -658,7 +658,7 @@ SHMMap(
     }
 
     if (handle->Buffer != NULL) {
-        oserr = SHMUnmap(handle);
+        oserr = SHMUnmap(handle, (vaddr_t)handle->Buffer, handle->Length);
         if (oserr != OS_EOK) {
             (void)MemorySpaceUnmap(
                     GetCurrentMemorySpace(),
@@ -677,7 +677,9 @@ SHMMap(
 
 oserr_t
 SHMUnmap(
-        _In_ SHMHandle_t* handle)
+        _In_ SHMHandle_t* handle,
+        _In_ vaddr_t      address,
+        _In_ size_t       length)
 {
     oserr_t oserr;
 

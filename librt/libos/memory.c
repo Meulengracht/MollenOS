@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,15 +13,13 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Memory Definitions & Structures
- * - This header describes the memory-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_syscalls.h>
 #include <os/memory.h>
+#include <os/mollenos.h>
+
+static size_t g_pageSize  = 0;
 
 oserr_t
 MemoryAllocate(
@@ -83,4 +79,16 @@ MemoryQueryAttributes(
         return OS_EINVALPARAMS;
     }
     return Syscall_MemoryQueryAttributes(Memory, Length, AttributeArray);
+}
+
+size_t
+MemoryPageSize(void)
+{
+    if (!g_pageSize) {
+        SystemDescriptor_t descriptor;
+        SystemQuery(&descriptor);
+
+        g_pageSize = descriptor.PageSizeBytes;
+    }
+    return g_pageSize;
 }
