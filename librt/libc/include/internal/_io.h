@@ -59,8 +59,6 @@ typedef struct StdioOperations {
     oserr_t (*resize)(stdio_handle_t*, long long);
     oserr_t (*seek)(stdio_handle_t*, int, off64_t, long long*);
     oserr_t (*ioctl)(stdio_handle_t*, int, va_list);
-    oserr_t (*mmap)(stdio_handle_t*, void *addr, size_t length, int prot, int flags, off_t offset, void**);
-    oserr_t (*munmap)(stdio_handle_t*, void *addr, size_t length);
     void    (*close)(stdio_handle_t*, int);
 } stdio_ops_t;
 

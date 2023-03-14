@@ -38,6 +38,7 @@
 extern void StdioInitialize(void);
 extern void StdioConfigureStandardHandles(void* inheritanceBlock);
 extern void StdSignalInitialize(void);
+extern void StdMmapInitialize(void);
 extern void OSHandlesInitialize(void);
 
 // The default inbuilt client for rpc communication. In general this should only be used
@@ -294,6 +295,8 @@ void __crt_process_initialize(int isPhoenix)
     StdioInitialize();
     TRACE("__crt_process_initialize initializing stdsig");
     StdSignalInitialize();
+    TRACE("__crt_process_initialize initializing compat");
+    StdMmapInitialize();
     TRACE("__crt_process_initialize initializing oshandles");
     OSHandlesInitialize();
 
