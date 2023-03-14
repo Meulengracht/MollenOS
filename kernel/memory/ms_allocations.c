@@ -23,7 +23,7 @@
 
 #define __SZ_TO_PGSZ(_sz, _out) { \
     size_t _pgsz = GetMemorySpacePageSize(); \
-    _out = ((_sz) / _pgsz) * _pgsz; \
+    (_out) = ((_sz) / _pgsz) * _pgsz; \
 }
 
 oserr_t
@@ -34,6 +34,8 @@ MSAllocationCreate(
         _In_ unsigned int   flags)
 {
     struct MSAllocation* allocation;
+    void*                bitmap;
+    size_t               pageCount = (length + (GetMemorySpacePageSize() - 1)) / GetMemorySpacePageSize();
     oserr_t              oserr = OS_EOK;
 
     TRACE("MSAllocationCreate(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
@@ -49,12 +51,15 @@ MSAllocationCreate(
     }
 
     allocation = kmalloc(sizeof(struct MSAllocation));
-    if (!allocation) {
+    bitmap = kmalloc(BITMAP_SIZE(pageCount));
+    if (allocation == NULL || bitmap == NULL) {
+        kfree(allocation);
         oserr = OS_EOOM;
         goto exit;
     }
 
     ELEMENT_INIT(&allocation->Header, 0, allocation);
+    bitmap_construct(&allocation->Pages, (int)pageCount, bitmap);
     allocation->MemorySpace = memorySpace;
     allocation->SHMTag      = UUID_INVALID;
     allocation->Address     = address;

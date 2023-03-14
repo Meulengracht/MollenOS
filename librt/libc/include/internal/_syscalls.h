@@ -74,7 +74,7 @@ _CODE_END
 #define Syscall_SHMAttach(_key, _handle)                                   (oserr_t)syscall2(42, SCPARAM(_key), SCPARAM(_handle))
 #define Syscall_SHMMap(_handle, _offset, _length, _flags)                  (oserr_t)syscall4(43, SCPARAM(_handle), SCPARAM(_offset), SCPARAM(_length), SCPARAM(_flags))
 #define Syscall_SHMCommit(_handle, _address, _length)                      (oserr_t)syscall3(44, SCPARAM(_handle), SCPARAM(_address), SCPARAM(_length))
-#define Syscall_SHMUnmap(_handle)                                          (oserr_t)syscall1(45, SCPARAM(_handle))
+#define Syscall_SHMUnmap(_handle, _address, _length)                       (oserr_t)syscall3(45, SCPARAM(_handle), SCPARAM(_address), SCPARAM(_length))
 #define Syscall_SHMDetach(_handle)                                         (oserr_t)syscall1(46, SCPARAM(_handle))
 #define Syscall_SHMMetrics(_handle, _sizeOut, _vectorsOut)                 (oserr_t)syscall3(47, SCPARAM(_handle), SCPARAM(_sizeOut), SCPARAM(_vectorsOut))
 

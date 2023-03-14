@@ -19,6 +19,7 @@
 #define __MS_PRIVATE_H__
 
 #include <ds/list.h>
+#include <ds/bitmap2.h>
 #include <memoryspace.h>
 #include <mutex.h>
 
@@ -28,6 +29,7 @@ struct MSAllocation {
     uuid_t               SHMTag;
     vaddr_t              Address;
     size_t               Length;
+    bitmap_t             Pages;
     unsigned int         Flags;
     int                  References;
     struct MSAllocation* CloneOf;

@@ -379,9 +379,11 @@ ScSHMCommit(
 
 oserr_t
 ScSHMUnmap(
-    _In_ SHMHandle_t* handle)
+    _In_ SHMHandle_t* handle,
+    _In_ void*        address,
+    _In_ size_t       length)
 {
-    return SHMUnmap(handle);
+    return SHMUnmap(handle, (vaddr_t)address, length);
 }
 
 oserr_t

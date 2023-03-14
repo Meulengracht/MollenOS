@@ -87,5 +87,12 @@ MemoryQueryAttributes(
         _In_ size_t        Length,
         _In_ unsigned int* AttributeArray));
 
+/**
+ * @brief Returns the page-size for the current platform.
+ * @return The page size in bytes.
+ */
+CRTDECL(size_t,
+MemoryPageSize(void));
+
 _CODE_END
 #endif //!__OS_MEMORY_H__
