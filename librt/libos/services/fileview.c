@@ -27,7 +27,7 @@
 #include <os/shm.h>
 #include <sys_file_service_client.h>
 
-struct file_view {
+struct __FileView {
     element_t    header;
     OSHandle_t   shm;
     uuid_t       file_handle;
@@ -39,15 +39,16 @@ struct file_view {
 static list_t g_fileViews = LIST_INIT;
 static size_t g_pageSize  = 0;
 
-static struct file_view*
-__GetFileView(uintptr_t virtualBase)
+static struct __FileView*
+__GetFileView(
+        _In_ uintptr_t virtualBase)
 {
     if (!virtualBase) {
         return NULL;
     }
 
     foreach(element, &g_fileViews) {
-        struct file_view* fileView = element->value;
+        struct __FileView* fileView = element->value;
         void*             buffer   = SHMBuffer(&fileView->shm);
         if (ISINRANGE(virtualBase, (uintptr_t)buffer, (uintptr_t)buffer + fileView->length)) {
             return fileView;
@@ -56,7 +57,8 @@ __GetFileView(uintptr_t virtualBase)
     return NULL;
 }
 
-static inline uintptr_t __GetPageSize(void)
+static inline uintptr_t
+__GetPageSize(void)
 {
     if (!g_pageSize) {
         SystemDescriptor_t descriptor;
@@ -67,89 +69,104 @@ static inline uintptr_t __GetPageSize(void)
     return g_pageSize;
 }
 
-oserr_t
-CreateFileMapping(
-    _In_  int      FileDescriptor,
-    _In_  int      Flags,
-    _In_  uint64_t Offset,
-    _In_  size_t   Length,
-    _Out_ void**   MemoryPointer)
+static unsigned int
+__AccessFlags(
+        _In_ unsigned int flags)
 {
-    stdio_handle_t*    handle = stdio_handle_get(FileDescriptor);
-    oserr_t            osStatus;
-    struct file_view*  fileView;
-    size_t             fileOffset = Offset & (__GetPageSize() - 1);
+    unsigned int access = 0;
+    if (flags & FILEVIEW_READ) {
+        access |= SHM_ACCESS_READ;
+    }
+    if (flags & FILEVIEW_WRITE) {
+        access |= SHM_ACCESS_WRITE;
+    }
+    if (flags & FILEVIEW_EXECUTE) {
+        access |= SHM_ACCESS_EXECUTE;
+    }
+    return access;
+}
+
+oserr_t
+OSFileViewCreate(
+        _In_  OSHandle_t*  handle,
+        _In_  unsigned int flags,
+        _In_  uint64_t     offset,
+        _In_  size_t       length,
+        _Out_ void**       mappingOut)
+{
+    oserr_t            oserr;
+    struct __FileView*  fileView;
+    size_t             fileOffset = offset & (__GetPageSize() - 1);
     SHM_t              shm;
 
-    // Sanitize that the descriptor is valid
-    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
+    // Sanitize that the handle is valid
+    if (handle->Type != OSHANDLE_FILE) {
         return OS_EINVALPARAMS;
     }
 
-    fileView = malloc(sizeof(struct file_view));
-    if (!fileView) {
+    fileView = malloc(sizeof(struct __FileView));
+    if (fileView == NULL) {
         return OS_EOOM;
     }
 
-    // parse flags
-    if (Flags & FILE_MAPPING_READ) { }
-    if (Flags & FILE_MAPPING_WRITE) { }
-    if (Flags & FILE_MAPPING_EXECUTE) { }
-
     shm.Key    = NULL;
     shm.Type   = 0;
-    shm.Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE;
+    shm.Access = __AccessFlags(flags);
     shm.Flags  = SHM_CLEAN | SHM_TRAP;
-    shm.Size   = Length;
+    shm.Size   = length;
 
-    osStatus = SHMCreate(&shm, &fileView->shm);
-    if (osStatus != OS_EOK) {
+    oserr = SHMCreate(&shm, &fileView->shm);
+    if (oserr != OS_EOK) {
         free(fileView);
-        return osStatus;
+        return oserr;
     }
 
     ELEMENT_INIT(&fileView->header, 0, fileView);
-    fileView->file_handle = handle->OSHandle.ID;
+    fileView->file_handle = handle->ID;
     fileView->offset = fileOffset;
-    fileView->length = Length;
-    fileView->flags  = Flags;
+    fileView->length = length;
+    fileView->flags  = flags;
 
     list_append(&g_fileViews, &fileView->header);
-
-    *MemoryPointer = SHMBuffer(&fileView->shm);
-    return osStatus;
+    *mappingOut = SHMBuffer(&fileView->shm);
+    return oserr;
 }
 
-oserr_t FlushFileMapping(
-        _In_ void*  MemoryPointer,
-        _In_ size_t Length)
+oserr_t
+OSFileViewFlush(
+        _In_ void*        mapping,
+        _In_ size_t       length,
+        _In_ unsigned int flags)
 {
-    struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
-    UInteger64_t   fileOffset;
-    oserr_t        osStatus;
+    struct __FileView* fileView = __GetFileView((uintptr_t)mapping);
+    UInteger64_t      fileOffset;
+    oserr_t           oserr;
     int               pageCount;
     unsigned int*     attributes;
-    if (!fileView) {
+
+    if (fileView == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    if (!(fileView->flags & FILE_MAPPING_WRITE)) {
-        return OS_ENOTSUPPORTED;
+    // If the fileview was mapped as read-only then this makes no sense,
+    // abort the operation with an error
+    if (!(fileView->flags & SHM_ACCESS_WRITE)) {
+        return OS_EPERMISSIONS;
     }
 
-    pageCount  = DIVUP(MIN(fileView->length, Length), __GetPageSize());
+    pageCount  = DIVUP(MIN(fileView->length, length), __GetPageSize());
     attributes = malloc(sizeof(unsigned int) * pageCount);
     if (!attributes) {
-        osStatus = OS_EOOM;
+        oserr = OS_EOOM;
         goto exit;
     }
 
-    osStatus = MemoryQueryAttributes(
+    oserr = MemoryQueryAttributes(
             SHMBuffer(&fileView->shm),
             fileView->length,
             &attributes[0]
     );
-    if (osStatus != OS_EOK) {
+    if (oserr != OS_EOK) {
         goto exit;
     }
 
@@ -172,7 +189,7 @@ oserr_t FlushFileMapping(
                                        1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->shm.ID,
                                        i * __GetPageSize(), dirtyPageCount * __GetPageSize());
             gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-            sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &osStatus, &bytesTransferred);
+            sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &bytesTransferred);
 
             // update iterator values and account for the auto inc
             i = j;
@@ -182,22 +199,23 @@ oserr_t FlushFileMapping(
     }
 
 exit:
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
-DestroyFileMapping(
-        _In_ void* MemoryPointer)
+OSFileViewUnmap(
+        _In_ void*  mapping,
+        _In_ size_t length)
 {
-    struct file_view* fileView = __GetFileView((uintptr_t)MemoryPointer);
+    struct __FileView* fileView = __GetFileView((uintptr_t)mapping);
     oserr_t           oserr;
     if (!fileView) {
         return OS_EINVALPARAMS;
     }
 
     // is the mapping write enabled, then flush pages
-    if (fileView->flags & FILE_MAPPING_WRITE) {
-        (void)FlushFileMapping(MemoryPointer, fileView->length);
+    if (fileView->flags & FILEVIEW_WRITE) {
+        (void)OSFileViewFlush(mapping, fileView->length, 0);
     }
 
     oserr = SHMUnmap(&fileView->shm);
@@ -217,7 +235,7 @@ HandleMemoryMappingEvent(
         _In_ void* vaddressPtr)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    struct file_view*        fileView       = __GetFileView((uintptr_t)vaddressPtr);
+    struct __FileView*        fileView       = __GetFileView((uintptr_t)vaddressPtr);
     uintptr_t                virtualAddress = (uintptr_t)vaddressPtr;
     UInteger64_t             fileOffset;
     oserr_t                  oserr;

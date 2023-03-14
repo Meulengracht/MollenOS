@@ -311,10 +311,22 @@ GetFileInformationFromFd(
         _In_ int                 fileDescriptor,
         _In_ OSFileDescriptor_t* descriptor));
 
-// CreateFileMapping::Flags
-#define FILE_MAPPING_READ       0x00000001U
-#define FILE_MAPPING_WRITE      0x00000002U
-#define FILE_MAPPING_EXECUTE    0x00000004U
+/**
+ * Available flags for creating fileviews
+ */
+#define FILEVIEW_READ        0x00000001U
+#define FILEVIEW_WRITE       0x00000002U
+#define FILEVIEW_EXECUTE     0x00000004U
+#define FILEVIEW_SHARED      0x00000008U
+#define FILEVIEW_COPYONWRITE 0x00000010U
+#define FILEVIEW_32BIT       0x00000020U
+#define FILEVIEW_POPULATE    0x00000040U
+
+/**
+ * Available flags for flushing fileviews
+ */
+#define FILEVIEW_FLUSH_ASYNC      0x1
+#define FILEVIEW_FLUSH_INVALIDATE 0x2
 
 /**
  * @brief
@@ -326,12 +338,12 @@ GetFileInformationFromFd(
  * @return
  */
 CRTDECL(oserr_t,
-CreateFileMapping(
-        _In_ int      fileDescriptor,
-        _In_ int      flags,
-        _In_ uint64_t offset,
-        _In_ size_t   length,
-        _Out_ void**  mapping));
+OSFileViewCreate(
+        _In_  OSHandle_t*  handle,
+        _In_  unsigned int flags,
+        _In_  uint64_t     offset,
+        _In_  size_t       length,
+        _Out_ void**       mappingOut));
 
 /**
  * @brief
@@ -340,9 +352,10 @@ CreateFileMapping(
  * @return
  */
 CRTDECL(oserr_t,
-FlushFileMapping(
-        _In_ void*  mapping,
-        _In_ size_t length));
+OSFileViewFlush(
+        _In_ void*        mapping,
+        _In_ size_t       length,
+        _In_ unsigned int flags));
 
 /**
  * @brief
@@ -350,8 +363,9 @@ FlushFileMapping(
  * @return
  */
 CRTDECL(oserr_t,
-DestroyFileMapping(
-        _In_ void* mapping));
+OSFileViewUnmap(
+        _In_ void*  mapping,
+        _In_ size_t length));
 
 _CODE_END
 #endif //!__OS_SERVICES_FILE_H__

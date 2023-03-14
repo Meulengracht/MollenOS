@@ -26,8 +26,6 @@
 #ifndef __SYS_TYPES__
 #define __SYS_TYPES__
 
-#include <os/osdefs.h>
-
 // Handle the definition of time32
 #ifndef _TIME32_T_DEFINED
 #define _TIME32_T_DEFINED
