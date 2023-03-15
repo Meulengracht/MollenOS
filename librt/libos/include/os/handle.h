@@ -78,6 +78,16 @@ OSHandleDestroy(
  * @return
  */
 CRTDECL(oserr_t,
+OSHandlesAcquire(
+        _In_ struct OSHandle* handle));
+
+/**
+ * @brief
+ * @param id
+ * @param handle
+ * @return
+ */
+CRTDECL(oserr_t,
 OSHandlesFind(
         _In_ uuid_t           id,
         _In_ struct OSHandle* handle));

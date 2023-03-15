@@ -15,11 +15,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TODO
-// Move reference keeping to OSHandle to ensure that OSHandle stays around enough
-// Make sure that memory acceses to unmapped addreses causes SIGSEGV
-//
-
 #define __need_minmax
 #include <ddk/convert.h>
 #include <ds/list.h>
@@ -217,6 +212,16 @@ OSFileViewCreate(
     list_append(&g_fileViews, &fileView->Header);
     MutexUnlock(&g_fileViewsLock);
 
+    // Increase the local reference count on the file handle to avoid
+    // our own process closing the underlying file while we have mappings
+    // for it
+    oserr = OSHandlesAcquire(handle);
+    if (oserr != OS_EOK) {
+        (void)OSFileViewUnmap(SHMBuffer(&fileView->SHM), alignedLength);
+        return oserr;
+    }
+
+    // Support read-ahead for the file by pre-filling the entire file.
     if (flags & FILEVIEW_POPULATE) {
         oserr = __FillData(fileView, 0, alignedLength);
         if (oserr != OS_EOK) {
@@ -375,7 +380,9 @@ OSFileViewUnmap(
     MutexLock(&g_fileViewsLock);
     list_remove(&g_fileViews, &fileView->Header);
     MutexUnlock(&g_fileViewsLock);
+
     OSHandleDestroy(&fileView->SHM);
+    OSHandleDestroy(&fileView->FileHandle);
     free(fileView);
     return oserr;
 }
@@ -383,32 +390,24 @@ OSFileViewUnmap(
 oserr_t
 HandleMemoryMappingEvent(
         _In_ int   signal,
-        _In_ void* vaddressPtr)
+        _In_ void* faultAddress)
 {
-    struct __FileView* fileView = __GetFileView((uintptr_t)vaddressPtr);
-    uintptr_t          virtualAddress = (uintptr_t)vaddressPtr;
+    struct __FileView* fileView;
+    uintptr_t          address  = (uintptr_t)faultAddress;
     size_t             pageSize = MemoryPageSize();
-    oserr_t            oserr;
 
+    // Retrieve the file-mapping, but do so without the lock in this case
+    fileView = __GetFileView((uintptr_t)faultAddress);
     if (!fileView) {
         return OS_ENOENT;
     }
 
-    // Prepare the memory that we want to fill
-    // TODO is this even neccessary?
-    virtualAddress &= ~(pageSize - 1);
-    oserr = SHMCommit(
-            &fileView->SHM,
-            (vaddr_t)vaddressPtr,
-            MemoryPageSize()
-    );
-    if (oserr != OS_EOK) {
-        return OS_ENOENT;
-    }
+    // Ensure page-aligned address before filling
+    address &= ~(pageSize - 1);
 
     return __FillData(
             fileView,
-            (virtualAddress - (uintptr_t)SHMBuffer(&fileView->SHM)),
+            (address - (uintptr_t)SHMBuffer(&fileView->SHM)),
             pageSize
     );
 }
