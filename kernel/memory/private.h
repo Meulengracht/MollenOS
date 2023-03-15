@@ -19,7 +19,7 @@
 #define __MS_PRIVATE_H__
 
 #include <ds/list.h>
-#include <ds/bitmap2.h>
+#include <ds/bitmap.h>
 #include <memoryspace.h>
 #include <mutex.h>
 
@@ -69,9 +69,10 @@ MSContextAddAllocation(
 
 /**
  * @brief
- * @param memorySpace
- * @param address
- * @param length
+ * @param memorySpace The memory-space in which the allocation was made.
+ * @param address The address that has been allocated. Must be aligned on a page boundary.
+ * @param length The length of the memory allocation. Will automatically
+ *               be aligned up to nearest page-size.
  * @param flags
  * @return
  */
@@ -83,18 +84,23 @@ MSAllocationCreate(
         _In_ unsigned int   flags);
 
 /**
- * @brief
- * @param context
- * @param address
- * @param size
- * @param clonedFrom
- * @return
+ * @brief Partially or fully frees a previously made allocation.
+ * @param context The memory-space context in which the allocation was made.
+ * @param address The address that should be freed. Must be aligned on a page boundary.
+ * @param length The length of the memory that should be freed. Will automatically
+ *               be aligned up to nearest page-size.
+ * @param clonedFrom If the allocation was a clone, then a pointer to the initial allocation
+ *                   will be returned here. A pointer must be supplied.
+ * @return OS_EOK If the allocation was completely freed, then any resources
+ * associated with the allocation is freed.
+ *         OS_EINCOMPLETE If only a partial free was done.
+ *         OS_ELINKS If it was not possible to free due to linked allocations.
  */
 oserr_t
 MSAllocationFree(
         _In_  struct MSContext*     context,
-        _In_  vaddr_t*              address,
-        _In_  size_t*               size,
+        _In_  vaddr_t               address,
+        _In_  size_t                length,
         _Out_ struct MSAllocation** clonedFrom);
 
 /**
@@ -119,6 +125,17 @@ struct MSAllocation*
 MSAllocationAcquire(
         _In_ struct MSContext* context,
         _In_ vaddr_t           address);
+
+/**
+ * @brief
+ * @param context
+ * @param allocation
+ * @return
+ */
+oserr_t
+MSAllocationRelease(
+        _In_ struct MSContext*    context,
+        _In_ struct MSAllocation* allocation);
 
 /**
  * @brief

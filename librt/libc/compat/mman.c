@@ -15,13 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TODO
-// Move reference keeping to OSHandle to ensure that OSHandle stays around enough
-// Support shallow freeing of mappings in both shm and fileview
-//
-
 #include <errno.h>
 #include <ds/list.h>
+#include <internal/_io.h>
 #include <os/handle.h>
 #include <os/mollenos.h>
 #include <os/shm.h>
@@ -79,7 +75,6 @@ __get_mmap_from_addr(
         _In_ void* addr)
 {
     struct __mmap_item* mi = NULL;
-    usched_mtx_lock(&g_mmapsLock);
     foreach(i, &g_mmaps) {
         struct __mmap_item* item = i->value;
         if (ISINRANGE((uintptr_t)addr, item->Address, item->Address + item->Length)) {
@@ -87,7 +82,6 @@ __get_mmap_from_addr(
             break;
         }
     }
-    usched_mtx_unlock(&g_mmapsLock);
     return mi;
 }
 
@@ -215,21 +209,91 @@ __mmap_anonymous(
     return SHMBuffer(&osHandle);
 }
 
+// Unsupported for fileviews
+// MAP_STACK
+// MAP_GROWSDOWN
+// MAP_NONBLOCK
+static unsigned int
+__mmap_fileview_flags(
+        _In_ int flags,
+        _In_ int prot)
+{
+    unsigned int fflags = 0;
+
+    if (prot & PROT_READ) {
+        fflags |= FILEVIEW_READ;
+    }
+    if (prot & PROT_WRITE) {
+        fflags |= FILEVIEW_WRITE;
+    }
+    if (prot & PROT_EXEC) {
+        fflags |= FILEVIEW_EXECUTE;
+    }
+
+    if (flags & (MAP_SHARED | MAP_SHARED_VALIDATE)) {
+        fflags |= FILEVIEW_SHARED;
+    }
+    if (flags & MAP_PRIVATE) {
+        fflags |= FILEVIEW_COPYONWRITE;
+    }
+    if (flags & MAP_32BIT) {
+        fflags |= FILEVIEW_32BIT;
+    }
+    if (flags & MAP_POPULATE) {
+        fflags |= FILEVIEW_POPULATE;
+    }
+
+    if ((flags & MAP_HUGE_1GB) == MAP_HUGE_1GB) {
+        fflags |= FILEVIEW_BIGPAGES_1GB;
+    } else if ((flags & MAP_HUGE_2MB) == MAP_HUGE_2MB) {
+        fflags |= FILEVIEW_BIGPAGES_2MB;
+    } else if (flags & MAP_HUGETLB) {
+        fflags |= FILEVIEW_BIGPAGES;
+    }
+
+    return fflags;
+}
+
 static void*
 __mmap_file(
         _In_ void*  addr,
         _In_ size_t length,
         _In_ int    prot,
         _In_ int    flags,
-        _In_ int    fd,
+        _In_ int    iod,
         _In_ off_t  offset)
 {
+    stdio_handle_t* handle;
+    oserr_t         oserr;
+    void*           mapping;
 
+    handle = stdio_handle_get(iod);
+    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
+        errno = EBADFD;
+        return NULL;
+    }
+
+    // TODO: when we support MAP_FIXED then we can use this parameter
+    _CRT_UNUSED(addr);
+
+    oserr = OSFileViewCreate(
+            &handle->OSHandle,
+            __mmap_fileview_flags(flags, prot),
+            offset,
+            length,
+            &mapping
+    );
+    if (oserr != OS_EOK) {
+        (void)OsErrToErrNo(oserr);
+        return NULL;
+    }
+
+    __add_mmap(&handle->OSHandle, iod, (uintptr_t)mapping, length);
+    return mapping;
 }
 
 // Unsupported flags in general
 // MAP_FIXED + MAP_FIXED_NOREPLACE
-// MAP_HUGETLB + MAP_HUGE_2MB/MAP_HUGE_1GB
 // MAP_LOCKED
 // MAP_NORESERVE
 // MAP_SYNC
@@ -269,7 +333,7 @@ munmap(
 {
     struct __mmap_item* mi;
     size_t pageSize = __GetPageSize();
-    size_t alignedLength = length;
+    oserr_t oserr;
 
     // Error on addresses that are not page-size aligned.
     if ((uintptr_t)addr & (pageSize - 1)) {
@@ -277,20 +341,57 @@ munmap(
         return -1;
     }
 
-    // Align length with the page-size
-    if (alignedLength & (pageSize - 1)) {
-        alignedLength += pageSize - (alignedLength & (pageSize - 1));
-    }
-
+    usched_mtx_lock(&g_mmapsLock);
     mi = __get_mmap_from_addr(addr);
     if (mi == NULL) {
+        usched_mtx_unlock(&g_mmapsLock);
         errno = EINVAL;
         return -1;
     }
 
     if (mi->OriginalIOD) {
-
+        // Fileview mapping
+        oserr = OSFileViewUnmap(addr, length);
+    } else {
+        // Anonymous memory mapping
+        oserr = SHMUnmap(&mi->OSHandle, addr, length);
     }
+
+    // Handle partial frees by returning early
+    if (oserr != OS_EOK) {
+        usched_mtx_unlock(&g_mmapsLock);
+        if (oserr == OS_EINCOMPLETE) {
+            return 0;
+        }
+        return OsErrToErrNo(oserr);
+    }
+
+    // Ok free was full, delete entry
+    list_remove(&g_mmaps, &mi->Header);
+    usched_mtx_unlock(&g_mmapsLock);
+
+    // at this point we have complete control to clean up the
+    // mmap entry
+    if (mi->OriginalIOD == -1) {
+        // Destroy the OS handle in the case of an anonymous mapping
+        OSHandleDestroy(&mi->OSHandle);
+    }
+    free(mi);
+    return 0;
+}
+
+static unsigned int
+__msync_fileview_flags(
+        _In_ int flags)
+{
+    unsigned int fflags = 0;
+    if (flags & MS_ASYNC) {
+        fflags |= FILEVIEW_FLUSH_ASYNC;
+    }
+    if (flags & MS_INVALIDATE) {
+        fflags |= FILEVIEW_FLUSH_INVALIDATE;
+    }
+    return fflags;
 }
 
 int
@@ -300,14 +401,18 @@ msync(
         _In_ int    flags)
 {
     struct __mmap_item* mi;
+    int iod;
 
+    usched_mtx_lock(&g_mmapsLock);
     mi = __get_mmap_from_addr(addr);
     if (mi == NULL) {
         errno = ENOENT;
         return -1;
     }
+    iod = mi->OriginalIOD;
+    usched_mtx_unlock(&g_mmapsLock);
 
-    if (mi->OriginalIOD == -1) {
+    if (iod == -1) {
         // We don't flush to SHM regions, but we can invalidate mappings
         if (!(flags & MS_INVALIDATE)) {
             return 0;
@@ -322,10 +427,10 @@ msync(
     }
 
     return OsErrToErrNo(
-            FlushFileMapping(
+            OSFileViewFlush(
                     addr,
                     length,
-                    (unsigned int)flags
+                    __msync_fileview_flags(flags)
             )
     );
 }

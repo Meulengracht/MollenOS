@@ -43,6 +43,7 @@ const int g_errorCodeTable[__OS_ECOUNT] = {
     ENOTDIR,      // OS_ENOTDIR
     EISDIR,       // OS_EISDIR
     ENOLINK,      // OS_ELINKINVAL
+    EMLINK,       // OS_ELINKS
     ENOENT,       // OS_EDIRNOTEMPTY
     ENODEV,       // OS_EDEVFAULT
     

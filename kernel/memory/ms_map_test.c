@@ -1346,13 +1346,13 @@ oserr_t MSAllocationCreate(
 
 oserr_t MSAllocationFree(
         _In_  struct MSContext*     context,
-        _In_  vaddr_t*              address,
-        _In_  size_t*               size,
+        _In_  vaddr_t               address,
+        _In_  size_t                length,
         _Out_ struct MSAllocation** clonedFrom) {
     printf("MSAllocationFree()\n");
     assert_non_null(context);
-    assert_non_null(address);
-    assert_non_null(size);
+    assert_int_not_equal(address, 0);
+    assert_int_not_equal(length, 0);
     assert_non_null(clonedFrom);
     return OS_EOK;
 }

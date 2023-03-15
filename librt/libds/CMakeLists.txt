@@ -1,7 +1,6 @@
 set (LIBDS_SRCS
         lf/bounded_stack.c
 
-        bitmap.c
         bounded_stack.c
         guid.c
         hashtable.c

@@ -85,7 +85,7 @@ SHMCreate(
             shmHandle->ID,
             OSHANDLE_SHM,
             shmHandle,
-            false,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {
@@ -218,23 +218,10 @@ SHMUnmap(
         _In_ void*       address,
         _In_ size_t      length)
 {
-    size_t pageSize = MemoryPageSize();
-    size_t alignedLength = length;
-
-    if (handle == NULL || address == NULL || length == 0) {
+    if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
-
-    // Address must be aligned on a page-boundary.
-    if ((uintptr_t)address & (pageSize - 1)) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Length will be rounded up
-    if (alignedLength & (pageSize - 1)) {
-        alignedLength += pageSize - (alignedLength & (pageSize - 1));
-    }
-    return Syscall_SHMUnmap(handle->Payload, address, alignedLength);
+    return Syscall_SHMUnmap(handle->Payload, address, length);
 }
 
 void*

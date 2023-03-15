@@ -579,8 +579,8 @@ exit:
             struct MSAllocation* originalMapping;
             (void)MSAllocationFree(
                     destinationSpace->Context,
-                    &virtualBase,
-                    &length,
+                    virtualBase,
+                    length,
                     &originalMapping
             );
         }

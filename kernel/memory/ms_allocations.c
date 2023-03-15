@@ -21,9 +21,16 @@
 #include <mutex.h>
 #include "private.h"
 
-#define __SZ_TO_PGSZ(_sz, _out) { \
-    size_t _pgsz = GetMemorySpacePageSize(); \
-    (_out) = ((_sz) / _pgsz) * _pgsz; \
+static void
+__MSAllocationDelete(
+        _In_ struct MSAllocation* allocation)
+{
+    if (allocation == NULL) {
+        return;
+    }
+
+    kfree(allocation->Pages.data);
+    kfree(allocation);
 }
 
 oserr_t
@@ -35,7 +42,8 @@ MSAllocationCreate(
 {
     struct MSAllocation* allocation;
     void*                bitmap;
-    size_t               pageCount = (length + (GetMemorySpacePageSize() - 1)) / GetMemorySpacePageSize();
+    size_t               pageSize = GetMemorySpacePageSize();
+    size_t               pageCount;
     oserr_t              oserr = OS_EOK;
 
     TRACE("MSAllocationCreate(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ", flags=0x%x)",
@@ -47,11 +55,19 @@ MSAllocationCreate(
 
     // We only support allocation tracking for spaces with context
     if (memorySpace->Context == NULL) {
-        goto exit;
+        return OS_ENOTSUPPORTED;
     }
 
+    // Address must be page aligned
+    if (address & (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Length will be page alignedf
+    pageCount = (length + (GetMemorySpacePageSize() - 1)) / GetMemorySpacePageSize();
+
     allocation = kmalloc(sizeof(struct MSAllocation));
-    bitmap = kmalloc(BITMAP_SIZE(pageCount));
+    bitmap = kmalloc(BITMAP_SIZE(pageCount) * sizeof(uint32_t));
     if (allocation == NULL || bitmap == NULL) {
         kfree(allocation);
         oserr = OS_EOOM;
@@ -63,7 +79,7 @@ MSAllocationCreate(
     allocation->MemorySpace = memorySpace;
     allocation->SHMTag      = UUID_INVALID;
     allocation->Address     = address;
-    allocation->Length      = length;
+    allocation->Length      = pageCount * pageSize;
     allocation->Flags       = flags;
     allocation->References  = 1;
     allocation->CloneOf     = NULL;
@@ -80,7 +96,7 @@ __FindAllocation(
 {
     foreach(element, &context->Allocations) {
         struct MSAllocation* allocation = element->value;
-        if (address >= allocation->Address && address < (allocation->Address + allocation->Length)) {
+        if (ISINRANGE(address, allocation->Address, allocation->Address + allocation->Length)) {
             return allocation;
         }
     }
@@ -124,67 +140,81 @@ MSAllocationAcquire(
 }
 
 oserr_t
-MSAllocationFree(
-        _In_  struct MSContext*     context,
-        _In_  vaddr_t*              address,
-        _In_  size_t*               size,
-        _Out_ struct MSAllocation** clonedFrom)
+MSAllocationRelease(
+        _In_ struct MSContext*    context,
+        _In_ struct MSAllocation* allocation)
 {
-    struct MSAllocation* allocation = NULL;
-    oserr_t              oserr;
-
-    if (context == NULL || address == NULL ||
-        size == NULL || clonedFrom == NULL) {
+    if (allocation == NULL) {
         return OS_EINVALPARAMS;
     }
 
     MutexLock(&context->SyncObject);
-    allocation = __FindAllocation(context, *address);
+    allocation->References--;
+    if (!allocation->References) {
+        list_remove(&context->Allocations, &allocation->Header);
+        __MSAllocationDelete(allocation);
+    }
+    MutexUnlock(&context->SyncObject);
+    return OS_EOK;
+}
+
+oserr_t
+MSAllocationFree(
+        _In_  struct MSContext*     context,
+        _In_  vaddr_t               address,
+        _In_  size_t                length,
+        _Out_ struct MSAllocation** clonedFrom)
+{
+    struct MSAllocation* allocation = NULL;
+    size_t               pageSize = GetMemorySpacePageSize();
+    size_t               alignedLength = length;
+    oserr_t              oserr;
+
+    if (context == NULL || address == 0 || length == 0 || clonedFrom == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Address we are freeing *must* be on a page boundary
+    if (address & (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Make sure length is page-aligned
+    if (alignedLength & (pageSize - 1)) {
+        alignedLength = (alignedLength + (pageSize - 1)) & ~(pageSize - 1);
+    }
+
+    MutexLock(&context->SyncObject);
+    allocation = __FindAllocation(context, address);
     if (allocation == NULL) {
         oserr = OS_ENOENT;
         goto exit;
     }
 
-    // We support reductions, but only shrinking. Callers can only expand and
-    // shrink it at the end of the allocation. It does not matter what the actual
-    // address is, as long as the address is inside the bounds of the allocation.
-    if (*size < allocation->Length) {
-        // Let's reduce the mapping, but *only* as long as the allocation is not
-        // cloned.
-        if (allocation->References > 1) {
-            oserr = OS_EPERMISSIONS;
-            goto exit;
-        }
+    // Disallow frees on cloned allocations
+    if (allocation->References > 1) {
+        oserr = OS_ELINKS;
+        goto exit;
     }
 
-    // store the start of the actual allocation address so the caller
-    // knows where to start freeing from.
-    *address = allocation->Address;
+    // We support partial freeing, by marking a range of the memory
+    // permanently unavailable. It's important to note that we currently
+    // don't support re-allocation of that memory.
+    size_t block = (address - allocation->Address) / pageSize;
+    size_t count = alignedLength / pageSize;
+    bitmap_set(&allocation->Pages, (int)block, (int)count);
 
-    if (*size < allocation->Length) {
-        size_t alignedLength;
-        __SZ_TO_PGSZ(allocation->Length - *size, alignedLength)
+    // Store the cloned from
+    *clonedFrom = allocation->CloneOf;
 
-        // partial free, but always align to page size
-        allocation->Length = alignedLength;
-        *size = alignedLength;
-        *clonedFrom = NULL;
-    } else {
-        // If other callers are using the same memory, for instance when cloned,
-        // then we must not neccesarily free the actual allocation.
-        allocation->References--;
-        if (allocation->References) {
-            oserr = OS_EINCOMPLETE;
-            goto exit;
-        }
-
-        // full free
-        *size = 0;
-        *clonedFrom = allocation->CloneOf;
+    // Are we now fully freed?
+    if (bitmap_bits_clear_count(&allocation->Pages) == 0) {
         list_remove(&context->Allocations, &allocation->Header);
-        kfree(allocation);
+        __MSAllocationDelete(allocation);
+        oserr = OS_EOK;
+    } else {
+        oserr = OS_EINCOMPLETE;
     }
-    oserr = OS_EOK;
 
 exit:
     MutexUnlock(&context->SyncObject);

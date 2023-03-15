@@ -689,10 +689,14 @@ SHMUnmap(
 
     oserr = MemorySpaceUnmap(
             GetCurrentMemorySpace(),
-            (vaddr_t)handle->Buffer,
-            handle->Length
+            address,
+            length
     );
     if (oserr != OS_EOK) {
+        // Unmap might return OS_EINCOMPLETE, which means that unmapping
+        // has actually taken place, but a full unmap of the original mapping
+        // was not done. However they share a code-path with an error as we want
+        // to proxy this error code up.
         return oserr;
     }
 

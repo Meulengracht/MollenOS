@@ -593,7 +593,8 @@ _FUNCTION_ {
 	    case '[': {
                     _CHAR_ *str = suppress ? NULL : va_arg(ap, _CHAR_*);
                     _CHAR_ *sptr = str;
-        		    Bitmap_t *bitMask;
+        		    bitmap_t bitMask;
+                    uint32_t tmpdata[BITMAP_SIZE(_BITMAPSIZE_)];
 		    int invert = 0; /* Set if we are NOT to find the chars */
 #ifdef SECURE
                     unsigned size = suppress ? UINT_MAX : va_arg(ap, unsigned)/sizeof(_CHAR_);
@@ -602,7 +603,7 @@ _FUNCTION_ {
 #endif
 
 		    /* Init our bitmap */
-		    bitMask = BitmapCreate(_BITMAPSIZE_);
+            bitmap_construct(&bitMask, _BITMAPSIZE_, &tmpdata[0]);
 
 		    /* Read the format */
 		    format++;
@@ -611,7 +612,7 @@ _FUNCTION_ {
 			format++;
 		    }
 		    if(*format == ']') {
-			BitmapSetBits(bitMask, NULL, ']', 1);
+			bitmap_set(&bitMask, ']', 1);
 			format++;
 		    }
                     while(*format && (*format != ']')) {
@@ -619,23 +620,23 @@ _FUNCTION_ {
 			 * "Note that %[a-z] and %[z-a] are interpreted as equivalent to %[abcde...z]." */
 			if((*format == '-') && (*(format + 1) != ']')) {
 			    if ((*(format - 1)) < *(format + 1))
-				BitmapSetBits(bitMask, NULL, *(format - 1) +1 , *(format + 1) - *(format - 1));
+                    bitmap_set(&bitMask, *(format - 1) +1 , *(format + 1) - *(format - 1));
 			    else
-				BitmapSetBits(bitMask, NULL, *(format + 1)    , *(format - 1) - *(format + 1));
+                    bitmap_set(&bitMask, *(format + 1)    , *(format - 1) - *(format + 1));
 			    format++;
 			} else
-			    BitmapSetBits(bitMask, NULL, *format, 1);
-			format++;
+                bitmap_set(&bitMask, *format, 1);
+			    format++;
 		    }
                     /* read until char is not suitable */
                     while ((width != 0) && (nch != _EOF_)) {
 			if(!invert) {
-			    if(BitmapAreBitsSet(bitMask, nch, 1)) {
+			    if(bitmap_bits_set(&bitMask, nch, 1)) {
 				if (!suppress) *sptr++ = _CHAR2SUPPORTED_(nch);
 			    } else
 				break;
 			} else {
-			    if(BitmapAreBitsClear(bitMask, nch, 1)) {
+			    if(bitmap_bits_clear(&bitMask, nch, 1)) {
 				if (!suppress) *sptr++ = _CHAR2SUPPORTED_(nch);
 			    } else
 				break;
@@ -652,7 +653,6 @@ _FUNCTION_ {
                     }
                     /* terminate */
                     if (!suppress) *sptr = 0;
-		            BitmapDestroy(bitMask);
                 }
                 break;
             default:

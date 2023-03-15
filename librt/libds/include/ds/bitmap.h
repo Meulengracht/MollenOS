@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,94 +13,147 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Generic Bitmap Implementation
  */
 
 #ifndef __BITMAP_H__
 #define __BITMAP_H__
 
-#include <ds/dsdefs.h>
+#include <stdint.h>
+#include <string.h>
 
-typedef struct {
-    int     Cleanup;
-    size_t  SizeInBytes;
-    size_t  BitCount;
-	size_t* Data;
-} Bitmap_t;
+typedef struct bitmap {
+    int       total;
+    int       clear;
+    uint32_t* data;
+} bitmap_t;
 
-/* BitmapCreate
- * Creates a bitmap of the given size in bytes, the actual available
- * member count will then be Size * sizeof(byte). This automatically
- * allocates neccessary resources */
-DSDECL(Bitmap_t*,
-BitmapCreate(
-    _In_ size_t Size));
+#define __BITMAP_BSIZE (sizeof(uint32_t) * 8)
+#define __BITMAP_BMASK 0xFFFFFFFF
+#define BITMAP_SIZE(count) (((count) + __BITMAP_BSIZE - 1) / __BITMAP_BSIZE)
 
-/* BitmapConstruct
- * Creates a bitmap of the given size in bytes, the actual available
- * member count will then be Size * sizeof(byte). This uses user-provided
- * resources, and won't be cleaned up. */
-DSDECL(void,
-BitmapConstruct(
-    _In_ Bitmap_t* Bitmap,
-    _In_ size_t*   Data,
-    _In_ size_t    Size));
+static inline void
+bitmap_construct(
+        _In_ bitmap_t* bitmap,
+        _In_ int       count,
+        _In_ void*     data)
+{
+    bitmap->total = count;
+    bitmap->clear = count;
+    bitmap->data = data;
+    memset(data, 0, BITMAP_SIZE(count) * sizeof(uint32_t));
+}
 
-/**
- * @brief Cleanup resources allocated by BitmapCreate
- * @param Bitmap
- */
-DSDECL(void,
-BitmapDestroy(
-    _In_ Bitmap_t* Bitmap));
+static inline int
+bitmap_bits_clear_count(
+        _In_ bitmap_t* bitmap)
+{
+    return bitmap->clear;
+}
 
-/* BitmapSetBits
- * Flips all bits to 1 at the given index, and for <Count> bits. Returns the 
- * actual number of bits set in this iteration. */
-DSDECL(int,
-BitmapSetBits(
-    _In_    Bitmap_t* Bitmap,
-    _InOut_ int*      SearchIndex,
-    _In_    int       Index,
-    _In_    int       Count));
+static int
+bitmap_set(
+        _In_ bitmap_t* bitmap,
+        _In_ int       index,
+        _In_ int       count)
+{
+    int block  = index / (int)__BITMAP_BSIZE;
+    int blockIndex = index % (int)__BITMAP_BSIZE;
+    int bitsLeft = count;
+    int bitsSet = 0;
 
-/* BitmapClearBits
- * Clears all bits from the given index, and for <Count> bits. Returns the number
- * of bits cleared in this iteration. */
-DSDECL(int,
-BitmapClearBits(
-    _In_    Bitmap_t* Bitmap,
-    _InOut_ int*      SearchIndex,
-    _In_    int       Index,
-    _In_    int       Count));
+    for (int i = block; BITMAP_SIZE(bitmap->total) && (bitsLeft > 0); i++) {
+        // optimization case for larger sets/clears
+        if (bitmap->data[i] == 0 && blockIndex == 0 && bitsLeft >= __BITMAP_BSIZE) {
+            bitmap->data[i] = __BITMAP_BMASK;
+            bitsSet += __BITMAP_BSIZE;
+            bitsLeft -= __BITMAP_BSIZE;
+            continue;
+        }
 
-/* BitmapAreBitsSet
- * If all bits are set from the given index, and for <Count> bits, then this
- * function returns 1. Otherwise 0. */
-DSDECL(int,
-BitmapAreBitsSet(
-    _In_ Bitmap_t* Bitmap,
-    _In_ int       Index,
-    _In_ int       Count));
+        for (int j = blockIndex; (j < __BITMAP_BSIZE) && (bitsLeft > 0); j++, bitsLeft--) {
+            if (!(bitmap->data[i] & (1U << j))) {
+                bitmap->data[i] |= (1U << j);
+                bitsSet++;
+            }
+        }
+        blockIndex = 0;
+    }
+    bitmap->clear -= bitsSet;
+    return bitsSet;
+}
 
-/* BitmapAreBitsClear
- * If all bits are cleared from the given index, and for <Count> bits, then this
- * function returns 1. Otherwise 0. */
-DSDECL(int,
-BitmapAreBitsClear(
-    _In_ Bitmap_t* Bitmap,
-    _In_ int       Index,
-    _In_ int       Count));
+static int
+bitmap_clear(
+        _In_ bitmap_t* bitmap,
+        _In_ int       index,
+        _In_ int       count)
+{
+    int block = index / (int)__BITMAP_BSIZE;
+    int blockIndex = index % (int)__BITMAP_BSIZE;
+    int bitsLeft = count;
+    int bitsCleared = 0;
 
-/* BitmapFindBits
- * Locates the requested number of consequtive free bits.
- * Returns the index of the first free bit. Returns -1 on no free. */
-DSDECL(int,
-BitmapFindBits(
-    _In_    Bitmap_t* Bitmap,
-    _InOut_ int*      SearchIndex,
-    _In_    int       Count));
+    for (int i = block; BITMAP_SIZE(bitmap->total) && (bitsLeft > 0); i++) {
+        // optimization case for larger sets/clears
+        if (bitmap->data[i] == __BITMAP_BMASK && blockIndex == 0 && bitsLeft >= __BITMAP_BSIZE) {
+            bitmap->data[i] = 0;
+            bitsCleared += __BITMAP_BSIZE;
+            bitsLeft -= __BITMAP_BSIZE;
+            continue;
+        }
+
+        for (int j = blockIndex; (j < __BITMAP_BSIZE) && (bitsLeft > 0); j++, bitsLeft--) {
+            if (bitmap->data[i] & (1U << j)) {
+                bitmap->data[i] &= ~(1U << j);
+                bitsCleared++;
+            }
+        }
+        blockIndex = 0;
+    }
+    bitmap->clear += bitsCleared;
+    return bitsCleared;
+}
+
+static int
+bitmap_bits_clear(
+        _In_ bitmap_t*  bitmap,
+        _In_ int        index,
+        _In_ int        count)
+{
+    int block = index / (int)__BITMAP_BSIZE;
+    int blockIndex = index % (int)__BITMAP_BSIZE;
+    int bitsLeft = count;
+
+    for (int i = block; BITMAP_SIZE(bitmap->total) && (bitsLeft > 0); i++) {
+        for (int j = blockIndex; j < __BITMAP_BSIZE && bitsLeft > 0; j++, bitsLeft--) {
+            if (bitmap->data[i] & (1U << j)) {
+                return 0;
+            }
+        }
+        blockIndex = 0;
+    }
+    return 1;
+}
+
+static int
+bitmap_bits_set(
+        _In_ bitmap_t*  bitmap,
+        _In_ int        index,
+        _In_ int        count)
+{
+    int block = index / (int)__BITMAP_BSIZE;
+    int blockIndex = index % (int)__BITMAP_BSIZE;
+    int bitsLeft = count;
+
+    for (int i = block; BITMAP_SIZE(bitmap->total) && (bitsLeft > 0); i++) {
+        for (int j = blockIndex; j < __BITMAP_BSIZE && bitsLeft > 0; j++, bitsLeft--) {
+            if (!(bitmap->data[i] & (1U << j))) {
+                return 0;
+            }
+        }
+        blockIndex = 0;
+    }
+    return 1;
+}
 
 #endif //!__BITMAP_H__

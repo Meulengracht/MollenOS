@@ -66,86 +66,65 @@ __ClearPhysicalPages(
     return oserr;
 }
 
-static oserr_t
-__FreeMapping(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         length)
-{
-    struct MSAllocation* link;
-    MemorySpace_t*       ms = memorySpace;
-    vaddr_t              startAddress = address;
-    size_t               allocSize = length;
-    do {
-        oserr_t oserr = MSAllocationFree(
-                ms->Context,
-                &startAddress,
-                &allocSize,
-                &link
-        );
-        if (oserr != OS_EOK) {
-            if (oserr == OS_EINCOMPLETE) {
-                // the allocation is still being used
-                return OS_EOK;
-            }
-            return oserr;
-        }
-
-        // We managed to free the allocation, now free the underlying
-        // pages
-        oserr = __ClearPhysicalPages(
-                ms,
-                startAddress + allocSize,
-                length
-        );
-        WARNING_IF(oserr != OS_EOK,
-                   "__FreeMapping failed to clear underlying pages!!");
-
-        // Update iterator members
-        if (link) {
-            WARNING_IF(link->MemorySpace != memorySpace,
-                       "__FreeMapping cross memory-space freeing!!! DANGEROUS!!");
-            ms = link->MemorySpace;
-            startAddress = link->Address;
-            allocSize = link->Length;
-        }
-    } while (link != NULL);
-    return OS_EOK;
-}
-
 oserr_t
 MemorySpaceUnmap(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
-        _In_ size_t         size)
+        _In_ size_t         length)
 {
     struct MSAllocation* allocation;
     vaddr_t              startAddress = address;
-    size_t               actualSize = size;
     oserr_t              oserr;
+    bool                 incomplete = false;
 
     TRACE("MemorySpaceUnmap(memorySpace=0x%" PRIxIN ", address=0x%" PRIxIN ", size=0x%" PRIxIN ")",
           memorySpace, address, size);
 
-    if (memorySpace == NULL || size == 0 || address == 0) {
+    if (memorySpace == NULL) {
         return OS_EINVALPARAMS;
     }
 
     allocation = MSAllocationLookup(memorySpace->Context, address);
     if (allocation != NULL) {
+        struct MSAllocation* original;
         startAddress = allocation->Address;
-        if (size != allocation->Length) {
-            WARNING("MemorySpaceUnmap: cannot do partial free of %" PRIuIN "/%" PRIuIN "bytes, correcting to full length");
-            actualSize = allocation->Length;
+
+        oserr = MSAllocationFree(
+                memorySpace->Context,
+                address,
+                length,
+                &original
+        );
+        if (oserr != OS_EOK) {
+            // There are two reasons for this to fail, either there are links
+            // which means we *cannot* free this memory, as the physical memory
+            // is still being used, or the free was incomplete. Incomplete frees
+            // act exactly like
+            if (oserr != OS_EINCOMPLETE) {
+                return oserr;
+            }
+            incomplete = true;
         }
     }
 
-    oserr = __FreeMapping(memorySpace, startAddress, actualSize);
+    // We managed to free the allocation, now free the underlying
+    // pages
+    oserr = __ClearPhysicalPages(memorySpace, address, length);
     if (oserr != OS_EOK) {
+        WARNING("__FreeMapping failed to clear underlying pages!!");
+        return oserr;
+    }
+
+    if (incomplete) {
+        // In the case of an incomplete free, we cannot free the virtual region
+        // just yet. We have to wait for a full free to occur for the region. Make sure
+        // we proxy the information that a full free did not occur
+        oserr = OS_EINCOMPLETE;
         goto exit;
     }
 
-    // Free the range in either GAM or Process memory
+    // When a full free occurs, we must always use the start address of the allocation
+    // and it's full length when freeing the virtual region.
     if (memorySpace->Context != NULL && DynamicMemoryPoolContains(&memorySpace->Context->Heap, startAddress)) {
         DynamicMemoryPoolFree(&memorySpace->Context->Heap, startAddress);
     } else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, startAddress)) {
