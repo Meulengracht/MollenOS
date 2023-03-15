@@ -45,50 +45,26 @@ DebugBreakpoint(
     return OS_EOK;
 }
 
-oserr_t
-DebugPageFault(
-    _In_ Context_t* context,
-    _In_ uintptr_t  address)
+static oserr_t
+__MapFaultingAddress(
+        _In_ OSMemoryDescriptor_t* descriptor,
+        _In_ uintptr_t             address)
 {
-    OSMemoryDescriptor_t descriptor  = { 0 };
-    MemorySpace_t*       memorySpace = GetCurrentMemorySpace();
-    size_t               pageSize    = GetMemorySpacePageSize();
-    uintptr_t            physicalAddress;
-    oserr_t              oserr;
-    TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
-
-    // get information about the allocation
-    oserr = MemorySpaceQuery(memorySpace, address, &descriptor);
-    if (oserr == OS_EOK) {
-        // userspace allocation, perform additional checks.
-        // 1) Was a guard page hit?
-        // 2) Should the exception be propegated (i.e. memory handlers) instead
-        //    of handled here? Return an error in this case.
-        if (descriptor.Attributes & MAPPING_STACK) {
-            // Detect stack overflow. If the guard page was hit, we've exceeded
-            // allocation size set in descriptor.AllocationSize. If the guard page
-            // was hit, we've beyound bounds.
-            if (address < descriptor.StartAddress) {
-                oserr = OS_EOVERFLOW;
-                goto exit;
-            }
-        } else if (descriptor.Attributes & MAPPING_TRAPPAGE) {
-            TRACE("DebugPageFault trappage hit 0x%" PRIxIN, address);
-            oserr = OS_EUNKNOWN; // return error
-            goto exit;
-        }
-    }
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    size_t         pageSize = GetMemorySpacePageSize();
+    oserr_t        oserr;
 
     // Otherwise, commit the page and continue without anyone noticing, and handle race-conditions
     // if two different threads have accessed a reserved page. OsExists will be returned.
-    if (descriptor.SHMTag != UUID_INVALID) {
+    if (descriptor->SHMTag != UUID_INVALID) {
         oserr = SHMCommit(
-                descriptor.SHMTag,
-                (void*)descriptor.StartAddress,
+                descriptor->SHMTag,
+                (void*)descriptor->StartAddress,
                 (void*)address,
                 pageSize
         );
     } else {
+        uintptr_t physicalAddress;
         oserr = MemorySpaceCommit(
                 memorySpace,
                 address,
@@ -101,15 +77,74 @@ DebugPageFault(
     if (oserr == OS_EOK) {
         // If the mapping has the attribute CLEAN, then we zero each
         // allocated page.
-        if (descriptor.Attributes & MAPPING_CLEAN) {
+        if (descriptor->Attributes & MAPPING_CLEAN) {
             memset((void*)(address & (pageSize - 1)), 0, pageSize);
         }
     } else if (oserr == OS_EEXISTS) {
         oserr = OS_EOK;
     }
-
-exit:
     return oserr;
+}
+
+static enum PageFaultResult
+__HandleUserspaceFault(
+        _In_ OSMemoryDescriptor_t* descriptor,
+        _In_ uintptr_t             address)
+{
+    enum PageFaultResult result = PAGEFAULT_RESULT_MAPPED;
+
+    // In case of a freed part of the allocation, do not attempt mapping
+    // that part
+    if (descriptor->AllocationSize == 0) {
+        return PAGEFAULT_RESULT_FAULT;
+    }
+
+    // userspace allocation, perform additional checks.
+    // 1) Was a guard page hit?
+    // 2) Should the exception be propegated (i.e. memory handlers) instead
+    //    of handled here? Return an error in this case.
+    if (descriptor->Attributes & MAPPING_STACK) {
+        // Detect stack overflow. If the guard page was hit, we've exceeded
+        // allocation size set in descriptor.AllocationSize. If the guard page
+        // was hit, we've beyound bounds.
+        if (address < descriptor->StartAddress) {
+            // Guard page was hit, abort
+            return PAGEFAULT_RESULT_OVERFLOW;
+        }
+    } else if (descriptor->Attributes & MAPPING_TRAPPAGE) {
+        TRACE("DebugPageFault trappage hit 0x%" PRIxIN, address);
+        result = PAGEFAULT_RESULT_TRAP;
+    }
+
+    if (__MapFaultingAddress(descriptor, address) != OS_EOK) {
+        result = PAGEFAULT_RESULT_FAULT;
+    }
+    return result;
+}
+
+enum PageFaultResult
+DebugPageFault(
+    _In_ Context_t* context,
+    _In_ uintptr_t  address)
+{
+    enum PageFaultResult result = PAGEFAULT_RESULT_MAPPED;
+    OSMemoryDescriptor_t descriptor  = { .SHMTag = UUID_INVALID };
+    MemorySpace_t*       memorySpace = GetCurrentMemorySpace();
+    oserr_t              oserr;
+    TRACE("DebugPageFault(context->ip=0x%" PRIxIN ", address=0x%" PRIxIN ")", CONTEXT_IP(context), address);
+
+    // get information about the allocation first, if this succeeds then
+    // the allocation was done by userspace
+    oserr = MemorySpaceQuery(memorySpace, address, &descriptor);
+    if (oserr == OS_EOK) {
+        return __HandleUserspaceFault(&descriptor, address);
+    }
+
+    oserr = __MapFaultingAddress(&descriptor, address);
+    if (oserr != OS_EOK) {
+        result = PAGEFAULT_RESULT_FAULT;
+    }
+    return result;
 }
 
 static oserr_t
@@ -193,11 +228,9 @@ DebugPanic(
     // Handle based on the scope of the fatality
     if (FatalityScope == FATAL_SCOPE_KERNEL) {
         ArchProcessorHalt();
-    }
-    else if (FatalityScope == FATAL_SCOPE_PROCESS) {
+    } else if (FatalityScope == FATAL_SCOPE_PROCESS) {
         // @todo
-    }
-    else if (FatalityScope == FATAL_SCOPE_THREAD) {
+    }  else if (FatalityScope == FATAL_SCOPE_THREAD) {
         // @todo
     }
     else {

@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -72,6 +70,23 @@
 #define FATAL(Scope, ...)       fprintf(stderr, __VA_ARGS__)
 #endif //!TESTING
 
+enum PageFaultResult {
+    // Indicate that a standard allocated page was hit, and the address was
+    // successfully mapped.
+    PAGEFAULT_RESULT_MAPPED,
+    // Indicate that a guard page was hit, meaning a likely stack overflow
+    // has occurred in a stack region. No mapping was created and this is a fatal
+    // error code.
+    PAGEFAULT_RESULT_OVERFLOW,
+    // Indicate that a trap page was hit and successfully mapped. This is
+    // a separate error code as there should still be an exception propagated
+    // to userspace, to inform of the trap.
+    PAGEFAULT_RESULT_TRAP,
+    // Indicate that the page-fault resulted in a failed mapping
+    // and that it could not be fixed.
+    PAGEFAULT_RESULT_FAULT,
+};
+
 /* DebugSingleStep
  * Handles the SingleStep trap on a higher level 
  * and the actual interrupt/exception should be propegated
@@ -88,11 +103,14 @@ KERNELAPI oserr_t KERNELABI
 DebugBreakpoint(
     _In_ Context_t* Context);
 
-/* DebugPageFault
- * Handles page-fault and either validates or invalidates
- * that the address is valid. In case of valid address it automatically
- * maps in the page and returns OS_EOK */
-KERNELAPI oserr_t KERNELABI
+/**
+ * @brief Handles page-fault and either validates or invalidates
+ * that the address is valid.
+ * @param context
+ * @param address
+ * @return
+ */
+KERNELAPI enum PageFaultResult KERNELABI
 DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address);

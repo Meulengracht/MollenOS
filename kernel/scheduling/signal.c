@@ -118,7 +118,12 @@ SignalSend(
     }
     
     TRACE("[signal] [send] thread %s, signal %i", target->Name, Signal);
-    streambuffer_stream_out(target->Signaling.Signals, &signalInfo, sizeof(ThreadSignal_t), 0);
+    streambuffer_stream_out(
+            target->Signaling.Signals,
+            &signalInfo,
+            sizeof(ThreadSignal_t),
+            0
+    );
     atomic_fetch_add(&target->Signaling.Pending, 1);
     
     // Is the thread local or foreign? We only handle signals locally on core,
@@ -158,8 +163,11 @@ SignalExecuteLocalThreadTrap(
     // but rather we should protect against or fix why it fails.
     // However if we wanted to support this, we could
     if (CONTEXT_IP(context) != 0 && IS_KERNEL_CODE(CONTEXT_IP(context))) {
-        DebugPanic(FATAL_SCOPE_KERNEL, context,
-                   "Crash at address 0x%" PRIxIN, CONTEXT_IP(context));
+        DebugPanic(
+                FATAL_SCOPE_KERNEL,
+                context,
+                "Crash at address 0x%" PRIxIN, CONTEXT_IP(context)
+        );
     }
 
 #ifdef __OSCONFIG_DISABLE_SIGNALLING

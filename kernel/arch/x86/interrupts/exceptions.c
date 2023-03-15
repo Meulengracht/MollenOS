@@ -200,12 +200,17 @@ ExceptionEntry(
         } else {
             // Page was not present, this could be because of lazy-comitting, lets try
             // to fix it by comitting the address.
-            if (address > 0x1000 && DebugPageFault(context, address) == OS_EOK) {
-                issueFixed = 1;
-            } else {
+            if (address < 0x1000) {
+                // The first page of memory is left as a NULL catcher, in this case there is no fix and we
+                // should only attempt to fix this by executing a trap
                 SignalExecuteLocalThreadTrap(context, SIGSEGV, (void*)address, NULL);
-                issueFixed = 1;
+            } else {
+                enum PageFaultResult result = DebugPageFault(context, address);
+                if (result != PAGEFAULT_RESULT_MAPPED) {
+                    SignalExecuteLocalThreadTrap(context, SIGSEGV, (void*)address, NULL);
+                }
             }
+            issueFixed = 1;
         }
     } else if (context->Irq == 16 || context->Irq == 19) {    // FPU & SIMD Floating Point Exception
         SignalExecuteLocalThreadTrap(context, SIGFPE, NULL, NULL);
