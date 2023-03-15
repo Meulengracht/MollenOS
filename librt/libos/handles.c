@@ -22,6 +22,16 @@
 #include <os/spinlock.h>
 #include <string.h>
 
+struct __LocalHandle {
+    struct OSHandle OSHandle;
+    // References refers the number of local references an OS handle
+    // might have. As the structure name indicates, no other process
+    // has any idea of the references we keep here. It's primarily to
+    // support fileviews and other similar concepts, which are mostly
+    // local to the process.
+    int References;
+};
+
 #define OSHANDLE_FLAG_OWNERSHIP 0x0001
 
 static uint64_t handle_hash(const void* element);
@@ -51,11 +61,34 @@ void OSHandlesInitialize(void)
     hashtable_construct(
             &g_osHandles,
             0,
-            sizeof(struct OSHandle),
+            sizeof(struct __LocalHandle),
             handle_hash,
             handle_cmp
     );
     spinlock_init(&g_osHandlesLock);
+}
+
+static void
+__InsertHandle(
+        _In_ struct OSHandle* handle)
+{
+    void* result;
+
+    spinlock_acquire(&g_osHandlesLock);
+    result = hashtable_set(
+            &g_osHandles,
+            &(struct __LocalHandle) {
+                    .OSHandle = {
+                            .ID = handle->ID,
+                            .Type = handle->Type,
+                            .Flags = handle->Flags,
+                            .Payload = handle->Payload
+                    },
+                    .References = 1
+            }
+    );
+    spinlock_release(&g_osHandlesLock);
+    assert(result == NULL);
 }
 
 oserr_t
@@ -65,7 +98,6 @@ OSHandleCreate(
         _In_ struct OSHandle*  handle)
 {
     oserr_t oserr;
-    void*   result;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -79,14 +111,7 @@ OSHandleCreate(
     handle->Type = type;
     handle->Flags = OSHANDLE_FLAG_OWNERSHIP;
     handle->Payload = payload;
-
-    spinlock_acquire(&g_osHandlesLock);
-    result = hashtable_set(
-            &g_osHandles,
-            handle
-    );
-    assert(result == NULL);
-    spinlock_release(&g_osHandlesLock);
+    __InsertHandle(handle);
     return OS_EOK;
 }
 
@@ -98,20 +123,11 @@ OSHandleWrap(
         _In_ bool              ownership,
         _In_ struct OSHandle*  handle)
 {
-    void* result;
-
     handle->ID = id;
     handle->Type = type;
     handle->Flags = ownership ? OSHANDLE_FLAG_OWNERSHIP : 0;
     handle->Payload = payload;
-
-    spinlock_acquire(&g_osHandlesLock);
-    result = hashtable_set(
-            &g_osHandles,
-            handle
-    );
-    assert(result == NULL);
-    spinlock_release(&g_osHandlesLock);
+    __InsertHandle(handle);
     return OS_EOK;
 }
 
@@ -120,13 +136,32 @@ OSHandleDestroy(
         _In_ struct OSHandle* handle)
 {
     const struct OSHandleOps* handlers;
-    struct OSHandle*          entry = NULL;
+    struct __LocalHandle*     entry;
 
     spinlock_acquire(&g_osHandlesLock);
-    entry = hashtable_remove(
+    entry = hashtable_get(
             &g_osHandles,
-            handle
+            &(struct __LocalHandle) {
+                .OSHandle.ID = handle->ID
+            }
     );
+    if (entry) {
+        // Since we support local references, it's important that we handle
+        // the case where the handle is not actually supposed to be deleted.
+        // Instead we simply reduce the reference count and move on
+        if (entry->References > 1) {
+            entry->References--;
+            hashtable_set(&g_osHandles, entry);
+
+            // Set entry to null to return immediately. Act like it never
+            // existed.
+            entry = NULL;
+        } else {
+            // If the reference count simply was one, we remove it immediately
+            // and continue onwards.
+            hashtable_remove(&g_osHandles, entry);
+        }
+    }
     spinlock_release(&g_osHandlesLock);
     if (entry == NULL) {
         return;
@@ -136,13 +171,35 @@ OSHandleDestroy(
     handlers = g_osHandlers[handle->Type];
     if (handlers->Destroy) {
         handlers->Destroy(handle);
-        return;
+    } else {
+        // Otherwise we do the default destructor
+        if (handle->Flags & OSHANDLE_FLAG_OWNERSHIP) {
+            (void)Syscall_DestroyHandle(handle->ID);
+        }
     }
+}
 
-    // Otherwise we do the default destructor
-    if (handle->Flags & OSHANDLE_FLAG_OWNERSHIP) {
-        (void)Syscall_DestroyHandle(handle->ID);
+oserr_t
+OSHandlesAcquire(
+        _In_ struct OSHandle* handle)
+{
+    oserr_t               oserr = OS_ENOENT;
+    struct __LocalHandle* entry;
+
+    spinlock_acquire(&g_osHandlesLock);
+    entry = hashtable_get(
+            &g_osHandles,
+            &(struct __LocalHandle) {
+                    .OSHandle.ID = handle->ID
+            }
+    );
+    if (entry != NULL) {
+        entry->References++;
+        hashtable_set(&g_osHandles, entry);
+        oserr = OS_EOK;
     }
+    spinlock_release(&g_osHandlesLock);
+    return oserr;
 }
 
 oserr_t
@@ -150,21 +207,20 @@ OSHandlesFind(
         _In_ uuid_t           id,
         _In_ struct OSHandle* handle)
 {
-    oserr_t oserr = OS_ENOENT;
-    void*   entry;
+    oserr_t               oserr = OS_ENOENT;
+    struct __LocalHandle* entry;
 
     spinlock_acquire(&g_osHandlesLock);
     entry = hashtable_get(
             &g_osHandles,
-            &(struct OSHandle) {
-                    .ID = id
+            &(struct __LocalHandle) {
+                    .OSHandle.ID = id
             }
     );
     if (entry != NULL) {
-        memcpy(handle, entry, sizeof(struct OSHandle));
+        memcpy(handle, &entry->OSHandle, sizeof(struct OSHandle));
         oserr = OS_EOK;
     }
-    hashtable_set(&g_osHandles, handle);
     spinlock_release(&g_osHandlesLock);
     return oserr;
 }
@@ -232,13 +288,13 @@ OSHandleDeserialize(
 
 static uint64_t handle_hash(const void* element)
 {
-    const struct OSHandle* handle = element;
-    return handle->ID;
+    const struct __LocalHandle* handle = element;
+    return handle->OSHandle.ID;
 }
 
 static int handle_cmp(const void* element1, const void* element2)
 {
-    const struct OSHandle* handle1 = element1;
-    const struct OSHandle* handle2 = element2;
-    return handle1->ID == handle2->ID ? 0 : -1;
+    const struct __LocalHandle* handle1 = element1;
+    const struct __LocalHandle* handle2 = element2;
+    return handle1->OSHandle.ID == handle2->OSHandle.ID ? 0 : -1;
 }
