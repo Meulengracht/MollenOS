@@ -15,11 +15,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO
+// Move reference keeping to OSHandle to ensure that OSHandle stays around enough
+//
+
 #define __need_minmax
 #include <ddk/convert.h>
 #include <ds/list.h>
 #include <gracht/link/vali.h>
-#include <internal/_io.h>
 #include <internal/_utils.h>
 #include <os/services/file.h>
 #include <os/handle.h>
@@ -211,10 +214,16 @@ OSFileViewUnmap(
 
     oserr = SHMUnmap(&fileView->shm, mapping, length);
     if (oserr != OS_EOK) {
-        // log
+        // We *may* receive a OS_EINCOMPLETE on partial frees of a memory region
+        // and this is OK, this means we still have memory in play for the file, however
+        // this freed memory is now inaccessible (completely). Accessing it will generate
+        // a SIGSEGV.
+        if (oserr == OS_EINCOMPLETE) {
+            return OS_EOK;
+        }
+        return oserr;
     }
 
-    // TODO: do not delete unless all is unmapped
     OSHandleDestroy(&fileView->shm);
     list_remove(&g_fileViews, &fileView->header);
     free(fileView);
@@ -238,13 +247,13 @@ HandleMemoryMappingEvent(
     }
 
     // Prepare the memory that we want to fill
-    virtualAddress &= (__GetPageSize() - 1);
+    virtualAddress &= (MemoryPageSize() - 1);
 
     fileOffset.QuadPart = fileView->offset + (virtualAddress - (uintptr_t)SHMBuffer(&fileView->shm));
     oserr            = SHMCommit(
             &fileView->shm,
             (vaddr_t)vaddressPtr,
-            __GetPageSize()
+            MemoryPageSize()
     );
     if (oserr != OS_EOK) {
         return OS_ENOENT;
@@ -253,7 +262,7 @@ HandleMemoryMappingEvent(
     // Now we perform the actual filling on the memory area
     sys_file_transfer_absolute(GetGrachtClient(), &msg.base, __crt_process_id(), fileView->file_handle,
                                0, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->shm.ID,
-                               virtualAddress - (uintptr_t)SHMBuffer(&fileView->shm), __GetPageSize());
+                               virtualAddress - (uintptr_t)SHMBuffer(&fileView->shm), MemoryPageSize());
     gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
     sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &bytesTransferred);
     return oserr;

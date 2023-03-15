@@ -56,7 +56,7 @@
 // Flags here are no-op and only defined for compatability,
 // they are not actually supposed to be supported anyway and
 // are no-op too on modern linux.
-#define MAP_DENYWRITE 0x10
+#define MAP_DENYWRITE  0x10
 #define MAP_EXECUTABLE 0x20
 #define MAP_FILE       0x40
 

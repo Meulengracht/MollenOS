@@ -102,6 +102,7 @@ typedef enum oserr {
     OS_ENOTDIR,             // Path is not a directory
     OS_EISDIR,              // Path is a directory
     OS_ELINKINVAL,          // Link is invalid
+    OS_ELINKS,              // Links are blocking the operation
     OS_EDIRNOTEMPTY,        // Directory is not empty
     OS_EDEVFAULT,           // Device error occurred during operation
     
