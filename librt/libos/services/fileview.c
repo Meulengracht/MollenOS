@@ -17,6 +17,7 @@
 
 // TODO
 // Move reference keeping to OSHandle to ensure that OSHandle stays around enough
+// Make sure that memory acceses to unmapped addreses causes SIGSEGV
 //
 
 #define __need_minmax
@@ -175,6 +176,7 @@ OSFileViewCreate(
         _Out_ void**       mappingOut)
 {
     size_t             pageSize = MemoryPageSize();
+    size_t             alignedLength = length;
     oserr_t            oserr;
     struct __FileView* fileView;
 
@@ -188,10 +190,12 @@ OSFileViewCreate(
         return OS_EINVALPARAMS;
     }
 
-    // Align length on a page-boundary
-    // TODO
+    // Make sure length is page-aligned
+    if (alignedLength & (pageSize - 1)) {
+        alignedLength = (alignedLength + (pageSize - 1)) & ~(pageSize - 1);
+    }
 
-    fileView = __FileViewCreate(handle, flags, offset, length);
+    fileView = __FileViewCreate(handle, flags, offset, alignedLength);
     if (fileView == NULL) {
         return OS_EOOM;
     }
@@ -200,7 +204,7 @@ OSFileViewCreate(
             &(SHM_t) {
                     .Access = __AccessFlags(flags),
                     .Flags  = __SHMFlags(flags),
-                    .Size   = length
+                    .Size   = alignedLength
             },
             &fileView->SHM
     );
@@ -214,9 +218,9 @@ OSFileViewCreate(
     MutexUnlock(&g_fileViewsLock);
 
     if (flags & FILEVIEW_POPULATE) {
-        oserr = __FillData(fileView, 0, length);
+        oserr = __FillData(fileView, 0, alignedLength);
         if (oserr != OS_EOK) {
-            (void)OSFileViewUnmap(SHMBuffer(&fileView->SHM), length);
+            (void)OSFileViewUnmap(SHMBuffer(&fileView->SHM), alignedLength);
             return oserr;
         }
     }
@@ -233,23 +237,43 @@ OSFileViewFlush(
 {
     struct __FileView* fileView;
     UInteger64_t       fileOffset;
+    size_t             bufferOffset;
     size_t             pageSize = MemoryPageSize();
+    size_t             alignedLength = length;
     oserr_t            oserr;
     int                pageCount;
     unsigned int*      attributes;
 
+    // Error on addresses that are not page-size aligned.
+    if ((uintptr_t)mapping & (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Make sure length is page-aligned
+    if (alignedLength & (pageSize - 1)) {
+        alignedLength = (alignedLength + (pageSize - 1)) & ~(pageSize - 1);
+    }
+
+    MutexLock(&g_fileViewsLock);
     fileView = __GetFileView((uintptr_t)mapping);
     if (fileView == NULL) {
+        MutexUnlock(&g_fileViewsLock);
         return OS_EINVALPARAMS;
     }
 
     // If the fileview was mapped as read-only then this makes no sense,
     // abort the operation with an error
     if (!(fileView->Flags & SHM_ACCESS_WRITE)) {
+        MutexUnlock(&g_fileViewsLock);
         return OS_EPERMISSIONS;
     }
 
-    pageCount  = DIVUP(MIN(fileView->Length, length), pageSize);
+    // TODO: In theory we should extract everything here we need or keep reference count...
+    bufferOffset = ((uintptr_t)mapping - (uintptr_t)SHMBuffer(&fileView->SHM));
+    fileOffset.QuadPart = fileView->Offset + bufferOffset;
+    MutexUnlock(&g_fileViewsLock);
+
+    pageCount  = (int)(alignedLength / pageSize);
     attributes = malloc(sizeof(unsigned int) * pageCount);
     if (!attributes) {
         oserr = OS_EOOM;
@@ -257,15 +281,14 @@ OSFileViewFlush(
     }
 
     oserr = MemoryQueryAttributes(
-            SHMBuffer(&fileView->SHM),
-            fileView->Length,
+            mapping,
+            alignedLength,
             &attributes[0]
     );
     if (oserr != OS_EOK) {
         goto exit;
     }
 
-    fileOffset.QuadPart = fileView->Offset;
     for (int i = 0; i < pageCount;) {
         int dirtyPageCount = 0;
         int j              = i;
@@ -280,17 +303,32 @@ OSFileViewFlush(
             struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
             size_t                   bytesTransferred;
 
-            sys_file_transfer_absolute(GetGrachtClient(), &msg.base, __crt_process_id(), fileView->FileHandle.ID,
-                                       1, fileOffset.u.LowPart, fileOffset.u.HighPart, fileView->SHM.ID,
-                                       i * pageSize, dirtyPageCount * pageSize);
+            sys_file_transfer_absolute(
+                    GetGrachtClient(),
+                    &msg.base,
+                    __crt_process_id(),
+                    fileView->FileHandle.ID,
+                    1,
+                    fileOffset.u.LowPart,
+                    fileOffset.u.HighPart,
+                    fileView->SHM.ID,
+                    bufferOffset + (i * pageSize),
+                    dirtyPageCount * pageSize
+            );
             gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-            sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &bytesTransferred);
+            sys_file_transfer_absolute_result(
+                    GetGrachtClient(),
+                    &msg.base,
+                    &oserr,
+                    &bytesTransferred
+            );
 
             // update iterator values and account for the auto inc
             i = j;
             fileOffset.QuadPart += (uint64_t)dirtyPageCount * (uint64_t)pageSize;
         } else {
-            i++; fileOffset.QuadPart += pageSize;
+            i++;
+            fileOffset.QuadPart += pageSize;
         }
     }
 
@@ -303,17 +341,22 @@ OSFileViewUnmap(
         _In_ void*  mapping,
         _In_ size_t length)
 {
-    struct __FileView* fileView = __GetFileView((uintptr_t)mapping);
+    struct __FileView* fileView;
     oserr_t            oserr;
+
+    MutexLock(&g_fileViewsLock);
+    fileView = __GetFileView((uintptr_t)mapping);
     if (!fileView) {
+        MutexUnlock(&g_fileViewsLock);
         return OS_EINVALPARAMS;
     }
 
     // is the mapping write enabled, then flush pages
     if (fileView->Flags & FILEVIEW_WRITE) {
-        oserr = OSFileViewFlush(mapping, fileView->Length, 0);
+        MutexUnlock(&g_fileViewsLock);
+        oserr = OSFileViewFlush(mapping, length, 0);
         if (oserr != OS_EOK) {
-            // log
+            return oserr;
         }
     }
 
@@ -329,8 +372,10 @@ OSFileViewUnmap(
         return oserr;
     }
 
-    OSHandleDestroy(&fileView->SHM);
+    MutexLock(&g_fileViewsLock);
     list_remove(&g_fileViews, &fileView->Header);
+    MutexUnlock(&g_fileViewsLock);
+    OSHandleDestroy(&fileView->SHM);
     free(fileView);
     return oserr;
 }
@@ -340,21 +385,18 @@ HandleMemoryMappingEvent(
         _In_ int   signal,
         _In_ void* vaddressPtr)
 {
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetFileService());
-    struct __FileView*       fileView       = __GetFileView((uintptr_t)vaddressPtr);
-    uintptr_t                virtualAddress = (uintptr_t)vaddressPtr;
-    UInteger64_t             fileOffset;
-    oserr_t                  oserr;
-    size_t                   bytesTransferred;
+    struct __FileView* fileView = __GetFileView((uintptr_t)vaddressPtr);
+    uintptr_t          virtualAddress = (uintptr_t)vaddressPtr;
+    size_t             pageSize = MemoryPageSize();
+    oserr_t            oserr;
 
     if (!fileView) {
         return OS_ENOENT;
     }
 
     // Prepare the memory that we want to fill
-    virtualAddress &= (MemoryPageSize() - 1);
-
-    fileOffset.QuadPart = fileView->Offset + (virtualAddress - (uintptr_t)SHMBuffer(&fileView->SHM));
+    // TODO is this even neccessary?
+    virtualAddress &= ~(pageSize - 1);
     oserr = SHMCommit(
             &fileView->SHM,
             (vaddr_t)vaddressPtr,
@@ -364,20 +406,9 @@ HandleMemoryMappingEvent(
         return OS_ENOENT;
     }
 
-    // Now we perform the actual filling on the memory area
-    sys_file_transfer_absolute(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
-            fileView->FileHandle.ID,
-            0,
-            fileOffset.u.LowPart,
-            fileOffset.u.HighPart,
-            fileView->SHM.ID,
-            virtualAddress - (uintptr_t)SHMBuffer(&fileView->SHM),
-            MemoryPageSize()
+    return __FillData(
+            fileView,
+            (virtualAddress - (uintptr_t)SHMBuffer(&fileView->SHM)),
+            pageSize
     );
-    gracht_client_wait_message(GetGrachtClient(), &msg.base, GRACHT_MESSAGE_BLOCK);
-    sys_file_transfer_absolute_result(GetGrachtClient(), &msg.base, &oserr, &bytesTransferred);
-    return oserr;
 }

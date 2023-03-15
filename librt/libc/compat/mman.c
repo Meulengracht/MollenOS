@@ -20,6 +20,7 @@
 #include <internal/_io.h>
 #include <os/handle.h>
 #include <os/mollenos.h>
+#include <os/memory.h>
 #include <os/shm.h>
 #include <os/services/file.h>
 #include <os/usched/mutex.h>
@@ -48,18 +49,6 @@ struct __mmap_item {
 static list_t            g_mmaps;
 static struct usched_mtx g_mmapsLock;
 static size_t            g_pageSize = 0;
-
-static inline uintptr_t
-__GetPageSize(void)
-{
-    if (!g_pageSize) {
-        SystemDescriptor_t descriptor;
-        SystemQuery(&descriptor);
-
-        g_pageSize = descriptor.PageSizeBytes;
-    }
-    return g_pageSize;
-}
 
 void StdMmapInitialize(void)
 {
@@ -306,7 +295,7 @@ mmap(
         _In_ int    fd,
         _In_ off_t  offset)
 {
-    size_t pageSize = __GetPageSize();
+    size_t pageSize = MemoryPageSize();
     size_t alignedLength = length;
 
     // Error on offsets that are not page-size aligned.
@@ -332,7 +321,7 @@ munmap(
         _In_ size_t length)
 {
     struct __mmap_item* mi;
-    size_t pageSize = __GetPageSize();
+    size_t pageSize = MemoryPageSize();
     oserr_t oserr;
 
     // Error on addresses that are not page-size aligned.

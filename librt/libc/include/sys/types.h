@@ -43,10 +43,10 @@
 // Handle the definition of time_t
 #ifndef _TIME_T_DEFINED
 #define _TIME_T_DEFINED
-#ifdef _USE_32BIT_TIME_T
-  typedef __time32_t time_t;
+#if _INTEGRAL_MAX_BITS >= 64
+typedef __time64_t time_t;
 #else
-  typedef __time64_t time_t;
+typedef __time32_t time_t;
 #endif
 #endif
 
