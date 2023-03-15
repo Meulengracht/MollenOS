@@ -67,6 +67,17 @@ MemorySpaceChangeProtection(
     return oserr;
 }
 
+static bool
+__IsAddressFreed(
+        _In_ struct MSAllocation* allocation,
+        _In_ vaddr_t              address)
+{
+    // Calculate the offset into the allocation
+    vaddr_t offset = address - allocation->Address;
+    size_t  index  = offset / GetMemorySpacePageSize();
+    return bitmap_bits_set(&allocation->Pages, (int)index, 1);
+}
+
 oserr_t
 MemorySpaceQuery(
         _In_ MemorySpace_t*        memorySpace,
@@ -74,6 +85,7 @@ MemorySpaceQuery(
         _In_ OSMemoryDescriptor_t* descriptor)
 {
     struct MSAllocation* allocation;
+    vaddr_t              aligned = address & ~(GetMemorySpacePageSize() - 1);
 
     if (!memorySpace) {
         return OS_EINVALPARAMS;
@@ -94,6 +106,13 @@ MemorySpaceQuery(
     descriptor->SHMTag = allocation->SHMTag;
     descriptor->AllocationSize = allocation->Length;
     descriptor->Attributes = allocation->Flags;
+
+    // To indicate whether or not the address allocated is actually valid
+    // we do return information about the allocation, but we set length to 0
+    // to indicate that this part of the mapping has been invalidated.
+    if (__IsAddressFreed(allocation, aligned)) {
+        descriptor->AllocationSize = 0;
+    }
     return OS_EOK;
 }
 

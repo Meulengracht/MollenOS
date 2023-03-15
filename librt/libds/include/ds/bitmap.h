@@ -114,7 +114,7 @@ bitmap_clear(
     return bitsCleared;
 }
 
-static int
+static bool
 bitmap_bits_clear(
         _In_ bitmap_t*  bitmap,
         _In_ int        index,
@@ -127,15 +127,15 @@ bitmap_bits_clear(
     for (int i = block; BITMAP_SIZE(bitmap->total) && (bitsLeft > 0); i++) {
         for (int j = blockIndex; j < __BITMAP_BSIZE && bitsLeft > 0; j++, bitsLeft--) {
             if (bitmap->data[i] & (1U << j)) {
-                return 0;
+                return false;
             }
         }
         blockIndex = 0;
     }
-    return 1;
+    return true;
 }
 
-static int
+static bool
 bitmap_bits_set(
         _In_ bitmap_t*  bitmap,
         _In_ int        index,
@@ -148,12 +148,12 @@ bitmap_bits_set(
     for (int i = block; BITMAP_SIZE(bitmap->total) && (bitsLeft > 0); i++) {
         for (int j = blockIndex; j < __BITMAP_BSIZE && bitsLeft > 0; j++, bitsLeft--) {
             if (!(bitmap->data[i] & (1U << j))) {
-                return 0;
+                return false;
             }
         }
         blockIndex = 0;
     }
-    return 1;
+    return true;
 }
 
 #endif //!__BITMAP_H__

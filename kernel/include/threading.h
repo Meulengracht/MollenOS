@@ -316,8 +316,8 @@ SignalExecuteLocalThreadTrap(
  */
 KERNELAPI void KERNELABI
 SignalProcessQueued(
-    _In_ Thread_t* thread,
-    _In_ Context_t*     context);
+    _In_ Thread_t*  thread,
+    _In_ Context_t* context);
 
 /**
  * @brief Enables the threading system for the given cpu calling the function. It will
