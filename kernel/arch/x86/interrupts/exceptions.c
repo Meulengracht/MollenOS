@@ -86,7 +86,7 @@ ExceptionEntry(
 
     // Handle IRQ
     if (context->Irq == 0) {      // Divide By Zero (Non-math instruction)
-        SignalExecuteLocalThreadTrap(context, SIGFPE, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGFPE, NULL, NULL);
         issueFixed = 1;
     }
     else if (context->Irq == 1) { // Single Step
@@ -103,15 +103,15 @@ ExceptionEntry(
         issueFixed = 1;
     }
     else if (context->Irq == 4) { // Overflow
-        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     }
     else if (context->Irq == 5) { // Bound Range Exceeded
-        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     }
     else if (context->Irq == 6) { // Invalid Opcode
-        SignalExecuteLocalThreadTrap(context, SIGILL, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGILL, NULL, NULL);
         issueFixed = 1;
     }
     else if (context->Irq == 7) { // DeviceNotAvailable
@@ -122,7 +122,7 @@ ExceptionEntry(
         assert(thread != NULL);
 
         if (ThreadingFpuException(thread) != OS_EOK) {
-            SignalExecuteLocalThreadTrap(context, SIGFPE, NULL, NULL);
+            SignalExecuteLocalThreadTrap(context, 0, SIGFPE, NULL, NULL);
         }
         issueFixed = 1;
     }
@@ -136,11 +136,11 @@ ExceptionEntry(
         // Fall-through to kernel fault
     }
     else if (context->Irq == 11) { // Segment Not Present
-        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     }
     else if (context->Irq == 12) { // Stack Segment Fault
-        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     } else if (context->Irq == 13) { // General Protection Fault
         core   = CpuCoreCurrent();
@@ -149,7 +149,7 @@ ExceptionEntry(
         ERROR("%s: FAULT: 0x%" PRIxIN ", 0x%" PRIxIN ", 0x%" PRIxIN,
               thread != NULL ? ThreadName(thread) : "Null",
               context->ErrorCode, CONTEXT_IP(context), CONTEXT_SP(context));
-        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGSEGV, NULL, NULL);
         issueFixed = 1;
     } else if (context->Irq == 14) {    // Page Fault
         address = (uintptr_t)__getcr2();
@@ -170,7 +170,7 @@ ExceptionEntry(
                       thread != NULL ? ThreadName(thread) : "Null",
                       address, context->ErrorCode, CONTEXT_IP(context));
                 if (context->ErrorCode & PAGE_FAULT_USER) {
-                    SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+                    SignalExecuteLocalThreadTrap(context, SIGNAL_FLAG_PAGEFAULT, SIGSEGV, (void*)address, NULL);
                     issueFixed = 1;
                 }
             } else if (context->ErrorCode & PAGE_FAULT_WRITE) {
@@ -182,7 +182,7 @@ ExceptionEntry(
                           thread != NULL ? ThreadName(thread) : "Null",
                           address, context->ErrorCode, CONTEXT_IP(context));
                     if (context->ErrorCode & PAGE_FAULT_USER) {
-                        SignalExecuteLocalThreadTrap(context, SIGSEGV, NULL, NULL);
+                        SignalExecuteLocalThreadTrap(context, SIGNAL_FLAG_PAGEFAULT, SIGSEGV, (void*)address, NULL);
                         issueFixed = 1;
                     }
                 } else {
@@ -203,17 +203,17 @@ ExceptionEntry(
             if (address < 0x1000) {
                 // The first page of memory is left as a NULL catcher, in this case there is no fix and we
                 // should only attempt to fix this by executing a trap
-                SignalExecuteLocalThreadTrap(context, SIGSEGV, (void*)address, NULL);
+                SignalExecuteLocalThreadTrap(context, SIGNAL_FLAG_PAGEFAULT, SIGSEGV, (void*)address, (void*)OSPAGEFAULT_RESULT_FAULT);
             } else {
-                enum PageFaultResult result = DebugPageFault(context, address);
-                if (result != PAGEFAULT_RESULT_MAPPED) {
-                    SignalExecuteLocalThreadTrap(context, SIGSEGV, (void*)address, NULL);
+                enum OSPageFaultCode result = DebugPageFault(context, address);
+                if (result != OSPAGEFAULT_RESULT_MAPPED) {
+                    SignalExecuteLocalThreadTrap(context, SIGNAL_FLAG_PAGEFAULT, SIGSEGV, (void*)address, (void*)result);
                 }
             }
             issueFixed = 1;
         }
     } else if (context->Irq == 16 || context->Irq == 19) {    // FPU & SIMD Floating Point Exception
-        SignalExecuteLocalThreadTrap(context, SIGFPE, NULL, NULL);
+        SignalExecuteLocalThreadTrap(context, 0, SIGFPE, NULL, NULL);
         issueFixed = 1;
     }
     

@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * C-Support Signal Implementation
- * - Definitions, prototypes and information needed.
  */
 
 #define __TRACE
@@ -29,17 +23,23 @@
 #include <errno.h>
 #include <gracht/link/vali.h>
 #include <fenv.h>
-#include <internal/_all.h>
 #include <internal/_syscalls.h>
 #include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <os/context.h>
 #include <os/threads.h>
+#include <os/types/signal.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <sys_process_service_client.h>
+
+typedef struct _sig_element {
+    int 		   signal;
+    const char*	   name;
+    __sa_handler_t handler;
+} sig_element;
 
 typedef void (*__sa_process_t)(int, void*, void*);
 
@@ -96,8 +96,7 @@ static sig_element signal_list[] = {
 
 static void __CrashHandler(
     _In_ Context_t*   context,
-    _In_ sig_element* signal,
-    _In_ size_t       flags)
+    _In_ sig_element* signal)
 {
     // When we enter the crash handler, we disable all async operations
     // as we don't want any other userspace threads to run on this XU
@@ -128,7 +127,8 @@ static void __CrashHandler(
     _Exit(EXIT_FAILURE);
 }
 
-static void __CreateSignalInformation(
+static void
+__CreateSignalInformation(
     _In_ int   signal,
     _In_ void* argument0,
     _In_ void* argument1)
@@ -140,6 +140,18 @@ static void __CreateSignalInformation(
     }
 }
 
+static sig_element*
+__GetSignalHandler(
+        _In_ int sigNo)
+{
+    for (int i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
+        if (signal_list[i].signal == sigNo) {
+            return &signal_list[i];
+        }
+    }
+    return NULL;
+}
+
 // Called by assembler functions in arch/_signal.s
 void
 StdInvokeSignal(
@@ -148,30 +160,30 @@ StdInvokeSignal(
     _In_ void*      argument0,
     _In_ void*      argument1)
 {
-    sig_element* sig     = NULL;
-    int          sigNo   = (int)((flags >> 16) & 0xFFFF);
-    unsigned int options = flags & 0xFFFF;
-    int          fatal   = signal_fatality[sigNo] || (options & SIGNAL_HARDWARE_TRAP);
-    int          i;
+    sig_element* sig;
+    int          sigNo = SIGNAL_FLAG_NO(flags);
+    int          fatal = signal_fatality[sigNo] || (flags & SIGNAL_FLAG_HARDWARE_TRAP);
 
-    // SPECIAL CASE MEMORY HANDLERS
-    if (sigNo == SIGSEGV && HandleMemoryMappingEvent(sigNo, argument0) == OS_EOK) {
-        return;
-    }
-    
-    for (i = 0; i < sizeof(signal_list) / sizeof(signal_list[0]); i++) {
-        if (signal_list[i].signal == sigNo) {
-            sig = &signal_list[i];
-            break;
+    if (sigNo == SIGSEGV) {
+        // SPECIAL CASE MEMORY HANDLERS
+        if (flags & SIGNAL_FLAG_PAGEFAULT) {
+            enum OSPageFaultCode code = (enum OSPageFaultCode)(size_t)argument1;
+            if (code == OSPAGEFAULT_RESULT_TRAP) {
+                // A trap was hit, check our trap systems
+                if (HandleMemoryMappingEvent(sigNo, argument0) == OS_EOK) {
+                    return;
+                }
+            }
         }
     }
-    
+
     // Check against unsupported signal
+    sig = __GetSignalHandler(sigNo);
     if (sig != NULL) {
         __CreateSignalInformation(sigNo, argument0, argument1);
         if (sig->handler != SIG_IGN) {
             if (sig->handler == SIG_DFL || sig->handler == SIG_ERR) {
-                __CrashHandler(context, sig, options);
+                __CrashHandler(context, sig);
             } else {
                 __sa_process_t ext_handler = (__sa_process_t)sig->handler;
                 ext_handler(sigNo, argument0, argument1);
@@ -186,10 +198,9 @@ StdInvokeSignal(
             .name    = "Unknown signal",
             .handler = NULL
         };
-        __CrashHandler(context, &_static_sig, options);
-    }
-    else if (fatal) {
-        __CrashHandler(context, sig, options);
+        __CrashHandler(context, &_static_sig);
+    } else if (fatal) {
+        __CrashHandler(context, sig);
     }
 }
 
@@ -203,7 +214,7 @@ StdSignalInitialize()
 }
 
 static int
-is_signal_valid(
+__signal_valid(
     _In_ int   sig,
     _In_ void* handler)
 {
@@ -258,7 +269,7 @@ signal(
     __sa_handler_t temp;
     unsigned int   i;
 
-    if (is_signal_valid(sig, (void*)handler) != 0) {
+    if (__signal_valid(sig, (void *) handler) != 0) {
         return SIG_ERR;
     }
 
@@ -286,7 +297,7 @@ raise(
         return -1;
     }
 
-    flags = ((uint32_t)sig << 16);
+    flags = ((uint32_t)(sig & 0xFF) << 24);
     GetContext(&context);
     StdInvokeSignal(&context, flags, NULL, NULL);
     return 0;
