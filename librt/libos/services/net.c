@@ -32,16 +32,18 @@ struct Socket {
     struct sockaddr_storage ConnectedAddress;
     OSHandle_t              Send;
     bool                    SendMapped;
-    bool                    SendValid;
     OSHandle_t              Recv;
     bool                    RecvMapped;
-    bool                    RecvValid;
     Mutex_t                 Lock;
 };
 
-static void __SocketDestroy(struct OSHandle*);
+static size_t __SocketExport(struct OSHandle*, void*);
+static size_t __SocketImport(struct OSHandle*, const void*);
+static void   __SocketDestroy(struct OSHandle*);
 
 const OSHandleOps_t g_socketOps = {
+        .Deserialize = __SocketImport,
+        .Serialize = __SocketExport,
         .Destroy = __SocketDestroy
 };
 
@@ -80,6 +82,28 @@ __SocketClose(
     sys_socket_close_result(GetGrachtClient(), &msg.base, &oserr);
 }
 
+static oserr_t
+__SocketAttachPipes(
+        _In_ struct Socket* socket)
+{
+    oserr_t oserr;
+
+    oserr = SHMAttach(socket->Recv.ID, &socket->Recv);
+    if (oserr != OS_EOK) {
+        socket->Recv.ID = UUID_INVALID;
+        socket->Send.ID = UUID_INVALID;
+        return oserr;
+    }
+
+    oserr = SHMAttach(socket->Recv.ID, &socket->Recv);
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Recv);
+        socket->Recv.ID = UUID_INVALID;
+        socket->Send.ID = UUID_INVALID;
+    }
+    return oserr;
+}
+
 oserr_t
 OSSocketOpen(
         _In_  int         domain,
@@ -109,6 +133,12 @@ OSSocketOpen(
     if (socket == NULL) {
         __SocketClose(handleID);
         return OS_EOOM;
+    }
+
+    oserr = __SocketAttachPipes(socket);
+    if (socket == NULL) {
+        __SocketClose(handleID);
+        return oserr;
     }
 
     oserr = OSHandleWrap(
@@ -189,6 +219,12 @@ OSSocketAccept(
     if (accepted == NULL) {
         __SocketClose(handleID);
         return OS_EOOM;
+    }
+
+    oserr = __SocketAttachPipes(accepted);
+    if (accepted == NULL) {
+        __SocketClose(handleID);
+        return oserr;
     }
 
     oserr = OSHandleWrap(
@@ -412,21 +448,7 @@ OSSocketSendPipe(
     // inheritted).
     MutexLock(&socket->Lock);
     if (socket->SendMapped) {
-        // OK so the pipe is mapped, then it may still not be valid
-        if (!socket->SendValid) {
-            oserr = OSHandlesFind(socket->Send.ID, &socket->Send);
-            if (oserr != OS_EOK) {
-                // Something is horrible wrong
-                goto exit;
-            }
-            socket->SendValid = true;
-        }
         *pipeOut = SHMBuffer(&socket->Send);
-        goto exit;
-    }
-
-    oserr = SHMAttach(socket->Send.ID, &socket->Send);
-    if (oserr != OS_EOK){
         goto exit;
     }
 
@@ -442,10 +464,9 @@ OSSocketSendPipe(
     }
 
     socket->SendMapped = true;
-    socket->SendValid = true;
     *pipeOut = SHMBuffer(&socket->Send);
 
-    exit:
+exit:
     MutexUnlock(&socket->Lock);
     return oserr;
 }
@@ -666,15 +687,6 @@ OSSocketRecvPipe(
     // inheritted).
     MutexLock(&socket->Lock);
     if (socket->RecvMapped) {
-        // OK so the pipe is mapped, then it may still not be valid
-        if (!socket->RecvValid) {
-            oserr = OSHandlesFind(socket->Recv.ID, &socket->Recv);
-            if (oserr != OS_EOK) {
-                // Something is horrible wrong
-                goto exit;
-            }
-            socket->RecvValid = true;
-        }
         *pipeOut = SHMBuffer(&socket->Recv);
         goto exit;
     }
@@ -696,7 +708,6 @@ OSSocketRecvPipe(
     }
 
     socket->RecvMapped = true;
-    socket->RecvValid = true;
     *pipeOut = SHMBuffer(&socket->Recv);
 
 exit:
@@ -941,6 +952,61 @@ OSSocketRecv(
         }
     }
     return OS_EOK;
+}
+
+
+static size_t
+__SocketExport(
+        _In_ struct OSHandle* handle,
+        _In_ void*            data)
+{
+    struct Socket* socket = handle->Payload;
+    uint8_t*       data8 = data;
+
+    // When exporting we only save the connected address and
+    // the type
+    *((int*)&data8[0]) = socket->Type;
+    *((uuid_t*)&data8[sizeof(int)]) = socket->Send.ID;
+    *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]) = socket->Send.ID;
+    memcpy(
+            &data8[sizeof(int) + (2 * sizeof(uuid_t))],
+            &socket->ConnectedAddress,
+            sizeof(struct sockaddr_storage)
+    );
+    return sizeof(int) + (2 * sizeof(uuid_t)) + sizeof(struct sockaddr_storage);
+}
+
+static size_t
+__SocketImport(
+        _In_ struct OSHandle* handle,
+        _In_ const void*      data)
+{
+    struct Socket* socket;
+    const uint8_t* data8 = data;
+    int            type;
+    uuid_t         sendID, recvID;
+
+    type = *((int*)&data8[0]);
+    sendID = *((uuid_t*)&data8[sizeof(int)]);
+    recvID = *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]);
+
+    // When importing, we do a few extra steps. We need to recreate and setup
+    // the Socket data-structure.
+    socket = __SocketNew(0, type, 0, sendID, recvID);
+    if (socket == NULL) {
+        goto exit;
+    }
+
+    // When the SHM buffers are imported, they are automatically attached to, they are however
+    // not mapped.
+    memcpy(
+            &socket->ConnectedAddress,
+            &data[sizeof(int) + (2 * sizeof(uuid_t))],
+            sizeof(struct sockaddr_storage)
+    );
+
+exit:
+    return sizeof(int) + (2 * sizeof(uuid_t)) + sizeof(struct sockaddr_storage);
 }
 
 static void
