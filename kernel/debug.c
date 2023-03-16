@@ -86,17 +86,17 @@ __MapFaultingAddress(
     return oserr;
 }
 
-static enum PageFaultResult
+static enum OSPageFaultCode
 __HandleUserspaceFault(
         _In_ OSMemoryDescriptor_t* descriptor,
         _In_ uintptr_t             address)
 {
-    enum PageFaultResult result = PAGEFAULT_RESULT_MAPPED;
+    enum OSPageFaultCode result = OSPAGEFAULT_RESULT_MAPPED;
 
     // In case of a freed part of the allocation, do not attempt mapping
     // that part
     if (descriptor->AllocationSize == 0) {
-        return PAGEFAULT_RESULT_FAULT;
+        return OSPAGEFAULT_RESULT_FAULT;
     }
 
     // userspace allocation, perform additional checks.
@@ -109,25 +109,25 @@ __HandleUserspaceFault(
         // was hit, we've beyound bounds.
         if (address < descriptor->StartAddress) {
             // Guard page was hit, abort
-            return PAGEFAULT_RESULT_OVERFLOW;
+            return OSPAGEFAULT_RESULT_OVERFLOW;
         }
     } else if (descriptor->Attributes & MAPPING_TRAPPAGE) {
         TRACE("DebugPageFault trappage hit 0x%" PRIxIN, address);
-        result = PAGEFAULT_RESULT_TRAP;
+        result = OSPAGEFAULT_RESULT_TRAP;
     }
 
     if (__MapFaultingAddress(descriptor, address) != OS_EOK) {
-        result = PAGEFAULT_RESULT_FAULT;
+        result = OSPAGEFAULT_RESULT_FAULT;
     }
     return result;
 }
 
-enum PageFaultResult
+enum OSPageFaultCode
 DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address)
 {
-    enum PageFaultResult result = PAGEFAULT_RESULT_MAPPED;
+    enum OSPageFaultCode result = OSPAGEFAULT_RESULT_MAPPED;
     OSMemoryDescriptor_t descriptor  = { .SHMTag = UUID_INVALID };
     MemorySpace_t*       memorySpace = GetCurrentMemorySpace();
     oserr_t              oserr;
@@ -142,7 +142,7 @@ DebugPageFault(
 
     oserr = __MapFaultingAddress(&descriptor, address);
     if (oserr != OS_EOK) {
-        result = PAGEFAULT_RESULT_FAULT;
+        result = OSPAGEFAULT_RESULT_FAULT;
     }
     return result;
 }

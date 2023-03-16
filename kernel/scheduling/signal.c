@@ -30,7 +30,6 @@
 #include <debug.h>
 #include <ds/streambuffer.h>
 #include <handle.h>
-#include <internal/_signal.h>
 #include <machine.h>
 #include <scheduler.h>
 #include <threading.h>
@@ -147,13 +146,14 @@ SignalSend(
 
 void
 SignalExecuteLocalThreadTrap(
-        _In_ Context_t* context,
-        _In_ int        signal,
-        _In_ void*      argument0,
-        _In_ void*      argument1)
+        _In_ Context_t*   context,
+        _In_ int          signal,
+        _In_ unsigned int flags,
+        _In_ void*        argument0,
+        _In_ void*        argument1)
 {
-    Thread_t* thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
-    size_t    flags  = ((uint32_t)signal << 16 | SIGNAL_SEPERATE_STACK | SIGNAL_HARDWARE_TRAP);
+    Thread_t*    thread = ThreadCurrentForCore(ArchGetProcessorCoreId());
+    unsigned int argument = ((unsigned int)(signal & 0xFF) << 24 | SIGNAL_FLAG_SEPERATE_STACK | SIGNAL_FLAG_HARDWARE_TRAP | flags);
 
     assert(thread != NULL);
 
@@ -177,10 +177,14 @@ SignalExecuteLocalThreadTrap(
 
     // We do absolutely not care about the existing signal stack
     // in case of local trap signals
-    ArchThreadContextPushInterceptor(context,
-                                     (uintptr_t) thread->Contexts[THREADING_CONTEXT_SIGNAL],
-                                     MemorySpaceSignalHandler(thread->MemorySpace), flags,
-                                     (uintptr_t) argument0, (uintptr_t) argument1);
+    ArchThreadContextPushInterceptor(
+            context,
+            (uintptr_t)thread->Contexts[THREADING_CONTEXT_SIGNAL],
+            MemorySpaceSignalHandler(thread->MemorySpace),
+            argument,
+            (uintptr_t)argument0,
+            (uintptr_t)argument1
+    );
 #endif
 }
 
@@ -222,14 +226,14 @@ SignalProcessQueued(
             break;
         }
         
-        if (threadSignal.Flags & SIGNAL_SEPERATE_STACK) {
+        if (threadSignal.Flags & SIGNAL_FLAG_SEPERATE_STACK) {
             // Missing implementation
             // AlternativeStack = Signal.Stack;
         } else {
             alternativeStack = 0;
         }
 
-        flags = ((uint32_t)threadSignal.Signal << 16 | threadSignal.Flags);
+        flags = ((uint32_t)threadSignal.Signal << 24 | threadSignal.Flags);
         ArchThreadContextPushInterceptor(
                 context,
                 alternativeStack,

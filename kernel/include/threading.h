@@ -28,6 +28,7 @@
 #include <os/osdefs.h>
 #include <os/context.h>
 #include <os/types/async.h>
+#include <os/types/signal.h>
 #include <ds/list.h>
 #include <semaphore.h>
 #include <mutex.h>
@@ -305,10 +306,11 @@ SignalSend(
  */
 KERNELAPI void KERNELABI
 SignalExecuteLocalThreadTrap(
-        _In_ Context_t* context,
-        _In_ int        signal,
-        _In_ void*      argument0,
-        _In_ void*      argument1);
+        _In_ Context_t*   context,
+        _In_ int          signal,
+        _In_ unsigned int flags,
+        _In_ void*        argument0,
+        _In_ void*        argument1);
 
 /**
  * SignalProcessQueued
