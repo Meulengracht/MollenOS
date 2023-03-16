@@ -1004,7 +1004,7 @@ __SocketImport(
             &data[sizeof(int) + (2 * sizeof(uuid_t))],
             sizeof(struct sockaddr_storage)
     );
-
+    handle->Payload = socket;
 exit:
     return sizeof(int) + (2 * sizeof(uuid_t)) + sizeof(struct sockaddr_storage);
 }
