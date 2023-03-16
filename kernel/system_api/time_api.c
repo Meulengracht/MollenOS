@@ -108,10 +108,6 @@ ScTimeSleep(
         _Out_Opt_ OSTimestamp_t* remainingOut)
 {
     oserr_t oserr;
-
-    if (deadline == NULL) {
-        return OS_EINVALPARAMS;
-    }
     TRACE("ScTimeSleep(duration=xx)");
 
     oserr = SchedulerSleep(deadline);
