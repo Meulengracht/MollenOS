@@ -417,7 +417,7 @@ SchedulerSleep(
     // The moment we change this while the TimeLeft is set, the
     // sleep will automatically get started
     ArchThreadYield();
-    
+
     smp_rmb();
     if (object->TimeoutReason != OS_ETIMEOUT) {
         return OS_EINTERRUPTED;

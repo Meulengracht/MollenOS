@@ -99,10 +99,11 @@ DebugPageFault(
     _In_ Context_t* context,
     _In_ uintptr_t  address);
 
-/* DebugPanic
- * Kernel panic function - Call this to enter panic mode
- * and disrupt normal functioning. This function does not return again */
-KERNELAPI oserr_t KERNELABI
+/**
+ * @brief Call this to enter panic mode. There is no return from this function and
+ * all other cores will be halted.
+ */
+KERNELAPI void KERNELABI
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,

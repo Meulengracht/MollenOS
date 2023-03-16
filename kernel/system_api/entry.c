@@ -129,7 +129,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 63
+#define SYSTEM_CALL_COUNT 62
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -227,10 +227,10 @@ static struct SystemCallDescriptor {
 
         // Timing interface
         DefineSyscall(57, ScSystemClockTick),
-        DefineSyscall(59, ScSystemClockFrequency),
-        DefineSyscall(60, ScSystemTime),
-        DefineSyscall(61, ScTimeSleep),
-        DefineSyscall(62, ScTimeStall)
+        DefineSyscall(58, ScSystemClockFrequency),
+        DefineSyscall(59, ScSystemTime),
+        DefineSyscall(60, ScTimeSleep),
+        DefineSyscall(61, ScTimeStall)
 };
 
 Context_t*

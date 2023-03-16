@@ -377,6 +377,14 @@ SHMCreate(
     if (oserr != OS_EOK) {
         __SHMBufferDelete(buffer);
     } else {
+        // Was a key provided? Then we should set up the key
+        if (shm->Key != NULL) {
+            oserr = RegisterHandlePath(buffer->ID, shm->Key);
+            if (oserr != OS_EOK) {
+                __SHMBufferDelete(buffer);
+                return oserr;
+            }
+        }
         *handleOut = buffer->ID;
     }
     return oserr;

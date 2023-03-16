@@ -61,15 +61,11 @@ HardFault(
             DEBUG("existing attribs for address: 0x%" PRIxIN "", attributes);
         }
     }
+    ArchThreadContextDump(context);
 
     // Enter panic handler
-    ArchThreadContextDump(context);
     DEBUG("Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
           context->Irq, context->ErrorCode, CONTEXT_IP(context));
-    if (context) {
-        __asm { xchg bx, bx };
-        return;
-    }
     DebugPanic(FATAL_SCOPE_KERNEL, context,
         "Unhandled or fatal interrupt %" PRIuIN ", Error Code: %" PRIuIN ", Faulty Address: 0x%" PRIxIN "",
                context->Irq, context->ErrorCode, CONTEXT_IP(context));

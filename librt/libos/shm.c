@@ -195,7 +195,7 @@ SHMMap(
         _In_ size_t       length,
         _In_ unsigned int flags)
 {
-    if (handle == NULL) {
+    if (handle == NULL || handle->Payload == NULL) {
         return OS_EINVALPARAMS;
     }
     return Syscall_SHMMap(handle->Payload, offset, length, flags);
@@ -207,7 +207,7 @@ SHMCommit(
         _In_ vaddr_t     address,
         _In_ size_t      length)
 {
-    if (handle == NULL) {
+    if (handle == NULL || handle->Payload == NULL) {
         return OS_EINVALPARAMS;
     }
     return Syscall_SHMCommit(handle->Payload, address, length);
@@ -219,7 +219,7 @@ SHMUnmap(
         _In_ void*       address,
         _In_ size_t      length)
 {
-    if (handle == NULL) {
+    if (handle == NULL || handle->Payload == NULL) {
         return OS_EINVALPARAMS;
     }
     return Syscall_SHMUnmap(handle->Payload, address, length);
@@ -229,7 +229,7 @@ void*
 SHMBuffer(
         _In_ OSHandle_t* handle)
 {
-    if (handle == NULL) {
+    if (handle == NULL || handle->Payload == NULL) {
         return NULL;
     }
     return ((SHMHandle_t*)handle->Payload)->Buffer;
@@ -239,7 +239,7 @@ size_t
 SHMBufferLength(
         _In_ OSHandle_t* handle)
 {
-    if (handle == NULL) {
+    if (handle == NULL || handle->Payload == NULL) {
         return 0;
     }
     return ((SHMHandle_t*)handle->Payload)->Length;
@@ -249,7 +249,7 @@ size_t
 SHMBufferCapacity(
         _In_ OSHandle_t* handle)
 {
-    if (handle == NULL) {
+    if (handle == NULL || handle->Payload == NULL) {
         return 0;
     }
     return ((SHMHandle_t*)handle->Payload)->Capacity;
