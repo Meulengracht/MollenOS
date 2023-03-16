@@ -28,7 +28,6 @@
 #include <os/handle.h>
 #include <os/notification_queue.h>
 #include <os/shm.h>
-#include <os/mollenos.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -163,14 +162,47 @@ int pipe(long size, int flags)
     return stdio_handle_iod(object);
 }
 
+static streambuffer_t*
+__stream_safe(
+        _In_ stdio_handle_t* handle)
+{
+    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
+    oserr_t         oserr;
+
+    if (stream != NULL) {
+        return stream;
+    }
+
+    // We expect this to happen after being imported, but it's only valid
+    // to be NULL in this exact case, so we need to check for import
+    if (!(handle->XTFlags & __IO_INHERITTED)) {
+        return NULL;
+    }
+
+    oserr = SHMMap(
+            &handle->OSHandle,
+            0,
+            SHMBufferCapacity(&handle->OSHandle),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    if (oserr != OS_EOK) {
+        return NULL;
+    }
+    return SHMBuffer(&handle->OSHandle);
+}
+
 static oserr_t
 __pipe_read(stdio_handle_t* handle, void* buffer, size_t length, size_t* bytes_read)
 {
     struct Pipe*    pipe = handle->OpsContext;
-    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
+    streambuffer_t* stream = __stream_safe(handle);
     size_t          bytesRead;
     TRACE("stdio_pipe_op_read(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
+
+    if (stream == NULL) {
+        return OS_EOOM;
+    }
 
     bytesRead = streambuffer_stream_in(
             stream,
@@ -191,10 +223,14 @@ static oserr_t
 __pipe_write(stdio_handle_t* handle, const void* buffer, size_t length, size_t* bytes_written)
 {
     struct Pipe*    pipe = handle->OpsContext;
-    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
+    streambuffer_t* stream = __stream_safe(handle);
     size_t          bytesWritten;
     TRACE("stdio_pipe_op_write(handle=0x%" PRIxIN ", buffer = 0x%" PRIxIN ", length=%" PRIuIN ")",
           handle, buffer, length);
+
+    if (stream == NULL) {
+        return OS_EOOM;
+    }
 
     bytesWritten = streambuffer_stream_out(
             stream,
@@ -270,7 +306,11 @@ __pipe_ioctl(
         _In_ va_list         args)
 {
     struct Pipe*    pipe = handle->OpsContext;
-    streambuffer_t* stream = SHMBuffer(&handle->OSHandle);
+    streambuffer_t* stream = __stream_safe(handle);
+
+    if (stream == NULL) {
+        return OS_EDEVFAULT;
+    }
 
     if ((unsigned int)request == FIONBIO) {
         int* nonBlocking = va_arg(args, int*);

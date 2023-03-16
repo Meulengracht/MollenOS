@@ -38,7 +38,7 @@ __ParseInheritationHeader(
     status = stdio_handle_create(
             header->IOD,
             0,
-            header->XTFlags | __IO_PERSISTANT,
+            header->XTFlags | __IO_PERSISTANT | __IO_INHERITTED,
             header->Signature,
             NULL,
             &handle

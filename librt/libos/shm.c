@@ -17,14 +17,15 @@
 
 #include <internal/_syscalls.h>
 #include <os/handle.h>
-#include <os/memory.h>
 #include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
 
-static void __SHMDestroy(struct OSHandle*);
+static size_t __SHMImport(struct OSHandle*, const void*);
+static void   __SHMDestroy(struct OSHandle*);
 
 const OSHandleOps_t g_shmOps = {
+        .Deserialize = __SHMImport,
         .Destroy = __SHMDestroy
 };
 
@@ -303,6 +304,29 @@ SHMSGTableOffset(
         offset -= sgTable->Entries[i].Length;
     }
     return OS_ENOENT;
+}
+
+
+static size_t
+__SHMImport(
+        _In_ struct OSHandle* handle,
+        _In_ const void*      data)
+{
+    // So when importing we currently don't serialize any extra data, however
+    // we do attach to the SHM buffer immediately.
+    oserr_t oserr;
+    _CRT_UNUSED(data);
+
+    handle->Payload = __shm_handle_new();
+    if (handle->Payload == NULL) {
+        return 0;
+    }
+
+    oserr = Syscall_SHMAttach(handle->ID, handle->Payload);
+    if (oserr != OS_EOK) {
+        free(handle->Payload);
+    }
+    return 0;
 }
 
 static void
