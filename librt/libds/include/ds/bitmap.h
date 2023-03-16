@@ -18,6 +18,7 @@
 #ifndef __BITMAP_H__
 #define __BITMAP_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
