@@ -136,10 +136,10 @@ ScMapRamdisk(
         _Out_ void**  bufferOut,
         _Out_ size_t* lengthOut)
 {
-    oserr_t osStatus;
-    vaddr_t    mapping;
+    oserr_t oserr;
+    vaddr_t mapping;
 
-    osStatus = MemorySpaceCloneMapping(
+    oserr = MemorySpaceCloneMapping(
             GetCurrentMemorySpace(),
             GetCurrentMemorySpace(),
             (vaddr_t)GetMachine()->BootInformation.Ramdisk.Data,
@@ -148,9 +148,9 @@ ScMapRamdisk(
             MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
             MAPPING_VIRTUAL_PROCESS
     );
-    if (osStatus == OS_EOK) {
+    if (oserr == OS_EOK) {
         *bufferOut = (void*)mapping;
         *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
     }
-    return osStatus;
+    return oserr;
 }

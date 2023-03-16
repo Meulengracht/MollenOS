@@ -179,7 +179,7 @@ DebugHaltAllProcessorCores(
     return OS_EOK;
 }
 
-oserr_t
+void
 DebugPanic(
     _In_ int         FatalityScope,
     _In_ Context_t*  Context,
@@ -230,15 +230,13 @@ DebugPanic(
         ArchProcessorHalt();
     } else if (FatalityScope == FATAL_SCOPE_PROCESS) {
         // @todo
-    }  else if (FatalityScope == FATAL_SCOPE_THREAD) {
+    } else if (FatalityScope == FATAL_SCOPE_THREAD) {
         // @todo
-    }
-    else {
+    } else {
         ERROR("Encounted an unkown fatality scope %" PRIiIN "", FatalityScope);
         ArchProcessorHalt();
     }
     for(;;);
-    return OS_EOK;
 }
 
 oserr_t

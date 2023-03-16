@@ -284,14 +284,19 @@ PSParseServiceYAML(
     yaml_parser_initialize(&parser);
     yaml_parser_set_input_string(&parser, yaml, length);
     do {
+        // Against *all* logic and the entire C-standard, this function returns 1 on success
+        // and 0 on error.
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
-            ERROR("PSParseServiceYAML failed to parse driver configuration");
+            ERROR("PSParseServiceYAML service configuration is illegally formattted");
             return OS_EUNKNOWN;
         }
+
+        // And to just keep things confusing, __ConsumeEvent returns -1 on error and
+        // 0 on success.
         status = __ConsumeEvent(&state, &event);
-        if (status == 0) {
-            ERROR("PSParseServiceYAML failed to parse driver configuration");
+        if (status) {
+            ERROR("PSParseServiceYAML failed to parse service configuration");
             return OS_EUNKNOWN;
         }
         yaml_event_delete(&event);

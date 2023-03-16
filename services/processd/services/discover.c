@@ -141,11 +141,13 @@ __SystemServiceNew(
         return NULL;
     }
     memset(systemService, 0, sizeof(struct SystemService));
-    systemService->Path = __ServiceNameFromYaml(yamlName);
-    if (systemService->Path == NULL) {
+
+    systemService->Name = __ServiceNameFromYaml(yamlName);
+    if (systemService->Name == NULL) {
         free(systemService);
         return NULL;
     }
+
     systemService->Path = mstr_fmt("/initfs/services/%ms", systemService->Name);
     if (systemService->Path == NULL) {
         __SystemServiceDelete(systemService);
@@ -317,7 +319,7 @@ __ParseRamdisk(
         // Parse the YAML configuration to check for valid service entry
         oserr = __ParseServiceConfiguration(directoryHandle, entry.Name);
         if (oserr != OS_EOK) {
-            WARNING("__ParseRamdisk failed to parse service confguration %s", entry.Name);
+            WARNING("__ParseRamdisk failed to parse service confguration %s: %u", entry.Name, oserr);
         }
     }
 
@@ -338,10 +340,12 @@ PSBootstrap(
     _CRT_UNUSED(__unused1);
     TRACE("PSBootstrap()");
 
-    // Initialize resources
     hashtable_construct(
-            &g_services, 0, sizeof(struct SystemService),
-            __svc_hash, __svc_cmp);
+            &g_services,
+            0,
+            sizeof(struct SystemService),
+            __svc_hash, __svc_cmp
+    );
 
     // Let's map in the ramdisk and discover various service modules
     oserr = DdkUtilsMapRamdisk(&ramdisk, &ramdiskSize);
@@ -356,7 +360,7 @@ PSBootstrap(
 
     oserr = __ParseRamdisk(ramdisk, ramdiskSize);
     if (oserr != OS_EOK) {
-        ERROR("ProcessBootstrap failed to parse ramdisk");
+        ERROR("ProcessBootstrap failed to parse ramdisk: %u", oserr);
         return;
     }
     __SpawnServices();

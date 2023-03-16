@@ -30,7 +30,7 @@
 oserr_t
 ScSystemClockTick(
         _In_ enum OSClockSource source,
-        _In_ UInteger64_t*          tickOut)
+        _In_ UInteger64_t*      tickOut)
 {
     if (!tickOut) {
         return OS_EINVALPARAMS;
@@ -108,7 +108,7 @@ ScTimeSleep(
         _Out_Opt_ OSTimestamp_t* remainingOut)
 {
     oserr_t oserr;
-    TRACE("ScTimeSleep(duration=xx)");
+    TRACE("ScTimeSleep(duration=0x%llx)", deadline);
 
     oserr = SchedulerSleep(deadline);
     if (oserr == OS_EINTERRUPTED && remainingOut) {
