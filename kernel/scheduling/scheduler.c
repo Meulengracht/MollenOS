@@ -395,14 +395,13 @@ SchedulerSleep(
 {
     SchedulerObject_t* object;
 
-    TRACE("SchedulerSleep(deadline=%" PRIuIN ")", deadline->Seconds);
     if (deadline == NULL) {
         ERROR("SchedulerSleep deadline must be provided");
         return OS_EINVALPARAMS;
     }
 
     object = SchedulerGetCurrentObject(ArchGetProcessorCoreId());
-    if (!object) { // This can be called before scheduler is available
+    if (object == NULL) { // This can be called before scheduler is available
         SystemTimerStall(deadline);
         return OS_EOK;
     }

@@ -237,14 +237,18 @@ __AllocateStackInMemory(
     // Adjust pointer to top of stack and then commit the first stack page
     oserr = MemorySpaceCommit(
             memorySpace,
-            contextAddress + (contextReservedSize - contextComittedSize),
+            contextAddress - contextComittedSize,
             &contextPhysicalAddress,
             contextComittedSize,
             0,
             0
     );
     if (oserr != OS_EOK) {
-        MemorySpaceUnmap(memorySpace, contextAddress, contextReservedSize);
+        MemorySpaceUnmap(
+                memorySpace,
+                contextAddress - contextReservedSize,
+                contextReservedSize
+        );
     }
     *contextAddressOut = contextAddress;
     return oserr;

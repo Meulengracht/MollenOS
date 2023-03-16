@@ -430,29 +430,34 @@ MemorySpaceCommit(
 {
     int     pageCount = DIVUP(size, GetMemorySpacePageSize());
     int     pagesComitted;
-    oserr_t osStatus;
+    oserr_t oserr;
 
     if (!memorySpace || !physicalAddressValues) {
         return OS_EINVALPARAMS;
     }
 
     if (__PMTYPE(placementFlags) != MAPPING_PHYSICAL_FIXED) {
-        osStatus = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
-        if (osStatus != OS_EOK) {
-            return osStatus;
+        oserr = AllocatePhysicalMemory(pageMask, pageCount, &physicalAddressValues[0]);
+        if (oserr != OS_EOK) {
+            return oserr;
         }
     }
 
-    osStatus = ArchMmuCommitVirtualPage(memorySpace, address, &physicalAddressValues[0],
-                                        pageCount, &pagesComitted);
-    if (osStatus != OS_EOK) {
+    oserr = ArchMmuCommitVirtualPage(
+            memorySpace,
+            address,
+            &physicalAddressValues[0],
+            pageCount,
+            &pagesComitted
+    );
+    if (oserr != OS_EOK) {
         ERROR("[memory] [commit] status %u, comitting address 0x%" PRIxIN ", length 0x%" PRIxIN,
-              osStatus, address, size);
+              oserr, address, size);
         if (__PMTYPE(placementFlags) != MAPPING_PHYSICAL_FIXED) {
             FreePhysicalMemory(pageCount, &physicalAddressValues[0]);
         }
     }
-    return osStatus;
+    return oserr;
 }
 
 static oserr_t

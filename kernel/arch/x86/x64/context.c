@@ -185,8 +185,8 @@ __GetContextFlags(
         _Out_ unsigned int* placementFlagsOut,
         _Out_ unsigned int* memoryFlagsOut)
 {
-    unsigned int   placementFlags = 0;
-    unsigned int   memoryFlags    = MAPPING_DOMAIN | MAPPING_STACK;
+    unsigned int placementFlags = 0;
+    unsigned int memoryFlags    = MAPPING_DOMAIN | MAPPING_STACK;
 
     if (contextType == THREADING_CONTEXT_LEVEL0) {
         placementFlags = MAPPING_VIRTUAL_GLOBAL;
@@ -232,14 +232,18 @@ __AllocateStackInMemory(
     // Adjust pointer to top of stack and then commit the first stack page
     oserr = MemorySpaceCommit(
             memorySpace,
-            contextAddress + (contextReservedSize - contextComittedSize),
+            contextAddress - contextComittedSize,
             &contextPhysicalAddress,
             contextComittedSize,
             0,
             0
     );
     if (oserr != OS_EOK) {
-        MemorySpaceUnmap(memorySpace, contextAddress, contextReservedSize);
+        MemorySpaceUnmap(
+                memorySpace,
+                contextAddress - contextReservedSize,
+                contextReservedSize
+        );
     }
     *contextAddressOut = contextAddress;
     return oserr;
@@ -280,10 +284,11 @@ ArchThreadContextCreate(
             &contextAddress
     );
     if (oserr != OS_EOK) {
+        ERROR("ArchThreadContextCreate: failed to allocate memory for stack");
         return NULL;
     }
 
-    contextAddress += contextSize - sizeof(Context_t);
+    contextAddress -= sizeof(Context_t);
 	return (Context_t*)contextAddress;
 }
 
