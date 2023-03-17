@@ -59,7 +59,7 @@ add_subdirectory(components)
 add_subdirectory(memory)
 add_subdirectory(output)
 add_subdirectory(scheduling)
-add_subdirectory(system_api)
+add_subdirectory(api)
 add_subdirectory(utils)
 
 set_target_properties (

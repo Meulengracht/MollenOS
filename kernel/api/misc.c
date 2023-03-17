@@ -22,7 +22,6 @@
 
 #include <arch/output.h>
 #include <arch/utils.h>
-#include <os/mollenos.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <console.h>
@@ -101,6 +100,13 @@ ScQueryDisplayInformation(
 }
 
 oserr_t
+ScInstallSignalHandler(
+        _In_ uintptr_t handler)
+{
+    return MemorySpaceSetSignalHandler(GetCurrentMemorySpace(), handler);
+}
+
+oserr_t
 ScMapBootFramebuffer(
         _Out_ void** bufferOut)
 {
@@ -127,30 +133,6 @@ ScMapBootFramebuffer(
     );
     if (oserr == OS_EOK) {
         *bufferOut = (void*)fbVirtual;
-    }
-    return oserr;
-}
-
-oserr_t
-ScMapRamdisk(
-        _Out_ void**  bufferOut,
-        _Out_ size_t* lengthOut)
-{
-    oserr_t oserr;
-    vaddr_t mapping;
-
-    oserr = MemorySpaceCloneMapping(
-            GetCurrentMemorySpace(),
-            GetCurrentMemorySpace(),
-            (vaddr_t)GetMachine()->BootInformation.Ramdisk.Data,
-            &mapping,
-            GetMachine()->BootInformation.Ramdisk.Length,
-            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
-            MAPPING_VIRTUAL_PROCESS
-    );
-    if (oserr == OS_EOK) {
-        *bufferOut = (void*)mapping;
-        *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
     }
     return oserr;
 }
