@@ -1247,6 +1247,16 @@ void* LookupHandleOfType(
     return g_testContext.LookupHandleOfType.ReturnValue;
 }
 
+oserr_t
+RegisterHandlePath(
+        _In_ uuid_t      handleId,
+        _In_ const char* path)
+{
+    printf("RegisterHandlePath()\n");
+    assert_int_not_equal(handleId, UUID_INVALID);
+    assert_non_null(path);
+}
+
 oserr_t ArchSHMTypeToPageMask(
         _In_  unsigned int dmaType,
         _Out_ size_t*      pageMaskOut)

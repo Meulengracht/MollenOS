@@ -114,7 +114,7 @@ extern oserr_t ScLookupHandle(const char*, uuid_t*);
 extern oserr_t ScSetHandleActivity(uuid_t, unsigned int);
 
 extern oserr_t ScCreateHandleSet(unsigned int, uuid_t*);
-extern oserr_t ScControlHandleSet(uuid_t, int, uuid_t, unsigned int, struct ioset_event*);
+extern oserr_t ScControlHandleSet(uuid_t, int, uuid_t, struct ioset_event*);
 extern oserr_t ScListenHandleSet(uuid_t, OSAsyncContext_t*, HandleSetWaitParameters_t*, int*);
 
 // Misc interface

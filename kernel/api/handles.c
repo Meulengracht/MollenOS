@@ -26,13 +26,6 @@
 #include <memoryspace.h>
 
 oserr_t
-ScInstallSignalHandler(
-    _In_ uintptr_t handler)
-{
-    return MemorySpaceSetSignalHandler(GetCurrentMemorySpace(), handler);
-}
-
-oserr_t
 ScCreateHandle(
         _Out_ uuid_t* HandleOut)
 {

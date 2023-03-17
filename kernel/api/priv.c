@@ -174,3 +174,27 @@ ScGetProcessBaseAddress(
     }
     return OS_EINVALPARAMS;
 }
+
+oserr_t
+ScMapRamdisk(
+        _Out_ void**  bufferOut,
+        _Out_ size_t* lengthOut)
+{
+    oserr_t oserr;
+    vaddr_t mapping;
+
+    oserr = MemorySpaceCloneMapping(
+            GetCurrentMemorySpace(),
+            GetCurrentMemorySpace(),
+            (vaddr_t)GetMachine()->BootInformation.Ramdisk.Data,
+            &mapping,
+            GetMachine()->BootInformation.Ramdisk.Length,
+            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
+            MAPPING_VIRTUAL_PROCESS
+    );
+    if (oserr == OS_EOK) {
+        *bufferOut = (void*)mapping;
+        *lengthOut = GetMachine()->BootInformation.Ramdisk.Length;
+    }
+    return oserr;
+}
