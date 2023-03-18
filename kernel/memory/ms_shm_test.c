@@ -977,6 +977,7 @@ void TestSHMMap_CanRemap(void** state)
     test_free(g_testContext.CreateHandle.CreatedResource);
 }
 
+// 3. CanAttachAndMap
 // 4. SHMUnmap
 // 5. SHMCommit
 // 6. SHMBuildSG

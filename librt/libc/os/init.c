@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 #define __need_quantity
 
 #include <assert.h>
@@ -76,7 +76,9 @@ static uint8_t* memdup(const char* data, size_t length)
 
 // environment data is a null terminated array of
 // null terminated strings
-static int __build_environment(const char* environment)
+static oserr_t
+__build_environment(
+        _In_ const char* environment)
 {
     const char* i         = environment;
     int         pairCount = 0;
@@ -90,7 +92,7 @@ static int __build_environment(const char* environment)
 
     g_environment = calloc((pairCount + 1), sizeof(char*));
     if (g_environment == NULL) {
-        return -1;
+        return OS_EOOM;
     }
 
     i         = environment;
@@ -99,34 +101,43 @@ static int __build_environment(const char* environment)
         g_environment[pairCount++] = strdup(i);
         i += strlen(i) + 1;
     }
-    return 0;
+    return OS_EOK;
 }
 
-static uintptr_t* __parse_library_handles(const char* buffer, size_t length)
+static oserr_t
+__parse_library_handles(
+        _In_  const char* buffer,
+        _In_  size_t      length,
+        _Out_ uintptr_t** handlesOut)
 {
-    size_t     entries = length / sizeof(uintptr_t);
+    size_t     entries;
     uintptr_t* libraries;
     TRACE("__parse_library_handles(length=%u)", length);
 
+    entries = length / sizeof(uintptr_t);
     if (!entries) {
-        return NULL;
+        return OS_ENOENT;
     }
 
     libraries = calloc(entries + 1, sizeof(uintptr_t));
     if (libraries == NULL) {
-        return NULL;
+        return OS_EOOM;
     }
 
     for (int i = 0; i < (int)entries; i++) {
         libraries[i] = ((uintptr_t*)buffer)[i];
     }
-    return libraries;
+    *handlesOut = libraries;
+    return OS_EOK;
 }
 
-static int __parse_startup_info(OSHandle_t* osHandle)
+static oserr_t
+__parse_startup_info(
+        _In_ OSHandle_t* osHandle)
 {
     ProcessStartupInformation_t* source;
     const char*                  data;
+    oserr_t                      oserr;
     TRACE("__parse_startup_info()");
 
     source = (ProcessStartupInformation_t*)SHMBuffer(osHandle);
@@ -142,40 +153,52 @@ static int __parse_startup_info(OSHandle_t* osHandle)
     // Required - arguments (commandline) is written without zero terminator
     g_rawCommandLine = strndup(data, source->ArgumentsLength);
     if (g_rawCommandLine == NULL) {
-        return -1;
+        ERROR("__parse_startup_info: failed to allocate memory for process arguments");
+        return OS_EOOM;
     }
     data += source->ArgumentsLength;
 
     // Optional - inheritation block is not required and may be null
     if (source->InheritationLength) {
         g_inheritBlock = memdup(data, source->InheritationLength);
+        if (g_inheritBlock != NULL) {
+            ERROR("__parse_startup_info: failed to allocate memory for the import block");
+            return OS_EOOM;
+        }
         data += source->InheritationLength;
     }
 
     // Required - the list of library entry points that needs to be called upon
     // CRT init/finit. This is the base library list, which are the libraries that
     // were automatically loaded during load of this process.
-    g_baseLibraries = __parse_library_handles(data, source->LibraryEntriesLength);
-    if (g_baseLibraries == NULL) {
-        return -1;
+    oserr = __parse_library_handles(
+            data,
+            source->LibraryEntriesLength,
+            &g_baseLibraries
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__parse_startup_info: failed to parse library handles: %u", oserr);
+        return oserr;
     }
     data += source->LibraryEntriesLength;
 
     // Optional - environmental block. List of strings, does not need to be provided.
     if (source->EnvironmentBlockLength) {
-        if (__build_environment(data)) {
-            return -1;
+        oserr = __build_environment(data);
+        if (oserr != OS_EOK) {
+            ERROR("__parse_startup_info: failed to parse environment block: %u", oserr);
+            return oserr;
         }
         data += source->EnvironmentBlockLength;
     }
-    return 0;
+    return OS_EOK;
 }
 
-static int __get_startup_info(void)
+static oserr_t
+__get_startup_info(void)
 {
     OSHandle_t               mapping;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    int                      status;
     oserr_t                  oserr;
     TRACE("__get_startup_info()");
 
@@ -189,7 +212,7 @@ static int __get_startup_info(void)
         },
         &mapping);
     if (oserr != OS_EOK) {
-        return OsErrToErrNo(oserr);
+        return oserr;
     }
 
     sys_process_get_startup_information(
@@ -206,11 +229,13 @@ static int __get_startup_info(void)
             &oserr,
             &g_processId
     );
-    assert(oserr == OS_EOK);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
-    status = __parse_startup_info(&mapping);
+    oserr = __parse_startup_info(&mapping);
     OSHandleDestroy(&mapping);
-    return status;
+    return oserr;
 }
 
 static void __setup_client(void* argument, void* cancellationToken)
@@ -249,7 +274,10 @@ static void __setup_client(void* argument, void* cancellationToken)
     __mark_iod_priority(gracht_client_iod(g_gclient));
 }
 
-static void __startup(void* argument, void* cancellationToken)
+static void
+__startup(
+        _In_ void* argument,
+        _In_ void* cancellationToken)
 {
     TRACE("__startup()");
 
@@ -257,17 +285,18 @@ static void __startup(void* argument, void* cancellationToken)
     // and various process related configurations before proceeding.
     if (!g_isPhoenix) {
         OSAsyncContext_t* asyncContext;
-        int               status;
+        oserr_t           oserr;
 
         // during startup, we disable async operations as we need the queued
         // jobs to run sequentially.
         asyncContext = __tls_current()->async_context;
         __tls_current()->async_context = NULL;
 
-        status = __get_startup_info();
-        if (status) {
-            ERROR("__startup failed to get process startup information");
-            _Exit(status);
+        oserr = __get_startup_info();
+        if (oserr != OS_EOK) {
+            ERROR("__startup failed to get process startup information: %u", oserr);
+            (void)OsErrToErrNo(oserr);
+            _Exit(-errno);
         }
 
         // restore async context again

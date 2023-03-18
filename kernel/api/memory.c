@@ -329,6 +329,16 @@ ScSHMDetach(
     if (handle == NULL) {
         return OS_EINVALPARAMS;
     }
+    if (handle->Buffer != NULL) {
+        oserr_t oserr = SHMUnmap(
+                handle,
+                (vaddr_t)handle->Buffer,
+                handle->Length
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
     return DestroyHandle(handle->ID);
 }
 

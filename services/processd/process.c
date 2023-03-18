@@ -508,6 +508,7 @@ __WriteProcessStartupInformation(
 
     memcpy(&buffer[infoIndex], process->arguments, process->arguments_length);
     infoIndex += process->arguments_length;
+    TRACE("__WriteProcessStartupInformation: wrote %u bytes of arguments", process->arguments_length);
 
     if (process->inheritation_block_length) {
         memcpy(
@@ -516,6 +517,7 @@ __WriteProcessStartupInformation(
                 process->inheritation_block_length
         );
         infoIndex += process->inheritation_block_length;
+        TRACE("__WriteProcessStartupInformation: wrote %u bytes of imports", process->inheritation_block_length);
     }
 
     oserr = PEModuleEntryPoints(
@@ -524,6 +526,7 @@ __WriteProcessStartupInformation(
             &moduleCount
     );
     if (oserr != OS_EOK) {
+        ERROR("__WriteProcessStartupInformation: failed to retrieve module entry points: %u", oserr);
         return oserr;
     }
 
@@ -532,6 +535,7 @@ __WriteProcessStartupInformation(
     // needs to initialize.
     moduleCount--;
     infoIndex += sizeof(uintptr_t) * moduleCount;
+    TRACE("__WriteProcessStartupInformation: wrote %u bytes of module entries", moduleCount * sizeof(uintptr_t));
 
     if (process->environment_block_length) {
         memcpy(
@@ -539,12 +543,13 @@ __WriteProcessStartupInformation(
                 process->environment_block,
                 process->environment_block_length
         );
+        TRACE("__WriteProcessStartupInformation: wrote %u bytes of module entries", process->environment_block_length);
     }
 
     // fill in the startup header as we now have all info
     startupInfo->ArgumentsLength = process->arguments_length;
     startupInfo->InheritationLength = process->inheritation_block_length;
-    startupInfo->LibraryEntriesLength = moduleCount * sizeof(Handle_t);
+    startupInfo->LibraryEntriesLength = moduleCount * sizeof(uintptr_t);
     startupInfo->EnvironmentBlockLength = process->environment_block_length;
     return OS_EOK;
 }
@@ -563,23 +568,34 @@ PmGetProcessStartupInformation(
 
     process = GetProcessByThread(threadHandle);
     if (process == NULL) {
+        ERROR("PmGetProcessStartupInformation: failed to match thread with a process");
         goto exit;
     }
     *processHandleOut = process->handle.ID;
 
     oserr = SHMAttach(bufferHandle, &shm);
     if (oserr != OS_EOK) {
-        ERROR("PmGetProcessStartupInformation failed to attach to user buffer");
+        ERROR("PmGetProcessStartupInformation failed to attach to user buffer: %u", oserr);
         goto exit;
     }
 
-    oserr = SHMMap(&shm, 0, SHMBufferCapacity(&shm), SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    oserr = SHMMap(
+            &shm,
+            0,
+            SHMBufferCapacity(&shm),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
     if (oserr != OS_EOK) {
+        ERROR("PmGetProcessStartupInformation failed to map user buffer: %u", oserr);
         goto detach;
     }
 
     // Write the header
-    oserr = __WriteProcessStartupInformation(process, SHMBuffer(&shm), bufferOffset);
+    oserr = __WriteProcessStartupInformation(
+            process,
+            SHMBuffer(&shm),
+            bufferOffset
+    );
 
 detach:
     OSHandleDestroy(&shm);
