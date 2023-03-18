@@ -250,22 +250,24 @@ OSProcessSignal(
         _In_ int    signal)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
-    oserr_t               osStatus;
+    oserr_t                  oserr;
     
     sys_process_signal(GetGrachtClient(), &msg.base, OSProcessCurrentID(), handle, signal);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_process_signal_result(GetGrachtClient(), &msg.base, &osStatus);
-    return osStatus;
+    sys_process_signal_result(GetGrachtClient(), &msg.base, &oserr);
+    return oserr;
 }
 
-oserr_t OSProcessTerminate(int exitCode)
+oserr_t
+OSProcessTerminate(
+        _In_ int exitCode)
 {
     struct vali_link_message msg   = VALI_MSG_INIT_HANDLE(GetProcessService());
     oserr_t                  oserr = OS_EOK;
 
     if (!__crt_is_phoenix()) {
         sys_process_terminate(GetGrachtClient(), &msg.base, __crt_process_id(), exitCode);
-        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+        gracht_client_await(GetGrachtClient(), &msg.base, 0);
         sys_process_terminate_result(GetGrachtClient(), &msg.base, &oserr);
     }
     return oserr;
