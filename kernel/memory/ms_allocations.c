@@ -36,6 +36,7 @@ __MSAllocationDelete(
 oserr_t
 MSAllocationCreate(
         _In_ MemorySpace_t* memorySpace,
+        _In_ uuid_t         shmTag,
         _In_ vaddr_t        address,
         _In_ size_t         length,
         _In_ unsigned int   flags)
@@ -63,7 +64,7 @@ MSAllocationCreate(
         return OS_EINVALPARAMS;
     }
 
-    // Length will be page alignedf
+    // Length will be page aligned
     pageCount = (length + (GetMemorySpacePageSize() - 1)) / GetMemorySpacePageSize();
 
     allocation = kmalloc(sizeof(struct MSAllocation));
@@ -77,7 +78,7 @@ MSAllocationCreate(
     ELEMENT_INIT(&allocation->Header, 0, allocation);
     bitmap_construct(&allocation->Pages, (int)pageCount, bitmap);
     allocation->MemorySpace = memorySpace;
-    allocation->SHMTag      = UUID_INVALID;
+    allocation->SHMTag      = shmTag;
     allocation->Address     = address;
     allocation->Length      = pageCount * pageSize;
     allocation->Flags       = flags;

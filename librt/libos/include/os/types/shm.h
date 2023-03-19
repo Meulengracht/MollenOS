@@ -61,7 +61,7 @@
 #define SHM_ACCESS_WRITE   0x00000002U
 #define SHM_ACCESS_EXECUTE 0x00000004U
 
-// These are only available when mapping
+// These are only available when calling SHMMap
 #define SHM_ACCESS_COMMIT  0x00000008U
 
 typedef struct SHM {
