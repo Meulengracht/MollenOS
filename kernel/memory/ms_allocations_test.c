@@ -76,6 +76,7 @@ void TestMSAllocationCreate_Happy(void** state)
 
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x1000,
             0
@@ -111,6 +112,7 @@ void TestMSAllocationCreate_NonPageAlignedLengthHappy(void** state)
 
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x1345,
             0
@@ -129,6 +131,7 @@ void TestMSAllocationCreate_MissingContext(void** state)
     (void)state;
     oserr_t oserr = MSAllocationCreate(
             &(struct MemorySpace) { },
+            UUID_INVALID,
             0x1000,
             0x1000,
             0
@@ -144,6 +147,7 @@ void TestMSAllocationCreate_InvalidMemorySpace(void** state)
     (void)state;
     oserr_t oserr = MSAllocationCreate(
             NULL,
+            UUID_INVALID,
             0x1000,
             0x1000,
             0
@@ -159,6 +163,7 @@ void TestMSAllocationCreate_NotPageAlignedAddress(void** state)
     (void)state;
     oserr_t oserr = MSAllocationCreate(
             &(struct MemorySpace) { .Context = &g_testContext.MSContext },
+            UUID_INVALID,
             0x1345,
             0x1000,
             0
@@ -179,6 +184,7 @@ void TestMSAllocationLookup_Happy(void** state)
     // Create the allocation we will use for testing
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x1000,
             0
@@ -231,6 +237,7 @@ void TestMSAllocationAcquire_Happy(void** state)
     // Create the allocation we will use for testing
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x1000,
             0
@@ -272,6 +279,7 @@ void TestMSAllocationFree_Simple(void** state)
     // Create the clonedFrom we will use for testing
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x1000,
             0
@@ -306,6 +314,7 @@ void TestMSAllocationFree_PartialFree(void** state)
     // Create the allocation we will use for testing
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x4000,
             0
@@ -359,6 +368,7 @@ void TestMSAllocationFree_MultipleReferencesSimple(void** state)
     // Create the allocation we will use for testing
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x2000,
             0
@@ -477,6 +487,7 @@ void TestMSAllocationLink_Happy(void** state)
     // Create the allocation we will use for testing
     oserr = MSAllocationCreate(
             &memorySpace,
+            UUID_INVALID,
             0x1000,
             0x1000,
             0

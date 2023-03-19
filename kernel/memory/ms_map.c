@@ -70,6 +70,7 @@ __VerifyFixedVirtualAddress(
 static vaddr_t
 __AllocateProcessMemory(
         _In_ MemorySpace_t* memorySpace,
+        _In_ uuid_t         shmTag,
         _In_ size_t         size,
         _In_ unsigned int   mapFlags)
 {
@@ -87,7 +88,7 @@ __AllocateProcessMemory(
         // We only track user allocations, not kernel allocations. If we wanted to track ALL allocations
         // then we would have to guard against eternal loops as-well as the __CreateAllocation actually calls
         // kmalloc
-        oserr_t oserr = MSAllocationCreate(memorySpace, address, size, mapFlags);
+        oserr_t oserr = MSAllocationCreate(memorySpace, shmTag, address, size, mapFlags);
         if (oserr != OS_EOK) {
             ERROR("__AllocateProcessMemory: cannot register allocation");
             DynamicMemoryPoolFree(&memorySpace->Context->Heap, size);
@@ -123,7 +124,7 @@ __AllocateVirtualMemory(
                 ERROR("__AllocateVirtualMemory cannot allocate process memory for non-userspace memory space");
                 return OS_ENOTSUPPORTED;
             }
-            virtualBase = __AllocateProcessMemory(memorySpace, length, options->Flags);
+            virtualBase = __AllocateProcessMemory(memorySpace, options->SHMTag, length, options->Flags);
         } break;
 
         case MAPPING_VIRTUAL_THREAD: {

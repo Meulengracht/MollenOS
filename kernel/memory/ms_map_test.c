@@ -1333,6 +1333,7 @@ oserr_t ArchMmuVirtualToPhysical(
 // Mocks from ms_allocations
 oserr_t MSAllocationCreate(
         _In_ MemorySpace_t* memorySpace,
+        _In_ uuid_t         shmTag,
         _In_ vaddr_t        address,
         _In_ size_t         length,
         _In_ unsigned int   flags) {

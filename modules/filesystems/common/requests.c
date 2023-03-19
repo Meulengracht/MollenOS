@@ -260,7 +260,12 @@ __MapUserBufferRead(
 
     // When mapping the buffer for reading, we need write access to the buffer,
     // so we can do buffer combining.
-    oserr = SHMMap(shm, 0, SHMBufferCapacity(shm), SHM_ACCESS_READ | SHM_ACCESS_WRITE);
+    oserr = SHMMap(
+            shm,
+            0,
+            SHMBufferCapacity(shm),
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
     if (oserr != OS_EOK) {
         OSHandleDestroy(shm);
         return oserr;
@@ -317,7 +322,12 @@ __MapUserBufferWrite(
         return oserr;
     }
 
-    oserr = SHMMap(shm, 0, SHMBufferCapacity(shm), SHM_ACCESS_READ);
+    oserr = SHMMap(
+            shm,
+            0,
+            SHMBufferCapacity(shm),
+            SHM_ACCESS_READ
+    );
     if (oserr != OS_EOK) {
         OSHandleDestroy(shm);
         return oserr;

@@ -127,8 +127,7 @@ ConvertGenericAttributesToX86(
 
     if (flags & MAPPING_COMMIT) {
         nativeFlags |= PAGE_PRESENT;
-    }
-    else {
+    } else {
         nativeFlags |= PAGE_RESERVED;
     }
     if (flags & MAPPING_USERSPACE) {
@@ -494,7 +493,7 @@ ArchMmuSetVirtualPages(
     int                isCurrent;
     int                index;
     int                pagesUpdated = 0;
-    oserr_t         status       = OS_EOK;
+    oserr_t            status       = OS_EOK;
     uintptr_t          zero         = 0;
 
     if (!physicalAddressValues || !pagesUpdatedOut) {
@@ -512,7 +511,14 @@ ArchMmuSetVirtualPages(
 
     directory = MmVirtualGetMasterTable(memorySpace, startAddress, &parentDirectory, &isCurrent);
     while (pageCount && status == OS_EOK) {
-        pageTable = MmVirtualGetTable(parentDirectory, directory, startAddress, isCurrent, 1, &update);
+        pageTable = MmVirtualGetTable(
+                parentDirectory,
+                directory,
+                startAddress,
+                isCurrent,
+                1,
+                &update
+        );
         if (!pageTable) {
             status = (pagesUpdated == 0) ? OS_EOOM : OS_EINCOMPLETE;
             break;

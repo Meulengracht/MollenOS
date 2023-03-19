@@ -61,7 +61,7 @@ __ClearPhysicalPages(
     }
     kfree(addresses);
 
-    exit:
+exit:
     TRACE("__ClearPhysicalPages returns=%u", oserr);
     return oserr;
 }

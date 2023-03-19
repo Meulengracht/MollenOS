@@ -81,7 +81,12 @@ void sys_process_spawn_invocation(
     }
 
     // We only need read access to the buffer
-    oserr = SHMMap(&options.DataBufferHandle, 0, SHMBufferCapacity(&options.DataBufferHandle), 0);
+    oserr = SHMMap(
+            &options.DataBufferHandle,
+            0,
+            SHMBufferCapacity(&options.DataBufferHandle),
+            SHM_ACCESS_READ
+    );
     if (oserr != OS_EOK) {
         OSHandleDestroy(&options.DataBufferHandle);
         sys_process_spawn_response(message, oserr, UUID_INVALID);

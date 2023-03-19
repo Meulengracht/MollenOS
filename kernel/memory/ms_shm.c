@@ -484,6 +484,7 @@ __EnsurePhysicalPages(
             MutexUnlock(&shmBuffer->Mutex);
             return oserr;
         }
+        TRACE("__EnsurePhysicalPages: allocated page %i=0x%llx", i, shmBuffer->Pages[pageStart + i]);
     }
     MutexUnlock(&shmBuffer->Mutex);
     return OS_EOK;
@@ -503,9 +504,6 @@ __RecalculateFlags(
     if (shmFlags & SHM_CLEAN) {
         flags |= MAPPING_CLEAN;
     }
-
-    // SHM_COMMIT we ignore as we already have this handled by
-    // SHM_ACCESS_COMMIT.
 
     // Ignore MAPPING_TRAPPAGE and MAPPING_GUARDPAGE attributes for
     // stack and trap SHM buffers. When they are originally mapped in,
@@ -568,11 +566,11 @@ __CreateMapping(
         _In_  unsigned int      flags,
         _Out_ void**            mappingOut)
 {
-    size_t  pageSize        = GetMemorySpacePageSize();
-    size_t  pageIndex       = offset / pageSize;
-    size_t  pageCount       = DIVUP(length, pageSize);
-    size_t  correctedLength = pageCount * pageSize;
+    size_t  pageSize  = GetMemorySpacePageSize();
+    size_t  pageIndex = offset / pageSize;
+    size_t  pageCount = DIVUP(length, pageSize);
     oserr_t oserr;
+    TRACE("__CreateMapping(length=0x%llx, index=0x%llx, count=0x%llx)", length, pageIndex, pageCount);
 
     // Ensure that the page index is not oob, if it is we cannot trust
     // the above calculations
@@ -594,7 +592,7 @@ __CreateMapping(
             &(struct MemorySpaceMapOptions) {
                 .SHMTag = shmBuffer->ID,
                 .Pages = &shmBuffer->Pages[pageIndex],
-                .Length = correctedLength,
+                .Length = length,
                 .Mask = shmBuffer->PageMask,
                 .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
                 .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
@@ -626,6 +624,7 @@ SHMMap(
     oserr_t           oserr;
     void*             mapping;
     size_t            clampedLength;
+    TRACE("SHMMap(offset=0x%llx, length=0x%llx, flags=0x%x)", offset, length, flags);
 
     if (handle == NULL || length == 0) {
         return OS_EINVALPARAMS;
@@ -724,53 +723,47 @@ SHMCommit(
     struct SHMBuffer* shmBuffer;
     oserr_t           oserr;
     size_t            pageSize = GetMemorySpacePageSize();
-    uintptr_t         userAddress = (uintptr_t)memory;
-    uintptr_t         kernelAddress;
-    int               limit;
+    uintptr_t         baseAddress = (uintptr_t)memoryBase;
+    uintptr_t         address  = (uintptr_t)memory;
+    size_t            clampedLength;
     int               i;
+    TRACE("SHMCommit(memoryBase=0x%llx, memory=0x%llx, length=0x%llx)",
+          memoryBase, memory, length);
 
     shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
     }
 
-    i     = DIVUP((uintptr_t)memoryBase - userAddress, pageSize);
-    limit = i + (int)(DIVUP(length, pageSize));
-    kernelAddress = shmBuffer->KernelMapping;
+    // Align the address to a page-boundary
+    address &= ~(pageSize - 1);
 
-    MutexLock(&shmBuffer->Mutex);
-    for (; i < limit; i++, kernelAddress += pageSize, userAddress += pageSize) {
-        if (!shmBuffer->Pages[i]) {
-            // handle kernel mapping first
-            oserr = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    kernelAddress,
-                    &shmBuffer->Pages[i],
-                    pageSize,
-                    shmBuffer->PageMask,
-                    0
-            );
-            if (oserr != OS_EOK) {
-                ERROR("SHMCommit failed to commit kernel mapping at 0x%" PRIxIN ", i=%i", kernelAddress, i);
-                break;
-            }
+    // Clamp the length
+    i = (int)((address - baseAddress) / pageSize);
+    clampedLength = __ClampLength(shmBuffer, i * pageSize, length);
 
-            // then user mapping
-            oserr = MemorySpaceCommit(
-                    GetCurrentMemorySpace(),
-                    userAddress,
-                    &shmBuffer->Pages[i],
-                    pageSize,
-                    shmBuffer->PageMask,
-                    MAPPING_PHYSICAL_FIXED
-            );
-            if (oserr != OS_EOK) {
-                ERROR("SHMCommit failed to commit user mapping at 0x%" PRIxIN ", i=%i", userAddress, i);
-                break;
-            }
-        }
+    // Calculate the start index/offset for the memory mappings
+    oserr = __EnsurePhysicalPages(shmBuffer, i, (int)(clampedLength / pageSize));
+    if (oserr != OS_EOK) {
+        ERROR("SHMCommit failed to allocate pages: %u", oserr);
+        return oserr;
     }
-    MutexUnlock(&shmBuffer->Mutex);
+
+    // Commit the actual mappings, it's important to note here that we will never
+    // be taking care of the IPC kernel mapping here. IPC mappings are *always* comitted
+    // immediately, and never imported. It's actually a bit backwards that we use SHM mappings
+    // as a part of the IPC implementation.
+    oserr = MemorySpaceCommit(
+            GetCurrentMemorySpace(),
+            address,
+            &shmBuffer->Pages[i],
+            clampedLength,
+            shmBuffer->PageMask,
+            MAPPING_PHYSICAL_FIXED
+    );
+    if (oserr != OS_EOK) {
+        ERROR("SHMCommit failed to commit mapping: %u", oserr);
+    }
     return oserr;
 }
 
