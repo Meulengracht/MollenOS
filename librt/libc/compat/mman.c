@@ -24,6 +24,7 @@
 #include <os/shm.h>
 #include <os/services/file.h>
 #include <os/usched/mutex.h>
+#include <os/memory.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,13 +49,9 @@ struct __mmap_item {
 
 static list_t            g_mmaps;
 static struct usched_mtx g_mmapsLock;
-static size_t            g_pageSize = 0;
 
 void StdMmapInitialize(void)
 {
-    SystemDescriptor_t descriptor;
-    SystemQuery(&descriptor);
-    g_pageSize = descriptor.PageSizeBytes;
     list_construct(&g_mmaps);
     usched_mtx_init(&g_mmapsLock, USCHED_MUTEX_PLAIN);
 }

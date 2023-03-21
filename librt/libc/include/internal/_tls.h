@@ -34,7 +34,14 @@ typedef struct thread_storage {
  * @param tls
  * @return
  */
-CRTDECL(int,  __tls_initialize(struct thread_storage* tls));
+CRTDECL(int, __tls_initialize(struct thread_storage* tls));
+
+/**
+ * @brief Refreshes the current environment for the calling
+ * thread. This is specifically designed to be called once the
+ * startup information for the process has been retrieved.
+ */
+extern int __tls_update_environment(void);
 
 /**
  * @brief

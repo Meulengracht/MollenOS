@@ -211,13 +211,18 @@ DebugPanic(
     vsprintf(&messageBuffer[0], Message, arguments);
     va_end(arguments);
     LogSetRenderMode(1);
-    LogAppendMessage(LOG_ERROR, &messageBuffer[0]);
+    LogAppendMessage(OSSYSLOGLEVEL_ERROR, &messageBuffer[0]);
     
     // Log cpu and threads
     currentThread = ThreadCurrentForCore(coreID);
     if (currentThread != NULL) {
-        LogAppendMessage(LOG_ERROR, "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
-                         ThreadName(currentThread), ThreadHandle(currentThread), coreID);
+        LogAppendMessage(
+                OSSYSLOGLEVEL_ERROR,
+                "Thread %s - %" PRIuIN " (Core %" PRIuIN ")!",
+                ThreadName(currentThread),
+                ThreadHandle(currentThread),
+                coreID
+        );
     }
     
     if (Context) {
@@ -310,16 +315,17 @@ DebugMemory(
 
         if ((i % 16) == 0) {
             // Just don't print ASCII for the zeroth line.
+            // TODO: build all this in a string buffer
             if (i != 0) {
-                LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
+                LogAppendMessage(OSSYSLOGLEVEL_TRACE, "  %s\n", Buffer);
             }
 
             // Output the offset.
-            LogAppendMessage(LOG_RAW, "  %04x ", i);
+            LogAppendMessage(OSSYSLOGLEVEL_TRACE, "  %04x ", i);
         }
 
         // Now the hex code for the specific character.
-        LogAppendMessage(LOG_RAW, " %02x", pc[i]);
+        LogAppendMessage(OSSYSLOGLEVEL_TRACE, " %02x", pc[i]);
 
         // And store a printable ASCII character for later.
         if ((pc[i] < 0x20) || (pc[i] > 0x7e)) {
@@ -333,12 +339,12 @@ DebugMemory(
 
     // Pad out last line if not exactly 16 characters.
     while ((i % 16) != 0) {
-        LogAppendMessage(LOG_RAW, "   ");
+        LogAppendMessage(OSSYSLOGLEVEL_TRACE, "   ");
         i++;
     }
 
     // And print the final ASCII bit.
-    LogAppendMessage(LOG_RAW, "  %s\n", Buffer);
+    LogAppendMessage(OSSYSLOGLEVEL_TRACE, "  %s\n", Buffer);
     return OS_EOK;
 }
 

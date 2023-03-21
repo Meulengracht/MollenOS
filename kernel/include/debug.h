@@ -32,6 +32,7 @@
 #include <os/context.h>
 #include <os/osdefs.h>
 #include <os/types/signal.h>
+#include <os/types/syslog.h>
 #include <log.h>
 
 #ifdef TESTING
@@ -43,8 +44,8 @@
 /* Global <toggable> definitions
  * These can be turned on per-source file by pre-defining the __TRACE before inclusion */
 #if defined(__TRACE) && defined(__OSCONFIG_LOGGING_KTRACE)
-#define TRACE(...) LogAppendMessage(LOG_TRACE, __VA_ARGS__)
-#define TRACE2(...) LogAppendMessage(LOG_TRACE, "[" __MODULE "] [" __FUNC__ "] " __VA_ARGS__)
+#define TRACE(...) LogAppendMessage(OSSYSLOGLEVEL_TRACE, __VA_ARGS__)
+#define TRACE2(...) LogAppendMessage(OSSYSLOGLEVEL_TRACE, "[" __MODULE "] [" __FUNC__ "] " __VA_ARGS__)
 #elif defined(__TRACE) && defined(TESTING)
 #define TRACE(...) printf(__VA_ARGS__)
 #else
@@ -58,13 +59,13 @@
 #define FATAL_SCOPE_THREAD         	0x00000003
 
 #ifndef TESTING
-#define DEBUG(...)              LogAppendMessage(LOG_DEBUG, __VA_ARGS__)
-#define WARNING(...)            LogAppendMessage(LOG_WARNING, __VA_ARGS__)
+#define DEBUG(...)              LogAppendMessage(OSSYSLOGLEVEL_DEBUG, __VA_ARGS__)
+#define WARNING(...)            LogAppendMessage(OSSYSLOGLEVEL_WARNING, __VA_ARGS__)
 #define WARNING_IF(cond, ...)   { if ((cond)) { LogAppendMessage(LOG_WARNING, __VA_ARGS__); } }
-#define ERROR(...)              LogAppendMessage(LOG_ERROR, __VA_ARGS__)
+#define ERROR(...)              LogAppendMessage(OSSYSLOGLEVEL_ERROR, __VA_ARGS__)
 #define FATAL(Scope, ...)       DebugPanic(Scope, NULL, __VA_ARGS__)
 #define NOTIMPLEMENTED(Message) DebugPanic(FATAL_SCOPE_KERNEL, NULL, "NOT-IMPLEMENTED: %s, line %d, %s", __FILE__, __LINE__, Message)
-#define TODO(Message)           LogAppendMessage(LOG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, Message)
+#define TODO(Message)           LogAppendMessage(OSSYSLOGLEVEL_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, Message)
 #else //!TESTING
 #define WARNING(...)            printf(__VA_ARGS__)
 #define ERROR(...)              fprintf(stderr, __VA_ARGS__)

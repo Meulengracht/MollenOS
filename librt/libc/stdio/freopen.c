@@ -56,7 +56,7 @@ FILE* freopen(
 			return NULL;
 		}
 		handle = stdio_handle_get(fd);
-		stdio_handle_set_buffered(handle, stream, 0);
+		stdio_handle_set_buffered(handle, stream, _IORW);
 	} else {
 		if (mode != NULL) {
 			oserr_t status;

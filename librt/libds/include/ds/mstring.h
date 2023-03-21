@@ -79,6 +79,18 @@ DSDECL(mchar_t, mstr_tochar(const char* u8));
 DSDECL(int, mstr_fromchar(mchar_t character, char* u8, size_t* length));
 
 /**
+ * @brief Iterates and converts one UTF-8 character to an UTF32 code point. The
+ * index value should start out at 0, and will automatically be incremented as
+ * the conversion happens. There are no boundary checks using this function, and
+ * it's important to use mstr_u8_len first to get the actual number of characters.
+ * @param u8     A pointer to the UTF-8 encoded string.
+ * @param indexp A pointer to a zero index value, which will be modified.
+ * @return       The converted UTF32 code point.
+ */
+DSDECL(mchar_t, mstr_next(const char* u8, int* indexp));
+DSDECL(size_t,  mstr_len_u8(const char* u8));
+
+/**
  * @brief Creates a new string built up according to the format string. Works exactly
  * like the classic C sprintf, except that the modifier %ms is supported to support mstring_t
  *

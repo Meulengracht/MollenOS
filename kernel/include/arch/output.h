@@ -29,7 +29,7 @@
 
 typedef struct BootTerminal {
     unsigned int				AvailableOutputs;
-    VideoDescriptor_t			Info;
+    OSBootVideoDescriptor_t     Info;
 
     uintptr_t                   FrameBufferAddress;
     uintptr_t                   FrameBufferAddressPhysical;

@@ -49,7 +49,7 @@ VesaDrawPixel(
 {
     unsigned int clampedX  = MIN(X, (g_bootTerminal.Info.Width - 1));
     unsigned int clampedY  = MIN(Y, (g_bootTerminal.Info.Height - 1));
-    size_t       offset    = (clampedY * g_bootTerminal.Info.BytesPerScanline) + (clampedX * (g_bootTerminal.Info.Depth / 8));
+    size_t       offset    = (clampedY * g_bootTerminal.Info.BytesPerScanline) + (clampedX * (g_bootTerminal.Info.DepthBits / 8));
     uint32_t*    bbPointer = (uint32_t*)(g_bootTerminal.BackBufferAddress + offset);
     uint32_t*    fbPointer = (uint32_t*)(g_bootTerminal.FrameBufferAddress + offset);
 
@@ -74,7 +74,7 @@ VesaDrawCharacter(
     unsigned int row, i;
 
     // Calculate the video-offset
-    fbOffset  = (CursorY * g_bootTerminal.Info.BytesPerScanline) + (CursorX * (g_bootTerminal.Info.Depth / 8));
+    fbOffset  = (CursorY * g_bootTerminal.Info.BytesPerScanline) + (CursorX * (g_bootTerminal.Info.DepthBits / 8));
     fbPointer = (uint32_t*)(g_bootTerminal.FrameBufferAddress + fbOffset);
     bbPointer = (uint32_t*)(g_bootTerminal.BackBufferAddress + fbOffset);
 
@@ -135,17 +135,17 @@ VesaScroll(
     if (g_bootTerminal.BackBufferAddress) {
         videoPointer = (uint8_t*)(g_bootTerminal.BackBufferAddress +
                                   ((g_bootTerminal.CursorStartY * g_bootTerminal.Info.BytesPerScanline)
-                                   + (g_bootTerminal.CursorStartX * (g_bootTerminal.Info.Depth / 8))));
+                                   + (g_bootTerminal.CursorStartX * (g_bootTerminal.Info.DepthBits / 8))));
     }
     else {
         videoPointer = (uint8_t*)(g_bootTerminal.FrameBufferAddress +
                                   ((g_bootTerminal.CursorStartY * g_bootTerminal.Info.BytesPerScanline)
-                                   + (g_bootTerminal.CursorStartX * (g_bootTerminal.Info.Depth / 8))));
+                                   + (g_bootTerminal.CursorStartX * (g_bootTerminal.Info.DepthBits / 8))));
     }
 
     // Calculate num of bytes
     bytesToCopy = ((g_bootTerminal.CursorLimitX - g_bootTerminal.CursorStartX)
-                   * (g_bootTerminal.Info.Depth / 8));
+                   * (g_bootTerminal.Info.DepthBits / 8));
 
     // Do the actual scroll, crappy routine since we have borders.... this means we can't do a
     // continous copy
@@ -162,7 +162,7 @@ VesaScroll(
 
     // Clear out the lines that was scrolled
     videoPointer = (uint8_t*)(g_bootTerminal.FrameBufferAddress +
-                              ((g_bootTerminal.CursorStartX * (g_bootTerminal.Info.Depth / 8))));
+                              ((g_bootTerminal.CursorStartX * (g_bootTerminal.Info.DepthBits / 8))));
 
     // Scroll pointer down to bottom - n lines
     videoPointer += (g_bootTerminal.Info.BytesPerScanline
@@ -338,12 +338,14 @@ TextPutCharacter(
     return OS_EOK;
 }
 
-static void __SetTerminalMode(
+static void
+__SetTerminalMode(
         _In_ struct VBootVideo* video)
 {
+    g_bootTerminal.Info.Type                  = OSBOOTVIDEO_TTY;
     g_bootTerminal.Info.Width                 = video->Width;
     g_bootTerminal.Info.Height                = video->Height;
-    g_bootTerminal.Info.Depth                 = 16;
+    g_bootTerminal.Info.DepthBits             = 16;
     g_bootTerminal.Info.BytesPerScanline      = 2 * video->Width;
     g_bootTerminal.FrameBufferAddress         = STD_VIDEO_MEMORY;
     g_bootTerminal.FrameBufferAddressPhysical = STD_VIDEO_MEMORY;
@@ -354,23 +356,25 @@ static void __SetTerminalMode(
     g_bootTerminal.BgColor      = 0;
 }
 
-static void __SetFramebufferMode(
+static void
+__SetFramebufferMode(
         _In_ struct VBootVideo* video)
 {
+    g_bootTerminal.Info.Type                  = OSBOOTVIDEO_FRAMEBUFFER;
     g_bootTerminal.FrameBufferAddress         = video->FrameBuffer;
     g_bootTerminal.FrameBufferAddressPhysical = video->FrameBuffer;
     g_bootTerminal.Info.Width                 = video->Width;
     g_bootTerminal.Info.Height                = video->Height;
-    g_bootTerminal.Info.Depth                 = (int)video->BitsPerPixel;
+    g_bootTerminal.Info.DepthBits             = (int)video->BitsPerPixel;
     g_bootTerminal.Info.BytesPerScanline      = video->Pitch;
-    g_bootTerminal.Info.RedPosition           = (int)video->RedPosition;
-    g_bootTerminal.Info.BluePosition          = (int)video->BluePosition;
-    g_bootTerminal.Info.GreenPosition         = (int)video->GreenPosition;
-    g_bootTerminal.Info.ReservedPosition      = (int)video->ReservedPosition;
-    g_bootTerminal.Info.RedMask               = (int)video->RedMask;
-    g_bootTerminal.Info.BlueMask              = (int)video->BlueMask;
-    g_bootTerminal.Info.GreenMask             = (int)video->GreenMask;
-    g_bootTerminal.Info.ReservedMask          = (int)video->ReservedMask;
+    g_bootTerminal.Info.Red.Position          = (int)video->RedPosition;
+    g_bootTerminal.Info.Red.Mask              = (int)video->RedMask;
+    g_bootTerminal.Info.Blue.Position         = (int)video->BluePosition;
+    g_bootTerminal.Info.Blue.Mask             = (int)video->BlueMask;
+    g_bootTerminal.Info.Green.Position        = (int)video->GreenPosition;
+    g_bootTerminal.Info.Green.Mask            = (int)video->GreenMask;
+    g_bootTerminal.Info.Alpha.Position        = (int)video->ReservedPosition;
+    g_bootTerminal.Info.Alpha.Mask            = (int)video->ReservedMask;
     g_bootTerminal.CursorLimitX               = g_bootTerminal.Info.Width;
     g_bootTerminal.CursorLimitY               = (g_bootTerminal.Info.Height - MCoreFontHeight);
     g_bootTerminal.FgColor                    = 0xFFFFFFFF;

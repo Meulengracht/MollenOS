@@ -14,7 +14,8 @@
 #include "internal/_io.h"
 #include "stdio.h"
 
-static inline int __can_flush_otherwise_set_IOERR(FILE *stream)
+static inline int
+__can_flush_otherwise_set_IOERR(FILE *stream)
 {
     if ((stream->_flag & _IOSTRG) || !(stream->_flag & (_IORW|_IOWRT))) {
         stream->_flag |= _IOERR;
@@ -23,7 +24,8 @@ static inline int __can_flush_otherwise_set_IOERR(FILE *stream)
     return 0;
 }
 
-static int __prepare_flush_otherwise_set_IOERR(FILE *stream)
+static int
+__prepare_flush_otherwise_set_IOERR(FILE *stream)
 {
     stream->_cnt = 0;
 

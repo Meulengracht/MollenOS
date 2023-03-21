@@ -31,13 +31,13 @@
 
 oserr_t
 VideoQuery(
-	_Out_ VideoDescriptor_t* videoDescriptor)
+	_Out_ OSBootVideoDescriptor_t* videoDescriptor)
 {
 	if (videoDescriptor == NULL || VideoGetTerminal() == NULL) {
 		return OS_ENOTSUPPORTED;
 	}
 
-	memcpy(videoDescriptor, &VideoGetTerminal()->Info, sizeof(VideoDescriptor_t));
+	memcpy(videoDescriptor, &VideoGetTerminal()->Info, sizeof(OSBootVideoDescriptor_t));
 	return OS_EOK;
 }
 

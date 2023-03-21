@@ -23,16 +23,7 @@
 #define __MOLLENOS_H__
 
 #include <os/osdefs.h>
-
-typedef struct SystemDescriptor {
-    size_t NumberOfProcessors;
-    size_t NumberOfActiveCores;
-
-    size_t PagesTotal;
-    size_t PagesUsed;
-    size_t PageSizeBytes;
-    size_t AllocationGranularityBytes;
-} SystemDescriptor_t;
+#include <os/types/query.h>
 
 /* Cache Type Definitions
  * Flags that can be used when requesting a flush of one of the hardware caches */
@@ -51,13 +42,19 @@ OsErrToErrNo(
         _In_ oserr_t code));
 
 /**
- * @brief
- * @param descriptor
+ * @brief Query system information.
+ * @param request
+ * @param buffer
+ * @param maxSize
+ * @param bytesQueriedOut
  * @return
  */
 CRTDECL(oserr_t,
-SystemQuery(
-        _In_ SystemDescriptor_t* descriptor));
+OSSystemQuery(
+        _In_ enum OSSystemQueryRequest request,
+        _In_ void*                     buffer,
+        _In_ size_t                    maxSize,
+        _In_ size_t*                   bytesQueriedOut));
 
 /**
  * @brief

@@ -51,7 +51,7 @@ FILE* fdopen(int fd, const char *mode)
         return NULL;
     }
     
-    if (stdio_handle_set_buffered(handle, NULL, 0)) {
+    if (stdio_handle_set_buffered(handle, NULL, _IORW)) {
         return NULL;
     }
     return stdio_handle_stream(handle);

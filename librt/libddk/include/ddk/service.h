@@ -52,6 +52,7 @@ struct ServiceStartupOptions {
 #define SERVICE_PROCESS_PATH "/service/process"
 #define SERVICE_FILE_PATH "/service/file"
 #define SERVICE_NET_PATH "/service/net"
+#define SERVICE_SYSLOG_PATH "/service/syslog"
 #define SERVICE_SERVED_PATH "/service/serve"
 
 // Service targets that are available for Vali
@@ -61,6 +62,7 @@ DDKDECL(uuid_t, GetUsbService(void));
 DDKDECL(uuid_t, GetProcessService(void));
 DDKDECL(uuid_t, GetFileService(void));
 DDKDECL(uuid_t, GetNetService(void));
+DDKDECL(uuid_t, GetSysLogService(void));
 
 // When a service is required for a module it is
 // possible to wait for it to be available. Be careful
@@ -83,6 +85,9 @@ WaitForFileService(
 DDKDECL(oserr_t,
 WaitForNetService(
     _In_ size_t Timeout));
+DDKDECL(oserr_t,
+WaitForSysLogService(
+        _In_ size_t Timeout));
 
 _CODE_END
 

@@ -124,7 +124,7 @@ FILE* fmemopen(void *buf, size_t size, const char *mode)
         return NULL;
     }
 
-    status = stdio_handle_set_buffered(object, NULL, _IOFBF);
+    status = stdio_handle_set_buffered(object, NULL, _IORW | _IOFBF);
     if (status) {
         stdio_handle_delete(object);
         __memstream_delete(memoryStream);

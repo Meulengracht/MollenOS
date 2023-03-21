@@ -94,7 +94,8 @@ static sig_element signal_list[] = {
     { SIGEXITQ, "Quick exit requested by application", quick_exit }
 };
 
-static void __CrashHandler(
+static void
+__CrashHandler(
     _In_ Context_t*   context,
     _In_ sig_element* signal)
 {
@@ -117,8 +118,7 @@ static void __CrashHandler(
         );
         gracht_client_await(GetGrachtClient(), &msg.base, 0);
         sys_process_report_crash_result(GetGrachtClient(), &msg.base, &osStatus);
-    }
-    else {
+    } else {
         ERROR("Faulting address is 0x%" PRIxIN, CONTEXT_IP(context));
     }
     

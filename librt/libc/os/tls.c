@@ -23,21 +23,14 @@
 #include <os/handle.h>
 #include <os/shm.h>
 
-static const char* g_nullEnvironment[] = {
-        NULL
-};
-
 static const char* const*
 __clone_env_block(void)
 {
-    const char* const* source = __crt_environment();
+    const char* const* source;
     char**             copy;
     int                count;
 
-    if (source == NULL) {
-        return (const char* const*)g_nullEnvironment;
-    }
-
+    source = __crt_environment();
     count = 0;
     while (source[count]) {
         count++;
@@ -45,7 +38,7 @@ __clone_env_block(void)
 
     copy = calloc(count + 1, sizeof(char*));
     if (copy == NULL) {
-        return (const char* const*)g_nullEnvironment;
+        return NULL;
     }
 
     count = 0;
@@ -67,8 +60,9 @@ int __tls_initialize(struct thread_storage* tls)
     tls->locale = __get_global_locale();
     tls->seed   = 1;
 
-    // this may end up returning NULL environment for the primary thread if the
-    // CRT hasn't fully initialized yet. Ignore it, and see what happens
+    // TLS is initialized before we retrieve the actual environment block
+    // from the startup information. This unfortunately means the primary
+    // thread environment will be the NULL environment
     tls->env_block = __clone_env_block();
     return 0;
 }
@@ -82,6 +76,24 @@ __destroy_env_block(char** env)
     free(env);
 }
 
+int __tls_update_environment(void)
+{
+    struct thread_storage* tls = __tls_current();
+    const char* const*     env;
+    assert(tls != NULL);
+
+    env = __clone_env_block();
+    if (env == NULL) {
+        return -1;
+    }
+
+    if (tls->env_block != NULL) {
+        __destroy_env_block((char**)tls->env_block);
+    }
+    tls->env_block = env;
+    return 0;
+}
+
 void __tls_destroy(struct thread_storage* tls)
 {
     // TODO: this is called twice for primary thread. Look into this
@@ -89,7 +101,7 @@ void __tls_destroy(struct thread_storage* tls)
         OSHandleDestroy(&tls->shm);
     }
 
-    if (tls->env_block != NULL && tls->env_block != g_nullEnvironment) {
+    if (tls->env_block != NULL) {
         __destroy_env_block((char**)tls->env_block);
         tls->env_block = NULL;
     }

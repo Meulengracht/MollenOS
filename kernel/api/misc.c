@@ -30,47 +30,71 @@
 
 oserr_t
 ScSystemDebug(
-    _In_ int         level,
-    _In_ const char* message)
+    _In_ enum OSSysLogLevel level,
+    _In_ const char*        message)
 {
-    if (message == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    // Switch based on type
-    if (level == 0) {
-        LogAppendMessage(LOG_TRACE, message);
-    }
-    else if (level == 1) {
-        LogAppendMessage(LOG_WARNING, message);
-    }
-    else {
-        LogAppendMessage(LOG_ERROR, message);
-    }
-    return OS_EOK;
-}
-
-oserr_t ScEndBootSequence(void) {
-    TRACE("Ending console session");
-    LogSetRenderMode(0);
+    LogAppendMessage(level, message);
     return OS_EOK;
 }
 
 oserr_t
-ScSystemQuery(
-    _In_ SystemDescriptor_t* Descriptor)
+ScMigrateKernelLog(
+        _In_ void*   buffer,
+        _In_ size_t  bufferSize,
+        _In_ size_t* bytesRead)
 {
-    size_t maxBlocks  = GetMachine()->NumberOfMemoryBlocks;
-    size_t freeBlocks = GetMachine()->NumberOfFreeMemoryBlocks;
-    
-    Descriptor->NumberOfProcessors  = atomic_load(&GetMachine()->NumberOfProcessors);
-    Descriptor->NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
+    return LogMigrate(buffer, bufferSize, bytesRead);
+}
 
-    Descriptor->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
-    Descriptor->PageSizeBytes = GetMemorySpacePageSize();
-    Descriptor->PagesTotal = maxBlocks;
-    Descriptor->PagesUsed  = maxBlocks - freeBlocks;
-    return OS_EOK;
+oserr_t
+ScSystemQuery(
+        _In_  enum OSSystemQueryRequest request,
+        _In_  void*                     buffer,
+        _In_  size_t                    bufferSize,
+        _Out_ size_t*                   bytesQueriedOut)
+{
+    switch (request) {
+        case OSSYSTEMQUERY_BOOTVIDEOINFO: {
+            OSBootVideoDescriptor_t* info = buffer;
+            oserr_t                  oserr;
+            if (bufferSize < sizeof(OSBootVideoDescriptor_t)) {
+                return OS_EINVALPARAMS;
+            }
+            oserr = VideoQuery(info);
+            if (oserr != OS_EOK) {
+                return oserr;
+            }
+            *bytesQueriedOut = sizeof(OSBootVideoDescriptor_t);
+            return OS_EOK;
+        } break;
+        case OSSYSTEMQUERY_CPUINFO: {
+            OSSystemCPUInfo_t* info = buffer;
+            if (bufferSize < sizeof(OSSystemCPUInfo_t)) {
+                return OS_EINVALPARAMS;
+            }
+            info->NumberOfProcessors = atomic_load(&GetMachine()->NumberOfProcessors);
+            info->NumberOfActiveCores = atomic_load(&GetMachine()->NumberOfActiveCores);
+            *bytesQueriedOut = sizeof(OSSystemCPUInfo_t);
+            return OS_EOK;
+        } break;
+        case OSSYSTEMQUERY_MEMINFO: {
+            OSSystemMemoryInfo_t* info = buffer;
+            if (bufferSize < sizeof(OSSystemMemoryInfo_t)) {
+                return OS_EINVALPARAMS;
+            }
+            size_t maxBlocks  = GetMachine()->NumberOfMemoryBlocks;
+            size_t freeBlocks = GetMachine()->NumberOfFreeMemoryBlocks;
+            info->AllocationGranularityBytes = GetMachine()->MemoryGranularity;
+            info->PageSizeBytes = GetMemorySpacePageSize();
+            info->PagesTotal = maxBlocks;
+            info->PagesUsed  = maxBlocks - freeBlocks;
+            *bytesQueriedOut = sizeof(OSSystemMemoryInfo_t);
+            return OS_EOK;
+        } break;
+        default: {
+            return OS_ENOTSUPPORTED;
+        }
+    }
 }
 
 oserr_t
@@ -88,15 +112,6 @@ ScFlushHardwareCache(
         return OS_EOK;
     }
     return OS_EUNKNOWN;
-}
-
-oserr_t
-ScQueryDisplayInformation(
-    _In_ VideoDescriptor_t *Descriptor) {
-    if (Descriptor == NULL) {
-        return OS_EUNKNOWN;
-    }
-    return VideoQuery(Descriptor);
 }
 
 oserr_t

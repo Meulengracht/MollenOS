@@ -386,6 +386,55 @@ __StartProcess(
     return oserr;
 }
 
+static void
+__DumpMemory(
+        _In_ const void* buffer,
+        _In_ size_t      bufferLength)
+{
+    char *data;
+    size_t len;
+    FILE *file = open_memstream(&data, &len);
+
+    int i;
+    unsigned char buff[17];       // stores the ASCII data
+    const unsigned char *pc = buffer;   // cast to make the code cleaner.
+
+    // Process every byte in the data.
+    for (i = 0; i < bufferLength; i++) {
+        // Multiple of 16 means new line (with line offset).
+        if ((i % 16) == 0) {
+            // Just don't print ASCII for the zeroth line.
+            if (i != 0)
+                fprintf(file, "  %s\n", buff);
+
+            // Output the offset.
+            fprintf(file, "  %04x ", i);
+        }
+
+        // Now the hex code for the specific character.
+        fprintf(file, " %02x", pc[i]);
+
+        // And store a printable ASCII character for later.
+        if ((pc[i] < 0x20) || (pc[i] > 0x7e))
+            buff[i % 16] = '.';
+        else
+            buff[i % 16] = pc[i];
+        buff[(i % 16) + 1] = '\0';
+    }
+
+    // Pad out last line if not exactly 16 characters.
+    while ((i % 16) != 0) {
+        fprintf(file, "   ");
+        i++;
+    }
+
+    // And print the final ASCII bit.
+    fprintf(file, "  %s\n", buff);
+    fclose(file);
+    TRACE("\n%s", data);
+    free(data);
+}
+
 static const char*
 __GetLoadPaths(
         _In_ struct ProcessOptions* procOpts)
@@ -400,6 +449,7 @@ __GetLoadPaths(
 
     // Try to locate LDPATH in a double zero-terminated array
     environ = __ProcOptsEnvironmentBlock(procOpts);
+    __DumpMemory(environ, procOpts->EnvironmentBlockLength);
     for (size_t i = 0; environ[i]; i += strlen(&environ[i]) + 1) {
         TRACE("__GetLoadPaths checking %s", &environ[i]);
         if (!strncmp(&environ[i], "LDPATH=", 7)) {
@@ -508,7 +558,6 @@ __WriteProcessStartupInformation(
 
     memcpy(&buffer[infoIndex], process->arguments, process->arguments_length);
     infoIndex += process->arguments_length;
-    TRACE("__WriteProcessStartupInformation: wrote %u bytes of arguments", process->arguments_length);
 
     if (process->inheritation_block_length) {
         memcpy(
@@ -517,7 +566,6 @@ __WriteProcessStartupInformation(
                 process->inheritation_block_length
         );
         infoIndex += process->inheritation_block_length;
-        TRACE("__WriteProcessStartupInformation: wrote %u bytes of imports", process->inheritation_block_length);
     }
 
     oserr = PEModuleEntryPoints(
@@ -535,7 +583,6 @@ __WriteProcessStartupInformation(
     // needs to initialize.
     moduleCount--;
     infoIndex += sizeof(uintptr_t) * moduleCount;
-    TRACE("__WriteProcessStartupInformation: wrote %u bytes of module entries", moduleCount * sizeof(uintptr_t));
 
     if (process->environment_block_length) {
         memcpy(
@@ -543,7 +590,6 @@ __WriteProcessStartupInformation(
                 process->environment_block,
                 process->environment_block_length
         );
-        TRACE("__WriteProcessStartupInformation: wrote %u bytes of module entries", process->environment_block_length);
     }
 
     // fill in the startup header as we now have all info

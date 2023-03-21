@@ -66,7 +66,7 @@ TimersDiscover(void)
 oserr_t
 PlatformTimersInitialize(void)
 {
-    oserr_t osStatus;
+    oserr_t oserr;
 
     // Free all the allocated isa's now for drivers
     InterruptDecreasePenalty(0); // PIT
@@ -84,9 +84,9 @@ PlatformTimersInitialize(void)
     InterruptDecreasePenalty(15); // IDE
 
     // Activate fixed system timers
-    osStatus = TimersDiscover();
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = TimersDiscover();
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // Calibrate the TSC

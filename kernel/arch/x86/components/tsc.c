@@ -20,6 +20,8 @@
  *   in the sub-layer system
  */
 
+#define __TRACE
+
 #include <component/timer.h>
 #include <arch/x86/cpu.h>
 #include <arch/x86/tsc.h>
