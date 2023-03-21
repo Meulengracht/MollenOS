@@ -46,6 +46,10 @@ extern void OSHandlesInitialize(void);
 static gracht_client_t*         g_gclient     = NULL;
 static struct gracht_link_vali* g_gclientLink = NULL;
 
+static const char* g_nullEnvironment[] = {
+        NULL
+};
+
 static char*      g_rawCommandLine  = NULL;
 static uint8_t*   g_inheritBlock    = NULL;
 static uintptr_t* g_baseLibraries   = NULL;
@@ -301,6 +305,9 @@ __startup(
 
         // restore async context again
         __tls_current()->async_context = asyncContext;
+
+        // refresh our tls data
+        __tls_update_environment();
     }
 
     // now that we have the startup information, we can proceed to setup systems
@@ -376,6 +383,9 @@ const char* __crt_cmdline(void)
 
 const char* const* __crt_environment(void)
 {
+    if (g_environment == NULL) {
+        return g_nullEnvironment;
+    }
     return (const char* const*)g_environment;
 }
 

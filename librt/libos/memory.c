@@ -85,10 +85,22 @@ size_t
 MemoryPageSize(void)
 {
     if (!g_pageSize) {
-        SystemDescriptor_t descriptor;
-        SystemQuery(&descriptor);
+        OSSystemMemoryInfo_t memoryInfo;
+        size_t               bytesQueried;
+        oserr_t              oserr;
 
-        g_pageSize = descriptor.PageSizeBytes;
+        oserr = OSSystemQuery(
+                OSSYSTEMQUERY_MEMINFO,
+                &memoryInfo,
+                sizeof(OSSystemMemoryInfo_t),
+                &bytesQueried
+        );
+        if (oserr != OS_EOK) {
+            g_pageSize = 0x1000;
+            return g_pageSize;
+        }
+
+        g_pageSize = memoryInfo.PageSizeBytes;
     }
     return g_pageSize;
 }

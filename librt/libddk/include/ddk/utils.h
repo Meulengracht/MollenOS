@@ -24,16 +24,13 @@
 #define _UTILS_INTERFACE_H_
 
 #include <ddk/ddkdefs.h>
+#include <os/types/syslog.h>
 
 /* Global <always-on> definitions
  * These are enabled no matter which kind of debugging is enabled */
-#define SYSTEM_DEBUG_TRACE			0x00000000
-#define SYSTEM_DEBUG_WARNING		0x00000001
-#define SYSTEM_DEBUG_ERROR			0x00000002
-
 #define STR(str)               str
-#define DEBUG(...)             SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
-#define WARNING(...)           SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__)
+#define DEBUG(...)             SystemDebug(OSSYSLOGLEVEL_DEBUG, __VA_ARGS__)
+#define WARNING(...)           SystemDebug(OSSYSLOGLEVEL_WARNING, __VA_ARGS__)
 #define WARNING_IF(cond, ...)  { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
 #define WARNING_ONCE(id, ...)  { \
                                     static _Atomic(int) __gi_ ##id ## _trigger = 0; \
@@ -41,8 +38,8 @@
                                         SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); \
                                     } \
                                }
-#define ERROR(...)	           SystemDebug(SYSTEM_DEBUG_ERROR, __VA_ARGS__)
-#define TODO(msg)              SystemDebug(SYSTEM_DEBUG_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, msg)
+#define ERROR(...)	           SystemDebug(OSSYSLOGLEVEL_ERROR, __VA_ARGS__)
+#define TODO(msg)              SystemDebug(OSSYSLOGLEVEL_WARNING, "TODO: %s, line %d, %s", __FILE__, __LINE__, msg)
 
 /**
  * Global <toggable> definitions
@@ -52,9 +49,9 @@
 #include <time.h>
 #define __TS_DIFF_MS(start, end) (((end.tv_sec - start.tv_sec) * MSEC_PER_SEC) + ((end.tv_nsec - start.tv_nsec) / NSEC_PER_MSEC))
 
-#define TRACE(...) SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__)
-#define ENTRY(...) struct timespec start, end; SystemDebug(SYSTEM_DEBUG_TRACE, __VA_ARGS__); timespec_get(&start, TIME_MONOTONIC)
-#define EXIT(msg)  timespec_get(&end, TIME_MONOTONIC); SystemDebug(SYSTEM_DEBUG_TRACE, msg " completed in %llu ms", __TS_DIFF_MS(start, end))
+#define TRACE(...) SystemDebug(OSSYSLOGLEVEL_TRACE, __VA_ARGS__)
+#define ENTRY(...) struct timespec start, end; SystemDebug(OSSYSLOGLEVEL_TRACE, __VA_ARGS__); timespec_get(&start, TIME_MONOTONIC)
+#define EXIT(msg)  timespec_get(&end, TIME_MONOTONIC); SystemDebug(OSSYSLOGLEVEL_TRACE, msg " completed in %llu ms", __TS_DIFF_MS(start, end))
 #else
 #define TRACE(...)
 #define ENTRY(...)
@@ -66,7 +63,7 @@
 #define WaitForCondition(condition, runs, wait, message, ...)\
     for (unsigned int timeout_ = 0; !(condition); timeout_++) {\
         if (timeout_ >= runs) {\
-             SystemDebug(SYSTEM_DEBUG_WARNING, message, __VA_ARGS__);\
+             SystemDebug(OSSYSLOGLEVEL_WARNING, message, __VA_ARGS__);\
              break;\
 		}\
         thrd_sleep(&(struct timespec) { .tv_nsec = wait * NSEC_PER_MSEC }, NULL);\
@@ -86,8 +83,6 @@
 
 _CODE_BEGIN
 
-DDKDECL(void, MollenOSEndBoot(void));
-
 /**
  * @brief Debug/trace printing for userspace application and drivers. Writes to the kernel log.
  *
@@ -96,8 +91,8 @@ DDKDECL(void, MollenOSEndBoot(void));
  */
 DDKDECL(void,
 SystemDebug(
-	_In_ int         Type,
-	_In_ const char* Format, ...));
+        _In_ enum OSSysLogLevel Level,
+        _In_ const char*        Format, ...));
 
 /**
  * @brief Requests to have the boot ramdisk mapped into the current memory space and

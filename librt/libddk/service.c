@@ -29,6 +29,7 @@ static uuid_t g_usbServiceId     = UUID_INVALID;
 static uuid_t g_processServiceId = UUID_INVALID;
 static uuid_t g_fileServiceId    = UUID_INVALID;
 static uuid_t g_netServiceId     = UUID_INVALID;
+static uuid_t g_sysLogServiceId  = UUID_INVALID;
 
 static uuid_t
 __GetHandleFromPath(
@@ -111,6 +112,14 @@ uuid_t GetNetService(void)
     return g_netServiceId;
 }
 
+uuid_t GetSysLogService(void)
+{
+    if (g_sysLogServiceId == UUID_INVALID) {
+        g_sysLogServiceId = __GetHandleFromPath(SERVICE_SYSLOG_PATH);
+    }
+    return g_sysLogServiceId;
+}
+
 oserr_t
 WaitForSessionService(
     _In_ size_t Timeout)
@@ -151,4 +160,11 @@ WaitForNetService(
     _In_ size_t Timeout)
 {
     return __WaitForService(GetNetService, Timeout);
+}
+
+oserr_t
+WaitForSysLogService(
+        _In_ size_t Timeout)
+{
+    return __WaitForService(GetSysLogService, Timeout);
 }

@@ -28,7 +28,7 @@
 #define MUTEX_SPINS     1000
 #define MUTEX_DESTROYED 0x1000
 
-static SystemDescriptor_t g_systemInfo = {0 };
+static OSSystemCPUInfo_t g_cpuInfo = { 0 };
 
 // Mutex::State is made up of 24 bits of ownership, which corresponds to the thread
 // id. We don't actually need the full 24 bits, but it makes things easier. This way
@@ -48,8 +48,14 @@ MutexInitialize(
     }
 
     // Get information about the system
-    if (g_systemInfo.NumberOfActiveCores == 0) {
-        SystemQuery(&g_systemInfo);
+    if (g_cpuInfo.NumberOfActiveCores == 0) {
+        size_t bytesQueried;
+        OSSystemQuery(
+                OSSYSTEMQUERY_CPUINFO,
+                &g_cpuInfo,
+                sizeof(OSSystemCPUInfo_t),
+                &bytesQueried
+        );
     }
     
     mutex->Flags = flags;
@@ -156,7 +162,7 @@ __perform_lock(
     // and only in the case that there are no sleepers && locked
     status = atomic_compare_exchange_strong(&mutex->Value, &z, 1);
     if (!status) {
-        if (g_systemInfo.NumberOfActiveCores > 1 && z == 1) {
+        if (g_cpuInfo.NumberOfActiveCores > 1 && z == 1) {
             for (i = 0; i < MUTEX_SPINS; i++) {
                 if (MutexTryLock(mutex) == OS_EOK) {
                     return OS_EOK;

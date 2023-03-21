@@ -61,6 +61,11 @@ __memstream_new(
     memset(memoryStream, 0, sizeof(struct MemoryStream));
     memoryStream->UserBuffer = userBuffer;
     memoryStream->UserSize = userSize;
+
+    // Zero the buffers initially
+    *userBuffer = NULL;
+    *userSize = 0;
+
     return memoryStream;
 }
 
@@ -103,7 +108,7 @@ FILE* open_memstream(char** ptr, size_t* sizeloc)
         return NULL;
     }
 
-    status = stdio_handle_set_buffered(object, NULL, _IOFBF);
+    status = stdio_handle_set_buffered(object, NULL, _IOWRT | _IOFBF);
     if (status) {
         stdio_handle_delete(object);
         __memstream_delete(memoryStream);

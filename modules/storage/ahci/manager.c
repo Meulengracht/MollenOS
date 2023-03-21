@@ -29,6 +29,7 @@
 #include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <internal/_utils.h>
+#include <os/memory.h>
 #include <os/shm.h>
 #include "manager.h"
 
@@ -71,15 +72,9 @@ __flipbuffer(
 oserr_t
 AhciManagerInitialize(void)
 {
-    SystemDescriptor_t Descriptor;
-    oserr_t         Status;
-
     TRACE("AhciManagerInitialize()");
-    Status = SystemQuery(&Descriptor);
-    if (Status == OS_EOK) {
-        g_frameSize = Descriptor.PageSizeBytes;
-    }
-    return Status;
+    g_frameSize = MemoryPageSize();
+    return OS_EOK;
 }
 
 static void

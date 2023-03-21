@@ -97,7 +97,7 @@ static void __FunctionTrace(const char* format, ...)
     vsnprintf(&buffer[0], sizeof(buffer) - 1, format, arguments);
     va_end(arguments);
 
-    LogAppendMessage(LOG_TRACE, &buffer[0]);
+    LogAppendMessage(OSSYSLOGLEVEL_TRACE, &buffer[0]);
 }
 
 void

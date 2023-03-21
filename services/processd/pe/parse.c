@@ -140,6 +140,7 @@ __ParseModuleHeaders(
     MzHeader_t*         dosHeader;
     PeHeader_t*         peHeader;
     PeOptionalHeader_t* optionalHeader;
+    TRACE("__ParseModuleHeaders()");
 
     // Avoid doing any further checks on DOS/PE headers as they have been validated
     // earlier. We do however match against current machine and architecture
@@ -200,6 +201,7 @@ __ParseModuleSections(
         _In_ int            sectionCount)
 {
     PeSectionHeader_t* section = sectionHeadersData;
+    TRACE("__ParseModuleSections()");
 
     module->Sections = malloc(sizeof(struct Section) * sectionCount);
     if (module->Sections == NULL) {
@@ -249,6 +251,7 @@ __ParseModuleExportedFunctions(
     uint32_t*            nameTable;
     uint16_t*            ordinalTable;
     uint32_t*            addressTable;
+    TRACE("__ParseModuleExportedFunctions()");
 
     directory = &module->DataDirectories[PE_SECTION_EXPORT];
     if (directory->AddressRVA == 0 || directory->Size == 0) {
@@ -259,7 +262,8 @@ __ParseModuleExportedFunctions(
     // Get the file data which the RVA points to
     exportDirectory = __ConvertRVAToDataPointer(
             module,
-            module->DataDirectories[PE_SECTION_EXPORT].AddressRVA);
+            module->DataDirectories[PE_SECTION_EXPORT].AddressRVA
+    );
     if (exportDirectory == NULL) {
         ERROR("__ParseModuleExportedFunctions export directory was invalid");
         return OS_EUNKNOWN;
@@ -273,7 +277,7 @@ __ParseModuleExportedFunctions(
     addressTable = __ConvertRVAToDataPointer(module, exportDirectory->AddressOfFunctions);
     for (int i = 0; i < exportDirectory->NumberOfNames; i++) {
         const char* name        = __ConvertRVAToDataPointer(module, nameTable[i]);
-        uint32_t    ordinal     = (uint32_t)ordinalTable[i] - exportDirectory->OrdinalBase;
+        uint32_t    ordinal     = (uint32_t)ordinalTable[i];
         uint32_t    fnRVA       = addressTable[ordinal];
         const char* forwardName = NULL;
 
@@ -311,6 +315,7 @@ PEParseModule(
     void*   sectionHeaders;
     int     sectionCount;
     oserr_t oserr;
+    TRACE("PEParseModule()");
 
     oserr = __ParseModuleHeaders(module, &sectionHeaders, &sectionCount);
     if (oserr != OS_EOK) {

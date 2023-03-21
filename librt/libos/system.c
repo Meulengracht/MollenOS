@@ -22,13 +22,16 @@
 #include <os/mollenos.h>
 
 oserr_t
-SystemQuery(
-	_In_ SystemDescriptor_t* descriptor)
+OSSystemQuery(
+        _In_ enum OSSystemQueryRequest request,
+        _In_ void*                     buffer,
+        _In_ size_t                    maxSize,
+        _In_ size_t*                   bytesQueriedOut)
 {
-	if (!descriptor) {
+	if (buffer == NULL || maxSize == 0) {
 		return OS_EINVALPARAMS;
 	}
-	return Syscall_SystemQuery(descriptor);
+	return Syscall_SystemQuery(request, buffer, maxSize, bytesQueriedOut);
 }
 
 oserr_t

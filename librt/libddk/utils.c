@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2019, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,23 +13,19 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * OS Utilities (Protected) Definitions & Structures
- * - This header describes the base utility-structure, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
 #include <internal/_syscalls.h>
 #include <ddk/video.h>
+#include <ddk/utils.h>
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
 
 void
 SystemDebug(
-	_In_ int         Type,
-	_In_ const char* Format, ...)
+        _In_ enum OSSysLogLevel Level,
+        _In_ const char*        Format, ...)
 {
 	va_list args;
 	char    buffer[256];
@@ -39,26 +34,27 @@ SystemDebug(
 	vsnprintf(&buffer[0], sizeof(buffer) - 1, Format, args);
 	va_end(args);
 
-    Syscall_Debug(Type, &buffer[0]);
-}
-
-void
-MollenOSEndBoot(void)
-{
-    Syscall_SystemStart();
+    Syscall_Debug(Level, &buffer[0]);
 }
 
 oserr_t
-QueryDisplayInformation(VideoDescriptor_t* Descriptor)
+QueryBootVideoInformation(
+        _In_ OSBootVideoDescriptor_t* Descriptor)
 {
-    return Syscall_DisplayInformation(Descriptor);
+    size_t bytesQueried;
+    return OSSystemQuery(
+            OSSYSTEMQUERY_BOOTVIDEOINFO,
+            Descriptor,
+            sizeof(OSBootVideoDescriptor_t),
+            &bytesQueried
+    );
 }
 
 void* CreateDisplayFramebuffer(void)
 {
-    void*      framebuffer;
-    oserr_t osStatus = Syscall_MapBootFramebuffer(&framebuffer);
-    if (osStatus != OS_EOK) {
+    void*   framebuffer;
+    oserr_t oserr = Syscall_MapBootFramebuffer(&framebuffer);
+    if (oserr != OS_EOK) {
         return NULL;
     }
     return framebuffer;

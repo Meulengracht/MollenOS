@@ -26,32 +26,44 @@
 
 #include <ddk/ddkdefs.h>
 
-typedef struct VideoDescriptor {
-    size_t              BytesPerScanline;
-    size_t              Height;
-    size_t              Width;
-    int                 Depth;
+enum OSBootVideoType {
+    OSBOOTVIDEO_NONE,
+    OSBOOTVIDEO_TTY,
+    OSBOOTVIDEO_FRAMEBUFFER
+};
 
-    int                 RedPosition;
-    int                 BluePosition;
-    int                 GreenPosition;
-    int                 ReservedPosition;
+typedef struct VideoColorComponent {
+    uint8_t  Position;
+    uint32_t Mask;
+} VideoColorComponent_t;
 
-    int                 RedMask;
-    int                 BlueMask;
-    int                 GreenMask;
-    int                 ReservedMask;
-} VideoDescriptor_t;
+typedef struct OSBootVideoDescriptor {
+    enum OSBootVideoType  Type;
+    size_t                BytesPerScanline;
+    size_t                Height;
+    size_t                Width;
+    int                   DepthBits;
+    VideoColorComponent_t Red;
+    VideoColorComponent_t Green;
+    VideoColorComponent_t Blue;
+    VideoColorComponent_t Alpha;
+} OSBootVideoDescriptor_t;
 
 _CODE_BEGIN
 
-/* QueryDisplayInformation
- * Queries the current display driver for information. */
-DDKDECL(oserr_t, QueryDisplayInformation(VideoDescriptor_t * Descriptor));
+/**
+ * @brief Queries the information about the boot video environment.
+ * @param Descriptor A pointer to a structure to store information.
+ * @return
+ */
+DDKDECL(oserr_t,
+QueryBootVideoInformation(
+        _In_ OSBootVideoDescriptor_t* Descriptor));
 
 /* CreateDisplayFramebuffer
  * Creates a new display framebuffer to use for direct drawing. */
-DDKDECL(void*, CreateDisplayFramebuffer(void));
+DDKDECL(void*,
+CreateDisplayFramebuffer(void));
 
 _CODE_END
 #endif //!__DDK_VIDEO_H__

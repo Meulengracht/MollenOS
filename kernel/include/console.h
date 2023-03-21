@@ -44,6 +44,6 @@ ConsoleInitialize(void);
  * at the current terminal position */
 KERNELAPI oserr_t KERNELABI
 VideoQuery(
-	_Out_ VideoDescriptor_t *videoDescriptor);
+	_Out_ OSBootVideoDescriptor_t *videoDescriptor);
 
 #endif //!__CONSOLE_INTERFACE_H__

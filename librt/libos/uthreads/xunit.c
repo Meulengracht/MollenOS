@@ -84,11 +84,20 @@ static void __execution_unit_construct(struct usched_execution_unit* unit)
 
 static int __get_cpu_count(void)
 {
-    SystemDescriptor_t descriptor;
-    if (SystemQuery(&descriptor) != OS_EOK) {
+    OSSystemCPUInfo_t cpuInfo;
+    oserr_t           oserr;
+    size_t            bytesQueried;
+
+    oserr = OSSystemQuery(
+            OSSYSTEMQUERY_CPUINFO,
+            &cpuInfo,
+            sizeof(OSSystemCPUInfo_t),
+            &bytesQueried
+    );
+    if (oserr != OS_EOK) {
         return 1;
     }
-    return (int)descriptor.NumberOfActiveCores;
+    return (int)cpuInfo.NumberOfActiveCores;
 }
 
 void usched_xunit_init(void)

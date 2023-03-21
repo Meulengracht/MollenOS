@@ -62,7 +62,7 @@ IPCContextCreate(
         _In_  IPCAddress_t* address,
         _Out_ OSHandle_t*   handleOut)
 {
-    const char* key;
+    const char* key = NULL;
 
     TRACE("IPCContextCreate(len=%u, addr=0x" PRIxIN ")", length, address);
 

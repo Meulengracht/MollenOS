@@ -28,15 +28,11 @@
 #define LOG_INITIAL_SIZE   (1024 * 4)
 #define LOG_PREFFERED_SIZE (1024 * 65)
 
-#define LOG_RAW     0
-#define LOG_TRACE   1
-#define LOG_DEBUG   2
-#define LOG_WARNING 3
-#define LOG_ERROR   4
-
-/* LogInitialize
- * Initializes loggin data-structures and global variables
- * by setting everything to sane value */
+/**
+ * @brief Initializes the logging system. This will setup a temporary buffer
+ * to log into, until LogInitializeFull is called. This can be called before
+ * memory systems are initialized.
+ */
 KERNELAPI void KERNELABI
 LogInitialize(void);
 
@@ -44,6 +40,19 @@ LogInitialize(void);
  * Upgrades the log to a larger buffer, initializing pipes and installs the message thread. */
 KERNELAPI void KERNELABI
 LogInitializeFull(void);
+
+/**
+ * @brief
+ * @param buffer
+ * @param bufferSize
+ * @param bytesRead
+ * @return
+ */
+KERNELAPI oserr_t KERNELABI
+LogMigrate(
+        _In_ void*   buffer,
+        _In_ size_t  bufferSize,
+        _In_ size_t* bytesRead);
 
 /* LogSetRenderMode
  * Enables or disables the log from rendering to the screen. This can be used at start to 
@@ -57,8 +66,7 @@ LogSetRenderMode(
  * reaches the end wrap-around will happen. */
 KERNELAPI void KERNELABI
 LogAppendMessage(
-    _In_ int         level,
-    _In_ const char* format,
-    ...);
+        _In_ enum OSSysLogLevel level,
+        _In_ const char*        format, ...);
 
 #endif // !__LOGGING_INTERFACE__

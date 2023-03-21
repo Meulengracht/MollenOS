@@ -23,25 +23,44 @@
 
 int main(int argc, char** argv)
 {
-    SystemDescriptor_t systemDescriptor;
-    oserr_t            oserr;
-    uint64_t           memoryTotal;
-    uint64_t           memoryInUse;
+    OSSystemCPUInfo_t    cpuInfo;
+    OSSystemMemoryInfo_t memoryInfo;
+    oserr_t              oserr;
+    size_t               bytesQueried;
+    uint64_t             memoryTotal;
+    uint64_t             memoryInUse;
 
-    oserr = SystemQuery(&systemDescriptor);
+    oserr = OSSystemQuery(
+            OSSYSTEMQUERY_CPUINFO,
+            &cpuInfo,
+            sizeof(OSSystemCPUInfo_t),
+            &bytesQueried
+    );
     if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);
         printf("systat: failed to retrieve system stats: %i\n", errno);
         return -1;
     }
 
-    memoryTotal = (systemDescriptor.PageSizeBytes * systemDescriptor.PagesTotal) / (1024 * 1024);
-    memoryInUse = (systemDescriptor.PageSizeBytes * systemDescriptor.PagesUsed) / (1024 * 1024);
+    oserr = OSSystemQuery(
+            OSSYSTEMQUERY_MEMINFO,
+            &memoryInfo,
+            sizeof(OSSystemMemoryInfo_t),
+            &bytesQueried
+    );
+    if (oserr != OS_EOK) {
+        OsErrToErrNo(oserr);
+        printf("systat: failed to retrieve system stats: %i\n", errno);
+        return -1;
+    }
 
-    printf("processor count: %u", (uint32_t)systemDescriptor.NumberOfProcessors);
-    printf(" (cores active: %u)\n", (uint32_t)systemDescriptor.NumberOfActiveCores);
-    printf("page-size: %u bytes\n", (uint32_t)systemDescriptor.PageSizeBytes);
-    printf("allocation-size: %u bytes\n", (uint32_t)systemDescriptor.AllocationGranularityBytes);
+    memoryTotal = (memoryInfo.PageSizeBytes * memoryInfo.PagesTotal) / (1024 * 1024);
+    memoryInUse = (memoryInfo.PageSizeBytes * memoryInfo.PagesUsed) / (1024 * 1024);
+
+    printf("processor count: %u", (uint32_t)cpuInfo.NumberOfProcessors);
+    printf(" (cores active: %u)\n", (uint32_t)cpuInfo.NumberOfActiveCores);
+    printf("page-size: %u bytes\n", (uint32_t)memoryInfo.PageSizeBytes);
+    printf("allocation-size: %u bytes\n", (uint32_t)memoryInfo.AllocationGranularityBytes);
     printf("memory usage: %llu/%llu MiB\n", memoryInUse, memoryTotal);
     return 0;
 }

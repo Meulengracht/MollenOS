@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Logging Interface
- * - Contains the shared kernel log interface for logging-usage
  */
 
 #include <arch/output.h>
@@ -28,6 +22,7 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
+#include <os/types/syscall.h>
 #include <spinlock.h>
 #include <log.h>
 #include <stddef.h>
@@ -35,28 +30,20 @@
 #include <string.h>
 #include <threading.h>
 
-typedef struct SystemLogLine {
-    int     level;
-    uuid_t  coreId;
-    uuid_t  threadHandle;
-    clock_t timeStamp;
-    char    data[128]; // Message
-} SystemLogLine_t;
-
 typedef struct SystemLog {
-    uintptr_t*       StartOfData;
-    size_t           DataSize;
-    int              NumberOfLines;
-    SystemLogLine_t* Lines;
-    Spinlock_t SyncObject;
+    uintptr_t*          StartOfData;
+    size_t              DataSize;
+    int                 NumberOfLines;
+    OSKernelLogEntry_t* Lines;
+    Spinlock_t          SyncObject;
     
     int LineIndex;
+    int MigrationIndex;
     int RenderIndex;
     int AllowRender;
 } SystemLog_t;
 
 static char* g_typeNames[] = {
-    "raw",
     "trace",
     "debug",
     "warn",
@@ -64,7 +51,6 @@ static char* g_typeNames[] = {
 };
 
 static uint32_t g_typeColors[] = {
-    0x111111,
     0x99E600,
     0x2ECC71,
     0x9B59B6,
@@ -100,8 +86,8 @@ LogInitialize(void)
     g_kernelLog.StartOfData = (uintptr_t*)&g_bootLogSpace[0];
     g_kernelLog.DataSize    = LOG_INITIAL_SIZE;
 
-    g_kernelLog.Lines         = (SystemLogLine_t*)&g_bootLogSpace[0];
-    g_kernelLog.NumberOfLines = LOG_INITIAL_SIZE / sizeof(SystemLogLine_t);
+    g_kernelLog.Lines         = (OSKernelLogEntry_t*)&g_bootLogSpace[0];
+    g_kernelLog.NumberOfLines = LOG_INITIAL_SIZE / sizeof(OSKernelLogEntry_t);
 
     // Initialize the serial interface if any
 #ifdef __OSCONFIG_HAS_UART
@@ -127,18 +113,55 @@ LogInitializeFull(void)
     memcpy(upgradeBuffer, (const void*)g_kernelLog.StartOfData, g_kernelLog.DataSize);
     g_kernelLog.StartOfData   = (uintptr_t*)upgradeBuffer;
     g_kernelLog.DataSize      = LOG_PREFFERED_SIZE;
-    g_kernelLog.Lines         = (SystemLogLine_t*)upgradeBuffer;
-    g_kernelLog.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(SystemLogLine_t);
+    g_kernelLog.Lines         = (OSKernelLogEntry_t*)upgradeBuffer;
+    g_kernelLog.NumberOfLines = LOG_PREFFERED_SIZE / sizeof(OSKernelLogEntry_t);
     SpinlockReleaseIrq(&g_kernelLog.SyncObject);
+}
+
+oserr_t
+LogMigrate(
+        _In_ void*   buffer,
+        _In_ size_t  bufferSize,
+        _In_ size_t* bytesRead)
+{
+    int lines = (int)(bufferSize / sizeof(OSKernelLogEntry_t));
+    if (buffer == NULL || lines == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Once this is called, we disable logging.
+    SpinlockAcquireIrq(&g_kernelLog.SyncObject);
+
+    // Clamp the number of lines we are going to read
+    if (lines > (g_kernelLog.NumberOfLines - g_kernelLog.MigrationIndex)) {
+        lines = g_kernelLog.NumberOfLines - g_kernelLog.MigrationIndex;
+        if (lines == 0) {
+            SpinlockReleaseIrq(&g_kernelLog.SyncObject);
+            // Migration done
+            *bytesRead = 0;
+            return OS_EOK;
+        }
+    }
+
+    // Migrate those lines
+    memcpy(
+            buffer,
+            &g_kernelLog.Lines[g_kernelLog.MigrationIndex],
+            sizeof(OSKernelLogEntry_t) * lines
+    );
+    g_kernelLog.MigrationIndex += lines;
+    SpinlockReleaseIrq(&g_kernelLog.SyncObject);
+    *bytesRead = sizeof(OSKernelLogEntry_t) * lines;
+    return OS_EOK;
 }
 
 void
 LogRenderMessages(void)
 {
-    SystemLogLine_t* logLine;
-    Thread_t*        thread;
-    char             sprintBuffer[256];
-    int              written;
+    OSKernelLogEntry_t* logLine;
+    Thread_t*           thread;
+    char                sprintBuffer[256];
+    int                 written;
 
     while (g_kernelLog.RenderIndex != g_kernelLog.LineIndex) {
 
@@ -147,30 +170,21 @@ LogRenderMessages(void)
         if (g_kernelLog.RenderIndex == g_kernelLog.NumberOfLines) {
             g_kernelLog.RenderIndex = 0;
         }
-        thread = THREAD_GET(logLine->threadHandle);
+        thread = THREAD_GET(logLine->ThreadID);
 
-        // Don't give raw any special handling
-        if (logLine->level == LOG_RAW) {
-            VideoGetTerminal()->FgColor = 0;
-            __WriteMessageToSerial(&logLine->data[0]);
-        }
-        else {
-            VideoGetTerminal()->FgColor = g_typeColors[logLine->level];
-
-            written = snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
-                     "%09llu [%s-%u-%s] %s\n",
-                     logLine->timeStamp,
-                     g_typeNames[logLine->level],
-                     logLine->coreId,
-                     thread ? ThreadName(thread) : "boot",
-                     &logLine->data[0]
-            );
-            sprintBuffer[written] = '\0';
-
-            __WriteMessageToSerial(&sprintBuffer[0]);
-            if (logLine->level >= LOG_DEBUG && g_kernelLog.AllowRender) {
-                __WriteMessageToScreen(&sprintBuffer[0]);
-            }
+        VideoGetTerminal()->FgColor = g_typeColors[(int)logLine->Level];
+        written = snprintf(&sprintBuffer[0], sizeof(sprintBuffer) - 1,
+                           "%09llu [%s-%u-%s] %s\n",
+                           logLine->Timestamp,
+                           g_typeNames[(int)logLine->Level],
+                           logLine->CoreID,
+                           thread ? ThreadName(thread) : "boot",
+                           &logLine->Message[0]
+        );
+        sprintBuffer[written] = '\0';
+        __WriteMessageToSerial(&sprintBuffer[0]);
+        if ((int)logLine->Level >= (int)OSSYSLOGLEVEL_DEBUG && g_kernelLog.AllowRender) {
+            __WriteMessageToScreen(&sprintBuffer[0]);
         }
     }
 }
@@ -190,14 +204,13 @@ LogSetRenderMode(
 
 void
 LogAppendMessage(
-    _In_ int         level,
-    _In_ const char* format,
-    ...)
+        _In_ enum OSSysLogLevel level,
+        _In_ const char*        format, ...)
 {
-    SystemLogLine_t* logLine;
-	va_list          arguments;
-	uuid_t           coreId = ArchGetProcessorCoreId();
-    int              written;
+    OSKernelLogEntry_t* logLine;
+	va_list             arguments;
+	uuid_t              coreId = ArchGetProcessorCoreId();
+    int                 written;
 
 	if (!format) {
 	    return;
@@ -214,17 +227,22 @@ LogAppendMessage(
         g_kernelLog.LineIndex = 0;
     }
     
-    memset((void*)logLine, 0, sizeof(SystemLogLine_t));
-    logLine->level        = level;
-    logLine->coreId       = coreId;
-    logLine->threadHandle = ThreadCurrentHandle();
-    SystemTimerGetTimestamp(&logLine->timeStamp);
-    logLine->timeStamp /= NSEC_PER_MSEC;
+    memset((void*)logLine, 0, sizeof(OSKernelLogEntry_t));
+    logLine->Level    = level;
+    logLine->CoreID   = coreId;
+    logLine->ThreadID = ThreadCurrentHandle();
+    SystemTimerGetTimestamp(&logLine->Timestamp);
+    logLine->Timestamp /= NSEC_PER_MSEC;
     
 	va_start(arguments, format);
-    written = vsnprintf(&logLine->data[0], sizeof(logLine->data) - 1, format, arguments);
+    written = vsnprintf(
+            &logLine->Message[0],
+            sizeof(logLine->Message) - 1,
+            format,
+            arguments
+    );
     va_end(arguments);
-    logLine->data[written] = '\0';
+    logLine->Message[written] = '\0';
 
 	LogRenderMessages();
     SpinlockReleaseIrq(&g_kernelLog.SyncObject);

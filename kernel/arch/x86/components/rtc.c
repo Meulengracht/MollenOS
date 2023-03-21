@@ -38,14 +38,14 @@ extern uint32_t g_calibrationTick;
 extern Cmos_t   g_cmos;
 
 static oserr_t RTCEnable(void*, bool enable);
-static oserr_t RTCConfigure(void*, UInteger64_t* frequency);
+static oserr_t __RTCConfigure(void *context, UInteger64_t* frequency);
 static void    RTCGetFrequencyRange(void*, UInteger64_t* low, UInteger64_t* high);
 static void    RTCGetFrequency(void*, UInteger64_t*);
 static void    RTCGetCount(void*, UInteger64_t*);
 
 static SystemTimerOperations_t g_rtcOperations = {
         .Enable = RTCEnable,
-        .Configure = RTCConfigure,
+        .Configure = __RTCConfigure,
         .Recalibrate = NULL,
         .GetFrequencyRange = RTCGetFrequencyRange,
         .GetFrequency = RTCGetFrequency,
@@ -141,6 +141,7 @@ __ConfigureRTC(
     // initialize to highest rate value (lowest frequency)
     uint32_t current = 2;
     uint16_t rate    = 15;
+    TRACE("__ConfigureRTC()");
 
     // Find nearest frequency that matches what we want
     while (rate > 3) {
@@ -236,7 +237,7 @@ RtcSetCalibrationMode(
     g_cmos.CalibrationMode = enable;
 
     if (enable) {
-        RTCConfigure(&g_cmos, &(UInteger64_t) { .QuadPart = 1000 });
+        __RTCConfigure(&g_cmos, &(UInteger64_t) {.QuadPart = 1000});
     }
     RTCEnable(&g_cmos, enable);
 }
@@ -263,11 +264,12 @@ RTCEnable(
 }
 
 static oserr_t
-RTCConfigure(
+__RTCConfigure(
         _In_ void*         context,
         _In_ UInteger64_t* frequency)
 {
     Cmos_t* cmos = context;
+    TRACE("__RTCConfigure(frequency=0x%u)", frequency->u.LowPart);
 
     // sanitize the frequency request, we don't want to do any invalid
     // divisions
@@ -277,6 +279,8 @@ RTCConfigure(
     }
 
     if (HPETIsEmulatingLegacyController()) {
+        TRACE("__RTCConfigure: starting in emulated mode");
+
         // Counter 0 is the IRQ 0 emulator
         HPETComparatorStart(1, frequency->u.LowPart, 1, cmos->InterruptLine);
     } else {

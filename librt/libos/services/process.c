@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 #define __need_minmax
 
 #include <assert.h>
@@ -211,6 +211,7 @@ OSProcessSpawnOpts(
             &options->InheritationBlockLength
     );
     buffer += options->InheritationBlockLength;
+
     __WriteFlattenedEnvironment(
             options->Environment,
             buffer,
