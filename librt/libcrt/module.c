@@ -183,7 +183,7 @@ void __CrtModuleEntry(void)
     thread_storage_t threadStorage;
     __crt_initialize(&threadStorage, 0);
 
-    // Queue the gracht job up ot allow for server initialization first. This should be
+    // Queue the gracht job up to allow for server initialization first. This should be
     // queued before the main initializer, as that will most likely register gracht protocols,
     // and that needs gracht server and client to be setup
     usched_job_queue(__StartGrachtServer, NULL);

@@ -20,7 +20,7 @@
  * Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>

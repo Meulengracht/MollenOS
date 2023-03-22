@@ -30,7 +30,7 @@
 #include <threads.h>
 #include <stdlib.h>
 
-oserr_t     UhciSetup(UhciController_t *Controller);
+oserr_t     UhciSetup(UhciController_t *controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 void
@@ -47,75 +47,100 @@ UhciControllerDump(
         UhciRead8(Controller, UHCI_REGISTER_SOFMOD));
 }
 
-UsbManagerController_t*
-HciControllerCreate(
-    _In_ BusDevice_t* busDevice)
+static oserr_t
+__AcquireIOSpace(
+        _In_ BusDevice_t*      busDevice,
+        _In_ UhciController_t* controller)
 {
-    UhciController_t* controller;
-    DeviceInterrupt_t deviceInterrupt;
-    DeviceIo_t*       ioBase = NULL;
-    size_t            ioctlValue = 0;
-    int               i;
-    
-    // Debug
-    TRACE("UhciControllerCreate(device=0x%" PRIxIN ", device->Length=%u, device->Id=%u)",
-          busDevice, LODWORD(busDevice->Base.Length), busDevice->Base.Id);
+    DeviceIo_t* ioBase = NULL;
 
-    controller = (UhciController_t*)UsbManagerCreateController(busDevice, UsbUHCI, sizeof(UhciController_t));
-    if (!controller) {
-        return NULL;
-    }
-    
     // Get I/O Base, and for UHCI it'll be the first address we encounter
     // of type IO
-    for (i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
+    for (int i = 0; i < __DEVICEMANAGER_MAX_IOSPACES; i++) {
         if (controller->Base.Device->IoSpaces[i].Type == DeviceIoPortBased) {
-            TRACE(" > found io-space at bar %i", i);
             ioBase = &controller->Base.Device->IoSpaces[i];
             break;
         }
     }
 
-    // Sanitize that we found the io-space
     if (ioBase == NULL) {
-        ERROR("No memory space found for uhci-controller");
-        free(controller);
-        return NULL;
+        return OS_ENOENT;
     }
 
-    // Trace
-    TRACE("Found Io-Space (Type %u, Physical 0x%x, Size 0x%x)",
-          ioBase->Type, ioBase->Access.Memory.PhysicalBase, ioBase->Access.Memory.Length);
+    controller->Base.IoBase = ioBase;
+    return AcquireDeviceIo(ioBase);
+}
 
-    // Acquire the io-space
-    if (AcquireDeviceIo(ioBase) != OS_EOK) {
-        ERROR("Failed to create and acquire the io-space for uhci-controller");
-        free(controller);
-        return NULL;
-    }
-    else {
-        // Store information
-        controller->Base.IoBase = ioBase;
-    }
+static oserr_t
+__InitializeInterrupt(
+        _In_ BusDevice_t*      busDevice,
+        _In_ UhciController_t* controller)
+{
+    DeviceInterrupt_t deviceInterrupt;
 
     // Initialize the interrupt settings
     DeviceInterruptInitialize(&deviceInterrupt, busDevice);
     RegisterInterruptDescriptor(&deviceInterrupt, controller->Base.event_descriptor);
     RegisterFastInterruptHandler(&deviceInterrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&deviceInterrupt, ioBase);
+    RegisterFastInterruptIoResource(&deviceInterrupt, controller->Base.IoBase);
     RegisterFastInterruptMemoryResource(&deviceInterrupt, (uintptr_t)controller, sizeof(UhciController_t), 0);
-
-    // Register interrupt
     controller->Base.Interrupt = RegisterInterruptSource(&deviceInterrupt, 0);
+    if (controller->Base.Interrupt == UUID_INVALID) {
+        return OS_EUNKNOWN;
+    }
+    return OS_EOK;
+}
 
-    // Enable device
-    if (IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-                    (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OS_EOK) {
-        ERROR("Failed to enable the uhci-controller");
-        UnregisterInterruptSource(controller->Base.Interrupt);
-        ReleaseDeviceIo(controller->Base.IoBase);
-        free(controller);
+UsbManagerController_t*
+HciControllerCreate(
+    _In_ BusDevice_t* busDevice)
+{
+    UhciController_t* controller;
+    size_t            ioctlValue = 0;
+    oserr_t           oserr;
+    
+    // Debug
+    TRACE("UhciControllerCreate(device=0x%" PRIxIN ", device->Length=%u, device->Id=%u)",
+          busDevice, LODWORD(busDevice->Base.Length), busDevice->Base.Id);
+
+    controller = (UhciController_t*)UsbManagerCreateController(
+            busDevice,
+            UsbUHCI,
+            sizeof(UhciController_t)
+    );
+    if (!controller) {
+        return NULL;
+    }
+
+    oserr = __AcquireIOSpace(busDevice, controller);
+    if (oserr != OS_EOK) {
+        ERROR("UhciControllerCreate: failed to find suitable io-space");
+        HciControllerDestroy(&controller->Base);
+        return NULL;
+    }
+
+    TRACE(
+            "UhciControllerCreate: io-space: type=%u, physical=0x%x, size=0x%x",
+            controller->Base.IoBase->Type, controller->Base.IoBase->Access.Memory.PhysicalBase,
+            controller->Base.IoBase->Access.Memory.Length
+    );
+
+    oserr = __InitializeInterrupt(busDevice, controller);
+    if (oserr != OS_EOK) {
+        ERROR("UhciControllerCreate: failed to initialize interrupt resources");
+        HciControllerDestroy(&controller->Base);
+        return NULL;
+    }
+
+    // Enable the underlying bus device
+    oserr = IoctlDevice(
+            controller->Base.Device->Base.Id,
+            __DEVICEMANAGER_IOCTL_BUS,
+            (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+    );
+    if (oserr != OS_EOK) {
+        ERROR("UhciControllerCreate: failed to enable PCI device");
+        HciControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -137,13 +162,12 @@ HciControllerCreate(
 
     // Now that all formalities has been taken care
     // off we can actually setup controller
-    if (UhciSetup(controller) == OS_EOK) {
-        TRACE("HciControllerCreate: created controller");
-        return &controller->Base;
-    } else {
+    oserr = UhciSetup(controller);
+    if (oserr != OS_EOK) {
         HciControllerDestroy(&controller->Base);
         return NULL;
     }
+    return &controller->Base;
 }
 
 oserr_t
@@ -181,44 +205,37 @@ UhciStart(
     _In_ UhciController_t* Controller,
     _In_ int               Wait)
 {
-    uint16_t OldCmd;
-    
-    // Debug
+    uint16_t cmd;
     TRACE("UhciStart()");
 
     // Read current command register
     // to preserve information, then assert some flags
-    OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-    OldCmd |= (UHCI_COMMAND_CONFIGFLAG | UHCI_COMMAND_RUN | UHCI_COMMAND_MAXPACKET64);
-
-    // Update
-    UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
+    cmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+    cmd |= (UHCI_COMMAND_CONFIGFLAG | UHCI_COMMAND_RUN | UHCI_COMMAND_MAXPACKET64);
+    UhciWrite16(Controller, UHCI_REGISTER_COMMAND, cmd);
     if (Wait == 0) {
         return OS_EOK;
     }
 
     // Wait for controller to start
-    OldCmd = 0;
-    WaitForConditionWithFault(OldCmd, 
+    WaitForConditionWithFault(cmd,
         (UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0,
-        100, 10
+                              100, 10
     );
-    return (OldCmd == 0) ? OS_EOK : OS_EUNKNOWN;
+    return (cmd == 0) ? OS_EOK : OS_ETIMEOUT;
 }
 
 oserr_t
 UhciStop(
-    _In_ UhciController_t*  Controller)
+    _In_ UhciController_t* Controller)
 {
-    uint16_t OldCmd = 0;
+    uint16_t cmd;
     
     // Read current command register
     // to preserve information, then deassert run flag
-    OldCmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
-    OldCmd &= ~(UHCI_COMMAND_RUN);
-
-    // Update
-    UhciWrite16(Controller, UHCI_REGISTER_COMMAND, OldCmd);
+    cmd = UhciRead16(Controller, UHCI_REGISTER_COMMAND);
+    cmd &= ~(UHCI_COMMAND_RUN);
+    UhciWrite16(Controller, UHCI_REGISTER_COMMAND, cmd);
     return OS_EOK;
 }
 
@@ -226,14 +243,14 @@ oserr_t
 UhciReset(
     _In_ UhciController_t*  Controller)
 {
-    uint16_t Temp = 0;
+    uint16_t tmp;
 
     // Assert the host-controller reset bit
     UhciWrite16(Controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_HCRESET);
 
     // Wait for it to stop being asserted
-    WaitForConditionWithFault(Temp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) == 0, 100, 25);
-    if (Temp == 1) {
+    WaitForConditionWithFault(tmp, (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) == 0, 100, 25);
+    if (tmp == 1) {
         WARNING("UHCI: Reset signal is still active..");
         thrd_sleep(&(struct timespec) { .tv_nsec = 200 * NSEC_PER_MSEC }, NULL); // give it another try
         if (UhciRead16(Controller, UHCI_REGISTER_COMMAND) & UHCI_COMMAND_HCRESET) {
@@ -261,36 +278,38 @@ UhciReset(
 
 oserr_t
 UhciSetup(
-    _In_ UhciController_t *Controller)
+    _In_ UhciController_t* controller)
 {
-    uint16_t Temp = 0;
-    int      i;
-    
-    // Debug
+    oserr_t oserr;
+    int     i;
     TRACE("UhciSetup()");
 
     // Disable interrupts while configuring (and stop controller)
-    UhciWrite16(Controller, UHCI_REGISTER_COMMAND,  0x0000);
-    UhciWrite16(Controller, UHCI_REGISTER_INTR,     0x0000);
+    UhciWrite16(controller, UHCI_REGISTER_COMMAND, 0x0000);
+    UhciWrite16(controller, UHCI_REGISTER_INTR, 0x0000);
 
     // Perform a global reset, we must wait 100 ms for this complete
-    UhciWrite16(Controller, UHCI_REGISTER_COMMAND,  UHCI_COMMAND_GRESET);
+    UhciWrite16(controller, UHCI_REGISTER_COMMAND, UHCI_COMMAND_GRESET);
     thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
-    UhciWrite16(Controller, UHCI_REGISTER_COMMAND,  0x0000);
+    UhciWrite16(controller, UHCI_REGISTER_COMMAND, 0x0000);
 
     // Initialize queues and controller
-    TRACE(" > Initializing queue system");
-    UhciQueueInitialize(Controller);
-    TRACE(" > Resetting controller");
-    if (UhciReset(Controller) != OS_EOK) {
-        ERROR("UHCI::Failed to reset controller");
-        return OS_EUNKNOWN;
+    oserr = UhciQueueInitialize(controller);
+    if (oserr != OS_EOK) {
+        ERROR("UhciSetup: failed to initialize memory for queues");
+        return oserr;
+    }
+
+    oserr = UhciReset(controller);
+    if (oserr != OS_EOK) {
+        ERROR("UhciSetup: failed to reset controller");
+        return oserr;
     }
 
     // Enumerate all available ports
     for (i = 0; i <= UHCI_MAX_PORTS; i++) {
-        Temp = UhciRead16(Controller, (UHCI_REGISTER_PORT_BASE + (i * 2)));
-        if (!(Temp & UHCI_PORT_RESERVED) || Temp == 0xFFFF) {
+        uint16_t base = UhciRead16(controller, (UHCI_REGISTER_PORT_BASE + (i * 2)));
+        if (!(base & UHCI_PORT_RESERVED) || base == 0xFFFF) {
             // This reserved bit must be 1
             // And we must have 2 ports atleast
             break;
@@ -298,16 +317,16 @@ UhciSetup(
     }
 
     // Store the number of available ports
-    TRACE(" > Ports(%i)", i);
-    Controller->Base.PortCount = i;
+    TRACE("UhciSetup: number of ports %i", i);
+    controller->Base.PortCount = i;
 
     // Register the controller before starting
-    TRACE(" > Registering");
-    if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {
+    oserr = UsbManagerRegisterController(&controller->Base);
+    if (oserr != OS_EOK) {
         ERROR("Failed to register uhci controller with the system.");
+        return oserr;
     }
 
     // Start the controller and return result from that
-    TRACE(" > Booting");
-    return UhciStart(Controller, 1);
+    return UhciStart(controller, 1);
 }

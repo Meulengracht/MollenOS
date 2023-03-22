@@ -52,14 +52,9 @@ global longjmp
 ; int _setjmp(jmp_buf env);
 _setjmp:
 	; We don't use a stack frame here
+	lea rax, [rsp + 8]   ; load the SP
+	mov r8, [rsp]        ; load the IP
 
-	; Get SP
-	lea rax, [rsp + 8]
-
-	; Load IP
-	mov r8, [rsp]
-
-	; Save state
     mov qword [rcx + REGISTER_FRAME], 0
     mov [rcx + REGISTER_BX], rbx
     mov [rcx + REGISTER_BP], rbp
@@ -72,7 +67,6 @@ _setjmp:
     mov [rcx + REGISTER_SP], rax
     mov [rcx + REGISTER_IP], r8
 
-	; Save SSE Registers
     movdqa [rcx + REGISTER_XMM6], xmm6
     movdqa [rcx + REGISTER_XMM7], xmm7
     movdqa [rcx + REGISTER_XMM8], xmm8
@@ -83,22 +77,15 @@ _setjmp:
     movdqa [rcx + REGISTER_XMM13], xmm13
     movdqa [rcx + REGISTER_XMM14], xmm14
     movdqa [rcx + REGISTER_XMM15], xmm15
-
-	; Done
 	xor rax, rax
 	ret 
 
 ; int _setjmpex(jmp_buf _Buf,void *_Ctx);
 _setjmp3:
 	; We don't use a stack frame here
+	lea rax, [rsp + 8]   ; load the SP
+	mov r8, [rsp]        ; load the IP
 
-	; Get SP
-	lea rax, [rsp + 8]
-
-	; Load IP
-	mov r8, [rsp]
-
-	; Save state
     mov qword [rcx + REGISTER_FRAME], 0
     mov [rcx + REGISTER_BX], rbx
     mov [rcx + REGISTER_BP], rbp
@@ -111,7 +98,6 @@ _setjmp3:
     mov [rcx + REGISTER_SP], rax
     mov [rcx + REGISTER_IP], r8
 
-	; Save SSE Registers
     movdqa [rcx + REGISTER_XMM6], xmm6
     movdqa [rcx + REGISTER_XMM7], xmm7
     movdqa [rcx + REGISTER_XMM8], xmm8
@@ -122,8 +108,6 @@ _setjmp3:
     movdqa [rcx + REGISTER_XMM13], xmm13
     movdqa [rcx + REGISTER_XMM14], xmm14
     movdqa [rcx + REGISTER_XMM15], xmm15
-
-	; Done
 	xor rax, rax
 	ret 
 

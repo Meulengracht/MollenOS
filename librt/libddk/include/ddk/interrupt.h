@@ -69,11 +69,10 @@ typedef struct InterruptResourceTable {
 // to pre-mapped regions that was requested when the interrupt was registed. The table can provide access
 // to some memory regions, io-regions and some system-functions (like the standard input pipe).
 typedef struct InterruptFunctionTable {
-    size_t     (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
+    size_t  (*ReadIoSpace)(DeviceIo_t*, size_t offset, size_t length);
     oserr_t (*WriteIoSpace)(DeviceIo_t*, size_t offset, size_t value, size_t length);
     oserr_t (*EventSignal)(uuid_t handle);
-    oserr_t (*WriteStream)(uuid_t handle, const void* buffer, size_t length);
-    void       (*Trace)(const char* format, ...);
+    void    (*Trace)(const char* format, ...);
 } InterruptFunctionTable_t;
 
 #define INTERRUPT_IOSPACE(Resources, Index)     Resources->IoResources[Index]
