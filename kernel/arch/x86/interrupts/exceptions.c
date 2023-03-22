@@ -218,12 +218,20 @@ __HandlePageFault(
         // Page was not present, this could be because of lazy-comitting, lets try
         // to fix it by comitting the address.
         if (address < 0x1000) {
+            if (context != (void*)address) {
+                BOCHSBREAK;
+                return true;
+            }
             // The first page of memory is left as a NULL catcher, in this case there is no fix and we
             // should only attempt to fix this by executing a trap
             SignalExecuteLocalThreadTrap(context, SIGSEGV, SIGNAL_FLAG_PAGEFAULT, (void*)address, (void*)OSPAGEFAULT_RESULT_FAULT);
         } else {
             enum OSPageFaultCode result = DebugPageFault(context, address);
             if (result != OSPAGEFAULT_RESULT_MAPPED) {
+                if (context != (void*)address) {
+                    BOCHSBREAK;
+                    return true;
+                }
                 SignalExecuteLocalThreadTrap(context, SIGSEGV, SIGNAL_FLAG_PAGEFAULT, (void*)address, (void*)result);
             }
         }

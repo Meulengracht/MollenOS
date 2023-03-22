@@ -19,7 +19,7 @@
  *   for all the usb drivers
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ioset.h>
 #include "hci.h"
@@ -136,6 +136,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
+    TRACE("ctt_driver_get_device_protocols_invocation()");
     //
 }
 
