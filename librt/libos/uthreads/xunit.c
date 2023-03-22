@@ -133,7 +133,6 @@ void usched_xunit_init(void)
 
 _Noreturn void usched_xunit_main_loop(usched_task_fn startFn, void* argument)
 {
-
     // Queue the first task, this would most likely be the introduction to 'main' or anything
     // like that, we don't really use the CT token, but just capture it for warnings.
     (void)usched_job_queue(startFn, argument);

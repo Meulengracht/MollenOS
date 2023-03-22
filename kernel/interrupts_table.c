@@ -41,7 +41,8 @@ GetFastInterruptTable(void)
 }
 
 // ReadIoSpace
-static size_t __FunctionReadIoSpace(
+static size_t
+__FunctionReadIoSpace(
     _In_ DeviceIo_t* IoSpace,
     _In_ size_t      Offset,
     _In_ size_t      Length)
@@ -54,7 +55,8 @@ static size_t __FunctionReadIoSpace(
 }
 
 // WriteIoSpace
-static oserr_t __FunctionWriteIoSpace(
+static oserr_t
+__FunctionWriteIoSpace(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
     _In_ size_t         Value,
@@ -66,29 +68,9 @@ static oserr_t __FunctionWriteIoSpace(
     return OS_EUNKNOWN;
 }
 
-static oserr_t __FunctionWriteStream(
-        _In_ uuid_t      handle,
-        _In_ const void* buffer,
-        _In_ size_t      length)
-{
-    streambuffer_t* stream;
-
-    if (SHMKernelMapping(handle, (void**)&stream) == OS_EOK) {
-        streambuffer_stream_out(
-                stream,
-                (void*)buffer,
-                length,
-                &(streambuffer_rw_options_t) {
-                    .flags = STREAMBUFFER_NO_BLOCK,
-                    .async_context = NULL,
-                    .deadline = NULL
-                }
-        );
-    }
-    return OS_EOK;
-}
-
-static void __FunctionTrace(const char* format, ...)
+static void
+__FunctionTrace(
+        _In_ const char* format, ...)
 {
     char    buffer[128];
     va_list arguments;
@@ -106,6 +88,5 @@ InitializeInterruptTable(void)
     FastInterruptTable.ReadIoSpace  = __FunctionReadIoSpace;
     FastInterruptTable.WriteIoSpace = __FunctionWriteIoSpace;
     FastInterruptTable.EventSignal  = UserEventSignal;
-    FastInterruptTable.WriteStream  = __FunctionWriteStream;
     FastInterruptTable.Trace        = __FunctionTrace;
 }

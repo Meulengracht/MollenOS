@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 #define __need_minmax
 
 #include <assert.h>
@@ -279,10 +279,30 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
 
     // save the current context and set a return point
     if (current) {
+        if (current->id == 1005) {
+            TRACE("__switch_task[%u]: saving context", current->id);
+            BOCHSBREAK;
+        }
         if (setjmp(current->context)) {
             return;
         }
     }
+
+    /**
+     *
+<bochs:17>
+UhciSetup() [Store]
+SP => 9400
+IP => 4adc5
+STRUCT => 1d540   (bf142540)
+
+... [Load]
+SP => 9340!?
+IP => 4bdc5?!
+STRUCT => 1d540
+
+     *
+     */
 
     // return to scheduler context if we have no next
     if (!next) {
@@ -297,6 +317,10 @@ __switch_task(struct usched_scheduler* sched, struct usched_job* current, struct
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
     if (next->state != JobState_CREATED) {
+        if (next->id == 1005) {
+            TRACE("__switch_task[%u]: jump to 0x%llx", next->id, ((uint64_t*)next->context)[10]);
+            BOCHSBREAK;
+        }
         longjmp(next->context, 1);
     }
 
@@ -412,7 +436,7 @@ static int __get_next_deadline(
     return result;
 }
 
-static void __parse_syscall_completions(
+static void __process_syscall_completions(
         struct usched_scheduler* sched)
 {
     struct usched_syscall* i, *p;
@@ -451,7 +475,7 @@ int usched_yield(struct timespec* deadline)
     // update timers before we check the scheduler as we might trigger a job to
     // be ready
     __update_timers(sched);
-    __parse_syscall_completions(sched);
+    __process_syscall_completions(sched);
 
     next = __get_next_ready(sched);
     if (sched->current == NULL) {

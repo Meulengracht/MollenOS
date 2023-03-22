@@ -212,7 +212,7 @@ InterruptResolveMemoryResources(
 {
     InterruptResourceTable_t* source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* destination = &systemInterrupt->KernelResources;
-    oserr_t                success = OS_EOK;
+    oserr_t                   oserr = OS_EOK;
     uintptr_t                 updatedMapping;
 
     for (int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
@@ -225,10 +225,16 @@ InterruptResolveMemoryResources(
                 pageFlags |= MAPPING_NOCACHE;
             }
 
-            success = MemorySpaceCloneMapping(GetCurrentMemorySpace(), GetCurrentMemorySpace(),
-                                              source->MemoryResources[i].Address, &updatedMapping, length, pageFlags,
-                                              placementFlags);
-            if (success != OS_EOK) {
+            oserr = MemorySpaceCloneMapping(
+                    GetCurrentMemorySpace(),
+                    GetCurrentMemorySpace(),
+                    source->MemoryResources[i].Address,
+                    &updatedMapping,
+                    length,
+                    pageFlags,
+                    placementFlags
+            );
+            if (oserr != OS_EOK) {
                 ERROR(" > failed to clone interrupt resource mapping");
                 break;
             }
@@ -239,11 +245,11 @@ InterruptResolveMemoryResources(
         }
     }
 
-    if (success != OS_EOK) {
+    if (oserr != OS_EOK) {
         (void)InterruptCleanupMemoryResources(systemInterrupt);
         return OS_EUNKNOWN;
     }
-    return success;
+    return oserr;
 }
 
 /**
