@@ -17,6 +17,7 @@
 
 #include <internal/_syscalls.h>
 #include <os/handle.h>
+#include <os/memory.h>
 #include <os/shm.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,9 +99,18 @@ SHMCreate(
 
 static oserr_t
 __ValidateExistingBuffer(
+        _In_ void*  buffer,
         _In_ SHM_t* shm)
 {
-    if (shm == NULL) {
+    size_t pageSize;
+
+    if (shm == NULL || buffer == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // For exporting buffers, the buffer must be page aligned
+    pageSize = MemoryPageSize();
+    if ((uintptr_t)buffer & (pageSize - 1)) {
         return OS_EINVALPARAMS;
     }
 
@@ -121,7 +131,7 @@ SHMExport(
     SHMHandle_t* shmHandle;
     oserr_t      oserr;
 
-    oserr = __ValidateExistingBuffer(shm);
+    oserr = __ValidateExistingBuffer(buffer, shm);
     if (oserr != OS_EOK) {
         return oserr;
     }

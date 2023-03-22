@@ -303,30 +303,6 @@ GetMemorySpaceAttributes(
         _In_ unsigned int*  attributesArray);
 
 /**
- * @brief Retrieves whether or not the page has been written to.
- *
- * @param memorySpace [In] The memory space to check the address in.
- * @param address     [In] The address to check for access.
- * @return            Returns OS_EOK if the address is dirty.
- */
-KERNELAPI oserr_t KERNELABI
-IsMemorySpacePageDirty(
-        _In_ MemorySpace_t*   memorySpace,
-        _In_ vaddr_t       address);
-
-/**
- * @brief Checks if the given virtual address has a physical address and is present.
- *
- * @param memorySpace [In] The memory space to check the address in.
- * @param address     [In] The virtual address to check.
- * @return
- */
-KERNELAPI oserr_t KERNELABI
-IsMemorySpacePagePresent(
-        _In_ MemorySpace_t*   memorySpace,
-        _In_ vaddr_t       address);
-
-/**
  * @brief Sets the signal handler for the shared memory-space given
  *
  * @param memorySpace          [In] The memory space to update

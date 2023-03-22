@@ -24,6 +24,7 @@
 #include <io.h>
 #include <os/handle.h>
 #include <os/services/file.h>
+#include <os/memory.h>
 #include <os/shm.h>
 #include <string.h>
 
@@ -189,13 +190,14 @@ __read_large(
     OSHandle_t shm;
     void*      adjustedPointer = (void*)buffer;
     size_t     adjustedLength  = length;
+    size_t     pageSize = MemoryPageSize();
     oserr_t    oserr;
 
     // enforce dword alignment on the buffer
     // which means if someone passes us a byte or word aligned
     // buffer we must account for that
-    if ((uintptr_t)buffer & 0x3) {
-        size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
+    if ((uintptr_t)buffer & (pageSize - 1)) {
+        size_t bytesToAlign = pageSize - ((uintptr_t)buffer & (pageSize - 1));
         oserr = __file_read(handle, buffer, bytesToAlign, bytesReadOut);
         if (oserr != OS_EOK) {
             return oserr;
@@ -274,13 +276,14 @@ __write_large(
     OSHandle_t shm;
     void*      adjustedPointer = (void*)buffer;
     size_t     adjustedLength  = length;
+    size_t     pageSize = MemoryPageSize();
     oserr_t    oserr;
 
     // enforce dword alignment on the buffer
     // which means if someone passes us a byte or word aligned
     // buffer we must account for that
-    if ((uintptr_t)buffer & 0x3) {
-        size_t bytesToAlign = 4 - ((uintptr_t)buffer & 0x3);
+    if ((uintptr_t)buffer & (pageSize - 1)) {
+        size_t bytesToAlign = pageSize - ((uintptr_t)buffer & (pageSize - 1));
         oserr = __file_write(handle, buffer, bytesToAlign, bytesWrittenOut);
         if (oserr != OS_EOK) {
             return oserr;
@@ -301,8 +304,14 @@ __write_large(
         return oserr;
     }
 
-    oserr = __transfer(handle->OSHandle.ID, shm.ID,
-                       1, adjustedLength, 0, adjustedLength, bytesWrittenOut);
+    oserr = __transfer(
+            handle->OSHandle.ID, shm.ID,
+            1,
+            adjustedLength,
+            0,
+            adjustedLength,
+            bytesWrittenOut
+    );
     OSHandleDestroy(&shm);
     if (*bytesWrittenOut == adjustedLength) {
         *bytesWrittenOut = length;

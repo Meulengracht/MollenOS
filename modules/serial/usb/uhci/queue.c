@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2011 - 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -16,11 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS MCore - Universal Host Controller Interface Driver
+ * MollenOS Universal Host Controller Interface Driver
  * Todo:
  * Power Management
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>

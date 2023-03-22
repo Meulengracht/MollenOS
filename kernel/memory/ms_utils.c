@@ -150,26 +150,6 @@ GetMemorySpaceAttributes(
     return ArchMmuGetPageAttributes(memorySpace, address, pageCount, attributesArray, &pagesRetrieved);
 }
 
-oserr_t
-IsMemorySpacePageDirty(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address)
-{
-    oserr_t   osStatus;
-    unsigned int flags = 0;
-    int          pagesRetrieved;
-
-    if (!memorySpace) {
-        return OS_EINVALPARAMS;
-    }
-
-    osStatus = ArchMmuGetPageAttributes(memorySpace, address, 1, &flags, &pagesRetrieved);
-    if (osStatus == OS_EOK && !(flags & MAPPING_ISDIRTY)) {
-        osStatus = OS_EUNKNOWN;
-    }
-    return osStatus;
-}
-
 void
 MemorySpaceSwitch(
         _In_ MemorySpace_t* memorySpace)
@@ -217,26 +197,6 @@ AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space2)
 {
     return (Space1->Context == Space2->Context) ? OS_EOK : OS_EUNKNOWN;
-}
-
-oserr_t
-IsMemorySpacePagePresent(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address)
-{
-    oserr_t   osStatus;
-    unsigned int flags = 0;
-    int          pagesRetrieved;
-
-    if (!memorySpace) {
-        return OS_EINVALPARAMS;
-    }
-
-    osStatus = ArchMmuGetPageAttributes(memorySpace, address, 1, &flags, &pagesRetrieved);
-    if (osStatus == OS_EOK && !(flags & MAPPING_COMMIT)) {
-        osStatus = OS_ENOENT;
-    }
-    return osStatus;
 }
 
 oserr_t

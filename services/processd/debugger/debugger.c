@@ -122,7 +122,7 @@ HandleProcessCrashReport(
             &moduleName
     );
     if (oserr != OS_EOK) {
-        ERROR("%ms: Crashed at address " PRIxIN "with reason %i  [lookup failed]",
+        ERROR("%ms: Crashed at address 0x%" PRIxIN " with reason %i  [lookup failed]",
               programName, crashAddress, crashReason);
         return oserr;
     }

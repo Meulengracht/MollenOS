@@ -111,15 +111,9 @@ OSHandle_t* __tls_current_dmabuf(void)
 {
     struct thread_storage* tls = __tls_current();
     if (SHMBuffer(&tls->shm) == NULL) {
-        void*   buffer;
-        oserr_t oserr;
-
-        buffer = malloc(BUFSIZ);
-        assert(buffer != NULL);
-
-        oserr = SHMExport(
-                buffer,
+        oserr_t oserr = SHMCreate(
                 &(SHM_t) {
+                    .Flags = SHM_COMMIT | SHM_CLEAN,
                     .Size = BUFSIZ,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             }, &tls->shm
