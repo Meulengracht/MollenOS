@@ -138,6 +138,7 @@ HciControllerCreate(
     // Now that all formalities has been taken care
     // off we can actually setup controller
     if (UhciSetup(controller) == OS_EOK) {
+        TRACE("HciControllerCreate: created controller");
         return &controller->Base;
     } else {
         HciControllerDestroy(&controller->Base);
