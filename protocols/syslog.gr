@@ -1,0 +1,24 @@
+/**
+ * Syslog Service
+ * The system log service gathers system log messages, and provides a startup
+ * interface for reporting boot progress.
+ */
+ 
+import "types"
+
+namespace sys
+
+enum log_level {
+    TRACE,
+    DEBUG,
+    WARNING,
+    ERROR
+}
+
+service log (12) {
+    func report_stage(string stage, int steps) : () = 1;
+    func report_progress(string progress) : () = 2;
+    func log(log_level level, string msg) : () = 3;
+    func inhibit() : () = 4;
+    func uninhibit() : () = 5;
+}
