@@ -22,7 +22,7 @@
  *    - Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_quantity
 
 #include <os/handle.h>

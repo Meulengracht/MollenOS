@@ -73,14 +73,19 @@ __MapFaultingAddress(
                 0,
                 0
         );
-    }
-    if (oserr == OS_EOK) {
-        // If the mapping has the attribute CLEAN, then we zero each
-        // allocated page.
-        if (descriptor->Attributes & MAPPING_CLEAN) {
-            memset((void*)(address & (pageSize - 1)), 0, pageSize);
+        if (oserr == OS_EOK) {
+            // If the mapping has the attribute CLEAN, then we zero each
+            // allocated page. However if the mapping was read-only, we cannot
+            // zero the pages. And only do it in the case of OS_EOK, as that means
+            // a physical page was actually comitted.
+            bool readOnly = (descriptor->Attributes & MAPPING_READONLY) != 0;
+            bool shouldClean = (descriptor->Attributes & MAPPING_CLEAN) != 0;
+            if (!readOnly && shouldClean) {
+                memset((void*)(address & (pageSize - 1)), 0, pageSize);
+            }
         }
-    } else if (oserr == OS_EEXISTS) {
+    }
+    if (oserr == OS_EEXISTS) {
         oserr = OS_EOK;
     }
     return oserr;

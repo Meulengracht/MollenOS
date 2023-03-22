@@ -452,8 +452,6 @@ MemorySpaceCommit(
             &pagesComitted
     );
     if (oserr != OS_EOK) {
-        ERROR("[memory] [commit] status %u, comitting address 0x%" PRIxIN ", length 0x%" PRIxIN,
-              oserr, address, size);
         if (__PMTYPE(placementFlags) != MAPPING_PHYSICAL_FIXED) {
             FreePhysicalMemory(pageCount, &physicalAddressValues[0]);
         }

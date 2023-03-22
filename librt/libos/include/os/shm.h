@@ -37,7 +37,8 @@ SHMCreate(
 /**
  * Exports the memory buffer provided. The structure must be prefilled with most
  * of the information before being passed.
- * @param buffer [In] Information about the buffer that should be exported by the kernel.
+ * @param buffer [In] The buffer that should be wrapped in a SHM instance. The buffer
+ *                    must be page-aligned, otherwise the exporting will fail.
  * @param shm    [In] Options related to the export of the buffer.
  * @param handle [In] The structure to fill with the attachment information.
  * @return Status of the operation.

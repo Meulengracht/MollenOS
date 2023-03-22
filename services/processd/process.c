@@ -449,7 +449,6 @@ __GetLoadPaths(
 
     // Try to locate LDPATH in a double zero-terminated array
     environ = __ProcOptsEnvironmentBlock(procOpts);
-    __DumpMemory(environ, procOpts->EnvironmentBlockLength);
     for (size_t i = 0; environ[i]; i += strlen(&environ[i]) + 1) {
         TRACE("__GetLoadPaths checking %s", &environ[i]);
         if (!strncmp(&environ[i], "LDPATH=", 7)) {

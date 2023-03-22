@@ -22,7 +22,7 @@
  * Power Management
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
@@ -30,7 +30,7 @@
 #include <threads.h>
 #include <stdlib.h>
 
-oserr_t        UhciSetup(UhciController_t *Controller);
+oserr_t     UhciSetup(UhciController_t *Controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 void
@@ -139,8 +139,7 @@ HciControllerCreate(
     // off we can actually setup controller
     if (UhciSetup(controller) == OS_EOK) {
         return &controller->Base;
-    }
-    else {
+    } else {
         HciControllerDestroy(&controller->Base);
         return NULL;
     }
@@ -200,7 +199,9 @@ UhciStart(
     // Wait for controller to start
     OldCmd = 0;
     WaitForConditionWithFault(OldCmd, 
-        (UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0, 100, 10);
+        (UhciRead16(Controller, UHCI_REGISTER_STATUS) & UHCI_STATUS_HALTED) == 0,
+        100, 10
+    );
     return (OldCmd == 0) ? OS_EOK : OS_EUNKNOWN;
 }
 

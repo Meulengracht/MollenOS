@@ -724,7 +724,7 @@ SHMCommit(
     oserr_t           oserr;
     size_t            pageSize = GetMemorySpacePageSize();
     uintptr_t         baseAddress = (uintptr_t)memoryBase;
-    uintptr_t         address  = (uintptr_t)memory;
+    uintptr_t         address = (uintptr_t)memory;
     size_t            clampedLength;
     int               i;
     TRACE("SHMCommit(memoryBase=0x%llx, memory=0x%llx, length=0x%llx)",
@@ -764,6 +764,9 @@ SHMCommit(
     if (oserr != OS_EOK) {
         ERROR("SHMCommit failed to commit mapping: %u", oserr);
     }
+
+    // TODO: support cleaning of pages allocated.
+
     return oserr;
 }
 
