@@ -22,7 +22,7 @@
  * Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>

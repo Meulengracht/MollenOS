@@ -15,7 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+//#define __TRACE
+
 #include <assert.h>
+#include <ddk/utils.h>
 #include <os/usched/cond.h>
 #include <os/usched/job.h>
 #include <os/usched/usched.h>
@@ -115,13 +118,14 @@ void usched_job_parameters_set_detached(struct usched_job_parameters* params, bo
 
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
-    job->state = JobState_FINISHING;
-
     __remove_job_from_register(job->id, exitCode);
-
-    // Before yielding, let us run the deinitalizers before we do any task cleanup.
     __cxa_threadfinalize();
+
+    job->state = JobState_FINISHING;
     usched_yield(NULL);
+
+    ERROR("__finalize_task: yield returned, this was not expected");
+    _Exit(-1);
 }
 
 // TaskMain takes care of C/C++ handlers for the thread. Each job is in itself a
@@ -375,10 +379,7 @@ int usched_job_sleep(const struct timespec* until)
 
 void __usched_job_notify(struct usched_job* job)
 {
-    assert(job != NULL);
-    job->next = NULL;
-    job->state = JobState_RUNNING;
-    __usched_add_job_ready(job);
+    __usched_job_ready(job);
 }
 
 bool usched_is_cancelled(const void* cancellationToken)

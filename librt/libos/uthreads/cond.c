@@ -80,10 +80,7 @@ void usched_cnd_notify_one(struct usched_cnd* condition)
     if (condition->queue) {
         struct usched_job* job = condition->queue;
         condition->queue = job->next;
-        job->next = NULL;
-
-        job->state = JobState_RUNNING;
-        __usched_add_job_ready(job);
+        __usched_job_ready(job);
     }
     usched_mtx_unlock(&condition->lock);
 }
@@ -96,10 +93,7 @@ void usched_cnd_notify_all(struct usched_cnd* condition)
     while (condition->queue) {
         struct usched_job* job = condition->queue;
         condition->queue = job->next;
-        job->next = NULL;
-
-        job->state = JobState_RUNNING;
-        __usched_add_job_ready(job);
+        __usched_job_ready(job);
     }
     usched_mtx_unlock(&condition->lock);
 }
@@ -142,8 +136,6 @@ void __usched_cond_notify_job(struct usched_cnd* condition, struct usched_job* j
     usched_mtx_unlock(&condition->lock);
 
     if (reQueue) {
-        job->next = NULL;
-        job->state = JobState_RUNNING;
-        __usched_add_job_ready(job);
+        __usched_job_ready(job);
     }
 }

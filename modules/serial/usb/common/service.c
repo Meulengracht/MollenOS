@@ -19,7 +19,7 @@
  *   for all the usb drivers
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ioset.h>
 #include "hci.h"
