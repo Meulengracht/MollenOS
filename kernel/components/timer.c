@@ -306,7 +306,8 @@ __SynchronizeWallClockAndClocks(
     __LinearTime(&systemTime, &wallClock->BaseTick);
 }
 
-static void __SelectTimerFrequency(
+static void
+__SelectTimerFrequency(
         UInteger64_t* low,
         UInteger64_t* high,
         UInteger64_t* result)
@@ -326,7 +327,8 @@ static void __SelectTimerFrequency(
     result->QuadPart = target.QuadPart;
 }
 
-static void  __CalculateTimerFrequency(
+static void
+__CalculateTimerFrequency(
         _In_ SystemTimer_t* timer)
 {
     assert(timer->Operations.GetFrequency != NULL);
@@ -345,7 +347,8 @@ static void  __CalculateTimerFrequency(
     timer->Multiplier = __CalculateResolution(&timer->Frequency);
 }
 
-static inline void __SelectIfFrequencyIsHigher(
+static inline void
+__SelectIfFrequencyIsHigher(
         _In_ SystemTimer_t** current,
         _In_ SystemTimer_t*  candidate)
 {
@@ -358,7 +361,8 @@ static inline void __SelectIfFrequencyIsHigher(
     }
 }
 
-static oserr_t __EnableTimer(
+static oserr_t
+__EnableTimer(
         _In_ SystemTimer_t* timer)
 {
     TRACE("__EnableTimer %s", timer->Name);
@@ -393,7 +397,8 @@ static oserr_t __EnableTimer(
     return OS_EOK;
 }
 
-static void __ConfigureTimerSources(void)
+static void
+__ConfigureTimerSources(void)
 {
     SystemTimer_t* irqCandidate     = NULL;
     SystemTimer_t* counterCandidate = NULL;
@@ -443,7 +448,8 @@ static void __ConfigureTimerSources(void)
     GetMachine()->SystemTimers.Clock = irqCandidate;
 }
 
-oserr_t SystemSynchronizeTimeSources(void)
+oserr_t
+SystemSynchronizeTimeSources(void)
 {
     SystemWallClock_t* wallClock;
     oserr_t            oserr = OS_EOK;

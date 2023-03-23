@@ -29,18 +29,27 @@
 size_t
 fread(void *vptr, size_t size, size_t count, FILE *stream)
 {
-	size_t rcnt = size * count;
-	size_t cread = 0;
-	size_t pread = 0;
-	TRACE("fread(vptr=0x%" PRIxIN ", size=%" PRIuIN ", count=%" PRIuIN ", stream=0x%" PRIxIN ", stream->_flag=%i)",
-       vptr, size, count, stream, stream ? stream->_flag : 0);
+	size_t          rcnt = size * count;
+	size_t          cread = 0;
+	size_t          pread = 0;
+    stdio_handle_t* handle;
 
-	if (!rcnt) {
-	    _set_errno(EINVAL);
+    // If zero bytes are requested, simply return. An error action is not
+    // expected in this case.
+	if (rcnt == 0) {
 		return 0;
 	}
 
-	flockfile(stream);
+    // Should not happen
+    flockfile(stream);
+    handle = stdio_handle_get(stream->_fd);
+    if (handle == NULL) {
+        stream->_flag |= _IOERR;
+        funlockfile(stream);
+        _set_errno(EBADF);
+        return 0;
+    }
+
 	if (stream_ensure_mode(_IOREAD, stream)) {
 	    goto exit;
 	}
@@ -71,7 +80,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 			/* If the buffer fill reaches eof but fread wouldn't, clear eof. */
 			if (i > 0 && i < stream->_cnt) {
-				stdio_handle_get(stream->_fd)->XTFlags &= ~__IO_ATEOF;
+                handle->XTFlags &= ~__IO_ATEOF;
 				stream->_flag &= ~_IOEOF;
 			}
 			
@@ -83,11 +92,9 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		}
 		else if (rcnt > INT_MAX) {
 			i = read(stream->_fd, vptr, INT_MAX);
-		}
-		else if (rcnt < BUFSIZ) {
+		} else if (rcnt < BUFSIZ) {
 			i = read(stream->_fd, vptr, rcnt);
-		}
-		else {
+		} else {
 			i = read(stream->_fd, vptr, rcnt - BUFSIZ / 2);
 		}
 
@@ -98,10 +105,9 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 		// Check for EOF condition
 		// also for error conditions
-		if (stdio_handle_get(stream->_fd)->XTFlags & __IO_ATEOF) {
+		if (handle->XTFlags & __IO_ATEOF) {
 			stream->_flag |= _IOEOF;
-		}
-		else if (i == -1) {
+		} else if (i == -1) {
 			stream->_flag |= _IOERR;
 			pread = 0;
 			rcnt = 0;
@@ -118,6 +124,5 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
 exit:
     funlockfile(stream);
-    TRACE("fread returns=%" PRIuIN ", errno=%i", (cread / size), errno);
 	return (cread / size);
 }

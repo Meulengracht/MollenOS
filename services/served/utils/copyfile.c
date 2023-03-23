@@ -24,41 +24,44 @@
 
 oserr_t CopyFile(const char* source, const char* destination)
 {
-    FILE*  sourceFile;
-    FILE*  destinationFile;
-    char*  buffer;
-    int    status;
+    FILE*   sourceFile;
+    FILE*   destinationFile;
+    char*   buffer;
+    oserr_t oserr = OS_EOK;
 
     sourceFile = fopen(source, "rb");
     if (!sourceFile) {
-        return -1;
+        return OS_ENOENT;
     }
 
     destinationFile = fopen(destination, "wb");
     if (!destinationFile) {
         fclose(sourceFile);
-        return -1;
+        return OS_EUNKNOWN;
     }
 
     buffer = (char*)malloc(_SEGMENT_SIZE);
     if (buffer == NULL) {
         fclose(sourceFile);
         fclose(destinationFile);
-        return -1;
+        return OS_EOOM;
     }
 
-    status = 0;
     while (1) {
         size_t read, written;
 
         read = fread(buffer, 1, _SEGMENT_SIZE, sourceFile);
         if (read == 0) {
+            if (ferror(sourceFile)) {
+                perror("CopyFile: failed to read source file");
+                oserr = OS_EUNKNOWN;
+            }
             break;
         }
 
         written = fwrite(buffer, 1, read, destinationFile);
         if (written != read) {
-            status = -1;
+            oserr = OS_EUNKNOWN;
             break;
         }
 
@@ -71,5 +74,5 @@ oserr_t CopyFile(const char* source, const char* destination)
     free(buffer);
     fclose(sourceFile);
     fclose(destinationFile);
-    return status;
+    return oserr;
 }

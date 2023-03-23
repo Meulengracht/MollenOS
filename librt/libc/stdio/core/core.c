@@ -354,17 +354,17 @@ int stdio_handle_set_handle(
 int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int stream_flags)
 {
     if (!handle) {
-        return EBADF;
+        return EBADFD;
     }
     
     if (!stream) {
         stream = (FILE*)malloc(sizeof(FILE));
         if (!stream) {
-            return ENOMEM;
+            return -1;
         }
-        memset(stream, 0, sizeof(FILE));
 
         // TODO move to construct function
+        memset(stream, 0, sizeof(FILE));
         usched_mtx_init(&stream->_lock, USCHED_MUTEX_RECURSIVE);
     }
     
@@ -377,7 +377,7 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
     
     // associate the stream object
     handle->Stream = stream;
-    return EOK;
+    return 0;
 }
 
 void stdio_handle_delete(stdio_handle_t* handle)
