@@ -579,7 +579,7 @@ oserr_t __GetRelative(struct VFSNode* from, mstring_t* path, int followLinks, st
         // folder loading and whatnot if the folder is not currently loaded.
         oserr = VFSNodeFind(node, tokens[i], &next);
         if (oserr != OS_EOK) {
-            ERROR("__GetRelative failed to find %ms in %ms", tokens[i], node->Name);
+            TRACE("__GetRelative failed to find %ms in %ms", tokens[i], node->Name);
             break;
         }
 

@@ -47,7 +47,7 @@ FILE* fdopen(int fd, const char *mode)
     
     handle = stdio_handle_get(fd);
     if (!handle) {
-        _set_errno(EBADF);
+        _set_errno(EBADFD);
         return NULL;
     }
     

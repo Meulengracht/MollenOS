@@ -320,7 +320,7 @@ static void _Noreturn __switch_task(
 #elif defined(__i386__)
     __asm__ (
             "movl %0, %%eax; movl %1, %%esp; pushl %%eax; call ___usched_task_main\n"
-            :: "r"(next), "r"(stack)
+            :: "r"(job), "r"(stack)
             : "eax", "esp", "memory");
 #else
 #error "Unimplemented architecture for userspace scheduler"
