@@ -69,6 +69,7 @@ __fmode_to_flags(
     if (__HandleAccess(mode, plus, flagsOut)) {
         return -1;
     }
+    mode++;
 
     // Now handle all the other options for opening
     // like text, binary, file-type
