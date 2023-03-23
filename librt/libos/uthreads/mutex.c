@@ -143,15 +143,13 @@ void usched_mtx_unlock(struct usched_mtx* mutex)
         mutex->owner = next;
         if (next) {
             mutex->queue = next->next;
-            next->next = NULL;
         }
     }
     spinlock_release(&mutex->lock);
 
     // mark next job as woken
     if (next) {
-        next->state = JobState_RUNNING;
-        __usched_add_job_ready(next);
+        __usched_job_ready(next);
     }
 }
 
@@ -193,8 +191,6 @@ void __usched_mtx_notify_job(struct usched_mtx* mtx, struct usched_job* job)
     spinlock_release(&mtx->lock);
 
     if (reQueue) {
-        job->next = NULL;
-        job->state = JobState_RUNNING;
-        __usched_add_job_ready(job);
+        __usched_job_ready(job);
     }
 }

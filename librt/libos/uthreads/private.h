@@ -229,6 +229,7 @@ extern int __xunit_start_detached(struct usched_job* job, struct usched_job_para
 
 extern struct execution_manager*  __xunit_manager(void);
 extern void                       __usched_add_job_ready(struct usched_job* job);
+extern void                       __usched_job_ready(struct usched_job* job);
 extern int                        __usched_prepare_migrate(void);
 extern struct usched_scheduler*   __usched_get_scheduler(void);
 extern struct execution_unit_tls* __usched_xunit_tls_current(void);

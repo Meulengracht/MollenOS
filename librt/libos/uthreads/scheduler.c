@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 
 #include <assert.h>
@@ -222,6 +222,24 @@ void __usched_add_job_ready(struct usched_job* job)
     OSNotificationQueuePost(&queue->notification_handle, IOSETSYN);
 }
 
+void __usched_job_ready(struct usched_job* job)
+{
+    struct usched_scheduler* sched = __usched_get_scheduler();
+    assert(sched != NULL);
+    assert(job != NULL);
+    TRACE("__usched_job_ready(id=%u)", job->id);
+
+    // Update job state to be RUNNING
+    job->next  = NULL;
+    job->state = JobState_RUNNING;
+
+    // If we are re-readying the current job then the
+    // state change will be enough
+    if (sched->current != job) {
+        __usched_add_job_ready(job);
+    }
+}
+
 int __usched_prepare_migrate(void)
 {
     struct usched_scheduler* sched = __usched_get_scheduler();
@@ -247,8 +265,8 @@ int __usched_prepare_migrate(void)
     return 0;
 }
 
-static struct usched_job*
-__get_next_ready(struct usched_scheduler* scheduler)
+static struct usched_job* __get_next_ready(
+        struct usched_scheduler* scheduler)
 {
     struct usched_scheduler_queue* queue = &g_globalQueue;
     struct usched_job*             next;
@@ -272,71 +290,32 @@ __get_next_ready(struct usched_scheduler* scheduler)
 // entry point for new tasks
 extern void __usched_task_main(struct usched_job* job);
 
-static void
-__switch_task(struct usched_scheduler* sched, struct usched_job* current, struct usched_job* next)
+static void _Noreturn __switch_task(
+        struct usched_job* job)
 {
     char* stack;
-
-    // save the current context and set a return point
-    if (current) {
-        if (current->id == 1005) {
-            TRACE("__switch_task[%u]: saving context", current->id);
-            BOCHSBREAK;
-        }
-        if (setjmp(current->context)) {
-            return;
-        }
-    }
-
-    /**
-     *
-<bochs:17>
-UhciSetup() [Store]
-SP => 9400
-IP => 4adc5
-STRUCT => 1d540   (bf142540)
-
-... [Load]
-SP => 9340!?
-IP => 4bdc5?!
-STRUCT => 1d540
-
-     *
-     */
-
-    // return to scheduler context if we have no next
-    if (!next) {
-        // This automatically restores the correct TLS context after the jump
-        longjmp(sched->context, 1);
-    }
-
-    // Before jumping here, we *must* restore the TLS context as we have
-    // no control over the next step.
-    __tls_switch(&next->tls);
+    TRACE("__switch_task(job=%u)", job->id);
 
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
-    if (next->state != JobState_CREATED) {
-        if (next->id == 1005) {
-            TRACE("__switch_task[%u]: jump to 0x%llx", next->id, ((uint64_t*)next->context)[10]);
-            BOCHSBREAK;
-        }
-        longjmp(next->context, 1);
+    if (job->state != JobState_CREATED) {
+        longjmp(job->context, 1);
     }
 
     // Set up the job id for the current job before running it, These are
     // things are not practical for us to do at job creation, so we have
     // deferred them to just-in-time initialization.
-    __tls_current()->job_id = next->id;
-    __tls_current()->async_context = &next->async_context;
+    __tls_switch(&job->tls);
+    __tls_current()->job_id = job->id;
+    __tls_current()->async_context = &job->async_context;
 
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.
-    stack = (char*)next->stack + next->stack_size;
+    stack = (char*)job->stack + job->stack_size;
 #if defined(__amd64__)
     __asm__ (
             "movq %0, %%rcx; movq %1, %%rsp; callq __usched_task_main\n"
-            :: "r"(next), "r"(stack)
+            :: "r"(job), "r"(stack)
             : "rdi", "rsp", "memory");
 #elif defined(__i386__)
     __asm__ (
@@ -346,10 +325,13 @@ STRUCT => 1d540
 #else
 #error "Unimplemented architecture for userspace scheduler"
 #endif
+    for (;;);
 }
 
-static void __notify_timer(struct usched_timeout* timer)
+static void __notify_timer(
+        struct usched_timeout* timer)
 {
+    TRACE("__notify_timer(job=%u)", timer->job->id);
     if (timer->queue_type == __QUEUE_TYPE_SLEEP) {
         __usched_job_notify(timer->job);
     } else if (timer->queue_type == __QUEUE_TYPE_MUTEX) {
@@ -368,8 +350,8 @@ static bool __is_before_or_equal(const struct timespec* before, const struct tim
     return false;
 }
 
-static void
-__update_timers(struct usched_scheduler* sched)
+static void __update_timers(
+        struct usched_scheduler* sched)
 {
     struct timespec        currentTime;
     struct usched_timeout* timer;
@@ -377,9 +359,11 @@ __update_timers(struct usched_scheduler* sched)
     timespec_get(&currentTime, TIME_UTC);
     timer = sched->timers;
     while (timer) {
-        if (__is_before_or_equal(&timer->deadline, &currentTime)) {
-            timer->active = 0;
-            __notify_timer(timer);
+        if (timer->active) {
+            if (__is_before_or_equal(&timer->deadline, &currentTime)) {
+                timer->active = 0;
+                __notify_timer(timer);
+            }
         }
         timer = timer->next;
     }
@@ -441,9 +425,6 @@ static void __process_syscall_completions(
 {
     struct usched_syscall* i, *p;
 
-    // Reset the event count back to zero and store the actual number
-    // of completions. Then we iterate through the syscalls and check
-    // their status
     i = sched->syscalls_pending;
     p = NULL;
     while (i) {
@@ -457,7 +438,7 @@ static void __process_syscall_completions(
             } else {
                 p->next = i->next;
             }
-            __usched_add_job_ready(i->job);
+            __usched_job_ready(i->job);
         }
 
         p = i;
@@ -472,34 +453,40 @@ int usched_yield(struct timespec* deadline)
     struct usched_job*       next;
     TRACE("usched_yield()");
 
-    // update timers before we check the scheduler as we might trigger a job to
-    // be ready
-    __update_timers(sched);
-    __process_syscall_completions(sched);
-
-    next = __get_next_ready(sched);
-    if (sched->current == NULL) {
-        // if no active thread and no ready threads then we can safely just return
-        if (next == NULL) {
-            return __get_next_deadline(sched, deadline);
+    // save the current context and set a return point
+    if (sched->current) {
+        if (setjmp(sched->current->context)) {
+            TRACE("usched_yield: loaded job %u", sched->current->id);
+            // We have return to the running thread.
+            __tls_switch(&sched->current->tls);
+            return 0;
         }
-
-        // we are running in scheduler context, make sure we store
-        // this context, so we can return to here when we run out of tasks
-        // to execute
+    } else {
         if (setjmp(sched->context)) {
-            // We are back into the execution unit context, which means we should update
-            // the TLS accordingly.
+            TRACE("usched_yield: scheduler job");
+            // We have returned to the scheduler context.
             __tls_switch(sched->tls);
-
             // Run maintinence tasks before returning the deadline for the next job
             __empty_garbage_bin(sched);
             return __get_next_deadline(sched, deadline);
         }
     }
 
+    // update timers before we check the scheduler as we might trigger a job to
+    // be ready. We could also be triggering the current job again.
+    __update_timers(sched);
+    __process_syscall_completions(sched);
+
+    next = __get_next_ready(sched);
+    if (next == NULL && sched->current == NULL) {
+        TRACE("usched_yield: no job");
+        // if no active thread and no ready threads then we can safely just return
+        return __get_next_deadline(sched, deadline);
+    }
+
     current = sched->current;
     if (current) {
+        TRACE("usched_yield: state %u", current->state);
         if (SHOULD_RESCHEDULE(current)) {
             // let us skip the whole schedule unschedule if
             // possible.
@@ -514,9 +501,16 @@ int usched_yield(struct timespec* deadline)
     }
     sched->current = next;
 
-    // Should always be the last call
-    __switch_task(sched, current, next);
-    return 0;
+    // In the case of no next task, we return back to the scheduler
+    // context. In the case that we are switching to the same task, then
+    // we simply reload the context. Both of these cases need no __tls_switch
+    // call.
+    if (next == NULL) {
+        longjmp(sched->context, 1);
+    } else if (current == next) {
+        longjmp(current->context, 1);
+    }
+    __switch_task(next);
 }
 
 void usched_timedwait(const struct timespec* until)
