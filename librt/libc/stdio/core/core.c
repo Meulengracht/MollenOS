@@ -198,7 +198,7 @@ __oflags_to_xtflags(
 {
     unsigned int xtflags = 0;
 
-    if ((oflags & O_RDWR) == O_RDWR) xtflags |= __IO_RW;
+    if (oflags & O_RDWR)             xtflags |= __IO_RW;
     else if (oflags & O_RDONLY)      xtflags |= __IO_READ;
     else if (oflags & O_WRONLY)      xtflags |= __IO_WRITE;
     if (oflags & O_APPEND)           xtflags |= __IO_APPEND;

@@ -36,14 +36,21 @@ int fputc(
         return EOF;
     }
 
-    // If we were previously reading, then we flush
-    if (file->StreamMode == __STREAMMODE_READ) {
-        fflush(file);
-    }
-    __FILE_SetStreamMode(file, __STREAMMODE_WRITE);
-
-    // Ensure a buffer is present if supported
+    // Ensure a buffer is present if possible. We need it before reading
     io_buffer_ensure(file);
+
+    // Should we flush the current buffer? If the last operation was a write
+    // we must flush
+    if (__FILE_ShouldFlush(file, __STREAMMODE_WRITE)) {
+        res = fflush(file);
+        if (res) {
+            funlockfile(file);
+            return res;
+        }
+    }
+
+    // We are now doing a read operation
+    __FILE_SetStreamMode(file, __STREAMMODE_WRITE);
 
     if (__FILE_IsBuffered(file) && file->_cnt > 0) {
         file->_cnt--;

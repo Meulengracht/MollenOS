@@ -67,10 +67,20 @@ int fgetc(
         return EOF;
     }
 
-    // If we were previously writing, then we flush
-    if (file->StreamMode == __STREAMMODE_WRITE) {
-        fflush(file);
+    // Ensure a buffer is present if possible. We need it before reading
+    io_buffer_ensure(file);
+
+    // Should we flush the current buffer? If the last operation was a write
+    // we must flush
+    if (__FILE_ShouldFlush(file, __STREAMMODE_READ)) {
+        int ret = fflush(file);
+        if (ret) {
+            funlockfile(file);
+            return EOF;
+        }
     }
+
+    // We are now doing a read operation
     __FILE_SetStreamMode(file, __STREAMMODE_READ);
 
     if (file->_cnt > 0) {

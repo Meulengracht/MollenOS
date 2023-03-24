@@ -21,11 +21,14 @@
 #include "stdlib.h"
 #include "stdio.h"
 
-static inline void
+static inline int
 __flush_existing(FILE* stream)
 {
-    if (__FILE_IsBuffered(stream) && __FILE_ShouldFlush(stream)) {
-        fflush(stream);
+    if (__FILE_ShouldFlush(stream, __STREAMMODE_READ)) {
+        int ret = fflush(stream);
+        if (ret) {
+            return ret;
+        }
     }
 
     if (stream->Flags & _IOMYBUF) {
@@ -37,6 +40,7 @@ __flush_existing(FILE* stream)
     stream->_ptr = NULL;
     stream->_bufsiz = 0;
     stream->_cnt = 0;
+    return 0;
 }
 
 int setvbuf(
@@ -57,7 +61,10 @@ int setvbuf(
     }
 
     flockfile(file);
-    __flush_existing(file);
+    if (__flush_existing(file)) {
+        funlockfile(file);
+        return -1;
+    }
 
     file->Flags &= ~(_IOMYBUF | _IOUSRBUF);
     file->BufferMode = mode;

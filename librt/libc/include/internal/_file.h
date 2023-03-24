@@ -48,22 +48,35 @@ typedef struct _FILE {
 #define _IORD      0x0010 // Read is allowed
 #define _IOWR      0x0020 // Write is allowed
 #define _IORW      (_IORD | _IOWR)
-#define _FWIDE     0x0040
-#define _FBYTE     0x0080
-#define _IOVRT     0x0100
+#define _IOAPPEND  0x0040
+#define _FWIDE     0x0080
+#define _FBYTE     0x0100
+#define _IOVRT     0x0200
 
 // Values for FILE::BufferMode are _IONBF/_IOLBF/_IOFBF
 
 // Values for FILE::StreamMode
-#define __STREAMMODE_READ  0x01 // currently reading
-#define __STREAMMODE_WRITE 0x02 // currently writing
+#define __STREAMMODE_READ  0x01 // last operation was a read
+#define __STREAMMODE_WRITE 0x02 // last operation was a write
+#define __STREAMMODE_SEEK  0x03 // last operation was a seek
 
 static inline bool __FILE_IsStrange(FILE* stream) {
     return stream->IOD == -1;
 }
 
-static inline bool __FILE_ShouldFlush(FILE* stream) {
-    return stream->StreamMode == __STREAMMODE_WRITE;
+static inline bool __FILE_IsBuffered(FILE* stream) {
+    return stream->BufferMode != _IONBF;
+}
+
+static inline bool __FILE_ShouldFlush(FILE* stream, uint8_t mode) {
+    // If no operation was done, ergo the mode is 0, we don't need
+    // to flush. If the mode we want, match the current mode, we don't
+    // need to flush. If the mode we had, was seek, we don't need to
+    // flush
+    return __FILE_IsBuffered(stream) &&
+        stream->StreamMode != 0 &&
+        stream->StreamMode != __STREAMMODE_SEEK &&
+        stream->StreamMode != mode;
 }
 
 static inline void __FILE_SetStreamMode(FILE* stream, uint8_t mode) {
@@ -75,12 +88,10 @@ static inline bool __FILE_StreamModeSupported(FILE* stream, uint8_t mode) {
         return (stream->Flags & _IORD) != 0 ? true : false;
     } else if (mode == __STREAMMODE_WRITE) {
         return (stream->Flags & _IOWR) != 0 ? true : false;
+    } else if (mode == __STREAMMODE_SEEK) {
+        return (stream->Flags & _IOAPPEND) != 0 ? true : false;
     }
     return false;
-}
-
-static inline bool __FILE_IsBuffered(FILE* stream) {
-    return stream->BufferMode != _IONBF;
 }
 
 static inline size_t __FILE_BytesBuffered(FILE* stream) {
