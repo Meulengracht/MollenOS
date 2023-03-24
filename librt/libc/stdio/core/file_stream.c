@@ -26,7 +26,7 @@
 
 extern hashtable_t* stdio_get_handles(void);
 
-void  io_buffer_allocate(FILE* stream)
+void io_buffer_allocate(FILE* stream)
 {
     // Is the stream really buffered?
     if (stream->BufferMode != _IONBF) {

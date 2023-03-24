@@ -22,6 +22,26 @@
 #include <errno.h>
 #include <string.h>
 
+static uint16_t
+__stream_flags(
+        _In_ int oflags)
+{
+    uint16_t flags = 0;
+
+    if (oflags & O_RDWR) {
+        flags |= _IORD | _IOWR;
+    } else if (oflags & O_RDONLY) {
+        flags |= _IORD;
+    } else if (oflags & O_WRONLY) {
+        flags |= _IOWR;
+    }
+
+    if (!(oflags & O_APPEND)) {
+        flags |= _IOAPPEND;
+    }
+    return flags;
+}
+
 /**
 "r"    read: Open file for input operations. The file must exist.
 "w"    write: Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
@@ -36,13 +56,18 @@ FILE* fdopen(int fd, const char *mode)
 {
     stdio_handle_t* handle;
     int             flags;
+    int             res;
 
     if (fd < 0 || mode == NULL) {
         _set_errno(EINVAL);
         return NULL;
     }
 
-    if (__fmode_to_flags(mode, &flags)) {
+    // Convert the mode to flags, we then perform one addtional conversion
+    // to stream flags for the _O flags to be more robust. We don't want two
+    // separate mode parser routines.
+    res = __fmode_to_flags(mode, &flags);
+    if (res) {
         return NULL;
     }
     
@@ -51,8 +76,14 @@ FILE* fdopen(int fd, const char *mode)
         _set_errno(EBADFD);
         return NULL;
     }
-    
-    if (stdio_handle_set_buffered(handle, NULL, _IORW, _IOFBF)) {
+
+    res = stdio_handle_set_buffered(
+            handle,
+            NULL,
+            __stream_flags(flags),
+            _IOFBF
+    );
+    if (res) {
         return NULL;
     }
     return stdio_handle_stream(handle);

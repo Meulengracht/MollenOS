@@ -68,21 +68,28 @@ int fseeki64(
 	// Lock access to stream
 	flockfile(file);
 
-    // Is the stream currently in write-mode? Then we need
-    // to flush the buffer first
-	if (file->StreamMode == __STREAMMODE_WRITE) {
+    // Ensure that we support the stream mode on this stream
+    if (!__FILE_StreamModeSupported(file, __STREAMMODE_SEEK)) {
+        funlockfile(file);
+        errno = EACCES;
+        return -1;
+    }
+
+    // Ensure that the stream is flushed on seek operations.
+    if (__FILE_ShouldFlush(file, __STREAMMODE_SEEK)) {
         ret = fflush(file);
         if (ret) {
+            funlockfile(file);
             return ret;
         }
-	}
+    }
+
+    // update stream mode
+    __FILE_SetStreamMode(file, __STREAMMODE_SEEK);
 
 	// discard buffered input
 	file->_cnt = 0;
 	file->_ptr = file->_base;
-
-	// reset stream mode
-    __FILE_SetStreamMode(file, 0);
 
     // clear EOF
 	file->Flags &= ~_IOEOF;

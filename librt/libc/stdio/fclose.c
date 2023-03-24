@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,9 +39,17 @@ int fclose(FILE *stream)
 {
 	int iod;
 
+    // Everything done during close is for a locked operation
 	flockfile(stream);
-	if (__FILE_ShouldFlush(stream)) {
-		fflush(stream);
+
+    // Ensure stream is flushed, we use the __STREAMMODE_READ to check
+    // against, as we don't need to flush anything in the case of read
+    // operations only.
+	if (__FILE_ShouldFlush(stream, __STREAMMODE_READ)) {
+        if (fflush(stream)) {
+            funlockfile(stream);
+            return -1;
+        }
 	}
 
     // After flushing, we now cleanup the stream. We start
