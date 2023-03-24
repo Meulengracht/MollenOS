@@ -18,9 +18,7 @@
 //#define __TRACE
 
 #include <assert.h>
-#include <ddk/utils.h>
 #include <ds/hashtable.h>
-#include <errno.h>
 #include <internal/_io.h>
 #include <internal/_file.h>
 #include <io.h>
@@ -28,24 +26,24 @@
 
 extern hashtable_t* stdio_get_handles(void);
 
-void io_buffer_allocate(FILE* stream)
+void  io_buffer_allocate(FILE* stream)
 {
-    if (!(stream->_flag & _IONBF)) {
+    // Is the stream really buffered?
+    if (stream->BufferMode != _IONBF) {
         stream->_base = calloc(1, BUFSIZ);
         if (stream->_base) {
             stream->_bufsiz = BUFSIZ;
-            stream->_flag |= _IOMYBUF;
-        }
-        else {
-            stream->_flag &= ~(_IONBF | _IOMYBUF | _USERBUF | _IOLBF);
-            stream->_flag |= _IONBF;
+            stream->Flags |= _IOMYBUF;
+        } else {
+            stream->Flags &= ~(_IOMYBUF | _IOUSRBUF);
+            stream->BufferMode = _IONBF;
         }
     }
 
     // ensure the buffer still set to charbuf
-    if (stream->_flag & _IONBF) {
-        stream->_base = (char *)(&stream->_charbuf);
-        stream->_bufsiz = 2;
+    if (stream->BufferMode == _IONBF) {
+        stream->_base = (char*)(&stream->_charbuf);
+        stream->_bufsiz = sizeof(stream->_charbuf);
     }
 
     stream->_ptr = stream->_base;
@@ -64,29 +62,32 @@ oserr_t
 io_buffer_flush(
     _In_ FILE* file)
 {
-    if ((file->_flag & (_IOREAD | _IOWRT)) == _IOWRT && file->_flag & (_IOMYBUF | _USERBUF)) {
-        size_t cnt = (size_t)(file->_ptr - file->_base);
+    size_t bytesToFlush;
+    int    bytesWritten;
 
-        // Flush them
-        if (cnt > 0 && write(file->_fd, file->_base, (unsigned int)cnt) != cnt) {
-            file->_flag |= _IOERR;
-            return OS_EUNKNOWN;
-        }
-
-        // If it's rw, clear WRITE flag
-        if (file->_flag & _IORW) {
-            file->_flag &= ~_IOWRT;
-        }
-        file->_ptr = file->_base;
-        file->_cnt = 0;
+    if (__FILE_IsStrange(file)) {
+        return OS_ENOTSUPPORTED;
     }
+
+    if (file->StreamMode != __STREAMMODE_WRITE) {
+        return OS_EOK;
+    }
+
+    bytesToFlush = (size_t)(file->_ptr - file->_base);
+    if (bytesToFlush == 0) {
+        return OS_EOK;
+    }
+
+    bytesWritten = write(file->IOD, file->_base, (unsigned int)bytesToFlush);
+    if (bytesWritten != bytesToFlush) {
+        file->Flags |= _IOERR;
+        return OS_EDEVFAULT;
+    }
+
+    file->_ptr = file->_base;
+    file->_cnt = file->_bufsiz;
     return OS_EOK;
 }
-
-struct __flush_context {
-    int mask;
-    int files_flushed;
-};
 
 static void
 __flush_entry(
@@ -96,39 +97,30 @@ __flush_entry(
 {
     const struct stdio_object_entry* entry   = element;
     stdio_handle_t*                  object  = entry->handle;
-    struct __flush_context*          context = userContext;
-    FILE*                            file    = object->Stream;
+    uint8_t                          streamMode = *((uint8_t*)userContext);
     _CRT_UNUSED(index);
-
-    if (file && (file->_flag & context->mask)) {
-        fflush(file);
-        context->files_flushed++;
+    if (object->Stream->StreamMode & streamMode) {
+        fflush(object->Stream);
     }
 }
 
-int
+void
 io_buffer_flush_all(
-    _In_ int mask)
+        _In_ uint8_t streamMode)
 {
-    struct __flush_context context = {
-            .mask = mask,
-            .files_flushed = 0
-    };
-
     LOCK_FILES();
     hashtable_enumerate(
             stdio_get_handles(),
             __flush_entry,
-            &context
+            &streamMode
     );
     UNLOCK_FILES();
-    return context.files_flushed;
 }
 
 void flockfile(FILE* stream)
 {
     assert(stream != NULL);
-    usched_mtx_lock(&stream->_lock);
+    usched_mtx_lock(&stream->Lock);
 }
 
 int ftrylockfile(FILE* stream)
@@ -136,26 +128,11 @@ int ftrylockfile(FILE* stream)
     if (stream == NULL) {
         return OS_EINVALPARAMS;
     }
-    return usched_mtx_trylock(&stream->_lock);
+    return usched_mtx_trylock(&stream->Lock);
 }
 
 void funlockfile(FILE* stream)
 {
     assert(stream != NULL);
-    usched_mtx_unlock(&stream->_lock);
-}
-
-int stream_ensure_mode(int mode, FILE* stream)
-{
-    if (stream->_flag & mode) {
-        return 0;
-    }
-
-    if (stream->_flag & _IORW) {
-        stream->_flag |= mode;
-        return 0;
-    }
-
-    errno = (EACCES);
-    return -1;
+    usched_mtx_unlock(&stream->Lock);
 }

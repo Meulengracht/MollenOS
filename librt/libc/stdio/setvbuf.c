@@ -21,16 +21,22 @@
 #include "stdlib.h"
 #include "stdio.h"
 
-static inline void __flush_existing(FILE* stream)
+static inline void
+__flush_existing(FILE* stream)
 {
-    if (!(stream->_flag & _IONBF)) {
+    if (__FILE_IsBuffered(stream) && __FILE_ShouldFlush(stream)) {
         fflush(stream);
-
-        // cleanup any stdio malloced buffer
-        if (stream->_flag & _IOMYBUF) {
-            free(stream->_base);
-        }
     }
+
+    if (stream->Flags & _IOMYBUF) {
+        free(stream->_base);
+    }
+
+    // reset buffer metrics
+    stream->_base = NULL;
+    stream->_ptr = NULL;
+    stream->_bufsiz = 0;
+    stream->_cnt = 0;
 }
 
 int setvbuf(
@@ -50,24 +56,20 @@ int setvbuf(
         return -1;
     }
 
-    // no-buffering we only support the static storage of up to 1 byte
-    if (mode == _IONBF && size >= 2) {
-        _set_errno(EINVAL);
-        return -1;
-    }
-
     flockfile(file);
     __flush_existing(file);
 
-    file->_flag &= ~(_IONBF | _IOMYBUF | _USERBUF | _IOLBF);
-    file->_flag |= mode;
-    file->_cnt   = 0;
+    file->Flags &= ~(_IOMYBUF | _IOUSRBUF);
+    file->BufferMode = mode;
 
-    if (buf) {
+    // If the stream is being set to buffered, and the
+    // user is supplying their own buffer, then we use that.
+    // Otherwise we set it back to system defaults.
+    if (mode != _IONBF && buf != NULL) {
         // user provided us a buffer
-        file->_flag  |= _USERBUF;
+        file->Flags  |= _IOUSRBUF;
         file->_base   = file->_ptr = buf;
-        file->_bufsiz = size;
+        file->_bufsiz = (int)size;
     } else {
         // no buffer provided, allocate a new
         io_buffer_allocate(file);

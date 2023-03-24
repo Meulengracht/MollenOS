@@ -28,31 +28,41 @@ int ungetc(
     }
 
     flockfile(file);
-    if (character == EOF || !(file->_flag & _IOREAD || (file->_flag & _IORW && !(file->_flag & _IOWRT)))) {
+
+    // Don't put anything weird back
+    if (character == EOF) {
+        goto eof;
+    }
+
+    // The stream must be in read mode
+    if (file->StreamMode != __STREAMMODE_READ) {
         goto eof;
     }
 
     io_buffer_ensure(file);
 
-    if (!(file->_flag & (_IONBF | _IOMYBUF | _USERBUF)) || (!file->_cnt && file->_ptr == file->_base)) {
+    // The stream must have space in it's buffer. Even unbuffered
+    // streams have space for a look-ahead
+    if (!file->_cnt && file->_ptr == file->_base) {
+        // Special case of unfilled buffers. This is still valid
+        // to ungetc for.
         file->_ptr++;
     }
 
     if (file->_ptr > file->_base) {
         file->_ptr--;
         
-        if (file->_flag & _IOSTRG) {
+        if (__FILE_IsStrange(file)) {
             if (*file->_ptr != character) {
                 file->_ptr++;
                 goto eof;
             }
         } else {
-            *file->_ptr = character;
+            *file->_ptr = (char)character;
         }
 
         file->_cnt++;
         clearerr(file);
-        file->_flag |= _IOREAD;
         funlockfile(file);
         return character;
     }

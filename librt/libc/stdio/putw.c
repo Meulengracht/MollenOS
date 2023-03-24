@@ -15,25 +15,42 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "io.h"
-#include "internal/_io.h"
-#include "internal/_file.h"
-#include "stdio.h"
+#include <errno.h>
+#include <io.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdio.h>
 
 int putw(
     _In_ int   val,
     _In_ FILE* file)
 {
-    int len;
+    int res = 0;
 
     flockfile(file);
-    len = write(file->_fd, &val, sizeof(val));
-    if (len == sizeof(val)) {
+
+    // Ensure that this mode is supported
+    if (!__FILE_StreamModeSupported(file, __STREAMMODE_WRITE)) {
         funlockfile(file);
-        return val;
+        errno = EACCES;
+        return EOF;
     }
 
-    file->_flag |= _IOERR;
-    funlockfile(file);
-    return EOF;
+    // If we were previously reading, then we flush
+    if (file->StreamMode == __STREAMMODE_READ) {
+        fflush(file);
+    }
+    __FILE_SetStreamMode(file, __STREAMMODE_WRITE);
+
+    // Ensure a buffer is present if supported
+    io_buffer_ensure(file);
+
+    if (__FILE_IsBuffered(file) && file->_cnt > 0) {
+        *(int*)file->_ptr = val;
+        file->_cnt -= sizeof(int);
+        file->_ptr += sizeof(int);
+    } else {
+        res = _flswbuf(val, file);
+    }
+    return res ? res : val;
 }

@@ -29,8 +29,6 @@
 #include <debug.h>
 #include <interrupts.h>
 
-uint32_t g_calibrationTick = 0;
-
 oserr_t
 TimersDiscover(void)
 {

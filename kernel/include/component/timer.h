@@ -80,6 +80,7 @@ typedef struct SystemTimer {
     enum SystemTimeAttributes Attributes;
     uuid_t                    Interrupt;
     uint32_t                  Multiplier;
+    uint32_t                  Divider;
     UInteger64_t              InitialTick;
     UInteger64_t              Frequency;
     void*                     Context;
@@ -228,6 +229,13 @@ SystemTimerGetPerformanceTick(
 KERNELAPI void KERNELABI
 SystemTimerStall(
         _In_ OSTimestamp_t* deadline);
+
+/**
+ * @brief Refreshes the currently used clock source based on available system
+ * timers.
+ */
+KERNELAPI void KERNELABI
+SystemTimerRefreshTimers(void);
 
 /**
  * @brief Synchronizes timer sources. This is vital for correct information when

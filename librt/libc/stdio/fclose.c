@@ -24,36 +24,34 @@
 #include <stdlib.h>
 #include <string.h>
 
+static void
+__FILE_Delete(
+        _In_ FILE *stream)
+{
+    free(stream->_tmpfname);
+    if (stream->Flags & _IOMYBUF) {
+        free(stream->_base);
+    }
+    free(stream);
+}
+
 int fclose(FILE *stream)
 {
-	int r, flag, fd;
+	int iod;
 
 	flockfile(stream);
-	if (stream->_flag & _IOWRT) {
+	if (__FILE_ShouldFlush(stream)) {
 		fflush(stream);
 	}
-	flag    = stream->_flag;
-    fd      = stream->_fd;
 
-	// Flush and free all the associated buffers
-	if (stream->_tmpfname != NULL) {
-		free(stream->_tmpfname);
-	}
-	if (stream->_flag & _IOMYBUF) {
-		free(stream->_base);
-	}
-
-	// Call underlying close and never unlock the file as 
-	// underlying stream is closed and not safe anymore
-	r = close(fd);
+    // After flushing, we now cleanup the stream. We start
+    // out by protecting the underlying IO descriptor by zeroing
+    // it, but then unlock the stream
+    iod = stream->IOD;
+    stream->IOD = -1;
     funlockfile(stream);
+    __FILE_Delete(stream);
 
-    // Never free the standard handles, so handle that here
-    if (stream != stdout && stream != stdin && stream != stderr) {
-        free(stream);
-    } else {
-        memset(stream, 0, sizeof(FILE));
-        stream->_fd = fd;
-    }
-	return ((r == -1) || (flag & _IOERR) ? EOF : 0);
+    // Now close the underlying file-descriptor
+	return close(iod);
 }

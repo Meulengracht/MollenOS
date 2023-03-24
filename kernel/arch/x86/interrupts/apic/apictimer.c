@@ -27,10 +27,9 @@
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
 #include <arch/x86/cpu.h>
-#include <acpiinterface.h>
+#include <arch/interrupts.h>
 #include <component/timer.h>
 #include <debug.h>
-#include <arch/interrupts.h>
 #include <threading.h>
 
 typedef struct LocalApicTimer {
@@ -39,9 +38,6 @@ typedef struct LocalApicTimer {
     uint64_t Frequency;
     uint64_t Tick;
 } LocalApicTimer_t;
-
-// import the calibration ticker
-extern uint32_t g_calibrationTick;
 
 static void ApicTimerGetCount(void*, UInteger64_t*);
 static void ApicTimerGetFrequency(void*, UInteger64_t*);
@@ -151,13 +147,25 @@ ApicTimerGetFrequency(
 }
 
 static void
+__Sleep(void)
+{
+    UInteger64_t tick, frequency, tickEnd;
+
+    SystemTimerGetClockFrequency(&frequency);
+    SystemTimerGetClockTick(&tick);
+
+    // Run for 100ms, so divide the frequency (ticks per second) by 10
+    tickEnd.QuadPart = tick.QuadPart + (frequency.QuadPart / 10);
+    do {
+        SystemTimerGetClockTick(&tick);
+    } while (tick.QuadPart < tickEnd.QuadPart);
+}
+
+static void
 ApicTimerRecalibrate(
         _In_ void* context)
 {
     clock_t  lapicTicks;
-    uint32_t ticker;
-    uint32_t tickEnd;
-
     _CRT_UNUSED(context);
 
     // Setup initial local apic timer registers
@@ -167,11 +175,7 @@ ApicTimerRecalibrate(
     ApicWriteLocal(APIC_INITIAL_COUNT,   0xFFFFFFFF); // Set counter to max, it counts down
 
     // Sleep for 100 ms
-    ticker = READ_VOLATILE(g_calibrationTick);
-    tickEnd = ticker + 100;
-    while (ticker < tickEnd) {
-        ticker = READ_VOLATILE(g_calibrationTick);
-    }
+    __Sleep();
 
     // Stop counter and calibrate the frequency of the lapic
     lapicTicks = (0xFFFFFFFFU - ApicReadLocal(APIC_CURRENT_COUNT));

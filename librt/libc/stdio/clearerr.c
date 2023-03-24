@@ -22,6 +22,6 @@ void clearerr(
 	_In_ FILE* file)
 {
     flockfile(file);
-	file->_flag &= ~(_IOERR | _IOEOF);
+	file->Flags &= ~(_IOERR | _IOEOF);
     funlockfile(file);
 }

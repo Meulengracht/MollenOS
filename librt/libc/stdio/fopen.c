@@ -16,10 +16,11 @@
  */
 
 #include <io.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <internal/_io.h>
 
 /**
 "r"    read: Open file for input operations. The file must exist.
@@ -51,7 +52,7 @@ FILE* fdopen(int fd, const char *mode)
         return NULL;
     }
     
-    if (stdio_handle_set_buffered(handle, NULL, _IORW)) {
+    if (stdio_handle_set_buffered(handle, NULL, _IORW, _IOFBF)) {
         return NULL;
     }
     return stdio_handle_stream(handle);

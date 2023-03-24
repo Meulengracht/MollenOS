@@ -42,9 +42,6 @@ typedef struct Pit {
     uint64_t Tick;
 } Pit_t;
 
-// import the calibration ticker
-extern uint32_t g_calibrationTick;
-
 static oserr_t PITEnable(void*, bool enable);
 static oserr_t PITConfigure(void*, UInteger64_t* frequency);
 static void    PITGetFrequencyRange(void*, UInteger64_t* low, UInteger64_t* high);
@@ -69,14 +66,7 @@ PitInterrupt(
     _CRT_UNUSED(NotUsed);
 	_CRT_UNUSED(Context);
 
-    // Are we in calibration mode?
-    if (g_pit.CalibrationMode) {
-        uint32_t ticker = READ_VOLATILE(g_calibrationTick);
-        WRITE_VOLATILE(g_calibrationTick, ticker + 1);
-        return IRQSTATUS_HANDLED;
-    }
-
-    // Otherwise, we act as the wall-clock counter. Now we are configured to run at lowest
+    // We act as the wall-clock counter. Now we are configured to run at lowest
     // possible frequency, which is 18.2065Hz. This means we tick each 54.93ms, which will result
     // in a drift of -11ms each second. That means every 91 interrupt we will skip adding a second
     g_pit.Tick++;
@@ -129,6 +119,13 @@ PitInitialize(
     oserr_t oserr;
 
     TRACE("PitInitialize(rtcAvailable=%i)", rtcAvailable);
+
+    // If the HPET is available, then don't use the PIT
+    if (HPETIsPresent()) {
+        TRACE("PitInitialize PIT will be disabled as the HPET is present");
+        return OS_EOK;
+    }
+
     if (rtcAvailable) {
         TRACE("PitInitialize PIT will be disabled as the RTC is enabled");
         return OS_EOK;
@@ -171,6 +168,9 @@ PitSetCalibrationMode(
         PITConfigure(&g_pit, &(UInteger64_t) { .QuadPart = 1000 });
     }
     PITEnable(&g_pit, enable);
+
+    // Reset the tick count when enabling and disabling calibration mode
+    g_pit.Tick = 0;
 }
 
 static oserr_t

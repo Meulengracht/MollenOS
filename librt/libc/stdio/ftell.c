@@ -46,22 +46,22 @@ long long ftelli64(
 	}
 	
 	flockfile(stream);
-	handle = stdio_handle_get(stream->_fd);
+	handle = stdio_handle_get(stream->IOD);
     if (handle == NULL) {
 		funlockfile(stream);
         _set_errno(EBADFD);
         return -1;
     }
 
-	position = telli64(stream->_fd);
+	position = telli64(stream->IOD);
 	if (position == -1) {
 		funlockfile(stream);
 		return -1;
 	}
 
 	// Buffered input? Then we have to modify the pointer
-	if (stream->_flag & (_IOMYBUF | _USERBUF)) {
-		if (stream->_flag & _IOWRT) {
+	if (stream->Flags & (_IOMYBUF | _IOUSRBUF)) {
+		if (stream->StreamMode == __STREAMMODE_WRITE) {
 			// Add the calculated difference in position
 			position += stream->_ptr - stream->_base;
 
@@ -75,11 +75,9 @@ long long ftelli64(
 					}
 				}
 			}
-		}
-		else if (!stream->_cnt) {
+		} else if (!stream->_cnt) {
 			// Empty buffer
-		}
-		else if (lseeki64(stream->_fd, 0, SEEK_END) == position) {
+		} else if (lseeki64(stream->IOD, 0, SEEK_END) == position) {
 			int i;
 
 			// Adjust for buffer count
@@ -93,12 +91,11 @@ long long ftelli64(
 					}
 				}
 			}
-		}
-		else {
+		} else {
 			char *p;
 
 			// Restore stream cursor in case we seeked to end
-			if (lseeki64(stream->_fd, position, SEEK_SET) != position) {
+			if (lseeki64(stream->IOD, position, SEEK_SET) != position) {
 				funlockfile(stream);
 				return -1;
 			}

@@ -26,13 +26,31 @@
 #include <limits.h>
 #include <string.h>
 
+static int
+__preread_buffer(
+        _In_ FILE*  stream,
+        _In_ void*  buffer,
+        _In_ int    count)
+{
+    int bytesToCopy = MIN(count, stream->_cnt);
+    if (bytesToCopy == 0) {
+        return 0;
+    }
+
+    memcpy(buffer, stream->_ptr, bytesToCopy);
+
+    stream->_cnt -= bytesToCopy;
+    stream->_ptr += bytesToCopy;
+    return bytesToCopy;
+}
+
 size_t
 fread(void *vptr, size_t size, size_t count, FILE *stream)
 {
-	size_t          rcnt = size * count;
-	size_t          cread = 0;
-	size_t          pread = 0;
-    stdio_handle_t* handle;
+	size_t rcnt = size * count;
+	size_t cread = 0;
+	size_t pread = 0;
+    int    bytesRead;
 
     // If zero bytes are requested, simply return. An error action is not
     // expected in this case.
@@ -42,87 +60,73 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 
     // Should not happen
     flockfile(stream);
-    handle = stdio_handle_get(stream->_fd);
-    if (handle == NULL) {
-        stream->_flag |= _IOERR;
-        funlockfile(stream);
-        _set_errno(EBADF);
-        return 0;
-    }
 
-	if (stream_ensure_mode(_IOREAD, stream)) {
-	    goto exit;
-	}
+    // Ensure that this mode is supported
+    if (!__FILE_StreamModeSupported(stream, __STREAMMODE_READ)) {
+        errno = EACCES;
+        return EOF;
+    }
+    __FILE_SetStreamMode(stream, __STREAMMODE_READ);
+
+    // Try to ensure a buffer is present if possible.
     io_buffer_ensure(stream);
 
-	// so check the buffer for any data
-	if (IO_HAS_BUFFER_DATA(stream)) {
-		int pcnt = (rcnt > stream->_cnt) ? stream->_cnt : rcnt;
-		memcpy(vptr, stream->_ptr, pcnt);
-		
-		stream->_cnt -= pcnt;
-		stream->_ptr += pcnt;
-		
-		cread += pcnt;
-		rcnt -= pcnt;
-		vptr = (char *)vptr + pcnt;
-	}
+    // preread from the internal buffer
+    bytesRead = __preread_buffer(stream, vptr, (int)rcnt);
+    if (bytesRead) {
+        cread += bytesRead;
+        rcnt -= bytesRead;
+        vptr = (char*)vptr + bytesRead;
+    }
 
 	// Keep reading untill all requested bytes are read, or EOF
 	while (rcnt > 0) {
-		int i;
+        // We cannot perform reading from the underlying IOD if this is
+        // a strange resource
+        if (__FILE_IsStrange(stream)) {
+            stream->Flags |= _IOERR;
+            break;
+        }
 
 		// if buffer is empty and the data fits into the buffer, then we fill that instead
-		if (IO_IS_BUFFERED(stream) && !stream->_cnt && rcnt < BUFSIZ) {
-			stream->_cnt = read(stream->_fd, stream->_base, stream->_bufsiz);
+		if (__FILE_IsBuffered(stream) && rcnt < stream->_bufsiz) {
+			stream->_cnt = read(stream->IOD, stream->_base, stream->_bufsiz);
 			stream->_ptr = stream->_base;
-			i = (stream->_cnt < rcnt) ? stream->_cnt : rcnt;
+            bytesRead = MIN(stream->_cnt, rcnt);
 
 			/* If the buffer fill reaches eof but fread wouldn't, clear eof. */
-			if (i > 0 && i < stream->_cnt) {
-                handle->XTFlags &= ~__IO_ATEOF;
-				stream->_flag &= ~_IOEOF;
+			if (bytesRead > 0 && bytesRead < stream->_cnt) {
+				stream->Flags &= ~_IOEOF;
 			}
 			
-			if (i > 0) {
-				memcpy(vptr, stream->_ptr, i);
-				stream->_cnt -= i;
-				stream->_ptr += i;
+			if (bytesRead > 0) {
+				memcpy(vptr, stream->_ptr, bytesRead);
+				stream->_cnt -= bytesRead;
+				stream->_ptr += bytesRead;
 			}
-		}
-		else if (rcnt > INT_MAX) {
-			i = read(stream->_fd, vptr, INT_MAX);
-		} else if (rcnt < BUFSIZ) {
-			i = read(stream->_fd, vptr, rcnt);
+		} else if (rcnt > INT_MAX) {
+            bytesRead = read(stream->IOD, vptr, INT_MAX);
 		} else {
-			i = read(stream->_fd, vptr, rcnt - BUFSIZ / 2);
+            bytesRead = read(stream->IOD, vptr, rcnt);
 		}
 
-		// update iterators
-		pread += i;
-		rcnt -= i;
-		vptr = (char *)vptr + i;
+		pread += bytesRead;
+		rcnt -= bytesRead;
+		vptr = (char *)vptr + bytesRead;
 
 		// Check for EOF condition
 		// also for error conditions
-		if (handle->XTFlags & __IO_ATEOF) {
-			stream->_flag |= _IOEOF;
-		} else if (i == -1) {
-			stream->_flag |= _IOERR;
-			pread = 0;
-			rcnt = 0;
+		if (bytesRead == 0) {
+			stream->Flags |= _IOEOF;
+		} else if (bytesRead == -1) {
+			stream->Flags |= _IOERR;
 		}
 
 		// Break if bytes read is 0 or below
-		if (i < 1) {
+		if (bytesRead < 1) {
 			break;
 		}
 	}
-
-	// Increase the number of bytes read
-	cread += pread;
-
-exit:
     funlockfile(stream);
-	return (cread / size);
+	return ((cread + pread) / size);
 }

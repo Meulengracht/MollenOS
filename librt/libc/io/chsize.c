@@ -42,8 +42,5 @@ int chsize(
         errno = ENOTSUP;
         return -1;
     }
-	
-	// clear out eof after resizes
-	handle->XTFlags &= ~(__IO_ATEOF | __IO_READEOF);
 	return EOK;
 }

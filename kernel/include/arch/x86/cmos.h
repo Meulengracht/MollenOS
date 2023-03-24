@@ -121,7 +121,6 @@ typedef struct Cmos {
     uint8_t  AcpiCentury;
     bool     RtcAvailable;
     bool     RtcEnabled;
-    bool     CalibrationMode;
     int      InterruptLine;
     uuid_t   Irq;
     uint32_t Frequency;

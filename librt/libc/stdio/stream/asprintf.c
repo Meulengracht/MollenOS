@@ -27,7 +27,7 @@ int asprintf(
 {
 	char    buffer[512];
 	int     result;
-	FILE    stream;
+	FILE    stream = { 0 };
 	va_list argptr;
 
 	if(format == NULL || ret == NULL) {
@@ -35,14 +35,13 @@ int asprintf(
 	}
 
 	memset(&buffer[0], 0, 512);
+    stream.IOD = -1;
+    stream.Flags = _IOWR;
+    stream.StreamMode = __STREAMMODE_WRITE;
     stream._base = &buffer[0];
     stream._ptr = stream._base;
-    stream._charbuf = 0;
     stream._cnt = 512;
-    stream._bufsiz = 0;
-    stream._flag = _IOSTRG | _IOWRT;
-    stream._tmpfname = 0;
-    usched_mtx_init(&stream._lock, USCHED_MUTEX_RECURSIVE);
+    usched_mtx_init(&stream.Lock, USCHED_MUTEX_RECURSIVE);
 
 	va_start(argptr, format);
     result = streamout(&stream, format, argptr);

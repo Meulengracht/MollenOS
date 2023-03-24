@@ -47,9 +47,6 @@ long long lseeki64(
 	if (handle->Ops->seek(handle, whence, offset, &position)) {
 		return -1;
 	}
-	
-	// clear out eof after seeks
-	handle->XTFlags &= ~(__IO_ATEOF | __IO_READEOF);
 	return position;
 }
 
@@ -70,46 +67,43 @@ int fseeki64(
 
 	// Lock access to stream
 	flockfile(file);
-	if (file->_flag & _IOWRT) {
-        io_buffer_flush(file);
+
+    // Is the stream currently in write-mode? Then we need
+    // to flush the buffer first
+	if (file->StreamMode == __STREAMMODE_WRITE) {
+        ret = fflush(file);
+        if (ret) {
+            return ret;
+        }
 	}
 
-	// Adjust for current position
-	if (whence == SEEK_CUR && (file->_flag & _IOREAD)) {
-		whence = SEEK_SET;
-		offset += ftelli64(file);
-	}
-
-	// Discard buffered input
+	// discard buffered input
 	file->_cnt = 0;
 	file->_ptr = file->_base;
 
-	// Reset direction of i/o
-	if (file->_flag & _IORW) {
-		file->_flag &= ~(_IOREAD | _IOWRT);
-	}
-	file->_flag &= ~_IOEOF;
-	ret = (lseeki64(file->_fd, offset, whence) == -1) ? -1 : 0;
+	// reset stream mode
+    __FILE_SetStreamMode(file, 0);
+
+    // clear EOF
+	file->Flags &= ~_IOEOF;
+
+	ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
 	funlockfile(file);
 	return ret;
 }
 
-/* fseek
- * Sets the position indicator associated with the stream to a new position. */
 int fseek(
-	_In_ FILE *stream,
+	_In_ FILE*    stream,
 	_In_ long int offset,
-	_In_ int origin)
+	_In_ int      origin)
 {
 	return fseeki64(stream, offset, origin);
 }
 
-/* fseeko
- * Sets the position indicator associated with the stream to a new position. */
 int fseeko(
-	_In_ FILE *stream,
+	_In_ FILE* stream,
 	_In_ off_t offset,
-	_In_ int origin)
+	_In_ int   origin)
 {
 	return fseeki64(stream, offset, origin);
 }

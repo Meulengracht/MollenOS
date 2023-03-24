@@ -34,7 +34,7 @@ wint_t fgetwc(FILE *stream)
         return WEOF;
     }
 
-    handle = stdio_handle_get(stream->_fd);
+    handle = stdio_handle_get(stream->IOD);
     if (!handle) {
         _set_errno(EBADFD);
         return WEOF;

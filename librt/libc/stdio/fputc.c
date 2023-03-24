@@ -15,9 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "internal/_file.h"
-#include "internal/_io.h"
-#include "stdio.h"
+#include <errno.h>
+#include <internal/_file.h>
+#include <internal/_io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
 
 int fputc(
     _In_ int   character,
@@ -26,12 +28,31 @@ int fputc(
     int res = 0;
 
     flockfile(file);
-    if (file->_cnt > 0) {
+
+    // Ensure that this mode is supported
+    if (!__FILE_StreamModeSupported(file, __STREAMMODE_WRITE)) {
+        funlockfile(file);
+        errno = EACCES;
+        return EOF;
+    }
+
+    // If we were previously reading, then we flush
+    if (file->StreamMode == __STREAMMODE_READ) {
+        fflush(file);
+    }
+    __FILE_SetStreamMode(file, __STREAMMODE_WRITE);
+
+    // Ensure a buffer is present if supported
+    io_buffer_ensure(file);
+
+    if (__FILE_IsBuffered(file) && file->_cnt > 0) {
         file->_cnt--;
         *file->_ptr++ = (char)(character & 0xFF);
 
-        if ((file->_flag & _IOLBF) && character == '\n') {
-            res = io_buffer_flush(file);
+        // Even if we have space left, we should handle line-buffering
+        // at this step.
+        if ((file->Flags & _IOLBF) && character == '\n') {
+            res = OsErrToErrNo(io_buffer_flush(file));
         }
     } else {
         res = _flsbuf(character, file);

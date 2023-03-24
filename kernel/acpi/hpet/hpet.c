@@ -15,6 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO: Disable legacy routings and just don't enable RTC/PIT.
+
 //#define __TRACE
 
 #include <acpiinterface.h>
@@ -97,6 +99,7 @@ __ProcessCapabilities(
         _In_ HPET_t* hpet)
 {
     reg32_t caps;
+    TRACE("__ProcessCapabilities()");
 
     HPET_READ_32(hpet, HPET_REGISTER_CAPABILITIES, caps);
 
@@ -106,7 +109,7 @@ __ProcessCapabilities(
     hpet->Is64Bit = (caps & HPET_64BITSUPPORT) ? true : false;
     hpet->LegacySupport = (caps & HPET_LEGACYMODESUPPORT) ? true : false;
     hpet->TimerCount = (int)HPET_TIMERCOUNT(caps);
-    TRACE("__ProcessCapabilities Capabilities 0x%" PRIxIN ", Timers 0x%" PRIxIN "", caps, hpet->TimerCount);
+    TRACE("__ProcessCapabilities caps=0x%x, timer-count=%i", caps, hpet->TimerCount);
 
     if (hpet->LegacySupport && hpet->TimerCount < 2) {
         ERROR("__ProcessCapabilities failed to initialize HPET, legacy is available but not enough timers.");
@@ -144,7 +147,7 @@ HPETInitialize(void)
     // Store some values from the ACPI header for easier access.
     g_hpet.TickMinimum = hpetTable->MinimumTick;
 
-    TRACE("HPETInitialize address 0x%" PRIxIN ", sequence %" PRIuIN "",
+    TRACE("HPETInitialize phys=0x%" PRIxIN ", sequence=%u",
           (uintptr_t)(hpetTable->Address.Address), hpetTable->Sequence);
 
     oserr = __RemapHPET(&g_hpet, (uintptr_t)hpetTable->Address.Address);
@@ -155,13 +158,13 @@ HPETInitialize(void)
 
     oserr = __StartupHPET(&g_hpet);
     if (oserr != OS_EOK) {
-        ERROR("HPETInitialize failed to initialize HPET (AMD SB700).");
+        ERROR("HPETInitialize failed to initialize the hpet device");
         return;
     }
 
     // Check the period for a sane value
     HPET_READ_32(&g_hpet, HPET_REGISTER_CAPABILITIES + 4, g_hpet.Period);
-    TRACE("HPETInitialize Minimum Tick 0x%" PRIxIN ", Period 0x%" PRIxIN "", g_hpet.TickMinimum, g_hpet.Period);
+    TRACE("HPETInitialize mintick=0x%x, period=0x%x", g_hpet.TickMinimum, g_hpet.Period);
 
     if ((g_hpet.Period == 0) || (g_hpet.Period > HPET_MAXPERIOD)) {
         ERROR("HPETInitialize failed to initialize HPET, period is invalid.");
@@ -177,7 +180,7 @@ HPETInitialize(void)
     // Loop through all comparators and configurate them
     for (int i = 0; i < g_hpet.TimerCount; i++) {
         if (__HPETInitializeComparator(&g_hpet, i) != OS_EOK) {
-            ERROR("HPETInitialize HPET Failed to initialize comparator %" PRIiIN "", i);
+            ERROR("HPETInitialize HPET Failed to initialize comparator %i", i);
             g_hpet.Timers[i].Present = 0;
         }
     }
@@ -195,6 +198,9 @@ HPETInitialize(void)
     if (oserr != OS_EOK) {
         WARNING("HPETInitialize failed to register platform timer");
     }
+
+    // Select it as primary source
+    SystemTimerRefreshTimers();
 }
 
 bool
@@ -219,12 +225,20 @@ HPETIsPresent(void)
 bool
 HPETIsEmulatingLegacyController(void)
 {
-    if (g_hpet.BaseAddress != 0) {
-        size_t hpetConfig;
-        HPET_READ_32(&g_hpet, HPET_REGISTER_CONFIG, hpetConfig);
-        if (hpetConfig & HPET_CONFIG_LEGACY) {
-            return true;
-        }
+    size_t hpetConfig;
+
+    if (!HPETIsPresent()) {
+        return false;
+    }
+
+    if (g_hpet.BaseAddress == 0) {
+        ERROR("HPETIsEmulatingLegacyController: called before HPETInitialize()");
+        return false;
+    }
+
+    HPET_READ_32(&g_hpet, HPET_REGISTER_CONFIG, hpetConfig);
+    if (hpetConfig & HPET_CONFIG_LEGACY) {
+        return true;
     }
     return false;
 }

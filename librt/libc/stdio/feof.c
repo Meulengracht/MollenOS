@@ -24,7 +24,7 @@ int feof(
     int isEOF;
 
     flockfile(file);
-    isEOF = (file->_flag & _IOEOF) != 0;
+    isEOF = (file->Flags & _IOEOF) != 0;
     funlockfile(file);
 
     return isEOF;

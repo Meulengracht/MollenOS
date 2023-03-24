@@ -33,8 +33,9 @@ char* fgets(
 	if ((cc == EOF) && (str == buf_start)) { // If nothing read, return 0
 		return NULL;
 	}
-	if ((cc != EOF) && (size > 1))
-		*str++ = cc;
+	if ((cc != EOF) && (size > 1)) {
+        *str++ = (char)cc;
+    }
 	*str = '\0';
 	return buf_start;
 }
