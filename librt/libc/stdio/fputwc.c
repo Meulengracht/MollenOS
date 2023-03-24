@@ -32,7 +32,7 @@ wint_t fputwc(
         return WEOF;
     }
     
-    handle = stdio_handle_get(stream->_fd);
+    handle = stdio_handle_get(stream->IOD);
     if (!handle) {
         _set_errno(EBADFD);
         return WEOF;
@@ -41,7 +41,7 @@ wint_t fputwc(
     /* If this is a real file stream (and not some temporary one for
        sprintf-like functions), check whether it is opened in text mode.
        In this case, we have to perform an implicit conversion to ANSI. */
-    if (!(stream->_flag & _IOSTRG) && handle->XTFlags & __IO_TEXTMODE) {
+    if (!__FILE_IsStrange(stream) && handle->XTFlags & __IO_TEXTMODE) {
         /* Convert to multibyte in text mode */
         char mbc[MB_LEN_MAX];
         int mb_return;

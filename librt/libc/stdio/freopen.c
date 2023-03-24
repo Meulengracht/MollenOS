@@ -47,7 +47,7 @@ FILE* freopen(
 	// Ok, if filename is not null we must open a new file
     flockfile(stream);
 	if (filename != NULL) {
-		close(stream->_fd);
+		close(stream->IOD);
 
 		// Open a new file descriptor
 		fd = open(filename, flags, 0755);
@@ -56,17 +56,17 @@ FILE* freopen(
 			return NULL;
 		}
 		handle = stdio_handle_get(fd);
-		stdio_handle_set_buffered(handle, stream, _IORW);
+		stdio_handle_set_buffered(handle, stream, _IORW, _IOFBF);
 	} else {
 		if (mode != NULL) {
 			oserr_t status;
 
 			// TODO: support multiple types of streams
-            status = ChangeFileHandleAccessFromFd(stream->_fd, _fopts(flags));
+            status = ChangeFileHandleAccessFromFd(stream->IOD, _fopts(flags));
             (void)OsErrToErrNo(status);
 		}
 	}
-	stream->_flag &= ~(_IOEOF | _IOERR);
+	stream->Flags &= ~(_IOEOF | _IOERR);
     funlockfile(stream);
 	return stream;
 }

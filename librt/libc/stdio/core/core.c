@@ -35,9 +35,6 @@ static uint64_t stdio_hash(const void* element);
 static int      stdio_cmp(const void* element1, const void* element2);
 
 static hashtable_t g_stdioObjects = { 0 };
-static FILE        g_stdout       = { 0 };
-static FILE        g_stdint       = { 0 };
-static FILE        g_stderr       = { 0 };
 
 hashtable_t* IODescriptors(void)
 {
@@ -131,20 +128,9 @@ StdioConfigureStandardHandles(
         assert(status == 0);
     }
 
-    // Ensure that the correct io-descriptor is assigned std*
-    g_stdout._fd = stdoutHandle->IOD;
-    g_stdint._fd = stdinHandle->IOD;
-    g_stderr._fd = stderrHandle->IOD;
-
-    // pre-initialize some data members which are not reset by
-    // stdio_handle_set_buffered.
-    usched_mtx_init(&g_stdout._lock, USCHED_MUTEX_RECURSIVE);
-    usched_mtx_init(&g_stdint._lock, USCHED_MUTEX_RECURSIVE);
-    usched_mtx_init(&g_stderr._lock, USCHED_MUTEX_RECURSIVE);
-
-    stdio_handle_set_buffered(stdoutHandle, &g_stdout, _IOWRT | _IOLBF); // we buffer stdout as default
-    stdio_handle_set_buffered(stdinHandle, &g_stdint, _IOREAD | _IOLBF); // we also buffer stdint as default
-    stdio_handle_set_buffered(stderrHandle, &g_stderr, _IOWRT | _IONBF);
+    stdio_handle_set_buffered(stdoutHandle, NULL, _IOWR, _IOLBF); // we buffer stdout as default
+    stdio_handle_set_buffered(stdinHandle, NULL, _IORD, _IOLBF); // we also buffer stdint as default
+    stdio_handle_set_buffered(stderrHandle, NULL, _IOWR, _IONBF);
 }
 
 struct __iod_close_context {
@@ -351,7 +337,11 @@ int stdio_handle_set_handle(
     return EOK;
 }
 
-int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int stream_flags)
+int stdio_handle_set_buffered(
+        _In_ stdio_handle_t* handle,
+        _In_ FILE*           stream,
+        _In_ uint16_t        flags,
+        _In_ uint8_t         bufferMode)
 {
     if (!handle) {
         return EBADFD;
@@ -365,15 +355,20 @@ int stdio_handle_set_buffered(stdio_handle_t* handle, FILE* stream, unsigned int
 
         // TODO move to construct function
         memset(stream, 0, sizeof(FILE));
-        usched_mtx_init(&stream->_lock, USCHED_MUTEX_RECURSIVE);
+        usched_mtx_init(&stream->Lock, USCHED_MUTEX_RECURSIVE);
     }
     
     // Reset the stream structure
-    stream->_ptr      = stream->_base = NULL;
-    stream->_cnt      = 0;
-    stream->_fd       = handle->IOD;
-    stream->_flag     = (int)stream_flags;
-    stream->_tmpfname = NULL;
+    stream->IOD        = handle->IOD;
+    stream->Flags      = flags;
+    stream->StreamMode = 0;
+    stream->BufferMode = bufferMode;
+    stream->_ptr       = NULL;
+    stream->_base      = NULL;
+    stream->_cnt       = 0;
+    stream->_bufsiz    = 0;
+    stream->_charbuf   = 0;
+    stream->_tmpfname  = NULL;
     
     // associate the stream object
     handle->Stream = stream;
@@ -460,20 +455,21 @@ stdio_handle_t* stdio_handle_get(int iod)
 
 FILE* __get_std_handle(int n)
 {
+    // Only allow direct lookup of STD* descriptors
     switch (n) {
-        case STDOUT_FILENO: {
-            return &g_stdout;
-        }
-        case STDIN_FILENO: {
-            return &g_stdint;
-        }
+        case STDOUT_FILENO:
+        case STDIN_FILENO:
         case STDERR_FILENO: {
-            return &g_stderr;
-        }
+            stdio_handle_t* handle =stdio_handle_get(n);
+            if (handle != NULL) {
+                return handle->Stream;
+            }
+        } break;
         default: {
-            return NULL;
+            break;
         }
     }
+    return NULL;
 }
 
 hashtable_t* stdio_get_handles(void)
@@ -506,7 +502,7 @@ static int stdio_cmp(const void* element1, const void* element2)
 void __CleanupSTDIO(void)
 {
     // flush all file buffers and close handles
-    io_buffer_flush_all(_IOWRT | _IOREAD);
+    io_buffer_flush_all(__STREAMMODE_READ | __STREAMMODE_WRITE);
 
     // close all handles that are not marked _PRIO, and then lastly
     // close the _PRIO handles

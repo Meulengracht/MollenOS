@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <internal/_io.h>
+#include <internal/_file.h>
 #include <io.h>
 #include <ioctl.h>
 #include <string.h>
@@ -108,7 +109,7 @@ FILE* open_memstream(char** ptr, size_t* sizeloc)
         return NULL;
     }
 
-    status = stdio_handle_set_buffered(object, NULL, _IOWRT | _IOFBF);
+    status = stdio_handle_set_buffered(object, NULL, _IOWR, _IOFBF);
     if (status) {
         stdio_handle_delete(object);
         __memstream_delete(memoryStream);

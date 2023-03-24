@@ -16,14 +16,14 @@
  */
 
 #define __need_NULL
-#include "internal/_file.h"
-#include "stdio.h"
-#include "errno.h"
+#include <internal/_file.h>
+#include <stdio.h>
+#include <errno.h>
 
 int fileno(FILE* stream) {
     if (stream == NULL) {
         _set_errno(EINVAL);
         return -1;
     }
-    return stream->_fd;
+    return stream->IOD;
 }

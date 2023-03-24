@@ -65,29 +65,17 @@
 #define OFF_T_DEFINED
 #endif
 
-/* Stdio errno String Definitions 
- * Definitions and symbols for error strings in standard C */
+/**
+ * Maximum value of errno values
+ */
 #define _MAX_ERRNO	127
 
-/* Stdio file modes and flags
- * Definitions and bit-flags for available IO modes */
-#define _IOFBF     0x0000
-#define _IONBF     0x0004 // no buffering
-#define _IOLBF     0x0040 // line buffering
-
-#define _IOREAD	   0x0001 // currently reading
-#define _IOWRT     0x0002 // currently writing
-
-#define _IOMYBUF   0x0008 // buffer is allocated by stdio
-#define _IOEOF     0x0010
-#define _IOERR     0x0020
-
-#define _IOSTRG    0x0080 // strange or no file descriptor
-#define _IORW      0x0100 // read/write
-#define _USERBUF   0x0200 // user-provided buffer
-#define _FWIDE     0x0400
-#define _FBYTE     0x0800
-#define _IOVRT     0x1000
+/**
+ * Buffering mode for FILE* streams.
+ */
+#define _IOFBF 0x0000 // fully buffered
+#define _IONBF 0x0001 // no buffered
+#define _IOLBF 0x0002 // line buffered
 
 /*******************************
  *       File Structures       *
@@ -98,7 +86,7 @@ typedef struct _FILE FILE;
 #endif
 
 _CODE_BEGIN
-CRTDECL(FILE*,         __get_std_handle(int n));
+CRTDECL(FILE*, __get_std_handle(int n));
 #define STDOUT_FILENO  (int)0
 #define STDIN_FILENO   (int)1
 #define STDERR_FILENO  (int)2

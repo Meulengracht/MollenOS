@@ -24,14 +24,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-static inline void
-__set_eof(stdio_handle_t* handle)
-{
-    if (stdio_handle_signature(handle) == FILE_SIGNATURE) {
-        handle->XTFlags |= __IO_ATEOF;
-    }
-}
-
 static int
 __read_as_binary(stdio_handle_t* handle, char* buf, unsigned int count)
 {
@@ -41,10 +33,6 @@ __read_as_binary(stdio_handle_t* handle, char* buf, unsigned int count)
 
     status = handle->Ops->read(handle, pointer, count, &bytesRead);
     if (status == OS_EOK) {
-        // Test against EOF
-        if (count != 0 && bytesRead == 0) {
-            __set_eof(handle);
-        }
         return (int)bytesRead;
     }
     return -1;
@@ -111,7 +99,6 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     if (count < 4) {
         if(!pos && handle->Ops->read(handle, readbuf, 1, &bytesRead) == OS_EOK) {
             if(!bytesRead) {
-                __set_eof(handle);
                 if (readbuf != &min_buf[0]) {
                     free(readbuf);
                 }
@@ -140,7 +127,6 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
 
         // Check for ctrl-z
         if(readbuf[0] == 0x1a) {
-            __set_eof(handle);
             if (readbuf != &min_buf[0]) {
                 free(readbuf);
             }
@@ -187,7 +173,6 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     if (handle->Ops->read(handle, readbuf + pos, readbuf_size - pos, &bytesRead) != OS_EOK) {
         // EOF?
         if (!pos && !bytesRead) {
-            __set_eof(handle);
             if (readbuf != &min_buf[0]) {
                 free(readbuf);
             }
@@ -248,7 +233,6 @@ __read_as_utf8(stdio_handle_t* handle, wchar_t *buf, unsigned int count)
     for (i = 0, j = 0; i < pos; i++) {
         // Check for ctrl-z
         if (readbuf[i] == 0x1a) {
-            __set_eof(handle);
             break;
         }
 
@@ -343,9 +327,7 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
 
         // Test against EOF
         if (count != 0 && bytesRead == 0) {
-            __set_eof(handle);
-        }
-        else {
+        } else {
             size_t i, j;
 
             // Detect reading newline
@@ -360,7 +342,6 @@ __read_as_text_or_wide(stdio_handle_t* handle, char* buf, unsigned int count)
             {
                 // In text mode, a ctrl-z signals EOF
                 if (bufferPointer[i] == 0x1a && (!isUtf16 || bufferPointer[i + 1] == 0)) {
-                    __set_eof(handle);
                     break;
                 }
 
@@ -451,8 +432,7 @@ int read(int fd, void* buffer, unsigned int len)
         return -1;
     }
 
-    // Predetermine if we are eof or zero read
-    if (len == 0 || (handle->XTFlags & __IO_ATEOF)) {
+    if (len == 0) {
         return 0;
     }
 

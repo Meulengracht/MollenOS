@@ -20,15 +20,13 @@
 #define __IO_BIGENDIAN 0x200U
 #define __IO_TEXTMASK  (__IO_TEXTMODE | __IO_WIDE | __IO_UTF | __IO_UTF16 | __IO_UTF32 | __IO_BIGENDIAN)
 
-#define __IO_ATEOF          0x00001000U
-#define __IO_READNL         0x00002000U  // read started with \n
-#define __IO_READEOF        0x00004000U  // like ATEOF, but for underlying file rather than buffer
-#define __IO_PIPE           0x00008000U
-#define __IO_TTY            0x00010000U
-#define __IO_OPEN           0x00020000U
-#define __IO_INHERITTED     0x00040000U
-#define __IO_PERSISTANT     0x00080000U
-#define __IO_PRIORITY       0x00100000U
+#define __IO_READNL         0x00001000U  // read started with \n
+#define __IO_PIPE           0x00002000U
+#define __IO_TTY            0x00004000U
+#define __IO_OPEN           0x00001000U
+#define __IO_INHERITTED     0x00002000U
+#define __IO_PERSISTANT     0x00004000U
+#define __IO_PRIORITY       0x00008000U
 
 #define INTERNAL_BUFSIZ     4096
 #define INTERNAL_MAXFILES   1024
@@ -174,7 +172,8 @@ extern int
 stdio_handle_set_buffered(
         _In_ stdio_handle_t* handle,
         _In_ FILE*           stream,
-        _In_ unsigned int    flags);
+        _In_ uint16_t        flags,
+        _In_ uint8_t         bufferMode);
 
 /**
  * @brief
@@ -235,14 +234,10 @@ stdio_handle_get(
         _In_ int iod);
 
 // io-buffer interface
-#define IO_IS_NOT_BUFFERED(stream) ((stream)->_flag & _IONBF)
-#define IO_IS_BUFFERED(stream)     !IO_IS_NOT_BUFFERED(stream)
-#define IO_HAS_BUFFER_DATA(stream) ((stream)->_cnt > 0)
-
 extern void    io_buffer_ensure(FILE* stream);
 extern void    io_buffer_allocate(FILE* stream);
 extern oserr_t io_buffer_flush(FILE* file);
-extern int     io_buffer_flush_all(int mask);
+extern void    io_buffer_flush_all(uint8_t streamMode);
 
 // helpers
 extern int  stdio_bitmap_initialize(void);

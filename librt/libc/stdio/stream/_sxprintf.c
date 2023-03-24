@@ -41,20 +41,19 @@ int _sxprintf(
     va_list argptr;
 #endif
     int result;
-    FILE stream;
+    FILE stream = { 0 };
 
     // Setup the FILE structure
+    stream.IOD = -1;
+    stream.Flags = _IOWR;
+    stream.StreamMode = __STREAMMODE_WRITE;
     stream._base = (char*)buffer;
     stream._ptr = stream._base;
-    stream._charbuf = 0;
     stream._cnt = (int)(sizeOfBuffer * sizeof(TCHAR));
-    stream._bufsiz = 0;
-    stream._flag = _IOSTRG | _IOWRT;
-    stream._tmpfname = 0;
-    usched_mtx_init(&stream._lock, USCHED_MUTEX_RECURSIVE);
+    usched_mtx_init(&stream.Lock, USCHED_MUTEX_RECURSIVE);
 
 #if USE_VIRTUAL
-    stream._flag |= _IOVRT;
+    stream.Flags |= _IOVRT;
 #endif
 
 #if !USE_VARARGS

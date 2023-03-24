@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS - C Standard Library
  * - If mode > 0, attempts to make stream wide-oriented. If mode < 0, attempts 
  *   to make stream byte-oriented. If mode==0, only queries the current orientation of the stream.
  */
@@ -26,17 +23,17 @@
 #include "stdio.h"
 
 int fwide(
-    _In_ FILE *stream,
-    _In_ int mode)
+    _In_ FILE* stream,
+    _In_ int   mode)
 {
     if (stream == NULL) {
         return 0;
     }
+
     if (mode == 0) {
-        if (stream->_flag & _FWIDE) {
+        if (stream->Flags & _FWIDE) {
             return 1;
-        }
-        else if (stream->_flag & _FBYTE) {
+        } else if (stream->Flags & _FBYTE) {
             return -1;
         }
         return 0;

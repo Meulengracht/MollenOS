@@ -20,7 +20,7 @@
  */
 
 #define __TRACE
-
+#define __need_minmax
 #include <assert.h>
 #include <component/timer.h>
 #include <debug.h>
@@ -32,14 +32,17 @@
 #include "../../librt/libc/time/local.h"
 
 static inline uint32_t
-__CalculateResolution(
+__CalculateMultiplier(
         _In_ UInteger64_t* frequency)
 {
-    // TODO: should support both a multipler and a divider to account
-    // for any timer with a frequency above 1Ghz. Since we account for time in NS
-    // we will end up with a zero resolution in this case.
-    assert(frequency->QuadPart <= NSEC_PER_SEC);
-    return (uint32_t)(NSEC_PER_SEC / frequency->QuadPart);
+    return MAX(1, (uint32_t)(NSEC_PER_SEC / frequency->QuadPart));
+}
+
+static inline uint32_t
+__CalculateDivider(
+        _In_ UInteger64_t* frequency)
+{
+    return MAX(1, (uint32_t)(frequency->QuadPart / NSEC_PER_SEC));
 }
 
 static inline void
@@ -173,7 +176,7 @@ SystemTimerGetWallClockTime(
     // Convert from raw ticks to something we recognize
     __ToTimestamp(
             clock->Multiplier,
-            1,
+            clock->Divider,
             &clock->Frequency,
             &tick,
             time
@@ -181,6 +184,7 @@ SystemTimerGetWallClockTime(
     time->Seconds += GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
 }
 
+// Invoked when logging, no logging inside this function!
 void
 SystemTimerGetTimestamp(
         _Out_ tick_t* timestampOut)
@@ -202,7 +206,7 @@ SystemTimerGetTimestamp(
     // Convert from raw ticks to something we recognize
     __ToTimestamp(
             clock->Multiplier,
-            1,
+            clock->Divider,
             &clock->Frequency,
             &tick,
             &timestamp
@@ -274,6 +278,7 @@ __SynchronizeWallClockAndClocks(
 {
     SystemTime_t       systemTime;
     SystemWallClock_t* wallClock;
+    SystemTimer_t*     clock;
 
     _CRT_UNUSED(argument);
     TRACE("__SynchronizeWallClockAndClocks");
@@ -288,14 +293,12 @@ __SynchronizeWallClockAndClocks(
     }
 
     wallClock = GetMachine()->SystemTimers.WallClock;
+    clock = GetMachine()->SystemTimers.Clock;
 
     // Read the system time, and then read the wall-clock
     wallClock->Operations.PerformSync(wallClock->Context);
     wallClock->Operations.Read(wallClock->Context, &systemTime);
-    GetMachine()->SystemTimers.Clock->Operations.Read(
-            GetMachine()->SystemTimers.Clock->Context,
-            &wallClock->BaseOffset
-    );
+    clock->Operations.Read(clock->Context, &wallClock->BaseOffset);
 
     TRACE("__SynchronizeWallClockAndClocks synced at %i:%i:%i (0x%llx)",
           systemTime.Hour, systemTime.Minute, systemTime.Second,
@@ -331,6 +334,7 @@ static void
 __CalculateTimerFrequency(
         _In_ SystemTimer_t* timer)
 {
+    TRACE("__CalculateTimerFrequency(%s)", timer->Name);
     assert(timer->Operations.GetFrequency != NULL);
 
     // Does the timer support variadic frequency?
@@ -344,7 +348,10 @@ __CalculateTimerFrequency(
     } else {
         timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
     }
-    timer->Multiplier = __CalculateResolution(&timer->Frequency);
+    timer->Multiplier = __CalculateMultiplier(&timer->Frequency);
+    timer->Divider = __CalculateDivider(&timer->Frequency);
+    TRACE("__CalculateTimerFrequency: freq=0x%llx, mult=%u, div=%u",
+          timer->Frequency.QuadPart, timer->Multiplier, timer->Divider);
 }
 
 static inline void
@@ -397,13 +404,50 @@ __EnableTimer(
     return OS_EOK;
 }
 
-static void
-__ConfigureTimerSources(void)
+static oserr_t
+__SelectTimerAsClock(
+        _In_ SystemTimer_t* timer)
+{
+    SystemTimer_t* current = GetMachine()->SystemTimers.Clock;
+    oserr_t        oserr;
+    TRACE("__SelectTimerAsClock(%s)", timer->Name);
+
+    // If the timer is the same as the current, then ignore it
+    if (timer == current) {
+        // do nothing more
+        return OS_EOK;
+    }
+
+    // Are we replacing?
+    if (current) {
+        // If the current timer is IRQ based, then disable it
+        if (current->Attributes & SystemTimeAttributes_IRQ && current->Operations.Enable != NULL) {
+            oserr = current->Operations.Enable(current->Context, false);
+            if (oserr != OS_EOK) {
+                WARNING("__SelectTimerAsClock: %s: failed to stop timer", current->Name);
+                return oserr;
+            }
+        }
+    }
+
+    oserr = __EnableTimer(timer);
+    if (oserr != OS_EOK) {
+        // TODO: Fallback to the old one
+        WARNING("__SelectTimerAsClock: %s: failed to start timer", timer->Name);
+        GetMachine()->SystemTimers.Clock = NULL;
+        return oserr;
+    }
+    GetMachine()->SystemTimers.Clock = timer;
+    return OS_EOK;
+}
+
+void
+SystemTimerRefreshTimers(void)
 {
     SystemTimer_t* irqCandidate     = NULL;
     SystemTimer_t* counterCandidate = NULL;
     oserr_t        oserr;
-    TRACE("__ConfigureTimerSources");
+    TRACE("SystemTimerRefreshTimers");
 
     // We always prefer counters against IRQ triggered timers, but sometimes
     // these are not available. Let's loop through counters and find the best counter
@@ -425,27 +469,24 @@ __ConfigureTimerSources(void)
     // Did we find a counter candidate? Then we will use that as the primary
     // system clock.
     if (counterCandidate != NULL) {
-        oserr = __EnableTimer(counterCandidate);
+        oserr = __SelectTimerAsClock(counterCandidate);
         if (oserr == OS_EOK) {
-            GetMachine()->SystemTimers.Clock = counterCandidate;
             return;
         }
-        ERROR("__ConfigureTimerSources failed to enable counter candidate (%u), falling back to irq", oserr);
+        ERROR("SystemTimerRefreshTimers failed to enable counter candidate (%u), fal1ling back to irq", oserr);
     }
 
     // Otherwise we have to fall back onto an irq timer, which sucks, but such
     // is life on platforms that suck.
     if (irqCandidate == NULL) {
-        WARNING("__ConfigureTimerSources no timer sources present on the system!!");
+        WARNING("SystemTimerRefreshTimers no timer sources present on the system!!");
         return;
     }
 
-    oserr = __EnableTimer(irqCandidate);
+    oserr = __SelectTimerAsClock(irqCandidate);
     if (oserr != OS_EOK) {
-        ERROR("__ConfigureTimerSources failed to enable irq candidate (%u), no counter sources available!!", oserr);
-        return;
+        ERROR("SystemTimerRefreshTimers failed to enable irq candidate (%u), no counter sources available!!", oserr);
     }
-    GetMachine()->SystemTimers.Clock = irqCandidate;
 }
 
 oserr_t
@@ -455,7 +496,7 @@ SystemSynchronizeTimeSources(void)
     oserr_t            oserr = OS_EOK;
 
     // Determine which timer sources to use
-    __ConfigureTimerSources();
+    SystemTimerRefreshTimers();
 
     // Attempts to synchronize time sources
     // If the underlying RTC supports asynchronous sync, then we utilize that

@@ -31,7 +31,7 @@ int getw(
     for (j = 0; j < sizeof(int); j++) {
         k = fgetc(file);
         if (k == EOF) {
-            file->_flag |= _IOEOF;
+            file->Flags |= _IOEOF;
             funlockfile(file);
             return EOF;
         }

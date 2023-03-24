@@ -239,15 +239,14 @@ static
 int
 streamout_char(FILE *stream, int chr)
 {
-    // Sanitize string/null base
-    if ((stream->_flag & _IOSTRG) && (stream->_base == NULL)) {
-        return 1;
-    }
-    
-    if (stream->_flag & _IOSTRG) {
+    if (__FILE_IsStrange(stream)) {
+        if (stream->_base == NULL) {
+            return 1;
+        }
+
         // Sanitize buffer
         if (stream->_cnt < sizeof(TCHAR)) {
-            if (stream->_flag & _IOVRT) {
+            if (stream->Flags & _IOVRT) {
                 return 1;
             }
             return 0;
@@ -273,8 +272,9 @@ streamout_astring(FILE *stream, const char *string, size_t count)
     TCHAR chr;
     int written = 0;
 
-    if ((stream->_flag & _IOSTRG) && (stream->_base == NULL))
+    if (__FILE_IsStrange(stream) && (stream->_base == NULL)) {
         return count;
+    }
 
     while (count--)
     {
@@ -299,7 +299,7 @@ streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
     int written = 0;
 
 #if defined(_UNICODE)
-    if ((stream->_flag & _IOSTRG) && (stream->_base == NULL))
+    if (__FILE_IsStrange(stream) && (stream->_base == NULL))
         return count;
 #endif
 

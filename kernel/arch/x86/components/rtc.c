@@ -33,9 +33,7 @@
 #include <machine.h>
 #include <stdlib.h>
 
-// import the calibration ticker as we use it during boot
-extern uint32_t g_calibrationTick;
-extern Cmos_t   g_cmos;
+extern Cmos_t g_cmos;
 
 static oserr_t RTCEnable(void*, bool enable);
 static oserr_t __RTCConfigure(void *context, UInteger64_t* frequency);
@@ -78,12 +76,7 @@ RtcInterrupt(
 
     // Periodic events we use for time-keeping
     if (irqstatus & CMOSC_IRQ_PERIODIC) {
-        if (g_cmos.CalibrationMode) {
-            uint32_t tick = READ_VOLATILE(g_calibrationTick);
-            WRITE_VOLATILE(g_calibrationTick, tick + 1);
-        } else {
-            g_cmos.Ticks++;
-        }
+        g_cmos.Ticks++;
     }
     return IRQSTATUS_HANDLED;
 }
@@ -195,6 +188,12 @@ RtcInitialize(
     oserr_t oserr;
     TRACE("RtcInitialize()");
 
+    // If the HPET is present, ignore the RTC
+    if (HPETIsPresent()) {
+        g_cmos.RtcAvailable = false;
+        return OS_EOK;
+    }
+
     // disable the RTC for starters
     __DisableRtc(cmos);
 
@@ -209,18 +208,15 @@ RtcInitialize(
     // timer system deterimine whether it wants to reenable us.
     RtcSetCalibrationMode(1);
 
-    // Register us as a system timer, but only if we are not emulated by the HPET, otherwise
-    // the system is better off using the HPET
-    if (!HPETIsEmulatingLegacyController()) {
-        oserr = SystemTimerRegister(
-                "x86-rtc",
-                &g_rtcOperations,
-                SystemTimeAttributes_IRQ,
-                &g_cmos
-        );
-        if (oserr != OS_EOK) {
-            WARNING("PitInitialize failed to register the platform timer");
-        }
+    // Register the timer with the system for use.
+    oserr = SystemTimerRegister(
+            "x86-rtc",
+            &g_rtcOperations,
+            SystemTimeAttributes_IRQ,
+            &g_cmos
+    );
+    if (oserr != OS_EOK) {
+        WARNING("PitInitialize failed to register the platform timer");
     }
     return OS_EOK;
 }
@@ -234,12 +230,13 @@ RtcSetCalibrationMode(
         return;
     }
 
-    g_cmos.CalibrationMode = enable;
-
     if (enable) {
         __RTCConfigure(&g_cmos, &(UInteger64_t) {.QuadPart = 1000});
     }
     RTCEnable(&g_cmos, enable);
+
+    // Reset the tick when enabling/disabling the calibration mode
+    g_cmos.Ticks = 0;
 }
 
 static oserr_t

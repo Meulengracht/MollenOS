@@ -25,12 +25,9 @@
 #include <component/timer.h>
 #include <arch/x86/cpu.h>
 #include <arch/x86/tsc.h>
-#include <ddk/io.h>
 #include <debug.h>
 #include <machine.h>
 
-// import the calibration ticker
-extern uint32_t g_calibrationTick;
 extern void _rdtsc(uint64_t *Value);
 
 static void TscGetCount(void*, UInteger64_t*);
@@ -50,14 +47,35 @@ static SystemTimerOperations_t g_tscOperations = {
 };
 static tick_t g_tscFrequency = 0;
 
+static void
+__Calibrate(void)
+{
+    uint64_t     tscStart, tscEnd;
+    UInteger64_t tick, frequency, tickEnd;
+
+    SystemTimerGetClockFrequency(&frequency);
+    SystemTimerGetClockTick(&tick);
+    _rdtsc(&tscStart);
+
+    // Run for 100ms, so divide the frequency (ticks per second) by 10
+    tickEnd.QuadPart = tick.QuadPart + (frequency.QuadPart / 10);
+    do {
+        SystemTimerGetClockTick(&tick);
+    } while (tick.QuadPart < tickEnd.QuadPart);
+
+    // get end tick
+    _rdtsc(&tscEnd);
+
+    // calculate the frequency
+    tscEnd -= tscStart;
+    tscEnd *= 10; // ticks per second
+    g_tscFrequency = tscEnd;
+}
+
 void
 TscInitialize(void)
 {
-    oserr_t  oserr;
-    uint64_t tscStart;
-    uint64_t tscEnd;
-    uint32_t ticker;
-    uint32_t tickEnd;
+    oserr_t oserr;
     TRACE("TscInitialize()");
 
     if (CpuHasFeatures(0, CPUID_FEAT_EDX_TSC) != OS_EOK) {
@@ -70,25 +88,13 @@ TscInitialize(void)
         return;
     }
 
-    // Use the read timestamp counter
-    ticker = READ_VOLATILE(g_calibrationTick);
-    _rdtsc(&tscStart);
-
-    // wait 100 ms
-    tickEnd = ticker + 100;
-    while (ticker < tickEnd) {
-        ticker = READ_VOLATILE(g_calibrationTick);
-    }
-    _rdtsc(&tscEnd);
-
-    // calculate the frequency
-    tscEnd -= tscStart;
-    tscEnd *= 10; // ticks per second
-    g_tscFrequency = tscEnd;
+    // Calibrate the TSC against other system timers.
+    // TODO: Add check that there must be others?
+    __Calibrate();
 
     // register as available platform timer
     oserr = SystemTimerRegister(
-            "x86-rtc",
+            "x86-tsc",
             &g_tscOperations,
             SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
             NULL);

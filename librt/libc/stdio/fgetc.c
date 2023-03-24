@@ -15,54 +15,40 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "io.h"
-#include "internal/_io.h"
-#include "internal/_file.h"
-#include "stdio.h"
+#include <errno.h>
+#include <io.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdio.h>
 
-static int __fill_buffer(
+static int
+__fill_buffer(
 	_In_ FILE* file)
 {
-	unsigned char c;
-    
 	// We can't fill the io buffer if this is a strange resource
-	if (file->_flag & _IOSTRG) {
+	if (__FILE_IsStrange(file)) {
 		return EOF;
 	}
 
+    // Try to ensure a buffer is present if possible.
 	io_buffer_ensure(file);
-	if (stream_ensure_mode(_IOREAD, file)) {
-	    return EOF;
-	}
-
-	// Is this even a buffered input? If not only read one byte at the time
-	if (IO_IS_NOT_BUFFERED(file)) {
-		int r;
-		
-		// Read a single byte
-		if ((r = read(file->_fd, &c, 1)) != 1) {
-			file->_flag |= (r == 0) ? _IOEOF : _IOERR;
-			return EOF;
-		}
-		return c;
-	}
 
     // Now actually fill the buffer
-    file->_cnt = read(file->_fd, file->_base, file->_bufsiz);
+    file->_cnt = read(file->IOD, file->_base, file->_bufsiz);
 
     // If it failed, we are either at end of file or encounted
     // a real error
-    if (file->_cnt <= 0) {
-        file->_flag |= (file->_cnt == 0) ? _IOEOF : _IOERR;
+    if (file->_cnt < 1) {
+        file->Flags |= (file->_cnt == 0) ? _IOEOF : _IOERR;
         file->_cnt = 0;
         return EOF;
     }
 
-    // Reduce count and return top of buffer
+    // reduce number of available bytes with 1 and return
+    // the first character
     file->_cnt--;
     file->_ptr = file->_base + 1;
-    c = *(unsigned char *)file->_base;
-    return c;
+    return *(unsigned char *)file->_base;
 }
 
 int fgetc(
@@ -73,7 +59,21 @@ int fgetc(
 
 	// Check buffer before filling/raw-reading
     flockfile(file);
-	if (file->_cnt > 0) {
+
+    // Ensure that this mode is supported
+    if (!__FILE_StreamModeSupported(file, __STREAMMODE_READ)) {
+        funlockfile(file);
+        errno = EACCES;
+        return EOF;
+    }
+
+    // If we were previously writing, then we flush
+    if (file->StreamMode == __STREAMMODE_WRITE) {
+        fflush(file);
+    }
+    __FILE_SetStreamMode(file, __STREAMMODE_READ);
+
+    if (file->_cnt > 0) {
 		file->_cnt--;
 		i = (unsigned char *)file->_ptr++;
 		j = *i;

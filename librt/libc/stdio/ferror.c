@@ -24,7 +24,7 @@ int ferror(
     int isError;
 
     flockfile(file);
-    isError = (file->_flag & _IOERR) != 0;
+    isError = (file->Flags & _IOERR) != 0;
     funlockfile(file);
 
     return isError;

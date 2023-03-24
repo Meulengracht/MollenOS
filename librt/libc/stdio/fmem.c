@@ -18,6 +18,7 @@
 
 #include <errno.h>
 #include <internal/_io.h>
+#include <internal/_file.h>
 #include <io.h>
 #include <ioctl.h>
 #include <stdio.h>
@@ -124,7 +125,7 @@ FILE* fmemopen(void *buf, size_t size, const char *mode)
         return NULL;
     }
 
-    status = stdio_handle_set_buffered(object, NULL, _IORW | _IOFBF);
+    status = stdio_handle_set_buffered(object, NULL, _IORW, _IOFBF);
     if (status) {
         stdio_handle_delete(object);
         __memstream_delete(memoryStream);

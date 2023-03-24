@@ -15,9 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "stdio.h"
+#include <stdio.h>
 
-int fgetpos(
+int
+fgetpos(
         _In_  FILE*   stream,
         _Out_ fpos_t* pos)
 {

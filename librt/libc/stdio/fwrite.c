@@ -15,99 +15,86 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define __need_minmax
 //#define __TRACE
 
-#include "ddk/utils.h"
-#include "errno.h"
-#include "io.h"
-#include "internal/_file.h"
-#include "internal/_io.h"
-#include "os/mollenos.h"
-#include "stdio.h"
-#include "string.h"
+#include <errno.h>
+#include <io.h>
+#include <internal/_file.h>
+#include <internal/_io.h>
+#include <os/mollenos.h>
+#include <stdio.h>
+#include <string.h>
+
+static int
+__fill_buffer(
+        _In_ FILE*       stream,
+        _In_ const void* buffer,
+        _In_ int         count)
+{
+    memcpy(stream->_ptr, buffer, count);
+    stream->_cnt -= count;
+    stream->_ptr += count;
+    return count;
+}
 
 size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 {
 	size_t wrcnt = size * count;
-	int written = 0;
+	int    written = 0;
 
 	if (!vptr || !size || !count || !stream) {
 		_set_errno(EINVAL);
 		return 0;
 	}
-	
-	// Write the bytes in a loop in case we can't
-	// flush it all at once
+
 	flockfile(stream);
-	while (wrcnt) {
 
-		// Sanitize output buffer count
-		if (stream->_cnt < 0) {
-			stream->_flag |= _IOERR;
-			break;
-		}
-		else if (stream->_cnt) {
-			// Flush as much as possible into the buffer in one go
-			int pcnt = (stream->_cnt > wrcnt) ? wrcnt : stream->_cnt;
-			memcpy(stream->_ptr, vptr, pcnt);
+    // Ensure that this mode is supported
+    if (!__FILE_StreamModeSupported(stream, __STREAMMODE_WRITE)) {
+        funlockfile(stream);
+        errno = EACCES;
+        return EOF;
+    }
+    __FILE_SetStreamMode(stream, __STREAMMODE_WRITE);
 
-			// Adjust
-			stream->_cnt -= pcnt;
-			stream->_ptr += pcnt;
+    io_buffer_ensure(stream);
 
-			// Update pointers
-			written += pcnt;
-			wrcnt -= pcnt;
-			vptr = (const char *)vptr + pcnt;
-		}
-		else if ((stream->_flag & _IONBF) 
-			|| ((stream->_flag & (_IOMYBUF | _USERBUF)) 
-				&& wrcnt >= stream->_bufsiz) 
-			|| (!(stream->_flag & (_IOMYBUF | _USERBUF)) 
-				&& wrcnt >= INTERNAL_BUFSIZ)) {
-			// Variables
-			size_t pcnt;
-			int bufsiz;
+    while (wrcnt) {
+        int pcnt;
 
-			// Handle the kind of buffer type thats specified
-			if (stream->_flag & _IONBF) {
-				bufsiz = 1;
-			}
-			else if (!(stream->_flag & (_IOMYBUF | _USERBUF))) {
-				bufsiz = INTERNAL_BUFSIZ;
-			}
-			else {
-				bufsiz = stream->_bufsiz;
-			}
-			pcnt = (wrcnt / bufsiz) * bufsiz;
+        // Special case of new buffers
+        if (__FILE_IsBuffered(stream) && !stream->_cnt) {
+            // Either buffer is filled to the brim, ready to burst
+            // or the buffer has just been ensured.
+            if (__FILE_BytesBuffered(stream)) {
+                int res = OsErrToErrNo(io_buffer_flush(stream));
+                if (res) {
+                    funlockfile(stream);
+                    return res;
+                }
+            } else {
+                stream->_cnt = stream->_bufsiz;
+            }
+        }
 
-			// Flush stream buffer
-			if (io_buffer_flush(stream) != OS_EOK) {
-				break;
-			}
+        // start by filling the entire write buffer
+        // 3 Cases:
+        // 1. (Buffered) Partially filled => fill & flush
+        // 2. (Buffered) Empty, space for all => fill
+        // 3. All other cases: write directly
+        if (__FILE_IsBuffered(stream) && stream->_cnt) {
+            // Flush as much as possible into the buffer in one go
+            pcnt = __fill_buffer(stream, vptr, MIN(stream->_cnt, (int)wrcnt));
+        } else if (__FILE_IsBuffered(stream) && wrcnt < stream->_bufsiz) {
+            pcnt = __fill_buffer(stream, vptr, (int)wrcnt);
+        } else {
+            pcnt = write(stream->IOD, vptr, wrcnt);
+        }
 
-			// Write buffer to stream
-			if (write(stream->_fd, vptr, pcnt) <= 0) {
-				stream->_flag |= _IOERR;
-				break;
-			}
-
-			// Update pointers
-			written += pcnt;
-			wrcnt -= pcnt;
-			vptr = (const char *)vptr + pcnt;
-		}
-		else {
-			// Fill buffer
-			if (_flsbuf(*(const char *)vptr, stream) == EOF) {
-				break;
-			}
-
-			// Update pointers
-			written++;
-			wrcnt--;
-			vptr = (const char *)vptr + 1;
-		}
+        written += pcnt;
+        wrcnt -= pcnt;
+        vptr = (const char*)vptr + pcnt;
 	}
 	funlockfile(stream);
 	return written / size;
