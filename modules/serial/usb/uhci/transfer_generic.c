@@ -21,6 +21,7 @@
  * TODO:
  *    - Power Management
  */
+
 //#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
@@ -135,7 +136,7 @@ UhciTransferFill(
         int     isHandshake = transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
 
         TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i, MPS %u)", i,
-              bytesToTransfer, transactionType, transfer->transfer.Endpoint.MaxPacketSize);
+              bytesToTransfer, transactionType, transfer->Transfer.MaxPacketSize);
 
         bytesToTransfer -= transfer->Transactions[i].BytesTransferred;
         if (bytesToTransfer == 0 && !isZlp) {
@@ -253,6 +254,7 @@ HciQueueTransferGeneric(
     UhciQueueHead_t*    endpointDescriptor = NULL;
     UhciController_t*   controller;
     UsbTransferStatus_t status;
+    TRACE("HciQueueTransferGeneric()");
 
     controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
     if (!controller) {

@@ -33,6 +33,7 @@ struct SHMBuffer {
     MemorySpace_t* Owner;
     Mutex_t        Mutex;
     vaddr_t        KernelMapping;
+    size_t         Offset;
     size_t         Length;
     size_t         PageMask;
     unsigned int   Flags;
@@ -59,13 +60,14 @@ __SHMBufferDelete(
 
 static struct SHMBuffer*
 __SHMBufferNew(
+        _In_ size_t       offset,
         _In_ size_t       size,
         _In_ unsigned int flags,
         _In_ bool         exported)
 {
     struct SHMBuffer* buffer;
     size_t            pageSize  = GetMemorySpacePageSize();
-    size_t            pageCount = DIVUP(size, pageSize);
+    size_t            pageCount = DIVUP(offset + size, pageSize);
     size_t            structSize = sizeof(struct SHMBuffer) + (pageCount * sizeof(uintptr_t));
 
     buffer = kmalloc(structSize);
@@ -82,6 +84,7 @@ __SHMBufferNew(
     );
     buffer->Owner = GetCurrentMemorySpace();
     buffer->PageCount = (int)pageCount;
+    buffer->Offset = offset;
     buffer->Length = size;
     buffer->Flags = flags;
     buffer->Exported = exported;
@@ -357,7 +360,7 @@ SHMCreate(
         return OS_EINVALPARAMS;
     }
 
-    buffer = __SHMBufferNew(shm->Size, shm->Flags, false);
+    buffer = __SHMBufferNew(0, shm->Size, shm->Flags, false);
     if (buffer == NULL) {
         return OS_EOOM;
     }
@@ -410,13 +413,17 @@ SHMExport(
         _Out_ uuid_t*      handleOut)
 {
     struct SHMBuffer* buffer;
+    size_t            offset;
     oserr_t           oserr;
 
     if (memory == NULL || size == 0 || handleOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    buffer = __SHMBufferNew(size, __FilterFlagsForExport(flags), true);
+    // Remember that we must take page offset of the buffer we are exporting into
+    // consideration. It must also be corrected in the *actual* size we are exporting
+    offset = ((uintptr_t)memory & (GetMemorySpacePageSize() - 1));
+    buffer = __SHMBufferNew(offset, size, __FilterFlagsForExport(flags), true);
     if (buffer == NULL) {
         return OS_EOOM;
     }
@@ -429,10 +436,16 @@ SHMExport(
     );
     if (oserr != OS_EOK) {
         __SHMBufferDelete(buffer);
-    } else {
-        *handleOut = buffer->ID;
+        return oserr;
     }
-    return oserr;
+
+    // While we do want to maintain the offset of the original page, we do
+    // not want it in our page-mappings. It only confuses things. So clear any
+    // offset retrieved through GetMemorySpaceMapping().
+    buffer->Pages[0] &= ~(GetMemorySpacePageSize() - 1);
+
+    *handleOut = buffer->ID;
+    return OS_EOK;
 }
 
 oserr_t
@@ -479,7 +492,11 @@ __EnsurePhysicalPages(
             continue;
         }
 
-        oserr = AllocatePhysicalMemory(shmBuffer->PageMask, 1, &shmBuffer->Pages[pageStart + i]);
+        oserr = AllocatePhysicalMemory(
+                shmBuffer->PageMask,
+                1,
+                &shmBuffer->Pages[pageStart + i]
+        );
         if (oserr != OS_EOK) {
             MutexUnlock(&shmBuffer->Mutex);
             return oserr;
@@ -531,7 +548,7 @@ __UpdateMapping(
 {
     size_t  pageSize  = GetMemorySpacePageSize();
     size_t  pageCount = DIVUP(length, pageSize);
-    size_t  pageIndex = handle->Offset / pageSize;
+    size_t  pageIndex = (shmBuffer->Offset + handle->Offset) / pageSize;
     oserr_t oserr;
 
     // Ensure that physical pages are allocated for this mapping, so we can
@@ -566,9 +583,10 @@ __CreateMapping(
         _In_  unsigned int      flags,
         _Out_ void**            mappingOut)
 {
-    size_t  pageSize  = GetMemorySpacePageSize();
-    size_t  pageIndex = offset / pageSize;
-    size_t  pageCount = DIVUP(length, pageSize);
+    size_t  pageSize     = GetMemorySpacePageSize();
+    size_t  actualOffset = shmBuffer->Offset + offset;
+    size_t  pageIndex    = actualOffset / pageSize;
+    size_t  pageCount    = DIVUP(length, pageSize);
     oserr_t oserr;
     TRACE("__CreateMapping(length=0x%llx, index=0x%llx, count=0x%llx)", length, pageIndex, pageCount);
 
@@ -607,10 +625,7 @@ __ClampLength(
         _In_ size_t            offset,
         _In_ size_t            length)
 {
-    size_t pageSize        = GetMemorySpacePageSize();
-    size_t correctedOffset = offset % pageSize;
-    size_t pageIndex       = offset / pageSize;
-    return MIN(length + correctedOffset, (shmBuffer->PageCount - pageIndex) * pageSize);
+    return MIN(length, (shmBuffer->Length - offset));
 }
 
 oserr_t
@@ -646,7 +661,6 @@ SHMMap(
 
     // Calculate the actual length of the mapping
     clampedLength = __ClampLength(shmBuffer, offset, length);
-
     if (handle->Buffer != NULL) {
         // There is a few cases here. If we are trying to modify an already
         // mapped buffer, and the offsets are identical, then we are either
@@ -822,7 +836,8 @@ SHMBuildSG(
         }
 
         // Adjust the initial sg entry for offset
-        sgOut[0].Length -= sgOut[0].Address % pageSize;
+        sgOut[0].Address += shmBuffer->Offset;
+        sgOut[0].Length  -= shmBuffer->Offset;
     }
     return OS_EOK;
 }

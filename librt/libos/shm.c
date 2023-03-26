@@ -102,15 +102,7 @@ __ValidateExistingBuffer(
         _In_ void*  buffer,
         _In_ SHM_t* shm)
 {
-    size_t pageSize;
-
     if (shm == NULL || buffer == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    // For exporting buffers, the buffer must be page aligned
-    pageSize = MemoryPageSize();
-    if ((uintptr_t)buffer & (pageSize - 1)) {
         return OS_EINVALPARAMS;
     }
 
@@ -151,7 +143,7 @@ SHMExport(
             shmHandle->ID,
             OSHANDLE_SHM,
             shmHandle,
-            false,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {
@@ -188,7 +180,7 @@ SHMAttach(
             shmHandle->ID,
             OSHANDLE_SHM,
             shmHandle,
-            false,
+            true,
             handleOut
     );
     if (oserr != OS_EOK) {

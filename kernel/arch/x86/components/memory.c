@@ -617,7 +617,7 @@ ArchMmuVirtualToPhysical(
     int                isCurrent, update;
     int                index;
     int                pagesRetrieved = 0;
-    oserr_t         status         = OS_EOK;
+    oserr_t            status         = OS_EOK;
 
     if (!physicalAddressValues || !pagesRetrievedOut) {
         return OS_EINVALPARAMS;
@@ -634,11 +634,7 @@ ArchMmuVirtualToPhysical(
         index = PAGE_TABLE_INDEX(startAddress);
         for (; index < ENTRIES_PER_PAGE && pageCount; index++, pageCount--, pagesRetrieved++, startAddress += PAGE_SIZE) {
             mapping = atomic_load(&pageTable->Pages[index]);
-            mapping &= PAGE_MASK;
-            if (!pagesRetrieved) {
-                mapping |= startAddress & ATTRIBUTE_MASK;
-            }
-            physicalAddressValues[pagesRetrieved] = mapping;
+            physicalAddressValues[pagesRetrieved] = mapping & PAGE_MASK;
         }
     }
     *pagesRetrievedOut = pagesRetrieved;

@@ -1,7 +1,5 @@
-/** 
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,13 +13,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * General File System (MFS) Driver
- *  - Contains the implementation of the MFS driver for mollenos
  */
 
-//#define __TRACE
+#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -39,8 +33,8 @@ FsReadFromFile(
         _In_  size_t           unitCount,
         _Out_ size_t*          unitsRead)
 {
-    oserr_t  osStatus        = OS_EOK;
-    uint64_t position        = entry->Position;
+    oserr_t  oserr    = OS_EOK;
+    uint64_t position = entry->Position;
     size_t   bucketSizeBytes = mfs->SectorsPerBucket * mfs->SectorSize;
     size_t   bytesToRead     = unitCount;
 
@@ -141,7 +135,7 @@ FsReadFromFile(
             TRACE(" > sector %u (b-start %u, b-index %u), num-sectors %u, sector-byte-offset %u, bytecount %u",
                 LODWORD(Sector), LODWORD(Sector) - SectorIndex, SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
 
-            osStatus = FSStorageRead(
+            oserr = FSStorageRead(
                     &mfs->Storage,
                     SelectedHandle,
                     SelectedOffset,
@@ -149,7 +143,7 @@ FsReadFromFile(
                     SectorCount,
                     &SectorsRead
             );
-            if (osStatus != OS_EOK) {
+            if (oserr != OS_EOK) {
                 ERROR("Failed to read sector");
                 break;
             }
@@ -175,10 +169,10 @@ FsReadFromFile(
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
         if (position == (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes))) {
-            osStatus = MFSAdvanceToNextBucket(mfs, entry, bucketSizeBytes);
-            if (osStatus != OS_EOK) {
-                if (osStatus == OS_ENOENT) {
-                    osStatus = OS_EOK;
+            oserr = MFSAdvanceToNextBucket(mfs, entry, bucketSizeBytes);
+            if (oserr != OS_EOK) {
+                if (oserr == OS_ENOENT) {
+                    oserr = OS_EOK;
                 }
                 break;
             }
@@ -189,7 +183,7 @@ FsReadFromFile(
     entry->Position = position;
 
     TRACE("[mfs] [read_file] bytes read %u/%u", *unitsRead, unitCount);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
@@ -205,7 +199,7 @@ FsWriteToFile(
     uint64_t position        = entry->Position;
     size_t   bucketSizeBytes = mfs->SectorsPerBucket * mfs->SectorSize;
     size_t   bytesToWrite    = unitCount;
-    oserr_t  osStatus;
+    oserr_t  oserr;
 
     TRACE("FsWriteToFile(name=%ms, position=%u, length=%u)",
           entry->Name, LODWORD(entry->Position), LODWORD(unitCount));
@@ -215,13 +209,15 @@ FsWriteToFile(
     
     // We do not have the same boundary limits here as we do when reading, when we
     // write to a file we can do so untill we run out of space on the filesystem.
-    osStatus = MfsEnsureRecordSpace(mfs, entry, position + bytesToWrite);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    oserr = MfsEnsureRecordSpace(mfs, entry, position + bytesToWrite);
+    if (oserr != OS_EOK) {
+        ERROR("FsWriteToFile: failed to ensure record space for write: %u", oserr);
+        return oserr;
     }
 
     // Guard against newly allocated files
     if (entry->DataBucketPosition == MFS_ENDOFCHAIN) {
+        TRACE("FsWriteToFile: initializing new record");
         entry->DataBucketPosition = entry->StartBucket;
         entry->DataBucketLength   = entry->StartLength;
         entry->BucketByteBoundary = 0;
@@ -231,29 +227,34 @@ FsWriteToFile(
     while (bytesToWrite) {
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
-        uint64_t Sector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
-        uint64_t SectorOffset = (position - entry->BucketByteBoundary) % mfs->SectorSize;
-        size_t   SectorIndex  = (size_t)((position - entry->BucketByteBoundary) / mfs->SectorSize);
-        size_t   SectorsLeft  = MFS_SECTORCOUNT(mfs, entry->DataBucketLength) - SectorIndex;
-        size_t   SectorCount;
-        size_t   SectorsWritten;
-        size_t   ByteCount;
-        
+        uint64_t bucketSector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
+        uint64_t bucketSectorOffset = (position - entry->BucketByteBoundary) % mfs->SectorSize;
+        size_t   sectorIndex        = (size_t)((position - entry->BucketByteBoundary) / mfs->SectorSize);
+        size_t   sectorsLeft        = MFS_SECTORCOUNT(mfs, entry->DataBucketLength) - sectorIndex;
+        size_t   sectorCount;
+        size_t   sectorsWritten;
+        size_t   byteCount;
+
+        TRACE("FsWriteToFile: bucketSector=0x%llx, bucketOffset=0x%llx, sectorIndex=0x%" PRIxIN,
+              bucketSector, bucketSectorOffset, sectorIndex);
+
         // The buffer handle + offset that was selected for writing 
         uuid_t SelectedHandle = mfs->TransferBuffer.ID;
         size_t SelectedOffset = 0;
 
         // Calculate the sector index into bucket
-        Sector += SectorIndex;
+        bucketSector += sectorIndex;
         
         // CASE 1: WE CAN WRITE DIRECTLY FROM USER-BUFFER TO DISK
         // If <SectorOffset> is 0, this means we can write directly to the disk
         // from <Buffer> + <BufferOffset>. We must also be able to write an entire
         // sector to avoid writing out of bounds from the buffer
-        if (SectorOffset == 0 && bytesToWrite >= mfs->SectorSize) {
-            SectorCount    = bytesToWrite / mfs->SectorSize;
+        if (bucketSectorOffset == 0 && bytesToWrite >= mfs->SectorSize) {
+            sectorCount    = bytesToWrite / mfs->SectorSize;
             SelectedHandle = bufferHandle;
             SelectedOffset = bufferOffset;
+            TRACE("FsWriteToFile: [case 1] direct transfer %" PRIuIN " bytes from user-buffer",
+                  sectorCount * mfs->SectorSize);
         }
         
         // CASE 2: SECTOR-ALIGN BY READING-WRITE ONE SECTOR FIRST FOR CASE 1
@@ -262,13 +263,15 @@ FsWriteToFile(
         // must happen by using the intermediate buffer
         // CASE 3: FINAL SECTOR WRITE BY USING INTERMEDIATE BUFFER
         else {
-            SectorCount = 1;
+            TRACE("FsWriteToFile: [case 2]");
+            sectorCount = 1;
         }
 
         // Adjust for bucket boundary
-        SectorCount = MIN(SectorsLeft, SectorCount);
-        if (SectorCount != 0) {
-            ByteCount = MIN(bytesToWrite, (SectorCount * mfs->SectorSize) - SectorOffset);
+        sectorCount = MIN(sectorsLeft, sectorCount);
+        TRACE("FsWriteToFile: sectors (adjusted)=0x%" PRIuIN, sectorCount);
+        if (sectorCount != 0) {
+            byteCount = MIN(bytesToWrite, (sectorCount * mfs->SectorSize) - bucketSectorOffset);
     
             // Ex pos 490 - length 50
             // SectorIndex = 0, SectorOffset = 490, SectorCount = 2 - ByteCount = 50 (Capacity 4096)
@@ -276,87 +279,82 @@ FsWriteToFile(
             // SectorIndex = 2, SectorOffset = 85, SectorCount = 2 - ByteCount = 450 (Capacity 4096)
             // Ex pos 490 - length 4000
             // SectorIndex = 0, SectorOffset = 490, SectorCount = 8 - ByteCount = 3606 (Capacity 4096)
-            TRACE("Write metrics - Sector %u + %u, Count %u, ByteOffset %u, ByteCount %u",
-                LODWORD(Sector), SectorIndex, SectorCount, LODWORD(SectorOffset), ByteCount);
+            TRACE("FsWriteToFile: bytes to write (adjusted)=%" PRIuIN, byteCount);
     
             // First of all, calculate the bounds as we might need to read
             // in existing data - Start out by clearing our combination buffer
             if (SelectedHandle == mfs->TransferBuffer.ID) {
-                memset(SHMBuffer(&mfs->TransferBuffer), 0, SHMBufferLength(&mfs->TransferBuffer));
+                TRACE("FsWriteToFile: write-combine");
+                memset(
+                        SHMBuffer(&mfs->TransferBuffer),
+                        0,
+                        SHMBufferLength(&mfs->TransferBuffer)
+                );
                 
                 // CASE READ-WRITE: We do this to support appending to sectors and overwriting
                 // bytes in a sector. This must occur when we either have a <SectorOffset> != 0
                 // or when the <SectorOffset> == 0 and <ByteCount> is less than a sector.
-                osStatus = FSStorageRead(
+                TRACE("FsWriteToFile: read sector=0x%llx, count=0x%" PRIuIN, bucketSector, sectorCount);
+                oserr = FSStorageRead(
                         &mfs->Storage,
                         mfs->TransferBuffer.ID,
                         0,
-                        &(UInteger64_t) { .QuadPart = Sector },
-                        SectorCount,
-                        &SectorsWritten
+                        &(UInteger64_t) { .QuadPart = bucketSector },
+                        sectorCount,
+                        &sectorsWritten
                 );
-                if (osStatus != OS_EOK) {
+                if (oserr != OS_EOK) {
                     ERROR("Failed to read sector %u for combination step", 
-                        LODWORD(Sector));
+                        LODWORD(bucketSector));
                     break;
                 }
                 
                 // Now perform the user copy operation where we overwrite some of the data
                 // Copy from <Buffer> + <BufferOffset> to <TransferBuffer> + <SectorOffset>
-                memcpy(((uint8_t*)SHMBuffer(&mfs->TransferBuffer) + SectorOffset), ((uint8_t*)buffer + bufferOffset), ByteCount);
+                TRACE("FsWriteToFile: copying 0x%" PRIuIN " bytes at offset=0x%" PRIuIN " into read buffer", byteCount, bufferOffset);
+                memcpy(
+                        ((uint8_t*)SHMBuffer(&mfs->TransferBuffer) + bucketSectorOffset),
+                        ((uint8_t*)buffer + bufferOffset),
+                        byteCount
+                );
             }
             
             // Write either the intermediate buffer or directly from user
-            osStatus = FSStorageWrite(
+            TRACE("FsWriteToFile: write sector=0x%llx, count=0x%" PRIuIN, bucketSector, sectorCount);
+            oserr = FSStorageWrite(
                     &mfs->Storage,
                     SelectedHandle,
                     SelectedOffset,
-                    &(UInteger64_t) { .QuadPart = Sector },
-                    SectorCount,
-                    &SectorsWritten
+                    &(UInteger64_t) { .QuadPart = bucketSector },
+                    sectorCount,
+                    &sectorsWritten
             );
-            if (osStatus != OS_EOK) {
-                ERROR("Failed to write sector %u", LODWORD(Sector));
+            if (oserr != OS_EOK) {
+                ERROR("Failed to write sector %u", LODWORD(bucketSector));
                 break;
             }
             
             // Adjust for how many sectors we actually read
-            if (SectorCount != SectorsWritten) {
-                ByteCount = (mfs->SectorSize * SectorsWritten) - SectorOffset;
+            if (sectorCount != sectorsWritten) {
+                byteCount = (mfs->SectorSize * sectorsWritten) - bucketSectorOffset;
             }
-            
-            *unitsWritten += ByteCount;
-            bufferOffset  += ByteCount;
-            position      += ByteCount;
-            bytesToWrite  -= ByteCount;
+
+            TRACE("FsWriteToFile: written 0x%" PRIuIN " bytes", byteCount);
+            *unitsWritten += byteCount;
+            bufferOffset  += byteCount;
+            position      += byteCount;
+            bytesToWrite  -= byteCount;
         }
 
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
+        TRACE("FsWriteToFile: position=0x%llx, boundary at 0x%llx",
+              position, (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes)));
         if (position == (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes))) {
-            MapRecord_t Link;
-
-            // We have to lookup the link for current bucket
-            if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &Link) != OS_EOK) {
-                ERROR("FsWriteToFile failed to get link for bucket %u", entry->DataBucketPosition);
-                osStatus = OS_EDEVFAULT;
+            oserr = MFSAdvanceToNextBucket(mfs, entry, bucketSizeBytes);
+            if (oserr != OS_EOK) {
                 break;
             }
-
-            // Check for EOL
-            if (Link.Link == MFS_ENDOFCHAIN) {
-                break;
-            }
-            entry->DataBucketPosition = Link.Link;
-
-            // Lookup length of link
-            if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &Link) != OS_EOK) {
-                ERROR("Failed to get length for bucket %u", entry->DataBucketPosition);
-                osStatus = OS_EDEVFAULT;
-                break;
-            }
-            entry->DataBucketLength = Link.Length;
-            entry->BucketByteBoundary  += (Link.Length * bucketSizeBytes);
         }
     }
 
@@ -366,7 +364,7 @@ FsWriteToFile(
         entry->ActualSize = entry->Position;
         entry->ActionOnClose = MFS_ACTION_UPDATE;
     }
-    return osStatus;
+    return oserr;
 }
 
 oserr_t
