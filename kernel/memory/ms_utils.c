@@ -123,15 +123,27 @@ GetMemorySpaceMapping(
         _In_  int            pageCount,
         _Out_ uintptr_t*     dmaVectorOut)
 {
-    oserr_t osStatus;
-    int        pagesRetrieved;
+    int      pagesRetrieved;
+    size_t   pageSize;
+    oserr_t  oserr;
 
-    if (!memorySpace || !dmaVectorOut) {
-        return OS_EINVALPARAMS;
+    oserr = ArchMmuVirtualToPhysical(
+            memorySpace,
+            address,
+            pageCount,
+            dmaVectorOut,
+            &pagesRetrieved
+    );
+    if (oserr != OS_EOK && oserr != OS_EINCOMPLETE) {
+        return oserr;
     }
 
-    osStatus = ArchMmuVirtualToPhysical(memorySpace, address, pageCount, dmaVectorOut, &pagesRetrieved);
-    return osStatus;
+    // Maintain the initial offset on the page-mappings
+    pageSize = GetMemorySpacePageSize();
+    if (address & (pageSize - 1)) {
+        dmaVectorOut[0] |= address & (pageSize - 1);
+    }
+    return oserr;
 }
 
 oserr_t

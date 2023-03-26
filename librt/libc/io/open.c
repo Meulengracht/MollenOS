@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//#define __TRACE
+#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
 #include <errno.h>
@@ -156,18 +156,24 @@ __transfer(
 {
     size_t  bytesLeft = length;
     oserr_t oserr;
-    TRACE("[libc] [file-io] [perform_transfer] length %" PRIuIN, length);
+    TRACE("__transfer(write=%i, length=%" PRIuIN ")", write, length);
 
     // Keep reading chunks untill we've read all requested
     while (bytesLeft > 0) {
         size_t bytesToTransfer = MIN(chunkSize, bytesLeft);
         size_t bytesTransferred;
 
-        TRACE("[libc] [file-io] [perform_transfer] chunk size %" PRIuIN ", offset %" PRIuIN,
+        TRACE("__transfer: chunk size %" PRIuIN ", offset %" PRIuIN,
               bytesToTransfer, offset);
-        oserr = OSTransferFile(fileID, bufferID, offset, write, bytesToTransfer, &bytesTransferred)
-                TRACE("[libc] [file-io] [perform_transfer] bytes read %" PRIuIN ", status %u",
-                      bytesTransferred, oserr);
+        oserr = OSTransferFile(
+                fileID,
+                bufferID,
+                offset,
+                write,
+                bytesToTransfer,
+                &bytesTransferred
+        );
+        TRACE("__transfer: bytes transferred %" PRIuIN ", status %u", bytesTransferred, oserr);
         if (oserr != OS_EOK || bytesTransferred == 0) {
             break;
         }
@@ -192,12 +198,13 @@ __read_large(
     size_t     adjustedLength  = length;
     size_t     pageSize = MemoryPageSize();
     oserr_t    oserr;
+    TRACE("__read_large(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
-    // enforce dword alignment on the buffer
-    // which means if someone passes us a byte or word aligned
-    // buffer we must account for that
+    // enforce page alignment on the buffer
     if ((uintptr_t)buffer & (pageSize - 1)) {
         size_t bytesToAlign = pageSize - ((uintptr_t)buffer & (pageSize - 1));
+        TRACE("__read_large: aligning buffer=0x%" PRIxIN ", align=0x%" PRIxIN,
+              buffer, bytesToAlign);
         oserr = __file_read(handle, buffer, bytesToAlign, bytesReadOut);
         if (oserr != OS_EOK) {
             return oserr;
@@ -206,6 +213,8 @@ __read_large(
         adjustedLength -= bytesToAlign;
     }
 
+    TRACE("__read_large: exporting buffer=0x%" PRIxIN ", length=0x%" PRIxIN,
+          adjustedPointer, adjustedLength);
     oserr = SHMExport(
             adjustedPointer,
             &(SHM_t) {
@@ -248,7 +257,7 @@ __file_read(
     size_t      builtinLength = SHMBufferLength(shmHandle);
     size_t      bytesRead;
     oserr_t     oserr;
-    TRACE("stdio_file_op_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
+    TRACE("__file_read(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once.
@@ -256,8 +265,15 @@ __file_read(
         return __read_large(handle, buffer, length, bytesReadOut);
     }
 
-    oserr = __transfer(handle->OSHandle.ID, builtinHandle, 0,
-                       builtinLength, 0, length, &bytesRead);
+    oserr = __transfer(
+            handle->OSHandle.ID,
+            builtinHandle,
+            false,
+            builtinLength,
+            0,
+            length,
+            &bytesRead
+    );
     if (oserr == OS_EOK && bytesRead > 0) {
         memcpy(buffer, SHMBuffer(shmHandle), bytesRead);
     }
@@ -278,12 +294,13 @@ __write_large(
     size_t     adjustedLength  = length;
     size_t     pageSize = MemoryPageSize();
     oserr_t    oserr;
+    TRACE("__write_large(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
-    // enforce dword alignment on the buffer
-    // which means if someone passes us a byte or word aligned
-    // buffer we must account for that
+    // enforce page alignment on the buffer
     if ((uintptr_t)buffer & (pageSize - 1)) {
         size_t bytesToAlign = pageSize - ((uintptr_t)buffer & (pageSize - 1));
+        TRACE("__write_large: aligning buffer=0x%" PRIxIN ", align=0x%" PRIxIN,
+              buffer, bytesToAlign);
         oserr = __file_write(handle, buffer, bytesToAlign, bytesWrittenOut);
         if (oserr != OS_EOK) {
             return oserr;
@@ -292,6 +309,8 @@ __write_large(
         adjustedLength -= bytesToAlign;
     }
 
+    TRACE("__write_large: exporting buffer=0x%" PRIxIN ", length=0x%" PRIxIN,
+          adjustedPointer, adjustedLength);
     oserr = SHMExport(
             adjustedPointer,
             &(SHM_t) {
@@ -306,7 +325,7 @@ __write_large(
 
     oserr = __transfer(
             handle->OSHandle.ID, shm.ID,
-            1,
+            true,
             adjustedLength,
             0,
             adjustedLength,
@@ -330,7 +349,7 @@ __file_write(
     uuid_t      builtinHandle = shmHandle->ID;
     size_t      builtinLength = SHMBufferLength(shmHandle);
     oserr_t     oserr;
-    TRACE("stdio_file_op_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
+    TRACE("__file_write(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
     // There is a time when reading more than a couple of times is considerably slower
     // than just reading the entire thing at once.
@@ -339,8 +358,15 @@ __file_write(
     }
 
     memcpy(SHMBuffer(shmHandle), buffer, length);
-    oserr = __transfer(handle->OSHandle.ID, builtinHandle, 1,
-                       builtinLength, 0, length, bytesWrittenOut);
+    oserr = __transfer(
+            handle->OSHandle.ID,
+            builtinHandle,
+            true,
+            builtinLength,
+            0,
+            length,
+            bytesWrittenOut
+    );
     return oserr;
 }
 
