@@ -50,6 +50,26 @@ SHMExport(
         _Out_ OSHandle_t* handleOut));
 
 /**
+ * @brief Creates a conformed buffer clone from a source buffer. The buffer will automatically
+ * be filled on creation, or the source will be filled on conformed buffer destruction. Doing this
+ * will automatically map the two (worst-case) buffers into the callers memory space.
+ * OBS: This operation combines the functionality of an Attach/Map and because of it's memory
+ * requirements should only be used scarcely, preferably by driver stacks that need to do this.
+ * @param handle     The source SHM handle ID.
+ * @param conformity The memory conformity requirements of the buffer.
+ * @param flags      How the behaviour of the conformed buffer should be.
+ * @param handleOut  The new handle of the conformed (or original) buffer.
+ * @return OS_EOK on successful creation or import of the buffer.
+ *         OS_EOOM if a buffer could not be allocated due to memory constraints.
+ */
+CRTDECL(oserr_t,
+SHMConform(
+        _In_ uuid_t                  shmID,
+        _In_ enum OSMemoryConformity conformity,
+        _In_ unsigned int            flags,
+        _In_ OSHandle_t*             handleOut));
+
+/**
  * Attach to a memory buffer handle, but does not perform further actions.
  * @param shmID  [In] The memory buffer handle to attach to.
  * @param handle [In] The structure to fill with the attachment information.

@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,14 +14,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * Memory Support Definitions & Structures
- * - This header describes the base memory-structures, prototypes
- *   and functionality, refer to the individual things for descriptions
  */
 
-#ifndef __MEMORY_INTERFACE__
-#define __MEMORY_INTERFACE__
+#ifndef __DDK_MEMORY_H__
+#define __DDK_MEMORY_H__
 
 #include <ddk/ddkdefs.h>
 
@@ -58,4 +54,4 @@ CreateMemoryMapping(
     _In_  struct MemoryMappingParameters* Parameters,
     _Out_ void**                          AddressOut));
 
-#endif //!__MEMORY_INTERFACE__
+#endif //!__DDK_MEMORY_H__
