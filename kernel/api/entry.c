@@ -100,6 +100,7 @@ extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
 extern oserr_t ScSHMCreate(SHM_t*, SHMHandle_t*);
 extern oserr_t ScSHMExport(void*, SHM_t*, SHMHandle_t*);
+extern oserr_t ScSHMConform(uuid_t, enum OSMemoryConformity, unsigned int, SHMHandle_t*);
 extern oserr_t ScSHMAttach(uuid_t, SHMHandle_t*);
 extern oserr_t ScSHMMap(SHMHandle_t*, size_t, size_t, unsigned int);
 extern oserr_t ScSHMCommit(SHMHandle_t*, void*, size_t);
@@ -128,7 +129,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 61
+#define SYSTEM_CALL_COUNT 62
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -202,33 +203,34 @@ static struct SystemCallDescriptor {
     
         DefineSyscall(38, ScSHMCreate),
         DefineSyscall(39, ScSHMExport),
-        DefineSyscall(40, ScSHMAttach),
-        DefineSyscall(41, ScSHMMap),
-        DefineSyscall(42, ScSHMCommit),
-        DefineSyscall(43, ScSHMUnmap),
-        DefineSyscall(44, ScSHMDetach),
-        DefineSyscall(45, ScSHMMetrics),
+        DefineSyscall(40, ScSHMConform),
+        DefineSyscall(41, ScSHMAttach),
+        DefineSyscall(42, ScSHMMap),
+        DefineSyscall(43, ScSHMCommit),
+        DefineSyscall(44, ScSHMUnmap),
+        DefineSyscall(45, ScSHMDetach),
+        DefineSyscall(46, ScSHMMetrics),
     
-        DefineSyscall(46, ScCreateHandle),
-        DefineSyscall(47, ScDestroyHandle),
-        DefineSyscall(48, ScLookupHandle),
-        DefineSyscall(49, ScSetHandleActivity),
+        DefineSyscall(47, ScCreateHandle),
+        DefineSyscall(48, ScDestroyHandle),
+        DefineSyscall(49, ScLookupHandle),
+        DefineSyscall(50, ScSetHandleActivity),
 
-        DefineSyscall(50, ScCreateHandleSet),
-        DefineSyscall(51, ScControlHandleSet),
-        DefineSyscall(52, ScListenHandleSet),
+        DefineSyscall(51, ScCreateHandleSet),
+        DefineSyscall(52, ScControlHandleSet),
+        DefineSyscall(53, ScListenHandleSet),
     
         // Misc interface
-        DefineSyscall(53, ScInstallSignalHandler),
-        DefineSyscall(54, ScFlushHardwareCache),
-        DefineSyscall(55, ScSystemQuery),
+        DefineSyscall(54, ScInstallSignalHandler),
+        DefineSyscall(55, ScFlushHardwareCache),
+        DefineSyscall(56, ScSystemQuery),
 
         // Timing interface
-        DefineSyscall(56, ScSystemClockTick),
-        DefineSyscall(57, ScSystemClockFrequency),
-        DefineSyscall(58, ScSystemTime),
-        DefineSyscall(59, ScTimeSleep),
-        DefineSyscall(60, ScTimeStall)
+        DefineSyscall(57, ScSystemClockTick),
+        DefineSyscall(58, ScSystemClockFrequency),
+        DefineSyscall(59, ScSystemTime),
+        DefineSyscall(60, ScTimeSleep),
+        DefineSyscall(61, ScTimeStall)
 };
 
 Context_t*

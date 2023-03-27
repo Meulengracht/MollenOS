@@ -300,6 +300,16 @@ ScSHMExport(
 }
 
 oserr_t
+ScSHMConform(
+        _In_ uuid_t                  shmID,
+        _In_ enum OSMemoryConformity conformity,
+        _In_ unsigned int            flags,
+        _In_ SHMHandle_t*            handle)
+{
+    return SHMConform(shmID, conformity, flags, handle);
+}
+
+oserr_t
 ScSHMAttach(
         _In_ uuid_t       shmID,
         _In_ SHMHandle_t* handle)

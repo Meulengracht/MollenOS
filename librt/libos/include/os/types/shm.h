@@ -64,6 +64,12 @@
 // These are only available when calling SHMMap
 #define SHM_ACCESS_COMMIT  0x00000008U
 
+/**
+ * @brief Flags available when conforming a SHM buffer.
+ */
+#define SHM_CONFORM_FILL_ON_CREATION     0x1 // Fill the conformed buffer when created.
+#define SHM_CONFORM_FILL_SOURCE_ON_CLOSE 0x2 // Fill the source buffer when closed.
+
 typedef struct SHM {
     // Key is the global identifier for this buffer. When listing
     // active shared memory buffers on the system, this is the name

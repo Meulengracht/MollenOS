@@ -448,6 +448,44 @@ SHMExport(
     return OS_EOK;
 }
 
+static bool
+__VerifySGConformity(
+        _In_ SHMSG_t*                sg,
+        _In_ int                     sgCount,
+        _In_ enum OSMemoryConformity conformity)
+{
+
+}
+
+oserr_t
+SHMConform(
+        _In_ uuid_t                  shmID,
+        _In_ enum OSMemoryConformity conformity,
+        _In_ unsigned int            flags,
+        _In_ SHMHandle_t*            handle)
+{
+    int     sgCount;
+    SHMSG_t sg;
+    oserr_t oserr;
+
+    oserr = SHMBuildSG(shmID, &sgCount, &sg);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (__VerifySGConformity(&sg, sgCount, conformity)) {
+        // Attach and map the buffer referred to by shmID
+        size_t cap;
+        oserr = SHMAttach(shmID, &cap);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+
+    // Create a new buffer, go through SG and copy data if requested
+    return OS_EOK;
+}
+
 oserr_t
 SHMAttach(
         _In_ uuid_t  shmID,

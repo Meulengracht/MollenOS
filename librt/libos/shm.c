@@ -148,6 +148,49 @@ SHMExport(
     );
     if (oserr != OS_EOK) {
         (void)Syscall_SHMDetach(shmHandle);
+        free(shmHandle);
+        return oserr;
+    }
+    return OS_EOK;
+}
+
+oserr_t
+SHMConform(
+        _In_ uuid_t                  shmID,
+        _In_ enum OSMemoryConformity conformity,
+        _In_ unsigned int            flags,
+        _In_ OSHandle_t*             handleOut)
+{
+    SHMHandle_t* shmHandle;
+    oserr_t      oserr;
+
+    if (handleOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Allocate a new shared memory handle the resulting buffer can be stored
+    // in. Should two buffers be mapped, the original is managed by the SHM system.
+    shmHandle = __shm_handle_new();
+    if (shmHandle == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = Syscall_SHMConform(shmID, conformity, flags, shmHandle);
+    if (oserr != OS_EOK) {
+        free(shmHandle);
+        return oserr;
+    }
+
+    oserr = OSHandleWrap(
+            shmHandle->ID,
+            OSHANDLE_SHM,
+            shmHandle,
+            true,
+            handleOut
+    );
+    if (oserr != OS_EOK) {
+        (void)Syscall_SHMDetach(shmHandle);
+        free(shmHandle);
         return oserr;
     }
     return OS_EOK;
@@ -185,6 +228,7 @@ SHMAttach(
     );
     if (oserr != OS_EOK) {
         (void)Syscall_SHMDetach(shmHandle);
+        free(shmHandle);
         return oserr;
     }
     return OS_EOK;

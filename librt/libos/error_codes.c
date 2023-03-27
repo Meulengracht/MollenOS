@@ -39,6 +39,7 @@ const int g_errorCodeTable[__OS_ECOUNT] = {
     EINPROGRESS,  // OS_ESCSTARTED
     ENXIO,        // OS_EFORKED
     EOVERFLOW,    // OS_EOVERFLOW
+    ENOBUFS,      // OS_EBUFFER
 
     ENOTDIR,      // OS_ENOTDIR
     EISDIR,       // OS_EISDIR
