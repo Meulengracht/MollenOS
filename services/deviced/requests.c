@@ -30,7 +30,7 @@
 
 extern void DmHandleNotify(uuid_t driverId, uuid_t driverHandle);
 extern void DmHandleGetDevicesByProtocol(struct gracht_message* message, uint8_t protocolID);
-extern oserr_t DmHandleIoctl(uuid_t deviceID, unsigned int command, unsigned int flags);
+extern oserr_t DmHandleIoctl(uuid_t, enum OSIOCtlRequest, void*, size_t);
 extern oserr_t DmHandleIoctl2(uuid_t device_id, int direction, unsigned int command, size_t value, unsigned int width, size_t*);
 extern void DmHandleRegisterProtocol(uuid_t deviceID, const char* protocolName, uint8_t protocolID);
 
@@ -67,12 +67,34 @@ void sys_device_unregister_invocation(struct gracht_message* message, const uuid
     sys_device_unregister_response(message, OS_ENOTSUPPORTED);
 }
 
-void sys_device_ioctl_invocation(struct gracht_message* message,
-                                 const uuid_t deviceId, const unsigned int command, const unsigned int flags)
+void sys_device_ioctl_invocation(
+        struct gracht_message* message,
+        const uuid_t           deviceId,
+        const unsigned int     request,
+        const uint8_t*         data,
+        const uint32_t         data_count)
 {
     TRACE("sys_device_ioctl_invocation()");
-    oserr_t oserr = DmHandleIoctl(deviceId, command, flags);
-    sys_device_ioctl_response(message, oserr);
+
+    // assert maximum request size
+    if (request & __IOCTL_IN) {
+        uint8_t out[data_count];
+        oserr_t oserr = DmHandleIoctl(
+                deviceId,
+                (enum OSIOCtlRequest)request,
+                &out[0],
+                data_count
+        );
+        sys_device_ioctl_response(message, &out[0], data_count, oserr);
+    } else {
+        oserr_t oserr = DmHandleIoctl(
+                deviceId,
+                (enum OSIOCtlRequest)request,
+                (void*)&data[0],
+                data_count
+        );
+        sys_device_ioctl_response(message, NULL, 0, oserr);
+    }
 }
 
 void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t deviceId,

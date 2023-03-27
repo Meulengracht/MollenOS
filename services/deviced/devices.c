@@ -44,11 +44,12 @@ struct DmDeviceProtocol {
 };
 
 struct DmDevice {
-    element_t header;
-    uuid_t    driver_id;
-    bool      has_driver;
-    Device_t* device;
-    list_t    protocols;   // list<struct DmDeviceProtocol>
+    element_t               header;
+    uuid_t                  driver_id;
+    bool                    has_driver;
+    enum OSMemoryConformity conformity;
+    Device_t*               device;
+    list_t                  protocols;   // list<struct DmDeviceProtocol>
 };
 
 static struct usched_mtx g_devicesLock;
@@ -130,17 +131,49 @@ void DmHandleGetDevicesByProtocol(
 
 oserr_t
 DmHandleIoctl(
-        _In_ uuid_t       deviceID,
-        _In_ unsigned int command,
-        _In_ unsigned int flags)
+        _In_ uuid_t              deviceID,
+        _In_ enum OSIOCtlRequest request,
+        _In_ void*               buffer,
+        _In_ size_t              length)
 {
-    struct DmDevice* device = __GetDevice(deviceID);
-    oserr_t       result = OS_EINVALPARAMS;
+    struct DmDevice* device;
 
-    if (device && device->device->Length == sizeof(BusDevice_t)) {
-        result = DmIoctlDevice((BusDevice_t*)device->device, command, flags);
+    device = __GetDevice(deviceID);
+    if (device == NULL) {
+        return OS_ENOENT;
     }
-    return result;
+
+    switch (request) {
+        case OSIOCTLREQUEST_BUS_CONTROL: {
+            struct OSIOCtlBusControl* data = buffer;
+            if (length < sizeof(struct OSIOCtlBusControl)) {
+                return OS_EINVALPARAMS;
+            }
+            return DMBusControl((BusDevice_t*)device->device, data);
+        }
+
+        case OSIOCTLREQUEST_SET_IO_REQUIREMENTS: {
+            struct OSIOCtlRequestRequirements* reqs = buffer;
+            if (length < sizeof(struct OSIOCtlRequestRequirements)) {
+                return OS_EINVALPARAMS;
+            }
+            device->conformity = reqs->Conformity;
+            return OS_EOK;
+        }
+
+        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
+            struct OSIOCtlRequestRequirements* reqs = buffer;
+            if (length < sizeof(struct OSIOCtlRequestRequirements)) {
+                return OS_EINVALPARAMS;
+            }
+            reqs->Conformity = device->conformity;
+            return OS_EOK;
+        }
+
+        default:
+            break;
+    }
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
@@ -241,6 +274,7 @@ DmDeviceCreate(
     deviceNode->driver_id  = UUID_INVALID;
     deviceNode->device     = device;
     deviceNode->has_driver = false;
+    deviceNode->conformity = OSMEMORYCONFORMITY_NONE;
     list_construct(&deviceNode->protocols);
 
     usched_mtx_lock(&g_devicesLock);

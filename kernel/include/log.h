@@ -24,6 +24,7 @@
 #define __LOGGING_INTERFACE__
 
 #include <os/osdefs.h>
+#include <os/types/syslog.h>
 
 #define LOG_INITIAL_SIZE   (1024 * 4)
 #define LOG_PREFFERED_SIZE (1024 * 65)

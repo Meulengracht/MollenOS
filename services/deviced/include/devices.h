@@ -24,6 +24,7 @@
 #define __DEVICES_H__
 
 #include <os/osdefs.h>
+#include <os/types/device.h>
 
 DECL_STRUCT(Device);
 DECL_STRUCT(BusDevice);
@@ -74,14 +75,19 @@ extern oserr_t
 DmDeviceDestroy(
         _In_ uuid_t DeviceId);
 
-/* DmIoctlDevice
- * Allows manipulation of a given device to either disable
- * or enable, or configure the device */
+/**
+ * @brief Allows controlling certain aspects of a device. Some requests will
+ * be redirected to the device.
+ * @param device
+ * @param request
+ * @param buffer
+ * @param length
+ * @return
+ */
 extern oserr_t
-DmIoctlDevice(
-    _In_ BusDevice_t* Device,
-    _In_ unsigned int Command,
-    _In_ unsigned int Flags);
+DMBusControl(
+    _In_ BusDevice_t*              device,
+    _In_ struct OSIOCtlBusControl* request);
 
 /* DmIoctlDeviceEx
  * Allows manipulation of a given device to either disable

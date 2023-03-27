@@ -666,10 +666,9 @@ __InstallPS2Controller(void)
 }
 
 oserr_t
-DmIoctlDevice(
-    _In_ BusDevice_t* Device,
-    _In_ unsigned int Command,
-    _In_ unsigned int Flags)
+DMBusControl(
+        _In_ BusDevice_t*              device,
+        _In_ struct OSIOCtlBusControl* request)
 {
     PciDevice_t* pciDevice = NULL;
     uint16_t     settings;
@@ -677,9 +676,9 @@ DmIoctlDevice(
     // Lookup pci-device
     foreach(element, &g_pciDevices) {
         PciDevice_t* entry = (PciDevice_t*)element->value;
-        if (entry->Bus == Device->Bus
-            && entry->Slot == Device->Slot
-            && entry->Function == Device->Function) {
+        if (entry->Bus == device->Bus
+            && entry->Slot == device->Slot
+            && entry->Function == device->Function) {
             pciDevice = entry;
             break;
         }
@@ -692,42 +691,42 @@ DmIoctlDevice(
     }
 
     // Read value, modify and write back
-    settings = PciRead16(pciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04);
+    settings = PciRead16(pciDevice->BusIo, device->Bus, device->Slot, device->Function, 0x04);
 
     // Clear all possible flags first
     settings &= ~(PCI_COMMAND_BUSMASTER | PCI_COMMAND_FASTBTB
                   | PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO | PCI_COMMAND_INTDISABLE);
 
     // Handle enable
-    if (!(Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
+    if (!(request->Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
         settings |= PCI_COMMAND_INTDISABLE;
     }
 
     // Handle io/mmio
-    if (Flags & __DEVICEMANAGER_IOCTL_MMIO_ENABLE) {
+    if (request->Flags & __DEVICEMANAGER_IOCTL_MMIO_ENABLE) {
         settings |= PCI_COMMAND_MMIO;
     }
-    if (Flags & __DEVICEMANAGER_IOCTL_IO_ENABLE) {
+    if (request->Flags & __DEVICEMANAGER_IOCTL_IO_ENABLE) {
         settings |= PCI_COMMAND_PORTIO;
     }
 
     // Handle busmaster
-    if (Flags & __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE) {
+    if (request->Flags & __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE) {
         settings |= PCI_COMMAND_BUSMASTER;
     }
 
     // Handle fast-b2b
-    if (Flags & __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE) {
+    if (request->Flags & __DEVICEMANAGER_IOCTL_FASTBTB_ENABLE) {
         settings |= PCI_COMMAND_FASTBTB;
     }
 
     // Handle memory write and invalidate
-    if (Flags & __DEVICEMANAGER_IOCTL_MEMWRTINVD_ENABLE) {
+    if (request->Flags & __DEVICEMANAGER_IOCTL_MEMWRTINVD_ENABLE) {
         settings |= PCI_COMMAND_MEMWRITE;
     }
 
     // Write back settings
-    PciWrite16(pciDevice->BusIo, Device->Bus, Device->Slot, Device->Function, 0x04, settings);
+    PciWrite16(pciDevice->BusIo, device->Bus, device->Slot, device->Function, 0x04, settings);
     return OS_EOK;
 }
 

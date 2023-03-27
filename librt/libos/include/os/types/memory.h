@@ -41,6 +41,24 @@
 #define MEMORY_EXECUTABLE    0x00000400U                  // Memory is executable
 #define MEMORY_DIRTY         0x00000800U                  // Memory is dirty
 
+enum OSMemoryConformity {
+    // No memory conformity required
+    OSMEMORYCONFORMITY_NONE,
+    // Legacy memory conformity required. For x86 system this
+    // means no memory above 16mb is valid.
+    OSMEMORYCONFORMITY_LEGACY,
+    // Low memory conformity. This means that memory must be
+    // located in the low 32 bits area for it to be valid.
+    OSMEMORYCONFORMITY_LOW,
+    // 32 bit memory conformity. Any memory located in the 32
+    // bit memory space is valid.
+    OSMEMORYCONFORMITY_BITS32,
+    // Same as 32 bits, just for 64 bits. On 64 bits systems this
+    // translates to NONE, and on 32 bits systems this is not available
+    // for use.
+    OSMEMORYCONFORMITY_BITS64
+};
+
 typedef struct OSMemoryDescriptor {
     uuid_t       SHMTag;
     uintptr_t    StartAddress;

@@ -5,6 +5,7 @@ add_subdirectory(services)
 
 # setup primary library
 add_library(libos STATIC
+        device.c
         error_codes.c
         event.c
         futex.c
