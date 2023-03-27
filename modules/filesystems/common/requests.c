@@ -258,6 +258,7 @@ __MapUserBufferRead(
         return oserr;
     }
 
+
     // When mapping the buffer for reading, we need write access to the buffer,
     // so we can do buffer combining.
     oserr = SHMMap(

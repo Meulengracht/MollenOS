@@ -41,6 +41,8 @@ enum transfer_direction {
     WRITE
 }
 
+// Used by the device manager to identify drivers for devices. Also used
+// to provide human readable information about the device.
 struct device_identification {
     uint32 vendor_id;
     uint32 product_id;
@@ -54,6 +56,8 @@ struct device_identification {
     string serial;
 }
 
+// Represents the bare minimum information to represent/identify an
+// device in the system.
 struct device_base {
     uuid_t                id;
     uuid_t                parent_id;

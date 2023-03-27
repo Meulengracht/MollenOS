@@ -62,15 +62,6 @@ typedef struct BusDevice {
 } BusDevice_t;
 
 /**
- * @brief Allows manipulation of a given device to either disable or enable, or configure the device
- */
-DDKDECL(oserr_t,
-IoctlDevice(
-        _In_ uuid_t       deviceId,
-        _In_ unsigned int command,
-        _In_ unsigned int flags));
-
-/**
  * @brief Allows manipulation of a given device to either disable or enable, or configure the device.
  *
  * @param direction [In] 0 (Read), 1 (Write)

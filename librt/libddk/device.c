@@ -69,21 +69,6 @@ UnregisterDevice(
 }
 
 oserr_t
-IoctlDevice(
-        _In_ uuid_t       deviceId,
-        _In_ unsigned int command,
-        _In_ unsigned int flags)
-{
-    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    oserr_t                  oserr;
-    
-    sys_device_ioctl(GetGrachtClient(), &msg.base, deviceId, command, flags);
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_device_ioctl_result(GetGrachtClient(), &msg.base, &oserr);
-    return oserr;
-}
-
-oserr_t
 IoctlDeviceEx(
         _In_    uuid_t       deviceId,
         _In_    int          direction,
