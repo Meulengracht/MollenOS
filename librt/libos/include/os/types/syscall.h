@@ -18,6 +18,7 @@
 #ifndef __TYPES_SYSCALL_H__
 #define __TYPES_SYSCALL_H__
 
+#include <os/types/memory.h>
 #include <os/types/time.h>
 #include <os/types/syslog.h>
 #include <time.h> // for clock_t
@@ -46,5 +47,13 @@ typedef struct OSFutexParameters {
     int            Flags;
     OSTimestamp_t* Deadline;
 } OSFutexParameters_t;
+
+typedef struct OSSHMConformParameters {
+    enum OSMemoryConformity Conformity;
+    unsigned int            Flags;
+    unsigned int            Access;
+    size_t                  Offset;
+    size_t                  Length;
+} OSSHMConformParameters_t;
 
 #endif //!__TYPES_SYSCALL_H__

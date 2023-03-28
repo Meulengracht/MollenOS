@@ -17,6 +17,7 @@
 
 #include <testbase.h>
 #include <machine.h>
+#include <os/types/memory.h>
 #include "private.h"
 #include <handle.h>
 #include <shm.h>
@@ -36,7 +37,7 @@ struct __CreateHandle {
 };
 
 struct __ArchSHMTypeToPageMask {
-    MOCK_STRUCT_INPUT(int, Type);
+    MOCK_STRUCT_INPUT(enum OSMemoryConformity, Conformity);
     MOCK_STRUCT_OUTPUT(size_t, PageMask);
     MOCK_STRUCT_RETURN(oserr_t);
 };
@@ -154,7 +155,7 @@ void TestSHMCreate_DEVICE(void** state)
 
     // 2. ArchSHMTypeToPageMask, this makes a bit more sense to check, that
     //    we indeed have the expected type, it should be passed through
-    g_testContext.ArchSHMTypeToPageMask.ExpectedType     = SHM_TYPE_DRIVER_ISA;
+    g_testContext.ArchSHMTypeToPageMask.ExpectedType     = OSMEMORYCONFORMITY_LEGACY;
     g_testContext.ArchSHMTypeToPageMask.CheckType        = true;
     g_testContext.ArchSHMTypeToPageMask.PageMask         = 0xFFFFFFFF;
     g_testContext.ArchSHMTypeToPageMask.PageMaskProvided = true;
@@ -1259,12 +1260,12 @@ RegisterHandlePath(
 }
 
 oserr_t ArchSHMTypeToPageMask(
-        _In_  unsigned int dmaType,
-        _Out_ size_t*      pageMaskOut)
+        _In_  enum OSMemoryConformity conformity,
+        _Out_ size_t*                 pageMaskOut)
 {
     printf("ArchSHMTypeToPageMask()\n");
-    if (g_testContext.ArchSHMTypeToPageMask.CheckType) {
-        assert_int_equal(dmaType, g_testContext.ArchSHMTypeToPageMask.ExpectedType);
+    if (g_testContext.ArchSHMTypeToPageMask.CheckConformity) {
+        assert_int_equal(conformity, g_testContext.ArchSHMTypeToPageMask.ExpectedConformity);
     }
     if (g_testContext.ArchSHMTypeToPageMask.PageMaskProvided) {
         *pageMaskOut = g_testContext.ArchSHMTypeToPageMask.PageMask;

@@ -38,21 +38,13 @@
 #define SHM_CLEAN        0x00000002U
 #define SHM_PRIVATE      0x00000004U
 #define SHM_BIGPAGES_2MB 0x00000010U
-#define SHM_BIGPAGES_1GB 0x00000030U
+#define SHM_BIGPAGES_1GB 0x00000020U
+#define SHM_CONFORM      0x00000040U
 #define SHM_TRAP         0x00000100U
 #define SHM_IPC          0x00000200U
 #define SHM_DEVICE       0x00000300U
 #define SHM_KIND_MASK    0x00000F00U
 #define SHM_KIND(_flags) ((_flags) & SHM_KIND_MASK)
-
-/**
- * SHM type which can indicate which kind of memory will be allocated
- */
-#define SHM_TYPE_REGULAR      0  // Regular allocation of physical memory
-#define SHM_TYPE_DRIVER_ISA   1  // Memory should be located in ISA-compatable memory (<16mb)
-#define SHM_TYPE_DRIVER_32LOW 2  // Memory should be allocated in a lower 32 bit region as device may not be fully 32 bit compliant
-#define SHM_TYPE_DRIVER_32    3  // Memory should be located in 32 bit memory
-#define SHM_TYPE_DRIVER_64    4  // Memory should be located in 64 bit memory
 
 /**
  * SHM Access flags that are available when creating and mapping.
@@ -67,8 +59,8 @@
 /**
  * @brief Flags available when conforming a SHM buffer.
  */
-#define SHM_CONFORM_FILL_ON_CREATION     0x1 // Fill the conformed buffer when created.
-#define SHM_CONFORM_FILL_SOURCE_ON_CLOSE 0x2 // Fill the source buffer when closed.
+#define SHM_CONFORM_FILL_ON_CREATION   0x1 // Fill the conformed buffer when created.
+#define SHM_CONFORM_BACKFILL_ON_DETACH 0x2 // Fill the source buffer when detached.
 
 typedef struct SHM {
     // Key is the global identifier for this buffer. When listing
@@ -82,10 +74,10 @@ typedef struct SHM {
     // a buffer with another process, this describes the allowed mapping
     // access.
     unsigned int Access;
-    // Type is the memory type that should be allocated. For most uses this
-    // should always be 0, and is only supported for mapping device-accessible
+    // Conformity is the memory type that should be allocated. For most uses this
+    // should always be NONE, and is only supported for mapping device-accessible
     // memory.
-    unsigned int Type;
+    enum OSMemoryConformity Conformity;
     // Size is the size of the memory region. This size will not be backed,
     // but initially only be reserved in memory, unless SHM_COMMIT is specified
     // when creating the buffer. Only when memory is accessed
@@ -97,6 +89,12 @@ typedef struct SHMHandle {
     // ID is the global memory region key that identifies the memory
     // buffer. This is set on the first call to SHMAttach.
     uuid_t ID;
+    // SourceID is set if the buffer handle was created and then
+    // cloned by the conform subsystem.
+    uuid_t SourceID;
+    // SourceFlags is a set of flags related to the behaviour of the
+    // source buffer when conforming.
+    unsigned int SourceFlags;
     // Capacity is the maximum size of the buffer region. This is set
     // on the first call to SHMAttach.
     size_t Capacity;

@@ -16,6 +16,7 @@
  */
 
 #include <internal/_syscalls.h>
+#include <os/types/syscall.h>
 #include <os/handle.h>
 #include <os/memory.h>
 #include <os/shm.h>
@@ -159,10 +160,14 @@ SHMConform(
         _In_ uuid_t                  shmID,
         _In_ enum OSMemoryConformity conformity,
         _In_ unsigned int            flags,
+        _In_ unsigned int            access,
+        _In_ size_t                  offset,
+        _In_ size_t                  length,
         _In_ OSHandle_t*             handleOut)
 {
-    SHMHandle_t* shmHandle;
-    oserr_t      oserr;
+    SHMHandle_t*             shmHandle;
+    oserr_t                  oserr;
+    OSSHMConformParameters_t params;
 
     if (handleOut == NULL) {
         return OS_EINVALPARAMS;
@@ -175,7 +180,13 @@ SHMConform(
         return OS_EOOM;
     }
 
-    oserr = Syscall_SHMConform(shmID, conformity, flags, shmHandle);
+    params.Conformity = conformity;
+    params.Flags = flags;
+    params.Access = access;
+    params.Offset = offset;
+    params.Length = length;
+
+    oserr = Syscall_SHMConform(shmID, &params, shmHandle);
     if (oserr != OS_EOK) {
         free(shmHandle);
         return oserr;

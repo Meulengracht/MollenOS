@@ -58,6 +58,9 @@ SHMExport(
  * @param handle     The source SHM handle ID.
  * @param conformity The memory conformity requirements of the buffer.
  * @param flags      How the behaviour of the conformed buffer should be.
+ * @param access     What kind of access the mapping should be created with, see SHM_ACCESS_*
+ * @param offset     The offset into the SHM buffer the mapping should start.
+ * @param length     The length of the mapping.
  * @param handleOut  The new handle of the conformed (or original) buffer.
  * @return OS_EOK on successful creation or import of the buffer.
  *         OS_EOOM if a buffer could not be allocated due to memory constraints.
@@ -67,6 +70,9 @@ SHMConform(
         _In_ uuid_t                  shmID,
         _In_ enum OSMemoryConformity conformity,
         _In_ unsigned int            flags,
+        _In_ unsigned int            access,
+        _In_ size_t                  offset,
+        _In_ size_t                  length,
         _In_ OSHandle_t*             handleOut));
 
 /**

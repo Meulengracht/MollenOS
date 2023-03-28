@@ -100,7 +100,7 @@ extern oserr_t ScMemoryQueryAttributes(void*, size_t, unsigned int*);
 
 extern oserr_t ScSHMCreate(SHM_t*, SHMHandle_t*);
 extern oserr_t ScSHMExport(void*, SHM_t*, SHMHandle_t*);
-extern oserr_t ScSHMConform(uuid_t, enum OSMemoryConformity, unsigned int, SHMHandle_t*);
+extern oserr_t ScSHMConform(uuid_t, OSSHMConformParameters_t*, SHMHandle_t*);
 extern oserr_t ScSHMAttach(uuid_t, SHMHandle_t*);
 extern oserr_t ScSHMMap(SHMHandle_t*, size_t, size_t, unsigned int);
 extern oserr_t ScSHMCommit(SHMHandle_t*, void*, size_t);
