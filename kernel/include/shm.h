@@ -24,17 +24,13 @@
  * @brief Create a new page-aligned memory region that stretches over <Capacity>. The
  * entire region is only committed directly to memory for <Length> bytes.
  * @param shm           [In]  Configuration details of the new shared memory buffer.
- * @param kernelMapping [Out] The allocated virtual buffer address for the kernel mapping.
- * @param userMapping   [Out] The allocated virtual buffer address for the user mapping.
  * @param handleOut     [Out] The global handle for the memory region.
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
 SHMCreate(
-        _In_  SHM_t*  shm,
-        _Out_ void**  kernelMapping,
-        _Out_ void**  userMapping,
-        _Out_ uuid_t* handleOut);
+        _In_ SHM_t*       shm,
+        _In_ SHMHandle_t* handle);
 
 /**
  * @brief Exports an existing memory region that stretches over <Length>. Makes sure
@@ -51,7 +47,7 @@ SHMExport(
         _In_  size_t       size,
         _In_  unsigned int flags,
         _In_  unsigned int accessFlags,
-        _Out_ uuid_t*      handleOut);
+        _In_  SHMHandle_t* handle);
 
 /**
  * @brief Creates a conformed buffer clone from a source buffer. The buffer will automatically
@@ -71,18 +67,30 @@ SHMConform(
         _In_ uuid_t                  shmID,
         _In_ enum OSMemoryConformity conformity,
         _In_ unsigned int            flags,
+        _In_ unsigned int            access,
+        _In_ size_t                  offset,
+        _In_ size_t                  length,
         _In_ SHMHandle_t*            handle);
 
 /**
  * @brief
  * @param shmID
- * @param sizeOut
+ * @param handle
  * @return Status of the operation
  */
 KERNELAPI oserr_t KERNELABI
 SHMAttach(
-        _In_ uuid_t  shmID,
-        _In_ size_t* sizeOut);
+        _In_ uuid_t       shmID,
+        _In_ SHMHandle_t* handle);
+
+/**
+ * @brief
+ * @param handle
+ * @return
+ */
+KERNELAPI oserr_t KERNELABI
+SHMDetach(
+        _In_ SHMHandle_t* handle);
 
 /**
  * @brief

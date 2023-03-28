@@ -24,6 +24,7 @@
 #define __SYSTEM_INTERFACE_UTILS_H__
 
 #include <os/osdefs.h>
+#include <os/types/memory.h>
 
 DECL_STRUCT(Context);
 DECL_STRUCT(SystemCpu);
@@ -34,14 +35,14 @@ DECL_STRUCT(SystemCpuCore);
  * is specific to the dma interface and provides a way for platforms to identify which pages
  * can be used for each dma type.
  *
- * @param dmaType     [In]
+ * @param conformity [In]
  * @param pageMaskOut [Out]
  * @return
  */
 KERNELAPI oserr_t KERNELABI
 ArchSHMTypeToPageMask(
-        _In_  unsigned int dmaType,
-        _Out_ size_t*      pageMaskOut);
+        _In_  enum OSMemoryConformity conformity,
+        _Out_ size_t*                 pageMaskOut);
 
 /**
  * @brief Returns the current processor core id.

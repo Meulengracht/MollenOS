@@ -29,18 +29,20 @@
 #include <string.h>
 
 struct SHMBuffer {
-    uuid_t          ID;
-    MemorySpace_t* Owner;
-    Mutex_t        Mutex;
-    vaddr_t        KernelMapping;
-    size_t         Offset;
-    size_t         Length;
-    size_t         PageMask;
-    unsigned int   Flags;
-    bool           Exported;
-    int            PageCount;
-    paddr_t        Pages[];
+    uuid_t            ID;
+    MemorySpace_t*    Owner;
+    Mutex_t           Mutex;
+    vaddr_t           KernelMapping;
+    size_t            Offset;
+    size_t            Length;
+    size_t            PageMask;
+    unsigned int      Flags;
+    bool              Exported;
+    int               PageCount;
+    paddr_t           Pages[];
 };
+
+static void __BuildSG(struct SHMBuffer* shmBuffer, int* sgCountOut, SHMSG_t* sgOut);
 
 static void
 __SHMBufferDelete(
@@ -120,7 +122,7 @@ __CreateDeviceBuffer(
     size_t       pageMask;
     vaddr_t      mapping;
 
-    ArchSHMTypeToPageMask(shm->Type, &pageMask);
+    ArchSHMTypeToPageMask(shm->Conformity, &pageMask);
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
             &(struct MemorySpaceMapOptions) {
@@ -157,7 +159,6 @@ static oserr_t
 __CreateIPCBuffer(
         _In_  struct SHMBuffer* buffer,
         _In_  SHM_t*            shm,
-        _Out_ void**            kernelMappingOut,
         _Out_ void**            userMappingOut)
 {
     MemorySpace_t* memorySpace    = GetCurrentMemorySpace();
@@ -205,7 +206,6 @@ __CreateIPCBuffer(
     }
 
     buffer->KernelMapping = kernelMapping;
-    *kernelMappingOut = (void*)kernelMapping;
     *userMappingOut = (void*)userMapping;
     return OS_EOK;
 }
@@ -280,6 +280,9 @@ __CreateRegularMappedBuffer(
     oserr_t      oserr;
     vaddr_t      mapping;
 
+    if (shm->Flags & SHM_CONFORM) {
+        ArchSHMTypeToPageMask(shm->Conformity, &buffer->PageMask);
+    }
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
             &(struct MemorySpaceMapOptions) {
@@ -341,22 +344,35 @@ __CreateRegularBuffer(
     return __CreateRegularUnmappedBuffer(buffer, shm, userMappingOut);
 }
 
+static void
+__ConstructSHMHandle(
+        _In_ SHMHandle_t* handle,
+        _In_ uuid_t       shmID,
+        _In_ size_t       capacity,
+        _In_ size_t       length,
+        _In_ size_t       offset,
+        _In_ void*        mapping)
+{
+    // set up the initial shm handle.
+    handle->ID = shmID;
+    handle->SourceID = UUID_INVALID;
+    handle->SourceFlags = 0;
+    handle->Capacity = capacity;
+    handle->Length = length;
+    handle->Offset = offset;
+    handle->Buffer = mapping;
+}
+
 oserr_t
 SHMCreate(
-        _In_  SHM_t*  shm,
-        _Out_ void**  kernelMapping,
-        _Out_ void**  userMapping,
-        _Out_ uuid_t* handleOut)
+        _In_ SHM_t*       shm,
+        _In_ SHMHandle_t* handle)
 {
     struct SHMBuffer* buffer;
     oserr_t           oserr;
+    void*             mapping;
 
-    if (shm == NULL || kernelMapping == NULL ||
-        userMapping == NULL || handleOut == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    if (shm->Size == 0) {
+    if (shm == NULL || handle == NULL || shm->Size == 0) {
         return OS_EINVALPARAMS;
     }
 
@@ -368,29 +384,38 @@ SHMCreate(
     // Determine the type of shared memory that should be setup from
     // the flags.
     if (SHM_KIND(shm->Flags) == SHM_DEVICE) {
-        oserr = __CreateDeviceBuffer(buffer, shm, userMapping);
+        oserr = __CreateDeviceBuffer(buffer, shm, &mapping);
     } else if (SHM_KIND(shm->Flags) == SHM_IPC) {
-        oserr = __CreateIPCBuffer(buffer, shm, kernelMapping, userMapping);
+        oserr = __CreateIPCBuffer(buffer, shm, &mapping);
     } else if (SHM_KIND(shm->Flags) == SHM_TRAP) {
-        oserr = __CreateTrapBuffer(buffer, shm, userMapping);
+        oserr = __CreateTrapBuffer(buffer, shm, &mapping);
     } else {
-        oserr = __CreateRegularBuffer(buffer, shm, userMapping);
+        oserr = __CreateRegularBuffer(buffer, shm, &mapping);
     }
 
     if (oserr != OS_EOK) {
         __SHMBufferDelete(buffer);
-    } else {
-        // Was a key provided? Then we should set up the key
-        if (shm->Key != NULL) {
-            oserr = RegisterHandlePath(buffer->ID, shm->Key);
-            if (oserr != OS_EOK) {
-                __SHMBufferDelete(buffer);
-                return oserr;
-            }
-        }
-        *handleOut = buffer->ID;
+        return oserr;
     }
-    return oserr;
+
+    // Was a key provided? Then we should set up the key
+    if (shm->Key != NULL) {
+        oserr = RegisterHandlePath(buffer->ID, shm->Key);
+        if (oserr != OS_EOK) {
+            __SHMBufferDelete(buffer);
+            return oserr;
+        }
+    }
+
+    __ConstructSHMHandle(
+            handle,
+            buffer->ID,
+            shm->Size,
+            shm->Size,
+            0,
+            mapping
+    );
+    return OS_EOK;
 }
 
 static unsigned int
@@ -410,13 +435,13 @@ SHMExport(
         _In_  size_t       size,
         _In_  unsigned int flags,
         _In_  unsigned int accessFlags,
-        _Out_ uuid_t*      handleOut)
+        _In_ SHMHandle_t*  handle)
 {
     struct SHMBuffer* buffer;
     size_t            offset;
     oserr_t           oserr;
 
-    if (memory == NULL || size == 0 || handleOut == NULL) {
+    if (memory == NULL || size == 0 || handle == NULL) {
         return OS_EINVALPARAMS;
     }
 
@@ -444,7 +469,38 @@ SHMExport(
     // offset retrieved through GetMemorySpaceMapping().
     buffer->Pages[0] &= ~(GetMemorySpacePageSize() - 1);
 
-    *handleOut = buffer->ID;
+    __ConstructSHMHandle(
+            handle,
+            buffer->ID,
+            size,
+            size,
+            0,
+            memory
+    );
+    return OS_EOK;
+}
+
+static oserr_t
+__GatherSGList(
+        _In_  struct SHMBuffer* shmBuffer,
+        _Out_ int*              sgCountOut,
+        _Out_ SHMSG_t**         sgOut)
+{
+    oserr_t  oserr;
+    int      sgCount;
+    SHMSG_t* sg;
+
+    __BuildSG(shmBuffer, &sgCount, NULL);
+
+    sg = kmalloc(sgCount * sizeof(SHMSG_t));
+    if (sg == NULL) {
+        return OS_EOOM;
+    }
+
+    __BuildSG(shmBuffer, &sgCount, sg);
+
+    *sgCountOut = sgCount;
+    *sgOut = sg;
     return OS_EOK;
 }
 
@@ -457,39 +513,239 @@ __VerifySGConformity(
 
 }
 
+static oserr_t
+__MapOriginalBuffer(
+        _In_ uuid_t       shmID,
+        _In_ unsigned int access,
+        _In_ size_t       offset,
+        _In_ SHMHandle_t* handle)
+{
+    oserr_t oserr;
+    // Attach and map the buffer referred to by shmID
+    oserr = SHMAttach(shmID, handle);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = SHMMap(handle, offset, handle->Capacity, access);
+    if (oserr != OS_EOK) {
+        DestroyHandle(shmID);
+    }
+    return oserr;
+}
+
+static oserr_t
+__CopySGToBuffer(
+        _In_ SHMHandle_t* handle,
+        _In_ SHMSG_t*     sg,
+        _In_ int          sgCount,
+        _In_ size_t       sgOffset)
+{
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    size_t         currentOffset = 0;
+    size_t         bufferOffset = 0;
+    int            i = 0;
+    oserr_t        oserr;
+
+    while (bufferOffset < handle->Length && i < sgCount) {
+        vaddr_t sgMapping;
+        size_t  sgMappingOffset = 0;
+
+        // make sure we are at the right sg entry, spool ahead until
+        // we reach the SG entry that contains our start
+        if (currentOffset + sg[i].Length <= sgOffset) {
+            // move offset and increase the sg index
+            currentOffset += sg[i++].Length;
+            continue;
+        }
+
+        // adjust for a partial copy
+        if (currentOffset < sgOffset) {
+            sgMappingOffset = sgOffset - currentOffset;
+        }
+
+        // map the SG in to kernel
+        oserr = MemorySpaceMap(
+                memorySpace,
+                &(struct MemorySpaceMapOptions) {
+                    .PhysicalStart = sg[i].Address,
+                    .Length = sg[i].Length,
+                    .Flags = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_READONLY,
+                    .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
+                },
+                &sgMapping
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        memcpy(
+                (void*)((uint8_t*)handle->Buffer + bufferOffset),
+                (const void*)(sgMapping + sgMappingOffset),
+                sg[i].Length - sgMappingOffset
+        );
+
+        oserr = MemorySpaceUnmap(memorySpace, sgMapping, sg[i].Length);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        currentOffset += sg[i].Length;
+        bufferOffset += (sg[i].Length - sgMappingOffset);
+        i++;
+    }
+    return OS_EOK;
+}
+
+static oserr_t
+__CopyBufferToSG(
+        _In_ void*    buffer,
+        _In_ size_t   length,
+        _In_ SHMSG_t* sg,
+        _In_ int      sgCount,
+        _In_ size_t   sgOffset)
+{
+
+}
+
+static oserr_t
+__CopyBufferToSource(
+        _In_ void*  buffer,
+        _In_ size_t length,
+        _In_ uuid_t sourceID)
+{
+    struct SHMBuffer* source;
+    int               sgCount;
+    SHMSG_t*          sg;
+    oserr_t           oserr;
+
+    source = LookupHandleOfType(sourceID, HandleTypeSHM);
+    if (source == NULL) {
+        return OS_ENOENT;
+    }
+
+    oserr = __GatherSGList(source, &sgCount, &sg);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // TODO not the right offset
+    oserr = __CopyBufferToSG(
+            buffer,
+            length,
+            sg,
+            sgCount,
+            source->Offset + 0
+    );
+    kfree(sg);
+    return oserr;
+}
+
+static oserr_t
+__CloneConformBuffer(
+        _In_ struct SHMBuffer*       source,
+        _In_ enum OSMemoryConformity conformity,
+        _In_ unsigned int            flags,
+        _In_ size_t                  offset,
+        _In_ size_t                  length,
+        _In_ SHMSG_t*                sg,
+        _In_ int                     sgCount,
+        _In_ SHMHandle_t*            handle)
+{
+    oserr_t oserr;
+
+    oserr = SHMCreate(
+            &(SHM_t) {
+                    .Flags = SHM_CONFORM | SHM_COMMIT,
+                    .Conformity = conformity,
+                    .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                    .Size = length,
+            },
+            handle
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Store information related to the conformity
+    handle->SourceID = source->ID;
+    handle->SourceFlags = flags;
+
+    // Handle the initial copy flags
+    if (flags & SHM_CONFORM_FILL_ON_CREATION) {
+        oserr = __CopySGToBuffer(handle, sg, sgCount, offset);
+        if (oserr != OS_EOK) {
+            DestroyHandle(handle->ID);
+            return oserr;
+        }
+    }
+    return OS_EOK;
+}
+
+static size_t
+__ClampLength(
+        _In_ struct SHMBuffer* shmBuffer,
+        _In_ size_t            offset,
+        _In_ size_t            length)
+{
+    return MIN(length, (shmBuffer->Length - offset));
+}
+
 oserr_t
 SHMConform(
         _In_ uuid_t                  shmID,
         _In_ enum OSMemoryConformity conformity,
         _In_ unsigned int            flags,
+        _In_ unsigned int            access,
+        _In_ size_t                  offset,
+        _In_ size_t                  length,
         _In_ SHMHandle_t*            handle)
 {
-    int     sgCount;
-    SHMSG_t sg;
-    oserr_t oserr;
+    struct SHMBuffer* source;
+    int               sgCount;
+    SHMSG_t*          sg;
+    oserr_t           oserr;
+    size_t            correctedLength;
 
-    oserr = SHMBuildSG(shmID, &sgCount, &sg);
+    oserr = AcquireHandleOfType(shmID, HandleTypeSHM, (void**)&source);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    if (__VerifySGConformity(&sg, sgCount, conformity)) {
-        // Attach and map the buffer referred to by shmID
-        size_t cap;
-        oserr = SHMAttach(shmID, &cap);
-        if (oserr != OS_EOK) {
-            return oserr;
-        }
+    oserr = __GatherSGList(source, &sgCount, &sg);
+    if (oserr != OS_EOK) {
+        DestroyHandle(shmID);
+        return oserr;
     }
 
-    // Create a new buffer, go through SG and copy data if requested
-    return OS_EOK;
+    if (__VerifySGConformity(sg, sgCount, conformity)) {
+        DestroyHandle(shmID);
+        kfree(sg);
+        return __MapOriginalBuffer(shmID, access, offset, handle);
+    }
+
+    correctedLength = __ClampLength(source, offset, length);
+    oserr = __CloneConformBuffer(
+            source,
+            conformity,
+            flags,
+            source->Offset + offset, // pass total offset in page here for copy
+            correctedLength,
+            sg,
+            sgCount,
+            handle
+    );
+    if (oserr != OS_EOK) {
+        DestroyHandle(shmID);
+    }
+    kfree(sg);
+    return oserr;
 }
 
 oserr_t
 SHMAttach(
-        _In_ uuid_t  shmID,
-        _In_ size_t* sizeOut)
+        _In_ uuid_t       shmID,
+        _In_ SHMHandle_t* handle)
 {
     struct SHMBuffer* shmBuffer;
     oserr_t           oserr;
@@ -512,8 +768,54 @@ SHMAttach(
         }
     }
 
-    *sizeOut = shmBuffer->Length;
+    __ConstructSHMHandle(
+            handle,
+            shmID,
+            shmBuffer->Length,
+            0,
+            0,
+            NULL
+    );
     return OS_EOK;
+}
+
+oserr_t
+SHMDetach(
+        _In_ SHMHandle_t* handle)
+{
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (handle->Buffer != NULL) {
+        oserr_t oserr;
+
+        // if there is a source buffer (from conformity) then we may need
+        // to handle backfilling it
+        if (handle->SourceID != UUID_INVALID) {
+            if (handle->SourceFlags & SHM_CONFORM_BACKFILL_ON_DETACH) {
+                oserr = __CopyBufferToSource(
+                        handle->Buffer,
+                        handle->Length,
+                        handle->SourceID
+                );
+                if (oserr != OS_EOK) {
+                    return oserr;
+                }
+            }
+            DestroyHandle(handle->SourceID);
+        }
+
+        oserr = SHMUnmap(
+                handle,
+                (vaddr_t)handle->Buffer,
+                handle->Length
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+    return DestroyHandle(handle->ID);
 }
 
 static oserr_t
@@ -655,15 +957,6 @@ __CreateMapping(
             },
             (vaddr_t*)mappingOut
     );
-}
-
-static size_t
-__ClampLength(
-        _In_ struct SHMBuffer* shmBuffer,
-        _In_ size_t            offset,
-        _In_ size_t            length)
-{
-    return MIN(length, (shmBuffer->Length - offset));
 }
 
 oserr_t
@@ -826,23 +1119,13 @@ SHMCommit(
     (((memory_region)->Pages[idx] + (pageSize) == (memory_region)->Pages[idx2]) || \
      ((memory_region)->Pages[idx] == 0 && (memory_region)->Pages[idx2] == 0))
 
-oserr_t
-SHMBuildSG(
-        _In_  uuid_t   handle,
-        _Out_ int*     sgCountOut,
-        _Out_ SHMSG_t* sgOut)
+static void
+__BuildSG(
+        _In_ struct SHMBuffer* shmBuffer,
+        _Out_ int*             sgCountOut,
+        _Out_ SHMSG_t*         sgOut)
 {
-    struct SHMBuffer* shmBuffer;
-    size_t            pageSize = GetMemorySpacePageSize();
-
-    if (!sgCountOut) {
-        return OS_EINVALPARAMS;
-    }
-
-    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
-    if (!shmBuffer) {
-        return OS_ENOENT;
-    }
+    size_t pageSize = GetMemorySpacePageSize();
 
     // Requested count of the scatter-gather units, so count
     // how many entries it would take to fill a list
@@ -877,6 +1160,26 @@ SHMBuildSG(
         sgOut[0].Address += shmBuffer->Offset;
         sgOut[0].Length  -= shmBuffer->Offset;
     }
+}
+
+oserr_t
+SHMBuildSG(
+        _In_  uuid_t   handle,
+        _Out_ int*     sgCountOut,
+        _Out_ SHMSG_t* sgOut)
+{
+    struct SHMBuffer* shmBuffer;
+
+    if (!sgCountOut) {
+        return OS_EINVALPARAMS;
+    }
+
+    shmBuffer = LookupHandleOfType(handle, HandleTypeSHM);
+    if (!shmBuffer) {
+        return OS_ENOENT;
+    }
+
+    __BuildSG(shmBuffer, sgCountOut, sgOut);
     return OS_EOK;
 }
 

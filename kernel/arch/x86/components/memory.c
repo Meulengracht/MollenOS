@@ -95,23 +95,23 @@ MmuGetMemoryConfiguration(
 
 oserr_t
 ArchSHMTypeToPageMask(
-        _In_  unsigned int dmaType,
-        _Out_ size_t*      pageMaskOut)
+        _In_  enum OSMemoryConformity conformity,
+        _Out_ size_t*                 pageMaskOut)
 {
-    switch (dmaType) {
+    switch (conformity) {
 #if defined(__amd64__)
-        case SHM_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
+        case OSMEMORYCONFORMITY_NONE: *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
 #else
-        case SHM_TYPE_REGULAR:      *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
+        case OSMEMORYCONFORMITY_NONE: *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 #endif
-        case SHM_TYPE_DRIVER_ISA:   *pageMaskOut = MEMORY_MASK_ISA;   return OS_EOK;
-        case SHM_TYPE_DRIVER_32LOW: *pageMaskOut = MEMORY_MASK_2GB;   return OS_EOK;
-        case SHM_TYPE_DRIVER_32:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
+        case OSMEMORYCONFORMITY_LEGACY: *pageMaskOut = MEMORY_MASK_ISA;   return OS_EOK;
+        case OSMEMORYCONFORMITY_LOW:    *pageMaskOut = MEMORY_MASK_2GB;   return OS_EOK;
+        case OSMEMORYCONFORMITY_BITS32: *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 
 #if defined(__amd64__)
-        case SHM_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
+        case OSMEMORYCONFORMITY_BITS64: *pageMaskOut = MEMORY_MASK_64BIT; return OS_EOK;
 #else
-        case SHM_TYPE_DRIVER_64:    *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
+        case OSMEMORYCONFORMITY_BITS64: *pageMaskOut = MEMORY_MASK_32BIT; return OS_EOK;
 #endif
 
         default:

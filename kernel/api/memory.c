@@ -24,6 +24,7 @@
 #include <arch/utils.h>
 #include <ddk/memory.h>
 #include <os/types/shm.h>
+#include <os/types/syscall.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -243,27 +244,7 @@ ScSHMCreate(
     _In_ SHM_t*       shm,
     _In_ SHMHandle_t* handle)
 {
-    oserr_t oserr;
-    void*   kernelMapping;
-    void*   userMapping;
-    uuid_t  shmKey;
-
-    if (shm == NULL || handle == NULL) {
-        return OS_EINVALPARAMS;
-    }
-
-    oserr = SHMCreate(shm, &kernelMapping, &userMapping, &shmKey);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // set up the initial shm handle.
-    handle->ID = shmKey;
-    handle->Capacity = shm->Size;
-    handle->Length = shm->Size;
-    handle->Offset = 0;
-    handle->Buffer = userMapping;
-    return oserr;
+    return SHMCreate(shm, handle);
 }
 
 oserr_t
@@ -272,41 +253,38 @@ ScSHMExport(
     _In_ SHM_t*       shm,
     _In_ SHMHandle_t* handle)
 {
-    uuid_t  shmKey;
-    oserr_t oserr;
-
-    if (shm == NULL || handle == NULL) {
+    if (shm == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    oserr = SHMExport(
+    return SHMExport(
             buffer,
             shm->Size,
             shm->Flags,
             shm->Access,
-            &shmKey
+            handle
     );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    // set up the exported shm handle.
-    handle->ID = shmKey;
-    handle->Capacity = shm->Size;
-    handle->Length = shm->Size;
-    handle->Offset = 0;
-    handle->Buffer = buffer;
-    return oserr;
 }
 
 oserr_t
 ScSHMConform(
-        _In_ uuid_t                  shmID,
-        _In_ enum OSMemoryConformity conformity,
-        _In_ unsigned int            flags,
-        _In_ SHMHandle_t*            handle)
+        _In_ uuid_t                    shmID,
+        _In_ OSSHMConformParameters_t* parameters,
+        _In_ SHMHandle_t*              handle)
 {
-    return SHMConform(shmID, conformity, flags, handle);
+    if (parameters == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    return SHMConform(
+            shmID,
+            parameters->Conformity,
+            parameters->Flags,
+            parameters->Access,
+            parameters->Offset,
+            parameters->Length,
+            handle
+    );
 }
 
 oserr_t
@@ -314,42 +292,14 @@ ScSHMAttach(
         _In_ uuid_t       shmID,
         _In_ SHMHandle_t* handle)
 {
-    oserr_t oserr;
-    size_t  size;
-
-    if (!handle) {
-        return OS_EINVALPARAMS;
-    }
-
-    oserr = SHMAttach(shmID, &size);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    memset(handle, 0, sizeof(SHMHandle_t));
-    handle->ID = shmID;
-    handle->Capacity = size;
-    return OS_EOK;
+    return SHMAttach(shmID, handle);
 }
 
 oserr_t
 ScSHMDetach(
     _In_ SHMHandle_t* handle)
 {
-    if (handle == NULL) {
-        return OS_EINVALPARAMS;
-    }
-    if (handle->Buffer != NULL) {
-        oserr_t oserr = SHMUnmap(
-                handle,
-                (vaddr_t)handle->Buffer,
-                handle->Length
-        );
-        if (oserr != OS_EOK) {
-            return oserr;
-        }
-    }
-    return DestroyHandle(handle->ID);
+    return SHMDetach(handle);
 }
 
 oserr_t
@@ -368,10 +318,6 @@ ScSHMMap(
     _In_ size_t       length,
     _In_ unsigned int flags)
 {
-    if (handle == NULL || length == 0) {
-        return OS_EINVALPARAMS;
-    }
-
     return SHMMap(
             handle,
             offset,

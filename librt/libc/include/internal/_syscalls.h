@@ -70,7 +70,7 @@ _CODE_END
 
 #define Syscall_SHMCreate(_shm, _handle)                                   (oserr_t)syscall2(38, SCPARAM(_shm), SCPARAM(_handle))
 #define Syscall_SHMExport(_buffer, _shm, _handle)                          (oserr_t)syscall3(39, SCPARAM(_buffer), SCPARAM(_shm), SCPARAM(_handle))
-#define Syscall_SHMConform(_key, _conform, _flags, _handle)                (oserr_t)syscall4(40, SCPARAM(_key), SCPARAM(_conform), SCPARAM(_flags), SCPARAM(_handle))
+#define Syscall_SHMConform(_key, _params, _handle)                         (oserr_t)syscall3(40, SCPARAM(_key), SCPARAM(_params), SCPARAM(_handle))
 #define Syscall_SHMAttach(_key, _handle)                                   (oserr_t)syscall2(41, SCPARAM(_key), SCPARAM(_handle))
 #define Syscall_SHMMap(_handle, _offset, _length, _flags)                  (oserr_t)syscall4(42, SCPARAM(_handle), SCPARAM(_offset), SCPARAM(_length), SCPARAM(_flags))
 #define Syscall_SHMCommit(_handle, _address, _length)                      (oserr_t)syscall3(43, SCPARAM(_handle), SCPARAM(_address), SCPARAM(_length))
