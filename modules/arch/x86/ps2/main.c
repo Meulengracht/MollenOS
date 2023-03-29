@@ -378,6 +378,16 @@ OnUnregister(
     return Result;
 }
 
+void ctt_driver_ioctl_invocation(
+        struct gracht_message* message,
+        const uuid_t           deviceId,
+        const unsigned int     request,
+        const uint8_t*         out,
+        const uint32_t         out_count)
+{
+    ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
+}
+
 // again define some stupid functions that are drawn in by libddk due to my lazy-ass approach.
 void sys_device_event_protocol_device_invocation(void) {
 

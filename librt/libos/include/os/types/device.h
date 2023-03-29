@@ -24,8 +24,7 @@
 
 enum OSIOCtlRequest {
     OSIOCTLREQUEST_BUS_CONTROL         = 0,
-    OSIOCTLREQUEST_SET_IO_REQUIREMENTS = 1,
-    OSIOCTLREQUEST_IO_REQUIREMENTS     = 2 | __IOCTL_IN
+    OSIOCTLREQUEST_IO_REQUIREMENTS     = 1 | __IOCTL_IN
 };
 
 /**
@@ -41,6 +40,7 @@ struct OSIOCtlBusControl {
  * account when an IO request is made for that specific device.
  */
 struct OSIOCtlRequestRequirements {
+    uint32_t                BufferAlignment;
     enum OSMemoryConformity Conformity;
 };
 

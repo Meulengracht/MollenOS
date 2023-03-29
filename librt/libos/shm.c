@@ -39,11 +39,12 @@ __ValidateNewBuffer(
         return OS_EINVALPARAMS;
     }
 
-    // Type must be 0 when not specifying device memory
-    if (!(shm->Flags & SHM_DEVICE) && shm->Type != 0) {
-        return OS_ENOTSUPPORTED;
+    // If conformity is set, then either it must be device or SHM_CONFORM
+    if (shm->Conformity != OSMEMORYCONFORMITY_NONE) {
+        if (!(shm->Flags & SHM_CONFORM) && !(shm->Flags & SHM_DEVICE)) {
+            return OS_ENOTSUPPORTED;
+        }
     }
-
     return OS_EOK;
 }
 
@@ -108,7 +109,7 @@ __ValidateExistingBuffer(
     }
 
     // For export buffers, type must always be 0
-    if (shm->Type != 0) {
+    if (shm->Conformity != OSMEMORYCONFORMITY_NONE) {
         return OS_ENOTSUPPORTED;
     }
 

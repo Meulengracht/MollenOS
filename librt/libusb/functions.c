@@ -49,7 +49,7 @@ UsbInitialize(void)
             &(SHM_t) {
                 .Key = NULL,
                 .Flags = SHM_DEVICE,
-                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Conformity = OSMEMORYCONFORMITY_LOW,
                 .Size = LIBUSB_SHAREDBUFFER_SIZE,
                 .Access = SHM_ACCESS_WRITE | SHM_ACCESS_READ
             },

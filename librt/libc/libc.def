@@ -5,6 +5,8 @@ OSGetWorkingDirectory
 OSChangeWorkingDirectory
 OSGetApplicationTemporaryDirectory
 OSGetUserDirectory
+OSDeviceIOCtl
+OSDeviceIOCtl2
 UnwindGetSection
 usched_call_once
 usched_mtx_init

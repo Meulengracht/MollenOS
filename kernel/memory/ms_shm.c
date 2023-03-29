@@ -486,7 +486,6 @@ __GatherSGList(
         _Out_ int*              sgCountOut,
         _Out_ SHMSG_t**         sgOut)
 {
-    oserr_t  oserr;
     int      sgCount;
     SHMSG_t* sg;
 
@@ -510,7 +509,18 @@ __VerifySGConformity(
         _In_ int                     sgCount,
         _In_ enum OSMemoryConformity conformity)
 {
+    size_t pageMask = __MASK;
 
+    // Lookup the page-mask for the specific conformity
+    ArchSHMTypeToPageMask(conformity, &pageMask);
+
+    // Verify all SG entries against the page-mask
+    for (int i = 0; i < sgCount; i++) {
+        if ((sg[i].Address + sg[i].Length) >= pageMask) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static oserr_t
@@ -521,7 +531,7 @@ __MapOriginalBuffer(
         _In_ SHMHandle_t* handle)
 {
     oserr_t oserr;
-    // Attach and map the buffer referred to by shmID
+
     oserr = SHMAttach(shmID, handle);
     if (oserr != OS_EOK) {
         return oserr;
@@ -605,14 +615,68 @@ __CopyBufferToSG(
         _In_ int      sgCount,
         _In_ size_t   sgOffset)
 {
+    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    size_t         currentOffset = 0;
+    size_t         bufferOffset = 0;
+    int            i = 0;
+    oserr_t        oserr;
 
+    while (bufferOffset < length && i < sgCount) {
+        vaddr_t sgMapping;
+        size_t  sgMappingOffset = 0;
+
+        // make sure we are at the right sg entry, spool ahead until
+        // we reach the SG entry that contains our start
+        if (currentOffset + sg[i].Length <= sgOffset) {
+            // move offset and increase the sg index
+            currentOffset += sg[i++].Length;
+            continue;
+        }
+
+        // adjust for a partial copy
+        if (currentOffset < sgOffset) {
+            sgMappingOffset = sgOffset - currentOffset;
+        }
+
+        // map the SG in to kernel
+        oserr = MemorySpaceMap(
+                memorySpace,
+                &(struct MemorySpaceMapOptions) {
+                        .PhysicalStart = sg[i].Address,
+                        .Length = sg[i].Length,
+                        .Flags = MAPPING_COMMIT | MAPPING_PERSISTENT,
+                        .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
+                },
+                &sgMapping
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        memcpy(
+                (void*)(sgMapping + sgMappingOffset),
+                (const void*)((uint8_t*)buffer + bufferOffset),
+                sg[i].Length - sgMappingOffset
+        );
+
+        oserr = MemorySpaceUnmap(memorySpace, sgMapping, sg[i].Length);
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+
+        currentOffset += sg[i].Length;
+        bufferOffset += (sg[i].Length - sgMappingOffset);
+        i++;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
 __CopyBufferToSource(
         _In_ void*  buffer,
         _In_ size_t length,
-        _In_ uuid_t sourceID)
+        _In_ uuid_t sourceID,
+        _In_ size_t sourceOffset)
 {
     struct SHMBuffer* source;
     int               sgCount;
@@ -629,13 +693,12 @@ __CopyBufferToSource(
         return oserr;
     }
 
-    // TODO not the right offset
     oserr = __CopyBufferToSG(
             buffer,
             length,
             sg,
             sgCount,
-            source->Offset + 0
+            source->Offset + sourceOffset
     );
     kfree(sg);
     return oserr;
@@ -670,6 +733,7 @@ __CloneConformBuffer(
     // Store information related to the conformity
     handle->SourceID = source->ID;
     handle->SourceFlags = flags;
+    handle->Offset = offset;
 
     // Handle the initial copy flags
     if (flags & SHM_CONFORM_FILL_ON_CREATION) {
@@ -788,25 +852,7 @@ SHMDetach(
     }
 
     if (handle->Buffer != NULL) {
-        oserr_t oserr;
-
-        // if there is a source buffer (from conformity) then we may need
-        // to handle backfilling it
-        if (handle->SourceID != UUID_INVALID) {
-            if (handle->SourceFlags & SHM_CONFORM_BACKFILL_ON_DETACH) {
-                oserr = __CopyBufferToSource(
-                        handle->Buffer,
-                        handle->Length,
-                        handle->SourceID
-                );
-                if (oserr != OS_EOK) {
-                    return oserr;
-                }
-            }
-            DestroyHandle(handle->SourceID);
-        }
-
-        oserr = SHMUnmap(
+        oserr_t oserr = SHMUnmap(
                 handle,
                 (vaddr_t)handle->Buffer,
                 handle->Length
@@ -814,6 +860,12 @@ SHMDetach(
         if (oserr != OS_EOK) {
             return oserr;
         }
+    }
+
+    // Did the handle refer to a source buffer? Then release our reference
+    // on it.
+    if (handle->SourceID != UUID_INVALID) {
+        DestroyHandle(handle->SourceID);
     }
     return DestroyHandle(handle->ID);
 }
@@ -976,6 +1028,12 @@ SHMMap(
         return OS_EINVALPARAMS;
     }
 
+    // Is the handle the primary handle of a cloned conformity buffer? Then do not
+    // allow to remap it.
+    if (handle->SourceID != UUID_INVALID) {
+        return OS_ENOTSUPPORTED;
+    }
+
     shmBuffer = LookupHandleOfType(handle->ID, HandleTypeSHM);
     if (!shmBuffer) {
         return OS_ENOENT;
@@ -1039,6 +1097,23 @@ SHMUnmap(
         return OS_EINVALPARAMS;
     }
 
+    // Handle backfilling to source buffer if set.
+    if (handle->SourceFlags & SHM_CONFORM_BACKFILL_ON_UNMAP) {
+        size_t bufferOffset = address - (vaddr_t)handle->Buffer;
+
+        // This will work as long as no overlapping areas will be freed. Should
+        // an overlapping area be freed this will generate #PF exceptions.
+        oserr = __CopyBufferToSource(
+                (void*)address,
+                length,
+                handle->SourceID,
+                handle->Offset + bufferOffset
+        );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
+    }
+
     oserr = MemorySpaceUnmap(
             GetCurrentMemorySpace(),
             address,
@@ -1047,7 +1122,7 @@ SHMUnmap(
     if (oserr != OS_EOK) {
         // Unmap might return OS_EINCOMPLETE, which means that unmapping
         // has actually taken place, but a full unmap of the original mapping
-        // was not done. However they share a code-path with an error as we want
+        // was not done. However, they share a code-path with an error as we want
         // to proxy this error code up.
         return oserr;
     }

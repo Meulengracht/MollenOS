@@ -37,7 +37,6 @@ __Create(
     SHM_t shm = {
             .Key = key,
             .Flags = SHM_IPC,
-            .Type = 0,
             .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
             .Size = length
     };

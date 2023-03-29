@@ -32,6 +32,7 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <os/usched/mutex.h>
+#include <os/device.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -47,7 +48,6 @@ struct DmDevice {
     element_t               header;
     uuid_t                  driver_id;
     bool                    has_driver;
-    enum OSMemoryConformity conformity;
     Device_t*               device;
     list_t                  protocols;   // list<struct DmDeviceProtocol>
 };
@@ -144,6 +144,7 @@ DmHandleIoctl(
     }
 
     switch (request) {
+        // Device manager handled requests
         case OSIOCTLREQUEST_BUS_CONTROL: {
             struct OSIOCtlBusControl* data = buffer;
             if (length < sizeof(struct OSIOCtlBusControl)) {
@@ -152,22 +153,15 @@ DmHandleIoctl(
             return DMBusControl((BusDevice_t*)device->device, data);
         }
 
-        case OSIOCTLREQUEST_SET_IO_REQUIREMENTS: {
-            struct OSIOCtlRequestRequirements* reqs = buffer;
-            if (length < sizeof(struct OSIOCtlRequestRequirements)) {
-                return OS_EINVALPARAMS;
-            }
-            device->conformity = reqs->Conformity;
-            return OS_EOK;
-        }
-
+        // Device driver handled requests
         case OSIOCTLREQUEST_IO_REQUIREMENTS: {
-            struct OSIOCtlRequestRequirements* reqs = buffer;
-            if (length < sizeof(struct OSIOCtlRequestRequirements)) {
-                return OS_EINVALPARAMS;
-            }
-            reqs->Conformity = device->conformity;
-            return OS_EOK;
+            return OSDeviceIOCtl2(
+                    deviceID,
+                    device->driver_id,
+                    request,
+                    buffer,
+                    length
+            );
         }
 
         default:
@@ -274,7 +268,6 @@ DmDeviceCreate(
     deviceNode->driver_id  = UUID_INVALID;
     deviceNode->device     = device;
     deviceNode->has_driver = false;
-    deviceNode->conformity = OSMEMORYCONFORMITY_NONE;
     list_construct(&deviceNode->protocols);
 
     usched_mtx_lock(&g_devicesLock);
