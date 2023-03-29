@@ -211,7 +211,6 @@ __get_startup_info(void)
                 .Key = NULL,
                 .Flags = SHM_COMMIT,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                .Type = SHM_TYPE_REGULAR,
                 .Size = KB(64)
         },
         &mapping);

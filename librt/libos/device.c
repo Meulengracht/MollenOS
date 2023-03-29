@@ -21,11 +21,12 @@
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 
+#include <ctt_driver_service_client.h>
 #include <sys_device_service_client.h>
 
 oserr_t
 OSDeviceIOCtl(
-        _In_ uuid_t              deviceId,
+        _In_ uuid_t              deviceID,
         _In_ enum OSIOCtlRequest request,
         _In_ void*               buffer,
         _In_ size_t              length)
@@ -38,7 +39,7 @@ OSDeviceIOCtl(
     status = sys_device_ioctl(
             GetGrachtClient(),
             &msg.base,
-            deviceId,
+            deviceID,
             (unsigned int)request,
             u8,
             length
@@ -57,3 +58,44 @@ OSDeviceIOCtl(
     );
     return oserr;
 }
+
+oserr_t
+OSDeviceIOCtl2(
+        _In_ uuid_t              deviceID,
+        _In_ uuid_t              driverID,
+        _In_ enum OSIOCtlRequest request,
+        _In_ void*               buffer,
+        _In_ size_t              length)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverID);
+    oserr_t                  oserr;
+    uint8_t*                 u8 = buffer;
+    int                      status;
+
+    status = ctt_driver_ioctl(
+            GetGrachtClient(),
+            &msg.base,
+            deviceID,
+            (unsigned int)request,
+            u8,
+            length
+    );
+    if (status) {
+        return OsErrToErrNo(status);
+    }
+
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    ctt_driver_ioctl_result(
+            GetGrachtClient(),
+            &msg.base,
+            u8,
+            length,
+            &oserr
+    );
+    return oserr;
+}
+
+// need to be defined unfortunately
+void ctt_driver_event_device_protocol_invocation(gracht_client_t* client, const uuid_t deviceId, const char* protocolName, const uint8_t protocolId) { }
+void sys_device_event_protocol_device_invocation(gracht_client_t* client, const uuid_t deviceId, const uuid_t driverId, const uint8_t protocolId) { }
+void sys_device_event_device_update_invocation(gracht_client_t* client, const uuid_t deviceId, const uint8_t connected) { }

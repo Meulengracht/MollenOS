@@ -23,15 +23,35 @@
 /**
  * @brief Allows controlling certain aspects of a device. Not all I/O requests
  * go to the specific device, some may be intercepted by the devicemanager.
- * @param deviceId
- * @param request
- * @param buffer
- * @param length
+ * @param deviceId The ID of the device to target the I/O request.
+ * @param request  The I/O request type.
+ * @param buffer   The data associated with the request type.
+ * @param length   The length of the data.
  * @return
  */
 CRTDECL(oserr_t,
 OSDeviceIOCtl(
-        _In_ uuid_t              deviceId,
+        _In_ uuid_t              deviceID,
+        _In_ enum OSIOCtlRequest request,
+        _In_ void*               buffer,
+        _In_ size_t              length));
+
+/**
+ * @brief Allows controlling certain aspects of a device. This allows direct
+ * communication if a drivers endpoint is known, and avoids going through the
+ * device-manager. Not all I/O requests are supported this way. If the driver is
+ * not known, then the device can be queried through OSDeviceIOCtl.
+ * @param deviceId The ID of the device to target the I/O request.
+ * @param driverID The ID of the driver which controls the device.
+ * @param request  The I/O request type.
+ * @param buffer   The data associated with the request type.
+ * @param length   The length of the data.
+ * @return
+ */
+CRTDECL(oserr_t,
+OSDeviceIOCtl2(
+        _In_ uuid_t              deviceID,
+        _In_ uuid_t              driverID,
         _In_ enum OSIOCtlRequest request,
         _In_ void*               buffer,
         _In_ size_t              length));

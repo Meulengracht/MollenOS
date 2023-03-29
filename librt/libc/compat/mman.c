@@ -96,15 +96,15 @@ __add_mmap(
 
 static void
 __get_anonymous_flags(
-        _In_  int           prot,
-        _In_  int           flags,
-        _Out_ unsigned int* flagsOut,
-        _Out_ unsigned int* typeOut,
-        _Out_ unsigned int* accessOut)
+        _In_  int                      prot,
+        _In_  int                      flags,
+        _Out_ unsigned int*            flagsOut,
+        _Out_ enum OSMemoryConformity* conformityOut,
+        _Out_ unsigned int*            accessOut)
 {
-    unsigned int mflags = SHM_PRIVATE | SHM_CLEAN;
-    unsigned int type   = 0;
-    unsigned int access = 0;
+    unsigned int            mflags = SHM_PRIVATE | SHM_CLEAN;
+    enum OSMemoryConformity conformity = OSMEMORYCONFORMITY_NONE;
+    unsigned int            access = 0;
 
     // MAP_SHARED indicate that we create a mapping that can
     // be shared with others. This is the default of our SHM buffers
@@ -147,7 +147,7 @@ __get_anonymous_flags(
 
     if (flags & MAP_32BIT) {
         mflags |= SHM_DEVICE;
-        type = SHM_TYPE_DRIVER_32;
+        conformity = OSMEMORYCONFORMITY_BITS32;
     }
 
     if (prot & PROT_READ) {
@@ -161,7 +161,7 @@ __get_anonymous_flags(
     }
 
     *flagsOut = mflags;
-    *typeOut = type;
+    *conformityOut = conformity;
     *accessOut = access;
 }
 
@@ -183,7 +183,7 @@ __mmap_anonymous(
     _CRT_UNUSED(addr);
 
     // Convert flags to SHM attributes
-    __get_anonymous_flags(prot, flags, &shm.Flags, &shm.Type, &shm.Access);
+    __get_anonymous_flags(prot, flags, &shm.Flags, &shm.Conformity, &shm.Access);
 
     oserr = SHMCreate(&shm, &osHandle);
     if (oserr != OS_EOK) {

@@ -19,6 +19,7 @@
 #define __OS_TYPES_SHM_H__
 
 #include <os/osdefs.h>
+#include <os/types/memory.h>
 
 /**
  * Configuration flags for creation of a new SHM region
@@ -59,8 +60,8 @@
 /**
  * @brief Flags available when conforming a SHM buffer.
  */
-#define SHM_CONFORM_FILL_ON_CREATION   0x1 // Fill the conformed buffer when created.
-#define SHM_CONFORM_BACKFILL_ON_DETACH 0x2 // Fill the source buffer when detached.
+#define SHM_CONFORM_FILL_ON_CREATION  0x1 // Fill the conformed buffer when created.
+#define SHM_CONFORM_BACKFILL_ON_UNMAP 0x2 // Fill the source buffer when detached.
 
 typedef struct SHM {
     // Key is the global identifier for this buffer. When listing

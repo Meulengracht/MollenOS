@@ -59,7 +59,7 @@ __DetectFileSystem(
     oserr = SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE,
-                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Conformity = OSMEMORYCONFORMITY_LOW,
                 .Size = storage->Stats.SectorSize,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },

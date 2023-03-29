@@ -143,7 +143,7 @@ __CreateDMABuffer(
     return SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE,
-                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Conformity = OSMEMORYCONFORMITY_LOW,
                 .Size = MB(1),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
