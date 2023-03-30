@@ -80,7 +80,7 @@ static struct __ValiFSContext* __ValiFSContextNew(
     oserr = SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE,
-                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Conformity = OSMEMORYCONFORMITY_LOW, // TODO: Use conformity from device
                 .Size = MB(1),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },

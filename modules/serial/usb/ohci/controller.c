@@ -29,6 +29,7 @@
 #include <os/mollenos.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
+#include <os/device.h>
 #include "ohci.h"
 #include <threads.h>
 #include <string.h>
@@ -78,7 +79,7 @@ HciControllerCreate(
     shm.Key    = NULL;
     shm.Flags  = SHM_DEVICE | SHM_CLEAN | SHM_PRIVATE;
     shm.Size   = KB(4);
-    shm.Type   = SHM_TYPE_DRIVER_32LOW;
+    shm.Conformity = OSMEMORYCONFORMITY_LOW;
     shm.Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE;
 
     oserr = SHMCreate(&shm, &controller->HccaDMA);
@@ -124,9 +125,14 @@ HciControllerCreate(
 
     // Enable device
     TRACE("... enabling device");
-    oserr = IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-                        (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
+    oserr = OSDeviceIOCtl(
+            controller->Base.Device->Base.Id,
+            OSIOCTLREQUEST_BUS_CONTROL,
+            &(struct OSIOCtlBusControl) {
+                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
+                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+            }, sizeof(struct OSIOCtlBusControl)
+    );
     if (oserr != OS_EOK) {
         ERROR("Failed to enable the ohci-controller");
         UnregisterInterruptSource(controller->Base.Interrupt);
@@ -360,6 +366,10 @@ OhciSetup(
 
     // Initialize the queue system
     OhciQueueInitialize(Controller);
+
+    // Setup the i/o requirements
+    Controller->Base.IORequirements.BufferAlignment = 0;
+    Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_BITS32;
 
     // Last step is to take ownership, reset the controller and initialize
     // the registers, all resource must be allocated before this

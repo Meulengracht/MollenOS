@@ -349,6 +349,7 @@ typedef struct AhciController {
     uuid_t                  InterruptId;
     spinlock_t              Lock;
     int                     event_descriptor;
+    bool                    Bits64;
 
     DeviceIo_t*             IoBase;
     AHCIGenericRegisters_t* Registers;

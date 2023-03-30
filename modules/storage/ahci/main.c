@@ -28,6 +28,7 @@
 #include <ddk/utils.h>
 #include <ddk/convert.h>
 #include <ioset.h>
+#include <os/types/device.h>
 #include "manager.h"
 
 #include <ctt_driver_service_server.h>
@@ -159,6 +160,47 @@ OnUnregister(
     
     list_remove(&controllers, &controller->header);
     return AhciControllerDestroy(controller);
+}
+
+void ctt_driver_ioctl_invocation(
+        _In_ struct gracht_message* message,
+        _In_ const uuid_t           deviceId,
+        _In_ const unsigned int     request,
+        _In_ const uint8_t*         out,
+        _In_ const uint32_t         out_count)
+{
+    enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
+    AhciController_t*   device = list_find_value(&controllers, (void*)(uintptr_t)deviceId);
+    if (device == NULL) {
+        ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
+        return;
+    }
+
+    switch (req) {
+        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
+            // MSD driver does not pose any memory conformity requirements
+            // on its I/O requests. So we need to query the controller itself
+            // for this.
+            struct OSIOCtlRequestRequirements ioRequirements;
+            ioRequirements.BufferAlignment = 0;
+            if (device->Bits64) {
+                ioRequirements.Conformity = OSMEMORYCONFORMITY_BITS64;
+            } else {
+                ioRequirements.Conformity = OSMEMORYCONFORMITY_BITS32;
+            }
+            ctt_driver_ioctl_response(
+                    message,
+                    (uint8_t*)&ioRequirements,
+                    sizeof(struct OSIOCtlRequestRequirements),
+                    OS_EOK
+            );
+            return;
+        }
+
+        default:
+            break;
+    }
+    ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
 // Lazyness in ddk that unfortuantely draws in more context than neccessary.

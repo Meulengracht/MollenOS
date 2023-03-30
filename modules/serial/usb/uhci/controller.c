@@ -26,6 +26,7 @@
 
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
+#include <os/device.h>
 #include "uhci.h"
 #include <threads.h>
 #include <stdlib.h>
@@ -133,10 +134,13 @@ HciControllerCreate(
     }
 
     // Enable the underlying bus device
-    oserr = IoctlDevice(
+    oserr = OSDeviceIOCtl(
             controller->Base.Device->Base.Id,
-            __DEVICEMANAGER_IOCTL_BUS,
-            (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+            OSIOCTLREQUEST_BUS_CONTROL,
+            &(struct OSIOCtlBusControl) {
+                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_IO_ENABLE |
+                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+            }, sizeof(struct OSIOCtlBusControl)
     );
     if (oserr != OS_EOK) {
         ERROR("UhciControllerCreate: failed to enable PCI device");
@@ -299,6 +303,11 @@ UhciSetup(
         ERROR("UhciSetup: failed to initialize memory for queues");
         return oserr;
     }
+
+    // Set up the i/o requirements, UHCI controllers sometimes have problems
+    // with addresses above >2gb.
+    controller->Base.IORequirements.BufferAlignment = 0;
+    controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_LOW;
 
     oserr = UhciReset(controller);
     if (oserr != OS_EOK) {

@@ -391,7 +391,7 @@ __FileSystemMFSNew(
     oserr = SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE,
-                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Conformity = OSMEMORYCONFORMITY_LOW, // TODO: Use conformity from device
                 .Size = storageStats->SectorSize,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -447,7 +447,7 @@ __ResizeTransferBuffer(
     return SHMCreate(
             &(SHM_t) {
                     .Flags = SHM_DEVICE,
-                    .Type = SHM_TYPE_DRIVER_32LOW,
+                    .Conformity = OSMEMORYCONFORMITY_LOW, // TODO: Use conformity from device
                     .Size = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },

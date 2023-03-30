@@ -27,6 +27,7 @@
 
 #include <ddk/busdevice.h>
 #include <ddk/utils.h>
+#include <os/device.h>
 #include <threads.h>
 #include <stdlib.h>
 #include <event.h>
@@ -119,8 +120,14 @@ AhciControllerCreate(
     controller->InterruptId = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
-    osStatus = IoctlDevice(controller->Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-                           (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE));
+    osStatus = OSDeviceIOCtl(
+            controller->Device->Base.Id,
+            OSIOCTLREQUEST_BUS_CONTROL,
+            &(struct OSIOCtlBusControl) {
+                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
+                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+            }, sizeof(struct OSIOCtlBusControl)
+    );
     if (osStatus != OS_EOK || controller->InterruptId == UUID_INVALID) {
         ERROR("Failed to enable the ahci-controller");
         UnregisterInterruptSource(controller->InterruptId);
@@ -267,6 +274,11 @@ AhciSetup(
     if (!(capabilities & AHCI_CAPABILITIES_SAM)) {
         ghc = READ_VOLATILE(controller->Registers->GlobalHostControl);
         WRITE_VOLATILE(controller->Registers->GlobalHostControl, ghc | AHCI_HOSTCONTROL_AE);
+    }
+
+    // Store whether we support 64 bit addressing.
+    if (capabilities & AHCI_CAPABILITIES_S64A) {
+        controller->Bits64 = true;
     }
 
     // Determine which ports are implemented by the HBA, by reading the PI register. 

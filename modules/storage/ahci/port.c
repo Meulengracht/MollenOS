@@ -73,7 +73,7 @@ AhciPortCreate(
     SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                .Type = SHM_TYPE_DRIVER_32,
+                .Conformity = OSMEMORYCONFORMITY_BITS32,
                 .Size = AhciManagerGetFrameSize(),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -228,7 +228,7 @@ AllocateOperationalMemory(
     oserr = SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE | SHM_PRIVATE,
-                .Type = SHM_TYPE_DRIVER_32,
+                .Conformity = OSMEMORYCONFORMITY_BITS32,
                 .Size = sizeof(AHCICommandList_t),
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -245,7 +245,7 @@ AllocateOperationalMemory(
     oserr = SHMCreate(
             &(SHM_t) {
                     .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                    .Type = SHM_TYPE_DRIVER_32,
+                    .Conformity = OSMEMORYCONFORMITY_BITS32,
                     .Size = AHCI_COMMAND_TABLE_SIZE * 32,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -262,7 +262,7 @@ AllocateOperationalMemory(
     oserr = SHMCreate(
             &(SHM_t) {
                     .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                    .Type = SHM_TYPE_DRIVER_32,
+                    .Conformity = OSMEMORYCONFORMITY_BITS32,
                     .Size = 0x1000,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
