@@ -28,6 +28,7 @@
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <os/spinlock.h>
+#include <os/types/device.h>
 #include <usb/usb.h>
 #include "scheduler.h"
 #include "transfer.h"
@@ -36,6 +37,11 @@ typedef struct UsbManagerController {
     uuid_t              Id;
     UsbControllerType_t Type;
     BusDevice_t*        Device;
+
+    // IORequirements describes the required conformities that any
+    // io-request made towards this controller must support. Conformity
+    // are things like the memory-space width, and buffer alignment.
+    struct OSIOCtlRequestRequirements IORequirements;
 
     int                 event_descriptor;
     uuid_t              Interrupt;

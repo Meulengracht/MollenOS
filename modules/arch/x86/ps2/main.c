@@ -379,11 +379,11 @@ OnUnregister(
 }
 
 void ctt_driver_ioctl_invocation(
-        struct gracht_message* message,
-        const uuid_t           deviceId,
-        const unsigned int     request,
-        const uint8_t*         out,
-        const uint32_t         out_count)
+        _In_ struct gracht_message* message,
+        _In_ const uuid_t           deviceId,
+        _In_ const unsigned int     request,
+        _In_ const uint8_t*         out,
+        _In_ const uint32_t         out_count)
 {
     ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }

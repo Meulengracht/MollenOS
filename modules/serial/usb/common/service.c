@@ -28,6 +28,7 @@
 #include <ctt_usbhost_service_server.h>
 #include <ctt_usbhub_service_server.h>
 #include <io.h>
+#include <os/types/device.h>
 #include <ddk/utils.h>
 #include <ddk/convert.h>
 
@@ -138,6 +139,37 @@ void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, 
 {
     TRACE("ctt_driver_get_device_protocols_invocation()");
     //
+}
+
+void ctt_driver_ioctl_invocation(
+        _In_ struct gracht_message* message,
+        _In_ const uuid_t           deviceId,
+        _In_ const unsigned int     request,
+        _In_ const uint8_t*         out,
+        _In_ const uint32_t         out_count)
+{
+    enum OSIOCtlRequest     req = (enum OSIOCtlRequest)request;
+    UsbManagerController_t* device = UsbManagerGetController(deviceId);
+    if (device == NULL) {
+        ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
+        return;
+    }
+
+    switch (req) {
+        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
+            ctt_driver_ioctl_response(
+                    message,
+                    (uint8_t*)&device->IORequirements,
+                    sizeof(struct OSIOCtlRequestRequirements),
+                    OS_EOK
+            );
+            return;
+        }
+
+        default:
+            break;
+    }
+    ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
 // again lazyness in libddk causing this

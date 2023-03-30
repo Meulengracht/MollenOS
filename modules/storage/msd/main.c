@@ -25,6 +25,7 @@
 #include <ddk/utils.h>
 #include <ioset.h>
 #include <os/usched/job.h>
+#include <os/device.h>
 #include "msd.h"
 
 #include <ctt_driver_service_server.h>
@@ -112,6 +113,49 @@ void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t de
     }
     
     ctt_storage_stat_response(message, oserr, &gdescriptor);
+}
+
+void ctt_driver_ioctl_invocation(
+        _In_ struct gracht_message* message,
+        _In_ const uuid_t           deviceId,
+        _In_ const unsigned int     request,
+        _In_ const uint8_t*         out,
+        _In_ const uint32_t         out_count)
+{
+    enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
+    MsdDevice_t*        device = MsdDeviceGet(deviceId);
+    oserr_t             oserr;
+    if (device == NULL) {
+        ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
+        return;
+    }
+
+    switch (req) {
+        case OSIOCTLREQUEST_IO_REQUIREMENTS: {
+            // MSD driver does not pose any memory conformity requirements
+            // on its I/O requests. So we need to query the controller itself
+            // for this.
+            struct OSIOCtlRequestRequirements ioRequirements;
+            oserr = OSDeviceIOCtl2(
+                    device->Device->DeviceContext.controller_device_id,
+                    device->Device->DeviceContext.controller_driver_id,
+                    req,
+                    &ioRequirements,
+                    sizeof(struct OSIOCtlRequestRequirements)
+            );
+            ctt_driver_ioctl_response(
+                    message,
+                    (uint8_t*)&ioRequirements,
+                    sizeof(struct OSIOCtlRequestRequirements),
+                    oserr
+            );
+            return;
+        }
+
+        default:
+            break;
+    }
+    ctt_driver_ioctl_response(message, NULL, 0, OS_ENOTSUPPORTED);
 }
 
 // lazyness

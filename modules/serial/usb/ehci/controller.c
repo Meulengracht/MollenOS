@@ -25,6 +25,7 @@
 
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
+#include <os/device.h>
 #include "../common/hci.h"
 #include "ehci.h"
 #include <threads.h>
@@ -43,6 +44,7 @@ HciControllerCreate(
     EhciController_t* controller;
     DeviceInterrupt_t interrupt;
     DeviceIo_t*       ioBase = NULL;
+    oserr_t           oserr;
     int i;
 
     controller = (EhciController_t*)UsbManagerCreateController(Device, UsbEHCI, sizeof(EhciController_t));
@@ -97,9 +99,15 @@ HciControllerCreate(
     controller->Base.Interrupt = RegisterInterruptSource(&interrupt, 0);
 
     // Enable device
-    if (IoctlDevice(controller->Base.Device->Base.Id, __DEVICEMANAGER_IOCTL_BUS,
-                    (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE
-            | __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)) != OS_EOK) {
+    oserr = OSDeviceIOCtl(
+            controller->Base.Device->Base.Id,
+            OSIOCTLREQUEST_BUS_CONTROL,
+            &(struct OSIOCtlBusControl) {
+                    .Flags = (__DEVICEMANAGER_IOCTL_ENABLE | __DEVICEMANAGER_IOCTL_MMIO_ENABLE |
+                              __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
+            }, sizeof(struct OSIOCtlBusControl)
+    );
+    if (oserr != OS_EOK) {
         ERROR("Failed to enable the ehci-controller");
         UnregisterInterruptSource(controller->Base.Interrupt);
         ReleaseDeviceIo(controller->Base.IoBase);
@@ -487,6 +495,14 @@ EhciSetup(
     Controller->SParameters    = Controller->CapRegisters->SParams;
     Controller->CParameters    = Controller->CapRegisters->CParams;
     Controller->Base.PortCount = EHCI_SPARAM_PORTCOUNT(Controller->SParameters);
+
+    // Setup the i/o requirements
+    Controller->Base.IORequirements.BufferAlignment = 0;
+    if (Controller->CParameters & EHCI_CPARAM_64BIT) {
+        Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_BITS64;
+    } else {
+        Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_BITS32;
+    }
 
     // We then stop the controller, reset it and 
     // initialize data-structures

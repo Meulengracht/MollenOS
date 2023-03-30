@@ -89,7 +89,7 @@ __AllocatePoolMemory(
     oserr = SHMCreate(
             &(SHM_t) {
                 .Flags = SHM_DEVICE | SHM_PRIVATE,
-                .Type = SHM_TYPE_DRIVER_32LOW,
+                .Conformity = OSMEMORYCONFORMITY_LOW,
                 .Size = elementBytes,
                 .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -128,7 +128,7 @@ __AllocateFrameMemory(
     oserr = SHMCreate(
             &(SHM_t) {
                     .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                    .Type = SHM_TYPE_DRIVER_32LOW,
+                    .Conformity = OSMEMORYCONFORMITY_LOW,
                     .Size = frameSize,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
