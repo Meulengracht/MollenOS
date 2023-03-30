@@ -562,6 +562,12 @@ __CopySGToBuffer(
             continue;
         }
 
+        // Did we encounter a NULL scatter-gather entry in the spot
+        // we are copying data to? Then abort the operation
+        if (sg[i].Address == 0) {
+            return OS_EBUFFER;
+        }
+
         // adjust for a partial copy
         if (currentOffset < sgOffset) {
             sgMappingOffset += sgOffset - currentOffset;
@@ -625,6 +631,12 @@ __CopyBufferToSG(
             // move offset and increase the sg index
             currentOffset += sg[i++].Length;
             continue;
+        }
+
+        // Did we encounter a NULL scatter-gather entry in the spot
+        // we are copying data to? Then abort the operation
+        if (sg[i].Address == 0) {
+            return OS_EBUFFER;
         }
 
         // adjust for a partial copy

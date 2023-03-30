@@ -57,6 +57,7 @@ struct __MemorySpaceMapCalls {
     MOCK_STRUCT_INPUT(unsigned int, Flags);
     MOCK_STRUCT_INPUT(unsigned int, Placement);
     MOCK_STRUCT_INPUT(paddr_t*, Pages);
+    MOCK_STRUCT_OUTPUT(uintptr_t*, Pages);
 
     vaddr_t ReturnedMapping;
     bool    ReturnedMappingProvided;
@@ -1211,26 +1212,32 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     assert_int_equal(handle.Length, 0x8400);
     assert_int_equal(handle.Offset, 0);
 
-    // 3. CreateHandle, return a non-standard id as we use it twice
-    g_testContext.CreateHandle.Calls[1].ReturnedID         = 0x20;
-    g_testContext.CreateHandle.Calls[1].ReturnedIDProvided = true;
-
-    // 4. AcquireHandleOfType. We will be acquiring the original buffer created.
+    // 3. AcquireHandleOfType. We will be acquiring the original buffer created.
     g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
     g_testContext.AcquireHandleOfType.ResourceProvided = true;
 
-    // 5. ArchSHMTypeToPageMask
+    // 4. ArchSHMTypeToPageMask
     g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
     g_testContext.ArchSHMTypeToPageMask.PageMaskProvided = true;
     g_testContext.ArchSHMTypeToPageMask.ReturnValue = OS_EOK;
 
-    // 6. MemorySpaceMap, the first call is to allocate the entire cloned buffer. Because
+    // 5. CreateHandle, return a non-standard id as we use it twice
+    g_testContext.CreateHandle.Calls[1].ReturnedID         = 0x20;
+    g_testContext.CreateHandle.Calls[1].ReturnedIDProvided = true;
+
+    // 6. ArchSHMTypeToPageMask
+    g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
+    g_testContext.ArchSHMTypeToPageMask.PageMaskProvided = true;
+    g_testContext.ArchSHMTypeToPageMask.ReturnValue = OS_EOK;
+
+    // 7. MemorySpaceMap, the first call is to allocate the entire cloned buffer. Because
     //    we want to verify the contents, we allocate a buffer which will be used for filling
     //    data into by SHM_CONFORM_FILL_ON_CREATION.
     void* conformedData = __TestAllocPage(0x8400);
     assert_non_null(conformedData);
-    memset(conformedData, 0, 0x8400);
+    memset(conformedData, 0xFF, 0x8400);
 
+    // We must provide a new set of pages again here
     g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 0x20;
     g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
     g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x8400;
@@ -1264,15 +1271,15 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     assert_int_equal(conformedHandle.Length, 0x8400);
     assert_int_equal(conformedHandle.Offset, 0);
 
-    // 7. LookupHandleOfType. __CopyBufferToSource will look up the source handle
+    // 8. LookupHandleOfType. __CopyBufferToSource will look up the source handle
     //    when trying to build an SG of the buffer.
     g_testContext.LookupHandleOfType.ExpectedID   = 0x10;
     g_testContext.LookupHandleOfType.CheckID      = true;
     g_testContext.LookupHandleOfType.ExpectedType = HandleTypeSHM;
     g_testContext.LookupHandleOfType.CheckType    = true;
-    g_testContext.LookupHandleOfType.ReturnValue  = g_testContext.CreateHandle.Calls[1].CreatedResource;
+    g_testContext.LookupHandleOfType.ReturnValue  = g_testContext.CreateHandle.Calls[0].CreatedResource;
 
-    // 8-10. MemorySpaceMap+MemorySpaceUnmap, the next 3 calls is to individually map SG segments
+    // 9-11. MemorySpaceMap+MemorySpaceUnmap, the next 3 calls is to individually map SG segments
     //       and copying data to these buffers, then unmapping them
     void*  buffers[3] = { NULL };
     size_t lengths[3] = { 0x1000, 0x6000, 0x2000 };
@@ -1280,14 +1287,13 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     for (int i = 0; i < 3; i++) {
         buffers[i] = __TestAllocPage(lengths[i]);
         assert_non_null(buffers[i]);
-
-        memset(buffers[i], 0x1 + (0x1 * i), lengths[i]);
+        memset(buffers[i], 0, lengths[i]);
 
         g_testContext.MemorySpaceMap.Calls[1 + i].ExpectedSHMTag          = 0;
         g_testContext.MemorySpaceMap.Calls[1 + i].CheckSHMTag             = true;
         g_testContext.MemorySpaceMap.Calls[1 + i].ExpectedLength          = (lengths[i] - offsets[i]);
         g_testContext.MemorySpaceMap.Calls[1 + i].CheckLength             = true;
-        g_testContext.MemorySpaceMap.Calls[1 + i].ExpectedFlags           = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_READONLY;
+        g_testContext.MemorySpaceMap.Calls[1 + i].ExpectedFlags           = MAPPING_COMMIT | MAPPING_PERSISTENT;
         g_testContext.MemorySpaceMap.Calls[1 + i].CheckFlags              = true;
         g_testContext.MemorySpaceMap.Calls[1 + i].ExpectedPlacement       = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_CONTIGUOUS;
         g_testContext.MemorySpaceMap.Calls[1 + i].CheckPlacement          = true;
@@ -1309,13 +1315,13 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
 
     // Verify data-integrity of the cloned data
     uintptr_t cfAddress = (uintptr_t)conformedData;
-    assert_memory_equal(cfAddress, buffers[0], lengths[0] - offsets[0]);
+    assert_memory_equal(cfAddress, (char*)buffers[0] + offsets[0], lengths[0] - offsets[0]);
     cfAddress += lengths[0] - offsets[0];
 
-    assert_memory_equal(cfAddress, buffers[1], lengths[1] - offsets[1]);
+    assert_memory_equal(cfAddress, (char*)buffers[1] + offsets[1], lengths[1] - offsets[1]);
     cfAddress += lengths[1] - offsets[1];
 
-    assert_memory_equal(cfAddress, buffers[2], conformedHandle.Length - (0x7000 - 0x856));
+    assert_memory_equal(cfAddress, (char*)buffers[2] + offsets[2], 0x1C56);
 
     // When a handle is already conformed, SHMConform will just attach
     // and map. So verify this happened as we expected
@@ -1325,7 +1331,7 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 1);
     assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
     assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 4);
-    assert_int_equal(g_testContext.MemorySpaceUnmap.CallCount, 3);
+    assert_int_equal(g_testContext.MemorySpaceUnmap.CallCount, 4);
 
     TeardownTest(state);
 }
@@ -1640,11 +1646,9 @@ void TestSHMMap_CanRemap(void** state)
     TeardownTest(state);
 }
 
-// 3. CanAttachAndMap
 // 4. SHMUnmap
 // 5. SHMCommit
 // 6. SHMBuildSG
-// 7. SHMKernelMapping
 int main(void)
 {
     const struct CMUnitTest tests[] = {
@@ -1769,6 +1773,11 @@ oserr_t MemorySpaceMap(
             int count = (int)(options->Length / GetMemorySpacePageSize());
             for (int i = 0; i < count; i++) {
                 assert_int_equal(options->Pages[i], call->ExpectedPages[i]);
+            }
+        } else if (call->PagesProvided) {
+            int count = (int)((options->Length + (GetMemorySpacePageSize() - 1)) / GetMemorySpacePageSize());
+            for (int i = 0; i < count; i++) {
+                options->Pages[i] = call->Pages[i];
             }
         }
     }
