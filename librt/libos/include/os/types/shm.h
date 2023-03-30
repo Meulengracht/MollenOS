@@ -58,7 +58,10 @@
 #define SHM_ACCESS_COMMIT  0x00000008U
 
 /**
- * @brief Flags available when conforming a SHM buffer.
+ * @brief Flags available when conforming a SHM buffer. These flags only
+ * do something if the buffer got cloned as a part of the conform operation.
+ * If the underlying buffer already conformed to requirements, these flags
+ * are no-ops as they are unneccesary.
  */
 #define SHM_CONFORM_FILL_ON_CREATION  0x1 // Fill the conformed buffer when created.
 #define SHM_CONFORM_BACKFILL_ON_UNMAP 0x2 // Fill the source buffer when detached.

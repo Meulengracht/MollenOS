@@ -36,4 +36,6 @@
     _returnType ReturnValue;            \
     int         Calls
 
+#define MOCK_STRUCT_FUNC(_func) struct __ ## _func _func
+
 #endif //!__TESTBASE_H__

@@ -23,24 +23,10 @@
 #include <handle.h>
 #include <heap.h>
 #include <machine.h>
-#include <memoryspace.h>
 #include <threading.h>
 #include <shm.h>
 #include <string.h>
-
-struct SHMBuffer {
-    uuid_t            ID;
-    MemorySpace_t*    Owner;
-    Mutex_t           Mutex;
-    vaddr_t           KernelMapping;
-    size_t            Offset;
-    size_t            Length;
-    size_t            PageMask;
-    unsigned int      Flags;
-    bool              Exported;
-    int               PageCount;
-    paddr_t           Pages[];
-};
+#include "private.h"
 
 static void __BuildSG(struct SHMBuffer* shmBuffer, int* sgCountOut, SHMSG_t* sgOut);
 
@@ -280,9 +266,6 @@ __CreateRegularMappedBuffer(
     oserr_t      oserr;
     vaddr_t      mapping;
 
-    if (shm->Flags & SHM_CONFORM) {
-        ArchSHMTypeToPageMask(shm->Conformity, &buffer->PageMask);
-    }
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
             &(struct MemorySpaceMapOptions) {
@@ -338,6 +321,10 @@ __CreateRegularBuffer(
         _In_  SHM_t*            shm,
         _Out_ void**            userMappingOut)
 {
+    if (shm->Flags & SHM_CONFORM) {
+        ArchSHMTypeToPageMask(shm->Conformity, &buffer->PageMask);
+    }
+
     if (shm->Flags & SHM_COMMIT) {
         return __CreateRegularMappedBuffer(buffer, shm, userMappingOut);
     }
@@ -537,7 +524,12 @@ __MapOriginalBuffer(
         return oserr;
     }
 
-    oserr = SHMMap(handle, offset, handle->Capacity, access);
+    oserr = SHMMap(
+            handle,
+            offset,
+            handle->Capacity,
+            access
+    );
     if (oserr != OS_EOK) {
         DestroyHandle(shmID);
     }
@@ -554,12 +546,13 @@ __CopySGToBuffer(
     MemorySpace_t* memorySpace = GetCurrentMemorySpace();
     size_t         currentOffset = 0;
     size_t         bufferOffset = 0;
+    size_t         pageSize = GetMemorySpacePageSize();
     int            i = 0;
     oserr_t        oserr;
 
     while (bufferOffset < handle->Length && i < sgCount) {
         vaddr_t sgMapping;
-        size_t  sgMappingOffset = 0;
+        size_t  sgMappingOffset = sg[i].Address & (pageSize - 1);
 
         // make sure we are at the right sg entry, spool ahead until
         // we reach the SG entry that contains our start
@@ -571,7 +564,7 @@ __CopySGToBuffer(
 
         // adjust for a partial copy
         if (currentOffset < sgOffset) {
-            sgMappingOffset = sgOffset - currentOffset;
+            sgMappingOffset += sgOffset - currentOffset;
         }
 
         // map the SG in to kernel
@@ -592,7 +585,7 @@ __CopySGToBuffer(
         memcpy(
                 (void*)((uint8_t*)handle->Buffer + bufferOffset),
                 (const void*)(sgMapping + sgMappingOffset),
-                sg[i].Length - sgMappingOffset
+                MIN(sg[i].Length, handle->Length - bufferOffset)
         );
 
         oserr = MemorySpaceUnmap(memorySpace, sgMapping, sg[i].Length);
@@ -601,7 +594,7 @@ __CopySGToBuffer(
         }
 
         currentOffset += sg[i].Length;
-        bufferOffset += (sg[i].Length - sgMappingOffset);
+        bufferOffset += sg[i].Length;
         i++;
     }
     return OS_EOK;
@@ -618,12 +611,13 @@ __CopyBufferToSG(
     MemorySpace_t* memorySpace = GetCurrentMemorySpace();
     size_t         currentOffset = 0;
     size_t         bufferOffset = 0;
+    size_t         pageSize = GetMemorySpacePageSize();
     int            i = 0;
     oserr_t        oserr;
 
     while (bufferOffset < length && i < sgCount) {
         vaddr_t sgMapping;
-        size_t  sgMappingOffset = 0;
+        size_t  sgMappingOffset = sg[i].Address & (pageSize - 1);
 
         // make sure we are at the right sg entry, spool ahead until
         // we reach the SG entry that contains our start
@@ -635,7 +629,7 @@ __CopyBufferToSG(
 
         // adjust for a partial copy
         if (currentOffset < sgOffset) {
-            sgMappingOffset = sgOffset - currentOffset;
+            sgMappingOffset += sgOffset - currentOffset;
         }
 
         // map the SG in to kernel
@@ -656,7 +650,7 @@ __CopyBufferToSG(
         memcpy(
                 (void*)(sgMapping + sgMappingOffset),
                 (const void*)((uint8_t*)buffer + bufferOffset),
-                sg[i].Length - sgMappingOffset
+                MIN(sg[i].Length, length - bufferOffset)
         );
 
         oserr = MemorySpaceUnmap(memorySpace, sgMapping, sg[i].Length);
@@ -665,7 +659,7 @@ __CopyBufferToSG(
         }
 
         currentOffset += sg[i].Length;
-        bufferOffset += (sg[i].Length - sgMappingOffset);
+        bufferOffset += sg[i].Length;
         i++;
     }
     return OS_EOK;
@@ -698,7 +692,7 @@ __CopyBufferToSource(
             length,
             sg,
             sgCount,
-            source->Offset + sourceOffset
+            sourceOffset
     );
     kfree(sg);
     return oserr;
@@ -785,7 +779,12 @@ SHMConform(
     if (__VerifySGConformity(sg, sgCount, conformity)) {
         DestroyHandle(shmID);
         kfree(sg);
-        return __MapOriginalBuffer(shmID, access, offset, handle);
+        return __MapOriginalBuffer(
+                shmID,
+                access,
+                offset,
+                handle
+        );
     }
 
     correctedLength = __ClampLength(source, offset, length);
@@ -793,7 +792,7 @@ SHMConform(
             source,
             conformity,
             flags,
-            source->Offset + offset, // pass total offset in page here for copy
+            offset,
             correctedLength,
             sg,
             sgCount,
@@ -1065,6 +1064,12 @@ SHMMap(
     oserr = __CreateMapping(shmBuffer, offset, clampedLength, flags, &mapping);
     if (oserr != OS_EOK) {
         return oserr;
+    }
+
+    // Increase the mapping with the built-in offset
+    // if this was an exported buffer
+    if (shmBuffer->Exported) {
+        mapping = (void*)((uintptr_t)mapping + shmBuffer->Offset);
     }
 
     if (handle->Buffer != NULL) {
