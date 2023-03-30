@@ -23,6 +23,23 @@
 #include <memoryspace.h>
 #include <mutex.h>
 
+/**
+ * @brief Internal SHMBuffer representation.
+ */
+struct SHMBuffer {
+    uuid_t            ID;
+    MemorySpace_t*    Owner;
+    Mutex_t           Mutex;
+    vaddr_t           KernelMapping;
+    size_t            Offset;
+    size_t            Length;
+    size_t            PageMask;
+    unsigned int      Flags;
+    bool              Exported;
+    int               PageCount;
+    paddr_t           Pages[];
+};
+
 struct MSAllocation {
     element_t            Header;
     MemorySpace_t*       MemorySpace;
