@@ -237,7 +237,7 @@ stdio_handle_get(
 extern void    io_buffer_ensure(FILE* stream);
 extern void    io_buffer_allocate(FILE* stream);
 extern oserr_t io_buffer_flush(FILE* file);
-extern void    io_buffer_flush_all(uint8_t streamMode);
+extern void    io_buffer_flush_all(uint16_t flags);
 
 // helpers
 extern int  stdio_bitmap_initialize(void);

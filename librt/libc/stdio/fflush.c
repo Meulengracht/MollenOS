@@ -28,17 +28,16 @@ int fflush(
 	// If fflush is called with NULL argument
 	// we need to flush all buffers present
 	if (!file) {
-        io_buffer_flush_all(__STREAMMODE_WRITE);
+        io_buffer_flush_all(_IOMOD);
         return 0;
 	}
 
     flockfile(file);
-    if (file->StreamMode == __STREAMMODE_WRITE) {
+    if (file->Flags & _IOMOD) {
         oserr = io_buffer_flush(file);
-	} else if (file->StreamMode == __STREAMMODE_READ) {
-        // Flushing read files is just resetting the buffer pointer
-		file->_cnt = 0;
-		file->_ptr = file->_base;
+    } else {
+		file->BytesAvailable = 0;
+		file->Current = file->Base;
 	}
     funlockfile(file);
 	return OsErrToErrNo(oserr);

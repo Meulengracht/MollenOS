@@ -502,7 +502,7 @@ static int stdio_cmp(const void* element1, const void* element2)
 void __CleanupSTDIO(void)
 {
     // flush all file buffers and close handles
-    io_buffer_flush_all(__STREAMMODE_READ | __STREAMMODE_WRITE);
+    io_buffer_flush_all(0xFFFFU);
 
     // close all handles that are not marked _PRIO, and then lastly
     // close the _PRIO handles

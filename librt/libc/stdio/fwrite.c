@@ -23,25 +23,30 @@
 #include <io.h>
 #include <internal/_file.h>
 #include <internal/_io.h>
+#include <limits.h>
 #include <os/mollenos.h>
 #include <stdio.h>
 #include <string.h>
 
 static int
-__fill_buffer(
+__prewrite_buffer(
         _In_ FILE*       stream,
         _In_ const void* buffer,
         _In_ int         count)
 {
-    int bytesToCopy = MIN(stream->_cnt, count);
-    if (bytesToCopy <= 0) {
-        return 0;
+    int bytesAvailable = stream->BufferSize - (int)__FILE_BytesBuffered(stream);
+    int bytesToWrite = MIN(bytesAvailable, count);
+    memcpy(stream->Current, buffer, bytesToWrite);
+
+    // Increase the buffer pointer, but only decrease the bytes available
+    // if the stream was currently reading
+    stream->Current += bytesToWrite;
+    if (stream->BytesAvailable) {
+        stream->BytesAvailable -= bytesToWrite;
     }
 
-    memcpy(stream->_ptr, buffer, count);
-    stream->_cnt -= count;
-    stream->_ptr += count;
-    return count;
+    stream->Flags |= _IOMOD;
+    return bytesToWrite;
 }
 
 size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
@@ -62,8 +67,6 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
     }
 
 	flockfile(stream);
-
-    // Ensure that this mode is supported
     if (!__FILE_StreamModeSupported(stream, __STREAMMODE_WRITE)) {
         ERROR("fwrite: not supported");
         stream->Flags |= _IOERR;
@@ -75,62 +78,50 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
     // Ensure a buffer is present if possible. We need it before reading
     io_buffer_ensure(stream);
 
-    // Should we flush the current buffer? If the last operation was a write
-    // we must flush
-    if (__FILE_ShouldFlush(stream, __STREAMMODE_WRITE)) {
-        int ret = fflush(stream);
-        if (ret) {
-            ERROR("fwrite: failed to flush");
-            funlockfile(stream);
-            return ret;
+    // Fill the buffer before continuing, and flush if neccessary.
+    if (__FILE_IsBuffered(stream)) {
+        int bytesAvailable = stream->BufferSize - (int)__FILE_BytesBuffered(stream);
+        int bytesWritten = __prewrite_buffer(stream, vptr, (int)wrcnt);
+        if (bytesWritten) {
+            TRACE("fwrite: wrote %i bytes to internal buffer", bytesWritten);
+            written += bytesWritten;
+            wrcnt -= bytesWritten;
+            vptr = (const char*)vptr + bytesWritten;
+        }
+
+        // Should we flush?
+        if (bytesWritten == bytesAvailable) {
+            TRACE("fwrite: flushing write buffer");
+            if (fflush(stream)) {
+                funlockfile(stream);
+                return -1;
+            }
         }
     }
 
-    // We are now doing a read operation
-    __FILE_SetStreamMode(stream, __STREAMMODE_WRITE);
-
+    // Because of pre-fill we can simplify the loop a bit. We can now make the assumption that
+    // the buffer will be empty when entering the loop.
     while (wrcnt) {
         int bytesWritten;
+        int chunkSize = MIN(wrcnt, INT_MAX);
         TRACE("fwrite: %u bytes left", wrcnt);
 
-        // Special case of new buffers
-        if (__FILE_IsBuffered(stream) && !stream->_cnt) {
-            TRACE("fwrite: buffer is new, resetting");
-            // Either buffer is filled to the brim, ready to burst
-            // or the buffer has just been ensured.
-            if (__FILE_BytesBuffered(stream)) {
-                int res = OsErrToErrNo(io_buffer_flush(stream));
-                if (res) {
-                    funlockfile(stream);
-                    return res;
-                }
-            } else {
-                stream->_cnt = stream->_bufsiz;
-            }
+        // We cannot perform writing to the underlying IOD if this is
+        // a strange resource
+        if (__FILE_IsStrange(stream)) {
+            ERROR("fwrite: cannot write to underlying iod with strange streams");
+            stream->Flags |= _IOERR;
+            break;
         }
 
-        // start by filling the entire write buffer
-        // 3 Cases:
-        // 1. (Buffered) Partially filled => fill & flush
-        // 2. (Buffered) Empty, space for all => fill
-        // 3. All other cases: write directly
-        if (__FILE_IsBuffered(stream) && __FILE_BytesBuffered(stream)) {
-            TRACE("fwrite: writing %i bytes into buffer", MIN(stream->_cnt, (int)wrcnt));
-            // Flush as much as possible into the buffer in one go
-            bytesWritten = __fill_buffer(stream, vptr, (int)wrcnt);
-            if (bytesWritten > 0 && !stream->_cnt) {
-                int ret = OsErrToErrNo(io_buffer_flush(stream));
-                if (ret) {
-                    stream->Flags |= _IOERR;
-                    break;
-                }
-            }
-        } else if (__FILE_IsBuffered(stream) && wrcnt < stream->_cnt) {
-            TRACE("fwrite: filling %u bytes into buffer", wrcnt);
-            bytesWritten = __fill_buffer(stream, vptr, (int)wrcnt);
+        // There are now 2 cases, either the number of bytes to write are less
+        // than what can fit in the buffer space, which means we just fill the buffer
+        // and move on, or we need to write more than can fit.
+        if (__FILE_IsBuffered(stream) && chunkSize < stream->BufferSize) {
+            bytesWritten = __prewrite_buffer(stream, vptr, chunkSize);
         } else {
-            TRACE("fwrite: writing %u bytes directly", wrcnt);
-            bytesWritten = write(stream->IOD, vptr, wrcnt);
+            TRACE("fwrite: writing %u bytes directly", chunkSize);
+            bytesWritten = write(stream->IOD, vptr, chunkSize);
         }
         ERROR("fwrite: wrote %i bytes", bytesWritten);
 
@@ -138,6 +129,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
             stream->Flags |= _IOERR;
             break;
         } else if (bytesWritten > 0) {
+            stream->Flags |= _IOMOD;
             written += bytesWritten;
             wrcnt -= bytesWritten;
             vptr = (const char*)vptr + bytesWritten;

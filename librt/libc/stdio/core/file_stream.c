@@ -26,13 +26,21 @@
 
 extern hashtable_t* stdio_get_handles(void);
 
+static void
+__reset_iobuffer(
+        _In_ FILE* stream)
+{
+    stream->Current = stream->Base;
+    stream->BytesAvailable = 0;
+}
+
 void io_buffer_allocate(FILE* stream)
 {
     // Is the stream really buffered?
     if (stream->BufferMode != _IONBF) {
-        stream->_base = calloc(1, BUFSIZ);
-        if (stream->_base) {
-            stream->_bufsiz = BUFSIZ;
+        stream->Base = calloc(1, BUFSIZ);
+        if (stream->Base) {
+            stream->BufferSize = BUFSIZ;
             stream->Flags |= _IOMYBUF;
         } else {
             stream->Flags &= ~(_IOMYBUF | _IOUSRBUF);
@@ -42,17 +50,15 @@ void io_buffer_allocate(FILE* stream)
 
     // ensure the buffer still set to charbuf
     if (stream->BufferMode == _IONBF) {
-        stream->_base = (char*)(&stream->_charbuf);
-        stream->_bufsiz = sizeof(stream->_charbuf);
+        stream->Base = (char*)(&stream->_charbuf);
+        stream->BufferSize = sizeof(stream->_charbuf);
     }
-
-    stream->_ptr = stream->_base;
-    stream->_cnt = 0;
+    __reset_iobuffer(stream);
 }
 
 void io_buffer_ensure(FILE* stream)
 {
-    if (stream->_base) {
+    if (stream->Base) {
         return;
     }
     io_buffer_allocate(stream);
@@ -69,23 +75,17 @@ io_buffer_flush(
         return OS_ENOTSUPPORTED;
     }
 
-    if (file->StreamMode != __STREAMMODE_WRITE) {
-        return OS_EOK;
-    }
-
-    bytesToFlush = (size_t)(file->_ptr - file->_base);
+    bytesToFlush = __FILE_BytesBuffered(file);
     if (bytesToFlush == 0) {
         return OS_EOK;
     }
 
-    bytesWritten = write(file->IOD, file->_base, (unsigned int)bytesToFlush);
+    bytesWritten = write(file->IOD, file->Base, (unsigned int)bytesToFlush);
     if (bytesWritten != bytesToFlush) {
         file->Flags |= _IOERR;
         return OS_EDEVFAULT;
     }
-
-    file->_ptr = file->_base;
-    file->_cnt = file->_bufsiz;
+    __reset_iobuffer(file);
     return OS_EOK;
 }
 
@@ -95,24 +95,24 @@ __flush_entry(
         _In_ const void* element,
         _In_ void*       userContext)
 {
-    const struct stdio_object_entry* entry   = element;
-    stdio_handle_t*                  object  = entry->handle;
-    uint8_t                          streamMode = *((uint8_t*)userContext);
+    const struct stdio_object_entry* entry  = element;
+    stdio_handle_t*                  object = entry->handle;
+    uint16_t                         flags  = *((uint16_t*)userContext);
     _CRT_UNUSED(index);
-    if (object->Stream->StreamMode & streamMode) {
+    if (object->Stream->Flags & flags) {
         fflush(object->Stream);
     }
 }
 
 void
 io_buffer_flush_all(
-        _In_ uint8_t streamMode)
+        _In_ uint16_t flags)
 {
     LOCK_FILES();
     hashtable_enumerate(
             stdio_get_handles(),
             __flush_entry,
-            &streamMode
+            &flags
     );
     UNLOCK_FILES();
 }

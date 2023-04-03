@@ -17,14 +17,14 @@
 
 //#define __TRACE
 
-#include <ddk/barrier.h>
-#include <ds/streambuffer.h>
-#include <debug.h>
-#include <handle.h>
-#include <handle_set.h>
-#include <ioset.h>
-#include <ipc_context.h>
-#include <shm.h>
+#include "ddk/barrier.h"
+#include "ds/streambuffer.h"
+#include "debug.h"
+#include "handle.h"
+#include "handle_set.h"
+#include "ioset.h"
+#include "ipc_context.h"
+#include "shm.h"
 
 static oserr_t
 __AllocateMessage(
