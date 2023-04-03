@@ -35,10 +35,8 @@ int fflush(
     flockfile(file);
     if (file->Flags & _IOMOD) {
         oserr = io_buffer_flush(file);
-    } else {
-		file->BytesAvailable = 0;
-		file->Current = file->Base;
-	}
+    }
+    __FILE_ResetBuffer(file);
     funlockfile(file);
 	return OsErrToErrNo(oserr);
 }
