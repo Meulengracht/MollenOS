@@ -20,6 +20,7 @@
 #include <ioset.h>
 #include <ddk/convert.h>
 #include <ddk/utils.h>
+#include <fs/common.h>
 #include <os/handle.h>
 #include <os/shm.h>
 #include <os/usched/job.h>
@@ -246,32 +247,21 @@ FsRead(
         _In_  size_t  unitCount,
         _Out_ size_t* unitsRead);
 
-static oserr_t
+static inline oserr_t
 __MapUserBufferRead(
-        _In_ uuid_t      handle,
-        _In_ OSHandle_t* shm)
+        _In_ struct FSBaseContext* fsBaseContext,
+        _In_ uuid_t                handle,
+        _In_ OSHandle_t*           shm)
 {
-    oserr_t oserr;
-
-    oserr = SHMAttach(handle, shm);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-
-    // When mapping the buffer for reading, we need write access to the buffer,
-    // so we can do buffer combining.
-    oserr = SHMMap(
-            shm,
+    return SHMConform(
+            handle,
+            fsBaseContext->IOConformity,
+            SHM_CONFORM_BACKFILL_ON_UNMAP,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE,
             0,
             SHMBufferCapacity(shm),
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+            shm
     );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(shm);
-        return oserr;
-    }
-    return OS_EOK;
 }
 
 void ctt_filesystem_read_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx,
@@ -282,7 +272,7 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
     size_t     read;
     TRACE("ctt_filesystem_read_invocation()");
 
-    oserr = __MapUserBufferRead(params->buffer_id, &shm);
+    oserr = __MapUserBufferRead((void*)fsctx, params->buffer_id, &shm);
     if (oserr != OS_EOK) {
         ctt_filesystem_read_response(message, oserr, 0);
         return;
@@ -311,29 +301,21 @@ FsWrite(
         _In_  size_t  unitCount,
         _Out_ size_t* unitsWritten);
 
-static oserr_t
+static inline oserr_t
 __MapUserBufferWrite(
-        _In_ uuid_t      handle,
-        _In_ OSHandle_t* shm)
+        _In_ struct FSBaseContext* fsBaseContext,
+        _In_ uuid_t                handle,
+        _In_ OSHandle_t*           shm)
 {
-    oserr_t oserr;
-
-    oserr = SHMAttach(handle, shm);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = SHMMap(
-            shm,
+    return SHMConform(
+            handle,
+            fsBaseContext->IOConformity,
+            SHM_CONFORM_FILL_ON_CREATION,
+            SHM_ACCESS_READ,
             0,
             SHMBufferCapacity(shm),
-            SHM_ACCESS_READ
+            shm
     );
-    if (oserr != OS_EOK) {
-        OSHandleDestroy(shm);
-        return oserr;
-    }
-    return OS_EOK;
 }
 
 void ctt_filesystem_write_invocation(struct gracht_message* message, const uintptr_t fsctx, const uintptr_t fctx, const struct ctt_fs_transfer_params* params)
@@ -343,7 +325,7 @@ void ctt_filesystem_write_invocation(struct gracht_message* message, const uintp
     size_t     written;
     TRACE("ctt_filesystem_write_invocation()");
 
-    oserr = __MapUserBufferWrite(params->buffer_id, &shm);
+    oserr = __MapUserBufferWrite((void*)fsctx, params->buffer_id, &shm);
     if (oserr != OS_EOK) {
         ctt_filesystem_write_response(message, oserr, 0);
         return;

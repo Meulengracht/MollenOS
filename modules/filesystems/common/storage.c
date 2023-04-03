@@ -23,11 +23,39 @@
 #include <fs/common.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
-#include "os/services/process.h"
+#include <os/services/process.h>
+#include <os/device.h>
 #include <stdio.h>
 
 #include <ctt_storage_service_client.h>
 #include <sys_file_service_client.h>
+
+extern oserr_t
+FSBaseContextInitialize(
+        _In_ struct FSBaseContext*        fsBaseContext,
+        _In_ struct VFSStorageParameters* storageParameters)
+{
+    switch (storageParameters->StorageType) {
+        case VFSSTORAGE_TYPE_DEVICE: {
+            struct OSIOCtlRequestRequirements ioRequirements;
+            oserr_t oserr = OSDeviceIOCtl2(
+                    storageParameters->Storage.Device.DeviceID,
+                    storageParameters->Storage.Device.DriverID,
+                    OSIOCTLREQUEST_IO_REQUIREMENTS,
+                    &ioRequirements,
+                    sizeof(struct OSIOCtlRequestRequirements)
+            );
+            if (oserr != OS_EOK) {
+                return oserr;
+            }
+            fsBaseContext->IOConformity = ioRequirements.Conformity;
+        } break;
+        case VFSSTORAGE_TYPE_FILE: {
+            fsBaseContext->IOConformity = OSMEMORYCONFORMITY_NONE;
+        } break;
+    }
+    return OS_EOK;
+}
 
 static oserr_t
 __ReadDevice(

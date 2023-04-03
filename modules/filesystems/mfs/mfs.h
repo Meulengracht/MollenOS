@@ -254,6 +254,7 @@ typedef struct MFSEntry {
 } MFSEntry_t;
 
 typedef struct FileSystemMFS {
+    struct FSBaseContext        BaseContext;
     mstring_t*                  Label;
     unsigned int                Flags;
     int                         Version;

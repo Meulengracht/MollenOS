@@ -33,6 +33,7 @@
 #include <vafs/vafs.h>
 
 struct __ValiFSContext {
+    struct FSBaseContext        BaseContext;
     struct VFSStorageParameters Storage;
     UInteger64_t                Position;
     OSHandle_t                  Buffer;
@@ -133,6 +134,13 @@ FsInitialize(
     context = __ValiFSContextNew(storageParameters, &stats);
     if (context == NULL) {
         return OS_EOOM;
+    }
+
+    // Initialize the base context before any operations
+    oserr = FSBaseContextInitialize(&context->BaseContext, storageParameters);
+    if (oserr != OS_EOK) {
+        ERROR("FsInitialize failed to initialize base context");
+        return oserr;
     }
 
     status = vafs_open_ops(

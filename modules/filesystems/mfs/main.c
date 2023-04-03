@@ -446,8 +446,8 @@ __ResizeTransferBuffer(
     // and will provide the primary intermediate buffer for general usage.
     return SHMCreate(
             &(SHM_t) {
-                    .Flags = SHM_DEVICE,
-                    .Conformity = OSMEMORYCONFORMITY_LOW, // TODO: Use conformity from device
+                    .Flags = SHM_CONFORM | SHM_COMMIT,
+                    .Conformity = mfs->BaseContext.IOConformity,
                     .Size = mfs->SectorsPerBucket * mfs->SectorSize * MFS_ROOTSIZE,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -611,6 +611,13 @@ FsInitialize(
     if (mfs == NULL) {
         ERROR("FsInitialize Failed to allocate memory for the fileystem");
         return OS_EOOM;
+    }
+
+    // Initialize the base context before any operations
+    oserr = FSBaseContextInitialize(&mfs->BaseContext, storageParameters);
+    if (oserr != OS_EOK) {
+        ERROR("FsInitialize failed to initialize base context");
+        return oserr;
     }
 
     // Read the boot-sector

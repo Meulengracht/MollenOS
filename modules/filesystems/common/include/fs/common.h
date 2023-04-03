@@ -20,6 +20,28 @@
 #define __FS_COMMON_H__
 
 #include <ddk/filesystem.h>
+#include <os/types/memory.h>
+
+/**
+ * @brief Base context for all filesystem contexts. This must be the start
+ * of all filesystem context structures.
+ */
+struct FSBaseContext {
+    enum OSMemoryConformity IOConformity;
+};
+
+/**
+ * @brief Initializes the base context. The base-context is required to handle
+ * read and write requests, as the base-context describes how user buffers should
+ * be handled.
+ * @param fsBaseContext
+ * @param storageParameters
+ * @return
+ */
+extern oserr_t
+FSBaseContextInitialize(
+        _In_ struct FSBaseContext*        fsBaseContext,
+        _In_ struct VFSStorageParameters* storageParameters);
 
 /**
  * @brief
