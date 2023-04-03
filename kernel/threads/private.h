@@ -23,9 +23,9 @@
 #ifndef __VALI_THREADING_PRIVATE_H__
 #define __VALI_THREADING_PRIVATE_H__
 
-#include <os/osdefs.h>
-#include <os/types/async.h>
-#include <arch/platform.h>
+#include "os/osdefs.h"
+#include "os/types/async.h"
+#include "arch/platform.h"
 
 // Forward some structures we need
 DECL_STRUCT(MemorySpace);

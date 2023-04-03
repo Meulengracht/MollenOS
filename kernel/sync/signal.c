@@ -33,7 +33,7 @@
 #include <machine.h>
 #include <scheduler.h>
 #include <threading.h>
-#include "threading_private.h"
+#include "../threads/private.h"
 
 static void
 ExecuteSignalOnCoreFunction(

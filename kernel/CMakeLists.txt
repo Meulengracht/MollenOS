@@ -48,18 +48,20 @@ add_executable (vali-core
 		interrupts.c
 		interrupts_handlers.c
 		interrupts_table.c
+		ipc.c
 		machine.c
 )
 
 # add all subprojects after defining the vali-core target
 # so dependencies gets properly added
 add_subdirectory(acpi)
+add_subdirectory(api)
 add_subdirectory(arch)
 add_subdirectory(components)
 add_subdirectory(memory)
 add_subdirectory(output)
-add_subdirectory(scheduling)
-add_subdirectory(api)
+add_subdirectory(sync)
+add_subdirectory(threads)
 add_subdirectory(utils)
 
 set_target_properties (

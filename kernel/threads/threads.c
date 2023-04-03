@@ -39,7 +39,7 @@
 #include <stdio.h>
 #include <threading.h>
 
-#include "threading_private.h"
+#include "private.h"
 
 _Noreturn static void __ThreadStart(void);
 static void    __DestroyThread(void* resource);

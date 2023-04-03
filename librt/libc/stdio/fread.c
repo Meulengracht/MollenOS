@@ -26,21 +26,40 @@
 #include <limits.h>
 #include <string.h>
 
+// Case ((_pos = (ptr - base)))
+// Write only
+// 1. Write 56 bytes [_cnt=0;  _pos=56]
+// 2. Write 200 bytes [_cnt=0; _pos=256]
+// Read only
+// 1. Fill [_cnt=8196, _pos=0]
+// 2. Read 56 bytes [_cnt=8140, _pos=56]
+// 3. Read 140 bytes [_cnt=8000, _pos=196]
+// Read-write-read
+// 1. Fill [_cnt=8196, _pos=0]
+// 2. Read 56 bytes [_cnt=8140, _pos=56]
+// 3. Write 140 bytes [_cnt=8000, _pos=196, mod=true]
+// 4. Read 400 bytes [_cnt=7600, _pos=596, mod=true]
+// Write-read-write
+// 1. Write 56 bytes [_cnt=0; _pos=56, mod=true]
+// 2. Flush [_cnt=0, _pos=0]
+// 3. Fill [_cnt=8196, _pos=0]
+// 4. Read 56 bytes [_cnt=8140, _pos=56]
+
 static int
 __preread_buffer(
         _In_ FILE*  stream,
         _In_ void*  buffer,
         _In_ int    count)
 {
-    int bytesToCopy = MIN(count, stream->_cnt);
+    int bytesToCopy = MIN(count, stream->BytesAvailable);
     if (bytesToCopy <= 0) {
         return 0;
     }
 
-    memcpy(buffer, stream->_ptr, bytesToCopy);
+    memcpy(buffer, stream->Current, bytesToCopy);
 
-    stream->_cnt -= bytesToCopy;
-    stream->_ptr += bytesToCopy;
+    stream->BytesAvailable -= bytesToCopy;
+    stream->Current += bytesToCopy;
     return bytesToCopy;
 }
 
@@ -64,10 +83,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		return 0;
 	}
 
-    // Should not happen
     flockfile(stream);
-
-    // Ensure that this mode is supported
     if (!__FILE_StreamModeSupported(stream, __STREAMMODE_READ)) {
         ERROR("fread: not supported");
         stream->Flags |= _IOERR;
@@ -76,35 +92,36 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
         return 0;
     }
 
-    // Ensure a buffer is present if possible. We need it before reading
+    // Ensure a buffer is present if possible. We need it before reading.
     io_buffer_ensure(stream);
 
-    // Should we flush the current buffer? If the last operation was a write
-    // we must flush
-    if (__FILE_ShouldFlush(stream, __STREAMMODE_READ)) {
-        int ret = fflush(stream);
-        if (ret) {
-            ERROR("fread: failed to flush");
-            stream->Flags |= _IOERR;
-            funlockfile(stream);
-            return 0;
+    // preread from the internal buffer
+    if (__FILE_IsBuffered(stream)) {
+        bytesRead = __preread_buffer(stream, vptr, (int)rcnt);
+        if (bytesRead) {
+            TRACE("fread: read %i bytes from internal buffer", bytesRead);
+            cread += bytesRead;
+            rcnt -= bytesRead;
+            vptr = (char*)vptr + bytesRead;
+        }
+
+        // After pre-reading the buffer we may need to flush it if it was
+        // modified. The position into the buffer must be at the end, and
+        // the number of bytes
+        if (!stream->BytesAvailable && (stream->Flags & _IOMOD)) {
+            TRACE("fread: flushing modified read buffer");
+            // Buffer was modified, we should flush it before refilling
+            if (fflush(stream)) {
+                funlockfile(stream);
+                return -1;
+            }
         }
     }
 
-    // We are now doing a read operation
-    __FILE_SetStreamMode(stream, __STREAMMODE_READ);
-
-    // preread from the internal buffer
-    bytesRead = __preread_buffer(stream, vptr, (int)rcnt);
-    if (bytesRead) {
-        TRACE("fread: read %i bytes from internal buffer", bytesRead);
-        cread += bytesRead;
-        rcnt -= bytesRead;
-        vptr = (char*)vptr + bytesRead;
-    }
-
-	// Keep reading untill all requested bytes are read, or EOF
+	// Keep reading untill all requested bytes are read, or EOF. We can make the assumption
+    // when doing this while loop, then the buffer is empty.
 	while (rcnt > 0) {
+        int chunkSize = MIN(rcnt, INT_MAX);
         TRACE("fread: %u bytes left", rcnt);
 
         // We cannot perform reading from the underlying IOD if this is
@@ -116,22 +133,20 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
         }
 
 		// If buffer is empty and the data fits into the buffer, then we fill that instead
-		if (__FILE_IsBuffered(stream) && rcnt < stream->_bufsiz) {
-            TRACE("fread: filling read buffer of size %i", stream->_bufsiz);
-			stream->_cnt = read(stream->IOD, stream->_base, stream->_bufsiz);
-			stream->_ptr = stream->_base;
-            bytesRead = MIN(stream->_cnt, rcnt);
+		if (__FILE_IsBuffered(stream) && chunkSize < stream->BufferSize) {
+            TRACE("fread: filling read buffer of size %i", stream->BufferSize);
+			stream->BytesAvailable = read(stream->IOD, stream->Base, stream->BufferSize);
+			stream->Current = stream->Base;
+            bytesRead = MIN(stream->BytesAvailable, chunkSize);
 
 			if (bytesRead > 0) {
-				memcpy(vptr, stream->_ptr, bytesRead);
-				stream->_cnt -= bytesRead;
-				stream->_ptr += bytesRead;
+				memcpy(vptr, stream->Current, bytesRead);
+				stream->BytesAvailable -= bytesRead;
+				stream->Current += bytesRead;
 			}
-        } else if (rcnt >= INT_MAX) {
-            bytesRead = read(stream->IOD, vptr, INT_MAX);
-		} else {
-            TRACE("fread: filling buffer directly of size %i", rcnt);
-            bytesRead = read(stream->IOD, vptr, rcnt);
+        } else {
+            TRACE("fread: filling buffer directly of size %i", chunkSize);
+            bytesRead = read(stream->IOD, vptr, chunkSize);
 		}
         TRACE("fread: read %i bytes", bytesRead);
 
@@ -146,7 +161,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		} else {
             pread += bytesRead;
             rcnt -= bytesRead;
-            vptr = (char *)vptr + bytesRead;
+            vptr = (char*)vptr + bytesRead;
         }
 	}
     funlockfile(stream);

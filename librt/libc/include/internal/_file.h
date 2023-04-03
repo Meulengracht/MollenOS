@@ -12,19 +12,16 @@ typedef struct _FILE {
     uint16_t Flags;
     // BufferMode is used to keep track of buffering.
     uint8_t BufferMode;
-    // StreamMode is keeping track of the last operation
-    // performed.
-    uint8_t StreamMode;
     // Buffer management. When FILE streams are buffered
     // we use the following _base, _ptr and _cnt to keep
     // track of buffering. _ptr is where the buffer pointer
     // currently sits at, _cnt is the number of bytes left
     // and _base is the base of the buffer. _bufsize is the size
     // of the buffer pointed to by _base.
-    char* _ptr;
-    int   _cnt;
-    char* _base;
-    int   _bufsiz;
+    char* Base;
+    char* Current;
+    int   BytesAvailable;
+    int   BufferSize;
 
     // Even for unbuffered streams, we keep a small buffer big
     // enough to store an unicode character. In essence this means
@@ -52,6 +49,7 @@ typedef struct _FILE {
 #define _FWIDE     0x0080
 #define _FBYTE     0x0100
 #define _IOVRT     0x0200
+#define _IOMOD     0x0400 // Buffer was modified
 
 // Values for FILE::BufferMode are _IONBF/_IOLBF/_IOFBF
 
@@ -68,19 +66,8 @@ static inline bool __FILE_IsBuffered(FILE* stream) {
     return stream->BufferMode != _IONBF;
 }
 
-static inline bool __FILE_ShouldFlush(FILE* stream, uint8_t mode) {
-    // If no operation was done, ergo the mode is 0, we don't need
-    // to flush. If the mode we want, match the current mode, we don't
-    // need to flush. If the mode we had, was seek, we don't need to
-    // flush
-    return __FILE_IsBuffered(stream) &&
-        stream->StreamMode != 0 &&
-        stream->StreamMode != __STREAMMODE_SEEK &&
-        stream->StreamMode != mode;
-}
-
-static inline void __FILE_SetStreamMode(FILE* stream, uint8_t mode) {
-    stream->StreamMode = mode;
+static inline size_t __FILE_BytesBuffered(FILE* stream) {
+    return (size_t)(stream->Current - stream->Base);
 }
 
 static inline bool __FILE_StreamModeSupported(FILE* stream, uint8_t mode) {
@@ -92,10 +79,6 @@ static inline bool __FILE_StreamModeSupported(FILE* stream, uint8_t mode) {
         return (stream->Flags & _IOAPPEND) != 0 ? true : false;
     }
     return false;
-}
-
-static inline size_t __FILE_BytesBuffered(FILE* stream) {
-    return (size_t)(stream->_ptr - stream->_base);
 }
 
 #endif //!__INTERNAL_FILE_H__

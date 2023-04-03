@@ -1,15 +1,12 @@
-project (vali-kernel-scheduling)
+project (vali-kernel-sync)
 enable_language (C)
 
 # Configure source files
-add_kernel_library (vali-core-scheduling ""
+add_kernel_library (vali-core-sync ""
         futex.c
-        ipc.c
         spinlock.c
         mutex.c
-        scheduler.c
         semaphore.c
         signal.c
-        threading.c
         userevent.c
 )

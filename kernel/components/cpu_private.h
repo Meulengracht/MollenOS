@@ -31,7 +31,7 @@
 #define __VALI_CPU_PRIVATE_H__
 
 #include <component/cpu.h>
-#include "../scheduling/threading_private.h"
+#include "../threads/private.h"
 
 typedef struct SystemCpuCore {
     uuid_t           Id;

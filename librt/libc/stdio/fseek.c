@@ -75,26 +75,40 @@ int fseeki64(
         return -1;
     }
 
-    // Ensure that the stream is flushed on seek operations.
-    if (__FILE_ShouldFlush(file, __STREAMMODE_SEEK)) {
-        ret = fflush(file);
-        if (ret) {
-            funlockfile(file);
-            return ret;
+    // When seeking we need to calculate the next position. Is the position within
+    // the bounds of the current stream buffer? Or is it outside?
+    if (__FILE_IsBuffered(file)) {
+        // In all cases we must know the current position, as we must be able
+        // to return the current position.
+        long long base = lseeki64(file->IOD, 0, SEEK_CUR);
+        long long current = base + (long long)__FILE_BytesBuffered(file);
+        long long limit = base + file->BufferSize;
+
+        // If we are seeking inside the parameters of the stream buffer,
+        // then we can avoid another seek call to the VFS. If we seek outside
+        // we need to maybe flush the buffer, or reset the streambuffer
+        if (whence == SEEK_CUR) {
+            if ((current + offset) < base) {
+                // we are seeking outside
+            } else if ((current + offset) >= limit) {
+                // we are seeking outside
+            } else {
+                // we are seeking inside
+            }
+        } else if (whence == SEEK_SET) {
+
         }
+    } else {
+        ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
     }
 
-    // update stream mode
-    __FILE_SetStreamMode(file, __STREAMMODE_SEEK);
-
 	// discard buffered input
-	file->_cnt = 0;
-	file->_ptr = file->_base;
+	file->BytesAvailable = 0;
+	file->Current = file->Base;
 
     // clear EOF
 	file->Flags &= ~_IOEOF;
 
-	ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
 	funlockfile(file);
 	return ret;
 }

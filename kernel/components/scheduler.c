@@ -26,18 +26,18 @@
 //#define __TRACE
 
 #define __need_minmax
-#include <assert.h>
-#include <arch/thread.h>
-#include <arch/utils.h>
-#include <component/domain.h>
-#include <component/timer.h>
-#include <debug.h>
-#include <ds/list.h>
-#include <ddk/io.h>
-#include <heap.h>
-#include <machine.h>
-#include <scheduler.h>
-#include <string.h>
+#include "assert.h"
+#include "arch/thread.h"
+#include "arch/utils.h"
+#include "component/domain.h"
+#include "component/timer.h"
+#include "debug.h"
+#include "ds/list.h"
+#include "ddk/io.h"
+#include "heap.h"
+#include "machine.h"
+#include "scheduler.h"
+#include "string.h"
 
 #define EVENT_EXECUTE      0
 #define EVENT_QUEUE        1
