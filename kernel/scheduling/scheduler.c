@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
+ * * Read that scheduler could move to userspace? Interesting thought-experiment *
  * Multilevel Feedback Scheduler
  *  - Implements scheduling of threads by having a specified number of queues
  *    where each queue has a different timeslice, the longer a thread is running
