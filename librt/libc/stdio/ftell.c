@@ -15,12 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "assert.h"
-#include "errno.h"
-#include "internal/_file.h"
-#include "internal/_io.h"
-#include "io.h"
-#include "stdio.h"
+#include <assert.h>
+#include <errno.h>
+#include <internal/_file.h>
+#include <io.h>
+#include <stdio.h>
 
 long tell(
 	_In_ int fd)
@@ -34,11 +33,19 @@ long long telli64(
 	return lseeki64(fd, 0, SEEK_CUR);
 }
 
-long long ftelli64(
+static long long
+__BufferedPosition(
+        _In_ FILE*     stream,
+        _In_ long long base)
+{
+    return base + __FILE_BufferPosition(stream);
+}
+
+long long
+ftelli64(
 	_In_ FILE *stream)
 {
-    stdio_handle_t* handle;
-	long long       position;
+	long long position;
 
 	if (!stream) {
 		_set_errno(EINVAL);
@@ -46,12 +53,6 @@ long long ftelli64(
 	}
 	
 	flockfile(stream);
-	handle = stdio_handle_get(stream->IOD);
-    if (handle == NULL) {
-		funlockfile(stream);
-        _set_errno(EBADFD);
-        return -1;
-    }
 
 	position = telli64(stream->IOD);
 	if (position == -1) {
@@ -59,67 +60,13 @@ long long ftelli64(
 		return -1;
 	}
 
-	// Buffered input? Then we have to modify the pointer
-	if (stream->Flags & (_IOMYBUF | _IOUSRBUF)) {
-		if (stream->StreamMode == __STREAMMODE_WRITE) {
-			// Add the calculated difference in position
-			position += stream->_ptr - stream->_base;
-
-			// Extra special case in case of text stream
-			if (handle->XTFlags & __IO_TEXTMODE) {
-				char *p;
-
-				for (p = stream->_base; p < stream->_ptr; p++) {
-					if (*p == '\n') {
-						position++;
-					}
-				}
-			}
-		} else if (!stream->_cnt) {
-			// Empty buffer
-		} else if (lseeki64(stream->IOD, 0, SEEK_END) == position) {
-			int i;
-
-			// Adjust for buffer count
-			position -= stream->_cnt;
-
-			// Special case for text streams again
-			if (handle->XTFlags & __IO_TEXTMODE) {
-				for (i = 0; i < stream->_cnt; i++) {
-					if (stream->_ptr[i] == '\n') {
-						position--;
-					}
-				}
-			}
-		} else {
-			char *p;
-
-			// Restore stream cursor in case we seeked to end
-			if (lseeki64(stream->IOD, position, SEEK_SET) != position) {
-				funlockfile(stream);
-				return -1;
-			}
-
-			// Again adjust for the buffer
-			position -= stream->_bufsiz;
-			position += stream->_ptr - stream->_base;
-
-			// And lastly, special text case
-			if (handle->XTFlags & __IO_TEXTMODE) {
-				if (handle->XTFlags & __IO_READNL) {
-					position--;
-				}
-
-				for (p = stream->_base; p < stream->_ptr; p++) {
-					if (*p == '\n') {
-						position++;
-					}
-				}
-			}
-		}
-	}
-	funlockfile(stream);
-	return position;
+    // If the stream is buffered, we need to correct for buffer
+    // position.
+    if (__FILE_IsBuffered(stream)) {
+        position = __BufferedPosition(stream, position);
+    }
+    funlockfile(stream);
+    return position;
 }
 
 off_t ftello(

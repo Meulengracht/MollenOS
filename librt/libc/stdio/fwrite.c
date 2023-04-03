@@ -34,16 +34,12 @@ __prewrite_buffer(
         _In_ const void* buffer,
         _In_ int         count)
 {
-    int bytesAvailable = stream->BufferSize - (int)__FILE_BytesBuffered(stream);
+    int bytesAvailable = stream->BufferSize - __FILE_BufferPosition(stream);
     int bytesToWrite = MIN(bytesAvailable, count);
     memcpy(stream->Current, buffer, bytesToWrite);
 
-    // Increase the buffer pointer, but only decrease the bytes available
-    // if the stream was currently reading
     stream->Current += bytesToWrite;
-    if (stream->BytesAvailable) {
-        stream->BytesAvailable -= bytesToWrite;
-    }
+    __FILE_UpdateBytesValid(stream);
 
     stream->Flags |= _IOMOD;
     return bytesToWrite;
@@ -67,8 +63,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
     }
 
 	flockfile(stream);
-    if (!__FILE_StreamModeSupported(stream, __STREAMMODE_WRITE)) {
-        ERROR("fwrite: not supported");
+    if (!__FILE_CanWrite(stream)) {
         stream->Flags |= _IOERR;
         funlockfile(stream);
         errno = EACCES;
@@ -80,7 +75,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 
     // Fill the buffer before continuing, and flush if neccessary.
     if (__FILE_IsBuffered(stream)) {
-        int bytesAvailable = stream->BufferSize - (int)__FILE_BytesBuffered(stream);
+        int bytesAvailable = stream->BufferSize - __FILE_BufferPosition(stream);
         int bytesWritten = __prewrite_buffer(stream, vptr, (int)wrcnt);
         if (bytesWritten) {
             TRACE("fwrite: wrote %i bytes to internal buffer", bytesWritten);
@@ -109,7 +104,6 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
         // We cannot perform writing to the underlying IOD if this is
         // a strange resource
         if (__FILE_IsStrange(stream)) {
-            ERROR("fwrite: cannot write to underlying iod with strange streams");
             stream->Flags |= _IOERR;
             break;
         }
@@ -123,7 +117,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
             TRACE("fwrite: writing %u bytes directly", chunkSize);
             bytesWritten = write(stream->IOD, vptr, chunkSize);
         }
-        ERROR("fwrite: wrote %i bytes", bytesWritten);
+        TRACE("fwrite: wrote %i bytes", bytesWritten);
 
         if (bytesWritten == -1) {
             stream->Flags |= _IOERR;

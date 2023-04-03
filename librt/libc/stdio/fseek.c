@@ -69,10 +69,26 @@ int fseeki64(
 	flockfile(file);
 
     // Ensure that we support the stream mode on this stream
-    if (!__FILE_StreamModeSupported(file, __STREAMMODE_SEEK)) {
+    if (!__FILE_CanSeek(file)) {
         funlockfile(file);
         errno = EACCES;
         return -1;
+    }
+
+    // If the stream is open in binary mode, the new position is exactly offset bytes measured from the
+    // beginning of the file if origin is SEEK_SET, from the current file position if origin is
+    // SEEK_CUR, and from the end of the file if origin is SEEK_END.
+    // Binary streams are not required to support SEEK_END, in particular if additional null bytes are output.
+
+    // If the stream is open in text mode, the only supported values for offset
+    // are zero (which works with any origin) and a value returned by an earlier call
+    // to ftell on a stream associated with the same file (which only works with origin of SEEK_SET).
+    if (file->Flags & (_FBYTE | _FWIDE)) {
+        if ((whence == SEEK_CUR || whence == SEEK_END) && offset != 0) {
+            funlockfile(file);
+            errno = EINVAL;
+            return -1;
+        }
     }
 
     // When seeking we need to calculate the next position. Is the position within
@@ -81,30 +97,95 @@ int fseeki64(
         // In all cases we must know the current position, as we must be able
         // to return the current position.
         long long base = lseeki64(file->IOD, 0, SEEK_CUR);
-        long long current = base + (long long)__FILE_BytesBuffered(file);
+        long long current = base + __FILE_BufferPosition(file);
         long long limit = base + file->BufferSize;
+        if (base == -1) {
+            funlockfile(file);
+            return -1;
+        }
 
         // If we are seeking inside the parameters of the stream buffer,
         // then we can avoid another seek call to the VFS. If we seek outside
         // we need to maybe flush the buffer, or reset the streambuffer
         if (whence == SEEK_CUR) {
-            if ((current + offset) < base) {
-                // we are seeking outside
-            } else if ((current + offset) >= limit) {
-                // we are seeking outside
+            if ((current + offset) < base || (current + offset) >= limit) {
+                ret = fflush(file);
+                if (ret) {
+                    funlockfile(file);
+                    return ret;
+                }
+                ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
             } else {
-                // we are seeking inside
+                // we are seeking inside, just update Current to point to
+                // the right offset, and skip doing a seek.
+                file->Current += offset;
+                ret = 0;
             }
         } else if (whence == SEEK_SET) {
+            if (offset < base || offset >= limit) {
+                ret = fflush(file);
+                if (ret) {
+                    funlockfile(file);
+                    return ret;
+                }
+                ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
+            } else {
+                // we are seeking inside, just update Current to point to
+                // the right offset, and skip doing a seek.
+                file->Current = file->Base + (offset - base);
+                ret = 0;
+            }
+        } else if (whence == SEEK_END) {
+            // Ironically, wanting to seek the end of the file requires us to do so
+            // in any case. We may however end up restoring the previous position.
+            long long end = lseeki64(file->IOD, 0, SEEK_END);
+            if (end == -1) {
+                funlockfile(file);
+                return -1;
+            }
 
+            if ((end + offset) < base || (end + offset) >= limit) {
+                // We were searching outside the buffer, before we restore
+                // we should now check whether a flush was required.
+                if (file->Flags & _IOMOD) {
+                    // The buffer had been modified, this unfortunately means
+                    // we need to restore position, flush the buffer and seek again.
+                    // This is our worst-case scenario. But we only do so for the write-case
+                    // as read-case is just a buffer reset, we don't require any writing to
+                    // the underlying IOD.
+                    ret = (int)lseeki64(file->IOD, base, SEEK_SET);
+                    if (ret == -1) {
+                        funlockfile(file);
+                        return ret;
+                    }
+                }
+
+                // Flush the buffer, and then seek to the correct position, as requested.
+                ret = fflush(file);
+                if (ret) {
+                    funlockfile(file);
+                    return ret;
+                }
+                ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
+            } else {
+                // If we are seeking inside the stream buffer, then we *must* reset the
+                // underlying seek pointer, by restoring the original position
+                ret = (int)lseeki64(file->IOD, base, SEEK_SET);
+                if (ret == -1) {
+                    funlockfile(file);
+                    return ret;
+                }
+                file->Current += file->BytesValid + offset;
+                ret = 0;
+            }
+        } else {
+            funlockfile(file);
+            errno = EINVAL;
+            return -1;
         }
     } else {
         ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
     }
-
-	// discard buffered input
-	file->BytesAvailable = 0;
-	file->Current = file->Base;
 
     // clear EOF
 	file->Flags &= ~_IOEOF;

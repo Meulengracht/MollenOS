@@ -51,14 +51,13 @@ __preread_buffer(
         _In_ void*  buffer,
         _In_ int    count)
 {
-    int bytesToCopy = MIN(count, stream->BytesAvailable);
+    int bytesToCopy = MIN(count, __FILE_BufferBytesForReading(stream));
     if (bytesToCopy <= 0) {
         return 0;
     }
 
     memcpy(buffer, stream->Current, bytesToCopy);
 
-    stream->BytesAvailable -= bytesToCopy;
     stream->Current += bytesToCopy;
     return bytesToCopy;
 }
@@ -84,7 +83,7 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 	}
 
     flockfile(stream);
-    if (!__FILE_StreamModeSupported(stream, __STREAMMODE_READ)) {
+    if (!__FILE_CanRead(stream)) {
         ERROR("fread: not supported");
         stream->Flags |= _IOERR;
         funlockfile(stream);
@@ -106,11 +105,9 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
         }
 
         // After pre-reading the buffer we may need to flush it if it was
-        // modified. The position into the buffer must be at the end, and
-        // the number of bytes
-        if (!stream->BytesAvailable && (stream->Flags & _IOMOD)) {
-            TRACE("fread: flushing modified read buffer");
-            // Buffer was modified, we should flush it before refilling
+        // modified or empty. The number of bytes available for reading must
+        // return 0 to indicate it's empty.
+        if (__FILE_BufferBytesForReading(stream) == 0) {
             if (fflush(stream)) {
                 funlockfile(stream);
                 return -1;
@@ -135,13 +132,12 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		// If buffer is empty and the data fits into the buffer, then we fill that instead
 		if (__FILE_IsBuffered(stream) && chunkSize < stream->BufferSize) {
             TRACE("fread: filling read buffer of size %i", stream->BufferSize);
-			stream->BytesAvailable = read(stream->IOD, stream->Base, stream->BufferSize);
+			stream->BytesValid = read(stream->IOD, stream->Base, stream->BufferSize);
 			stream->Current = stream->Base;
-            bytesRead = MIN(stream->BytesAvailable, chunkSize);
+            bytesRead = MIN(stream->BytesValid, chunkSize);
 
 			if (bytesRead > 0) {
 				memcpy(vptr, stream->Current, bytesRead);
-				stream->BytesAvailable -= bytesRead;
 				stream->Current += bytesRead;
 			}
         } else {

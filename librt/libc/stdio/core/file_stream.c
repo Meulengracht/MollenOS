@@ -26,14 +26,6 @@
 
 extern hashtable_t* stdio_get_handles(void);
 
-static void
-__reset_iobuffer(
-        _In_ FILE* stream)
-{
-    stream->Current = stream->Base;
-    stream->BytesAvailable = 0;
-}
-
 void io_buffer_allocate(FILE* stream)
 {
     // Is the stream really buffered?
@@ -53,7 +45,7 @@ void io_buffer_allocate(FILE* stream)
         stream->Base = (char*)(&stream->_charbuf);
         stream->BufferSize = sizeof(stream->_charbuf);
     }
-    __reset_iobuffer(stream);
+    __FILE_ResetBuffer(stream);
 }
 
 void io_buffer_ensure(FILE* stream)
@@ -68,24 +60,33 @@ oserr_t
 io_buffer_flush(
     _In_ FILE* file)
 {
-    size_t bytesToFlush;
-    int    bytesWritten;
+    int bytesWritten;
 
     if (__FILE_IsStrange(file)) {
         return OS_ENOTSUPPORTED;
     }
 
-    bytesToFlush = __FILE_BytesBuffered(file);
-    if (bytesToFlush == 0) {
+    if (!__FILE_CanWrite(file)) {
+        return OS_EPERMISSIONS;
+    }
+
+    // If there is no data to flush, then skip. This can happen for streams that
+    // have no buffer, or just empty buffers.
+    if (file->BytesValid == 0) {
         return OS_EOK;
     }
 
-    bytesWritten = write(file->IOD, file->Base, (unsigned int)bytesToFlush);
-    if (bytesWritten != bytesToFlush) {
+    // Do the actual flushing of the underlying IOD.
+    bytesWritten = write(file->IOD, file->Base, (unsigned int)file->BytesValid);
+    if (bytesWritten >= 0) {
+        // Mark the stream as unmodified as long as there wasn't an error
+        file->Flags &= ~(_IOMOD);
+    } else {
+        // Otherwise, there was an i/o error with the underlying implementation.
         file->Flags |= _IOERR;
         return OS_EDEVFAULT;
     }
-    __reset_iobuffer(file);
+    __FILE_ResetBuffer(file);
     return OS_EOK;
 }
 

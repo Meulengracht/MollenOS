@@ -11,7 +11,7 @@ typedef struct _FILE {
     // Flags are used to keep state of the FILE stream.
     uint16_t Flags;
     // BufferMode is used to keep track of buffering.
-    uint8_t BufferMode;
+    uint16_t BufferMode;
     // Buffer management. When FILE streams are buffered
     // we use the following _base, _ptr and _cnt to keep
     // track of buffering. _ptr is where the buffer pointer
@@ -20,11 +20,15 @@ typedef struct _FILE {
     // of the buffer pointed to by _base.
     char* Base;
     char* Current;
-    int   BytesAvailable;
     int   BufferSize;
 
+    // BytesValid denotes how many bytes of the buffer has valid
+    // data. This is important for shared buffering where we may need
+    // to flush it still if the data was modified.
+    int BytesValid;
+
     // Even for unbuffered streams, we keep a small buffer big
-    // enough to store an unicode character. In essence this means
+    // enough to store a unicode character. In essence this means
     // that _base/_ptr will never be NULL and _bufsize never 0.
     uint32_t _charbuf;
 
@@ -46,17 +50,14 @@ typedef struct _FILE {
 #define _IOWR      0x0020 // Write is allowed
 #define _IORW      (_IORD | _IOWR)
 #define _IOAPPEND  0x0040
+
 #define _FWIDE     0x0080
 #define _FBYTE     0x0100
 #define _IOVRT     0x0200
-#define _IOMOD     0x0400 // Buffer was modified
+#define _IOMOD     0x0400 // Buffer was modified.
+#define _IOFILLED  0x0800 // Buffer has been filled.
 
 // Values for FILE::BufferMode are _IONBF/_IOLBF/_IOFBF
-
-// Values for FILE::StreamMode
-#define __STREAMMODE_READ  0x01 // last operation was a read
-#define __STREAMMODE_WRITE 0x02 // last operation was a write
-#define __STREAMMODE_SEEK  0x03 // last operation was a seek
 
 static inline bool __FILE_IsStrange(FILE* stream) {
     return stream->IOD == -1;
@@ -66,19 +67,40 @@ static inline bool __FILE_IsBuffered(FILE* stream) {
     return stream->BufferMode != _IONBF;
 }
 
-static inline size_t __FILE_BytesBuffered(FILE* stream) {
-    return (size_t)(stream->Current - stream->Base);
+static inline int __FILE_BufferPosition(FILE* stream) {
+    return (int)(stream->Current - stream->Base);
 }
 
-static inline bool __FILE_StreamModeSupported(FILE* stream, uint8_t mode) {
-    if (mode == __STREAMMODE_READ) {
-        return (stream->Flags & _IORD) != 0 ? true : false;
-    } else if (mode == __STREAMMODE_WRITE) {
-        return (stream->Flags & _IOWR) != 0 ? true : false;
-    } else if (mode == __STREAMMODE_SEEK) {
-        return (stream->Flags & _IOAPPEND) != 0 ? true : false;
+static inline int __FILE_BufferBytesForReading(FILE* stream) {
+    int position = __FILE_BufferPosition(stream);
+    if (position >= stream->BytesValid) {
+        return 0;
     }
-    return false;
+    return stream->BytesValid - position;
+}
+
+static inline void __FILE_UpdateBytesValid(FILE* stream) {
+    int position = __FILE_BufferPosition(stream);
+    if (position > stream->BytesValid) {
+        stream->BytesValid = position;
+    }
+}
+
+static inline bool __FILE_CanRead(FILE* stream) {
+    return (stream->Flags & _IORD) != 0 ? true : false;
+}
+
+static inline bool __FILE_CanWrite(FILE* stream) {
+    return (stream->Flags & _IOWR) != 0 ? true : false;
+}
+
+static inline bool __FILE_CanSeek(FILE* stream) {
+    return (stream->Flags & _IOAPPEND) != 0 ? true : false;
+}
+
+static inline void __FILE_ResetBuffer(FILE* stream) {
+    stream->BytesValid = 0;
+    stream->Current = stream->Base;
 }
 
 #endif //!__INTERNAL_FILE_H__
