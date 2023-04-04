@@ -55,7 +55,6 @@ typedef struct _FILE {
 #define _FBYTE     0x0100
 #define _IOVRT     0x0200
 #define _IOMOD     0x0400 // Buffer was modified.
-#define _IOFILLED  0x0800 // Buffer has been filled.
 
 // Values for FILE::BufferMode are _IONBF/_IOLBF/_IOFBF
 

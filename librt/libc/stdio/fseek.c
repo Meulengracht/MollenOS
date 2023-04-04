@@ -189,9 +189,7 @@ int fseeki64(
         ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
     }
 
-    // clear EOF
-	file->Flags &= ~_IOEOF;
-
+    clearerr(file);
 	funlockfile(file);
 	return ret;
 }
