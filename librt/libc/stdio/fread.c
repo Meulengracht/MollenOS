@@ -94,24 +94,23 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
     // Ensure a buffer is present if possible. We need it before reading.
     io_buffer_ensure(stream);
 
-    // preread from the internal buffer
-    if (__FILE_IsBuffered(stream)) {
-        bytesRead = __preread_buffer(stream, vptr, (int)rcnt);
-        if (bytesRead) {
-            TRACE("fread: read %i bytes from internal buffer", bytesRead);
-            cread += bytesRead;
-            rcnt -= bytesRead;
-            vptr = (char*)vptr + bytesRead;
-        }
+    // Always pre-read from the internal buffer. Even when streams are unbuffered
+    // we have a small ungetc buffer which needs to be emptied first.
+    bytesRead = __preread_buffer(stream, vptr, (int)rcnt);
+    if (bytesRead) {
+        TRACE("fread: read %i bytes from internal buffer", bytesRead);
+        cread += bytesRead;
+        rcnt -= bytesRead;
+        vptr = (char*)vptr + bytesRead;
+    }
 
-        // After pre-reading the buffer we may need to flush it if it was
-        // modified or empty. The number of bytes available for reading must
-        // return 0 to indicate it's empty.
-        if (__FILE_BufferBytesForReading(stream) == 0) {
-            if (fflush(stream)) {
-                funlockfile(stream);
-                return -1;
-            }
+    // After pre-reading the buffer we may need to flush it if it was
+    // modified or empty. The number of bytes available for reading must
+    // return 0 to indicate it's empty.
+    if (__FILE_BufferBytesForReading(stream) == 0) {
+        if (fflush(stream)) {
+            funlockfile(stream);
+            return -1;
         }
     }
 
@@ -132,14 +131,16 @@ fread(void *vptr, size_t size, size_t count, FILE *stream)
 		// If buffer is empty and the data fits into the buffer, then we fill that instead
 		if (__FILE_IsBuffered(stream) && chunkSize < stream->BufferSize) {
             TRACE("fread: filling read buffer of size %i", stream->BufferSize);
-			stream->BytesValid = read(stream->IOD, stream->Base, stream->BufferSize);
-			stream->Current = stream->Base;
-            bytesRead = MIN(stream->BytesValid, chunkSize);
-
-			if (bytesRead > 0) {
-				memcpy(vptr, stream->Current, bytesRead);
-				stream->Current += bytesRead;
-			}
+			int ret = read(stream->IOD, stream->Base, stream->BufferSize);
+            if (ret > 0) {
+                stream->BytesValid = ret;
+                stream->Current = stream->Base;
+                bytesRead = MIN(stream->BytesValid, chunkSize);
+                if (bytesRead > 0) {
+                    memcpy(vptr, stream->Current, bytesRead);
+                    stream->Current += bytesRead;
+                }
+            }
         } else {
             TRACE("fread: filling buffer directly of size %i", chunkSize);
             bytesRead = read(stream->IOD, vptr, chunkSize);

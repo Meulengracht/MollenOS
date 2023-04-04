@@ -1,19 +1,24 @@
-/*
- Description
- The functions asprintf() and vasprintf() are analogs of 
- sprintf(3) and vsprintf(3), except that they allocate a 
- string large enough to hold the output including the 
- terminating null byte, and return a pointer to it via the 
- first argument. This pointer should be passed to free(3) 
- to release the allocated storage when it is no longer needed.
- 
- Return Value
- When successful, these functions return the number of 
- bytes printed, just like sprintf(3). If memory allocation 
- wasn't possible, or some other error occurs, these functions 
- will return -1, and the contents of strp is undefined.
-*/
+/**
+ * MollenOS
+ *
+ * Copyright 2023, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
+#include <errno.h>
 #include <internal/_file.h>
 #include <internal/_io.h>
 #include <stdio.h>
@@ -30,18 +35,13 @@ int asprintf(
 	FILE    stream = { 0 };
 	va_list argptr;
 
-	if(format == NULL || ret == NULL) {
+	if (format == NULL || ret == NULL) {
+        errno = EINVAL;
 		return -1;
 	}
 
-	memset(&buffer[0], 0, 512);
-    stream.IOD = -1;
-    stream.Flags = _IOWR;
-    stream.StreamMode = __STREAMMODE_WRITE;
-    stream._base = &buffer[0];
-    stream._ptr = stream._base;
-    stream._cnt = 512;
-    usched_mtx_init(&stream.Lock, USCHED_MUTEX_RECURSIVE);
+	memset(&buffer[0], 0, sizeof(buffer));
+    __FILE_Streamout(&stream, &buffer[0], sizeof(buffer));
 
 	va_start(argptr, format);
     result = streamout(&stream, format, argptr);

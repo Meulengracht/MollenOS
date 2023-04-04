@@ -22,35 +22,69 @@
 #include <stdio.h>
 
 int putw(
-    _In_ int   val,
+    _In_ int   ch,
     _In_ FILE* file)
 {
-    int res = 0;
+    int written;
+    int res = ch;
 
     flockfile(file);
 
     // Ensure that this mode is supported
-    if (!__FILE_StreamModeSupported(file, __STREAMMODE_WRITE)) {
+    if (!__FILE_CanWrite(file)) {
         funlockfile(file);
         errno = EACCES;
         return EOF;
     }
 
-    // If we were previously reading, then we flush
-    if (file->StreamMode == __STREAMMODE_READ) {
-        fflush(file);
-    }
-    __FILE_SetStreamMode(file, __STREAMMODE_WRITE);
-
-    // Ensure a buffer is present if supported
+    // We ensure a buffer is present on all buffered calls.
     io_buffer_ensure(file);
 
-    if (__FILE_IsBuffered(file) && file->_cnt > 0) {
-        *(int*)file->_ptr = val;
-        file->_cnt -= sizeof(int);
-        file->_ptr += sizeof(int);
+    // Is the buffer-space available?
+    if (__FILE_IsBuffered(file)) {
+        int bytesAvailable = file->BufferSize - __FILE_BufferPosition(file);
+        if (bytesAvailable < sizeof(wchar_t)) {
+            // Should we be out of buffer space for a strange file-descriptor, then
+            // we return EBUFFER instead of EACCESS to indicate that we ran out of
+            // buffer.
+            if (__FILE_IsStrange(file)) {
+                funlockfile(file);
+                errno = ENOBUFS;
+                return -1;
+            }
+
+            if (fflush(file)) {
+                funlockfile(file);
+                return -1;
+            }
+        }
+
+        // At this point we *must* have buffer room, if not we error
+        bytesAvailable = file->BufferSize - __FILE_BufferPosition(file);
+        if (bytesAvailable < sizeof(wchar_t)) {
+            funlockfile(file);
+            errno = ENOBUFS;
+            return -1;
+        }
+        *((wchar_t*)file->Current) = (wchar_t)(ch & 0xFFFF);
+        file->Current += sizeof(wchar_t);
+        file->Flags |= _IOMOD;
+        __FILE_UpdateBytesValid(file);
+        written = sizeof(wchar_t);
     } else {
-        res = _flswbuf(val, file);
+        if (__FILE_IsStrange(file)) {
+            funlockfile(file);
+            errno = EACCES;
+            return -1;
+        }
+        __FILE_ResetBuffer(file);
+        written = write(file->IOD, &ch, sizeof(wchar_t));
     }
-    return res ? res : val;
+
+    if (written != sizeof(wchar_t)) {
+        file->Flags |= _IOERR;
+        res = EOF;
+    }
+    funlockfile(file);
+    return res;
 }

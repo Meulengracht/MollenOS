@@ -21,36 +21,6 @@
 #include <internal/_file.h>
 #include <stdio.h>
 
-static int
-__fill_buffer(
-	_In_ FILE* file)
-{
-	// We can't fill the io buffer if this is a strange resource
-	if (__FILE_IsStrange(file)) {
-		return EOF;
-	}
-
-    // Try to ensure a buffer is present if possible.
-	io_buffer_ensure(file);
-
-    // Now actually fill the buffer
-    file->_cnt = read(file->IOD, file->_base, file->_bufsiz);
-
-    // If it failed, we are either at end of file or encounted
-    // a real error
-    if (file->_cnt < 1) {
-        file->Flags |= (file->_cnt == 0) ? _IOEOF : _IOERR;
-        file->_cnt = 0;
-        return EOF;
-    }
-
-    // reduce number of available bytes with 1 and return
-    // the first character
-    file->_cnt--;
-    file->_ptr = file->_base + 1;
-    return *(unsigned char *)file->_base;
-}
-
 int fgetc(
 	_In_ FILE *file)
 {
@@ -61,7 +31,7 @@ int fgetc(
     flockfile(file);
 
     // Ensure that this mode is supported
-    if (!__FILE_StreamModeSupported(file, __STREAMMODE_READ)) {
+    if (!__FILE_CanRead(file)) {
         funlockfile(file);
         errno = EACCES;
         return EOF;
@@ -70,25 +40,46 @@ int fgetc(
     // Ensure a buffer is present if possible. We need it before reading
     io_buffer_ensure(file);
 
-    // Should we flush the current buffer? If the last operation was a write
-    // we must flush
-    if (__FILE_ShouldFlush(file, __STREAMMODE_READ)) {
-        int ret = fflush(file);
-        if (ret) {
+    // Preread from the internal buffer first, otherwise do a direct read
+    // if the underlying IOD allows us.
+    if (__FILE_BufferBytesForReading(file) > 0) {
+		i = (unsigned char *)file->Current++;
+		j = *i;
+	} else {
+        int ret;
+
+        if (__FILE_IsStrange(file)) {
             funlockfile(file);
             return EOF;
         }
-    }
 
-    // We are now doing a read operation
-    __FILE_SetStreamMode(file, __STREAMMODE_READ);
+        if (__FILE_IsBuffered(file)) {
+            // Refill the buffer from the underlying IOD, and reset stream
+            // pointer
+            ret = read(file->IOD, file->Base, file->BufferSize);
+            if (ret > 0) {
+                file->BytesValid = ret;
+                file->Current = file->Base + sizeof(char);
 
-    if (file->_cnt > 0) {
-		file->_cnt--;
-		i = (unsigned char *)file->_ptr++;
-		j = *i;
-	} else {
-		j = __fill_buffer(file);
+                i = (unsigned char *)file->Base;
+                j = *i;
+            }
+        } else {
+            // Do a direct read
+            ret = read(file->IOD, &j, sizeof(char));
+            if (ret > 0) {
+                j &= 0x000000FF;
+            }
+        }
+
+        if (ret <= 0) {
+            if (ret < 0) {
+                file->Flags |= _IOERR;
+            } else {
+                file->Flags |= _IOEOF;
+            }
+            j = (unsigned int)EOF;
+        }
 	}
     funlockfile(file);
 	return (int)j;

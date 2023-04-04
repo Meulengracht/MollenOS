@@ -25,11 +25,13 @@
 # define format_float format_floatw
 # define fputtc fputwc
 # define _TEOF WEOF
+# define _TMASK 0xFFFF
 #else
 # define _tcslen strlen
 # define _tcscpy strcpy
 # define fputtc fputc
 # define _TEOF EOF
+# define _TMASK 0xFF
 #endif
 
 #define MB_CUR_MAX 10
@@ -235,26 +237,24 @@ VideoPutCharacter(
     _In_ int Character);
 #endif
 
-static
-int
+static int
 streamout_char(FILE *stream, int chr)
 {
     if (__FILE_IsStrange(stream)) {
-        if (stream->_base == NULL) {
+        if (stream->Base == NULL) {
             return 1;
         }
 
-        // Sanitize buffer
-        if (stream->_cnt < sizeof(TCHAR)) {
+        if (__FILE_BufferBytesForWriting(stream) < sizeof(TCHAR)) {
             if (stream->Flags & _IOVRT) {
                 return 1;
             }
             return 0;
         }
 
-        *(TCHAR*)stream->_ptr = chr;
-        stream->_ptr += sizeof(TCHAR);
-        stream->_cnt -= sizeof(TCHAR);
+        *(TCHAR*)stream->Current = (TCHAR)(chr & _TMASK);
+        stream->Current += sizeof(TCHAR);
+        __FILE_UpdateBytesValid(stream);
         return 1;
     }
 
@@ -265,15 +265,14 @@ streamout_char(FILE *stream, int chr)
 #endif
 }
 
-static
-int
+static int
 streamout_astring(FILE *stream, const char *string, size_t count)
 {
     TCHAR chr;
     int written = 0;
 
-    if (__FILE_IsStrange(stream) && (stream->_base == NULL)) {
-        return count;
+    if (__FILE_IsStrange(stream) && (stream->Base == NULL)) {
+        return (int)count;
     }
 
     while (count--)
@@ -299,7 +298,7 @@ streamout_wstring(FILE *stream, const wchar_t *string, size_t count)
     int written = 0;
 
 #if defined(_UNICODE)
-    if (__FILE_IsStrange(stream) && (stream->_base == NULL))
+    if (__FILE_IsStrange(stream) && (stream->Base == NULL))
         return count;
 #endif
 

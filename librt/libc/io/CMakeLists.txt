@@ -3,6 +3,7 @@ add_libc_target(libc-io
         close.c
         dirent.c
         dup.c
+        ioctl.c
         isatty.c
         link.c
         marktty.c

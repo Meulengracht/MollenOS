@@ -184,6 +184,8 @@ int fseeki64(
             return -1;
         }
     } else {
+        // clear the ungetc buffer
+        __FILE_ResetBuffer(file);
         ret = (lseeki64(file->IOD, offset, whence) == -1) ? -1 : 0;
     }
 

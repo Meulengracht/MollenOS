@@ -36,6 +36,10 @@ __prewrite_buffer(
 {
     int bytesAvailable = stream->BufferSize - __FILE_BufferPosition(stream);
     int bytesToWrite = MIN(bytesAvailable, count);
+    if (bytesToWrite <= 0) {
+        return 0;
+    }
+
     memcpy(stream->Current, buffer, bytesToWrite);
 
     stream->Current += bytesToWrite;
@@ -92,6 +96,9 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
                 return -1;
             }
         }
+    } else {
+        // clear the ungetc buffer
+        __FILE_ResetBuffer(stream);
     }
 
     // Because of pre-fill we can simplify the loop a bit. We can now make the assumption that
@@ -113,6 +120,9 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
         // and move on, or we need to write more than can fit.
         if (__FILE_IsBuffered(stream) && chunkSize < stream->BufferSize) {
             bytesWritten = __prewrite_buffer(stream, vptr, chunkSize);
+            if (bytesWritten > 0) {
+                stream->Flags |= _IOMOD;
+            }
         } else {
             TRACE("fwrite: writing %u bytes directly", chunkSize);
             bytesWritten = write(stream->IOD, vptr, chunkSize);
@@ -123,7 +133,6 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
             stream->Flags |= _IOERR;
             break;
         } else if (bytesWritten > 0) {
-            stream->Flags |= _IOMOD;
             written += bytesWritten;
             wrcnt -= bytesWritten;
             vptr = (const char*)vptr + bytesWritten;
