@@ -22,12 +22,138 @@
  *    - Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
 #include "ohci.h"
 #include <assert.h>
 #include <stdlib.h>
+
+static oserr_t
+__ConstructSetupPacket(
+        _In_ OhciController_t*             controller,
+        _In_ UsbManagerTransfer_t*         transfer,
+        _In_ struct UsbManagerTransaction* xaction,
+        _In_ size_t                        length)
+{
+    OhciTransferDescriptor_t* previousTd = NULL;
+    OhciTransferDescriptor_t* td;
+    uint16_t zeroIndex = ((OhciQueueHead_t*)transfer->EndpointDescriptor)->Object.DepthIndex;
+
+    SHMSG_t*   sg          = NULL;
+    size_t     bytesLeft   = length;
+    uintptr_t  dataAddress = 0;
+    oserr_t    oserr;
+
+    // Adjust for partial progress on a transaction
+    if (bytesLeft && xaction->SHM.ID != UUID_INVALID) {
+        sg          = &xaction->SHMTable.Entries[xaction->SGIndex];
+        dataAddress = sg->Address + xaction->SGOffset;
+        bytesLeft   = MIN(bytesLeft, sg->Length - xaction->SGOffset);
+    }
+
+    oserr = UsbSchedulerAllocateElement(controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&td);
+    if (oserr != OS_EOK) {
+        TRACE("__ConstructPackets: failed to allocate td: %u", oserr);
+        return oserr;
+    }
+
+    OhciTdSetup(td, dataAddress, bytesLeft);
+
+    oserr = UsbSchedulerChainElement(
+            controller->Base.Scheduler,
+            OHCI_QH_POOL,
+            transfer->EndpointDescriptor,
+            OHCI_TD_POOL,
+            (uint8_t*)td,
+            zeroIndex,
+            USB_CHAIN_DEPTH
+    );
+}
+
+static oserr_t
+__ConstructPackets(
+        _In_ OhciController_t*             controller,
+        _In_ UsbManagerTransfer_t*         transfer,
+        _In_ struct UsbManagerTransaction* xaction,
+        _In_ size_t                        length)
+{
+    OhciTransferDescriptor_t* previousTd = NULL;
+    OhciTransferDescriptor_t* td;
+
+    SHMSG_t*   sg          = NULL;
+    size_t     bytesLeft   = length;
+    uintptr_t  dataAddress = 0;
+    int        dataToggle  = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
+
+    // Adjust for partial progress on a transaction
+    if (bytesLeft && xaction->SHM.ID != UUID_INVALID) {
+        sg          = &xaction->SHMTable.Entries[xaction->SGIndex];
+        dataAddress = sg->Address + xaction->SGOffset;
+        bytesLeft   = MIN(bytesLeft, sg->Length - xaction->SGOffset);
+    }
+
+    while (bytesLeft) {
+        oserr_t oserr = UsbSchedulerAllocateElement(controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&td);
+        if (oserr != OS_EOK) {
+            TRACE("__ConstructPackets: failed to allocate td: %u", oserr);
+            return oserr;
+        }
+
+        if ( == USB_TRANSACTION_SETUP) {
+            TRACE("... setup packet");
+            Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
+            Length = OhciTdSetup(Td, dataAddress, Length);
+        }
+        else {
+            TRACE("... io packet");
+            Length = OhciTdIo(Td, Transfer->Transfer.Type,
+                              (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT),
+                              Toggle, dataAddress, Length);
+        }
+        DEBUG("packet: type=%i, toggle=%i", Type, dataToggle);
+        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OS_EOK) {
+        }
+
+        // If we didn't allocate a td, we ran out of
+        // resources, and have to wait for more. Queue up what we have
+        if (Td == NULL) {
+            TRACE(".. failed to allocate descriptor");
+            if (PreviousToggle != -1) {
+                UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.dataAddress, PreviousToggle);
+                Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
+            }
+            OutOfResources = 1;
+            break;
+        }
+        else {
+            UsbSchedulerChainElement(Controller->Base.Scheduler,
+                                     OHCI_QH_POOL, (uint8_t*)Qh, OHCI_TD_POOL, (uint8_t*)Td, ZeroIndex, USB_CHAIN_DEPTH);
+            previousTd = Td;
+
+            // Update toggle by flipping
+            UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.dataAddress, Toggle ^ 1);
+
+            // We have two terminating conditions, either we run out of bytes
+            // or we had one ZLP that had to added.
+            // Make sure we handle the one where we run out of bytes
+            if (Length) {
+                BytesToTransfer                    -= Length;
+                Transfer->Transactions[i].SGOffset += Length;
+                if (sg && Transfer->Transactions[i].SGOffset == sg->Length) {
+                    Transfer->Transactions[i].SGIndex++;
+                    Transfer->Transactions[i].SGOffset = 0;
+                }
+            }
+            else {
+                assert(IsZLP != 0);
+                TRACE(".. zlp, done");
+                Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
+                break;
+            }
+        }
+    }
+}
 
 static oserr_t
 OhciTransferFill(
@@ -97,7 +223,7 @@ OhciTransferFill(
             }
             
             Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            TRACE("... address 0x%" PRIxIN ", length %u, toggle %i", Address, LODWORD(Length), Toggle);
+            DEBUG("packet: type=%i, toggle=%i", Type, Toggle);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OS_EOK) {
                 if (Type == USB_TRANSACTION_SETUP) {
                     TRACE("... setup packet");

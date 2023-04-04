@@ -69,6 +69,8 @@ __ReadDevice(
 {
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(driverID);
     oserr_t                  status;
+    TRACE("__ReadDevice(dev=0x%x,drv=0x%x,bufID=0x%x)", deviceID, driverID, buffer);
+    TRACE("__ReadDevice: offset=0x%llx, sector=0x%llx, count=0x%llx", offset, sector->QuadPart, count);
 
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
@@ -93,6 +95,8 @@ __WriteDevice(
 {
     struct vali_link_message msg  = VALI_MSG_INIT_HANDLE(driverID);
     oserr_t                  status;
+    TRACE("__WriteDevice(dev=0x%x,drv=0x%x,bufID=0x%x)", deviceID, driverID, buffer);
+    TRACE("__WriteDevice: offset=0x%llx, sector=0x%llx, count=0x%llx", offset, sector->QuadPart, count);
 
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
