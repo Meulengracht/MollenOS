@@ -361,12 +361,11 @@ int stdio_handle_set_buffered(
     // Reset the stream structure
     stream->IOD        = handle->IOD;
     stream->Flags      = flags;
-    stream->StreamMode = 0;
     stream->BufferMode = bufferMode;
-    stream->_ptr       = NULL;
-    stream->_base      = NULL;
-    stream->_cnt       = 0;
-    stream->_bufsiz    = 0;
+    stream->Base       = NULL;
+    stream->Current    = NULL;
+    stream->BufferSize = 0;
+    stream->BytesValid = 0;
     stream->_charbuf   = 0;
     stream->_tmpfname  = NULL;
     

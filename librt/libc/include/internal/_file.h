@@ -79,6 +79,10 @@ static inline int __FILE_BufferBytesForReading(FILE* stream) {
     return stream->BytesValid - position;
 }
 
+static inline int __FILE_BufferBytesForWriting(FILE* stream) {
+    return stream->BufferSize - __FILE_BufferPosition(stream);
+}
+
 static inline void __FILE_UpdateBytesValid(FILE* stream) {
     int position = __FILE_BufferPosition(stream);
     if (position > stream->BytesValid) {
@@ -101,6 +105,16 @@ static inline bool __FILE_CanSeek(FILE* stream) {
 static inline void __FILE_ResetBuffer(FILE* stream) {
     stream->BytesValid = 0;
     stream->Current = stream->Base;
+}
+
+static inline void __FILE_Streamout(FILE* stream, void* buffer, size_t count) {
+    stream->IOD = -1;
+    stream->Flags = _IOWR;
+    stream->Base = (char*)buffer;
+    stream->Current = (char*)buffer;
+    stream->BufferSize = (int)count;
+    stream->BytesValid = 0;
+    usched_mtx_init(&stream->Lock, USCHED_MUTEX_RECURSIVE);
 }
 
 #endif //!__INTERNAL_FILE_H__

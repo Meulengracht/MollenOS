@@ -244,17 +244,6 @@ extern int  stdio_bitmap_initialize(void);
 extern int  stdio_bitmap_allocate(int fd);
 extern void stdio_bitmap_free(int fd);
 
-/**
- * @brief _flsbuf/_flswbuf does not lock the stream it is given. It is expected that the stream must be
- * locked when calling this method.
- * @param ch
- * @param stream
- * @return
- */
-extern int _flsbuf(int ch, FILE *stream);
-extern int _flswbuf(int ch, FILE *stream);
-
-extern int          stream_ensure_mode(int mode, FILE* stream);
 extern unsigned int _faccess(int oflags);
 extern unsigned int _fperms(unsigned int mode);
 extern unsigned int _fopts(int oflags);

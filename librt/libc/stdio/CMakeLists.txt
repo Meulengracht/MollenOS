@@ -38,8 +38,6 @@ set(SRCS
         fgetwchar.c
         fgetws.c
         fileno.c
-        flsbuf.c
-        flswbuf.c
         fmem.c
         fopen.c
         fputc.c
@@ -63,7 +61,6 @@ set(SRCS
         getw.c
         getwc.c
         getwchar.c
-        ioctl.c
         memstream.c
         perror.c
         putc.c

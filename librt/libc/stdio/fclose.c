@@ -30,7 +30,7 @@ __FILE_Delete(
 {
     free(stream->_tmpfname);
     if (stream->Flags & _IOMYBUF) {
-        free(stream->_base);
+        free(stream->Base);
     }
     free(stream);
 }
@@ -41,18 +41,14 @@ int fclose(FILE *stream)
 
     // Everything done during close is for a locked operation
 	flockfile(stream);
-
-    // Ensure stream is flushed, we use the __STREAMMODE_READ to check
-    // against, as we don't need to flush anything in the case of read
-    // operations only.
-	if (__FILE_ShouldFlush(stream, __STREAMMODE_READ)) {
+	if (stream->Flags & _IOMOD) {
         if (fflush(stream)) {
             funlockfile(stream);
             return -1;
         }
 	}
 
-    // After flushing, we now cleanup the stream. We start
+    // After flushing, we now clean up the stream. We start
     // out by protecting the underlying IO descriptor by zeroing
     // it, but then unlock the stream
     iod = stream->IOD;

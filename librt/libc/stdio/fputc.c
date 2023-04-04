@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <internal/_file.h>
 #include <internal/_io.h>
+#include <io.h>
 #include <os/mollenos.h>
 #include <stdio.h>
 
@@ -25,7 +26,8 @@ int fputc(
     _In_ int   character,
     _In_ FILE* file)
 {
-    int res = 0;
+    int written;
+    int res = character;
 
     flockfile(file);
 
@@ -36,21 +38,54 @@ int fputc(
         return EOF;
     }
 
-    // Ensure a buffer is present if possible. We need it before reading
+    // We ensure a buffer is present on all buffered calls.
     io_buffer_ensure(file);
 
-    if (__FILE_IsBuffered(file) && file->_cnt > 0) {
-        file->_cnt--;
-        *file->_ptr++ = (char)(character & 0xFF);
+    // Is the buffer-space available?
+    if (__FILE_IsBuffered(file)) {
+        int bytesAvailable = file->BufferSize - __FILE_BufferPosition(file);
+        if (bytesAvailable < sizeof(char)) {
+            // Should we be out of buffer space for a strange file-descriptor, then
+            // we return EBUFFER instead of EACCESS to indicate that we ran out of
+            // buffer.
+            if (__FILE_IsStrange(file)) {
+                funlockfile(file);
+                errno = ENOBUFS;
+                return -1;
+            }
 
-        // Even if we have space left, we should handle line-buffering
-        // at this step.
-        if ((file->Flags & _IOLBF) && character == '\n') {
-            res = OsErrToErrNo(io_buffer_flush(file));
+            if (fflush(file)) {
+                funlockfile(file);
+                return -1;
+            }
         }
+
+        // At this point we *must* have buffer room, if not we error
+        bytesAvailable = file->BufferSize - __FILE_BufferPosition(file);
+        if (bytesAvailable < sizeof(char)) {
+            funlockfile(file);
+            errno = ENOBUFS;
+            return -1;
+        }
+        *(file->Current) = (char)(character & 0xFF);
+        file->Current += sizeof(char);
+        file->Flags |= _IOMOD;
+        __FILE_UpdateBytesValid(file);
+        written = sizeof(char);
     } else {
-        res = _flsbuf(character, file);
+        if (__FILE_IsStrange(file)) {
+            funlockfile(file);
+            errno = EACCES;
+            return -1;
+        }
+        __FILE_ResetBuffer(file);
+        written = write(file->IOD, &character, sizeof(char));
+    }
+
+    if (written != sizeof(char)) {
+        file->Flags |= _IOERR;
+        res = EOF;
     }
     funlockfile(file);
-    return res ? res : character;
+    return res;
 }

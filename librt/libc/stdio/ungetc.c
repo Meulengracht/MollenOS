@@ -15,57 +15,52 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "internal/_io.h"
-#include "internal/_file.h"
-#include "stdio.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <internal/_file.h>
+#include <stdio.h>
 
 int ungetc(
     _In_ int   character,
     _In_ FILE* file)
 {
-    if (file == NULL) {
+    int bytesAvailable;
+
+    if (file == NULL || character == EOF) {
+        errno = EINVAL;
         return EOF;
     }
 
     flockfile(file);
-
-    // Don't put anything weird back
-    if (character == EOF) {
+    if (!__FILE_CanRead(file)) {
+        errno = EACCES;
         goto eof;
     }
 
-    // The stream must be in read mode
-    if (file->StreamMode != __STREAMMODE_READ) {
-        goto eof;
-    }
-
+    // When doing buffered operations we must always make sure there
+    // is a valid buffer. Even for unbuffered streams, in the case of
+    // ungetc
     io_buffer_ensure(file);
 
-    // The stream must have space in it's buffer. Even unbuffered
-    // streams have space for a look-ahead
-    if (!file->_cnt && file->_ptr == file->_base) {
-        // Special case of unfilled buffers. This is still valid
-        // to ungetc for.
-        file->_ptr++;
+    // Is there space in the buffer?
+    // TODO: is ungetc actually supposed to flush?
+    bytesAvailable = file->BufferSize - __FILE_BufferPosition(file);
+    if (!bytesAvailable) {
+        errno = ENOBUFS;
+        goto eof;
     }
 
-    if (file->_ptr > file->_base) {
-        file->_ptr--;
-        
-        if (__FILE_IsStrange(file)) {
-            if (*file->_ptr != character) {
-                file->_ptr++;
-                goto eof;
-            }
-        } else {
-            *file->_ptr = (char)character;
-        }
-
-        file->_cnt++;
-        clearerr(file);
-        funlockfile(file);
-        return character;
+    // We have a special case of being at the first byte of the
+    // buffer, in this case we cannot just go back one
+    if (__FILE_BufferPosition(file) == 0) {
+        file->Current++;
+        __FILE_UpdateBytesValid(file);
+    } else {
+        file->Current--;
     }
+    *(file->Current) = (char)(character & 0xFF);
+    clearerr(file);
+    return character;
 
 eof:
     funlockfile(file);

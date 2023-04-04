@@ -33,9 +33,18 @@ int fflush(
 	}
 
     flockfile(file);
-    if (file->Flags & _IOMOD) {
-        oserr = io_buffer_flush(file);
+    // We only actually support flushing for buffered streams with
+    // modified buffers. We do not do any sanity/permission/mode checks
+    // here, but rather in io_buffer_flush which is some shared internal
+    // flushing code.
+    if (__FILE_IsBuffered(file)) {
+        if (file->Flags & _IOMOD) {
+            oserr = io_buffer_flush(file);
+        }
     }
+
+    // For all streams and modes, we reset the internal buffer
+    // to ensure 0 bytes are now valid.
     __FILE_ResetBuffer(file);
     funlockfile(file);
 	return OsErrToErrNo(oserr);

@@ -42,15 +42,7 @@ int _sxprintf(
 #endif
     int result;
     FILE stream = { 0 };
-
-    // Setup the FILE structure
-    stream.IOD = -1;
-    stream.Flags = _IOWR;
-    stream.StreamMode = __STREAMMODE_WRITE;
-    stream._base = (char*)buffer;
-    stream._ptr = stream._base;
-    stream._cnt = (int)(sizeOfBuffer * sizeof(TCHAR));
-    usched_mtx_init(&stream.Lock, USCHED_MUTEX_RECURSIVE);
+    __FILE_Streamout(&stream, buffer, sizeOfBuffer * sizeof(TCHAR));
 
 #if USE_VIRTUAL
     stream.Flags |= _IOVRT;
@@ -65,9 +57,9 @@ int _sxprintf(
 #endif
 
     // Only zero terminate if there is enough space left
-    if ((stream._cnt >= sizeof(TCHAR)) && (stream._ptr))
-        *(TCHAR*)stream._ptr = _T('\0');
-
+    if ((__FILE_BufferBytesForWriting(&stream) >= sizeof(TCHAR)) && (stream.Current)) {
+        *(TCHAR*)stream.Current = _T('\0');
+    }
     return result;
 }
 

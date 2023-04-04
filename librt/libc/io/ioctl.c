@@ -13,16 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Generic IO Cotntol. These are functions that may be supported by all
- * io descriptors. If they are not supported errno is set to EBADF
  */
 
-#include "errno.h"
-#include "internal/_io.h"
-#include "ioctl.h"
-#include "os/mollenos.h"
+#include <errno.h>
+#include <internal/_io.h>
+#include <ioctl.h>
+#include <os/mollenos.h>
 
 int ioctl(int iod, unsigned long request, ...)
 {
@@ -41,7 +37,7 @@ int ioctl(int iod, unsigned long request, ...)
     }
 
     va_start(args, request);
-    status = handle->Ops->ioctl(handle, request, args);
+    status = handle->Ops->ioctl(handle, (int)request, args);
     va_end(args);
     if (status == OS_ENOTSUPPORTED) {
         errno = EBADF;
