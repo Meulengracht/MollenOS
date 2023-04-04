@@ -377,14 +377,14 @@ OhciQhLink(
  * Transfer Descriptor Methods
  *******************************************************************************/
 
-/* OhciTdSetup 
- * Creates a new setup token td and initializes all the members.
- * The Td is immediately ready for execution. */
-__EXTERN size_t
-OhciTdSetup(
-    _In_ OhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length);
+/**
+ * @brief Constructs a new SETUP token TD. The TD assumes a length
+ * of sizeof(usbpacket_t).
+ */
+__EXTERN void
+OHCITDSetup(
+    _In_ OhciTransferDescriptor_t* td,
+    _In_ uintptr_t                 dataAddress);
 
 /* OhciTdIo 
  * Creates a new io token td and initializes all the members.

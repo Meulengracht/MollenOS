@@ -29,36 +29,27 @@
 #include <assert.h>
 #include <string.h>
 
-size_t
-OhciTdSetup(
-    _In_ OhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length)
+void
+OHCITDSetup(
+    _In_ OhciTransferDescriptor_t* td,
+    _In_ uintptr_t                 dataAddress)
 {
-    size_t CalculatedLength;
-    
-    // TODO: page size?
-    // We can encompass a maximum of two pages (when the initial page offset is 0)
-    // so make sure we correct for that limit
-    CalculatedLength = MIN((0x2000 - (Address % 0x1000)), Length);
-    
     // Set no link
-    Td->Link = 0;
+    td->Link = 0;
 
     // Initialize the Td flags
-    Td->Flags |= OHCI_TD_SETUP;
-    Td->Flags |= OHCI_TD_IOC_NONE;
-    Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
-    Td->Flags |= OHCI_TD_ACTIVE;
+    td->Flags |= OHCI_TD_SETUP;
+    td->Flags |= OHCI_TD_IOC_NONE;
+    td->Flags |= OHCI_TD_TOGGLE_LOCAL;
+    td->Flags |= OHCI_TD_ACTIVE;
 
     // Install the buffer
-    Td->Cbp       = Address;
-    Td->BufferEnd = Td->Cbp + CalculatedLength - 1;
+    td->Cbp       = dataAddress;
+    td->BufferEnd = td->Cbp + (sizeof(usb_packet_t) - 1);
 
     // Store copy of original content
-    Td->OriginalFlags = Td->Flags;
-    Td->OriginalCbp   = Td->Cbp;
-    return CalculatedLength;
+    td->OriginalFlags = td->Flags;
+    td->OriginalCbp   = td->Cbp;
 }
 
 size_t

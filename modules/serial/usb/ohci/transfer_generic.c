@@ -29,36 +29,160 @@
 #include <assert.h>
 #include <stdlib.h>
 
+static inline uintptr_t
+__GetAddress(
+        _In_ struct UsbManagerTransaction* xaction,
+        _In_ int                           index,
+        _In_ size_t                        offset)
+{
+    return xaction->SHMTable.Entries[index].Address + offset;
+}
+
+static inline size_t
+__GetBytesLeft(
+        _In_ struct UsbManagerTransaction* xaction,
+        _In_ int                           index,
+        _In_ size_t                        offset)
+{
+    return xaction->SHMTable.Entries[index].Length - offset;
+}
+
+static inline size_t
+__CalculatePacketSize(
+        _In_ struct UsbManagerTransaction* xaction,
+        _In_ size_t                        originalLength,
+        _In_ size_t                        bytesLeft)
+{
+    int       index;
+    size_t    offset;
+    SHMSGTableOffset(
+            &xaction->SHMTable,
+            (originalLength - bytesLeft),
+            &index,
+            &offset
+    );
+    uintptr_t address = __GetAddress(xaction, index, offset);
+    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(xaction, index, offset));
+    return MIN((0x2000 - (address & (0x1000 - 1))), leftInSG);
+}
+
+static int
+__CountDescriptorsNeeded(
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    int tdsNeeded = 0;
+    for (int i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+        uint8_t type = transfer->Transfer.Transactions[i].Type;
+
+        if (type == USB_TRANSACTION_SETUP) {
+            tdsNeeded++;
+        } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
+            // Special case: zero length packets
+            if (transfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+                tdsNeeded++;
+            } else {
+                // TDs have the capacity of 8196 bytes, but only when transferring on
+                // a page-boundary. If not, an extra will be needed.
+                size_t bytesLeft = transfer->Transfer.Transactions[i].Length;
+                while (bytesLeft) {
+                    bytesLeft -= __CalculatePacketSize(
+                            &transfer->Transactions[i],
+                            transfer->Transfer.Transactions[i].Length,
+                            bytesLeft
+                    );
+                    tdsNeeded++;
+                }
+            }
+        }
+    }
+    return tdsNeeded;
+}
+
+static int
+__AllocateDescriptorChain(
+        _In_ OhciController_t* controller,
+        _In_ OhciQueueHead_t*  qh,
+        _In_ int               tdCount)
+{
+    int tdsAllocated = 0;
+    for (int i = 0; i < tdCount; i++) {
+        OhciTransferDescriptor_t* td;
+        oserr_t oserr = UsbSchedulerAllocateElement(
+                controller->Base.Scheduler,
+                OHCI_TD_POOL,
+                (uint8_t**)&td
+        );
+        if (oserr != OS_EOK) {
+            break;
+        }
+
+        oserr = UsbSchedulerChainElement(
+                controller->Base.Scheduler,
+                OHCI_QH_POOL,
+                (uint8_t*)qh,
+                OHCI_TD_POOL,
+                (uint8_t*)td,
+                qh->Object.DepthIndex,
+                USB_CHAIN_DEPTH
+        );
+        if (oserr != OS_EOK) {
+            UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)td);
+            break;
+        }
+        tdsAllocated++;
+    }
+    return tdsAllocated;
+}
+
+static inline void
+__DestroyDescriptorChain(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    UsbManagerIterateChain(
+            &controller->Base,
+            transfer->EndpointDescriptor,
+            USB_CHAIN_DEPTH,
+            USB_REASON_CLEANUP,
+            HciProcessElement,
+            transfer
+    );
+}
+
 static oserr_t
-__ConstructSetupPacket(
+__CreateSetupPacket(
         _In_ OhciController_t*             controller,
         _In_ UsbManagerTransfer_t*         transfer,
-        _In_ struct UsbManagerTransaction* xaction,
-        _In_ size_t                        length)
+        _In_ struct UsbManagerTransaction* xaction)
 {
-    OhciTransferDescriptor_t* previousTd = NULL;
     OhciTransferDescriptor_t* td;
-    uint16_t zeroIndex = ((OhciQueueHead_t*)transfer->EndpointDescriptor)->Object.DepthIndex;
+    SHMSG_t*                  sg;
+    uintptr_t                 dataAddress;
+    uint16_t                  zeroIndex;
+    oserr_t                   oserr;
 
-    SHMSG_t*   sg          = NULL;
-    size_t     bytesLeft   = length;
-    uintptr_t  dataAddress = 0;
-    oserr_t    oserr;
-
-    // Adjust for partial progress on a transaction
-    if (bytesLeft && xaction->SHM.ID != UUID_INVALID) {
-        sg          = &xaction->SHMTable.Entries[xaction->SGIndex];
-        dataAddress = sg->Address + xaction->SGOffset;
-        bytesLeft   = MIN(bytesLeft, sg->Length - xaction->SGOffset);
+    // Setup transactions MUST include a transfer buffer
+    if (xaction->SHM.ID != UUID_INVALID) {
+        return OS_EBUFFER;
     }
 
-    oserr = UsbSchedulerAllocateElement(controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&td);
+    // No need to care for partial transfers on SETUP tokens
+    zeroIndex   = ((OhciQueueHead_t*)transfer->EndpointDescriptor)->Object.DepthIndex;
+    sg          = &xaction->SHMTable.Entries[xaction->SGIndex];
+    dataAddress = sg->Address + xaction->SGOffset;
+
+    // Allocate a new transfer descriptor to use for the packet
+    oserr = UsbSchedulerAllocateElement(
+            controller->Base.Scheduler,
+            OHCI_TD_POOL,
+            (uint8_t**)&td
+    );
     if (oserr != OS_EOK) {
         TRACE("__ConstructPackets: failed to allocate td: %u", oserr);
         return oserr;
     }
 
-    OhciTdSetup(td, dataAddress, bytesLeft);
+    OHCITDSetup(td, dataAddress);
 
     oserr = UsbSchedulerChainElement(
             controller->Base.Scheduler,
@@ -69,6 +193,10 @@ __ConstructSetupPacket(
             zeroIndex,
             USB_CHAIN_DEPTH
     );
+    if (oserr != OS_EOK) {
+        UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)td);
+    }
+    return oserr;
 }
 
 static oserr_t
