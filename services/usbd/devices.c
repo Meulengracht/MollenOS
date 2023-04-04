@@ -235,7 +235,8 @@ static UsbTransferStatus_t __GetConfiguration(
     return transferStatus;
 }
 
-static UsbTransferStatus_t __SetDefaultConfiguration(
+static UsbTransferStatus_t
+__SetDefaultConfiguration(
         _In_ UsbPortDevice_t* device)
 {
     UsbTransferStatus_t transferStatus;
@@ -247,6 +248,24 @@ static UsbTransferStatus_t __SetDefaultConfiguration(
     return transferStatus;
 }
 
+static UsbTransferStatus_t
+__QueryInitialDeviceDescriptor(
+        _In_ UsbPortDevice_t* device)
+{
+    usb_device_descriptor_t deviceDescriptor;
+    UsbTransferStatus_t     status;
+
+    status = UsbExecutePacket(
+            &device->Base,
+            USBPACKET_DIRECTION_IN,
+            USBPACKET_TYPE_GET_DESC,
+            0, USB_DESCRIPTOR_DEVICE,
+            0, device->Base.device_mps,
+            &deviceDescriptor
+    );
+    return status;
+}
+
 oserr_t
 UsbCoreDevicesCreate(
     _In_ UsbController_t* usbController,
@@ -254,7 +273,8 @@ UsbCoreDevicesCreate(
     _In_ UsbPort_t*       usbPort)
 {
     UsbHcPortDescriptor_t portDescriptor;
-    UsbTransferStatus_t   tStatus;
+    UsbTransferStatus_t   usbStatus;
+    oserr_t               oserr;
     UsbPortDevice_t*      device;
     int                   reservedAddress = 0;
 
@@ -277,8 +297,8 @@ UsbCoreDevicesCreate(
 
     // Initialize the port by resetting it
     if (UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor) != OS_EOK) {
-        ERROR("[usb] [%u:%u] UsbHubResetPort %u failed",
-              usbHub->PortAddress, usbPort->Address, usbHub->DeviceId);
+        ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [1st-reset]",
+              usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
@@ -309,6 +329,24 @@ UsbCoreDevicesCreate(
 	// because I accessed them to quickly after the reset
     thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
 
+    // The first request after an initial reset must be the Device Descriptor
+    // request with a length less than or equal to max packet size.
+    usbStatus = __QueryInitialDeviceDescriptor(device);
+    if (usbStatus != TransferFinished) {
+        ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [query-initial-dd]: %u",
+              usbHub->PortAddress, usbPort->Address, usbStatus);
+        goto device_error;
+    }
+
+    // The device expects a reset, MPS-bytes of the descriptor, another reset,
+    // set address request, and then the full 18 byte descriptor.
+    oserr = UsbHubResetPort(usbHub->DriverId, usbHub->DeviceId, usbPort->Address, &portDescriptor);
+    if (oserr != OS_EOK) {
+        ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [2nd-reset]",
+              usbHub->PortAddress, usbPort->Address);
+        goto device_error;
+    }
+
     // Allocate a device-address
     if (UsbCoreControllerReserveAddress(usbController, &reservedAddress) != OS_EOK) {
         ERROR("(UsbReserveAddress %u) Failed to setup port %u:%u",
@@ -319,12 +357,12 @@ UsbCoreDevicesCreate(
     // Set device address for the new device
     TRACE("[usb] [%u:%u] new device address => %i",
           usbHub->PortAddress, usbPort->Address, reservedAddress);
-    tStatus = UsbSetAddress(&device->Base, reservedAddress);
-    if (tStatus != TransferFinished) {
-        tStatus = UsbSetAddress(&device->Base, reservedAddress);
-        if (tStatus != TransferFinished) {
+    usbStatus = UsbSetAddress(&device->Base, reservedAddress);
+    if (usbStatus != TransferFinished) {
+        usbStatus = UsbSetAddress(&device->Base, reservedAddress);
+        if (usbStatus != TransferFinished) {
             ERROR("[usb] [%u:%u] UsbSetAddress failed - %u",
-                  usbHub->PortAddress, usbPort->Address, (size_t)tStatus);
+                  usbHub->PortAddress, usbPort->Address, (size_t)usbStatus);
             goto device_error;
         }
     }
@@ -333,26 +371,26 @@ UsbCoreDevicesCreate(
     device->Base.device_address = reservedAddress;
     thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
 
-    tStatus = __GetDeviceDescriptor(device);
-    if (tStatus != TransferFinished) {
+    usbStatus = __GetDeviceDescriptor(device);
+    if (usbStatus != TransferFinished) {
         ERROR("[usb] [%u:%u] __GetDeviceDescriptor failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
-    tStatus = __GetDeviceIdentification(device);
-    if (tStatus != TransferFinished) {
+    usbStatus = __GetDeviceIdentification(device);
+    if (usbStatus != TransferFinished) {
         ERROR("[usb] [%u:%u] __GetDeviceIdentification failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
-    tStatus = __GetConfiguration(device);
-    if (tStatus != TransferFinished) {
+    usbStatus = __GetConfiguration(device);
+    if (usbStatus != TransferFinished) {
         ERROR("[usb] [%u:%u] __GetConfiguration failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
-    tStatus = __SetDefaultConfiguration(device);
-    if (tStatus != TransferFinished) {
+    usbStatus = __SetDefaultConfiguration(device);
+    if (usbStatus != TransferFinished) {
         ERROR("[usb] [%u:%u] __SetDefaultConfiguration failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }

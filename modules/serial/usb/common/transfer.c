@@ -76,6 +76,7 @@ UsbManagerCreateTransfer(
     // multiple times as we can then save a system call or two
     for (i = 0; i < usbTransfer->Transfer.TransactionCount; i++) {
         if (usbTransfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+            usbTransfer->Transactions[i].SHM.ID = UUID_INVALID;
             continue;
         }
         

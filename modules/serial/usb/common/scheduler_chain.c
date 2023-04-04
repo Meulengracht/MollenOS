@@ -39,13 +39,13 @@ UsbSchedulerChainElement(
     _In_ uint16_t        Marker,
     _In_ int             Direction)
 {
-    UsbSchedulerObject_t* RootObject      = NULL;
-    UsbSchedulerObject_t* Object          = NULL;
-    UsbSchedulerPool_t*   RootPool        = NULL;
-    UsbSchedulerPool_t*   Pool            = NULL;
-    uintptr_t             PhysicalAddress = 0;
-    uint16_t              RootIndex       = 0;
-    uint16_t              LinkIndex       = 0;
+    UsbSchedulerObject_t* RootObject;
+    UsbSchedulerObject_t* Object;
+    UsbSchedulerPool_t*   RootPool;
+    UsbSchedulerPool_t*   Pool;
+    uintptr_t             PhysicalAddress;
+    uint16_t              RootIndex;
+    uint16_t              LinkIndex;
 
     assert(ElementRootPool < Scheduler->Settings.PoolCount);
     assert(ElementPool < Scheduler->Settings.PoolCount);

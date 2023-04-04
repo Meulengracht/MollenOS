@@ -176,6 +176,15 @@ UsbManagerGetController(
         _In_ uuid_t deviceId);
 
 /**
+ * @brief Toggle Manament.
+ * Toggles are endpoint specific, and behave differently based on the type of endpoint.
+ * For control transfers
+ * | SETUP(0) | DATA(1) | DATA(0) | ... | STATUS(1)
+ * For bulk transfers
+ * | DATA(0) | DATA(1) | .....
+ */
+
+/**
  * Gets the current toggle status of an endpoint address for the controller.
  * @param deviceId Device id of the controller.
  * @param address  Address of the endpoint.
