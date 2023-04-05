@@ -28,7 +28,7 @@
 #include "ehci.h"
 #include <stdlib.h>
 
-UsbTransferStatus_t
+enum USBTransferCode
 HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t* transfer)
 {
@@ -39,15 +39,15 @@ HciQueueTransferIsochronous(
     size_t                       maxBytesPerDescriptor;
     int                          i;
 
-    controller = (EhciController_t *)UsbManagerGetController(transfer->DeviceId);
+    controller = (EhciController_t *)UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return TransferInvalid;
     }
 
-    bytesToTransfer = transfer->Transfer.Transactions[0].Length;
+    bytesToTransfer = transfer->Base.Transactions[0].Length;
 
     // Calculate mpd
-    maxBytesPerDescriptor = 1024 * MAX(3, transfer->Transfer.PeriodicBandwith);
+    maxBytesPerDescriptor = 1024 * MAX(3, transfer->Base.PeriodicBandwith);
     maxBytesPerDescriptor *= 8;
 
     // Allocate resources
@@ -67,10 +67,10 @@ HciQueueTransferIsochronous(
             transfer->Transactions[0].SGIndex].Address + transfer->Transactions[0].SGOffset;
         
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler, EHCI_iTD_POOL, (uint8_t**)&iTd) == OS_EOK) {
-            if (EhciTdIsochronous(controller, &transfer->Transfer, iTd,
-                                  AddressPointer, BytesStep, transfer->Transfer.Transactions[0].Type,
-                                  transfer->Transfer.Address.DeviceAddress,
-                                  transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
+            if (EhciTdIsochronous(controller, &transfer->Base, iTd,
+                                  AddressPointer, BytesStep, transfer->Base.Transactions[0].Type,
+                                  transfer->Base.Address.DeviceAddress,
+                                  transfer->Base.Address.EndpointAddress) != OS_EOK) {
                 // TODO: Out of bandwidth
                 TRACE(" > Out of bandwidth");
                 for(;;);

@@ -35,7 +35,7 @@ oserr_t
 BulkReset(
     _In_ MsdDevice_t *Device)
 {
-    UsbTransferStatus_t Status     = TransferNAK;
+    enum USBTransferCode Status     = TransferNAK;
     int                 Iterations = 0;
 
     // Reset is 
@@ -62,7 +62,7 @@ ClearAndResetEndpoint(
     _In_ MsdDevice_t*               device,
     _In_ usb_endpoint_descriptor_t* endpoint)
 {
-    UsbTransferStatus_t status = UsbClearFeature(&device->Device->DeviceContext,
+    enum USBTransferCode status = UsbClearFeature(&device->Device->DeviceContext,
         USBPACKET_DIRECTION_ENDPOINT, USB_ENDPOINT_ADDRESS(endpoint->Address), 
         USB_FEATURE_HALT);
     if (status != TransferFinished) {
@@ -386,12 +386,10 @@ BulkInitialize(
         ERROR("Failed to reset endpoint (out)");
         return OS_EUNKNOWN;
     }
-
-    // Done
     return OS_EOK;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 MsdSanitizeResponse(
     _In_ MsdDevice_t *Device, 
     _In_ MsdCommandStatus_t *Csw)
@@ -424,7 +422,7 @@ MsdSanitizeResponse(
     return TransferFinished;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 BulkSendCommand(
         _In_ MsdDevice_t *Device,
         _In_ uint8_t      ScsiCommand,
@@ -433,8 +431,8 @@ BulkSendCommand(
         _In_ size_t       BufferOffset,
         _In_ size_t       DataLength)
 {
-    UsbTransferStatus_t Result;
-    UsbTransfer_t       CommandStage;
+    enum USBTransferCode Result;
+    USBTransfer_t       CommandStage;
     size_t              bytesTransferred;
 
     // Debug
@@ -466,7 +464,7 @@ BulkSendCommand(
 
 /* BulkReadData
  * Tries to read a bulk data response from the device. */
-UsbTransferStatus_t 
+enum USBTransferCode
 BulkReadData(
         _In_  MsdDevice_t* Device,
         _In_  uuid_t       BufferHandle,
@@ -474,8 +472,8 @@ BulkReadData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesRead)
 {
-    UsbTransferStatus_t transferStatus;
-    UsbTransfer_t       dataStage;
+    enum USBTransferCode transferStatus;
+    USBTransfer_t       dataStage;
     size_t              bytesTransferred = 0;
 
     // Perform the transfer
@@ -503,7 +501,7 @@ BulkReadData(
     return transferStatus;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 BulkWriteData(
         _In_  MsdDevice_t* Device,
         _In_  uuid_t       BufferHandle,
@@ -511,8 +509,8 @@ BulkWriteData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesWritten)
 {
-    UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage;
+    enum USBTransferCode Result;
+    USBTransfer_t       DataStage;
     size_t              bytesTransferred;
 
     // Perform the data-stage
@@ -540,12 +538,12 @@ BulkWriteData(
     return Result;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 BulkGetStatus(
     _In_ MsdDevice_t* Device)
 {
-    UsbTransferStatus_t Result;
-    UsbTransfer_t       StatusStage;
+    enum USBTransferCode Result;
+    USBTransfer_t       StatusStage;
     size_t              bytesTransferred;
 
     // Debug

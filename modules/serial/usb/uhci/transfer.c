@@ -42,8 +42,8 @@ UhciTransactionDispatch(
 #endif
 #endif
 
-    UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
+    UsbManagerChainEnumerate(&Controller->Base, Transfer->EndpointDescriptor,
+        USB_CHAIN_DEPTH, HCIPROCESS_REASON_LINK, HCIProcessElement, Transfer);
 }
 
 oserr_t
@@ -53,12 +53,12 @@ HciTransactionFinalize(
     _In_ int                     Reset)
 {
     // Debug
-    TRACE("UhciTransactionFinalize(Id %u)", Transfer->Id);
+    TRACE("UhciTransactionFinalize(Id %u)", Transfer->ID);
 
-    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
-    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+    UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+        USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
+    UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+        USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
     return OS_EOK;
 }
 

@@ -157,7 +157,7 @@ OhciiTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+            if (Transfer->Base.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
                 Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }

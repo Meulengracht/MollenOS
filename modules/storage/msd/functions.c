@@ -120,7 +120,7 @@ oserr_t
 MsdGetMaximumLunCount(
     _In_ MsdDevice_t *Device)
 {
-    UsbTransferStatus_t Status;
+    enum USBTransferCode Status;
     uint8_t             MaxLuns;
 
     // Get Max LUNS is
@@ -141,7 +141,7 @@ MsdGetMaximumLunCount(
     return OS_EOK;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 MsdScsiCommand(
         _In_ MsdDevice_t* Device,
         _In_ int          Direction,
@@ -151,7 +151,7 @@ MsdScsiCommand(
         _In_ size_t       BufferOffset,
         _In_ size_t       DataLength)
 {
-    UsbTransferStatus_t Status;
+    enum USBTransferCode Status;
     size_t              DataToTransfer = DataLength;
     int                 RetryCount     = 3;
 
@@ -309,7 +309,7 @@ oserr_t
 MsdDeviceStart(
     _In_ MsdDevice_t* device)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     ScsiInquiry_t*      inquiryData = NULL;
     int                 i;
 
@@ -389,7 +389,7 @@ MsdTransferSectors(
         _In_  size_t       sectorCount,
         _Out_ size_t*      sectorsTransferred)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     size_t              sectorsToBeTransferred;
     uint8_t             command;
     size_t              maxSectorsPerCommand;

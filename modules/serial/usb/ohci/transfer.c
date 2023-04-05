@@ -53,41 +53,46 @@ OhciTransactionDispatch(
 
 void
 OhciReloadAsynchronous(
-    _In_ OhciController_t* Controller, 
-    _In_ uint8_t TransferType)
+        _In_ OhciController_t*    controller,
+        _In_ enum USBTransferType transferType)
 {
-    OhciQueueHead_t* Qh        = NULL;
-    uintptr_t        QhAddress = 0;
-    uint16_t         Index     = USB_ELEMENT_NO_INDEX;
+    OhciQueueHead_t* qh;
+    uintptr_t        qhAddress;
+    uint16_t         index = USB_ELEMENT_NO_INDEX;
+    oserr_t          oserr;
 
     // Get correct new index
-    if (TransferType == USB_TRANSFER_CONTROL)   Index = Controller->TransactionQueueControlIndex;
-    else if (TransferType == USB_TRANSFER_BULK) Index = Controller->TransactionQueueBulkIndex;
-    assert(Index != USB_ELEMENT_NO_INDEX);
+    if (transferType == USBTRANSFER_TYPE_CONTROL) index = controller->TransactionQueueControlIndex;
+    else if (transferType == USBTRANSFER_TYPE_BULK) index = controller->TransactionQueueBulkIndex;
+    assert(index != USB_ELEMENT_NO_INDEX);
 
     // Get the element data
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, 
-        (Index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
-        Index & USB_ELEMENT_INDEX_MASK, (uint8_t**)&Qh, &QhAddress);
+    oserr = UsbSchedulerGetPoolElement(
+            controller->Base.Scheduler,
+            (index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK,
+            index & USB_ELEMENT_INDEX_MASK,
+            (uint8_t**)&qh,
+            &qhAddress
+    );
+    assert(oserr == OS_EOK);
 
     // Handle the different queues
-    if (TransferType == USB_TRANSFER_CONTROL) {
-        WRITE_VOLATILE(Controller->Registers->HcControlHeadED, LODWORD(QhAddress));
-        WRITE_VOLATILE(Controller->Registers->HcCommandStatus, 
-            READ_VOLATILE(Controller->Registers->HcCommandStatus) | OHCI_COMMAND_CONTROL_FILLED);
+    if (transferType == USBTRANSFER_TYPE_CONTROL) {
+        WRITE_VOLATILE(controller->Registers->HcControlHeadED, LODWORD(qhAddress));
+        WRITE_VOLATILE(controller->Registers->HcCommandStatus,
+                       READ_VOLATILE(controller->Registers->HcCommandStatus) | OHCI_COMMAND_CONTROL_FILLED);
 
         // Reset control queue
-        Controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
-        Controller->TransactionsWaitingControl   = 0;
-    }
-    else if (TransferType == USB_TRANSFER_BULK) {
-        WRITE_VOLATILE(Controller->Registers->HcBulkHeadED, LODWORD(QhAddress));
-        WRITE_VOLATILE(Controller->Registers->HcCommandStatus, 
-            READ_VOLATILE(Controller->Registers->HcCommandStatus) | OHCI_COMMAND_BULK_FILLED);
+        controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
+        controller->TransactionsWaitingControl   = 0;
+    } else if (transferType == USB_TRANSFER_BULK) {
+        WRITE_VOLATILE(controller->Registers->HcBulkHeadED, LODWORD(qhAddress));
+        WRITE_VOLATILE(controller->Registers->HcCommandStatus,
+                       READ_VOLATILE(controller->Registers->HcCommandStatus) | OHCI_COMMAND_BULK_FILLED);
 
         // Reset bulk queue
-        Controller->TransactionQueueBulkIndex = USB_ELEMENT_NO_INDEX;
-        Controller->TransactionsWaitingBulk   = 0;
+        controller->TransactionQueueBulkIndex = USB_ELEMENT_NO_INDEX;
+        controller->TransactionsWaitingBulk   = 0;
     }
 }
 
@@ -104,14 +109,14 @@ HciTransactionFinalize(
 
     // If it's an asynchronous transfer check for end of link, then we should
     // reload the asynchronous queue
-    if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
+    if (__Transfer_IsAsync(Transfer)) {
         // Check if the link of the QH is eol
         reg32_t Status  = READ_VOLATILE(OhciCtrl->Registers->HcCommandStatus);
         reg32_t Control = OhciCtrl->QueuesActive;
         if ((Status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
             if (OhciCtrl->TransactionsWaitingControl != 0) {
                 // Conditions for control fulfilled
-                OhciReloadAsynchronous(OhciCtrl, USB_TRANSFER_CONTROL);
+                OhciReloadAsynchronous(OhciCtrl, USBTRANSFER_TYPE_CONTROL);
                 Status  |= OHCI_COMMAND_CONTROL_FILLED;
                 Control |= OHCI_CONTROL_CONTROL_ACTIVE;
             }
@@ -124,7 +129,7 @@ HciTransactionFinalize(
         if ((Status & OHCI_COMMAND_BULK_FILLED) == 0) {
             if (OhciCtrl->TransactionsWaitingBulk != 0) {
                 // Conditions for bulk fulfilled
-                OhciReloadAsynchronous(OhciCtrl, USB_TRANSFER_BULK);
+                OhciReloadAsynchronous(OhciCtrl, USBTRANSFER_TYPE_BULK);
                 Status  |= OHCI_COMMAND_BULK_FILLED;
                 Control |= OHCI_CONTROL_BULK_ACTIVE;
             }
@@ -141,20 +146,19 @@ HciTransactionFinalize(
     }
 
     // Don't unlink asynchronous transfers
-    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
-        UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-            USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
+    if (__Transfer_IsPeriodic(Transfer)) {
+        UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+            USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
 
         // Only do cleanup if reset is requested
         if (Reset != 0) {
-            UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor,
-                USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+            UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+                USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
         }
-    }
-    else {
+    } else {
         // Always cleanup asynchronous transfers
-        UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor,
-            USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+        UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+            USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
     }
     return OS_EOK;
 }
@@ -165,7 +169,7 @@ HciDequeueTransfer(
 {
     OhciController_t* Controller;
 
-    Controller = (OhciController_t*) UsbManagerGetController(Transfer->DeviceId);
+    Controller = (OhciController_t*) UsbManagerGetController(Transfer->DeviceID);
     if (!Controller) {
         return OS_EINVALPARAMS;
     }

@@ -62,7 +62,7 @@ HubClearChange(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       change)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     TRACE("HubClearChange(hubDevice=0x%" PRIxIN ", change=0x%x)", hubDevice, change);
 
     transferStatus = UsbExecutePacket(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_CLASS,
@@ -80,7 +80,7 @@ HubPortClearChange(
         _In_ uint8_t       portIndex,
         _In_ uint8_t       change)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     TRACE("HubPortClearChange(hubDevice=0x%" PRIxIN ", portIndex=%u, change=0x%x)",
           hubDevice, portIndex, change);
 
@@ -99,7 +99,7 @@ HubPowerOnPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     TRACE("HubPowerOnPort(hubDevice=0x%" PRIxIN ", portIndex=%u)", hubDevice, portIndex);
 
     transferStatus = UsbSetFeature(&hubDevice->Base->DeviceContext,
@@ -117,7 +117,7 @@ HubResetPort(
         _In_ HubDevice_t*  hubDevice,
         _In_ uint8_t       portIndex)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     TRACE("HubResetPort(hubDevice=0x%" PRIxIN ", portIndex=%u)", hubDevice, portIndex);
 
     transferStatus = UsbSetFeature(&hubDevice->Base->DeviceContext,

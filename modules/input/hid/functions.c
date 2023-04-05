@@ -31,7 +31,7 @@ static oserr_t __FillHidDescriptor(
     _In_ HidDevice_t*        hidDevice,
     _In_ UsbHidDescriptor_t* hidDescriptor)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
     TRACE("__FillHidDescriptor(hidDevice=0x%" PRIxIN ", hidDescriptor=0x%" PRIxIN ")",
           hidDevice, hidDescriptor);
@@ -57,7 +57,7 @@ static oserr_t __FillReportDescriptor(
     _In_ uint8_t      reportLength,
     _In_ uint8_t*     reportBuffer)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
     TRACE("__FillReportDescriptor(hidDevice=0x%" PRIxIN ", reportType=%u, reportLength=%u)",
           hidDevice, reportType, reportLength);

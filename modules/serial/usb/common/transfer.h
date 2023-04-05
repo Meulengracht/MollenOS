@@ -32,7 +32,13 @@
 #include <os/spinlock.h>
 #include <threads.h>
 
-typedef enum UsbManagerTransferFlags {
+#define __USBTRANSFER_FLAG_SHORT       0x1
+#define __USBTRANSFER_FLAG_SYNC        0x2
+#define __USBTRANSFER_FLAG_NOTIFIED    0x4
+#define __USBTRANSFER_FLAG_PARTIAL     0x8
+#define __USBTRANSFER_FLAG_SILENT      0x10
+#define __USBTRANSFER_FLAG_FAILONSHORT 0x20
+enum UsbManagerTransferFlags {
     TransferFlagNone        = 0,
     TransferFlagShort       = 0x1,
     TransferFlagSync        = 0x2,
@@ -40,37 +46,76 @@ typedef enum UsbManagerTransferFlags {
     TransferFlagUnschedule  = 0x8,
     TransferFlagCleanup     = 0x10,
     TransferFlagNotified    = 0x20,
-    TransferFlagPartial     = 0x40
-} UsbManagerTransferFlags_t;
+    TransferFlagPartial     = 0x40,
+    TransferFlagSilent = 0x80,
+    TransferFlagFailOnShort = 0x100
+};
 
+enum USBManagerTransferState {
+    USBTRANSFER_STATE_CREATED,
+    USBTRANSFER_STATE_SCHEDULE,
+    USBTRANSFER_STATE_QUEUED,
+    USBTRANSFER_STATE_UNSCHEDULE,
+    USBTRANSFER_STATE_CLEANUP,
+    USBTRANSFER_STATE_COMPLETED,
+};
+
+struct TransferElement {
+    enum USBTransactionType Type;
+    uintptr_t               DataAddress;
+    uint32_t                Length;
+};
+
+/**
+ * An USB Transfer can consist of up to 3 transactions. This is done
+ * to easily enable transfer as control and bulk that usually consists
+ * of up to 3 steps.
+ */
 typedef struct UsbManagerTransfer {
-    UsbTransfer_t Transfer;
-    element_t     ListHeader;
+    element_t ListHeader;
 
     // Transfer Metadata
-    uuid_t                    Id;
-    uuid_t                    DeviceId;
-    UsbTransferStatus_t       Status;
-    UsbManagerTransferFlags_t Flags;
-    void*                     EndpointDescriptor;  // We only use one no matter what
-    
-    // Per-transaction data
-    struct UsbManagerTransaction {
-        OSHandle_t   SHM;
-        SHMSGTable_t SHMTable;
-        int          SGIndex;
-        size_t       SGOffset;
-        size_t       BytesTransferred;
-    } Transactions[USB_TRANSACTIONCOUNT];
+    uuid_t                       ID;
+    uuid_t                       DeviceID;
+    enum USBTransferType         Type;
+    USBAddress_t                 Address;
+    uint16_t                     MaxPacketSize;
+    enum USBManagerTransferState State;
+    enum USBTransferCode         Status;
+    unsigned int                 Flags;
+    void*                        EndpointDescriptor;
+
+    struct TransferElement* Elements;
+    int                     ElementCount;
+    int                     ElementsCompleted;
+    size_t                  BytesTransferred;
 
     // Periodic Transfers
     size_t CurrentDataIndex;
-    
+
+    // SHMHandles are references we must keep on the underlying
+    // physical memory that we use to transfer data in/out of.
+    OSHandle_t SHMHandles[USB_TRANSACTIONCOUNT];
+
     // Deferred message for async responding
     struct gracht_message DeferredMessage[];
 } UsbManagerTransfer_t;
 
-#define CREATE_TRANSFER_ID(client, id) ((UUId_t)client << 16) | id)
+/**
+ * @brief Returns true if the transfer is either control or bulk
+ */
+static inline bool __Transfer_IsAsync(UsbManagerTransfer_t* transfer) {
+    return transfer->Type == USBTRANSFER_TYPE_CONTROL ||
+        transfer->Type == USBTRANSFER_TYPE_BULK;
+}
+
+/**
+ * @brief Returns true if the transfer is either control or bulk
+ */
+static inline bool __Transfer_IsPeriodic(UsbManagerTransfer_t* transfer) {
+    return transfer->Type == USBTRANSFER_TYPE_INTERRUPT ||
+           transfer->Type == USBTRANSFER_TYPE_ISOC;
+}
 
 /**
  * UsbManagerDestroyTransfer

@@ -93,7 +93,7 @@ __InitializeInterrupt(
 }
 
 UsbManagerController_t*
-HciControllerCreate(
+HCIControllerCreate(
     _In_ BusDevice_t* busDevice)
 {
     UhciController_t* controller;
@@ -106,7 +106,7 @@ HciControllerCreate(
 
     controller = (UhciController_t*)UsbManagerCreateController(
             busDevice,
-            UsbUHCI,
+            USBCONTROLLER_KIND_OHCI,
             sizeof(UhciController_t)
     );
     if (!controller) {
@@ -116,7 +116,7 @@ HciControllerCreate(
     oserr = __AcquireIOSpace(busDevice, controller);
     if (oserr != OS_EOK) {
         ERROR("UhciControllerCreate: failed to find suitable io-space");
-        HciControllerDestroy(&controller->Base);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -129,7 +129,7 @@ HciControllerCreate(
     oserr = __InitializeInterrupt(busDevice, controller);
     if (oserr != OS_EOK) {
         ERROR("UhciControllerCreate: failed to initialize interrupt resources");
-        HciControllerDestroy(&controller->Base);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -144,7 +144,7 @@ HciControllerCreate(
     );
     if (oserr != OS_EOK) {
         ERROR("UhciControllerCreate: failed to enable PCI device");
-        HciControllerDestroy(&controller->Base);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -168,14 +168,14 @@ HciControllerCreate(
     // off we can actually setup controller
     oserr = UhciSetup(controller);
     if (oserr != OS_EOK) {
-        HciControllerDestroy(&controller->Base);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
     return &controller->Base;
 }
 
-oserr_t
-HciControllerDestroy(
+void
+HCIControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
     // Unregister, then destroy
@@ -189,9 +189,7 @@ HciControllerDestroy(
 
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
-
     free(Controller);
-    return OS_EOK;
 }
 
 void

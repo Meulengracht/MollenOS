@@ -729,14 +729,14 @@ EhciTdRestart(
 __EXTERN
 oserr_t
 EhciTdIsochronous(
-    _In_ EhciController_t*            controller,
-    _In_ UsbTransfer_t*               transfer,
-    _In_ EhciIsochronousDescriptor_t* iTd,
-    _In_ uintptr_t                    bufferAddress,
-    _In_ size_t                       byteCount,
-    _In_ uint8_t                      transactionType,
-    _In_ uint8_t                      deviceAddress,
-    _In_ uint8_t                      endpointAddress);
+        _In_ EhciController_t*            controller,
+        _In_ USBTransfer_t*               transfer,
+        _In_ EhciIsochronousDescriptor_t* iTd,
+        _In_ uintptr_t                    bufferAddress,
+        _In_ size_t                       byteCount,
+        _In_ uint8_t                      transactionType,
+        _In_ uint8_t                      deviceAddress,
+        _In_ uint8_t                      endpointAddress);
 
 /* EhciiTdDump
  * Dumps the information contained in the descriptor by writing it. */
@@ -772,7 +772,7 @@ EhciiTdRestart(
 /* EhciGetStatusCode
  * Retrieves a status-code from a given condition code */
 __EXTERN
-UsbTransferStatus_t
+enum USBTransferCode
 EhciGetStatusCode(
     _In_ int                    ConditionCode);
 

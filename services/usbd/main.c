@@ -54,6 +54,6 @@ void sys_device_event_protocol_device_invocation(gracht_client_t* client, const 
 void sys_device_event_device_update_invocation(gracht_client_t* client, const uuid_t deviceId, const uint8_t connected) {
 
 }
-void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId, const UsbTransferStatus_t status, const size_t dataIndex) {
+void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId, const enum USBTransferCode status, const size_t dataIndex) {
 
 }

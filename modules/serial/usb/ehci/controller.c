@@ -38,7 +38,7 @@ oserr_t        EhciSetup(EhciController_t *Controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*
-HciControllerCreate(
+HCIControllerCreate(
     _In_ BusDevice_t* Device)
 {
     EhciController_t* controller;
@@ -47,7 +47,7 @@ HciControllerCreate(
     oserr_t           oserr;
     int i;
 
-    controller = (EhciController_t*)UsbManagerCreateController(Device, UsbEHCI, sizeof(EhciController_t));
+    controller = (EhciController_t*)UsbManagerCreateController(Device, USBCONTROLLER_KIND_EHCI, sizeof(EhciController_t));
     if (!controller) {
         return NULL;
     }
@@ -119,31 +119,28 @@ HciControllerCreate(
     // off we can actually setup controller
     if (EhciSetup(controller) == OS_EOK) {
         return &controller->Base;
-    }
-    else {
-        HciControllerDestroy(&controller->Base);
+    } else {
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 }
 
-oserr_t
-HciControllerDestroy(
-    _In_ UsbManagerController_t* Controller)
+void
+HCIControllerDestroy(
+    _In_ UsbManagerController_t* controller)
 {
     // Unregister, then destroy
-    UsbManagerDestroyController(Controller);
+    UsbManagerDestroyController(controller);
 
     // Cleanup scheduler
-    EhciQueueDestroy((EhciController_t*)Controller);
+    EhciQueueDestroy((EhciController_t*)controller);
 
     // Unregister the interrupt
-    UnregisterInterruptSource(Controller->Interrupt);
+    UnregisterInterruptSource(controller->Interrupt);
 
     // Release the io-space
-    ReleaseDeviceIo(Controller->IoBase);
-
-    free(Controller);
-    return OS_EOK;
+    ReleaseDeviceIo(controller->IoBase);
+    free(controller);
 }
 
 void
@@ -426,14 +423,14 @@ oserr_t
 EhciWaitForCompanionControllers(
     _In_ EhciController_t* controller)
 {
-    UsbHcController_t* hcController;
+    USBControllerDevice_t* hcController;
     int                controllerCount = 0;
     int                ccStarted       = 0;
     int                ccToStart;
     int                timeout = 3000;
     TRACE("EhciWaitForCompanionControllers(controller=0x%" PRIxIN ")", controller);
 
-    hcController = (UsbHcController_t*)malloc(sizeof(UsbHcController_t));
+    hcController = (USBControllerDevice_t*)malloc(sizeof(USBControllerDevice_t));
     if (!hcController) {
         return OS_EOOM;
     }
@@ -463,7 +460,7 @@ EhciWaitForCompanionControllers(
                 // Does controller belong to our bus?
                 if (hcController->Device.Bus == controller->Base.Device->Bus
                     && hcController->Device.Slot == controller->Base.Device->Slot
-                    && (hcController->Type == UsbUHCI || hcController->Type == UsbOHCI)) {
+                    && (hcController->Type == USBCONTROLLER_KIND_OHCI || hcController->Type == USBCONTROLLER_KIND_UHCI)) {
                     ccStarted++;
                 }
             }

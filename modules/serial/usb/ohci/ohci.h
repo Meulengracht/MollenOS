@@ -478,8 +478,8 @@ OhciiTdRestart(
  * are waiting in queue for execution. */
 __EXTERN void
 OhciReloadAsynchronous(
-    _In_ OhciController_t*          Controller, 
-    _In_ uint8_t          TransferType);
+        _In_ OhciController_t*    controller,
+        _In_ enum USBTransferType transferType);
 
 /* OhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
@@ -491,7 +491,7 @@ OhciTransactionDispatch(
 
 /* OhciGetStatusCode
  * Retrieves a status-code from a given condition code */
-__EXTERN UsbTransferStatus_t
+__EXTERN enum USBTransferCode
 OhciGetStatusCode(
     _In_ int                ConditionCode);
 

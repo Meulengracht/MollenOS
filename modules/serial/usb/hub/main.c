@@ -112,7 +112,7 @@ void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, 
 }
 
 void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
-                                                  const UsbTransferStatus_t status, const size_t dataIndex)
+                                                  const enum USBTransferCode status, const size_t dataIndex)
 {
     HubDevice_t* hubDevice = NULL;
     TRACE("ctt_usbhost_event_transfer_status_callback(event->status %u, event->bytes_transferred %" PRIuIN ")",
@@ -144,7 +144,7 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
 
 static inline void __PortStatusToDescriptor(
         _In_ PortStatus_t*          portStatus,
-        _In_ UsbHcPortDescriptor_t* descriptor)
+        _In_ USBPortDescriptor_t* descriptor)
 {
     if (portStatus->Status & HUB_PORT_STATUS_CONNECTED)      { descriptor->Connected = 1; }
     if (portStatus->Status & HUB_PORT_STATUS_ENABLED)        { descriptor->Enabled = 1; }
@@ -156,7 +156,7 @@ static inline void __PortStatusToDescriptor(
 
 void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
-    UsbHcPortDescriptor_t portDescriptor = { 0 };
+    USBPortDescriptor_t portDescriptor = {0 };
     HubDevice_t*          hubDevice;
     PortStatus_t          portStatus;
     oserr_t            osStatus;
@@ -170,12 +170,12 @@ void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid
     osStatus = HubGetPortStatus(hubDevice, portId, &portStatus);
     __PortStatusToDescriptor(&portStatus, &portDescriptor);
 respond:
-    ctt_usbhub_query_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(UsbHcPortDescriptor_t));
+    ctt_usbhub_query_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(USBPortDescriptor_t));
 }
 
 void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
-    UsbHcPortDescriptor_t portDescriptor = { 0 };
+    USBPortDescriptor_t portDescriptor = {0 };
     HubDevice_t*          hubDevice;
     PortStatus_t          portStatus;
     oserr_t            osStatus;
@@ -194,7 +194,7 @@ void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid
     osStatus = HubGetPortStatus(hubDevice, portId, &portStatus);
     __PortStatusToDescriptor(&portStatus, &portDescriptor);
 respond:
-    ctt_usbhub_reset_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(UsbHcPortDescriptor_t));
+    ctt_usbhub_reset_port_response(message, osStatus, (uint8_t*)&portDescriptor, sizeof(USBPortDescriptor_t));
 }
 
 void ctt_driver_ioctl_invocation(

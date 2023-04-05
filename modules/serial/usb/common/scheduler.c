@@ -263,17 +263,17 @@ UsbSchedulerDestroy(
 
 long
 UsbSchedulerCalculateBandwidth(
-    _In_ uint8_t speed, 
-    _In_ uint8_t transactionType,
-    _In_ uint8_t transferType,
-    _In_ size_t  length)
+    _In_ enum USBSpeed speed,
+    _In_ uint8_t       transactionType,
+    _In_ uint8_t       transferType,
+    _In_ size_t        length)
 {
     long result = 0;
 
     // The bandwidth calculations are based entirely
     // on the speed of the transfer
     switch (speed) {
-        case USB_SPEED_LOW:
+        case USBSPEED_LOW:
             if (transactionType == USB_TRANSACTION_IN) {
                 result = (67667L * (31L + 10L * BitTime(length))) / 1000L;
                 return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
@@ -281,18 +281,18 @@ UsbSchedulerCalculateBandwidth(
                 result = (66700L * (31L + 10L * BitTime(length))) / 1000L;
                 return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
             }
-        case USB_SPEED_FULL:
-            if (transferType == USB_TRANSFER_ISOCHRONOUS) {
+        case USBSPEED_FULL:
+            if (transferType == USBTRANSFER_TYPE_ISOC) {
                 result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
                 return ((transactionType == USB_TRANSACTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + result;
             } else {
                 result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
                 return 9107L + BW_HOST_DELAY + result;
             }
-        case USB_SPEED_SUPER_PLUS:
-        case USB_SPEED_SUPER:
-        case USB_SPEED_HIGH:
-            if (transferType == USB_TRANSFER_ISOCHRONOUS) {
+        case USBSPEED_SUPER_PLUS:
+        case USBSPEED_SUPER:
+        case USBSPEED_HIGH:
+            if (transferType == USBTRANSFER_TYPE_ISOC) {
                 result = HS_NSECS_ISO(length);
             } else {
                 result = HS_NSECS(length);
@@ -324,15 +324,15 @@ UsbSchedulerGetPoolElement(
 
 oserr_t
 UsbSchedulerGetPoolFromElement(
-    _In_  UsbScheduler_t*      Scheduler,
-    _In_  uint8_t*             Element,
-    _Out_ UsbSchedulerPool_t** Pool)
+    _In_  UsbScheduler_t*      scheduler,
+    _In_  const uint8_t*       element,
+    _Out_ UsbSchedulerPool_t** poolOut)
 {
-    for (int i = 0; i < Scheduler->Settings.PoolCount; i++) {
-        uintptr_t PoolStart = (uintptr_t)Scheduler->Settings.Pools[i].ElementPool;
-        uintptr_t PoolEnd   = PoolStart + (Scheduler->Settings.Pools[i].ElementAlignedSize * Scheduler->Settings.Pools[i].ElementCount);
-        if (ISINRANGE((uintptr_t)Element, PoolStart, PoolEnd)) {
-            *Pool = &Scheduler->Settings.Pools[i];
+    for (int i = 0; i < scheduler->Settings.PoolCount; i++) {
+        uintptr_t PoolStart = (uintptr_t)scheduler->Settings.Pools[i].ElementPool;
+        uintptr_t PoolEnd   = PoolStart + (scheduler->Settings.Pools[i].ElementAlignedSize * scheduler->Settings.Pools[i].ElementCount);
+        if (ISINRANGE((uintptr_t)element, PoolStart, PoolEnd)) {
+            *poolOut = &scheduler->Settings.Pools[i];
             return OS_EOK;
         }
     }
@@ -529,11 +529,10 @@ UsbSchedulerAllocateBandwidth(
         speed, transactionType, transferType, bytesToTransfer));
     
     // If highspeed calculate period as 2^(Interval-1)
-    if (speed == USB_SPEED_LOW || speed == USB_SPEED_FULL) {
+    if (speed == USBSPEED_LOW || speed == USBSPEED_FULL) {
         // low and full speed deal in 1ms frames
         schedulerObject->FrameInterval = interval;
-    }
-    else {
+    } else {
         // high and up only deal in subms frames
         schedulerObject->FrameInterval = (1 << interval);
     }

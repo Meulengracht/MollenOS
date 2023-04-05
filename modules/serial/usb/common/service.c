@@ -87,7 +87,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
         return;
     }
 
-    controller = HciControllerCreate((BusDevice_t*)device);
+    controller = HCIControllerCreate((BusDevice_t*)device);
     if (controller == NULL) {
         ERROR("ctt_driver_register_device_invocation failed to create the hci controller");
     }
@@ -102,37 +102,38 @@ OnUnregister(
     if (Controller == NULL) {
         return OS_EUNKNOWN;
     }
-    return HciControllerDestroy(Controller);
+    HCIControllerDestroy(Controller);
+    return OS_EOK;
 }
 
 void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
-    UsbHcPortDescriptor_t   descriptor;
+    USBPortDescriptor_t descriptor;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     TRACE("ctt_usbhub_query_port_invocation()");
     if (!controller) {
-        ctt_usbhub_query_port_response(message, OS_EINVALPARAMS, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+        ctt_usbhub_query_port_response(message, OS_EINVALPARAMS, (uint8_t*)&descriptor, sizeof(USBPortDescriptor_t));
         return;
     }
 
-    HciPortGetStatus(controller, (int)portId, &descriptor);
-    ctt_usbhub_query_port_response(message, OS_EOK, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+    HCIPortStatus(controller, (int)portId, &descriptor);
+    ctt_usbhub_query_port_response(message, OS_EOK, (uint8_t*)&descriptor, sizeof(USBPortDescriptor_t));
 }
 
 void ctt_usbhub_reset_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)
 {
-    UsbHcPortDescriptor_t   descriptor;
-    oserr_t                 status;
+    USBPortDescriptor_t descriptor;
+    oserr_t             status;
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     TRACE("ctt_usbhub_reset_port_invocation()");
     if (!controller) {
-        ctt_usbhub_reset_port_response(message, OS_EINVALPARAMS, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+        ctt_usbhub_reset_port_response(message, OS_EINVALPARAMS, (uint8_t*)&descriptor, sizeof(USBPortDescriptor_t));
         return;
     }
 
-    status = HciPortReset(controller, (int)portId);
-    HciPortGetStatus(controller, (int)portId, &descriptor);
-    ctt_usbhub_reset_port_response(message, status, (uint8_t*)&descriptor, sizeof(UsbHcPortDescriptor_t));
+    status = HCIPortReset(controller, (int)portId);
+    HCIPortStatus(controller, (int)portId, &descriptor);
+    ctt_usbhub_reset_port_response(message, status, (uint8_t*)&descriptor, sizeof(USBPortDescriptor_t));
 }
 
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)

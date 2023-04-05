@@ -25,67 +25,96 @@
 #define __USB_HCI__
 
 #include <os/osdefs.h>
+#include "types.h"
 #include "manager.h"
 
-/* HciControllerCreate 
- * Initializes and creates a new Hci Controller instance
- * from a given new system device on the bus. */
-__EXTERN
-UsbManagerController_t*
-HciControllerCreate(
+/**
+ * @brief Create a new usb controller instance from the given bus-device.
+ * @param busDevice The bus device describing the device hardware.
+ * @return A new instance of an usb controller if succesful.
+ *         NULL on errors.
+ */
+extern UsbManagerController_t*
+HCIControllerCreate(
     _In_ BusDevice_t* busDevice);
 
-/* HciControllerDestroy
- * Destroys an existing controller instance and cleans up
- * any resources related to it */
-__EXTERN
-oserr_t
-HciControllerDestroy(
-    _In_ UsbManagerController_t* Controller);
+/**
+ * @brief Frees any resources allocated by HCIControllerCreate.
+ * @param controller The controller to cleanup.
+ */
+extern void
+HCIControllerDestroy(
+    _In_ UsbManagerController_t* controller);
 
-/* HciPortReset
- * Resets the given port and returns the result of the reset */
-__EXTERN
-oserr_t
-HciPortReset(
-    _In_ UsbManagerController_t* Controller, 
-    _In_ int                     Index);
+extern int
+HCITransferElementsNeeded(
+        _In_ USBTransaction_t transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t     sgTables[USB_TRANSACTIONCOUNT]);
 
-/* HciPortGetStatus 
- * Retrieve the current port status, with connected and enabled information */
-__EXTERN
-void
-HciPortGetStatus(
-    _In_  UsbManagerController_t* controller,
-    _In_  int                     index,
-    _Out_ UsbHcPortDescriptor_t*  port);
+extern void
+HCITransferElementFill(
+        _In_ USBTransaction_t        transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT],
+        _In_ struct TransferElement* elements);
 
-/* HciProcessElement 
- * Proceses the element accordingly to the reason given. The transfer associated
- * will be provided in <Context> */
-__EXTERN
-int
-HciProcessElement(
-    _In_ UsbManagerController_t* Controller,
-    _In_ uint8_t*                Element,
-    _In_ int                     Reason,
-    _In_ void*                   Context);
+/**
+ * @brief Resets the port at the index.
+ * @param controller The usb controller of which the port index belongs to.
+ * @param index The port index that should be reset
+ * @return OS_EINVALPARAMS if the index was invalid.
+ *         OS_ETIMEOUT if the port could not reset within the timeout.
+ *         OS_EOK if the port was succesfully reset.
+ */
+extern oserr_t
+HCIPortReset(
+    _In_ UsbManagerController_t* controller,
+    _In_ int                     index);
 
-/* HciProcessEvent
- * Invoked on different very specific events that require assistance. If a transfer 
- * associated will be provided in <Context> */
-__EXTERN
-void
-HciProcessEvent(
-    _In_ UsbManagerController_t* Controller,
-    _In_ int                     Event,
-    _In_ void*                   Context);
+/**
+ * @brief Retrieve the current port status.
+ * @param controller The controller associated with the port index
+ * @param index The port index of the controller
+ * @param port The port status descriptor that should be updated.
+ */
+extern void
+HCIPortStatus(
+        _In_ UsbManagerController_t* controller,
+        _In_ int                     index,
+        _In_ USBPortDescriptor_t*  port);
+
+/**
+ * @brief Invoked by the USB common code every time queue elements
+ * needs to be updated or on certain events.
+ * @param controller The controller instance of the queue element.
+ * @param element The queue element it needs to be updated/changed.
+ * @param reason  The expected action from the usb common code.
+ * @param context The context will vary based on the reason code.
+ * @return 
+ */
+extern bool
+HCIProcessElement(
+    _In_ UsbManagerController_t* controller,
+    _In_ uint8_t*                element,
+    _In_ enum HCIProcessReason   reason,
+    _In_ void*                   context);
+
+/**
+ * @brief Called by the common usb code to indicate an event has
+ * passed. The context can vary by event type.
+ * @param controller The controller affected.
+ * @param event The event the HCI code should handle.
+ * @param context The context associated with the event.
+ */
+extern void
+HCIProcessEvent(
+    _In_ UsbManagerController_t* controller,
+    _In_ enum HCIProcessEvent    event,
+    _In_ void*                   context);
 
 /* HciTransactionFinalize
  * Finalizes a transfer by cleaning up resources allocated. This should free
  * all elements and unschedule elements. */
-__EXTERN
-oserr_t
+extern oserr_t
 HciTransactionFinalize(
     _In_ UsbManagerController_t* Controller,
     _In_ UsbManagerTransfer_t*   Transfer,
@@ -94,23 +123,20 @@ HciTransactionFinalize(
 /* HciQueueTransferGeneric 
  * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
  * The function does not block. */
-__EXTERN
-UsbTransferStatus_t
+extern enum USBTransferCode
 HciQueueTransferGeneric(
     _In_ UsbManagerTransfer_t* transfer);
 
 /* HciQueueTransferIsochronous 
  * Queues a new isochronous transfer for the given driver and pipe. 
  * The function does not block. */
-__EXTERN
-UsbTransferStatus_t
+extern enum USBTransferCode
 HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t* transfer);
 
 /* HciDequeueTransfer 
  * Removes a queued transfer from the controller's transfer list */
-__EXTERN
-oserr_t
+extern oserr_t
 HciDequeueTransfer(
     _In_ UsbManagerTransfer_t* Transfer);
 
@@ -118,18 +144,17 @@ HciDequeueTransfer(
  * Called when an interrupt was generated by an event descriptor
  * @param baseController The controller that the event descriptor belonged to.
  */
-__EXTERN
-void
+extern void
 HciInterruptCallback(
     _In_ UsbManagerController_t* baseController);
 
 /**
- * Called when an timer event was generated by the usb manager. This is primarily targetted at UHCI controllers
- * where hub events are not supported, so we manually must query port status.
+ * @brief Called when an timer event was generated by the usb manager.
+ * This is primarily targetted at UHCI controllers where hub events
+ * are not supported, so we manually must query port status.
  * @param baseController The controller that the event belonged to.
  */
-__EXTERN
-void
+extern void
 HciTimerCallback(
     _In_ UsbManagerController_t* baseController);
 

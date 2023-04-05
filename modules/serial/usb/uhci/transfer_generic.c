@@ -37,16 +37,16 @@ UhciTransferFillIsochronous(
     UhciTransferDescriptor_t* previousTd = NULL;
     uintptr_t                 addressPointer;
     size_t                    bytesToTransfer;
-    uint8_t                   transactionType = transfer->Transfer.Transactions[0].Type;
+    uint8_t                   transactionType = transfer->Base.Transactions[0].Type;
     
     TRACE("UhciTransferFillIsochronous()");
 
-    bytesToTransfer = transfer->Transfer.Transactions[0].Length;
+    bytesToTransfer = transfer->Base.Transactions[0].Length;
     while (bytesToTransfer) {
         UhciTransferDescriptor_t* td;
         size_t                    bytesStep;
 
-        bytesStep = MIN(bytesToTransfer, transfer->Transfer.MaxPacketSize);
+        bytesStep = MIN(bytesToTransfer, transfer->Base.MaxPacketSize);
         bytesStep = MIN(bytesStep, transfer->Transactions[0].SHMTable.Entries[
             transfer->Transactions[0].SGIndex].Length - transfer->Transactions[0].SGOffset);
 
@@ -54,15 +54,15 @@ UhciTransferFillIsochronous(
             transfer->Transactions[0].SGIndex].Address + transfer->Transactions[0].SGOffset;
         
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OS_EOK) {
-            bytesStep = UhciTdIo(td, transfer->Transfer.Type, transactionType,
-                                 transfer->Transfer.Address.DeviceAddress,
-                                 transfer->Transfer.Address.EndpointAddress,
-                                 transfer->Transfer.Speed, addressPointer, bytesStep, 0);
+            bytesStep = UhciTdIo(td, transfer->Base.Type, transactionType,
+                                 transfer->Base.Address.DeviceAddress,
+                                 transfer->Base.Address.EndpointAddress,
+                                 transfer->Base.Speed, addressPointer, bytesStep, 0);
             
             if (UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
-                                              transfer->Transfer.PeriodicInterval, transfer->Transfer.MaxPacketSize,
-                                              transactionType, bytesStep, USB_TRANSFER_ISOCHRONOUS,
-                                              transfer->Transfer.Speed, (uint8_t*)td) != OS_EOK) {
+                                              transfer->Base.PeriodicInterval, transfer->Base.MaxPacketSize,
+                                              transactionType, bytesStep, USBTRANSFER_TYPE_ISOC,
+                                              transfer->Base.Speed, (uint8_t*)td) != OS_EOK) {
                 // Free element
                 UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)td);
                 break;
@@ -128,15 +128,15 @@ UhciTransferFill(
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t transactionType = transfer->Transfer.Transactions[i].Type;
-        size_t  bytesToTransfer = transfer->Transfer.Transactions[i].Length;
+        uint8_t transactionType = transfer->Base.Transactions[i].Type;
+        size_t  bytesToTransfer = transfer->Base.Transactions[i].Length;
         int     previousToggle = -1;
         int     toggle      = 0;
-        int     isZlp       = transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
-        int     isHandshake = transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
+        int     isZlp       = transfer->Base.Transactions[i].Flags & USB_TRANSACTION_ZLP;
+        int     isHandshake = transfer->Base.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
 
         TRACE("Transaction(%i, Buffer 0x%" PRIxIN ", Length %u, Type %i, MPS %u)", i,
-              bytesToTransfer, transactionType, transfer->Transfer.MaxPacketSize);
+              bytesToTransfer, transactionType, transfer->Base.MaxPacketSize);
 
         bytesToTransfer -= transfer->Transactions[i].BytesTransferred;
         if (bytesToTransfer == 0 && !isZlp) {
@@ -146,17 +146,17 @@ UhciTransferFill(
 
         // If it's a handshake package AND it's first td of package, then set toggle
         if (transfer->Transactions[i].BytesTransferred == 0 && isHandshake) {
-            transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
-            previousToggle = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
-            UsbManagerSetToggle(transfer->DeviceId, &transfer->Transfer.Address, 1);
+            transfer->Base.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
+            previousToggle = UsbManagerGetToggle(transfer->DeviceID, &transfer->Base.Address);
+            UsbManagerSetToggle(transfer->DeviceID, &transfer->Base.Address, 1);
         }
         
         // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
         // the MPS, then we should make sure we add a ZLP
-        if ((transfer->Transfer.Transactions[i].Length % transfer->Transfer.MaxPacketSize) == 0 &&
-            transfer->Transfer.Type == USB_TRANSFER_BULK &&
-            transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
-            transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
+        if ((transfer->Base.Transactions[i].Length % transfer->Base.MaxPacketSize) == 0 &&
+            transfer->Base.Type == USB_TRANSFER_BULK &&
+            transfer->Base.Transactions[i].Type == USB_TRANSACTION_OUT) {
+            transfer->Base.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             isZlp = 1;
         }
 
@@ -167,29 +167,29 @@ UhciTransferFill(
             size_t    Length  = bytesToTransfer;
             uintptr_t Address = 0;
             
-            if (Length && transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+            if (Length && transfer->Base.Transactions[i].BufferHandle != UUID_INVALID) {
                 SG      = &transfer->Transactions[i].SHMTable.Entries[transfer->Transactions[i].SGIndex];
                 Address = SG->Address + transfer->Transactions[i].SGOffset;
                 Length  = MIN(Length, SG->Length - transfer->Transactions[i].SGOffset);
-                Length  = MIN(Length, transfer->Transfer.MaxPacketSize);
+                Length  = MIN(Length, transfer->Base.MaxPacketSize);
             }
 
-            toggle = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
+            toggle = UsbManagerGetToggle(transfer->DeviceID, &transfer->Base.Address);
             if (UsbSchedulerAllocateElement(controller->Base.Scheduler, UHCI_TD_POOL, (uint8_t**)&td) == OS_EOK) {
                 if (transactionType == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
                     toggle = 0; // Initial toggle must ALWAYS be 0 for setup
                     Length = UhciTdSetup(td,
-                                         transfer->Transfer.Address.DeviceAddress,
-                                         transfer->Transfer.Address.EndpointAddress,
-                                         transfer->Transfer.Speed, Address, Length);
+                                         transfer->Base.Address.DeviceAddress,
+                                         transfer->Base.Address.EndpointAddress,
+                                         transfer->Base.Speed, Address, Length);
                 }
                 else {
                     TRACE(" > Creating io packet");
-                    Length = UhciTdIo(td, transfer->Transfer.Type, transactionType,
-                                      transfer->Transfer.Address.DeviceAddress,
-                                      transfer->Transfer.Address.EndpointAddress,
-                                      transfer->Transfer.Speed, Address, Length, toggle);
+                    Length = UhciTdIo(td, transfer->Base.Type, transactionType,
+                                      transfer->Base.Address.DeviceAddress,
+                                      transfer->Base.Address.EndpointAddress,
+                                      transfer->Base.Speed, Address, Length, toggle);
                 }
             }
 
@@ -198,8 +198,8 @@ UhciTransferFill(
             if (td == NULL) {
                 TRACE(" > Failed to allocate descriptor");
                 if (previousToggle != -1) {
-                    UsbManagerSetToggle(transfer->DeviceId, &transfer->Transfer.Address, previousToggle);
-                    transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
+                    UsbManagerSetToggle(transfer->DeviceID, &transfer->Base.Address, previousToggle);
+                    transfer->Base.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
                 }
                 outOfResources = 1;
                 break;
@@ -210,7 +210,7 @@ UhciTransferFill(
                 previousTd = td;
 
                 // Update toggle by flipping
-                UsbManagerSetToggle(transfer->DeviceId, &transfer->Transfer.Address, toggle ^ 1);
+                UsbManagerSetToggle(transfer->DeviceID, &transfer->Base.Address, toggle ^ 1);
 
                 // We have two terminating conditions, either we run out of bytes
                 // or we had one ZLP that had to added. 
@@ -226,7 +226,7 @@ UhciTransferFill(
                 else {
                     assert(isZlp != 0);
                     TRACE(" > Encountered zero-length");
-                    transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
+                    transfer->Base.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                     break;
                 }
             }
@@ -247,16 +247,16 @@ UhciTransferFill(
     return OS_EBUSY;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 HciQueueTransferGeneric(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciQueueHead_t*    endpointDescriptor = NULL;
     UhciController_t*   controller;
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     TRACE("HciQueueTransferGeneric()");
 
-    controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
+    controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return TransferInvalid;
     }
@@ -296,13 +296,13 @@ exit:
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciController_t* controller;
 
-    controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceId);
+    controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return TransferInvalid;
     }

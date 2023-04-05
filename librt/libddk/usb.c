@@ -22,6 +22,7 @@
 #include <ddk/convert.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
+#include <signal.h>
 #include <sys_usb_service_client.h>
 
 extern int __crt_get_server_iod(void);
@@ -43,14 +44,21 @@ UsbControllerRegister(
     return OS_EOK;
 }
 
-oserr_t
+void
 UsbControllerUnregister(
-        _In_ uuid_t deviceId)
+        _In_ uuid_t deviceID)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
-    
-    sys_usb_unregister_controller(GetGrachtClient(), &msg.base, deviceId);
-    return OS_EOK;
+    int                      status;
+
+    status = sys_usb_unregister_controller(
+            GetGrachtClient(),
+            &msg.base,
+            deviceID
+    );
+    if (status) {
+        raise(SIGPIPE);
+    }
 }
 
 oserr_t
@@ -123,14 +131,14 @@ UsbQueryControllerCount(
 
 oserr_t
 UsbQueryController(
-    _In_ int                Index,
-    _In_ UsbHcController_t* Controller)
+        _In_ int                Index,
+        _In_ USBControllerDevice_t* Controller)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
     status = sys_usb_get_controller(GetGrachtClient(), &msg.base, Index);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_usb_get_controller_result(GetGrachtClient(), &msg.base, (uint8_t*)Controller, sizeof(struct UsbHcController));
+    sys_usb_get_controller_result(GetGrachtClient(), &msg.base, (uint8_t*)Controller, sizeof(struct USBControllerDevice));
     return OS_EOK;
 }

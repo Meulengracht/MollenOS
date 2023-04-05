@@ -36,8 +36,8 @@ void __HandlePortEvent(
         _In_ uint8_t portAddress)
 {
     UsbController_t*      controller = NULL;
-    UsbHcPortDescriptor_t portDescriptor;
-    oserr_t               oserr;
+    USBPortDescriptor_t portDescriptor;
+    oserr_t             oserr;
     UsbHub_t*             hub;
     UsbPort_t*            port = NULL;
 
