@@ -21,9 +21,11 @@
  * TODO:
  *    - Power Management
  */
+
 //#define __TRACE
 #define __need_minmax
 #include <os/mollenos.h>
+#include <os/memory.h>
 #include <ddk/utils.h>
 #include "../ohci.h"
 #include <assert.h>
@@ -55,21 +57,21 @@ OHCITDSetup(
 size_t
 OhciTdIo(
     _In_ OhciTransferDescriptor_t* Td,
-    _In_ uint8_t         Type,
+    _In_ uint8_t                   Type,
     _In_ uint32_t                  PId,
     _In_ int                       Toggle,
     _In_ uintptr_t                 Address,
     _In_ size_t                    Length)
 {
-    size_t CalculatedLength;
+    size_t pageSize = MemoryPageSize();
+    size_t calculatedLength;
     
     TRACE("OhciTdIo(Type %u, Id %u, Toggle %i, Address 0x%x, Length 0x%x",
         Type, PId, Toggle, Address, Length);
-    
-    // TODO: page size?
+
     // We can encompass a maximum of two pages (when the initial page offset is 0)
     // so make sure we correct for that limit
-    CalculatedLength = MIN((0x2000 - (Address % 0x1000)), Length);
+    calculatedLength = MIN(((2 * pageSize) - (Address & (pageSize - 1))), Length);
 
     // Set this is as end of chain
     Td->Link = 0;
@@ -82,12 +84,11 @@ OhciTdIo(
 
     // We have to allow short-packets in some cases
     // where data returned or send might be shorter
-    if (Type == USB_TRANSFER_CONTROL) {
+    if (Type == USBTRANSFER_TYPE_CONTROL) {
         if (PId == OHCI_TD_IN && Length > 0) {
             Td->Flags |= OHCI_TD_SHORTPACKET_OK;
         }
-    }
-    else if (PId == OHCI_TD_IN) {
+    } else if (PId == OHCI_TD_IN) {
         Td->Flags |= OHCI_TD_SHORTPACKET_OK;
     }
 
@@ -97,15 +98,15 @@ OhciTdIo(
     }
 
     // Is there bytes to transfer or null packet?
-    if (CalculatedLength > 0) {
+    if (calculatedLength > 0) {
         Td->Cbp       = LODWORD(Address);
-        Td->BufferEnd = Td->Cbp + (CalculatedLength - 1);
+        Td->BufferEnd = Td->Cbp + (calculatedLength - 1);
     }
 
     // Store copy of original content
     Td->OriginalFlags = Td->Flags;
     Td->OriginalCbp   = Td->Cbp;
-    return CalculatedLength;
+    return calculatedLength;
 }
 
 void
@@ -167,7 +168,7 @@ OhciTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+            if (Transfer->Base.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
                 Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
@@ -180,7 +181,7 @@ OhciTdSynchronize(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  OhciTransferDescriptor_t* Td)
 {
-    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    int Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
 
     // Is it neccessary?
     if (Toggle == 1 && (Td->Flags & OHCI_TD_TOGGLE)) {
@@ -195,7 +196,7 @@ OhciTdSynchronize(
 
     // Update copy
     Td->OriginalFlags = Td->Flags;
-    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
 }
 
 void
@@ -207,16 +208,16 @@ OhciTdRestart(
     uintptr_t BufferStep;
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t LinkAddress       = 0;
-    int       Toggle            = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    int       Toggle            = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
 
-    BufferStep = Transfer->Transfer.MaxPacketSize;
+    BufferStep = Transfer->Base.MaxPacketSize;
 
     // Clear
     Td->OriginalFlags &= ~(OHCI_TD_TOGGLE);
     if (Toggle) {
         Td->OriginalFlags |= OHCI_TD_TOGGLE;
     }
-    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
 
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {

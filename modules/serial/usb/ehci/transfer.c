@@ -43,8 +43,8 @@ EhciTransactionDispatch(
     for(;;);
 #endif
 #endif
-    UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_LINK, HciProcessElement, Transfer);
+    UsbManagerChainEnumerate(&Controller->Base, Transfer->EndpointDescriptor,
+        USB_CHAIN_DEPTH, HCIPROCESS_REASON_LINK, HCIProcessElement, Transfer);
 }
 
 oserr_t
@@ -54,18 +54,18 @@ HciTransactionFinalize(
     _In_ int                        Reset)
 {
     // Debug
-    TRACE("EhciTransactionFinalize(Id %u)", Transfer->Id);
+    TRACE("EhciTransactionFinalize(Id %u)", Transfer->ID);
 
     // Always unlink
-    UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
+    UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+        USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
 
     // Send notification for transfer if control/bulk immediately, but defer
     // cleanup till the doorbell has been rung
     UsbManagerSendNotification(Transfer);
     if (Reset != 0) {
-        UsbManagerIterateChain(Controller, Transfer->EndpointDescriptor, 
-            USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+        UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+            USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
     }
     else {
         Transfer->Flags |= TransferFlagCleanup;
@@ -80,23 +80,23 @@ HciDequeueTransfer(
 {
     EhciController_t* Controller;
 
-    Controller = (EhciController_t*) UsbManagerGetController(Transfer->DeviceId);
+    Controller = (EhciController_t*) UsbManagerGetController(Transfer->DeviceID);
     if (!Controller) {
         return OS_EINVALPARAMS;
     }
     
     // Unschedule immediately, but keep data intact as hardware still (might) reference it.
-    UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
-        USB_CHAIN_DEPTH, USB_REASON_UNLINK, HciProcessElement, Transfer);
+    UsbManagerChainEnumerate(&Controller->Base, Transfer->EndpointDescriptor,
+        USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
 
     // Mark transfer for cleanup and ring doorbell if async
-    if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
+    if (Transfer->Base.Type == USBTRANSFER_TYPE_CONTROL || Transfer->Base.Type == USB_TRANSFER_BULK) {
         Transfer->Flags |= TransferFlagCleanup;
         EhciRingDoorbell(Controller);
     }
     else {
-        UsbManagerIterateChain(&Controller->Base, Transfer->EndpointDescriptor, 
-            USB_CHAIN_DEPTH, USB_REASON_CLEANUP, HciProcessElement, Transfer);
+        UsbManagerChainEnumerate(&Controller->Base, Transfer->EndpointDescriptor,
+            USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
     }
     
     return OS_EOK;

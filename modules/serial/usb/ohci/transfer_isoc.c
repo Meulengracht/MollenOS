@@ -37,8 +37,8 @@ OhciTransferFill(
     OhciIsocTransferDescriptor_t* ZeroTd     = NULL;
     OhciQueueHead_t*              Qh         = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
     
-    uint8_t Type            = Transfer->Transfer.Transactions[0].Type;
-    size_t  BytesToTransfer = Transfer->Transfer.Transactions[0].Length;
+    uint8_t Type            = Transfer->Transactions[0].Type;
+    size_t  BytesToTransfer = Transfer->Transactions[0].Length;
     size_t  MaxBytesPerDescriptor;
 
     // Debug
@@ -49,7 +49,7 @@ OhciTransferFill(
         OHCI_iTD_NULL, (uint8_t**)&ZeroTd, NULL);
     
     // Calculate mpd
-    MaxBytesPerDescriptor = Transfer->Transfer.MaxPacketSize * 8;
+    MaxBytesPerDescriptor = Transfer->MaxPacketSize * 8;
 
     while (BytesToTransfer) {
         OhciIsocTransferDescriptor_t* iTd;
@@ -67,7 +67,7 @@ OhciTransferFill(
             Transfer->Transactions[0].SGIndex].Address + Transfer->Transactions[0].SGOffset;
         
         if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&iTd) == OS_EOK) {
-            OhciTdIsochronous(iTd, Transfer->Transfer.MaxPacketSize, 
+            OhciTdIsochronous(iTd, Transfer->MaxPacketSize,
                 (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT), AddressPointer, BytesStep);
         }
 
@@ -110,15 +110,15 @@ OhciTransferFill(
     return OS_EUNKNOWN;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t* transfer)
 {
     OhciQueueHead_t*    endpointDescriptor = NULL;
     OhciController_t*   controller;
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
-    controller = (OhciController_t*) UsbManagerGetController(transfer->DeviceId);
+    controller = (OhciController_t*) UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return TransferInvalid;
     }
@@ -134,8 +134,8 @@ HciQueueTransferIsochronous(
 
         // Store and initialize the qh
         if (OhciQhInitialize(controller, transfer,
-                             transfer->Transfer.Address.DeviceAddress,
-                             transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
+                             transfer->Address.DeviceAddress,
+                             transfer->Address.EndpointAddress) != OS_EOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;

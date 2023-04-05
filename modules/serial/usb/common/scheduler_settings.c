@@ -81,7 +81,7 @@ UsbSchedulerSettingsAddPool(
     Pool->ElementAlignedSize        = ALIGN(ElementSize, ElementAlignment, 1);
     Pool->ElementCount              = ElementCount;
     Pool->ElementCountReserved      = ElementCountReserved;
-    Pool->ElementLinkBreathOffset   = LinkBreathMemberOffset;
-    Pool->ElementDepthBreathOffset  = LinkDepthMemberOffset;
-    Pool->ElementObjectOffset       = ObjectMemberOffset;
+    Pool->ElementLinkBreathOffset = LinkBreathMemberOffset;
+    Pool->ElementLinkDepthOffset  = LinkDepthMemberOffset;
+    Pool->ElementObjectOffset     = ObjectMemberOffset;
 }

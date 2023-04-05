@@ -83,7 +83,7 @@ UhciDetermineInterruptIndex(
     return index;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UhciGetStatusCode(
     _In_ int conditionCode)
 {
@@ -278,7 +278,7 @@ UhciConditionCodeToIndex(
 }
 
 int
-HciProcessElement(
+HCIProcessElement(
     _In_ UsbManagerController_t* Controller,
     _In_ uint8_t*                Element,
     _In_ int                     Reason,
@@ -290,8 +290,8 @@ HciProcessElement(
     // Debug
     TRACE("UhciProcessElement(Reason %i)", Reason);
     switch (Reason) {
-        case USB_REASON_DUMP: {
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS
+        case HCIPROCESS_REASON_DUMP: {
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC
                 && Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 UhciQhDump((UhciController_t*)Controller, (UhciQueueHead_t*)Td);
             }
@@ -300,9 +300,9 @@ HciProcessElement(
             }
         } break;
         
-        case USB_REASON_SCAN: {
+        case HCIPROCESS_REASON_SCAN: {
             // If we have a queue-head allocated skip it
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS && 
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC &&
                 Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 // Skip scan on queue-heads
                 return ITERATOR_CONTINUE;
@@ -315,8 +315,8 @@ HciProcessElement(
             }
         } break;
         
-        case USB_REASON_RESET: {
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
+        case HCIPROCESS_REASON_RESET: {
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
                 if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
                     UhciTdRestart(Transfer, Td);
                 }
@@ -326,9 +326,9 @@ HciProcessElement(
             }
         } break;
         
-        case USB_REASON_FIXTOGGLE: {
+        case HCIPROCESS_REASON_FIXTOGGLE: {
             // If we have a queue-head allocated skip it
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC
                 && Element == (uint8_t*)Transfer->EndpointDescriptor) {
                 // Skip sync on queue-heads
                 return ITERATOR_CONTINUE;
@@ -336,9 +336,9 @@ HciProcessElement(
             UhciTdSynchronize(Transfer, Td);
         } break;
 
-        case USB_REASON_LINK: {
+        case HCIPROCESS_REASON_LINK: {
             // If it's a queue head link that
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
                 UhciQhLink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
             }
@@ -348,9 +348,9 @@ HciProcessElement(
             }
         } break;
         
-        case USB_REASON_UNLINK: {
+        case HCIPROCESS_REASON_UNLINK: {
             // If it's a queue head link that
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
                 UhciQhUnlink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
             }
@@ -360,7 +360,7 @@ HciProcessElement(
             }
         } break;
         
-        case USB_REASON_CLEANUP: {
+        case HCIPROCESS_REASON_CLEANUP: {
             // Very simple cleanup
             UsbSchedulerFreeElement(Controller->Scheduler, Element);
         } break;
@@ -369,7 +369,7 @@ HciProcessElement(
 }
 
 void
-HciProcessEvent(
+HCIProcessEvent(
     _In_ UsbManagerController_t* Controller,
     _In_ int                     Event,
     _In_ void*                   Context)
@@ -379,7 +379,7 @@ HciProcessEvent(
 
     switch (Event) {
         case USB_EVENT_RESTART_DONE: {
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
+            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
                 UhciQhRestart((UhciController_t*)Controller, Transfer);
             }
         } break;

@@ -100,12 +100,12 @@ UhciTdIo(
     if (Speed == USB_SPEED_LOW) {
         Td->Flags |= UHCI_TD_LOWSPEED;
     }
-    if (Type == USB_TRANSFER_ISOCHRONOUS) {
+    if (Type == USBTRANSFER_TYPE_ISOC) {
         Td->Flags |= UHCI_TD_ISOCHRONOUS;
     }
 
     // We set SPD on in transfers, but NOT on zero length
-    if (Type == USB_TRANSFER_CONTROL) {
+    if (Type == USBTRANSFER_TYPE_CONTROL) {
         if (PId == UHCI_TD_PID_IN && Length > 0) {
             Td->Flags |= UHCI_TD_SHORT_PACKET;
         }
@@ -192,7 +192,7 @@ UhciTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (transfer->Transfer.Transactions[i].Length > transfer->Transactions[i].BytesTransferred) {
+            if (transfer->Base.Transactions[i].Length > transfer->Transactions[i].BytesTransferred) {
                 transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
@@ -205,7 +205,7 @@ UhciTdSynchronize(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  UhciTransferDescriptor_t* Td)
 {
-    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    int Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
 
     // Is it neccessary?
     if (Toggle == 1 && (Td->Header & UHCI_TD_DATA_TOGGLE)) {
@@ -219,7 +219,7 @@ UhciTdSynchronize(
 
     // Update copy
     Td->OriginalHeader = Td->Header;
-    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
 }
 
 void
@@ -230,24 +230,24 @@ UhciTdRestart(
     UhciQueueHead_t* Qh;
     uintptr_t        BufferBaseUpdated;
     uintptr_t        BufferStep;
-    int              Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    int              Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
 
     // Setup some variables
-    if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT) {
+    if (Transfer->Base.Type == USB_TRANSFER_INTERRUPT) {
         Qh         = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
-        BufferStep = Transfer->Transfer.MaxPacketSize;
+        BufferStep = Transfer->Base.MaxPacketSize;
         
         // Flip
         Td->OriginalHeader &= ~UHCI_TD_DATA_TOGGLE;
         if (Toggle) {
             Td->OriginalHeader |= UHCI_TD_DATA_TOGGLE;
         }
-        UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+        UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
         
         // Adjust buffer if not just restart
         if (Transfer->Status == TransferFinished) {
             BufferBaseUpdated = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
-                BufferStep, Qh->BufferBase + Transfer->Transfer.PeriodicBufferSize);
+                BufferStep, Qh->BufferBase + Transfer->Base.PeriodicBufferSize);
             Td->Buffer     = LODWORD(BufferBaseUpdated);
             Qh->BufferBase = LODWORD(BufferBaseUpdated);
         }

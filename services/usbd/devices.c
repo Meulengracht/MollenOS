@@ -150,11 +150,11 @@ __LoadDeviceDriver(
     return device->DeviceId == UUID_INVALID ? OS_EUNKNOWN : OS_EOK;
 }
 
-static UsbTransferStatus_t __GetDeviceDescriptor(
+static enum USBTransferCode __GetDeviceDescriptor(
         _In_ UsbPortDevice_t* device)
 {
     usb_device_descriptor_t deviceDescriptor;
-    UsbTransferStatus_t     transferStatus;
+    enum USBTransferCode     transferStatus;
 
     transferStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
     if (transferStatus != TransferFinished) {
@@ -183,12 +183,12 @@ static UsbTransferStatus_t __GetDeviceDescriptor(
 }
 
 // TODO get language list first
-static UsbTransferStatus_t __GetDeviceString(
+static enum USBTransferCode __GetDeviceString(
         _In_  UsbPortDevice_t* device,
         _In_  uint8_t          stringIndex,
         _Out_ mstring_t**      stringOut)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
 
     transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
     if (transferStatus != TransferFinished) {
@@ -197,10 +197,10 @@ static UsbTransferStatus_t __GetDeviceString(
     return transferStatus;
 }
 
-static UsbTransferStatus_t __GetDeviceIdentification(
+static enum USBTransferCode __GetDeviceIdentification(
         _In_ UsbPortDevice_t* device)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
 
     transferStatus = __GetDeviceString(device, device->ManufactorerIndex, &device->Manufacturer);
     if (transferStatus != TransferFinished) {
@@ -214,11 +214,11 @@ static UsbTransferStatus_t __GetDeviceIdentification(
     return __GetDeviceString(device, device->SerialIndex, &device->Serial);
 }
 
-static UsbTransferStatus_t __GetConfiguration(
+static enum USBTransferCode __GetConfiguration(
         _In_ UsbPortDevice_t* device)
 {
     usb_device_configuration_t configuration;
-    UsbTransferStatus_t        transferStatus;
+    enum USBTransferCode        transferStatus;
 
     transferStatus = UsbGetActiveConfigDescriptor(&device->Base, &configuration);
     if (transferStatus == TransferFinished) {
@@ -235,11 +235,11 @@ static UsbTransferStatus_t __GetConfiguration(
     return transferStatus;
 }
 
-static UsbTransferStatus_t
+static enum USBTransferCode
 __SetDefaultConfiguration(
         _In_ UsbPortDevice_t* device)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
 
     transferStatus = UsbSetConfiguration(&device->Base, device->DefaultConfiguration);
     if (transferStatus != TransferFinished) {
@@ -248,12 +248,12 @@ __SetDefaultConfiguration(
     return transferStatus;
 }
 
-static UsbTransferStatus_t
+static enum USBTransferCode
 __QueryInitialDeviceDescriptor(
         _In_ UsbPortDevice_t* device)
 {
     usb_device_descriptor_t deviceDescriptor;
-    UsbTransferStatus_t     status;
+    enum USBTransferCode     status;
 
     status = UsbExecutePacket(
             &device->Base,
@@ -272,8 +272,8 @@ UsbCoreDevicesCreate(
     _In_ UsbHub_t*        usbHub,
     _In_ UsbPort_t*       usbPort)
 {
-    UsbHcPortDescriptor_t portDescriptor;
-    UsbTransferStatus_t   usbStatus;
+    USBPortDescriptor_t portDescriptor;
+    enum USBTransferCode usbStatus;
     oserr_t               oserr;
     UsbPortDevice_t*      device;
     int                   reservedAddress = 0;

@@ -170,7 +170,7 @@ PACKED_TYPESTRUCT(PortStatus, {
 typedef struct HubDevice {
     UsbDevice_t*  Base;
     element_t     Header;
-    UsbTransfer_t Transfer;
+    USBTransfer_t Transfer;
     uuid_t        TransferId;
 
     uint8_t       PortCount;

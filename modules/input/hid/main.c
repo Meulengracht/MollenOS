@@ -137,7 +137,7 @@ void ctt_input_stat_invocation(struct gracht_message* message, const uuid_t devi
 }
 
 void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
-                                                  const UsbTransferStatus_t status, const size_t dataIndex)
+                                                  const enum USBTransferCode status, const size_t dataIndex)
 {
     HidDevice_t* hidDevice = NULL;
 

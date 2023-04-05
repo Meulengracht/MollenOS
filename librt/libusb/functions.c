@@ -86,11 +86,11 @@ UsbRetrievePool(void)
 
 void
 UsbTransferInitialize(
-    _In_ UsbTransfer_t*             transfer,
-    _In_ usb_device_context_t*      device,
-    _In_ usb_endpoint_descriptor_t* endpoint,
-    _In_ uint8_t                    type,
-    _In_ uint8_t                    flags)
+        _In_ USBTransfer_t*             transfer,
+        _In_ usb_device_context_t*      device,
+        _In_ usb_endpoint_descriptor_t* endpoint,
+        _In_ uint8_t                    type,
+        _In_ uint8_t                    flags)
 {
     // Support NULL endpoint to indicate control
     uint8_t  endpointAddress   = endpoint ? USB_ENDPOINT_ADDRESS(endpoint->Address) : 0;
@@ -100,7 +100,7 @@ UsbTransferInitialize(
     
     TRACE("[usb] [transfer] initialize %u", endpointAddress);
     
-    memset(transfer, 0, sizeof(UsbTransfer_t));
+    memset(transfer, 0, sizeof(USBTransfer_t));
     transfer->Type                    = type;
     transfer->Speed                   = device->speed;
     transfer->Address.HubAddress      = device->hub_address;
@@ -115,7 +115,7 @@ UsbTransferInitialize(
 
 void
 UsbTransferSetup(
-        _In_ UsbTransfer_t* transfer,
+        _In_ USBTransfer_t* transfer,
         _In_ uuid_t         setupBufferHandle,
         _In_ size_t         setupBufferOffset,
         _In_ uuid_t         dataBufferHandle,
@@ -155,7 +155,7 @@ UsbTransferSetup(
 
 void
 UsbTransferPeriodic(
-        _In_ UsbTransfer_t* Transfer,
+        _In_ USBTransfer_t* Transfer,
         _In_ uuid_t         BufferHandle,
         _In_ size_t         BufferOffset,
         _In_ size_t         BufferLength,
@@ -177,13 +177,13 @@ UsbTransferPeriodic(
 
 oserr_t
 UsbTransferIn(
-        _In_ UsbTransfer_t* Transfer,
+        _In_ USBTransfer_t* Transfer,
         _In_ uuid_t         BufferHandle,
         _In_ size_t         BufferOffset,
         _In_ size_t         Length,
         _In_ int            Handshake)
 {
-    usb_transaction_t* Transaction;
+    USBTransaction_t* Transaction;
 
     // Sanitize count
     if (Transfer->TransactionCount >= 3) {
@@ -205,13 +205,13 @@ UsbTransferIn(
 
 oserr_t
 UsbTransferOut(
-        _In_ UsbTransfer_t* Transfer,
+        _In_ USBTransfer_t* Transfer,
         _In_ uuid_t         BufferHandle,
         _In_ size_t         BufferOffset,
         _In_ size_t         Length,
         _In_ int            Handshake)
 {
-    usb_transaction_t* Transaction;
+    USBTransaction_t* Transaction;
 
     // Sanitize count
     if (Transfer->TransactionCount >= 3) {
@@ -231,35 +231,35 @@ UsbTransferOut(
     return OS_EOK;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbTransferQueue(
-    _In_  usb_device_context_t* deviceContext,
-	_In_  UsbTransfer_t*        transfer,
-	_Out_ size_t*               bytesTransferred)
+        _In_  usb_device_context_t* deviceContext,
+        _In_  USBTransfer_t*        transfer,
+        _Out_ size_t*               bytesTransferred)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     uuid_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
-    UsbTransferStatus_t      transferStatus = TransferInvalid;
+    enum USBTransferCode      transferStatus = TransferInvalid;
 
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
-        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
+        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &transferStatus, bytesTransferred);
     return transferStatus;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbTransferQueuePeriodic(
         _In_  usb_device_context_t* deviceContext,
-        _In_  UsbTransfer_t*        transfer,
+        _In_  USBTransfer_t*        transfer,
         _Out_ uuid_t*               transferIdOut)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
-    UsbTransferStatus_t      status;
+    enum USBTransferCode      status;
     
     ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
-        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(UsbTransfer_t));
+        deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &status);
     
@@ -302,14 +302,14 @@ UsbHubResetPort(
         _In_ uuid_t                 hubDriverId,
         _In_ uuid_t                 deviceId,
         _In_ uint8_t                portAddress,
-        _In_ UsbHcPortDescriptor_t* portDescriptor)
+        _In_ USBPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oserr_t                  status;
     
     ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(UsbHcPortDescriptor_t));
+    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(USBPortDescriptor_t));
     return status;
 }
 
@@ -318,14 +318,14 @@ UsbHubQueryPort(
         _In_ uuid_t                 hubDriverId,
         _In_ uuid_t                 deviceId,
         _In_ uint8_t                portAddress,
-        _In_ UsbHcPortDescriptor_t* portDescriptor)
+        _In_ USBPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oserr_t                  status;
     
     ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(UsbHcPortDescriptor_t));
+    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(USBPortDescriptor_t));
     return status;
 }
 
@@ -345,7 +345,7 @@ UsbEndpointReset(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbExecutePacket(
 	_In_ usb_device_context_t* deviceContext,
     _In_ uint8_t               direction,
@@ -356,13 +356,13 @@ UsbExecutePacket(
     _In_ uint16_t              length,
     _In_ void*                 buffer)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     size_t              bytesTransferred;
     uint8_t             dataDirection;
     void*               dmaStorage = NULL;
     void*               dmaPacketStorage;
     usb_packet_t*       packet;
-    UsbTransfer_t       transfer;
+    USBTransfer_t transfer;
     
     if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OS_EOK) {
         ERROR("Failed to allocate a transfer buffer");
@@ -398,7 +398,7 @@ UsbExecutePacket(
 
     // Initialize setup transfer
     UsbTransferInitialize(&transfer, deviceContext, USB_TRANSFER_ENDPOINT_CONTROL,
-        USB_TRANSFER_CONTROL, 0);
+        USBTRANSFER_TYPE_CONTROL, 0);
     UsbTransferSetup(&transfer, dma_pool_handle(g_dmaPool), dma_pool_offset(g_dmaPool, dmaPacketStorage),
                      dma_pool_handle(g_dmaPool), dma_pool_offset(g_dmaPool, dmaStorage), length, dataDirection);
 
@@ -420,12 +420,12 @@ UsbExecutePacket(
     return transferStatus;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbSetAddress(
 	_In_ usb_device_context_t* deviceContext,
     _In_ int                   address)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
     TRACE("UsbSetAddress()");
 
@@ -438,14 +438,14 @@ UsbSetAddress(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbGetDeviceDescriptor(
 	_In_ usb_device_context_t*    deviceContext,
     _In_ usb_device_descriptor_t* deviceDescriptor)
 {
     const size_t DESCRIPTOR_SIZE = 0x12; // Max Descriptor Length is 18 bytes
     
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
         USBPACKET_TYPE_GET_DESC, 0, USB_DESCRIPTOR_DEVICE, 0, DESCRIPTOR_SIZE,
@@ -526,12 +526,12 @@ ParseConfigurationDescriptor(
     }
 }
 
-static UsbTransferStatus_t
+static enum USBTransferCode
 UsbGetInitialConfigDescriptor(
 	_In_ usb_device_context_t*       deviceContext,
     _In_ usb_device_configuration_t* configuration)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
         USBPACKET_TYPE_GET_DESC, 0, USB_DESCRIPTOR_CONFIG, 0, 
@@ -539,14 +539,14 @@ UsbGetInitialConfigDescriptor(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbGetConfigDescriptor(
 	_In_ usb_device_context_t*       deviceContext,
 	_In_ int                         configurationIndex,
     _In_ usb_device_configuration_t* configuration)
 {
     void*               descriptorStorage;
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     
     // Are we requesting the initial descriptor?
     if (deviceContext->configuration_length <= sizeof(usb_config_descriptor_t)) {
@@ -574,7 +574,7 @@ UsbGetConfigDescriptor(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbGetActiveConfigDescriptor(
 	_In_ usb_device_context_t*       deviceContext,
     _In_ usb_device_configuration_t* configuration)
@@ -606,12 +606,12 @@ UsbFreeConfigDescriptor(
     configuration->interfaces = NULL;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbSetConfiguration(
 	_In_ usb_device_context_t* deviceContext,
     _In_ int                   configurationIndex)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_OUT,
         USBPACKET_TYPE_SET_CONFIG, (uint8_t)(configurationIndex & 0xFF),
@@ -619,12 +619,12 @@ UsbSetConfiguration(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbGetStringLanguages(
 	_In_ usb_device_context_t*    deviceContext,
     _In_ usb_string_descriptor_t* descriptor)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
         USBPACKET_TYPE_GET_DESC, 0, USB_DESCRIPTOR_STRING, 0,
@@ -632,7 +632,7 @@ UsbGetStringLanguages(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbGetStringDescriptor(
 	_In_  usb_device_context_t* deviceContext,
     _In_  size_t                languageId,
@@ -640,7 +640,7 @@ UsbGetStringDescriptor(
     _Out_ mstring_t**           stringOut)
 {
     usb_unicode_string_descriptor_t* desc;
-    UsbTransferStatus_t              status;
+    enum USBTransferCode              status;
     
     desc = malloc(sizeof(usb_unicode_string_descriptor_t) + 2);
     if (desc == NULL) {
@@ -666,14 +666,14 @@ UsbGetStringDescriptor(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbClearFeature(
 	_In_ usb_device_context_t* deviceContext,
     _In_ uint8_t               Target, 
     _In_ uint16_t              Index, 
     _In_ uint16_t              Feature)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
     
     status = UsbExecutePacket(deviceContext, Target,
         USBPACKET_TYPE_CLR_FEATURE, (uint8_t)Feature & 0xFF,
@@ -681,14 +681,14 @@ UsbClearFeature(
     return status;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 UsbSetFeature(
 	_In_ usb_device_context_t* deviceContext,
 	_In_ uint8_t               Target, 
 	_In_ uint16_t              Index, 
     _In_ uint16_t              Feature)
 {
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
     status = UsbExecutePacket(deviceContext, Target,
         USBPACKET_TYPE_SET_FEATURE, (uint8_t)Feature & 0xFF,

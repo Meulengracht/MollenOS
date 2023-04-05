@@ -39,7 +39,7 @@ oserr_t     OhciSetup(OhciController_t *Controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*
-HciControllerCreate(
+HCIControllerCreate(
     _In_ BusDevice_t* Device)
 {
     SHM_t             shm;
@@ -49,7 +49,7 @@ HciControllerCreate(
     oserr_t           oserr;
     int i;
 
-    controller = (OhciController_t*)UsbManagerCreateController(Device, UsbOHCI, sizeof(OhciController_t));
+    controller = (OhciController_t*)UsbManagerCreateController(Device, USBCONTROLLER_KIND_UHCI, sizeof(OhciController_t));
     if (!controller) {
         return NULL;
     }
@@ -146,13 +146,13 @@ HciControllerCreate(
         return &controller->Base;
     }
     else {
-        HciControllerDestroy(&controller->Base);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 }
 
-oserr_t
-HciControllerDestroy(
+void
+HCIControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
     // Unregister us with service
@@ -171,9 +171,7 @@ HciControllerDestroy(
 
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);
-    
     free(Controller);
-    return OS_EOK;
 }
 
 void

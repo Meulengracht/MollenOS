@@ -61,12 +61,12 @@ ClearPortEventBits(
 }
 
 oserr_t
-HciPortReset(
+HCIPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
 {
     OhciController_t* OhciCtrl = (OhciController_t*)Controller;
-    TRACE("HciPortReset()");
+    TRACE("HCIPortReset()");
     
     // Let power stabilize
     thrd_sleep(&(struct timespec) { .tv_nsec = OhciCtrl->PowerOnDelayMs * NSEC_PER_MSEC }, NULL);
@@ -91,10 +91,10 @@ HciPortReset(
 }
 
 void
-HciPortGetStatus(
-    _In_  UsbManagerController_t* Controller,
-    _In_  int                     Index,
-    _Out_ UsbHcPortDescriptor_t*  Port)
+HCIPortStatus(
+        _In_  UsbManagerController_t* Controller,
+        _In_  int                     Index,
+        _Out_ USBPortDescriptor_t*  Port)
 {
     OhciController_t* OhciCtrl  = (OhciController_t*)Controller;
     reg32_t           Status;

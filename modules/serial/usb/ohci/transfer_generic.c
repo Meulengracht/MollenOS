@@ -31,63 +31,64 @@
 
 static inline uintptr_t
 __GetAddress(
-        _In_ struct UsbManagerTransaction* xaction,
-        _In_ int                           index,
-        _In_ size_t                        offset)
+        _In_ SHMSGTable_t* sgTable,
+        _In_ int           index,
+        _In_ size_t        offset)
 {
-    return xaction->SHMTable.Entries[index].Address + offset;
+    return sgTable->Entries[index].Address + offset;
 }
 
 static inline size_t
 __GetBytesLeft(
-        _In_ struct UsbManagerTransaction* xaction,
-        _In_ int                           index,
-        _In_ size_t                        offset)
+        _In_ SHMSGTable_t* sgTable,
+        _In_ int           index,
+        _In_ size_t        offset)
 {
-    return xaction->SHMTable.Entries[index].Length - offset;
+    return sgTable->Entries[index].Length - offset;
 }
 
 static inline size_t
 __CalculatePacketSize(
-        _In_ struct UsbManagerTransaction* xaction,
-        _In_ size_t                        originalLength,
-        _In_ size_t                        bytesLeft)
+        _In_ USBTransaction_t* xaction,
+        _In_ SHMSGTable_t*     sgTable,
+        _In_ size_t            bytesLeft)
 {
     int       index;
     size_t    offset;
     SHMSGTableOffset(
-            &xaction->SHMTable,
-            (originalLength - bytesLeft),
+            sgTable,
+            xaction->BufferOffset + (xaction->Length - bytesLeft),
             &index,
             &offset
     );
-    uintptr_t address = __GetAddress(xaction, index, offset);
-    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(xaction, index, offset));
+    uintptr_t address = __GetAddress(sgTable, index, offset);
+    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(sgTable, index, offset));
     return MIN((0x2000 - (address & (0x1000 - 1))), leftInSG);
 }
 
-static int
-__CountDescriptorsNeeded(
-        _In_ UsbManagerTransfer_t* transfer)
+int
+HCITransferElementsNeeded(
+        _In_ USBTransaction_t transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t     sgTables[USB_TRANSACTIONCOUNT])
 {
     int tdsNeeded = 0;
     for (int i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t type = transfer->Transfer.Transactions[i].Type;
+        uint8_t type = transactions[i].Type;
 
         if (type == USB_TRANSACTION_SETUP) {
             tdsNeeded++;
         } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
             // Special case: zero length packets
-            if (transfer->Transfer.Transactions[i].BufferHandle == UUID_INVALID) {
+            if (transactions[i].BufferHandle == UUID_INVALID) {
                 tdsNeeded++;
             } else {
                 // TDs have the capacity of 8196 bytes, but only when transferring on
                 // a page-boundary. If not, an extra will be needed.
-                size_t bytesLeft = transfer->Transfer.Transactions[i].Length;
+                size_t bytesLeft = transactions[i].Length;
                 while (bytesLeft) {
                     bytesLeft -= __CalculatePacketSize(
-                            &transfer->Transactions[i],
-                            transfer->Transfer.Transactions[i].Length,
+                            &transactions[i],
+                            &sgTables[i],
                             bytesLeft
                     );
                     tdsNeeded++;
@@ -134,19 +135,49 @@ __AllocateDescriptorChain(
     return tdsAllocated;
 }
 
+
+void
+HCITransferElementFill(
+        _In_ USBTransaction_t        transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT],
+        _In_ struct TransferElement* elements)
+{
+
+}
+
 static inline void
 __DestroyDescriptorChain(
         _In_ OhciController_t*     controller,
         _In_ UsbManagerTransfer_t* transfer)
 {
-    UsbManagerIterateChain(
+    UsbManagerChainEnumerate(
             &controller->Base,
             transfer->EndpointDescriptor,
             USB_CHAIN_DEPTH,
-            USB_REASON_CLEANUP,
-            HciProcessElement,
+            HCIPROCESS_REASON_CLEANUP,
+            HCIProcessElement,
             transfer
     );
+}
+
+struct __InitializeContext {
+    int SkipTDs;
+    int TDCount;
+};
+
+static void
+__InitializeDescriptorChain(
+        _In_ OhciController_t* controller,
+        _In_ OhciQueueHead_t*  qh,
+        _In_ int               tdsExcuted,
+        _In_ int               tdsToInitialize)
+{
+    UsbManagerChainEnumerate(
+            controller->Base.Scheduler,
+            (uint8_t*)qh,
+            USB_CHAIN_DEPTH,
+            0
+            )
 }
 
 static oserr_t
@@ -212,7 +243,7 @@ __ConstructPackets(
     SHMSG_t*   sg          = NULL;
     size_t     bytesLeft   = length;
     uintptr_t  dataAddress = 0;
-    int        dataToggle  = UsbManagerGetToggle(transfer->DeviceId, &transfer->Transfer.Address);
+    int        dataToggle  = UsbManagerGetToggle(transfer->DeviceID, &transfer->Base.Address);
 
     // Adjust for partial progress on a transaction
     if (bytesLeft && xaction->SHM.ID != UUID_INVALID) {
@@ -235,7 +266,7 @@ __ConstructPackets(
         }
         else {
             TRACE("... io packet");
-            Length = OhciTdIo(Td, Transfer->Transfer.Type,
+            Length = OhciTdIo(Td, Transfer->Base.Type,
                               (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT),
                               Toggle, dataAddress, Length);
         }
@@ -248,8 +279,8 @@ __ConstructPackets(
         if (Td == NULL) {
             TRACE(".. failed to allocate descriptor");
             if (PreviousToggle != -1) {
-                UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.dataAddress, PreviousToggle);
-                Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
+                UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.dataAddress, PreviousToggle);
+                Transfer->Base.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
             }
             OutOfResources = 1;
             break;
@@ -260,7 +291,7 @@ __ConstructPackets(
             previousTd = Td;
 
             // Update toggle by flipping
-            UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.dataAddress, Toggle ^ 1);
+            UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.dataAddress, Toggle ^ 1);
 
             // We have two terminating conditions, either we run out of bytes
             // or we had one ZLP that had to added.
@@ -276,7 +307,7 @@ __ConstructPackets(
             else {
                 assert(IsZLP != 0);
                 TRACE(".. zlp, done");
-                Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
+                Transfer->Base.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                 break;
             }
         }
@@ -304,12 +335,12 @@ OhciTransferFill(
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t Type            = Transfer->Transfer.Transactions[i].Type;
-        size_t  BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
+        uint8_t Type            = Transfer->Transactions[i].Type;
+        size_t  BytesToTransfer = Transfer->Transactions[i].Length;
         int     PreviousToggle  = -1;
         int     Toggle          = 0;
-        int     IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
-        int     IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
+        int     IsZLP           = Transfer->Transactions[i].Flags & USB_TRANSACTION_ZLP;
+        int     IsHandshake     = Transfer->Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
         
         TRACE("[usb] [ohci] xaction %i, length %u, type %i, zlp %i, handshake %i", 
             i, BytesToTransfer, Type, IsZLP, IsHandshake);
@@ -323,18 +354,18 @@ OhciTransferFill(
         // If it's a handshake package AND it's first td of package, then set toggle
         if (Transfer->Transactions[i].BytesTransferred == 0 && IsHandshake) {
             TRACE("... setting toggle");
-            Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
-            PreviousToggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, 1);
+            Transfer->Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
+            PreviousToggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Address);
+            UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Address, 1);
         }
         
         // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
         // the MPS, then we should make sure we add a ZLP
-        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.MaxPacketSize) == 0 &&
-            Transfer->Transfer.Type == USB_TRANSFER_BULK &&
-            Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
+        if ((Transfer->Transactions[i].Length % Transfer->MaxPacketSize) == 0 &&
+            Transfer->Type == USB_TRANSFER_BULK &&
+            Transfer->Transactions[i].Type == USB_TRANSACTION_OUT) {
             TRACE("... appending zlp");
-            Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
+            Transfer->Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             IsZLP = 1;
         }
 
@@ -344,13 +375,13 @@ OhciTransferFill(
             size_t     Length  = BytesToTransfer;
             uintptr_t  Address = 0;
             
-            if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+            if (Length && Transfer->Transactions[i].SHM.ID != UUID_INVALID) {
                 SG      = &Transfer->Transactions[i].SHMTable.Entries[Transfer->Transactions[i].SGIndex];
                 Address = SG->Address + Transfer->Transactions[i].SGOffset;
                 Length  = MIN(Length, SG->Length - Transfer->Transactions[i].SGOffset);
             }
             
-            Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+            Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Address);
             DEBUG("packet: type=%i, toggle=%i", Type, Toggle);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&Td) == OS_EOK) {
                 if (Type == USB_TRANSACTION_SETUP) {
@@ -360,7 +391,7 @@ OhciTransferFill(
                 }
                 else {
                     TRACE("... io packet");
-                    Length = OhciTdIo(Td, Transfer->Transfer.Type, 
+                    Length = OhciTdIo(Td, Transfer->Type,
                         (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT), 
                         Toggle, Address, Length);
                 }
@@ -371,8 +402,8 @@ OhciTransferFill(
             if (Td == NULL) {
                 TRACE(".. failed to allocate descriptor");
                 if (PreviousToggle != -1) {
-                    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, PreviousToggle);
-                    Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
+                    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Address, PreviousToggle);
+                    Transfer->Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
                 }
                 OutOfResources = 1;
                 break;
@@ -383,7 +414,7 @@ OhciTransferFill(
                 PreviousTd = Td;
 
                 // Update toggle by flipping
-                UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+                UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Address, Toggle ^ 1);
                 
                 // We have two terminating conditions, either we run out of bytes
                 // or we had one ZLP that had to added. 
@@ -399,7 +430,7 @@ OhciTransferFill(
                 else {
                     assert(IsZLP != 0);
                     TRACE(".. zlp, done");
-                    Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
+                    Transfer->Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                     break;
                 }
             }
@@ -424,15 +455,15 @@ OhciTransferFill(
     return OS_EUNKNOWN;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 HciQueueTransferGeneric(
     _In_ UsbManagerTransfer_t* transfer)
 {
     OhciQueueHead_t*    endpointDescriptor = NULL;
     OhciController_t*   controller;
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
-    controller = (OhciController_t*) UsbManagerGetController(transfer->DeviceId);
+    controller = (OhciController_t*) UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return TransferInvalid;
     }
@@ -448,8 +479,8 @@ HciQueueTransferGeneric(
 
         // Store and initialize the qh
         if (OhciQhInitialize(controller, transfer,
-                             transfer->Transfer.Address.DeviceAddress,
-                             transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
+                             transfer->Address.DeviceAddress,
+                             transfer->Address.EndpointAddress) != OS_EOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;

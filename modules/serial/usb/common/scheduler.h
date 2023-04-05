@@ -94,9 +94,9 @@ typedef struct UsbSchedulerPool {
     size_t    ElementCount;               // Number of elements
     size_t    ElementCountReserved;       // Number of reserved elements
 
-    size_t    ElementLinkBreathOffset;    // Offset to the physical breath link member
-    size_t    ElementDepthBreathOffset;   // Offset to the physical breath link member
-    size_t    ElementObjectOffset;        // Offset to the UsbSchedulerObject
+    size_t ElementLinkBreathOffset;    // Offset to the physical breath link member
+    size_t ElementLinkDepthOffset;     // Offset to the physical depth link member
+    size_t ElementObjectOffset;        // Offset to the UsbSchedulerObject
     
     OSHandle_t   ElementPoolDMA;         // Frame element pool DMA attachment
     SHMSGTable_t ElementPoolDMATable;
@@ -136,8 +136,20 @@ typedef struct UsbScheduler {
 #define USB_ELEMENT_PHYSICAL(_pool, _index)  (UsbSchedulerGetDma((_pool), USB_ELEMENT_INDEX((_pool), (_index))))
 #define USB_ELEMENT_GET_POOL(_sched, _index) (&(_sched)->Settings.Pools[((_index) >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK])
 
-#define USB_ELEMENT_LINK(_pool, _elem, _dir) (*(reg32_t*)((uint8_t*)(_elem) + (((_dir) == USB_CHAIN_BREATH) ? (_pool)->ElementLinkBreathOffset : (_pool)->ElementDepthBreathOffset)))
-#define USB_ELEMENT_OBJECT(_pool, _elem)     ((UsbSchedulerObject_t*)((uint8_t*)(_elem) + (_pool)->ElementObjectOffset))
+/**
+ * @brief Retrieves the 32-bit physical address of the next link. USB elements
+ * either have a DEPTH link, and/or a BREATH link.
+ * _dir can be either USB_CHAIN_BREATH or USB_CHAIN_DEPTH
+ */
+#define __LINK_OFFSET(_pool, _dir) (((_dir) == USB_CHAIN_BREATH) ? (_pool)->ElementLinkBreathOffset : (_pool)->ElementLinkDepthOffset)
+#define USB_ELEMENT_LINK(_pool, _elem, _dir) (*(reg32_t*)((uint8_t*)(_elem) + __LINK_OFFSET(_pool, _dir)))
+
+/**
+ * @brief Cast the element pointer to the UsbSchedulerObject_t at the end of
+ * the hardware data. A UsbSchedulerObject_t is appended to each transfer descriptor
+ * which contains metadata for the common USB Scheduler code.
+ */
+#define USB_ELEMENT_OBJECT(_pool, _elem) ((UsbSchedulerObject_t*)((uint8_t*)(_elem) + (_pool)->ElementObjectOffset))
 
 /* UsbSchedulerSettingsCreate
  * Initializes a new instance of the settings to customize the
@@ -218,9 +230,9 @@ UsbSchedulerGetPoolElement(
  * Retrieves which pool an element belongs to by only knowing the address. */
 __EXTERN oserr_t
 UsbSchedulerGetPoolFromElement(
-    _In_  UsbScheduler_t*           Scheduler,
-    _In_  uint8_t*                  Element,
-    _Out_ UsbSchedulerPool_t**      Pool);
+        _In_  UsbScheduler_t*      scheduler,
+        _In_  const uint8_t*       element,
+        _Out_ UsbSchedulerPool_t** poolOut);
 
 /* UsbSchedulerAllocateElement
  * Allocates a new element for usage with the scheduler. If this returns

@@ -30,7 +30,7 @@
 #include <string.h>
 
 oserr_t
-HciPortReset(
+HCIPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
 {
@@ -73,10 +73,10 @@ HciPortReset(
 }
 
 void
-HciPortGetStatus(
-    _In_  UsbManagerController_t* Controller,
-    _In_  int                     Index,
-    _Out_ UsbHcPortDescriptor_t*  Port)
+HCIPortStatus(
+        _In_  UsbManagerController_t* Controller,
+        _In_  int                     Index,
+        _Out_ USBPortDescriptor_t*  Port)
 {
     uint16_t pStatus = UhciRead16((UhciController_t*)Controller, 
     	(UHCI_REGISTER_PORT_BASE + (Index * 2)));
@@ -124,5 +124,5 @@ UhciPortPrepare(
 	_In_ int               Index)
 {
 	TRACE("UhciPortPrepare(Port %i)", Index);
-	return HciPortReset(&Controller->Base, Index);
+	return HCIPortReset(&Controller->Base, Index);
 }

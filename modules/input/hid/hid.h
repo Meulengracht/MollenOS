@@ -240,7 +240,7 @@ typedef struct UsbHidReportCollection {
 typedef struct HidDevice {
     UsbDevice_t*  Base;
     element_t     Header;
-    UsbTransfer_t Transfer;
+    USBTransfer_t Transfer;
     uuid_t        TransferId;
 
     UsbHidReportCollection_t*  Collection;
@@ -341,7 +341,7 @@ HidCollectionCleanup(
 __EXTERN void
 HidInterrupt(
     _In_ HidDevice_t *hidDevice,
-    _In_ UsbTransferStatus_t transferStatus,
+    _In_ enum USBTransferCode transferStatus,
     _In_ size_t dataIndex);
 
 #endif //!__USB_HID_H__

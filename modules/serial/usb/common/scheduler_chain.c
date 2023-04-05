@@ -100,43 +100,43 @@ UsbSchedulerUnchainElement(
     _In_ uint8_t*        Element,
     _In_ int             Direction)
 {
-    UsbSchedulerObject_t* RootObject = NULL;
-    UsbSchedulerObject_t* sObject    = NULL;
-    UsbSchedulerPool_t*   RootPool   = NULL;
-    UsbSchedulerPool_t*   sPool      = NULL;
-    uint16_t              RootIndex  = 0;
-    uint16_t              LinkIndex  = 0;
+    UsbSchedulerObject_t* rootObject;
+    UsbSchedulerObject_t* object;
+    UsbSchedulerPool_t*   rootPool;
+    UsbSchedulerPool_t*   pool;
+    uint16_t rootIndex;
+    uint16_t linkIndex;
     
     assert(ElementRootPool < Scheduler->Settings.PoolCount);
     assert(ElementPool < Scheduler->Settings.PoolCount);
     
     // Validate element and lookup pool
-    RootPool   = &Scheduler->Settings.Pools[ElementRootPool];
-    sPool      = &Scheduler->Settings.Pools[ElementPool];
-    RootObject = USB_ELEMENT_OBJECT(RootPool, ElementRoot);
-    sObject    = USB_ELEMENT_OBJECT(sPool, Element);
+    rootPool   = &Scheduler->Settings.Pools[ElementRootPool];
+    pool       = &Scheduler->Settings.Pools[ElementPool];
+    rootObject = USB_ELEMENT_OBJECT(rootPool, ElementRoot);
+    object     = USB_ELEMENT_OBJECT(pool, Element);
 
     // Get indices
-    RootIndex = RootObject->Index;
-    LinkIndex = (Direction == USB_CHAIN_BREATH) ? RootObject->BreathIndex : RootObject->DepthIndex;
+    rootIndex = rootObject->Index;
+    linkIndex = (Direction == USB_CHAIN_BREATH) ? rootObject->BreathIndex : rootObject->DepthIndex;
 
     // Iterate to end/start/object, support cyclic queues
-    while (LinkIndex != USB_ELEMENT_NO_INDEX && // Detect end of queue
-           LinkIndex != RootIndex &&    // Detect cyclic
-           LinkIndex != sObject->Index) // Detect object to unlink
+    while (linkIndex != USB_ELEMENT_NO_INDEX && // Detect end of queue
+           linkIndex != rootIndex &&    // Detect cyclic
+           linkIndex != object->Index) // Detect object to unlink
     {
-        RootPool    = USB_ELEMENT_GET_POOL(Scheduler, LinkIndex);
-        ElementRoot = USB_ELEMENT_INDEX(RootPool, LinkIndex);
-        RootObject  = USB_ELEMENT_OBJECT(RootPool, ElementRoot);
-        LinkIndex   = (Direction == USB_CHAIN_BREATH) ? RootObject->BreathIndex : RootObject->DepthIndex;
+        rootPool    = USB_ELEMENT_GET_POOL(Scheduler, linkIndex);
+        ElementRoot = USB_ELEMENT_INDEX(rootPool, linkIndex);
+        rootObject  = USB_ELEMENT_OBJECT(rootPool, ElementRoot);
+        linkIndex   = (Direction == USB_CHAIN_BREATH) ? rootObject->BreathIndex : rootObject->DepthIndex;
     }
 
     // Only one accepted case, LinkIndex == sObject->Index
-    if (LinkIndex == sObject->Index) {
+    if (linkIndex == object->Index) {
         // Set link of <ElementRoot> to be the link of <Element>
-        if (Direction == USB_CHAIN_BREATH) RootObject->BreathIndex = sObject->BreathIndex;
-        else                               RootObject->DepthIndex  = sObject->DepthIndex;
-        USB_ELEMENT_LINK(RootPool, ElementRoot, Direction) = USB_ELEMENT_LINK(sPool, Element, Direction);
+        if (Direction == USB_CHAIN_BREATH) rootObject->BreathIndex = object->BreathIndex;
+        else rootObject->DepthIndex = object->DepthIndex;
+        USB_ELEMENT_LINK(rootPool, ElementRoot, Direction) = USB_ELEMENT_LINK(pool, Element, Direction);
         dma_wmb();
         return OS_EOK;
     }

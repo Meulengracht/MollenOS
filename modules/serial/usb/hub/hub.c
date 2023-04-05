@@ -110,7 +110,7 @@ static oserr_t __GetDeviceConfiguration(
         _In_ HubDevice_t* hubDevice)
 {
     usb_device_configuration_t configuration;
-    UsbTransferStatus_t        status;
+    enum USBTransferCode        status;
     int                        i, j;
     TRACE("__GetDeviceConfiguration(hubDevice=0x%" PRIxIN ")", hubDevice);
 
@@ -149,7 +149,7 @@ static oserr_t __GetDeviceConfiguration(
 static oserr_t __GetSuperSpeedHubDescriptor(
         _In_ HubDevice_t* hubDevice)
 {
-    UsbTransferStatus_t     transferStatus;
+    enum USBTransferCode     transferStatus;
     UsbHubSuperDescriptor_t descriptor;
     TRACE("__GetSuperSpeedHubDescriptor(hubDevice=0x%" PRIxIN ")", hubDevice);
 
@@ -172,7 +172,7 @@ static oserr_t __GetSuperSpeedHubDescriptor(
 static oserr_t __GetHubDescriptor(
         _In_ HubDevice_t* hubDevice)
 {
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     UsbHubDescriptor_t  descriptor;
     TRACE("__GetHubDescriptor(hubDevice=0x%" PRIxIN ")", hubDevice);
 
@@ -265,7 +265,7 @@ HubDeviceCreate(
 {
     HubDevice_t*        hubDevice;
     uint8_t             interruptEpAddress;
-    UsbTransferStatus_t transferStatus;
+    enum USBTransferCode transferStatus;
     oserr_t             osStatus;
 
     TRACE("HubDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);

@@ -158,152 +158,135 @@ OhciQueueDestroy(
     return OS_EOK;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 OhciGetStatusCode(
     _In_ int ConditionCode)
 {
     TRACE("[ohci] [error_code] %i", ConditionCode);
     if (ConditionCode == 0) {
         return TransferFinished;
-    }
-    else if (ConditionCode == 4) {
+    } else if (ConditionCode == 4) {
         return TransferStalled;
-    }
-    else if (ConditionCode == 3) {
+    } else if (ConditionCode == 3) {
         return TransferInvalidToggles;
-    }
-    else if (ConditionCode == 2 || ConditionCode == 1) {
+    } else if (ConditionCode == 2 || ConditionCode == 1) {
         return TransferBabble;
-    }
-    else if (ConditionCode == 5) {
+    } else if (ConditionCode == 5) {
         return TransferNotResponding;
-    }
-    else if (ConditionCode == 15) {
+    } else if (ConditionCode == 15) {
         return TransferQueued;
-    }
-    else {
+    } else {
         TRACE("[ohci] [error_code]: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
         return TransferInvalid;
     }
 }
 
-/* HciProcessElement 
- * Proceses the element accordingly to the reason given. The transfer associated
- * will be provided in <Context> */
-int
-HciProcessElement(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ uint8_t*                   Element,
-    _In_ int                        Reason,
-    _In_ void*                      Context)
+bool
+HCIProcessElement(
+    _In_ UsbManagerController_t*    controller,
+    _In_ uint8_t*                   element,
+    _In_ enum HCIProcessReason      reason,
+    _In_ void*                      context)
 {
-    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+    UsbManagerTransfer_t* transfer = context;
 
-    // Debug
-    TRACE("OhciProcessElement(Reason %i)", Reason);
+    TRACE("OhciProcessElement(reason=%i)", reason);
 
     // Handle the reasons
-    switch (Reason) {
-        case USB_REASON_DUMP: {
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                OhciQhDump((OhciController_t*)Controller, (OhciQueueHead_t*)Element);
-            }
-            else if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
-                OhciTdDump((OhciController_t*)Controller, (OhciTransferDescriptor_t*)Element);
-            }
-            else {
-                OhciiTdDump((OhciController_t*)Controller, (OhciIsocTransferDescriptor_t*)Element);
+    switch (reason) {
+        case HCIPROCESS_REASON_DUMP: {
+            if (element == (uint8_t*)transfer->EndpointDescriptor) {
+                OhciQhDump((OhciController_t*)controller, (OhciQueueHead_t*)element);
+            } else if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                OhciTdDump((OhciController_t*)controller, (OhciTransferDescriptor_t*)element);
+            } else {
+                OhciiTdDump((OhciController_t*)controller, (OhciIsocTransferDescriptor_t*)element);
             }
         } break;
         
-        case USB_REASON_SCAN: {
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                return ITERATOR_CONTINUE; // Skip scan on queue-heads
+        case HCIPROCESS_REASON_SCAN: {
+            if (element == (uint8_t*)transfer->EndpointDescriptor) {
+                return true; // Skip scan on queue-heads
             }
 
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
-                OhciTdValidate(Transfer, (OhciTransferDescriptor_t*)Element);
-                if (Transfer->Flags & TransferFlagShort) {
-                    return ITERATOR_STOP; // Stop here
+            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                OhciTdValidate(transfer, (OhciTransferDescriptor_t*)element);
+                if (transfer->Flags & TransferFlagShort) {
+                    return false; // Stop here
                 }
-            }
-            else {
-                OhciiTdValidate(Transfer, (OhciIsocTransferDescriptor_t*)Element);
-            }
-        } break;
-        
-        case USB_REASON_RESET: {
-            if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
-                if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
-                    OhciTdRestart((OhciController_t*)Controller, Transfer, (OhciTransferDescriptor_t*)Element);
-                }
-                else {
-                    OhciiTdRestart((OhciController_t*)Controller, Transfer, (OhciIsocTransferDescriptor_t*)Element);
-                }
+            } else {
+                OhciiTdValidate(transfer, (OhciIsocTransferDescriptor_t*)element);
             }
         } break;
         
-        case USB_REASON_FIXTOGGLE: {
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                return ITERATOR_CONTINUE; // Skip sync on queue-heads
+        case HCIPROCESS_REASON_RESET: {
+            if (element != (uint8_t*)transfer->EndpointDescriptor) {
+                if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                    OhciTdRestart((OhciController_t*)controller, transfer, (OhciTransferDescriptor_t*)element);
+                } else {
+                    OhciiTdRestart((OhciController_t*)controller, transfer, (OhciIsocTransferDescriptor_t*)element);
+                }
+            }
+        } break;
+        
+        case HCIPROCESS_REASON_FIXTOGGLE: {
+            if (element == (uint8_t*)transfer->EndpointDescriptor) {
+                return true; // Skip sync on queue-heads
             }
 
             // Isochronous transfers don't use toggles.
-            if (Transfer->Transfer.Type != USB_TRANSFER_ISOCHRONOUS) {
-                OhciTdSynchronize(Transfer, (OhciTransferDescriptor_t*)Element);
+            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                OhciTdSynchronize(transfer, (OhciTransferDescriptor_t*)element);
             }
         } break;
 
-        case USB_REASON_LINK: {
+        case HCIPROCESS_REASON_LINK: {
             // If it's a queue head link that, otherwise ignore
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                if (Transfer->Transfer.Type == USB_TRANSFER_CONTROL || Transfer->Transfer.Type == USB_TRANSFER_BULK) {
-                    OhciQhLink((OhciController_t*)Controller, Transfer->Transfer.Type, (OhciQueueHead_t*)Element);
+            if (element == (uint8_t*)transfer->EndpointDescriptor) {
+                if (__Transfer_IsAsync(transfer)) {
+                    OhciQhLink((OhciController_t*)controller, transfer->Type, (OhciQueueHead_t*)element);
+                } else {
+                    UsbSchedulerLinkPeriodicElement(controller->Scheduler, OHCI_QH_POOL, element);
                 }
-                else {
-                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, OHCI_QH_POOL, Element);
-                }
-                return ITERATOR_STOP;
+                return false;
             }
         } break;
         
-        case USB_REASON_UNLINK: {
+        case HCIPROCESS_REASON_UNLINK: {
             // If it's a queue head unlink that, otherwise ignore
-            if (Element == (uint8_t*)Transfer->EndpointDescriptor) {
-                if (Transfer->Transfer.Type == USB_TRANSFER_INTERRUPT || Transfer->Transfer.Type == USB_TRANSFER_ISOCHRONOUS) {
-                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, OHCI_QH_POOL, Element);
+            if (element == (uint8_t*)transfer->EndpointDescriptor) {
+                if (__Transfer_IsPeriodic(transfer)) {
+                    UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, OHCI_QH_POOL, element);
                 }
-                return ITERATOR_STOP;
+                return false;
             }
         } break;
         
-        case USB_REASON_CLEANUP: {
+        case HCIPROCESS_REASON_CLEANUP: {
             // Very simple cleanup
-            UsbSchedulerFreeElement(Controller->Scheduler, Element);
+            UsbSchedulerFreeElement(controller->Scheduler, element);
         } break;
+
+        default:
+            break;
     }
-    return ITERATOR_CONTINUE;
+    return true;
 }
 
-/* HciProcessEvent
- * Invoked on different very specific events that require assistance. If a transfer 
- * associated will be provided in <Context> */
 void
-HciProcessEvent(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ int                        Event,
-    _In_ void*                      Context)
+HCIProcessEvent(
+        _In_ UsbManagerController_t* controller,
+        _In_ enum HCIProcessEvent    event,
+        _In_ void*                   context)
 {
-    // Variables
-    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+    UsbManagerTransfer_t* transfer = context;
 
-    // Debug
-    TRACE("OhciProcessEvent(Event %i)", Event);
+    TRACE("HCIProcessEvent(event=%i)", Event);
 
     // Handle the reasons
-    switch (Event) {
-        case USB_EVENT_RESTART_DONE: {
-            OhciQhRestart((OhciController_t*)Controller, Transfer);
+    switch (event) {
+        case HCIPROCESS_EVENT_RESET_DONE: {
+            OhciQhRestart((OhciController_t*)controller, transfer);
         } break;
     }
 }

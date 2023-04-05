@@ -136,7 +136,7 @@ static void __GetDeviceConfiguration(
     _In_ HidDevice_t* hidDevice)
 {
     usb_device_configuration_t configuration;
-    UsbTransferStatus_t        status;
+    enum USBTransferCode        status;
     int                        i, j;
     TRACE("__GetDeviceConfiguration(hidDevice=0x%" PRIxIN ")", hidDevice);
     
@@ -176,7 +176,7 @@ HidDeviceCreate(
     _In_ UsbDevice_t* usbDevice)
 {
     HidDevice_t*        hidDevice;
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
     TRACE("HidDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 
@@ -263,7 +263,7 @@ HidDeviceDestroy(
 void
 HidInterrupt(
     _In_ HidDevice_t*        hidDevice,
-    _In_ UsbTransferStatus_t transferStatus,
+    _In_ enum USBTransferCode transferStatus,
     _In_ size_t              dataIndex)
 {
     if (!hidDevice->Collection || transferStatus == TransferNAK) {

@@ -130,7 +130,7 @@ UfiInitialize(
     return OS_EOK;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 UfiSendCommand(
         _In_ MsdDevice_t* Device,
         _In_ uint8_t      ScsiCommand,
@@ -140,7 +140,7 @@ UfiSendCommand(
         _In_ size_t       DataLength)
 {
     MsdCommandBlockUFI_t UfiCommandBlock;
-    UsbTransferStatus_t  Result;
+    enum USBTransferCode  Result;
 
     // Debug
     TRACE("UfiSendCommand(Command %u, Start %u, Length %u)",
@@ -161,7 +161,7 @@ UfiSendCommand(
     return Result;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 UfiReadData(
         _In_  MsdDevice_t* Device,
         _In_  uuid_t       BufferHandle,
@@ -169,8 +169,8 @@ UfiReadData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesRead)
 {
-    UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage;
+    enum USBTransferCode Result;
+    USBTransfer_t       DataStage;
 
     UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
         Device->In, USB_TRANSFER_BULK, 0);
@@ -186,7 +186,7 @@ UfiReadData(
     return Result;
 }
 
-UsbTransferStatus_t 
+enum USBTransferCode
 UfiWriteData(
         _In_  MsdDevice_t* Device,
         _In_  uuid_t       BufferHandle,
@@ -194,8 +194,8 @@ UfiWriteData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesWritten)
 {
-    UsbTransferStatus_t Result;
-    UsbTransfer_t       DataStage;
+    enum USBTransferCode Result;
+    USBTransfer_t       DataStage;
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
@@ -214,7 +214,7 @@ UfiWriteData(
 
 /* UfiGetStatus
  * The status stage is not used in the ufi-protocol. Not implemented. */
-UsbTransferStatus_t 
+enum USBTransferCode
 UfiGetStatus(
     _In_ MsdDevice_t *Device)
 {

@@ -53,7 +53,7 @@ EhciPortSetBits(
 }
 
 oserr_t
-HciPortReset(
+HCIPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
 {
@@ -108,10 +108,10 @@ HciPortReset(
 }
 
 void
-HciPortGetStatus(
-    _In_  UsbManagerController_t* controller,
-    _In_  int                     index,
-    _Out_ UsbHcPortDescriptor_t*  port)
+HCIPortStatus(
+        _In_  UsbManagerController_t* controller,
+        _In_  int                     index,
+        _Out_ USBPortDescriptor_t*  port)
 {
     EhciController_t* ehciHci = (EhciController_t*)controller;
     reg32_t           status;

@@ -173,7 +173,7 @@ EhciTdValidate(
 
     // Get error code based on type of transfer
     ErrorCode = EhciConditionCodeToIndex(
-        Transfer->Transfer.Speed == USB_SPEED_HIGH ? (Td->Status & 0xFC) : Td->Status);
+            Transfer->Base.Speed == USB_SPEED_HIGH ? (Td->Status & 0xFC) : Td->Status);
     
     if (ErrorCode != 0) {
         Transfer->Status = EhciGetStatusCode(ErrorCode);
@@ -198,7 +198,7 @@ EhciTdValidate(
             }
         }
         for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Transfer.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
+            if (Transfer->Base.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
                 Transfer->Transactions[i].BytesTransferred += BytesTransferred;
                 break;
             }
@@ -211,7 +211,7 @@ EhciTdSynchronize(
     _In_ UsbManagerTransfer_t*     Transfer,
     _In_ EhciTransferDescriptor_t* Td)
 {
-    int Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    int Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
 
     // Is it neccessary?
     if (Toggle == 1 && (Td->Length & EHCI_TD_TOGGLE)) {
@@ -225,7 +225,7 @@ EhciTdSynchronize(
 
     // Update copy
     Td->OriginalLength  = Td->Length;
-    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
 }
 
 void
@@ -237,13 +237,13 @@ EhciTdRestart(
     uintptr_t BufferBaseUpdated = 0;
     uintptr_t BufferBase        = 0;
     uintptr_t BufferStep        = 0;
-    int       Toggle            = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+    int       Toggle            = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
 
     Td->OriginalLength &= ~(EHCI_TD_TOGGLE);
     if (Toggle) {
         Td->OriginalLength = EHCI_TD_TOGGLE;
     }
-    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
 
     Td->Status = EHCI_TD_ACTIVE;
     Td->Length = Td->OriginalLength;
@@ -252,7 +252,7 @@ EhciTdRestart(
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {
         BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
-            BufferStep, BufferBase + Transfer->Transfer.PeriodicBufferSize);
+            BufferStep, BufferBase + Transfer->Base.PeriodicBufferSize);
         EhciTdFill(Controller, Td, BufferBaseUpdated, BufferStep);
     }
 }

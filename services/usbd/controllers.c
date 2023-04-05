@@ -191,7 +191,7 @@ void sys_usb_get_controller_count_invocation(struct gracht_message* message)
 
 void sys_usb_get_controller_invocation(struct gracht_message* message, const int index)
 {
-    UsbHcController_t hcController = { { { 0 } }, 0 };
+    USBControllerDevice_t hcController = {{{0 } }, 0 };
     UsbController_t*  controller;
 
     controller = __GetControllerIndex(index);
@@ -199,5 +199,5 @@ void sys_usb_get_controller_invocation(struct gracht_message* message, const int
         memcpy(&hcController.Device, &controller->Device, sizeof(Device_t));
         hcController.Type = controller->Type;
     }
-    sys_usb_get_controller_response(message, (uint8_t*)&hcController, sizeof(UsbHcController_t));
+    sys_usb_get_controller_response(message, (uint8_t*)&hcController, sizeof(USBControllerDevice_t));
 }

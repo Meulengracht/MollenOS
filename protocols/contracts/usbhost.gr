@@ -8,14 +8,14 @@ import "../types"
 
 namespace ctt
 
-define UsbTransferStatus_t from "usb/usb.h"
+define enum USBTransferCode from "usb/usb.h"
  
 service usbhost (18) {
-    func queue(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (UsbTransferStatus_t result, ulong bytesTransferred) = 1;
-    func queue_periodic(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (UsbTransferStatus_t result) = 2;
+    func queue(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (enum USBTransferCode result, ulong bytesTransferred) = 1;
+    func queue_periodic(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (enum USBTransferCode result) = 2;
     func reset_periodic(uuid_t processId, uuid_t deviceId, uuid_t transferId) : (oserr_t result) = 3;
     func dequeue(uuid_t processId, uuid_t deviceId, uuid_t transferId) : (oserr_t result) = 4;
     func reset_endpoint(uuid_t deviceId, uint8 hub, uint8 port, uint8 device, uint8 endpoint) : (oserr_t result) = 5;
 
-    event transfer_status : (uuid_t transferId, UsbTransferStatus_t status, ulong dataIndex) = 6;
+    event transfer_status : (uuid_t transferId, enum USBTransferCode status, ulong dataIndex) = 6;
 }

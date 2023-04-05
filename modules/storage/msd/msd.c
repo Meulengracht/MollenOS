@@ -132,7 +132,7 @@ static void __GetDeviceConfiguration(
     _In_ MsdDevice_t* device)
 {
     usb_device_configuration_t configuration;
-    UsbTransferStatus_t        status;
+    enum USBTransferCode        status;
     int                        i, j;
     
     status = UsbGetActiveConfigDescriptor(&device->Device->DeviceContext, &configuration);

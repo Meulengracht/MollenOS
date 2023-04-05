@@ -232,7 +232,7 @@ UhciWrite32(
 
 /* UhciGetStatusCode
  * Retrieves a status-code from a given condition code */
-__EXTERN UsbTransferStatus_t
+__EXTERN enum USBTransferCode
 UhciGetStatusCode(
     _In_ int                        conditionCode);
 

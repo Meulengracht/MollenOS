@@ -47,12 +47,12 @@ EhciTransferFill(
 
     // Get next address from which we need to load
     for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t Type            = Transfer->Transfer.Transactions[i].Type;
-        size_t  BytesToTransfer = Transfer->Transfer.Transactions[i].Length;
+        uint8_t Type            = Transfer->Base.Transactions[i].Type;
+        size_t  BytesToTransfer = Transfer->Base.Transactions[i].Length;
         int     PreviousToggle  = -1;
         int     Toggle          = 0;
-        int     IsZLP           = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_ZLP;
-        int     IsHandshake     = Transfer->Transfer.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
+        int     IsZLP           = Transfer->Base.Transactions[i].Flags & USB_TRANSACTION_ZLP;
+        int     IsHandshake     = Transfer->Base.Transactions[i].Flags & USB_TRANSACTION_HANDSHAKE;
 
         TRACE("Transaction(%i, Length %u, Type %i)", i, BytesToTransfer, Type);
 
@@ -64,17 +64,17 @@ EhciTransferFill(
 
         // If it's a handshake package AND it's first td of package, then set toggle
         if (Transfer->Transactions[i].BytesTransferred == 0 && IsHandshake) {
-            Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
-            PreviousToggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
-            UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, 1);
+            Transfer->Base.Transactions[i].Flags &= ~(USB_TRANSACTION_HANDSHAKE);
+            PreviousToggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
+            UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, 1);
         }
         
         // If its a bulk transfer, with a direction of out, and the requested length is a multiple of
         // the MPS, then we should make sure we add a ZLP
-        if ((Transfer->Transfer.Transactions[i].Length % Transfer->Transfer.MaxPacketSize) == 0 &&
-            Transfer->Transfer.Type == USB_TRANSFER_BULK &&
-            Transfer->Transfer.Transactions[i].Type == USB_TRANSACTION_OUT) {
-            Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
+        if ((Transfer->Base.Transactions[i].Length % Transfer->Base.MaxPacketSize) == 0 &&
+            Transfer->Base.Type == USB_TRANSFER_BULK &&
+            Transfer->Base.Transactions[i].Type == USB_TRANSACTION_OUT) {
+            Transfer->Base.Transactions[i].Flags |= USB_TRANSACTION_ZLP;
             IsZLP = 1;
         }
 
@@ -84,13 +84,13 @@ EhciTransferFill(
             size_t    Length  = BytesToTransfer;
             uintptr_t Address = 0;
             
-            if (Length && Transfer->Transfer.Transactions[i].BufferHandle != UUID_INVALID) {
+            if (Length && Transfer->Base.Transactions[i].BufferHandle != UUID_INVALID) {
                 SG      = &Transfer->Transactions[i].SHMTable.Entries[Transfer->Transactions[i].SGIndex];
                 Address = SG->Address + Transfer->Transactions[i].SGOffset;
                 Length  = MIN(Length, SG->Length - Transfer->Transactions[i].SGOffset);
             }
             
-            Toggle = UsbManagerGetToggle(Transfer->DeviceId, &Transfer->Transfer.Address);
+            Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
             if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, EHCI_TD_POOL, (uint8_t**)&Td) == OS_EOK) {
                 if (Type == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
@@ -99,7 +99,7 @@ EhciTransferFill(
                 }
                 else {
                     TRACE(" > Creating io packet");
-                    Length = EhciTdIo(Controller, Td, Transfer->Transfer.MaxPacketSize, 
+                    Length = EhciTdIo(Controller, Td, Transfer->Base.MaxPacketSize,
                         Type, Address, Length, Toggle);
                 }
             }
@@ -109,8 +109,8 @@ EhciTransferFill(
             if (Td == NULL) {
                 TRACE(" > Failed to allocate descriptor");
                 if (PreviousToggle != -1) {
-                    UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, PreviousToggle);
-                    Transfer->Transfer.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
+                    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, PreviousToggle);
+                    Transfer->Base.Transactions[i].Flags |= USB_TRANSACTION_HANDSHAKE;
                 }
                 OutOfResources = 1;
                 break;
@@ -121,7 +121,7 @@ EhciTransferFill(
                 PreviousTd = Td;
 
                 // Update toggle by flipping
-                UsbManagerSetToggle(Transfer->DeviceId, &Transfer->Transfer.Address, Toggle ^ 1);
+                UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
                 
                 // We have two terminating conditions, either we run out of bytes
                 // or we had one ZLP that had to added. 
@@ -137,7 +137,7 @@ EhciTransferFill(
                 else {
                     assert(IsZLP != 0);
                     TRACE(" > Encountered zero-length");
-                    Transfer->Transfer.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
+                    Transfer->Base.Transactions[i].Flags &= ~(USB_TRANSACTION_ZLP);
                     break;
                 }
             }
@@ -160,15 +160,15 @@ EhciTransferFill(
     return OS_EBUSY;
 }
 
-UsbTransferStatus_t
+enum USBTransferCode
 HciQueueTransferGeneric(
     _In_ UsbManagerTransfer_t* transfer)
 {
     EhciQueueHead_t*    endpointDescriptor = NULL;
     EhciController_t*   controller;
-    UsbTransferStatus_t status;
+    enum USBTransferCode status;
 
-    controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceId);
+    controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return TransferInvalid;
     }
@@ -184,8 +184,8 @@ HciQueueTransferGeneric(
 
         // Store and initialize the qh
         if (EhciQhInitialize(controller, transfer,
-                             transfer->Transfer.Address.DeviceAddress,
-                             transfer->Transfer.Address.EndpointAddress) != OS_EOK) {
+                             transfer->Base.Address.DeviceAddress,
+                             transfer->Base.Address.EndpointAddress) != OS_EOK) {
             // No bandwidth, serious.
             UsbSchedulerFreeElement(controller->Base.Scheduler, (uint8_t*)endpointDescriptor);
             status = TransferNoBandwidth;
