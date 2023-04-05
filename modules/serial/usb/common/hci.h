@@ -123,14 +123,14 @@ HciTransactionFinalize(
 /* HciQueueTransferGeneric 
  * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
  * The function does not block. */
-extern enum USBTransferCode
+extern oserr_t
 HciQueueTransferGeneric(
     _In_ UsbManagerTransfer_t* transfer);
 
 /* HciQueueTransferIsochronous 
  * Queues a new isochronous transfer for the given driver and pipe. 
  * The function does not block. */
-extern enum USBTransferCode
+extern oserr_t
 HciQueueTransferIsochronous(
     _In_ UsbManagerTransfer_t* transfer);
 

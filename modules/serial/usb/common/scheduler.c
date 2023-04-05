@@ -188,7 +188,7 @@ UsbSchedulerInitialize(
     }
 
     // Validate the physical location of the framelist, on most usb controllers
-    // it is not supported that its located above 32 bit memory space. Unless
+    // it is not supported that it's located above 32-bit memory space. Unless
     // we have been told to ignore this then assert on it.
     if (!(Scheduler->Settings.Flags & USB_SCHEDULER_FL64)) {
         if ((Scheduler->Settings.FrameListPhysical + 

@@ -43,6 +43,7 @@ enum USBTransferCode {
     // HCD Error Codes
     TransferOK,
     TransferInvalid,
+    TransferCancelled,
     TransferNoBandwidth,
 
     // Transaction Error Codes

@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,15 +13,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * USB Controller Scheduler
- * - Contains the implementation of a shared controller scheduker
- *   for all the usb drivers
  */
 
-#ifndef __USB_TRANSFER__
-#define __USB_TRANSFER__
+#ifndef __USB_COMMON_TRANSFER__
+#define __USB_COMMON_TRANSFER__
 
 #include <usb/usb.h>
 #include <gracht/link/vali.h>
@@ -38,21 +31,10 @@
 #define __USBTRANSFER_FLAG_PARTIAL     0x8
 #define __USBTRANSFER_FLAG_SILENT      0x10
 #define __USBTRANSFER_FLAG_FAILONSHORT 0x20
-enum UsbManagerTransferFlags {
-    TransferFlagNone        = 0,
-    TransferFlagShort       = 0x1,
-    TransferFlagSync        = 0x2,
-    TransferFlagSchedule    = 0x4,
-    TransferFlagUnschedule  = 0x8,
-    TransferFlagCleanup     = 0x10,
-    TransferFlagNotified    = 0x20,
-    TransferFlagPartial     = 0x40,
-    TransferFlagSilent = 0x80,
-    TransferFlagFailOnShort = 0x100
-};
 
 enum USBManagerTransferState {
     USBTRANSFER_STATE_CREATED,
+    USBTRANSFER_STATE_WAITING,
     USBTRANSFER_STATE_SCHEDULE,
     USBTRANSFER_STATE_QUEUED,
     USBTRANSFER_STATE_UNSCHEDULE,
@@ -88,10 +70,18 @@ typedef struct UsbManagerTransfer {
     struct TransferElement* Elements;
     int                     ElementCount;
     int                     ElementsCompleted;
-    size_t                  BytesTransferred;
-
-    // Periodic Transfers
-    size_t CurrentDataIndex;
+    
+    union {
+        struct {
+            size_t BytesTransferred;
+        } Async;
+        struct {
+            size_t   CurrentDataIndex;
+            uint32_t PeriodicBufferSize;
+            uint8_t  PeriodicBandwith;
+            uint8_t  PeriodicInterval;
+        } Periodic;
+    } TData;
 
     // SHMHandles are references we must keep on the underlying
     // physical memory that we use to transfer data in/out of.
@@ -100,6 +90,17 @@ typedef struct UsbManagerTransfer {
     // Deferred message for async responding
     struct gracht_message DeferredMessage[];
 } UsbManagerTransfer_t;
+
+/**
+ * @brief Intended for use when resetting periodic transfers. Resets
+ * state and status to vales expected when newly queued. Removes any state
+ * flags.
+ */
+static inline void __Transfer_Reset(UsbManagerTransfer_t* transfer) {
+    transfer->Status = TransferOK;
+    transfer->State  = USBTRANSFER_STATE_QUEUED;
+    transfer->Flags  &= ~(__USBTRANSFER_FLAG_NOTIFIED | __USBTRANSFER_FLAG_SHORT);
+}
 
 /**
  * @brief Returns true if the transfer is either control or bulk
@@ -118,20 +119,41 @@ static inline bool __Transfer_IsPeriodic(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * UsbManagerDestroyTransfer
- * * Cleans up a usb transfer and frees resources.
+ * @brief Returns whether the transfer has completed its transfer elements, or
+ * experienced an error.
+ * It may be deemed completed even with only partially executed elements if
+ * the transfer was marked as SHORT.
+ * This is only valid when the transfer is async.
  */
-__EXTERN void
+static inline bool __Transfer_IsComplete(UsbManagerTransfer_t* transfer) {
+    if (transfer->Status != TransferOK) {
+        return true;
+    }
+    if (transfer->ElementsCompleted == transfer->ElementCount) {
+        return true;
+    }
+    if (transfer->Flags & __USBTRANSFER_FLAG_SHORT) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Cleans up a usb transfer and frees resources.
+ * @param transfer 
+ */
+extern void
 UsbManagerDestroyTransfer(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
- * UsbManagerSendNotification
- * * Sends a notification to the subscribing process whenever a periodic
- * * transaction has completed/failed. */
-__EXTERN void
+ * @brief Notifies the waiting/subscribing process of transfer completion.
+ * The transfer may have completed in error state or succesfully.
+ * @param transfer 
+ */
+extern void
 UsbManagerSendNotification(
     _In_ UsbManagerTransfer_t* transfer);
 
-#endif //!__USB_TRANSFER__
+#endif //!__USB_COMMON_TRANSFER__
  
