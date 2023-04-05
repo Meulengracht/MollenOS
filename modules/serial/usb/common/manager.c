@@ -323,7 +323,7 @@ __QueueWaitingTransfers(
     foreach(node, &controller->TransactionList) {
         UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)node->value;
 
-        if (transfer->Status == TransferQueued) {
+        if (transfer->State == USBTRANSFER_STATE_WAITING) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
                 HciQueueTransferIsochronous(transfer);
             } else {
@@ -342,11 +342,8 @@ __FinalizeTransfer(
     TRACE("__FinalizeTransfer()");
 
     // Is the transfer only partially done?
-    if ((__Transfer_IsAsync(transfer))
-        && transfer->Status == TransferFinished
-        && (transfer->Flags & TransferFlagPartial)
-        && !(transfer->Flags & TransferFlagShort)) {
-        finished = false;
+    if (__Transfer_IsAsync(transfer)) {
+        finished = __Transfer_IsComplete(transfer);
     }
 
     // We don't allocate the queue head before the transfer
@@ -368,9 +365,9 @@ __ClearTransfer(
     UsbManagerController_t* controller = context;
     UsbManagerTransfer_t*   transfer   = (UsbManagerTransfer_t*)item->value;
 
-    // clear the partial flag to avoid the transfer being requeued
-    // when calling __FinalizeTransfer
-    transfer->Flags &= ~(TransferFlagPartial);
+    // Set the transfer status to cancel. Do this to avoid it
+    // being requeued in __FinalizeTransfer.
+    transfer->Status = TransferCancelled;
 
     // finalize the transfer
     HciTransactionFinalize(controller, transfer, 1);
@@ -404,14 +401,12 @@ __ScheduleTransfer(
 {
     _CRT_UNUSED(context);
 
-    if (transfer->Flags & TransferFlagUnschedule) {
+    if (transfer->State == USBTRANSFER_STATE_UNSCHEDULE) {
         TRACE("UNSCHEDULE(Id %u)", transfer->ID);
-        transfer->Flags &= ~(TransferFlagUnschedule);
         HciTransactionFinalize(controller, transfer, 0);
-        transfer->Flags |= TransferFlagCleanup;
-    } else if (transfer->Flags & TransferFlagSchedule) {
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+    } else if (transfer->State == USBTRANSFER_STATE_SCHEDULE) {
         TRACE("SCHEDULE(Id %u)", transfer->ID);
-        transfer->Flags &= ~(TransferFlagSchedule);
         UsbManagerChainEnumerate(
                 controller,
                 transfer->EndpointDescriptor,
@@ -420,6 +415,7 @@ __ScheduleTransfer(
                 HCIProcessElement,
                 transfer
         );
+        transfer->State = USBTRANSFER_STATE_QUEUED;
     }
     return ITERATOR_CONTINUE;
 }
@@ -445,7 +441,7 @@ __SynchronizeToggles(
     //   to fix the toggles
     // - The transfer must be either bulk or interrupt
     if (!__IsAddressEqual(&transfer->Address, Address) ||
-        transfer->Status != TransferInProgress ||
+        transfer->State != USBTRANSFER_STATE_QUEUED ||
         __Transfer_IsPeriodic(transfer)) {
         return ITERATOR_CONTINUE;
     }
@@ -486,7 +482,7 @@ __ProcessCleanup(
     if (__FinalizeTransfer(transfer) == OS_EOK) {
         return ITERATOR_REMOVE;
     }
-    transfer->Flags &= ~(TransferFlagCleanup);
+    transfer->State = USBTRANSFER_STATE_COMPLETED;
     return ITERATOR_CONTINUE;
 }
 
@@ -500,13 +496,13 @@ __ProcessTransfer(
           controller, transfer, transfer ? transfer->Flags : 0);
     _CRT_UNUSED(context);
 
-    if (transfer->Flags & TransferFlagCleanup) {
+    if (transfer->State == USBTRANSFER_STATE_CLEANUP) {
         return __ProcessCleanup(controller, transfer);
     }
 
     // If the transfer wasn't done, and is not in progress, then it's simply
     // queued. Don't do anything else.
-    if (transfer->Status != TransferInProgress) {
+    if (transfer->Status != USBTRANSFER_STATE_QUEUED) {
         return ITERATOR_CONTINUE;
     }
 
@@ -523,7 +519,7 @@ __ProcessTransfer(
 
     // Transfer is still in progress after the scan. The scan will update any status on
     // the transfer.
-    if (transfer->Status == TransferInProgress) {
+    if (transfer->Status == USBTRANSFER_STATE_QUEUED) {
         return ITERATOR_CONTINUE;
     }
     
@@ -532,7 +528,7 @@ __ProcessTransfer(
     // TODO: This is definitely not correctly implemented, and does not factor into
     // account that we might need to update additional toggles for transfers that are
     // queued against the same endpoint.
-    if (transfer->Flags & TransferFlagSync) {
+    if (transfer->Flags & __USBTRANSFER_FLAG_SYNC) {
         UsbManagerIterateTransfers(controller, __SynchronizeToggles, &transfer->Address);
     }
 
@@ -553,8 +549,7 @@ __ProcessTransfer(
         }
 
         if (transfer->Status != TransferStalled) {
-            transfer->Status = TransferInProgress;
-            transfer->Flags  = TransferFlagNone;
+            __Transfer_Reset(transfer);
         }
     } else if (__Transfer_IsAsync(transfer)) {
         HciTransactionFinalize(controller, transfer, 0);
