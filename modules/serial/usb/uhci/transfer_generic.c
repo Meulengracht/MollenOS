@@ -248,13 +248,13 @@ UhciTransferFill(
 }
 
 enum USBTransferCode
-HciQueueTransferGeneric(
+HCITransferQueue(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciQueueHead_t*    endpointDescriptor = NULL;
     UhciController_t*   controller;
     enum USBTransferCode status;
-    TRACE("HciQueueTransferGeneric()");
+    TRACE("HCITransferQueue()");
 
     controller = (UhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (!controller) {

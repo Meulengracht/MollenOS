@@ -66,7 +66,7 @@ OhciTransferFill(
         AddressPointer = Transfer->Transactions[0].SHMTable.Entries[
             Transfer->Transactions[0].SGIndex].Address + Transfer->Transactions[0].SGOffset;
         
-        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_TD_POOL, (uint8_t**)&iTd) == OS_EOK) {
+        if (UsbSchedulerAllocateElement(Controller->Base.Scheduler, OHCI_iTD_POOL, (uint8_t**)&iTd) == OS_EOK) {
             OhciTdIsochronous(iTd, Transfer->MaxPacketSize,
                 (Type == USB_TRANSACTION_IN ? OHCI_TD_IN : OHCI_TD_OUT), AddressPointer, BytesStep);
         }
