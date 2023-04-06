@@ -336,6 +336,28 @@ OhciSetMode(
     _In_ OhciController_t* controller,
     _In_ reg32_t           mode);
 
+/**
+ * @brief Ensures that a queue head has been allocated for a transfer.
+ * @param controller The controller associated with the transfer.
+ * @param transfer The transfer that needs a queue head allocated.
+ * @return OS_EOK if a queue head has been succesfully allocated a transfer.
+ */
+extern oserr_t
+OHCITransferEnsureQueueHead(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer);
+
+extern int
+OHCITransferAllocateDescriptors(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ int                   descriptorPool);
+
+extern void
+OHCITransferDestroyDescriptors(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer);
+
 /*******************************************************************************
  * Queue Head Methods
  *******************************************************************************/
@@ -386,17 +408,16 @@ OHCITDSetup(
     _In_ OhciTransferDescriptor_t* td,
     _In_ uintptr_t                 dataAddress);
 
-/* OhciTdIo 
+/* OHCITDData
  * Creates a new io token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN size_t
-OhciTdIo(
-    _In_ OhciTransferDescriptor_t*  Td,
-    _In_ uint8_t          Type,
-    _In_ uint32_t                   PId,
-    _In_ int                        Toggle,
-    _In_ uintptr_t                  Address,
-    _In_ size_t                     Length);
+__EXTERN void
+OHCITDData(
+    _In_ OhciTransferDescriptor_t*  td,
+    _In_ enum USBTransferType       type,
+    _In_ uint32_t                   PID,
+    _In_ uintptr_t                  dataAddress,
+    _In_ size_t                     length);
 
 /* OhciTdDump
  * Dumps the information contained in the descriptor by writing it. */

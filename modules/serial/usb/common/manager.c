@@ -327,7 +327,7 @@ __QueueWaitingTransfers(
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
                 HciQueueTransferIsochronous(transfer);
             } else {
-                HciQueueTransferGeneric(transfer);
+                HCITransferQueue(transfer);
             }
             break;
         }
@@ -349,7 +349,7 @@ __FinalizeTransfer(
     // We don't allocate the queue head before the transfer
     // is done, we might not be done yet
     if (!finished) {
-        HciQueueTransferGeneric(transfer);
+        HCITransferQueue(transfer);
         return OS_EINCOMPLETE;
     }
 

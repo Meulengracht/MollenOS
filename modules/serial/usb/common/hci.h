@@ -120,11 +120,15 @@ HciTransactionFinalize(
     _In_ UsbManagerTransfer_t*   Transfer,
     _In_ int                     Reset);
 
-/* HciQueueTransferGeneric 
- * Queues a new asynchronous/interrupt transfer for the given driver and pipe. 
- * The function does not block. */
+/**
+ * @brief Fills and queues a non-isoc transfer. No guarantee is made towards the transfer
+ * can be completed at once. Transfer success may depend on resource allocation, and a partial
+ * transfer may be done.
+ * @param transfer The transfer that needs to be queued.
+ * @return OS_EOK if the transfer has been queued.
+ */
 extern oserr_t
-HciQueueTransferGeneric(
+HCITransferQueue(
     _In_ UsbManagerTransfer_t* transfer);
 
 /* HciQueueTransferIsochronous 

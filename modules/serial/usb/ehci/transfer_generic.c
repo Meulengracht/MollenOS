@@ -161,7 +161,7 @@ EhciTransferFill(
 }
 
 enum USBTransferCode
-HciQueueTransferGeneric(
+HCITransferQueue(
     _In_ UsbManagerTransfer_t* transfer)
 {
     EhciQueueHead_t*    endpointDescriptor = NULL;

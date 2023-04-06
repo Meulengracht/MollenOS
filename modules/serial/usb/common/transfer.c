@@ -266,7 +266,7 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
         return;
     }
 
-    oserr = HciQueueTransferGeneric(usbTransfer);
+    oserr = HCITransferQueue(usbTransfer);
     if (oserr != OS_EOK) {
         UsbManagerDestroyTransfer(usbTransfer);
         ctt_usbhost_queue_response(message, TransferInvalid, 0);
@@ -293,7 +293,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     if (usbTransfer->Type == USBTRANSFER_TYPE_ISOC) {
         oserr = HciQueueTransferIsochronous(usbTransfer);
     } else {
-        oserr = HciQueueTransferGeneric(usbTransfer);
+        oserr = HCITransferQueue(usbTransfer);
     }
 
     if (oserr != OS_EOK) {

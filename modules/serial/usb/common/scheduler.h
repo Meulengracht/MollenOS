@@ -70,7 +70,7 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
  * Bit    13: Has bandwidth allocated
  * Bit    14: Isochronous Element
  * Bit 15-31: Available */
-#define USB_ELEMENT_LINKFLAGS(Flags)    ((Flags & 0xFFF))
+#define USB_ELEMENT_LINKFLAGS(_flags)   ((_flags) & 0xFFF)
 #define USB_ELEMENT_ALLOCATED           (1 << 12)
 #define USB_ELEMENT_BANDWIDTH           (1 << 13)
 #define USB_ELEMENT_ISOCHRONOUS         (1 << 14)
@@ -79,8 +79,8 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
 #define USB_ELEMENT_POOL_MASK           0x7
 #define USB_ELEMENT_POOL_SHIFT          13
 
-#define USB_ELEMENT_CREATE_INDEX(Pool, Index)   (uint16_t)((Index & USB_ELEMENT_INDEX_MASK) | ((Pool & USB_ELEMENT_POOL_MASK) << USB_ELEMENT_POOL_SHIFT))
-#define USB_ELEMENT_NO_INDEX                    (uint16_t)0xFFFF
+#define USB_ELEMENT_CREATE_INDEX(_pool, _idx) (uint16_t)(((_idx) & USB_ELEMENT_INDEX_MASK) | (((_pool) & USB_ELEMENT_POOL_MASK) << USB_ELEMENT_POOL_SHIFT))
+#define USB_ELEMENT_NO_INDEX                  (uint16_t)0xFFFF
 
 #define USB_ELEMENT_LINK_END            (1 << 0)
 

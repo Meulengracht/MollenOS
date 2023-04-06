@@ -24,7 +24,7 @@
 
 //#define __TRACE
 //#define __DIAGNOSE
-
+#define __need_minmax
 #include <assert.h>
 #include "ohci.h"
 #include <os/mollenos.h>
@@ -43,10 +43,9 @@ OhciTransactionDispatch(
 #endif
 #endif
 
-    // Set the schedule flag on ED and
+    // Set the schedule state on ED and
     // enable SOF, ED is not scheduled before this interrupt
-    Transfer->Status  = TransferInProgress;
-    Transfer->Flags  |= TransferFlagSchedule;
+    Transfer->State = USBTRANSFER_STATE_SCHEDULE;
     WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
     WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
 }
@@ -176,8 +175,179 @@ HciDequeueTransfer(
 
     // Mark for unscheduling and
     // enable SOF, ED is not scheduled before
-    Transfer->Flags |= TransferFlagUnschedule;
+    Transfer->State = USBTRANSFER_STATE_UNSCHEDULE;
     WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, OHCI_SOF_EVENT);
     WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, OHCI_SOF_EVENT);
     return OS_EOK;
+}
+
+static inline uintptr_t
+__GetAddress(
+        _In_ SHMSGTable_t* sgTable,
+        _In_ int           index,
+        _In_ size_t        offset)
+{
+    return sgTable->Entries[index].Address + offset;
+}
+
+static inline size_t
+__GetBytesLeft(
+        _In_ SHMSGTable_t* sgTable,
+        _In_ int           index,
+        _In_ size_t        offset)
+{
+    return sgTable->Entries[index].Length - offset;
+}
+
+// TODO: Handle ISOC correctly
+static inline size_t
+__CalculatePacketSize(
+        _In_ USBTransaction_t* xaction,
+        _In_ SHMSGTable_t*     sgTable,
+        _In_ size_t            bytesLeft)
+{
+    int       index;
+    size_t    offset;
+    SHMSGTableOffset(
+            sgTable,
+            xaction->BufferOffset + (xaction->Length - bytesLeft),
+            &index,
+            &offset
+    );
+    uintptr_t address = __GetAddress(sgTable, index, offset);
+    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(sgTable, index, offset));
+    return MIN((0x2000 - (address & (0x1000 - 1))), leftInSG);
+}
+
+int
+HCITransferElementsNeeded(
+        _In_ USBTransaction_t transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t     sgTables[USB_TRANSACTIONCOUNT])
+{
+    int tdsNeeded = 0;
+    for (int i = 0; i < USB_TRANSACTIONCOUNT; i++) {
+        uint8_t type = transactions[i].Type;
+
+        if (type == USB_TRANSACTION_SETUP) {
+            tdsNeeded++;
+        } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
+            // Special case: zero length packets
+            // TODO: Special case: handling *out* packets on MPS boundaries, they need
+            // to have a zero length packet added
+            if (transactions[i].BufferHandle == UUID_INVALID) {
+                tdsNeeded++;
+            } else {
+                // TDs have the capacity of 8196 bytes, but only when transferring on
+                // a page-boundary. If not, an extra will be needed.
+                size_t bytesLeft = transactions[i].Length;
+                while (bytesLeft) {
+                    bytesLeft -= __CalculatePacketSize(
+                            &transactions[i],
+                            &sgTables[i],
+                            bytesLeft
+                    );
+                    tdsNeeded++;
+                }
+            }
+        }
+    }
+    return tdsNeeded;
+}
+
+void
+HCITransferElementFill(
+        _In_ USBTransaction_t        transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT],
+        _In_ struct TransferElement* elements)
+{
+
+}
+
+oserr_t
+OHCITransferEnsureQueueHead(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    uint8_t* qh;
+    oserr_t  oserr;
+
+    if (transfer->EndpointDescriptor != NULL) {
+        return OS_EOK;
+    }
+
+    oserr = UsbSchedulerAllocateElement(
+            controller->Base.Scheduler,
+            OHCI_QH_POOL,
+            &qh
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = OhciQhInitialize(
+            controller,
+            transfer,
+            transfer->Address.DeviceAddress,
+            transfer->Address.EndpointAddress
+    );
+    if (oserr != OS_EOK) {
+        // No bandwidth, serious.
+        UsbSchedulerFreeElement(controller->Base.Scheduler, qh);
+        return oserr;
+    }
+    transfer->EndpointDescriptor = qh;
+    return OS_EOK;
+}
+
+int
+OHCITransferAllocateDescriptors(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ int                   descriptorPool)
+{
+    OhciQueueHead_t* qh           = transfer->EndpointDescriptor;
+    int              tdsRemaining = transfer->ElementCount - transfer->ElementsCompleted;
+    int              tdsAllocated = 0;
+    for (int i = 0; i < tdsRemaining; i++) {
+        uint8_t* element;
+        oserr_t oserr = UsbSchedulerAllocateElement(
+                controller->Base.Scheduler,
+                OHCI_TD_POOL,
+                &element
+        );
+        if (oserr != OS_EOK) {
+            break;
+        }
+
+        oserr = UsbSchedulerChainElement(
+                controller->Base.Scheduler,
+                OHCI_QH_POOL,
+                (uint8_t*)qh,
+                descriptorPool,
+                element,
+                qh->Object.DepthIndex,
+                USB_CHAIN_DEPTH
+        );
+        if (oserr != OS_EOK) {
+            UsbSchedulerFreeElement(controller->Base.Scheduler, element);
+            break;
+        }
+        tdsAllocated++;
+    }
+    return tdsAllocated;
+}
+
+void
+OHCITransferDestroyDescriptors(
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    UsbManagerChainEnumerate(
+            &controller->Base,
+            transfer->EndpointDescriptor,
+            USB_CHAIN_DEPTH,
+            HCIPROCESS_REASON_CLEANUP,
+            HCIProcessElement,
+            transfer
+    );
 }

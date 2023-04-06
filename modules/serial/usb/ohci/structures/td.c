@@ -54,59 +54,52 @@ OHCITDSetup(
     td->OriginalCbp   = td->Cbp;
 }
 
-size_t
-OhciTdIo(
-    _In_ OhciTransferDescriptor_t* Td,
-    _In_ uint8_t                   Type,
-    _In_ uint32_t                  PId,
-    _In_ int                       Toggle,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length)
+void
+OHCITDData(
+    _In_ OhciTransferDescriptor_t* td,
+    _In_ enum USBTransferType      type,
+    _In_ uint32_t                  PID,
+    _In_ uintptr_t                 dataAddress,
+    _In_ size_t                    length)
 {
     size_t pageSize = MemoryPageSize();
     size_t calculatedLength;
     
-    TRACE("OhciTdIo(Type %u, Id %u, Toggle %i, Address 0x%x, Length 0x%x",
-        Type, PId, Toggle, Address, Length);
+    TRACE("OHCITDData(Type %u, Id %u, Toggle %i, Address 0x%x, Length 0x%x",
+          type, PID, Toggle, dataAddress, length);
 
     // We can encompass a maximum of two pages (when the initial page offset is 0)
     // so make sure we correct for that limit
-    calculatedLength = MIN(((2 * pageSize) - (Address & (pageSize - 1))), Length);
+    calculatedLength = MIN(((2 * pageSize) - (dataAddress & (pageSize - 1))), length);
 
     // Set this is as end of chain
-    Td->Link = 0;
+    td->Link = 0;
 
     // Initialize flags as a IO Td
-    Td->Flags |= PId;
-    Td->Flags |= OHCI_TD_IOC_NONE;
-    Td->Flags |= OHCI_TD_TOGGLE_LOCAL;
-    Td->Flags |= OHCI_TD_ACTIVE;
+    td->Flags |= PID;
+    td->Flags |= OHCI_TD_IOC_NONE;
+    td->Flags |= OHCI_TD_TOGGLE_LOCAL;
+    td->Flags |= OHCI_TD_ACTIVE;
 
     // We have to allow short-packets in some cases
     // where data returned or send might be shorter
-    if (Type == USBTRANSFER_TYPE_CONTROL) {
-        if (PId == OHCI_TD_IN && Length > 0) {
-            Td->Flags |= OHCI_TD_SHORTPACKET_OK;
+    if (type == USBTRANSFER_TYPE_CONTROL) {
+        if (PID == OHCI_TD_IN && length > 0) {
+            td->Flags |= OHCI_TD_SHORTPACKET_OK;
         }
-    } else if (PId == OHCI_TD_IN) {
-        Td->Flags |= OHCI_TD_SHORTPACKET_OK;
-    }
-
-    // Set the data-toggle?
-    if (Toggle) {
-        Td->Flags |= OHCI_TD_TOGGLE;
+    } else if (PID == OHCI_TD_IN) {
+        td->Flags |= OHCI_TD_SHORTPACKET_OK;
     }
 
     // Is there bytes to transfer or null packet?
     if (calculatedLength > 0) {
-        Td->Cbp       = LODWORD(Address);
-        Td->BufferEnd = Td->Cbp + (calculatedLength - 1);
+        td->Cbp       = LODWORD(dataAddress);
+        td->BufferEnd = td->Cbp + (calculatedLength - 1);
     }
 
     // Store copy of original content
-    Td->OriginalFlags = Td->Flags;
-    Td->OriginalCbp   = Td->Cbp;
-    return calculatedLength;
+    td->OriginalFlags = td->Flags;
+    td->OriginalCbp   = td->Cbp;
 }
 
 void
