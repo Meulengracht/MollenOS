@@ -325,7 +325,7 @@ __QueueWaitingTransfers(
 
         if (transfer->State == USBTRANSFER_STATE_WAITING) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                HciQueueTransferIsochronous(transfer);
+                HCITransferQueueIsochronous(transfer);
             } else {
                 HCITransferQueue(transfer);
             }

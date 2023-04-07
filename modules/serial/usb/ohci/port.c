@@ -133,10 +133,8 @@ OhciPortsCheck(
     _In_ OhciController_t* Controller,
     _In_ int               IgnorePowerOn)
 {
-    int Status = spinlock_try_acquire(&Controller->Base.Lock);
-    if (Status != spinlock_acquired) {
-        // check in progress
-        return OS_EUNKNOWN;
+    if (spinlock_try_acquire(&Controller->Base.Lock) != spinlock_acquired) {
+        return OS_EBUSY;
     }
     
     for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {

@@ -47,7 +47,7 @@ OhciQhInitialize(
     Qh->LinkPointer = 0;
 
     if (Transfer->Base.Type == USBTRANSFER_TYPE_ISOC) LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_iTD_POOL, OHCI_iTD_NULL);
-    else                                                     LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_TD_POOL, OHCI_TD_NULL);
+    else                                              LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_TD_POOL, OHCI_TD_NULL);
     
     // Get last pointer
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
@@ -85,7 +85,7 @@ OhciQhInitialize(
 }
 
 void
-OhciQhDump(
+OHCIQHDump(
     _In_ OhciController_t* Controller,
     _In_ OhciQueueHead_t*  Qh)
 {
@@ -97,8 +97,6 @@ OhciQhDump(
         PhysicalAddress, Qh->Object.Flags, Qh->LinkPointer, Qh->Current, Qh->EndPointer);
 }
 
-/* OhciQhRestart
- * Restarts an interrupt QH by resetting it to it's start state */
 void
 OhciQhRestart(
     _In_ OhciController_t*          Controller,
@@ -116,9 +114,6 @@ OhciQhRestart(
     assert(Qh->Current != 0);
 }
 
-/* OhciQhLink 
- * Link a given queue head into the correct queue determined by Qh->Queue.
- * This can handle linkage of async and interrupt transfers. */
 void
 OhciQhLink(
     _In_ OhciController_t* Controller,

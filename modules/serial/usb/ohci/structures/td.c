@@ -103,7 +103,7 @@ OHCITDData(
 }
 
 void
-OhciTdDump(
+OHCITDDump(
     _In_ OhciController_t*         Controller,
     _In_ OhciTransferDescriptor_t* Td)
 {
@@ -116,7 +116,7 @@ OhciTdDump(
 }
 
 void
-OhciTdValidate(
+OHCITDVerify(
     _In_  UsbManagerTransfer_t*     Transfer,
     _In_  OhciTransferDescriptor_t* Td)
 {
@@ -137,8 +137,7 @@ OhciTdValidate(
     // Sanitize the error code
     if ((ErrorCount == 2 && ErrorCode != 0)) {
         Transfer->Status = OhciGetStatusCode(ErrorCode);
-    }
-    else if (ErrorCode == 0 && Transfer->Status == TransferInProgress) {
+    } else if (ErrorCode == 0 && Transfer->Status == TransferInProgress) {
         Transfer->Status = TransferFinished;
     }
 
@@ -193,7 +192,7 @@ OhciTdSynchronize(
 }
 
 void
-OhciTdRestart(
+OHCITDRestart(
     _In_ OhciController_t*         Controller,
     _In_ UsbManagerTransfer_t*     Transfer,
     _In_ OhciTransferDescriptor_t* Td)

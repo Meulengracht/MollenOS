@@ -74,7 +74,7 @@ typedef struct UsbController {
     Device_t*           Device;
     element_t           Header;
     uuid_t              DriverId;
-    UsbControllerType_t Type;
+    enum USBControllerKind Type;
     uint32_t            AddressMap[4]; // 4 x 32 bits = 128 possible addresses which match the max in usb-spec
 } UsbController_t;
 

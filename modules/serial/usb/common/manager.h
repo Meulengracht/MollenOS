@@ -85,9 +85,9 @@ UsbManagerDestroy(void);
  */
 __EXTERN UsbManagerController_t*
 UsbManagerCreateController(
-    _In_ BusDevice_t*        device,
-    _In_ UsbControllerType_t kind,
-    _In_ size_t              structureSize);
+    _In_ BusDevice_t*           device,
+    _In_ enum USBControllerKind kind,
+    _In_ size_t                 structureSize);
 
 /**
  * Registers the usb controller with the usb stack.

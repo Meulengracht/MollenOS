@@ -48,11 +48,15 @@ HCIControllerDestroy(
 
 extern int
 HCITransferElementsNeeded(
-        _In_ USBTransaction_t transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t     sgTables[USB_TRANSACTIONCOUNT]);
+        _In_ enum USBTransferType transferType,
+        _In_ size_t               maxPacketSize,
+        _In_ USBTransaction_t     transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t         sgTables[USB_TRANSACTIONCOUNT]);
 
 extern void
 HCITransferElementFill(
+        _In_ enum USBTransferType    transferType,
+        _In_ size_t                  maxPacketSize,
         _In_ USBTransaction_t        transactions[USB_TRANSACTIONCOUNT],
         _In_ SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT],
         _In_ struct TransferElement* elements);
@@ -131,11 +135,11 @@ extern oserr_t
 HCITransferQueue(
     _In_ UsbManagerTransfer_t* transfer);
 
-/* HciQueueTransferIsochronous 
+/* HCITransferQueueIsochronous
  * Queues a new isochronous transfer for the given driver and pipe. 
  * The function does not block. */
 extern oserr_t
-HciQueueTransferIsochronous(
+HCITransferQueueIsochronous(
     _In_ UsbManagerTransfer_t* transfer);
 
 /* HciDequeueTransfer 

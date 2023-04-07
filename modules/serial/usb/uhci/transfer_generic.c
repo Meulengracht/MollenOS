@@ -297,7 +297,7 @@ exit:
 }
 
 enum USBTransferCode
-HciQueueTransferIsochronous(
+HCITransferQueueIsochronous(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UhciController_t* controller;
