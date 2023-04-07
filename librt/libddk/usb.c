@@ -30,7 +30,7 @@ extern int __crt_get_server_iod(void);
 oserr_t
 UsbControllerRegister(
         _In_ Device_t*           device,
-        _In_ UsbControllerType_t type,
+        _In_ enum USBControllerKind type,
         _In_ int                 portCount)
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());

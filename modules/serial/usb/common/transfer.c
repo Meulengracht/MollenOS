@@ -152,7 +152,11 @@ UsbManagerCreateTransfer(
     }
 
     // Count the needed number of transfer elements
-    usbTransfer->ElementCount = HCITransferElementsNeeded(transfer->Transactions, sgTables);
+    usbTransfer->ElementCount = HCITransferElementsNeeded(
+            transfer->Type,
+            transfer->MaxPacketSize,
+            transfer->Transactions,
+            sgTables);
     if (!usbTransfer->ElementCount) {
         UsbManagerDestroyTransfer(usbTransfer);
         return NULL;
@@ -164,7 +168,13 @@ UsbManagerCreateTransfer(
         UsbManagerDestroyTransfer(usbTransfer);
         return NULL;
     }
-    HCITransferElementFill(transfer->Transactions, sgTables, usbTransfer->Elements);
+    HCITransferElementFill(
+            transfer->Type,
+            transfer->MaxPacketSize,
+            transfer->Transactions,
+            sgTables,
+            usbTransfer->Elements
+    );
     __FreeSGTables(sgTables);
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
     return usbTransfer;
@@ -291,7 +301,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     }
 
     if (usbTransfer->Type == USBTRANSFER_TYPE_ISOC) {
-        oserr = HciQueueTransferIsochronous(usbTransfer);
+        oserr = HCITransferQueueIsochronous(usbTransfer);
     } else {
         oserr = HCITransferQueue(usbTransfer);
     }

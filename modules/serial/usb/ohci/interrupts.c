@@ -105,7 +105,7 @@ ProcessInterrupt:
 
     // Fatal errors, reset everything
     if (InterruptStatus & (OHCI_FATAL_EVENT | OHCI_OVERRUN_EVENT)) {
-        OhciQueueReset(Controller);
+        OHCIQueueReset(Controller);
         OhciReset(Controller);
         OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
     }

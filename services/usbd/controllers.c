@@ -37,7 +37,7 @@ oserr_t
 UsbCoreControllerRegister(
         _In_ uuid_t              driverId,
         _In_ Device_t*           device,
-        _In_ UsbControllerType_t controllerType,
+        _In_ enum USBControllerKind controllerType,
         _In_ int                 rootPorts)
 {
     UsbController_t* controller;
@@ -175,7 +175,7 @@ void sys_usb_register_controller_invocation(struct gracht_message* message, cons
 {
     UsbCoreControllerRegister(
             driverId, from_sys_device(device),
-            (UsbControllerType_t)type, portCount
+            (enum USBControllerKind)type, portCount
     );
 }
 

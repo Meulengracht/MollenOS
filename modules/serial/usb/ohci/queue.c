@@ -52,63 +52,59 @@ const char *OhciErrorMessages[] = {
     "Not Accessed"
 };
 
-/* OhciQueueResetInternalData
- * Removes and cleans up any existing transfers, then reinitializes. */
-oserr_t
-OhciQueueResetInternalData(
-    _In_ OhciController_t*          Controller)
+static oserr_t
+__ResetInternalData(
+    _In_ OhciController_t* controller)
 {
-    // Variables
-    OhciIsocTransferDescriptor_t *NulliTd   = NULL;
-    OhciTransferDescriptor_t *NullTd        = NULL;
-    OhciQueueHead_t *NullQh                 = NULL;
-    uintptr_t NullQhPhysical                = 0;
-    uintptr_t NullTdPhysical                = 0;
-    uintptr_t NulliTdPhysical               = 0;
+    OhciIsocTransferDescriptor_t* nullITD         = NULL;
+    OhciTransferDescriptor_t*     nullTD          = NULL;
+    OhciQueueHead_t*              nullQH          = NULL;
+    uintptr_t                     nullQHPhysical  = 0;
+    uintptr_t                     nullTDPhysical  = 0;
+    uintptr_t                     nullITDPhysical = 0;
     
-    // Debug
-    TRACE("OhciQueueResetInternalData()");
+    TRACE("__ResetInternalData()");
 
     // Reset all tds and qhs
-    UsbSchedulerResetInternalData(Controller->Base.Scheduler, 1, 1);
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
-        OHCI_QH_NULL, (uint8_t**)&NullQh, &NullQhPhysical);
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_TD_POOL, 
-        OHCI_TD_NULL, (uint8_t**)&NullTd, &NullTdPhysical);
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_iTD_POOL, 
-        OHCI_iTD_NULL, (uint8_t**)&NulliTd, &NulliTdPhysical);
+    UsbSchedulerResetInternalData(controller->Base.Scheduler, 1, 1);
+    UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_QH_POOL,
+                               OHCI_QH_NULL, (uint8_t**)&nullQH, &nullQHPhysical);
+    UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_TD_POOL,
+                               OHCI_TD_NULL, (uint8_t**)&nullTD, &nullTDPhysical);
+    UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_iTD_POOL,
+                               OHCI_iTD_NULL, (uint8_t**)&nullITD, &nullITDPhysical);
     
     // Reset indexes
-    Controller->TransactionQueueBulkIndex    = USB_ELEMENT_NO_INDEX;
-    Controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
+    controller->TransactionQueueBulkIndex    = USB_ELEMENT_NO_INDEX;
+    controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
 
     // Initialize the null-qh
-    NullQh->Flags       = OHCI_QH_LOWSPEED | OHCI_QH_IN | OHCI_QH_SKIP;
-    NullQh->EndPointer  = NullTdPhysical;
-    NullQh->Current     = NullTdPhysical;
-    NullQh->LinkPointer = OHCI_LINK_HALTED;
+    nullQH->Flags       = OHCI_QH_LOWSPEED | OHCI_QH_IN | OHCI_QH_SKIP;
+    nullQH->EndPointer  = nullTDPhysical;
+    nullQH->Current     = nullTDPhysical;
+    nullQH->LinkPointer = OHCI_LINK_HALTED;
 
     // Initialize the null-td
-    NullTd->Flags     = OHCI_TD_IN | OHCI_TD_IOC_NONE;
-    NullTd->BufferEnd = 0;
-    NullTd->Cbp       = 0;
-    NullTd->Link      = OHCI_LINK_HALTED;
+    nullTD->Flags     = OHCI_TD_IN | OHCI_TD_IOC_NONE;
+    nullTD->BufferEnd = 0;
+    nullTD->Cbp       = 0;
+    nullTD->Link      = OHCI_LINK_HALTED;
 
     // Initialize the null-isoc td
-    NulliTd->Flags     = OHCI_TD_IN | OHCI_TD_IOC_NONE;
-    NulliTd->BufferEnd = 0;
-    NulliTd->Cbp       = 0;
-    NulliTd->Link      = OHCI_LINK_HALTED;
+    nullITD->Flags     = OHCI_TD_IN | OHCI_TD_IOC_NONE;
+    nullITD->BufferEnd = 0;
+    nullITD->Cbp       = 0;
+    nullITD->Link      = OHCI_LINK_HALTED;
     return OS_EOK;
 }
 
 oserr_t
-OhciQueueInitialize(
+OHCIQueueInitialize(
     _In_ OhciController_t* Controller)
 {
     UsbSchedulerSettings_t Settings;
 
-    TRACE("OhciQueueInitialize()");
+    TRACE("OHCIQueueInitialize()");
 
     TRACE(" > Configuring scheduler");
     UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_NULL_ELEMENT);
@@ -133,18 +129,18 @@ OhciQueueInitialize(
     UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
 
     // Initialize internal data structures
-    return OhciQueueResetInternalData(Controller);
+    return __ResetInternalData(Controller);
 }
 
 oserr_t
-OhciQueueReset(
-    _In_ OhciController_t* Controller)
+OHCIQueueReset(
+    _In_ OhciController_t* controller)
 {
-    TRACE("OhciQueueReset()");
+    TRACE("OHCIQueueReset()");
 
-    OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
-    UsbManagerClearTransfers(&Controller->Base);
-    return OhciQueueResetInternalData(Controller);
+    OhciSetMode(controller, OHCI_CONTROL_SUSPEND);
+    UsbManagerClearTransfers(&controller->Base);
+    return __ResetInternalData(controller);
 }
 
 oserr_t
@@ -153,7 +149,7 @@ OhciQueueDestroy(
 {
     TRACE("OhciQueueDestroy()");
 
-    OhciQueueReset(Controller);
+    OHCIQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
     return OS_EOK;
 }
@@ -164,7 +160,8 @@ OhciGetStatusCode(
 {
     TRACE("[ohci] [error_code] %i", ConditionCode);
     if (ConditionCode == 0) {
-        return TransferFinished;
+        // Executed successfully
+        return TransferOK;
     } else if (ConditionCode == 4) {
         return TransferStalled;
     } else if (ConditionCode == 3) {
@@ -174,7 +171,8 @@ OhciGetStatusCode(
     } else if (ConditionCode == 5) {
         return TransferNotResponding;
     } else if (ConditionCode == 15) {
-        return TransferQueued;
+        // Not executed
+        return TransferOK;
     } else {
         TRACE("[ohci] [error_code]: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
         return TransferInvalid;
@@ -196,11 +194,11 @@ HCIProcessElement(
     switch (reason) {
         case HCIPROCESS_REASON_DUMP: {
             if (element == (uint8_t*)transfer->EndpointDescriptor) {
-                OhciQhDump((OhciController_t*)controller, (OhciQueueHead_t*)element);
+                OHCIQHDump((OhciController_t*)controller, (OhciQueueHead_t*)element);
             } else if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                OhciTdDump((OhciController_t*)controller, (OhciTransferDescriptor_t*)element);
+                OHCITDDump((OhciController_t*)controller, (OhciTransferDescriptor_t*)element);
             } else {
-                OhciiTdDump((OhciController_t*)controller, (OhciIsocTransferDescriptor_t*)element);
+                OHCIITDDump((OhciController_t*)controller, (OhciIsocTransferDescriptor_t*)element);
             }
         } break;
         
@@ -210,21 +208,21 @@ HCIProcessElement(
             }
 
             if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                OhciTdValidate(transfer, (OhciTransferDescriptor_t*)element);
-                if (transfer->Flags & TransferFlagShort) {
+                OHCITDVerify(transfer, (OhciTransferDescriptor_t*)element);
+                if (transfer->Flags & __USBTRANSFER_FLAG_SHORT) {
                     return false; // Stop here
                 }
             } else {
-                OhciiTdValidate(transfer, (OhciIsocTransferDescriptor_t*)element);
+                OHCIITDVerify(transfer, (OhciIsocTransferDescriptor_t*)element);
             }
         } break;
         
         case HCIPROCESS_REASON_RESET: {
             if (element != (uint8_t*)transfer->EndpointDescriptor) {
                 if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                    OhciTdRestart((OhciController_t*)controller, transfer, (OhciTransferDescriptor_t*)element);
+                    OHCITDRestart((OhciController_t*)controller, transfer, (OhciTransferDescriptor_t*)element);
                 } else {
-                    OhciiTdRestart((OhciController_t*)controller, transfer, (OhciIsocTransferDescriptor_t*)element);
+                    OHCIITDRestart((OhciController_t*)controller, transfer, (OhciIsocTransferDescriptor_t*)element);
                 }
             }
         } break;

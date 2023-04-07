@@ -30,7 +30,7 @@
 #include <string.h>
 
 void
-OhciTdIsochronous(
+OHCITDIsochronous(
     _In_ OhciIsocTransferDescriptor_t* Td,
     _In_ size_t                        MaxPacketSize,
     _In_ uint32_t                      PId,
@@ -44,7 +44,7 @@ OhciTdIsochronous(
     int    Crossed         = 0;
     
     // Debug
-    TRACE("OhciTdIsochronous(Id %u, Address 0x%x, Length 0x%x", 
+    TRACE("OHCITDIsochronous(Id %u, Address 0x%x, Length 0x%x",
         PId, Address, Length);
 
     // Max packet size is 1023 for isoc
@@ -95,7 +95,7 @@ OhciTdIsochronous(
 }
 
 void
-OhciiTdDump(
+OHCIITDDump(
     _In_ OhciController_t*              Controller,
     _In_ OhciIsocTransferDescriptor_t*  Td)
 {
@@ -108,7 +108,7 @@ OhciiTdDump(
 }
 
 void
-OhciiTdValidate(
+OHCIITDVerify(
     _In_ UsbManagerTransfer_t*         Transfer,
     _In_ OhciIsocTransferDescriptor_t* Td)
 {
@@ -116,7 +116,7 @@ OhciiTdValidate(
 
     // Sanitize active status
     if (Td->Flags & OHCI_TD_ACTIVE) {
-        // If this one is still active, but it's an transfer that has
+        // If this one is still active, but it's a transfer that has
         // elements processed - resync toggles
         if (Transfer->Status != TransferInProgress) {
             Transfer->Flags |= TransferFlagSync;
@@ -133,8 +133,7 @@ OhciiTdValidate(
 
         if (ErrorCode != 0) {
             Transfer->Status = OhciGetStatusCode(ErrorCode);
-        }
-        else if (Transfer->Status == TransferInProgress) {
+        } else if (Transfer->Status == TransferInProgress) {
             Transfer->Status = TransferFinished;
         }
     }
@@ -166,7 +165,7 @@ OhciiTdValidate(
 }
 
 void
-OhciiTdRestart(
+OHCIITDRestart(
     _In_ OhciController_t*             Controller,
     _In_ UsbManagerTransfer_t*         Transfer,
     _In_ OhciIsocTransferDescriptor_t* Td)
@@ -176,13 +175,13 @@ OhciiTdRestart(
 
     // Reset offsets
     for (i = 0; i < 8; i++) {
-        Td->Offsets[i]      = Td->OriginalOffsets[i];
+        Td->Offsets[i] = Td->OriginalOffsets[i];
     }
 
     // Reset rest
-    Td->Flags               = Td->OriginalFlags;
-    Td->Cbp                 = Td->OriginalCbp;
-    Td->BufferEnd           = Td->OriginalBufferEnd;
+    Td->Flags     = Td->OriginalFlags;
+    Td->Cbp       = Td->OriginalCbp;
+    Td->BufferEnd = Td->OriginalBufferEnd;
     
     // Restore link
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,

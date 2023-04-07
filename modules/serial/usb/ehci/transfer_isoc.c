@@ -29,7 +29,7 @@
 #include <stdlib.h>
 
 enum USBTransferCode
-HciQueueTransferIsochronous(
+HCITransferQueueIsochronous(
     _In_ UsbManagerTransfer_t* transfer)
 {
     EhciIsochronousDescriptor_t* firstTd    = NULL;

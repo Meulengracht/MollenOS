@@ -363,7 +363,7 @@ OhciSetup(
     }
 
     // Initialize the queue system
-    OhciQueueInitialize(Controller);
+    OHCIQueueInitialize(Controller);
 
     // Setup the i/o requirements
     Controller->Base.IORequirements.BufferAlignment = 0;

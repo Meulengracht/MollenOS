@@ -303,17 +303,17 @@ __EXTERN oserr_t
 OhciReset(
     _In_ OhciController_t*  Controller);
 
-/* OhciQueueInitialize
+/* OHCIQueueInitialize
  * Initialize the controller's queue resources and resets counters */
 __EXTERN oserr_t
-OhciQueueInitialize(
+OHCIQueueInitialize(
     _In_ OhciController_t*  Controller);
     
-/* OhciQueueReset
+/* OHCIQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
 __EXTERN oserr_t
-OhciQueueReset(
-    _In_ OhciController_t*  Controller);
+OHCIQueueReset(
+    _In_ OhciController_t*  controller);
 
 /* OhciQueueDestroy
  * Unschedules any scheduled ed's and frees all resources allocated
@@ -336,28 +336,6 @@ OhciSetMode(
     _In_ OhciController_t* controller,
     _In_ reg32_t           mode);
 
-/**
- * @brief Ensures that a queue head has been allocated for a transfer.
- * @param controller The controller associated with the transfer.
- * @param transfer The transfer that needs a queue head allocated.
- * @return OS_EOK if a queue head has been succesfully allocated a transfer.
- */
-extern oserr_t
-OHCITransferEnsureQueueHead(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer);
-
-extern int
-OHCITransferAllocateDescriptors(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ int                   descriptorPool);
-
-extern void
-OHCITransferDestroyDescriptors(
-        _In_ OhciController_t*     controller,
-        _In_ UsbManagerTransfer_t* transfer);
-
 /*******************************************************************************
  * Queue Head Methods
  *******************************************************************************/
@@ -372,10 +350,10 @@ OhciQhInitialize(
     _In_ size_t                 Address,
     _In_ size_t                 Endpoint);
 
-/* OhciQhDump
+/* OHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */
 __EXTERN void
-OhciQhDump(
+OHCIQHDump(
     _In_ OhciController_t*          Controller,
     _In_ OhciQueueHead_t*           Qh);
 
@@ -419,18 +397,18 @@ OHCITDData(
     _In_ uintptr_t                  dataAddress,
     _In_ size_t                     length);
 
-/* OhciTdDump
+/* OHCITDDump
  * Dumps the information contained in the descriptor by writing it. */
 __EXTERN void
-OhciTdDump(
+OHCITDDump(
     _In_ OhciController_t*          Controller,
     _In_ OhciTransferDescriptor_t*  Td);
 
-/* OhciTdValidate
+/* OHCITDVerify
  * Checks the transfer descriptors for errors and updates the transfer that is attached
  * with the bytes transferred and error status. */
 __EXTERN void
-OhciTdValidate(
+OHCITDVerify(
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ OhciTransferDescriptor_t*  Td);
 
@@ -442,11 +420,11 @@ OhciTdSynchronize(
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ OhciTransferDescriptor_t*  Td);
 
-/* OhciTdRestart
+/* OHCITDRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 __EXTERN void
-OhciTdRestart(
+OHCITDRestart(
     _In_ OhciController_t*          Controller,
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ OhciTransferDescriptor_t*  Td);
@@ -455,37 +433,37 @@ OhciTdRestart(
  * Isochronous Transfer Descriptor Methods
  *******************************************************************************/
 
-/* OhciTdIsochronous
+/* OHCITDIsochronous
  * Creates a new isoc token td and initializes all the members.
  * The Td is immediately ready for execution. */
 __EXTERN void
-OhciTdIsochronous(
+OHCITDIsochronous(
     _In_ OhciIsocTransferDescriptor_t*  Td,
     _In_ size_t                         MaxPacketSize,
     _In_ uint32_t                       PId,
     _In_ uintptr_t                      Address,
     _In_ size_t                         Length);
 
-/* OhciiTdDump
+/* OHCIITDDump
  * Dumps the information contained in the descriptor by writing it. */
 __EXTERN void
-OhciiTdDump(
+OHCIITDDump(
     _In_ OhciController_t*              Controller,
     _In_ OhciIsocTransferDescriptor_t*  Td);
 
-/* OhciiTdValidate
+/* OHCIITDVerify
  * Checks the transfer descriptors for errors and updates the transfer that is attached
  * with the bytes transferred and error status. */
 __EXTERN void
-OhciiTdValidate(
+OHCIITDVerify(
     _In_ UsbManagerTransfer_t*          Transfer,
     _In_ OhciIsocTransferDescriptor_t*  Td);
 
-/* OhciiTdRestart
+/* OHCIITDRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 __EXTERN void
-OhciiTdRestart(
+OHCIITDRestart(
     _In_ OhciController_t*              Controller,
     _In_ UsbManagerTransfer_t*          Transfer,
     _In_ OhciIsocTransferDescriptor_t*  Td);
