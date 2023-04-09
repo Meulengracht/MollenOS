@@ -353,5 +353,10 @@
     "cmake.buildDirectory": "${workspaceFolder}/../vali-build",
     "cmake.configureArgs": [
         "-DVALI_ARCH=amd64"
-    ]
+    ],
+    "docwriter.progress.trackFunctions": true,
+    "docwriter.progress.trackClasses": true,
+    "docwriter.progress.trackTypes": true,
+    "docwriter.style": "Auto-detect",
+    "docwriter.hotkey.mac": "⌘ + ."
 }

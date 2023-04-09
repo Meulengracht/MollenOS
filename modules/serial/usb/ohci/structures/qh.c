@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,74 +13,80 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS MCore - Open Host Controller Interface Driver
- * TODO:
- *    - Power Management
  */
 //#define __TRACE
 
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ohci.h"
-
 #include <assert.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
+
+static uint16_t
+__GetNullIndex(
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
+        return USB_ELEMENT_CREATE_INDEX(OHCI_iTD_POOL, OHCI_iTD_NULL);
+    }
+    return USB_ELEMENT_CREATE_INDEX(OHCI_TD_POOL, OHCI_TD_NULL);
+}
 
 oserr_t
-OhciQhInitialize(
-    _In_ OhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer,
-    _In_ size_t                 Address,
-    _In_ size_t                 Endpoint)
+OHCIQHInitialize(
+    _In_ OhciController_t*      controller,
+    _In_ UsbManagerTransfer_t*  transfer,
+    _In_ size_t                 address,
+    _In_ size_t                 endpoint)
 {
-    OhciQueueHead_t* Qh        = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
-    oserr_t       Status    = OS_EOK;
-    uintptr_t        LinkEnd   = 0;
-    uint16_t         LastIndex;
+    OhciQueueHead_t* qh        = transfer->RootElement;
+    uint16_t         lastIndex = __GetNullIndex(transfer);
+    uintptr_t        linkEnd;
+    oserr_t          oserr;
 
-    // Initialize link
-    Qh->LinkPointer = 0;
-
-    if (Transfer->Base.Type == USBTRANSFER_TYPE_ISOC) LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_iTD_POOL, OHCI_iTD_NULL);
-    else                                              LastIndex = USB_ELEMENT_CREATE_INDEX(OHCI_TD_POOL, OHCI_TD_NULL);
-    
-    // Get last pointer
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
-        (LastIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
-        LastIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkEnd);
-    
-    Qh->Current           = (reg32_t)LinkEnd;
-    Qh->EndPointer        = (reg32_t)LinkEnd;
-    Qh->Object.DepthIndex = LastIndex;
-
-    // Initialize flags
-    Qh->Flags  = OHCI_QH_ADDRESS(Address);
-    Qh->Flags |= OHCI_QH_ENDPOINT(Endpoint);
-    Qh->Flags |= OHCI_QH_DIRECTIONTD; // Retrieve from TD
-    Qh->Flags |= OHCI_QH_LENGTH(Transfer->Base.MaxPacketSize);
-    Qh->Flags |= OHCI_QH_TYPE(Transfer->Base.Type);
-
-    // Set conditional flags
-    if (Transfer->Base.Speed == USB_SPEED_LOW) {
-        Qh->Flags |= OHCI_QH_LOWSPEED;
+    oserr = UsbSchedulerGetPoolElement(
+            controller->Base.Scheduler,
+            (lastIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK,
+            lastIndex & USB_ELEMENT_INDEX_MASK,
+            NULL,
+            &linkEnd
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    if (Transfer->Base.Type == USBTRANSFER_TYPE_ISOC) {
-        Qh->Flags |= OHCI_QH_ISOCHRONOUS;
+
+    qh->LinkPointer       = 0;
+    qh->Current           = (reg32_t)linkEnd;
+    qh->EndPointer        = (reg32_t)linkEnd;
+    qh->Object.DepthIndex = lastIndex;
+
+    qh->Flags = OHCI_QH_ADDRESS(address);
+    qh->Flags |= OHCI_QH_ENDPOINT(endpoint);
+    qh->Flags |= OHCI_QH_DIRECTIONTD; // Retrieve from TD
+    qh->Flags |= OHCI_QH_LENGTH(transfer->MaxPacketSize);
+    qh->Flags |= OHCI_QH_TYPE(transfer->Type);
+
+    if (transfer->Speed == USBSPEED_LOW) {
+        qh->Flags |= OHCI_QH_LOWSPEED;
+    }
+    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
+        qh->Flags |= OHCI_QH_ISOCHRONOUS;
     }
 
     // Allocate bandwidth if int/isoc
-    if (Transfer->Base.Type == USB_TRANSFER_INTERRUPT || Transfer->Base.Type == USBTRANSFER_TYPE_ISOC) {
-        Status = UsbSchedulerAllocateBandwidth(Controller->Base.Scheduler,
-                                               Transfer->Base.PeriodicInterval, Transfer->Base.MaxPacketSize,
-                                               Transfer->Base.Transactions[0].Type,
-                                               Transfer->Base.Transactions[0].Length,
-                                               Transfer->Base.Type, Transfer->Base.Speed, (uint8_t*)Qh);
+    if (__Transfer_IsPeriodic(transfer)) {
+        oserr = UsbSchedulerAllocateBandwidth(
+                controller->Base.Scheduler,
+                transfer->TData.Periodic.Interval,
+                transfer->MaxPacketSize,
+                __Transfer_TransactionType(transfer),
+                __Transfer_Length(transfer),
+                transfer->Type,
+                transfer->Speed,
+                (uint8_t*)qh
+        );
     }
-    return Status;
+    return oserr;
 }
 
 void
@@ -98,12 +103,12 @@ OHCIQHDump(
 }
 
 void
-OhciQhRestart(
-    _In_ OhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer)
+OHCIQHRestart(
+    _In_ OhciController_t*     Controller,
+    _In_ UsbManagerTransfer_t* Transfer)
 {
     // Variables
-    OhciQueueHead_t *Qh     = (OhciQueueHead_t*)Transfer->EndpointDescriptor;
+    OhciQueueHead_t *Qh     = (OhciQueueHead_t*)Transfer->RootElement;
     uintptr_t LinkAddress   = 0;
 
     // Reset the current link
@@ -115,53 +120,51 @@ OhciQhRestart(
 }
 
 void
-OhciQhLink(
-    _In_ OhciController_t* Controller,
-    _In_ uint8_t Type,
-    _In_ OhciQueueHead_t*  Qh)
+OHCIQHLink(
+    _In_ OhciController_t* controller,
+    _In_ uint8_t           type,
+    _In_ OhciQueueHead_t*  qh)
 {
-    OhciQueueHead_t* RootQh        = NULL;
-    reg32_t          CommandStatus = READ_VOLATILE(Controller->Registers->HcCommandStatus);
+    OhciQueueHead_t* rootQH = NULL;
+    reg32_t          commandStatus = READ_VOLATILE(controller->Registers->HcCommandStatus);
 
     // Switch based on type of transfer
-    if (Type == USBTRANSFER_TYPE_CONTROL) {
+    if (type == USBTRANSFER_TYPE_CONTROL) {
         // Is there anyone waiting?
-        if (Controller->TransactionsWaitingControl > 0) {
-            UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
-                Controller->TransactionQueueControlIndex & USB_ELEMENT_INDEX_MASK, 
-                (uint8_t**)&RootQh, NULL);
-            UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)RootQh, 
-                OHCI_QH_POOL, (uint8_t*)Qh, 0, USB_CHAIN_BREATH);
+        if (controller->TransactionsWaitingControl > 0) {
+            UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_QH_POOL,
+                                       controller->TransactionQueueControlIndex & USB_ELEMENT_INDEX_MASK,
+                                       (uint8_t**)&rootQH, NULL);
+            UsbSchedulerChainElement(controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)rootQH,
+                                     OHCI_QH_POOL, (uint8_t*)qh, 0, USB_CHAIN_BREATH);
         }
         else {
-            Controller->TransactionQueueControlIndex = Qh->Object.Index;
+            controller->TransactionQueueControlIndex = qh->Object.Index;
         }
-        Controller->TransactionsWaitingControl++;
+        controller->TransactionsWaitingControl++;
 
         // Enable?
-        if (!(CommandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
-            OhciReloadAsynchronous(Controller, USBTRANSFER_TYPE_CONTROL);
-            Controller->QueuesActive |= OHCI_CONTROL_CONTROL_ACTIVE;
+        if (!(commandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
+            OhciReloadAsynchronous(controller, USBTRANSFER_TYPE_CONTROL);
+            controller->QueuesActive |= OHCI_CONTROL_CONTROL_ACTIVE;
         }
-    }
-    else if (Type == USB_TRANSFER_BULK) {
+    } else if (type == USBTRANSFER_TYPE_BULK) {
         // Is there anyone waiting?
-        if (Controller->TransactionsWaitingBulk > 0) {
-            UsbSchedulerGetPoolElement(Controller->Base.Scheduler, OHCI_QH_POOL, 
-                Controller->TransactionQueueBulkIndex & USB_ELEMENT_INDEX_MASK, 
-                (uint8_t**)&RootQh, NULL);
-            UsbSchedulerChainElement(Controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)RootQh, 
-                OHCI_QH_POOL, (uint8_t*)Qh, 0, USB_CHAIN_BREATH);
+        if (controller->TransactionsWaitingBulk > 0) {
+            UsbSchedulerGetPoolElement(controller->Base.Scheduler, OHCI_QH_POOL,
+                                       controller->TransactionQueueBulkIndex & USB_ELEMENT_INDEX_MASK,
+                                       (uint8_t**)&rootQH, NULL);
+            UsbSchedulerChainElement(controller->Base.Scheduler, OHCI_QH_POOL, (uint8_t*)rootQH,
+                                     OHCI_QH_POOL, (uint8_t*)qh, 0, USB_CHAIN_BREATH);
+        } else {
+            controller->TransactionQueueBulkIndex = qh->Object.Index;
         }
-        else {
-            Controller->TransactionQueueBulkIndex = Qh->Object.Index;
-        }
-        Controller->TransactionsWaitingBulk++;
+        controller->TransactionsWaitingBulk++;
 
         // Enable?
-        if (!(CommandStatus & OHCI_COMMAND_BULK_FILLED)) {
-            OhciReloadAsynchronous(Controller, USB_TRANSFER_BULK);
-            Controller->QueuesActive |= OHCI_CONTROL_BULK_ACTIVE;
+        if (!(commandStatus & OHCI_COMMAND_BULK_FILLED)) {
+            OhciReloadAsynchronous(controller, USBTRANSFER_TYPE_BULK);
+            controller->QueuesActive |= OHCI_CONTROL_BULK_ACTIVE;
         }
     }
 }

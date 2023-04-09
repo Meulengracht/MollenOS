@@ -28,7 +28,6 @@
 #include <ddk/service.h>
 #include <ddk/utils.h>
 #include <ds/hashtable.h>
-#include <ds/hash_sip.h>
 #include <event.h>
 #include "hci.h"
 #include <ioset.h>
@@ -48,9 +47,10 @@ struct usb_controller_device_index {
     UsbManagerController_t* pointer;
 };
 
-struct usb_controller_endpoint {
-    uuid_t address;
-    int    toggle;
+struct USBManagerEndpointToggle {
+    uuid_t Address;
+    int    Toggle;
+    int    ToggleControl;
 };
 
 #define ITERATOR_CONTINUE           0
@@ -65,9 +65,8 @@ static int      default_dev_cmp(const void*, const void*);
 static uint64_t endpoint_hash(const void*);
 static int      endpoint_cmp(const void*, const void*);
 
-static int           g_hciCheckupRegistered = 0;
-static uint8_t       g_hashKey[16]          = { 196, 179, 43, 202, 48, 240, 236, 199, 229, 122, 94, 143, 20, 251, 63, 66 };
-static hashtable_t   g_controllers;
+static int         g_hciCheckupRegistered = 0;
+static hashtable_t g_controllers;
 
 oserr_t
 UsbManagerInitialize(void)
@@ -116,7 +115,7 @@ UsbManagerCreateController(
     hashtable_construct(
             &controller->Endpoints,
             0,
-            sizeof(struct usb_controller_endpoint),
+            sizeof(struct USBManagerEndpointToggle),
                     endpoint_hash,
                     endpoint_cmp
     );
@@ -259,61 +258,84 @@ UsbManagerGetController(
 
 int
 UsbManagerGetToggle(
-        _In_ uuid_t          deviceId,
-        _In_ USBAddress_t* address)
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address)
 {
-    // Create an unique id for this endpoint
-    UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
-    struct usb_controller_endpoint* endpoint;
-    uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
-
-    if (!controller) {
-        return 0;
+    struct USBManagerEndpointToggle* endpoint = hashtable_get(
+            &controller->Endpoints,
+            &(struct USBManagerEndpointToggle) {
+                    .Address = (((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress)
+            }
+    );
+    if (endpoint != NULL) {
+        return endpoint->Toggle;
     }
-
-    endpoint = hashtable_get(&controller->Endpoints, &(struct usb_controller_endpoint) {
-        .address = endpointAddress });
-    if (!endpoint) {
-        hashtable_set(&controller->Endpoints, &(struct usb_controller_endpoint) {
-                .address = endpointAddress, .toggle = 0 });
-        return 0;
-    }
-    return endpoint->toggle;
+    return 0;
 }
 
-oserr_t
-UsbManagerSetToggle(
-        _In_ uuid_t          deviceId,
-        _In_ USBAddress_t* address,
-        _In_ int             toggle)
+int
+USBManagerGetToggleControl(
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address)
 {
-    // Create an unique id for this endpoint
-    UsbManagerController_t*         controller = UsbManagerGetController(deviceId);
-    struct usb_controller_endpoint* endpoint;
-    uuid_t                          endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
-
-    if (!controller) {
-        return OS_ENOENT;
+    struct USBManagerEndpointToggle* endpoint = hashtable_get(
+            &controller->Endpoints,
+            &(struct USBManagerEndpointToggle) {
+                    .Address = (((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress)
+            }
+    );
+    if (endpoint != NULL) {
+        return endpoint->ToggleControl;
     }
+    return 0;
+}
 
-    endpoint = hashtable_get(&controller->Endpoints, &(struct usb_controller_endpoint) {
-            .address = endpointAddress });
-    if (!endpoint) {
-        hashtable_set(&controller->Endpoints, &(struct usb_controller_endpoint) {
-                .address = endpointAddress, .toggle = toggle });
-        return OS_EOK;
+void
+UsbManagerSetToggle(
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address,
+        _In_ int                     toggle)
+{
+    struct USBManagerEndpointToggle* endpoint;
+    uuid_t                           endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
+
+    endpoint = hashtable_get(
+            &controller->Endpoints,
+            &(struct USBManagerEndpointToggle) {
+                .Address = endpointAddress
+            }
+    );
+    if (endpoint == NULL && toggle) {
+        hashtable_set(
+                &controller->Endpoints,
+                &(struct USBManagerEndpointToggle) {
+                    .Address = endpointAddress,
+                    .Toggle = toggle
+                }
+        );
+    } else if (endpoint != NULL) {
+        hashtable_set(
+                &controller->Endpoints,
+                &(struct USBManagerEndpointToggle) {
+                        .Address = endpointAddress,
+                        .Toggle = toggle,
+                        .ToggleControl = endpoint->ToggleControl
+                }
+        );
     }
-
-    endpoint->toggle = toggle;
-    return OS_EOK;
 }
 
 void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
         const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
     USBAddress_t address = {hub, port, device, endpoint };
-    oserr_t      status  = UsbManagerSetToggle(deviceId, &address, 0);
-    ctt_usbhost_reset_endpoint_response(message, status);
+    UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    if (controller == NULL) {
+        ctt_usbhost_reset_endpoint_response(message, OS_ENOENT);
+        return;
+    }
+    UsbManagerSetToggle(controller, &address, 0);
+    ctt_usbhost_reset_endpoint_response(message, OS_EOK);
 }
 
 static void
@@ -338,17 +360,17 @@ static oserr_t
 __FinalizeTransfer(
         _In_ UsbManagerTransfer_t* transfer)
 {
-    bool finished = true;
+    bool isPartial = true;
     TRACE("__FinalizeTransfer()");
 
     // Is the transfer only partially done?
     if (__Transfer_IsAsync(transfer)) {
-        finished = __Transfer_IsComplete(transfer);
+        isPartial = __Transfer_IsPartial(transfer);
     }
 
     // We don't allocate the queue head before the transfer
     // is done, we might not be done yet
-    if (!finished) {
+    if (isPartial) {
         HCITransferQueue(transfer);
         return OS_EINCOMPLETE;
     }
@@ -365,9 +387,9 @@ __ClearTransfer(
     UsbManagerController_t* controller = context;
     UsbManagerTransfer_t*   transfer   = (UsbManagerTransfer_t*)item->value;
 
-    // Set the transfer status to cancel. Do this to avoid it
-    // being requeued in __FinalizeTransfer.
-    transfer->Status = TransferCancelled;
+    // Mark the transfer as cancelled, to let users know that their request
+    // cannot be met at this time.
+    transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
 
     // finalize the transfer
     HciTransactionFinalize(controller, transfer, 1);
@@ -402,14 +424,14 @@ __ScheduleTransfer(
     _CRT_UNUSED(context);
 
     if (transfer->State == USBTRANSFER_STATE_UNSCHEDULE) {
-        TRACE("UNSCHEDULE(Id %u)", transfer->ID);
+        TRACE("__ScheduleTransfer: [unschedule] transferID=%u", transfer->ID);
         HciTransactionFinalize(controller, transfer, 0);
         transfer->State = USBTRANSFER_STATE_CLEANUP;
     } else if (transfer->State == USBTRANSFER_STATE_SCHEDULE) {
-        TRACE("SCHEDULE(Id %u)", transfer->ID);
+        TRACE("__ScheduleTransfer: [schedule] transferID=%u", transfer->ID);
         UsbManagerChainEnumerate(
                 controller,
-                transfer->EndpointDescriptor,
+                transfer->RootElement,
                 USB_CHAIN_DEPTH,
                 HCIPROCESS_REASON_LINK,
                 HCIProcessElement,
@@ -422,38 +444,39 @@ __ScheduleTransfer(
 
 void
 UsbManagerScheduleTransfers(
-    _In_ UsbManagerController_t* Controller)
+    _In_ UsbManagerController_t* controller)
 {
-    UsbManagerIterateTransfers(Controller, __ScheduleTransfer, NULL);
+    UsbManagerIterateTransfers(
+            controller,
+            __ScheduleTransfer,
+            NULL
+    );
 }
 
-static int
+static void
 __SynchronizeToggles(
         _In_ UsbManagerController_t* controller,
-        _In_ UsbManagerTransfer_t*   transfer,
-        _In_ void*                   context)
+        _In_ UsbManagerTransfer_t*   transfer)
 {
-    USBAddress_t* Address = (USBAddress_t*)context;
     TRACE("__SynchronizeToggles()");
 
     // - The address must match (i.e. endpoints must match)
     // - The transfer must be in progress, otherwise there is no reason
     //   to fix the toggles
     // - The transfer must be either bulk or interrupt
-    if (!__IsAddressEqual(&transfer->Address, Address) ||
+    if (!__IsAddressEqual(&transfer->Address, &transfer->Address) ||
         transfer->State != USBTRANSFER_STATE_QUEUED ||
         __Transfer_IsPeriodic(transfer)) {
-        return ITERATOR_CONTINUE;
+        return;
     }
     UsbManagerChainEnumerate(
             controller,
-            transfer->EndpointDescriptor,
+            transfer->RootElement,
             USB_CHAIN_DEPTH,
             HCIPROCESS_REASON_FIXTOGGLE,
             HCIProcessElement,
             transfer
     );
-    return ITERATOR_CONTINUE;
 }
 
 static int
@@ -464,16 +487,16 @@ __ProcessCleanup(
     // If there is an endpoint descriptor, then we free it and mark
     // it NULL to indicate a new must be allocated. We do this for convenience
     // to avoid having extra code to detect whether we have to allocate one.
-    if (transfer->EndpointDescriptor != NULL) {
+    if (transfer->RootElement != NULL) {
         UsbManagerChainEnumerate(
                 controller,
-                transfer->EndpointDescriptor,
+                transfer->RootElement,
                 USB_CHAIN_DEPTH,
                 HCIPROCESS_REASON_CLEANUP,
                 HCIProcessElement,
                 transfer
         );
-        transfer->EndpointDescriptor = NULL;
+        transfer->RootElement = NULL;
     }
 
     // Try to finalize the transfer, if this does not return OS_EOK,
@@ -483,6 +506,116 @@ __ProcessCleanup(
         return ITERATOR_REMOVE;
     }
     transfer->State = USBTRANSFER_STATE_COMPLETED;
+    return ITERATOR_CONTINUE;
+}
+
+static bool
+__TransferCompleted(
+        _In_ UsbManagerTransfer_t*               transfer,
+        _In_ struct HCIProcessReasonScanContext* scanContext)
+{
+    // If the transfer is still not accessed, then it's not done.
+    if (scanContext->Result == USBTRANSFERCODE_INVALID) {
+        return false;
+    }
+
+    // If the transfer is in error-state, then it's done.
+    if (scanContext->Result != USBTRANSFERCODE_SUCCESS) {
+        return true;
+    }
+
+    // If the transfer was short, then it's by default also done. Nothing
+    // more to be executed at this point.
+    if (scanContext->Short) {
+        return true;
+    }
+
+    // If the transfer is OK and not short, then check whether all the
+    // elements has executed
+    if (scanContext->ElementsExecuted == transfer->ChainLength) {
+        return true;
+    }
+    return false;
+}
+
+static int
+__CheckTransfer(
+        _In_ UsbManagerController_t* controller,
+        _In_ UsbManagerTransfer_t*   transfer)
+{
+    struct HCIProcessReasonScanContext context = {
+            .Transfer = transfer,
+    };
+    TRACE("__ProcessTransfer: starting scan id=%u, status=%u", transfer->ID, transfer->Status);
+    UsbManagerChainEnumerate(
+            controller,
+            transfer->RootElement,
+            USB_CHAIN_DEPTH,
+            HCIPROCESS_REASON_SCAN,
+            HCIProcessElement,
+            &context
+    );
+    TRACE("__ProcessTransfer: finished scan status=%u, flags=0x%x", transfer->Status, transfer->Flags);
+
+    // Increase metrics for async transfers
+    if (__Transfer_IsAsync(transfer)) {
+        transfer->TData.Async.ElementsCompleted += context.ElementsProcessed;
+        transfer->TData.Async.BytesTransferred += context.BytesTransferred;
+    }
+
+    if (!__TransferCompleted(transfer, &context)) {
+        return ITERATOR_CONTINUE;
+    }
+
+    // Update result-code for transfer, it's needed to report back to
+    // the subscribers, and determine completion status.
+    transfer->ResultCode = context.Result;
+    if (context.Short) {
+        transfer->Flags |= __USBTRANSFER_FLAG_SHORT;
+    }
+
+    // In case of error transfers or short transfers, we have to sync data-toggles
+    // with all transactions going after this one for the same endpoint.
+    if ((context.Result != USBTRANSFERCODE_SUCCESS || context.Short) &&
+        __Transfer_MaySync(transfer)) {
+        // TODO: do this
+        __SynchronizeToggles(controller, transfer);
+    }
+
+    // For INT and ISOC we support restarting of transfers.
+    if (__Transfer_IsPeriodic(transfer)) {
+        // In case of stall we need should not restart the transfer, and instead let it sit untill host
+        // has reset the endpoint and cleared STALL condition.
+        if (context.Result != TransferStalled) {
+            UsbManagerChainEnumerate(
+                    controller,
+                    transfer->RootElement,
+                    USB_CHAIN_DEPTH,
+                    HCIPROCESS_REASON_RESET,
+                    HCIProcessElement,
+                    transfer
+            );
+            HCIProcessEvent(controller, HCIPROCESS_EVENT_RESET_DONE, transfer);
+        }
+
+        // Don't notify driver when recieving a NAK response. Simply means device had
+        // no data to send us. I just wished that it would leave the data intact instead.
+        if (context.Result != TransferNAK) {
+            UsbManagerSendNotification(transfer);
+        }
+
+        if (context.Result != TransferStalled) {
+            __Transfer_Reset(transfer);
+        }
+    } else if (__Transfer_IsAsync(transfer)) {
+        HciTransactionFinalize(controller, transfer, 0);
+        if (!(controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
+            transfer->RootElement = NULL;
+            if (__FinalizeTransfer(transfer) == OS_EOK) {
+                return ITERATOR_REMOVE;
+            }
+        }
+    }
     return ITERATOR_CONTINUE;
 }
 
@@ -496,69 +629,17 @@ __ProcessTransfer(
           controller, transfer, transfer ? transfer->Flags : 0);
     _CRT_UNUSED(context);
 
-    if (transfer->State == USBTRANSFER_STATE_CLEANUP) {
-        return __ProcessCleanup(controller, transfer);
-    }
-
-    // If the transfer wasn't done, and is not in progress, then it's simply
-    // queued. Don't do anything else.
-    if (transfer->Status != USBTRANSFER_STATE_QUEUED) {
-        return ITERATOR_CONTINUE;
-    }
-
-    TRACE("__ProcessTransfer: starting scan id=%u, status=%u", transfer->ID, transfer->Status);
-    UsbManagerChainEnumerate(
-            controller,
-            transfer->EndpointDescriptor,
-            USB_CHAIN_DEPTH,
-            HCIPROCESS_REASON_SCAN,
-            HCIProcessElement,
-            transfer
-    );
-    TRACE("__ProcessTransfer: finished scan status=%u, flags=0x%x", transfer->Status, transfer->Flags);
-
-    // Transfer is still in progress after the scan. The scan will update any status on
-    // the transfer.
-    if (transfer->Status == USBTRANSFER_STATE_QUEUED) {
-        return ITERATOR_CONTINUE;
-    }
-    
-    // In case of errors, the SYNC flag will be set on the transfer, and this
-    // means we need to update toggles.
-    // TODO: This is definitely not correctly implemented, and does not factor into
-    // account that we might need to update additional toggles for transfers that are
-    // queued against the same endpoint.
-    if (transfer->Flags & __USBTRANSFER_FLAG_SYNC) {
-        UsbManagerIterateTransfers(controller, __SynchronizeToggles, &transfer->Address);
-    }
-
-    // For INT and ISOC we support restarting of transfers.
-    if (__Transfer_IsPeriodic(transfer)) {
-        // In case of stall we need should not restart the transfer, and instead let it sit untill host
-        // has reset the endpoint and cleared STALL condition.
-        if (transfer->Status != TransferStalled) {
-            UsbManagerChainEnumerate(controller, transfer->EndpointDescriptor,
-                                   USB_CHAIN_DEPTH, HCIPROCESS_REASON_RESET, HCIProcessElement, transfer);
-            HCIProcessEvent(controller, HCIPROCESS_EVENT_RESET_DONE, transfer);
-        }
-
-        // Don't notify driver when recieving a NAK response. Simply means device had
-        // no data to send us. I just wished that it would leave the data intact instead.
-        if (transfer->Status != TransferNAK) {
-            UsbManagerSendNotification(transfer);
-        }
-
-        if (transfer->Status != TransferStalled) {
-            __Transfer_Reset(transfer);
-        }
-    } else if (__Transfer_IsAsync(transfer)) {
-        HciTransactionFinalize(controller, transfer, 0);
-        if (!(controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
-            transfer->EndpointDescriptor = NULL;
-            if (__FinalizeTransfer(transfer) == OS_EOK) {
-                return ITERATOR_REMOVE;
-            }
-        }
+    switch (transfer->State) {
+        case USBTRANSFER_STATE_CREATED:
+        case USBTRANSFER_STATE_WAITING:
+        case USBTRANSFER_STATE_SCHEDULE:
+        case USBTRANSFER_STATE_UNSCHEDULE:
+        case USBTRANSFER_STATE_COMPLETED:
+            break;
+        case USBTRANSFER_STATE_QUEUED:
+            return __CheckTransfer(controller, transfer);
+        case USBTRANSFER_STATE_CLEANUP:
+            return __ProcessCleanup(controller, transfer);
     }
     return ITERATOR_CONTINUE;
 }
@@ -666,7 +747,7 @@ __DumpScheduleElement(
     UsbManagerTransfer_t* Transfer = context;
 
     // set the fake transfer endpoint descriptor
-    Transfer->EndpointDescriptor = element;
+    Transfer->RootElement = element;
     UsbManagerChainEnumerate(
             controller,
             element,
@@ -699,7 +780,7 @@ UsbManagerDumpSchedule(
 static uint64_t default_dev_hash(const void* deviceIndex)
 {
     const struct usb_controller_device_index* index = deviceIndex;
-    return siphash_64((const uint8_t*)&index->deviceId, sizeof(uuid_t), &g_hashKey[0]);
+    return index->deviceId;
 }
 
 static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
@@ -711,13 +792,13 @@ static int default_dev_cmp(const void* deviceIndex1, const void* deviceIndex2)
 
 static uint64_t endpoint_hash(const void* element)
 {
-    const struct usb_controller_endpoint* endpoint = element;
-    return siphash_64((const uint8_t*)&endpoint->address, sizeof(uuid_t), &g_hashKey[0]);
+    const struct USBManagerEndpointToggle* endpoint = element;
+    return endpoint->Address;
 }
 
 static int endpoint_cmp(const void* element1, const void* element2)
 {
-    const struct usb_controller_endpoint* endpoint1 = element1;
-    const struct usb_controller_endpoint* endpoint2 = element2;
-    return endpoint1->address == endpoint2->address ? 0 : 1;
+    const struct USBManagerEndpointToggle* endpoint1 = element1;
+    const struct USBManagerEndpointToggle* endpoint2 = element2;
+    return endpoint1->Address == endpoint2->Address ? 0 : 1;
 }

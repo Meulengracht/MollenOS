@@ -69,11 +69,13 @@ PACKED_TYPESTRUCT(UsbSchedulerObject, {
  * Bit    12: Allocation status
  * Bit    13: Has bandwidth allocated
  * Bit    14: Isochronous Element
- * Bit 15-31: Available */
+ * Bit    15: Processed
+ * Bit 16-31: Available */
 #define USB_ELEMENT_LINKFLAGS(_flags)   ((_flags) & 0xFFF)
 #define USB_ELEMENT_ALLOCATED           (1 << 12)
 #define USB_ELEMENT_BANDWIDTH           (1 << 13)
 #define USB_ELEMENT_ISOCHRONOUS         (1 << 14)
+#define USB_ELEMENT_PROCESSED           (1 << 15)
 
 #define USB_ELEMENT_INDEX_MASK          0x1FFF
 #define USB_ELEMENT_POOL_MASK           0x7

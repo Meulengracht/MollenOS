@@ -18,6 +18,9 @@
 #ifndef __USB_COMMON_TYPES__
 #define __USB_COMMON_TYPES__
 
+// import types
+typedef struct UsbManagerTransfer UsbManagerTransfer_t;
+
 enum HCIProcessReason {
     // NONE is only used in instances where a reason code
     // does not apply. Should never be specified when using
@@ -39,6 +42,16 @@ enum HCIProcessReason {
 
 enum HCIProcessEvent {
     HCIPROCESS_EVENT_RESET_DONE
+};
+
+struct HCIProcessReasonScanContext {
+    UsbManagerTransfer_t* Transfer;
+    int                   ElementsExecuted;
+    int                   ElementsProcessed;
+    int                   LastToggle;
+    bool                  Short;
+    uint32_t              BytesTransferred;
+    enum USBTransferCode  Result;
 };
 
 #endif //!__USB_COMMON_TYPES__

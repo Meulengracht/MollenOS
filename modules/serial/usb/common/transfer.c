@@ -138,10 +138,11 @@ UsbManagerCreateTransfer(
     usbTransfer->ID = transferId;
     usbTransfer->DeviceID = deviceId;
     usbTransfer->Type = transfer->Type;
+    usbTransfer->Speed = transfer->Speed;
     memcpy(&usbTransfer->Address, &transfer->Address, sizeof(USBAddress_t));
     usbTransfer->MaxPacketSize = transfer->MaxPacketSize;
     usbTransfer->State = USBTRANSFER_STATE_CREATED;
-    usbTransfer->Status = TransferOK;
+    usbTransfer->Status = USBTRANSFERCODE_SUCCESS;
     usbTransfer->Flags = __ConvertFlags(transfer->Flags);
 
     // Get the SG tables before calculating TDs
@@ -251,10 +252,12 @@ UsbManagerSendNotification(
                 transfer->Status,
                 transfer->TData.Periodic.CurrentDataIndex
         );
-        if (transfer->Status == TransferOK) {
-            transfer->TData.Periodic.CurrentDataIndex = ADDLIMIT(0, transfer->TData.Periodic.CurrentDataIndex,
-                                                  transfer->Elements[0].Length,
-                                                  transfer->TData.Periodic.PeriodicBufferSize);
+        if (transfer->Status == USBTRANSFERCODE_SUCCESS) {
+            transfer->TData.Periodic.CurrentDataIndex = ADDLIMIT(
+                    0, transfer->TData.Periodic.CurrentDataIndex,
+                    transfer->Elements[0].Length,
+                    transfer->TData.Periodic.BufferSize
+            );
         }
     }
 }
@@ -311,7 +314,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
         ctt_usbhost_queue_periodic_response(message, TransferInvalid);
         return;
     }
-    ctt_usbhost_queue_periodic_response(message, TransferOK);
+    ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_SUCCESS);
 }
 
 void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const uuid_t processId,
@@ -336,7 +339,7 @@ void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const
     if (transfer != NULL) {
         UsbManagerChainEnumerate(
                 controller,
-                transfer->EndpointDescriptor,
+                transfer->RootElement,
                 USB_CHAIN_DEPTH,
                 HCIPROCESS_REASON_RESET,
                 HCIProcessElement,

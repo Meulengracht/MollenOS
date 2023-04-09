@@ -42,7 +42,7 @@ UhciTransactionDispatch(
 #endif
 #endif
 
-    UsbManagerChainEnumerate(&Controller->Base, Transfer->EndpointDescriptor,
+    UsbManagerChainEnumerate(&Controller->Base, Transfer->RootElement,
         USB_CHAIN_DEPTH, HCIPROCESS_REASON_LINK, HCIProcessElement, Transfer);
 }
 
@@ -55,9 +55,9 @@ HciTransactionFinalize(
     // Debug
     TRACE("UhciTransactionFinalize(Id %u)", Transfer->ID);
 
-    UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+    UsbManagerChainEnumerate(Controller, Transfer->RootElement,
         USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
-    UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+    UsbManagerChainEnumerate(Controller, Transfer->RootElement,
         USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
     return OS_EOK;
 }

@@ -40,10 +40,11 @@ DECL_STRUCT(UsbDevice);
 #define USB_TRANSACTIONCOUNT 3
 
 enum USBTransferCode {
+    USBTRANSFERCODE_INVALID,
+
     // HCD Error Codes
-    TransferOK,
-    TransferInvalid,
-    TransferCancelled,
+    USBTRANSFERCODE_SUCCESS,
+    USBTRANSFERCODE_CANCELLED,
     TransferNoBandwidth,
 
     // Transaction Error Codes

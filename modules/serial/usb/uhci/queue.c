@@ -292,7 +292,7 @@ HCIProcessElement(
     switch (Reason) {
         case HCIPROCESS_REASON_DUMP: {
             if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC
-                && Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                && Element == (uint8_t*)Transfer->RootElement) {
                 UhciQhDump((UhciController_t*)Controller, (UhciQueueHead_t*)Td);
             }
             else {
@@ -303,7 +303,7 @@ HCIProcessElement(
         case HCIPROCESS_REASON_SCAN: {
             // If we have a queue-head allocated skip it
             if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC &&
-                Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                Element == (uint8_t*)Transfer->RootElement) {
                 // Skip scan on queue-heads
                 return ITERATOR_CONTINUE;
             }
@@ -317,7 +317,7 @@ HCIProcessElement(
         
         case HCIPROCESS_REASON_RESET: {
             if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                if (Element != (uint8_t*)Transfer->EndpointDescriptor) {
+                if (Element != (uint8_t*)Transfer->RootElement) {
                     UhciTdRestart(Transfer, Td);
                 }
             }
@@ -329,7 +329,7 @@ HCIProcessElement(
         case HCIPROCESS_REASON_FIXTOGGLE: {
             // If we have a queue-head allocated skip it
             if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC
-                && Element == (uint8_t*)Transfer->EndpointDescriptor) {
+                && Element == (uint8_t*)Transfer->RootElement) {
                 // Skip sync on queue-heads
                 return ITERATOR_CONTINUE;
             }
@@ -337,12 +337,15 @@ HCIProcessElement(
         } break;
 
         case HCIPROCESS_REASON_LINK: {
+            // For regular TDs, we must toggle data-toggles at this point, for
+            // QHs we must link it in.
+
+
             // If it's a queue head link that
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
+            if (Transfer->Type != USBTRANSFER_TYPE_ISOC) {
                 UhciQhLink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
                 return ITERATOR_STOP;
-            }
-            else {
+            } else {
                 // Link all elements
                 UsbSchedulerLinkPeriodicElement(Controller->Scheduler, UHCI_TD_POOL, Element);
             }

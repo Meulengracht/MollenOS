@@ -36,9 +36,9 @@ EhciQhInitialize(
     _In_ uint8_t               deviceAddress,
     _In_ uint8_t               endpointAddress)
 {
-    EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->EndpointDescriptor;
+    EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->RootElement;
     oserr_t       Status      = OS_EOK;
-    size_t           EpBandwidth = MAX(3, transfer->Base.PeriodicBandwith);
+    size_t           EpBandwidth = MAX(3, transfer->Base.Bandwith);
 
     // Initialize links
     Qh->LinkPointer               = EHCI_LINK_END;
@@ -102,7 +102,7 @@ EhciQhInitialize(
 
         // Allocate the bandwidth
         Status = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
-                                               transfer->Base.PeriodicInterval, transfer->Base.MaxPacketSize,
+                                               transfer->Base.Interval, transfer->Base.MaxPacketSize,
                                                transfer->Base.Transactions[0].Type, BytesToTransfer,
                                                transfer->Base.Type, transfer->Base.Speed, (uint8_t*)Qh);
         if (Status == OS_EOK) {
@@ -152,7 +152,7 @@ EhciQhRestart(
     UsbManagerTransfer_t*           Transfer)
 {
     // Variables
-    EhciQueueHead_t *Qh             = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+    EhciQueueHead_t *Qh             = (EhciQueueHead_t*)Transfer->RootElement;
     uintptr_t LinkPhysical          = 0;
 
     memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
