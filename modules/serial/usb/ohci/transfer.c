@@ -30,8 +30,8 @@
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 
-void
-OhciTransactionDispatch(
+static void
+__DispatchTransfer(
     _In_ OhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
@@ -146,17 +146,17 @@ HciTransactionFinalize(
 
     // Don't unlink asynchronous transfers
     if (__Transfer_IsPeriodic(Transfer)) {
-        UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+        UsbManagerChainEnumerate(Controller, Transfer->RootElement,
             USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
 
         // Only do cleanup if reset is requested
         if (Reset != 0) {
-            UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+            UsbManagerChainEnumerate(Controller, Transfer->RootElement,
                 USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
         }
     } else {
         // Always cleanup asynchronous transfers
-        UsbManagerChainEnumerate(Controller, Transfer->EndpointDescriptor,
+        UsbManagerChainEnumerate(Controller, Transfer->RootElement,
             USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
     }
     return OS_EOK;
@@ -354,7 +354,7 @@ __EnsureQueueHead(
     uint8_t* qh;
     oserr_t  oserr;
 
-    if (transfer->EndpointDescriptor != NULL) {
+    if (transfer->RootElement != NULL) {
         return OS_EOK;
     }
 
@@ -367,7 +367,7 @@ __EnsureQueueHead(
         return oserr;
     }
 
-    oserr = OhciQhInitialize(
+    oserr = OHCIQHInitialize(
             controller,
             transfer,
             transfer->Address.DeviceAddress,
@@ -378,7 +378,7 @@ __EnsureQueueHead(
         UsbSchedulerFreeElement(controller->Base.Scheduler, qh);
         return oserr;
     }
-    transfer->EndpointDescriptor = qh;
+    transfer->RootElement = qh;
     return OS_EOK;
 }
 
@@ -389,7 +389,7 @@ __DestroyDescriptors(
 {
     UsbManagerChainEnumerate(
             &controller->Base,
-            transfer->EndpointDescriptor,
+            transfer->RootElement,
             USB_CHAIN_DEPTH,
             HCIPROCESS_REASON_CLEANUP,
             HCIProcessElement,
@@ -398,13 +398,23 @@ __DestroyDescriptors(
 }
 
 static int
+__RemainingDescriptorCount(
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    if (__Transfer_IsAsync(transfer)) {
+        return transfer->ElementCount - transfer->TData.Async.ElementsCompleted;
+    }
+    return transfer->ElementCount;
+}
+
+static int
 __AllocateDescriptors(
         _In_ OhciController_t*     controller,
         _In_ UsbManagerTransfer_t* transfer,
         _In_ int                   descriptorPool)
 {
-    OhciQueueHead_t* qh           = transfer->EndpointDescriptor;
-    int              tdsRemaining = transfer->ElementCount - transfer->ElementsCompleted;
+    OhciQueueHead_t* qh           = transfer->RootElement;
+    int              tdsRemaining = __RemainingDescriptorCount(transfer);
     int              tdsAllocated = 0;
     for (int i = 0; i < tdsRemaining; i++) {
         uint8_t* element;
@@ -444,6 +454,7 @@ __AllocateDescriptors(
 
 struct __PrepareContext {
     UsbManagerTransfer_t* Transfer;
+    int                   Toggle;
     int                   TDIndex;
     int                   LastTDIndex;
 };
@@ -460,6 +471,20 @@ __PrepareDescriptor(
     _CRT_UNUSED(controllerBase);
     _CRT_UNUSED(reason);
 
+    // Handle special stuff for Control transfers. They have special needs.
+    if (context->Transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        if (context->TDIndex == 0) {
+            // SETUP(0)
+            context->Toggle = 0;
+        } else if (context->TDIndex == 1) {
+            // DATA(1) for the first stage
+            context->Toggle = 1;
+        } else if (context->TDIndex == (context->Transfer->ElementCount - 1)) {
+            // STATUS(1)
+            context->Toggle = 1;
+        }
+    }
+
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case USB_TRANSACTION_SETUP: {
             OHCITDSetup(td, context->Transfer->Elements[context->TDIndex].DataAddress);
@@ -470,7 +495,8 @@ __PrepareDescriptor(
                     context->Transfer->Type,
                     OHCI_TD_IN,
                     context->Transfer->Elements[context->TDIndex].DataAddress,
-                    context->Transfer->Elements[context->TDIndex].Length
+                    context->Transfer->Elements[context->TDIndex].Length,
+                    context->Toggle
             );
         } break;
         case USB_TRANSACTION_OUT: {
@@ -479,7 +505,8 @@ __PrepareDescriptor(
                     context->Transfer->Type,
                     OHCI_TD_OUT,
                     context->Transfer->Elements[context->TDIndex].DataAddress,
-                    context->Transfer->Elements[context->TDIndex].Length
+                    context->Transfer->Elements[context->TDIndex].Length,
+                    context->Toggle
             );
         } break;
     }
@@ -489,6 +516,7 @@ __PrepareDescriptor(
         td->OriginalFlags = td->Flags;
     }
     context->TDIndex++;
+    context->Toggle ^= 1;
     return true;
 }
 
@@ -535,6 +563,16 @@ __PrepareIsochronousDescriptor(
     return true;
 }
 
+static int
+__ElementsCompleted(
+        _In_ UsbManagerTransfer_t* transfer)
+{
+    if (__Transfer_IsAsync(transfer)) {
+        return transfer->TData.Async.ElementsCompleted;
+    }
+    return 0;
+}
+
 static void
 __PrepareTransferDescriptors(
         _In_ OhciController_t*     controller,
@@ -543,13 +581,14 @@ __PrepareTransferDescriptors(
 {
     struct __PrepareContext context = {
             .Transfer = transfer,
-            .TDIndex = transfer->ElementsCompleted,
-            .LastTDIndex = (transfer->ElementsCompleted + count - 1)
+            .Toggle = UsbManagerGetToggle(transfer->DeviceID, &transfer->Address),
+            .TDIndex = __ElementsCompleted(transfer),
+            .LastTDIndex = (__ElementsCompleted(transfer) + count - 1)
     };
     if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
         UsbManagerChainEnumerate(
                 &controller->Base,
-                transfer->EndpointDescriptor,
+                transfer->RootElement,
                 USB_CHAIN_DEPTH,
                 HCIPROCESS_REASON_NONE,
                 __PrepareIsochronousDescriptor,
@@ -558,12 +597,13 @@ __PrepareTransferDescriptors(
     } else {
         UsbManagerChainEnumerate(
                 &controller->Base,
-                transfer->EndpointDescriptor,
+                transfer->RootElement,
                 USB_CHAIN_DEPTH,
                 HCIPROCESS_REASON_NONE,
                 __PrepareDescriptor,
                 &context
         );
+        UsbManagerSetToggle(transfer->DeviceID, &transfer->Address, context.Toggle);
     }
 }
 
@@ -592,7 +632,7 @@ HCITransferQueue(
     }
 
     __PrepareTransferDescriptors(controller, transfer, tdsReady);
-    OhciTransactionDispatch(controller, transfer);
+    __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }
 
@@ -621,6 +661,6 @@ HCITransferQueueIsochronous(
     }
 
     __PrepareTransferDescriptors(controller, transfer, tdsReady);
-    OhciTransactionDispatch(controller, transfer);
+    __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }

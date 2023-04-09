@@ -60,7 +60,7 @@ UhciTransferFillIsochronous(
                                  transfer->Base.Speed, addressPointer, bytesStep, 0);
             
             if (UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
-                                              transfer->Base.PeriodicInterval, transfer->Base.MaxPacketSize,
+                                              transfer->Base.Interval, transfer->Base.MaxPacketSize,
                                               transactionType, bytesStep, USBTRANSFER_TYPE_ISOC,
                                               transfer->Base.Speed, (uint8_t*)td) != OS_EOK) {
                 // Free element
@@ -102,7 +102,7 @@ UhciTransferFillIsochronous(
     // End of <transfer>?
     if (previousTd != NULL) {
         previousTd->Flags           |= UHCI_TD_IOC;
-        transfer->EndpointDescriptor = initialTd;
+        transfer->RootElement = initialTd;
         return OS_EOK;
     }
 
@@ -116,7 +116,7 @@ UhciTransferFill(
 {
     UhciTransferDescriptor_t* previousTd = NULL;
     UhciTransferDescriptor_t* td = NULL;
-    UhciQueueHead_t*          qh = (UhciQueueHead_t*)transfer->EndpointDescriptor;
+    UhciQueueHead_t*          qh = (UhciQueueHead_t*)transfer->RootElement;
     
     int outOfResources = 0;
     int i;
@@ -262,13 +262,13 @@ HCITransferQueue(
     }
 
     // Step 1 - Allocate queue head
-    if (transfer->EndpointDescriptor == NULL) {
+    if (transfer->RootElement == NULL) {
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
                                         UHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OS_EOK) {
             goto queued;
         }
         assert(endpointDescriptor != NULL);
-        transfer->EndpointDescriptor = endpointDescriptor;
+        transfer->RootElement = endpointDescriptor;
 
         // Store and initialize the qh
         if (UhciQhInitialize(controller, transfer) != OS_EOK) {

@@ -234,7 +234,7 @@ UhciTdRestart(
 
     // Setup some variables
     if (Transfer->Base.Type == USB_TRANSFER_INTERRUPT) {
-        Qh         = (UhciQueueHead_t*)Transfer->EndpointDescriptor;
+        Qh         = (UhciQueueHead_t*)Transfer->RootElement;
         BufferStep = Transfer->Base.MaxPacketSize;
         
         // Flip
@@ -247,7 +247,7 @@ UhciTdRestart(
         // Adjust buffer if not just restart
         if (Transfer->Status == TransferFinished) {
             BufferBaseUpdated = ADDLIMIT(Qh->BufferBase, Td->Buffer, 
-                BufferStep, Qh->BufferBase + Transfer->Base.PeriodicBufferSize);
+                BufferStep, Qh->BufferBase + Transfer->Base.BufferSize);
             Td->Buffer     = LODWORD(BufferBaseUpdated);
             Qh->BufferBase = LODWORD(BufferBaseUpdated);
         }

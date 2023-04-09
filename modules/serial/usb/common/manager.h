@@ -67,13 +67,13 @@ typedef bool(*UsbSchedulerElementCallback)(UsbManagerController_t*, uint8_t*, en
  * Initializes the common usb manager that all usb drivers can use to keep track of controllers
  * @return Status of the initialization.
  */
-__EXTERN oserr_t
+extern oserr_t
 UsbManagerInitialize(void);
 
 /**
  * Cleans up the common usb manager and destroys any controller registered.
  */
-__EXTERN void
+extern void
 UsbManagerDestroy(void);
 
 /**
@@ -83,7 +83,7 @@ UsbManagerDestroy(void);
  * @param structureSize Size of the controller structure to allocate.
  * @return              A pointer to the newly allocated usb controller.
  */
-__EXTERN UsbManagerController_t*
+extern UsbManagerController_t*
 UsbManagerCreateController(
     _In_ BusDevice_t*           device,
     _In_ enum USBControllerKind kind,
@@ -94,7 +94,7 @@ UsbManagerCreateController(
  * @param controller The controller that should be registered with the usb service.
  * @return           Status of the operation.
  */
-__EXTERN oserr_t
+extern oserr_t
 UsbManagerRegisterController(
     _In_ UsbManagerController_t* controller);
 
@@ -103,7 +103,7 @@ UsbManagerRegisterController(
  * @param controller The controller that should be unregistered from the usb service and cleaned up.
  * @return           Status of the operation.
  */
-__EXTERN void
+extern void
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller);
 
@@ -111,14 +111,14 @@ UsbManagerDestroyController(
  * Clears all queued transfers by iterating them and invoking Finalize. This also notifies waiters.
  * @param controller The controller to clear transfers from.
  */
-__EXTERN void
+extern void
 UsbManagerClearTransfers(
     _In_ UsbManagerController_t* controller);
 
 /* UsbManagerIterateTransfers
  * Iterate the transfers associated with the given controller. The iteration
  * flow can be controlled with the return codes. */
-__EXTERN void
+extern void
 UsbManagerIterateTransfers(
     _In_ UsbManagerController_t* controller,
     _In_ UsbTransferItemCallback itemCallback,
@@ -127,7 +127,7 @@ UsbManagerIterateTransfers(
 /* UsbManagerChainEnumerate
  * Iterates a given chain at the requested direction. The reason
  * for the iteration must also be provided to act accordingly. */
-__EXTERN void
+extern void
 UsbManagerChainEnumerate(
     _In_ UsbManagerController_t*     Controller,
     _In_ uint8_t*                    ElementRoot,
@@ -139,7 +139,7 @@ UsbManagerChainEnumerate(
 /* UsbManagerDumpChain
  * Iterates a given chain at the requested direction. The function then
  * invokes the HCIProcessElement with HCIPROCESS_REASON_DUMP. */
-__EXTERN void
+extern void
 UsbManagerDumpChain(
     _In_ UsbManagerController_t* Controller,
     _In_ UsbManagerTransfer_t*   Transfer,
@@ -151,7 +151,7 @@ UsbManagerDumpChain(
  * @param deviceId The device deviceId of the controller.
  * @return         A pointer to the usb manager controller structure.
  */
-__EXTERN UsbManagerController_t*
+extern UsbManagerController_t*
 UsbManagerGetController(
         _In_ uuid_t deviceId);
 
@@ -170,10 +170,21 @@ UsbManagerGetController(
  * @param address  Address of the endpoint.
  * @return         Toggle status.
  */
-__EXTERN int
+extern int
 UsbManagerGetToggle(
-        _In_ uuid_t          deviceId,
-        _In_ USBAddress_t* address);
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address);
+
+/**
+ * @brief
+ * @param controller
+ * @param address
+ * @return
+ */
+extern int
+USBManagerGetToggleControl(
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address);
 
 /**
  * Updates the current toggle status of an endpoint address for the controller.
@@ -181,29 +192,35 @@ UsbManagerGetToggle(
  * @param address  Address of the endpoint.
  * @return         Status of the update operation.
  */
-__EXTERN oserr_t
+extern void
 UsbManagerSetToggle(
-        _In_ uuid_t          deviceId,
-        _In_ USBAddress_t* address,
-        _In_ int             toggle);
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address,
+        _In_ int                     toggle);
+
+extern void
+UsbManagerSetToggleControl(
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address,
+        _In_ int                     toggle);
 
 /* UsbManagerProcessTransfers
  * Processes all the associated transfers with the given usb controller.
  * The iteration process will invoke <HCIProcessElement> */
-__EXTERN void
+extern void
 UsbManagerProcessTransfers(
     _In_ UsbManagerController_t* controller);
 
 /* UsbManagerScheduleTransfers
  * Handles all transfers that are marked for either Schedule or Unscheduling.
  * The iteration process will invoke <HCIProcessElement> */
-__EXTERN void
+extern void
 UsbManagerScheduleTransfers(
-    _In_ UsbManagerController_t* Controller);
+    _In_ UsbManagerController_t* controller);
 
 /* UsbManagerDumpSchedule
  * Prints the entire schedule, frame for frame out. This fills a lot of space. */
-__EXTERN void
+extern void
 UsbManagerDumpSchedule(
     _In_ UsbManagerController_t* Controller);
 

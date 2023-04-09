@@ -252,7 +252,7 @@ EhciTdRestart(
     // Adjust buffer if not just restart
     if (Transfer->Status != TransferNAK) {
         BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
-            BufferStep, BufferBase + Transfer->Base.PeriodicBufferSize);
+            BufferStep, BufferBase + Transfer->Base.BufferSize);
         EhciTdFill(Controller, Td, BufferBaseUpdated, BufferStep);
     }
 }

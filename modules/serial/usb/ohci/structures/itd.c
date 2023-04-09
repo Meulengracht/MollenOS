@@ -42,8 +42,7 @@ OHCITDIsochronous(
     int    FrameCount      = DIVUP(Length, MaxPacketSize);
     int    FrameIndex      = 0;
     int    Crossed         = 0;
-    
-    // Debug
+
     TRACE("OHCITDIsochronous(Id %u, Address 0x%x, Length 0x%x",
         PId, Address, Length);
 
@@ -55,7 +54,6 @@ OHCITDIsochronous(
         FrameCount = 8;
     }
 
-    // Initialize flags
     Td->Flags |= PId;
     Td->Flags |= OHCI_iTD_FRAMECOUNT((FrameCount - 1));
     Td->Flags |= OHCI_TD_IOC_NONE;
@@ -109,84 +107,58 @@ OHCIITDDump(
 
 void
 OHCIITDVerify(
-    _In_ UsbManagerTransfer_t*         Transfer,
-    _In_ OhciIsocTransferDescriptor_t* Td)
+        _In_ struct HCIProcessReasonScanContext* scanContext,
+        _In_ OhciIsocTransferDescriptor_t*       iTD)
 {
-    int i;
-
-    // Sanitize active status
-    if (Td->Flags & OHCI_TD_ACTIVE) {
-        // If this one is still active, but it's a transfer that has
-        // elements processed - resync toggles
-        if (Transfer->Status != TransferInProgress) {
-            Transfer->Flags |= TransferFlagSync;
-        }
+    // Have we already processed this one? In that case we ignore
+    // it completely.
+    if (iTD->Object.Flags & USB_ELEMENT_PROCESSED) {
+        scanContext->ElementsExecuted++;
         return;
     }
 
-    // Sanitize the error codes
-    for (i = 0; i < 8; i++) {
-        int ErrorCode = OHCI_iTD_OFFSETCODE(Td->Offsets[i]);
-        if (Td->Offsets[i] == 0) {
+    // For isochronous transfers we don't really care that much about how much
+    // data was transferred, or whether toggles need to be resynced. Instead, we
+    // just need to know whether the transfer completed correctly.
+    for (int i = 0; i < 8; i++) {
+        int cc = OHCI_iTD_OFFSETCODE(iTD->Offsets[i]);
+        if (iTD->Offsets[i] == 0) {
             break;
         }
-
-        if (ErrorCode != 0) {
-            Transfer->Status = OhciGetStatusCode(ErrorCode);
-        } else if (Transfer->Status == TransferInProgress) {
-            Transfer->Status = TransferFinished;
+        if (cc != 0 && cc != OHCI_CC_INIT) {
+            scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
         }
     }
 
-    // Calculate length transferred 
-    // Take into consideration the N-1 
-    if (Td->BufferEnd != 0) {
-        int BytesTransferred    = 0;
-        int BytesRequested      = (Td->BufferEnd - Td->OriginalCbp) + 1;
-        if (Td->Cbp == 0)       BytesTransferred = BytesRequested;
-        else                    BytesTransferred = Td->Cbp - Td->OriginalCbp;
-
-        if (BytesTransferred < BytesRequested) {
-            Transfer->Flags |= TransferFlagShort;
-
-            // On short transfers we might have to sync, but only 
-            // if there are un-processed td's after this one
-            if (Td->Object.DepthIndex != USB_ELEMENT_NO_INDEX) {
-                Transfer->Flags |= TransferFlagSync;
-            }
-        }
-        for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Base.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
-                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
-                break;
-            }
-        }
-    }
+    // mark TD as processed
+    iTD->Object.Flags |= USB_ELEMENT_PROCESSED;
+    scanContext->ElementsProcessed++;
+    scanContext->ElementsExecuted++;
 }
 
 void
 OHCIITDRestart(
-    _In_ OhciController_t*             Controller,
-    _In_ UsbManagerTransfer_t*         Transfer,
-    _In_ OhciIsocTransferDescriptor_t* Td)
+    _In_ OhciController_t*             controller,
+    _In_ UsbManagerTransfer_t*         transfer,
+    _In_ OhciIsocTransferDescriptor_t* iTD)
 {
-    uintptr_t LinkAddress = 0;
-    int       i;
+    uintptr_t linkAddress = 0;
 
-    // Reset offsets
-    for (i = 0; i < 8; i++) {
-        Td->Offsets[i] = Td->OriginalOffsets[i];
+    for (int i = 0; i < 8; i++) {
+        iTD->Offsets[i] = iTD->OriginalOffsets[i];
     }
 
-    // Reset rest
-    Td->Flags     = Td->OriginalFlags;
-    Td->Cbp       = Td->OriginalCbp;
-    Td->BufferEnd = Td->OriginalBufferEnd;
-    
-    // Restore link
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
-        (Td->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
-        Td->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
-    Td->Link = LinkAddress;
-    assert(Td->Link != 0);
+    iTD->Flags     = iTD->OriginalFlags;
+    iTD->Cbp       = iTD->OriginalCbp;
+    iTD->BufferEnd = iTD->OriginalBufferEnd;
+
+    UsbSchedulerGetPoolElement(
+            controller->Base.Scheduler,
+            (iTD->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK,
+            iTD->Object.DepthIndex & USB_ELEMENT_INDEX_MASK,
+            NULL,
+            &linkAddress
+    );
+    iTD->Link = linkAddress;
+    assert(iTD->Link != 0);
 }

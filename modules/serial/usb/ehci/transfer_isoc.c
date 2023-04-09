@@ -47,7 +47,7 @@ HCITransferQueueIsochronous(
     bytesToTransfer = transfer->Base.Transactions[0].Length;
 
     // Calculate mpd
-    maxBytesPerDescriptor = 1024 * MAX(3, transfer->Base.PeriodicBandwith);
+    maxBytesPerDescriptor = 1024 * MAX(3, transfer->Base.Bandwith);
     maxBytesPerDescriptor *= 8;
 
     // Allocate resources
@@ -113,7 +113,7 @@ HCITransferQueueIsochronous(
         bytesToTransfer -= BytesStep;
     }
 
-    transfer->EndpointDescriptor = (void*)firstTd;
+    transfer->RootElement = (void*)firstTd;
 
     EhciTransactionDispatch(controller, transfer);
     return TransferInProgress;

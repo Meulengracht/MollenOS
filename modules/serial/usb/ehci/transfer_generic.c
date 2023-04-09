@@ -35,7 +35,7 @@ EhciTransferFill(
 {
     EhciTransferDescriptor_t* PreviousTd = NULL;
     EhciTransferDescriptor_t* Td         = NULL;
-    EhciQueueHead_t*          Qh         = (EhciQueueHead_t*)Transfer->EndpointDescriptor;
+    EhciQueueHead_t*          Qh         = (EhciQueueHead_t*)Transfer->RootElement;
     
     int OutOfResources = 0;
     int i;
@@ -174,13 +174,13 @@ HCITransferQueue(
     }
 
     // Step 1 - Allocate queue head
-    if (!transfer->EndpointDescriptor) {
+    if (!transfer->RootElement) {
         if (UsbSchedulerAllocateElement(controller->Base.Scheduler,
                                         EHCI_QH_POOL, (uint8_t**)&endpointDescriptor) != OS_EOK) {
             goto queued;
         }
         assert(endpointDescriptor != NULL);
-        transfer->EndpointDescriptor = endpointDescriptor;
+        transfer->RootElement = endpointDescriptor;
 
         // Store and initialize the qh
         if (EhciQhInitialize(controller, transfer,

@@ -59,26 +59,35 @@ typedef struct UsbManagerTransfer {
     uuid_t                       ID;
     uuid_t                       DeviceID;
     enum USBTransferType         Type;
+    enum USBSpeed                Speed;
     USBAddress_t                 Address;
     uint16_t                     MaxPacketSize;
     enum USBManagerTransferState State;
-    enum USBTransferCode         Status;
     unsigned int                 Flags;
-    void*                        EndpointDescriptor;
+    void*                        RootElement;
+    int                          ChainLength;
 
     struct TransferElement* Elements;
     int                     ElementCount;
-    int                     ElementsCompleted;
-    
+
+    // ResultCode was the result of the transfer. It must
+    // be updated once the transfer has been determined to
+    // be either in error state or completed.
+    enum USBTransferCode ResultCode;
     union {
         struct {
-            size_t BytesTransferred;
+            uint32_t BytesTransferred;
+            // ElementsCompleted tracks the number of elements that has
+            // been completed to support partial transfers. This is only
+            // valid for asynchronous transfers, and should *not* be used for
+            // periodic transfers.
+            int ElementsCompleted;
         } Async;
         struct {
-            size_t   CurrentDataIndex;
-            uint32_t PeriodicBufferSize;
-            uint8_t  PeriodicBandwith;
-            uint8_t  PeriodicInterval;
+            uint32_t CurrentDataIndex;
+            uint32_t BufferSize;
+            uint8_t  Bandwith;
+            uint8_t  Interval;
         } Periodic;
     } TData;
 
@@ -96,9 +105,9 @@ typedef struct UsbManagerTransfer {
  * flags.
  */
 static inline void __Transfer_Reset(UsbManagerTransfer_t* transfer) {
-    transfer->Status = TransferOK;
-    transfer->State  = USBTRANSFER_STATE_QUEUED;
-    transfer->Flags  &= ~(__USBTRANSFER_FLAG_NOTIFIED | __USBTRANSFER_FLAG_SHORT);
+    transfer->ResultCode = USBTRANSFERCODE_INVALID;
+    transfer->State      = USBTRANSFER_STATE_QUEUED;
+    transfer->Flags     &= ~(__USBTRANSFER_FLAG_NOTIFIED | __USBTRANSFER_FLAG_SHORT);
 }
 
 /**
@@ -114,27 +123,54 @@ static inline bool __Transfer_IsAsync(UsbManagerTransfer_t* transfer) {
  */
 static inline bool __Transfer_IsPeriodic(UsbManagerTransfer_t* transfer) {
     return transfer->Type == USBTRANSFER_TYPE_INTERRUPT ||
-           transfer->Type == USBTRANSFER_TYPE_ISOC;
+        transfer->Type == USBTRANSFER_TYPE_ISOC;
+}
+
+/**
+ * @brief Returns true if the transaction may need to have it's data toggles
+ * synced in case of errors or a short transfer.
+ */
+static inline bool __Transfer_MaySync(UsbManagerTransfer_t* transfer) {
+    return transfer->Type == USBTRANSFER_TYPE_BULK ||
+        transfer->Type == USBTRANSFER_TYPE_INTERRUPT;
 }
 
 /**
  * @brief Returns whether the transfer has completed its transfer elements, or
  * experienced an error.
- * It may be deemed completed even with only partially executed elements if
- * the transfer was marked as SHORT.
  * This is only valid when the transfer is async.
  */
-static inline bool __Transfer_IsComplete(UsbManagerTransfer_t* transfer) {
-    if (transfer->Status != TransferOK) {
-        return true;
-    }
-    if (transfer->ElementsCompleted == transfer->ElementCount) {
-        return true;
-    }
+static inline bool __Transfer_IsPartial(UsbManagerTransfer_t* transfer) {
+    // If the transfer was short, then it cannot be partially done as short
+    // indicates no more data available.
     if (transfer->Flags & __USBTRANSFER_FLAG_SHORT) {
-        return true;
+        return false;
     }
-    return false;
+    return transfer->TData.Async.ElementsCompleted != transfer->ElementCount;
+}
+
+/**
+ * @brief Calculates the total length of the transfer based on the transfer
+ * elements initialized.
+ * @param transfer The transfer to calculate length for.
+ * @return The total transfer length.
+ */
+static inline uint32_t __Transfer_Length(UsbManagerTransfer_t* transfer) {
+    uint32_t length = 0;
+    for (int i = 0; i < transfer->ElementCount; i++) {
+        length += transfer->Elements[i].Length;
+    }
+    return length;
+}
+
+/**
+ * @brief Returns the transaction type of the transfer. This only checks the first
+ * transaction type, and can only be used for non-control transfers.
+ * @param transfer The transfer to retrieve the transaction type for.
+ * @return The transaction type of the transfer.
+ */
+static inline enum USBTransactionType __Transfer_TransactionType(UsbManagerTransfer_t* transfer) {
+    return transfer->Elements[0].Type;
 }
 
 /**

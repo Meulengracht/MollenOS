@@ -144,6 +144,17 @@ PACKED_TYPESTRUCT(OhciIsocTransferDescriptor, {
 #define OHCI_iTD_CROSSPAGE               (1 << 12)
 #define OHCI_iTD_OFFSETCODE(Flags)       ((Flags >> 12) & 0xF)
 
+/**
+ * @brief Condition codes for packets
+ */
+#define OHCI_CC_SUCCESS    0x0
+#define OHCI_CC_BABBLE1    0x1
+#define OHCI_CC_BABBLE2    0x2
+#define OHCI_CC_TOGGLES    0x3
+#define OHCI_CC_STALLED    0x4
+#define OHCI_CC_NORESPONSE 0x5
+#define OHCI_CC_INIT       0xF
+
 PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
     reg32_t  InterruptTable[OHCI_FRAMELIST_SIZE]; // Points to the 32 root nodes
     uint16_t CurrentFrame;       // Current Frame Number
@@ -340,15 +351,15 @@ OhciSetMode(
  * Queue Head Methods
  *******************************************************************************/
 
-/* OhciQhInitialize
+/* OHCIQHInitialize
  * Initializes the queue head data-structure and the associated
  * hcd flags. Afterwards the queue head is ready for use. */
 __EXTERN oserr_t
-OhciQhInitialize(
-    _In_ OhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer,
-    _In_ size_t                 Address,
-    _In_ size_t                 Endpoint);
+OHCIQHInitialize(
+    _In_ OhciController_t*      controller,
+    _In_ UsbManagerTransfer_t*  transfer,
+    _In_ size_t                 address,
+    _In_ size_t                 endpoint);
 
 /* OHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */
@@ -357,21 +368,21 @@ OHCIQHDump(
     _In_ OhciController_t*          Controller,
     _In_ OhciQueueHead_t*           Qh);
 
-/* OhciQhRestart
+/* OHCIQHRestart
  * Restarts an interrupt QH by resetting it to it's start state */
 __EXTERN void
-OhciQhRestart(
+OHCIQHRestart(
     _In_ OhciController_t*          Controller,
     _In_ UsbManagerTransfer_t*      Transfer);
 
-/* OhciQhLink 
+/* OHCIQHLink
  * Link a given queue head into the correct queue determined by Qh->Queue.
  * This can handle linkage of async and interrupt transfers. */
 __EXTERN void
-OhciQhLink(
-    _In_ OhciController_t*          Controller,
-    _In_ uint8_t          Type,
-    _In_ OhciQueueHead_t*           Qh);
+OHCIQHLink(
+    _In_ OhciController_t*          controller,
+    _In_ uint8_t          type,
+    _In_ OhciQueueHead_t*           qh);
 
 /*******************************************************************************
  * Transfer Descriptor Methods
@@ -395,22 +406,23 @@ OHCITDData(
     _In_ enum USBTransferType       type,
     _In_ uint32_t                   PID,
     _In_ uintptr_t                  dataAddress,
-    _In_ size_t                     length);
+    _In_ size_t                     length,
+    _In_ int                        toggle);
 
 /* OHCITDDump
  * Dumps the information contained in the descriptor by writing it. */
 __EXTERN void
 OHCITDDump(
-    _In_ OhciController_t*          Controller,
-    _In_ OhciTransferDescriptor_t*  Td);
+    _In_ OhciController_t*          controller,
+    _In_ OhciTransferDescriptor_t*  td);
 
 /* OHCITDVerify
  * Checks the transfer descriptors for errors and updates the transfer that is attached
  * with the bytes transferred and error status. */
 __EXTERN void
 OHCITDVerify(
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ OhciTransferDescriptor_t*  Td);
+    _In_ struct HCIProcessReasonScanContext* scanContext,
+    _In_ OhciTransferDescriptor_t*           td);
 
 /* OhciTdSynchronize
  * Synchronizes the toggle status of the transfer descriptor by retrieving
@@ -456,17 +468,17 @@ OHCIITDDump(
  * with the bytes transferred and error status. */
 __EXTERN void
 OHCIITDVerify(
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ OhciIsocTransferDescriptor_t*  Td);
+        _In_ struct HCIProcessReasonScanContext* scanContext,
+        _In_ OhciIsocTransferDescriptor_t*       iTD);
 
 /* OHCIITDRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 __EXTERN void
 OHCIITDRestart(
-    _In_ OhciController_t*              Controller,
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ OhciIsocTransferDescriptor_t*  Td);
+    _In_ OhciController_t*              controller,
+    _In_ UsbManagerTransfer_t*          transfer,
+    _In_ OhciIsocTransferDescriptor_t*  iTD);
 
 /*******************************************************************************
  * Queue Methods
@@ -480,18 +492,10 @@ OhciReloadAsynchronous(
         _In_ OhciController_t*    controller,
         _In_ enum USBTransferType transferType);
 
-/* OhciTransactionDispatch
- * Queues the transfer up in the controller hardware, after finalizing the
- * transactions and preparing them. */
-__EXTERN void
-OhciTransactionDispatch(
-    _In_ OhciController_t*      Controller,
-    _In_ UsbManagerTransfer_t*  Transfer);
-
-/* OhciGetStatusCode
+/* OHCIErrorCodeToTransferStatus
  * Retrieves a status-code from a given condition code */
 __EXTERN enum USBTransferCode
-OhciGetStatusCode(
+OHCIErrorCodeToTransferStatus(
     _In_ int                ConditionCode);
 
 #endif // !__USB_OHCI__

@@ -50,7 +50,7 @@ UhciQhInitialize(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
+    UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->RootElement;
     oserr_t       osStatus = OS_EOK;
 
     queueHead->Link  = UHCI_LINK_END;
@@ -60,7 +60,7 @@ UhciQhInitialize(
     // Allocate bandwidth if int/isoc
     if (transfer->Base.Type == USB_TRANSFER_INTERRUPT || transfer->Base.Type == USBTRANSFER_TYPE_ISOC) {
         osStatus = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
-                                                 transfer->Base.PeriodicInterval,
+                                                 transfer->Base.Interval,
                                                  transfer->Base.Transactions[0].Type,
                                                  transfer->Base.MaxPacketSize,
                                                  transfer->Base.Transactions[0].Length,
@@ -96,7 +96,7 @@ UhciQhRestart(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer)
 {
-    UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->EndpointDescriptor;
+    UhciQueueHead_t* queueHead = (UhciQueueHead_t*)transfer->RootElement;
     uintptr_t        linkPhysical = 0;
     
     // Do some extra processing for periodics
