@@ -52,6 +52,11 @@
 #define HS_USECS(bytes)         NS_TO_US(HS_NSECS(bytes))
 #define HS_USECS_ISO(bytes)     NS_TO_US(HS_NSECS_ISO(bytes))
 
+/**
+ * @brief Represents shared metadata about a transfer object.
+ * A transfer object represents every possible type of object that
+ * can be scheduled for the underlying USB controller.
+ */
 PACKED_TYPESTRUCT(UsbSchedulerObject, {
     uint32_t Flags;
     uint16_t Index;

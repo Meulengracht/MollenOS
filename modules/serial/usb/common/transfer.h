@@ -26,10 +26,9 @@
 #include <threads.h>
 
 #define __USBTRANSFER_FLAG_SHORT       0x1
-#define __USBTRANSFER_FLAG_SYNC        0x2
-#define __USBTRANSFER_FLAG_NOTIFIED    0x4
-#define __USBTRANSFER_FLAG_SILENT      0x8
-#define __USBTRANSFER_FLAG_FAILONSHORT 0x10
+#define __USBTRANSFER_FLAG_NOTIFIED    0x2
+#define __USBTRANSFER_FLAG_SILENT      0x4
+#define __USBTRANSFER_FLAG_FAILONSHORT 0x8
 
 enum USBManagerTransferState {
     USBTRANSFER_STATE_CREATED,
@@ -178,7 +177,7 @@ static inline enum USBTransactionType __Transfer_TransactionType(UsbManagerTrans
  * @param transfer 
  */
 extern void
-UsbManagerDestroyTransfer(
+USBTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer);
 
 /**
@@ -187,7 +186,7 @@ UsbManagerDestroyTransfer(
  * @param transfer 
  */
 extern void
-UsbManagerSendNotification(
+USBTransferNotify(
     _In_ UsbManagerTransfer_t* transfer);
 
 #endif //!__USB_COMMON_TRANSFER__

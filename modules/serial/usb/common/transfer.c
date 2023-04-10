@@ -35,12 +35,14 @@ static unsigned int
 __ConvertFlags(
         _In_ unsigned int flags)
 {
+    unsigned int tflags = 0;
     if (flags & USB_TRANSFER_NO_NOTIFICATION) {
-
+        tflags |= __USBTRANSFER_FLAG_SILENT;
     }
     if (flags & USB_TRANSFER_SHORT_NOT_OK) {
-
+        tflags |= __USBTRANSFER_FLAG_FAILONSHORT;
     }
+    return tflags;
 }
 
 static oserr_t
@@ -107,7 +109,7 @@ __FreeSGTables(
 }
 
 UsbManagerTransfer_t*
-UsbManagerCreateTransfer(
+USBTransferCreate(
         _In_ struct gracht_message* message,
         _In_ USBTransfer_t*         transfer,
         _In_ uuid_t                 transferId,
@@ -118,7 +120,7 @@ UsbManagerCreateTransfer(
     SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT];
     oserr_t                 oserr;
     
-    TRACE("UsbManagerCreateTransfer(transfer=0x%" PRIxIN ", message=0x%" PRIxIN ", deviceId=%u)",
+    TRACE("USBTransferCreate(transfer=0x%" PRIxIN ", message=0x%" PRIxIN ", deviceId=%u)",
         transfer, message, deviceId);
 
     controller = (UsbManagerController_t*)UsbManagerGetController(deviceId);
@@ -141,14 +143,12 @@ UsbManagerCreateTransfer(
     usbTransfer->Speed = transfer->Speed;
     memcpy(&usbTransfer->Address, &transfer->Address, sizeof(USBAddress_t));
     usbTransfer->MaxPacketSize = transfer->MaxPacketSize;
-    usbTransfer->State = USBTRANSFER_STATE_CREATED;
-    usbTransfer->Status = USBTRANSFERCODE_SUCCESS;
     usbTransfer->Flags = __ConvertFlags(transfer->Flags);
 
     // Get the SG tables before calculating TDs
     oserr = __AttachSGTables(usbTransfer, transfer, sgTables);
     if (oserr != OS_EOK) {
-        UsbManagerDestroyTransfer(usbTransfer);
+        USBTransferDestroy(usbTransfer);
         return NULL;
     }
 
@@ -159,14 +159,14 @@ UsbManagerCreateTransfer(
             transfer->Transactions,
             sgTables);
     if (!usbTransfer->ElementCount) {
-        UsbManagerDestroyTransfer(usbTransfer);
+        USBTransferDestroy(usbTransfer);
         return NULL;
     }
 
     // Allocate the transfer element array
     usbTransfer->Elements = calloc(sizeof(struct TransferElement), usbTransfer->ElementCount);
     if (usbTransfer->Elements == NULL) {
-        UsbManagerDestroyTransfer(usbTransfer);
+        USBTransferDestroy(usbTransfer);
         return NULL;
     }
     HCITransferElementFill(
@@ -202,7 +202,7 @@ __ReleaseSHMBuffers(
 }
 
 void
-UsbManagerDestroyTransfer(
+USBTransferDestroy(
     _In_ UsbManagerTransfer_t* transfer)
 {
     UsbManagerController_t* controller;
@@ -221,15 +221,13 @@ UsbManagerDestroyTransfer(
 }
 
 void
-UsbManagerSendNotification(
+USBTransferNotify(
     _In_ UsbManagerTransfer_t* transfer)
 {
-    size_t bytesTransferred;
-    
-    TRACE("UsbManagerSendNotification(transfer=0x%" PRIxIN ")", transfer);
-    
+    TRACE("USBTransferNotify(transfer=0x%" PRIxIN ")", transfer);
+
     // If user doesn't want, ignore
-    TRACE("UsbManagerSendNotification transfer type=%u", transfer->Base.Type);
+    TRACE("USBTransferNotify transfer type=%u", transfer->Base.Type);
     if (transfer->Flags & __USBTRANSFER_FLAG_SILENT) {
         return;
     }
@@ -239,20 +237,21 @@ UsbManagerSendNotification(
         if ((transfer->Flags & __USBTRANSFER_FLAG_NOTIFIED)) {
             return;
         }
+        ctt_usbhost_queue_response(
+                &transfer->DeferredMessage[0],
+                transfer->ResultCode,
+                transfer->TData.Async.BytesTransferred
+        );
         transfer->Flags |= __USBTRANSFER_FLAG_NOTIFIED;
-        bytesTransferred = transfer->TData.Async.BytesTransferred;
-
-        TRACE("UsbManagerSendNotification is notifiyng");
-        ctt_usbhost_queue_response(&transfer->DeferredMessage[0], transfer->Status, bytesTransferred);
     } else if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT) {
         ctt_usbhost_event_transfer_status_single(
                 __crt_get_module_server(),
                 transfer->DeferredMessage[0].client,
                 transfer->ID,
-                transfer->Status,
+                transfer->ResultCode,
                 transfer->TData.Periodic.CurrentDataIndex
         );
-        if (transfer->Status == USBTRANSFERCODE_SUCCESS) {
+        if (transfer->ResultCode == USBTRANSFERCODE_SUCCESS) {
             transfer->TData.Periodic.CurrentDataIndex = ADDLIMIT(
                     0, transfer->TData.Periodic.CurrentDataIndex,
                     transfer->Elements[0].Length,
@@ -268,21 +267,21 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
     UsbManagerTransfer_t* usbTransfer;
     oserr_t               oserr;
 
-    usbTransfer = UsbManagerCreateTransfer(
+    usbTransfer = USBTransferCreate(
             message,
             (USBTransfer_t*)transfer,
             transferId,
             deviceId
     );
     if (usbTransfer == NULL) {
-        ctt_usbhost_queue_response(message, TransferInvalid, 0);
+        ctt_usbhost_queue_response(message, USBTRANSFERCODE_INVALID, 0);
         return;
     }
 
     oserr = HCITransferQueue(usbTransfer);
     if (oserr != OS_EOK) {
-        UsbManagerDestroyTransfer(usbTransfer);
-        ctt_usbhost_queue_response(message, TransferInvalid, 0);
+        USBTransferDestroy(usbTransfer);
+        ctt_usbhost_queue_response(message, USBTRANSFERCODE_INVALID, 0);
     }
 }
 
@@ -292,14 +291,14 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     UsbManagerTransfer_t* usbTransfer;
     oserr_t               oserr;
 
-    usbTransfer = UsbManagerCreateTransfer(
+    usbTransfer = USBTransferCreate(
             message,
             (USBTransfer_t*)transfer,
             transferId,
             deviceId
     );
     if (usbTransfer == NULL) {
-        ctt_usbhost_queue_periodic_response(message, TransferInvalid);
+        ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_INVALID);
         return;
     }
 
@@ -310,8 +309,8 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     }
 
     if (oserr != OS_EOK) {
-        UsbManagerDestroyTransfer(usbTransfer);
-        ctt_usbhost_queue_periodic_response(message, TransferInvalid);
+        USBTransferDestroy(usbTransfer);
+        ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_INVALID);
         return;
     }
     ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_SUCCESS);
@@ -325,7 +324,7 @@ void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const
     UsbManagerTransfer_t*   transfer   = NULL;
 
     // Lookup transfer by iterating through available transfers
-    if (controller) {
+    if (controller != NULL) {
         foreach(node, &controller->TransactionList) {
             UsbManagerTransfer_t* itr = (UsbManagerTransfer_t*)node->value;
             if (itr->DeferredMessage[0].client == message->client &&

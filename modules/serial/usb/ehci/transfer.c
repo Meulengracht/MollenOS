@@ -62,7 +62,7 @@ HciTransactionFinalize(
 
     // Send notification for transfer if control/bulk immediately, but defer
     // cleanup till the doorbell has been rung
-    UsbManagerSendNotification(Transfer);
+    USBTransferNotify(Transfer);
     if (Reset != 0) {
         UsbManagerChainEnumerate(Controller, Transfer->RootElement,
             USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);

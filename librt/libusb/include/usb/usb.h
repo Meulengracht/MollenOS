@@ -49,11 +49,11 @@ enum USBTransferCode {
 
     // Transaction Error Codes
 	TransferStalled,
-	TransferNotResponding,
-	TransferInvalidToggles,
+    TransferNotResponding,
+    USBTRANSFERCODE_DATATOGGLEMISMATCH,
     TransferBufferError,
-	TransferNAK,
-	TransferBabble
+    TransferNAK,
+    TransferBabble
 };
 
 enum USBControllerKind {

@@ -581,7 +581,7 @@ __PrepareTransferDescriptors(
 {
     struct __PrepareContext context = {
             .Transfer = transfer,
-            .Toggle = UsbManagerGetToggle(transfer->DeviceID, &transfer->Address),
+            .Toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address),
             .TDIndex = __ElementsCompleted(transfer),
             .LastTDIndex = (__ElementsCompleted(transfer) + count - 1)
     };
@@ -603,7 +603,7 @@ __PrepareTransferDescriptors(
                 __PrepareDescriptor,
                 &context
         );
-        UsbManagerSetToggle(transfer->DeviceID, &transfer->Address, context.Toggle);
+        UsbManagerSetToggle(&controller->Base, &transfer->Address, context.Toggle);
     }
 }
 

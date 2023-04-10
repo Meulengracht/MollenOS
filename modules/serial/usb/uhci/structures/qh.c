@@ -58,7 +58,7 @@ UhciQhInitialize(
     queueHead->Object.Flags |= UHCI_LINK_QH;
 
     // Allocate bandwidth if int/isoc
-    if (transfer->Base.Type == USB_TRANSFER_INTERRUPT || transfer->Base.Type == USBTRANSFER_TYPE_ISOC) {
+    if (transfer->Type == USB_TRANSFER_INTERRUPT || transfer->Base.Type == USBTRANSFER_TYPE_ISOC) {
         osStatus = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
                                                  transfer->Base.Interval,
                                                  transfer->Base.Transactions[0].Type,
