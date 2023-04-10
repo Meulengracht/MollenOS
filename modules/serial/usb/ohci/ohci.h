@@ -150,10 +150,11 @@ PACKED_TYPESTRUCT(OhciIsocTransferDescriptor, {
 #define OHCI_CC_SUCCESS    0x0
 #define OHCI_CC_BABBLE1    0x1
 #define OHCI_CC_BABBLE2    0x2
-#define OHCI_CC_TOGGLES    0x3
+#define OHCI_CC_DTM        0x3 // DataToggleMismatch
 #define OHCI_CC_STALLED    0x4
 #define OHCI_CC_NORESPONSE 0x5
-#define OHCI_CC_INIT       0xF
+#define OHCI_CC_INIT0      0xE // Not Accessed
+#define OHCI_CC_INIT       0xF // Not Accessed
 
 PACKED_ATYPESTRUCT(volatile, OhciHCCA, {
     reg32_t  InterruptTable[OHCI_FRAMELIST_SIZE]; // Points to the 32 root nodes
@@ -437,9 +438,9 @@ OhciTdSynchronize(
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 __EXTERN void
 OHCITDRestart(
-    _In_ OhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ OhciTransferDescriptor_t*  Td);
+    _In_ OhciController_t*          controller,
+    _In_ UsbManagerTransfer_t*      transfer,
+    _In_ OhciTransferDescriptor_t*  td);
 
 /*******************************************************************************
  * Isochronous Transfer Descriptor Methods

@@ -163,8 +163,8 @@ OHCIErrorCodeToTransferStatus(
         return USBTRANSFERCODE_SUCCESS;
     } else if (ConditionCode == OHCI_CC_STALLED) {
         return TransferStalled;
-    } else if (ConditionCode == OHCI_CC_TOGGLES) {
-        return TransferInvalidToggles;
+    } else if (ConditionCode == OHCI_CC_DTM) {
+        return USBTRANSFERCODE_DATATOGGLEMISMATCH;
     } else if (ConditionCode == OHCI_CC_BABBLE2 || ConditionCode == OHCI_CC_BABBLE1) {
         return TransferBabble;
     } else if (ConditionCode == OHCI_CC_NORESPONSE) {
@@ -221,18 +221,6 @@ HCIProcessElement(
                 } else {
                     OHCIITDRestart((OhciController_t*)controller, transfer, (OhciIsocTransferDescriptor_t*)element);
                 }
-            }
-        } break;
-        
-        case HCIPROCESS_REASON_FIXTOGGLE: {
-            UsbManagerTransfer_t* transfer = context;
-            if (element == (uint8_t*)transfer->RootElement) {
-                return true; // Skip sync on queue-heads
-            }
-
-            // Isochronous transfers don't use toggles.
-            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                OhciTdSynchronize(transfer, (OhciTransferDescriptor_t*)element);
             }
         } break;
 

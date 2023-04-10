@@ -388,14 +388,6 @@ UhciTdValidate(
     _In_  UsbManagerTransfer_t*     transfer,
     _In_  UhciTransferDescriptor_t* td);
 
-/* UhciTdSynchronize
- * Synchronizes the toggle status of the transfer descriptor by retrieving
- * current and updating the pipe toggle. */
-__EXTERN void
-UhciTdSynchronize(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  UhciTransferDescriptor_t* Td);
-
 /* UhciTdRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */

@@ -33,7 +33,6 @@
 #include <ioset.h>
 #include <io.h>
 #include <ioctl.h>
-#include <os/usched/job.h>
 #include "manager.h"
 #include <stdlib.h>
 
@@ -50,7 +49,6 @@ struct usb_controller_device_index {
 struct USBManagerEndpointToggle {
     uuid_t Address;
     int    Toggle;
-    int    ToggleControl;
 };
 
 #define ITERATOR_CONTINUE           0
@@ -231,7 +229,7 @@ UsbManagerIterateTransfers(
         int                   status = itemCallback(controller, transfer, context);
         if (status & ITERATOR_REMOVE) {
             element_t* next = node->next;
-            UsbManagerDestroyTransfer(transfer);
+            USBTransferDestroy(transfer);
             node = next;
         }
         else {
@@ -273,56 +271,19 @@ UsbManagerGetToggle(
     return 0;
 }
 
-int
-USBManagerGetToggleControl(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address)
-{
-    struct USBManagerEndpointToggle* endpoint = hashtable_get(
-            &controller->Endpoints,
-            &(struct USBManagerEndpointToggle) {
-                    .Address = (((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress)
-            }
-    );
-    if (endpoint != NULL) {
-        return endpoint->ToggleControl;
-    }
-    return 0;
-}
-
 void
 UsbManagerSetToggle(
         _In_ UsbManagerController_t* controller,
         _In_ USBAddress_t*           address,
         _In_ int                     toggle)
 {
-    struct USBManagerEndpointToggle* endpoint;
-    uuid_t                           endpointAddress = ((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress;
-
-    endpoint = hashtable_get(
+    hashtable_set(
             &controller->Endpoints,
             &(struct USBManagerEndpointToggle) {
-                .Address = endpointAddress
+                    .Address = (((uint32_t)address->DeviceAddress << 8) | address->EndpointAddress),
+                    .Toggle = toggle
             }
     );
-    if (endpoint == NULL && toggle) {
-        hashtable_set(
-                &controller->Endpoints,
-                &(struct USBManagerEndpointToggle) {
-                    .Address = endpointAddress,
-                    .Toggle = toggle
-                }
-        );
-    } else if (endpoint != NULL) {
-        hashtable_set(
-                &controller->Endpoints,
-                &(struct USBManagerEndpointToggle) {
-                        .Address = endpointAddress,
-                        .Toggle = toggle,
-                        .ToggleControl = endpoint->ToggleControl
-                }
-        );
-    }
 }
 
 void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
@@ -375,7 +336,7 @@ __FinalizeTransfer(
         return OS_EINCOMPLETE;
     }
 
-    UsbManagerSendNotification(transfer);
+    USBTransferNotify(transfer);
     return OS_EOK;
 }
 
@@ -394,7 +355,7 @@ __ClearTransfer(
     // finalize the transfer
     HciTransactionFinalize(controller, transfer, 1);
     (void)__FinalizeTransfer(transfer);
-    UsbManagerDestroyTransfer(transfer);
+    USBTransferDestroy(transfer);
 }
 
 void
@@ -402,17 +363,6 @@ UsbManagerClearTransfers(
     _In_ UsbManagerController_t* controller)
 {
     list_clear(&controller->TransactionList, __ClearTransfer, controller);
-}
-
-static bool
-__IsAddressEqual(
-        _In_ USBAddress_t* a1,
-        _In_ USBAddress_t* a2)
-{
-    return a1->HubAddress      == a2->HubAddress &&
-           a1->PortAddress     == a2->PortAddress &&
-           a1->DeviceAddress   == a2->DeviceAddress &&
-           a1->EndpointAddress == a2->EndpointAddress;
 }
 
 static int
@@ -450,32 +400,6 @@ UsbManagerScheduleTransfers(
             controller,
             __ScheduleTransfer,
             NULL
-    );
-}
-
-static void
-__SynchronizeToggles(
-        _In_ UsbManagerController_t* controller,
-        _In_ UsbManagerTransfer_t*   transfer)
-{
-    TRACE("__SynchronizeToggles()");
-
-    // - The address must match (i.e. endpoints must match)
-    // - The transfer must be in progress, otherwise there is no reason
-    //   to fix the toggles
-    // - The transfer must be either bulk or interrupt
-    if (!__IsAddressEqual(&transfer->Address, &transfer->Address) ||
-        transfer->State != USBTRANSFER_STATE_QUEUED ||
-        __Transfer_IsPeriodic(transfer)) {
-        return;
-    }
-    UsbManagerChainEnumerate(
-            controller,
-            transfer->RootElement,
-            USB_CHAIN_DEPTH,
-            HCIPROCESS_REASON_FIXTOGGLE,
-            HCIProcessElement,
-            transfer
     );
 }
 
@@ -538,6 +462,22 @@ __TransferCompleted(
     return false;
 }
 
+static void
+__ResetTransfer(
+        _In_ UsbManagerController_t* controller,
+        _In_ UsbManagerTransfer_t*   transfer)
+{
+    UsbManagerChainEnumerate(
+            controller,
+            transfer->RootElement,
+            USB_CHAIN_DEPTH,
+            HCIPROCESS_REASON_RESET,
+            HCIProcessElement,
+            transfer
+    );
+    HCIProcessEvent(controller, HCIPROCESS_EVENT_RESET_DONE, transfer);
+}
+
 static int
 __CheckTransfer(
         _In_ UsbManagerController_t* controller,
@@ -567,6 +507,14 @@ __CheckTransfer(
         return ITERATOR_CONTINUE;
     }
 
+    // In the case of a data toggle mismatch, we reset the transfer and try again
+    // with updated toggles.
+    if (context.Result == USBTRANSFERCODE_DATATOGGLEMISMATCH) {
+        __ResetTransfer(controller, transfer);
+        __Transfer_Reset(transfer);
+        return ITERATOR_CONTINUE;
+    }
+
     // Update result-code for transfer, it's needed to report back to
     // the subscribers, and determine completion status.
     transfer->ResultCode = context.Result;
@@ -574,12 +522,12 @@ __CheckTransfer(
         transfer->Flags |= __USBTRANSFER_FLAG_SHORT;
     }
 
-    // In case of error transfers or short transfers, we have to sync data-toggles
-    // with all transactions going after this one for the same endpoint.
+    // On error transfers, or short transfers, the toggle may end up
+    // being invalid, if some processing has taken place. Update the stored
+    // toggle in preparation of failing transfers.
     if ((context.Result != USBTRANSFERCODE_SUCCESS || context.Short) &&
-        __Transfer_MaySync(transfer)) {
-        // TODO: do this
-        __SynchronizeToggles(controller, transfer);
+        context.ElementsProcessed > 0) {
+         UsbManagerSetToggle(controller, &transfer->Address, context.LastToggle);
     }
 
     // For INT and ISOC we support restarting of transfers.
@@ -587,21 +535,13 @@ __CheckTransfer(
         // In case of stall we need should not restart the transfer, and instead let it sit untill host
         // has reset the endpoint and cleared STALL condition.
         if (context.Result != TransferStalled) {
-            UsbManagerChainEnumerate(
-                    controller,
-                    transfer->RootElement,
-                    USB_CHAIN_DEPTH,
-                    HCIPROCESS_REASON_RESET,
-                    HCIProcessElement,
-                    transfer
-            );
-            HCIProcessEvent(controller, HCIPROCESS_EVENT_RESET_DONE, transfer);
+            __ResetTransfer(controller, transfer);
         }
 
         // Don't notify driver when recieving a NAK response. Simply means device had
         // no data to send us. I just wished that it would leave the data intact instead.
         if (context.Result != TransferNAK) {
-            UsbManagerSendNotification(transfer);
+            USBTransferNotify(transfer);
         }
 
         if (context.Result != TransferStalled) {
@@ -763,7 +703,7 @@ void
 UsbManagerDumpSchedule(
     _In_ UsbManagerController_t* Controller)
 {
-    UsbManagerTransfer_t PseudoTransferObject = { { { 0 } } };
+    UsbManagerTransfer_t PseudoTransferObject = { { 0 } };
     for (int i = 0; i < Controller->Scheduler->Settings.FrameCount; i++) {
         WARNING("-------------------------- FRAME %i ---------------------------------", i);
         UsbManagerChainEnumerate(

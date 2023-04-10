@@ -176,17 +176,6 @@ UsbManagerGetToggle(
         _In_ USBAddress_t*           address);
 
 /**
- * @brief
- * @param controller
- * @param address
- * @return
- */
-extern int
-USBManagerGetToggleControl(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address);
-
-/**
  * Updates the current toggle status of an endpoint address for the controller.
  * @param deviceId Device id of the controller.
  * @param address  Address of the endpoint.
@@ -194,12 +183,6 @@ USBManagerGetToggleControl(
  */
 extern void
 UsbManagerSetToggle(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address,
-        _In_ int                     toggle);
-
-extern void
-UsbManagerSetToggleControl(
         _In_ UsbManagerController_t* controller,
         _In_ USBAddress_t*           address,
         _In_ int                     toggle);

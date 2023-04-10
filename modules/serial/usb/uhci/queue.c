@@ -90,23 +90,17 @@ UhciGetStatusCode(
     TRACE("UhciGetStatusCode(conditionCode=%i)", conditionCode);
     if (conditionCode == 0) {
         return TransferFinished;
-    }
-    else if (conditionCode == 6) {
+    } else if (conditionCode == 6) {
         return TransferStalled;
-    }
-    else if (conditionCode == 1) {
-        return TransferInvalidToggles;
-    }
-    else if (conditionCode == 2) {
+    } else if (conditionCode == 1) {
+        return USBTRANSFERCODE_DATATOGGLEMISMATCH;
+    } else if (conditionCode == 2) {
         return TransferNotResponding;
-    }
-    else if (conditionCode == 3) {
+    } else if (conditionCode == 3) {
         return TransferNAK;
-    }
-    else if (conditionCode == 4) {
+    } else if (conditionCode == 4) {
         return TransferBabble;
-    }
-    else if (conditionCode == 5) {
+    } else if (conditionCode == 5) {
         return TransferBufferError;
     }
     else {
@@ -277,12 +271,12 @@ UhciConditionCodeToIndex(
     return counter;
 }
 
-int
+bool
 HCIProcessElement(
-    _In_ UsbManagerController_t* Controller,
-    _In_ uint8_t*                Element,
-    _In_ int                     Reason,
-    _In_ void*                   Context)
+        _In_ UsbManagerController_t* controller,
+        _In_ uint8_t*                element,
+        _In_ enum HCIProcessReason   reason,
+        _In_ void*                   context)
 {
     UhciTransferDescriptor_t* Td       = (UhciTransferDescriptor_t*)Element;
     UsbManagerTransfer_t*     Transfer = (UsbManagerTransfer_t*)Context;
@@ -325,16 +319,6 @@ HCIProcessElement(
                 UhciTdRestart(Transfer, Td);
             }
         } break;
-        
-        case HCIPROCESS_REASON_FIXTOGGLE: {
-            // If we have a queue-head allocated skip it
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC
-                && Element == (uint8_t*)Transfer->RootElement) {
-                // Skip sync on queue-heads
-                return ITERATOR_CONTINUE;
-            }
-            UhciTdSynchronize(Transfer, Td);
-        } break;
 
         case HCIPROCESS_REASON_LINK: {
             // For regular TDs, we must toggle data-toggles at this point, for
@@ -368,25 +352,26 @@ HCIProcessElement(
             UsbSchedulerFreeElement(Controller->Scheduler, Element);
         } break;
     }
-    return ITERATOR_CONTINUE;
+    return true;
 }
 
 void
 HCIProcessEvent(
-    _In_ UsbManagerController_t* Controller,
-    _In_ int                     Event,
-    _In_ void*                   Context)
+        _In_ UsbManagerController_t* controller,
+        _In_ enum HCIProcessEvent    event,
+        _In_ void*                   context)
 {
-    UsbManagerTransfer_t* Transfer = (UsbManagerTransfer_t*)Context;
-    TRACE("UhciProcessEvent(Event %i)", Event);
+    UsbManagerTransfer_t* Transfer = context;
+    TRACE("HCIProcessEvent(event=%i)", Event);
 
-    switch (Event) {
-        case USB_EVENT_RESTART_DONE: {
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                UhciQhRestart((UhciController_t*)Controller, Transfer);
+    switch (event) {
+        case HCIPROCESS_EVENT_RESET_DONE: {
+            if (Transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                UhciQhRestart((UhciController_t*)controller, Transfer);
             }
         } break;
 
-        default: break;
+        default:
+            break;
     }
 }
