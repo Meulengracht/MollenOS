@@ -373,7 +373,7 @@ void ctt_usbhost_dequeue_invocation(struct gracht_message* message, const uuid_t
 
     // Dequeue and send result back
     if (transfer != NULL) {
-        status = HciDequeueTransfer(transfer);
+        status = HCITransferDequeue(transfer);
     }
     
     ctt_usbhost_dequeue_response(message, status);

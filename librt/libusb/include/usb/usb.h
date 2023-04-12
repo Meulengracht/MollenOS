@@ -48,12 +48,12 @@ enum USBTransferCode {
     TransferNoBandwidth,
 
     // Transaction Error Codes
-	TransferStalled,
+    USBTRANSFERCODE_STALL,
     TransferNotResponding,
     USBTRANSFERCODE_DATATOGGLEMISMATCH,
     TransferBufferError,
     TransferNAK,
-    TransferBabble
+    USBTRANSFERCODE_BABBLE // CRC/Bitstuffing
 };
 
 enum USBControllerKind {

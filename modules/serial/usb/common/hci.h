@@ -115,14 +115,14 @@ HCIProcessEvent(
     _In_ enum HCIProcessEvent    event,
     _In_ void*                   context);
 
-/* HciTransactionFinalize
- * Finalizes a transfer by cleaning up resources allocated. This should free
- * all elements and unschedule elements. */
+/**
+ * @brief Finalizes a transfer by unlinking and maybe also cleaning any resources allocated.
+ */
 extern oserr_t
-HciTransactionFinalize(
-    _In_ UsbManagerController_t* Controller,
-    _In_ UsbManagerTransfer_t*   Transfer,
-    _In_ int                     Reset);
+HCITransferFinalize(
+        _In_ UsbManagerController_t* controller,
+        _In_ UsbManagerTransfer_t*   transfer,
+        _In_ bool                    deferredClean);
 
 /**
  * @brief Fills and queues a non-isoc transfer. No guarantee is made towards the transfer
@@ -142,10 +142,10 @@ extern oserr_t
 HCITransferQueueIsochronous(
     _In_ UsbManagerTransfer_t* transfer);
 
-/* HciDequeueTransfer 
+/* HCITransferDequeue
  * Removes a queued transfer from the controller's transfer list */
 extern oserr_t
-HciDequeueTransfer(
+HCITransferDequeue(
     _In_ UsbManagerTransfer_t* Transfer);
 
 /**

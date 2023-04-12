@@ -182,7 +182,7 @@ HCIControllerDestroy(
     UsbManagerDestroyController(Controller);
     
     // Cleanup scheduler
-    UhciQueueDestroy((UhciController_t*)Controller);
+    UHCIQueueDestroy((UhciController_t*)Controller);
 
     // Unregister the interrupt
     UnregisterInterruptSource(Controller->Interrupt);

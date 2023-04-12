@@ -178,11 +178,9 @@ OHCITDRestart(
     _In_ UsbManagerTransfer_t*     transfer,
     _In_ OhciTransferDescriptor_t* td)
 {
-    uintptr_t bufferStep;
     uintptr_t linkAddress = 0;
     int       toggle      = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
-    bufferStep = transfer->MaxPacketSize;
 
     td->OriginalFlags &= ~(OHCI_TD_TOGGLE);
     if (toggle) {
@@ -190,8 +188,8 @@ OHCITDRestart(
     }
     UsbManagerSetToggle(&controller->Base, &transfer->Address, toggle ^ 1);
 
-    // Adjust buffer if not just restart
-    if (transfer->ResultCode != TransferNAK) {
+    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != TransferNAK) {
+        uintptr_t bufferStep = transfer->MaxPacketSize;
         uintptr_t bufferBaseUpdated = ADDLIMIT(
                                               transfer->Elements[0].DataAddress,
                                               td->OriginalCbp,
@@ -199,12 +197,12 @@ OHCITDRestart(
                                               (transfer->Elements[0].DataAddress + transfer->Elements[0].Length)
         );
         td->OriginalCbp = LODWORD(bufferBaseUpdated);
+        td->BufferEnd   = td->Cbp + (bufferStep - 1);
     }
 
     // Reset attributes
-    td->Flags     = td->OriginalFlags;
-    td->Cbp       = td->OriginalCbp;
-    td->BufferEnd = td->Cbp + (bufferStep - 1);
+    td->Flags = td->OriginalFlags;
+    td->Cbp   = td->OriginalCbp;
     
     // Restore link
     UsbSchedulerGetPoolElement(

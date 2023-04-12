@@ -137,13 +137,12 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 #define UHCI_TD_GET_LEN(n)              ((n >> 21) & UHCI_TD_LENGTH_MASK)
 
 PACKED_TYPESTRUCT(UhciQueueHead, {
-    reg32_t                 Link;
-    reg32_t                 Child;
+    reg32_t Link;
+    reg32_t Child;
 
     // Software meta-data
-    UsbSchedulerObject_t    Object;
-    reg32_t                 BufferBase;
-    uint8_t                 Queue;
+    UsbSchedulerObject_t Object;
+    uint8_t              Queue;
 });
 
 /* Uhci Definitions
@@ -183,28 +182,28 @@ typedef struct _UhciController {
 
 /* UhciRead8
  * Reads a 1-byte value from the control-space of the controller */
-__EXTERN uint8_t
+extern uint8_t
 UhciRead8(
     _In_ UhciController_t*  Controller, 
     _In_ uint16_t           Register);
 
 /* UhciRead16
  * Reads a 2-byte value from the control-space of the controller */
-__EXTERN uint16_t
+extern uint16_t
 UhciRead16(
     _In_ UhciController_t*  Controller, 
     _In_ uint16_t           Register);
 
 /* UhciRead32
  * Reads a 4-byte value from the control-space of the controller */
-__EXTERN uint32_t
+extern uint32_t
 UhciRead32(
     _In_ UhciController_t*  Controller, 
     _In_ uint16_t           Register);
 
 /* UhciWrite8
  * Writes a single byte value to the control-space of the controller */
-__EXTERN void
+extern void
 UhciWrite8(
     _In_ UhciController_t*  Controller, 
     _In_ uint16_t           Register, 
@@ -212,7 +211,7 @@ UhciWrite8(
 
 /* UhciWrite16
  * Writes a 2-byte value to the control-space of the controller */
-__EXTERN void
+extern void
 UhciWrite16(
     _In_ UhciController_t*  Controller, 
     _In_ uint16_t           Register, 
@@ -220,7 +219,7 @@ UhciWrite16(
 
 /* UhciWrite32
  * Writes a 4-byte value to the control-space of the controller */
-__EXTERN void 
+extern void 
 UhciWrite32(
     _In_ UhciController_t*  Controller, 
     _In_ uint16_t           Register, 
@@ -230,52 +229,52 @@ UhciWrite32(
  * Controller Methods
  *******************************************************************************/
 
-/* UhciGetStatusCode
+/* UHCIErrorCodeToTransferStatus
  * Retrieves a status-code from a given condition code */
-__EXTERN enum USBTransferCode
-UhciGetStatusCode(
+extern enum USBTransferCode
+UHCIErrorCodeToTransferStatus(
     _In_ int                        conditionCode);
 
 /* UhciStart
  * Boots the controller, if it succeeds OS_EOK is returned. */
-__EXTERN oserr_t
+extern oserr_t
 UhciStart(
     _In_ UhciController_t*          Controller,
     _In_ int                        Wait);
 
 /* UhciStop
  * Stops the controller, if it succeeds OS_EOK is returned. */
-__EXTERN oserr_t
+extern oserr_t
 UhciStop(
     _In_ UhciController_t*          Controller);
 
 /* UhciReset
  * Resets the controller back to usable state, does not restart the controller. */
-__EXTERN oserr_t
+extern oserr_t
 UhciReset(
     _In_ UhciController_t*          Controller);
 
 /* UhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
-__EXTERN oserr_t
+extern oserr_t
 UhciQueueInitialize(
     _In_ UhciController_t*          Controller);
 
 /* UhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
-__EXTERN oserr_t
+extern oserr_t
 UhciQueueReset(
     _In_ UhciController_t*          Controller);
 
-/* UhciQueueDestroy
+/* UHCIQueueDestroy
  * Cleans up any resources allocated by QueueInitialize */
-__EXTERN oserr_t
-UhciQueueDestroy(
-    _In_ UhciController_t*          Controller);
+extern void
+UHCIQueueDestroy(
+    _In_ UhciController_t* controller);
 
 /* UhciPortPrepare
  * Resets the port and also clears out any event on the port line. */
-__EXTERN oserr_t
+extern oserr_t
 UhciPortPrepare(
     _In_ UhciController_t*          Controller, 
     _In_ int                        Index);
@@ -283,20 +282,20 @@ UhciPortPrepare(
 /* UhciPortsCheck
  * Enumerates ports and checks for any pending events. This also
  * notifies the usb-service if any connection changes appear */
-__EXTERN oserr_t
+extern oserr_t
 UhciPortsCheck(
     _In_ UhciController_t*          Controller);
 
 /* UhciUpdateCurrentFrame
  * Updates the current frame and stores it in the controller given.
  * OBS: Needs to be called regularly */
-__EXTERN void
+extern void
 UhciUpdateCurrentFrame(
     _In_ UhciController_t*          controller);
 
 /* UhciConditionCodeToIndex
  * Converts the given condition-code in a TD to a string-index */
-__EXTERN int
+extern int
 UhciConditionCodeToIndex(
     _In_ int                        conditionCode);
 
@@ -304,41 +303,44 @@ UhciConditionCodeToIndex(
  * Queue Head Methods
  *******************************************************************************/
 
-/* UhciQhInitialize
- * Initializes the queue head data-structure and the associated
- * hcd flags. Afterwards the queue head is ready for use. */
-__EXTERN oserr_t
-UhciQhInitialize(
+/**
+ * @brief
+ * @param controller
+ * @param transfer
+ * @return
+ */
+extern oserr_t
+UHCIQHInitialize(
     _In_ UhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer);
 
-/* UhciQhDump
+/* UHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */
-__EXTERN void
-UhciQhDump(
+extern void
+UHCIQHDump(
     _In_ UhciController_t*          controller,
     _In_ UhciQueueHead_t*           queueHead);
 
-/* UhciQhRestart
+/* UHCIQHRestart
  * Restarts an interrupt QH by resetting it to it's start state */
-__EXTERN void
-UhciQhRestart(
+extern void
+UHCIQHRestart(
     _In_ UhciController_t*          controller,
     _In_ UsbManagerTransfer_t*      transfer);
 
-/* UhciQhLink 
+/* UHCIQHLink
  * Link a given queue head into the correct queue determined by Qh->Queue.
  * This can handle linkage of async and interrupt transfers. */
-__EXTERN void
-UhciQhLink(
+extern void
+UHCIQHLink(
     _In_ UhciController_t*          Controller,
     _In_ UhciQueueHead_t*           queueHead);
 
-/* UhciQhUnlink 
+/* UHCIQHUnlink
  * Unlinks a given queue head from the correct queue determined by Qh->Queue.
  * This can handle removal of async and interrupt transfers. */
-__EXTERN void
-UhciQhUnlink(
+extern void
+UHCIQHUnlink(
     _In_ UhciController_t*          controller,
     _In_ UhciQueueHead_t*           queueHead);
 
@@ -346,55 +348,55 @@ UhciQhUnlink(
  * Transfer Descriptor Methods
  *******************************************************************************/
 
-/* UhciTdSetup
+/* UHCITDSetup
  * Creates a new setup token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN size_t
-UhciTdSetup(
-    _In_ UhciTransferDescriptor_t* Td,
-    _In_ size_t                    Device, 
-    _In_ size_t                    Endpoint,
-    _In_ uint8_t                Speed,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length);
+extern void
+UHCITDSetup(
+        _In_ UhciTransferDescriptor_t* td,
+        _In_ uint32_t                  device,
+        _In_ uint32_t                  endpoint,
+        _In_ enum USBSpeed             speed,
+        _In_ uintptr_t                 address);
 
-/* UhciTdIo
+/* UHCITDData
  * Creates a new io token td and initializes all the members.
  * The Td is immediately ready for execution. */
-__EXTERN size_t
-UhciTdIo(
-    _In_ UhciTransferDescriptor_t* Td,
-    _In_ uint8_t                   Type,
-    _In_ uint8_t                   transactionType,
-    _In_ size_t                    Device, 
-    _In_ size_t                    Endpoint,
-    _In_ uint8_t                   Speed,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length,
-    _In_ int                       Toggle);
+extern void
+UHCITDData(
+        _In_ UhciTransferDescriptor_t* td,
+        _In_ enum USBTransferType      type,
+        _In_ uint32_t                  pid,
+        _In_ uint32_t                  device,
+        _In_ uint32_t                  endpoint,
+        _In_ enum USBSpeed             speed,
+        _In_ uintptr_t                 address,
+        _In_ uint32_t                  length,
+        _In_ int                       toggle);
 
-/* UhciTdDump
+/* UHCITDDump
  * Dumps the information contained in the descriptor by writing it. */
-__EXTERN void
-UhciTdDump(
+extern void
+UHCITDDump(
     _In_ UhciController_t*          Controller,
     _In_ UhciTransferDescriptor_t*  Td);
 
-/* UhciTdValidate
+/* UHCITDVerify
  * Checks the transfer descriptors for errors and updates the transfer that is attached
  * with the bytes transferred and error status. */
-__EXTERN void
-UhciTdValidate(
-    _In_  UsbManagerTransfer_t*     transfer,
-    _In_  UhciTransferDescriptor_t* td);
+extern void
+UHCITDVerify(
+        _In_ struct HCIProcessReasonScanContext* context,
+        _In_ UhciTransferDescriptor_t*           td);
 
-/* UhciTdRestart
+/* UHCITDRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
-__EXTERN void
-UhciTdRestart(
-    _In_  UsbManagerTransfer_t*     Transfer,
-    _In_  UhciTransferDescriptor_t* Td);
+extern void
+UHCITDRestart(
+        _In_ UhciController_t*         controller,
+        _In_ UsbManagerTransfer_t*     transfer,
+        _In_ UhciTransferDescriptor_t* td);
 
 /*******************************************************************************
  * Transaction Methods
@@ -403,9 +405,9 @@ UhciTdRestart(
 /* UhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-__EXTERN void
-UhciTransactionDispatch(
-    _In_ UhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer);
+extern void
+__DispatchTransfer(
+    _In_ UhciController_t*          controller,
+    _In_ UsbManagerTransfer_t*      transfer);
 
 #endif // !__USB_UHCI__

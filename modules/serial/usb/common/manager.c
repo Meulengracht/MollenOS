@@ -353,7 +353,7 @@ __ClearTransfer(
     transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
 
     // finalize the transfer
-    HciTransactionFinalize(controller, transfer, 1);
+    HCITransferFinalize(controller, transfer, false);
     (void)__FinalizeTransfer(transfer);
     USBTransferDestroy(transfer);
 }
@@ -375,7 +375,7 @@ __ScheduleTransfer(
 
     if (transfer->State == USBTRANSFER_STATE_UNSCHEDULE) {
         TRACE("__ScheduleTransfer: [unschedule] transferID=%u", transfer->ID);
-        HciTransactionFinalize(controller, transfer, 0);
+        HCITransferFinalize(controller, transfer, true);
         transfer->State = USBTRANSFER_STATE_CLEANUP;
     } else if (transfer->State == USBTRANSFER_STATE_SCHEDULE) {
         TRACE("__ScheduleTransfer: [schedule] transferID=%u", transfer->ID);
@@ -534,7 +534,7 @@ __CheckTransfer(
     if (__Transfer_IsPeriodic(transfer)) {
         // In case of stall we need should not restart the transfer, and instead let it sit untill host
         // has reset the endpoint and cleared STALL condition.
-        if (context.Result != TransferStalled) {
+        if (context.Result != USBTRANSFERCODE_STALL) {
             __ResetTransfer(controller, transfer);
         }
 
@@ -544,12 +544,13 @@ __CheckTransfer(
             USBTransferNotify(transfer);
         }
 
-        if (context.Result != TransferStalled) {
+        if (context.Result != USBTRANSFERCODE_STALL) {
             __Transfer_Reset(transfer);
         }
     } else if (__Transfer_IsAsync(transfer)) {
-        HciTransactionFinalize(controller, transfer, 0);
-        if (!(controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN)) {
+        bool deferredClean = (controller->Scheduler->Settings.Flags & USB_SCHEDULER_DEFERRED_CLEAN) != 0;
+        HCITransferFinalize(controller, transfer, deferredClean);
+        if (!deferredClean) {
             transfer->RootElement = NULL;
             if (__FinalizeTransfer(transfer) == OS_EOK) {
                 return ITERATOR_REMOVE;

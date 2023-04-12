@@ -209,11 +209,11 @@ EhciGetStatusCode(
     } else if (ConditionCode == 4) {
         return TransferNotResponding;
     } else if (ConditionCode == 5) {
-        return TransferBabble;
+        return USBTRANSFERCODE_BABBLE;
     } else if (ConditionCode == 6) {
         return TransferBufferError;
     } else if (ConditionCode == 7) {
-        return TransferStalled;
+        return USBTRANSFERCODE_STALL;
     } else {
         WARNING("EHCI-Error: 0x%x (%s)", ConditionCode, EhciErrorMessages[ConditionCode]);
         return TransferInvalid;

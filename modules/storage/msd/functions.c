@@ -177,11 +177,11 @@ MsdScsiCommand(
         size_t BytesTransferred = 0;
         if (Direction == 0) Status = Device->Operations->ReadData(Device, BufferHandle, BufferOffset, DataToTransfer, &BytesTransferred);
         else                Status = Device->Operations->WriteData(Device, BufferHandle, BufferOffset, DataToTransfer, &BytesTransferred);
-        if (Status != TransferFinished && Status != TransferStalled) {
+        if (Status != TransferFinished && Status != USBTRANSFERCODE_STALL) {
             ERROR("Fatal error transfering data, skipping status stage");
             return Status;
         }
-        if (Status == TransferStalled) {
+        if (Status == USBTRANSFERCODE_STALL) {
             RetryCount--;
             if (RetryCount == 0) {
                 ERROR("Fatal error transfering data, skipping status stage");
