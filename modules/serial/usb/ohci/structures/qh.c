@@ -107,15 +107,13 @@ OHCIQHRestart(
     _In_ OhciController_t*     Controller,
     _In_ UsbManagerTransfer_t* Transfer)
 {
-    // Variables
-    OhciQueueHead_t *Qh     = (OhciQueueHead_t*)Transfer->RootElement;
-    uintptr_t LinkAddress   = 0;
+    OhciQueueHead_t* Qh          = (OhciQueueHead_t*)Transfer->RootElement;
+    uintptr_t        LinkAddress = 0;
 
-    // Reset the current link
     UsbSchedulerGetPoolElement(Controller->Base.Scheduler,
         (Qh->Object.DepthIndex >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK, 
         Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkAddress);
-    Qh->Current             = LinkAddress;
+    Qh->Current = LinkAddress;
     assert(Qh->Current != 0);
 }
 

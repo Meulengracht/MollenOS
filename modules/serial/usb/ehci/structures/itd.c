@@ -169,10 +169,10 @@ EhciiTdValidate(
         ConditionCode = EhciConditionCodeToIndex(EHCI_iTD_CC(Td->Transactions[i]));
         switch (ConditionCode) {
             case 1:
-                Transfer->Status = TransferStalled;
+                Transfer->Status = USBTRANSFERCODE_STALL;
                 break;
             case 2:
-                Transfer->Status = TransferBabble;
+                Transfer->Status = USBTRANSFERCODE_BABBLE;
                 break;
             case 3:
                 Transfer->Status = TransferBufferError;

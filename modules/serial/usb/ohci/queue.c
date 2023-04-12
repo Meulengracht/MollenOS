@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Open Host Controller Interface Driver
- * TODO:
- *    - Power Management
  */
 //#define __TRACE
 
@@ -31,9 +24,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* OhciErrorMessages
- * Textual representations of the possible error codes */
-const char *OhciErrorMessages[] = {
+const char* g_transferDescriptions[] = {
     "No Error",
     "CRC Error",
     "Bit Stuffing Violation",
@@ -162,18 +153,18 @@ OHCIErrorCodeToTransferStatus(
     if (ConditionCode == OHCI_CC_SUCCESS) {
         return USBTRANSFERCODE_SUCCESS;
     } else if (ConditionCode == OHCI_CC_STALLED) {
-        return TransferStalled;
+        return USBTRANSFERCODE_STALL;
     } else if (ConditionCode == OHCI_CC_DTM) {
         return USBTRANSFERCODE_DATATOGGLEMISMATCH;
     } else if (ConditionCode == OHCI_CC_BABBLE2 || ConditionCode == OHCI_CC_BABBLE1) {
-        return TransferBabble;
+        return USBTRANSFERCODE_BABBLE;
     } else if (ConditionCode == OHCI_CC_NORESPONSE) {
         return TransferNotResponding;
     } else if (ConditionCode == OHCI_CC_INIT) {
         return USBTRANSFERCODE_INVALID;
     } else {
-        TRACE("[ohci] [error_code]: 0x%x (%s)", ConditionCode, OhciErrorMessages[ConditionCode]);
-        return TransferBabble;
+        TRACE("[ohci] [error_code]: 0x%x (%s)", ConditionCode, g_transferDescriptions[ConditionCode]);
+        return USBTRANSFERCODE_BABBLE;
     }
 }
 

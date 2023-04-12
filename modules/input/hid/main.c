@@ -153,7 +153,7 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
     }
 
     if (hidDevice) {
-        if (status == TransferStalled) {
+        if (status == USBTRANSFERCODE_STALL) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
             UsbClearFeature(&hidDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,

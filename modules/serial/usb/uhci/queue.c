@@ -1,5 +1,5 @@
 /**
- * Copyright 2011 - 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,11 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS Universal Host Controller Interface Driver
- * Todo:
- * Power Management
  */
 
 //#define __TRACE
@@ -29,7 +24,7 @@
 #include <assert.h>
 #include <string.h>
 
-const char* UhciErrorMessages[] = {
+const char* g_transferDescriptions[] = {
     "No Error",
     "Bitstuff Error",
     "CRC/Timeout Error",
@@ -40,9 +35,8 @@ const char* UhciErrorMessages[] = {
     "Active"
 };
 
-/* UhciFFS
- * This function calculates the first free set of bits in a value */
-int __UhciGetFfs(
+static int
+__CalculateFFS(
     _In_ size_t value)
 {
     int set = 0;
@@ -70,11 +64,11 @@ int __UhciGetFfs(
     return set;
 }
 
-int
-UhciDetermineInterruptIndex(
+static int
+__CalculateInterruptIndex(
     _In_ size_t frame)
 {
-    int index = 8 - __UhciGetFfs(frame | UHCI_NUM_FRAMES);
+    int index = 8 - __CalculateFFS(frame | UHCI_NUM_FRAMES);
 
     // If we are out of bounds then assume async queue
     if (index < 2 || index > 8) {
@@ -84,14 +78,14 @@ UhciDetermineInterruptIndex(
 }
 
 enum USBTransferCode
-UhciGetStatusCode(
+UHCIErrorCodeToTransferStatus(
     _In_ int conditionCode)
 {
-    TRACE("UhciGetStatusCode(conditionCode=%i)", conditionCode);
+    TRACE("UHCIErrorCodeToTransferStatus(conditionCode=%i)", conditionCode);
     if (conditionCode == 0) {
-        return TransferFinished;
+        return USBTRANSFERCODE_SUCCESS;
     } else if (conditionCode == 6) {
-        return TransferStalled;
+        return USBTRANSFERCODE_STALL;
     } else if (conditionCode == 1) {
         return USBTRANSFERCODE_DATATOGGLEMISMATCH;
     } else if (conditionCode == 2) {
@@ -99,13 +93,12 @@ UhciGetStatusCode(
     } else if (conditionCode == 3) {
         return TransferNAK;
     } else if (conditionCode == 4) {
-        return TransferBabble;
+        return USBTRANSFERCODE_BABBLE;
     } else if (conditionCode == 5) {
         return TransferBufferError;
-    }
-    else {
-        TRACE("Error: 0x%x (%s)", conditionCode, UhciErrorMessages[conditionCode]);
-        return TransferInvalid;
+    } else {
+        TRACE("UHCIErrorCodeToTransferStatus: %s", g_transferDescriptions[conditionCode]);
+        return USBTRANSFERCODE_BABBLE;
     }
 }
 
@@ -122,7 +115,6 @@ UhciQueueResetInternalData(
     uintptr_t                 NullTdPhysical  = 0;
     int                       i;
 
-    // Debug
     TRACE("UhciQueueResetInternalData()");
 
     // Reset all tds and qhs
@@ -174,7 +166,7 @@ UhciQueueResetInternalData(
     // Set all entries to the 8 interrupt queues, and we
     // want them interleaved such that some queues get visited more than others
     for (i = 0; i < UHCI_NUM_FRAMES; i++) {
-        int Index = UhciDetermineInterruptIndex((size_t)i);
+        int Index = __CalculateInterruptIndex((size_t) i);
         UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
             Index, (uint8_t**)&Qh, &AsyncQhPhysical);
 
@@ -225,16 +217,15 @@ UhciQueueReset(
     return UhciQueueResetInternalData(Controller);
 }
 
-oserr_t
-UhciQueueDestroy(
-    _In_ UhciController_t* Controller)
+void
+UHCIQueueDestroy(
+    _In_ UhciController_t* controller)
 {
-    TRACE("UhciQueueDestroy()");
+    TRACE("UHCIQueueDestroy()");
 
     // Make sure everything is unscheduled, reset and clean
-    UhciQueueReset(Controller);
-    UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OS_EOK;
+    UhciQueueReset(controller);
+    UsbSchedulerDestroy(controller->Base.Scheduler);
 }
 
 // This should be called regularly to keep the stored frame relevant
@@ -271,6 +262,13 @@ UhciConditionCodeToIndex(
     return counter;
 }
 
+static bool
+__ElementIsQH(
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ const uint8_t*        element) {
+    return transfer->Type != USBTRANSFER_TYPE_ISOC && element == (uint8_t*)transfer->RootElement;
+}
+
 bool
 HCIProcessElement(
         _In_ UsbManagerController_t* controller,
@@ -278,79 +276,71 @@ HCIProcessElement(
         _In_ enum HCIProcessReason   reason,
         _In_ void*                   context)
 {
-    UhciTransferDescriptor_t* Td       = (UhciTransferDescriptor_t*)Element;
-    UsbManagerTransfer_t*     Transfer = (UsbManagerTransfer_t*)Context;
+    UhciTransferDescriptor_t* Td       = (UhciTransferDescriptor_t*)element;
+    TRACE("UHCIProcessElement(reason=%i)", reason);
 
-    // Debug
-    TRACE("UhciProcessElement(Reason %i)", Reason);
-    switch (Reason) {
+    switch (reason) {
         case HCIPROCESS_REASON_DUMP: {
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC
-                && Element == (uint8_t*)Transfer->RootElement) {
-                UhciQhDump((UhciController_t*)Controller, (UhciQueueHead_t*)Td);
-            }
-            else {
-                UhciTdDump((UhciController_t*)Controller, Td);
+            UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)context;
+            if (__ElementIsQH(transfer, element)) {
+                UHCIQHDump((UhciController_t*)controller, (UhciQueueHead_t*)Td);
+            } else {
+                UHCITDDump((UhciController_t*)controller, Td);
             }
         } break;
         
         case HCIPROCESS_REASON_SCAN: {
+            struct HCIProcessReasonScanContext* scanContext = context;
+
             // If we have a queue-head allocated skip it
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC &&
-                Element == (uint8_t*)Transfer->RootElement) {
-                // Skip scan on queue-heads
-                return ITERATOR_CONTINUE;
+            if (__ElementIsQH(scanContext->Transfer, element)) {
+                return true; // Skip scan on queue-heads
             }
 
             // Perform validation and handle short transfers
-            UhciTdValidate(Transfer, Td);
-            if (Transfer->Flags & TransferFlagShort) {
-                return ITERATOR_STOP; // Stop here
-            }
+            UHCITDVerify(scanContext, Td);
         } break;
         
         case HCIPROCESS_REASON_RESET: {
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                if (Element != (uint8_t*)Transfer->RootElement) {
-                    UhciTdRestart(Transfer, Td);
-                }
+            UsbManagerTransfer_t* transfer = context;
+            if (__ElementIsQH(transfer, element)) {
+                return true; // Skip reset on queue-heads
             }
-            else {
-                UhciTdRestart(Transfer, Td);
-            }
+            UHCITDRestart((UhciController_t*)controller, transfer, Td);
         } break;
 
         case HCIPROCESS_REASON_LINK: {
-            // For regular TDs, we must toggle data-toggles at this point, for
-            // QHs we must link it in.
-
+            UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)context;
 
             // If it's a queue head link that
-            if (Transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                UhciQhLink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
-                return ITERATOR_STOP;
+            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                UHCIQHLink((UhciController_t*)controller, (UhciQueueHead_t*)element);
+                return false;
             } else {
                 // Link all elements
-                UsbSchedulerLinkPeriodicElement(Controller->Scheduler, UHCI_TD_POOL, Element);
+                UsbSchedulerLinkPeriodicElement(controller->Scheduler, UHCI_TD_POOL, element);
             }
         } break;
         
         case HCIPROCESS_REASON_UNLINK: {
-            // If it's a queue head link that
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                UhciQhUnlink((UhciController_t*)Controller, (UhciQueueHead_t*)Element);
-                return ITERATOR_STOP;
+            UsbManagerTransfer_t* transfer = (UsbManagerTransfer_t*)context;
+            // If it's a queue head unlink that
+            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                UHCIQHUnlink((UhciController_t*)controller, (UhciQueueHead_t*)element);
+                return false;
             }
             else {
                 // Link all elements
-                UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, UHCI_TD_POOL, Element);
+                UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, UHCI_TD_POOL, element);
             }
         } break;
         
         case HCIPROCESS_REASON_CLEANUP: {
-            // Very simple cleanup
-            UsbSchedulerFreeElement(Controller->Scheduler, Element);
+            UsbSchedulerFreeElement(controller->Scheduler, element);
         } break;
+
+        default:
+            break;
     }
     return true;
 }
@@ -367,7 +357,7 @@ HCIProcessEvent(
     switch (event) {
         case HCIPROCESS_EVENT_RESET_DONE: {
             if (Transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                UhciQhRestart((UhciController_t*)controller, Transfer);
+                UHCIQHRestart((UhciController_t*)controller, Transfer);
             }
         } break;
 

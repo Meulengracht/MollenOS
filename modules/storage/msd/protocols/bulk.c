@@ -452,7 +452,7 @@ BulkSendCommand(
     // Sanitize for any transport errors
     if (Result != TransferFinished) {
         ERROR("Failed to send the CBW command, transfer-code %u", Result);
-        if (Result == TransferStalled) {
+        if (Result == USBTRANSFERCODE_STALL) {
             ERROR("Performing a recovery-reset on device.");
             if (BulkResetRecovery(Device, BULK_RESET_ALL) != OS_EOK) {
                 ERROR("Failed to reset device, it is now unusable.");
@@ -487,7 +487,7 @@ BulkReadData(
     // The host shall clear the Bulk-In pipe.
     if (transferStatus != TransferFinished) {
         ERROR("Data-stage failed with status %i, cleaning up bulk-in", transferStatus);
-        if (transferStatus == TransferStalled) {
+        if (transferStatus == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_IN);
         }
         else {
@@ -524,7 +524,7 @@ BulkWriteData(
     // The host shall clear the Bulk-In pipe.
     if (Result != TransferFinished) {
         ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
-        if (Result == TransferStalled) {
+        if (Result == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_OUT);
         }
         else {
@@ -561,7 +561,7 @@ BulkGetStatus(
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
     if (Result != TransferFinished) {
-        if (Result == TransferStalled) {
+        if (Result == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_IN);
             return BulkGetStatus(Device);
         }

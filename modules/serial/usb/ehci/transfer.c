@@ -48,13 +48,13 @@ EhciTransactionDispatch(
 }
 
 oserr_t
-HciTransactionFinalize(
+HCITransferFinalize(
     _In_ UsbManagerController_t*    Controller,
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ int                        Reset)
 {
     // Debug
-    TRACE("EhciTransactionFinalize(Id %u)", Transfer->ID);
+    TRACE("EHCITransferFinalize(Id %u)", Transfer->ID);
 
     // Always unlink
     UsbManagerChainEnumerate(Controller, Transfer->RootElement,
@@ -75,7 +75,7 @@ HciTransactionFinalize(
 }
 
 oserr_t
-HciDequeueTransfer(
+HCITransferDequeue(
     _In_ UsbManagerTransfer_t* Transfer)
 {
     EhciController_t* Controller;

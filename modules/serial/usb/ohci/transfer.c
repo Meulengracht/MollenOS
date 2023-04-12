@@ -96,19 +96,19 @@ OhciReloadAsynchronous(
 }
 
 oserr_t
-HciTransactionFinalize(
-    _In_ UsbManagerController_t* Controller,
-    _In_ UsbManagerTransfer_t*   Transfer,
-    _In_ int                     Reset)
+HCITransferFinalize(
+        _In_ UsbManagerController_t* controller,
+        _In_ UsbManagerTransfer_t*   transfer,
+        _In_ bool                    deferredClean)
 {
-    OhciController_t* OhciCtrl = (OhciController_t*)Controller;
+    OhciController_t* OhciCtrl = (OhciController_t*)controller;
 
     // Debug
-    TRACE("OhciTransactionFinalize()");
+    TRACE("OHCITransferFinalize()");
 
     // If it's an asynchronous transfer check for end of link, then we should
     // reload the asynchronous queue
-    if (__Transfer_IsAsync(Transfer)) {
+    if (__Transfer_IsAsync(transfer)) {
         // Check if the link of the QH is eol
         reg32_t Status  = READ_VOLATILE(OhciCtrl->Registers->HcCommandStatus);
         reg32_t Control = OhciCtrl->QueuesActive;
@@ -145,26 +145,26 @@ HciTransactionFinalize(
     }
 
     // Don't unlink asynchronous transfers
-    if (__Transfer_IsPeriodic(Transfer)) {
-        UsbManagerChainEnumerate(Controller, Transfer->RootElement,
-            USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, Transfer);
+    if (__Transfer_IsPeriodic(transfer)) {
+        UsbManagerChainEnumerate(controller, transfer->RootElement,
+                                 USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, transfer);
 
-        // Only do cleanup if reset is requested
-        if (Reset != 0) {
-            UsbManagerChainEnumerate(Controller, Transfer->RootElement,
-                USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
+        // Only do cleanup if not deferred
+        if (!deferredClean) {
+            UsbManagerChainEnumerate(controller, transfer->RootElement,
+                                     USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, transfer);
         }
     } else {
         // Always cleanup asynchronous transfers
-        UsbManagerChainEnumerate(Controller, Transfer->RootElement,
-            USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, Transfer);
+        UsbManagerChainEnumerate(controller, transfer->RootElement,
+                                 USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, transfer);
     }
     return OS_EOK;
 }
 
 oserr_t
-HciDequeueTransfer(
-    _In_ UsbManagerTransfer_t* Transfer)
+HCITransferDequeue(
+        _In_ UsbManagerTransfer_t* Transfer)
 {
     OhciController_t* Controller;
 
