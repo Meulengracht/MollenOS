@@ -184,10 +184,10 @@ UHCITDRestart(
     if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != TransferNAK) {
         uintptr_t bufferStep = transfer->MaxPacketSize;
         uintptr_t bufferBaseUpdated = ADDLIMIT(
-                transfer->Elements[0].DataAddress,
+                transfer->Elements[0].Data.Address,
                 td->Buffer,
                 bufferStep,
-                (transfer->Elements[0].DataAddress + transfer->Elements[0].Length)
+                (transfer->Elements[0].Data.Address + transfer->Elements[0].Length)
         );
         td->Buffer = LODWORD(bufferBaseUpdated);
     }

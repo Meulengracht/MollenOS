@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,116 +22,102 @@
  */
 //#define __TRACE
 #define __need_minmax
-#include <os/mollenos.h>
 #include <ddk/utils.h>
+#include <os/mollenos.h>
 #include "../ehci.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 
-size_t
-EhciTdFill(
-    _In_ EhciController_t*         Controller,
-    _In_ EhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 BufferAddress, 
-    _In_ size_t                    Length)
+static void
+__FillTD(
+    _In_ EhciController_t*         controller,
+    _In_ EhciTransferDescriptor_t* td,
+    _In_ uintptr_t                 dataAddress,
+    _In_ size_t                    length)
 {
-    size_t LengthRemaining  = Length;
-    size_t Count            = 0;
+    size_t bytesLeft = length;
     int    i;
 
     // Sanitize parameters
-    if (Length == 0 || BufferAddress == 0) {
-        return 0;
+    if (length == 0 || dataAddress == 0) {
+        return;
     }
 
     // Iterate buffers
-    for (i = 0; LengthRemaining > 0 && i < 5; i++) {
-        uintptr_t Physical = BufferAddress + (i * 0x1000);
+    for (i = 0; bytesLeft > 0 && i < 5; i++) {
+        uintptr_t address = dataAddress + (i * 0x1000);
         
         // Update buffer
-        Td->Buffers[i]    = (i == 0) ? Physical : EHCI_TD_BUFFER(Physical);
-        Td->ExtBuffers[i] = 0;
+        td->Buffers[i]    = (i == 0) ? address : EHCI_TD_BUFFER(address);
+        td->ExtBuffers[i] = 0;
 #if __BITS == 64
-        if (Controller->CParameters & EHCI_CPARAM_64BIT) {
-            Td->ExtBuffers[i] = EHCI_TD_EXTBUFFER(Physical);
+        if (controller->CParameters & EHCI_CPARAM_64BIT) {
+            td->ExtBuffers[i] = EHCI_TD_EXTBUFFER(address);
         }
 #endif
-
-        // Update iterators
-        Count           += MIN(0x1000, LengthRemaining);
-        LengthRemaining -= MIN(0x1000, LengthRemaining);
+        bytesLeft -= MIN(0x1000, bytesLeft);
     }
-    return Count; // Return how many bytes were "buffered"
 }
 
-size_t
-EhciTdSetup(
-    _In_ EhciController_t*         Controller,
-    _In_ EhciTransferDescriptor_t* Td,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length)
+void
+EHCITDSetup(
+    _In_ EhciController_t*         controller,
+    _In_ EhciTransferDescriptor_t* td,
+    _In_ uintptr_t                 dataAddress)
 {
-    size_t CalculatedLength;
-
     // Initialize the transfer-descriptor
-    Td->Link            = EHCI_LINK_END;
-    Td->AlternativeLink = EHCI_LINK_END;
+    td->Link            = EHCI_LINK_END;
+    td->AlternativeLink = EHCI_LINK_END;
 
-    Td->Status = EHCI_TD_ACTIVE;
-    Td->Token  = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
+    td->Status = EHCI_TD_ACTIVE;
+    td->Token  = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
 
     // Calculate the length of the setup transfer
-    CalculatedLength = EhciTdFill(Controller, Td, Address, Length);
-    Td->Length       = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
+    __FillTD(controller, td, dataAddress, sizeof(usb_packet_t));
+    td->Length = (uint16_t)(EHCI_TD_LENGTH(sizeof(usb_packet_t)));
 
     // Store copies
-    Td->OriginalLength = Td->Length;
-    Td->OriginalToken  = Td->Token;
-    return CalculatedLength;
+    td->OriginalLength = td->Length;
+    td->OriginalToken  = td->Token;
 }
 
-size_t
-EhciTdIo(
-    _In_ EhciController_t*         Controller,
-    _In_ EhciTransferDescriptor_t* Td,
-    _In_ size_t                    MaxPacketSize,
-    _In_ uint8_t                   transactionType,
-    _In_ uintptr_t                 Address,
-    _In_ size_t                    Length,
-    _In_ int                       Toggle)
+void
+EHCITDData(
+    _In_ EhciController_t*         controller,
+    _In_ EhciTransferDescriptor_t* td,
+    _In_ uint8_t                   pid,
+    _In_ uintptr_t                 dataAddress,
+    _In_ size_t                    length,
+    _In_ int                       toggle)
 {
-    uintptr_t NullTdPhysical   = 0;
-    uint8_t   PId              = (transactionType == USB_TRANSACTION_IN) ? EHCI_TD_IN : EHCI_TD_OUT;
-    size_t    CalculatedLength = 0;
-
     // Initialize the new Td
-    Td->Link   = EHCI_LINK_END;
-    Td->Status = EHCI_TD_ACTIVE;
-    Td->Token  = PId | EHCI_TD_ERRCOUNT;
+    td->Link   = EHCI_LINK_END;
+    td->Status = EHCI_TD_ACTIVE;
+    td->Token  = pid | EHCI_TD_ERRCOUNT;
 
     // Always stop transaction on short-reads
-    if (PId == EHCI_TD_IN) {
-        UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL,
-            EHCI_TD_NULL, NULL, &NullTdPhysical);
-        Td->AlternativeLink = LODWORD(NullTdPhysical);
+    if (pid == EHCI_TD_IN) {
+        uintptr_t NullTdPhysical = 0;
+        UsbSchedulerGetPoolElement(
+                controller->Base.Scheduler,
+                EHCI_TD_POOL,
+                EHCI_TD_NULL,
+                NULL,
+                &NullTdPhysical
+        );
+        td->AlternativeLink = LODWORD(NullTdPhysical);
     }
 
     // Calculate the length of the transfer
-    CalculatedLength = EhciTdFill(Controller, Td, Address, Length);
-    Td->Length       = (uint16_t)(EHCI_TD_LENGTH(CalculatedLength));
-    if (Toggle) {
-        Td->Length |= EHCI_TD_TOGGLE;
+    __FillTD(controller, td, dataAddress, length);
+    td->Length = (uint16_t)(EHCI_TD_LENGTH(length));
+    if (toggle) {
+        td->Length |= EHCI_TD_TOGGLE;
     }
 
-    // Calculate next toggle 
-    // if transaction spans multiple transfers
-    if (Length > 0 && !(DIVUP(Length, MaxPacketSize) % 2)) {
-        Toggle ^= 0x1;
-    }
-    Td->OriginalLength = Td->Length;
-    Td->OriginalToken  = Td->Token;
-    return CalculatedLength;
+    td->OriginalLength = td->Length;
+    td->OriginalToken  = td->Token;
 }
 
 void
@@ -253,6 +237,6 @@ EhciTdRestart(
     if (Transfer->Status != TransferNAK) {
         BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
             BufferStep, BufferBase + Transfer->Base.BufferSize);
-        EhciTdFill(Controller, Td, BufferBaseUpdated, BufferStep);
+        __FillTD(Controller, Td, BufferBaseUpdated, BufferStep);
     }
 }

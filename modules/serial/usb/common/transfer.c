@@ -145,6 +145,11 @@ USBTransferCreate(
     usbTransfer->MaxPacketSize = transfer->MaxPacketSize;
     usbTransfer->Flags = __ConvertFlags(transfer->Flags);
 
+    if (__Transfer_IsPeriodic(usbTransfer)) {
+        usbTransfer->TData.Periodic.Bandwith = transfer->PeriodicBandwith;
+        usbTransfer->TData.Periodic.Interval = transfer->PeriodicInterval;
+    }
+
     // Get the SG tables before calculating TDs
     oserr = __AttachSGTables(usbTransfer, transfer, sgTables);
     if (oserr != OS_EOK) {
@@ -154,8 +159,7 @@ USBTransferCreate(
 
     // Count the needed number of transfer elements
     usbTransfer->ElementCount = HCITransferElementsNeeded(
-            transfer->Type,
-            transfer->MaxPacketSize,
+            usbTransfer,
             transfer->Transactions,
             sgTables);
     if (!usbTransfer->ElementCount) {
@@ -170,11 +174,9 @@ USBTransferCreate(
         return NULL;
     }
     HCITransferElementFill(
-            transfer->Type,
-            transfer->MaxPacketSize,
+            usbTransfer,
             transfer->Transactions,
-            sgTables,
-            usbTransfer->Elements
+            sgTables
     );
     __FreeSGTables(sgTables);
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
