@@ -101,47 +101,45 @@ HCITransferFinalize(
         _In_ UsbManagerTransfer_t*   transfer,
         _In_ bool                    deferredClean)
 {
-    OhciController_t* OhciCtrl = (OhciController_t*)controller;
-
-    // Debug
+    OhciController_t* ohciController = (OhciController_t*)controller;
     TRACE("OHCITransferFinalize()");
 
     // If it's an asynchronous transfer check for end of link, then we should
     // reload the asynchronous queue
     if (__Transfer_IsAsync(transfer)) {
         // Check if the link of the QH is eol
-        reg32_t Status  = READ_VOLATILE(OhciCtrl->Registers->HcCommandStatus);
-        reg32_t Control = OhciCtrl->QueuesActive;
+        reg32_t Status  = READ_VOLATILE(ohciController->Registers->HcCommandStatus);
+        reg32_t Control = ohciController->QueuesActive;
         if ((Status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
-            if (OhciCtrl->TransactionsWaitingControl != 0) {
+            if (ohciController->TransactionsWaitingControl != 0) {
                 // Conditions for control fulfilled
-                OhciReloadAsynchronous(OhciCtrl, USBTRANSFER_TYPE_CONTROL);
+                OhciReloadAsynchronous(ohciController, USBTRANSFER_TYPE_CONTROL);
                 Status  |= OHCI_COMMAND_CONTROL_FILLED;
                 Control |= OHCI_CONTROL_CONTROL_ACTIVE;
             }
             else {
-                if (READ_VOLATILE(OhciCtrl->Registers->HcControlHeadED) == 0) {
+                if (READ_VOLATILE(ohciController->Registers->HcControlHeadED) == 0) {
                     Control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
                 }
             }
         }
         if ((Status & OHCI_COMMAND_BULK_FILLED) == 0) {
-            if (OhciCtrl->TransactionsWaitingBulk != 0) {
+            if (ohciController->TransactionsWaitingBulk != 0) {
                 // Conditions for bulk fulfilled
-                OhciReloadAsynchronous(OhciCtrl, USBTRANSFER_TYPE_BULK);
+                OhciReloadAsynchronous(ohciController, USBTRANSFER_TYPE_BULK);
                 Status  |= OHCI_COMMAND_BULK_FILLED;
                 Control |= OHCI_CONTROL_BULK_ACTIVE;
             }
             else {
-                if (READ_VOLATILE(OhciCtrl->Registers->HcBulkHeadED) == 0) {
+                if (READ_VOLATILE(ohciController->Registers->HcBulkHeadED) == 0) {
                     Control &= ~(OHCI_CONTROL_BULK_ACTIVE);
                 }
             }
         }
 
         // Update
-        WRITE_VOLATILE(OhciCtrl->Registers->HcCommandStatus, Status);
-        OhciCtrl->QueuesActive = Control;
+        WRITE_VOLATILE(ohciController->Registers->HcCommandStatus, Status);
+        ohciController->QueuesActive = Control;
     }
 
     // Don't unlink asynchronous transfers
@@ -230,17 +228,16 @@ __CalculatePacketMetrics(
 
 int
 HCITransferElementsNeeded(
-        _In_ enum USBTransferType transferType,
-        _In_ size_t               maxPacketSize,
-        _In_ USBTransaction_t     transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t         sgTables[USB_TRANSACTIONCOUNT])
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
 {
     int tdsNeeded = 0;
 
     // In regard to isochronous transfers, we must allocate an
     // additional transfer descriptor, which acts as the 'zero-td'.
     // All isochronous transfers should end with a zero td.
-    if (transferType == USBTRANSFER_TYPE_ISOC) {
+    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
         tdsNeeded++;
     }
 
@@ -261,8 +258,8 @@ HCITransferElementsNeeded(
                     uintptr_t waste;
                     uint32_t  count;
                     __CalculatePacketMetrics(
-                            transferType,
-                            maxPacketSize,
+                            transfer->Type,
+                            transfer->MaxPacketSize,
                             &transactions[i],
                             &sgTables[i],
                             bytesLeft,
@@ -275,8 +272,8 @@ HCITransferElementsNeeded(
 
                     // If this was the last packet, and the packet was filled, and
                     // the transaction is an 'OUT', then we must add a ZLP.
-                    if (transferType != USBTRANSFER_TYPE_ISOC &&
-                        bytesLeft == 0 && count == maxPacketSize) {
+                    if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
+                        bytesLeft == 0 && count == transfer->Type) {
                         if (transactions[i].Type == USB_TRANSACTION_OUT) {
                             tdsNeeded++;
                         }
@@ -290,54 +287,52 @@ HCITransferElementsNeeded(
 
 void
 HCITransferElementFill(
-        _In_ enum USBTransferType    transferType,
-        _In_ size_t                  maxPacketSize,
-        _In_ USBTransaction_t        transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT],
-        _In_ struct TransferElement* elements)
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
 {
     for (int i = 0, ei = 0; i < USB_TRANSACTIONCOUNT; i++) {
         uint8_t type = transactions[i].Type;
 
         if (type == USB_TRANSACTION_SETUP) {
-            elements[ei].Type = USB_TRANSACTION_SETUP;
+            transfer->Elements[ei].Type = USB_TRANSACTION_SETUP;
             __CalculatePacketMetrics(
-                    transferType,
-                    maxPacketSize,
+                    transfer->Type,
+                    transfer->MaxPacketSize,
                     &transactions[i],
                     &sgTables[i],
                     transactions[i].Length,
-                    &elements[ei].DataAddress,
-                    &elements[ei].Length
+                    &transfer->Elements[ei].Data.Address,
+                    &transfer->Elements[ei].Length
             );
             ei++;
         } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
             // Special case: zero length packets
             if (transactions[i].BufferHandle == UUID_INVALID) {
-                elements[ei++].Type = type;
+                transfer->Elements[ei++].Type = type;
             } else {
                 size_t bytesLeft = transactions[i].Length;
                 while (bytesLeft) {
                     __CalculatePacketMetrics(
-                            transferType,
-                            maxPacketSize,
+                            transfer->Type,
+                            transfer->MaxPacketSize,
                             &transactions[i],
                             &sgTables[i],
                             bytesLeft,
-                            &elements[ei].DataAddress,
-                            &elements[ei].Length
+                            &transfer->Elements[ei].Data.Address,
+                            &transfer->Elements[ei].Length
                     );
 
-                    bytesLeft -= elements[ei++].Length;
+                    bytesLeft -= transfer->Elements[ei++].Length;
 
                     // Cases left to handle:
                     // Generic: adding ZLP on MPS boundary OUTs
                     // Isoc:    adding ZLP
                     if (bytesLeft == 0) {
-                        if (transferType == USBTRANSFER_TYPE_ISOC) {
-                            elements[ei].Type = type;
-                        } else if (transactions[i].Type == USB_TRANSACTION_OUT && elements[ei].Length == maxPacketSize) {
-                            elements[ei].Type = USB_TRANSACTION_OUT;
+                        if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
+                            transfer->Elements[ei].Type = type;
+                        } else if (transactions[i].Type == USB_TRANSACTION_OUT && transfer->Elements[ei].Length == transfer->MaxPacketSize) {
+                            transfer->Elements[ei].Type = USB_TRANSACTION_OUT;
                         }
                     }
                 }
@@ -487,14 +482,17 @@ __PrepareDescriptor(
 
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case USB_TRANSACTION_SETUP: {
-            OHCITDSetup(td, context->Transfer->Elements[context->TDIndex].DataAddress);
+            OHCITDSetup(
+                    td,
+                    context->Transfer->Elements[context->TDIndex].Data.Address
+            );
         } break;
         case USB_TRANSACTION_IN: {
             OHCITDData(
                     td,
                     context->Transfer->Type,
                     OHCI_TD_IN,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length,
                     context->Toggle
             );
@@ -504,7 +502,7 @@ __PrepareDescriptor(
                     td,
                     context->Transfer->Type,
                     OHCI_TD_OUT,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length,
                     context->Toggle
             );
@@ -538,7 +536,7 @@ __PrepareIsochronousDescriptor(
                     iTD,
                     context->Transfer->Type,
                     OHCI_TD_IN,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length
             );
         } break;
@@ -547,7 +545,7 @@ __PrepareIsochronousDescriptor(
                     iTD,
                     context->Transfer->Type,
                     OHCI_TD_OUT,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length
             );
         } break;

@@ -42,8 +42,19 @@ enum USBManagerTransferState {
 
 struct TransferElement {
     enum USBTransactionType Type;
-    uintptr_t               DataAddress;
     uint32_t                Length;
+    union {
+        // DataAddress holds the physical start address of the
+        // transfer element buffer. This is only used for UHCI
+        // and OHCI descritpors that do not support SG.
+        uintptr_t Address;
+        struct {
+            // Isoc TDs hold up to 8 transactions
+            // Normal TDs hold up to 5 transactions
+            uintptr_t Addresses[8];
+            uint32_t  Lengths[8];
+        } EHCI;
+    } Data;
 };
 
 /**

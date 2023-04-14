@@ -95,11 +95,11 @@ EhciTransferFill(
                 if (Type == USB_TRANSACTION_SETUP) {
                     TRACE(" > Creating setup packet");
                     Toggle = 0; // Initial toggle must ALWAYS be 0 for setup
-                    Length = EhciTdSetup(Controller, Td, Address, Length);
+                    Length = EHCITDSetup(Controller, Td, Address, Length);
                 }
                 else {
                     TRACE(" > Creating io packet");
-                    Length = EhciTdIo(Controller, Td, Transfer->Base.MaxPacketSize,
+                    Length = EHCITDData(Controller, Td, Transfer->Base.MaxPacketSize,
                         Type, Address, Length, Toggle);
                 }
             }
@@ -198,7 +198,7 @@ HCITransferQueue(
         goto queued;
     }
 
-    EhciTransactionDispatch(controller, transfer);
+    __DispatchTransfer(controller, transfer);
     status = TransferInProgress;
     goto exit;
 

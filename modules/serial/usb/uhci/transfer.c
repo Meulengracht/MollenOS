@@ -129,17 +129,16 @@ __CalculatePacketMetrics(
 
 int
 HCITransferElementsNeeded(
-        _In_ enum USBTransferType transferType,
-        _In_ size_t               maxPacketSize,
-        _In_ USBTransaction_t     transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t         sgTables[USB_TRANSACTIONCOUNT])
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
 {
     int tdsNeeded = 0;
 
     // In regard to isochronous transfers, we must allocate an
     // additional transfer descriptor, which acts as the 'zero-td'.
     // All isochronous transfers should end with a zero td.
-    if (transferType == USBTRANSFER_TYPE_ISOC) {
+    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
         tdsNeeded++;
     }
 
@@ -172,8 +171,8 @@ HCITransferElementsNeeded(
 
                     // If this was the last packet, and the packet was filled, and
                     // the transaction is an 'OUT', then we must add a ZLP.
-                    if (transferType != USBTRANSFER_TYPE_ISOC &&
-                        bytesLeft == 0 && count == maxPacketSize) {
+                    if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
+                        bytesLeft == 0 && count == transfer->MaxPacketSize) {
                         if (transactions[i].Type == USB_TRANSACTION_OUT) {
                             tdsNeeded++;
                         }
@@ -187,29 +186,27 @@ HCITransferElementsNeeded(
 
 void
 HCITransferElementFill(
-        _In_ enum USBTransferType    transferType,
-        _In_ size_t                  maxPacketSize,
-        _In_ USBTransaction_t        transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT],
-        _In_ struct TransferElement* elements)
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
+        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
 {
     for (int i = 0, ei = 0; i < USB_TRANSACTIONCOUNT; i++) {
         uint8_t type = transactions[i].Type;
 
         if (type == USB_TRANSACTION_SETUP) {
-            elements[ei].Type = USB_TRANSACTION_SETUP;
+            transfer->Elements[ei].Type = USB_TRANSACTION_SETUP;
             __CalculatePacketMetrics(
                     &transactions[i],
                     &sgTables[i],
                     transactions[i].Length,
-                    &elements[ei].DataAddress,
-                    &elements[ei].Length
+                    &transfer->Elements[ei].Data.Address,
+                    &transfer->Elements[ei].Length
             );
             ei++;
         } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
             // Special case: zero length packets
             if (transactions[i].BufferHandle == UUID_INVALID) {
-                elements[ei++].Type = type;
+                transfer->Elements[ei++].Type = type;
             } else {
                 size_t bytesLeft = transactions[i].Length;
                 while (bytesLeft) {
@@ -217,20 +214,20 @@ HCITransferElementFill(
                             &transactions[i],
                             &sgTables[i],
                             bytesLeft,
-                            &elements[ei].DataAddress,
-                            &elements[ei].Length
+                            &transfer->Elements[ei].Data.Address,
+                            &transfer->Elements[ei].Length
                     );
 
-                    bytesLeft -= elements[ei++].Length;
+                    bytesLeft -= transfer->Elements[ei++].Length;
 
                     // Cases left to handle:
                     // Generic: adding ZLP on MPS boundary OUTs
                     // Isoc:    adding ZLP
                     if (bytesLeft == 0) {
-                        if (transferType == USBTRANSFER_TYPE_ISOC) {
-                            elements[ei].Type = type;
-                        } else if (transactions[i].Type == USB_TRANSACTION_OUT && elements[ei].Length == maxPacketSize) {
-                            elements[ei].Type = USB_TRANSACTION_OUT;
+                        if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
+                            transfer->Elements[ei].Type = type;
+                        } else if (transactions[i].Type == USB_TRANSACTION_OUT && transfer->Elements[ei].Length == transfer->MaxPacketSize) {
+                            transfer->Elements[ei].Type = USB_TRANSACTION_OUT;
                         }
                     }
                 }
@@ -426,7 +423,7 @@ __PrepareDescriptor(
                     context->Transfer->Address.DeviceAddress,
                     context->Transfer->Address.EndpointAddress,
                     context->Transfer->Speed,
-                    context->Transfer->Elements[context->TDIndex].DataAddress
+                    context->Transfer->Elements[context->TDIndex].Data.Address
             );
         } break;
         case USB_TRANSACTION_IN: {
@@ -437,7 +434,7 @@ __PrepareDescriptor(
                     context->Transfer->Address.DeviceAddress,
                     context->Transfer->Address.EndpointAddress,
                     context->Transfer->Speed,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length,
                     context->Toggle
             );
@@ -450,7 +447,7 @@ __PrepareDescriptor(
                     context->Transfer->Address.DeviceAddress,
                     context->Transfer->Address.EndpointAddress,
                     context->Transfer->Speed,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length,
                     context->Toggle
             );

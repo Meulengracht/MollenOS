@@ -115,6 +115,6 @@ HCITransferQueueIsochronous(
 
     transfer->RootElement = (void*)firstTd;
 
-    EhciTransactionDispatch(controller, transfer);
+    __DispatchTransfer(controller, transfer);
     return TransferInProgress;
 }
