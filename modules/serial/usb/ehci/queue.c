@@ -179,10 +179,8 @@ EhciQueueDestroy(
     return OS_EOK;
 }
 
-/* EhciConditionCodeToIndex
- * Converts a given condition bit-index to number */
 int
-EhciConditionCodeToIndex(
+EHCIConditionCodeToIndex(
     _In_ unsigned ConditionCode)
 {
     // Variables
@@ -197,26 +195,24 @@ EhciConditionCodeToIndex(
     return bCount;
 }
 
-/* EhciGetStatusCode
- * Retrieves a status-code from a given condition code */
 enum USBTransferCode
-EhciGetStatusCode(
+EHCIErrorCodeToTransferStatus(
     _In_ int ConditionCode)
 {
     // One huuuge if/else
     if (ConditionCode == 0) {
-        return TransferFinished;
+        return USBTRANSFERCODE_SUCCESS;
     } else if (ConditionCode == 4) {
-        return TransferNotResponding;
+        return USBTRANSFERCODE_NORESPONSE;
     } else if (ConditionCode == 5) {
         return USBTRANSFERCODE_BABBLE;
     } else if (ConditionCode == 6) {
-        return TransferBufferError;
+        return USBTRANSFERCODE_BUFFERERROR;
     } else if (ConditionCode == 7) {
         return USBTRANSFERCODE_STALL;
     } else {
         WARNING("EHCI-Error: 0x%x (%s)", ConditionCode, EhciErrorMessages[ConditionCode]);
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 }
 
@@ -232,7 +228,7 @@ EhciSetPrefetching(
     }
     
     // Detect type of prefetching
-    if (Type == USBTRANSFER_TYPE_CONTROL || Type == USB_TRANSFER_BULK) {
+    if (Type == USBTRANSFER_TYPE_CONTROL || Type == USBTRANSFER_TYPE_BULK) {
         if (!Set) {
             Command &= ~(EHCI_COMMAND_ASYNC_PREFETCH);
             WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
@@ -266,7 +262,7 @@ EhciEnableScheduler(
     reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
 
     // Sanitize the current status
-    if (Type == USBTRANSFER_TYPE_CONTROL || Type == USB_TRANSFER_BULK) {
+    if (Type == USBTRANSFER_TYPE_CONTROL || Type == USBTRANSFER_TYPE_BULK) {
         if (Status & EHCI_STATUS_ASYNC_ACTIVE) {
             // Should we ring the doorbell? I don't believe it's entirely neccessary
             // as we use reclamation heads @todo
@@ -274,8 +270,7 @@ EhciEnableScheduler(
         }
         Command |= EHCI_COMMAND_ASYNC_ENABLE;
         WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
-    }
-    else {
+    } else {
         if (Status & EHCI_STATUS_PERIODIC_ACTIVE) {
             return;
         }
@@ -293,14 +288,13 @@ EhciDisableScheduler(
     reg32_t Command = READ_VOLATILE(Controller->OpRegisters->UsbCommand);
 
     // Sanitize its current status
-    if (Type == USBTRANSFER_TYPE_CONTROL || Type == USB_TRANSFER_BULK) {
+    if (Type == USBTRANSFER_TYPE_CONTROL || Type == USBTRANSFER_TYPE_BULK) {
         if (!(Status & EHCI_STATUS_ASYNC_ACTIVE)) {
             return;
         }
         Command &= ~(EHCI_COMMAND_ASYNC_ENABLE);
         WRITE_VOLATILE(Controller->OpRegisters->UsbCommand, Command);
-    }
-    else {
+    } else {
         if (!(Status & EHCI_STATUS_PERIODIC_ACTIVE)) {
             return;
         }
@@ -321,145 +315,137 @@ EhciRingDoorbell(
     }
 }
 
-/* HCIProcessElement
- * Proceses the element accordingly to the reason given. The transfer associated
- * will be provided in <Context> */
-int
+bool
 HCIProcessElement(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ uint8_t*                   Element,
-    _In_ int                        Reason,
-    _In_ void*                      Context)
+        _In_ UsbManagerController_t* controller,
+        _In_ uint8_t*                element,
+        _In_ enum HCIProcessReason   reason,
+        _In_ void*                   context)
 {
-    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
-    UsbSchedulerPool_t *QhPool      = &Controller->Scheduler->Settings.Pools[EHCI_QH_POOL];
-    UsbSchedulerPool_t *Pool        = NULL;
-    uint8_t *AsyncRootElement       = NULL;
-    UsbSchedulerGetPoolFromElement(Controller->Scheduler, Element, &Pool);
-    assert(Pool != NULL);
+    UsbSchedulerPool_t* qhPool = &controller->Scheduler->Settings.Pools[EHCI_QH_POOL];
+    UsbSchedulerPool_t* pool  = NULL;
+    uint8_t* asyncRootElement = NULL;
 
-    // Debug
-    TRACE("EhciProcessElement(Reason %i)", Reason);
+    UsbSchedulerGetPoolFromElement(controller->Scheduler, element, &pool);
+    assert(pool != NULL);
+    TRACE("EhciProcessElement(reason=%i)", reason);
     
-    // Handle the reasons
-    switch (Reason) {
+    switch (reason) {
         case HCIPROCESS_REASON_DUMP: {
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                if (Pool == QhPool) {
-                    EhciQhDump((EhciController_t*)Controller, (EhciQueueHead_t*)Element);
+            UsbManagerTransfer_t* transfer = context;
+            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                if (pool == qhPool) {
+                    EHCIQHDump((EhciController_t*)controller, (EhciQueueHead_t*)element);
+                } else {
+                    EHCITDDump((EhciController_t*)controller, (EhciTransferDescriptor_t*)element);
                 }
-                else {
-                    EhciTdDump((EhciController_t*)Controller, (EhciTransferDescriptor_t*)Element);
-                }
-            }
-            else {
-                EhciiTdDump((EhciController_t*)Controller, (EhciIsochronousDescriptor_t*)Element);
+            } else {
+                EHCIITDDump((EhciController_t*)controller, (EhciIsochronousDescriptor_t*)element);
             }
         } break;
         
         case HCIPROCESS_REASON_SCAN: {
-            if (Pool == QhPool) {
-                return ITERATOR_CONTINUE; // Skip scan on queue-heads
+            struct HCIProcessReasonScanContext* scanContext = context;
+
+            if (pool == qhPool) {
+                return true; // Skip scan on queue-heads
             }
 
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                EhciTdValidate(Transfer, (EhciTransferDescriptor_t*)Element);
-                if (Transfer->Flags & TransferFlagShort) {
-                    return ITERATOR_STOP; // Stop here
-                }
-            }
-            else {
-                EhciiTdValidate(Transfer, (EhciIsochronousDescriptor_t*)Element);
+            if (scanContext->Transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                EHCITDVerify(scanContext, (EhciTransferDescriptor_t*)element);
+            } else {
+                EHCIITDVerify(scanContext, (EhciIsochronousDescriptor_t*)element);
             }
         } break;
         
         case HCIPROCESS_REASON_RESET: {
-            if (Pool != QhPool) {
-                if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                    EhciTdRestart((EhciController_t*)Controller, Transfer, (EhciTransferDescriptor_t*)Element);
+            UsbManagerTransfer_t* transfer = context;
+            if (pool != qhPool) {
+                if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                    EhciTdRestart((EhciController_t*)controller, transfer, (EhciTransferDescriptor_t*)element);
+                } else {
+                    EHCIITDRestart((EhciIsochronousDescriptor_t*)element);
                 }
-                else {
-                    EhciiTdRestart((EhciController_t*)Controller, Transfer, (EhciIsochronousDescriptor_t*)Element);
-                }
-            }
-        } break;
-        
-        case HCIPROCESS_REASON_FIXTOGGLE: {
-            // Isochronous transfers don't use toggles
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                if (Pool == QhPool) {
-                    return ITERATOR_CONTINUE; // Skip sync on queue-heads
-                }
-                EhciTdSynchronize(Transfer, (EhciTransferDescriptor_t*)Element);
             }
         } break;
 
         case HCIPROCESS_REASON_LINK: {
+            UsbManagerTransfer_t* transfer = context;
             // If it's a queue head link that
-            if (Pool == QhPool) {
-                spinlock_acquire(&Controller->Lock);
-                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Base.Type, 0);
-                if (Transfer->Base.Type == USBTRANSFER_TYPE_CONTROL || Transfer->Base.Type == USB_TRANSFER_BULK) {
-                    UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
-                    UsbSchedulerChainElement(Controller->Scheduler, EHCI_QH_POOL, AsyncRootElement, 
-                        EHCI_QH_POOL, Element, USB_ELEMENT_NO_INDEX, USB_CHAIN_BREATH);
+            if (pool == qhPool) {
+                spinlock_acquire(&controller->Lock);
+                EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 0);
+                if (__Transfer_IsAsync(transfer)) {
+                    UsbSchedulerGetPoolElement(
+                            controller->Scheduler,
+                            EHCI_QH_POOL,
+                            EHCI_QH_ASYNC,
+                            &asyncRootElement,
+                            NULL
+                    );
+                    UsbSchedulerChainElement(
+                            controller->Scheduler,
+                            EHCI_QH_POOL,
+                            asyncRootElement,
+                            EHCI_QH_POOL, element,
+                            USB_ELEMENT_NO_INDEX,
+                            USB_CHAIN_BREATH
+                    );
+                } else {
+                    UsbSchedulerLinkPeriodicElement(
+                            controller->Scheduler,
+                            EHCI_QH_POOL,
+                            element
+                    );
                 }
-                else {
-                    UsbSchedulerLinkPeriodicElement(Controller->Scheduler, EHCI_QH_POOL, Element);
-                }
-                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Base.Type, 1);
-                EhciEnableScheduler((EhciController_t*)Controller, Transfer->Base.Type);
-                spinlock_release(&Controller->Lock);
-                return ITERATOR_STOP;
+                EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 1);
+                EhciEnableScheduler((EhciController_t*)controller, transfer->Type);
+                spinlock_release(&controller->Lock);
+                return false;
             }
         } break;
         
         case HCIPROCESS_REASON_UNLINK: {
+            UsbManagerTransfer_t* transfer = context;
             // If it's a queue head link that
-            if (Pool == QhPool) {
-                spinlock_acquire(&Controller->Lock);
-                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Base.Type, 0);
-                if (Transfer->Base.Type == USBTRANSFER_TYPE_CONTROL || Transfer->Base.Type == USB_TRANSFER_BULK) {
-                    UsbSchedulerGetPoolElement(Controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &AsyncRootElement, NULL);
-                    UsbSchedulerUnchainElement(Controller->Scheduler, EHCI_QH_POOL, AsyncRootElement, EHCI_QH_POOL, Element, USB_CHAIN_BREATH);
+            if (pool == qhPool) {
+                spinlock_acquire(&controller->Lock);
+                EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 0);
+                if (__Transfer_IsAsync(transfer)) {
+                    UsbSchedulerGetPoolElement(controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &asyncRootElement, NULL);
+                    UsbSchedulerUnchainElement(controller->Scheduler, EHCI_QH_POOL, asyncRootElement, EHCI_QH_POOL, element, USB_CHAIN_BREATH);
+                } else {
+                    UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, EHCI_QH_POOL, element);
                 }
-                else {
-                    UsbSchedulerUnlinkPeriodicElement(Controller->Scheduler, EHCI_QH_POOL, Element);
-                }
-                EhciSetPrefetching((EhciController_t*)Controller, Transfer->Base.Type, 1);
-                spinlock_release(&Controller->Lock);
-                return ITERATOR_STOP;
+                EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 1);
+                spinlock_release(&controller->Lock);
+                return false;
             }
         } break;
         
         case HCIPROCESS_REASON_CLEANUP: {
-            // Very simple cleanup
-            UsbSchedulerFreeElement(Controller->Scheduler, Element);
+            UsbSchedulerFreeElement(controller->Scheduler, element);
         } break;
+
+        default:
+            break;
     }
-    return ITERATOR_CONTINUE;
+    return true;
 }
 
-/* HCIProcessEvent
- * Invoked on different very specific events that require assistance. If a transfer 
- * associated will be provided in <Context> */
 void
 HCIProcessEvent(
-    _In_ UsbManagerController_t*    Controller,
-    _In_ int                        Event,
-    _In_ void*                      Context)
+        _In_ UsbManagerController_t* controller,
+        _In_ enum HCIProcessEvent    event,
+        _In_ void*                   context)
 {
-    // Variables
-    UsbManagerTransfer_t *Transfer  = (UsbManagerTransfer_t*)Context;
+    UsbManagerTransfer_t* transfer = context;
+    TRACE("EHCIProcessEvent(event=%i)", event);
 
-    // Debug
-    TRACE("EhciProcessEvent(Event %i)", Event);
-
-    // Handle the reasons
-    switch (Event) {
-        case USB_EVENT_RESTART_DONE: {
-            if (Transfer->Base.Type != USBTRANSFER_TYPE_ISOC) {
-                EhciQhRestart((EhciController_t*)Controller, Transfer);
+    switch (event) {
+        case HCIPROCESS_EVENT_RESET_DONE: {
+            if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
+                EHCIQHRestart((EhciController_t*)controller, transfer);
             }
         } break;
     }

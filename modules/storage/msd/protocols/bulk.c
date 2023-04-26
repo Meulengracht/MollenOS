@@ -35,12 +35,12 @@ oserr_t
 BulkReset(
     _In_ MsdDevice_t *Device)
 {
-    enum USBTransferCode Status     = TransferNAK;
+    enum USBTransferCode Status     = USBTRANSFERCODE_NAK;
     int                 Iterations = 0;
 
     // Reset is 
     // 0x21 | 0xFF | wIndex - Interface
-    while (Status == TransferNAK) {
+    while (Status == USBTRANSFERCODE_NAK) {
         Status = UsbExecutePacket(&Device->Device->DeviceContext,
             USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
             MSD_REQUEST_RESET, 0, 0, (uint16_t)Device->InterfaceId, 0, NULL);
@@ -48,7 +48,7 @@ BulkReset(
     }
 
     TRACE("Reset done after %i iterations", Iterations);
-    if (Status != TransferFinished) {
+    if (Status != USBTRANSFERCODE_SUCCESS) {
         ERROR("Reset bulk returned error %u", Status);
         return OS_EUNKNOWN;
     }
@@ -65,7 +65,7 @@ ClearAndResetEndpoint(
     enum USBTransferCode status = UsbClearFeature(&device->Device->DeviceContext,
         USBPACKET_DIRECTION_ENDPOINT, USB_ENDPOINT_ADDRESS(endpoint->Address), 
         USB_FEATURE_HALT);
-    if (status != TransferFinished) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         return OS_EUNKNOWN;
     }
     
@@ -397,29 +397,29 @@ MsdSanitizeResponse(
     // Check for phase errors
     if (Csw->Status == MSD_CSW_PHASE_ERROR) {
         ERROR("Phase error returned in CSW.");
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     // Sanitize signature/data integrity
     if (Csw->Signature != MSD_CSW_OK_SIGNATURE) {
         ERROR("CSW: Signature is invalid: 0x%x", Csw->Signature);
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
     
     // Sanitize tag/data integrity
     if ((Csw->Tag & 0xFFFFFF00) != MSD_TAG_SIGNATURE) {
         ERROR("CSW: Tag is invalid: 0x%x", Csw->Tag);
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     // Sanitize status
     if (Csw->Status != MSD_CSW_OK) {
         ERROR("CSW: Status is invalid: 0x%x", Csw->Status);
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     // Everything should be fine
-    return TransferFinished;
+    return USBTRANSFERCODE_SUCCESS;
 }
 
 enum USBTransferCode
@@ -443,14 +443,14 @@ BulkSendCommand(
     BulkScsiCommandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
     UsbTransferInitialize(&CommandStage, &Device->Device->DeviceContext, 
-        Device->Out, USB_TRANSFER_BULK, 0);
+        Device->Out, USBTRANSFER_TYPE_BULK, 0);
     UsbTransferOut(&CommandStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
         sizeof(MsdCommandBlock_t), 0);
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &CommandStage, &bytesTransferred);
 
     // Sanitize for any transport errors
-    if (Result != TransferFinished) {
+    if (Result != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to send the CBW command, transfer-code %u", Result);
         if (Result == USBTRANSFERCODE_STALL) {
             ERROR("Performing a recovery-reset on device.");
@@ -478,14 +478,14 @@ BulkReadData(
 
     // Perform the transfer
     UsbTransferInitialize(&dataStage, &Device->Device->DeviceContext,
-                          Device->In, USB_TRANSFER_BULK, 0);
+                          Device->In, USBTRANSFER_TYPE_BULK, 0);
     UsbTransferIn(&dataStage, BufferHandle, BufferOffset, DataLength, 0);
     transferStatus = UsbTransferQueue(&Device->Device->DeviceContext, &dataStage, &bytesTransferred);
     
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("Data-stage failed with status %i, cleaning up bulk-in", transferStatus);
         if (transferStatus == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_IN);
@@ -515,14 +515,14 @@ BulkWriteData(
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
-        Device->Out, USB_TRANSFER_BULK, 0);
+        Device->Out, USBTRANSFER_TYPE_BULK, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &bytesTransferred);
 
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result != TransferFinished) {
+    if (Result != USBTRANSFERCODE_SUCCESS) {
         ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
         if (Result == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_OUT);
@@ -551,7 +551,7 @@ BulkGetStatus(
 
     // Perform the transfer
     UsbTransferInitialize(&StatusStage, &Device->Device->DeviceContext, 
-        Device->In, USB_TRANSFER_BULK, 0);
+        Device->In, USBTRANSFER_TYPE_BULK, 0);
     UsbTransferIn(&StatusStage, dma_pool_handle(UsbRetrievePool()), 
         dma_pool_offset(UsbRetrievePool(), Device->StatusBlock), sizeof(MsdCommandStatus_t), 0);
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &StatusStage, &bytesTransferred);
@@ -560,7 +560,7 @@ BulkGetStatus(
     // On a STALL condition receiving the CSW, then:
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
-    if (Result != TransferFinished) {
+    if (Result != USBTRANSFERCODE_SUCCESS) {
         if (Result == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_IN);
             return BulkGetStatus(Device);

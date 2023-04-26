@@ -197,7 +197,7 @@ void sys_usb_get_controller_invocation(struct gracht_message* message, const int
     controller = __GetControllerIndex(index);
     if (controller != NULL) {
         memcpy(&hcController.Device, &controller->Device, sizeof(Device_t));
-        hcController.Type = controller->Type;
+        hcController.Kind = controller->Type;
     }
     sys_usb_get_controller_response(message, (uint8_t*)&hcController, sizeof(USBControllerDevice_t));
 }

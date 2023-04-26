@@ -132,10 +132,9 @@ MsdGetMaximumLunCount(
 
     // If no multiple LUNS are supported, device may STALL it says in the usbmassbulk spec 
     // but thats ok, it's not a functional stall, only command stall
-    if (Status == TransferFinished) {
+    if (Status == USBTRANSFERCODE_SUCCESS) {
         Device->Descriptor.LUNCount = (size_t)(MaxLuns & 0xF);
-    }
-    else {
+    } else {
         Device->Descriptor.LUNCount = 0;
     }
     return OS_EOK;
@@ -161,13 +160,13 @@ MsdScsiCommand(
     // It is invalid to send zero length packets for bulk
     if (Direction == 1 && DataLength == 0) {
         ERROR("Cannot write data of length 0 to MSD devices.");
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     // Send the command
     Status = Device->Operations->SendCommand(Device, ScsiCommand, 
         SectorStart, BufferHandle, BufferOffset, DataLength);
-    if (Status != TransferFinished) {
+    if (Status != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to send the CBW command, transfer-code %u", Status);
         return Status;
     }
@@ -177,7 +176,7 @@ MsdScsiCommand(
         size_t BytesTransferred = 0;
         if (Direction == 0) Status = Device->Operations->ReadData(Device, BufferHandle, BufferOffset, DataToTransfer, &BytesTransferred);
         else                Status = Device->Operations->WriteData(Device, BufferHandle, BufferOffset, DataToTransfer, &BytesTransferred);
-        if (Status != TransferFinished && Status != USBTRANSFERCODE_STALL) {
+        if (Status != USBTRANSFERCODE_SUCCESS && Status != USBTRANSFERCODE_STALL) {
             ERROR("Fatal error transfering data, skipping status stage");
             return Status;
         }
@@ -214,7 +213,7 @@ MsdDevicePrepare(
     // Don't use test-unit-ready for UFI
     if (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) {
         if (MsdScsiCommand(Device, 0, SCSI_TEST_UNIT_READY, 0, 0, 0, 0)
-                != TransferFinished) {
+                != USBTRANSFERCODE_SUCCESS) {
             ERROR("Failed to perform test-unit-ready command");
             dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
             Device->IsReady = 0;
@@ -225,7 +224,7 @@ MsdDevicePrepare(
     // Now request the sense-status
     if (MsdScsiCommand(Device, 0, SCSI_REQUEST_SENSE, 0, 
         dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), SenseBlock), 
-        sizeof(ScsiSense_t)) != TransferFinished) {
+        sizeof(ScsiSense_t)) != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to perform sense command");
         dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
         Device->IsReady = 0;
@@ -268,7 +267,7 @@ MsdReadCapabilities(
     // Perform caps-command
     if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY, 0, 
             dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
-            8) != TransferFinished) {
+            8) != USBTRANSFERCODE_SUCCESS) {
         dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
         return OS_EUNKNOWN;
     }
@@ -281,7 +280,7 @@ MsdReadCapabilities(
         // Perform extended-caps read command
         if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY_16, 0, 
                 dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
-                sizeof(ScsiExtendedCaps_t)) != TransferFinished) {
+                sizeof(ScsiExtendedCaps_t)) != USBTRANSFERCODE_SUCCESS) {
             dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
             return OS_EUNKNOWN;
         }
@@ -328,7 +327,7 @@ MsdDeviceStart(
                                     dma_pool_handle(UsbRetrievePool()),
                                     dma_pool_offset(UsbRetrievePool(), inquiryData),
                                     sizeof(ScsiInquiry_t));
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
         return OS_EUNKNOWN;
@@ -428,7 +427,7 @@ MsdTransferSectors(
             bufferHandle,
             bufferOffset,
             sectorsToBeTransferred * device->Descriptor.SectorSize);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         if (sectorsTransferred) {
             *sectorsTransferred = 0;
         }

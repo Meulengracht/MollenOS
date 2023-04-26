@@ -115,7 +115,7 @@ static oserr_t __GetDeviceConfiguration(
     TRACE("__GetDeviceConfiguration(hubDevice=0x%" PRIxIN ")", hubDevice);
 
     status = UsbGetActiveConfigDescriptor(&hubDevice->Base->DeviceContext, &configuration);
-    if (status != TransferFinished) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
 
@@ -123,7 +123,7 @@ static oserr_t __GetDeviceConfiguration(
           configuration.base.ConfigurationValue, configuration.base.Attributes,
           configuration.base.NumInterfaces);
 
-    // TODO support interface settings
+    // TODO: support interface settings
     for (i = 0; i < configuration.base.NumInterfaces; i++) {
         usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[0];
         if (__IsSupportedInterface(interface)) {
@@ -157,7 +157,7 @@ static oserr_t __GetSuperSpeedHubDescriptor(
                                       USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                               USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HUB_SUPERSPEED,
                               0, 8, &descriptor);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
 
@@ -176,7 +176,7 @@ static oserr_t __GetHubDescriptor(
     UsbHubDescriptor_t  descriptor;
     TRACE("__GetHubDescriptor(hubDevice=0x%" PRIxIN ")", hubDevice);
 
-    if (hubDevice->Base->DeviceContext.speed >= USB_SPEED_SUPER) {
+    if (hubDevice->Base->DeviceContext.speed >= USBSPEED_SUPER) {
         return __GetSuperSpeedHubDescriptor(hubDevice);
     }
 
@@ -184,7 +184,7 @@ static oserr_t __GetHubDescriptor(
                                       USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                                       USBPACKET_TYPE_GET_DESC, 0, DESCRIPTOR_TYPE_HUB,
                                       0, 8, &descriptor);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
 
@@ -319,13 +319,13 @@ HubDeviceCreate(
 
     // Install interrupt pipe
     UsbTransferInitialize(&hubDevice->Transfer, &hubDevice->Base->DeviceContext,
-                          hubDevice->Interrupt, USB_TRANSFER_INTERRUPT, 0);
+                          hubDevice->Interrupt, USBTRANSFER_TYPE_INTERRUPT, 0);
     UsbTransferPeriodic(&hubDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
                         dma_pool_offset(UsbRetrievePool(), hubDevice->Buffer), 0x100,
                         DIVUP(hubDevice->PortCount, 8), USB_TRANSACTION_IN, (const void*)hubDevice);
 
     transferStatus = UsbTransferQueuePeriodic(&hubDevice->Base->DeviceContext, &hubDevice->Transfer, &hubDevice->TransferId);
-    if (transferStatus != TransferQueued && transferStatus != TransferInProgress) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("HubDeviceCreate failed to install interrupt transfer");
         goto error_exit;
     }

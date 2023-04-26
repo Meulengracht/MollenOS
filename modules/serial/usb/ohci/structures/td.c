@@ -174,13 +174,12 @@ OHCITDVerify(
 
 void
 OHCITDRestart(
-    _In_ OhciController_t*         controller,
-    _In_ UsbManagerTransfer_t*     transfer,
-    _In_ OhciTransferDescriptor_t* td)
+        _In_ OhciController_t*         controller,
+        _In_ UsbManagerTransfer_t*     transfer,
+        _In_ OhciTransferDescriptor_t* td)
 {
     uintptr_t linkAddress = 0;
     int       toggle      = UsbManagerGetToggle(&controller->Base, &transfer->Address);
-
 
     td->OriginalFlags &= ~(OHCI_TD_TOGGLE);
     if (toggle) {
@@ -188,7 +187,7 @@ OHCITDRestart(
     }
     UsbManagerSetToggle(&controller->Base, &transfer->Address, toggle ^ 1);
 
-    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != TransferNAK) {
+    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != USBTRANSFERCODE_NAK) {
         uintptr_t bufferStep = transfer->MaxPacketSize;
         uintptr_t bufferBaseUpdated = ADDLIMIT(
                                               transfer->Elements[0].Data.Address,

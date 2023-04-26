@@ -460,7 +460,7 @@ EhciWaitForCompanionControllers(
                 // Does controller belong to our bus?
                 if (hcController->Device.Bus == controller->Base.Device->Bus
                     && hcController->Device.Slot == controller->Base.Device->Slot
-                    && (hcController->Type == USBCONTROLLER_KIND_OHCI || hcController->Type == USBCONTROLLER_KIND_UHCI)) {
+                    && (hcController->Kind == USBCONTROLLER_KIND_OHCI || hcController->Kind == USBCONTROLLER_KIND_UHCI)) {
                     ccStarted++;
                 }
             }

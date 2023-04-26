@@ -13,13 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Enhanced Host Controller Interface Driver
- * TODO:
- * - Power Management
- * - Transaction Translator Support
  */
+
 //#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
@@ -121,122 +116,95 @@ EHCITDData(
 }
 
 void
-EhciTdDump(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td)
+EHCITDDump(
+    _In_ EhciController_t*         controller,
+    _In_ EhciTransferDescriptor_t* td)
 {
-    uintptr_t PhysicalAddress;
+    uintptr_t physicalAddress = 0;
 
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, 
-        Td->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
+    UsbSchedulerGetPoolElement(
+            controller->Base.Scheduler,
+            EHCI_TD_POOL,
+            td->Object.Index & USB_ELEMENT_INDEX_MASK,
+            NULL,
+            &physicalAddress
+    );
     WARNING("EHCI: TD(0x%x), Link(0x%x), AltLink(0x%x), Status(0x%x), Token(0x%x)",
-        PhysicalAddress, Td->Link, Td->AlternativeLink, Td->Status, Td->Token);
+            physicalAddress, td->Link, td->AlternativeLink, td->Status, td->Token);
     WARNING("          Length(0x%x), Buffer0(0x%x:0x%x), Buffer1(0x%x:0x%x)",
-        Td->Length, Td->ExtBuffers[0], Td->Buffers[0], Td->ExtBuffers[1], Td->Buffers[1]);
-    WARNING("          Buffer2(0x%x:0x%x), Buffer3(0x%x:0x%x), Buffer4(0x%x:0x%x)", 
-        Td->ExtBuffers[2], Td->Buffers[2], Td->ExtBuffers[3], Td->Buffers[3], Td->ExtBuffers[4], Td->Buffers[4]);
+            td->Length, td->ExtBuffers[0], td->Buffers[0], td->ExtBuffers[1], td->Buffers[1]);
+    WARNING("          Buffer2(0x%x:0x%x), Buffer3(0x%x:0x%x), Buffer4(0x%x:0x%x)",
+            td->ExtBuffers[2], td->Buffers[2], td->ExtBuffers[3], td->Buffers[3], td->ExtBuffers[4], td->Buffers[4]);
 }
 
 void
-EhciTdValidate(
-    _In_ UsbManagerTransfer_t*     Transfer,
-    _In_ EhciTransferDescriptor_t* Td)
+EHCITDVerify(
+        _In_ struct HCIProcessReasonScanContext* scanContext,
+        _In_ EhciTransferDescriptor_t*           td)
 {
-    int ErrorCode;
-    int i;
+    enum USBSpeed speed = scanContext->Transfer->Speed;
+    int           cc;
 
-    // Sanitize active status
-    if (Td->Status & EHCI_TD_ACTIVE) {
-        // If this one is still active, but it's an transfer that has
-        // elements processed - resync toggles
-        if (Transfer->Status != TransferInProgress) {
-            Transfer->Flags |= TransferFlagSync;
-        }
+    // Have we already processed this one? In that case we ignore
+    // it completely.
+    if (td->Object.Flags & USB_ELEMENT_PROCESSED) {
+        scanContext->ElementsExecuted++;
+        return;
+    }
+
+    // If the TD is still active do nothing.
+    if (td->Status & EHCI_TD_ACTIVE) {
         return;
     }
 
     // Get error code based on type of transfer
-    ErrorCode = EhciConditionCodeToIndex(
-            Transfer->Base.Speed == USB_SPEED_HIGH ? (Td->Status & 0xFC) : Td->Status);
-    
-    if (ErrorCode != 0) {
-        Transfer->Status = EhciGetStatusCode(ErrorCode);
-        return; // Skip bytes transferred
-    }
-    else if (Transfer->Status == TransferInProgress) {
-        Transfer->Status = TransferFinished;
+    cc = EHCIConditionCodeToIndex(speed == USBSPEED_HIGH ? (td->Status & 0xFC) : td->Status);
+    if (cc != 0) {
+        scanContext->Result = EHCIErrorCodeToTransferStatus(cc);
     }
 
-    // Add bytes transferred
-    if ((Td->OriginalLength & EHCI_TD_LENGTHMASK) != 0) {
-        int BytesTransferred = (Td->OriginalLength - Td->Length) & EHCI_TD_LENGTHMASK;
-        int BytesRequested   = Td->OriginalLength & EHCI_TD_LENGTHMASK;
-        
-        if (BytesTransferred < BytesRequested) {
-            Transfer->Flags |= TransferFlagShort;
-
-            // On short transfers we might have to sync, but only 
-            // if there are un-processed td's after this one
-            if (Td->Object.DepthIndex != USB_ELEMENT_NO_INDEX) {
-                Transfer->Flags |= TransferFlagSync;
-            }
+    if (__Transfer_IsAsync(scanContext->Transfer) && (td->OriginalLength & EHCI_TD_LENGTHMASK) != 0) {
+        int bytesTransferred = (td->OriginalLength - td->Length) & EHCI_TD_LENGTHMASK;
+        int bytesRequested   = td->OriginalLength & EHCI_TD_LENGTHMASK;
+        if (bytesTransferred < bytesRequested) {
+            scanContext->Short = true;
         }
-        for (i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-            if (Transfer->Base.Transactions[i].Length > Transfer->Transactions[i].BytesTransferred) {
-                Transfer->Transactions[i].BytesTransferred += BytesTransferred;
-                break;
-            }
-        }
-    }
-}
-
-void
-EhciTdSynchronize(
-    _In_ UsbManagerTransfer_t*     Transfer,
-    _In_ EhciTransferDescriptor_t* Td)
-{
-    int Toggle = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
-
-    // Is it neccessary?
-    if (Toggle == 1 && (Td->Length & EHCI_TD_TOGGLE)) {
-        return;
+        scanContext->BytesTransferred += bytesTransferred;
     }
 
-    Td->Length &= ~(EHCI_TD_TOGGLE);
-    if (Toggle) {
-        Td->Length |= EHCI_TD_TOGGLE;
-    }
-
-    // Update copy
-    Td->OriginalLength  = Td->Length;
-    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
+    // mark TD as processed, and retrieve the data-toggle
+    td->Object.Flags |= USB_ELEMENT_PROCESSED;
+    scanContext->LastToggle = (td->OriginalLength & EHCI_TD_TOGGLE) ? 1 : 0;
+    scanContext->ElementsProcessed++;
+    scanContext->ElementsExecuted++;
 }
 
 void
 EhciTdRestart(
-    _In_ EhciController_t*         Controller,
-    _In_ UsbManagerTransfer_t*     Transfer,
-    _In_ EhciTransferDescriptor_t* Td)
+    _In_ EhciController_t*         controller,
+    _In_ UsbManagerTransfer_t*     transfer,
+    _In_ EhciTransferDescriptor_t* td)
 {
-    uintptr_t BufferBaseUpdated = 0;
-    uintptr_t BufferBase        = 0;
-    uintptr_t BufferStep        = 0;
-    int       Toggle            = UsbManagerGetToggle(Transfer->DeviceID, &Transfer->Base.Address);
+    int toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
-    Td->OriginalLength &= ~(EHCI_TD_TOGGLE);
-    if (Toggle) {
-        Td->OriginalLength = EHCI_TD_TOGGLE;
+    td->OriginalLength &= ~(EHCI_TD_TOGGLE);
+    if (toggle) {
+        td->OriginalLength = EHCI_TD_TOGGLE;
     }
-    UsbManagerSetToggle(Transfer->DeviceID, &Transfer->Base.Address, Toggle ^ 1);
+    UsbManagerSetToggle(&controller->Base, &transfer->Address, toggle ^ 1);
 
-    Td->Status = EHCI_TD_ACTIVE;
-    Td->Length = Td->OriginalLength;
-    Td->Token  = Td->OriginalToken;
-    
-    // Adjust buffer if not just restart
-    if (Transfer->Status != TransferNAK) {
-        BufferBaseUpdated = ADDLIMIT(BufferBase, Td->Buffers[0], 
-            BufferStep, BufferBase + Transfer->Base.BufferSize);
-        __FillTD(Controller, Td, BufferBaseUpdated, BufferStep);
+    td->Status = EHCI_TD_ACTIVE;
+    td->Length = td->OriginalLength;
+    td->Token  = td->OriginalToken;
+
+    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != USBTRANSFERCODE_NAK) {
+        uintptr_t bufferStep = transfer->MaxPacketSize;
+        uintptr_t bufferBaseUpdated = ADDLIMIT(
+                                              transfer->Elements[0].Data.Address,
+                                              td->Buffers[0],
+                                              bufferStep,
+                                              (transfer->Elements[0].Data.Address + transfer->Elements[0].Length)
+        );
+        __FillTD(controller, td, bufferBaseUpdated, bufferStep);
     }
 }

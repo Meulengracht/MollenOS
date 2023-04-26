@@ -1,5 +1,4 @@
-/* MollenOS
- *
+/**
  * Copyright 2018, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -14,13 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS MCore - Enhanced Host Controller Interface Driver
- * TODO:
- * - Power Management
- * - Transaction Translator Support
  */
+
 //#define __TRACE
 #define __need_minmax
 #include <os/mollenos.h>
@@ -30,136 +24,139 @@
 #include <string.h>
 
 oserr_t
-EhciQhInitialize(
+EHCIQHInitialize(
     _In_ EhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer,
     _In_ uint8_t               deviceAddress,
     _In_ uint8_t               endpointAddress)
 {
-    EhciQueueHead_t* Qh          = (EhciQueueHead_t*)transfer->RootElement;
-    oserr_t       Status      = OS_EOK;
-    size_t           EpBandwidth = MAX(3, transfer->Base.Bandwith);
+    EhciQueueHead_t* qh        = (EhciQueueHead_t*)transfer->RootElement;
+    oserr_t          oserr     = OS_EOK;
 
     // Initialize links
-    Qh->LinkPointer               = EHCI_LINK_END;
-    Qh->Overlay.NextTD            = EHCI_LINK_END;
-    Qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
+    qh->LinkPointer               = EHCI_LINK_END;
+    qh->Overlay.NextTD            = EHCI_LINK_END;
+    qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 
     // Initialize link flags
-    Qh->Object.Flags |= EHCI_LINK_QH;
+    qh->Object.Flags |= EHCI_LINK_QH;
 
     // Initialize the QH
-    Qh->Flags  = EHCI_QH_DEVADDR(deviceAddress);
-    Qh->Flags |= EHCI_QH_EPADDR(endpointAddress);
-    Qh->Flags |= EHCI_QH_MAXLENGTH(transfer->Base.MaxPacketSize); // MIN(TransferLength, MPS)?
-    Qh->Flags |= EHCI_QH_DTC;
-    if (transfer->Base.Type == USB_TRANSFER_INTERRUPT) {
-        Qh->State = EHCI_QH_MULTIPLIER(EpBandwidth);
-    }
-    else {
-        Qh->State = EHCI_QH_MULTIPLIER(1);
+    qh->Flags = EHCI_QH_DEVADDR(deviceAddress);
+    qh->Flags |= EHCI_QH_EPADDR(endpointAddress);
+    qh->Flags |= EHCI_QH_MAXLENGTH(transfer->MaxPacketSize); // MIN(TransferLength, MPS)?
+    qh->Flags |= EHCI_QH_DTC;
+    if (__Transfer_IsPeriodic(transfer)) {
+        uint32_t bandwidth = MAX(3, transfer->TData.Periodic.Bandwith);
+        qh->State = EHCI_QH_MULTIPLIER(bandwidth);
+    } else {
+        qh->State = EHCI_QH_MULTIPLIER(1);
     }
 
     // Now, set additionals depending on speed
-    if (transfer->Base.Speed == USB_SPEED_LOW || transfer->Base.Speed == USB_SPEED_FULL) {
-        if (transfer->Base.Type == USBTRANSFER_TYPE_CONTROL) {
-            Qh->Flags |= EHCI_QH_CONTROLEP;
+    if (transfer->Speed == USBSPEED_LOW || transfer->Speed == USBSPEED_FULL) {
+        if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+            qh->Flags |= EHCI_QH_CONTROLEP;
         }
 
         // On low-speed, set this bit
-        if (transfer->Base.Speed == USB_SPEED_LOW) {
-            Qh->Flags |= EHCI_QH_LOWSPEED;
+        if (transfer->Speed == USBSPEED_LOW) {
+            qh->Flags |= EHCI_QH_LOWSPEED;
         }
 
         // Set nak-throttle to 0
-        Qh->Flags |= EHCI_QH_RL(0);
+        qh->Flags |= EHCI_QH_RL(0);
 
         // We need to fill the TT's hub-address and port-address
-        Qh->State |= EHCI_QH_HUBADDR(transfer->Base.Address.HubAddress);
-        Qh->State |= EHCI_QH_PORT(transfer->Base.Address.PortAddress);
-    }
-    else {
+        qh->State |= EHCI_QH_HUBADDR(transfer->Address.HubAddress);
+        qh->State |= EHCI_QH_PORT(transfer->Address.PortAddress);
+    } else {
         // High speed device, no transaction translator
-        Qh->Flags |= EHCI_QH_HIGHSPEED;
+        qh->Flags |= EHCI_QH_HIGHSPEED;
 
-        // Set nak-throttle to 4 if control or bulk
-        if (transfer->Base.Type == USBTRANSFER_TYPE_CONTROL ||
-            transfer->Base.Type == USB_TRANSFER_BULK) {
-            Qh->Flags |= EHCI_QH_RL(4);
-        }
-        else {
-            Qh->Flags |= EHCI_QH_RL(0);
+        // Set nak-throttle to 4 if async
+        if (__Transfer_IsAsync(transfer)) {
+            qh->Flags |= EHCI_QH_RL(4);
+        } else {
+            qh->Flags |= EHCI_QH_RL(0);
         }
     }
-    
-    // Allocate bandwith if interrupt qh
-    if (transfer->Base.Type == USB_TRANSFER_INTERRUPT) {
+
+    if (__Transfer_IsPeriodic(transfer)) {
         // If we use completion masks we'll need another transfer for start
-        size_t BytesToTransfer = transfer->Base.Transactions[0].Length;
-        if (transfer->Base.Speed != USB_SPEED_HIGH) {
-            BytesToTransfer += transfer->Base.MaxPacketSize;
+        size_t transferSize = __Transfer_Length(transfer);
+        if (transfer->Speed != USBSPEED_HIGH) {
+            transferSize += transfer->MaxPacketSize;
         }
 
-        // Allocate the bandwidth
-        Status = UsbSchedulerAllocateBandwidth(controller->Base.Scheduler,
-                                               transfer->Base.Interval, transfer->Base.MaxPacketSize,
-                                               transfer->Base.Transactions[0].Type, BytesToTransfer,
-                                               transfer->Base.Type, transfer->Base.Speed, (uint8_t*)Qh);
-        if (Status == OS_EOK) {
+        oserr = UsbSchedulerAllocateBandwidth(
+                controller->Base.Scheduler,
+                transfer->TData.Periodic.Interval,
+                transfer->MaxPacketSize,
+                __Transfer_TransactionType(transfer),
+                transferSize,
+                transfer->Type,
+                transfer->Speed,
+                (uint8_t*)qh
+        );
+
+        if (oserr == OS_EOK) {
             // Calculate both the frame start and completion mask
             // If the transfer was to spand over a boundary, starting with subframes in
             // one frame, ending with subframes in next frame, we would have to use
             // FSTN links for low/full speed interrupt transfers. But as the allocator
             // works this never happens as it only allocates in same frame. If this
             // changes we need to update this @todo
-            Qh->FrameStartMask  = (uint8_t)FirstSetBit(Qh->Object.FrameMask);
-            if (transfer->Base.Speed != USB_SPEED_HIGH) {
-                Qh->FrameCompletionMask = (uint8_t)(Qh->Object.FrameMask & 0xFF);
-                Qh->FrameCompletionMask &= ~(1 << Qh->FrameStartMask);
-            }
-            else {
-                Qh->FrameCompletionMask = 0;
+            qh->FrameStartMask = (uint8_t)FirstSetBit(qh->Object.FrameMask);
+            if (transfer->Speed != USBSPEED_HIGH) {
+                qh->FrameCompletionMask = (uint8_t)(qh->Object.FrameMask & 0xFF);
+                qh->FrameCompletionMask &= ~(1 << qh->FrameStartMask);
+            } else {
+                qh->FrameCompletionMask = 0;
             }
         }
     }
-    return Status;
+    return oserr;
 }
 
-/* EhciQhDump
- * Dumps the information contained in the queue-head by writing it to stdout */
 void
-EhciQhDump(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciQueueHead_t*           Qh)
+EHCIQHDump(
+    _In_ EhciController_t* controller,
+    _In_ EhciQueueHead_t*  qh)
 {
-    // Variables
-    uintptr_t PhysicalAddress   = 0;
+    uintptr_t physicalAddress = 0;
 
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_QH_POOL, 
-        Qh->Object.Index & USB_ELEMENT_INDEX_MASK, NULL, &PhysicalAddress);
-    WARNING("EHCI: QH at 0x%x, Current 0x%x, NextQh 0x%x", PhysicalAddress, Qh->Current, Qh->LinkPointer);
-    WARNING("      Bandwidth %u, StartFrame %u, Flags 0x%x", Qh->Object.Bandwidth, Qh->Object.StartFrame, Qh->Flags);
-    WARNING("      .NextTd 0x%x, .AltTd 0x%x, .Status 0x%x", Qh->Overlay.NextTD, Qh->Overlay.NextAlternativeTD, Qh->Overlay.Status);
-    WARNING("      .Token 0x%x, .Length 0x%x, .Buffers[0] 0x%x", Qh->Overlay.Token, Qh->Overlay.Length, Qh->Overlay.Buffers[0]);
-    WARNING("      .Buffers[1] 0x%x, .Buffers[2] 0x%x", Qh->Overlay.Buffers[1], Qh->Overlay.Buffers[2]);
+    UsbSchedulerGetPoolElement(
+            controller->Base.Scheduler,
+            EHCI_QH_POOL,
+            qh->Object.Index & USB_ELEMENT_INDEX_MASK,
+            NULL,
+            &physicalAddress
+    );
+    WARNING("EHCI: QH at 0x%x, Current 0x%x, NextQh 0x%x", physicalAddress, qh->Current, qh->LinkPointer);
+    WARNING("      Bandwidth %u, StartFrame %u, Flags 0x%x", qh->Object.Bandwidth, qh->Object.StartFrame, qh->Flags);
+    WARNING("      .NextTd 0x%x, .AltTd 0x%x, .Status 0x%x", qh->Overlay.NextTD, qh->Overlay.NextAlternativeTD, qh->Overlay.Status);
+    WARNING("      .Token 0x%x, .Length 0x%x, .Buffers[0] 0x%x", qh->Overlay.Token, qh->Overlay.Length, qh->Overlay.Buffers[0]);
+    WARNING("      .Buffers[1] 0x%x, .Buffers[2] 0x%x", qh->Overlay.Buffers[1], qh->Overlay.Buffers[2]);
 }
 
-/* EhciQhRestart
- * Restarts an interrupt QH by resetting it to it's start state */
 void
-EhciQhRestart(
-    EhciController_t*               Controller, 
-    UsbManagerTransfer_t*           Transfer)
+EHCIQHRestart(
+    EhciController_t*     controller,
+    UsbManagerTransfer_t* transfer)
 {
-    // Variables
-    EhciQueueHead_t *Qh             = (EhciQueueHead_t*)Transfer->RootElement;
-    uintptr_t LinkPhysical          = 0;
+    EhciQueueHead_t* qh = (EhciQueueHead_t*)transfer->RootElement;
+    uintptr_t        linkPhysical = 0;
 
-    memset(&Qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
+    memset(&qh->Overlay, 0, sizeof(EhciQueueHeadOverlay_t));
 
-    // Update links
-    UsbSchedulerGetPoolElement(Controller->Base.Scheduler, EHCI_TD_POOL, 
-        Qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK, NULL, &LinkPhysical);
-    Qh->Overlay.NextTD              = LinkPhysical;
-    Qh->Overlay.NextAlternativeTD   = EHCI_LINK_END;
+    UsbSchedulerGetPoolElement(
+            controller->Base.Scheduler,
+            EHCI_TD_POOL,
+            qh->Object.DepthIndex & USB_ELEMENT_INDEX_MASK,
+            NULL,
+            &linkPhysical
+    );
+    qh->Overlay.NextTD            = linkPhysical;
+    qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
 }

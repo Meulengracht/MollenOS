@@ -540,7 +540,7 @@ __CheckTransfer(
 
         // Don't notify driver when recieving a NAK response. Simply means device had
         // no data to send us. I just wished that it would leave the data intact instead.
-        if (context.Result != TransferNAK) {
+        if (context.Result != USBTRANSFERCODE_NAK) {
             USBTransferNotify(transfer);
         }
 

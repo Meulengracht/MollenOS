@@ -136,7 +136,7 @@ static void __GetDeviceConfiguration(
     int                        i, j;
     
     status = UsbGetActiveConfigDescriptor(&device->Device->DeviceContext, &configuration);
-    if (status != TransferFinished) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         ERROR("[msd] [__GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
         return;
     }

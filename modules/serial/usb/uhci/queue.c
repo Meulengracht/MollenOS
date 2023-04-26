@@ -89,13 +89,13 @@ UHCIErrorCodeToTransferStatus(
     } else if (conditionCode == 1) {
         return USBTRANSFERCODE_DATATOGGLEMISMATCH;
     } else if (conditionCode == 2) {
-        return TransferNotResponding;
+        return USBTRANSFERCODE_NORESPONSE;
     } else if (conditionCode == 3) {
-        return TransferNAK;
+        return USBTRANSFERCODE_NAK;
     } else if (conditionCode == 4) {
         return USBTRANSFERCODE_BABBLE;
     } else if (conditionCode == 5) {
-        return TransferBufferError;
+        return USBTRANSFERCODE_BUFFERERROR;
     } else {
         TRACE("UHCIErrorCodeToTransferStatus: %s", g_transferDescriptions[conditionCode]);
         return USBTRANSFERCODE_BABBLE;

@@ -25,6 +25,9 @@
 #include <string.h>
 #include <stdlib.h>
 
+#define __XACTION_COUNT(_t)   ((_t)->Type == USBTRANSFER_TYPE_ISOC) ? 8 : 5
+#define __XACTION_MAXSIZE(_t) ((_t)->Type == USBTRANSFER_TYPE_ISOC) ? (1024 * MAX(3, (_t)->TData.Periodic.Bandwith)) : 0x1000
+
 static void
 __DispatchTransfer(
     _In_ EhciController_t*      Controller,
@@ -135,71 +138,64 @@ __GetBytesLeft(
 }
 
 static inline void
-__CalculatePacketMetrics(
-        _In_  UsbManagerTransfer_t* transfer,
-        _In_  USBTransaction_t*     xaction,
-        _In_  SHMSGTable_t*         sgTable,
-        _In_  size_t                bytesLeft,
-        _In_  uintptr_t*            dataAddresses,
-        _Out_ uint32_t*             lengthOut)
+__CalculateTransferElementMetrics(
+        _In_ UsbManagerTransfer_t*   transfer,
+        _In_ USBTransaction_t*       xaction,
+        _In_ SHMSGTable_t*           sgTable,
+        _In_ size_t                  bytesLeft,
+        _In_ struct TransferElement* element)
 {
-    int       index;
-    size_t    offset;
+    int    transactionCount = __XACTION_COUNT(transfer);
+    size_t transactionMaxSize = __XACTION_MAXSIZE(transfer);
+    int    index;
+    size_t offset;
+
+    // retrieve the initial index and offset into the SG table, based on the
+    // start offset, and the progress into the transaction.
     SHMSGTableOffset(
             sgTable,
             xaction->BufferOffset + (xaction->Length - bytesLeft),
             &index,
             &offset
     );
-    uintptr_t address = __GetAddress(sgTable, index, offset);
-    size_t    leftInSG = __GetBytesLeft(sgTable, index, offset);
-    size_t    byteCount = MIN(bytesLeft, leftInSG);
+    // with the index and offset we can calculate the number of bytes available
+    // in the current SG frame, and then we further correct this by the number
+    // of bytes we actually want to transfer.
+    size_t leftInSG = __GetBytesLeft(sgTable, index, offset);
+    size_t byteCount = MIN(bytesLeft, leftInSG);
+    size_t calculatedLength = 0;
 
-    *dataAddresses = address;
-    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-        // an isoc TD can hold up to 8 transactions across 7 pages, all with offsets
-        size_t calculatedLength = 0;
-        for (int i = 0; i < 8; i++) {
-            size_t transactionSize = MIN(byteCount, 1024 * MAX(3, transfer->TData.Periodic.Bandwith));
-            transactionSize = MIN(transactionSize, byteCount);
-            calculatedLength += transactionSize;
-            leftInSG -= transactionSize;
-            bytesLeft -= transactionSize;
-            byteCount -= transactionSize;
-            if (!leftInSG && bytesLeft) {
-                SHMSGTableOffset(
-                        sgTable,
-                        xaction->BufferOffset + (xaction->Length - bytesLeft),
-                        &index,
-                        &offset
-                );
-                leftInSG = __GetBytesLeft(sgTable, index, offset);
-                byteCount = MIN(bytesLeft, leftInSG);
-            }
+    for (int i = 0; i < transactionCount; i++) {
+        // correct again for the actual number of bytes per transaction
+        size_t transactionSize = MIN(byteCount, transactionMaxSize);
+        transactionSize = MIN(transactionSize, byteCount);
+
+        // store the transfer metrics
+        element->Data.EHCI.Addresses[i] = __GetAddress(sgTable, index, offset);
+        element->Data.EHCI.Lengths[i] = transactionSize;
+
+        // correct all our state values, either we run out of space in the current
+        // SG frame, or we run out of bytes to transfer.
+        calculatedLength += transactionSize;
+        leftInSG -= transactionSize;
+        bytesLeft -= transactionSize;
+        byteCount -= transactionSize;
+
+        // if we run out of space in the SG frame, and we still have bytes left
+        // to transfers, then we need to switch SG frame, update our index and
+        // offset, and recalculate how many bytes to transfer for this frame.
+        if (!leftInSG && bytesLeft) {
+            SHMSGTableOffset(
+                    sgTable,
+                    xaction->BufferOffset + (xaction->Length - bytesLeft),
+                    &index,
+                    &offset
+            );
+            leftInSG = __GetBytesLeft(sgTable, index, offset);
+            byteCount = MIN(bytesLeft, leftInSG);
         }
-        *lengthOut = calculatedLength;
-    } else {
-        // a TD can hold up to 5 different pages, all with offsets
-        size_t calculatedLength = 0;
-        for (int i = 0; i < 5 && bytesLeft; i++) {
-            size_t bytesInPage = MIN(byteCount, 0x1000);
-            calculatedLength += bytesInPage;
-            leftInSG -= bytesInPage;
-            bytesLeft -= bytesInPage;
-            byteCount -= bytesInPage;
-            if (!leftInSG && bytesLeft) {
-                SHMSGTableOffset(
-                        sgTable,
-                        xaction->BufferOffset + (xaction->Length - bytesLeft),
-                        &index,
-                        &offset
-                );
-                leftInSG = __GetBytesLeft(sgTable, index, offset);
-                byteCount = MIN(bytesLeft, leftInSG);
-            }
-        }
-        *lengthOut = calculatedLength;
     }
+    element->Length = calculatedLength;
 }
 
 int
@@ -227,28 +223,24 @@ HCITransferElementsNeeded(
             if (transactions[i].BufferHandle == UUID_INVALID) {
                 tdsNeeded++;
             } else {
-                // TDs have the capacity of 8196 bytes, but only when transferring on
-                // a page-boundary. If not, an extra will be needed.
+                struct TransferElement element;
                 uint32_t bytesLeft = transactions[i].Length;
                 while (bytesLeft) {
-                    uintptr_t waste;
-                    uint32_t  count;
-                    __CalculatePacketMetrics(
+                    __CalculateTransferElementMetrics(
                             transfer,
                             &transactions[i],
                             &sgTables[i],
                             bytesLeft,
-                            &waste,
-                            &count
+                            &element
                     );
 
-                    bytesLeft -= count;
+                    bytesLeft -= element.Length;
                     tdsNeeded++;
 
                     // If this was the last packet, and the packet was filled, and
                     // the transaction is an 'OUT', then we must add a ZLP.
                     if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
-                        bytesLeft == 0 && count == transfer->MaxPacketSize) {
+                        bytesLeft == 0 && element.Length == transfer->MaxPacketSize) {
                         if (transactions[i].Type == USB_TRANSACTION_OUT) {
                             tdsNeeded++;
                         }
@@ -271,13 +263,12 @@ HCITransferElementFill(
 
         if (type == USB_TRANSACTION_SETUP) {
             transfer->Elements[ei].Type = USB_TRANSACTION_SETUP;
-            __CalculatePacketMetrics(
+            __CalculateTransferElementMetrics(
                     transfer,
                     &transactions[i],
                     &sgTables[i],
                     transactions[i].Length,
-                    &transfer->Elements[ei].Data.EHCI.Addresses[0],
-                    &transfer->Elements[ei].Length
+                    &transfer->Elements[ei]
             );
             ei++;
         } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
@@ -287,13 +278,12 @@ HCITransferElementFill(
             } else {
                 size_t bytesLeft = transactions[i].Length;
                 while (bytesLeft) {
-                    __CalculatePacketMetrics(
+                    __CalculateTransferElementMetrics(
                             transfer,
                             &transactions[i],
                             &sgTables[i],
                             bytesLeft,
-                            &transfer->Elements[ei].Data.EHCI.Addresses[0],
-                            &transfer->Elements[ei].Length
+                            &transfer->Elements[ei]
                     );
 
                     bytesLeft -= transfer->Elements[ei++].Length;
@@ -336,7 +326,7 @@ __EnsureQueueHead(
         return oserr;
     }
 
-    oserr = EhciQhInitialize(
+    oserr = EHCIQHInitialize(
             controller,
             transfer,
             transfer->Address.DeviceAddress,
@@ -416,8 +406,9 @@ __MarkerPointer(
         case EHCI_siTD_POOL: {
             return &((EhciSplitIsochronousDescriptor_t*)element)->Object.DepthIndex;
         }
+        default:
+            return NULL;
     }
-    return NULL;
 }
 
 static int
@@ -483,7 +474,6 @@ __AllocateDescriptors(
     return tdsAllocated;
 }
 
-
 struct __PrepareContext {
     UsbManagerTransfer_t* Transfer;
     int                   Toggle;
@@ -521,7 +511,7 @@ __PrepareDescriptor(
             EHCITDSetup(
                     (EhciController_t*)controllerBase,
                     td,
-                    context->Transfer->Elements[context->TDIndex].DataAddress
+                    context->Transfer->Elements[context->TDIndex].Data.Address
             );
         } break;
         case USB_TRANSACTION_IN: {
@@ -529,7 +519,7 @@ __PrepareDescriptor(
                     (EhciController_t*)controllerBase,
                     td,
                     EHCI_TD_IN,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length,
                     context->Toggle
             );
@@ -539,7 +529,7 @@ __PrepareDescriptor(
                     (EhciController_t*)controllerBase,
                     td,
                     EHCI_TD_OUT,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
+                    context->Transfer->Elements[context->TDIndex].Data.Address,
                     context->Transfer->Elements[context->TDIndex].Length,
                     context->Toggle
             );
@@ -569,21 +559,23 @@ __PrepareIsochronousDescriptor(
 
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case USB_TRANSACTION_IN: {
-            OHCITDIsochronous(
+            EHCITDIsochronous(
+                    (EhciController_t*)controllerBase,
+                    context->Transfer,
                     iTD,
-                    context->Transfer->Type,
-                    EHCI_TD_IN,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
-                    context->Transfer->Elements[context->TDIndex].Length
+                    EHCI_iTD_IN,
+                    context->Transfer->Elements[context->TDIndex].Data.EHCI.Addresses,
+                    context->Transfer->Elements[context->TDIndex].Data.EHCI.Lengths
             );
         } break;
         case USB_TRANSACTION_OUT: {
-            OHCITDIsochronous(
+            EHCITDIsochronous(
+                    (EhciController_t*)controllerBase,
+                    context->Transfer,
                     iTD,
-                    context->Transfer->Type,
-                    EHCI_TD_OUT,
-                    context->Transfer->Elements[context->TDIndex].DataAddress,
-                    context->Transfer->Elements[context->TDIndex].Length
+                    EHCI_iTD_OUT,
+                    context->Transfer->Elements[context->TDIndex].Data.EHCI.Addresses,
+                    context->Transfer->Elements[context->TDIndex].Data.EHCI.Lengths
             );
         } break;
         default:
@@ -591,8 +583,13 @@ __PrepareIsochronousDescriptor(
     }
 
     if (context->TDIndex == context->LastTDIndex) {
-        iTD->Flags         &= ~(OHCI_TD_IOC_NONE);
-        iTD->OriginalFlags = iTD->Flags;
+        for (int i = 0; i < 8; i++) {
+            if (!iTD->Transactions[i]) {
+                iTD->Transactions[i - 1] |= EHCI_iTD_IOC;
+                iTD->TransactionsCopy[i - 1] |= EHCI_iTD_IOC;
+                break;
+            }
+        }
     }
     context->TDIndex++;
     return true;
@@ -660,7 +657,7 @@ HCITransferQueue(
         return oserr;
     }
 
-    tdsReady = __AllocateDescriptors(controller, transfer, OHCI_TD_POOL);
+    tdsReady = __AllocateDescriptors(controller, transfer, EHCI_TD_POOL);
     if (!tdsReady) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;
@@ -676,7 +673,6 @@ HCITransferQueueIsochronous(
         _In_ UsbManagerTransfer_t* transfer)
 {
     EhciController_t* controller;
-    oserr_t           oserr;
     int               tdsReady;
 
     controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceID);
@@ -684,12 +680,7 @@ HCITransferQueueIsochronous(
         return OS_ENOENT;
     }
 
-    oserr = __EnsureQueueHead(controller, transfer);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    tdsReady = __AllocateDescriptors(controller, transfer, OHCI_iTD_POOL);
+    tdsReady = __AllocateDescriptors(controller, transfer, EHCI_iTD_POOL);
     if (!tdsReady) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;

@@ -159,7 +159,7 @@ OHCIErrorCodeToTransferStatus(
     } else if (ConditionCode == OHCI_CC_BABBLE2 || ConditionCode == OHCI_CC_BABBLE1) {
         return USBTRANSFERCODE_BABBLE;
     } else if (ConditionCode == OHCI_CC_NORESPONSE) {
-        return TransferNotResponding;
+        return USBTRANSFERCODE_NORESPONSE;
     } else if (ConditionCode == OHCI_CC_INIT) {
         return USBTRANSFERCODE_INVALID;
     } else {
@@ -256,10 +256,8 @@ HCIProcessEvent(
         _In_ void*                   context)
 {
     UsbManagerTransfer_t* transfer = context;
+    TRACE("OHCIProcessEvent(event=%i)", event);
 
-    TRACE("HCIProcessEvent(event=%i)", Event);
-
-    // Handle the reasons
     switch (event) {
         case HCIPROCESS_EVENT_RESET_DONE: {
             OHCIQHRestart((OhciController_t*)controller, transfer);

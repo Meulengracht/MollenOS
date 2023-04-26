@@ -31,7 +31,7 @@ HubGetStatus(
     if (UsbExecutePacket(&hubDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS,
                          USBPACKET_TYPE_GET_STATUS, 0, 0,
-                         0, 4, status) != TransferFinished) {
+                         0, 4, status) != USBTRANSFERCODE_SUCCESS) {
         return OS_EUNKNOWN;
     }
     else {
@@ -49,7 +49,7 @@ HubGetPortStatus(
     if (UsbExecutePacket(&hubDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                          USBPACKET_TYPE_GET_STATUS, 0, 0,
-                         portIndex, 4, status) != TransferFinished) {
+                         portIndex, 4, status) != USBTRANSFERCODE_SUCCESS) {
         return OS_EUNKNOWN;
     }
     else {
@@ -68,7 +68,7 @@ HubClearChange(
     transferStatus = UsbExecutePacket(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_CLASS,
                               USBPACKET_TYPE_CLR_FEATURE, change,
                               0, 0, 0, NULL);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
     return OS_EOK;
@@ -88,7 +88,7 @@ HubPortClearChange(
                                       USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                       USBPACKET_TYPE_CLR_FEATURE, change,
                                       0, portIndex, 0, NULL);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
     return OS_EOK;
@@ -106,7 +106,7 @@ HubPowerOnPort(
                                    USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                    portIndex,
                                    HUB_FEATURE_PORT_POWER);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
     return OS_EOK;
@@ -124,7 +124,7 @@ HubResetPort(
                                    USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_OTHER,
                                    portIndex,
                                    HUB_FEATURE_PORT_RESET);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return OS_EDEVFAULT;
     }
 

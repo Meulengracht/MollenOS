@@ -128,7 +128,6 @@ UHCITDVerify(
         _In_ UhciTransferDescriptor_t*           td)
 {
     int conditionCodeIndex;
-    int i;
 
     // Have we already processed this one? In that case we ignore
     // it completely.
@@ -181,7 +180,7 @@ UHCITDRestart(
     }
     UsbManagerSetToggle(&controller->Base, &transfer->Address, toggle ^ 1);
 
-    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != TransferNAK) {
+    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != USBTRANSFERCODE_NAK) {
         uintptr_t bufferStep = transfer->MaxPacketSize;
         uintptr_t bufferBaseUpdated = ADDLIMIT(
                 transfer->Elements[0].Data.Address,

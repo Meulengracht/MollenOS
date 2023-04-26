@@ -94,7 +94,7 @@ void
 HCIPortStatus(
         _In_  UsbManagerController_t* Controller,
         _In_  int                     Index,
-        _Out_ USBPortDescriptor_t*  Port)
+        _Out_ USBPortDescriptor_t*    Port)
 {
     OhciController_t* OhciCtrl  = (OhciController_t*)Controller;
     reg32_t           Status;
@@ -105,7 +105,7 @@ HCIPortStatus(
     // Update metrics
     Port->Connected = (Status & OHCI_PORT_CONNECTED) == 0 ? 0 : 1;
     Port->Enabled   = (Status & OHCI_PORT_ENABLED) == 0 ? 0 : 1;
-    Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? USB_SPEED_FULL : USB_SPEED_LOW;
+    Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? USBSPEED_FULL : USBSPEED_LOW;
 }
 
 oserr_t
