@@ -362,7 +362,7 @@ HCIProcessElement(
             UsbManagerTransfer_t* transfer = context;
             if (pool != qhPool) {
                 if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
-                    EhciTdRestart((EhciController_t*)controller, transfer, (EhciTransferDescriptor_t*)element);
+                    EHCITDRestart((EhciController_t*)controller, transfer, (EhciTransferDescriptor_t*)element);
                 } else {
                     EHCIITDRestart((EhciIsochronousDescriptor_t*)element);
                 }

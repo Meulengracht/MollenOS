@@ -442,11 +442,17 @@ BulkSendCommand(
     // Construct our command build the usb transfer
     BulkScsiCommandConstruct(Device->CommandBlock, ScsiCommand, SectorStart, 
         DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    UsbTransferInitialize(&CommandStage, &Device->Device->DeviceContext, 
-        Device->Out, USBTRANSFER_TYPE_BULK, 0);
-    UsbTransferOut(&CommandStage, dma_pool_handle(UsbRetrievePool()), 
-        dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
-        sizeof(MsdCommandBlock_t), 0);
+    UsbTransferInitialize(
+            &CommandStage,
+            &Device->Device->DeviceContext,
+            Device->Out,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_OUT,
+            0,
+            dma_pool_handle(UsbRetrievePool()),
+            dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
+            sizeof(MsdCommandBlock_t)
+    );
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &CommandStage, &bytesTransferred);
 
     // Sanitize for any transport errors
@@ -476,10 +482,17 @@ BulkReadData(
     USBTransfer_t       dataStage;
     size_t              bytesTransferred = 0;
 
-    // Perform the transfer
-    UsbTransferInitialize(&dataStage, &Device->Device->DeviceContext,
-                          Device->In, USBTRANSFER_TYPE_BULK, 0);
-    UsbTransferIn(&dataStage, BufferHandle, BufferOffset, DataLength, 0);
+    UsbTransferInitialize(
+            &dataStage,
+            &Device->Device->DeviceContext,
+            Device->In,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_IN,
+            0,
+            BufferHandle,
+            BufferOffset,
+            DataLength
+    );
     transferStatus = UsbTransferQueue(&Device->Device->DeviceContext, &dataStage, &bytesTransferred);
     
     // Sanitize for any transport errors
@@ -514,9 +527,17 @@ BulkWriteData(
     size_t              bytesTransferred;
 
     // Perform the data-stage
-    UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
-        Device->Out, USBTRANSFER_TYPE_BULK, 0);
-    UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
+    UsbTransferInitialize(
+            &DataStage,
+            &Device->Device->DeviceContext,
+            Device->Out,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_OUT,
+            0,
+            BufferHandle,
+            BufferOffset,
+            DataLength
+    );
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &bytesTransferred);
 
     // Sanitize for any transport errors
@@ -545,15 +566,19 @@ BulkGetStatus(
     enum USBTransferCode Result;
     USBTransfer_t       StatusStage;
     size_t              bytesTransferred;
-
-    // Debug
     TRACE("BulkGetStatus()");
 
-    // Perform the transfer
-    UsbTransferInitialize(&StatusStage, &Device->Device->DeviceContext, 
-        Device->In, USBTRANSFER_TYPE_BULK, 0);
-    UsbTransferIn(&StatusStage, dma_pool_handle(UsbRetrievePool()), 
-        dma_pool_offset(UsbRetrievePool(), Device->StatusBlock), sizeof(MsdCommandStatus_t), 0);
+    UsbTransferInitialize(
+            &StatusStage,
+            &Device->Device->DeviceContext,
+            Device->In,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_IN,
+            0,
+            dma_pool_handle(UsbRetrievePool()),
+            dma_pool_offset(UsbRetrievePool(), Device->StatusBlock),
+            sizeof(MsdCommandStatus_t)
+    );
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &StatusStage, &bytesTransferred);
 
     // Sanitize for any transport errors

@@ -79,7 +79,7 @@ OHCIQHInitialize(
                 controller->Base.Scheduler,
                 transfer->TData.Periodic.Interval,
                 transfer->MaxPacketSize,
-                __Transfer_TransactionType(transfer),
+                __Transfer_Direction(transfer),
                 __Transfer_Length(transfer),
                 transfer->Type,
                 transfer->Speed,

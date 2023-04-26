@@ -322,7 +322,7 @@ HubDeviceCreate(
                           hubDevice->Interrupt, USBTRANSFER_TYPE_INTERRUPT, 0);
     UsbTransferPeriodic(&hubDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
                         dma_pool_offset(UsbRetrievePool(), hubDevice->Buffer), 0x100,
-                        DIVUP(hubDevice->PortCount, 8), USB_TRANSACTION_IN, (const void*)hubDevice);
+                        DIVUP(hubDevice->PortCount, 8), USB_TRANSACTION_IN);
 
     transferStatus = UsbTransferQueuePeriodic(&hubDevice->Base->DeviceContext, &hubDevice->Transfer, &hubDevice->TransferId);
     if (transferStatus != USBTRANSFERCODE_SUCCESS) {
