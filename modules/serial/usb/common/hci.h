@@ -94,10 +94,10 @@ HCIPortStatus(
  */
 extern bool
 HCIProcessElement(
-    _In_ UsbManagerController_t* controller,
-    _In_ uint8_t*                element,
-    _In_ enum HCIProcessReason   reason,
-    _In_ void*                   context);
+        _In_ UsbManagerController_t* controller,
+        _In_ uint8_t*                element,
+        _In_ enum HCIProcessReason   reason,
+        _In_ void*                   context);
 
 /**
  * @brief Called by the common usb code to indicate an event has

@@ -247,7 +247,7 @@ PACKED_TYPESTRUCT(EhciIsochronousDescriptor, {
  * Bit 12-31: Buffer Page
  */
 #define EHCI_iTD_MPS(n) (MIN(1024, n))
-#define EHCI_iTD_IN     (1 << 11);
+#define EHCI_iTD_IN     (1 << 11)
 #define EHCI_iTD_OUT    0
 
 /**
@@ -574,7 +574,7 @@ typedef struct EHCIController {
 
 /* EhciQueueInitialize
  * Initialize the controller's queue resources and resets counters */
-__EXTERN
+extern
 oserr_t
 EhciQueueInitialize(
     _In_ EhciController_t *Controller);
@@ -582,21 +582,21 @@ EhciQueueInitialize(
 /* EhciQueueDestroy
  * Unschedules any scheduled ed's and frees all resources allocated
  * by the initialize function */
-__EXTERN
+extern
 oserr_t
 EhciQueueDestroy(
     _In_ EhciController_t *Controller);
 
 /* EhciQueueReset
  * Removes and cleans up any existing transfers, then reinitializes. */
-__EXTERN
+extern
 oserr_t
 EhciQueueReset(
     _In_ EhciController_t *Controller);
 
 /* EhciEnableScheduler
  * Enables the relevant scheduler if it is not enabled already */
-__EXTERN
+extern
 void
 EhciEnableScheduler(
     _In_ EhciController_t*  Controller,
@@ -604,7 +604,7 @@ EhciEnableScheduler(
 
 /* EhciSetPrefetching
  * Disables the prefetching related to the transfer-type. */
-__EXTERN
+extern
 oserr_t
 EhciSetPrefetching(
     _In_ EhciController_t*  Controller,
@@ -613,7 +613,7 @@ EhciSetPrefetching(
 
 /* EhciHalt
  * Halt's the controller and clears any pending events. */
-__EXTERN
+extern
 oserr_t
 EhciHalt(
     _In_ EhciController_t *Controller);
@@ -621,14 +621,14 @@ EhciHalt(
 /* EhciRestart
  * Resets and restarts the entire controller and schedule, this can be used in
  * case of serious failures. */
-__EXTERN
+extern
 oserr_t
 EhciRestart(
     _In_ EhciController_t *Controller);
 
 /* EhciPortClearBits
  * Clears the given bits without touching the R/WC bits */
-__EXTERN
+extern
 void
 EhciPortClearBits(
     _In_ EhciController_t*          Controller,
@@ -637,7 +637,7 @@ EhciPortClearBits(
 
 /* EhciPortSetBits
  * Sets the given bits without touching the R/WC bits */
-__EXTERN
+extern
 void
 EhciPortSetBits(
     _In_ EhciController_t*          Controller,
@@ -647,7 +647,7 @@ EhciPortSetBits(
 /* EhciPortScan
  * Scans all ports of the controller for event-changes and handles
  * them accordingly. */
-__EXTERN
+extern
 void
 EhciPortScan(
     _In_ EhciController_t*  Controller,
@@ -657,32 +657,32 @@ EhciPortScan(
  * Queue Head Methods
  *******************************************************************************/
 
-/* EhciQhInitialize
+/* EHCIQHInitialize
  * This initiates any periodic scheduling information 
  * that might be needed */
-__EXTERN
+extern
 oserr_t
-EhciQhInitialize(
+EHCIQHInitialize(
     _In_ EhciController_t*     controller,
     _In_ UsbManagerTransfer_t* transfer,
     _In_ uint8_t               deviceAddress,
     _In_ uint8_t               endpointAddress);
 
-/* EhciQhDump
+/* EHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */
-__EXTERN
+extern
 void
-EhciQhDump(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciQueueHead_t*           Qh);
+EHCIQHDump(
+    _In_ EhciController_t*          controller,
+    _In_ EhciQueueHead_t*           qh);
 
-/* EhciQhRestart
+/* EHCIQHRestart
  * Restarts an interrupt QH by resetting it to it's start state */
-__EXTERN
+extern
 void
-EhciQhRestart(
-    EhciController_t*               Controller, 
-    UsbManagerTransfer_t*           Transfer);
+EHCIQHRestart(
+    EhciController_t*               controller,
+    UsbManagerTransfer_t*           transfer);
 
 /*******************************************************************************
  * Transfer Descriptor Methods
@@ -691,7 +691,7 @@ EhciQhRestart(
 /* EHCITDSetup
  * This allocates & initializes a TD for a setup transaction 
  * this is only used for control transactions */
-__EXTERN void
+extern void
 EHCITDSetup(
         _In_ EhciController_t*         controller,
         _In_ EhciTransferDescriptor_t* td,
@@ -700,7 +700,7 @@ EHCITDSetup(
 /* EHCITDData
  * This allocates & initializes a TD for an i/o transaction 
  * and is used for control, bulk and interrupt */
-__EXTERN void
+extern void
 EHCITDData(
         _In_ EhciController_t*         controller,
         _In_ EhciTransferDescriptor_t* td,
@@ -709,27 +709,26 @@ EHCITDData(
         _In_ size_t                    length,
         _In_ int                       toggle);
 
-/* EhciTdDump
+/* EHCITDDump
  * Dumps the information contained in the descriptor by writing it. */
-__EXTERN
+extern
 void
-EhciTdDump(
-    _In_ EhciController_t*          Controller,
-    _In_ EhciTransferDescriptor_t*  Td);
+EHCITDDump(
+    _In_ EhciController_t*          controller,
+    _In_ EhciTransferDescriptor_t*  td);
 
-/* EhciTdValidate
+/* EHCITDVerify
  * Checks the transfer descriptors for errors and updates the transfer that is attached
  * with the bytes transferred and error status. */
-__EXTERN
-void
-EhciTdValidate(
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ EhciTransferDescriptor_t*  Td);
+extern void
+EHCITDVerify(
+        _In_ struct HCIProcessReasonScanContext* scanContext,
+        _In_ EhciTransferDescriptor_t*           td);
 
 /* EhciTdSynchronize
  * Synchronizes the toggle status of the transfer descriptor by retrieving
  * current and updating the pipe toggle. */
-__EXTERN
+extern
 void
 EhciTdSynchronize(
     _In_ UsbManagerTransfer_t*      Transfer,
@@ -738,57 +737,62 @@ EhciTdSynchronize(
 /* EhciTdRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
-__EXTERN
+extern
 void
 EhciTdRestart(
-    _In_ EhciController_t*          Controller,
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ EhciTransferDescriptor_t*  Td);
+    _In_ EhciController_t*          controller,
+    _In_ UsbManagerTransfer_t*      transfer,
+    _In_ EhciTransferDescriptor_t*  td);
 
 /*******************************************************************************
  * Isochronous TD Methods
  *******************************************************************************/
 
-/* EhciTdIsochronous
- * This initiates any periodic scheduling information that might be needed */
-__EXTERN
-oserr_t
-EhciTdIsochronous(
+/**
+ * @brief
+ * @param controller
+ * @param transfer
+ * @param iTd
+ * @param pid
+ * @param addresses
+ * @param lengths
+ */
+extern void
+EHCITDIsochronous(
         _In_ EhciController_t*            controller,
-        _In_ USBTransfer_t*               transfer,
+        _In_ UsbManagerTransfer_t*        transfer,
         _In_ EhciIsochronousDescriptor_t* iTd,
-        _In_ uintptr_t                    bufferAddress,
-        _In_ size_t                       byteCount,
-        _In_ uint8_t                      transactionType,
-        _In_ uint8_t                      deviceAddress,
-        _In_ uint8_t                      endpointAddress);
+        _In_ uint32_t                     pid,
+        _In_ const uintptr_t*             addresses,
+        _In_ const uint32_t*              lengths);
 
-/* EhciiTdDump
- * Dumps the information contained in the descriptor by writing it. */
-__EXTERN
-void
-EhciiTdDump(
-    _In_ EhciController_t*              Controller,
-    _In_ EhciIsochronousDescriptor_t*   Td);
+/**
+ * @brief
+ * @param controller
+ * @param td
+ */
+extern void
+EHCIITDDump(
+    _In_ EhciController_t*              controller,
+    _In_ EhciIsochronousDescriptor_t*   td);
 
-/* EhciiTdValidate
- * Checks the transfer descriptors for errors and updates the transfer that is attached
- * with the bytes transferred and error status. */
-__EXTERN
-void
-EhciiTdValidate(
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ EhciIsochronousDescriptor_t*   Td);
+/**
+ * @brief
+ * @param scanContext
+ * @param iTD
+ */
+extern void
+EHCIITDVerify(
+        _In_ struct HCIProcessReasonScanContext* scanContext,
+        _In_ EhciIsochronousDescriptor_t*        iTD);
 
-/* EhciiTdRestart
- * Restarts a transfer descriptor by resettings it's status and updating buffers if the
- * trasnfer type is an interrupt-transfer that uses circularbuffers. */
-__EXTERN
-void
-EhciiTdRestart(
-    _In_ EhciController_t*              Controller,
-    _In_ UsbManagerTransfer_t*          Transfer,
-    _In_ EhciIsochronousDescriptor_t*   Td);
+/**
+ * @brief
+ * @param iTD
+ */
+extern void
+EHCIITDRestart(
+        _In_ EhciIsochronousDescriptor_t* iTD);
 
 /*******************************************************************************
  * Queue Methods
@@ -796,21 +800,21 @@ EhciiTdRestart(
     
 /* EhciGetStatusCode
  * Retrieves a status-code from a given condition code */
-__EXTERN
+extern
 enum USBTransferCode
-EhciGetStatusCode(
+EHCIErrorCodeToTransferStatus(
     _In_ int                    ConditionCode);
 
-/* EhciConditionCodeToIndex
+/* EHCIConditionCodeToIndex
  * Converts a given condition bit-index to number */
-__EXTERN
+extern
 int
-EhciConditionCodeToIndex(
+EHCIConditionCodeToIndex(
     _In_ unsigned               ConditionCode);
 
 /* EhciRingDoorbell
  * This functions rings the bell */
-__EXTERN
+extern
 void
 EhciRingDoorbell(
      _In_ EhciController_t*     Controller);
@@ -818,7 +822,7 @@ EhciRingDoorbell(
 /* EhciTransactionDispatch
  * Queues the transfer up in the controller hardware, after finalizing the
  * transactions and preparing them. */
-__EXTERN void
+extern void
 __DispatchTransfer(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer);

@@ -84,7 +84,7 @@ OhciReloadAsynchronous(
         // Reset control queue
         controller->TransactionQueueControlIndex = USB_ELEMENT_NO_INDEX;
         controller->TransactionsWaitingControl   = 0;
-    } else if (transferType == USB_TRANSFER_BULK) {
+    } else if (transferType == USBTRANSFER_TYPE_BULK) {
         WRITE_VOLATILE(controller->Registers->HcBulkHeadED, LODWORD(qhAddress));
         WRITE_VOLATILE(controller->Registers->HcCommandStatus,
                        READ_VOLATILE(controller->Registers->HcCommandStatus) | OHCI_COMMAND_BULK_FILLED);

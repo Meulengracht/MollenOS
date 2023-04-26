@@ -65,16 +65,17 @@ static const char* g_vendorString = "Vendor-specific device (Usb)";
 
 static uint16_t
 GetMaxPacketSizeControl(
-    _In_ uint8_t speed)
+    _In_ enum USBSpeed speed)
 {
-    if (speed == USB_SPEED_FULL || speed == USB_SPEED_HIGH) {
-        return 64;
-    }
-    else if (speed == USB_SPEED_SUPER || speed == USB_SPEED_SUPER_PLUS) {
-        return 512;
-    }
-    else {
-        return 8;
+    switch (speed) {
+        case USBSPEED_FULL:
+        case USBSPEED_HIGH:
+            return 64;
+        case USBSPEED_SUPER:
+        case USBSPEED_SUPER_PLUS:
+            return 512;
+        default:
+            return 8;
     }
 }
 
@@ -157,9 +158,9 @@ static enum USBTransferCode __GetDeviceDescriptor(
     enum USBTransferCode     transferStatus;
 
     transferStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         transferStatus = UsbGetDeviceDescriptor(&device->Base, &deviceDescriptor);
-        if (transferStatus != TransferFinished) {
+        if (transferStatus != USBTRANSFERCODE_SUCCESS) {
             return transferStatus;
         }
     }
@@ -191,7 +192,7 @@ static enum USBTransferCode __GetDeviceString(
     enum USBTransferCode transferStatus;
 
     transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         transferStatus = UsbGetStringDescriptor(&device->Base, USB_LANGUAGE_ENGLISH, stringIndex, stringOut);
     }
     return transferStatus;
@@ -203,12 +204,12 @@ static enum USBTransferCode __GetDeviceIdentification(
     enum USBTransferCode transferStatus;
 
     transferStatus = __GetDeviceString(device, device->ManufactorerIndex, &device->Manufacturer);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return transferStatus;
     }
 
     transferStatus = __GetDeviceString(device, device->ProductIndex, &device->Product);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         return transferStatus;
     }
     return __GetDeviceString(device, device->SerialIndex, &device->Serial);
@@ -221,7 +222,7 @@ static enum USBTransferCode __GetConfiguration(
     enum USBTransferCode        transferStatus;
 
     transferStatus = UsbGetActiveConfigDescriptor(&device->Base, &configuration);
-    if (transferStatus == TransferFinished) {
+    if (transferStatus == USBTRANSFERCODE_SUCCESS) {
         TRACE("__GetConfiguration current configuration=%u", configuration.base.ConfigurationValue);
         device->DefaultConfiguration = configuration.base.ConfigurationValue;
 
@@ -242,7 +243,7 @@ __SetDefaultConfiguration(
     enum USBTransferCode transferStatus;
 
     transferStatus = UsbSetConfiguration(&device->Base, device->DefaultConfiguration);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         transferStatus = UsbSetConfiguration(&device->Base, device->DefaultConfiguration);
     }
     return transferStatus;
@@ -332,7 +333,7 @@ UsbCoreDevicesCreate(
     // The first request after an initial reset must be the Device Descriptor
     // request with a length less than or equal to max packet size.
     usbStatus = __QueryInitialDeviceDescriptor(device);
-    if (usbStatus != TransferFinished) {
+    if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("UsbCoreDevicesCreate: [%u:%u] failed to initialize usb-device [query-initial-dd]: %u",
               usbHub->PortAddress, usbPort->Address, usbStatus);
         goto device_error;
@@ -358,9 +359,9 @@ UsbCoreDevicesCreate(
     TRACE("[usb] [%u:%u] new device address => %i",
           usbHub->PortAddress, usbPort->Address, reservedAddress);
     usbStatus = UsbSetAddress(&device->Base, reservedAddress);
-    if (usbStatus != TransferFinished) {
+    if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         usbStatus = UsbSetAddress(&device->Base, reservedAddress);
-        if (usbStatus != TransferFinished) {
+        if (usbStatus != USBTRANSFERCODE_SUCCESS) {
             ERROR("[usb] [%u:%u] UsbSetAddress failed - %u",
                   usbHub->PortAddress, usbPort->Address, (size_t)usbStatus);
             goto device_error;
@@ -372,25 +373,25 @@ UsbCoreDevicesCreate(
     thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
 
     usbStatus = __GetDeviceDescriptor(device);
-    if (usbStatus != TransferFinished) {
+    if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("[usb] [%u:%u] __GetDeviceDescriptor failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
     usbStatus = __GetDeviceIdentification(device);
-    if (usbStatus != TransferFinished) {
+    if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("[usb] [%u:%u] __GetDeviceIdentification failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
     usbStatus = __GetConfiguration(device);
-    if (usbStatus != TransferFinished) {
+    if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("[usb] [%u:%u] __GetConfiguration failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }
 
     usbStatus = __SetDefaultConfiguration(device);
-    if (usbStatus != TransferFinished) {
+    if (usbStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("[usb] [%u:%u] __SetDefaultConfiguration failed", usbHub->PortAddress, usbPort->Address);
         goto device_error;
     }

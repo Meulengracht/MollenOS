@@ -42,7 +42,7 @@ static oserr_t __FillHidDescriptor(
                               (uint16_t)hidDevice->InterfaceId,
                               sizeof(UsbHidDescriptor_t), (void*)hidDescriptor);
 
-    if (status != TransferFinished) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         ERROR("__FillHidDescriptor failed with code %u", status);
         return OS_EUNKNOWN;
     }
@@ -68,7 +68,7 @@ static oserr_t __FillReportDescriptor(
                               (uint16_t)hidDevice->InterfaceId,
                               reportLength, (void*)reportBuffer);
 
-    if (status != TransferFinished) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         ERROR("__FillReportDescriptor failed with code %u", status);
         return OS_EUNKNOWN;
     }
@@ -86,7 +86,7 @@ HidGetProtocol(
     if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
                          USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_IN,
                          HID_GET_PROTOCOL, 0, 0,
-                         (uint16_t)hidDevice->InterfaceId, 1, protocol) != TransferFinished) {
+                         (uint16_t)hidDevice->InterfaceId, 1, protocol) != USBTRANSFERCODE_SUCCESS) {
         return OS_EUNKNOWN;
     }
     else {
@@ -103,7 +103,7 @@ HidSetProtocol(
     if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                 HID_SET_PROTOCOL, protocol & 0xFF, 0,
-                (uint16_t)hidDevice->InterfaceId, 0, NULL) != TransferFinished) {
+                (uint16_t)hidDevice->InterfaceId, 0, NULL) != USBTRANSFERCODE_SUCCESS) {
         return OS_EUNKNOWN;
     }
     else {
@@ -124,7 +124,7 @@ HidSetIdle(
     if (UsbExecutePacket(&hidDevice->Base->DeviceContext,
         USBPACKET_DIRECTION_INTERFACE | USBPACKET_DIRECTION_CLASS,
                          HID_SET_IDLE, reportId, duration,
-                         (uint16_t)hidDevice->InterfaceId, 0, NULL) == TransferFinished) {
+                         (uint16_t)hidDevice->InterfaceId, 0, NULL) == USBTRANSFERCODE_SUCCESS) {
         return OS_EOK;
     }
     else {

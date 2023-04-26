@@ -141,7 +141,7 @@ static void __GetDeviceConfiguration(
     TRACE("__GetDeviceConfiguration(hidDevice=0x%" PRIxIN ")", hidDevice);
     
     status = UsbGetActiveConfigDescriptor(&hidDevice->Base->DeviceContext, &configuration);
-    if (status != TransferFinished) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         return;
     }
 
@@ -222,13 +222,13 @@ HidDeviceCreate(
 
     // Install interrupt pipe
     UsbTransferInitialize(&hidDevice->Transfer, &hidDevice->Base->DeviceContext,
-                          hidDevice->Interrupt, USB_TRANSFER_INTERRUPT, 0);
+                          hidDevice->Interrupt, USBTRANSFER_TYPE_INTERRUPT, 0);
     UsbTransferPeriodic(&hidDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
                         dma_pool_offset(UsbRetrievePool(), hidDevice->Buffer), 0x400,
                         hidDevice->ReportLength, USB_TRANSACTION_IN, (const void*)hidDevice);
 
     status = UsbTransferQueuePeriodic(&hidDevice->Base->DeviceContext, &hidDevice->Transfer, &hidDevice->TransferId);
-    if (status != TransferQueued && status != TransferInProgress) {
+    if (status != USBTRANSFERCODE_SUCCESS) {
         ERROR("HidDeviceCreate failed to install interrupt transfer");
         goto error_exit;
     }
@@ -266,7 +266,7 @@ HidInterrupt(
     _In_ enum USBTransferCode transferStatus,
     _In_ size_t              dataIndex)
 {
-    if (!hidDevice->Collection || transferStatus == TransferNAK) {
+    if (!hidDevice->Collection || transferStatus == USBTRANSFERCODE_NAK) {
         return;
     }
 

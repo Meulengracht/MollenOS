@@ -18,6 +18,8 @@
 #ifndef __USB_COMMON_TYPES__
 #define __USB_COMMON_TYPES__
 
+#include <usb/usb.h>
+
 // import types
 typedef struct UsbManagerTransfer UsbManagerTransfer_t;
 

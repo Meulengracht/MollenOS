@@ -239,7 +239,7 @@ UsbTransferQueue(
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     uuid_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
-    enum USBTransferCode      transferStatus = TransferInvalid;
+    enum USBTransferCode     transferStatus = USBTRANSFERCODE_INVALID;
 
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
         deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
@@ -366,7 +366,7 @@ UsbExecutePacket(
     
     if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OS_EOK) {
         ERROR("Failed to allocate a transfer buffer");
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     if (length != 0) {
@@ -374,7 +374,7 @@ UsbExecutePacket(
         if (osStatus != OS_EOK) {
             ERROR("Failed to allocate a transfer data buffer");
             dma_pool_free(g_dmaPool, dmaPacketStorage);
-            return TransferInvalid;
+            return USBTRANSFERCODE_INVALID;
         }
     }
     
@@ -404,11 +404,11 @@ UsbExecutePacket(
 
     // Execute the transaction and cleanup the buffer
     transferStatus = UsbTransferQueue(deviceContext, &transfer, &bytesTransferred);
-    if (transferStatus != TransferFinished) {
+    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("Usb transfer returned error %u", transferStatus);
     }
 
-    if (transferStatus == TransferFinished && length != 0 &&
+    if (transferStatus == USBTRANSFERCODE_SUCCESS && length != 0 &&
         buffer != NULL && dataDirection == USB_TRANSACTION_IN) {
         memcpy(buffer, dmaStorage, length);
     }
@@ -430,7 +430,7 @@ UsbSetAddress(
     TRACE("UsbSetAddress()");
 
     if (deviceContext->device_address != 0) {
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_OUT,
@@ -551,7 +551,7 @@ UsbGetConfigDescriptor(
     // Are we requesting the initial descriptor?
     if (deviceContext->configuration_length <= sizeof(usb_config_descriptor_t)) {
         status = UsbGetInitialConfigDescriptor(deviceContext, configuration);
-        if (status != TransferFinished) {
+        if (status != USBTRANSFERCODE_SUCCESS) {
             return status;
         }
         deviceContext->configuration_length = configuration->base.TotalLength;
@@ -559,14 +559,14 @@ UsbGetConfigDescriptor(
 
     descriptorStorage = malloc(deviceContext->configuration_length);
     if (!descriptorStorage) {
-        return TransferBufferError;
+        return USBTRANSFERCODE_BUFFERERROR;
     }
     
     status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
         USBPACKET_TYPE_GET_DESC, 0, USB_DESCRIPTOR_CONFIG,
         (uint16_t)(configurationIndex & 0xFFFF), deviceContext->configuration_length,
         descriptorStorage);
-    if (status == TransferFinished) {
+    if (status == USBTRANSFERCODE_SUCCESS) {
         ParseConfigurationDescriptor(descriptorStorage, configuration);
     }
 
@@ -644,7 +644,7 @@ UsbGetStringDescriptor(
     
     desc = malloc(sizeof(usb_unicode_string_descriptor_t) + 2);
     if (desc == NULL) {
-        return TransferInvalid;
+        return USBTRANSFERCODE_INVALID;
     }
 
     status = UsbExecutePacket(
@@ -655,7 +655,7 @@ UsbGetStringDescriptor(
             (uint16_t)languageId,
             sizeof(usb_unicode_string_descriptor_t) + 2, desc);
 
-    if (status == TransferFinished) {
+    if (status == USBTRANSFERCODE_SUCCESS) {
         // zero terminate the UTF-16 string, we allocated an extra two bytes
         desc->string[desc->length - 2] = 0;
         desc->string[desc->length - 1] = 0;

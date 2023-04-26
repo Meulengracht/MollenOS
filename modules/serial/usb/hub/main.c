@@ -149,9 +149,9 @@ static inline void __PortStatusToDescriptor(
     if (portStatus->Status & HUB_PORT_STATUS_CONNECTED)      { descriptor->Connected = 1; }
     if (portStatus->Status & HUB_PORT_STATUS_ENABLED)        { descriptor->Enabled = 1; }
 
-    if (portStatus->Status & HUB_PORT_STATUS_LOWSPEED)       { descriptor->Speed = USB_SPEED_LOW; }
-    else if (portStatus->Status & HUB_PORT_STATUS_HIGHSPEED) { descriptor->Speed = USB_SPEED_HIGH; }
-    else                                                     { descriptor->Speed = USB_SPEED_FULL; }
+    if (portStatus->Status & HUB_PORT_STATUS_LOWSPEED)       { descriptor->Speed = USBSPEED_LOW; }
+    else if (portStatus->Status & HUB_PORT_STATUS_HIGHSPEED) { descriptor->Speed = USBSPEED_HIGH; }
+    else                                                     { descriptor->Speed = USBSPEED_FULL; }
 }
 
 void ctt_usbhub_query_port_invocation(struct gracht_message* message, const uuid_t deviceId, const uint8_t portId)

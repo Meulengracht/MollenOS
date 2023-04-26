@@ -155,7 +155,7 @@ UfiSendCommand(
         sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
 
     // Sanitize for any transport errors
-    if (Result != TransferFinished) {
+    if (Result != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to send the CBW command, transfer-code %u", Result);
     }
     return Result;
@@ -173,12 +173,12 @@ UfiReadData(
     USBTransfer_t       DataStage;
 
     UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
-        Device->In, USB_TRANSFER_BULK, 0);
+        Device->In, USBTRANSFER_TYPE_BULK, 0);
     UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesRead);
     
     // Sanitize for any transport errors
-    if (Result != TransferFinished) {
+    if (Result != USBTRANSFERCODE_SUCCESS) {
         ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result);
         // @todo handle
     }
@@ -199,12 +199,12 @@ UfiWriteData(
 
     // Perform the data-stage
     UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
-        Device->Out, USB_TRANSFER_BULK, 0);
+        Device->Out, USBTRANSFER_TYPE_BULK, 0);
     UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesWritten);
 
     // Sanitize for any transport errors
-    if (Result != TransferFinished) {
+    if (Result != USBTRANSFERCODE_SUCCESS) {
         ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
         // @todo handle
     }
@@ -220,7 +220,7 @@ UfiGetStatus(
 {
     // Unused
     _CRT_UNUSED(Device);
-    return TransferFinished;
+    return USBTRANSFERCODE_SUCCESS;
 }
 
 MsdOperations_t UfiOperations = {
