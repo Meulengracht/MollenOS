@@ -89,8 +89,12 @@ UsbTransferInitialize(
         _In_ USBTransfer_t*             transfer,
         _In_ usb_device_context_t*      device,
         _In_ usb_endpoint_descriptor_t* endpoint,
-        _In_ uint8_t                    type,
-        _In_ uint8_t                    flags)
+        _In_ enum USBTransferType       type,
+        _In_ enum USBTransferDirection  direction,
+        _In_ unsigned int               flags,
+        _In_ uuid_t                     dataBufferHandle,
+        _In_ size_t                     dataBufferOffset,
+        _In_ size_t                     dataLength)
 {
     // Support NULL endpoint to indicate control
     uint8_t  endpointAddress   = endpoint ? USB_ENDPOINT_ADDRESS(endpoint->Address) : 0;
@@ -102,6 +106,7 @@ UsbTransferInitialize(
     
     memset(transfer, 0, sizeof(USBTransfer_t));
     transfer->Type                    = type;
+    transfer->Direction               = direction;
     transfer->Speed                   = device->speed;
     transfer->Address.HubAddress      = device->hub_address;
     transfer->Address.PortAddress     = device->port_address;
@@ -109,6 +114,9 @@ UsbTransferInitialize(
     transfer->Address.EndpointAddress = endpointAddress;
     transfer->MaxPacketSize           = endpointMps;
     transfer->Flags                   = flags;
+    transfer->BufferHandle            = dataBufferHandle;
+    transfer->BufferOffset            = dataBufferOffset;
+    transfer->Length                  = dataLength;
     transfer->PeriodicBandwith        = endpointBandwidth;
     transfer->PeriodicInterval        = endpointInterval;
 }
@@ -151,84 +159,6 @@ UsbTransferSetup(
     transfer->Transactions[ackIndex].BufferHandle = UUID_INVALID;
     transfer->Transactions[ackIndex].Type         = ackType;
     transfer->TransactionCount                    = ackIndex + 1;
-}
-
-void
-UsbTransferPeriodic(
-        _In_ USBTransfer_t* Transfer,
-        _In_ uuid_t         BufferHandle,
-        _In_ size_t         BufferOffset,
-        _In_ size_t         BufferLength,
-        _In_ size_t         DataLength,
-        _In_ uint8_t        DataDirection,
-        _In_ const void*    NotifificationData)
-{
-    // Initialize the data stage
-    Transfer->Transactions[0].Type         = DataDirection;
-    Transfer->Transactions[0].BufferHandle = BufferHandle;
-    Transfer->Transactions[0].BufferOffset = BufferOffset;
-    Transfer->Transactions[0].Length       = DataLength;
-
-    // Initialize the transfer for interrupt
-    Transfer->PeriodicData       = NotifificationData;
-    Transfer->PeriodicBufferSize = BufferLength;
-    Transfer->TransactionCount   = 1;
-}
-
-oserr_t
-UsbTransferIn(
-        _In_ USBTransfer_t* Transfer,
-        _In_ uuid_t         BufferHandle,
-        _In_ size_t         BufferOffset,
-        _In_ size_t         Length,
-        _In_ int            Handshake)
-{
-    USBTransaction_t* Transaction;
-
-    // Sanitize count
-    if (Transfer->TransactionCount >= 3) {
-        return OS_EUNKNOWN;
-    }
-
-    Transaction               = &Transfer->Transactions[Transfer->TransactionCount++];
-    Transaction->Type         = USB_TRANSACTION_IN;
-    Transaction->BufferHandle = BufferHandle;
-    Transaction->BufferOffset = BufferOffset;
-    Transaction->Length       = Length;
-    Transaction->Flags        = Handshake ? USB_TRANSACTION_ZLP : 0; 
-    
-    if (Length == 0) { // Zero-length?
-        Transaction->Flags |= USB_TRANSACTION_ZLP;
-    }
-    return OS_EOK;
-}
-
-oserr_t
-UsbTransferOut(
-        _In_ USBTransfer_t* Transfer,
-        _In_ uuid_t         BufferHandle,
-        _In_ size_t         BufferOffset,
-        _In_ size_t         Length,
-        _In_ int            Handshake)
-{
-    USBTransaction_t* Transaction;
-
-    // Sanitize count
-    if (Transfer->TransactionCount >= 3) {
-        return OS_EUNKNOWN;
-    }
-
-    Transaction               = &Transfer->Transactions[Transfer->TransactionCount++];
-    Transaction->Type         = USB_TRANSACTION_OUT;
-    Transaction->BufferHandle = BufferHandle;
-    Transaction->BufferOffset = BufferOffset;
-    Transaction->Length       = Length;
-    Transaction->Flags        = Handshake ? USB_TRANSACTION_ZLP : 0; 
-    
-    if (Length == 0) { // Zero-length?
-        Transaction->Flags |= USB_TRANSACTION_ZLP;
-    }
-    return OS_EOK;
 }
 
 enum USBTransferCode
@@ -347,38 +277,28 @@ UsbEndpointReset(
 
 enum USBTransferCode
 UsbExecutePacket(
-	_In_ usb_device_context_t* deviceContext,
-    _In_ uint8_t               direction,
-    _In_ uint8_t               type,
-    _In_ uint8_t               valueLow,
-    _In_ uint8_t               valueHigh,
-    _In_ uint16_t              index,
-    _In_ uint16_t              length,
-    _In_ void*                 buffer)
+        _In_ usb_device_context_t* deviceContext,
+        _In_ uint8_t               direction,
+        _In_ uint8_t               type,
+        _In_ uint8_t               valueLow,
+        _In_ uint8_t               valueHigh,
+        _In_ uint16_t              index,
+        _In_ uint16_t              length,
+        _In_ void*                 buffer)
 {
     enum USBTransferCode transferStatus;
-    size_t              bytesTransferred;
-    uint8_t             dataDirection;
-    void*               dmaStorage = NULL;
-    void*               dmaPacketStorage;
-    usb_packet_t*       packet;
-    USBTransfer_t transfer;
+    size_t               bytesTransferred;
+    uint8_t              dataDirection;
+    void*                dmaStorage;
+    usb_packet_t*        packet;
+    USBTransfer_t        transfer;
     
-    if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t), &dmaPacketStorage) != OS_EOK) {
+    if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t) + length, &dmaStorage) != OS_EOK) {
         ERROR("Failed to allocate a transfer buffer");
         return USBTRANSFERCODE_INVALID;
     }
 
-    if (length != 0) {
-        oserr_t osStatus = dma_pool_allocate(g_dmaPool, length, &dmaStorage);
-        if (osStatus != OS_EOK) {
-            ERROR("Failed to allocate a transfer data buffer");
-            dma_pool_free(g_dmaPool, dmaPacketStorage);
-            return USBTRANSFERCODE_INVALID;
-        }
-    }
-    
-    packet              = (usb_packet_t*)dmaPacketStorage;
+    packet              = (usb_packet_t*)dmaStorage;
     packet->Direction   = direction;
     packet->Type        = type;
     packet->ValueHi     = valueHigh;
@@ -387,20 +307,32 @@ UsbExecutePacket(
     packet->Length      = length;
 
     if (direction & USBPACKET_DIRECTION_IN) {
-        dataDirection = USB_TRANSACTION_IN;
-    }
-    else {
-        dataDirection = USB_TRANSACTION_OUT;
+        dataDirection = USBTRANSFER_DIRECTION_IN;
+    } else {
+        dataDirection = USBTRANSFER_DIRECTION_OUT;
         if (length != 0 && buffer != NULL) {
-            memcpy(dmaStorage, buffer, length);
+            memcpy(
+                    ((char*)dmaStorage + sizeof(usb_packet_t)),
+                    buffer,
+                    length
+            );
         }
     }
 
-    // Initialize setup transfer
-    UsbTransferInitialize(&transfer, deviceContext, USB_TRANSFER_ENDPOINT_CONTROL,
-        USBTRANSFER_TYPE_CONTROL, 0);
-    UsbTransferSetup(&transfer, dma_pool_handle(g_dmaPool), dma_pool_offset(g_dmaPool, dmaPacketStorage),
-                     dma_pool_handle(g_dmaPool), dma_pool_offset(g_dmaPool, dmaStorage), length, dataDirection);
+    // When initializing control transfers the first 9 bytes must be the
+    // setup packet, and the remaining bytes must be the data that is to
+    // be sent or read
+    UsbTransferInitialize(
+            &transfer,
+            deviceContext,
+            USB_TRANSFER_ENDPOINT_CONTROL,
+            USBTRANSFER_TYPE_CONTROL,
+            dataDirection,
+            0,
+            dma_pool_handle(g_dmaPool),
+            dma_pool_offset(g_dmaPool, dmaStorage),
+            sizeof(usb_packet_t) + length
+    );
 
     // Execute the transaction and cleanup the buffer
     transferStatus = UsbTransferQueue(deviceContext, &transfer, &bytesTransferred);
@@ -409,14 +341,14 @@ UsbExecutePacket(
     }
 
     if (transferStatus == USBTRANSFERCODE_SUCCESS && length != 0 &&
-        buffer != NULL && dataDirection == USB_TRANSACTION_IN) {
+        buffer != NULL && dataDirection == USBTRANSFER_DIRECTION_IN) {
         memcpy(buffer, dmaStorage, length);
     }
 
     if (length != 0) {
         dma_pool_free(g_dmaPool, dmaStorage);
     }
-    dma_pool_free(g_dmaPool, dmaPacketStorage);
+    dma_pool_free(g_dmaPool, dmaStorage);
     return transferStatus;
 }
 

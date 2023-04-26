@@ -46,66 +46,28 @@ __ConvertFlags(
 }
 
 static oserr_t
-__AttachSGTables(
+__AttachSGTable(
         _In_ UsbManagerTransfer_t* usbTransfer,
         _In_ USBTransfer_t*        transfer,
-        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
+        _In_ SHMSGTable_t*         sgTable)
 {
-    // When attaching to dma buffers make sure we don't attach
-    // multiple times as we can then save a system call or two
-    for (int i = 0; i < transfer->TransactionCount; i++) {
-        if (transfer->Transactions[i].BufferHandle == UUID_INVALID) {
-            continue;
-        }
-
-        if (i != 0 && transfer->Transactions[i].BufferHandle ==
-                      transfer->Transactions[i - 1].BufferHandle) {
-            memcpy(&sgTables[i], &sgTables[i - 1], sizeof(SHMSGTable_t));
-            memcpy(&usbTransfer->SHMHandles[i], &usbTransfer->SHMHandles[i - 1], sizeof(OSHandle_t));
-        } else if (i == 2 && transfer->Transactions[i].BufferHandle ==
-                             transfer->Transactions[i - 2].BufferHandle) {
-            memcpy(&sgTables[i], &sgTables[i - 2], sizeof(SHMSGTable_t));
-            memcpy(&usbTransfer->SHMHandles[i], &usbTransfer->SHMHandles[i - 2], sizeof(OSHandle_t));
-        } else {
-            oserr_t oserr = SHMAttach(
-                    transfer->Transactions[i].BufferHandle,
-                    &usbTransfer->SHMHandles[i]
-            );
-            if (oserr != OS_EOK) {
-                return oserr;
-            }
-
-            oserr = SHMGetSGTable(
-                    &usbTransfer->SHMHandles[i],
-                    &sgTables[i],
-                    -1
-            );
-            if (oserr != OS_EOK) {
-                return oserr;
-            }
-        }
+    oserr_t oserr = SHMAttach(
+            transfer->BufferHandle,
+            &usbTransfer->SHMHandle
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    return OS_EOK;
-}
 
-static void
-__FreeSGTables(
-        _In_ SHMSGTable_t sgTables[USB_TRANSACTIONCOUNT])
-{
-    // Keep in mind that they may be copies of each other
-    for (int i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        if (sgTables[i].Entries == NULL) {
-            continue;
-        }
-
-        if (i > 0 && sgTables[i].Entries == sgTables[i - 1].Entries) {
-            // do nothing, we already freed
-        } else if (i == 2 && sgTables[i].Entries == sgTables[i - 2].Entries) {
-            // do nothing, we already freed
-        } else {
-            free(sgTables[i].Entries);
-        }
+    oserr = SHMGetSGTable(
+            &usbTransfer->SHMHandle,
+            sgTable,
+            -1
+    );
+    if (oserr != OS_EOK) {
+        OSHandleDestroy(&usbTransfer->SHMHandle);
     }
+    return oserr;
 }
 
 UsbManagerTransfer_t*
@@ -117,7 +79,7 @@ USBTransferCreate(
 {
     UsbManagerController_t* controller;
     UsbManagerTransfer_t*   usbTransfer;
-    SHMSGTable_t            sgTables[USB_TRANSACTIONCOUNT];
+    SHMSGTable_t            sgTable;
     oserr_t                 oserr;
     
     TRACE("USBTransferCreate(transfer=0x%" PRIxIN ", message=0x%" PRIxIN ", deviceId=%u)",
@@ -150,8 +112,8 @@ USBTransferCreate(
         usbTransfer->TData.Periodic.Interval = transfer->PeriodicInterval;
     }
 
-    // Get the SG tables before calculating TDs
-    oserr = __AttachSGTables(usbTransfer, transfer, sgTables);
+    // Get the SG table before calculating TDs
+    oserr = __AttachSGTable(usbTransfer, transfer, &sgTable);
     if (oserr != OS_EOK) {
         USBTransferDestroy(usbTransfer);
         return NULL;
@@ -161,7 +123,8 @@ USBTransferCreate(
     usbTransfer->ElementCount = HCITransferElementsNeeded(
             usbTransfer,
             transfer->Transactions,
-            sgTables);
+            &sgTable
+    );
     if (!usbTransfer->ElementCount) {
         USBTransferDestroy(usbTransfer);
         return NULL;
@@ -176,31 +139,11 @@ USBTransferCreate(
     HCITransferElementFill(
             usbTransfer,
             transfer->Transactions,
-            sgTables
+            &sgTable
     );
-    __FreeSGTables(sgTables);
+    free(sgTable.Entries);
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
     return usbTransfer;
-}
-
-static void
-__ReleaseSHMBuffers(
-        _In_ OSHandle_t handles[USB_TRANSACTIONCOUNT])
-{
-    // Keep in mind that they may be copies of each other
-    for (int i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        if (handles[i].ID == UUID_INVALID) {
-            continue;
-        }
-
-        if (i > 0 && handles[i].ID == handles[i - 1].ID) {
-            // do nothing, we already freed
-        } else if (i == 2 && handles[i].ID == handles[i - 2].ID) {
-            // do nothing, we already freed
-        } else {
-            OSHandleDestroy(&handles[i]);
-        }
-    }
 }
 
 void
@@ -217,7 +160,7 @@ USBTransferDestroy(
     if (controller) {
         list_remove(&controller->TransactionList, &transfer->ListHeader);
     }
-    __ReleaseSHMBuffers(transfer->SHMHandles);
+    OSHandleDestroy(&transfer->SHMHandle);
     free(transfer->Elements);
     free(transfer);
 }

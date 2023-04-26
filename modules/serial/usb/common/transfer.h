@@ -41,8 +41,8 @@ enum USBManagerTransferState {
 };
 
 struct TransferElement {
-    enum USBTransactionType Type;
-    uint32_t                Length;
+    enum USBTransferDirection Direction;
+    uint32_t                  Length;
     union {
         // DataAddress holds the physical start address of the
         // transfer element buffer. This is only used for UHCI
@@ -101,9 +101,9 @@ typedef struct UsbManagerTransfer {
         } Periodic;
     } TData;
 
-    // SHMHandles are references we must keep on the underlying
+    // SHMHandle is the reference we must keep on the underlying
     // physical memory that we use to transfer data in/out of.
-    OSHandle_t SHMHandles[USB_TRANSACTIONCOUNT];
+    OSHandle_t SHMHandle;
 
     // Deferred message for async responding
     struct gracht_message DeferredMessage[];
@@ -179,8 +179,8 @@ static inline uint32_t __Transfer_Length(UsbManagerTransfer_t* transfer) {
  * @param transfer The transfer to retrieve the transaction type for.
  * @return The transaction type of the transfer.
  */
-static inline enum USBTransactionType __Transfer_TransactionType(UsbManagerTransfer_t* transfer) {
-    return transfer->Elements[0].Type;
+static inline enum USBTransferDirection __Transfer_Direction(UsbManagerTransfer_t* transfer) {
+    return transfer->Elements[0].Direction;
 }
 
 /**

@@ -180,7 +180,7 @@ EHCITDVerify(
 }
 
 void
-EhciTdRestart(
+EHCITDRestart(
     _In_ EhciController_t*         controller,
     _In_ UsbManagerTransfer_t*     transfer,
     _In_ EhciTransferDescriptor_t* td)

@@ -734,12 +734,12 @@ EhciTdSynchronize(
     _In_ UsbManagerTransfer_t*      Transfer,
     _In_ EhciTransferDescriptor_t*  Td);
 
-/* EhciTdRestart
+/* EHCITDRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
 extern
 void
-EhciTdRestart(
+EHCITDRestart(
     _In_ EhciController_t*          controller,
     _In_ UsbManagerTransfer_t*      transfer,
     _In_ EhciTransferDescriptor_t*  td);

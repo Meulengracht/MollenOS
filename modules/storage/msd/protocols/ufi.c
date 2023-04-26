@@ -172,9 +172,17 @@ UfiReadData(
     enum USBTransferCode Result;
     USBTransfer_t       DataStage;
 
-    UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
-        Device->In, USBTRANSFER_TYPE_BULK, 0);
-    UsbTransferIn(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
+    UsbTransferInitialize(
+            &DataStage,
+            &Device->Device->DeviceContext,
+            Device->In,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_IN,
+            0,
+            BufferHandle,
+            BufferOffset,
+            DataLength
+    );
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesRead);
     
     // Sanitize for any transport errors
@@ -198,9 +206,17 @@ UfiWriteData(
     USBTransfer_t       DataStage;
 
     // Perform the data-stage
-    UsbTransferInitialize(&DataStage, &Device->Device->DeviceContext, 
-        Device->Out, USBTRANSFER_TYPE_BULK, 0);
-    UsbTransferOut(&DataStage, BufferHandle, BufferOffset, DataLength, 0);
+    UsbTransferInitialize(
+            &DataStage,
+            &Device->Device->DeviceContext,
+            Device->Out,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_OUT,
+            0,
+            BufferHandle,
+            BufferOffset,
+            DataLength
+    );
     Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesWritten);
 
     // Sanitize for any transport errors

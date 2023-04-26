@@ -127,23 +127,10 @@ typedef struct usb_device_context {
     uint8_t  speed;
 } usb_device_context_t;
 
-enum USBTransactionType {
-    USB_TRANSACTION_SETUP,
-    USB_TRANSACTION_IN,
-    USB_TRANSACTION_OUT
+enum USBTransferDirection {
+    USBTRANSFER_DIRECTION_IN,
+    USBTRANSFER_DIRECTION_OUT
 };
-
-typedef struct USBTransaction {
-    enum USBTransactionType Type;
-	unsigned int            Flags;
-	uuid_t                  BufferHandle;
-	uint32_t                BufferOffset;
-	uint32_t                Length;
-} USBTransaction_t;
-
-// Bit definitions for UsbTransaction::Flags
-#define USB_TRANSACTION_ZLP       0x01
-#define USB_TRANSACTION_HANDSHAKE 0x02
 
 enum USBTransferType {
     USBTRANSFER_TYPE_CONTROL,
@@ -153,19 +140,17 @@ enum USBTransferType {
 };
 
 typedef struct USBTransfer {
-    USBAddress_t         Address;
-    enum USBTransferType Type;
-	uint8_t              Speed;
-	uint16_t             MaxPacketSize;
-	uint16_t             Flags;
-	uint8_t              TransactionCount;
-    USBTransaction_t     Transactions[USB_TRANSACTIONCOUNT];
-
-	// Periodic Information
-    const void* PeriodicData;
-    uint32_t    PeriodicBufferSize;
-    uint8_t     PeriodicBandwith;
-    uint8_t     PeriodicInterval;
+    USBAddress_t              Address;
+    enum USBTransferType      Type;
+    enum USBTransferDirection Direction;
+    enum USBSpeed             Speed;
+	uint16_t                  MaxPacketSize;
+	uint16_t                  Flags;
+    uuid_t                    BufferHandle;
+    uint32_t                  BufferOffset;
+    uint32_t                  Length;
+    uint8_t                   PeriodicBandwith;
+    uint8_t                   PeriodicInterval;
 } USBTransfer_t;
 
 /* UsbTransfer::Flags
@@ -180,97 +165,28 @@ extern void             UsbCleanup(void);
 extern struct dma_pool* UsbRetrievePool(void);
 
 /**
- * Initializes the usb-transfer to target the device and endpoint.
- * @param transfer A pointer to the transfer structure.
- * @param device   A pointer to the device context.
- * @param endpoint A pointer to an endpoint structure, or USB_TRANSFER_ENDPOINT_CONTROL.
- * @param type     The type of transfer, CONTROL/BULK/INTERRUPT/ISOC.
- * @param flags    Configuration flags for the transfer.
+ * @brief Initialize shared data common to all usb transfers.
+ * @param transfer
+ * @param device
+ * @param endpoint
+ * @param type
+ * @param direction
+ * @param flags
+ * @param dataBufferHandle
+ * @param dataBufferOffset
+ * @param dataLength
  */
 extern void
 UsbTransferInitialize(
         _In_ USBTransfer_t*             transfer,
         _In_ usb_device_context_t*      device,
         _In_ usb_endpoint_descriptor_t* endpoint,
-        _In_ uint8_t                    type,
-        _In_ uint8_t                    flags);
-
-/**
- * Initializes a transfer for a control setup-transaction.
- * If there is no data-stage then set Data members to 0.
- * @param transfer
- * @param setupBufferHandle
- * @param setupBufferOffset
- * @param dataBufferHandle
- * @param dataBufferOffset
- * @param dataLength
- * @param type
- */
-extern void
-UsbTransferSetup(
-        _In_ USBTransfer_t* transfer,
-        _In_ uuid_t         setupBufferHandle,
-        _In_ size_t         setupBufferOffset,
-        _In_ uuid_t         dataBufferHandle,
-        _In_ size_t         dataBufferOffset,
-        _In_ size_t         dataLength,
-        _In_ uint8_t        type);
-
-/**
- * Initializes a transfer for a periodic-transaction.
- * @param Transfer
- * @param BufferHandle
- * @param BufferOffset
- * @param BufferLength
- * @param DataLength
- * @param DataDirection
- * @param NotifificationData
- */
-extern void
-UsbTransferPeriodic(
-        _In_ USBTransfer_t* Transfer,
-        _In_ uuid_t         BufferHandle,
-        _In_ size_t         BufferOffset,
-        _In_ size_t         BufferLength,
-        _In_ size_t         DataLength,
-        _In_ uint8_t        DataDirection,
-        _In_ const void*    NotifificationData);
-
-/**
- * Creates an In-transaction in the given usb-transfer. Both buffer and length
- * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction.
- * @param Transfer
- * @param BufferHandle
- * @param BufferOffset
- * @param Length
- * @param Handshake
- * @return
- */
-extern oserr_t
-UsbTransferIn(
-        _In_ USBTransfer_t* Transfer,
-        _In_ uuid_t         BufferHandle,
-        _In_ size_t         BufferOffset,
-        _In_ size_t         Length,
-        _In_ int            Handshake);
-
-/**
- * Creates an Out-transaction in the given usb-transfer. Both buffer and length
- * must be pre-allocated - and passed here. If handshake == 1 it's an ack-transaction.
- * @param Transfer
- * @param BufferHandle
- * @param BufferOffset
- * @param Length
- * @param Handshake
- * @return
- */
-extern oserr_t
-UsbTransferOut(
-        _In_ USBTransfer_t* Transfer,
-        _In_ uuid_t         BufferHandle,
-        _In_ size_t         BufferOffset,
-        _In_ size_t         Length,
-        _In_ int            Handshake);
+        _In_ enum USBTransferType       type,
+        _In_ enum USBTransferDirection  direction,
+        _In_ unsigned int               flags,
+        _In_ uuid_t                     dataBufferHandle,
+        _In_ size_t                     dataBufferOffset,
+        _In_ size_t                     dataLength);
 
 /**
  * Queues a new Control or Bulk transfer for the given driver
@@ -444,14 +360,14 @@ UsbSetFeature(
  * control requests. */
 extern enum USBTransferCode
 UsbExecutePacket(
-	_In_ usb_device_context_t* deviceContext,
-    _In_ uint8_t               Direction,
-    _In_ uint8_t               Type,
-    _In_ uint8_t               ValueLow,
-    _In_ uint8_t               ValueHigh,
-    _In_ uint16_t              Index,
-    _In_ uint16_t              Length,
-    _In_ void*                 Buffer);
+        _In_ usb_device_context_t* deviceContext,
+        _In_ uint8_t               direction,
+        _In_ uint8_t               type,
+        _In_ uint8_t               valueLow,
+        _In_ uint8_t               valueHigh,
+        _In_ uint16_t              index,
+        _In_ uint16_t              length,
+        _In_ void*                 buffer);
 
 /* UsbEndpointReset
  * Resets the data for the given endpoint. This includes the data-toggles. 

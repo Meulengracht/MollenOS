@@ -263,10 +263,10 @@ UsbSchedulerDestroy(
 
 long
 UsbSchedulerCalculateBandwidth(
-    _In_ enum USBSpeed speed,
-    _In_ uint8_t       transactionType,
-    _In_ uint8_t       transferType,
-    _In_ size_t        length)
+        _In_ enum USBSpeed             speed,
+        _In_ enum USBTransferDirection direction,
+        _In_ enum USBTransferType      type,
+        _In_ size_t                    length)
 {
     long result = 0;
 
@@ -274,7 +274,7 @@ UsbSchedulerCalculateBandwidth(
     // on the speed of the transfer
     switch (speed) {
         case USBSPEED_LOW:
-            if (transactionType == USB_TRANSACTION_IN) {
+            if (direction == USBTRANSFER_DIRECTION_IN) {
                 result = (67667L * (31L + 10L * BitTime(length))) / 1000L;
                 return 64060L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
             } else {
@@ -282,9 +282,9 @@ UsbSchedulerCalculateBandwidth(
                 return 64107L + (2 * BW_HUB_LS_SETUP) + BW_HOST_DELAY + result;
             }
         case USBSPEED_FULL:
-            if (transferType == USBTRANSFER_TYPE_ISOC) {
+            if (type == USBTRANSFER_TYPE_ISOC) {
                 result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
-                return ((transactionType == USB_TRANSACTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + result;
+                return ((direction == USBTRANSFER_DIRECTION_IN) ? 7268L : 6265L) + BW_HOST_DELAY + result;
             } else {
                 result = (8354L * (31L + 10L * BitTime(length))) / 1000L;
                 return 9107L + BW_HOST_DELAY + result;
@@ -292,7 +292,7 @@ UsbSchedulerCalculateBandwidth(
         case USBSPEED_SUPER_PLUS:
         case USBSPEED_SUPER:
         case USBSPEED_HIGH:
-            if (transferType == USBTRANSFER_TYPE_ISOC) {
+            if (type == USBTRANSFER_TYPE_ISOC) {
                 result = HS_NSECS_ISO(length);
             } else {
                 result = HS_NSECS(length);
