@@ -137,7 +137,7 @@ void ctt_input_stat_invocation(struct gracht_message* message, const uuid_t devi
 }
 
 void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
-                                                  const enum USBTransferCode status, const size_t dataIndex)
+                                                  const enum ctt_usb_transfer_status status, const size_t dataIndex)
 {
     HidDevice_t* hidDevice = NULL;
 
@@ -153,7 +153,7 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
     }
 
     if (hidDevice) {
-        if (status == USBTRANSFERCODE_STALL) {
+        if (status == CTT_USB_TRANSFER_STATUS_STALL) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
             UsbClearFeature(&hidDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
@@ -161,9 +161,8 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
             UsbEndpointReset(&hidDevice->Base->DeviceContext,
                              USB_ENDPOINT_ADDRESS(hidDevice->Interrupt->Address));
             UsbTransferResetPeriodic(&hidDevice->Base->DeviceContext, hidDevice->TransferId);
-        }
-        else {
-            HidInterrupt(hidDevice, status, dataIndex);
+        } else {
+            HidInterrupt(hidDevice, to_usbcode(status), dataIndex);
         }
     }
 }

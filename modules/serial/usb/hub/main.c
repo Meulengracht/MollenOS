@@ -112,7 +112,7 @@ void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, 
 }
 
 void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const uuid_t transferId,
-                                                  const enum USBTransferCode status, const size_t dataIndex)
+                                                  const enum ctt_usb_transfer_status status, const size_t dataIndex)
 {
     HubDevice_t* hubDevice = NULL;
     TRACE("ctt_usbhost_event_transfer_status_callback(event->status %u, event->bytes_transferred %" PRIuIN ")",
@@ -127,7 +127,7 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
     }
 
     if (hubDevice) {
-        if (status == USBTRANSFERCODE_STALL) {
+        if (status == CTT_USB_TRANSFER_STATUS_STALL) {
             WARNING("ctt_usbhost_event_transfer_status_callback stall, trying to fix");
             // we must clear stall condition and reset endpoint
             UsbClearFeature(&hubDevice->Base->DeviceContext, USBPACKET_DIRECTION_ENDPOINT,
@@ -135,8 +135,7 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
             UsbEndpointReset(&hubDevice->Base->DeviceContext,
                              USB_ENDPOINT_ADDRESS(hubDevice->Interrupt->Address));
             UsbTransferResetPeriodic(&hubDevice->Base->DeviceContext, hubDevice->TransferId);
-        }
-        else {
+        } else {
             HubInterrupt(hubDevice, dataIndex);
         }
     }

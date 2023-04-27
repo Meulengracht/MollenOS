@@ -169,8 +169,9 @@ UfiReadData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesRead)
 {
-    enum USBTransferCode Result;
-    USBTransfer_t       DataStage;
+    enum USBTransferCode transferResult;
+    USBTransfer_t        DataStage;
+    oserr_t              oserr;
 
     UsbTransferInitialize(
             &DataStage,
@@ -183,15 +184,14 @@ UfiReadData(
             BufferOffset,
             DataLength
     );
-    Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesRead);
-    
-    // Sanitize for any transport errors
-    if (Result != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-in", Result);
+
+    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &transferResult, BytesRead);
+    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-in", oserr, transferResult);
         // @todo handle
     }
     
-    return Result;
+    return transferResult;
 }
 
 enum USBTransferCode
@@ -202,8 +202,9 @@ UfiWriteData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesWritten)
 {
-    enum USBTransferCode Result;
-    USBTransfer_t       DataStage;
+    enum USBTransferCode transferResult;
+    USBTransfer_t        DataStage;
+    oserr_t              oserr;
 
     // Perform the data-stage
     UsbTransferInitialize(
@@ -217,15 +218,14 @@ UfiWriteData(
             BufferOffset,
             DataLength
     );
-    Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, BytesWritten);
 
-    // Sanitize for any transport errors
-    if (Result != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
+    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &transferResult, BytesWritten);
+    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-out", oserr, transferResult);
         // @todo handle
     }
     
-    return Result;
+    return transferResult;
 }
 
 /* UfiGetStatus

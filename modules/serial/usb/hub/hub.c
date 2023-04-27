@@ -263,10 +263,10 @@ HubDevice_t*
 HubDeviceCreate(
         _In_ UsbDevice_t* usbDevice)
 {
-    HubDevice_t*        hubDevice;
-    uint8_t             interruptEpAddress;
+    HubDevice_t*         hubDevice;
+    uint8_t              interruptEpAddress;
     enum USBTransferCode transferStatus;
-    oserr_t             osStatus;
+    oserr_t              oserr;
 
     TRACE("HubDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 
@@ -275,13 +275,13 @@ HubDeviceCreate(
         return NULL;
     }
 
-    osStatus = __GetDeviceConfiguration(hubDevice);
-    if (osStatus != OS_EOK) {
+    oserr = __GetDeviceConfiguration(hubDevice);
+    if (oserr != OS_EOK) {
         goto error_exit;
     }
 
-    osStatus = __GetHubDescriptor(hubDevice);
-    if (osStatus != OS_EOK) {
+    oserr = __GetHubDescriptor(hubDevice);
+    if (oserr != OS_EOK) {
         goto error_exit;
     }
 
@@ -308,8 +308,8 @@ HubDeviceCreate(
     __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
 
     // Register us with the usb stack before enumerating ports
-    osStatus = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount);
-    if (osStatus != OS_EOK) {
+    oserr = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount);
+    if (oserr != OS_EOK) {
         ERROR("HubDeviceCreate failed to register hub with usb stack");
         goto error_exit;
     }
@@ -318,15 +318,21 @@ HubDeviceCreate(
     __EnumeratePorts(hubDevice);
 
     // Install interrupt pipe
-    UsbTransferInitialize(&hubDevice->Transfer, &hubDevice->Base->DeviceContext,
-                          hubDevice->Interrupt, USBTRANSFER_TYPE_INTERRUPT, 0);
-    UsbTransferPeriodic(&hubDevice->Transfer, dma_pool_handle(UsbRetrievePool()),
-                        dma_pool_offset(UsbRetrievePool(), hubDevice->Buffer), 0x100,
-                        DIVUP(hubDevice->PortCount, 8), USB_TRANSACTION_IN);
+    UsbTransferInitialize(
+            &hubDevice->Transfer,
+            &hubDevice->Base->DeviceContext,
+            hubDevice->Interrupt,
+            USBTRANSFER_TYPE_INTERRUPT,
+            USBTRANSFER_DIRECTION_IN,
+            0,
+            dma_pool_handle(UsbRetrievePool()),
+            dma_pool_offset(UsbRetrievePool(), hubDevice->Buffer),
+            0x100
+    );
 
-    transferStatus = UsbTransferQueuePeriodic(&hubDevice->Base->DeviceContext, &hubDevice->Transfer, &hubDevice->TransferId);
-    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
-        ERROR("HubDeviceCreate failed to install interrupt transfer");
+    oserr = UsbTransferQueuePeriodic(&hubDevice->Base->DeviceContext, &hubDevice->Transfer, &hubDevice->TransferId);
+    if (oserr != OS_EOK) {
+        ERROR("HubDeviceCreate failed to install interrupt transfer: %u", oserr);
         goto error_exit;
     }
 

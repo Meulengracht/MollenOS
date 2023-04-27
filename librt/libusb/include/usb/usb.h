@@ -197,11 +197,12 @@ UsbTransferInitialize(
  * @param bytesTransferred
  * @return
  */
-extern enum USBTransferCode
+extern oserr_t
 UsbTransferQueue(
         _In_  usb_device_context_t* deviceContext,
         _In_  USBTransfer_t*        transfer,
-        _Out_ size_t*               bytesTransferred);
+        _Out_ enum USBTransferCode* transferResultOut,
+        _Out_ size_t*               bytesTransferredOut);
 
 /**
  * Queues a new Interrupt or Isochronous transfer. This transfer is
@@ -212,7 +213,7 @@ UsbTransferQueue(
  * @param transferIdOut
  * @return
  */
-extern enum USBTransferCode
+extern oserr_t
 UsbTransferQueuePeriodic(
         _In_  usb_device_context_t* deviceContext,
         _In_  USBTransfer_t*        transfer,

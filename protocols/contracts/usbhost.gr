@@ -21,7 +21,7 @@ enum usb_transfer_status {
 }
 
 service usbhost (18) {
-    func queue(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (oserr_t result, ulong bytesTransferred) = 1;
+    func queue(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (oserr_t status, usb_transfer_status result, ulong bytesTransferred) = 1;
     func queue_periodic(uuid_t processId, uuid_t deviceId, uuid_t transferId, uint8[] transfer) : (oserr_t result) = 2;
     func reset_periodic(uuid_t processId, uuid_t deviceId, uuid_t transferId) : (oserr_t result) = 3;
     func dequeue(uuid_t processId, uuid_t deviceId, uuid_t transferId) : (oserr_t result) = 4;
