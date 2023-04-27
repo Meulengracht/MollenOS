@@ -181,6 +181,10 @@ OHCITDRestart(
     uintptr_t linkAddress = 0;
     int       toggle      = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
+    // Make sure we clear the PROCESSED status on the TD, otherwise it
+    // won't be processed again
+    td->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
+
     td->OriginalFlags &= ~(OHCI_TD_TOGGLE);
     if (toggle) {
         td->OriginalFlags |= OHCI_TD_TOGGLE;

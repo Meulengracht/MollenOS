@@ -485,11 +485,11 @@ OHCIITDRestart(
  * Queue Methods
  *******************************************************************************/
 
-/* OhciReloadAsynchronous
+/* OHCIReloadAsynchronous
  * Reloads the control and bulk lists with new transactions that
  * are waiting in queue for execution. */
 __EXTERN void
-OhciReloadAsynchronous(
+OHCIReloadAsynchronous(
         _In_ OhciController_t*    controller,
         _In_ enum USBTransferType transferType);
 
@@ -497,6 +497,6 @@ OhciReloadAsynchronous(
  * Retrieves a status-code from a given condition code */
 __EXTERN enum USBTransferCode
 OHCIErrorCodeToTransferStatus(
-    _In_ int                ConditionCode);
+    _In_ int                conditionCode);
 
 #endif // !__USB_OHCI__

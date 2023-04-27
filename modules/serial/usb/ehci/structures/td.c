@@ -21,8 +21,6 @@
 #include <os/mollenos.h>
 #include "../ehci.h"
 #include <stdlib.h>
-#include <assert.h>
-#include <string.h>
 
 static void
 __FillTD(
@@ -186,6 +184,10 @@ EHCITDRestart(
     _In_ EhciTransferDescriptor_t* td)
 {
     int toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address);
+
+    // Make sure we clear the PROCESSED status on the TD, otherwise it
+    // won't be processed again
+    td->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
 
     td->OriginalLength &= ~(EHCI_TD_TOGGLE);
     if (toggle) {
