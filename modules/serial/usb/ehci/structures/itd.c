@@ -165,6 +165,10 @@ void
 EHCIITDRestart(
         _In_ EhciIsochronousDescriptor_t* iTD)
 {
+    // Make sure we clear the PROCESSED status on the TD, otherwise it
+    // won't be processed again
+    iTD->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
+
     for (int i = 0; i < 8; i++) {
         iTD->Transactions[i] = iTD->TransactionsCopy[i];
     }

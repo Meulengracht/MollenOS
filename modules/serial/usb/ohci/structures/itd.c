@@ -144,6 +144,10 @@ OHCIITDRestart(
 {
     uintptr_t linkAddress = 0;
 
+    // Make sure we clear the PROCESSED status on the TD, otherwise it
+    // won't be processed again
+    iTD->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
+
     for (int i = 0; i < 8; i++) {
         iTD->Offsets[i] = iTD->OriginalOffsets[i];
     }

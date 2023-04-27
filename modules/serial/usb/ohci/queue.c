@@ -14,7 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-//#define __TRACE
+
+#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -147,33 +148,34 @@ OhciQueueDestroy(
 
 enum USBTransferCode
 OHCIErrorCodeToTransferStatus(
-    _In_ int ConditionCode)
+    _In_ int conditionCode)
 {
-    TRACE("[ohci] [error_code] %i", ConditionCode);
-    if (ConditionCode == OHCI_CC_SUCCESS) {
+    TRACE("OHCIErrorCodeToTransferStatus(cc=%i)", conditionCode);
+    if (conditionCode == OHCI_CC_SUCCESS) {
         return USBTRANSFERCODE_SUCCESS;
-    } else if (ConditionCode == OHCI_CC_STALLED) {
+    } else if (conditionCode == OHCI_CC_STALLED) {
         return USBTRANSFERCODE_STALL;
-    } else if (ConditionCode == OHCI_CC_DTM) {
+    } else if (conditionCode == OHCI_CC_DTM) {
         return USBTRANSFERCODE_DATATOGGLEMISMATCH;
-    } else if (ConditionCode == OHCI_CC_BABBLE2 || ConditionCode == OHCI_CC_BABBLE1) {
+    } else if (conditionCode == OHCI_CC_BABBLE2 || conditionCode == OHCI_CC_BABBLE1) {
         return USBTRANSFERCODE_BABBLE;
-    } else if (ConditionCode == OHCI_CC_NORESPONSE) {
+    } else if (conditionCode == OHCI_CC_NORESPONSE) {
         return USBTRANSFERCODE_NORESPONSE;
-    } else if (ConditionCode == OHCI_CC_INIT) {
+    } else if (conditionCode == OHCI_CC_INIT || conditionCode == OHCI_CC_INIT0) {
         return USBTRANSFERCODE_INVALID;
     } else {
-        TRACE("[ohci] [error_code]: 0x%x (%s)", ConditionCode, g_transferDescriptions[ConditionCode]);
+        TRACE("OHCIErrorCodeToTransferStatus: %s",
+              conditionCode, g_transferDescriptions[conditionCode]);
         return USBTRANSFERCODE_BABBLE;
     }
 }
 
 bool
 HCIProcessElement(
-    _In_ UsbManagerController_t*    controller,
-    _In_ uint8_t*                   element,
-    _In_ enum HCIProcessReason      reason,
-    _In_ void*                      context)
+    _In_ UsbManagerController_t* controller,
+    _In_ uint8_t*                element,
+    _In_ enum HCIProcessReason   reason,
+    _In_ void*                   context)
 {
     TRACE("OhciProcessElement(reason=%i)", reason);
 

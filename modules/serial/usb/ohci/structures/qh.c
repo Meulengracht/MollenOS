@@ -143,7 +143,7 @@ OHCIQHLink(
 
         // Enable?
         if (!(commandStatus & OHCI_COMMAND_CONTROL_FILLED)) {
-            OhciReloadAsynchronous(controller, USBTRANSFER_TYPE_CONTROL);
+            OHCIReloadAsynchronous(controller, USBTRANSFER_TYPE_CONTROL);
             controller->QueuesActive |= OHCI_CONTROL_CONTROL_ACTIVE;
         }
     } else if (type == USBTRANSFER_TYPE_BULK) {
@@ -161,7 +161,7 @@ OHCIQHLink(
 
         // Enable?
         if (!(commandStatus & OHCI_COMMAND_BULK_FILLED)) {
-            OhciReloadAsynchronous(controller, USBTRANSFER_TYPE_BULK);
+            OHCIReloadAsynchronous(controller, USBTRANSFER_TYPE_BULK);
             controller->QueuesActive |= OHCI_CONTROL_BULK_ACTIVE;
         }
     }

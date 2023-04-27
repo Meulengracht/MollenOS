@@ -497,8 +497,8 @@ __CheckTransfer(
     );
     TRACE("__ProcessTransfer: finished scan status=%u, flags=0x%x", transfer->Status, transfer->Flags);
 
-    // Increase metrics for async transfers
-    if (__Transfer_IsAsync(transfer)) {
+    // Increase metrics for async transfers, but only if it doesn't need to be re-executed
+    if (__Transfer_IsAsync(transfer) && context.Result != USBTRANSFERCODE_DATATOGGLEMISMATCH) {
         transfer->TData.Async.ElementsCompleted += context.ElementsProcessed;
         transfer->TData.Async.BytesTransferred += context.BytesTransferred;
     }

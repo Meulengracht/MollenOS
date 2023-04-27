@@ -71,6 +71,18 @@ enum USBSpeed {
     USBSPEED_SUPER_PLUS // 4.0
 };
 
+enum USBTransferDirection {
+    USBTRANSFER_DIRECTION_IN,
+    USBTRANSFER_DIRECTION_OUT
+};
+
+enum USBTransferType {
+    USBTRANSFER_TYPE_CONTROL,
+    USBTRANSFER_TYPE_BULK,
+    USBTRANSFER_TYPE_INTERRUPT,
+    USBTRANSFER_TYPE_ISOC,
+};
+
 /**
  * @brief Represents a USB controller port.
  */
@@ -127,18 +139,6 @@ typedef struct usb_device_context {
     uint8_t  speed;
 } usb_device_context_t;
 
-enum USBTransferDirection {
-    USBTRANSFER_DIRECTION_IN,
-    USBTRANSFER_DIRECTION_OUT
-};
-
-enum USBTransferType {
-    USBTRANSFER_TYPE_CONTROL,
-    USBTRANSFER_TYPE_BULK,
-    USBTRANSFER_TYPE_INTERRUPT,
-    USBTRANSFER_TYPE_ISOC,
-};
-
 typedef struct USBTransfer {
     USBAddress_t              Address;
     enum USBTransferType      Type;
@@ -153,8 +153,10 @@ typedef struct USBTransfer {
     uint8_t                   PeriodicInterval;
 } USBTransfer_t;
 
-/* UsbTransfer::Flags
- * Bit-definitions and declarations for the field. */
+/**
+ * UsbTransfer::Flags
+ * Bit-definitions and declarations for the field.
+ */
 #define USB_TRANSFER_NO_NOTIFICATION 0x01
 #define USB_TRANSFER_SHORT_NOT_OK    0x02
 

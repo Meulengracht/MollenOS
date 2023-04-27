@@ -174,6 +174,10 @@ UHCITDRestart(
 {
     int toggle = UsbManagerGetToggle(&controller->Base, &transfer->Address);
 
+    // Make sure we clear the PROCESSED status on the TD, otherwise it
+    // won't be processed again
+    td->Object.Flags &= ~(USB_ELEMENT_PROCESSED);
+
     td->OriginalFlags &= ~(UHCI_TD_DATA_TOGGLE);
     if (toggle) {
         td->OriginalFlags |= UHCI_TD_DATA_TOGGLE;
