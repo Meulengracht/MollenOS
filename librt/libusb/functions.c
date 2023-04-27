@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <usb/usb.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
@@ -121,64 +122,28 @@ UsbTransferInitialize(
     transfer->PeriodicInterval        = endpointInterval;
 }
 
-void
-UsbTransferSetup(
-        _In_ USBTransfer_t* transfer,
-        _In_ uuid_t         setupBufferHandle,
-        _In_ size_t         setupBufferOffset,
-        _In_ uuid_t         dataBufferHandle,
-        _In_ size_t         dataBufferOffset,
-        _In_ size_t         dataLength,
-        _In_ uint8_t        type)
-{
-    uint8_t ackType  = USB_TRANSACTION_IN;
-    int     ackIndex = 1;
-
-    TRACE("[usb] [transfer] setup");
-
-    // Initialize the setup stage
-    transfer->Transactions[0].Type         = USB_TRANSACTION_SETUP;
-    transfer->Transactions[0].BufferHandle = setupBufferHandle;
-    transfer->Transactions[0].BufferOffset = setupBufferOffset;
-    transfer->Transactions[0].Length       = sizeof(usb_packet_t);
-
-    // Is there a data-stage?
-    if (dataBufferHandle != UUID_INVALID) {
-        ackIndex++;
-        transfer->Transactions[1].BufferHandle = dataBufferHandle;
-        transfer->Transactions[1].BufferOffset = dataBufferOffset;
-        transfer->Transactions[1].Length       = dataLength;
-        transfer->Transactions[1].Type         = type;
-        if (type == USB_TRANSACTION_IN) {
-            ackType = USB_TRANSACTION_OUT;
-        }
-    }
-
-    // Ack-stage
-    transfer->Transactions[ackIndex].Flags        = USB_TRANSACTION_ZLP | USB_TRANSACTION_HANDSHAKE;
-    transfer->Transactions[ackIndex].BufferHandle = UUID_INVALID;
-    transfer->Transactions[ackIndex].Type         = ackType;
-    transfer->TransactionCount                    = ackIndex + 1;
-}
-
-enum USBTransferCode
+oserr_t
 UsbTransferQueue(
         _In_  usb_device_context_t* deviceContext,
         _In_  USBTransfer_t*        transfer,
-        _Out_ size_t*               bytesTransferred)
+        _Out_ enum USBTransferCode* transferResultOut,
+        _Out_ size_t*               bytesTransferredOut)
 {
-    struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
-    uuid_t                   transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
-    enum USBTransferCode     transferStatus = USBTRANSFERCODE_INVALID;
+    struct vali_link_message     msg            = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
+    uuid_t                       transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
+    enum ctt_usb_transfer_status transferResult = CTT_USB_TRANSFER_STATUS_NORESPONSE;
+    oserr_t                      oserr;
 
     ctt_usbhost_queue(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
         deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &transferStatus, bytesTransferred);
-    return transferStatus;
+    ctt_usbhost_queue_result(GetGrachtClient(), &msg.base, &oserr, &transferResult, bytesTransferredOut);
+
+    *transferResultOut = to_usbcode(transferResult);
+    return oserr;
 }
 
-enum USBTransferCode
+oserr_t
 UsbTransferQueuePeriodic(
         _In_  usb_device_context_t* deviceContext,
         _In_  USBTransfer_t*        transfer,
@@ -186,15 +151,15 @@ UsbTransferQueuePeriodic(
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
-    enum USBTransferCode      status;
-    
+    oserr_t                  oserr;
+
     ctt_usbhost_queue_periodic(GetGrachtClient(), &msg.base, OSProcessCurrentID(),
         deviceContext->controller_device_id, transferId, (uint8_t*)transfer, sizeof(USBTransfer_t));
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &status);
+    ctt_usbhost_queue_periodic_result(GetGrachtClient(), &msg.base, &oserr);
     
     *transferIdOut = transferId;
-    return status;
+    return oserr;
 }
 
 oserr_t
@@ -292,6 +257,7 @@ UsbExecutePacket(
     void*                dmaStorage;
     usb_packet_t*        packet;
     USBTransfer_t        transfer;
+    oserr_t              oserr;
     
     if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t) + length, &dmaStorage) != OS_EOK) {
         ERROR("Failed to allocate a transfer buffer");
@@ -335,9 +301,9 @@ UsbExecutePacket(
     );
 
     // Execute the transaction and cleanup the buffer
-    transferStatus = UsbTransferQueue(deviceContext, &transfer, &bytesTransferred);
-    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Usb transfer returned error %u", transferStatus);
+    oserr = UsbTransferQueue(deviceContext, &transfer, &transferStatus, &bytesTransferred);
+    if (oserr != OS_EOK || transferStatus != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Usb transfer returned error %u/%u", oserr, transferStatus);
     }
 
     if (transferStatus == USBTRANSFERCODE_SUCCESS && length != 0 &&

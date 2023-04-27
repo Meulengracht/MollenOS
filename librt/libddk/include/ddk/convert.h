@@ -41,6 +41,7 @@
 #include <sys_file_service.h>
 #include <sys_process_service.h>
 #include <ctt_filesystem_service.h>
+#include <ctt_usbhost_service.h>
 
 static void from_sys_timestamp(struct sys_timestamp* in, OSTimestamp_t* out)
 {
@@ -449,6 +450,36 @@ static void to_fsstat(const struct VFSStatFS* in, struct ctt_fsstat* out)
     out->max_filename_length = in->MaxFilenameLength;
     out->segments_free = in->SegmentsFree;
     out->segments_total = in->SegmentsTotal;
+}
+
+static enum USBTransferCode to_usbcode(enum ctt_usb_transfer_status status) {
+    switch (status) {
+        case CTT_USB_TRANSFER_STATUS_SUCCESS: return USBTRANSFERCODE_SUCCESS;
+        case CTT_USB_TRANSFER_STATUS_CANCELLED: return USBTRANSFERCODE_CANCELLED;
+        case CTT_USB_TRANSFER_STATUS_NOBANDWIDTH: return USBTRANSFERCODE_NOBANDWIDTH;
+        case CTT_USB_TRANSFER_STATUS_STALL: return USBTRANSFERCODE_STALL;
+        case CTT_USB_TRANSFER_STATUS_NORESPONSE: return USBTRANSFERCODE_NORESPONSE;
+        case CTT_USB_TRANSFER_STATUS_DATATOGGLEMISMATCH: return USBTRANSFERCODE_DATATOGGLEMISMATCH;
+        case CTT_USB_TRANSFER_STATUS_BUFFERERROR: return USBTRANSFERCODE_BUFFERERROR;
+        case CTT_USB_TRANSFER_STATUS_NAK: return USBTRANSFERCODE_NAK;
+        case CTT_USB_TRANSFER_STATUS_BABBLE: return USBTRANSFERCODE_BABBLE;
+        default: return USBTRANSFERCODE_INVALID;
+    }
+}
+
+
+static enum ctt_usb_transfer_status from_usbcode(enum USBTransferCode code) {
+    switch (code) {
+        case USBTRANSFERCODE_SUCCESS: return CTT_USB_TRANSFER_STATUS_SUCCESS;
+        case USBTRANSFERCODE_CANCELLED: return CTT_USB_TRANSFER_STATUS_CANCELLED;
+        case USBTRANSFERCODE_NOBANDWIDTH: return CTT_USB_TRANSFER_STATUS_NOBANDWIDTH;
+        case USBTRANSFERCODE_STALL: return CTT_USB_TRANSFER_STATUS_STALL;
+        case USBTRANSFERCODE_NORESPONSE: return CTT_USB_TRANSFER_STATUS_NORESPONSE;
+        case USBTRANSFERCODE_DATATOGGLEMISMATCH: return CTT_USB_TRANSFER_STATUS_DATATOGGLEMISMATCH;
+        case USBTRANSFERCODE_BUFFERERROR: return CTT_USB_TRANSFER_STATUS_BUFFERERROR;
+        case USBTRANSFERCODE_BABBLE: return CTT_USB_TRANSFER_STATUS_BABBLE;
+        default: return CTT_USB_TRANSFER_STATUS_NAK;
+    }
 }
 
 #endif //!__DDK_CONVERT_H__

@@ -19,11 +19,11 @@
 #define __need_static_assert
 
 #include <assert.h>
+#include <ddk/convert.h>
 #include <ddk/utils.h>
 #include <os/handle.h>
 #include <os/shm.h>
 #include "hci.h"
-#include <stdlib.h>
 #include "transfer.h"
 
 #include "ctt_driver_service_server.h"
@@ -103,6 +103,7 @@ USBTransferCreate(
     usbTransfer->DeviceID = deviceId;
     usbTransfer->Type = transfer->Type;
     usbTransfer->Speed = transfer->Speed;
+    usbTransfer->Direction = transfer->Direction;
     memcpy(&usbTransfer->Address, &transfer->Address, sizeof(USBAddress_t));
     usbTransfer->MaxPacketSize = transfer->MaxPacketSize;
     usbTransfer->Flags = __ConvertFlags(transfer->Flags);
@@ -122,8 +123,10 @@ USBTransferCreate(
     // Count the needed number of transfer elements
     usbTransfer->ElementCount = HCITransferElementsNeeded(
             usbTransfer,
-            transfer->Transactions,
-            &sgTable
+            transfer->Length,
+            transfer->Direction,
+            &sgTable,
+            transfer->BufferOffset
     );
     if (!usbTransfer->ElementCount) {
         USBTransferDestroy(usbTransfer);
@@ -138,8 +141,10 @@ USBTransferCreate(
     }
     HCITransferElementFill(
             usbTransfer,
-            transfer->Transactions,
-            &sgTable
+            transfer->Length,
+            transfer->Direction,
+            &sgTable,
+            transfer->BufferOffset
     );
     free(sgTable.Entries);
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
@@ -184,7 +189,8 @@ USBTransferNotify(
         }
         ctt_usbhost_queue_response(
                 &transfer->DeferredMessage[0],
-                transfer->ResultCode,
+                OS_EOK,
+                from_usbcode(transfer->ResultCode),
                 transfer->TData.Async.BytesTransferred
         );
         transfer->Flags |= __USBTRANSFER_FLAG_NOTIFIED;
@@ -193,7 +199,7 @@ USBTransferNotify(
                 __crt_get_module_server(),
                 transfer->DeferredMessage[0].client,
                 transfer->ID,
-                transfer->ResultCode,
+                from_usbcode(transfer->ResultCode),
                 transfer->TData.Periodic.CurrentDataIndex
         );
         if (transfer->ResultCode == USBTRANSFERCODE_SUCCESS) {
@@ -219,14 +225,14 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
             deviceId
     );
     if (usbTransfer == NULL) {
-        ctt_usbhost_queue_response(message, USBTRANSFERCODE_INVALID, 0);
+        ctt_usbhost_queue_response(message, OS_ENOENT, CTT_USB_TRANSFER_STATUS_NAK, 0);
         return;
     }
 
     oserr = HCITransferQueue(usbTransfer);
     if (oserr != OS_EOK) {
         USBTransferDestroy(usbTransfer);
-        ctt_usbhost_queue_response(message, USBTRANSFERCODE_INVALID, 0);
+        ctt_usbhost_queue_response(message, oserr, CTT_USB_TRANSFER_STATUS_NAK, 0);
     }
 }
 
@@ -243,7 +249,7 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
             deviceId
     );
     if (usbTransfer == NULL) {
-        ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_INVALID);
+        ctt_usbhost_queue_periodic_response(message, OS_ENOENT);
         return;
     }
 
@@ -255,10 +261,8 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
 
     if (oserr != OS_EOK) {
         USBTransferDestroy(usbTransfer);
-        ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_INVALID);
-        return;
     }
-    ctt_usbhost_queue_periodic_response(message, USBTRANSFERCODE_SUCCESS);
+    ctt_usbhost_queue_periodic_response(message, oserr);
 }
 
 void ctt_usbhost_reset_periodic_invocation(struct gracht_message* message, const uuid_t processId,

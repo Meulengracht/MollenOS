@@ -431,9 +431,10 @@ BulkSendCommand(
         _In_ size_t       BufferOffset,
         _In_ size_t       DataLength)
 {
-    enum USBTransferCode Result;
-    USBTransfer_t       CommandStage;
-    size_t              bytesTransferred;
+    enum USBTransferCode transferResult;
+    USBTransfer_t        CommandStage;
+    size_t               bytesTransferred;
+    oserr_t              oserr;
 
     // Debug
     TRACE("BulkSendCommand(Command %u, Start %u, Length %u)",
@@ -453,19 +454,18 @@ BulkSendCommand(
             dma_pool_offset(UsbRetrievePool(), Device->CommandBlock),
             sizeof(MsdCommandBlock_t)
     );
-    Result = UsbTransferQueue(&Device->Device->DeviceContext, &CommandStage, &bytesTransferred);
 
-    // Sanitize for any transport errors
-    if (Result != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Failed to send the CBW command, transfer-code %u", Result);
-        if (Result == USBTRANSFERCODE_STALL) {
+    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &CommandStage, &transferResult, &bytesTransferred);
+    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Failed to send the CBW command, transfer-code %u/%u", oserr, transferResult);
+        if (transferResult == USBTRANSFERCODE_STALL) {
             ERROR("Performing a recovery-reset on device.");
             if (BulkResetRecovery(Device, BULK_RESET_ALL) != OS_EOK) {
                 ERROR("Failed to reset device, it is now unusable.");
             }
         }
     }
-    return Result;
+    return transferResult;
 }
 
 /* BulkReadData
@@ -479,8 +479,9 @@ BulkReadData(
         _Out_ size_t*      BytesRead)
 {
     enum USBTransferCode transferStatus;
-    USBTransfer_t       dataStage;
-    size_t              bytesTransferred = 0;
+    USBTransfer_t        dataStage;
+    size_t               bytesTransferred = 0;
+    oserr_t              oserr;
 
     UsbTransferInitialize(
             &dataStage,
@@ -493,13 +494,13 @@ BulkReadData(
             BufferOffset,
             DataLength
     );
-    transferStatus = UsbTransferQueue(&Device->Device->DeviceContext, &dataStage, &bytesTransferred);
-    
+
+    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &dataStage, &transferStatus, &bytesTransferred);
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %i, cleaning up bulk-in", transferStatus);
+    if (oserr != OS_EOK || transferStatus != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-in", oserr, transferStatus);
         if (transferStatus == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_IN);
         }
@@ -522,9 +523,10 @@ BulkWriteData(
         _In_  size_t       DataLength,
         _Out_ size_t*      BytesWritten)
 {
-    enum USBTransferCode Result;
-    USBTransfer_t       DataStage;
-    size_t              bytesTransferred;
+    enum USBTransferCode transferResult;
+    USBTransfer_t        DataStage;
+    size_t               bytesTransferred;
+    oserr_t              oserr;
 
     // Perform the data-stage
     UsbTransferInitialize(
@@ -538,14 +540,14 @@ BulkWriteData(
             BufferOffset,
             DataLength
     );
-    Result = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &bytesTransferred);
 
+    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &transferResult, &bytesTransferred);
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (Result != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u, cleaning up bulk-out", Result);
-        if (Result == USBTRANSFERCODE_STALL) {
+    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-out", oserr, transferResult);
+        if (transferResult == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_OUT);
         }
         else {
@@ -556,16 +558,17 @@ BulkWriteData(
 
     // Return state
     *BytesWritten = bytesTransferred;
-    return Result;
+    return transferResult;
 }
 
 enum USBTransferCode
 BulkGetStatus(
     _In_ MsdDevice_t* Device)
 {
-    enum USBTransferCode Result;
-    USBTransfer_t       StatusStage;
-    size_t              bytesTransferred;
+    enum USBTransferCode transferResult;
+    USBTransfer_t        StatusStage;
+    size_t               bytesTransferred;
+    oserr_t              oserr;
     TRACE("BulkGetStatus()");
 
     UsbTransferInitialize(
@@ -579,21 +582,20 @@ BulkGetStatus(
             dma_pool_offset(UsbRetrievePool(), Device->StatusBlock),
             sizeof(MsdCommandStatus_t)
     );
-    Result = UsbTransferQueue(&Device->Device->DeviceContext, &StatusStage, &bytesTransferred);
 
+    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &StatusStage, &transferResult, &bytesTransferred);
     // Sanitize for any transport errors
     // On a STALL condition receiving the CSW, then:
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
-    if (Result != USBTRANSFERCODE_SUCCESS) {
-        if (Result == USBTRANSFERCODE_STALL) {
+    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
+        if (oserr == OS_EOK && transferResult == USBTRANSFERCODE_STALL) {
             BulkResetRecovery(Device, BULK_RESET_IN);
             return BulkGetStatus(Device);
+        } else {
+            ERROR("Failed to retrieve the CSW block, transfer-code %u", transferResult);
         }
-        else {
-            ERROR("Failed to retrieve the CSW block, transfer-code %u", Result);
-        }
-        return Result;
+        return transferResult;
     }
     else {        
         // If the host receives a CSW which is not valid, 

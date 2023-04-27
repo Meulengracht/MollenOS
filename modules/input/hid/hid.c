@@ -175,8 +175,9 @@ HidDevice_t*
 HidDeviceCreate(
     _In_ UsbDevice_t* usbDevice)
 {
-    HidDevice_t*        hidDevice;
+    HidDevice_t*         hidDevice;
     enum USBTransferCode status;
+    oserr_t              oserr;
 
     TRACE("HidDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 
@@ -233,9 +234,9 @@ HidDeviceCreate(
             0x400
     );
 
-    status = UsbTransferQueuePeriodic(&hidDevice->Base->DeviceContext, &hidDevice->Transfer, &hidDevice->TransferId);
-    if (status != USBTRANSFERCODE_SUCCESS) {
-        ERROR("HidDeviceCreate failed to install interrupt transfer");
+    oserr = UsbTransferQueuePeriodic(&hidDevice->Base->DeviceContext, &hidDevice->Transfer, &hidDevice->TransferId);
+    if (oserr != OS_EOK) {
+        ERROR("HidDeviceCreate failed to install interrupt transfer: %u", oserr);
         goto error_exit;
     }
 

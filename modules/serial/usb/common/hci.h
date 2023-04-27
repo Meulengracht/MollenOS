@@ -48,15 +48,19 @@ HCIControllerDestroy(
 
 extern int
 HCITransferElementsNeeded(
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT]);
+        _In_ UsbManagerTransfer_t*     transfer,
+        _In_ uint32_t                  transferLength,
+        _In_ enum USBTransferDirection direction,
+        _In_ SHMSGTable_t*             sgTable,
+        _In_ uint32_t                  sgTableOffset);
 
 extern void
 HCITransferElementFill(
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT]);
+        _In_ UsbManagerTransfer_t*     transfer,
+        _In_ uint32_t                  transferLength,
+        _In_ enum USBTransferDirection direction,
+        _In_ SHMSGTable_t*             sgTable,
+        _In_ uint32_t                  sgTableOffset);
 
 /**
  * @brief Resets the port at the index.

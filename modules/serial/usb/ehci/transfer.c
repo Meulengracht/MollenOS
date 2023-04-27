@@ -140,9 +140,10 @@ __GetBytesLeft(
 static inline void
 __CalculateTransferElementMetrics(
         _In_ UsbManagerTransfer_t*   transfer,
-        _In_ USBTransaction_t*       xaction,
         _In_ SHMSGTable_t*           sgTable,
-        _In_ size_t                  bytesLeft,
+        _In_ uint32_t                sgTableOffset,
+        _In_ uint32_t                transferLength,
+        _In_ uint32_t                bytesLeft,
         _In_ struct TransferElement* element)
 {
     int    transactionCount = __XACTION_COUNT(transfer);
@@ -154,7 +155,7 @@ __CalculateTransferElementMetrics(
     // start offset, and the progress into the transaction.
     SHMSGTableOffset(
             sgTable,
-            xaction->BufferOffset + (xaction->Length - bytesLeft),
+            sgTableOffset + (transferLength - bytesLeft),
             &index,
             &offset
     );
@@ -187,7 +188,7 @@ __CalculateTransferElementMetrics(
         if (!leftInSG && bytesLeft) {
             SHMSGTableOffset(
                     sgTable,
-                    xaction->BufferOffset + (xaction->Length - bytesLeft),
+                    sgTableOffset + (transferLength - bytesLeft),
                     &index,
                     &offset
             );
@@ -200,11 +201,15 @@ __CalculateTransferElementMetrics(
 
 int
 HCITransferElementsNeeded(
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
+        _In_ UsbManagerTransfer_t*     transfer,
+        _In_ uint32_t                  transferLength,
+        _In_ enum USBTransferDirection direction,
+        _In_ SHMSGTable_t*             sgTable,
+        _In_ uint32_t                  sgTableOffset)
 {
-    int tdsNeeded = 0;
+    struct TransferElement element;
+    uint32_t               bytesLeft = transferLength;
+    int                    tdsNeeded = 0;
 
     // In regard to isochronous transfers, we must allocate an
     // additional transfer descriptor, which acts as the 'zero-td'.
@@ -212,40 +217,34 @@ HCITransferElementsNeeded(
     if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
         tdsNeeded++;
     }
+    // Handle control transfers a bit different due to control transfers needing
+    // some additional packets.
+    else if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        bytesLeft -= sizeof(usb_packet_t);
 
-    for (int i = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t type = transactions[i].Type;
+        // add two additional packets, one for SETUP, and one for ACK
+        tdsNeeded += 2;
+    }
 
-        if (type == USB_TRANSACTION_SETUP) {
-            tdsNeeded++;
-        } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
-            // Special case: zero length packets
-            if (transactions[i].BufferHandle == UUID_INVALID) {
+    while (bytesLeft) {
+        __CalculateTransferElementMetrics(
+                transfer,
+                sgTable,
+                sgTableOffset,
+                transferLength,
+                bytesLeft,
+                &element
+        );
+
+        bytesLeft -= element.Length;
+        tdsNeeded++;
+
+        // If this was the last packet, and the packet was filled, and
+        // the transaction is an 'OUT', then we must add a ZLP.
+        if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
+            bytesLeft == 0 && element.Length == transfer->MaxPacketSize) {
+            if (direction == USBTRANSFER_DIRECTION_OUT) {
                 tdsNeeded++;
-            } else {
-                struct TransferElement element;
-                uint32_t bytesLeft = transactions[i].Length;
-                while (bytesLeft) {
-                    __CalculateTransferElementMetrics(
-                            transfer,
-                            &transactions[i],
-                            &sgTables[i],
-                            bytesLeft,
-                            &element
-                    );
-
-                    bytesLeft -= element.Length;
-                    tdsNeeded++;
-
-                    // If this was the last packet, and the packet was filled, and
-                    // the transaction is an 'OUT', then we must add a ZLP.
-                    if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
-                        bytesLeft == 0 && element.Length == transfer->MaxPacketSize) {
-                        if (transactions[i].Type == USB_TRANSACTION_OUT) {
-                            tdsNeeded++;
-                        }
-                    }
-                }
             }
         }
     }
@@ -254,56 +253,70 @@ HCITransferElementsNeeded(
 
 void
 HCITransferElementFill(
-        _In_ UsbManagerTransfer_t* transfer,
-        _In_ USBTransaction_t      transactions[USB_TRANSACTIONCOUNT],
-        _In_ SHMSGTable_t          sgTables[USB_TRANSACTIONCOUNT])
+        _In_ UsbManagerTransfer_t*     transfer,
+        _In_ uint32_t                  transferLength,
+        _In_ enum USBTransferDirection direction,
+        _In_ SHMSGTable_t*             sgTable,
+        _In_ uint32_t                  sgTableOffset)
 {
-    for (int i = 0, ei = 0; i < USB_TRANSACTIONCOUNT; i++) {
-        uint8_t type = transactions[i].Type;
+    enum TransferElementType ackType   = TRANSFERELEMENT_TYPE_IN;
+    uint32_t                 bytesLeft = transferLength;
+    int                      ei = 0;
 
-        if (type == USB_TRANSACTION_SETUP) {
-            transfer->Elements[ei].Type = USB_TRANSACTION_SETUP;
-            __CalculateTransferElementMetrics(
-                    transfer,
-                    &transactions[i],
-                    &sgTables[i],
-                    transactions[i].Length,
-                    &transfer->Elements[ei]
-            );
-            ei++;
-        } else if (type == USB_TRANSACTION_IN || type == USB_TRANSACTION_OUT) {
-            // Special case: zero length packets
-            if (transactions[i].BufferHandle == UUID_INVALID) {
-                transfer->Elements[ei++].Type = type;
-            } else {
-                size_t bytesLeft = transactions[i].Length;
-                while (bytesLeft) {
-                    __CalculateTransferElementMetrics(
-                            transfer,
-                            &transactions[i],
-                            &sgTables[i],
-                            bytesLeft,
-                            &transfer->Elements[ei]
-                    );
+    // Handle control transfers a bit different due to control transfers needing
+    // some additional packets.
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        __CalculateTransferElementMetrics(
+                transfer,
+                sgTable,
+                sgTableOffset,
+                transferLength,
+                sizeof(usb_packet_t),
+                &transfer->Elements[ei]
+        );
+        transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
+        ei++;
+        bytesLeft -= sizeof(usb_packet_t);
 
-                    bytesLeft -= transfer->Elements[ei++].Length;
-
-                    // Cases left to handle:
-                    // Generic: adding ZLP on MPS boundary OUTs
-                    // Isoc:    adding ZLP
-                    if (bytesLeft == 0) {
-                        if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                            transfer->Elements[ei].Type = type;
-                        } else if (transactions[i].Type == USB_TRANSACTION_OUT && transfer->Elements[ei].Length == transfer->MaxPacketSize) {
-                            transfer->Elements[ei].Type = USB_TRANSACTION_OUT;
-                        }
-                    }
-                }
-            }
+        // determine ACK direction, if we have an in data stage, then the
+        // ACK stage must be out
+        if (bytesLeft && direction == USBTRANSFER_DIRECTION_IN) {
+            ackType = TRANSFERELEMENT_TYPE_OUT;
         }
     }
-}
 
+    while (bytesLeft) {
+        __CalculateTransferElementMetrics(
+                transfer,
+                sgTable,
+                sgTableOffset,
+                transferLength,
+                bytesLeft,
+                &transfer->Elements[ei]
+        );
+        transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
+        bytesLeft -= transfer->Elements[ei].Length;
+        ei++;
+
+        // Cases left to handle:
+        // Generic: adding ZLP on MPS boundary OUTs
+        // Isoc:    adding ZLP
+        if (bytesLeft == 0) {
+            if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
+                transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
+            } else if (direction == USBTRANSFER_DIRECTION_OUT &&
+                    transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
+                transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_OUT;
+            }
+            ei++;
+        }
+    }
+
+    // Finally, handle the ACK stage of control transfers
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        transfer->Elements[ei].Type = ackType;
+    }
+}
 
 static oserr_t
 __EnsureQueueHead(
@@ -507,14 +520,14 @@ __PrepareDescriptor(
     }
 
     switch (context->Transfer->Elements[context->TDIndex].Type) {
-        case USB_TRANSACTION_SETUP: {
+        case TRANSFERELEMENT_TYPE_SETUP: {
             EHCITDSetup(
                     (EhciController_t*)controllerBase,
                     td,
                     context->Transfer->Elements[context->TDIndex].Data.Address
             );
         } break;
-        case USB_TRANSACTION_IN: {
+        case TRANSFERELEMENT_TYPE_IN: {
             EHCITDData(
                     (EhciController_t*)controllerBase,
                     td,
@@ -524,7 +537,7 @@ __PrepareDescriptor(
                     context->Toggle
             );
         } break;
-        case USB_TRANSACTION_OUT: {
+        case TRANSFERELEMENT_TYPE_OUT: {
             EHCITDData(
                     (EhciController_t*)controllerBase,
                     td,
@@ -558,7 +571,7 @@ __PrepareIsochronousDescriptor(
     _CRT_UNUSED(reason);
 
     switch (context->Transfer->Elements[context->TDIndex].Type) {
-        case USB_TRANSACTION_IN: {
+        case TRANSFERELEMENT_TYPE_IN: {
             EHCITDIsochronous(
                     (EhciController_t*)controllerBase,
                     context->Transfer,
@@ -568,7 +581,7 @@ __PrepareIsochronousDescriptor(
                     context->Transfer->Elements[context->TDIndex].Data.EHCI.Lengths
             );
         } break;
-        case USB_TRANSACTION_OUT: {
+        case TRANSFERELEMENT_TYPE_OUT: {
             EHCITDIsochronous(
                     (EhciController_t*)controllerBase,
                     context->Transfer,

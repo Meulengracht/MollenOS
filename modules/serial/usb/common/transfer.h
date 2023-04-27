@@ -40,9 +40,15 @@ enum USBManagerTransferState {
     USBTRANSFER_STATE_COMPLETED,
 };
 
+enum TransferElementType {
+    TRANSFERELEMENT_TYPE_SETUP,
+    TRANSFERELEMENT_TYPE_IN,
+    TRANSFERELEMENT_TYPE_OUT
+};
+
 struct TransferElement {
-    enum USBTransferDirection Direction;
-    uint32_t                  Length;
+    enum TransferElementType Type;
+    uint32_t                 Length;
     union {
         // DataAddress holds the physical start address of the
         // transfer element buffer. This is only used for UHCI
@@ -57,11 +63,15 @@ struct TransferElement {
     } Data;
 };
 
-/**
- * An USB Transfer can consist of up to 3 transactions. This is done
- * to easily enable transfer as control and bulk that usually consists
- * of up to 3 steps.
- */
+static inline enum TransferElementType __TransferElement_DirectionToType(enum USBTransferDirection direction) {
+    switch (direction) {
+        case USBTRANSFER_DIRECTION_IN:
+            return TRANSFERELEMENT_TYPE_IN;
+        default:
+            return TRANSFERELEMENT_TYPE_OUT;
+    }
+}
+
 typedef struct UsbManagerTransfer {
     element_t ListHeader;
 
@@ -70,6 +80,7 @@ typedef struct UsbManagerTransfer {
     uuid_t                       DeviceID;
     enum USBTransferType         Type;
     enum USBSpeed                Speed;
+    enum USBTransferDirection    Direction;
     USBAddress_t                 Address;
     uint16_t                     MaxPacketSize;
     enum USBManagerTransferState State;
@@ -180,7 +191,7 @@ static inline uint32_t __Transfer_Length(UsbManagerTransfer_t* transfer) {
  * @return The transaction type of the transfer.
  */
 static inline enum USBTransferDirection __Transfer_Direction(UsbManagerTransfer_t* transfer) {
-    return transfer->Elements[0].Direction;
+    return transfer->Direction;
 }
 
 /**
