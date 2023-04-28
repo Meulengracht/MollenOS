@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <ddk/utils.h>
@@ -98,7 +98,7 @@ OHCIQueueInitialize(
 
     TRACE("OHCIQueueInitialize()");
 
-    TRACE(" > Configuring scheduler");
+    TRACE("OHCIQueueInitialize: configurating scheduler settings");
     UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_NULL_ELEMENT);
 
     UsbSchedulerSettingsConfigureFrameList(&Settings, (reg32_t*)&Controller->Hcca->InterruptTable[0],
@@ -117,7 +117,7 @@ OHCIQueueInitialize(
         offsetof(OhciIsocTransferDescriptor_t, Link), offsetof(OhciIsocTransferDescriptor_t, Object));
     
     // Create the scheduler
-    TRACE(" > Initializing scheduler");
+    TRACE("OHCIQueueInitialize: initializing scheduler");
     UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
 
     // Initialize internal data structures
@@ -177,7 +177,7 @@ HCIProcessElement(
     _In_ enum HCIProcessReason   reason,
     _In_ void*                   context)
 {
-    TRACE("OhciProcessElement(reason=%i)", reason);
+    TRACE("OHCIProcessElement(reason=%i)", reason);
 
     // Handle the reasons
     switch (reason) {

@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,12 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS MCore - Open Host Controller Interface Driver
- * TODO:
- *    - Power Management
  */
+
 //#define __TRACE
 
 #include <ddk/utils.h>
@@ -108,15 +103,15 @@ HCIPortStatus(
     Port->Speed     = (Status & OHCI_PORT_LOW_SPEED) == 0 ? USBSPEED_FULL : USBSPEED_LOW;
 }
 
-oserr_t
-OhciPortCheck(
+static oserr_t
+__CheckPortStatus(
     _In_ OhciController_t* Controller,
     _In_ int               Index,
     _In_ int               IgnorePowerOn)
 {
     oserr_t Result     = OS_EOK;
     reg32_t    PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
-    TRACE("OhciPortCheck(%i): 0x%x", Index, PortStatus);
+    TRACE("__CheckPortStatus(%i): 0x%x", Index, PortStatus);
 
     // Clear bits now we have a copy
     ClearPortEventBits(Controller, Index);
@@ -129,16 +124,17 @@ OhciPortCheck(
 }
 
 oserr_t
-OhciPortsCheck(
+OHCICheckPorts(
     _In_ OhciController_t* Controller,
     _In_ int               IgnorePowerOn)
 {
+    TRACE("OHCICheckPorts()");
     if (spinlock_try_acquire(&Controller->Base.Lock) != spinlock_acquired) {
         return OS_EBUSY;
     }
     
     for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
-        OhciPortCheck(Controller, i, IgnorePowerOn);
+        __CheckPortStatus(Controller, i, IgnorePowerOn);
     }
     spinlock_release(&Controller->Base.Lock);
     return OS_EOK;

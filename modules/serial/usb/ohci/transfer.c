@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,14 +13,9 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Open Host Controller Interface Driver
- * TODO:
- *    - Power Management
  */
 
-#define __TRACE
+//#define __TRACE
 //#define __DIAGNOSE
 #define __need_minmax
 #include <assert.h>
@@ -215,20 +208,25 @@ __CalculateTransferElementMetrics(
 {
     int       index;
     size_t    offset;
+    TRACE("__CalculateTransferElementMetrics(offset=%u, mps=%u, len=%u)",
+          sgTableOffset, (uint32_t)maxPacketSize, transferLength);
     SHMSGTableOffset(
             sgTable,
             sgTableOffset + (transferLength - bytesLeft),
             &index,
             &offset
     );
+    TRACE("__CalculateTransferElementMetrics: index %i, offset: %u", index, (uint32_t)offset);
     uintptr_t address = __GetAddress(sgTable, index, offset);
     size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(sgTable, index, offset));
+    TRACE("__CalculateTransferElementMetrics: addr=0x%x, len=%u",
+          address, MIN(leftInSG, maxPacketSize));
 
     *dataAddressOut = address;
     if (transferType == USBTRANSFER_TYPE_ISOC) {
         *lengthOut = MIN(leftInSG, maxPacketSize * 8);
     } else {
-        *lengthOut =  MIN((0x2000 - (address & (0x1000 - 1))), leftInSG);
+        *lengthOut = MIN(leftInSG, maxPacketSize);
     }
 }
 
@@ -311,12 +309,15 @@ HCITransferElementFill(
                 sgTable,
                 sgTableOffset,
                 transferLength,
-                sizeof(usb_packet_t),
+                bytesLeft,
                 &transfer->Elements[ei].Data.Address,
                 &transfer->Elements[ei].Length
         );
+
+        // Override the type and length, as those are fixed for the setup packaet
         transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
-        TRACE("OHCITransferElementFill: element[%i] = %u", ei, TRANSFERELEMENT_TYPE_SETUP);
+        transfer->Elements[ei].Length = sizeof(usb_packet_t);
+        TRACE("OHCITransferElementFill: (0) element[%i] = %u", ei, TRANSFERELEMENT_TYPE_SETUP);
         ei++;
         bytesLeft -= sizeof(usb_packet_t);
 
@@ -339,7 +340,7 @@ HCITransferElementFill(
                 &transfer->Elements[ei].Length
         );
         transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
-        TRACE("OHCITransferElementFill: element[%i] = %u", ei, __TransferElement_DirectionToType(direction));
+        TRACE("OHCITransferElementFill: (1) element[%i] = %u", ei, __TransferElement_DirectionToType(direction));
         bytesLeft -= transfer->Elements[ei].Length;
         ei++;
 
@@ -348,21 +349,20 @@ HCITransferElementFill(
         // Isoc:    adding ZLP
         if (bytesLeft == 0) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
-                TRACE("OHCITransferElementFill: element[%i] = %u", ei, __TransferElement_DirectionToType(direction));
+                transfer->Elements[ei++].Type = __TransferElement_DirectionToType(direction);
+                TRACE("OHCITransferElementFill: (2) element[%i] = %u", ei, __TransferElement_DirectionToType(direction));
             } else if (direction == USBTRANSFER_DIRECTION_OUT &&
                        transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
-                transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_OUT;
-                TRACE("OHCITransferElementFill: element[%i] = %u", ei, TRANSFERELEMENT_TYPE_OUT);
+                transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
+                TRACE("OHCITransferElementFill: (3) element[%i] = %u", ei, TRANSFERELEMENT_TYPE_OUT);
             }
-            ei++;
         }
     }
 
     // Finally, handle the ACK stage of control transfers
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         transfer->Elements[ei].Type = ackType;
-        TRACE("OHCITransferElementFill: element[%i] = %u", ei, ackType);
+        TRACE("OHCITransferElementFill: (4) element[%i] = %u", ei, ackType);
     }
 }
 
@@ -391,8 +391,7 @@ __EnsureQueueHead(
     oserr = OHCIQHInitialize(
             controller,
             transfer,
-            transfer->Address.DeviceAddress,
-            transfer->Address.EndpointAddress
+            (OhciQueueHead_t*)qh
     );
     if (oserr != OS_EOK) {
         // No bandwidth, serious.
@@ -438,7 +437,7 @@ __AllocateDescriptors(
     OhciQueueHead_t* qh           = transfer->RootElement;
     int              tdsRemaining = __RemainingDescriptorCount(transfer);
     int              tdsAllocated = 0;
-    TRACE("__AllocateDescriptors(transfer=%u)", transfer->ID);
+    TRACE("__AllocateDescriptors(transfer=%u, count=%i)", transfer->ID, tdsRemaining);
     for (int i = 0; i < tdsRemaining; i++) {
         uint8_t* element;
         oserr_t oserr = UsbSchedulerAllocateElement(
@@ -493,7 +492,13 @@ __PrepareDescriptor(
     OhciTransferDescriptor_t* td      = (OhciTransferDescriptor_t*)element;
     _CRT_UNUSED(controllerBase);
     _CRT_UNUSED(reason);
-    TRACE("__PrepareDescriptor(transfer=%u)", context->Transfer->ID);
+    TRACE("__PrepareDescriptor(transfer=%u, i=%i)", context->Transfer->ID, context->TDIndex);
+
+    // Do not prepare the queue-head
+    if (element == context->Transfer->RootElement) {
+        TRACE("__PrepareDescriptor: skipping queue-head");
+        return true;
+    }
 
     // Handle special stuff for Control transfers. They have special needs.
     if (context->Transfer->Type == USBTRANSFER_TYPE_CONTROL) {
@@ -641,7 +646,6 @@ HCITransferQueue(
 {
     OhciController_t* controller;
     oserr_t           oserr;
-    int               tdsReady;
     TRACE("OHCITransferQueue(transfer=%u)", transfer->ID);
 
     controller = (OhciController_t*)UsbManagerGetController(transfer->DeviceID);
@@ -654,13 +658,13 @@ HCITransferQueue(
         return oserr;
     }
 
-    tdsReady = __AllocateDescriptors(controller, transfer, OHCI_TD_POOL);
-    if (!tdsReady) {
+    transfer->ChainLength = __AllocateDescriptors(controller, transfer, OHCI_TD_POOL);
+    if (!transfer->ChainLength) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;
     }
 
-    __PrepareTransferDescriptors(controller, transfer, tdsReady);
+    __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }
@@ -671,7 +675,6 @@ HCITransferQueueIsochronous(
 {
     OhciController_t* controller;
     oserr_t           oserr;
-    int               tdsReady;
     TRACE("OHCITransferQueueIsochronous(transfer=%u)", transfer->ID);
 
     controller = (OhciController_t*)UsbManagerGetController(transfer->DeviceID);
@@ -684,13 +687,13 @@ HCITransferQueueIsochronous(
         return oserr;
     }
 
-    tdsReady = __AllocateDescriptors(controller, transfer, OHCI_iTD_POOL);
-    if (!tdsReady) {
+    transfer->ChainLength = __AllocateDescriptors(controller, transfer, OHCI_iTD_POOL);
+    if (!transfer->ChainLength) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;
     }
 
-    __PrepareTransferDescriptors(controller, transfer, tdsReady);
+    __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }

@@ -100,7 +100,7 @@ ProcessInterrupt:
     // Root Hub Status Change
     // This occurs on disconnect/connect events
     if (InterruptStatus & OHCI_ROOTHUB_EVENT) {
-        OhciPortsCheck(Controller, 0);
+        OHCICheckPorts(Controller, 0);
     }
 
     // Fatal errors, reset everything

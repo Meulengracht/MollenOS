@@ -1,5 +1,5 @@
 /**
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,8 +28,13 @@ OHCITDSetup(
     _In_ OhciTransferDescriptor_t* td,
     _In_ uintptr_t                 dataAddress)
 {
-    // Set no link
-    td->Link = 0;
+    TRACE("OHCITDSetup(dataAddress=0x%x)", dataAddress);
+
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
 
     // Initialize the Td flags, no toggle for SETUP
     // packet
@@ -56,18 +61,13 @@ OHCITDData(
     _In_ size_t                    length,
     _In_ int                       toggle)
 {
-    size_t pageSize = MemoryPageSize();
-    size_t calculatedLength;
-    
-    TRACE("OHCITDData(Type %u, Id %u, Toggle %i, Address 0x%x, Length 0x%x",
-          type, PID, Toggle, dataAddress, length);
+    TRACE("OHCITDData(length=%u)", length);
 
-    // We can encompass a maximum of two pages (when the initial page offset is 0)
-    // so make sure we correct for that limit
-    calculatedLength = MIN(((2 * pageSize) - (dataAddress & (pageSize - 1))), length);
-
-    // Set this is as end of chain
-    td->Link = 0;
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
 
     // Initialize flags as a IO Td
     td->Flags |= PID;
@@ -90,9 +90,15 @@ OHCITDData(
     }
 
     // Is there bytes to transfer or null packet?
-    if (calculatedLength > 0) {
+    if (length > 0) {
+        // If during the data transfer the buffer address contained in the HC’s working
+        // copy of CurrentBufferPointer crosses a 4K boundary, the upper 20 bits of
+        // Buffer End are copied to the working value of CurrentBufferPointer causing
+        // the next buffer address to be the 0th byte in the same 4K page that contains
+        // the last byte of the buffer (the 4K boundary crossing may occur within
+        // a data packet transfer.)
         td->Cbp       = LODWORD(dataAddress);
-        td->BufferEnd = td->Cbp + (calculatedLength - 1);
+        td->BufferEnd = td->Cbp + (length - 1);
     }
 
     // Store copy of original content
@@ -125,10 +131,12 @@ OHCITDVerify(
 {
     int errorCount;
     int cc;
+    TRACE("OHCITDVerify()");
 
     // Have we already processed this one? In that case we ignore
     // it completely.
     if (td->Object.Flags & USB_ELEMENT_PROCESSED) {
+        TRACE("OHCITDVerify: already processed, skipping");
         scanContext->ElementsExecuted++;
         return;
     }
@@ -138,15 +146,15 @@ OHCITDVerify(
 
     // If the TD is still active do nothing.
     if (cc == OHCI_CC_INIT) {
+        TRACE("OHCITDVerify: td is still active");
         return;
     }
 
-    if (errorCount == 2) {
-        if (cc != 0) {
-            scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
-        }
+    if (errorCount == 3) {
+        TRACE("OHCITDVerify: td failed to execute: %i", cc);
+        scanContext->Result = OHCIErrorCodeToTransferStatus(cc);
     } else if (cc != 0) {
-        // error has occurred but all attempts not exhausted.
+        // TD is not exhausted yet
         return;
     }
 
@@ -158,6 +166,7 @@ OHCITDVerify(
 
         if (td->Cbp == 0) bytesTransferred = bytesRequested;
         else              bytesTransferred = (int)(td->Cbp - td->OriginalCbp);
+        TRACE("OHCITDVerify: td has transferred %i bytes", bytesTransferred);
 
         if (bytesTransferred < bytesRequested) {
             scanContext->Short = true;

@@ -77,8 +77,7 @@ void __HandlePortEvent(
         if (oserr != OS_EOK) {
             // TODO
         }
-    }
-    else if (portDescriptor.Connected == 0 && port->Connected == 1) {
+    } else if (portDescriptor.Connected == 0 && port->Connected == 1) {
         // Disconnected event, remember that the descriptor pointer
         // becomes unavailable the moment we call the destroy device
         oserr = UsbCoreDevicesDestroy(controller, port);
@@ -89,8 +88,7 @@ void __HandlePortEvent(
         port->Speed     = portDescriptor.Speed;              // TODO: invalid
         port->Enabled   = portDescriptor.Enabled;            // TODO: invalid
         port->Connected = portDescriptor.Connected;          // TODO: invalid
-    }
-    else {
+    } else {
         // Ignore
         port->Speed     = portDescriptor.Speed;
         port->Enabled   = portDescriptor.Enabled;

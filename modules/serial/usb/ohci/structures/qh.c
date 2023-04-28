@@ -14,6 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 //#define __TRACE
 
 #include <os/mollenos.h>
@@ -34,15 +35,14 @@ __GetNullIndex(
 
 oserr_t
 OHCIQHInitialize(
-    _In_ OhciController_t*      controller,
-    _In_ UsbManagerTransfer_t*  transfer,
-    _In_ size_t                 address,
-    _In_ size_t                 endpoint)
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ OhciQueueHead_t*      qh)
 {
-    OhciQueueHead_t* qh        = transfer->RootElement;
-    uint16_t         lastIndex = __GetNullIndex(transfer);
-    uintptr_t        linkEnd;
-    oserr_t          oserr;
+    uint16_t  lastIndex = __GetNullIndex(transfer);
+    uintptr_t linkEnd;
+    oserr_t   oserr;
+    TRACE("OHCIQHInitialize()");
 
     oserr = UsbSchedulerGetPoolElement(
             controller->Base.Scheduler,
@@ -60,8 +60,8 @@ OHCIQHInitialize(
     qh->EndPointer        = (reg32_t)linkEnd;
     qh->Object.DepthIndex = lastIndex;
 
-    qh->Flags = OHCI_QH_ADDRESS(address);
-    qh->Flags |= OHCI_QH_ENDPOINT(endpoint);
+    qh->Flags = OHCI_QH_ADDRESS(transfer->Address.DeviceAddress);
+    qh->Flags |= OHCI_QH_ENDPOINT(transfer->Address.EndpointAddress);
     qh->Flags |= OHCI_QH_DIRECTIONTD; // Retrieve from TD
     qh->Flags |= OHCI_QH_LENGTH(transfer->MaxPacketSize);
     qh->Flags |= OHCI_QH_TYPE(transfer->Type);

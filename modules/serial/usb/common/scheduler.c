@@ -378,7 +378,7 @@ UsbSchedulerAllocateElement(
         break;
     }
     spinlock_release(&Scheduler->Lock);
-    return (i == sPool->ElementCount) ? OS_EUNKNOWN : OS_EOK;
+    return (i == sPool->ElementCount) ? OS_ENOENT : OS_EOK;
 }
 
 oserr_t
