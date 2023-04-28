@@ -458,5 +458,5 @@ OhciSetup(
     
     // Wait for ports to power up in any case, even if power is always on/global
     thrd_sleep(&(struct timespec) { .tv_nsec = Controller->PowerOnDelayMs * NSEC_PER_MSEC }, NULL);
-    return OhciPortsCheck(Controller, 1);
+    return OHCICheckPorts(Controller, 1);
 }

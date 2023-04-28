@@ -258,9 +258,10 @@ UsbExecutePacket(
     usb_packet_t*        packet;
     USBTransfer_t        transfer;
     oserr_t              oserr;
-    
-    if (dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t) + length, &dmaStorage) != OS_EOK) {
-        ERROR("Failed to allocate a transfer buffer");
+
+    oserr = dma_pool_allocate(g_dmaPool, sizeof(usb_packet_t) + length, &dmaStorage);
+    if (oserr != OS_EOK) {
+        ERROR("UsbExecutePacket: failed to allocate a transfer buffer");
         return USBTRANSFERCODE_INVALID;
     }
 
@@ -308,12 +309,9 @@ UsbExecutePacket(
 
     if (transferStatus == USBTRANSFERCODE_SUCCESS && length != 0 &&
         buffer != NULL && dataDirection == USBTRANSFER_DIRECTION_IN) {
-        memcpy(buffer, dmaStorage, length);
+        memcpy(buffer, ((char*)dmaStorage + sizeof(usb_packet_t)), length);
     }
 
-    if (length != 0) {
-        dma_pool_free(g_dmaPool, dmaStorage);
-    }
     dma_pool_free(g_dmaPool, dmaStorage);
     return transferStatus;
 }
@@ -345,9 +343,16 @@ UsbGetDeviceDescriptor(
     
     enum USBTransferCode status;
     
-    status = UsbExecutePacket(deviceContext, USBPACKET_DIRECTION_IN,
-        USBPACKET_TYPE_GET_DESC, 0, USB_DESCRIPTOR_DEVICE, 0, DESCRIPTOR_SIZE,
-        deviceDescriptor);
+    status = UsbExecutePacket(
+            deviceContext,
+            USBPACKET_DIRECTION_IN,
+            USBPACKET_TYPE_GET_DESC,
+            0,
+            USB_DESCRIPTOR_DEVICE,
+            0,
+            DESCRIPTOR_SIZE,
+            deviceDescriptor
+    );
     return status;
 }
 

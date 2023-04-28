@@ -22,7 +22,7 @@
  *   for all the usb drivers
  */
 
-//#define __TRACE
+#define __TRACE
 
 #include <assert.h>
 #include <ddk/service.h>
@@ -438,10 +438,7 @@ __TransferCompleted(
         _In_ UsbManagerTransfer_t*               transfer,
         _In_ struct HCIProcessReasonScanContext* scanContext)
 {
-    // If the transfer is still not accessed, then it's not done.
-    if (scanContext->Result == USBTRANSFERCODE_INVALID) {
-        return false;
-    }
+    TRACE("__TransferCompleted(transfer=%u, result=%u)", transfer->ID, scanContext->Result);
 
     // If the transfer is in error-state, then it's done.
     if (scanContext->Result != USBTRANSFERCODE_SUCCESS) {
@@ -450,12 +447,14 @@ __TransferCompleted(
 
     // If the transfer was short, then it's by default also done. Nothing
     // more to be executed at this point.
+    TRACE("__TransferCompleted: short=%u", scanContext->Short);
     if (scanContext->Short) {
         return true;
     }
 
     // If the transfer is OK and not short, then check whether all the
     // elements has executed
+    TRACE("__TransferCompleted: executed=%u/%u", scanContext->ElementsExecuted, transfer->ChainLength);
     if (scanContext->ElementsExecuted == transfer->ChainLength) {
         return true;
     }
@@ -485,8 +484,9 @@ __CheckTransfer(
 {
     struct HCIProcessReasonScanContext context = {
             .Transfer = transfer,
+            .Result = USBTRANSFERCODE_SUCCESS
     };
-    TRACE("__ProcessTransfer: starting scan id=%u, status=%u", transfer->ID, transfer->Status);
+    TRACE("__ProcessTransfer: starting scan id=%u, status=%u", transfer->ID);
     UsbManagerChainEnumerate(
             controller,
             transfer->RootElement,
@@ -495,7 +495,7 @@ __CheckTransfer(
             HCIProcessElement,
             &context
     );
-    TRACE("__ProcessTransfer: finished scan status=%u, flags=0x%x", transfer->Status, transfer->Flags);
+    TRACE("__ProcessTransfer: finished scan status=%u", context.Result);
 
     // Increase metrics for async transfers, but only if it doesn't need to be re-executed
     if (__Transfer_IsAsync(transfer) && context.Result != USBTRANSFERCODE_DATATOGGLEMISMATCH) {

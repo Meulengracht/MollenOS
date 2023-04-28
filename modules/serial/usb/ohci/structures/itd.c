@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2018, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,12 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Open Host Controller Interface Driver
- * TODO:
- *    - Power Management
  */
+
 //#define __TRACE
 #define __need_minmax
 #include <os/mollenos.h>
@@ -83,8 +77,11 @@ OHCITDIsochronous(
         FrameIndex++;
     }
 
-    // Set this is as end of chain
-    Td->Link = 0;
+    /**
+     * When calling these initializers for ITDs, the ITDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
 
     // Store copy of original content
     Td->OriginalFlags     = Td->Flags;

@@ -95,7 +95,8 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
     reg32_t                 OriginalCbp;        // Copy of buffer
 });
 
-/* OhciTransferDescriptor::Flags & OhciIsocTransferDescriptor::Flags
+/**
+ * OhciTransferDescriptor::Flags & OhciIsocTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for OhciTransferDescriptor::Flags
  * Bits 0-17:  Available
  * Bits 18:    If 0, Requires the data to be recieved from an endpoint to exactly fill buffer
@@ -103,7 +104,8 @@ PACKED_TYPESTRUCT(OhciTransferDescriptor, {
  * Bits 21-23: Interrupt delay count for this TD. This means the HC can delay interrupt a specific amount of frames after TD completion.
  * Bits 24-25: Data Toggle. It is updated after each successful transmission.
  * Bits 26-27: Error Count. Updated each transmission that fails. It is 0 on success.
- * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code. */
+ * Bits 28-31: Condition Code, if error count is 2 and it fails a third time, this contains error code.
+ */
 #define OHCI_TD_SHORTPACKET_OK          (1 << 18)
 #define OHCI_TD_SETUP                   0
 #define OHCI_TD_OUT                     (1 << 19)
@@ -334,10 +336,10 @@ __EXTERN oserr_t
 OhciQueueDestroy(
     _In_ OhciController_t*  Controller);
 
-/* OhciPortsCheck
+/* OHCICheckPorts
  * Enumerates all the ports and detects for connection/error events */
 __EXTERN oserr_t
-OhciPortsCheck(
+OHCICheckPorts(
     _In_ OhciController_t* Controller,
     _In_ int               IgnorePowerOn);
 
@@ -357,10 +359,9 @@ OhciSetMode(
  * hcd flags. Afterwards the queue head is ready for use. */
 __EXTERN oserr_t
 OHCIQHInitialize(
-    _In_ OhciController_t*      controller,
-    _In_ UsbManagerTransfer_t*  transfer,
-    _In_ size_t                 address,
-    _In_ size_t                 endpoint);
+        _In_ OhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ OhciQueueHead_t*      qh);
 
 /* OHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */

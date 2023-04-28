@@ -254,16 +254,23 @@ __QueryInitialDeviceDescriptor(
         _In_ UsbPortDevice_t* device)
 {
     usb_device_descriptor_t deviceDescriptor;
-    enum USBTransferCode     status;
+    enum USBTransferCode    status;
 
+    // Query the initial 8 bytes of the configuration descriptor, to get the correct
+    // control size. There is no reason to query the full descriptor, and this way
+    // we dont need a variable buffer size.
     status = UsbExecutePacket(
             &device->Base,
             USBPACKET_DIRECTION_IN,
             USBPACKET_TYPE_GET_DESC,
             0, USB_DESCRIPTOR_DEVICE,
-            0, device->Base.device_mps,
+            0,
+            8,
             &deviceDescriptor
     );
+    if (status == USBTRANSFERCODE_SUCCESS) {
+        device->Base.device_mps = deviceDescriptor.MaxPacketSize;
+    }
     return status;
 }
 

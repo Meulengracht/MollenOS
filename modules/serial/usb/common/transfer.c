@@ -177,7 +177,7 @@ USBTransferNotify(
     TRACE("USBTransferNotify(transfer=0x%" PRIxIN ")", transfer);
 
     // If user doesn't want, ignore
-    TRACE("USBTransferNotify transfer type=%u", transfer->Base.Type);
+    TRACE("USBTransferNotify transfer type=%u", transfer->Type);
     if (transfer->Flags & __USBTRANSFER_FLAG_SILENT) {
         return;
     }

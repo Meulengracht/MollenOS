@@ -140,20 +140,11 @@ static inline bool __Transfer_IsAsync(UsbManagerTransfer_t* transfer) {
 }
 
 /**
- * @brief Returns true if the transfer is either control or bulk
+ * @brief Returns true if the transfer is either interrupt or isoc
  */
 static inline bool __Transfer_IsPeriodic(UsbManagerTransfer_t* transfer) {
     return transfer->Type == USBTRANSFER_TYPE_INTERRUPT ||
         transfer->Type == USBTRANSFER_TYPE_ISOC;
-}
-
-/**
- * @brief Returns true if the transaction may need to have it's data toggles
- * synced in case of errors or a short transfer.
- */
-static inline bool __Transfer_MaySync(UsbManagerTransfer_t* transfer) {
-    return transfer->Type == USBTRANSFER_TYPE_BULK ||
-        transfer->Type == USBTRANSFER_TYPE_INTERRUPT;
 }
 
 /**

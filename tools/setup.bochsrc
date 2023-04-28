@@ -944,10 +944,9 @@ parport1: enabled=1, file="parport.out"
 # syntax as the UHCI controller (see above). The optionsX parameter is also
 # available on OHCI.
 #=======================================================================
-usb_ohci: enabled=1, port1=disk:disk_usb.img
+usb_ohci: enabled=1,
+usb_ohci: port1=disk:flat:disk_usb.img, options1="debug,speed:full"
 
-#usb_ohci: enabled=1
-#usb_ohci: enabled=1, port1=printer:usbprinter.bin
 
 #=======================================================================
 # USB_EHCI:
