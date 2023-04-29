@@ -28,7 +28,11 @@ UHCITDSetup(
         _In_ enum USBSpeed             speed,
         _In_ uintptr_t                 address)
 {
-    td->Link = UHCI_LINK_END;
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
 
     td->Flags  = UHCI_TD_ACTIVE;
     td->Flags |= UHCI_TD_SETCOUNT(3);
@@ -64,8 +68,11 @@ UHCITDData(
     _In_ uint32_t                  length,
     _In_ int                       toggle)
 {
-    // Set no link
-    td->Link = UHCI_LINK_END;
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
 
     // Setup td flags
     td->Flags  = UHCI_TD_ACTIVE;

@@ -47,11 +47,10 @@ __CalculateFrameQueue(
 
 oserr_t
 UHCIQHInitialize(
-    _In_ UhciController_t*     controller,
-    _In_ UsbManagerTransfer_t* transfer)
+        _In_ UhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ UhciQueueHead_t*       queueHead)
 {
-    UhciQueueHead_t* queueHead = transfer->RootElement;
-
     queueHead->Link  = UHCI_LINK_END;
     queueHead->Child = UHCI_LINK_END;
     queueHead->Object.Flags |= UHCI_LINK_QH;

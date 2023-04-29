@@ -663,10 +663,11 @@ EhciPortScan(
 extern
 oserr_t
 EHCIQHInitialize(
-    _In_ EhciController_t*     controller,
-    _In_ UsbManagerTransfer_t* transfer,
-    _In_ uint8_t               deviceAddress,
-    _In_ uint8_t               endpointAddress);
+        _In_ EhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ EhciQueueHead_t*      qh,
+        _In_ uint8_t               deviceAddress,
+        _In_ uint8_t               endpointAddress);
 
 /* EHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */

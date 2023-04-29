@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,7 +33,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-oserr_t     OhciSetup(OhciController_t *Controller);
+oserr_t     OHCISetup(OhciController_t *controller);
 irqstatus_t OnFastInterrupt(InterruptFunctionTable_t*, InterruptResourceTable_t*);
 
 UsbManagerController_t*
@@ -142,7 +140,7 @@ HCIControllerCreate(
     }
 
     TRACE("... initializing device");
-    if (OhciSetup(controller) == OS_EOK) {
+    if (OHCISetup(controller) == OS_EOK) {
         return &controller->Base;
     }
     else {
@@ -159,7 +157,7 @@ HCIControllerDestroy(
     UsbManagerDestroyController(Controller);
 
     // Cleanup scheduler
-    OhciQueueDestroy((OhciController_t*)Controller);
+    OHCIQueueDestroy((OhciController_t*)Controller);
 
     // Free resources
     if (((OhciController_t*)Controller)->Hcca != NULL) {
@@ -182,7 +180,7 @@ HciTimerCallback(
 }
 
 void
-OhciSetMode(
+OHCISetMode(
     _In_ OhciController_t* controller,
     _In_ reg32_t           mode)
 {
@@ -194,7 +192,7 @@ OhciSetMode(
 }
 
 oserr_t
-OhciTakeControl(
+OHCITakeControl(
     _In_ OhciController_t* Controller)
 {
     reg32_t  HcControl;
@@ -202,7 +200,7 @@ OhciTakeControl(
     int      i    = 0;
 
     // Trace
-    TRACE("OhciTakeControl()");
+    TRACE("OHCITakeControl()");
 
     // Does SMM hold control of chip? Then ask for it back
     HcControl = READ_VOLATILE(Controller->Registers->HcControl);
@@ -229,7 +227,7 @@ OhciTakeControl(
     } else if ((HcControl & OHCI_CONTROL_STATE_MASK) != 0) { // Did BIOS play tricks on us?
         // If it's suspended, resume and wait 10 ms
         if ((HcControl & OHCI_CONTROL_STATE_MASK) != OHCI_CONTROL_ACTIVE) {
-            OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
+            OHCISetMode(Controller, OHCI_CONTROL_ACTIVE);
             thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
         }
     } else {
@@ -240,14 +238,14 @@ OhciTakeControl(
 }
 
 oserr_t
-OhciReset(
+OHCIReset(
     _In_ OhciController_t* Controller)
 {
     reg32_t tempValue;
     reg32_t fmInterval;
     int     i = 0;
 
-    TRACE("OhciReset()");
+    TRACE("OHCIReset()");
 
     // Verify HcFmInterval and store the original value
     fmInterval = READ_VOLATILE(Controller->Registers->HcFmInterval);
@@ -267,12 +265,12 @@ OhciReset(
     // We should check here if HcControl has RemoteWakeup Connected 
     // and then set device to remote wake capable
     // Disable interrupts during this reset
-    TRACE("OhciReset suspending controller");
+    TRACE("OHCIReset suspending controller");
     WRITE_VOLATILE(Controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Suspend the controller just in case it's running
     // and wait for it to suspend
-    OhciSetMode(Controller, OHCI_CONTROL_SUSPEND);
+    OHCISetMode(Controller, OHCI_CONTROL_SUSPEND);
     thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
 
     // Toggle bit 0 to initiate a reset
@@ -346,74 +344,73 @@ OhciReset(
 }
 
 oserr_t
-OhciSetup(
-    _In_ OhciController_t* Controller)
+OHCISetup(
+    _In_ OhciController_t* controller)
 {
     reg32_t tempValue;
     int     i;
 
     // Trace
-    TRACE("OhciSetup()");
+    TRACE("OHCISetup()");
 
     // Retrieve the revision of the controller, we support 0x10 && 0x11
-    tempValue = READ_VOLATILE(Controller->Registers->HcRevision) & 0xFF;
+    tempValue = READ_VOLATILE(controller->Registers->HcRevision) & 0xFF;
     if (tempValue != OHCI_REVISION1 && tempValue != OHCI_REVISION11) {
         ERROR("Invalid OHCI Revision (0x%x)", tempValue);
         return OS_EUNKNOWN;
     }
 
     // Initialize the queue system
-    OHCIQueueInitialize(Controller);
+    OHCIQueueInitialize(controller);
 
     // Setup the i/o requirements
-    Controller->Base.IORequirements.BufferAlignment = 0;
-    Controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_BITS32;
+    controller->Base.IORequirements.BufferAlignment = 0;
+    controller->Base.IORequirements.Conformity      = OSMEMORYCONFORMITY_BITS32;
 
     // Last step is to take ownership, reset the controller and initialize
     // the registers, all resource must be allocated before this
-    if (OhciTakeControl(Controller) != OS_EOK || OhciReset(Controller) != OS_EOK) {
+    if (OHCITakeControl(controller) != OS_EOK || OHCIReset(controller) != OS_EOK) {
         ERROR("Failed to initialize the ohci-controller");
         return OS_EUNKNOWN;
     }
     
     // Controller should now be in a running state
     TRACE("Controller %u Started, Control 0x%x, Ints 0x%x, FmInterval 0x%x",
-        Controller->Base.Id, Controller->Registers->HcControl, 
-        Controller->Registers->HcInterruptEnable, Controller->Registers->HcFmInterval);
+          controller->Base.Id, controller->Registers->HcControl,
+          controller->Registers->HcInterruptEnable, controller->Registers->HcFmInterval);
 
     // We are not completely done yet, we need to figure out the
     // power-mode of the controller, and we need the port-count
-    if (READ_VOLATILE(Controller->Registers->HcRhDescriptorA) & (1 << 9)) {
+    if (READ_VOLATILE(controller->Registers->HcRhDescriptorA) & (1 << 9)) {
         // Power is always on
-        WRITE_VOLATILE(Controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
-        WRITE_VOLATILE(Controller->Registers->HcRhDescriptorB, 0);
-        Controller->PowerMode = AlwaysOn;
+        WRITE_VOLATILE(controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
+        WRITE_VOLATILE(controller->Registers->HcRhDescriptorB, 0);
+        controller->PowerMode = OHCIPOWERMODE_ALWAYSON;
     }
     else {
         // Ports have individual power
-        if (READ_VOLATILE(Controller->Registers->HcRhDescriptorA) & (1 << 8)) {
+        if (READ_VOLATILE(controller->Registers->HcRhDescriptorA) & (1 << 8)) {
             // We prefer this, we can control each port's power
-            WRITE_VOLATILE(Controller->Registers->HcRhDescriptorB, 0xFFFF0000);
-            Controller->PowerMode = PortControl;
-        }
-        else {
+            WRITE_VOLATILE(controller->Registers->HcRhDescriptorB, 0xFFFF0000);
+            controller->PowerMode = OHCIPOWERMODE_PORTCONTROL;
+        } else {
             // Oh well, it's either all on or all off
-            WRITE_VOLATILE(Controller->Registers->HcRhDescriptorB, 0);
-            WRITE_VOLATILE(Controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
-            Controller->PowerMode = GlobalControl;
+            WRITE_VOLATILE(controller->Registers->HcRhDescriptorB, 0);
+            WRITE_VOLATILE(controller->Registers->HcRhStatus, OHCI_STATUS_POWER_ENABLED);
+            controller->PowerMode = OHCIPOWERMODE_GLOBALCONTROL;
         }
     }
 
     // Get Port count from (DescriptorA & 0x7F)
-    Controller->Base.PortCount = READ_VOLATILE(Controller->Registers->HcRhDescriptorA) & 0x7F;
-    if (Controller->Base.PortCount > OHCI_MAXPORTS) {
-        Controller->Base.PortCount = OHCI_MAXPORTS;
+    controller->Base.PortCount = READ_VOLATILE(controller->Registers->HcRhDescriptorA) & 0x7F;
+    if (controller->Base.PortCount > OHCI_MAXPORTS) {
+        controller->Base.PortCount = OHCI_MAXPORTS;
     }
 
     // Clear RhA
-    tempValue = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
+    tempValue = READ_VOLATILE(controller->Registers->HcRhDescriptorA);
     tempValue &= ~(0x00000000 | OHCI_DESCRIPTORA_DEVICETYPE);
-    WRITE_VOLATILE(Controller->Registers->HcRhDescriptorA, tempValue);
+    WRITE_VOLATILE(controller->Registers->HcRhDescriptorA, tempValue);
 
     // Get Power On Delay
     // PowerOnToPowerGoodTime (24 - 31)
@@ -421,7 +418,7 @@ OhciSetup(
     // accessing a powered-on Port of the Root Hub.
     // It is implementation-specific.  The unit of time is 2 ms.
     // The duration is calculated as POTPGT * 2 ms.
-    tempValue = READ_VOLATILE(Controller->Registers->HcRhDescriptorA);
+    tempValue = READ_VOLATILE(controller->Registers->HcRhDescriptorA);
     tempValue >>= 24;
     tempValue &= 0x000000FF;
     tempValue *= 2;
@@ -430,33 +427,33 @@ OhciSetup(
     if (tempValue < 100) {
         tempValue = 100;
     }
-    Controller->PowerOnDelayMs = tempValue;
+    controller->PowerOnDelayMs = tempValue;
 
     TRACE("Ports %u (power mode %u, power delay %u)",
-          Controller->Base.PortCount, Controller->PowerMode, tempValue);
+          controller->Base.PortCount, controller->PowerMode, tempValue);
     
     // Register the controller before starting
-    if (UsbManagerRegisterController(&Controller->Base) != OS_EOK) {
+    if (UsbManagerRegisterController(&controller->Base) != OS_EOK) {
         ERROR("Failed to register uhci controller with the system.");
     }
 
     // Now we can enable hub events (and clear interrupts)
-    WRITE_VOLATILE(Controller->Registers->HcInterruptStatus, 
-        READ_VOLATILE(Controller->Registers->HcInterruptStatus));
-    WRITE_VOLATILE(Controller->Registers->HcInterruptEnable, 
-        READ_VOLATILE(Controller->Registers->HcInterruptEnable) | OHCI_ROOTHUB_EVENT);
+    WRITE_VOLATILE(controller->Registers->HcInterruptStatus,
+                   READ_VOLATILE(controller->Registers->HcInterruptStatus));
+    WRITE_VOLATILE(controller->Registers->HcInterruptEnable,
+                   READ_VOLATILE(controller->Registers->HcInterruptEnable) | OHCI_ROOTHUB_EVENT);
     
     // If it's individual port power, iterate through port and power up
-    if (Controller->PowerMode == PortControl) {
-        for (i = 0; i < (int)Controller->Base.PortCount; i++) {
-            reg32_t PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[i]);
+    if (controller->PowerMode == OHCIPOWERMODE_PORTCONTROL) {
+        for (i = 0; i < (int)controller->Base.PortCount; i++) {
+            reg32_t PortStatus = READ_VOLATILE(controller->Registers->HcRhPortStatus[i]);
             if (!(PortStatus & OHCI_PORT_POWER)) {
-                WRITE_VOLATILE(Controller->Registers->HcRhPortStatus[i], OHCI_PORT_POWER);
+                WRITE_VOLATILE(controller->Registers->HcRhPortStatus[i], OHCI_PORT_POWER);
             }
         }
     }
     
     // Wait for ports to power up in any case, even if power is always on/global
-    thrd_sleep(&(struct timespec) { .tv_nsec = Controller->PowerOnDelayMs * NSEC_PER_MSEC }, NULL);
-    return OHCICheckPorts(Controller, 1);
+    thrd_sleep(&(struct timespec) { .tv_nsec = controller->PowerOnDelayMs * NSEC_PER_MSEC }, NULL);
+    return OHCICheckPorts(controller, 1);
 }
