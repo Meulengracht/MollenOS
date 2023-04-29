@@ -280,11 +280,11 @@ UsbCoreDevicesCreate(
     _In_ UsbHub_t*        usbHub,
     _In_ UsbPort_t*       usbPort)
 {
-    USBPortDescriptor_t portDescriptor;
+    USBPortDescriptor_t  portDescriptor;
     enum USBTransferCode usbStatus;
-    oserr_t               oserr;
-    UsbPortDevice_t*      device;
-    int                   reservedAddress = 0;
+    oserr_t              oserr;
+    UsbPortDevice_t*     device;
+    int                  reservedAddress = 0;
 
     TRACE("[usb] [%u:%u] setting up", usbHub->PortAddress, usbPort->Address);
 
@@ -316,9 +316,9 @@ UsbCoreDevicesCreate(
     }
 
     // Update port
-    usbPort->Connected                = 1;
-    usbPort->Enabled                  = 1;
-    usbPort->Speed                    = portDescriptor.Speed;
+    usbPort->Connected = 1;
+    usbPort->Enabled   = 1;
+    usbPort->Speed     = portDescriptor.Speed;
     
     // Initialize the members we have, leave device address to 0
     device->Base.controller_device_id = usbController->Device->Id;

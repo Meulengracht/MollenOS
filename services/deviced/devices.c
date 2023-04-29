@@ -44,12 +44,12 @@ struct DmDeviceProtocol {
     char*     name;
 };
 
-struct DmDevice {
-    element_t               header;
-    uuid_t                  driver_id;
-    bool                    has_driver;
-    Device_t*               device;
-    list_t                  protocols;   // list<struct DmDeviceProtocol>
+struct DMDevice {
+    element_t header;
+    uuid_t    driver_id;
+    bool      has_driver;
+    Device_t* device;
+    list_t    protocols;   // list<struct DmDeviceProtocol>
 };
 
 static struct usched_mtx g_devicesLock;
@@ -61,14 +61,14 @@ void DmDevicesInitialize(void)
     usched_mtx_init(&g_devicesLock, USCHED_MUTEX_PLAIN);
 }
 
-static struct DmDevice*
+static struct DMDevice*
 __GetDevice(
         _In_ uuid_t deviceId)
 {
-    struct DmDevice* result = NULL;
+    struct DMDevice* result = NULL;
     usched_mtx_lock(&g_devicesLock);
     foreach (i, &g_devices) {
-        struct DmDevice* device = i->value;
+        struct DMDevice* device = i->value;
         if (device->device->Id == deviceId) {
             result = device;
             break;
@@ -84,7 +84,7 @@ DmDevicesRegister(
         _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
-    struct DmDevice*         device = __GetDevice(deviceId);
+    struct DMDevice*         device = __GetDevice(deviceId);
     struct sys_device        protoDevice;
     TRACE("DmDevicesRegister(driverHandle=%u, deviceId=%u)",
           driverHandle, deviceId);
@@ -111,7 +111,7 @@ void DmHandleGetDevicesByProtocol(
 
     usched_mtx_lock(&g_devicesLock);
     foreach(node, &g_devices) {
-        struct DmDevice* device = node->value;
+        struct DMDevice* device = node->value;
         foreach(protoNode, &device->protocols) {
             struct DmDeviceProtocol* protocol = protoNode->value;
             uint8_t                  id = (uint8_t)(uintptr_t)protocol->header.key;
@@ -136,7 +136,7 @@ DmHandleIoctl(
         _In_ void*               buffer,
         _In_ size_t              length)
 {
-    struct DmDevice* device;
+    struct DMDevice* device;
 
     device = __GetDevice(deviceID);
     if (device == NULL) {
@@ -179,7 +179,7 @@ DmHandleIoctl2(
         _In_  unsigned int width,
         _Out_ size_t*      valueOut)
 {
-    struct DmDevice* device  = __GetDevice(deviceID);
+    struct DMDevice* device = __GetDevice(deviceID);
     oserr_t          result  = OS_EINVALPARAMS;
     size_t           storage = value;
 
@@ -200,7 +200,7 @@ static void
 __AddProtocolToDevice(
         _In_ const char*      protocolName,
         _In_ uint8_t          protocolID,
-        _In_ struct DmDevice* device)
+        _In_ struct DMDevice* device)
 {
     struct DmDeviceProtocol* protocol = malloc(sizeof(struct DmDeviceProtocol));
     if (!protocol) {
@@ -217,7 +217,7 @@ void DmHandleRegisterProtocol(
         _In_ const char* protocolName,
         _In_ uint8_t     protocolID)
 {
-    struct DmDevice* device;
+    struct DMDevice* device;
 
     device = __GetDevice(deviceID);
     if (device) {
@@ -226,7 +226,7 @@ void DmHandleRegisterProtocol(
 }
 
 static void __TryLocateDriver(
-        _In_ struct DmDevice* device)
+        _In_ struct DMDevice* device)
 {
     struct DriverIdentification driverIdentification = {
             .VendorId = device->device->VendorId,
@@ -249,13 +249,13 @@ DmDeviceCreate(
         _In_  unsigned int flags,
         _Out_ uuid_t*      idOut)
 {
-    struct DmDevice* deviceNode;
+    struct DMDevice* deviceNode;
 
     assert(device != NULL);
     assert(idOut != NULL);
     assert(device->Length >= sizeof(Device_t));
 
-    deviceNode = (struct DmDevice*)malloc(sizeof(struct DmDevice));
+    deviceNode = (struct DMDevice*)malloc(sizeof(struct DMDevice));
     if (!deviceNode) {
         return OS_EOOM;
     }
@@ -294,7 +294,7 @@ void DmDeviceRefreshDrivers(void)
 #ifndef __OSCONFIG_NODRIVERS
     usched_mtx_lock(&g_devicesLock);
     foreach (i, &g_devices) {
-        struct DmDevice* device = i->value;
+        struct DMDevice* device = i->value;
         TRACE("DmDeviceRefreshDrivers device=%s, hasDriver=%i",
               device->device->Identification.Description, device->has_driver);
         if (device->has_driver) {

@@ -39,7 +39,7 @@ DECL_STRUCT(UsbDevice);
 #define USB_DEVICE_CLASS     0x0000CABB
 #define USB_TRANSACTIONCOUNT 3
 
-typedef enum USBTransferCode {
+enum USBTransferCode {
     USBTRANSFERCODE_INVALID,
 
     // HCD Error Codes
@@ -54,7 +54,7 @@ typedef enum USBTransferCode {
     USBTRANSFERCODE_BUFFERERROR,
     USBTRANSFERCODE_NAK,
     USBTRANSFERCODE_BABBLE // CRC/Bitstuffing
-} USBTransferCode_t;
+};
 
 enum USBControllerKind {
     USBCONTROLLER_KIND_UHCI,

@@ -105,38 +105,38 @@ HCITransferFinalize(
     // reload the asynchronous queue
     if (__Transfer_IsAsync(transfer)) {
         // Check if the link of the QH is eol
-        reg32_t Status  = READ_VOLATILE(ohciController->Registers->HcCommandStatus);
-        reg32_t Control = ohciController->QueuesActive;
-        if ((Status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
+        reg32_t status  = READ_VOLATILE(ohciController->Registers->HcCommandStatus);
+        reg32_t control = ohciController->QueuesActive;
+        if ((status & OHCI_COMMAND_CONTROL_FILLED) == 0) {
             if (ohciController->TransactionsWaitingControl != 0) {
                 // Conditions for control fulfilled
                 OHCIReloadAsynchronous(ohciController, USBTRANSFER_TYPE_CONTROL);
-                Status  |= OHCI_COMMAND_CONTROL_FILLED;
-                Control |= OHCI_CONTROL_CONTROL_ACTIVE;
+                status  |= OHCI_COMMAND_CONTROL_FILLED;
+                control |= OHCI_CONTROL_CONTROL_ACTIVE;
             }
             else {
                 if (READ_VOLATILE(ohciController->Registers->HcControlHeadED) == 0) {
-                    Control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
+                    control &= ~(OHCI_CONTROL_CONTROL_ACTIVE);
                 }
             }
         }
-        if ((Status & OHCI_COMMAND_BULK_FILLED) == 0) {
+        if ((status & OHCI_COMMAND_BULK_FILLED) == 0) {
             if (ohciController->TransactionsWaitingBulk != 0) {
                 // Conditions for bulk fulfilled
                 OHCIReloadAsynchronous(ohciController, USBTRANSFER_TYPE_BULK);
-                Status  |= OHCI_COMMAND_BULK_FILLED;
-                Control |= OHCI_CONTROL_BULK_ACTIVE;
+                status  |= OHCI_COMMAND_BULK_FILLED;
+                control |= OHCI_CONTROL_BULK_ACTIVE;
             }
             else {
                 if (READ_VOLATILE(ohciController->Registers->HcBulkHeadED) == 0) {
-                    Control &= ~(OHCI_CONTROL_BULK_ACTIVE);
+                    control &= ~(OHCI_CONTROL_BULK_ACTIVE);
                 }
             }
         }
 
         // Update
-        WRITE_VOLATILE(ohciController->Registers->HcCommandStatus, Status);
-        ohciController->QueuesActive = Control;
+        WRITE_VOLATILE(ohciController->Registers->HcCommandStatus, status);
+        ohciController->QueuesActive = control;
     }
 
     // Don't unlink asynchronous transfers
@@ -202,8 +202,8 @@ __CalculateTransferElementMetrics(
         _Out_ uintptr_t*           dataAddressOut,
         _Out_ uint32_t*            lengthOut)
 {
-    int       index;
-    size_t    offset;
+    int    index;
+    size_t offset;
     TRACE("__CalculateTransferElementMetrics(offset=%u, mps=%u, len=%u)",
           sgTableOffset, (uint32_t)maxPacketSize, transferLength);
 
