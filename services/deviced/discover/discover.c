@@ -51,7 +51,7 @@ struct DmDriver {
     struct usched_mtx            devices_lock;
 };
 
-struct DmDevice {
+struct DMDevice {
     element_t list_header;
     uuid_t    id;
 };
@@ -177,10 +177,10 @@ __RegisterDeviceForDriver(
         _In_ struct DmDriver* driver,
         _In_ uuid_t           deviceId)
 {
-    struct DmDevice* device;
+    struct DMDevice* device;
     TRACE("__RegisterDeviceForDriver()");
 
-    device = malloc(sizeof(struct DmDevice));
+    device = malloc(sizeof(struct DMDevice));
     if (!device) {
         return;
     }
@@ -280,7 +280,7 @@ __NotifyDevices(
 {
     usched_mtx_lock(&driver->devices_lock);
     foreach (i, &driver->devices) {
-        struct DmDevice* device = i->value;
+        struct DMDevice* device = i->value;
         oserr_t          oserr  = DmDevicesRegister(driver->handle, device->id);
         if (oserr != OS_EOK) {
             WARNING("__NotifyDevices failed to notify driver of device %u", device->id);

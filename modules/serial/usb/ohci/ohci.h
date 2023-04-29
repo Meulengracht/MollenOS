@@ -444,14 +444,6 @@ OHCITDVerify(
     _In_ struct HCIProcessReasonScanContext* scanContext,
     _In_ OhciTransferDescriptor_t*           td);
 
-/* OhciTdSynchronize
- * Synchronizes the toggle status of the transfer descriptor by retrieving
- * current and updating the pipe toggle. */
-extern void
-OhciTdSynchronize(
-    _In_ UsbManagerTransfer_t*      Transfer,
-    _In_ OhciTransferDescriptor_t*  Td);
-
 /* OHCITDRestart
  * Restarts a transfer descriptor by resettings it's status and updating buffers if the
  * trasnfer type is an interrupt-transfer that uses circularbuffers. */
