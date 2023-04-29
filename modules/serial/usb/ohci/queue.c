@@ -130,20 +130,19 @@ OHCIQueueReset(
 {
     TRACE("OHCIQueueReset()");
 
-    OhciSetMode(controller, OHCI_CONTROL_SUSPEND);
+    OHCISetMode(controller, OHCI_CONTROL_SUSPEND);
     UsbManagerClearTransfers(&controller->Base);
     return __ResetInternalData(controller);
 }
 
-oserr_t
-OhciQueueDestroy(
+void
+OHCIQueueDestroy(
     _In_ OhciController_t* Controller)
 {
-    TRACE("OhciQueueDestroy()");
+    TRACE("OHCIQueueDestroy()");
 
     OHCIQueueReset(Controller);
     UsbSchedulerDestroy(Controller->Base.Scheduler);
-    return OS_EOK;
 }
 
 enum USBTransferCode

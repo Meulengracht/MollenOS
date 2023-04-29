@@ -37,7 +37,11 @@ EHCITDIsochronous(
     uintptr_t buffer      = addresses[0] & pageMask;
     uint32_t  bufferIndex = 0;
 
-    iTd->Link          = EHCI_LINK_END;
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
     iTd->Object.Flags |= EHCI_LINK_iTD;
 
     // initialize the buffer special bits

@@ -76,10 +76,9 @@ HCIPortReset(
 
     // Don't matter if timeout, try to enable it
     // If power-mode is port-power, also power it
-    if (OhciCtrl->PowerMode == PortControl) {
+    if (OhciCtrl->PowerMode == OHCIPOWERMODE_PORTCONTROL) {
         WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED | OHCI_PORT_POWER);
-    }
-    else {
+    } else {
         WRITE_VOLATILE(OhciCtrl->Registers->HcRhPortStatus[Index], OHCI_PORT_ENABLED);
     }
     return OS_EOK;
@@ -109,33 +108,33 @@ __CheckPortStatus(
     _In_ int               Index,
     _In_ int               IgnorePowerOn)
 {
-    oserr_t Result     = OS_EOK;
-    reg32_t    PortStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
-    TRACE("__CheckPortStatus(%i): 0x%x", Index, PortStatus);
+    oserr_t oserr      = OS_EOK;
+    reg32_t portStatus = READ_VOLATILE(Controller->Registers->HcRhPortStatus[Index]);
+    TRACE("__CheckPortStatus(%i): 0x%x", Index, portStatus);
 
     // Clear bits now we have a copy
     ClearPortEventBits(Controller, Index);
     
     // We only care about connection events currently
-    if (PortStatus & OHCI_PORT_CONNECT_EVENT) {
-        Result = UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
+    if (portStatus & OHCI_PORT_CONNECT_EVENT) {
+        oserr = UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
     }
-    return Result;
+    return oserr;
 }
 
 oserr_t
 OHCICheckPorts(
-    _In_ OhciController_t* Controller,
-    _In_ int               IgnorePowerOn)
+    _In_ OhciController_t* controller,
+    _In_ int               ignorePowerOn)
 {
     TRACE("OHCICheckPorts()");
-    if (spinlock_try_acquire(&Controller->Base.Lock) != spinlock_acquired) {
+    if (spinlock_try_acquire(&controller->Base.Lock) != spinlock_acquired) {
         return OS_EBUSY;
     }
     
-    for (int i = 0; i < (int)(Controller->Base.PortCount); i++) {
-        __CheckPortStatus(Controller, i, IgnorePowerOn);
+    for (int i = 0; i < (int)(controller->Base.PortCount); i++) {
+        __CheckPortStatus(controller, i, ignorePowerOn);
     }
-    spinlock_release(&Controller->Base.Lock);
+    spinlock_release(&controller->Base.Lock);
     return OS_EOK;
 }

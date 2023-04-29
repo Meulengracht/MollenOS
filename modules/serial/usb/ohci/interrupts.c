@@ -106,15 +106,15 @@ ProcessInterrupt:
     // Fatal errors, reset everything
     if (InterruptStatus & (OHCI_FATAL_EVENT | OHCI_OVERRUN_EVENT)) {
         OHCIQueueReset(Controller);
-        OhciReset(Controller);
-        OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
+        OHCIReset(Controller);
+        OHCISetMode(Controller, OHCI_CONTROL_ACTIVE);
     }
 
     // Resume Detection? 
     // We must wait 20 ms before putting Controller to Operational
     if (InterruptStatus & OHCI_RESUMEDETECT_EVENT) {
         thrd_sleep(&(struct timespec) { .tv_nsec = 20 * NSEC_PER_MSEC }, NULL);
-        OhciSetMode(Controller, OHCI_CONTROL_ACTIVE);
+        OHCISetMode(Controller, OHCI_CONTROL_ACTIVE);
     }
 
     // Stage 2 of an linking/unlinking event

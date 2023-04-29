@@ -1,9 +1,3 @@
-if (NOT DEFINED VALI_BUILD)
-    cmake_minimum_required(VERSION 3.13.4)
-    include(../../../cmake/SetupEnvironment.cmake)
-    project(vali-module-eth-intel)
-endif ()
-
 enable_language(C)
 
 # Configure include paths

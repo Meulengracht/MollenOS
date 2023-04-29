@@ -33,13 +33,13 @@ __DispatchTransfer(
     _In_ EhciController_t*      Controller,
     _In_ UsbManagerTransfer_t*  Transfer)
 {
-    Transfer->State = USBTRANSFER_STATE_QUEUED;
 #ifdef __TRACE
     UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
 #ifdef __DIAGNOSE
     for(;;);
 #endif
 #endif
+    Transfer->State = USBTRANSFER_STATE_QUEUED;
     UsbManagerChainEnumerate(&Controller->Base, Transfer->RootElement,
         USB_CHAIN_DEPTH, HCIPROCESS_REASON_LINK, HCIProcessElement, Transfer);
 }
@@ -210,6 +210,7 @@ HCITransferElementsNeeded(
     struct TransferElement element;
     uint32_t               bytesLeft = transferLength;
     int                    tdsNeeded = 0;
+    TRACE("EHCITransferElementsNeeded(transfer=%u, length=%u)", transfer->ID, transferLength);
 
     // In regard to isochronous transfers, we must allocate an
     // additional transfer descriptor, which acts as the 'zero-td'.
@@ -248,6 +249,7 @@ HCITransferElementsNeeded(
             }
         }
     }
+    TRACE("EHCITransferElementsNeeded: %i", tdsNeeded);
     return tdsNeeded;
 }
 
@@ -262,6 +264,7 @@ HCITransferElementFill(
     enum TransferElementType ackType   = TRANSFERELEMENT_TYPE_IN;
     uint32_t                 bytesLeft = transferLength;
     int                      ei = 0;
+    TRACE("EHCITransferElementFill(transfer=%u, length=%u)", transfer->ID, transferLength);
 
     // Handle control transfers a bit different due to control transfers needing
     // some additional packets.
@@ -271,10 +274,17 @@ HCITransferElementFill(
                 sgTable,
                 sgTableOffset,
                 transferLength,
-                sizeof(usb_packet_t),
+                bytesLeft,
                 &transfer->Elements[ei]
         );
+
+        // Override the type and length, as those are fixed for the setup packaet
         transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
+        transfer->Elements[ei].Length = sizeof(usb_packet_t);
+        transfer->Elements[ei].Data.EHCI.Lengths[0] = sizeof(usb_packet_t);
+        for (int i = 1; i < 5; i++) {
+            transfer->Elements[ei].Data.EHCI.Lengths[i] = 0;
+        }
         ei++;
         bytesLeft -= sizeof(usb_packet_t);
 
@@ -303,12 +313,11 @@ HCITransferElementFill(
         // Isoc:    adding ZLP
         if (bytesLeft == 0) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
+                transfer->Elements[ei++].Type = __TransferElement_DirectionToType(direction);
             } else if (direction == USBTRANSFER_DIRECTION_OUT &&
                     transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
-                transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_OUT;
+                transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
             }
-            ei++;
         }
     }
 
@@ -342,6 +351,7 @@ __EnsureQueueHead(
     oserr = EHCIQHInitialize(
             controller,
             transfer,
+            (EhciQueueHead_t*)qh,
             transfer->Address.DeviceAddress,
             transfer->Address.EndpointAddress
     );
@@ -658,7 +668,6 @@ HCITransferQueue(
 {
     EhciController_t* controller;
     oserr_t           oserr;
-    int               tdsReady;
 
     controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller == NULL) {
@@ -670,13 +679,13 @@ HCITransferQueue(
         return oserr;
     }
 
-    tdsReady = __AllocateDescriptors(controller, transfer, EHCI_TD_POOL);
-    if (!tdsReady) {
+    transfer->ChainLength = __AllocateDescriptors(controller, transfer, EHCI_TD_POOL);
+    if (!transfer->ChainLength) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;
     }
 
-    __PrepareTransferDescriptors(controller, transfer, tdsReady);
+    __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }
@@ -686,20 +695,19 @@ HCITransferQueueIsochronous(
         _In_ UsbManagerTransfer_t* transfer)
 {
     EhciController_t* controller;
-    int               tdsReady;
 
     controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller == NULL) {
         return OS_ENOENT;
     }
 
-    tdsReady = __AllocateDescriptors(controller, transfer, EHCI_iTD_POOL);
-    if (!tdsReady) {
+    transfer->ChainLength = __AllocateDescriptors(controller, transfer, EHCI_iTD_POOL);
+    if (!transfer->ChainLength) {
         transfer->State = USBTRANSFER_STATE_WAITING;
         return OS_EOK;
     }
 
-    __PrepareTransferDescriptors(controller, transfer, tdsReady);
+    __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }

@@ -114,6 +114,7 @@ PACKED_TYPESTRUCT(UhciTransferDescriptor, {
 /* UhciTransferDescriptor::Flags
  * Contains definitions and bitfield definitions for UhciTransferDescriptor::Flags */
 #define UHCI_TD_LENGTH_MASK             0x7FF
+#define UHCI_TD_MAXLENGTH               0x4FF
 #define UHCI_TD_ACTIVE                  (1 << 23)
 #define UHCI_TD_IOC                     (1 << 24)
 #define UHCI_TD_ISOCHRONOUS             (1 << 25)
@@ -311,8 +312,9 @@ UhciConditionCodeToIndex(
  */
 extern oserr_t
 UHCIQHInitialize(
-    _In_ UhciController_t*     controller,
-    _In_ UsbManagerTransfer_t* transfer);
+        _In_ UhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ UhciQueueHead_t*       queueHead);
 
 /* UHCIQHDump
  * Dumps the information contained in the queue-head by writing it to stdout */

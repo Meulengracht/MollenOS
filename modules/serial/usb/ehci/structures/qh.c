@@ -25,12 +25,12 @@
 
 oserr_t
 EHCIQHInitialize(
-    _In_ EhciController_t*     controller,
-    _In_ UsbManagerTransfer_t* transfer,
-    _In_ uint8_t               deviceAddress,
-    _In_ uint8_t               endpointAddress)
+        _In_ EhciController_t*     controller,
+        _In_ UsbManagerTransfer_t* transfer,
+        _In_ EhciQueueHead_t*      qh,
+        _In_ uint8_t               deviceAddress,
+        _In_ uint8_t               endpointAddress)
 {
-    EhciQueueHead_t* qh        = (EhciQueueHead_t*)transfer->RootElement;
     oserr_t          oserr     = OS_EOK;
 
     // Initialize links

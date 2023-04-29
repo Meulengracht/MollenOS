@@ -59,8 +59,11 @@ EHCITDSetup(
     _In_ EhciTransferDescriptor_t* td,
     _In_ uintptr_t                 dataAddress)
 {
-    // Initialize the transfer-descriptor
-    td->Link            = EHCI_LINK_END;
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
     td->AlternativeLink = EHCI_LINK_END;
 
     td->Status = EHCI_TD_ACTIVE;
@@ -84,8 +87,13 @@ EHCITDData(
     _In_ size_t                    length,
     _In_ int                       toggle)
 {
+    /**
+     * When calling these initializers for TDs, the TDs have already been
+     * correctly linked, and their links set accordingly. So we do not touch
+     * the links, unless they need a specific hardcoded value.
+     */
+
     // Initialize the new Td
-    td->Link   = EHCI_LINK_END;
     td->Status = EHCI_TD_ACTIVE;
     td->Token  = pid | EHCI_TD_ERRCOUNT;
 

@@ -143,13 +143,9 @@ HCITransferFinalize(
     if (__Transfer_IsPeriodic(transfer)) {
         UsbManagerChainEnumerate(controller, transfer->RootElement,
                                  USB_CHAIN_DEPTH, HCIPROCESS_REASON_UNLINK, HCIProcessElement, transfer);
+    }
 
-        // Only do cleanup if not deferred
-        if (!deferredClean) {
-            UsbManagerChainEnumerate(controller, transfer->RootElement,
-                                     USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, transfer);
-        }
-    } else {
+    if (!deferredClean) {
         // Always cleanup asynchronous transfers
         UsbManagerChainEnumerate(controller, transfer->RootElement,
                                  USB_CHAIN_DEPTH, HCIPROCESS_REASON_CLEANUP, HCIProcessElement, transfer);
@@ -210,6 +206,9 @@ __CalculateTransferElementMetrics(
     size_t    offset;
     TRACE("__CalculateTransferElementMetrics(offset=%u, mps=%u, len=%u)",
           sgTableOffset, (uint32_t)maxPacketSize, transferLength);
+
+    // retrieve the initial index and offset into the SG table, based on the
+    // start offset, and the progress into the transaction.
     SHMSGTableOffset(
             sgTable,
             sgTableOffset + (transferLength - bytesLeft),
@@ -317,7 +316,6 @@ HCITransferElementFill(
         // Override the type and length, as those are fixed for the setup packaet
         transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
         transfer->Elements[ei].Length = sizeof(usb_packet_t);
-        TRACE("OHCITransferElementFill: (0) element[%i] = %u", ei, TRANSFERELEMENT_TYPE_SETUP);
         ei++;
         bytesLeft -= sizeof(usb_packet_t);
 
@@ -340,7 +338,6 @@ HCITransferElementFill(
                 &transfer->Elements[ei].Length
         );
         transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
-        TRACE("OHCITransferElementFill: (1) element[%i] = %u", ei, __TransferElement_DirectionToType(direction));
         bytesLeft -= transfer->Elements[ei].Length;
         ei++;
 
@@ -350,11 +347,9 @@ HCITransferElementFill(
         if (bytesLeft == 0) {
             if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
                 transfer->Elements[ei++].Type = __TransferElement_DirectionToType(direction);
-                TRACE("OHCITransferElementFill: (2) element[%i] = %u", ei, __TransferElement_DirectionToType(direction));
             } else if (direction == USBTRANSFER_DIRECTION_OUT &&
                        transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
                 transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
-                TRACE("OHCITransferElementFill: (3) element[%i] = %u", ei, TRANSFERELEMENT_TYPE_OUT);
             }
         }
     }
@@ -362,7 +357,6 @@ HCITransferElementFill(
     // Finally, handle the ACK stage of control transfers
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
         transfer->Elements[ei].Type = ackType;
-        TRACE("OHCITransferElementFill: (4) element[%i] = %u", ei, ackType);
     }
 }
 
@@ -408,6 +402,10 @@ __DestroyDescriptors(
         _In_ UsbManagerTransfer_t* transfer)
 {
     TRACE("__DestroyDescriptors(transfer=%u)", transfer->ID);
+    if (transfer->RootElement == NULL) {
+        return;
+    }
+
     UsbManagerChainEnumerate(
             &controller->Base,
             transfer->RootElement,
@@ -438,6 +436,7 @@ __AllocateDescriptors(
     int              tdsRemaining = __RemainingDescriptorCount(transfer);
     int              tdsAllocated = 0;
     TRACE("__AllocateDescriptors(transfer=%u, count=%i)", transfer->ID, tdsRemaining);
+
     for (int i = 0; i < tdsRemaining; i++) {
         uint8_t* element;
         oserr_t oserr = UsbSchedulerAllocateElement(
