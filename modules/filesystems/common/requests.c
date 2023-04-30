@@ -251,6 +251,7 @@ static inline oserr_t
 __MapUserBufferRead(
         _In_ struct FSBaseContext* fsBaseContext,
         _In_ uuid_t                handle,
+        _In_ size_t                length,
         _In_ OSHandle_t*           shm)
 {
     return SHMConform(
@@ -259,7 +260,7 @@ __MapUserBufferRead(
             SHM_CONFORM_BACKFILL_ON_UNMAP,
             SHM_ACCESS_READ | SHM_ACCESS_WRITE,
             0,
-            SHMBufferCapacity(shm),
+            length,
             shm
     );
 }
@@ -272,7 +273,7 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
     size_t     read;
     TRACE("ctt_filesystem_read_invocation()");
 
-    oserr = __MapUserBufferRead((void*)fsctx, params->buffer_id, &shm);
+    oserr = __MapUserBufferRead((void*)fsctx, params->buffer_id, (size_t)params->count, &shm);
     if (oserr != OS_EOK) {
         ctt_filesystem_read_response(message, oserr, 0);
         return;
@@ -305,6 +306,7 @@ static inline oserr_t
 __MapUserBufferWrite(
         _In_ struct FSBaseContext* fsBaseContext,
         _In_ uuid_t                handle,
+        _In_ size_t                length,
         _In_ OSHandle_t*           shm)
 {
     return SHMConform(
@@ -313,7 +315,7 @@ __MapUserBufferWrite(
             SHM_CONFORM_FILL_ON_CREATION,
             SHM_ACCESS_READ,
             0,
-            SHMBufferCapacity(shm),
+            length,
             shm
     );
 }
@@ -325,7 +327,7 @@ void ctt_filesystem_write_invocation(struct gracht_message* message, const uintp
     size_t     written;
     TRACE("ctt_filesystem_write_invocation()");
 
-    oserr = __MapUserBufferWrite((void*)fsctx, params->buffer_id, &shm);
+    oserr = __MapUserBufferWrite((void*)fsctx, params->buffer_id, (size_t)params->count, &shm);
     if (oserr != OS_EOK) {
         ctt_filesystem_write_response(message, oserr, 0);
         return;

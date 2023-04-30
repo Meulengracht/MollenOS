@@ -23,6 +23,7 @@
 
 #include "msd.h"
 #include <ddk/utils.h>
+#include <os/device.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
@@ -167,11 +168,31 @@ static void __GetDeviceConfiguration(
     UsbFreeConfigDescriptor(&configuration);
 }
 
+static oserr_t
+__GetConformity(
+        _In_ MsdDevice_t* msdDevice)
+{
+    struct OSIOCtlRequestRequirements ioRequirements;
+    oserr_t oserr = OSDeviceIOCtl2(
+            msdDevice->Device->DeviceContext.controller_device_id,
+            msdDevice->Device->DeviceContext.controller_driver_id,
+            OSIOCTLREQUEST_IO_REQUIREMENTS,
+            &ioRequirements,
+            sizeof(struct OSIOCtlRequestRequirements)
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    msdDevice->Conformity = ioRequirements.Conformity;
+    return OS_EOK;
+}
+
 MsdDevice_t*
 MsdDeviceCreate(
     _In_ UsbDevice_t* usbDevice)
 {
     MsdDevice_t* msdDevice;
+    oserr_t      oserr;
 
     // Debug
     TRACE("MsdDeviceCreate(DeviceId %u)", usbDevice->Base.Id);
@@ -199,6 +220,11 @@ MsdDeviceCreate(
                 usbDevice->Base.Identification.Product,
                 sizeof(msdDevice->Descriptor.Model)
         );
+    }
+
+    oserr = __GetConformity(msdDevice);
+    if (oserr != OS_EOK) {
+        ERROR("MsdDeviceCreate: failed to query conformity requirements");
     }
     
     __GetDeviceConfiguration(msdDevice);

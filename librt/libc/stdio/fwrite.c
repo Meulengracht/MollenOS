@@ -40,6 +40,7 @@ __prewrite_buffer(
         return 0;
     }
 
+    TRACE("__prewrite_buffer: current=0x%llx, bytesToWrite=%i", stream->Current, bytesToWrite);
     memcpy(stream->Current, buffer, bytesToWrite);
 
     stream->Current += bytesToWrite;
@@ -78,7 +79,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
     io_buffer_ensure(stream);
 
     // Fill the buffer before continuing, and flush if neccessary.
-    if (__FILE_IsBuffered(stream)) {
+    if (__FILE_IsBuffered(stream) && __FILE_BufferPosition(stream) > 0) {
         int bytesAvailable = stream->BufferSize - __FILE_BufferPosition(stream);
         int bytesWritten = __prewrite_buffer(stream, vptr, (int)wrcnt);
         if (bytesWritten) {

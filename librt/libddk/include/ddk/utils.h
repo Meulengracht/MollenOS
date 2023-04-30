@@ -31,11 +31,11 @@
 #define STR(str)               str
 #define DEBUG(...)             SystemDebug(OSSYSLOGLEVEL_DEBUG, __VA_ARGS__)
 #define WARNING(...)           SystemDebug(OSSYSLOGLEVEL_WARNING, __VA_ARGS__)
-#define WARNING_IF(cond, ...)  { if ((cond)) { SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); } }
+#define WARNING_IF(cond, ...)  { if ((cond)) { SystemDebug(OSSYSLOGLEVEL_WARNING, __VA_ARGS__); } }
 #define WARNING_ONCE(id, ...)  { \
                                     static _Atomic(int) __gi_ ##id ## _trigger = 0; \
                                     if (!atomic_exchange(&__gi_ ##id ## _trigger, 1)) { \
-                                        SystemDebug(SYSTEM_DEBUG_WARNING, __VA_ARGS__); \
+                                        SystemDebug(OSSYSLOGLEVEL_WARNING, __VA_ARGS__); \
                                     } \
                                }
 #define ERROR(...)	           SystemDebug(OSSYSLOGLEVEL_ERROR, __VA_ARGS__)

@@ -199,13 +199,14 @@ __CalculateTransferElementMetrics(
     element->Length = calculatedLength;
 }
 
-int
+oserr_t
 HCITransferElementsNeeded(
-        _In_ UsbManagerTransfer_t*     transfer,
-        _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset)
+        _In_  UsbManagerTransfer_t*     transfer,
+        _In_  uint32_t                  transferLength,
+        _In_  enum USBTransferDirection direction,
+        _In_  SHMSGTable_t*             sgTable,
+        _In_  uint32_t                  sgTableOffset,
+        _Out_ int*                      elementCountOut)
 {
     struct TransferElement element;
     uint32_t               bytesLeft = transferLength;
@@ -250,7 +251,8 @@ HCITransferElementsNeeded(
         }
     }
     TRACE("EHCITransferElementsNeeded: %i", tdsNeeded);
-    return tdsNeeded;
+    *elementCountOut = tdsNeeded;
+    return tdsNeeded == 0 ? OS_EINVALPARAMS : OS_EOK;
 }
 
 void

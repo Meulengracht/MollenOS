@@ -133,21 +133,17 @@ void ctt_driver_ioctl_invocation(
     switch (req) {
         case OSIOCTLREQUEST_IO_REQUIREMENTS: {
             // MSD driver does not pose any memory conformity requirements
-            // on its I/O requests. So we need to query the controller itself
-            // for this.
-            struct OSIOCtlRequestRequirements ioRequirements;
-            oserr = OSDeviceIOCtl2(
-                    device->Device->DeviceContext.controller_device_id,
-                    device->Device->DeviceContext.controller_driver_id,
-                    req,
-                    &ioRequirements,
-                    sizeof(struct OSIOCtlRequestRequirements)
-            );
+            // on its I/O requests. So we report the controller requirements
+            // instead
+            struct OSIOCtlRequestRequirements ioRequirements= {
+                    .BufferAlignment = 0,
+                    .Conformity = device->Conformity
+            };
             ctt_driver_ioctl_response(
                     message,
                     (uint8_t*)&ioRequirements,
                     sizeof(struct OSIOCtlRequestRequirements),
-                    oserr
+                    OS_EOK
             );
             return;
         }

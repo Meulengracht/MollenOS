@@ -25,8 +25,8 @@
 
 void
 OHCITDSetup(
-    _In_ OhciTransferDescriptor_t* td,
-    _In_ uintptr_t                 dataAddress)
+        _In_ OhciTransferDescriptor_t* td,
+        _In_ struct TransferElement*   element)
 {
     TRACE("OHCITDSetup(dataAddress=0x%x)", dataAddress);
 
@@ -44,8 +44,8 @@ OHCITDSetup(
     td->Flags |= OHCI_TD_ACTIVE;
 
     // Install the buffer
-    td->Cbp       = dataAddress;
-    td->BufferEnd = td->Cbp + (sizeof(usb_packet_t) - 1);
+    td->Cbp       = element->Data.OHCI.Page0 + element->Data.OHCI.Offsets[0];
+    td->BufferEnd = element->Data.OHCI.Page1;
 
     // Store copy of original content
     td->OriginalFlags = td->Flags;
@@ -54,12 +54,11 @@ OHCITDSetup(
 
 void
 OHCITDData(
-    _In_ OhciTransferDescriptor_t* td,
-    _In_ enum USBTransferType      type,
-    _In_ uint32_t                  PID,
-    _In_ uintptr_t                 dataAddress,
-    _In_ size_t                    length,
-    _In_ int                       toggle)
+        _In_ OhciTransferDescriptor_t*  td,
+        _In_ enum USBTransferType       type,
+        _In_ uint32_t                   pid,
+        _In_ struct TransferElement*    element,
+        _In_ int                        toggle)
 {
     TRACE("OHCITDData(length=%u)", length);
 
@@ -70,7 +69,7 @@ OHCITDData(
      */
 
     // Initialize flags as a IO Td
-    td->Flags |= PID;
+    td->Flags |= pid;
     td->Flags |= OHCI_TD_IOC_NONE;
     td->Flags |= OHCI_TD_TOGGLE_LOCAL;
     td->Flags |= OHCI_TD_ACTIVE;
@@ -82,23 +81,23 @@ OHCITDData(
     // We have to allow short-packets in some cases
     // where data returned or send might be shorter
     if (type == USBTRANSFER_TYPE_CONTROL) {
-        if (PID == OHCI_TD_IN && length > 0) {
+        if (pid == OHCI_TD_IN && element->Length > 0) {
             td->Flags |= OHCI_TD_SHORTPACKET_OK;
         }
-    } else if (PID == OHCI_TD_IN) {
+    } else if (pid == OHCI_TD_IN) {
         td->Flags |= OHCI_TD_SHORTPACKET_OK;
     }
 
     // Is there bytes to transfer or null packet?
-    if (length > 0) {
+    if (element->Length > 0) {
         // If during the data transfer the buffer address contained in the HC’s working
         // copy of CurrentBufferPointer crosses a 4K boundary, the upper 20 bits of
         // Buffer End are copied to the working value of CurrentBufferPointer causing
         // the next buffer address to be the 0th byte in the same 4K page that contains
         // the last byte of the buffer (the 4K boundary crossing may occur within
         // a data packet transfer.)
-        td->Cbp       = LODWORD(dataAddress);
-        td->BufferEnd = td->Cbp + (length - 1);
+        td->Cbp       = element->Data.OHCI.Page0 + element->Data.OHCI.Offsets[0];
+        td->BufferEnd = element->Data.OHCI.Page1;
     }
 
     // Store copy of original content

@@ -70,12 +70,13 @@ __AttachSGTable(
     return oserr;
 }
 
-UsbManagerTransfer_t*
+oserr_t
 USBTransferCreate(
-        _In_ struct gracht_message* message,
-        _In_ USBTransfer_t*         transfer,
-        _In_ uuid_t                 transferId,
-        _In_ uuid_t                 deviceId)
+        _In_  struct gracht_message* message,
+        _In_  USBTransfer_t*         transfer,
+        _In_  uuid_t                 transferId,
+        _In_  uuid_t                 deviceId,
+        _Out_ UsbManagerTransfer_t** transferOut)
 {
     UsbManagerController_t* controller;
     UsbManagerTransfer_t*   usbTransfer;
@@ -87,12 +88,12 @@ USBTransferCreate(
 
     controller = (UsbManagerController_t*)UsbManagerGetController(deviceId);
     if (!controller) {
-        return NULL;
+        return OS_ENOENT;
     }
 
     usbTransfer = (UsbManagerTransfer_t*)malloc(sizeof(UsbManagerTransfer_t) + GRACHT_MESSAGE_DEFERRABLE_SIZE(message));
     if (!usbTransfer) {
-        return NULL;
+        return OS_EOOM;
     }
     
     memset(usbTransfer, 0, sizeof(UsbManagerTransfer_t));
@@ -117,27 +118,28 @@ USBTransferCreate(
     oserr = __AttachSGTable(usbTransfer, transfer, &sgTable);
     if (oserr != OS_EOK) {
         USBTransferDestroy(usbTransfer);
-        return NULL;
+        return oserr;
     }
 
     // Count the needed number of transfer elements
-    usbTransfer->ElementCount = HCITransferElementsNeeded(
+    oserr = HCITransferElementsNeeded(
             usbTransfer,
             transfer->Length,
             transfer->Direction,
             &sgTable,
-            transfer->BufferOffset
+            transfer->BufferOffset,
+            &usbTransfer->ElementCount
     );
-    if (!usbTransfer->ElementCount) {
+    if (oserr != OS_EOK) {
         USBTransferDestroy(usbTransfer);
-        return NULL;
+        return oserr;
     }
 
     // Allocate the transfer element array
     usbTransfer->Elements = calloc(sizeof(struct TransferElement), usbTransfer->ElementCount);
     if (usbTransfer->Elements == NULL) {
         USBTransferDestroy(usbTransfer);
-        return NULL;
+        return OS_EOOM;
     }
     HCITransferElementFill(
             usbTransfer,
@@ -148,7 +150,8 @@ USBTransferCreate(
     );
     free(sgTable.Entries);
     list_append(&controller->TransactionList, &usbTransfer->ListHeader);
-    return usbTransfer;
+    *transferOut = usbTransfer;
+    return OS_EOK;
 }
 
 void
@@ -218,14 +221,15 @@ void ctt_usbhost_queue_invocation(struct gracht_message* message, const uuid_t p
     UsbManagerTransfer_t* usbTransfer;
     oserr_t               oserr;
 
-    usbTransfer = USBTransferCreate(
+    oserr = USBTransferCreate(
             message,
             (USBTransfer_t*)transfer,
             transferId,
-            deviceId
+            deviceId,
+            &usbTransfer
     );
-    if (usbTransfer == NULL) {
-        ctt_usbhost_queue_response(message, OS_ENOENT, CTT_USB_TRANSFER_STATUS_NAK, 0);
+    if (oserr != OS_EOK) {
+        ctt_usbhost_queue_response(message, oserr, CTT_USB_TRANSFER_STATUS_NAK, 0);
         return;
     }
 
@@ -242,14 +246,15 @@ void ctt_usbhost_queue_periodic_invocation(struct gracht_message* message, const
     UsbManagerTransfer_t* usbTransfer;
     oserr_t               oserr;
 
-    usbTransfer = USBTransferCreate(
+    oserr = USBTransferCreate(
             message,
             (USBTransfer_t*)transfer,
             transferId,
-            deviceId
+            deviceId,
+            &usbTransfer
     );
-    if (usbTransfer == NULL) {
-        ctt_usbhost_queue_periodic_response(message, OS_ENOENT);
+    if (oserr != OS_EOK) {
+        ctt_usbhost_queue_periodic_response(message, oserr);
         return;
     }
 

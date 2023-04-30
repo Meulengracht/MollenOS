@@ -161,7 +161,7 @@ typedef struct UsbScheduler {
 /* UsbSchedulerSettingsCreate
  * Initializes a new instance of the settings to customize the
  * scheduler. */
-__EXTERN void
+extern void
 UsbSchedulerSettingsCreate(
     _In_ UsbSchedulerSettings_t* Settings,
     _In_ size_t                  FrameCount,
@@ -172,7 +172,7 @@ UsbSchedulerSettingsCreate(
 /* UsbSchedulerSettingsConfigureFrameList
  * Configure the framelist settings for the scheduler. This is always
  * neccessary to call if the controller is supplying its own framelist. */
-__EXTERN void
+extern void
 UsbSchedulerSettingsConfigureFrameList(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ reg32_t*                   FrameList,
@@ -181,7 +181,7 @@ UsbSchedulerSettingsConfigureFrameList(
 /* UsbSchedulerSettingsAddPool
  * Adds a new pool to the scheduler configuration that will get created
  * with the scheduler. */
-__EXTERN void
+extern void
 UsbSchedulerSettingsAddPool(
     _In_ UsbSchedulerSettings_t*    Settings,
     _In_ size_t                     ElementSize,
@@ -196,7 +196,7 @@ UsbSchedulerSettingsAddPool(
  * Initializes a new instance of a scheduler that can be used to
  * keep track of controller bandwidth and which frames are active.
  * MaxBandwidth is usually either 800 or 900. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerInitialize(
 	_In_  UsbSchedulerSettings_t*   Settings,
     _Out_ UsbScheduler_t**          SchedulerOut);
@@ -204,7 +204,7 @@ UsbSchedulerInitialize(
 /* UsbSchedulerDestroy 
  * Cleans up any resources allocated by the scheduler. Any transactions already
  * scheduled by this scheduler will be unreachable and invalid after this call. */
-__EXTERN void
+extern void
 UsbSchedulerDestroy(
 	_In_ UsbScheduler_t*            Scheduler);
 
@@ -212,20 +212,20 @@ UsbSchedulerDestroy(
  * Reinitializes all data structures in the scheduler to initial state. 
  * This should never be called unless the associating controller is in a
  * stopped state as the framelist is affected. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerResetInternalData(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ int                        ResetElements,
     _In_ int                        ResetFramelist);
 
-__EXTERN uintptr_t
+extern uintptr_t
 UsbSchedulerGetDma(
     _In_ UsbSchedulerPool_t* schedulerPool,
     _In_ const uint8_t*      elementPointer);
 
 /* UsbSchedulerGetPoolElement
  * Retrieves the element at the given pool and index. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerGetPoolElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
@@ -235,7 +235,7 @@ UsbSchedulerGetPoolElement(
 
 /* UsbSchedulerGetPoolFromElement
  * Retrieves which pool an element belongs to by only knowing the address. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerGetPoolFromElement(
         _In_  UsbScheduler_t*      scheduler,
         _In_  const uint8_t*       element,
@@ -245,7 +245,7 @@ UsbSchedulerGetPoolFromElement(
  * Allocates a new element for usage with the scheduler. If this returns
  * OS_EUNKNOWN we are out of elements and we should wait till next transfer. ElementOut
  * will in this case be set to USB_OUT_OF_RESOURCES. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerAllocateElement(
     _In_  UsbScheduler_t*           Scheduler,
     _In_  int                       Pool,
@@ -254,7 +254,7 @@ UsbSchedulerAllocateElement(
 /* UsbSchedulerFreeElement
  * Releases the previously allocated element by resetting it. This call automatically
  * frees any bandwidth associated with the element. */
-__EXTERN void
+extern void
 UsbSchedulerFreeElement(
     _In_ UsbScheduler_t* usbScheduler,
     _In_ uint8_t*        element);
@@ -263,7 +263,7 @@ UsbSchedulerFreeElement(
  * Allocates bandwidth for a scheduler element. The bandwidth will automatically
  * be fitted into where is best place on schedule. If there is no more room it will
  * return OS_EUNKNOWN. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerAllocateBandwidth(
     _In_ UsbScheduler_t* scheduler,
     _In_ uint8_t         interval,
@@ -278,7 +278,7 @@ UsbSchedulerAllocateBandwidth(
  * Chains up a new element to the given element chain. The root element
  * must be specified and the element to append to the chain. Also the
  * chain direction must be specified. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerChainElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementRootPool,
@@ -292,7 +292,7 @@ UsbSchedulerChainElement(
  * Removes an existing element from the given element chain. The root element
  * must be specified and the element to remove from the chain. Also the
  * chain direction must be specified. */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerUnchainElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementRootPool,
@@ -304,7 +304,7 @@ UsbSchedulerUnchainElement(
 /* UsbSchedulerLinkPeriodicElement
  * Queue's up a periodic/isochronous transfer. If it was not possible
  * to schedule the transfer with the requested bandwidth, it returns OS_EUNKNOWN */
-__EXTERN oserr_t
+extern oserr_t
 UsbSchedulerLinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementPool,
@@ -313,7 +313,7 @@ UsbSchedulerLinkPeriodicElement(
 /* UsbSchedulerUnlinkPeriodicElement
  * Removes an already queued up periodic transfer (interrupt/isoc) from the
  * controllers scheduler. */
-__EXTERN void
+extern void
 UsbSchedulerUnlinkPeriodicElement(
     _In_ UsbScheduler_t*        Scheduler,
     _In_ int                    ElementPool,
