@@ -199,6 +199,7 @@ FsWriteToFile(
     uint64_t position        = entry->Position;
     size_t   bucketSizeBytes = mfs->SectorsPerBucket * mfs->SectorSize;
     size_t   bytesToWrite    = unitCount;
+    size_t   accumOffset     = bufferOffset;
     oserr_t  oserr;
 
     TRACE("FsWriteToFile(name=%ms, position=%u, length=%u)",
@@ -235,7 +236,7 @@ FsWriteToFile(
         size_t   sectorsWritten;
         size_t   byteCount;
 
-        TRACE("FsWriteToFile: bucketSector=0x%llx, bucketOffset=0x%llx, sectorIndex=0x%" PRIxIN,
+        TRACE("FsWriteToFile: bucketSector=0x%llx, sectorIndex=0x%" PRIxIN ", sectorOffset=0x%llx",
               bucketSector, bucketSectorOffset, sectorIndex);
 
         // The buffer handle + offset that was selected for writing 
@@ -247,12 +248,12 @@ FsWriteToFile(
         
         // CASE 1: WE CAN WRITE DIRECTLY FROM USER-BUFFER TO DISK
         // If <SectorOffset> is 0, this means we can write directly to the disk
-        // from <Buffer> + <BufferOffset>. We must also be able to write an entire
+        // from <Buffer> + <accumOffset>. We must also be able to write an entire
         // sector to avoid writing out of bounds from the buffer
         if (bucketSectorOffset == 0 && bytesToWrite >= mfs->SectorSize) {
             sectorCount    = bytesToWrite / mfs->SectorSize;
             SelectedHandle = bufferHandle;
-            SelectedOffset = bufferOffset;
+            SelectedOffset = accumOffset;
             TRACE("FsWriteToFile: [case 1] direct transfer %" PRIuIN " bytes from user-buffer",
                   sectorCount * mfs->SectorSize);
         }
@@ -310,11 +311,12 @@ FsWriteToFile(
                 }
                 
                 // Now perform the user copy operation where we overwrite some of the data
-                // Copy from <Buffer> + <BufferOffset> to <TransferBuffer> + <SectorOffset>
-                TRACE("FsWriteToFile: copying 0x%" PRIuIN " bytes at offset=0x%" PRIuIN " into read buffer", byteCount, bufferOffset);
+                // Copy from <Buffer> + <accumOffset> to <TransferBuffer> + <SectorOffset>
+                TRACE("FsWriteToFile: copying 0x%" PRIuIN " bytes at offset=0x%" PRIuIN " into read buffer",
+                      byteCount, bucketSectorOffset);
                 memcpy(
                         ((uint8_t*)SHMBuffer(&mfs->TransferBuffer) + bucketSectorOffset),
-                        ((uint8_t*)buffer + bufferOffset),
+                        ((uint8_t*)buffer + accumOffset),
                         byteCount
                 );
             }
@@ -341,7 +343,7 @@ FsWriteToFile(
 
             TRACE("FsWriteToFile: written 0x%" PRIuIN " bytes", byteCount);
             *unitsWritten += byteCount;
-            bufferOffset  += byteCount;
+            accumOffset   += byteCount;
             position      += byteCount;
             bytesToWrite  -= byteCount;
         }

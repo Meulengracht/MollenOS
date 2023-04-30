@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2011 - 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,13 +45,14 @@ extern void
 HCIControllerDestroy(
     _In_ UsbManagerController_t* controller);
 
-extern int
+extern oserr_t
 HCITransferElementsNeeded(
-        _In_ UsbManagerTransfer_t*     transfer,
-        _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset);
+        _In_  UsbManagerTransfer_t*     transfer,
+        _In_  uint32_t                  transferLength,
+        _In_  enum USBTransferDirection direction,
+        _In_  SHMSGTable_t*             sgTable,
+        _In_  uint32_t                  sgTableOffset,
+        _Out_ int*                      elementCountOut);
 
 extern void
 HCITransferElementFill(
@@ -85,7 +85,7 @@ extern void
 HCIPortStatus(
         _In_ UsbManagerController_t* controller,
         _In_ int                     index,
-        _In_ USBPortDescriptor_t*  port);
+        _In_ USBPortDescriptor_t*    port);
 
 /**
  * @brief Invoked by the USB common code every time queue elements

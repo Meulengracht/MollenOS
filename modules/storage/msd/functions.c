@@ -24,6 +24,8 @@
 #define __need_minmax
 #include "msd.h"
 #include <ddk/utils.h>
+#include <os/handle.h>
+#include <os/shm.h>
 #include <threads.h>
 #include <stdio.h>
 
@@ -140,57 +142,115 @@ MsdGetMaximumLunCount(
     return OS_EOK;
 }
 
-enum USBTransferCode
-MsdScsiCommand(
-        _In_ MsdDevice_t* Device,
-        _In_ int          Direction,
-        _In_ uint8_t      ScsiCommand,
-        _In_ uint64_t     SectorStart,
-        _In_ uuid_t       BufferHandle,
-        _In_ size_t       BufferOffset,
-        _In_ size_t       DataLength)
+static oserr_t
+__ExecuteCommand(
+        _In_ MsdDevice_t*           device,
+        _In_ int                    direction,
+        _In_ uint8_t                scsiCommand,
+        _In_ uint64_t               sectorStart,
+        _In_ uuid_t                 bufferHandle,
+        _In_ size_t                 bufferOffset,
+        _In_ size_t                 dataLength,
+        _Out_ enum USBTransferCode* transferCodeOut)
 {
-    enum USBTransferCode Status;
-    size_t              DataToTransfer = DataLength;
-    int                 RetryCount     = 3;
+    enum USBTransferCode transferCode;
+    oserr_t              oserr;
+    size_t               bytesLeft  = dataLength;
+    int                  RetryCount = 3;
 
-    TRACE("MsdScsiCommand(Direction %i, Command 0x%x, Start %u, Length %u)",
-        Direction, ScsiCommand, LODWORD(SectorStart), DataLength);
+    TRACE("__ExecuteCommand(Direction %i, Command 0x%x, Start %u, Length %u)",
+          direction, scsiCommand, LODWORD(sectorStart), dataLength);
 
     // It is invalid to send zero length packets for bulk
-    if (Direction == 1 && DataLength == 0) {
-        ERROR("Cannot write data of length 0 to MSD devices.");
-        return USBTRANSFERCODE_INVALID;
+    if (direction == 1 && dataLength == 0) {
+        ERROR("__ExecuteCommand: cannot write data of length 0 to MSD devices.");
+        return OS_EINVALPARAMS;
     }
 
-    // Send the command
-    Status = Device->Operations->SendCommand(Device, ScsiCommand, 
-        SectorStart, BufferHandle, BufferOffset, DataLength);
-    if (Status != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Failed to send the CBW command, transfer-code %u", Status);
-        return Status;
+    // Send the command, as there is no buffer provided here, we don't have to
+    // worry about incompatible buffers.
+    oserr = device->Operations->SendCommand(
+            device,
+            scsiCommand,
+            sectorStart,
+            dataLength,
+            &transferCode
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("__ExecuteCommand: failed to send the CBW command, transfer-code %u/%u", oserr, transferCode);
+        *transferCodeOut = transferCode;
+        return oserr;
     }
 
     // Do the data stage (shared for all protocol)
-    while (DataToTransfer != 0) {
-        size_t BytesTransferred = 0;
-        if (Direction == 0) Status = Device->Operations->ReadData(Device, BufferHandle, BufferOffset, DataToTransfer, &BytesTransferred);
-        else                Status = Device->Operations->WriteData(Device, BufferHandle, BufferOffset, DataToTransfer, &BytesTransferred);
-        if (Status != USBTRANSFERCODE_SUCCESS && Status != USBTRANSFERCODE_STALL) {
-            ERROR("Fatal error transfering data, skipping status stage");
-            return Status;
+    while (bytesLeft != 0) {
+        size_t bytesTransferred = 0;
+        if (direction == 0) {
+            oserr = device->Operations->ReadData(
+                    device,
+                    bufferHandle,
+                    bufferOffset,
+                    bytesLeft,
+                    &transferCode,
+                    &bytesTransferred
+            );
+        } else {
+            oserr = device->Operations->WriteData(
+                    device,
+                    bufferHandle,
+                    bufferOffset,
+                    bytesLeft,
+                    &transferCode,
+                    &bytesTransferred
+            );
         }
-        if (Status == USBTRANSFERCODE_STALL) {
+        if (oserr != OS_EOK) {
+            // If this error is not OK, then it was not a transport error, but rather something
+            // critical with our setup. There is only one error we can fix, and that's if the buffer
+            // was invalid. That means the user-supplied buffer was using an offset that causes the
+            // buffer to cross boundary, and this is not always supported.
+            if (oserr == OS_EBUFFER) {
+                // Allocate a temporary transport buffer, there will be no chance of crossing boundaries
+                // here as we always transport in sector sizes.
+                OSHandle_t tempBuffer;
+                oserr = SHMCreate(
+                        &(SHM_t) {
+                            .Flags = SHM_CONFORM | SHM_COMMIT,
+                            .Conformity = device->Conformity,
+                            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+                            .Size = dataLength
+                        },
+                        &tempBuffer
+                );
+                if (oserr != OS_EOK) {
+                    ERROR("__ExecuteCommand: failed to allocate transfer buffer for command");
+                    return oserr;
+                }
+
+                // Reperform the transfer
+
+                // Copy the data....????
+
+                OSHandleDestroy(&tempBuffer);
+            }
+            return oserr;
+        }
+
+        if (transferCode != USBTRANSFERCODE_SUCCESS && transferCode != USBTRANSFERCODE_STALL) {
+            ERROR("Fatal error transfering data, skipping status stage");
+            return transferCode;
+        }
+        if (transferCode == USBTRANSFERCODE_STALL) {
             RetryCount--;
             if (RetryCount == 0) {
                 ERROR("Fatal error transfering data, skipping status stage");
-                return Status;
+                return transferCode;
             }
         }
-        DataToTransfer -= BytesTransferred;
-        BufferOffset   += BytesTransferred;
+        bytesLeft -= bytesTransferred;
+        bufferOffset += bytesTransferred;
     }
-    return Device->Operations->GetStatus(Device);
+    return device->Operations->GetStatus(device, transferCodeOut);
 }
 
 oserr_t
@@ -212,8 +272,8 @@ MsdDevicePrepare(
 
     // Don't use test-unit-ready for UFI
     if (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) {
-        if (MsdScsiCommand(Device, 0, SCSI_TEST_UNIT_READY, 0, 0, 0, 0)
-                != USBTRANSFERCODE_SUCCESS) {
+        if (__ExecuteCommand(Device, 0, SCSI_TEST_UNIT_READY, 0, 0, 0, 0)
+            != USBTRANSFERCODE_SUCCESS) {
             ERROR("Failed to perform test-unit-ready command");
             dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
             Device->IsReady = 0;
@@ -222,9 +282,9 @@ MsdDevicePrepare(
     }
 
     // Now request the sense-status
-    if (MsdScsiCommand(Device, 0, SCSI_REQUEST_SENSE, 0, 
-        dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), SenseBlock), 
-        sizeof(ScsiSense_t)) != USBTRANSFERCODE_SUCCESS) {
+    if (__ExecuteCommand(Device, 0, SCSI_REQUEST_SENSE, 0,
+                         dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), SenseBlock),
+                         sizeof(ScsiSense_t)) != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to perform sense command");
         dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
         Device->IsReady = 0;
@@ -265,9 +325,9 @@ MsdReadCapabilities(
     }
 
     // Perform caps-command
-    if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY, 0, 
-            dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
-            8) != USBTRANSFERCODE_SUCCESS) {
+    if (__ExecuteCommand(Device, 0, SCSI_READ_CAPACITY, 0,
+                         dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
+                         8) != USBTRANSFERCODE_SUCCESS) {
         dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
         return OS_EUNKNOWN;
     }
@@ -278,9 +338,9 @@ MsdReadCapabilities(
         ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)capabilitesPointer;
 
         // Perform extended-caps read command
-        if (MsdScsiCommand(Device, 0, SCSI_READ_CAPACITY_16, 0, 
-                dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
-                sizeof(ScsiExtendedCaps_t)) != USBTRANSFERCODE_SUCCESS) {
+        if (__ExecuteCommand(Device, 0, SCSI_READ_CAPACITY_16, 0,
+                             dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
+                             sizeof(ScsiExtendedCaps_t)) != USBTRANSFERCODE_SUCCESS) {
             dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
             return OS_EUNKNOWN;
         }
@@ -323,10 +383,10 @@ MsdDeviceStart(
     }
 
     // Perform inquiry
-    transferStatus = MsdScsiCommand(device, 0, SCSI_INQUIRY, 0,
-                                    dma_pool_handle(UsbRetrievePool()),
-                                    dma_pool_offset(UsbRetrievePool(), inquiryData),
-                                    sizeof(ScsiInquiry_t));
+    transferStatus = __ExecuteCommand(device, 0, SCSI_INQUIRY, 0,
+                                      dma_pool_handle(UsbRetrievePool()),
+                                      dma_pool_offset(UsbRetrievePool(), inquiryData),
+                                      sizeof(ScsiInquiry_t));
     if (transferStatus != USBTRANSFERCODE_SUCCESS) {
         ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
@@ -367,12 +427,10 @@ SelectScsiTransferCommand(
     if (device->Protocol == ProtocolCB || device->Protocol == ProtocolCBI) {
         *commandOut         = (direction == __STORAGE_OPERATION_READ) ? SCSI_READ_6 : SCSI_WRITE_6;
         *maxSectorsCountOut = UINT8_MAX;
-    }
-    else if (!device->IsExtended) {
+    } else if (!device->IsExtended) {
         *commandOut         = (direction == __STORAGE_OPERATION_READ) ? SCSI_READ : SCSI_WRITE;
         *maxSectorsCountOut = UINT16_MAX;
-    }
-    else {
+    } else {
         *commandOut         = (direction == __STORAGE_OPERATION_READ) ? SCSI_READ_16 : SCSI_WRITE_16;
         *maxSectorsCountOut = UINT32_MAX;
     }
@@ -419,7 +477,7 @@ MsdTransferSectors(
     }
 
     TRACE("[msd_transfer] command %u, max sectors for command %u", command, maxSectorsPerCommand);
-    transferStatus = MsdScsiCommand(
+    transferStatus = __ExecuteCommand(
             device,
             direction == __STORAGE_OPERATION_WRITE,
             command,
@@ -432,8 +490,7 @@ MsdTransferSectors(
             *sectorsTransferred = 0;
         }
         return OS_EUNKNOWN;
-    }
-    else if (sectorsTransferred) {
+    } else if (sectorsTransferred) {
         *sectorsTransferred = sectorsToBeTransferred;
         if (device->StatusBlock->DataResidue) {
             // Data residue is in bytes not transferred as it does not seem

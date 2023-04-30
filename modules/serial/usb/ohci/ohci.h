@@ -415,7 +415,7 @@ OHCIQHLink(
 extern void
 OHCITDSetup(
     _In_ OhciTransferDescriptor_t* td,
-    _In_ uintptr_t                 dataAddress);
+    _In_ struct TransferElement*   element);
 
 /* OHCITDData
  * Creates a new io token td and initializes all the members.
@@ -424,9 +424,8 @@ extern void
 OHCITDData(
     _In_ OhciTransferDescriptor_t*  td,
     _In_ enum USBTransferType       type,
-    _In_ uint32_t                   PID,
-    _In_ uintptr_t                  dataAddress,
-    _In_ size_t                     length,
+    _In_ uint32_t                   pid,
+    _In_ struct TransferElement*    element,
     _In_ int                        toggle);
 
 /* OHCITDDump
@@ -453,7 +452,7 @@ OHCITDRestart(
     _In_ UsbManagerTransfer_t*      transfer,
     _In_ OhciTransferDescriptor_t*  td);
 
-/*******************************************************************************
+/******************************************************************************
  * Isochronous Transfer Descriptor Methods
  *******************************************************************************/
 
@@ -462,11 +461,10 @@ OHCITDRestart(
  * The Td is immediately ready for execution. */
 extern void
 OHCITDIsochronous(
-    _In_ OhciIsocTransferDescriptor_t*  Td,
-    _In_ size_t                         MaxPacketSize,
-    _In_ uint32_t                       PId,
-    _In_ uintptr_t                      Address,
-    _In_ size_t                         Length);
+    _In_ OhciIsocTransferDescriptor_t* td,
+    _In_ size_t                        maxPacketSize,
+    _In_ uint32_t                      pid,
+    _In_ struct TransferElement*       element);
 
 /* OHCIITDDump
  * Dumps the information contained in the descriptor by writing it. */

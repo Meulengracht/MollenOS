@@ -25,17 +25,12 @@
 
 void
 OHCITDIsochronous(
-    _In_ OhciIsocTransferDescriptor_t* Td,
-    _In_ size_t                        MaxPacketSize,
-    _In_ uint32_t                      PId,
-    _In_ uintptr_t                     Address,
-    _In_ size_t                        Length)
+        _In_ OhciIsocTransferDescriptor_t* iTd,
+        _In_ size_t                        maxPacketSize,
+        _In_ uint32_t                      pid,
+        _In_ struct TransferElement*       element)
 {
-    size_t BytesToTransfer = Length;
-    size_t BufferOffset    = 0;
-    int    FrameCount      = DIVUP(Length, MaxPacketSize);
-    int    FrameIndex      = 0;
-    int    Crossed         = 0;
+    int frameCount = DIVUP(element->Length, maxPacketSize);
 
     TRACE("OHCITDIsochronous(Id %u, Address 0x%x, Length 0x%x",
         PId, Address, Length);
@@ -44,37 +39,20 @@ OHCITDIsochronous(
     // If direction is out and mod 1023 is 0
     // add a zero-length frame
     // If framecount is > 8, nono
-    if (FrameCount > 8) {
-        FrameCount = 8;
+    if (frameCount > 8) {
+        frameCount = 8;
     }
 
-    Td->Flags |= PId;
-    Td->Flags |= OHCI_iTD_FRAMECOUNT((FrameCount - 1));
-    Td->Flags |= OHCI_TD_IOC_NONE;
-    Td->Flags |= OHCI_TD_ACTIVE;
+    iTd->Flags |= pid;
+    iTd->Flags |= OHCI_iTD_FRAMECOUNT((frameCount - 1));
+    iTd->Flags |= OHCI_TD_IOC_NONE;
+    iTd->Flags |= OHCI_TD_ACTIVE;
 
-    // Initialize buffer access
-    Td->Cbp       = LODWORD(Address);
-    Td->BufferEnd = Td->Cbp + Length - 1;
-
-    // Iterate frames and setup
-    while (BytesToTransfer) {
-        // Set offset 0 and increase bufitr
-        size_t BytesStep        = MIN(BytesToTransfer, MaxPacketSize);
-        Td->Offsets[FrameIndex] = BufferOffset;
-        Td->Offsets[FrameIndex] |= ((Crossed & 0x1) << 12);
-        Td->OriginalOffsets[FrameIndex] = Td->Offsets[FrameIndex];
-        BufferOffset += BytesStep;
-
-        // Sanity on page-crossover
-        if (((Address + BufferOffset) & 0xFFFFF000) != (Address & 0xFFFFF000)) {
-            BufferOffset = (Address + BufferOffset) & 0xFFF; // Reset offset
-            Crossed      = 1;
-        }
-
-        // Update iterators
-        BytesToTransfer--;
-        FrameIndex++;
+    iTd->Cbp       = element->Data.OHCI.Page0;
+    iTd->BufferEnd = element->Data.OHCI.Page1 + element->Data.OHCI.Offsets[frameCount - 1];
+    for (int i = 0; i < frameCount; i++) {
+        iTd->Offsets[i] = element->Data.OHCI.Offsets[i];
+        iTd->OriginalOffsets[i] = element->Data.OHCI.Offsets[i];
     }
 
     /**
@@ -84,9 +62,9 @@ OHCITDIsochronous(
      */
 
     // Store copy of original content
-    Td->OriginalFlags     = Td->Flags;
-    Td->OriginalCbp       = Td->Cbp;
-    Td->OriginalBufferEnd = Td->BufferEnd;
+    iTd->OriginalFlags     = iTd->Flags;
+    iTd->OriginalCbp       = iTd->Cbp;
+    iTd->OriginalBufferEnd = iTd->BufferEnd;
 }
 
 void

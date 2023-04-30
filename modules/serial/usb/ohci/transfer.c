@@ -193,14 +193,13 @@ __GetBytesLeft(
 
 static inline void
 __CalculateTransferElementMetrics(
-        _In_  enum USBTransferType transferType,
-        _In_  size_t               maxPacketSize,
-        _In_  SHMSGTable_t*        sgTable,
-        _In_  uint32_t             sgTableOffset,
-        _In_  uint32_t             transferLength,
-        _In_  size_t               bytesLeft,
-        _Out_ uintptr_t*           dataAddressOut,
-        _Out_ uint32_t*            lengthOut)
+        _In_ enum USBTransferType    transferType,
+        _In_ size_t                  maxPacketSize,
+        _In_ SHMSGTable_t*           sgTable,
+        _In_ uint32_t                sgTableOffset,
+        _In_ uint32_t                transferLength,
+        _In_ size_t                  bytesLeft,
+        _In_ struct TransferElement* element)
 {
     int    index;
     size_t offset;
@@ -217,30 +216,52 @@ __CalculateTransferElementMetrics(
     );
     TRACE("__CalculateTransferElementMetrics: index %i, offset: %u", index, (uint32_t)offset);
     uintptr_t address = __GetAddress(sgTable, index, offset);
-    size_t    leftInSG = MIN(bytesLeft, __GetBytesLeft(sgTable, index, offset));
+    size_t    leftInSG = __GetBytesLeft(sgTable, index, offset);
+    uint32_t  calculatedLength = 0;
+    int       transactions = transferType == USBTRANSFER_TYPE_ISOC ? 8 : 1;
     TRACE("__CalculateTransferElementMetrics: addr=0x%x, len=%u",
           address, MIN(leftInSG, maxPacketSize));
 
-    *dataAddressOut = address;
-    if (transferType == USBTRANSFER_TYPE_ISOC) {
-        *lengthOut = MIN(leftInSG, maxPacketSize * 8);
-    } else {
-        *lengthOut = MIN(leftInSG, maxPacketSize);
+    // Set the first page of the transfer-element
+    element->Data.OHCI.Page0 = address & ~((uintptr_t)(0xFFF));
+
+    for (int i = 0; i < transactions; i++) {
+        uint32_t transactionSize = MIN(maxPacketSize, MIN(bytesLeft, leftInSG));
+        element->Data.OHCI.Offsets[0] = address & 0xFFF;
+
+        // Increase the address to get the next offset
+        address += transactionSize;
+        calculatedLength += transactionSize;
+        leftInSG -= transactionSize;
+        if (!leftInSG) {
+            // No more data left in the SG entry, move to next
+            SHMSGTableOffset(
+                    sgTable,
+                    sgTableOffset + (transferLength - bytesLeft - calculatedLength),
+                    &index,
+                    &offset
+            );
+            address = __GetAddress(sgTable, index, offset);
+            leftInSG = __GetBytesLeft(sgTable, index, offset);
+        }
     }
+
+    // set the total length including the last buffer page accesses
+    element->Length = calculatedLength;
+    element->Data.OHCI.Page1 = address & ~((uintptr_t)(0xFFF));
 }
 
-int
+oserr_t
 HCITransferElementsNeeded(
-        _In_ UsbManagerTransfer_t*     transfer,
-        _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset)
+        _In_  UsbManagerTransfer_t*     transfer,
+        _In_  uint32_t                  transferLength,
+        _In_  enum USBTransferDirection direction,
+        _In_  SHMSGTable_t*             sgTable,
+        _In_  uint32_t                  sgTableOffset,
+        _Out_ int*                      elementCountOut)
 {
     uint32_t  bytesLeft = transferLength;
     int       tdsNeeded = 0;
-    uintptr_t waste;
-    uint32_t  count;
     TRACE("OHCITransferElementsNeeded(transfer=%u, length=%u)", transfer->ID, transferLength);
 
     // In regard to isochronous transfers, we must allocate an
@@ -259,6 +280,7 @@ HCITransferElementsNeeded(
     }
 
     while (bytesLeft) {
+        struct TransferElement element;
         __CalculateTransferElementMetrics(
                 transfer->Type,
                 transfer->MaxPacketSize,
@@ -266,24 +288,24 @@ HCITransferElementsNeeded(
                 sgTableOffset,
                 transferLength,
                 bytesLeft,
-                &waste,
-                &count
+                &element
         );
 
-        bytesLeft -= count;
+        bytesLeft -= element.Length;
         tdsNeeded++;
 
         // If this was the last packet, and the packet was filled, and
         // the transaction is an 'OUT', then we must add a ZLP.
         if (transfer->Type != USBTRANSFER_TYPE_ISOC &&
-            bytesLeft == 0 && count == transfer->MaxPacketSize) {
+            bytesLeft == 0 && element.Length == transfer->MaxPacketSize) {
             if (direction == USBTRANSFER_DIRECTION_OUT) {
                 tdsNeeded++;
             }
         }
     }
     TRACE("OHCITransferElementsNeeded: %i", tdsNeeded);
-    return tdsNeeded;
+    *elementCountOut = tdsNeeded;
+    return tdsNeeded == 0 ? OS_EINVALPARAMS : OS_EOK;
 }
 
 void
@@ -309,8 +331,7 @@ HCITransferElementFill(
                 sgTableOffset,
                 transferLength,
                 bytesLeft,
-                &transfer->Elements[ei].Data.Address,
-                &transfer->Elements[ei].Length
+                &transfer->Elements[ei]
         );
 
         // Override the type and length, as those are fixed for the setup packaet
@@ -334,8 +355,7 @@ HCITransferElementFill(
                 sgTableOffset,
                 transferLength,
                 bytesLeft,
-                &transfer->Elements[ei].Data.Address,
-                &transfer->Elements[ei].Length
+                &transfer->Elements[ei]
         );
         transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
         bytesLeft -= transfer->Elements[ei].Length;
@@ -517,7 +537,7 @@ __PrepareDescriptor(
         case TRANSFERELEMENT_TYPE_SETUP: {
             OHCITDSetup(
                     td,
-                    context->Transfer->Elements[context->TDIndex].Data.Address
+                    &context->Transfer->Elements[context->TDIndex]
             );
         } break;
         case TRANSFERELEMENT_TYPE_IN: {
@@ -525,8 +545,7 @@ __PrepareDescriptor(
                     td,
                     context->Transfer->Type,
                     OHCI_TD_IN,
-                    context->Transfer->Elements[context->TDIndex].Data.Address,
-                    context->Transfer->Elements[context->TDIndex].Length,
+                    &context->Transfer->Elements[context->TDIndex],
                     context->Toggle
             );
         } break;
@@ -535,8 +554,7 @@ __PrepareDescriptor(
                     td,
                     context->Transfer->Type,
                     OHCI_TD_OUT,
-                    context->Transfer->Elements[context->TDIndex].Data.Address,
-                    context->Transfer->Elements[context->TDIndex].Length,
+                    &context->Transfer->Elements[context->TDIndex],
                     context->Toggle
             );
         } break;
@@ -570,8 +588,7 @@ __PrepareIsochronousDescriptor(
                     iTD,
                     context->Transfer->Type,
                     OHCI_TD_IN,
-                    context->Transfer->Elements[context->TDIndex].Data.Address,
-                    context->Transfer->Elements[context->TDIndex].Length
+                    &context->Transfer->Elements[context->TDIndex]
             );
         } break;
         case TRANSFERELEMENT_TYPE_OUT: {
@@ -579,8 +596,7 @@ __PrepareIsochronousDescriptor(
                     iTD,
                     context->Transfer->Type,
                     OHCI_TD_OUT,
-                    context->Transfer->Elements[context->TDIndex].Data.Address,
-                    context->Transfer->Elements[context->TDIndex].Length
+                    &context->Transfer->Elements[context->TDIndex]
             );
         } break;
         default:

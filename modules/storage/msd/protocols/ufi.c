@@ -135,8 +135,6 @@ UfiSendCommand(
         _In_ MsdDevice_t* Device,
         _In_ uint8_t      ScsiCommand,
         _In_ uint64_t     SectorStart,
-        _In_ uuid_t       BufferHandle,
-        _In_ size_t       BufferOffset,
         _In_ size_t       DataLength)
 {
     MsdCommandBlockUFI_t UfiCommandBlock;

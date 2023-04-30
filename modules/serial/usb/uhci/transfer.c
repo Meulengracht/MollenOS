@@ -137,13 +137,14 @@ __CalculateTransferElementMetrics(
     *lengthOut = MIN(maxPacketSize, maxAllowed);
 }
 
-int
+oserr_t
 HCITransferElementsNeeded(
-        _In_ UsbManagerTransfer_t*     transfer,
-        _In_ uint32_t                  transferLength,
-        _In_ enum USBTransferDirection direction,
-        _In_ SHMSGTable_t*             sgTable,
-        _In_ uint32_t                  sgTableOffset)
+        _In_  UsbManagerTransfer_t*     transfer,
+        _In_  uint32_t                  transferLength,
+        _In_  enum USBTransferDirection direction,
+        _In_  SHMSGTable_t*             sgTable,
+        _In_  uint32_t                  sgTableOffset,
+        _Out_ int*                      elementCountOut)
 {
     uintptr_t waste;
     uint32_t  count;
@@ -176,9 +177,19 @@ HCITransferElementsNeeded(
                 &waste,
                 &count
         );
-
         bytesLeft -= count;
         tdsNeeded++;
+
+        // It may happen at this point we encounter a transfer that crosses a page-boundary, we are
+        // unfortunately not built for this in UHCI, and thus we make the transfer short, and ask
+        // the callers to do more transfers with a new buffer.
+        if (count < transfer->MaxPacketSize && bytesLeft > 0) {
+            // Transfer was less than MPS, but there will still be more bytes left after
+            if (!tdsNeeded) {
+                return OS_EBUFFER;
+            }
+            break;
+        }
 
         // If this was the last packet, and the packet was filled, and
         // the transaction is an 'OUT', then we must add a ZLP.
@@ -190,7 +201,8 @@ HCITransferElementsNeeded(
         }
     }
     TRACE("UHCITransferElementsNeeded: %i", tdsNeeded);
-    return tdsNeeded;
+    *elementCountOut = tdsNeeded;
+    return tdsNeeded == 0 ? OS_EINVALPARAMS : OS_EOK;
 }
 
 void

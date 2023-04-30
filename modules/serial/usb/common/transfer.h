@@ -55,6 +55,11 @@ struct TransferElement {
         // and OHCI descritpors that do not support SG.
         uintptr_t Address;
         struct {
+            uintptr_t Page0;
+            uintptr_t Page1;
+            uint32_t  Offsets[8];
+        } OHCI;
+        struct {
             // Isoc TDs hold up to 8 transactions
             // Normal TDs hold up to 5 transactions
             uintptr_t Addresses[8];
