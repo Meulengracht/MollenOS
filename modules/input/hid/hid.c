@@ -175,9 +175,8 @@ HidDevice_t*
 HidDeviceCreate(
     _In_ UsbDevice_t* usbDevice)
 {
-    HidDevice_t*         hidDevice;
-    enum USBTransferCode status;
-    oserr_t              oserr;
+    HidDevice_t* hidDevice;
+    oserr_t      oserr;
 
     TRACE("HidDeviceCreate(usbDevice=0x%" PRIxIN ")", usbDevice);
 

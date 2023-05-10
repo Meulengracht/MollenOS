@@ -35,7 +35,7 @@ extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t g_devices = LIST_INIT;
 
-MsdDevice_t*
+MSDDevice_t*
 MsdDeviceGet(
         _In_ uuid_t deviceId)
 {
@@ -56,7 +56,7 @@ DestroyElement(
     _In_ element_t* Element,
     _In_ void*      Context)
 {
-    MsdDeviceDestroy(Element->value);
+    MSDDeviceDestroy(Element->value);
 }
 
 void
@@ -74,9 +74,9 @@ oserr_t OnEvent(struct ioset_event* event)
 void ctt_driver_register_device_invocation(struct gracht_message* message, const struct sys_device* device)
 {
     UsbDevice_t* usbDevice = (UsbDevice_t*)from_sys_device(device);
-    MsdDevice_t* msdDevice;
+    MSDDevice_t* msdDevice;
 
-    msdDevice = MsdDeviceCreate(usbDevice);
+    msdDevice = MSDDeviceCreate(usbDevice);
     if (msdDevice == NULL) {
         ERROR("OnRegister failed to create MSD device");
         return;
@@ -88,20 +88,20 @@ oserr_t
 OnUnregister(
     _In_ Device_t *Device)
 {
-    MsdDevice_t* MsdDevice = MsdDeviceGet(Device->Id);
+    MSDDevice_t* MsdDevice = MsdDeviceGet(Device->Id);
     if (MsdDevice == NULL) {
         return OS_EUNKNOWN;
     }
 
     list_remove(&g_devices, &MsdDevice->Header);
-    return MsdDeviceDestroy(MsdDevice);
+    return MSDDeviceDestroy(MsdDevice);
 }
 
 void ctt_storage_stat_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     struct sys_disk_descriptor gdescriptor = { 0 };
     oserr_t                    oserr      = OS_ENOENT;
-    MsdDevice_t*               device     = MsdDeviceGet(deviceId);
+    MSDDevice_t*               device     = MsdDeviceGet(deviceId);
     TRACE("[msd] [stat]");
     
     if (device) {
@@ -123,7 +123,7 @@ void ctt_driver_ioctl_invocation(
         _In_ const uint32_t         out_count)
 {
     enum OSIOCtlRequest req = (enum OSIOCtlRequest)request;
-    MsdDevice_t*        device = MsdDeviceGet(deviceId);
+    MSDDevice_t*        device = MsdDeviceGet(deviceId);
     oserr_t             oserr;
     if (device == NULL) {
         ctt_driver_ioctl_response(message, NULL, 0, OS_ENOENT);
@@ -135,13 +135,9 @@ void ctt_driver_ioctl_invocation(
             // MSD driver does not pose any memory conformity requirements
             // on its I/O requests. So we report the controller requirements
             // instead
-            struct OSIOCtlRequestRequirements ioRequirements= {
-                    .BufferAlignment = 0,
-                    .Conformity = device->Conformity
-            };
             ctt_driver_ioctl_response(
                     message,
-                    (uint8_t*)&ioRequirements,
+                    (uint8_t*)&device->IORequirements,
                     sizeof(struct OSIOCtlRequestRequirements),
                     OS_EOK
             );

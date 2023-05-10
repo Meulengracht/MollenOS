@@ -491,14 +491,57 @@ __GatherSGList(
 }
 
 static bool
-__VerifySGConformity(
+__VerifySGAlignment(
+        _In_ SHMSG_t* sg,
+        _In_ int      sgCount,
+        _In_ size_t   offset,
+        _In_ uint32_t alignment)
+{
+    size_t bytesLeft = offset;
+
+    if (alignment == 0) {
+        return true;
+    }
+
+    // Alignment must be a power of two.
+    if (!IsPowerOfTwo(alignment)) {
+        ERROR("__VerifySGAlignment: alignment requirement 0x%x is not a power of two!", alignment);
+        return false;
+    }
+
+    for (int i = 0; i < sgCount; i++) {
+        uintptr_t address = sg[i].Address;
+        if (sg[i].Length > bytesLeft) {
+            // found correct SG entry
+            address += bytesLeft;
+            if (address & (alignment - 1)) {
+                return false;
+            }
+            return true;
+        }
+        bytesLeft -= sg[i].Length;
+    }
+
+    // offset was wild, just check what's left.
+    if (bytesLeft & (alignment - 1)) {
+        return false;
+    }
+    return true;
+}
+
+static bool
+__VerifyMemoryConformity(
         _In_ SHMSG_t*                sg,
         _In_ int                     sgCount,
         _In_ enum OSMemoryConformity conformity)
 {
     size_t pageMask = __MASK;
 
-    // Lookup the page-mask for the specific conformity
+    if (conformity == OSMEMORYCONFORMITY_NONE) {
+        return true;
+    }
+
+    // Lookup the page-mask for the specific conformityOpts
     ArchSHMTypeToPageMask(conformity, &pageMask);
 
     // Verify all SG entries against the page-mask
@@ -506,6 +549,22 @@ __VerifySGConformity(
         if ((sg[i].Address + sg[i].Length) >= pageMask) {
             return false;
         }
+    }
+    return true;
+}
+
+static bool
+__VerifySGConformity(
+        _In_ SHMSG_t*                sg,
+        _In_ int                     sgCount,
+        _In_ size_t                  offset,
+        _In_ SHMConformityOptions_t* conformityOpts)
+{
+    if (!__VerifySGAlignment(sg, sgCount, offset, conformityOpts->BufferAlignment)) {
+        return false;
+    }
+    if (!__VerifyMemoryConformity(sg, sgCount, conformityOpts->Conformity)) {
+        return false;
     }
     return true;
 }
@@ -764,7 +823,7 @@ __ClampLength(
 oserr_t
 SHMConform(
         _In_ uuid_t                  shmID,
-        _In_ enum OSMemoryConformity conformity,
+        _In_ SHMConformityOptions_t* conformity,
         _In_ unsigned int            flags,
         _In_ unsigned int            access,
         _In_ size_t                  offset,
@@ -788,7 +847,8 @@ SHMConform(
         return oserr;
     }
 
-    if (__VerifySGConformity(sg, sgCount, conformity)) {
+    // Verify the buffer conformity
+    if (__VerifySGConformity(sg, sgCount, offset, conformity)) {
         DestroyHandle(shmID);
         kfree(sg);
         return __MapOriginalBuffer(
@@ -802,7 +862,7 @@ SHMConform(
     correctedLength = __ClampLength(source, offset, length);
     oserr = __CloneConformBuffer(
             source,
-            conformity,
+            conformity->Conformity,
             flags,
             offset,
             correctedLength,

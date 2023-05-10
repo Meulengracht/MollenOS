@@ -866,7 +866,10 @@ void TestSHMConform_IsConformed(void** state)
     // will be 0xFFFFF, which will cover our pages.
     oserr = SHMConform(
             handle.ID,
-            OSMEMORYCONFORMITY_LOW,
+            &(SHMConformityOptions_t)  {
+                .BufferAlignment = 0,
+                .Conformity = OSMEMORYCONFORMITY_LOW,
+            },
             0,
             SHM_ACCESS_READ,
             0,
@@ -894,7 +897,120 @@ void TestSHMConform_IsConformed(void** state)
     TeardownTest(state);
 }
 
-void TestSHMConform_NotConformed(void** state)
+void TestSHMConform_NotAlignmentConformed(void** state)
+{
+    oserr_t     oserr;
+    SHMHandle_t handle;
+    SHMHandle_t conformedHandle;
+    int         pageCount = 9;
+    paddr_t     page[9] = {
+            0x1000856,
+            0x1400000,
+            0x1500000,
+            0x1600000,
+            0x1700000,
+            0x1C00000,
+            0x1A00000,
+            0x2000000,
+            0x2A00000,
+    };
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, return a non-standard id as we use it twice
+    g_testContext.CreateHandle.Calls[0].ReturnedID         = 0x10;
+    g_testContext.CreateHandle.Calls[0].ReturnedIDProvided = true;
+
+    // 2. GetMemorySpaceMapping
+    g_testContext.GetMemorySpaceMapping.ExpectedAddress    = 0x1596856;
+    g_testContext.GetMemorySpaceMapping.CheckAddress       = true;
+    g_testContext.GetMemorySpaceMapping.ExpectedPageCount  = pageCount;
+    g_testContext.GetMemorySpaceMapping.CheckPageCount     = true;
+    g_testContext.GetMemorySpaceMapping.PageValues         = &page[0];
+    g_testContext.GetMemorySpaceMapping.PageValuesProvided = true;
+    g_testContext.GetMemorySpaceMapping.ReturnValue        = OS_EOK;
+
+    // We use garbage values as the memory contents are not accessed
+    oserr = SHMExport(
+            (void*)0x1596856,
+            0x8400,
+            0,
+            0,
+            &handle
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(handle.ID, 0x10);
+    assert_int_equal(handle.SourceID, UUID_INVALID);
+    assert_int_equal(handle.SourceFlags, 0);
+    assert_ptr_equal(handle.Buffer, 0x1596856);
+    assert_int_equal(handle.Capacity, 0x8400);
+    assert_int_equal(handle.Length, 0x8400);
+    assert_int_equal(handle.Offset, 0);
+
+    // 3. CreateHandle, return a non-standard id as we use it twice
+    g_testContext.CreateHandle.Calls[1].ReturnedID         = 0x20;
+    g_testContext.CreateHandle.Calls[1].ReturnedIDProvided = true;
+
+    // 4. AcquireHandleOfType. We will be acquiring the original buffer created.
+    g_testContext.AcquireHandleOfType.Resource = g_testContext.CreateHandle.Calls[0].CreatedResource;
+    g_testContext.AcquireHandleOfType.ResourceProvided = true;
+
+    // 5. ArchSHMTypeToPageMask
+    g_testContext.ArchSHMTypeToPageMask.PageMask = 0xFFFFF;
+    g_testContext.ArchSHMTypeToPageMask.PageMaskProvided = true;
+    g_testContext.ArchSHMTypeToPageMask.ReturnValue = OS_EOK;
+
+    // 6. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 0x20;
+    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x83C0; // 0x8400-64
+    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS;
+    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x40000000;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
+
+    // We fake that the buffer is conformed. It does not matter which conformity
+    // we test with, as we mock the translation call. In this case the PageMask
+    // will be 0xFFFFF, which will cover our pages.
+    oserr = SHMConform(
+            handle.ID,
+            &(SHMConformityOptions_t)  {
+                    .BufferAlignment = 128,
+                    .Conformity = OSMEMORYCONFORMITY_LOW,
+            },
+            0,
+            SHM_ACCESS_READ,
+            64,
+            handle.Length,
+            &conformedHandle
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(conformedHandle.ID, 0x20);
+    assert_int_equal(conformedHandle.SourceID, 0x10); // This is now cloned
+    assert_int_equal(conformedHandle.SourceFlags, 0);
+    assert_ptr_equal(conformedHandle.Buffer, 0x40000000);
+    assert_int_equal(conformedHandle.Capacity, 0x83C0);
+    assert_int_equal(conformedHandle.Length, 0x83C0);
+    assert_int_equal(conformedHandle.Offset, 64);
+
+    // When a handle is already conformed, SHMConform will just attach
+    // and map. So verify this happened as we expected
+    // Ensure the right number of calls were made.
+    assert_int_equal(g_testContext.CreateHandle.CallCount, 2);
+    assert_int_equal(g_testContext.ArchSHMTypeToPageMask.Calls, 1);
+    assert_int_equal(g_testContext.AcquireHandleOfType.Calls, 1);
+    assert_int_equal(g_testContext.GetMemorySpaceMapping.Calls, 1);
+    assert_int_equal(g_testContext.MemorySpaceMap.CallCount, 1);
+    TeardownTest(state);
+}
+
+void TestSHMConform_NotMemoryConformed(void** state)
 {
     oserr_t     oserr;
     SHMHandle_t handle;
@@ -977,7 +1093,10 @@ void TestSHMConform_NotConformed(void** state)
     // will be 0xFFFFF, which will cover our pages.
     oserr = SHMConform(
             handle.ID,
-            OSMEMORYCONFORMITY_LOW,
+            &(SHMConformityOptions_t)  {
+                    .BufferAlignment = 0,
+                    .Conformity = OSMEMORYCONFORMITY_LOW,
+            },
             0,
             SHM_ACCESS_READ,
             0,
@@ -1122,7 +1241,10 @@ void TestSHMConform_NotConformedFilledOnCreation(void** state)
     // will be 0xFFFFF, which will cover our pages.
     oserr = SHMConform(
             handle.ID,
-            OSMEMORYCONFORMITY_LOW,
+            &(SHMConformityOptions_t)  {
+                    .BufferAlignment = 0,
+                    .Conformity = OSMEMORYCONFORMITY_LOW,
+            },
             SHM_CONFORM_FILL_ON_CREATION,
             SHM_ACCESS_READ,
             0,
@@ -1255,7 +1377,10 @@ void TestSHMConform_NotConformedBackfilledOnUnmap(void** state)
     // will be 0xFFFFF, which will cover our pages.
     oserr = SHMConform(
             handle.ID,
-            OSMEMORYCONFORMITY_LOW,
+            &(SHMConformityOptions_t)  {
+                    .BufferAlignment = 0,
+                    .Conformity = OSMEMORYCONFORMITY_LOW,
+            },
             SHM_CONFORM_BACKFILL_ON_UNMAP,
             SHM_ACCESS_READ,
             0,
@@ -1664,7 +1789,8 @@ int main(void)
             cmocka_unit_test_setup(TestSHMExport_NotPageAligned, SetupTest),
             cmocka_unit_test_setup(TestSHMExport_PRIVATE, SetupTest),
             cmocka_unit_test_setup(TestSHMConform_IsConformed, SetupTest),
-            cmocka_unit_test_setup(TestSHMConform_NotConformed, SetupTest),
+            cmocka_unit_test_setup(TestSHMConform_NotAlignmentConformed, SetupTest),
+            cmocka_unit_test_setup(TestSHMConform_NotMemoryConformed, SetupTest),
             cmocka_unit_test_setup(TestSHMConform_NotConformedFilledOnCreation, SetupTest),
             cmocka_unit_test_setup(TestSHMConform_NotConformedBackfilledOnUnmap, SetupTest),
             cmocka_unit_test_setup(TestSHMAttach_Simple, SetupTest),

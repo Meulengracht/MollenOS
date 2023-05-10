@@ -32,7 +32,7 @@
 
 static oserr_t
 __ResetBulk(
-    _In_ MsdDevice_t* device)
+        _In_ MSDDevice_t* device)
 {
     enum USBTransferCode code  = USBTRANSFERCODE_NAK;
     int                  tries = 0;
@@ -62,8 +62,8 @@ __ResetBulk(
 
 static oserr_t
 __ClearAndResetEndpoint(
-    _In_ MsdDevice_t*               device,
-    _In_ usb_endpoint_descriptor_t* endpoint)
+        _In_ MSDDevice_t*               device,
+        _In_ usb_endpoint_descriptor_t* endpoint)
 {
     enum USBTransferCode status = UsbClearFeature(
             &device->Device->DeviceContext,
@@ -84,8 +84,8 @@ __ClearAndResetEndpoint(
 
 static oserr_t
 __ResetRecovery(
-    _In_ MsdDevice_t* device,
-    _In_ int          resetType)
+        _In_ MSDDevice_t* device,
+        _In_ int          resetType)
 {
     oserr_t oserr = OS_EOK;
     TRACE("__ResetRecovery(type=%i)", resetType);
@@ -365,62 +365,70 @@ __ConstructSCSICommand(
     }
 }
 
-oserr_t
-BulkInitialize(
-    _In_ MsdDevice_t *Device)
+static oserr_t
+__Initialize(
+        _In_ MSDDevice_t* device)
 {
+    oserr_t oserr;
+
     // Sanitize found endpoints
-    if (Device->In == NULL || Device->Out == NULL) {
+    if (device->In == NULL || device->Out == NULL) {
         ERROR("Either in or out endpoint not available on device");
-        return OS_EUNKNOWN;
+        return OS_ENOTSUPPORTED;
     }
 
-    // Perform a bulk reset
-    if (__ResetBulk(Device) != OS_EOK) {
-        ERROR("Failed to reset the bulk interface");
-        return OS_EUNKNOWN;
+    oserr = __ResetBulk(device);
+    if (oserr != OS_EOK) {
+        ERROR("__Initialize: failed to reset the bulk interface");
+        return oserr;
     }
 
     // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(&Device->Device->DeviceContext,
-            USB_ENDPOINT_ADDRESS(Device->In->Address)) != OS_EOK) {
-        ERROR("Failed to reset endpoint (in)");
-        return OS_EUNKNOWN;
+    oserr = UsbEndpointReset(
+            &device->Device->DeviceContext,
+            USB_ENDPOINT_ADDRESS(device->In->Address)
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__Initialize: failed to reset endpoint (in)");
+        return oserr;
     }
-    if (UsbEndpointReset(&Device->Device->DeviceContext, 
-            USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OS_EOK) {
-        ERROR("Failed to reset endpoint (out)");
-        return OS_EUNKNOWN;
+
+    oserr = UsbEndpointReset(
+            &device->Device->DeviceContext,
+            USB_ENDPOINT_ADDRESS(device->Out->Address)
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__Initialize: failed to reset endpoint (out)");
     }
-    return OS_EOK;
+    return oserr;
 }
 
-enum USBTransferCode
-MsdSanitizeResponse(
-    _In_ MsdDevice_t *Device, 
-    _In_ MsdCommandStatus_t *Csw)
+static enum USBTransferCode
+__VerifyCSWStatus(
+        _In_ MSDDevice_t*        device,
+        _In_ MsdCommandStatus_t* csw)
 {
     // Check for phase errors
-    if (Csw->Status == MSD_CSW_PHASE_ERROR) {
+    if (csw->Status == MSD_CSW_PHASE_ERROR) {
         ERROR("Phase error returned in CSW.");
         return USBTRANSFERCODE_INVALID;
     }
 
     // Sanitize signature/data integrity
-    if (Csw->Signature != MSD_CSW_OK_SIGNATURE) {
-        ERROR("CSW: Signature is invalid: 0x%x", Csw->Signature);
+    if (csw->Signature != MSD_CSW_OK_SIGNATURE) {
+        ERROR("CSW: Signature is invalid: 0x%x", csw->Signature);
         return USBTRANSFERCODE_INVALID;
     }
     
     // Sanitize tag/data integrity
-    if ((Csw->Tag & 0xFFFFFF00) != MSD_TAG_SIGNATURE) {
-        ERROR("CSW: Tag is invalid: 0x%x", Csw->Tag);
+    if ((csw->Tag & 0xFFFFFF00) != MSD_TAG_SIGNATURE) {
+        ERROR("CSW: Tag is invalid: 0x%x", csw->Tag);
         return USBTRANSFERCODE_INVALID;
     }
 
     // Sanitize status
-    if (Csw->Status != MSD_CSW_OK) {
-        ERROR("CSW: Status is invalid: 0x%x", Csw->Status);
+    if (csw->Status != MSD_CSW_OK) {
+        ERROR("CSW: Status is invalid: 0x%x", csw->Status);
         return USBTRANSFERCODE_INVALID;
     }
 
@@ -428,25 +436,31 @@ MsdSanitizeResponse(
     return USBTRANSFERCODE_SUCCESS;
 }
 
-enum USBTransferCode
-BulkSendCommand(
-        _In_ MsdDevice_t* device,
-        _In_ uint8_t      scsiCommand,
-        _In_ uint64_t     sectorStart,
-        _In_ size_t       DataLength)
+static oserr_t
+__SendCommand(
+        _In_  MSDDevice_t*          device,
+        _In_  uint8_t               scsiCommand,
+        _In_  uint64_t              sectorStart,
+        _In_  size_t                dataLength,
+        _Out_ enum USBTransferCode* transferCodeOut)
 {
-    enum USBTransferCode transferResult;
+    enum USBTransferCode transferCode;
     USBTransfer_t        CommandStage;
     size_t               bytesTransferred;
     oserr_t              oserr;
 
-    // Debug
-    TRACE("BulkSendCommand(Command %u, Start %u, Length %u)",
-          scsiCommand, LODWORD(sectorStart), DataLength);
+    TRACE("__SendCommand(Command %u, Start %u, Length %u)",
+          scsiCommand, LODWORD(sectorStart), dataLength);
 
     // Construct our command build the usb transfer
-    __ConstructSCSICommand(device->CommandBlock, scsiCommand, sectorStart,
-                           DataLength, (uint16_t) device->Descriptor.SectorSize);
+    __ConstructSCSICommand(
+            device->CommandBlock,
+            scsiCommand,
+            sectorStart,
+            dataLength,
+            (uint16_t)device->Descriptor.SectorSize
+    );
+
     UsbTransferInitialize(
             &CommandStage,
             &device->Device->DeviceContext,
@@ -459,79 +473,90 @@ BulkSendCommand(
             sizeof(MsdCommandBlock_t)
     );
 
-    oserr = UsbTransferQueue(&device->Device->DeviceContext, &CommandStage, &transferResult, &bytesTransferred);
-    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Failed to send the CBW command, transfer-code %u/%u", oserr, transferResult);
-        if (transferResult == USBTRANSFERCODE_STALL) {
+    oserr = UsbTransferQueue(
+            &device->Device->DeviceContext,
+            &CommandStage,
+            &transferCode,
+            &bytesTransferred
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Failed to send the CBW command, transfer-code %u/%u", oserr, transferCode);
+        if (transferCode == USBTRANSFERCODE_STALL) {
             ERROR("Performing a recovery-reset on device.");
             if (__ResetRecovery(device, BULK_RESET_ALL) != OS_EOK) {
                 ERROR("Failed to reset device, it is now unusable.");
             }
         }
     }
-    return transferResult;
+    *transferCodeOut = transferCode;
+    return oserr;
 }
 
-enum USBTransferCode
-BulkReadData(
-        _In_  MsdDevice_t* Device,
-        _In_  uuid_t       BufferHandle,
-        _In_  size_t       BufferOffset,
-        _In_  size_t       DataLength,
-        _Out_ size_t*      BytesRead)
-{
-    enum USBTransferCode transferStatus;
-    USBTransfer_t        dataStage;
-    size_t               bytesTransferred = 0;
-    oserr_t              oserr;
-    TRACE("BulkReadData(length=%u)", DataLength);
-
-    UsbTransferInitialize(
-            &dataStage,
-            &Device->Device->DeviceContext,
-            Device->In,
-            USBTRANSFER_TYPE_BULK,
-            USBTRANSFER_DIRECTION_IN,
-            0,
-            BufferHandle,
-            BufferOffset,
-            DataLength
-    );
-
-    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &dataStage, &transferStatus, &bytesTransferred);
-    // Sanitize for any transport errors
-    // The host shall accept the data received.
-    // The host shall clear the Bulk-In pipe.
-    if (oserr != OS_EOK || transferStatus != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-in", oserr, transferStatus);
-        if (transferStatus == USBTRANSFERCODE_STALL) {
-            __ResetRecovery(Device, BULK_RESET_IN);
-        }
-        else {
-            // Fatal error
-            __ResetRecovery(Device, BULK_RESET_ALL);
-        }
-    }
-
-    // Return state and update out
-    *BytesRead = bytesTransferred;
-    return transferStatus;
-}
-
-oserr_t
-BulkWriteData(
-        _In_  MsdDevice_t*          device,
+static oserr_t
+__ReadData(
+        _In_  MSDDevice_t*          device,
         _In_  uuid_t                bufferHandle,
         _In_  size_t                bufferOffset,
         _In_  size_t                dataLength,
-        _Out_ size_t*               bytesWrittenOut,
-        _Out_ enum USBTransferCode* transferCodeOut)
+        _Out_ enum USBTransferCode* transferCodeOut,
+        _Out_ size_t*               bytesRead)
 {
-    enum USBTransferCode transferResult;
+    enum USBTransferCode transferCode;
+    USBTransfer_t        dataStage;
+    size_t               bytesTransferred = 0;
+    oserr_t              oserr;
+    TRACE("__ReadData(length=%u)", dataLength);
+
+    UsbTransferInitialize(
+            &dataStage,
+            &device->Device->DeviceContext,
+            device->In,
+            USBTRANSFER_TYPE_BULK,
+            USBTRANSFER_DIRECTION_IN,
+            0,
+            bufferHandle,
+            bufferOffset,
+            dataLength
+    );
+
+    oserr = UsbTransferQueue(
+            &device->Device->DeviceContext,
+            &dataStage,
+            &transferCode,
+            &bytesTransferred
+    );
+    // Sanitize for any transport errors
+    // The host shall accept the data received.
+    // The host shall clear the Bulk-In pipe.
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-in", oserr, transferCode);
+        if (transferCode == USBTRANSFERCODE_STALL) {
+            __ResetRecovery(device, BULK_RESET_IN);
+        } else {
+            // Fatal error
+            __ResetRecovery(device, BULK_RESET_ALL);
+        }
+    }
+
+    *transferCodeOut = transferCode;
+    *bytesRead = bytesTransferred;
+    return oserr;
+}
+
+static oserr_t
+__WriteData(
+        _In_  MSDDevice_t*          device,
+        _In_  uuid_t                bufferHandle,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                dataLength,
+        _Out_ enum USBTransferCode* transferCodeOut,
+        _Out_ size_t*               bytesWrittenOut)
+{
+    enum USBTransferCode transferCode;
     USBTransfer_t        DataStage;
     size_t               bytesTransferred;
     oserr_t              oserr;
-    TRACE("BulkReadData(length=%u)", dataLength);
+    TRACE("__ReadData(length=%u)", dataLength);
 
     // Perform the data-stage
     UsbTransferInitialize(
@@ -549,87 +574,89 @@ BulkWriteData(
     oserr = UsbTransferQueue(
             &device->Device->DeviceContext,
             &DataStage,
-            &transferResult,
+            &transferCode,
             &bytesTransferred
     );
     if (oserr != OS_EOK) {
-        // If this error is not OK, then it was not a transport error, but rather something
-        // critical with our setup. There is only one error we can fix, and that's if the buffer
-        // was invalid. That means the user-supplied buffer was using an offset that causes the
-        // buffer to cross boundary, and this is not always supported.
-        if (oserr == OS_EBUFFER) {
-            // Allocate a temporary transport buffer, there will be no chance of crossing boundaries
-            // here as we always transport in sector sizes.
-
-        }
-
-        // Otherwise something was totally wrong, return an error
-        return USBTRANSFERCODE_CANCELLED;
+        return oserr;
     }
 
     // Sanitize for any transport errors
     // The host shall accept the data received.
     // The host shall clear the Bulk-In pipe.
-    if (transferResult != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-out", oserr, transferResult);
-        if (transferResult == USBTRANSFERCODE_STALL) {
+    if (transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-out", oserr, transferCode);
+        if (transferCode == USBTRANSFERCODE_STALL) {
             __ResetRecovery(device, BULK_RESET_OUT);
         } else {
             __ResetRecovery(device, BULK_RESET_ALL);
         }
     }
+
+    *transferCodeOut = transferCode;
     *bytesWrittenOut = bytesTransferred;
-    return transferResult;
+    return oserr;
 }
 
-enum USBTransferCode
-BulkGetStatus(
-    _In_ MsdDevice_t* Device)
+static oserr_t
+__GetStatus(
+        _In_  MSDDevice_t*          device,
+        _Out_ enum USBTransferCode* transferCodeOut)
 {
-    enum USBTransferCode transferResult;
+    enum USBTransferCode transferCode;
     USBTransfer_t        StatusStage;
     size_t               bytesTransferred;
     oserr_t              oserr;
-    TRACE("BulkGetStatus()");
+    TRACE("__GetStatus()");
 
     UsbTransferInitialize(
             &StatusStage,
-            &Device->Device->DeviceContext,
-            Device->In,
+            &device->Device->DeviceContext,
+            device->In,
             USBTRANSFER_TYPE_BULK,
             USBTRANSFER_DIRECTION_IN,
             0,
             dma_pool_handle(UsbRetrievePool()),
-            dma_pool_offset(UsbRetrievePool(), Device->StatusBlock),
+            dma_pool_offset(UsbRetrievePool(), device->StatusBlock),
             sizeof(MsdCommandStatus_t)
     );
 
-    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &StatusStage, &transferResult, &bytesTransferred);
+    oserr = UsbTransferQueue(
+            &device->Device->DeviceContext,
+            &StatusStage,
+            &transferCode,
+            &bytesTransferred
+    );
     // Sanitize for any transport errors
     // On a STALL condition receiving the CSW, then:
     // The host shall clear the Bulk-In pipe.
     // The host shall again attempt to receive the CSW.
-    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
-        if (oserr == OS_EOK && transferResult == USBTRANSFERCODE_STALL) {
-            __ResetRecovery(Device, BULK_RESET_IN);
-            return BulkGetStatus(Device);
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        if (oserr == OS_EOK && transferCode == USBTRANSFERCODE_STALL) {
+            oserr = __ResetRecovery(device, BULK_RESET_IN);
+            if (oserr != OS_EOK) {
+                return oserr;
+            }
+            return __GetStatus(device, transferCodeOut);
         } else {
-            ERROR("Failed to retrieve the CSW block, transfer-code %u", transferResult);
+            ERROR("Failed to retrieve the CSW block, transfer-code %u", transferCode);
         }
-        return transferResult;
+
+        *transferCodeOut = transferCode;
+        return oserr;
     }
-    else {        
-        // If the host receives a CSW which is not valid, 
-        // then the host shall perform a Reset Recovery. If the host receives
-        // a CSW which is not meaningful, then the host may perform a Reset Recovery.
-        return MsdSanitizeResponse(Device, Device->StatusBlock);
-    }
+
+    // If the host receives a CSW which is not valid,
+    // then the host shall perform a Reset Recovery. If the host receives
+    // a CSW which is not meaningful, then the host may perform a Reset Recovery.
+    *transferCodeOut = __VerifyCSWStatus(device, device->StatusBlock);
+    return oserr;
 }
 
-MsdOperations_t BulkOperations = {
-    BulkInitialize,
-    BulkSendCommand,
-    BulkReadData,
-    BulkWriteData,
-    BulkGetStatus
+MSDOperations_t BulkOperations = {
+        __Initialize,
+        __SendCommand,
+        __ReadData,
+        __WriteData,
+        __GetStatus
 };

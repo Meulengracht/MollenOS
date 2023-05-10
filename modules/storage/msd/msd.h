@@ -1,7 +1,5 @@
-/** 
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -121,23 +119,26 @@ typedef enum MsdProtocolType {
     ProtocolCount
 } MsdProtocolType_t;
 
-typedef struct MsdDevice MsdDevice_t;
-typedef struct MsdOperations {
-    oserr_t (*Initialize)(MsdDevice_t*);
-    oserr_t (*SendCommand)(MsdDevice_t*, uint8_t, uint64_t, size_t, enum USBTransferCode*);
-    oserr_t (*ReadData)(MsdDevice_t*, uuid_t, size_t, size_t, enum USBTransferCode*, size_t*);
-    oserr_t (*WriteData)(MsdDevice_t*, uuid_t, size_t, size_t, enum USBTransferCode*, size_t*);
-    oserr_t (*GetStatus)(MsdDevice_t*, enum USBTransferCode*);
-} MsdOperations_t;
+typedef struct MSDDevice MSDDevice_t;
+typedef struct MSDOperations {
+    oserr_t (*Initialize)(MSDDevice_t*);
+    oserr_t (*SendCommand)(MSDDevice_t*, uint8_t, uint64_t, size_t, enum USBTransferCode*);
+    oserr_t (*ReadData)(MSDDevice_t*, uuid_t, size_t, size_t, enum USBTransferCode*, size_t*);
+    oserr_t (*WriteData)(MSDDevice_t*, uuid_t, size_t, size_t, enum USBTransferCode*, size_t*);
+    oserr_t (*GetStatus)(MSDDevice_t*, enum USBTransferCode*);
+} MSDOperations_t;
 
-typedef struct MsdDevice {
+typedef struct MSDDevice {
     UsbDevice_t*            Device;
     element_t               Header;
     StorageDescriptor_t     Descriptor;
     MsdDeviceType_t         Type;
     MsdProtocolType_t       Protocol;
-    const MsdOperations_t*  Operations;
-    enum OSMemoryConformity Conformity;
+    const MSDOperations_t*  Operations;
+
+    // To avoid retrieving it from the underlying controller
+    // all the time. Cache it here for convenience.
+    struct OSIOCtlRequestRequirements IORequirements;
 
 	int IsReady;
 	int IsExtended;
@@ -151,36 +152,37 @@ typedef struct MsdDevice {
     usb_endpoint_descriptor_t* In;
 	usb_endpoint_descriptor_t* Out;
 	usb_endpoint_descriptor_t* Interrupt;
-} MsdDevice_t;
+} MSDDevice_t;
 
-/* MsdDeviceCreate
+/* MSDDeviceCreate
  * Initializes a new msd-device from the given usb-device */
-__EXTERN MsdDevice_t*
-MsdDeviceCreate(
+extern MSDDevice_t*
+MSDDeviceCreate(
     _In_ UsbDevice_t *usbDevice);
 
-/* MsdDeviceDestroy
+/* MSDDeviceDestroy
  * Destroys an existing msd device instance and cleans up
  * any resources related to it */
-__EXTERN oserr_t
-MsdDeviceDestroy(
-    _In_ MsdDevice_t *msdDevice);
+extern oserr_t
+MSDDeviceDestroy(
+        _In_ MSDDevice_t *msdDevice);
 
-/* MsdDeviceInitialize 
+/* MSDDeviceInitialize
  * Initializes and validates that the protocol has all neccessary
  * resources/endpoints/prerequisites for operation. */
-__EXTERN oserr_t
-MsdDeviceInitialize(
-    _In_ MsdDevice_t *Device);
+extern oserr_t
+MSDDeviceInitialize(
+        _In_ MSDDevice_t *device);
 
-/* MsdDeviceStart
+/* MSDDeviceStart
  * Initializes the device by performing one-time setup and reading device
  * capabilities and features. */
-__EXTERN oserr_t
-MsdDeviceStart(
-    _In_ MsdDevice_t *device);
+extern oserr_t
+MSDDeviceStart(
+        _In_ MSDDevice_t *device);
 
-__EXTERN MsdDevice_t*
+extern MSDDevice_t*
 MsdDeviceGet(
         _In_ uuid_t deviceId);
+
 #endif // !_USB_MSD_H_

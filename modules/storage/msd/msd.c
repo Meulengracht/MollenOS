@@ -46,7 +46,7 @@ static const char* g_deviceProtocolNames[ProtocolCount] = {
 };
 
 static inline void
-RegisterStorage(
+__RegisterStorage(
         _In_ uuid_t       protocolServerId,
         _In_ uuid_t       deviceId,
         _In_ unsigned int flags)
@@ -56,7 +56,7 @@ RegisterStorage(
 }
 
 static inline void
-UnregisterStorage(
+__UnregisterStorage(
         _In_ uuid_t  deviceId,
         _In_ uint8_t forced)
 {
@@ -64,7 +64,8 @@ UnregisterStorage(
     (void)sys_storage_unregister(GetGrachtClient(), &msg.base, deviceId, forced);
 }
 
-static inline void* memdup(void* mem, size_t size)
+static inline void*
+memdup(void* mem, size_t size)
 {
     void* dup = malloc(size);
     if (!dup) {
@@ -74,7 +75,9 @@ static inline void* memdup(void* mem, size_t size)
     return dup;
 }
 
-static inline int __IsSupportedInterface(usb_device_interface_setting_t* interface)
+static inline int
+__IsSupportedInterface(
+        _In_ usb_device_interface_setting_t* interface)
 {
     // Verify class is MSD
     if (interface->base.Class != USB_CLASS_MSD) {
@@ -91,9 +94,10 @@ static inline int __IsSupportedInterface(usb_device_interface_setting_t* interfa
     return 0;
 }
 
-static inline void __GetDeviceProtocol(
-    _In_ MsdDevice_t*                    device,
-    _In_ usb_device_interface_setting_t* interface)
+static inline void
+__GetDeviceProtocol(
+        _In_ MSDDevice_t*                    device,
+        _In_ usb_device_interface_setting_t* interface)
 {
     // Set initial shared stuff
     device->Protocol                      = ProtocolUnknown;
@@ -109,28 +113,25 @@ static inline void __GetDeviceProtocol(
         device->Type = TypeFloppy;
         device->AlignedAccess = 1;
         device->Descriptor.SectorsPerCylinder = 18;
-    }
-    else if (interface->base.Subclass != MSD_SUBCLASS_ATAPI) {
+    } else if (interface->base.Subclass != MSD_SUBCLASS_ATAPI) {
         device->Type = TypeDiskDrive;
-    }
-    else {
+    } else {
         device->Type = TypeHardDrive;
     }
     
     // Determine type of protocol
     if (interface->base.Protocol == MSD_PROTOCOL_CBI) {
         device->Protocol = ProtocolCBI;
-    }
-    else if (interface->base.Protocol == MSD_PROTOCOL_CB) {
+    } else if (interface->base.Protocol == MSD_PROTOCOL_CB) {
         device->Protocol = ProtocolCB;
-    }
-    else if (interface->base.Protocol == MSD_PROTOCOL_BULK_ONLY) {
+    } else if (interface->base.Protocol == MSD_PROTOCOL_BULK_ONLY) {
         device->Protocol = ProtocolBulk;
     }
 }
 
-static void __GetDeviceConfiguration(
-    _In_ MsdDevice_t* device)
+static void
+__GetDeviceConfiguration(
+        _In_ MSDDevice_t* device)
 {
     usb_device_configuration_t configuration;
     enum USBTransferCode        status;
@@ -138,7 +139,7 @@ static void __GetDeviceConfiguration(
     
     status = UsbGetActiveConfigDescriptor(&device->Device->DeviceContext, &configuration);
     if (status != USBTRANSFERCODE_SUCCESS) {
-        ERROR("[msd] [__GetDeviceConfiguration] failed to retrieve configuration descriptor %u", status);
+        ERROR("__GetDeviceConfiguration: failed to retrieve configuration descriptor %u", status);
         return;
     }
     
@@ -170,39 +171,33 @@ static void __GetDeviceConfiguration(
 
 static oserr_t
 __GetConformity(
-        _In_ MsdDevice_t* msdDevice)
+        _In_ MSDDevice_t* msdDevice)
 {
-    struct OSIOCtlRequestRequirements ioRequirements;
-    oserr_t oserr = OSDeviceIOCtl2(
+    return OSDeviceIOCtl2(
             msdDevice->Device->DeviceContext.controller_device_id,
             msdDevice->Device->DeviceContext.controller_driver_id,
             OSIOCTLREQUEST_IO_REQUIREMENTS,
-            &ioRequirements,
+            &msdDevice->IORequirements,
             sizeof(struct OSIOCtlRequestRequirements)
     );
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    msdDevice->Conformity = ioRequirements.Conformity;
-    return OS_EOK;
 }
 
-MsdDevice_t*
-MsdDeviceCreate(
-    _In_ UsbDevice_t* usbDevice)
+MSDDevice_t*
+MSDDeviceCreate(
+        _In_ UsbDevice_t* usbDevice)
 {
-    MsdDevice_t* msdDevice;
+    MSDDevice_t* msdDevice;
     oserr_t      oserr;
 
     // Debug
-    TRACE("MsdDeviceCreate(DeviceId %u)", usbDevice->Base.Id);
+    TRACE("MSDDeviceCreate(DeviceId %u)", usbDevice->Base.Id);
 
     // Allocate new resources
-    msdDevice = (MsdDevice_t*)malloc(sizeof(MsdDevice_t));
+    msdDevice = (MSDDevice_t*)malloc(sizeof(MSDDevice_t));
     if (!msdDevice) {
         return NULL;
     }
-    memset(msdDevice, 0, sizeof(MsdDevice_t));
+    memset(msdDevice, 0, sizeof(MSDDevice_t));
 
     ELEMENT_INIT(&msdDevice->Header, (uintptr_t)usbDevice->Base.Id, msdDevice);
     msdDevice->Device = usbDevice;
@@ -224,7 +219,7 @@ MsdDeviceCreate(
 
     oserr = __GetConformity(msdDevice);
     if (oserr != OS_EOK) {
-        ERROR("MsdDeviceCreate: failed to query conformity requirements");
+        ERROR("MSDDeviceCreate: failed to query conformity requirements");
     }
     
     __GetDeviceConfiguration(msdDevice);
@@ -235,7 +230,7 @@ MsdDeviceCreate(
           g_deviceProtocolNames[msdDevice->Protocol]);
 
     // Initialize the kind of profile we discovered
-    if (MsdDeviceInitialize(msdDevice) != OS_EOK) {
+    if (MSDDeviceInitialize(msdDevice) != OS_EOK) {
         ERROR("Failed to initialize the msd-device, missing support.");
         goto Error;
     }
@@ -252,7 +247,7 @@ MsdDeviceCreate(
         goto Error;
     }
 
-    if (MsdDeviceStart(msdDevice) != OS_EOK) {
+    if (MSDDeviceStart(msdDevice) != OS_EOK) {
         ERROR("Failed to initialize the device");
         goto Error;
     }
@@ -264,22 +259,25 @@ MsdDeviceCreate(
         return msdDevice;
     }
 
-    RegisterStorage(GetNativeHandle(__crt_get_server_iod()),
-                    msdDevice->Device->Base.Id, SYS_STORAGE_FLAGS_REMOVABLE);
+    __RegisterStorage(
+            GetNativeHandle(__crt_get_server_iod()),
+            msdDevice->Device->Base.Id,
+            SYS_STORAGE_FLAGS_REMOVABLE
+    );
     return msdDevice;
 
 Error:
     // Cleanup
-    MsdDeviceDestroy(msdDevice);
+    MSDDeviceDestroy(msdDevice);
     return NULL;
 }
 
 oserr_t
-MsdDeviceDestroy(
-    _In_ MsdDevice_t* msdDevice)
+MSDDeviceDestroy(
+        _In_ MSDDevice_t* msdDevice)
 {
     // Notify diskmanager
-    UnregisterStorage(msdDevice->Device->Base.Id, 1);
+    __UnregisterStorage(msdDevice->Device->Base.Id, 1);
 
     // Flush existing requests?
     // @todo

@@ -303,8 +303,11 @@ UhciSetup(
     }
 
     // Set up the i/o requirements, UHCI controllers sometimes have problems
-    // with addresses above >2gb.
-    controller->Base.IORequirements.BufferAlignment = 0;
+    // with addresses above >2gb. Also buffer alignment must be used for UHCI as
+    // we cannot deal with cross-page boundary buffers. Thus buffers must be aligned
+    // for the highest possible packet-size supported by USB 1.1.
+    // Maximum data payload size for full-speed devices is 64 bytes.
+    controller->Base.IORequirements.BufferAlignment = 64;
     controller->Base.IORequirements.Conformity = OSMEMORYCONFORMITY_LOW;
 
     oserr = UhciReset(controller);

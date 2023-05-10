@@ -65,7 +65,7 @@ SHMExport(
 KERNELAPI oserr_t KERNELABI
 SHMConform(
         _In_ uuid_t                  shmID,
-        _In_ enum OSMemoryConformity conformity,
+        _In_ SHMConformityOptions_t* conformity,
         _In_ unsigned int            flags,
         _In_ unsigned int            access,
         _In_ size_t                  offset,

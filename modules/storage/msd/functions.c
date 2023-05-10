@@ -32,16 +32,16 @@
 #include <ctt_driver_service_server.h>
 #include <ctt_storage_service_server.h>
 
-extern MsdOperations_t  BulkOperations;
-extern MsdOperations_t  UfiOperations;
-static const MsdOperations_t* g_protocolOperations[ProtocolCount] = {
+extern MSDOperations_t BulkOperations;
+extern MSDOperations_t UfiOperations;
+static const MSDOperations_t* g_protocolOperations[ProtocolCount] = {
     NULL,
     &UfiOperations,
     &UfiOperations,
     &BulkOperations
 };
 
-const char* SenseKeys[] = {
+const char* g_senseKeys[] = {
     "No Sense",
     "Recovered Error - last command completed with some recovery action",
     "Not Ready - logical unit addressed cannot be accessed",
@@ -106,45 +106,52 @@ __flipbuffer(
 }
 
 oserr_t
-MsdDeviceInitialize(
-    _In_ MsdDevice_t *Device)
+MSDDeviceInitialize(
+        _In_ MSDDevice_t* device)
 {
-    if (!g_protocolOperations[Device->Protocol]) {
+    if (!g_protocolOperations[device->Protocol]) {
         ERROR("Support is not implemented for the protocol.");
         return OS_ENOTSUPPORTED;
     }
 
-    Device->Operations = g_protocolOperations[Device->Protocol];
-    return Device->Operations->Initialize(Device);
+    device->Operations = g_protocolOperations[device->Protocol];
+    return device->Operations->Initialize(device);
 }
 
 oserr_t
-MsdGetMaximumLunCount(
-    _In_ MsdDevice_t *Device)
+MSDQueryMaximumLUNCount(
+        _In_ MSDDevice_t* device)
 {
-    enum USBTransferCode Status;
-    uint8_t             MaxLuns;
+    enum USBTransferCode transferCode;
+    uint8_t              maxLuns;
 
     // Get Max LUNS is
     // 0xA1 | 0xFE | wIndex - Interface 
     // 1 Byte is expected back, values range between 0 - 15, 0-indexed
-    Status = UsbExecutePacket(&Device->Device->DeviceContext,
-        USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
-        MSD_REQUEST_GET_MAX_LUN, 0, 0, (uint16_t)Device->InterfaceId, 1, &MaxLuns);
+    transferCode = UsbExecutePacket(
+            &device->Device->DeviceContext,
+            USBPACKET_DIRECTION_IN | USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
+            MSD_REQUEST_GET_MAX_LUN,
+            0,
+            0,
+            (uint16_t)device->InterfaceId,
+            1,
+            &maxLuns
+    );
 
     // If no multiple LUNS are supported, device may STALL it says in the usbmassbulk spec 
-    // but thats ok, it's not a functional stall, only command stall
-    if (Status == USBTRANSFERCODE_SUCCESS) {
-        Device->Descriptor.LUNCount = (size_t)(MaxLuns & 0xF);
+    // but that's ok, it's not a functional stall, only command stall
+    if (transferCode == USBTRANSFERCODE_SUCCESS) {
+        device->Descriptor.LUNCount = (size_t)(maxLuns & 0xF);
     } else {
-        Device->Descriptor.LUNCount = 0;
+        device->Descriptor.LUNCount = 0;
     }
     return OS_EOK;
 }
 
 static oserr_t
 __ExecuteCommand(
-        _In_ MsdDevice_t*           device,
+        _In_ MSDDevice_t*           device,
         _In_ int                    direction,
         _In_ uint8_t                scsiCommand,
         _In_ uint64_t               sectorStart,
@@ -205,152 +212,169 @@ __ExecuteCommand(
             );
         }
         if (oserr != OS_EOK) {
-            // If this error is not OK, then it was not a transport error, but rather something
-            // critical with our setup. There is only one error we can fix, and that's if the buffer
-            // was invalid. That means the user-supplied buffer was using an offset that causes the
-            // buffer to cross boundary, and this is not always supported.
-            if (oserr == OS_EBUFFER) {
-                // Allocate a temporary transport buffer, there will be no chance of crossing boundaries
-                // here as we always transport in sector sizes.
-                OSHandle_t tempBuffer;
-                oserr = SHMCreate(
-                        &(SHM_t) {
-                            .Flags = SHM_CONFORM | SHM_COMMIT,
-                            .Conformity = device->Conformity,
-                            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                            .Size = dataLength
-                        },
-                        &tempBuffer
-                );
-                if (oserr != OS_EOK) {
-                    ERROR("__ExecuteCommand: failed to allocate transfer buffer for command");
-                    return oserr;
-                }
-
-                // Reperform the transfer
-
-                // Copy the data....????
-
-                OSHandleDestroy(&tempBuffer);
-            }
             return oserr;
         }
 
         if (transferCode != USBTRANSFERCODE_SUCCESS && transferCode != USBTRANSFERCODE_STALL) {
-            ERROR("Fatal error transfering data, skipping status stage");
-            return transferCode;
+            ERROR("__ExecuteCommand: failed to transfer data, skipping status stage");
+            *transferCodeOut = transferCode;
+            return OS_EOK;
         }
+
         if (transferCode == USBTRANSFERCODE_STALL) {
             RetryCount--;
             if (RetryCount == 0) {
-                ERROR("Fatal error transfering data, skipping status stage");
-                return transferCode;
+                ERROR("__ExecuteCommand: failed to transfer data, skipping status stage");
+                *transferCodeOut = transferCode;
+                return OS_EOK;
             }
+            continue;
         }
+
         bytesLeft -= bytesTransferred;
         bufferOffset += bytesTransferred;
     }
     return device->Operations->GetStatus(device, transferCodeOut);
 }
 
-oserr_t
-MsdDevicePrepare(
-    MsdDevice_t *Device)
+static oserr_t
+__RequestSenseReady(
+        MSDDevice_t* device)
 {
-    ScsiSense_t *SenseBlock = NULL;
-    int ResponseCode, SenseKey;
+    ScsiSense_t*         senseBlock = NULL;
+    int                  responseCode;
+    enum USBTransferCode transferCode;
+    oserr_t              oserr;
 
-    // Debug
     TRACE("MsdPrepareDevice()");
 
-    // Allocate memory buffer
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiSense_t), 
-        (void**)&SenseBlock) != OS_EOK) {
-        ERROR("Failed to allocate buffer (sense)");
-        return OS_EUNKNOWN;
+    oserr = dma_pool_allocate(
+            UsbRetrievePool(),
+            sizeof(ScsiSense_t),
+            (void**)&senseBlock
+    );
+    if (oserr != OS_EOK) {
+        ERROR("MsdPrepareDevice: failed to allocate buffer (sense)");
+        return oserr;
     }
 
     // Don't use test-unit-ready for UFI
-    if (Device->Protocol != ProtocolCB && Device->Protocol != ProtocolCBI) {
-        if (__ExecuteCommand(Device, 0, SCSI_TEST_UNIT_READY, 0, 0, 0, 0)
-            != USBTRANSFERCODE_SUCCESS) {
-            ERROR("Failed to perform test-unit-ready command");
-            dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
-            Device->IsReady = 0;
-            return OS_EUNKNOWN;
+    if (device->Protocol != ProtocolCB && device->Protocol != ProtocolCBI) {
+        oserr = __ExecuteCommand(
+                device,
+                0,
+                SCSI_TEST_UNIT_READY,
+                0,
+                0,
+                0,
+                0,
+                &transferCode
+        );
+        if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+            ERROR("MsdPrepareDevice: Failed to perform test-unit-ready command");
+            dma_pool_free(UsbRetrievePool(), (void*)senseBlock);
+            device->IsReady = 0;
+            return oserr;
         }
     }
 
     // Now request the sense-status
-    if (__ExecuteCommand(Device, 0, SCSI_REQUEST_SENSE, 0,
-                         dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), SenseBlock),
-                         sizeof(ScsiSense_t)) != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Failed to perform sense command");
-        dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
-        Device->IsReady = 0;
-        return OS_EUNKNOWN;
+    oserr = __ExecuteCommand(
+            device,
+            0,
+            SCSI_REQUEST_SENSE,
+            0,
+            dma_pool_handle(UsbRetrievePool()),
+            dma_pool_offset(UsbRetrievePool(), senseBlock),
+            sizeof(ScsiSense_t),
+            &transferCode
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("MsdPrepareDevice: failed to perform sense command");
+        dma_pool_free(UsbRetrievePool(), (void*)senseBlock);
+        device->IsReady = 0;
+        return oserr;
     }
 
     // Extract sense-codes and key
-    ResponseCode = SCSI_SENSE_RESPONSECODE(SenseBlock->ResponseStatus);
-    SenseKey = SCSI_SENSE_KEY(SenseBlock->Flags);
-    dma_pool_free(UsbRetrievePool(), (void*)SenseBlock);
+    responseCode = SCSI_SENSE_RESPONSECODE(senseBlock->ResponseStatus);
+    dma_pool_free(UsbRetrievePool(), (void*)senseBlock);
 
     // Must be either 0x70, 0x71, 0x72, 0x73
-    if (ResponseCode >= 0x70 && ResponseCode <= 0x73) {
-        TRACE("Sense Status: %s", SenseKeys[SenseKey]);
-    }
-    else {
-        ERROR("Invalid Response Code: 0x%x", ResponseCode);
-        Device->IsReady = 0;
+    if (responseCode >= 0x70 && responseCode <= 0x73) {
+        TRACE("Sense Status: %s", g_senseKeys[SCSI_SENSE_KEY(senseBlock->Flags)]);
+    } else {
+        ERROR("Invalid Response Code: 0x%x", responseCode);
+        device->IsReady = 0;
         return OS_EUNKNOWN;
     }
 
     // Mark ready and return
-    Device->IsReady = 1;
+    device->IsReady = 1;
     return OS_EOK;
 }
 
-oserr_t
-MsdReadCapabilities(
-    _In_ MsdDevice_t *Device)
+static oserr_t
+__ReadCapabilities(
+        _In_ MSDDevice_t* device)
 {
-    StorageDescriptor_t* descriptor = &Device->Descriptor;
+    StorageDescriptor_t* descriptor = &device->Descriptor;
     uint32_t*            capabilitesPointer = NULL;
+    oserr_t              oserr;
+    enum USBTransferCode transferCode;
 
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiExtendedCaps_t), 
-        (void**)&capabilitesPointer) != OS_EOK) {
-        ERROR("Failed to allocate buffer (caps)");
-        return OS_EUNKNOWN;
+    oserr = dma_pool_allocate(
+            UsbRetrievePool(),
+            sizeof(ScsiExtendedCaps_t),
+            (void**)&capabilitesPointer
+    );
+    if (oserr != OS_EOK) {
+        ERROR("__ReadCapabilities: failed to allocate buffer");
+        return oserr;
     }
 
-    // Perform caps-command
-    if (__ExecuteCommand(Device, 0, SCSI_READ_CAPACITY, 0,
-                         dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
-                         8) != USBTRANSFERCODE_SUCCESS) {
+    oserr = __ExecuteCommand(
+            device,
+            0,
+            SCSI_READ_CAPACITY,
+            0,
+            dma_pool_handle(UsbRetrievePool()),
+            dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
+            8,
+            &transferCode
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
         dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
-        return OS_EUNKNOWN;
+        return oserr;
     }
 
     // If the size equals max, then we need to use extended
     // capabilities
     if (capabilitesPointer[0] == 0xFFFFFFFF) {
-        ScsiExtendedCaps_t *ExtendedCaps = (ScsiExtendedCaps_t*)capabilitesPointer;
+        ScsiExtendedCaps_t* extendedCaps = (ScsiExtendedCaps_t*)capabilitesPointer;
 
         // Perform extended-caps read command
-        if (__ExecuteCommand(Device, 0, SCSI_READ_CAPACITY_16, 0,
-                             dma_pool_handle(UsbRetrievePool()), dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
-                             sizeof(ScsiExtendedCaps_t)) != USBTRANSFERCODE_SUCCESS) {
+        oserr = __ExecuteCommand(
+                device,
+                0,
+                SCSI_READ_CAPACITY_16,
+                0,
+                dma_pool_handle(UsbRetrievePool()),
+                dma_pool_offset(UsbRetrievePool(), capabilitesPointer),
+                sizeof(ScsiExtendedCaps_t),
+                &transferCode
+        );
+        if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
             dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
-            return OS_EUNKNOWN;
+            return oserr;
         }
 
         // Capabilities are returned in reverse byte-order
-        descriptor->SectorCount = rev64(ExtendedCaps->SectorCount) + 1;
-        descriptor->SectorSize = rev32(ExtendedCaps->SectorSize);
-        TRACE("[msd] [read_capabilities] sectorCount %llu, sectorSize %u", descriptor->SectorCount,
+        descriptor->SectorCount = rev64(extendedCaps->SectorCount) + 1;
+        descriptor->SectorSize = rev32(extendedCaps->SectorSize);
+        TRACE("__ReadCapabilities: sectorCount=%llu, sectorSize=%u", descriptor->SectorCount,
               descriptor->SectorSize);
-        Device->IsExtended = 1;
+        device->IsExtended = 1;
         dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
         return OS_EOK;
     }
@@ -358,44 +382,54 @@ MsdReadCapabilities(
     // Capabilities are returned in reverse byte-order
     descriptor->SectorCount = (uint64_t)rev32(capabilitesPointer[0]) + 1;
     descriptor->SectorSize = rev32(capabilitesPointer[1]);
-    TRACE("[msd] [read_capabilities] 0x%llx sectorCount %llu, sectorSize %u",
-          &descriptor->SectorCount, descriptor->SectorCount, descriptor->SectorSize);
+    TRACE("__ReadCapabilities: sectorCount=%llu, sectorSize=%u",
+          descriptor->SectorCount, descriptor->SectorSize);
     dma_pool_free(UsbRetrievePool(), (void*)capabilitesPointer);
     return OS_EOK;
 }
 
 oserr_t
-MsdDeviceStart(
-    _In_ MsdDevice_t* device)
+MSDDeviceStart(
+        _In_ MSDDevice_t* device)
 {
-    enum USBTransferCode transferStatus;
-    ScsiInquiry_t*      inquiryData = NULL;
-    int                 i;
+    enum USBTransferCode transferCode;
+    ScsiInquiry_t*       inquiryData = NULL;
+    int                  i;
+    oserr_t              oserr;
 
     // How many iterations of device-ready?
     // Floppys need a lot longer to spin up
     i = (device->Protocol != ProtocolCB && device->Protocol != ProtocolCBI) ? 30 : 3;
 
-    // Allocate space for inquiry
-    if (dma_pool_allocate(UsbRetrievePool(), sizeof(ScsiInquiry_t), (void**)&inquiryData) != OS_EOK) {
-        ERROR("Failed to allocate buffer (inquiry)");
+    oserr = dma_pool_allocate(
+            UsbRetrievePool(),
+            sizeof(ScsiInquiry_t),
+            (void**)&inquiryData
+    );
+    if (oserr != OS_EOK) {
+        ERROR("MSDDeviceStart: failed to allocate buffer");
         return OS_EUNKNOWN;
     }
 
-    // Perform inquiry
-    transferStatus = __ExecuteCommand(device, 0, SCSI_INQUIRY, 0,
-                                      dma_pool_handle(UsbRetrievePool()),
-                                      dma_pool_offset(UsbRetrievePool(), inquiryData),
-                                      sizeof(ScsiInquiry_t));
-    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Failed to perform the inquiry command on device: %u", transferStatus);
+    oserr = __ExecuteCommand(
+            device,
+            0,
+            SCSI_INQUIRY,
+            0,
+            dma_pool_handle(UsbRetrievePool()),
+            dma_pool_offset(UsbRetrievePool(), inquiryData),
+            sizeof(ScsiInquiry_t),
+            &transferCode
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("MSDDeviceStart: failed to perform the inquiry command on device: %u", transferCode);
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
-        return OS_EUNKNOWN;
+        return oserr;
     }
 
     // Perform the Test-Unit Ready command
     while (device->IsReady == 0 && i != 0) {
-        MsdDevicePrepare(device);
+        __RequestSenseReady(device);
         if (device->IsReady == 1) {
             break; 
         }
@@ -406,22 +440,21 @@ MsdDeviceStart(
     // Sanitize the resulting ready state, we need it 
     // ready otherwise we can't use it
     if (!device->IsReady) {
-        ERROR("Failed to ready device");
+        ERROR("MSDDeviceStart: failed to ready device");
         dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
         return OS_EUNKNOWN;
     }
 
-
     dma_pool_free(UsbRetrievePool(), (void*)inquiryData);
-    return MsdReadCapabilities(device);
+    return __ReadCapabilities(device);
 }
 
 static void
-SelectScsiTransferCommand(
-    _In_  MsdDevice_t* device,
-    _In_  int          direction,
-    _Out_ uint8_t*     commandOut,
-    _Out_ size_t*      maxSectorsCountOut)
+__SelectScsiTransferCommand(
+        _In_  MSDDevice_t* device,
+        _In_  int          direction,
+        _Out_ uint8_t*     commandOut,
+        _Out_ size_t*      maxSectorsCountOut)
 {
     // Detect limits based on type of device and protocol
     if (device->Protocol == ProtocolCB || device->Protocol == ProtocolCBI) {
@@ -436,9 +469,9 @@ SelectScsiTransferCommand(
     }
 }
 
-oserr_t
-MsdTransferSectors(
-        _In_  MsdDevice_t* device,
+static oserr_t
+__TransferSectors(
+        _In_  MSDDevice_t* device,
         _In_  int          direction,
         _In_  uint64_t     sector,
         _In_  uuid_t       bufferHandle,
@@ -446,12 +479,13 @@ MsdTransferSectors(
         _In_  size_t       sectorCount,
         _Out_ size_t*      sectorsTransferred)
 {
-    enum USBTransferCode transferStatus;
-    size_t              sectorsToBeTransferred;
-    uint8_t             command;
-    size_t              maxSectorsPerCommand;
+    enum USBTransferCode transferCode;
+    oserr_t              oserr;
+    size_t               sectorsToBeTransferred;
+    uint8_t              command;
+    size_t               maxSectorsPerCommand;
 
-    TRACE("[msd_transfer] direction %u, sector %llu, count %" PRIuIN,
+    TRACE("__TransferSectors(direction=%u, sector=%llu, count=%" PRIuIN ")",
         direction, sector, sectorCount);
 
     // Protect against bad start sector
@@ -461,14 +495,14 @@ MsdTransferSectors(
 
     // Of course it's possible that the requester is requesting too much data in one
     // go, so we will have to clamp some of the values. Is the sector valid first of all?
-    TRACE("msd_transfer max sector available: %" PRIuIN, device->Descriptor.SectorCount);
+    TRACE("__TransferSectors: max sector available: %" PRIuIN, device->Descriptor.SectorCount);
     sectorsToBeTransferred = sectorCount;
     if ((sector + sectorsToBeTransferred) >= device->Descriptor.SectorCount) {
         sectorsToBeTransferred = device->Descriptor.SectorCount - sector;
     }
     
     // Detect limits based on type of device and protocol
-    SelectScsiTransferCommand(device, direction, &command, &maxSectorsPerCommand);
+    __SelectScsiTransferCommand(device, direction, &command, &maxSectorsPerCommand);
     sectorsToBeTransferred = MIN(sectorsToBeTransferred, maxSectorsPerCommand);
 
     // protect against zero reads
@@ -476,20 +510,22 @@ MsdTransferSectors(
         return OS_EINVALPARAMS;
     }
 
-    TRACE("[msd_transfer] command %u, max sectors for command %u", command, maxSectorsPerCommand);
-    transferStatus = __ExecuteCommand(
+    TRACE("__TransferSectors: command %u, max sectors for command %u", command, maxSectorsPerCommand);
+    oserr = __ExecuteCommand(
             device,
             direction == __STORAGE_OPERATION_WRITE,
             command,
             sector,
             bufferHandle,
             bufferOffset,
-            sectorsToBeTransferred * device->Descriptor.SectorSize);
-    if (transferStatus != USBTRANSFERCODE_SUCCESS) {
+            sectorsToBeTransferred * device->Descriptor.SectorSize,
+            &transferCode
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
         if (sectorsTransferred) {
             *sectorsTransferred = 0;
         }
-        return OS_EUNKNOWN;
+        return oserr;
     } else if (sectorsTransferred) {
         *sectorsTransferred = sectorsToBeTransferred;
         if (device->StatusBlock->DataResidue) {
@@ -507,16 +543,22 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
                                      const enum sys_transfer_direction direction, const unsigned int sectorLow, const unsigned int sectorHigh,
                                      const uuid_t bufferId, const size_t offset, const size_t sectorCount)
 {
-    MsdDevice_t*    device = MsdDeviceGet(deviceId);
+    MSDDevice_t* device = MsdDeviceGet(deviceId);
     oserr_t      status;
     UInteger64_t sector;
-    size_t          sectorsTransferred;
+    size_t       sectorsTransferred;
     
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
     
-    status = MsdTransferSectors(device, (int)direction, sector.QuadPart,
-        bufferId, offset, sectorCount,
-        &sectorsTransferred);
+    status = __TransferSectors(
+            device,
+            (int)direction,
+            sector.QuadPart,
+            bufferId,
+            offset,
+            sectorCount,
+            &sectorsTransferred
+    );
     ctt_storage_transfer_response(message, status, sectorsTransferred);
 }

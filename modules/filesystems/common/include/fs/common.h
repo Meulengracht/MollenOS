@@ -27,6 +27,7 @@
  * of all filesystem context structures.
  */
 struct FSBaseContext {
+    uint32_t                IOBufferAlignment;
     enum OSMemoryConformity IOConformity;
 };
 
