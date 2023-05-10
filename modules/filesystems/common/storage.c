@@ -48,9 +48,11 @@ FSBaseContextInitialize(
             if (oserr != OS_EOK) {
                 return oserr;
             }
+            fsBaseContext->IOBufferAlignment = ioRequirements.BufferAlignment;
             fsBaseContext->IOConformity = ioRequirements.Conformity;
         } break;
         case VFSSTORAGE_TYPE_FILE: {
+            fsBaseContext->IOBufferAlignment = 0;
             fsBaseContext->IOConformity = OSMEMORYCONFORMITY_NONE;
         } break;
     }

@@ -229,8 +229,8 @@ AhciManagerUnregisterDevice(
         }
     }
     assert(device != NULL);
-    
-    UnregisterStorage(device->Descriptor.DeviceID, 1);
+
+    __UnregisterStorage(device->Descriptor.DeviceID, 1);
     list_remove(&devices, &device->header);
 }
 
@@ -297,7 +297,7 @@ HandleIdentifyCommand(
     // Copy string data
     memcpy(&device->Descriptor.Model[0], (const void*)&deviceInformation->ModelNo[0], 40);
     memcpy(&device->Descriptor.Serial[0], (const void*)&deviceInformation->SerialNo[0], 20);
-    RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.DeviceID, device->Descriptor.Flags);
+    __RegisterStorage(GetNativeHandle(__crt_get_server_iod()), device->Descriptor.DeviceID, device->Descriptor.Flags);
 }
 
 void

@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,10 +13,6 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * Mass Storage Device Driver (Generic)
- *  - UFI Protocol Implementation
  */
 #define __TRACE
 
@@ -26,221 +20,243 @@
 #include <ddk/utils.h>
 #include "../msd.h"
 
-void
-UfiConstructCommand(
-    _In_ MsdCommandBlockUFI_t *CmdBlock,
-    _In_ uint8_t  ScsiCommand, 
-    _In_ uint64_t SectorLBA, 
-    _In_ uint32_t DataLen, 
-    _In_ uint16_t SectorSize)
+static void
+__ConstructUFICommand(
+    _In_ MsdCommandBlockUFI_t* cmdBlock,
+    _In_ uint8_t               scsiCommand,
+    _In_ uint64_t              sectorLba,
+    _In_ uint32_t              dataLen,
+    _In_ uint16_t              sectorSize)
 {
-    // Reset structure
-    memset((void*)CmdBlock, 0, sizeof(MsdCommandBlockUFI_t));
+    memset((void*)cmdBlock, 0, sizeof(MsdCommandBlockUFI_t));
     
     // Set initial members
-    CmdBlock->CommandBytes[0] = ScsiCommand;
+    cmdBlock->CommandBytes[0] = scsiCommand;
 
     // Switch between supported/implemented commands
-    switch (ScsiCommand) {
+    switch (scsiCommand) {
         // Request Sense - 6 (IN)
         case SCSI_REQUEST_SENSE: {
-            CmdBlock->CommandBytes[4] = 18; // Response Length
+            cmdBlock->CommandBytes[4] = 18; // Response Length
         } break;
 
         // Inquiry - 6 (IN)
         case SCSI_INQUIRY: {
-            CmdBlock->CommandBytes[4] = 36; // Response Length
+            cmdBlock->CommandBytes[4] = 36; // Response Length
         } break;
 
         // Read Capacities - 10 (IN)
         case SCSI_READ_CAPACITY: {
             // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+            cmdBlock->CommandBytes[2] = ((sectorLba >> 24) & 0xFF);
+            cmdBlock->CommandBytes[3] = ((sectorLba >> 16) & 0xFF);
+            cmdBlock->CommandBytes[4] = ((sectorLba >> 8) & 0xFF);
+            cmdBlock->CommandBytes[5] = (sectorLba & 0xFF);
         } break;
 
         // Read - 10 (IN)
         case SCSI_READ: {
-            uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
+            uint16_t NumSectors = (uint16_t)(dataLen / sectorSize);
+            if (dataLen % sectorSize) {
                 NumSectors++;
             }
 
             // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+            cmdBlock->CommandBytes[2] = ((sectorLba >> 24) & 0xFF);
+            cmdBlock->CommandBytes[3] = ((sectorLba >> 16) & 0xFF);
+            cmdBlock->CommandBytes[4] = ((sectorLba >> 8) & 0xFF);
+            cmdBlock->CommandBytes[5] = (sectorLba & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
+            cmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
+            cmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
         } break;
 
         // Write - 10 (OUT)
         case SCSI_WRITE: {
-            uint16_t NumSectors = (uint16_t)(DataLen / SectorSize);
-            if (DataLen % SectorSize) {
+            uint16_t NumSectors = (uint16_t)(dataLen / sectorSize);
+            if (dataLen % sectorSize) {
                 NumSectors++;
             }
 
             // LBA
-            CmdBlock->CommandBytes[2] = ((SectorLBA >> 24) & 0xFF);
-            CmdBlock->CommandBytes[3] = ((SectorLBA >> 16) & 0xFF);
-            CmdBlock->CommandBytes[4] = ((SectorLBA >> 8) & 0xFF);
-            CmdBlock->CommandBytes[5] = (SectorLBA & 0xFF);
+            cmdBlock->CommandBytes[2] = ((sectorLba >> 24) & 0xFF);
+            cmdBlock->CommandBytes[3] = ((sectorLba >> 16) & 0xFF);
+            cmdBlock->CommandBytes[4] = ((sectorLba >> 8) & 0xFF);
+            cmdBlock->CommandBytes[5] = (sectorLba & 0xFF);
 
             // Sector Count
-            CmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
-            CmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
+            cmdBlock->CommandBytes[7] = ((NumSectors >> 8) & 0xFF);
+            cmdBlock->CommandBytes[8] = (NumSectors & 0xFF);
         } break;
     }
 }
 
-oserr_t
-UfiInitialize(
-    _In_ MsdDevice_t *Device)
+static oserr_t
+__Initialize(
+        _In_ MSDDevice_t* device)
 {
     // Sanitize found endpoints
-    if (Device->In == NULL || Device->Out == NULL) {
+    if (device->In == NULL || device->Out == NULL) {
         ERROR("Either in or out endpoint not available on device");
         return OS_EUNKNOWN;
     }
 
     // If we are CBI and not CB, there must be interrupt
-    if (Device->Protocol == ProtocolCBI && Device->Interrupt == NULL) {
+    if (device->Protocol == ProtocolCBI && device->Interrupt == NULL) {
         ERROR("Protocol is CBI, but interrupt endpoint does not exist");
         return OS_EUNKNOWN;
     }
 
     // Reset data toggles for bulk-endpoints
-    if (UsbEndpointReset(&Device->Device->DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->In->Address)) != OS_EOK) {
+    if (UsbEndpointReset(&device->Device->DeviceContext,
+        USB_ENDPOINT_ADDRESS(device->In->Address)) != OS_EOK) {
         ERROR("Failed to reset endpoint (in)");
         return OS_EUNKNOWN;
     }
-    if (UsbEndpointReset(&Device->Device->DeviceContext,
-        USB_ENDPOINT_ADDRESS(Device->Out->Address)) != OS_EOK) {
+    if (UsbEndpointReset(&device->Device->DeviceContext,
+        USB_ENDPOINT_ADDRESS(device->Out->Address)) != OS_EOK) {
         ERROR("Failed to reset endpoint (out)");
         return OS_EUNKNOWN;
     }
-
     return OS_EOK;
 }
 
-enum USBTransferCode
-UfiSendCommand(
-        _In_ MsdDevice_t* Device,
-        _In_ uint8_t      ScsiCommand,
-        _In_ uint64_t     SectorStart,
-        _In_ size_t       DataLength)
+static oserr_t
+__SendCommand(
+        _In_  MSDDevice_t*          device,
+        _In_  uint8_t               scsiCommand,
+        _In_  uint64_t              sectorStart,
+        _In_  size_t                dataLength,
+        _Out_ enum USBTransferCode* transferCodeOut)
 {
-    MsdCommandBlockUFI_t UfiCommandBlock;
-    enum USBTransferCode  Result;
+    MsdCommandBlockUFI_t ufiCommandBlock;
+    enum USBTransferCode transferCode;
 
-    // Debug
-    TRACE("UfiSendCommand(Command %u, Start %u, Length %u)",
-        ScsiCommand, LODWORD(SectorStart), DataLength);
+    TRACE("__SendCommand(Command %u, Start %u, Length %u)",
+          scsiCommand, LODWORD(sectorStart), dataLength);
 
     // Construct our command build the usb transfer
-    UfiConstructCommand(&UfiCommandBlock, ScsiCommand, SectorStart,
-        DataLength, (uint16_t)Device->Descriptor.SectorSize);
-    Result = UsbExecutePacket(&Device->Device->DeviceContext, 
-        USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE, 0, 0, 0, 
-        (uint16_t)Device->InterfaceId, 
-        sizeof(MsdCommandBlockUFI_t), &UfiCommandBlock);
+    __ConstructUFICommand(
+            &ufiCommandBlock,
+            scsiCommand,
+            sectorStart,
+            dataLength,
+            (uint16_t)device->Descriptor.SectorSize
+    );
+    transferCode = UsbExecutePacket(
+            &device->Device->DeviceContext,
+            USBPACKET_DIRECTION_CLASS | USBPACKET_DIRECTION_INTERFACE,
+            0,
+            0,
+            0,
+            (uint16_t)device->InterfaceId,
+            sizeof(MsdCommandBlockUFI_t),
+            &ufiCommandBlock
+    );
 
     // Sanitize for any transport errors
-    if (Result != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Failed to send the CBW command, transfer-code %u", Result);
+    if (transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Failed to send the CBW command, transfer-code %u", transferCode);
     }
-    return Result;
+    *transferCodeOut = transferCode;
+    return OS_EOK;
 }
 
-enum USBTransferCode
-UfiReadData(
-        _In_  MsdDevice_t* Device,
-        _In_  uuid_t       BufferHandle,
-        _In_  size_t       BufferOffset,
-        _In_  size_t       DataLength,
-        _Out_ size_t*      BytesRead)
+static oserr_t
+__ReadData(
+        _In_  MSDDevice_t*          device,
+        _In_  uuid_t                bufferHandle,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                dataLength,
+        _Out_ enum USBTransferCode* transferCodeOut,
+        _Out_ size_t*               bytesReadOut)
 {
-    enum USBTransferCode transferResult;
+    enum USBTransferCode transferCode;
     USBTransfer_t        DataStage;
     oserr_t              oserr;
 
     UsbTransferInitialize(
             &DataStage,
-            &Device->Device->DeviceContext,
-            Device->In,
+            &device->Device->DeviceContext,
+            device->In,
             USBTRANSFER_TYPE_BULK,
             USBTRANSFER_DIRECTION_IN,
             0,
-            BufferHandle,
-            BufferOffset,
-            DataLength
+            bufferHandle,
+            bufferOffset,
+            dataLength
     );
 
-    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &transferResult, BytesRead);
-    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-in", oserr, transferResult);
+    oserr = UsbTransferQueue(
+            &device->Device->DeviceContext,
+            &DataStage,
+            &transferCode,
+            bytesReadOut
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-in", oserr, transferCode);
         // @todo handle
     }
-    
-    return transferResult;
+    *transferCodeOut = transferCode;
+    return oserr;
 }
 
-enum USBTransferCode
-UfiWriteData(
-        _In_  MsdDevice_t* Device,
-        _In_  uuid_t       BufferHandle,
-        _In_  size_t       BufferOffset,
-        _In_  size_t       DataLength,
-        _Out_ size_t*      BytesWritten)
+static oserr_t
+__WriteData(
+        _In_  MSDDevice_t*          device,
+        _In_  uuid_t                bufferHandle,
+        _In_  size_t                bufferOffset,
+        _In_  size_t                dataLength,
+        _Out_ enum USBTransferCode* transferCodeOut,
+        _Out_ size_t*               bytesWrittenOut)
 {
-    enum USBTransferCode transferResult;
-    USBTransfer_t        DataStage;
+    enum USBTransferCode transferCode;
+    USBTransfer_t        dataStage;
     oserr_t              oserr;
 
     // Perform the data-stage
     UsbTransferInitialize(
-            &DataStage,
-            &Device->Device->DeviceContext,
-            Device->Out,
+            &dataStage,
+            &device->Device->DeviceContext,
+            device->Out,
             USBTRANSFER_TYPE_BULK,
             USBTRANSFER_DIRECTION_OUT,
             0,
-            BufferHandle,
-            BufferOffset,
-            DataLength
+            bufferHandle,
+            bufferOffset,
+            dataLength
     );
 
-    oserr = UsbTransferQueue(&Device->Device->DeviceContext, &DataStage, &transferResult, BytesWritten);
-    if (oserr != OS_EOK || transferResult != USBTRANSFERCODE_SUCCESS) {
-        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-out", oserr, transferResult);
+    oserr = UsbTransferQueue(
+            &device->Device->DeviceContext,
+            &dataStage,
+            &transferCode,
+            bytesWrittenOut
+    );
+    if (oserr != OS_EOK || transferCode != USBTRANSFERCODE_SUCCESS) {
+        ERROR("Data-stage failed with status %u/%u, cleaning up bulk-out", oserr, transferCode);
         // @todo handle
     }
-    
-    return transferResult;
+
+    *transferCodeOut = transferCode;
+    return oserr;
 }
 
-/* UfiGetStatus
- * The status stage is not used in the ufi-protocol. Not implemented. */
-enum USBTransferCode
-UfiGetStatus(
-    _In_ MsdDevice_t *Device)
+static oserr_t
+__GetStatus(
+        _In_  MSDDevice_t*          device,
+        _Out_ enum USBTransferCode* transferCodeOut)
 {
-    // Unused
-    _CRT_UNUSED(Device);
-    return USBTRANSFERCODE_SUCCESS;
+    _CRT_UNUSED(device);
+    *transferCodeOut = USBTRANSFERCODE_SUCCESS;
+    return OS_EOK;
 }
 
-MsdOperations_t UfiOperations = {
-    UfiInitialize,
-    UfiSendCommand,
-    UfiReadData,
-    UfiWriteData,
-    UfiGetStatus
+MSDOperations_t UfiOperations = {
+        __Initialize,
+        __SendCommand,
+        __ReadData,
+        __WriteData,
+        __GetStatus
 };

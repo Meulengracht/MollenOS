@@ -256,7 +256,10 @@ __MapUserBufferRead(
 {
     return SHMConform(
             handle,
-            fsBaseContext->IOConformity,
+            &(SHMConformityOptions_t) {
+                .BufferAlignment = fsBaseContext->IOBufferAlignment,
+                .Conformity = fsBaseContext->IOConformity
+            },
             SHM_CONFORM_BACKFILL_ON_UNMAP,
             SHM_ACCESS_READ | SHM_ACCESS_WRITE,
             0,
@@ -311,7 +314,10 @@ __MapUserBufferWrite(
 {
     return SHMConform(
             handle,
-            fsBaseContext->IOConformity,
+            &(SHMConformityOptions_t) {
+                    .BufferAlignment = fsBaseContext->IOBufferAlignment,
+                    .Conformity = fsBaseContext->IOConformity
+            },
             SHM_CONFORM_FILL_ON_CREATION,
             SHM_ACCESS_READ,
             0,

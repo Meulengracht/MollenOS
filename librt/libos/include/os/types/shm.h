@@ -124,4 +124,15 @@ typedef struct SHMSGTable {
     int      Count;
 } SHMSGTable_t;
 
+typedef struct SHMConformityOptions {
+    // The alignment the buffer must have to be conformed. An alignment of 0
+    // means no alignment is required. The alignment must *always* be a power
+    // of two.
+    uint32_t BufferAlignment;
+    // The memory conformity is the location in physical memory that the memory
+    // range should reside. This is useful for drivers to specify requirements
+    // in terms of backwards compatability.
+    enum OSMemoryConformity Conformity;
+} SHMConformityOptions_t;
+
 #endif //!__OS_TYPES_SHM_H__

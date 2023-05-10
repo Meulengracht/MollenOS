@@ -22,6 +22,9 @@ install_cmake() {
           elif [ -d "/usr/local/share/cmake-${regex_match}" ]; then
               echo "** updating cmake platform in path /usr/local/share/cmake-${regex_match}"
               cp --verbose "$SCRIPTPATH"/*.cmake /usr/local/share/cmake-"${regex_match}"/Modules/Platform/
+          elif [ -d "/usr/share/cmake" ]; then
+              echo "** updating cmake platform in path /usr/share/cmake"
+              cp --verbose "$SCRIPTPATH"/*.cmake /usr/share/cmake/Modules/Platform/
           fi
   else
       echo "** ERROR: unknown cmake version that regex did not match ${CMAKE_VERSION}"

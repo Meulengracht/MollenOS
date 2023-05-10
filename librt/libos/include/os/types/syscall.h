@@ -19,8 +19,9 @@
 #define __TYPES_SYSCALL_H__
 
 #include <os/types/memory.h>
-#include <os/types/time.h>
 #include <os/types/syslog.h>
+#include <os/types/shm.h>
+#include <os/types/time.h>
 #include <time.h> // for clock_t
 
 typedef struct OSKernelLogEntry {
@@ -49,7 +50,7 @@ typedef struct OSFutexParameters {
 } OSFutexParameters_t;
 
 typedef struct OSSHMConformParameters {
-    enum OSMemoryConformity Conformity;
+    SHMConformityOptions_t* Conformity;
     unsigned int            Flags;
     unsigned int            Access;
     size_t                  Offset;
