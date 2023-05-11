@@ -1,6 +1,4 @@
 /**
- * MollenOS
- *
  * Copyright 2017, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
@@ -185,7 +183,7 @@ AhciManagerRegisterDevice(
 }
 
 static void
-RegisterStorage(
+__RegisterStorage(
         _In_ uuid_t       ProtocolServerId,
         _In_ uuid_t       DeviceId,
         _In_ unsigned int Flags)
@@ -200,7 +198,7 @@ RegisterStorage(
 }
 
 static void
-UnregisterStorage(
+__UnregisterStorage(
         _In_ uuid_t  deviceId,
         _In_ uint8_t forced)
 {
