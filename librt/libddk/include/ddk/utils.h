@@ -29,6 +29,7 @@
 /* Global <always-on> definitions
  * These are enabled no matter which kind of debugging is enabled */
 #define STR(str)               str
+#define NOTICE(...)            SystemDebug(OSSYSLOGLEVEL_TRACE, __VA_ARGS__)
 #define DEBUG(...)             SystemDebug(OSSYSLOGLEVEL_DEBUG, __VA_ARGS__)
 #define WARNING(...)           SystemDebug(OSSYSLOGLEVEL_WARNING, __VA_ARGS__)
 #define WARNING_IF(cond, ...)  { if ((cond)) { SystemDebug(OSSYSLOGLEVEL_WARNING, __VA_ARGS__); } }

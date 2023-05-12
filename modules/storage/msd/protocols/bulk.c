@@ -19,7 +19,7 @@
  *  - Bulk Protocol Implementation
  */
 
-#define __TRACE
+//#define __TRACE
 
 #define BULK_RESET      0x1
 #define BULK_RESET_IN   0x2
@@ -503,7 +503,6 @@ __ReadData(
 {
     enum USBTransferCode transferCode;
     USBTransfer_t        dataStage;
-    size_t               bytesTransferred = 0;
     oserr_t              oserr;
     TRACE("__ReadData(length=%u)", dataLength);
 
@@ -523,7 +522,7 @@ __ReadData(
             &device->Device->DeviceContext,
             &dataStage,
             &transferCode,
-            &bytesTransferred
+            bytesRead
     );
     // Sanitize for any transport errors
     // The host shall accept the data received.
@@ -537,9 +536,7 @@ __ReadData(
             __ResetRecovery(device, BULK_RESET_ALL);
         }
     }
-
     *transferCodeOut = transferCode;
-    *bytesRead = bytesTransferred;
     return oserr;
 }
 
@@ -554,9 +551,8 @@ __WriteData(
 {
     enum USBTransferCode transferCode;
     USBTransfer_t        DataStage;
-    size_t               bytesTransferred;
     oserr_t              oserr;
-    TRACE("__ReadData(length=%u)", dataLength);
+    TRACE("__WriteData(length=%u)", dataLength);
 
     // Perform the data-stage
     UsbTransferInitialize(
@@ -575,7 +571,7 @@ __WriteData(
             &device->Device->DeviceContext,
             &DataStage,
             &transferCode,
-            &bytesTransferred
+            bytesWrittenOut
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -592,9 +588,7 @@ __WriteData(
             __ResetRecovery(device, BULK_RESET_ALL);
         }
     }
-
     *transferCodeOut = transferCode;
-    *bytesWrittenOut = bytesTransferred;
     return oserr;
 }
 
@@ -604,13 +598,13 @@ __GetStatus(
         _Out_ enum USBTransferCode* transferCodeOut)
 {
     enum USBTransferCode transferCode;
-    USBTransfer_t        StatusStage;
+    USBTransfer_t        statusStage;
     size_t               bytesTransferred;
     oserr_t              oserr;
     TRACE("__GetStatus()");
 
     UsbTransferInitialize(
-            &StatusStage,
+            &statusStage,
             &device->Device->DeviceContext,
             device->In,
             USBTRANSFER_TYPE_BULK,
@@ -623,7 +617,7 @@ __GetStatus(
 
     oserr = UsbTransferQueue(
             &device->Device->DeviceContext,
-            &StatusStage,
+            &statusStage,
             &transferCode,
             &bytesTransferred
     );

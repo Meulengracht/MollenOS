@@ -52,8 +52,9 @@ __prewrite_buffer(
 
 size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
 {
-	size_t wrcnt   = size * count;
-	int    written = 0;
+	size_t      wrcnt   = size * count;
+	int         written = 0;
+    const char* p = vptr;
     TRACE("fwrite(count=%u)", wrcnt);
 
 	if (vptr == NULL || stream == NULL) {
@@ -81,12 +82,12 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
     // Fill the buffer before continuing, and flush if neccessary.
     if (__FILE_IsBuffered(stream) && __FILE_BufferPosition(stream) > 0) {
         int bytesAvailable = stream->BufferSize - __FILE_BufferPosition(stream);
-        int bytesWritten = __prewrite_buffer(stream, vptr, (int)wrcnt);
+        int bytesWritten = __prewrite_buffer(stream, p, (int)wrcnt);
         if (bytesWritten) {
             TRACE("fwrite: wrote %i bytes to internal buffer", bytesWritten);
             written += bytesWritten;
             wrcnt -= bytesWritten;
-            vptr = (const char*)vptr + bytesWritten;
+            p += bytesWritten;
         }
 
         // Should we flush?
@@ -120,13 +121,13 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
         // than what can fit in the buffer space, which means we just fill the buffer
         // and move on, or we need to write more than can fit.
         if (__FILE_IsBuffered(stream) && chunkSize < stream->BufferSize) {
-            bytesWritten = __prewrite_buffer(stream, vptr, chunkSize);
+            bytesWritten = __prewrite_buffer(stream, p, chunkSize);
             if (bytesWritten > 0) {
                 stream->Flags |= _IOMOD;
             }
         } else {
             TRACE("fwrite: writing %u bytes directly", chunkSize);
-            bytesWritten = write(stream->IOD, vptr, chunkSize);
+            bytesWritten = write(stream->IOD, p, chunkSize);
         }
         TRACE("fwrite: wrote %i bytes", bytesWritten);
 
@@ -136,7 +137,7 @@ size_t fwrite(const void* vptr, size_t size, size_t count, FILE* stream)
         } else if (bytesWritten > 0) {
             written += bytesWritten;
             wrcnt -= bytesWritten;
-            vptr = (const char*)vptr + bytesWritten;
+            p += bytesWritten;
         }
 	}
 	funlockfile(stream);

@@ -49,7 +49,7 @@ OHCITDIsochronous(
     iTd->Flags |= OHCI_TD_ACTIVE;
 
     iTd->Cbp       = element->Data.OHCI.Page0;
-    iTd->BufferEnd = element->Data.OHCI.Page1 + element->Data.OHCI.Offsets[frameCount - 1];
+    iTd->BufferEnd = element->Data.OHCI.Page1;
     for (int i = 0; i < frameCount; i++) {
         iTd->Offsets[i] = element->Data.OHCI.Offsets[i];
         iTd->OriginalOffsets[i] = element->Data.OHCI.Offsets[i];

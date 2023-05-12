@@ -25,6 +25,10 @@
 #include <os/spinlock.h>
 #include <threads.h>
 
+#define __XPAGE(_a) ((_a) & ~((uintptr_t)0xFFF))
+#define __XPAGEOFFSET(_a) ((_a) & 0xFFF)
+#define __XUPPAGE(_a) (__XPAGE(_a) + 0x1000)
+
 #define __USBTRANSFER_FLAG_SHORT       0x1
 #define __USBTRANSFER_FLAG_NOTIFIED    0x2
 #define __USBTRANSFER_FLAG_SILENT      0x4

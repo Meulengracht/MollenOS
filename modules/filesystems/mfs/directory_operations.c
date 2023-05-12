@@ -150,10 +150,7 @@ FsReadFromDirectory(
         if (position == (entry->BucketByteBoundary + bucketSize)) {
             TRACE("read_metrics::position %u, limit %u", LODWORD(position),
                 LODWORD(entry->BucketByteBoundary + bucketSize));
-            oserr = MFSAdvanceToNextBucket(
-                    mfs, entry,
-                    mfs->SectorsPerBucket * mfs->SectorSize
-            );
+            oserr = MFSAdvanceToNextBucket(mfs, entry);
             if (oserr != OS_EOK) {
                 if (oserr == OS_ENOENT) {
                     oserr = OS_EOK;

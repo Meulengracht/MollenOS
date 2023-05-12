@@ -321,14 +321,12 @@ MFSBucketMapSetLinkAndLength(
  * @brief
  * @param mfs
  * @param entry
- * @param bucketSizeBytes
  * @return
  */
 extern oserr_t
 MFSAdvanceToNextBucket(
         _In_ FileSystemMFS_t* mfs,
-        _In_ MFSEntry_t*      entry,
-        _In_ size_t           bucketSizeBytes);
+        _In_ MFSEntry_t*      entry);
 
 /* MfsZeroBucket
  * Wipes the given bucket and count with zero values

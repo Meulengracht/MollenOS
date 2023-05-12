@@ -206,7 +206,7 @@ __read_large(
         TRACE("__read_large: aligning buffer=0x%" PRIxIN ", align=0x%" PRIxIN,
               buffer, bytesToAlign);
         oserr = __file_read(handle, buffer, bytesToAlign, bytesReadOut);
-        if (oserr != OS_EOK) {
+        if (oserr != OS_EOK || *bytesReadOut == 0) {
             return oserr;
         }
         adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
@@ -302,7 +302,7 @@ __write_large(
         TRACE("__write_large: aligning buffer=0x%" PRIxIN ", align=0x%" PRIxIN,
               buffer, bytesToAlign);
         oserr = __file_write(handle, buffer, bytesToAlign, bytesWrittenOut);
-        if (oserr != OS_EOK) {
+        if (oserr != OS_EOK|| *bytesWrittenOut == 0) {
             return oserr;
         }
         adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);

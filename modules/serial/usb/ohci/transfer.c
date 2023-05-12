@@ -191,7 +191,7 @@ __GetBytesLeft(
     return sgTable->Entries[index].Length - offset;
 }
 
-static inline void
+static inline oserr_t
 __CalculateTransferElementMetrics(
         _In_ enum USBTransferType    transferType,
         _In_ size_t                  maxPacketSize,
@@ -201,54 +201,87 @@ __CalculateTransferElementMetrics(
         _In_ size_t                  bytesLeft,
         _In_ struct TransferElement* element)
 {
-    int    index;
-    size_t offset;
-    TRACE("__CalculateTransferElementMetrics(offset=%u, mps=%u, len=%u)",
-          sgTableOffset, (uint32_t)maxPacketSize, transferLength);
-
-    // retrieve the initial index and offset into the SG table, based on the
-    // start offset, and the progress into the transaction.
-    SHMSGTableOffset(
-            sgTable,
-            sgTableOffset + (transferLength - bytesLeft),
-            &index,
-            &offset
-    );
-    TRACE("__CalculateTransferElementMetrics: index %i, offset: %u", index, (uint32_t)offset);
-    uintptr_t address = __GetAddress(sgTable, index, offset);
-    size_t    leftInSG = __GetBytesLeft(sgTable, index, offset);
+    uintptr_t address = 0;
+    size_t    leftInSG = 0;
     uint32_t  calculatedLength = 0;
     int       transactions = transferType == USBTRANSFER_TYPE_ISOC ? 8 : 1;
-    TRACE("__CalculateTransferElementMetrics: addr=0x%x, len=%u",
-          address, MIN(leftInSG, maxPacketSize));
-
-    // Set the first page of the transfer-element
-    element->Data.OHCI.Page0 = address & ~((uintptr_t)(0xFFF));
+    TRACE("__CalculateTransferElementMetrics(offset=%u, mps=%u, len=%u)",
+          sgTableOffset, (uint32_t)maxPacketSize, bytesLeft);
 
     for (int i = 0; i < transactions; i++) {
-        uint32_t transactionSize = MIN(maxPacketSize, MIN(bytesLeft, leftInSG));
-        element->Data.OHCI.Offsets[0] = address & 0xFFF;
+        uint32_t transactionSize;
 
-        // Increase the address to get the next offset
-        address += transactionSize;
-        calculatedLength += transactionSize;
-        leftInSG -= transactionSize;
+        // update address and leftInSG if no more bytes are left
         if (!leftInSG) {
-            // No more data left in the SG entry, move to next
-            SHMSGTableOffset(
+            int     index;
+            size_t  offset;
+            oserr_t oserr = SHMSGTableOffset(
                     sgTable,
-                    sgTableOffset + (transferLength - bytesLeft - calculatedLength),
+                    sgTableOffset + (transferLength - (bytesLeft - calculatedLength)),
                     &index,
                     &offset
             );
+            if (oserr != OS_EOK) {
+                // Invalid offset provided. This is weird. We cannot transfer more bytes
+                ERROR("__CalculateTransferElementMetrics: SG does not contain enough entries for data [0,%u,%u,%u]",
+                      (uint32_t)transferLength, (uint32_t)bytesLeft, (uint32_t)calculatedLength);
+                return oserr;
+            }
+            TRACE("__CalculateTransferElementMetrics: index %i, offset: %u", index, (uint32_t)offset);
             address = __GetAddress(sgTable, index, offset);
             leftInSG = __GetBytesLeft(sgTable, index, offset);
+            if (!element->Data.OHCI.Page0) {
+                // Set the first page of the transfer-element
+                element->Data.OHCI.Page0 = address & ~((uintptr_t)(0xFFF));
+                TRACE("__CalculateTransferElementMetrics: page0: 0x%x", (uint32_t)element->Data.OHCI.Page0);
+            }
+        }
+
+        // set the transaction offset, which is just the initial address
+        element->Data.OHCI.Offsets[i] = address & 0xFFF;
+
+        // Increase the address to get the next offset
+        transactionSize = MIN(maxPacketSize, MIN(bytesLeft, leftInSG));
+        calculatedLength += transactionSize;
+        address += transactionSize;
+        leftInSG -= transactionSize;
+        TRACE("__CalculateTransferElementMetrics: xaction[%i] addr=0x%" PRIxIN ", len=0x%x",
+              i, address, transactionSize);
+
+        // If there were no more bytes left in SG page, and we need to cross to the
+        // next page, it depends on whether there are more bytes left (bytesLeft > transactionSize)
+        // and that there is space in the packet (maxPacketSize > transactionSize)
+        if (!leftInSG && (bytesLeft > transactionSize) && (maxPacketSize > transactionSize)) {
+            int      index;
+            size_t   offset;
+            uint32_t bytesAlreadyTransacted = transactionSize;
+            oserr_t  oserr = SHMSGTableOffset(
+                    sgTable,
+                    sgTableOffset + (transferLength - (bytesLeft - calculatedLength)),
+                    &index,
+                    &offset
+            );
+            if (oserr != OS_EOK) {
+                ERROR("__CalculateTransferElementMetrics: SG does not contain enough entries for data [1,%u,%u,%u,%u]",
+                      (uint32_t)transferLength, (uint32_t)bytesLeft, (uint32_t)calculatedLength, transactionSize);
+                return oserr;
+            }
+            address = __GetAddress(sgTable, index, offset);
+            leftInSG = __GetBytesLeft(sgTable, index, offset);
+            transactionSize = MIN((maxPacketSize - bytesAlreadyTransacted), MIN((bytesLeft - bytesAlreadyTransacted), leftInSG));
+
+            calculatedLength += transactionSize;
+            address += transactionSize;
+            leftInSG -= transactionSize;
         }
     }
 
     // set the total length including the last buffer page accesses
     element->Length = calculatedLength;
-    element->Data.OHCI.Page1 = address & ~((uintptr_t)(0xFFF));
+    element->Data.OHCI.Page1 = (address - 1); // must point to the last byte
+    TRACE("__CalculateTransferElementMetrics: page1: 0x%x", (uint32_t)element->Data.OHCI.Page1);
+    TRACE("__CalculateTransferElementMetrics: total-len: 0x%x", calculatedLength);
+    return OS_EOK;
 }
 
 oserr_t
@@ -281,7 +314,7 @@ HCITransferElementsNeeded(
 
     while (bytesLeft) {
         struct TransferElement element;
-        __CalculateTransferElementMetrics(
+        oserr_t oserr = __CalculateTransferElementMetrics(
                 transfer->Type,
                 transfer->MaxPacketSize,
                 sgTable,
@@ -290,6 +323,9 @@ HCITransferElementsNeeded(
                 bytesLeft,
                 &element
         );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
 
         bytesLeft -= element.Length;
         tdsNeeded++;
@@ -324,19 +360,21 @@ HCITransferElementFill(
     // Handle control transfers a bit different due to control transfers needing
     // some additional packets.
     if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
-        __CalculateTransferElementMetrics(
+        oserr_t oserr = __CalculateTransferElementMetrics(
                 transfer->Type,
                 transfer->MaxPacketSize,
                 sgTable,
                 sgTableOffset,
-                transferLength,
-                bytesLeft,
+                sizeof(usb_packet_t),
+                sizeof(usb_packet_t),
                 &transfer->Elements[ei]
         );
+        if (oserr != OS_EOK) {
+            return;
+        }
 
-        // Override the type and length, as those are fixed for the setup packaet
+        // Override the typ, as those are fixed for the setup packet
         transfer->Elements[ei].Type = TRANSFERELEMENT_TYPE_SETUP;
-        transfer->Elements[ei].Length = sizeof(usb_packet_t);
         ei++;
         bytesLeft -= sizeof(usb_packet_t);
 
@@ -348,7 +386,7 @@ HCITransferElementFill(
     }
 
     while (bytesLeft) {
-        __CalculateTransferElementMetrics(
+        oserr_t oserr = __CalculateTransferElementMetrics(
                 transfer->Type,
                 transfer->MaxPacketSize,
                 sgTable,
@@ -357,6 +395,9 @@ HCITransferElementFill(
                 bytesLeft,
                 &transfer->Elements[ei]
         );
+        if (oserr != OS_EOK) {
+            return;
+        }
         transfer->Elements[ei].Type = __TransferElement_DirectionToType(direction);
         bytesLeft -= transfer->Elements[ei].Length;
         ei++;

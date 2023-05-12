@@ -169,7 +169,7 @@ FsReadFromFile(
         // Do we need to switch bucket?
         // We do if the position we have read to equals end of bucket
         if (position == (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes))) {
-            oserr = MFSAdvanceToNextBucket(mfs, entry, bucketSizeBytes);
+            oserr = MFSAdvanceToNextBucket(mfs, entry);
             if (oserr != OS_EOK) {
                 if (oserr == OS_ENOENT) {
                     oserr = OS_EOK;
@@ -226,6 +226,19 @@ FsWriteToFile(
     
     // Write in a loop to make sure we write all requested bytes
     while (bytesToWrite) {
+        // Determine whether we need to switch bucket as the first step of writing. Do
+        // this to avoid switching buckets when writing the last byte of a file. There will
+        // always be enough space to write because of Ensure.
+        TRACE("FsWriteToFile: position=0x%llx, boundary at 0x%llx",
+              position, (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes)));
+        if (position == (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes))) {
+            oserr = MFSAdvanceToNextBucket(mfs, entry);
+            if (oserr != OS_EOK) {
+                ERROR("FsWriteToFile: failed to get next data bucket: %u", oserr);
+                break;
+            }
+        }
+
         // Calculate which bucket, then the sector offset
         // Then calculate how many sectors of the bucket we need to read
         uint64_t bucketSector       = MFS_GETSECTOR(mfs, entry->DataBucketPosition);
@@ -236,6 +249,8 @@ FsWriteToFile(
         size_t   sectorsWritten;
         size_t   byteCount;
 
+        TRACE("FsWriteToFile: position=0x%llx, entry->BucketByteBoundary=0x%llx",
+              position, entry->BucketByteBoundary);
         TRACE("FsWriteToFile: bucketSector=0x%llx, sectorIndex=0x%" PRIxIN ", sectorOffset=0x%llx",
               bucketSector, bucketSectorOffset, sectorIndex);
 
@@ -341,22 +356,11 @@ FsWriteToFile(
                 byteCount = (mfs->SectorSize * sectorsWritten) - bucketSectorOffset;
             }
 
-            TRACE("FsWriteToFile: written 0x%" PRIuIN " bytes", byteCount);
+            TRACE("FsWriteToFile: written %" PRIuIN " bytes", byteCount);
             *unitsWritten += byteCount;
             accumOffset   += byteCount;
             position      += byteCount;
             bytesToWrite  -= byteCount;
-        }
-
-        // Do we need to switch bucket?
-        // We do if the position we have read to equals end of bucket
-        TRACE("FsWriteToFile: position=0x%llx, boundary at 0x%llx",
-              position, (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes)));
-        if (position == (entry->BucketByteBoundary + (entry->DataBucketLength * bucketSizeBytes))) {
-            oserr = MFSAdvanceToNextBucket(mfs, entry, bucketSizeBytes);
-            if (oserr != OS_EOK) {
-                break;
-            }
         }
     }
 
