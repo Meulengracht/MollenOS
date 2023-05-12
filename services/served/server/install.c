@@ -163,7 +163,7 @@ oserr_t InstallApplication(mstring_t* path, const char* basename)
     struct Application* application;
     mstring_t*          publisher;
     oserr_t             oserr;
-    TRACE("InstallApplication(path=%ms, basename=%s)", path, basename);
+    DEBUG("InstallApplication(path=%ms, basename=%s)", path, basename);
 
     oserr = __GetPublisher(basename, &publisher);
     if (oserr != OS_EOK) {
@@ -186,7 +186,7 @@ void InstallBundledApplications(void)
 {
     struct DIR*    setupDir;
     struct dirent* entry;
-    TRACE("InstallBundledApplications()");
+    DEBUG("InstallBundledApplications()");
 
     setupDir = opendir("/data/setup");
     if (setupDir == NULL) {
@@ -214,4 +214,5 @@ void InstallBundledApplications(void)
     if (unlink("/data/setup")) {
         ERROR("InstallBundledApplications failed to remove /data/setup: %i", errno);
     }
+    DEBUG("InstallBundledApplications: bundled applications has been installed");
 }

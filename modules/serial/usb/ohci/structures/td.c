@@ -28,7 +28,7 @@ OHCITDSetup(
         _In_ OhciTransferDescriptor_t* td,
         _In_ struct TransferElement*   element)
 {
-    TRACE("OHCITDSetup(dataAddress=0x%x)", dataAddress);
+    TRACE("OHCITDSetup(dataAddress=0x%x)", element->Data.OHCI.Page0 + element->Data.OHCI.Offsets[0]);
 
     /**
      * When calling these initializers for TDs, the TDs have already been
@@ -60,7 +60,7 @@ OHCITDData(
         _In_ struct TransferElement*    element,
         _In_ int                        toggle)
 {
-    TRACE("OHCITDData(length=%u)", length);
+    TRACE("OHCITDData(length=%u)", element->Length);
 
     /**
      * When calling these initializers for TDs, the TDs have already been
@@ -160,11 +160,36 @@ OHCITDVerify(
     // Calculate length transferred 
     // Take into consideration the N-1 
     if (__Transfer_IsAsync(scanContext->Transfer) && td->BufferEnd != 0) {
-        int bytesTransferred;
-        int bytesRequested = (int)(td->BufferEnd - td->OriginalCbp) + 1;
+        uint32_t bytesTransferred;
+        uint32_t bytesRequested;
 
-        if (td->Cbp == 0) bytesTransferred = bytesRequested;
-        else              bytesTransferred = (int)(td->Cbp - td->OriginalCbp);
+        // Is CBP and BE crossing a page?
+        if (__XPAGE(td->OriginalCbp) != __XPAGE(td->BufferEnd)) {
+            uint32_t bytesPage0 = __XUPPAGE(td->OriginalCbp) - td->OriginalCbp;
+            uint32_t bytesPage1 = __XPAGEOFFSET(td->BufferEnd);
+            bytesRequested = bytesPage0 + bytesPage1 + 1;
+
+            if (td->Cbp == 0) {
+                bytesTransferred = bytesRequested;
+            } else {
+                // Partial transfer, we need to determine whether Cbp is on the
+                // page 0 or 1
+                if (__XPAGE(td->Cbp) == __XPAGE(td->OriginalCbp)) {
+                    bytesTransferred = td->Cbp - td->OriginalCbp;
+                } else {
+                    // We still did cross transfer
+                    bytesTransferred = bytesPage0 + __XPAGEOFFSET(td->Cbp);
+                }
+            }
+        } else {
+            // Otherwise all transfers are done in the same page, much easier.
+            bytesRequested = (td->BufferEnd - td->OriginalCbp) + 1;
+            if (td->Cbp == 0) {
+                bytesTransferred = bytesRequested;
+            } else {
+                bytesTransferred = td->Cbp - td->OriginalCbp;
+            }
+        }
         TRACE("OHCITDVerify: td has transferred %i bytes", bytesTransferred);
 
         if (bytesTransferred < bytesRequested) {

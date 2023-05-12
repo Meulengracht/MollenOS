@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -167,9 +165,13 @@ __ExecuteCommand(
 
     TRACE("__ExecuteCommand(Direction %i, Command 0x%x, Start %u, Length %u)",
           direction, scsiCommand, LODWORD(sectorStart), dataLength);
+    if (direction != __STORAGE_OPERATION_READ && direction != __STORAGE_OPERATION_WRITE) {
+        ERROR("__ExecuteCommand: unsupported direction");
+        return OS_EINVALPARAMS;
+    }
 
     // It is invalid to send zero length packets for bulk
-    if (direction == 1 && dataLength == 0) {
+    if (direction == __STORAGE_OPERATION_WRITE && dataLength == 0) {
         ERROR("__ExecuteCommand: cannot write data of length 0 to MSD devices.");
         return OS_EINVALPARAMS;
     }
@@ -192,7 +194,7 @@ __ExecuteCommand(
     // Do the data stage (shared for all protocol)
     while (bytesLeft != 0) {
         size_t bytesTransferred = 0;
-        if (direction == 0) {
+        if (direction == __STORAGE_OPERATION_READ) {
             oserr = device->Operations->ReadData(
                     device,
                     bufferHandle,
@@ -201,7 +203,7 @@ __ExecuteCommand(
                     &transferCode,
                     &bytesTransferred
             );
-        } else {
+        } else if (direction == __STORAGE_OPERATION_WRITE) {
             oserr = device->Operations->WriteData(
                     device,
                     bufferHandle,
@@ -214,6 +216,7 @@ __ExecuteCommand(
         if (oserr != OS_EOK) {
             return oserr;
         }
+        TRACE("__ExecuteCommand: bytes-transferred: 0x%llx", bytesTransferred);
 
         if (transferCode != USBTRANSFERCODE_SUCCESS && transferCode != USBTRANSFERCODE_STALL) {
             ERROR("__ExecuteCommand: failed to transfer data, skipping status stage");
@@ -262,7 +265,7 @@ __RequestSenseReady(
     if (device->Protocol != ProtocolCB && device->Protocol != ProtocolCBI) {
         oserr = __ExecuteCommand(
                 device,
-                0,
+                __STORAGE_OPERATION_READ,
                 SCSI_TEST_UNIT_READY,
                 0,
                 0,
@@ -281,7 +284,7 @@ __RequestSenseReady(
     // Now request the sense-status
     oserr = __ExecuteCommand(
             device,
-            0,
+            __STORAGE_OPERATION_READ,
             SCSI_REQUEST_SENSE,
             0,
             dma_pool_handle(UsbRetrievePool()),
@@ -335,7 +338,7 @@ __ReadCapabilities(
 
     oserr = __ExecuteCommand(
             device,
-            0,
+            __STORAGE_OPERATION_READ,
             SCSI_READ_CAPACITY,
             0,
             dma_pool_handle(UsbRetrievePool()),
@@ -356,7 +359,7 @@ __ReadCapabilities(
         // Perform extended-caps read command
         oserr = __ExecuteCommand(
                 device,
-                0,
+                __STORAGE_OPERATION_READ,
                 SCSI_READ_CAPACITY_16,
                 0,
                 dma_pool_handle(UsbRetrievePool()),
@@ -413,7 +416,7 @@ MSDDeviceStart(
 
     oserr = __ExecuteCommand(
             device,
-            0,
+            __STORAGE_OPERATION_READ,
             SCSI_INQUIRY,
             0,
             dma_pool_handle(UsbRetrievePool()),
@@ -513,7 +516,7 @@ __TransferSectors(
     TRACE("__TransferSectors: command %u, max sectors for command %u", command, maxSectorsPerCommand);
     oserr = __ExecuteCommand(
             device,
-            direction == __STORAGE_OPERATION_WRITE,
+            direction,
             command,
             sector,
             bufferHandle,

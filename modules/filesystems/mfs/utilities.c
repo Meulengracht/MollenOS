@@ -179,10 +179,10 @@ MfsEnsureRecordSpace(
         size_t      sectorCount = (size_t)(DIVUP((spaceRequired - entry->AllocatedSize), mfs->SectorSize));
         size_t      bucketCount = DIVUP(sectorCount, mfs->SectorsPerBucket);
         uint32_t    bucketPointer, previousBucketPointer;
-        MapRecord_t iterator, link;
+        MapRecord_t iterator, record;
 
         // Perform the allocation of buckets
-        if (MFSBucketMapAllocate(mfs, bucketCount, &link) != OS_EOK) {
+        if (MFSBucketMapAllocate(mfs, bucketCount, &record) != OS_EOK) {
             ERROR("Failed to allocate %u buckets for file", bucketCount);
             return OS_EDEVFAULT;
         }
@@ -193,7 +193,7 @@ MfsEnsureRecordSpace(
         while (bucketPointer != MFS_ENDOFCHAIN) {
             previousBucketPointer = bucketPointer;
             if (MFSBucketMapGetLengthAndLink(mfs, bucketPointer, &iterator) != OS_EOK) {
-                ERROR("MfsEnsureRecordSpace failed to get link for bucket %u", bucketPointer);
+                ERROR("MfsEnsureRecordSpace: failed to get record for bucket %u", bucketPointer);
                 return OS_EDEVFAULT;
             }
             bucketPointer = iterator.Link;
@@ -201,12 +201,16 @@ MfsEnsureRecordSpace(
 
         // We have a special case if previous == MFS_ENDOFCHAIN
         if (previousBucketPointer == MFS_ENDOFCHAIN) {
+            TRACE("MfsEnsureRecordSpace: initializing record %ms to start=0x%x, length=0x%x",
+                  entry->Name, record.Link, record.Length);
             // This means file had nothing allocated
-            entry->StartBucket = link.Link;
-            entry->StartLength = link.Length;
+            entry->StartBucket = record.Link;
+            entry->StartLength = record.Length;
         } else {
-            if (MFSBucketMapSetLinkAndLength(mfs, previousBucketPointer, link.Link, link.Length, true) != OS_EOK) {
-                ERROR("Failed to set link for bucket %u", previousBucketPointer);
+            TRACE("MfsEnsureRecordSpace: extending record %ms at bucket=0x%x with link=0x%x, length=0x%x",
+                  entry->Name, previousBucketPointer, record.Link, record.Length);
+            if (MFSBucketMapSetLinkAndLength(mfs, previousBucketPointer, record.Link, 0, false) != OS_EOK) {
+                ERROR("Failed to set record for bucket %u", previousBucketPointer);
                 return OS_EDEVFAULT;
             }
         }
@@ -233,33 +237,40 @@ MFSCloneBucketData(
 oserr_t
 MFSAdvanceToNextBucket(
         _In_ FileSystemMFS_t* mfs,
-        _In_ MFSEntry_t*      entry,
-        _In_ size_t           bucketSizeBytes)
+        _In_ MFSEntry_t*      entry)
 {
-    MapRecord_t link;
+    MapRecord_t record;
     uint32_t    nextDataBucketPosition;
+    size_t      bucketSizeBytes = mfs->SectorsPerBucket * mfs->SectorSize;
+    size_t      currentLinkLength;
 
-    // We have to look up the link for current bucket
-    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OS_EOK) {
-        ERROR("MFSAdvanceToNextBucket failed to get link for bucket %u", entry->DataBucketPosition);
+    // We have to look up the record for current bucket
+    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &record) != OS_EOK) {
+        ERROR("MFSAdvanceToNextBucket failed to get record for bucket %u", entry->DataBucketPosition);
         return OS_EDEVFAULT;
     }
+    TRACE("MFSAdvanceToNextBucket: bucket 0x%x, record=0x%x, length=0x%x",
+          entry->DataBucketPosition, record.Link, record.Length);
 
     // Check for EOL
-    if (link.Link == MFS_ENDOFCHAIN) {
+    if (record.Link == MFS_ENDOFCHAIN) {
         return OS_ENOENT;
     }
-    nextDataBucketPosition = link.Link;
 
-    // Lookup length of link
-    if (MFSBucketMapGetLengthAndLink(mfs, entry->DataBucketPosition, &link) != OS_EOK) {
+    currentLinkLength = (record.Length * bucketSizeBytes);
+    nextDataBucketPosition = record.Link;
+
+    // Lookup length of record
+    if (MFSBucketMapGetLengthAndLink(mfs, record.Link, &record) != OS_EOK) {
         ERROR("Failed to get length for bucket %u", entry->DataBucketPosition);
         return OS_EDEVFAULT;
     }
+    TRACE("MFSAdvanceToNextBucket: bucket 0x%x, record=0x%x, length=0x%x",
+          nextDataBucketPosition, record.Link, record.Length);
 
     // Store length & Update bucket boundary
+    entry->BucketByteBoundary += currentLinkLength;
     entry->DataBucketPosition = nextDataBucketPosition;
-    entry->DataBucketLength   = link.Length;
-    entry->BucketByteBoundary += (link.Length * bucketSizeBytes);
+    entry->DataBucketLength   = record.Length;
     return OS_EOK;
 }
