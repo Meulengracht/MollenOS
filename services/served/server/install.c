@@ -182,6 +182,18 @@ oserr_t InstallApplication(mstring_t* path, const char* basename)
     return __RegisterApplication(application);
 }
 
+static void
+__RemoveApplication(
+        _In_ mstring_t* path)
+{
+    TRACE("__RemoveApplication(path=%ms)", path);
+    char* pathu8 = mstr_u8(path);
+    if (unlink(pathu8)) {
+        ERROR("__RemoveApplication: failed to unlink path %s", pathu8);
+    }
+    free(pathu8);
+}
+
 void InstallBundledApplications(void)
 {
     struct DIR*    setupDir;
@@ -197,15 +209,11 @@ void InstallBundledApplications(void)
 
     while ((entry = readdir(setupDir)) != NULL) {
         mstring_t* path = mstr_fmt("/data/setup/%s", &entry->d_name[0]);
-        oserr_t oserr = InstallApplication(path, &entry->d_name[0]);
+        oserr_t    oserr = InstallApplication(path, &entry->d_name[0]);
         if (oserr != OS_EOK) {
-            // Not a compatable file, delete it
-            char* pathu8 = mstr_u8(path);
-            if (unlink(pathu8)) {
-                ERROR("InstallBundledApplications failed to unlink path %s", pathu8);
-            }
-            free(pathu8);
+            ERROR("InstallBundledApplications: failed to install %ms", path);
         }
+        __RemoveApplication(path);
         mstr_delete(path);
     }
 

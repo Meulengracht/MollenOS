@@ -110,7 +110,7 @@ AcquireHandleOfType(
  */
 KERNELAPI void* KERNELABI
 LookupHandleOfType(
-        _In_ uuid_t       handleId,
-        _In_ HandleType_t handleType);
+        _In_ uuid_t       ID,
+        _In_ HandleType_t type);
 
 #endif //! __HANDLE_H__

@@ -16,7 +16,7 @@
  *
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/convert.h>
 #include <ddk/utils.h>

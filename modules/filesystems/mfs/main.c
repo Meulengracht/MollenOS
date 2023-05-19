@@ -144,33 +144,34 @@ FsStat(
 
 oserr_t
 FsUnlink(
-        _In_  void*     instanceData,
+        _In_ void*      instanceData,
         _In_ mstring_t* path)
 {
     FileSystemMFS_t* mfs = instanceData;
-    oserr_t          osStatus;
+    oserr_t          oserr;
     MFSEntry_t*      mfsEntry;
+    TRACE("FsUnlink(%ms)", path);
 
-    osStatus = MfsLocateRecord(
+    oserr = MfsLocateRecord(
             mfs,
             &mfs->RootEntry,
             path,
             &mfsEntry);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    osStatus = MfsFreeBuckets(mfs, mfsEntry->StartBucket, mfsEntry->StartLength);
-    if (osStatus != OS_EOK) {
+    oserr = MfsFreeBuckets(mfs, mfsEntry->StartBucket, mfsEntry->StartLength);
+    if (oserr != OS_EOK) {
         ERROR("Failed to free the buckets at start 0x%x, length 0x%x",
               mfsEntry->StartBucket, mfsEntry->StartLength);
         goto cleanup;
     }
 
-    osStatus = MfsUpdateRecord(mfs, mfsEntry, MFS_ACTION_DELETE);
+    oserr = MfsUpdateRecord(mfs, mfsEntry, MFS_ACTION_DELETE);
 cleanup:
     MFSEntryDelete(mfsEntry);
-    return osStatus;
+    return oserr;
 }
 
 oserr_t

@@ -102,6 +102,8 @@ __SlowLock(
     irqstate_t intStatus;
     uuid_t     owner;
 
+    // TODO: Detect mutex locking during IRQs
+
     // Disable interrupts and try to acquire the lock or wait for the lock
     // to unlock if it's held on another CPU - however we only wait for a brief period
     intStatus = InterruptDisable();

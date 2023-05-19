@@ -304,6 +304,28 @@ SHMBufferLength(
 }
 
 size_t
+SHMBufferOffset(
+        _In_ OSHandle_t* handle)
+{
+    SHMHandle_t* shm;
+    if (handle == NULL || handle->Payload == NULL) {
+        return 0;
+    }
+    // The offset in the handle can mean two different things, either
+    // it means the actual offset the buffer was mapped with, or it means
+    // the offset into the source buffer. (Conforming buffers use this).
+    // This means that conformed buffers always have an effective offset of
+    // 0, so handle this correctly on a userspace level.
+    shm = handle->Payload;
+    if (shm->SourceID != UUID_INVALID) {
+        // The buffer is a conformed buffer, they *always* have effective
+        // offsets of 0.
+        return 0;
+    }
+    return shm->Offset;
+}
+
+size_t
 SHMBufferCapacity(
         _In_ OSHandle_t* handle)
 {

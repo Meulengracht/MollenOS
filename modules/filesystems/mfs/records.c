@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -211,6 +211,7 @@ __FindEntryOrFreeInDirectory(
         MapRecord_t   link;
         int           exitLoop = 0;
 
+        TRACE("__FindEntryOrFreeInDirectory: reading bucket %u", currentBucket);
         oserr = __ReadCurrentBucket(mfs, currentBucket, &link);
         if (oserr != OS_EOK) {
             ERROR("__FindEntryOrFreeInDirectory failed to read directory bucket");
@@ -505,21 +506,21 @@ MfsCreateRecord(
         _In_  uint32_t         startLength,
         _Out_ MFSEntry_t**     entryOut)
 {
-    oserr_t    osStatus;
+    oserr_t    oserr;
     MFSEntry_t nextEntry = { 0 };
 
     TRACE("MfsCreateRecord(fileSystem=%ms, flags=0x%x, path=%ms)",
           mfs->Label, flags, name);
 
-    osStatus = __FindEntryOrFreeInDirectory(
+    oserr = __FindEntryOrFreeInDirectory(
             mfs,
             entry,
             name,
             1,
             &nextEntry
     );
-    if (osStatus == OS_ENOENT) {
-        osStatus = __CreateEntryInDirectory(
+    if (oserr == OS_ENOENT) {
+        oserr = __CreateEntryInDirectory(
                 mfs,
                 name,
                 owner,
@@ -536,6 +537,6 @@ MfsCreateRecord(
         );
     }
     __CleanupEntryIterator(&nextEntry);
-    TRACE("MfsCreateRecord returns=%u", osStatus);
-    return osStatus;
+    TRACE("MfsCreateRecord returns=%u", oserr);
+    return oserr;
 }

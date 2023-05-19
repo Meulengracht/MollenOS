@@ -16,7 +16,7 @@
  *
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <os/handle.h>
@@ -329,7 +329,7 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     struct VFSOperations* ops;
     struct VFS*           vfs;
     struct __VFSChild*    result;
-    oserr_t               osStatus, osStatus2;
+    oserr_t               oserr, oserr2;
     mstring_t*            nodePath;
     void*                 data;
 
@@ -352,21 +352,21 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     // make sure the first we do is verify it still does not exist
     result = hashtable_get(&node->Children, &(struct __VFSChild) { .Key = name });
     if (result != NULL) {
-        osStatus = OS_EEXISTS;
+        oserr = OS_EEXISTS;
         goto cleanup;
     }
 
-    osStatus = ops->Open(vfs->Interface, vfs->Data, nodePath, &data);
-    if (osStatus != OS_EOK) {
+    oserr = ops->Open(vfs->Interface, vfs->Data, nodePath, &data);
+    if (oserr != OS_EOK) {
         goto cleanup;
     }
 
-    osStatus = ops->Link(vfs->Interface, vfs->Data, data, name, target, symbolic);
-    if (osStatus != OS_EOK) {
+    oserr = ops->Link(vfs->Interface, vfs->Data, data, name, target, symbolic);
+    if (oserr != OS_EOK) {
         goto close;
     }
 
-    osStatus = VFSNodeChildNew(node->FileSystem, node, &(struct VFSStat) {
+    oserr = VFSNodeChildNew(node->FileSystem, node, &(struct VFSStat) {
             .Name = mstr_clone(name),
             .Size = mstr_bsize(target),
             .Owner = 0,
@@ -375,15 +375,15 @@ oserr_t VFSNodeCreateLinkChild(struct VFSNode* node, mstring_t* name, mstring_t*
     }, nodeOut);
 
 close:
-    osStatus2 = ops->Close(vfs->Interface, vfs->Data, data);
-    if (osStatus2 != OS_EOK) {
-        WARNING("__CreateInNode failed to cleanup handle with code %u", osStatus2);
+    oserr2 = ops->Close(vfs->Interface, vfs->Data, data);
+    if (oserr2 != OS_EOK) {
+        WARNING("__CreateInNode failed to cleanup handle with code %u", oserr2);
     }
 
 cleanup:
     usched_rwlock_w_demote(&node->Lock);
     mstr_delete(nodePath);
-    return osStatus;
+    return oserr;
 }
 
 struct __HandleExcCheckContext {

@@ -288,10 +288,8 @@ void VFSNodeDestroy(struct VFSNode* node)
     hashtable_destroy(&node->Mounts);
 
     mstr_delete(node->Name);
-    mstr_delete(node->Stats.Name);
-    if (node->Stats.LinkTarget != NULL) {
-        mstr_delete(node->Stats.LinkTarget);
-    }
+    // Stats.Name is a pointer to .Name
+    mstr_delete(node->Stats.LinkTarget);
     free(node);
 }
 

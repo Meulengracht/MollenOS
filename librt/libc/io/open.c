@@ -15,7 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define __TRACE
+//#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
 #include <errno.h>
@@ -152,7 +152,7 @@ __transfer(
         _In_  size_t  chunkSize,
         _In_  size_t  offset,
         _In_  size_t  length,
-        _Out_ size_t* bytesTransferreOut)
+        _Out_ size_t* bytesTransferedOut)
 {
     size_t  bytesLeft = length;
     oserr_t oserr;
@@ -182,7 +182,7 @@ __transfer(
         offset    += bytesTransferred;
     }
 
-    *bytesTransferreOut = length - bytesLeft;
+    *bytesTransferedOut = length - bytesLeft;
     return oserr;
 }
 
@@ -194,32 +194,14 @@ __read_large(
         _Out_ size_t*         bytesReadOut)
 {
     OSHandle_t shm;
-    void*      adjustedPointer = (void*)buffer;
-    size_t     adjustedLength  = length;
-    size_t     pageSize = MemoryPageSize();
     oserr_t    oserr;
     TRACE("__read_large(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
 
-    // enforce page alignment on the buffer
-    if ((uintptr_t)buffer & (pageSize - 1)) {
-        size_t bytesToAlign = pageSize - ((uintptr_t)buffer & (pageSize - 1));
-        TRACE("__read_large: aligning buffer=0x%" PRIxIN ", align=0x%" PRIxIN,
-              buffer, bytesToAlign);
-        oserr = __file_read(handle, buffer, bytesToAlign, bytesReadOut);
-        if (oserr != OS_EOK || *bytesReadOut == 0) {
-            return oserr;
-        }
-        adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
-        adjustedLength -= bytesToAlign;
-    }
-
-    TRACE("__read_large: exporting buffer=0x%" PRIxIN ", length=0x%" PRIxIN,
-          adjustedPointer, adjustedLength);
     oserr = SHMExport(
-            adjustedPointer,
+            buffer,
             &(SHM_t) {
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                    .Size = adjustedLength
+                    .Size = length
             },
             &shm
     );
@@ -232,15 +214,11 @@ __read_large(
             handle->OSHandle.ID,
             shm.ID,
             false,
-            adjustedLength,
+            length,
             0,
-            adjustedLength,
+            length,
             bytesReadOut
     );
-    if (*bytesReadOut == adjustedLength) {
-        *bytesReadOut = length;
-    }
-
     OSHandleDestroy(&shm);
     return oserr;
 }
@@ -290,32 +268,13 @@ __write_large(
         _Out_ size_t*         bytesWrittenOut)
 {
     OSHandle_t shm;
-    void*      adjustedPointer = (void*)buffer;
-    size_t     adjustedLength  = length;
-    size_t     pageSize = MemoryPageSize();
     oserr_t    oserr;
     TRACE("__write_large(buffer=0x%" PRIxIN ", length=%" PRIuIN ")", buffer, length);
-
-    // enforce page alignment on the buffer
-    if ((uintptr_t)buffer & (pageSize - 1)) {
-        size_t bytesToAlign = pageSize - ((uintptr_t)buffer & (pageSize - 1));
-        TRACE("__write_large: aligning buffer=0x%" PRIxIN ", align=0x%" PRIxIN,
-              buffer, bytesToAlign);
-        oserr = __file_write(handle, buffer, bytesToAlign, bytesWrittenOut);
-        if (oserr != OS_EOK|| *bytesWrittenOut == 0) {
-            return oserr;
-        }
-        adjustedPointer = (void*)((uintptr_t)buffer + bytesToAlign);
-        adjustedLength -= bytesToAlign;
-    }
-
-    TRACE("__write_large: exporting buffer=0x%" PRIxIN ", length=0x%" PRIxIN,
-          adjustedPointer, adjustedLength);
     oserr = SHMExport(
-            adjustedPointer,
+            (void*)buffer,
             &(SHM_t) {
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-                    .Size = adjustedLength
+                    .Size = length
             },
             &shm
     );
@@ -326,15 +285,12 @@ __write_large(
     oserr = __transfer(
             handle->OSHandle.ID, shm.ID,
             true,
-            adjustedLength,
+            length,
             0,
-            adjustedLength,
+            length,
             bytesWrittenOut
     );
     OSHandleDestroy(&shm);
-    if (*bytesWrittenOut == adjustedLength) {
-        *bytesWrittenOut = length;
-    }
     return oserr;
 }
 

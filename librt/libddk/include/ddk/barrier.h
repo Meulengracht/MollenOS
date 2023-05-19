@@ -78,7 +78,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //// Clang
 ///////////////////////////////////////////////////////////////////////////////
-#elif defined(__clang__)
+#elif defined(__clang__) || defined(__GNUC__)
 #define sw_mb()  __asm__ __volatile__ ( "" ::: "memory" )
 #define sw_rmb() __asm__ __volatile__ ( "" ::: "memory" )
 #define sw_wmb() __asm__ __volatile__ ( "" ::: "memory" )

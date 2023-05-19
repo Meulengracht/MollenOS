@@ -159,6 +159,18 @@ SHMBufferCapacity(
         _In_ OSHandle_t* handle));
 
 /**
+ * @brief Returns the current offset in use for the shared memory buffer handle.
+ * The value returned is only valid for buffers that have been mapped, or exported.
+ * That means either SHMMap, SHMConform or SHMExport must have been called on this
+ * handle.
+ * @param[In] handle The OS handle that represents a SHM buffer.
+ * @return The current offset into the underlying buffer region this mapping represents.
+ */
+CRTDECL(size_t,
+SHMBufferOffset(
+        _In_ OSHandle_t* handle));
+
+/**
  * Call this once with the count parameter to get the number of
  * scatter-gather entries, then the second time with the memory_sg parameter
  * to retrieve a list of all the entries

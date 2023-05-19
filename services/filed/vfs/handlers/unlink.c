@@ -22,7 +22,9 @@
 #include <vfs/vfs.h>
 #include "../private.h"
 
-static oserr_t __VerifyCanDelete(struct VFSNode* node)
+static oserr_t
+__VerifyCanDelete(
+        _In_ struct VFSNode* node)
 {
     // We do not allow bind mounted nodes to be deleted.
     if (!__NodeIsRegular(node)) {
@@ -35,7 +37,7 @@ static oserr_t __VerifyCanDelete(struct VFSNode* node)
     }
 
     // We do not allow deletion on nodes with open handles
-    if (node->Handles.element_size != 0) {
+    if (node->Handles.element_count != 0) {
         return OS_EBUSY;
     }
 
@@ -49,7 +51,9 @@ static oserr_t __VerifyCanDelete(struct VFSNode* node)
 // __DeleteNode is a helper for deleting a VFS node. The node that has been
 // passed must not be locked by the caller, AND the caller must hold a read lock
 // on the parent
-static oserr_t __DeleteNode(struct VFSNode* node)
+static oserr_t
+__DeleteNode(
+        _In_ struct VFSNode* node)
 {
     struct VFSOperations* ops;
     struct VFS*           vfs;
@@ -72,23 +76,26 @@ static oserr_t __DeleteNode(struct VFSNode* node)
     usched_rwlock_w_promote(&parent->Lock);
 
     // Get a write-lock on this node
-    usched_rwlock_r_lock(&node->Lock);
+    usched_rwlock_w_lock(&node->Lock);
 
     // Load node before deletion to make sure the node
-    // is up-to-date
+    // is up-to-date.
     oserr = VFSNodeEnsureLoaded(node);
     if (oserr != OS_EOK) {
+        ERROR("__DeleteNode: failed to ensure %ms was loaded: %u", node->Name, oserr);
         goto error;
     }
 
     oserr = __VerifyCanDelete(node);
     if (oserr != OS_EOK) {
+        ERROR("__DeleteNode: deletion checks failed: %u", oserr);
         goto error;
     }
 
     // OK at this point we are now allowed to perform the deletion
     oserr = ops->Unlink(vfs->Interface, vfs->Data, nodePath);
     if (oserr != OS_EOK) {
+        ERROR("__DeleteNode: failed to delete the underlying node: %u", oserr);
         goto error;
     }
 
@@ -97,9 +104,12 @@ static oserr_t __DeleteNode(struct VFSNode* node)
             &(struct __VFSChild) { .Key = node->Name }
     );
     VFSNodeDestroy(node);
+    goto done;
 
 error:
-    usched_rwlock_r_unlock(&node->Lock);
+    usched_rwlock_w_unlock(&node->Lock);
+
+done:
     usched_rwlock_w_demote(&parent->Lock);
     mstr_delete(nodePath);
     return oserr;
@@ -128,26 +138,29 @@ oserr_t VFSNodeUnlink(struct VFS* vfs, const char* cpath)
     mstr_delete(path);
 
     struct VFSNode* containingDirectory;
-    oserr_t         osStatus = VFSNodeGet(
-            vfs, containingDirectoryPath,
-            1, &containingDirectory);
+    oserr_t         oserr = VFSNodeGet(
+            vfs,
+            containingDirectoryPath,
+            1,
+            &containingDirectory
+    );
 
     mstr_delete(containingDirectoryPath);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     // Find the requested entry in the containing folder
     struct VFSNode* node;
-    osStatus = VFSNodeFind(containingDirectory, nodeName, &node);
-    if (osStatus != OS_EOK && osStatus != OS_ENOENT) {
+    oserr = VFSNodeFind(containingDirectory, nodeName, &node);
+    if (oserr != OS_EOK && oserr != OS_ENOENT) {
         goto exit;
     }
 
-    osStatus = __DeleteNode(node);
+    oserr = __DeleteNode(node);
 
 exit:
     VFSNodePut(containingDirectory);
     mstr_delete(nodeName);
-    return osStatus;
+    return oserr;
 }
