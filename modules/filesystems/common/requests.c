@@ -251,6 +251,7 @@ static inline oserr_t
 __MapUserBufferRead(
         _In_ struct FSBaseContext* fsBaseContext,
         _In_ uuid_t                handle,
+        _In_ size_t                offset,
         _In_ size_t                length,
         _In_ OSHandle_t*           shm)
 {
@@ -262,7 +263,7 @@ __MapUserBufferRead(
             },
             SHM_CONFORM_BACKFILL_ON_UNMAP,
             SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-            0,
+            offset,
             length,
             shm
     );
@@ -276,7 +277,13 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
     size_t     read;
     TRACE("ctt_filesystem_read_invocation()");
 
-    oserr = __MapUserBufferRead((void*)fsctx, params->buffer_id, (size_t)params->count, &shm);
+    oserr = __MapUserBufferRead(
+            (void*)fsctx,
+            params->buffer_id,
+            (size_t)params->offset,
+            (size_t)params->count,
+            &shm
+    );
     if (oserr != OS_EOK) {
         ctt_filesystem_read_response(message, oserr, 0);
         return;
@@ -285,9 +292,12 @@ void ctt_filesystem_read_invocation(struct gracht_message* message, const uintpt
     oserr = FsRead(
             (void*)fsctx,
             (void*)fctx,
-            params->buffer_id,
+            // Important (!) to note here that we are reading the effective buffer values which may
+            // have changed after calling SHMConform. We don't know anymore whether we have
+            // the original buffer anymore.
+            shm.ID,
             SHMBuffer(&shm),
-            params->offset,
+            SHMBufferOffset(&shm),
             (size_t)params->count, // TODO: be consistent with size units
             &read
     );
@@ -309,6 +319,7 @@ static inline oserr_t
 __MapUserBufferWrite(
         _In_ struct FSBaseContext* fsBaseContext,
         _In_ uuid_t                handle,
+        _In_ size_t                offset,
         _In_ size_t                length,
         _In_ OSHandle_t*           shm)
 {
@@ -320,7 +331,7 @@ __MapUserBufferWrite(
             },
             SHM_CONFORM_FILL_ON_CREATION,
             SHM_ACCESS_READ,
-            0,
+            offset,
             length,
             shm
     );
@@ -333,7 +344,13 @@ void ctt_filesystem_write_invocation(struct gracht_message* message, const uintp
     size_t     written;
     TRACE("ctt_filesystem_write_invocation()");
 
-    oserr = __MapUserBufferWrite((void*)fsctx, params->buffer_id, (size_t)params->count, &shm);
+    oserr = __MapUserBufferWrite(
+            (void*)fsctx,
+            params->buffer_id,
+            (size_t)params->offset,
+            (size_t)params->count,
+            &shm
+    );
     if (oserr != OS_EOK) {
         ctt_filesystem_write_response(message, oserr, 0);
         return;
@@ -342,9 +359,12 @@ void ctt_filesystem_write_invocation(struct gracht_message* message, const uintp
     oserr = FsWrite(
             (void*)fsctx,
             (void*)fctx,
-            params->buffer_id,
+            // Important (!) to note here that we are reading the effective buffer values which may
+            // have changed after calling SHMConform. We don't know anymore whether we have
+            // the original buffer anymore.
+            shm.ID,
             SHMBuffer(&shm),
-            params->offset,
+            SHMBufferOffset(&shm),
             (size_t)params->count, // TODO: be consistent with size units
             &written
     );

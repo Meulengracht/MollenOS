@@ -29,29 +29,25 @@
 #include <ds/queue.h>
 #include <debug.h>
 #include <handle.h>
-#include <heap.h>
 #include <threading.h>
 
-struct resource_handle {
-    uuid_t             id;
-    HandleType_t       type;
-    unsigned int       flags;
-    mstring_t*         path;
-    void*              resource;
-    int                references;
-    HandleDestructorFn destructor;
+// Handle is being destroyed
+#define __HANDLE_FLAG_DESTROYING 0x1
+
+struct ResourceHandle {
+    element_t          QueueHeader;
+    uuid_t             ID;
+    HandleType_t       Type;
+    unsigned int       Flags;
+    mstring_t*         Path;
+    void*              Resource;
+    int                References;
+    HandleDestructorFn Destructor;
 };
 
-struct handle_mapping {
+struct HandleMapping {
     mstring_t* path;
     uuid_t     handle;
-};
-
-struct handle_cleanup {
-    element_t          header;
-    mstring_t*         path;
-    void*              resource;
-    HandleDestructorFn destructor;
 };
 
 _Noreturn static void HandleJanitorThread(void* arg);
@@ -72,10 +68,10 @@ oserr_t
 InitializeHandles(void)
 {
     hashtable_construct(&g_handlemappings, HASHTABLE_MINIMUM_CAPACITY,
-                        sizeof(struct handle_mapping), mapping_hash,
+                        sizeof(struct HandleMapping), mapping_hash,
                         mapping_cmp);
     hashtable_construct(&g_handles, HASHTABLE_MINIMUM_CAPACITY,
-                        sizeof(struct resource_handle), handle_hash,
+                        sizeof(struct ResourceHandle), handle_hash,
                         handle_cmp);
     SpinlockConstruct(&g_handlesLock);
     atomic_store(&g_nextHandleId, 1);
@@ -91,35 +87,39 @@ InitializeHandleJanitor(void)
                         &g_janitorHandle);
 }
 
-static inline struct resource_handle*
-LookupSafeHandleInstance(
-        _In_ uuid_t handleId)
+static inline struct ResourceHandle*
+__LookupSafe(
+        _In_ uuid_t ID)
 {
-    struct resource_handle* handle;
+    struct ResourceHandle* handle;
     if (!atomic_load(&g_nextHandleId)) {
         return NULL;
     }
 
-    SpinlockAcquireIrq(&g_handlesLock);
-    handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
-    SpinlockReleaseIrq(&g_handlesLock);
+    handle = hashtable_get(&g_handles, &(struct ResourceHandle) { .ID = ID });
+    if (handle == NULL || (handle->Flags & __HANDLE_FLAG_DESTROYING)) {
+        return NULL;
+    }
     return handle;
 }
 
-static struct resource_handle*
+static struct ResourceHandle*
 __AcquireHandle(
         _In_ uuid_t handleId)
 {
-    struct resource_handle* handle;
+    struct ResourceHandle* handle;
     if (!atomic_load(&g_nextHandleId)) {
         return NULL;
     }
 
     SpinlockAcquireIrq(&g_handlesLock);
-    handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
-    if (handle) {
-        handle->references++;
+    handle = hashtable_get(&g_handles, &(struct ResourceHandle) { .ID = handleId });
+    if (handle == NULL || (handle->Flags & __HANDLE_FLAG_DESTROYING)) {
+        SpinlockReleaseIrq(&g_handlesLock);
+        return NULL;
     }
+
+    handle->References++;
     SpinlockReleaseIrq(&g_handlesLock);
     return handle;
 }
@@ -130,22 +130,23 @@ CreateHandle(
     _In_ HandleDestructorFn destructor,
     _In_ void*              resource)
 {
-    struct resource_handle handle;
-    void*                  existing;
+    struct ResourceHandle handle;
+    void*                 existing;
 
-    handle.id         = atomic_fetch_add(&g_nextHandleId, 1);
-    handle.type       = handleType;
-    handle.path       = NULL;
-    handle.resource   = resource;
-    handle.destructor = destructor;
-    handle.references = 1;
-    handle.flags      = 0;
+    ELEMENT_INIT(&handle.QueueHeader, NULL, NULL);
+    handle.ID         = atomic_fetch_add(&g_nextHandleId, 1);
+    handle.Type       = handleType;
+    handle.Path       = NULL;
+    handle.Resource   = resource;
+    handle.Destructor = destructor;
+    handle.References = 1;
+    handle.Flags      = 0;
 
     SpinlockAcquireIrq(&g_handlesLock);
     existing = hashtable_set(&g_handles, &handle);
     assert(existing == NULL);
     SpinlockReleaseIrq(&g_handlesLock);
-    return handle.id;
+    return handle.ID;
 }
 
 oserr_t
@@ -153,13 +154,15 @@ AcquireHandle(
         _In_  uuid_t handleId,
         _Out_ void** resourceOut)
 {
-    struct resource_handle* handle = __AcquireHandle(handleId);
+    struct ResourceHandle* handle;
+
+    handle = __AcquireHandle(handleId);
     if (!handle) {
         return OS_ENOENT;
     }
     
     if (resourceOut) {
-        *resourceOut = handle->resource;
+        *resourceOut = handle->Resource;
     }
     return OS_EOK;
 }
@@ -170,22 +173,22 @@ AcquireHandleOfType(
         _In_  HandleType_t handleType,
         _Out_ void**       resourceOut)
 {
-    struct resource_handle* handle;
+    struct ResourceHandle* handle;
 
     handle = __AcquireHandle(handleId);
     if (!handle) {
         return OS_ENOENT;
     }
 
-    if (handle->type != handleType) {
+    if (handle->Type != handleType) {
         ERROR("AcquireHandleOfType requested handle type %u, but handle was of type %u",
-              handleType, handle->type);
+              handleType, handle->Type);
         DestroyHandle(handleId);
         return OS_EUNKNOWN;
     }
 
     if (resourceOut) {
-        *resourceOut = handle->resource;
+        *resourceOut = handle->Resource;
     }
     return OS_EOK;
 }
@@ -195,10 +198,10 @@ RegisterHandlePath(
         _In_ uuid_t      handleId,
         _In_ const char* path)
 {
-    struct resource_handle* handle;
-    struct handle_mapping*  mapping;
+    struct ResourceHandle* handle;
+    struct HandleMapping*  mapping;
     mstring_t*              internalPath;
-    DEBUG("[handle_register_path] %u => %s", handleId, path);
+    DEBUG("RegisterHandlePath(id=%u, path=%s)", handleId, path);
 
     internalPath = mstr_new_u8(path);
 
@@ -208,20 +211,20 @@ RegisterHandlePath(
     }
 
     SpinlockAcquireIrq(&g_handlesLock);
-    handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
-    if (!handle) {
+    handle = __LookupSafe(handleId);
+    if (handle == NULL) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
         return OS_ENOENT;
     }
 
-    if (handle->path) {
+    if (handle->Path) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
         return OS_EUNKNOWN;
     }
 
-    mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
+    mapping = hashtable_get(&g_handlemappings, &(struct HandleMapping) { .path = internalPath });
     if (mapping) {
         SpinlockReleaseIrq(&g_handlesLock);
         mstr_delete(internalPath);
@@ -229,8 +232,8 @@ RegisterHandlePath(
     }
 
     // store the new mapping, and update the handle instance
-    hashtable_set(&g_handlemappings, &(struct handle_mapping) { .path = internalPath, .handle = handleId });
-    handle->path = internalPath;
+    hashtable_set(&g_handlemappings, &(struct HandleMapping) { .path = internalPath, .handle = handleId });
+    handle->Path = internalPath;
     SpinlockReleaseIrq(&g_handlesLock);
 
     return OS_EOK;
@@ -241,9 +244,9 @@ LookupHandleByPath(
         _In_  const char* path,
         _Out_ uuid_t*     handleOut)
 {
-    struct handle_mapping* mapping;
-    mstring_t*             internalPath;
-    TRACE("[handle_lookup_by_path] %s", path);
+    struct HandleMapping* mapping;
+    mstring_t*            internalPath;
+    TRACE("LookupHandleByPath(%s)", path);
 
     internalPath = mstr_new_u8(path);
 
@@ -253,7 +256,7 @@ LookupHandleByPath(
     }
 
     SpinlockAcquireIrq(&g_handlesLock);
-    mapping = hashtable_get(&g_handlemappings, &(struct handle_mapping) { .path = internalPath });
+    mapping = hashtable_get(&g_handlemappings, &(struct HandleMapping) { .path = internalPath });
     if (mapping && handleOut) {
         *handleOut = mapping->handle;
     }
@@ -264,78 +267,77 @@ LookupHandleByPath(
 
 void*
 LookupHandleOfType(
-        _In_ uuid_t       handleId,
-        _In_ HandleType_t handleType)
+        _In_ uuid_t       ID,
+        _In_ HandleType_t type)
 {
-    struct resource_handle* handle = LookupSafeHandleInstance(handleId);
-    if (!handle || handle->type != handleType) {
+    struct ResourceHandle* handle;
+    void*                  resource;
+
+    SpinlockAcquireIrq(&g_handlesLock);
+    handle = __LookupSafe(ID);
+    if (handle == NULL || handle->Type != type) {
+        SpinlockReleaseIrq(&g_handlesLock);
         return NULL;
     }
-    return handle->resource;
-}
 
-static void AddHandleToCleanup(
-        _In_ void*              resource,
-        _In_ HandleDestructorFn dctor,
-        _In_ mstring_t*         path)
-{
-    struct handle_cleanup* cleanup;
-
-    cleanup = kmalloc(sizeof(struct handle_cleanup));
-    assert(cleanup != NULL);
-
-    ELEMENT_INIT(&cleanup->header, NULL, cleanup);
-    cleanup->path       = path;
-    cleanup->resource   = resource;
-    cleanup->destructor = dctor;
-
-    queue_push(&g_cleanQueue, &cleanup->header);
-    SemaphoreSignal(&g_eventHandle, 1);
+    resource = handle->Resource;
+    SpinlockReleaseIrq(&g_handlesLock);
+    return resource;
 }
 
 oserr_t
 DestroyHandle(
         _In_ uuid_t handleId)
 {
-    struct resource_handle* handle;
-    void*                   resource;
-    HandleDestructorFn      dctor;
-    mstring_t*              path;
+    struct ResourceHandle* handle;
 
     SpinlockAcquireIrq(&g_handlesLock);
-    handle = hashtable_get(&g_handles, &(struct resource_handle) { .id = handleId });
-    if (!handle) {
+    handle = __LookupSafe(handleId);
+    if (handle == NULL) {
         SpinlockReleaseIrq(&g_handlesLock);
         return OS_ENOENT;
     }
 
     // do nothing if there still is active handles
-    handle->references--;
-    if (handle->references) {
+    handle->References--;
+    if (handle->References) {
         SpinlockReleaseIrq(&g_handlesLock);
         return OS_EINCOMPLETE;
     }
 
-    // store some resources before releaseing lock
-    resource = handle->resource;
-    dctor    = handle->destructor;
-    path     = handle->path;
-    if (path) {
-        hashtable_remove(&g_handlemappings, &(struct handle_mapping) { .path = path });
+    // mark handle for destruction
+    handle->Flags |= __HANDLE_FLAG_DESTROYING;
+    if (handle->Path) {
+        hashtable_remove(&g_handlemappings, &(struct HandleMapping) { .path = handle->Path });
     }
-    hashtable_remove(&g_handles, &(struct resource_handle) { .id = handleId });
     SpinlockReleaseIrq(&g_handlesLock);
 
-    AddHandleToCleanup(resource, dctor, path);
+    queue_push(&g_cleanQueue, &handle->QueueHeader);
+    SemaphoreSignal(&g_eventHandle, 1);
     return OS_EOK;
+}
+
+static void
+__CleanupHandle(
+        _In_ struct ResourceHandle* handle)
+{
+    if (handle->Destructor) {
+        handle->Destructor(handle->Resource);
+    }
+    if (handle->Path) {
+        mstr_delete(handle->Path);
+    }
+
+    SpinlockAcquireIrq(&g_handlesLock);
+    hashtable_remove(&g_handles, &(struct ResourceHandle) { .ID = handle->ID });
+    SpinlockReleaseIrq(&g_handlesLock);
 }
 
 _Noreturn static void
 HandleJanitorThread(
     _In_Opt_ void* arg)
 {
-    element_t*             element;
-    struct handle_cleanup* cleanup;
+    element_t* element;
     _CRT_UNUSED(arg);
     
     for (;;) {
@@ -343,15 +345,7 @@ HandleJanitorThread(
 
         element = queue_pop(&g_cleanQueue);
         while (element) {
-            cleanup = (struct handle_cleanup*)element->value;
-            if (cleanup->destructor) {
-                cleanup->destructor(cleanup->resource);
-            }
-            if (cleanup->path) {
-                mstr_delete(cleanup->path);
-            }
-            kfree(cleanup);
-
+            __CleanupHandle((struct ResourceHandle*)element);
             element = queue_pop(&g_cleanQueue);
         }
     }
@@ -359,28 +353,28 @@ HandleJanitorThread(
 
 static uint64_t mapping_hash(const void* element)
 {
-    const struct handle_mapping* entry = element;
+    const struct HandleMapping* entry = element;
     return mstr_hash(entry->path); // already unique identifier
 }
 
 static int mapping_cmp(const void* element1, const void* element2)
 {
-    const struct handle_mapping* lh = element1;
-    const struct handle_mapping* rh = element2;
+    const struct HandleMapping* lh = element1;
+    const struct HandleMapping* rh = element2;
     return mstr_cmp(lh->path, rh->path);
 }
 
 static uint64_t handle_hash(const void* element)
 {
-    const struct resource_handle* entry = element;
-    return entry->id; // already unique identifier
+    const struct ResourceHandle* entry = element;
+    return entry->ID; // already unique identifier
 }
 
 static int handle_cmp(const void* element1, const void* element2)
 {
-    const struct resource_handle* lh = element1;
-    const struct resource_handle* rh = element2;
+    const struct ResourceHandle* lh = element1;
+    const struct ResourceHandle* rh = element2;
 
     // return 0 on true, 1 on false
-    return lh->id == rh->id ? 0 : 1;
+    return lh->ID == rh->ID ? 0 : 1;
 }

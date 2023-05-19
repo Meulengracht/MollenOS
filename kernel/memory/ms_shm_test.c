@@ -851,7 +851,7 @@ void TestSHMConform_IsConformed(void** state)
     //    needs to contain the expected setup for the virtual region
     g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
     g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
-    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = 0x8400;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = (0x8400 + 0x856);
     g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
     g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE | MAPPING_READONLY;
     g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
@@ -1678,6 +1678,112 @@ void TestSHMMap_Simple(void** state)
     TeardownTest(state);
 }
 
+static void __CreateExportedSHM(SHMHandle_t* shm, const void* buffer, size_t size)
+{
+    int      pageCount;
+    paddr_t* pages;
+    oserr_t  oserr;
+    paddr_t  startAddress = 0x1000000;
+
+    // Create page array
+    pageCount = (int)((size + (GetMemorySpacePageSize() - 1)) / GetMemorySpacePageSize());
+    pages = test_malloc(pageCount * sizeof(paddr_t));
+    assert_non_null(pages);
+
+    for (int i = 0; i < pageCount; i++) {
+        pages[i] = startAddress + (i * GetMemorySpacePageSize());
+    }
+
+    // The following function calls are expected during normal
+    // creation:
+
+    // 1. CreateHandle, nothing really we care enough to check here except
+    //    that it gets invoked as expected. The default returned value is 1
+
+    // 2. GetMemorySpaceMapping
+    g_testContext.GetMemorySpaceMapping.ExpectedAddress    = (vaddr_t)buffer;
+    g_testContext.GetMemorySpaceMapping.CheckAddress       = true;
+    g_testContext.GetMemorySpaceMapping.ExpectedPageCount  = pageCount;
+    g_testContext.GetMemorySpaceMapping.CheckPageCount     = true;
+    g_testContext.GetMemorySpaceMapping.PageValues         = pages;
+    g_testContext.GetMemorySpaceMapping.PageValuesProvided = true;
+    g_testContext.GetMemorySpaceMapping.ReturnValue        = OS_EOK;
+
+    oserr = SHMExport(
+            (void*)buffer,
+            size,
+            0,
+            0,
+            shm
+    );
+
+    // free resources before asserting
+    test_free(pages);
+    assert_int_equal(oserr, OS_EOK);
+}
+
+void TestSHMMap_SimpleExported(void** state)
+{
+    oserr_t     oserr;
+    SHMHandle_t shm;
+    void*       buffer;
+    int         sgCount;
+    SHMSG_t*    sg;
+
+    // Allocate a new buffer, with wierd values
+    buffer = (void*)0x109586;
+
+    // Create a normal buffer we can use. It must not be comitted. The SHM
+    // is already filled, which we don't want as we are trying to make a separate
+    // mapping that is not the original.
+    __CreateExportedSHM(&shm, buffer, 0xC888);
+
+    // Ensure new mapping
+    shm.Buffer = NULL;
+
+    // 1. LookupHandleOfType
+    g_testContext.LookupHandleOfType.ReturnValue = g_testContext.CreateHandle.Calls[0].CreatedResource;
+
+    // 2. MemorySpaceMap, this is the most interesting call to check, as that
+    //    needs to contain the expected setup for the virtual region
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedSHMTag          = 1; // expect 1
+    g_testContext.MemorySpaceMap.Calls[0].CheckSHMTag             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedLength          = (0xC888 + 0x586);
+    g_testContext.MemorySpaceMap.Calls[0].CheckLength             = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
+    g_testContext.MemorySpaceMap.Calls[0].CheckFlags              = true;
+    g_testContext.MemorySpaceMap.Calls[0].ExpectedPlacement       = MAPPING_VIRTUAL_PROCESS | MAPPING_PHYSICAL_FIXED;
+    g_testContext.MemorySpaceMap.Calls[0].CheckPlacement          = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMapping         = 0x20000;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnedMappingProvided = true;
+    g_testContext.MemorySpaceMap.Calls[0].ReturnValue             = OS_EOK;
+    oserr = SHMMap(
+            &shm,
+            0,
+            shm.Capacity,
+            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+    );
+    assert_int_equal(oserr, OS_EOK);
+    assert_ptr_equal(shm.Buffer, (0x20000 + 0x586));
+    assert_int_equal(shm.Length, 0xC888);
+
+    // Ensure that the SG entry shows up correctly
+    oserr = SHMBuildSG(shm.ID, &sgCount, NULL);
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(sgCount, 1);
+
+    sg = test_malloc(sgCount * sizeof(SHMSG_t));
+    assert_non_null(sg);
+
+    oserr = SHMBuildSG(shm.ID, &sgCount, sg);
+    assert_int_equal(oserr, OS_EOK);
+    assert_int_equal(sg[0].Address, (0x1000000 + 0x586));
+    assert_int_equal(sg[0].Length, 0xCA7A);
+
+    test_free(sg);
+    TeardownTest(state);
+}
+
 void TestSHMMap_CanCommit(void** state)
 {
     oserr_t     oserr;
@@ -1741,7 +1847,7 @@ void TestSHMMap_CanRemap(void** state)
     // 2. MemorySpaceMap, expect a new mapping of 0x3000 when we map from page 2-4
     g_testContext.MemorySpaceMap.Calls[1].ExpectedSHMTag          = 1; // expect 1
     g_testContext.MemorySpaceMap.Calls[1].CheckSHMTag             = true;
-    g_testContext.MemorySpaceMap.Calls[1].ExpectedLength          = 0x2890;
+    g_testContext.MemorySpaceMap.Calls[1].ExpectedLength          = 0x3000;
     g_testContext.MemorySpaceMap.Calls[1].CheckLength             = true;
     g_testContext.MemorySpaceMap.Calls[1].ExpectedFlags           = MAPPING_PERSISTENT | MAPPING_USERSPACE;
     g_testContext.MemorySpaceMap.Calls[1].CheckFlags              = true;
@@ -1797,6 +1903,7 @@ int main(void)
             cmocka_unit_test_setup(TestSHMAttach_PrivateFailed, SetupTest),
             cmocka_unit_test_setup(TestSHMAttach_InvalidID, SetupTest),
             cmocka_unit_test_setup(TestSHMMap_Simple, SetupTest),
+            cmocka_unit_test_setup(TestSHMMap_SimpleExported, SetupTest),
             cmocka_unit_test_setup(TestSHMMap_CanCommit, SetupTest),
             cmocka_unit_test_setup(TestSHMMap_CanRemap, SetupTest),
     };

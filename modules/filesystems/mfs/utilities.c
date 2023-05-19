@@ -21,7 +21,7 @@
  *  - Contains the implementation of the MFS driver for mollenos
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -97,7 +97,7 @@ MfsUpdateRecord(
     oserr_t       oserr;
     FileRecord_t* record;
     size_t        sectorsTransferred;
-    TRACE("MfsUpdateEntry(File %ms)", entry->Name);
+    TRACE("MfsUpdateEntry(entry=%ms, action=%i)", entry->Name, action);
 
     // Read the stored data bucket where the record is
     oserr = FSStorageRead(

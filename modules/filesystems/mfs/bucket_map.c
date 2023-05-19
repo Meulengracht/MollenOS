@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+//#define __TRACE
 #define __need_minmax
 #include <ddk/utils.h>
 #include <fs/common.h>
@@ -24,6 +25,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO:
+//  - Implement bucket map transactions
+//     * BucketMapStartTransaction
+//     * BucketMapCommitTransaction
+//     * BucketMapAbortTransaction
+//  - Abstract the storage medium, multiple mediums
+//  - Expand buckets s to 64 bit.
+
 static oserr_t
 __UpdateMasterRecords(
         _In_ FileSystemMFS_t* mfs)
@@ -31,7 +40,6 @@ __UpdateMasterRecords(
     size_t  sectorsTransferred;
     oserr_t oserr;
     void*   buffer = SHMBuffer(&mfs->TransferBuffer);
-
     TRACE("__UpdateMasterRecords()");
 
     memset(buffer, 0, mfs->SectorSize);
@@ -74,8 +82,7 @@ MfsZeroBucket(
 {
     size_t i;
     size_t sectorsTransferred;
-
-    TRACE("MfsZeroBucket(Bucket %u, Count %u)", bucket, count);
+    TRACE("MfsZeroBucket(bucket=%u, count=%u)", bucket, count);
 
     memset(SHMBuffer(&mfs->TransferBuffer), 0, SHMBufferLength(&mfs->TransferBuffer));
     for (i = 0; i < count; i++) {
@@ -127,8 +134,8 @@ MFSBucketMapSetLinkAndLength(
     size_t   sectorOffset;
     size_t   sectorsTransferred;
     oserr_t  oserr;
-
-    TRACE("MFSBucketMapSetLinkAndLength(Bucket %u, Link %u)", bucket, link->Link);
+    TRACE("MFSBucketMapSetLinkAndLength(bucket=%u, link=%u, length=%u)",
+          bucket, link, length);
 
     // Update in-memory map first
     mfs->BucketMap[(bucket * 2)] = link;
@@ -196,12 +203,12 @@ MFSBucketMapAllocate(
             allocatedRecord->Length = MIN(bucketsLeft, currentRecord.Length);
         }
 
-        // If i is longer than the number of buckets we need to allocate, then we must
+        // If 'i' is longer than the number of buckets we need to allocate, then we must
         // split up i.
         // i0 with the length of the number of buckets to allocate
         // i1 who starts from i0+number of buckets to allocate, with a length adjusted
         if (currentRecord.Length > bucketsLeft) {
-            // Update the current record to reflect it's new length and link
+            // Update the current record to reflect its new length and link
             oserr = MFSBucketMapSetLinkAndLength(
                     mfs,
                     i,
@@ -233,6 +240,12 @@ MFSBucketMapAllocate(
             bucketsLeft = 0;
         } else if (currentRecord.Length == bucketsLeft) {
             bucketsLeft = 0;
+
+            // just relink the bucket
+            oserr = MFSBucketMapSetLinkAndLength(mfs, i, MFS_ENDOFCHAIN, 0, false);
+            if (oserr != OS_EOK) {
+                return oserr;
+            }
         } else {
             // The length is less, so we need to allocate this segment and move on
             // to the link

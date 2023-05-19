@@ -720,8 +720,7 @@ MemoryCacheAllocate(
             if (Slab->NumberOfFreeObjects == 1) {
                 list_remove(&Cache->PartialSlabs, Element);
             }
-        }
-        else {
+        } else {
             Element = list_front(&Cache->FreeSlabs);
             assert(Element != NULL);
             
@@ -741,8 +740,7 @@ MemoryCacheAllocate(
         Cache->NumberOfFreeObjects--;
         
         Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    }
-    else if (!(Cache->Flags & HEAP_SINGLE_SLAB)) {
+    } else if (!(Cache->Flags & HEAP_SINGLE_SLAB)) {
         Slab = __SlabCreate(Cache);
         if (!Slab) {
             MutexUnlock(&Cache->SyncObject);
@@ -755,15 +753,13 @@ MemoryCacheAllocate(
         
         if (!Slab->NumberOfFreeObjects) {
             list_append(&Cache->FullSlabs, &Slab->Header);
-        }
-        else {
+        } else {
             list_append(&Cache->PartialSlabs, &Slab->Header);
             Cache->NumberOfFreeObjects += (Cache->ObjectCount - 1);
         }
         
         Allocated = MEMORY_SLAB_ELEMENT(Cache, Slab, Index);
-    }
-    else {
+    } else {
         ERROR("[heap] [%s] ran out of objects %i/%i", Cache->Name,
             Cache->NumberOfFreeObjects, Cache->ObjectCount);
         Allocated = NULL;

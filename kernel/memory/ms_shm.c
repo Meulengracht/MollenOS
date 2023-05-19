@@ -1038,7 +1038,7 @@ __UpdateMapping(
     );
 }
 
-oserr_t
+static oserr_t
 __CreateMapping(
         _In_  struct SHMBuffer* shmBuffer,
         _In_  size_t            offset,
@@ -1073,7 +1073,11 @@ __CreateMapping(
             &(struct MemorySpaceMapOptions) {
                 .SHMTag = shmBuffer->ID,
                 .Pages = &shmBuffer->Pages[pageIndex],
-                .Length = length,
+                // Ensure that the length we are requesting pages for actually cover
+                // the asked mapping range. If we are requesting a mapping from 0xFFF0
+                // and 32 bytes, we will do a page-crossing, and actually we are requesting
+                // the entire first page.
+                .Length = (length + (actualOffset % pageSize)),
                 .Mask = shmBuffer->PageMask,
                 .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
                 .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
@@ -1137,6 +1141,7 @@ SHMMap(
     if (oserr != OS_EOK) {
         return oserr;
     }
+    TRACE("SHMMap: mapping: 0x%p\n", mapping);
 
     // Increase the mapping with the built-in offset
     // if this was an exported buffer
