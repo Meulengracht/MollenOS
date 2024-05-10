@@ -24,8 +24,6 @@
 #include <os/shm.h>
 #include <os/services/file.h>
 #include <os/usched/mutex.h>
-#include <os/memory.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -33,13 +31,13 @@
 struct __mmap_item {
     element_t Header;
 
-    // In the event that the fd get's closed while having mmap
-    // mappings around, we must also keep track of this handle
+    // In the event that the fd gets closed while having mmap
+    // mappings around, we must also keep track of this handle,
     // so we can properly expose of it once there are no more.
     OSHandle_t OSHandle;
 
-    // Also keep the io descriptor so we can verify whether or
-    // not it's closed. -1 If the mapping is anonymous.
+    // Also keep the io descriptor, so we can verify whether
+    // it's closed. -1 If the mapping is anonymous.
     int OriginalIOD;
 
     // The address and length of the mapping
@@ -114,7 +112,7 @@ __get_anonymous_flags(
     }
 
     // MAP_PRIVATE indicates we get our own private copy-on-write copy
-    // of the SHM buffer. However this makes no sense for anonymous files
+    // of the SHM buffer. However, this makes no sense for anonymous files
     // so we simply no-op the flag for now
     if (flags & MAP_PRIVATE) {
         printf("mmap: MAP_PRIVATE unsupported in combination with MAP_ANONYMOUS");

@@ -1,4 +1,4 @@
-project: 
+project:
   summary: Vali SDK for C
   description: |
     The base SDK and runtime for the C language. It is required to build any C applications
@@ -9,11 +9,14 @@ project:
   license: LGPL
   homepage: www.mollenos.com
 
-ingredients:
-- name: vali/clang-cc
-  platform: host
-  arch: host
-  channel: devel
+environment:
+  host:
+    packages:
+      - cmake
+      - python3
+    ingredients:
+      - name: vali/clang-cc
+        channel: devel
 
 recipes:
 - name: vali

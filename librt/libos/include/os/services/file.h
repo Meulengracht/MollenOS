@@ -311,6 +311,9 @@ GetFileInformationFromFd(
         _In_ int                 fileDescriptor,
         _In_ OSFileDescriptor_t* descriptor));
 
+// TODO: OSFileLock
+// TODO: OSFileUnlock
+
 /**
  * Available flags for creating fileviews
  */
