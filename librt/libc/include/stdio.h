@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,16 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *
- *
- * MollenOS C11-Support Io Implementation
- * - Definitions, prototypes and information needed.
  */
 
 #ifndef __STDC_STDIO__
 #define __STDC_STDIO__
 
+_CODE_BEGIN
+
 // list of types that should be exposed in stdio.h
+#define __need_NULL
 #define __need_size_t
 #define __need_wchar_t
 #define __need_wint_t
@@ -85,7 +82,6 @@
 typedef struct _FILE FILE;
 #endif
 
-_CODE_BEGIN
 CRTDECL(FILE*, __get_std_handle(int n));
 #define STDOUT_FILENO  (int)0
 #define STDIN_FILENO   (int)1

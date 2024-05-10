@@ -251,5 +251,8 @@ CRTDECL(oserr_t,
 OSProcessSetWorkingDirectory(
     _In_ const char* path));
 
+// TODO: OSProcessAssemblyPath
+// TODO: OSProcessMemoryLimit
+
 _CODE_END
 #endif //!__OS_SERVICES_PROCESS_H__
