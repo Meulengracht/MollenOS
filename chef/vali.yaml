@@ -42,8 +42,6 @@ recipes:
     system: cmake
     arguments: [-G, '"Unix Makefiles"', -DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
     env:
-      # Use the toolchain path defined by chef when using the 'toolchain'
-      # member in the recipe
       VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
       VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
 
@@ -51,6 +49,8 @@ recipes:
     type: build
     depends: [config]
     system: make
+    env:
+      VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
 
 packs:
 - name: sdk-c
