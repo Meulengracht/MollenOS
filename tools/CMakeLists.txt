@@ -16,7 +16,9 @@ macro (add_host_project PROJECT_DIR)
 endmacro ()
 
 # build host tool projects
-add_host_project (imager)
+if (VALI_BUILD_LOCAL_OSIMAGER)
+    add_host_project (imager)
+endif (VALI_BUILD_LOCAL_OSIMAGER)
 add_host_project (rd)
 add_host_project (lzss)
 add_host_project (file2c)

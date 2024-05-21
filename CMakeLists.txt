@@ -62,6 +62,7 @@ option (VALI_ENABLE_EHCI "Enable support for USB 2.0" ON)
 option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mode" OFF)
 
 option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
+option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" OFF)
 
 set (VALI_INIT_APP "vioarr.run" CACHE STRING "The application to execute for system initialization")
 
