@@ -40,7 +40,7 @@ install_dotnet() {
 
 install_imager() {
   echo "** installing snap support"
-  apt-get install snapd
+  apt-get -y -qq install snapd
   echo "** installing diskbuilder"
   snap install diskbuilder
   snap connect diskbuilder:process-control

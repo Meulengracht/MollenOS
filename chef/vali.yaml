@@ -27,9 +27,10 @@ environment:
       - nasm
       - make
       - curl
+      - libselinux1-dev
       - libfuse3-dev
   hooks: 
-    bash: 'tools/depends.sh install-lw'
+    bash: 'tools/depends.sh install-cmake'
 
 recipes:
 - name: vali
