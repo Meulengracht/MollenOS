@@ -29,7 +29,7 @@ environment:
       - curl
       - libfuse3-dev
   hooks: 
-    bash: 'tools/depends.sh install-cmake'
+    bash: 'tools/depends.sh install-lw'
 
 recipes:
 - name: vali

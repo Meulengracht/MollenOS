@@ -141,6 +141,16 @@ if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${VALI_ARCH}PlatformConfig.cma
     message (FATAL_ERROR "The specified platform ${VALI_ARCH} has no configuration file")
 endif ()
 
+# Detect whether diskbuilder is available on the host so we do
+# don't need to build it
+find_program(
+    OSIMAGER_APP 
+    NAMES "osbuilder" "diskbuilder.osbuilder"
+)
+if (NOT OSIMAGER_APP AND NOT VALI_BUILD_LOCAL_OSIMAGER)
+    message (FATAL_ERROR "No diskbuilder was available on the host, and local build is turned off")
+endif ()
+
 include (cmake/HandleFeatureFlags.cmake)
 include (cmake/${VALI_ARCH}PlatformConfig.cmake)
 
@@ -195,7 +205,10 @@ add_custom_target (install_prepare
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_dependencies(install_prepare imager rd lzss)
+add_dependencies(install_prepare rd lzss)
+if (VALI_BUILD_LOCAL_OSIMAGER)
+    add_dependencies(install_prepare imager)
+endif (VALI_BUILD_LOCAL_OSIMAGER)
 
 add_custom_target (install_img
     COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
