@@ -192,6 +192,18 @@ DSDECL(mstring_t*, mstr_path_basename(mstring_t*));
  */
 DSDECL(mstring_t*, mstr_path_change_extension_u8(mstring_t*, const char*));
 
+/**
+ * ctype-like functions, but for unicode.
+ * @param val The unicode character to check.
+ * @return 0 if false, 1 if true.
+ */
+DSDECL(int, mstr_isdigit(mchar_t val));
+DSDECL(int, mstr_islower(mchar_t val));
+DSDECL(int, mstr_isupper(mchar_t val));
+DSDECL(int, mstr_isspace(mchar_t val));
+DSDECL(int, mstr_isalpha(mchar_t val));
+DSDECL(int, mstr_isascii(mchar_t val));
+
 _CODE_END
 
 #endif //!__MSTRING_INTERFACE_H__

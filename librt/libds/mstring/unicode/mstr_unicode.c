@@ -17,6 +17,7 @@
  */
 
 #include "../common/private.h"
+#include "private.h"
 #include <string.h>
 
 #define IS_UTF8(c) (((c) & 0xC0) == 0x80)
@@ -284,4 +285,134 @@ void mstr_u16_to_internal(const short* u16, mchar_t* out)
         }
         index++;
     }
+}
+
+
+//                         X (start = 0, end = 16, i = 8)
+//                                         X (start = 8, end = 16, i = 12)
+//                               X (start = 8, end = 12, i = 10)
+//                                    X (start = 10, end = 12, i = 11)
+//                                    X (start = 11, end = 12, i = 11)
+// 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, [11], 12, 13, 14, 15
+
+#define GO_NEXT(start, end) ((start) + (((end) - (start)) >> 2))
+
+#define __BINARY_SEARCH(__name, __type) const __type* __find_binary_search_## __name(mchar_t val, const __type* table, size_t length) \
+    {                                                                                                                                 \
+        size_t start = 0, end = length;                                                                                               \
+        size_t i = GO_NEXT(start, end);                                                                                               \
+        do {                                                                                                                          \
+            if (table[i].code == val) {                                                                                               \
+                return &table[i];                                                                                                     \
+            } else if (val > table[i].code) {                                                                                         \
+                start = i;                                                                                                            \
+            } else {                                                                                                                  \
+                end = i;                                                                                                              \
+            }                                                                                                                         \
+            if (start == i) {                                                                                                         \
+                break;                                                                                                                \
+            }                                                                                                                         \
+            i = GO_NEXT(start, end);                                                                                                  \
+        } while (1);                                                                                                                  \
+        return NULL;                                                                                                                  \
+    }
+
+#define __BINARY_SEARCH_RANGE(__name, __type) const __type* __find_binary_search_## __name(mchar_t val, const __type* table, size_t length) \
+    {                                                                                                                                 \
+        size_t start = 0, end = length;                                                                                               \
+        size_t i = GO_NEXT(start, end);                                                                                               \
+        do {                                                                                                                          \
+            if (table[i].code_start >= val && val <= table[i].code_end) {                                                             \
+                return &table[i];                                                                                                     \
+            } else if (val > table[i].code_end) {                                                                                     \
+                start = i;                                                                                                            \
+            } else {                                                                                                                  \
+                end = i;                                                                                                              \
+            }                                                                                                                         \
+            if (start == i) {                                                                                                         \
+                break;                                                                                                                \
+            }                                                                                                                         \
+            i = GO_NEXT(start, end);                                                                                                  \
+        } while (1);                                                                                                                  \
+        return NULL;                                                                                                                  \
+    }
+
+__BINARY_SEARCH(casing, case_folding_t)
+__BINARY_SEARCH(numbers, __unicode_digit_t)
+__BINARY_SEARCH_RANGE(props, __unicode_ctype_t)
+
+mchar_t mstr_clower(mchar_t val)
+{
+    const case_folding_t* result = __find_binary_search_casing(val, g_lowerCaseTable, g_lowerCaseTableSize);
+    if (result != NULL) {
+        return result->folded_code;
+    }
+    return val;
+}
+
+mchar_t mstr_cupper(mchar_t val)
+{
+    const case_folding_t* result = __find_binary_search_casing(val, g_upperCaseTable, g_upperCaseTableSize);
+    if (result != NULL) {
+        return result->folded_code;
+    }
+    return val;
+}
+
+const __unicode_digit_t* __lookup_number(mchar_t val)
+{
+    return __find_binary_search_numbers(val, g_unicodeDigitTable, g_unicodeDigitCount);
+}
+
+const __unicode_ctype_t* __lookup_props(mchar_t val)
+{
+    return __find_binary_search_props(val, g_unicodePropsTable, g_unicodePropsCount);
+}
+
+int mstr_isdigit(mchar_t val) {
+    const __unicode_ctype_t* uni = __lookup_props(val);
+    if (uni == NULL) {
+        return 0;
+    }
+    return (uni->props & __UNICODE_PROP_DIGIT) != 0 ? 1 : 0;
+}
+
+int mstr_islower(mchar_t val) {
+    const __unicode_ctype_t* uni = __lookup_props(val);
+    if (uni == NULL) {
+        return 0;
+    }
+    return (uni->props & __UNICODE_PROP_LOWERCASE) != 0 ? 1 : 0;
+}
+
+int mstr_isupper(mchar_t val) {
+    const __unicode_ctype_t* uni = __lookup_props(val);
+    if (uni == NULL) {
+        return 0;
+    }
+    return (uni->props & __UNICODE_PROP_UPPERCASE) != 0 ? 1 : 0;
+}
+
+int mstr_isspace(mchar_t val) {
+    const __unicode_ctype_t* uni = __lookup_props(val);
+    if (uni == NULL) {
+        return 0;
+    }
+    return (uni->props & __UNICODE_PROP_WHITESPACE) != 0 ? 1 : 0;
+}
+
+int mstr_isalpha(mchar_t val) {
+    const __unicode_ctype_t* uni = __lookup_props(val);
+    if (uni == NULL) {
+        return 0;
+    }
+    return (uni->props & __UNICODE_PROP_LETTER) != 0 ? 1 : 0;
+}
+
+int mstr_isascii(mchar_t val) {
+    const __unicode_ctype_t* uni = __lookup_props(val);
+    if (uni == NULL) {
+        return 0;
+    }
+    return (uni->props & __UNICODE_PROP_ASCII) != 0 ? 1 : 0;
 }
