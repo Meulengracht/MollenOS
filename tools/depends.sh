@@ -38,10 +38,25 @@ install_dotnet() {
   fi
 }
 
+install_imager() {
+  echo "** installing snap support"
+  apt-get install snapd
+  echo "** installing diskbuilder"
+  snap install diskbuilder
+  snap connect diskbuilder:process-control
+  snap connect diskbuilder:mount-observe
+  snap connect diskbuilder:home
+}
+
 install_ci() {
   install_deps
   install_dotnet
   install_cmake
+}
+
+install_lw() {
+  install_cmake
+  install_imager
 }
 
 show_help() {
