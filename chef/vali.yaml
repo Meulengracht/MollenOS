@@ -9,19 +9,32 @@ project:
   license: LGPL
   homepage: www.mollenos.com
 
+platforms:
+  - name: vali
+    toolchain: vali/clang-cc=devel
+    architectures: [amd64, i386]
+
 environment:
   host:
     packages:
       - cmake
       - python3
-    ingredients:
-      - name: vali/clang-cc
-        channel: devel
+      - git
+      - gcc
+      - g++
+      - zip
+      - unzip
+      - nasm
+      - make
+      - curl
+      - libfuse3-dev
+  hooks: 
+    bash: 'tools/depends.sh install-cmake'
 
 recipes:
 - name: vali
   path: /
-  toolchain: vali/clang-cc
+  toolchain: platform
   steps:
   - name: config
     type: generate
@@ -30,7 +43,7 @@ recipes:
     env:
       # Use the toolchain path defined by chef when using the 'toolchain'
       # member in the recipe
-      CROSS: ${{ TOOLCHAIN_PREFIX }}/usr/local
+      VALICC: ${{ TOOLCHAIN_PREFIX }}/usr/local
       VALI_ARCH: ${{ CHEF_TARGET_ARCHITECTURE }}
 
   - name: build
