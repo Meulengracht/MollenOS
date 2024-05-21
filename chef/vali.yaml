@@ -43,8 +43,8 @@ recipes:
     env:
       # Use the toolchain path defined by chef when using the 'toolchain'
       # member in the recipe
-      VALICC: ${{ TOOLCHAIN_PREFIX }}/usr/local
-      VALI_ARCH: ${{ CHEF_TARGET_ARCHITECTURE }}
+      VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
+      VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
 
   - name: build
     type: build
