@@ -8,7 +8,7 @@ elseif(DEFINED ENV{CROSS})
     set (CCROOT "$ENV{CROSS}")
     set (CCROOT_FOUND TRUE)
 endif()
-VALICC
+
 if(NOT ${CCROOT_FOUND})
     message(FATAL_ERROR "CROSS/VALICC environmental variable must point to a clang cross-compiler for Vali")
 endif()
