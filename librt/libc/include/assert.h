@@ -34,20 +34,12 @@ CRTDECL(void, _assert_panic(const char* str));
 #ifdef NDEBUG
 #define assert( ignore ) ( (void) 0 )
 #else
-#if __STDC_VERSION__ >= 199901L
-#define assert( expression ) ( ( expression ) ? (void) 0 \
-        : _assert_panic( "Assertion failed: " #expression \
-                          ", function ", __func__, \
-                          ", file " __FILE__ \
-                          ", line " __symbol2string( __LINE__ ) \
-                          ".\n" ) )
-#else
 #define assert( expression ) ( ( expression ) ? (void) 0 \
         : _assert_panic( "Assertion failed: " #expression \
                           ", file " __FILE__ \
                           ", line " __symbol2string( __LINE__ ) \
                           ".\n" ) )
-#endif
+#endif //!NDEBUG
 _CODE_END
 
 #if defined __USE_ISOC11 && !defined __cplusplus
