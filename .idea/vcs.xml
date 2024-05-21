@@ -9,6 +9,7 @@
   </component>
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/amd64-tests/_deps/cmocka-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libacpi" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/libgracht" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librt/zstd" vcs="Git" />

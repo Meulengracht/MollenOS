@@ -3,10 +3,8 @@ set(MSTRING_SRCS
         common/mstr_builder.c
 
         core/mstr_at.c
-        core/mstr_case.c
         core/mstr_clone.c
         core/mstr_cmp.c
-        core/mstr_conv.c
         core/mstr_delete.c
         core/mstr_find.c
         core/mstr_fmt.c
@@ -16,7 +14,11 @@ set(MSTRING_SRCS
         core/mstr_replace.c
         core/mstr_split.c
         core/mstr_substr.c
-        core/mstr_unicode.c
+
+        unicode/mstr_conv.c
+        unicode/mstr_digits.c
+        unicode/mstr_props.c
+        unicode/mstr_unicode.c
 
         path/mstr_path_basename.c
         path/mstr_path_change_extension.c
@@ -35,7 +37,8 @@ if (__BUILD_UNIT_TESTS)
     return ()
 endif ()
 
-add_library(mstring STATIC ${MSTRING_SRCS})
+add_library(mstring STATIC ${MSTRING_SRCS}
+        unicode/private.h)
 target_include_directories(mstring PUBLIC ../include ../../libos/include ../../libc/include)
 
 add_library(mstringk STATIC ${MSTRING_SRCS})

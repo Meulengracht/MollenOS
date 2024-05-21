@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2024, Philip Meulengracht
+ * Copyright 2022, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +14,21 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS - ASCII to int
  */
 
-#include <stdlib.h>
+#ifndef __UNICODE_PRIVATE_H__
+#define __UNICODE_PRIVATE_H__
 
-int atoi(const char* string) {
-	return (int)strtol(string, NULL, 10);
-}
+// include generated files
+#include "mstr_digits.h"
+#include "mstr_conv.h"
+#include "mstr_props.h"
+#include <ds/mstring.h>
+
+// lookup unicode number descriptor
+extern const __unicode_digit_t* __lookup_number(mchar_t val);
+
+// lookup unicode properties
+extern const __unicode_ctype_t* __lookup_props(mchar_t val);
+
+#endif //!__UNICODE_PRIVATE_H__

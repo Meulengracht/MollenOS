@@ -5,20 +5,22 @@
 from urllib.request import urlopen
 import argparse
 
+
 def get_data(url):
     """
     Download the data from the given url.
     """
     return urlopen(url).read().decode("utf-8")
 
+
 def download_case_folding_data():
     """
     Download the case folding data from the unicode.org website.
     """
     # Get the data from the unicode.org website.
-    url = "http://unicode.org/Public/UNIDATA/CaseFolding.txt"
-    data = get_data(url)
+    data = get_data("http://unicode.org/Public/UNIDATA/CaseFolding.txt")
     return data
+
 
 def parse_case_folding_data(data):
     """
@@ -49,6 +51,7 @@ def parse_case_folding_data(data):
     uppercaseMappings = sorted(uppercaseMappings.items(), key=lambda x: x[0])
     return lowercaseMappings, uppercaseMappings
 
+
 def write_header(outPath):
     """
     Write the header file to a file.
@@ -75,7 +78,7 @@ def write_header(outPath):
 typedef struct {
     uint32_t code;
     uint32_t folded_code;
-} case_folding_t;
+} __unicode_casing_t;
 
 """)
 
@@ -83,25 +86,26 @@ typedef struct {
 extern const size_t g_lowerCaseTableSize;
 """)
         f.write("""\
-extern const case_folding_t g_lowerCaseTable[];
+extern const __unicode_casing_t g_lowerCaseTable[];
 
 """)
         f.write("""\
 extern const size_t g_upperCaseTableSize;
 """)
         f.write("""\
-extern const case_folding_t g_upperCaseTable[];
+extern const __unicode_casing_t g_upperCaseTable[];
 
 """)
         f.write("""\
 #endif
 """)
 
+
 def write_table(lcMap, ucMap, outPath):
     """
     Write the table of case folding mappings to a file.
     """
-    
+
     with open(outPath, "w") as f:
         f.write("""\
 /*
@@ -113,8 +117,8 @@ def write_table(lcMap, ucMap, outPath):
         headerName = outPath.replace(".c", ".h")
         f.write(f"#include <{headerName}>\n\n")
 
-        f.write(f"const size_t         g_lowerCaseTableSize = {len(lcMap)};\n", )
-        f.write("const case_folding_t g_lowerCaseTable[] = {\n")
+        f.write(f"const size_t           g_lowerCaseTableSize = {len(lcMap)};\n", )
+        f.write("const __unicode_casing_t g_lowerCaseTable[] = {\n")
         f.write("    // uppercase, lowercase\n")
         for code, folded_code in lcMap:
             f.write("    { ")
@@ -122,14 +126,15 @@ def write_table(lcMap, ucMap, outPath):
             f.write(" },\n")
         f.write("};\n\n")
 
-        f.write(f"const size_t         g_upperCaseTableSize = {len(ucMap)};\n", )
-        f.write("const case_folding_t g_upperCaseTable[] = {\n")
+        f.write(f"const size_t           g_upperCaseTableSize = {len(ucMap)};\n", )
+        f.write("const __unicode_casing_t g_upperCaseTable[] = {\n")
         f.write("    // lowercase, uppercase\n")
         for code, folded_code in ucMap:
             f.write("    { ")
             f.write("0x{:08x}, 0x{:08x}".format(code, folded_code))
             f.write(" },\n")
         f.write("};\n\n")
+
 
 def main(args):
     """
@@ -146,7 +151,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Installation utilities for building and releasing Vali.')
-    parser.add_argument('--out', default="case_folding.c", help='Where to write the output file.')
+    parser = argparse.ArgumentParser(description='Unicode helper script to generate properties.')
+    parser.add_argument('--out', default="mstr_casing.c", help='Where to write the output file.')
     args = parser.parse_args()
     main(args)
