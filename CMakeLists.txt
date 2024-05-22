@@ -62,9 +62,7 @@ option (VALI_ENABLE_EHCI "Enable support for USB 2.0" ON)
 option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mode" OFF)
 
 option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
-option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" ON)
-
-set (VALI_INIT_APP "vioarr.run" CACHE STRING "The application to execute for system initialization")
+option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" OFF)
 
 set (VALI_ARCH "amd64" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
@@ -121,9 +119,11 @@ find_program(
 )
 if (NOT TOOL_DU)
     if (NOT VALI_BUILD_LOCAL_OSIMAGER)
-        message (FATAL_ERROR "No diskbuilder was available on the host, and local build is turned off")
+        message (WARNING "No diskbuilder was available on the host, and local build is turned off")
+        set (TOOL_DU)
+    else ()
+        set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
     endif ()
-    set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
 else ()
     # tool found, do not build it
     message (STATUS "Host version of diskbuilder found, turning off local build")
