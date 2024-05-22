@@ -1,5 +1,5 @@
 /**
- * Copyright 2022, Philip Meulengracht
+ * Copyright 2024, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 #include "../common/private.h"
 #include "../unicode/private.h"
+#include <sys/types.h>
 #include <stdarg.h>
 
 enum fmt_flags {
@@ -386,8 +387,7 @@ static inline mchar_t __parse_precision(va_list* args, struct fmt_context* conte
 
 static inline mchar_t __parse_length(struct fmt_context* context, mchar_t current) {
     mchar_t val = current;
-    int     _parse = 1;
-    while (_parse) {
+    for (;;) {
         switch (val) {
             case U'm':
             case U'M': {
@@ -431,10 +431,10 @@ static inline mchar_t __parse_length(struct fmt_context* context, mchar_t curren
             } break;
 
             default:
-                _parse = 0;
-                break;
+                return val;
         }
     }
+    // unreachable
     return val;
 }
 

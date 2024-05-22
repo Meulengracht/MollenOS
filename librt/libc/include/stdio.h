@@ -1,5 +1,5 @@
 /**
- * Copyright 2023, Philip Meulengracht
+ * Copyright 2024, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 
 #ifndef __STDC_STDIO__
 #define __STDC_STDIO__
-
-_CODE_BEGIN
 
 // list of types that should be exposed in stdio.h
 #define __need_NULL
@@ -81,6 +79,8 @@ _CODE_BEGIN
 #define _FILE_DEFINED
 typedef struct _FILE FILE;
 #endif
+
+_CODE_BEGIN
 
 CRTDECL(FILE*, __get_std_handle(int n));
 #define STDOUT_FILENO  (int)0
