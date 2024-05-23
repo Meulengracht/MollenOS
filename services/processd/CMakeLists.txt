@@ -40,3 +40,10 @@ set_target_properties(phoenix
 )
 target_link_libraries(phoenix processd-debugger processd-pelib processd-services libds libddk librt gracht_static libm)
 add_dependencies(phoenix service_servers)
+
+# setup kernel for boot folder
+install(TARGETS phoenix
+    ARCHIVE DESTINATION boot-assets/lib
+    LIBRARY DESTINATION boot-assets/lib
+    RUNTIME DESTINATION boot/payload
+)

@@ -237,18 +237,24 @@ set_source_files_properties(${ASM_SRCS}
         LANGUAGE ASM_NASM
 )
 
+# TODO: change name based on arch
 add_executable(vboot ${SRCS} ${ASM_SRCS})
 set_target_properties(vboot
     PROPERTIES
-        OUTPUT_NAME "VBOOT.efi"
+        OUTPUT_NAME "BOOTX64.efi"
         LINK_FLAGS "--target=${BINARY_TARGET} -fuse-ld=lld -Xlinker -subsystem:efi_application -Xlinker -entry:EfiMain -nostdlib"
 )
 
-install(TARGETS vboot)
+# setup bootloader output
+install(TARGETS vboot
+    ARCHIVE DESTINATION boot-assets/lib
+    LIBRARY DESTINATION boot-assets/lib
+    RUNTIME DESTINATION boot/EFI/BOOT/
+)
 
 # initialize a qemu-target that helps us test faster
 add_custom_target (test
-    COMMAND ${CMAKE_COMMAND} -E copy VBOOT.efi image/VBOOT.efi
+    COMMAND ${CMAKE_COMMAND} -E copy boot/EFI/BOOT/BOOTX64.efi image/VBOOT.efi
     COMMAND qemu-system-x86_64 
         -drive format=raw,file=fat:rw:image
         -drive if=pflash,format=raw,readonly,file=${OVMF_FILE_BASE}_OVMF_CODE.fd

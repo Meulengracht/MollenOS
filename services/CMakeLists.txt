@@ -17,9 +17,7 @@ macro (add_service_target)
         )
         target_link_options(${ARGV0} PRIVATE "LINKER:-entry:__CrtServiceEntry")
         target_link_libraries (${ARGV0} PRIVATE gracht libusb libds libddk libos-api c librt)
-        add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_SRV}
-        )
+        deploy_service_to_initrd(${ARGV0})
     else ()
         message (FATAL_ERROR "Not enough parameters for add_service_target")
     endif ()
