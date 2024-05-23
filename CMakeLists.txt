@@ -87,10 +87,24 @@ set (VALI_PATH_DEPLOY_SHARED_MAPS   ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
 set (VALI_PATH_DEPLOY_SHARED_SHARE  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/share)
 
 # Setup utility macros for targets
+set (INITRAMFS_TARGETS)
 macro (deploy_target_to_initrd RDTARGET)
     add_custom_command (TARGET ${RDTARGET} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_BIN}
     )
+    set (INITRAMFS_TARGETS ${INITRAMFS_TARGETS} RDTARGET)
+endmacro ()
+macro (deploy_service_to_initrd RDTARGET)
+    add_custom_command (TARGET ${RDTARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_SRV}
+    )
+    set (INITRAMFS_TARGETS ${INITRAMFS_TARGETS} RDTARGET)
+endmacro ()
+macro (deploy_module_to_initrd RDTARGET)
+    add_custom_command (TARGET ${RDTARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
+    )
+    set (INITRAMFS_TARGETS ${INITRAMFS_TARGETS} RDTARGET)
 endmacro ()
 
 macro (deploy_file_to_initrd)
@@ -200,6 +214,11 @@ if (VALI_BUILD_UNIT_TESTS)
                 -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/testing
     )
 endif ()
+
+
+# setup initramfs for boot folder
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}/boot/payload)")
+install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${CMAKE_INSTALL_PREFIX}/boot/payload/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM})")
 
 # Installation and utility targets
 add_custom_target (install_prepare

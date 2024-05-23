@@ -55,3 +55,9 @@ recipes:
 packs:
 - name: sdk-c
   type: ingredient
+  filters:
+    - !boot
+- name: core
+  type: bootloader
+  filters:
+    - boot

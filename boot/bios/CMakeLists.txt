@@ -53,3 +53,12 @@ add_custom_command(OUTPUT stage2.sys POST_BUILD
     DEPENDS stage2/stage2.asm
 )
 
+# setup bootloader output
+install(
+    FILES 
+        ${VALI_PATH_DEPLOY}/mbr.sys
+        ${VALI_PATH_DEPLOY}/mbr-gpt.sys
+        ${VALI_PATH_DEPLOY}/stage1.sys
+        ${VALI_PATH_DEPLOY}/stage2.sys
+    DESTINATION boot/loaders
+)

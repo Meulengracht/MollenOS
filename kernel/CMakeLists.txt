@@ -77,3 +77,10 @@ target_compile_options(vali-core
 
 # add additional link libraries from out of this tree
 target_link_libraries (vali-core libacpi libdsk libk librt)
+
+# setup kernel for boot folder
+install(TARGETS vali-core
+    ARCHIVE DESTINATION boot-assets/lib
+    LIBRARY DESTINATION boot-assets/lib
+    RUNTIME DESTINATION boot/payload
+)

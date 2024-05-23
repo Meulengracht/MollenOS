@@ -11,9 +11,7 @@ macro (add_module_target)
         )
         target_link_options(${ARGV0} PRIVATE "LINKER:-entry:__CrtModuleEntry")
         target_link_libraries (${ARGV0} PRIVATE gracht libds libddk c librt)
-        add_custom_command (TARGET ${ARGV0} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
-        )
+        deploy_module_to_initrd (${ARGV0})
     else ()
         message (FATAL_ERROR "Not enough parameters for add_module_target")
     endif ()
