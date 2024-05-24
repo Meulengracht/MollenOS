@@ -33,31 +33,35 @@ environment:
     bash: 'tools/depends.sh install-cmake'
 
 recipes:
-- name: vali
-  path: /
-  toolchain: platform
-  steps:
-  - name: config
-    type: generate
-    system: cmake
-    arguments: [-G, '"Unix Makefiles"', -DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
-    env:
-      VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
-      VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
+  - name: vali
+    path: /
+    toolchain: platform
+    steps:
+    - name: config
+      type: generate
+      system: cmake
+      arguments: [-G, '"Unix Makefiles"', -DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
+      env:
+        VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
+        VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
 
-  - name: build
-    type: build
-    depends: [config]
-    system: make
-    env:
-      VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
+    - name: build
+      type: build
+      depends: [config]
+      system: make
+      env:
+        VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
 
 packs:
-- name: sdk-c
-  type: ingredient
-  filters:
-    - !boot
-- name: core
-  type: bootloader
-  filters:
-    - boot
+  - name: sdk-c
+    type: ingredient
+    ingredient-options:
+      bin-paths: [/bin]
+      include-paths: [/include]
+      lib-paths: [/lib]
+    filters:
+      - !boot
+  - name: core
+    type: bootloader
+    filters:
+      - boot
