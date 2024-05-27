@@ -13,3 +13,6 @@
 [submodule "librt/zstd"]
 	path = librt/zstd
 	url = ../../umbrella-c/zstd
+[submodule "tools/cmake-data"]
+	path = tools/cmake-data
+	url = ../vali-cmake.git
