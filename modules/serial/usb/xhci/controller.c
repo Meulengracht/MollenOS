@@ -170,6 +170,8 @@ XhciQueueInitialize(
 
     controller->Erst[0].RingSegmentBaseAddress = controller->EventRingDMATable.Entries[0].Address;
     controller->Erst[0].RingSegmentSize = XHCI_EVENT_RING_ENTRIES;
+    controller->EventRingIndex = 0;
+    controller->EventRingCycle = 1;
     return OS_EOK;
 }
 

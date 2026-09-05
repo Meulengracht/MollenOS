@@ -15,6 +15,46 @@
 #include <stdlib.h>
 #include "xhci.h"
 
+static uintptr_t
+__EventRingDequeueAddress(
+        _In_ XhciController_t* controller)
+{
+    return controller->EventRingDMATable.Entries[0].Address +
+           (controller->EventRingIndex * sizeof(XhciTransferRequestBlock_t));
+}
+
+static void
+__ProcessEventRing(
+        _In_ XhciController_t* controller)
+{
+    int portEvent = 0;
+
+    while ((controller->EventRing[controller->EventRingIndex].Control & XHCI_TRB_CONTROL_CYCLE) ==
+           (controller->EventRingCycle ? XHCI_TRB_CONTROL_CYCLE : 0)) {
+        XhciTransferRequestBlock_t* trb = &controller->EventRing[controller->EventRingIndex];
+
+        // Port status events carry the changed port id in the event TRB. The
+        // common stack only needs a root-hub port notification, so we let the
+        // port code rescan PORTSC to keep change-bit handling in one place.
+        if (XHCI_TRB_CONTROL_TYPE_GET(trb->Control) == XHCI_TRB_TYPE_PORT_STATUS_CHANGE) {
+            portEvent = 1;
+        }
+
+        controller->EventRingIndex++;
+        if (controller->EventRingIndex == XHCI_EVENT_RING_ENTRIES) {
+            controller->EventRingIndex = 0;
+            controller->EventRingCycle = !controller->EventRingCycle;
+        }
+    }
+
+    WRITE_VOLATILE(controller->InterrupterRegisters->EventRingDequeuePointer,
+            __EventRingDequeueAddress(controller) | XHCI_INTERRUPTER_ERDP_BUSY);
+
+    if (portEvent) {
+        XhciPortScan(controller);
+    }
+}
+
 irqstatus_t
 OnFastInterrupt(
         _In_ InterruptFunctionTable_t* InterruptTable,
@@ -53,7 +93,7 @@ ProcessInterrupt:
     interruptStatus = atomic_exchange(&controller->Base.InterruptStatus, 0);
 
     if (interruptStatus & XHCI_OP_USBSTS_EVENT) {
-        XhciPortScan(controller);
+        __ProcessEventRing(controller);
     }
 
     if (interruptStatus & XHCI_OP_USBSTS_HOSTERROR) {

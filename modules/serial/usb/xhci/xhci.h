@@ -130,8 +130,10 @@ PACKED_TYPESTRUCT(XhciTransferRequestBlock, {
 });
 
 #define XHCI_TRB_CONTROL_CYCLE           (1 << 0)
+#define XHCI_TRB_CONTROL_TYPE_GET(n)     (((n) >> 10) & 0x3F)
 #define XHCI_TRB_CONTROL_TYPE(n)         (((n) & 0x3F) << 10)
 #define XHCI_TRB_TYPE_LINK               6
+#define XHCI_TRB_TYPE_PORT_STATUS_CHANGE 34
 
 PACKED_TYPESTRUCT(XhciEventRingSegmentTableEntry, {
     reg64_t RingSegmentBaseAddress;
@@ -174,6 +176,8 @@ typedef struct XhciController {
     OSHandle_t EventRingDMA;
     SHMSGTable_t EventRingDMATable;
     XhciTransferRequestBlock_t* EventRing;
+    size_t EventRingIndex;
+    int    EventRingCycle;
 
     OSHandle_t ErstDMA;
     SHMSGTable_t ErstDMATable;
