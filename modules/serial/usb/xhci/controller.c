@@ -52,7 +52,7 @@ __XhciAllocateDMA(
     oserr = SHMCreate(
             &(SHM_t) {
                     .Flags = SHM_DEVICE | SHM_PRIVATE | SHM_CLEAN,
-                    .Conformity = OSMEMORYCONFORMITY_BITS64,
+                    .Conformity = OSMEMORYCONFORMITY_BITS32,
                     .Size = size,
                     .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE
             },
@@ -65,10 +65,14 @@ __XhciAllocateDMA(
     oserr = SHMGetSGTable(handle, table, -1);
     if (oserr != OS_EOK) {
         OSHandleDestroy(handle);
+        memset(handle, 0, sizeof(OSHandle_t));
+        memset(table, 0, sizeof(SHMSGTable_t));
         return oserr;
     }
 
-    *bufferOut = SHMBuffer(handle);
+    if (bufferOut != NULL) {
+        *bufferOut = SHMBuffer(handle);
+    }
     return OS_EOK;
 }
 
@@ -78,6 +82,29 @@ __XhciFreeController(
 {
     UsbManagerDestroyController(&controller->Base);
     free(controller);
+}
+
+static oserr_t
+__XhciFillScratchpadArray(
+        _In_ XhciController_t* controller)
+{
+    size_t scratchpadIndex = 0;
+
+    // The scratchpad buffer allocation may be physically scattered. Populate
+    // the controller-visible array from every SG entry instead of assuming that
+    // the first entry covers all pages contiguously.
+    for (int i = 0; i < controller->ScratchpadBufferDMATable.Count && scratchpadIndex < controller->ScratchpadCount; i++) {
+        uintptr_t address = controller->ScratchpadBufferDMATable.Entries[i].Address;
+        size_t    length  = controller->ScratchpadBufferDMATable.Entries[i].Length;
+
+        while (length >= XHCI_PAGE_SIZE && scratchpadIndex < controller->ScratchpadCount) {
+            controller->ScratchpadArray[scratchpadIndex++] = address;
+            address += XHCI_PAGE_SIZE;
+            length  -= XHCI_PAGE_SIZE;
+        }
+    }
+
+    return (scratchpadIndex == controller->ScratchpadCount) ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t
@@ -113,21 +140,26 @@ XhciQueueInitialize(
         if (oserr != OS_EOK) {
             return oserr;
         }
+        if (controller->ScratchpadArrayDMATable.Count != 1) {
+            ERROR("XHCI-Failure: scratchpad pointer array was not physically contiguous.");
+            return OS_EUNKNOWN;
+        }
 
         scratchpadBytes = controller->ScratchpadCount * XHCI_PAGE_SIZE;
-        void* scratchpadBuffer;
         oserr = __XhciAllocateDMA(
                 scratchpadBytes,
                 &controller->ScratchpadBufferDMA,
                 &controller->ScratchpadBufferDMATable,
-                &scratchpadBuffer
+                NULL
         );
         if (oserr != OS_EOK) {
             return oserr;
         }
 
-        for (size_t i = 0; i < controller->ScratchpadCount; i++) {
-            controller->ScratchpadArray[i] = controller->ScratchpadBufferDMATable.Entries[0].Address + (i * XHCI_PAGE_SIZE);
+        oserr = __XhciFillScratchpadArray(controller);
+        if (oserr != OS_EOK) {
+            ERROR("XHCI-Failure: scratchpad buffers did not provide enough DMA pages.");
+            return oserr;
         }
         controller->DCBaa[0] = controller->ScratchpadArrayDMATable.Entries[0].Address;
     }
@@ -238,6 +270,40 @@ XhciReset(
     return fault ? OS_ETIMEOUT : OS_EOK;
 }
 
+static void
+__XhciDisableLegacySupport(
+        _In_ XhciController_t* controller)
+{
+    uintptr_t registerBase = (uintptr_t)controller->CapRegisters;
+    unsigned int offset = XHCI_HCCPARAMS1_XECP(controller->HccParams1);
+
+    while (offset != 0) {
+        volatile reg32_t* capability = (volatile reg32_t*)(registerBase + (offset << 2));
+        reg32_t value = READ_VOLATILE(*capability);
+        unsigned int next = XHCI_EXTCAP_NEXT(value);
+
+        if (XHCI_EXTCAP_ID(value) == XHCI_EXTCAP_LEGACY_SUPPORT) {
+            int fault;
+
+            // Request ownership from firmware. BIOS Owned should clear once OS
+            // Owned is set; clearing the following control/status register then
+            // suppresses legacy SMIs for the controller.
+            WRITE_VOLATILE(*capability, value | XHCI_LEGSUP_OS_OWNED);
+            WaitForConditionWithFault(fault,
+                    (READ_VOLATILE(*capability) & XHCI_LEGSUP_BIOS_OWNED) == 0,
+                    250,
+                    10);
+            if (fault) {
+                WARNING("XHCI: firmware did not release ownership before reset.");
+            }
+            WRITE_VOLATILE(*(volatile reg32_t*)((uintptr_t)capability + sizeof(reg32_t)), 0);
+            return;
+        }
+
+        offset = next ? offset + next : 0;
+    }
+}
+
 oserr_t
 XhciRun(
         _In_ XhciController_t* controller)
@@ -253,10 +319,10 @@ XhciRun(
             controller->CommandRingDMATable.Entries[0].Address | XHCI_OP_CRCR_RING_CYCLE);
 
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableSize, XHCI_ERST_ENTRIES);
-    WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableBaseAddress,
-            controller->ErstDMATable.Entries[0].Address);
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingDequeuePointer,
             controller->EventRingDMATable.Entries[0].Address | XHCI_INTERRUPTER_ERDP_BUSY);
+    WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableBaseAddress,
+            controller->ErstDMATable.Entries[0].Address);
     WRITE_VOLATILE(controller->InterrupterRegisters->Management, XHCI_INTERRUPTER_MANAGEMENT_ENABLE);
 
     command = READ_VOLATILE(controller->OpRegisters->UsbCommand);
@@ -296,14 +362,21 @@ __SetupController(
     controller->ScratchpadCount = XHCI_HCSPARAMS2_MAXSCRATCHPADS(controller->HcsParams2);
     controller->ContextSize = (controller->HccParams1 & XHCI_HCCPARAMS1_CSZ) ? 64 : 32;
 
-    if (controller->Base.PortCount == 0 || controller->Base.PortCount > USB_MAX_PORTS) {
-        ERROR("XHCI-Failure: unsupported port count %u", controller->Base.PortCount);
+    if (controller->Base.PortCount == 0) {
+        ERROR("XHCI-Failure: unsupported port count %u", (unsigned int)controller->Base.PortCount);
         return OS_EUNKNOWN;
+    }
+    if (controller->Base.PortCount > USB_MAX_PORTS) {
+        WARNING("XHCI: limiting exposed root ports from %u to %u",
+                (unsigned int)controller->Base.PortCount, (unsigned int)USB_MAX_PORTS);
+        controller->Base.PortCount = USB_MAX_PORTS;
     }
 
     controller->Base.IORequirements.BufferAlignment = XHCI_CONTEXT_ALIGNMENT;
     controller->Base.IORequirements.Conformity = (controller->HccParams1 & XHCI_HCCPARAMS1_AC64) ?
             OSMEMORYCONFORMITY_BITS64 : OSMEMORYCONFORMITY_BITS32;
+
+    __XhciDisableLegacySupport(controller);
 
     oserr = XhciReset(controller);
     if (oserr != OS_EOK) {

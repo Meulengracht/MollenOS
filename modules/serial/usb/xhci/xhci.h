@@ -55,9 +55,16 @@ PACKED_ATYPESTRUCT(volatile, XhciCapabilityRegisters, {
 #define XHCI_HCSPARAMS1_MAXSLOTS(n)      ((n) & 0xFF)
 #define XHCI_HCSPARAMS1_MAXINTRS(n)      (((n) >> 8) & 0x7FF)
 #define XHCI_HCSPARAMS1_MAXPORTS(n)      (((n) >> 24) & 0xFF)
-#define XHCI_HCSPARAMS2_MAXSCRATCHPADS(n) ((((n) >> 27) & 0x1F) | (((n) >> 16) & 0x3E0))
+#define XHCI_HCSPARAMS2_MAXSCRATCHPADS(n) (((((n) >> 27) & 0x1F) << 5) | (((n) >> 21) & 0x1F))
 #define XHCI_HCCPARAMS1_AC64             (1 << 0)
 #define XHCI_HCCPARAMS1_CSZ              (1 << 2)
+#define XHCI_HCCPARAMS1_XECP(n)          (((n) >> 16) & 0xFFFF)
+
+#define XHCI_EXTCAP_ID(n)                ((n) & 0xFF)
+#define XHCI_EXTCAP_NEXT(n)              (((n) >> 8) & 0xFF)
+#define XHCI_EXTCAP_LEGACY_SUPPORT       1
+#define XHCI_LEGSUP_BIOS_OWNED          (1 << 16)
+#define XHCI_LEGSUP_OS_OWNED            (1 << 24)
 
 PACKED_ATYPESTRUCT(volatile, XhciOperationalRegisters, {
     reg32_t UsbCommand;

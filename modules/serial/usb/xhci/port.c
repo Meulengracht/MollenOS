@@ -122,7 +122,7 @@ XhciPortScan(
 
         XhciPortClearChanges(controller, i, changes);
         if (changes & XHCI_PORT_STATUS_CONNECT_CHANGE) {
-            TRACE("XhciPortScan(port=%u, status=0x%x)", i, status);
+            TRACE("XhciPortScan(port=%u, status=0x%x)", (unsigned int)i, status);
             (void)UsbEventPort(controller->Base.Device->Base.Id, (uint8_t)(i & 0xFF));
         }
     }
