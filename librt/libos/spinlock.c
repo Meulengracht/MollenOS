@@ -61,6 +61,7 @@ spinlock_acquire(
 	_In_ spinlock_t* lock)
 {
     unsigned int ticket;
+    int          backOff = 1;
 
     assert(lock != NULL);
 
@@ -89,7 +90,12 @@ spinlock_acquire(
         // giving up and yielding. This will cause an increase in latency, but
         // should allow for less time spent spinning.
         // TODO we should test this
-        _mm_pause();
+        // Intel's recommendation for optimizations on spinlocks is actually
+        // to use an exponential backoff strategy.
+        for (int i = 0; i < backOff; i++) {
+            _mm_pause();
+        }
+        backOff = backOff < 64 ? backOff << 1 : 64;
     }
 }
 
