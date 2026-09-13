@@ -129,14 +129,26 @@ typedef struct UsbSchedulerSettings {
 #define USB_SCHEDULER_NULL_ELEMENT      (1 << 2) // If set, all chains make use of null-elements
 #define USB_SCHEDULER_DEFERRED_CLEAN    (1 << 3) // If set, cleanup must occur later than unlink
 #define USB_SCHEDULER_LINK_BIT_EOL      (1 << 4) // Specify that empty links must be marked with EOL
+#define USB_SCHEDULER_PERIODIC          (1 << 5) // If set, enable periodic/bandwidth bookkeeping
 
-typedef struct UsbScheduler {
-    UsbSchedulerSettings_t  Settings;
-    spinlock_t              Lock;
+typedef struct UsbTransferArena {
+    UsbSchedulerSettings_t* Settings;
+    spinlock_t*             Lock;
+} UsbTransferArena_t;
 
+typedef struct UsbPeriodicScheduler {
+    UsbSchedulerSettings_t* Settings;
     uintptr_t* VirtualFrameList;       // Virtual frame list
     size_t*    Bandwidth;              // Bandwidth[FrameCount]
     size_t     TotalBandwidth;         // Total bandwidth
+} UsbPeriodicScheduler_t;
+
+typedef struct UsbScheduler {
+    UsbSchedulerSettings_t Settings;
+    spinlock_t             Lock;
+
+    UsbTransferArena_t     TransferArena;
+    UsbPeriodicScheduler_t Periodic;
 } UsbScheduler_t;
 
 #define USB_ELEMENT_INDEX(_pool, _index)     ((uint8_t*)&((_pool)->ElementPool[((_index) & USB_ELEMENT_INDEX_MASK) * (_pool)->ElementAlignedSize]))
@@ -157,6 +169,27 @@ typedef struct UsbScheduler {
  * which contains metadata for the common USB Scheduler code.
  */
 #define USB_ELEMENT_OBJECT(_pool, _elem) ((UsbSchedulerObject_t*)((uint8_t*)(_elem) + (_pool)->ElementObjectOffset))
+
+static inline UsbTransferArena_t*
+UsbSchedulerGetTransferArena(
+    _In_ UsbScheduler_t* Scheduler)
+{
+    return &Scheduler->TransferArena;
+}
+
+static inline UsbPeriodicScheduler_t*
+UsbSchedulerGetPeriodicScheduler(
+    _In_ UsbScheduler_t* Scheduler)
+{
+    return &Scheduler->Periodic;
+}
+
+static inline bool
+UsbSchedulerHasPeriodicSchedule(
+    _In_ UsbScheduler_t* Scheduler)
+{
+    return (Scheduler->Settings.Flags & USB_SCHEDULER_PERIODIC) != 0;
+}
 
 /* UsbSchedulerSettingsCreate
  * Initializes a new instance of the settings to customize the
@@ -217,6 +250,91 @@ UsbSchedulerResetInternalData(
     _In_ UsbScheduler_t*            Scheduler,
     _In_ int                        ResetElements,
     _In_ int                        ResetFramelist);
+
+extern oserr_t
+UsbTransferArenaResetInternalData(
+    _In_ UsbTransferArena_t* arena,
+    _In_ int                 resetElements);
+
+extern oserr_t
+UsbPeriodicSchedulerResetInternalData(
+    _In_ UsbPeriodicScheduler_t* periodicScheduler,
+    _In_ int                     resetFramelist);
+
+extern uintptr_t
+UsbTransferArenaGetDma(
+    _In_ UsbSchedulerPool_t* arenaPool,
+    _In_ const uint8_t*      elementPointer);
+
+extern oserr_t
+UsbTransferArenaGetPoolElement(
+    _In_  UsbTransferArena_t* arena,
+    _In_  int                 Pool,
+    _In_  int                 Index,
+    _Out_ uint8_t**           ElementOut,
+    _Out_ uintptr_t*          ElementPhysicalOut);
+
+extern oserr_t
+UsbTransferArenaGetPoolFromElement(
+    _In_  UsbTransferArena_t*  arena,
+    _In_  const uint8_t*       element,
+    _Out_ UsbSchedulerPool_t** poolOut);
+
+extern oserr_t
+UsbTransferArenaAllocateElement(
+    _In_  UsbTransferArena_t* arena,
+    _In_  int                 Pool,
+    _Out_ uint8_t**           ElementOut);
+
+extern void
+UsbTransferArenaFreeElement(
+    _In_ UsbTransferArena_t* arena,
+    _In_ uint8_t*            element);
+
+extern oserr_t
+UsbTransferArenaChainElement(
+    _In_ UsbTransferArena_t* arena,
+    _In_ int                 ElementRootPool,
+    _In_ uint8_t*            ElementRoot,
+    _In_ int                 ElementPool,
+    _In_ uint8_t*            Element,
+    _In_ uint16_t            Marker,
+    _In_ int                 Direction);
+
+extern oserr_t
+UsbTransferArenaUnchainElement(
+    _In_ UsbTransferArena_t* arena,
+    _In_ int                 ElementRootPool,
+    _In_ uint8_t*            ElementRoot,
+    _In_ int                 ElementPool,
+    _In_ uint8_t*            Element,
+    _In_ int                 Direction);
+
+extern oserr_t
+UsbPeriodicSchedulerAllocateBandwidth(
+    _In_ UsbTransferArena_t*    arena,
+    _In_ UsbPeriodicScheduler_t* periodicScheduler,
+    _In_ uint8_t                interval,
+    _In_ uint16_t               mps,
+    _In_ uint8_t                transactionType,
+    _In_ size_t                 bytesToTransfer,
+    _In_ uint8_t                transferType,
+    _In_ uint8_t                speed,
+    _In_ uint8_t*               element);
+
+extern oserr_t
+UsbPeriodicSchedulerLinkElement(
+    _In_ UsbTransferArena_t*     arena,
+    _In_ UsbPeriodicScheduler_t* periodicScheduler,
+    _In_ int                     ElementPool,
+    _In_ uint8_t*                Element);
+
+extern void
+UsbPeriodicSchedulerUnlinkElement(
+    _In_ UsbTransferArena_t*     arena,
+    _In_ UsbPeriodicScheduler_t* periodicScheduler,
+    _In_ int                     ElementPool,
+    _In_ uint8_t*                Element);
 
 extern uintptr_t
 UsbSchedulerGetDma(

@@ -115,7 +115,7 @@ EhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    SchedulerFlags = USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL;
+    SchedulerFlags = USB_SCHEDULER_PERIODIC | USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL;
     if (Controller->CParameters & EHCI_CPARAM_64BIT) {
 #ifdef __OSCONFIG_EHCI_ALLOW_64BIT
         SchedulerFlags |= USB_SCHEDULER_FL64;
