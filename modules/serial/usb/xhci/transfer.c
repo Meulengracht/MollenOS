@@ -368,7 +368,8 @@ XhciTransferSubmit(
         int                       elementIndex = __Transfer_IsAsync(transfer) ?
             transfer->TData.Async.ElementsCompleted : 0;
 
-    if (endpoint->TransferRing.Used + transfer->ChainLength >= endpoint->TransferRing.TrbCount) {
+    if (endpoint->TransferRing.Used + transfer->ChainLength >
+            (uint16_t)(endpoint->TransferRing.TrbCount - 1)) {
         return OS_EBUSY;
     }
 

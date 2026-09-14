@@ -296,6 +296,16 @@ HCIProcessElement(
             descriptor->CompletionCode = 0;
             descriptor->BytesTransferred = 0;
             descriptor->Flags &= ~(XHCI_TD_FLAG_COMPLETED | XHCI_TD_FLAG_FAILED | XHCI_TD_FLAG_CANCELLED);
+            if (__ElementIsRoot((UsbManagerTransfer_t*)context, element) && descriptor->Endpoint != NULL) {
+                if (XhciTransferSubmit(
+                            (XhciController_t*)controllerBase,
+                            descriptor->Endpoint,
+                            (UsbManagerTransfer_t*)context
+                    ) != OS_EOK)
+                {
+                    return false;
+                }
+            }
             break;
 
         case HCIPROCESS_REASON_UNLINK:
