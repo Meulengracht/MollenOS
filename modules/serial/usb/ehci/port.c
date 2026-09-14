@@ -141,8 +141,8 @@ EhciPortCheck(
     // Over-current event. We should tell the usb-stack this port
     // is now disabled and to disable anything related to this device
     if (Status & EHCI_PORT_OC_EVENT) {
-        ERROR("Port %u reported over current. TODO");
-        return OS_EOK;
+        ERROR("Port %u reported over current", (unsigned)Index);
+        return UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
     }
 
     // Connection event?
@@ -166,8 +166,8 @@ EhciPortCheck(
     // Enable event. This can only happen when it gets disabled due to something
     // like suspend or that i imagine.
     if (Status & EHCI_PORT_ENABLE_EVENT) {
-        ERROR("Port %u is now disabled. TODO");
-        return OS_EOK;
+        ERROR("Port %u is now disabled", (unsigned)Index);
+        return UsbEventPort(Controller->Base.Device->Base.Id, (uint8_t)(Index & 0xFF));
     }
     return OS_EUNKNOWN;
 }
