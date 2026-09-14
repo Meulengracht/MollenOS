@@ -453,3 +453,17 @@ HCIProcessEvent(
         } break;
     }
 }
+
+oserr_t
+HCIConfigureHub(
+        _In_ UsbManagerController_t* controller,
+        _In_ uint8_t                 hubAddress,
+        _In_ uint8_t                 portCount,
+        _In_ uint16_t                characteristics)
+{
+    _CRT_UNUSED(controller);
+    _CRT_UNUSED(hubAddress);
+    _CRT_UNUSED(portCount);
+    _CRT_UNUSED(characteristics);
+    return OS_EOK;
+}

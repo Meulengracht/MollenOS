@@ -194,6 +194,7 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_TYPE_ENABLE_SLOT        9
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE     11
 #define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12
+#define XHCI_TRB_TYPE_EVALUATE_CONTEXT   13
 #define XHCI_TRB_TYPE_RESET_ENDPOINT     14
 #define XHCI_TRB_TYPE_STOP_ENDPOINT      15
 #define XHCI_TRB_TYPE_SET_TR_DEQUEUE     16
@@ -207,6 +208,13 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_COMPLETION_SHORT_PACKET 13
 #define XHCI_TRB_SLOT_ID(n)              (((n) >> 24) & 0xFF)
 #define XHCI_TRB_ADDRESS_BSR             (1 << 9)
+#define XHCI_SLOT_CONTEXT_ROOT_PORT(n)   (((n) & 0xFF) << 16)
+#define XHCI_SLOT_CONTEXT_NUM_PORTS(n)   (((n) & 0xFF) << 24)
+#define XHCI_SLOT_CONTEXT_TT_HUB(n)      ((n) & 0xFF)
+#define XHCI_SLOT_CONTEXT_TT_PORT(n)     (((n) & 0xFF) << 8)
+#define XHCI_SLOT_CONTEXT_TT_THINK(n)    (((n) & 0x3) << 16)
+#define XHCI_SLOT_CONTEXT_HUB            (1 << 26)
+#define XHCI_SLOT_CONTEXT_MTT            (1 << 25)
 
 PACKED_TYPESTRUCT(XhciEventRingSegmentTableEntry, {
     reg64_t RingSegmentBaseAddress;
@@ -347,6 +355,13 @@ typedef struct XhciDevice {
     uint8_t               PortAddress;
     uint8_t               SlotId;
     uint8_t               UsbAddress;
+    uint8_t               Speed;
+    uint8_t               RootPort;
+    uint8_t               Depth;
+    uint32_t              RouteString;
+    XhciDevice_t*         Parent;
+    uint8_t               HubPortCount;
+    uint16_t              HubCharacteristics;
     enum XhciDeviceState  State;
     
     /* Highest Device Context Index configured so far; drives the slot
@@ -372,6 +387,7 @@ enum XhciCommandType {
     XHCI_COMMAND_ENABLE_SLOT,
     XHCI_COMMAND_ADDRESS_DEVICE,
     XHCI_COMMAND_CONFIGURE_ENDPOINT,
+    XHCI_COMMAND_EVALUATE_CONTEXT,
     XHCI_COMMAND_RESET_ENDPOINT,
     XHCI_COMMAND_STOP_ENDPOINT,
     XHCI_COMMAND_SET_TR_DEQUEUE

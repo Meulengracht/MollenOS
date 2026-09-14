@@ -61,7 +61,7 @@ UsbCoreControllerRegister(
     controller->AddressMap[0] |= 0x1;
 
     // Register root hub
-    osStatus = UsbCoreHubsRegister(device->Id, device->Id, driverId, rootPorts);
+    osStatus = UsbCoreHubsRegister(device->Id, device->Id, driverId, rootPorts, 0);
     if (osStatus != OS_EOK) {
         free(controller);
         return osStatus;
