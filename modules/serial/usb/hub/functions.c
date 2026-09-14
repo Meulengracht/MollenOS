@@ -118,6 +118,7 @@ HubResetPort(
         _In_ uint8_t       portIndex)
 {
     enum USBTransferCode transferStatus;
+    PortStatus_t         portStatus;
     TRACE("HubResetPort(hubDevice=0x%" PRIxIN ", portIndex=%u)", hubDevice, portIndex);
 
     transferStatus = UsbSetFeature(&hubDevice->Base->DeviceContext,
@@ -128,6 +129,17 @@ HubResetPort(
         return OS_EDEVFAULT;
     }
 
-    thrd_sleep(&(struct timespec) { .tv_nsec = 100 * NSEC_PER_MSEC }, NULL);
-    return OS_EOK;
+    for (int attempt = 0; attempt < 50; attempt++) {
+        if (HubGetPortStatus(hubDevice, portIndex, &portStatus) != OS_EOK) {
+            return OS_EDEVFAULT;
+        }
+        if (!(portStatus.Status & HUB_PORT_STATUS_RESET)) {
+            if (portStatus.Change & HUB_PORT_CHANGE_RESET) {
+                HubPortClearChange(hubDevice, portIndex, HUB_FEATURE_C_PORT_RESET);
+            }
+            return OS_EOK;
+        }
+        thrd_sleep(&(struct timespec) { .tv_nsec = 10 * NSEC_PER_MSEC }, NULL);
+    }
+    return OS_ETIMEOUT;
 }
