@@ -26,15 +26,23 @@
 
 #include <os/types/storage.h>
 
-/* QueryStorageByPath
- * Queries information about a storage medium that belong to the given file path. */
+/**
+ * @brief Queries the storage medium associated with a file path.
+ * @param Path File path to query.
+ * @param StorageDescriptor Receives the storage descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(oscode_t,
 QueryStorageByPath(
     _In_ const char*            Path,
     _In_ OsStorageDescriptor_t* StorageDescriptor));
 
-/* QueryStorageByHandle
- * Queries information about a storage medium that belong to the given file handle. */
+/**
+ * @brief Queries the storage medium associated with a file handle.
+ * @param Handle File handle to query.
+ * @param StorageDescriptor Receives the storage descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(oscode_t,
 QueryStorageByHandle(
     _In_ UUId_t                 Handle,

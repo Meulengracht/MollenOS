@@ -28,7 +28,6 @@
 #include <assert.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
-#include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <os/services/process.h>
 #include <os/threads.h>
@@ -395,16 +394,14 @@ void exit(int exitCode)
     __cxa_exithandlers();
 
     // Exit the primary thread
-    Syscall_ThreadExit(ec);
-    for(;;);
+    ThreadsFastExit(ec);
 }
 
 _Noreturn static void __thrd_quick_exit(
         _In_ int exitCode)
 {
     __cxa_threadfinalize();
-    Syscall_ThreadExit(exitCode);
-    for(;;);
+    ThreadsFastExit(exitCode);
 }
 
 void quick_exit(int exitCode)
@@ -435,8 +432,7 @@ void quick_exit(int exitCode)
     }
 
     OSProcessTerminate(exitCode);
-    Syscall_ThreadExit(ec);
-    for(;;);
+    ThreadsFastExit(ec);
 }
 
 void _Exit(int exitCode)
@@ -450,8 +446,7 @@ void _Exit(int exitCode)
         // it's another child thread crowing our exit
         if (ThreadsCurrentId() != __crt_primary_thread()) {
             spinlock_release(&g_exit_lock);
-            Syscall_ThreadExit(g_exit_code);
-            for(;;);
+            ThreadsFastExit(g_exit_code);
         }
         ec = g_exit_code;
     } else {
@@ -464,13 +459,11 @@ void _Exit(int exitCode)
     // the primary thread, telling it to quit its job :-)
     if (ThreadsCurrentId() != __crt_primary_thread()) {
         ThreadsSignal(__crt_primary_thread(), SIGQUIT);
-        Syscall_ThreadExit(ec);
-        for(;;);
+        ThreadsFastExit(ec);
     }
 
     OSProcessTerminate(exitCode);
-    Syscall_ThreadExit(ec);
-    for(;;);
+    ThreadsFastExit(ec);
 }
 
 uint64_t atexit_dso_hash(const void* element)

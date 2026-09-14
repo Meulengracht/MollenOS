@@ -130,14 +130,21 @@ ThreadsYield(void)
 }
 
 _Noreturn void
+ThreadsFastExit(
+        _In_ int exitCode)
+{
+    Syscall_ThreadExit(exitCode);
+    for(;;);
+}
+
+_Noreturn void
 ThreadsExit(
         _In_ int exitCode)
 {
     tss_cleanup(ThreadsCurrentId());
     __tls_destroy(__tls_current());
     __cxa_threadfinalize();
-    Syscall_ThreadExit(exitCode);
-    for(;;);
+    ThreadsFastExit(exitCode);
 }
 
 oserr_t

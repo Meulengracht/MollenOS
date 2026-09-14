@@ -38,6 +38,12 @@
 #define FUTEX_FLAG_OP            0x10U
 #define FUTEX_FLAG_PRIVATE       0x20U
 
+/**
+ * @brief Performs a futex wait, wake, or compound futex operation.
+ * @param parameters Futex operation parameters.
+ * @param asyncContext Optional asynchronous operation context.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(oserr_t,
 OSFutex(
         _In_ OSFutexParameters_t* parameters,

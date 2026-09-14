@@ -25,12 +25,12 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param path
- * @param flags
- * @param permissions
- * @param handleOut
- * @return
+ * @brief Opens a file or directory at the specified path.
+ * @param path Path to open.
+ * @param flags Open and creation flags.
+ * @param permissions Permissions to apply when creating the path.
+ * @param handleOut Receives the opened handle.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSOpenPath(
@@ -49,10 +49,10 @@ OSUnlinkPath(
         _In_ const char* path));
 
 /**
- * @brief
- * @param path
- * @param permissions
- * @return
+ * @brief Creates a directory at the specified path.
+ * @param path Directory path to create.
+ * @param permissions Permissions to apply to the new directory.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSMakeDirectory(
@@ -60,10 +60,10 @@ OSMakeDirectory(
         _In_ unsigned int permissions));
 
 /**
- * @brief
- * @param handle
- * @param entry
- * @return
+ * @brief Reads the next directory entry from an open directory.
+ * @param handle Handle of the directory to read.
+ * @param entry Receives the directory entry.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSReadDirectory(
@@ -71,10 +71,10 @@ OSReadDirectory(
         _In_ OSDirectoryEntry_t* entry));
 
 /**
- * @brief
- * @param handle
- * @param position
- * @return
+ * @brief Changes the current position of an open file.
+ * @param handle Handle of the file to seek.
+ * @param position New file position, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSeekFile(
@@ -82,10 +82,10 @@ OSSeekFile(
         _In_ UInteger64_t* position));
 
 /**
- * @brief
- * @param handle
- * @param position
- * @return
+ * @brief Retrieves the current position of an open file.
+ * @param handle Handle of the file to query.
+ * @param position Receives the current file position, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSGetFilePosition(
@@ -93,10 +93,10 @@ OSGetFilePosition(
         _In_ UInteger64_t* position));
 
 /**
- * @brief
- * @param handle
- * @param size
- * @return
+ * @brief Retrieves the size of an open file.
+ * @param handle Handle of the file to query.
+ * @param size Receives the file size, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSGetFileSize(
@@ -104,10 +104,10 @@ OSGetFileSize(
         _In_ UInteger64_t* size));
 
 /**
- * @brief
- * @param handle
- * @param size
- * @return
+ * @brief Changes the size of an open file.
+ * @param handle Handle of the file to resize.
+ * @param size New file size, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSetFileSize(
@@ -116,9 +116,9 @@ OSSetFileSize(
 
 /**
  * @brief Moves, or optionally copies a file.
- * @param[In] from The source file that should be copied or moved.
- * @param[In] to The destination of the file
- * @param[In] copy If set, copy the file instead of moving it
+ * @param from The source file that should be copied or moved.
+ * @param to The destination of the file.
+ * @param copy If set, copy the file instead of moving it.
  * @return OS_EOK if the operation succeeded, otherwise the an error code.
  */
 CRTDECL(oserr_t,
@@ -129,9 +129,9 @@ OSMoveFile(
 
 /**
  * @brief Creates either a hard link or symbolic link to a path
- * @param[In] from The source path that should be linked.
- * @param[In] to The path of the link
- * @param[In] symbolic If set, creates a symbolic link
+ * @param from The source path that should be linked.
+ * @param to The path of the link.
+ * @param symbolic If set, creates a symbolic link.
  * @return OS_EOK if the operation succeeded, otherwise the an error code.
  */
 CRTDECL(oserr_t,
@@ -141,14 +141,14 @@ OSLinkPath(
         _In_ bool        symbolic));
 
 /**
- * brief Reads or writes a number of bytes to a file.
- * @param handle
- * @param bufferID
- * @param bufferOffset
- * @param write
- * @param length
- * @param bytesTransferred
- * @return
+ * @brief Reads or writes a number of bytes to a file.
+ * @param handle File handle used for the transfer.
+ * @param bufferID Identifier of the shared buffer used for the transfer.
+ * @param bufferOffset Offset into the shared buffer.
+ * @param write True to write to the file; false to read from it.
+ * @param length Number of bytes to transfer.
+ * @param bytesTransferred Receives the number of bytes transferred.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSTransferFile(
@@ -160,10 +160,10 @@ OSTransferFile(
         _Out_ size_t* bytesTransferred));
 
 /**
- * @brief
- * @param path
- * @param size
- * @return
+ * @brief Changes the size of a file identified by its path.
+ * @param path Path of the file to resize.
+ * @param size New file size, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 SetFileSizeFromPath(
@@ -171,10 +171,10 @@ SetFileSizeFromPath(
         _In_ size_t      size));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param size
- * @return
+ * @brief Changes the size of a file identified by a file descriptor.
+ * @param fileDescriptor File descriptor to resize.
+ * @param size New file size, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 SetFileSizeFromFd(
@@ -182,10 +182,10 @@ SetFileSizeFromFd(
         _In_ size_t size));
 
 /**
- * @brief
- * @param path
- * @param permissions
- * @return
+ * @brief Changes permissions for a file identified by its path.
+ * @param path Path of the file to modify.
+ * @param permissions New file permissions.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ChangeFilePermissionsFromPath(
@@ -193,10 +193,10 @@ ChangeFilePermissionsFromPath(
         _In_ unsigned int permissions));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param permissions
- * @return
+ * @brief Changes permissions for a file identified by a file descriptor.
+ * @param fileDescriptor File descriptor to modify.
+ * @param permissions New file permissions.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ChangeFilePermissionsFromFd(
@@ -204,21 +204,21 @@ ChangeFilePermissionsFromFd(
         _In_ unsigned int permissions));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param access
- * @return
+ * @brief Changes access flags for a file descriptor.
+ * @param fileDescriptor File descriptor to modify.
+ * @param access New access flags.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ChangeFileHandleAccessFromFd(
         _In_ int          fileDescriptor,
         _In_ unsigned int access));
 /**
- * @brief
- * @param path
- * @param linkPathBuffer
- * @param bufferLength
- * @return
+ * @brief Reads the target path of a symbolic link.
+ * @param path Path of the link to read.
+ * @param linkPathBuffer Receives the link target path.
+ * @param bufferLength Size of linkPathBuffer in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetFileLink(
@@ -227,11 +227,11 @@ GetFileLink(
         _In_ size_t      bufferLength));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param buffer
- * @param maxLength
- * @return
+ * @brief Retrieves the path associated with a file descriptor.
+ * @param fileDescriptor File descriptor to query.
+ * @param buffer Receives the path.
+ * @param maxLength Size of buffer in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetFilePathFromFd(
@@ -240,11 +240,11 @@ GetFilePathFromFd(
         _In_ size_t maxLength));
 
 /**
- * @brief
- * @param path
- * @param followLinks
- * @param descriptor
- * @return
+ * @brief Retrieves storage information for a path.
+ * @param path Path whose storage should be queried.
+ * @param followLinks Whether symbolic links should be followed.
+ * @param descriptor Receives the storage descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetStorageInformationFromPath(
@@ -253,10 +253,10 @@ GetStorageInformationFromPath(
         _In_ OSStorageDescriptor_t* descriptor));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param descriptor
- * @return
+ * @brief Retrieves storage information for a file descriptor.
+ * @param fileDescriptor File descriptor to query.
+ * @param descriptor Receives the storage descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetStorageInformationFromFd(
@@ -264,11 +264,11 @@ GetStorageInformationFromFd(
         _In_ OSStorageDescriptor_t* descriptor));
 
 /**
- * @brief
- * @param path
- * @param followLinks
- * @param descriptor
- * @return
+ * @brief Retrieves file-system information for a path.
+ * @param path Path whose file system should be queried.
+ * @param followLinks Whether symbolic links should be followed.
+ * @param descriptor Receives the file-system descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetFileSystemInformationFromPath(
@@ -277,10 +277,10 @@ GetFileSystemInformationFromPath(
         _In_ OSFileSystemDescriptor_t* descriptor));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param descriptor
- * @return
+ * @brief Retrieves file-system information for a file descriptor.
+ * @param fileDescriptor File descriptor to query.
+ * @param descriptor Receives the file-system descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetFileSystemInformationFromFd(
@@ -288,11 +288,11 @@ GetFileSystemInformationFromFd(
         _In_ OSFileSystemDescriptor_t* descriptor));
 
 /**
- * @brief
- * @param path
- * @param followLinks
- * @param descriptor
- * @return
+ * @brief Retrieves file information for a path.
+ * @param path Path whose file should be queried.
+ * @param followLinks Whether symbolic links should be followed.
+ * @param descriptor Receives the file descriptor information.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetFileInformationFromPath(
@@ -301,10 +301,10 @@ GetFileInformationFromPath(
         OSFileDescriptor_t* descriptor));
 
 /**
- * @brief
- * @param fileDescriptor
- * @param descriptor
- * @return
+ * @brief Retrieves file information for a file descriptor.
+ * @param fileDescriptor File descriptor to query.
+ * @param descriptor Receives the file descriptor information.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 GetFileInformationFromFd(
@@ -335,13 +335,13 @@ GetFileInformationFromFd(
 #define FILEVIEW_FLUSH_INVALIDATE 0x2
 
 /**
- * @brief
- * @param fileDescriptor
- * @param flags
- * @param offset
- * @param length
- * @param mapping
- * @return
+ * @brief Creates a memory mapping for an open file.
+ * @param handle File handle to map.
+ * @param flags File-view access and sharing flags.
+ * @param offset File offset at which the mapping starts.
+ * @param length Length of the mapping in bytes.
+ * @param mappingOut Receives the mapped address.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSFileViewCreate(
@@ -352,10 +352,11 @@ OSFileViewCreate(
         _Out_ void**       mappingOut));
 
 /**
- * @brief
- * @param mapping
- * @param length
- * @return
+ * @brief Flushes changes made through a file mapping.
+ * @param mapping Address of the mapping to flush.
+ * @param length Number of bytes to flush.
+ * @param flags File-view flush behavior flags.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSFileViewFlush(
@@ -364,9 +365,10 @@ OSFileViewFlush(
         _In_ unsigned int flags));
 
 /**
- * @brief
- * @param mapping
- * @return
+ * @brief Unmaps a file mapping.
+ * @param mapping Address of the mapping to remove.
+ * @param length Length of the mapping in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSFileViewUnmap(

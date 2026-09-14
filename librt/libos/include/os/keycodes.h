@@ -209,8 +209,8 @@ _CODE_BEGIN
 /**
  * Performs the translation on the keycode in the system key structure. Returns the corresponding
  * ASCII character for the given keyCode with modifiers.
- * @param  keyCode
- * @param  keyModifiers
+ * @param keyCode Keyboard key code.
+ * @param keyModifiers Active key modifiers.
  * @return The corresponding ASCII character
  */
 CRTDECL(char,

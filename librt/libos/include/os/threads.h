@@ -29,22 +29,23 @@ _CODE_BEGIN
  * @brief Creates a new thread executing the function func. The function is invoked as func(arg).
  * If successful, the object pointed to by thr is set to the identifier of the new thread.
  * The completion of this function synchronizes-with the beginning of the thread
- * @param threadId
- * @param parameters
- * @param function
- * @param argument
- * @return
+ * @param threadId Receives the identifier of the new thread.
+ * @param parameters Thread creation parameters.
+ * @param function Entry function executed by the new thread.
+ * @param argument Argument passed to function.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsCreate(
-        _Out_ uuid_t*             threadId,
+        _Out_ uuid_t*               threadId,
         _In_  OSThreadParameters_t* parameters,
-        _In_  ThreadEntry_t       function,
-        _In_  void*               argument));
+        _In_  ThreadEntry_t         function,
+        _In_  void*                 argument));
 
 /**
  *
- * @param Paramaters
+ * @param parameters Parameters to initialize.
+ * @return None.
  */
 CRTDECL(void,
 ThreadParametersInitialize(
@@ -61,15 +62,24 @@ ThreadParametersInitialize(
  * If the last thread in the program is terminated with thrd_exit, the entire program
  * terminates as if by calling exit with EXIT_SUCCESS as the argument (so the functions
  * registered by atexit are executed in the context of that last thread)
- * @param exitCode
+ * @param exitCode The exit code to be returned by the thread.
  */
 CRTDECL(void,
 ThreadsExit(
         _In_ int exitCode));
 
 /**
+ * @brief Terminates the calling thread immediately with the specified exit code,
+ * without invoking thread-specific destructors.
+ * @param exitCode The exit code to be returned by the thread.
+ */
+CRTDECL(void,
+ThreadsFastExit(
+        _In_ int exitCode));
+
+/**
  * @brief Returns the identifier of the calling thread.
- * @return
+ * @return The identifier of the calling thread.
  */
 CRTDECL(uuid_t,
 ThreadsCurrentId(void));
@@ -82,8 +92,8 @@ ThreadsCurrentId(void));
  * In such case, if remaining is not NULL, the remaining time duration is stored
  * into the object pointed to by remaining.
  *
- * @param[In]            until     Pointer to the point in time to sleep until
- * @param[Out, Optional] remaining Pointer to the object to put the remaining time on interruption. May be NULL, in which case it is ignored
+ * @param until Pointer to the point in time to sleep until.
+ * @param remaining Pointer to the object to put the remaining time on interruption. May be NULL.
  * @return OS_EOK on successful sleep, OsInterrupted if a signal occurred, other if an error occurred.
  */
 CRTDECL(oserr_t,
@@ -101,8 +111,8 @@ ThreadsYield(void));
 /**
  * @brief Detaches the thread identified by thr from the current environment.
  * The resources held by the thread will be freed automatically once the thread exits.
- * @param threadId
- * @return
+ * @param threadId Identifier of the thread to detach.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsDetach(
@@ -113,9 +123,9 @@ ThreadsDetach(
  * If res is not a null pointer, the result code of the thread is put to the location pointed to by res.
  * The termination of the thread synchronizes-with the completion of this function.
  * The behavior is undefined if the thread was previously detached or joined by another thread.
- * @param threadId
- * @param exitCode
- * @return
+ * @param threadId Identifier of the thread to join.
+ * @param exitCode Receives the thread's exit code.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsJoin(
@@ -125,9 +135,9 @@ ThreadsJoin(
 /**
  * @brief nvokes a signal on the given thread id, for security reasons
  * it's only possible to signal threads local to the running process.
- * @param threadId
- * @param signal
- * @return
+ * @param threadId Identifier of the thread to signal.
+ * @param signal Signal number to invoke.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsSignal(
@@ -135,19 +145,19 @@ ThreadsSignal(
         _In_ int    signal));
 
 /**
- * @brief
- * @param name
- * @return
+ * @brief Sets the name of the calling thread.
+ * @param name Null-terminated thread name.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsSetName(
         _In_ const char* name));
 
 /**
- * @brief
- * @param buffer
- * @param maxLength
- * @return
+ * @brief Retrieves the name of the calling thread.
+ * @param buffer Buffer that receives the thread name.
+ * @param maxLength Capacity of buffer in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ThreadsGetName(

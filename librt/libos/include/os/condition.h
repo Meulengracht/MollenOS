@@ -38,8 +38,8 @@ typedef struct Condition {
 _CODE_BEGIN
 /**
  * @brief Initializes a new condition variable.
- * @param cond
- * @return
+ * @param cond Condition variable to initialize.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ConditionInitialize(
@@ -47,8 +47,8 @@ ConditionInitialize(
 
 /**
  * @brief Unblocks one thread that currently waits on condition variable pointed to by cond.
- * @param cond
- * @return
+ * @param cond Condition variable to signal.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ConditionSignal(
@@ -56,8 +56,8 @@ ConditionSignal(
 
 /**
  * @brief Unblocks all thread that currently wait on condition variable pointed to by cond.
- * @param cond
- * @return
+ * @param cond Condition variable to broadcast.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ConditionBroadcast(
@@ -68,9 +68,10 @@ ConditionBroadcast(
  * condition variable pointed to by cond until the thread is signalled
  * by ConditionSignal or ConditionBroadcast.
  * The mutex is locked again before the function returns.
- * @param cond
- * @param mutex
- * @return
+ * @param cond Condition variable to wait on.
+ * @param mutex Mutex released while waiting and reacquired before returning.
+ * @param asyncContext Optional asynchronous wait context.
+ * @return OS_EOK when signaled; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ConditionWait(
@@ -84,10 +85,11 @@ ConditionWait(
  * by ConditionSignal or ConditionBroadcast, or until the TIME_UTC based time point
  * pointed to by timePoint has been reached. The mutex is locked again
  * before the function returns.
- * @param cond
- * @param mutex
- * @param timePoint
- * @return
+ * @param cond Condition variable to wait on.
+ * @param mutex Mutex released while waiting and reacquired before returning.
+ * @param timePoint Absolute time at which the wait expires.
+ * @param asyncContext Optional asynchronous wait context.
+ * @return OS_EOK when signaled; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 ConditionTimedWait(
@@ -99,7 +101,8 @@ ConditionTimedWait(
 /**
  * @brief Destroys the condition variable pointed to by cond. If there are threads
  * waiting on cond, the behavior is undefined.
- * @param cond
+ * @param cond Condition variable to destroy.
+ * @return None.
  */
 CRTDECL(void,
 ConditionDestroy(

@@ -34,8 +34,10 @@ typedef struct UnwindSection {
 
 _CODE_BEGIN
 /**
- * UnwindGetSection
- * * Retrieve the unwind section for the module containing the given address
+ * @brief Retrieves the unwind section for the module containing an address.
+ * @param MemoryAddress Address whose containing module should be queried.
+ * @param Section Receives the unwind section information.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 UnwindGetSection(

@@ -51,7 +51,7 @@ _CODE_BEGIN
 
 /**
  * @brief Initialize the job parameters to the default values.
- * @param params
+ * @param params Parameters to initialize.
  */
 CRTDECL(void, usched_job_parameters_init(struct usched_job_parameters* params));
 
@@ -93,8 +93,8 @@ CRTDECL(uuid_t, usched_job_current(void));
  * @brief Initiates a cancellation request for the specified job. The job is not required
  * to react to these requests, and must itself check periodically if anyone has requested
  * a cancellation by using usched_is_cancelled.
- * @param jobID
- * @return
+ * @param jobID Cancellation token of the job.
+ * @return Zero if the cancellation request was accepted; otherwise, an error code.
  */
 CRTDECL(int, usched_job_cancel(uuid_t jobID));
 
