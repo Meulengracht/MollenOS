@@ -200,7 +200,7 @@ XhciDeviceEnsure(
     device->HubAddress = transfer->Address.HubAddress;
     device->PortAddress = transfer->Address.PortAddress;
     device->DefaultEndpoint = endpoint;
-    device->BootstrapTransfer = transfer;
+    device->InitTransfer = transfer;
     device->State = XHCI_DEVICE_ENABLE_PENDING;
     endpoint->Device = device;
     ELEMENT_INIT(&device->Header, transfer->Address.PortAddress, device);
@@ -236,7 +236,7 @@ XhciDeviceEnsure(
     oserr = __SubmitCommand(controller, device, XHCI_COMMAND_ENABLE_SLOT, &trb);
     if (oserr != OS_EOK) {
         device->State = XHCI_DEVICE_FAILED;
-        device->BootstrapTransfer = NULL;
+        device->InitTransfer = NULL;
         return oserr;
     }
 
@@ -309,34 +309,34 @@ XhciCommandHandleCompletion(
             device->AddressTransfer->ResultCode = USBTRANSFERCODE_INVALID;
             device->AddressTransfer->State = USBTRANSFER_STATE_CLEANUP;
             device->AddressTransfer = NULL;
-        } else if (device->BootstrapTransfer != NULL) {
-            device->BootstrapTransfer->ResultCode = USBTRANSFERCODE_INVALID;
-            device->BootstrapTransfer->State = USBTRANSFER_STATE_CLEANUP;
-            device->BootstrapTransfer = NULL;
+        } else if (device->InitTransfer != NULL) {
+            device->InitTransfer->ResultCode = USBTRANSFERCODE_INVALID;
+            device->InitTransfer->State = USBTRANSFER_STATE_CLEANUP;
+            device->InitTransfer = NULL;
         }
     } else if (command->Type == XHCI_COMMAND_ENABLE_SLOT) {
         device->SlotId = XHCI_TRB_SLOT_ID(eventTrb->Control);
         if (device->SlotId == 0 || device->SlotId > controller->SlotCount) {
             device->State = XHCI_DEVICE_FAILED;
-            device->BootstrapTransfer->ResultCode = USBTRANSFERCODE_INVALID;
-            device->BootstrapTransfer->State = USBTRANSFER_STATE_CLEANUP;
-            device->BootstrapTransfer = NULL;
+            device->InitTransfer->ResultCode = USBTRANSFERCODE_INVALID;
+            device->InitTransfer->State = USBTRANSFER_STATE_CLEANUP;
+            device->InitTransfer = NULL;
             goto commandHandled;
         }
         device->DefaultEndpoint->SlotId = device->SlotId;
         controller->DCBaa[device->SlotId] = device->DeviceContextDMATable.Entries[0].Address;
-        __BuildAddressContext(controller, device, device->BootstrapTransfer);
+        __BuildAddressContext(controller, device, device->InitTransfer);
         device->State = XHCI_DEVICE_DEFAULT_PENDING;
         if (__SubmitAddressDevice(controller, device, true) != OS_EOK) {
             device->State = XHCI_DEVICE_FAILED;
-            device->BootstrapTransfer->ResultCode = USBTRANSFERCODE_INVALID;
-            device->BootstrapTransfer->State = USBTRANSFER_STATE_CLEANUP;
-            device->BootstrapTransfer = NULL;
+            device->InitTransfer->ResultCode = USBTRANSFERCODE_INVALID;
+            device->InitTransfer->State = USBTRANSFER_STATE_CLEANUP;
+            device->InitTransfer = NULL;
         }
     } else if (command->Type == XHCI_COMMAND_ADDRESS_DEVICE) {
         if (device->State == XHCI_DEVICE_DEFAULT_PENDING) {
             device->State = XHCI_DEVICE_DEFAULT;
-            device->BootstrapTransfer = NULL;
+            device->InitTransfer = NULL;
         } else if (device->State == XHCI_DEVICE_ADDRESS_PENDING) {
             device->State = XHCI_DEVICE_ADDRESSED;
             XhciTransferCompleteSoftware(controller, device->AddressTransfer);

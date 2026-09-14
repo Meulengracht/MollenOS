@@ -306,7 +306,7 @@ typedef struct XhciDevice {
     enum XhciDeviceState State;
 
     XhciEndpoint_t*      DefaultEndpoint;
-    UsbManagerTransfer_t* BootstrapTransfer;
+    UsbManagerTransfer_t* InitTransfer;
     UsbManagerTransfer_t* AddressTransfer;
 
     OSHandle_t           InputContextDMA;
