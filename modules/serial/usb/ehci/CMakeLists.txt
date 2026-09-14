@@ -1,5 +1,6 @@
 add_module_target(ehci ""
     structures/itd.c
+    structures/sitd.c
     structures/qh.c
     structures/td.c
     controller.c
