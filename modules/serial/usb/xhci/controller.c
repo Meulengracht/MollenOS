@@ -203,7 +203,7 @@ XhciRun(
     WRITE_VOLATILE(controller->OpRegisters->Configure, XHCI_OP_CONFIG_MAXSLOTS(controller->SlotCount));
     WRITE_VOLATILE(controller->OpRegisters->DeviceContextBaseAddressArray, controller->DCBaaDMATable.Entries[0].Address);
     WRITE_VOLATILE(controller->OpRegisters->CommandRingControl,
-            controller->CommandRingDMATable.Entries[0].Address | XHCI_OP_CRCR_RING_CYCLE);
+            controller->CommandRing.PhysicalBase | XHCI_OP_CRCR_RING_CYCLE);
 
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingSegmentTableSize, XHCI_ERST_ENTRIES);
     WRITE_VOLATILE(controller->InterrupterRegisters->EventRingDequeuePointer,
@@ -312,6 +312,8 @@ HCIControllerCreate(
     if (!controller) {
         return NULL;
     }
+    list_construct(&controller->XhciEndpoints);
+    list_construct(&controller->Devices);
 
     ioBase = __GetControllerIoSpace(device);
     if (!ioBase) {
@@ -372,8 +374,8 @@ HCIControllerDestroy(
     XhciController_t* controller = (XhciController_t*)baseController;
 
     TRACE("HCIControllerDestroy()");
-    UsbManagerDestroyController(baseController);
     XhciHalt(controller);
+    UsbManagerDestroyController(baseController);
     XhciQueueDestroy(controller);
     UnregisterInterruptSource(baseController->Interrupt);
     ReleaseDeviceIo(baseController->IoBase);

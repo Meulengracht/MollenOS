@@ -13,7 +13,6 @@ __AddressEqual(
 {
     return left->HubAddress == right->HubAddress &&
             left->PortAddress == right->PortAddress &&
-            left->DeviceAddress == right->DeviceAddress &&
             left->EndpointAddress == right->EndpointAddress;
 }
 
@@ -34,7 +33,7 @@ XhciEndpointGet(
     _In_ XhciController_t* controller,
     _In_ USBAddress_t*     address)
 {
-    foreach(node, &controller->Endpoints) {
+    foreach(node, &controller->XhciEndpoints) {
         XhciEndpoint_t* endpoint = node->value;
         if (__AddressEqual(&endpoint->Address, address)) {
             return endpoint;
@@ -52,6 +51,7 @@ XhciEndpointGetOrCreate(
     oserr_t         oserr;
 
     if (endpoint != NULL) {
+        endpoint->Address = transfer->Address;
         return endpoint;
     }
 
@@ -74,7 +74,7 @@ XhciEndpointGetOrCreate(
         return NULL;
     }
 
-    if (list_append(&controller->Endpoints, &endpoint->Header) != 0) {
+    if (list_append(&controller->XhciEndpoints, &endpoint->Header) != 0) {
         XhciRingDestroy(&endpoint->TransferRing);
         free(endpoint);
         return NULL;
@@ -98,7 +98,7 @@ void
 XhciEndpointDestroyAll(
     _In_ XhciController_t* controller)
 {
-    list_clear(&controller->Endpoints, __DestroyEndpoint, NULL);
+    list_clear(&controller->XhciEndpoints, __DestroyEndpoint, NULL);
 }
 
 oserr_t

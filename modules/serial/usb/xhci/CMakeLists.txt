@@ -1,4 +1,5 @@
 add_module_target(xhci ""
+    command.c
     controller.c
     endpoint.c
     interrupt.c

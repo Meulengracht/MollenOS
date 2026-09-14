@@ -28,6 +28,7 @@ __ProcessEventRing(
         _In_ XhciController_t* controller)
 {
     int portEvent = 0;
+    int transferEvent = 0;
 
     while ((controller->EventRing[controller->EventRingIndex].Control & XHCI_TRB_CONTROL_CYCLE) ==
            (controller->EventRingCycle ? XHCI_TRB_CONTROL_CYCLE : 0)) {
@@ -36,8 +37,19 @@ __ProcessEventRing(
         // Port status events carry the changed port id in the event TRB. The
         // common stack only needs a root-hub port notification, so we let the
         // port code rescan PORTSC to keep change-bit handling in one place.
-        if (XHCI_TRB_CONTROL_TYPE_GET(trb->Control) == XHCI_TRB_TYPE_PORT_STATUS_CHANGE) {
-            portEvent = 1;
+        switch (XHCI_TRB_CONTROL_TYPE_GET(trb->Control)) {
+            case XHCI_TRB_TYPE_TRANSFER_EVENT:
+                transferEvent |= XhciTransferHandleEvent(controller, trb);
+                break;
+            case XHCI_TRB_TYPE_COMMAND_COMPLETION:
+                XhciCommandHandleCompletion(controller, trb);
+                transferEvent = 1;
+                break;
+            case XHCI_TRB_TYPE_PORT_STATUS_CHANGE:
+                portEvent = 1;
+                break;
+            default:
+                break;
         }
 
         controller->EventRingIndex++;
@@ -52,6 +64,9 @@ __ProcessEventRing(
 
     if (portEvent) {
         XhciPortScan(controller);
+    }
+    if (transferEvent) {
+        UsbManagerProcessTransfers(&controller->Base);
     }
 }
 

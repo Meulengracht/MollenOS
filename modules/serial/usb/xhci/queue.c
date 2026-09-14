@@ -58,7 +58,7 @@ __XhciFreeControllerResources(
 {
     __XhciFreeDMA(&controller->ErstDMA, &controller->ErstDMATable);
     __XhciFreeDMA(&controller->EventRingDMA, &controller->EventRingDMATable);
-    __XhciFreeDMA(&controller->CommandRingDMA, &controller->CommandRingDMATable);
+    XhciRingDestroy(&controller->CommandRing);
     __XhciFreeDMA(&controller->ScratchpadBufferDMA, &controller->ScratchpadBufferDMATable);
     __XhciFreeDMA(&controller->ScratchpadArrayDMA, &controller->ScratchpadArrayDMATable);
     __XhciFreeDMA(&controller->DCBaaDMA, &controller->DCBaaDMATable);
@@ -168,21 +168,13 @@ XhciQueueInitialize(
         controller->DCBaa[0] = controller->ScratchpadArrayDMATable.Entries[0].Address;
     }
 
-    oserr = __XhciAllocateDMA(
-            XHCI_COMMAND_RING_ENTRIES * sizeof(XhciTransferRequestBlock_t),
-            &controller->CommandRingDMA,
-            &controller->CommandRingDMATable,
-            (void**)&controller->CommandRing
-    );
+        oserr = XhciRingInitialize(&controller->CommandRing, XHCI_COMMAND_RING_ENTRIES);
     if (oserr != OS_EOK) {
         __XhciFreeControllerResources(controller);
         UsbSchedulerDestroy(controller->Base.Scheduler);
         controller->Base.Scheduler = NULL;
         return oserr;
     }
-
-    controller->CommandRing[XHCI_COMMAND_RING_ENTRIES - 1].Parameter = controller->CommandRingDMATable.Entries[0].Address;
-    controller->CommandRing[XHCI_COMMAND_RING_ENTRIES - 1].Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_LINK) | XHCI_TRB_CONTROL_CYCLE;
 
     oserr = __XhciAllocateDMA(
             XHCI_EVENT_RING_ENTRIES * sizeof(XhciTransferRequestBlock_t),
@@ -223,8 +215,12 @@ XhciQueueReset(
 {
     UsbManagerClearTransfers(&controller->Base);
     XhciEndpointDestroyAll(controller);
+    XhciDeviceDestroyAll(controller);
     XhciRingReset(&controller->CommandRing);
-    XhciRingReset(&controller->EventRing);
+    memset(controller->Commands, 0, sizeof(controller->Commands));
+    memset(controller->EventRing, 0, XHCI_EVENT_RING_ENTRIES * sizeof(XhciTransferRequestBlock_t));
+    controller->EventRingIndex = 0;
+    controller->EventRingCycle = 1;
     if (controller->Base.Scheduler != NULL) {
         return UsbSchedulerResetInternalData(controller->Base.Scheduler, 1, 0);
     }
@@ -270,9 +266,28 @@ HCIProcessElement(
                 scanContext->ElementsExecuted++;
                 scanContext->ElementsProcessed++;
                 scanContext->BytesTransferred += descriptor->BytesTransferred;
+                if (descriptor->CompletionCode == XHCI_TRB_COMPLETION_SHORT_PACKET) {
+                    scanContext->Short = true;
+                }
             }
             if (descriptor->Flags & XHCI_TD_FLAG_FAILED) {
-                scanContext->Result = USBTRANSFERCODE_INVALID;
+                switch (descriptor->CompletionCode) {
+                    case 2:
+                        scanContext->Result = USBTRANSFERCODE_BUFFERERROR;
+                        break;
+                    case 3:
+                        scanContext->Result = USBTRANSFERCODE_BABBLE;
+                        break;
+                    case 4:
+                        scanContext->Result = USBTRANSFERCODE_NORESPONSE;
+                        break;
+                    case 6:
+                        scanContext->Result = USBTRANSFERCODE_STALL;
+                        break;
+                    default:
+                        scanContext->Result = USBTRANSFERCODE_INVALID;
+                        break;
+                }
                 return false;
             }
         } break;
