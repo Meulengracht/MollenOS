@@ -24,7 +24,7 @@
 #include <assert.h>
 #include <string.h>
 
-void
+bool
 EHCITDIsochronous(
         _In_ EhciController_t*            controller,
         _In_ UsbManagerTransfer_t*        transfer,
@@ -36,6 +36,14 @@ EHCITDIsochronous(
     uintptr_t pageMask    = ~((uintptr_t)0xFFF);
     uintptr_t buffer      = addresses[0] & pageMask;
     uint32_t  bufferIndex = 0;
+    int       transactionCount = 0;
+
+    // An iTD has seven buffer-page entries. Refuse a layout that would need
+    // another page instead of writing beyond the descriptor and corrupting
+    // adjacent scheduler metadata.
+    if (addresses[0] == 0 || lengths[0] == 0) {
+        return false;
+    }
 
     /**
      * When calling these initializers for TDs, the TDs have already been
@@ -69,6 +77,9 @@ EHCITDIsochronous(
         if ((addresses[i] & pageMask) != buffer) {
             buffer = addresses[i] & pageMask;
             bufferIndex++;
+            if (bufferIndex >= 7) {
+                return false;
+            }
             iTd->Buffers[bufferIndex] |= EHCI_iTD_BUFFER(buffer);
 #if __BITS == 64
             if (controller->CParameters & EHCI_CPARAM_64BIT) {
@@ -80,11 +91,18 @@ EHCITDIsochronous(
         iTd->Transactions[i]  = EHCI_iTD_OFFSET(addresses[i]);
         iTd->Transactions[i] |= EHCI_iTD_PAGE(bufferIndex);
         iTd->Transactions[i] |= EHCI_iTD_LENGTH(lengths[i]);
-        iTd->Transactions[i] |= EHCI_iTD_ACTIVE;
+        transactionCount++;
+    }
 
-        // Create copies of transaction details
+    // Publish all transaction ownership bits together, after every buffer and
+    // transaction field has been written. The copies retain the same active
+    // state for a later periodic restart.
+    dma_mb();
+    for (int i = 0; i < transactionCount; i++) {
+        iTd->Transactions[i] |= EHCI_iTD_ACTIVE;
         iTd->TransactionsCopy[i] = iTd->Transactions[i];
     }
+    return true;
 }
 
 void

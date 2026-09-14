@@ -285,7 +285,10 @@ HCITransferElementsNeeded(
 
     // Handle control transfers a bit different due to control transfers needing
     // some additional packets.
-    else if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+    if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
+        if (transferLength < sizeof(usb_packet_t)) {
+            return OS_EINVALPARAMS;
+        }
         bytesLeft -= sizeof(usb_packet_t);
 
         // add two additional packets, one for SETUP, and one for ACK
@@ -569,6 +572,7 @@ struct __PrepareContext {
     int                   Toggle;
     int                   TDIndex;
     int                   LastTDIndex;
+    bool                  Failed;
 };
 
 static bool
@@ -581,6 +585,14 @@ __PrepareDescriptor(
     struct __PrepareContext*  context = userContext;
     EhciTransferDescriptor_t* td      = (EhciTransferDescriptor_t*)element;
     _CRT_UNUSED(reason);
+
+    // The scheduler chain and transfer element array must describe the same
+    // number of descriptors. Stop preparation if that invariant is broken so
+    // malformed input cannot read past the transfer metadata.
+    if (context->TDIndex < 0 || context->TDIndex >= context->Transfer->ElementCount) {
+        context->Failed = true;
+        return false;
+    }
 
     // Handle special stuff for Control transfers. They have special needs.
     if (context->Transfer->Type == USBTRANSFER_TYPE_CONTROL) {
@@ -647,26 +659,37 @@ __PrepareIsochronousDescriptor(
     _CRT_UNUSED(controllerBase);
     _CRT_UNUSED(reason);
 
+    if (context->TDIndex < 0 || context->TDIndex >= context->Transfer->ElementCount) {
+        context->Failed = true;
+        return false;
+    }
+
     switch (context->Transfer->Elements[context->TDIndex].Type) {
         case TRANSFERELEMENT_TYPE_IN: {
-            EHCITDIsochronous(
+            if (!EHCITDIsochronous(
                     (EhciController_t*)controllerBase,
                     context->Transfer,
                     iTD,
                     EHCI_iTD_IN,
                     context->Transfer->Elements[context->TDIndex].Data.EHCI.Addresses,
                     context->Transfer->Elements[context->TDIndex].Data.EHCI.Lengths
-            );
+            )) {
+                context->Failed = true;
+                return false;
+            }
         } break;
         case TRANSFERELEMENT_TYPE_OUT: {
-            EHCITDIsochronous(
+            if (!EHCITDIsochronous(
                     (EhciController_t*)controllerBase,
                     context->Transfer,
                     iTD,
                     EHCI_iTD_OUT,
                     context->Transfer->Elements[context->TDIndex].Data.EHCI.Addresses,
                     context->Transfer->Elements[context->TDIndex].Data.EHCI.Lengths
-            );
+            )) {
+                context->Failed = true;
+                return false;
+            }
         } break;
         default:
             return false;
@@ -698,7 +721,7 @@ __ElementsCompleted(
     return 0;
 }
 
-static void
+static bool
 __PrepareTransferDescriptors(
         _In_ EhciController_t*     controller,
         _In_ UsbManagerTransfer_t* transfer,
@@ -730,6 +753,7 @@ __PrepareTransferDescriptors(
         );
         UsbManagerSetToggle(&controller->Base, &transfer->Address, context.Toggle);
     }
+    return !context.Failed;
 }
 
 oserr_t
@@ -755,7 +779,12 @@ HCITransferQueue(
         return OS_EOK;
     }
 
-    __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+    if (!__PrepareTransferDescriptors(controller, transfer, transfer->ChainLength)) {
+        __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
+        transfer->State = USBTRANSFER_STATE_WAITING;
+        return OS_EINVALPARAMS;
+    }
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }
@@ -785,7 +814,12 @@ HCITransferQueueIsochronous(
         return OS_EOK;
     }
 
-    __PrepareTransferDescriptors(controller, transfer, transfer->ChainLength);
+    if (!__PrepareTransferDescriptors(controller, transfer, transfer->ChainLength)) {
+        __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
+        transfer->State = USBTRANSFER_STATE_WAITING;
+        return OS_EINVALPARAMS;
+    }
     __DispatchTransfer(controller, transfer);
     return OS_EOK;
 }

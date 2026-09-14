@@ -57,6 +57,10 @@ HCIPortReset(
     _In_ UsbManagerController_t* Controller, 
     _In_ int                     Index)
 {
+    if (Controller == NULL || Index < 0 || (size_t)Index >= Controller->PortCount) {
+        return OS_EINVALPARAMS;
+    }
+
     EhciController_t* EhciHci = (EhciController_t*)Controller;
     reg32_t Temp              = READ_VOLATILE(EhciHci->OpRegisters->Ports[Index]);
 
@@ -116,7 +120,7 @@ HCIPortStatus(
     EhciController_t* ehciHci = (EhciController_t*)controller;
     reg32_t           status;
 
-    if (!controller || !port) {
+    if (!controller || !port || index < 0 || (size_t)index >= controller->PortCount) {
         return;
     }
 
@@ -133,6 +137,10 @@ EhciPortCheck(
     _In_ EhciController_t*          Controller,
     _In_ size_t                     Index)
 {
+    if (Controller == NULL || Index >= Controller->Base.PortCount) {
+        return OS_EINVALPARAMS;
+    }
+
     reg32_t Status = READ_VOLATILE(Controller->OpRegisters->Ports[Index]);
 
     // Clear all event bits

@@ -159,4 +159,5 @@ EHCIQHRestart(
     );
     qh->Overlay.NextTD            = linkPhysical;
     qh->Overlay.NextAlternativeTD = EHCI_LINK_END;
+    dma_mb();
 }
