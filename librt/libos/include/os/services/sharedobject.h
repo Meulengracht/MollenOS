@@ -29,8 +29,8 @@ _CODE_BEGIN
 
 /**
  * @brief Load a shared object given a path which must exists otherwise NULL is returned
- * @param library
- * @return
+ * @param library Path of the shared object to load.
+ * @return A shared object handle, or NULL if loading fails.
  */
 CRTDECL(Handle_t,
 OSLibraryLoad(
@@ -39,9 +39,9 @@ OSLibraryLoad(
 /**
  * @brief Load a function-address given an shared object handle and a function name,
  * function must exist otherwise null is returned
- * @param handle
- * @param function
- * @return
+ * @param handle Shared object handle.
+ * @param function Function name to look up.
+ * @return The function address, or NULL if it is not found.
  */
 CRTDECL(void*,
 OSLibraryLookupFunction(
@@ -50,8 +50,8 @@ OSLibraryLookupFunction(
 
 /**
  * @brief Unloads a valid shared object handle
- * @param handle
- * @return
+ * @param handle Shared object handle to unload.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSLibraryUnload(

@@ -51,16 +51,16 @@ CRTDECL(void, usched_mtx_init(struct usched_mtx* mutex, int type));
 /**
  * @brief Blocks the current thread until the mutex pointed to by mutex is
  * locked or until the TIME_UTC based time point pointed to by until has been reached.
- * @param mutex
- * @param time_point
- * @return
+ * @param mutex Mutex to lock.
+ * @param until Absolute time at which the lock attempt expires.
+ * @return Zero on success; otherwise, an error code.
  */
 CRTDECL(int, usched_mtx_timedlock(struct usched_mtx* mutex, const struct timespec *restrict until));
 
 /**
  * @brief Tries to lock the mutex pointed to by mutex without blocking.
- * @param mutex
- * @return
+ * @param mutex Mutex to try to lock.
+ * @return Zero on success; otherwise, an error code.
  */
 CRTDECL(int, usched_mtx_trylock(struct usched_mtx* mutex));
 

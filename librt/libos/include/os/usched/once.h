@@ -30,8 +30,9 @@ _CODE_BEGIN
  * @brief Calls function func exactly once, even if invoked from several jobs.
  * The completion of the function func synchronizes with all previous or subsequent
  * calls to call_once with the same flag variable.
- * @param flag
- * @param func
+ * @param flag Once flag shared by all callers.
+ * @param func Function to invoke once.
+ * @return None.
  */
 CRTDECL(void,
 usched_call_once(

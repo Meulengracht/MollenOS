@@ -27,18 +27,24 @@
 #include <os/osdefs.h>
 #include <os/types/session.h>
 
-/* SessionLoginRequest
- * Sends a login-request to the session-manager. The sessionmanager will respond
- * with a SessionObject structure containing information about success/failure. */
+/**
+ * @brief Sends a login request to the session manager.
+ * @param User User name.
+ * @param Password User password.
+ * @param Result Receives the session result.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(oserr_t,
 SessionLoginRequest(
 	_In_ const char*      User,
     _In_ const char*      Password,
     _In_ SessionObject_t* Result));
 
-/* SessionLogoutRequest
- * Sends a logout-request to the session-manager. The acquired session-id from
- * the login must be used to logout the correct user. */
+/**
+ * @brief Sends a logout request for an active session.
+ * @param SessionId Identifier returned by the login request.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(oserr_t,
 SessionLogoutRequest(
 	_In_ const char* SessionId));

@@ -36,9 +36,9 @@ typedef struct BinarySemaphore {
 
 /**
  * @brief Initializes the semaphore value to either 0 or 1
- * @param binarySemaphore
- * @param value
- * @return
+ * @param binarySemaphore Semaphore to initialize.
+ * @param value Initial semaphore value; nonzero values are treated as one.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 BinarySemaphoreInitialize(
@@ -47,7 +47,8 @@ BinarySemaphoreInitialize(
 
 /**
  * @brief Reinitializes the semaphore with a value of 0.
- * @param binarySemaphore
+ * @param binarySemaphore Semaphore to reset.
+ * @return None.
  */
 CRTDECL(void,
 BinarySemaphoreReset(
@@ -55,7 +56,8 @@ BinarySemaphoreReset(
 
 /**
  * @brief Post event to a single thread waiting for an event.
- * @param binarySemaphore
+ * @param binarySemaphore Semaphore to signal.
+ * @return None.
  */
 CRTDECL(void,
 BinarySemaphorePost(
@@ -63,7 +65,8 @@ BinarySemaphorePost(
 
 /**
  * @brief Post event to all threads waiting for an event
- * @param binarySemaphore
+ * @param binarySemaphore Semaphore to broadcast.
+ * @return None.
  */
 CRTDECL(void,
 BinarySemaphorePostAll(
@@ -71,7 +74,8 @@ BinarySemaphorePostAll(
 
 /**
  * @brief Wait on semaphore until semaphore has value 0.
- * @param binarySemaphore
+ * @param binarySemaphore Semaphore to wait on.
+ * @return None.
  */
 CRTDECL(void,
 BinarySemaphoreWait(

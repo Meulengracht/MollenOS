@@ -27,8 +27,8 @@ _CODE_BEGIN
  * @brief Puts the calling thread to sleep for the requested duration. The actual time
  * slept is not guaranteed, but will be returned in the remaining value.
  *
- * @param[In]            deadline  The UTC timestamp to sleep untill.
- * @param[Out, Optional] remaining The remaining time if less time was slept than the value in timeout.
+ * @param deadline The UTC timestamp to sleep until.
+ * @param remaining The remaining time if less time was slept than the value in timeout.
  * @return OS_EOK if the sleep was not interrupted. Otherwise returns OsInterrupted.
  */
 CRTDECL(oserr_t,
@@ -40,7 +40,7 @@ OSSleep(
  * @brief Stalls the current thread for the given duration. It will stall for atleast the duration
  * provided, but can be stalled for longer if the thread is scheduled.
  *
- * @param[In] duration The duration to stall the thread for in nanoseconds.
+ * @param duration The duration to stall the thread for in nanoseconds.
  * @return Will always succeed.
  */
 CRTDECL(oserr_t,
@@ -52,7 +52,7 @@ OSStall(
  * the precision of this time other than second-precision. However the value is in microseconds. The time
  * is represented in microseconds since Jaunary 1, 2020 UTC.
  *
- * @param[Out] time Pointer to where the time will be stored.
+ * @param time Pointer to where the time will be stored.
  * @return     Returns OS_EOK if the clock was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
@@ -65,8 +65,8 @@ OSGetTime(
  * precision or availability. If the system is in low-precision mode, the return status will be OsNotSupported
  * for the _HPC source.
  *
- * @param[In]  source  The clock source to read the tick for.
- * @param[Out] tickOut Pointer to a large integer value that can hold the current tick value.
+ * @param source The clock source to read the tick for.
+ * @param tickOut Pointer to a large integer value that can hold the current tick value.
  * @return     Returns OS_EOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,
@@ -78,8 +78,8 @@ OSGetClockTick(
  * @brief Reads the frequency of the clock source type. Use this to calculate the resolution of a given
  * clock source.
  *
- * @param[In]  source       The clock source to read the frequency for
- * @param[Out] frequencyOut Pointer to a large integer value that can hold the frequency value.
+ * @param source The clock source to read the frequency for.
+ * @param frequencyOut Pointer to a large integer value that can hold the frequency value.
  * @return     Returns OS_EOK if the tick was read, otherwise OsNotSupported.
  */
 CRTDECL(oserr_t,

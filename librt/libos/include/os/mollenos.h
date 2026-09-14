@@ -33,9 +33,9 @@
 _CODE_BEGIN
 
 /**
- * @brief0
- * @param code
- * @return
+ * @brief Converts an OS error code to its errno-compatible value.
+ * @param code OS error code to convert.
+ * @return The corresponding errno value.
  */
 CRTDECL(int,
 OsErrToErrNo(
@@ -43,11 +43,11 @@ OsErrToErrNo(
 
 /**
  * @brief Query system information.
- * @param request
- * @param buffer
- * @param maxSize
- * @param bytesQueriedOut
- * @return
+ * @param request System information query to perform.
+ * @param buffer Buffer that receives the query result.
+ * @param maxSize Size of buffer in bytes.
+ * @param bytesQueriedOut Receives the number of bytes written or required.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSystemQuery(
@@ -57,11 +57,11 @@ OSSystemQuery(
         _In_ size_t*                   bytesQueriedOut));
 
 /**
- * @brief
- * @param Cache
- * @param Start
- * @param Length
- * @return
+ * @brief Flushes a range of hardware cache lines.
+ * @param Cache Cache class to flush, such as CACHE_INSTRUCTION or CACHE_MEMORY.
+ * @param Start Start address of the range to flush.
+ * @param Length Length of the range in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 FlushHardwareCache(

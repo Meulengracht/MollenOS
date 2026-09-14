@@ -28,44 +28,44 @@ struct usched_rwlock {
 };
 
 /**
- * @brief
- * @param lock
+ * @brief Initializes a user-space reader-writer lock.
+ * @param lock The lock to initialize.
  */
 CRTDECL(void, usched_rwlock_init(struct usched_rwlock* lock));
 
 /**
- * @brief
- * @param lock
+ * @brief Acquires a reader lock, waiting while a writer owns the lock.
+ * @param lock The lock to acquire for reading.
  */
 CRTDECL(void, usched_rwlock_r_lock(struct usched_rwlock* lock));
 
 /**
- * @brief
- * @param lock
+ * @brief Releases a reader lock.
+ * @param lock The lock to release.
  */
 CRTDECL(void, usched_rwlock_r_unlock(struct usched_rwlock* lock));
 
 /**
- * @brief
- * @param lock
+ * @brief Promotes the current reader lock to a writer lock.
+ * @param lock The lock to promote.
  */
 CRTDECL(void, usched_rwlock_w_promote(struct usched_rwlock* lock));
 
 /**
- * @brief
- * @param lock
+ * @brief Demotes the current writer lock to a reader lock.
+ * @param lock The lock to demote.
  */
 CRTDECL(void, usched_rwlock_w_demote(struct usched_rwlock* lock));
 
 /**
- * @brief
- * @param lock
+ * @brief Acquires a writer lock, waiting while readers or another writer hold it.
+ * @param lock The lock to acquire for writing.
  */
 CRTDECL(void, usched_rwlock_w_lock(struct usched_rwlock* lock));
 
 /**
- * @brief
- * @param lock
+ * @brief Releases a writer lock.
+ * @param lock The lock to release.
  */
 CRTDECL(void, usched_rwlock_w_unlock(struct usched_rwlock* lock));
 

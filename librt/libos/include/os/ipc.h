@@ -25,12 +25,11 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param length
- * @param address
- * @param handleOut
- * @param ipcContextOut
- * @return
+ * @brief Creates an IPC context for exchanging messages.
+ * @param length Size of the context buffer.
+ * @param address IPC address associated with the context.
+ * @param handleOut Receives the context handle.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 IPCContextCreate(
@@ -39,13 +38,14 @@ IPCContextCreate(
         _Out_ OSHandle_t*   handleOut));
 
 /**
- * @brief
- * @param handle
- * @param address
- * @param data
- * @param length
- * @param timeout
- * @return
+ * @brief Sends data through an IPC context.
+ * @param handle IPC context handle.
+ * @param address Destination IPC address.
+ * @param data Message data.
+ * @param length Message length in bytes.
+ * @param deadline Absolute time at which the send expires.
+ * @param asyncContext Optional asynchronous operation context.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 IPCContextSend(
@@ -57,14 +57,15 @@ IPCContextSend(
         _In_ OSAsyncContext_t* asyncContext));
 
 /**
- * @brief
- * @param ipcContext
- * @param buffer
- * @param length
- * @param flags
- * @param fromHandle
- * @param bytesReceived
- * @return
+ * @brief Receives data from an IPC context.
+ * @param handle IPC context handle.
+ * @param buffer Buffer that receives the message.
+ * @param length Capacity of buffer in bytes.
+ * @param flags Receive behavior flags.
+ * @param asyncContext Optional asynchronous operation context.
+ * @param fromHandle Receives the sender handle identifier.
+ * @param bytesReceived Receives the number of bytes copied.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 IPCContextRecv(
