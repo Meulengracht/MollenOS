@@ -190,6 +190,7 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_TYPE_LINK               6
 #define XHCI_TRB_TYPE_ENABLE_SLOT        9
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE     11
+#define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12
 #define XHCI_TRB_TYPE_TRANSFER_EVENT     32
 #define XHCI_TRB_TYPE_COMMAND_COMPLETION 33
 #define XHCI_TRB_TYPE_PORT_STATUS_CHANGE 34
@@ -274,18 +275,47 @@ PACKED_TYPESTRUCT(XhciTransferDescriptor, {
  * device-context slot mapping and the queued transfer descriptors that belong to
  * it. This allows us to maintain per-endpoint pending transfers without mixing
  * state across different pipes.
+ *
+ * Endpoints are configured lazily: the first transfer targeting a non-control
+ * endpoint creates the XhciEndpoint_t and issues a Configure Endpoint command
+ * built from the USBTransfer_t metadata carried by that transfer. The transfer
+ * itself is left in WAITING until the command completes, at which point it is
+ * re-queued and its TRBs are submitted. If a later transfer targets the same
+ * DCI with different metadata (max packet size, interval), a drop/add
+ * Configure Endpoint command is issued again before the transfer is queued.
+ *
+ * SuperSpeed endpoint companion descriptors (MaxBurst/Mult/BytesPerInterval,
+ * stream capability) are not parsed anywhere in the stack yet, so this only
+ * targets USB 2 (control/bulk/interrupt) endpoints for now.
  */
+enum XhciEndpointState {
+    XHCI_ENDPOINT_UNCONFIGURED,
+    XHCI_ENDPOINT_CONFIGURE_PENDING,
+    XHCI_ENDPOINT_RUNNING,
+    XHCI_ENDPOINT_HALTED,
+    XHCI_ENDPOINT_STOPPED,
+    XHCI_ENDPOINT_FAILED
+};
+
 typedef struct XhciEndpoint {
-    USBAddress_t Address;
-    uint8_t      SlotId;
-    uint8_t      DeviceContextIndex;
-    uint16_t     MaxPacketSize;
-    XhciRing_t   TransferRing;
-    list_t       Pending;
-    element_t    Header;
+    USBAddress_t              Address;
+    uint8_t                   SlotId;
+    uint8_t                   DeviceContextIndex;
+    uint16_t                  MaxPacketSize;
+    XhciRing_t                TransferRing;
+    list_t                    Pending;
+    element_t                 Header;
     XhciTransferDescriptor_t* CurrentTd;
-    XhciDevice_t* Device;
-    XhciTransferDescriptor_t* TrbOwners[XHCI_RING_TRB_COUNT];
+    XhciDevice_t*             Device;
+    XhciTransferDescriptor_t* TRBOwners[XHCI_RING_TRB_COUNT];
+
+    /* Configuration state: tracks whether a Configure Endpoint command has
+     * been issued/completed for this endpoint, and the metadata that was
+     * last used to build its endpoint context so later transfers can detect
+     * a mismatch and trigger a reconfigure. */
+    enum XhciEndpointState State;
+    uint16_t               ConfiguredMaxPacketSize;
+    uint8_t                ConfiguredInterval;
 } XhciEndpoint_t;
 
 enum XhciDeviceState {
@@ -298,34 +328,42 @@ enum XhciDeviceState {
 };
 
 typedef struct XhciDevice {
-    element_t            Header;
-    uint8_t              HubAddress;
-    uint8_t              PortAddress;
-    uint8_t              SlotId;
-    uint8_t              UsbAddress;
-    enum XhciDeviceState State;
+    element_t             Header;
+    uint8_t               HubAddress;
+    uint8_t               PortAddress;
+    uint8_t               SlotId;
+    uint8_t               UsbAddress;
+    enum XhciDeviceState  State;
+    
+    /* Highest Device Context Index configured so far; drives the slot
+     * context's Context Entries field on subsequent Configure Endpoint
+     * commands. */
+    uint8_t               ContextEntries;
 
-    XhciEndpoint_t*      DefaultEndpoint;
+    XhciEndpoint_t*       DefaultEndpoint;
     UsbManagerTransfer_t* InitTransfer;
     UsbManagerTransfer_t* AddressTransfer;
 
-    OSHandle_t           InputContextDMA;
-    SHMSGTable_t         InputContextDMATable;
-    uint8_t*             InputContext;
-    OSHandle_t           DeviceContextDMA;
-    SHMSGTable_t         DeviceContextDMATable;
-    uint8_t*             DeviceContext;
+    OSHandle_t            InputContextDMA;
+    SHMSGTable_t          InputContextDMATable;
+    uint8_t*              InputContext;
+
+    OSHandle_t            DeviceContextDMA;
+    SHMSGTable_t          DeviceContextDMATable;
+    uint8_t*              DeviceContext;
 } XhciDevice_t;
 
 enum XhciCommandType {
     XHCI_COMMAND_NONE,
     XHCI_COMMAND_ENABLE_SLOT,
-    XHCI_COMMAND_ADDRESS_DEVICE
+    XHCI_COMMAND_ADDRESS_DEVICE,
+    XHCI_COMMAND_CONFIGURE_ENDPOINT
 };
 
 typedef struct XhciCommand {
     enum XhciCommandType Type;
     XhciDevice_t*        Device;
+    XhciEndpoint_t*      Endpoint;
 } XhciCommand_t;
 
 /*
@@ -416,6 +454,7 @@ extern XhciEndpoint_t* XhciEndpointGetOrCreate(_In_ XhciController_t* controller
 extern void            XhciEndpointDestroyAll(_In_ XhciController_t* controller);
 extern oserr_t         XhciEndpointEnqueueTransfer(_In_ XhciEndpoint_t* endpoint, _In_ XhciTransferDescriptor_t* descriptor);
 extern void            XhciEndpointDequeueTransfer(_In_ XhciEndpoint_t* endpoint, _In_ XhciTransferDescriptor_t* descriptor);
+extern bool            XhciEndpointMetadataMatches(_In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
 
 extern oserr_t XhciTransferPrepare(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer, _In_ XhciEndpoint_t* endpoint);
 extern void    XhciTransferCleanup(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
@@ -426,6 +465,7 @@ extern bool    XhciTransferHandleEvent(_In_ XhciController_t* controller, _In_ X
 
 extern oserr_t XhciDeviceEnsure(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer, _In_ XhciEndpoint_t* endpoint, _Out_ XhciDevice_t** deviceOut);
 extern oserr_t XhciDeviceSetAddress(_In_ XhciController_t* controller, _In_ XhciDevice_t* device, _In_ UsbManagerTransfer_t* transfer, _In_ uint8_t address);
+extern oserr_t XhciDeviceConfigureEndpoint(_In_ XhciController_t* controller, _In_ XhciDevice_t* device, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
 extern void    XhciDeviceDestroyAll(_In_ XhciController_t* controller);
 extern void    XhciCommandHandleCompletion(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
 

@@ -18,14 +18,26 @@
 
 #define XHCI_INPUT_ADD_SLOT         (1 << 0)
 #define XHCI_INPUT_ADD_EP0          (1 << 1)
+#define XHCI_INPUT_DROP_DCI(dci)     (1u << (dci))
+#define XHCI_INPUT_ADD_DCI(dci)      (1u << (dci))
 #define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1F) << 27)
 #define XHCI_SLOT_CONTEXT_SPEED(n)   (((n) & 0xF) << 20)
 #define XHCI_SLOT_CONTEXT_PORT(n)    (((n) & 0xFF) << 16)
 #define XHCI_EP_CONTEXT_CERR(n)      (((n) & 0x3) << 1)
-#define XHCI_EP_CONTEXT_TYPE_CONTROL (4 << 3)
+#define XHCI_EP_CONTEXT_TYPE(n)      (((n) & 0x7) << 3)
+#define XHCI_EP_CONTEXT_TYPE_CONTROL XHCI_EP_CONTEXT_TYPE(4)
 #define XHCI_EP_CONTEXT_MPS(n)       (((n) & 0xFFFF) << 16)
 #define XHCI_EP_CONTEXT_AVG_TRB(n)   ((n) & 0xFFFF)
 #define XHCI_EP_CONTEXT_DCS          (1 << 0)
+#define XHCI_EP_CONTEXT_INTERVAL(n)  (((n) & 0xFF) << 16)
+
+#define XHCI_EP_TYPE_ISOC_OUT 1
+#define XHCI_EP_TYPE_BULK_OUT 2
+#define XHCI_EP_TYPE_INT_OUT  3
+#define XHCI_EP_TYPE_CONTROL  4
+#define XHCI_EP_TYPE_ISOC_IN  5
+#define XHCI_EP_TYPE_BULK_IN  6
+#define XHCI_EP_TYPE_INT_IN   7
 
 static uint8_t
 __SpeedId(
@@ -105,6 +117,7 @@ static oserr_t
 __SubmitCommand(
     _In_ XhciController_t*  controller,
     _In_ XhciDevice_t*      device,
+    _In_ XhciEndpoint_t*    endpoint,
     _In_ enum XhciCommandType type,
     _In_ XhciTrb_t*         trb)
 {
@@ -118,9 +131,109 @@ __SubmitCommand(
 
     controller->Commands[commandIndex].Type = type;
     controller->Commands[commandIndex].Device = device;
+    controller->Commands[commandIndex].Endpoint = endpoint;
     dma_mb();
     WRITE_VOLATILE(controller->Doorbells[0], 0);
     return OS_EOK;
+}
+
+static uint8_t
+__EndpointTypeValue(
+    _In_ enum USBTransferType      type,
+    _In_ enum USBTransferDirection direction)
+{
+    bool in = direction == USBTRANSFER_DIRECTION_IN;
+    switch (type) {
+        case USBTRANSFER_TYPE_ISOC:      return in ? XHCI_EP_TYPE_ISOC_IN : XHCI_EP_TYPE_ISOC_OUT;
+        case USBTRANSFER_TYPE_BULK:      return in ? XHCI_EP_TYPE_BULK_IN : XHCI_EP_TYPE_BULK_OUT;
+        case USBTRANSFER_TYPE_INTERRUPT: return in ? XHCI_EP_TYPE_INT_IN  : XHCI_EP_TYPE_INT_OUT;
+        case USBTRANSFER_TYPE_CONTROL:
+        default:                         return XHCI_EP_TYPE_CONTROL;
+    }
+}
+
+static uint8_t
+__EndpointIntervalField(
+    _In_ enum USBSpeed        speed,
+    _In_ enum USBTransferType type,
+    _In_ uint8_t              bInterval)
+{
+    uint32_t frames;
+    uint8_t  exponent;
+
+    if (type == USBTRANSFER_TYPE_CONTROL || type == USBTRANSFER_TYPE_BULK || bInterval == 0) {
+        return 0;
+    }
+    if (speed == USBSPEED_HIGH || speed == USBSPEED_SUPER || speed == USBSPEED_SUPER_PLUS) {
+        /* bInterval already encodes 2^(bInterval-1) * 125us units. */
+        return (uint8_t)(bInterval - 1);
+    }
+    /* Low/full-speed intervals are expressed in 1ms (8 * 125us) frames; round
+     * up to the nearest power-of-two multiple of 125us. */
+    frames = (uint32_t)bInterval * 8;
+    exponent = 0;
+    while (((uint32_t)1 << exponent) < frames) {
+        exponent++;
+    }
+    return exponent;
+}
+
+static void
+__BuildEndpointContext(
+    _In_  XhciEndpoint_t*       endpoint,
+    _In_  UsbManagerTransfer_t* transfer,
+    _Out_ reg32_t*              epContext)
+{
+    uint8_t typeValue = __EndpointTypeValue(transfer->Type, transfer->Direction);
+
+    epContext[0] = XHCI_EP_CONTEXT_INTERVAL(
+            __EndpointIntervalField(transfer->Speed, transfer->Type, transfer->TData.Periodic.Interval));
+    epContext[1] = XHCI_EP_CONTEXT_CERR(3) | XHCI_EP_CONTEXT_TYPE(typeValue) |
+            XHCI_EP_CONTEXT_MPS(transfer->MaxPacketSize);
+    *((reg64_t*)&epContext[2]) = endpoint->TransferRing.PhysicalBase +
+            (endpoint->TransferRing.DequeueIndex * sizeof(XhciTrb_t));
+    if (endpoint->TransferRing.DequeueCycleState) {
+        *((reg64_t*)&epContext[2]) |= XHCI_EP_CONTEXT_DCS;
+    }
+    epContext[4] = XHCI_EP_CONTEXT_AVG_TRB(transfer->MaxPacketSize ? transfer->MaxPacketSize : 8);
+}
+
+static void
+__BuildConfigureEndpointContext(
+    _In_ XhciController_t*     controller,
+    _In_ XhciDevice_t*         device,
+    _In_ XhciEndpoint_t*       endpoint,
+    _In_ UsbManagerTransfer_t* transfer,
+    _In_ bool                  reconfigure)
+{
+    reg32_t* inputControl;
+    reg32_t* slotContext;
+    reg32_t* endpointContext;
+    uint8_t  dci = endpoint->DeviceContextIndex;
+
+    memset(device->InputContext, 0, XHCI_INPUT_CONTEXT_ENTRIES * controller->ContextSize);
+    inputControl = (reg32_t*)device->InputContext;
+    slotContext = (reg32_t*)(device->InputContext + (XHCI_CONTEXT_SLOT * controller->ContextSize));
+    endpointContext = (reg32_t*)(device->InputContext + ((dci + 1) * controller->ContextSize));
+
+    if (dci > device->ContextEntries) {
+        device->ContextEntries = dci;
+    }
+
+    inputControl[1] = XHCI_INPUT_ADD_SLOT | XHCI_INPUT_ADD_DCI(dci);
+    if (reconfigure) {
+        inputControl[0] = XHCI_INPUT_DROP_DCI(dci);
+    }
+
+    slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries) |
+            XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed));
+    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(transfer->Address.PortAddress + 1);
+
+    __BuildEndpointContext(endpoint, transfer, endpointContext);
+    dma_mb();
+
+    endpoint->ConfiguredMaxPacketSize = transfer->MaxPacketSize;
+    endpoint->ConfiguredInterval = transfer->TData.Periodic.Interval;
 }
 
 static void
@@ -138,8 +251,9 @@ __BuildAddressContext(
     slotContext = (reg32_t*)(device->InputContext + (XHCI_CONTEXT_SLOT * controller->ContextSize));
     endpointContext = (reg32_t*)(device->InputContext + (XHCI_CONTEXT_EP0 * controller->ContextSize));
 
+    device->ContextEntries = 1;
     inputControl[1] = XHCI_INPUT_ADD_SLOT | XHCI_INPUT_ADD_EP0;
-    slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(1) | XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed));
+    slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries) | XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed));
     slotContext[1] = XHCI_SLOT_CONTEXT_PORT(transfer->Address.PortAddress + 1);
 
     endpointContext[1] = XHCI_EP_CONTEXT_CERR(3) | XHCI_EP_CONTEXT_TYPE_CONTROL |
@@ -167,7 +281,33 @@ __SubmitAddressDevice(
     if (blockSetAddress) {
         trb.Control |= XHCI_TRB_ADDRESS_BSR;
     }
-    return __SubmitCommand(controller, device, XHCI_COMMAND_ADDRESS_DEVICE, &trb);
+    return __SubmitCommand(controller, device, NULL, XHCI_COMMAND_ADDRESS_DEVICE, &trb);
+}
+
+oserr_t
+XhciDeviceConfigureEndpoint(
+    _In_ XhciController_t*     controller,
+    _In_ XhciDevice_t*         device,
+    _In_ XhciEndpoint_t*       endpoint,
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    XhciTrb_t trb = { 0 };
+    bool      reconfigure = endpoint->State != XHCI_ENDPOINT_UNCONFIGURED;
+    oserr_t   oserr;
+
+    __BuildConfigureEndpointContext(controller, device, endpoint, transfer, reconfigure);
+
+    trb.Parameter = device->InputContextDMATable.Entries[0].Address;
+    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_CONFIGURE_ENDPOINT) |
+            ((reg32_t)device->SlotId << 24);
+
+    oserr = __SubmitCommand(controller, device, endpoint, XHCI_COMMAND_CONFIGURE_ENDPOINT, &trb);
+    if (oserr != OS_EOK) {
+        endpoint->State = XHCI_ENDPOINT_FAILED;
+        return oserr;
+    }
+    endpoint->State = XHCI_ENDPOINT_CONFIGURE_PENDING;
+    return OS_EINCOMPLETE;
 }
 
 oserr_t
@@ -233,7 +373,7 @@ XhciDeviceEnsure(
     }
 
     trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_ENABLE_SLOT);
-    oserr = __SubmitCommand(controller, device, XHCI_COMMAND_ENABLE_SLOT, &trb);
+    oserr = __SubmitCommand(controller, device, NULL, XHCI_COMMAND_ENABLE_SLOT, &trb);
     if (oserr != OS_EOK) {
         device->State = XHCI_DEVICE_FAILED;
         device->InitTransfer = NULL;
@@ -304,15 +444,26 @@ XhciCommandHandleCompletion(
     if (XHCI_TRB_COMPLETION_CODE(eventTrb->Status) != XHCI_TRB_COMPLETION_SUCCESS) {
         ERROR("XHCI-Failure: command %u failed with completion code %u",
                 command->Type, XHCI_TRB_COMPLETION_CODE(eventTrb->Status));
-        device->State = XHCI_DEVICE_FAILED;
-        if (device->AddressTransfer != NULL) {
-            device->AddressTransfer->ResultCode = USBTRANSFERCODE_INVALID;
-            device->AddressTransfer->State = USBTRANSFER_STATE_CLEANUP;
-            device->AddressTransfer = NULL;
-        } else if (device->InitTransfer != NULL) {
-            device->InitTransfer->ResultCode = USBTRANSFERCODE_INVALID;
-            device->InitTransfer->State = USBTRANSFER_STATE_CLEANUP;
-            device->InitTransfer = NULL;
+        if (command->Type == XHCI_COMMAND_CONFIGURE_ENDPOINT) {
+            /* Endpoint-scoped failure; other endpoints/EP0 on the device are unaffected. */
+            if (command->Endpoint != NULL) {
+                command->Endpoint->State = XHCI_ENDPOINT_FAILED;
+            }
+        } else {
+            device->State = XHCI_DEVICE_FAILED;
+            if (device->AddressTransfer != NULL) {
+                device->AddressTransfer->ResultCode = USBTRANSFERCODE_INVALID;
+                device->AddressTransfer->State = USBTRANSFER_STATE_CLEANUP;
+                device->AddressTransfer = NULL;
+            } else if (device->InitTransfer != NULL) {
+                device->InitTransfer->ResultCode = USBTRANSFERCODE_INVALID;
+                device->InitTransfer->State = USBTRANSFER_STATE_CLEANUP;
+                device->InitTransfer = NULL;
+            }
+        }
+    } else if (command->Type == XHCI_COMMAND_CONFIGURE_ENDPOINT) {
+        if (command->Endpoint != NULL) {
+            command->Endpoint->State = XHCI_ENDPOINT_RUNNING;
         }
     } else if (command->Type == XHCI_COMMAND_ENABLE_SLOT) {
         device->SlotId = XHCI_TRB_SLOT_ID(eventTrb->Control);
