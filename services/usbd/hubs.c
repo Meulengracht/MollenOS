@@ -115,6 +115,9 @@ UsbCoreHubsUnregister(
     memcpy(&hub, hubCopy, sizeof(struct UsbHub));
     for (i = 0; i < USB_MAX_PORTS; i++) {
         if (hub.Ports[i] && hub.Ports[i]->Device) {
+            if (UsbCoreHubsGet(hub.Ports[i]->Device->DeviceId) != NULL) {
+                UsbCoreHubsUnregister(hub.Ports[i]->Device->DeviceId);
+            }
             UsbCoreDevicesDestroy(UsbCoreControllerGet(hub.ControllerDeviceId), hub.Ports[i]);
             free(hub.Ports[i]);
         }

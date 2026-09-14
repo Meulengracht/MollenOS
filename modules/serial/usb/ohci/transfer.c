@@ -163,6 +163,16 @@ HCIEndpointReset(
 }
 
 oserr_t
+HCIDeviceDetach(
+        _In_ UsbManagerController_t* controller,
+        _In_ USBAddress_t*           address)
+{
+    _CRT_UNUSED(controller);
+    _CRT_UNUSED(address);
+    return OS_EOK;
+}
+
+oserr_t
 HCITransferDequeue(
         _In_ UsbManagerTransfer_t* transfer)
 {

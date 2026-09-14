@@ -598,3 +598,26 @@ UsbSetFeature(
         (Feature >> 8) & 0xFF, Index, 0, NULL);
     return status;
 }
+
+void
+UsbDetachDevice(
+    _In_ uuid_t                controllerId,
+    _In_ usb_device_context_t* device)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(controllerId);
+    oserr_t                  detachStatus;
+
+    if (device->device_address == 0) {
+        return;
+    }
+
+    // Tear down controller-side state before releasing the USB address or
+    // destroying the service-side device object.
+    ctt_usbhost_device_detach(GetGrachtClient(), &msg.base,
+            controllerId,
+            device->hub_address,
+            device->port_address,
+            device->device_address);
+    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    ctt_usbhost_device_detach_result(GetGrachtClient(), &msg.base, &detachStatus);
+}
