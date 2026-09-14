@@ -2,7 +2,12 @@
  * Copyright 2026, Philip Meulengracht
  */
 
+#define __need_minmax
+#include <ddk/utils.h>
+#include <os/handle.h>
+#include <os/shm.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include "xhci.h"
 
