@@ -29,6 +29,8 @@
 #include <ds/hashtable.h>
 #include "manager.h"
 #include <stdlib.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 
 #include <sys_usb_service_server.h>
 #include <ctt_usbhost_service_client.h>
@@ -163,7 +165,6 @@ UsbCoreHubsGet(
 
 static void hub_free_entry(int index, const void* element, void* userContext)
 {
-    const struct UsbHub* hub = element;
     // what do
 }
 
