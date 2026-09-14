@@ -106,6 +106,25 @@ XhciEndpointDestroyAll(
     list_clear(&controller->XhciEndpoints, __DestroyEndpoint, NULL);
 }
 
+void
+XhciEndpointDestroyDevice(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t*      device)
+{
+    element_t* node = controller->XhciEndpoints.head;
+
+    while (node != NULL) {
+        element_t* next = node->next;
+        XhciEndpoint_t* endpoint = node->value;
+        if (endpoint->Device == device) {
+            list_remove(&controller->XhciEndpoints, node);
+            XhciRingDestroy(&endpoint->TransferRing);
+            free(endpoint);
+        }
+        node = next;
+    }
+}
+
 bool
 XhciEndpointMetadataMatches(
     _In_ XhciEndpoint_t*       endpoint,

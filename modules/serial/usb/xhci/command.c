@@ -261,6 +261,46 @@ __SubmitSetTRDequeuePointer(
     return OS_EOK;
 }
 
+static oserr_t
+__SubmitDisableSlot(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t*     device)
+{
+    XhciTrb_t trb = { 0 };
+
+    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_DISABLE_SLOT) |
+            XHCI_TRB_CONTROL_SLOT_ID(device->SlotId);
+    return __SubmitCommand(controller, device, NULL, XHCI_COMMAND_DISABLE_SLOT, &trb);
+}
+
+static void
+__DetachComplete(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t*     device)
+{
+    if (device->SlotId != 0) {
+        controller->DCBaa[device->SlotId] = 0;
+    }
+    XhciEndpointDestroyDevice(controller, device);
+    list_remove(&controller->Devices, &device->Header);
+    __FreeContext(&device->DeviceContextDMA, &device->DeviceContextDMATable);
+    __FreeContext(&device->InputContextDMA, &device->InputContextDMATable);
+    free(device);
+}
+
+static void
+__DetachMaybeDisable(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t*     device)
+{
+    if (device->DetachPending == 0) {
+        device->DetachPending = 0xFF;
+        if (__SubmitDisableSlot(controller, device) != OS_EOK) {
+            __DetachComplete(controller, device);
+        }
+    }
+}
+
 /* Rebuilds the ring's software ownership state and requeues every transfer
  * still pending on the endpoint, skipping (and finalizing) any that were
  * flagged cancelled. Called once Set TR Dequeue Pointer has completed. */
@@ -293,6 +333,12 @@ __RebuildAndRequeuePending(
     }
 
     endpoint->State = XHCI_ENDPOINT_RUNNING;
+    if (endpoint->Device != NULL && endpoint->Device->State == XHCI_DEVICE_DETACHING) {
+        if (endpoint->Device->DetachPending != 0xFF) {
+            endpoint->Device->DetachPending--;
+        }
+        __DetachMaybeDisable(controller, endpoint->Device);
+    }
 }
 
 oserr_t
@@ -607,6 +653,9 @@ XhciDeviceEnsure(
         endpoint->Device = device;
         endpoint->SlotId = device->SlotId;
         *deviceOut = device;
+        if (device->State == XHCI_DEVICE_DETACHING) {
+            return OS_EBUSY;
+        }
         if (device->State == XHCI_DEVICE_FAILED) {
             return OS_EUNKNOWN;
         }
@@ -713,6 +762,53 @@ XhciDeviceSetAddress(
     return oserr == OS_EOK ? OS_EINCOMPLETE : oserr;
 }
 
+oserr_t
+HCIDeviceDetach(
+    _In_ UsbManagerController_t* controllerBase,
+    _In_ USBAddress_t*           address)
+{
+    XhciController_t* controller = (XhciController_t*)controllerBase;
+    XhciDevice_t* device = __DeviceGet(controller, address);
+    USBPortDescriptor_t port;
+    bool portUsable;
+
+    if (device == NULL) {
+        return OS_ENOENT;
+    }
+    if (device->State == XHCI_DEVICE_DETACHING) {
+        return OS_EOK;
+    }
+
+    device->State = XHCI_DEVICE_DETACHING;
+    portUsable = false;
+    if (device->RootPort != 0) {
+        HCIPortStatus(controller, device->RootPort - 1, &port);
+        portUsable = port.Connected && port.Enabled;
+    }
+
+    foreach(node, &controller->XhciEndpoints) {
+        XhciEndpoint_t* endpoint = node->value;
+        if (endpoint->Device != device) {
+            continue;
+        }
+        foreach(transferNode, &endpoint->Pending) {
+            XhciTransferDescriptor_t* descriptor = transferNode->value;
+            descriptor->Flags |= XHCI_TD_FLAG_CANCELLED;
+        }
+        if (portUsable && (endpoint->State == XHCI_ENDPOINT_RUNNING ||
+            endpoint->State == XHCI_ENDPOINT_HALTED)) {
+            if (__SubmitStopEndpoint(controller, endpoint) == OS_EOK) {
+                device->DetachPending++;
+            }
+        } else {
+            __FailAllPending(endpoint);
+        }
+    }
+
+    __DetachMaybeDisable(controller, device);
+    return OS_EOK;
+}
+
 void
 XhciCommandHandleCompletion(
     _In_ XhciController_t* controller,
@@ -745,7 +841,10 @@ XhciCommandHandleCompletion(
     if (XHCI_TRB_COMPLETION_CODE(eventTrb->Status) != XHCI_TRB_COMPLETION_SUCCESS) {
         ERROR("XHCI-Failure: command %u failed with completion code %u",
                 command->Type, XHCI_TRB_COMPLETION_CODE(eventTrb->Status));
-        if (command->Type == XHCI_COMMAND_CONFIGURE_ENDPOINT) {
+        if (command->Type == XHCI_COMMAND_DISABLE_SLOT) {
+            __DetachComplete(controller, device);
+            goto commandHandled;
+        } else if (command->Type == XHCI_COMMAND_CONFIGURE_ENDPOINT) {
             /* Endpoint-scoped failure; other endpoints/EP0 on the device are unaffected. */
             if (command->Endpoint != NULL) {
                 command->Endpoint->State = XHCI_ENDPOINT_FAILED;
@@ -759,6 +858,12 @@ XhciCommandHandleCompletion(
             if (command->Endpoint != NULL) {
                 command->Endpoint->State = XHCI_ENDPOINT_FAILED;
                 __FailAllPending(command->Endpoint);
+                if (device->State == XHCI_DEVICE_DETACHING) {
+                    if (device->DetachPending != 0xFF && device->DetachPending > 0) {
+                        device->DetachPending--;
+                    }
+                    __DetachMaybeDisable(controller, device);
+                }
             }
         } else {
             device->State = XHCI_DEVICE_FAILED;
@@ -788,6 +893,8 @@ XhciCommandHandleCompletion(
         if (command->Endpoint != NULL) {
             __RebuildAndRequeuePending(controller, command->Endpoint);
         }
+    } else if (command->Type == XHCI_COMMAND_DISABLE_SLOT) {
+        __DetachComplete(controller, device);
     } else if (command->Type == XHCI_COMMAND_ENABLE_SLOT) {
         device->SlotId = XHCI_TRB_SLOT_ID(eventTrb->Control);
         if (device->SlotId == 0 || device->SlotId > controller->SlotCount) {

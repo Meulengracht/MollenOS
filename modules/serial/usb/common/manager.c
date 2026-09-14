@@ -315,6 +315,22 @@ void ctt_usbhost_configure_hub_invocation(struct gracht_message* message, const 
     ctt_usbhost_configure_hub_response(message, err);
 }
 
+void ctt_usbhost_device_detach_invocation(struct gracht_message* message, const uuid_t controllerDeviceId,
+    const uint8_t hubAddress, const uint8_t portAddress, const uint8_t deviceAddress)
+{
+    USBAddress_t            address = { hubAddress, portAddress, deviceAddress, 0 };
+    UsbManagerController_t* controller = UsbManagerGetController(controllerDeviceId);
+    oserr_t                 err;
+
+    if (controller == NULL) {
+        ctt_usbhost_device_detach_response(message, OS_ENOENT);
+        return;
+    }
+
+    err = HCIDeviceDetach(controller, &address);
+    ctt_usbhost_device_detach_response(message, err);
+}
+
 static void
 __QueueWaitingTransfers(
     _In_ UsbManagerController_t* controller)

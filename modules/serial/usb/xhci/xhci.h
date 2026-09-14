@@ -198,6 +198,7 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_TYPE_RESET_ENDPOINT     14
 #define XHCI_TRB_TYPE_STOP_ENDPOINT      15
 #define XHCI_TRB_TYPE_SET_TR_DEQUEUE     16
+#define XHCI_TRB_TYPE_DISABLE_SLOT       10
 #define XHCI_TRB_TYPE_TRANSFER_EVENT     32
 #define XHCI_TRB_TYPE_COMMAND_COMPLETION 33
 #define XHCI_TRB_TYPE_PORT_STATUS_CHANGE 34
@@ -346,6 +347,7 @@ enum XhciDeviceState {
     XHCI_DEVICE_DEFAULT,
     XHCI_DEVICE_ADDRESS_PENDING,
     XHCI_DEVICE_ADDRESSED,
+    XHCI_DEVICE_DETACHING,
     XHCI_DEVICE_FAILED
 };
 
@@ -358,6 +360,7 @@ typedef struct XhciDevice {
     uint8_t               Speed;
     uint8_t               RootPort;
     uint8_t               Depth;
+    uint8_t               DetachPending;
     uint32_t              RouteString;
     XhciDevice_t*         Parent;
     uint8_t               HubPortCount;
@@ -390,7 +393,8 @@ enum XhciCommandType {
     XHCI_COMMAND_EVALUATE_CONTEXT,
     XHCI_COMMAND_RESET_ENDPOINT,
     XHCI_COMMAND_STOP_ENDPOINT,
-    XHCI_COMMAND_SET_TR_DEQUEUE
+    XHCI_COMMAND_SET_TR_DEQUEUE,
+    XHCI_COMMAND_DISABLE_SLOT
 };
 
 typedef struct XhciCommand {
@@ -485,6 +489,7 @@ extern void    XhciRingRelease(_In_ XhciRing_t* ring, _In_ uint16_t trbCount);
 extern XhciEndpoint_t* XhciEndpointGet(_In_ XhciController_t* controller, _In_ USBAddress_t* address);
 extern XhciEndpoint_t* XhciEndpointGetOrCreate(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
 extern void            XhciEndpointDestroyAll(_In_ XhciController_t* controller);
+extern void            XhciEndpointDestroyDevice(_In_ XhciController_t* controller, _In_ XhciDevice_t* device);
 extern oserr_t         XhciEndpointEnqueueTransfer(_In_ XhciEndpoint_t* endpoint, _In_ XhciTransferDescriptor_t* descriptor);
 extern void            XhciEndpointDequeueTransfer(_In_ XhciEndpoint_t* endpoint, _In_ XhciTransferDescriptor_t* descriptor);
 extern bool            XhciEndpointMetadataMatches(_In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
