@@ -35,9 +35,10 @@ UsbTransferArenaResetInternalData(
 
     for (int i = 0; i < arena->Settings->PoolCount; i++) {
         memset(
-                arena->Settings->Pools[i].ElementPool,
-                0,
-                arena->Settings->Pools[i].ElementCount * arena->Settings->Pools[i].ElementAlignedSize
+            arena->Settings->Pools[i].ElementPool,
+            0,
+            arena->Settings->Pools[i].ElementCount 
+                * arena->Settings->Pools[i].ElementAlignedSize
         );
 
         for (int j = 0; j < arena->Settings->Pools[i].ElementCountReserved; j++) {
@@ -169,7 +170,13 @@ UsbSchedulerGetPoolElement(
     _Out_ uint8_t**       ElementOut,
     _Out_ uintptr_t*      ElementPhysicalOut)
 {
-    return UsbTransferArenaGetPoolElement(UsbSchedulerGetTransferArena(Scheduler), Pool, Index, ElementOut, ElementPhysicalOut);
+    return UsbTransferArenaGetPoolElement(
+        UsbSchedulerGetTransferArena(Scheduler), 
+        Pool, 
+        Index, 
+        ElementOut, 
+        ElementPhysicalOut
+    );
 }
 
 oserr_t
@@ -178,7 +185,11 @@ UsbSchedulerGetPoolFromElement(
     _In_  const uint8_t*       element,
     _Out_ UsbSchedulerPool_t** poolOut)
 {
-    return UsbTransferArenaGetPoolFromElement(UsbSchedulerGetTransferArena(scheduler), element, poolOut);
+    return UsbTransferArenaGetPoolFromElement(
+        UsbSchedulerGetTransferArena(scheduler), 
+        element,
+        poolOut
+    );
 }
 
 oserr_t
@@ -187,5 +198,9 @@ UsbSchedulerAllocateElement(
     _In_  int             Pool,
     _Out_ uint8_t**       ElementOut)
 {
-    return UsbTransferArenaAllocateElement(UsbSchedulerGetTransferArena(Scheduler), Pool, ElementOut);
+    return UsbTransferArenaAllocateElement(
+        UsbSchedulerGetTransferArena(Scheduler), 
+        Pool, 
+        ElementOut
+    );
 }
