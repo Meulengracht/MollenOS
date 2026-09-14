@@ -391,7 +391,7 @@ XhciTransferSubmit(
         descriptor->TransferLength = transfer->Elements[elementIndex].Length;
         descriptor->CycleState = endpoint->TransferRing.Trbs[trbIndex].Control & XHCI_TRB_CONTROL_CYCLE ? 1 : 0;
         descriptor->Flags |= XHCI_TD_FLAG_QUEUED;
-        endpoint->TrbOwners[trbIndex] = descriptor;
+        endpoint->TRBOwners[trbIndex] = descriptor;
 
         descriptor = __DescriptorNext(controller, descriptor);
         elementIndex++;
@@ -418,7 +418,7 @@ XhciTransferHandleEvent(
         if (trbAddress >= endpoint->TransferRing.PhysicalBase && trbAddress < ringEnd) {
             uint16_t trbIndex = (uint16_t)((trbAddress - endpoint->TransferRing.PhysicalBase) /
                     sizeof(XhciTrb_t));
-            XhciTransferDescriptor_t* eventDescriptor = endpoint->TrbOwners[trbIndex];
+            XhciTransferDescriptor_t* eventDescriptor = endpoint->TRBOwners[trbIndex];
             XhciTransferDescriptor_t* descriptor;
             uint32_t completionCode = XHCI_TRB_COMPLETION_CODE(eventTrb->Status);
             uint32_t bytesRemaining = XHCI_TRB_TRANSFER_LENGTH(eventTrb->Status);
@@ -443,7 +443,7 @@ XhciTransferHandleEvent(
                         descriptor->Flags |= XHCI_TD_FLAG_FAILED;
                     }
 
-                    endpoint->TrbOwners[descriptor->FirstTrbIndex] = NULL;
+                    endpoint->TRBOwners[descriptor->FirstTrbIndex] = NULL;
                     trbsReleased += descriptor->TrbCount;
                 }
                 if (descriptor == eventDescriptor) {
@@ -516,9 +516,6 @@ HCITransferQueue(
     if (controller == NULL) {
         return OS_ENOENT;
     }
-    if (transfer->Address.EndpointAddress != 0) {
-        return OS_ENOTSUPPORTED;
-    }
 
     endpoint = XhciEndpointGetOrCreate(controller, transfer);
     if (endpoint == NULL) {
@@ -536,6 +533,34 @@ HCITransferQueue(
         }
         if (oserr != OS_EOK) {
             return oserr;
+        }
+
+        /* Non-control endpoints are configured lazily: the first transfer for
+         * a DCI (or one whose metadata no longer matches what's configured)
+         * issues a Configure Endpoint command and waits for it to complete
+         * before its TRBs are ever built/submitted. */
+        if (endpoint->DeviceContextIndex != 1) {
+            if (device->State != XHCI_DEVICE_ADDRESSED) {
+                transfer->State = USBTRANSFER_STATE_WAITING;
+                return OS_EOK;
+            }
+            if (endpoint->State == XHCI_ENDPOINT_FAILED) {
+                return OS_EUNKNOWN;
+            }
+            if (endpoint->State == XHCI_ENDPOINT_CONFIGURE_PENDING) {
+                transfer->State = USBTRANSFER_STATE_WAITING;
+                return OS_EOK;
+            }
+            if (!XhciEndpointMetadataMatches(endpoint, transfer)) {
+                oserr = XhciDeviceConfigureEndpoint(controller, device, endpoint, transfer);
+                if (oserr == OS_EINCOMPLETE) {
+                    transfer->State = USBTRANSFER_STATE_WAITING;
+                    return OS_EOK;
+                }
+                if (oserr != OS_EOK) {
+                    return oserr;
+                }
+            }
         }
 
         oserr = XhciTransferPrepare(controller, transfer, endpoint);

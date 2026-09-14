@@ -65,6 +65,11 @@ XhciEndpointGetOrCreate(
     endpoint->SlotId             = transfer->Address.DeviceAddress;
     endpoint->DeviceContextIndex = __EndpointToDeviceContextIndex(transfer);
     endpoint->MaxPacketSize      = transfer->MaxPacketSize;
+    /* The default control endpoint (DCI 1) is configured implicitly as part
+     * of the Address Device command, everything else needs an explicit
+     * Configure Endpoint command before it can be used. */
+    endpoint->State = (endpoint->DeviceContextIndex == 1) ?
+            XHCI_ENDPOINT_RUNNING : XHCI_ENDPOINT_UNCONFIGURED;
     list_construct(&endpoint->Pending);
     ELEMENT_INIT(&endpoint->Header, (uintptr_t)transfer->Address.EndpointAddress, endpoint);
 
@@ -99,6 +104,18 @@ XhciEndpointDestroyAll(
     _In_ XhciController_t* controller)
 {
     list_clear(&controller->XhciEndpoints, __DestroyEndpoint, NULL);
+}
+
+bool
+XhciEndpointMetadataMatches(
+    _In_ XhciEndpoint_t*       endpoint,
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    if (endpoint->State == XHCI_ENDPOINT_UNCONFIGURED) {
+        return false;
+    }
+    return endpoint->ConfiguredMaxPacketSize == transfer->MaxPacketSize &&
+            endpoint->ConfiguredInterval == transfer->TData.Periodic.Interval;
 }
 
 oserr_t
