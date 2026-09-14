@@ -169,11 +169,37 @@ PACKED_TYPESTRUCT(XhciTransferRequestBlock, {
     reg32_t Control;
 });
 
+typedef XhciTransferRequestBlock_t XhciTrb_t;
+
 #define XHCI_TRB_CONTROL_CYCLE           (1 << 0)
+#define XHCI_TRB_CONTROL_ISP             (1 << 2)
+#define XHCI_TRB_CONTROL_CHAIN           (1 << 4)
+#define XHCI_TRB_CONTROL_IOC             (1 << 5)
+#define XHCI_TRB_CONTROL_IDT             (1 << 6)
+#define XHCI_TRB_CONTROL_TOGGLE_CYCLE    (1 << 1)
+#define XHCI_TRB_CONTROL_DIR_IN          (1 << 16)
+#define XHCI_TRB_CONTROL_TRT_NONE        (0 << 16)
+#define XHCI_TRB_CONTROL_TRT_OUT         (2 << 16)
+#define XHCI_TRB_CONTROL_TRT_IN          (3 << 16)
 #define XHCI_TRB_CONTROL_TYPE_GET(n)     (((n) >> 10) & 0x3F)
 #define XHCI_TRB_CONTROL_TYPE(n)         (((n) & 0x3F) << 10)
+#define XHCI_TRB_TYPE_NORMAL             1
+#define XHCI_TRB_TYPE_SETUP_STAGE        2
+#define XHCI_TRB_TYPE_DATA_STAGE         3
+#define XHCI_TRB_TYPE_STATUS_STAGE       4
 #define XHCI_TRB_TYPE_LINK               6
+#define XHCI_TRB_TYPE_ENABLE_SLOT        9
+#define XHCI_TRB_TYPE_ADDRESS_DEVICE     11
+#define XHCI_TRB_TYPE_TRANSFER_EVENT     32
+#define XHCI_TRB_TYPE_COMMAND_COMPLETION 33
 #define XHCI_TRB_TYPE_PORT_STATUS_CHANGE 34
+
+#define XHCI_TRB_COMPLETION_CODE(n)      (((n) >> 24) & 0xFF)
+#define XHCI_TRB_TRANSFER_LENGTH(n)       ((n) & 0xFFFFFF)
+#define XHCI_TRB_COMPLETION_SUCCESS      1
+#define XHCI_TRB_COMPLETION_SHORT_PACKET 13
+#define XHCI_TRB_SLOT_ID(n)              (((n) >> 24) & 0xFF)
+#define XHCI_TRB_ADDRESS_BSR             (1 << 9)
 
 PACKED_TYPESTRUCT(XhciEventRingSegmentTableEntry, {
     reg64_t RingSegmentBaseAddress;
@@ -199,21 +225,21 @@ PACKED_TYPESTRUCT(XhciEventRingSegmentTableEntry, {
 
 typedef struct XhciEndpoint XhciEndpoint_t;
 typedef struct XhciRing XhciRing_t;
+typedef struct XhciDevice XhciDevice_t;
 
 typedef struct XhciRing {
-    /* DMA-backed ring memory and metadata used for command/event/endpoint queues. */
-    void*             Trbs;
+    /* Producer rings reserve their final entry for the cycle-toggling Link TRB. */
+    XhciTrb_t*        Trbs;
     uintptr_t         PhysicalBase;
     uint16_t          EnqueueIndex;
     uint16_t          DequeueIndex;
     uint16_t          TrbCount;
+    uint16_t          Used;
     uint8_t           CycleState;
-    uint8_t           Reserved;
+    uint8_t           DequeueCycleState;
     OSHandle_t        BufferHandle;
     SHMSGTable_t      BufferSGTable;
 } XhciRing_t;
-
-typedef XhciTransferRequestBlock_t XhciTrb_t;
 
 /*
  * Every USB transfer descriptor is backed by the shared scheduler object and
@@ -238,6 +264,7 @@ PACKED_TYPESTRUCT(XhciTransferDescriptor, {
     uint16_t             FirstTrbIndex;
     uint16_t             LastTrbIndex;
     uint16_t             TrbCount;
+    uint32_t             TransferLength;
     uint8_t              CycleState;
     uint8_t              Reserved2;
 });
@@ -257,7 +284,49 @@ typedef struct XhciEndpoint {
     list_t       Pending;
     element_t    Header;
     XhciTransferDescriptor_t* CurrentTd;
+    XhciDevice_t* Device;
+    XhciTransferDescriptor_t* TrbOwners[XHCI_RING_TRB_COUNT];
 } XhciEndpoint_t;
+
+enum XhciDeviceState {
+    XHCI_DEVICE_ENABLE_PENDING,
+    XHCI_DEVICE_DEFAULT_PENDING,
+    XHCI_DEVICE_DEFAULT,
+    XHCI_DEVICE_ADDRESS_PENDING,
+    XHCI_DEVICE_ADDRESSED,
+    XHCI_DEVICE_FAILED
+};
+
+typedef struct XhciDevice {
+    element_t            Header;
+    uint8_t              HubAddress;
+    uint8_t              PortAddress;
+    uint8_t              SlotId;
+    uint8_t              UsbAddress;
+    enum XhciDeviceState State;
+
+    XhciEndpoint_t*      DefaultEndpoint;
+    UsbManagerTransfer_t* BootstrapTransfer;
+    UsbManagerTransfer_t* AddressTransfer;
+
+    OSHandle_t           InputContextDMA;
+    SHMSGTable_t         InputContextDMATable;
+    uint8_t*             InputContext;
+    OSHandle_t           DeviceContextDMA;
+    SHMSGTable_t         DeviceContextDMATable;
+    uint8_t*             DeviceContext;
+} XhciDevice_t;
+
+enum XhciCommandType {
+    XHCI_COMMAND_NONE,
+    XHCI_COMMAND_ENABLE_SLOT,
+    XHCI_COMMAND_ADDRESS_DEVICE
+};
+
+typedef struct XhciCommand {
+    enum XhciCommandType Type;
+    XhciDevice_t*        Device;
+} XhciCommand_t;
 
 /*
  * Root xHCI controller structure. This contains the hardware register mapping,
@@ -268,6 +337,10 @@ typedef struct XhciEndpoint {
  */
 typedef struct XhciController {
     UsbManagerController_t Base;
+
+    /* Endpoint ownership is separate from the common data-toggle hashtable. */
+    list_t XhciEndpoints;
+    list_t Devices;
 
     XhciCapabilityRegisters_t*    CapRegisters;
     XhciOperationalRegisters_t*   OpRegisters;
@@ -306,9 +379,8 @@ typedef struct XhciController {
      * consumed by the interrupt path to detect transfer completions and port
      * changes.
      */
-    OSHandle_t CommandRingDMA;
-    SHMSGTable_t CommandRingDMATable;
-    XhciTransferRequestBlock_t* CommandRing;
+    XhciRing_t CommandRing;
+    XhciCommand_t Commands[XHCI_COMMAND_RING_ENTRIES];
 
     OSHandle_t EventRingDMA;
     SHMSGTable_t EventRingDMATable;
@@ -325,11 +397,36 @@ typedef struct XhciController {
 } XhciController_t;
 
 extern oserr_t XhciQueueInitialize(_In_ XhciController_t* controller);
+extern oserr_t XhciQueueReset(_In_ XhciController_t* controller);
 extern void    XhciQueueDestroy(_In_ XhciController_t* controller);
 extern oserr_t XhciReset(_In_ XhciController_t* controller);
 extern oserr_t XhciRun(_In_ XhciController_t* controller);
 extern oserr_t XhciHalt(_In_ XhciController_t* controller);
 extern void    XhciPortScan(_In_ XhciController_t* controller);
 extern void    XhciPortClearChanges(_In_ XhciController_t* controller, _In_ size_t index, _In_ reg32_t changes);
+
+extern oserr_t XhciRingInitialize(_Out_ XhciRing_t* ring, _In_ uint16_t trbCount);
+extern void    XhciRingDestroy(_In_ XhciRing_t* ring);
+extern void    XhciRingReset(_In_ XhciRing_t* ring);
+extern oserr_t XhciRingEnqueue(_In_ XhciRing_t* ring, _In_ const XhciTrb_t* trb, _Out_ uint16_t* trbIndexOut);
+extern void    XhciRingRelease(_In_ XhciRing_t* ring, _In_ uint16_t trbCount);
+
+extern XhciEndpoint_t* XhciEndpointGet(_In_ XhciController_t* controller, _In_ USBAddress_t* address);
+extern XhciEndpoint_t* XhciEndpointGetOrCreate(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
+extern void            XhciEndpointDestroyAll(_In_ XhciController_t* controller);
+extern oserr_t         XhciEndpointEnqueueTransfer(_In_ XhciEndpoint_t* endpoint, _In_ XhciTransferDescriptor_t* descriptor);
+extern void            XhciEndpointDequeueTransfer(_In_ XhciEndpoint_t* endpoint, _In_ XhciTransferDescriptor_t* descriptor);
+
+extern oserr_t XhciTransferPrepare(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer, _In_ XhciEndpoint_t* endpoint);
+extern void    XhciTransferCleanup(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
+extern bool    XhciTransferIsSetAddress(_In_ UsbManagerTransfer_t* transfer, _Out_ uint8_t* addressOut);
+extern void    XhciTransferCompleteSoftware(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
+extern oserr_t XhciTransferSubmit(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
+extern bool    XhciTransferHandleEvent(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
+
+extern oserr_t XhciDeviceEnsure(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer, _In_ XhciEndpoint_t* endpoint, _Out_ XhciDevice_t** deviceOut);
+extern oserr_t XhciDeviceSetAddress(_In_ XhciController_t* controller, _In_ XhciDevice_t* device, _In_ UsbManagerTransfer_t* transfer, _In_ uint8_t address);
+extern void    XhciDeviceDestroyAll(_In_ XhciController_t* controller);
+extern void    XhciCommandHandleCompletion(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
 
 #endif //!__USB_XHCI__
