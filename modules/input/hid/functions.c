@@ -54,7 +54,7 @@ static oserr_t __FillHidDescriptor(
 static oserr_t __FillReportDescriptor(
     _In_ HidDevice_t* hidDevice,
     _In_ uint8_t      reportType,
-    _In_ uint8_t      reportLength,
+    _In_ uint16_t     reportLength,
     _In_ uint8_t*     reportBuffer)
 {
     enum USBTransferCode status;
@@ -148,6 +148,15 @@ HidSetupGeneric(
         return osStatus;
     }
 
+    if (hidDescriptor.Length < sizeof(UsbHidDescriptor_t) ||
+        hidDescriptor.Type != DESCRIPTOR_TYPE_HID ||
+        hidDescriptor.NumDescriptors == 0 ||
+        hidDescriptor.ClassDescriptorType != DESCRIPTOR_TYPE_REPORT ||
+        hidDescriptor.ClassDescriptorLength == 0) {
+        ERROR("HidSetupGeneric invalid HID class descriptor");
+        return OS_EINVALPARAMS;
+    }
+
     // Switch to report protocol
     if (hidDevice->CurrentProtocol == HID_DEVICE_PROTOCOL_BOOT) {
         uint8_t currentProtocol;
@@ -190,6 +199,11 @@ HidSetupGeneric(
 
     reportLength = HidParseReportDescriptor(hidDevice, reportDescriptor, hidDescriptor.ClassDescriptorLength);
     free(reportDescriptor);
+
+    if (reportLength == 0 || reportLength > 0x400) {
+        ERROR("HidSetupGeneric report length %" PRIuIN " exceeds the interrupt buffer", reportLength);
+        return OS_EINVALPARAMS;
+    }
 
     hidDevice->ReportLength = reportLength;
     return OS_EOK;

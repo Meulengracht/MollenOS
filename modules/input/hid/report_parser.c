@@ -28,6 +28,13 @@
 
 #include <ctt_input_service_server.h>
 
+#ifndef PRIxIN
+#define PRIxIN "zx"
+#endif
+#ifndef PRIuIN
+#define PRIuIN "zu"
+#endif
+
 static UsbHidReportCollection_t* __CreateCollection(
     _In_ UsbHidReportGlobalStats_t* globalState,
     _In_ UsbHidReportItemStats_t*   itemState)
@@ -87,7 +94,8 @@ void __CreateCollectionChild(
 void __ParseGlobalStateTag(
     _In_ UsbHidReportGlobalStats_t* globalStats,
     _In_ uint8_t                    tag,
-    _In_ uint32_t                   value)
+    _In_ uint32_t                   value,
+    _In_ uint8_t                    valueSize)
 {
     TRACE("__ParseGlobalStateTag(tag=%x, value=0x%x)", tag, value);
     switch (tag) {
@@ -106,7 +114,9 @@ void __ParseGlobalStateTag(
             }
 
             // Store the value and mark its presence
-            globalStats->LogicalMin    = (int32_t)value;
+                globalStats->LogicalMin    = (valueSize > 0 && valueSize < 4 &&
+                    (value & (1U << (valueSize * 8 - 1)))) ?
+                    (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
             globalStats->HasLogicalMin = 1;
 
             // If we have it's counter-part we have to sanitize
@@ -130,7 +140,9 @@ void __ParseGlobalStateTag(
             }
 
             // Store the value and mark its presence
-            globalStats->LogicalMax    = (int32_t)value;
+                globalStats->LogicalMax    = (valueSize > 0 && valueSize < 4 &&
+                    (value & (1U << (valueSize * 8 - 1)))) ?
+                    (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
             globalStats->HasLogicalMax = 1;
 
             // If we have it's counter-part we have to sanitize
@@ -154,7 +166,9 @@ void __ParseGlobalStateTag(
             }
 
             // Store the value and mark its presence
-            globalStats->PhysicalMin    = (int32_t)value;
+                globalStats->PhysicalMin    = (valueSize > 0 && valueSize < 4 &&
+                    (value & (1U << (valueSize * 8 - 1)))) ?
+                    (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
             globalStats->HasPhysicalMin = 1;
 
             // If we have it's counter-part we have to sanitize
@@ -178,7 +192,9 @@ void __ParseGlobalStateTag(
             }
 
             // Store the value and mark its presence
-            globalStats->PhysicalMax    = (int32_t)value;
+                globalStats->PhysicalMax    = (valueSize > 0 && valueSize < 4 &&
+                    (value & (1U << (valueSize * 8 - 1)))) ?
+                    (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
             globalStats->HasPhysicalMax = 1;
 
             // If we have it's counter-part we have to sanitize
@@ -235,40 +251,32 @@ struct ReportParserContext {
     int                       ReportIdsUsed;
     uint32_t                  LongestReport;
     uint32_t                  BitOffset;
+    uint32_t                  ReportBitOffsets[256];
+    UsbHidReportGlobalStats_t GlobalStack[8];
+    uint8_t                   GlobalStackDepth;
 };
-
 static void __ParseReportTagMainCollection(
         _In_ struct ReportParserContext* context)
 {
     UsbHidReportCollection_t* collection;
     TRACE("__ParseReportTagMainCollection()");
 
-    // Create a collection from the current state-variables
     collection = __CreateCollection(&context->GlobalStats, &context->ItemStats);
     if (!collection) {
         ERROR("__ParseReportTagMainCollection collection is null");
         return;
     }
 
-    // Set it if current is not set
-    // then we don't need to insert it to list
     if (!context->CurrentCollection) {
         context->CurrentCollection = collection;
     }
     else {
-        // Update the parent of the collection
         collection->Parent = context->CurrentCollection;
-
-        // Append it as a child note now that we
-        // aren't a child
         __CreateCollectionChild(context->CurrentCollection, &context->GlobalStats, context->InputType,
                 HID_TYPE_COLLECTION, collection);
-
-        // Step into new collection
         context->CurrentCollection = collection;
     }
 
-    // Note the current depth
     context->ParseDepth++;
 }
 
@@ -293,12 +301,30 @@ static void __ParseReportTagInput(
         _In_ uint32_t                    packet)
 {
     UsbHidReportInputItem_t* inputItem;
+    uint32_t*                bitOffset;
+    uint64_t                 itemBits;
     TRACE("__ParseReportTypeMain(packet=0x%x)", packet);
 
     inputItem = (UsbHidReportInputItem_t*)malloc(sizeof(UsbHidReportInputItem_t));
     if (!inputItem) {
         ERROR("__ParseReportTagInput inputItem is null");
         return;
+    }
+
+    itemBits = (uint64_t)context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
+    if (context->GlobalStats.ReportCount == 0 ||
+        context->GlobalStats.ReportSize == 0 ||
+        context->GlobalStats.ReportSize > 64 ||
+        itemBits > UINT32_MAX) {
+        free(inputItem);
+        return;
+    }
+
+    if (context->GlobalStats.ReportId != UUID_INVALID) {
+        bitOffset = &context->ReportBitOffsets[(uint8_t)context->GlobalStats.ReportId];
+    }
+    else {
+        bitOffset = &context->BitOffset;
     }
 
     // If the constant bit is set it overrides rest
@@ -326,13 +352,19 @@ static void __ParseReportTagInput(
 
     // Debug
     TRACE("Input type %u at bit-offset %u, with data-size in bits %u",
-          inputItem->Flags, context->BitOffset,
+          inputItem->Flags, *bitOffset,
           (context->GlobalStats.ReportCount * context->GlobalStats.ReportSize));
 
     // Create a new copy of the current local state that applies
     // only to this input item. Override BitOffset member
     memcpy(&inputItem->LocalState, &context->ItemStats, sizeof(UsbHidReportItemStats_t));
-    inputItem->LocalState.BitOffset = context->BitOffset;
+    inputItem->LocalState.BitOffset = *bitOffset;
+
+    if (UINT32_MAX - *bitOffset < itemBits) {
+        free(inputItem);
+        ERROR("__ParseReportTagInput report is too large");
+        return;
+    }
 
     // Append it as a child note now that we aren't a child
     __CreateCollectionChild(context->CurrentCollection, &context->GlobalStats, context->InputType,
@@ -340,9 +372,9 @@ static void __ParseReportTagInput(
 
     // Adjust BitOffset now to past this item
     // and also sanitize current length, make sure we store the longest report
-    context->BitOffset += context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
-    if ((context->GlobalStats.ReportCount * context->GlobalStats.ReportSize) > context->LongestReport) {
-        context->LongestReport = context->GlobalStats.ReportCount * context->GlobalStats.ReportSize;
+    *bitOffset += (uint32_t)itemBits;
+    if (*bitOffset > context->LongestReport) {
+        context->LongestReport = *bitOffset;
     }
 }
 
@@ -460,7 +492,8 @@ static void __ParsePacket(
         _In_ struct ReportParserContext* context,
         _In_ uint8_t                     type,
         _In_ uint8_t                     tag,
-        _In_ uint32_t                    packet)
+    _In_ uint32_t                    packet,
+    _In_ uint8_t                     packetLength)
 {
     TRACE("__ParsePacket(type=%x, tag=%x, packet=0x%x)", type, tag, packet);
     // The first item that appears in type main MUST be collection otherwise just skip
@@ -482,9 +515,21 @@ static void __ParsePacket(
             // They can also carry a report-id which means they only apply to a given
             // report
         case HID_REPORT_TYPE_GLOBAL: {
-            __ParseGlobalStateTag(&context->GlobalStats, tag, packet);
-            if (context->GlobalStats.ReportId != UUID_INVALID) {
-                context->ReportIdsUsed = 1;
+            if (tag == HID_GLOBAL_PUSH) {
+                if (context->GlobalStackDepth < 8) {
+                    context->GlobalStack[context->GlobalStackDepth++] = context->GlobalStats;
+                }
+            }
+            else if (tag == HID_GLOBAL_POP) {
+                if (context->GlobalStackDepth != 0) {
+                    context->GlobalStats = context->GlobalStack[--context->GlobalStackDepth];
+                }
+            }
+            else {
+                __ParseGlobalStateTag(&context->GlobalStats, tag, packet, packetLength);
+                if (context->GlobalStats.ReportId != UUID_INVALID) {
+                    context->ReportIdsUsed = 1;
+                }
             }
         } break;
 
@@ -517,6 +562,15 @@ HidParseReportDescriptor(
 
     // Iterate the report descriptor
     for (i = 0; i < descriptorLength; /* Increase manually */) {
+        if (descriptor[i] == 0xFE) {
+            if (descriptorLength - i < 3 || descriptor[i + 1] > descriptorLength - i - 3) {
+                ERROR("HidParseReportDescriptor truncated long item");
+                break;
+            }
+            i += (size_t)descriptor[i + 1] + 3;
+            continue;
+        }
+
         // Bits 0-1 (Must be either 0, 1, 2 or 4) 3 = 4
         uint8_t  packetLength = descriptor[i] & 0x03;
         uint8_t  type         = descriptor[i] & 0x0C; // Bits 2-3
@@ -526,6 +580,11 @@ HidParseReportDescriptor(
         // Sanitize size, if 3, it must be 4
         if (packetLength == 3) {
             packetLength++;
+        }
+
+        if (packetLength > descriptorLength - i - 1) {
+            ERROR("HidParseReportDescriptor truncated item");
+            break;
         }
 
         // Get actual packet (The byte(s) after the header)
@@ -547,7 +606,7 @@ HidParseReportDescriptor(
         i += (packetLength + 1);
 
         // Parse packet
-        __ParsePacket(&context, type, tag, packet);
+        __ParsePacket(&context, type, tag, packet, packetLength);
     }
 
     // Store the collection in the device

@@ -24,11 +24,60 @@
 
 #include "hid.h"
 #include <ddk/utils.h>
+#include <os/keycodes.h>
 #include <stdlib.h>
 
 #include <ctt_input_service_server.h>
 
 extern gracht_server_t* __crt_get_module_server(void);
+
+static uint8_t __KeyboardKeyCode(uint32_t usage)
+{
+    if (usage >= 0x04 && usage <= 0x1D) {
+        return (uint8_t)(VK_A + usage - 0x04);
+    }
+    if (usage >= 0x3A && usage <= 0x45) {
+        return (uint8_t)(VK_F1 + usage - 0x3A);
+    }
+    switch (usage) {
+        case 0x1E: return VK_1; case 0x1F: return VK_2; case 0x20: return VK_3;
+        case 0x21: return VK_4; case 0x22: return VK_5; case 0x23: return VK_6;
+        case 0x24: return VK_7; case 0x25: return VK_8; case 0x26: return VK_9;
+        case 0x27: return VK_0; case 0x28: return VK_ENTER; case 0x29: return VK_ESCAPE;
+        case 0x2A: return VK_BACK; case 0x2B: return VK_TAB; case 0x2C: return VK_SPACE;
+        case 0x2D: return VK_HYPHEN; case 0x2E: return VK_EQUAL; case 0x2F: return VK_LBRACKET;
+        case 0x30: return VK_RBRACKET; case 0x31: return VK_BACKSLASH; case 0x33: return VK_SEMICOLON;
+        case 0x34: return VK_APOSTROPHE; case 0x35: return VK_BACKTICK; case 0x36: return VK_COMMA;
+        case 0x37: return VK_DOT; case 0x38: return VK_SLASH; case 0x39: return VK_CAPSLOCK;
+        case 0x4F: return VK_RIGHT; case 0x50: return VK_LEFT; case 0x51: return VK_DOWN;
+        case 0x52: return VK_UP; case 0x53: return VK_NUMLOCK;
+        case 0xE0: return VK_LCONTROL; case 0xE1: return VK_LSHIFT; case 0xE2: return VK_LALT;
+        case 0xE3: return VK_LWIN; case 0xE4: return VK_RCONTROL; case 0xE5: return VK_RSHIFT;
+        case 0xE6: return VK_RALT; case 0xE7: return VK_RWIN;
+        default: return VK_INVALID;
+    }
+}
+
+static uint16_t __KeyboardModifier(uint32_t usage)
+{
+    switch (usage) {
+        case 0xE0: return VK_MODIFIER_LCTRL; case 0xE1: return VK_MODIFIER_LSHIFT;
+        case 0xE2: return VK_MODIFIER_LALT; case 0xE4: return VK_MODIFIER_RCTRL;
+        case 0xE5: return VK_MODIFIER_RSHIFT; case 0xE6: return VK_MODIFIER_RALT;
+        default: return 0;
+    }
+}
+
+static int64_t __SignExtend(uint64_t value, uint32_t bits)
+{
+    if (bits == 0 || bits >= 64) {
+        return (int64_t)value;
+    }
+    if (value & (UINT64_C(1) << (bits - 1))) {
+        value |= UINT64_MAX << bits;
+    }
+    return (int64_t)value;
+}
 
 /**
  * Retrieves a value from a buffer by the given bit-offset and the for a certain
@@ -43,9 +92,19 @@ static uint64_t __ExtractValue(
     uint32_t i = 0;
     uint32_t offset = bitOffset;
 
+    if (numBits > 64) {
+        return 0;
+    }
+
     while (i < numBits) {
-        uint8_t bits = ((offset % 8) + numBits - i) < 8 ? numBits % 8 : 8 - (offset % 8);
-        value |= ((buffer[offset / 8] >> (offset % 8)) & ((1 << bits) - 1)) << i;
+        uint32_t bits = 8 - (offset % 8);
+        uint32_t remaining = numBits - i;
+        uint64_t mask;
+        if (bits > remaining) {
+            bits = remaining;
+        }
+        mask = bits == 64 ? UINT64_MAX : ((UINT64_C(1) << bits) - 1);
+        value |= (((uint64_t)buffer[offset / 8] >> (offset % 8)) & mask) << i;
         i += bits;
         offset += bits;
     }
@@ -90,23 +149,15 @@ static void __HandleInputUsageGenericPc(
         case HID_REPORT_USAGE_X_AXIS:
         case HID_REPORT_USAGE_Y_AXIS:
         case HID_REPORT_USAGE_Z_AXIS: {
-            int64_t relativeValue = (int64_t)value;
-            if (value == 0) {
-                break;
-            }
+            int64_t relativeValue;
 
             // If the value is absolute, we want to
             // make sure we calculate the relative
             if (context->InputItem->Flags == REPORT_INPUT_TYPE_ABSOLUTE) {
-                relativeValue = (int64_t)(value - oldValue);
+                relativeValue = (int64_t)value - (int64_t)oldValue;
             }
-
-            // Handle sign-cases where we have to turn them negative
-            if (relativeValue > context->CollectionItem->Stats.LogicalMax
-                && context->CollectionItem->Stats.LogicalMin < 0) {
-                if (relativeValue & (int64_t)(1 << (numberOfValueBits - 1))) {
-                    relativeValue -= (int64_t)(1 << numberOfValueBits);
-                }
+            else {
+                relativeValue = __SignExtend(value, numberOfValueBits);
             }
 
             if (relativeValue != 0) {
@@ -156,6 +207,15 @@ static void __HandleInputItem(
         return;
     }
 
+    if (dataIndex >= hidDevice->BufferSize ||
+        hidDevice->PreviousDataIndex >= hidDevice->BufferSize ||
+        hidDevice->Buffer == NULL ||
+        hidDevice->ReportLength == 0 ||
+        hidDevice->ReportLength > hidDevice->BufferSize - dataIndex) {
+        WARNING("HID report does not fit in the transfer buffer");
+        return;
+    }
+
     data         = &((uint8_t*)hidDevice->Buffer)[dataIndex];
     previousData = &((uint8_t*)hidDevice->Buffer)[hidDevice->PreviousDataIndex];
 
@@ -172,6 +232,9 @@ static void __HandleInputItem(
 
     // Extract some of the state variables for parsing
     offset = inputItem->LocalState.BitOffset;
+    if (collectionItem->Stats.ReportId != UUID_INVALID) {
+        offset += 8;
+    }
     length = collectionItem->Stats.ReportSize;
 
     // initialize context before handling
@@ -179,10 +242,14 @@ static void __HandleInputItem(
     context.InputItem = inputItem;
     for (i = 0; i < collectionItem->Stats.ReportCount; i++, offset += length) {
         uint64_t value    = __ExtractValue(data, offset, length);
-        uint64_t oldValue = __ExtractValue(previousData, offset, length);
+        uint64_t oldValue = hidDevice->PreviousDataValid ?
+            __ExtractValue(previousData, offset, length) : 0;
 
         // We cant expect this to be correct though, it might be 0
-        int usage = inputItem->LocalState.Usages[i];
+        int usage = i < 16 ? inputItem->LocalState.Usages[i] : 0;
+        if (usage == 0 && inputItem->LocalState.UsageMax >= inputItem->LocalState.UsageMin) {
+            usage = (int)(inputItem->LocalState.UsageMin + i);
+        }
 
         // Take action based on the type of input
         // currently we only handle generic pc input devices
@@ -194,7 +261,19 @@ static void __HandleInputItem(
             // Describes keyboard or keypad events
             // See values in hid_keycodes.h
             case HID_REPORT_USAGE_PAGE_KEYBOARD: {
-
+                if (value != oldValue) {
+                        uint32_t keyUsage = inputItem->Flags == REPORT_INPUT_TYPE_ARRAY ?
+                            (uint32_t)(value != 0 ? value : oldValue) : (uint32_t)usage;
+                    uint8_t keycode = __KeyboardKeyCode(keyUsage);
+                    uint16_t modifiers = __KeyboardModifier(keyUsage);
+                    if (keycode != VK_INVALID) {
+                        if (value == 0) {
+                            modifiers |= VK_MODIFIER_RELEASED;
+                        }
+                        ctt_input_event_button_event_all(__crt_get_module_server(),
+                                hidDevice->Base->Base.Id, keycode, modifiers);
+                    }
+                }
             } break;
 
             // Generic button event (Mouse)
@@ -219,7 +298,13 @@ static void __HandleInputItem(
                 switch (collectionItem->InputType) {
                     // Mouse button event
                     case CTT_INPUT_TYPE_MOUSE: {
-
+                        if (usage < 1 || usage > 8) {
+                            break;
+                        }
+                        uint8_t button = (uint8_t)(VK_LBUTTON + usage - 1);
+                        uint16_t modifiers = value ? 0 : VK_MODIFIER_RELEASED;
+                        ctt_input_event_button_event_all(__crt_get_module_server(),
+                            hidDevice->Base->Base.Id, button, modifiers);
                     } break;
 
                     // Gamepad button event
@@ -255,10 +340,9 @@ static void __HandleInputItem(
     }
 
     // Create a new input report
-    if (collectionItem->InputType == CTT_INPUT_TYPE_KEYBOARD) {
-        ctt_input_event_button_event_all(__crt_get_module_server(), hidDevice->Base->Base.Id, 0, 0);
-    }
-    else if (collectionItem->InputType == CTT_INPUT_TYPE_MOUSE) {
+    if (collectionItem->InputType == CTT_INPUT_TYPE_MOUSE &&
+        (context.EventData.PointerEvent.rel_x || context.EventData.PointerEvent.rel_y ||
+         context.EventData.PointerEvent.rel_z)) {
         ctt_input_event_cursor_event_all(__crt_get_module_server(), hidDevice->Base->Base.Id, 0,
                                    context.EventData.PointerEvent.rel_x,
                                    context.EventData.PointerEvent.rel_y,
