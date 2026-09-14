@@ -82,6 +82,15 @@ HCITransferFinalize(
 }
 
 oserr_t
+HCIEndpointReset(
+    _In_ UsbManagerController_t* controller,
+    _In_ USBAddress_t*           address)
+{
+    UsbManagerSetToggle(controller, address, 0);
+    return OS_EOK;
+}
+
+oserr_t
 HCITransferDequeue(
     _In_ UsbManagerTransfer_t* transfer)
 {

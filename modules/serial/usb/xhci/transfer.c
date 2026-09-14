@@ -441,6 +441,10 @@ XhciTransferHandleEvent(
                         completionCode != XHCI_TRB_COMPLETION_SUCCESS &&
                         completionCode != XHCI_TRB_COMPLETION_SHORT_PACKET) {
                         descriptor->Flags |= XHCI_TD_FLAG_FAILED;
+                        /* A transfer error (stall, babble, etc) halts the endpoint
+                         * ring on real hardware; the class driver must clear
+                         * ENDPOINT_HALT before further transfers can proceed. */
+                        endpoint->State = XHCI_ENDPOINT_HALTED;
                     }
 
                     endpoint->TRBOwners[descriptor->FirstTrbIndex] = NULL;
@@ -461,6 +465,19 @@ XhciTransferHandleEvent(
         }
     }
     return false;
+}
+
+void
+XhciTransferMarkCancelled(
+    _In_ XhciController_t*     controller,
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    XhciTransferDescriptor_t* descriptor = transfer->RootElement;
+
+    while (descriptor != NULL) {
+        descriptor->Flags |= XHCI_TD_FLAG_CANCELLED;
+        descriptor = __DescriptorNext(controller, descriptor);
+    }
 }
 
 void
@@ -608,6 +625,7 @@ HCITransferDequeue(
     _In_ UsbManagerTransfer_t* transfer)
 {
     XhciController_t* controller = (XhciController_t*)UsbManagerGetController(transfer->DeviceID);
+    XhciEndpoint_t*   endpoint;
 
     if (controller == NULL) {
         return OS_ENOENT;
@@ -619,8 +637,13 @@ HCITransferDequeue(
         return OS_EOK;
     }
 
-    /* Submitted rings require Stop Endpoint and Set TR Dequeue Pointer before
-     * their descriptor storage can be released safely. */
-    _CRT_UNUSED(controller);
-    return OS_EBUSY;
+    endpoint = XhciEndpointGet(controller, &transfer->Address);
+    if (endpoint == NULL || transfer->RootElement == NULL) {
+        return OS_ENOENT;
+    }
+
+    /* Submitted rings require Stop Endpoint + Set TR Dequeue Pointer before
+     * the cancelled TD's storage can be released safely; every other transfer
+     * on the endpoint is rebuilt/requeued once that completes. */
+    return XhciEndpointCancelTransfer(controller, endpoint, transfer);
 }

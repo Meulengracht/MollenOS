@@ -183,6 +183,9 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_CONTROL_TRT_IN          (3 << 16)
 #define XHCI_TRB_CONTROL_TYPE_GET(n)     (((n) >> 10) & 0x3F)
 #define XHCI_TRB_CONTROL_TYPE(n)         (((n) & 0x3F) << 10)
+#define XHCI_TRB_CONTROL_EP_ID(n)        (((n) & 0x1F) << 16)
+#define XHCI_TRB_CONTROL_SLOT_ID(n)      (((n) & 0xFF) << 24)
+#define XHCI_TRB_PARAMETER_DCS           (1ull << 0)
 #define XHCI_TRB_TYPE_NORMAL             1
 #define XHCI_TRB_TYPE_SETUP_STAGE        2
 #define XHCI_TRB_TYPE_DATA_STAGE         3
@@ -191,6 +194,9 @@ typedef XhciTransferRequestBlock_t XhciTrb_t;
 #define XHCI_TRB_TYPE_ENABLE_SLOT        9
 #define XHCI_TRB_TYPE_ADDRESS_DEVICE     11
 #define XHCI_TRB_TYPE_CONFIGURE_ENDPOINT 12
+#define XHCI_TRB_TYPE_RESET_ENDPOINT     14
+#define XHCI_TRB_TYPE_STOP_ENDPOINT      15
+#define XHCI_TRB_TYPE_SET_TR_DEQUEUE     16
 #define XHCI_TRB_TYPE_TRANSFER_EVENT     32
 #define XHCI_TRB_TYPE_COMMAND_COMPLETION 33
 #define XHCI_TRB_TYPE_PORT_STATUS_CHANGE 34
@@ -294,6 +300,14 @@ enum XhciEndpointState {
     XHCI_ENDPOINT_RUNNING,
     XHCI_ENDPOINT_HALTED,
     XHCI_ENDPOINT_STOPPED,
+    /* Recovery sequence states: a Reset/Stop Endpoint command has been
+     * submitted and its completion is awaited (XHCI_ENDPOINT_RESET_PENDING /
+     * XHCI_ENDPOINT_STOP_PENDING), followed by a Set TR Dequeue Pointer
+     * command (XHCI_ENDPOINT_DEQUEUE_PENDING) before the ring is rebuilt and
+     * pending transfers are requeued. */
+    XHCI_ENDPOINT_RESET_PENDING,
+    XHCI_ENDPOINT_STOP_PENDING,
+    XHCI_ENDPOINT_DEQUEUE_PENDING,
     XHCI_ENDPOINT_FAILED
 };
 
@@ -357,7 +371,10 @@ enum XhciCommandType {
     XHCI_COMMAND_NONE,
     XHCI_COMMAND_ENABLE_SLOT,
     XHCI_COMMAND_ADDRESS_DEVICE,
-    XHCI_COMMAND_CONFIGURE_ENDPOINT
+    XHCI_COMMAND_CONFIGURE_ENDPOINT,
+    XHCI_COMMAND_RESET_ENDPOINT,
+    XHCI_COMMAND_STOP_ENDPOINT,
+    XHCI_COMMAND_SET_TR_DEQUEUE
 };
 
 typedef struct XhciCommand {
@@ -460,6 +477,7 @@ extern oserr_t XhciTransferPrepare(_In_ XhciController_t* controller, _In_ UsbMa
 extern void    XhciTransferCleanup(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
 extern bool    XhciTransferIsSetAddress(_In_ UsbManagerTransfer_t* transfer, _Out_ uint8_t* addressOut);
 extern void    XhciTransferCompleteSoftware(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
+extern void    XhciTransferMarkCancelled(_In_ XhciController_t* controller, _In_ UsbManagerTransfer_t* transfer);
 extern oserr_t XhciTransferSubmit(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
 extern bool    XhciTransferHandleEvent(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
 
@@ -468,5 +486,7 @@ extern oserr_t XhciDeviceSetAddress(_In_ XhciController_t* controller, _In_ Xhci
 extern oserr_t XhciDeviceConfigureEndpoint(_In_ XhciController_t* controller, _In_ XhciDevice_t* device, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
 extern void    XhciDeviceDestroyAll(_In_ XhciController_t* controller);
 extern void    XhciCommandHandleCompletion(_In_ XhciController_t* controller, _In_ XhciTrb_t* eventTrb);
+extern oserr_t XhciEndpointReset(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint);
+extern oserr_t XhciEndpointCancelTransfer(_In_ XhciController_t* controller, _In_ XhciEndpoint_t* endpoint, _In_ UsbManagerTransfer_t* transfer);
 
 #endif //!__USB_XHCI__

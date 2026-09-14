@@ -88,6 +88,19 @@ HCIPortStatus(
         _In_ USBPortDescriptor_t*    port);
 
 /**
+ * @brief Resets a device endpoint. Invoked when a class driver has cleared
+ * ENDPOINT_HALT on the device side and needs the host controller side to
+ * forget any halt/stall condition and resume queuing transfers.
+ * @param controller The controller owning the endpoint.
+ * @param address The address (hub/port/device/endpoint) identifying the endpoint.
+ * @return OS_EOK if the reset was performed/queued successfully.
+ */
+extern oserr_t
+HCIEndpointReset(
+    _In_ UsbManagerController_t* controller,
+    _In_ USBAddress_t*           address);
+
+/**
  * @brief Invoked by the USB common code every time queue elements
  * needs to be updated or on certain events.
  * @param controller The controller instance of the queue element.
