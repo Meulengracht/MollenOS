@@ -392,6 +392,67 @@ UsbSchedulerAllocateBandwidth(
     _In_ uint8_t         speed,
     _In_ uint8_t*        element);
 
+/* UsbSchedulerCalculateBandwidth
+ * Calculates the controller-independent periodic bandwidth estimate for a
+ * transfer. Split transactions use the estimate for both their start and
+ * complete phases, which may be placed in different microframes by EHCI.
+ * @param speed The USB bus speed of the endpoint.
+ * @param direction The transfer direction used by the USB timing model.
+ * @param transferType The USB transfer type used by the timing model.
+ * @param bytesToTransfer The number of payload bytes represented by the slot.
+ * @return The estimated periodic bandwidth cost. */
+extern size_t
+UsbSchedulerCalculateBandwidth(
+    _In_ uint8_t speed,
+    _In_ uint8_t direction,
+    _In_ uint8_t transferType,
+    _In_ size_t  bytesToTransfer);
+
+/* UsbSchedulerAllocateSplitBandwidth
+ * Atomically reserves start-split and complete-split microframes for a
+ * full/low-speed periodic transfer. Existing controllers keep using the
+ * original allocator; this additive API is intended for EHCI split schedules.
+ * @param scheduler The periodic scheduler that owns the bandwidth table.
+ * @param interval The requested periodic interval.
+ * @param startBandwidth The bandwidth cost of each start-split slot.
+ * @param completeBandwidth The bandwidth cost of each complete-split slot.
+ * @param element The scheduler element receiving the reservation metadata.
+ * @param startMaskOut Receives the selected start-split microframe mask.
+ * @param completeMaskOut Receives the selected complete-split microframe mask.
+ * @param completionFrameOffsetOut Receives the frame offset for completion.
+ * @return OS_EOK when both phases were reserved atomically. */
+extern oserr_t
+UsbSchedulerAllocateSplitBandwidth(
+    _In_  UsbScheduler_t* scheduler,
+    _In_  uint8_t         interval,
+    _In_  size_t          startBandwidth,
+    _In_  size_t          completeBandwidth,
+    _In_  uint8_t*        element,
+    _Out_ uint8_t*        startMaskOut,
+    _Out_ uint8_t*        completeMaskOut,
+    _Out_ uint8_t*        completionFrameOffsetOut);
+
+/* UsbSchedulerFreeSplitBandwidth
+ * Releases the two-phase reservation previously returned by
+ * UsbSchedulerAllocateSplitBandwidth. The masks and costs must match the
+ * values used for the allocation.
+ * @param scheduler The periodic scheduler that owns the bandwidth table.
+ * @param element The scheduler element whose reservation is being released.
+ * @param startMask The previously selected start-split mask.
+ * @param completeMask The previously selected complete-split mask.
+ * @param completionFrameOffset The previously selected frame offset.
+ * @param startBandwidth The reserved start-split cost.
+ * @param completeBandwidth The reserved complete-split cost. */
+extern void
+UsbSchedulerFreeSplitBandwidth(
+    _In_ UsbScheduler_t* scheduler,
+    _In_ uint8_t*        element,
+    _In_ uint8_t         startMask,
+    _In_ uint8_t         completeMask,
+    _In_ uint8_t         completionFrameOffset,
+    _In_ size_t          startBandwidth,
+    _In_ size_t          completeBandwidth);
+
 /* UsbSchedulerChainElement
  * Chains up a new element to the given element chain. The root element
  * must be specified and the element to append to the chain. Also the
