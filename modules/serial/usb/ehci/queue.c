@@ -150,7 +150,10 @@ EhciQueueInitialize(
     
     // Create the scheduler
     TRACE(" > Initializing scheduler");
-    UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    oserr_t oserr = UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
     return EhciQueueResetInternalData(Controller);
 }
 
@@ -326,6 +329,7 @@ HCIProcessElement(
         _In_ void*                   context)
 {
     UsbSchedulerPool_t* qhPool = &controller->Scheduler->Settings.Pools[EHCI_QH_POOL];
+    UsbSchedulerPool_t* iTDPool = &controller->Scheduler->Settings.Pools[EHCI_iTD_POOL];
     UsbSchedulerPool_t* pool  = NULL;
     uint8_t* asyncRootElement = NULL;
 
@@ -394,12 +398,18 @@ HCIProcessElement(
                             USB_ELEMENT_NO_INDEX,
                             USB_CHAIN_BREATH
                     );
-                } else {
+                        } else if (pool == qhPool) {
                     UsbSchedulerLinkPeriodicElement(
                             controller->Scheduler,
                             EHCI_QH_POOL,
                             element
                     );
+                        } else if (pool == iTDPool) {
+                            UsbSchedulerLinkPeriodicElement(
+                                controller->Scheduler,
+                                EHCI_iTD_POOL,
+                                element
+                            );
                 }
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 1);
                 EhciEnableScheduler((EhciController_t*)controller, transfer->Type);
@@ -417,8 +427,10 @@ HCIProcessElement(
                 if (__Transfer_IsAsync(transfer)) {
                     UsbSchedulerGetPoolElement(controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &asyncRootElement, NULL);
                     UsbSchedulerUnchainElement(controller->Scheduler, EHCI_QH_POOL, asyncRootElement, EHCI_QH_POOL, element, USB_CHAIN_BREATH);
-                } else {
+                } else if (pool == qhPool) {
                     UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, EHCI_QH_POOL, element);
+                } else if (pool == iTDPool) {
+                    UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, EHCI_iTD_POOL, element);
                 }
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 1);
                 spinlock_release(&controller->Lock);

@@ -34,7 +34,7 @@ __DispatchTransfer(
     _In_ UsbManagerTransfer_t*  Transfer)
 {
 #ifdef __TRACE
-    UsbManagerDumpChain(&Controller->Base, Transfer, (uint8_t*)Transfer->EndpointDescriptor, USB_CHAIN_DEPTH);
+    UsbManagerDumpChain(&Controller->Base, Transfer, Transfer->RootElement, USB_CHAIN_DEPTH);
 #ifdef __DIAGNOSE
     for(;;);
 #endif
@@ -50,7 +50,7 @@ HCITransferFinalize(
         _In_ UsbManagerTransfer_t*   transfer,
         _In_ bool                    deferredClean)
 {
-    TRACE("EHCITransferFinalize(Id %u)", Transfer->ID);
+    TRACE("EHCITransferFinalize(Id %u)", transfer->ID);
 
     // Always unlink
     UsbManagerChainEnumerate(
@@ -62,9 +62,7 @@ HCITransferFinalize(
             transfer
     );
 
-    // Send notification for transfer if control/bulk immediately, but defer
-    // cleanup till the doorbell has been rung
-    USBTransferNotify(transfer);
+    // The common manager sends the completion notification when cleanup is finalized.
     if (!deferredClean) {
         UsbManagerChainEnumerate(
                 controller,
@@ -90,13 +88,58 @@ HCIEndpointReset(
     return OS_EOK;
 }
 
+struct EhciDetachContext {
+    USBAddress_t Address;
+};
+
+static int
+__DetachTransfer(
+        _In_ UsbManagerController_t* controller,
+        _In_ UsbManagerTransfer_t*   transfer,
+        _In_ void*                   userContext)
+{
+    struct EhciDetachContext* context = userContext;
+
+    if (transfer->Address.DeviceAddress != context->Address.DeviceAddress ||
+        transfer->Address.HubAddress != context->Address.HubAddress ||
+        transfer->Address.PortAddress != context->Address.PortAddress) {
+        return ITERATOR_CONTINUE;
+    }
+
+    // Mark the transfer cancelled before unlinking it. Async transfers keep
+    // their descriptors until the EHCI async-advance doorbell is observed.
+    transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+    if (__Transfer_IsAsync(transfer)) {
+        transfer->TData.Async.ElementsCompleted = transfer->ElementCount;
+    }
+    HCITransferDequeue(transfer);
+    _CRT_UNUSED(controller);
+    return ITERATOR_CONTINUE;
+}
+
 oserr_t
 HCIDeviceDetach(
         _In_ UsbManagerController_t* controller,
         _In_ USBAddress_t*           address)
 {
-    _CRT_UNUSED(controller);
-    _CRT_UNUSED(address);
+    if (controller == NULL || address == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    struct EhciDetachContext context = { .Address = *address };
+
+    // Mark transfers for this USB address as cancelled before dequeueing them.
+    // HCITransferDequeue owns the unlink and deferred descriptor cleanup
+    // sequence for descriptors that may still be visible to the controller.
+    UsbManagerIterateTransfers(
+            controller,
+            __DetachTransfer,
+            &context
+    );
+
+    // Periodic transfers can be cleaned immediately. Asynchronous transfers
+    // remain in CLEANUP until the controller acknowledges the doorbell.
+    UsbManagerProcessTransfers(controller);
     return OS_EOK;
 }
 
@@ -109,6 +152,13 @@ HCITransferDequeue(
     controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (!controller) {
         return OS_EINVALPARAMS;
+    }
+
+    // Waiting transfers may not have a queue head yet. Mark them for the
+    // common cleanup path without attempting to walk a null descriptor chain.
+    if (transfer->RootElement == NULL) {
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        return OS_EOK;
     }
     
     // Unschedule immediately, but keep data intact as hardware still (might) reference it.
@@ -134,6 +184,7 @@ HCITransferDequeue(
                 HCIProcessElement,
                 transfer
         );
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
     }
     return OS_EOK;
 }
@@ -232,12 +283,6 @@ HCITransferElementsNeeded(
     int                    tdsNeeded = 0;
     TRACE("EHCITransferElementsNeeded(transfer=%u, length=%u)", transfer->ID, transferLength);
 
-    // In regard to isochronous transfers, we must allocate an
-    // additional transfer descriptor, which acts as the 'zero-td'.
-    // All isochronous transfers should end with a zero td.
-    if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-        tdsNeeded++;
-    }
     // Handle control transfers a bit different due to control transfers needing
     // some additional packets.
     else if (transfer->Type == USBTRANSFER_TYPE_CONTROL) {
@@ -333,9 +378,7 @@ HCITransferElementFill(
         // Generic: adding ZLP on MPS boundary OUTs
         // Isoc:    adding ZLP
         if (bytesLeft == 0) {
-            if (transfer->Type == USBTRANSFER_TYPE_ISOC) {
-                transfer->Elements[ei++].Type = __TransferElement_DirectionToType(direction);
-            } else if (direction == USBTRANSFER_DIRECTION_OUT &&
+            if (direction == USBTRANSFER_DIRECTION_OUT &&
                     transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
                 transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
             }
@@ -490,6 +533,7 @@ __AllocateDescriptors(
             transfer->RootElement = element;
             rootPool = descriptorPool;
             markerPtr = __MarkerPointer(element, descriptorPool);
+            tdsAllocated++;
             continue;
         }
 
@@ -509,10 +553,12 @@ __AllocateDescriptors(
         tdsAllocated++;
     }
 
-    // For periodic transfers, we must be able to allocate all
-    // requested transfer descriptors.
-    if (__Transfer_IsPeriodic(transfer) && tdsAllocated != tdsRemaining) {
+    // A transfer must be prepared as one complete descriptor chain. Retaining
+    // a partial chain would make the next retry disagree with ChainLength and
+    // the already-completed element count.
+    if (tdsAllocated != tdsRemaining) {
         __DestroyDescriptors(controller, transfer);
+        transfer->RootElement = NULL;
         return 0;
     }
     return tdsAllocated;
@@ -627,12 +673,15 @@ __PrepareIsochronousDescriptor(
     }
 
     if (context->TDIndex == context->LastTDIndex) {
+        int lastTransaction = -1;
         for (int i = 0; i < 8; i++) {
-            if (!iTD->Transactions[i]) {
-                iTD->Transactions[i - 1] |= EHCI_iTD_IOC;
-                iTD->TransactionsCopy[i - 1] |= EHCI_iTD_IOC;
-                break;
+            if (iTD->Transactions[i]) {
+                lastTransaction = i;
             }
+        }
+        if (lastTransaction >= 0) {
+            iTD->Transactions[lastTransaction] |= EHCI_iTD_IOC;
+            iTD->TransactionsCopy[lastTransaction] |= EHCI_iTD_IOC;
         }
     }
     context->TDIndex++;
@@ -716,6 +765,14 @@ HCITransferQueueIsochronous(
         _In_ UsbManagerTransfer_t* transfer)
 {
     EhciController_t* controller;
+
+    // EHCI iTDs are valid only for high-speed endpoints. Full- and low-speed
+    // isochronous endpoints behind a TT require siTD scheduling, which is not
+    // implemented by this driver; reject them instead of programming an iTD
+    // with an invalid transaction model.
+    if (transfer->Speed != USBSPEED_HIGH) {
+        return OS_ENOTSUPPORTED;
+    }
 
     controller = (EhciController_t*)UsbManagerGetController(transfer->DeviceID);
     if (controller == NULL) {

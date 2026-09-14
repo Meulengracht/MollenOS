@@ -66,7 +66,6 @@ EHCITDSetup(
      */
     td->AlternativeLink = EHCI_LINK_END;
 
-    td->Status = EHCI_TD_ACTIVE;
     td->Token  = EHCI_TD_SETUP | EHCI_TD_ERRCOUNT;
 
     // Calculate the length of the setup transfer
@@ -76,6 +75,8 @@ EHCITDSetup(
     // Store copies
     td->OriginalLength = td->Length;
     td->OriginalToken  = td->Token;
+    dma_mb();
+    td->Status = EHCI_TD_ACTIVE;
 }
 
 void
@@ -94,7 +95,6 @@ EHCITDData(
      */
 
     // Initialize the new Td
-    td->Status = EHCI_TD_ACTIVE;
     td->Token  = pid | EHCI_TD_ERRCOUNT;
 
     // Always stop transaction on short-reads
@@ -119,6 +119,8 @@ EHCITDData(
 
     td->OriginalLength = td->Length;
     td->OriginalToken  = td->Token;
+    dma_mb();
+    td->Status = EHCI_TD_ACTIVE;
 }
 
 void
@@ -199,7 +201,7 @@ EHCITDRestart(
 
     td->OriginalLength &= ~(EHCI_TD_TOGGLE);
     if (toggle) {
-        td->OriginalLength = EHCI_TD_TOGGLE;
+        td->OriginalLength |= EHCI_TD_TOGGLE;
     }
     UsbManagerSetToggle(&controller->Base, &transfer->Address, toggle ^ 1);
 
