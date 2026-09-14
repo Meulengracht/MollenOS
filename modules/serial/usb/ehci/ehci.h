@@ -758,7 +758,7 @@ EHCITDRestart(
  * @param addresses
  * @param lengths
  */
-extern void
+extern bool
 EHCITDIsochronous(
         _In_ EhciController_t*            controller,
         _In_ UsbManagerTransfer_t*        transfer,

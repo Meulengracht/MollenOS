@@ -209,7 +209,9 @@ EHCITDRestart(
     td->Length = td->OriginalLength;
     td->Token  = td->OriginalToken;
 
-    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT && transfer->ResultCode != USBTRANSFERCODE_NAK) {
+    if (transfer->Type == USBTRANSFER_TYPE_INTERRUPT &&
+        transfer->ElementCount > 0 &&
+        transfer->ResultCode != USBTRANSFERCODE_NAK) {
         uintptr_t bufferStep = transfer->MaxPacketSize;
         uintptr_t bufferBaseUpdated = ADDLIMIT(
                                               transfer->Elements[0].Data.Address,

@@ -503,8 +503,17 @@ EhciSetup(
 
     // We then stop the controller, reset it and 
     // initialize data-structures
-    EhciQueueInitialize(Controller);
-    EhciRestart(Controller);
+    // Do not register or power ports until the scheduler and controller are
+    // both ready. Continuing after either failure would expose invalid DMA
+    // addresses to the controller and make teardown unsafe.
+    if (EhciQueueInitialize(Controller) != OS_EOK) {
+        ERROR("Failed to initialize EHCI scheduler");
+        return OS_EUNKNOWN;
+    }
+    if (EhciRestart(Controller) != OS_EOK) {
+        ERROR("Failed to restart EHCI controller");
+        return OS_EUNKNOWN;
+    }
     EhciWaitForCompanionControllers(Controller);    
     
     // Register the controller before starting
