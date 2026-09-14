@@ -108,7 +108,7 @@ OSProcessOptionsSetMemoryLimit(
  *             filesystem scope.
  * @param arguments The arguments that should be provided for the process.
  * @param handleOut The handle of the new process.
- * @return
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSProcessSpawn(
@@ -124,7 +124,7 @@ OSProcessSpawn(
  *             set in the options structure, then the path will be resolved using that scope.
  * @param options The process options structure that will configure certain elements of the process.
  * @param handleOut The handle of the new process.
- * @return
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSProcessSpawnOpts(
@@ -181,8 +181,8 @@ OSProcessTerminate(
 /**
  * @brief Retrieves the current process tick base. The tick base is set upon process startup. The
  * frequency can be retrieved by CLOCKS_PER_SEC in time.h
- * @param tickOut
- * @return
+ * @param tickOut Receives the current process tick base.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSProcessTickBase(
@@ -244,8 +244,8 @@ OSProcessWorkingDirectory(
 
 /**
  * @brief Sets the working directory of the current process.
- * @param path
- * @return
+ * @param path New working directory path.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSProcessSetWorkingDirectory(

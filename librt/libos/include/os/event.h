@@ -25,11 +25,11 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param initialValue
- * @param handleOut
- * @param eventOut
- * @return
+ * @brief Creates an event object with the specified initial and maximum values.
+ * @param initialValue The value assigned to the event when it is created.
+ * @param maxValue The maximum value that can be assigned to the event.
+ * @param handleOut Receives the handle for the new event.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSEvent(
@@ -38,10 +38,10 @@ OSEvent(
         _Out_ OSHandle_t*  handleOut));
 
 /**
- * @brief
- * @param timeout
- * @param handleOut
- * @return
+ * @brief Creates an event that automatically signals after a timeout.
+ * @param timeout The timeout, in milliseconds, before the event is signaled.
+ * @param handleOut Receives the handle for the new event.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSTimeoutEvent(
@@ -49,10 +49,10 @@ OSTimeoutEvent(
         _Out_ OSHandle_t*  handleOut));
 
 /**
- * @brief
- * @param event
- * @param options
- * @return
+ * @brief Waits for an event value and locks the event.
+ * @param handle The event handle to lock.
+ * @param options Lock behavior flags, including OSEVENT_LOCK_NONBLOCKING.
+ * @return OS_EOK when the event is locked; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSEventLock(
@@ -60,10 +60,10 @@ OSEventLock(
         _In_ unsigned int options));
 
 /**
- * @brief
- * @param event
- * @param count
- * @return
+ * @brief Releases an event and increases its available value.
+ * @param handle The event handle to release.
+ * @param count The number of event units to release.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSEventUnlock(
@@ -71,9 +71,9 @@ OSEventUnlock(
         _In_ unsigned int count));
 
 /**
- * @brief
- * @param handle
- * @return
+ * @brief Returns the current value of an event.
+ * @param handle The event handle to query.
+ * @return The current event value, or a negative error code on failure.
  */
 CRTDECL(int,
 OSEventValue(

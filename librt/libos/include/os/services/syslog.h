@@ -25,8 +25,9 @@ _CODE_BEGIN
 
 /**
  * @brief Logs a message to the system log
- * @param level
- * @param fmt
+ * @param level Severity level of the message.
+ * @param fmt printf-style format string followed by its arguments.
+ * @return None.
  */
 CRTDECL(void,
 OSSystemLog(

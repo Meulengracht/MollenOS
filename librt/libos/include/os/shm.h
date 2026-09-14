@@ -132,27 +132,27 @@ SHMUnmap(
         _In_ size_t      length));
 
 /**
- * @brief
- * @param handle
- * @return
+ * @brief Returns the mapped buffer address represented by a shared-memory handle.
+ * @param handle Shared-memory handle to query.
+ * @return The mapped buffer address, or NULL if it is not mapped.
  */
 CRTDECL(void*,
 SHMBuffer(
         _In_ OSHandle_t* handle));
 
 /**
- * @brief
- * @param handle
- * @return
+ * @brief Returns the current mapped length of a shared-memory handle.
+ * @param handle Shared-memory handle to query.
+ * @return The mapped length in bytes.
  */
 CRTDECL(size_t,
 SHMBufferLength(
         _In_ OSHandle_t* handle));
 
 /**
- * @brief
- * @param handle
- * @return
+ * @brief Returns the capacity of a shared-memory handle.
+ * @param handle Shared-memory handle to query.
+ * @return The buffer capacity in bytes.
  */
 CRTDECL(size_t,
 SHMBufferCapacity(
@@ -163,7 +163,7 @@ SHMBufferCapacity(
  * The value returned is only valid for buffers that have been mapped, or exported.
  * That means either SHMMap, SHMConform or SHMExport must have been called on this
  * handle.
- * @param[In] handle The OS handle that represents a SHM buffer.
+ * @param handle The OS handle that represents a SHM buffer.
  * @return The current offset into the underlying buffer region this mapping represents.
  */
 CRTDECL(size_t,

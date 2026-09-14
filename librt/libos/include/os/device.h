@@ -27,7 +27,7 @@
  * @param request  The I/O request type.
  * @param buffer   The data associated with the request type.
  * @param length   The length of the data.
- * @return
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSDeviceIOCtl(
@@ -46,7 +46,7 @@ OSDeviceIOCtl(
  * @param request  The I/O request type.
  * @param buffer   The data associated with the request type.
  * @param length   The length of the data.
- * @return
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSDeviceIOCtl2(

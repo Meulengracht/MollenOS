@@ -29,12 +29,12 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param path
- * @param at
- * @param type
- * @param flags
- * @return
+ * @brief Mounts a file system at a path.
+ * @param path Device or source path for the file system.
+ * @param at Target path at which to mount the file system.
+ * @param type File-system type name.
+ * @param flags Mount behavior flags.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSMount(
@@ -44,9 +44,9 @@ OSMount(
         _In_ unsigned int flags));
 
 /**
- * @brief
- * @param path
- * @return
+ * @brief Unmounts the file system mounted at a path.
+ * @param path Mount point to remove.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSUnmount(
