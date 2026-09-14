@@ -707,7 +707,7 @@ UsbManagerDumpSchedule(
         WARNING("-------------------------- FRAME %i ---------------------------------", i);
         UsbManagerChainEnumerate(
                 Controller,
-                (uint8_t*) Controller->Scheduler->VirtualFrameList[i],
+                (uint8_t*)Controller->Scheduler->Periodic.VirtualFrameList[i],
                 USB_CHAIN_BREATH,
                 HCIPROCESS_REASON_DUMP,
                 __DumpScheduleElement,

@@ -29,9 +29,17 @@
 #include <os/mollenos.h>
 #include "scheduler.h"
 
+static UsbSchedulerPool_t*
+__GetPoolByIndex(
+    _In_ UsbSchedulerSettings_t* settings,
+    _In_ uint16_t                index)
+{
+    return &settings->Pools[(index >> USB_ELEMENT_POOL_SHIFT) & USB_ELEMENT_POOL_MASK];
+}
+
 oserr_t
-UsbSchedulerChainElement(
-    _In_ UsbScheduler_t* Scheduler,
+UsbTransferArenaChainElement(
+    _In_ UsbTransferArena_t* Arena,
     _In_ int             ElementRootPool,
     _In_ uint8_t*        ElementRoot,
     _In_ int             ElementPool,
@@ -47,15 +55,15 @@ UsbSchedulerChainElement(
     uint16_t              RootIndex;
     uint16_t              LinkIndex;
 
-    assert(ElementRootPool < Scheduler->Settings.PoolCount);
-    assert(ElementPool < Scheduler->Settings.PoolCount);
+    assert(ElementRootPool < Arena->Settings->PoolCount);
+    assert(ElementPool < Arena->Settings->PoolCount);
 
     // Debug
     TRACE("UsbSchedulerChainElement(Marker is 0x%x)", Marker);
     
     // Validate element and lookup pool
-    RootPool        = &Scheduler->Settings.Pools[ElementRootPool];
-    Pool            = &Scheduler->Settings.Pools[ElementPool];
+    RootPool        = &Arena->Settings->Pools[ElementRootPool];
+    Pool            = &Arena->Settings->Pools[ElementPool];
     RootObject      = USB_ELEMENT_OBJECT(RootPool, ElementRoot);
     Object          = USB_ELEMENT_OBJECT(Pool, Element);
     PhysicalAddress = USB_ELEMENT_PHYSICAL(Pool, Object->Index);
@@ -68,7 +76,7 @@ UsbSchedulerChainElement(
     // Iterate to marker, support cyclic queues
     while (LinkIndex != Marker && LinkIndex != RootIndex) {
         // Move to next object
-        RootPool    = USB_ELEMENT_GET_POOL(Scheduler, LinkIndex);
+        RootPool    = __GetPoolByIndex(Arena->Settings, LinkIndex);
         ElementRoot = USB_ELEMENT_INDEX(RootPool, LinkIndex);
         RootObject  = USB_ELEMENT_OBJECT(RootPool, ElementRoot);
         LinkIndex   = (Direction == USB_CHAIN_BREATH) ? RootObject->BreathIndex : RootObject->DepthIndex;
@@ -92,8 +100,8 @@ UsbSchedulerChainElement(
 }
 
 oserr_t
-UsbSchedulerUnchainElement(
-    _In_ UsbScheduler_t* Scheduler,
+UsbTransferArenaUnchainElement(
+    _In_ UsbTransferArena_t* Arena,
     _In_ int             ElementRootPool,
     _In_ uint8_t*        ElementRoot,
     _In_ int             ElementPool,
@@ -107,12 +115,12 @@ UsbSchedulerUnchainElement(
     uint16_t rootIndex;
     uint16_t linkIndex;
     
-    assert(ElementRootPool < Scheduler->Settings.PoolCount);
-    assert(ElementPool < Scheduler->Settings.PoolCount);
+    assert(ElementRootPool < Arena->Settings->PoolCount);
+    assert(ElementPool < Arena->Settings->PoolCount);
     
     // Validate element and lookup pool
-    rootPool   = &Scheduler->Settings.Pools[ElementRootPool];
-    pool       = &Scheduler->Settings.Pools[ElementPool];
+    rootPool   = &Arena->Settings->Pools[ElementRootPool];
+    pool       = &Arena->Settings->Pools[ElementPool];
     rootObject = USB_ELEMENT_OBJECT(rootPool, ElementRoot);
     object     = USB_ELEMENT_OBJECT(pool, Element);
 
@@ -125,7 +133,7 @@ UsbSchedulerUnchainElement(
            linkIndex != rootIndex &&    // Detect cyclic
            linkIndex != object->Index) // Detect object to unlink
     {
-        rootPool    = USB_ELEMENT_GET_POOL(Scheduler, linkIndex);
+        rootPool    = __GetPoolByIndex(Arena->Settings, linkIndex);
         ElementRoot = USB_ELEMENT_INDEX(rootPool, linkIndex);
         rootObject  = USB_ELEMENT_OBJECT(rootPool, ElementRoot);
         linkIndex   = (Direction == USB_CHAIN_BREATH) ? rootObject->BreathIndex : rootObject->DepthIndex;
@@ -141,4 +149,44 @@ UsbSchedulerUnchainElement(
         return OS_EOK;
     }
     return OS_EUNKNOWN;
+}
+
+oserr_t
+UsbSchedulerChainElement(
+    _In_ UsbScheduler_t* Scheduler,
+    _In_ int             ElementRootPool,
+    _In_ uint8_t*        ElementRoot,
+    _In_ int             ElementPool,
+    _In_ uint8_t*        Element,
+    _In_ uint16_t        Marker,
+    _In_ int             Direction)
+{
+    return UsbTransferArenaChainElement(
+            UsbSchedulerGetTransferArena(Scheduler),
+            ElementRootPool,
+            ElementRoot,
+            ElementPool,
+            Element,
+            Marker,
+            Direction
+    );
+}
+
+oserr_t
+UsbSchedulerUnchainElement(
+    _In_ UsbScheduler_t* Scheduler,
+    _In_ int             ElementRootPool,
+    _In_ uint8_t*        ElementRoot,
+    _In_ int             ElementPool,
+    _In_ uint8_t*        Element,
+    _In_ int             Direction)
+{
+    return UsbTransferArenaUnchainElement(
+            UsbSchedulerGetTransferArena(Scheduler),
+            ElementRootPool,
+            ElementRoot,
+            ElementPool,
+            Element,
+            Direction
+    );
 }
