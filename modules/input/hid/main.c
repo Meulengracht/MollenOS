@@ -141,8 +141,8 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
 {
     HidDevice_t* hidDevice = NULL;
 
-    TRACE("ctt_usbhost_event_transfer_status_callback(event->status %u, event->bytes_transferred %" PRIuIN ")",
-          event->status, event->bytes_transferred);
+        TRACE("ctt_usbhost_event_transfer_status_callback(status %u, dataIndex %" PRIuIN ")",
+            status, dataIndex);
 
     foreach(element, &g_devices) {
         HidDevice_t* i = element->value;

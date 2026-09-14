@@ -54,11 +54,17 @@ static void __SubscribeToController(uuid_t driverId)
 
     for (int i = 0; i < 16; i++) {
         if (g_Subscriptions[i].driverId == driverId) {
+            g_Subscriptions[i].references++;
             return;
         }
         if (foundIndex == -1 && !g_Subscriptions[i].driverId) {
             foundIndex = i;
         }
+    }
+
+    if (foundIndex == -1) {
+        ERROR("__SubscribeToController subscription table is full");
+        return;
     }
 
     ctt_usbhost_subscribe(GetGrachtClient(), &msg.base);
@@ -137,7 +143,8 @@ static void __GetDeviceConfiguration(
 {
     usb_device_configuration_t configuration;
     enum USBTransferCode        status;
-    int                        i, j;
+    int                        i, j, k;
+    int                        found = 0;
     TRACE("__GetDeviceConfiguration(hidDevice=0x%" PRIxIN ")", hidDevice);
     
     status = UsbGetActiveConfigDescriptor(&hidDevice->Base->DeviceContext, &configuration);
@@ -149,22 +156,26 @@ static void __GetDeviceConfiguration(
           configuration.base.ConfigurationValue, configuration.base.Attributes,
           configuration.base.NumInterfaces);
     
-    // TODO support interface settings
     for (i = 0; i < configuration.base.NumInterfaces; i++) {
-        usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[0];
-        if (__IsSupportedInterface(interface)) {
-            for (j = 0; j < interface->base.NumEndpoints; j++) {
-                usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
-                if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT) {
-                    hidDevice->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
-                    TRACE("endpoint->Address=%x, endpoint->Attributes=%x, endpoint->Interval=%x",
-                          endpoint->Address, endpoint->Attributes, endpoint->Interval);
-                    TRACE("endpoint->MaxPacketSize=%x, endpoint->Refresh=%x, endpoint->SyncAddress=%x",
-                          endpoint->MaxPacketSize, endpoint->Refresh, endpoint->SyncAddress);
+        for (k = 0; k < configuration.interfaces[i].settings_count && !found; k++) {
+            usb_device_interface_setting_t* interface = &configuration.interfaces[i].settings[k];
+            if (__IsSupportedInterface(interface)) {
+                for (j = 0; j < interface->base.NumEndpoints; j++) {
+                    usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
+                    if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT &&
+                        (endpoint->Address & USB_ENDPOINT_ADDRESS_IN)) {
+                        if (hidDevice->Interrupt) {
+                            free(hidDevice->Interrupt);
+                        }
+                        hidDevice->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                        if (hidDevice->Interrupt) {
+                            __GetDeviceProtocol(hidDevice, interface);
+                            found = 1;
+                        }
+                        break;
+                    }
                 }
             }
-            __GetDeviceProtocol(hidDevice, interface);
-            break;
         }
     }
     
@@ -216,6 +227,7 @@ HidDeviceCreate(
         ERROR("HidDeviceCreate failed to allocate reusable buffer (interrupt-buffer)");
         goto error_exit;
     }
+    hidDevice->BufferSize = 0x400;
 
     // Subscripe to the usb controller for events
     __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
@@ -262,6 +274,7 @@ HidDeviceDestroy(
     if (hidDevice->Buffer != NULL) {
         dma_pool_free(UsbRetrievePool(), hidDevice->Buffer);
     }
+    free(hidDevice->Interrupt);
     HidCollectionCleanup(hidDevice);
     free(hidDevice);
 }
@@ -272,7 +285,7 @@ HidInterrupt(
     _In_ enum USBTransferCode transferStatus,
     _In_ size_t              dataIndex)
 {
-    if (!hidDevice->Collection || transferStatus == USBTRANSFERCODE_NAK) {
+    if (!hidDevice->Collection || transferStatus != USBTRANSFERCODE_SUCCESS) {
         return;
     }
 
@@ -283,4 +296,5 @@ HidInterrupt(
 
     // Store previous index
     hidDevice->PreviousDataIndex = dataIndex;
+    hidDevice->PreviousDataValid = 1;
 }
