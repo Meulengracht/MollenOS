@@ -64,9 +64,10 @@ typedef struct UsbHub {
     uuid_t     ControllerDeviceId;
     uuid_t     DeviceId;
     uuid_t     DriverId;
-    uint8_t    DeviceAddress;  // the usb device address of this hub
-    uint8_t    PortAddress;    // the port 'index' this hub is located on
-    size_t     PortCount;
+    uint8_t    DeviceAddress;  // USB device address assigned to this hub
+    uint8_t    PortAddress;    // Port on the parent hub where this hub is located
+    size_t     PortCount;      // Number of downstream ports exposed by this hub
+    uint16_t   Characteristics; // Hub descriptor characteristics used by the HCI
     UsbPort_t* Ports[USB_MAX_PORTS];
 } UsbHub_t;
 
@@ -78,20 +79,27 @@ typedef struct UsbController {
     uint32_t            AddressMap[4]; // 4 x 32 bits = 128 possible addresses which match the max in usb-spec
 } UsbController_t;
 
+/** Initializes the USB manager state and USB library resources. */
 __EXTERN oserr_t UsbCoreInitialize(void);
-__EXTERN void    UsbCoreDestroy(void);
 
+/** Releases USB manager state and all registered controller/hub resources. */
+__EXTERN void UsbCoreDestroy(void);
+
+/** Initializes the hub registry. Must run before hub registration. */
 __EXTERN void UsbCoreHubsInitialize(void);
+
+/** Releases all hubs and devices owned by registered controllers. */
 __EXTERN void UsbCoreHubsCleanup(void);
 
+/** Removes all registered controllers and their associated USB state. */
 __EXTERN void UsbCoreControllersCleanup(void);
 
 /**
- *
- * @param usbController
- * @param usbHub
- * @param usbPort
- * @return
+ * Creates and enumerates a device connected to a hub port.
+ * @param usbController Controller that owns the hub
+ * @param usbHub        Hub containing the port
+ * @param usbPort       Port where the device is connected
+ * @return OS_EOK on successful enumeration, otherwise an error code
  */
 __EXTERN oserr_t
 UsbCoreDevicesCreate(
@@ -100,10 +108,10 @@ UsbCoreDevicesCreate(
         _In_ UsbPort_t*       usbPort);
 
 /**
- *
- * @param controller
- * @param port
- * @return
+ * Disconnects and frees the device currently attached to a hub port.
+ * @param controller Controller that owns the device
+ * @param port       Port whose device should be destroyed
+ * @return OS_EOK on success, otherwise an error code
  */
 __EXTERN oserr_t
 UsbCoreDevicesDestroy(
@@ -112,10 +120,14 @@ UsbCoreDevicesDestroy(
 
 /**
  *
- * @param parentHubDeviceId
- * @param hubDeviceId
- * @param hubDriverId
- * @param portCount
+ * Registers a hub and records its position in the USB topology. For an external
+ * hub, the registration also provides the controller with the hub descriptor
+ * characteristics needed to configure transaction translation.
+ * @param parentHubDeviceId Device ID of the parent hub, or the controller for a root hub
+ * @param hubDeviceId       Device ID of the hub being registered
+ * @param hubDriverId       Driver ID that handles this hub's port operations
+ * @param portCount         Number of downstream ports on the hub
+ * @param characteristics   Raw hub descriptor characteristics
  * @return
  */
 __EXTERN oserr_t
@@ -123,21 +135,22 @@ UsbCoreHubsRegister(
         _In_ uuid_t  parentHubDeviceId,
         _In_ uuid_t  hubDeviceId,
         _In_ uuid_t  hubDriverId,
-        _In_ int     portCount);
+        _In_ int     portCount,
+        _In_ uint16_t characteristics);
 
 /**
- *
- * @param hubDeviceId
+ * Removes a hub and destroys devices connected to its downstream ports.
+ * @param hubDeviceId Device ID of the hub to unregister
  */
 __EXTERN void
 UsbCoreHubsUnregister(
         _In_ uuid_t hubDeviceId);
 
 /**
- *
- * @param hub
- * @param portIndex
- * @return
+ * Retrieves or creates the state object for a hub port.
+ * @param hub       Hub owning the port
+ * @param portIndex Hub-local port index
+ * @return The port state, or NULL when the arguments are invalid or allocation fails
  */
 __EXTERN UsbPort_t*
 UsbCoreHubsGetPort(
@@ -145,19 +158,19 @@ UsbCoreHubsGetPort(
         _In_ uint8_t   portIndex);
 
 /**
- *
- * @param hubDeviceId
- * @return
+ * Looks up a registered hub by device ID.
+ * @param hubDeviceId Device ID of the hub
+ * @return The registered hub, or NULL when no matching hub exists
  */
 __EXTERN UsbHub_t*
 UsbCoreHubsGet(
         _In_ uuid_t hubDeviceId);
 
 /**
- * Reserves an device address for the specified controller
- * @param controller
- * @param address
- * @return
+ * Reserves an unused USB device address for a controller.
+ * @param controller Controller whose address map should be updated
+ * @param address    Receives the reserved address
+ * @return OS_EOK on success, or OS_ENOENT when no address is available
  */
 __EXTERN oserr_t
 UsbCoreControllerReserveAddress(
@@ -165,9 +178,9 @@ UsbCoreControllerReserveAddress(
         _Out_ int*             address);
 
 /**
- * Releases an previously allocated device address
- * @param controller
- * @param address
+ * Releases a previously reserved USB device address.
+ * @param controller Controller whose address map should be updated
+ * @param address    Address to release; address zero is never released
  */
 __EXTERN void
 UsbCoreControllerReleaseAddress(
@@ -175,9 +188,9 @@ UsbCoreControllerReleaseAddress(
         _In_ int              address);
 
 /**
- * Retrieves an controller instance from a device id
- * @param deviceId
- * @return
+ * Retrieves a registered controller by its device ID.
+ * @param deviceId Device ID of the controller
+ * @return The controller instance, or NULL when no matching controller exists
  */
 __EXTERN UsbController_t*
 UsbCoreControllerGet(

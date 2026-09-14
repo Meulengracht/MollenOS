@@ -23,6 +23,8 @@
 #define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1F) << 27)
 #define XHCI_SLOT_CONTEXT_SPEED(n)   (((n) & 0xF) << 20)
 #define XHCI_SLOT_CONTEXT_PORT(n)    (((n) & 0xFF) << 16)
+#define XHCI_SLOT_CONTEXT_ENTRIES(n) (((n) & 0x1F) << 27)
+#define XHCI_SLOT_CONTEXT_SPEED(n)   (((n) & 0xF) << 20)
 #define XHCI_EP_CONTEXT_CERR(n)      (((n) & 0x3) << 1)
 #define XHCI_EP_CONTEXT_TYPE(n)      (((n) & 0x7) << 3)
 #define XHCI_EP_CONTEXT_TYPE_CONTROL XHCI_EP_CONTEXT_TYPE(4)
@@ -107,6 +109,20 @@ __DeviceGet(
         XhciDevice_t* device = node->value;
         if (device->HubAddress == address->HubAddress &&
             device->PortAddress == address->PortAddress) {
+            return device;
+        }
+    }
+    return NULL;
+}
+
+static XhciDevice_t*
+__DeviceGetByUsbAddress(
+    _In_ XhciController_t* controller,
+    _In_ uint8_t           address)
+{
+    foreach(node, &controller->Devices) {
+        XhciDevice_t* device = node->value;
+        if (device->UsbAddress == address) {
             return device;
         }
     }
@@ -427,8 +443,16 @@ __BuildConfigureEndpointContext(
     }
 
     slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries) |
-            XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed));
-    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(transfer->Address.PortAddress + 1);
+            XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed)) | device->RouteString;
+    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(device->RootPort);
+    if (device->HubPortCount != 0) {
+        slotContext[0] |= XHCI_SLOT_CONTEXT_HUB;
+        slotContext[1] |= XHCI_SLOT_CONTEXT_NUM_PORTS(device->HubPortCount);
+        slotContext[2] = XHCI_SLOT_CONTEXT_TT_THINK((device->HubCharacteristics >> 5) & 0x3);
+        if (device->HubCharacteristics & 0x4) {
+            slotContext[2] |= XHCI_SLOT_CONTEXT_MTT;
+        }
+    }
 
     __BuildEndpointContext(endpoint, transfer, endpointContext);
     dma_mb();
@@ -454,8 +478,20 @@ __BuildAddressContext(
 
     device->ContextEntries = 1;
     inputControl[1] = XHCI_INPUT_ADD_SLOT | XHCI_INPUT_ADD_EP0;
-    slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries) | XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed));
-    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(transfer->Address.PortAddress + 1);
+    slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(device->ContextEntries) |
+            XHCI_SLOT_CONTEXT_SPEED(__SpeedId(transfer->Speed)) | device->RouteString;
+    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(device->RootPort);
+    if (device->Parent != NULL &&
+        (transfer->Speed == USBSPEED_LOW || transfer->Speed == USBSPEED_FULL)) {
+        XhciDevice_t* ttHub = device->Parent;
+        while (ttHub->Parent != NULL && ttHub->Speed != USBSPEED_HIGH) {
+            ttHub = ttHub->Parent;
+        }
+        if (ttHub->Speed == USBSPEED_HIGH) {
+            slotContext[2] = XHCI_SLOT_CONTEXT_TT_HUB(ttHub->SlotId) |
+                    XHCI_SLOT_CONTEXT_TT_PORT(device->PortAddress);
+        }
+    }
 
     endpointContext[1] = XHCI_EP_CONTEXT_CERR(3) | XHCI_EP_CONTEXT_TYPE_CONTROL |
             XHCI_EP_CONTEXT_MPS(transfer->MaxPacketSize);
@@ -466,6 +502,51 @@ __BuildAddressContext(
     }
     endpointContext[4] = XHCI_EP_CONTEXT_AVG_TRB(8);
     dma_mb();
+}
+
+static oserr_t
+__SubmitEvaluateContext(
+    _In_ XhciController_t* controller,
+    _In_ XhciDevice_t*     device)
+{
+    XhciTrb_t trb = { 0 };
+    trb.Parameter = device->InputContextDMATable.Entries[0].Address;
+    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_EVALUATE_CONTEXT) |
+            XHCI_TRB_CONTROL_SLOT_ID(device->SlotId);
+    return __SubmitCommand(controller, device, NULL, XHCI_COMMAND_EVALUATE_CONTEXT, &trb);
+}
+
+oserr_t
+HCIConfigureHub(
+    _In_ UsbManagerController_t* controllerBase,
+    _In_ uint8_t                 hubAddress,
+    _In_ uint8_t                 portCount,
+    _In_ uint16_t                characteristics)
+{
+    XhciController_t* controller = (XhciController_t*)controllerBase;
+    XhciDevice_t* hub = __DeviceGetByUsbAddress(controller, hubAddress);
+    reg32_t* slotContext;
+
+    if (hub == NULL || hub->SlotId == 0) {
+        return OS_ENOENT;
+    }
+    hub->HubPortCount = portCount;
+    hub->HubCharacteristics = characteristics;
+    memset(hub->InputContext, 0, XHCI_INPUT_CONTEXT_ENTRIES * controller->ContextSize);
+    ((reg32_t*)hub->InputContext)[1] = XHCI_INPUT_ADD_SLOT;
+    slotContext = (reg32_t*)(hub->InputContext + XHCI_CONTEXT_SLOT * controller->ContextSize);
+        slotContext[0] = XHCI_SLOT_CONTEXT_ENTRIES(hub->ContextEntries) |
+            XHCI_SLOT_CONTEXT_HUB;
+    slotContext[1] = XHCI_SLOT_CONTEXT_PORT(hub->RootPort) |
+            XHCI_SLOT_CONTEXT_NUM_PORTS(portCount);
+    slotContext[2] = XHCI_SLOT_CONTEXT_TT_THINK((characteristics >> 5) & 0x3);
+    /* The descriptor's compound-device bit is the only hub-level capability
+     * available through this contract; preserve it as the MTT indication. */
+    if (characteristics & 0x4) {
+        slotContext[2] |= XHCI_SLOT_CONTEXT_MTT;
+    }
+    dma_mb();
+    return __SubmitEvaluateContext(controller, hub);
 }
 
 static oserr_t
@@ -540,6 +621,25 @@ XhciDeviceEnsure(
 
     device->HubAddress = transfer->Address.HubAddress;
     device->PortAddress = transfer->Address.PortAddress;
+    device->Speed = transfer->Speed;
+    device->Parent = __DeviceGetByUsbAddress(controller, device->HubAddress);
+    if (device->Parent != NULL) {
+        device->RootPort = device->Parent->RootPort;
+        device->Depth = device->Parent->Depth + 1;
+        if (device->Depth >= 5) {
+            free(device);
+            return OS_EINVALPARAMS;
+        }
+        device->RouteString = device->Parent->RouteString |
+                ((uint32_t)device->PortAddress << (device->Depth * 4));
+    } else {
+        if (device->HubAddress != 0 || device->PortAddress > 14) {
+            free(device);
+            return OS_EINVALPARAMS;
+        }
+        device->RootPort = device->PortAddress + 1;
+        device->RouteString = device->RootPort;
+    }
     device->DefaultEndpoint = endpoint;
     device->InitTransfer = transfer;
     device->State = XHCI_DEVICE_ENABLE_PENDING;
@@ -676,6 +776,8 @@ XhciCommandHandleCompletion(
         if (command->Endpoint != NULL) {
             command->Endpoint->State = XHCI_ENDPOINT_RUNNING;
         }
+    } else if (command->Type == XHCI_COMMAND_EVALUATE_CONTEXT) {
+        /* The hub context update is complete. */
     } else if (command->Type == XHCI_COMMAND_RESET_ENDPOINT || command->Type == XHCI_COMMAND_STOP_ENDPOINT) {
         /* Endpoint is now Stopped; realign the ring dequeue pointer before
          * rebuilding software state and requeuing pending transfers. */

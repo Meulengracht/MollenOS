@@ -300,6 +300,21 @@ void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const
     ctt_usbhost_reset_endpoint_response(message, err);
 }
 
+void ctt_usbhost_configure_hub_invocation(struct gracht_message* message, const uuid_t deviceId,
+    const uint8_t hubAddress, const uint8_t portCount, const uint16_t characteristics)
+{
+    UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    oserr_t                 err;
+    
+    if (controller == NULL) {
+        ctt_usbhost_configure_hub_response(message, OS_ENOENT);
+        return;
+    }
+
+    err = HCIConfigureHub(controller, hubAddress, portCount, characteristics);
+    ctt_usbhost_configure_hub_response(message, err);
+}
+
 static void
 __QueueWaitingTransfers(
     _In_ UsbManagerController_t* controller)

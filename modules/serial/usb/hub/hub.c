@@ -308,7 +308,8 @@ HubDeviceCreate(
     __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
 
     // Register us with the usb stack before enumerating ports
-    oserr = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount);
+    oserr = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount,
+                           hubDevice->HubCharacteristics);
     if (oserr != OS_EOK) {
         ERROR("HubDeviceCreate failed to register hub with usb stack");
         goto error_exit;

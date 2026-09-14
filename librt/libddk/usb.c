@@ -29,9 +29,9 @@ extern int __crt_get_server_iod(void);
 
 oserr_t
 UsbControllerRegister(
-        _In_ Device_t*           device,
-        _In_ enum USBControllerKind type,
-        _In_ int                 portCount)
+    _In_ Device_t*              device,
+    _In_ enum USBControllerKind type,
+    _In_ int                    portCount)
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
@@ -46,7 +46,7 @@ UsbControllerRegister(
 
 void
 UsbControllerUnregister(
-        _In_ uuid_t deviceID)
+    _In_ uuid_t deviceID)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     int                      status;
@@ -63,8 +63,9 @@ UsbControllerUnregister(
 
 oserr_t
 UsbHubRegister(
-        _In_ UsbDevice_t* usbDevice,
-        _In_ int          portCount)
+    _In_ UsbDevice_t* usbDevice,
+    _In_ int          portCount,
+    _In_ uint16_t     characteristics)
 {
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
@@ -73,13 +74,13 @@ UsbHubRegister(
                          usbDevice->DeviceContext.hub_device_id,
                          usbDevice->Base.Id,
                          serverHandle,
-                         portCount);
+                         portCount, characteristics);
     return OS_EOK;
 }
 
 oserr_t
 UsbHubUnregister(
-        _In_ uuid_t deviceId)
+    _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
 
@@ -89,8 +90,8 @@ UsbHubUnregister(
 
 oserr_t
 UsbEventPort(
-        _In_ uuid_t  DeviceId,
-        _In_ uint8_t PortAddress)
+    _In_ uuid_t  DeviceId,
+    _In_ uint8_t PortAddress)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
@@ -106,8 +107,8 @@ UsbEventPort(
 
 oserr_t
 UsbPortError(
-        _In_ uuid_t  deviceId,
-        _In_ uint8_t portAddress)
+    _In_ uuid_t  deviceId,
+    _In_ uint8_t portAddress)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
@@ -131,8 +132,8 @@ UsbQueryControllerCount(
 
 oserr_t
 UsbQueryController(
-        _In_ int                Index,
-        _In_ USBControllerDevice_t* Controller)
+    _In_ int                    Index,
+    _In_ USBControllerDevice_t* Controller)
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());

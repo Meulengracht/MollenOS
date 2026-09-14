@@ -408,7 +408,8 @@ UsbControllerUnregister(
 DDKDECL(oserr_t,
 UsbHubRegister(
         _In_ UsbDevice_t* usbDevice,
-        _In_ int          portCount));
+    _In_ int          portCount,
+    _In_ uint16_t     characteristics));
 
 /**
  *
