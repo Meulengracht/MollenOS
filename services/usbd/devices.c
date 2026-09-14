@@ -429,6 +429,15 @@ UsbCoreDevicesDestroy(
     // Instantiate the device pointer
     device = port->Device;
 
+    // Unload the class driver while its USB context is still valid.
+    if (device->DeviceId != UUID_INVALID) {
+        (void)UnregisterDevice(device->DeviceId);
+    }
+
+    // Tear down controller-side state before releasing the USB address or
+    // destroying the service-side device object.
+    UsbDetachDevice(controller->Device->Id, &device->Base);
+
     // Release allocated address
     if (device->Base.device_address != 0) {
         UsbCoreControllerReleaseAddress(controller, device->Base.device_address);

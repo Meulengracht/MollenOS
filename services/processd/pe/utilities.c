@@ -117,6 +117,7 @@ __BuildModuleDependencyList(
     mli = 0;
     elementCount = (int)loadContext->ModuleMap.element_count;
     while (elementCount > 0) {
+        int originalCount = elementCount;
         for (size_t i = 0; i < loadContext->ModuleMap.element_count; i++) {
             if (context.Elements[i].ID == -1) {
                 continue;
@@ -145,6 +146,13 @@ __BuildModuleDependencyList(
                 elementCount--;
                 mli++;
             }
+        }
+
+        if (originalCount == elementCount) {
+            // No elements were removed, it's probably due to cyclic dependencies
+            // which should never happen.
+            ERROR("__BuildModuleDependencyList: cyclic dependency detected");
+            break;
         }
     }
     free(context.Elements);

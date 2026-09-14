@@ -1,7 +1,5 @@
 /**
- * MollenOS
- *
- * Copyright 2011, Philip Meulengracht
+ * Copyright 2023, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +24,10 @@
 #ifndef __SYS_TYPES__
 #define __SYS_TYPES__
 
+// Define size_t through stddef.h
+#define __need_size_t
+#include <stddef.h>
+
 // Handle the definition of time32
 #ifndef _TIME32_T_DEFINED
 #define _TIME32_T_DEFINED
@@ -44,10 +46,23 @@
 #ifndef _TIME_T_DEFINED
 #define _TIME_T_DEFINED
 #if _INTEGRAL_MAX_BITS >= 64
-typedef __time64_t time_t;
+  typedef __time64_t time_t;
 #else
-typedef __time32_t time_t;
+  typedef __time32_t time_t;
 #endif
+#endif
+
+// Handle definition of offset type for file
+// types and interactions.
+#ifndef OFF_T_DEFINED
+#if _FILE_OFFSET_BITS==64
+  typedef int64_t off_t;
+  typedef int64_t off_t;
+#else
+  typedef long off_t;
+  typedef long long off64_t;
+#endif
+#define OFF_T_DEFINED
 #endif
 
 // Handle the definition of common bit types
@@ -60,55 +75,42 @@ typedef unsigned long long  u_int64_t;
 #endif
 
 // Bsd types
-typedef unsigned char       u_char;
-typedef unsigned short      u_short;
-typedef unsigned int        u_int;
-typedef unsigned long       u_long;
+typedef unsigned char  u_char;
+typedef unsigned short u_short;
+typedef unsigned int   u_int;
+typedef unsigned long  u_long;
 
 // Sysv types
-typedef unsigned char       unchar;
-typedef unsigned short      ushort;
-typedef unsigned int        uint;
-typedef unsigned long       ulong;
-
-// Handle definition of offset type for file
-// types and interactions.
-#ifndef OFF_T_DEFINED
-#if _FILE_OFFSET_BITS==64
-    typedef int64_t         off_t;
-    typedef int64_t         off_t;
-#else
-    typedef long            off_t;
-    typedef long long       off64_t;
-#endif
-#define OFF_T_DEFINED
-#endif 
+typedef unsigned char  unchar;
+typedef unsigned short ushort;
+typedef unsigned int   uint;
+typedef unsigned long  ulong;
 
 // Handle POSIX compliance by defining the below types
 // even through they are not used in our OS.
-typedef __INTPTR_TYPE__     ssize_t;
-typedef unsigned short      nlink_t;
-typedef unsigned short      _ino_t;
-typedef unsigned short      ino_t;
-typedef unsigned int        _dev_t;
-typedef unsigned int        dev_t;
-typedef unsigned long       mode_t;
-typedef unsigned long       uid_t;
-typedef unsigned long       gid_t;
-typedef long                pid_t;
-typedef long                blksize_t;
-typedef long                blkcnt_t;
-typedef unsigned long       fsblkcnt_t;
-typedef unsigned long       fsfilcnt_t;
+typedef __INTPTR_TYPE__ ssize_t;
+typedef unsigned short  nlink_t;
+typedef unsigned short  _ino_t;
+typedef unsigned short  ino_t;
+typedef unsigned int    _dev_t;
+typedef unsigned int    dev_t;
+typedef unsigned long   mode_t;
+typedef unsigned long   uid_t;
+typedef unsigned long   gid_t;
+typedef long            pid_t;
+typedef long            blksize_t;
+typedef long            blkcnt_t;
+typedef unsigned long   fsblkcnt_t;
+typedef unsigned long   fsfilcnt_t;
 
 // Handle some common math.h types that may be used
 // by math library.
-typedef int                 __int32_t;
-typedef unsigned int        __uint32_t;
+typedef int __int32_t;
+typedef unsigned int __uint32_t;
 
 // Handle some common time.h types that may be used
 // by time library.
-typedef unsigned long       useconds_t;
-typedef long                suseconds_t;
+typedef unsigned long useconds_t;
+typedef long suseconds_t;
 
 #endif

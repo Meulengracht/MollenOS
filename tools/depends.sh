@@ -12,19 +12,20 @@ install_cmake() {
   echo "** configuring platform cmake"
   CMAKE_VERSION="$(cmake --version)";
   CMAKE_REGEX="cmake version ([0-9]+\.[0-9]+)\.[0-9]+"
+  CMAKE_DATA="$SCRIPTPATH"/cmake-data/Modules/Platform
   if [[ $CMAKE_VERSION =~ $CMAKE_REGEX ]]
       then
           regex_match="${BASH_REMATCH[1]}"
           echo "** found cmake version ${regex_match}"
           if [ -d "/usr/share/cmake-${regex_match}" ]; then
               echo "** updating cmake platform in path /usr/share/cmake-${regex_match}"
-              cp --verbose "$SCRIPTPATH"/*.cmake /usr/share/cmake-"${regex_match}"/Modules/Platform/
+              cp --verbose "$CMAKE_DATA"/*.cmake /usr/share/cmake-"${regex_match}"/Modules/Platform/
           elif [ -d "/usr/local/share/cmake-${regex_match}" ]; then
               echo "** updating cmake platform in path /usr/local/share/cmake-${regex_match}"
-              cp --verbose "$SCRIPTPATH"/*.cmake /usr/local/share/cmake-"${regex_match}"/Modules/Platform/
+              cp --verbose "$CMAKE_DATA"/*.cmake /usr/local/share/cmake-"${regex_match}"/Modules/Platform/
           elif [ -d "/usr/share/cmake" ]; then
               echo "** updating cmake platform in path /usr/share/cmake"
-              cp --verbose "$SCRIPTPATH"/*.cmake /usr/share/cmake/Modules/Platform/
+              cp --verbose "$CMAKE_DATA"/*.cmake /usr/share/cmake/Modules/Platform/
           fi
   else
       echo "** ERROR: unknown cmake version that regex did not match ${CMAKE_VERSION}"
@@ -38,10 +39,25 @@ install_dotnet() {
   fi
 }
 
+install_imager() {
+  echo "** installing snap support"
+  apt-get -y -qq install snapd
+  echo "** installing diskbuilder"
+  snap install diskbuilder
+  snap connect diskbuilder:process-control
+  snap connect diskbuilder:mount-observe
+  snap connect diskbuilder:home
+}
+
 install_ci() {
   install_deps
   install_dotnet
   install_cmake
+}
+
+install_lw() {
+  install_cmake
+  install_imager
 }
 
 show_help() {

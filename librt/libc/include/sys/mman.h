@@ -90,6 +90,8 @@
 #define MS_ASYNC      0x1
 #define MS_INVALIDATE 0x2
 
+_CODE_BEGIN
+
 /**
  * @brief Creates a new mapping in the virtual address space of the
  * calling process. The starting address for the new mapping is
@@ -154,4 +156,5 @@ msync(
         _In_ size_t length,
         _In_ int    flags));
 
+_CODE_END
 #endif //!__SYS_MMAN_H__

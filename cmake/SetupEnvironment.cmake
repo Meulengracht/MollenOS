@@ -1,11 +1,11 @@
 # Make sure all the proper env are set
 set (CCROOT)
 set (CCROOT_FOUND FALSE)
-if(DEFINED ENV{CROSS})
-    set (CCROOT "$ENV{CROSS}")
-    set (CCROOT_FOUND TRUE)
-elseif(DEFINED ENV{VALICC})
+if(DEFINED ENV{VALICC})
     set (CCROOT "$ENV{VALICC}")
+    set (CCROOT_FOUND TRUE)
+elseif(DEFINED ENV{CROSS})
+    set (CCROOT "$ENV{CROSS}")
     set (CCROOT_FOUND TRUE)
 endif()
 

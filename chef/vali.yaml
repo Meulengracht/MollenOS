@@ -1,40 +1,50 @@
-project: 
-  summary: Vali SDK for C
-  description: |
-    The base SDK and runtime for the C language. It is required to build any C applications
-    against the MollenOS/Vali operating system.
-  author: Philip Meulengracht
-  email: the_meulengracht@hotmail.com
-  version: 1.0.0
-  license: LGPL
-  homepage: www.mollenos.com
+name: vali
+author: Philip Meulengracht
+email: the_meulengracht@hotmail.com
+version: 0.7-dev
+license: LGPL
+homepage: www.mollenos.com
 
-ingredients:
-- name: vali/clang-cc
-  platform: host
-  arch: host
-  channel: devel
+platforms:
+  - name: linux
+    toolchain: vali/clang-cc=devel
+
+environment:
+  host:
+    packages:
+      - cmake
+      - python3
+      - git
+      - gcc
+      - g++
+      - zip
+      - unzip
+      - nasm
+      - make
+      - curl
+      - libselinux1-dev
+      - libfuse3-dev
 
 recipes:
-- name: vali
-  path: /
-  toolchain: vali/clang-cc
-  steps:
-  - name: config
-    type: generate
-    system: cmake
-    arguments: [-G, '"Unix Makefiles"', -DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
-    env:
-      # Use the toolchain path defined by chef when using the 'toolchain'
-      # member in the recipe
-      CROSS: ${{ TOOLCHAIN_PREFIX }}/usr/local
-      VALI_ARCH: ${{ CHEF_TARGET_ARCHITECTURE }}
-
-  - name: build
-    type: build
-    depends: [config]
-    system: make
+  - name: vali
+    path: /
+    toolchain: platform
+    steps:
+    - name: build
+      type: build
+      system: cmake
+      env:
+        VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
+        VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
+      configure:
+        arguments: [-DVALI_ARCH=$[[ CHEF_TARGET_ARCHITECTURE ]]]
 
 packs:
-- name: sdk-c
-  type: ingredient
+  - name: vali
+    summary: Vali rootfs image
+    description: |
+      The base rootfs image for the Vali operating system. Can be converted into
+      img or vmdk for booting.
+    type: base
+    filters:
+      - deploy

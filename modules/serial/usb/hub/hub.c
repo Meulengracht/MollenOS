@@ -189,7 +189,7 @@ static oserr_t __GetHubDescriptor(
     }
 
     // Calculate descriptor length
-    hubDevice->DescriptorLength = 8 + (descriptor.NumberOfPorts / 8);
+    hubDevice->DescriptorLength = 8 + DIVUP(descriptor.NumberOfPorts, 8);
     hubDevice->PortCount = descriptor.NumberOfPorts;
     hubDevice->PowerOnDelay = MIN(50, descriptor.PowerOnDelay * 2);
     hubDevice->HubCharacteristics = descriptor.HubCharacteristics;
@@ -308,7 +308,8 @@ HubDeviceCreate(
     __SubscribeToController(usbDevice->DeviceContext.controller_driver_id);
 
     // Register us with the usb stack before enumerating ports
-    oserr = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount);
+    oserr = UsbHubRegister(hubDevice->Base, (int)hubDevice->PortCount,
+                           hubDevice->HubCharacteristics);
     if (oserr != OS_EOK) {
         ERROR("HubDeviceCreate failed to register hub with usb stack");
         goto error_exit;
@@ -491,7 +492,7 @@ HubInterrupt(
     // We also have to iterate all other bits in the change bitmap to make sure
     // we do detect all change events
     for (uint8_t i = 1; i <= hubDevice->PortCount; i++) {
-        if (changeMap[i / 8] & (i << (i % 8))) {
+        if (changeMap[i / 8] & (1 << (i % 8))) {
             oserr_t osStatus = HubGetPortStatus(hubDevice, i, &portStatus);
             if (osStatus != OS_EOK) {
                 ERROR("HubInterrupt failed to get port %u status", i);
@@ -507,10 +508,10 @@ HubInterrupt(
                 }
             }
             if (portStatus.Change & HUB_PORT_CHANGE_SUSPEND) {
-                // resume complete
+                HubPortClearChange(hubDevice, i, HUB_FEATURE_C_PORT_SUSPEND);
             }
             if (portStatus.Change & HUB_PORT_CHANGE_RESET) {
-                // reset complete
+                HubPortClearChange(hubDevice, i, HUB_FEATURE_C_PORT_RESET);
             }
         }
     }

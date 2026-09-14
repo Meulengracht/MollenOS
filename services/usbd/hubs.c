@@ -29,8 +29,11 @@
 #include <ds/hashtable.h>
 #include "manager.h"
 #include <stdlib.h>
+#include <gracht/link/vali.h>
+#include <internal/_utils.h>
 
 #include <sys_usb_service_server.h>
+#include <ctt_usbhost_service_client.h>
 
 static uint64_t hub_hash(const void* element);
 static int      hub_cmp(const void* element1, const void* element2);
@@ -54,7 +57,8 @@ UsbCoreHubsRegister(
         _In_ uuid_t  parentHubDeviceId,
         _In_ uuid_t  hubDeviceId,
         _In_ uuid_t  hubDriverId,
-        _In_ int     portCount)
+        _In_ int     portCount,
+        _In_ uint16_t characteristics)
 {
     UsbHub_t* parentHub;
     uuid_t    controllerDeviceId = parentHubDeviceId;
@@ -87,6 +91,7 @@ UsbCoreHubsRegister(
         .DeviceId = hubDeviceId,
         .DriverId = hubDriverId,
         .PortCount = portCount,
+        .Characteristics = characteristics,
         .DeviceAddress = deviceAddress,
         .PortAddress = portAddress,
         .Ports = { 0 }
@@ -112,6 +117,9 @@ UsbCoreHubsUnregister(
     memcpy(&hub, hubCopy, sizeof(struct UsbHub));
     for (i = 0; i < USB_MAX_PORTS; i++) {
         if (hub.Ports[i] && hub.Ports[i]->Device) {
+            if (UsbCoreHubsGet(hub.Ports[i]->Device->DeviceId) != NULL) {
+                UsbCoreHubsUnregister(hub.Ports[i]->Device->DeviceId);
+            }
             UsbCoreDevicesDestroy(UsbCoreControllerGet(hub.ControllerDeviceId), hub.Ports[i]);
             free(hub.Ports[i]);
         }
@@ -157,7 +165,6 @@ UsbCoreHubsGet(
 
 static void hub_free_entry(int index, const void* element, void* userContext)
 {
-    const struct UsbHub* hub = element;
     // what do
 }
 
@@ -175,9 +182,19 @@ static int hub_cmp(const void* element1, const void* element2)
 }
 
 void sys_usb_register_hub_invocation(struct gracht_message* message, const uuid_t parentHubDeviceId,
-                                     const uuid_t deviceId, const uuid_t driverId, const int portCount)
+                                     const uuid_t deviceId, const uuid_t driverId, const int portCount,
+                                     const uint16_t characteristics)
 {
-    oserr_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount);
+    oserr_t osStatus = UsbCoreHubsRegister(parentHubDeviceId, deviceId, driverId, portCount, characteristics);
+    UsbHub_t* hub = UsbCoreHubsGet(deviceId);
+    if (osStatus == OS_EOK && hub != NULL && hub->DeviceAddress != 0) {
+        struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hub->ControllerDeviceId);
+        oserr_t controllerStatus;
+        ctt_usbhost_configure_hub(GetGrachtClient(), &msg.base, hub->ControllerDeviceId,
+                                  hub->DeviceAddress, (uint8_t)portCount, characteristics);
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+        ctt_usbhost_configure_hub_result(GetGrachtClient(), &msg.base, &controllerStatus);
+    }
     if (osStatus != OS_EOK) {
         // log
     }

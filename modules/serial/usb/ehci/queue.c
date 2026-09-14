@@ -115,7 +115,10 @@ EhciQueueInitialize(
 
     // Initialize the scheduler
     TRACE(" > Configuring scheduler");
-    SchedulerFlags = USB_SCHEDULER_DEFERRED_CLEAN | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL;
+    SchedulerFlags = USB_SCHEDULER_PERIODIC | 
+        USB_SCHEDULER_DEFERRED_CLEAN | 
+        USB_SCHEDULER_FRAMELIST | 
+        USB_SCHEDULER_LINK_BIT_EOL;
     if (Controller->CParameters & EHCI_CPARAM_64BIT) {
 #ifdef __OSCONFIG_EHCI_ALLOW_64BIT
         SchedulerFlags |= USB_SCHEDULER_FL64;
@@ -449,4 +452,18 @@ HCIProcessEvent(
             }
         } break;
     }
+}
+
+oserr_t
+HCIConfigureHub(
+        _In_ UsbManagerController_t* controller,
+        _In_ uint8_t                 hubAddress,
+        _In_ uint8_t                 portCount,
+        _In_ uint16_t                characteristics)
+{
+    _CRT_UNUSED(controller);
+    _CRT_UNUSED(hubAddress);
+    _CRT_UNUSED(portCount);
+    _CRT_UNUSED(characteristics);
+    return OS_EOK;
 }

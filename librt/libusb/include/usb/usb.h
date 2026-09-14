@@ -408,7 +408,8 @@ UsbControllerUnregister(
 DDKDECL(oserr_t,
 UsbHubRegister(
         _In_ UsbDevice_t* usbDevice,
-        _In_ int          portCount));
+    _In_ int          portCount,
+    _In_ uint16_t     characteristics));
 
 /**
  *
@@ -452,7 +453,7 @@ UsbQueryControllerCount(
  * the controller count - 1. */
 DDKDECL(oserr_t,
 UsbQueryController(
-    _In_ int                Index,
+    _In_ int                    Index,
     _In_ USBControllerDevice_t* Controller));
 
 /* UsbQueryPipes 
@@ -463,5 +464,17 @@ UsbQueryController(
  /* UsbQueryDescriptor
   * Queries a common usb-descriptor from the given usb port and 
   * usb controller. The given array is filled with the descriptor information */
- 
+
+
+/**
+ * @brief Detaches a USB device from the specified controller.
+ * @param controllerId The controller from which to detach the device.
+ * @param device The USB device to detach.
+ * @return None.
+ */
+DDKDECL(void,
+UsbDetachDevice(
+    _In_ uuid_t                controllerId,
+    _In_ usb_device_context_t* device));
+
 #endif //!_USB_INTERFACE_H_

@@ -36,10 +36,15 @@ CRTDECL(void, _assert_panic(const char* str));
 #else
 #define assert( expression ) ( ( expression ) ? (void) 0 \
         : _assert_panic( "Assertion failed: " #expression \
-                          ", file " __symbol2string( __FILE__ ) \
+                          ", file " __FILE__ \
                           ", line " __symbol2string( __LINE__ ) \
-                          "." ) )
-#endif
+                          ".\n" ) )
+#endif //!NDEBUG
 _CODE_END
+
+#if defined __USE_ISOC11 && !defined __cplusplus
+# undef static_assert
+# define static_assert _Static_assert
+#endif
 
 #endif //!__STDC_ASSERT__

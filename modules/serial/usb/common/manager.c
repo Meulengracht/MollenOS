@@ -287,14 +287,48 @@ UsbManagerSetToggle(
 void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
         const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
-    USBAddress_t address = {hub, port, device, endpoint };
+    USBAddress_t            address = { hub, port, device, endpoint };
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    oserr_t                 err;
     if (controller == NULL) {
         ctt_usbhost_reset_endpoint_response(message, OS_ENOENT);
         return;
     }
-    UsbManagerSetToggle(controller, &address, 0);
-    ctt_usbhost_reset_endpoint_response(message, OS_EOK);
+    // Toggle state and any hardware-specific halt/dequeue recovery is handled
+    // by the HCI implementation behind this callback.
+    err = HCIEndpointReset(controller, &address);
+    ctt_usbhost_reset_endpoint_response(message, err);
+}
+
+void ctt_usbhost_configure_hub_invocation(struct gracht_message* message, const uuid_t deviceId,
+    const uint8_t hubAddress, const uint8_t portCount, const uint16_t characteristics)
+{
+    UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    oserr_t                 err;
+    
+    if (controller == NULL) {
+        ctt_usbhost_configure_hub_response(message, OS_ENOENT);
+        return;
+    }
+
+    err = HCIConfigureHub(controller, hubAddress, portCount, characteristics);
+    ctt_usbhost_configure_hub_response(message, err);
+}
+
+void ctt_usbhost_device_detach_invocation(struct gracht_message* message, const uuid_t controllerDeviceId,
+    const uint8_t hubAddress, const uint8_t portAddress, const uint8_t deviceAddress)
+{
+    USBAddress_t            address = { hubAddress, portAddress, deviceAddress, 0 };
+    UsbManagerController_t* controller = UsbManagerGetController(controllerDeviceId);
+    oserr_t                 err;
+
+    if (controller == NULL) {
+        ctt_usbhost_device_detach_response(message, OS_ENOENT);
+        return;
+    }
+
+    err = HCIDeviceDetach(controller, &address);
+    ctt_usbhost_device_detach_response(message, err);
 }
 
 static void
@@ -707,7 +741,7 @@ UsbManagerDumpSchedule(
         WARNING("-------------------------- FRAME %i ---------------------------------", i);
         UsbManagerChainEnumerate(
                 Controller,
-                (uint8_t*) Controller->Scheduler->VirtualFrameList[i],
+                (uint8_t*)Controller->Scheduler->Periodic.VirtualFrameList[i],
                 USB_CHAIN_BREATH,
                 HCIPROCESS_REASON_DUMP,
                 __DumpScheduleElement,

@@ -1,0 +1,65 @@
+name: sdk-c
+author: Philip Meulengracht
+email: the_meulengracht@hotmail.com
+version: 1.0.0
+license: LGPL
+homepage: www.mollenos.com
+
+platforms:
+  - name: vali
+    toolchain: vali/clang-cc=devel
+    architectures: [amd64, i386]
+
+environment:
+  host:
+    packages:
+      - cmake
+      - python3
+      - git
+      - gcc
+      - g++
+      - zip
+      - unzip
+      - nasm
+      - make
+      - curl
+      - libselinux1-dev
+      - libfuse3-dev
+  hooks: 
+    bash: 'tools/depends.sh install-cmake'
+
+recipes:
+  - name: vali
+    path: /
+    toolchain: platform
+    steps:
+    - name: build
+      type: build
+      system: cmake
+      env:
+        VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
+        VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
+      configure:
+        arguments: [-DGRACHT_C_LINK_SOCKET=OFF, -DGRACHT_C_LINK_VALI=ON]
+
+packs:
+  - name: sdk-c
+    summary: Vali SDK for C
+    description: |
+      The base SDK and runtime for the C language. It is required to build any C applications
+      against the MollenOS/Vali operating system.
+    type: ingredient
+    ingredient-options:
+      bin-paths: [/bin]
+      include-paths: [/include]
+      lib-paths: [/lib]
+    filters:
+      - !boot
+  - name: core
+    summary: Vali bootloader assets
+    description: |
+      The base bootloader assets for the Vali operating system. Can be used to either
+      update the system bootloader or create the vali image.
+    type: bootloader
+    filters:
+      - boot

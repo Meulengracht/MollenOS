@@ -6,8 +6,7 @@ serial.txt
 *.ko
 .sonar-out/
 .scannerwork/
-.fridge/
-.oven/
+.kitchen/
 *.pack
 
 #################

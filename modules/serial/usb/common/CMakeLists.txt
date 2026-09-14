@@ -10,6 +10,7 @@ add_library(usb-common STATIC
 
     manager.c
     scheduler.c
+    scheduler_arena.c
     scheduler_chain.c
     scheduler_periodic.c
     scheduler_settings.c

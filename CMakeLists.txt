@@ -62,8 +62,7 @@ option (VALI_ENABLE_EHCI "Enable support for USB 2.0" ON)
 option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mode" OFF)
 
 option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
-
-set (VALI_INIT_APP "vioarr.run" CACHE STRING "The application to execute for system initialization")
+option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" OFF)
 
 set (VALI_ARCH "amd64" CACHE STRING "Platform architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
@@ -88,10 +87,24 @@ set (VALI_PATH_DEPLOY_SHARED_MAPS   ${CMAKE_BINARY_DIR}/deploy/hdd/shared/maps)
 set (VALI_PATH_DEPLOY_SHARED_SHARE  ${CMAKE_BINARY_DIR}/deploy/hdd/shared/share)
 
 # Setup utility macros for targets
+set (INITRAMFS_TARGETS)
 macro (deploy_target_to_initrd RDTARGET)
     add_custom_command (TARGET ${RDTARGET} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_BIN}
     )
+    set (INITRAMFS_TARGETS ${INITRAMFS_TARGETS} RDTARGET)
+endmacro ()
+macro (deploy_service_to_initrd RDTARGET)
+    add_custom_command (TARGET ${RDTARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_SRV}
+    )
+    set (INITRAMFS_TARGETS ${INITRAMFS_TARGETS} RDTARGET)
+endmacro ()
+macro (deploy_module_to_initrd RDTARGET)
+    add_custom_command (TARGET ${RDTARGET} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${RDTARGET}> ${VALI_PATH_DEPLOY_SYSTEM_MODS}
+    )
+    set (INITRAMFS_TARGETS ${INITRAMFS_TARGETS} RDTARGET)
 endmacro ()
 
 macro (deploy_file_to_initrd)
@@ -112,9 +125,27 @@ macro (deploy_file_to_initrd)
     endif ()
 endmacro ()
 
+# Detect whether diskbuilder is available on the host so we do
+# don't need to build it
+find_program(
+    TOOL_DU 
+    NAMES "osbuilder" "diskbuilder.osbuilder"
+)
+if (NOT TOOL_DU)
+    if (NOT VALI_BUILD_LOCAL_OSIMAGER)
+        message (WARNING "No diskbuilder was available on the host, and local build is turned off")
+        set (TOOL_DU)
+    else ()
+        set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
+    endif ()
+else ()
+    # tool found, do not build it
+    message (STATUS "Host version of diskbuilder found, turning off local build")
+    set (VALI_BUILD_LOCAL_OSIMAGER OFF CACHE BOOL "Turning off local build because host version was found")
+endif ()
+
 # Setup tools
 set (TOOL_RD ${CMAKE_BINARY_DIR}/tools/host/bin/mkvafs)
-set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
 set (TOOL_LZ ${CMAKE_BINARY_DIR}/tools/host/bin/lzss)
 
 # Create neccessary directories
@@ -184,6 +215,11 @@ if (VALI_BUILD_UNIT_TESTS)
     )
 endif ()
 
+
+# setup initramfs for boot folder
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}/boot/payload)")
+install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${CMAKE_INSTALL_PREFIX}/boot/payload/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM})")
+
 # Installation and utility targets
 add_custom_target (install_prepare
     COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
@@ -194,7 +230,10 @@ add_custom_target (install_prepare
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-add_dependencies(install_prepare imager rd lzss)
+add_dependencies(install_prepare rd lzss)
+if (VALI_BUILD_LOCAL_OSIMAGER)
+    add_dependencies(install_prepare imager)
+endif (VALI_BUILD_LOCAL_OSIMAGER)
 
 add_custom_target (install_img
     COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
