@@ -6,6 +6,7 @@
 #include <ddk/barrier.h>
 #include <ddk/io.h>
 #include <os/shm.h>
+#include <stdlib.h>
 #include <string.h>
 #include "xhci.h"
 

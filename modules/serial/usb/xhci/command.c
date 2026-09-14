@@ -4,6 +4,7 @@
 
 #include <ddk/barrier.h>
 #include <ddk/io.h>
+#include <ddk/utils.h>
 #include <os/handle.h>
 #include <os/shm.h>
 #include <stdlib.h>
@@ -693,7 +694,7 @@ XhciDeviceEnsure(
     device->InitTransfer = transfer;
     device->State = XHCI_DEVICE_ENABLE_PENDING;
     endpoint->Device = device;
-    ELEMENT_INIT(&device->Header, transfer->Address.PortAddress, device);
+    ELEMENT_INIT(&device->Header, (uintptr_t)transfer->Address.PortAddress, device);
 
     oserr = __AllocateContext(
             XHCI_INPUT_CONTEXT_ENTRIES * controller->ContextSize,
@@ -782,7 +783,7 @@ HCIDeviceDetach(
     device->State = XHCI_DEVICE_DETACHING;
     portUsable = false;
     if (device->RootPort != 0) {
-        HCIPortStatus(controller, device->RootPort - 1, &port);
+        HCIPortStatus(&controller->Base, device->RootPort - 1, &port);
         portUsable = port.Connected && port.Enabled;
     }
 
