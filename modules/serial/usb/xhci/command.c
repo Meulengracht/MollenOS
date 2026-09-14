@@ -137,6 +137,207 @@ __SubmitCommand(
     return OS_EOK;
 }
 
+/* Endpoint reset/cancellation recovery sequence.
+ *
+ * Both "clear halt" (XhciEndpointReset) and "cancel a transfer"
+ * (XhciEndpointCancelTransfer) converge on the same Set TR Dequeue Pointer
+ * completion handler: once the endpoint is confirmed Halted/Stopped, we
+ * reset our software ring bookkeeping and rebuild it from the endpoint's
+ * pending transfer list, dropping cancelled transfers and requeuing the
+ * rest. Splicing hardware-owned TRBs in place is avoided entirely.
+ */
+
+static void
+__ResetRingOwnership(
+    _In_ XhciEndpoint_t* endpoint)
+{
+    memset(endpoint->TRBOwners, 0, sizeof(endpoint->TRBOwners));
+    endpoint->TransferRing.EnqueueIndex = endpoint->TransferRing.DequeueIndex;
+    endpoint->TransferRing.CycleState = endpoint->TransferRing.DequeueCycleState;
+    endpoint->TransferRing.Used = 0;
+    endpoint->CurrentTd = NULL;
+}
+
+static void
+__FailAllPending(
+    _In_ XhciEndpoint_t* endpoint)
+{
+    element_t* node = endpoint->Pending.head;
+
+    while (node != NULL) {
+        element_t*                node_next = node->next;
+        XhciTransferDescriptor_t* descriptor = node->value;
+        UsbManagerTransfer_t*     transfer = descriptor->Transfer;
+
+        XhciEndpointDequeueTransfer(endpoint, descriptor);
+        transfer->ResultCode = (descriptor->Flags & XHCI_TD_FLAG_CANCELLED) ?
+                USBTRANSFERCODE_CANCELLED : USBTRANSFERCODE_INVALID;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
+        node = node_next;
+    }
+}
+
+static oserr_t
+__SubmitResetEndpoint(
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t*   endpoint)
+{
+    XhciTrb_t trb = { 0 };
+    oserr_t   oserr;
+
+    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_RESET_ENDPOINT) |
+            XHCI_TRB_CONTROL_EP_ID(endpoint->DeviceContextIndex) |
+            XHCI_TRB_CONTROL_SLOT_ID(endpoint->SlotId);
+    oserr = __SubmitCommand(controller, endpoint->Device, endpoint, XHCI_COMMAND_RESET_ENDPOINT, &trb);
+    if (oserr != OS_EOK) {
+        endpoint->State = XHCI_ENDPOINT_FAILED;
+        return oserr;
+    }
+    endpoint->State = XHCI_ENDPOINT_RESET_PENDING;
+    return OS_EOK;
+}
+
+static oserr_t
+__SubmitStopEndpoint(
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t*   endpoint)
+{
+    XhciTrb_t trb = { 0 };
+    oserr_t   oserr;
+
+    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_STOP_ENDPOINT) |
+            XHCI_TRB_CONTROL_EP_ID(endpoint->DeviceContextIndex) |
+            XHCI_TRB_CONTROL_SLOT_ID(endpoint->SlotId);
+    oserr = __SubmitCommand(controller, endpoint->Device, endpoint, XHCI_COMMAND_STOP_ENDPOINT, &trb);
+    if (oserr != OS_EOK) {
+        endpoint->State = XHCI_ENDPOINT_FAILED;
+        return oserr;
+    }
+    endpoint->State = XHCI_ENDPOINT_STOP_PENDING;
+    return OS_EOK;
+}
+
+static oserr_t
+__SubmitSetTRDequeuePointer(
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t*   endpoint)
+{
+    XhciTrb_t trb = { 0 };
+    reg64_t   dequeuePointer;
+    oserr_t   oserr;
+
+    dequeuePointer = endpoint->TransferRing.PhysicalBase +
+            ((reg64_t)endpoint->TransferRing.DequeueIndex * sizeof(XhciTrb_t));
+    if (endpoint->TransferRing.DequeueCycleState) {
+        dequeuePointer |= XHCI_TRB_PARAMETER_DCS;
+    }
+
+    trb.Parameter = dequeuePointer;
+    trb.Control = XHCI_TRB_CONTROL_TYPE(XHCI_TRB_TYPE_SET_TR_DEQUEUE) |
+            XHCI_TRB_CONTROL_EP_ID(endpoint->DeviceContextIndex) |
+            XHCI_TRB_CONTROL_SLOT_ID(endpoint->SlotId);
+    oserr = __SubmitCommand(controller, endpoint->Device, endpoint, XHCI_COMMAND_SET_TR_DEQUEUE, &trb);
+    if (oserr != OS_EOK) {
+        endpoint->State = XHCI_ENDPOINT_FAILED;
+        return oserr;
+    }
+    endpoint->State = XHCI_ENDPOINT_DEQUEUE_PENDING;
+    return OS_EOK;
+}
+
+/* Rebuilds the ring's software ownership state and requeues every transfer
+ * still pending on the endpoint, skipping (and finalizing) any that were
+ * flagged cancelled. Called once Set TR Dequeue Pointer has completed. */
+static void
+__RebuildAndRequeuePending(
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t*   endpoint)
+{
+    element_t* node = endpoint->Pending.head;
+
+    __ResetRingOwnership(endpoint);
+
+    while (node != NULL) {
+        element_t*                node_next = node->next;
+        XhciTransferDescriptor_t* descriptor = node->value;
+        UsbManagerTransfer_t*     transfer = descriptor->Transfer;
+
+        if (descriptor->Flags & XHCI_TD_FLAG_CANCELLED) {
+            XhciEndpointDequeueTransfer(endpoint, descriptor);
+            transfer->ResultCode = USBTRANSFERCODE_CANCELLED;
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
+        } else if (XhciTransferSubmit(controller, endpoint, transfer) != OS_EOK) {
+            /* The ring was just reset, so failure here means a genuine
+             * resource problem rather than transient congestion. */
+            XhciEndpointDequeueTransfer(endpoint, descriptor);
+            transfer->ResultCode = USBTRANSFERCODE_INVALID;
+            transfer->State = USBTRANSFER_STATE_CLEANUP;
+        }
+        node = node_next;
+    }
+
+    endpoint->State = XHCI_ENDPOINT_RUNNING;
+}
+
+oserr_t
+XhciEndpointReset(
+    _In_ XhciController_t* controller,
+    _In_ XhciEndpoint_t*   endpoint)
+{
+    if (endpoint->Device == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (endpoint->State == XHCI_ENDPOINT_RESET_PENDING ||
+        endpoint->State == XHCI_ENDPOINT_STOP_PENDING ||
+        endpoint->State == XHCI_ENDPOINT_DEQUEUE_PENDING) {
+        /* A recovery sequence is already in-flight for this endpoint. */
+        return OS_EOK;
+    }
+
+    if (endpoint->State == XHCI_ENDPOINT_HALTED) {
+        return __SubmitResetEndpoint(controller, endpoint);
+    }
+
+    /* Not halted on the hardware side; just realign the ring's dequeue
+     * pointer to the current software position and requeue anything
+     * pending, in case toggle/dequeue tracking has drifted. */
+    return __SubmitSetTRDequeuePointer(controller, endpoint);
+}
+
+oserr_t
+XhciEndpointCancelTransfer(
+    _In_ XhciController_t*     controller,
+    _In_ XhciEndpoint_t*       endpoint,
+    _In_ UsbManagerTransfer_t* transfer)
+{
+    XhciTransferMarkCancelled(controller, transfer);
+
+    if (endpoint->State == XHCI_ENDPOINT_STOP_PENDING ||
+        endpoint->State == XHCI_ENDPOINT_DEQUEUE_PENDING) {
+        /* Endpoint is already stopping/rebuilding for a previous
+         * cancellation; the CANCELLED flag will be picked up once that
+         * sequence finishes. */
+        return OS_EOK;
+    }
+
+    return __SubmitStopEndpoint(controller, endpoint);
+}
+
+oserr_t
+HCIEndpointReset(
+    _In_ UsbManagerController_t* controllerBase,
+    _In_ USBAddress_t*           address)
+{
+    XhciController_t* controller = (XhciController_t*)controllerBase;
+    XhciEndpoint_t*   endpoint = XhciEndpointGet(controller, address);
+
+    if (endpoint == NULL) {
+        /* No endpoint state has been allocated yet, nothing to reset. */
+        return OS_EOK;
+    }
+    return XhciEndpointReset(controller, endpoint);
+}
+
 static uint8_t
 __EndpointTypeValue(
     _In_ enum USBTransferType      type,
@@ -449,6 +650,16 @@ XhciCommandHandleCompletion(
             if (command->Endpoint != NULL) {
                 command->Endpoint->State = XHCI_ENDPOINT_FAILED;
             }
+        } else if (command->Type == XHCI_COMMAND_RESET_ENDPOINT ||
+                   command->Type == XHCI_COMMAND_STOP_ENDPOINT ||
+                   command->Type == XHCI_COMMAND_SET_TR_DEQUEUE) {
+            /* Endpoint-scoped failure; fail every transfer still pending on
+             * this endpoint rather than leaving them stuck against a ring
+             * whose ownership state we can no longer trust. */
+            if (command->Endpoint != NULL) {
+                command->Endpoint->State = XHCI_ENDPOINT_FAILED;
+                __FailAllPending(command->Endpoint);
+            }
         } else {
             device->State = XHCI_DEVICE_FAILED;
             if (device->AddressTransfer != NULL) {
@@ -464,6 +675,16 @@ XhciCommandHandleCompletion(
     } else if (command->Type == XHCI_COMMAND_CONFIGURE_ENDPOINT) {
         if (command->Endpoint != NULL) {
             command->Endpoint->State = XHCI_ENDPOINT_RUNNING;
+        }
+    } else if (command->Type == XHCI_COMMAND_RESET_ENDPOINT || command->Type == XHCI_COMMAND_STOP_ENDPOINT) {
+        /* Endpoint is now Stopped; realign the ring dequeue pointer before
+         * rebuilding software state and requeuing pending transfers. */
+        if (command->Endpoint != NULL && __SubmitSetTRDequeuePointer(controller, command->Endpoint) != OS_EOK) {
+            __FailAllPending(command->Endpoint);
+        }
+    } else if (command->Type == XHCI_COMMAND_SET_TR_DEQUEUE) {
+        if (command->Endpoint != NULL) {
+            __RebuildAndRequeuePending(controller, command->Endpoint);
         }
     } else if (command->Type == XHCI_COMMAND_ENABLE_SLOT) {
         device->SlotId = XHCI_TRB_SLOT_ID(eventTrb->Control);

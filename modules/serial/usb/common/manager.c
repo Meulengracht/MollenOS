@@ -287,14 +287,17 @@ UsbManagerSetToggle(
 void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
         const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
 {
-    USBAddress_t address = {hub, port, device, endpoint };
+    USBAddress_t            address = { hub, port, device, endpoint };
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
+    oserr_t                 err;
     if (controller == NULL) {
         ctt_usbhost_reset_endpoint_response(message, OS_ENOENT);
         return;
     }
-    UsbManagerSetToggle(controller, &address, 0);
-    ctt_usbhost_reset_endpoint_response(message, OS_EOK);
+    // Toggle state and any hardware-specific halt/dequeue recovery is handled
+    // by the HCI implementation behind this callback.
+    err = HCIEndpointReset(controller, &address);
+    ctt_usbhost_reset_endpoint_response(message, err);
 }
 
 static void
