@@ -170,8 +170,8 @@ UhciQueueResetInternalData(
         UsbSchedulerGetPoolElement(Controller->Base.Scheduler, UHCI_QH_POOL, 
             Index, (uint8_t**)&Qh, &AsyncQhPhysical);
 
-        Controller->Base.Scheduler->VirtualFrameList[i]   = (uintptr_t)Qh;
-        Controller->Base.Scheduler->Settings.FrameList[i] = AsyncQhPhysical | UHCI_LINK_QH;
+        Controller->Base.Scheduler->Periodic.VirtualFrameList[i] = (uintptr_t)Qh;
+        Controller->Base.Scheduler->Settings.FrameList[i]        = AsyncQhPhysical | UHCI_LINK_QH;
     }
     return OS_EOK;
 }
@@ -187,7 +187,7 @@ UhciQueueInitialize(
 
     TRACE(" > Configuring scheduler");
     UsbSchedulerSettingsCreate(&Settings, UHCI_NUM_FRAMES, 1, 900, 
-        USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL);
+        USB_SCHEDULER_PERIODIC | USB_SCHEDULER_FRAMELIST | USB_SCHEDULER_LINK_BIT_EOL);
 
     UsbSchedulerSettingsAddPool(&Settings, sizeof(UhciQueueHead_t), UHCI_QH_ALIGNMENT, UHCI_QH_COUNT, 
         UHCI_POOL_QH_START, offsetof(UhciQueueHead_t, Link), 

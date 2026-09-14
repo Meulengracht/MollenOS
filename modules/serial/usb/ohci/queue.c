@@ -99,7 +99,7 @@ OHCIQueueInitialize(
     TRACE("OHCIQueueInitialize()");
 
     TRACE("OHCIQueueInitialize: configurating scheduler settings");
-    UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_NULL_ELEMENT);
+    UsbSchedulerSettingsCreate(&Settings, OHCI_FRAMELIST_SIZE, 1, 900, USB_SCHEDULER_PERIODIC | USB_SCHEDULER_NULL_ELEMENT);
 
     UsbSchedulerSettingsConfigureFrameList(&Settings, (reg32_t*)&Controller->Hcca->InterruptTable[0],
         Controller->HccaDMATable.Entries[0].Address + offsetof(OhciHCCA_t, InterruptTable));
