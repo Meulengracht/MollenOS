@@ -39,6 +39,13 @@
 #define XHCI_CONTEXT_ALIGNMENT      64
 #define XHCI_PAGE_SIZE              0x1000
 
+/*
+ * xHCI capability block. This is the first MMIO region exposed by the host
+ * controller and describes the controller's features and offsets to the
+ * operational/runtime areas. The code uses the capability data to discover the
+ * supported slot count, scratchpad count, port count and the location of the
+ * extended capabilities list.
+ */
 PACKED_ATYPESTRUCT(volatile, XhciCapabilityRegisters, {
     uint8_t  CapLength;
     uint8_t  Reserved;
@@ -66,6 +73,12 @@ PACKED_ATYPESTRUCT(volatile, XhciCapabilityRegisters, {
 #define XHCI_LEGSUP_BIOS_OWNED          (1 << 16)
 #define XHCI_LEGSUP_OS_OWNED            (1 << 24)
 
+/*
+ * Operational registers are where the host controller is configured and started.
+ * Most of the work here is to initialize the command ring, device-context base
+ * address array and the interrupt management controls before the controller is
+ * put into running mode.
+ */
 PACKED_ATYPESTRUCT(volatile, XhciOperationalRegisters, {
     reg32_t UsbCommand;
     reg32_t UsbStatus;
@@ -88,6 +101,11 @@ PACKED_ATYPESTRUCT(volatile, XhciOperationalRegisters, {
 #define XHCI_OP_CONFIG_MAXSLOTS(n)       ((n) & 0xFF)
 #define XHCI_OP_CRCR_RING_CYCLE          (1 << 0)
 
+/*
+ * Each root port exposes a small register block. We only need the status/control
+ * word for detection, enablement and change bits; the other port registers are
+ * retained for completeness as xHCI exposes them as part of the standard layout.
+ */
 PACKED_ATYPESTRUCT(volatile, XhciPortRegisters, {
     reg32_t StatusControl;
     reg32_t PowerManagementStatusControl;
@@ -112,6 +130,11 @@ PACKED_ATYPESTRUCT(volatile, XhciPortRegisters, {
                                           XHCI_PORT_STATUS_CONFIG_ERROR)
 #define XHCI_PORT_STATUS_RW_MASK         (XHCI_PORT_STATUS_POWER | XHCI_PORT_STATUS_RESET)
 
+/*
+ * Runtime registers are used for interrupt management and the event ring. The
+ * EventRingDequeuePointer is updated as the host drains the event ring to keep
+ * the hardware and software views of the ring synchronized.
+ */
 PACKED_ATYPESTRUCT(volatile, XhciRuntimeRegisters, {
     reg32_t MicroframeIndex;
     reg32_t Reserved[7];
@@ -125,6 +148,16 @@ PACKED_ATYPESTRUCT(volatile, XhciInterrupterRegisters, {
     reg64_t EventRingSegmentTableBaseAddress;
     reg64_t EventRingDequeuePointer;
 });
+
+/*
+ * xHCI event ring data structures.
+ *
+ * Each ring entry is a TRB (transfer request block) carrying a 64-bit
+ * parameter, a status field and a control word. The control word encodes the
+ * operation type (link, port status change, transfer completion, etc.) and the
+ * cycle bit that tells the hardware/software which ownership state the entry is
+ * in.
+ */
 
 #define XHCI_INTERRUPTER_MANAGEMENT_PENDING  (1 << 0)
 #define XHCI_INTERRUPTER_MANAGEMENT_ENABLE   (1 << 1)
@@ -148,6 +181,91 @@ PACKED_TYPESTRUCT(XhciEventRingSegmentTableEntry, {
     reg32_t Reserved;
 });
 
+/*
+ * Generic software ring state used by the xHCI driver. This mirrors the hardware
+ * ring concepts while keeping a tracked enqueue/dequeue position and cycle bit
+ * for each DMA-backed ring.
+ */
+
+#define XHCI_RING_TRB_COUNT             64
+#define XHCI_TD_ALIGNMENT              16
+#define XHCI_TD_POOL                   0
+#define XHCI_TD_COUNT                  256
+#define XHCI_TRB_MAX_DATA              0x1000
+#define XHCI_TD_FLAG_QUEUED            (1 << 0)
+#define XHCI_TD_FLAG_COMPLETED         (1 << 1)
+#define XHCI_TD_FLAG_FAILED            (1 << 2)
+#define XHCI_TD_FLAG_CANCELLED         (1 << 3)
+
+typedef struct XhciEndpoint XhciEndpoint_t;
+typedef struct XhciRing XhciRing_t;
+
+typedef struct XhciRing {
+    /* DMA-backed ring memory and metadata used for command/event/endpoint queues. */
+    void*             Trbs;
+    uintptr_t         PhysicalBase;
+    uint16_t          EnqueueIndex;
+    uint16_t          DequeueIndex;
+    uint16_t          TrbCount;
+    uint8_t           CycleState;
+    uint8_t           Reserved;
+    OSHandle_t        BufferHandle;
+    SHMSGTable_t      BufferSGTable;
+} XhciRing_t;
+
+typedef XhciTransferRequestBlock_t XhciTrb_t;
+
+/*
+ * Every USB transfer descriptor is backed by the shared scheduler object and
+ * carries xHCI-specific status metadata. The breadth and depth links are the
+ * scheduler chain links used to link descriptors into the endpoint queue, while
+ * the extra fields track the transfer, endpoint, queued/finished state and the
+ * TRBs that were emitted for the transfer.
+ */
+PACKED_TYPESTRUCT(XhciTransferDescriptor, {
+    reg32_t BreadthLink;
+    reg32_t DepthLink;
+    UsbSchedulerObject_t Object;
+
+    uint32_t             Flags;
+    uint32_t             CompletionCode;
+    uint32_t             BytesTransferred;
+    uint32_t             Reserved;
+
+    element_t            QueueHeader;
+    XhciEndpoint_t*      Endpoint;
+    UsbManagerTransfer_t* Transfer;
+    uint16_t             FirstTrbIndex;
+    uint16_t             LastTrbIndex;
+    uint16_t             TrbCount;
+    uint8_t              CycleState;
+    uint8_t              Reserved2;
+});
+
+/*
+ * Endpoint state used by the xHCI driver. Each endpoint tracks its USB address,
+ * device-context slot mapping and the queued transfer descriptors that belong to
+ * it. This allows us to maintain per-endpoint pending transfers without mixing
+ * state across different pipes.
+ */
+typedef struct XhciEndpoint {
+    USBAddress_t Address;
+    uint8_t      SlotId;
+    uint8_t      DeviceContextIndex;
+    uint16_t     MaxPacketSize;
+    XhciRing_t   TransferRing;
+    list_t       Pending;
+    element_t    Header;
+    XhciTransferDescriptor_t* CurrentTd;
+} XhciEndpoint_t;
+
+/*
+ * Root xHCI controller structure. This contains the hardware register mapping,
+ * the DMA-backed rings used for command/event processing and the per-device
+ * scratchpad/DCBAA data needed to address device contexts. The base member
+ * reuses the common USB manager state so the controller can integrate with the
+ * shared transaction manager and scheduler APIs.
+ */
 typedef struct XhciController {
     UsbManagerController_t Base;
 
@@ -165,10 +283,16 @@ typedef struct XhciController {
     size_t  ScratchpadCount;
     size_t  ContextSize;
 
+    /* Device Context Base Address Array (DCBAA): points to the device context
+     * array used by the controller to find device state for each slot. */
     OSHandle_t DCBaaDMA;
     SHMSGTable_t DCBaaDMATable;
     reg64_t* DCBaa;
 
+    /* Scratchpad array and buffer pages are required for controllers that report
+     * a non-zero number of scratchpad buffers. These are mapped into the DCBAA
+     * entry 0 as a pointer to the scratchpad array.
+     */
     OSHandle_t ScratchpadArrayDMA;
     SHMSGTable_t ScratchpadArrayDMATable;
     reg64_t* ScratchpadArray;
@@ -176,6 +300,12 @@ typedef struct XhciController {
     OSHandle_t ScratchpadBufferDMA;
     SHMSGTable_t ScratchpadBufferDMATable;
 
+    /* Command and event rings are the primary software/hardware scheduler
+     * handshake points for the controller. The command ring accepts control TRBs
+     * such as configure endpoint and reset commands, while the event ring is
+     * consumed by the interrupt path to detect transfer completions and port
+     * changes.
+     */
     OSHandle_t CommandRingDMA;
     SHMSGTable_t CommandRingDMATable;
     XhciTransferRequestBlock_t* CommandRing;
@@ -186,6 +316,9 @@ typedef struct XhciController {
     size_t EventRingIndex;
     int    EventRingCycle;
 
+    /* Event ring segment table (ERST): points the controller to the physical
+     * event ring segment used by the interrupter.
+     */
     OSHandle_t ErstDMA;
     SHMSGTable_t ErstDMATable;
     XhciEventRingSegmentTableEntry_t* Erst;
