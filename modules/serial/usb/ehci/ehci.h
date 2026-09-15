@@ -25,6 +25,9 @@
 #include "../common/scheduler.h"
 #include "../common/hci.h"
 
+// forward declarations
+typedef struct EHCIController EhciController_t;
+
 /**
  * Generic magic constants and definitions for EHCI
  */
