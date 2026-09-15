@@ -3,6 +3,7 @@
  * EHCI split-transaction isochronous descriptor support.
  */
 
+#define __need_minmax
 #include <os/mollenos.h>
 #include <ddk/utils.h>
 #include "../ehci.h"

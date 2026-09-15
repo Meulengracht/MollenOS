@@ -1,25 +1,15 @@
-macro (add_app_target)
-    if (${ARGC} GREATER_EQUAL 3)
-        set (SERVICE_SOURCES "${ARGN}")
-        list (POP_FRONT SERVICE_SOURCES) # target
-        list (POP_FRONT SERVICE_SOURCES) # compile flags
-        list (POP_FRONT SERVICE_SOURCES) # compile defines
-        string(REPLACE " " ";" APP_DEFINES "${ARGV2}")
-
-        add_executable(${ARGV0} ${SERVICE_SOURCES})
-        set_target_properties (${ARGV0}
-            PROPERTIES
-                COMPILE_FLAGS "${ARGV1}"
-                COMPILE_DEFINITIONS "${APP_DEFINES}"
-        )
-        target_link_libraries (${ARGV0} gracht libds libddk c librt)
-        add_custom_command (TARGET ${ARGV0} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${ARGV0}> ${VALI_PATH_DEPLOY_SHARED_BIN}
-        )
-    else ()
-        message (FATAL_ERROR "Not enough parameters for add_test_target")
-    endif ()
-endmacro ()
+# Compile definitions are a CMake list; functions preserve argument backslashes.
+function (add_app_target target compile_flags compile_definitions)
+    add_executable(${target} ${ARGN})
+    set_target_properties (${target} PROPERTIES COMPILE_FLAGS "${compile_flags}")
+    target_compile_definitions (${target} PRIVATE ${compile_definitions})
+    target_link_libraries (${target} gracht libds libddk c librt)
+    add_custom_command (TARGET ${target} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${VALI_PATH_DEPLOY_SHARED_BIN}"
+        COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:${target}>" "${VALI_PATH_DEPLOY_SHARED_BIN}"
+        VERBATIM
+    )
+endfunction ()
 
 string(TIMESTAMP BUILD_DATE "%Y%m%d")
 if (NOT VALI_BUILD_TYPE)
@@ -35,7 +25,7 @@ endif ()
 
 # build osstat that provide information about the current os
 add_app_target(osstat ""
-        "OS_VERSION=\\\"${VALI_VERSION}\\\" OS_BUILD_DATE=\\\"${BUILD_DATE}\\\" OS_BUILD=\\\"${VALI_BUILD_TYPE}\\\" OS_ARCH=\\\"${VALI_ARCH}\\\""
+        "OS_VERSION=\"${VALI_VERSION}\";OS_BUILD_DATE=\"${BUILD_DATE}\";OS_BUILD=\"${VALI_BUILD_TYPE}\";OS_ARCH=\"${VALI_ARCH}\""
         osstat.c
 )
 add_app_target(systat "" "" systat.c)

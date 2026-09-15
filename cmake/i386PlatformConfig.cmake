@@ -6,7 +6,8 @@ endif ()
 
 set (ARCH_FLAGS "--target=i386-uml-vali")
 set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function")
-set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdinc -O3")
+# Keep Clang builtin headers (stdint.h, stdarg.h, etc.); use explicit OS library headers.
+set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdlibinc -O3")
 
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_MMIO")
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_ACPI_SUPPORT")

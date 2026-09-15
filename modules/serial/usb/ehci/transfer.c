@@ -103,7 +103,7 @@ __DetachTransfer(
     if (transfer->Address.DeviceAddress != context->Address.DeviceAddress ||
         transfer->Address.HubAddress != context->Address.HubAddress ||
         transfer->Address.PortAddress != context->Address.PortAddress) {
-        return ITERATOR_CONTINUE;
+        return 0;
     }
 
     // Mark the transfer cancelled before unlinking it. Async transfers keep
@@ -114,7 +114,7 @@ __DetachTransfer(
     }
     HCITransferDequeue(transfer);
     _CRT_UNUSED(controller);
-    return ITERATOR_CONTINUE;
+    return 0;
 }
 
 oserr_t
