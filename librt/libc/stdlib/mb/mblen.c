@@ -41,7 +41,7 @@ effects vary with the locale.
 <<mblen>> requires no supporting OS subroutines.
 */
 
-#include "../../threads/tss.h"
+#include <internal/_tls.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include "../local.h"
@@ -53,7 +53,7 @@ int mblen(
 #ifdef _MB_CAPABLE
   int retval = 0;
   mbstate_t *state;
-  state = &(tls_current()->mbst);
+  state = &(__tls_current()->mbst);
   retval = __MBTOWC (NULL, s, n, state);
   if (retval < 0)
     {

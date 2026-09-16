@@ -183,7 +183,7 @@ struct __locale_t
   int			(*wctomb) (char *, wchar_t, mbstate_t *);
   int			(*mbtowc) (wchar_t *, const char *, size_t, mbstate_t *);
   int			 cjk_lang;
-  char			*ctype_ptr;
+  const char		*ctype_ptr;
   struct lconv		 lconv;
 #ifndef __HAVE_LOCALE_INFO__
   char			 mb_cur_max[2];
@@ -197,7 +197,7 @@ struct __locale_t
 
 #ifdef _MB_CAPABLE
 extern char *__loadlocale (struct __locale_t *, int, const char *);
-extern const char *__get_locale_env(struct _reent *, int);
+extern const char *__get_locale_env(int);
 #endif /* _MB_CAPABLE */
 
 extern struct lconv *__localeconv_l (struct __locale_t *locale);
@@ -233,6 +233,17 @@ __CRT_INLINE struct __locale_t *__get_current_locale(void)
 {
 	return (__get_locale_r() != NULL) ? 
 		__get_locale_r() : __get_global_locale();
+}
+
+__CRT_INLINE struct __locale_t *__locale_from_locale_t(locale_t locale)
+{
+  if (locale == LC_GLOBAL_LOCALE) {
+    return __get_global_locale();
+  }
+  if (locale == NULL) {
+    return __get_current_locale();
+  }
+  return locale;
 }
 
 /* Only access fixed "C" locale using this function.  Fake for !_MB_CAPABLE
@@ -280,6 +291,7 @@ __get_current_ctype_locale (void)
 __CRT_INLINE int
 __locale_mb_cur_max_l(struct __locale_t *locale)
 {
+	locale = __locale_from_locale_t(locale);
 #ifdef __HAVE_LOCALE_INFO__
   return __get_ctype_locale(locale)->mb_cur_max[0];
 #else
@@ -396,6 +408,7 @@ __get_current_messages_locale(void)
 __CRT_INLINE const char *
 __locale_charset(struct __locale_t *locale)
 {
+  locale = __locale_from_locale_t(locale);
 #ifdef __HAVE_LOCALE_INFO__
 	return __get_ctype_locale(locale)->codeset;
 #else

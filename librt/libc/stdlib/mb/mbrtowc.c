@@ -1,4 +1,4 @@
-#include "../../threads/tss.h"
+#include <internal/_tls.h>
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@ size_t _mbrtowc_r(
 
 #ifdef _MB_CAPABLE
   if (ps == NULL) {
-      ps = &(tls_current()->mbst);
+      ps = &(__tls_current()->mbst);
     }
 #endif
 
@@ -49,7 +49,7 @@ size_t mbrtowc(
 #ifdef _MB_CAPABLE
   if (ps == NULL)
     {
-      ps = &(tls_current()->mbst);
+      ps = &(__tls_current()->mbst);
     }
 #endif
 

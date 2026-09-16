@@ -74,11 +74,13 @@ PORTABILITY
 */
 
 #include <errno.h>
+#include <string.h>
 #include <stdlib.h>
 #include <internal/_locale.h>
 
 #define LC_VALID_MASK	(LC_COLLATE_MASK | LC_CTYPE_MASK | LC_MONETARY_MASK \
        | LC_NUMERIC_MASK | LC_TIME_MASK | LC_MESSAGES_MASK)
+#define LC_ALL_LEGACY_MASK (1 << LC_ALL)
 
 struct __locale_t *newlocale(int category_mask, const char *locale,
         struct __locale_t *base)
@@ -87,7 +89,7 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
   /* This build only supplies the C locale. Do not report success for a
      named locale whose formatting and encoding we cannot provide. */
   _CRT_UNUSED(base);
-  if (locale == NULL || (category_mask & ~(LC_VALID_MASK | LC_ALL_MASK))) {
+  if (locale == NULL || (category_mask & ~(LC_VALID_MASK | LC_ALL_LEGACY_MASK))) {
     errno = EINVAL;
     return NULL;
   }
@@ -103,15 +105,15 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
 
   /* Convert LC_ALL_MASK to a mask containing all valid MASK values.
      This simplifies the code below. */
-  if (category_mask & LC_ALL_MASK)
+  if (category_mask & LC_ALL_LEGACY_MASK)
     {
-      category_mask &= ~LC_ALL_MASK;
+      category_mask &= ~LC_ALL_LEGACY_MASK;
       category_mask |= LC_VALID_MASK;
     }
   /* Check for invalid mask values and valid locale ptr. */
   if ((category_mask & ~LC_VALID_MASK) || !locale)
     {
-      p->_errno = EINVAL;
+      errno = EINVAL;
       return NULL;
     }
   /* If the new locale is supposed to be all default locale, just return
@@ -129,11 +131,11 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
   {
     /* If locale is "", fetch from environment.  Otherwise use locale
        name verbatim. */
-    const char *cat = (locale[0] == '\0') ? __get_locale_env (p, i)
+    const char *cat = (locale[0] == '\0') ? __get_locale_env (i)
             : locale;
     if (strlen (cat) > ENCODING_LEN)
       {
-        p->_errno = EINVAL;
+        errno = EINVAL;
         return NULL;
       }
     strcpy (new_categories[i], cat);
@@ -155,7 +157,7 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
         tmp_locale.wctomb = base->wctomb;
         tmp_locale.mbtowc = base->mbtowc;
         tmp_locale.cjk_lang = base->cjk_lang;
-        tmp_locale.ctype_ptr - base->ctype_ptr;
+        tmp_locale.ctype_ptr = base->ctype_ptr;
       }
 #ifdef __HAVE_LOCALE_INFO__
     /* Mark the values as "has still to be copied".  We do this in
@@ -183,7 +185,7 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
   }
     }
   /* Allocate new locale_t. */
-  new_locale = (struct __locale_t *) _calloc_r (p, 1, sizeof *new_locale);
+  new_locale = (struct __locale_t *) calloc (1, sizeof *new_locale);
   if (!new_locale)
     goto error;
   if (base)
@@ -199,7 +201,7 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
       base->lc_cat[i].ptr = base->lc_cat[i].buf = NULL;
     }
 #endif /* __HAVE_LOCALE_INFO__ */
-      _freelocale_r (p, base);
+      freelocale (base);
     }
 
   *new_locale = tmp_locale;
@@ -214,8 +216,8 @@ error:
   && tmp_locale.lc_cat[i].buf
   && tmp_locale.lc_cat[i].buf != (const void *) -1)
       {
-  _free_r (p, (void *) tmp_locale.lc_cat[i].ptr);
-  _free_r (p, tmp_locale.lc_cat[i].buf);
+  free ((void *) tmp_locale.lc_cat[i].ptr);
+  free (tmp_locale.lc_cat[i].buf);
       }
 #endif /* __HAVE_LOCALE_INFO__ */
 

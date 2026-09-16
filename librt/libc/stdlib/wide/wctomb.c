@@ -12,7 +12,7 @@ int wctomb(
 {
 #ifdef _MB_CAPABLE
 	mbstate_t *ps;
-	ps = &(TLSGetCurrent()->MbState);
+	ps = &(__tls_current()->mbst);
 	return __WCTOMB (s, wchar, ps);
 #else /* not _MB_CAPABLE */
 	if (s == NULL)
@@ -83,7 +83,7 @@ int __utf8_wctomb(
 		of the surrogate and proceed to convert the given character.  Note
 		to return extra 3 bytes. */
 		wchar_t tmp;
-		tmp = (state->__value.__wchb[0] << 16 | state->__value.__wchb[1] << 8)
+		tmp = (state->__val.__wchb[0] << 16 | state->__val.__wchb[1] << 8)
 			- (0x10000 >> 10 | 0xd80d);
 		*s++ = 0xe0 | ((tmp & 0xf000) >> 12);
 		*s++ = 0x80 | ((tmp & 0xfc0) >> 6);
@@ -113,8 +113,8 @@ int __utf8_wctomb(
 				/* First half of a surrogate pair.  Store the state and
 				return ret + 0. */
 				tmp = ((wchar & 0x3ff) << 10) + 0x10000;
-				state->__value.__wchb[0] = (tmp >> 16) & 0xff;
-				state->__value.__wchb[1] = (tmp >> 8) & 0xff;
+				state->__val.__wchb[0] = (tmp >> 16) & 0xff;
+				state->__val.__wchb[1] = (tmp >> 8) & 0xff;
 				state->__count = -4;
 				*s = (0xf0 | ((tmp & 0x1c0000) >> 18));
 				return ret;
@@ -124,8 +124,8 @@ int __utf8_wctomb(
 				/* Second half of a surrogate pair.  Reconstruct the full
 				Unicode value and return the trailing three bytes of the
 				UTF-8 character. */
-				tmp = (state->__value.__wchb[0] << 16)
-					| (state->__value.__wchb[1] << 8)
+				tmp = (state->__val.__wchb[0] << 16)
+					| (state->__val.__wchb[1] << 8)
 					| (wchar & 0x3ff);
 				state->__count = 0;
 				*s++ = 0xf0 | ((tmp & 0x1c0000) >> 18);
@@ -141,7 +141,7 @@ int __utf8_wctomb(
 		*s = 0x80 | (wchar & 0x3f);
 		return ret + 3;
 	}
-	if (wchar >= 0x10000 && wchar <= 0x10ffff)
+	if (sizeof(wint_t) > 2 && wchar >= 0x10000 && wchar <= 0x10ffff)
 	{
 		*s++ = 0xf0 | ((wchar & 0x1c0000) >> 18);
 		*s++ = 0x80 | ((wchar & 0x3f000) >> 12);

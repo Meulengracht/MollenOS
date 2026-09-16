@@ -71,7 +71,7 @@ struct __locale_t *duplocale(struct __locale_t *locobj)
       }
 #endif /* __HAVE_LOCALE_INFO__ */
   /* Allocate new locale_t. */
-  new_locale = (struct __locale_t *) _calloc_r (p, 1, sizeof *new_locale);
+  new_locale = (struct __locale_t *) calloc (1, sizeof *new_locale);
   if (!new_locale)
     goto error;
 
@@ -85,8 +85,8 @@ error:
   while (--i > 0)
     if (tmp_locale.lc_cat[i].buf)
       {
-	_free_r (p, (void *) tmp_locale.lc_cat[i].ptr);
-	_free_r (p, tmp_locale.lc_cat[i].buf);
+  free ((void *) tmp_locale.lc_cat[i].ptr);
+  free (tmp_locale.lc_cat[i].buf);
       }
 #endif /* __HAVE_LOCALE_INFO__ */
 
