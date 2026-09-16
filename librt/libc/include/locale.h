@@ -111,5 +111,11 @@ CRTDECL(void,     freelocale(locale_t));
 CRTDECL(locale_t, duplocale(locale_t));
 CRTDECL(locale_t, uselocale(locale_t));
 
+/* Vali locale queries. NULL selects the current thread locale;
+ * LC_GLOBAL_LOCALE selects the global locale. The encoding string is borrowed
+ * from the locale and must not be freed or retained after freeing the locale. */
+CRTDECL(const char*, __locale_encoding_l(locale_t));
+CRTDECL(int, __locale_mb_cur_max(void));
+
 _CODE_END
 #endif /* __STDC_LOCALE__ */

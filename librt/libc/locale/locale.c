@@ -927,3 +927,14 @@ __locale_ctype_ptr(void)
 }
 
 #endif
+
+/* Public query without exposing the private locale structure to runtimes. */
+const char*
+__locale_encoding_l(locale_t locale)
+{
+  if (locale == LC_GLOBAL_LOCALE)
+    locale = __get_global_locale();
+  else if (locale == NULL)
+    locale = __get_current_locale();
+  return __locale_charset(locale);
+}
