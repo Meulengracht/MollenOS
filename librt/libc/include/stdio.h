@@ -148,7 +148,7 @@ CRTDECL(int, wprintf(const wchar_t *format, ...));
 CRTDECL(int, vwprintf(const wchar_t *format, va_list valist));
 CRTDECL(int, swprintf(wchar_t *restrict buffer, size_t len, const wchar_t *restrict format, ...));
 CRTDECL(int, swnprintf(wchar_t *buffer, size_t count, const wchar_t *format, ...));
-CRTDECL(int, vswprintf(wchar_t *buffer, const wchar_t *format, va_list argptr));
+CRTDECL(int, vswprintf(wchar_t *buffer, size_t count, const wchar_t *format, va_list argptr));
 CRTDECL(int, vfwprintf(FILE* file, const wchar_t *format, va_list argptr));
 CRTDECL(int, fwprintf(FILE* file, const wchar_t *format, ...));
 
