@@ -129,7 +129,7 @@ endmacro ()
 # don't need to build it
 find_program(
     TOOL_DU 
-    NAMES "osbuilder" "diskbuilder.osbuilder"
+    NAMES "osbuilder" "diskbuilder.osbuilder" "mkcdk"
 )
 if (NOT TOOL_DU)
     if (NOT VALI_BUILD_LOCAL_OSIMAGER)
@@ -246,6 +246,12 @@ add_custom_target (install_vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_vmdk install_prepare)
+
+add_custom_target (mkimage
+    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_dependencies(mkimage install_prepare)
 
 add_custom_command(
     OUTPUT always_run.special disk_usb.img

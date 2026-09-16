@@ -1,44 +1,41 @@
-scheme: GPT
-size: 2GB
+schema: gpt
 
 partitions:
   - label: vali-efi
-    type: FAT  # FAT16 for any size less than 512mb, size must be above 64mb
-    guid: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+    type: fat32
+    id: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
     size: 128MB
     sources:
       - type: file
-        path: boot/bin/VBOOT.efi
+        source: deploy/hdd/boot/EFI/BOOT/BOOTX64.efi
         target: /EFI/BOOT/BOOTX64.EFI
       - type: dir
-        path: deploy/hdd/boot
+        source: deploy/hdd/boot
         target: /EFI/vali/
 
   - label: vali-boot
-    type: MFS
-    guid: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
+    type: mfs
+    id: C4483A10-E3A0-4D3F-B7CC-C04A6E16612B
     attributes:
       - boot
       - readonly
       - noautomount
     size: 128MB
-    vbr-image: deploy/stage1.sys
-    reserved-sectors-image: deploy/stage2.sys
+    mfs-options:
+      reserved-image: deploy/stage2.sys
     sources:
+      - type: raw
+        source: deploy/stage1.sys
+        target: sector=0
       - type: dir
-        path: deploy/hdd/boot
+        source: deploy/hdd/boot
         target: /
 
   - label: vali-data
-    type: MFS
-    guid: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
+    type: mfs
+    id: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
+    size: 2GB
     sources:
       - type: dir
-        path: deploy/hdd/system
+        source: deploy/hdd/system
         target: /system/
-      - type: chef
-        package: vali/hello-world
-        channel: devel
-        platform: vali
-        arch: amd64
-        target: /setup/
