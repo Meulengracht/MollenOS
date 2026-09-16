@@ -84,10 +84,17 @@ struct __locale_t *newlocale(int category_mask, const char *locale,
         struct __locale_t *base)
 {
 #ifndef _MB_CAPABLE
-  /* Silence warnings */
-  _CRT_UNUSED(category_mask);
-  _CRT_UNUSED(locale);
+  /* This build only supplies the C locale. Do not report success for a
+     named locale whose formatting and encoding we cannot provide. */
   _CRT_UNUSED(base);
+  if (locale == NULL || (category_mask & ~(LC_VALID_MASK | LC_ALL_MASK))) {
+    errno = EINVAL;
+    return NULL;
+  }
+  if (*locale && strcmp(locale, "C") && strcmp(locale, "POSIX")) {
+    errno = ENOENT;
+    return NULL;
+  }
   return __get_C_locale ();
 #else /* _MB_CAPABLE */
   char new_categories[_LC_LAST][ENCODING_LEN + 1];

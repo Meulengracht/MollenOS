@@ -479,41 +479,19 @@ ChangeFilePermissionsFromFd(
         _In_ int          fileDescriptor,
         _In_ unsigned int permissions)
 {
-    struct vali_link_message msg    = VALI_MSG_INIT_HANDLE(GetFileService());
-    stdio_handle_t*          handle = stdio_handle_get(fileDescriptor);
-    oserr_t                  oserr;
-    unsigned int             access;
-    int                      status;
+    OSFileDescriptor_t descriptor;
+    oserr_t            status;
 
-    if (stdio_handle_signature(handle) != FILE_SIGNATURE) {
-        return OS_EINVALPARAMS;
+    status = GetFileInformationFromFd(fileDescriptor, &descriptor);
+    if (status != OS_EOK) {
+        return status;
+    } else if (descriptor.Permissions == permissions) {
+        return OS_EOK;
     }
-
-    status = sys_file_get_access(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
-            handle->OSHandle.ID
-    );
-    if (status) {
-        return OS_EPROTOCOL;
-    }
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_get_access_result(GetGrachtClient(), &msg.base, &oserr, &access);
     
-    status = sys_file_set_access(
-            GetGrachtClient(),
-            &msg.base,
-            __crt_process_id(),
-            handle->OSHandle.ID,
-            access
-    );
-    if (status) {
-        return OS_EPROTOCOL;
-    }
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_file_set_access_result(GetGrachtClient(), &msg.base, &oserr);
-    return oserr;
+    // Handle access flags are not inode permissions. The file-service
+    // protocol currently has no metadata-permission setter.
+    return OS_ENOTSUPPORTED;
 }
 
 oserr_t
