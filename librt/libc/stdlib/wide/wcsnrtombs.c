@@ -117,7 +117,7 @@ _wcsnrtombs_l (char *dst, const wchar_t **src, size_t nwc,
 #ifdef _MB_CAPABLE
   if (ps == NULL)
     {
-      ps = &(tls_current()->mbst);
+			ps = &(__tls_current()->mbst);
     }
 #endif
 

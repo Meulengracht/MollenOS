@@ -172,9 +172,11 @@ No supporting OS subroutines are required.
 
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include <stdio.h>
 #include <internal/_locale.h>
 #include "../ctype/common/ctype_.h"
 #include "../stdlib/local.h"
@@ -308,7 +310,7 @@ char *setlocale(int category, const char *locale)
 
   if (category < LC_ALL || category >= _LC_LAST)
     {
-      p->_errno = EINVAL;
+      errno = EINVAL;
       return NULL;
     }
 
@@ -331,10 +333,10 @@ char *setlocale(int category, const char *locale)
 	{
 	  for (i = 1; i < _LC_LAST; ++i)
 	    {
-	      env = __get_locale_env (p, i);
+        env = __get_locale_env (i);
 	      if (strlen (env) > ENCODING_LEN)
 		{
-		  p->_errno = EINVAL;
+      errno = EINVAL;
 		  return NULL;
 		}
 	      strcpy (new_categories[i], env);
@@ -342,10 +344,10 @@ char *setlocale(int category, const char *locale)
 	}
       else
 	{
-	  env = __get_locale_env (p, category);
+    env = __get_locale_env (category);
 	  if (strlen (env) > ENCODING_LEN)
 	    {
-	      p->_errno = EINVAL;
+        errno = EINVAL;
 	      return NULL;
 	    }
 	  strcpy (new_categories[category], env);
@@ -355,7 +357,7 @@ char *setlocale(int category, const char *locale)
     {
       if (strlen (locale) > ENCODING_LEN)
 	{
-	  p->_errno = EINVAL;
+    errno = EINVAL;
 	  return NULL;
 	}
       strcpy (new_categories[category], locale);
@@ -366,7 +368,7 @@ char *setlocale(int category, const char *locale)
 	{
 	  if (strlen (locale) > ENCODING_LEN)
 	    {
-	      p->_errno = EINVAL;
+        errno = EINVAL;
 	      return NULL;
 	    }
 	  for (i = 1; i < _LC_LAST; ++i)
@@ -378,7 +380,7 @@ char *setlocale(int category, const char *locale)
 	    ;
 	  if (!r[1])
 	    {
-	      p->_errno = EINVAL;
+        errno = EINVAL;
 	      return NULL;  /* Hmm, just slashes... */
 	    }
 	  do
@@ -387,10 +389,11 @@ char *setlocale(int category, const char *locale)
 		break;  /* Too many slashes... */
 	      if ((len = r - locale) > ENCODING_LEN)
 		{
-		  p->_errno = EINVAL;
+      errno = EINVAL;
 		  return NULL;
 		}
-	      strlcpy (new_categories[i], locale, len + 1);
+        memcpy (new_categories[i], locale, len);
+        new_categories[i][len] = '\0';
 	      i++;
 	      while (*r == '/')
 		r++;
@@ -416,7 +419,7 @@ char *setlocale(int category, const char *locale)
       strcpy (saved_categories[i], __get_global_locale ()->categories[i]);
       if (__loadlocale (__get_global_locale (), i, new_categories[i]) == NULL)
 	{
-	  saverr = p->_errno;
+    saverr = errno;
 	  for (j = 1; j < i; j++)
 	    {
 	      strcpy (new_categories[j], saved_categories[j]);
@@ -427,7 +430,7 @@ char *setlocale(int category, const char *locale)
 		  __loadlocale (__get_global_locale (), j, new_categories[j]);
 		}
 	    }
-	  p->_errno = saverr;
+    errno = saverr;
 	  return NULL;
 	}
     }
@@ -471,7 +474,7 @@ __loadlocale (struct __locale_t *loc, int category, const char *new_locale)
      backward compatibility.  If the local string is correct, the charset
      is extracted and stored in ctype_codeset or message_charset
      dependent on the cateogry. */
-  char *locale = NULL;
+  const char *locale = NULL;
   char charset[ENCODING_LEN + 1];
   long val = 0;
   char *end, *c = NULL;
@@ -509,12 +512,20 @@ restart:
 # define FAIL	goto restart
 #else
   locale = new_locale;
-# define FAIL	return NULL
+# define FAIL do { errno = ENOENT; return NULL; } while (0)
 #endif
 
   /* "POSIX" is translated to "C", as on Linux. */
   if (!strcmp (locale, "POSIX"))
-    strcpy (locale, "C");
+    locale = "C";
+
+#ifndef __HAVE_LOCALE_INFO__
+  if (strcmp(locale, "C")
+      && strncmp(locale, "C.", 2)
+      && strncmp(locale, "C-", 2))
+    FAIL;
+#endif
+
   if (!strcmp (locale, "C"))				/* Default "C" locale */
     strcpy (charset, "ASCII");
   else if (locale[0] == 'C'
@@ -527,7 +538,7 @@ restart:
     {
       char *chp;
 
-      c = locale + 2;
+      c = (char *)locale + 2;
       strcpy (charset, c);
       if ((chp = strchr (charset, '@')))
         /* Strip off modifier */
@@ -536,7 +547,7 @@ restart:
     }
   else							/* POSIX style */
     {
-      c = locale;
+      c = (char *)locale;
 
       /* Don't use ctype macros here, they might be localized. */
       /* Language */
@@ -871,20 +882,20 @@ restart:
 }
 
 const char *
-__get_locale_env (struct _reent *p, int category)
+__get_locale_env (int category)
 {
   const char *env;
 
   /* 1. check LC_ALL. */
-  env = _getenv_r (p, categories[0]);
+  env = getenv (categories[0]);
 
   /* 2. check LC_* */
   if (env == NULL || !*env)
-    env = _getenv_r (p, categories[category]);
+    env = getenv (categories[category]);
 
   /* 3. check LANG */
   if (env == NULL || !*env)
-    env = _getenv_r (p, "LANG");
+    env = getenv ("LANG");
 
   /* 4. if none is set, fall to default locale */
   if (env == NULL || !*env)
@@ -907,6 +918,7 @@ __locale_mb_cur_max(void)
 const char *
 __locale_ctype_ptr_l(struct __locale_t *locale)
 {
+  locale = __locale_from_locale_t(locale);
   return locale->ctype_ptr;
 }
 
@@ -932,9 +944,5 @@ __locale_ctype_ptr(void)
 const char*
 __locale_encoding_l(locale_t locale)
 {
-  if (locale == LC_GLOBAL_LOCALE)
-    locale = __get_global_locale();
-  else if (locale == NULL)
-    locale = __get_current_locale();
   return __locale_charset(locale);
 }
