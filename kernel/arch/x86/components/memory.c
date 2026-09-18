@@ -839,8 +839,12 @@ __HandleFirmwareMappings(
             }
 
             // Store the stack mapping
-            if ((uintptr_t)bootInformation->Stack.Base == entry->PhysicalBase) {
-                *stackMapping = entry->VirtualBase;
+            if (ISINRANGE(
+                    (uintptr_t)bootInformation->Stack.Base,
+                        entry->PhysicalBase,
+                        entry->PhysicalBase + entry->Length)) {
+                *stackMapping = entry->VirtualBase +
+                    ((uintptr_t)bootInformation->Stack.Base - entry->PhysicalBase);
             }
         }
     }
@@ -996,9 +1000,9 @@ MmuLoadKernel(
 {
     TRACE("MmuLoadKernel()");
 
-    uintptr_t  stackVirtual;
-    uintptr_t  stackPhysical;
-    oserr_t osStatus;
+    uintptr_t stackVirtual = 0;
+    uintptr_t stackPhysical;
+    oserr_t   osStatus;
 
     // Create the system kernel virtual memory space, this call identity maps all
     // memory allocated by AllocateBootMemory, and also allocates some itself
@@ -1026,6 +1030,12 @@ MmuLoadKernel(
         return osStatus;
     }
 
+    // Ensure that the stack mapping was found
+    if (stackVirtual == 0) {
+        ERROR("MmuLoadKernel: Stack mapping not found");
+        return OS_ENOENT;
+    }
+
     // Remap the framebuffer for good times
     osStatus = __RemapFramebuffer(memorySpace);
     if (osStatus != OS_EOK) {
@@ -1042,7 +1052,7 @@ MmuLoadKernel(
     __FixupVBootAddresses(bootInformation);
 
     // initialize paging and swap the stack address to virtual one, so we don't crap out.
-    TRACE("MmuLoadKernel g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
+    TRACE("MmuLoadKernel: g_kernelcr3=0x%" PRIxIN ", stackPhysical=0x%" PRIxIN ", stackVirtual=0x%" PRIxIN,
           g_kernelcr3, stackPhysical, stackVirtual);
     memory_paging_init(g_kernelcr3, stackPhysical, stackVirtual);
 

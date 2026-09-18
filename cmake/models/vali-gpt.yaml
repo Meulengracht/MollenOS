@@ -7,7 +7,7 @@ partitions:
     size: 128MB
     sources:
       - type: file
-        source: deploy/hdd/boot/EFI/BOOT/BOOTX64.efi
+        source: boot-assets/boot/EFI/BOOT/BOOTX64.efi
         target: /EFI/BOOT/BOOTX64.EFI
       - type: dir
         source: deploy/hdd/boot
