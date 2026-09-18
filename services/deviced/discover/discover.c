@@ -76,7 +76,7 @@ DmDiscoverInitialize(void)
 
 static void
 __DestroyDriver(
-        _In_ struct DmDriver* driver)
+    _In_ struct DmDriver* driver)
 {
     // freeing NULLS behave as noops
     DmDriverConfigDestroy(driver->configuration);
@@ -86,8 +86,8 @@ __DestroyDriver(
 
 oserr_t
 DmDiscoverAddDriver(
-        _In_ mstring_t*                  driverPath,
-        _In_ struct DriverConfiguration* driverConfig)
+    _In_ mstring_t*                  driverPath,
+    _In_ struct DriverConfiguration* driverConfig)
 {
     struct DmDriver* driver;
     TRACE("DmDiscoverAddDriver(path=%ms, class=%u, subclass=%u)",
@@ -121,7 +121,7 @@ DmDiscoverAddDriver(
 
 oserr_t
 DmDiscoverRemoveDriver(
-        _In_ mstring_t* driverPath)
+    _In_ mstring_t* driverPath)
 {
     oserr_t osStatus = OS_ENOENT;
 
@@ -145,7 +145,7 @@ DmDiscoverRemoveDriver(
 
 static oserr_t
 __SpawnDriver(
-        _In_ struct DmDriver* driver)
+    _In_ struct DmDriver* driver)
 {
     uuid_t  handle;
     oserr_t osStatus;
@@ -174,8 +174,8 @@ __SpawnDriver(
 
 static void
 __RegisterDeviceForDriver(
-        _In_ struct DmDriver* driver,
-        _In_ uuid_t           deviceId)
+    _In_ struct DmDriver* driver,
+    _In_ uuid_t           deviceId)
 {
     struct DMDevice* device;
     TRACE("__RegisterDeviceForDriver()");
@@ -195,8 +195,8 @@ __RegisterDeviceForDriver(
 
 static int
 __IsDriverMatch(
-        _In_ struct DmDriver*             driver,
-        _In_ struct DriverIdentification* deviceIdentification)
+    _In_ struct DmDriver*             driver,
+    _In_ struct DriverIdentification* deviceIdentification)
 {
     if (deviceIdentification->VendorId != 0) {
         foreach (i, &driver->configuration->Vendors) {
@@ -222,8 +222,8 @@ __IsDriverMatch(
 
 oserr_t
 DmDiscoverFindDriver(
-        _In_ uuid_t                       deviceId,
-        _In_ struct DriverIdentification* deviceIdentification)
+    _In_ uuid_t                       deviceId,
+    _In_ struct DriverIdentification* deviceIdentification)
 {
     oserr_t osStatus = OS_ENOENT;
     TRACE("DmDiscoverFindDriver(deviceId=%u, class=0x%x, subclass=0x%x)",
@@ -250,7 +250,7 @@ DmDiscoverFindDriver(
 
 static struct DmDriver*
 __GetDriver(
-        _In_ uuid_t id)
+    _In_ uuid_t id)
 {
     struct DmDriver* result = NULL;
 
@@ -268,7 +268,7 @@ __GetDriver(
 
 static void
 __SubscribeToDriver(
-        _In_ struct DmDriver* driver)
+    _In_ struct DmDriver* driver)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driver->handle);
     ctt_driver_subscribe(GetGrachtClient(), &msg.base);
@@ -276,7 +276,7 @@ __SubscribeToDriver(
 
 static void
 __NotifyDevices(
-        _In_ struct DmDriver* driver)
+    _In_ struct DmDriver* driver)
 {
     usched_mtx_lock(&driver->devices_lock);
     foreach (i, &driver->devices) {
@@ -290,8 +290,8 @@ __NotifyDevices(
 }
 
 void DmHandleNotify(
-        _In_ uuid_t driverId,
-        _In_ uuid_t driverHandle)
+    _In_ uuid_t driverId,
+    _In_ uuid_t driverHandle)
 {
     // driver is now booted, we can send all the devices that have
     // been registered
