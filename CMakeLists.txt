@@ -250,7 +250,7 @@ add_custom_target (install_vmdk
 add_dependencies(install_vmdk install_prepare)
 
 add_custom_target (mkimage
-    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml
+    COMMAND ${TOOL_DU} -o ./disk.img ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(mkimage install_prepare)
@@ -264,15 +264,4 @@ add_custom_target (run_bochs
     COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DEPENDS disk_usb.img
-)
-
-add_custom_target (run_qemu
-        COMMAND qemu-system-x86_64
-            -D ./log.txt -monitor stdio -smp 1 -m 4096
-            -bios /usr/share/OVMF/OVMF_CODE.fd
-            -drive if=virtio,file=disk.img,format=raw
-            -net none -no-reboot
-            -serial file:./qserial.txt
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        USES_TERMINAL
 )
