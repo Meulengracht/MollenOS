@@ -6,4 +6,5 @@ endif ()
 
 # build storage modules
 add_subdirectory(ahci)
+add_subdirectory(ide)
 add_subdirectory(msd)
