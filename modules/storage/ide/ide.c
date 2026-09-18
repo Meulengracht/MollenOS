@@ -559,7 +559,7 @@ IdeDeviceRead(
 {
     OSHandle_t buffer;
     void*      mapping;
-    oserr_t     status;
+    oserr_t    status;
 
     if (!device || bufferHandle == UUID_INVALID) {
         return OS_EINVALPARAMS;
@@ -586,7 +586,7 @@ IdeDeviceWrite(
 {
     OSHandle_t buffer;
     void*      mapping;
-    oserr_t     status;
+    oserr_t    status;
 
     if (!device || bufferHandle == UUID_INVALID) {
         return OS_EINVALPARAMS;
