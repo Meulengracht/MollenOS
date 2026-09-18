@@ -72,6 +72,7 @@ set (ENV{VALI_ARCH} ${VALI_ARCH})
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set (VALI_PATH_BOOT_ASSETS          ${CMAKE_BINARY_DIR}/boot-assets)
 set (VALI_PATH_DEPLOY               ${CMAKE_BINARY_DIR}/deploy)
 set (VALI_PATH_DEPLOY_HDD           ${CMAKE_BINARY_DIR}/deploy/hdd)
 set (VALI_PATH_DEPLOY_BOOT          ${CMAKE_BINARY_DIR}/deploy/hdd/boot)
@@ -129,7 +130,7 @@ endmacro ()
 # don't need to build it
 find_program(
     TOOL_DU 
-    NAMES "osbuilder" "diskbuilder.osbuilder"
+    NAMES "osbuilder" "diskbuilder.osbuilder" "mkcdk"
 )
 if (NOT TOOL_DU)
     if (NOT VALI_BUILD_LOCAL_OSIMAGER)
@@ -149,6 +150,7 @@ set (TOOL_RD ${CMAKE_BINARY_DIR}/tools/host/bin/mkvafs)
 set (TOOL_LZ ${CMAKE_BINARY_DIR}/tools/host/bin/lzss)
 
 # Create neccessary directories
+file (MAKE_DIRECTORY ${VALI_PATH_BOOT_ASSETS})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_HDD})
 file (MAKE_DIRECTORY ${VALI_PATH_DEPLOY_BOOT})
@@ -247,6 +249,12 @@ add_custom_target (install_vmdk
 )
 add_dependencies(install_vmdk install_prepare)
 
+add_custom_target (mkimage
+    COMMAND ${TOOL_DU} -o ./disk.img ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_dependencies(mkimage install_prepare)
+
 add_custom_command(
     OUTPUT always_run.special disk_usb.img
     COMMAND ${CMAKE_COMMAND} -E copy disk.img disk_usb.img
@@ -256,15 +264,4 @@ add_custom_target (run_bochs
     COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     DEPENDS disk_usb.img
-)
-
-add_custom_target (run_qemu
-        COMMAND qemu-system-x86_64
-            -D ./log.txt -monitor stdio -smp 1 -m 4096
-            -bios /usr/share/OVMF/OVMF_CODE.fd
-            -drive if=virtio,file=disk.img,format=raw
-            -net none -no-reboot
-            -serial file:./qserial.txt
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        USES_TERMINAL
 )

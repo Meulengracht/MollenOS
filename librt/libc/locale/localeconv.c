@@ -2,6 +2,7 @@
 
 struct lconv *__localeconv_l (struct __locale_t *locale)
 {
+  locale = __locale_from_locale_t(locale);
   struct lconv *lconv = &locale->lconv;
   if (locale == __get_C_locale())
     return lconv;

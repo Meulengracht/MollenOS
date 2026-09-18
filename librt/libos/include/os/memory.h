@@ -23,12 +23,12 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param Hint
- * @param Length
- * @param Flags
- * @param MemoryOut
- * @return
+ * @brief Allocates a virtual memory region with the requested size and flags.
+ * @param Hint Preferred address for the allocation, or NULL for no preference.
+ * @param Length Number of bytes to allocate.
+ * @param Flags Memory protection and allocation flags.
+ * @param MemoryOut Receives the base address of the allocated region.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MemoryAllocate(
@@ -38,10 +38,10 @@ MemoryAllocate(
         _Out_ void**       MemoryOut));
 
 /**
- * @brief
- * @param Memory
- * @param Length
- * @return
+ * @brief Releases a previously allocated virtual memory region.
+ * @param Memory Base address of the region to release.
+ * @param Length Size of the region in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MemoryFree(
@@ -49,12 +49,12 @@ MemoryFree(
         _In_ size_t Length));
 
 /**
- * @brief
- * @param Memory
- * @param Length
- * @param Flags
- * @param PreviousFlags
- * @return
+ * @brief Changes the protection flags of a virtual memory region.
+ * @param Memory Base address of the region to protect.
+ * @param Length Size of the region in bytes.
+ * @param Flags New memory protection flags.
+ * @param PreviousFlags Receives the previous protection flags.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MemoryProtect(
@@ -64,10 +64,10 @@ MemoryProtect(
         _Out_ unsigned int* PreviousFlags));
 
 /**
- * @brief
- * @param Memory
- * @param DescriptorOut
- * @return
+ * @brief Retrieves the allocation descriptor for an address.
+ * @param Memory Address within the allocation to query.
+ * @param DescriptorOut Receives the allocation descriptor.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MemoryQueryAllocation(
@@ -75,11 +75,11 @@ MemoryQueryAllocation(
         _In_ OSMemoryDescriptor_t* DescriptorOut));
 
 /**
- * @brief
- * @param Memory
- * @param Length
- * @param AttributeArray
- * @return
+ * @brief Retrieves memory attributes for a range of addresses.
+ * @param Memory Base address of the range to query.
+ * @param Length Size of the range in bytes.
+ * @param AttributeArray Receives the attributes for the queried range.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MemoryQueryAttributes(

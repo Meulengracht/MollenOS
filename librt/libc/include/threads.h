@@ -75,7 +75,7 @@ static inline int __to_thrd_error(int err) {
         case EBUSY: return thrd_busy;
         case ETIME: return thrd_timedout;
         case ENOMEM: return thrd_nomem;
-        default: return ENOSYS;
+        default: return thrd_error;
     }
 }
 
@@ -99,10 +99,11 @@ static inline void call_once(once_flag* flag, void (*func)(void)) {
  * @param arg
  * @return
  */
-static inline int thrd_create(thrd_t* thr, thrd_start_t func, void* arg) {
-    *thr = usched_job_queue((usched_task_fn)func, arg);
-    return __to_thrd_error(*thr != UUID_INVALID ? 0 : -1);
-}
+CRTDECL(int,
+thrd_create(
+    _In_ thrd_t*     thr,
+    _In_ thrd_start_t func,
+    _In_ void*       arg));
 
 /**
  * @brief Checks whether lhs and rhs refer to the same thread.

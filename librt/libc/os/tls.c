@@ -57,7 +57,7 @@ int __tls_initialize(struct thread_storage* tls)
     tls->thread_id = UUID_INVALID;
     tls->job_id = UUID_INVALID;
     tls->err_no = EOK;
-    tls->locale = __get_global_locale();
+    tls->locale = NULL;
     tls->seed   = 1;
 
     // TLS is initialized before we retrieve the actual environment block

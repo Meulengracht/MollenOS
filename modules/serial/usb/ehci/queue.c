@@ -147,10 +147,21 @@ EhciQueueInitialize(
     UsbSchedulerSettingsAddPool(&Settings, sizeof(EhciSplitIsochronousDescriptor_t), EHCI_siTD_ALIGNMENT, EHCI_siTD_COUNT, 
         EHCI_siTD_START, offsetof(EhciSplitIsochronousDescriptor_t, Link), 
         offsetof(EhciSplitIsochronousDescriptor_t, Link), offsetof(EhciSplitIsochronousDescriptor_t, Object));
+
+    // Add FSTNs for full/low-speed periodic schedules that need a separate
+    // complete-split path after a frame boundary. The pool is reserved here;
+    // frame-list insertion is enabled only once both scheduler paths are
+    // available for the descriptor.
+    UsbSchedulerSettingsAddPool(&Settings, sizeof(EhciFSTN_t), EHCI_FSTN_ALIGNMENT, EHCI_FSTN_COUNT,
+        EHCI_FSTN_START, offsetof(EhciFSTN_t, PathPointer),
+        offsetof(EhciFSTN_t, PathPointer), offsetof(EhciFSTN_t, Object));
     
     // Create the scheduler
     TRACE(" > Initializing scheduler");
-    UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    oserr_t oserr = UsbSchedulerInitialize(&Settings, &Controller->Base.Scheduler);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
     return EhciQueueResetInternalData(Controller);
 }
 
@@ -326,6 +337,8 @@ HCIProcessElement(
         _In_ void*                   context)
 {
     UsbSchedulerPool_t* qhPool = &controller->Scheduler->Settings.Pools[EHCI_QH_POOL];
+    UsbSchedulerPool_t* iTDPool = &controller->Scheduler->Settings.Pools[EHCI_iTD_POOL];
+    UsbSchedulerPool_t* siTDPool = &controller->Scheduler->Settings.Pools[EHCI_siTD_POOL];
     UsbSchedulerPool_t* pool  = NULL;
     uint8_t* asyncRootElement = NULL;
 
@@ -342,8 +355,10 @@ HCIProcessElement(
                 } else {
                     EHCITDDump((EhciController_t*)controller, (EhciTransferDescriptor_t*)element);
                 }
-            } else {
+            } else if (pool == iTDPool) {
                 EHCIITDDump((EhciController_t*)controller, (EhciIsochronousDescriptor_t*)element);
+            } else if (pool == siTDPool) {
+                EHCISiTDDump((EhciController_t*)controller, (EhciSplitIsochronousDescriptor_t*)element);
             }
         } break;
         
@@ -356,6 +371,8 @@ HCIProcessElement(
 
             if (scanContext->Transfer->Type != USBTRANSFER_TYPE_ISOC) {
                 EHCITDVerify(scanContext, (EhciTransferDescriptor_t*)element);
+            } else if (pool == siTDPool) {
+                EHCISiTDVerify(scanContext, (EhciSplitIsochronousDescriptor_t*)element);
             } else {
                 EHCIITDVerify(scanContext, (EhciIsochronousDescriptor_t*)element);
             }
@@ -366,6 +383,8 @@ HCIProcessElement(
             if (pool != qhPool) {
                 if (transfer->Type != USBTRANSFER_TYPE_ISOC) {
                     EHCITDRestart((EhciController_t*)controller, transfer, (EhciTransferDescriptor_t*)element);
+                } else if (pool == siTDPool) {
+                    EHCISiTDRestart((EhciSplitIsochronousDescriptor_t*)element);
                 } else {
                     EHCIITDRestart((EhciIsochronousDescriptor_t*)element);
                 }
@@ -374,11 +393,14 @@ HCIProcessElement(
 
         case HCIPROCESS_REASON_LINK: {
             UsbManagerTransfer_t* transfer = context;
-            // If it's a queue head link that
-            if (pool == qhPool) {
+            // Periodic descriptors and asynchronous QHs share the scheduler,
+            // but their hardware linking rules differ. Only QHs enter the
+            // asynchronous reclamation list; iTDs and siTDs enter the frame
+            // list through the periodic linker.
+            if (pool == qhPool || pool == iTDPool || pool == siTDPool) {
                 spinlock_acquire(&controller->Lock);
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 0);
-                if (__Transfer_IsAsync(transfer)) {
+                if (pool == qhPool && __Transfer_IsAsync(transfer)) {
                     UsbSchedulerGetPoolElement(
                             controller->Scheduler,
                             EHCI_QH_POOL,
@@ -394,12 +416,24 @@ HCIProcessElement(
                             USB_ELEMENT_NO_INDEX,
                             USB_CHAIN_BREATH
                     );
-                } else {
+                } else if (pool == qhPool) {
                     UsbSchedulerLinkPeriodicElement(
                             controller->Scheduler,
                             EHCI_QH_POOL,
                             element
                     );
+                        } else if (pool == iTDPool) {
+                            UsbSchedulerLinkPeriodicElement(
+                                controller->Scheduler,
+                                EHCI_iTD_POOL,
+                                element
+                            );
+                        } else if (pool == siTDPool) {
+                            UsbSchedulerLinkPeriodicElement(
+                                controller->Scheduler,
+                                EHCI_siTD_POOL,
+                                element
+                            );
                 }
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 1);
                 EhciEnableScheduler((EhciController_t*)controller, transfer->Type);
@@ -410,15 +444,18 @@ HCIProcessElement(
         
         case HCIPROCESS_REASON_UNLINK: {
             UsbManagerTransfer_t* transfer = context;
-            // If it's a queue head link that
-            if (pool == qhPool) {
+            if (pool == qhPool || pool == iTDPool || pool == siTDPool) {
                 spinlock_acquire(&controller->Lock);
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 0);
-                if (__Transfer_IsAsync(transfer)) {
+                if (pool == qhPool && __Transfer_IsAsync(transfer)) {
                     UsbSchedulerGetPoolElement(controller->Scheduler, EHCI_QH_POOL, EHCI_QH_ASYNC, &asyncRootElement, NULL);
                     UsbSchedulerUnchainElement(controller->Scheduler, EHCI_QH_POOL, asyncRootElement, EHCI_QH_POOL, element, USB_CHAIN_BREATH);
-                } else {
+                } else if (pool == qhPool) {
                     UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, EHCI_QH_POOL, element);
+                } else if (pool == iTDPool) {
+                    UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, EHCI_iTD_POOL, element);
+                } else if (pool == siTDPool) {
+                    UsbSchedulerUnlinkPeriodicElement(controller->Scheduler, EHCI_siTD_POOL, element);
                 }
                 EhciSetPrefetching((EhciController_t*)controller, transfer->Type, 1);
                 spinlock_release(&controller->Lock);
@@ -427,6 +464,25 @@ HCIProcessElement(
         } break;
         
         case HCIPROCESS_REASON_CLEANUP: {
+            if (pool == siTDPool) {
+                EhciSplitIsochronousDescriptor_t* siTD = (EhciSplitIsochronousDescriptor_t*)element;
+                if (siTD->StartBandwidth != 0 || siTD->CompleteBandwidth != 0) {
+                    // Split reservations are not represented by the generic
+                    // single-phase bandwidth flag. Release both phases before
+                    // returning the siTD to its DMA pool.
+                    UsbSchedulerFreeSplitBandwidth(
+                            controller->Scheduler,
+                            element,
+                            siTD->FrameStartMask,
+                            siTD->FrameCompletionMask,
+                            siTD->CompletionFrameOffset,
+                            siTD->StartBandwidth,
+                            siTD->CompleteBandwidth);
+                    siTD->StartBandwidth = 0;
+                    siTD->CompleteBandwidth = 0;
+                    siTD->Object.Flags &= ~USB_ELEMENT_BANDWIDTH;
+                }
+            }
             UsbSchedulerFreeElement(controller->Scheduler, element);
         } break;
 

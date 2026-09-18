@@ -318,7 +318,8 @@ void __crt_process_initialize(int isPhoenix)
 {
     TRACE("__crt_process_initialize(isPhoenix=%i)", isPhoenix);
 
-    // We must set IsModule before anything
+    // We must mark whether this is the phoenix process
+    // before any further initialization.
     g_isPhoenix = isPhoenix;
 
     // Get the handle of the startup thread, so we always know

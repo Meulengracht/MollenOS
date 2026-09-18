@@ -15,7 +15,7 @@ int mbtowc(
   int retval = 0;
   mbstate_t *ps;
 
-  ps = &(TLSGetCurrent()->MbState);
+	ps = &(__tls_current()->mbst);
   retval = __MBTOWC (pwc, s, n, ps);
   
   if (retval < 0)
@@ -536,7 +536,7 @@ int __utf8_mbtowc(
 	if (state->__count == 0)
 		ch = t[i++];
 	else
-		ch = state->__value.__wchb[0];
+		ch = state->__val.__wchb[0];
 
 	if (ch == '\0')
 	{
@@ -555,7 +555,7 @@ int __utf8_mbtowc(
 	if (ch >= 0xc0 && ch <= 0xdf)
 	{
 		/* two-byte sequence */
-		state->__value.__wchb[0] = ch;
+		state->__val.__wchb[0] = ch;
 		if (state->__count == 0)
 			state->__count = 1;
 		else if (n < (size_t)-1)
@@ -568,14 +568,14 @@ int __utf8_mbtowc(
 			_set_errno(EILSEQ);
 			return -1;
 		}
-		if (state->__value.__wchb[0] < 0xc2)
+		if (state->__val.__wchb[0] < 0xc2)
 		{
 			/* overlong UTF-8 sequence */
 			_set_errno(EILSEQ);
 			return -1;
 		}
 		state->__count = 0;
-		*pwc = (wchar_t)((state->__value.__wchb[0] & 0x1f) << 6)
+		*pwc = (wchar_t)((state->__val.__wchb[0] & 0x1f) << 6)
 			| (wchar_t)(ch & 0x3f);
 		return i;
 	}
@@ -583,15 +583,15 @@ int __utf8_mbtowc(
 	{
 		/* three-byte sequence */
 		wchar_t tmp;
-		state->__value.__wchb[0] = ch;
+		state->__val.__wchb[0] = ch;
 		if (state->__count == 0)
 			state->__count = 1;
 		else if (n < (size_t)-1)
 			++n;
 		if (n < 2)
 			return -2;
-		ch = (state->__count == 1) ? t[i++] : state->__value.__wchb[1];
-		if (state->__value.__wchb[0] == 0xe0 && ch < 0xa0)
+		ch = (state->__count == 1) ? t[i++] : state->__val.__wchb[1];
+		if (state->__val.__wchb[0] == 0xe0 && ch < 0xa0)
 		{
 			/* overlong UTF-8 sequence */
 			_set_errno(EILSEQ);
@@ -602,7 +602,7 @@ int __utf8_mbtowc(
 			_set_errno(EILSEQ);
 			return -1;
 		}
-		state->__value.__wchb[1] = ch;
+		state->__val.__wchb[1] = ch;
 		if (state->__count == 1)
 			state->__count = 2;
 		else if (n < (size_t)-1)
@@ -616,8 +616,8 @@ int __utf8_mbtowc(
 			return -1;
 		}
 		state->__count = 0;
-		tmp = (wchar_t)((state->__value.__wchb[0] & 0x0f) << 12)
-			| (wchar_t)((state->__value.__wchb[1] & 0x3f) << 6)
+		tmp = (wchar_t)((state->__val.__wchb[0] & 0x0f) << 12)
+			| (wchar_t)((state->__val.__wchb[1] & 0x3f) << 6)
 			| (wchar_t)(ch & 0x3f);
 		*pwc = tmp;
 		return i;
@@ -626,16 +626,16 @@ int __utf8_mbtowc(
 	{
 		/* four-byte sequence */
 		wint_t tmp;
-		state->__value.__wchb[0] = ch;
+		state->__val.__wchb[0] = ch;
 		if (state->__count == 0)
 			state->__count = 1;
 		else if (n < (size_t)-1)
 			++n;
 		if (n < 2)
 			return -2;
-		ch = (state->__count == 1) ? t[i++] : state->__value.__wchb[1];
-		if ((state->__value.__wchb[0] == 0xf0 && ch < 0x90)
-			|| (state->__value.__wchb[0] == 0xf4 && ch >= 0x90))
+		ch = (state->__count == 1) ? t[i++] : state->__val.__wchb[1];
+		if ((state->__val.__wchb[0] == 0xf0 && ch < 0x90)
+			|| (state->__val.__wchb[0] == 0xf4 && ch >= 0x90))
 		{
 			/* overlong UTF-8 sequence or result is > 0x10ffff */
 			_set_errno(EILSEQ);
@@ -646,20 +646,20 @@ int __utf8_mbtowc(
 			_set_errno(EILSEQ);
 			return -1;
 		}
-		state->__value.__wchb[1] = ch;
+		state->__val.__wchb[1] = ch;
 		if (state->__count == 1)
 			state->__count = 2;
 		else if (n < (size_t)-1)
 			++n;
 		if (n < 3)
 			return -2;
-		ch = (state->__count == 2) ? t[i++] : state->__value.__wchb[2];
+		ch = (state->__count == 2) ? t[i++] : state->__val.__wchb[2];
 		if (ch < 0x80 || ch > 0xbf)
 		{
 			_set_errno(EILSEQ);
 			return -1;
 		}
-		state->__value.__wchb[2] = ch;
+		state->__val.__wchb[2] = ch;
 		if (state->__count == 2)
 			state->__count = 3;
 		else if (n < (size_t)-1)
@@ -677,9 +677,9 @@ int __utf8_mbtowc(
 			The second half of the surrogate pair is returned in case we
 			recognize the special __count value of four, and the next
 			byte is actually a valid value.  See below. */
-			tmp = (wint_t)((state->__value.__wchb[0] & 0x07) << 18)
-				| (wint_t)((state->__value.__wchb[1] & 0x3f) << 12)
-				| (wint_t)((state->__value.__wchb[2] & 0x3f) << 6);
+			tmp = (wint_t)((state->__val.__wchb[0] & 0x07) << 18)
+				| (wint_t)((state->__val.__wchb[1] & 0x3f) << 12)
+				| (wint_t)((state->__val.__wchb[2] & 0x3f) << 6);
 			state->__count = 4;
 			*pwc = 0xd800 | ((tmp - 0x10000) >> 10);
 			return i;
@@ -692,9 +692,9 @@ int __utf8_mbtowc(
 			_set_errno(EILSEQ);
 			return -1;
 		}
-		tmp = (wint_t)((state->__value.__wchb[0] & 0x07) << 18)
-			| (wint_t)((state->__value.__wchb[1] & 0x3f) << 12)
-			| (wint_t)((state->__value.__wchb[2] & 0x3f) << 6)
+		tmp = (wint_t)((state->__val.__wchb[0] & 0x07) << 18)
+			| (wint_t)((state->__val.__wchb[1] & 0x3f) << 12)
+			| (wint_t)((state->__val.__wchb[2] & 0x3f) << 6)
 			| (wint_t)(ch & 0x3f);
 		if (state->__count == 4 && sizeof(wchar_t) == 2)
 			/* Create the second half of the surrogate pair for systems with
@@ -738,7 +738,7 @@ int __sjis_mbtowc(
 	{
 		if (_issjis1(ch))
 		{
-			state->__value.__wchb[0] = ch;
+			state->__val.__wchb[0] = ch;
 			state->__count = 1;
 			if (n <= 1)
 				return -2;
@@ -749,7 +749,7 @@ int __sjis_mbtowc(
 	{
 		if (_issjis2(ch))
 		{
-			*pwc = (((wchar_t)state->__value.__wchb[0]) << 8) + (wchar_t)ch;
+			*pwc = (((wchar_t)state->__val.__wchb[0]) << 8) + (wchar_t)ch;
 			state->__count = 0;
 			return i;
 		}
@@ -793,7 +793,7 @@ int __eucjp_mbtowc(
 	{
 		if (_iseucjp1(ch))
 		{
-			state->__value.__wchb[0] = ch;
+			state->__val.__wchb[0] = ch;
 			state->__count = 1;
 			if (n <= 1)
 				return -2;
@@ -804,9 +804,9 @@ int __eucjp_mbtowc(
 	{
 		if (_iseucjp2(ch))
 		{
-			if (state->__value.__wchb[0] == 0x8f)
+			if (state->__val.__wchb[0] == 0x8f)
 			{
-				state->__value.__wchb[1] = ch;
+				state->__val.__wchb[1] = ch;
 				state->__count = 2;
 				if (n <= i)
 					return -2;
@@ -814,7 +814,7 @@ int __eucjp_mbtowc(
 			}
 			else
 			{
-				*pwc = (((wchar_t)state->__value.__wchb[0]) << 8) + (wchar_t)ch;
+				*pwc = (((wchar_t)state->__val.__wchb[0]) << 8) + (wchar_t)ch;
 				state->__count = 0;
 				return i;
 			}
@@ -830,7 +830,7 @@ int __eucjp_mbtowc(
 	{
 		if (_iseucjp2(ch))
 		{
-			*pwc = (((wchar_t)state->__value.__wchb[1]) << 8)
+			*pwc = (((wchar_t)state->__val.__wchb[1]) << 8)
 				+ (wchar_t)(ch & 0x7f);
 			state->__count = 0;
 			return i;

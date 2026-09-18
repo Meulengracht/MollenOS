@@ -23,10 +23,10 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param path1
- * @param path2
- * @return
+ * @brief Joins two path components using the platform path separator.
+ * @param path1 First path component.
+ * @param path2 Second path component.
+ * @return A newly allocated joined path, or NULL on failure.
  */
 CRTDECL(char*,
 OSPathJoin(
@@ -36,10 +36,10 @@ OSPathJoin(
 /**
  * @brief Resolves the full path of the relative/incomplete path provided.
  *
- * @param[In] path The path that should be resolved into an absolute path.
- * @param[In] followSymlinks Whether links should be followed to the true path.
- * @param[In] buffer The buffer where the final path should be stored.
- * @param[In] maxLength The size of the buffer.
+ * @param path The path that should be resolved into an absolute path.
+ * @param followLinks Whether links should be followed to the true path.
+ * @param buffer The buffer where the final path should be stored.
+ * @param maxLength The size of the buffer.
  * @return OsNotExists if the path could not be resolved.
  *         OsInvalidParameters if the parameters passed were not valid.
  */
@@ -54,7 +54,7 @@ OSGetFullPath(
  * @brief Changes the current working directory. Validation of the target path will be done
  * as a part of this call.
  *
- * @param[In] path The relative or absolute path that should be the new working directory.
+ * @param path The relative or absolute path that should be the new working directory.
  * @return OsInvalidParameters if the parameters passed were not valid.
  *         OsNotExists if the path could not be resolved
  *         OsPathIsNotDirectory If the path is not a directory
@@ -66,8 +66,8 @@ OSChangeWorkingDirectory(
 /**
  * @brief Retrieves the current working directory.
  *
- * @param[In] buffer The buffer where the path should be stored.
- * @param[In] maxLength The size of the buffer.
+ * @param buffer The buffer where the path should be stored.
+ * @param maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.
  */
 CRTDECL(oserr_t,
@@ -76,7 +76,7 @@ OSGetWorkingDirectory(
         _In_ size_t maxLength));
 
 /**
- * @brief
+ * @brief Retrieves the assembly directory.
  * @param[In] buffer The buffer where the path should be stored.
  * @param[In] maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.
@@ -87,7 +87,7 @@ OSGetAssemblyDirectory(
         _In_ size_t maxLength));
 
 /**
- * @brief
+ * @brief Retrieves the current user's home directory.
  * @param[In] buffer The buffer where the path should be stored.
  * @param[In] maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.
@@ -98,7 +98,7 @@ OSGetUserDirectory(
         _In_ size_t maxLength));
 
 /**
- * @brief
+ * @brief Retrieves the current user's cache directory.
  * @param[In] buffer The buffer where the path should be stored.
  * @param[In] maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.
@@ -109,7 +109,7 @@ OSGetUserCacheDirectory(
         _In_ size_t maxLength));
 
 /**
- * @brief
+ * @brief Retrieves the application directory.
  * @param[In] buffer The buffer where the path should be stored.
  * @param[In] maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.
@@ -120,7 +120,7 @@ OSGetApplicationDirectory(
         _In_ size_t maxLength));
 
 /**
- * @brief
+ * @brief Retrieves the application's temporary directory.
  * @param[In] buffer The buffer where the path should be stored.
  * @param[In] maxLength The size of the buffer.
  * @return OsInvalidParameters if the parameters passed were not valid.

@@ -37,7 +37,6 @@
    to the requirements of the underlying OS. */
 #ifndef __CYGWIN__
 
-#include <_ansi.h>
 #include <string.h>
 #include <wctype.h>
 #include "local.h"
@@ -49,7 +48,7 @@
 #define JP_EUCJP	3
 
 static wint_t
-_DEFUN (__jp2uc, (c, type), wint_t c _AND int type)
+__jp2uc(wint_t c, int type)
 {
   int index, adj;
   unsigned char byte1, byte2;
@@ -153,7 +152,7 @@ _DEFUN (__jp2uc, (c, type), wint_t c _AND int type)
 }
 
 wint_t
-_DEFUN (_jp2uc, (c), wint_t c)
+_jp2uc(wint_t c)
 {
   if (!strcmp (__current_locale_charset (), "JIS"))
     c = __jp2uc (c, JP_JIS);

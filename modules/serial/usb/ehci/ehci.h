@@ -25,6 +25,9 @@
 #include "../common/scheduler.h"
 #include "../common/hci.h"
 
+// forward declarations
+typedef struct EHCIController EhciController_t;
+
 /**
  * Generic magic constants and definitions for EHCI
  */
@@ -284,6 +287,13 @@ PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
 
     // Software metadata
     UsbSchedulerObject_t Object;
+    reg32_t              OriginalFlags;
+    reg32_t              OriginalStatus;
+    reg32_t              OriginalBp0AndOffset;
+    reg32_t              OriginalBp1AndInfo;
+    uint8_t              CompletionFrameOffset;
+    size_t               StartBandwidth;
+    size_t               CompleteBandwidth;
 });
 
 /**
@@ -346,6 +356,42 @@ PACKED_TYPESTRUCT(EhciSplitIsochronousDescriptor, {
 #define EHCI_siTD_POSITION_BEGIN        (1 << 3)
 #define EHCI_siTD_POSITION_MID          (2 << 3)
 #define EHCI_siTD_POSITION_END          (3 << 3)
+
+/* EHCISiTDInitialize
+ * Initializes a full/low-speed split isochronous TD from scheduler-selected
+ * frame masks and the transfer's physical buffer segments.
+ * @param controller The EHCI controller providing address-width capabilities.
+ * @param transfer The USB transfer supplying endpoint, hub, port, and speed.
+ * @param siTD The scheduler-owned siTD to initialize.
+ * @param pid The EHCI split transaction direction, IN or OUT.
+ * @param addresses Physical addresses for the transaction buffer segments.
+ * @param lengths Lengths corresponding to the physical buffer segments.
+ * @return true when the buffer and schedule fit in one siTD. */
+extern bool
+EHCISiTDInitialize(
+    _In_ EhciController_t*                 controller,
+    _In_ UsbManagerTransfer_t*              transfer,
+    _In_ EhciSplitIsochronousDescriptor_t*  siTD,
+    _In_ uint32_t                           pid,
+    _In_ const uintptr_t*                   addresses,
+    _In_ const uint32_t*                    lengths);
+
+/* EHCISiTDVerify
+ * Scans an siTD after hardware processing and updates the common transfer
+ * scan context with completion and error information.
+ * @param scanContext Common transfer scan state being updated.
+ * @param siTD The completed or still-active siTD to inspect. */
+extern void
+EHCISiTDVerify(
+    _In_ struct HCIProcessReasonScanContext* scanContext,
+    _In_ EhciSplitIsochronousDescriptor_t*   siTD);
+
+/* EHCISiTDRestart
+ * Restores the original hardware state of an siTD for a periodic retry.
+ * @param siTD The siTD whose software completion state is reset. */
+extern void
+EHCISiTDRestart(
+    _In_ EhciSplitIsochronousDescriptor_t* siTD);
 
 /**
  * Generic transfer descriptor, used for bulk and control transactions.
@@ -514,6 +560,9 @@ PACKED_TYPESTRUCT(EhciQueueHead, {
 PACKED_TYPESTRUCT(EhciFSTN, {
     reg32_t PathPointer;     // HW Link (Next Periodic Element)
     reg32_t BackPathPointer; // HW Link
+
+    // Software metadata used by the common scheduler pool.
+    UsbSchedulerObject_t Object;
 });
 
 /**
@@ -538,6 +587,10 @@ PACKED_TYPESTRUCT(EhciFSTN, {
 #define EHCI_siTD_POOL                      3
 #define EHCI_siTD_COUNT                     50
 
+#define EHCI_FSTN_POOL                      4
+#define EHCI_FSTN_COUNT                     50
+#define EHCI_FSTN_ALIGNMENT                 32
+
 #define EHCI_QH_NULL                        0
 #define EHCI_QH_ASYNC                       1
 #define EHCI_QH_START                       2
@@ -550,6 +603,9 @@ PACKED_TYPESTRUCT(EhciFSTN, {
 
 #define EHCI_siTD_NULL                      0
 #define EHCI_siTD_START                     1
+
+#define EHCI_FSTN_NULL                      0
+#define EHCI_FSTN_START                     1
 
 /**
  * Contains all per-controller information that is
@@ -758,7 +814,7 @@ EHCITDRestart(
  * @param addresses
  * @param lengths
  */
-extern void
+extern bool
 EHCITDIsochronous(
         _In_ EhciController_t*            controller,
         _In_ UsbManagerTransfer_t*        transfer,
@@ -776,6 +832,15 @@ extern void
 EHCIITDDump(
     _In_ EhciController_t*              controller,
     _In_ EhciIsochronousDescriptor_t*   td);
+
+/* EHCISiTDDump
+ * Dumps the physical link and hardware fields of a split isochronous TD.
+ * @param controller The EHCI controller owning the siTD pool.
+ * @param siTD The siTD to dump. */
+extern void
+EHCISiTDDump(
+    _In_ EhciController_t*                 controller,
+    _In_ EhciSplitIsochronousDescriptor_t* siTD);
 
 /**
  * @brief

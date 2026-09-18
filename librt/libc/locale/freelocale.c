@@ -46,11 +46,11 @@ void freelocale(struct __locale_t *locobj)
   for (int i = 1; i < _LC_LAST; ++i)
     if (locobj->lc_cat[i].buf)
       {
-	_free_r (p, (void *) locobj->lc_cat[i].ptr);
-	_free_r (p, locobj->lc_cat[i].buf);
+	free ((void *) locobj->lc_cat[i].ptr);
+	free (locobj->lc_cat[i].buf);
       }
 #endif /* __HAVE_LOCALE_INFO__ */
-  _free_r (p, locobj);
+  free (locobj);
 #else
 	/* Silence warning */
 	_CRT_UNUSED(locobj);

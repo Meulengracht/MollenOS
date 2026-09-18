@@ -41,7 +41,7 @@
 #ifndef MB_LEN_MAX
 #define MB_LEN_MAX 5
 #endif
-#define MB_CUR_MAX 10 // TODO __locale_mb_cur_max()
+#define MB_CUR_MAX (__locale_mb_cur_max())
 
 typedef struct _div {
     int quot;

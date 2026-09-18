@@ -29,12 +29,12 @@
 _CODE_BEGIN
 
 /**
- * @brief
- * @param domain
- * @param type
- * @param protocol
- * @param handleOut
- * @return
+ * @brief Creates a socket.
+ * @param domain Address family for the socket.
+ * @param type Socket type.
+ * @param protocol Protocol to use, or zero for the default.
+ * @param handleOut Receives the socket handle.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketOpen(
@@ -44,10 +44,10 @@ OSSocketOpen(
         _Out_ OSHandle_t* handleOut));
 
 /**
- * @brief
- * @param sock0
- * @param sock1
- * @return
+ * @brief Creates a connected pair of sockets.
+ * @param sock0 Receives the first socket handle.
+ * @param sock1 Receives the second socket handle.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketPair(
@@ -55,12 +55,12 @@ OSSocketPair(
         _In_  OSHandle_t* sock1));
 
 /**
- * @brief
- * @param handle
- * @param address
- * @param addressLength
- * @param handleOut
- * @return
+ * @brief Accepts an incoming connection on a listening socket.
+ * @param handle Listening socket handle.
+ * @param address Receives the peer address.
+ * @param addressLength In/out size of address, in bytes.
+ * @param handleOut Receives the accepted socket handle.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketAccept(
@@ -70,11 +70,11 @@ OSSocketAccept(
         _Out_ OSHandle_t*      handleOut));
 
 /**
- * @brief
- * @param handle
- * @param address
- * @param addressLength
- * @return
+ * @brief Binds a socket to a local address.
+ * @param handle Socket handle to bind.
+ * @param address Local address.
+ * @param addressLength Length of address, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketBind(
@@ -83,11 +83,11 @@ OSSocketBind(
         _In_ socklen_t              addressLength));
 
 /**
- * @brief
- * @param handle
- * @param address
- * @param addressLength
- * @return
+ * @brief Connects a socket to a remote address.
+ * @param handle Socket handle to connect.
+ * @param address Remote address.
+ * @param addressLength Length of address, in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketConnect(
@@ -96,10 +96,10 @@ OSSocketConnect(
         _In_ socklen_t              addressLength));
 
 /**
- * @brief
- * @param handle
- * @param queueSize
- * @return
+ * @brief Marks a socket as listening for incoming connections.
+ * @param handle Socket handle to listen on.
+ * @param queueSize Maximum pending connection queue size.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketListen(
@@ -107,12 +107,12 @@ OSSocketListen(
         _In_ int         queueSize));
 
 /**
- * @brief
- * @param handle
- * @param type
- * @param address
- * @param addressMaxSize
- * @return
+ * @brief Retrieves a socket address.
+ * @param handle Socket handle to query.
+ * @param type Address type to retrieve.
+ * @param address Receives the socket address.
+ * @param addressMaxSize Capacity of address in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketAddress(
@@ -122,13 +122,13 @@ OSSocketAddress(
         _In_ socklen_t        addressMaxSize));
 
 /**
- * @brief
- * @param handle
- * @param protocol
- * @param option
- * @param data
- * @param length
- * @return
+ * @brief Sets a socket option.
+ * @param handle Socket handle to modify.
+ * @param protocol Protocol that owns the option.
+ * @param option Option to set.
+ * @param data Option value.
+ * @param length Size of data in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketSetOption(
@@ -139,13 +139,13 @@ OSSocketSetOption(
         _In_ socklen_t   length));
 
 /**
- * @brief
- * @param handle
- * @param protocol
- * @param option
- * @param data
- * @param length
- * @return
+ * @brief Retrieves a socket option.
+ * @param handle Socket handle to query.
+ * @param protocol Protocol that owns the option.
+ * @param option Option to retrieve.
+ * @param data Receives the option value.
+ * @param length In/out size of data in bytes.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketOption(
@@ -156,10 +156,10 @@ OSSocketOption(
         _InOut_ socklen_t*  length));
 
 /**
- * @brief
- * @param handle
- * @param pipeOut
- * @return
+ * @brief Creates a stream pipe connected to a socket.
+ * @param handle Socket handle to use.
+ * @param pipeOut Receives the stream buffer pipe.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketSendPipe(
@@ -167,12 +167,12 @@ OSSocketSendPipe(
         _Out_ streambuffer_t** pipeOut));
 
 /**
- * @brief
- * @param handle
- * @param message
- * @param flags
- * @param bytesSentOut
- * @return
+ * @brief Sends a message through a socket.
+ * @param handle Socket handle to send through.
+ * @param message Message to send.
+ * @param flags Send behavior flags.
+ * @param bytesSentOut Receives the number of bytes sent.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketSend(
@@ -182,10 +182,10 @@ OSSocketSend(
         _Out_ size_t*              bytesSentOut));
 
 /**
- * @brief
- * @param handle
- * @param pipeOut
- * @return
+ * @brief Creates a stream pipe connected to a socket for receiving data.
+ * @param handle Socket handle to use.
+ * @param pipeOut Receives the stream buffer pipe.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketRecvPipe(
@@ -193,12 +193,12 @@ OSSocketRecvPipe(
         _Out_ streambuffer_t** pipeOut));
 
 /**
- * @brief
- * @param handle
- * @param message
- * @param flags
- * @param bytesRecievedOut
- * @return
+ * @brief Receives a message from a socket.
+ * @param handle Socket handle to receive from.
+ * @param message Receives the message.
+ * @param flags Receive behavior flags.
+ * @param bytesRecievedOut Receives the number of bytes received.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSSocketRecv(

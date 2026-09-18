@@ -33,8 +33,8 @@ CRTDECL(void, usched_xunit_init(void));
  * @brief Runs the execution units primary loop. There is no return from this call, as
  * it will run until program exit.
  *
- * @param[In] startFn  Initial job that should be scheduled for this execution unit
- * @param[In] argument Argument for the initial job
+ * @param startFn Initial job that should be scheduled for this execution unit.
+ * @param argument Argument for the initial job.
  */
 CRTDECL(_Noreturn void, usched_xunit_main_loop(usched_task_fn startFn, void* argument));
 

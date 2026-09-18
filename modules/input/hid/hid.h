@@ -245,7 +245,9 @@ typedef struct HidDevice {
 
     UsbHidReportCollection_t*  Collection;
     uintptr_t*                 Buffer;
+    size_t                     BufferSize;
     size_t                     PreviousDataIndex;
+    int                        PreviousDataValid;
     size_t                     ReportLength;
     
     uint8_t                    InterfaceId;

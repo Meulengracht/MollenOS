@@ -95,7 +95,7 @@ PORTABILITY
 <<mbsrtowcs>> is defined by the C99 standard.
 <<mbsnrtowcs>> is defined by the POSIX.1-2008 standard.
 */
-#include "../../threads/tss.h"
+#include <internal/_tls.h>
 #include <wchar.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -116,7 +116,7 @@ size_t _mbsnrtowcs_r(
 
 #ifdef _MB_CAPABLE
   if (ps == NULL) {
-      ps = &(tls_current()->mbst);
+			ps = &(__tls_current()->mbst);
     }
 #endif
 

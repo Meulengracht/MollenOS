@@ -166,10 +166,10 @@ UsbManagerDestroyController(
 
     // remove the controller indexes
     hashtable_remove(
-            &g_controllers,
-            &(struct usb_controller_device_index) {
-                .deviceId = controller->Device->Base.Id
-            }
+        &g_controllers,
+        &(struct usb_controller_device_index) {
+            .deviceId = controller->Device->Base.Id
+        }
     );
 
     // clean up resources
@@ -198,8 +198,8 @@ UsbManagerQueryUHCIController(
 
 static void
 __UHCIPortMonitor(
-        _In_ void* argument,
-        _In_ void* cancellationToken)
+    _In_ void* argument,
+    _In_ void* cancellationToken)
 {
     struct timespec wakeUp;
     _CRT_UNUSED(argument);
@@ -242,7 +242,7 @@ UsbManagerIterateTransfers(
 
 UsbManagerController_t*
 UsbManagerGetController(
-        _In_ uuid_t deviceId)
+    _In_ uuid_t deviceId)
 {
     struct usb_controller_device_index* index = hashtable_get(&g_controllers,
             &(struct usb_controller_device_index) { .deviceId = deviceId });
@@ -254,8 +254,8 @@ UsbManagerGetController(
 
 int
 UsbManagerGetToggle(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address)
+    _In_ UsbManagerController_t* controller,
+    _In_ USBAddress_t*           address)
 {
     struct USBManagerEndpointToggle* endpoint = hashtable_get(
             &controller->Endpoints,
@@ -271,9 +271,9 @@ UsbManagerGetToggle(
 
 void
 UsbManagerSetToggle(
-        _In_ UsbManagerController_t* controller,
-        _In_ USBAddress_t*           address,
-        _In_ int                     toggle)
+    _In_ UsbManagerController_t* controller,
+    _In_ USBAddress_t*           address,
+    _In_ int                     toggle)
 {
     hashtable_set(
             &controller->Endpoints,
@@ -284,8 +284,13 @@ UsbManagerSetToggle(
     );
 }
 
-void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const uuid_t deviceId,
-        const uint8_t hub, const uint8_t port, const uint8_t device, const uint8_t endpoint)
+void ctt_usbhost_reset_endpoint_invocation(
+    struct gracht_message* message,
+    const uuid_t           deviceId,
+    const uint8_t          hub,
+    const uint8_t          port,
+    const uint8_t          device,
+    const uint8_t          endpoint)
 {
     USBAddress_t            address = { hub, port, device, endpoint };
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
@@ -300,8 +305,12 @@ void ctt_usbhost_reset_endpoint_invocation(struct gracht_message* message, const
     ctt_usbhost_reset_endpoint_response(message, err);
 }
 
-void ctt_usbhost_configure_hub_invocation(struct gracht_message* message, const uuid_t deviceId,
-    const uint8_t hubAddress, const uint8_t portCount, const uint16_t characteristics)
+void ctt_usbhost_configure_hub_invocation(
+    struct gracht_message* message,
+    const uuid_t           deviceId,
+    const uint8_t          hubAddress,
+    const uint8_t          portCount,
+    const uint16_t         characteristics)
 {
     UsbManagerController_t* controller = UsbManagerGetController(deviceId);
     oserr_t                 err;
@@ -315,8 +324,12 @@ void ctt_usbhost_configure_hub_invocation(struct gracht_message* message, const 
     ctt_usbhost_configure_hub_response(message, err);
 }
 
-void ctt_usbhost_device_detach_invocation(struct gracht_message* message, const uuid_t controllerDeviceId,
-    const uint8_t hubAddress, const uint8_t portAddress, const uint8_t deviceAddress)
+void ctt_usbhost_device_detach_invocation(
+    struct gracht_message* message,
+    const uuid_t           controllerDeviceId,
+    const uint8_t          hubAddress,
+    const uint8_t          portAddress,
+    const uint8_t          deviceAddress)
 {
     USBAddress_t            address = { hubAddress, portAddress, deviceAddress, 0 };
     UsbManagerController_t* controller = UsbManagerGetController(controllerDeviceId);
@@ -351,7 +364,7 @@ __QueueWaitingTransfers(
 
 static oserr_t
 __FinalizeTransfer(
-        _In_ UsbManagerTransfer_t* transfer)
+    _In_ UsbManagerTransfer_t* transfer)
 {
     bool isPartial = true;
     TRACE("__FinalizeTransfer()");
@@ -437,8 +450,8 @@ UsbManagerScheduleTransfers(
 
 static int
 __ProcessCleanup(
-        _In_ UsbManagerController_t* controller,
-        _In_ UsbManagerTransfer_t*   transfer)
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
 {
     // If there is an endpoint descriptor, then we free it and mark
     // it NULL to indicate a new must be allocated. We do this for convenience
@@ -467,8 +480,8 @@ __ProcessCleanup(
 
 static bool
 __TransferCompleted(
-        _In_ UsbManagerTransfer_t*               transfer,
-        _In_ struct HCIProcessReasonScanContext* scanContext)
+    _In_ UsbManagerTransfer_t*               transfer,
+    _In_ struct HCIProcessReasonScanContext* scanContext)
 {
     TRACE("__TransferCompleted(transfer=%u, result=%u)", transfer->ID, scanContext->Result);
 
@@ -495,8 +508,8 @@ __TransferCompleted(
 
 static void
 __ResetTransfer(
-        _In_ UsbManagerController_t* controller,
-        _In_ UsbManagerTransfer_t*   transfer)
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
 {
     UsbManagerChainEnumerate(
             controller,
@@ -511,14 +524,14 @@ __ResetTransfer(
 
 static int
 __CheckTransfer(
-        _In_ UsbManagerController_t* controller,
-        _In_ UsbManagerTransfer_t*   transfer)
+    _In_ UsbManagerController_t* controller,
+    _In_ UsbManagerTransfer_t*   transfer)
 {
     struct HCIProcessReasonScanContext context = {
             .Transfer = transfer,
             .Result = USBTRANSFERCODE_SUCCESS
     };
-    TRACE("__ProcessTransfer: starting scan id=%u, status=%u", transfer->ID);
+    TRACE("__ProcessTransfer: starting scan id=%u, status=%u", transfer->ID, context.Result);
     UsbManagerChainEnumerate(
             controller,
             transfer->RootElement,
@@ -628,12 +641,12 @@ UsbManagerProcessTransfers(
 
 void
 UsbManagerChainEnumerate(
-        _In_ UsbManagerController_t*     controller,
-        _In_ uint8_t*                    elementRoot,
-        _In_ int                         direction,
-        _In_ int                         reason,
-        _In_ UsbSchedulerElementCallback elementCallback,
-        _In_ void*                       context)
+    _In_ UsbManagerController_t*     controller,
+    _In_ uint8_t*                    elementRoot,
+    _In_ int                         direction,
+    _In_ int                         reason,
+    _In_ UsbSchedulerElementCallback elementCallback,
+    _In_ void*                       context)
 {
     UsbSchedulerObject_t* object;
     UsbSchedulerPool_t*   pool;

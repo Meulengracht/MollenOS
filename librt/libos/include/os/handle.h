@@ -72,20 +72,19 @@ OSHandleDestroy(
         _In_ struct OSHandle* handle));
 
 /**
- * @brief
- * @param id
- * @param handle
- * @return
+ * @brief Acquires an additional reference to a system handle.
+ * @param handle Handle whose reference should be acquired.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSHandlesAcquire(
         _In_ struct OSHandle* handle));
 
 /**
- * @brief
- * @param id
- * @param handle
- * @return
+ * @brief Finds and wraps a system handle by its global identifier.
+ * @param id Global system handle identifier.
+ * @param handle Receives the handle description.
+ * @return OS_EOK when the handle is found; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 OSHandlesFind(

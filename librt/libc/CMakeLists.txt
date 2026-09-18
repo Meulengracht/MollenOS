@@ -70,7 +70,7 @@ macro (add_libc_target)
 
         # add various implementation flags that mark implementation aspect for the shared
         # build.
-        target_compile_definitions(${ARGV0} PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION)
+        target_compile_definitions(${ARGV0} PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -D_MB_CAPABLE)
         target_include_directories(${ARGV0} PRIVATE include)
         target_link_libraries(${ARGV0} PRIVATE libos libm libds libddk gracht_static)
 

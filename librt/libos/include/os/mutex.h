@@ -45,9 +45,9 @@ typedef struct Mutex {
 _CODE_BEGIN
 /**
  * @brief Initializes a new mutex object
- * @param mutex
- * @param flags
- * @return
+ * @param mutex Mutex to initialize.
+ * @param flags Mutex behavior flags.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MutexInitialize(
@@ -58,8 +58,8 @@ MutexInitialize(
  * @brief Blocks the current thread until the mutex pointed to by mutex is locked.
  * The behavior is undefined if the current thread has already locked the mutex
  * and the mutex is not recursive.
- * @param mutex
- * @return
+ * @param mutex Mutex to lock.
+ * @return OS_EOK when locked; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MutexLock(
@@ -68,9 +68,9 @@ MutexLock(
 /**
  * @brief Blocks the current thread until the mutex pointed to by mutex is
  * locked or until the TIME_UTC based time point pointed to by timePoint has been reached.
- * @param mutex
- * @param timePoint
- * @return
+ * @param mutex Mutex to lock.
+ * @param timePoint Absolute time at which the lock attempt expires.
+ * @return OS_EOK when locked; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MutexTimedLock(
@@ -79,8 +79,8 @@ MutexTimedLock(
 
 /**
  * @brief Tries to lock the mutex pointed to by mutex without blocking.
- * @param mutex
- * @return
+ * @param mutex Mutex to try to lock.
+ * @return OS_EOK when locked; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MutexTryLock(
@@ -88,8 +88,8 @@ MutexTryLock(
 
 /**
  * @brief Unlocks the mutex pointed to by mutex.
- * @param mutex
- * @return
+ * @param mutex Mutex to unlock.
+ * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 MutexUnlock(
@@ -98,7 +98,8 @@ MutexUnlock(
 /**
  * @brief Destroys the mutex pointed to by mutex. If there are threads waiting on mutex,
  * the behavior is undefined.
- * @param mutex
+ * @param mutex Mutex to destroy.
+ * @return None.
  */
 CRTDECL(void,
 MutexDestroy(

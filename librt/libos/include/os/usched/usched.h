@@ -32,7 +32,7 @@ typedef struct OSAsyncContext OSAsyncContext_t;
 /**
  * @brief Yields control of the current task and executes the next task in line. If no tasks
  * are ready to execute, control is returned to original caller of this function.
- * @param[In] deadline If there were no more jobs to execute, but there will be in the
+ * @param deadline If there were no more jobs to execute, but there will be in the
  *                     future, for instance that are either sleeping or waiting for a timeout,
  *                     then this will be set to the point in time when usched_yield should be called
  *                     again. This parameter is optional, and does not need to be provided if a job
@@ -54,7 +54,7 @@ CRTDECL(void, usched_wait(void));
 /**
  * @brief Puts the calling thread/execution unit to sleep until a new job or the point in time
  * specified by 'until' has been reached.
- * @param[In] until A point in time for which the execution unit must be woken up by.
+ * @param until A point in time for which the execution unit must be woken up by.
  */
 CRTDECL(void, usched_timedwait(const struct timespec* until));
 

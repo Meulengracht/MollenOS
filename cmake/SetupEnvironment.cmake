@@ -41,7 +41,8 @@ set (CMAKE_EXE_LINKER_FLAGS "-Xlinker -lldmap")
 
 # Setup shared compile flags to make compilation succeed
 # -Xclang -flto-visibility-public-std
-set(VALI_COMPILE_FLAGS -fms-extensions -nostdlib -nostdinc)
+# Keep Clang builtin headers (stdint.h, stdarg.h, etc.); use explicit OS library headers.
+set(VALI_COMPILE_FLAGS -fms-extensions -nostdlib -nostdlibinc)
 if("$ENV{VALI_ARCH}" STREQUAL "i386")
     set(VALI_COMPILE_FLAGS ${VALI_COMPILE_FLAGS} --target=i386-uml-vali)
 elseif("$ENV{VALI_ARCH}" STREQUAL "amd64")

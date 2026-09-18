@@ -43,20 +43,25 @@ typedef struct {
 } Sha1Context_t;
 
 _CODE_BEGIN
-/* Sha1Init
- * Initializes a new SHA1 context 
- * using either an internal buffer for 
- * hashing by setting handsoff to 1, otherwise
- * it will destroy the given data buffers */
+/**
+ * @brief Initializes a SHA-1 context.
+ * @param Context Context to initialize.
+ * @param Handsoff Whether the context should use an internal hashing buffer.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(
         oserr_t,
         Sha1Init(
 	_In_ Sha1Context_t *Context, 
 	_In_ int Handsoff));
 
-/* Sha1Add
- * Add data to the given SHA1 context,
- * this is the function for using the context */
+/**
+ * @brief Adds data to a SHA-1 context.
+ * @param Context SHA-1 context to update.
+ * @param Data Data to hash.
+ * @param Length Number of bytes in Data.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(
         oserr_t,
         Sha1Add(
@@ -64,18 +69,24 @@ CRTDECL(
 	_In_ const uint8_t *Data,
 	_In_ const size_t Length));
 
-/* Sha1Finalize
- * Finalizes the Sha1 context and outputs the
- * result to a digest buffer the user must provide */
+/**
+ * @brief Finalizes a SHA-1 context and writes the digest.
+ * @param Context SHA-1 context to finalize.
+ * @param Digest Receives the SHA-1 digest.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(
         oserr_t,
         Sha1Finalize(
 	_In_ Sha1Context_t *Context, 
 	_Out_ uint8_t Digest[SHA1_DIGEST_SIZE]));
 
-/* Sha1DigestToHex
- * Converts the digest buffer to a hex-string 
- * by calling this function */
+/**
+ * @brief Converts a SHA-1 digest to a hexadecimal string.
+ * @param Digest Digest to convert.
+ * @param Output Receives the hexadecimal string.
+ * @return OS_EOK on success; otherwise, an error code.
+ */
 CRTDECL(
         oserr_t,
         Sha1DigestToHex(
