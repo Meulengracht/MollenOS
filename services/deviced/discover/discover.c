@@ -203,7 +203,7 @@ __IsDriverMatch(
             struct DriverVendor* vendor = i->value;
             if (vendor->Id == deviceIdentification->VendorId) {
                 foreach (j, &vendor->Products) {
-                    struct DriverProduct* product = i->value;
+                    struct DriverProduct* product = j->value;
                     if (product->Id == deviceIdentification->ProductId) {
                         return 1;
                     }
