@@ -226,7 +226,7 @@ DmDiscoverFindDriver(
         _In_ struct DriverIdentification* deviceIdentification)
 {
     oserr_t osStatus = OS_ENOENT;
-    TRACE("DmDiscoverFindDriver(deviceId=%u, class=%u, subclass=%u)",
+    TRACE("DmDiscoverFindDriver(deviceId=%u, class=0x%x, subclass=0x%x)",
           deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
 
     usched_mtx_lock(&g_driversLock);
