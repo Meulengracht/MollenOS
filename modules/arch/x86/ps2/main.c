@@ -270,7 +270,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
 
     // First register call is the ps2-controller and all sequent calls here is ps2-devices
     // So install the contract as soon as it arrives
-    if (Ps2Controller->Device->Base.Id == UUID_INVALID) {
+    if (Ps2Controller->Device == NULL) {
         oserr = PS2Initialize(device);
         if (oserr != OS_EOK) {
             ERROR(" > failed to initalize ps2 driver");
@@ -315,7 +315,7 @@ void ctt_driver_register_device_invocation(struct gracht_message* message, const
 void ctt_driver_get_device_protocols_invocation(struct gracht_message* message, const uuid_t deviceId)
 {
     // announce the protocols we support for the individual devices
-    if (deviceId != Ps2Controller->Device->Base.Id) {
+    if (Ps2Controller->Device != NULL && deviceId != Ps2Controller->Device->Base.Id) {
         ctt_driver_event_device_protocol_single(__crt_get_module_server(), message->client, deviceId,
                 "input", SERVICE_CTT_INPUT_ID);
     }
