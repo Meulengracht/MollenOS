@@ -76,7 +76,7 @@ __ReadDevice(
 
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
-            deviceID, __STORAGE_OPERATION_READ,
+            deviceID, SYS_TRANSFER_DIRECTION_READ,
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
@@ -102,7 +102,7 @@ __WriteDevice(
 
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
-            deviceID, __STORAGE_OPERATION_WRITE,
+            deviceID, SYS_TRANSFER_DIRECTION_WRITE,
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
