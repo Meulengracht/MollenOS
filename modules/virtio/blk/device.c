@@ -37,6 +37,7 @@
 #include <ioset.h>
 #include <os/device.h>
 #include <os/handle.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys_storage_service_client.h>
@@ -543,16 +544,23 @@ __FinishRequest(
     __DestroyRequest(request);
 }
 
-static oserr_t
-__RegisterStorage(
+oserr_t
+VirtioBlkDeviceRegisterStorage(
     _In_ VirtioBlkDevice_t* device)
 {
-    struct vali_link_message message = VALI_MSG_INIT_HANDLE(GetFileService());
+    struct vali_link_message message;
     int status;
-    TRACE("__RegisterStorage(device=%u)", device->Descriptor.DeviceID);
+
+    if (device == NULL || device->Registered) {
+        return OS_EINVALPARAMS;
+    }
+    TRACE("VirtioBlkDeviceRegisterStorage(device=%u)", device->Descriptor.DeviceID);
+    message = (struct vali_link_message)VALI_MSG_INIT_HANDLE(GetFileService());
 
     // Registration occurs only after DRIVER_OK. filed immediately queries the
     // descriptor and may start partition I/O once this message is delivered.
+    // The caller must therefore insert the device into its lookup collection
+    // before invoking this function.
     status = sys_storage_register(
         GetGrachtClient(),
         &message.base,
@@ -744,6 +752,12 @@ VirtioBlkDeviceCreate(
     device->Descriptor.DriverID = GetNativeHandle(__crt_get_server_iod());
     device->Descriptor.LUNCount = 1;
     memcpy(device->Descriptor.Model, "Virtio Block Device", 20);
+    snprintf(
+        device->Descriptor.Serial,
+        sizeof(device->Descriptor.Serial),
+        "virtio-%u",
+        storageDeviceId
+    );
 
     oserr = VirtioPciTransportInitialize(busDevice, &device->Transport);
     if (oserr == OS_EOK) {
@@ -773,9 +787,6 @@ VirtioBlkDeviceCreate(
     }
     if (oserr == OS_EOK) {
         oserr = VirtioPciFinishInitialization(&device->Transport);
-    }
-    if (oserr == OS_EOK) {
-        oserr = __RegisterStorage(device);
     }
     if (oserr != OS_EOK) {
         ERROR("Failed to initialize Virtio block device: %u", oserr);
