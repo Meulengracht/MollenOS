@@ -710,13 +710,18 @@ VirtioPciNegotiateFeatures(
     TRACE("VirtioPciNegotiateFeatures: supportedFeatures=0x%llx, requiredFeatures=0x%llx",
           supportedFeatures, requiredFeatures);
 
-    if (transport == NULL || negotiatedFeaturesOut == NULL ||
-        (requiredFeatures & ~supportedFeatures) != 0) {
+    if (transport == NULL || negotiatedFeaturesOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
+    // Modern PCI transport always requires VERSION_1. Add it before validating
+    // the caller's required subset so callers do not need to repeat this
+    // transport-level requirement in their device-specific supported mask.
     supportedFeatures |= VIRTIO_F_VERSION_1;
     requiredFeatures  |= VIRTIO_F_VERSION_1;
+    if ((requiredFeatures & ~supportedFeatures) != 0) {
+        return OS_EINVALPARAMS;
+    }
 
     oserr = VirtioPciReset(transport);
     if (oserr != OS_EOK) {
