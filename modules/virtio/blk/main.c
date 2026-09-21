@@ -219,12 +219,9 @@ ctt_driver_ioctl_invocation(
     _In_ const uint8_t*         out,
     _In_ const uint32_t         outCount)
 {
-    VirtioBlkDevice_t* device;
-
-    device = list_find_value(
-        &g_devices,
-        (void*)(uintptr_t)deviceId
-    );
+    // Filesystems query I/O requirements using the logical storage ID, just
+    // like transfer and stat requests. The list keys are PCI device IDs.
+    VirtioBlkDevice_t* device = __FindStorageDevice(deviceId);
 
     (void)out;
     (void)outCount;
