@@ -124,6 +124,16 @@ VirtioBlkDeviceCreate(
     _In_ uuid_t       storageDeviceId);
 
 /**
+ * @brief Publishes an initialized block device to the file service.
+ *
+ * The caller must first make the device discoverable through the driver's
+ * storage callbacks because registration may immediately trigger a stat query.
+ */
+oserr_t
+VirtioBlkDeviceRegisterStorage(
+    _InOut_ VirtioBlkDevice_t* device);
+
+/**
  * @brief Stops a block device and releases all requests and transport resources.
  */
 void

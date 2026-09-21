@@ -37,7 +37,7 @@
 extern gracht_server_t* __crt_get_module_server(void);
 
 static list_t g_devices = LIST_INIT;
-static uuid_t g_nextDeviceId;
+static uuid_t g_nextDeviceId = 1;
 
 irqstatus_t
 OnFastInterrupt(
@@ -175,7 +175,16 @@ ctt_driver_register_device_invocation(
         ERROR("failed to initialize virtio block device");
         return;
     }
+
+    // filed can issue ctt_storage_stat immediately after registration. Publish
+    // the fully initialized device locally first so that callback can resolve
+    // the new driver-local storage ID.
     list_append(&g_devices, &blockDevice->Header);
+    if (VirtioBlkDeviceRegisterStorage(blockDevice) != OS_EOK) {
+        list_remove(&g_devices, &blockDevice->Header);
+        VirtioBlkDeviceDestroy(blockDevice);
+        ERROR("failed to register virtio block device with filed");
+    }
 }
 
 oserr_t

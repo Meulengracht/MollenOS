@@ -129,12 +129,12 @@ _CRTALLOC(".rdata$T") const struct {
     uint32_t    SizeOfZeroFill;
     uint32_t    Characteristics;
 } _tls_used = {
-        (uintptr_t*)&_tls_start,       // SECREL offsets include the initial char
-        (uintptr_t*)&_tls_end,         // end of tls data
-        (uintptr_t*)&_tls_index,       // address of tls_index
-        (uintptr_t*)(&__xl_a + 1),     // pointer to call back array, skip the inital index
-        0,                             // size of tls zero fill
-        0                              // characteristics
+    (uintptr_t*)(&_tls_start + 1), // skip the section-ordering sentinel
+    (uintptr_t*)&_tls_end,         // end of tls data
+    (uintptr_t*)&_tls_index,       // address of tls_index
+    (uintptr_t*)(&__xl_a + 1),     // pointer to call back array, skip the inital index
+    0,                             // size of tls zero fill
+    0                              // characteristics
 };
 
 // __cxa_module_tls_global_init
