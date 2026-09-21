@@ -332,7 +332,16 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
     
-    status = AhciTransactionStorageCreate(device, message, (int)direction, sector.QuadPart,
+    if (direction != SYS_TRANSFER_DIRECTION_READ &&
+        direction != SYS_TRANSFER_DIRECTION_WRITE) {
+        ctt_storage_transfer_response(message, OS_EINVALPARAMS, 0);
+        return;
+    }
+
+    // Protocol directions (0/1) differ from internal storage operations (1/2).
+    status = AhciTransactionStorageCreate(device, message,
+        direction == SYS_TRANSFER_DIRECTION_READ ?
+            __STORAGE_OPERATION_READ : __STORAGE_OPERATION_WRITE, sector.QuadPart,
         bufferId, offset, sectorCount);
     if (status != OS_EOK) {
         ctt_storage_transfer_response(message, status, 0);

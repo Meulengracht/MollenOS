@@ -549,14 +549,26 @@ void ctt_storage_transfer_invocation(struct gracht_message* message, const uuid_
     MSDDevice_t* device = MsdDeviceGet(deviceId);
     oserr_t      status;
     UInteger64_t sector;
-    size_t       sectorsTransferred;
+    size_t       sectorsTransferred = 0;
     
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
     
+    if (direction != SYS_TRANSFER_DIRECTION_READ &&
+        direction != SYS_TRANSFER_DIRECTION_WRITE) {
+        ctt_storage_transfer_response(message, OS_EINVALPARAMS, 0);
+        return;
+    }
+    if (device == NULL) {
+        ctt_storage_transfer_response(message, OS_ENOENT, 0);
+        return;
+    }
+
+    // Protocol directions (0/1) differ from internal storage operations (1/2).
     status = __TransferSectors(
             device,
-            (int)direction,
+            direction == SYS_TRANSFER_DIRECTION_READ ?
+                __STORAGE_OPERATION_READ : __STORAGE_OPERATION_WRITE,
             sector.QuadPart,
             bufferId,
             offset,
