@@ -20,6 +20,7 @@ endmacro ()
 # build modules
 add_subdirectory(arch)
 add_subdirectory(serial)
+add_subdirectory(virtio)
 add_subdirectory(storage)
 add_subdirectory(filesystems)
 add_subdirectory(input)

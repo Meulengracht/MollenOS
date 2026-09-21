@@ -229,6 +229,7 @@ PciReadBars(
     for (i = 0; i < count; i++) {
         uint32_t space32, size32, mask32;
         uint64_t space64, size64, mask64;
+        int      barIndex = i;
         size_t   offset = 0x10 + (i << 2);
 
         // Calculate the initial mask 
@@ -291,7 +292,15 @@ PciReadBars(
             // Correct the size and validate
             size64 = PciValidateBarSize(space64, size64, mask64);
             if (space64 != 0 && size64 != 0) {
-                CreateDeviceMemoryIo(&device->IoSpaces[i], (uintptr_t)space64, (size_t)size64);
+                // A 64-bit BAR consumes two configuration dwords, but its BAR
+                // number is the index of the lower dword. Capabilities refer
+                // to that index, so keep the combined resource there while i
+                // advances past the upper dword.
+                CreateDeviceMemoryIo(
+                        &device->IoSpaces[barIndex],
+                        (uintptr_t)space64,
+                        (size_t)size64
+                );
             }
         }
         else {
