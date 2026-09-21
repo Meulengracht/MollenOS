@@ -83,7 +83,7 @@ oserr_t VFSNodeGetSize(uuid_t fileHandle, uint64_t* sizeOut)
         return osStatus;
     }
 
-    usched_rwlock_r_unlock(&handle->Node->Lock);
+    usched_rwlock_r_lock(&handle->Node->Lock);
     if (__NodeIsDirectory(handle->Node)) {
         *sizeOut = handle->Node->Children.element_count;
     } else {
@@ -138,7 +138,7 @@ oserr_t VFSNodeStatHandle(uuid_t fileHandle, struct VFSStat* stat)
         return osStatus;
     }
 
-    usched_rwlock_r_unlock(&handle->Node->Lock);
+    usched_rwlock_r_lock(&handle->Node->Lock);
     memcpy(stat, &handle->Node->Stats, sizeof(struct VFSStat));
     usched_rwlock_r_unlock(&handle->Node->Lock);
 
@@ -156,7 +156,7 @@ oserr_t VFSNodeStatFsHandle(uuid_t fileHandle, struct VFSStatFS* stat)
         return osStatus;
     }
 
-    usched_rwlock_r_unlock(&handle->Node->Lock);
+    usched_rwlock_r_lock(&handle->Node->Lock);
     osStatus = handle->Node->FileSystem->Interface->Operations.Stat(
             handle->Node->FileSystem->Interface,
             handle->Node->FileSystem->Data,
@@ -178,7 +178,7 @@ oserr_t VFSNodeStatStorageHandle(uuid_t fileHandle, StorageDescriptor_t* stat)
         return osStatus;
     }
 
-    usched_rwlock_r_unlock(&handle->Node->Lock);
+    usched_rwlock_r_lock(&handle->Node->Lock);
     memcpy(
             stat,
            &handle->Node->FileSystem->Storage->Stats,
@@ -199,9 +199,9 @@ oserr_t VFSNodeGetPathHandle(uuid_t handleID, mstring_t** pathOut)
         return osStatus;
     }
 
-    usched_rwlock_r_unlock(&handle->Node->Lock);
+    usched_rwlock_r_lock(&handle->Node->Lock);
     *pathOut = VFSNodeMakePath(handle->Node, 0);
     usched_rwlock_r_unlock(&handle->Node->Lock);
     VFSNodeHandlePut(handle);
-    return OS_EOK;
+    return *pathOut != NULL ? OS_EOK : OS_EOOM;
 }

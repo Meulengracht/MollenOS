@@ -50,15 +50,15 @@ mstring_t* VFSNodeMakePath(struct VFSNode* node, int local)
         i = i->Parent;
     } while (i);
 
+    // No need to do any combining if we only have one token. The traversal
+    // cursor may already be NULL after walking past a root node.
+    if (tokenCount == 1) {
+        return mstr_clone(node->Name);
+    }
+
     tokens = malloc(sizeof(mstring_t*) * tokenCount);
     if (tokens == NULL) {
         return NULL;
-    }
-
-    // No need to do any combining if we only have one token, then we can
-    // simply return that.
-    if (tokenCount == 1) {
-        return mstr_clone(i->Name);
     }
     int index = 0;
     i = node;

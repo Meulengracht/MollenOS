@@ -34,6 +34,7 @@ oserr_t VFSNodeStat(struct VFS* vfs, const char* cpath, int followLinks, struct 
 
     osStatus = VFSNodeGet(vfs, nodePath, followLinks, &node);
     if (osStatus != OS_EOK) {
+        mstr_delete(nodePath);
         return osStatus;
     }
 
@@ -56,6 +57,7 @@ oserr_t VFSNodeStatFs(struct VFS* vfs, const char* cpath, int followLinks, struc
 
     osStatus = VFSNodeGet(vfs, nodePath, followLinks, &node);
     if (osStatus != OS_EOK) {
+        mstr_delete(nodePath);
         return osStatus;
     }
 
@@ -83,6 +85,7 @@ oserr_t VFSNodeStatStorage(struct VFS* vfs, const char* cpath, int followLinks, 
 
     osStatus = VFSNodeGet(vfs, nodePath, followLinks, &node);
     if (osStatus != OS_EOK) {
+        mstr_delete(nodePath);
         return osStatus;
     }
 

@@ -442,7 +442,7 @@ static void __ToProtocolFileDescriptor(struct VFSStat* in, struct sys_file_descr
 void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     struct VFSStat             stats;
-    struct sys_file_descriptor result;
+    struct sys_file_descriptor result = { 0 };
     struct VFS*                fsScope = VFSScopeGet(processId);
     oserr_t                    osStatus;
     TRACE("sys_file_fstat_invocation()");
@@ -453,7 +453,9 @@ void sys_file_fstat_invocation(struct gracht_message* message, const uuid_t proc
     }
 
     osStatus = VFSNodeStatHandle(handle, &stats);
-    __ToProtocolFileDescriptor(&stats, &result);
+    if (osStatus == OS_EOK) {
+        __ToProtocolFileDescriptor(&stats, &result);
+    }
     sys_file_fstat_response(message, osStatus, &result);
 }
 
@@ -475,7 +477,9 @@ void sys_file_fstat_path_invocation(struct gracht_message* message, const uuid_t
     }
 
     oserr = VFSNodeStat(fsScope, path, followLinks, &stats);
-    __ToProtocolFileDescriptor(&stats, &gdescriptor);
+    if (oserr == OS_EOK) {
+        __ToProtocolFileDescriptor(&stats, &gdescriptor);
+    }
     sys_file_fstat_path_response(message, oserr, &gdescriptor);
 }
 
@@ -527,7 +531,7 @@ static void __CleanupProtocolFileSystemDescriptor(struct sys_filesystem_descript
 void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t handle)
 {
     struct VFSStatFS                 stats;
-    struct sys_filesystem_descriptor result;
+    struct sys_filesystem_descriptor result = { 0 };
     struct VFS*                      fsScope = VFSScopeGet(processId);
     oserr_t                          oserr;
     TRACE("sys_file_fsstat_invocation()");
@@ -538,7 +542,9 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t pro
     }
 
     oserr = VFSNodeStatFsHandle(handle, &stats);
-    __ToProtocolFileSystemDescriptor(&stats, &result);
+    if (oserr == OS_EOK) {
+        __ToProtocolFileSystemDescriptor(&stats, &result);
+    }
     sys_file_fsstat_response(message, oserr, &result);
     __CleanupProtocolFileSystemDescriptor(&result);
 }
@@ -546,7 +552,7 @@ void sys_file_fsstat_invocation(struct gracht_message* message, const uuid_t pro
 void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_t processId, const char* path, const int followLinks)
 {
     struct VFSStatFS                 stats;
-    struct sys_filesystem_descriptor result;
+    struct sys_filesystem_descriptor result = { 0 };
     struct VFS*                      fsScope = VFSScopeGet(processId);
     oserr_t                          osStatus;
     TRACE("sys_file_fsstat_path_invocation()");
@@ -557,8 +563,11 @@ void sys_file_fsstat_path_invocation(struct gracht_message* message, const uuid_
     }
 
     osStatus = VFSNodeStatFs(fsScope, path, followLinks, &stats);
-    __ToProtocolFileSystemDescriptor(&stats, &result);
+    if (osStatus == OS_EOK) {
+        __ToProtocolFileSystemDescriptor(&stats, &result);
+    }
     sys_file_fsstat_path_response(message, osStatus, &result);
+    __CleanupProtocolFileSystemDescriptor(&result);
 }
 
 void sys_file_realpath_invocation(struct gracht_message* message, const char* path, const int followLinks)
@@ -592,7 +601,7 @@ void sys_file_realpath_invocation(struct gracht_message* message, const char* pa
 void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t processId, const uuid_t fileHandle)
 {
     StorageDescriptor_t        stats;
-    struct sys_disk_descriptor result;
+    struct sys_disk_descriptor result = { 0 };
     struct VFS*                fsScope = VFSScopeGet(processId);
     oserr_t                    oserr;
     TRACE("sys_file_ststat_invocation()");
@@ -603,7 +612,9 @@ void sys_file_ststat_invocation(struct gracht_message* message, const uuid_t pro
     }
 
     oserr = VFSNodeStatStorageHandle(fileHandle, &stats);
-    to_sys_disk_descriptor_dkk(&stats, &result);
+    if (oserr == OS_EOK) {
+        to_sys_disk_descriptor_dkk(&stats, &result);
+    }
     sys_file_ststat_response(message, oserr, &result);
 }
 
@@ -625,7 +636,9 @@ void sys_file_ststat_path_invocation(struct gracht_message* message, const uuid_
     }
 
     oserr = VFSNodeStatStorage(fsScope, filePath, followLinks, &stats);
-    to_sys_disk_descriptor_dkk(&stats, &gdescriptor);
+    if (oserr == OS_EOK) {
+        to_sys_disk_descriptor_dkk(&stats, &gdescriptor);
+    }
     sys_file_ststat_path_response(message, oserr, &gdescriptor);
 }
 
