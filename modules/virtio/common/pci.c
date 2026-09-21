@@ -283,7 +283,11 @@ __ParseVendorDataCapability(
                 ERROR("Invalid capability length for PCI configuration capability at offset 0x%02X", capabilityOffset);
                 return OS_EUNKNOWN;
             }
-            break;
+            // PCI_CFG is an indirect access window whose BAR, offset, and
+            // length fields are written by the driver before each access. Its
+            // initial zero geometry does not describe a region to map, and the
+            // direct BAR-backed transport does not need this optional window.
+            return OS_EOK;
         case VIRTIO_PCI_CAP_COMMON_CFG:
         case VIRTIO_PCI_CAP_ISR_CFG:
         case VIRTIO_PCI_CAP_DEVICE_CFG:
