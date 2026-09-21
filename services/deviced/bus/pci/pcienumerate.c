@@ -198,19 +198,22 @@ PciValidateBarSize(
     _In_ uint64_t maxBase,
     _In_ uint64_t mask)
 {
-    uint64_t size = mask & maxBase;
+    uint64_t encodedSize = mask & maxBase;
+    uint64_t size;
 
-    if (!size) {
+    if (!encodedSize) {
         return 0;
     }
-    size = (size & ~(size - 1)) - 1;
 
-    if (base == maxBase && ((base | size) & mask) != mask) {
+    // BAR probing returns an address mask. Isolate its least-significant set
+    // bit to obtain the actual power-of-two byte length. I/O resource lengths
+    // are counts, so returning size - 1 truncates the final byte and rejects a
+    // capability whose range ends exactly at the BAR boundary.
+    size = encodedSize & ~(encodedSize - 1);
+    if (base == maxBase && ((base | (size - 1)) & mask) != mask) {
         return 0;
     }
-    else {
-        return size;
-    }
+    return size;
 }
 
 /* PciReadBars
