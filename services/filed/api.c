@@ -102,7 +102,9 @@ void sys_file_transfer_invocation(struct gracht_message* message, const uuid_t p
     oserr_t     oserr;
     TRACE("sys_file_transfer_invocation()");
 
-    if (bufferHandle == UUID_INVALID || length == 0) {
+    if (bufferHandle == UUID_INVALID || length == 0 ||
+        (direction != SYS_TRANSFER_DIRECTION_READ &&
+         direction != SYS_TRANSFER_DIRECTION_WRITE)) {
         sys_file_transfer_response(message, OS_EINVALPARAMS, 0);
         return;
     }
@@ -149,7 +151,9 @@ void sys_file_transfer_absolute_invocation(struct gracht_message* message, const
     oserr_t     oserr;
     TRACE("sys_file_transfer_absolute_invocation()");
 
-    if (bufferHandle == UUID_INVALID || length == 0) {
+    if (bufferHandle == UUID_INVALID || length == 0 ||
+        (direction != SYS_TRANSFER_DIRECTION_READ &&
+         direction != SYS_TRANSFER_DIRECTION_WRITE)) {
         sys_file_transfer_absolute_response(message, OS_EINVALPARAMS, 0);
         return;
     }

@@ -151,6 +151,12 @@ ctt_storage_transfer_invocation(struct gracht_message* message,
     sector.u.LowPart = sectorLow;
     sector.u.HighPart = sectorHigh;
 
+    if (direction != SYS_TRANSFER_DIRECTION_READ &&
+        direction != SYS_TRANSFER_DIRECTION_WRITE) {
+        ctt_storage_transfer_response(message, OS_EINVALPARAMS, 0);
+        return;
+    }
+
     if (direction == SYS_TRANSFER_DIRECTION_READ) {
         status = IdeDeviceRead(device, sector.QuadPart, sectorCount, bufferId, offset);
     }
