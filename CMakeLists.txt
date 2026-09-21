@@ -254,14 +254,3 @@ add_custom_target (mkimage
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(mkimage install_prepare)
-
-add_custom_command(
-    OUTPUT always_run.special disk_usb.img
-    COMMAND ${CMAKE_COMMAND} -E copy disk.img disk_usb.img
-)
-
-add_custom_target (run_bochs
-    COMMAND bochs -q -f ${CMAKE_CURRENT_SOURCE_DIR}/tools/setup.bochsrc
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    DEPENDS disk_usb.img
-)

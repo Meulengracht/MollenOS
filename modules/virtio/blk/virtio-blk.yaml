@@ -1,0 +1,8 @@
+driver:
+  type:
+    - class: 0
+    - subclass: 0
+  vendors:
+    - 0x1af4:
+      - 0x1001
+      - 0x1042
