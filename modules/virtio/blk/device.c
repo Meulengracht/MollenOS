@@ -473,6 +473,12 @@ __BuildIteration(
     buffers[dataDescriptorCount + 1].Length = sizeof(uint8_t);
     buffers[dataDescriptorCount + 1].Flags = VIRTIO_SPLIT_DESC_F_WRITE;
 
+        TRACE("__BuildIteration type=%u, sector=%" PRIu64
+            ", dataDescriptors=%" PRIuIN ", metadata=0x%" PRIxIN,
+            header->Type,
+            header->Sector,
+            dataDescriptorCount,
+            request->MetadataSg.Entries[0].Address);
     *buffersOut = buffers;
     *bufferCountOut =
             (uint16_t)(dataDescriptorCount + VIRTIO_BLK_CHAIN_OVERHEAD);
@@ -706,6 +712,10 @@ __RegisterInterrupt(
             device->Transport.Regions[VIRTIO_PCI_CAP_ISR_CFG - 1].Offset;
     atomic_init(&device->InterruptResource.PendingStatus, 0);
     DeviceInterruptInitialize(&interrupt, device->BusDevice);
+        TRACE("__RegisterInterrupt line=%i, pin=%i, isrOffset=0x%x",
+            interrupt.Line,
+            interrupt.Pin,
+            device->InterruptResource.IsrOffset);
     RegisterInterruptDescriptor(&interrupt, device->EventDescriptor);
     RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
     RegisterFastInterruptIoResource(&interrupt, isrIoSpace);

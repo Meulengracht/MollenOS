@@ -59,8 +59,8 @@ static int __DetectIoOverlaps(
 
     if (pIoEntry->Io.Type == DeviceIoPortBased) {
         size_t systemIoStart = pIoEntry->Io.Access.Port.Base;
-        size_t systemIoLimit = pIoEntry->Io.Access.Port.Base + pIoEntry->Io.Access.Port.Length;
-        size_t verifyIoLimit = verifyContext->IoSpace->Access.Port.Base + verifyContext->IoSpace->Access.Port.Length;
+        size_t systemIoLimit = pIoEntry->Io.Access.Port.Base + pIoEntry->Io.Access.Port.Length - 1;
+        size_t verifyIoLimit = verifyContext->IoSpace->Access.Port.Base + verifyContext->IoSpace->Access.Port.Length - 1;
 
         verifyContext->Valid =
                 !(ISINRANGE(verifyContext->IoSpace->Access.Port.Base, systemIoStart, systemIoLimit) ||
@@ -75,8 +75,8 @@ static int __DetectIoOverlaps(
     }
     else if (pIoEntry->Io.Type == DeviceIoMemoryBased) {
         size_t systemIoStart = pIoEntry->Io.Access.Memory.PhysicalBase;
-        size_t systemIoLimit = pIoEntry->Io.Access.Memory.PhysicalBase + pIoEntry->Io.Access.Memory.Length;
-        size_t verifyIoLimit = verifyContext->IoSpace->Access.Memory.PhysicalBase + verifyContext->IoSpace->Access.Memory.Length;
+        size_t systemIoLimit = pIoEntry->Io.Access.Memory.PhysicalBase + pIoEntry->Io.Access.Memory.Length - 1;
+        size_t verifyIoLimit = verifyContext->IoSpace->Access.Memory.PhysicalBase + verifyContext->IoSpace->Access.Memory.Length - 1;
 
         verifyContext->Valid =
                 !(ISINRANGE(verifyContext->IoSpace->Access.Memory.PhysicalBase, systemIoStart, systemIoLimit) ||

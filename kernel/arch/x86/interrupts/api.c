@@ -114,6 +114,8 @@ static uint64_t __GetApicConfiguration(
         if (!(systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_PRESENT)) {
             TRACE("__GetApicConfiguration pci interrupt (active-low, level-triggered)");
             flags.u.LowPart |= APIC_DELIVERY_MODE(APIC_MODE_LOWEST_PRIORITY);
+            flags.u.LowPart |= APIC_ACTIVE_LOW;
+            flags.u.LowPart |= APIC_LEVEL_TRIGGER;
         }
         else {
             TRACE("__GetApicConfiguration pci interrupt (pin-configured - 0x%" PRIxIN ")", systemInterrupt->AcpiConform);
