@@ -50,6 +50,20 @@ __FunctionReadIoSpace(
     size_t Value = 0;
     if (IoSpace->Type == DeviceIoPortBased) {
         ReadDirectIo(IoSpace->Type, IoSpace->Access.Port.Base + Offset, Length, &Value);
+    } else if (IoSpace->Type == DeviceIoMemoryBased) {
+        // Interrupt resources contain a kernel mapping of the BAR. Preserve
+        // the requested access width for registers with read side effects.
+        if ((Length != 1 && Length != 2 && Length != 4 && Length != 8) ||
+            Length > sizeof(Value) || IoSpace->Access.Memory.VirtualBase == 0 ||
+            Offset > IoSpace->Access.Memory.Length ||
+            Length > IoSpace->Access.Memory.Length - Offset) {
+            return 0;
+        }
+        ReadVolatileMemory(
+            (const volatile void*)(IoSpace->Access.Memory.VirtualBase + Offset),
+            &Value,
+            Length
+        );
     }
     return Value;
 }
@@ -64,6 +78,19 @@ __FunctionWriteIoSpace(
 {
     if (IoSpace->Type == DeviceIoPortBased) {
         return WriteDirectIo(IoSpace->Type, IoSpace->Access.Port.Base + Offset, Length, Value);
+    } else if (IoSpace->Type == DeviceIoMemoryBased) {
+        if ((Length != 1 && Length != 2 && Length != 4 && Length != 8) ||
+            Length > sizeof(Value) || IoSpace->Access.Memory.VirtualBase == 0 ||
+            Offset > IoSpace->Access.Memory.Length ||
+            Length > IoSpace->Access.Memory.Length - Offset) {
+            return OS_EINVALPARAMS;
+        }
+        WriteVolatileMemory(
+            (volatile void*)(IoSpace->Access.Memory.VirtualBase + Offset),
+            &Value,
+            Length
+        );
+        return OS_EOK;
     }
     return OS_EUNKNOWN;
 }

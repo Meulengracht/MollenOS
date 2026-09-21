@@ -92,7 +92,7 @@ static oserr_t __ReadDevice(
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
             storage->Protocol.Storage.Device.DeviceID,
-            __STORAGE_OPERATION_READ,
+            SYS_TRANSFER_DIRECTION_READ,
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );
@@ -115,7 +115,7 @@ static oserr_t __WriteDevice(
     ctt_storage_transfer(
             GetGrachtClient(), &msg.base,
             storage->Protocol.Storage.Device.DeviceID,
-            __STORAGE_OPERATION_WRITE,
+            SYS_TRANSFER_DIRECTION_WRITE,
             sector->u.LowPart, sector->u.HighPart,
             buffer, offset, count
     );

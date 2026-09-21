@@ -61,6 +61,9 @@ OnFastInterrupt(
     if (status == 0) {
         return IRQSTATUS_NOT_HANDLED;
     }
+    // Only the handler's code pages are remapped into kernel space. String
+    // literals in module rodata are not accessible through that mapping;
+    // log the saved status from OnEvent instead.
     atomic_fetch_or(&resource->PendingStatus, status);
     interruptTable->EventSignal(resourceTable->HandleResource);
     return IRQSTATUS_HANDLED;
@@ -141,6 +144,7 @@ OnEvent(
         &device->InterruptResource.PendingStatus,
         0
     );
+    TRACE("OnEvent interrupt status=0x%x", status);
 
     // Handle queue completions before a simultaneous configuration change. If
     // the device requests reset, recovery then cancels only work still pending.

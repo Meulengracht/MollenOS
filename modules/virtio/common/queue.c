@@ -444,6 +444,14 @@ __ProgramQueue(
     queue->Enabled = 1;
     queue->ProgrammedGeneration = transport->ResetGeneration;
     transport->ActiveQueues++;
+        TRACE("__ProgramQueue desc=0x%" PRIxIN ", avail=0x%" PRIxIN
+            ", used=0x%" PRIxIN ", notify=0x%x/%u, data=0x%x",
+            queue->DescriptorRegion.PhysicalAddress,
+            queue->AvailableRegion.PhysicalAddress,
+            queue->UsedRegion.PhysicalAddress,
+            queue->NotifyOffset,
+            queue->NotificationWidth,
+            queue->NotifyData);
 
 exit:
     spinlock_release(&transport->ConfigurationLock);
@@ -761,6 +769,8 @@ VirtioSplitQueueSubmit(
     queue->AvailableIndex = newIndex;
     queue->InFlight++;
     queue->Submitted++;
+    TRACE("VirtioSplitQueueSubmit queue=%u, head=%u, descriptors=%u, avail=%u",
+          queue->QueueIndex, headDescriptor, bufferCount, newIndex);
     if (headDescriptorOut != NULL) {
         *headDescriptorOut = headDescriptor;
     }
@@ -773,6 +783,9 @@ VirtioSplitQueueSubmit(
             // the owning driver resets or otherwise recovers the queue.
             queue->NotificationFailed = 1;
             oserr = OS_EINPROGRESS;
+        }
+        else {
+            TRACE("VirtioSplitQueueSubmit notified queue=%u", queue->QueueIndex);
         }
     }
 
@@ -921,6 +934,8 @@ VirtioSplitQueuePoll(
     __ReclaimCompletedChain(queue, headDescriptor, chainLength);
     queue->InFlight--;
     queue->Completed++;
+        TRACE("VirtioSplitQueuePoll queue=%u, head=%u, length=%u",
+            queue->QueueIndex, headDescriptor, element.Length);
 
 exit:
     spinlock_release(&queue->Lock);
