@@ -366,10 +366,12 @@ static oserr_t
 __FinalizeTransfer(
     _In_ UsbManagerTransfer_t* transfer)
 {
-    bool isPartial = true;
+    bool isPartial = false;
     TRACE("__FinalizeTransfer()");
 
-    // Is the transfer only partially done?
+    // Only async (control/bulk) transfers can be partially allocated and need
+    // re-queuing of the remaining elements. Periodic transfers only reach here
+    // through cancellation (dequeue/detach), which is always terminal.
     if (__Transfer_IsAsync(transfer)) {
         isPartial = __Transfer_IsPartial(transfer);
     }

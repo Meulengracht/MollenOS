@@ -100,6 +100,14 @@ int accept(int iod, struct sockaddr* address, socklen_t* address_length)
         OSHandleDestroy(&osHandle);
         return status;
     }
-    *address_length = (socklen_t)(uint32_t)address->sa_len;
+    
+    // Update the address length to reflect the actual size
+    // of the returned address. This is specified by the POSIX 
+    // standard for accept().
+    if (address && address_length) {
+        *address_length = (socklen_t)(uint32_t)address->sa_len;
+    }
+    
+    stdio_handle_set_handle(handle, &osHandle);
     return stdio_handle_iod(handle);
 }

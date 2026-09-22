@@ -139,8 +139,10 @@ void __ParseGlobalStateTag(
                 globalStats->HasLogicalMin = 0;
             }
 
-            // Store the value and mark its presence
-                globalStats->LogicalMax    = (valueSize > 0 && valueSize < 4 &&
+            // Store the value and mark its presence. Only sign-extend if the logical
+            // minimum is negative, otherwise the value is unsigned (e.g. 0xFF == 255, not -1)
+            globalStats->LogicalMax    = (valueSize > 0 && valueSize < 4 &&
+                globalStats->LogicalMin < 0 &&
                     (value & (1U << (valueSize * 8 - 1)))) ?
                     (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
             globalStats->HasLogicalMax = 1;
@@ -191,10 +193,12 @@ void __ParseGlobalStateTag(
                 globalStats->HasPhysicalMin = 0;
             }
 
-            // Store the value and mark its presence
-                globalStats->PhysicalMax    = (valueSize > 0 && valueSize < 4 &&
-                    (value & (1U << (valueSize * 8 - 1)))) ?
-                    (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
+            // Store the value and mark its presence. Only sign-extend if the physical
+            // minimum is negative, otherwise the value is unsigned (e.g. 0xFF == 255, not -1)
+            globalStats->PhysicalMax    = (valueSize > 0 && valueSize < 4 &&
+                globalStats->PhysicalMin < 0 &&
+                (value & (1U << (valueSize * 8 - 1)))) ?
+                (int32_t)(value | (UINT32_MAX << (valueSize * 8))) : (int32_t)value;
             globalStats->HasPhysicalMax = 1;
 
             // If we have it's counter-part we have to sanitize
@@ -255,6 +259,10 @@ struct ReportParserContext {
     UsbHidReportGlobalStats_t GlobalStack[8];
     uint8_t                   GlobalStackDepth;
 };
+
+static oserr_t HidCollectionDestroy(
+    _In_ UsbHidReportCollection_t* reportCollection);
+
 static void __ParseReportTagMainCollection(
         _In_ struct ReportParserContext* context)
 {
@@ -553,6 +561,7 @@ HidParseReportDescriptor(
 {
     struct ReportParserContext context = { 0 };
     size_t                     i;
+    int                        parseFailed = 0;
     TRACE("HidParseReportDescriptor(hidDevice=0x%" PRIxIN ", descriptorLength=0x%" PRIuIN ")",
           hidDevice, descriptorLength);
 
@@ -565,6 +574,7 @@ HidParseReportDescriptor(
         if (descriptor[i] == 0xFE) {
             if (descriptorLength - i < 3 || descriptor[i + 1] > descriptorLength - i - 3) {
                 ERROR("HidParseReportDescriptor truncated long item");
+                parseFailed = 1;
                 break;
             }
             i += (size_t)descriptor[i + 1] + 3;
@@ -584,6 +594,7 @@ HidParseReportDescriptor(
 
         if (packetLength > descriptorLength - i - 1) {
             ERROR("HidParseReportDescriptor truncated item");
+            parseFailed = 1;
             break;
         }
 
@@ -609,6 +620,20 @@ HidParseReportDescriptor(
         __ParsePacket(&context, type, tag, packet, packetLength);
     }
 
+    if (parseFailed) {
+        UsbHidReportCollection_t* collection = context.RootCollection;
+        if (collection == NULL) {
+            collection = context.CurrentCollection;
+            while (collection != NULL && collection->Parent != NULL) {
+                collection = collection->Parent;
+            }
+        }
+        if (collection != NULL) {
+            HidCollectionDestroy(collection);
+        }
+        return 0;
+    }
+
     // Store the collection in the device
     // and return the calculated number of maximum bytes reports can use
     hidDevice->Collection = (context.RootCollection == NULL) ? context.CurrentCollection : context.RootCollection;
@@ -620,7 +645,7 @@ HidParseReportDescriptor(
     }
 }
 
-oserr_t
+static oserr_t
 HidCollectionDestroy(
     _In_ UsbHidReportCollection_t* reportCollection)
 {
