@@ -33,4 +33,4 @@ add_dependencies(ide contract_servers)
 
 # IDE is rarely used, and we just have it available for development purposes
 # so do not deploy it to initrd to save space
-# deploy_file_to_initrd(ide "modules" ide.yaml)
+deploy_file_to_initrd(ide "modules" ide.yaml)
