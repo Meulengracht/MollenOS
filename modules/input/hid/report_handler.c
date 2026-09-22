@@ -288,13 +288,8 @@ static void __HandleInputItem(
             // Generic button event (Mouse)
             // Possible values go through 1..65535 (determined by logical min/max)
             case HID_REPORT_USAGE_PAGE_BUTTON: {
-                uint8_t keystateChanged = 0;
-
                 // Check against old values if any changes are neccessary
-                if (value != oldValue) {
-                    keystateChanged = 1;
-                }
-                else {
+                if (value == oldValue) {
                     break;
                 }
 
