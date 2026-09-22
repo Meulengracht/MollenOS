@@ -32,70 +32,115 @@
 #include <inet/local.h>
 #include "manager.h"
 #include "socket.h"
-#include "validation.h"
 #include <stdlib.h>
 #include <string.h>
 
 #include "sys_socket_service_server.h"
 
-// This socket tree contains all the local system sockets that were created by
-// this machine. All remote sockets are maintained by the domains
+// Owns the complete socket operation, from lookup through last use, including
+// peer/address lookups and destruction. Always acquired before SyncObject.
+// Recursive because domain accept calls back into create/pair. Domain callbacks
+// may defer replies, but must not retain socket pointers after the operation.
+static mtx_t      g_socketExecution = MUTEX_INIT(mtx_recursive);
+// Local system sockets; remote sockets are maintained by the domains.
 static rb_tree_t  g_sockets;
 static OSHandle_t g_socketSet;
 static thrd_t     g_socketMonitorHandle;
 
-/////////////////////////////////////////////////////
-// APPLICATIONS => NetworkService
-// The communication between applications and the network service
-// consists of the use of streambuffers that are essentially a little more
-// complex ringbuffers. They support some advanced use cases to fit the 
-// inet/socket.h interface. This also means they are pretty useless for anything
-// else than socket communication. Applications both read and write from/to the
-// streambuffers, which are read and written by the network service.
-static void
-HandleSocketEvent(
-    _In_ struct ioset_event* event)
-{
-    Socket_t* socket;
-    TRACE("HandleSocketEvent(handle=%u, events=%u)", event->data.handle, event->events);
+// All queue links are protected by g_socketExecution. Entries are embedded in
+// sockets, so duplicate notifications cannot allocate or grow pending work.
+static SocketWorkQueue_t g_runnable;
 
-    socket = NetworkManagerSocketGet(event->data.handle);
+static void RemoveSocketWork(Socket_t* socket)
+{
+    SocketWorkQueue_t* queue = socket->WorkQueue;
+    if (!queue) {
+        return;
+    }
+    if (socket->WorkPrevious) {
+        socket->WorkPrevious->WorkNext = socket->WorkNext;
+    } else {
+        queue->Head = socket->WorkNext;
+    }
+    if (socket->WorkNext) {
+        socket->WorkNext->WorkPrevious = socket->WorkPrevious;
+    } else {
+        queue->Tail = socket->WorkPrevious;
+    }
+    socket->WorkQueue = NULL;
+    socket->WorkPrevious = socket->WorkNext = NULL;
+}
+
+static void AppendSocketWork(SocketWorkQueue_t* queue, Socket_t* socket)
+{
+    if (socket->WorkQueue) {
+        return;
+    }
+    socket->WorkQueue = queue;
+    socket->WorkPrevious = queue->Tail;
+    if (queue->Tail) {
+        queue->Tail->WorkNext = socket;
+    } else {
+        queue->Head = socket;
+    }
+    queue->Tail = socket;
+}
+
+void NetworkManagerSocketWaitForCredit(Socket_t* sender, Socket_t* receiver)
+{
+    AppendSocketWork(&receiver->ReceiveWaiters, sender);
+}
+
+static void WakeReceiveWaiters(Socket_t* receiver)
+{
+    Socket_t* sender;
+    while ((sender = receiver->ReceiveWaiters.Head) != NULL) {
+        RemoveSocketWork(sender);
+        AppendSocketWork(&g_runnable, sender);
+    }
+}
+
+static void KickRunnableSockets(void)
+{
+    if (g_runnable.Head) {
+        OSNotificationQueuePost(&g_runnable.Head->Handle, IOSETOUT);
+    }
+}
+
+static void HandleSocketEventLocked(struct ioset_event* event)
+{
+    Socket_t* socket = NetworkManagerSocketGetUnsafe(event->data.handle);
     if (!socket) {
-        // Process is probably in the process of removing this, ignore this
-        WARNING("HandleSocketEvent socket handle was not found!!");
         return;
     }
-    
-    // Sanitize the number of pending packets, it must be 0 for us to continue
-    if (mtx_lock(&socket->SyncObject) != thrd_success) {
-        WARNING("HandleSocketEvent socket lock was not acquired!!");
-        return;
+    if (event->events & IOSETCREDIT) {
+        WakeReceiveWaiters(socket);
     }
-    
-    if (atomic_load(&socket->PendingPackets)) {
-        // Already packets pending, ignore the event
-        WARNING("HandleSocketEvent socket already has data pending");
-        goto Exit;
+    if ((event->events & IOSETOUT) && !socket->Configuration.Passive) {
+        // A new send cannot make a full receive pipe writable.
+        AppendSocketWork(&g_runnable, socket);
     }
-    
-    // Data has been sent to the socket, process it and forward
-    if (event->events & IOSETOUT) {
-        // Make sure the socket is not passive, they are not allowed to send data
-        if (socket->Configuration.Passive) {
-            ERROR("[socket_monitor] passive socket sent data, this is no-go");
-            goto Exit;
+}
+
+static void RunSocketWorkLocked(void)
+{
+    for (int i = 0; i < NETWORK_MANAGER_MONITOR_MAX_EVENTS && g_runnable.Head; i++) {
+        Socket_t* socket = g_runnable.Head;
+        RemoveSocketWork(socket);
+        mtx_lock(&socket->SyncObject);
+        if (!atomic_load(&socket->PendingPackets)) {
+            oserr_t status = DomainSend(socket);
+            if (status == OS_EINPROGRESS) {
+                AppendSocketWork(&g_runnable, socket);
+            } else if (status != OS_EOK) {
+                ERROR("[socket_monitor] failed to send message: %u", status);
+            }
         }
-    
-        oserr_t osStatus = DomainSend(socket);
-        if (osStatus != OS_EOK) {
-            ERROR("HandleSocketEvent failed to send message");
-            // TODO deliver ESOCKPIPE signal to process
-            // proc_signal()
-        }
+        mtx_unlock(&socket->SyncObject);
     }
-    
-Exit:
-    mtx_unlock(&socket->SyncObject);
+    // Preserve progress after the finite send's last notification, while still
+    // returning to the event queue between bounded batches.
+    KickRunnableSockets();
 }
 
 // socket_monitor thread:
@@ -142,9 +187,15 @@ SocketMonitor(
             continue;
         }
         
-        for (i = 0; i < EventCount; i++) {
-            HandleSocketEvent(&Events[i]);
+        if (mtx_lock(&g_socketExecution) != thrd_success) {
+            ERROR("[socket_monitor] failed to acquire socket execution lock");
+            continue;
         }
+        for (i = 0; i < EventCount; i++) {
+            HandleSocketEventLocked(&Events[i]);
+        }
+        RunSocketWorkLocked();
+        mtx_unlock(&g_socketExecution);
     }
     return 0;
 }
@@ -196,8 +247,8 @@ NetworkManagerInitialize(void)
     return oserr;
 }
 
-oserr_t
-NetworkManagerSocketCreate(
+static oserr_t
+NetworkManagerSocketCreateLocked(
         _In_  int     Domain,
         _In_  int     Type,
         _In_  int     Protocol,
@@ -223,7 +274,7 @@ NetworkManagerSocketCreate(
     }
     
     // Add it to the handle set
-    event.events = IOSETOUT;
+    event.events = IOSETOUT | IOSETCREDIT;
     event.data.handle = (uuid_t)(uintptr_t)socket->Header.key;
     oserr = OSNotificationQueueCtrl(
             &g_socketSet, IOSET_ADD,
@@ -241,6 +292,26 @@ NetworkManagerSocketCreate(
     return oserr;
 }
 
+oserr_t
+NetworkManagerSocketCreate(
+        _In_  int     Domain,
+        _In_  int     Type,
+        _In_  int     Protocol,
+        _Out_ uuid_t* HandleOut,
+        _Out_ uuid_t* RecvBufferHandleOut,
+        _Out_ uuid_t* SendBufferHandleOut)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketCreateLocked(Domain, Type, Protocol,
+                                             HandleOut, RecvBufferHandleOut, SendBufferHandleOut);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_create_invocation(struct gracht_message* message, const int domain, const int type, const int protocol)
 {
     uuid_t handle = UUID_INVALID, recv_handle = UUID_INVALID, send_handle = UUID_INVALID;
@@ -249,8 +320,8 @@ void sys_socket_create_invocation(struct gracht_message* message, const int doma
     sys_socket_create_response(message, status, handle, recv_handle, send_handle);
 }
 
-oserr_t
-NetworkManagerSocketShutdown(
+static oserr_t
+NetworkManagerSocketShutdownLocked(
         _In_ uuid_t Handle,
         _In_ int    Options)
 {
@@ -259,7 +330,7 @@ NetworkManagerSocketShutdown(
     
     TRACE("[net_manager] [shutdown] %u, %i", Handle, Options);
 
-    socket = NetworkManagerSocketGet(Handle);
+    socket = NetworkManagerSocketGetUnsafe(Handle);
     if (!socket) {
         ERROR("[net_manager] [shutdown] invalid handle %u", Handle);
         return OS_ENOENT;
@@ -267,11 +338,15 @@ NetworkManagerSocketShutdown(
     
     // Before initiating the actual destruction, remove it from our handle list.
     if (Options & SYS_CLOSE_OPTIONS_DESTROY) {
-        // If removing it failed, then assume that it was already destroyed, and we just
-        // encountered a race condition
+        // The execution lock keeps removal and destruction atomic with respect
+        // to every socket operation, including borrowed peer/address lookups.
         if (!rb_tree_remove(&g_sockets, (void*)(uintptr_t)Handle)) {
             return OS_ENOENT;
         }
+
+        RemoveSocketWork(socket);
+        WakeReceiveWaiters(socket);
+        KickRunnableSockets();
 
         oserr = OSNotificationQueueCtrl(
                 &g_socketSet,
@@ -286,14 +361,29 @@ NetworkManagerSocketShutdown(
     return SocketShutdownImpl(socket, Options);
 }
 
+oserr_t
+NetworkManagerSocketShutdown(
+        _In_ uuid_t Handle,
+        _In_ int    Options)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketShutdownLocked(Handle, Options);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_close_invocation(struct gracht_message* message, const uuid_t handle, const enum sys_close_options options)
 {
     oserr_t status = NetworkManagerSocketShutdown(handle, options);
     sys_socket_close_response(message, status);
 }
 
-oserr_t
-NetworkManagerSocketBind(
+static oserr_t
+NetworkManagerSocketBindLocked(
         _In_ uuid_t                 Handle,
         _In_ const struct sockaddr* Address)
 {
@@ -302,7 +392,7 @@ NetworkManagerSocketBind(
     
     TRACE("[net_manager] [bind] %u", Handle);
     
-    Socket = NetworkManagerSocketGet(Handle);
+    Socket = NetworkManagerSocketGetUnsafe(Handle);
     if (!Socket) {
         ERROR("[net_manager] [bind] invalid handle %u", Handle);
         return OS_ENOENT;
@@ -319,20 +409,35 @@ NetworkManagerSocketBind(
     return Status;
 }
 
+oserr_t
+NetworkManagerSocketBind(
+        _In_ uuid_t                 Handle,
+        _In_ const struct sockaddr* Address)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketBindLocked(Handle, Address);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_bind_invocation(struct gracht_message* message, const uuid_t handle,
         const uint8_t* address, const uint32_t address_count)
 {
-    oserr_t status = ValidateLocalAddress(address, address_count);
-    if (status == OS_EOK) {
-        status = NetworkManagerSocketBind(handle, (const struct sockaddr*)address);
-    }
+    oserr_t status = NetworkManagerSocketBind(
+        handle,
+        (const struct sockaddr*)address
+    );
     sys_socket_bind_response(message, status);
 }
 
 // Asynchronous operation, does not send a reply on success, but instead a reply will
 // be sent by Domain 
-oserr_t
-NetworkManagerSocketConnect(
+static oserr_t
+NetworkManagerSocketConnectLocked(
         _In_ struct gracht_message* message,
         _In_ uuid_t                 handle,
         _In_ const struct sockaddr* address)
@@ -341,7 +446,7 @@ NetworkManagerSocketConnect(
     oserr_t status;
     ERROR("[net_manager] [connect] %u", handle);
     
-    socket = NetworkManagerSocketGet(handle);
+    socket = NetworkManagerSocketGetUnsafe(handle);
     if (!socket) {
         ERROR("[net_manager] [connect] invalid handle %u", handle);
         return OS_EHOSTUNREACHABLE;
@@ -379,13 +484,30 @@ NetworkManagerSocketConnect(
     return status;
 }
 
+oserr_t
+NetworkManagerSocketConnect(
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 handle,
+        _In_ const struct sockaddr* address)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketConnectLocked(message, handle, address);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_connect_invocation(struct gracht_message* message, const uuid_t handle,
         const uint8_t* address, const uint32_t address_count)
 {
-    oserr_t status = ValidateLocalAddress(address, address_count);
-    if (status == OS_EOK) {
-        status = NetworkManagerSocketConnect(message, handle, (const struct sockaddr*)address);
-    }
+    oserr_t status = NetworkManagerSocketConnect(
+        message,
+        handle,
+        (const struct sockaddr*)address
+    );
     if (status != OS_EOK) {
         sys_socket_connect_response(message, status);
     }
@@ -393,8 +515,8 @@ void sys_socket_connect_invocation(struct gracht_message* message, const uuid_t 
 
 // Asynchronous operation, does not send a reply on success, but instead a reply will
 // be sent by Domain. 
-oserr_t
-NetworkManagerSocketAccept(
+static oserr_t
+NetworkManagerSocketAcceptLocked(
         _In_ struct gracht_message* message,
         _In_ uuid_t                 handle)
 {
@@ -402,7 +524,7 @@ NetworkManagerSocketAccept(
     
     ERROR("[net_manager] [accept] %u", handle);
     
-    socket = NetworkManagerSocketGet(handle);
+    socket = NetworkManagerSocketGetUnsafe(handle);
     if (!socket) {
         ERROR("[net_manager] [accept] invalid handle %u", handle);
         return OS_ENOENT;
@@ -414,6 +536,21 @@ NetworkManagerSocketAccept(
     return DomainAccept(message, socket);
 }
 
+oserr_t
+NetworkManagerSocketAccept(
+        _In_ struct gracht_message* message,
+        _In_ uuid_t                 handle)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketAcceptLocked(message, handle);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_accept_invocation(struct gracht_message* message, const uuid_t handle)
 {
     oserr_t status = NetworkManagerSocketAccept(message, handle);
@@ -422,8 +559,8 @@ void sys_socket_accept_invocation(struct gracht_message* message, const uuid_t h
     }
 }
 
-oserr_t
-NetworkManagerSocketListen(
+static oserr_t
+NetworkManagerSocketListenLocked(
         _In_ uuid_t Handle,
         _In_ int    ConnectionCount)
 {
@@ -431,7 +568,7 @@ NetworkManagerSocketListen(
     
     TRACE("[net_manager] [listen] %u, %i", Handle, ConnectionCount);
     
-    Socket = NetworkManagerSocketGet(Handle);
+    Socket = NetworkManagerSocketGetUnsafe(Handle);
     if (!Socket) {
         ERROR("[net_manager] [listen] invalid handle %u", Handle);
         return OS_ENOENT;
@@ -443,14 +580,29 @@ NetworkManagerSocketListen(
     return SocketListenImpl(Socket, ConnectionCount);
 }
 
+oserr_t
+NetworkManagerSocketListen(
+        _In_ uuid_t Handle,
+        _In_ int    ConnectionCount)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketListenLocked(Handle, ConnectionCount);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_listen_invocation(struct gracht_message* message, const uuid_t handle, const int backlog)
 {
     oserr_t status = NetworkManagerSocketListen(handle, backlog);
     sys_socket_listen_response(message, status);
 }
 
-oserr_t
-NetworkManagerSocketPair(
+static oserr_t
+NetworkManagerSocketPairLocked(
         _In_ uuid_t Handle1,
         _In_ uuid_t Handle2)
 {
@@ -460,8 +612,8 @@ NetworkManagerSocketPair(
     
     TRACE("[net_manager] [pair] %u, %u", Handle1, Handle2);
     
-    Socket1 = NetworkManagerSocketGet(Handle1);
-    Socket2 = NetworkManagerSocketGet(Handle2);
+    Socket1 = NetworkManagerSocketGetUnsafe(Handle1);
+    Socket2 = NetworkManagerSocketGetUnsafe(Handle2);
     if (!Socket1 || !Socket2) {
         if (!Socket1) {
             ERROR("[net_manager] [pair] invalid handle1 %u", Handle1);
@@ -496,10 +648,42 @@ NetworkManagerSocketPair(
     return Status;
 }
 
+oserr_t
+NetworkManagerSocketPair(
+        _In_ uuid_t Handle1,
+        _In_ uuid_t Handle2)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketPairLocked(Handle1, Handle2);
+    mtx_unlock(&g_socketExecution);
+    return status;
+}
+
 void sys_socket_pair_invocation(struct gracht_message* message, const uuid_t handle1, const uuid_t handle2)
 {
     oserr_t status = NetworkManagerSocketPair(handle1, handle2);
     sys_socket_pair_response(message, status);
+}
+
+static oserr_t
+NetworkManagerSocketSetOptionLocked(
+        _In_ uuid_t           Handle,
+        _In_ int              Protocol,
+        _In_ unsigned int     Option,
+        _In_ const void*      Data,
+        _In_ socklen_t        DataLength)
+{
+    Socket_t* Socket;
+    
+    Socket = NetworkManagerSocketGetUnsafe(Handle);
+    if (!Socket) {
+        return OS_ENOENT;
+    }
+    return SetSocketOptionImpl(Socket, Protocol, Option, Data, DataLength);
 }
 
 oserr_t
@@ -510,13 +694,14 @@ NetworkManagerSocketSetOption(
         _In_ const void*      Data,
         _In_ socklen_t        DataLength)
 {
-    Socket_t* Socket;
-    
-    Socket = NetworkManagerSocketGet(Handle);
-    if (!Socket) {
-        return OS_ENOENT;
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
     }
-    return SetSocketOptionImpl(Socket, Protocol, Option, Data, DataLength);
+    status = NetworkManagerSocketSetOptionLocked(Handle, Protocol, Option, Data, DataLength);
+    mtx_unlock(&g_socketExecution);
+    return status;
 }
 
 void sys_socket_set_option_invocation(struct gracht_message* message, const uuid_t handle, const int protocol,
@@ -529,8 +714,8 @@ void sys_socket_set_option_invocation(struct gracht_message* message, const uuid
     sys_socket_set_option_response(message, status);
 }
 
-oserr_t
-NetworkManagerSocketGetOption(
+static oserr_t
+NetworkManagerSocketGetOptionLocked(
         _In_  uuid_t           Handle,
         _In_  int              Protocol,
         _In_  unsigned int     Option,
@@ -539,11 +724,29 @@ NetworkManagerSocketGetOption(
 {
     Socket_t* Socket;
     
-    Socket = NetworkManagerSocketGet(Handle);
+    Socket = NetworkManagerSocketGetUnsafe(Handle);
     if (!Socket) {
         return OS_ENOENT;
     }
     return GetSocketOptionImpl(Socket, Protocol, Option, Data, DataLengthOut);
+}
+
+oserr_t
+NetworkManagerSocketGetOption(
+        _In_  uuid_t           Handle,
+        _In_  int              Protocol,
+        _In_  unsigned int     Option,
+        _In_  void*            Data,
+        _Out_ socklen_t*       DataLengthOut)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketGetOptionLocked(Handle, Protocol, Option, Data, DataLengthOut);
+    mtx_unlock(&g_socketExecution);
+    return status;
 }
 
 void sys_socket_get_option_invocation(struct gracht_message* message, const uuid_t handle,
@@ -561,19 +764,35 @@ void sys_socket_get_option_invocation(struct gracht_message* message, const uuid
     sys_socket_get_option_response(message, status, (uint8_t*)&buffer[0], length, (int)length);
 }
 
-oserr_t
-NetworkManagerSocketGetAddress(
+static oserr_t
+NetworkManagerSocketGetAddressLocked(
         _In_ uuid_t           Handle,
         _In_ int              Source,
         _In_ struct sockaddr* Address)
 {
     Socket_t* Socket;
     
-    Socket = NetworkManagerSocketGet(Handle);
+    Socket = NetworkManagerSocketGetUnsafe(Handle);
     if (!Socket) {
         return OS_ENOENT;
     }
     return DomainGetAddress(Socket, Source, Address);
+}
+
+oserr_t
+NetworkManagerSocketGetAddress(
+        _In_ uuid_t           Handle,
+        _In_ int              Source,
+        _In_ struct sockaddr* Address)
+{
+    oserr_t status;
+
+    if (mtx_lock(&g_socketExecution) != thrd_success) {
+        return OS_EUNKNOWN;
+    }
+    status = NetworkManagerSocketGetAddressLocked(Handle, Source, Address);
+    mtx_unlock(&g_socketExecution);
+    return status;
 }
 
 void sys_socket_get_address_invocation(struct gracht_message* message,
@@ -586,7 +805,7 @@ void sys_socket_get_address_invocation(struct gracht_message* message,
 }
 
 Socket_t*
-NetworkManagerSocketGet(
+NetworkManagerSocketGetUnsafe(
         _In_ uuid_t Handle)
 {
     return (Socket_t*)rb_tree_lookup_value(&g_sockets, (void*)(uintptr_t)Handle);

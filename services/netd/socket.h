@@ -56,6 +56,11 @@ typedef struct SocketPipe {
     streambuffer_t* Stream;
 } SocketPipe_t;
 
+typedef struct SocketWorkQueue {
+    struct Socket* Head;
+    struct Socket* Tail;
+} SocketWorkQueue_t;
+
 typedef struct Socket {
     rb_leaf_t             Header;
     OSHandle_t            Handle;
@@ -71,9 +76,19 @@ typedef struct Socket {
     SocketPipe_t          Send;
     SocketPipe_t          Receive;
     QueuedPacket_t        QueuedPacket;
+    
+    // Intrusive scheduling: at most one runnable or receive-credit wait entry.
+    SocketWorkQueue_t*    WorkQueue;
+    struct Socket*        WorkPrevious;
+    struct Socket*        WorkNext;
+    SocketWorkQueue_t     ReceiveWaiters;
+    
     queue_t               ConnectionRequests;
     queue_t               AcceptRequests;
 } Socket_t;
+
+// Implementation entry points require the manager socket execution lock.
+// This protects socket and domain lifetimes in addition to per-socket state.
 
 /* SocketCreateImpl
  * Creates and initializes a new socket of default options. The socket

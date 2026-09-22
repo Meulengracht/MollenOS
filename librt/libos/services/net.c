@@ -755,30 +755,37 @@ __StreambufferFlags(int flags)
 
 static oserr_t
 __RecvStream(
+        _In_  OSHandle_t*                handle,
         _In_  streambuffer_t*            stream,
         _In_  struct msghdr*             message,
         _In_  streambuffer_rw_options_t* rwOptions,
         _Out_ size_t*                    bytesRecievedOut)
 {
-    size_t bytesRecieved = 0;
-    int    i;
-
-    for (i = 0; i < message->msg_iovlen; i++) {
+    size_t total = 0;
+    streambuffer_rw_options_t options = *rwOptions;
+    // WAITALL must return credit between partial reads, including between
+    // iovecs, or a request larger than the receive pipe can deadlock.
+    options.flags |= STREAMBUFFER_ALLOW_PARTIAL;
+    for (int i = 0; i < message->msg_iovlen; i++) {
         struct iovec* iov = &message->msg_iov[i];
-        bytesRecieved += (intmax_t)streambuffer_stream_in(
-                stream,
-                iov->iov_base,
-                iov->iov_len,
-                rwOptions
-        );
-        if (bytesRecieved < iov->iov_len) {
-            if (!(rwOptions->flags & STREAMBUFFER_NO_BLOCK)) {
-                return OS_ELINKINVAL;
+        size_t offset = 0;
+        while (offset < iov->iov_len) {
+            size_t count = streambuffer_stream_in(stream,
+                    (uint8_t*)iov->iov_base + offset, iov->iov_len - offset, &options);
+            total += count;
+            offset += count;
+            if (count) {
+                OSNotificationQueuePost(handle, IOSETCREDIT);
             }
-            break;
+            if (!count || (rwOptions->flags & (STREAMBUFFER_ALLOW_PARTIAL | STREAMBUFFER_NO_BLOCK))) {
+                if (offset < iov->iov_len) {
+                    *bytesRecievedOut = total;
+                    return total || (options.flags & STREAMBUFFER_NO_BLOCK) ? OS_EOK : OS_ELINKINVAL;
+                }
+            }
         }
     }
-    *bytesRecievedOut = bytesRecieved;
+    *bytesRecievedOut = total;
     return OS_EOK;
 }
 
@@ -806,7 +813,7 @@ __RecvMessage(
     // In case of stream sockets we simply just read as many bytes as requested
     // or available and return, unless WAITALL has been specified.
     if (socket->Type == SOCK_STREAM) {
-        return __RecvStream(stream, message, rwOptions, bytesRecievedOut);
+        return __RecvStream(handle, stream, message, rwOptions, bytesRecievedOut);
     }
 
     // Reading a packet is an atomic action and the entire packet must be read
@@ -824,6 +831,7 @@ __RecvMessage(
 
         // If we read an invalid number of bytes then something evil happened.
         streambuffer_read_packet_end(&packetCtx);
+        OSNotificationQueuePost(handle, IOSETCREDIT);
         _set_errno(EPIPE);
         return -1;
     }
@@ -883,6 +891,7 @@ __RecvMessage(
             bytes_remaining -= bytes_to_copy;
         }
         streambuffer_read_packet_end(&packetCtx);
+        OSNotificationQueuePost(handle, IOSETCREDIT);
 
         // The first special case is when there is more data available than we
         // requested, that means we simply trunc the data.
@@ -901,6 +910,7 @@ __RecvMessage(
     }
     else {
         streambuffer_read_packet_end(&packetCtx);
+        OSNotificationQueuePost(handle, IOSETCREDIT);
         for (i = 0; i < message->msg_iovlen; i++) {
             struct iovec* iov = &message->msg_iov[i];
             iov->iov_len = 0;
@@ -981,7 +991,7 @@ __SocketExport(
     // the type
     *((int*)&data8[0]) = socket->Type;
     *((uuid_t*)&data8[sizeof(int)]) = socket->Send.ID;
-    *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]) = socket->Send.ID;
+    *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]) = socket->Recv.ID;
     memcpy(
             &data8[sizeof(int) + (2 * sizeof(uuid_t))],
             &socket->ConnectedAddress,
