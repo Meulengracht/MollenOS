@@ -236,7 +236,7 @@ __InitializeIoApic(
                 Entry |= APIC_LEVEL_TRIGGER;
                 ApicWriteIoEntry(ioApic, j, Entry);
             }
-            ApicSendEoi(j, (uint32_t)(Entry & 0xFF));
+            ApicSendEoi(i, (uint32_t)(Entry & 0xFF));
         }
         ApicWriteIoEntry(ioApic, j, APIC_MASKED);
     }

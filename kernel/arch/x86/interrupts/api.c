@@ -259,15 +259,17 @@ InterruptConfigure(
     _In_ int                enable)
 {
     SystemInterruptController_t* ic = NULL;
+    int      pin;
     uint64_t apicFlags;
     uuid_t   tableIndex;
+    
     union {
         struct {
             uint32_t Lo;
             uint32_t Hi;
         } Parts;
         uint64_t Full;
-    }        ApicExisting;
+    } ApicExisting;
     
     // Debug
     TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %i)", systemInterrupt->Id, enable);
@@ -307,12 +309,12 @@ UpdateEntry:
     else {
         // If Apic Entry is located, we need to adjust
         ic = GetInterruptControllerByLine(systemInterrupt->Source);
-        if (ic != NULL) {
+        pin = GetPinOffsetByLine(systemInterrupt->Source);
+        if (ic != NULL && pin != APIC_NO_GSI) {
             if (enable == 0) {
-                ApicWriteIoEntry(ic, systemInterrupt->Source, APIC_MASKED);
-            }
-            else {
-                ApicExisting.Full = ApicReadIoEntry(ic, systemInterrupt->Source);
+                ApicWriteIoEntry(ic, pin, APIC_MASKED);
+            } else {
+                ApicExisting.Full = ApicReadIoEntry(ic, pin);
 
                 // Sanity, we can't just override the existing interrupt vector
                 // so if it's already installed, we modify the table-index
@@ -322,15 +324,13 @@ UpdateEntry:
                         FATAL(FATAL_SCOPE_KERNEL, "Table index for already installed interrupt: %" PRIuIN "",
                               tableIndex);
                     }
-                }
-                else {
+                } else {
                     // Unmask the irq in the io-apic
                     TRACE("Installing source %i => 0x%" PRIxIN "", systemInterrupt->Source, LODWORD(apicFlags));
-                    ApicWriteIoEntry(ic, systemInterrupt->Source, apicFlags);
+                    ApicWriteIoEntry(ic, pin, apicFlags);
                 }
             }
-        }
-        else {
+        } else {
             ERROR("Failed to derive io-apic for source %i", systemInterrupt->Source);
             return OS_EUNKNOWN;
         }
