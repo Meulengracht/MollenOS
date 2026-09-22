@@ -34,6 +34,10 @@ typedef struct Socket Socket_t;
 typedef struct SocketDescriptor SocketDescriptor_t;
 
 #define NETWORK_MANAGER_MONITOR_MAX_EVENTS 32
+#define NETWORK_MANAGER_SEND_BUDGET 16
+
+// Called by domains under the manager execution lock after a full receive pipe.
+void NetworkManagerSocketWaitForCredit(Socket_t* sender, Socket_t* receiver);
 
 oserr_t
 NetworkManagerInitialize(void);
@@ -100,8 +104,11 @@ NetworkManagerSocketGetAddress(
         _In_ int              Source,
         _In_ struct sockaddr* Address);
 
+// Internal domain API: caller must be inside a serialized manager operation.
+// The returned pointer (including peers) is borrowed until that operation ends.
+// Never retain it in deferred work; retain the handle and look it up again.
 Socket_t*
-NetworkManagerSocketGet(
+NetworkManagerSocketGetUnsafe(
         _In_ uuid_t Handle);
 
 #endif //!__NET_MANAGER_H__

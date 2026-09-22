@@ -25,10 +25,6 @@
 
 //#define __TRACE
 
-#include "domains.h"
-#include "../socket.h"
-#include "../validation.h"
-#include "../manager.h"
 #include <os/handle.h>
 #include <os/notification_queue.h>
 #include <os/services/net.h>
@@ -39,6 +35,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "../socket.h"
+#include "../manager.h"
+#include "domains.h"
+#include "validation.h"
 
 #include <sys_socket_service_server.h>
 
@@ -64,6 +65,8 @@ typedef struct AcceptRequest {
     struct gracht_message Response[];
 } AcceptRequest_t;
 
+// Accessed only within the manager socket execution lock, including destruction.
+// Address lookups borrow sockets for the duration of that operation.
 // TODO: should be hashtable
 static list_t AddressRegister = LIST_INIT_CMP(list_cmp_string);
 
@@ -130,7 +133,7 @@ DomainLocalGetAddress(
         } break;
         
         case SYS_ADDRESS_TYPE_PEER: {
-            Socket_t* peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
+            Socket_t* peerSocket = NetworkManagerSocketGetUnsafe(socket->Domain->ConnectedSocket);
             if (!peerSocket) {
                 return OS_ENOENT;
             }
@@ -159,7 +162,7 @@ HandleSocketStreamData(
     void*           StoredBuffer;
     TRACE("[socket] [local] [send_stream]");
     
-    TargetSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
+    TargetSocket = NetworkManagerSocketGetUnsafe(socket->Domain->ConnectedSocket);
     if (!TargetSocket) {
         TRACE("[socket] [local] [send_stream] target socket %u was not found",
             LODWORD(socket->Domain->ConnectedSocket));
@@ -173,7 +176,7 @@ HandleSocketStreamData(
         free(StoredBuffer);
         DoRead = 0;
     }
-    while (1) {
+    for (int budget = 0; budget < NETWORK_MANAGER_SEND_BUDGET; budget++) {
         if (DoRead) {
             BytesRead = streambuffer_stream_in(
                     SourceStream,
@@ -190,7 +193,7 @@ HandleSocketStreamData(
                 // This can happen if the first event or last event got out of sync
                 // we handle this by ignoring the event and just returning. Do not mark
                 // anything
-                return OS_EOK;
+                break;
             }
         }
         DoRead = 1;
@@ -215,11 +218,14 @@ HandleSocketStreamData(
             
             memcpy(StoredBuffer, &TemporaryBuffer[BytesWritten], BytesRead - BytesWritten);
             SocketSetQueuedPacket(socket, StoredBuffer, BytesRead - BytesWritten);
-            break;
+            NetworkManagerSocketWaitForCredit(socket, TargetSocket);
+            OSNotificationQueuePost(&TargetSocket->Handle, IOSETIN);
+            return OS_EOK;
         }
         
-        if (BytesRead < sizeof(TemporaryBuffer)) {
-            break;
+        if (budget + 1 == NETWORK_MANAGER_SEND_BUDGET) {
+            OSNotificationQueuePost(&TargetSocket->Handle, IOSETIN);
+            return OS_EINPROGRESS;
         }
     }
     OSNotificationQueuePost(&TargetSocket->Handle, IOSETIN);
@@ -260,7 +266,7 @@ ProcessSocketPacket(
         }
         TargetSocket = GetSocketFromAddress(Address);
     } else {
-        TargetSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
+        TargetSocket = NetworkManagerSocketGetUnsafe(Socket->Domain->ConnectedSocket);
     }
     return TargetSocket;
 }
@@ -282,7 +288,7 @@ HandleSocketPacketData(
         doRead = 0;
     }
     
-    while (1) {
+    for (int budget = 0; budget < NETWORK_MANAGER_SEND_BUDGET; budget++) {
         if (doRead) {
             bytesRead = streambuffer_read_packet_start(
                     sourceStream,
@@ -295,7 +301,7 @@ HandleSocketPacketData(
             );
             if (!bytesRead) {
                 TRACE("[socket] [local] [send_packet] no bytes read from stream");
-                break;
+                return OS_EOK;
             }
 
             // Read the entire packet in one go, then process the data. Due to possible
@@ -338,7 +344,8 @@ HandleSocketPacketData(
             if (!BytesWritten) {
                 WARNING("[socket] [local] [send_packet] ran out of space in target stream, requested %" PRIuIN, bytesRead);
                 SocketSetQueuedPacket(Socket, buffer, bytesRead);
-                break;
+                NetworkManagerSocketWaitForCredit(Socket, targetSocket);
+                return OS_EOK;
             }
             
             // Only rewrite after reserving space: queued packets must retain
@@ -357,7 +364,7 @@ HandleSocketPacketData(
         }
         free(buffer);
     }
-    return OS_EOK;
+    return OS_EINPROGRESS;
 }
 
 static oserr_t
@@ -453,10 +460,11 @@ DomainLocalBind(
 {
     char* PreviousBuffer;
     char* newAddress;
+    
+    TRACE("[domain] [local] [bind] %s", &Address->sa_data[0]);
     if (ValidateLocalAddress(Address, Address->sa_len) != OS_EOK) {
         return OS_EINVALPARAMS;
     }
-    TRACE("[domain] [local] [bind] %s", &Address->sa_data[0]);
     
     if (!Socket->Domain->Record) {
         ERROR("[domain] [local] [bind] no record");
@@ -604,6 +612,10 @@ DomainLocalConnect(
         return OS_EPROTOCOL;
     }
     
+    if (ValidateLocalAddress(address, address->sa_len) != OS_EOK) {
+        return OS_EINVALPARAMS;
+    }
+    
     if (socket->Type == SOCK_STREAM || socket->Type == SOCK_SEQPACKET) {
         return HandleLocalConnectionRequest(message, socket, target);
     }
@@ -617,7 +629,7 @@ static oserr_t
 DomainLocalDisconnect(
     _In_ Socket_t* socket)
 {
-    Socket_t* peerSocket = NetworkManagerSocketGet(socket->Domain->ConnectedSocket);
+    Socket_t* peerSocket = NetworkManagerSocketGetUnsafe(socket->Domain->ConnectedSocket);
     oserr_t   oserr      = OS_ENOTCONNECTED;
     TRACE("[domain] [local] [disconnect] %u => %u", LODWORD(socket->Header.key),
         LODWORD(socket->Domain->ConnectedSocket));
@@ -657,7 +669,7 @@ DomainLocalAccept(
         connectionRequest = element->value;
         
         // Lookup the socket handle, to check if it is still valid
-        connectSocket = NetworkManagerSocketGet(connectionRequest->SourceSocketHandle);
+        connectSocket = NetworkManagerSocketGetUnsafe(connectionRequest->SourceSocketHandle);
         if (connectSocket) {
             AcceptConnectionRequest(message, connectSocket,
                 &connectionRequest->Response[0]);

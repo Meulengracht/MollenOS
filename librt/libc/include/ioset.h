@@ -35,6 +35,8 @@ enum ioset_flags
     IOSETSYN = 0x8,  // Synchronization event
     IOSETTIM = 0x10, // Timeout event
 
+    IOSETCREDIT = 0x20, // Socket receive capacity returned (netd only)
+
     IOSETLVT = 0x1000  // Level triggered
 };
 
