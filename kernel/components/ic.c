@@ -34,10 +34,13 @@ CreateInterruptController(
         _In_ int        NumberOfInterrupts,
         _In_ uintptr_t  BaseAddress)
 {
-    // Variables
-    SystemInterruptController_t *Ic;
+    SystemInterruptController_t* Ic;
 
     Ic = (SystemInterruptController_t*)kmalloc(sizeof(SystemInterruptController_t));
+    if (Ic == NULL) {
+        return OS_EOOM;
+    }
+
     memset((void*)Ic, 0, sizeof(SystemInterruptController_t));
 
     Ic->Id                      = Id;
@@ -47,8 +50,7 @@ CreateInterruptController(
 
     if (GetMachine()->InterruptController == NULL) {
         GetMachine()->InterruptController = Ic;
-    }
-    else {
+    } else {
         SystemInterruptController_t *IcHead = GetMachine()->InterruptController;
         while (IcHead->Link != NULL) {
             IcHead = IcHead->Link;
@@ -71,6 +73,9 @@ CreateInterruptOverrides(
     GetMachine()->NumberOfOverrides = NumberOfInterruptOverrides;
     GetMachine()->Overrides         = (SystemInterruptOverride_t*)kmalloc(
         sizeof(SystemInterruptOverride_t) * NumberOfInterruptOverrides);
+    if (GetMachine()->Overrides == NULL) {
+        return OS_EOOM;
+    }
 
     // Set them unused
     for (i = 0; i < NumberOfInterruptOverrides; i++) {

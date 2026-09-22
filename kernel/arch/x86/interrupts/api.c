@@ -224,12 +224,12 @@ InterruptResolve(
         // Fill in MSI data
         // MSI Message Address Register (0xFEE00000 LAPIC)
         // Bits 31-20: Must be 0xFEE
-        // Bits 19-11: Destination ID
+        // Bits 19-12: Destination ID
         // Bits 11-04: Reserved
         // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
         // Bit      2: Destination Mode (1 Logical, 0 Physical)
         // Bits 00-01: X
-        deviceInterrupt->MsiAddress = 0xFEE00000 | (0x0007F0000) | 0x8 | 0x4;
+        deviceInterrupt->MsiAddress = 0xFEE00000 | (0x0007F000) | 0x8 | 0x4;
 
         // Message Data Register Format
         // Bits 31-16: Reserved

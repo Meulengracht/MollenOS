@@ -47,9 +47,11 @@
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 #define __get_cpuid(Function, Registers) __cpuid(Registers, Function);
+#define __get_cpuid_subleaf(Function, Subleaf, Registers) __cpuidex(Registers, Function, Subleaf);
 #else
 #include <cpuid.h>
 #define __get_cpuid(Function, Registers) __cpuid(Function, (Registers)[0], (Registers)[1], (Registers)[2], (Registers)[3]);
+#define __get_cpuid_subleaf(Function, Subleaf, Registers) __cpuid_count(Function, Subleaf, (Registers)[0], (Registers)[1], (Registers)[2], (Registers)[3]);
 #endif
 #define isspace(c) (((c) >= 0x09 && (c) <= 0x0D) || ((c) == 0x20))
 
@@ -140,6 +142,14 @@ ArchPlatformInitialize(
         if (cpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
             cpu->NumberOfCores = (int)((cpuRegisters[1] >> 16) & 0xFF);
             core->Id           = (cpuRegisters[1] >> 24) & 0xFF;
+        }
+
+        // CPUID.0B:EDX is the full x2APIC ID. The legacy CPUID.01 ID is
+        // only eight bits wide and must not be used when x2APIC is present.
+        if ((cpu->PlatformData.EcxFeatures & CPUID_FEAT_ECX_x2APIC) &&
+            cpu->PlatformData.MaxLevel >= 0xB) {
+            __get_cpuid_subleaf(0xB, 0, cpuRegisters);
+            core->Id = cpuRegisters[3];
         }
         
         // This can be reported as 0, which means we assume a single cpu
@@ -277,7 +287,9 @@ uuid_t
 ArchGetProcessorCoreId(void)
 {
     if (ApicIsInitialized() == OS_EOK) {
-        return (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+        return ApicIsX2Apic()
+            ? ApicReadLocal(APIC_PROCESSOR_ID)
+            : ((ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF);
     }
 
     // If the local apic is not initialized this is single-core old system

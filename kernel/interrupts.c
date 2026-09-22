@@ -88,6 +88,7 @@ InterruptReclaimRetired(void)
 {
     SystemInterrupt_t* retired;
     SystemInterrupt_t* next;
+    SystemInterrupt_t* reclaimable = NULL;
 
     // Never reclaim an entry while an interrupt handler can still reference it.
     if (atomic_load(&g_interruptReaders) != 0) {
@@ -100,19 +101,33 @@ InterruptReclaimRetired(void)
         return;
     }
 
+    // Keep descriptors with an outstanding InterruptGet() reference on the
+    // retired list. They are no longer dispatchable, but their storage and
+    // user mapping must remain valid until the reference is released.
     retired = g_retiredInterrupts;
     g_retiredInterrupts = NULL;
-    SpinlockReleaseIrq(&g_interruptTableLock);
-
     while (retired != NULL) {
         next = retired->RetiredLink;
-        if (retired->Owner != UUID_INVALID) {
-            if (InterruptReleaseResources(retired) != OS_EOK) {
+        if (atomic_load(&retired->References) == 0) {
+            retired->RetiredLink = reclaimable;
+            reclaimable = retired;
+        } else {
+            retired->RetiredLink = g_retiredInterrupts;
+            g_retiredInterrupts = retired;
+        }
+        retired = next;
+    }
+    SpinlockReleaseIrq(&g_interruptTableLock);
+
+    while (reclaimable != NULL) {
+        next = reclaimable->RetiredLink;
+        if (reclaimable->Owner != UUID_INVALID) {
+            if (InterruptReleaseResources(reclaimable) != OS_EOK) {
                 ERROR(" > failed to cleanup interrupt resources");
             }
         }
-        kfree(retired);
-        retired = next;
+        kfree(reclaimable);
+        reclaimable = next;
     }
 }
 
@@ -449,6 +464,7 @@ InterruptRegister(
     // TODO: change this to use handle system
     id = atomic_fetch_add(&g_nextInterruptId, 1);
     memset((void*)systemInterrupt, 0, sizeof(SystemInterrupt_t));
+    atomic_init(&systemInterrupt->References, 0);
 
     systemInterrupt->Id           = (id << 16U);
     systemInterrupt->Owner        = UUID_INVALID;
@@ -620,14 +636,34 @@ InterruptGet(
     SystemInterrupt_t* Iterator;
     uint16_t           TableIndex = LOWORD(Source);
 
+    if (TableIndex >= MAX_SUPPORTED_INTERRUPTS) {
+        return NULL;
+    }
+
+    SpinlockAcquireIrq(&g_interruptTableLock);
     Iterator = atomic_load(&g_interruptTable[TableIndex].Descriptor);
     while (Iterator != NULL) {
         if (Iterator->Id == Source) {
+            atomic_fetch_add(&Iterator->References, 1);
+            SpinlockReleaseIrq(&g_interruptTableLock);
             return Iterator;
         }
         Iterator = atomic_load(&Iterator->Link);
     }
+    SpinlockReleaseIrq(&g_interruptTableLock);
     return NULL;
+}
+
+void
+InterruptPut(
+        _In_ SystemInterrupt_t* Interrupt)
+{
+    if (Interrupt == NULL) {
+        return;
+    }
+
+    atomic_fetch_sub(&Interrupt->References, 1);
+    InterruptReclaimRetired();
 }
 
 void

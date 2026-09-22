@@ -336,9 +336,13 @@ __PrepareApic(
 
     ApicWriteLocal(APIC_PERF_MONITOR, APIC_NMI_ROUTE);
 
-    // Set the destination to flat and compute a logical index
-    ApicWriteLocal(APIC_DEST_FORMAT,  0xFFFFFFFF);
-    ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(coreId)));
+    // x2APIC uses cluster-format logical destinations and does not use DFR.
+    if (ApicIsX2Apic()) {
+        ApicWriteLocal(APIC_LOGICAL_DEST, ApicComputeLogicalDestination(coreId));
+    } else {
+        ApicWriteLocal(APIC_DEST_FORMAT,  0xFFFFFFFF);
+        ApicWriteLocal(APIC_LOGICAL_DEST, APIC_DESTINATION(ApicComputeLogicalDestination(coreId)));
+    }
     ApicSetTaskPriority(0);
 
     // Last thing is clear status and interrupt registers
@@ -438,25 +442,32 @@ ApicInitialize(void)
         originalApAddress = (uintptr_t)Value;
     }
 
-    // Perform the remap
-    TRACE("ApicInitialize local apic at 0x%" PRIxIN "", originalApAddress);
-    oserr = MemorySpaceMap(
-            GetCurrentMemorySpace(),
-            &(struct MemorySpaceMapOptions) {
-                .Pages = &originalApAddress,
-                .Length = GetMemorySpacePageSize(),
-                .Mask = MEMORY_MASK_32BIT,
-                .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-                .PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
-            },
-            &remappedApAddress
-    );
-    if (oserr != OS_EOK) {
-        ERROR("ApicInitialize cannot map the local apic");
-        return;
+    /* x2APIC replaces the local APIC MMIO window with MSRs. Select it before
+     * touching any local APIC register, or the first ID read truncates it. */
+    if (ApicEnableX2Apic()) {
+        g_interruptMode = InterruptMode_APICX2;
+        g_localApicBaseAddress = 1; /* initialized, but deliberately not mapped */
+    } else {
+        TRACE("ApicInitialize local apic at 0x%" PRIxIN "", originalApAddress);
+        oserr = MemorySpaceMap(
+                GetCurrentMemorySpace(),
+                &(struct MemorySpaceMapOptions) {
+                    .Pages = &originalApAddress,
+                    .Length = GetMemorySpacePageSize(),
+                    .Mask = MEMORY_MASK_32BIT,
+                    .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                    .PlacementFlags = MAPPING_VIRTUAL_GLOBAL | MAPPING_PHYSICAL_FIXED
+                },
+                &remappedApAddress
+        );
+        if (oserr != OS_EOK) {
+            ERROR("ApicInitialize cannot map the local apic");
+            return;
+        }
+        g_localApicBaseAddress = remappedApAddress + (originalApAddress & 0xFFF);
+        g_interruptMode = InterruptMode_APIC;
     }
-    g_localApicBaseAddress = remappedApAddress + (originalApAddress & 0xFFF);
-    bspApicId              = (ApicReadLocal(APIC_PROCESSOR_ID) >> 24) & 0xFF;
+    bspApicId = ApicReadLocal(APIC_PROCESSOR_ID);
     TRACE("ApicInitialize local bsp id %u", bspApicId);
 
     // Initialize and enable the local apic for the processor
@@ -478,11 +489,14 @@ ApicInitialize(void)
     TRACE("ApicInitialize initializing interrupt controllers");
     ic = GetMachine()->InterruptController;
     if (ic) {
-        g_interruptMode = InterruptMode_APIC;
         while (ic) {
             __InitializeIoApic(ic);
             ic = ic->Link;
         }
+    } else {
+        /* Keep the historical PIC fallback when no I/O APIC exists. Local
+         * APIC register access remains x2APIC MSR based in this case. */
+        g_interruptMode = InterruptMode_PIC;
     }
 
     // We can now enable the interrupts, as 

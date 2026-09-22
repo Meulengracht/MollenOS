@@ -269,8 +269,14 @@ __EnumerateSystemCoresMADT(
             case ACPI_MADT_TYPE_LOCAL_X2APIC: {
                 ACPI_MADT_LOCAL_X2APIC *AcpiCpu = (ACPI_MADT_LOCAL_X2APIC*)MadtEntry;
                 if (AcpiCpu->LapicFlags & 0x1) {
-                    TRACE(" > core %u available for xapic2", AcpiCpu->LocalApicId);
-                    TODO("missing support for X2 apics");
+                    CoreCount++;
+                    if (RegisterCores) {
+                        uuid_t ApicId = AcpiCpu->LocalApicId;
+                        TRACE(" > core %u available for x2apic", ApicId);
+                        if (ApicId != CpuCoreId(GetMachine()->Processor.Cores)) {
+                            CpuCoreRegister(&GetMachine()->Processor, ApicId, CpuStateShutdown, 0);
+                        }
+                    }
                 }
             } break;
 

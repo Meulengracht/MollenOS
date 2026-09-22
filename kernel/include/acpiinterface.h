@@ -114,9 +114,20 @@ typedef struct AcpiRoutingEntry {
     AcpiInterruptSource_t* InterruptSource;
 } AcpiRoutingEntry_t;
 
+// Maximum number of entries stored in an ACPI PCI routing table.
+#define ACPI_PRT_ENTRY_COUNT 128
+
+// Number of interrupt pins represented for each PCI device in a _PRT.
+#define ACPI_PRT_PIN_COUNT   4
+
+// Maximum PCI device number representable by the fixed-size routing table.
+#define ACPI_PRT_DEVICE_COUNT (ACPI_PRT_ENTRY_COUNT / ACPI_PRT_PIN_COUNT)
+
 typedef struct AcpiBusRoutings {
     list_t             Sources; // list of AcpiInterruptSource_t
-    AcpiRoutingEntry_t InterruptEntries[128]; // list of PciRoutingEntry_t
+    // Entries are indexed as (device * ACPI_PRT_PIN_COUNT) + pin. _PRT pins
+    // are zero-based, while AcpiDeviceGetInterrupt pins are one-based.
+    AcpiRoutingEntry_t InterruptEntries[ACPI_PRT_ENTRY_COUNT];
 } AcpiBusRoutings_t;
 
 /**
