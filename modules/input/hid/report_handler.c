@@ -154,7 +154,16 @@ static void __HandleInputUsageGenericPc(
             // If the value is absolute, we want to
             // make sure we calculate the relative
             if (context->InputItem->Flags == REPORT_INPUT_TYPE_ABSOLUTE) {
-                relativeValue = (int64_t)value - (int64_t)oldValue;
+                // Negative logical ranges are encoded as signed values, so both
+                // sides must be sign-extended before subtracting, otherwise a
+                // crossing of the sign boundary produces a bogus large delta.
+                if (context->CollectionItem->Stats.LogicalMin < 0) {
+                    relativeValue = __SignExtend(value, numberOfValueBits) -
+                                    __SignExtend(oldValue, numberOfValueBits);
+                }
+                else {
+                    relativeValue = (int64_t)value - (int64_t)oldValue;
+                }
             }
             else {
                 relativeValue = __SignExtend(value, numberOfValueBits);
@@ -301,7 +310,16 @@ static void __HandleInputItem(
                         if (usage < 1 || usage > 8) {
                             break;
                         }
-                        uint8_t button = (uint8_t)(VK_LBUTTON + usage - 1);
+                        uint8_t button;
+                        if (usage == 1) {
+                            button = VK_LBUTTON;
+                        } else if (usage == 2) {
+                            button = VK_RBUTTON;
+                        } else if (usage == 3) {
+                            button = VK_MBUTTON;
+                        } else {
+                            button = (uint8_t)(VK_RBUTTON + usage - 2);
+                        }
                         uint16_t modifiers = value ? 0 : VK_MODIFIER_RELEASED;
                         ctt_input_event_button_event_all(__crt_get_module_server(),
                             hidDevice->Base->Base.Id, button, modifiers);

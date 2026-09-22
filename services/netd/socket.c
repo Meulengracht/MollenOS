@@ -96,6 +96,10 @@ SocketCreateImpl(
     TRACE("[net_manager] [socket_create_impl] %i, %i, %i", 
         Domain, Type, Protocol);
 
+    if (Type < SOCK_STREAM || Type > SOCK_SEQPACKET) {
+        return OS_EINVALPARAMS;
+    }
+
     socket = malloc(sizeof(Socket_t));
     if (!socket) {
         return OS_EOOM;
@@ -108,21 +112,28 @@ SocketCreateImpl(
     socket->Protocol            = Protocol;
     SetDefaultConfiguration(&socket->Configuration);
     
-    mtx_init(&socket->SyncObject, mtx_plain);
+    if (mtx_init(&socket->SyncObject, mtx_plain) != thrd_success) {
+        free(socket);
+        return OS_EOOM;
+    }
     queue_construct(&socket->ConnectionRequests);
     queue_construct(&socket->AcceptRequests);
 
     oserr = OSHandleCreate(OSHANDLE_NULL, NULL, &osHandle);
     if (oserr != OS_EOK) {
         ERROR("Failed to create socket handle");
+        mtx_destroy(&socket->SyncObject);
+        free(socket);
         return oserr;
     }
+    socket->Handle = osHandle;
     RB_LEAF_INIT(&socket->Header, osHandle.ID, socket);
 
     oserr = DomainCreate(Domain, &socket->Domain);
     if (oserr != OS_EOK) {
         ERROR("Failed to initialize the socket domain");
         OSHandleDestroy(&osHandle);
+        mtx_destroy(&socket->SyncObject);
         free(socket);
         return oserr;
     }
@@ -132,6 +143,7 @@ SocketCreateImpl(
         ERROR("Failed to initialize the socket domain address");
         DomainDestroy(socket->Domain);
         OSHandleDestroy(&osHandle);
+        mtx_destroy(&socket->SyncObject);
         free(socket);
         return oserr;
     }
@@ -141,6 +153,7 @@ SocketCreateImpl(
         ERROR("Failed to initialize the socket receive pipe");
         DomainDestroy(socket->Domain);
         OSHandleDestroy(&osHandle);
+        mtx_destroy(&socket->SyncObject);
         free(socket);
         return oserr;
     }
@@ -151,6 +164,7 @@ SocketCreateImpl(
         DomainDestroy(socket->Domain);
         __SocketPipeDestroy(&socket->Receive);
         OSHandleDestroy(&osHandle);
+        mtx_destroy(&socket->SyncObject);
         free(socket);
         return oserr;
     }
@@ -170,7 +184,9 @@ SocketShutdownImpl(
             DomainDisconnect(Socket);
         }
         
+        mtx_unlock(&Socket->SyncObject);
         mtx_destroy(&Socket->SyncObject);
+        free(Socket->QueuedPacket.Data);
         DomainDestroy(Socket->Domain);
         __SocketPipeDestroy(&Socket->Receive);
         __SocketPipeDestroy(&Socket->Send);

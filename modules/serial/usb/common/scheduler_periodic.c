@@ -84,11 +84,14 @@ UsbSchedulerCalculateBandwidth(
     // Keep the bandwidth calculation in the common scheduler so all HCI
     // implementations use the same USB timing model. EHCI only changes how
     // the resulting cost is distributed across start and complete slots.
-    return (size_t)__CalculateBandwidth(
+    return (size_t)NS_TO_US(
+        __CalculateBandwidth(
             speed,
             direction,
             transferType,
-            bytesToTransfer);
+            bytesToTransfer
+        )
+    );
 }
 
 oserr_t
@@ -97,6 +100,8 @@ UsbSchedulerAllocateSplitBandwidth(
     _In_  uint8_t         interval,
     _In_  size_t          startBandwidth,
     _In_  size_t          completeBandwidth,
+    _In_  uint8_t         startSplitCount,
+    _In_  bool            needsCompleteSplit,
     _In_  uint8_t*        element,
     _Out_ uint8_t*        startMaskOut,
     _Out_ uint8_t*        completeMaskOut,
@@ -107,23 +112,24 @@ UsbSchedulerAllocateSplitBandwidth(
     // reservation is made under one lock and committed only after every
     // occurrence of the periodic interval fits.
     UsbPeriodicScheduler_t* periodic = UsbSchedulerGetPeriodicScheduler(scheduler);
-    UsbSchedulerObject_t* object;
-    UsbSchedulerPool_t* pool;
-    uint8_t startMask = 0;
-    uint8_t completeMask = 0;
-    uint8_t completionOffset = 0;
-    size_t frame;
-    size_t selectedFrame = 0;
-    size_t frameCount = periodic->Settings->FrameCount;
-    size_t subframeCount = periodic->Settings->SubframeCount;
-    size_t frameInterval = MAX(1, interval);
-    bool found = false;
+    UsbSchedulerObject_t*   object;
+    UsbSchedulerPool_t*     pool;
+    uint8_t                 startMask = 0;
+    uint8_t                 completeMask = 0;
+    uint8_t                 completionOffset = 0;
+    size_t                  frame;
+    size_t                  selectedFrame = 0;
+    size_t                  frameCount = periodic->Settings->FrameCount;
+    size_t                  subframeCount = periodic->Settings->SubframeCount;
+    size_t                  frameInterval = MAX(1, interval);
+    bool                    found = false;
 
     // The common scheduler currently models eight microframes per frame. Do
     // not silently truncate masks if a controller is configured differently.
     if ((periodic->Settings->Flags & USB_SCHEDULER_PERIODIC) == 0 ||
         subframeCount < 2 || subframeCount > 8 || startMaskOut == NULL ||
-        completeMaskOut == NULL || completionFrameOffsetOut == NULL) {
+        completeMaskOut == NULL || completionFrameOffsetOut == NULL ||
+        startSplitCount == 0 || startSplitCount > subframeCount) {
         return OS_ENOTSUPPORTED;
     }
     if (UsbTransferArenaGetPoolFromElement(
@@ -137,17 +143,28 @@ UsbSchedulerAllocateSplitBandwidth(
     // races with another periodic transfer being queued concurrently.
     spinlock_acquire(&scheduler->Lock);
     for (frame = 0; frame < frameCount && !found; frame++) {
-        for (uint8_t start = 0; start < subframeCount && !found; start++) {
+        // OUT splits reserve startSplitCount consecutive start microframes
+        // and never a complete-split, so the run must fit inside this frame.
+        for (uint8_t start = 0; (start + startSplitCount) <= subframeCount && !found; start++) {
+            uint8_t startRun = 0;
             uint8_t complete = 0;
             uint8_t candidateCompletionOffset = 0;
 
-            for (uint8_t candidate = (uint8_t)(start + 2); candidate < subframeCount; candidate++) {
-                complete |= (uint8_t)(1u << candidate);
+            for (uint8_t bit = 0; bit < startSplitCount; bit++) {
+                startRun |= (uint8_t)(1u << (start + bit));
             }
-            if (complete == 0) {
-                candidateCompletionOffset = 1;
-                for (uint8_t candidate = 0; candidate < subframeCount && candidate < 3; candidate++) {
+
+            if (needsCompleteSplit) {
+                for (uint8_t candidate = (uint8_t)(start + startSplitCount + 1); candidate < subframeCount; candidate++) {
                     complete |= (uint8_t)(1u << candidate);
+                }
+                // The siTD links only in its start frame and its C-mask is read
+                // against that same frame, so a completion window that spills
+                // into the next frame would require an FSTN, which is not
+                // supported here. Reject the start position instead of handing
+                // back a schedule the hardware cannot honor.
+                if (complete == 0) {
+                    continue;
                 }
             }
 
@@ -158,15 +175,22 @@ UsbSchedulerAllocateSplitBandwidth(
                     (candidateCompletionOffset * subframeCount);
                 size_t completeFrame = (completeSlot / subframeCount) % frameCount;
                 size_t completeBase = completeFrame * subframeCount;
-                if (periodic->Bandwidth[startBase + start] + startBandwidth > periodic->Settings->MaxBandwidthPerFrame) {
-                    available = false;
-                    break;
-                }
-                for (uint8_t candidate = 0; candidate < subframeCount; candidate++) {
-                    if ((complete & (1u << candidate)) &&
-                        periodic->Bandwidth[completeBase + candidate] + completeBandwidth > periodic->Settings->MaxBandwidthPerFrame) {
+                for (uint8_t bit = 0; bit < startSplitCount; bit++) {
+                    if (periodic->Bandwidth[startBase + start + bit] + startBandwidth > periodic->Settings->MaxBandwidthPerFrame) {
                         available = false;
                         break;
+                    }
+                }
+                if (!available) {
+                    break;
+                }
+                if (needsCompleteSplit) {
+                    for (uint8_t candidate = 0; candidate < subframeCount; candidate++) {
+                        if ((complete & (1u << candidate)) &&
+                            periodic->Bandwidth[completeBase + candidate] + completeBandwidth > periodic->Settings->MaxBandwidthPerFrame) {
+                            available = false;
+                            break;
+                        }
                     }
                 }
                 if (!available) {
@@ -185,14 +209,18 @@ UsbSchedulerAllocateSplitBandwidth(
                     (candidateCompletionOffset * subframeCount);
                 size_t completeFrame = (completeSlot / subframeCount) % frameCount;
                 size_t completeBase = completeFrame * subframeCount;
-                periodic->Bandwidth[startBase + start] += startBandwidth;
-                for (uint8_t candidate = 0; candidate < subframeCount; candidate++) {
-                    if (complete & (1u << candidate)) {
-                        periodic->Bandwidth[completeBase + candidate] += completeBandwidth;
+                for (uint8_t bit = 0; bit < startSplitCount; bit++) {
+                    periodic->Bandwidth[startBase + start + bit] += startBandwidth;
+                }
+                if (needsCompleteSplit) {
+                    for (uint8_t candidate = 0; candidate < subframeCount; candidate++) {
+                        if (complete & (1u << candidate)) {
+                            periodic->Bandwidth[completeBase + candidate] += completeBandwidth;
+                        }
                     }
                 }
             }
-            startMask = (uint8_t)(1u << start);
+            startMask = startRun;
             completeMask = complete;
             completionOffset = candidateCompletionOffset;
             selectedFrame = frame;
@@ -232,8 +260,8 @@ UsbSchedulerFreeSplitBandwidth(
     // allocation call. This function is used before descriptor-pool cleanup,
     // so no hardware link should remain to the element being released.
     UsbPeriodicScheduler_t* periodic = UsbSchedulerGetPeriodicScheduler(scheduler);
-    UsbSchedulerPool_t* pool = NULL;
-    UsbSchedulerObject_t* object;
+    UsbSchedulerPool_t*     pool = NULL;
+    UsbSchedulerObject_t*   object;
 
     if (UsbTransferArenaGetPoolFromElement(
             UsbSchedulerGetTransferArena(scheduler), (uint8_t*)element, &pool) != OS_EOK) {
@@ -244,21 +272,25 @@ UsbSchedulerFreeSplitBandwidth(
     for (size_t occurrence = object->StartFrame;
          occurrence < periodic->Settings->FrameCount;
          occurrence += object->FrameInterval) {
-        size_t startBase = occurrence * periodic->Settings->SubframeCount;
+        size_t  startBase = occurrence * periodic->Settings->SubframeCount;
         uint8_t startSubframe = 0;
-        size_t completeSlot;
-        size_t completeFrame;
-        size_t completeBase;
-        // The start mask is expected to contain one bit. Find it defensively
-        // so malformed metadata cannot index outside the microframe array.
+        size_t  completeSlot;
+        size_t  completeFrame;
+        size_t  completeBase;
+        
+        // The start mask may contain several consecutive bits for OUT splits.
+        // Only the first is needed to locate the (possibly unused) complete
+        // window, so find it defensively rather than indexing out of range.
         while (startSubframe < periodic->Settings->SubframeCount &&
                !(startMask & (1u << startSubframe))) {
             startSubframe++;
         }
+        
         completeSlot = occurrence * periodic->Settings->SubframeCount + startSubframe +
             (completionFrameOffset * periodic->Settings->SubframeCount);
         completeFrame = (completeSlot / periodic->Settings->SubframeCount) % periodic->Settings->FrameCount;
         completeBase = completeFrame * periodic->Settings->SubframeCount;
+        
         for (uint8_t subframe = 0; subframe < periodic->Settings->SubframeCount; subframe++) {
             if (startMask & (1u << subframe)) {
                 periodic->Bandwidth[startBase + subframe] -= MIN(startBandwidth, periodic->Bandwidth[startBase + subframe]);
@@ -634,15 +666,15 @@ UsbSchedulerAllocateBandwidth(
     _In_ uint8_t*        element)
 {
     return UsbPeriodicSchedulerAllocateBandwidth(
-            UsbSchedulerGetTransferArena(scheduler),
-            UsbSchedulerGetPeriodicScheduler(scheduler),
-            interval,
-            mps,
-            transactionType,
-            bytesToTransfer,
-            transferType,
-            speed,
-            element
+        UsbSchedulerGetTransferArena(scheduler),
+        UsbSchedulerGetPeriodicScheduler(scheduler),
+        interval,
+        mps,
+        transactionType,
+        bytesToTransfer,
+        transferType,
+        speed,
+        element
     );
 }
 
@@ -653,10 +685,10 @@ UsbSchedulerLinkPeriodicElement(
     _In_ uint8_t*        Element)
 {
     return UsbPeriodicSchedulerLinkElement(
-            UsbSchedulerGetTransferArena(Scheduler),
-            UsbSchedulerGetPeriodicScheduler(Scheduler),
-            ElementPool,
-            Element
+        UsbSchedulerGetTransferArena(Scheduler),
+        UsbSchedulerGetPeriodicScheduler(Scheduler),
+        ElementPool,
+        Element
     );
 }
 
@@ -667,10 +699,10 @@ UsbSchedulerUnlinkPeriodicElement(
     _In_ uint8_t*        Element)
 {
     UsbPeriodicSchedulerUnlinkElement(
-            UsbSchedulerGetTransferArena(Scheduler),
-            UsbSchedulerGetPeriodicScheduler(Scheduler),
-            ElementPool,
-            Element
+        UsbSchedulerGetTransferArena(Scheduler),
+        UsbSchedulerGetPeriodicScheduler(Scheduler),
+        ElementPool,
+        Element
     );
 }
 
@@ -697,5 +729,8 @@ UsbSchedulerFreeElement(
                 element
         );
     }
-    UsbTransferArenaFreeElement(UsbSchedulerGetTransferArena(usbScheduler), element);
+    UsbTransferArenaFreeElement(
+        UsbSchedulerGetTransferArena(usbScheduler),
+        element
+    );
 }

@@ -95,7 +95,7 @@ __SocketAttachPipes(
         return oserr;
     }
 
-    oserr = SHMAttach(socket->Recv.ID, &socket->Recv);
+    oserr = SHMAttach(socket->Send.ID, &socket->Send);
     if (oserr != OS_EOK) {
         OSHandleDestroy(&socket->Recv);
         socket->Recv.ID = UUID_INVALID;
@@ -136,19 +136,22 @@ OSSocketOpen(
     }
 
     oserr = __SocketAttachPipes(socket);
-    if (socket == NULL) {
+    if (oserr != OS_EOK) {
         __SocketClose(handleID);
+        free(socket);
         return oserr;
     }
 
     oserr = OSHandleWrap(
             handleID,
             OSHANDLE_SOCKET,
-            NULL,
+            socket,
             true,
             handleOut
     );
     if (oserr != OS_EOK) {
+        OSHandleDestroy(&socket->Send);
+        OSHandleDestroy(&socket->Recv);
         __SocketClose(handleID);
         free(socket);
         return oserr;
@@ -179,12 +182,17 @@ OSSocketAccept(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           source, *accepted;
+    struct sockaddr_storage peerAddress = {0};
     uuid_t                   handleID;
     uuid_t                   send_handle;
     uuid_t                   recv_handle;
     oserr_t                  oserr;
 
     if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (address != NULL && addressLength == NULL) {
         return OS_EINVALPARAMS;
     }
 
@@ -205,14 +213,14 @@ OSSocketAccept(
             GetGrachtClient(),
             &msg.base,
             &oserr,
-            (uint8_t*)address,
-            *addressLength,
+            (uint8_t*)&peerAddress,
+            sizeof(peerAddress),
             &handleID,
             &recv_handle,
             &send_handle
     );
     if (oserr != OS_EOK) {
-        return OsErrToErrNo(oserr);
+        return oserr;
     }
 
     accepted = __SocketNew(0, source->Type, 0, send_handle, recv_handle);
@@ -222,24 +230,30 @@ OSSocketAccept(
     }
 
     oserr = __SocketAttachPipes(accepted);
-    if (accepted == NULL) {
+    if (oserr != OS_EOK) {
         __SocketClose(handleID);
+        free(accepted);
         return oserr;
     }
 
     oserr = OSHandleWrap(
             handleID,
             OSHANDLE_SOCKET,
-            NULL,
+            accepted,
             true,
             handleOut
     );
     if (oserr != OS_EOK) {
+        OSHandleDestroy(&accepted->Send);
+        OSHandleDestroy(&accepted->Recv);
         __SocketClose(handleID);
         free(accepted);
         return oserr;
     }
-    *addressLength = (socklen_t)(uint32_t)address->sa_len;
+    if (address != NULL) {
+        memcpy(address, &peerAddress, MIN(*addressLength, peerAddress.__ss_len));
+        *addressLength = peerAddress.__ss_len;
+    }
     return OS_EOK;
 }
 
@@ -1016,4 +1030,5 @@ __SocketDestroy(struct OSHandle* handle)
     OSHandleDestroy(&socket->Send);
     OSHandleDestroy(&socket->Recv);
     __SocketClose(handle->ID);
+    free(socket);
 }

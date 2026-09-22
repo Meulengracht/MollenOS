@@ -50,10 +50,15 @@ static void test_mouse_descriptor(void** state)
 static void test_truncated_descriptor_is_rejected(void** state)
 {
     HidDevice_t device = create_device();
-    const uint8_t descriptor[] = { 0x05, 0x01, 0x09 };
+    const uint8_t descriptor[] = {
+        0x05, 0x01, 0x09, 0x02, 0xA1, 0x01,
+        0x75, 0x08, 0x95, 0x01, 0x81, 0x02, 0xC0,
+        0x09
+    };
     (void)state;
 
     assert_int_equal(HidParseReportDescriptor(&device, descriptor, sizeof(descriptor)), 0);
+    assert_null(device.Collection);
     destroy_collection(&device);
 }
 

@@ -57,6 +57,7 @@ int socket(int domain, int type, int protocol)
         OSHandleDestroy(&osHandle);
         return status;
     }
+    stdio_handle_set_handle(handle, &osHandle);
     return stdio_handle_iod(handle);
 }
 

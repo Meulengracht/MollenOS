@@ -16,6 +16,7 @@
  */
 
 #include <errno.h>
+#include <inet/socket.h>
 #include <internal/_io.h>
 #include <os/mollenos.h>
 #include <os/services/net.h>

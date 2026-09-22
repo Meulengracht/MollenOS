@@ -25,13 +25,14 @@
 
 //#define __TRACE
 
-#include <assert.h>
+#include <internal/_tls.h>
 #include <os/notification_queue.h>
 #include <ddk/utils.h>
 #include "domains/domains.h"
 #include <inet/local.h>
 #include "manager.h"
 #include "socket.h"
+#include "validation.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -121,6 +122,12 @@ SocketMonitor(
     }
     
     for (;;) {
+        OSAsyncContext_t* asyncContext = __tls_current()->async_context;
+        if (asyncContext) {
+            OSAsyncContextInitialize(asyncContext);
+        }
+        
+        EventCount = 0;
         oserr = OSNotificationQueueWait(
                 &g_socketSet,
                 Events,
@@ -128,7 +135,7 @@ SocketMonitor(
                 0,
                 NULL,
                 &EventCount,
-                NULL
+                asyncContext
         );
         if (oserr != OS_EOK && oserr != OS_EINTERRUPTED) {
             ERROR("[socket_monitor] OSNotificationQueueWait FAILED: %u", oserr);
@@ -222,8 +229,8 @@ NetworkManagerSocketCreate(
             &g_socketSet, IOSET_ADD,
             &socket->Handle, &event);
     if (oserr != OS_EOK) {
-        // what the fuck TODO
-        assert(0);
+        SocketShutdownImpl(socket, SYS_CLOSE_OPTIONS_DESTROY);
+        return oserr;
     }
     
     rb_tree_append(&g_sockets, &socket->Header);
@@ -236,7 +243,7 @@ NetworkManagerSocketCreate(
 
 void sys_socket_create_invocation(struct gracht_message* message, const int domain, const int type, const int protocol)
 {
-    uuid_t     handle, recv_handle, send_handle;
+    uuid_t handle = UUID_INVALID, recv_handle = UUID_INVALID, send_handle = UUID_INVALID;
     oserr_t status = NetworkManagerSocketCreate(domain, type, protocol,
                                                 &handle, &recv_handle, &send_handle);
     sys_socket_create_response(message, status, handle, recv_handle, send_handle);
@@ -315,7 +322,10 @@ NetworkManagerSocketBind(
 void sys_socket_bind_invocation(struct gracht_message* message, const uuid_t handle,
         const uint8_t* address, const uint32_t address_count)
 {
-    oserr_t status = NetworkManagerSocketBind(handle, (const struct sockaddr*)address);
+    oserr_t status = ValidateLocalAddress(address, address_count);
+    if (status == OS_EOK) {
+        status = NetworkManagerSocketBind(handle, (const struct sockaddr*)address);
+    }
     sys_socket_bind_response(message, status);
 }
 
@@ -372,7 +382,10 @@ NetworkManagerSocketConnect(
 void sys_socket_connect_invocation(struct gracht_message* message, const uuid_t handle,
         const uint8_t* address, const uint32_t address_count)
 {
-    oserr_t status = NetworkManagerSocketConnect(message, handle, (const struct sockaddr*)address);
+    oserr_t status = ValidateLocalAddress(address, address_count);
+    if (status == OS_EOK) {
+        status = NetworkManagerSocketConnect(message, handle, (const struct sockaddr*)address);
+    }
     if (status != OS_EOK) {
         sys_socket_connect_response(message, status);
     }
@@ -509,7 +522,10 @@ NetworkManagerSocketSetOption(
 void sys_socket_set_option_invocation(struct gracht_message* message, const uuid_t handle, const int protocol,
                                       const unsigned int option, const uint8_t* data, const uint32_t data_count, const int length)
 {
-    oserr_t status = NetworkManagerSocketSetOption(handle, protocol, option, data, length);
+    oserr_t status = OS_EINVALPARAMS;
+    if (length >= 0 && (uint32_t)length == data_count) {
+        status = NetworkManagerSocketSetOption(handle, protocol, option, data, length);
+    }
     sys_socket_set_option_response(message, status);
 }
 
@@ -533,10 +549,16 @@ NetworkManagerSocketGetOption(
 void sys_socket_get_option_invocation(struct gracht_message* message, const uuid_t handle,
         const int protocol, const unsigned int option)
 {
-    char       buffer[32];
-    socklen_t  length;
+    char       buffer[32] = {0};
+    socklen_t  length = 0;
     oserr_t status = NetworkManagerSocketGetOption(handle, protocol, option, &buffer[0], &length);
-    sys_socket_get_option_response(message, status, (uint8_t*)&buffer[0], (size_t)length, (int)length);
+    if (status != OS_EOK || length > sizeof(buffer)) {
+        if (status == OS_EOK) {
+            status = OS_EINVALPARAMS;
+        }
+        length = 0;
+    }
+    sys_socket_get_option_response(message, status, (uint8_t*)&buffer[0], length, (int)length);
 }
 
 oserr_t
@@ -557,9 +579,10 @@ NetworkManagerSocketGetAddress(
 void sys_socket_get_address_invocation(struct gracht_message* message,
                                        const uuid_t handle, const enum sys_address_type type)
 {
-    struct sockaddr_storage address;
+    struct sockaddr_storage address = {0};
     oserr_t              status = NetworkManagerSocketGetAddress(handle, type, (struct sockaddr*)&address);
-    sys_socket_get_address_response(message, status, (uint8_t*)&address, address.__ss_len);
+    sys_socket_get_address_response(message, status, (uint8_t*)&address,
+                                    status == OS_EOK ? address.__ss_len : 0);
 }
 
 Socket_t*

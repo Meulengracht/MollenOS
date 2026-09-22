@@ -27,6 +27,7 @@
 
 #include "domains.h"
 #include "../socket.h"
+#include "../validation.h"
 #include "../manager.h"
 #include <os/handle.h>
 #include <os/notification_queue.h>
@@ -119,7 +120,12 @@ DomainLocalGetAddress(
             if (!record) {
                 return OS_ENOENT;
             }
-            strcpy(&lcAddress->slc_addr[0], (const char*)record->Header.key);
+            size_t length = strnlen((const char*)record->Header.key, sizeof(lcAddress->slc_addr));
+            if (length == sizeof(lcAddress->slc_addr)) {
+                return OS_EINVALPARAMS;
+            }
+            memset(lcAddress->slc_addr, 0, sizeof(lcAddress->slc_addr));
+            memcpy(lcAddress->slc_addr, record->Header.key, length);
             return OS_EOK;
         } break;
         
@@ -232,34 +238,29 @@ ProcessSocketPacket(
     struct sockaddr*  Address;
     TRACE("[socket] [local] [process_packet]");
 
-    // Skip header, pointer now points to the address data.
-    Pointer += sizeof(struct packethdr);
+    if (PacketLength < sizeof(*Packet) || Packet->addresslen < 0 ||
+        Packet->controllen < 0 || Packet->payloadlen < 0) {
+        return NULL;
+    }
+    size_t remaining = PacketLength - sizeof(*Packet);
+    if ((uintmax_t)Packet->addresslen > remaining) {
+        return NULL;
+    }
+    remaining -= (size_t)Packet->addresslen;
+    if ((uintmax_t)Packet->controllen > remaining ||
+        (uintmax_t)Packet->payloadlen != remaining - (size_t)Packet->controllen) {
+        return NULL;
+    }
+
+    Pointer += sizeof(*Packet);
     if (Packet->addresslen) {
-        Address      = (struct sockaddr*)Pointer;
+        Address = (struct sockaddr*)Pointer;
+        if (ValidateLocalAddress(Address, (size_t)Packet->addresslen) != OS_EOK) {
+            return NULL;
+        }
         TargetSocket = GetSocketFromAddress(Address);
-        TRACE("[socket] [local] [process_packet] target address %s", &Address->sa_data[0]);
-    }
-    else {
-        TRACE("[socket] [local] [process_packet] no target address provided");
+    } else {
         TargetSocket = NetworkManagerSocketGet(Socket->Domain->ConnectedSocket);
-        
-        // Are we connected to a socket if no address was provided? If none is provided
-        // we must move all the data and make room for one in the buffer. The buffer was
-        // allocated with larger space if an address was required. The addresslen in the packet
-        // header must also be updated
-        memmove((void*)(Pointer + sizeof(struct sockaddr_lc)), (const void*)Pointer, PacketLength - sizeof(struct packethdr));
-        Packet->addresslen = sizeof(struct sockaddr_lc);
-    }
-    
-    // We must set the client address at this point. Replace the target address with
-    // the source address for the reciever.
-    DomainLocalGetAddress(Socket, SYS_ADDRESS_TYPE_THIS, (struct sockaddr*)Pointer);
-    Pointer += Packet->addresslen;
-    
-    if (Packet->controllen) {
-        // TODO handle control data
-        // ProcessControlData(Pointer);
-        Pointer += Packet->controllen;
     }
     return TargetSocket;
 }
@@ -315,10 +316,18 @@ HandleSocketPacketData(
 
         targetSocket = ProcessSocketPacket(Socket, buffer, bytesRead);
         if (targetSocket) {
+            struct packethdr* packet = buffer;
+            struct sockaddr_lc sourceAddress = {0};
+            size_t outputLength = bytesRead - (size_t)packet->addresslen + sizeof(sourceAddress);
+            if (DomainLocalGetAddress(Socket, SYS_ADDRESS_TYPE_THIS,
+                    (struct sockaddr*)&sourceAddress) != OS_EOK) {
+                free(buffer);
+                return OS_EINVALPARAMS;
+            }
             streambuffer_t* TargetStream = GetSocketRecvStream(targetSocket);
             size_t          BytesWritten = streambuffer_write_packet_start(
                     TargetStream,
-                    bytesRead,
+                    outputLength,
                     &(streambuffer_rw_options_t) {
                             .flags = STREAMBUFFER_NO_BLOCK,
                             .async_context = NULL,
@@ -332,7 +341,14 @@ HandleSocketPacketData(
                 break;
             }
             
-            streambuffer_write_packet_data(buffer, bytesRead, &packetCtx);
+            // Only rewrite after reserving space: queued packets must retain
+            // their destination address for a later retry.
+            uint8_t* address = (uint8_t*)buffer + sizeof(*packet);
+            memmove(address + sizeof(sourceAddress), address + packet->addresslen,
+                    bytesRead - sizeof(*packet) - (size_t)packet->addresslen);
+            memcpy(address, &sourceAddress, sizeof(sourceAddress));
+            packet->addresslen = sizeof(sourceAddress);
+            streambuffer_write_packet_data(buffer, outputLength, &packetCtx);
             streambuffer_write_packet_end(&packetCtx);
             OSNotificationQueuePost(&targetSocket->Handle, IOSETIN);
         }
@@ -349,6 +365,9 @@ DomainLocalSend(
     _In_ Socket_t* Socket)
 {
     TRACE("[socket] [local] [send]");
+    if (Socket->Type < SOCK_STREAM || Socket->Type > SOCK_SEQPACKET) {
+        return OS_EINVALPARAMS;
+    }
     return LocalTypeHandlers[Socket->Type](Socket);
 }
 
@@ -433,6 +452,10 @@ DomainLocalBind(
     _In_ const struct sockaddr* Address)
 {
     char* PreviousBuffer;
+    char* newAddress;
+    if (ValidateLocalAddress(Address, Address->sa_len) != OS_EOK) {
+        return OS_EINVALPARAMS;
+    }
     TRACE("[domain] [local] [bind] %s", &Address->sa_data[0]);
     
     if (!Socket->Domain->Record) {
@@ -446,8 +469,12 @@ DomainLocalBind(
     }
     
     // Update key
+    newAddress = strdup(&Address->sa_data[0]);
+    if (newAddress == NULL) {
+        return OS_EOOM;
+    }
     PreviousBuffer = (char*)Socket->Domain->Record->Header.key;
-    Socket->Domain->Record->Header.key = strdup(&Address->sa_data[0]);
+    Socket->Domain->Record->Header.key = newAddress;
     free(PreviousBuffer);
     return OS_EOK;
 }
@@ -488,8 +515,8 @@ AcceptConnectionRequest(
     _In_ Socket_t*              connectSocket,
     _In_ struct gracht_message* connectMessage)
 {
-    uuid_t                  handle, recv_handle, send_handle;
-    struct sockaddr_storage address;
+    uuid_t handle = UUID_INVALID, recv_handle = UUID_INVALID, send_handle = UUID_INVALID;
+    struct sockaddr_storage address = {0};
     oserr_t              status;
     
     TRACE("[net_manager] [accept_request]");
@@ -510,7 +537,7 @@ AcceptConnectionRequest(
     sys_socket_connect_response(connectMessage, status);
     
     // Reply to the accepter (the thread that called accept())
-    sys_socket_accept_response(acceptMessage, status, (uint8_t*)&address, address.__ss_len,
+    sys_socket_accept_response(acceptMessage, status, (uint8_t*)&address, status == OS_EOK ? address.__ss_len : 0,
         handle, recv_handle, send_handle);
 }
 

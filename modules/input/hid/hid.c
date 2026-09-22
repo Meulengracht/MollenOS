@@ -138,6 +138,34 @@ static inline void __GetDeviceProtocol(
     }
 }
 
+static int __SelectInterface(
+    _In_ HidDevice_t*                    hidDevice,
+    _In_ usb_device_interface_setting_t* interface)
+{
+    enum USBTransferCode status;
+
+    if (interface->base.AlternativeSetting == 0) {
+        return 1;
+    }
+
+    status = UsbExecutePacket(
+            &hidDevice->Base->DeviceContext,
+            USBPACKET_DIRECTION_INTERFACE,
+            USBPACKET_TYPE_SET_INTERFACE,
+            interface->base.AlternativeSetting,
+            0,
+            interface->base.NumInterface,
+            0,
+            NULL
+    );
+    if (status != USBTRANSFERCODE_SUCCESS) {
+        ERROR("__SelectInterface failed to select interface %u setting %u: %u",
+              interface->base.NumInterface, interface->base.AlternativeSetting, status);
+        return 0;
+    }
+    return 1;
+}
+
 static void __GetDeviceConfiguration(
     _In_ HidDevice_t* hidDevice)
 {
@@ -164,14 +192,21 @@ static void __GetDeviceConfiguration(
                     usb_endpoint_descriptor_t* endpoint = &interface->endpoints[j];
                     if (USB_ENDPOINT_TYPE(endpoint) == USB_ENDPOINT_INTERRUPT &&
                         (endpoint->Address & USB_ENDPOINT_ADDRESS_IN)) {
+                        usb_endpoint_descriptor_t* interrupt =
+                                memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
+                        if (!interrupt) {
+                            break;
+                        }
+                        if (!__SelectInterface(hidDevice, interface)) {
+                            free(interrupt);
+                            break;
+                        }
                         if (hidDevice->Interrupt) {
                             free(hidDevice->Interrupt);
                         }
-                        hidDevice->Interrupt = memdup(endpoint, sizeof(usb_endpoint_descriptor_t));
-                        if (hidDevice->Interrupt) {
-                            __GetDeviceProtocol(hidDevice, interface);
-                            found = 1;
-                        }
+                        hidDevice->Interrupt = interrupt;
+                        __GetDeviceProtocol(hidDevice, interface);
+                        found = 1;
                         break;
                     }
                 }

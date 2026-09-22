@@ -400,7 +400,7 @@ UsbSchedulerAllocateBandwidth(
  * @param direction The transfer direction used by the USB timing model.
  * @param transferType The USB transfer type used by the timing model.
  * @param bytesToTransfer The number of payload bytes represented by the slot.
- * @return The estimated periodic bandwidth cost. */
+ * @return The estimated periodic bandwidth cost in microseconds. */
 extern size_t
 UsbSchedulerCalculateBandwidth(
     _In_ uint8_t speed,
@@ -412,10 +412,18 @@ UsbSchedulerCalculateBandwidth(
  * Atomically reserves start-split and complete-split microframes for a
  * full/low-speed periodic transfer. Existing controllers keep using the
  * original allocator; this additive API is intended for EHCI split schedules.
+ * OUT splits carry data across one or more consecutive start-split
+ * microframes and never use a complete-split; IN splits use a single
+ * start-split followed by a complete-split window.
  * @param scheduler The periodic scheduler that owns the bandwidth table.
  * @param interval The requested periodic interval.
  * @param startBandwidth The bandwidth cost of each start-split slot.
  * @param completeBandwidth The bandwidth cost of each complete-split slot.
+ * @param startSplitCount The number of consecutive start-split microframes
+ * required (>1 only for OUT transfers whose payload spans multiple 188-byte
+ * bus transactions).
+ * @param needsCompleteSplit Whether a complete-split window must also be
+ * reserved (true for IN, false for OUT).
  * @param element The scheduler element receiving the reservation metadata.
  * @param startMaskOut Receives the selected start-split microframe mask.
  * @param completeMaskOut Receives the selected complete-split microframe mask.
@@ -427,6 +435,8 @@ UsbSchedulerAllocateSplitBandwidth(
     _In_  uint8_t         interval,
     _In_  size_t          startBandwidth,
     _In_  size_t          completeBandwidth,
+    _In_  uint8_t         startSplitCount,
+    _In_  bool            needsCompleteSplit,
     _In_  uint8_t*        element,
     _Out_ uint8_t*        startMaskOut,
     _Out_ uint8_t*        completeMaskOut,

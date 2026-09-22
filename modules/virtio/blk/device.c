@@ -87,6 +87,10 @@ typedef struct VirtioBlkRequest {
 } VirtioBlkRequest_t;
 
 static oserr_t
+__RecoverDevice(
+    _InOut_ VirtioBlkDevice_t* device);
+
+static oserr_t
 __ReadCommonConfiguration(
     _In_  VirtioBlkDevice_t* device,
     _In_  uint32_t           offset,
@@ -511,9 +515,11 @@ __SubmitIteration(
     free(buffers);
 
     // OS_EINPROGRESS means the chain was published but its notification write
-    // failed. Ownership has still transferred to the queue, so the request must
-    // remain alive for completion or reset recovery.
-    return oserr == OS_EINPROGRESS ? OS_EOK : oserr;
+    // failed. The queue is now blocked from accepting more work, so the caller
+    // must reset it before this request can be completed or its DMA attachments
+    // released. Keep the result visible to the caller instead of treating the
+    // request as successfully queued.
+    return oserr;
 }
 
 static void
@@ -893,6 +899,12 @@ VirtioBlkDeviceTransfer(
     }
 
     oserr = __SubmitIteration(request);
+    if (oserr == OS_EINPROGRESS) {
+        // The request is already owned by the queue. Recovery aborts it and
+        // sends the deferred cancellation response before rebuilding the queue.
+        (void)__RecoverDevice(device);
+        return OS_EOK;
+    }
     if (oserr != OS_EOK) {
         __FinishRequest(request, oserr);
         return OS_EOK;
@@ -952,6 +964,11 @@ VirtioBlkDeviceHandleInterrupt(
         }
 
         oserr = __SubmitIteration(request);
+        if (oserr == OS_EINPROGRESS) {
+            // Submission published the chain but could not ring the device.
+            // Reset/recovery owns completion of the request from this point.
+            return __RecoverDevice(device);
+        }
         if (oserr != OS_EOK) {
             __FinishRequest(request, oserr);
         }

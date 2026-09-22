@@ -184,7 +184,10 @@ HCITransferDequeue(
                 HCIProcessElement,
                 transfer
         );
-            transfer->State = USBTRANSFER_STATE_CLEANUP;
+        // Descriptors are already freed above, so null the root now. Otherwise
+        // __ProcessCleanup would enumerate and free the same (now stale) chain again.
+        transfer->RootElement = NULL;
+        transfer->State = USBTRANSFER_STATE_CLEANUP;
     }
     return OS_EOK;
 }
@@ -379,8 +382,7 @@ HCITransferElementFill(
 
         // Cases left to handle:
         // Generic: adding ZLP on MPS boundary OUTs
-        // Isoc:    adding ZLP
-        if (bytesLeft == 0) {
+        if (transfer->Type != USBTRANSFER_TYPE_ISOC && bytesLeft == 0) {
             if (direction == USBTRANSFER_DIRECTION_OUT &&
                     transfer->Elements[ei - 1].Length == transfer->MaxPacketSize) {
                 transfer->Elements[ei++].Type = TRANSFERELEMENT_TYPE_OUT;
@@ -472,6 +474,12 @@ __AllocateBandwidth(
         uint8_t startMask;
         uint8_t completeMask;
         uint8_t completionOffset;
+        bool    isOut = __Transfer_Direction(transfer) == USBTRANSFER_DIRECTION_OUT;
+        // An OUT split moves the payload as consecutive 188-byte start-split
+        // bus transactions and never uses a complete-split; an IN split is a
+        // single start-split followed by a complete-split window.
+        uint8_t startSplitCount = isOut ?
+                (uint8_t)MIN(6, MAX(1, (elementLength + 187) / 188)) : 1;
         size_t bandwidth = UsbSchedulerCalculateBandwidth(
                 transfer->Speed,
                 __Transfer_Direction(transfer),
@@ -483,6 +491,8 @@ __AllocateBandwidth(
                 transfer->TData.Periodic.Interval,
                 bandwidth,
                 bandwidth,
+                startSplitCount,
+                !isOut,
                 element,
                 &startMask,
                 &completeMask,
@@ -495,7 +505,7 @@ __AllocateBandwidth(
             siTD->FrameCompletionMask = completeMask;
             siTD->CompletionFrameOffset = completionOffset;
             siTD->StartBandwidth = bandwidth;
-            siTD->CompleteBandwidth = bandwidth;
+            siTD->CompleteBandwidth = isOut ? 0 : bandwidth;
         }
     } else {
         oserr = UsbSchedulerAllocateBandwidth(
@@ -538,6 +548,19 @@ __MarkerPointer(
     }
 }
 
+static void
+__CopySplitSchedule(
+        _In_ const EhciSplitIsochronousDescriptor_t* source,
+        _In_ EhciSplitIsochronousDescriptor_t*       destination)
+{
+    destination->Object.FrameInterval = source->Object.FrameInterval;
+    destination->Object.StartFrame = source->Object.StartFrame;
+    destination->Object.FrameMask = source->Object.FrameMask;
+    destination->FrameStartMask = source->FrameStartMask;
+    destination->FrameCompletionMask = source->FrameCompletionMask;
+    destination->CompletionFrameOffset = source->CompletionFrameOffset;
+}
+
 static int
 __AllocateDescriptors(
         _In_ EhciController_t*     controller,
@@ -558,9 +581,9 @@ __AllocateDescriptors(
     for (int i = 0; i < tdsRemaining; i++) {
         uint8_t* element;
         oserr_t oserr = UsbSchedulerAllocateElement(
-                controller->Base.Scheduler,
-                descriptorPool,
-                &element
+            controller->Base.Scheduler,
+            descriptorPool,
+            &element
         );
         if (oserr != OS_EOK) {
             break;
@@ -581,6 +604,13 @@ __AllocateDescriptors(
             markerPtr = __MarkerPointer(element, descriptorPool);
             tdsAllocated++;
             continue;
+        }
+
+        if (descriptorPool == EHCI_siTD_POOL) {
+            __CopySplitSchedule(
+                    (EhciSplitIsochronousDescriptor_t*)transfer->RootElement,
+                    (EhciSplitIsochronousDescriptor_t*)element
+            );
         }
 
         oserr = UsbSchedulerChainElement(
