@@ -8,7 +8,7 @@ import "../types"
 
 namespace ctt
  
-service usbhub (19) {
+service usbhub : message {
     func query_port(uuid_t deviceId, uint8 portId) : (oserr_t status, uint8[] descriptor) = 1;
     func reset_port(uuid_t deviceId, uint8 portId) : (oserr_t status, uint8[] descriptor) = 2;
     

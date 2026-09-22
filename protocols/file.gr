@@ -53,7 +53,7 @@ struct directory_entry {
     file_flags flags;
 }
 
-service file (3) {
+service file : message {
     // Filesystem drivers are sometimes started up by the file manager. The file manager
     // waits for the driver to be ready, and this is signalled by the driver by invoking
     // fsready. The file manager don't expect this to be called by user-provided drivers,

@@ -18,7 +18,7 @@ struct user_info {
     uint32 group_id;
 }
  
-service session (1) {
+service session : message {
     func login(string user, string password) : (oserr_t result, string sessionId) = 1;
     func logout(string sessionId) : (oserr_t result) = 2;
     func info(string sessionId) : (oserr_t result, user_info user) = 3;

@@ -44,7 +44,7 @@ struct served_package {
     string version;
 }
 
-service served (42) {
+service served : message {
     func install(string publisher, string path) : () = 1;
     func remove(string packageName) : (int result) = 2;
     func info(string packageName) : (served_package info) = 3;

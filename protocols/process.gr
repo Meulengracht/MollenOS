@@ -18,7 +18,7 @@ struct process_configuration {
     uuid_t data_buffer;
 }
 
-service process (5) {
+service process : message {
     func spawn(string path, string arguments, process_configuration configuration) : (oserr_t result, uuid_t handle) = 1;
     func join(uuid_t handle, uint timeout) : (oserr_t result, int exitCode) = 2;
     func signal(uuid_t processId, uuid_t handle, int signal) : (oserr_t result) = 3;
@@ -36,7 +36,7 @@ service process (5) {
     func report_crash(uuid_t threadId, uuid_t processId, uint8[] crashContext, int reason) : (oserr_t result) = 12;
 }
 
-service library (6) {
+service library : message {
     func load(uuid_t processId, string path) : (oserr_t result, uintptr_t handle, uintptr_t entry) = 1;
     func get_function(uuid_t processId, uintptr_t handle, string name) : (oserr_t result, uintptr_t address) = 2;
     func unload(uuid_t processId, uintptr_t handle) : (oserr_t result) = 3;

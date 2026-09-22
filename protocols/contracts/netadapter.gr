@@ -28,7 +28,7 @@ enum netadapter_link_status {
     UP
 }
 
-service netadapter (21) {
+service netadapter : message {
     func stat(uuid_t deviceId) : () = 1;
     func queue(uuid_t deviceId, netadapter_request request) : () = 2;
 

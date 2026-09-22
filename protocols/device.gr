@@ -7,7 +7,7 @@ import "types"
 
 namespace sys
 
-service device (7) {
+service device : message {
     func notify(uuid_t driverId, uuid_t driverHandle) : () = 1;
     
     func register(device device, uint flags) : (oserr_t result, uuid_t id) = 2;

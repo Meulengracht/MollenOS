@@ -26,7 +26,7 @@ service socket (8) {
     func accept(uuid_t handle) : (oserr_t result, uint8[] address, uuid_t handle, uuid_t recvHandle, uuid_t sendHandle) = 5;
     func listen(uuid_t handle, int backlog) : (oserr_t result) = 6;
     func pair(uuid_t handle1, uuid_t handle2) : (oserr_t result) = 7;
-    func set_option(uuid_t handle, int protocol, uint option, uint8[] data, int length) : (oserr_t result) = 8;
-    func get_option(uuid_t handle, int protocol, uint option) : (oserr_t result, uint8[] data, int length) = 9;
+    func set_option(uuid_t handle, int protocol, uint optname, uint8[] data, int length) : (oserr_t result) = 8;
+    func get_option(uuid_t handle, int protocol, uint optname) : (oserr_t result, uint8[] data, int length) = 9;
     func get_address(uuid_t handle, address_type type) : (oserr_t result, uint8[] address) = 10;
 }

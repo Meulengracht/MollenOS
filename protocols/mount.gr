@@ -14,7 +14,7 @@ enum mount_flags {
     WRITE = 2
 }
 
-service mount (10) {
+service mount : message {
     func mount(uuid_t processId, string path, string at, string fsType, mount_flags flags) : (oserr_t result) = 1;
     func unmount(uuid_t processId, string path) : (oserr_t result) = 2;
 }

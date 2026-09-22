@@ -62,7 +62,7 @@ struct fs_transfer_params {
     uint64 count;
 }
 
-service filesystem (11) {
+service filesystem : message {
     func setup(fs_setup_params params) : (oserr_t err, uintptr_t fsctx) = 1;
     func destroy(uintptr_t fsctx) : (oserr_t err) = 2;
     func fsstat(uintptr_t fsctx) : (oserr_t err, fsstat stats) = 3;

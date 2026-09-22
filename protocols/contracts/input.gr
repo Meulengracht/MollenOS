@@ -17,7 +17,7 @@ enum input_type {
     KEYPAD
 }
 
-service input (20) {
+service input : message {
     func stat(uuid_t deviceId) : () = 1;
     
     event stats : (uuid_t deviceId, input_type type) = 2;
