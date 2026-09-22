@@ -108,15 +108,11 @@ static inline int __IsSupportedInterface(
         return 0;
     }
     
-    if (interface->base.Protocol == HID_PROTOCOL_NONE ||
-        interface->base.Protocol == HID_PROTOCOL_KEYBOARD ||
-        interface->base.Protocol == HID_PROTOCOL_MOUSE) {
-        return 1;        
-    }
-
-    ERROR("__IsSupportedInterface this HID uses an unimplemented protocol and needs external drivers");
-    ERROR("__IsSupportedInterface unsupported HID Protocol 0x%x", interface->base.Protocol);
-    return 0;
+    // The generic HID parser can handle report streams for boot and report-mode
+    // devices regardless of the exact protocol value. Narrow protocol gating here
+    // would reject valid HID devices whose behavior is correctly described by the
+    // report descriptor instead of the interface protocol field.
+    return 1;
 }
 
 static inline void __GetDeviceProtocol(

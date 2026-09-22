@@ -95,6 +95,21 @@ static void test_report_id_offsets_are_independent(void** state)
     destroy_collection(&device);
 }
 
+static void test_report_id_zero_is_valid(void** state)
+{
+    HidDevice_t device = create_device();
+    const uint8_t descriptor[] = {
+        0x05, 0x01, 0x09, 0x02, 0xA1, 0x01,
+        0x85, 0x00, 0x09, 0x30, 0x15, 0x00, 0x25, 0x7F,
+        0x75, 0x08, 0x95, 0x01, 0x81, 0x02, 0xC0
+    };
+    (void)state;
+
+    assert_int_equal(HidParseReportDescriptor(&device, descriptor, sizeof(descriptor)), 2);
+    assert_non_null(device.Collection);
+    destroy_collection(&device);
+}
+
 static void test_oversized_report_is_bounded(void** state)
 {
     HidDevice_t device = create_device();
@@ -115,6 +130,7 @@ int main(void)
         cmocka_unit_test(test_truncated_descriptor_is_rejected),
         cmocka_unit_test(test_long_item_does_not_desynchronize_parser),
         cmocka_unit_test(test_report_id_offsets_are_independent),
+        cmocka_unit_test(test_report_id_zero_is_valid),
         cmocka_unit_test(test_oversized_report_is_bounded)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

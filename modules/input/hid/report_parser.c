@@ -227,7 +227,10 @@ void __ParseGlobalStateTag(
         // report that we recieve from the device under data-transfers.
         // These must be present if the device can send us reports. (Except Id)
         case HID_GLOBAL_REPORT_ID: {
+            // HID report identifiers are valid even when the ID is 0,
+            // so track the presence separately from the value itself.
             globalStats->ReportId = value;
+            globalStats->HasReportId = 1;
         } break;
         case HID_GLOBAL_REPORT_COUNT: {
             globalStats->ReportCount = value;
@@ -328,7 +331,7 @@ static void __ParseReportTagInput(
         return;
     }
 
-    if (context->GlobalStats.ReportId != UUID_INVALID) {
+    if (context->GlobalStats.HasReportId) {
         bitOffset = &context->ReportBitOffsets[(uint8_t)context->GlobalStats.ReportId];
     }
     else {
@@ -469,8 +472,10 @@ static void __ParseReportTypeLocal(
                 context->InputType = CTT_INPUT_TYPE_GAMEPAD;
             }
 
-            // There can be multiple usages for a descriptor
-            // so store up to 16 usages
+            // There can be multiple usages for a descriptor so store
+            // up to 16 usages. A value of zero is valid for some usage
+            // tables, so the first zero slot is treated as the insertion
+            // point rather than the end of the list.
             for (j = 0; j < 16; j++) {
                 if (context->ItemStats.Usages[j] == 0) {
                     context->ItemStats.Usages[j] = packet;
@@ -479,8 +484,8 @@ static void __ParseReportTypeLocal(
             }
         } break;
 
-            // The usage min and max tells us the boundaries of
-            // the data package
+        // The usage min and max tells us the boundaries of
+        // the data package
         case HID_LOCAL_USAGE_MIN: {
             context->ItemStats.UsageMin = packet;
         } break;
@@ -488,8 +493,8 @@ static void __ParseReportTypeLocal(
             context->ItemStats.UsageMax = packet;
         } break;
 
-            // If there is anything we don't handle it's not vital,
-            // but we should trace it in case we want to handle it
+        // If there is anything we don't handle it's not vital,
+        // but we should trace it in case we want to handle it
         default: {
             TRACE("%u: Local Item %u", context->ParseDepth, tag);
         } break;
@@ -535,7 +540,7 @@ static void __ParsePacket(
             }
             else {
                 __ParseGlobalStateTag(&context->GlobalStats, tag, packet, packetLength);
-                if (context->GlobalStats.ReportId != UUID_INVALID) {
+                if (context->GlobalStats.HasReportId) {
                     context->ReportIdsUsed = 1;
                 }
             }
@@ -565,8 +570,10 @@ HidParseReportDescriptor(
     TRACE("HidParseReportDescriptor(hidDevice=0x%" PRIxIN ", descriptorLength=0x%" PRIuIN ")",
           hidDevice, descriptorLength);
 
-    // Make sure we set the report id to not available
-    context.GlobalStats.ReportId = UUID_INVALID;
+    // Make sure the report-id state is reset explicitly. Report ID 0 is valid,
+    // so a separate flag is required instead of relying on UUID_INVALID.
+    context.GlobalStats.ReportId = 0;
+    context.GlobalStats.HasReportId = 0;
     context.InputType = CTT_INPUT_TYPE_INVALID;
 
     // Iterate the report descriptor

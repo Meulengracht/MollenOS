@@ -86,13 +86,17 @@ static int64_t __SignExtend(uint64_t value, uint32_t bits)
 static uint64_t __ExtractValue(
         _In_ const uint8_t* buffer,
         _In_ uint32_t       bitOffset,
-        _In_ uint32_t       numBits)
+        _In_ uint32_t       numBits,
+        _In_ size_t         bufferBits)
 {
     uint64_t value = 0;
     uint32_t i = 0;
     uint32_t offset = bitOffset;
 
-    if (numBits > 64) {
+    if (numBits == 0 || numBits > 64) {
+        return 0;
+    }
+    if ((uint64_t)bitOffset + numBits > bufferBits) {
         return 0;
     }
 
@@ -228,11 +232,10 @@ static void __HandleInputItem(
     data         = &((uint8_t*)hidDevice->Buffer)[dataIndex];
     previousData = &((uint8_t*)hidDevice->Buffer)[hidDevice->PreviousDataIndex];
 
-
     // If report-ids are active, we must make sure this data-packet
-    // is actually for this report
-    // The first byte of the data-report is the id
-    if (collectionItem->Stats.ReportId != UUID_INVALID) {
+    // is actually for this report. Report ID 0 is valid, so use the
+    // parser state instead of UUID_INVALID as the sentinel.
+    if (collectionItem->Stats.HasReportId) {
         uint8_t reportId = data[0];
         if (reportId != (uint8_t)collectionItem->Stats.ReportId) {
             return;
@@ -241,7 +244,7 @@ static void __HandleInputItem(
 
     // Extract some of the state variables for parsing
     offset = inputItem->LocalState.BitOffset;
-    if (collectionItem->Stats.ReportId != UUID_INVALID) {
+    if (collectionItem->Stats.HasReportId) {
         offset += 8;
     }
     length = collectionItem->Stats.ReportSize;
@@ -249,10 +252,18 @@ static void __HandleInputItem(
     // initialize context before handling
     context.CollectionItem = collectionItem;
     context.InputItem = inputItem;
+    if ((uint64_t)offset + length > (uint64_t)hidDevice->ReportLength * 8ULL) {
+        return;
+    }
+
     for (i = 0; i < collectionItem->Stats.ReportCount; i++, offset += length) {
-        uint64_t value    = __ExtractValue(data, offset, length);
+        uint64_t value    = __ExtractValue(data, offset, length, (size_t)hidDevice->ReportLength * 8);
         uint64_t oldValue = hidDevice->PreviousDataValid ?
-            __ExtractValue(previousData, offset, length) : 0;
+            __ExtractValue(previousData, offset, length, (size_t)hidDevice->ReportLength * 8) : 0;
+
+        if ((uint64_t)offset + length > (uint64_t)hidDevice->ReportLength * 8ULL) {
+            break;
+        }
 
         // We cant expect this to be correct though, it might be 0
         int usage = i < 16 ? inputItem->LocalState.Usages[i] : 0;

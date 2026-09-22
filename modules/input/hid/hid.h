@@ -168,7 +168,8 @@ PACKED_TYPESTRUCT(UsbHidReportGlobalStats, {
     int32_t                         UnitExponent;
     
     uint32_t                        ReportSize;
-    uuid_t                          ReportId;
+    uint32_t                        ReportId;
+    uint8_t                         HasReportId;
     uint32_t                        ReportCount;
 });
 
