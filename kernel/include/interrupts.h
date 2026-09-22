@@ -43,6 +43,8 @@ typedef struct SystemInterrupt {
     int                      Line;
     int                      Pin;
     int                      Source;
+    // References acquired by InterruptGet() keep retired descriptors alive.
+    _Atomic(unsigned int)    References;
     // Link is read by the interrupt path without taking the table lock. It
     // remains valid until the corresponding RCU grace period has completed.
     _Atomic(struct SystemInterrupt*) Link;
@@ -76,10 +78,17 @@ InterruptUnregister(
         _In_ uuid_t Source);
 
 /* InterruptGet
- * Retrieves the given interrupt source information as a SystemInterrupt_t */
+ * Retrieves the given interrupt source information as a referenced
+ * SystemInterrupt_t. The caller must release it with InterruptPut(). */
 KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGet(
-        _In_ uuid_t Source);
+    _In_ uuid_t Source);
+
+/* InterruptPut
+ * Releases a reference acquired by InterruptGet(). */
+KERNELAPI void KERNELABI
+InterruptPut(
+    _In_ SystemInterrupt_t* Interrupt);
 
 /* InterruptSetActiveStatus
  * Set's the current status for the calling cpu to interrupt-active state */

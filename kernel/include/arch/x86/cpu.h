@@ -53,10 +53,13 @@
 #define CPU_EFLAGS_DEFAULT          0x202
 #define CPU_EFLAGS_SINGLESTEP       0x100
 
-#define CPU_MSR_LAPIC_BASE      0x0000001B
-#define CPU_MSR_FS_BASE         0xC0000100
-#define CPU_MSR_GS_BASE         0xC0000101
-#define CPU_MSR_KERNEL_GS_BASE  0xC0000102
+#define CPU_MSR_LAPIC_BASE       0x0000001B
+#define CPU_MSR_APIC_BASE_ENABLE (1ULL << 11)
+#define CPU_MSR_APIC_BASE_X2APIC (1ULL << 10)
+#define CPU_MSR_X2APIC_BASE      0x00000800
+#define CPU_MSR_FS_BASE          0xC0000100
+#define CPU_MSR_GS_BASE          0xC0000101
+#define CPU_MSR_KERNEL_GS_BASE   0xC0000102
 
 enum CpuFeatures {
 	//Features contained in ECX register

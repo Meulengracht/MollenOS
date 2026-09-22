@@ -64,8 +64,12 @@ __SendIPI(
         return oserr;
     }
 
-    ApicWriteLocal(APIC_ICR_HIGH, ipi->u.HighPart);
-    ApicWriteLocal(APIC_ICR_LOW,  ipi->u.LowPart);
+    if (ApicIsX2Apic()) {
+        ApicWriteLocal64(APIC_ICR_LOW, ipi->QuadPart);
+    } else {
+        ApicWriteLocal(APIC_ICR_HIGH, ipi->u.HighPart);
+        ApicWriteLocal(APIC_ICR_LOW,  ipi->u.LowPart);
+    }
     oserr = __WaitForAPICIdle();
     InterruptRestoreState(irqstate);
     return oserr;
@@ -101,7 +105,7 @@ ApicSendInterrupt(
 
     // Handle target types
     if (type == InterruptTarget_SPECIFIC) {
-        ipiValue.u.HighPart = APIC_DESTINATION(specific);
+        ipiValue.u.HighPart = ApicIsX2Apic() ? specific : APIC_DESTINATION(specific);
     } else if (type == InterruptTarget_SELF) {
         ipiValue.u.LowPart |= (1 << 18);
     } else if (type == InterruptTarget_ALL) {
@@ -126,7 +130,7 @@ ApicPerformIPI(
     UInteger64_t ipiValue;
 
     ipiValue.u.LowPart = 0;
-    ipiValue.u.HighPart = APIC_DESTINATION(coreId);
+    ipiValue.u.HighPart = ApicIsX2Apic() ? coreId : APIC_DESTINATION(coreId);
 
     // Determine assert or deassert
     if (assert) {
@@ -146,7 +150,7 @@ ApicPerformSIPI(
 	uint8_t      irqVector;
 
     ipiValue.u.LowPart = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
-    ipiValue.u.HighPart = APIC_DESTINATION(coreId); // We use physical addressing for IPI/SIPI
+    ipiValue.u.HighPart = ApicIsX2Apic() ? coreId : APIC_DESTINATION(coreId);
 
     // Sanitize address given
     assert((address % 0x1000) == 0);

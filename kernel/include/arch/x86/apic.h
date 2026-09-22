@@ -174,10 +174,17 @@ ApicTimerStart(
  * registers must always be 32 bit */
 __EXTERN uint32_t ApicReadLocal(size_t Register);
 
+/* x2APIC registers are MSRs and the ICR is 64 bits wide. */
+__EXTERN uint64_t ApicReadLocal64(size_t Register);
+
 /* Write to the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
 __EXTERN void ApicWriteLocal(size_t Register, uint32_t Value);
+__EXTERN void ApicWriteLocal64(size_t Register, uint64_t Value);
+
+__EXTERN int ApicIsX2Apic(void);
+__EXTERN int ApicEnableX2Apic(void);
 
 /* Read from io-apic registers
  * Reads and writes from and to the io apic

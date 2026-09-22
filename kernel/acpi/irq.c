@@ -133,12 +133,13 @@ ACPI_STATUS __GetPossibleResourcesCallback(
     return AE_OK;
 }
 
-ACPI_STATUS __GetCurrentResourceCallback(
-        _In_ ACPI_RESOURCE* acpiResource,
-        _In_ void*          context)
+ACPI_STATUS
+__GetCurrentResourceCallback(
+    _In_ ACPI_RESOURCE* acpiResource,
+    _In_ void*          context)
 {
     AcpiInterruptSource_t* interruptSource = context;
-    uint32_t               irqNumber;
+    uint32_t               irqNumber = 0xFFFFFFFF;
 
     TRACE("__GetCurrentResourceCallback(acpiResource->Type %u)", acpiResource->Type);
     if (acpiResource->Type == ACPI_RESOURCE_TYPE_END_TAG) {
@@ -156,8 +157,7 @@ ACPI_STATUS __GetCurrentResourceCallback(
 
         TRACE("__GetCurrentResourceCallback irq->InterruptCount=%u", irq->InterruptCount);
         irqNumber = irq->Interrupts[0];
-    }
-    else if (acpiResource->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ) {
+    } else if (acpiResource->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ) {
         ACPI_RESOURCE_EXTENDED_IRQ* irq = &acpiResource->Data.ExtendedIrq;
 
         if (!irq->InterruptCount) {
@@ -186,8 +186,9 @@ ACPI_STATUS __GetCurrentResourceCallback(
     return AE_OK;
 }
 
-static AcpiInterruptResource_t* __GetLeastLoadedEntry(
-        _In_ list_t* possibleInterrupts)
+static AcpiInterruptResource_t*
+__GetLeastLoadedEntry(
+    _In_ list_t* possibleInterrupts)
 {
     int interruptList[64];
     int count = 0;
@@ -196,8 +197,11 @@ static AcpiInterruptResource_t* __GetLeastLoadedEntry(
 
     foreach(i, possibleInterrupts) {
         AcpiInterruptResource_t* entry = (AcpiInterruptResource_t*)i->value;
-        interruptList[count] = entry->Irq;
-        count++;
+        interruptList[count++] = entry->Irq;
+        if (count >= 64) {
+            WARNING("__GetLeastLoadedEntry reached maximum interrupt list size of 64");
+            break;
+        }
     }
 
     count = InterruptGetLeastLoaded(interruptList, count);
@@ -216,9 +220,10 @@ static AcpiInterruptResource_t* __GetLeastLoadedEntry(
     return NULL;
 }
 
-static ACPI_STATUS __SetActiveInterrupt(
-        _In_ ACPI_HANDLE              deviceHandle,
-        _In_ AcpiInterruptResource_t* interrupt)
+static ACPI_STATUS
+__SetActiveInterrupt(
+    _In_ ACPI_HANDLE              deviceHandle,
+    _In_ AcpiInterruptResource_t* interrupt)
 {
     ACPI_STATUS status = AE_OK;
     ACPI_BUFFER acpiBuffer;
@@ -422,7 +427,16 @@ static ACPI_STATUS __ParsePRTTable(
 
     // Convert the addresses
     deviceIndex    = (unsigned int)((pciRoutingTable->Address >> 16) & 0xFFFF);
-    interruptIndex = (deviceIndex * 4) + pciRoutingTable->Pin;
+
+    // The fixed routing table has room for ACPI device numbers 0 through 31
+    // and pins 0 through 3. Reject malformed firmware data before indexing.
+    if (deviceIndex >= ACPI_PRT_DEVICE_COUNT ||
+        pciRoutingTable->Pin >= ACPI_PRT_PIN_COUNT) {
+        ERROR("Invalid _PRT device or pin");
+        return AE_BAD_PARAMETER;
+    }
+
+    interruptIndex = (deviceIndex * ACPI_PRT_PIN_COUNT) + pciRoutingTable->Pin;
     routeEntry     = &routings->InterruptEntries[interruptIndex];
 
     TRACE("__ParsePRTTable deviceIndex=%u, interruptIndex=%u, pciRoutingTable->sourceIndex=%u",
@@ -562,11 +576,19 @@ AcpiDeviceGetInterrupt(
 {
     AcpiInterruptSource_t* interruptSource;
     AcpiDevice_t*          acpiDevice;
-    int                    index = (device * 4) + (pciPin - 1);
+    int                    index;
     unsigned int           flags = INTERRUPT_ACPICONFORM_PRESENT;
 
     TRACE("AcpiDeviceGetInterrupt(bus=%i, device=%i, pciPin=%i)",
           bus, device, pciPin);
+
+    // Validate both caller-supplied fields before calculating the array index.
+    if (device < 0 || device >= ACPI_PRT_DEVICE_COUNT ||
+        pciPin < 1 || pciPin > ACPI_PRT_PIN_COUNT) {
+        return OS_EINVALPARAMS;
+    }
+
+    index = (device * ACPI_PRT_PIN_COUNT) + (pciPin - 1);
 
     // Start by checking if we can find the
     // routings by checking the given device

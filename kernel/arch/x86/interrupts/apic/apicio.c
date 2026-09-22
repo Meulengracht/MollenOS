@@ -22,14 +22,43 @@
 
 #include <assert.h>
 #include <arch/x86/apic.h>
+#include <arch/x86/cpu.h>
 #include <acpi.h>
 
 __EXTERN uintptr_t g_localApicBaseAddress;
+static int g_x2ApicEnabled = 0;
+
+int ApicIsX2Apic(void) {
+	return g_x2ApicEnabled;
+}
+
+int ApicEnableX2Apic(void) {
+	uint64_t value;
+
+	if (CpuHasFeatures(CPUID_FEAT_ECX_x2APIC, 0) != OS_EOK) {
+		return 0;
+	}
+
+	CpuReadModelRegister(CPU_MSR_LAPIC_BASE, &value);
+	value |= CPU_MSR_APIC_BASE_ENABLE | CPU_MSR_APIC_BASE_X2APIC;
+	CpuWriteModelRegister(CPU_MSR_LAPIC_BASE, &value);
+	g_x2ApicEnabled = 1;
+	return 1;
+}
+
+static uint32_t __ApicMsr(size_t Register) {
+	return CPU_MSR_X2APIC_BASE + (uint32_t)(Register >> 4);
+}
 
 /* Reads from the local apic registers 
  * Reads and writes from and to the local apic
  * registers must always be 32 bit */
 uint32_t ApicReadLocal(size_t Register) {
+	if (g_x2ApicEnabled) {
+		uint64_t value = 0;
+		CpuReadModelRegister(__ApicMsr(Register), &value);
+		return (uint32_t)value;
+	}
 	assert(g_localApicBaseAddress != 0);
 	return (uint32_t)(*(volatile uint32_t*)(g_localApicBaseAddress + Register));
 }
@@ -37,12 +66,34 @@ uint32_t ApicReadLocal(size_t Register) {
 /* Write to the local apic registers 
  * Reads and writes from and to the local apic registers must always be 32 bit */
 void ApicWriteLocal(size_t Register, uint32_t Value) {
+	if (g_x2ApicEnabled) {
+		uint64_t value = Value;
+		CpuWriteModelRegister(__ApicMsr(Register), &value);
+		return;
+	}
 	assert(g_localApicBaseAddress != 0);
 
 	/* Write the value, then re-read it to 
 	 * ensure memory synchronization */
 	(*(volatile uint32_t*)(g_localApicBaseAddress + Register)) = Value;
 	Value = (*(volatile uint32_t*)(g_localApicBaseAddress + Register));
+}
+
+uint64_t ApicReadLocal64(size_t Register) {
+	if (g_x2ApicEnabled) {
+		uint64_t value = 0;
+		CpuReadModelRegister(__ApicMsr(Register), &value);
+		return value;
+	}
+	return ApicReadLocal(Register);
+}
+
+void ApicWriteLocal64(size_t Register, uint64_t Value) {
+	if (g_x2ApicEnabled) {
+		CpuWriteModelRegister(__ApicMsr(Register), &Value);
+		return;
+	}
+	ApicWriteLocal(Register, (uint32_t)Value);
 }
 
 /* Set the io-apic register selctor
