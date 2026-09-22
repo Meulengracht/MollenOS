@@ -43,7 +43,10 @@ typedef struct SystemInterrupt {
     int                      Line;
     int                      Pin;
     int                      Source;
-    struct SystemInterrupt*  Link;
+    // Link is read by the interrupt path without taking the table lock. It
+    // remains valid until the corresponding RCU grace period has completed.
+    _Atomic(struct SystemInterrupt*) Link;
+    struct SystemInterrupt*          RetiredLink;
 } SystemInterrupt_t;
 
 // OS Initialization
