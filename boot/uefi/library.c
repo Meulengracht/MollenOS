@@ -108,8 +108,10 @@ enum VBootMemoryType __ConvertEfiType(
 {
     switch (Type) {
         case EfiLoaderCode:
-        case EfiLoaderData:
         case EfiBootServicesCode:
+            return VBootMemoryType_Reclaim;
+
+        case EfiLoaderData:
         case EfiBootServicesData:
             return VBootMemoryType_Available;
 
