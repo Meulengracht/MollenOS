@@ -26,6 +26,12 @@
 #include <os/types/net.h>
 #include <os/types/handle.h>
 
+enum OSocketShutdownType {
+    OSSOCKET_SHUTDOWN_RECV = 0,
+    OSSOCKET_SHUTDOWN_SEND = 1,
+    OSSOCKET_SHUTDOWN_RECVSEND = 2
+};
+
 _CODE_BEGIN
 
 /**
@@ -38,10 +44,10 @@ _CODE_BEGIN
  */
 CRTDECL(oserr_t,
 OSSocketOpen(
-        _In_  int         domain,
-        _In_  int         type,
-        _In_  int         protocol,
-        _Out_ OSHandle_t* handleOut));
+    _In_  int         domain,
+    _In_  int         type,
+    _In_  int         protocol,
+    _Out_ OSHandle_t* handleOut));
 
 /**
  * @brief Creates a connected pair of sockets.
@@ -51,8 +57,20 @@ OSSocketOpen(
  */
 CRTDECL(oserr_t,
 OSSocketPair(
-        _In_  OSHandle_t* sock0,
-        _In_  OSHandle_t* sock1));
+    _In_  OSHandle_t* sock0,
+    _In_  OSHandle_t* sock1));
+
+/**
+ * @brief Request service-owned half-close using OSocketShutdownType.
+ * Failure leaves both directions unchanged.
+ * @param handle Socket handle to shut down.
+ * @param type Specifies which part of the connection to shut down (OSSOCKET_SHUTDOWN_RECV, OSSOCKET_SHUTDOWN_SEND, or OSSOCKET_SHUTDOWN_RECVSEND).
+ * @return OS_EOK on success; otherwise, an error code.
+ */
+CRTDECL(oserr_t,
+OSSocketShutdown(
+    _In_ OSHandle_t*              handle,
+    _In_ enum OSocketShutdownType type));
 
 /**
  * @brief Accepts an incoming connection on a listening socket.
@@ -64,10 +82,10 @@ OSSocketPair(
  */
 CRTDECL(oserr_t,
 OSSocketAccept(
-        _In_  OSHandle_t*      handle,
-        _In_  struct sockaddr* address,
-        _In_  socklen_t*       addressLength,
-        _Out_ OSHandle_t*      handleOut));
+    _In_  OSHandle_t*      handle,
+    _In_  struct sockaddr* address,
+    _In_  socklen_t*       addressLength,
+    _Out_ OSHandle_t*      handleOut));
 
 /**
  * @brief Binds a socket to a local address.
@@ -78,9 +96,9 @@ OSSocketAccept(
  */
 CRTDECL(oserr_t,
 OSSocketBind(
-        _In_ OSHandle_t*            handle,
-        _In_ const struct sockaddr* address,
-        _In_ socklen_t              addressLength));
+    _In_ OSHandle_t*            handle,
+    _In_ const struct sockaddr* address,
+    _In_ socklen_t              addressLength));
 
 /**
  * @brief Connects a socket to a remote address.
@@ -91,9 +109,9 @@ OSSocketBind(
  */
 CRTDECL(oserr_t,
 OSSocketConnect(
-        _In_ OSHandle_t*            handle,
-        _In_ const struct sockaddr* address,
-        _In_ socklen_t              addressLength));
+    _In_ OSHandle_t*            handle,
+    _In_ const struct sockaddr* address,
+    _In_ socklen_t              addressLength));
 
 /**
  * @brief Marks a socket as listening for incoming connections.
@@ -103,8 +121,8 @@ OSSocketConnect(
  */
 CRTDECL(oserr_t,
 OSSocketListen(
-        _In_ OSHandle_t* handle,
-        _In_ int         queueSize));
+    _In_ OSHandle_t* handle,
+    _In_ int         queueSize));
 
 /**
  * @brief Retrieves a socket address.
@@ -116,10 +134,10 @@ OSSocketListen(
  */
 CRTDECL(oserr_t,
 OSSocketAddress(
-        _In_ OSHandle_t*      handle,
-        _In_ int              type,
-        _In_ struct sockaddr* address,
-        _In_ socklen_t        addressMaxSize));
+    _In_ OSHandle_t*      handle,
+    _In_ int              type,
+    _In_ struct sockaddr* address,
+    _In_ socklen_t        addressMaxSize));
 
 /**
  * @brief Sets a socket option.
@@ -132,11 +150,11 @@ OSSocketAddress(
  */
 CRTDECL(oserr_t,
 OSSocketSetOption(
-        _In_ OSHandle_t* handle,
-        _In_ int         protocol,
-        _In_ int         option,
-        _In_ const void* data,
-        _In_ socklen_t   length));
+    _In_ OSHandle_t* handle,
+    _In_ int         protocol,
+    _In_ int         option,
+    _In_ const void* data,
+    _In_ socklen_t   length));
 
 /**
  * @brief Retrieves a socket option.
@@ -149,10 +167,10 @@ OSSocketSetOption(
  */
 CRTDECL(oserr_t,
 OSSocketOption(
-        _In_    OSHandle_t* handle,
-        _In_    int         protocol,
-        _In_    int         option,
-        _In_    void*       data,
+    _In_    OSHandle_t* handle,
+    _In_    int         protocol,
+    _In_    int         option,
+    _In_    void*       data,
         _InOut_ socklen_t*  length));
 
 /**
@@ -163,8 +181,8 @@ OSSocketOption(
  */
 CRTDECL(oserr_t,
 OSSocketSendPipe(
-        _In_  OSHandle_t*      handle,
-        _Out_ streambuffer_t** pipeOut));
+    _In_  OSHandle_t*      handle,
+    _Out_ streambuffer_t** pipeOut));
 
 /**
  * @brief Sends a message through a socket.
@@ -176,10 +194,10 @@ OSSocketSendPipe(
  */
 CRTDECL(oserr_t,
 OSSocketSend(
-        _In_  OSHandle_t*          handle,
-        _In_  const struct msghdr* message,
-        _In_  int                  flags,
-        _Out_ size_t*              bytesSentOut));
+    _In_  OSHandle_t*          handle,
+    _In_  const struct msghdr* message,
+    _In_  int                  flags,
+    _Out_ size_t*              bytesSentOut));
 
 /**
  * @brief Creates a stream pipe connected to a socket for receiving data.
@@ -189,8 +207,8 @@ OSSocketSend(
  */
 CRTDECL(oserr_t,
 OSSocketRecvPipe(
-        _In_  OSHandle_t*      handle,
-        _Out_ streambuffer_t** pipeOut));
+    _In_  OSHandle_t*      handle,
+    _Out_ streambuffer_t** pipeOut));
 
 /**
  * @brief Receives a message from a socket.
@@ -202,10 +220,10 @@ OSSocketRecvPipe(
  */
 CRTDECL(oserr_t,
 OSSocketRecv(
-        _In_  OSHandle_t*    handle,
-        _In_  struct msghdr* message,
-        _In_  int            flags,
-        _Out_ size_t*        bytesRecievedOut));
+    _In_  OSHandle_t*    handle,
+    _In_  struct msghdr* message,
+    _In_  int            flags,
+    _Out_ size_t*        bytesRecievedOut));
 
 _CODE_END
 #endif //!__OS_SERVICE_NET_H__

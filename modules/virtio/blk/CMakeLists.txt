@@ -24,8 +24,11 @@ set_source_files_properties (${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE)
 add_module_target(virtio-blk ""
     ${ADDITONAL_SOURCES}
 
+    config.c
     device.c
+    interrupt.c
     main.c
+    request.c
 )
 target_link_libraries(virtio-blk PRIVATE virtio-common)
 add_dependencies(virtio-blk contract_servers)
