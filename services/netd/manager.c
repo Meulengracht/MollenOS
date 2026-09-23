@@ -100,7 +100,7 @@ static void WakeReceiveWaiters(Socket_t* receiver)
     }
 }
 
-static void KickRunnableSockets(void)
+static void NotifyRunnableSockets(void)
 {
     if (g_runnable.Head) {
         OSNotificationQueuePost(&g_runnable.Head->Handle, IOSETOUT);
@@ -140,7 +140,7 @@ static void RunSocketWorkLocked(void)
     }
     // Preserve progress after the finite send's last notification, while still
     // returning to the event queue between bounded batches.
-    KickRunnableSockets();
+    NotifyRunnableSockets();
 }
 
 // socket_monitor thread:
@@ -200,31 +200,7 @@ SocketMonitor(
     return 0;
 }
 
-/////////////////////////////////////////////////////
-// NetworkService => DRIVERS
-// The communication between the drivers and the network service are a little more
-// dumb. The NetworkService allocates two memory pools per driver as shared buffers.
-// The first one, the send buffer, is then filled with data received from applications.
-// The send buffer is split up into frames of N size (determined by max-packet
-// from the driver), and then queued up by the NetworkService.
-// The second one, the recv buffer, is filled with data received from the driver.
-// The recv buffer is split up into frames of N size (determined by max-packet 
-// from the driver), and queued up for listening.
-
-// network_monitor thread:
-// 1. Receive tx event
-// 2. Check if the tx event matches a socket that has data pending for tx
-static int
-NetworkMonitor(
-    _In_ void* Context)
-{
-    int RunForever = 1;
-    
-    while (RunForever) {
-        
-    }
-    return 0;
-}
+// Controller sessions and their serialized executor live in adapter.c/adapters.c.
 
 oserr_t
 NetworkManagerInitialize(void)
@@ -337,7 +313,7 @@ NetworkManagerSocketShutdownLocked(
     }
     
     // Before initiating the actual destruction, remove it from our handle list.
-    if (Options & SYS_CLOSE_OPTIONS_DESTROY) {
+    if (Options == SYS_CLOSE_OPTIONS_DESTROY) {
         // The execution lock keeps removal and destruction atomic with respect
         // to every socket operation, including borrowed peer/address lookups.
         if (!rb_tree_remove(&g_sockets, (void*)(uintptr_t)Handle)) {
@@ -346,7 +322,7 @@ NetworkManagerSocketShutdownLocked(
 
         RemoveSocketWork(socket);
         WakeReceiveWaiters(socket);
-        KickRunnableSockets();
+        NotifyRunnableSockets();
 
         oserr = OSNotificationQueueCtrl(
                 &g_socketSet,

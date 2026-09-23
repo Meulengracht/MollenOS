@@ -27,10 +27,20 @@
 #include <os/services/net.h>
 #include <os/mollenos.h>
 
+enum OSocketShutdownType
+__ToOSSocketShutdownType(int how)
+{
+    switch (how) {
+        case SHUT_RD: return OSSOCKET_SHUTDOWN_RECV;
+        case SHUT_WR: return OSSOCKET_SHUTDOWN_SEND;
+        case SHUT_RDWR: return OSSOCKET_SHUTDOWN_RECVSEND;
+        default: return -1; // Invalid value
+    }
+}
+
 int shutdown(int iod, int how)
 {
     stdio_handle_t* handle = stdio_handle_get(iod);
-    oserr_t         oserr;
 
     if (how <= 0 || how > SHUT_RDWR) {
         _set_errno(EINVAL);
@@ -42,24 +52,10 @@ int shutdown(int iod, int how)
         return -1;
     }
 
-    if (how & SHUT_WR) {
-        streambuffer_t* stream;
-
-        oserr = OSSocketSendPipe(&handle->OSHandle, &stream);
-        if (oserr != OS_EOK) {
-            return OsErrToErrNo(oserr);
-        }
-        streambuffer_set_option(stream, STREAMBUFFER_DISABLED);
-    }
-    
-    if (how & SHUT_RD) {
-        streambuffer_t* stream;
-
-        oserr = OSSocketRecvPipe(&handle->OSHandle, &stream);
-        if (oserr != OS_EOK) {
-            return OsErrToErrNo(oserr);
-        }
-        streambuffer_set_option(stream, STREAMBUFFER_DISABLED);
-    }
-    return 0;
+    return OsErrToErrNo(
+        OSSocketShutdown(
+            &handle->OSHandle,
+            __ToOSSocketShutdownType(how)
+        )
+    );
 }

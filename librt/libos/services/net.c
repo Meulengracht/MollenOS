@@ -18,6 +18,7 @@
 #define __need_minmax
 #include <ddk/service.h>
 #include <gracht/link/vali.h>
+#include <inet/socket.h>
 #include <internal/_tls.h>
 #include <internal/_utils.h>
 #include <os/handle.h>
@@ -42,18 +43,18 @@ static size_t __SocketImport(struct OSHandle*, const void*);
 static void   __SocketDestroy(struct OSHandle*);
 
 const OSHandleOps_t g_socketOps = {
-        .Deserialize = __SocketImport,
-        .Serialize = __SocketExport,
-        .Destroy = __SocketDestroy
+    .Deserialize = __SocketImport,
+    .Serialize = __SocketExport,
+    .Destroy = __SocketDestroy
 };
 
 struct Socket*
 __SocketNew(
-        _In_ int    domain,
-        _In_ int    type,
-        _In_ int    protocol,
-        _In_ uuid_t sendHandleID,
-        _In_ uuid_t recvHandleID)
+    _In_ int    domain,
+    _In_ int    type,
+    _In_ int    protocol,
+    _In_ uuid_t sendHandleID,
+    _In_ uuid_t recvHandleID)
 {
     struct Socket* socket;
 
@@ -72,7 +73,7 @@ __SocketNew(
 
 static void
 __SocketClose(
-        _In_ uuid_t handle)
+    _In_ uuid_t handle)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
@@ -82,9 +83,50 @@ __SocketClose(
     sys_socket_close_result(GetGrachtClient(), &msg.base, &oserr);
 }
 
+static enum sys_close_options
+__ToProtocolCloseOptions(
+    _In_ enum OSocketShutdownType type)
+{
+    switch (type) {
+        case OSSOCKET_SHUTDOWN_RECV:       return SYS_CLOSE_OPTIONS_READ;
+        case OSSOCKET_SHUTDOWN_SEND:       return SYS_CLOSE_OPTIONS_WRITE;
+        case OSSOCKET_SHUTDOWN_RECVSEND:   return SYS_CLOSE_OPTIONS_READ_WRITE;
+        default: return -1; // Invalid value
+    }
+}
+
+oserr_t
+OSSocketShutdown(
+    _In_ OSHandle_t*              handle,
+    _In_ enum OSocketShutdownType type)
+{
+    struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
+    enum sys_close_options   operation = __ToProtocolCloseOptions(type);
+    oserr_t                  status;
+
+    if (handle == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (handle->Type != OSHANDLE_SOCKET) {
+        return OS_ENOTSUPPORTED;
+    }
+    
+    if (operation == -1) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (sys_socket_close(GetGrachtClient(), &msg.base, handle->ID, operation) != 0 ||
+        gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC) != 0 ||
+        sys_socket_close_result(GetGrachtClient(), &msg.base, &status) != 0) {
+        return OS_EUNKNOWN;
+    }
+    return status;
+}
+
 static oserr_t
 __SocketAttachPipes(
-        _In_ struct Socket* socket)
+    _In_ struct Socket* socket)
 {
     oserr_t oserr;
 
@@ -106,10 +148,10 @@ __SocketAttachPipes(
 
 oserr_t
 OSSocketOpen(
-        _In_  int         domain,
-        _In_  int         type,
-        _In_  int         protocol,
-        _Out_ OSHandle_t* handleOut)
+    _In_  int         domain,
+    _In_  int         type,
+    _In_  int         protocol,
+    _Out_ OSHandle_t* handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           socket;
@@ -161,8 +203,8 @@ OSSocketOpen(
 
 oserr_t
 OSSocketPair(
-        _In_  OSHandle_t* sock0,
-        _In_  OSHandle_t* sock1)
+    _In_  OSHandle_t* sock0,
+    _In_  OSHandle_t* sock1)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
@@ -175,17 +217,17 @@ OSSocketPair(
 
 oserr_t
 OSSocketAccept(
-        _In_  OSHandle_t*      handle,
-        _In_  struct sockaddr* address,
-        _In_  socklen_t*       addressLength,
-        _Out_ OSHandle_t*      handleOut)
+    _In_  OSHandle_t*      handle,
+    _In_  struct sockaddr* address,
+    _In_  socklen_t*       addressLength,
+    _Out_ OSHandle_t*      handleOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           source, *accepted;
-    struct sockaddr_storage peerAddress = {0};
+    struct sockaddr_storage  peerAddress = {0};
     uuid_t                   handleID;
-    uuid_t                   send_handle;
-    uuid_t                   recv_handle;
+    uuid_t                   sendHandle;
+    uuid_t                   recvHandle;
     oserr_t                  oserr;
 
     if (handle == NULL) {
@@ -210,20 +252,20 @@ OSSocketAccept(
     sys_socket_accept(GetGrachtClient(), &msg.base, handle->ID);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_accept_result(
-            GetGrachtClient(),
-            &msg.base,
-            &oserr,
-            (uint8_t*)&peerAddress,
-            sizeof(peerAddress),
-            &handleID,
-            &recv_handle,
-            &send_handle
+        GetGrachtClient(),
+        &msg.base,
+        &oserr,
+        (uint8_t*)&peerAddress,
+        sizeof(peerAddress),
+        &handleID,
+        &recvHandle,
+        &sendHandle
     );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    accepted = __SocketNew(0, source->Type, 0, send_handle, recv_handle);
+    accepted = __SocketNew(0, source->Type, 0, sendHandle, recvHandle);
     if (accepted == NULL) {
         __SocketClose(handleID);
         return OS_EOOM;
@@ -237,11 +279,11 @@ OSSocketAccept(
     }
 
     oserr = OSHandleWrap(
-            handleID,
-            OSHANDLE_SOCKET,
-            accepted,
-            true,
-            handleOut
+        handleID,
+        OSHANDLE_SOCKET,
+        accepted,
+        true,
+        handleOut
     );
     if (oserr != OS_EOK) {
         OSHandleDestroy(&accepted->Send);
@@ -259,9 +301,9 @@ OSSocketAccept(
 
 oserr_t
 OSSocketBind(
-        _In_ OSHandle_t*            handle,
-        _In_ const struct sockaddr* address,
-        _In_ socklen_t              addressLength)
+    _In_ OSHandle_t*            handle,
+    _In_ const struct sockaddr* address,
+    _In_ socklen_t              addressLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
@@ -289,9 +331,9 @@ OSSocketBind(
 
 oserr_t
 OSSocketConnect(
-        _In_ OSHandle_t*            handle,
-        _In_ const struct sockaddr* address,
-        _In_ socklen_t              addressLength)
+    _In_ OSHandle_t*            handle,
+    _In_ const struct sockaddr* address,
+    _In_ socklen_t              addressLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           socket;
@@ -324,10 +366,10 @@ OSSocketConnect(
 
 oserr_t
 OSSocketAddress(
-        _In_ OSHandle_t*      handle,
-        _In_ int              type,
-        _In_ struct sockaddr* address,
-        _In_ socklen_t        addressMaxSize)
+    _In_ OSHandle_t*      handle,
+    _In_ int              type,
+    _In_ struct sockaddr* address,
+    _In_ socklen_t        addressMaxSize)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
@@ -355,8 +397,8 @@ OSSocketAddress(
 
 oserr_t
 OSSocketListen(
-        _In_ OSHandle_t* handle,
-        _In_ int         queueSize)
+    _In_ OSHandle_t* handle,
+    _In_ int         queueSize)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           socket;
@@ -383,11 +425,11 @@ OSSocketListen(
 
 oserr_t
 OSSocketSetOption(
-        _In_ OSHandle_t* handle,
-        _In_ int         protocol,
-        _In_ int         option,
-        _In_ const void* data,
-        _In_ socklen_t   length)
+    _In_ OSHandle_t* handle,
+    _In_ int         protocol,
+    _In_ int         option,
+    _In_ const void* data,
+    _In_ socklen_t   length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     oserr_t                  oserr;
@@ -409,10 +451,10 @@ OSSocketSetOption(
 
 oserr_t
 OSSocketOption(
-        _In_    OSHandle_t* handle,
-        _In_    int         protocol,
-        _In_    int         option,
-        _In_    void*       data,
+    _In_    OSHandle_t* handle,
+    _In_    int         protocol,
+    _In_    int         option,
+    _In_    void*       data,
         _InOut_ socklen_t*  length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
@@ -445,8 +487,8 @@ OSSocketOption(
 
 oserr_t
 OSSocketSendPipe(
-        _In_  OSHandle_t*      handle,
-        _Out_ streambuffer_t** pipeOut)
+    _In_  OSHandle_t*      handle,
+    _Out_ streambuffer_t** pipeOut)
 {
     struct Socket* socket;
     oserr_t        oserr = OS_EOK;
@@ -487,11 +529,11 @@ exit:
 
 static oserr_t
 __SendStream(
-        _In_  OSHandle_t*                handle,
-        _In_  streambuffer_t*            stream,
-        _In_  const struct msghdr*       message,
-        _In_  streambuffer_rw_options_t* rwOptions,
-        _Out_ size_t*                    bytesSentOut)
+    _In_  OSHandle_t*                handle,
+    _In_  streambuffer_t*            stream,
+    _In_  const struct msghdr*       message,
+    _In_  streambuffer_rw_options_t* rwOptions,
+    _Out_ size_t*                    bytesSentOut)
 {
     size_t  bytesSent = 0;
     oserr_t oserr;
@@ -521,12 +563,12 @@ __SendStream(
 
 static oserr_t
 __SendPacket(
-        _In_  OSHandle_t*                handle,
-        _In_  streambuffer_t*            stream,
-        _In_  const struct msghdr*       message,
-        _In_  int                        flags,
-        _In_  streambuffer_rw_options_t* rwOptions,
-        _Out_ size_t*                    bytesSentOut)
+    _In_  OSHandle_t*                handle,
+    _In_  streambuffer_t*            stream,
+    _In_  const struct msghdr*       message,
+    _In_  int                        flags,
+    _In_  streambuffer_rw_options_t* rwOptions,
+    _Out_ size_t*                    bytesSentOut)
 {
     size_t           bytesSent   = 0;
     size_t           payload_len = 0;
@@ -606,11 +648,11 @@ __SendPacket(
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
 static oserr_t
 __SendMessage(
-        _In_  OSHandle_t*          handle,
-        _In_  streambuffer_t*      stream,
-        _In_  const struct msghdr* message,
-        _In_  int                  flags,
-        _Out_ size_t*              bytesSentOut)
+    _In_  OSHandle_t*          handle,
+    _In_  streambuffer_t*      stream,
+    _In_  const struct msghdr* message,
+    _In_  int                  flags,
+    _Out_ size_t*              bytesSentOut)
 {
     struct Socket*            socket = handle->Payload;
     OSAsyncContext_t*         asyncContext = __tls_current()->async_context;
@@ -641,10 +683,10 @@ __SendMessage(
 
 oserr_t
 OSSocketSend(
-        _In_  OSHandle_t*          handle,
-        _In_  const struct msghdr* message,
-        _In_  int                  flags,
-        _Out_ size_t*              bytesSentOut)
+    _In_  OSHandle_t*          handle,
+    _In_  const struct msghdr* message,
+    _In_  int                  flags,
+    _Out_ size_t*              bytesSentOut)
 {
     struct Socket*  socket;
     streambuffer_t* stream;
@@ -684,8 +726,8 @@ OSSocketSend(
 
 oserr_t
 OSSocketRecvPipe(
-        _In_  OSHandle_t*      handle,
-        _Out_ streambuffer_t** pipeOut)
+    _In_  OSHandle_t*      handle,
+    _Out_ streambuffer_t** pipeOut)
 {
     struct Socket* socket;
     oserr_t        oserr = OS_EOK;
@@ -755,11 +797,11 @@ __StreambufferFlags(int flags)
 
 static oserr_t
 __RecvStream(
-        _In_  OSHandle_t*                handle,
-        _In_  streambuffer_t*            stream,
-        _In_  struct msghdr*             message,
-        _In_  streambuffer_rw_options_t* rwOptions,
-        _Out_ size_t*                    bytesRecievedOut)
+    _In_  OSHandle_t*                handle,
+    _In_  streambuffer_t*            stream,
+    _In_  struct msghdr*             message,
+    _In_  streambuffer_rw_options_t* rwOptions,
+    _Out_ size_t*                    bytesRecievedOut)
 {
     size_t total = 0;
     streambuffer_rw_options_t options = *rwOptions;
@@ -798,11 +840,11 @@ __RecvStream(
 // MSG_CMSG_CLOEXEC (Ignored on Vali)
 static oserr_t
 __RecvMessage(
-        _In_  OSHandle_t*                handle,
-        _In_  streambuffer_t*            stream,
-        _In_  struct msghdr*             message,
-        _In_  streambuffer_rw_options_t* rwOptions,
-        _Out_ size_t*                    bytesRecievedOut)
+    _In_  OSHandle_t*                handle,
+    _In_  streambuffer_t*            stream,
+    _In_  struct msghdr*             message,
+    _In_  streambuffer_rw_options_t* rwOptions,
+    _Out_ size_t*                    bytesRecievedOut)
 {
     struct Socket*            socket = handle->Payload;
     intmax_t                  numbytes;
@@ -923,10 +965,10 @@ __RecvMessage(
 
 oserr_t
 OSSocketRecv(
-        _In_  OSHandle_t*    handle,
-        _In_  struct msghdr* message,
-        _In_  int            flags,
-        _Out_ size_t*        bytesRecievedOut)
+    _In_  OSHandle_t*    handle,
+    _In_  struct msghdr* message,
+    _In_  int            flags,
+    _Out_ size_t*        bytesRecievedOut)
 {
     struct Socket*    socket;
     streambuffer_t*   stream;
@@ -981,8 +1023,8 @@ OSSocketRecv(
 
 static size_t
 __SocketExport(
-        _In_ struct OSHandle* handle,
-        _In_ void*            data)
+    _In_ struct OSHandle* handle,
+    _In_ void*            data)
 {
     struct Socket* socket = handle->Payload;
     uint8_t*       data8 = data;
@@ -1002,8 +1044,8 @@ __SocketExport(
 
 static size_t
 __SocketImport(
-        _In_ struct OSHandle* handle,
-        _In_ const void*      data)
+    _In_ struct OSHandle* handle,
+    _In_ const void*      data)
 {
     struct Socket* socket;
     const uint8_t* data8 = data;

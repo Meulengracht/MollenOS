@@ -8,9 +8,10 @@ import "types"
 namespace sys
 
 enum close_options {
-    READ,
-    WRITE,
-    DESTROY
+    READ = 0,
+    WRITE = 1,
+    READ_WRITE = 2,
+    DESTROY = 3
 }
 
 enum address_type {

@@ -1,38 +1,312 @@
 /**
- * Network Adapter Contract
- * Provides networking related functionality to the drivers that implement this. The contracts
- * supported by each driver can be queried through the driver contract.
+ * Network Adapter Contract, ABI version 1.
+ *
+ * Ethernet frame transport between netd and controller drivers. IP addresses,
+ * routing, sockets and wireless association are outside this contract. Drivers
+ * advertise the contract through the driver contract. Ports are zero-based.
+ * This replaces the unused stat/queue sketch and is not wire-compatible with it.
+ *
+ * Sessions are exclusive per port and bound to the authenticated IPC peer.
+ * IDs alone do not authorize access. A session/generation pair must never be
+ * reused, including after driver restart. Reject stale generations everywhere.
+ * Generation checks do not establish that old DMA has stopped.
+ *
+ * Payloads reside in registered SHM; messages carry metadata only. Acceptance
+ * transfers a slot to the driver; rejection leaves it with netd. Each accepted
+ * submission has one logical terminal completion, which may be delivered again.
+ * No timeout, lost reply or fault event grants permission to recycle storage.
+ * Unless stated otherwise, response data is valid only on OS_EOK.
  */
 
 import "../types"
 
 namespace ctt
 
-enum netadapter_type {
-    ETHERNET,
-    WIFI
+enum netadapter_framing {
+    ETHERNET = 1
 }
 
-struct netadapter_stats {
-    netadapter_type type;
-    uint            mtu_size;
+enum netadapter_medium {
+    WIRED = 1,
+    WIFI = 2,
+    VIRTUAL = 3
 }
 
-struct netadapter_request {
-    uint   request_id;
-    uuid_t buffer_handle;
+enum netadapter_direction {
+    TX = 1,
+    RX = 2
 }
 
 enum netadapter_link_status {
-    DOWN,
-    UP
+    UNKNOWN = 0,
+    DOWN = 1,
+    UP = 2
+}
+
+enum netadapter_duplex {
+    UNKNOWN = 0,
+    HALF = 1,
+    FULL = 2
+}
+
+// Bit masks for uint64 feature fields. No packet offloads are defined in v1.
+enum netadapter_feature {
+    ALL_MULTICAST = 1,
+    PROMISCUOUS = 2
+}
+
+// UNICAST | BROADCAST is required and is the default. UNICAST accepts the
+// current MAC. Optional filter bits require the corresponding enabled feature.
+enum netadapter_rx_filter {
+    UNICAST = 1,
+    BROADCAST = 2,
+    ALL_MULTICAST = 4,
+    PROMISCUOUS = 8
+}
+
+enum netadapter_completion_status {
+    SUCCESS = 0,
+    ERROR = 1,
+    CANCELLED = 2
+}
+
+struct netadapter_mac {
+    uint8 octet0;
+    uint8 octet1;
+    uint8 octet2;
+    uint8 octet3;
+    uint8 octet4;
+    uint8 octet5;
+}
+
+struct netadapter_session {
+    uint64 id;
+    uint64 generation;
+}
+
+// Carrier is independent of administrative start/stop. Sequence starts at one
+// and increases on every change within the session; zero speed means unknown.
+struct netadapter_link {
+    uint64                 sequence;
+    netadapter_link_status status;
+    netadapter_duplex      duplex;
+    uint64                 speed_bps;
+}
+
+struct netadapter_info {
+    uint32             port_count;
+    uint32             min_version;
+    uint32             max_version;
+    netadapter_framing framing;
+    netadapter_medium  medium;
+    netadapter_mac     permanent_mac;
+    netadapter_mac     current_mac;
+    uint32             min_mtu;
+    uint32             max_mtu;
+    uint32             current_mtu;
+    uint32             max_frame_size;
+    uint32             buffer_alignment;
+    uint32             required_headroom;
+    uint32             required_tailroom;
+    uint32             max_pools;
+    uint64             max_pool_bytes;
+    uint64             max_registered_bytes;
+    uint32             max_slots_per_pool;
+    uint32             max_queue_pairs;
+    uint32             max_segments;
+    uint32             max_batch_size;
+    uint32             max_pending_batches;
+    uint32             max_outstanding_tx;
+    uint32             max_outstanding_rx;
+    uint32             max_unacked_completions;
+    uint32             min_rx_slots;
+    uint64             supported_features;
+}
+
+/**
+ * Slot N begins at region_offset + N * slot_size. slot_count * slot_size must
+ * fit region_size. Validate overflow, SHM bounds/access, quotas, alignment and
+ * overlapping registrations, including aliases of the same storage.
+ * buffer_alignment is a nonzero power of two applying to each frame address.
+ * Each slot reserves the advertised headroom/tailroom outside the frame.
+ *
+ * Pools have one direction; nonzero IDs are never reused within a session.
+ * Drivers prepare DMA mappings or bounce buffers; clients supply no DMA address.
+ * Registration transfers no slot ownership. Keep registered storage stable and
+ * attached until successful unregister_pool or close.
+ */
+struct netadapter_pool {
+    netadapter_direction direction;
+    uuid_t               buffer_handle;
+    uint64               region_offset;
+    uint64               region_size;
+    uint32               slot_size;
+    uint32               slot_count;
+}
+
+struct netadapter_packet_id {
+    uint32 queue_id;
+    uint32 pool_id;
+    uint32 slot_id;
+    uint64 submission_sequence;
+}
+
+/**
+ * queue_id is zero in v1; max_queue_pairs and max_segments are one.
+ * submission_sequence is nonzero and strictly increases per slot, including
+ * rejected descriptors, except when replaying an identical batch. Remember the
+ * last sequence per slot to reject stale submissions with bounded storage.
+ * At most one accepted submission owns a slot. Generation comes from the session.
+ *
+ * data_offset is relative to the slot start. length is frame length for TX and
+ * writable frame capacity for RX. Check offset <= slot_size and length <=
+ * slot_size - offset, plus headroom/tailroom, alignment and frame limits.
+ * flags must be zero in v1. Snapshot descriptor metadata before admission.
+ *
+ * Frames begin at destination MAC, excluding preamble and FCS. MTU denotes
+ * network-layer packet size, not frame or slot size. Driver-private headers
+ * stay outside the frame. Drivers must initialize any short-frame padding.
+ * No checksum validation/generation or VLAN insertion/stripping is requested:
+ * netd supplies complete TX frames and validates received protocol checksums.
+ */
+struct netadapter_packet {
+    netadapter_packet_id id;
+    uint32               data_offset;
+    uint32               length;
+    uint32               flags;
+}
+
+// One entry per input descriptor, in input order. Only OS_EOK transfers ownership.
+struct netadapter_admission {
+    netadapter_packet_id id;
+    oserr_t              status;
+}
+
+/**
+ * Session-wide completion sequence starts at one, shared by TX and RX.
+ * RX success returns actual length at the submitted offset; TX success returns
+ * submitted length. Error/cancellation returns length zero and a detail reason;
+ * success has detail OS_EOK. Deduplicate by completion_sequence.
+ * TX completion releases hardware ownership, not TCP retransmission state.
+ * RX completion forbids driver access until the slot is explicitly reposted.
+ */
+struct netadapter_completion {
+    uint64                       completion_sequence;
+    netadapter_direction         direction;
+    netadapter_packet_id         id;
+    netadapter_completion_status status;
+    oserr_t                      detail;
+    uint32                       length;
+}
+
+// Session-scoped counters; queries do not reset them. Byte counts exclude FCS
+// and driver-private headers. Successful packet counts exclude cancellations.
+struct netadapter_counters {
+    uint64 tx_packets;
+    uint64 tx_bytes;
+    uint64 rx_packets;
+    uint64 rx_bytes;
+    uint64 tx_dropped;
+    uint64 rx_dropped;
+    uint64 tx_errors;
+    uint64 rx_errors;
+    uint64 tx_queue_full;
+    uint64 rx_no_buffer;
+    uint64 resets;
+}
+
+// Session-wide faults stop admission and require stop/close recovery. Zero
+// operation_id/batch_id means no particular request. Packet errors use completions.
+struct netadapter_fault {
+    oserr_t status;
+    uint32  operation_id;
+    uint64  batch_id;
 }
 
 service netadapter : message {
-    func stat(uuid_t deviceId) : () = 1;
-    func queue(uuid_t deviceId, netadapter_request request) : () = 2;
+    // Port zero exists on every advertised device and reveals port_count.
+    // Batch limits must fit the Gracht message size, including serialization.
+    func get_info(uuid_t device_id, uint32 port_id) : (oserr_t status, netadapter_info info) = 1;
 
-    event stats : (uuid_t deviceId, netadapter_stats stats) = 3;
-    event error : (uuid_t deviceId, int error) = 4;
-    event link_status : (uuid_t deviceId, netadapter_link_status status) = 5;
+    // version must be 1. Unsupported requested feature bits fail open. Success
+    // atomically installs directed event delivery and returns a link snapshot.
+    // Events may precede this reply; use the link sequence to order updates.
+    // An identical retry by the same owner returns its existing session/snapshot.
+    func open(uuid_t device_id, uint32 port_id, uint32 version, uint64 requested_features) : (oserr_t status, netadapter_session session, uint64 enabled_features, netadapter_link link) = 2;
+
+    // Only while stopped, before posting RX. registration_id is a nonzero request
+    // key. Identical retries return the original ID; conflicting retries fail.
+    // A retry for a retired registration fails rather than recreating its pool.
+    // Retain keys until close. max_pools limits successful registrations over the
+    // session lifetime, including retired pools, to bound this replay storage.
+    func register_pool(netadapter_session session, uint64 registration_id, netadapter_pool pool) : (oserr_t status, uint32 pool_id) = 3;
+
+    // Only while stopped without outstanding descriptors or unacked completions.
+    // Validate MTU against registered RX slot capacity. Identical retries are safe.
+    func configure(netadapter_session session, uint32 mtu, uint32 rx_filter) : (oserr_t status) = 4;
+
+    /**
+     * Batch IDs start at one and increase by one across BOTH submission methods.
+     * Client serializes first-time batches. Identical retries return cached results;
+     * altered retries fail. Retired IDs are rejected, never executed again.
+     * A gap/full replay window returns OS_EBUSY without consuming the ID.
+     *
+     * OS_EOK consumes the ID and returns one admission per descriptor, including
+     * individual failures. Other statuses return an empty array, consume no ID,
+     * and admit nothing on that attempt; they never undo prior acceptance.
+     * Batch size is 1..max_batch_size. Reserve terminal-completion storage before
+     * acceptance. Completions may arrive before the admission response.
+     */
+    // Prepost after configuration while stopped, or replenish while running.
+    func post_rx(netadapter_session session, uint64 batch_id, netadapter_packet[] packets) : (oserr_t status, netadapter_admission[] admissions) = 5;
+
+    // Requires configuration, min_rx_slots posted and no undrained stop barrier.
+    // Repeated start while running succeeds without restarting hardware.
+    func start(netadapter_session session) : (oserr_t status) = 6;
+
+    // Running only; nonblocking admission. Accepted TX preserves input order in
+    // queue zero. Carrier-related rejection is reported per descriptor.
+    func submit_tx(netadapter_session session, uint64 batch_id, netadapter_packet[] packets) : (oserr_t status, netadapter_admission[] admissions) = 7;
+
+    func get_link(netadapter_session session) : (oserr_t status, netadapter_link link) = 8;
+    func get_counters(netadapter_session session) : (oserr_t status, netadapter_counters counters) = 9;
+
+    // Stops admission and quiesces DMA before OS_EOK. All accepted submissions
+    // then have terminal records through final_completion_sequence (zero if none).
+    // Drain/ack records before restarting or reconfiguring. Failure grants no
+    // ownership: retain mappings. Repeated stop is safe, including after RX prepost.
+    func stop(netadapter_session session) : (oserr_t status, uint64 final_completion_sequence) = 10;
+
+    // Stopped only; OS_EBUSY while backend/DMA references or unacked completions
+    // refer to the pool. An already unregistered ID succeeds again.
+    func unregister_pool(netadapter_session session, uint32 pool_id) : (oserr_t status) = 11;
+
+    // Safe stop followed by release. OS_EOK is a final ownership barrier even if
+    // completion delivery failed: all slots may be reclaimed, records discarded.
+    // Remember closed generations so a repeated close succeeds without touching a
+    // newer session. Failed/uncertain close never authorizes freeing DMA memory.
+    func close(netadapter_session session) : (oserr_t status) = 12;
+
+    // Cumulative retirement of received admission results, NOT packet ownership.
+    // Cannot exceed last admitted batch. Monotonic/idempotent; retired IDs must
+    // remain rejected even after their cached results have been discarded.
+    func ack_batches(netadapter_session session, uint64 through_batch_id) : (oserr_t status) = 13;
+
+    // Retained completions after cursor, ascending, limit 1..max_batch_size.
+    // Cursor must be between acknowledged and last-issued sequence inclusive.
+    // Empty success means none available; highest_sequence is the snapshot's last
+    // issued sequence. This query recovers from lost completion events.
+    func drain_completions(netadapter_session session, uint64 after_sequence, uint32 limit) : (oserr_t status, netadapter_completion[] completions, uint64 highest_sequence) = 14;
+
+    // Retire only after processing EVERY record through this sequence. Cannot
+    // exceed last-issued sequence. Monotonic/idempotent. Retain records until ack,
+    // including when event delivery fails; apply backpressure when storage is full.
+    func ack_completions(netadapter_session session, uint64 through_sequence) : (oserr_t status) = 15;
+
+    // Directed to session owner. Arrays are bounded by max_batch_size. Completion
+    // direction must match the event name; drain returns records from both paths.
+    event tx_complete : (netadapter_session session, netadapter_completion[] completions) = 16;
+    event rx_complete : (netadapter_session session, netadapter_completion[] completions) = 17;
+    event link_changed : (netadapter_session session, netadapter_link link) = 18;
+    event fault : (netadapter_session session, netadapter_fault fault) = 19;
 }
