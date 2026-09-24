@@ -170,6 +170,7 @@ void* hashtable_set(
         iterElement->probeCount++;
         index = (index + 1) & (hashtable->capacity - 1);
     }
+    // We should never reach this point because the loop above will always return.
 }
 
 void* hashtable_get(
@@ -217,8 +218,10 @@ void* hashtable_remove(
     }
 
     // Only resize on entry to avoid any unncessary resizes
-    if (SHOULD_SHRINK(hashtable) && hashtable_resize(hashtable, hashtable->capacity >> 1)) {
-        return NULL;
+    // Shrinking is an optimization. Failure must not prevent removal: callers
+    // may be releasing the object referenced by this entry under memory pressure.
+    if (SHOULD_SHRINK(hashtable)) {
+        (void)hashtable_resize(hashtable, hashtable->capacity >> 1);
     }
 
     hash  = hashtable->hash(key);
