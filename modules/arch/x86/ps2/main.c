@@ -220,8 +220,8 @@ OnLoad(void)
     }
     memset(Ps2Controller, 0, sizeof(PS2Controller_t));
 
-    if (WaitForNetService(1000) != OS_EOK) {
-        ERROR(" => Failed to start ps2 driver, as net service never became available.");
+    if (WaitForDeviceService(1000) != OS_EOK) {
+        ERROR(" => Failed to start ps2 driver, as device service never became available.");
         return OS_ETIMEOUT;
     }
     return OS_EOK;

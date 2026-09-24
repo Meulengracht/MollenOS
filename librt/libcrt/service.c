@@ -179,7 +179,7 @@ __ServiceMain(
     _CRT_UNUSED(cancellationToken);
 
     startupOptions.Server = g_server;
-    startupOptions.ServerHandle = GetNativeHandle( gracht_link_get_handle((struct gracht_link*)g_serverLink));
+    startupOptions.ServerHandle = GetNativeHandle(gracht_link_get_handle((struct gracht_link*)g_serverLink));
 
     ServiceInitialize(&startupOptions);
 }
