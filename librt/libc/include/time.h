@@ -62,11 +62,11 @@ CRTDECL(clock_t, clock_getfreq(void));
 /**
  * On Vali UTC and TAI are almost alike. The difference is that UTC is affected by daylight savings, NTP etc.
  */
-#define TIME_UTC       0 // The epoch for this clock is 2000-01-01 00:00:00 in Coordinated Universal Time (UTC)
-#define TIME_TAI       1 // The epoch for this clock is 2000-01-01 00:00:00 in International Atomic Time (TAI)
-#define TIME_MONOTONIC 2 // The epoch is when the computer was booted.
-#define TIME_PROCESS   3 // The epoch for this clock is at some time during the generation of the current process.
-#define TIME_THREAD    4 // The epic is like TIME_PROCESS, but locally for the calling thread.
+#define TIME_UTC       1 // The epoch for this clock is 2000-01-01 00:00:00 in Coordinated Universal Time (UTC)
+#define TIME_TAI       2 // The epoch for this clock is 2000-01-01 00:00:00 in International Atomic Time (TAI)
+#define TIME_MONOTONIC 3 // The epoch is when the computer was booted.
+#define TIME_PROCESS   4 // The epoch for this clock is at some time during the generation of the current process.
+#define TIME_THREAD    5 // The epic is like TIME_PROCESS, but locally for the calling thread.
 
 struct timespec {
     time_t tv_sec;

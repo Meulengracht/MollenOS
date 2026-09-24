@@ -23,7 +23,7 @@
 
 static enum OSTimeSource
 __OSTimeSource(
-        _In_ int base)
+    _In_ int base)
 {
     if (base == TIME_THREAD) {
         return OSTimeSource_THREAD;
@@ -35,6 +35,7 @@ __OSTimeSource(
     return OSTimeSource_MONOTONIC;
 }
 
+// Return the value of base if successful, zero otherwise.
 int
 timespec_get(
     _In_ struct timespec* ts,
@@ -45,12 +46,16 @@ timespec_get(
 
     if (!ts) {
         _set_errno(EINVAL);
-        return -1;
+        return 0;
     }
 
-    oserr = OSGetTime(__OSTimeSource(base), &timeValue);
+    oserr = OSGetTime(
+        __OSTimeSource(base),
+        &timeValue
+    );
     if (oserr != OS_EOK) {
-        return OsErrToErrNo(oserr);
+        OsErrToErrNo(oserr);
+        return 0;
     }
 
     ts->tv_sec  = timeValue.Seconds;
@@ -58,5 +63,5 @@ timespec_get(
     if (base == TIME_TAI) {
         // TODO adjust for leap seconds
     }
-    return 0;
+    return base;
 }
