@@ -26,23 +26,30 @@
 
 oserr_t
 OSDeviceIOCtl(
-        _In_ uuid_t              deviceID,
-        _In_ enum OSIOCtlRequest request,
-        _In_ void*               buffer,
-        _In_ size_t              length)
+    _In_ uuid_t              deviceID,
+    _In_ enum OSIOCtlRequest request,
+    _In_ void*               buffer,
+    _In_ size_t              length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetDeviceService());
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
     uint8_t*                 u8 = buffer;
     int                      status;
+    uint32_t                 decodedLength;
+
+    // Let us do a relatively generous but simple length check, our
+    // IPC does not allow that many bytes either
+    if (length >= UINT32_MAX) {
+        return OS_EINVALPARAMS;
+    }
+    decodedLength = (uint32_t)length;
 
     status = sys_device_ioctl(
-            GetGrachtClient(),
-            &msg.base,
-            deviceID,
-            (unsigned int)request,
-            u8,
-            length
+        GetGrachtClient(), &msg.base,
+        deviceID,
+        (unsigned int)request,
+        u8,
+        length
     );
     if (status) {
         return OsErrToErrNo(status);
@@ -50,35 +57,40 @@ OSDeviceIOCtl(
 
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_device_ioctl_result(
-            GetGrachtClient(),
-            &msg.base,
-            u8,
-            length,
-            &oserr
+        GetGrachtClient(), &msg.base,
+        u8,
+        &decodedLength,
+        &oserr
     );
     return oserr;
 }
 
 oserr_t
 OSDeviceIOCtl2(
-        _In_ uuid_t              deviceID,
-        _In_ uuid_t              driverID,
-        _In_ enum OSIOCtlRequest request,
-        _In_ void*               buffer,
-        _In_ size_t              length)
+    _In_ uuid_t              deviceID,
+    _In_ uuid_t              driverID,
+    _In_ enum OSIOCtlRequest request,
+    _In_ void*               buffer,
+    _In_ size_t              length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverID);
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
     uint8_t*                 u8 = buffer;
     int                      status;
+    uint32_t                 decodedLength;
 
+    // Let us do a relatively generous but simple length check, our
+    // IPC does not allow that many bytes either
+    if (length >= UINT32_MAX) {
+        return OS_EINVALPARAMS;
+    }
+    decodedLength = (uint32_t)length;
     status = ctt_driver_ioctl(
-            GetGrachtClient(),
-            &msg.base,
-            deviceID,
-            (unsigned int)request,
-            u8,
-            length
+        GetGrachtClient(), &msg.base,
+        deviceID,
+        (unsigned int)request,
+        u8,
+        length
     );
     if (status) {
         return OsErrToErrNo(status);
@@ -86,11 +98,10 @@ OSDeviceIOCtl2(
 
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     ctt_driver_ioctl_result(
-            GetGrachtClient(),
-            &msg.base,
-            u8,
-            length,
-            &oserr
+        GetGrachtClient(), &msg.base,
+        u8,
+        &decodedLength,
+        &oserr
     );
     return oserr;
 }

@@ -19,6 +19,7 @@
 #define	__OS_IPCCONTEXT_H__
 
 #include <os/types/ipc.h>
+#include <os/types/handle.h>
 #include <os/types/async.h>
 #include <os/types/time.h>
 

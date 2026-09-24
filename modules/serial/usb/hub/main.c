@@ -115,8 +115,8 @@ void ctt_usbhost_event_transfer_status_invocation(gracht_client_t* client, const
                                                   const enum ctt_usb_transfer_status status, const size_t dataIndex)
 {
     HubDevice_t* hubDevice = NULL;
-    TRACE("ctt_usbhost_event_transfer_status_callback(event->status %u, event->bytes_transferred %" PRIuIN ")",
-          event->status, event->bytes_transferred);
+    TRACE("ctt_usbhost_event_transfer_status_callback(transferId %p, status %u, dataIndex %" PRIuIN ")",
+          (void*)transferId, status, dataIndex);
 
     foreach(element, &g_devices) {
         HubDevice_t* i = element->value;

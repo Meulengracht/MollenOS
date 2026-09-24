@@ -38,8 +38,13 @@ UsbControllerRegister(
     struct sys_device        protoDevice;
 
     to_sys_device(device, &protoDevice);
-    sys_usb_register_controller(GetGrachtClient(), &msg.base, serverHandle,
-                                &protoDevice, (int)type, (int)portCount);
+    sys_usb_register_controller(
+        GetGrachtClient(), &msg.base,
+        serverHandle,
+        &protoDevice,
+        (int)type,
+        (int)portCount
+    );
     sys_device_destroy(&protoDevice);
     return OS_EOK;
 }
@@ -52,9 +57,8 @@ UsbControllerUnregister(
     int                      status;
 
     status = sys_usb_unregister_controller(
-            GetGrachtClient(),
-            &msg.base,
-            deviceID
+        GetGrachtClient(), &msg.base,
+        deviceID
     );
     if (status) {
         raise(SIGPIPE);
@@ -70,11 +74,14 @@ UsbHubRegister(
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
 
-    sys_usb_register_hub(GetGrachtClient(), &msg.base,
-                         usbDevice->DeviceContext.hub_device_id,
-                         usbDevice->Base.Id,
-                         serverHandle,
-                         portCount, characteristics);
+    sys_usb_register_hub(
+        GetGrachtClient(), &msg.base,
+        usbDevice->DeviceContext.hub_device_id,
+        usbDevice->Base.Id,
+        serverHandle,
+        portCount,
+        characteristics
+    );
     return OS_EOK;
 }
 
@@ -97,10 +104,10 @@ UsbEventPort(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
     
     status = sys_usb_port_event(
-            GetGrachtClient(),
-            &msg.base,
-            DeviceId,
-            PortAddress
+        GetGrachtClient(),
+        &msg.base,
+        DeviceId,
+        PortAddress
     );
     return OS_EOK;
 }
@@ -137,9 +144,15 @@ UsbQueryController(
 {
     int                      status;
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetUsbService());
+    uint32_t                 controllerLength = sizeof(struct USBControllerDevice);
     
     status = sys_usb_get_controller(GetGrachtClient(), &msg.base, Index);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_usb_get_controller_result(GetGrachtClient(), &msg.base, (uint8_t*)Controller, sizeof(struct USBControllerDevice));
+    sys_usb_get_controller_result(GetGrachtClient(), &msg.base, (uint8_t*)Controller, &controllerLength);
+
+    // Ensure that the returned controller structure has the expected size
+    if (controllerLength != sizeof(struct USBControllerDevice)) {
+        return OS_EPROTOCOL;
+    }
     return OS_EOK;
 }

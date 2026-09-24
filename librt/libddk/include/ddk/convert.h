@@ -193,6 +193,13 @@ static void to_sys_bus_io(DeviceIo_t* in, struct sys_bus_io* out)
                     .pin = in->Access.Pin.Pin
             });
         } break;
+        case DeviceIoInvalid: {
+            // PCI BAR positions are significant, so do not compact unused
+            // entries out of the array. Encode an empty slot with a valid union
+            // tag; an unset tag is rejected by the generated wire validator.
+            out->id = UUID_INVALID;
+            sys_bus_io_access_set_bus_io_memory(out, &(struct sys_bus_io_memory){ 0 });
+        } break;
         default: break;
     }
 }
@@ -291,6 +298,13 @@ static void from_sys_device_base(const struct sys_device_base* in, Device_t* out
 
 static void from_sys_bus_io(const struct sys_bus_io* in, DeviceIo_t* out)
 {
+    if (in->id == UUID_INVALID && in->access_type == SYS_BUS_IO_ACCESS_MEMORY &&
+        in->access.memory.length == 0 && in->access.memory.physical_base == 0 &&
+        in->access.memory.virtual_base == 0) {
+        memset(out, 0, sizeof(*out));
+        out->Type = DeviceIoInvalid;
+        return;
+    }
     out->Id = in->id;
     switch (in->access_type) {
         case SYS_BUS_IO_ACCESS_MEMORY: {
