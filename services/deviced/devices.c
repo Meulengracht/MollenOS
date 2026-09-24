@@ -62,11 +62,10 @@ void DmDevicesInitialize(void)
 }
 
 static struct DMDevice*
-__GetDevice(
-        _In_ uuid_t deviceId)
+__GetDeviceUnsafe(
+    _In_ uuid_t deviceId)
 {
     struct DMDevice* result = NULL;
-    usched_mtx_lock(&g_devicesLock);
     foreach (i, &g_devices) {
         struct DMDevice* device = i->value;
         if (device->device->Id == deviceId) {
@@ -74,14 +73,24 @@ __GetDevice(
             break;
         }
     }
-    usched_mtx_unlock(&g_devicesLock);
     return result;
+}
+
+static struct DMDevice*
+__GetDevice(uuid_t deviceId)
+{
+    struct DMDevice* device;
+
+    usched_mtx_lock(&g_devicesLock);
+    device = __GetDeviceUnsafe(deviceId);
+    usched_mtx_unlock(&g_devicesLock);
+    return device;
 }
 
 oserr_t
 DmDevicesRegister(
-        _In_ uuid_t driverHandle,
-        _In_ uuid_t deviceId)
+    _In_ uuid_t driverHandle,
+    _In_ uuid_t deviceId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driverHandle);
     struct DMDevice*         device = __GetDevice(deviceId);
@@ -94,7 +103,9 @@ DmDevicesRegister(
     }
 
     // store the driver loaded
+    usched_mtx_lock(&g_devicesLock);
     device->driver_id = driverHandle;
+    usched_mtx_unlock(&g_devicesLock);
 
     to_sys_device(device->device, &protoDevice);
     ctt_driver_register_device(GetGrachtClient(), &msg.base, &protoDevice);
@@ -104,8 +115,8 @@ DmDevicesRegister(
 }
 
 void DmHandleGetDevicesByProtocol(
-        _In_ struct gracht_message* message,
-        _In_ uint8_t                protocolID)
+    _In_ struct gracht_message* message,
+    _In_ uint8_t                protocolID)
 {
     TRACE("DmHandleGetDevicesByProtocol(protocol=%u)", protocolID);
 
@@ -117,11 +128,11 @@ void DmHandleGetDevicesByProtocol(
             uint8_t                  id = (uint8_t)(uintptr_t)protocol->header.key;
             if (id == protocolID) {
                 sys_device_event_protocol_device_single(
-                        __crt_get_service_server(),
-                        message->client,
-                        device->device->Id,
-                        device->driver_id,
-                        protocolID
+                    __crt_get_service_server(),
+                    message->client,
+                    device->device->Id,
+                    device->driver_id,
+                    protocolID
                 );
             }
         }
@@ -131,10 +142,10 @@ void DmHandleGetDevicesByProtocol(
 
 oserr_t
 DmHandleIoctl(
-        _In_ uuid_t              deviceID,
-        _In_ enum OSIOCtlRequest request,
-        _In_ void*               buffer,
-        _In_ size_t              length)
+    _In_ uuid_t              deviceID,
+    _In_ enum OSIOCtlRequest request,
+    _In_ void*               buffer,
+    _In_ size_t              length)
 {
     struct DMDevice* device;
 
@@ -156,11 +167,11 @@ DmHandleIoctl(
         // Device driver handled requests
         case OSIOCTLREQUEST_IO_REQUIREMENTS: {
             return OSDeviceIOCtl2(
-                    deviceID,
-                    device->driver_id,
-                    request,
-                    buffer,
-                    length
+                deviceID,
+                device->driver_id,
+                request,
+                buffer,
+                length
             );
         }
 
@@ -172,12 +183,12 @@ DmHandleIoctl(
 
 oserr_t
 DmHandleIoctl2(
-        _In_  uuid_t       deviceID,
-        _In_  int          direction,
-        _In_  unsigned int command,
-        _In_  size_t       value,
-        _In_  unsigned int width,
-        _Out_ size_t*      valueOut)
+    _In_  uuid_t       deviceID,
+    _In_  int          direction,
+    _In_  unsigned int command,
+    _In_  size_t       value,
+    _In_  unsigned int width,
+    _Out_ size_t*      valueOut)
 {
     struct DMDevice* device = __GetDevice(deviceID);
     oserr_t          result  = OS_EINVALPARAMS;
@@ -185,55 +196,87 @@ DmHandleIoctl2(
 
     if (device && device->device->Length == sizeof(BusDevice_t)) {
         result = DmIoctlDeviceEx(
-                (BusDevice_t*)device->device,
-                direction,
-                command,
-                &storage,
-                width
+            (BusDevice_t*)device->device,
+            direction,
+            command,
+            &storage,
+            width
         );
         *valueOut = storage;
     }
     return result;
 }
 
-static void
+static oserr_t
 __AddProtocolToDevice(
-        _In_ const char*      protocolName,
-        _In_ uint8_t          protocolID,
-        _In_ struct DMDevice* device)
+    _In_ const char*      protocolName,
+    _In_ uint8_t          protocolID,
+    _In_ struct DMDevice* device)
 {
-    struct DmDeviceProtocol* protocol = malloc(sizeof(struct DmDeviceProtocol));
-    if (!protocol) {
-        return;
-    }
+    struct DmDeviceProtocol* protocol;
 
-    ELEMENT_INIT(&protocol->header, (uintptr_t)protocolID, protocol);
+    // Check if the protocol is already added to the device.
+    foreach (node, &device->protocols) {
+        protocol = node->value;
+        if ((uint8_t)(uintptr_t)protocol->header.key == protocolID) {
+            return OS_EEXISTS;
+        }
+    }
+    
+    protocol = malloc(sizeof(*protocol));
+    if (protocol == NULL) {
+        return OS_EOOM;
+    }
+    
     protocol->name = strdup(protocolName);
+    if (protocol->name == NULL) {
+        free(protocol);
+        return OS_EOOM;
+    }
+    
+    ELEMENT_INIT(&protocol->header, (uintptr_t)protocolID, protocol);
     list_append(&device->protocols, &protocol->header);
+    return OS_EOK;
 }
 
 void DmHandleRegisterProtocol(
-        _In_ uuid_t      deviceID,
-        _In_ const char* protocolName,
-        _In_ uint8_t     protocolID)
+    _In_ uuid_t      deviceID,
+    _In_ const char* protocolName,
+    _In_ uint8_t     protocolID)
 {
     struct DMDevice* device;
+    oserr_t          oserr;
 
-    device = __GetDevice(deviceID);
-    if (device) {
-        __AddProtocolToDevice(protocolName, protocolID, device);
+    usched_mtx_lock(&g_devicesLock);
+    device = __GetDeviceUnsafe(deviceID);
+    if (device == NULL || device->driver_id == UUID_INVALID) {
+        usched_mtx_unlock(&g_devicesLock);
+        return;
     }
+
+    // Attempt to add the protocol to the device.
+    oserr = __AddProtocolToDevice(protocolName, protocolID, device);
+    if (oserr == OS_EOK) {
+        // Subscribers may have queried before this driver finished attaching.
+        sys_device_event_protocol_device_all(
+            __crt_get_service_server(),
+            deviceID,
+            device->driver_id,
+            protocolID
+        );
+    }
+    usched_mtx_unlock(&g_devicesLock);
 }
 
 static void __TryLocateDriver(
-        _In_ struct DMDevice* device)
+    _In_ struct DMDevice* device)
 {
     struct DriverIdentification driverIdentification = {
-            .VendorId = device->device->VendorId,
-            .ProductId = device->device->ProductId,
+        .VendorId = device->device->VendorId,
+        .ProductId = device->device->ProductId,
 
-            .Class = device->device->Class,
-            .Subclass = device->device->Subclass
+        .Class = device->device->Class,
+        .Subclass = device->device->Subclass
     };
 
     oserr_t oserr = DmDiscoverFindDriver(device->device->Id, &driverIdentification);
@@ -245,9 +288,9 @@ static void __TryLocateDriver(
 
 oserr_t
 DmDeviceCreate(
-        _In_  Device_t*    device,
-        _In_  unsigned int flags,
-        _Out_ uuid_t*      idOut)
+    _In_  Device_t*    device,
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      idOut)
 {
     struct DMDevice* deviceNode;
 
