@@ -1,5 +1,5 @@
 /**
- * Network Adapter Contract, ABI version 1.
+ * Network Adapter Contract.
  *
  * Ethernet frame transport between netd and controller drivers. IP addresses,
  * routing, sockets and wireless association are outside this contract. Drivers
@@ -16,11 +16,25 @@
  * submission has one logical terminal completion, which may be delivered again.
  * No timeout, lost reply or fault event grants permission to recycle storage.
  * Unless stated otherwise, response data is valid only on OS_EOK.
+ *
  */
 
 import "../types"
 
 namespace ctt
+
+/**
+ * Frames are at most 2048 bytes INCLUDING the 11-byte Gracht header.
+ * Both endpoints configure transport buffers for that envelope. max_batch_size
+ * is 1..44 (the 71 + 44*N byte recovery chunk is the largest at N=44). Smaller
+ * advertised batches are allowed. This bounds serialization, not total queued
+ * work: max_pending_batches controls the independent in-flight batch window.
+ * All IDs/cursors are nonwrapping; close before exhausting their uint64 range.
+ */
+enum netadapter_limit {
+    FRAME_BYTES = 2048,
+    BATCH_RECORDS = 44
+}
 
 enum netadapter_framing {
     ETHERNET = 1
@@ -49,7 +63,7 @@ enum netadapter_duplex {
     FULL = 2
 }
 
-// Bit masks for uint64 feature fields. No packet offloads are defined in v1.
+// Bit masks for uint64 feature fields. No packet offloads are defined in ABI 2.
 enum netadapter_feature {
     ALL_MULTICAST = 1,
     PROMISCUOUS = 2
@@ -152,7 +166,7 @@ struct netadapter_packet_id {
 }
 
 /**
- * queue_id is zero in v1; max_queue_pairs and max_segments are one.
+ * queue_id is zero; max_queue_pairs and max_segments are one.
  * submission_sequence is nonzero and strictly increases per slot, including
  * rejected descriptors, except when replaying an identical batch. Remember the
  * last sequence per slot to reject stale submissions with bounded storage.
@@ -161,7 +175,7 @@ struct netadapter_packet_id {
  * data_offset is relative to the slot start. length is frame length for TX and
  * writable frame capacity for RX. Check offset <= slot_size and length <=
  * slot_size - offset, plus headroom/tailroom, alignment and frame limits.
- * flags must be zero in v1. Snapshot descriptor metadata before admission.
+ * flags must be zero. Snapshot descriptor metadata before admission.
  *
  * Frames begin at destination MAC, excluding preamble and FCS. MTU denotes
  * network-layer packet size, not frame or slot size. Driver-private headers
@@ -223,16 +237,52 @@ struct netadapter_fault {
     uint64  batch_id;
 }
 
+/**
+ * Cumulative acknowledgements, initially zero. Advance only over a
+ * contiguous prefix of consumed admission results / processed completions.
+ * A batch ACK retires replay metadata, NOT packet ownership. Completion ACKs
+ * retire journal records, NOT an unknown admission. Reject either cursor beyond
+ * the driver's issued prefix atomically, applying neither acknowledgement.
+ * Older valid cursors are no-ops. Sending an ACK does not yet restore client
+ * credits; wait for confirmed retirement in netadapter_progress.
+ */
+struct netadapter_ack {
+    uint64 through_batch_id;
+    uint64 through_completion_sequence;
+}
+
+/**
+ * Driver snapshot. All four cursors are session-wide, initially zero and
+ * monotonic. retired_batch_id <= consumed_batch_id; retired_completion_sequence
+ * <= highest_completion_sequence. Events can arrive out of order: validate each
+ * snapshot, then merge cursor maxima without regressing local state. The client
+ * must reject retirement beyond acknowledgements it actually published.
+ *
+ * consumed_batch_id/highest_completion_sequence reveal missing records; they
+ * DO NOT grant ownership or authorize skipping them. Retired cursors confirm
+ * that replay/journal capacity is reusable. Count unresolved submitted work
+ * conservatively until admission is known; subtract each confirmed retirement
+ * only once. No per-packet IPC is needed for these credits.
+ */
+struct netadapter_progress {
+    uint64 retired_batch_id;
+    uint64 retired_completion_sequence;
+    uint64 consumed_batch_id;
+    uint64 highest_completion_sequence;
+}
+
 service netadapter : message {
     // Port zero exists on every advertised device and reveals port_count.
     // Batch limits must fit the Gracht message size, including serialization.
     func get_info(uuid_t device_id, uint32 port_id) : (oserr_t status, netadapter_info info) = 1;
 
-    // version must be 1. Unsupported requested feature bits fail open. Success
+    // Unsupported requested feature bits fail open. Success
     // atomically installs directed event delivery and returns a link snapshot.
     // Events may precede this reply; use the link sequence to order updates.
     // An identical retry by the same owner returns its existing session/snapshot.
-    func open(uuid_t device_id, uint32 port_id, uint32 version, uint64 requested_features) : (oserr_t status, netadapter_session session, uint64 enabled_features, netadapter_link link) = 2;
+    // Changed features are not an identical retry and must fail rather
+    // than switching a live session. Open happens with its run gate CLOSED.
+    func open(uuid_t device_id, uint32 port_id, uint64 requested_features) : (oserr_t status, netadapter_session session, uint64 enabled_features, netadapter_link link) = 2;
 
     // Only while stopped, before posting RX. registration_id is a nonzero request
     // key. Identical retries return the original ID; conflicting retries fail.
@@ -245,68 +295,167 @@ service netadapter : message {
     // Validate MTU against registered RX slot capacity. Identical retries are safe.
     func configure(netadapter_session session, uint32 mtu, uint32 rx_filter) : (oserr_t status) = 4;
 
-    /**
-     * Batch IDs start at one and increase by one across BOTH submission methods.
-     * Client serializes first-time batches. Identical retries return cached results;
-     * altered retries fail. Retired IDs are rejected, never executed again.
-     * A gap/full replay window returns OS_EBUSY without consuming the ID.
-     *
-     * OS_EOK consumes the ID and returns one admission per descriptor, including
-     * individual failures. Other statuses return an empty array, consume no ID,
-     * and admit nothing on that attempt; they never undo prior acceptance.
-     * Batch size is 1..max_batch_size. Reserve terminal-completion storage before
-     * acceptance. Completions may arrive before the admission response.
-     */
-    // Prepost after configuration while stopped, or replenish while running.
-    func post_rx(netadapter_session session, uint64 batch_id, netadapter_packet[] packets) : (oserr_t status, netadapter_admission[] admissions) = 5;
-
-    // Requires configuration, min_rx_slots posted and no undrained stop barrier.
-    // Repeated start while running succeeds without restarting hardware.
-    func start(netadapter_session session) : (oserr_t status) = 6;
-
-    // Running only; nonblocking admission. Accepted TX preserves input order in
-    // queue zero. Carrier-related rejection is reported per descriptor.
-    func submit_tx(netadapter_session session, uint64 batch_id, netadapter_packet[] packets) : (oserr_t status, netadapter_admission[] admissions) = 7;
-
-    func get_link(netadapter_session session) : (oserr_t status, netadapter_link link) = 8;
-    func get_counters(netadapter_session session) : (oserr_t status, netadapter_counters counters) = 9;
-
-    // Stops admission and quiesces DMA before OS_EOK. All accepted submissions
-    // then have terminal records through final_completion_sequence (zero if none).
-    // Drain/ack records before restarting or reconfiguring. Failure grants no
-    // ownership: retain mappings. Repeated stop is safe, including after RX prepost.
-    func stop(netadapter_session session) : (oserr_t status, uint64 final_completion_sequence) = 10;
+    func get_link(netadapter_session session) : (oserr_t status, netadapter_link link) = 5;
+    func get_counters(netadapter_session session) : (oserr_t status, netadapter_counters counters) = 6;
 
     // Stopped only; OS_EBUSY while backend/DMA references or unacked completions
     // refer to the pool. An already unregistered ID succeeds again.
-    func unregister_pool(netadapter_session session, uint32 pool_id) : (oserr_t status) = 11;
+    func unregister_pool(netadapter_session session, uint32 pool_id) : (oserr_t status) = 7;
 
     // Safe stop followed by release. OS_EOK is a final ownership barrier even if
     // completion delivery failed: all slots may be reclaimed, records discarded.
     // Remember closed generations so a repeated close succeeds without touching a
     // newer session. Failed/uncertain close never authorizes freeing DMA memory.
-    func close(netadapter_session session) : (oserr_t status) = 12;
+    func close(netadapter_session session) : (oserr_t status) = 8;
 
-    // Cumulative retirement of received admission results, NOT packet ownership.
-    // Cannot exceed last admitted batch. Monotonic/idempotent; retired IDs must
-    // remain rejected even after their cached results have been discarded.
-    func ack_batches(netadapter_session session, uint64 through_batch_id) : (oserr_t status) = 13;
+    event link_changed : (netadapter_session session, netadapter_link link) = 9;
+    event fault : (netadapter_session session, netadapter_fault fault) = 10;
 
-    // Retained completions after cursor, ascending, limit 1..max_batch_size.
-    // Cursor must be between acknowledged and last-issued sequence inclusive.
-    // Empty success means none available; highest_sequence is the snapshot's last
-    // issued sequence. This query recovers from lost completion events.
-    func drain_completions(netadapter_session session, uint64 after_sequence, uint32 limit) : (oserr_t status, netadapter_completion[] completions, uint64 highest_sequence) = 14;
+    /**
+     * Submissions. These functions are ONE-WAY: transport publication is
+     * not admission. Each outcome is reported by batch_admitted. The caller can
+     * have up to max_pending_batches unretired batches in flight, without waiting
+     * for a round trip between publications. Retain immutable descriptor arrays
+     * and do not reuse their slots while admission is uncertain.
+     *
+     * Batch IDs start at one, increase across BOTH directions and all runs, and
+     * never wrap. A first-time batch consumes exactly consumed_batch_id + 1.
+     * A gap or full replay window emits OS_EBUSY, consumes no ID and admits no
+     * descriptors on THAT attempt. Retry gaps in order with the original IDs;
+     * delayed non-consuming errors cannot undo a previously consumed batch.
+     *
+     * OS_EOK consumes the ID and stores one ordered admission per descriptor,
+     * even when all descriptors are individually rejected. Reserve the replay
+     * entry first and terminal-completion capacity before accepting each packet.
+     * Snapshot/validate input metadata before DMA. Batch shape is 1..max_batch_size.
+     * Other batch statuses carry an empty array, consume no ID and do not release
+     * uncertain slots. Exhausted retry budgets require safe-close recovery.
+     *
+     * Replay identity is (session, run_id, direction, batch_id, descriptors).
+     * Identical retries re-emit cached admission, never repeat publication.
+     * Changed descriptors/direction for a cached ID fail OS_EPROTOCOL.
+     * ACKs are deliberately outside replay identity and may advance on a retry.
+     * Validate ACKs atomically before processing a batch; invalid ACKs fail the
+     * attempt. IDs <= retired_batch_id fail OS_ENOENT, never execute again.
+     * Stale run IDs fail OS_ENOENT. Apply valid ACKs even on busy/replayed attempts
+     * so a full replay window cannot prevent its own retirement.
+     *
+     * One executor defines batch consumption order. Accepted TX preserves that
+     * order. Admission events can arrive out of order; clients collect a bounded
+     * window and ACK only its contiguous consumed prefix. Completions may precede
+     * admissions. Reserve scheduling/credits for RX repost and recovery under TX
+     * saturation; do not gate all data work on one pending control transaction.
+     */
+    // New admission only for the current PREPARED or RUNNING run. Cached replay
+    // for that run remains allowed while STOPPING/STOPPED until retirement.
+    // After stop_run, RX
+    // cannot be posted until prepare_run explicitly opens the next run's gate.
+    func post_rx_batch(netadapter_session session, uint64 run_id, uint64 batch_id, netadapter_ack ack, netadapter_packet[] packets) : () = 11;
 
-    // Retire only after processing EVERY record through this sequence. Cannot
-    // exceed last-issued sequence. Monotonic/idempotent. Retain records until ack,
-    // including when event delivery fails; apply backpressure when storage is full.
-    func ack_completions(netadapter_session session, uint64 through_sequence) : (oserr_t status) = 15;
+    // New admission for current RUNNING run only; cached replay follows post_rx_batch.
+    // Carrier rejection is a per-descriptor admission.
+    func submit_tx_batch(netadapter_session session, uint64 run_id, uint64 batch_id, netadapter_ack ack, netadapter_packet[] packets) : () = 12;
 
-    // Directed to session owner. Arrays are bounded by max_batch_size. Completion
-    // direction must match the event name; drain returns records from both paths.
-    event tx_complete : (netadapter_session session, netadapter_completion[] completions) = 16;
-    event rx_complete : (netadapter_session session, netadapter_completion[] completions) = 17;
-    event link_changed : (netadapter_session session, netadapter_link link) = 18;
-    event fault : (netadapter_session session, netadapter_fault fault) = 19;
+    /**
+     * Idle retirement path. Always emit ack_progress, even for duplicate
+     * ACKs, so lost confirmations are recoverable without subsequent traffic.
+     * Piggyback the same cursors on submissions/drains when possible. A bounded
+     * flush/retry deadline is required while retirement remains unconfirmed;
+     * fully idle, confirmed sessions need no ACK heartbeat. Wrong-owner sessions
+     * are dropped without directed information disclosure.
+     */
+    func acknowledge(netadapter_session session, netadapter_ack ack) : () = 13;
+
+    /**
+     * Recovery enumeration, not the normal delivery path. request_id is a
+     * nonzero, strictly increasing enumeration-attempt ID, NOT a submission key.
+     * Keep the highest seen ID; ignore duplicate/older requests. Each validated
+     * session request consumes its attempt ID even on ACK/cursor/busy errors.
+     * Each retry uses
+     * a NEW request_id and the client's contiguous processed completion cursor.
+     * An attempt selects at most limit records (1..max_batch_size) from one
+     * snapshot, beginning at after_sequence + 1. Emit ascending nonempty chunks
+     * then drain_end, including an end for an empty successful enumeration.
+     *
+     * Apply valid ACKs before selecting a snapshot. Cursor below retired yields
+     * OS_ENOENT, above highest yields OS_EINVALPARAMS; errors emit no chunks.
+     * Progress on the end lets a client diagnose concurrent cursor retirement.
+     * At most one snapshot is retained per session; a newer request while busy
+     * gets OS_EBUSY/end (and consumes its request_id), without replacing the active
+     * snapshot. Snapshot storage is at most max_batch_size copied records, so
+     * concurrent journal retirement cannot invalidate queued enumeration bytes.
+     *
+     * Never block the hardware/completion executor on event delivery. If delivery
+     * fails, release snapshot storage after a bounded attempt; journal records
+     * remain until ACK. Missing chunks/end trigger a fresh enumeration attempt.
+     * Interleaved live/recovery events are deduplicated by completion_sequence.
+     * An end marker is NOT proof that missing chunks were processed. Timers also
+     * recover a lost final live event when no later sequence reveals the gap.
+     */
+    func drain(netadapter_session session, uint64 request_id, uint64 after_sequence, uint32 limit, netadapter_ack ack) : () = 14;
+
+    /**
+     * Run lifecycle: OPENED -> PREPARED -> RUNNING -> STOPPING -> STOPPED.
+     * prepare_run requires registered/configured pools. First run_id is one;
+     * subsequent IDs increase exactly by one and require the prior stop barrier
+     * AND all consumed batches acknowledged. Batch/completion IDs never reset.
+     * No descriptors may be posted before prepare_run. A repeat for the current
+     * run in PREPARED/RUNNING succeeds without resetting it; STOPPED cannot be
+     * reopened with the same ID. Older/future IDs fail without state changes.
+     * This explicit gate prevents delayed old RX postings from reviving DMA.
+     */
+    func prepare_run(netadapter_session session, uint64 run_id) : (oserr_t status) = 15;
+
+    // Current PREPARED run only, with min_rx_slots admitted. Netd resolves
+    // every published prepost batch first; through_batch_id must equal consumed
+    // high-water at first start. Repeat of the same (run, fence) while RUNNING
+    // succeeds without restarting hardware, even after more batches are consumed.
+    // Altered retries fail; start for a stopped/older run cannot restart it.
+    func start_run(netadapter_session session, uint64 run_id, uint64 through_batch_id) : (oserr_t status) = 16;
+
+    /**
+     * Stop fence: client freezes publications and resolves EVERY previously
+     * published batch to a consumed admission before issuing this call. If that
+     * is impossible (e.g. a non-consuming failure cannot recover), use close.
+     * through_batch_id must equal the driver's consumed high-water at first stop.
+     * Driver atomically closes this run's admission gate before quiescing DMA.
+     * No subsequent new batch can enter this run, including after a failed stop.
+     * An identical retry may continue quiescence; a changed fence is invalid.
+     *
+     * OS_EOK returns a terminal-completion barrier for every accepted descriptor.
+     * Client drains/ACKs that barrier before prepare_run for the next run. A
+     * successful repeated stop of the same run/fence returns its saved barrier,
+     * without cancelling a newer run. Only current-run replay state need be kept;
+     * once prepare_run advances, older lifecycle calls fail OS_ENOENT safely.
+     * Stop is valid in PREPARED as well as RUNNING. No failure grants ownership.
+     */
+    func stop_run(netadapter_session session, uint64 run_id, uint64 through_batch_id) : (oserr_t status, uint64 final_completion_sequence) = 17;
+
+    // Directed admission; status/progress are meaningful even on failure.
+    // The array is valid only on OS_EOK and must exactly match submitted IDs/order.
+    // Failed delivery retains the cached result for an identical batch replay.
+    event batch_admitted : (netadapter_session session, uint64 run_id, uint64 batch_id, oserr_t status, netadapter_admission[] admissions, netadapter_progress progress) = 18;
+
+    // Unified TX/RX journal stream. request_id=0 means normal pushed work;
+    // nonzero identifies a drain chunk. Nonempty array <= max_batch_size, ascending
+    // contiguous sequences WITHIN each chunk. Across chunks/events delivery may
+    // reorder or repeat. Driver coalesces available records without waiting for a
+    // full batch, applies a bounded flush deadline, and retains the journal on send
+    // failure. No drain/end round trip is required for normal live completions.
+    event completions : (netadapter_session session, uint64 request_id, netadapter_completion[] records, netadapter_progress progress) = 19;
+
+    // Recovery end. Success: after_sequence echoes request, count<=limit,
+    // through_sequence=after_sequence+count <= snapshot_highest. Chunks contain
+    // exactly that selected prefix, regardless of newer live records. Empty
+    // success has through_sequence=after_sequence. On error count=0, through is
+    // after_sequence and no chunks belong to this attempt; snapshot_highest and
+    // progress remain diagnostic snapshots. Validate prefix completeness before
+    // marking enumeration done; ACK only records actually processed contiguously.
+    event drain_end : (netadapter_session session, uint64 request_id, oserr_t status, uint64 after_sequence, uint64 through_sequence, uint32 count, uint64 snapshot_highest, netadapter_progress progress) = 20;
+
+    // Standalone ACK confirmation, also used after duplicate ACKs. Echo
+    // identifies requested cursors; status OS_EOK confirms they were valid, while
+    // progress reports actual retirement. Invalid ACKs change neither cursor.
+    // Lost confirmation is recovered by resending the same cumulative ACK.
+    event ack_progress : (netadapter_session session, netadapter_ack ack, oserr_t status, netadapter_progress progress) = 21;
 }
