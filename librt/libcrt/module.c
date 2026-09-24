@@ -57,6 +57,16 @@ gracht_server_t* __crt_get_module_server(void)
     return g_server;
 }
 
+/** 
+ * Some modules that operate in a high-volume or high traffic, or even
+ * latency-sensitive environment may need to configure a send timeout for
+ * their IPC links to avoid stalling on a full client inbox.
+ */
+void __crt_module_set_send_timeout(uint32_t milliseconds)
+{
+    gracht_link_vali_set_send_timeout(g_serverLink, milliseconds);
+}
+
 static void
 __ParseModuleOptions(
         _In_ char**                  argv,

@@ -225,10 +225,11 @@ OSSocketAccept(
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           source, *accepted;
     struct sockaddr_storage  peerAddress = {0};
+    uint32_t                 peerAddressLength = sizeof(peerAddress);
     uuid_t                   handleID;
     uuid_t                   sendHandle;
     uuid_t                   recvHandle;
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -256,7 +257,7 @@ OSSocketAccept(
         &msg.base,
         &oserr,
         (uint8_t*)&peerAddress,
-        sizeof(peerAddress),
+        &peerAddressLength,
         &handleID,
         &recvHandle,
         &sendHandle
@@ -306,7 +307,7 @@ OSSocketBind(
     _In_ socklen_t              addressLength)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -337,7 +338,7 @@ OSSocketConnect(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           socket;
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -372,7 +373,8 @@ OSSocketAddress(
     _In_ socklen_t        addressMaxSize)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
+    uint32_t                 decodedLength = addressMaxSize;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -386,11 +388,10 @@ OSSocketAddress(
     sys_socket_get_address(GetGrachtClient(), &msg.base, handle->ID, type);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
     sys_socket_get_address_result(
-            GetGrachtClient(),
-            &msg.base,
-            &oserr,
-            (uint8_t*)address,
-            addressMaxSize
+        GetGrachtClient(), &msg.base,
+        &oserr,
+        (uint8_t*)address,
+        &decodedLength
     );
     return oserr;
 }
@@ -402,7 +403,7 @@ OSSocketListen(
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
     struct Socket*           socket;
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -432,7 +433,7 @@ OSSocketSetOption(
     _In_ socklen_t   length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
 
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -458,10 +459,11 @@ OSSocketOption(
         _InOut_ socklen_t*  length)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetNetService());
-    oserr_t                  oserr;
+    oserr_t                  oserr = OS_EPROTOCOL;
     int                      sizeOfData;
+    uint32_t                 decodedLength;
 
-    if (handle == NULL) {
+    if (handle == NULL || length == NULL) {
         return OS_EINVALPARAMS;
     }
 
@@ -471,16 +473,19 @@ OSSocketOption(
 
     sys_socket_get_option(GetGrachtClient(), &msg.base, handle->ID, protocol, option);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    decodedLength = (uint32_t)*length;
     sys_socket_get_option_result(
-            GetGrachtClient(),
-            &msg.base,
-            &oserr,
-            data,
-            (uint32_t)(*length),
-            &sizeOfData
+        GetGrachtClient(), &msg.base,
+        &oserr,
+        data,
+        &decodedLength,
+        &sizeOfData
     );
     if (oserr == OS_EOK) {
-        *length = (socklen_t)sizeOfData;
+        if (sizeOfData < 0 || (uint32_t)sizeOfData != decodedLength) {
+            return OS_EPROTOCOL;
+        }
+        *length = (socklen_t)decodedLength;
     }
     return oserr;
 }
@@ -509,10 +514,10 @@ OSSocketSendPipe(
     }
 
     oserr = SHMMap(
-            &socket->Send,
-            0,
-            SHMBufferCapacity(&socket->Send),
-            SHM_ACCESS_READ | SHM_ACCESS_WRITE
+        &socket->Send,
+        0,
+        SHMBufferCapacity(&socket->Send),
+        SHM_ACCESS_READ | SHM_ACCESS_WRITE
     );
     if (oserr != OS_EOK) {
         OSHandleDestroy(&socket->Send);
@@ -541,10 +546,10 @@ __SendStream(
     for (int i = 0; i < message->msg_iovlen; i++) {
         struct iovec* iov = &message->msg_iov[i];
         size_t bytes_streamed = streambuffer_stream_out(
-                stream,
-                iov->iov_base,
-                iov->iov_len,
-                rwOptions
+            stream,
+            iov->iov_base,
+            iov->iov_len,
+            rwOptions
         );
         if (!bytes_streamed) {
             break;
@@ -941,9 +946,9 @@ __RecvMessage(
             message->msg_flags |= MSG_TRUNC;
         }
 
-            // The second case is a lot more complex, that means we are missing data
-            // though we requested more, if WAITALL is set, then we need to keep reading
-            // untill we read all the data
+        // The second case is a lot more complex, that means we are missing data
+        // though we requested more, if WAITALL is set, then we need to keep reading
+        // untill we read all the data
         else if (iov_not_filled && !(rwOptions->flags & STREAMBUFFER_ALLOW_PARTIAL)) {
             // However on message-based sockets, we must read datagrams as atomic
             // operations, and thus MSG_WAITALL has no effect as this is effectively
@@ -994,15 +999,15 @@ OSSocketRecv(
         OSAsyncContextInitialize(asyncContext);
     }
     oserr = __RecvMessage(
-            handle,
-            stream,
-            message,
-            &(streambuffer_rw_options_t) {
-                    .flags = __StreambufferFlags(flags),
-                    .async_context = asyncContext,
-                    .deadline = NULL
-            },
-            bytesRecievedOut
+        handle,
+        stream,
+        message,
+        &(streambuffer_rw_options_t) {
+                .flags = __StreambufferFlags(flags),
+                .async_context = asyncContext,
+                .deadline = NULL
+        },
+        bytesRecievedOut
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -1035,9 +1040,9 @@ __SocketExport(
     *((uuid_t*)&data8[sizeof(int)]) = socket->Send.ID;
     *((uuid_t*)&data8[sizeof(int) + sizeof(uuid_t)]) = socket->Recv.ID;
     memcpy(
-            &data8[sizeof(int) + (2 * sizeof(uuid_t))],
-            &socket->ConnectedAddress,
-            sizeof(struct sockaddr_storage)
+        &data8[sizeof(int) + (2 * sizeof(uuid_t))],
+        &socket->ConnectedAddress,
+        sizeof(struct sockaddr_storage)
     );
     return sizeof(int) + (2 * sizeof(uuid_t)) + sizeof(struct sockaddr_storage);
 }

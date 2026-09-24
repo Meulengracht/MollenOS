@@ -87,15 +87,15 @@ UsbRetrievePool(void)
 
 void
 UsbTransferInitialize(
-        _In_ USBTransfer_t*             transfer,
-        _In_ usb_device_context_t*      device,
-        _In_ usb_endpoint_descriptor_t* endpoint,
-        _In_ enum USBTransferType       type,
-        _In_ enum USBTransferDirection  direction,
-        _In_ unsigned int               flags,
-        _In_ uuid_t                     dataBufferHandle,
-        _In_ size_t                     dataBufferOffset,
-        _In_ size_t                     dataLength)
+    _In_ USBTransfer_t*             transfer,
+    _In_ usb_device_context_t*      device,
+    _In_ usb_endpoint_descriptor_t* endpoint,
+    _In_ enum USBTransferType       type,
+    _In_ enum USBTransferDirection  direction,
+    _In_ unsigned int               flags,
+    _In_ uuid_t                     dataBufferHandle,
+    _In_ size_t                     dataBufferOffset,
+    _In_ size_t                     dataLength)
 {
     // Support NULL endpoint to indicate control
     uint8_t  endpointAddress   = endpoint ? USB_ENDPOINT_ADDRESS(endpoint->Address) : 0;
@@ -124,10 +124,10 @@ UsbTransferInitialize(
 
 oserr_t
 UsbTransferQueue(
-        _In_  usb_device_context_t* deviceContext,
-        _In_  USBTransfer_t*        transfer,
-        _Out_ enum USBTransferCode* transferResultOut,
-        _Out_ size_t*               bytesTransferredOut)
+    _In_  usb_device_context_t* deviceContext,
+    _In_  USBTransfer_t*        transfer,
+    _Out_ enum USBTransferCode* transferResultOut,
+    _Out_ size_t*               bytesTransferredOut)
 {
     struct vali_link_message     msg            = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     uuid_t                       transferId     = atomic_fetch_add(&TransferIdGenerator, 1);
@@ -145,9 +145,9 @@ UsbTransferQueue(
 
 oserr_t
 UsbTransferQueuePeriodic(
-        _In_  usb_device_context_t* deviceContext,
-        _In_  USBTransfer_t*        transfer,
-        _Out_ uuid_t*               transferIdOut)
+    _In_  usb_device_context_t* deviceContext,
+    _In_  USBTransfer_t*        transfer,
+    _Out_ uuid_t*               transferIdOut)
 {
     struct vali_link_message msg        = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     uuid_t                   transferId = atomic_fetch_add(&TransferIdGenerator, 1);
@@ -164,8 +164,8 @@ UsbTransferQueuePeriodic(
 
 oserr_t
 UsbTransferResetPeriodic(
-        _In_ usb_device_context_t* deviceContext,
-        _In_ uuid_t                transferId)
+    _In_ usb_device_context_t* deviceContext,
+    _In_ uuid_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     oserr_t               status;
@@ -179,8 +179,8 @@ UsbTransferResetPeriodic(
 
 oserr_t
 UsbTransferDequeuePeriodic(
-        _In_ usb_device_context_t* deviceContext,
-        _In_ uuid_t                transferId)
+    _In_ usb_device_context_t* deviceContext,
+    _In_ uuid_t                transferId)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(deviceContext->controller_driver_id);
     oserr_t                  status;
@@ -194,33 +194,45 @@ UsbTransferDequeuePeriodic(
 
 oserr_t
 UsbHubResetPort(
-        _In_ uuid_t                 hubDriverId,
-        _In_ uuid_t                 deviceId,
-        _In_ uint8_t                portAddress,
-        _In_ USBPortDescriptor_t* portDescriptor)
+    _In_ uuid_t                 hubDriverId,
+    _In_ uuid_t                 deviceId,
+    _In_ uint8_t                portAddress,
+    _In_ USBPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oserr_t                  status;
+    uint32_t                 descriptorLength = sizeof(USBPortDescriptor_t);
     
     ctt_usbhub_reset_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(USBPortDescriptor_t));
+    ctt_usbhub_reset_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, &descriptorLength);
+
+    // Check if the received descriptor length is as expected
+    if (status == OS_EOK && descriptorLength != sizeof(USBPortDescriptor_t)) {
+        return OS_EPROTOCOL;
+    }
     return status;
 }
 
 oserr_t
 UsbHubQueryPort(
-        _In_ uuid_t                 hubDriverId,
-        _In_ uuid_t                 deviceId,
-        _In_ uint8_t                portAddress,
-        _In_ USBPortDescriptor_t* portDescriptor)
+    _In_ uuid_t                 hubDriverId,
+    _In_ uuid_t                 deviceId,
+    _In_ uint8_t                portAddress,
+    _In_ USBPortDescriptor_t* portDescriptor)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(hubDriverId);
     oserr_t                  status;
+    uint32_t                 descriptorLength = sizeof(USBPortDescriptor_t);
     
     ctt_usbhub_query_port(GetGrachtClient(), &msg.base, deviceId, portAddress);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, sizeof(USBPortDescriptor_t));
+    ctt_usbhub_query_port_result(GetGrachtClient(), &msg.base, &status, (uint8_t*)portDescriptor, &descriptorLength);
+
+    // Check if the received descriptor length is as expected
+    if (status == OS_EOK && descriptorLength != sizeof(USBPortDescriptor_t)) {
+        return OS_EPROTOCOL;
+    }
     return status;
 }
 
@@ -242,14 +254,14 @@ UsbEndpointReset(
 
 enum USBTransferCode
 UsbExecutePacket(
-        _In_ usb_device_context_t* deviceContext,
-        _In_ uint8_t               direction,
-        _In_ uint8_t               type,
-        _In_ uint8_t               valueLow,
-        _In_ uint8_t               valueHigh,
-        _In_ uint16_t              index,
-        _In_ uint16_t              length,
-        _In_ void*                 buffer)
+    _In_ usb_device_context_t* deviceContext,
+    _In_ uint8_t               direction,
+    _In_ uint8_t               type,
+    _In_ uint8_t               valueLow,
+    _In_ uint8_t               valueHigh,
+    _In_ uint16_t              index,
+    _In_ uint16_t              length,
+    _In_ void*                 buffer)
 {
     enum USBTransferCode transferStatus;
     size_t               bytesTransferred;

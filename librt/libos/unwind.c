@@ -32,11 +32,19 @@ ProcessGetLibraryHandles(
     _Out_ int*      ModuleCountOut)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(GetProcessService());
+    uint32_t                 moduleCount = PROCESS_MAXMODULES;
+
+    // Initialize it to 0
+    *ModuleCountOut = 0;
     
     sys_process_get_modules(GetGrachtClient(), &msg.base, __crt_process_id());
     gracht_client_await(GetGrachtClient(), &msg.base, 0);
-    sys_process_get_modules_result(GetGrachtClient(), &msg.base, (uintptr_t*)ModuleList,
-                                   PROCESS_MAXMODULES, ModuleCountOut);
+    (void)sys_process_get_modules_result(
+        GetGrachtClient(), &msg.base,
+        (uintptr_t*)ModuleList,
+        &moduleCount,
+        ModuleCountOut
+    );
 }
 
 oserr_t
