@@ -439,9 +439,10 @@ static void __process_syscall_completions(
                 p->next = i->next;
             }
             __usched_job_ready(i->job);
+        } else {
+            p = i;
         }
 
-        p = i;
         i = i->next;
     }
 }

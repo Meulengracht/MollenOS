@@ -80,7 +80,7 @@ struct usched_job {
     struct usched_job* next;
 };
 
-#define SHOULD_RESCHEDULE(job) ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING)
+#define SHOULD_RESCHEDULE(job) (!((job)->state & JobState_CANCELLED) && ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING))
 
 #define __QUEUE_TYPE_SLEEP 0
 #define __QUEUE_TYPE_COND  1
@@ -192,6 +192,7 @@ struct execution_manager {
                 }                      \
                 return;                \
             }                          \
+            p = i;                     \
             i = i->next;               \
         }                              \
     }
