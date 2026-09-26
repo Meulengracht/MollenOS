@@ -26,6 +26,7 @@
 #ifndef __NETMANAGER_SOCKET_H__
 #define __NETMANAGER_SOCKET_H__
 
+#include "domains/domains.h"
 #include <ds/streambuffer.h>
 #include <ds/rbtree.h>
 #include <ds/queue.h>

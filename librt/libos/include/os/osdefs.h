@@ -117,6 +117,8 @@ typedef enum oserr {
     __OS_ECOUNT
 } oserr_t;
 
+#define OSERR_VALID(err) ((err) >= OS_EOK && (err) < __OS_ECOUNT)
+
 typedef union Integer64 {
     struct {
         uint32_t LowPart;

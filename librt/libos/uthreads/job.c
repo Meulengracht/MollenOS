@@ -149,6 +149,7 @@ void __usched_task_main(struct usched_job* job)
 uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params)
 {
     struct usched_job* job;
+    uuid_t             jobID;
 
     assert(params != NULL);
     assert(params->stack_size >= 4096);
@@ -186,6 +187,11 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
         return UUID_INVALID;
     }
 
+    // Store the job id locally before scheduling so we don't
+    // get interrupted and try to read it after the job has 
+    // potentially been scheduled.
+    jobID = job->id;
+
     // We have two possible ways of queue jobs. Detached jobs get their own
     // execution unit, and thus we queue these through the xunit system. Normal
     // undetached jobs are running in the global job pool
@@ -200,7 +206,7 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     } else {
         __usched_add_job_ready(job);
     }
-    return job->id;
+    return jobID;
 }
 
 uuid_t usched_job_queue(usched_task_fn entry, void* argument)
@@ -250,6 +256,11 @@ int usched_job_cancel(uuid_t jobID)
     }
 
     usched_mtx_lock(&context->mtx);
+    if (context->job == NULL) {
+        usched_mtx_unlock(&context->mtx);
+        errno = ENOENT;
+        return -1;
+    }
     context->job->state |= JobState_CANCELLED;
     usched_mtx_unlock(&context->mtx);
     return 0;
