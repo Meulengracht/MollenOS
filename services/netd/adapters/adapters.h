@@ -65,9 +65,9 @@ NetworkAdaptersRemove(
     _In_ uuid_t device);
 
 /**
- * @brief Copy consumer hooks under the registry lock. NULL clears all hooks.
+ * @brief Copy adapter ops under the registry lock. NULL clears all ops.
  * Callbacks execute on the worker, so hook context must outlive any installed callback.
- * @param hooks The set of network adapter operations to install.
+ * @param ops The set of network adapter operations to install.
  */
 __EXTERN void
 NetworkAdaptersSetHooks(

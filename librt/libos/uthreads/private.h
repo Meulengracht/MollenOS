@@ -80,7 +80,9 @@ struct usched_job {
     struct usched_job* next;
 };
 
-#define SHOULD_RESCHEDULE(job) (!((job)->state & JobState_CANCELLED) && ((job)->state == JobState_CREATED || (job)->state == JobState_RUNNING))
+// Make sure we don't check the cancelled state here, only the basic running states.
+#define __JOB_STATE(job) ((job)->state & ~JobState_CANCELLED)
+#define SHOULD_RESCHEDULE(job) (__JOB_STATE(job) == JobState_CREATED || __JOB_STATE(job) == JobState_RUNNING)
 
 #define __QUEUE_TYPE_SLEEP 0
 #define __QUEUE_TYPE_COND  1

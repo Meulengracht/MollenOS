@@ -6,6 +6,15 @@ endif ()
 
 enable_language (C)
 
+# ARM kernel code must not acquire implicit FP/SIMD state dependencies.
+if (VALI_ARCH STREQUAL "aarch64")
+    set(VALI_KERNEL_REGISTER_FLAGS -mgeneral-regs-only -march=armv8-a -mno-outline-atomics -ffixed-x18)
+elseif (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
+    set(VALI_KERNEL_REGISTER_FLAGS -mno-sse)
+else ()
+    message(FATAL_ERROR "No kernel register policy for ${VALI_ARCH}")
+endif ()
+
 # Configure include paths
 include_directories (
 		${CMAKE_BINARY_DIR}
@@ -29,7 +38,7 @@ macro (add_kernel_library)
 
 		add_library(${ARGV0} STATIC ${SERVICE_SOURCES})
 		target_compile_options(${ARGV0}
-				PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D__LIBDS_KERNEL__>
+				PRIVATE "$<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:${VALI_KERNEL_REGISTER_FLAGS};-DUNICODE;-DLIBC_KERNEL;-D__LIBDS_KERNEL__>"
 		)
 		target_link_libraries(vali-core ${ARGV0})
 	else ()
@@ -72,7 +81,7 @@ set_target_properties (
         SUFFIX ".mos"
 )
 target_compile_options(vali-core
-	PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse -DUNICODE -DLIBC_KERNEL -D__LIBDS_KERNEL__>
+	PRIVATE "$<$<OR:$<COMPILE_LANGUAGE:C>,$<COMPILE_LANGUAGE:CXX>>:${VALI_KERNEL_REGISTER_FLAGS};-DUNICODE;-DLIBC_KERNEL;-D__LIBDS_KERNEL__>"
 )
 
 # add additional link libraries from out of this tree

@@ -256,9 +256,12 @@ int usched_job_cancel(uuid_t jobID)
     }
 
     usched_mtx_lock(&context->mtx);
-    if (context->job != NULL) {
-        context->job->state |= JobState_CANCELLED;
+    if (context->job == NULL) {
+        usched_mtx_unlock(&context->mtx);
+        errno = ENOENT;
+        return -1;
     }
+    context->job->state |= JobState_CANCELLED;
     usched_mtx_unlock(&context->mtx);
     return 0;
 }
