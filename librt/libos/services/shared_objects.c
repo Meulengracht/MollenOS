@@ -73,16 +73,6 @@ OSLibraryLoad(
         return HANDLE_GLOBAL;
     }
 
-#if defined(__aarch64__)
-    // The initial ARM64 TLS profile locks startup modules before threads get,
-    // get scheduled. Reject dynamic loading before loading code or running 
-    // constructors.
-    if (SharedObject != NULL) {
-        errno = ENOSYS;
-        return HANDLE_INVALID;
-    }
-#endif
-
     assert(__crt_is_phoenix() == 0);
 
     // Make sure the SO system is initialized. We do this on the first call to load
@@ -182,13 +172,6 @@ oserr_t
 OSLibraryUnload(
 	_In_ Handle_t handle)
 {
-#if defined(__aarch64__)
-    // Startup module templates and TLS destructor code remain pinned until exit.
-    if (handle != HANDLE_INVALID && handle != HANDLE_GLOBAL) {
-        errno = ENOSYS;
-        return OS_ENOTSUPPORTED;
-    }
-#endif
     SOInitializer_t        initialize = NULL;
     struct so_enum_context enumContext;
     int                    references;
