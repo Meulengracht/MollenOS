@@ -1,5 +1,6 @@
 LIBRARY c
 EXPORTS
+__vali_tls_get_block
 OSGetFullPath
 OSGetWorkingDirectory
 OSChangeWorkingDirectory

@@ -62,6 +62,15 @@ CRTDECL(void, __tls_destroy(struct thread_storage* tls));
 CRTDECL(struct thread_storage*, __tls_current(void));
 
 /**
+ * @brief obtain an already initialized PE TLS module block for the
+ * active logical thread. Ordinary C/AAPCS64 call;
+ * Should not be marked const/pure, allocate, yield, or depend on implicit TLS.
+ * Invalid/uninitialized indices are fatal runtime-initialization errors.
+ */
+CRTDECL(void*, __vali_tls_get_block(unsigned int moduleIndex));
+
+
+/**
  * @brief Retrieves the local dma buffer for the current thread. Use this
  * function instead of accessing the dma buffer member manually as it is
  * allocated on demand.

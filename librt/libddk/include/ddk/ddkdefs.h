@@ -42,6 +42,30 @@ typedef reg64_t reg_t;
 #define TLS_VALUE uint64_t
 #define TLS_READ(offset, value)  __asm { __asm mov rbx, [offset] __asm mov rax, gs:[rbx] __asm mov [value], rax }
 #define TLS_WRITE(offset, value) __asm { __asm mov rbx, [offset] __asm mov rax, [value] __asm mov gs:[rbx], rax }
+#elif defined(__aarch64__)
+typedef reg64_t reg_t;
+
+#define TLS_VALUE uint64_t
+// Preserve Vali's reserved-slot ABI. User slots belong to the execution unit;
+// slot 0 selects the active logical thread/job. The kernel has a separate,
+// privileged anchor and must never use the user-controlled TPIDR_EL0 value.
+#if defined(LIBC_KERNEL)
+#define __VALI_TLS_REGISTER "tpidr_el1"
+#else
+#define __VALI_TLS_REGISTER "tpidr_el0"
+#endif
+#define TLS_READ(offset, value) do {                                  \
+    uintptr_t __vali_slots;                                          \
+    __asm__ volatile("mrs %0, " __VALI_TLS_REGISTER                    \
+                     : "=r"(__vali_slots) : : "memory");              \
+    (value) = *(volatile TLS_VALUE*)(__vali_slots + (offset));         \
+} while (0)
+#define TLS_WRITE(offset, value) do {                                 \
+    uintptr_t __vali_slots;                                          \
+    __asm__ volatile("mrs %0, " __VALI_TLS_REGISTER                    \
+                     : "=r"(__vali_slots) : : "memory");              \
+    *(volatile TLS_VALUE*)(__vali_slots + (offset)) = (value);         \
+} while (0)
 #else
 #error "Implement rw for tls for this architecture"
 #endif //defined(i386) || defined(__i386__)

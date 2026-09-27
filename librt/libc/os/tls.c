@@ -132,3 +132,17 @@ void __tls_switch(struct thread_storage* tls) {
     __set_reserved(1, (size_t)&tls->tls_array[0]);
     __set_reserved(11, (size_t)&tls->tls_array[0]);
 }
+
+
+void* __vali_tls_get_block(unsigned int moduleIndex)
+{
+    struct thread_storage* tls = __tls_current();
+
+    // Do not use errno, logging or allocation on this path: any of those may
+    // itself require TLS. Module registration/attachment must precede access.
+    if (tls == NULL || moduleIndex >= TLS_NUMBER_ENTRIES ||
+        tls->tls_array[moduleIndex] == 0) {
+        __builtin_trap();
+    }
+    return (void*)tls->tls_array[moduleIndex];
+}

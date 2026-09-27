@@ -52,6 +52,9 @@
 #elif defined(__x86_64__)
 #define __STDC_CONVENTION
 #define ASMDECL(ReturnType, Function) ReturnType __cdecl Function
+#elif defined(__aarch64__)
+#define __STDC_CONVENTION
+#define ASMDECL(ReturnType, Function) ReturnType Function
 #endif
 
 #if defined(__clang__)

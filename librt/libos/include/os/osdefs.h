@@ -59,7 +59,7 @@
 #define __MASK   0xFFFFFFFF
 typedef uint32_t paddr_t;
 typedef uint32_t vaddr_t;
-#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
+#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__) || defined(__aarch64__)
 #define __BITS   64
 #define __MASK   0xFFFFFFFFFFFFFFFF
 typedef uint64_t paddr_t;
