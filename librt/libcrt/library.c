@@ -22,11 +22,13 @@
 #include <os/osdefs.h>
 
 extern void __cxa_module_global_init(void);
+extern void __cxa_module_tls_global_init(void);
 extern void __cxa_module_global_finit(void);
 extern void __cxa_module_tls_thread_init(void);
 extern void __cxa_module_tls_thread_finit(void);
 CRTDECL(void, __cxa_tls_thread_cleanup(void *Dso));
 CRTDECL(void, __cxa_tls_module_cleanup(void *Dso));
+CRTDECL(int,  __tls_prepare_modules(void));
 extern void dllmain(int action);
 extern void *__dso_handle;
 
@@ -34,6 +36,16 @@ void
 __CrtLibraryEntry(int Action)
 {
 	switch (Action) {
+        case DLL_ACTION_TLSREGISTER:
+            __cxa_module_tls_global_init();
+            // Catch the calling thread up to the registry immediately: at
+            // startup this is a harmless incremental no-op once every base
+            // library has registered, but it's what makes DLL_ACTION_TLSREGISTER
+            // safe to reuse for a module loaded dynamically after startup.
+            if (__tls_prepare_modules()) {
+                __builtin_trap();
+            }
+            break;
         case DLL_ACTION_INITIALIZE: {
             // Module has been attached to system.
             __cxa_module_global_init();

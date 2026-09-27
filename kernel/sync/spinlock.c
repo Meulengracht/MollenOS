@@ -27,7 +27,12 @@
 
 // For the X86 platform we need the _mm_pause intrinsinc to generate
 // a pause in-between each cycle. This is recommended by the AMD manuals.
+#if defined(__i386__) || defined(__x86_64__)
 #include <immintrin.h>
+#define SPINLOCK_PAUSE() _mm_pause()
+#elif defined(__aarch64__)
+#define SPINLOCK_PAUSE() __asm__ volatile("yield" ::: "memory")
+#endif
 
 void
 SpinlockConstruct(
@@ -76,7 +81,7 @@ SpinlockAcquire(
         // Intel's recommendation for optimizations on spinlocks is actually
         // to use an exponential backoff strategy.
         for (int i = 0; i < backOff; i++) {
-            _mm_pause();
+            SPINLOCK_PAUSE();
         }
         backOff = backOff < 64 ? backOff << 1 : 64;
     }

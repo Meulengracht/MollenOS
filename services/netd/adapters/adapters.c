@@ -13,6 +13,7 @@
 #include <io.h>
 #include <ioset.h>
 #include <os/usched/job.h>
+#include <os/usched/mutex.h>
 #include <string.h>
 #include <time.h>
 
@@ -22,7 +23,7 @@
 
 static struct AdapterEntry g_adapters[NET_ADAPTER_LIMIT];
 static NetworkAdapterOps_t g_ops;
-static mtx_t               g_lock;
+static struct usched_mtx   g_lock;
 static bool                g_initialized;
 static int                 g_eventSet;
 static int                 g_wake;
@@ -275,7 +276,7 @@ NetworkAdaptersDiscover(
         return;
     }
     
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     // Retire secondary ports from the previous driver too. The replacement's
     // GET_INFO determines which ports to reopen; its port count may be smaller.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
@@ -286,7 +287,7 @@ NetworkAdaptersDiscover(
         }
     }
     NetAdapterRegistryDiscover(device, driver, 0);
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
     
     // Notify the worker
     __WakeWorker();
@@ -304,9 +305,9 @@ NetworkAdaptersRemove(
         return;
     }
 
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     NetAdapterRegistryRemove(device);
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
 
     // Notify the worker
     __WakeWorker();
@@ -429,7 +430,7 @@ __WorkerMain(
         timespec_get(&time, TIME_MONOTONIC);
         now = (uint64_t)time.tv_sec * 1000 + (uint64_t)time.tv_nsec / 1000000;
         
-        mtx_lock(&g_lock);
+        usched_mtx_lock(&g_lock);
         for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
             // Attempt to attach any pending ports for this adapter before polling it.
             AttachPendingPort(&g_adapters[i], now);
@@ -440,7 +441,7 @@ __WorkerMain(
                 __UpdatePort(&g_adapters[i]);
             }
         }
-        mtx_unlock(&g_lock);
+        usched_mtx_unlock(&g_lock);
 
         // Wait for work to become available or until the next timeout.
         __WaitForWork(busy);
@@ -459,11 +460,7 @@ NetworkAdaptersInitialize(void)
         return OS_EEXISTS;
     }
     
-    if (mtx_init(&g_lock, mtx_plain) != thrd_success) {
-        ERROR("NetworkAdaptersInitialize: failed to initialize mutex");
-        return OS_EOOM;
-    }
-    
+    usched_mtx_init(&g_lock, USCHED_MUTEX_PLAIN);
     g_eventSet = ioset(0);
     g_wake     = eventd(0, EVT_RESET_EVENT);
     if (g_eventSet < 0 || g_wake < 0) {
@@ -475,7 +472,6 @@ NetworkAdaptersInitialize(void)
         if (g_wake >= 0) {
             close(g_wake);
         }
-        mtx_destroy(&g_lock);
         return OS_EUNKNOWN;
     }
     
@@ -496,7 +492,6 @@ NetworkAdaptersInitialize(void)
         ERROR("NetworkAdaptersInitialize: failed to create worker thread");
         close(g_eventSet);
         close(g_wake);
-        mtx_destroy(&g_lock);
         return OS_EOOM;
     }
     
@@ -516,13 +511,13 @@ NetworkAdaptersSetHooks(
         return;
     }
     
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     if (ops) {
         g_ops = *ops;
     } else {
         memset(&g_ops, 0, sizeof(g_ops));
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
 }
 
 oserr_t
@@ -542,7 +537,7 @@ NetworkAdaptersSend(
         return OS_ENOTSUPPORTED;
     }
     
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
     if (entry != NULL && entry->Adapter != NULL) {
         status = NetAdapterSend(entry->Adapter, data, length, cookie);
@@ -556,9 +551,65 @@ NetworkAdaptersSend(
     } else {
         TRACE("NetworkAdaptersSend: port not found device=%u port=%u", device, port);
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
 
     // Notify the worker of new work
+    __WakeWorker();
+    return status;
+}
+
+oserr_t
+NetworkAdaptersTxAcquire(uuid_t device, uint32_t port, NetAdapterTxPacket_t* packet)
+{
+    if (!packet) {
+        return OS_EINVALPARAMS;
+    }
+    memset(packet, 0, sizeof(*packet));
+    if (!g_initialized) {
+        return OS_ENOTSUPPORTED;
+    }
+    usched_mtx_lock(&g_lock);
+    struct AdapterEntry* entry = __FindPort(device, port);
+    oserr_t status = OS_ENOENT;
+    if (entry) {
+        status = entry->Adapter ? NetAdapterTxAcquire(entry->Adapter, packet) : OS_EBUSY;
+    }
+    usched_mtx_unlock(&g_lock);
+    return status;
+}
+
+oserr_t
+NetworkAdaptersTxSubmit(uuid_t device, uint32_t port, NetAdapterTxPacket_t* packet,
+                        uint32_t length, uint64_t cookie)
+{
+    if (!g_initialized) {
+        return OS_ENOTSUPPORTED;
+    }
+    usched_mtx_lock(&g_lock);
+    struct AdapterEntry* entry = __FindPort(device, port);
+    oserr_t status = OS_ENOENT;
+    if (entry && entry->Adapter) {
+        status = NetAdapterTxSubmit(entry->Adapter, packet, length, cookie);
+    }
+    usched_mtx_unlock(&g_lock);
+    __WakeWorker();
+    return status;
+}
+
+oserr_t
+NetworkAdaptersTxCancel(uuid_t device, uint32_t port, NetAdapterTxPacket_t* packet)
+{
+    if (!g_initialized) {
+        return OS_ENOTSUPPORTED;
+    }
+    usched_mtx_lock(&g_lock);
+    // Removed entries remain discoverable until their last lease is returned.
+    struct AdapterEntry* entry = __FindPort(device, port);
+    oserr_t status = OS_ENOENT;
+    if (entry && entry->Adapter) {
+        status = NetAdapterTxCancel(entry->Adapter, packet);
+    }
+    usched_mtx_unlock(&g_lock);
     __WakeWorker();
     return status;
 }
@@ -581,7 +632,7 @@ NetworkAdaptersSnapshot(
         return OS_ENOTSUPPORTED;
     }
 
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
     if (entry) {
         if (entry->Adapter) {
@@ -599,7 +650,7 @@ NetworkAdaptersSnapshot(
     } else {
         TRACE("NetworkAdaptersSnapshot: port not found device=%u port=%u", device, port);
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
 
     // Notify the worker of new events
     __WakeWorker();
@@ -621,7 +672,7 @@ NetworkAdaptersSetRunning(
         return OS_ENOTSUPPORTED;
     }
 
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
     if (entry != NULL && entry->Adapter == NULL) {
         // Entry exists but adapter is not yet allocated. This typically occurs
@@ -647,7 +698,7 @@ NetworkAdaptersSetRunning(
     } else {
         TRACE("NetworkAdaptersSetRunning: port not found device=%u port=%u", device, port);
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
     
     // Notify the worker thread of the state change.
     __WakeWorker();
@@ -667,7 +718,7 @@ NetworkAdaptersClose(
         return OS_ENOTSUPPORTED;
     }
     
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
     if (entry) {
         __CloseEntry(entry);
@@ -675,7 +726,7 @@ NetworkAdaptersClose(
     } else {
         TRACE("NetworkAdaptersClose: port not found device=%u port=%u", device, port);
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
     
     // Notify the worker thread of the state change.
     __WakeWorker();
@@ -695,7 +746,7 @@ NetworkAdaptersRetry(
         return OS_ENOTSUPPORTED;
     }
     
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
     if (entry) {
         if (entry->Adapter) {
@@ -708,7 +759,7 @@ NetworkAdaptersRetry(
     } else {
         TRACE("NetworkAdaptersRetry: port not found device=%u port=%u", device, port);
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
     
     // Notify the worker thread of the request.
     __WakeWorker();
@@ -724,14 +775,14 @@ NetworkAdaptersTestAttach(
     if (!g_initialized || !device || !driver) {
         return OS_EINVALPARAMS;
     }
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     NetAdapterRegistryDiscover(device, driver, 0);
     struct AdapterEntry* entry = __FindPort(device, 0);
     oserr_t status = OS_EUNKNOWN;
     if (entry && (entry->Driver == driver || entry->PendingDriver == driver)) {
         status = OS_EOK;
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
     __WakeWorker();
     return status;
 }
@@ -746,7 +797,7 @@ NetworkAdaptersTestFindVirtual(
         return OS_EINVALPARAMS;
     }
     oserr_t status = OS_ENOENT;
-    mtx_lock(&g_lock);
+    usched_mtx_lock(&g_lock);
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         if (!g_adapters[i].Adapter) {
             continue;
@@ -759,7 +810,7 @@ NetworkAdaptersTestFindVirtual(
             break;
         }
     }
-    mtx_unlock(&g_lock);
+    usched_mtx_unlock(&g_lock);
     return status;
 }
 #endif

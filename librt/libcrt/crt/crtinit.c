@@ -23,6 +23,7 @@
 
 extern int  main(int argc, char **argv, char **envp);
 extern void __cxa_module_global_init(void);
+extern void __cxa_module_tls_global_init(void);
 extern void __cxa_module_global_finit(void);
 extern void __cxa_module_tls_thread_init(void);
 extern void __cxa_module_tls_thread_finit(void);
@@ -53,18 +54,20 @@ char** __crt_argv(int* argcOut) {
 
 void __crt_initialize(thread_storage_t* threadStorage, int isPhoenix)
 {
-	__tls_initialize(threadStorage);
-    __tls_switch(threadStorage);
+    __tls_initialize(threadStorage, 1);
     __crt_process_initialize(isPhoenix);
 
-    // The following library function handles running static initializers and TLS data for the primary
-    // library object (the loaded exe/dll).
+    // The following library function handles running static 
+    // initializers and TLS data for the primary library object 
+    // (the loaded exe/dll). Register the primary module's TLS template
+    // before __cxa_runinitializers freezes the registry via __tls_prepare_modules().
+    __cxa_module_tls_global_init();
     __cxa_runinitializers(
-            __crt_base_libraries(),
-    	    __cxa_module_global_init,
-    	    __cxa_module_global_finit,
-            __cxa_module_tls_thread_init,
-            __cxa_module_tls_thread_finit
+        __crt_base_libraries(),
+        __cxa_module_global_init,
+        __cxa_module_global_finit,
+        __cxa_module_tls_thread_init,
+        __cxa_module_tls_thread_finit
     );
 }
 

@@ -49,7 +49,7 @@ __clone_env_block(void)
     return (const char* const*)copy;
 }
 
-int __tls_initialize(struct thread_storage* tls)
+int __tls_initialize(struct thread_storage* tls, int use)
 {
     memset(tls, 0, sizeof(struct thread_storage));
 
@@ -59,6 +59,12 @@ int __tls_initialize(struct thread_storage* tls)
     tls->err_no = EOK;
     tls->locale = NULL;
     tls->seed   = 1;
+
+    // Allocation during __clone_env_block can use errno/current storage. The
+    // kernel has already installed the execution-unit reserved-slot anchor.
+    if (use) {
+        __tls_switch(tls);
+    }
 
     // TLS is initialized before we retrieve the actual environment block
     // from the startup information. This unfortunately means the primary

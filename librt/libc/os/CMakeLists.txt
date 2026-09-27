@@ -5,4 +5,5 @@ add_libc_target(libc-os
         ipc.c
         keycodes.c
         tls.c
+        tls_modules.c
 )

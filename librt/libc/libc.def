@@ -1,6 +1,11 @@
 LIBRARY c
 EXPORTS
 __vali_tls_get_block
+__tls_register_module
+__tls_prepare_modules
+__tls_release_modules
+__tls_atexit
+__tls_run_destructors
 OSGetFullPath
 OSGetWorkingDirectory
 OSChangeWorkingDirectory

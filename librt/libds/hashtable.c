@@ -128,6 +128,7 @@ void* hashtable_set(
 
     // Only resize on entry - that way we avoid any unneccessary resizing
     if (SHOULD_GROW(hashtable) && hashtable_resize(hashtable, hashtable->capacity << 1)) {
+        errno = ENOMEM;
         return NULL;
     }
 

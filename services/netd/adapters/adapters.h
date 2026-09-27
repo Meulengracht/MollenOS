@@ -19,7 +19,7 @@
  * - Contains the implementation of the network-manager which keeps track
  *   of sockets, network interfaces and connectivity status
  * 
- * Service-side serialized adapter executor and bounded discovery registry.
+ * Service-side serialized adapter executor and discovery registry.
  */
 
 #ifndef __NETD_ADAPTERS_H__
@@ -71,7 +71,7 @@ NetworkAdaptersRemove(
  */
 __EXTERN void
 NetworkAdaptersSetHooks(
-    _In_opt_ const NetworkAdapterOps_t* ops);
+    _In_Opt_ const NetworkAdapterOps_t* ops);
 
 /**
  * @brief Copy a frame into the selected port queue and wake the worker.
@@ -89,6 +89,37 @@ NetworkAdaptersSend(
     _In_ const void* frame,
     _In_ uint32_t    length,
     _In_ uint64_t    cookie);
+
+/**
+ * @brief Acquire a pool-backed packet for construction outside the worker lock.
+ * Data is exclusively writable until successful Submit or Cancel. These calls
+ * serialize metadata internally; never call them from adapter callbacks, which
+ * already hold the registry lock. Handing a packet to another thread requires
+ * caller synchronization and transfer of exclusive ownership.
+ *
+ * Stop/removal preserves the view but can invalidate submission. Every acquired
+ * packet must eventually be submitted or cancelled, including on error paths.
+ * A retained builder deliberately delays driver replacement and pool destruction.
+ */
+__EXTERN oserr_t
+NetworkAdaptersTxAcquire(
+    _In_ uuid_t device, _In_ uint32_t port, _Out_ NetAdapterTxPacket_t* packet);
+
+/** @brief Transfer a constructed frame to the worker without copying.
+ * On failure the packet remains caller-owned. On success it is cleared and its
+ * cookie receives the same completion callback as NetworkAdaptersSend.
+ */
+__EXTERN oserr_t
+NetworkAdaptersTxSubmit(
+    _In_ uuid_t device, _In_ uint32_t port, _InOut_ NetAdapterTxPacket_t* packet,
+    _In_ uint32_t length, _In_ uint64_t cookie);
+
+/** @brief Return an unsubmitted packet, even after adapter removal or close.
+ * Successful cancellation clears the packet and produces no TX callback.
+ */
+__EXTERN oserr_t
+NetworkAdaptersTxCancel(
+    _In_ uuid_t device, _In_ uint32_t port, _InOut_ NetAdapterTxPacket_t* packet);
 
 /**
  * @brief Returns cached state immediately and schedules an asynchronous counters refresh.

@@ -118,8 +118,13 @@ void usched_job_parameters_set_detached(struct usched_job_parameters* params, bo
 
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
-    __remove_job_from_register(job->id, exitCode);
+    // finalize tls runtime before anything else. Must complete before the job's
+    // tls is torn down (__task_destroy, run later from the garbage bin).
     __cxa_threadfinalize();
+    
+    // if the task has any joiners, ensure tls has run
+    // before removing, as this will make them runnable.
+    __remove_job_from_register(job->id, exitCode);
 
     job->state = JobState_FINISHING;
     usched_yield(NULL);
@@ -173,7 +178,8 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->detached = params->detached;
     job->queue = NULL;
 
-    if (__tls_initialize(&job->tls)) {
+    // We are not switching as we are simply prepping the tls here.
+    if (__tls_initialize(&job->tls, 0)) {
         free(job->stack);
         free(job);
         return UUID_INVALID;

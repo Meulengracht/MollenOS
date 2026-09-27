@@ -207,7 +207,12 @@ static inline size_t NextPowerOfTwo(size_t value) {
 #define DIVUP(a, b)                             (((a) + ((b) - 1)) / (b))
 #define ADDLIMIT(Base, Current, Step, Limit)    (((Current) + (Step)) >= (Limit)) ? (Base) : ((Current) + (Step))
 #define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
+
+#if defined(__aarch64__)
+#define BOCHSBREAK                              __builtin_trap();
+#else
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
+#endif
 
 #ifdef __need_minmax
 #define MIN(a,b) (((a)<(b))?(a):(b))

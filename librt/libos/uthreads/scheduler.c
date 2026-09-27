@@ -186,6 +186,7 @@ void __usched_destroy(struct usched_scheduler* sched)
 static void
 __task_destroy(struct usched_job* job)
 {
+    // Must run after __finalize_task()/__cxa_threadfinalize() has completed for this job.
     __tls_destroy(&job->tls);
     free(job->stack);
     free(job);

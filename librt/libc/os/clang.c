@@ -22,10 +22,12 @@
 //#define __TRACE
 
 #include <assert.h>
+#include <internal/_tls.h>
 #include <ddk/utils.h>
 #include <internal/_utils.h>
 #include <math.h>
 #include <threads.h>
+#include "../threads/tss.h"
 
 #ifndef __INTERNAL_FUNC_DEFINED
 #define __INTERNAL_FUNC_DEFINED
@@ -100,13 +102,16 @@ void CRTHIDE __cxa_exithandlers(void)
     }
     g_cleanupPerformed = 1;
 
+    __tls_run_destructors(NULL);
     // Run at-exit lists for all the modules
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_FINALIZE);
     }
 
     // Cleanup primary app
+    __tls_run_destructors(NULL);
     __cxa_primary_cleanup();
+    __tls_release_modules();
 }
 
 /* __cxa_threadinitialize
@@ -114,6 +119,7 @@ void CRTHIDE __cxa_exithandlers(void)
 CRTDECL(void, __cxa_threadinitialize(void))
 {
     TRACE("__cxa_threadinitialize()");
+    if (__tls_prepare_modules()) __builtin_trap();
     fpreset();
 
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
@@ -127,16 +133,22 @@ CRTDECL(void, __cxa_threadinitialize(void))
 CRTDECL(void, __cxa_threadfinalize(void))
 {
     TRACE("__cxa_threadfinalize()");
+    __tls_run_destructors(NULL);
+    tss_cleanup();
+    // A TSS destructor can initialize another C++ thread-local object.
+    __tls_run_destructors(NULL);
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADDETACH);
     }
     __cxa_primary_tls_thread_finit();
+    __tls_run_destructors(NULL);
+    __tls_release_modules();
 }
 
 CRTDECL(void, __cxa_tls_thread_cleanup(void* dsoHandle))
 {
     TRACE("__cxa_tls_thread_cleanup()");
-    __cxa_at_exit_run(__crt_thread_id(), dsoHandle, 0);
+    __tls_run_destructors(dsoHandle);
 }
 
 CRTDECL(void, __cxa_tls_module_cleanup(void* dsoHandle))
@@ -157,7 +169,7 @@ CRTDECL(void, __cxa_finalize(void *Dso))
  * C++ At-Exit implementation for registering of exit-handlers. */
 CRTDECL(int, __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle)) {
     TRACE("__cxa_atexit()");
-    return __at_exit_impl(UUID_INVALID, fn, argument, dsoHandle);;
+    return __at_exit_impl(UUID_INVALID, fn, argument, dsoHandle);
 }
 CRTDECL(int, __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle)) {
     TRACE("__cxa_at_quick_exit()");
@@ -168,7 +180,7 @@ CRTDECL(int, __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle)) {
  * C++ At-Exit implementation for thread specific cleanup. */
 CRTDECL(int, __cxa_thread_atexit_impl(void (*dtor)(void*), void* arg, void* dsoHandle)) {
     TRACE("__cxa_thread_atexit_impl()");
-    return __at_exit_impl(__crt_thread_id(), dtor, arg, dsoHandle);
+    return __tls_atexit(dtor, arg, dsoHandle);
 }
 
 CRTDECL(int, __cxa_thread_at_quick_exit_impl(void (*dtor)(void*), void* dsoHandle)) {
@@ -193,6 +205,9 @@ CRTDECL(void, __cxa_runinitializers(
     __cxa_primary_tls_thread_finit = module_thread_finit;
 
     g_moduleEntries = libraries;
+    for (int i = 0; libraries != NULL && libraries[i] != 0; ++i)
+        ((void (*)(int))libraries[i])(DLL_ACTION_TLSREGISTER);
+    if (__tls_prepare_modules()) __builtin_trap();
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         TRACE("__cxa_runinitializers: module entry 0x%" PRIxIN, g_moduleEntries[i]);
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);

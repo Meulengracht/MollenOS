@@ -29,6 +29,7 @@
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <internal/_utils.h>
+#include <internal/_tls.h>
 #include <os/services/process.h>
 #include <os/threads.h>
 #include <signal.h>
@@ -329,9 +330,13 @@ void __at_exit_run(
         );
     } else {
         struct atexit_dso_entry* dsoEntry;
-        dsoEntry = hashtable_get(&threadEntry->values, &(struct atexit_dso_entry) {
-            .dso_handle = dsoHandle
-        });
+        
+        dsoEntry = hashtable_get(
+            &threadEntry->values,
+            &(struct atexit_dso_entry) {
+                .dso_handle = dsoHandle
+            }
+        );
         if (dsoEntry != NULL) {
             list_clear((list_t*)&dsoEntry->values, __run_and_clean, &context);
         }
@@ -390,6 +395,11 @@ void exit(int exitCode)
 
     // Otherwise, we are the main thread, which means we will go ahead and do primary
     // program cleanup, the moment we get killed, the rest of threads will be aborted
+    // Thread-local objects must die before objects with static storage, while
+    // all module TLS blocks are still available to their destructors.
+    __tls_run_destructors(NULL);
+    tss_cleanup();
+    __tls_run_destructors(NULL);
     __at_exit_run(&g_at_exit, UUID_INVALID, NULL, ec);
     __cxa_exithandlers();
 

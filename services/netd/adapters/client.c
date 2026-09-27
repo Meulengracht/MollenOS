@@ -30,6 +30,7 @@
 #include <ctt_netadapter_service_client.h>
 
 #include "private.h"
+#include "session.h"
 
 int
 NetAdapterClientCreate(
