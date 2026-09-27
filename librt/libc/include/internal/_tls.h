@@ -84,11 +84,28 @@ CRTDECL(void*, __vali_tls_get_block(unsigned int moduleIndex));
  */
 CRTDECL(OSHandle_t*, __tls_current_dmabuf(void));
 
-// Startup-only module registry: sealed by the first preparation. No ID reuse.
+/**
+ * @brief Registers a new TLS module for the current process. This function
+ * should be called during the startup phase to set up thread-local storage
+ * for the module.
+ */
 CRTDECL(int, __tls_register_module(void* owner, const void* data, size_t size,
     size_t zero, size_t alignment, unsigned long* index));
+
+/**
+ * @brief Prepares all registered TLS modules for the current process. This function
+ * should be called after all modules have been registered and before any threads
+ * start using TLS.
+ */
 CRTDECL(int, __tls_prepare_modules(void));
+
+/**
+ * @brief Releases all prepared TLS modules for the current process. 
+ * This function should be called during the shutdown phase to clean 
+ * up thread-local storage.
+ */
 CRTDECL(void, __tls_release_modules(void));
+
 CRTDECL(int, __tls_atexit(void (*function)(void*), void* argument, void* owner));
 CRTDECL(void, __tls_run_destructors(void* owner));
 

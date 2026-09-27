@@ -10,3 +10,8 @@ add_library(libos-uthreads STATIC
 target_compile_definitions(libos-uthreads PRIVATE -D__OSLIB_C_IMPLEMENTATION)
 target_link_libraries(libos-uthreads PUBLIC libddk libds libc-api)
 target_include_directories(libos-uthreads PRIVATE ../include)
+
+if (VALI_ARCH STREQUAL "aarch64" OR VALI_ARCH STREQUAL "arm64")
+    enable_language(ASM)
+    target_sources(libos-uthreads PRIVATE aarch64/context.S)
+endif ()

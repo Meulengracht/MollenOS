@@ -110,6 +110,27 @@ int __tls_register_module(
     return 0;
 }
 
+// Do not overwrite existing ownership on corrupted/reentrant preparation.
+static int __verify_state(thread_storage_t* tls, unsigned int start, unsigned int count)
+{
+    if (start > count) {
+        return -1;
+    }
+    
+    for (unsigned int i = 0; i < start; ++i) {
+        if (!tls->tls_array[i]) {
+            return -1;
+        }
+    }
+    
+    for (unsigned int i = start; i < count; ++i) {
+        if (tls->tls_array[i]) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 // Incremental and idempotent: catches the calling thread's tls_array up to
 // whatever modules are currently registered, allocating only the slots it
 // doesn't have yet. This is what makes it safe to call both at process/thread
@@ -132,6 +153,10 @@ int __tls_prepare_modules(void)
     spinlock_release(&g_lock);
 
     start = tls->tls_modules_prepared_count;
+    if (__verify_state(tls, start, count)) {
+        return -1;
+    }
+    
     for (unsigned int i = start; i < count; ++i) {
         const struct __tls_module* mod = &g_modules[i];
         size_t                     alignment;

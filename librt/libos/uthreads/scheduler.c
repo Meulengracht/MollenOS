@@ -290,6 +290,10 @@ static struct usched_job* __get_next_ready(
 
 // entry point for new tasks
 extern void __usched_task_main(struct usched_job* job);
+#if defined(__aarch64__)
+extern _Noreturn void __usched_task_start(void* stack, struct usched_job* job,
+                                        void (*entry)(struct usched_job*));
+#endif
 
 static void _Noreturn __switch_task(
         struct usched_job* job)
@@ -313,7 +317,9 @@ static void _Noreturn __switch_task(
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.
     stack = (char*)job->stack + job->stack_size;
-#if defined(__amd64__)
+#if defined(__aarch64__)
+    __usched_task_start(stack, job, __usched_task_main);
+#elif defined(__amd64__)
     __asm__ (
             "movq %0, %%rcx; movq %1, %%rsp; callq __usched_task_main\n"
             :: "r"(job), "r"(stack)
