@@ -177,6 +177,7 @@ OnEvent(
 {
     VirtioNetDevice_t* device;
     unsigned int       signal;
+    uint8_t            pending;
 
     if (event == NULL || !(event->events & IOSETSYN)) {
         return OS_ENOENT;
@@ -185,33 +186,42 @@ OnEvent(
     device = event->data.context;
     
     VirtioNetLock();
-    if (read(device->EventDescriptor, &signal, sizeof(signal)) == sizeof(signal)) {
-        uint8_t pending = (uint8_t)atomic_exchange(&device->InterruptResource.PendingStatus, 0);
-        if (pending & VIRTIO_ISR_QUEUE_INTERRUPT) {
-            VirtioNetPoll(device);
+
+    if (read(device->EventDescriptor, &signal, sizeof(signal)) != sizeof(signal)) {
+        VirtioNetUnlock();
+        return OS_EUNKNOWN;
+    }
+
+    // Atomically read and clear the pending interrupt status
+    pending = (uint8_t)atomic_exchange(&device->InterruptResource.PendingStatus, 0);
+    
+    // Handle if there are any pending interrupts
+    if (pending & VIRTIO_ISR_QUEUE_INTERRUPT) {
+        VirtioNetPoll(device);
+    }
+    
+    // Handle if there is a configuration interrupt pending
+    if (pending & VIRTIO_ISR_CONFIG_INTERRUPT) {
+        uint64_t state;
+        oserr_t  status;
+        
+        status = VirtioPciRegionRead(
+            &device->Transport.Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1],
+            offsetof(VirtioPciCommonConfiguration_t, DeviceStatus),
+            sizeof(uint8_t),
+            &state
+        );
+        if (status == OS_EOK &&
+            (state & (VIRTIO_STATUS_DEVICE_NEEDS_RESET | VIRTIO_STATUS_FAILED))) {
+            status = OS_EDEVFAULT;
+        } else if (status == OS_EOK) {
+            status = VirtioNetReadConfiguration(device);
         }
-        if (pending & VIRTIO_ISR_CONFIG_INTERRUPT) {
-            uint64_t state;
-            oserr_t  status;
-            
-            status = VirtioPciRegionRead(
-                &device->Transport.Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1],
-                offsetof(VirtioPciCommonConfiguration_t, DeviceStatus),
-                sizeof(uint8_t),
-                &state
-            );
-            if (status == OS_EOK &&
-                (state & (VIRTIO_STATUS_DEVICE_NEEDS_RESET | VIRTIO_STATUS_FAILED))) {
-                status = OS_EDEVFAULT;
-            } else if (status == OS_EOK) {
-                status = VirtioNetReadConfiguration(device);
-            }
-            
-            // If reading the device status or the configuration fails, 
-            // we fault the device.
-            if (status != OS_EOK) {
-                VirtioNetFault(device, status);
-            }
+        
+        // If reading the device status or the configuration fails, 
+        // we fault the device.
+        if (status != OS_EOK) {
+            VirtioNetFault(device, status);
         }
     }
     VirtioNetUnlock();

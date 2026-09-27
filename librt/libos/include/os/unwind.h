@@ -35,6 +35,10 @@ typedef struct UnwindSection {
 _CODE_BEGIN
 /**
  * @brief Retrieves the unwind section for the module containing an address.
+ * ARM64 PE32+ modules return the exception directory (.pdata), including a
+ * successful lookup with an empty directory for a leaf-only image. Other
+ * architectures retain their .eh_frame lookup. The module must remain loaded
+ * while the caller uses its unwind metadata.
  * @param MemoryAddress Address whose containing module should be queried.
  * @param Section Receives the unwind section information.
  * @return OS_EOK on success; otherwise, an error code.

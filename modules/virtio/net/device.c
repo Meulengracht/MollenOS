@@ -75,9 +75,11 @@ __ReadMacAndLinkStatus(
     _Out_ uint8_t              mac[6],
     _Out_ int*                 linkUpOut)
 {
-    uint64_t before, after, value;
-    int      linkUp;
-    oserr_t  status;
+    VirtioPciRegion_t* common = &device->Transport.Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1];
+    VirtioPciRegion_t* config = &device->Transport.Regions[VIRTIO_PCI_CAP_DEVICE_CFG - 1];
+    uint64_t           before, after, value;
+    int                linkUp;
+    oserr_t            status;
 
     // Read the configuration generation before accessing the MAC and link status.
     status = VirtioPciRegionRead(
@@ -129,9 +131,6 @@ oserr_t
 VirtioNetReadConfiguration(
     _InOut_ VirtioNetDevice_t* device)
 {
-    VirtioPciRegion_t* common = &device->Transport.Regions[VIRTIO_PCI_CAP_COMMON_CFG - 1];
-    VirtioPciRegion_t* config = &device->Transport.Regions[VIRTIO_PCI_CAP_DEVICE_CFG - 1];
-    
     for (int retry = 0; retry < 8; ++retry) {
         enum ctt_netadapter_link_status link;
         oserr_t                         status;

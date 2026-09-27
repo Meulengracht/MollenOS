@@ -87,6 +87,33 @@ UnwindGetSection(
             continue;
         }
 
+        // ARM64 uses the PE exception directory, which may be empty for an
+        // image containing only leaf functions. Return the containing module
+        // even then: libunwind must distinguish a known leaf from an unknown PC.
+        if (peHeader->Machine == PE_MACHINE_ARM64 &&
+            optHeader->Architecture == PE_ARCHITECTURE_64) {
+            PeOptionalHeader64_t* header64 = (PeOptionalHeader64_t*)optHeader;
+            uintptr_t offset = (uintptr_t)MemoryAddress - (uintptr_t)ModuleList[i];
+            PeDataDirectory_t directory = { 0, 0 };
+
+            if ((uintptr_t)MemoryAddress < (uintptr_t)ModuleList[i] ||
+                offset >= header64->SizeOfImage) {
+                continue;
+            }
+            if (header64->NumDataDirectories > PE_SECTION_EXCEPTION) {
+                directory = header64->Directories[PE_SECTION_EXCEPTION];
+            }
+            if ((directory.AddressRVA & 3) || (directory.Size & 7) ||
+                directory.AddressRVA > header64->SizeOfImage ||
+                directory.Size > header64->SizeOfImage - directory.AddressRVA) {
+                return OS_ENOENT;
+            }
+            Section->UnwindSectionBase = directory.Size
+                ? (uint8_t*)ModuleList[i] + directory.AddressRVA : NULL;
+            Section->UnwindSectionLength = directory.Size;
+            return OS_EOK;
+        }
+
         // Iterate sections and spot correct one
         for (unsigned j = 0; j < peHeader->NumSections; j++, peSection++) {
             uintptr_t begin = peSection->VirtualAddress + (uintptr_t)ModuleList[i];

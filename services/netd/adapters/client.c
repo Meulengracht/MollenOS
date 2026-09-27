@@ -646,6 +646,7 @@ ctt_netadapter_event_batch_admitted_invocation(
 {
     struct AdapterEntry* entry = __FindSession(client, session);
     NetAdapterEvent_t    event;
+    oserr_t              oserr;
     if (!entry) {
         return;
     }
@@ -668,22 +669,22 @@ ctt_netadapter_event_batch_admitted_invocation(
         memcpy(event.Admissions, records, count * sizeof(*records));
     }
 
-    status = __ValidateEvent(entry->Adapter, entry->Adapter->Driver, &event);
-    if (status != OS_EOK) {
+    oserr = __ValidateEvent(entry->Adapter, entry->Adapter->Driver, &event);
+    if (oserr != OS_EOK) {
         return;
     }
 
-    status = __HandleAdmission(entry->Adapter, &event, entry->Now);
-    switch (status) {
+    oserr = __HandleAdmission(entry->Adapter, &event, entry->Now);
+    switch (oserr) {
         case OS_ENOENT:
             return;
         case OS_EOK:
-            status = __HandleSessionProgress(entry->Adapter, &event->Progress);
+            oserr = __HandleSessionProgress(entry->Adapter, &event.Progress);
         default:
             break;
     }
-    if (status != OS_EOK) {
-        NetAdapterFail(entry->Adapter, status);
+    if (oserr != OS_EOK) {
+        NetAdapterFail(entry->Adapter, oserr);
     }
 }
 
@@ -735,7 +736,7 @@ ctt_netadapter_event_completions_invocation(
         case OS_ENOENT:
             return;
         case OS_EOK:
-            status = __HandleSessionProgress(entry->Adapter, &event->Progress);
+            status = __HandleSessionProgress(entry->Adapter, &event.Progress);
         default:
             break;
     }
@@ -758,7 +759,7 @@ ctt_netadapter_event_drain_end_invocation(
 {
     struct AdapterEntry* entry = __FindSession(client, session);
     NetAdapterEvent_t    event;
-    oserr_t              status;
+    oserr_t              oserr;
     
     if (!entry) {
         return;
@@ -776,22 +777,22 @@ ctt_netadapter_event_drain_end_invocation(
         .Progress = *progress
     };
 
-    status = __ValidateEvent(entry->Adapter, entry->Adapter->Driver, &event);
-    if (status != OS_EOK) {
+    oserr = __ValidateEvent(entry->Adapter, entry->Adapter->Driver, &event);
+    if (oserr != OS_EOK) {
         return;
     }
     
-    status = __HandleDrainEnd(entry->Adapter, &event);
-    switch (status) {
+    oserr = __HandleDrainEnd(entry->Adapter, &event);
+    switch (oserr) {
         case OS_ENOENT:
             return;
         case OS_EOK:
-            status = __HandleSessionProgress(entry->Adapter, &event->Progress);
+            oserr = __HandleSessionProgress(entry->Adapter, &event.Progress);
         default:
             break;
     }
-    if (status != OS_EOK) {
-        NetAdapterFail(entry->Adapter, status);
+    if (oserr != OS_EOK) {
+        NetAdapterFail(entry->Adapter, oserr);
     }
 }
 
@@ -805,7 +806,7 @@ ctt_netadapter_event_ack_progress_invocation(
 {
     struct AdapterEntry* entry = __FindSession(client, session);
     NetAdapterEvent_t    event;
-    oserr_t              status;
+    oserr_t              oserr;
     
     if (!entry) {
         return;
@@ -819,22 +820,22 @@ ctt_netadapter_event_ack_progress_invocation(
         .Progress = *progress
     };
 
-    status = __ValidateEvent(entry->Adapter, entry->Adapter->Driver, &event);
-    if (status != OS_EOK) {
+    oserr = __ValidateEvent(entry->Adapter, entry->Adapter->Driver, &event);
+    if (oserr != OS_EOK) {
         return;
     }
     
-    status = __ValidateACK(entry->Adapter, &event);
-    switch (status) {
+    oserr = __ValidateACK(entry->Adapter, &event);
+    switch (oserr) {
         case OS_ENOENT:
             return;
         case OS_EOK:
-            status = __HandleSessionProgress(entry->Adapter, &event->Progress);
+            oserr = __HandleSessionProgress(entry->Adapter, &event.Progress);
         default:
             break;
     }
-    if (status != OS_EOK) {
-        NetAdapterFail(entry->Adapter, status);
+    if (oserr != OS_EOK) {
+        NetAdapterFail(entry->Adapter, oserr);
     }
 }
 
