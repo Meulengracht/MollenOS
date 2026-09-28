@@ -20,11 +20,8 @@
 #define __LIBRARY_H__
 
 #include <Uefi.h>
+#include <Library/UefiBootServicesTableLib.h>
 #include <vboot/vboot.h>
-
-extern EFI_HANDLE         gImageHandle;
-extern EFI_SYSTEM_TABLE*  gSystemTable;
-extern EFI_BOOT_SERVICES* gBootServices;
 
 EFI_STATUS LibraryInitialize(
     IN EFI_HANDLE        ImageHandle,
