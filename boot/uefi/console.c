@@ -18,6 +18,7 @@
 
 #include <console.h>
 #include <Library/PrintLib.h>
+#include <Library/UefiBootServicesTableLib.h>
 #include <Library/SerialPortLib.h>
 
 static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL* gConsoleOut = NULL;
