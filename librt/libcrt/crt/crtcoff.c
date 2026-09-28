@@ -130,14 +130,7 @@ _CRTALLOC(".rdata$T") const struct {
     uint32_t    SizeOfZeroFill;
     uint32_t    Characteristics;
 } _tls_used = {
-#if defined(__aarch64__)
     (uintptr_t*)&_tls_start,       // COFF SECREL offsets include the sentinel
-#else
-    // This follows the classic Windows/MinGW implicit-TLS convention: 
-    // _tls_start (.tls$AAA) is a one-byte sentinel that only marks where 
-    // the .tls section begins in the link order
-    (uintptr_t*)(&_tls_start + 1), // legacy x86 template origin
-#endif
     (uintptr_t*)&_tls_end,         // end of tls data
     (uintptr_t*)&_tls_index,       // address of tls_index
     (uintptr_t*)(&__xl_a + 1),     // pointer to call back array, skip the inital index
@@ -169,7 +162,7 @@ void __cxa_module_tls_global_init(void)
 
     // Ensure that the TLS data section is valid.
     if (end < start) {
-        BOCHSBREAK;
+        __builtin_trap();
     }
 
     status = __tls_register_module(
@@ -181,7 +174,7 @@ void __cxa_module_tls_global_init(void)
         &_tls_index
     );
     if (status) {
-        BOCHSBREAK;
+        __builtin_trap();
     }
 }
 
