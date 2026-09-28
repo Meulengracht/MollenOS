@@ -1,3 +1,0 @@
-gCommandLineDefines: {'ARCH': 'AARCH64'}
-BuildOptionPcd: []
-Active Platform: /home/philip/Projects/vali/boot/uefi/VBoot.dsc

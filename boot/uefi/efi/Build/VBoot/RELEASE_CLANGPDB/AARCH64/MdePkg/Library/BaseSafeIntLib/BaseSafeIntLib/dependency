@@ -1,7 +1,0 @@
-
-
--include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseSafeIntLib/BaseSafeIntLib/OUTPUT/SafeIntLib.obj.deps
-
--include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseSafeIntLib/BaseSafeIntLib/OUTPUT/SafeIntLib64.obj.deps
-
-               

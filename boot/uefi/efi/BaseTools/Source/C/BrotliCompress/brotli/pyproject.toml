@@ -1,3 +1,0 @@
-[build-system]
-requires = ["setuptools", "pkgconfig"]
-build-backend = "setuptools.build_meta"

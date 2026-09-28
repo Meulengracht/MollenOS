@@ -1,9 +1,0 @@
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib
--I/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/DEBUG
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Test/UnitTest/Include
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Test/Mock/Include
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/MipiSysTLib/mipisyst/library/include
--I/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64

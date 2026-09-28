@@ -1,7 +1,0 @@
-/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/OUTPUT/AArch64/ashlti3.obj:   /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/ashlti3.S \
-  /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/DEBUG/AutoGen.h \
-  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h \
-  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h \
-  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/AsmMacroLib.h
-
-# Updated 

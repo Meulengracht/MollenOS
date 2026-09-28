@@ -1,1 +1,0 @@
-/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/ArmPlatformPkg/Library/PL011UartClockLib/PL011UartClockLib/GNUmakefile

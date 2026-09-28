@@ -1,7 +1,0 @@
-/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/ArmPlatformPkg/Library/PL011UartClockLib/PL011UartClockLib/OUTPUT/PL011UartClockLib.obj:   /home/philip/Projects/vali/boot/uefi/efi/ArmPlatformPkg/Library/PL011UartClockLib/PL011UartClockLib.c \
-  /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/ArmPlatformPkg/Library/PL011UartClockLib/PL011UartClockLib/DEBUG/AutoGen.h \
-  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h \
-  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h \
-  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/PcdLib.h
-
-# Updated 
