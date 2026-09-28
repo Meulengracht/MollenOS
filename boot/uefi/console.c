@@ -28,24 +28,24 @@ EFI_STATUS ConsoleInitialize(void)
 {
     // Initialize the global variable
     gConsoleOut = gSystemTable->ConOut;
-    if (!gConsoleOut)
-        return EFI_UNSUPPORTED;
+    
+    // The GOP is optional
+    if (gConsoleOut) {
+        // Clear screen
+        gConsoleOut->ClearScreen(gConsoleOut);
 
-    // Clear screen
-    gConsoleOut->ClearScreen(gConsoleOut);
+        // Enable cursor for console
+        gConsoleOut->EnableCursor(gConsoleOut, TRUE);
 
-    // Enable cursor for console
-    gConsoleOut->EnableCursor(gConsoleOut, TRUE);
+        // Initialize text color, white on black
+        gConsoleOut->SetAttribute(gConsoleOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLACK));
 
-    // Initialize text color, white on black
-    gConsoleOut->SetAttribute(gConsoleOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLACK));
+        // Mark the GOP as enabled
+        gEnabled = TRUE;
+    }
 
-    // Initialize serial port output
+    // Initialize serial port output, we do this always
     SerialPortInitialize();
-
-    // Enable
-    gEnabled = TRUE;
-
     return EFI_SUCCESS;
 }
 
