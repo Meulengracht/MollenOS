@@ -73,10 +73,20 @@ add_subdirectory(sync)
 add_subdirectory(threads)
 add_subdirectory(utils)
 
+if (VALI_ARCH STREQUAL "aarch64")
+    # Early VBoot reads occur with MMU off; packed fields must not fault.
+    target_compile_options(vali-core PRIVATE -mstrict-align)
+    set(VALI_KERNEL_LINK_BASE "0x48000000")
+    set(VALI_KERNEL_RELOCATION_FLAGS "")
+else ()
+    set(VALI_KERNEL_LINK_BASE "0x100000")
+    set(VALI_KERNEL_RELOCATION_FLAGS "-Xlinker -fixed")
+endif ()
+
 set_target_properties (
 	vali-core
 	PROPERTIES
-        LINK_FLAGS "-Xlinker -entry:kentry -Xlinker -fixed -Xlinker -base:\"0x100000\" -Xlinker -manifest:no"
+        LINK_FLAGS "-Xlinker -entry:kentry ${VALI_KERNEL_RELOCATION_FLAGS} -Xlinker -base:\"${VALI_KERNEL_LINK_BASE}\" -Xlinker -manifest:no"
 		OUTPUT_NAME "kernel"
         SUFFIX ".mos"
 )
