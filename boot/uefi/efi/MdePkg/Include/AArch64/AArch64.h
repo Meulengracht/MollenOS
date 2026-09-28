@@ -162,6 +162,8 @@
 #define VECTOR_ENTRY(tbl, off)    \
   .org off;
 
+#ifndef __ASSEMBLER__
+
 VOID
 EFIAPI
 ArmEnableSWPInstruction (
@@ -264,3 +266,5 @@ VOID
 ArmWriteCntHctl (
   IN UINT32  CntHctl
   );
+
+#endif
