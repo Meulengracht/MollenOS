@@ -27,7 +27,7 @@ static BOOLEAN                          gEnabled = FALSE;
 EFI_STATUS ConsoleInitialize(void)
 {
     // Initialize the global variable
-    gConsoleOut = gSystemTable->ConOut;
+    gConsoleOut = gST->ConOut;
     
     // The GOP is optional
     if (gConsoleOut) {

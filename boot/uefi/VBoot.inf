@@ -1,0 +1,52 @@
+## @file
+# Vali UEFI boot application.
+##
+
+[Defines]
+  INF_VERSION                    = 0x0001001B
+  BASE_NAME                      = VBoot
+  FILE_GUID                      = 36B8CF65-4E24-4B0A-AEEA-77A3AE06DF43
+  MODULE_TYPE                    = UEFI_APPLICATION
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = EfiMain
+
+[Sources]
+  console.c
+  depack.c
+  loader.c
+  main.c
+  video.c
+
+[Sources.IA32, Sources.X64]
+  library.c
+
+[Sources.AARCH64]
+  arm64/platform.c
+  arm64/services.c
+  arm64/trampoline.S
+
+[Packages]
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
+  ArmPkg/ArmPkg.dec
+  ArmPlatformPkg/ArmPlatformPkg.dec
+  PcAtChipsetPkg/PcAtChipsetPkg.dec
+  VBoot.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  CacheMaintenanceLib
+  DebugLib
+  DebugPrintErrorLevelLib
+  IoLib
+  PcdLib
+  PeCoffExtraActionLib
+  PeCoffLib
+  PrintLib
+  SafeIntLib
+  SerialPortLib
+  StackCheckLib
+  UefiApplicationEntryPoint
+  UefiBootServicesTableLib

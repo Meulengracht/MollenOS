@@ -229,7 +229,7 @@ EFI_STATUS VideoInitialize(
     struct VideoMode* PrefferedMode;
     ConsoleWrite(L"VideoInitialize()\n");
 
-    Status = gBootServices->LocateProtocol(
+    Status = gBS->LocateProtocol(
         &gGraphicsOutputProtocolGuid,
         NULL,
         (VOID**)&gGraphicsOutput

@@ -19,17 +19,13 @@
 #include <library.h>
 #include <console.h>
 
-EFI_HANDLE         gImageHandle;
-EFI_SYSTEM_TABLE*  gSystemTable;
-EFI_BOOT_SERVICES* gBootServices;
-
 EFI_STATUS LibraryInitialize(
   IN EFI_HANDLE        ImageHandle,
   IN EFI_SYSTEM_TABLE* SystemTable)
 {
     gImageHandle = ImageHandle;
-    gSystemTable = SystemTable;
-    gBootServices = gSystemTable->BootServices;
+        gST = SystemTable;
+        gBS = gST->BootServices;
     
     return EFI_SUCCESS;
 }
@@ -43,7 +39,7 @@ EFI_STATUS __GetMemoryInformation(
     UINTN      MapKey;
     UINT32     DescriptorVersion;
     
-    Status = gBootServices->GetMemoryMap(
+    Status = gBS->GetMemoryMap(
         &MapSize, NULL, 
         &MapKey,
         DescriptorSize,
@@ -89,7 +85,7 @@ EFI_STATUS __GetMemoryMap(
         return Status;
     }
 
-    Status = gBootServices->GetMemoryMap(&MemoryMapSize, 
+    Status = gBS->GetMemoryMap(&MemoryMapSize, 
         MemoryMapLocal, MemoryMapKey, &DescriptorSizeLocal, &DescriptorVersion
     );
     if (EFI_ERROR(Status)) {
@@ -378,7 +374,7 @@ EFI_STATUS LibraryCleanup(
             return Status;
         }
         
-        Status = gBootServices->ExitBootServices(gImageHandle, MemoryMapKey);
+        Status = gBS->ExitBootServices(gImageHandle, MemoryMapKey);
         if (EFI_ERROR(Status)) {
             ConsoleWrite(L"Failed to exit boot services: %r\n", Status);
             LibraryFreeMemory(MemoryMap);
@@ -400,11 +396,11 @@ EFI_STATUS LibraryAllocateMemory(
     IN UINTN   Size,
     OUT VOID** Memory)
 {
-    return gBootServices->AllocatePool(EfiLoaderData, Size, Memory);
+    return gBS->AllocatePool(EfiLoaderData, Size, Memory);
 }
 
 EFI_STATUS LibraryFreeMemory(
     IN VOID* Memory)
 {
-    return gBootServices->FreePool(Memory);
+    return gBS->FreePool(Memory);
 }
