@@ -27,7 +27,6 @@ endif ()
 # ARM preprocessed assembly uses Clang's integrated assembler; NASM is x86 only.
 if (VALI_ARCH STREQUAL "aarch64" OR VALI_ARCH STREQUAL "arm64")
     file(GLOB ASM_SOURCES arch/aarch64/*.S)
-    set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_OPTIONS "--target=aarch64-uml-vali")
 else ()
     file(GLOB ASM_SOURCES arch/${VALI_ARCH}/*.s)
     set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
