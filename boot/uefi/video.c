@@ -16,7 +16,12 @@
  *
  */
 
-#include <library.h>
+#if defined(__aarch64__)
+#include <platform/arm64.h>
+#elif defined(__amd64__) || defined(__i386__)
+#include <platform/x86.h>
+#endif
+
 #include <console.h>
 #include <video.h>
 

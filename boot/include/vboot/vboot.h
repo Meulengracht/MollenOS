@@ -22,7 +22,17 @@
 #include "def.h"
 
 #define VBOOT_MAGIC   0xAEB007AE
-#define VBOOT_VERSION 0x00010000 // V1.0
+#define VBOOT_VERSION 0x00010000
+
+#define VBOOT_FEATURE_PHYSICAL          1ULL
+#define VBOOT_FEATURE_MMU_OFF           2ULL
+#define VBOOT_FEATURE_RESERVED_FIRMWARE 4ULL
+#define VBOOT_FEATURE_GOP               8ULL
+
+#define VBOOT_PSCI_HVC 1
+#define VBOOT_PSCI_SMC 2
+
+#define VBOOT_CONSOLE_PL011 1
 
 // Memory cacheability attributes
 #define VBOOT_MEMORY_UC               0x0000000000000001ULL // Uncached
@@ -46,6 +56,12 @@
 #define VBOOT_MEMORY_ACCESS_MASK    (VBOOT_MEMORY_RP | VBOOT_MEMORY_XP | VBOOT_MEMORY_RO)
 #define VBOOT_MEMORY_ATTRIBUTE_MASK (VBOOT_MEMORY_ACCESS_MASK | VBOOT_MEMORY_SP | VBOOT_MEMORY_CPU_CRYPTO)
 
+enum VBootArchitecture {
+    VBootArchitecture_I386    = 0x0386,
+    VBootArchitecture_AMD64   = 0x8664,
+    VBootArchitecture_AARCH64 = 0xAA64
+};
+
 enum VBootFirmware {
     VBootFirmware_BIOS,
     VBootFirmware_UEFI
@@ -60,6 +76,26 @@ enum VBootMemoryType {
     VBootMemoryType_Reclaim
 };
 
+VBOOT_PACKED(VBootPlatform, {
+    enum VBootArchitecture Architecture;
+    unsigned long long     Features;
+    
+    // Physical address of the ACPI 2+ RSDP. (zero if absent)
+    unsigned long long AcpiRsdp;
+
+    // Physical address of the SMBIOS 3 entry point (zero if absent)
+    unsigned long long Smbios;
+
+    // ARM64 specific platform information
+    unsigned int       PsciConduit;
+    unsigned int       DescriptorSize;
+    unsigned long long CounterFrequency;
+    unsigned long long KernelVirtualBase;
+    unsigned long long KernelPhysicalEntry;
+    unsigned long long LoaderBase;
+    unsigned long long LoaderLength;
+});
+
 VBOOT_PACKED(VBootMemoryEntry, {
     enum VBootMemoryType Type;
     unsigned long long   PhysicalBase;
@@ -70,7 +106,18 @@ VBOOT_PACKED(VBootMemoryEntry, {
 
 VBOOT_PACKED(VBootMemory, {
     unsigned int       NumberOfEntries;
+    unsigned int       EntrySize;
     unsigned long long Entries;         // struct VBootMemoryEntry*
+});
+
+VBOOT_PACKED(VBootConsole, {
+    // MMIO Base address of the console, on ARM64 this is the
+    // PL011 UART controller. It has a 24 mhz reference clock and
+    // 115200 baud rate.
+    unsigned long long Base;
+    unsigned int       Kind;
+    unsigned int       ClockHz;
+    unsigned int       Baud;
 });
 
 VBOOT_PACKED(VBootVideo, {
@@ -129,14 +176,17 @@ VBOOT_PACKED(VBoot, {
     unsigned int        Version;
     enum VBootFirmware  Firmware;
     unsigned int        ConfigurationTableCount;
+    unsigned int        ConfigurationEntrySize;
     unsigned long long  ConfigurationTable;
 
-    struct VBootMemory  Memory;
-    struct VBootVideo   Video;
-    struct VBootRamdisk Ramdisk;
-    struct VBootModule  Kernel;
-    struct VBootStack   Stack;
-    struct VBootModule  Phoenix;
+    struct VBootPlatform Platform;
+    struct VBootMemory   Memory;
+    struct VBootConsole  Console;
+    struct VBootVideo    Video;
+    struct VBootRamdisk  Ramdisk;
+    struct VBootModule   Kernel;
+    struct VBootStack    Stack;
+    struct VBootModule   Phoenix;
 });
 
 #endif //!__VBOOT_H__

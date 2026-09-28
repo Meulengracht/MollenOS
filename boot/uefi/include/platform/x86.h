@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef __LIBRARY_H__
-#define __LIBRARY_H__
+#ifndef __PLATFORM_H__
+#define __PLATFORM_H__
 
 #include <Uefi.h>
 #include <Library/UefiBootServicesTableLib.h>
@@ -37,4 +37,4 @@ EFI_STATUS LibraryAllocateMemory(
 EFI_STATUS LibraryFreeMemory(
     IN VOID* Memory);
 
-#endif //!__LIBRARY_H__
+#endif //!__PLATFORM_H__

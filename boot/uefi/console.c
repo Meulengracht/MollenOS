@@ -17,7 +17,6 @@
  */
 
 #include <console.h>
-#include <library.h>
 #include <Library/PrintLib.h>
 #include <Library/SerialPortLib.h>
 

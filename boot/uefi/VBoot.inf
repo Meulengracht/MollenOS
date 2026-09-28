@@ -18,11 +18,11 @@
   video.c
 
 [Sources.IA32, Sources.X64]
-  library.c
+  x86/library.c
 
 [Sources.AARCH64]
   arm64/platform.c
-  arm64/services.c
+  arm64/library.c
   arm64/trampoline.S
 
 [Packages]

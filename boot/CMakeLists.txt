@@ -1,6 +1,8 @@
 # Project setup
 project (vali-boot)
-enable_language (ASM_NASM)
+if (NOT VALI_ARCH STREQUAL "aarch64")
+    enable_language (ASM_NASM)
+endif ()
 
 string(REPLACE " " ";" NASM_FEATURE_FLAGS "${FEATURE_FLAGS}")
 
@@ -12,18 +14,25 @@ if (VALI_BUILD)
 endif ()
 
 # Configure options
+if (NOT VALI_ARCH STREQUAL "amd64" AND NOT VALI_ARCH STREQUAL "i386")
+    set(X86_BOOTLOADER_BIOS OFF CACHE BOOL "BIOS Bootloader only available on x86" FORCE)
+endif ()
+
 option (X86_BOOTLOADER_BIOS "Enable BIOS bootloader" ON)
 option (BOOTLOADER_UEFI "Enable UEFI bootloader" ON)
 
-add_custom_target(ap ALL DEPENDS "${VALI_PATH_DEPLOY}/ap.sys")
-add_custom_command(OUTPUT "${VALI_PATH_DEPLOY}/ap.sys"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${VALI_PATH_DEPLOY}"
-    COMMAND "${CMAKE_ASM_NASM_COMPILER}" -f bin -DTRAMPOLINE_LOCATION=0x8000 -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o "${VALI_PATH_DEPLOY}/ap.sys" ap.asm
-    VERBATIM
-    COMMENT "Compiling trampoline code"
-    DEPENDS ap.asm
-)
+# Only compile the x86 trampoline code on amd64 and i386
+if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
+    add_custom_target(ap ALL DEPENDS "${VALI_PATH_DEPLOY}/ap.sys")
+    add_custom_command(OUTPUT "${VALI_PATH_DEPLOY}/ap.sys"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${VALI_PATH_DEPLOY}"
+        COMMAND "${CMAKE_ASM_NASM_COMPILER}" -f bin -DTRAMPOLINE_LOCATION=0x8000 -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o "${VALI_PATH_DEPLOY}/ap.sys" ap.asm
+        VERBATIM
+        COMMENT "Compiling trampoline code"
+        DEPENDS ap.asm
+    )
+endif ()
 
 if (X86_BOOTLOADER_BIOS)
     add_subdirectory(bios)

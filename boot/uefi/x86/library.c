@@ -16,16 +16,17 @@
  *
  */
 
-#include <library.h>
+#include <platform/x86.h>
 #include <console.h>
+#include <Library/BaseMemoryLib.h>
 
 EFI_STATUS LibraryInitialize(
   IN EFI_HANDLE        ImageHandle,
   IN EFI_SYSTEM_TABLE* SystemTable)
 {
     gImageHandle = ImageHandle;
-        gST = SystemTable;
-        gBS = gST->BootServices;
+    gST = SystemTable;
+    gBS = gST->BootServices;
     
     return EFI_SUCCESS;
 }
