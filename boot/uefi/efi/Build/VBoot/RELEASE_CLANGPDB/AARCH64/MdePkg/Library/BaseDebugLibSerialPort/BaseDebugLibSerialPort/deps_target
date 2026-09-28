@@ -1,0 +1,13 @@
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort/DEBUG/AutoGen.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/BaseLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/BaseMemoryLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/DebugLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/DebugPrintErrorLevelLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/PcdLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/PrintLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/SerialPortLib.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Protocol/SerialIo.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Uefi/UefiBaseType.h:
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/BaseDebugLibSerialPort/DebugLib.c:

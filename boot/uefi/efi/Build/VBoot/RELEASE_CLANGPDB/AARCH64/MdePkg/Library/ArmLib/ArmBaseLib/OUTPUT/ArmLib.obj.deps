@@ -1,0 +1,10 @@
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/ArmLib.obj:   /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/ArmLib.c \
+  /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/DEBUG/AutoGen.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/ArmLib.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Uefi/UefiBaseType.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/AArch64.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/AArch64Mmu.h
+
+# Updated 

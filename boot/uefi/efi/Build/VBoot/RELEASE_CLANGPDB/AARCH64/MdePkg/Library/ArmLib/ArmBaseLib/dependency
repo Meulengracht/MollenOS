@@ -1,0 +1,15 @@
+
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/AArch64/AArch64ArchTimerSupport.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/AArch64/AArch64Lib.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/AArch64/AArch64Support.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/AArch64/ArmLibSupport.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/AArch64/ArmLibSupportV8.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/OUTPUT/ArmLib.obj.deps
+
+               

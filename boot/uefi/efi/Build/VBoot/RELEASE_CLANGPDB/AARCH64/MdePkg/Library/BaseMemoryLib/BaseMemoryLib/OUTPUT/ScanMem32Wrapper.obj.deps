@@ -1,0 +1,10 @@
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseMemoryLib/BaseMemoryLib/OUTPUT/ScanMem32Wrapper.obj:   /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/BaseMemoryLib/ScanMem32Wrapper.c \
+  /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseMemoryLib/BaseMemoryLib/DEBUG/AutoGen.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/BaseMemoryLib/MemLibInternals.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/BaseMemoryLib.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/BaseLib.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/DebugLib.h
+
+# Updated 

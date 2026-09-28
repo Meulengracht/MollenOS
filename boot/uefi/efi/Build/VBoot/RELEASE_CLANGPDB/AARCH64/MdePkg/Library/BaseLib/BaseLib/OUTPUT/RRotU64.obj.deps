@@ -1,0 +1,11 @@
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/RRotU64.obj:   /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/BaseLib/RRotU64.c \
+  /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/DEBUG/AutoGen.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/PcdLib.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/BaseLib/BaseLibInternals.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/BaseLib.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/BaseMemoryLib.h \
+  /home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/DebugLib.h
+
+# Updated 

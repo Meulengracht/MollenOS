@@ -1,0 +1,15 @@
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/ArmLib/ArmBaseLib/DEBUG/AutoGen.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/AArch64.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/AArch64Mmu.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/AsmMacroLib.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Library/ArmLib.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Uefi/UefiBaseType.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/AArch64/AArch64ArchTimerSupport.S
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/AArch64/AArch64Lib.c
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/AArch64/AArch64Lib.h
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/AArch64/AArch64Support.S
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/AArch64/ArmLibSupport.S
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/AArch64/ArmLibSupportV8.S
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/ArmLib/ArmLib.c

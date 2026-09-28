@@ -1,0 +1,156 @@
+ #------------------------------------------------------------------------------
+
+ # Copyright (c) 2020, Arm, Limited. All rights reserved.<BR>
+
+ # SPDX-License-Identifier: BSD-2-Clause-Patent
+
+ #------------------------------------------------------------------------------
+
+
+
+
+
+
+        .arch armv8-a
+
+        .macro reg_alias, pfx, sz
+        r0_\sz .req \pfx\()0
+        r1_\sz .req \pfx\()1
+        tmp0_\sz .req \pfx\()16
+        tmp1_\sz .req \pfx\()17
+        .endm
+
+
+
+
+
+        reg_alias w, 1
+        reg_alias w, 2
+        reg_alias w, 4
+        reg_alias x, 8
+
+        .macro fn_start, name:req
+        .section .text.\name
+        .globl \name
+
+
+
+
+
+
+
+
+\name\():
+        .endm
+
+        .macro fn_end, name:req
+
+
+
+
+
+
+
+
+        .endm
+
+
+
+
+
+
+
+
+        .macro emit_ld_sz, sz:req, insn:req, opc:req, model:req, s, a, l
+        fn_start __aarch64_\insn\()\sz\()\model
+        mov tmp0_\sz, r0_\sz
+0: ld\a\()xr\s r0_\sz, [x1]
+        .ifnc \insn, swp
+        \opc tmp1_\sz, r0_\sz, tmp0_\sz
+        st\l\()xr\s w15, tmp1_\sz, [x1]
+        .else
+        st\l\()xr\s w15, tmp0_\sz, [x1]
+        .endif
+        cbnz w15, 0b
+        ret
+        fn_end __aarch64_\insn\()\sz\()\model
+        .endm
+
+
+
+
+
+
+
+
+        .macro emit_ld, insn:req, opc:req, model:req, a, l
+        emit_ld_sz 1, \insn, \opc, \model, b, \a, \l
+        emit_ld_sz 2, \insn, \opc, \model, h, \a, \l
+        emit_ld_sz 4, \insn, \opc, \model, , \a, \l
+        emit_ld_sz 8, \insn, \opc, \model, , \a, \l
+        .endm
+
+
+
+
+
+        .macro emit_cas_sz, sz:req, model:req, uxt:req, s, a, l
+        fn_start __aarch64_cas\sz\()\model
+        \uxt tmp0_\sz, r0_\sz
+0: ld\a\()xr\s r0_\sz, [x2]
+        cmp r0_\sz, tmp0_\sz
+        bne 1f
+        st\l\()xr\s w15, r1_\sz, [x2]
+        cbnz w15, 0b
+1: ret
+        fn_end __aarch64_cas\sz\()\model
+        .endm
+
+
+
+
+
+        .macro emit_cas, model:req, a, l
+        emit_cas_sz 1, \model, uxtb, b, \a, \l
+        emit_cas_sz 2, \model, uxth, h, \a, \l
+        emit_cas_sz 4, \model, mov , , \a, \l
+        emit_cas_sz 8, \model, mov , , \a, \l
+
+
+
+
+
+        fn_start __aarch64_cas16\model
+        mov x16, x0
+        mov x17, x1
+0: ld\a\()xp x0, x1, [x4]
+        cmp x0, x16
+        ccmp x1, x17, #0, eq
+        bne 1f
+        st\l\()xp w15, x16, x17, [x4]
+        cbnz w15, 0b
+1: ret
+        fn_end __aarch64_cas16\model
+        .endm
+
+
+
+
+
+
+
+
+
+        .macro emit_model, model:req, a, l
+        emit_ld ldadd, add, \model, \a, \l
+        emit_ld ldclr, bic, \model, \a, \l
+        emit_ld ldeor, eor, \model, \a, \l
+        emit_ld ldset, orr, \model, \a, \l
+        emit_ld swp, mov, \model, \a, \l
+        emit_cas \model, \a, \l
+        .endm
+
+        emit_model _relax
+        emit_model _acq, a
+        emit_model _rel,, l
+        emit_model _acq_rel, a, l

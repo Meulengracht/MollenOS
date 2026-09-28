@@ -1,0 +1,104 @@
+ #------------------------------------------------------------------------------
+
+ # Copyright (c) 2008 - 2009, Apple Inc. All rights reserved.<BR>
+ # Copyright (c) 2011 - 2014, ARM Limited. All rights reserved.
+ # Copyright (c) 2016, Linaro Limited. All rights reserved.
+
+ # SPDX-License-Identifier: BSD-2-Clause-Patent
+
+ #------------------------------------------------------------------------------
+
+
+
+.set MPIDR_U_BIT, (30)
+.set MPIDR_U_MASK, (1 << MPIDR_U_BIT)
+
+
+.set DAIF_WR_FIQ_BIT, (1 << 0)
+.set DAIF_WR_IRQ_BIT, (1 << 1)
+.set DAIF_WR_ABORT_BIT, (1 << 2)
+.set DAIF_WR_DEBUG_BIT, (1 << 3)
+.set DAIF_WR_INT_BITS, (DAIF_WR_FIQ_BIT | DAIF_WR_IRQ_BIT)
+.set DAIF_WR_ALL, (DAIF_WR_DEBUG_BIT | DAIF_WR_ABORT_BIT | DAIF_WR_INT_BITS)
+
+
+.global ArmIsMpCore ; .section ".text.ArmIsMpCore", "ax" ; ; ArmIsMpCore: ;
+  mrs x0, mpidr_el1
+  and x0, x0, #MPIDR_U_MASK
+  lsr x0, x0, #MPIDR_U_BIT
+  eor x0, x0, #1
+  ret
+
+
+.global ArmEnableAsynchronousAbort ; .section ".text.ArmEnableAsynchronousAbort", "ax" ; ; ArmEnableAsynchronousAbort: ;
+  msr daifclr, #DAIF_WR_ABORT_BIT
+  isb
+  ret
+
+
+.global ArmDisableAsynchronousAbort ; .section ".text.ArmDisableAsynchronousAbort", "ax" ; ; ArmDisableAsynchronousAbort: ;
+  msr daifset, #DAIF_WR_ABORT_BIT
+  isb
+  ret
+
+
+.global ArmEnableIrq ; .section ".text.ArmEnableIrq", "ax" ; ; ArmEnableIrq: ;
+  msr daifclr, #DAIF_WR_IRQ_BIT
+  isb
+  ret
+
+
+.global ArmDisableIrq ; .section ".text.ArmDisableIrq", "ax" ; ; ArmDisableIrq: ;
+  msr daifset, #DAIF_WR_IRQ_BIT
+  isb
+  ret
+
+
+.global ArmEnableFiq ; .section ".text.ArmEnableFiq", "ax" ; ; ArmEnableFiq: ;
+  msr daifclr, #DAIF_WR_FIQ_BIT
+  isb
+  ret
+
+
+.global ArmDisableFiq ; .section ".text.ArmDisableFiq", "ax" ; ; ArmDisableFiq: ;
+  msr daifset, #DAIF_WR_FIQ_BIT
+  isb
+  ret
+
+
+.global ArmEnableInterrupts ; .section ".text.ArmEnableInterrupts", "ax" ; ; ArmEnableInterrupts: ;
+  msr daifclr, #DAIF_WR_INT_BITS
+  isb
+  ret
+
+
+.global ArmDisableInterrupts ; .section ".text.ArmDisableInterrupts", "ax" ; ; ArmDisableInterrupts: ;
+  msr daifset, #DAIF_WR_INT_BITS
+  isb
+  ret
+
+
+.global ArmDisableAllExceptions ; .section ".text.ArmDisableAllExceptions", "ax" ; ; ArmDisableAllExceptions: ;
+  msr daifset, #DAIF_WR_ALL
+  isb
+  ret
+
+
+
+
+
+
+.global ReadCCSIDR ; .section ".text.ReadCCSIDR", "ax" ; ; ReadCCSIDR: ;
+  msr csselr_el1, x0
+  isb
+  mrs x0, ccsidr_el1
+  ret
+
+
+
+
+
+
+.global ReadCLIDR ; .section ".text.ReadCLIDR", "ax" ; ; ReadCLIDR: ;
+  mrs x0, clidr_el1
+  ret

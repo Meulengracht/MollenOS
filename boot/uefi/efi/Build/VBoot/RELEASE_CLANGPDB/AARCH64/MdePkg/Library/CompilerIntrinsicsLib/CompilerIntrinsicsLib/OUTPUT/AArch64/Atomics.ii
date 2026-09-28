@@ -1,0 +1,318 @@
+# 1 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S"
+# 1 "<built-in>" 1
+# 1 "<built-in>" 3
+# 416 "<built-in>" 3
+# 1 "<command line>" 1
+# 1 "<built-in>" 2
+# 1 "/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/DEBUG/AutoGen.h" 1
+# 16 "/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/DEBUG/AutoGen.h"
+# 1 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h" 1
+# 20 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+# 1 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h" 1
+# 35 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h"
+#pragma warning(disable: 4214)
+
+
+
+
+#pragma warning(disable: 4100)
+
+
+
+
+
+#pragma warning(disable: 4057)
+
+
+
+
+#pragma warning(disable: 4127)
+
+
+
+
+#pragma warning(disable: 4505)
+
+
+
+
+#pragma warning(disable: 4206)
+
+
+
+
+#pragma warning(disable: 4701)
+
+
+
+
+#pragma warning(disable: 4703)
+
+
+
+
+typedef unsigned __int64 UINT64;
+typedef __int64 INT64;
+typedef unsigned __int32 UINT32;
+typedef __int32 INT32;
+typedef unsigned short UINT16;
+typedef unsigned short CHAR16;
+typedef short INT16;
+typedef unsigned char BOOLEAN;
+typedef unsigned char UINT8;
+typedef char CHAR8;
+typedef signed char INT8;
+# 111 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/AArch64/ProcessorBind.h"
+typedef UINT64 UINTN;
+
+
+
+
+
+typedef INT64 INTN;
+# 21 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h" 2
+
+
+
+
+
+#pragma warning(disable: 4200)
+# 212 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+typedef struct {
+  UINT32 Data1;
+  UINT16 Data2;
+  UINT16 Data3;
+  UINT8 Data4[8];
+} GUID;
+
+
+
+
+typedef struct {
+  UINT8 Addr[4];
+} IPv4_ADDRESS;
+
+
+
+
+typedef struct {
+  UINT8 Addr[16];
+} IPv6_ADDRESS;
+
+
+
+
+typedef UINT64 PHYSICAL_ADDRESS;
+
+
+
+
+typedef struct _LIST_ENTRY LIST_ENTRY;
+
+
+
+
+struct _LIST_ENTRY {
+  LIST_ENTRY *ForwardLink;
+  LIST_ENTRY *BackLink;
+};
+# 587 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+typedef struct {
+  char *Stack;
+  char *GrTop;
+  char *VrTop;
+  int GrOffs;
+  int VrOffs;
+} VA_LIST;
+# 723 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+typedef UINTN *BASE_LIST;
+# 828 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+_Static_assert (sizeof (BOOLEAN) == 1, "sizeof (BOOLEAN) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (INT8) == 1, "sizeof (INT8) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (UINT8) == 1, "sizeof (UINT8) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (INT16) == 2, "sizeof (INT16) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (UINT16) == 2, "sizeof (UINT16) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (INT32) == 4, "sizeof (INT32) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (UINT32) == 4, "sizeof (UINT32) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (INT64) == 8, "sizeof (INT64) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (UINT64) == 8, "sizeof (UINT64) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (CHAR8) == 1, "sizeof (CHAR8) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (CHAR16) == 2, "sizeof (CHAR16) does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (L'A') == 2, "sizeof (L'A') does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (L"A") == 4, "sizeof (L\"A\") does not meet UEFI Specification Data Type requirements");
+
+_Static_assert (_Alignof (BOOLEAN) == sizeof (BOOLEAN), "Alignment of BOOLEAN does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (INT8) == sizeof (INT8), "Alignment of INT8 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (UINT8) == sizeof (UINT8), "Alignment of INT16 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (INT16) == sizeof (INT16), "Alignment of INT16 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (UINT16) == sizeof (UINT16), "Alignment of UINT16 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (INT32) == sizeof (INT32), "Alignment of INT32 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (UINT32) == sizeof (UINT32), "Alignment of UINT32 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (INT64) == sizeof (INT64), "Alignment of INT64 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (UINT64) == sizeof (UINT64), "Alignment of UINT64 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (CHAR8) == sizeof (CHAR8), "Alignment of CHAR8 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (CHAR16) == sizeof (CHAR16), "Alignment of CHAR16 does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (INTN) == sizeof (INTN), "Alignment of INTN does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (UINTN) == sizeof (UINTN), "Alignment of UINTN does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (void *) == sizeof (void *), "Alignment of VOID * does not meet UEFI Specification Data Type requirements");
+# 864 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+typedef enum {
+  __VerifyUint8EnumValue = 0xff
+} __VERIFY_UINT8_ENUM_SIZE;
+
+typedef enum {
+  __VerifyUint16EnumValue = 0xffff
+} __VERIFY_UINT16_ENUM_SIZE;
+
+typedef enum {
+  __VerifyInt32EnumValue = 0x7fffffff
+} __VERIFY_INT32_ENUM_SIZE;
+
+_Static_assert (sizeof (__VERIFY_UINT8_ENUM_SIZE) == 4, "Size of enum does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (__VERIFY_UINT16_ENUM_SIZE) == 4, "Size of enum does not meet UEFI Specification Data Type requirements");
+_Static_assert (sizeof (__VERIFY_INT32_ENUM_SIZE) == 4, "Size of enum does not meet UEFI Specification Data Type requirements");
+
+_Static_assert (_Alignof (__VERIFY_UINT8_ENUM_SIZE) == sizeof (__VERIFY_UINT8_ENUM_SIZE), "Alignment of enum does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (__VERIFY_UINT16_ENUM_SIZE) == sizeof (__VERIFY_UINT16_ENUM_SIZE), "Alignment of enum does not meet UEFI Specification Data Type requirements");
+_Static_assert (_Alignof (__VERIFY_INT32_ENUM_SIZE) == sizeof (__VERIFY_INT32_ENUM_SIZE), "Alignment of enum does not meet UEFI Specification Data Type requirements");
+# 1038 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+typedef UINTN RETURN_STATUS;
+# 1347 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Include/Base.h"
+void *
+_ReturnAddress (
+  void
+  );
+
+#pragma intrinsic(_ReturnAddress)
+# 17 "/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/DEBUG/AutoGen.h" 2
+
+extern GUID gEfiCallerIdGuid;
+extern GUID gEdkiiDscPlatformGuid;
+extern CHAR8 *gEfiCallerBaseName;
+
+
+
+
+extern UINT64 _gPcd_SkuId_Array[];
+# 2 "<built-in>" 2
+# 1 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S" 2
+ #------------------------------------------------------------------------------
+
+ # Copyright (c) 2020, Arm, Limited. All rights reserved.<BR>
+
+ # SPDX-License-Identifier: BSD-2-Clause-Patent
+
+ #------------------------------------------------------------------------------
+
+
+
+
+
+
+        .arch armv8-a
+
+        .macro reg_alias, pfx, sz
+        r0_\sz .req \pfx\()0
+        r1_\sz .req \pfx\()1
+        tmp0_\sz .req \pfx\()16
+        tmp1_\sz .req \pfx\()17
+        .endm
+
+
+
+
+
+        reg_alias w, 1
+        reg_alias w, 2
+        reg_alias w, 4
+        reg_alias x, 8
+
+        .macro fn_start, name:req
+        .section .text.\name
+        .globl \name
+# 43 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S"
+\name\():
+        .endm
+
+        .macro fn_end, name:req
+# 55 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S"
+        .endm
+# 64 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S"
+        .macro emit_ld_sz, sz:req, insn:req, opc:req, model:req, s, a, l
+        fn_start __aarch64_\insn\()\sz\()\model
+        mov tmp0_\sz, r0_\sz
+0: ld\a\()xr\s r0_\sz, [x1]
+        .ifnc \insn, swp
+        \opc tmp1_\sz, r0_\sz, tmp0_\sz
+        st\l\()xr\s w15, tmp1_\sz, [x1]
+        .else
+        st\l\()xr\s w15, tmp0_\sz, [x1]
+        .endif
+        cbnz w15, 0b
+        ret
+        fn_end __aarch64_\insn\()\sz\()\model
+        .endm
+# 86 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S"
+        .macro emit_ld, insn:req, opc:req, model:req, a, l
+        emit_ld_sz 1, \insn, \opc, \model, b, \a, \l
+        emit_ld_sz 2, \insn, \opc, \model, h, \a, \l
+        emit_ld_sz 4, \insn, \opc, \model, , \a, \l
+        emit_ld_sz 8, \insn, \opc, \model, , \a, \l
+        .endm
+
+
+
+
+
+        .macro emit_cas_sz, sz:req, model:req, uxt:req, s, a, l
+        fn_start __aarch64_cas\sz\()\model
+        \uxt tmp0_\sz, r0_\sz
+0: ld\a\()xr\s r0_\sz, [x2]
+        cmp r0_\sz, tmp0_\sz
+        bne 1f
+        st\l\()xr\s w15, r1_\sz, [x2]
+        cbnz w15, 0b
+1: ret
+        fn_end __aarch64_cas\sz\()\model
+        .endm
+
+
+
+
+
+        .macro emit_cas, model:req, a, l
+        emit_cas_sz 1, \model, uxtb, b, \a, \l
+        emit_cas_sz 2, \model, uxth, h, \a, \l
+        emit_cas_sz 4, \model, mov , , \a, \l
+        emit_cas_sz 8, \model, mov , , \a, \l
+
+
+
+
+
+        fn_start __aarch64_cas16\model
+        mov x16, x0
+        mov x17, x1
+0: ld\a\()xp x0, x1, [x4]
+        cmp x0, x16
+        ccmp x1, x17, #0, eq
+        bne 1f
+        st\l\()xp w15, x16, x17, [x4]
+        cbnz w15, 0b
+1: ret
+        fn_end __aarch64_cas16\model
+        .endm
+# 144 "/home/philip/Projects/vali/boot/uefi/efi/MdePkg/Library/CompilerIntrinsicsLib/AArch64/Atomics.S"
+        .macro emit_model, model:req, a, l
+        emit_ld ldadd, add, \model, \a, \l
+        emit_ld ldclr, bic, \model, \a, \l
+        emit_ld ldeor, eor, \model, \a, \l
+        emit_ld ldset, orr, \model, \a, \l
+        emit_ld swp, mov, \model, \a, \l
+        emit_cas \model, \a, \l
+        .endm
+
+        emit_model _relax
+        emit_model _acq, a
+        emit_model _rel,, l
+        emit_model _acq_rel, a, l

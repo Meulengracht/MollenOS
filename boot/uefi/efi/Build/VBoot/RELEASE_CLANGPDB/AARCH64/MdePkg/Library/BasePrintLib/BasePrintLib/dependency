@@ -1,0 +1,7 @@
+
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BasePrintLib/BasePrintLib/OUTPUT/PrintLib.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BasePrintLib/BasePrintLib/OUTPUT/PrintLibInternal.obj.deps
+
+               

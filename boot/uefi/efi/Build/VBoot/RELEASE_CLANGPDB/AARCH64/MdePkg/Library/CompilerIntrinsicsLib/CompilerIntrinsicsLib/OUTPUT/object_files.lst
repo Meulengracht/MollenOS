@@ -1,0 +1,4 @@
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/OUTPUT/memcpy.obj
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/OUTPUT/memset.obj
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/OUTPUT/AArch64/Atomics.obj
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/CompilerIntrinsicsLib/CompilerIntrinsicsLib/OUTPUT/AArch64/ashlti3.obj

@@ -1,0 +1,384 @@
+ #------------------------------------------------------------------------------
+
+ # Copyright (c) 2008 - 2010, Apple Inc. All rights reserved.<BR>
+ # Copyright (c) 2011 - 2017, ARM Limited. All rights reserved.
+ # Copyright (c) 2016, Linaro Limited. All rights reserved.
+ # Copyright (c) 2020, NUVIA Inc. All rights reserved.
+
+ # SPDX-License-Identifier: BSD-2-Clause-Patent
+
+ #------------------------------------------------------------------------------
+
+
+
+
+.set CTRL_M_BIT, (1 << 0)
+.set CTRL_A_BIT, (1 << 1)
+.set CTRL_C_BIT, (1 << 2)
+.set CTRL_SA_BIT, (1 << 3)
+.set CTRL_I_BIT, (1 << 12)
+.set CTRL_V_BIT, (1 << 12)
+.set CPACR_VFP_BITS, (3 << 20)
+
+.global ArmInvalidateDataCacheEntryByMVA ; .section ".text.ArmInvalidateDataCacheEntryByMVA", "ax" ; ; ArmInvalidateDataCacheEntryByMVA: ;
+  dc ivac, x0
+  ret
+
+
+.global ArmCleanDataCacheEntryByMVA ; .section ".text.ArmCleanDataCacheEntryByMVA", "ax" ; ; ArmCleanDataCacheEntryByMVA: ;
+  dc cvac, x0
+  ret
+
+
+.global ArmCleanDataCacheEntryToPoUByMVA ; .section ".text.ArmCleanDataCacheEntryToPoUByMVA", "ax" ; ; ArmCleanDataCacheEntryToPoUByMVA: ;
+  dc cvau, x0
+  ret
+
+.global ArmInvalidateInstructionCacheEntryToPoUByMVA ; .section ".text.ArmInvalidateInstructionCacheEntryToPoUByMVA", "ax" ; ; ArmInvalidateInstructionCacheEntryToPoUByMVA: ;
+  ic ivau, x0
+  ret
+
+
+.global ArmCleanInvalidateDataCacheEntryByMVA ; .section ".text.ArmCleanInvalidateDataCacheEntryByMVA", "ax" ; ; ArmCleanInvalidateDataCacheEntryByMVA: ;
+  dc civac, x0
+  ret
+
+.global ArmInvalidateInstructionCache ; .section ".text.ArmInvalidateInstructionCache", "ax" ; ; ArmInvalidateInstructionCache: ;
+  ic iallu
+  dsb sy
+  isb
+  ret
+
+
+.global ArmEnableMmu ; .section ".text.ArmEnableMmu", "ax" ; ; ArmEnableMmu: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: orr x0, x0, #CTRL_M_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: tlbi vmalle1
+   dsb nsh
+   isb
+   msr sctlr_el1, x0
+   b 4f
+2: tlbi alle2
+   dsb nsh
+   isb
+   msr sctlr_el2, x0
+4: isb
+   ret
+
+
+.global ArmDisableMmu ; .section ".text.ArmDisableMmu", "ax" ; ; ArmDisableMmu: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: and x0, x0, #~CTRL_M_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   tlbi vmalle1
+   b 4f
+2: msr sctlr_el2, x0
+   tlbi alle2
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmDisableCachesAndMmu ; .section ".text.ArmDisableCachesAndMmu", "ax" ; ; ArmDisableCachesAndMmu: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: mov x1, #~(CTRL_M_BIT | CTRL_C_BIT | CTRL_I_BIT)
+   and x0, x0, x1
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmMmuEnabled ; .section ".text.ArmMmuEnabled", "ax" ; ; ArmMmuEnabled: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: and x0, x0, #CTRL_M_BIT
+   ret
+
+
+.global ArmEnableDataCache ; .section ".text.ArmEnableDataCache", "ax" ; ; ArmEnableDataCache: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: orr x0, x0, #CTRL_C_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmDisableDataCache ; .section ".text.ArmDisableDataCache", "ax" ; ; ArmDisableDataCache: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: and x0, x0, #~CTRL_C_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmEnableInstructionCache ; .section ".text.ArmEnableInstructionCache", "ax" ; ; ArmEnableInstructionCache: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: orr x0, x0, #CTRL_I_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmDisableInstructionCache ; .section ".text.ArmDisableInstructionCache", "ax" ; ; ArmDisableInstructionCache: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: and x0, x0, #~CTRL_I_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmEnableAlignmentCheck ; .section ".text.ArmEnableAlignmentCheck", "ax" ; ; ArmEnableAlignmentCheck: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 3f
+2: mrs x0, sctlr_el2
+3: orr x0, x0, #CTRL_A_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 3f
+2: msr sctlr_el2, x0
+3: dsb sy
+   isb
+   ret
+
+
+.global ArmDisableAlignmentCheck ; .section ".text.ArmDisableAlignmentCheck", "ax" ; ; ArmDisableAlignmentCheck: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: and x0, x0, #~CTRL_A_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+.global ArmEnableStackAlignmentCheck ; .section ".text.ArmEnableStackAlignmentCheck", "ax" ; ; ArmEnableStackAlignmentCheck: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 3f
+2: mrs x0, sctlr_el2
+3: orr x0, x0, #CTRL_SA_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 3f
+2: msr sctlr_el2, x0
+3: dsb sy
+   isb
+   ret
+
+
+.global ArmDisableStackAlignmentCheck ; .section ".text.ArmDisableStackAlignmentCheck", "ax" ; ; ArmDisableStackAlignmentCheck: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, sctlr_el1
+   b 4f
+2: mrs x0, sctlr_el2
+4: bic x0, x0, #CTRL_SA_BIT
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr sctlr_el1, x0
+   b 4f
+2: msr sctlr_el2, x0
+4: dsb sy
+   isb
+   ret
+
+
+.global ArmDataMemoryBarrier ; .section ".text.ArmDataMemoryBarrier", "ax" ; ; ArmDataMemoryBarrier: ;
+  dmb sy
+  ret
+
+
+.global ArmDataSynchronizationBarrier ; .section ".text.ArmDataSynchronizationBarrier", "ax" ; ; ArmDataSynchronizationBarrier: ;
+  dsb sy
+  ret
+
+
+.global ArmInstructionSynchronizationBarrier ; .section ".text.ArmInstructionSynchronizationBarrier", "ax" ; ; ArmInstructionSynchronizationBarrier: ;
+  isb
+  ret
+
+
+.global ArmWriteVBar ; .section ".text.ArmWriteVBar", "ax" ; ; ArmWriteVBar: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: msr vbar_el1, x0
+   b 4f
+2: msr vbar_el2, x0
+4: isb
+   ret
+
+.global ArmReadVBar ; .section ".text.ArmReadVBar", "ax" ; ; ArmReadVBar: ;
+   mrs x1, CurrentEL ; cmp x1, #0x8 ; b.gt . ; b.eq 2f ; cbnz x1, 1f ; b . ;
+1: mrs x0, vbar_el1
+   ret
+2: mrs x0, vbar_el2
+   ret
+
+.global ArmEnableVFP ; .section ".text.ArmEnableVFP", "ax" ; ; ArmEnableVFP: ;
+
+
+  mrs x0, cpacr_el1
+  orr x0, x0, #CPACR_VFP_BITS
+  msr cpacr_el1, x0
+  mov x1, #(1 << 10)
+  mrs x2, CurrentEL ; cmp x2, #0x8 ; b.gt . ; b.eq 2f ; cbnz x2, 1f ; b . ;
+1:ret
+2:mrs x0, cptr_el2
+  bic x0, x0, x1
+  msr cptr_el2, x0
+  ret
+
+
+.global ArmCallWFI ; .section ".text.ArmCallWFI", "ax" ; ; ArmCallWFI: ;
+  wfi
+  ret
+
+.global ArmReadMpidr ; .section ".text.ArmReadMpidr", "ax" ; ; ArmReadMpidr: ;
+  mrs x0, mpidr_el1
+  ret
+
+
+
+.global ArmReadTpidrurw ; .section ".text.ArmReadTpidrurw", "ax" ; ; ArmReadTpidrurw: ;
+  mrs x0, tpidr_el0
+  ret
+
+
+
+.global ArmWriteTpidrurw ; .section ".text.ArmWriteTpidrurw", "ax" ; ; ArmWriteTpidrurw: ;
+  msr tpidr_el0, x0
+  ret
+
+
+
+.global ArmIsArchTimerImplemented ; .section ".text.ArmIsArchTimerImplemented", "ax" ; ; ArmIsArchTimerImplemented: ;
+  mov x0, #1
+  ret
+
+
+
+
+.global ArmWriteHcr ; .section ".text.ArmWriteHcr", "ax" ; ; ArmWriteHcr: ;
+  msr hcr_el2, x0
+  ret
+
+
+.global ArmReadHcr ; .section ".text.ArmReadHcr", "ax" ; ; ArmReadHcr: ;
+  mrs x0, hcr_el2
+  ret
+
+
+.global ArmReadCurrentEL ; .section ".text.ArmReadCurrentEL", "ax" ; ; ArmReadCurrentEL: ;
+  mrs x0, CurrentEL
+  ret
+
+
+.global ArmReadCntHctl ; .section ".text.ArmReadCntHctl", "ax" ; ; ArmReadCntHctl: ;
+  mrs x0, cnthctl_el2
+  ret
+
+
+.global ArmWriteCntHctl ; .section ".text.ArmWriteCntHctl", "ax" ; ; ArmWriteCntHctl: ;
+  msr cnthctl_el2, x0
+  ret
+
+
+.global ArmReadIdAA64Dfr0 ; .section ".text.ArmReadIdAA64Dfr0", "ax" ; ; ArmReadIdAA64Dfr0: ;
+  mrs x0, ID_AA64DFR0_EL1
+  ret
+
+
+.global ArmReadIdAA64Dfr1 ; .section ".text.ArmReadIdAA64Dfr1", "ax" ; ; ArmReadIdAA64Dfr1: ;
+  mrs x0, ID_AA64DFR1_EL1
+  ret
+
+
+.global ArmReadIdAA64Isar0 ; .section ".text.ArmReadIdAA64Isar0", "ax" ; ; ArmReadIdAA64Isar0: ;
+  mrs x0, ID_AA64ISAR0_EL1
+  ret
+
+
+.global ArmReadIdAA64Isar1 ; .section ".text.ArmReadIdAA64Isar1", "ax" ; ; ArmReadIdAA64Isar1: ;
+  mrs x0, ID_AA64ISAR1_EL1
+  ret
+
+
+.global ArmReadIdAA64Isar2 ; .section ".text.ArmReadIdAA64Isar2", "ax" ; ; ArmReadIdAA64Isar2: ;
+  mrs x0, S3_0_C0_C6_2
+  ret
+
+
+.global ArmReadIdAA64Mmfr0 ; .section ".text.ArmReadIdAA64Mmfr0", "ax" ; ; ArmReadIdAA64Mmfr0: ;
+  mrs x0, ID_AA64MMFR0_EL1
+  ret
+
+
+.global ArmReadIdAA64Mmfr1 ; .section ".text.ArmReadIdAA64Mmfr1", "ax" ; ; ArmReadIdAA64Mmfr1: ;
+  mrs x0, ID_AA64MMFR1_EL1
+  ret
+
+
+.global ArmReadIdAA64Mmfr2 ; .section ".text.ArmReadIdAA64Mmfr2", "ax" ; ; ArmReadIdAA64Mmfr2: ;
+  mrs x0, S3_0_C0_C7_2
+  ret
+
+
+.global ArmReadIdAA64Pfr0 ; .section ".text.ArmReadIdAA64Pfr0", "ax" ; ; ArmReadIdAA64Pfr0: ;
+  mrs x0, ID_AA64PFR0_EL1
+  ret
+
+
+.global ArmReadIdAA64Pfr1 ; .section ".text.ArmReadIdAA64Pfr1", "ax" ; ; ArmReadIdAA64Pfr1: ;
+  mrs x0, ID_AA64PFR1_EL1
+  ret
+
+.global ArmReadIdAA64Pfr2 ; .section ".text.ArmReadIdAA64Pfr2", "ax" ; ; ArmReadIdAA64Pfr2: ;
+  mrs x0, S3_0_C0_C4_2
+  ret

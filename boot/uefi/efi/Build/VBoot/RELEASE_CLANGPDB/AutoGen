@@ -1,0 +1,14 @@
+/home/philip/Projects/vali/boot/uefi/VBoot.dec
+/home/philip/Projects/vali/boot/uefi/VBoot.dsc
+/home/philip/Projects/vali/boot/uefi/efi/ArmPkg/ArmPkg.dec
+/home/philip/Projects/vali/boot/uefi/efi/ArmPlatformPkg/ArmPlatformPkg.dec
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/TOOLS_DEF.AARCH64
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/BuildOptions
+/home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/PcdTokenNumber
+/home/philip/Projects/vali/boot/uefi/efi/EmbeddedPkg/EmbeddedPkg.dec
+/home/philip/Projects/vali/boot/uefi/efi/MdeModulePkg/MdeModulePkg.dec
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/MdeLibs.dsc.inc
+/home/philip/Projects/vali/boot/uefi/efi/MdePkg/MdePkg.dec
+/home/philip/Projects/vali/boot/uefi/efi/PcAtChipsetPkg/PcAtChipsetPkg.dec
+/tmp/vali-edk-conf/build_rule.txt
+/tmp/vali-edk-conf/tools_def.txt

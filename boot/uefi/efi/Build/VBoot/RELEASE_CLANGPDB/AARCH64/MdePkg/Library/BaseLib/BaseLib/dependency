@@ -1,0 +1,107 @@
+
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/ArmReadCntPctReg.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/ArmReadIdAA64Isar0Reg.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/CpuBreakpoint.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/DisableInterrupts.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/EnableInterrupts.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/GetInterruptsState.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/InternalSwitchStack.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/MemoryFence.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/SetJumpLongJump.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/SpeculationBarrier.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AArch64/SwitchStack.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/ARShiftU64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/AmdSevNull.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/BitField.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/CheckSum.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/ConvertGuidUuid.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/Cpu.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/CpuDeadLoop.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/DivS64x64Remainder.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/DivU64x32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/DivU64x32Remainder.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/DivU64x64Remainder.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/FilePaths.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/GetPowerOfTwo32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/GetPowerOfTwo64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/HighBitSet32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/HighBitSet64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/IntelTdxNull.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LRotU32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LRotU64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LShiftU64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LinkedList.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LongJump.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LowBitSet32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/LowBitSet64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/Math64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/ModU64x32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/MultS64x64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/MultU64x32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/MultU64x64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/QuickSort.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/RRotU32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/RRotU64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/RShiftU64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/SafeString.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/SetJump.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/String.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/SwapBytes16.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/SwapBytes32.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/SwapBytes64.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/SwitchStack.obj.deps
+
+-include /home/philip/Projects/vali/boot/uefi/efi/Build/VBoot/RELEASE_CLANGPDB/AARCH64/MdePkg/Library/BaseLib/BaseLib/OUTPUT/Unaligned.obj.deps
+
+               
