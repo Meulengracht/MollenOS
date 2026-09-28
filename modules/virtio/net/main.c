@@ -157,10 +157,7 @@ __DestroyDevice(
     _In_ void*      context)
 {
     (void)context;
-    oserr_t status = VirtioNetDeviceDestroy(element->value);
-    if (status != OS_EOK) {
-        ERROR("virtio-net teardown retains DMA storage: %u", status);
-    }
+    VirtioNetDeviceDestroy(element->value);
 }
 
 void
@@ -329,10 +326,7 @@ OnUnregister(
     // Unlink first, but put the still-live entry back if reset fails. A
     // failed detach must not lose the only reference to DMA-owned storage.
     list_remove(&g_devices, &device->Header);
-    status = VirtioNetDeviceDestroy(device);
-    if (status != OS_EOK) {
-        list_append(&g_devices, &device->Header);
-    }
+    VirtioNetDeviceDestroy(device);
     VirtioNetUnlock();
     return status;
 }

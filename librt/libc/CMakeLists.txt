@@ -1,9 +1,16 @@
-# Project setup
+# The primary libc project file, 
 project (ValiLibC)
-enable_language (ASM_NASM)
 enable_language (C)
 
-set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+if (VALI_ARCH STREQUAL "i386" OR VALI_ARCH STREQUAL "amd64")
+    enable_language(ASM_NASM)
+    set(CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+    set(KERNEL_REGISTER_FLAGS -mno-sse)
+else ()
+    set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
+    enable_language(ASM)
+    set(KERNEL_REGISTER_FLAGS -mgeneral-regs-only)
+endif ()
 set (MATH_FLAGS "")
 
 if (${VALI_ARCH} STREQUAL "i386")
@@ -12,13 +19,19 @@ if (${VALI_ARCH} STREQUAL "i386")
 elseif (${VALI_ARCH} STREQUAL "amd64")
     set (MATH_FLAGS -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL)
     include_directories(../../kernel/include ../../kernel/x86/x64)
+elseif (VALI_ARCH STREQUAL "aarch64" OR VALI_ARCH STREQUAL "arm64")
+    # Vali ARM64 long double is binary64, as measured by the compiler fixtures.
+    set(MATH_FLAGS -D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL)
 endif ()
 
-# Get all the source files for the arch
-file(GLOB ASM_SOURCES arch/${VALI_ARCH}/*.s)
-
-# Add support for .S extension
-set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
+# ARM preprocessed assembly uses Clang's integrated assembler; NASM is x86 only.
+if (VALI_ARCH STREQUAL "aarch64" OR VALI_ARCH STREQUAL "arm64")
+    file(GLOB ASM_SOURCES arch/aarch64/*.S)
+    set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_OPTIONS "--target=aarch64-uml-vali")
+else ()
+    file(GLOB ASM_SOURCES arch/${VALI_ARCH}/*.s)
+    set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
+endif ()
 
 set (SOURCES_LIBK
         time/common/month_lengths.c
@@ -40,7 +53,7 @@ macro (add_libk_target)
 
         # disable cpu optimizations for the kernel library as we cannot make any guarantees for
         # the hardware the kernel runs on top of.
-        target_compile_options(${ARGV0} PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse>)
+        target_compile_options(${ARGV0} PRIVATE $<$<COMPILE_LANGUAGE:C>:${KERNEL_REGISTER_FLAGS}>)
 
         # add various implementation flags that mark both implementation aspect and kernel aspect
         target_compile_definitions(${ARGV0} PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__)
@@ -107,7 +120,7 @@ add_subdirectory(wstring)
 # of the cpu it will run on top of. The *ONLY* purpose of this is to be linked into the kernel, and
 # nothing but the kernel executable should link against this.
 add_library(libk STATIC ${ASM_SOURCES} ${SOURCES_LIBK})
-target_compile_options(libk PRIVATE $<$<COMPILE_LANGUAGE:C>:-mno-sse>)
+target_compile_options(libk PRIVATE $<$<COMPILE_LANGUAGE:C>:${KERNEL_REGISTER_FLAGS}>)
 target_compile_definitions(libk PRIVATE ${MATH_FLAGS} -D__OSLIB_C_IMPLEMENTATION -DLIBC_KERNEL -D__LIBDS_KERNEL__)
 target_include_directories(libk PUBLIC include)
 target_include_directories(libk PRIVATE ../libos/include)

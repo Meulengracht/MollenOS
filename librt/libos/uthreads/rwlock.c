@@ -17,6 +17,10 @@
 
 #include <os/usched/rwlock.h>
 
+// This implementation is rather simple and can suffer from a livelock
+// if readers keep barging in. To fix this we would need to keep a 
+// queue of waiting writers and give them priority over new readers.
+
 void usched_rwlock_init(struct usched_rwlock* lock)
 {
     usched_mtx_init(&lock->sync_object, USCHED_MUTEX_PLAIN);
@@ -44,7 +48,8 @@ void usched_rwlock_r_unlock(struct usched_rwlock* lock)
 void usched_rwlock_w_promote(struct usched_rwlock* lock)
 {
     usched_mtx_lock(&lock->sync_object);
-    if (--(lock->readers)) {
+    lock->readers--;
+    while (lock->readers) {
         usched_cnd_wait(&lock->signal, &lock->sync_object);
     }
 }
@@ -58,7 +63,7 @@ void usched_rwlock_w_demote(struct usched_rwlock* lock)
 void usched_rwlock_w_lock(struct usched_rwlock* lock)
 {
     usched_mtx_lock(&lock->sync_object);
-    if (lock->readers) {
+    while (lock->readers) {
         usched_cnd_wait(&lock->signal, &lock->sync_object);
     }
 }

@@ -269,7 +269,7 @@ error:
     ERROR("virtio-net initialization failed: %u", status);
     // A failure before queues exist cannot leave packet DMA behind. Once queue
     // allocation is introduced, Destroy retains memory if reset cannot be proven.
-    (void)VirtioNetDeviceDestroy(device);
+    VirtioNetDeviceDestroy(device);
     return NULL;
 }
 
@@ -278,13 +278,14 @@ VirtioNetDeviceDestroy(
         _In_ VirtioNetDevice_t* device)
 {
     if (device == NULL) {
-        return OS_EOK;
+        return;
     }
     
     if (device->Transport.Device) {
         oserr_t status = VirtioNetQueuesReset(device);
         if (status != OS_EOK) {
-            return status;
+            ERROR("virtio-net queues reset failed: %u", status);
+            // Continue with destruction despite the reset failure.
         }
     }
     
@@ -299,5 +300,4 @@ VirtioNetDeviceDestroy(
     VirtioPciTransportDestroy(&device->Transport);
     VirtioNetBusDeviceDestroy(device->BusDevice);
     free(device);
-    return OS_EOK;
 }

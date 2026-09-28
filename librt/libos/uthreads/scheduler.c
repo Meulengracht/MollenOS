@@ -303,7 +303,7 @@ static void _Noreturn __switch_task(
 
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
-    if (job->state != JobState_CREATED) {
+    if (__JOB_STATE(job->state) != JobState_CREATED) {
         longjmp(job->context, 1);
     }
 
@@ -464,6 +464,8 @@ int usched_yield(struct timespec* deadline)
     // save the current context and set a return point
     if (sched->current) {
         if (setjmp(sched->current->context)) {
+            // Reacquire the scheduler instead of assuming
+            sched = __usched_get_scheduler();
             TRACE("usched_yield: loaded job %u", sched->current->id);
             // We have return to the running thread.
             __tls_switch(&sched->current->tls);
@@ -503,7 +505,7 @@ int usched_yield(struct timespec* deadline)
             } else {
                 __usched_add_job_ready(current);
             }
-        } else if (current->state == JobState_FINISHING) {
+        } else if (__JOB_STATE(current->state) == JobState_FINISHING) {
             __usched_append_job(&sched->garbage_bin, current);
         }
     }

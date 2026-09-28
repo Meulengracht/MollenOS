@@ -59,6 +59,16 @@ __BlockAndWait(
             status = __usched_timeout_finish(timer);
         }
         spinlock_acquire(&mutex->lock);
+        
+        if (status) {
+            // The deadline expired, which means the timeout handler has already
+            // unlinked us from the block queue. Ownership may still have been
+            // handed to us in the same window, in which case we keep it.
+            if (mutex->owner == current) {
+                status = 0;
+            }
+            break;
+        }
     }
 
     if (status == 0) {

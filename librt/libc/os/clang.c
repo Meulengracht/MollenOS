@@ -133,15 +133,33 @@ CRTDECL(void, __cxa_threadinitialize(void))
 CRTDECL(void, __cxa_threadfinalize(void))
 {
     TRACE("__cxa_threadfinalize()");
+
+    // Run destructors for thread-local storage before cleaning up TSS.
     __tls_run_destructors(NULL);
     tss_cleanup();
+    
     // A TSS destructor can initialize another C++ thread-local object.
     __tls_run_destructors(NULL);
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADDETACH);
     }
+    
     __cxa_primary_tls_thread_finit();
+    
     __tls_run_destructors(NULL);
+    __tls_release_modules();
+}
+
+CRTDECL(void, __cxa_threadfinalize_quick(void))
+{
+    TRACE("__cxa_threadfinalize_quick()");
+    
+    // We run just the thread detach handlers for all modules.
+    for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
+        ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_THREADDETACH);
+    }
+
+    // Release TLS modules
     __tls_release_modules();
 }
 
@@ -205,9 +223,18 @@ CRTDECL(void, __cxa_runinitializers(
     __cxa_primary_tls_thread_finit = module_thread_finit;
 
     g_moduleEntries = libraries;
-    for (int i = 0; libraries != NULL && libraries[i] != 0; ++i)
+    
+    // Register TLS for all libraries before initializing them.
+    for (int i = 0; libraries != NULL && libraries[i] != 0; ++i) {
         ((void (*)(int))libraries[i])(DLL_ACTION_TLSREGISTER);
-    if (__tls_prepare_modules()) __builtin_trap();
+    }
+    
+    // Prepare TLS for all modules before running their initializers.
+    if (__tls_prepare_modules()) {
+        __builtin_trap();
+    }
+    
+    // Run initializers for all modules.
     for (int i = 0; g_moduleEntries != NULL && g_moduleEntries[i] != 0; i++) {
         TRACE("__cxa_runinitializers: module entry 0x%" PRIxIN, g_moduleEntries[i]);
         ((void (*)(int))g_moduleEntries[i])(DLL_ACTION_INITIALIZE);

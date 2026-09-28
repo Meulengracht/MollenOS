@@ -61,7 +61,7 @@ enum {
 };
 
 #define MUTEX_INIT(type) { type, 0, _SPN_INITIALIZER_NP, NULL, NULL }
-#define COND_INIT        { MUTEX_INIT(mtx_plain), NULL }
+#define COND_INIT        { _SPN_INITIALIZER_NP, NULL }
 #define ONCE_FLAG_INIT   { MUTEX_INIT(mtx_plain), 0 }
 
 _CODE_BEGIN

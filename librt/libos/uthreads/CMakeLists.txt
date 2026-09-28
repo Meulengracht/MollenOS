@@ -12,6 +12,8 @@ target_link_libraries(libos-uthreads PUBLIC libddk libds libc-api)
 target_include_directories(libos-uthreads PRIVATE ../include)
 
 if (VALI_ARCH STREQUAL "aarch64" OR VALI_ARCH STREQUAL "arm64")
+    set(CMAKE_ASM_COMPILER ${CMAKE_C_COMPILER})
     enable_language(ASM)
     target_sources(libos-uthreads PRIVATE aarch64/context.S)
+    set_source_files_properties(aarch64/context.S PROPERTIES COMPILE_OPTIONS "--target=aarch64-uml-vali")
 endif ()
