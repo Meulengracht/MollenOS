@@ -1,6 +1,14 @@
-cmake_minimum_required(VERSION 3.13.4)
+# CMake configuration for building the UEFI bootloader using edk2
+cmake_minimum_required(VERSION 3.14)
+
+# The project is built as an external project, so declare this
+# as a separate project
 project(vali-boot-uefi NONE)
 
+# We need FetchContent to get the edk2 repository
+include(FetchContent)
+
+# Decide on naming and EDK_ARCH
 if (VALI_ARCH STREQUAL "amd64")
     set(EDK_ARCH X64)
     set(BOOT_FILENAME BOOTX64.EFI)
@@ -14,16 +22,30 @@ else ()
     message(FATAL_ERROR "Unsupported UEFI architecture: ${VALI_ARCH}")
 endif ()
 
+# Fetch the official edk2 repository, but we stick it to the
+# stable tag releases
+FetchContent_Declare(
+    edk2
+    GIT_REPOSITORY https://github.com/tianocore/edk2.git
+    GIT_TAG        edk2-stable202608
+)
+
 find_program(MAKE_EXECUTABLE make REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 if (NOT CMAKE_C_COMPILER)
     find_program(CMAKE_C_COMPILER clang REQUIRED)
 endif ()
+
+# After the checks, make it available
+message(STATUS "Fetching and configuring edk2, this might take a while")
+FetchContent_MakeAvailable(edk2)
+
 get_filename_component(CLANG_BIN "${CMAKE_C_COMPILER}" DIRECTORY)
 get_filename_component(CLANG_HOST_BIN "${MAKE_EXECUTABLE}" DIRECTORY)
 
-set(EDK_WORKSPACE "${CMAKE_CURRENT_SOURCE_DIR}/efi")
+# Setup paths for the EDK2 build environment
+set(EDK_WORKSPACE "${edk2_SOURCE_DIR}")
 set(EDK_TOOLS_PATH "${EDK_WORKSPACE}/BaseTools")
 set(EDK_CONF_PATH "${CMAKE_CURRENT_BINARY_DIR}/Conf")
 set(EDK_BUILD_WRAPPERS "${EDK_TOOLS_PATH}/BinWrappers/PosixLike")
@@ -38,7 +60,7 @@ configure_file("${EDK_TOOLS_PATH}/Conf/build_rule.template" "${EDK_CONF_PATH}/bu
 
 set(EDK_ENV
     "WORKSPACE=${EDK_WORKSPACE}"
-    "PACKAGES_PATH=${CMAKE_CURRENT_SOURCE_DIR}"
+    "PACKAGES_PATH=${EDK_WORKSPACE}:${CMAKE_CURRENT_SOURCE_DIR}"
     "CONF_PATH=${EDK_CONF_PATH}"
     "EDK_TOOLS_PATH=${EDK_TOOLS_PATH}"
     "PYTHON_COMMAND=${Python3_EXECUTABLE}"
