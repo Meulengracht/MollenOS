@@ -29,12 +29,20 @@
 
 /** 
  * @brief Consumers run on the worker with the registry locked; do not block/reenter.
- * RX data is borrowed only during Receive. Device/port identify the interface.
+ * RX data is borrowed only during Receive; ReceivePacket can transfer ownership
+ * until explicit release. Device/port identify the interface.
  */
 typedef struct NetworkAdapterOps {
     void (*Receive)(uuid_t device, uint32_t port, const void* data, uint32_t length);
     void (*Transmitted)(uuid_t device, uint32_t port, uint64_t cookie, oserr_t status);
     void (*Link)(uuid_t device, uint32_t port, const struct ctt_netadapter_link* link);
+    
+    /**
+     * @brief Return true after storing the offered single-owner value in a bounded
+     * consumer queue. False declines it. Do not reenter the registry from here.
+     * Receive is used as the borrowed fallback when retention is unavailable.
+     */
+    bool (*ReceivePacket)(uuid_t device, uint32_t port, const NetAdapterRxPacket_t* packet);
 } NetworkAdapterOps_t;
 
 /** 
@@ -100,26 +108,75 @@ NetworkAdaptersSend(
  * Stop/removal preserves the view but can invalidate submission. Every acquired
  * packet must eventually be submitted or cancelled, including on error paths.
  * A retained builder deliberately delays driver replacement and pool destruction.
+ * @param device The UUID of the network adapter device.
+ * @param port The port number of the network adapter device.
+ * @param packet Pointer to the TX packet structure to be acquired.
+ * @return OS_EOK if the packet was successfully acquired.
+ *         OS_EBUSY if the adapter is not ready.
+ *         OS_ENOENT if the device/port is not found.
+ *         OS_EINVALPARAMS if the packet pointer is NULL.
  */
 __EXTERN oserr_t
 NetworkAdaptersTxAcquire(
     _In_ uuid_t device, _In_ uint32_t port, _Out_ NetAdapterTxPacket_t* packet);
 
-/** @brief Transfer a constructed frame to the worker without copying.
+/**
+ * @brief Transfer a constructed frame to the worker without copying.
  * On failure the packet remains caller-owned. On success it is cleared and its
  * cookie receives the same completion callback as NetworkAdaptersSend.
+ * @param device The UUID of the network adapter device.
+ * @param port The port number of the network adapter device.
+ * @param packet Pointer to the TX packet structure to be submitted.
+ * @param length The length of the data in the packet.
+ * @param cookie A user-defined value that will be passed back in the completion callback.
+ * @return OS_EOK if the packet was successfully submitted.
+ *         OS_EBUSY if the adapter is not ready.
+ *         OS_ENOENT if the device/port is not found.
+ *         OS_EINVALPARAMS if any of the parameters are invalid.
  */
 __EXTERN oserr_t
 NetworkAdaptersTxSubmit(
-    _In_ uuid_t device, _In_ uint32_t port, _InOut_ NetAdapterTxPacket_t* packet,
-    _In_ uint32_t length, _In_ uint64_t cookie);
+    _In_ uuid_t                   device,
+    _In_ uint32_t                 port,
+    _InOut_ NetAdapterTxPacket_t* packet,
+    _In_ uint32_t                 length,
+    _In_ uint64_t                 cookie);
 
-/** @brief Return an unsubmitted packet, even after adapter removal or close.
+/**
+ * @brief Return an unsubmitted packet, even after adapter removal or close.
+ * @param device The UUID of the network adapter device.
+ * @param port The port number of the network adapter device.
+ * @param packet Pointer to the TX packet structure to be cancelled.
+ * @return OS_EOK if the packet was successfully cancelled.
+ *         OS_EBUSY if the adapter is not ready.
+ *         OS_ENOENT if the device/port is not found.
+ *         OS_EINVALPARAMS if any of the parameters are invalid.
  * Successful cancellation clears the packet and produces no TX callback.
  */
 __EXTERN oserr_t
 NetworkAdaptersTxCancel(
-    _In_ uuid_t device, _In_ uint32_t port, _InOut_ NetAdapterTxPacket_t* packet);
+    _In_ uuid_t                   device,
+    _In_ uint32_t                 port,
+    _InOut_ NetAdapterTxPacket_t* packet
+);
+
+/**
+ * @brief Release a packet previously accepted by ReceivePacket.
+ * Call outside adapter callbacks, including from another consumer thread after
+ * its final read. Release serializes with the worker and wakes RX replenishment.
+ * Packets remain readable after stop/removal/close; retained packets delay final
+ * destruction and replacement. Success clears the value. Never copy it into
+ * multiple owners or release it while any reader can still access Data.
+ * @param device The UUID of the network adapter device.
+ * @param port The port number of the network adapter device.
+ * @param packet Pointer to the RX packet structure to be released.
+ * @return OS_EOK if the packet was successfully released; otherwise, an error code.
+ */
+__EXTERN oserr_t
+NetworkAdaptersRxRelease(
+    _In_ uuid_t                   device,
+    _In_ uint32_t                 port,
+    _InOut_ NetAdapterRxPacket_t* packet);
 
 /**
  * @brief Returns cached state immediately and schedules an asynchronous counters refresh.

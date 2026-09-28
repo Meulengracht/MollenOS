@@ -49,6 +49,23 @@ __OnReceive(
     }
 }
 
+static bool
+__OnReceivePacket(
+    _In_ void*                       context,
+    _In_ const NetAdapterRxPacket_t* packet)
+{
+    struct AdapterEntry* entry = context;
+    if (!g_ops.ReceivePacket) {
+        return false;
+    }
+
+    return g_ops.ReceivePacket(
+        entry->Device,
+        entry->Port,
+        packet
+    );
+}
+
 static void
 __OnTransmitted(
     _In_ void*    context,
@@ -70,6 +87,22 @@ __OnLink(
     if (g_ops.Link) {
         g_ops.Link(entry->Device, entry->Port, link);
     }
+}
+
+/** 
+ * @brief Preserve absent RX hooks as NULL so the core can account for drops and avoid
+ * copy fallback work when no retaining consumer is installed.
+ */
+static NetAdapterCallbacks_t
+__AdapterCallbacks(struct AdapterEntry* entry)
+{
+    return (NetAdapterCallbacks_t){
+        .Receive = g_ops.Receive ? __OnReceive : NULL,
+        .Transmitted = __OnTransmitted,
+        .Link = __OnLink,
+        .Context = entry,
+        .ReceivePacket = g_ops.ReceivePacket ? __OnReceivePacket : NULL
+    };
 }
 
 static struct AdapterEntry*
@@ -137,17 +170,13 @@ AttachPendingPort(
     }
 
     NetAdapterDefaultConfig(&config);
+    NetAdapterCallbacks_t callbacks = __AdapterCallbacks(entry);
     oserr = NetAdapterCreate(
         entry->Device,
         entry->PendingDriver,
         entry->Port,
         &config,
-        &(NetAdapterCallbacks_t){
-            __OnReceive,
-            __OnTransmitted,
-            __OnLink,
-            entry
-        },
+        &callbacks,
         &adapter
     );
     if (oserr != OS_EOK) {
@@ -370,7 +399,9 @@ __UpdatePort(
                 .Port = entry->Port,
                 .PendingDriver = entry->PendingDriver
             };
-        } else {
+        } else if (oserr != OS_EBUSY) {
+            // Caller-owned packet views can intentionally outlive remote close.
+            // Busy is normal here; cancellation wakes us to retry destruction.
             WARNING("UpdatePort: failed to destroy adapter device=%u port=%u",
                     entry->Device, entry->Port);
         }
@@ -517,6 +548,14 @@ NetworkAdaptersSetHooks(
     } else {
         memset(&g_ops, 0, sizeof(g_ops));
     }
+    
+    // Go through the adapters and update their callbacks
+    for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
+        if (g_adapters[i].Adapter) {
+            NetAdapterCallbacks_t callbacks = __AdapterCallbacks(&g_adapters[i]);
+            NetAdapterSetCallbacks(g_adapters[i].Adapter, &callbacks);
+        }
+    }
     usched_mtx_unlock(&g_lock);
 }
 
@@ -610,6 +649,36 @@ NetworkAdaptersTxCancel(uuid_t device, uint32_t port, NetAdapterTxPacket_t* pack
         status = NetAdapterTxCancel(entry->Adapter, packet);
     }
     usched_mtx_unlock(&g_lock);
+    __WakeWorker();
+    return status;
+}
+
+oserr_t
+NetworkAdaptersRxRelease(
+    _In_ uuid_t                device,
+    _In_ uint32_t              port,
+    _In_ NetAdapterRxPacket_t* packet)
+{
+    struct AdapterEntry* entry;
+    oserr_t              status = OS_ENOENT;
+
+    if (!g_initialized) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // Held RX ownership keeps a removed entry 
+    // alive until the final release.
+    usched_mtx_lock(&g_lock);
+    entry = __FindPort(device, port);
+    if (entry && entry->Adapter) {
+        status = NetAdapterRxRelease(
+            entry->Adapter,
+            packet
+        );
+    }
+    usched_mtx_unlock(&g_lock);
+
+    // Notify the worker of new events
     __WakeWorker();
     return status;
 }
