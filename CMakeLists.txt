@@ -237,20 +237,26 @@ if (VALI_BUILD_LOCAL_OSIMAGER)
     add_dependencies(install_prepare imager)
 endif (VALI_BUILD_LOCAL_OSIMAGER)
 
+if (VALI_ARCH STREQUAL "aarch64")
+    set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-arm64-gpt.yaml)
+else ()
+    set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml)
+endif ()
+
 add_custom_target (install_img
-    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
+    COMMAND ${TOOL_DU} ${VALI_IMAGE_RECIPE} --target img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_img install_prepare)
 
 add_custom_target (install_vmdk
-    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
+    COMMAND ${TOOL_DU} ${VALI_IMAGE_RECIPE} --target vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_vmdk install_prepare)
 
 add_custom_target (mkimage
-    COMMAND ${TOOL_DU} -o ./disk.img ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml
+    COMMAND ${TOOL_DU} -o ./disk.img ${VALI_IMAGE_RECIPE}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(mkimage install_prepare)
