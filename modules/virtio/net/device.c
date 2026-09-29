@@ -273,7 +273,7 @@ error:
     return NULL;
 }
 
-oserr_t
+void
 VirtioNetDeviceDestroy(
         _In_ VirtioNetDevice_t* device)
 {
