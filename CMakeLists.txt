@@ -1,5 +1,9 @@
 cmake_minimum_required (VERSION 3.13.4)
 
+# Enable the generation of compile commands for 
+# use with tools like clangd and VSCode
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
+
 if (__BUILD_UNIT_TESTS)
     project (vali-testing C)
     include(CMakeParseArguments)

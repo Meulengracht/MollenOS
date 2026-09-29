@@ -1,6 +1,11 @@
 {
     "configurations": [
         {
+            "name": "CMake",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        },
+        {
             "name": "MollenOS-i386",
             "includePath": [
                 "${workspaceRoot}",
