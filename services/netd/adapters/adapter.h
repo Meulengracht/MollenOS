@@ -429,6 +429,7 @@ NetAdapterStart(
  * close intent and prevents new TX immediately; the request pump must resolve any
  * outstanding OPEN using its original identity and establish safe remote close
  * before storage can be reclaimed. Null is ignored.
+ */
 __EXTERN void
 NetAdapterClose(
     _In_ NetworkAdapter_t* adapter);
