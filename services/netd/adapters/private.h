@@ -45,6 +45,98 @@
  */
 #define NET_ADAPTER_WORK_BUDGET 16
 
+
+/** A batch survives admission until driver retirement is confirmed. Keeping its
+ * descriptor identities and results prevents a late duplicate from referring to
+ * a newly reused pool slot. All storage is fixed and charged to the budget.
+ */
+struct AdapterBatch {
+    NetAdapterRequest_t Request;
+    oserr_t             Results[NET_ADAPTER_BATCH_MAX];
+    uint64_t            Deadline;
+    uint32_t            Attempts;
+    bool                Used;
+    bool                Admitted;
+};
+
+/** Copy fallback is allocated once per session. Sequence never wraps, so an
+ * old release cannot return a subsequently reused copy slot.
+ */
+struct AdapterRxCopy {
+    uint64_t Sequence;
+    bool     Retained;
+};
+
+struct NetworkAdapter {
+    uuid_t                         Device;
+    uuid_t                         Driver;
+    uint32_t                       Port;
+    uint32_t                       Mtu;
+    uint32_t                       BatchSize;
+    uint32_t                       RxTarget;
+    NetAdapterConfig_t             Config;
+    NetAdapterCallbacks_t          Callbacks;
+    enum NetAdapterState           State;
+    oserr_t                        LastError;
+    struct ctt_netadapter_info     Info;
+    struct ctt_netadapter_session  Session;
+    struct ctt_netadapter_link     Link;
+    struct ctt_netadapter_counters Counters;
+    // Shared packet storage and per-slot callbacks are owned until safe close.
+    NetBufferManager_t*  Buffers;
+    struct AdapterLease* Leases[2];
+    uint32_t             Slots[2];
+    uint32_t             RxRetentionLimit;
+    uint32_t             RxPoolRetained;
+    uint32_t             RxCopyCount;
+    uint32_t             RxCopyRetained;
+    struct AdapterRxCopy* RxCopies;
+    unsigned char*       RxCopyBytes;
+    uint64_t             RxFallbackCopies;
+    uint64_t             RxDropped;
+    // One pending control request; Output is borrowed scratch for ACK/drain.
+    NetAdapterRequest_t Request;
+    NetAdapterRequest_t Output;
+    struct AdapterBatch Batches[NET_ADAPTER_WINDOW_MAX];
+    uint32_t            Window;
+    // Protocol cursors: admission is contiguous; retirement releases replay slots.
+    uint64_t Run;
+    uint64_t Admitted;
+    uint64_t Retired;
+    uint64_t Highest;
+    uint64_t DrainId;
+    uint64_t DrainAfter;
+    uint64_t DrainThrough;
+    // A drain snapshot may arrive as chunks and an independently delayed end.
+    uint64_t                  DrainDeadline;
+    uint64_t                  AckDeadline;
+    uint64_t                  DrainSeenThrough;
+    uint64_t                  DrainHighest;
+    uint32_t                  DrainAttempts;
+    uint32_t                  AckAttempts;
+    bool                      Draining;
+    bool                      DrainEnded;
+    bool                      PreferRx;
+    struct ctt_netadapter_ack SentAck;
+    uint64_t                  NextSerial;
+    uint64_t                  NextBatch;
+    uint64_t                  StopBarrier;
+    uint64_t                  QueueOrder;
+    uint64_t                  Deadline;
+    uint64_t                  NextPoll;
+    uint64_t                  RxRetryAt;
+    uint32_t                  Attempts;
+    uint32_t                  RxFailures;
+    // Intent flags are serviced by the scheduler, never by blocking API calls.
+    bool Pending;
+    bool StopRequested;
+    bool StopReplied;
+    bool CloseRequested;
+    bool DrainNeeded;
+    bool LinkNeeded;
+    bool CountersNeeded;
+};
+
 /**
  * @brief Represents a network adapter in the manager.
  */

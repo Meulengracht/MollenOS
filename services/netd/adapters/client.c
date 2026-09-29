@@ -371,7 +371,7 @@ __HandleAdmission(
         if (accepted == event->Count) {
             adapter->RxRetryAt = now;
         } else {
-            adapter->RxRetryAt = NetAdapterDeadline(
+            adapter->RxRetryAt = __NetAdapterDeadline(
                 now,
                 adapter->Config.RetryMilliseconds
             );
