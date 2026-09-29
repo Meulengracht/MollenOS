@@ -484,6 +484,7 @@ NetworkAdaptersInitialize(void)
 {
     struct usched_job_parameters params;
     uuid_t                       workerID;
+    int                          status;
     TRACE("NetworkAdaptersInitialize: starting");
     
     if (g_initialized) {
@@ -506,7 +507,7 @@ NetworkAdaptersInitialize(void)
         return OS_EUNKNOWN;
     }
     
-    ioset_ctrl(
+    status = ioset_ctrl(
         g_eventSet,
         IOSET_ADD,
         g_wake,
@@ -515,6 +516,12 @@ NetworkAdaptersInitialize(void)
             .data.iod = g_wake
         }
     );
+    if (status < 0) {
+        ERROR("NetworkAdaptersInitialize: failed to add wake event to event set");
+        close(g_eventSet);
+        close(g_wake);
+        return OS_EUNKNOWN;
+    }
 
     usched_job_parameters_init(&params);
     params.detached = true;
