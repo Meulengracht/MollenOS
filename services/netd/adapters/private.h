@@ -45,6 +45,10 @@
  */
 #define NET_ADAPTER_WORK_BUDGET 16
 
+/**
+ * @brief Default Maximum Transmission Unit (MTU) for network adapters.
+ */
+#define NET_ADAPTER_MTU_DEFAULT 1500
 
 /** A batch survives admission until driver retirement is confirmed. Keeping its
  * descriptor identities and results prevents a late duplicate from referring to

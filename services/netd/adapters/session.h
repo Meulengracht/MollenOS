@@ -118,7 +118,7 @@ NetAdapterMatchesSession(
  * more protocol traffic to a compromised adapter state.
  */
 __EXTERN void
-NetAdapterFail(
+NetAdapterMarkFailed(
     _In_ NetworkAdapter_t* adapter,
     _In_ oserr_t           status);
 

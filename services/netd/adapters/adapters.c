@@ -169,7 +169,7 @@ AttachPendingPort(
         return;
     }
 
-    NetAdapterDefaultConfig(&config);
+    NetAdapterConfigInitializeDefault(&config);
     NetAdapterCallbacks_t callbacks = __AdapterCallbacks(entry);
     oserr = NetAdapterCreate(
         entry->Device,

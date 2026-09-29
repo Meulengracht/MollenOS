@@ -198,7 +198,7 @@ __RetryBatchRequest(
     
     // Have we exhausted our attempts? then we timeout
     if (retry->Attempts >= adapter->Config.RetryLimit) {
-        NetAdapterFail(adapter, OS_ETIMEOUT);
+        NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
         return OS_ETIMEOUT;
     }
 
@@ -235,7 +235,7 @@ __PrepareACK(
     
     // Have we exhausted our attempts? then we timeout
     if (adapter->AckAttempts >= adapter->Config.RetryLimit) {
-        NetAdapterFail(adapter, OS_ETIMEOUT);
+        NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
         return OS_ETIMEOUT;
     }
     
@@ -244,7 +244,7 @@ __PrepareACK(
     
     oserr = __InitializeRequest(adapter, &adapter->Output);
     if (oserr != OS_EOK) {
-        NetAdapterFail(adapter, oserr);
+        NetAdapterMarkFailed(adapter, oserr);
         return oserr;
     }
 
@@ -311,7 +311,7 @@ __PrepareDrainRequest(
         // Have we exceeded the retry limit or reached the maximum drain ID?
         if (adapter->DrainAttempts >= adapter->Config.RetryLimit ||
             adapter->DrainId == UINT64_MAX) {
-            NetAdapterFail(adapter, OS_ETIMEOUT);
+            NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
             return OS_ETIMEOUT;
         }
         
@@ -323,7 +323,7 @@ __PrepareDrainRequest(
         
         oserr = __InitializeRequest(adapter, &adapter->Output);
         if (oserr != OS_EOK) {
-            NetAdapterFail(adapter, oserr);
+            NetAdapterMarkFailed(adapter, oserr);
             return oserr;
         }
         
@@ -543,7 +543,7 @@ __ExecuteNextRequest(
                 return OS_ETIMEOUT;
             }
 
-            NetAdapterFail(adapter, OS_ETIMEOUT);
+            NetAdapterMarkFailed(adapter, OS_ETIMEOUT);
         } else {
             // For requests that not lifecycle related we can try the operation again.
             adapter->Attempts++;
@@ -633,7 +633,7 @@ __ExecuteNextRequest(
     if (!adapter->Pending) {
         status = __BeginRequest(adapter, now, out, &stats);
         if (status != OS_EOK && status != OS_ENOENT && status != OS_EBUSY) {
-            NetAdapterFail(adapter, status);
+            NetAdapterMarkFailed(adapter, status);
             return status;
         }
 
@@ -664,7 +664,7 @@ __ExecuteNextRequest(
             adapter->PreferRx = 
                 (*out)->Operation != SERVICE_CTT_NETADAPTER_POST_RX_BATCH_ID;
         } else if (status != OS_ENOENT && status != OS_EBUSY) {
-            NetAdapterFail(adapter, status);
+            NetAdapterMarkFailed(adapter, status);
         }
         return status == OS_EBUSY ? OS_ENOENT : status;
     }
@@ -776,9 +776,15 @@ __GetMessageResult(
     (void)gracht_client_abandon(entry->Client, &entry->Context.base);
     entry->AwaitReply = false;
     if (result) {
-        NetAdapterProtocolError(entry->Adapter);
+        NetAdapterSetProtocolError(entry->Adapter);
     } else {
-        (void)NetAdapterReply(entry->Adapter, entry->Driver, entry->Serial, &reply, entry->Now);
+        (void)HandleAdapterRequest(
+            entry->Adapter,
+            entry->Driver,
+            entry->Serial,
+            &reply,
+            entry->Now
+        );
     }
     if (!result && entry->Operation == SERVICE_CTT_NETADAPTER_OPEN_ID && reply.Status == OS_EOK) {
         entry->Session = reply.Session;
@@ -798,7 +804,7 @@ __HandleMessageRequest(
         return;
     }
     if (entry->SentFrames == UINT32_MAX - 1) {
-        NetAdapterProtocolError(entry->Adapter);
+        NetAdapterSetProtocolError(entry->Adapter);
         return;
     }
     entry->SentFrames++;

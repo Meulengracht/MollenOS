@@ -628,7 +628,7 @@ __ValidateEvent(
     
     if (event->Count > adapter->BatchSize || event->Status < OS_EOK ||
         event->Status >= __OS_ECOUNT || !__IsSessionProgressValid(adapter, &event->Progress)) {
-        NetAdapterFail(adapter, OS_EPROTOCOL);
+        NetAdapterMarkFailed(adapter, OS_EPROTOCOL);
         return OS_EPROTOCOL;
     }
     return OS_EOK;
@@ -653,7 +653,7 @@ ctt_netadapter_event_batch_admitted_invocation(
     }
     
     if (count > NET_ADAPTER_BATCH_MAX) {
-        NetAdapterProtocolError(entry->Adapter);
+        NetAdapterSetProtocolError(entry->Adapter);
         return;
     }
     
@@ -685,7 +685,7 @@ ctt_netadapter_event_batch_admitted_invocation(
             break;
     }
     if (oserr != OS_EOK) {
-        NetAdapterFail(entry->Adapter, oserr);
+        NetAdapterMarkFailed(entry->Adapter, oserr);
     }
 }
 
@@ -707,7 +707,7 @@ ctt_netadapter_event_completions_invocation(
     }
     
     if (count > NET_ADAPTER_BATCH_MAX) {
-        NetAdapterProtocolError(entry->Adapter);
+        NetAdapterSetProtocolError(entry->Adapter);
         return;
     }
     event = (NetAdapterEvent_t){
@@ -742,7 +742,7 @@ ctt_netadapter_event_completions_invocation(
             break;
     }
     if (status != OS_EOK) {
-        NetAdapterFail(entry->Adapter, status);
+        NetAdapterMarkFailed(entry->Adapter, status);
     }
 }
 
@@ -793,7 +793,7 @@ ctt_netadapter_event_drain_end_invocation(
             break;
     }
     if (oserr != OS_EOK) {
-        NetAdapterFail(entry->Adapter, oserr);
+        NetAdapterMarkFailed(entry->Adapter, oserr);
     }
 }
 
@@ -836,7 +836,7 @@ ctt_netadapter_event_ack_progress_invocation(
             break;
     }
     if (oserr != OS_EOK) {
-        NetAdapterFail(entry->Adapter, oserr);
+        NetAdapterMarkFailed(entry->Adapter, oserr);
     }
 }
 
