@@ -19,7 +19,7 @@ enum address_type {
     PEER
 }
 
-service socket (8) {
+service socket : message {
     func create(int domain, int type, int protocol) : (oserr_t result, uuid_t handle, uuid_t recvHandle, uuid_t sendHandle) = 1;
     func close(uuid_t handle, close_options options) : (oserr_t result) = 2;
     func bind(uuid_t handle, uint8[] address) : (oserr_t result) = 3;
