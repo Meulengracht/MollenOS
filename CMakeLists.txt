@@ -66,7 +66,6 @@ option (VALI_ENABLE_EHCI "Enable support for USB 2.0" ON)
 option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mode" OFF)
 
 option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
-option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" OFF)
 
 set (VALI_ARCH "amd64" CACHE STRING "Architecture to build Vali for")
 set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64 aarch64)
@@ -148,19 +147,13 @@ endmacro ()
 # don't need to build it
 find_program(
     TOOL_DU 
-    NAMES "osbuilder" "diskbuilder.osbuilder" "mkcdk"
+    NAMES "mkcdk"
 )
 if (NOT TOOL_DU)
-    if (NOT VALI_BUILD_LOCAL_OSIMAGER)
-        message (WARNING "No diskbuilder was available on the host, and local build is turned off")
-        set (TOOL_DU)
-    else ()
-        set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
-    endif ()
+    message (WARNING "mkcdk was not available on the host system")
+    set (TOOL_DU)
 else ()
-    # tool found, do not build it
-    message (STATUS "Host version of diskbuilder found, turning off local build")
-    set (VALI_BUILD_LOCAL_OSIMAGER OFF CACHE BOOL "Turning off local build because host version was found")
+    message (STATUS "Disk imager (mkcdk) was found!")
 endif ()
 
 # Setup tools
@@ -251,9 +244,6 @@ add_custom_target (install_prepare
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 add_dependencies(install_prepare rd lzss)
-if (VALI_BUILD_LOCAL_OSIMAGER)
-    add_dependencies(install_prepare imager)
-endif (VALI_BUILD_LOCAL_OSIMAGER)
 
 if (VALI_ARCH STREQUAL "aarch64")
     set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-arm64-gpt.yaml)
