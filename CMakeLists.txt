@@ -68,9 +68,23 @@ option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mod
 option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
 option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" OFF)
 
-set (VALI_ARCH "amd64" CACHE STRING "Platform architecture to build Vali for")
-set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
+set (VALI_ARCH "amd64" CACHE STRING "Architecture to build Vali for")
+set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64 aarch64)
 set (ENV{VALI_ARCH} ${VALI_ARCH})
+
+# This helps to specifiy the details of the platform we are building for
+# This is not available for all architectures
+set (VALI_PLATFORM "generic" CACHE STRING "Platform to build Vali for")
+
+# This helps to specify the details of the platform variant we are building for
+# and can be set to anything, its purpose is to differentiate between variants 
+# of the same platform
+set (VALI_PLATFORM_VARIANT "" CACHE STRING "Platform variant to build Vali for")
+
+# Setup the valid strings for the platform property
+set_property (CACHE VALI_PLATFORM PROPERTY STRINGS generic rpi)
+
+set (ENV{VALI_PLATFORM} ${VALI_PLATFORM})
 
 # Set paths and define the structure of the initial system image
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
