@@ -1,0 +1,39 @@
+# Vali native AArch64 bring-up profile for Raspberry Pi 4B and 5B.
+# Requires a flat kernel image whose physical entry is at 0x80000.
+# This profile has not yet been validated on physical boards.
+
+[all]
+arm_64bit=1
+kernel=kernel8.img
+kernel_address=0x80000
+
+# Keep firmware-selected board DTB and the built-in Arm stub.
+# Do not set device_tree=, armstub=, or kernel_old=1.
+
+# Early serial diagnostics; the kernel must implement its own UART driver.
+enable_uart=1
+uart_2ndstage=1
+
+# Keep discovery predictable during initial bring-up.
+camera_auto_detect=0
+display_auto_detect=0
+auto_initramfs=0
+
+# Enable only after the payload manifest and PE staging loader exist.
+# Firmware concatenates these files into one DTB-advertised initrd range.
+# The flat kernel file must cover/pad BSS and bootstrap stack storage so
+# followkernel cannot place the payload over the kernel's runtime footprint.
+# initramfs boot-manifest.bin,phoenix.mos,initrd.mos followkernel
+
+[pi4]
+# Use GIC-400 and route the primary UART to PL011 instead of the mini UART.
+# Requires overlays/disable-bt.dtbo; Bluetooth is disabled in this profile.
+enable_gic=1
+dtoverlay=disable-bt
+
+[pi5]
+# Connect the dedicated debug UART cable for initial bring-up.
+# Do not request firmware's RP1 UART/PCIe preservation debug mode.
+enable_rp1_uart=0
+
+[all]

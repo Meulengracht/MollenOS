@@ -12,10 +12,10 @@ if (VALI_BUILD)
 endif ()
 
 # Configure options
-option (X86_BOOTLOADER_BIOS_FAT "Use FAT32 boot partition instead of MFS" OFF)
+option (BOOTLOADER_BIOS_FAT "Use FAT32 boot partition instead of MFS" OFF)
 
 # Build the stage 1 bootloader for BIOS
-if (X86_BOOTLOADER_BIOS_FAT)
+if (BOOTLOADER_BIOS_FAT)
     set (SRCS stage1/fat32/stage1.asm)
 else ()
     set (SRCS stage1/mfs/stage1.asm)

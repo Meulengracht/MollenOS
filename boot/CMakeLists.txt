@@ -15,11 +15,12 @@ endif ()
 
 # Configure options
 if (NOT VALI_ARCH STREQUAL "amd64" AND NOT VALI_ARCH STREQUAL "i386")
-    set(X86_BOOTLOADER_BIOS OFF CACHE BOOL "BIOS Bootloader only available on x86" FORCE)
+    set(BOOTLOADER_BIOS OFF CACHE BOOL "BIOS Bootloader only available on x86" FORCE)
 endif ()
 
-option (X86_BOOTLOADER_BIOS "Enable BIOS bootloader" ON)
-option (BOOTLOADER_UEFI "Enable UEFI bootloader" ON)
+option (BOOTLOADER_BIOS "Enable BIOS bootloader" OFF)
+option (BOOTLOADER_UEFI "Enable UEFI bootloader" OFF)
+option (BOOTLOADER_RPI  "Enable Raspberry Pi bootloader" OFF)
 
 # Only compile the x86 trampoline code on amd64 and i386
 if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
@@ -34,7 +35,7 @@ if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
     )
 endif ()
 
-if (X86_BOOTLOADER_BIOS)
+if (BOOTLOADER_BIOS)
     add_subdirectory(bios)
 endif ()
 
@@ -51,4 +52,8 @@ if (BOOTLOADER_UEFI)
                 -DVALI_ARCH=${VALI_ARCH}
 
     )
+endif ()
+
+if (BOOTLOADER_RPI)
+    add_subdirectory(rpi)
 endif ()
