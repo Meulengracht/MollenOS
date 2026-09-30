@@ -1,5 +1,5 @@
 /**
- * Copyright 2022, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,13 +14,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- */
-
-/** 
  * PE/COFF TLS module registry, shared by all architectures. Supports modules
  * registering after other threads are already running (dynamic loading);
  * see __tls_prepare_modules() for the per-thread catch-up contract.
  */
+
 #include <internal/_tls.h>
 #include <os/spinlock.h>
 #include <stdint.h>
