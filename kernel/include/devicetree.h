@@ -20,7 +20,6 @@
 #define __DEVICETREE_H__
 
 #include <os/osdefs.h>
-#include <endian.h>
 
 /**
  * @brief Flattened Device Tree (FDT) parser.
@@ -98,26 +97,6 @@ struct FDTProperty {
     // Followed by Length bytes of property value
     uint8_t  Value[];
 };
-
-/**
- * @brief Builds the memory map from the device tree. This is meant to be called early
- * with pre-allocated storage for platforms where dynamic memory allocation is not available
- * prior to the initialization of the memory management subsystem.
- * @param deviceTree The address of the device tree.
- * @param deviceTreeSize The size of the device tree in bytes.
- * @param memoryMap The address where the memory map should be written.
- *                         This will be written as VBootMemoryEntry structures.
- * @param memoryMapMaxSize The maximum size of the memory map in bytes.
- * @param memoryMapEntryCountOut A pointer to a variable that will receive the number of memory map entries written.
- * @return An error code indicating the success or failure of the operation.
- */
-__EXTERN oserr_t
-DeviceTreeBuildMemoryMap(
-    _In_  const void* deviceTree,
-    _In_  uint32_t    deviceTreeSize,
-    _In_  void*       memoryMap,
-    _In_  uint32_t    memoryMapMaxSize,
-    _Out_ uint32_t*   memoryMapEntryCountOut);
 
 /**
  * @brief Parses the entire device tree and performs necessary initialization.

@@ -143,6 +143,10 @@ macro (deploy_file_to_initrd)
     endif ()
 endmacro ()
 
+# Find the llvm-objcopy tool, we need this
+find_program(TOOL_OBJCOPY NAMES llvm-objcopy REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 # Detect whether diskbuilder is available on the host so we do
 # don't need to build it
 find_program(
@@ -228,24 +232,65 @@ if (VALI_BUILD_UNIT_TESTS)
     )
 endif ()
 
-
 # setup initramfs for boot folder
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}/boot/payload)")
 install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${CMAKE_INSTALL_PREFIX}/boot/payload/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM})")
 
+# For some platforms, we append a loader in front of the kernel image
 # Installation and utility targets
-add_custom_target (install_prepare
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_BOOT}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
+if (VALI_PLATFORM STREQUAL "rpi")
+    add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+        COMMAND "${TOOL_OBJCOPY}" -O binary $<TARGET_FILE:rpi-loader> "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+    )
+    add_custom_target(
+        rpi-loader-flat
+        DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+    )
+
+    add_custom_command(
+        OUTPUT "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
+        COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/pack.py"
+            --loader "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+            --kernel "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos"
+            --output "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
+        DEPENDS 
+            "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/pack.py" VERBATIM
+    )
+    add_custom_target(rpi-image DEPENDS "${VALI_PATH_BOOT_ASSETS}/kernel8.img")
+    add_dependencies(rpi-image rpi-loader-flat)
+    
+    add_custom_target (install_prepare
+        # Image targets may run without a full OS install. Stage the firmware
+        # beside kernel8.img so the Pi recipe always has a complete boot root.
+        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --component rpi-firmware
+        COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_BOOT_ASSETS}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_BOOT_ASSETS}
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        DEPENDS "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
+    )
+else ()
+    add_custom_target (install_prepare
+        COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+        COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_BOOT}
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif ()
+
 add_dependencies(install_prepare rd lzss)
 
-if (VALI_ARCH STREQUAL "aarch64")
+if (VALI_PLATFORM STREQUAL "rpi")
+    set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-rpi-gpt.yaml)
+elseif (VALI_ARCH STREQUAL "aarch64")
     set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-arm64-gpt.yaml)
 else ()
     set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml)

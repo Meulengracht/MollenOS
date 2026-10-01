@@ -19,9 +19,9 @@
 #ifndef __DEVICETREE_PRIVATE_H__
 #define __DEVICETREE_PRIVATE_H__
 
-#include <os/osdefs.h>
+#include <devicetree.h>
 
-#define __STATIC_FDT_MAX_DEPTH 8
+#define __STATIC_FDT_MAX_DEPTH 32
 
 struct __ParserContext {
     oserr_t (*BeginNode)(void* userData, const char* name, uint32_t nameLength);
@@ -30,7 +30,7 @@ struct __ParserContext {
     void*    UserData;
 };
 
-static uint32_t
+static inline uint32_t
 __ReadBe32(
     _In_ const void* value)
 {

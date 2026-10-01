@@ -22,7 +22,9 @@
 #include "def.h"
 
 #define VBOOT_MAGIC   0xAEB007AE
-#define VBOOT_VERSION 0x00010000
+// Version 1.1 defines native physical entry and the DeviceTree tail. All
+// producers, including the BIOS assembly mirror, must use the same layout.
+#define VBOOT_VERSION 0x00010001
 
 #define VBOOT_FEATURE_PHYSICAL          1ULL
 #define VBOOT_FEATURE_MMU_OFF           2ULL
@@ -58,7 +60,8 @@
 
 enum VBootFirmware {
     VBootFirmware_BIOS,
-    VBootFirmware_UEFI
+    VBootFirmware_UEFI,
+    VBootFirmware_Native
 };
 
 enum VBootMemoryType {
@@ -70,6 +73,11 @@ enum VBootMemoryType {
     VBootMemoryType_Reclaim
 };
 
+/**
+ * The original firmware DTB remains reserved and readable through full parsing.
+ * PhysicalBase stays a physical address; memory initialization must retain an
+ * identity mapping or the consumer must map it before dereferencing it.
+ */
 VBOOT_PACKED(VBootDeviceTree, {
     unsigned long long PhysicalBase;
     unsigned int       Length;
@@ -116,15 +124,16 @@ VBOOT_PACKED(VBootRamdisk, {
  */
 VBOOT_PACKED(VBootModule, {
     /**
-     * Base is the physical address of the loaded image, and does not correspond to the
-     * ImageBase of the image.
+     * Base is the physical address of the loaded image. It may differ from the
+     * preferred ImageBase in the PE header.
      */
     unsigned long long Base;
 
     /**
-     * Entry point consists of the absolute address which is calculated as
-     * ImageBase+EntryPointOffset. Where ImageBase is the preffered load address
-     * of the image.
+     * EntryPoint is the absolute execution address, not necessarily a physical
+     * address. The native kernel executes at Base+EntryPointRVA with MMU off.
+     * Phoenix executes at its user virtual base+EntryPointRVA after mapping;
+     * its physical staging address must not be used as its relocation base.
      */
     unsigned long long EntryPoint;
 
@@ -140,6 +149,19 @@ VBOOT_PACKED(VBootStack, {
     unsigned int       Length;
 });
 
+/**
+ * Native AArch64 entry uses EL1h with physical pointers, MMU/data/instruction
+ * caches off, DAIF masked, and no EFI configuration table. x0 points here;
+ * x1-x3, x18 and x29 are zero. SP is the aligned exclusive top of Stack.
+ * FP/SIMD is disabled; vectors and a non-returning LR target remain reserved
+ * in the loader until the kernel establishes its own exception environment.
+ * The kernel descriptor identifies a loaded/relocated physical image. Stack
+ * describes reserved storage from its bottom, not the current stack pointer.
+ * Zero optional descriptors mean absent resources, including during bring-up.
+ * Copying this structure does not transfer its pointed-to storage: the producer
+ * retains reservations for the map, DTB, stack and payloads until the kernel
+ * has established their mappings and completed their use or explicit copying.
+ */
 VBOOT_PACKED(VBoot, {
     unsigned int        Magic;
     unsigned int        Version;

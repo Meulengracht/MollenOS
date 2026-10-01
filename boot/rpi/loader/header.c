@@ -23,6 +23,8 @@ struct __RpiHeader {
     uint32_t version;
     uint32_t headerSize;
     uint64_t loaderLength;
+    uint64_t kernelOffset;
+    uint64_t kernelLength;
     uint64_t totalLength;
     uint64_t reserved1;
     uint64_t reserved2;
@@ -30,14 +32,30 @@ struct __RpiHeader {
 
 static const unsigned char g_magic[8] = {'V', 'A', 'L', 'I', 'R', 'P', 'I', 0};
 
+static uint64_t
+__ReadHeaderValue(
+    const unsigned char* header,
+    size_t               offset,
+    unsigned int         length)
+{
+    uint64_t value = 0;
+    
+    // The packager and linker emit a little-endian trailer. It is independent
+    // of the big-endian DTB, and must not be byte-swapped on little-endian ARM.
+    // Byte reads also avoid assuming the caller supplied an aligned header.
+    for (unsigned int i = 0; i < length; i++) {
+        value |= (uint64_t)header[offset + i] << (8 * i);
+    }
+    
+    return value;
+}
+
 enum RpiBootStatus
 __ValidateHeader(
     const unsigned char* header,
     size_t               headerLength,
     uint64_t             loaderLength)
 {
-    struct __RpiHeader* rpi = (struct __RpiHeader*)header;
-
     if (header == NULL) {
         return RpiBootInvalidPayload;
     }
@@ -52,33 +70,26 @@ __ValidateHeader(
 
     // Verify the signature
     for (unsigned int i = 0; i < sizeof(g_magic); ++i) {
-        if (rpi->signature[i] != g_magic[i]) {
+        if (header[i] != g_magic[i]) {
             return RpiBootInvalidPayload;
         }
     }
     
-    if (SWAP32(rpi->version) != 1) {
+    if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, version), 4) != 1) {
         return RpiBootInvalidPayload;
-    } else if (SWAP32(rpi->headerSize) != RPI_PAYLOAD_HEADER_SIZE) {
+    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, headerSize), 4) != RPI_PAYLOAD_HEADER_SIZE) {
         return RpiBootInvalidPayload;
-    } else if (SWAP64(rpi->loaderLength) != loaderLength) {
+    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, loaderLength), 8) != loaderLength) {
         return RpiBootInvalidPayload;
-    } else if (SWAP64(rpi->totalLength) != loaderLength) {
+    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, kernelOffset), 8) != loaderLength) {
         return RpiBootInvalidPayload;
-    } else if (SWAP64(rpi->reserved1) || SWAP64(rpi->reserved2)) {
+    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, reserved1), 8) || 
+                __ReadHeaderValue(header, offsetof(struct __RpiHeader, reserved2), 8)) {
+        // Reserved values should be 0
         return RpiBootInvalidPayload;
     }
     
     return RpiBootOk;
-}
-
-uint64_t
-__SwapHeaderValue64(
-    const unsigned char* header,
-    size_t               offset)
-{
-    uint64_t value = *((uint64_t*)(header + offset));
-    return SWAP64(value);
 }
 
 enum RpiBootStatus
@@ -98,8 +109,8 @@ RpiParseHeader(
         return RpiBootInvalidPayload;
     }
     
-    length = __SwapHeaderValue64(header, 32);
-    total = __SwapHeaderValue64(header, 40);
+    length = __ReadHeaderValue(header, offsetof(struct __RpiHeader, kernelLength), 8);
+    total = __ReadHeaderValue(header, offsetof(struct __RpiHeader, totalLength), 8);
     
     // Subtraction makes a forged total incapable of wrapping the range check.
     if (!length || length > RPI_PAYLOAD_MAX_SIZE || total > availableLength ||

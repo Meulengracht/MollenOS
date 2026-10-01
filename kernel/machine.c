@@ -30,7 +30,11 @@
 // Include the private structure for PerCpu data
 #include "components/cpu_private.h"
 
+// Optional features here are included, but might not
+// actually be used
 #include <acpiinterface.h>
+#include <devicetree.h>
+
 #include <console.h>
 #include <crc32.h>
 #include <debug.h>
@@ -102,6 +106,15 @@ InitializeMachine(
         }
     }
 
+    // Reject incompatible producers before the fixed-size copy reads fields
+    // whose layout they may not supply. BIOS and UEFI share this version too.
+    if (bootInformation->Magic != VBOOT_MAGIC || bootInformation->Version != VBOOT_VERSION) {
+        for (;;) {
+            ERROR("InitializeMachine received an incompatible VBoot contract");
+            ArchProcessorHalt();
+        }
+    }
+
     __DumpVBoot(bootInformation);
     sprintf(&g_machine.Architecture[0], "Architecture: %s", ARCHITECTURE_NAME);
     sprintf(&g_machine.Author[0],       "Philip Meulengracht, Copyright 2011.");
@@ -137,9 +150,12 @@ InitializeMachine(
         SetMachineUmaMode();
     }
 #elif __OSCONFIG_DEVICETREE_SUPPORT
+    // Full parsing follows memory initialization. The ARM memory port must
+    // retain an identity mapping of this reserved DTB until parsing completes;
+    // copying VBoot alone does not make a physical address dereferenceable.
     oserr = DeviceTreeParseFull(
-        (const void*)g_machine.BootInformation->DeviceTree.Base,
-        g_machine.BootInformation->DeviceTree.Length
+        (const void*)g_machine.BootInformation.DeviceTree.PhysicalBase,
+        g_machine.BootInformation.DeviceTree.Length
     );
     if (oserr != OS_EOK) {
         ERROR("Failed to initialize the system from the device tree.");

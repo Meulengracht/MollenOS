@@ -22,9 +22,12 @@
 // platforms need a way to fill in memory information for a shared
 // machine initialization.
 #include <vboot/vboot.h>
+#include <string.h>
 
-#include <devicetree.h>
+// Include devicetree framework header, this provides
+// everything we need
 #include "private.h"
+#include "loader.h"
 
 /**
  * @brief Memory node examples
@@ -75,6 +78,9 @@
 enum __NodeType {
     NodeTypeOther,
     NodeTypeRoot,
+    NodeTypeChosen,
+    NodeTypeCpus,
+    NodeTypeCpu,
     NodeTypeMemory,
     NodeTypeReservedMemory,
     NodeTypeReservation
@@ -113,6 +119,8 @@ __SetDefaultProperties(
     _In_ const char*         name,
     _In_ uint32_t            nameLength)
 {
+    // Initialize the node frame to default values.
+    memset(frame, 0, sizeof(struct __NodeFrame));
     frame->Name = name;
     frame->NameLength = nameLength;
     frame->AddressCells = 2;
@@ -121,12 +129,19 @@ __SetDefaultProperties(
 }
 
 struct __MemoryMapBuilder {
-    struct __NodeFrame Frames[__STATIC_FDT_MAX_DEPTH];
-    int                FrameIndex;
+    struct __NodeFrame     Frames[__STATIC_FDT_MAX_DEPTH];
+    int                    FrameIndex;
+    const char*            CompatibleBoard;
+    struct RpiBootContext* Platform;
 
-    void*     MemoryMapPointer;
-    uint32_t  MemoryMapMaxSize;
-    uint32_t* MemoryMapEntryCountOut;
+    // Node frames are reused after EndNode. These facts must survive that reuse
+    // so final validation does not depend on property or sibling ordering.
+    int                   CompatibleSeen;
+    int                   CompatibleMatched;
+    int                   ChosenSeen;
+    unsigned int          InitrdSeen;
+    uint64_t              InitrdStart;
+    uint64_t              InitrdEnd;
 };
 
 static oserr_t
@@ -154,11 +169,24 @@ __ParseMemoryMapBeginNode(
         frame->Type = NodeTypeRoot;
     } else if (parent->Type == NodeTypeReservedMemory) {
         frame->Type = NodeTypeReservation;
-    } else {
-        if (!strncmp(name, "memory")) {
+    } else if (parent->Type == NodeTypeCpus &&
+        (!strcmp(name, "cpu") || !strncmp(name, "cpu@", 4))) {
+        frame->Type = NodeTypeCpu;
+    } else if (parent->Type == NodeTypeRoot) {
+        // Nodes that are supported under the Root node
+        if (!strcmp(name, "memory") || !strncmp(name, "memory@", 7)) {
             frame->Type = NodeTypeMemory;
         } else if (!strcmp(name, "reserved-memory")) {
             frame->Type = NodeTypeReservedMemory;
+        } else if (!strcmp(name, "chosen")) {
+            // A second chosen node would make endpoint ownership ambiguous.
+            if (context->ChosenSeen) {
+                return OS_EINVALPARAMS;
+            }
+            context->ChosenSeen = 1;
+            frame->Type = NodeTypeChosen;
+        } else if (!strcmp(name, "cpus")) {
+            frame->Type = NodeTypeCpus;
         }
     }
     return OS_EOK;
@@ -185,10 +213,10 @@ __InsertMemoryRange(
     _In_ uint64_t                   length,
     _In_ int                        reserved)
 {
-    struct VBootMemoryEntry* entries = context->MemoryMapPointer;
+    struct VBootMemoryEntry* entries = context->Platform->MemoryMap;
     
-    uint32_t count = *context->MemoryMapEntryCountOut;
-    uint32_t capacity = context->MemoryMapMaxSize / sizeof(struct VBootMemoryEntry);
+    uint32_t count = context->Platform->MemoryMapCount;
+    uint32_t capacity = sizeof(context->Platform->MemoryMap) / sizeof(struct VBootMemoryEntry);
     uint32_t index = 0;
     uint64_t cursor = base;
     uint64_t end = base + length;
@@ -294,7 +322,7 @@ __InsertMemoryRange(
             entries[output++] = entries[i];
         }
     }
-    *context->MemoryMapEntryCountOut = output;
+    context->Platform->MemoryMapCount = output;
     return OS_EOK;
 }
 
@@ -309,9 +337,11 @@ __ValidateReservedMemoryNode(
         (frame->PropertiesRead & 3) != 3 || !frame->Ranges.Present) {
         return OS_EINVALPARAMS;
     }
+    
     if (frame->AddressCells != root->AddressCells || frame->SizeCells != root->SizeCells) {
         return OS_EINVALPARAMS;
     }
+    
     if (frame->Ranges.Length) {
         return OS_ENOTSUPPORTED;
     }
@@ -397,29 +427,23 @@ __ParseMemoryMapEndNode(
     _In_ void* userData)
 {
     struct __MemoryMapBuilder* context = userData;
-    struct __NodeFrame* frame;
-    struct __NodeFrame* parent;
-    oserr_t status = OS_EOK;
+    struct __NodeFrame*        frame;
+    struct __NodeFrame*        parent;
+    oserr_t                    status = OS_EOK;
 
-    if (!context || !context->MemoryMapEntryCountOut ||
-        context->FrameIndex < 0 || context->FrameIndex >= __STATIC_FDT_MAX_DEPTH) {
+    if (!context || !context->Platform) {
         return OS_EINVALPARAMS;
     }
+
+    // Validate frame index
+    if (context->FrameIndex < 0 || context->FrameIndex >= __STATIC_FDT_MAX_DEPTH) {
+        return OS_EINVALPARAMS;
+    }
+    
     frame = &context->Frames[context->FrameIndex];
     parent = context->FrameIndex ? &context->Frames[context->FrameIndex - 1] : NULL;
 
-    // BeginNode cannot be changed here. Reserve an unused high bit in the
-    // root's property mask to initialize the output exactly once, at the first
-    // node completion. Real property indices occupy only bits 0 through 10.
-    // The builder's zero initialization makes this independent of the value
-    // the caller happened to leave in its output-count variable.
-    if (!(context->Frames[0].PropertiesRead & ((uint32_t)1 << 31))) {
-        *context->MemoryMapEntryCountOut = 0;
-        context->Frames[0].PropertiesRead |= (uint32_t)1 << 31;
-    }
-    if (!context->MemoryMapPointer && context->MemoryMapMaxSize) {
-        status = OS_EINVALPARAMS;
-    } else if (frame->Enabled) {
+    if (frame->Enabled) {
         switch (frame->Type) {
         case NodeTypeMemory:
         case NodeTypeReservation:
@@ -432,16 +456,16 @@ __ParseMemoryMapEndNode(
             break;
         }
     }
+    
     if (status != OS_EOK) {
         // Earlier nodes may already have written entries. Zeroing the count
         // prevents a failed completion from exposing that partial map as RAM.
-        *context->MemoryMapEntryCountOut = 0;
+        context->Platform->MemoryMapCount = 0;
         return status;
     }
 
-    // The current BeginNode only assigns defaults, so release all borrowed
-    // properties here before this slot is reused for a sibling. Otherwise a
-    // missing reg or status could silently reuse the previous node's values.
+    // Release borrowed properties when the frame ends. BeginNode also resets
+    // the slot, so siblings cannot inherit a missing reg or status property.
     *frame = (struct __NodeFrame){0};
     context->FrameIndex--;
     return OS_EOK;
@@ -449,23 +473,21 @@ __ParseMemoryMapEndNode(
 
 // Indices also track duplicates of properties whose interpretation affects
 // memory ownership. Ambiguous values must not be resolved by input order.
-static const char* const g_memoryProperties[] = {
+static const char* const g_supportedProperties[] = {
     "#address-cells", "#size-cells", "status", "device_type", "reg",
-    "ranges", "size", "alignment", "alloc-ranges", "no-map", "reusable"
+    "ranges", "size", "alignment", "alloc-ranges", "no-map", "reusable",
+    
+    // Board information relevant to memory map construction
+    "compatible", "linux,initrd-start", "linux,initrd-end", "cpu-release-addr"
 };
 
 static unsigned int
-__GetMemoryPropertyIndex(
-    _In_ struct __NodeFrame* frame,
-    _In_ const char*         name)
+__GetPropertyIndex(
+    _In_ const char* name)
 {
     unsigned int property;
-    for (property = 0; property < SIZEOF_ARRAY(g_memoryProperties); property++) {
-        if (frame->PropertiesRead & ((uint32_t)1 << property)) {
-            continue;
-        }
-
-        if (!strcmp(name, g_memoryProperties[property])) {
+    for (property = 0; property < SIZEOF_ARRAY(g_supportedProperties); property++) {
+        if (!strcmp(name, g_supportedProperties[property])) {
             break;
         }
     }
@@ -473,7 +495,7 @@ __GetMemoryPropertyIndex(
 }
 
 static oserr_t
-__ParseMemoryMapProperty(
+__ParseProperty(
     _In_ void*       userData,
     _In_ const char* name,
     _In_ const void* value,
@@ -483,15 +505,37 @@ __ParseMemoryMapProperty(
     struct __NodeFrame*        parent;
     struct __NodeFrame*        frame;
     unsigned int               property;
+    const uint8_t*             bytes = value;
     
     parent = context->FrameIndex > 0 ? &context->Frames[context->FrameIndex - 1] : NULL;
     frame = &context->Frames[context->FrameIndex];
 
-    property = __GetMemoryPropertyIndex(frame, name);
-    if (property == SIZEOF_ARRAY(g_memoryProperties)) {
+    property = __GetPropertyIndex(name);
+    if (property == SIZEOF_ARRAY(g_supportedProperties)) {
         return OS_EOK;
     }
+    
+    // Only cell counts/status affect arbitrary nodes. Device-specific bindings
+    // can reuse other names; interpreting them as memory metadata is unsafe.
+    if ((property == 3 && frame->Type != NodeTypeMemory) ||
+        (property == 4 && frame->Type != NodeTypeMemory && frame->Type != NodeTypeReservation) ||
+        (property == 5 && frame->Type != NodeTypeReservedMemory) ||
+        (property >= 6 && property <= 10 && frame->Type != NodeTypeReservation) ||
+        (property == 11 && frame->Type != NodeTypeRoot) ||
+        ((property == 12 || property == 13) && frame->Type != NodeTypeChosen) ||
+        (property == 14 && frame->Type != NodeTypeCpu)) {
+        return OS_EOK;
+    }
+    
+    if (frame->PropertiesRead & ((uint32_t)1 << property)) {
+        return OS_EINVALPARAMS;
+    }
+    
     frame->PropertiesRead |= ((uint32_t)1 << property);
+    if ((property == 2 || property == 3) &&
+        (!valueLength || memchr(value, 0, valueLength) != (const uint8_t*)value + valueLength - 1)) {
+        return OS_EINVALPARAMS;
+    }
 
     switch (property) {
         case 0: // "#address-cells"
@@ -553,6 +597,65 @@ __ParseMemoryMapProperty(
             }
             frame->Reusable = 1;
             break;
+        case 11: { // "compatible"
+            uint32_t offset = 0;
+            oserr_t  oserr;
+            if (!valueLength) {
+                return OS_EINVALPARAMS;
+            }
+            context->CompatibleSeen = 1;
+
+            // Set the status to OS_ENOENT initially
+            oserr = OS_ENOENT;
+
+            // compatible is a bounded string list. A substring match could select
+            // the wrong platform's MMIO/firmware policy, so compare whole entries.
+            while (offset < valueLength) {
+                const char* item = (const char*)bytes + offset;
+                const char* end = memchr(item, 0, valueLength - offset);
+                if (!end || end == item) {
+                    return OS_EINVALPARAMS;
+                }
+                if (!strcmp(item, context->CompatibleBoard)) {
+                    oserr = OS_EOK;
+                }
+                offset += (uint32_t)(end - item) + 1;
+            }
+            context->CompatibleMatched = oserr == OS_EOK;
+            return oserr; // Return the status of the compatible check instead of just breaking
+        }
+        case 12: // "linux,initrd-start"
+        case 13: { // "linux,initrd-end"
+            unsigned int bit = property == 12 ? 1 : 2;
+            uint64_t address;
+            if ((context->InitrdSeen & bit) || (valueLength != 4 && valueLength != 8)) {
+                return OS_EINVALPARAMS;
+            }
+            context->InitrdSeen |= bit;
+            address = __ReadBe32(bytes);
+            if (valueLength == 8) {
+                address = (address << 32) | __ReadBe32(bytes + 4);
+            }
+            if (bit == 1) {
+                context->InitrdStart = address;
+            } else {
+                context->InitrdEnd = address;
+            }
+            break;
+        }
+        case 14: { // "cpu-release-addr"
+            uint64_t address;
+            if (valueLength != 8) {
+                return OS_EINVALPARAMS;
+            }
+            address = ((uint64_t)__ReadBe32(bytes) << 32) | __ReadBe32(bytes + 4);
+            // Reserve even an unused CPU's mailbox. A later CPU-start implementation
+            // must retain the firmware spin loop rather than reallocating its data.
+            if ((address & 7) || address > UINT64_MAX - 8) {
+                return OS_EINVALPARAMS;
+            }
+            return __InsertMemoryRange(context, address, 8, 1);
+        }
         default:
             // Unknown property
             break;
@@ -568,54 +671,155 @@ __ParseMemoryMapProperty(
 static oserr_t
 __ParseMemoryReservationBlock(
     _In_ const void* reservationBlock,
-    _In_ uint32_t    size)
+    _In_ uint32_t size,
+    _In_ struct __MemoryMapBuilder* context)
 {
-    // Read fixed 64-bit address/size pairs until the (0, 0) terminator.
-    return OS_EOK;
+    const uint8_t* bytes = reservationBlock;
+
+    // Reservations have no separate length in the header. The validated gap
+    // before the structure block bounds the terminator search; zero RAM beyond
+    // that gap must never masquerade as a valid terminator.
+    for (uint32_t offset = 0; size - offset >= 16; offset += 16) {
+        uint64_t base = __ReadMemoryCells(bytes + offset, 2);
+        uint64_t length = __ReadMemoryCells(bytes + offset + 8, 2);
+        oserr_t status;
+        if (!base && !length) {
+            return OS_EOK;
+        }
+        if (!length || length > UINT64_MAX - base) {
+            return OS_EINVALPARAMS;
+        }
+        status = __InsertMemoryRange(context, base, length, 1);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    return OS_EINVALPARAMS;
 }
 
 oserr_t
-DeviceTreeBuildMemoryMap(
-    _In_  const void* deviceTree,
-    _In_  uint32_t    deviceTreeSize,
-    _In_  void*       memoryMap,
-    _In_  uint32_t    memoryMapMaxSize,
-    _Out_ uint32_t*   memoryMapEntryCountOut)
+DeviceTreeReserveMemory(
+    _In_ struct RpiBootContext* context,
+    _In_ uint64_t physicalBase,
+    _In_ uint64_t length)
+{
+    struct __MemoryMapBuilder builder = {.Platform = context};
+    oserr_t                   status;
+    
+    if (!context) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (context->MemoryMapCount > RPI_MEMORY_MAP_CAPACITY ||
+        !length || length > UINT64_MAX - physicalBase) {
+        context->MemoryMapCount = 0;
+        return OS_EINVALPARAMS;
+    }
+    
+    status = __InsertMemoryRange(&builder, physicalBase, length, 1);
+    if (status != OS_EOK) {
+        context->MemoryMapCount = 0;
+    }
+    return status;
+}
+
+oserr_t
+DeviceTreeParseEarlyPlatform(
+    _In_ const void*            deviceTree,
+    _In_ uint32_t               deviceTreeSize,
+    _In_ struct RpiBootContext* context)
 {
     const uint8_t*            p = deviceTree;
     struct FDTHeader          header;
     oserr_t                   oserr;
+    uintptr_t                 tree;
+    uintptr_t                 output;
+    
     struct __MemoryMapBuilder memoryMapBuilder = {
         .FrameIndex = -1,
-        .MemoryMapPointer = memoryMap,
-        .MemoryMapMaxSize = memoryMapMaxSize,
-        .MemoryMapEntryCountOut = memoryMapEntryCountOut,
+        .Platform = context,
     };
-    struct __ParserContext context = {
+    
+    struct __ParserContext parser = {
         .BeginNode = __ParseMemoryMapBeginNode,
         .EndNode = __ParseMemoryMapEndNode,
-        .Property = __ParseMemoryMapProperty,
+        .Property = __ParseProperty,
         .UserData = &memoryMapBuilder,
     };
 
+    if (!context) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // Zero out some members first
+    context->MemoryMapCount = 0;
+    context->ExternalPayloadBase = 0;
+    context->ExternalPayloadLength = 0;
+    
+    // Verify some of the input
+    if (!deviceTree || (context->Board != 4 && context->Board != 5)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    memoryMapBuilder.CompatibleBoard = context->Board == 4 ? "brcm,bcm2711" : "brcm,bcm2712";
+
+    // In-place output could overwrite properties that subsequent callbacks
+    // still borrow. The entire context must have independent storage for the
+    // walk, including the count and external-payload descriptors we publish.
+    tree = (uintptr_t)deviceTree;
+    output = (uintptr_t)context;
+    if (deviceTreeSize > UINTPTR_MAX - tree || sizeof(*context) > UINTPTR_MAX - output ||
+        (output < tree + deviceTreeSize && tree < output + sizeof(*context))) {
+        return OS_EINVALPARAMS;
+    }
+    
     oserr = __ParseFDTHeader(deviceTree, deviceTreeSize, &header);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
+    // One structure traversal collects both RAM ownership and Pi boot facts.
+    // The separate reservation block is not another traversal of the tree.
     oserr = __ParseStructureBlock(
         p + header.OffDtStruct,
         header.SizeDtStruct,
         (const char*)p + header.OffDtStrings,
         header.SizeDtStrings,
-        &context
+        &parser
     );
     if (oserr != OS_EOK) {
-        return oserr;
+        goto failed;
+    }
+
+    oserr = __ParseMemoryReservationBlock(
+        p + header.OffMemRsvmap,
+        header.OffDtStruct - header.OffMemRsvmap,
+        &memoryMapBuilder
+    );
+    if (oserr != OS_EOK) {
+        goto failed;
     }
     
-    return __ParseMemoryReservationBlock(
-        p + header.OffMemRsvmap,
-        header.OffDtStruct - header.OffMemRsvmap
-    );
+    if (!memoryMapBuilder.CompatibleSeen || !memoryMapBuilder.CompatibleMatched ||
+        (memoryMapBuilder.InitrdSeen && memoryMapBuilder.InitrdSeen != 3)) {
+        oserr = OS_EINVALPARAMS;
+        goto failed;
+    }
+    
+    if (memoryMapBuilder.InitrdSeen) {
+        if (memoryMapBuilder.InitrdEnd <= memoryMapBuilder.InitrdStart) {
+            oserr = OS_EINVALPARAMS;
+            goto failed;
+        }
+        // These are raw firmware endpoints, not an initialized VBoot ramdisk.
+        // Platform preparation checks overlaps and reserves the interval before
+        // it publishes the final map or authorizes subsequent PE allocations.
+        context->ExternalPayloadBase = memoryMapBuilder.InitrdStart;
+        context->ExternalPayloadLength = memoryMapBuilder.InitrdEnd - memoryMapBuilder.InitrdStart;
+    }
+    return OS_EOK;
+
+failed:
+    context->MemoryMapCount = 0;
+    return oserr;
 }

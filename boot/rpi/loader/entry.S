@@ -17,8 +17,8 @@
 //   4. Select a private current-EL stack, then clear only the wrapper's BSS.
 //   5. Enter RpiLoaderInit with the saved arguments. It does not return.
 //
-// No EL transition happens here. The eventual kernel transfer must establish
-// its own EL1 contract after discovery, PE loading, and VBoot construction.
+// No EL transition happens here. transfer.S establishes the EL1 contract after
+// discovery, PE loading, and VBoot construction.
 // Early rejection/exception paths converge on _rpi_stop; they cannot assume
 // initialized C globals or a UART and therefore do not publish a C status code.
 //
@@ -180,6 +180,7 @@ _rpi_stop:
 // they are padding, not executable handlers. Masked interrupts do not make
 // this table optional: synchronous faults can still occur during bootstrap.
 .balign 2048
+.global _early_vector_table
 _early_vector_table:
 .rept 16
     b _rpi_stop

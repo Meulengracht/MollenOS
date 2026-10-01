@@ -39,6 +39,40 @@ RpiLoaderStop(
     }
 }
 
+// The assembly boundary takes values, not structure offsets. Packed VBoot
+// fields stay a C concern, and no C frame survives the final stack reset.
+extern _Noreturn void
+__JumpToKernel(
+    struct VBoot* boot,
+    uintptr_t     entry,
+    uintptr_t     stackTop);
+
+static _Noreturn void
+__PrepareJumpToKernel(
+    struct RpiBootContext* context)
+{
+    struct VBoot* boot;
+
+    // Only the finalizer publishes these markers. A failed or skipped contract
+    // stage must stop while the loader still has its normal C environment.
+    if (!context || context->BootInformation.Magic != VBOOT_MAGIC ||
+        context->BootInformation.Version != VBOOT_VERSION ||
+        context->BootInformation.Firmware != VBootFirmware_Native) {
+        RpiLoaderStop(RpiBootInvalidPlatform);
+    }
+    boot = &context->BootInformation;
+
+    // RpiBuildContract already validated these ranges and their reservations.
+    // The primary is their only writer. Do not clear or replace the live stack
+    // here; the assembly routine consumes the exclusive top only after its last
+    // C call, and retains the reserved wrapper as exception/return containment.
+    __JumpToKernel(
+        boot,
+        (uintptr_t)boot->Kernel.EntryPoint,
+        (uintptr_t)(boot->Stack.Base + boot->Stack.Length)
+    );
+}
+
 /**
  * @brief This is the common entry point for the RPi loader. This is called
  * by entry.S
@@ -63,7 +97,7 @@ RpiLoaderInit(
         RPI_PAYLOAD_HEADER_SIZE,
         loaderLength,
         loaderLength + RPI_PAYLOAD_MAX_SIZE, 
-        &g_context.Payload
+        &g_context.Kernel
     );
     if (status != RpiBootOk) {
         RpiLoaderStop(status);
@@ -89,5 +123,5 @@ RpiLoaderInit(
     }
     
     g_rpi_boot_stage = RpiBootTransfer;
-    RpiTransferToKernel(&g_context);
+    __PrepareJumpToKernel(&g_context);
 }

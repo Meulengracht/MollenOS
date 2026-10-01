@@ -18,11 +18,11 @@
  */
 
 #include <devicetree.h>
+#include <string.h>
 #include "private.h"
 
 static oserr_t
 __SkipPaddedValue(
-    _In_    const uint8_t* block,
     _In_    uint32_t       size,
     _InOut_ uint32_t*      cursor,
     _In_    uint32_t       length)
@@ -40,11 +40,9 @@ __SkipPaddedValue(
     if (padding > size - *cursor) {
         return OS_EINVALPARAMS;
     }
-    while (padding--) {
-        if (block[(*cursor)++] != 0) {
-            return OS_EINVALPARAMS;
-        }
-    }
+    // Padding is outside the value. Firmware/libfdt edits can leave old bytes
+    // there; accepting them does not extend any span exposed to a callback.
+    *cursor += padding;
     return OS_EOK;
 }
 
@@ -79,7 +77,8 @@ __GetStringFromBlock(
     _In_ uint32_t    stringBlockSize,
     _In_ uint32_t    stringOffset)
 {
-    if (stringOffset >= stringBlockSize) {
+    if (stringOffset >= stringBlockSize ||
+        !memchr(stringBlock + stringOffset, 0, stringBlockSize - stringOffset)) {
         return NULL;
     }
     return stringBlock + stringOffset;
@@ -100,6 +99,11 @@ __ParseStructureBlock(
     int            childrenStarted[__STATIC_FDT_MAX_DEPTH] = { 0 };
     oserr_t        status;
 
+    if (!block || !context || !context->BeginNode || !context->Property ||
+        !context->EndNode || (!stringBlock && stringBlockSize) || (structureBlockSize & 3)) {
+        return OS_EINVALPARAMS;
+    }
+
     // Validate each event before exposing its borrowed pointers. Callbacks may
     // accumulate state, but consumers must publish nothing until FDT_END and
     // all callbacks succeed: a valid prefix does not establish a valid tree.
@@ -114,7 +118,7 @@ __ParseStructureBlock(
             uint32_t       length;
 
             end = memchr(block + cursor, 0, structureBlockSize - cursor);
-            if ((!depth && rootSeen)) {
+            if (!end || (!depth && rootSeen)) {
                 return OS_EINVALPARAMS;
             }
             
@@ -129,7 +133,7 @@ __ParseStructureBlock(
                 return OS_EOVERFLOW;
             }
             
-            status = __SkipPaddedValue(block, structureBlockSize, &cursor, length + 1);
+            status = __SkipPaddedValue(structureBlockSize, &cursor, length + 1);
             if (status != OS_EOK) {
                 return status;
             }
@@ -163,7 +167,7 @@ __ParseStructureBlock(
             cursor += 8;
             
             value = block + cursor;
-            status = __SkipPaddedValue(block, structureBlockSize, &cursor, length);
+            status = __SkipPaddedValue(structureBlockSize, &cursor, length);
             if (status != OS_EOK) {
                 return status;
             }
@@ -198,7 +202,8 @@ __ParseStructureBlock(
 
 static oserr_t
 __ValidateFDTHeader(
-    _In_ struct FDTHeader* header)
+    _In_ struct FDTHeader* header,
+    _In_ uint32_t size)
 {
     if (header->Magic != 0xD00DFEED || header->TotalSize < 40 || header->TotalSize > size) {
         return OS_EINVALPARAMS;
@@ -230,7 +235,7 @@ __ParseFDTHeader(
 {
     const uint8_t* p = deviceTree;
     
-    if (deviceTree == NULL || size < 40) {
+    if (deviceTree == NULL || header == NULL || size < 40) {
         return OS_EINVALPARAMS;
     }
 
@@ -244,5 +249,5 @@ __ParseFDTHeader(
     header->BootCpuidPhys = __ReadBe32(p + 28);
     header->SizeDtStrings = __ReadBe32(p + 32);
     header->SizeDtStruct = __ReadBe32(p + 36);
-    return __ValidateFDTHeader(header);
+    return __ValidateFDTHeader(header, size);
 }
