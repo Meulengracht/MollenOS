@@ -133,8 +133,17 @@ InitializeMachine(
 #ifdef __OSCONFIG_ACPI_SUPPORT
     oserr = AcpiInitializeEarly();
     if (oserr != OS_EOK) {
-        // Assume UMA machine and put the machine into UMA modKERNELAPI e
+        // Assume UMA machine and put the machine into UMA mode
         SetMachineUmaMode();
+    }
+#elif __OSCONFIG_DEVICETREE_SUPPORT
+    oserr = DeviceTreeParseFull(
+        (const void*)g_machine.BootInformation->DeviceTree.Base,
+        g_machine.BootInformation->DeviceTree.Length
+    );
+    if (oserr != OS_EOK) {
+        ERROR("Failed to initialize the system from the device tree.");
+        ArchProcessorHalt();
     }
 #else
     SetMachineUmaMode();

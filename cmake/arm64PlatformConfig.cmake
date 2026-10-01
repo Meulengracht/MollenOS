@@ -9,10 +9,17 @@ set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-
 # Keep Clang builtin headers (stdint.h, stdarg.h, etc.); use explicit OS library headers.
 set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdlibinc -O3") # -flto
 
+# Feature flags for the aarch64 platform based on the platform+variant
+if ("${VALI_PLATFORM}" STREQUAL "rpi")
+    # Raspberry Pi specific feature flags can be set here
+    set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_DEVICETREE_SUPPORT")
+else ()
+    # Generic aarch64 platform feature flags can be set here
+    set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_ACPI_SUPPORT")
+endif ()
+
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_MMIO")
-set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_ACPI_SUPPORT")
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_UART")
-set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_DWCAS") # Assume presence of CPUID_FEAT_ECX_CX16 in cpuid
 if (NOT VALI_HEADLESS)
     set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_VIDEO")
 endif ()

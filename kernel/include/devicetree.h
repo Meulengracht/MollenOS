@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef __COMPONENT_DEVICETREE_H__
-#define __COMPONENT_DEVICETREE_H__
+#ifndef __DEVICETREE_H__
+#define __DEVICETREE_H__
 
 #include <os/osdefs.h>
 #include <endian.h>
@@ -119,4 +119,27 @@ DeviceTreeBuildMemoryMap(
     _In_  uint32_t    memoryMapMaxSize,
     _Out_ uint32_t*   memoryMapEntryCountOut);
 
-#endif //!__COMPONENT_DEVICETREE_H__
+/**
+ * @brief Parses the entire device tree and performs necessary initialization.
+ * This creates and registers components in the system. The available system componenets
+ * we register are the ones under kernel/include/component.
+ *  - Cpu's
+ *  - Memory controllers
+ *  - Memory ranges
+ *  - Interrupt controllers
+ *  - Other platform-specific components
+ * 
+ * This relies on memory subsystem being initialized prior to its invocation, as dynamic
+ * allocation occurs during this.
+ * TODO: Exposing DTB to our system services for device discovery / driver loading.
+ * 
+ * @param deviceTree The address of the device tree.
+ * @param deviceTreeSize The size of the device tree in bytes.
+ * @return An error code indicating the success or failure of the operation.
+ */
+__EXTERN oserr_t
+DeviceTreeParseFull(
+    _In_  const void* deviceTree,
+    _In_  uint32_t    deviceTreeSize);
+
+#endif //!__DEVICETREE_H__
