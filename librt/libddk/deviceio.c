@@ -142,7 +142,7 @@ ReadDeviceIo(
                 case 4:
                     Result = *(uint32_t*)Address;
                     break;
-    #if defined(__amd64__)
+    #if defined(__amd64__) || defined(__aarch64__)
                 case 8:
                     Result = *(uint64_t*)Address;
                     break;
@@ -152,6 +152,7 @@ ReadDeviceIo(
             }
         } break;
 
+#if defined(__i386__) || defined(__amd64__)
         case DeviceIoPortBased: {
             uint16_t Port = LOWORD(IoSpace->Access.Port.Base) + LOWORD(Offset);
             switch (Length) {
@@ -168,6 +169,7 @@ ReadDeviceIo(
                     break;
             }
         } break;
+#endif
 
         default:
             break;
@@ -203,7 +205,7 @@ WriteDeviceIo(
                 case 4:
                     *(uint32_t*)Address = (uint32_t)(Value & 0xFFFFFFFF);
                     break;
-    #if defined(__amd64__)
+    #if defined(__amd64__) || defined(__aarch64__)
                 case 8:
                     *(uint64_t*)Address = (uint64_t)(Value & 0xFFFFFFFFFFFFFFFF);
                     break;
@@ -214,6 +216,7 @@ WriteDeviceIo(
             }
         } break;
         
+#if defined(__i386__) || defined(__amd64__)
         case DeviceIoPortBased: {
             uint16_t Port = LOWORD(IoSpace->Access.Port.Base) + LOWORD(Offset);
             switch (Length) {
@@ -231,6 +234,7 @@ WriteDeviceIo(
                     break;
             }
         } break;
+#endif
 
         default:
             Status = OS_EUNKNOWN;

@@ -108,6 +108,31 @@ PACKED_TYPESTRUCT(Context, {
 #define CONTEXT_SC_ARG3(Context) (Context)->R8
 #define CONTEXT_SC_ARG4(Context) (Context)->R9
 #define CONTEXT_SC_RET0(Context) (Context)->Rax
+#elif defined(__aarch64__)
+// This frame is shared with the exception vectors and userspace signal return.
+// Keep it 16-byte sized; kernel/include/arch/aarch64/context.h checks offsets.
+typedef struct Context {
+    uint64_t X[31];
+    uint64_t Sp;
+    uint64_t Pc;
+    uint64_t Pstate;
+    uint64_t UserSp;
+    uint64_t Irq;
+    uint64_t FaultAddress;
+    uint64_t ErrorCode;
+} Context_t;
+
+#define CONTEXT_IP(Context)      (Context)->Pc
+#define CONTEXT_SP(Context)      (Context)->Sp
+#define CONTEXT_USERSP(Context)  (Context)->UserSp
+
+#define CONTEXT_SC_FUNC(Context) (Context)->X[8]
+#define CONTEXT_SC_ARG0(Context) (Context)->X[0]
+#define CONTEXT_SC_ARG1(Context) (Context)->X[1]
+#define CONTEXT_SC_ARG2(Context) (Context)->X[2]
+#define CONTEXT_SC_ARG3(Context) (Context)->X[3]
+#define CONTEXT_SC_ARG4(Context) (Context)->X[4]
+#define CONTEXT_SC_RET0(Context) (Context)->X[0]
 #else
 #error "os/context.h: Invalid architecture"
 #endif
