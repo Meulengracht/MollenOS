@@ -1,7 +1,7 @@
 // Copyright, Philip Meulengracht. SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "loader.h"
-#include "../../../../devicetree/private.h"
+#include "private.h"
 
 extern unsigned char __rpi_loader_start[];
 extern unsigned char __rpi_loader_end[];
