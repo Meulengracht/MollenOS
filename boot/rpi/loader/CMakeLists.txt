@@ -36,7 +36,8 @@ add_executable(rpi-loader
     transfer.S 
     init.c 
     header.c 
-    pe.c 
+    pe.c
+    resources.c 
     contract.c 
     platform.c 
     runtime.c 

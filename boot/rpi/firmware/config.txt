@@ -19,11 +19,9 @@ camera_auto_detect=0
 display_auto_detect=0
 auto_initramfs=0
 
-# Enable only after the payload manifest and PE staging loader exist.
-# Firmware concatenates these files into one DTB-advertised initrd range.
-# The flat kernel file must cover/pad BSS and bootstrap stack storage so
-# followkernel cannot place the payload over the kernel's runtime footprint.
-# initramfs boot-manifest.bin,phoenix.mos,initrd.mos followkernel
+# The wrapper file pads its BSS and stack, so followkernel cannot overlap them.
+# The loader validates this bundle and stages Phoenix before entering the kernel.
+initramfs boot-payload.bin followkernel
 
 [pi4]
 # Use GIC-400 and route the primary UART to PL011 instead of the mini UART.

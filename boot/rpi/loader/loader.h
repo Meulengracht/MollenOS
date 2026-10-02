@@ -43,6 +43,7 @@ enum RpiBootStage {
     RpiBootValidatePayload = 1,
     RpiBootDiscoverPlatform,
     RpiBootLoadKernel,
+    RpiBootLoadResources,
     RpiBootBuildContract,
     RpiBootTransfer
 };
@@ -64,7 +65,7 @@ struct RpiBootContext {
     struct VBootMemoryEntry     MemoryMap[RPI_MEMORY_MAP_CAPACITY];
     uint32_t                    MemoryMapCount;
     
-    // Firmware's concatenated initrd is not yet a validated VBoot ramdisk.
+    // Firmware transport containing the validated Phoenix/ramdisk bundle.
     uint64_t                    ExternalPayloadBase;
     uint64_t                    ExternalPayloadLength;
 };
@@ -136,6 +137,26 @@ RpiPlatformPrepare(
  */
 enum RpiBootStatus 
 RpiLoadKernel(
+    struct RpiBootContext* context);
+
+/**
+ * @brief Expand a static ARM64 Phoenix PE into reserved physical storage.
+ * The image remains linked at its preferred userspace address. The module base
+ * names staging storage, while its entry names the future userspace mapping.
+ */
+enum RpiBootStatus
+RpiLoadPhoenix(
+    struct RpiBootContext* context,
+    const void*           file,
+    size_t                length);
+
+/**
+ * @brief Validate the firmware initrd bundle and publish its boot resources.
+ * Platform preparation must reserve the complete transport before this call.
+ * An absent transport is supported for kernel-only diagnostic images.
+ */
+enum RpiBootStatus
+RpiLoadResources(
     struct RpiBootContext* context);
 
 /**

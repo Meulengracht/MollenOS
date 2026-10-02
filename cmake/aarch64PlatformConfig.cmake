@@ -7,7 +7,7 @@ endif ()
 set (ARCH_FLAGS "--target=aarch64-uml-vali")
 set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function")
 # Keep Clang builtin headers (stdint.h, stdarg.h, etc.); use explicit OS library headers.
-set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdlibinc -O3") # -flto
+set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -march=armv8-a -mno-outline-atomics -nostdlib -nostdlibinc -O3") # -flto
 
 # Feature flags for the aarch64 platform based on the platform+variant
 if ("${VALI_PLATFORM}" STREQUAL "rpi")

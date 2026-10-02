@@ -75,7 +75,8 @@ static enum RpiBootStatus
 __PeReadImage(
     const unsigned char* file,
     size_t               length,
-    struct __PeImage*    image)
+    struct __PeImage*    image,
+    int                  userspace)
 {
     MzHeader_t               mz;
     uint64_t                 offset;
@@ -178,6 +179,13 @@ __PeReadImage(
         if (!directory->AddressRVA && !directory->Size) {
             continue;
         }
+
+        // Vali LLD publishes the end address of an empty auto-relocation
+        // table. No runtime relocation work is required when its size is zero.
+        if (i == PE_SECTION_GLOBAL_PTR && !directory->Size &&
+            directory->AddressRVA < image->Optional.SizeOfImage) {
+            continue;
+        }
         
         if (!directory->AddressRVA || !directory->Size) {
             return RpiBootInvalidPayload;
@@ -185,7 +193,7 @@ __PeReadImage(
         
         if (i != PE_SECTION_EXPORT && i != PE_SECTION_RESOURCE &&
             i != PE_SECTION_EXCEPTION && i != PE_SECTION_DEBUG &&
-            i != PE_SECTION_BASE_RELOCATION) {
+            i != PE_SECTION_BASE_RELOCATION && !(userspace && i == PE_SECTION_TLS)) {
             return RpiBootUnsupported;
         }
         
@@ -268,7 +276,8 @@ __PeRelocateImage(
 static uint64_t
 __PeFindDestination(
     const struct RpiBootContext* context,
-    const struct __PeImage*      image)
+    const struct __PeImage*      image,
+    int                          staging)
 {
     uint64_t fallback = 0;
     uint64_t preferred = image->Optional.BaseAddress;
@@ -310,7 +319,7 @@ __PeFindDestination(
     }
     // Without a relocation directory there is no proof that absolute pointers
     // can move. A fixed image is usable only at its preferred physical address.
-    return image->Relocations ? fallback : 0;
+    return (staging || image->Relocations) ? fallback : 0;
 }
 
 enum RpiBootStatus
@@ -338,7 +347,7 @@ RpiLoadKernel(
         return RpiBootInvalidPlatform;
     }
     
-    status = __PeReadImage(__rpi_loader_start + context->Kernel.Offset, context->Kernel.Length, &image);
+    status = __PeReadImage(__rpi_loader_start + context->Kernel.Offset, context->Kernel.Length, &image, 0);
     if (status != RpiBootOk) {
         return status;
     }
@@ -348,7 +357,7 @@ RpiLoadKernel(
         return status;
     }
     
-    base = __PeFindDestination(context, &image);
+    base = __PeFindDestination(context, &image, 0);
     if (!base) {
         return RpiBootNoMemory;
     }
@@ -386,5 +395,61 @@ RpiLoadKernel(
     context->BootInformation.Kernel.Base = base;
     context->BootInformation.Kernel.EntryPoint = base + image.Optional.Base.EntryPointRVA;
     context->BootInformation.Kernel.Length = image.Optional.SizeOfImage;
+    return RpiBootOk;
+}
+
+/**
+ * Phoenix is mapped by SpawnBootstrapper at the ImageBase in its PE header.
+ * Applying physical staging relocations here would corrupt every absolute
+ * userspace pointer, even though the file and its entry would appear valid.
+ */
+enum RpiBootStatus
+RpiLoadPhoenix(
+    struct RpiBootContext* context,
+    const void*           file,
+    size_t                length)
+{
+    struct __PeImage image;
+    enum RpiBootStatus status;
+    unsigned char* destination;
+    uint64_t base;
+    oserr_t oserr;
+
+    context->BootInformation.Phoenix = (struct VBootModule){0};
+    status = __PeReadImage(file, length, &image, 1);
+    if (status != RpiBootOk) {
+        return status;
+    }
+    status = __PeRelocateImage(&image, NULL);
+    if (status != RpiBootOk) {
+        return status;
+    }
+
+    base = __PeFindDestination(context, &image, 1);
+    if (!base) {
+        return RpiBootNoMemory;
+    }
+    oserr = DeviceTreeReserveMemory(context, base, image.Optional.SizeOfImage);
+    context->BootInformation.Memory.NumberOfEntries = context->MemoryMapCount;
+    if (oserr != OS_EOK) {
+        return RpiBootNoMemory;
+    }
+
+    destination = (unsigned char*)(uintptr_t)base;
+    memset(destination, 0, image.Optional.SizeOfImage);
+    memcpy(destination, image.File, image.Optional.SizeOfHeaders);
+    for (unsigned int i = 0; i < image.Header.NumSections; i++) {
+        const PeSectionHeader_t* section = &image.Sections[i];
+
+        if (section->RawSize) {
+            memcpy(destination + section->VirtualAddress,
+                image.File + section->RawAddress, section->RawSize);
+        }
+    }
+
+    context->BootInformation.Phoenix.Base = base;
+    context->BootInformation.Phoenix.Length = image.Optional.SizeOfImage;
+    context->BootInformation.Phoenix.EntryPoint = image.Optional.BaseAddress +
+        image.Optional.Base.EntryPointRVA;
     return RpiBootOk;
 }

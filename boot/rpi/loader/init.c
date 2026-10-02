@@ -116,6 +116,12 @@ RpiLoaderInit(
         RpiLoaderStop(status);
     }
     
+    g_rpi_boot_stage = RpiBootLoadResources;
+    status = RpiLoadResources(&g_context);
+    if (status != RpiBootOk) {
+        RpiLoaderStop(status);
+    }
+
     g_rpi_boot_stage = RpiBootBuildContract;
     status = RpiBuildContract(&g_context);
     if (status != RpiBootOk) {

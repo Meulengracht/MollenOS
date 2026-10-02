@@ -185,7 +185,7 @@ file(READ "VERSION" VALI_VERSION)
 
 # Configure projects that are specified
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${VALI_ARCH}PlatformConfig.cmake")
-    message (FATAL_ERROR "The specified platform ${VALI_ARCH} has no configuration file")
+    message (FATAL_ERROR "The specified platform ${VALI_ARCH} is not supported")
 endif ()
 
 include (cmake/HandleFeatureFlags.cmake)
@@ -239,14 +239,12 @@ install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compressi
 # For some platforms, we append a loader in front of the kernel image
 # Installation and utility targets
 if (VALI_PLATFORM STREQUAL "rpi")
-    add_custom_command(
-        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
-        COMMAND "${TOOL_OBJCOPY}" -O binary $<TARGET_FILE:rpi-loader> "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+    add_custom_target(rpi-loader-flat
+        COMMAND "${TOOL_OBJCOPY}" -O binary "${VALI_PATH_BOOT_ASSETS}/bin/rpi-loader.elf" "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+        BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+        VERBATIM
     )
-    add_custom_target(
-        rpi-loader-flat
-        DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
-    )
+    add_dependencies(rpi-loader-flat loader)
 
     add_custom_command(
         OUTPUT "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
@@ -267,12 +265,15 @@ if (VALI_PLATFORM STREQUAL "rpi")
         # beside kernel8.img so the Pi recipe always has a complete boot root.
         COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --component rpi-firmware
         COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_BOOT_ASSETS}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
-        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_BOOT_ASSETS}
+        COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/bundle.py"
+            --phoenix $<TARGET_FILE:phoenix>
+            --ramdisk "${VALI_PATH_BOOT_ASSETS}/initrd.mos"
+            --output "${VALI_PATH_BOOT_ASSETS}/boot-payload.bin"
         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        DEPENDS "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
+        DEPENDS rpi-image phoenix
     )
 else ()
     add_custom_target (install_prepare

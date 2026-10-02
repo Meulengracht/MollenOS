@@ -152,9 +152,8 @@ RpiBuildContract(
         return RpiBootInvalidPlatform;
     }
 
-    // A firmware initrd interval is only a transport for our future external
-    // payload format. Retain its ownership, but do not present its manifest or
-    // an unexpanded Phoenix PE as a usable ramdisk/module to the kernel.
+    // The transport remains reserved while the ramdisk references its bytes.
+    // Phoenix uses a separate, expanded PE allocation.
     if (context->ExternalPayloadBase || context->ExternalPayloadLength) {
         if (!context->ExternalPayloadBase ||
             !__ContractRangeReserved(context, context->ExternalPayloadBase, context->ExternalPayloadLength) ||
@@ -171,7 +170,26 @@ RpiBuildContract(
     }
     if (boot->Phoenix.Base || boot->Phoenix.EntryPoint || boot->Phoenix.Length ||
         boot->Ramdisk.Data || boot->Ramdisk.Length) {
-        return RpiBootUnsupported;
+        if (!context->ExternalPayloadLength || !boot->Phoenix.Base ||
+            !boot->Phoenix.EntryPoint || (boot->Phoenix.EntryPoint & 3) ||
+            ((boot->Phoenix.Base | boot->Phoenix.Length) & 4095) ||
+            !__ContractRangeReserved(context, boot->Phoenix.Base, boot->Phoenix.Length) ||
+            __ContractRangesOverlap(boot->Phoenix.Base, boot->Phoenix.Length,
+                wrapperBase, context->Kernel.ImageLength) ||
+            __ContractRangesOverlap(boot->Phoenix.Base, boot->Phoenix.Length,
+                boot->Kernel.Base, boot->Kernel.Length) ||
+            __ContractRangesOverlap(boot->Phoenix.Base, boot->Phoenix.Length,
+                context->DtbPhysical, boot->DeviceTree.Length) ||
+            __ContractRangesOverlap(boot->Phoenix.Base, boot->Phoenix.Length,
+                context->ExternalPayloadBase, context->ExternalPayloadLength) ||
+            __ContractRangesOverlap(boot->Phoenix.Base, boot->Phoenix.Length,
+                (uintptr_t)context, sizeof(*context)) ||
+            !boot->Ramdisk.Length || boot->Ramdisk.Data < context->ExternalPayloadBase ||
+            boot->Ramdisk.Data - context->ExternalPayloadBase > context->ExternalPayloadLength ||
+            boot->Ramdisk.Length > context->ExternalPayloadLength -
+                (boot->Ramdisk.Data - context->ExternalPayloadBase)) {
+            return RpiBootInvalidPayload;
+        }
     }
 
     // Reuse the live bootstrap stack without clearing it. Only the no-return
@@ -185,8 +203,6 @@ RpiBuildContract(
     boot->ConfigurationEntrySize = 0;
     boot->ConfigurationTable = 0;
     boot->Video = (struct VBootVideo){0};
-    boot->Phoenix = (struct VBootModule){0};
-    boot->Ramdisk = (struct VBootRamdisk){0};
 
     // These markers describe a complete descriptor, not a CPU entry state.
     // Cache visibility and EL normalization remain the transfer stage's job.
