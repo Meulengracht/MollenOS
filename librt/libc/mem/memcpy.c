@@ -75,14 +75,81 @@ memcpy_base(
 	return Destination;
 }
 
-// Don't use SSE/MMX instructions in kernel environment
+// Don't use special instructions in kernel environment
 // it's way to fragile on task-switches as we can heavily use memcpy
-#ifdef LIBC_KERNEL
+#if defined(LIBC_KERNEL)
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(memcpy)
 #endif
 void* memcpy(void *destination, const void *source, size_t count) {
 	return memcpy_base(destination, source, count);
+}
+#elif defined(__aarch64__)
+#include <os/mollenos.h>
+#include <stdatomic.h>
+
+typedef void *(*MemCpyTemplate)(void *Destination, const void *Source, size_t Count);
+void* memcpy_select(void* Destination, const void* Source, size_t Count);
+extern void asm_memcpy_neon(void* dst, const void* src, size_t loops, size_t remaining);
+extern void asm_memcpy_mops(void* dst, const void* src, size_t count);
+static _Atomic(MemCpyTemplate) g_memcpyImpl = memcpy_select;
+
+void*
+memcpy_neon(
+	_In_ void*       Destination,
+	_In_ const void* Source,
+	_In_ size_t      Count)
+{
+	size_t loops = Count / 128;
+	size_t remaining = Count % 128;
+
+	if (loops < MEMCPY_ACCEL_THRESHOLD) {
+		return memcpy_base(Destination, Source, Count);
+	}
+	asm_memcpy_neon(Destination, Source, loops, remaining);
+	return Destination;
+}
+
+void*
+memcpy_mops(
+	_In_ void*       Destination,
+	_In_ const void* Source,
+	_In_ size_t      Count)
+{
+	if (Count / 128 < MEMCPY_ACCEL_THRESHOLD) {
+		return memcpy_base(Destination, Source, Count);
+	}
+	asm_memcpy_mops(Destination, Source, Count);
+	return Destination;
+}
+
+void*
+memcpy_select(
+	_In_ void*       Destination,
+	_In_ const void* Source,
+	_In_ size_t      Count)
+{
+	OSSystemCPUFeaturesInfo_t features = { 0 };
+	size_t                    bytesQueried = 0;
+	MemCpyTemplate            impl = memcpy_base;
+
+	atomic_store_explicit(&g_memcpyImpl, memcpy_base, memory_order_relaxed);
+	if (OSSystemQuery(OSSYSTEMQUERY_CPUFEATURES, &features,
+			sizeof(features), &bytesQueried) == OS_EOK &&
+		bytesQueried == sizeof(features)) {
+		if (features.Features & OSSYSTEMCPUFEATURE_MOPS) {
+			impl = memcpy_mops;
+		} else if (features.Features & OSSYSTEMCPUFEATURE_NEON) {
+			impl = memcpy_neon;
+		}
+	}
+	atomic_store_explicit(&g_memcpyImpl, impl, memory_order_relaxed);
+	return impl(Destination, Source, Count);
+}
+
+void* memcpy(void* destination, const void* source, size_t count) {
+	MemCpyTemplate impl = atomic_load_explicit(&g_memcpyImpl, memory_order_relaxed);
+	return impl(destination, source, count);
 }
 #elif defined(__amd64__) || defined(amd64)
 // Use the sse2 by default as all 64 bit cpus support sse
@@ -97,6 +164,7 @@ void *memcpy(void *destination, const void *source, size_t count) {
 	return destination;
 }
 #else
+#include <stdatomic.h>
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 #else
@@ -107,7 +175,7 @@ void *memcpy_select(void *Destination, const void *Source, size_t Count);
 extern void asm_memcpy_mmx(void *Dest, const void *Source, int Loops, int RemainingBytes);
 extern void asm_memcpy_sse(void *Dest, const void *Source, int Loops, int RemainingBytes);
 extern void asm_memcpy_sse2(void *Dest, const void *Source, int Loops, int RemainingBytes);
-static MemCpyTemplate __GlbMemCpyInstance = memcpy_select;
+static _Atomic(MemCpyTemplate) g_memcpyImpl = memcpy_select;
 
 /* This is the SSE2 optimized version of memcpy, but there is a fallback
  * to the normal one, in case there isn't enough loops for overhead to be
@@ -153,42 +221,43 @@ void *memcpy_mmx(void *Destination, const void *Source, size_t Count) {
  * optimized memcpy for this system. It can be either SSE or MMX
  * or just the byte copier */
 void *memcpy_select(void *Destination, const void *Source, size_t Count) {
-	// Variables
-	int CpuRegisters[4] = { 0 };
-	int CpuFeatEcx = 0;
-	int CpuFeatEdx = 0;
+	int            cpuRegisters[4] = { 0 };
+	int            cpuFeatEcx = 0;
+	int            cpuFeatEdx = 0;
+	MemCpyTemplate impl = memcpy_base;
+
+	atomic_store_explicit(&g_memcpyImpl, memcpy_base, memory_order_relaxed);
 
 	// Now extract the cpu information 
 	// so we can select a memcpy
 #if defined(_MSC_VER) && !defined(__clang__)
-	__cpuid(CpuRegisters, 1);
+	__cpuid(cpuRegisters, 1);
 #else
-    __cpuid(1, CpuRegisters[0], CpuRegisters[1], CpuRegisters[2], CpuRegisters[3]);
+    __cpuid(1, cpuRegisters[0], cpuRegisters[1], cpuRegisters[2], cpuRegisters[3]);
 #endif
     // Features are in ecx/edx
-    CpuFeatEcx = CpuRegisters[2];
-    CpuFeatEdx = CpuRegisters[3];
+    cpuFeatEcx = cpuRegisters[2];
+    cpuFeatEdx = cpuRegisters[3];
 
     // Choose between SSE2, SSE, MMX and base
-    if (CpuFeatEdx & CPUID_FEAT_EDX_SSE2) {
-		__GlbMemCpyInstance = memcpy_sse2;
+    if (cpuFeatEdx & CPUID_FEAT_EDX_SSE2) {
+		impl = memcpy_sse2;
+	} else if (cpuFeatEdx & CPUID_FEAT_EDX_SSE) {
+		impl = memcpy_sse;
+	} else if (cpuFeatEdx & CPUID_FEAT_EDX_MMX) {
+		impl = memcpy_mmx;
+	} else {
+		impl = memcpy_base;
 	}
-	else if (CpuFeatEdx & CPUID_FEAT_EDX_SSE) {
-		__GlbMemCpyInstance = memcpy_sse;
-	}
-	else if (CpuFeatEdx & CPUID_FEAT_EDX_MMX) {
-		__GlbMemCpyInstance = memcpy_mmx;
-	}
-	else {
-		__GlbMemCpyInstance = memcpy_base;
-	}
-	return __GlbMemCpyInstance(Destination, Source, Count);
+	atomic_store_explicit(&g_memcpyImpl, impl, memory_order_relaxed);
+	return impl(Destination, Source, Count);
 }
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma function(memcpy)
 #endif
 void *memcpy(void *destination, const void *source, size_t count) {
-	return __GlbMemCpyInstance(destination, source, count);
+	MemCpyTemplate impl = atomic_load_explicit(&g_memcpyImpl, memory_order_relaxed);
+	return impl(destination, source, count);
 }
 #endif

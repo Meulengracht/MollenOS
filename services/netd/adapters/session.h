@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Network Manager
- * - Contains the implementation of the network-manager which keeps track
- *   of sockets, network interfaces and connectivity status
+ * Private session state and serialized scheduler helpers.
  * 
  * Private network-adapter session state and internal scheduler helpers.
  *

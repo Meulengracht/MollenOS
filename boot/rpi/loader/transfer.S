@@ -86,6 +86,38 @@ __JumpToKernel:
     msr HCR_EL2, x10
     isb
 
+    // Permit MOPS below EL2 before handing control to the kernel. x10 is
+    // scratch throughout; kernel-entry/boot-argument registers stay intact.
+    // ID_AA64ISAR2_EL1.MOPS[19:16]=1 means CPY*/SET* exist (0 means absent).
+    // UBFX #16,#4 extracts that unsigned field into x10[3:0]; skip older
+    // CPUs rather than executing an optional system-register access on them.
+    mrs x10, ID_AA64ISAR2_EL1
+    ubfx x10, x10, #16, #4
+    cmp x10, #1
+    b.ne .Lmops_el2_ready
+    
+    // ID_AA64MMFR1_EL1.HCX[43:40]=0 means HCRX_EL2 is absent. A nonzero
+    // field provides the extended hypervisor controls; CBZ skips if absent.
+    // This check is independent of MOPS because HCRX itself is optional.
+    mrs x10, ID_AA64MMFR1_EL1
+    ubfx x10, x10, #40, #4
+    cbz x10, .Lmops_el2_ready
+    
+    // S3_4_C1_C2_2 is HCRX_EL2's architectural system-register encoding:
+    // op0=3, op1=4, CRn=1, CRm=2, op2=2. The encoded name also assembles
+    // with a baseline architecture without enabling optional mnemonics.
+    // MSCEn[11] (0x800)=1 permits memory copy/set execution at EL1/EL0;
+    // zero would leave those instructions undefined despite ID support.
+    // Read-modify-write preserves every other hypervisor control. ISB
+    // synchronizes the change before executing at the lower exception level.
+    // Firmware at EL3, if present, must allow access via SCR_EL3.HXEn[38].
+    // This does not enable EL0 by itself: the kernel sets SCTLR_EL1.MSCEn[33].
+    mrs x10, S3_4_C1_C2_2
+    orr x10, x10, #0x800
+    msr S3_4_C1_C2_2, x10
+    isb
+.Lmops_el2_ready:
+
     // VTTBR_EL2=0 removes the inherited stage-2 table/VMID association while
     // stage 2 is disabled. We do not manufacture a usable translation table.
     msr VTTBR_EL2, xzr

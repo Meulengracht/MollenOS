@@ -72,7 +72,9 @@ double __ieee754_sinh(double x)
 	return x*shuge;
 }
 
+#if defined(__i386__) || defined(__amd64__)
 CRTDECL(double __CRTDECL, _CIsinh(void)) {
 	FPU_DOUBLE(x);
 	return sinh(x);
 }
+#endif

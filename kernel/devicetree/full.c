@@ -17,20 +17,40 @@
  * Built from docs/specifications/devicetree-specification-v0.4.pdf
  */
 
-// Include all the components we will construct during the full
-// DTB parsing.
-#include <component/cpu.h>
-#include <component/memory.h>
-#include <component/ic.h>
-
+#include <arch/utils.h>
 #include <devicetree.h>
-#include "private.h"
+
+static DeviceTree_t* g_deviceTree;
+
+const DeviceTree_t*
+DeviceTreeGet(void)
+{
+    return g_deviceTree;
+}
 
 oserr_t
 DeviceTreeParseFull(
-    _In_  const void* deviceTree,
-    _In_  uint32_t    deviceTreeSize)
+    _In_ const void* deviceTree,
+    _In_ uint32_t    deviceTreeSize)
 {
-    // TODO: Implement full device tree parsing and system component registration.
+    DeviceTree_t* tree;
+    oserr_t       oserr;
+
+    oserr = DeviceTreeCreate(deviceTree, deviceTreeSize, &tree);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Components are registered only after the complete tree is validated.
+    // Platform discovery resolves all required resources before publication;
+    // any later allocation failure is fatal to boot, not a partial topology.
+#ifdef __aarch64__
+    oserr = ArchDeviceTreeInitialize(tree);
+    if (oserr != OS_EOK) {
+        DeviceTreeDestroy(tree);
+        return oserr;
+    }
+#endif
+    g_deviceTree = tree;
     return OS_EOK;
 }

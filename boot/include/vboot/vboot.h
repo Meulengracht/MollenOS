@@ -52,6 +52,7 @@
 #define VBOOT_MEMORY_RO               0x0000000000020000ULL // The memory region is read-only.
 #define VBOOT_MEMORY_SP               0x0000000000040000ULL // The memory region is earmarked for drivers or apps that require special access.
 #define VBOOT_MEMORY_CPU_CRYPTO       0x0000000000080000ULL // The memory region is capable of being protected with the CPU's memory cryptographic capabilities.
+#define VBOOT_MEMORY_NO_MAP           0x0000000000100000ULL // The memory region must not be mapped into the kernel direct map.
 #define VBOOT_MEMORY_RUNTIME          0x8000000000000000ULL // The memory region is a runtime allocated region.
 
 #define VBOOT_CACHE_ATTRIBUTE_MASK  (VBOOT_MEMORY_UC | VBOOT_MEMORY_WC | VBOOT_MEMORY_WT | VBOOT_MEMORY_WB | VBOOT_MEMORY_UCE | VBOOT_MEMORY_WP)

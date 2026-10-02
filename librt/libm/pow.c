@@ -321,7 +321,9 @@ double pow(double x, double y)
 #pragma warning(default:4756)
 #endif
 
+#if defined(__i386__) || defined(__amd64__)
 CRTDECL(double __CRTDECL, _CIpow(void)) {
 	FPU_DOUBLES(y, x);
 	return pow(x, y);
 }
+#endif

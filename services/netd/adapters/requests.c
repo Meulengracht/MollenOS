@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Network Manager
- * - Contains the implementation of the network-manager which keeps track
- *   of sockets, network interfaces and connectivity status
+ * Protocol request scheduling, retry deadlines, and completion-credit recovery.
  * 
  * Request management, retry deadlines and credit recovery.
  */

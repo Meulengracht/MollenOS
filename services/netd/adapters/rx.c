@@ -15,10 +15,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Network Manager
- * - Contains the implementation of the network-manager which keeps track
- *   of sockets, network interfaces and connectivity status
- * 
  * Retain an RX packet without retaining the driver's pool slot.
  *
  * This path is used only after the pool-retention budget is full: keeping the

@@ -15,9 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Network Manager
- * - Contains the implementation of the network-manager which keeps track
- *   of sockets, network interfaces and connectivity status
+ * Adapter session lifecycle, negotiation, state, and event validation.
  * 
  */
 

@@ -20,6 +20,8 @@
 #include "i386/fpmath.h"
 #elif defined(amd64) || defined(__amd64__)
 #include "amd64/fpmath.h"
+#elif defined(__aarch64__)
+#include "aarch64/fpmath.h"
 #else
 /* Dunno */
 #endif

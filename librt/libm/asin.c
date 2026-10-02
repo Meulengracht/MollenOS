@@ -114,7 +114,9 @@ long double asinl(long double x) {
 #endif
 
 /* Msvc version (intrin) of asin */
+#if defined(__i386__) || defined(__amd64__)
 CRTDECL(double __CRTDECL, _CIasin(void)) {
 	FPU_DOUBLE(x);
 	return asin(x);
 }
+#endif

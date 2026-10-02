@@ -133,6 +133,34 @@ Arm64Enter:
      */
     mov x3, #0x80000000
     msr hcr_el2, x3
+    
+    // x3 is scratch: retain x0 (boot handoff), x1 (kernel entry), x2 (stack).
+    // ID_AA64ISAR2_EL1.MOPS[19:16]=1 advertises CPY*/SET*; 0 means absent.
+    // UBFX extracts four bits to the low end of x3. Skip the optional
+    // hypervisor access unless the CPU actually supplies MOPS instructions.
+    mrs x3, id_aa64isar2_el1
+    ubfx x3, x3, #16, #4
+    cmp x3, #1
+    b.ne .Lmops_el2_ready
+    
+    // ID_AA64MMFR1_EL1.HCX[43:40] reports extended hypervisor controls:
+    // zero means HCRX_EL2 does not exist, so MRS/MSR of it would be undefined.
+    mrs x3, id_aa64mmfr1_el1
+    ubfx x3, x3, #40, #4
+    cbz x3, .Lmops_el2_ready
+    
+    // HCRX_EL2 = S3_4_C1_C2_2 (op0=3, op1=4, CRn=1, CRm=2, op2=2).
+    // The encoded name works with baseline assembler architecture settings.
+    // Set MSCEn[11]=1 (0x800) to permit memory copy/set at EL1/EL0 and
+    // preserve all unrelated fields. ISB synchronizes the permission change.
+    // Implemented EL3 must permit HCRX access through SCR_EL3.HXEn[38].
+    // EL0 permission in SCTLR_EL1.MSCEn[33] is enabled later by the kernel;
+    // merely detecting MOPS hardware is not sufficient for userspace memcpy.
+    mrs x3, S3_4_C1_C2_2
+    orr x3, x3, #0x800
+    msr S3_4_C1_C2_2, x3
+    isb
+.Lmops_el2_ready:
     mov x3, #0x33ff // Non-VHE CPTR_EL2 RES1, FP traps disabled
     msr cptr_el2, x3
     mov x3, #3

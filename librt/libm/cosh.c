@@ -84,7 +84,9 @@ __ieee754_cosh(double x)
 #pragma warning(default:4756)
 #endif
 
+#if defined(__i386__) || defined(__amd64__)
 CRTDECL(double __CRTDECL, _CIcosh(void)) {
 	FPU_DOUBLE(x);
 	return cosh(x);
 }
+#endif

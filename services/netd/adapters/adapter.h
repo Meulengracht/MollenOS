@@ -15,9 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Network Manager
- * - Contains the implementation of the network-manager which keeps track
- *   of sockets, network interfaces and connectivity status
+ * Core API for one transport-independent netd adapter session.
+ * The session executor owns lifecycle and request state; buffers.c tracks pool
+ * leases, queue.c handles packet submission and completion, rx.c handles receive
+ * ownership, requests.c schedules protocol operations, and client.c provides
+ * Gracht transport. adapters.c serializes access for netd service callers.
  * 
  * netd adapter sessions. One serialized executor owns each instance.
  *

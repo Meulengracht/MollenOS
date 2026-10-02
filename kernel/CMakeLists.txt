@@ -8,7 +8,7 @@ enable_language (C)
 
 # ARM kernel code must not acquire implicit FP/SIMD state dependencies.
 if (VALI_ARCH STREQUAL "aarch64")
-    set(VALI_KERNEL_REGISTER_FLAGS -mgeneral-regs-only -march=armv8-a -mno-outline-atomics -ffixed-x18)
+    set(VALI_KERNEL_REGISTER_FLAGS -mgeneral-regs-only -march=armv8-a -mno-outline-atomics -ffixed-x18 -mstrict-align)
 elseif (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
     set(VALI_KERNEL_REGISTER_FLAGS -mno-sse)
 else ()
@@ -63,7 +63,9 @@ add_executable (vali-core
 
 # add all subprojects after defining the vali-core target
 # so dependencies gets properly added
-add_subdirectory(acpi)
+if (NOT VALI_PLATFORM STREQUAL "rpi")
+    add_subdirectory(acpi)
+endif ()
 add_subdirectory(api)
 add_subdirectory(arch)
 add_subdirectory(components)
@@ -96,7 +98,10 @@ target_compile_options(vali-core
 )
 
 # add additional link libraries from out of this tree
-target_link_libraries (vali-core libacpi libdsk libk librt)
+target_link_libraries(vali-core libdsk libk librt)
+if (NOT VALI_PLATFORM STREQUAL "rpi")
+    target_link_libraries(vali-core libacpi)
+endif ()
 
 # setup kernel for boot folder
 install(TARGETS vali-core
