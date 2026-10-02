@@ -144,7 +144,6 @@ macro (deploy_file_to_initrd)
 endmacro ()
 
 # Find the llvm-objcopy tool, we need this
-find_program(TOOL_OBJCOPY NAMES llvm-objcopy REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # Detect whether diskbuilder is available on the host so we do
@@ -240,7 +239,7 @@ install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compressi
 # Installation and utility targets
 if (VALI_PLATFORM STREQUAL "rpi")
     add_custom_target(rpi-loader-flat
-        COMMAND "${TOOL_OBJCOPY}" -O binary "${VALI_PATH_BOOT_ASSETS}/bin/rpi-loader.elf" "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+        COMMAND "${CCROOT}/bin/llvm-objcopy" -O binary "${VALI_PATH_BOOT_ASSETS}/bin/rpi-loader.elf" "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
         BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
         VERBATIM
     )

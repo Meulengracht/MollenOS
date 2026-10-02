@@ -1,10 +1,11 @@
 # Project setup
 project (vali-boot)
-if (NOT VALI_ARCH STREQUAL "aarch64")
-    enable_language (ASM_NASM)
-endif ()
 
-string(REPLACE " " ";" NASM_FEATURE_FLAGS "${FEATURE_FLAGS}")
+# On x86 platforms, enable NASM assembly language support
+if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
+    enable_language (ASM_NASM)
+    string(REPLACE " " ";" NASM_FEATURE_FLAGS "${FEATURE_FLAGS}")
+endif ()
 
 # Configure compilation options
 if (VALI_BUILD)
@@ -21,6 +22,11 @@ endif ()
 option (BOOTLOADER_BIOS "Enable BIOS bootloader" OFF)
 option (BOOTLOADER_UEFI "Enable UEFI bootloader" OFF)
 option (BOOTLOADER_RPI  "Enable Raspberry Pi bootloader" OFF)
+
+# If no bootloader option is specified, enable BIOS bootloader by default
+if (NOT BOOTLOADER_BIOS AND NOT BOOTLOADER_UEFI AND NOT BOOTLOADER_RPI)
+    set(BOOTLOADER_UEFI ON CACHE BOOL "Enable UEFI bootloader" FORCE)
+endif ()
 
 # Only compile the x86 trampoline code on amd64 and i386
 if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
