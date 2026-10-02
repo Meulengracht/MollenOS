@@ -171,7 +171,7 @@ __HandlePacketCopyRelease(
 {
     struct AdapterRxCopy* copy;
 
-    if (!NetAdapterPacketHasBacking(adapter, &packet->Private, NET_ADAPTER_PACKET_COPY)) {
+    if (!___PacketHasBacking(adapter, &packet->Private, NET_ADAPTER_PACKET_COPY)) {
         return OS_ENOENT;
     }
 

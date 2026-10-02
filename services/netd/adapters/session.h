@@ -67,6 +67,30 @@ __NetAdapterDeadline(
 }
 
 /**
+ * @brief Determine whether a packet is backed by a specific memory ownership type.
+ *
+ * Packet buffers may be backed by different allocation or registration sources
+ * depending on whether they are in the shared pool, owned directly by the driver,
+ * or associated with a receive path. This check prevents cross-backing
+ * ownership mismatches during completion processing and retirement.
+ * @param adapter The network adapter that owns the packet.
+ * @param identity The identity of the packet to check.
+ * @param backing The expected backing type.
+ * @return true if the packet is backed by the specified type, false otherwise.
+ */
+static inline bool
+___PacketHasBacking(
+    _In_ const NetworkAdapter_t*           adapter,
+    _In_ const NetAdapterPacketIdentity_t* identity,
+    _In_ enum NetAdapterPacketBacking      backing)
+{
+    if (!adapter || !identity) {
+        return false;
+    }
+    return identity->Owner == adapter && identity->Backing == backing;
+}
+
+/**
  * @brief Release buffer storage that became detached from the session during shutdown.
  *
  * Closing or failing an adapter can leave packet buffers in a state where they no
@@ -132,20 +156,6 @@ __EXTERN struct AdapterLease*
 NetAdapterFindLease(
     _In_ NetworkAdapter_t*       adapter,
     _In_ const NetBufferLease_t* lease);
-
-/**
- * @brief Determine whether a packet is backed by a specific memory ownership type.
- *
- * Packet buffers may be backed by different allocation or registration sources
- * depending on whether they are in the shared pool, owned directly by the driver,
- * or associated with a receive path. This check prevents cross-backing
- * ownership mismatches during completion processing and retirement.
- */
-__EXTERN bool
-NetAdapterPacketHasBacking(
-    _In_ const NetworkAdapter_t*           adapter,
-    _In_ const NetAdapterPacketIdentity_t* identity,
-    _In_ enum NetAdapterPacketBacking      backing);
 
 /**
  * @brief Find the lease associated with a packet identity in a given direction/state.
