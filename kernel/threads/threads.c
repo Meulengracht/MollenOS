@@ -525,12 +525,25 @@ __EnterUsermode(
         FATAL(FATAL_SCOPE_THREAD, "__EnterUsermode failed to map TLS page");
     }
 
+#if defined(__aarch64__)
+    // Setup the TLS area and address for aarch64 here, before we enter
+    // userspace for the new thread.
+    ThreadPlatformBlock(thread)->UserTls = tlsAddress;
+    memset((void*)tlsAddress, 0, GetMemorySpacePageSize());
+#endif
+
     // Create the userspace stack(s) now that we will need it
-    thread->Contexts[THREADING_CONTEXT_LEVEL1] = ArchThreadContextCreate(THREADING_CONTEXT_LEVEL1,
-                                                                         thread->UserStackSize);
-    thread->Contexts[THREADING_CONTEXT_SIGNAL] = ArchThreadContextCreate(THREADING_CONTEXT_SIGNAL,
-                                                                         thread->UserStackSize);
-    if (!thread->Contexts[THREADING_CONTEXT_LEVEL1] || !thread->Contexts[THREADING_CONTEXT_SIGNAL]) {
+    thread->Contexts[THREADING_CONTEXT_LEVEL1] = ArchThreadContextCreate(
+        THREADING_CONTEXT_LEVEL1,
+        thread->UserStackSize
+    );
+    thread->Contexts[THREADING_CONTEXT_SIGNAL] = ArchThreadContextCreate(
+        THREADING_CONTEXT_SIGNAL,
+        thread->UserStackSize
+    );
+    
+    if (!thread->Contexts[THREADING_CONTEXT_LEVEL1] || 
+            !thread->Contexts[THREADING_CONTEXT_SIGNAL]) {
         assert(0);
     }
 

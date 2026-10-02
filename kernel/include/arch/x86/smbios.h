@@ -23,8 +23,6 @@
 #ifndef __SMBIOS_DRIVER__
 #define __SMBIOS_DRIVER__
 
-/* Includes
- * - Library */
 #include <os/osdefs.h>
 
 #define SMBIOS_SIGNATURE                            0x5F534D5F

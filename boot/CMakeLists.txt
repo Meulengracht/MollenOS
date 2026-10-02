@@ -1,8 +1,11 @@
 # Project setup
 project (vali-boot)
-enable_language (ASM_NASM)
 
-string(REPLACE " " ";" NASM_FEATURE_FLAGS "${FEATURE_FLAGS}")
+# On x86 platforms, enable NASM assembly language support
+if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
+    enable_language (ASM_NASM)
+    string(REPLACE " " ";" NASM_FEATURE_FLAGS "${FEATURE_FLAGS}")
+endif ()
 
 # Configure compilation options
 if (VALI_BUILD)
@@ -12,20 +15,33 @@ if (VALI_BUILD)
 endif ()
 
 # Configure options
-option (X86_BOOTLOADER_BIOS "Enable BIOS bootloader" ON)
-option (BOOTLOADER_UEFI "Enable UEFI bootloader" ON)
+if (NOT VALI_ARCH STREQUAL "amd64" AND NOT VALI_ARCH STREQUAL "i386")
+    set(BOOTLOADER_BIOS OFF CACHE BOOL "BIOS Bootloader only available on x86" FORCE)
+endif ()
 
-add_custom_target(ap ALL DEPENDS "${VALI_PATH_DEPLOY}/ap.sys")
-add_custom_command(OUTPUT "${VALI_PATH_DEPLOY}/ap.sys"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${VALI_PATH_DEPLOY}"
-    COMMAND "${CMAKE_ASM_NASM_COMPILER}" -f bin -DTRAMPOLINE_LOCATION=0x8000 -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o "${VALI_PATH_DEPLOY}/ap.sys" ap.asm
-    VERBATIM
-    COMMENT "Compiling trampoline code"
-    DEPENDS ap.asm
-)
+option (BOOTLOADER_BIOS "Enable BIOS bootloader" OFF)
+option (BOOTLOADER_UEFI "Enable UEFI bootloader" OFF)
+option (BOOTLOADER_RPI  "Enable Raspberry Pi bootloader" OFF)
 
-if (X86_BOOTLOADER_BIOS)
+# If no bootloader option is specified, enable BIOS bootloader by default
+if (NOT BOOTLOADER_BIOS AND NOT BOOTLOADER_UEFI AND NOT BOOTLOADER_RPI)
+    set(BOOTLOADER_UEFI ON CACHE BOOL "Enable UEFI bootloader" FORCE)
+endif ()
+
+# Only compile the x86 trampoline code on amd64 and i386
+if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
+    add_custom_target(ap ALL DEPENDS "${VALI_PATH_DEPLOY}/ap.sys")
+    add_custom_command(OUTPUT "${VALI_PATH_DEPLOY}/ap.sys"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${VALI_PATH_DEPLOY}"
+        COMMAND "${CMAKE_ASM_NASM_COMPILER}" -f bin -DTRAMPOLINE_LOCATION=0x8000 -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o "${VALI_PATH_DEPLOY}/ap.sys" ap.asm
+        VERBATIM
+        COMMENT "Compiling trampoline code"
+        DEPENDS ap.asm
+    )
+endif ()
+
+if (BOOTLOADER_BIOS)
     add_subdirectory(bios)
 endif ()
 
@@ -42,4 +58,8 @@ if (BOOTLOADER_UEFI)
                 -DVALI_ARCH=${VALI_ARCH}
 
     )
+endif ()
+
+if (BOOTLOADER_RPI)
+    add_subdirectory(rpi)
 endif ()

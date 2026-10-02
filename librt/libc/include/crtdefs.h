@@ -52,6 +52,9 @@
 #elif defined(__x86_64__)
 #define __STDC_CONVENTION
 #define ASMDECL(ReturnType, Function) ReturnType __cdecl Function
+#elif defined(__aarch64__)
+#define __STDC_CONVENTION
+#define ASMDECL(ReturnType, Function) ReturnType Function
 #endif
 
 #if defined(__clang__)
@@ -106,10 +109,32 @@
 #define CRTDECL_EX(ReturnType, Function)
 #endif //!__STDC_LIB_EXT1__
 
+/**
+ * @brief Module lifecycle actions dispatched to each PE/COFF module's
+ * __CrtLibraryEntry (see library.c). A "module" here is the primary
+ * executable or any loaded shared library, each statically linked against
+ * its own copy of the CRT startup code (crtcoff.c) - the only way the CRT
+ * can ask another module to run a step of its own lifecycle is by invoking
+ * that module's single exported entry point with one of these codes.
+ */
+
+ // Module is being unloaded: run C++/C terminators, then release its TLS block.
 #define DLL_ACTION_FINALIZE     0 // 0
+// Module has been loaded: run thread-attach for the current thread, then
+// C/C++ initializers. Assumes DLL_ACTION_TLSREGISTER already ran for every
+// module in this process, i.e. the TLS module registry is already frozen.
 #define DLL_ACTION_INITIALIZE   1 // 1
+// A new thread is attaching: allocate/validate this module's TLS block for it.
 #define DLL_ACTION_THREADATTACH 2 // 2
+// A thread is detaching: run its thread-local destructors for this module.
 #define DLL_ACTION_THREADDETACH 3 // 3
+// Startup-only, first pass over every module before any is initialized:
+// register this module's PE TLS template (address/size/alignment) with the
+// shared module registry, without running any callbacks. This must happen,
+// for every module, before __tls_prepare_modules() seals the registry and
+// allocates the first thread's TLS blocks - which is why it is a distinct
+// action from DLL_ACTION_INITIALIZE rather than folded into it.
+#define DLL_ACTION_TLSREGISTER  4
 
 #ifndef __CRT_INLINE
 #define __CRT_INLINE __inline

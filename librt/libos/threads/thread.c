@@ -41,8 +41,7 @@ __ThreadStartup(
 
     // Initialize the TLS system for the new kernel thread, remember to switch
     // to it immediately.
-    __tls_initialize(&threadStorage);
-    __tls_switch(&threadStorage);
+    __tls_initialize(&threadStorage, 1);
 
     // Run any C/C++ initialization for the thread. Before this call
     // the tls must be set correctly. The TLS is set before the jump to this
@@ -141,9 +140,14 @@ _Noreturn void
 ThreadsExit(
         _In_ int exitCode)
 {
-    tss_cleanup(ThreadsCurrentId());
-    __tls_destroy(__tls_current());
+    // Finalize the thread-local storage runtime before exiting the thread.
+    // Must run before __tls_destroy(): destructors/detach callbacks still need TLS.
     __cxa_threadfinalize();
+
+    // Destroy the thread-local storage for the current thread before exiting.
+    __tls_destroy(__tls_current());
+
+    // Call the fast exit (i.e. no cleanup exit), this will not return
     ThreadsFastExit(exitCode);
 }
 

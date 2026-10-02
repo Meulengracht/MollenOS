@@ -20,7 +20,6 @@
 #define __VIDEO_H__
 
 #include <Uefi.h>
-#include <GlobalTable.h>
 #include <vboot/vboot.h>
 
 EFI_STATUS VideoInitialize(

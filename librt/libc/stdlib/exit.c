@@ -29,6 +29,7 @@
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <internal/_utils.h>
+#include <internal/_tls.h>
 #include <os/services/process.h>
 #include <os/threads.h>
 #include <signal.h>
@@ -49,6 +50,7 @@ extern void  __cxa_exithandlers(void);
 extern int   __cxa_at_quick_exit(void (*fn)(void*), void* dsoHandle);
 extern int   __cxa_atexit(void (*fn)(void*), void* argument, void* dsoHandle);
 extern void  __cxa_threadfinalize(void);
+extern void  __cxa_threadfinalize_quick(void);
 extern void* __dso_handle;
 
 struct atexit_handler_entry {
@@ -325,13 +327,17 @@ void __at_exit_run(
         hashtable_enumerate(
                 &threadEntry->values,
                 __run_dso_handlers,
-                &exitCode
+                &context
         );
     } else {
         struct atexit_dso_entry* dsoEntry;
-        dsoEntry = hashtable_get(&threadEntry->values, &(struct atexit_dso_entry) {
-            .dso_handle = dsoHandle
-        });
+        
+        dsoEntry = hashtable_get(
+            &threadEntry->values,
+            &(struct atexit_dso_entry) {
+                .dso_handle = dsoHandle
+            }
+        );
         if (dsoEntry != NULL) {
             list_clear((list_t*)&dsoEntry->values, __run_and_clean, &context);
         }
@@ -390,6 +396,11 @@ void exit(int exitCode)
 
     // Otherwise, we are the main thread, which means we will go ahead and do primary
     // program cleanup, the moment we get killed, the rest of threads will be aborted
+    // Thread-local objects must die before objects with static storage, while
+    // all module TLS blocks are still available to their destructors.
+    __tls_run_destructors(NULL);
+    tss_cleanup();
+    __tls_run_destructors(NULL);
     __at_exit_run(&g_at_exit, UUID_INVALID, NULL, ec);
     __cxa_exithandlers();
 
@@ -400,7 +411,7 @@ void exit(int exitCode)
 _Noreturn static void __thrd_quick_exit(
         _In_ int exitCode)
 {
-    __cxa_threadfinalize();
+    __cxa_threadfinalize_quick();
     ThreadsFastExit(exitCode);
 }
 
@@ -431,7 +442,16 @@ void quick_exit(int exitCode)
         __thrd_quick_exit(EXIT_SUCCESS);
     }
 
+    // important here that we use the gracht client 
+    // BEFORE cleaning up the entire C runtime
     OSProcessTerminate(exitCode);
+
+    // Only the at_quick_exit handlers are run, objects with thread, automatic
+    // and static storage duration are intentionally not destroyed.
+    __at_exit_run(&g_at_quick_exit, UUID_INVALID, NULL, ec);
+    __cxa_threadfinalize_quick();
+
+    // Use the fast exit which has no cleanup
     ThreadsFastExit(ec);
 }
 

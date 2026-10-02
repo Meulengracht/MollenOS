@@ -1,0 +1,22 @@
+# Native Pi firmware reads config.txt and kernel8.img from the FAT root.
+# Keep firmware, overlays and separately staged payloads in that same namespace.
+schema: gpt
+
+partitions:
+  - label: vali-boot
+    type: fat32
+    id: C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+    size: 128MB
+    sources:
+      - type: dir
+        source: boot-assets
+        target: /
+
+  - label: vali-data
+    type: mfs
+    id: 80C6C62A-B0D6-4FF4-A69D-558AB6FD8B53
+    size: 2GB
+    sources:
+      - type: dir
+        source: deploy/hdd/system
+        target: /system/

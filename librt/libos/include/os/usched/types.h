@@ -21,6 +21,11 @@
 #include <stddef.h>
 #include <crtdefs.h>
 
+/**
+ * @brief Function pointer type for a user-scheduled task.
+ * @param arg0 User-defined argument.
+ * @param arg1 The cancelation token.
+ */
 typedef void (*usched_task_fn)(void*, void*);
 
 #endif //!__OS_USCHED_TYPES_H__

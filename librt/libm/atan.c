@@ -124,7 +124,9 @@ atan(double x)
 }
 
 /* Msvc version (intrin) of atan */
+#if defined(__i386__) || defined(__amd64__)
 CRTDECL(double __CRTDECL, _CIatan(void)) {
 	FPU_DOUBLE(x);
 	return atan(x);
 }
+#endif

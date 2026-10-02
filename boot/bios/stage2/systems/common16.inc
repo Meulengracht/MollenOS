@@ -109,7 +109,7 @@ BITS 16
 %define WHITE		0xF
 
 %define VBOOT_MAGIC   0xAEB007AE
-%define VBOOT_VERSION 0x00010000
+%define VBOOT_VERSION 0x00010001
 
 %define VBOOT_FIRMWARE_BIOS 0
 
@@ -134,14 +134,16 @@ struc VBootMemoryEntry
 endstruc
 
 struc VBoot
-    .Magic:        resd 1
-    .Version:      resd 1
-    .FirmwareType: resd 1
-    .ConfigCount:  resd 1
-    .ConfigTable:  resq 1
+    .Magic:           resd 1
+    .Version:         resd 1
+    .FirmwareType:    resd 1
+    .ConfigCount:     resd 1
+    .ConfigEntrySize: resd 1
+    .ConfigTable:     resq 1
 
-    .MemoryCount:   resd 1
-    .MemoryEntries: resq 1
+    .MemoryCount:     resd 1
+    .MemoryEntrySize: resd 1
+    .MemoryEntries:   resq 1
 
     .VideoFramebuffer:   resq 1
     .VideoWidth:         resd 1
@@ -170,6 +172,9 @@ struc VBoot
     .PhoenixBase:   resq 1
     .PhoenixEntry:  resq 1
     .PhoenixLength: resd 1
+
+    .DeviceTreeBase:   resq 1
+    .DeviceTreeLength: resd 1
 endstruc
 
 ; ********************************
@@ -289,9 +294,11 @@ istruc VBoot
     at VBoot.Version,            dd VBOOT_VERSION
     at VBoot.FirmwareType,       dd VBOOT_FIRMWARE_BIOS
     at VBoot.ConfigCount,        dd 0
+    at VBoot.ConfigEntrySize,    dd 0
     at VBoot.ConfigTable,        dq 0
 
     at VBoot.MemoryCount,        dd 0
+    at VBoot.MemoryEntrySize,    dd 0
     at VBoot.MemoryEntries,      dq 0
 
     at VBoot.VideoFramebuffer,   dq 0
@@ -321,6 +328,9 @@ istruc VBoot
     at VBoot.PhoenixBase,        dq 0
     at VBoot.PhoenixEntry,       dq 0
     at VBoot.PhoenixLength,      dd 0
+
+    at VBoot.DeviceTreeBase,     dq 0
+    at VBoot.DeviceTreeLength,   dd 0
 iend
 
 %endif

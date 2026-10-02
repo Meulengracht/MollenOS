@@ -115,13 +115,15 @@ OSLibraryLoad(
         hashtable_set(&g_libraries, &element);
         MutexUnlock(&g_librariesLock);
         
-        // run initializer
+        // run initializer. TLS must be registered first: this module was not
+        // part of the base library set, so DLL_ACTION_TLSREGISTER never ran
+        // for it - it also prepares this (loading) thread's TLS block for it.
         Initializer = (SOInitializer_t)(void*)entryAddress;
         if (Initializer != NULL) {
+            Initializer(DLL_ACTION_TLSREGISTER);
             Initializer(DLL_ACTION_INITIALIZE);
         }
-    }
-    else {
+    } else {
         MutexUnlock(&g_librariesLock);
     }
 

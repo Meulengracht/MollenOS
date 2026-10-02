@@ -186,6 +186,7 @@ void __usched_destroy(struct usched_scheduler* sched)
 static void
 __task_destroy(struct usched_job* job)
 {
+    // Must run after __finalize_task()/__cxa_threadfinalize() has completed for this job.
     __tls_destroy(&job->tls);
     free(job->stack);
     free(job);
@@ -289,6 +290,27 @@ static struct usched_job* __get_next_ready(
 
 // entry point for new tasks
 extern void __usched_task_main(struct usched_job* job);
+#if defined(__aarch64__)
+extern _Noreturn void __usched_task_start(void* stack, struct usched_job* job,
+                                        void (*entry)(struct usched_job*));
+#endif
+
+// Every dispatch (including same-job resumption and migration) must catch up
+// before entering user code. Only the selected job owns these TLS slots; this
+// does not publish modules to jobs already running on other execution units.
+static void __prepare_task_entry(struct usched_job* job)
+{
+    __tls_switch(&job->tls);
+    job->tls.job_id = job->id;
+    job->tls.async_context = &job->async_context;
+
+    // Storage preparation is incremental and leaves existing blocks intact.
+    // Do not run DLL attach callbacks here. They need a separate lifecycle and
+    // reentrancy policy. Never resume a job with a partially prepared TLS array.
+    if (__tls_prepare_modules()) {
+        __builtin_trap();
+    }
+}
 
 static void _Noreturn __switch_task(
         struct usched_job* job)
@@ -296,23 +318,21 @@ static void _Noreturn __switch_task(
     char* stack;
     TRACE("__switch_task(job=%u)", job->id);
 
+    // Prepare the task's TLS and module state before switching to its context.
+    __prepare_task_entry(job);
+
     // if the thread we want to switch to already has a valid jmp_buf then
     // we can just longjmp into that context
-    if (job->state != JobState_CREATED) {
+    if (__JOB_STATE(job) != JobState_CREATED) {
         longjmp(job->context, 1);
     }
-
-    // Set up the job id for the current job before running it, These are
-    // things are not practical for us to do at job creation, so we have
-    // deferred them to just-in-time initialization.
-    __tls_switch(&job->tls);
-    __tls_current()->job_id = job->id;
-    __tls_current()->async_context = &job->async_context;
 
     // First time we initalize a context we must manually switch the stack
     // pointer and call the correct entry.
     stack = (char*)job->stack + job->stack_size;
-#if defined(__amd64__)
+#if defined(__aarch64__)
+    __usched_task_start(stack, job, __usched_task_main);
+#elif defined(__amd64__)
     __asm__ (
             "movq %0, %%rcx; movq %1, %%rsp; callq __usched_task_main\n"
             :: "r"(job), "r"(stack)
@@ -439,9 +459,10 @@ static void __process_syscall_completions(
                 p->next = i->next;
             }
             __usched_job_ready(i->job);
+        } else {
+            p = i;
         }
 
-        p = i;
         i = i->next;
     }
 }
@@ -456,6 +477,8 @@ int usched_yield(struct timespec* deadline)
     // save the current context and set a return point
     if (sched->current) {
         if (setjmp(sched->current->context)) {
+            // Reacquire the scheduler instead of assuming
+            sched = __usched_get_scheduler();
             TRACE("usched_yield: loaded job %u", sched->current->id);
             // We have return to the running thread.
             __tls_switch(&sched->current->tls);
@@ -495,20 +518,16 @@ int usched_yield(struct timespec* deadline)
             } else {
                 __usched_add_job_ready(current);
             }
-        } else if (current->state == JobState_FINISHING) {
+        } else if (__JOB_STATE(current) == JobState_FINISHING) {
             __usched_append_job(&sched->garbage_bin, current);
         }
     }
     sched->current = next;
 
-    // In the case of no next task, we return back to the scheduler
-    // context. In the case that we are switching to the same task, then
-    // we simply reload the context. Both of these cases need no __tls_switch
-    // call.
+    // Returning to the scheduler does not enter a job. Every job dispatch,
+    // even when current == next, goes through TLS catch-up in __switch_task.
     if (next == NULL) {
         longjmp(sched->context, 1);
-    } else if (current == next) {
-        longjmp(current->context, 1);
     }
     __switch_task(next);
 }

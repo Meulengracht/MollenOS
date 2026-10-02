@@ -5,7 +5,7 @@
 
 #if defined(i386) || defined(__i386__)
 #define SCTYPE int
-#elif defined(amd64) || defined(__amd64__)
+#elif defined(amd64) || defined(__amd64__) || defined(__aarch64__)
 #define SCTYPE long long
 #endif
 #define SCPARAM(Arg) ((SCTYPE)(Arg))

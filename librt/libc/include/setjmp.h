@@ -141,6 +141,21 @@ typedef struct __JUMP_BUFFER {
 		SETJMP_FLOAT128 Xmm15;
 	} _JUMP_BUFFER;
 
+#elif defined(__aarch64__)
+
+// Must match arch/aarch64/_setjmp.S. Only the AAPCS64 callee-save set
+// belongs here; asynchronous kernel preemption needs a full machine context.
+#define _JBLEN 24
+#define _JBTYPE uint64_t
+typedef struct _JUMP_BUFFER {
+    uint64_t X19_X30[12];
+    uint64_t Sp;
+    uint64_t Fpcr;
+    uint64_t Fpsr;
+    uint64_t Reserved;
+    uint64_t D8_D15[8];
+} _JUMP_BUFFER;
+
 #elif defined(_M_ARM) || defined(__arm__)
 
 #define _JBLEN  28
@@ -174,9 +189,9 @@ typedef _JBTYPE jmp_buf[_JBLEN];
 #endif
 
 _CODE_BEGIN
-CRTDECL(int,    _setjmp(jmp_buf env));
-CRTDECL(int,    _setjmp3(jmp_buf env, int nb_args, ...));
-CRTDECL(void,   longjmp(jmp_buf env, int value));
+CRTDECL(int,            _setjmp(jmp_buf env)) __attribute__((__returns_twice__));
+CRTDECL(int,            _setjmp3(jmp_buf env, int nb_args, ...)) __attribute__((__returns_twice__));
+CRTDECL(_Noreturn void, longjmp(jmp_buf env, int value));
 #define setjmp(env) _setjmp(env)
 _CODE_END
 

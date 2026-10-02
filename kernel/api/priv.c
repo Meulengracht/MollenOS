@@ -35,6 +35,7 @@ oserr_t
 ScAcpiQueryStatus(
    _In_ AcpiDescriptor_t*   AcpiDescriptor)
 {
+#ifdef __OSCONFIG_ACPI_SUPPORT
     if (AcpiDescriptor == NULL) {
         return OS_EUNKNOWN;
     }
@@ -49,6 +50,10 @@ ScAcpiQueryStatus(
         AcpiDescriptor->Version         = ACPI_VERSION_6_0;
         return OS_EOK;
     }
+#else
+    (void)AcpiDescriptor;
+    return OS_ENOTSUPPORTED;
+#endif
 }
 
 oserr_t
@@ -56,6 +61,7 @@ ScAcpiQueryTableHeader(
     _In_ const char*        signature,
     _In_ ACPI_TABLE_HEADER* header)
 {
+#ifdef __OSCONFIG_ACPI_SUPPORT
     if (!signature || !header) {
         return OS_EINVALPARAMS;
     }
@@ -68,6 +74,11 @@ ScAcpiQueryTableHeader(
         return OS_EUNKNOWN;
     }
     return OS_EOK;
+#else
+    (void)signature;
+    (void)header;
+    return OS_ENOTSUPPORTED;
+#endif
 }
 
 oserr_t
@@ -75,6 +86,7 @@ ScAcpiQueryTable(
     _In_ const char*        signature,
     _In_ ACPI_TABLE_HEADER* table)
 {
+#ifdef __OSCONFIG_ACPI_SUPPORT
     ACPI_TABLE_HEADER* header = NULL;
 
     if (!signature || !table) {
@@ -91,6 +103,11 @@ ScAcpiQueryTable(
 
     memcpy(table, header, header->Length);
     return OS_EOK;
+#else
+    (void)signature;
+    (void)table;
+    return OS_ENOTSUPPORTED;
+#endif
 }
 
 oserr_t
@@ -101,7 +118,16 @@ ScAcpiQueryInterrupt(
     _Out_ int*          interruptOut,
     _Out_ unsigned int* acpiConformOut)
 {
+#ifdef __OSCONFIG_ACPI_SUPPORT
     return AcpiDeviceGetInterrupt(bus, device, pin, interruptOut, acpiConformOut);
+#else
+    (void)bus;
+    (void)device;
+    (void)pin;
+    (void)interruptOut;
+    (void)acpiConformOut;
+    return OS_ENOTSUPPORTED;
+#endif
 }
 
 oserr_t

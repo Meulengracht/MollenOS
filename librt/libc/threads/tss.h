@@ -28,12 +28,10 @@
 _CODE_BEGIN
 
 /**
- * @brief Performs regular TSS cleanup. This is only needed to do on a process-level,
- * not once per thread.
- *
- * @param[In] threadID The thread if of the caller
+ * @brief Runs TSS destructors for the terminating logical thread and removes its
+ * values. Call in that thread before releasing its TLS; other threads are unaffected.
  */
-CRTDECL(void, tss_cleanup(thrd_t threadID));
+CRTDECL(void, tss_cleanup(void));
 
 _CODE_END
 

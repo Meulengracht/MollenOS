@@ -55,7 +55,8 @@ static void __execution_unit_exit(void)
         return; // return from migrated thread
     }
 
-    // Run deinit of C/C++ handlers for the execution unit thread
+    // Run deinit of C/C++ handlers for the execution unit thread.
+    // Must precede __tls_destroy(): destructors/detach callbacks still need TLS.
     __cxa_threadfinalize();
     __tls_destroy(tls);
 
@@ -173,8 +174,7 @@ _Noreturn static void __execution_unit_main(void* data)
 
     // Initialize the thread storage system for the execution unit,
     // each execution unit has their own TLS as well
-    __tls_initialize(&tls);
-    __tls_switch(&tls);
+    __tls_initialize(&tls, 1);
 
     // Install the execution unit specific data into slot 2. This will then
     // be available to all units, and gives us an opportunity to store things
@@ -233,7 +233,8 @@ _Noreturn static void __execution_unit_main(void* data)
     // Cleanup the userspace thread systems
     __execution_unit_delete(unit);
 
-    // Cleanup the execution unit
+    // Cleanup the execution unit. Must finalize before destroying TLS:
+    // destructors/detach callbacks still need it.
     __cxa_threadfinalize();
     __tls_destroy(&tls);
     Syscall_ThreadExit(0);

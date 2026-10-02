@@ -30,7 +30,7 @@
 #ifndef ACPI_MACHINE_WIDTH
 #if defined(i386) || defined(__i386__)
 #define ACPI_MACHINE_WIDTH 32
-#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
+#elif defined(__x86_64__) || defined(amd64) || (defined(__amd64__) || defined(__aarch64__))
 #define ACPI_MACHINE_WIDTH 64
 #endif
 #endif

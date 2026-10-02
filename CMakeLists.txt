@@ -1,5 +1,9 @@
 cmake_minimum_required (VERSION 3.13.4)
 
+# Enable the generation of compile commands for 
+# use with tools like clangd and VSCode
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
+
 if (__BUILD_UNIT_TESTS)
     project (vali-testing C)
     include(CMakeParseArguments)
@@ -62,11 +66,24 @@ option (VALI_ENABLE_EHCI "Enable support for USB 2.0" ON)
 option (VALI_ENABLE_EHCI_64BIT "Enable support for USB 2.0 64 bit addressing mode" OFF)
 
 option (VALI_BUILD_UNIT_TESTS "Build unit tests" OFF)
-option (VALI_BUILD_LOCAL_OSIMAGER "Build a local copy of osimager" OFF)
 
-set (VALI_ARCH "amd64" CACHE STRING "Platform architecture to build Vali for")
-set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64)
+set (VALI_ARCH "amd64" CACHE STRING "Architecture to build Vali for")
+set_property (CACHE VALI_ARCH PROPERTY STRINGS i386 amd64 aarch64)
 set (ENV{VALI_ARCH} ${VALI_ARCH})
+
+# This helps to specifiy the details of the platform we are building for
+# This is not available for all architectures
+set (VALI_PLATFORM "generic" CACHE STRING "Platform to build Vali for")
+
+# This helps to specify the details of the platform variant we are building for
+# and can be set to anything, its purpose is to differentiate between variants 
+# of the same platform
+set (VALI_PLATFORM_VARIANT "" CACHE STRING "Platform variant to build Vali for")
+
+# Setup the valid strings for the platform property
+set_property (CACHE VALI_PLATFORM PROPERTY STRINGS generic rpi)
+
+set (ENV{VALI_PLATFORM} ${VALI_PLATFORM})
 
 # Set paths and define the structure of the initial system image
 set (CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -126,23 +143,20 @@ macro (deploy_file_to_initrd)
     endif ()
 endmacro ()
 
+# Find the llvm-objcopy tool, we need this
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 # Detect whether diskbuilder is available on the host so we do
 # don't need to build it
 find_program(
     TOOL_DU 
-    NAMES "osbuilder" "diskbuilder.osbuilder" "mkcdk"
+    NAMES "mkcdk"
 )
 if (NOT TOOL_DU)
-    if (NOT VALI_BUILD_LOCAL_OSIMAGER)
-        message (WARNING "No diskbuilder was available on the host, and local build is turned off")
-        set (TOOL_DU)
-    else ()
-        set (TOOL_DU ${CMAKE_BINARY_DIR}/tools/host/bin/osbuilder)
-    endif ()
+    message (WARNING "mkcdk was not available on the host system")
+    set (TOOL_DU)
 else ()
-    # tool found, do not build it
-    message (STATUS "Host version of diskbuilder found, turning off local build")
-    set (VALI_BUILD_LOCAL_OSIMAGER OFF CACHE BOOL "Turning off local build because host version was found")
+    message (STATUS "Disk imager (mkcdk) was found!")
 endif ()
 
 # Setup tools
@@ -170,7 +184,7 @@ file(READ "VERSION" VALI_VERSION)
 
 # Configure projects that are specified
 if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/${VALI_ARCH}PlatformConfig.cmake")
-    message (FATAL_ERROR "The specified platform ${VALI_ARCH} has no configuration file")
+    message (FATAL_ERROR "The specified platform ${VALI_ARCH} is not supported")
 endif ()
 
 include (cmake/HandleFeatureFlags.cmake)
@@ -217,40 +231,85 @@ if (VALI_BUILD_UNIT_TESTS)
     )
 endif ()
 
-
 # setup initramfs for boot folder
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}/boot/payload)")
 install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${CMAKE_INSTALL_PREFIX}/boot/payload/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM})")
 
+# For some platforms, we append a loader in front of the kernel image
 # Installation and utility targets
-add_custom_target (install_prepare
-    COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
-    COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_BOOT}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
+if (VALI_PLATFORM STREQUAL "rpi")
+    add_custom_target(rpi-loader-flat
+        COMMAND "${CCROOT}/bin/llvm-objcopy" -O binary "${VALI_PATH_BOOT_ASSETS}/bin/rpi-loader.elf" "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+        BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+        VERBATIM
+    )
+    add_dependencies(rpi-loader-flat loader)
+
+    add_custom_command(
+        OUTPUT "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
+        COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/pack.py"
+            --loader "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+            --kernel "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos"
+            --output "${VALI_PATH_BOOT_ASSETS}/kernel8.img"
+        DEPENDS 
+            "${CMAKE_CURRENT_BINARY_DIR}/bin/rpi-loader.bin"
+            "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/pack.py" VERBATIM
+    )
+    add_custom_target(rpi-image DEPENDS "${VALI_PATH_BOOT_ASSETS}/kernel8.img")
+    add_dependencies(rpi-image rpi-loader-flat)
+    
+    add_custom_target (install_prepare
+        # Image targets may run without a full OS install. Stage the firmware
+        # beside kernel8.img so the Pi recipe always has a complete boot root.
+        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --component rpi-firmware
+        COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_BOOT_ASSETS}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+        COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/bundle.py"
+            --phoenix $<TARGET_FILE:phoenix>
+            --ramdisk "${VALI_PATH_BOOT_ASSETS}/initrd.mos"
+            --output "${VALI_PATH_BOOT_ASSETS}/boot-payload.bin"
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        DEPENDS rpi-image phoenix
+    )
+else ()
+    add_custom_target (install_prepare
+        COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+        COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_BOOT}
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_LIB} --pattern *.lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_MAPS} --pattern *.map
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif ()
+
 add_dependencies(install_prepare rd lzss)
-if (VALI_BUILD_LOCAL_OSIMAGER)
-    add_dependencies(install_prepare imager)
-endif (VALI_BUILD_LOCAL_OSIMAGER)
+
+if (VALI_PLATFORM STREQUAL "rpi")
+    set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-rpi-gpt.yaml)
+elseif (VALI_ARCH STREQUAL "aarch64")
+    set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-arm64-gpt.yaml)
+else ()
+    set(VALI_IMAGE_RECIPE ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml)
+endif ()
 
 add_custom_target (install_img
-    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target img
+    COMMAND ${TOOL_DU} ${VALI_IMAGE_RECIPE} --target img
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_img install_prepare)
 
 add_custom_target (install_vmdk
-    COMMAND ${TOOL_DU} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml --target vmdk
+    COMMAND ${TOOL_DU} ${VALI_IMAGE_RECIPE} --target vmdk
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(install_vmdk install_prepare)
 
 add_custom_target (mkimage
-    COMMAND ${TOOL_DU} -o ./disk.img ${CMAKE_CURRENT_SOURCE_DIR}/cmake/models/vali-gpt.yaml
+    COMMAND ${TOOL_DU} -o ./disk.img ${VALI_IMAGE_RECIPE}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 add_dependencies(mkimage install_prepare)

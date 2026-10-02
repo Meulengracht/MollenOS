@@ -55,6 +55,7 @@ packs:
       lib-paths: [/lib]
     filters:
       - !boot
+      - !boot-assets
   - name: core
     summary: Vali bootloader assets
     description: |

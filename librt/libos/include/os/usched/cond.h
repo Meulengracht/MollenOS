@@ -32,7 +32,7 @@ struct timespec;
 struct usched_job;
 
 struct usched_cnd {
-    struct usched_mtx  lock;
+    spinlock_t         lock;
     struct usched_job* queue;
 };
 

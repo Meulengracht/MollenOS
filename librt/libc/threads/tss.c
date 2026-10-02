@@ -21,6 +21,7 @@
 #include <ds/hashtable.h>
 #include <ddk/utils.h>
 #include <internal/_utils.h>
+#include <internal/_tls.h>
 #include <os/spinlock.h>
 #include <string.h>
 #include <stdio.h>
@@ -30,12 +31,12 @@
 #define TSS_MAX_KEYS 64
 
 struct tss_thread_scope {
-    thrd_t     thread_id;
+    uintptr_t  storage;
     void*      value;
-    tss_dtor_t destructor;
 };
 
 struct tss_object {
+    int        allocated;
     tss_dtor_t  destructor;
     hashtable_t values; // hashtable of tss_thread_scope
 };
@@ -55,19 +56,28 @@ static struct tss_process_scope g_tss     = {
 
 static int __initialize_tss_object(struct tss_object* tss, tss_dtor_t destructor)
 {
-    tss->destructor = destructor;
-    return hashtable_construct(
-            &tss->values, 0,
-            sizeof(struct tss_thread_scope),
-            tss_object_hash,
-            tss_object_cmp
+    int status;
+
+    status = hashtable_construct(
+        &tss->values, 0,
+        sizeof(struct tss_thread_scope),
+        tss_object_hash,
+        tss_object_cmp
     );
+    if (status) {
+        return status;
+    }
+    
+    tss->destructor = destructor;
+    tss->allocated = 1;
+    return 0;
 }
 
 static void __destroy_tss_object(struct tss_object* tss)
 {
     hashtable_destroy(&tss->values);
     tss->destructor = NULL;
+    tss->allocated = 0;
 }
 
 int
@@ -80,8 +90,11 @@ tss_create(
 
     spinlock_acquire(&g_tssLock);
     for (i = 0; i < TSS_MAX_KEYS; i++) {
-        if (g_tss.tss[i].destructor == NULL) {
-            __initialize_tss_object(&g_tss.tss[i], destructor);
+        if (!g_tss.tss[i].allocated) {
+            int status = __initialize_tss_object(&g_tss.tss[i], destructor);
+            if (status) {
+                break;
+            }
             result = (tss_t)i;
             break;
         }
@@ -102,7 +115,9 @@ tss_delete(
     }
 
     spinlock_acquire(&g_tssLock);
-    __destroy_tss_object(&g_tss.tss[tssID]);
+    if (g_tss.tss[tssID].allocated) {
+        __destroy_tss_object(&g_tss.tss[tssID]);
+    }
     spinlock_release(&g_tssLock);
 }
 
@@ -113,17 +128,27 @@ void*
 tss_get(
     _In_ tss_t tssKey)
 {
-    void* result = NULL;
+    struct tss_thread_scope* entry;
+    void*                    result = NULL;
 
     if (tssKey >= TSS_MAX_KEYS) {
         return NULL;
     }
 
     spinlock_acquire(&g_tssLock);
-    struct tss_thread_scope* entry = hashtable_get(&g_tss.tss[tssKey].values,
-            &(struct tss_thread_scope) { .thread_id = __crt_thread_id() });
+    if (!g_tss.tss[tssKey].allocated) {
+        spinlock_release(&g_tssLock);
+        return NULL;
+    }
+    
+    entry = hashtable_get(
+        &g_tss.tss[tssKey].values,
+        &(struct tss_thread_scope) { 
+            .storage = (uintptr_t)__tls_current() 
+        }
+    );
     if (entry != NULL) {
-        result = entry;
+        result = entry->value;
     }
     spinlock_release(&g_tssLock);
     return result;
@@ -137,106 +162,109 @@ tss_set(
     _In_ tss_t tssKey,
     _In_ void* val)
 {
+    struct tss_thread_scope* stored;
+    int                      status;
+
     if (tssKey >= TSS_MAX_KEYS) {
         errno = EINVAL;
         return thrd_error;
     }
 
+    struct tss_thread_scope key = { 
+        .storage = (uintptr_t)__tls_current(),
+        .value = val
+    };
+
     spinlock_acquire(&g_tssLock);
-    hashtable_set(&g_tss.tss[tssKey].values,
-                  &(struct tss_thread_scope) {
-        .thread_id = __crt_thread_id(),
-        .value     = val,
-        .destructor = g_tss.tss[tssKey].destructor
-    });
-    spinlock_release(&g_tssLock);
-    return thrd_success;
-}
-
-static inline int __execute_tss_entry(struct tss_thread_scope* tss) {
-    if (tss->value != NULL && tss->destructor != NULL) {
-        void* originalValue = tss->value;
-        tss->value = NULL;
-        tss->destructor(originalValue);
-        if (tss->value != NULL) {
-            return 1; // we need to run this again
-        }
+    if (!g_tss.tss[tssKey].allocated) {
+        spinlock_release(&g_tssLock);
+        return thrd_error;
     }
-    return 0;
+    
+    if (!val) {
+        hashtable_remove(&g_tss.tss[tssKey].values, &key);
+        spinlock_release(&g_tssLock);
+        return thrd_success;
+    }
+
+    // Catch any insertion issue
+    errno = EOK;
+    hashtable_set(&g_tss.tss[tssKey].values, &key);
+    if (errno == ENOMEM) {
+        status = thrd_nomem;
+    } else {
+        status = thrd_success;
+    }
+
+    spinlock_release(&g_tssLock);
+    return status;
 }
 
-static void
-tss_object_enum(
-        _In_ int         index,
-        _In_ const void* element,
-        _In_ void*       userContext)
+/* Destructors execute in the terminating logical thread. Clear each value
+ * before invoking its destructor, with no lock or hashtable pointer retained
+ * across callbacks. Keys and other threads' values survive this cleanup. */
+void tss_cleanup()
 {
-    struct tss_thread_scope* tss              = (struct tss_thread_scope*)element;
-    int*                     valuesRemaining  = (int*)userContext;
-    _CRT_UNUSED(index);
-    TRACE("tss_object_enum()");
-    *valuesRemaining = __execute_tss_entry(tss);
-}
-
-/* tss_cleanup
- * Cleans up tls storage for the given thread id and invokes all registered
- * at-exit handlers for the thread. Invoking this with UUID_INVALID invokes
- * process at-exit handlers. */
-void
-tss_cleanup(
-        _In_ thrd_t threadID)
-{
-    int passesRemaining = TSS_DTOR_ITERATIONS;
-    int valuesRemaining;
-    TRACE("tss_cleanup(%u, 0x%x, %i)", threadID, dsoHandle, exitCode);
-
-    // Execute all stored destructors untill there is no
-    // more values left or we reach the maximum number of passes
-    do {
-        valuesRemaining = 0;
-        for (int i = 0; i < TSS_MAX_KEYS; i++) {
-            if (g_tss.tss[i].destructor != NULL) {
-                // Either we are exucuting by thread, or we are executing by
-                // all threads. If we are executing by thread, we simply try
-                // to look up the thread entry
-                if (threadID != UUID_INVALID) {
-                    struct tss_thread_scope* tss = hashtable_get(
-                            &g_tss.tss[i].values,
-                            &(struct tss_thread_scope) { .thread_id = threadID }
-                    );
-                    if (tss) {
-                        valuesRemaining += __execute_tss_entry(tss);
-                    }
-                } else {
-                    // Run for all threads, so we invoke the callback
-                    hashtable_enumerate(
-                            &g_tss.tss[i].values,
-                            tss_object_enum,
-                            &valuesRemaining
-                    );
+    // Use storage pointer: job IDs are recycled and share a numeric 
+    // type with kernel-thread IDs.
+    struct tss_thread_scope key = {
+        .storage = (uintptr_t)__tls_current()
+    };
+    
+    // Sanitize that we have a TLS tlb
+    if (!key.storage) {
+        return;
+    }
+    
+    // Iterate over TSS destructor iterations to clean up thread-specific storage.
+    // And do this for up to TSS_DTOR_ITERATIONS passes.
+    for (int pass = 0; pass < TSS_DTOR_ITERATIONS; ++pass) {
+        int invoked = 0;
+        
+        for (int i = 0; i < TSS_MAX_KEYS; ++i) {
+            tss_dtor_t destructor = NULL;
+            void*      value = NULL;
+            
+            spinlock_acquire(&g_tssLock);
+            if (g_tss.tss[i].allocated) {
+                struct tss_thread_scope* entry = hashtable_get(&g_tss.tss[i].values, &key);
+                if (entry) {
+                    value = entry->value;
+                    destructor = g_tss.tss[i].destructor;
+                    hashtable_remove(&g_tss.tss[i].values, &key);
                 }
             }
+            spinlock_release(&g_tssLock);
+            
+            if (value && destructor) {
+                invoked = 1;
+                destructor(value);
+            }
         }
-        passesRemaining--;
-    } while (valuesRemaining != 0 && passesRemaining);
-
-    // Cleanup all stored tls-keys by this thread
+        
+        if (!invoked) {
+            break;
+        }
+    }
+    
+    // Cleanup any remaining TSS values for this thread
     spinlock_acquire(&g_tssLock);
-    for (int i = 0; i < TSS_MAX_KEYS; i++) {
-        if (g_tss.tss[i].destructor != NULL) {
-            __destroy_tss_object(&g_tss.tss[i]);
+    for (int i = 0; i < TSS_MAX_KEYS; ++i) {
+        if (!g_tss.tss[i].allocated) {
+            continue;
         }
+        hashtable_remove(&g_tss.tss[i].values, &key);
     }
     spinlock_release(&g_tssLock);
 }
 
 static uint64_t tss_object_hash(const void* element) {
     const struct tss_thread_scope* tss = element;
-    return (uint64_t)tss->thread_id;
+    return (uint64_t)tss->storage;
 }
 
 static int tss_object_cmp(const void* element1, const void* element2) {
     const struct tss_thread_scope* tss1 = element1;
     const struct tss_thread_scope* tss2 = element2;
-    return tss1->thread_id == tss2->thread_id ? 0 : -1;
+    return tss1->storage == tss2->storage ? 0 : -1;
 }

@@ -78,7 +78,9 @@ double tanh(double x)
 	return (jx >= 0) ? z : -z;
 }
 
+#if defined(__i386__) || defined(__amd64__)
 CRTDECL(double __CRTDECL, _CItanh(void)) {
 	FPU_DOUBLE(x);
 	return tanh(x);
 }
+#endif

@@ -49,7 +49,7 @@ __clone_env_block(void)
     return (const char* const*)copy;
 }
 
-int __tls_initialize(struct thread_storage* tls)
+int __tls_initialize(struct thread_storage* tls, int use)
 {
     memset(tls, 0, sizeof(struct thread_storage));
 
@@ -59,6 +59,12 @@ int __tls_initialize(struct thread_storage* tls)
     tls->err_no = EOK;
     tls->locale = NULL;
     tls->seed   = 1;
+
+    // Allocation during __clone_env_block can use errno/current storage. The
+    // kernel has already installed the execution-unit reserved-slot anchor.
+    if (use) {
+        __tls_switch(tls);
+    }
 
     // TLS is initialized before we retrieve the actual environment block
     // from the startup information. This unfortunately means the primary
@@ -131,4 +137,18 @@ void __tls_switch(struct thread_storage* tls) {
     __set_reserved(0, (size_t)tls);
     __set_reserved(1, (size_t)&tls->tls_array[0]);
     __set_reserved(11, (size_t)&tls->tls_array[0]);
+}
+
+
+void* __vali_tls_get_block(unsigned int moduleIndex)
+{
+    struct thread_storage* tls = __tls_current();
+
+    // Do not use errno, logging or allocation on this path: any of those may
+    // itself require TLS. Module registration/attachment must precede access.
+    if (tls == NULL || moduleIndex >= TLS_NUMBER_ENTRIES ||
+        tls->tls_array[moduleIndex] == 0) {
+        __builtin_trap();
+    }
+    return (void*)tls->tls_array[moduleIndex];
 }

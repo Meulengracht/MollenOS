@@ -118,8 +118,13 @@ void usched_job_parameters_set_detached(struct usched_job_parameters* params, bo
 
 static void __finalize_task(struct usched_job* job, int exitCode)
 {
-    __remove_job_from_register(job->id, exitCode);
+    // finalize tls runtime before anything else. Must complete before the job's
+    // tls is torn down (__task_destroy, run later from the garbage bin).
     __cxa_threadfinalize();
+    
+    // if the task has any joiners, ensure tls has run
+    // before removing, as this will make them runnable.
+    __remove_job_from_register(job->id, exitCode);
 
     job->state = JobState_FINISHING;
     usched_yield(NULL);
@@ -149,6 +154,7 @@ void __usched_task_main(struct usched_job* job)
 uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job_parameters* params)
 {
     struct usched_job* job;
+    uuid_t             jobID;
 
     assert(params != NULL);
     assert(params->stack_size >= 4096);
@@ -172,7 +178,8 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     job->detached = params->detached;
     job->queue = NULL;
 
-    if (__tls_initialize(&job->tls)) {
+    // We are not switching as we are simply prepping the tls here.
+    if (__tls_initialize(&job->tls, 0)) {
         free(job->stack);
         free(job);
         return UUID_INVALID;
@@ -185,6 +192,11 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
         free(job);
         return UUID_INVALID;
     }
+
+    // Store the job id locally before scheduling so we don't
+    // get interrupted and try to read it after the job has 
+    // potentially been scheduled.
+    jobID = job->id;
 
     // We have two possible ways of queue jobs. Detached jobs get their own
     // execution unit, and thus we queue these through the xunit system. Normal
@@ -200,7 +212,7 @@ uuid_t usched_job_queue3(usched_task_fn entry, void* argument, struct usched_job
     } else {
         __usched_add_job_ready(job);
     }
-    return job->id;
+    return jobID;
 }
 
 uuid_t usched_job_queue(usched_task_fn entry, void* argument)
@@ -250,6 +262,11 @@ int usched_job_cancel(uuid_t jobID)
     }
 
     usched_mtx_lock(&context->mtx);
+    if (context->job == NULL) {
+        usched_mtx_unlock(&context->mtx);
+        errno = ENOENT;
+        return -1;
+    }
     context->job->state |= JobState_CANCELLED;
     usched_mtx_unlock(&context->mtx);
     return 0;

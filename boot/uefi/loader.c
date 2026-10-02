@@ -16,9 +16,14 @@
  *
  */
 
+#if defined(__aarch64__)
+#include <platform/arm64.h>
+#elif defined(__amd64__) || defined(__i386__)
+#include <platform/x86.h>
+#endif
+
 #include <console.h>
 #include <depack.h>
-#include <library.h>
 #include <loader.h>
 
 #include <Guid/FileInfo.h>
@@ -32,6 +37,19 @@ static EFI_GUID gFileInfoGuid            = EFI_FILE_INFO_ID;
 static EFI_GUID gFileSystemProtocolGuid  = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
 static EFI_GUID gLoadedImageProtocolGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 
+#if defined(__aarch64__)
+static BOOLEAN __IsArm64Image(PE_COFF_LOADER_IMAGE_CONTEXT* Context, VOID* Buffer, UINTN Size)
+{
+    /* Optional-header magic follows the PE signature and 20-byte COFF header. */
+    UINTN offset = Context->PeCoffHeaderOffset;
+    UINT8* bytes = Buffer;
+    return Context->Machine == 0xAA64 && !Context->IsTeImage &&
+        Size >= 26 && offset <= Size - 26 &&
+        bytes[offset + 24] == 0x0b && bytes[offset + 25] == 0x02 &&
+        Context->ImageSize && Context->ImageSize <= 0xffffffffULL;
+}
+#endif
+
 static EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* gFileSystem = NULL;
 static EFI_FILE_PROTOCOL*               gRoot       = NULL;
 
@@ -40,7 +58,7 @@ EFI_STATUS LoaderInitialize(void)
     EFI_STATUS        Status;
     EFI_LOADED_IMAGE* LoadedImage;
 
-    Status = gBootServices->HandleProtocol(
+    Status = gBS->HandleProtocol(
         gImageHandle, 
         &gLoadedImageProtocolGuid, 
         (VOID**)&LoadedImage
@@ -49,7 +67,7 @@ EFI_STATUS LoaderInitialize(void)
         return Status;
     }
 
-    Status = gBootServices->HandleProtocol(
+    Status = gBS->HandleProtocol(
         LoadedImage->DeviceHandle,
         &gFileSystemProtocolGuid, 
         (VOID**)&gFileSystem
@@ -77,6 +95,7 @@ EFI_STATUS __LoadFile(
     void*              Buffer[256];
     UINTN              BufferSize = sizeof(Buffer);
     UINTN              ReadSize;
+    UINTN              ExpectedSize;
     UINT8*             CompressedData;
     ConsoleWrite(L"__LoadFile(FileName=%s, IsCompressed=%d)\n",
         FileName, IsCompressed);
@@ -94,7 +113,11 @@ EFI_STATUS __LoadFile(
     }
 
     FileInfo = (EFI_FILE_INFO*)&Buffer[0];
-    ReadSize = FileInfo->FileSize;
+    if (!FileInfo->FileSize || FileInfo->FileSize > 0xffffffffULL) {
+        Status = EFI_BAD_BUFFER_SIZE;
+        goto cleanup;
+    }
+    ReadSize = ExpectedSize = FileInfo->FileSize;
 
     Status = LibraryAllocateMemory(ReadSize, (VOID**)&CompressedData);
     if (EFI_ERROR(Status)) {
@@ -103,18 +126,25 @@ EFI_STATUS __LoadFile(
     }
 
     Status = File->Read(File, &ReadSize, CompressedData);
-    if (EFI_ERROR(Status)) {
+    if (EFI_ERROR(Status) || ReadSize != ExpectedSize) {
+        LibraryFreeMemory(CompressedData);
+        Status = EFI_DEVICE_ERROR;
         ConsoleWrite(L"__LoadFile Failed to read file: %s\n", FileName);
         goto cleanup;
     }
 
     // We got the data read, now decompress it
     if (IsCompressed) {
+        if (ReadSize < 24) {
+            LibraryFreeMemory(CompressedData);
+            Status = EFI_COMPROMISED_DATA;
+            goto cleanup;
+        }
         UINT32 DecompressedSize = aP_get_orig_size(CompressedData);
         UINT32 DecompressStatus;
         VOID*  DecompressedData;
 
-        if (!DecompressedSize) {
+        if (!DecompressedSize || DecompressedSize == APLIB_ERROR) {
             ConsoleWrite(L"__LoadFile Compression header was incorrect: %s\n", FileName);
             ConsoleWrite(L"__LoadFile 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
                 ((UINT32*)CompressedData)[0], ((UINT32*)CompressedData)[1], 
@@ -140,7 +170,7 @@ EFI_STATUS __LoadFile(
         );
         LibraryFreeMemory(CompressedData);
         
-        if (DecompressStatus == APLIB_ERROR) {
+        if (DecompressStatus == APLIB_ERROR || DecompressStatus != DecompressedSize) {
             ConsoleWrite(L"__LoadFile Failed to decompress file: %s\n", FileName);
             LibraryFreeMemory(DecompressedData);
             Status = EFI_COMPROMISED_DATA;
@@ -166,9 +196,13 @@ EFI_STATUS __AllocatePageAligned(
     IN  UINTN  Size,
     OUT VOID** Memory)
 {
-    return gBootServices->AllocatePages(
+    return gBS->AllocatePages(
         AllocateAnyPages,
+#if defined(__aarch64__)
+        EfiLoaderData,
+#else
         EfiRuntimeServicesData,
+#endif
         EFI_SIZE_TO_PAGES(Size),
         (EFI_PHYSICAL_ADDRESS*)Memory
     );
@@ -192,7 +226,11 @@ EFI_STATUS __AllocateKernelStack(
     VBoot->Stack.Base   = (unsigned long long)StackBase;
     VBoot->Stack.Length = Size;
 
+#if defined(__aarch64__)
+    *Stack = (VOID*)((StackBase + Size) & ~15ULL);
+#else
     *Stack = (VOID*)(StackBase + Size - sizeof(VOID*));
+#endif
     return EFI_SUCCESS;
 }
 
@@ -224,7 +262,26 @@ __LoadKernel(
         return Status;
     }
 
-    // We would like to request the kernel loaded at 1mb mark
+#if defined(__aarch64__)
+    if (!__IsArm64Image(&ImageContext, Buffer, BufferSize) ||
+        ImageContext.ImageSize > 0x04000000) {
+        return EFI_UNSUPPORTED;
+    }
+    VBoot->Platform.KernelVirtualBase = ImageContext.ImageAddress;
+    /* Bootstrap image is linked for physical execution. Higher-half entry
+       requires a position-independent kernel-owned mapping stub. */
+    if (ImageContext.ImageAddress != LOADER_KERNEL_BASE) {
+        return EFI_UNSUPPORTED;
+    }
+    ImageContext.ImageAddress = LOADER_KERNEL_BASE;
+    Status = gBS->AllocatePages(AllocateAddress, EfiLoaderCode,
+        EFI_SIZE_TO_PAGES(ImageContext.ImageSize), &ImageContext.ImageAddress);
+    if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"ARM64 kernel reservation failed: %r\n", Status);
+        return Status;
+    }
+#endif
+    // The ARM64 physical range is reserved before loading any sections.
     Status = PeCoffLoaderLoadImage(&ImageContext);
     if (EFI_ERROR(Status)) {
         return Status;
@@ -240,6 +297,10 @@ __LoadKernel(
     VBoot->Kernel.Base       = (unsigned long long)ImageContext.ImageAddress;
     VBoot->Kernel.EntryPoint = (unsigned long long)ImageContext.EntryPoint;
     VBoot->Kernel.Length     = ImageContext.ImageSize;
+#if defined(__aarch64__)
+    VBoot->Platform.KernelPhysicalEntry = ImageContext.EntryPoint;
+#endif
+    LibraryFreeMemory(Buffer);
 
     // Flush not needed for all architectures. We could have a processor specific
     // function in this library that does the no-op if needed.
@@ -316,12 +377,16 @@ __LoadPhoenix(
     // to be relocated into, and we do not perform any relocation
     // to this new address as we are still loading the image at the
     // preffered base address. Make sure we align up to the page size
+#if defined(__aarch64__)
+    if (!__IsArm64Image(&ImageContext, Buffer, BufferSize)) return EFI_UNSUPPORTED;
+#endif
     OriginalImageBase = ImageContext.ImageAddress;
     Status = __AllocatePageAligned(
         ImageContext.ImageSize,
         (VOID**)&ImageContext.ImageAddress
     );
 
+    if (EFI_ERROR(Status)) return Status;
     Status = PeCoffLoaderLoadImage(&ImageContext);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"__LoadPhoenix Failed to load image %r (%d)\n", Status, ImageContext.ImageError);

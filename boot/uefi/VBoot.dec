@@ -1,0 +1,13 @@
+## @file
+# Vali UEFI boot application package.
+##
+
+[Defines]
+  DEC_SPECIFICATION              = 0x0001001B
+  PACKAGE_NAME                   = VBoot
+  PACKAGE_GUID                   = 9702FCB8-7C5E-493F-AD1A-B9B70E359F31
+  PACKAGE_VERSION                = 1.0
+
+[Includes]
+  include
+  ../include

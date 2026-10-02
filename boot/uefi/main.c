@@ -16,7 +16,12 @@
  *
  */
 
-#include <library.h>
+#if defined(__aarch64__)
+#include <platform/arm64.h>
+#elif defined(__amd64__) || defined(__i386__)
+#include <platform/x86.h>
+#endif
+
 #include <loader.h>
 #include <console.h>
 #include <video.h>
@@ -30,16 +35,20 @@ static EFI_STATUS __InitializeBootDescriptor(void)
 {
     EFI_STATUS Status;
 
-    Status = LibraryAllocateMemory(sizeof(struct VBoot), (VOID**)&gBootDescriptor);
+    Status = LibraryAllocateMemory(
+        sizeof(struct VBoot),
+        (VOID**)&gBootDescriptor
+    );
     if (EFI_ERROR(Status)) {
         return Status;
     }
+
     SetMem(gBootDescriptor, sizeof(struct VBoot), 0);
     gBootDescriptor->Magic    = VBOOT_MAGIC;
     gBootDescriptor->Version  = VBOOT_VERSION;
     gBootDescriptor->Firmware = VBootFirmware_UEFI;
-    gBootDescriptor->ConfigurationTableCount = gSystemTable->NumberOfTableEntries;
-    gBootDescriptor->ConfigurationTable = (unsigned long long)gSystemTable->ConfigurationTable;
+    gBootDescriptor->ConfigurationTableCount = gST->NumberOfTableEntries;
+    gBootDescriptor->ConfigurationTable = (unsigned long long)gST->ConfigurationTable;
     return Status;
 }
 
@@ -63,6 +72,9 @@ static void __JumpToKernel(
     JumpBuffer.Eip = EntryPoint;
     JumpBuffer.Esp = (UINTN)KernelStack;
     JumpBuffer.Ebp = (UINTN)KernelStack;
+#elif defined(__aarch64__)
+    Arm64Enter(gBootDescriptor, EntryPoint, KernelStack);
+    // No return here, we don't reach the LongJump for ARM64
 #else
 #error "Unsupported architecture"
 #endif
@@ -108,7 +120,7 @@ EFI_STATUS EFIAPI EfiMain (
 
     Status = LoadResources(gBootDescriptor, &KernelStack);
     if (EFI_ERROR(Status)) {
-        ConsoleWrite(L"Failed to load system resources\n");
+        ConsoleWrite(L"Failed to load system resources: %r\n", Status);
         return Status;
     }
 
@@ -116,8 +128,16 @@ EFI_STATUS EFIAPI EfiMain (
     Status = VideoInitialize(gBootDescriptor);
     if (EFI_ERROR(Status)) {
         ConsoleWrite(L"Failed to initialize video output\n");
+        SetMem(&gBootDescriptor->Video, sizeof(gBootDescriptor->Video), 0);
+    }
+
+#if defined(__aarch64__)
+    Status = Arm64Prepare(gBootDescriptor);
+    if (EFI_ERROR(Status)) {
+        ConsoleWrite(L"Unsupported ARM64 handoff state: %r\n", Status);
         return Status;
     }
+#endif
 
     // Last step is to get the memory map before moving to kernel
     Status = LibraryCleanup(gBootDescriptor);
@@ -126,6 +146,10 @@ EFI_STATUS EFIAPI EfiMain (
         return Status;
     }
 
+#if defined(__aarch64__)
+    __JumpToKernel(gBootDescriptor->Platform.KernelPhysicalEntry, KernelStack);
+#else
     __JumpToKernel(gBootDescriptor->Kernel.EntryPoint, KernelStack);
+#endif
     return EFI_SUCCESS;
 }

@@ -23,8 +23,7 @@
 //#define __TRACE
 
 #include <ddk/utils.h>
-#include <stdlib.h>
-#include <string.h>
+#include <internal/_tls.h>
 #include <inttypes.h>
 
 #define _ATTRIBUTES read
@@ -117,6 +116,8 @@ void*      __dso_handle = &__dso_handle;
 #if defined(i386) || defined(__i386__) || defined(amd64) || defined(__amd64__)
 void**        _tls_array = NULL; // on 64 bit this must be at gs:0x58 [11], 32 bit this should point into tls area
 unsigned long _tls_index = 0;
+#elif defined(__aarch64__)
+unsigned long _tls_index = 0;
 #else
 #error "Implicit tls architecture must be implemented"
 #endif
@@ -129,7 +130,7 @@ _CRTALLOC(".rdata$T") const struct {
     uint32_t    SizeOfZeroFill;
     uint32_t    Characteristics;
 } _tls_used = {
-    (uintptr_t*)(&_tls_start + 1), // skip the section-ordering sentinel
+    (uintptr_t*)&_tls_start,       // COFF SECREL offsets include the sentinel
     (uintptr_t*)&_tls_end,         // end of tls data
     (uintptr_t*)&_tls_index,       // address of tls_index
     (uintptr_t*)(&__xl_a + 1),     // pointer to call back array, skip the inital index
@@ -138,17 +139,43 @@ _CRTALLOC(".rdata$T") const struct {
 };
 
 // __cxa_module_tls_global_init
-// Creates a new tls key for the module that links against this file, this index for this
-// module is reused for each thread to keep the index the same
+// Registers this module's PE TLS template with the shared module registry.
+// Registration is idempotent per __dso_handle, so this may be called more 
+// than once (e.g. once eagerly for the primary module, once
+// via DLL_ACTION_TLSREGISTER/DLL_ACTION_INITIALIZE) without side effects.
 void __cxa_module_tls_global_init(void)
 {
-    // _tls_array points into TLS data array, so while the pointer is seen as equal
-    // all threads and points to same address, the address is directly located in
-    // the TLS structure
     TRACE("__cxa_module_tls_global_init(0x%" PRIxIN ")", __dso_handle);
+
+#if !defined(__aarch64__)
+    // Compiled code reads this global directly (classic implicit-TLS ABI);
+    // it aliases the same thread_storage_t.tls_array the registry fills in.
     _tls_array = (void**)__get_reserved(1);
-    _tls_index = 0;
-    while (_tls_array[_tls_index] != NULL) _tls_index++;
+#endif
+    
+// LLD/link.exe write the linked TLS alignment into Characteristics.
+    unsigned int encoded = (*(const volatile uint32_t*)&_tls_used.Characteristics >> 20) & 15;
+    size_t       alignment = encoded ? (size_t)1 << (encoded - 1) : 16;
+    uintptr_t    start = (uintptr_t)_tls_used.StartOfData;
+    uintptr_t    end = (uintptr_t)_tls_used.EndOfData;
+    int          status;
+
+    // Ensure that the TLS data section is valid.
+    if (end < start) {
+        __builtin_trap();
+    }
+
+    status = __tls_register_module(
+        __dso_handle,
+        (void*)start,
+        end - start,
+        _tls_used.SizeOfZeroFill,
+        alignment,
+        &_tls_index
+    );
+    if (status) {
+        __builtin_trap();
+    }
 }
 
 // __cxa_module_tls_thread_init
@@ -156,14 +183,15 @@ void __cxa_module_tls_global_init(void)
 // called for main thread, not new threads
 void __cxa_module_tls_thread_init(void)
 {
-    size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
-    TRACE("__cxa_module_tls_thread_init(%" PRIuIN ", 0x%" PRIxIN ", 0x%" PRIxIN ")", 
-        TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
-    if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
-        _tls_array[_tls_index] = malloc(TlsDataSize);
-        memcpy(_tls_array[_tls_index], (void*)_tls_used.StartOfData, TlsDataSize);
-    }
-    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADATTACH);
+    // Block allocation happens once per-thread in __tls_prepare_modules();
+    // this only asserts this module's block exists for the calling thread.
+    (void)__vali_tls_get_block(_tls_index);
+    __cxa_callinitializers_tls(
+        __xl_a,
+        __xl_z,
+        __dso_handle, 
+        DLL_ACTION_THREADATTACH
+    );
 }
 
 // __cxa_module_tls_thread_finit
@@ -171,13 +199,14 @@ void __cxa_module_tls_thread_init(void)
 // called for main thread, not new threads
 void __cxa_module_tls_thread_finit(void)
 {
-    size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
-    TRACE("__cxa_module_tls_thread_finit(%" PRIuIN ", 0x%" PRIxIN ", 0x%" PRIxIN ")", 
-        TlsDataSize, _tls_used.StartOfData, _tls_used.EndOfData);
-    __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);
-    if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
-        free(_tls_array[_tls_index]);
-    }
+    __cxa_callinitializers_tls(
+        __xl_a,
+        __xl_z,
+        __dso_handle,
+        DLL_ACTION_THREADDETACH
+    );
+    // All blocks remain live until process-wide thread callbacks finish,
+    // then __tls_release_modules() frees them together.
 }
 
 // On ALL coff platform this must be called
@@ -185,7 +214,7 @@ void __cxa_module_tls_thread_finit(void)
 void __cxa_module_global_init(void)
 {
     TRACE("__cxa_module_global_init(0x%" PRIxIN ")", __dso_handle);
-    __cxa_module_tls_global_init();
+    // DLL_ACTION_TLSREGISTER already registered this module's TLS template.
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_INITIALIZE);
     __cxa_module_tls_thread_init();
     TRACE(" > global init (c)");
@@ -199,13 +228,10 @@ void __cxa_module_global_init(void)
 // as terminators are registered by cxa_atexit.
 void __cxa_module_global_finit(void)
 {
-    size_t TlsDataSize = (size_t)_tls_used.EndOfData - (size_t)_tls_used.StartOfData;
     TRACE("__cxa_module_global_finit(0x%" PRIxIN ")", __dso_handle);
 	__cxa_callinitializers(__xp_a, __xp_z);
 	__cxa_callinitializers(__xt_a, __xt_z);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_THREADDETACH);
     __cxa_callinitializers_tls(__xl_a, __xl_z, __dso_handle, DLL_ACTION_FINALIZE);
-    if (TlsDataSize > 0 && _tls_used.StartOfData < _tls_used.EndOfData) {
-        free(_tls_array[_tls_index]);
-    }
+    // Module TLS blocks are freed process/thread-wide by __tls_release_modules().
 }

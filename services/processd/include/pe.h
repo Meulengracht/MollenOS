@@ -32,6 +32,9 @@
 #elif defined(amd64) || defined(__amd64__)
 #define PE_CURRENT_MACHINE                  PE_MACHINE_X64
 #define PE_CURRENT_ARCH                     PE_ARCHITECTURE_64
+#elif defined(__aarch64__)
+#define PE_CURRENT_MACHINE                  PE_MACHINE_ARM64
+#define PE_CURRENT_ARCH                     PE_ARCHITECTURE_64
 #else
 #error "Unhandled PE architecture used"
 #endif

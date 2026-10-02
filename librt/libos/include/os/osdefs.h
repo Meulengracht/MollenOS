@@ -59,7 +59,7 @@
 #define __MASK   0xFFFFFFFF
 typedef uint32_t paddr_t;
 typedef uint32_t vaddr_t;
-#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__)
+#elif defined(__x86_64__) || defined(amd64) || defined(__amd64__) || defined(__aarch64__)
 #define __BITS   64
 #define __MASK   0xFFFFFFFFFFFFFFFF
 typedef uint64_t paddr_t;
@@ -116,6 +116,8 @@ typedef enum oserr {
     
     __OS_ECOUNT
 } oserr_t;
+
+#define OSERR_VALID(err) ((err) >= OS_EOK && (err) < __OS_ECOUNT)
 
 typedef union Integer64 {
     struct {
@@ -205,7 +207,12 @@ static inline size_t NextPowerOfTwo(size_t value) {
 #define DIVUP(a, b)                             (((a) + ((b) - 1)) / (b))
 #define ADDLIMIT(Base, Current, Step, Limit)    (((Current) + (Step)) >= (Limit)) ? (Base) : ((Current) + (Step))
 #define SIZEOF_ARRAY(Array)                     (sizeof(Array) / sizeof((Array)[0]))
+
+#if defined(__aarch64__)
+#define BOCHSBREAK                              __builtin_trap();
+#else
 #define BOCHSBREAK                              __asm__ __volatile__ ("xchg %bx, %bx\n\t");
+#endif
 
 #ifdef __need_minmax
 #define MIN(a,b) (((a)<(b))?(a):(b))

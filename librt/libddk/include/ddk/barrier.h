@@ -124,6 +124,23 @@
 #endif //!_M_IX86
 #endif //!__clang__
 
+#if defined(__aarch64__)
+#define mb() __asm__ volatile("dmb sy" ::: "memory")
+#define rmb() __asm__ volatile("dmb ld" ::: "memory")
+#define wmb() __asm__ volatile("dmb st" ::: "memory")
+
+#define dma_mb() __asm__ volatile("dmb osh" ::: "memory")
+#define dma_rmb() __asm__ volatile("dmb oshld" ::: "memory")
+#define dma_wmb() __asm__ volatile("dmb oshst" ::: "memory")
+
+#define __smp_mb() __asm__ volatile("dmb ish" ::: "memory")
+#define __smp_rmb() __asm__ volatile("dmb ishld" ::: "memory")
+#define __smp_wmb() __asm__ volatile("dmb ishst" ::: "memory")
+
+#define smp_before_atomic() __smp_mb()
+#define smp_after_atomic() __smp_mb()
+#endif
+
 #ifdef __OSCONFIG_ENABLE_MULTIPROCESSORS
 
 #define smp_mb()  __smp_mb()

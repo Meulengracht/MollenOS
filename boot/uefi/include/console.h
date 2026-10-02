@@ -20,7 +20,6 @@
 #define __CONSOLE_H__
 
 #include <Uefi.h>
-#include <GlobalTable.h>
 
 EFI_STATUS ConsoleInitialize(void);
 
