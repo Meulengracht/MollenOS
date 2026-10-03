@@ -185,7 +185,8 @@ AcquireSystemDeviceIo(
                     &(struct MemorySpaceMapOptions) {
                         .PhysicalStart = physicalBase,
                         .Length = length,
-                        .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                        .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE |
+                                 MAPPING_DEVICE | MAPPING_PERSISTENT,
                         .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_PROCESS
                     },
                     &mappedAddress
@@ -284,7 +285,7 @@ CreateKernelSystemDeviceIo(
                     &(struct MemorySpaceMapOptions) {
                         .PhysicalStart = physicalBase,
                         .Length = length,
-                        .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+                        .Flags = MAPPING_COMMIT | MAPPING_NOCACHE | MAPPING_DEVICE | MAPPING_PERSISTENT,
                         .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_GLOBAL
                     },
                     &ioEntry->Io.Access.Memory.VirtualBase

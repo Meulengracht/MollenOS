@@ -58,6 +58,7 @@ DECL_STRUCT(PlatformMemoryMapping);
 #define MAPPING_CLEAN                   0x00000400U  // Memory should be zeroed when underlying physical pages are allocated
 #define MAPPING_STACK                   0x00000100U  // Memory resource is a stack and needs a guard page
 #define MAPPING_TRAPPAGE                0x00000200U  // Memory pages should trigger a trap
+#define MAPPING_DEVICE                  0x00000800U  // Device registers, not ordinary uncached RAM
 
 #define MAPPING_PHYSICAL_FIXED          0x00000001U  // (Physical) Mappings are supplied
 #define MAPPING_PHYSICAL_CONTIGUOUS     0x00000002U  // (Physical) Mapping shall be physically contigious
@@ -99,9 +100,9 @@ typedef struct MemorySpace {
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceInitialize(
-        _In_ MemorySpace_t*           memorySpace,
-        _In_ struct VBoot*            bootInformation,
-        _In_ PlatformMemoryMapping_t* kernelMappings);
+    _In_ MemorySpace_t*           memorySpace,
+    _In_ struct VBoot*            bootInformation,
+    _In_ PlatformMemoryMapping_t* kernelMappings);
 
 /**
  * @brief
@@ -111,8 +112,8 @@ MemorySpaceInitialize(
  */
 KERNELAPI oserr_t KERNELABI
 CreateMemorySpace(
-        _In_  unsigned int flags,
-        _Out_ uuid_t*      handleOut);
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      handleOut);
 
 /**
  * @brief Switches the current address space out with the the address space provided
@@ -122,7 +123,7 @@ CreateMemorySpace(
  */
 KERNELAPI void KERNELABI
 MemorySpaceSwitch(
-        _In_ MemorySpace_t* memorySpace);
+    _In_ MemorySpace_t* memorySpace);
 
 KERNELAPI uuid_t KERNELABI         GetCurrentMemorySpaceHandle(void);
 KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
@@ -138,8 +139,8 @@ KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
  */
 KERNELAPI oserr_t KERNELABI
 AreMemorySpacesRelated(
-        _In_ MemorySpace_t* Space1,
-        _In_ MemorySpace_t* Space2);
+    _In_ MemorySpace_t* Space1,
+    _In_ MemorySpace_t* Space2);
 
 struct MemorySpaceMapOptions {
     // SHMTag is the ID of the shared memory region associated
@@ -179,9 +180,9 @@ struct MemorySpaceMapOptions {
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceMap(
-        _In_  MemorySpace_t*                memorySpace,
-        _In_  struct MemorySpaceMapOptions* options,
-        _Out_ vaddr_t*                      mappingOut);
+    _In_  MemorySpace_t*                memorySpace,
+    _In_  struct MemorySpaceMapOptions* options,
+    _Out_ vaddr_t*                      mappingOut);
 
 /**
  * @brief Unmaps a virtual memory region from an address space.
@@ -192,9 +193,9 @@ MemorySpaceMap(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceUnmap(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         size);
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         size);
 
 /**
  * @brief Commits/finishes an already present memory mapping. If a physical address
@@ -210,12 +211,12 @@ MemorySpaceUnmap(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceCommit(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ uintptr_t*     physicalAddressValues,
-        _In_ size_t         size,
-        _In_ size_t         pageMask,
-        _In_ unsigned int   placementFlags);
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ uintptr_t*     physicalAddressValues,
+    _In_ size_t         size,
+    _In_ size_t         pageMask,
+    _In_ unsigned int   placementFlags);
 
 /**
  * @brief Changes the attributes of the given memory range.
@@ -229,11 +230,11 @@ MemorySpaceCommit(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceChangeProtection(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  vaddr_t        address,
-        _In_  size_t         length,
-        _In_  unsigned int   attributes,
-        _Out_ unsigned int*  previousAttributes);
+    _In_  MemorySpace_t* memorySpace,
+    _In_  vaddr_t        address,
+    _In_  size_t         length,
+    _In_  unsigned int   attributes,
+    _Out_ unsigned int*  previousAttributes);
 
 /**
  * @brief Clones a region of memory mappings into the address space provided. The new mapping
@@ -249,13 +250,27 @@ MemorySpaceChangeProtection(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceCloneMapping(
-        _In_    MemorySpace_t* sourceSpace,
-        _In_    MemorySpace_t* destinationSpace,
-        _In_    vaddr_t        sourceAddress,
-        _InOut_ vaddr_t*       destinationAddress,
-        _In_    size_t         length,
-        _In_    unsigned int   memoryFlags,
-        _In_    unsigned int   placementFlags);
+    _In_    MemorySpace_t* sourceSpace,
+    _In_    MemorySpace_t* destinationSpace,
+    _In_    vaddr_t        sourceAddress,
+    _InOut_ vaddr_t*       destinationAddress,
+    _In_    size_t         length,
+    _In_    unsigned int   memoryFlags,
+    _In_    unsigned int   placementFlags);
+
+/**
+ * @brief Copies between kernel storage and stable, permission-checked userspace pages.
+ * This can be used to safely access userspace memory from the kernel, ensuring that the
+ * memory is properly checked for permissions and stability.
+ * 
+ * @return OS_EINVALPARAMS for inaccessible, overflowing, or non-userspace ranges.
+ */
+KERNELAPI oserr_t KERNELABI
+MemorySpaceCopyUser(
+    _In_ void*  userBuffer,
+    _In_ void*  kernelBuffer,
+    _In_ size_t length,
+    _In_ bool   toUser);
 
 /**
  * @brief Converts a virtual address range into the mapped physical range.
@@ -267,10 +282,10 @@ MemorySpaceCloneMapping(
  */
 KERNELAPI oserr_t KERNELABI
 GetMemorySpaceMapping(
-        _In_  MemorySpace_t* memorySpace,
-        _In_  vaddr_t        address,
-        _In_  int            pageCount,
-        _Out_ uintptr_t*     dmaVectorOut);
+    _In_  MemorySpace_t* memorySpace,
+    _In_  vaddr_t        address,
+    _In_  int            pageCount,
+    _Out_ uintptr_t*     dmaVectorOut);
 
 /**
  * @brief Queries allocation information from an existing allocation by its virtual address
@@ -282,9 +297,9 @@ GetMemorySpaceMapping(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceQuery(
-        _In_ MemorySpace_t*        memorySpace,
-        _In_ vaddr_t               address,
-        _In_ OSMemoryDescriptor_t* descriptor);
+    _In_ MemorySpace_t*        memorySpace,
+    _In_ vaddr_t               address,
+    _In_ OSMemoryDescriptor_t* descriptor);
 
 /**
  * @brief Retrieves the attributes for a specific virtual memory address in the given space.
@@ -297,10 +312,10 @@ MemorySpaceQuery(
  */
 KERNELAPI oserr_t KERNELABI
 GetMemorySpaceAttributes(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         length,
-        _In_ unsigned int*  attributesArray);
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         length,
+    _In_ unsigned int*  attributesArray);
 
 /**
  * @brief Sets the signal handler for the shared memory-space given
@@ -311,8 +326,8 @@ GetMemorySpaceAttributes(
  */
 KERNELAPI oserr_t KERNELABI
 MemorySpaceSetSignalHandler(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        signalHandlerAddress);
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        signalHandlerAddress);
 
 /**
  * @brief Retrieves the signal-handler address of the given memory-space
@@ -322,6 +337,6 @@ MemorySpaceSetSignalHandler(
  */
 KERNELAPI vaddr_t KERNELABI
 MemorySpaceSignalHandler(
-        _In_ MemorySpace_t* memorySpace);
+    _In_ MemorySpace_t* memorySpace);
 
 #endif //!__MEMORY_SPACE_INTERFACE__
