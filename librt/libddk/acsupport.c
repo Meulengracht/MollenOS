@@ -23,13 +23,34 @@
 
 #include <internal/_syscalls.h>
 #include <ddk/acpi.h>
+#include <ddk/firmware.h>
 #include <stdlib.h>
+#include <string.h>
 
 oserr_t
 AcpiQueryStatus(
     _In_ AcpiDescriptor_t* AcpiDescriptor)
 {
-    return Syscall_AcpiQuery(AcpiDescriptor);
+    OSFirmwareInfo_t info;
+    oserr_t          oserr;
+
+    if (AcpiDescriptor == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = FirmwareQuery(&info);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    if (!(info.Available & OSFIRMWARE_ACPI)) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    AcpiDescriptor->Version      = info.Acpi.Revision;
+    AcpiDescriptor->Century      = info.Acpi.Century;
+    AcpiDescriptor->BootFlags    = info.Acpi.IaBootFlags;
+    AcpiDescriptor->ArmBootFlags = info.Acpi.ArmBootFlags;
+    return OS_EOK;
 }
 
 oserr_t
@@ -37,27 +58,35 @@ AcpiQueryTable(
     _In_  const char*         signature,
     _Out_ ACPI_TABLE_HEADER** tableOut)
 {
-    ACPI_TABLE_HEADER header;
-    ACPI_TABLE_HEADER* table;
-    oserr_t         osStatus;
+    OSFirmwareTableKey_t key = { .Source = OSFIRMWARE_ACPI };
+    OSFirmwareTable_t    table;
+    void*                buffer;
+    size_t               length;
+    oserr_t              oserr;
 
-    osStatus = Syscall_AcpiGetHeader(signature, &header);
-    if (osStatus != OS_EOK) {
-        return osStatus;
+    if (signature == NULL || tableOut == NULL || strlen(signature) != sizeof(key.Signature)) {
+        return OS_EINVALPARAMS;
+    }
+    memcpy(&key.Signature[0], signature, sizeof(key.Signature));
+
+    oserr = FirmwareTableLocate(&key, &table);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    table = (ACPI_TABLE_HEADER*)malloc(header.Length);
-    if (!table) {
+    buffer = malloc(table.Length);
+    if (!buffer) {
         return OS_EOOM;
     }
-    osStatus = Syscall_AcpiGetTable(signature, table);
-    if (osStatus != OS_EOK) {
-        free(table);
-        return osStatus;
+
+    oserr = FirmwareTableRead(&key, buffer, table.Length, &length);
+    if (oserr != OS_EOK) {
+        free(buffer);
+        return oserr;
     }
 
-    *tableOut = table;
-    return osStatus;
+    *tableOut = buffer;
+    return OS_EOK;
 }
 
 oserr_t AcpiQueryInterrupt(

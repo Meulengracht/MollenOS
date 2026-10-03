@@ -15,23 +15,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * Retain an RX packet without retaining the driver's pool slot.
+ * Let a consumer keep an RX packet without keeping the driver's pool slot busy.
  *
- * This path is used only after the pool-retention budget is full: keeping the
- * received pool lease would prevent that slot from being recycled for further
- * traffic. Instead, copy the frame into a bounded, adapter-owned slot so the
- * consumer can keep the data while the original RX slot is returned promptly.
- * The storage is preallocated because this runs on the receive path, where a
- * dynamic allocation could fail or add unpredictable latency. These copy slots
- * have their own identities and do not consume driver completion-journal
- * credits.
+ * This path is only used once consumers already hold as many pool slots as they
+ * are allowed to. Holding on to yet another pool slot would leave the driver with
+ * fewer receive buffers. Instead, the frame is copied into one of a fixed number
+ * of copy slots managed by the adapter, so the consumer can keep the data while
+ * the original RX slot goes straight back to the driver.
+ * The copy slots are allocated up front because this runs on the receive path,
+ * where allocating memory could fail or add unpredictable delays. Copy slots have
+ * their own identities and do not count against the number of completions the
+ * driver can have waiting for acknowledgement.
  *
- * A slot marked Retained is owned by a consumer and must not be overwritten.
- * Its monotonically increasing Sequence distinguishes a later use of the same
- * slot from an old release token; slots at UINT64_MAX are retired rather than
- * allowing the identity to wrap and alias a stale token. Returning true means
- * the callback accepted ownership. Returning false leaves ownership here, so
- * the caller can deliver the original borrowed view through the legacy callback.
+ * A copy slot marked Retained is managed by a consumer and must not be overwritten.
+ * Each slot also has a Sequence number that goes up by one every time the slot is
+ * reused. A packet records the number it was given, so a late or repeated release of
+ * an old packet can be told apart from the packet currently in the slot. Once a slot's
+ * number reaches UINT64_MAX the slot is never used again, because wrapping back to
+ * zero could make an old packet look current. When the ReceivePacket callback returns
+ * true, the consumer now manages the copy. When it returns false, nothing changes, and
+ * the caller falls back to lending the original frame through the Receive callback.
  */
 
 #include "session.h"
@@ -47,31 +50,34 @@ __IncreaseWithoutRollover(
 }
 
 /** 
- * The pool retention budget is exhausted. Offer a copy from preallocated local
- * storage so the original RX slot can immediately return to the NIC. Copy slots
- * have separate identities and do not consume driver completion-journal credits.
+ * Called when consumers already hold as many pool slots as they are allowed to. Copy
+ * the frame into a free copy slot and offer that copy to the consumer instead, so the
+ * original receive buffer can go back to the driver right away. Copy slots are
+ * separate from the pool and do not use up any of the completions the driver may
+ * have waiting for acknowledgement.
+ * Returns true only if the consumer accepted the copy.
  */
 static bool
 __AllocateCopyBuffer(
     _In_ NetworkAdapter_t*      adapter,
     _In_ const NetBufferView_t* view)
 {
-    for (uint32_t i = 0; i < adapter->RxCopyCount; ++i) {
-        struct AdapterRxCopy* copy = &adapter->RxCopies[i];
+    for (uint32_t i = 0; i < adapter->Rx.Copy.Count; ++i) {
+        struct AdapterRxCopy* copy = &adapter->Rx.Copy.Entries[i];
         unsigned char*        data;
         
         if (copy->Retained || copy->Sequence == UINT64_MAX) {
             continue;
         }
         
-        // The slot is available and its identity can still advance. Populate it
-        // before publishing a token to the callback.
-        data = adapter->RxCopyBytes + (size_t)i * (adapter->Mtu + 14);
+        // The slot is free and its Sequence can still be increased. Fill it and
+        // mark it in use before the consumer gets to see the packet.
+        data = adapter->Rx.Copy.Bytes + (size_t)i * (adapter->Mtu + 14);
         memcpy(data, view->Data, view->Length);
-        __IncreaseWithoutRollover(&adapter->RxFallbackCopies);
+        __IncreaseWithoutRollover(&adapter->Rx.FallbackCopies);
         copy->Retained = true;
         ++copy->Sequence;
-        ++adapter->RxCopyRetained;
+        ++adapter->Rx.Copy.Retained;
         
         NetAdapterRxPacket_t packet = {
             .Data = data,
@@ -86,16 +92,16 @@ __AllocateCopyBuffer(
             }
         };
         
-        // Acceptance transfers responsibility for eventually releasing this
-        // exact slot/sequence pair to the consumer.
+        // If the consumer accepts, it now manages this copy and must later release
+        // it; the slot number and Sequence in the packet identify exactly this use.
         if (adapter->Callbacks.ReceivePacket(adapter->Callbacks.Context, &packet)) {
             return true;
         }
         
-        // Declining is not an ownership transfer. Do not offer the same frame a
-        // second time; the borrowed callback below is the remaining fallback.
+        // The consumer declined, so the slot is free again. Do not try another copy
+        // slot for the same frame; the caller falls back to the Receive callback.
         copy->Retained = false;
-        --adapter->RxCopyRetained;
+        --adapter->Rx.Copy.Retained;
         return false;
     }
     return false;
@@ -107,11 +113,12 @@ NetAdapterDeliverReceive(
     _In_ struct AdapterLease*   entry,
     _In_ const NetBufferView_t* view)
 {
-    // Prefer handing off the original pool-backed data: it avoids a copy, but
-    // retaining too many pool leases would starve the driver's RX ring. Bound
-    // that zero-copy path and use independent copy storage once it is full.
+    // Prefer handing the consumer the original pool buffer, since that avoids a
+    // copy. But every pool slot a consumer keeps is a receive buffer the driver
+    // cannot use, so only a limited number may be kept this way; after that,
+    // packets are copied into the separate copy slots instead.
     if (adapter->Callbacks.ReceivePacket) {
-        if (adapter->RxPoolRetained < adapter->RxRetentionLimit) {
+        if (adapter->Rx.PoolRetained < adapter->Rx.RetentionLimit) {
             NetAdapterRxPacket_t packet = {
                 .Data = view->Data,
                 .Length = view->Length,
@@ -122,47 +129,49 @@ NetAdapterDeliverReceive(
                 }
             };
             
-            // Publish the retained state before calling out so the packet has a
-            // valid owner as soon as the callback can accept it.
+            // Mark the lease as kept by a consumer before calling out, so its state
+            // is already correct the moment the callback accepts it.
             entry->State = ADAPTER_LEASE_RX_RETAINED;
-            ++adapter->RxPoolRetained;
+            ++adapter->Rx.PoolRetained;
             
             if (adapter->Callbacks.ReceivePacket(adapter->Callbacks.Context, &packet)) {
                 // The consumer accepted this lease and must release it later.
                 return true;
             }
             
-            // Decline means no ownership transfer; restore the lease and budget
-            // so this RX slot can follow the normal recycle path.
+            // The consumer declined, so undo the marking and the count above. The
+            // slot then goes back to the driver as usual.
             entry->State = ADAPTER_LEASE_PREPARED;
-            --adapter->RxPoolRetained;
+            --adapter->Rx.PoolRetained;
         } else if (__AllocateCopyBuffer(adapter, view)) {
-            // The consumer owns the copy, not this lease, so report success to
-            // the caller while allowing the original pool slot to be recycled.
+            // The consumer kept the copy, not this pool slot. Return false so the
+            // caller gives the pool slot back to the driver.
             return false;
         }
     }
     
-    // No retained-packet handoff succeeded (or none was requested). The legacy
-    // callback borrows the view only for this call, so the RX slot stays local.
+    // The consumer did not keep the frame, or has no ReceivePacket callback. Lend
+    // the frame through Receive, which may only read it during the call, so the
+    // pool slot can be reused afterwards.
     if (adapter->Callbacks.Receive) {
         adapter->Callbacks.Receive(adapter->Callbacks.Context, view->Data, view->Length);
     } else {
         // There is no consumer to receive the frame; account for its loss.
-        __IncreaseWithoutRollover(&adapter->RxDropped);
+        __IncreaseWithoutRollover(&adapter->Rx.Dropped);
     }
     return false;
 }
 
 /**
- * Release a retained copy by making its adapter-owned slot reusable. Unlike a
- * pool-backed packet, this does not return a driver lease: the frame already
- * lives in the adapter's separate copy storage, and only the consumer's claim
- * on that storage is ending.
+ * Release a packet that the consumer kept as a copy, so its copy slot can be used
+ * again. Nothing goes back to the driver here: the original receive buffer was
+ * already returned when the copy was made. This only ends the consumer's use of the
+ * copy slot.
  *
- * Validate the owner, backing tag, slot, and generation before changing state.
- * The sequence check rejects duplicate or stale tokens if the slot has since
- * been reused for another packet.
+ * Before changing anything, check that the packet belongs to this adapter, is a copy,
+ * names a valid slot, and carries the slot's current Sequence. The Sequence check
+ * rejects releasing the same packet twice, and rejects an old packet whose slot has
+ * since been reused for another frame.
  */
 static oserr_t
 __HandlePacketCopyRelease(
@@ -171,15 +180,15 @@ __HandlePacketCopyRelease(
 {
     struct AdapterRxCopy* copy;
 
-    if (!NetAdapterPacketHasBacking(adapter, &packet->Private, NET_ADAPTER_PACKET_COPY)) {
+    if (!___PacketHasBacking(adapter, &packet->Private, NET_ADAPTER_PACKET_COPY)) {
         return OS_ENOENT;
     }
 
-    if (!adapter->RxCopies || packet->Private.Storage.Copy.Slot >= adapter->RxCopyCount) {
+    if (!adapter->Rx.Copy.Entries || packet->Private.Storage.Copy.Slot >= adapter->Rx.Copy.Count) {
         return OS_ENOENT;
     }
     
-    copy = &adapter->RxCopies[packet->Private.Storage.Copy.Slot];
+    copy = &adapter->Rx.Copy.Entries[packet->Private.Storage.Copy.Slot];
     if (!copy->Retained || copy->Sequence != packet->Private.Storage.Copy.Sequence) {
         return OS_ENOENT;
     }
@@ -187,15 +196,16 @@ __HandlePacketCopyRelease(
     // The consumer is done with these bytes, so this slot can be overwritten by
     // a later fallback packet and no longer counts against the copy budget.
     copy->Retained = false;
-    --adapter->RxCopyRetained;
+    --adapter->Rx.Copy.Retained;
     return OS_EOK;
 }
 
 /**
- * Release a retained pool-backed packet by returning its RX lease to the buffer
- * manager. The adapter's lease entry must still identify this packet as
- * retained; otherwise the token is foreign, stale, already released, or no
- * longer in the state this operation is allowed to release.
+ * Release a packet that the consumer kept directly from the pool, by giving its RX
+ * slot back to the buffer manager. The adapter's record for that slot must still show
+ * it as kept by a consumer. If not, the packet belongs to another adapter, is from an
+ * earlier use of the slot, was already released, or was never kept by a consumer, and
+ * the release is refused.
  */
 static oserr_t
 __HandlePacketPoolRelease(
@@ -215,17 +225,17 @@ __HandlePacketPoolRelease(
         return OS_ENOENT;
     }
     
-    // Return the underlying lease first. If that fails, preserve the retained
-    // entry and count so the adapter does not claim a release that never happened.
+    // Give the slot back to the buffer manager first. If that fails, leave the
+    // record and the count unchanged, since the slot was not actually released.
     status = NetBuffersRelease(adapter->Buffers, &entry->Lease);
     if (status != OS_EOK) {
         return status;
     }
     
-    // The lease is now returned, so discard its lookup record and free one unit
-    // of the bounded pool-retention budget.
+    // The lease is now returned, so discard its lookup record and lower the
+    // count of pool slots held by consumers.
     memset(entry, 0, sizeof(*entry));
-    --adapter->RxPoolRetained;
+    --adapter->Rx.PoolRetained;
     return OS_EOK;
 }
 
@@ -256,10 +266,11 @@ NetAdapterRxRelease(
             break;
         }
         default:
-            return OS_ENOENT; // Cleared or unknown tags never select a union member.
+            return OS_ENOENT; // Cleared or unrecognized packet; never read its Storage.
     }
     
-    // Clear the packet and release any associated resources.
+    // Clear the packet so it cannot be released twice. If the adapter is already
+    // closed and this was the last packet held, its buffers can now be freed.
     memset(packet, 0, sizeof(*packet));
     NetAdapterReclaimClosedBuffers(adapter);
     return OS_EOK;

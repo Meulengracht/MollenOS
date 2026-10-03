@@ -46,10 +46,10 @@ NetAdapterMarkFailed(
     _In_ oserr_t           status)
 {
     adapter->LastError = status;
-    adapter->Pending = false;
+    adapter->Control.Pending = false;
     
     if (adapter->Session.id) {
-        adapter->CloseRequested = true;
+        adapter->Intent.CloseRequested = true;
         adapter->State = NET_ADAPTER_CLOSING;
     } else {
         adapter->State = NET_ADAPTER_FAILED;
@@ -149,11 +149,11 @@ NetAdapterCreate(
     }
 
     // Reset counters
-    adapter->NextSerial = 1;
-    adapter->NextBatch = 1;
-    adapter->QueueOrder = 1;
-    adapter->Run = 1;
-    adapter->PreferRx = true;
+    adapter->Control.NextSerial = 1;
+    adapter->Window.NextBatch = 1;
+    adapter->Tx.QueueOrder = 1;
+    adapter->Window.Run = 1;
+    adapter->Window.PreferRx = true;
     
     *out = adapter;
     return OS_EOK;
@@ -196,7 +196,7 @@ NetAdapterDestroy(
     }
 
     // Only safe to destroy an adapter that has no retained RX resources
-    if (adapter->RxCopyRetained || adapter->RxPoolRetained) {
+    if (adapter->Rx.Copy.Retained || adapter->Rx.PoolRetained) {
         return OS_EBUSY;
     }
     
@@ -206,10 +206,10 @@ NetAdapterDestroy(
         return status;
     }
     
-    free(adapter->Leases[0]);
-    free(adapter->Leases[1]);
-    free(adapter->RxCopies);
-    free(adapter->RxCopyBytes);
+    free(adapter->Queues[NET_ADAPTER_TX].Leases);
+    free(adapter->Queues[NET_ADAPTER_RX].Leases);
+    free(adapter->Rx.Copy.Entries);
+    free(adapter->Rx.Copy.Bytes);
     free(adapter);
     
     *adapterOut = NULL;
@@ -278,7 +278,7 @@ NetAdapterLinkChanged(
         return OS_ENOENT;
     }
     
-    if (adapter->State == NET_ADAPTER_CLOSED || adapter->CloseRequested ||
+    if (adapter->State == NET_ADAPTER_CLOSED || adapter->Intent.CloseRequested ||
         adapter->State == NET_ADAPTER_QUARANTINED) {
         return OS_ENOENT;
     }
@@ -301,7 +301,7 @@ NetAdapterRefreshCounters(
     if (adapter == NULL) {
         return;
     }
-    adapter->CountersNeeded = true;
+    adapter->Intent.CountersNeeded = true;
 }
 
 void
@@ -311,7 +311,7 @@ NetAdapterStop(
     if (adapter == NULL) {
         return;
     }
-    adapter->StopRequested = true;
+    adapter->Intent.StopRequested = true;
 }
 
 void
@@ -321,7 +321,7 @@ NetAdapterClose(
     if (adapter == NULL) {
         return;
     }
-    adapter->CloseRequested = true;
+    adapter->Intent.CloseRequested = true;
 }
 
 oserr_t
@@ -337,15 +337,15 @@ NetAdapterStart(
         return OS_EBUSY;
     }
 
-    adapter->StopRequested = false;
-    adapter->StopReplied   = false;
+    adapter->Intent.StopRequested = false;
+    adapter->Intent.StopReplied   = false;
 
     // Too many runs would overflow the counter.
-    if (adapter->Run == UINT64_MAX) {
+    if (adapter->Window.Run == UINT64_MAX) {
         NetAdapterMarkFailed(adapter, OS_EOVERFLOW);
         return OS_EOVERFLOW;
     }
-    adapter->Run++;
+    adapter->Window.Run++;
     adapter->State = NET_ADAPTER_PREPARE;
     return OS_EOK;
 }
@@ -359,25 +359,26 @@ NetAdapterRetry(
     }
     
     if (adapter->State == NET_ADAPTER_FAILED && !adapter->Session.id && !adapter->Buffers) {
-        // An authoritative pre-session failure owns no remote pools. Refresh
-        // capabilities with a new serial, rejecting delayed replies from before.
+        // The failure happened before a session was opened, so we know for certain that
+        // no pools were registered with the driver. Start over by asking for its
+        // capabilities; the new request gets a new serial, so late replies are ignored.
         adapter->State = NET_ADAPTER_INFO;
-        adapter->Pending = false;
-        adapter->CloseRequested = adapter->StopRequested = false;
+        adapter->Control.Pending = false;
+        adapter->Intent.CloseRequested = adapter->Intent.StopRequested = false;
         return OS_EOK;
     }
     
-    if (adapter->State != NET_ADAPTER_QUARANTINED || !adapter->Pending) {
+    if (adapter->State != NET_ADAPTER_QUARANTINED || !adapter->Control.Pending) {
         return OS_EINVALPARAMS;
     }
     
-    if (adapter->Request.Operation == SERVICE_CTT_NETADAPTER_OPEN_ID) {
+    if (adapter->Control.Request.Operation == SERVICE_CTT_NETADAPTER_OPEN_ID) {
         adapter->State = NET_ADAPTER_OPEN;
     } else {
         adapter->State = NET_ADAPTER_CLOSING;
     }
-    adapter->Attempts = 0;
-    adapter->Deadline = 0;
+    adapter->Control.Attempts = 0;
+    adapter->Control.Deadline = 0;
     return OS_EOK;
 }
 
@@ -393,21 +394,21 @@ NetAdapterSnapshot(
     memset(out, 0, sizeof(*out));
     out->State = adapter->State;
     out->LastError = adapter->LastError;
-    out->Run = adapter->Run;
-    out->AdmittedBatch = adapter->Admitted;
-    out->RetiredBatch = adapter->Retired;
+    out->Run = adapter->Window.Run;
+    out->AdmittedBatch = adapter->Window.Admitted;
+    out->RetiredBatch = adapter->Window.Retired;
     
-    for (uint32_t i = 0; i < adapter->Window; ++i) {
-        out->PendingBatches += adapter->Batches[i].Used;
+    for (uint32_t i = 0; i < adapter->Window.Size; ++i) {
+        out->PendingBatches += adapter->Window.Batches[i].Used;
     }
     
     out->Info = adapter->Info;
     out->Link = adapter->Link;
     out->Counters = adapter->Counters;
-    out->RxPoolRetained = adapter->RxPoolRetained;
-    out->RxCopyRetained = adapter->RxCopyRetained;
-    out->RxFallbackCopies = adapter->RxFallbackCopies;
-    out->RxDropped = adapter->RxDropped;
+    out->RxPoolRetained = adapter->Rx.PoolRetained;
+    out->RxCopyRetained = adapter->Rx.Copy.Retained;
+    out->RxFallbackCopies = adapter->Rx.FallbackCopies;
+    out->RxDropped = adapter->Rx.Dropped;
     
     if (adapter->Buffers) {
         NetBuffersGetStats(adapter->Buffers, &out->Buffers);
@@ -422,12 +423,12 @@ NetAdapterSetProtocolError(
         return;
     }
 
-    if (!adapter->Pending) {
+    if (!adapter->Control.Pending) {
         NetAdapterMarkFailed(adapter, OS_EPROTOCOL);
         return;
     }
     
-    switch (adapter->Request.Operation) {
+    switch (adapter->Control.Request.Operation) {
         case SERVICE_CTT_NETADAPTER_OPEN_ID:
         case SERVICE_CTT_NETADAPTER_CLOSE_ID:
             adapter->LastError = OS_EPROTOCOL;
@@ -469,9 +470,10 @@ __VerifyNetAdapterInfo(
 }
 
 /** 
- * @brief Negotiate local limits before opening the adapter. 
- * Packet payload capacity includes the Ethernet header.
- * Optional protocol features remain disabled.
+ * @brief Check the capabilities reported by the driver and choose the local limits (MTU,
+ * batch window and batch size) before the adapter is opened. Packet buffers are sized
+ * for the MTU plus the 14-byte Ethernet header. No optional protocol features are
+ * requested.
  */
 static oserr_t
 __UpdateAdapterInfo(
@@ -508,14 +510,16 @@ __UpdateAdapterInfo(
         return OS_ENOTSUPPORTED;
     }
     
-    adapter->Window = MIN(adapter->Config.BatchWindow, adapter->Info.max_pending_batches);
-    adapter->BatchSize = MIN(adapter->Info.max_batch_size, NET_ADAPTER_BATCH_MAX);
+    adapter->Window.Size = MIN(adapter->Config.BatchWindow, adapter->Info.max_pending_batches);
+    adapter->Window.BatchSize = MIN(adapter->Info.max_batch_size, NET_ADAPTER_BATCH_MAX);
     adapter->State = NET_ADAPTER_OPEN;
     return OS_EOK;
 }
 
 /** 
- * @brief Free detached storage only after the last caller-owned view has returned.
+ * @brief Free the buffer storage of a closed adapter, but only once callers have returned
+ * every packet they still hold. This runs when the close completes, and again when a
+ * caller releases its last packet.
  */
 void
 NetAdapterReclaimClosedBuffers(
@@ -527,28 +531,32 @@ NetAdapterReclaimClosedBuffers(
     }
 
     // If buffer pool resources are still retained, we cannot reclaim them.
-    if (adapter->RxCopyRetained || adapter->RxPoolRetained) {
+    if (adapter->Rx.Copy.Retained || adapter->Rx.PoolRetained) {
         return;
     }
     
-    // Caller-owned TX/RX views can outlive remote close. Ownership gates keep
-    // their storage valid; the final release retries reclamation here.
+    // TX and RX packets held by callers may still exist after the driver has closed
+    // the session. The buffer manager keeps their storage valid until they are
+    // returned, and the last release calls this function again to retry.
     if (NetBuffersDestroy(&adapter->Buffers) == OS_EOK) {
-        free(adapter->Leases[0]);
-        free(adapter->Leases[1]);
-        adapter->Leases[0] = NULL;
-        adapter->Leases[1] = NULL;
+        free(adapter->Queues[NET_ADAPTER_TX].Leases);
+        free(adapter->Queues[NET_ADAPTER_RX].Leases);
+        adapter->Queues[NET_ADAPTER_TX].Leases = NULL;
+        adapter->Queues[NET_ADAPTER_RX].Leases = NULL;
         
-        free(adapter->RxCopies);
-        free(adapter->RxCopyBytes);
-        adapter->RxCopies = NULL;
-        adapter->RxCopyBytes = NULL;
+        free(adapter->Rx.Copy.Entries);
+        free(adapter->Rx.Copy.Bytes);
+        adapter->Rx.Copy.Entries = NULL;
+        adapter->Rx.Copy.Bytes = NULL;
     }
 }
 
 /** 
- * @brief A successful remote close fences DMA, but does not revoke caller-owned views.
- * Release worker-owned leases and preserve retained RX packets and TX builders.
+ * @brief Handle a successful CLOSE reply. Once the driver has confirmed the close it no
+ * longer accesses the shared memory (DMA), so every lease managed by the worker
+ * (queued or prepared) is released as cancelled. Packets that callers still hold,
+ * received packets they kept and TX packets they are building, are not taken away;
+ * they stay valid until the caller releases or cancels them.
  */
 static oserr_t
 __HandleClose(
@@ -560,12 +568,12 @@ __HandleClose(
         status = NetBuffersClosed(adapter->Buffers, &adapter->Session);
 
         for (int poolIndex = 0; poolIndex < 2 && status == OS_EOK; ++poolIndex) {
-            if (!adapter->Leases[poolIndex]) {
+            if (!adapter->Queues[poolIndex].Leases) {
                 continue;
             }
-            for (uint32_t n = 0; n < adapter->Slots[poolIndex] && status == OS_EOK; ++n) {
-                struct AdapterLease* entry = &adapter->Leases[poolIndex][n];
-                if (__AdapterLeaseIsWorkerOwned(entry)) {
+            for (uint32_t n = 0; n < adapter->Queues[poolIndex].Slots && status == OS_EOK; ++n) {
+                struct AdapterLease* entry = &adapter->Queues[poolIndex].Leases[n];
+                if (__AdapterLeaseIsManagedByWorker(entry)) {
                     status = NetAdapterReleaseLease(adapter, entry, OS_ECANCELLED, false);
                 }
             }
@@ -573,10 +581,10 @@ __HandleClose(
     }
     
     if (status == OS_EOK) {
-        memset(adapter->Batches, 0, sizeof(adapter->Batches));
+        memset(adapter->Window.Batches, 0, sizeof(adapter->Window.Batches));
         
-        adapter->Draining = false;
-        adapter->DrainNeeded = false;
+        adapter->Drain.Active = false;
+        adapter->Drain.Needed = false;
         adapter->State = NET_ADAPTER_CLOSED;
         NetAdapterReclaimClosedBuffers(adapter);
     }
@@ -601,16 +609,17 @@ HandleAdapterRequest(
     }
     
     // Consume only the one outstanding response for this driver and serial;
-    // stale, duplicated, or misrouted replies must not advance this lifecycle.
-    if (driver != adapter->Driver || !adapter->Pending || serial != adapter->Request.Serial) {
+    // old, duplicated, or misrouted replies must not advance this lifecycle.
+    if (driver != adapter->Driver || !adapter->Control.Pending || serial != adapter->Control.Request.Serial) {
         return OS_ENOENT;
     }
     
-    // A status outside the OS error range is malformed protocol data. An
-    // OPEN result is uncertain, so retain its pending identity and quarantine
-    // instead of risking that remotely-created state or memory is forgotten.
+    // A status outside the OS error range is malformed protocol data. For an
+    // OPEN we then cannot tell whether the driver created a session, so keep the
+    // request pending and quarantine instead of forgetting a session or memory
+    // the driver may still be using.
     if (!OSERR_VALID(reply->Status)) {
-        if (adapter->Request.Operation == SERVICE_CTT_NETADAPTER_OPEN_ID) {
+        if (adapter->Control.Request.Operation == SERVICE_CTT_NETADAPTER_OPEN_ID) {
             adapter->LastError = OS_EPROTOCOL;
             adapter->State = NET_ADAPTER_QUARANTINED;
             return OS_EPROTOCOL;
@@ -619,7 +628,7 @@ HandleAdapterRequest(
         return OS_EPROTOCOL;
     }
     
-    op = adapter->Request.Operation;
+    op = adapter->Control.Request.Operation;
     // A failed CLOSE is not proof that the remote side stopped using its
     // buffers. Keep the operation quarantined for explicit recovery; failures
     // of other operations use the normal failure path.
@@ -632,7 +641,7 @@ HandleAdapterRequest(
         NetAdapterMarkFailed(adapter, reply->Status);
         return reply->Status;
     }
-    adapter->Pending = false;
+    adapter->Control.Pending = false;
     
     status = OS_EOK;
     switch (op) {
@@ -641,11 +650,12 @@ HandleAdapterRequest(
             break;
         case SERVICE_CTT_NETADAPTER_OPEN_ID:
             // A successful OPEN must return a complete session identity so
-            // later requests can be correlated and remote ownership can be
-            // closed. Without it, the created remote session is unaddressable.
+            // later requests can be matched to the session and it can be closed
+            // again. Without it, the session the driver created cannot be addressed.
             if (!reply->Session.id || !reply->Session.generation) {
-                // A malformed successful open may still own remote state.
-                adapter->Pending = true;
+                // The driver may still have created a session, so keep the request
+                // pending and quarantine rather than forget about it.
+                adapter->Control.Pending = true;
                 adapter->State = NET_ADAPTER_QUARANTINED;
                 adapter->LastError = OS_EPROTOCOL;
                 return OS_EPROTOCOL;
@@ -670,12 +680,12 @@ HandleAdapterRequest(
         case SERVICE_CTT_NETADAPTER_REGISTER_POOL_ID:
             status = NetBuffersRegistered(adapter->Buffers,
                                           &adapter->Session,
-                                          adapter->Request.Pool.direction,
+                                          adapter->Control.Request.Pool.direction,
                                           reply->PoolId);
             // Register the opposite-direction pool next, then configure only
             // after both pool registrations have been accepted.
             if (status == OS_EOK) {
-                adapter->State = adapter->Request.Pool.direction == CTT_NETADAPTER_DIRECTION_TX
+                adapter->State = adapter->Control.Request.Pool.direction == CTT_NETADAPTER_DIRECTION_TX
                                          ? NET_ADAPTER_REGISTER_RX
                                          : NET_ADAPTER_CONFIGURE;
             }
@@ -688,29 +698,30 @@ HandleAdapterRequest(
             break;
         case SERVICE_CTT_NETADAPTER_START_RUN_ID:
             adapter->State = NET_ADAPTER_RUNNING;
-            adapter->NextPoll = __NetAdapterDeadline(now, adapter->Config.PollMilliseconds);
+            adapter->Drain.NextPoll = __NetAdapterDeadline(now, adapter->Config.PollMilliseconds);
             break;
         case SERVICE_CTT_NETADAPTER_STOP_RUN_ID: {
             NetBufferStats_t stats;
             NetBuffersGetStats(adapter->Buffers, &stats);
-            // The driver's terminal completion barrier cannot precede work
-            // already processed locally or a higher completion it has reported.
-            if (reply->Value < stats.ProcessedCompletion || reply->Value < adapter->Highest) {
+            // The reply is the sequence number of the last completion the driver
+            // will report for this run. It cannot be lower than completions we have
+            // already processed, or than the highest completion the driver reported.
+            if (reply->Value < stats.ProcessedCompletion || reply->Value < adapter->Window.Highest) {
                 status = OS_EPROTOCOL;
                 break;
             }
-            adapter->StopBarrier = reply->Value;
-            adapter->StopReplied = true;
-            adapter->DrainNeeded = stats.ProcessedCompletion < adapter->StopBarrier;
+            adapter->Intent.StopBarrier = reply->Value;
+            adapter->Intent.StopReplied = true;
+            adapter->Drain.Needed = stats.ProcessedCompletion < adapter->Intent.StopBarrier;
             break;
         }
         case SERVICE_CTT_NETADAPTER_GET_LINK_ID:
             status = __UpdateLink(adapter, &reply->Link);
-            adapter->LinkNeeded = false;
+            adapter->Intent.LinkNeeded = false;
             break;
         case SERVICE_CTT_NETADAPTER_GET_COUNTERS_ID:
             adapter->Counters = reply->Counters;
-            adapter->CountersNeeded = false;
+            adapter->Intent.CountersNeeded = false;
             break;
         case SERVICE_CTT_NETADAPTER_CLOSE_ID:
             status = __HandleClose(adapter);

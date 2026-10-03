@@ -65,7 +65,7 @@ NetAdapterClientCreate(
         CTT_NETADAPTER_LIMIT_FRAME_BYTES + sizeof(uuid_t)
     );
     
-    // Creation takes ownership of the link, including error cleanup.
+    // From here on the client manages the link, and frees it if creation fails.
     status = gracht_client_create(&config, &client);
     if (status) {
         return status;
@@ -155,27 +155,38 @@ __IsSessionProgressValid(
         NetworkAdapter_t*                     adapter,
         const struct ctt_netadapter_progress* progress)
 {
-    // Progress is a session-wide snapshot, so its cursors need not be newer
-    // than the last snapshot we received. Validate its internal ordering and
-    // provenance here; ApplyProgress merges valid snapshots monotonically.
+    // The driver attaches a progress report to every event. A report describes the
+    // whole session at the time it was sent, and reports can arrive out of order, so
+    // a report may be older than one we already applied. Here we only check that the
+    // report agrees with itself and with what netd has actually sent;
+    // __HandleSessionProgress makes sure applying it never moves our values backwards.
     //
-    // Retired batches/completions must be prefixes of work the driver reports
-    // consuming/producing. consumed_batch_id must be below NextBatch because
-    // NextBatch is the next ID netd will issue, so this excludes claims about
-    // batches that do not exist. Finally, retirement is allowed only through
-    // ACK cursors netd has published: those ACKs authorize replay/journal
-    // capacity reuse, whereas consumed/highest cursors alone do not.
+    // The driver can only retire work (be completely finished with it) that it has
+    // already taken: the retired batch ID cannot exceed the consumed batch ID, and the
+    // retired completion sequence cannot exceed the highest completion sequence it
+    // has produced. The consumed batch ID must be below NextBatch, the ID netd will
+    // hand out next, so the driver cannot claim to have consumed a batch that was
+    // never sent. Finally, the driver may only retire work covered by an ACK netd has
+    // actually sent. Our ACK is what allows the driver to drop the copies it keeps
+    // for resending batches and completion records; the fact that it has consumed or
+    // produced the work does not give it that permission on its own.
     return progress->retired_batch_id <= progress->consumed_batch_id &&
-           progress->consumed_batch_id < adapter->NextBatch &&
+           progress->consumed_batch_id < adapter->Window.NextBatch &&
            progress->retired_completion_sequence <= progress->highest_completion_sequence &&
-           progress->retired_batch_id <= adapter->SentAck.through_batch_id &&
-           progress->retired_completion_sequence <= adapter->SentAck.through_completion_sequence;
+           progress->retired_batch_id <= adapter->Ack.Sent.through_batch_id &&
+           progress->retired_completion_sequence <= adapter->Ack.Sent.through_completion_sequence;
 }
 
 /** 
- * @brief Merge a validated session snapshot without regressing local cursors. Driver
- * retirement confirms that ACKed replay/journal capacity can be reused; merely
- * sending an ACK or learning that work exists does not release that capacity.
+ * @brief Apply a progress report from the driver that already passed
+ * __IsSessionProgressValid. Reports can arrive late or out of order, so each of our
+ * values is only ever moved forward, never back to an older value.
+ *
+ * When the driver reports that it has retired work (it is completely finished with
+ * batches and completion records we acknowledged), the space we kept for resending
+ * those batches and for tracking those completions can be reused. Sending an ACK
+ * ourselves, or learning that the driver has more work, does not free that space;
+ * only the driver's report of retirement does.
  * @param adapter The network adapter whose state is being updated.
  * @param progress The validated progress snapshot to merge.
  * @return An error code indicating success or failure of the merge operation.
@@ -189,42 +200,47 @@ __HandleSessionProgress(
     NetBufferStats_t stats;
     NetBuffersGetStats(adapter->Buffers, &stats);
     
-    // Only new confirmed retirement is evidence that ACK delivery is making
-    // progress. Give the remaining unconfirmed credits a fresh retry budget;
-    // duplicate or older snapshots must not keep postponing a timeout.
-    if (progress->retired_batch_id > adapter->Retired ||
+    // Only a report that retires more work than before shows that our ACKs are
+    // getting through. In that case reset the ACK attempt count and deadline, so the
+    // work still waiting for confirmation gets a full set of retries. Repeated or
+    // older reports must not do this, or they could postpone the ACK timeout forever.
+    if (progress->retired_batch_id > adapter->Window.Retired ||
         progress->retired_completion_sequence > stats.AcknowledgedCompletion) {
-        adapter->AckAttempts = 0;
-        adapter->AckDeadline = 0;
+        adapter->Ack.Attempts = 0;
+        adapter->Ack.Deadline = 0;
     }
     
-    // A retired batch prefix no longer needs local replay storage. Release
-    // only slots in that prefix and keep the cursor at its greatest value so
-    // delayed snapshots cannot free newer batches or undo retirement.
-    if (progress->retired_batch_id > adapter->Retired) {
-        for (uint32_t i = 0; i < adapter->Window; ++i) {
-            if (adapter->Batches[i].Used &&
-                adapter->Batches[i].Request.Value <= progress->retired_batch_id) {
-                adapter->Batches[i].Used = false;
+    // The driver has retired every batch up to retired_batch_id, so we no longer need
+    // our copies of them for resending. Free only the window slots of those batches.
+    // Window.Retired only moves forward, so a delayed older report cannot free newer
+    // batches or undo a retirement we already recorded.
+    if (progress->retired_batch_id > adapter->Window.Retired) {
+        for (uint32_t i = 0; i < adapter->Window.Size; ++i) {
+            if (adapter->Window.Batches[i].Used &&
+                adapter->Window.Batches[i].Request.Value <= progress->retired_batch_id) {
+                adapter->Window.Batches[i].Used = false;
             }
         }
-        adapter->Retired = progress->retired_batch_id;
+        adapter->Window.Retired = progress->retired_batch_id;
     }
     
-    // Highest reveals journal records that may still be missing locally; it
-    // is a drain hint, not proof those completions have been processed.
-    if (progress->highest_completion_sequence > adapter->Highest) {
-        adapter->Highest = progress->highest_completion_sequence;
+    // highest_completion_sequence is the newest completion record the driver has
+    // produced. Some records up to it may not have reached us yet, so it only tells
+    // us a drain may be needed; it does not mean those completions were processed.
+    if (progress->highest_completion_sequence > adapter->Window.Highest) {
+        adapter->Window.Highest = progress->highest_completion_sequence;
     }
     
-    // Request a drain only when idle and behind the reported high-water mark.
-    // Finish an in-flight bounded snapshot before starting another for later pushes.
-    if (!adapter->Draining && adapter->Highest > stats.ProcessedCompletion) {
-        adapter->DrainNeeded = true;
+    // Ask for a drain when no drain is running and the driver has reported more
+    // completions than we have processed. A drain that is already running is
+    // allowed to finish first; newer completions are picked up by the next one.
+    if (!adapter->Drain.Active && adapter->Window.Highest > stats.ProcessedCompletion) {
+        adapter->Drain.Needed = true;
     }
     
-    // The buffer manager accepts only retirement within its locally processed
-    // prefix and decrements unacknowledged completion credits exactly once.
+    // Let the buffer manager free the completion space the driver has now retired.
+    // It rejects retirement of records we have not yet processed in order without
+    // gaps, and lowers its count of unacknowledged completions only once per record.
     return NetBuffersConfirmAcknowledged(
         adapter->Buffers,
         &adapter->Session,
@@ -233,8 +249,12 @@ __HandleSessionProgress(
 }
 
 /** 
- * @brief Validate the entire admission before changing leases. A late duplicate must
- * match retained results and cannot complete a user submission twice.
+ * @brief Apply the driver's answer to a submitted RX or TX batch, which says for each
+ * packet whether the driver accepted it (admitted it). The whole answer is checked
+ * before any lease is changed, so a bad answer leaves nothing half-applied. The same
+ * answer can arrive more than once, for example after we resent the batch; a late
+ * duplicate must match the results stored the first time, and must never complete a
+ * user's packet a second time.
  * @param adapter The network adapter whose state is being updated.
  * @param event The network adapter event containing the admission information.
  * @param now The current timestamp.
@@ -250,22 +270,23 @@ __HandleAdmission(
     struct AdapterBatch* next;
     uint32_t             accepted = 0;
 
-    // A different run or an already retired batch is stale; its result must
-    // not affect the current run's leases or admission cursor.
-    if (event->Run != adapter->Run || event->Id <= adapter->Retired) {
+    // An answer from a different run, or for a batch the driver already retired, is
+    // outdated. It must not change the current run's leases or Window.Admitted.
+    if (event->Run != adapter->Window.Run || event->Id <= adapter->Window.Retired) {
         return OS_ENOENT;
     }
     
     batch = NetAdapterFindBatch(adapter, event->Id);
-    // A nonretired ID without retained replay state cannot be tied to a
-    // submission, so treating its records as authoritative would be unsafe.
+    // The batch is not retired, yet we have no stored copy of it. Without that copy we
+    // cannot tell which packets the answer refers to, so trusting it would be unsafe.
     if (!batch) {
         return OS_EPROTOCOL;
     }
     
-    // Only successful admission carries per-packet results. A failure may be
-    // an older response to a replay and cannot revoke a subsequent success;
-    // leave unresolved batches on their existing finite retry schedule.
+    // Only a successful answer contains per-packet results. A failed answer may be a
+    // late reply to an earlier send of this batch, so it must not undo a success that
+    // came after it. Ignore it and let the batch's normal retry schedule, which has a
+    // limited number of attempts, settle the outcome.
     if (event->Status != OS_EOK) {
         if (event->Count) {
             return OS_EPROTOCOL;
@@ -273,8 +294,9 @@ __HandleAdmission(
         return OS_EOK;
     }
     
-    // Success must describe every submitted packet and claim that the driver
-    // consumed at least this batch, not an unrelated or partial result.
+    // A successful answer must have a result for every packet we submitted, and the
+    // driver's progress must show it has consumed at least this batch. Anything else
+    // is a partial answer or belongs to another batch.
     if (event->Count != batch->Request.Count || event->Progress.consumed_batch_id < event->Id) {
         return OS_EPROTOCOL;
     }
@@ -301,15 +323,16 @@ __HandleAdmission(
             }
         }
     }
-    // Replayed success is already reflected in leases and callbacks; never
-    // apply it a second time.
+    // The batch was already admitted, so this is a repeated answer. Leases and
+    // callbacks were updated the first time; applying it again would do that twice.
     if (batch->Admitted) {
         return OS_EOK;
     }
     
-    // Record each admission. Rejections terminate their leases immediately;
-    // accepted packets stay owned by the driver unless a completion arrived
-    // first, in which case both facts are known and the lease can be released.
+    // Apply each packet's result. A rejected packet's lease is released right away
+    // with the rejection status. An accepted packet stays managed by the driver until
+    // its completion arrives. If the completion already arrived before this answer,
+    // we now know the packet was both accepted and finished, so its lease is released.
     for (uint32_t i = 0; i < event->Count; ++i) {
         NetBufferLease_t lease;
         bool             ready;
@@ -332,6 +355,7 @@ __HandleAdmission(
             if (entry == NULL) {
                 return OS_EPROTOCOL;
             }
+            
             status = NetAdapterReleaseLease(
                 adapter,
                 entry,
@@ -340,6 +364,7 @@ __HandleAdmission(
             );
         } else {
             accepted++;
+            
             if (ready) {
                 status = NetAdapterReleaseCompletedLease(adapter, &lease);
             }
@@ -350,26 +375,29 @@ __HandleAdmission(
     }
     batch->Admitted = true;
     
-    // Only a contiguous admitted prefix can be ACKed to retire driver replay
-    // state. A later batch may be known while an earlier result is still missing.
-    while ((next = NetAdapterFindBatch(adapter, adapter->Admitted + 1)) && next->Admitted) {
-        adapter->Admitted++;
+    // Move Window.Admitted past every batch that is admitted with no unanswered batch
+    // before it. Only this gap-free range is acknowledged to the driver, which lets
+    // it drop its stored copies of those batches. A later batch may already be
+    // admitted while an earlier one still waits for its answer; that stops the advance.
+    while ((next = NetAdapterFindBatch(adapter, adapter->Window.Admitted + 1)) && next->Admitted) {
+        adapter->Window.Admitted++;
     }
     
-    // For RX, any accepted buffers break a run of total admission failures;
-    // repeated total rejection is fatal. If some buffers were rejected, pause
-    // before posting replacements instead of retrying immediately.
+    // For RX, count how many batches in a row had every buffer rejected; one accepted
+    // buffer resets the count, and reaching RetryLimit fails the adapter. If any buffer
+    // was rejected, wait RetryMilliseconds before posting replacements instead of
+    // retrying immediately.
     if (batch->Request.Operation == SERVICE_CTT_NETADAPTER_POST_RX_BATCH_ID) {
         if (accepted) {
-            adapter->RxFailures = 0;
-        } else if (++adapter->RxFailures >= adapter->Config.RetryLimit) {
+            adapter->Rx.Failures = 0;
+        } else if (++adapter->Rx.Failures >= adapter->Config.RetryLimit) {
             return OS_EBUFFER;
         }
         
         if (accepted == event->Count) {
-            adapter->RxRetryAt = now;
+            adapter->Rx.RetryAt = now;
         } else {
-            adapter->RxRetryAt = __NetAdapterDeadline(
+            adapter->Rx.RetryAt = __NetAdapterDeadline(
                 now,
                 adapter->Config.RetryMilliseconds
             );
@@ -379,8 +407,10 @@ __HandleAdmission(
 }
 
 /** 
- * @brief Validate every completion against the same ownership state before applying
- * any record. Duplicate descriptor IDs are invalid even at distinct journal positions.
+ * @brief Apply a chunk of completion records (the driver's final result for each
+ * submitted packet). Every record is checked against the current buffer state before
+ * any of them is applied, so a bad chunk changes nothing. Two records in one chunk
+ * may not refer to the same packet, even if their sequence numbers differ.
  * @param adapter The network adapter instance.
  * @param event The completion event to validate and apply.
  * @return OS_EOK if all completions are valid, or an error code otherwise.
@@ -392,26 +422,27 @@ __HandleCompletions(
 {
     oserr_t oserr = OS_EOK;
     
-    // Completion events carry records; an empty chunk cannot establish any
-    // journal progress. A nonzero ID belongs to one active drain attempt, so
-    // delayed chunks from a superseded attempt cannot change its snapshot.
+    // A completion event must carry at least one record; an empty one tells us
+    // nothing. A nonzero ID means the chunk answers a drain request and must belong
+    // to the drain that is running now. Late chunks from an earlier drain attempt
+    // that timed out are ignored, so they cannot change the current drain.
     if (!event->Count) {
         return OS_EPROTOCOL;
     }
-    if (event->Id && (!adapter->Draining || event->Id != adapter->DrainId)) {
+    if (event->Id && (!adapter->Drain.Active || event->Id != adapter->Drain.Id)) {
         return OS_ENOENT;
     }
     
-    // Check the whole chunk before changing buffer ownership or delivering
-    // callbacks. Sequence numbers must be real, within the driver's reported
-    // high-water mark, and contiguous inside this chunk even though separate
-    // events may arrive out of order or repeat.
+    // Check the whole chunk before handing any buffer back or calling callbacks.
+    // Every sequence number must be nonzero, no higher than the newest sequence the
+    // driver says it has produced, and exactly one above the previous record in this
+    // chunk. Separate events may still arrive out of order or more than once.
     for (uint32_t i = 0; i < event->Count; ++i) {
         const struct ctt_netadapter_completion* completion = &event->Completions[i];
         oserr_t                                 valid;
 
-        // Sanitize the completion sequence, it must be valid compared
-        // the highest completion sequence reported in the event's progress.
+        // Sequence 0 is never used, and a record cannot be newer than the highest
+        // completion sequence reported in this event's progress.
         if (!completion->completion_sequence ||
             completion->completion_sequence > event->Progress.highest_completion_sequence) {
             oserr = OS_EPROTOCOL;
@@ -426,27 +457,30 @@ __HandleCompletions(
             break;
         }
 
-        // A drain is bounded to BatchSize records after DrainAfter. Once its
-        // end marker arrives, no chunk may extend beyond that snapshot's end.
+        // A drain returns at most BatchSize records, starting right after
+        // Drain.After. Once its end marker has arrived, no chunk may contain
+        // records past the end that the marker reported.
         if (event->Id &&
-            (completion->completion_sequence <= adapter->DrainAfter ||
-             completion->completion_sequence - adapter->DrainAfter > adapter->BatchSize ||
-             (adapter->DrainEnded && completion->completion_sequence > adapter->DrainThrough))) {
+            (completion->completion_sequence <= adapter->Drain.After ||
+             completion->completion_sequence - adapter->Drain.After > adapter->Window.BatchSize ||
+             (adapter->Drain.Ended && completion->completion_sequence > adapter->Drain.Through))) {
             oserr = OS_EPROTOCOL;
             break;
         }
         
-        // Two terminal records cannot name the same submission, even
-        // when each individually validates against the pre-event state.
+        // Two final results in one chunk cannot be for the same packet. Each could
+        // still pass the check below on its own, because that check only looks at
+        // the state from before this event.
         for (uint32_t j = 0; j < i; ++j) {
             if (__PacketIdsEqual(&completion->id, &event->Completions[j].id)) {
                 oserr = OS_EPROTOCOL;
             }
         }
         
-        // The buffer manager checks session, descriptor ownership, result
-        // shape and its journal window. An identical retained record is a
-        // harmless replay, but a conflicting record must fail the validation.
+        // The buffer manager checks the session, that the packet is managed by the
+        // driver, that the result fields make sense, and that the record is not too
+        // far ahead of what we have processed. A repeat of a record it already
+        // stored is harmless (OS_EEXISTS), but a conflicting record fails.
         valid = NetBuffersValidateCompletion(
             adapter->Buffers,
             &adapter->Session,
@@ -464,35 +498,39 @@ __HandleCompletions(
             break;
         }
     }
-    // Apply only after every record passes validation. The buffer manager
-    // advances its processed prefix over contiguous records; completion
-    // callbacks happen once, and an exact replay has no second effect.
+    // Every record passed, so apply them now. The buffer manager advances its
+    // processed count over records that follow on without gaps. Each packet's
+    // completion callback runs only once; an exact repeat of a record does nothing.
     if (oserr == OS_EOK) {
         for (uint32_t i = 0; i < event->Count && oserr == OS_EOK; ++i) {
             oserr = NetAdapterCompletePacket(adapter, &event->Completions[i]);
         }
     }
     
-    // Track the largest sequence successfully applied for this drain. The
-    // scheduler separately waits for the contiguous processed prefix before
-    // considering the snapshot finished.
+    // Remember the highest sequence applied in this drain. This alone does not
+    // finish the drain: the scheduler waits until every record up to the drain's
+    // end has been processed with no gaps.
     if (oserr == OS_EOK && event->Id &&
-        event->Completions[event->Count - 1].completion_sequence > adapter->DrainSeenThrough) {
-        adapter->DrainSeenThrough = event->Completions[event->Count - 1].completion_sequence;
+        event->Completions[event->Count - 1].completion_sequence > adapter->Drain.SeenThrough) {
+        adapter->Drain.SeenThrough = event->Completions[event->Count - 1].completion_sequence;
     }
     
-    // A record beyond the local journal window needs its missing predecessors
-    // drained first. Keep that gap recoverable instead of failing the adapter.
+    // OS_EBUSY means a record is too far ahead of what we have processed because
+    // earlier records are missing. Ask for a drain to fetch them instead of failing
+    // the adapter.
     if (oserr == OS_EBUSY) {
-        adapter->DrainNeeded = true;
+        adapter->Drain.Needed = true;
         return oserr;
     }
     return oserr;
 }
 
 /** 
- * @brief An end marker describes the drain snapshot, not delivery of all its chunks.
- * The scheduler waits until local processing reaches Through before finishing it.
+ * @brief Handle the end marker of a drain. The marker says which completion records
+ * the drain covers (those after After, up to and including Through) and the newest
+ * record the driver had at that time (Highest). It does not mean every chunk of the
+ * drain has arrived; the scheduler finishes the drain only once every record up to
+ * Through has been processed locally.
  * @param adapter The network adapter handling the drain.
  * @param event The drain end event containing snapshot information.
  * @return OS_EOK if the drain end is valid and processed successfully.
@@ -507,16 +545,16 @@ __HandleDrainEnd(
 {
     // An end marker belongs only to the current drain attempt. A late marker
     // from a timed-out attempt must not finish or alter its replacement.
-    if (!adapter->Draining || event->Id != adapter->DrainId) {
+    if (!adapter->Drain.Active || event->Id != adapter->Drain.Id) {
         return OS_ENOENT;
     }
     
-    // The marker must describe the prefix requested by this drain.
-    if (event->After != adapter->DrainAfter) {
+    // The marker must start at the same point (After) that this drain asked for.
+    if (event->After != adapter->Drain.After) {
         return OS_EPROTOCOL;
     }
     
-    // Check for overflow before calculating the end of that prefix.
+    // Check for overflow before computing After + Count, the last record covered.
     if (event->After > UINT64_MAX - event->Count) {
         return OS_EPROTOCOL;
     }
@@ -525,49 +563,57 @@ __HandleDrainEnd(
         return OS_EPROTOCOL;
     }
     
-    // The reported snapshot cannot exceed the driver's own progress.
+    // The newest record in the marker cannot be newer than the newest record in the
+    // driver's own progress report.
     if (event->Highest > event->Progress.highest_completion_sequence) {
         return OS_EPROTOCOL;
     }
 
-    // Errors promise no chunks; their snapshot cursors are diagnostic only.
+    // A failed drain sends no records, so its count must be zero. Its other values
+    // are informational only.
     if (event->Status != OS_EOK && event->Count) {
         return OS_EPROTOCOL;
     }
     if (event->Status == OS_EOK) {
-        // A successful prefix must fit the snapshot and include every record
-        // already seen in this drain's completion chunks.
-        if (event->Through > event->Highest || event->Through < adapter->DrainSeenThrough) {
+        // On success, the range must end at or before Highest, and must include
+        // every record already received in this drain's completion chunks.
+        if (event->Through > event->Highest || event->Through < adapter->Drain.SeenThrough) {
             return OS_EPROTOCOL;
         }
-        // An empty prefix is valid only if the snapshot has no newer records.
+        // A drain may return no records only if the driver had nothing newer than
+        // After.
         if (!event->Count && event->Highest != event->After) {
             return OS_EPROTOCOL;
         }
-        // A repeated end marker cannot change an established snapshot.
-        if (adapter->DrainEnded && (event->Through != adapter->DrainThrough ||
-                                    event->Highest != adapter->DrainHighest)) {
+        // If the end marker arrives again, it must report the same Through and
+        // Highest as the first time.
+        if (adapter->Drain.Ended && (event->Through != adapter->Drain.Through ||
+                                     event->Highest != adapter->Drain.Highest)) {
             return OS_EPROTOCOL;
         }
     }
     
-    // Save the successful snapshot bound and schedule another pass. The end
-    // marker alone does not mean all chunks arrived: the scheduler completes
-    // this drain only when local contiguous processing reaches DrainThrough.
+    // Save where this drain ends and schedule another pass. The end marker alone
+    // does not mean all chunks have arrived: the scheduler only finishes this
+    // drain once every record up to Drain.Through has been processed locally.
     if (event->Status == OS_EOK) {
-        adapter->DrainThrough = event->Through;
-        adapter->DrainHighest = event->Highest;
-        adapter->DrainEnded = true;
-        adapter->LinkNeeded = true;
+        adapter->Drain.Through = event->Through;
+        adapter->Drain.Highest = event->Highest;
+        adapter->Drain.Ended = true;
+        adapter->Intent.LinkNeeded = true;
     }
     
-    // Errors retain the deadline and retry count; a fresh attempt ID is
-    // used after expiry, including busy and concurrently retired cursors.
+    // A failed drain stays active with its current deadline and attempt count. Once
+    // the deadline passes, the scheduler sends the drain again with a new drain ID.
+    // This holds for every error, such as the driver being busy or the requested
+    // records having been retired while the drain was in flight.
     return OS_EOK;
 }
 
 /** 
- * @brief Validate the echoed ACK and its claimed retirement against what netd sent.
+ * @brief Check the driver's reply to an ACK. The reply repeats (echoes) the ACK
+ * values it received, and its progress report says how much work the driver has
+ * retired. Both are checked against the ACK values netd actually sent.
  * @param adapter The network adapter instance.
  * @param event The ACK event to validate.
  * @return OS_EOK if the ACK is valid, or an appropriate error code otherwise.
@@ -583,17 +629,19 @@ __ValidateACK(
         return OS_EPROTOCOL;
     }
     
-    // Its echoed cursors cannot name an ACK netd has not published, even if
-    // the driver reports an error. Older cumulative ACK echoes are valid.
-    if (event->Ack.through_batch_id > adapter->SentAck.through_batch_id) {
+    // The echoed values cannot be ahead of the newest ACK netd has sent, even if the
+    // driver reports an error. Echoes of older ACKs are fine, since each ACK also
+    // covers everything before it.
+    if (event->Ack.through_batch_id > adapter->Ack.Sent.through_batch_id) {
         return OS_EPROTOCOL;
     }
-    if (event->Ack.through_completion_sequence > adapter->SentAck.through_completion_sequence) {
+    if (event->Ack.through_completion_sequence > adapter->Ack.Sent.through_completion_sequence) {
         return OS_EPROTOCOL;
     }
     
-    // A successful response promises that both echoed prefixes were retired.
-    // Progress is the confirmation of reuse, not the ACK echo itself.
+    // On success the driver promises it retired every batch and completion record
+    // covered by the echoed ACK, so its progress must show at least that much. The
+    // progress report, not the echo, is what lets us reuse the freed space.
     if (event->Status == OS_EOK &&
         event->Progress.retired_batch_id < event->Ack.through_batch_id) {
         return OS_EPROTOCOL;
@@ -603,8 +651,8 @@ __ValidateACK(
         event->Progress.retired_completion_sequence < event->Ack.through_completion_sequence) {
         return OS_EPROTOCOL;
     }
-    // A failed ACK does not confirm its echoed cursors; the snapshot may still
-    // report earlier retirement. Preserve the failure status for recovery.
+    // A failed ACK does not confirm the echoed values, although the progress report
+    // may still show earlier retirement. Return the failure so it can be recovered.
     return event->Status;
 }
 
@@ -619,12 +667,12 @@ __ValidateEvent(
     }
 
     if (!NetAdapterMatchesSession(adapter, driver, &event->Session) || !adapter->Buffers ||
-        adapter->CloseRequested || adapter->State == NET_ADAPTER_CLOSED ||
+        adapter->Intent.CloseRequested || adapter->State == NET_ADAPTER_CLOSED ||
         adapter->State == NET_ADAPTER_QUARANTINED) {
         return OS_ENOENT;
     }
     
-    if (event->Count > adapter->BatchSize || event->Status < OS_EOK ||
+    if (event->Count > adapter->Window.BatchSize || event->Status < OS_EOK ||
         event->Status >= __OS_ECOUNT || !__IsSessionProgressValid(adapter, &event->Progress)) {
         NetAdapterMarkFailed(adapter, OS_EPROTOCOL);
         return OS_EPROTOCOL;
@@ -725,8 +773,9 @@ ctt_netadapter_event_completions_invocation(
     }
 
     status = __HandleCompletions(entry->Adapter, &event);
-    // A missing journal predecessor is recoverable; do not fail or
-    // retire progress until the drain fills that gap.
+    // Earlier completion records are missing and a drain was requested to fetch
+    // them. Do not fail the adapter, and skip this event's progress report; later
+    // events carry newer reports.
     if (status == OS_EBUSY) {
         return;
     }

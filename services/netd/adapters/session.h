@@ -19,21 +19,23 @@
  * 
  * Private network-adapter session state and internal scheduler helpers.
  *
- * This header is intentionally not part of the public adapter API. All of the
- * declarations here are used by the netd adapter core to manage session lifetime,
- * packet ownership, retry deadlines, and the request scheduler. The code assumes
- * a single serialized owner: there are no locks, no reentrant completion paths,
- * and no user-visible synchronization on the hot path. The netd registry provides
- * the cross-thread ordering guarantees; host tests drive the same core directly.
+ * This header is intentionally not part of the public adapter API. The declarations
+ * here are used by the netd adapter core to manage the session lifetime, who manages
+ * each packet, retry deadlines and the request scheduler. The code assumes that only
+ * one worker uses an adapter at a time: there are no locks, completions are never
+ * processed from inside another call into the core, and the packet path needs no
+ * extra synchronization. The netd registry orders calls coming from different
+ * threads; host tests call the same core directly.
  *
- * Invariants that matter across the implementation:
- * - a running session owns a single authoritative driver/session identity
- * - packet and lease ownership transitions are monotonic and cannot be reversed
- *   without an explicit protocol response
- * - batch and control retries must preserve the original logical operation id
- *   even when the transport message is resent with a new Gracht frame id
- * - close/stop transitions are higher priority than ordinary packet traffic and
- *   must be serialized before queue reuse or session release
+ * Rules the whole implementation relies on:
+ * - a running session talks to exactly one driver and one session identity; messages
+ *   carrying any other identity are ignored
+ * - packets and leases only move forward through their states; they never move back
+ *   unless the driver sends a response that allows it
+ * - when a batch or control request is resent, it keeps its original operation ID,
+ *   even though the transport sends it in a new Gracht message with a new message ID
+ * - stop and close take priority over normal packet traffic, and must be finished
+ *   before queue slots are reused or the session is released
  */
 #ifndef __NETD_ADAPTER_SESSION_H__
 #define __NETD_ADAPTER_SESSION_H__
@@ -48,13 +50,14 @@
 struct AdapterBatch;
 
 /**
- * @brief Saturate a deadline instead of wrapping and creating premature retries.
+ * @brief Compute a deadline, stopping at UINT64_MAX instead of wrapping around.
  *
- * The adapter scheduler relies on monotonic timeouts to decide when a request,
- * batch, ACK, or drain is considered lost. Saturation keeps the deadline stable
- * at UINT64_MAX rather than wrapping around and causing immediate re-tries.
+ * The scheduler uses deadlines to decide when a request, batch, ACK or drain should
+ * be treated as lost and sent again. The time comes from a clock that never goes
+ * backwards. If the sum wrapped around, the deadline would land in the past and
+ * cause an immediate retry, so it is held at UINT64_MAX instead.
  *
- * @param now The current monotonic time in milliseconds.
+ * @param now The current time in milliseconds.
  * @param interval The desired interval to add to the current time.
  * @return now + interval, or UINT64_MAX if adding the interval would overflow.
  */
@@ -67,27 +70,53 @@ __NetAdapterDeadline(
 }
 
 /**
- * @brief Release buffer storage that became detached from the session during shutdown.
+ * @brief Check that a packet belongs to this adapter and uses the expected kind of storage.
  *
- * Closing or failing an adapter can leave packet buffers in a state where they no
- * longer have a live session or lease owner. This helper reclaims the storage
- * once all caller-owned packet views have been returned and the pool's lease gate
- * can safely release the underlying memory.
+ * A packet is backed either by a lease from the shared pool or by one of the RX
+ * copy slots, and the identity stores one or the other in a union. Lookup and release
+ * code calls this before reading that union, so a packet from another adapter, or a
+ * copy mistaken for a pool lease (or the other way around), is rejected.
+ * @param adapter The network adapter the packet should belong to.
+ * @param identity The identity of the packet to check.
+ * @param backing The expected backing type.
+ * @return true if the packet is backed by the specified type, false otherwise.
+ */
+static inline bool
+___PacketHasBacking(
+    _In_ const NetworkAdapter_t*           adapter,
+    _In_ const NetAdapterPacketIdentity_t* identity,
+    _In_ enum NetAdapterPacketBacking      backing)
+{
+    if (!adapter || !identity) {
+        return false;
+    }
+    return identity->Owner == adapter && identity->Backing == backing;
+}
+
+/**
+ * @brief Free the buffer storage of a closed adapter once nothing uses it anymore.
+ *
+ * After the driver has confirmed the close, callers may still hold received packets
+ * or TX packets they were building. This does nothing until the adapter is CLOSED
+ * and every such packet has been returned; then the pools, lease tables and RX copy
+ * slots are freed. It is called again on each release, so the last one frees them.
  */
 __EXTERN void
 NetAdapterReclaimClosedBuffers(
     _In_ NetworkAdapter_t* adapter);
 
 /**
- * @brief Deliver one completed receive buffer to the consumer.
+ * @brief Offer one received buffer to the consumer.
  *
- * Receive delivery is not just a memory operation: it also decides whether the
- * lease should remain retained for the caller while the packet is being processed.
- * A successful or completed delivery is still counted as a lease ownership handoff
- * until the caller returns the lease, so the adapter must not release it early.
+ * If a ReceivePacket callback is set and consumers hold fewer pool slots than they
+ * are allowed to, the pool buffer itself is offered; if it is accepted, the lease is
+ * managed by the consumer until it releases it. Otherwise the frame may be offered
+ * as a copy in an RX copy slot, or passed to the Receive callback, which may only
+ * use it during the call. With no callback at all, the frame is counted as dropped.
  *
- * @return true if the pool lease must remain retained for the consumer,
- *         false if the lease can be released after this handoff completes.
+ * @return true if the consumer accepted the pool buffer itself, so the lease must stay
+ *         in use until the consumer releases it; false if the pool slot can be given
+ *         back right away (the frame was copied, only lent out, or dropped).
  */
 __EXTERN bool
 NetAdapterDeliverReceive(
@@ -96,11 +125,12 @@ NetAdapterDeliverReceive(
     _In_ const NetBufferView_t* view);
 
 /**
- * @brief Check whether a driver and session identity match this adapter.
+ * @brief Check whether a message's driver and session identity match this adapter.
  *
- * Used by the core registry and session lookup flow to ensure the caller is
- * addressing the correct driver/endpoint pair before issuing or replaying a
- * request. This is a guard against stale or cross-session packet ownership.
+ * Returns true only if the driver, the session ID and the session generation all
+ * match the adapter's current session. Used before acting on a message from the
+ * driver, so a message from an older session, or one meant for another session, is
+ * ignored instead of changing the state of packets in this one.
  */
 __EXTERN bool
 NetAdapterMatchesSession(
@@ -109,11 +139,13 @@ NetAdapterMatchesSession(
     _In_ const struct ctt_netadapter_session* session);
 
 /**
- * @brief Mark the adapter as failed and remember the root cause.
+ * @brief Record a failure and start shutting the adapter down.
  *
- * Failures are terminal for the active session: they stop new work, preserve the
- * error for diagnostics, and force future scheduling decisions to avoid sending
- * more protocol traffic to a compromised adapter state.
+ * The error is kept in LastError for diagnostics and any pending control request is
+ * dropped. If a session is open, a close is requested and the adapter moves to
+ * CLOSING, so the driver closes the session properly before anything is freed.
+ * Without a session there is nothing to close, so the adapter goes straight to
+ * FAILED. Either way the current session will not carry new packet traffic again.
  */
 __EXTERN void
 NetAdapterMarkFailed(
@@ -121,12 +153,12 @@ NetAdapterMarkFailed(
     _In_ oserr_t           status);
 
 /**
- * @brief Look up the lease that owns a specific packet buffer.
+ * @brief Find the adapter's lease entry for a pool lease.
  *
- * This is the primary ownership check for packet completion and release paths.
- * It is used to validate that the completion or free request is referring to a
- * live buffer that belongs to this adapter instance and not a stale or detached
- * lease.
+ * Returns NULL unless the lease belongs to the current session, its slot is in use
+ * and its sequence number matches. Completion and release paths use this to make
+ * sure they act on a packet that is still in use in this adapter, and not on one
+ * left over from an earlier use of the same slot or from an earlier session.
  */
 __EXTERN struct AdapterLease*
 NetAdapterFindLease(
@@ -134,26 +166,12 @@ NetAdapterFindLease(
     _In_ const NetBufferLease_t* lease);
 
 /**
- * @brief Determine whether a packet is backed by a specific memory ownership type.
+ * @brief Find the lease entry for a pool-backed packet that a caller handed back.
  *
- * Packet buffers may be backed by different allocation or registration sources
- * depending on whether they are in the shared pool, owned directly by the driver,
- * or associated with a receive path. This check prevents cross-backing
- * ownership mismatches during completion processing and retirement.
- */
-__EXTERN bool
-NetAdapterPacketHasBacking(
-    _In_ const NetworkAdapter_t*           adapter,
-    _In_ const NetAdapterPacketIdentity_t* identity,
-    _In_ enum NetAdapterPacketBacking      backing);
-
-/**
- * @brief Find the lease associated with a packet identity in a given direction/state.
- *
- * Completion and retry recovery often need to search by packet identity, not just
- * by raw lease id. This function narrows the lookup to the relevant direction and
- * lifecycle state so the scheduler can correctly match a completion to the
- * correct outstanding packet work.
+ * Returns NULL if the packet belongs to another adapter, is backed by a copy slot,
+ * has a different direction, or its lease is not in the expected state. Release and
+ * cancel paths use this to check that a packet token returned by a caller is still
+ * valid before acting on it.
  */
 __EXTERN struct AdapterLease*
 NetAdapterFindPacketLease(
@@ -163,12 +181,13 @@ NetAdapterFindPacketLease(
     _In_ enum AdapterLeaseState state);
 
 /**
- * @brief Release a lease and update the adapter state according to the result.
+ * @brief Report the final result of a lease managed by the worker and give its slot back.
  *
- * This is the common exit path for packet completion, receive delivery, and
- * error-handling recovery. It preserves the adapter's accounting invariants by
- * ensuring that success, failure, and receive-vs-transmit semantics all map to
- * the correct lease retirement or retention decision.
+ * For TX, the result is reported through the Transmitted callback. For RX, when
+ * receive is true and the status is OS_EOK, the packet is first offered to the
+ * consumer; if the consumer keeps the pool buffer, the slot stays in use until it is
+ * released. In every other case the slot goes back to the pool. Leases held by a
+ * caller are refused: OS_EEXISTS for a kept RX packet, OS_EBUSY otherwise.
  */
 __EXTERN oserr_t
 NetAdapterReleaseLease(
@@ -178,12 +197,12 @@ NetAdapterReleaseLease(
     _In_    bool                 receive);
 
 /**
- * @brief Release a lease that has already completed successfully.
+ * @brief Release a lease for which the driver has reported a completion.
  *
- * This is the fast path for packets that have already been observed as completed
- * by the transport layer. It avoids reprocessing a packet already accounted for
- * in the completion stream while still preserving the adapter's credit and
- * retirement bookkeeping.
+ * The buffer manager must already have recorded the completion for this lease;
+ * otherwise OS_EPROTOCOL is returned. The lease is then released with the status
+ * from that completion. Received packets are only offered to the consumer while no
+ * close has been requested.
  */
 __EXTERN oserr_t
 NetAdapterReleaseCompletedLease(
@@ -191,11 +210,12 @@ NetAdapterReleaseCompletedLease(
     _In_ const NetBufferLease_t* lease);
 
 /**
- * @brief Process a driver completion record and advance adapter accounting.
+ * @brief Process one completion record from the driver.
  *
- * Driver completions are authoritative for packet progress. This helper updates
- * counters and ownership state based on the completion metadata so the request
- * scheduler can decide whether additional ACK, drain, or batch work is needed.
+ * The buffer manager checks the record against the current session and records it;
+ * a duplicate of a completion we already have is ignored. A completion can arrive
+ * before the driver has told us it accepted the packet, in which case it is held
+ * until that is known. Otherwise the lease is released with the completion status.
  */
 __EXTERN oserr_t
 NetAdapterCompletePacket(
@@ -203,33 +223,37 @@ NetAdapterCompletePacket(
     _In_ const struct ctt_netadapter_completion* completion);
 
 /**
- * @brief Set up the adapter's shared packet buffer state after a pool is opened.
+ * @brief Size and allocate the adapter's packet pools after the session is opened.
  *
- * Buffer setup is part of the lifecycle handshake: without the shared buffer pool
- * state, there is no stable packet accounting and the scheduler cannot issue
- * RX/TX batches or credit transitions safely.
+ * Decides how many TX and RX slots to use, within the driver's limits, and checks
+ * that the pools, lease tables and RX copy slots all fit in the configured memory
+ * budget. This has to happen before the pools are registered with the driver; until
+ * then no RX or TX batches can be sent.
  */
 __EXTERN oserr_t
 NetAdapterSetupBuffers(
     _InOut_ NetworkAdapter_t* adapter);
 
 /**
- * @brief Cancel queued work that must be abandoned during a stop or teardown.
+ * @brief Cancel TX frames that are still waiting in the local queue.
  *
- * A stop request is a transition from live packet processing to draining/teardown.
- * Any queued but not yet admitted work must be withdrawn so that the run cannot
- * continue to enqueue packets after the stop barrier has been requested.
+ * Used when the adapter stops or shuts down. Each queued frame is reported as
+ * OS_ECANCELLED through Transmitted and its slot is freed. Frames that were already
+ * placed in a batch (PREPARED) are left alone, because the driver may already be
+ * using them; they are settled by a completion or by closing the session.
  */
 __EXTERN void
 NetAdapterCancelQueued(
     _InOut_ NetworkAdapter_t* adapter);
 
 /**
- * @brief Build a request object for a new RX or TX batch.
+ * @brief Fill a request with packets for a new RX or TX batch.
  *
- * The scheduler uses a stable logical request identity for retries. This helper
- * prepares the request contents, including the batch metadata and packet
- * accounting, before the request is admitted to the transport.
+ * For RX, new receive slots are taken from the pool until the number of receive
+ * buffers given to the driver reaches the RX target. For TX, queued frames are taken
+ * oldest first. Each packet is marked PREPARED, and the request gets the next batch
+ * ID. That ID stays the same if the batch has to be resent. Returns OS_ENOENT if
+ * there was nothing to put in the batch.
  */
 __EXTERN oserr_t
 NetAdapterBuildBatch(
@@ -238,11 +262,11 @@ NetAdapterBuildBatch(
     _InOut_ NetAdapterRequest_t* request);
 
 /**
- * @brief Find a previously created batch by its serialized request id.
+ * @brief Find a batch in the window by its batch ID.
  *
- * Batch replay and recovery depend on looking up the exact logical batch that was
- * admitted earlier. Matching by the batch id preserves ordering and lets the
- * scheduler distinguish between a fresh batch and a retried outstanding one.
+ * Used to match an answer from the driver with the batch it belongs to, and to
+ * resend a batch unchanged. Returns NULL if no window slot holds that batch, for
+ * example because the driver has already confirmed it is finished with it.
  */
 __EXTERN struct AdapterBatch*
 NetAdapterFindBatch(

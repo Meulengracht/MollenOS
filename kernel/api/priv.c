@@ -27,87 +27,149 @@
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <deviceio.h>
+#include <firmware.h>
 #include <handle.h>
+#include <heap.h>
 #include <interrupts.h>
 #include <machine.h>
+#include <memoryspace.h>
+#include <string.h>
 
 oserr_t
-ScAcpiQueryStatus(
-   _In_ AcpiDescriptor_t*   AcpiDescriptor)
+ScFirmwareQuery(
+        _Out_ OSFirmwareInfo_t* infoOut)
 {
-#ifdef __OSCONFIG_ACPI_SUPPORT
-    if (AcpiDescriptor == NULL) {
-        return OS_EUNKNOWN;
+    if (infoOut == NULL) {
+        return OS_EINVALPARAMS;
     }
-
-    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OS_EUNKNOWN;
-    }
-    else {
-        AcpiDescriptor->Century         = AcpiGbl_FADT.Century;
-        AcpiDescriptor->BootFlags       = AcpiGbl_FADT.BootFlags;
-        AcpiDescriptor->ArmBootFlags    = AcpiGbl_FADT.ArmBootFlags;
-        AcpiDescriptor->Version         = ACPI_VERSION_6_0;
-        return OS_EOK;
-    }
-#else
-    (void)AcpiDescriptor;
-    return OS_ENOTSUPPORTED;
-#endif
+    return FirmwareQuery(infoOut);
 }
 
-oserr_t
-ScAcpiQueryTableHeader(
-    _In_ const char*        signature,
-    _In_ ACPI_TABLE_HEADER* header)
+static oserr_t
+__LocateFirmwareTable(
+        _In_  const OSFirmwareTableKey_t* userKey,
+        _Out_ const void**                dataOut,
+        _Out_ OSFirmwareTable_t*          tableOut)
 {
-#ifdef __OSCONFIG_ACPI_SUPPORT
-    if (!signature || !header) {
+    OSFirmwareTableKey_t key;
+
+    if (userKey == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    if (ACPI_FAILURE(AcpiGetTableHeader((ACPI_STRING)signature, 0, header))) {
-        return OS_EUNKNOWN;
-    }
-    return OS_EOK;
-#else
-    (void)signature;
-    (void)header;
-    return OS_ENOTSUPPORTED;
-#endif
+    // Snapshot the key so userspace cannot change it during the lookup
+    memcpy(&key, userKey, sizeof(OSFirmwareTableKey_t));
+    return FirmwareLocate(&key, dataOut, tableOut);
 }
 
 oserr_t
-ScAcpiQueryTable(
-    _In_ const char*        signature,
-    _In_ ACPI_TABLE_HEADER* table)
+ScFirmwareTableLocate(
+        _In_  const OSFirmwareTableKey_t* key,
+        _Out_ OSFirmwareTable_t*          tableOut)
 {
-#ifdef __OSCONFIG_ACPI_SUPPORT
-    ACPI_TABLE_HEADER* header = NULL;
+    OSFirmwareTable_t table;
+    const void*       data;
+    oserr_t           oserr;
 
-    if (!signature || !table) {
+    if (tableOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OS_ENOTSUPPORTED;
+    oserr = __LocateFirmwareTable(key, &data, &table);
+    if (oserr == OS_EOK) {
+        *tableOut = table;
+    }
+    return oserr;
+}
+
+oserr_t
+ScFirmwareTableRead(
+        _In_  const OSFirmwareTableKey_t* key,
+        _In_  void*                       buffer,
+        _In_  size_t                      size,
+        _Out_ size_t*                     lengthOut)
+{
+    OSFirmwareTable_t table;
+    const void*       data;
+    oserr_t           oserr;
+
+    if (lengthOut == NULL) {
+        return OS_EINVALPARAMS;
     }
 
-    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)signature, 0, &header))) {
-        return OS_EUNKNOWN;
+    oserr = __LocateFirmwareTable(key, &data, &table);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    memcpy(table, header, header->Length);
+    *lengthOut = table.Length;
+    if (buffer == NULL || size < table.Length) {
+        return OS_EBUFFER;
+    }
+    memcpy(buffer, data, table.Length);
     return OS_EOK;
-#else
-    (void)signature;
-    (void)table;
-    return OS_ENOTSUPPORTED;
-#endif
+}
+
+oserr_t
+ScFirmwareTableMap(
+        _In_  const OSFirmwareTableKey_t* key,
+        _Out_ const void**                mappingOut,
+        _Out_ size_t*                     lengthOut)
+{
+    MemorySpace_t*    memorySpace = GetCurrentMemorySpace();
+    OSFirmwareTable_t table;
+    const void*       data;
+    paddr_t*          pages;
+    vaddr_t           mapping;
+    unsigned int      previousAttributes;
+    oserr_t           oserr;
+
+    if (mappingOut == NULL || lengthOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = __LocateFirmwareTable(key, &data, &table);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Firmware data shares pages with unrelated kernel or firmware memory, so the
+    // caller receives private zeroed pages holding a copy rather than an alias.
+    pages = kmalloc(sizeof(paddr_t) * DIVUP(table.Length, GetMemorySpacePageSize()));
+    if (pages == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = MemorySpaceMap(
+            memorySpace,
+            &(struct MemorySpaceMapOptions) {
+                .Pages = pages,
+                .Length = table.Length,
+                .Mask = __MASK,
+                .Flags = MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_CLEAN,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
+    );
+    kfree(pages);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    memcpy((void*)mapping, data, table.Length);
+    oserr = MemorySpaceChangeProtection(
+            memorySpace, mapping, table.Length,
+            MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY,
+            &previousAttributes
+    );
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
+        return oserr;
+    }
+
+    *mappingOut = (const void*)mapping;
+    *lengthOut  = table.Length;
+    return OS_EOK;
 }
 
 oserr_t
