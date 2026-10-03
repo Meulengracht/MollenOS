@@ -332,6 +332,7 @@ __HandleAdmission(
             if (entry == NULL) {
                 return OS_EPROTOCOL;
             }
+            
             status = NetAdapterReleaseLease(
                 adapter,
                 entry,
@@ -340,6 +341,7 @@ __HandleAdmission(
             );
         } else {
             accepted++;
+            
             if (ready) {
                 status = NetAdapterReleaseCompletedLease(adapter, &lease);
             }

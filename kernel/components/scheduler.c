@@ -610,7 +610,7 @@ static inline bool
 __HasDeadlineSet(
         _In_ SchedulerObject_t* schedulerObject)
 {
-    if (schedulerObject->WakeUpTime.Seconds != 0 &&
+    if (schedulerObject->WakeUpTime.Seconds != 0 ||
         schedulerObject->WakeUpTime.Nanoseconds != 0) {
         return true;
     }
@@ -623,23 +623,31 @@ __HasDeadlineSet(
 static clock_t
 __UpdateSleepQueue(
         _In_ Scheduler_t*       scheduler,
-        _In_ OSTimestamp_t*     currentTime,
-        _In_ SchedulerObject_t* ignoreObject)
+        _In_ OSTimestamp_t*     currentTime)
 {
     clock_t            nextUpdate = __MASK;
     SchedulerObject_t* i          = scheduler->SleepQueue.Head;
+    SchedulerObject_t* next;
     OSTimestamp_t      timeDiff;
+    clock_t            remaining;
 
     while (i) {
-        if (i != ignoreObject && __HasDeadlineSet(i)) {
+        // store the link as __PerformObjectTimeout may modify it
+        next = i->Link;
+        
+        // Check if the thread has a deadline set
+        if (__HasDeadlineSet(i)) {
             if (OSTimestampCompare(currentTime, &i->WakeUpTime) >= 0) {
                 __PerformObjectTimeout(scheduler, i);
             } else {
                 OSTimestampSubtract(&timeDiff, &i->WakeUpTime, currentTime);
-                nextUpdate = (timeDiff.Seconds * NSEC_PER_SEC) + timeDiff.Nanoseconds;
+
+                // Calculate the next time we should update
+                remaining = (timeDiff.Seconds * NSEC_PER_SEC) + timeDiff.Nanoseconds;
+                nextUpdate = MIN(nextUpdate, remaining);
             }
         }
-        i = i->Link;
+        i = next;
     }
     return nextUpdate;
 }
@@ -706,10 +714,12 @@ SchedulerAdvance(
         preemptive &&
         nanosecondsPassed < object->TimeSliceLeft &&
         atomic_load(&object->State) == STATE_RUNNING) {
+        
         // Steps to take here is, adjusting the current time-slice,
         // updating the sleep queue and returning the current task again
         object->TimeSliceLeft -= nanosecondsPassed;
-        nextDeadline = __UpdateSleepQueue(scheduler, &currentTime, NULL);
+        nextDeadline = __UpdateSleepQueue(scheduler, &currentTime);
+        
         *nextDeadlineOut = MIN(object->TimeSliceLeft, nextDeadline);
         TRACE("SchedulerAdvance redeploy next deadline %llu", *nextDeadlineOut);
         return object->Object;
@@ -721,7 +731,11 @@ SchedulerAdvance(
     if (object != NULL) {
         __HandleObjectRequeue(scheduler, object, preemptive);
     }
-    nextDeadline = __UpdateSleepQueue(scheduler, &currentTime, object);
+    
+    // Include the object just put to sleep, even if it was the last runnable
+    // thread. The scheduler policy is we must always return a next deadline if
+    // possible.
+    nextDeadline = __UpdateSleepQueue(scheduler, &currentTime);
 
     // Get next object
     for (i = 0; i < SCHEDULER_LEVEL_COUNT; i++) {
