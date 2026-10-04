@@ -114,8 +114,15 @@ typedef struct DeviceInterrupt {
     // INTERRUPT_NONE. Specify INTERRUPT_VECTOR to use this.
     int Vectors[INTERRUPT_MAXVECTORS];
 
-    // Read-Only
-    uintptr_t MsiAddress;     // INTERRUPT_MSI - The address of MSI
+    // Pci Identification
+    unsigned int IsPci;
+    unsigned int Segment;
+    unsigned int Bus;
+    unsigned int Slot;
+    unsigned int Function;
+
+    // Msi Identification
+    uint64_t  MsiAddress;     // INTERRUPT_MSI - The address of MSI
     uintptr_t MsiValue;       // INTERRUPT_MSI - The value of MSI
 } DeviceInterrupt_t;
 

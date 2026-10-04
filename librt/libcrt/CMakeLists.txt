@@ -1,27 +1,31 @@
-# Project setup
 project (ValiCRT)
-enable_language (ASM_NASM)
 enable_language (C)
 
-set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+if (VALI_ARCH STREQUAL "i386")
+    enable_language(ASM_NASM)
+    set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+endif ()
 
-set (MSCRT_SOURCES 
-    mscrt/_alldiv.s
-    mscrt/_alldvrm.s
-    mscrt/_aulldiv.s
-    mscrt/_aulldvrm.s
-    mscrt/_aullrem.s
-    mscrt/_aullshr.s
-    mscrt/_constants.s
-    mscrt/_ints.s
-    mscrt/_llmul.s
-    mscrt/_llrem.s
-    mscrt/_llshl.s
-    mscrt/_llshr.s
-)
+set(MSCRT_SOURCES "")
+if (VALI_ARCH STREQUAL "i386")
+    set(MSCRT_SOURCES 
+        mscrt/_alldiv.s
+        mscrt/_alldvrm.s
+        mscrt/_aulldiv.s
+        mscrt/_aulldvrm.s
+        mscrt/_aullrem.s
+        mscrt/_aullshr.s
+        mscrt/_constants.s
+        mscrt/_ints.s
+        mscrt/_llmul.s
+        mscrt/_llrem.s
+        mscrt/_llshl.s
+        mscrt/_llshr.s
+    )
 
-# Add support for .s extension
-set_source_files_properties(${MSCRT_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
+    # Add support for .s extension
+    set_source_files_properties(${MSCRT_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
+endif ()
 
 add_library(libcrt
     ${MSCRT_SOURCES}
@@ -35,7 +39,14 @@ add_library(libcrt
     module.c
     service.c
 )
-target_include_directories(libcrt PRIVATE ../libddk/include ../libgracht/include ../libds/include ../libos/include ../libc/include)
+target_include_directories(
+    libcrt PRIVATE
+    ../libddk/include
+    ../libgracht/include
+    ../libds/include
+    ../libos/include
+    ../libc/include
+)
 add_dependencies(libcrt libddk)
 
 install(TARGETS libcrt

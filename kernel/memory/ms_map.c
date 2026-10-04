@@ -593,3 +593,173 @@ exit:
     TRACE("MemorySpaceCloneMapping returns=%u", oserr);
     return oserr;
 }
+
+static oserr_t
+__ValidateUserCopyPages(
+        _In_ MemorySpace_t*       space,
+        _In_ struct MSAllocation* allocation,
+        _In_ uintptr_t            pageAddress,
+        _In_ size_t               firstPageIndex,
+        _In_ size_t               pageCount,
+        _In_ bool                 toUser)
+{
+    size_t       pageSize = GetMemorySpacePageSize();
+    size_t       index;
+    unsigned int attributes;
+    oserr_t      status;
+
+    for (index = 0; index < pageCount; index++) {
+        // A set allocation bit marks a page that has been freed and must not be copied.
+        if (allocation != NULL && bitmap_bits_set(&allocation->Pages,
+                (int)(firstPageIndex + index), 1)) {
+            return OS_EINVALPARAMS;
+        }
+
+        attributes = 0;
+        status = GetMemorySpaceAttributes(
+                space,
+                pageAddress + index * pageSize,
+                pageSize,
+                &attributes
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        // Require committed userspace memory; trap pages are guards, not copyable data.
+        if ((attributes & (MAPPING_USERSPACE | MAPPING_COMMIT)) != (MAPPING_USERSPACE | MAPPING_COMMIT) ||
+            (attributes & MAPPING_TRAPPAGE)) {
+            return OS_EINVALPARAMS;
+        }
+
+        // Copying to the user buffer writes to it, so reject read-only mappings in that direction.
+        if (toUser && (attributes & MAPPING_READONLY)) {
+            return OS_EINVALPARAMS;
+        }
+    }
+    return OS_EOK;
+}
+
+oserr_t
+MemorySpaceCopyUser(
+        _In_ void*  userBuffer,
+        _In_ void*  kernelBuffer,
+        _In_ size_t length,
+        _In_ bool   toUser)
+{
+    MemorySpace_t*       space = GetCurrentMemorySpace();
+    MemorySpace_t*       kernelSpace = GetDomainMemorySpace();
+    struct MSAllocation* allocation;
+    uintptr_t            address = (uintptr_t)userBuffer;
+    size_t               pageSize = GetMemorySpacePageSize();
+    size_t               offset = address % pageSize;
+    size_t               allocationOffset;
+    size_t               pageCount;
+    size_t               mapLength;
+    uintptr_t*           pages = NULL;
+    vaddr_t              mapping;
+    oserr_t              oserr = OS_EINVALPARAMS;
+    size_t               index;
+
+    if (address == 0 || kernelBuffer == NULL || length == 0 ||
+        space->Context == NULL ||
+        length - 1 > UINTPTR_MAX - address || length > SIZE_MAX - offset ||
+        length + offset > SIZE_MAX - (pageSize - 1)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    MutexLock(&space->Context->UserCopyLock);
+    
+    allocation = MSAllocationAcquire(space->Context, address);
+    if (allocation != NULL) {
+        // A tracked allocation must be userspace memory before it can be used as a user buffer.
+        if (!(allocation->Flags & MAPPING_USERSPACE)) {
+            goto exit;
+        }
+
+        // Check the base first so subtracting it from the address cannot underflow.
+        if (address < allocation->Address) {
+            goto exit;
+        }
+        allocationOffset = address - allocation->Address;
+
+        // Keep both the first byte and the complete copy range inside the allocation.
+        if (allocationOffset >= allocation->Length) {
+            goto exit;
+        }
+        if (length > allocation->Length - allocationOffset) {
+            goto exit;
+        }
+    }
+    
+    pageCount = DIVUP(length + offset, pageSize);
+    if (pageCount > INT32_MAX || pageCount > SIZE_MAX / sizeof(uintptr_t)) {
+        goto exit;
+    }
+    
+    mapLength = pageCount * pageSize;
+    oserr = __ValidateUserCopyPages(
+        space,
+        allocation,
+        address - offset,
+        allocation != NULL ? (address - offset - allocation->Address) / pageSize : 0,
+        pageCount,
+        toUser
+    );
+    if (oserr != OS_EOK) {
+        goto exit;
+    }
+    
+    pages = kmalloc(pageCount * sizeof(uintptr_t));
+    if (pages == NULL) {
+        oserr = OS_EOOM;
+        goto exit;
+    }
+    
+    oserr = GetMemorySpaceMapping(
+        space,
+        address - offset,
+        (int)pageCount,
+        pages
+    );
+    if (oserr != OS_EOK) {
+        goto exit;
+    }
+    
+    for (index = 0; index < pageCount; index++) {
+        if (pages[index] == 0) {
+            oserr = OS_EINVALPARAMS;
+            goto exit;
+        }
+    }
+    
+    oserr = MemorySpaceMap(
+        kernelSpace, 
+        &(struct MemorySpaceMapOptions) {
+            .Pages = pages,
+            .Length = mapLength,
+            .Flags = MAPPING_COMMIT | MAPPING_PERSISTENT,
+            .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+        }, 
+        &mapping
+    );
+    if (oserr != OS_EOK) {
+        goto exit;
+    }
+    
+    if (toUser) {
+        memcpy((void*)(mapping + offset), kernelBuffer, length);
+    } else {
+        memcpy(kernelBuffer, (void*)(mapping + offset), length);
+    }
+    
+    oserr = MemorySpaceUnmap(kernelSpace, mapping, mapLength);
+
+exit:
+    kfree(pages);
+    if (allocation != NULL) {
+        MSAllocationRelease(space->Context, allocation);
+    }
+    MutexUnlock(&space->Context->UserCopyLock);
+    return oserr;
+}

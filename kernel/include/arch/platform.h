@@ -39,6 +39,8 @@
 
 #if defined(__i386__) || defined(__amd64__)
 #include <arch/x86/arch.h>
+#elif defined(__aarch64__)
+#include <arch/aarch64/arch.h>
 #else
 #error "platform.h: Current VALI_ARCH is unrecognized/unimplemented"
 #endif

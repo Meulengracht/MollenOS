@@ -55,6 +55,7 @@ typedef struct BusDevice {
     int          InterruptLine;
     int          InterruptPin;
     unsigned int InterruptAcpiConform;
+    unsigned int IsPci;
     unsigned int Segment;
     unsigned int Bus;
     unsigned int Slot;
