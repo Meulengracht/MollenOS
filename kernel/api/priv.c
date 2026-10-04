@@ -39,10 +39,14 @@ oserr_t
 ScFirmwareQuery(
         _Out_ OSFirmwareInfo_t* infoOut)
 {
-    if (infoOut == NULL) {
-        return OS_EINVALPARAMS;
+    OSFirmwareInfo_t info;
+    oserr_t          oserr;
+
+    oserr = FirmwareQuery(&info);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    return FirmwareQuery(infoOut);
+    return MemorySpaceCopyUser(infoOut, &info, sizeof(info), true);
 }
 
 static oserr_t
@@ -52,13 +56,12 @@ __LocateFirmwareTable(
         _Out_ OSFirmwareTable_t*          tableOut)
 {
     OSFirmwareTableKey_t key;
+    oserr_t              oserr;
 
-    if (userKey == NULL) {
-        return OS_EINVALPARAMS;
+    oserr = MemorySpaceCopyUser((void*)userKey, &key, sizeof(key), false);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-
-    // Snapshot the key so userspace cannot change it during the lookup
-    memcpy(&key, userKey, sizeof(OSFirmwareTableKey_t));
     return FirmwareLocate(&key, dataOut, tableOut);
 }
 
@@ -77,7 +80,7 @@ ScFirmwareTableLocate(
 
     oserr = __LocateFirmwareTable(key, &data, &table);
     if (oserr == OS_EOK) {
-        *tableOut = table;
+        oserr = MemorySpaceCopyUser(tableOut, &table, sizeof(table), true);
     }
     return oserr;
 }
@@ -102,12 +105,14 @@ ScFirmwareTableRead(
         return oserr;
     }
 
-    *lengthOut = table.Length;
+    oserr = MemorySpaceCopyUser(lengthOut, &table.Length, sizeof(table.Length), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
     if (buffer == NULL || size < table.Length) {
         return OS_EBUFFER;
     }
-    memcpy(buffer, data, table.Length);
-    return OS_EOK;
+    return MemorySpaceCopyUser(buffer, (void*)data, table.Length, true);
 }
 
 oserr_t
@@ -156,20 +161,30 @@ ScFirmwareTableMap(
         return oserr;
     }
 
-    memcpy((void*)mapping, data, table.Length);
+    oserr = MemorySpaceCopyUser((void*)mapping, (void*)data, table.Length, true);
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
+        return oserr;
+    }
+    
     oserr = MemorySpaceChangeProtection(
-            memorySpace, mapping, table.Length,
-            MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY,
-            &previousAttributes
+        memorySpace, mapping, table.Length,
+        MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY,
+        &previousAttributes
     );
     if (oserr != OS_EOK) {
         (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
         return oserr;
     }
 
-    *mappingOut = (const void*)mapping;
-    *lengthOut  = table.Length;
-    return OS_EOK;
+    oserr = MemorySpaceCopyUser(lengthOut, &table.Length, sizeof(table.Length), true);
+    if (oserr == OS_EOK) {
+        oserr = MemorySpaceCopyUser(mappingOut, &mapping, sizeof(mapping), true);
+    }
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
+    }
+    return oserr;
 }
 
 oserr_t
