@@ -95,6 +95,11 @@ typedef struct InterruptFunctionTable {
 #define INTERRUPT_MSI       0x00000004U  // Interrupt uses MSI to deliver
 #define INTERRUPT_EXCLUSIVE 0x00000008U  // Interrupt line can not be shared
 
+#define INTERRUPT_STRATEGY_INTx 0x1
+#define INTERRUPT_STRATEGY_MSI  0x2
+#define INTERRUPT_STRATEGY_MSIX 0x4
+#define INTERRUPT_STRATEGY_ANY  0x7
+
 typedef struct DeviceInterrupt {
     // Interrupt-handler(s) and context
     // FastHandler is called to determine whether or not this source
@@ -134,6 +139,20 @@ DeviceInterruptInitialize(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ BusDevice_t*       device));
 
+DDKDECL(oserr_t,
+DeviceInterruptAllocate(
+    _In_  DeviceInterrupt_t* interrupt,
+    _In_  uint32_t           min,
+    _In_  uint32_t           optimal,
+    _In_  uint32_t           strategy,
+    _Out_ uint32_t*          countOut));
+
+DDKDECL(void,
+DeviceInterruptSetHandler(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t           index,
+    _In_ InterruptHandler_t handler));
+
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */
 DDKDECL(void,
@@ -171,14 +190,14 @@ RegisterInterruptDescriptor(
  * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source
  * is returned. After a succesful register, SIGINT can be invoked by the event-system */
 DDKDECL(uuid_t,
-        RegisterInterruptSource(
+RegisterInterruptSource(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ unsigned int       flags));
 
 /* UnregisterInterruptSource 
  * Unallocates the given interrupt source and disables all events of SIGINT */
 DDKDECL(oserr_t,
-        UnregisterInterruptSource(
+UnregisterInterruptSource(
     _In_ uuid_t interruptHandle));
 
 #endif //!_INTERRUPT_INTERFACE_H_
