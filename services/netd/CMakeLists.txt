@@ -7,6 +7,7 @@ include_directories (
 )
 
 set (ADDITONAL_SOURCES
+    ${CMAKE_BINARY_DIR}/protocols/ctt_netadapter_service_client.c
     ${CMAKE_BINARY_DIR}/protocols/sys_socket_service_server.c
 )
 set_source_files_properties ( ${ADDITONAL_SOURCES} PROPERTIES GENERATED TRUE )
@@ -19,11 +20,20 @@ add_service_target(netd ""
     domains/local.c
     domains/unspec.c
 
+    adapters/adapter.c
+    adapters/adapters.c
+    adapters/buffers.c
+    adapters/client.c
+    adapters/rx.c
+    adapters/tx.c
+    adapters/queue.c
+    adapters/requests.c
+
     manager.c
     socket.c
     main.c
 )
-add_dependencies(netd service_servers)
+add_dependencies(netd service_servers contract_clients)
 deploy_file_to_initrd(netd "services" netd.yaml)
 
 option(VALI_NET_TESTS "Run socket regression tests at boot (QEMU/test images only)" OFF)
