@@ -72,7 +72,8 @@ __AllocateCopyBuffer(
         
         // The slot is free and its Sequence can still be increased. Fill it and
         // mark it in use before the consumer gets to see the packet.
-        data = adapter->Rx.Copy.Bytes + (size_t)i * (adapter->Mtu + 14);
+        data = adapter->Rx.Copy.Bytes +
+               (size_t)i * (adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE);
         memcpy(data, view->Data, view->Length);
         __IncreaseWithoutRollover(&adapter->Rx.FallbackCopies);
         copy->Retained = true;

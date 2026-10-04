@@ -65,16 +65,16 @@ NetAdapterConfigInitializeDefault(
     }
 
     *config = (NetAdapterConfig_t){
-        .TxSlots = 32,
-        .RxSlots = 32,
-        .Mtu = 0,
-        .MemoryBudget = 1024 * 1024,
-        .RetryMilliseconds = 1000,
-        .RetryLimit = 3,
-        .PollMilliseconds = 100,
-        .RxRetainedSlots = 8,
-        .RxCopySlots = 8,
-        .BatchWindow = 4
+        .TxSlots = NET_ADAPTER_TX_SLOTS_DEFAULT,
+        .RxSlots = NET_ADAPTER_RX_SLOTS_DEFAULT,
+        .Mtu = NET_ADAPTER_MTU_AUTO,
+        .MemoryBudget = NET_ADAPTER_MEMORY_BUDGET_DEFAULT,
+        .RetryMilliseconds = NET_ADAPTER_RETRY_MILLISECONDS_DEFAULT,
+        .RetryLimit = NET_ADAPTER_RETRY_LIMIT_DEFAULT,
+        .PollMilliseconds = NET_ADAPTER_POLL_MILLISECONDS_DEFAULT,
+        .RxRetainedSlots = NET_ADAPTER_RX_RETAINED_SLOTS_DEFAULT,
+        .RxCopySlots = NET_ADAPTER_RX_COPY_SLOTS_DEFAULT,
+        .BatchWindow = NET_ADAPTER_BATCH_WINDOW_DEFAULT
     };
 }
 
@@ -472,7 +472,7 @@ __VerifyNetAdapterInfo(
 /** 
  * @brief Check the capabilities reported by the driver and choose the local limits (MTU,
  * batch window and batch size) before the adapter is opened. Packet buffers are sized
- * for the MTU plus the 14-byte Ethernet header. No optional protocol features are
+ * for the MTU plus the Ethernet header. No optional protocol features are
  * requested.
  */
 static oserr_t
@@ -503,10 +503,10 @@ __UpdateAdapterInfo(
         }
     }
     
-    // Reject an MTU the device cannot support, or one whose 14-byte Ethernet
+    // Reject an MTU the device cannot support, or one whose Ethernet header
     // header would overflow when converted to a frame size.
     if (adapter->Mtu < adapter->Info.min_mtu || adapter->Mtu > adapter->Info.max_mtu ||
-        adapter->Mtu > UINT32_MAX - 14) {
+        adapter->Mtu > UINT32_MAX - NET_ADAPTER_ETHERNET_HEADER_SIZE) {
         return OS_ENOTSUPPORTED;
     }
     

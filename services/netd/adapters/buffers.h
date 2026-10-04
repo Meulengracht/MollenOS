@@ -58,6 +58,10 @@
 #include <ddk/utils.h>
 #include <ctt_netadapter_service.h>
 
+// Number of bytes in the fixed Ethernet header included in every frame.
+// Redefined from adapter.h to avoid inclusion
+#define NET_ADAPTER_ETHERNET_HEADER_SIZE 14
+
 // Callers cannot see inside the manager. Its records live in netd's private memory,
 // never in shared memory, so the controller driver cannot modify them.
 typedef struct NetBufferManager NetBufferManager_t;
@@ -273,8 +277,9 @@ NetBuffersRelease(
 /**
  * @brief Build the packet descriptor for a HELD slot and mark the slot PENDING. Do this BEFORE
  * the RPC is sent, because from the moment sending starts the driver may be using the
- * buffer, even if no reply ever arrives. TX length must be between 14 (the Ethernet
- * header size) and FrameCapacity; RX length must equal FrameCapacity. A lease can only
+ * buffer, even if no reply ever arrives. TX length must be at least
+ * NET_ADAPTER_ETHERNET_HEADER_SIZE (the Ethernet header size) and no more than
+ * FrameCapacity; RX length must equal FrameCapacity. A lease can only
  * be prepared once: if the RPC has to be retried, keep the returned descriptor and send
  * it again. If the driver rejects the packet, release the slot and acquire it again
  * before submitting it again, so it gets a new sequence number.

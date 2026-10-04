@@ -35,21 +35,21 @@
 #include "adapters.h"
 #include <gracht/link/vali.h>
 
-/** 
- * @brief Maximum number of network adapters that can be registered in the manager.
- */
+// Maximum number of network adapters that can be registered in the manager.
 #define NET_ADAPTER_LIMIT 16
 
-/**
- * @brief Work budget per transport poll cycle - limits frames processed 
- * per adapter per poll.
- */
+// Work budget per transport poll cycle - limits frames processed 
+// per adapter per poll.
 #define NET_ADAPTER_WORK_BUDGET 16
 
-/**
- * @brief Default Maximum Transmission Unit (MTU) for network adapters.
- */
+// Default Maximum Transmission Unit (MTU) for network adapters.
 #define NET_ADAPTER_MTU_DEFAULT 1500
+
+// Delay before retrying attachment to a discovered device, in milliseconds.
+#define NET_ADAPTER_ATTACH_RETRY_MILLISECONDS 1000
+
+// Maximum time the adapter worker waits for events before checking timed work.
+#define NET_ADAPTER_WORKER_WAIT_MILLISECONDS 10
 
 /**
  * @brief This structure contains a stored copy of a single RX or TX batch, so it can be

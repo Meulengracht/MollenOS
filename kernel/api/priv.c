@@ -248,16 +248,69 @@ ScIoSpaceDestroy(
     return OS_EOK;
 }
 
+static oserr_t
+__CopyInterruptResults(
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ DeviceInterrupt_t* request
+)
+{
+    oserr_t oserr;
+
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->Line, &request.Line, sizeof(request.Line), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiAddress, &request.MsiAddress, sizeof(request.MsiAddress), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiValue, &request.MsiValue, sizeof(request.MsiValue), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return oserr;
+}
+
 uuid_t
 ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags)
 {
+    DeviceInterrupt_t request;
+    uuid_t            id;
+    oserr_t           oserr;
+
     if (deviceInterrupt == NULL ||
         (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
         return UUID_INVALID;
     }
-    return InterruptRegister(deviceInterrupt, flags);
+
+    // Do not trust the user-space memory here; copy it into kernel space first.
+    oserr = MemorySpaceCopyUser(
+        deviceInterrupt,
+        &request,
+        sizeof(request),
+        false
+    );
+    if (oserr != OS_EOK) {
+        return UUID_INVALID;
+    }
+
+    // Now we register the interrupt
+    id = InterruptRegister(&request, flags);
+    if (id == UUID_INVALID) {
+        return UUID_INVALID;
+    }
+
+    // Only the resolved outputs are written back, never the full request.
+    oserr = __CopyInterruptResults(deviceInterrupt, &request);
+    if (oserr != OS_EOK) {
+        (void)InterruptUnregister(id);
+        return UUID_INVALID;
+    }
+    return id;
 }
 
 oserr_t

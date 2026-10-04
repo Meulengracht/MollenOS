@@ -180,7 +180,7 @@ AttachPendingPort(
     }
 
     // Do not try again for one second, so a failing driver is not retried in a tight loop.
-    entry->AttachAfter = now + 1000;
+    entry->AttachAfter = now + NET_ADAPTER_ATTACH_RETRY_MILLISECONDS;
     
     TRACE("AttachPendingPort: attempting attach device=%u port=%u driver=%u",
           entry->Device, entry->Port, entry->Driver);
@@ -438,9 +438,10 @@ __UpdatePort(
 }
 
 /** 
- * @brief Sleep until there is something to do, or for at most 10 ms so timed work such
- * as retries still runs. If the last pass did not finish all queued work, return
- * right away instead of sleeping.
+ * @brief Sleep until there is something to do, or for at most NET_ADAPTER_WORKER_WAIT_MILLISECONDS
+ * milliseconds so timed work such as retries still runs. If the last pass did not 
+ * finish all queued work, return right away instead of sleeping.
+ * 
  * @param busy true if the last pass stopped early with work still queued, in which
  *             case the worker should not sleep.
  */
@@ -459,7 +460,7 @@ __WaitForWork(
     // waiting, so we reschedule immediately instead of sleeping.
     timespec_get(&until, TIME_UTC);
     if (!busy) {
-        until.tv_nsec += 10000000;
+        until.tv_nsec += NET_ADAPTER_WORKER_WAIT_MILLISECONDS * 1000000;
         if (until.tv_nsec >= 1000000000) {
             until.tv_sec++;
             until.tv_nsec -= 1000000000;

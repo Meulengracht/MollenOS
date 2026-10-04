@@ -224,7 +224,7 @@ __CreateBuffers(
     NetBufferConfig_t config = {
         adapter->Queues[NET_ADAPTER_TX].Slots,
         adapter->Queues[NET_ADAPTER_RX].Slots,
-        adapter->Mtu + 14,
+        adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE,
         adapter->Config.MemoryBudget - metadata
     };
 
@@ -247,7 +247,10 @@ __CreateBuffers(
     
     if (adapter->Rx.Copy.Count) {
         adapter->Rx.Copy.Entries = calloc(adapter->Rx.Copy.Count, sizeof(*adapter->Rx.Copy.Entries));
-        adapter->Rx.Copy.Bytes = calloc(adapter->Rx.Copy.Count, adapter->Mtu + 14);
+        adapter->Rx.Copy.Bytes = calloc(
+            adapter->Rx.Copy.Count,
+            adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE
+        );
         if (!adapter->Rx.Copy.Entries || !adapter->Rx.Copy.Bytes) {
             return OS_EOOM;
         }
@@ -306,7 +309,7 @@ NetAdapterSetupBuffers(
     adapter->Rx.RetentionLimit = MIN(adapter->Config.RxRetainedSlots, rx->Slots - reserve);
     adapter->Rx.Copy.Count = MIN(adapter->Config.RxCopySlots, rx->Slots);
    
-    copyUnit = sizeof(struct AdapterRxCopy) + (uint64_t)adapter->Mtu + 14;
+    copyUnit = sizeof(struct AdapterRxCopy) + (uint64_t)adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE;
     if (adapter->Rx.Copy.Count && copyUnit > (UINT64_MAX - metadata) / adapter->Rx.Copy.Count) {
         return OS_EOVERFLOW;
     }
@@ -368,7 +371,7 @@ __AcquireBatchLease(
         *entry = (struct AdapterLease){
             .Lease = lease,
             .State = ADAPTER_LEASE_QUEUED,
-            .Length = adapter->Mtu + 14
+            .Length = adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE
         };
     } else {
         // Once slots have been reused, a lower slot number does not mean the frame

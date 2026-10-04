@@ -83,6 +83,25 @@ InterruptRetire(
     g_retiredInterrupts = Entry;
 }
 
+// Must be called with g_interruptTableLock held.
+static void
+InterruptReleasePenaltyLocked(
+        _In_ SystemInterrupt_t* Entry)
+{
+    InterruptTableEntry_t* tableEntry = &g_interruptTable[LOWORD(Entry->Id)];
+
+    if (!Entry->HasPenalty) {
+        return;
+    }
+    Entry->HasPenalty = 0;
+    if (tableEntry->Penalty > 0) {
+        tableEntry->Penalty--;
+    }
+    if (tableEntry->Penalty == 0) {
+        tableEntry->Sharable = 0;
+    }
+}
+
 static void
 InterruptReclaimRetired(void)
 {
@@ -108,6 +127,8 @@ InterruptReclaimRetired(void)
     g_retiredInterrupts = NULL;
     while (retired != NULL) {
         next = retired->RetiredLink;
+        // The grace period has elapsed, so the table index may be handed out again.
+        InterruptReleasePenaltyLocked(retired);
         if (atomic_load(&retired->References) == 0) {
             retired->RetiredLink = reclaimable;
             reclaimable = retired;
@@ -139,7 +160,9 @@ InterruptIncreasePenalty(
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
         return INTERRUPT_NONE;
     }
+    SpinlockAcquireIrq(&g_interruptTableLock);
     g_interruptTable[Source].Penalty++;
+    SpinlockReleaseIrq(&g_interruptTableLock);
     return OS_EOK;
 }
 
@@ -151,7 +174,9 @@ InterruptDecreasePenalty(
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
         return INTERRUPT_NONE;
     }
+    SpinlockAcquireIrq(&g_interruptTableLock);
     g_interruptTable[Source].Penalty--;
+    SpinlockReleaseIrq(&g_interruptTableLock);
     return OS_EOK;
 }
 
@@ -159,16 +184,20 @@ int
 InterruptGetPenalty(
     _In_ int Source)
 {
+    int penalty;
+
     // Sanitize the requested source bounds
     if (Source < 0 || Source >= MAX_SUPPORTED_INTERRUPTS) {
         return INTERRUPT_NONE;
     }
 
-    // Sanitize that source is valid
-    if (g_interruptTable[Source].Sharable == 0 && g_interruptTable[Source].Penalty > 0) {
-        return INTERRUPT_NONE;
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    penalty = g_interruptTable[Source].Penalty;
+    if (g_interruptTable[Source].Sharable == 0 && penalty > 0) {
+        penalty = INTERRUPT_NONE;
     }
-    return g_interruptTable[Source].Penalty;
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    return penalty;
 }
 
 int
@@ -385,6 +414,7 @@ InterruptResolveResources(
     Status = InterruptResolveIoResources(deviceInterrupt, systemInterrupt);
     if (Status != OS_EOK) {
         ERROR(" > failed to remap interrupt io resources");
+        (void)InterruptReleaseResources(systemInterrupt);
         return Status;
     }
 
@@ -392,6 +422,7 @@ InterruptResolveResources(
     Status = InterruptResolveMemoryResources(deviceInterrupt, systemInterrupt);
     if (Status != OS_EOK) {
         ERROR(" > failed to remap interrupt memory resources");
+        (void)InterruptReleaseResources(systemInterrupt);
         return Status;
     }
     return Status;
@@ -447,7 +478,7 @@ InterruptRegister(
     uuid_t             id;
 
     if (!deviceInterrupt) {
-        return OS_EINVALPARAMS;
+        return UUID_INVALID;
     }
 
     // Reclaim entries retired by an earlier interrupt-context unregister.
@@ -483,7 +514,7 @@ InterruptRegister(
     if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OS_EOK) {
         ERROR("Failed to resolve the interrupt, invalid flags.");
         kfree(systemInterrupt);
-        return OS_EUNKNOWN;
+        return UUID_INVALID;
     }
 
     // Update remaining members now that we resolved
@@ -502,7 +533,7 @@ InterruptRegister(
         if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OS_EOK) {
             ERROR(" > failed to resolve the requested resources");
             kfree(systemInterrupt);
-            return OS_EUNKNOWN;
+            return UUID_INVALID;
         }
     }
     
@@ -518,7 +549,7 @@ InterruptRegister(
                 InterruptReleaseResources(systemInterrupt);
             }
             kfree(systemInterrupt);
-            return OS_EUNKNOWN;
+            return UUID_INVALID;
         }
     } else if (g_interruptTable[tableIndex].Sharable != 1 && g_interruptTable[tableIndex].Penalty > 0) {
         ERROR(" > existing interrupt has exclusive access");
@@ -527,28 +558,33 @@ InterruptRegister(
             InterruptReleaseResources(systemInterrupt);
         }
         kfree(systemInterrupt);
-        return OS_EUNKNOWN;
+        return UUID_INVALID;
     }
 
     if (atomic_load(&g_interruptTable[tableIndex].Descriptor) == NULL) {
-        atomic_store(&g_interruptTable[tableIndex].Descriptor, systemInterrupt);
-        g_interruptTable[tableIndex].Penalty    = 1;
-        g_interruptTable[tableIndex].Sharable   = (flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
+        g_interruptTable[tableIndex].Sharable = (flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
     } else {
-        // Insert and increase penalty
         atomic_store(&systemInterrupt->Link,
                      atomic_load(&g_interruptTable[tableIndex].Descriptor));
-        atomic_store(&g_interruptTable[tableIndex].Descriptor, systemInterrupt);
-        if (InterruptIncreasePenalty(tableIndex) != OS_EOK) {
-            ERROR("Failed to increase penalty for source %" PRIiIN "", systemInterrupt->Source);
-        }
     }
+    
+    // Increment rather than set, retired entries may still hold a penalty.
+    g_interruptTable[tableIndex].Penalty++;
+    systemInterrupt->HasPenalty = 1;
+    atomic_store(&g_interruptTable[tableIndex].Descriptor, systemInterrupt);
 
     // Enable the new interrupt
     if (InterruptConfigure(systemInterrupt, 1) != OS_EOK) {
         ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
+        atomic_store(&g_interruptTable[tableIndex].Descriptor,
+                     atomic_load(&systemInterrupt->Link));
+        InterruptRetire(systemInterrupt);
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        InterruptReclaimRetired();
+        return UUID_INVALID;
     }
     SpinlockReleaseIrq(&g_interruptTableLock);
+    
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
           systemInterrupt->Id, systemInterrupt->Interrupt.ResourceTable.Handler, systemInterrupt->Interrupt.Context);
     return systemInterrupt->Id;
@@ -589,6 +625,13 @@ InterruptUnregister(
             } else {
                 atomic_store(&Previous->Link, atomic_load(&Entry->Link));
             }
+            
+            // Mask the line once its last handler is gone. The penalty stays
+            // until the grace period, see InterruptReclaimRetired().
+            if (atomic_load(&g_interruptTable[TableIndex].Descriptor) == NULL) {
+                InterruptConfigure(Entry, 0);
+            }
+            
             InterruptRetire(Entry);
             break;
         }
@@ -597,21 +640,11 @@ InterruptUnregister(
     }
     SpinlockReleaseIrq(&g_interruptTableLock);
 
-    // Sanitize if we were successfull
+    // Entry must not be touched past this point, it may already be reclaimed.
     if (!Found) {
         return OS_ENOENT;
     }
-    
-    // Decrease penalty
-    if (Entry->Source != INTERRUPT_NONE) {
-        InterruptDecreasePenalty(Entry->Source);
-    }
 
-    // Entry is now unlinked, clean it up mask the interrupt again if neccessary
-    if (g_interruptTable[Entry->Source].Penalty == 0) {
-        InterruptConfigure(Entry, 0);
-    }
-    
     // A caller in interrupt context cannot wait for a grace period because
     // the current handler may be the reader keeping this entry alive. Normal
     // callers wait, so returning from unregister guarantees that the entry
@@ -620,10 +653,6 @@ InterruptUnregister(
         while (atomic_load(&g_interruptReaders) != 0) {
             ArchThreadYield();
         }
-    }
-    
-    // Reclaim retired interrupt entries if we are not in an active interrupt context
-    if (!InterruptGetActiveStatus()) {
         InterruptReclaimRetired();
     }
     return OS_EOK;

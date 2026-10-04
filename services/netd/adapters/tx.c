@@ -54,6 +54,7 @@ NetAdapterTxAcquire(
     // Only hand out a TX slot while the adapter is running, is not being stopped or
     // closed, and the link is up.
     if (!__AdapterCanTransmit(adapter)) {
+        memset(packet, 0, sizeof(NetAdapterTxPacket_t));
         return OS_ENOTCONNECTED;
     }
 
@@ -64,6 +65,7 @@ NetAdapterTxAcquire(
         &lease
     );
     if (oserr != OS_EOK) {
+        memset(packet, 0, sizeof(NetAdapterTxPacket_t));
         return oserr;
     }
 
@@ -71,6 +73,7 @@ NetAdapterTxAcquire(
     oserr = NetBuffersView(adapter->Buffers, &lease, &view);
     if (oserr != OS_EOK) {
         NetBuffersRelease(adapter->Buffers, &lease);
+        memset(packet, 0, sizeof(NetAdapterTxPacket_t));
         return oserr;
     }
     
@@ -129,9 +132,11 @@ NetAdapterTxSubmit(
         return status;
     }
 
-    // The frame must hold at least a 14-byte Ethernet header, carry no more than
+    // The frame must hold at least an Ethernet header, carry no more than
     // the MTU as payload, and fit in the slot.
-    if (length < 14 || length > adapter->Mtu + 14 || length > view.Capacity) {
+    if (length < NET_ADAPTER_ETHERNET_HEADER_SIZE ||
+        length > adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE ||
+        length > view.Capacity) {
         return OS_EINVALPARAMS;
     }
 
@@ -206,7 +211,8 @@ NetAdapterSend(
 
     // Reject frames that are shorter than an Ethernet header or longer than the MTU
     // allows before taking a pool slot.
-    if (!adapter || !frame || length < 14 || length > adapter->Mtu + 14) {
+    if (!adapter || !frame || length < NET_ADAPTER_ETHERNET_HEADER_SIZE ||
+        length > adapter->Mtu + NET_ADAPTER_ETHERNET_HEADER_SIZE) {
         return OS_EINVALPARAMS;
     }
 
