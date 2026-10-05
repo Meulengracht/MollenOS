@@ -9,6 +9,7 @@ set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-
 # Keep Clang builtin headers (stdint.h, stdarg.h, etc.); use explicit OS library headers.
 set (SHARED_FLAGS "-fms-extensions -Wall -ffreestanding -nostdlib -nostdlibinc -O3") # -flto
 
+set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_LEGACY_PCI")
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_MMIO")
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_ACPI_SUPPORT")
 set (FEATURE_FLAGS "${FEATURE_FLAGS} -D__OSCONFIG_HAS_UART")

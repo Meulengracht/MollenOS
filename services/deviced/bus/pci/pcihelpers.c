@@ -23,66 +23,67 @@
 
 #include "bus.h"
 
-/* PciReadVendorId
- * Reads the vendor id at given bus/device/function location */
-uint16_t PciReadVendorId(PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
+uint16_t PciReadVendorId(
+    PciHost_t*   host,
+    unsigned int bus,
+    unsigned int device,
+    unsigned int function)
 {
-	return PciRead16(BusIo, Bus, Device, Function, 0);
+	return PciRead16(host, bus, device, function, 0);
 }
 
-/* PciReadFunction
- * Reads in the pci header that exists at the given location
- * and fills out the information into <Pcs> */
-void PciReadFunction(PciNativeHeader_t *Pcs, 
-	PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
+void PciReadFunction(
+    _InOut_ PciNativeHeader_t* pciHeader, 
+    _In_    PciHost_t*         host, 
+    _In_    unsigned int       bus, 
+    _In_    unsigned int       device, 
+    _In_    unsigned int       function)
 {
 	/* Get the dword and parse the vendor and device ID */
-	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);
-	size_t i;
+	uint16_t vendor = PciReadVendorId(host, bus, device, function);
 
-	if (Vendor && Vendor != 0xFFFF) {
+	if (vendor && vendor != 0xFFFF) {
 		/* Valid device! Okay, so the config space is 256 bytes long
 		 * and we read in dwords: 64 reads should do it. */
-		for (i = 0; i < 64; i += 16) {
-			*(uint32_t*)((size_t)Pcs + i) = PciRead32(BusIo, Bus, Device, Function, i);
-			*(uint32_t*)((size_t)Pcs + i + 4) = PciRead32(BusIo, Bus, Device, Function, i + 4);
-			*(uint32_t*)((size_t)Pcs + i + 8) = PciRead32(BusIo, Bus, Device, Function, i + 8);
-			*(uint32_t*)((size_t)Pcs + i + 12) = PciRead32(BusIo, Bus, Device, Function, i + 12);
+		for (size_t i = 0; i < 64; i += 16) {
+			*(uint32_t*)((size_t)pciHeader + i) = PciRead32(host, bus, device, function, i);
+			*(uint32_t*)((size_t)pciHeader + i + 4) = PciRead32(host, bus, device, function, i + 4);
+			*(uint32_t*)((size_t)pciHeader + i + 8) = PciRead32(host, bus, device, function, i + 8);
+			*(uint32_t*)((size_t)pciHeader + i + 12) = PciRead32(host, bus, device, function, i + 12);
 		}
 	}
 }
 
-/* PciReadSecondaryBusNumber
- * Reads the secondary bus number at given pci device location
- * we can use this to get the bus-number behind a bridge */
-uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
+uint8_t PciReadSecondaryBusNumber(
+    _In_ PciHost_t*   host,
+    _In_ unsigned int bus, 
+    _In_ unsigned int device, 
+    _In_ unsigned int function)
 {
 	/* Get the dword and parse the vendor and device ID */
-	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);
+	uint16_t vendor = PciReadVendorId(host, bus, device, function);
 
-	if (Vendor && Vendor != 0xFFFF) {
-		uint32_t offset = PciRead32(BusIo, Bus, Device, Function, 0x18);
+	if (vendor && vendor != 0xFFFF) {
+		uint32_t offset = PciRead32(host, bus, device, function, 0x18);
 		return (uint8_t)((offset >> 8) & 0xFF);
-	}
-	else {
+	} else {
 		return 0xFF;
 	}
 }
 
-/* Reads the sub class at given location
- * Bit 7 - MultiFunction, Lower 4 bits is type.
- * Type 0 is standard, Type 1 is PCI-PCI Bridge,
- * Type 2 is CardBus Bridge */
-uint8_t PciReadHeaderType(PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function)
+uint8_t PciReadHeaderType(
+    _In_ PciHost_t*   host,
+    _In_ unsigned int bus,
+    _In_ unsigned int device,
+    _In_ unsigned int function)
 {
 	/* Get the dword and parse the vendor and device ID */
-	uint16_t Vendor = PciReadVendorId(BusIo, Bus, Device, Function);
+	uint16_t vendor = PciReadVendorId(host, bus, device, function);
 
-	if (Vendor && Vendor != 0xFFFF) {
-		uint32_t offset = PciRead32(BusIo, Bus, Device, Function, 0x0C);
+	if (vendor && vendor != 0xFFFF) {
+		uint32_t offset = PciRead32(host, bus, device, function, 0x0C);
 		return (uint8_t)((offset >> 16) & 0xFF);
-	}
-	else {
+	} else {
 		return 0xFF;
 	}
 }

@@ -24,20 +24,25 @@
 #include <errno.h>
 #include <discover.h>
 #include <ddk/utils.h>
+#include <ddk/platformdevice.h>
 #include <ds/list.h>
 #include <yaml/yaml.h>
 
 /**
- * driver configuration values
+ * driver configuration format
+ * 
  * driver:
- *   type:
- *   - class: 0
- *   - subclass: 0
- *
- *   vendors:
- *   - 0x8086:
- *      - productid0
- *      - productid1
+ *   compatibles:
+ *   - brcm,bcm2711-genet-v5
+ *   - brcm,genet-v5
+ * 
+ *   pci:
+ *     class: 0
+ *     subclass: 0
+ *     vendors:
+ *     - 0x8086:
+ *        - productid0
+ *        - productid1
  *
  *   resources:
  *   - type: io
@@ -47,55 +52,6 @@
  *     base: 0xE0000000
  *     length: 0x1000
  *
- * stream-start-event (1)
- *  document-start-event (3)
- *    mapping-start-event (9)
- *      scalar-event (6) = {value="driver", length=6}
- *      mapping-start-event (9)
- *        scalar-event (6) = {value="type", length=4}
- *        sequence-start-event (7)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="class", length=5}
- *            scalar-event (6) = {value="0", length=1}
- *          mapping-end-event (10)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="subclass", length=8}
- *            scalar-event (6) = {value="0", length=1}
- *          mapping-end-event (10)
- *        sequence-end-event (8)
- *        scalar-event (6) = {value="vendors", length=7}
- *        sequence-start-event (7)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="0x8086", length=6}
- *            sequence-start-event (7)
- *              scalar-event (6) = {value="productid0", length=10}
- *              scalar-event (6) = {value="productid1", length=10}
- *            sequence-end-event (8)
- *          mapping-end-event (10)
- *        sequence-end-event (8)
- *        scalar-event (6) = {value="resources", length=9}
- *        sequence-start-event (7)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="type", length=4}
- *            scalar-event (6) = {value="io", length=2}
- *            scalar-event (6) = {value="base", length=4}
- *            scalar-event (6) = {value="0x70", length=4}
- *            scalar-event (6) = {value="length", length=6}
- *            scalar-event (6) = {value="0x71", length=4}
- *          mapping-end-event (10)
- *          mapping-start-event (9)
- *            scalar-event (6) = {value="type", length=4}
- *            scalar-event (6) = {value="mmio", length=4}
- *            scalar-event (6) = {value="base", length=4}
- *            scalar-event (6) = {value="0xE0000000", length=10}
- *            scalar-event (6) = {value="length", length=6}
- *            scalar-event (6) = {value="0x1000", length=6}
- *          mapping-end-event (10)
- *        sequence-end-event (8)
- *      mapping-end-event (10)
- *    mapping-end-event (10)
- *  document-end-event (4)
- * stream-end-event (2)
  */
 enum state {
     STATE_START,    /* start state */
@@ -120,6 +76,9 @@ enum state {
     STATE_RESOURCEBASE,   // resource.base found
     STATE_RESOURCELENGTH, // resource.length found
 
+    STATE_COMPATIBLES_LIST,
+    STATE_COMPATIBLES,
+
     STATE_STOP
 };
 
@@ -132,8 +91,8 @@ struct parser_state {
 
 static oserr_t
 __AddProduct(
-        _In_ struct DriverVendor* vendor,
-        _In_ uint32_t             productId)
+    _In_ struct DriverVendor* vendor,
+    _In_ uint32_t             productId)
 {
     struct DriverProduct* product;
 
@@ -150,9 +109,38 @@ __AddProduct(
 }
 
 static int
+__AddCompatible(
+    _InOut_ struct parser_state* state,
+    _In_ const yaml_event_t*     event)
+{
+    struct DriverCompatible* compatible;
+    size_t                   length = event->data.scalar.length;
+    const char*              value = (const char*)event->data.scalar.value;
+
+    if (!length || length >= PLATFORM_DEVICE_MAX_COMPATIBLES) {
+        return -1;
+    }
+    
+    compatible = calloc(1, sizeof(*compatible));
+    if (compatible == NULL) {
+        return -1;
+    }
+    
+    ELEMENT_INIT(&compatible->ListHeader, 0, compatible);
+    compatible->Name = strdup(value);
+    if (compatible->Name == NULL) {
+        free(compatible);
+        return -1;
+    }
+    
+    list_append(&state->driver.Compatibles, &compatible->ListHeader);
+    return 0;
+}
+
+static int
 __ParseBoolean(
-        _In_  const char* string,
-        _Out_ int*        value)
+    _In_  const char* string,
+    _Out_ int*        value)
 {
     char*  t[] = {"y", "Y", "yes", "Yes", "YES", "true", "True", "TRUE", "on", "On", "ON", NULL};
     char*  f[] = {"n", "N", "no", "No", "NO", "false", "False", "FALSE", "off", "Off", "OFF", NULL};
@@ -175,8 +163,8 @@ __ParseBoolean(
 
 static int
 __ConsumeEvent(
-        _In_ struct parser_state* s,
-        _In_ yaml_event_t*        event)
+    _In_ struct parser_state* s,
+    _In_ yaml_event_t*        event)
 {
     char *value;
     TRACE("__ConsumeEvent(state=%d event=%d)", s->state, event->type);
@@ -259,7 +247,9 @@ __ConsumeEvent(
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
                     TRACE("__ConsumeEvent STATE_DRIVERKEY/%s", value);
-                    if (strcmp(value, "type") == 0) {
+                    if (strcmp(value, "compatibles") == 0) {
+                        s->state = STATE_COMPATIBLES_LIST;
+                    } else if (strcmp(value, "type") == 0) {
                         s->state = STATE_DRIVERTYPE;
                     } else if (strcmp(value, "vendors") == 0) {
                         s->state = STATE_DRIVERVENDORS;
@@ -514,6 +504,34 @@ __ConsumeEvent(
             }
             break;
 
+        case STATE_COMPATIBLES_LIST:
+            switch (event->type) {
+                case YAML_SEQUENCE_START_EVENT:
+                    s->state = STATE_COMPATIBLES;
+                    break;
+                default:
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    return -1;
+            }
+            break;
+
+        case STATE_COMPATIBLES:
+            switch (event->type) {
+                case YAML_SCALAR_EVENT:
+                    if (event->data.scalar.value != NULL) {
+                        return __AddCompatible(s, event);
+                    }
+                    break;
+                
+                case YAML_SEQUENCE_END_EVENT:
+                    s->state = STATE_DRIVERKEY;
+                    break;
+                default:
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    return -1;
+            }
+            break;
+
         case STATE_STOP:
             break;
     }
@@ -522,8 +540,8 @@ __ConsumeEvent(
 
 static void
 __CleanupProduct(
-        _In_ element_t* item,
-        _In_ void*      context)
+    _In_ element_t* item,
+    _In_ void*      context)
 {
     _CRT_UNUSED(context);
     free(item);
@@ -531,8 +549,8 @@ __CleanupProduct(
 
 static void
 __CleanupVendor(
-        _In_ element_t* item,
-        _In_ void*      context)
+    _In_ element_t* item,
+    _In_ void*      context)
 {
     struct DriverVendor* vendor = item->value;
     _CRT_UNUSED(context);
@@ -542,8 +560,8 @@ __CleanupVendor(
 
 static void
 __CleanupResource(
-        _In_ element_t* item,
-        _In_ void*      context)
+    _In_ element_t* item,
+    _In_ void*      context)
 {
     struct DriverResource* resource = item->value;
     _CRT_UNUSED(context);
@@ -551,18 +569,31 @@ __CleanupResource(
 }
 
 static void
-__CleanupDriverConfiguration(
-        _In_ struct DriverConfiguration* driverConfig)
+__CleanupCompatible(
+    _In_ element_t* item,
+    _In_ void* context)
 {
+    struct DriverCompatible* compatible = item->value;
+
+    (void)context;
+    free(compatible->Name);
+    free(compatible);
+}
+
+static void
+__CleanupDriverConfiguration(
+    _In_ struct DriverConfiguration* driverConfig)
+{
+    list_clear(&driverConfig->Compatibles, __CleanupCompatible, NULL);
     list_clear(&driverConfig->Vendors, __CleanupVendor, NULL);
     list_clear(&driverConfig->Resources, __CleanupResource, NULL);
 }
 
 oserr_t
 DmDriverConfigParseYaml(
-        _In_  const uint8_t*              yaml,
-        _In_  size_t                      length,
-        _Out_ struct DriverConfiguration* driverConfig)
+    _In_  const uint8_t*              yaml,
+    _In_  size_t                      length,
+    _Out_ struct DriverConfiguration* driverConfig)
 {
     yaml_parser_t       parser;
     yaml_event_t        event;
@@ -577,15 +608,19 @@ DmDriverConfigParseYaml(
     memset(&state, 0, sizeof(state));
     state.state = STATE_START;
     list_construct(&state.driver.Vendors);
+    list_construct(&state.driver.Compatibles);
     list_construct(&state.driver.Resources);
 
-    yaml_parser_initialize(&parser);
+    if (!yaml_parser_initialize(&parser)) {
+        return OS_EOOM;
+    }
     yaml_parser_set_input_string(&parser, yaml, length);
     do {
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
             ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
             __CleanupDriverConfiguration(&state.driver);
+            yaml_parser_delete(&parser);
             return OS_EUNKNOWN;
         }
 
@@ -593,6 +628,8 @@ DmDriverConfigParseYaml(
         if (status) {
             ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
             __CleanupDriverConfiguration(&state.driver);
+            yaml_event_delete(&event);
+            yaml_parser_delete(&parser);
             return OS_EUNKNOWN;
         }
         yaml_event_delete(&event);
