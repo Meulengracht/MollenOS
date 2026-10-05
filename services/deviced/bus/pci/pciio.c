@@ -28,7 +28,7 @@
 
 static size_t
 __EcamOffset(
-	_In_ PciHost*	  Io,
+	_In_ PciHost_t*	  Io,
 	_In_ unsigned int Bus,
 	_In_ unsigned int Device,
 	_In_ unsigned int Function,
@@ -44,7 +44,7 @@ __EcamOffset(
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 static void
 __LegacySelect(
-	_In_ PciHost*	  Io,
+	_In_ PciHost_t*	  Io,
 	_In_ unsigned int Bus,
 	_In_ unsigned int Device,
 	_In_ unsigned int Function,
@@ -59,7 +59,7 @@ __LegacySelect(
 
 static size_t
 __LegacyRead(
-		_In_ PciHost*    host,
+		_In_ PciHost_t*    host,
 		_In_ unsigned int bus,
 		_In_ unsigned int slot,
 		_In_ unsigned int function,
@@ -72,7 +72,7 @@ __LegacyRead(
 
 static void
 __LegacyWrite(
-		_In_ PciHost*    host,
+		_In_ PciHost_t*    host,
 		_In_ unsigned int bus,
 		_In_ unsigned int slot,
 		_In_ unsigned int function,
@@ -92,7 +92,7 @@ const struct PciHostOperations g_pciLegacyOperations = {
 
 static size_t
 __EcamRead(
-		_In_ PciHost*     host,
+		_In_ PciHost_t*     host,
 		_In_ unsigned int bus,
 		_In_ unsigned int slot,
 		_In_ unsigned int function,
@@ -108,7 +108,7 @@ __EcamRead(
 
 static void
 __EcamWrite(
-		_In_ PciHost*     host,
+		_In_ PciHost_t*     host,
 		_In_ unsigned int bus,
 		_In_ unsigned int slot,
 		_In_ unsigned int function,
@@ -126,7 +126,7 @@ __EcamWrite(
 
 static oserr_t
 __DtTranslate(
-		_In_ PciHost* host,
+		_In_ PciHost_t* host,
 		_In_ uint32_t  space,
 		_In_ uint64_t  address,
 		_In_ uint64_t  length,
@@ -143,7 +143,7 @@ __DtTranslate(
 
 static oserr_t
 __DtResolveInterrupt(
-		_In_ PciHost*    host,
+		_In_ PciHost_t*    host,
 		_In_ unsigned int bus,
 		_In_ unsigned int slot,
 		_In_ unsigned int function,
@@ -176,7 +176,7 @@ const struct PciHostOperations g_pciDtEcamOperations = {
 
 static int
 __ValidAccess(
-		_In_ PciHost*    host,
+		_In_ PciHost_t*    host,
 		_In_ unsigned int bus,
 		_In_ unsigned int slot,
 		_In_ unsigned int function,
@@ -192,7 +192,7 @@ __ValidAccess(
 
 static size_t
 __PciRead(
-	_In_ PciHost*	  Io,
+	_In_ PciHost_t*	  Io,
 	_In_ unsigned int Bus,
 	_In_ unsigned int Device,
 	_In_ unsigned int Function,
@@ -208,7 +208,7 @@ __PciRead(
 
 static void
 __PciWrite(
-	_In_ PciHost*	  Io,
+	_In_ PciHost_t*	  Io,
 	_In_ unsigned int Bus,
 	_In_ unsigned int Device,
 	_In_ unsigned int Function,

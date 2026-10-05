@@ -21,6 +21,9 @@
 //#define __TRACE
 
 #include "bus.h"
+#include <ddk/acpi.h>
+#include <ddk/interrupt.h>
+#include <ddk/utils.h>
 
 static inline void __UpdateInterruptLine(
     _In_ PciDevice_t* parent,
@@ -78,7 +81,7 @@ PciResolveInterruptLineAndPin(
     }
 
     // We do need acpi for this to query acpi interrupt information for device
-    if (g_acpiAvailable == 1) {
+    if (PciIsAcpiAvailable()) {
         PciDevice_t* iterator      = pciDevice;
         unsigned int acpiConform   = 0;
         int          interruptLine = pciDevice->Header->InterruptLine;

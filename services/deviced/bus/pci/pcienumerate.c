@@ -63,6 +63,31 @@ void PciCriticalSectionLeave(void)
     mtx_unlock(&g_pciDevicesLock);
 }
 
+int
+PciIsAcpiAvailable(void)
+{
+    return g_acpiAvailable;
+}
+
+PciDevice_t*
+PciFindDevice(
+    _In_ unsigned int segment,
+    _In_ unsigned int bus,
+    _In_ unsigned int slot,
+    _In_ unsigned int function)
+{
+    PciDevice_t* device;
+
+    foreach (element, &g_pciDevices) {
+        device = element->value;
+        if ((unsigned int)device->Host->Segment == segment &&
+            device->Bus == bus && device->Slot == slot && device->Function == function) {
+            return device;
+        }
+    }
+    return NULL;
+}
+
 static void
 __PciReleaseFirmware(
     _In_ struct PciFirmwareMapping* mapping)

@@ -116,6 +116,7 @@ PACKED_TYPESTRUCT(PciNativeHeader, {
     uint8_t  MaxLatency;   /* 0x3F */
 });
 
+struct BusDevice;
 struct PciHost_t;
 struct PciDevice;
 struct PciFirmwareMapping;
@@ -435,6 +436,37 @@ PciToString(
     _In_ uint8_t SubClass,
     _In_ uint8_t Interface);
 
+
+/**
+ * @brief Reports whether ACPI interrupt routing is available.
+ */
+__EXTERN int
+PciIsAcpiAvailable(void);
+
+/**
+ * @brief Finds a function while the caller holds the PCI critical section.
+ */
+__EXTERN PciDevice_t*
+PciFindDevice(
+    _In_ unsigned int segment,
+    _In_ unsigned int bus,
+    _In_ unsigned int slot,
+    _In_ unsigned int function);
+
+/**
+ * @brief Converts PCI class codes to device-manager identifiers.
+ */
+__EXTERN unsigned int PciToDevClass(uint32_t Class, uint32_t SubClass);
+__EXTERN unsigned int PciToDevSubClass(uint32_t Interface);
+
+/**
+ * @brief Reads and publishes a function's BAR resources.
+ */
+__EXTERN void
+PciReadBars(
+    _In_ PciHost_t*        bus,
+    _In_ struct BusDevice* device,
+    _In_ uint32_t          headerType);
 
 __EXTERN void 
 PciCriticalSectionEnter(void);

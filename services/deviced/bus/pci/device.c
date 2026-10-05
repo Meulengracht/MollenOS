@@ -21,6 +21,11 @@
 //#define __TRACE
 
 #include "bus.h"
+#include <devices.h>
+#include <ddk/busdevice.h>
+#include <ddk/utils.h>
+#include <stdlib.h>
+#include <string.h>
 
 static oserr_t
 __PciBusControl(
@@ -30,17 +35,12 @@ __PciBusControl(
     PciDevice_t* pciDevice = NULL;
     uint16_t     settings;
 
-    // Lookup pci-device
-    foreach(element, &g_pciDevices) {
-        PciDevice_t* entry = (PciDevice_t*)element->value;
-        if ((unsigned int)entry->Host->Segment == device->Segment
-            && entry->Bus == device->Bus
-            && entry->Slot == device->Slot
-            && entry->Function == device->Function) {
-            pciDevice = entry;
-            break;
-        }
-    }
+    pciDevice = PciFindDevice(
+        device->Segment,
+        device->Bus,
+        device->Slot,
+        device->Function
+    );
 
     // Sanitize
     if (pciDevice == NULL) {
@@ -103,17 +103,12 @@ __PciIoctlDevice(
 {
     PciDevice_t* pciDevice = NULL;
 
-    // Lookup pci-device
-    foreach(element, &g_pciDevices) {
-        PciDevice_t* entry = (PciDevice_t*)element->value;
-        if ((unsigned int)entry->Host->Segment == device->Segment
-            && entry->Bus == device->Bus
-            && entry->Slot == device->Slot
-            && entry->Function == device->Function) {
-            pciDevice = entry;
-            break;
-        }
-    }
+    pciDevice = PciFindDevice(
+        device->Segment,
+        device->Bus,
+        device->Slot,
+        device->Function
+    );
 
     if (pciDevice == NULL) {
         ERROR(" > failed to locate pci-device for ioctl");
