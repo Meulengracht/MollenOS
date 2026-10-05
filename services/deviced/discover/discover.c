@@ -172,7 +172,7 @@ __SpawnDriver(
     return OS_EOK;
 }
 
-static void
+static oserr_t
 __RegisterDeviceForDriver(
     _In_ struct DmDriver* driver,
     _In_ uuid_t           deviceId)
@@ -182,70 +182,108 @@ __RegisterDeviceForDriver(
 
     device = malloc(sizeof(struct DMDevice));
     if (!device) {
-        return;
+        return OS_EOOM;
     }
 
     ELEMENT_INIT(&device->list_header, 0, device);
     device->id = deviceId;
 
     usched_mtx_lock(&driver->devices_lock);
+    foreach (i, &driver->devices) {
+        if (((struct DMDevice*)i->value)->id == deviceId) {
+            usched_mtx_unlock(&driver->devices_lock);
+            free(device);
+            return OS_EEXISTS;
+        }
+    }
     list_append(&driver->devices, &device->list_header);
+    usched_mtx_unlock(&driver->devices_lock);
+    return OS_EOK;
+}
+
+static void
+__ForgetDriverDevice(
+    _In_ struct DmDriver* driver,
+    _In_ uuid_t           deviceId)
+{
+    struct DMDevice* device;
+
+    usched_mtx_lock(&driver->devices_lock);
+    foreach (i, &driver->devices) {
+        device = i->value;
+        if (device->id == deviceId) {
+            list_remove(&driver->devices, &device->list_header);
+            free(device);
+            break;
+        }
+    }
     usched_mtx_unlock(&driver->devices_lock);
 }
 
-static int
-__IsDriverMatch(
-    _In_ struct DmDriver*             driver,
-    _In_ struct DriverIdentification* deviceIdentification)
+void
+DmDiscoverForgetDevice(
+    _In_ uuid_t deviceId)
 {
-    if (deviceIdentification->VendorId != 0) {
-        foreach (i, &driver->configuration->Vendors) {
-            struct DriverVendor* vendor = i->value;
-            if (vendor->Id == deviceIdentification->VendorId) {
-                foreach (j, &vendor->Products) {
-                    struct DriverProduct* product = j->value;
-                    if (product->Id == deviceIdentification->ProductId) {
-                        return 1;
-                    }
-                }
-            }
-        }
+    usched_mtx_lock(&g_driversLock);
+    foreach (i, &g_drivers) {
+        __ForgetDriverDevice(i->value, deviceId);
     }
-
-    if (!(deviceIdentification->Class == 0 && deviceIdentification->Subclass == 0) &&
-        deviceIdentification->Class == driver->configuration->Class &&
-        deviceIdentification->Subclass == driver->configuration->Subclass) {
-        return 1;
-    }
-    return 0;
+    usched_mtx_unlock(&g_driversLock);
 }
 
 oserr_t
 DmDiscoverFindDriver(
-    _In_ uuid_t                       deviceId,
-    _In_ struct DriverIdentification* deviceIdentification)
+    _In_ uuid_t deviceId,
+    _In_ struct DriverIdentification* identification)
 {
-    oserr_t osStatus = OS_ENOENT;
-    TRACE("DmDiscoverFindDriver(deviceId=%u, class=0x%x, subclass=0x%x)",
-          deviceId, deviceIdentification->Class, deviceIdentification->Subclass);
+    struct DmDriver* selected = NULL;
+    struct DmDriver* driver;
+    unsigned int     best = 0;
+    unsigned int     score;
+    oserr_t          status;
 
     usched_mtx_lock(&g_driversLock);
+    
+    // Pair this check with ForgetDevice's discovery lock. Removal cannot leave
+    // a queued binding behind even if it races a driver search.
+    if (!DmDeviceIsBindable(deviceId)) {
+        usched_mtx_unlock(&g_driversLock);
+        return OS_ENOENT;
+    }
+    
     foreach (i, &g_drivers) {
-        struct DmDriver* driver = i->value;
-        if (__IsDriverMatch(driver, deviceIdentification)) {
-            __RegisterDeviceForDriver(driver, deviceId);
-            if (driver->state == DmDriverState_NOTLOADED) {
-                osStatus = __SpawnDriver(driver);
-            } else if (driver->state == DmDriverState_AVAILABLE) {
-                osStatus = DmDevicesRegister(driver->handle, deviceId);
-            } else {
-                osStatus = OS_EOK;
-            }
-            break;
+        driver = i->value;
+        score = DmDriverMatchScore(driver->configuration, identification);
+        if (score && (!best || score < best)) {
+            selected = driver;
+            best = score;
         }
     }
+    if (selected == NULL) {
+        usched_mtx_unlock(&g_driversLock);
+        return OS_ENOENT;
+    }
+    
+    status = __RegisterDeviceForDriver(selected, deviceId);
+    if (status == OS_EEXISTS) {
+        status = OS_EOK;
+    }
+    if (status == OS_EOK) {
+        if (selected->state == DmDriverState_NOTLOADED) {
+            status = __SpawnDriver(selected);
+        } else if (selected->state == DmDriverState_AVAILABLE) {
+            status = DmDevicesRegister(selected->handle, deviceId);
+            if (status == OS_EEXISTS) {
+                status = OS_EOK;
+            }
+        }
+        if (status != OS_EOK) {
+            __ForgetDriverDevice(selected, deviceId);
+        }
+    }
+    
     usched_mtx_unlock(&g_driversLock);
-    return osStatus;
+    return status;
 }
 
 static struct DmDriver*
@@ -305,9 +343,12 @@ void DmHandleNotify(
     }
 
     // Update the driver with the provided handle
+    usched_mtx_lock(&g_driversLock);
     driver->handle = driverHandle;
+    driver->state = DmDriverState_AVAILABLE;
     __SubscribeToDriver(driver);
 
     // iterate all devices attached and send them
     __NotifyDevices(driver);
+    usched_mtx_unlock(&g_driversLock);
 }

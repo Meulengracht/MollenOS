@@ -495,199 +495,6 @@ unsigned int PciToDevSubClass(uint32_t Interface) {
     return ((Interface & 0xFFFF) << 16 | 0);
 }
 
-/* PciValidateBarSize
- * Validates the size of a bar and the validity of the bar-size */
-uint64_t
-PciValidateBarSize(
-    _In_ uint64_t base,
-    _In_ uint64_t maxBase,
-    _In_ uint64_t mask)
-{
-    uint64_t encodedSize = mask & maxBase;
-    uint64_t size;
-
-    if (!encodedSize) {
-        return 0;
-    }
-
-    // BAR probing returns an address mask. Isolate its least-significant set
-    // bit to obtain the actual power-of-two byte length. I/O resource lengths
-    // are counts, so returning size - 1 truncates the final byte and rejects a
-    // capability whose range ends exactly at the BAR boundary.
-    size = encodedSize & ~(encodedSize - 1);
-    if (base == maxBase && ((base | (size - 1)) & mask) != mask) {
-        return 0;
-    }
-    return size;
-}
-
-/* PciReadBars
- * Reads and initializes all available bars for the given pci-device */
-static void
-__CreateBarResource(
-    _In_ PciHost_t*   bus,
-    _Out_ DeviceIo_t* resource,
-    _In_ uint32_t    space,
-    _In_ uint64_t    address,
-    _In_ uint64_t    length)
-{
-    uint64_t physical = address;
-
-    if (length == 0) {
-        return;
-    }
-    
-    if (bus->Operations->Translate != NULL &&
-        bus->Operations->Translate(bus, space, address, length, &physical) != OS_EOK) {
-        WARNING("PCI BAR is outside host windows (segment %u)", (unsigned int)bus->Segment);
-        return;
-    }
-    
-    if (length > SIZE_MAX || physical > UINTPTR_MAX || length - 1 > UINTPTR_MAX - physical) {
-        return;
-    }
-    
-    if (space == 1) {
-        if (bus->IoResourcePolicy == PciIoResourcePorts) {
-            if (physical > UINT16_MAX || length - 1 > UINT16_MAX - physical) {
-                return;
-            }
-            CreateDevicePortIo(resource, (uint16_t)physical, (size_t)length);
-        } else {
-            CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
-        }
-    } else {
-        CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
-    }
-}
-
-static void
-__PciReadBars(
-    _In_ PciHost_t*    bus,
-    _In_ BusDevice_t* device,
-    _In_ uint32_t     headerType,
-    _In_ int          createResources,
-    _Out_ struct PciMemoryRange* memoryBars)
-{
-    // Buses have 2 io spaces, devices have 6
-    int count = (headerType & 0x1) == 0x1 ? 2 : 6;
-    int i;
-    uint16_t command;
-
-    // Size probing temporarily writes address bits. Disable decoding so those
-    // transient addresses cannot redirect a real access to another resource.
-    command = PciRead16(bus, device->Bus, device->Slot, device->Function, 0x04);
-    PciWrite16(bus, device->Bus, device->Slot, device->Function, 0x04,
-        command & ~(PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO));
-
-    /* Iterate all the avilable bars */
-    for (i = 0; i < count; i++) {
-        uint32_t space32, size32, mask32;
-        uint64_t space64, size64, mask64;
-        int      barIndex = i;
-        uint32_t memorySpace = 0;
-        size_t   offset = 0x10 + (i << 2);
-
-        // Calculate the initial mask 
-        mask32 = (headerType & 0x1) == 0x1 ? ~0x7FF : 0xFFFFFFFF;
-
-        // Read both space and size
-        space32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
-        PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, space32 | mask32);
-        size32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
-        PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, space32);
-
-        // Sanitize bounds of values
-        if (size32 == 0xFFFFFFFF) {
-            size32 = 0;
-        }
-        if (space32 == 0xFFFFFFFF) {
-            space32 = 0;
-        }
-
-        // Which kind of io-space is it, if bit 0 is set, it's io and not mmio 
-        if (space32 & 0x1) {
-            // Update mask to reflect IO space
-            mask64  = 0xFFFC;
-            size64  = size32;
-            space64 = space32 & 0xFFFC;
-
-            // Correctly update the size of the io
-            size64 = PciValidateBarSize(space64, size64, mask64);
-            if (createResources && space64 != 0 && size64 != 0) {
-                __CreateBarResource(bus, &device->IoSpaces[i], 1, space64, size64);
-            }
-        }
-        // Ok, its memory, but is it 64 bit or 32 bit? 
-        // Bit 2 is set for 64 bit memory space
-        else if (space32 & 0x4) {
-            memorySpace = 3;
-            space64 = space32 & 0xFFFFFFF0;
-            size64  = size32 & 0xFFFFFFF0;
-            mask64  = 0xFFFFFFFFFFFFFFF0;
-            
-            // Calculate a new 64 bit offset
-            i++;
-            offset = 0x10 + (i << 2);
-
-            // Read both space and size for 64 bit
-            space32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
-            PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, 0xFFFFFFFF);
-            size32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
-            PciWrite32(bus, device->Bus, device->Slot, device->Function, offset, space32);
-
-            // Set the upper 32 bit of the space
-            space64 |= ((uint64_t)space32 << 32);
-            size64  |= ((uint64_t)size32 << 32);
-            // Correct the size and validate
-            size64 = PciValidateBarSize(space64, size64, mask64);
-            if (createResources && space64 != 0 && size64 != 0) {
-                // A 64-bit BAR consumes two configuration dwords, but its BAR
-                // number is the index of the lower dword. Capabilities refer
-                // to that index, so keep the combined resource there while i
-                // advances past the upper dword.
-                __CreateBarResource(bus, &device->IoSpaces[barIndex], 3, space64, size64);
-            }
-        }
-        else {
-            memorySpace = 2;
-            space64 = space32 & 0xFFFFFFF0;
-            size64  = size32 & 0xFFFFFFF0;
-            mask64  = 0xFFFFFFF0;
-
-            // Correct the size and validate
-            size64 = PciValidateBarSize(space64, size64, mask64);
-            if (createResources && space64 != 0 && size64 != 0) {
-                __CreateBarResource(bus, &device->IoSpaces[i], 2, space64, size64);
-            }
-        }
-        if (memoryBars != NULL && memorySpace && space64 && size64 &&
-            bus->Operations != NULL && bus->Operations->Translate != NULL &&
-            bus->Operations->Translate(bus, memorySpace, space64, size64,
-                &memoryBars[barIndex].Base) == OS_EOK) {
-            memoryBars[barIndex].Length = size64;
-        }
-        // A nonzero probe size means the resource exists even when firmware
-        // left its address at zero. Keep enumeration useful, but do not invent
-        // an address or publish an unusable mapping without a PCI allocator.
-        if (space64 == 0 && size64 != 0) {
-            WARNING("PCI %u:%u:%u.%u BAR%u is unassigned (size 0x%llx); firmware-assigned BAR required",
-                (unsigned int)bus->Segment, device->Bus, device->Slot, device->Function,
-                (unsigned int)barIndex, (unsigned long long)size64);
-        }
-    }
-    PciWrite16(bus, device->Bus, device->Slot, device->Function, 0x04, command);
-}
-
-void
-PciReadBars(
-    _In_ PciHost_t*    bus,
-    _In_ BusDevice_t* device,
-    _In_ uint32_t     headerType)
-{
-    __PciReadBars(bus, device, headerType, 1, NULL);
-}
-
 static oserr_t __GetPciDeviceNativeHeader(
     _In_  PciDevice_t*        parent,
     _In_  int                 bus,
@@ -721,7 +528,6 @@ PciCheckFunction(
     int                         secondBus;
     uint16_t                    settings;
     BusDevice_t                 resources = { 0 };
-    struct PciFunctionResources functionResources = { 0 };
 
     device = (PciDevice_t*)malloc(sizeof(PciDevice_t));
     if (!device) {
@@ -763,23 +569,24 @@ PciCheckFunction(
         PciWrite16(device->Host, bus, slot, function, 0x04, pciSettings | PCI_COMMAND_INTDISABLE);
     }
     
+    memset(&device->Resources, 0, sizeof(device->Resources));
+    device->Resources.Firmware = device->Host->Firmware;
+    resources.Bus = bus;
+    resources.Slot = slot;
+    resources.Function = function;
+    if (!device->IsBridge) {
+        PciProbeBars(device->Host, &resources, device->Header->HeaderType, device->Resources.Bars);
+        PciDiagnoseBars(device->Host, &resources, device->Resources.Bars);
+    }
+    
     device->Handler = PciFunctionHandlerFind(device);
     if ((device->Host->DriversBlocked || device->Handler != NULL) && !device->IsBridge) {
         settings = PciRead16(device->Host, bus, slot, function, 0x04);
         settings &= ~PCI_COMMAND_BUSMASTER;
         PciWrite16(device->Host, bus, slot, function, 0x04, settings | PCI_COMMAND_INTDISABLE);
         
-        // Quarantined hosts still need useful resource diagnostics. Share the
-        // BAR probe with normal driver registration, without creating mappings
-        // or loading a driver. This reports implemented but unassigned BARs.
-        resources.Bus = bus;
-        resources.Slot = slot;
-        resources.Function = function;
-        
-        __PciReadBars(device->Host, &resources, device->Header->HeaderType, 0, functionResources.Bars);
         if (device->Handler != NULL) {
-            functionResources.Firmware = device->Host->Firmware;
-            oserr = device->Handler->Attach(device, &functionResources, &device->Attachment);
+            oserr = device->Handler->Attach(device, &device->Resources, &device->Attachment);
             if (oserr != OS_EOK) {
                 WARNING("PCI %u:%u:%u.%u function attachment failed (%u)",
                     device->Host->Segment, device->Bus, device->Slot, device->Function, oserr);

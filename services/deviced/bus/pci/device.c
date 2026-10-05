@@ -218,7 +218,7 @@ __PublishPciDevice(
     device->InterruptAcpiConform = pciDevice->AcpiConform;
 
     // Handle bars attached to device
-    PciReadBars(pciDevice->Host, device, pciDevice->Header->HeaderType);
+    PciRegisterBars(pciDevice->Host, device, pciDevice->Resources.Bars);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
     // PCI - IDE Bar Fixup

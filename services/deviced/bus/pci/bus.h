@@ -17,17 +17,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 Bus Driver 
+ * MollenOS PCI Bus Driver 
  * - Enumerates the bus and registers the devices/controllers
  *   available in the system
  */
 
-#ifndef __X86_BUS_INTERFACE__
-#define __X86_BUS_INTERFACE__
+#ifndef __PCI_BUS_INTERFACE__
+#define __PCI_BUS_INTERFACE__
 
 #include <os/osdefs.h>
 #include <ddk/io.h>
 #include <ds/list.h>
+
+#include "bars.h"
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */
@@ -122,13 +124,8 @@ struct PciDevice;
 struct PciFirmwareMapping;
 struct FdtPciHost;
 
-struct PciMemoryRange {
-    uint64_t Base;
-    uint64_t Length;
-};
-
 struct PciFunctionResources {
-    struct PciMemoryRange    Bars[6];
+    struct PciBar            Bars[6];
     const struct FdtPciHost* Firmware;
 };
 
@@ -312,6 +309,7 @@ typedef struct PciDevice {
     PciHost_t*        Host;
     int               IsBridge;
 
+    struct PciFunctionResources      Resources;
     const struct PciFunctionHandler* Handler;
     void*                            Attachment;
 
@@ -474,4 +472,4 @@ PciCriticalSectionEnter(void);
 __EXTERN void 
 PciCriticalSectionLeave(void);
 
-#endif //!__X86_BUS_INTERFACE__
+#endif //!__PCI_BUS_INTERFACE__

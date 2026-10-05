@@ -59,15 +59,21 @@ struct DriverConfiguration {
 };
 
 struct DriverIdentification {
+    // Set when this identity came from a firmware-enumerated PlatformDevice_t
+    // (for example, a device described by ACPI or a device tree). Such devices
+    // are identified by Compatibles; their numeric bus identifiers and class
+    // fields may be unset and must not be used as a fallback.
     int         IsPlatform;
 
-    // One of the identification methods are the
-    // compatible string. Especially on devices that use DT
-    // enumeration instead of ACPI.
+    // For platform devices, this is the bounded, NUL-separated compatible
+    // string list supplied by firmware, in preference order. The length counts
+    // bytes in the complete list, including each string terminator.
     const char* Compatibles;
     size_t      CompatibleLength;
 
-    // The other common identification method is the PCI bus identifiers.
+    // Non-platform devices are matched by vendor/product identifiers or by
+    // the class/subclass pair. A zero vendor ID or an all-zero class pair means
+    // that identity was not supplied.
     uint32_t    VendorId;
     uint32_t    ProductId;
 
@@ -78,8 +84,11 @@ struct DriverIdentification {
 /**
  * @brief Checks whether a driver's settings match a device.
  * A positive score means the driver matches; a lower score means a better
- * match. Platform devices are matched using complete device descriptions
- * provided by the firmware, in the order provided by the device.
+ * match. For platform devices, the score is the position of the first
+ * compatible string supported by the driver, with firmware's first entry
+ * preferred. For non-platform devices, a vendor/product match scores 1;
+ * otherwise the exact class/subclass pair may match with score 1. A score of
+ * zero means no match or malformed platform-compatible data.
  *
  * @param configuration The settings that describe which devices the driver supports.
  * @param identification The identifiers and class information for the device.

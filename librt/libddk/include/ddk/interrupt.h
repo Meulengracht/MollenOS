@@ -131,14 +131,34 @@ typedef struct DeviceInterrupt {
     uintptr_t MsiValue;       // INTERRUPT_MSI - The value of MSI
 } DeviceInterrupt_t;
 
-/* DeviceInterruptInitialize
- * Initializes a new structure of a device interrupt configuration based
- * on a bus device. */
+/**
+ * @brief Initializes a new device interrupt instance based on the bus device descriptor.
+ * The updated flow for v2 should be to allocate the needed vectors after this call.
+ * 
+ * @param interrupt The interrupt descriptor to initialize.
+ * @param device The bus device descriptor associated with the interrupt.
+ */
 DDKDECL(void,
 DeviceInterruptInitialize(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ BusDevice_t*       device));
 
+/**
+ * @brief Requests an allocation of interrupt vectors through the accepted
+ * strategies. We support INTERRUPT_STRATEGY_* values to allocate interrupt
+ * vectors. For MSI/X multiple vectors may be requested. For INTx only a single
+ * vector can be requested, and requesting more will result in an error. If multiple
+ * strategies are provided the order will be MSIX -> MSI -> INTx.
+ * 
+ * This should be called after Initialize() but before Enable() is invoked.
+ *
+ * @param interrupt The interrupt descriptor to allocate vectors for.
+ * @param min The minimum number of vectors required.
+ * @param optimal The optimal number of vectors desired.
+ * @param strategy The allocation strategy to use (INTERRUPT_STRATEGY_*).
+ * @param countOut Receives the number of vectors actually allocated.
+ * @return OS_EOK if the allocation succeeded, or an error code if it failed.
+ */
 DDKDECL(oserr_t,
 DeviceInterruptAllocate(
     _In_  DeviceInterrupt_t* interrupt,
@@ -147,11 +167,56 @@ DeviceInterruptAllocate(
     _In_  uint32_t           strategy,
     _Out_ uint32_t*          countOut));
 
+/**
+ * @brief Sets the CPU affinity for a specific interrupt vector. The index must be lower
+ * than the value returned in DeviceInterruptAllocate's <countOut> parameter.
+ * 
+ * @param interrupt The interrupt descriptor to set the affinity for.
+ * @param index The index of the interrupt vector to set the affinity for.
+ * @param affinityMask The CPU affinity mask indicating which CPUs can handle the interrupt.
+ */
+DDKDECL(void,
+DeviceInterruptSetAffinity(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t           index,
+    _In_ uint32_t           affinityMask));
+
+/**
+ * @brief Registers a handler for the specific index. The index must be lower
+ * than the value returned in DeviceInterruptAllocate's <countOut> parameter.
+ * 
+ * @param interrupt The interrupt descriptor to set the handler for.
+ * @param index The index of the interrupt vector to associate with the handler.
+ * @param handler The interrupt handler function to register.
+ */
 DDKDECL(void,
 DeviceInterruptSetHandler(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ uint32_t           index,
     _In_ InterruptHandler_t handler));
+
+/**
+ * @brief Enables the specified interrupt vector for the device. The index must be lower
+ * than the value returned in DeviceInterruptAllocate's <countOut> parameter.
+ * 
+ * @param interrupt The interrupt descriptor to enable the vector for.
+ * @param index The index of the interrupt vector to enable.
+ */
+DDKDECL(void,
+DeviceInterruptEnable(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t           index));
+
+/**
+ * @brief Tears down any interrupt vector associated with this device's
+ * interrupt vectors. It additionally frees kernel resources associated
+ * with this instance.
+ * 
+ * @param interrupt The interrupt descriptor to destroy.
+ */
+DDKDECL(void,
+DeviceInterruptDestroy(
+    _In_ DeviceInterrupt_t* interrupt));
 
 /* RegisterFastInterruptHandler
  * Registers a fast interrupt handler associated with the interrupt. */
