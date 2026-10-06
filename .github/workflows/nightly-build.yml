@@ -8,38 +8,40 @@ on:
 
 jobs:
   build:
+    name: Build clang-cc Chef package
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
         platform: [ 'amd64', 'i386' ]
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: recursive
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-    - name: Download vali applications
-      uses: dawidd6/action-download-artifact@v6
-      continue-on-error: true
-      with:
-        workflow: nightly-${{ matrix.platform }}.yml
-        workflow_conclusion: success
-        branch: master
-        repo: Meulengracht/vali-userspace
-        check_artifacts: true
-        path: ${{ github.workspace }}
-    - name: Build and push
-      uses: docker/build-push-action@v2
-      with:
-        context: .
-        build-args: ARCH=${{ matrix.platform }}
-        file: nightly.Dockerfile
-        target: artifact
-        outputs: type=local,dest=.
-    - uses: actions/upload-artifact@v2
-      with:
-        name: vali-nightly-${{ matrix.platform }}
-        path: ./vali-nightly.tar.gz
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build and install chef
+        id: chef
+        uses: Meulengracht/bake/.github/actions/build-install@main
+        with:
+          build-type: Release
+          install-prefix: ${{ runner.temp }}/chef-install
+
+      - name: Bake the Vali system packages
+        working-directory: ${{ github.workspace }}
+        run: |
+          export PATH="${{ steps.chef.outputs.install-prefix }}/bin:${PATH}"
+          bake build --cc=vali/${{ matrix.platform }} chef/vali.yaml || true
+
+      - name: Bake the Vali sdk packages
+        working-directory: ${{ github.workspace }}
+        run: |
+          export PATH="${{ steps.chef.outputs.install-prefix }}/bin:${PATH}"
+          bake build -p vali -a ${{ matrix.platform }} chef/sdk-c.yaml || true
+
+      - name: Upload Chef packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: vali-chef-packages
+          path: ${{ github.workspace }}/*.pack
