@@ -22,9 +22,9 @@
 
 static oserr_t
 __SkipPaddedValue(
-    _In_    uint32_t       size,
-    _InOut_ uint32_t*      cursor,
-    _In_    uint32_t       length)
+    _In_    uint32_t  size,
+    _InOut_ uint32_t* cursor,
+    _In_    uint32_t  length)
 {
     uint32_t padding;
 
@@ -84,26 +84,35 @@ __GetStringFromBlock(
 }
 
 static oserr_t
-__ParseProperty(const uint8_t* block, uint32_t size, uint32_t* cursor,
-    const char* strings, uint32_t stringsSize, struct FdtParser* context)
+__ParseProperty(
+    _In_    const uint8_t*    block,
+    _In_    uint32_t          size,
+    _InOut_ uint32_t*         cursor,
+    _In_    const char*       strings,
+    _In_    uint32_t          stringsSize,
+    _InOut_ struct FdtParser* context)
 {
-    uint32_t length;
-    uint32_t nameOffset;
+    uint32_t    length;
+    uint32_t    nameOffset;
     const char* name;
     const void* value;
-    oserr_t status;
+    oserr_t     status;
 
     if (size - *cursor < 8) {
         return OS_EINVALPARAMS;
     }
+    
     length = FdtReadBe32(block + *cursor);
     nameOffset = FdtReadBe32(block + *cursor + 4);
+
     name = __GetStringFromBlock(strings, stringsSize, nameOffset);
     if (!name || !name[0]) {
         return OS_EINVALPARAMS;
     }
+    
     *cursor += 8;
     value = block + *cursor;
+    
     status = __SkipPaddedValue(size, cursor, length);
     if (status != OS_EOK) {
         return status;
@@ -112,37 +121,57 @@ __ParseProperty(const uint8_t* block, uint32_t size, uint32_t* cursor,
 }
 
 oserr_t
-FdtVisitProperties(const void* properties, uint32_t length,
-    const char* strings, uint32_t stringsLength, struct FdtParser* parser)
+FdtVisitProperties(
+    _In_ const void*       properties,
+    _In_ uint32_t          length,
+    _In_ const char*       strings,
+    _In_ uint32_t          stringsLength,
+    _In_ struct FdtParser* parser)
 {
     const uint8_t* block = properties;
-    uint32_t cursor = 0;
-    uint32_t token;
-    oserr_t status;
+    uint32_t       cursor = 0;
+    uint32_t       token;
+    oserr_t        status;
 
+    if ((!block && length) || !parser || !parser->Property ||
+        (!strings && stringsLength) || (length & 3)) {
+        return OS_EINVALPARAMS;
+    }
+    
     while (length - cursor >= 4) {
         token = FdtReadBe32(block + cursor);
         cursor += 4;
+        
         if (token == FDT_NOP) {
             continue;
         }
+        
         if (token != FDT_PROP) {
             return OS_EINVALPARAMS;
         }
-        status = __ParseProperty(block, length, &cursor, strings, stringsLength, parser);
+
+        status = __ParseProperty(
+            block,
+            length,
+            &cursor,
+            strings,
+            stringsLength,
+            parser
+        );
         if (status != OS_EOK) {
             return status;
         }
     }
+    
     return cursor == length ? OS_EOK : OS_EINVALPARAMS;
 }
 
 oserr_t
 FdtParseStructure(
-    _In_ const void*             structureBlock,
-    _In_ uint32_t                structureBlockSize,
-    _In_ const char*             stringBlock,
-    _In_ uint32_t                stringBlockSize,
+    _In_ const void*       structureBlock,
+    _In_ uint32_t          structureBlockSize,
+    _In_ const char*       stringBlock,
+    _In_ uint32_t          stringBlockSize,
     _In_ struct FdtParser* context)
 {
     const uint8_t* block = structureBlock;

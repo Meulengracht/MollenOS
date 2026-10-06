@@ -23,7 +23,7 @@
  */
 
 #include "bus.h"
-#include <firmware/fdt.h>
+#include <firmware/pci.h>
 #include <stddef.h>
 
 static size_t
@@ -35,7 +35,7 @@ __EcamOffset(
 	_In_ size_t 	  Register)
 {
 	return (size_t)(
-        ((Bus - Io->BusStart) << 20) | 
+        ((Bus - Io->Identification.BusStart) << 20) |
             (Device << 15) | 
             (Function << 12) | 
             Register);
@@ -185,7 +185,7 @@ __ValidAccess(
 {
 	size_t limit = host->IsExtended ? 4096 : 256;
 
-	return bus >= (unsigned int)host->BusStart && bus <= (unsigned int)host->BusEnd &&
+	return bus >= (unsigned int)host->Identification.BusStart && bus <= (unsigned int)host->Identification.BusEnd &&
 			slot < 32 && function < 8 && reg < limit && width <= limit - reg &&
 			(reg & (width - 1)) == 0;
 }

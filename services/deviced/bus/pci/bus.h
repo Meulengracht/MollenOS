@@ -28,8 +28,16 @@
 #include <os/osdefs.h>
 #include <ddk/io.h>
 #include <ds/list.h>
+#include "host.h"
 
 #include "bars.h"
+
+// Forward declarations
+typedef struct PciHost PciHost_t;
+struct BusDevice;
+struct PciDevice;
+struct PciFirmwareMapping;
+struct FdtPciHost;
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */
@@ -118,12 +126,6 @@ PACKED_TYPESTRUCT(PciNativeHeader, {
     uint8_t  MaxLatency;   /* 0x3F */
 });
 
-struct BusDevice;
-struct PciHost_t;
-struct PciDevice;
-struct PciFirmwareMapping;
-struct FdtPciHost;
-
 struct PciFunctionResources {
     struct PciBar            Bars[6];
     const struct FdtPciHost* Firmware;
@@ -188,7 +190,7 @@ struct PciHostOperations {
      * @return The value read from the configuration space.
      */
     size_t (*Read)(
-        struct PciHost_t* host,
+        struct PciHost* host,
         unsigned int      bus,
         unsigned int      slot,
         unsigned int      function,
@@ -207,7 +209,7 @@ struct PciHostOperations {
      * @param value The value to write.
      */
     void (*Write)(
-        struct PciHost_t* host,
+        struct PciHost* host,
         unsigned int      bus,
         unsigned int      slot,
         unsigned int      function,
@@ -219,7 +221,7 @@ struct PciHostOperations {
      * @brief Destroy the PCI host and release its resources.
      * @param host The PCI host to destroy.
      */
-    void (*Destroy)(struct PciHost_t*);
+    void (*Destroy)(struct PciHost*);
     
     /**
      * @brief Translate a PCI address to a physical address.
@@ -232,7 +234,7 @@ struct PciHostOperations {
      * @return An error code indicating success or failure.
      */
     oserr_t (*Translate)(
-        struct PciHost_t* host,
+        struct PciHost* host,
         uint32_t          space,
         uint64_t          address,
         uint64_t          length,
@@ -251,7 +253,7 @@ struct PciHostOperations {
      * @return An error code indicating success or failure.
      */
     oserr_t (*ResolveInterrupt)(
-        struct PciHost_t* host,
+        struct PciHost* host,
         unsigned int      bus,
         unsigned int      slot,
         unsigned int      function,
@@ -281,13 +283,11 @@ enum PciIoResourcePolicy {
  * firmware resources and the DT tree. Every initialized host supplies 
  * configuration operations independently of its I/O BAR resource policy.
  */
-typedef struct PciHost_t {
+typedef struct PciHost {
     DeviceIo_t               IoSpace;
     enum PciIoResourcePolicy IoResourcePolicy;
     int                      IsExtended;
-    int                      Segment;
-    int                      BusStart;
-    int                      BusEnd;
+    struct PciHostIdentification Identification;
     
     const struct PciHostOperations* Operations;
     void*                           OpContext;
@@ -331,9 +331,10 @@ __EXTERN void
 BusEnumerate(void);
 
 /**
- * @brief Releases one enumerated host and its tree after all its clients stop.
- * The host, root, and controller context are owned by enumeration. Other hosts and
- * their shared firmware mapping remain valid.
+ * @brief Releases a constructed or registered host after all its clients stop.
+ * A constructor may use this after registration fails; no root is required.
+ * The controller, acquired I/O mapping and retained firmware reference are
+ * released with the host. Other registered hosts remain valid.
  */
 __EXTERN void
 PciHostDestroy(

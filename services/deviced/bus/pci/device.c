@@ -208,7 +208,7 @@ __PublishPciDevice(
             pciDevice->Header->Interface));
 
     device->IsPci = 1;
-    device->Segment  = (unsigned int)pciDevice->Host->Segment;
+    device->Segment  = (unsigned int)pciDevice->Host->Identification.Segment;
     device->Bus      = pciDevice->Bus;
     device->Slot     = pciDevice->Slot;
     device->Function = pciDevice->Function;

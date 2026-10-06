@@ -28,7 +28,7 @@
 #include <os/osdefs.h>
 
 // Forward declarations
-struct PciHost_t;
+typedef struct PciHost PciHost_t;
 struct BusDevice;
 
 enum PciBarState {
@@ -48,7 +48,6 @@ struct PciBar {
     enum PciBarState State;      // Whether the BAR is absent, unassigned, usable, outside the host window, or invalid.
 };
 
-
 /**
  * @brief Determine the size, type, and current assignment of a device's BARs.
  *
@@ -65,10 +64,10 @@ struct PciBar {
  */
 __EXTERN void
 PciProbeBars(
-    struct PciHost_t*       host,
-    const struct BusDevice* device,
-    uint32_t                headerType,
-    struct PciBar           bars[6]);
+    _In_ struct PciHost*         host,
+    _In_ const struct BusDevice* device,
+    _In_ uint32_t                headerType,
+    _In_ struct PciBar           bars[6]);
 
 /**
  * @brief Turn an existing address range into a BAR description.
@@ -89,12 +88,12 @@ PciProbeBars(
  */
 __EXTERN void
 PciDescribeBar(
-    struct PciHost_t*       host,
-    uint32_t                space,
-    uint32_t                attributes,
-    uint64_t                address,
-    uint64_t                size,
-    struct PciBar*          bar);
+    _In_ struct PciHost* host,
+    _In_ uint32_t        space,
+    _In_ uint32_t        attributes,
+    _In_ uint64_t        address,
+    _In_ uint64_t        size,
+    _In_ struct PciBar*  bar);
 
 /**
  * @brief Log warnings for BAR descriptions that cannot currently be used.
@@ -111,9 +110,10 @@ PciDescribeBar(
  */
 __EXTERN void
 PciDiagnoseBars(
-    struct PciHost_t*       host,
-    const struct BusDevice* device,
-    const struct PciBar     bars[6]);
+    _In_ struct PciHost*         host,
+    _In_ const struct BusDevice* device,
+    _In_ const struct PciBar     bars[6]);
+
 /**
  * @brief Create device I/O resource entries for usable BAR descriptions.
  *
@@ -130,8 +130,8 @@ PciDiagnoseBars(
  */
 __EXTERN void
 PciRegisterBars(
-    struct PciHost_t*       host,
-    struct BusDevice*       device,
-    const struct PciBar     bars[6]);
+    _In_ struct PciHost*     host,
+    _In_ struct BusDevice*   device,
+    _In_ const struct PciBar bars[6]);
 
 #endif //!__PCI_BARS_INTERFACE__

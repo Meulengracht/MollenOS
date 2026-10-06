@@ -1,5 +1,24 @@
-#ifndef VALI_FDT_READER_H
-#define VALI_FDT_READER_H
+/**
+ * Copyright, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Built from docs/specifications/devicetree-specification-v0.4.pdf
+ */
+
+#ifndef __FDT_READER_H__
+#define __FDT_READER_H__
 
 #include <os/osdefs.h>
 
@@ -181,7 +200,12 @@ FdtParseStructure(
  * @param parser Parser context with a valid Property callback.
  * @return OS_EOK if the entire span contains valid properties, otherwise an error status.
  */
-oserr_t FdtVisitProperties(const void* properties, uint32_t length,
-    const char* strings, uint32_t stringsLength, struct FdtParser* parser);
+oserr_t
+FdtVisitProperties(
+    _In_ const void* properties,
+    _In_ uint32_t length,
+    _In_ const char* strings,
+    _In_ uint32_t stringsLength,
+    _In_ struct FdtParser* parser);
 
-#endif
+#endif //!__FDT_READER_H__

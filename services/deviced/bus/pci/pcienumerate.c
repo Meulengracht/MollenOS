@@ -22,17 +22,18 @@
 
 #include <assert.h>
 #include "bus.h"
-#include "bcm.h"
 #include <devices.h>
 #include <ddk/acpi.h>
 #include <ddk/busdevice.h>
 #include <ddk/firmware.h>
 #include <ddk/interrupt.h>
 #include <ddk/utils.h>
-#include <firmware/fdt.h>
+#include <firmware/pci.h>
 #include <stdlib.h>
 #include <ds/list.h>
 #include <threads.h>
+
+#include "hosts/broadcom/bcm.h"
 
 #define DEVICE_IS_PCI_BRIDGE(device) ((device)->Header->Class == PCI_CLASS_BRIDGE && (device)->Header->Subclass == PCI_BRIDGE_SUBCLASS_PCI)
 
@@ -46,6 +47,7 @@ static list_t g_pciDevices;
 static mtx_t  g_pciDevicesLock;
 static list_t g_pciRoots = LIST_INIT;
 static int    g_acpiAvailable = 0;
+static uuid_t g_nextPciHostId = 1;
 
 struct PciFirmwareMapping {
     const void*  Blob;
@@ -80,7 +82,7 @@ PciFindDevice(
 
     foreach (element, &g_pciDevices) {
         device = element->value;
-        if ((unsigned int)device->Host->Segment == segment &&
+        if ((unsigned int)device->Host->Identification.Segment == segment &&
             device->Bus == bus && device->Slot == slot && device->Function == function) {
             return device;
         }
@@ -148,34 +150,88 @@ PciHostDestroy(
     PciCriticalSectionLeave();
 }
 
+oserr_t
+PciHostRegister(
+    _In_ PciHost_t* host)
+{
+    PciDevice_t*                        root;
+    PciHost_t*                          existing;
+    const struct PciHostIdentification* identification;
+
+    if (host == NULL || host->Operations == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (host->Operations->Read == NULL || host->Operations->Write == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    identification = &host->Identification;
+    if (identification->BusStart > identification->BusEnd) {
+        return OS_EINVALPARAMS;
+    }
+
+    PciCriticalSectionEnter();
+    if (identification->HostId != UUID_INVALID || host->RootDevice != NULL) {
+        PciCriticalSectionLeave();
+        return OS_EEXISTS;
+    }
+    foreach (element, &g_pciRoots) {
+        existing = ((PciDevice_t*)element->value)->Host;
+        if (existing->Identification.Segment != identification->Segment) {
+            continue;
+        }
+        if (identification->BusStart <= existing->Identification.BusEnd &&
+            existing->Identification.BusStart <= identification->BusEnd) {
+            PciCriticalSectionLeave();
+            return OS_EEXISTS;
+        }
+    }
+    if (g_nextPciHostId == UUID_INVALID) {
+        PciCriticalSectionLeave();
+        return OS_EOVERFLOW;
+    }
+
+    root = calloc(1, sizeof(*root));
+    if (root == NULL) {
+        PciCriticalSectionLeave();
+        return OS_EOOM;
+    }
+
+    // Commit identification only after every operation that can fail. IDs are
+    // not reused when a host is removed, including across discovery passes.
+    host->Identification.HostId = g_nextPciHostId++;
+    list_construct(&root->children);
+    ELEMENT_INIT(&root->list_header, (uintptr_t)identification->HostId, root);
+    root->Host = host;
+    root->Bus = identification->BusStart;
+    root->IsBridge = 1;
+    host->RootDevice = root;
+    list_append(&g_pciRoots, &root->list_header);
+    PciCriticalSectionLeave();
+    return OS_EOK;
+}
+
 static oserr_t
 __PciAttachHost(
     _In_ PciHost_t*                 bus,
     _In_ struct PciFirmwareMapping* mapping)
 {
-    PciDevice_t* root;
+    oserr_t status;
 
-    root = calloc(1, sizeof(*root));
-    if (root == NULL) {
-        PciHostDestroy(bus);
-        return OS_EOOM;
-    }
-    
-    list_construct(&root->children);
-    ELEMENT_INIT(&root->list_header, (uintptr_t)bus->Segment, root);
-    
-    root->Host = bus;
-    root->Bus = (unsigned int)bus->BusStart;
-    root->IsBridge = 1;
-    
-    bus->RootDevice = root;
+    // The constructor borrows the discovery mapping. Establish the host's
+    // reference before registration transfers ownership to the PCI subsystem.
     bus->FirmwareMapping = mapping;
-    
     if (mapping != NULL) {
         mapping->References++;
     }
-    list_append(&g_pciRoots, &root->list_header);
-    return OS_EOK;
+    status = PciHostRegister(bus);
+    if (status != OS_EOK) {
+        ERROR("PCI host registration failed for segment %u buses %u-%u: %u",
+            bus->Identification.Segment, bus->Identification.BusStart,
+            bus->Identification.BusEnd, status);
+        bus->FirmwareMapping = NULL;
+        __PciReleaseFirmware(mapping);
+    }
+    return status;
 }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
@@ -190,7 +246,7 @@ static void __EnumerateLegacy(void)
         return;
     }
     memset(bus, 0, sizeof(PciHost_t));
-    bus->BusEnd = 255;
+    bus->Identification.BusEnd = 255;
     bus->Operations = &g_pciLegacyOperations;
     bus->IoResourcePolicy = PciIoResourcePorts;
 
@@ -209,6 +265,7 @@ static void __EnumerateLegacy(void)
         return;
     }
     if (__PciAttachHost(bus, NULL) != OS_EOK) {
+        PciHostDestroy(bus);
         return;
     }
 
@@ -230,15 +287,20 @@ static void __EnumerateLegacy(void)
 // <base> is the ECAM address of <busStart>, each bus decodes 1MB.
 static void
 __EnumerateEcamWindow(
-    _In_ uint32_t segment,
-    _In_ uint8_t  busStart,
-    _In_ uint8_t  busEnd,
-    _In_ uint64_t base,
-    _In_ const struct FdtPciHost* firmwareHost,
+    _In_ uint32_t                   segment,
+    _In_ uint8_t                    busStart,
+    _In_ uint8_t                    busEnd,
+    _In_ uint64_t                   base,
+    _In_ const struct FdtPciHost*   firmwareHost,
     _In_ struct PciFirmwareMapping* mapping)
 {
     PciHost_t* bus;
-    size_t    length = (size_t)(busEnd - busStart + 1) << 20;
+    size_t    length;
+
+    if (busStart > busEnd) {
+        return;
+    }
+    length = (size_t)(busEnd - busStart + 1) << 20;
 
     TRACE("ECAM segment %u, buses %u-%u at 0x%llx", segment, busStart, busEnd, base);
     if ((uint64_t)(uintptr_t)base != base || length - 1 > UINTPTR_MAX - (uintptr_t)base) {
@@ -266,11 +328,11 @@ __EnumerateEcamWindow(
         return;
     }
 
-    bus->IsExtended     = 1;
-    bus->BusStart       = busStart;
-    bus->BusEnd         = busEnd;
-    bus->Segment        = (int)segment;
-    bus->Operations     = &g_pciAcpiEcamOperations;
+    bus->IsExtended = 1;
+    bus->Identification.BusStart = busStart;
+    bus->Identification.BusEnd = busEnd;
+    bus->Identification.Segment = segment;
+    bus->Operations = &g_pciAcpiEcamOperations;
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
     bus->IoResourcePolicy = PciIoResourcePorts;
@@ -286,6 +348,7 @@ __EnumerateEcamWindow(
         bus->Firmware = bus->OpContext;
     }
     if (__PciAttachHost(bus, mapping) != OS_EOK) {
+        PciHostDestroy(bus);
         return;
     }
 
@@ -393,6 +456,7 @@ static void __OnFdtPciHost(
         return;
     }
     if (__PciAttachHost(bus, context) != OS_EOK) {
+        PciHostDestroy(bus);
         return;
     }
     
@@ -569,28 +633,31 @@ PciCheckFunction(
         PciWrite16(device->Host, bus, slot, function, 0x04, pciSettings | PCI_COMMAND_INTDISABLE);
     }
     
-    memset(&device->Resources, 0, sizeof(device->Resources));
-    device->Resources.Firmware = device->Host->Firmware;
-    resources.Bus = bus;
-    resources.Slot = slot;
-    resources.Function = function;
-    if (!device->IsBridge) {
-        PciProbeBars(device->Host, &resources, device->Header->HeaderType, device->Resources.Bars);
-        PciDiagnoseBars(device->Host, &resources, device->Resources.Bars);
-    }
-    
     device->Handler = PciFunctionHandlerFind(device);
     if ((device->Host->DriversBlocked || device->Handler != NULL) && !device->IsBridge) {
         settings = PciRead16(device->Host, bus, slot, function, 0x04);
         settings &= ~PCI_COMMAND_BUSMASTER;
         PciWrite16(device->Host, bus, slot, function, 0x04, settings | PCI_COMMAND_INTDISABLE);
-        
-        if (device->Handler != NULL) {
-            oserr = device->Handler->Attach(device, &device->Resources, &device->Attachment);
-            if (oserr != OS_EOK) {
-                WARNING("PCI %u:%u:%u.%u function attachment failed (%u)",
-                    device->Host->Segment, device->Bus, device->Slot, device->Function, oserr);
-            }
+    }
+
+    // Every consumer sees the same probe result. Quarantined functions retain
+    // descriptions for diagnostics and child discovery without registering I/O.
+    memset(&device->Resources, 0, sizeof(device->Resources));
+    device->Resources.Firmware = device->Host->Firmware;
+    resources.Bus = bus;
+    resources.Slot = slot;
+    resources.Function = function;
+    
+    if (!device->IsBridge) {
+        PciProbeBars(device->Host, &resources, device->Header->HeaderType, device->Resources.Bars);
+        PciDiagnoseBars(device->Host, &resources, device->Resources.Bars);
+    }
+    
+    if (device->Handler != NULL && !device->IsBridge) {
+        oserr = device->Handler->Attach(device, &device->Resources, &device->Attachment);
+        if (oserr != OS_EOK) {
+            WARNING("PCI %u:%u:%u.%u function attachment failed (%u)",
+                device->Host->Identification.Segment, device->Bus, device->Slot, device->Function, oserr);
         }
     }
 
@@ -663,7 +730,7 @@ PciCheckBus(
         return;
     }
 
-    if (bus < parent->Host->BusStart || bus > parent->Host->BusEnd) {
+    if (bus < parent->Host->Identification.BusStart || bus > parent->Host->Identification.BusEnd) {
         return;
     }
 
@@ -672,61 +739,3 @@ PciCheckBus(
         PciCheckDevice(parent, bus, device);
     }
 }
-
-#ifdef __OSCONFIG_HAS_LEGACY_PCI
-oserr_t
-__InstallFixedBusDevice(
-    _In_ BusDevice_t* device,
-    _In_ const char*  Description)
-{
-    uuid_t Id;
-
-    device->Base.ParentId = UUID_INVALID;
-    device->Base.Length   = sizeof(BusDevice_t);
-    device->Base.VendorId = PCI_FIXED_VENDORID;
-
-    // Set more magic constants to ignore class and subclass
-    device->Base.Class    = 0xFF0F;
-    device->Base.Subclass = 0xFF0F;
-    device->Base.Identification.Description = strdup(Description);
-
-    // Invalidate irqs, this must be set by fixed drivers
-    device->InterruptPin         = INTERRUPT_NONE;
-    device->InterruptLine        = INTERRUPT_NONE;
-    device->InterruptAcpiConform = 0;
-    return DmDeviceCreate(&device->Base, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
-}
-
-oserr_t
-__InstallPS2Controller(void)
-{
-    BusDevice_t* device;
-    oserr_t      oserr;
-
-    device = malloc(sizeof(BusDevice_t));
-    if (device == NULL) {
-        return OS_EOOM;
-    }
-    memset(device, 0, sizeof(BusDevice_t));
-
-    // Set default ps2 device settings
-    device->Base.ProductId = PCI_PS2_DEVICEID;
-
-    // Register io-spaces for the ps2 controller, it has two ports
-    // Data port - 0x60
-    // oserr/Command port - 0x64
-    // one byte each
-    oserr = CreateDevicePortIo(&device->IoSpaces[0], 0x60, 1);
-    if (oserr != OS_EOK) {
-        ERROR(" > failed to initialize ps2 data io space");
-        return OS_EUNKNOWN;
-    }
-
-    oserr = CreateDevicePortIo(&device->IoSpaces[1], 0x64, 1);
-    if (oserr != OS_EOK) {
-        ERROR(" > failed to initialize ps2 command/status io space");
-        return OS_EUNKNOWN;
-    }
-    return __InstallFixedBusDevice(device, "PS/2 Controller");
-}
-#endif

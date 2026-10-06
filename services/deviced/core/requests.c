@@ -49,6 +49,13 @@ void sys_device_register_invocation(
     oserr_t   status;
     TRACE("sys_device_register_invocation()");
 
+    // Firmware platform identities are published by the bus, not supplied by
+    // arbitrary driver registrations claiming another controller's resources.
+    if (sysDevice->content_type == SYS_DEVICE_CONTENT_PLATFORM) {
+        status = OS_ENOTSUPPORTED;
+        goto respond;
+    }
+
     device = from_sys_device(sysDevice);
     if (device == NULL) {
         status = OS_EINVALPARAMS;

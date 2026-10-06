@@ -123,7 +123,7 @@ PciProbeBars(
     PciWrite16(bus, device->Bus, device->Slot, device->Function, 0x04,
         command & ~(PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO));
 
-    /* Iterate all the avilable bars */
+    // Probe each BAR while decoding is disabled.
     for (i = 0; i < count; i++) {
         uint32_t space32, size32, mask32;
         uint64_t space64, size64, mask64;
@@ -154,9 +154,9 @@ PciProbeBars(
         // Which kind of io-space is it, if bit 0 is set, it's io and not mmio 
         if (space32 & 0x1) {
             // Update mask to reflect IO space
-            mask64  = 0xFFFC;
+            mask64  = 0xFFFFFFFC;
             size64  = size32;
-            space64 = space32 & 0xFFFC;
+            space64 = space32 & 0xFFFFFFFC;
 
             // Correctly update the size of the io
             size64 = PciValidateBarSize(space64, size64, mask64);
@@ -181,7 +181,7 @@ PciProbeBars(
 
             // Keep both halves in probe mode before reading either mask.
             PciWrite32(bus, device->Bus, device->Slot, device->Function,
-                offset - 4, (uint32_t)space64 | 0xFFFFFFFFU);
+                offset - 4, 0xFFFFFFFFU);
 
             // Read both space and size for 64 bit
             space32 = PciRead32(bus, device->Bus, device->Slot, device->Function, offset);
