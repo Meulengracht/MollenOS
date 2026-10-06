@@ -42,7 +42,10 @@ add_library(mstring STATIC ${MSTRING_SRCS}
 target_include_directories(mstring PUBLIC ../include ../../libos/include ../../libc/include)
 
 add_library(mstringk STATIC ${MSTRING_SRCS})
-target_compile_options(mstringk PRIVATE -mno-sse)
+target_compile_options(mstringk PRIVATE 
+    $<$<STREQUAL:${VALI_ARCH},aarch64>:-mgeneral-regs-only>
+    $<$<NOT:$<STREQUAL:${VALI_ARCH},aarch64>>:-mno-sse>
+)
 target_compile_definitions(mstringk PRIVATE -DMSTRING_KERNEL)
 target_include_directories(mstringk PUBLIC
         ../include

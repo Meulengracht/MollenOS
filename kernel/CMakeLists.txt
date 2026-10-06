@@ -65,7 +65,7 @@ add_executable (vali-core
 
 # add all subprojects after defining the vali-core target
 # so dependencies gets properly added
-if (NOT VALI_PLATFORM STREQUAL "rpi")
+if (VALI_BUILD_FEATURE_ACPI)
     add_subdirectory(acpi)
 endif ()
 add_subdirectory(api)
@@ -101,7 +101,7 @@ target_compile_options(vali-core
 
 # add additional link libraries from out of this tree
 target_link_libraries(vali-core libdsk libk librt)
-if (NOT VALI_PLATFORM STREQUAL "rpi")
+if (VALI_BUILD_FEATURE_ACPI)
     target_link_libraries(vali-core libacpi)
 endif ()
 
