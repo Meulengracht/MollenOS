@@ -23,6 +23,7 @@
 #include <arch/thread.h>
 #include <arch/utils.h>
 #include <ddk/acpi.h>
+#include <ddk/firmware.h>
 #include <ddk/video.h>
 #include <ddk/io.h>
 #include <debug.h>
@@ -56,9 +57,10 @@ extern oserr_t ScGetThreadMemorySpaceHandle(uuid_t threadHandle, uuid_t* handleO
 extern oserr_t ScCreateMemorySpaceMapping(uuid_t handle, struct MemoryMappingParameters* mappingParameters, void** addressOut);
 
 // Driver system calls
-extern oserr_t ScAcpiQueryStatus(AcpiDescriptor_t* AcpiDescriptor);
-extern oserr_t ScAcpiQueryTableHeader(const char* signature, ACPI_TABLE_HEADER* header);
-extern oserr_t ScAcpiQueryTable(const char* signature, ACPI_TABLE_HEADER* table);
+extern oserr_t ScFirmwareQuery(OSFirmwareInfo_t* infoOut);
+extern oserr_t ScFirmwareTableLocate(const OSFirmwareTableKey_t* key, OSFirmwareTable_t* tableOut);
+extern oserr_t ScFirmwareTableRead(const OSFirmwareTableKey_t* key, void* buffer, size_t size, size_t* lengthOut);
+extern oserr_t ScFirmwareTableMap(const OSFirmwareTableKey_t* key, const void** mappingOut, size_t* lengthOut);
 extern oserr_t ScAcpiQueryInterrupt(int, int, int, int*, unsigned int*);
 extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
@@ -129,7 +131,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 62
+#define SYSTEM_CALL_COUNT 63
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -156,81 +158,82 @@ static struct SystemCallDescriptor {
         DefineSyscall(6, ScCreateMemorySpaceMapping),
 
         // Driver system calls
-        DefineSyscall(7, ScAcpiQueryStatus),
-        DefineSyscall(8, ScAcpiQueryTableHeader),
-        DefineSyscall(9, ScAcpiQueryTable),
-        DefineSyscall(10, ScAcpiQueryInterrupt),
-        DefineSyscall(11, ScIoSpaceRegister),
-        DefineSyscall(12, ScIoSpaceAcquire),
-        DefineSyscall(13, ScIoSpaceRelease),
-        DefineSyscall(14, ScIoSpaceDestroy),
-        DefineSyscall(15, ScRegisterInterrupt),
-        DefineSyscall(16, ScUnregisterInterrupt),
-        DefineSyscall(17, ScGetProcessBaseAddress),
+        DefineSyscall(7, ScFirmwareQuery),
+        DefineSyscall(8, ScFirmwareTableLocate),
+        DefineSyscall(9, ScFirmwareTableRead),
+        DefineSyscall(10, ScFirmwareTableMap),
+        DefineSyscall(11, ScAcpiQueryInterrupt),
+        DefineSyscall(12, ScIoSpaceRegister),
+        DefineSyscall(13, ScIoSpaceAcquire),
+        DefineSyscall(14, ScIoSpaceRelease),
+        DefineSyscall(15, ScIoSpaceDestroy),
+        DefineSyscall(16, ScRegisterInterrupt),
+        DefineSyscall(17, ScUnregisterInterrupt),
+        DefineSyscall(18, ScGetProcessBaseAddress),
 
-        DefineSyscall(18, ScMapThreadMemoryRegion),
+        DefineSyscall(19, ScMapThreadMemoryRegion),
 
         ///////////////////////////////////////////////
         // Operating System Interface
         // - Unprotected, all
 
         // Threading interface
-        DefineSyscall(19, ScThreadCreate),
-        DefineSyscall(20, ScThreadExit),
-        DefineSyscall(21, ScThreadSignal),
-        DefineSyscall(22, ScThreadJoin),
-        DefineSyscall(23, ScThreadDetach),
-        DefineSyscall(24, ScThreadYield),
-        DefineSyscall(25, ScThreadGetCurrentId),
-        DefineSyscall(26, ScThreadCookie),
-        DefineSyscall(27, ScThreadSetCurrentName),
-        DefineSyscall(28, ScThreadGetCurrentName),
+        DefineSyscall(20, ScThreadCreate),
+        DefineSyscall(21, ScThreadExit),
+        DefineSyscall(22, ScThreadSignal),
+        DefineSyscall(23, ScThreadJoin),
+        DefineSyscall(24, ScThreadDetach),
+        DefineSyscall(25, ScThreadYield),
+        DefineSyscall(26, ScThreadGetCurrentId),
+        DefineSyscall(27, ScThreadCookie),
+        DefineSyscall(28, ScThreadSetCurrentName),
+        DefineSyscall(29, ScThreadGetCurrentName),
 
         // Synchronization interface
-        DefineSyscall(29, ScFutexWait),
-        DefineSyscall(30, ScFutexWake),
-        DefineSyscall(31, ScEventCreate),
+        DefineSyscall(30, ScFutexWait),
+        DefineSyscall(31, ScFutexWake),
+        DefineSyscall(32, ScEventCreate),
 
         // Communication interface
-        DefineSyscall(32, IpcContextSendMultiple),
+        DefineSyscall(33, IpcContextSendMultiple),
 
         // Memory interface
-        DefineSyscall(33, ScMemoryAllocate),
-        DefineSyscall(34, ScMemoryFree),
-        DefineSyscall(35, ScMemoryProtect),
-        DefineSyscall(36, ScMemoryQueryAllocation),
-        DefineSyscall(37, ScMemoryQueryAttributes),
+        DefineSyscall(34, ScMemoryAllocate),
+        DefineSyscall(35, ScMemoryFree),
+        DefineSyscall(36, ScMemoryProtect),
+        DefineSyscall(37, ScMemoryQueryAllocation),
+        DefineSyscall(38, ScMemoryQueryAttributes),
     
-        DefineSyscall(38, ScSHMCreate),
-        DefineSyscall(39, ScSHMExport),
-        DefineSyscall(40, ScSHMConform),
-        DefineSyscall(41, ScSHMAttach),
-        DefineSyscall(42, ScSHMMap),
-        DefineSyscall(43, ScSHMCommit),
-        DefineSyscall(44, ScSHMUnmap),
-        DefineSyscall(45, ScSHMDetach),
-        DefineSyscall(46, ScSHMMetrics),
+        DefineSyscall(39, ScSHMCreate),
+        DefineSyscall(40, ScSHMExport),
+        DefineSyscall(41, ScSHMConform),
+        DefineSyscall(42, ScSHMAttach),
+        DefineSyscall(43, ScSHMMap),
+        DefineSyscall(44, ScSHMCommit),
+        DefineSyscall(45, ScSHMUnmap),
+        DefineSyscall(46, ScSHMDetach),
+        DefineSyscall(47, ScSHMMetrics),
     
-        DefineSyscall(47, ScCreateHandle),
-        DefineSyscall(48, ScDestroyHandle),
-        DefineSyscall(49, ScLookupHandle),
-        DefineSyscall(50, ScSetHandleActivity),
+        DefineSyscall(48, ScCreateHandle),
+        DefineSyscall(49, ScDestroyHandle),
+        DefineSyscall(50, ScLookupHandle),
+        DefineSyscall(51, ScSetHandleActivity),
 
-        DefineSyscall(51, ScCreateHandleSet),
-        DefineSyscall(52, ScControlHandleSet),
-        DefineSyscall(53, ScListenHandleSet),
+        DefineSyscall(52, ScCreateHandleSet),
+        DefineSyscall(53, ScControlHandleSet),
+        DefineSyscall(54, ScListenHandleSet),
     
         // Misc interface
-        DefineSyscall(54, ScInstallSignalHandler),
-        DefineSyscall(55, ScFlushHardwareCache),
-        DefineSyscall(56, ScSystemQuery),
+        DefineSyscall(55, ScInstallSignalHandler),
+        DefineSyscall(56, ScFlushHardwareCache),
+        DefineSyscall(57, ScSystemQuery),
 
         // Timing interface
-        DefineSyscall(57, ScSystemClockTick),
-        DefineSyscall(58, ScSystemClockFrequency),
-        DefineSyscall(59, ScSystemTime),
-        DefineSyscall(60, ScTimeSleep),
-        DefineSyscall(61, ScTimeStall)
+        DefineSyscall(58, ScSystemClockTick),
+        DefineSyscall(59, ScSystemClockFrequency),
+        DefineSyscall(60, ScSystemTime),
+        DefineSyscall(61, ScTimeSleep),
+        DefineSyscall(62, ScTimeStall)
 };
 
 Context_t*

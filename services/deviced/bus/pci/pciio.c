@@ -23,118 +23,260 @@
  */
 
 #include "bus.h"
+#include <firmware/pci.h>
 #include <stddef.h>
 
-size_t
-PciCalculateOffset(
-	_In_ PciBus_t*	  Io,
+static size_t
+__EcamOffset(
+	_In_ PciHost_t*	  Io,
 	_In_ unsigned int Bus,
 	_In_ unsigned int Device,
 	_In_ unsigned int Function,
 	_In_ size_t 	  Register)
 {
-	if (Io->IsExtended) {
-		return (size_t)(((Bus - Io->BusStart) << 20) | (Device << 15) | (Function << 12) | Register);
-	}
-	else {
-		return (size_t)(0x80000000 | (Bus << 16) | (Device << 11) | (Function << 8) | (Register & 0xFC));
-	}
+	return (size_t)(
+        ((Bus - Io->Identification.BusStart) << 20) |
+            (Device << 15) | 
+            (Function << 12) | 
+            Register);
 }
 
-uint32_t PciRead32(PciBus_t *Io, 
+#ifdef __OSCONFIG_HAS_LEGACY_PCI
+static void
+__LegacySelect(
+	_In_ PciHost_t*	  Io,
+	_In_ unsigned int Bus,
+	_In_ unsigned int Device,
+	_In_ unsigned int Function,
+	_In_ size_t 	  Register)
+{
+	size_t address = 0x80000000 | (Bus << 16) | (Device << 11) | (Function << 8) | (Register & 0xFC);
+	WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, address, 4);
+}
+
+// Sub-dword accesses select a byte lane within the 32-bit data port.
+#define __LEGACY_DATA_PORT(Register, Width) (PCI_REGISTER_DATA + ((Register) & 0x3 & ~((Width) - 1)))
+
+static size_t
+__LegacyRead(
+		_In_ PciHost_t*    host,
+		_In_ unsigned int bus,
+		_In_ unsigned int slot,
+		_In_ unsigned int function,
+		_In_ size_t       reg,
+		_In_ size_t       width)
+{
+	__LegacySelect(host, bus, slot, function, reg);
+	return ReadDeviceIo(&host->IoSpace, __LEGACY_DATA_PORT(reg, width), width);
+}
+
+static void
+__LegacyWrite(
+		_In_ PciHost_t*    host,
+		_In_ unsigned int bus,
+		_In_ unsigned int slot,
+		_In_ unsigned int function,
+		_In_ size_t       reg,
+		_In_ size_t       value,
+		_In_ size_t       width)
+{
+	__LegacySelect(host, bus, slot, function, reg);
+	WriteDeviceIo(&host->IoSpace, __LEGACY_DATA_PORT(reg, width), value, width);
+}
+
+const struct PciHostOperations g_pciLegacyOperations = {
+	.Read = __LegacyRead,
+	.Write = __LegacyWrite
+};
+#endif
+
+static size_t
+__EcamRead(
+		_In_ PciHost_t*     host,
+		_In_ unsigned int bus,
+		_In_ unsigned int slot,
+		_In_ unsigned int function,
+		_In_ size_t       reg,
+		_In_ size_t       width)
+{
+	return ReadDeviceIo(
+        &host->IoSpace,
+        __EcamOffset(host, bus, slot, function, reg),
+        width
+    );
+}
+
+static void
+__EcamWrite(
+		_In_ PciHost_t*     host,
+		_In_ unsigned int bus,
+		_In_ unsigned int slot,
+		_In_ unsigned int function,
+		_In_ size_t       reg,
+		_In_ size_t       value,
+		_In_ size_t       width)
+{
+	WriteDeviceIo(
+        &host->IoSpace,
+        __EcamOffset(host, bus, slot, function, reg),
+        value,
+        width
+    );
+}
+
+static oserr_t
+__DtTranslate(
+		_In_ PciHost_t* host,
+		_In_ uint32_t  space,
+		_In_ uint64_t  address,
+		_In_ uint64_t  length,
+		_Out_ uint64_t* physicalOut)
+{
+	return FdtTranslatePciAddress(
+        host->OpContext,
+        space,
+        address,
+        length,
+        physicalOut
+    );
+}
+
+static oserr_t
+__DtResolveInterrupt(
+		_In_ PciHost_t*    host,
+		_In_ unsigned int bus,
+		_In_ unsigned int slot,
+		_In_ unsigned int function,
+		_In_ unsigned int pin,
+		_Out_ int*        lineOut,
+		_Out_ unsigned int* flagsOut)
+{
+	return FdtResolvePciInterrupt(
+        host->OpContext,
+        bus,
+        slot,
+        function,
+        pin,
+        lineOut,
+        flagsOut
+    );
+}
+
+const struct PciHostOperations g_pciAcpiEcamOperations = {
+	.Read = __EcamRead,
+	.Write = __EcamWrite
+};
+
+const struct PciHostOperations g_pciDtEcamOperations = {
+	.Read = __EcamRead,
+	.Write = __EcamWrite,
+	.Translate = __DtTranslate,
+	.ResolveInterrupt = __DtResolveInterrupt
+};
+
+static int
+__ValidAccess(
+		_In_ PciHost_t*    host,
+		_In_ unsigned int bus,
+		_In_ unsigned int slot,
+		_In_ unsigned int function,
+		_In_ size_t       reg,
+		_In_ size_t       width)
+{
+	size_t limit = host->IsExtended ? 4096 : 256;
+
+	return bus >= (unsigned int)host->Identification.BusStart && bus <= (unsigned int)host->Identification.BusEnd &&
+			slot < 32 && function < 8 && reg < limit && width <= limit - reg &&
+			(reg & (width - 1)) == 0;
+}
+
+static size_t
+__PciRead(
+	_In_ PciHost_t*	  Io,
+	_In_ unsigned int Bus,
+	_In_ unsigned int Device,
+	_In_ unsigned int Function,
+	_In_ size_t 	  Register,
+	_In_ size_t       Width)
+{
+	if (!__ValidAccess(Io, Bus, Device, Function, Register, Width)) {
+		return (size_t)-1;
+	}
+	
+    return Io->Operations->Read(Io, Bus, Device, Function, Register, Width);
+}
+
+static void
+__PciWrite(
+	_In_ PciHost_t*	  Io,
+	_In_ unsigned int Bus,
+	_In_ unsigned int Device,
+	_In_ unsigned int Function,
+	_In_ size_t 	  Register,
+	_In_ size_t       Value,
+	_In_ size_t       Width)
+{
+	if (!__ValidAccess(Io, Bus, Device, Function, Register, Width)) {
+		return;
+	}
+	
+    Io->Operations->Write(Io, Bus, Device, Function, Register, Value, Width);
+}
+
+uint32_t PciRead32(PciHost_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
-	if (Io && Io->IsExtended) {
-		return ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-	}
-	else {
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		return ReadDeviceIo(&Io->IoSpace, PCI_REGISTER_DATA, 4);
-	}
+	return (uint32_t)__PciRead(Io, Bus, Device, Function, Register, 4);
 }
 
-uint16_t PciRead16(PciBus_t *Io, 
+uint16_t PciRead16(PciHost_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
-	if (Io && Io->IsExtended) {
-		return (uint16_t)ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 2);
-	}
-	else {
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		return (uint16_t)ReadDeviceIo(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x02), 2);
-	}
+	return (uint16_t)__PciRead(Io, Bus, Device, Function, Register, 2);
 }
 
-uint8_t PciRead8(PciBus_t *Io, 
+uint8_t PciRead8(PciHost_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register)
 {
-	if (Io && Io->IsExtended) {
-		return (uint8_t)ReadDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), 1);
-	}
-	else {
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		return (uint8_t)ReadDeviceIo(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x03), 1);
-	}
+	return (uint8_t)__PciRead(Io, Bus, Device, Function, Register, 1);
 }
 
-void PciWrite32(PciBus_t *Io, 
+void PciWrite32(PciHost_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint32_t Value)
 {
-	if (Io && Io->IsExtended) {
-		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 4);
-	}
-	else {
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_DATA, Value, 4);
-	}
+	__PciWrite(Io, Bus, Device, Function, Register, Value, 4);
 }
 
-void PciWrite16(PciBus_t *Io, 
+void PciWrite16(PciHost_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint16_t Value)
 {
-	if (Io && Io->IsExtended) {
-		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 2);
-	}
-	else {
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x02), Value, 2);
-	}
+	__PciWrite(Io, Bus, Device, Function, Register, Value, 2);
 }
 
-void PciWrite8(PciBus_t *Io, 
+void PciWrite8(PciHost_t *Io, 
 	unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint8_t Value)
 {
-	if (Io && Io->IsExtended) {
-		WriteDeviceIo(&Io->IoSpace, PciCalculateOffset(Io, Bus, Device, Function, Register), Value, 1);
-	}
-	else {
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, PciCalculateOffset(Io, Bus, Device, Function, Register), 4);
-		WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_DATA + (Register & 0x03), Value, 1);
-	}
+	__PciWrite(Io, Bus, Device, Function, Register, Value, 1);
 }
 
 uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length)
 {
 	if (Length == 1) {
-		return (uint32_t)PciRead8(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register);
-	}
-	else if (Length == 2) {
-		return (uint32_t)PciRead16(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register);
-	}
-	else {
-		return PciRead32(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register);
+		return (uint32_t)PciRead8(Device->Host, Device->Bus, Device->Slot, Device->Function, Register);
+	} else if (Length == 2) {
+		return (uint32_t)PciRead16(Device->Host, Device->Bus, Device->Slot, Device->Function, Register);
+	} else {
+		return PciRead32(Device->Host, Device->Bus, Device->Slot, Device->Function, Register);
 	}
 }
 
 void PciDeviceWrite(PciDevice_t *Device, size_t Register, uint32_t Value, size_t Length)
 {
 	if (Length == 1) {
-		PciWrite8(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register, (uint8_t)(Value & 0xFF));
-	}
-	else if (Length == 2) {
-		PciWrite16(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
-	}
-	else {
-		PciWrite32(Device->BusIo, Device->Bus, Device->Slot, Device->Function, Register, Value);
+		PciWrite8(Device->Host, Device->Bus, Device->Slot, Device->Function, Register, (uint8_t)(Value & 0xFF));
+	} else if (Length == 2) {
+		PciWrite16(Device->Host, Device->Bus, Device->Slot, Device->Function, Register, (uint16_t)(Value & 0xFFFFF));
+	} else {
+		PciWrite32(Device->Host, Device->Bus, Device->Slot, Device->Function, Register, Value);
 	}
 }

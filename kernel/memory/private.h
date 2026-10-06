@@ -57,6 +57,7 @@ struct MSContext {
     list_t              Allocations;
     uintptr_t           SignalHandler;
     Mutex_t             SyncObject;
+    Mutex_t             UserCopyLock;
 };
 
 /**

@@ -28,6 +28,8 @@ find_program(RPI_LD NAMES ld.lld REQUIRED)
 
 get_filename_component(VALI_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
 
+add_subdirectory("${VALI_SOURCE_ROOT}/librt/libfdt" "${CMAKE_CURRENT_BINARY_DIR}/libfdt")
+
 # Compile the shared source again for ELF; kernel-built PE objects and full.c
 # cannot participate in a freestanding firmware entry executable.
 add_executable(rpi-loader 
@@ -37,12 +39,12 @@ add_executable(rpi-loader
     init.c 
     header.c 
     pe.c
+    reservations.c
     resources.c 
     contract.c 
     platform.c 
     runtime.c 
     devicetree.c
-    "${VALI_SOURCE_ROOT}/kernel/devicetree/parser.c"
 )
 
 set_target_properties(rpi-loader PROPERTIES SUFFIX ".elf")
@@ -50,7 +52,6 @@ target_include_directories(rpi-loader PRIVATE
     "${VALI_SOURCE_ROOT}/boot/include"
     "${VALI_SOURCE_ROOT}/librt/libos/include"
     "${VALI_SOURCE_ROOT}/kernel/include"
-    "${VALI_SOURCE_ROOT}/kernel/devicetree"
     "${VALI_SOURCE_ROOT}/librt/libc/include"
 )
 
@@ -71,3 +72,5 @@ set_property(TARGET rpi-loader APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOU
 
 # install the loader where requested under /bin
 install(TARGETS rpi-loader DESTINATION bin)
+
+target_link_libraries(rpi-loader PRIVATE vali-fdt)

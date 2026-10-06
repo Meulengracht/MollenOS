@@ -19,6 +19,9 @@
 #include <arch/utils.h>
 #include <assert.h>
 #include <machine.h>
+#include <heap.h>
+#include <limits.h>
+#include <string.h>
 #include <threading.h>
 #include "private.h"
 
@@ -36,8 +39,8 @@ MemorySpaceInitialize(
     return MmuLoadKernel(memorySpace, bootInformation, kernelMappings);
 }
 
-oserr_t
-MemorySpaceChangeProtection(
+static oserr_t
+__ChangeProtection(
         _In_    MemorySpace_t* memorySpace,
         _InOut_ vaddr_t        address,
         _In_    size_t         length,
@@ -65,6 +68,38 @@ MemorySpaceChangeProtection(
     }
     MSSync(memorySpace, address, length);
     return oserr;
+}
+
+oserr_t
+MemorySpaceChangeProtection(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t address,
+        _In_ size_t length,
+        _In_ unsigned int attributes,
+        _Out_ unsigned int* previousAttributes)
+{
+    oserr_t status;
+
+    if (memorySpace == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (memorySpace->Context != NULL) {
+        MutexLock(&memorySpace->Context->UserCopyLock);
+    }
+    
+    status = __ChangeProtection(
+        memorySpace,
+        address,
+        length,
+        attributes,
+        previousAttributes
+    );
+
+    if (memorySpace->Context != NULL) {
+        MutexUnlock(&memorySpace->Context->UserCopyLock);
+    }
+    return status;
 }
 
 static bool

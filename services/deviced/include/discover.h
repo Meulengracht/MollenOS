@@ -45,59 +45,113 @@ struct DriverResource {
     size_t    Length;
 };
 
+struct DriverCompatible {
+    element_t ListHeader;
+    char*     Name;
+};
+
 struct DriverConfiguration {
     uint32_t Class;
     uint32_t Subclass;
     list_t   Vendors;
+    list_t   Compatibles;
     list_t   Resources;
 };
 
 struct DriverIdentification {
-    uint32_t VendorId;
-    uint32_t ProductId;
+    // Set when this identity came from a firmware-enumerated PlatformDevice_t
+    // (for example, a device described by ACPI or a device tree). Such devices
+    // are identified by Compatibles; their numeric bus identifiers and class
+    // fields may be unset and must not be used as a fallback.
+    int         IsPlatform;
 
-    uint32_t Class;
-    uint32_t Subclass;
+    // For platform devices, this is the bounded, NUL-separated compatible
+    // string list supplied by firmware, in preference order. The length counts
+    // bytes in the complete list, including each string terminator.
+    const char* Compatibles;
+    size_t      CompatibleLength;
+
+    // Non-platform devices are matched by vendor/product identifiers or by
+    // the class/subclass pair. A zero vendor ID or an all-zero class pair means
+    // that identity was not supplied.
+    uint32_t    VendorId;
+    uint32_t    ProductId;
+
+    uint32_t    Class;
+    uint32_t    Subclass;
 };
 
 /**
- * @brief Initializes the discover subsystems that finds available drivers in the system
- * and also manages the state of those drivers.
+ * @brief Checks whether a driver's settings match a device.
+ * A positive score means the driver matches; a lower score means a better
+ * match. For platform devices, the score is the position of the first
+ * compatible string supported by the driver, with firmware's first entry
+ * preferred. For non-platform devices, a vendor/product match scores 1;
+ * otherwise the exact class/subclass pair may match with score 1. A score of
+ * zero means no match or malformed platform-compatible data.
+ *
+ * @param configuration The settings that describe which devices the driver supports.
+ * @param identification The identifiers and class information for the device.
+ * @return A positive match score, or zero if the driver does not match.
  */
-extern void
+__EXTERN unsigned int
+DmDriverMatchScore(
+    _In_ const struct DriverConfiguration*  configuration,
+    _In_ const struct DriverIdentification* identification);
+
+/**
+ * @brief Removes a device from the device lists maintained for drivers.
+ * Call this after stopping programs that use the device. This function only
+ * clears the driver's tracking information; it does not stop those programs.
+ *
+ * @param deviceId The ID of the device to remove from the driver lists.
+ */
+__EXTERN void
+DmDiscoverForgetDevice(
+    _In_ uuid_t deviceId);
+
+/**
+ * @brief Starts driver discovery and checks existing devices for matching drivers.
+ * Driver discovery reads the available drivers and then tries to match them
+ * with devices already known to the system.
+ */
+__EXTERN void
 DmDiscoverInitialize(void);
 
 /**
- * @brief
+ * @brief Adds a driver to the list of drivers that can be matched with devices.
  *
- * @param[In] driverPath
- * @param[In] driverConfig
- * @return
+ * @param driverPath The path to the driver's program.
+ * @param driverConfig The settings that describe which devices the driver supports.
+ * @return OS_EOK if the driver was added, or an error code if it could not be added.
  */
-oserr_t
+__EXTERN oserr_t
 DmDiscoverAddDriver(
-        _In_ mstring_t*                  driverPath,
-        _In_ struct DriverConfiguration* driverConfig);
+    _In_ mstring_t*                  driverPath,
+    _In_ struct DriverConfiguration* driverConfig);
 
 /**
+ * @brief Removes a driver from the list of drivers that can be matched with devices.
+ * A driver that has started loading is kept in the list.
  *
- * @param[In] driverPath
- * @return
+ * @param driverPath The path of the driver to remove.
+ * @return OS_EOK if the driver is known, or OS_ENOENT if no driver has this path.
  */
-oserr_t
+__EXTERN oserr_t
 DmDiscoverRemoveDriver(
-        _In_ mstring_t* driverPath);
+    _In_ mstring_t* driverPath);
 
 /**
- * @brief
+ * @brief Finds the best matching driver for a device and starts or connects it.
  *
- * @param[In] deviceId
- * @param[In] deviceIdentification
- * @return
+ * @param deviceId The ID of the device to find a driver for.
+ * @param deviceIdentification The identifiers and class information used to find a match.
+ * @return OS_EOK if a matching driver was started or connected, or an error code
+ *         if the device cannot be matched or the driver cannot be started or connected.
  */
-oserr_t
+__EXTERN oserr_t
 DmDiscoverFindDriver(
-        _In_ uuid_t                       deviceId,
-        _In_ struct DriverIdentification* deviceIdentification);
+    _In_ uuid_t                       deviceId,
+    _In_ struct DriverIdentification* deviceIdentification);
 
 #endif //!__DISCOVER_H__

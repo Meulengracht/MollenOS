@@ -16,6 +16,10 @@
  *
  */
 
+#include "abi.h"
+
+// x0 addresses ARM64_FP_STATE_SIZE bytes. Each pair of 128-bit q registers
+// occupies 32 bytes; the final two 64-bit slots preserve control/status bits.
 .text
 .p2align 2
 .globl Arm64SaveFp
@@ -40,8 +44,8 @@ Arm64SaveFp:
     mrs x1, fpcr
     mrs x2, fpsr
     
-    str x1, [x0, #512]
-    str x2, [x0, #520]
+    str x1, [x0, #ARM64_FP_CONTROL]
+    str x2, [x0, #ARM64_FP_STATUS]
     
     ret
 
@@ -64,8 +68,8 @@ Arm64RestoreFp:
     ldp q28, q29, [x0, #448]
     ldp q30, q31, [x0, #480]
     
-    ldr x1, [x0, #512]
-    ldr x2, [x0, #520]
+    ldr x1, [x0, #ARM64_FP_CONTROL]
+    ldr x2, [x0, #ARM64_FP_STATUS]
     
     msr fpcr, x1
     msr fpsr, x2

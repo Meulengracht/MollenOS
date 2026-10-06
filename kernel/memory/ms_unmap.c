@@ -66,8 +66,8 @@ exit:
     return oserr;
 }
 
-oserr_t
-MemorySpaceUnmap(
+static oserr_t
+__Unmap(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        address,
         _In_ size_t         length)
@@ -135,4 +135,30 @@ MemorySpaceUnmap(
 
 exit:
     return oserr;
+}
+
+oserr_t
+MemorySpaceUnmap(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t address,
+        _In_ size_t length)
+{
+    oserr_t status;
+
+    if (memorySpace == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // If the memoryspace has a context, we do this in a 
+    // locked section.
+    if (memorySpace->Context != NULL) {
+        MutexLock(&memorySpace->Context->UserCopyLock);
+    }
+    
+    status = __Unmap(memorySpace, address, length);
+    
+    if (memorySpace->Context != NULL) {
+        MutexUnlock(&memorySpace->Context->UserCopyLock);
+    }
+    return status;
 }

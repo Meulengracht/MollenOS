@@ -1,9 +1,12 @@
 # Project setup
 project (ValiDDK)
-enable_language (ASM_NASM)
 enable_language (C)
 
-set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+# Nasm is only used for x86 and x86_64 architectures
+if (VALI_ARCH STREQUAL "i386" OR VALI_ARCH STREQUAL "amd64")
+    enable_language(ASM_NASM)
+    set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+endif ()
 
 set (GENERATED_SOURCES
     ${CMAKE_BINARY_DIR}/protocols/sys_session_service_client.h
@@ -37,12 +40,10 @@ set (GENERATED_SOURCES
 )
 set_source_files_properties ( ${GENERATED_SOURCES} PROPERTIES GENERATED TRUE )
 
-set(ASM_SOURCES
-    arch/${VALI_ARCH}/_io.s
-)
-
-# Add support for .S extension
-set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
+if (VALI_ARCH STREQUAL "i386" OR VALI_ARCH STREQUAL "amd64")
+    set(ASM_SOURCES arch/${VALI_ARCH}/_io.s)
+    set_source_files_properties(${ASM_SOURCES} PROPERTIES LANGUAGE ASM_NASM)
+endif ()
 
 add_library(libddk
         ${GENERATED_SOURCES}
@@ -58,6 +59,7 @@ add_library(libddk
         debug.c
         device.c
         deviceio.c
+        firmware.c
         interrupt.c
         io.c
         mappings.c

@@ -27,6 +27,7 @@
 #include <os/types/memory.h>
 
 DECL_STRUCT(Context);
+DECL_STRUCT(DeviceTree);
 DECL_STRUCT(SystemCpu);
 DECL_STRUCT(SystemCpuCore);
 
@@ -109,5 +110,14 @@ KERNELAPI void KERNELABI
 CpuInvalidateMemoryCache(
     _In_Opt_ void*  Start, 
     _In_Opt_ size_t Length);
+
+/**
+ * @brief Discover and register the platform components from a validated DTB. 
+ * @param tree A pointer to the validated device tree blob (DTB) containing platform components.
+ * @return Returns OS_EOK on success, or an appropriate error code on failure.
+ */
+KERNELAPI oserr_t KERNELABI
+ArchDeviceTreeInitialize(
+    _In_ const DeviceTree_t* tree);
 
 #endif //!__SYSTEM_INTERFACE_UTILS_H__

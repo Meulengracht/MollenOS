@@ -17,15 +17,14 @@
  * Built from docs/specifications/devicetree-specification-v0.4.pdf
  */
 
-#include <devicetree.h>
+#include <fdt/reader.h>
 #include <string.h>
-#include "private.h"
 
 static oserr_t
 __SkipPaddedValue(
-    _In_    uint32_t       size,
-    _InOut_ uint32_t*      cursor,
-    _In_    uint32_t       length)
+    _In_    uint32_t  size,
+    _InOut_ uint32_t* cursor,
+    _In_    uint32_t  length)
 {
     uint32_t padding;
 
@@ -84,19 +83,102 @@ __GetStringFromBlock(
     return stringBlock + stringOffset;
 }
 
+static oserr_t
+__ParseProperty(
+    _In_    const uint8_t*    block,
+    _In_    uint32_t          size,
+    _InOut_ uint32_t*         cursor,
+    _In_    const char*       strings,
+    _In_    uint32_t          stringsSize,
+    _InOut_ struct FdtParser* context)
+{
+    uint32_t    length;
+    uint32_t    nameOffset;
+    const char* name;
+    const void* value;
+    oserr_t     status;
+
+    if (size - *cursor < 8) {
+        return OS_EINVALPARAMS;
+    }
+    
+    length = FdtReadBe32(block + *cursor);
+    nameOffset = FdtReadBe32(block + *cursor + 4);
+
+    name = __GetStringFromBlock(strings, stringsSize, nameOffset);
+    if (!name || !name[0]) {
+        return OS_EINVALPARAMS;
+    }
+    
+    *cursor += 8;
+    value = block + *cursor;
+    
+    status = __SkipPaddedValue(size, cursor, length);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return context->Property(context->UserData, name, value, length);
+}
+
 oserr_t
-__ParseStructureBlock(
-    _In_ const void*             structureBlock,
-    _In_ uint32_t                structureBlockSize,
-    _In_ const char*             stringBlock,
-    _In_ uint32_t                stringBlockSize,
-    _In_ struct __ParserContext* context)
+FdtVisitProperties(
+    _In_ const void*       properties,
+    _In_ uint32_t          length,
+    _In_ const char*       strings,
+    _In_ uint32_t          stringsLength,
+    _In_ struct FdtParser* parser)
+{
+    const uint8_t* block = properties;
+    uint32_t       cursor = 0;
+    uint32_t       token;
+    oserr_t        status;
+
+    if ((!block && length) || !parser || !parser->Property ||
+        (!strings && stringsLength) || (length & 3)) {
+        return OS_EINVALPARAMS;
+    }
+    
+    while (length - cursor >= 4) {
+        token = FdtReadBe32(block + cursor);
+        cursor += 4;
+        
+        if (token == FDT_NOP) {
+            continue;
+        }
+        
+        if (token != FDT_PROP) {
+            return OS_EINVALPARAMS;
+        }
+
+        status = __ParseProperty(
+            block,
+            length,
+            &cursor,
+            strings,
+            stringsLength,
+            parser
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    
+    return cursor == length ? OS_EOK : OS_EINVALPARAMS;
+}
+
+oserr_t
+FdtParseStructure(
+    _In_ const void*       structureBlock,
+    _In_ uint32_t          structureBlockSize,
+    _In_ const char*       stringBlock,
+    _In_ uint32_t          stringBlockSize,
+    _In_ struct FdtParser* context)
 {
     const uint8_t* block = structureBlock;
     uint32_t       cursor = 0;
     uint32_t       depth = 0;
     int            rootSeen = 0;
-    int            childrenStarted[__STATIC_FDT_MAX_DEPTH] = { 0 };
+    int            childrenStarted[FDT_MAX_DEPTH] = { 0 };
     oserr_t        status;
 
     if (!block || !context || !context->BeginNode || !context->Property ||
@@ -108,7 +190,7 @@ __ParseStructureBlock(
     // accumulate state, but consumers must publish nothing until FDT_END and
     // all callbacks succeed: a valid prefix does not establish a valid tree.
     while ((structureBlockSize - cursor) >= 4) {
-        uint32_t token = __ReadBe32(block + cursor);
+        uint32_t token = FdtReadBe32(block + cursor);
         cursor += 4;
         
         switch (token) {
@@ -129,7 +211,7 @@ __ParseStructureBlock(
                 return OS_EINVALPARAMS;
             }
             
-            if (depth == __STATIC_FDT_MAX_DEPTH) {
+            if (depth == FDT_MAX_DEPTH) {
                 return OS_EOVERFLOW;
             }
             
@@ -148,31 +230,11 @@ __ParseStructureBlock(
             break;
         }
         case FDT_PROP: {
-            uint32_t length;
-            uint32_t nameOffset;
-            const char* name;
-            const void* value;
-
-            if (!depth || childrenStarted[depth - 1] || structureBlockSize - cursor < 8) {
+            if (!depth || childrenStarted[depth - 1]) {
                 return OS_EINVALPARAMS;
             }
-            
-            length = __ReadBe32(block + cursor);
-            nameOffset = __ReadBe32(block + cursor + 4);
-            name = __GetStringFromBlock(stringBlock, stringBlockSize, nameOffset);
-            if (!name || !name[0]) {
-                return OS_EINVALPARAMS;
-            }
-            
-            cursor += 8;
-            
-            value = block + cursor;
-            status = __SkipPaddedValue(structureBlockSize, &cursor, length);
-            if (status != OS_EOK) {
-                return status;
-            }
-            
-            status = context->Property(context->UserData, name, value, length);
+            status = __ParseProperty(block, structureBlockSize, &cursor,
+                stringBlock, stringBlockSize, context);
             break;
         }
         case FDT_END_NODE:
@@ -228,7 +290,7 @@ __ValidateFDTHeader(
 }
 
 oserr_t
-__ParseFDTHeader(
+FdtParseHeader(
     _In_  const void*       deviceTree,
     _In_  uint32_t          size,
     _Out_ struct FDTHeader* header)
@@ -239,15 +301,15 @@ __ParseFDTHeader(
         return OS_EINVALPARAMS;
     }
 
-    header->Magic = __ReadBe32(p);
-    header->TotalSize = __ReadBe32(p + 4);
-    header->OffDtStruct = __ReadBe32(p + 8);
-    header->OffDtStrings = __ReadBe32(p + 12);
-    header->OffMemRsvmap = __ReadBe32(p + 16);
-    header->Version = __ReadBe32(p + 20);
-    header->LastCompVersion = __ReadBe32(p + 24);
-    header->BootCpuidPhys = __ReadBe32(p + 28);
-    header->SizeDtStrings = __ReadBe32(p + 32);
-    header->SizeDtStruct = __ReadBe32(p + 36);
+    header->Magic = FdtReadBe32(p);
+    header->TotalSize = FdtReadBe32(p + 4);
+    header->OffDtStruct = FdtReadBe32(p + 8);
+    header->OffDtStrings = FdtReadBe32(p + 12);
+    header->OffMemRsvmap = FdtReadBe32(p + 16);
+    header->Version = FdtReadBe32(p + 20);
+    header->LastCompVersion = FdtReadBe32(p + 24);
+    header->BootCpuidPhys = FdtReadBe32(p + 28);
+    header->SizeDtStrings = FdtReadBe32(p + 32);
+    header->SizeDtStruct = FdtReadBe32(p + 36);
     return __ValidateFDTHeader(header, size);
 }

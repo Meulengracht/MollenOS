@@ -42,6 +42,14 @@ DeviceInterruptInitialize(
     interrupt->Line        = device->InterruptLine;
     interrupt->Pin         = device->InterruptPin;
     interrupt->AcpiConform = device->InterruptAcpiConform;
+    
+    // Store pci identification information
+    interrupt->IsPci = device->IsPci;
+    interrupt->Segment = device->Segment;
+    interrupt->Bus = device->Bus;
+    interrupt->Slot = device->Slot;
+    interrupt->Function = device->Function;
+    
     interrupt->Vectors[0] = INTERRUPT_NONE;
 }
 

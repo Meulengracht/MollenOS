@@ -49,6 +49,9 @@ typedef struct SystemInterrupt {
     // remains valid until the corresponding RCU grace period has completed.
     _Atomic(struct SystemInterrupt*) Link;
     struct SystemInterrupt*          RetiredLink;
+    // Set while the entry holds a penalty; 
+    // released after the grace period.
+    int                              HasPenalty;
 } SystemInterrupt_t;
 
 // OS Initialization

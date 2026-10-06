@@ -30,6 +30,7 @@ MSContextNew(void)
     }
 
     MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
+    MutexConstruct(&context->UserCopyLock, MUTEX_FLAG_PLAIN);
     DynamicMemoryPoolConstruct(&context->Heap, GetMachine()->MemoryMap.UserHeap.Start,
                                GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
     list_construct(&context->Allocations);

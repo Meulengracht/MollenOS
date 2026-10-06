@@ -20,6 +20,7 @@ include_directories (
 		${CMAKE_BINARY_DIR}
 		${CMAKE_BINARY_DIR}/protocols
 		include
+        ../librt/libfdt/include
 		../boot/include
     	../librt/libgracht/include
     	../librt/libacpi/source/include
@@ -52,6 +53,7 @@ add_executable (vali-core
 
 		debug.c
 		deviceio.c
+		firmware.c
 		handle.c
 		handle_set.c
 		interrupts.c

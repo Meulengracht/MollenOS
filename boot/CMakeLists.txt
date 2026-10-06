@@ -23,9 +23,14 @@ option (BOOTLOADER_BIOS "Enable BIOS bootloader" OFF)
 option (BOOTLOADER_UEFI "Enable UEFI bootloader" OFF)
 option (BOOTLOADER_RPI  "Enable Raspberry Pi bootloader" OFF)
 
-# If no bootloader option is specified, enable BIOS bootloader by default
+# Other platforms default to UEFI when no bootloader option is specified.
 if (NOT BOOTLOADER_BIOS AND NOT BOOTLOADER_UEFI AND NOT BOOTLOADER_RPI)
-    set(BOOTLOADER_UEFI ON CACHE BOOL "Enable UEFI bootloader" FORCE)
+    if (VALI_ARCH STREQUAL "aarch64" AND VALI_PLATFORM STREQUAL "rpi")
+        # Native raspberry pi defaults to the RPi bootloader if nothing is specified
+        set(BOOTLOADER_RPI ON CACHE BOOL "Enable Raspberry Pi bootloader" FORCE)
+    else ()
+        set(BOOTLOADER_UEFI ON CACHE BOOL "Enable UEFI bootloader" FORCE)
+    endif ()
 endif ()
 
 # Only compile the x86 trampoline code on amd64 and i386

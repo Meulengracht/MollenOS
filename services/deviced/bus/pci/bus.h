@@ -17,17 +17,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS X86 Bus Driver 
+ * MollenOS PCI Bus Driver 
  * - Enumerates the bus and registers the devices/controllers
  *   available in the system
  */
 
-#ifndef __X86_BUS_INTERFACE__
-#define __X86_BUS_INTERFACE__
+#ifndef __PCI_BUS_INTERFACE__
+#define __PCI_BUS_INTERFACE__
 
 #include <os/osdefs.h>
 #include <ddk/io.h>
 #include <ds/list.h>
+#include "host.h"
+
+#include "bars.h"
+
+// Forward declarations
+typedef struct PciHost PciHost_t;
+struct BusDevice;
+struct PciDevice;
+struct PciFirmwareMapping;
+struct FdtPciHost;
 
 /* Fixed device-id and vendor-id values for 
  * loading non-dynamic devices */
@@ -116,126 +126,351 @@ PACKED_TYPESTRUCT(PciNativeHeader, {
     uint8_t  MaxLatency;   /* 0x3F */
 });
 
-/* The PCI bus header, this is used
- * by the bus code, and is not related to any hardware structure. 
- * This keeps track of the bus's in the system and their io space */
-typedef struct PciBus {
-    DeviceIo_t IoSpace;
-    int        IsExtended;
-    int        Segment;
-    int        BusStart;
-    int        BusEnd;
-} PciBus_t;
+struct PciFunctionResources {
+    struct PciBar            Bars[6];
+    const struct FdtPciHost* Firmware;
+};
 
-/* PCI Device header
- * Represents a device on the pci-bus, keeps information
- * about location, children, and a parent device/controller */
+/**
+ * @brief A statically registered consumer owning a function's child bus.
+ * Matching reserves generic driver binding even when attachment fails.
+ * BlockActivation also denies bus control and configuration writes on failure.
+ * Attach leaves its output NULL and releases partial state on failure; on success
+ * it transfers ownership of the attachment to PCI. Resources must be copied.
+ * Destroy runs after clients stop and before host resources or firmware are released.
+ */
+struct PciFunctionHandler {
+    int BlockActivation;
+
+    /**
+     * @brief Determine if a function handler exists for this PCI device.
+     * 
+     * @param device The PCI device to check for a match.
+     * @return Non-zero if the handler matches the device, zero otherwise.
+     */
+    int (*Match)(
+        const struct PciDevice* device);
+    
+    /**
+     * @brief Attach a function handler to the given PCI device.
+     * 
+     * @param device The PCI device to attach to.
+     * @param resources The resources allocated for the function.
+     * @param attachmentOut Output parameter for the attachment.
+     * @return An error code indicating the result of the attachment.
+     */
+    oserr_t (*Attach)(
+        const struct PciDevice*            device,
+        const struct PciFunctionResources* resources, 
+        void**                             attachmentOut);
+    
+    /**
+     * @brief Destroy the attachment associated with the function handler.
+     * 
+     * @param attachment The attachment to destroy.
+     */
+    void (*Destroy)(void* attachment);
+};
+
+/** @brief Returns the first statically registered handler matching a function. */
+extern const struct PciFunctionHandler*
+PciFunctionHandlerFind(
+    _In_ const struct PciDevice* device);
+
+struct PciHostOperations {
+    /**
+     * @brief Read from the PCI configuration space.
+     * 
+     * @param host The PCI host to read from.
+     * @param bus The bus number of the target device.
+     * @param slot The slot number of the target device.
+     * @param function The function number of the target device.
+     * @param reg The offset within the configuration space.
+     * @param width The size of the read operation.
+     * @return The value read from the configuration space.
+     */
+    size_t (*Read)(
+        struct PciHost* host,
+        unsigned int      bus,
+        unsigned int      slot,
+        unsigned int      function,
+        size_t            reg,
+        size_t            width);
+    
+    /**
+     * @brief Write to the PCI configuration space.
+     * 
+     * @param host The PCI host to write to.
+     * @param bus The bus number of the target device.
+     * @param slot The slot number of the target device.
+     * @param function The function number of the target device.
+     * @param reg The offset within the configuration space.
+     * @param width The size of the write operation.
+     * @param value The value to write.
+     */
+    void (*Write)(
+        struct PciHost* host,
+        unsigned int      bus,
+        unsigned int      slot,
+        unsigned int      function,
+        size_t            reg,
+        size_t            width,
+        size_t            value);
+
+    /**
+     * @brief Destroy the PCI host and release its resources.
+     * @param host The PCI host to destroy.
+     */
+    void (*Destroy)(struct PciHost*);
+    
+    /**
+     * @brief Translate a PCI address to a physical address.
+     * 
+     * @param host The PCI host to use for translation.
+     * @param space The address space.
+     * @param address The PCI address to translate.
+     * @param length The length of the address range.
+     * @param physicalOut The output physical address.
+     * @return An error code indicating success or failure.
+     */
+    oserr_t (*Translate)(
+        struct PciHost* host,
+        uint32_t          space,
+        uint64_t          address,
+        uint64_t          length,
+        uint64_t*         physicalOut);
+    
+    /**
+     * @brief Resolve the interrupt for a PCI device.
+     * 
+     * @param host The PCI host to use for resolution.
+     * @param bus The bus number of the target device.
+     * @param slot The slot number of the target device.
+     * @param function The function number of the target device.
+     * @param pin The interrupt pin of the target device.
+     * @param lineOut The output interrupt line.
+     * @param flagsOut The output interrupt flags.
+     * @return An error code indicating success or failure.
+     */
+    oserr_t (*ResolveInterrupt)(
+        struct PciHost* host,
+        unsigned int      bus,
+        unsigned int      slot,
+        unsigned int      function,
+        unsigned int      pin,
+        int*              lineOut,
+        unsigned int*     flagsOut);
+};
+
+extern const struct PciHostOperations g_pciDtEcamOperations;
+extern const struct PciHostOperations g_pciAcpiEcamOperations;
+
+// Usually only i386 and amd64 architectures support legacy PCI access.
+#ifdef __OSCONFIG_HAS_LEGACY_PCI
+extern const struct PciHostOperations g_pciLegacyOperations;
+#endif
+
+/**
+ * @brief How a host exposes PCI I/O BAR resources to device drivers.
+ */
+enum PciIoResourcePolicy {
+    PciIoResourcePorts,
+    PciIoResourceMemory
+};
+
+/**
+ * @brief Represents a controller, segment, numbered bus range, 
+ * firmware resources and the DT tree. Every initialized host supplies 
+ * configuration operations independently of its I/O BAR resource policy.
+ */
+typedef struct PciHost {
+    DeviceIo_t               IoSpace;
+    enum PciIoResourcePolicy IoResourcePolicy;
+    int                      IsExtended;
+    struct PciHostIdentification Identification;
+    
+    const struct PciHostOperations* Operations;
+    void*                           OpContext;
+
+    const struct FdtPciHost*   Firmware;
+    int                        DriversBlocked;
+    struct PciDevice*          RootDevice;
+    struct PciFirmwareMapping* FirmwareMapping;
+} PciHost_t;
+
+/**
+ * @brief Represents a device on the pci-bus, keeps information
+ * about location, children, and a parent device/controller
+ */
 typedef struct PciDevice {
     element_t         list_header;
     element_t         child_header;
     struct PciDevice* Parent;
-    PciBus_t*         BusIo;
+    PciHost_t*        Host;
     int               IsBridge;
+
+    struct PciFunctionResources      Resources;
+    const struct PciFunctionHandler* Handler;
+    void*                            Attachment;
 
     unsigned int Bus;
     unsigned int Slot;
     unsigned int Function;
     unsigned int AcpiConform;
+    int          InterruptLine;
 
-    PciNativeHeader_t*  Header;
-    list_t              children;
+    PciNativeHeader_t* Header;
+    list_t             children;
 } PciDevice_t;
 
-/* BusEnumerate
- * Enumerates the pci-bus, on newer pcs its possbile for 
- * devices exists on TWO different busses. PCI and PCI Express. */
-__EXTERN void BusEnumerate(void);
+/**
+ * @brief Discovers firmware PCI hosts and enumerates their numbered buses.
+ * Architecture-supported legacy access is used when no firmware host initializes. 
+ */
+__EXTERN void
+BusEnumerate(void);
 
-/* PciRead32
- * Reads a 32 bit value from the pci-bus
- * at the specified location bus, slot, function and register */
+/**
+ * @brief Releases a constructed or registered host after all its clients stop.
+ * A constructor may use this after registration fails; no root is required.
+ * The controller, acquired I/O mapping and retained firmware reference are
+ * released with the host. Other registered hosts remain valid.
+ */
+__EXTERN void
+PciHostDestroy(
+    _In_ PciHost_t* bus);
+
+/**
+ * @brief Reads a 32 bit value from the pci-bus at the specified location bus, slot, function and register.
+ */
 __EXTERN uint32_t
 PciRead32(
-    _In_ PciBus_t*    Io,
+    _In_ PciHost_t*    Io,
     _In_ unsigned int Bus, 
     _In_ unsigned int Slot, 
     _In_ unsigned int Function, 
     _In_ size_t       Register);
 
-/* PciRead16
- * Reads a 16 bit value from the pci-bus
- * at the specified location bus, device, function and register */
-__EXTERN uint16_t PciRead16(PciBus_t *Io,
-    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
+/**
+ * @brief Reads a 8/16 bit value from the pci-bus at the specified location bus, device, function and register.
+ */
+__EXTERN uint16_t PciRead16(PciHost_t *Io, unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
+__EXTERN uint8_t PciRead8(PciHost_t *Io, unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
 
-/* PciRead8
- * Reads a 8 bit value from the pci-bus
- * at the specified location bus, device, function and register */
-__EXTERN uint8_t PciRead8(PciBus_t *Io,
-    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register);
+/**
+ * @brief Writes a 8/16/32 bit value to the pci-bus at the specified location bus, device, function and register.
+ */
+__EXTERN void PciWrite32(PciHost_t *Io, unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint32_t Value);
+__EXTERN void PciWrite16(PciHost_t *Io, unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint16_t Value);
+__EXTERN void PciWrite8(PciHost_t *Io, unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint8_t Value);
 
-/* PciWrite32
- * Writes a 32 bit value to the pci-bus
- * at the specified location bus, device, function and register */
-__EXTERN void PciWrite32(PciBus_t *Io,
-    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint32_t Value);
+/**
+ * @brief Read or writes a value of the given length from the given register of the specified PCI device.
+ */
+__EXTERN uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length);
+__EXTERN void PciDeviceWrite(PciDevice_t *Device, size_t Register, uint32_t Value, size_t Length);
 
-/* PciWrite16
- * Writes a 16 bit value to the pci-bus
- * at the specified location bus, device, function and register */
-__EXTERN void PciWrite16(PciBus_t *Io,
-    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint16_t Value);
+/**
+ * @brief Writes a value of the given length to the given register of the specified PCI device.
+ */
 
-/* PciWrite8
- * Writes a 8 bit value to the pci-bus
- * at the specified location bus, device, function and register */
-__EXTERN void PciWrite8(PciBus_t *Io,
-    unsigned int Bus, unsigned int Device, unsigned int Function, size_t Register, uint8_t Value);
-
-/* PciDeviceRead
- * Reads a value of the given length from the given register
- * and this function takes care of the rest */
-__EXTERN uint32_t PciDeviceRead(PciDevice_t *Device, 
-    size_t Register, size_t Length);
-
-/* PciDeviceWrite
- * Writes a value of the given length to the given register
- * and this function takes care of the rest */
-__EXTERN void PciDeviceWrite(PciDevice_t *Device, 
-    size_t Register, uint32_t Value, size_t Length);
-
-/* PciReadVendorId
- * Reads the vendor id at given bus/device/function location */
-__EXTERN uint16_t PciReadVendorId(PciBus_t *BusIo, 
+/**
+ * @brief Reads the vendor id at given bus/device/function location.
+ */
+__EXTERN uint16_t PciReadVendorId(PciHost_t *Host, 
     unsigned int Bus, unsigned int Device, unsigned int Function);
 
-/* PciReadFunction
- * Reads in the pci header that exists at the given location
- * and fills out the information into <Pcs> */
+/**
+ * @brief Reads in the pci header that exists at the given location and fills out the information into <Pcs>.
+ */
 __EXTERN void PciReadFunction(PciNativeHeader_t *Pcs,
-    PciBus_t *BusIo, unsigned int Bus, unsigned int Device, unsigned int Function);
+    PciHost_t *Host, unsigned int Bus, unsigned int Device, unsigned int Function);
 
-/* PciReadSecondaryBusNumber
- * Reads the secondary bus number at given pci device location
- * we can use this to get the bus-number behind a bridge */
-__EXTERN uint8_t PciReadSecondaryBusNumber(PciBus_t *BusIo, 
+/**
+ * @brief Reads the secondary bus number at given pci device location. This can be used to get the bus-number behind a bridge.
+ */
+__EXTERN uint8_t PciReadSecondaryBusNumber(PciHost_t *Host, 
     unsigned int Bus, unsigned int Device, unsigned int Function);
 
-/* Reads the sub class at given location
+/**
+ * @brief Reads the sub class at given location.
  * Bit 7 - MultiFunction, Lower 4 bits is type.
  * Type 0 is standard, Type 1 is PCI-PCI Bridge,
- * Type 2 is CardBus Bridge */
-__EXTERN uint8_t PciReadHeaderType(PciBus_t *BusIo,
+ * Type 2 is CardBus Bridge.
+ */
+__EXTERN uint8_t PciReadHeaderType(PciHost_t *Host,
     unsigned int Bus, unsigned int Device, unsigned int Function);
 
-/* PciToString
- * Converts the given class, subclass and interface into
- * descriptive string to give the pci-entry a description */
-__EXTERN
-const char*
+/**
+ * @brief Resolves the interrupt line and pin for the specified PCI device.
+ * 
+ * @param parent The parent PCI device or bridge.
+ * @param bus The bus number of the PCI device.
+ * @param slot The slot number of the PCI device.
+ * @param function The function number of the PCI device.
+ * @param pciDevice The PCI device for which to resolve the interrupt line and pin.
+ */
+__EXTERN void
+PciResolveInterruptLineAndPin(
+    _In_ PciDevice_t* parent,
+    _In_ int          bus,
+    _In_ int          slot,
+    _In_ int          function,
+    _In_ PciDevice_t* pciDevice);
+
+/**
+ * @brief Publishes the given PCI device to the system, making it available 
+ * for driver binding.
+ */
+__EXTERN void
+PciPublishDevice(
+    _In_ PciDevice_t* pciDevice);
+
+/**
+ * @brief Converts the given class, subclass and interface into descriptive string to give the pci-entry a description.
+ */
+__EXTERN const char*
 PciToString(
     _In_ uint8_t Class,
     _In_ uint8_t SubClass,
     _In_ uint8_t Interface);
 
-#endif //!__X86_BUS_INTERFACE__
+
+/**
+ * @brief Reports whether ACPI interrupt routing is available.
+ */
+__EXTERN int
+PciIsAcpiAvailable(void);
+
+/**
+ * @brief Finds a function while the caller holds the PCI critical section.
+ */
+__EXTERN PciDevice_t*
+PciFindDevice(
+    _In_ unsigned int segment,
+    _In_ unsigned int bus,
+    _In_ unsigned int slot,
+    _In_ unsigned int function);
+
+/**
+ * @brief Converts PCI class codes to device-manager identifiers.
+ */
+__EXTERN unsigned int PciToDevClass(uint32_t Class, uint32_t SubClass);
+__EXTERN unsigned int PciToDevSubClass(uint32_t Interface);
+
+/**
+ * @brief Reads and publishes a function's BAR resources.
+ */
+__EXTERN void
+PciReadBars(
+    _In_ PciHost_t*        bus,
+    _In_ struct BusDevice* device,
+    _In_ uint32_t          headerType);
+
+__EXTERN void 
+PciCriticalSectionEnter(void);
+
+__EXTERN void 
+PciCriticalSectionLeave(void);
+
+#endif //!__PCI_BUS_INTERFACE__

@@ -1,6 +1,7 @@
 ENTRY(_kentry)
 SECTIONS
 {
+    /* Physical entry address must match firmware config.txt kernel_address. */
     . = 0x80000;
     __rpi_loader_start = .;
     .text : { KEEP(*(.text.entry)) *(.text .text.*) }
@@ -11,9 +12,12 @@ SECTIONS
         *(.bss .bss.*) *(COMMON)
         __bss_end = .;
     }
+    /* This script is not preprocessed: 4096 mirrors the native page size. */
     .boot.stack ALIGN(4096) : { KEEP(*(.boot.stack)) }
+    /* Put the 64-byte payload trailer at the end of an aligned page. */
     .boot.header ALIGN(4096) + 4096 - 64 : {
         __rpi_payload_header = .;
+        /* Little-endian VALIRPI signature, format version 1 and trailer size. */
         LONG(0x494c4156) LONG(0x00495052)
         LONG(1) LONG(64)
         QUAD(__rpi_loader_end - __rpi_loader_start)

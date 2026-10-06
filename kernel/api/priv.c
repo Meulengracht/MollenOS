@@ -27,87 +27,164 @@
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <deviceio.h>
+#include <firmware.h>
 #include <handle.h>
+#include <heap.h>
 #include <interrupts.h>
 #include <machine.h>
+#include <memoryspace.h>
+#include <string.h>
 
 oserr_t
-ScAcpiQueryStatus(
-   _In_ AcpiDescriptor_t*   AcpiDescriptor)
+ScFirmwareQuery(
+        _Out_ OSFirmwareInfo_t* infoOut)
 {
-#ifdef __OSCONFIG_ACPI_SUPPORT
-    if (AcpiDescriptor == NULL) {
-        return OS_EUNKNOWN;
-    }
+    OSFirmwareInfo_t info;
+    oserr_t          oserr;
 
-    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OS_EUNKNOWN;
+    oserr = FirmwareQuery(&info);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-    else {
-        AcpiDescriptor->Century         = AcpiGbl_FADT.Century;
-        AcpiDescriptor->BootFlags       = AcpiGbl_FADT.BootFlags;
-        AcpiDescriptor->ArmBootFlags    = AcpiGbl_FADT.ArmBootFlags;
-        AcpiDescriptor->Version         = ACPI_VERSION_6_0;
-        return OS_EOK;
+    return MemorySpaceCopyUser(infoOut, &info, sizeof(info), true);
+}
+
+static oserr_t
+__LocateFirmwareTable(
+        _In_  const OSFirmwareTableKey_t* userKey,
+        _Out_ const void**                dataOut,
+        _Out_ OSFirmwareTable_t*          tableOut)
+{
+    OSFirmwareTableKey_t key;
+    oserr_t              oserr;
+
+    oserr = MemorySpaceCopyUser((void*)userKey, &key, sizeof(key), false);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
-#else
-    (void)AcpiDescriptor;
-    return OS_ENOTSUPPORTED;
-#endif
+    return FirmwareLocate(&key, dataOut, tableOut);
 }
 
 oserr_t
-ScAcpiQueryTableHeader(
-    _In_ const char*        signature,
-    _In_ ACPI_TABLE_HEADER* header)
+ScFirmwareTableLocate(
+        _In_  const OSFirmwareTableKey_t* key,
+        _Out_ OSFirmwareTable_t*          tableOut)
 {
-#ifdef __OSCONFIG_ACPI_SUPPORT
-    if (!signature || !header) {
+    OSFirmwareTable_t table;
+    const void*       data;
+    oserr_t           oserr;
+
+    if (tableOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OS_ENOTSUPPORTED;
+    oserr = __LocateFirmwareTable(key, &data, &table);
+    if (oserr == OS_EOK) {
+        oserr = MemorySpaceCopyUser(tableOut, &table, sizeof(table), true);
     }
-
-    if (ACPI_FAILURE(AcpiGetTableHeader((ACPI_STRING)signature, 0, header))) {
-        return OS_EUNKNOWN;
-    }
-    return OS_EOK;
-#else
-    (void)signature;
-    (void)header;
-    return OS_ENOTSUPPORTED;
-#endif
+    return oserr;
 }
 
 oserr_t
-ScAcpiQueryTable(
-    _In_ const char*        signature,
-    _In_ ACPI_TABLE_HEADER* table)
+ScFirmwareTableRead(
+        _In_  const OSFirmwareTableKey_t* key,
+        _In_  void*                       buffer,
+        _In_  size_t                      size,
+        _Out_ size_t*                     lengthOut)
 {
-#ifdef __OSCONFIG_ACPI_SUPPORT
-    ACPI_TABLE_HEADER* header = NULL;
+    OSFirmwareTable_t table;
+    const void*       data;
+    oserr_t           oserr;
 
-    if (!signature || !table) {
+    if (lengthOut == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    if (AcpiAvailable() == ACPI_NOT_AVAILABLE) {
-        return OS_ENOTSUPPORTED;
+    oserr = __LocateFirmwareTable(key, &data, &table);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    if (ACPI_FAILURE(AcpiGetTable((ACPI_STRING)signature, 0, &header))) {
-        return OS_EUNKNOWN;
+    oserr = MemorySpaceCopyUser(lengthOut, &table.Length, sizeof(table.Length), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    if (buffer == NULL || size < table.Length) {
+        return OS_EBUFFER;
+    }
+    return MemorySpaceCopyUser(buffer, (void*)data, table.Length, true);
+}
+
+oserr_t
+ScFirmwareTableMap(
+        _In_  const OSFirmwareTableKey_t* key,
+        _Out_ const void**                mappingOut,
+        _Out_ size_t*                     lengthOut)
+{
+    MemorySpace_t*    memorySpace = GetCurrentMemorySpace();
+    OSFirmwareTable_t table;
+    const void*       data;
+    paddr_t*          pages;
+    vaddr_t           mapping;
+    unsigned int      previousAttributes;
+    oserr_t           oserr;
+
+    if (mappingOut == NULL || lengthOut == NULL) {
+        return OS_EINVALPARAMS;
     }
 
-    memcpy(table, header, header->Length);
-    return OS_EOK;
-#else
-    (void)signature;
-    (void)table;
-    return OS_ENOTSUPPORTED;
-#endif
+    oserr = __LocateFirmwareTable(key, &data, &table);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    // Firmware data shares pages with unrelated kernel or firmware memory, so the
+    // caller receives private zeroed pages holding a copy rather than an alias.
+    pages = kmalloc(sizeof(paddr_t) * DIVUP(table.Length, GetMemorySpacePageSize()));
+    if (pages == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = MemorySpaceMap(
+            memorySpace,
+            &(struct MemorySpaceMapOptions) {
+                .Pages = pages,
+                .Length = table.Length,
+                .Mask = __MASK,
+                .Flags = MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_CLEAN,
+                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
+    );
+    kfree(pages);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser((void*)mapping, (void*)data, table.Length, true);
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
+        return oserr;
+    }
+    
+    oserr = MemorySpaceChangeProtection(
+        memorySpace, mapping, table.Length,
+        MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_READONLY,
+        &previousAttributes
+    );
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser(lengthOut, &table.Length, sizeof(table.Length), true);
+    if (oserr == OS_EOK) {
+        oserr = MemorySpaceCopyUser(mappingOut, &mapping, sizeof(mapping), true);
+    }
+    if (oserr != OS_EOK) {
+        (void)MemorySpaceUnmap(memorySpace, mapping, table.Length);
+    }
+    return oserr;
 }
 
 oserr_t
@@ -171,16 +248,69 @@ ScIoSpaceDestroy(
     return OS_EOK;
 }
 
+static oserr_t
+__CopyInterruptResults(
+    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ DeviceInterrupt_t* request
+)
+{
+    oserr_t oserr;
+
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->Line, &request->Line, sizeof(request->Line), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiAddress, &request->MsiAddress, sizeof(request->MsiAddress), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiValue, &request->MsiValue, sizeof(request->MsiValue), true);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return oserr;
+}
+
 uuid_t
 ScRegisterInterrupt(
     _In_ DeviceInterrupt_t* deviceInterrupt,
     _In_ unsigned int       flags)
 {
+    DeviceInterrupt_t request;
+    uuid_t            id;
+    oserr_t           oserr;
+
     if (deviceInterrupt == NULL ||
         (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
         return UUID_INVALID;
     }
-    return InterruptRegister(deviceInterrupt, flags);
+
+    // Do not trust the user-space memory here; copy it into kernel space first.
+    oserr = MemorySpaceCopyUser(
+        deviceInterrupt,
+        &request,
+        sizeof(request),
+        false
+    );
+    if (oserr != OS_EOK) {
+        return UUID_INVALID;
+    }
+
+    // Now we register the interrupt
+    id = InterruptRegister(&request, flags);
+    if (id == UUID_INVALID) {
+        return UUID_INVALID;
+    }
+
+    // Only the resolved outputs are written back, never the full request.
+    oserr = __CopyInterruptResults(deviceInterrupt, &request);
+    if (oserr != OS_EOK) {
+        (void)InterruptUnregister(id);
+        return UUID_INVALID;
+    }
+    return id;
 }
 
 oserr_t

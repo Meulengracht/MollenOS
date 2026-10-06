@@ -15,10 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  *
- * Public entry points take g_lock and wake the worker after changing intent.
- * The worker owns attachment, transport dispatch and lifecycle progress under that
- * same lock. Consumer hooks run inside it and must never block or reenter netd.
- * See manager.h for the private discovery/transport boundary.
+ * The public functions in this file take g_lock, record what the caller wants (for
+ * example "close this port"), and then wake the worker thread. The worker does the
+ * actual work under the same lock: attaching drivers, talking to them over IPC and
+ * moving each adapter through its lifecycle. Consumer callbacks are called while the
+ * lock is held, so they must never block or call back into netd.
+ * See private.h for the internal registry and transport functions.
  */
 
 //#define __TRACE
@@ -105,8 +107,11 @@ __OnLink(
 }
 
 /** 
- * @brief Preserve absent RX hooks as NULL so the core can account for drops and avoid
- * copy fallback work when no retaining consumer is installed.
+ * @brief Build the callback table for one adapter. If the consumer did not install a
+ * Receive or ReceivePacket callback, the entry is left NULL instead of pointing at a
+ * wrapper that does nothing. That way the adapter can tell nobody is listening: it
+ * counts frames without a receiver as dropped, and skips copying frames for a consumer
+ * that cannot keep them.
  */
 static NetAdapterCallbacks_t
 __AdapterCallbacks(struct AdapterEntry* entry)
@@ -147,10 +152,11 @@ NetAdapterRegistryFindClient(
 }
 
 /** 
- * @brief Attach only after the previous session has proved safe to close. 
- * Keep the announcement on failure so a one-shot event survives even if
- * there are failures. 
- * The worker retries with backoff using a new client endpoint.
+ * @brief Create the adapter for a port that has a driver waiting to be attached. This
+ * only happens once the port's previous adapter, if any, has been fully closed and
+ * cleaned up. If attaching fails, the waiting driver is kept on the entry, so a
+ * discovery event that is only sent once is not lost. The worker tries again at most
+ * once per second, creating a new client connection for each attempt.
  */
 static void
 AttachPendingPort(
@@ -163,8 +169,8 @@ AttachPendingPort(
     oserr_t               oserr;
     int                   status;
 
-    // If the entry already has an adapter, or if there is no pending driver, 
-    // or if the backoff period has not elapsed, then nothing to do here.
+    // Nothing to do if the entry already has an adapter, if no driver is waiting
+    // to be attached, or if the one second wait after the last attempt is not over.
     if (entry->Adapter || !entry->PendingDriver || now < entry->AttachAfter) {
         if (entry->AttachAfter && now < entry->AttachAfter) {
             TRACE("AttachPendingPort: backoff device=%u port=%u retry_in=%llu ms",
@@ -173,8 +179,8 @@ AttachPendingPort(
         return;
     }
 
-    // Set the next attach attempt time to enforce backoff.
-    entry->AttachAfter = now + 1000;
+    // Do not try again for one second, so a failing driver is not retried in a tight loop.
+    entry->AttachAfter = now + NET_ADAPTER_ATTACH_RETRY_MILLISECONDS;
     
     TRACE("AttachPendingPort: attempting attach device=%u port=%u driver=%u",
           entry->Device, entry->Port, entry->Driver);
@@ -292,8 +298,9 @@ NetAdapterRegistryRemove(
 {
     TRACE("NetAdapterRegistryRemove: device=%u", device);
     
-    // Removal cancels pending replacement as well as closing active ports. It
-    // is not a DMA fence: quarantined sessions retain their resources.
+    // Removal forgets any driver waiting to be attached and asks active ports to
+    // close. It does not guarantee the device has stopped writing to our buffers;
+    // ports stuck in the quarantined state keep their buffers until that is known.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         struct AdapterEntry* entry = &g_adapters[i];
         // Skip entries that do not match the device being removed.
@@ -321,8 +328,9 @@ NetworkAdaptersDiscover(
     }
     
     usched_mtx_lock(&g_lock);
-    // Retire secondary ports from the previous driver too. The replacement's
-    // GET_INFO determines which ports to reopen; its port count may be smaller.
+    // When the driver changes, also close the extra ports (port 1 and up) set up by
+    // the old driver. Only port 0 is registered here; the new driver's GET_INFO reply
+    // tells us how many ports it has, which may be fewer than before.
     for (int i = 0; i < NET_ADAPTER_LIMIT; ++i) {
         struct AdapterEntry* entry = &g_adapters[i];
         if (entry->Device == device && entry->Port &&
@@ -358,7 +366,10 @@ NetworkAdaptersRemove(
 }
 
 /** 
- * @brief Expand discovered multiport devices and reclaim only safely closed entries.
+ * @brief Periodic housekeeping for one attached port. Logs state changes, registers the
+ * extra ports of a device with more than one port once port 0 has learned how many
+ * there are, and frees the adapter of a removed port once it has fully closed or
+ * failed.
  */
 static void
 __UpdatePort(
@@ -406,17 +417,20 @@ __UpdatePort(
             TRACE("UpdatePort: reclaimed device=%u port=%u", entry->Device, entry->Port);
             NetAdapterClientDestroy(g_eventSet, entry->Client);
             
-            // Preserve the latest desired driver through teardown. A failed
-            // close never reaches this point, so replacement cannot bypass DMA
-            // quarantine; a later removal clears PendingDriver explicitly.
+            // Keep the driver waiting to be attached, if any, so a replacement can
+            // start right away. A close the driver never confirmed leaves the port
+            // quarantined and never gets here, so a new driver cannot be attached while
+            // the device might still write to the old buffers. A later removal clears
+            // PendingDriver explicitly.
             *entry = (struct AdapterEntry){
                 .Device = entry->Device,
                 .Port = entry->Port,
                 .PendingDriver = entry->PendingDriver
             };
         } else if (oserr != OS_EBUSY) {
-            // Caller-owned packet views can intentionally outlive remote close.
-            // Busy is normal here; cancellation wakes us to retry destruction.
+            // Only errors other than OS_EBUSY are logged. OS_EBUSY is expected while
+            // callers still hold packets after the close; returning the last of them
+            // wakes the worker, and we try to free the adapter again then.
             WARNING("UpdatePort: failed to destroy adapter device=%u port=%u",
                     entry->Device, entry->Port);
         }
@@ -424,10 +438,12 @@ __UpdatePort(
 }
 
 /** 
- * @brief Sleep until readiness or the next recovery tick. A spent work budget uses
- * an immediate deadline so queued work is serviced without a timer delay.
- * @param busy Indicates whether the work budget is spent and an 
- *             immediate deadline should be used.
+ * @brief Sleep until there is something to do, or for at most NET_ADAPTER_WORKER_WAIT_MILLISECONDS
+ * milliseconds so timed work such as retries still runs. If the last pass did not 
+ * finish all queued work, return right away instead of sleeping.
+ * 
+ * @param busy true if the last pass stopped early with work still queued, in which
+ *             case the worker should not sleep.
  */
 static void
 __WaitForWork(
@@ -438,12 +454,13 @@ __WaitForWork(
     struct timespec    until;
     TRACE("WaitForWork: %s", busy ? "immediate reschedule" : "waiting for work");
     
-    // Readiness wakes packet work immediately; the short bounded timeout is
-    // only a recovery/discovery timer tick. A full work budget reschedules
-    // immediately instead of sleeping with known pending work.
+    // Packet work is woken immediately when a client becomes readable. The short
+    // timeout below only exists so retries and device discovery still run when
+    // nothing else happens. If the work budget was used up, there is more work
+    // waiting, so we reschedule immediately instead of sleeping.
     timespec_get(&until, TIME_UTC);
     if (!busy) {
-        until.tv_nsec += 10000000;
+        until.tv_nsec += NET_ADAPTER_WORKER_WAIT_MILLISECONDS * 1000000;
         if (until.tv_nsec >= 1000000000) {
             until.tv_sec++;
             until.tv_nsec -= 1000000000;
@@ -472,7 +489,8 @@ __WorkerMain(
         uint64_t        now;
         bool            busy = false;
         
-        // Use the monotonic clock to determine the current time in milliseconds.
+        // Use a clock that never jumps backwards, so retry timers are not upset by
+        // changes to the wall-clock time. The value is in milliseconds.
         timespec_get(&time, TIME_MONOTONIC);
         now = (uint64_t)time.tv_sec * 1000 + (uint64_t)time.tv_nsec / 1000000;
         
@@ -664,7 +682,8 @@ NetworkAdaptersTxCancel(uuid_t device, uint32_t port, NetAdapterTxPacket_t* pack
         return OS_ENOTSUPPORTED;
     }
     usched_mtx_lock(&g_lock);
-    // Removed entries remain discoverable until their last lease is returned.
+    // A removed port stays in the table until every packet taken from it has been
+    // returned, so this lookup still works after removal.
     struct AdapterEntry* entry = __FindPort(device, port);
     oserr_t status = OS_ENOENT;
     if (entry && entry->Adapter) {
@@ -688,7 +707,7 @@ NetworkAdaptersRxRelease(
         return OS_ENOTSUPPORTED;
     }
 
-    // Held RX ownership keeps a removed entry 
+    // RX packets held by a consumer keep a removed entry 
     // alive until the final release.
     usched_mtx_lock(&g_lock);
     entry = __FindPort(device, port);
@@ -730,8 +749,9 @@ NetworkAdaptersSnapshot(
             NetAdapterSnapshot(entry->Adapter, out);
             NetAdapterRefreshCounters(entry->Adapter);
         } else {
-            // Discovery is visible before local allocation succeeds. Report an
-            // empty capability-discovery snapshot, never uninitialized data.
+            // The port is visible as soon as it is discovered, before its adapter
+            // is created. Report an empty snapshot in the INFO state rather than
+            // leaving the output uninitialized.
             TRACE("NetworkAdaptersSnapshot: adapter not yet allocated device=%u port=%u",
                   device, port);
             memset(out, 0, sizeof(*out));

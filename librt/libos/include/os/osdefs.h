@@ -184,11 +184,15 @@ IsPowerOfTwo(size_t value)
     return 1;    
 }
 
-static inline size_t NextPowerOfTwo(size_t value) {
+static inline size_t
+NextPowerOfTwo(size_t value)
+{
     size_t next = 1;
+    
     if (value >> (__BITS - 2) == 1) {
         return value;
     }
+    
     while (next < value) {
         next <<= 1;
     }

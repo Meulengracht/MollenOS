@@ -16,46 +16,50 @@
  *
  */
 
+#include "abi.h"
+
 // All vector slots are 128 bytes, and VBAR requires 2 KiB alignment.
 .text
-.p2align 11
+.p2align ARM64_VECTOR_ALIGN
 .globl Arm64Vectors
 Arm64Vectors:
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lsync
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lirq
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lsync
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lirq
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
     b .Lfatal
-    .space 124
+    .space ARM64_VECTOR_PADDING
 
+// Each saved general register occupies eight bytes. Capture ELR/SPSR for
+// ERET, SP_EL0 for user return, and FAR/ESR for C exception classification.
 .macro save_frame
-    sub sp, sp, #304
+    sub sp, sp, #ARM64_CONTEXT_SIZE
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
     stp x4, x5, [sp, #32]
@@ -71,43 +75,66 @@ Arm64Vectors:
     stp x24, x25, [sp, #192]
     stp x26, x27, [sp, #208]
     stp x28, x29, [sp, #224]
-    str x30, [sp, #240]
-    add x0, sp, #304
-    str x0, [sp, #248]
+    str x30, [sp, #ARM64_CONTEXT_LR]
+    add x0, sp, #ARM64_CONTEXT_SIZE
+    str x0, [sp, #ARM64_CONTEXT_SP]
     mrs x0, elr_el1
     mrs x1, spsr_el1
-    stp x0, x1, [sp, #256]
+    stp x0, x1, [sp, #ARM64_CONTEXT_PC]
     mrs x0, sp_el0
-    str x0, [sp, #272]
-    str xzr, [sp, #280]
+    str x0, [sp, #ARM64_CONTEXT_USER_SP]
+    str xzr, [sp, #ARM64_CONTEXT_RESERVED]
     mrs x0, far_el1
     mrs x1, esr_el1
-    stp x0, x1, [sp, #288]
+    stp x0, x1, [sp, #ARM64_CONTEXT_FAULT]
     mov x0, sp
 .endm
 
 .Lsync:
     save_frame
+    // Blocking syscalls and page faults retain their thread stack. Only an
+    // EL1 SVC #1 yields through the scheduler and can retire that stack.
+    ldr x1, [x0, #ARM64_CONTEXT_SYNDROME]
+    lsr x2, x1, #ARM64_ESR_CLASS_SHIFT
+    cmp x2, #ARM64_EC_SVC
+    b.ne .Ldispatch_sync
+    uxth w1, w1
+    cmp w1, #ARM64_SVC_YIELD
+    b.ne .Ldispatch_sync
+    ldr x1, [x0, #ARM64_CONTEXT_PSTATE]
+    and x1, x1, #ARM64_PSTATE_MODE_MASK
+    cbz x1, .Ldispatch_sync
+    mrs x1, tpidr_el1
+    ldr x1, [x1, #ARM64_LOCAL_INTERRUPT_STACK]
+    mov sp, x1
+.Ldispatch_sync:
     bl Arm64HandleException
     b Arm64RestoreContext
 .Lirq:
     save_frame
+    // Nested IRQ dispatch is disabled. The saved frame belongs to the
+    // interrupted thread, but dispatch must survive destruction of it.
+    mrs x1, tpidr_el1
+    ldr x1, [x1, #ARM64_LOCAL_INTERRUPT_STACK]
+    mov sp, x1
     bl Arm64HandleInterrupt
     b Arm64RestoreContext
 .Lfatal:
-    msr daifset, #15
+    msr daifset, #ARM64_DAIF_ALL
     wfe
     b .Lfatal
 
 .globl Arm64RestoreContext
 Arm64RestoreContext:
+    // Restore the selected thread's return state before loading its registers;
+    // x30 holds the frame address until its own saved LR is loaded last.
     mov x30, x0
-    ldp x0, x1, [x30, #256]
+    ldp x0, x1, [x30, #ARM64_CONTEXT_PC]
     msr elr_el1, x0
     msr spsr_el1, x1
-    ldr x0, [x30, #272]
+    ldr x0, [x30, #ARM64_CONTEXT_USER_SP]
     msr sp_el0, x0
-    ldr x0, [x30, #248]
+    ldr x0, [x30, #ARM64_CONTEXT_SP]
     mov sp, x0
     ldp x0, x1, [x30, #0]
     ldp x2, x3, [x30, #16]
@@ -124,5 +151,5 @@ Arm64RestoreContext:
     ldp x24, x25, [x30, #192]
     ldp x26, x27, [x30, #208]
     ldp x28, x29, [x30, #224]
-    ldr x30, [x30, #240]
+    ldr x30, [x30, #ARM64_CONTEXT_LR]
     eret

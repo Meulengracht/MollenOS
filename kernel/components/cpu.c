@@ -135,8 +135,10 @@ CpuCoreStart(void)
     SystemDomain_t*  domain;
     SystemCpuCore_t* i;
     SystemCpuCore_t* cpuCore;
-    oserr_t       osStatus;
+#if !defined(__aarch64__)
+    oserr_t          osStatus;
     uuid_t           memorySpace;
+#endif
 
     TRACE("CpuCoreStart(core=%u)", ArchGetProcessorCoreId());
 
@@ -147,6 +149,7 @@ CpuCoreStart(void)
         ArchProcessorHalt();
     }
 
+#if !defined(__aarch64__)
     // Now we need to do a new memory space for this core. We simply create a new memory space
     // with kernel flags and switch to it.
     osStatus = CreateMemorySpace(MEMORY_SPACE_INHERIT, &memorySpace);
@@ -156,6 +159,10 @@ CpuCoreStart(void)
         ArchProcessorHalt();
     }
     MemorySpaceSwitch(MEMORYSPACE_GET(memorySpace));
+#endif
+
+    // AArch64 enters with the shared kernel tables installed. Its idle TLS
+    // lives in TPIDR_EL1, so no private virtual TLS mapping is required here.
 
     // Now that we have a proper memoryspace for this idle thread, we can install TLS
     __InitializeTLS(cpuCore);
@@ -182,6 +189,9 @@ CpuCoreStart(void)
 
     // Enter idle loop
     WARNING("CpuCoreStart %" PRIuIN " is online", cpuCore->Id);
+#if defined(__aarch64__)
+    SchedulerEnable();
+#endif
 	for (;;) {
 		ArchProcessorIdle();
     }

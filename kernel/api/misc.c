@@ -91,6 +91,20 @@ ScSystemQuery(
             *bytesQueriedOut = sizeof(OSSystemMemoryInfo_t);
             return OS_EOK;
         } break;
+        case OSSYSTEMQUERY_CPUFEATURES: {
+            OSSystemCPUFeaturesInfo_t* info = buffer;
+
+            if (bufferSize < sizeof(OSSystemCPUFeaturesInfo_t)) {
+                return OS_EINVALPARAMS;
+            }
+#if defined(__aarch64__)
+            info->Features = Arm64GetCpuFeatures();
+#else
+            info->Features = 0;
+#endif
+            *bytesQueriedOut = sizeof(OSSystemCPUFeaturesInfo_t);
+            return OS_EOK;
+        } break;
         default: {
             return OS_ENOTSUPPORTED;
         }
