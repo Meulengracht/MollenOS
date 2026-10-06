@@ -198,6 +198,7 @@ add_subdirectory (protocols)
 include_directories (${CMAKE_BINARY_DIR}/protocols)
 
 # Configure the runtime libraries
+add_subdirectory (librt/libfdt)
 add_subdirectory (librt)
 
 # Configure the kernel project
@@ -232,8 +233,12 @@ if (VALI_BUILD_UNIT_TESTS)
 endif ()
 
 # setup initramfs for boot folder
+set(VALI_RAMDISK_ARCH "${VALI_ARCH}")
+if (VALI_ARCH STREQUAL "aarch64")
+    set(VALI_RAMDISK_ARCH "arm64")
+endif ()
 install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_INSTALL_PREFIX}/boot/payload)")
-install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${CMAKE_INSTALL_PREFIX}/boot/payload/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM})")
+install(CODE "execute_process(COMMAND ${TOOL_RD} --arch ${VALI_RAMDISK_ARCH} --compression aplib --out ${CMAKE_INSTALL_PREFIX}/boot/payload/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM})")
 
 # For some platforms, we append a loader in front of the kernel image
 # Installation and utility targets
@@ -257,13 +262,13 @@ if (VALI_PLATFORM STREQUAL "rpi")
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/pack.py" VERBATIM
     )
     add_custom_target(rpi-image DEPENDS "${VALI_PATH_BOOT_ASSETS}/kernel8.img")
-    add_dependencies(rpi-image rpi-loader-flat)
+    add_dependencies(rpi-image rpi-loader-flat vali-core)
     
     add_custom_target (install_prepare
         # Image targets may run without a full OS install. Stage the firmware
         # beside kernel8.img so the Pi recipe always has a complete boot root.
         COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}" --component rpi-firmware
-        COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_BOOT_ASSETS}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+        COMMAND ${TOOL_RD} --arch ${VALI_RAMDISK_ARCH} --compression aplib --out ${VALI_PATH_BOOT_ASSETS}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
         COMMAND python3 "${CMAKE_CURRENT_SOURCE_DIR}/tools/rpi/bundle.py"
             --phoenix $<TARGET_FILE:phoenix>
             --ramdisk "${VALI_PATH_BOOT_ASSETS}/initrd.mos"
@@ -276,7 +281,7 @@ if (VALI_PLATFORM STREQUAL "rpi")
     )
 else ()
     add_custom_target (install_prepare
-        COMMAND ${TOOL_RD} --arch ${VALI_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
+        COMMAND ${TOOL_RD} --arch ${VALI_RAMDISK_ARCH} --compression aplib --out ${VALI_PATH_DEPLOY_BOOT}/initrd.mos ${VALI_PATH_DEPLOY_SYSTEM}
         COMMAND ${TOOL_LZ} c ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/kernel.mos ${VALI_PATH_DEPLOY_BOOT}/kernel.mos
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:phoenix> ${VALI_PATH_DEPLOY_BOOT}
         COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/utils.py --cp --source ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} --dest ${VALI_PATH_DEPLOY_SHARED_BIN} --pattern *.dll

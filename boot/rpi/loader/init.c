@@ -31,7 +31,6 @@ __attribute__((noinline)) _Noreturn void
 RpiLoaderStop(
     enum RpiBootStatus status)
 {
-    // UART discovery is deliberately not a prerequisite for reporting a stop.
     g_rpi_boot_status = status;
     
     for (;;) {
@@ -55,7 +54,7 @@ __PrepareJumpToKernel(
 
     // Only the finalizer publishes these markers. A failed or skipped contract
     // stage must stop while the loader still has its normal C environment.
-    if (!context || context->BootInformation.Magic != VBOOT_MAGIC ||
+    if (context->BootInformation.Magic != VBOOT_MAGIC ||
         context->BootInformation.Version != VBOOT_VERSION ||
         context->BootInformation.Firmware != VBootFirmware_Native) {
         RpiLoaderStop(RpiBootInvalidPlatform);

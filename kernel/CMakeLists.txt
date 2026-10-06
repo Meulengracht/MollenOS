@@ -20,6 +20,7 @@ include_directories (
 		${CMAKE_BINARY_DIR}
 		${CMAKE_BINARY_DIR}/protocols
 		include
+        ../librt/libfdt/include
 		../boot/include
     	../librt/libgracht/include
     	../librt/libacpi/source/include

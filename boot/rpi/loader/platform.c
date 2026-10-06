@@ -17,14 +17,14 @@
  */
 
 #include "loader.h"
-#include "private.h"
+#include <fdt/reader.h>
 
 extern unsigned char __rpi_loader_start[];
 extern unsigned char __rpi_loader_end[];
 
 static enum RpiBootStatus
 __PlatformError(
-    oserr_t status)
+    _In_ oserr_t status)
 {
     if (status == OS_ENOTSUPPORTED) {
         return RpiBootUnsupported;
@@ -37,10 +37,10 @@ __PlatformError(
 
 static oserr_t
 __PlatformFinishMemoryMap(
-    struct RpiBootContext* context)
+    _In_ struct RpiBootContext* context)
 {
     uint32_t output = 0;
-    int available = 0;
+    int      available = 0;
 
     // The initial kernel allocator consumes 4 KiB pages. Round available RAM
     // inward so a sub-page DTB reservation cannot share an allocated page.
@@ -49,11 +49,12 @@ __PlatformFinishMemoryMap(
     for (uint32_t i = 0; i < context->MemoryMapCount; i++) {
         struct VBootMemoryEntry entry = context->MemoryMap[i];
         if (entry.Type == VBootMemoryType_Available) {
-            uint64_t end = (entry.PhysicalBase + entry.Length) & ~4095ULL;
-            if (entry.PhysicalBase > UINT64_MAX - 4095) {
+            uint64_t end = (entry.PhysicalBase + entry.Length) & ~RPI_PAGE_MASK;
+            if (entry.PhysicalBase > UINT64_MAX - RPI_PAGE_MASK) {
                 continue;
             }
-            entry.PhysicalBase = (entry.PhysicalBase + 4095) & ~4095ULL;
+            
+            entry.PhysicalBase = (entry.PhysicalBase + RPI_PAGE_MASK) & ~RPI_PAGE_MASK;
             if (end <= entry.PhysicalBase) {
                 continue;
             }
@@ -68,13 +69,74 @@ __PlatformFinishMemoryMap(
 
 static int
 __PlatformOverlap(
-    uint64_t first,
-    uint64_t firstLength,
-    uint64_t second,
-    uint64_t secondLength)
+    _In_ uint64_t first,
+    _In_ uint64_t firstLength,
+    _In_ uint64_t second,
+    _In_ uint64_t secondLength)
 {
     // Callers establish non-wrapping, nonempty ranges before comparing them.
     return first < second + secondLength && second < first + firstLength;
+}
+
+static int
+__PlatformValidateInput(
+    _In_ const struct RpiBootContext* context,
+    _In_ uint64_t                     wrapperBase,
+    _In_ uint64_t                     wrapperLength)
+{
+    // Board-specific DT bindings are defined only for Pi 4 and Pi 5.
+    if (context->Board != 4 && context->Board != 5) {
+        return 0;
+    }
+    
+    // The initial firmware header read needs an aligned, nonwrapping address.
+    if (!context->DtbPhysical ||
+        (context->DtbPhysical & (RPI_DTB_ALIGNMENT - 1)) ||
+        context->DtbPhysical > UINTPTR_MAX - sizeof(struct FDTHeader)) {
+        return 0;
+    }
+    
+    // Bound the appended file before computing its exclusive physical end.
+    if (context->Kernel.ImageLength < wrapperLength ||
+        context->Kernel.ImageLength - wrapperLength > RPI_PAYLOAD_MAX_SIZE ||
+        context->Kernel.ImageLength > UINT64_MAX - wrapperBase) {
+        return 0;
+    }
+    return 1;
+}
+
+static int
+__PlatformReadDtbLength(
+    _In_  const struct RpiBootContext* context,
+    _In_  uint64_t                     wrapperBase,
+    _Out_ uint32_t*                    dtbLength)
+{
+    const uint8_t* dtb = (const uint8_t*)context->DtbPhysical;
+    uint32_t       magic;
+    uint32_t       length;
+
+    // Firmware supplies no independently measured length. Trust only the initial
+    // header read, then cap and bound its extent before the shared parser sees it.
+    magic = FdtReadBe32(dtb);
+    if (magic != RPI_DTB_MAGIC) {
+        return 0;
+    }
+    
+    length = FdtReadBe32(dtb + offsetof(struct FDTHeader, TotalSize));
+    // The bounded blob must include the header and have a representable end.
+    if (length < sizeof(struct FDTHeader) || length > RPI_DTB_MAX_SIZE ||
+        length > UINTPTR_MAX - context->DtbPhysical) {
+        return 0;
+    }
+    
+    // Discovery must not read a DTB that aliases loader storage or its payload.
+    if (__PlatformOverlap(context->DtbPhysical, length,
+            wrapperBase, context->Kernel.ImageLength)) {
+        return 0;
+    }
+
+    *dtbLength = length;
+    return 1;
 }
 
 enum RpiBootStatus
@@ -82,43 +144,29 @@ RpiPlatformPrepare(
     struct RpiBootContext* context)
 { 
     const uint8_t* dtb;
-    uint64_t wrapperBase = (uintptr_t)__rpi_loader_start;
-    uint64_t wrapperLength = (uintptr_t)__rpi_loader_end - wrapperBase;
-    uint64_t imageEnd;
-    uint32_t dtbLength;
-    oserr_t status;
+    uint64_t       wrapperBase = (uintptr_t)__rpi_loader_start;
+    uint64_t       wrapperLength = (uintptr_t)__rpi_loader_end - wrapperBase;
+    uint64_t       imageEnd;
+    uint32_t       dtbLength;
+    int            dtbValid;
+    oserr_t        status;
 
-    if (!context) {
-        return RpiBootInvalidPlatform;
-    }
-    
     context->MemoryMapCount = 0;
     context->BootInformation.Memory = (struct VBootMemory){0};
     context->BootInformation.DeviceTree = (struct VBootDeviceTree){0};
     context->ExternalPayloadBase = 0;
     context->ExternalPayloadLength = 0;
     
-    if ((context->Board != 4 && context->Board != 5) || !context->DtbPhysical ||
-        (context->DtbPhysical & 7) || context->DtbPhysical > UINTPTR_MAX - 40 ||
-        context->Kernel.ImageLength < wrapperLength ||
-        context->Kernel.ImageLength - wrapperLength > RPI_PAYLOAD_MAX_SIZE ||
-        context->Kernel.ImageLength > UINT64_MAX - wrapperBase) {
+    if (!__PlatformValidateInput(context, wrapperBase, wrapperLength)) {
         return RpiBootInvalidPlatform;
     }
     
     imageEnd = wrapperBase + context->Kernel.ImageLength;
     dtb = (const uint8_t*)context->DtbPhysical;
 
-    // Firmware supplies no independently measured length. Trust only the initial
-    // header read, then cap and bound its extent before the shared parser sees
-    // it. Reading this header does not require a second structure traversal.
-    if (__ReadBe32(dtb) != 0xd00dfeed) {
-        return RpiBootInvalidPlatform;
-    }
-    dtbLength = __ReadBe32(dtb + 4);
-    if (dtbLength < 40 || dtbLength > RPI_DTB_MAX_SIZE ||
-        dtbLength > UINTPTR_MAX - context->DtbPhysical ||
-        __PlatformOverlap(context->DtbPhysical, dtbLength, wrapperBase, context->Kernel.ImageLength)) {
+    // Read and validate the firmware extent before the shared parser uses it.
+    dtbValid = __PlatformReadDtbLength(context, wrapperBase, &dtbLength);
+    if (!dtbValid) {
         return RpiBootInvalidPlatform;
     }
 
@@ -132,6 +180,7 @@ RpiPlatformPrepare(
     }
     
     if (context->ExternalPayloadLength) {
+        // The retained bundle must not overwrite low firmware, the wrapper or DTB.
         if (__PlatformOverlap(context->ExternalPayloadBase, context->ExternalPayloadLength, 0, imageEnd) ||
             __PlatformOverlap(context->ExternalPayloadBase, context->ExternalPayloadLength,
                 context->DtbPhysical, dtbLength)) {
@@ -151,7 +200,13 @@ RpiPlatformPrepare(
     if (status != OS_EOK) {
         goto failed;
     }
+    
     status = DeviceTreeReserveMemory(context, context->DtbPhysical, dtbLength);
+    if (status != OS_EOK) {
+        goto failed;
+    }
+
+    status = DeviceTreeResolveReservations(context, dtbLength);
     if (status != OS_EOK) {
         goto failed;
     }
@@ -167,8 +222,6 @@ RpiPlatformPrepare(
     context->BootInformation.Memory.Entries = (uintptr_t)context->MemoryMap;
     context->BootInformation.Memory.EntrySize = sizeof(struct VBootMemoryEntry);
     context->BootInformation.Memory.NumberOfEntries = context->MemoryMapCount;
-    context->BootInformation.DeviceTree.PhysicalBase = context->DtbPhysical;
-    context->BootInformation.DeviceTree.Length = dtbLength;
     
     // config.txt enables firmware serial output. Preserve that setup: changing
     // UART divisors/pinmux without clock discovery could destroy the only early
@@ -176,6 +229,7 @@ RpiPlatformPrepare(
     return RpiBootOk;
 
 failed:
+    context->BootInformation.DeviceTree = (struct VBootDeviceTree){0};
     context->MemoryMapCount = 0;
     context->ExternalPayloadBase = 0;
     context->ExternalPayloadLength = 0;

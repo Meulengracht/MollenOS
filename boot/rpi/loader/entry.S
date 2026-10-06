@@ -29,6 +29,8 @@
 // Architectural register definitions: Arm A-profile System Registers (DDI 0601),
 // https://developer.arm.com/documentation/ddi0601/latest/
 
+#include "registers.h"
+
 .section .text, "ax"
 
 .global _rpi_initialize
@@ -48,8 +50,8 @@ _rpi_initialize:
     // allow multiple CPUs to clear BSS and run on this one bootstrap stack.
     // Zero affinity is our primary-CPU policy, not an architectural guarantee.
     mrs x9, MPIDR_EL1
-    and x10, x9, #0xffffff
-    ubfx x9, x9, #32, #8
+    and x10, x9, #RPI_MPIDR_AFF012_MASK
+    ubfx x9, x9, #RPI_MPIDR_AFF3_SHIFT, #RPI_MPIDR_AFF3_WIDTH
     orr x10, x10, x9
     cbnz x10, _rpi_stop
 
@@ -58,9 +60,9 @@ _rpi_initialize:
     // EL3 is outside this native boot contract and is parked. EL0 is not a
     // supported entry either; privileged reads can trap before reaching here.
     mrs x9, CurrentEL
-    cmp x9, #4
+    cmp x9, #RPI_CURRENT_EL1
     b.eq .Lel1
-    cmp x9, #8
+    cmp x9, #RPI_CURRENT_EL2
     b.ne _rpi_stop
 
     // DAIFSet's immediate is a selector mask, not the DAIF register bit layout:
@@ -70,7 +72,7 @@ _rpi_initialize:
     // A set mask inhibits delivery; this does not disable interrupt sources
     // in the GIC, prevent synchronous faults, or override higher-EL routing.
     // Mask before replacing vectors: no normal handler or valid stack exists.
-    msr DAIFSet, #0xf
+    msr DAIFSet, #RPI_DAIF_ALL
 
     // SCTLR_EL2 controls the current EL2 environment. Snapshot it for the
     // common M/C checks below; do not write it or reset implementation-defined
@@ -89,7 +91,7 @@ _rpi_initialize:
     // Same DAIFSet selector bits as above: mask D/A/I/F while there is no
     // exception-handling infrastructure. Synchronous exceptions still need
     // the stop vectors, and exceptions routed to EL2 are outside our control.
-    msr DAIFSet, #0xf
+    msr DAIFSet, #RPI_DAIF_ALL
 
     // At EL1, SCTLR_EL1 is the relevant stage-1 control register. Reading
     // SCTLR_EL2 instead would require privileges that this path does not have.
@@ -108,7 +110,7 @@ _rpi_initialize:
     // symbols name physical storage, so using an unknown mapping is unsafe.
     // Merely clearing M could strand the executing PC or firmware-owned data;
     // without a mapping/ownership proof, stop instead of attempting recovery.
-    tbnz x10, #0, _rpi_stop
+    tbnz x10, #RPI_SCTLR_M_BIT, _rpi_stop
 
     // SCTLR_ELx.C[2]=1 enables data/unified caching under its regime. We require
     // C=0 at entry: blindly disabling or invalidating caches can discard dirty
@@ -117,7 +119,7 @@ _rpi_initialize:
     // SCTLR_ELx.I[12] (instruction-cache enable) is deliberately left alone.
     // We have not copied executable code; later PE loading must synchronize
     // its writes with instruction fetch before entering the loaded image.
-    tbnz x10, #2, _rpi_stop
+    tbnz x10, #RPI_SCTLR_C_BIT, _rpi_stop
 
     // Context synchronization makes the preceding VBAR update visible to the
     // following execution. ISB is not a data-cache clean or a memory-write
@@ -179,12 +181,12 @@ _rpi_stop:
 // ESR diagnostic registers. The remaining 124 bytes preserve slot spacing;
 // they are padding, not executable handlers. Masked interrupts do not make
 // this table optional: synchronous faults can still occur during bootstrap.
-.balign 2048
+.balign RPI_VECTOR_ALIGNMENT
 .global _early_vector_table
 _early_vector_table:
-.rept 16
+.rept RPI_VECTOR_COUNT
     b _rpi_stop
-    .space 124
+    .space RPI_VECTOR_SLOT_PADDING
 .endr
 
 // File-backed storage makes the stack part of the image length visible to
@@ -195,11 +197,11 @@ _early_vector_table:
 // an active frame. Initial zero bytes reserve storage; C does not require a
 // zero-filled stack, only valid writable space and ABI alignment.
 .section .boot.stack, "aw", %progbits
-.balign 4096
+.balign RPI_BOOT_STACK_ALIGNMENT
 
 .global __rpi_boot_stack_bottom
 __rpi_boot_stack_bottom:
-    .space 65536, 0
+    .space RPI_BOOT_STACK_SIZE, 0
 
 .global __rpi_boot_stack_top
 __rpi_boot_stack_top:

@@ -25,11 +25,56 @@
 
 #include <vboot/vboot.h>
 
+// Maximum number of ownership intervals stored without an allocator.
 #define RPI_MEMORY_MAP_CAPACITY 256u
+
+// Bound firmware DTB parsing and copying to two MiB.
 #define RPI_DTB_MAX_SIZE (2u * 1024u * 1024u)
 
+// The native kernel allocator consumes 4 KiB physical pages.
+#define RPI_PAGE_SIZE 4096ULL
+
+// Low address bits used when rounding physical page boundaries.
+#define RPI_PAGE_MASK (RPI_PAGE_SIZE - 1)
+
+// Flattened device tree signature and required firmware address alignment.
+#define RPI_DTB_MAGIC     0xd00dfeedu
+#define RPI_DTB_ALIGNMENT 8u
+
+// Version-17 FDT headers contain ten 32-bit fields; contract checks need no parser.
+#define RPI_DTB_HEADER_SIZE 40u
+
+// Fixed trailer extent used by the runtime decoder and image packager.
 #define RPI_PAYLOAD_HEADER_SIZE 64u
+
+// Version of the VALIRPI trailer emitted by the linker and image packager.
+#define RPI_PAYLOAD_VERSION 1u
+
+// Maximum appended kernel file extent accepted from trusted firmware.
 #define RPI_PAYLOAD_MAX_SIZE (64u * 1024u * 1024u)
+
+// Bound expanded PE storage independently of the source file's size.
+#define RPI_PE_IMAGE_MAX_SIZE (64u * 1024u * 1024u)
+
+// Preserve the linker's preferred-base alignment when choosing fallback RAM.
+#define RPI_PE_IMAGE_ALIGNMENT 65536u
+
+// Static PE files use 512-byte raw section and header alignment.
+#define RPI_PE_FILE_ALIGNMENT 512u
+
+// AArch64 entry points must contain one aligned, four-byte instruction.
+#define RPI_ARM64_INSTRUCTION_SIZE 4u
+
+// PE base-relocation words contain a four-bit type above a 12-bit page offset.
+#define RPI_PE_RELOCATION_TYPE_SHIFT  12u
+#define RPI_PE_RELOCATION_OFFSET_MASK 0xfffu
+
+// Each relocation block starts with two 32-bit words: page RVA and block size.
+#define RPI_PE_RELOCATION_HEADER_SIZE 8u
+
+// The external VALIBND manifest starts with a fixed 64-byte version-1 header.
+#define RPI_BUNDLE_HEADER_SIZE 64u
+#define RPI_BUNDLE_VERSION     1u
 
 enum RpiBootStatus { 
     RpiBootOk,
@@ -54,6 +99,23 @@ struct RpiKernelInformation {
     uint64_t ImageLength;
 };
 
+// Maximum pending reserved-memory allocations retained during DTB discovery.
+#define RPI_DYNAMIC_RESERVATION_CAPACITY 32u
+
+// Borrowed property data stays valid until the firmware DTB has been copied.
+// Resolved physical ranges are inserted as reg properties in the copied DTB.
+struct RpiDynamicReservation {
+    const unsigned char* InsertBefore;
+    const unsigned char* AllocRanges;
+    uint32_t AllocRangesLength;
+    uint32_t AddressCells;
+    uint32_t SizeCells;
+    uint64_t Length;
+    uint64_t Alignment;
+    uint64_t PhysicalBase;
+    uint64_t Attributes;
+};
+
 struct RpiBootContext {
     uintptr_t                   DtbPhysical;
     unsigned int                Board;
@@ -62,8 +124,10 @@ struct RpiBootContext {
     
     // Storage lives inside the wrapper's reserved BSS,
     // since we have no allocator before this stage.
-    struct VBootMemoryEntry     MemoryMap[RPI_MEMORY_MAP_CAPACITY];
-    uint32_t                    MemoryMapCount;
+    struct VBootMemoryEntry      MemoryMap[RPI_MEMORY_MAP_CAPACITY];
+    uint32_t                     MemoryMapCount;
+    struct RpiDynamicReservation Reservations[RPI_DYNAMIC_RESERVATION_CAPACITY];
+    uint32_t                     ReservationCount;
     
     // Firmware transport containing the validated Phoenix/ramdisk bundle.
     uint64_t                    ExternalPayloadBase;
@@ -80,8 +144,9 @@ struct RpiBootContext {
  * with pre-allocated storage for platforms where dynamic memory allocation is not available
  * prior to the initialization of the memory management subsystem.
  * The input and output must not overlap. The output count is zero on failure;
- * partial output must not be consumed. Dynamic and no-map reservations currently
- * return OS_ENOTSUPPORTED rather than publishing incomplete ownership data.
+ * partial output must not be consumed. Dynamic requests are retained until all
+ * platform storage has been reserved. No-map ranges carry an explicit policy.
+ * 
  * @param deviceTree The address of the device tree.
  * @param deviceTreeSize The independently accessible extent of the device tree.
  * @param context The boot context containing pre-allocated memory map and other platform-specific information.
@@ -104,26 +169,45 @@ DeviceTreeReserveMemory(
     _In_ uint64_t physicalBase,
     _In_ uint64_t length);
 
+/** @brief Reserve a physical interval while preserving its DT mapping policy. */
+__EXTERN oserr_t
+DeviceTreeReserveMemoryWithAttributes(
+    _In_ struct RpiBootContext* context,
+    _In_ uint64_t physicalBase,
+    _In_ uint64_t length,
+    _In_ uint64_t attributes);
+
+/**
+ * @brief Allocate pending size/alignment/alloc-ranges reservations and publish
+ * a reserved DTB copy with their resolved reg properties. Platform storage and
+ * the firmware payload must already be excluded from the memory map.
+ */
+__EXTERN oserr_t
+DeviceTreeResolveReservations(
+    _In_ struct RpiBootContext* context,
+    _In_ uint32_t dtbLength);
+
 /**
  * @brief Parse and validate the RPi loader header.
  * This essentially decodes the header that is defined by loader.ld and
  * extracts the kernel payload information. This is written into kernelInfo.
  */
-enum RpiBootStatus RpiParseHeader(
-    const unsigned char*         header,
-    size_t                       headerLength,
-    uint64_t                     loaderLength,
-    uint64_t                     availableLength,
-    struct RpiKernelInformation* kernelInfo);
+__EXTERN enum RpiBootStatus
+RpiParseHeader(
+    _In_ const unsigned char*         header,
+    _In_ size_t                       headerLength,
+    _In_ uint64_t                     loaderLength,
+    _In_ uint64_t                     availableLength,
+    _In_ struct RpiKernelInformation* kernelInfo);
 
 /**
  * @brief Discover/reserve DTB resources before selecting image destinations. This
  * stage preserves the firmware-configured UART and retains the wrapper, stack, DTB, resident
  * firmware, and external payloads. No allocator exists before this stage.
  */
-enum RpiBootStatus 
+__EXTERN enum RpiBootStatus 
 RpiPlatformPrepare(
-    struct RpiBootContext* context);
+    _In_ struct RpiBootContext* context);
 
 /**
  * @brief Stage the PE in disjoint reserved RAM, including zero-fill and relocations.
@@ -135,29 +219,29 @@ RpiPlatformPrepare(
  * A file pointer is never a loaded module. No kernel code runs at this stage.
  * Cache synchronization is deferred to RpiTransferToKernel.
  */
-enum RpiBootStatus 
+__EXTERN enum RpiBootStatus 
 RpiLoadKernel(
-    struct RpiBootContext* context);
+    _In_ struct RpiBootContext* context);
 
 /**
  * @brief Expand a static ARM64 Phoenix PE into reserved physical storage.
  * The image remains linked at its preferred userspace address. The module base
  * names staging storage, while its entry names the future userspace mapping.
  */
-enum RpiBootStatus
+__EXTERN enum RpiBootStatus
 RpiLoadPhoenix(
-    struct RpiBootContext* context,
-    const void*           file,
-    size_t                length);
+    _In_ struct RpiBootContext* context,
+    _In_ const void*            file,
+    _In_ size_t                 length);
 
 /**
  * @brief Validate the firmware initrd bundle and publish its boot resources.
  * Platform preparation must reserve the complete transport before this call.
  * An absent transport is supported for kernel-only diagnostic images.
  */
-enum RpiBootStatus
+__EXTERN enum RpiBootStatus
 RpiLoadResources(
-    struct RpiBootContext* context);
+    _In_ struct RpiBootContext* context);
 
 /**
  * @brief Finalize the native bring-up contract from prepared platform and PE data.
@@ -167,9 +251,9 @@ RpiLoadResources(
  * Success publishes Magic/Version. Failure clears both markers and callers must
  * stop. No allocation, DTB traversal, stack switch or kernel execution occurs.
  */
-enum RpiBootStatus 
+__EXTERN enum RpiBootStatus 
 RpiBuildContract(
-    struct RpiBootContext* context);
+    _In_ struct RpiBootContext* context);
 
 /**
  * @brief Enter the loaded physical PE entry at EL1h with x0 pointing to VBoot.
@@ -183,7 +267,7 @@ RpiBuildContract(
  */
 _Noreturn void 
 RpiTransferToKernel(
-    struct RpiBootContext* context);
+    _In_ struct RpiBootContext* context);
 
 /**
  * @brief Halts the loader and enters an infinite wait state.
@@ -192,6 +276,6 @@ RpiTransferToKernel(
  */
 _Noreturn void 
 RpiLoaderStop(
-    enum RpiBootStatus status);
+    _In_ enum RpiBootStatus status);
 
 #endif

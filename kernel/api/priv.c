@@ -256,17 +256,17 @@ __CopyInterruptResults(
 {
     oserr_t oserr;
 
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->Line, &request.Line, sizeof(request.Line), true);
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->Line, &request->Line, sizeof(request->Line), true);
     if (oserr != OS_EOK) {
         return oserr;
     }
     
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiAddress, &request.MsiAddress, sizeof(request.MsiAddress), true);
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiAddress, &request->MsiAddress, sizeof(request->MsiAddress), true);
     if (oserr != OS_EOK) {
         return oserr;
     }
 
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiValue, &request.MsiValue, sizeof(request.MsiValue), true);
+    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiValue, &request->MsiValue, sizeof(request->MsiValue), true);
     if (oserr != OS_EOK) {
         return oserr;
     }

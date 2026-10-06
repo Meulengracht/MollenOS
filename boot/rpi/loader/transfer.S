@@ -24,6 +24,8 @@
 // https://developer.arm.com/documentation/ddi0601/latest/
 // The baseline RES1 encodings are for A72/A76, not every future Arm extension.
 
+#include "registers.h"
+
 .section .text, "ax"
 .balign 4
 .global __JumpToKernel
@@ -32,21 +34,21 @@ __JumpToKernel:
     // DAIFSet #0xf selects D/A/I/F. It sets PSTATE bits [9:6], masking debug,
     // SError, IRQ and FIQ delivery during the transition. Synchronous faults
     // still use the reserved wrapper's stop vectors installed by entry.S.
-    msr DAIFSet, #0xf
+    msr DAIFSet, #RPI_DAIF_ALL
 
     // CurrentEL[3:2] distinguishes which SCTLR is legal to read. No EL2 access
     // may occur on the direct EL1 path. Unsupported ELs use the stackless stop.
     mrs x9, CurrentEL
-    cmp x9, #4
+    cmp x9, #RPI_CURRENT_EL1
     b.eq .Lfrom_el1
-    cmp x9, #8
+    cmp x9, #RPI_CURRENT_EL2
     b.ne _rpi_stop
 
     // HCR_EL2.E2H[34] changes EL1 register aliases and timer-control encodings.
     // Native Pi firmware uses non-VHE EL2. Reject VHE before interpreting those
     // registers rather than pretending a host-hypervisor state is our profile.
     mrs x10, HCR_EL2
-    tbnz x10, #34, _rpi_stop
+    tbnz x10, #RPI_HCR_E2H_BIT, _rpi_stop
     mrs x10, SCTLR_EL2
     b .Lcheck_state
 .Lfrom_el1:
@@ -55,9 +57,9 @@ __JumpToKernel:
     // SCTLR.M[0] and C[2] must still be zero. Disabling either without knowing
     // mappings or cleaning dirty data would risk losing the image we just built.
     // EE[25] must be zero: VBoot and PE integers use little-endian accesses.
-    tbnz x10, #0, _rpi_stop
-    tbnz x10, #2, _rpi_stop
-    tbnz x10, #25, _rpi_stop
+    tbnz x10, #RPI_SCTLR_M_BIT, _rpi_stop
+    tbnz x10, #RPI_SCTLR_C_BIT, _rpi_stop
+    tbnz x10, #RPI_SCTLR_EE_BIT, _rpi_stop
 
     // The wrapper never enabled D-cache, so its stores need completion, not a
     // set/way clean of unknown firmware cache contents. DSB SY completes both
@@ -68,12 +70,12 @@ __JumpToKernel:
     dsb sy
     isb
 
-    cmp x9, #8
+    cmp x9, #RPI_CURRENT_EL2
     b.ne .Lsetup_el1
 
     // SCTLR_EL2.I[12]=0 disables EL2 instruction caching. Preserve the other
     // EL2 controls, especially implementation/RES1 bits; M/C were checked above.
-    bic x10, x10, #0x1000
+    bic x10, x10, #RPI_SCTLR_I_MASK
     msr SCTLR_EL2, x10
     isb
 
@@ -82,7 +84,7 @@ __JumpToKernel:
     // exceptions to EL2; TGE[27] and the instruction/register trap controls
     // (including TSC[19] for SMC) are clear. Pi 5's EL3 SMC service is retained.
     // E2H remains zero, so subsequent EL1 register names have their normal roles.
-    mov x10, #0x80000000
+    mov x10, #RPI_HCR_RW_MASK
     msr HCR_EL2, x10
     isb
 
@@ -92,7 +94,7 @@ __JumpToKernel:
     // UBFX #16,#4 extracts that unsigned field into x10[3:0]; skip older
     // CPUs rather than executing an optional system-register access on them.
     mrs x10, ID_AA64ISAR2_EL1
-    ubfx x10, x10, #16, #4
+    ubfx x10, x10, #RPI_ISAR2_MOPS_SHIFT, #RPI_FEATURE_FIELD_WIDTH
     cmp x10, #1
     b.ne .Lmops_el2_ready
     
@@ -100,7 +102,7 @@ __JumpToKernel:
     // field provides the extended hypervisor controls; CBZ skips if absent.
     // This check is independent of MOPS because HCRX itself is optional.
     mrs x10, ID_AA64MMFR1_EL1
-    ubfx x10, x10, #40, #4
+    ubfx x10, x10, #RPI_MMFR1_HCX_SHIFT, #RPI_FEATURE_FIELD_WIDTH
     cbz x10, .Lmops_el2_ready
     
     // S3_4_C1_C2_2 is HCRX_EL2's architectural system-register encoding:
@@ -113,7 +115,7 @@ __JumpToKernel:
     // Firmware at EL3, if present, must allow access via SCR_EL3.HXEn[38].
     // This does not enable EL0 by itself: the kernel sets SCTLR_EL1.MSCEn[33].
     mrs x10, S3_4_C1_C2_2
-    orr x10, x10, #0x800
+    orr x10, x10, #RPI_HCRX_MSCEN_MASK
     msr S3_4_C1_C2_2, x10
     isb
 .Lmops_el2_ready:
@@ -125,7 +127,7 @@ __JumpToKernel:
     // Non-VHE CPTR_EL2 needs RES1 bits [13:12] and [9:0] on the A72 baseline.
     // TFP[10], TTA[20] and TCPAC[31] stay clear: no EL2 trap for FP/SIMD, trace
     // or CPACR access. EL1's CPACR below still denies FP/SIMD to early code.
-    mov x10, #0x33ff
+    mov x10, #RPI_CPTR_EL2_RES1
     msr CPTR_EL2, x10
 
     // MDCR_EL2=0 clears EL2 debug/PMU access traps and debug exception routing.
@@ -135,7 +137,7 @@ __JumpToKernel:
     // With E2H=0, CNTHCTL_EL2.EL1PCTEN[0] and EL1PCEN[1] allow the physical
     // counter and timer at EL1. CNTVOFF_EL2=0 makes virtual time share the same
     // origin. Preserve firmware's CNTFRQ_EL0; it is not the CPU clock frequency.
-    mov x10, #3
+    mov x10, #RPI_CNTHCTL_EL1_ACCESS
     msr CNTHCTL_EL2, x10
     msr CNTVOFF_EL2, xzr
 
@@ -151,8 +153,8 @@ __JumpToKernel:
     // A[1], SA[3] and SA0[4] are zero; SP is nevertheless 16-byte aligned by
     // construction. Other optional execution controls stay disabled. This is
     // the supported Pi baseline, not a feature-generic reset of arbitrary CPUs.
-    mov x10, #0x0800
-    movk x10, #0x30d0, lsl #16
+    mov x10, #RPI_SCTLR_EL1_BASELINE_LOW
+    movk x10, #RPI_SCTLR_EL1_BASELINE_HIGH, lsl #16
     msr SCTLR_EL1, x10
     isb
 
@@ -199,8 +201,8 @@ __JumpToKernel:
     // on both paths also removes inherited single-step/condition state. It is
     // legal to return from EL1 to EL1h; EL2 uses the same target state to drop EL.
     adr x10, .Lel1_landing
-    mov x11, #0x3c5
-    cmp x9, #8
+    mov x11, #RPI_SPSR_EL1H_MASKED
+    cmp x9, #RPI_CURRENT_EL2
     b.ne .Lreturn_el1
     msr SP_EL1, x2
     msr ELR_EL2, x10

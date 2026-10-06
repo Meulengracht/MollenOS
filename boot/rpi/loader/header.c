@@ -18,6 +18,7 @@
 
 #include "loader.h"
 
+// Wire layout used only for field offsets; decoding always reads individual bytes.
 struct __RpiHeader {
     uint8_t  signature[8];
     uint32_t version;
@@ -56,6 +57,8 @@ __ValidateHeader(
     size_t               headerLength,
     uint64_t             loaderLength)
 {
+    uint64_t value;
+
     if (header == NULL) {
         return RpiBootInvalidPayload;
     }
@@ -64,7 +67,8 @@ __ValidateHeader(
         return RpiBootInvalidPayload;
     }
     
-    if (loaderLength < RPI_PAYLOAD_HEADER_SIZE || (loaderLength & 4095)) {
+    // The fixed trailer ends at the page-aligned boundary of the wrapper file.
+    if (loaderLength < RPI_PAYLOAD_HEADER_SIZE || (loaderLength & RPI_PAGE_MASK)) {
         return RpiBootInvalidPayload;
     }
 
@@ -75,17 +79,37 @@ __ValidateHeader(
         }
     }
     
-    if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, version), 4) != 1) {
+    // Decode before deciding; an unsupported version can change the field layout.
+    value = __ReadHeaderValue(header, offsetof(struct __RpiHeader, version), 4);
+    if (value != RPI_PAYLOAD_VERSION) {
         return RpiBootInvalidPayload;
-    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, headerSize), 4) != RPI_PAYLOAD_HEADER_SIZE) {
+    }
+
+    // This decoder accepts only the fixed trailer extent emitted by our packager.
+    value = __ReadHeaderValue(header, offsetof(struct __RpiHeader, headerSize), 4);
+    if (value != RPI_PAYLOAD_HEADER_SIZE) {
         return RpiBootInvalidPayload;
-    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, loaderLength), 8) != loaderLength) {
+    }
+
+    // The recorded wrapper extent must match the linker-provided boundary.
+    value = __ReadHeaderValue(header, offsetof(struct __RpiHeader, loaderLength), 8);
+    if (value != loaderLength) {
         return RpiBootInvalidPayload;
-    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, kernelOffset), 8) != loaderLength) {
+    }
+
+    // The kernel file must start directly after the complete wrapper.
+    value = __ReadHeaderValue(header, offsetof(struct __RpiHeader, kernelOffset), 8);
+    if (value != loaderLength) {
         return RpiBootInvalidPayload;
-    } else if (__ReadHeaderValue(header, offsetof(struct __RpiHeader, reserved1), 8) || 
-                __ReadHeaderValue(header, offsetof(struct __RpiHeader, reserved2), 8)) {
-        // Reserved values should be 0
+    }
+
+    // Nonzero reserved fields could request behavior this version does not support.
+    value = __ReadHeaderValue(header, offsetof(struct __RpiHeader, reserved1), 8);
+    if (value) {
+        return RpiBootInvalidPayload;
+    }
+    value = __ReadHeaderValue(header, offsetof(struct __RpiHeader, reserved2), 8);
+    if (value) {
         return RpiBootInvalidPayload;
     }
     
@@ -112,9 +136,18 @@ RpiParseHeader(
     length = __ReadHeaderValue(header, offsetof(struct __RpiHeader, kernelLength), 8);
     total = __ReadHeaderValue(header, offsetof(struct __RpiHeader, totalLength), 8);
     
-    // Subtraction makes a forged total incapable of wrapping the range check.
-    if (!length || length > RPI_PAYLOAD_MAX_SIZE || total > availableLength ||
-        total < loaderLength || total - loaderLength != length) {
+    // The kernel payload must be nonempty and within the trusted-file size budget.
+    if (!length || length > RPI_PAYLOAD_MAX_SIZE) {
+        return RpiBootInvalidPayload;
+    }
+
+    // Check both total bounds before subtracting the wrapper's length.
+    if (total > availableLength || total < loaderLength) {
+        return RpiBootInvalidPayload;
+    }
+
+    // The appended kernel must account for every byte after the wrapper.
+    if (total - loaderLength != length) {
         return RpiBootInvalidPayload;
     }
 
