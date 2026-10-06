@@ -16,17 +16,21 @@
  *
  */
 
+#include "abi.h"
+
 // The native loader has established EL1h, DAIF masking and a reserved stack.
 // Install vectors before C, then create Normal-memory mappings before atomics.
 .text
 .p2align 2
 .globl kentry
 kentry:
-    msr daifset, #15
+    // Keep all asynchronous exceptions masked until vectors and per-core state exist.
+    msr daifset, #ARM64_DAIF_ALL
     adrp x1, Arm64Vectors
     add x1, x1, :lo12:Arm64Vectors
     msr vbar_el1, x1
-    mov x1, #0x300000
+    // FPEN grants FP/SIMD access; TPIDR_EL0 starts without a userspace TLS anchor.
+    mov x1, #ARM64_CPACR_FP_ENABLE
     msr cpacr_el1, x1
     msr tpidr_el0, xzr
     isb
@@ -42,6 +46,6 @@ kentry:
     bl InitializeMachine
 
 .Lboot_stop:
-    msr daifset, #15
+    msr daifset, #ARM64_DAIF_ALL
     wfe
     b .Lboot_stop

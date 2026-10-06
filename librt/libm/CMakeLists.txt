@@ -1,9 +1,13 @@
 # Project setup
 project (vali-libm)
-enable_language (ASM_NASM)
 enable_language (C)
 
-set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+# On x86 platforms, enable NASM assembly language support
+if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
+    enable_language (ASM_NASM)
+    set (CMAKE_ASM_NASM_OBJECT_FORMAT ${NASM_DEFAULT_FORMAT})
+endif ()
+
 set (MATH_FLAGS "")
 set (EXTRA_SOURCES "")
 
@@ -42,6 +46,13 @@ elseif (${VALI_ARCH} STREQUAL "amd64")
         ld80/log10l.c
     )
     set_source_files_properties(${ASM_SOURCES} PROPERTIES COMPILE_FLAGS "-D_MICROSOFT_LIBM")
+elseif (VALI_ARCH STREQUAL "aarch64")
+    list(FILTER C_SOURCES EXCLUDE REGEX "/(fenv|controlfp)\\.c$")
+    # These fdlibm C implementations contain no architecture-specific code.
+    file(GLOB PORTABLE_MATH_SOURCES amd64/*.c)
+    list(APPEND C_ARCH_SOURCES ${PORTABLE_MATH_SOURCES})
+    # Vali's COFF ABI represents long double as IEEE binary64.
+    set(MATH_FLAGS "-D_HAVE_LONG_DOUBLE -D_LDBL_EQ_DBL")
 endif ()
 
 set_source_files_properties(${C_ARCH_SOURCES} ${C_SOURCES} ${EXTRA_SOURCES}

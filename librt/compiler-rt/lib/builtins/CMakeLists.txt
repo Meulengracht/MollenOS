@@ -534,25 +534,29 @@ else()
   set(COMPILER_RT_LINK_OR_COPY copy)
 endif()
 
-foreach(pat cas swp ldadd ldclr ldeor ldset)
-  foreach(size 1 2 4 8 16)
-    foreach(model 1 2 3 4)
-      if(pat STREQUAL "cas" OR NOT size STREQUAL "16")
-        set(helper_asm "${OA_HELPERS_DIR}/outline_atomic_${pat}${size}_${model}.S")
-        list(APPEND lse_builtins "${helper_asm}")
-        list(APPEND arm64_lse_commands COMMAND ${CMAKE_COMMAND} -E ${COMPILER_RT_LINK_OR_COPY} "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}")
-        set_source_files_properties("${helper_asm}"
-          PROPERTIES
-          COMPILE_DEFINITIONS "L_${pat};SIZE=${size};MODEL=${model}"
-          INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}"
-        )
-        list(APPEND aarch64_SOURCES "${helper_asm}")
-      endif()
-    endforeach(model)
-  endforeach(size)
-endforeach(pat)
+# Vali uses ARMv8.0 inline LL/SC atomics. The ELF outline dispatch stubs
+# cannot be assembled into its COFF runtime library.
+if(NOT COMPILER_RT_DEFAULT_TARGET_TRIPLE MATCHES "vali")
+    foreach(pat cas swp ldadd ldclr ldeor ldset)
+        foreach(size 1 2 4 8 16)
+            foreach(model 1 2 3 4)
+                if(pat STREQUAL "cas" OR NOT size STREQUAL "16")
+                    set(helper_asm "${OA_HELPERS_DIR}/outline_atomic_${pat}${size}_${model}.S")
+                    list(APPEND lse_builtins "${helper_asm}")
+                    list(APPEND arm64_lse_commands COMMAND ${CMAKE_COMMAND} -E ${COMPILER_RT_LINK_OR_COPY} "${CMAKE_CURRENT_SOURCE_DIR}/aarch64/lse.S" "${helper_asm}")
+                    set_source_files_properties("${helper_asm}"
+                    PROPERTIES
+                    COMPILE_DEFINITIONS "L_${pat};SIZE=${size};MODEL=${model}"
+                    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}"
+                    )
+                    list(APPEND aarch64_SOURCES "${helper_asm}")
+                endif()
+            endforeach(model)
+        endforeach(size)
+    endforeach(pat)
+endif()
 
-if (MINGW)
+if (MINGW OR COMPILER_RT_DEFAULT_TARGET_TRIPLE MATCHES "vali")
   set(aarch64_SOURCES
     ${aarch64_SOURCES}
     aarch64/chkstk.S

@@ -4,6 +4,9 @@ if (NOT DEFINED VALI_BUILD)
     message (FATAL_ERROR "You must invoke the root cmake file, not the individual platform files")
 endif ()
 
+# Platform build features
+set (VALI_BUILD_FEATURE_ACPI ON)
+
 set (ARCH_FLAGS "--target=amd64-uml-vali")
 set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function")
 # Keep Clang builtin headers (stdint.h, stdarg.h, etc.); use explicit OS library headers.

@@ -34,7 +34,6 @@
  * Layout and setup references:
  * https://github.com/raspberrypi/linux/blob/rpi-6.18.y/drivers/pci/controller/pcie-brcmstb.c
  * https://github.com/raspberrypi/linux/blob/rpi-6.18.y/drivers/reset/reset-brcmstb.c
- * See docs/bcm2712-pcie.md for an introduction and the complete setup sequence.
  */
 
 // Both variants expose this controller region. Downstream configuration access

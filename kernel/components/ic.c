@@ -29,10 +29,10 @@
 
 oserr_t
 CreateInterruptController(
-        _In_ uuid_t     Id,
-        _In_ int        InterruptLineBase,
-        _In_ int        NumberOfInterrupts,
-        _In_ uintptr_t  BaseAddress)
+    _In_ uuid_t    Id,
+    _In_ int       InterruptLineBase,
+    _In_ int       NumberOfInterrupts,
+    _In_ uintptr_t BaseAddress)
 {
     SystemInterruptController_t* Ic;
 
@@ -62,10 +62,8 @@ CreateInterruptController(
 
 oserr_t
 CreateInterruptOverrides(
-    _In_ int        NumberOfInterruptOverrides)
+    _In_ int NumberOfInterruptOverrides)
 {
-    int i;
-
     assert(GetMachine()->Overrides == NULL);
     assert(NumberOfInterruptOverrides > 0);
 
@@ -78,7 +76,7 @@ CreateInterruptOverrides(
     }
 
     // Set them unused
-    for (i = 0; i < NumberOfInterruptOverrides; i++) {
+    for (int i = 0; i < NumberOfInterruptOverrides; i++) {
         GetMachine()->Overrides[i].SourceLine = -1;
     }
     return OS_EOK;
@@ -86,10 +84,11 @@ CreateInterruptOverrides(
 
 oserr_t
 RegisterInterruptOverride(
-    _In_ int        SourceInterruptLine,
-    _In_ int        DestinationInterruptLine,
-    _In_ unsigned int    InterruptFlags)
+    _In_ int          SourceInterruptLine,
+    _In_ int          DestinationInterruptLine,
+    _In_ unsigned int InterruptFlags)
 {
+#ifdef __OSCONFIG_ACPI_SUPPORT
     int i;
     
     assert(GetMachine()->NumberOfOverrides > 0);
@@ -104,11 +103,17 @@ RegisterInterruptOverride(
         }
     }
     return OS_EUNKNOWN;
+#else
+    (void)SourceInterruptLine;
+    (void)DestinationInterruptLine;
+    (void)InterruptFlags;
+    return OS_ENOTSUPPORTED;
+#endif
 }
 
 int
 GetPinOffsetByLine(
-    _In_ int        InterruptLine)
+    _In_ int InterruptLine)
 {
     SystemInterruptController_t *Ic = GetMachine()->InterruptController;
     while (Ic != NULL) {
@@ -123,7 +128,7 @@ GetPinOffsetByLine(
 
 SystemInterruptController_t*
 GetInterruptControllerByLine(
-    _In_ int        InterruptLine)
+    _In_ int InterruptLine)
 {
     SystemInterruptController_t *Ic = GetMachine()->InterruptController;
     while (Ic != NULL) {

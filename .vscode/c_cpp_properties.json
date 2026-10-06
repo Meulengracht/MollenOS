@@ -2,7 +2,9 @@
     "configurations": [
         {
             "name": "CMake",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
+            ],
             "configurationProvider": "ms-vscode.cmake-tools"
         },
         {
@@ -61,7 +63,10 @@
             },
             "intelliSenseMode": "clang-x64",
             "cStandard": "c11",
-            "cppStandard": "c++17"
+            "cppStandard": "c++17",
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
+            ]
         },
         {
             "name": "MollenOS-amd64",
