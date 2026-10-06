@@ -106,6 +106,7 @@ CreateMemorySpace(
                 (HandleDestructorFn)MemorySpaceDelete,
                 memorySpace
         );
+        memorySpace->Handle = *handleOut;
     } else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }

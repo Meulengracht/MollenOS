@@ -25,6 +25,7 @@
 
 #include <os/osdefs.h>
 #include <os/types/device.h>
+#include <ddk/interrupt.h>
 
 DECL_STRUCT(Device);
 DECL_STRUCT(BusDevice);
@@ -105,6 +106,10 @@ DmDeviceIsBindable(
 extern oserr_t
 DmDeviceDestroy(
         _In_ uuid_t DeviceId);
+
+extern oserr_t
+DmDeviceQuiesceInterrupts(
+    _In_ const DeviceInterruptQuiesceRequest_t* request);
 
 /**
  * @brief Applies a control request to a bus device.

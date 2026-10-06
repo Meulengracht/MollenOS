@@ -26,6 +26,7 @@
 #define __PCI_BUS_INTERFACE__
 
 #include <os/osdefs.h>
+#include <ddk/busdevice.h>
 #include <ddk/io.h>
 #include <ds/list.h>
 #include "host.h"
@@ -369,6 +370,7 @@ __EXTERN void PciWrite8(PciHost_t *Io, unsigned int Bus, unsigned int Device, un
  */
 __EXTERN uint32_t PciDeviceRead(PciDevice_t *Device, size_t Register, size_t Length);
 __EXTERN void PciDeviceWrite(PciDevice_t *Device, size_t Register, uint32_t Value, size_t Length);
+__EXTERN oserr_t DmPciQuiesceDevice(BusDevice_t* device);
 
 /**
  * @brief Writes a value of the given length to the given register of the specified PCI device.

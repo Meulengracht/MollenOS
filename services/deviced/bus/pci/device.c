@@ -181,6 +181,131 @@ DmIoctlDeviceEx(
     return status;
 }
 
+oserr_t
+DmPciQuiesceDevice(
+    _In_ BusDevice_t* device)
+{
+    PciDevice_t* pciDevice;
+    uint16_t     command;
+    uint16_t     status;
+    uint16_t     control;
+    uint16_t     capabilityHeader;
+    uint8_t      capabilityOffset;
+    uint8_t      nextOffset;
+
+    if (device == NULL || !device->IsPci) {
+        return OS_EINVALPARAMS;
+    }
+
+    PciCriticalSectionEnter();
+    pciDevice = PciFindDevice(device->Segment, device->Bus, device->Slot, device->Function);
+    if (pciDevice == NULL) {
+        PciCriticalSectionLeave();
+        return OS_ENOENT;
+    }
+
+    command = PciRead16(pciDevice->Host, device->Bus, device->Slot, device->Function, 0x04);
+    command |= (1U << 10);
+    command &= ~(1U << 2);
+    PciWrite16(pciDevice->Host, device->Bus, device->Slot, device->Function, 0x04, command);
+
+    status = PciRead16(pciDevice->Host, device->Bus, device->Slot, device->Function, 0x06);
+    if (status & (1U << 4)) {
+        capabilityOffset = (uint8_t)PciRead8(
+            pciDevice->Host,
+            device->Bus,
+            device->Slot,
+            device->Function,
+            0x34
+        );
+        for (uint32_t visits = 0; capabilityOffset != 0 && visits < 48; visits++) {
+            capabilityOffset &= (uint8_t)~0x3U;
+            if (capabilityOffset < 0x40 || capabilityOffset > 0xFC) {
+                PciCriticalSectionLeave();
+                return OS_EINVALPARAMS;
+            }
+
+            capabilityHeader = PciRead16(
+                pciDevice->Host,
+                device->Bus,
+                device->Slot,
+                device->Function,
+                capabilityOffset
+            );
+            nextOffset = (uint8_t)(capabilityHeader >> 8);
+            switch ((uint8_t)capabilityHeader) {
+                case 0x05: {
+                    size_t maskOffset;
+                    control = PciRead16(
+                        pciDevice->Host,
+                        device->Bus,
+                        device->Slot,
+                        device->Function,
+                        capabilityOffset + 2
+                    );
+                    if (control & (1U << 8)) {
+                        maskOffset = capabilityOffset + ((control & (1U << 7)) ? 16 : 12);
+                        PciWrite32(
+                            pciDevice->Host,
+                            device->Bus,
+                            device->Slot,
+                            device->Function,
+                            maskOffset,
+                            UINT32_MAX
+                        );
+                    }
+                    control &= (uint16_t)~1U;
+                    PciWrite16(
+                        pciDevice->Host,
+                        device->Bus,
+                        device->Slot,
+                        device->Function,
+                        capabilityOffset + 2,
+                        control
+                    );
+                } break;
+                case 0x11:
+                    control = PciRead16(
+                        pciDevice->Host,
+                        device->Bus,
+                        device->Slot,
+                        device->Function,
+                        capabilityOffset + 2
+                    );
+                    control |= (1U << 14);
+                    PciWrite16(
+                        pciDevice->Host,
+                        device->Bus,
+                        device->Slot,
+                        device->Function,
+                        capabilityOffset + 2,
+                        control
+                    );
+                    control &= (uint16_t)~(1U << 15);
+                    PciWrite16(
+                        pciDevice->Host,
+                        device->Bus,
+                        device->Slot,
+                        device->Function,
+                        capabilityOffset + 2,
+                        control
+                    );
+                    break;
+                default:
+                    break;
+            }
+            capabilityOffset = nextOffset;
+        }
+        if (capabilityOffset != 0) {
+            PciCriticalSectionLeave();
+            return OS_EINVALPARAMS;
+        }
+    }
+
+    PciCriticalSectionLeave();
+    return OS_EOK;
+}
+
 static oserr_t
 __PublishPciDevice(
     _In_ PciDevice_t* pciDevice)

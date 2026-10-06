@@ -82,6 +82,7 @@ struct MSContext;
 
 // one per thread
 typedef struct MemorySpace {
+    uuid_t                Handle;
     uuid_t                ParentHandle;
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;

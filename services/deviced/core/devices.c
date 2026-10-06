@@ -33,6 +33,7 @@
 #include <internal/_utils.h>
 #include <os/usched/mutex.h>
 #include <os/device.h>
+#include "../bus/pci/bus.h"
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -231,6 +232,33 @@ DmHandleIoctl2(
         valueOut,
         width
     );
+}
+
+oserr_t
+DmDeviceQuiesceInterrupts(
+    _In_ const DeviceInterruptQuiesceRequest_t* request)
+{
+    struct DMDevice* device;
+    BusDevice_t      bus;
+
+    if (request == NULL || request->DeviceId == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+
+    usched_mtx_lock(&g_devicesLock);
+    device = __GetDeviceUnsafe(request->DeviceId);
+    if (device == NULL || device->device->Length != sizeof(BusDevice_t)) {
+        usched_mtx_unlock(&g_devicesLock);
+        return OS_ENOENT;
+    }
+    bus = *(BusDevice_t*)device->device;
+    usched_mtx_unlock(&g_devicesLock);
+
+    if (!bus.IsPci || bus.Segment != request->Segment || bus.Bus != request->Bus ||
+        bus.Slot != request->Slot || bus.Function != request->Function) {
+        return OS_EPERMISSIONS;
+    }
+    return DmPciQuiesceDevice(&bus);
 }
 
 static oserr_t

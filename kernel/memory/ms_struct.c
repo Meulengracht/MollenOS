@@ -19,6 +19,7 @@
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
+#include <interrupts.h>
 #include <machine.h>
 #include <string.h>
 #include "private.h"
@@ -42,6 +43,7 @@ MemorySpaceNew(
     threadRegionSize  = GetMachine()->MemoryMap.ThreadLocal.Length + 1;
 
     memorySpace->Flags        = flags;
+    memorySpace->Handle       = UUID_INVALID;
     memorySpace->ParentHandle = UUID_INVALID;
     DynamicMemoryPoolConstruct(
             &memorySpace->ThreadMemory,
@@ -58,6 +60,10 @@ MemorySpaceDelete(
 {
     if (!memorySpace) {
         return;
+    }
+
+    if (memorySpace->Handle != UUID_INVALID) {
+        InterruptMsiQuiesceOwnerExit(memorySpace->Handle);
     }
 
     if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {

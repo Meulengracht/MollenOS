@@ -1,6 +1,5 @@
-/* MollenOS
- *
- * Copyright 2017, Philip Meulengracht
+/**
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -125,11 +124,76 @@ typedef struct DeviceInterrupt {
     unsigned int Bus;
     unsigned int Slot;
     unsigned int Function;
+    uuid_t      DeviceId;
 
     // Msi Identification
     uint64_t  MsiAddress;     // INTERRUPT_MSI - The address of MSI
     uintptr_t MsiValue;       // INTERRUPT_MSI - The value of MSI
 } DeviceInterrupt_t;
+
+typedef struct DeviceInterruptQuiesceRequest {
+    uuid_t      Token;
+    uuid_t      DeviceId;
+    uint16_t    Segment;
+    uint8_t     Bus;
+    uint8_t     Slot;
+    uint8_t     Function;
+    uint8_t     Reserved;
+} DeviceInterruptQuiesceRequest_t;
+
+typedef uuid_t DeviceInterruptSet_t;
+
+/**
+ * @brief Registers a group of interrupt sources and returns a handle that owns them.
+ * Registration is all-or-nothing. The resolved line and MSI message fields are
+ * copied back into each descriptor on success.
+ *
+ * @param interrupts The interrupt descriptors to register.
+ * @param count The number of descriptors to register, up to INTERRUPT_MAXVECTORS.
+ * @param flags The interrupt registration flags applied to every descriptor.
+ * @param setOut Receives the handle used to unregister the complete set.
+ * @return OS_EOK if every source was registered, or an error code if registration failed.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptSetRegister(
+    _In_   DeviceInterrupt_t*     interrupts,
+    _In_   uint32_t                count,
+    _In_   unsigned int            flags,
+    _Out_  DeviceInterruptSet_t*   setOut));
+
+/**
+ * @brief Unregisters every interrupt source owned by the set and waits for
+ * in-flight handlers to complete.
+ *
+ * @param interruptSet The set handle returned by DeviceInterruptSetRegister.
+ * @return OS_EOK if the set was destroyed, or an error code if the handle was invalid.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptSetDestroy(
+    _In_ DeviceInterruptSet_t interruptSet));
+
+/**
+ * @brief Registers deviced's event descriptor for kernel MSI-quiesce requests.
+ * This is a system-service interface; the first registering process owns the queue.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptQuiesceRegister(
+    _In_ int eventDescriptor));
+
+/**
+ * @brief Retrieves the next pending PCI device that must be quiesced before its
+ * quarantined MSI vectors can be reused.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptQuiesceNext(
+    _Out_ DeviceInterruptQuiesceRequest_t* requestOut));
+
+/**
+ * @brief Acknowledges a device after deviced has disabled its MSI state and bus mastering.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptQuiesceComplete(
+    _In_ uuid_t token));
 
 /**
  * @brief Initializes a new device interrupt instance based on the bus device descriptor.
@@ -144,28 +208,62 @@ DeviceInterruptInitialize(
     _In_ BusDevice_t*       device));
 
 /**
- * @brief Requests an allocation of interrupt vectors through the accepted
- * strategies. We support INTERRUPT_STRATEGY_* values to allocate interrupt
- * vectors. For MSI/X multiple vectors may be requested. For INTx only a single
- * vector can be requested, and requesting more will result in an error. If multiple
- * strategies are provided the order will be MSIX -> MSI -> INTx.
- * 
- * This should be called after Initialize() but before Enable() is invoked.
+ * @brief Allocates an interrupt set using the requested strategies.
+ * The vectors array must contain optimal initialized descriptors. MSI-X may
+ * allocate between min and optimal vectors. MSI and INTx currently allocate
+ * one vector. The driver remains responsible for programming the device.
  *
- * @param interrupt The interrupt descriptor to allocate vectors for.
+ * @param vectors Per-vector descriptors containing handlers and fast resources.
  * @param min The minimum number of vectors required.
  * @param optimal The optimal number of vectors desired.
- * @param strategy The allocation strategy to use (INTERRUPT_STRATEGY_*).
+ * @param strategy The accepted INTERRUPT_STRATEGY_* values.
+ * @param setOut Receives the kernel-owned set handle.
  * @param countOut Receives the number of vectors actually allocated.
+ * @param strategyOut Receives the selected INTERRUPT_STRATEGY_* value.
  * @return OS_EOK if the allocation succeeded, or an error code if it failed.
  */
 DDKDECL(oserr_t,
 DeviceInterruptAllocate(
-    _In_  DeviceInterrupt_t* interrupt,
-    _In_  uint32_t           min,
-    _In_  uint32_t           optimal,
-    _In_  uint32_t           strategy,
-    _Out_ uint32_t*          countOut));
+    _In_  DeviceInterrupt_t*    vectors,
+    _In_  uint32_t              min,
+    _In_  uint32_t              optimal,
+    _In_  uint32_t              strategy,
+    _Out_ DeviceInterruptSet_t* setOut,
+    _Out_ uint32_t*             countOut,
+    _Out_ uint32_t*             strategyOut));
+
+/**
+ * @brief Programs PCI MSI/MSI-X state from the messages returned by allocation.
+ * Call after allocation has installed handlers and before allowing device work.
+ * MSI currently supports one vector; MSI-X supports independent table entries.
+ * Keep the device quiesced between allocation and this call; unprogram before
+ * reconfiguration or destroying the interrupt set.
+ *
+ * @param device The PCI bus device whose interrupt state is programmed.
+ * @param vectors The allocated vector descriptors containing MSI messages.
+ * @param count The number of allocated vectors.
+ * @param strategy The strategy returned by DeviceInterruptAllocate.
+ * @return OS_EOK if the device was programmed, or an error code on failure.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptProgram(
+    _In_ BusDevice_t*       device,
+    _In_ DeviceInterrupt_t* vectors,
+    _In_ uint32_t           count,
+    _In_ uint32_t           strategy));
+
+/**
+ * @brief Masks device interrupt generation before destroying its interrupt set.
+ * This does not prove that the device is quiescent or make immediate vector
+ * reuse safe; the platform must provide that guarantee separately. Quiesce the
+ * device's own interrupt sources before calling this function.
+ *
+ * @param device The PCI bus device to quiesce at the interrupt source.
+ * @return OS_EOK if interrupt generation was disabled, or an error code.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptUnprogram(
+    _In_ BusDevice_t* device));
 
 /**
  * @brief Sets the CPU affinity for a specific interrupt vector. The index must be lower
@@ -179,7 +277,7 @@ DDKDECL(void,
 DeviceInterruptSetAffinity(
     _In_ DeviceInterrupt_t* interrupt,
     _In_ uint32_t           index,
-    _In_ uint32_t           affinityMask));
+    _In_ BitSet_t*          affinityMask));
 
 /**
  * @brief Registers a handler for the specific index. The index must be lower

@@ -35,6 +35,69 @@
 #include <memoryspace.h>
 #include <string.h>
 
+typedef struct __InterruptSet {
+    uuid_t   Owner;
+    uint32_t Count;
+    unsigned int Flags;
+    uuid_t   DeviceId;
+    uint16_t Segment;
+    uint8_t  Bus;
+    uint8_t  Slot;
+    uint8_t  Function;
+    uuid_t   Sources[INTERRUPT_MAXVECTORS];
+} __InterruptSet_t;
+
+static oserr_t
+__QueueInterruptSetQuiesce(
+    _In_ __InterruptSet_t* set,
+    _In_ const uuid_t*     sources,
+    _In_ uint32_t          count)
+{
+    DeviceInterruptQuiesceRequest_t request = { 0 };
+    uint16_t                       indices[INTERRUPT_MAXVECTORS];
+    uuid_t                         token;
+
+    if (!(set->Flags & INTERRUPT_MSI)) {
+        return OS_EOK;
+    }
+    if (count == 0) {
+        return OS_EOK;
+    }
+    request.DeviceId = set->DeviceId;
+    request.Segment = set->Segment;
+    request.Bus = set->Bus;
+    request.Slot = set->Slot;
+    request.Function = set->Function;
+    for (uint32_t i = 0; i < count; i++) {
+        indices[i] = LOWORD(sources[i]);
+    }
+    return InterruptMsiQuiesceEnqueue(
+        &request,
+        set->Owner,
+        indices,
+        count,
+        &token
+    );
+}
+
+static void
+__DestroyInterruptSet(
+    _In_ void* resource)
+{
+    __InterruptSet_t* set = (__InterruptSet_t*)resource;
+    uuid_t            sources[INTERRUPT_MAXVECTORS];
+    uint32_t          sourceCount = 0;
+
+    for (uint32_t i = 0; i < set->Count; i++) {
+        if (set->Sources[i] != UUID_INVALID) {
+            sources[sourceCount++] = set->Sources[i];
+            (void)InterruptUnregisterOwned(set->Sources[i], set->Owner);
+        }
+    }
+    (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+    kfree(set);
+}
+
 oserr_t
 ScFirmwareQuery(
         _Out_ OSFirmwareInfo_t* infoOut)
@@ -283,7 +346,7 @@ ScRegisterInterrupt(
     oserr_t           oserr;
 
     if (deviceInterrupt == NULL ||
-        (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
+        (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT | INTERRUPT_MSI))) {
         return UUID_INVALID;
     }
 
@@ -318,6 +381,205 @@ ScUnregisterInterrupt(
         _In_ uuid_t sourceId)
 {
     return InterruptUnregister(sourceId);
+}
+
+oserr_t
+ScRegisterInterruptSet(
+    _In_  DeviceInterrupt_t* interrupts,
+    _In_  uint32_t           count,
+    _In_  unsigned int       flags,
+    _Out_ uuid_t*             setOut)
+{
+    DeviceInterrupt_t* descriptors;
+    __InterruptSet_t*  set;
+    uuid_t             setId;
+    oserr_t            oserr;
+
+    if (interrupts == NULL || setOut == NULL || count == 0 || count > INTERRUPT_MAXVECTORS ||
+        (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
+        return OS_EINVALPARAMS;
+    }
+
+    descriptors = (DeviceInterrupt_t*)kmalloc(sizeof(DeviceInterrupt_t) * count);
+    set = (__InterruptSet_t*)kmalloc(sizeof(__InterruptSet_t));
+    if (descriptors == NULL || set == NULL) {
+        if (descriptors != NULL) {
+            kfree(descriptors);
+        }
+        if (set != NULL) {
+            kfree(set);
+        }
+        return OS_EOOM;
+    }
+
+    oserr = MemorySpaceCopyUser(
+        interrupts,
+        descriptors,
+        sizeof(DeviceInterrupt_t) * count,
+        false
+    );
+    if (oserr != OS_EOK) {
+        kfree(descriptors);
+        kfree(set);
+        return oserr;
+    }
+
+    if (flags & INTERRUPT_MSI) {
+        DeviceInterrupt_t* first = &descriptors[0];
+        if (!first->IsPci || first->DeviceId == UUID_INVALID ||
+            first->Slot > 31 || first->Function > 7 || first->Segment > UINT16_MAX ||
+            first->Bus > UINT8_MAX) {
+            kfree(descriptors);
+            kfree(set);
+            return OS_EINVALPARAMS;
+        }
+        for (uint32_t i = 1; i < count; i++) {
+            if (!descriptors[i].IsPci || descriptors[i].DeviceId != first->DeviceId ||
+                descriptors[i].Segment != first->Segment || descriptors[i].Bus != first->Bus ||
+                descriptors[i].Slot != first->Slot || descriptors[i].Function != first->Function) {
+                kfree(descriptors);
+                kfree(set);
+                return OS_EINVALPARAMS;
+            }
+        }
+    }
+
+    memset(set, 0, sizeof(__InterruptSet_t));
+    set->Owner = GetCurrentMemorySpaceHandle();
+    set->Flags = flags;
+    if (flags & INTERRUPT_MSI) {
+        set->DeviceId = descriptors[0].DeviceId;
+        set->Segment = (uint16_t)descriptors[0].Segment;
+        set->Bus = (uint8_t)descriptors[0].Bus;
+        set->Slot = (uint8_t)descriptors[0].Slot;
+        set->Function = (uint8_t)descriptors[0].Function;
+    }
+    for (uint32_t i = 0; i < count; i++) {
+        set->Sources[i] = UUID_INVALID;
+    }
+
+    for (uint32_t i = 0; i < count; i++) {
+        set->Sources[i] = InterruptRegister(&descriptors[i], flags);
+        if (set->Sources[i] == UUID_INVALID) {
+            oserr = OS_EUNKNOWN;
+            goto cleanup;
+        }
+        set->Count++;
+    }
+
+    for (uint32_t i = 0; i < count; i++) {
+        oserr = __CopyInterruptResults(&interrupts[i], &descriptors[i]);
+        if (oserr != OS_EOK) {
+            goto cleanup;
+        }
+    }
+
+    setId = CreateHandle(HandleTypeInterruptSet, __DestroyInterruptSet, set);
+    if (setId == UUID_INVALID) {
+        oserr = OS_EOOM;
+        goto cleanup;
+    }
+
+    oserr = MemorySpaceCopyUser(setOut, &setId, sizeof(setId), true);
+    if (oserr != OS_EOK) {
+        uuid_t sources[INTERRUPT_MAXVECTORS];
+        uint32_t sourceCount = set->Count;
+        for (uint32_t i = 0; i < set->Count; i++) {
+            sources[i] = set->Sources[i];
+            (void)InterruptUnregisterOwned(set->Sources[i], set->Owner);
+            set->Sources[i] = UUID_INVALID;
+        }
+        (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+        set->Count = 0;
+        (void)DestroyHandle(setId);
+    }
+    kfree(descriptors);
+    return oserr;
+
+cleanup:
+    {
+        uuid_t sources[INTERRUPT_MAXVECTORS];
+        uint32_t sourceCount = set->Count;
+    for (uint32_t i = 0; i < set->Count; i++) {
+        sources[i] = set->Sources[i];
+        (void)InterruptUnregisterOwned(set->Sources[i], set->Owner);
+    }
+        (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+    }
+    kfree(descriptors);
+    kfree(set);
+    return oserr;
+}
+
+oserr_t
+ScDestroyInterruptSet(
+    _In_ uuid_t setId)
+{
+    __InterruptSet_t* set;
+    uuid_t            sources[INTERRUPT_MAXVECTORS];
+    uint32_t          sourceCount;
+    oserr_t            oserr;
+
+    oserr = AcquireHandleOfType(setId, HandleTypeInterruptSet, (void**)&set);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    if (set->Owner != GetCurrentMemorySpaceHandle()) {
+        (void)DestroyHandle(setId);
+        return OS_EPERMISSIONS;
+    }
+
+    sourceCount = 0;
+    for (uint32_t i = 0; i < set->Count; i++) {
+        if (set->Sources[i] == UUID_INVALID) {
+            continue;
+        }
+        oserr = InterruptUnregisterOwned(set->Sources[i], set->Owner);
+        if (oserr != OS_EOK) {
+            (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+            (void)DestroyHandle(setId);
+            return oserr;
+        }
+        sources[sourceCount++] = set->Sources[i];
+        set->Sources[i] = UUID_INVALID;
+    }
+
+    oserr = __QueueInterruptSetQuiesce(set, sources, sourceCount);
+    set->Count = 0;
+    (void)DestroyHandle(setId);
+    (void)DestroyHandle(setId);
+    return oserr;
+}
+
+oserr_t
+ScRegisterInterruptQuiesceEvent(
+    _In_ uuid_t eventHandle)
+{
+    return InterruptMsiQuiesceRegister(GetCurrentMemorySpaceHandle(), eventHandle);
+}
+
+oserr_t
+ScGetInterruptQuiesceRequest(
+    _Out_ DeviceInterruptQuiesceRequest_t* requestOut)
+{
+    DeviceInterruptQuiesceRequest_t request;
+    oserr_t oserr;
+
+    if (requestOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    oserr = InterruptMsiQuiesceNext(GetCurrentMemorySpaceHandle(), &request);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return MemorySpaceCopyUser(requestOut, &request, sizeof(request), true);
+}
+
+oserr_t
+ScCompleteInterruptQuiesce(
+    _In_ uuid_t token)
+{
+    return InterruptMsiQuiesceFinish(GetCurrentMemorySpaceHandle(), token);
 }
 
 oserr_t

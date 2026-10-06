@@ -26,6 +26,7 @@
 #include <ddk/firmware.h>
 #include <ddk/video.h>
 #include <ddk/io.h>
+#include <ddk/interrupt.h>
 #include <debug.h>
 #include <handle_set.h>
 #include <ipc_context.h>
@@ -68,6 +69,11 @@ extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
 extern uuid_t  ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
 extern oserr_t ScUnregisterInterrupt(uuid_t sourceId);
+extern oserr_t ScRegisterInterruptSet(DeviceInterrupt_t* interrupts, uint32_t count, unsigned int flags, uuid_t* setOut);
+extern oserr_t ScDestroyInterruptSet(uuid_t setId);
+extern oserr_t ScRegisterInterruptQuiesceEvent(uuid_t eventHandle);
+extern oserr_t ScGetInterruptQuiesceRequest(DeviceInterruptQuiesceRequest_t* requestOut);
+extern oserr_t ScCompleteInterruptQuiesce(uuid_t token);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
 extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
@@ -131,7 +137,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 63
+#define SYSTEM_CALL_COUNT 68
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -233,7 +239,12 @@ static struct SystemCallDescriptor {
         DefineSyscall(59, ScSystemClockFrequency),
         DefineSyscall(60, ScSystemTime),
         DefineSyscall(61, ScTimeSleep),
-        DefineSyscall(62, ScTimeStall)
+        DefineSyscall(62, ScTimeStall),
+        DefineSyscall(63, ScRegisterInterruptSet),
+        DefineSyscall(64, ScDestroyInterruptSet),
+        DefineSyscall(65, ScRegisterInterruptQuiesceEvent),
+        DefineSyscall(66, ScGetInterruptQuiesceRequest),
+        DefineSyscall(67, ScCompleteInterruptQuiesce)
 };
 
 Context_t*

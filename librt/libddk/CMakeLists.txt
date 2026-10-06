@@ -61,6 +61,7 @@ add_library(libddk
         deviceio.c
         firmware.c
         interrupt.c
+        pci_interrupt.c
         io.c
         mappings.c
         service.c

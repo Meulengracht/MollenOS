@@ -199,6 +199,43 @@ NextPowerOfTwo(size_t value)
     return next;
 }
 
+typedef struct BitSet {
+    uint8_t* Bits;
+    size_t   Size;
+} BitSet_t;
+
+// bits is the storage
+// size is the number of bits in the bitset
+static inline void
+BitSetInitialize(
+    BitSet_t* set,
+    uint8_t*  bits,
+    size_t    size)
+{
+    set->Bits = bits;
+    set->Size = size;
+}
+
+static inline void
+BitSetMask(
+    BitSet_t* set,
+    int       bit)
+{
+    if ((bit / 8) < set->Size) {
+        set->Bits[bit / 8] |= ((size_t)1 << (bit % 8));
+    }
+}
+
+static inline void
+BitSetUnmask(
+    BitSet_t* set,
+    int       bit)
+{
+    if ((bit / 8) < set->Size) {
+        set->Bits[bit / 8] &= ~((size_t)1 << (bit % 8));
+    }
+}
+
 #ifndef _MAXPATH
 #define _MAXPATH 512
 #endif //!_MAXPATH

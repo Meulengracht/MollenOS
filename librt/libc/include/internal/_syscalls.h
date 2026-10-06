@@ -42,6 +42,11 @@ _CODE_END
 #define Syscall_InterruptAdd(Descriptor, Flags)                                       (uuid_t)syscall2(16, SCPARAM(Descriptor), SCPARAM(Flags))
 #define Syscall_InterruptRemove(InterruptId)                                          (oserr_t)syscall1(17, SCPARAM(InterruptId))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                 (oserr_t)syscall1(18, SCPARAM(BaseAddressOut))
+#define Syscall_InterruptSetAdd(Descriptors, Count, Flags, SetOut)                    (oserr_t)syscall4(63, SCPARAM(Descriptors), SCPARAM(Count), SCPARAM(Flags), SCPARAM(SetOut))
+#define Syscall_InterruptSetRemove(Set)                                               (oserr_t)syscall1(64, SCPARAM(Set))
+#define Syscall_InterruptQuiesceRegister(Event)                                       (oserr_t)syscall1(65, SCPARAM(Event))
+#define Syscall_InterruptQuiesceNext(RequestOut)                                      (oserr_t)syscall1(66, SCPARAM(RequestOut))
+#define Syscall_InterruptQuiesceComplete(Token)                                       (oserr_t)syscall1(67, SCPARAM(Token))
 
 #define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, TopOfStack, PointerOut) (oserr_t)syscall4(19, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(TopOfStack), SCPARAM(PointerOut))
 

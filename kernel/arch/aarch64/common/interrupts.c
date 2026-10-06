@@ -214,7 +214,7 @@ InterruptConfigure(
     _In_ SystemInterrupt_t* interrupt,
     _In_ int                enable)
 {
-    unsigned int line = interrupt->Line;
+    unsigned int line = interrupt->ParentLine;
     unsigned int shift;
     unsigned int offset;
     uint32_t     configuration;

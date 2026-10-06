@@ -40,6 +40,7 @@ add_service_target(deviced ""
         core/match.c
         core/initrd.c
         core/devices.c
+        core/quiesce.c
         core/requests.c
 
         firmware/fdt.c

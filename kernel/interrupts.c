@@ -35,10 +35,12 @@
 #include <deviceio.h>
 #include <debug.h>
 #include <heap.h>
+#include <handle.h>
 #include <memoryspace.h>
 #include <spinlock.h>
 #include <interrupts.h>
 #include <threading.h>
+#include <userevent.h>
 #include <string.h>
 
 static oserr_t
@@ -49,7 +51,16 @@ typedef struct InterruptTableEntry {
     _Atomic(SystemInterrupt_t*) Descriptor;
     int                         Penalty;
     int                         Sharable;
+    int                         MsiQuarantined;
 } InterruptTableEntry_t;
+
+typedef struct __InterruptMsiQuiesceEntry {
+    struct __InterruptMsiQuiesceEntry* Next;
+    DeviceInterruptQuiesceRequest_t   Request;
+    uuid_t                             Owner;
+    uint32_t                           Count;
+    uint16_t                           Indices[INTERRUPT_MAXVECTORS];
+} __InterruptMsiQuiesceEntry_t;
 
 static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
 static Spinlock_t            g_interruptTableLock                       = OS_SPINLOCK_INIT;
@@ -62,6 +73,11 @@ static _Atomic(uuid_t)       g_nextInterruptId                          = 0;
  */
 static _Atomic(unsigned int) g_interruptReaders = 0;
 static SystemInterrupt_t*    g_retiredInterrupts;
+static Spinlock_t            g_msiQuiesceLock   = OS_SPINLOCK_INIT;
+static __InterruptMsiQuiesceEntry_t* g_msiQuiesceHead;
+static uuid_t                 g_msiQuiesceOwner = UUID_INVALID;
+static uuid_t                 g_msiQuiesceEvent = UUID_INVALID;
+static _Atomic(uuid_t)        g_nextMsiQuiesceToken = 1;
 
 static void
 InterruptReadEnter(void)
@@ -88,12 +104,16 @@ static void
 InterruptReleasePenaltyLocked(
         _In_ SystemInterrupt_t* Entry)
 {
-    InterruptTableEntry_t* tableEntry = &g_interruptTable[LOWORD(Entry->Id)];
+    InterruptTableEntry_t* tableEntry = &g_interruptTable[Entry->Index];
 
     if (!Entry->HasPenalty) {
         return;
     }
     Entry->HasPenalty = 0;
+    if (Entry->QuarantineMsi) {
+        tableEntry->MsiQuarantined = 1;
+        return;
+    }
     if (tableEntry->Penalty > 0) {
         tableEntry->Penalty--;
     }
@@ -481,6 +501,12 @@ InterruptRegister(
         return UUID_INVALID;
     }
 
+    // MSI routes occupy a controller vector exclusively, regardless of the
+    // sharing flags supplied by the caller.
+    if (flags & INTERRUPT_MSI) {
+        flags |= INTERRUPT_EXCLUSIVE;
+    }
+
     // Reclaim entries retired by an earlier interrupt-context unregister.
     InterruptReclaimRetired();
 
@@ -501,7 +527,6 @@ InterruptRegister(
     systemInterrupt->Owner        = UUID_INVALID;
     systemInterrupt->Thread       = ThreadCurrentHandle();
     systemInterrupt->Flags        = flags;
-    systemInterrupt->Line         = deviceInterrupt->Line;
     systemInterrupt->Pin          = deviceInterrupt->Pin;
     systemInterrupt->AcpiConform  = deviceInterrupt->AcpiConform;
 
@@ -518,7 +543,10 @@ InterruptRegister(
     }
 
     // Update remaining members now that we resolved
-    systemInterrupt->Source                         = deviceInterrupt->Line; // clear Source for software interrupts?
+        systemInterrupt->Index                          = (uint16_t)tableIndex;
+        systemInterrupt->ParentLine                     = (flags & (INTERRUPT_SOFT | INTERRUPT_MSI))
+            ? INTERRUPT_NONE : deviceInterrupt->Line;
+        systemInterrupt->DeviceId                       = deviceInterrupt->DeviceId;
     systemInterrupt->Id                            |= tableIndex;
     systemInterrupt->Handler                        = deviceInterrupt->ResourceTable.Handler;
     systemInterrupt->Context                        = deviceInterrupt->Context;
@@ -526,7 +554,7 @@ InterruptRegister(
 
     // Trace
     TRACE("Updated line %i:%i for index 0x%" PRIxIN,
-          deviceInterrupt->Line, deviceInterrupt->Pin, tableIndex);
+            systemInterrupt->ParentLine, deviceInterrupt->Pin, tableIndex);
 
     // If it's an user interrupt, resolve resources
     if (systemInterrupt->Owner != UUID_INVALID) {
@@ -542,7 +570,8 @@ InterruptRegister(
 
     // Check sharing while holding the same lock used to publish the entry.
     if (flags & INTERRUPT_EXCLUSIVE) {
-        if (atomic_load(&g_interruptTable[tableIndex].Descriptor) != NULL) {
+        if (atomic_load(&g_interruptTable[tableIndex].Descriptor) != NULL ||
+            g_interruptTable[tableIndex].Penalty > 0) {
             ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", tableIndex);
             SpinlockReleaseIrq(&g_interruptTableLock);
             if (systemInterrupt->Owner != UUID_INVALID) {
@@ -575,7 +604,7 @@ InterruptRegister(
 
     // Enable the new interrupt
     if (InterruptConfigure(systemInterrupt, 1) != OS_EOK) {
-        ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
+        ERROR("Failed to enable parent line %" PRIiIN "", systemInterrupt->ParentLine);
         atomic_store(&g_interruptTable[tableIndex].Descriptor,
                      atomic_load(&systemInterrupt->Link));
         InterruptRetire(systemInterrupt);
@@ -583,6 +612,7 @@ InterruptRegister(
         InterruptReclaimRetired();
         return UUID_INVALID;
     }
+    systemInterrupt->QuarantineMsi = (flags & INTERRUPT_MSI) != 0;
     SpinlockReleaseIrq(&g_interruptTableLock);
     
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
@@ -590,9 +620,11 @@ InterruptRegister(
     return systemInterrupt->Id;
 }
 
-oserr_t
-InterruptUnregister(
-        _In_ uuid_t Source)
+static oserr_t
+__InterruptUnregister(
+    _In_ uuid_t Source,
+    _In_ uuid_t Owner,
+    _In_ int    CheckOwner)
 {
     SystemInterrupt_t* Entry;
     SystemInterrupt_t* Previous   = NULL;
@@ -610,7 +642,8 @@ InterruptUnregister(
     while (Entry) {
         if (Entry->Id == Source) {
             if (!(Entry->Flags & INTERRUPT_KERNEL)) {
-                if (Entry->Owner != GetCurrentMemorySpaceHandle()) {
+                if ((CheckOwner && Entry->Owner != Owner) ||
+                    (!CheckOwner && Entry->Owner != GetCurrentMemorySpaceHandle())) {
                     Previous = Entry;
                     Entry    = atomic_load(&Entry->Link);
                     continue;
@@ -655,6 +688,223 @@ InterruptUnregister(
         }
         InterruptReclaimRetired();
     }
+    return OS_EOK;
+}
+
+oserr_t
+InterruptUnregister(
+    _In_ uuid_t Source)
+{
+    return __InterruptUnregister(Source, UUID_INVALID, 0);
+}
+
+oserr_t
+InterruptUnregisterOwned(
+    _In_ uuid_t Source,
+    _In_ uuid_t Owner)
+{
+    if (Owner == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+    return __InterruptUnregister(Source, Owner, 1);
+}
+
+oserr_t
+InterruptMsiQuiesceRegister(
+    _In_ uuid_t Owner,
+    _In_ uuid_t EventHandle)
+{
+    void*  eventResource;
+    int    signalEvent = 0;
+    oserr_t oserr;
+
+    if (Owner == UUID_INVALID || EventHandle == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+    oserr = AcquireHandleOfType(EventHandle, HandleTypeUserEvent, &eventResource);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    SpinlockAcquireIrq(&g_msiQuiesceLock);
+    if (g_msiQuiesceOwner != UUID_INVALID &&
+        (g_msiQuiesceOwner != Owner || g_msiQuiesceEvent != EventHandle)) {
+        SpinlockReleaseIrq(&g_msiQuiesceLock);
+        (void)DestroyHandle(EventHandle);
+        return OS_EPERMISSIONS;
+    }
+    if (g_msiQuiesceOwner == UUID_INVALID) {
+        g_msiQuiesceOwner = Owner;
+        g_msiQuiesceEvent = EventHandle;
+    } else {
+        (void)DestroyHandle(EventHandle);
+    }
+    signalEvent = g_msiQuiesceHead != NULL;
+    SpinlockReleaseIrq(&g_msiQuiesceLock);
+
+    if (signalEvent) {
+        (void)UserEventSignal(EventHandle);
+    }
+    return OS_EOK;
+}
+
+void
+InterruptMsiQuiesceOwnerExit(
+    _In_ uuid_t Owner)
+{
+    uuid_t eventHandle = UUID_INVALID;
+
+    SpinlockAcquireIrq(&g_msiQuiesceLock);
+    if (Owner == g_msiQuiesceOwner) {
+        eventHandle = g_msiQuiesceEvent;
+        g_msiQuiesceOwner = UUID_INVALID;
+        g_msiQuiesceEvent = UUID_INVALID;
+    }
+    SpinlockReleaseIrq(&g_msiQuiesceLock);
+
+    if (eventHandle != UUID_INVALID) {
+        (void)DestroyHandle(eventHandle);
+    }
+}
+
+oserr_t
+InterruptMsiQuiesceEnqueue(
+    _In_ const DeviceInterruptQuiesceRequest_t* Request,
+    _In_ uuid_t                                  Owner,
+    _In_ const uint16_t*                         Indices,
+    _In_ uint32_t                                Count,
+    _Out_ uuid_t*                                TokenOut)
+{
+    __InterruptMsiQuiesceEntry_t* entry;
+    __InterruptMsiQuiesceEntry_t* iterator;
+    uuid_t                       eventHandle;
+    uuid_t                       token;
+
+    if (Request == NULL || Indices == NULL || TokenOut == NULL ||
+        Owner == UUID_INVALID || Request->DeviceId == UUID_INVALID ||
+        Count == 0 || Count > INTERRUPT_MAXVECTORS) {
+        return OS_EINVALPARAMS;
+    }
+
+    entry = (__InterruptMsiQuiesceEntry_t*)kmalloc(sizeof(*entry));
+    if (entry == NULL) {
+        return OS_EOOM;
+    }
+    memset(entry, 0, sizeof(*entry));
+    entry->Request = *Request;
+    entry->Request.Token = atomic_fetch_add(&g_nextMsiQuiesceToken, 1);
+    token = entry->Request.Token;
+    entry->Owner = Owner;
+    entry->Count = Count;
+    for (uint32_t i = 0; i < Count; i++) {
+        if (Indices[i] >= MAX_SUPPORTED_INTERRUPTS) {
+            kfree(entry);
+            return OS_EINVALPARAMS;
+        }
+        entry->Indices[i] = Indices[i];
+    }
+
+    SpinlockAcquireIrq(&g_msiQuiesceLock);
+    if (g_msiQuiesceHead == NULL) {
+        g_msiQuiesceHead = entry;
+    } else {
+        iterator = g_msiQuiesceHead;
+        while (iterator->Next != NULL) {
+            iterator = iterator->Next;
+        }
+        iterator->Next = entry;
+    }
+    eventHandle = g_msiQuiesceEvent;
+    *TokenOut = token;
+    SpinlockReleaseIrq(&g_msiQuiesceLock);
+
+    if (eventHandle != UUID_INVALID) {
+        (void)UserEventSignal(eventHandle);
+    }
+    return OS_EOK;
+}
+
+oserr_t
+InterruptMsiQuiesceNext(
+    _In_  uuid_t                           Owner,
+    _Out_ DeviceInterruptQuiesceRequest_t* RequestOut)
+{
+    if (RequestOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    SpinlockAcquireIrq(&g_msiQuiesceLock);
+    if (Owner != g_msiQuiesceOwner) {
+        SpinlockReleaseIrq(&g_msiQuiesceLock);
+        return OS_EPERMISSIONS;
+    }
+    if (g_msiQuiesceHead == NULL) {
+        SpinlockReleaseIrq(&g_msiQuiesceLock);
+        return OS_ENOENT;
+    }
+    *RequestOut = g_msiQuiesceHead->Request;
+    SpinlockReleaseIrq(&g_msiQuiesceLock);
+    return OS_EOK;
+}
+
+oserr_t
+InterruptMsiQuiesceFinish(
+    _In_ uuid_t Owner,
+    _In_ uuid_t Token)
+{
+    __InterruptMsiQuiesceEntry_t* entry;
+    __InterruptMsiQuiesceEntry_t* previous = NULL;
+
+    SpinlockAcquireIrq(&g_msiQuiesceLock);
+    if (Owner != g_msiQuiesceOwner) {
+        SpinlockReleaseIrq(&g_msiQuiesceLock);
+        return OS_EPERMISSIONS;
+    }
+    entry = g_msiQuiesceHead;
+    while (entry != NULL && entry->Request.Token != Token) {
+        previous = entry;
+        entry = entry->Next;
+    }
+    if (entry == NULL) {
+        SpinlockReleaseIrq(&g_msiQuiesceLock);
+        return OS_ENOENT;
+    }
+
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    for (uint32_t i = 0; i < entry->Count; i++) {
+        InterruptTableEntry_t* tableEntry = &g_interruptTable[entry->Indices[i]];
+        if (!tableEntry->MsiQuarantined ||
+            atomic_load(&tableEntry->Descriptor) != NULL ||
+            tableEntry->Penalty == 0) {
+            SpinlockReleaseIrq(&g_interruptTableLock);
+            SpinlockReleaseIrq(&g_msiQuiesceLock);
+            return OS_EBUSY;
+        }
+        for (uint32_t j = i + 1; j < entry->Count; j++) {
+            if (entry->Indices[i] == entry->Indices[j]) {
+                SpinlockReleaseIrq(&g_interruptTableLock);
+                SpinlockReleaseIrq(&g_msiQuiesceLock);
+                return OS_EINVALPARAMS;
+            }
+        }
+    }
+    for (uint32_t i = 0; i < entry->Count; i++) {
+        InterruptTableEntry_t* tableEntry = &g_interruptTable[entry->Indices[i]];
+        tableEntry->MsiQuarantined = 0;
+        tableEntry->Penalty--;
+        if (tableEntry->Penalty == 0) {
+            tableEntry->Sharable = 0;
+        }
+    }
+    SpinlockReleaseIrq(&g_interruptTableLock);
+
+    if (previous == NULL) {
+        g_msiQuiesceHead = entry->Next;
+    } else {
+        previous->Next = entry->Next;
+    }
+    SpinlockReleaseIrq(&g_msiQuiesceLock);
+    kfree(entry);
     return OS_EOK;
 }
 
@@ -742,7 +992,7 @@ InterruptHandle(
         }
 
         if (interruptStatus == IRQSTATUS_HANDLED) {
-            interruptSource = entry->Source;
+            interruptSource = entry->ParentLine;
             break;
         }
         entry = atomic_load(&entry->Link);

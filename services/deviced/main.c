@@ -33,6 +33,8 @@
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
 
+#include "core/quiesce.h"
+
 void ServiceInitialize(
         _In_ struct ServiceStartupOptions* startupOptions)
 {
@@ -45,5 +47,8 @@ void ServiceInitialize(
     // Initialize the subsystems
     DmDevicesInitialize();
     DmDiscoverInitialize();
+    if (DmInterruptQuiesceInitialize() != OS_EOK) {
+        exit(-1);
+    }
     BusEnumerate();
 }

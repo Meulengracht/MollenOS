@@ -38,11 +38,13 @@ typedef struct SystemInterrupt {
     InterruptResourceTable_t KernelResources;
     InterruptHandler_t       Handler;
     void*                    Context;
+    uuid_t                   DeviceId;
     unsigned int             Flags;
     unsigned int             AcpiConform;
-    int                      Line;
+    uint16_t                 Index;      // Interrupt-table slot encoded in Id
+    int                      ParentLine; // Hardware line; INTERRUPT_NONE for direct MSI
     int                      Pin;
-    int                      Source;
+    int                      QuarantineMsi;
     // References acquired by InterruptGet() keep retired descriptors alive.
     _Atomic(unsigned int)    References;
     // Link is read by the interrupt path without taking the table lock. It
@@ -79,6 +81,38 @@ InterruptRegister(
 KERNELAPI oserr_t KERNELABI
 InterruptUnregister(
         _In_ uuid_t Source);
+
+KERNELAPI oserr_t KERNELABI
+InterruptUnregisterOwned(
+    _In_ uuid_t Source,
+    _In_ uuid_t Owner);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiQuiesceRegister(
+    _In_ uuid_t Owner,
+    _In_ uuid_t EventHandle);
+
+KERNELAPI void KERNELABI
+InterruptMsiQuiesceOwnerExit(
+    _In_ uuid_t Owner);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiQuiesceEnqueue(
+    _In_ const DeviceInterruptQuiesceRequest_t* Request,
+    _In_ uuid_t                                  Owner,
+    _In_ const uint16_t*                         Indices,
+    _In_ uint32_t                                Count,
+    _Out_ uuid_t*                                TokenOut);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiQuiesceNext(
+    _In_  uuid_t                              Owner,
+    _Out_ DeviceInterruptQuiesceRequest_t*    RequestOut);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiQuiesceFinish(
+    _In_ uuid_t Owner,
+    _In_ uuid_t Token);
 
 /* InterruptGet
  * Retrieves the given interrupt source information as a referenced
