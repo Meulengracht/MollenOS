@@ -35,7 +35,6 @@
  *   # The list of services that should be running before starting this service.
  *   services:
  *     - filed # Require filed to be running as we need FS access
- *     - sessiond # Require sessiond to be running for user functionality
  *   paths:
  *   devices:
  */
