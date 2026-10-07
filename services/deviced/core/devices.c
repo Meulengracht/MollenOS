@@ -45,12 +45,16 @@ struct DmDeviceProtocol {
 };
 
 struct DMDevice {
-    element_t header;
-    uuid_t    driver_id;
-    bool      has_driver;
-    unsigned int flags;
-    Device_t* device;
-    list_t    protocols;   // list<struct DmDeviceProtocol>
+    element_t                    header;
+    uuid_t                       driver_id;
+    bool                         has_driver;
+    unsigned int                 flags;
+    Device_t*                    device;
+    list_t                       Protocols;   // list<struct DmDeviceProtocol>
+    enum DmDeviceDescriptionKind Kind;
+    struct DmDeviceProvider      Provider;
+    unsigned int                 ActiveRequests;
+    int                          Removing;
 };
 
 static struct usched_mtx g_devicesLock;
@@ -94,7 +98,7 @@ DmDevicesRegister(
     usched_mtx_lock(&g_devicesLock);
 
     device = __GetDeviceUnsafe(deviceId);
-    if (device == NULL || !(device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
+    if (device == NULL || device->Removing || !(device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
@@ -142,9 +146,15 @@ void DmHandleGetDevicesByProtocol(
     usched_mtx_lock(&g_devicesLock);
     foreach(node, &g_devices) {
         struct DMDevice* device = node->value;
-        foreach(protoNode, &device->protocols) {
+        
+        if (device->Removing) {
+            continue;
+        }
+        
+        foreach(protoNode, &device->Protocols) {
             struct DmDeviceProtocol* protocol = protoNode->value;
             uint8_t                  id = (uint8_t)(uintptr_t)protocol->header.key;
+            
             if (id == protocolID) {
                 sys_device_event_protocol_device_single(
                     __crt_get_service_server(),
@@ -156,81 +166,118 @@ void DmHandleGetDevicesByProtocol(
             }
         }
     }
+
     usched_mtx_unlock(&g_devicesLock);
 }
 
-oserr_t
-DmHandleIoctl(
-    _In_ uuid_t              deviceID,
-    _In_ enum OSIOCtlRequest request,
-    _In_ void*               buffer,
-    _In_ size_t              length)
+static oserr_t
+__AcquireDeviceRequest(
+    _In_  uuid_t            deviceId,
+    _Out_ struct DMDevice** deviceOut)
 {
     struct DMDevice* device;
-    BusDevice_t bus;
-    uuid_t driverId;
-    int isBus;
 
     usched_mtx_lock(&g_devicesLock);
     
-    device = __GetDeviceUnsafe(deviceID);
+    device = __GetDeviceUnsafe(deviceId);
     if (device == NULL) {
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
     
-    driverId = device->driver_id;
-    isBus = device->device->Length == sizeof(BusDevice_t);
-    if (isBus) {
-        bus = *(BusDevice_t*)device->device;
+    if (device->Removing) {
+        usched_mtx_unlock(&g_devicesLock);
+        return OS_EBUSY;
     }
     
+    device->ActiveRequests++;
+    
+    *deviceOut = device;
     usched_mtx_unlock(&g_devicesLock);
-    
-    if (request == OSIOCTLREQUEST_BUS_CONTROL) {
-        if (length < sizeof(struct OSIOCtlBusControl)) {
-            return OS_EINVALPARAMS;
-        }
-        return isBus ? DMBusControl(&bus, buffer) : OS_ENOTSUPPORTED;
+    return OS_EOK;
+}
+
+static void
+__ReleaseDeviceRequest(
+    _In_ struct DMDevice* device)
+{
+    usched_mtx_lock(&g_devicesLock);
+    device->ActiveRequests--;
+    usched_mtx_unlock(&g_devicesLock);
+}
+
+oserr_t
+DmHandleIoctl(
+    _In_ uuid_t              deviceId,
+    _In_ enum OSIOCtlRequest request,
+    _In_ void*               buffer,
+    _In_ size_t              length)
+{
+    struct DMDevice*                         device;
+    const struct DmDeviceProviderOperations* operations;
+    uuid_t                                   driverId;
+    oserr_t                                  status;
+
+    status = __AcquireDeviceRequest(deviceId, &device);
+    if (status != OS_EOK) {
+        return status;
     }
-    
-    if (request == OSIOCTLREQUEST_IO_REQUIREMENTS && driverId != UUID_INVALID) {
-        return OSDeviceIOCtl2(deviceID, driverId, request, buffer, length);
+    operations = device->Provider.Operations;
+
+    // Driver selection may change independently of an active request.
+    usched_mtx_lock(&g_devicesLock);
+    driverId = device->driver_id;
+    usched_mtx_unlock(&g_devicesLock);
+
+    if (request == OSIOCTLREQUEST_BUS_CONTROL &&
+        (buffer == NULL || length < sizeof(struct OSIOCtlBusControl))) {
+        status = OS_EINVALPARAMS;
+    } else if (request == OSIOCTLREQUEST_IO_REQUIREMENTS && driverId != UUID_INVALID) {
+        status = OSDeviceIOCtl2(deviceId, driverId, request, buffer, length);
+    } else if (operations != NULL && operations->Control != NULL) {
+        status = operations->Control(device->Provider.Context, request, buffer, length);
+    } else {
+        status = OS_ENOTSUPPORTED;
     }
-    return OS_ENOTSUPPORTED;
+
+    __ReleaseDeviceRequest(device);
+    return status;
 }
 
 oserr_t
 DmHandleIoctl2(
-    _In_  uuid_t       deviceID,
+    _In_  uuid_t       deviceId,
     _In_  int          direction,
     _In_  unsigned int command,
     _In_  size_t       value,
     _In_  unsigned int width,
     _Out_ size_t*      valueOut)
 {
-    struct DMDevice* device;
-    BusDevice_t      bus;
+    struct DMDevice*                         device;
+    const struct DmDeviceProviderOperations* operations;
+    oserr_t                                  status;
 
-    usched_mtx_lock(&g_devicesLock);
-    
-    device = __GetDeviceUnsafe(deviceID);
-    if (device == NULL || device->device->Length != sizeof(BusDevice_t)) {
-        usched_mtx_unlock(&g_devicesLock);
-        return OS_ENOTSUPPORTED;
+    *valueOut = value;
+    status = __AcquireDeviceRequest(deviceId, &device);
+    if (status != OS_EOK) {
+        return status;
     }
     
-    bus = *(BusDevice_t*)device->device;
-    usched_mtx_unlock(&g_devicesLock);
-    
-    *valueOut = value;
-    return DmIoctlDeviceEx(
-        &bus,
-        direction,
-        command,
-        valueOut,
-        width
-    );
+    operations = device->Provider.Operations;
+    if (operations == NULL || operations->AccessRegister == NULL) {
+        status = OS_ENOTSUPPORTED;
+    } else {
+        status = operations->AccessRegister(
+            device->Provider.Context,
+            direction,
+            command,
+            valueOut,
+            width
+        );
+    }
+
+    __ReleaseDeviceRequest(device);
+    return status;
 }
 
 static oserr_t
@@ -274,8 +321,9 @@ void DmHandleRegisterProtocol(
     oserr_t          oserr;
 
     usched_mtx_lock(&g_devicesLock);
+    
     device = __GetDeviceUnsafe(deviceID);
-    if (device == NULL || device->driver_id == UUID_INVALID) {
+    if (device == NULL || device->Removing || device->driver_id == UUID_INVALID) {
         usched_mtx_unlock(&g_devicesLock);
         return;
     }
@@ -298,15 +346,15 @@ static void
 __TryLocateDriver(
     _In_ uuid_t deviceId)
 {
-    struct DMDevice* device;
+    struct DMDevice*            device;
     struct DriverIdentification identification = { 0 };
-    PlatformDevice_t* platform;
-    char compatibles[PLATFORM_DEVICE_MAX_COMPATIBLES];
-    oserr_t status;
+    PlatformDevice_t*           platform;
+    char                        compatibles[PLATFORM_DEVICE_MAX_COMPATIBLES];
+    oserr_t                     status;
 
     usched_mtx_lock(&g_devicesLock);
     device = __GetDeviceUnsafe(deviceId);
-    if (device == NULL || device->has_driver ||
+    if (device == NULL || device->Removing || device->has_driver ||
         !(device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
         usched_mtx_unlock(&g_devicesLock);
         return;
@@ -316,7 +364,8 @@ __TryLocateDriver(
     identification.ProductId = device->device->ProductId;
     identification.Class = device->device->Class;
     identification.Subclass = device->device->Subclass;
-    if (device->device->Length == sizeof(PlatformDevice_t)) {
+    
+    if (device->Kind == DmDeviceDescriptionPlatform) {
         platform = (PlatformDevice_t*)device->device;
         memcpy(compatibles, platform->Compatibles, platform->CompatibleLength);
         identification.IsPlatform = 1;
@@ -348,9 +397,12 @@ DmDeviceIsBindable(
     int bindable;
 
     usched_mtx_lock(&g_devicesLock);
+   
     device = __GetDeviceUnsafe(deviceId);
-    bindable = device != NULL && (device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER);
-    usched_mtx_unlock(&g_devicesLock);
+    bindable = device != NULL && !device->Removing &&
+        (device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER);
+    
+        usched_mtx_unlock(&g_devicesLock);
     return bindable;
 }
 
@@ -361,15 +413,124 @@ DmDeviceEnableDriverBinding(
     struct DMDevice* device;
 
     usched_mtx_lock(&g_devicesLock);
+    
     device = __GetDeviceUnsafe(deviceId);
     if (device == NULL) {
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
+    
+    if (device->Removing) {
+        usched_mtx_unlock(&g_devicesLock);
+        return OS_EBUSY;
+    }
+
     device->flags |= DEVICE_REGISTER_FLAG_LOADDRIVER;
     usched_mtx_unlock(&g_devicesLock);
+
 #ifndef __OSCONFIG_NODRIVERS
     __TryLocateDriver(deviceId);
+#endif
+    return OS_EOK;
+}
+
+static int
+__ValidDeviceRegistration(
+    _In_ const struct DmDeviceRegistration* registration)
+{
+    const Device_t*                          description = registration->Description;
+    const struct DmDeviceProviderOperations* operations = registration->Provider.Operations;
+
+    if (description == NULL) {
+        return 0;
+    }
+
+    if (operations != NULL) {
+        if (operations->Retain == NULL || operations->Release == NULL) {
+            return 0;
+        }
+    } else if (registration->Provider.Context != NULL) {
+        return 0;
+    }
+
+    switch (registration->Kind) {
+        case DmDeviceDescriptionGeneric:
+            return description->Length == sizeof(Device_t);
+        case DmDeviceDescriptionBus:
+            return description->Length == sizeof(BusDevice_t);
+        case DmDeviceDescriptionUsb:
+            return description->Length == sizeof(UsbDevice_t);
+        case DmDeviceDescriptionPlatform:
+            return description->Length == sizeof(PlatformDevice_t) &&
+                PlatformDeviceValidate((const PlatformDevice_t*)description);
+        default:
+            return 0;
+    }
+}
+
+oserr_t
+DmDeviceCreateWithProvider(
+    _In_  const struct DmDeviceRegistration* registration,
+    _In_  unsigned int                       flags,
+    _Out_ uuid_t*                            idOut)
+{
+    struct DMDevice* deviceNode;
+    struct DMDevice* parent;
+    Device_t*        description;
+    oserr_t          status;
+
+    *idOut = UUID_INVALID;
+    
+    if (!__ValidDeviceRegistration(registration)) {
+        return OS_EINVALPARAMS;
+    }
+
+    deviceNode = calloc(1, sizeof(*deviceNode));
+    if (deviceNode == NULL) {
+        return OS_EOOM;
+    }
+    
+    deviceNode->Provider = registration->Provider;
+    if (deviceNode->Provider.Operations != NULL) {
+        status = deviceNode->Provider.Operations->Retain(deviceNode->Provider.Context);
+        if (status != OS_EOK) {
+            free(deviceNode);
+            return status;
+        }
+    }
+
+    description = registration->Description;
+    ELEMENT_INIT(&deviceNode->header, 0, deviceNode);
+    deviceNode->driver_id = UUID_INVALID;
+    deviceNode->device = description;
+    deviceNode->Kind = registration->Kind;
+    deviceNode->flags = flags;
+    list_construct(&deviceNode->Protocols);
+
+    usched_mtx_lock(&g_devicesLock);
+    if (description->ParentId != UUID_INVALID) {
+        parent = __GetDeviceUnsafe(description->ParentId);
+        if (parent == NULL || parent->Removing) {
+            usched_mtx_unlock(&g_devicesLock);
+            if (deviceNode->Provider.Operations != NULL) {
+                deviceNode->Provider.Operations->Release(deviceNode->Provider.Context);
+            }
+            free(deviceNode);
+            return OS_ENOENT;
+        }
+    }
+
+    description->Id = g_nextDeviceId++;
+    deviceNode->header.key = (void*)(uintptr_t)description->Id;
+    list_append(&g_devices, &deviceNode->header);
+
+    *idOut = description->Id;
+    usched_mtx_unlock(&g_devicesLock);
+
+#ifndef __OSCONFIG_NODRIVERS
+    if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
+        __TryLocateDriver(*idOut);
+    }
 #endif
     return OS_EOK;
 }
@@ -380,46 +541,23 @@ DmDeviceCreate(
     _In_  unsigned int flags,
     _Out_ uuid_t*      idOut)
 {
-    struct DMDevice* deviceNode;
+    struct DmDeviceRegistration registration = {
+        .Description = device,
+        .Kind = DmDeviceDescriptionGeneric
+    };
 
-    assert(device != NULL);
-    assert(idOut != NULL);
-    assert(device->Length >= sizeof(Device_t));
-
-    if (device->Length == sizeof(PlatformDevice_t) &&
-        !PlatformDeviceValidate((PlatformDevice_t*)device)) {
-        return OS_EINVALPARAMS;
+    // Older callers provide only the description. They get no provider merely
+    // by supplying a bus address in that description.
+    if (device != NULL) {
+        if (device->Length == sizeof(BusDevice_t)) {
+            registration.Kind = DmDeviceDescriptionBus;
+        } else if (device->Length == sizeof(PlatformDevice_t)) {
+            registration.Kind = DmDeviceDescriptionPlatform;
+        } else if (device->Length == sizeof(UsbDevice_t)) {
+            registration.Kind = DmDeviceDescriptionUsb;
+        }
     }
-    deviceNode = (struct DMDevice*)malloc(sizeof(struct DMDevice));
-    if (!deviceNode) {
-        return OS_EOOM;
-    }
-
-    // initialize object
-    ELEMENT_INIT(&deviceNode->header, (uintptr_t)device->Id, deviceNode);
-    deviceNode->driver_id  = UUID_INVALID;
-    deviceNode->device     = device;
-    deviceNode->has_driver = false;
-    deviceNode->flags = flags;
-    list_construct(&deviceNode->protocols);
-
-    usched_mtx_lock(&g_devicesLock);
-    device->Id = g_nextDeviceId++;
-    deviceNode->header.key = (void*)(uintptr_t)device->Id;
-    list_append(&g_devices, &deviceNode->header);
-    usched_mtx_unlock(&g_devicesLock);
-    *idOut = device->Id;
-
-    TRACE("%u, Registered device %s, struct length %u",
-          device->Id, device->Identification.Description, device->Length);
-
-    // Match only after the owned description is visible in the registry.
-#ifndef __OSCONFIG_NODRIVERS
-    if (flags & DEVICE_REGISTER_FLAG_LOADDRIVER) {
-        __TryLocateDriver(*idOut);
-    }
-#endif
-    return OS_EOK;
+    return DmDeviceCreateWithProvider(&registration, flags, idOut);
 }
 
 void
@@ -439,7 +577,7 @@ DmDeviceRefreshDrivers(void)
     }
     foreach (i, &g_devices) {
         device = i->value;
-        if (!device->has_driver && (device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
+        if (!device->Removing && !device->has_driver && (device->flags & DEVICE_REGISTER_FLAG_LOADDRIVER)) {
             ids[count++] = device->device->Id;
         }
     }
@@ -460,29 +598,47 @@ DmDeviceDestroy(
     DeviceIdentification_t* identification;
 
     usched_mtx_lock(&g_devicesLock);
+    
     device = __GetDeviceUnsafe(deviceId);
     if (device == NULL) {
         usched_mtx_unlock(&g_devicesLock);
         return OS_ENOENT;
     }
+    
+    device->Removing = 1;
+    
+    if (device->ActiveRequests != 0) {
+        usched_mtx_unlock(&g_devicesLock);
+        return OS_EBUSY;
+    }
+    
     foreach (i, &g_devices) {
         if (((struct DMDevice*)i->value)->device->ParentId == deviceId) {
             usched_mtx_unlock(&g_devicesLock);
             return OS_EBUSY;
         }
     }
+    
     list_remove(&g_devices, &device->header);
     usched_mtx_unlock(&g_devicesLock);
+    
     // Do not hold the registry lock while cancelling discovery work. A driver
     // completing startup must see either the live device or ENOENT.
     DmDiscoverForgetDevice(deviceId);
-    while (device->protocols.head != NULL) {
-        protocol = device->protocols.head->value;
-        list_remove(&device->protocols, &protocol->header);
+    
+    while (device->Protocols.head != NULL) {
+        protocol = device->Protocols.head->value;
+        list_remove(&device->Protocols, &protocol->header);
         free(protocol->name);
         free(protocol);
     }
+    
+    if (device->Provider.Operations != NULL) {
+        device->Provider.Operations->Release(device->Provider.Context);
+    }
+    
     identification = &device->device->Identification;
+    
     free(identification->Description);
     free(identification->Manufacturer);
     free(identification->Product);

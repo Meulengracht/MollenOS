@@ -29,32 +29,18 @@
 
 static oserr_t
 __PciBusControl(
-    _In_ BusDevice_t*              device,
+    _In_ PciDevice_t*              device,
     _In_ struct OSIOCtlBusControl* request)
 {
-    PciDevice_t* pciDevice = NULL;
-    uint16_t     settings;
+    uint16_t settings;
 
-    pciDevice = PciFindDevice(
-        device->Segment,
-        device->Bus,
-        device->Slot,
-        device->Function
-    );
-
-    // Reject requests for devices that are no longer in the PCI inventory.
-    if (pciDevice == NULL) {
-        ERROR(" > failed to locate pci-device for ioctl");
-        return OS_ENOENT;
-    }
-
-    if (pciDevice->Host->DriversBlocked ||
-        (pciDevice->Handler != NULL && pciDevice->Handler->BlockActivation)) {
+    if (device->Host->DriversBlocked ||
+        (device->Handler != NULL && device->Handler->BlockActivation)) {
         return OS_ENOTSUPPORTED;
     }
 
     // Read value, modify and write back
-    settings = PciRead16(pciDevice->Host, device->Bus, device->Slot, device->Function, 0x04);
+    settings = PciRead16(device->Host, device->Bus, device->Slot, device->Function, 0x04);
 
     // Clear all possible flags first
     settings &= ~(PCI_COMMAND_BUSMASTER | PCI_COMMAND_FASTBTB
@@ -89,102 +75,126 @@ __PciBusControl(
     }
 
     // Write back settings
-    PciWrite16(pciDevice->Host, device->Bus, device->Slot, device->Function, 0x04, settings);
+    PciWrite16(device->Host, device->Bus, device->Slot, device->Function, 0x04, settings);
     return OS_EOK;
 }
 
 static oserr_t
 __PciIoctlDevice(
-	_In_ BusDevice_t* device,
-	_In_ int          direction,
-	_In_ unsigned int Register,
-	_In_ size_t*      value,
-	_In_ size_t       width)
+    _In_    PciDevice_t* device,
+    _In_    int          direction,
+    _In_    unsigned int reg,
+    _InOut_ size_t*      value,
+    _In_    size_t       width)
 {
-    PciDevice_t* pciDevice = NULL;
+    size_t limit = device->Host->IsExtended ? 4096 : 256;
 
-    pciDevice = PciFindDevice(
-        device->Segment,
-        device->Bus,
-        device->Slot,
-        device->Function
-    );
-
-    if (pciDevice == NULL) {
-        ERROR(" > failed to locate pci-device for ioctl");
-        return OS_ENOENT;
+    if (direction != __DEVICEMANAGER_IOCTL_EXT_READ && direction != __DEVICEMANAGER_IOCTL_EXT_WRITE) {
+        return OS_EINVALPARAMS;
+    }
+    if (width != 1 && width != 2 && width != 4) {
+        return OS_EINVALPARAMS;
+    }
+    if (reg >= limit || width > limit - reg || (reg & (width - 1)) != 0) {
+        return OS_EINVALPARAMS;
     }
 
     if (direction == __DEVICEMANAGER_IOCTL_EXT_READ) {
-        if (width == 1) {
-            *value = (size_t)PciRead8(pciDevice->Host, device->Bus,
-                                      device->Slot, device->Function, Register);
-        } else if (width == 2) {
-            *value = (size_t)PciRead16(pciDevice->Host, device->Bus,
-                                       device->Slot, device->Function, Register);
-        } else if (width == 4) {
-            *value = (size_t)PciRead32(pciDevice->Host, device->Bus,
-                                       device->Slot, device->Function, Register);
-        } else {
-            return OS_EINVALPARAMS;
-        }
-    } else {
-        if (pciDevice->Host->DriversBlocked ||
-            (pciDevice->Handler != NULL && pciDevice->Handler->BlockActivation)) {
-            return OS_ENOTSUPPORTED;
-        }
-
-        if (width == 1) {
-            PciWrite8(pciDevice->Host, device->Bus,
-                      device->Slot, device->Function, Register, LOBYTE(*value));
-        } else if (width == 2) {
-            PciWrite16(pciDevice->Host, device->Bus,
-                       device->Slot, device->Function, Register, LOWORD(*value));
-        } else if (width == 4) {
-            PciWrite32(pciDevice->Host, device->Bus,
-                       device->Slot, device->Function, Register, LODWORD(*value));
-        } else {
-            return OS_EINVALPARAMS;
-        }
+        *value = PciDeviceRead(device, reg, width);
+        return OS_EOK;
     }
+    if (device->Host->DriversBlocked ||
+        (device->Handler != NULL && device->Handler->BlockActivation)) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    PciDeviceWrite(device, reg, (uint32_t)*value, width);
     return OS_EOK;
 }
 
-oserr_t
-DMBusControl(
-    _In_ BusDevice_t* device,
-    _In_ struct OSIOCtlBusControl* request)
+static oserr_t
+__PciProviderRetain(
+    _In_ void* context)
 {
-    oserr_t status;
+    PciDevice_t* device = context;
 
     PciCriticalSectionEnter();
-    status = __PciBusControl(device, request);
+    device->ProviderReferences++;
     PciCriticalSectionLeave();
-    return status;
+    return OS_EOK;
 }
 
-oserr_t
-DmIoctlDeviceEx(
-    _In_ BusDevice_t* device,
-    _In_ int direction,
-    _In_ unsigned int reg,
-    _In_ size_t* value,
-    _In_ size_t width)
+static void
+__PciProviderRelease(
+    _In_ void* context)
+{
+    PciDevice_t* device = context;
+
+    PciCriticalSectionEnter();
+    device->ProviderReferences--;
+    PciCriticalSectionLeave();
+}
+
+static oserr_t
+__PciProviderControl(
+    _In_ void*               context,
+    _In_ enum OSIOCtlRequest request,
+    _In_ void*               buffer,
+    _In_ size_t              length)
 {
     oserr_t status;
 
-    // Keep lookup and access together so removing another host cannot invalidate
-    // the flat list while a request is walking it.
+    if (request != OSIOCTLREQUEST_BUS_CONTROL) {
+        return OS_ENOTSUPPORTED;
+    }
+    if (buffer == NULL || length < sizeof(struct OSIOCtlBusControl)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // The registry keeps this function alive until the request returns. The
+    // PCI lock still keeps configuration reads and writes together.
     PciCriticalSectionEnter();
-    status = __PciIoctlDevice(device, direction, reg, value, width);
+    status = __PciBusControl(context, buffer);
     PciCriticalSectionLeave();
     return status;
 }
 
 static oserr_t
+__PciProviderAccessRegister(
+    _In_    void*        context,
+    _In_    int          direction,
+    _In_    unsigned int reg,
+    _InOut_ size_t*      value,
+    _In_    size_t       width)
+{
+    oserr_t status;
+
+    PciCriticalSectionEnter();
+    status = __PciIoctlDevice(context, direction, reg, value, width);
+    PciCriticalSectionLeave();
+    return status;
+}
+
+static const struct DmDeviceProviderOperations g_pciDeviceProviderOperations = {
+    .Retain = __PciProviderRetain,
+    .Release = __PciProviderRelease,
+    .Control = __PciProviderControl,
+    .AccessRegister = __PciProviderAccessRegister
+};
+
+static oserr_t
 __PublishPciDevice(
     _In_ PciDevice_t* pciDevice)
 {
+    // Setup pci provider
+    struct DmDeviceRegistration registration = {
+        .Kind = DmDeviceDescriptionBus,
+        .Provider = {
+            .Operations = &g_pciDeviceProviderOperations,
+            .Context = pciDevice
+        }
+    };
+
     BusDevice_t* device;
     oserr_t      status;
     unsigned int i;
@@ -203,10 +213,13 @@ __PublishPciDevice(
     device->Base.ProductId = pciDevice->Header->DeviceId;
     device->Base.Class     = PciToDevClass(pciDevice->Header->Class, pciDevice->Header->Subclass);
     device->Base.Subclass  = PciToDevSubClass(pciDevice->Header->Interface);
-    device->Base.Identification.Description = strdup(PciToString(
+    device->Base.Identification.Description = strdup(
+        PciToString(
             pciDevice->Header->Class,
             pciDevice->Header->Subclass,
-            pciDevice->Header->Interface));
+            pciDevice->Header->Interface
+        )
+    );
 
     device->IsPci = 1;
     device->Segment  = (unsigned int)pciDevice->Host->Identification.Segment;
@@ -256,7 +269,8 @@ __PublishPciDevice(
 #endif
     }
     
-    status = DmDeviceCreate(&device->Base, 0, &pciDevice->DeviceId);
+    registration.Description = &device->Base;
+    status = DmDeviceCreateWithProvider(&registration, 0, &pciDevice->DeviceId);
     if (status != OS_EOK) {
         for (i = 0; i < 6; i++) {
             if (device->IoSpaces[i].Type != DeviceIoInvalid) {
@@ -276,6 +290,7 @@ static oserr_t
 __PublishPciRoot(
     _In_ PciDevice_t* root)
 {
+    struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionGeneric };
     Device_t* description;
     oserr_t   status;
 
@@ -291,7 +306,8 @@ __PublishPciRoot(
         return OS_EOOM;
     }
 
-    status = DmDeviceCreate(description, 0, &root->DeviceId);
+    registration.Description = description;
+    status = DmDeviceCreateWithProvider(&registration, 0, &root->DeviceId);
     if (status != OS_EOK) {
         free(description->Identification.Description);
         free(description);

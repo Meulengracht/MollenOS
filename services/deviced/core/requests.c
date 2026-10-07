@@ -63,6 +63,15 @@ void sys_device_register_invocation(
     }
 
     status = DmDeviceCreate(device, flags, &result);
+    if (status != OS_EOK) {
+        // Registration takes ownership only on success.
+        free(device->Identification.Description);
+        free(device->Identification.Manufacturer);
+        free(device->Identification.Product);
+        free(device->Identification.Revision);
+        free(device->Identification.Serial);
+        free(device);
+    }
 
 respond:
     sys_device_register_response(message, status, result);

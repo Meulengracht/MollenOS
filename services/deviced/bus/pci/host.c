@@ -102,6 +102,22 @@ __PciDestroyDevice(
     free(device);
 }
 
+static int
+__PciHasProviderReferences(
+    _In_ PciDevice_t* device)
+{
+    if (device->ProviderReferences != 0) {
+        return 1;
+    }
+    
+    foreach (element, &device->children) {
+        if (__PciHasProviderReferences(element->value)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 oserr_t
 PciHostDestroy(
     _In_ PciHost_t* bus)
@@ -126,9 +142,15 @@ PciHostDestroy(
     PciCriticalSectionEnter();
     
     if (bus->RootDevice != NULL) {
+        if (__PciHasProviderReferences(bus->RootDevice)) {
+            PciCriticalSectionLeave();
+            return OS_EBUSY;
+        }
+        
         while (bus->RootDevice->children.head != NULL) {
             __PciDestroyDevice(bus->RootDevice->children.head->value);
         }
+        
         list_remove(&g_pciRoots, &bus->RootDevice->list_header);
         free(bus->RootDevice);
         bus->RootDevice = NULL;

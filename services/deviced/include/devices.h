@@ -25,6 +25,7 @@
 
 #include <os/osdefs.h>
 #include <os/types/device.h>
+#include <device-provider.h>
 
 DECL_STRUCT(Device);
 DECL_STRUCT(BusDevice);
@@ -32,14 +33,16 @@ DECL_STRUCT(BusDevice);
 /**
  * @brief Initializes the device registry.
  */
-extern void DmDevicesInitialize(void);
+extern void
+DmDevicesInitialize(void);
 
 /**
  * @brief Tries to find drivers for devices that do not have one yet.
  * Call this after adding drivers so devices that were already registered can
  * also be matched.
  */
-extern void DmDeviceRefreshDrivers(void);
+extern void
+DmDeviceRefreshDrivers(void);
 
 /**
  * @brief Sends a device description to its selected driver.
@@ -51,11 +54,13 @@ extern void DmDeviceRefreshDrivers(void);
  */
 extern oserr_t
 DmDevicesRegister(
-        _In_ uuid_t driverHandle,
-        _In_ uuid_t deviceId);
+    _In_ uuid_t driverHandle,
+    _In_ uuid_t deviceId);
 
 /**
- * @brief Adds a device to the registry and optionally looks for a driver.
+ * @brief Adds a description without a request provider, optionally finding a driver.
+ * This compatibility entry point selects the kind from the description length.
+ * A bus description alone does not grant access to bus operations.
  * When this succeeds, the registry owns the device description and frees it
  * when the device is destroyed. Set DEVICE_REGISTER_FLAG_LOADDRIVER in flags
  * to look for a driver as soon as the device is added.
@@ -68,9 +73,26 @@ DmDevicesRegister(
  */
 extern oserr_t
 DmDeviceCreate(
-        _In_  Device_t*    device,
-        _In_  unsigned int flags,
-        _Out_ uuid_t*      idOut);
+    _In_  Device_t*    device,
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      idOut);
+
+/**
+ * @brief Registers an explicit description kind and an optional request provider.
+ *
+ * @param registration Description and provider owned by the caller. Success takes
+ * ownership of the description and retains a provider reference. Failure leaves
+ * both owned by the caller. Provider callbacks run without the registry lock.
+ * @param flags Registration options, including whether to look for a driver.
+ * @param idOut Receives the new ID, or UUID_INVALID on failure.
+ * @return OS_EOK on success; an error from validation, allocation or Retain;
+ *         or OS_ENOENT when the requested parent is absent or being removed.
+ */
+extern oserr_t
+DmDeviceCreateWithProvider(
+    _In_  const struct DmDeviceRegistration* registration,
+    _In_  unsigned int                       flags,
+    _Out_ uuid_t*                            idOut);
 
 /**
  * @brief Allows the registry to look for a driver for an existing device.
@@ -100,45 +122,12 @@ DmDeviceIsBindable(
  *
  * @param deviceId The ID of the device to remove.
  * @return OS_EOK if the device was removed, OS_ENOENT if it was not registered,
- *         or OS_EBUSY if it still has child devices.
+ *         or OS_EBUSY if it still has children or active requests. Once removal
+ *         starts, new requests and binding attempts are rejected. On OS_EBUSY
+ *         the registry retains ownership; stop clients and retry removal.
  */
 extern oserr_t
 DmDeviceDestroy(
-        _In_ uuid_t DeviceId);
-
-/**
- * @brief Applies a control request to a bus device.
- * The request flags specify which bus settings to change.
- *
- * @param device The bus device to control.
- * @param request The bus settings to apply.
- * @return OS_EOK if the request succeeded, or an error code if the request
- *         is not supported or could not be applied.
- */
-extern oserr_t
-DMBusControl(
-    _In_ BusDevice_t*              device,
-    _In_ struct OSIOCtlBusControl* request);
-
-/**
- * @brief Reads or writes a register on a bus device.
- * For a read, the register value is written to value. For a write, value holds
- * the data to write. The width must be 1, 2, or 4 bytes.
- *
- * @param device The bus device whose register is accessed.
- * @param direction Whether to read from or write to the register.
- * @param Register The register offset to access.
- * @param value Receives the value read, or supplies the value to write.
- * @param width The number of bytes to read or write: 1, 2, or 4.
- * @return OS_EOK if the access succeeded, or an error code if the register
- *         could not be accessed or the width is invalid.
- */
-extern oserr_t
-DmIoctlDeviceEx(
-	_In_ BusDevice_t* device,
-	_In_ int          direction,
-	_In_ unsigned int Register,
-	_In_ size_t*      value,
-	_In_ size_t       width);
+    _In_ uuid_t DeviceId);
 
 #endif //!__DEVICES_H__

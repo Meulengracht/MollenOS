@@ -14,6 +14,7 @@ __Rp1PublishChild(
     _In_ struct Rp1Bus* bus,
     _InOut_ struct Rp1Child* child)
 {
+    struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionPlatform };
     PlatformDevice_t* device;
     const struct FdtRp1Device* firmware = &child->Firmware;
     unsigned int i;
@@ -53,7 +54,8 @@ __Rp1PublishChild(
     }
     // Keep matching off until the entire parent/child set exists. An allocation
     // failure can then roll back without having started any peripheral driver.
-    status = DmDeviceCreate(&device->Base, 0, &child->DeviceId);
+    registration.Description = &device->Base;
+    status = DmDeviceCreateWithProvider(&registration, 0, &child->DeviceId);
     if (status != OS_EOK) {
         free(device->Base.Identification.Description);
         free(device);

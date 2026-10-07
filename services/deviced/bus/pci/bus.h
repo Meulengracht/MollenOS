@@ -330,6 +330,8 @@ typedef struct PciDevice {
     int               IsBridge;
     // Registry IDs are distinct from host identity and PCI addresses.
     uuid_t            DeviceId;
+    // Changed under the PCI lock; nonzero references prevent host destruction.
+    unsigned int      ProviderReferences;
     int               BindingEnabled;
     DeviceIo_t        PublishedIo[6];
 
