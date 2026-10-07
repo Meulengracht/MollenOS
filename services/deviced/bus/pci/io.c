@@ -16,10 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS X86 Bus Driver (IO)
- * - Enumerates the bus and registers the devices/controllers
- *   available in the system
  */
 
 #include "bus.h"

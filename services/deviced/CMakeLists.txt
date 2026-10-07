@@ -22,15 +22,15 @@ add_service_target(deviced ""
 
         bus/pci/bars.c
         bus/pci/device.c
+        bus/pci/discovery.c
+        bus/pci/enumerate.c
         bus/pci/functionhandlers.c
+        bus/pci/helpers.c
         bus/pci/interrupts.c
         bus/pci/host.c
-        bus/pci/discovery.c
-        bus/pci/pcienumerate.c
-        bus/pci/pcihelpers.c
-        bus/pci/pciio.c
-        bus/pci/pcistrings.c
+        bus/pci/io.c
         bus/pci/resources.c
+        bus/pci/strings.c
 
         bus/rp1/firmware.c
         bus/rp1/interrupt.c
