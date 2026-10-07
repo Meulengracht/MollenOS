@@ -182,6 +182,77 @@ static const struct DmDeviceProviderOperations g_pciDeviceProviderOperations = {
     .AccessRegister = __PciProviderAccessRegister
 };
 
+static int
+__PciAllowsDriverBinding(
+    _In_ const PciDevice_t* device)
+{
+    return !device->IsBridge && device->Handler == NULL 
+            && !device->Host->DriversBlocked;
+}
+
+static void
+__PciReleaseIoSpaces(
+    _InOut_ DeviceIo_t* spaces)
+{
+    for (unsigned int i = 0; i < 6; i++) {
+        // Empty slots own no resources, including slots already released.
+        if (spaces[i].Type != DeviceIoInvalid) {
+            DestroyDeviceIo(&spaces[i]);
+            memset(&spaces[i], 0, sizeof(DeviceIo_t));
+        }
+    }
+}
+
+#ifdef __OSCONFIG_HAS_LEGACY_PCI
+static void
+__PciAddIdeChannelPorts(
+    _InOut_ DeviceIo_t* spaces,
+    _In_    size_t      base,
+    _In_    size_t      control)
+{
+    // Keep a reported mapping; fixed ports are only needed for missing entries.
+    if (spaces[0].Type == DeviceIoInvalid) {
+        CreateDevicePortIo(&spaces[0], base, 8);
+    }
+    
+    // Some controllers report one of the two entries but omit the other.
+    if (spaces[1].Type == DeviceIoInvalid) {
+        CreateDevicePortIo(&spaces[1], control, 4);
+    }
+}
+
+static void
+__PciAddLegacyIdePorts(
+    _In_    const PciDevice_t* pciDevice,
+    _InOut_ BusDevice_t*       device)
+{
+    // Fixed ports are only meaningful on hosts that expose port I/O directly.
+    if (pciDevice->Host->IoResourcePolicy != PciIoResourcePorts) {
+        return;
+    }
+    
+    // These fallback addresses belong to IDE controllers, not other hardware.
+    if (pciDevice->Header->Class != PCI_CLASS_STORAGE ||
+        pciDevice->Header->Subclass != PCI_STORAGE_SUBCLASS_IDE) {
+        return;
+    }
+
+    // PCI - IDE Bar Fixup
+    // From experience ide-bars don't always show up (ex: Oracle VM and Bochs)
+    // but only the initial 4 bars don't, the BM bar
+    // always seem to show up
+    // A cleared mode bit means the channel uses the fixed legacy addresses.
+    if ((pciDevice->Header->Interface & 0x1) == 0) {
+        __PciAddIdeChannelPorts(&device->IoSpaces[0], 0x1F0, 0x3F6);
+    }
+    
+    // The second channel has its own mode bit and a different pair of ports.
+    if ((pciDevice->Header->Interface & 0x4) == 0) {
+        __PciAddIdeChannelPorts(&device->IoSpaces[2], 0x170, 0x376);
+    }
+}
+#endif
+
 static oserr_t
 __PublishPciDevice(
     _In_ PciDevice_t* pciDevice)
@@ -197,9 +268,9 @@ __PublishPciDevice(
 
     BusDevice_t* device;
     oserr_t      status;
-    unsigned int i;
 
     device = malloc(sizeof(BusDevice_t));
+    // No description can be registered until its storage is available.
     if (device == NULL) {
         return OS_EOOM;
     }
@@ -231,52 +302,33 @@ __PublishPciDevice(
     device->InterruptPin         = (int)pciDevice->Header->InterruptPin;
     device->InterruptAcpiConform = pciDevice->AcpiConform;
 
+    // The registered description must own its name even if firmware is released.
     if (device->Base.Identification.Description == NULL) {
         free(device);
         return OS_EOOM;
     }
-    if (!pciDevice->IsBridge && pciDevice->Handler == NULL && !pciDevice->Host->DriversBlocked) {
+    
+    if (__PciAllowsDriverBinding(pciDevice)) {
         // Only endpoints that may use a generic driver expose their BAR
         // (base address register) mappings.
         PciRegisterBars(pciDevice->Host, device, pciDevice->Resources.Bars);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
-        // PCI - IDE Bar Fixup
-        // From experience ide-bars don't always show up (ex: Oracle VM and Bochs)
-        // but only the initial 4 bars don't, the BM bar
-        // always seem to show up
-        if (pciDevice->Host->IoResourcePolicy == PciIoResourcePorts
-            && pciDevice->Header->Class == PCI_CLASS_STORAGE
-            && pciDevice->Header->Subclass == PCI_STORAGE_SUBCLASS_IDE) {
-            if ((pciDevice->Header->Interface & 0x1) == 0) {
-                if (device->IoSpaces[0].Type == DeviceIoInvalid) {
-                    CreateDevicePortIo(&device->IoSpaces[0], 0x1F0, 8);
-                }
-                if (device->IoSpaces[1].Type == DeviceIoInvalid) {
-                    CreateDevicePortIo(&device->IoSpaces[1], 0x3F6, 4);
-                }
-            }
-
-            if ((pciDevice->Header->Interface & 0x4) == 0) {
-                if (device->IoSpaces[2].Type == DeviceIoInvalid) {
-                    CreateDevicePortIo(&device->IoSpaces[2], 0x170, 8);
-                }
-                if (device->IoSpaces[3].Type == DeviceIoInvalid) {
-                    CreateDevicePortIo(&device->IoSpaces[3], 0x376, 4);
-                }
-            }
-        }
+        __PciAddLegacyIdePorts(pciDevice, device);
 #endif
     }
     
     registration.Description = &device->Base;
-    status = DmDeviceCreateWithProvider(&registration, 0, &pciDevice->DeviceId);
+    status = DmPublicationAdd(
+        &pciDevice->Host->Publication,
+        &registration,
+        __PciAllowsDriverBinding(pciDevice),
+        &pciDevice->DeviceId
+    );
+    
+    // Registration failure leaves the description and its I/O mappings with us.
     if (status != OS_EOK) {
-        for (i = 0; i < 6; i++) {
-            if (device->IoSpaces[i].Type != DeviceIoInvalid) {
-                DestroyDeviceIo(&device->IoSpaces[i]);
-            }
-        }
+        __PciReleaseIoSpaces(device->IoSpaces);
         free(device->Base.Identification.Description);
         free(device);
         return status;
@@ -295,19 +347,25 @@ __PublishPciRoot(
     oserr_t   status;
 
     description = calloc(1, sizeof(*description));
+    
+    // The root needs an owned description just like its children.
     if (description == NULL) {
         return OS_EOOM;
     }
 
     description->Length = sizeof(*description);
     description->Identification.Description = strdup("PCI host");
+    
+    // A failed name copy leaves nothing safe to give to the registry.
     if (description->Identification.Description == NULL) {
         free(description);
         return OS_EOOM;
     }
 
     registration.Description = description;
-    status = DmDeviceCreateWithProvider(&registration, 0, &root->DeviceId);
+    status = DmPublicationAdd(&root->Host->Publication, &registration, 0, &root->DeviceId);
+    
+    // The registry takes ownership only after the group accepts this entry.
     if (status != OS_EOK) {
         free(description->Identification.Description);
         free(description);
@@ -321,25 +379,29 @@ __PciStagePublication(
 {
     oserr_t status;
 
-    if (device->DeviceId == UUID_INVALID) {
-        if (device->Parent != NULL && device->Parent->DeviceId == UUID_INVALID) {
-            return OS_EINVALPARAMS;
-        }
-        status = device->Parent == NULL ? __PublishPciRoot(device) : __PublishPciDevice(device);
-        if (status != OS_EOK) {
-            return status;
-        }
+    status = device->Parent == NULL ? __PublishPciRoot(device) : __PublishPciDevice(device);
+    // Children need their parent's ID, so stop before descending on failure.
+    if (status != OS_EOK) {
+        return status;
     }
-    
+
+    // Functions with their own bus add children to the same group. Ordinary
+    // endpoints have no attachment and need no extra descriptions.
     if (device->Attachment != NULL && device->Handler->Publish != NULL) {
-        status = device->Handler->Publish(device->Attachment, device);
+        status = device->Handler->Publish(
+            device->Attachment, device, &device->Host->Publication
+        );
+        
+        // The caller removes the entire partial group if any attachment fails.
         if (status != OS_EOK) {
             return status;
         }
     }
-    
+
     foreach (element, &device->children) {
         status = __PciStagePublication(element->value);
+        
+        // No drivers may start while part of the host's tree is missing.
         if (status != OS_EOK) {
             return status;
         }
@@ -347,35 +409,14 @@ __PciStagePublication(
     return OS_EOK;
 }
 
-static oserr_t
-__PciEnableBinding(
+static void
+__PciReleasePublishedIo(
     _In_ PciDevice_t* device)
 {
-    oserr_t status;
-
-    if (!device->BindingEnabled) {
-        if (device->Attachment != NULL && device->Handler->EnableBinding != NULL) {
-            status = device->Handler->EnableBinding(device->Attachment);
-            if (status != OS_EOK) {
-                return status;
-            }
-        } else if (device->Parent != NULL && !device->IsBridge &&
-            device->Handler == NULL && !device->Host->DriversBlocked) {
-            status = DmDeviceEnableDriverBinding(device->DeviceId);
-            if (status != OS_EOK) {
-                return status;
-            }
-        }
-        device->BindingEnabled = 1;
-    }
-    
     foreach (element, &device->children) {
-        status = __PciEnableBinding(element->value);
-        if (status != OS_EOK) {
-            return status;
-        }
+        __PciReleasePublishedIo(element->value);
     }
-    return OS_EOK;
+    __PciReleaseIoSpaces(device->PublishedIo);
 }
 
 oserr_t
@@ -384,35 +425,18 @@ PciUnpublishDevice(
 {
     oserr_t status;
 
-    foreach (element, &device->children) {
-        status = PciUnpublishDevice(element->value);
-        if (status != OS_EOK) {
-            return status;
-        }
+    // A host shares one publication group with its attachments. Removing just
+    // one subtree would leave the group's saved IDs pointing at freed objects.
+    if (device->Parent != NULL) {
+        return OS_EINVALPARAMS;
     }
-    
-    if (device->Attachment != NULL && device->Handler->Unpublish != NULL) {
-        status = device->Handler->Unpublish(device->Attachment);
-        if (status != OS_EOK) {
-            return status;
-        }
+
+    status = DmPublicationRemove(&device->Host->Publication);
+    // Keep I/O resources until every device entry has released its provider.
+    if (status != OS_EOK) {
+        return status;
     }
-    
-    if (device->DeviceId != UUID_INVALID) {
-        status = DmDeviceDestroy(device->DeviceId);
-        if (status != OS_EOK) {
-            return status;
-        }
-        device->DeviceId = UUID_INVALID;
-    }
-    
-    for (unsigned int i = 0; i < 6; i++) {
-        if (device->PublishedIo[i].Type != DeviceIoInvalid) {
-            DestroyDeviceIo(&device->PublishedIo[i]);
-            memset(&device->PublishedIo[i], 0, sizeof(DeviceIo_t));
-        }
-    }
-    device->BindingEnabled = 0;
+    __PciReleasePublishedIo(device);
     return OS_EOK;
 }
 
@@ -420,20 +444,43 @@ oserr_t
 PciPublishDevice(
     _In_ PciDevice_t* device)
 {
-    oserr_t status;
-    oserr_t cleanup;
+    struct DmPublicationGroup* group = &device->Host->Publication;
+    oserr_t                    status;
+    oserr_t                    cleanup;
 
-    // Published subtrees may already have active clients. A repeated call only
-    // retries binding, never rolls back descriptions beneath those clients.
-    if (device->BindingEnabled) {
-        return __PciEnableBinding(device);
+    // Publication must cover the whole host before any driver can start.
+    if (device->Parent != NULL) {
+        return OS_EINVALPARAMS;
     }
-    
+
+    // A fully removed group can be rebuilt, including after an earlier failure
+    // while adding descriptions. Partial removal must finish before reuse.
+    if (group->State == DmPublicationRemoved) {
+        status = DmPublicationReset(group);
+        // Do not start building unless the previous group has been cleared.
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+
+    // Published groups may already have active clients. A repeated call only
+    // retries binding, never removes descriptions beneath those clients.
+    // The shared helper also rejects binding once removal has begun.
+    if (group->State != DmPublicationCollecting) {
+        return DmPublicationEnableBinding(group);
+    }
+
     status = __PciStagePublication(device);
+    // Incomplete descriptions have no drivers yet, so remove the partial set.
     if (status != OS_EOK) {
         cleanup = PciUnpublishDevice(device);
         return cleanup == OS_EOK ? status : cleanup;
     }
-    
-    return __PciEnableBinding(device);
+
+    status = DmPublicationFinish(group);
+    // Binding requires an explicitly finished set of descriptions.
+    if (status != OS_EOK) {
+        return status;
+    }
+    return DmPublicationEnableBinding(group);
 }

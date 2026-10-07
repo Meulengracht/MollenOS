@@ -28,6 +28,7 @@
 #include <os/osdefs.h>
 #include <ddk/io.h>
 #include <ds/list.h>
+#include <core/publication.h>
 #include "host.h"
 
 #include "bars.h"
@@ -138,7 +139,8 @@ struct PciFunctionResources {
  * rejected. Attach must leave its output NULL and free partial state on failure;
  * on success, PCI owns the attachment. Copy resources that must outlive Attach.
  * Attach records child devices; Publish adds them after scanning, without starting
- * their drivers. Destroy runs after Unpublish succeeds and before host resources go.
+ * their drivers. Destroy runs after the publication group is removed and before
+ * host resources are released.
  */
 struct PciFunctionHandler {
     int BlockActivation;
@@ -173,29 +175,18 @@ struct PciFunctionHandler {
     void (*Destroy)(void* attachment);
 
     /**
-    * @brief Adds child device records beneath the already listed PCI function.
-    * Do not start matching drivers here. Unpublish must remove all records, even
-    * when this call adds only some of them before returning an error.
-     * 
+     * @brief Adds child descriptions to the host's group beneath this function.
+     * The group handles driver matching and removal, including partial failure.
+     *
      * @param attachment The attachment associated with the function handler.
-     * @param device The PCI device for which child descriptions are being published.
+     * @param device The already registered parent PCI function.
+     * @param group The host's group, still accepting descriptions.
+     * @return OS_EOK on success, or the first error adding a child.
      */
-    oserr_t (*Publish)(void* attachment, const struct PciDevice* device);
-
-    /**
-    * @brief Removes this handler's child devices after their clients have stopped.
-    * On failure, keep the attachment and remaining device IDs so removal can retry.
-     * 
-     * @param attachment The attachment associated with the function handler.
-     */
-    oserr_t (*Unpublish)(void* attachment);
-
-    /**
-    * @brief Allows drivers to match child devices after the whole PCI tree is listed.
-     * 
-     * @param attachment The attachment associated with the function handler.
-     */
-    oserr_t (*EnableBinding)(void* attachment);
+    oserr_t (*Publish)(
+        void*                      attachment,
+        const struct PciDevice*    device,
+        struct DmPublicationGroup* group);
 };
 
 /** @brief Returns the first statically registered handler matching a function. */
@@ -315,6 +306,8 @@ typedef struct PciHost {
     int                        DriversBlocked;
     uint8_t                    ScannedBuses[32];
     struct PciDevice*          RootDevice;
+    // Includes PCI descriptions and every attached bus, such as RP1.
+    struct DmPublicationGroup  Publication;
     struct PciFirmwareMapping* FirmwareMapping;
 } PciHost_t;
 
@@ -332,7 +325,6 @@ typedef struct PciDevice {
     uuid_t            DeviceId;
     // Changed under the PCI lock; nonzero references prevent host destruction.
     unsigned int      ProviderReferences;
-    int               BindingEnabled;
     DeviceIo_t        PublishedIo[6];
 
     struct PciFunctionResources      Resources;
@@ -446,10 +438,12 @@ PciResolveInterruptLineAndPin(
     _In_ PciDevice_t* pciDevice);
 
 /**
- * @brief Adds a PCI device and its descendants beneath their parent, then allows
- * drivers to match them. If adding any entry fails, entries added by this call
- * are removed. Calling it again after success has no further effect. Publish the
- * host root before adding any child devices.
+ * @brief Adds the host root and all PCI and attached child descriptions before
+ * allowing drivers to match them. Adding an entry may fail; the partial group
+ * is then removed. Binding failures retain the complete group for retry.
+ *
+ * @param pciDevice Host root to publish. Child devices are added by this call.
+ * @return OS_EOK on success, or an error adding, binding, or removing entries.
  */
 __EXTERN oserr_t
 PciPublishDevice(

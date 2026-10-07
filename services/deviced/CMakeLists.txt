@@ -42,6 +42,7 @@ add_service_target(deviced ""
         core/match.c
         core/initrd.c
         core/devices.c
+        core/publication.c
         core/requests.c
 
         firmware/fdt.c

@@ -63,10 +63,10 @@ PciHostAttach(
     _In_ struct PciFirmwareMapping* mapping);
 
 /**
- * @brief Removes this device's device-manager entries, children first. Stop its
+ * @brief Removes the host's device-manager entries, children first. Stop its
  * clients before calling. If removal fails, keep the remaining IDs for a retry.
  * 
- * @param device The device to unpublish.
+ * @param device The host root to unpublish.
  */
 __EXTERN oserr_t
 PciUnpublishDevice(

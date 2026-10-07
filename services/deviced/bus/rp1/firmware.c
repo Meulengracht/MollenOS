@@ -75,15 +75,18 @@ __Rp1TranslateRegister(
         space = (FdtReadBe32(rp1->Ranges + offset + 8) >> 24) & 3;
         target = FdtReadCells(rp1->Ranges + offset + 12, 2);
         length = FdtReadCells(rp1->Ranges + offset + 20, 2);
+        
         // Reject empty or overflowing address ranges before using their bounds.
         // This driver supports memory ranges, not PCI port ranges.
         if (!length || length - 1 > UINT64_MAX - child ||
             length - 1 > UINT64_MAX - target || (space != 2 && space != 3)) {
             return OS_EINVALPARAMS;
         }
+        
         if (!FdtContainsRange(child, length, address, resource->Length)) {
             continue;
         }
+        
         // Ambiguous firmware must not choose the first of several overlapping
         // ranges; each child register must have exactly one valid translation.
         if (++matches != 1 || FdtTranslatePciAddress(walk->Host, space,
@@ -145,6 +148,7 @@ __Rp1ChildResources(
         // physical address that the operating system can map.
         address = FdtReadCells(node->Reg + i * 16, 2);
         device->Registers[i].Length = FdtReadCells(node->Reg + i * 16 + 8, 2);
+        
         status = __Rp1TranslateRegister(rp1, walk, address, &device->Registers[i]);
         if (status != OS_EOK) {
             return status;

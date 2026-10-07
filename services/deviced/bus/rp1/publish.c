@@ -30,14 +30,14 @@
 
 static oserr_t
 __Rp1PublishChild(
-    _In_    struct Rp1Bus*   bus,
-    _InOut_ struct Rp1Child* child)
+    _InOut_ struct DmPublicationGroup* group,
+    _In_    uuid_t                     parentId,
+    _InOut_ struct Rp1Child*           child)
 {
     struct DmDeviceRegistration registration = { .Kind = DmDeviceDescriptionPlatform };
-    PlatformDevice_t* device;
-    const struct FdtRp1Device* firmware = &child->Firmware;
-    unsigned int i;
-    oserr_t status;
+    PlatformDevice_t*           device;
+    const struct FdtRp1Device*  firmware = &child->Firmware;
+    oserr_t                     status;
 
     // The destination has fixed-size arrays. Reject descriptions that cannot
     // fit rather than silently truncating compatibility data or resource lists.
@@ -47,12 +47,13 @@ __Rp1PublishChild(
         return OS_ENOTSUPPORTED;
     }
     
+    // The registry needs its own copy, separate from the firmware inventory.
     device = calloc(1, sizeof(*device));
     if (device == NULL) {
         return OS_EOOM;
     }
     device->Base.Length = sizeof(*device);
-    device->Base.ParentId = bus->DeviceId;
+    device->Base.ParentId = parentId;
     
     // The source strings point into firmware data. Make an owned copy so this
     // device description does not depend on that memory remaining mapped.
@@ -72,13 +73,13 @@ __Rp1PublishChild(
     memcpy(device->Compatibles, firmware->Compatible, firmware->CompatibleLength);
     device->RegisterCount = firmware->RegisterCount;
     
-    for (i = 0; i < firmware->RegisterCount; i++) {
+    for (unsigned int i = 0; i < firmware->RegisterCount; i++) {
         device->Registers[i].Base = firmware->Registers[i].Base;
         device->Registers[i].Length = firmware->Registers[i].Length;
     }
     
     device->InterruptCount = firmware->InterruptCount;
-    for (i = 0; i < firmware->InterruptCount; i++) {
+    for (unsigned int i = 0; i < firmware->InterruptCount; i++) {
         device->Interrupts[i].Controller = firmware->Interrupts[i].Controller;
         device->Interrupts[i].Number = firmware->Interrupts[i].Number;
         device->Interrupts[i].Type = firmware->Interrupts[i].Type;
@@ -89,7 +90,7 @@ __Rp1PublishChild(
     // without any peripheral driver having started.
     registration.Description = &device->Base;
     
-    status = DmDeviceCreateWithProvider(&registration, 0, &child->DeviceId);
+    status = DmPublicationAdd(group, &registration, 1, &child->DeviceId);
     if (status != OS_EOK) {
         // Registration did not take ownership, so release both allocations here.
         free(device->Base.Identification.Description);
@@ -99,34 +100,10 @@ __Rp1PublishChild(
 }
 
 oserr_t
-Rp1BusUnpublish(
-    _InOut_ struct Rp1Bus* bus)
-{
-    struct Rp1Child* child;
-    oserr_t          status;
-
-    // The PCI function owns the parent entry. Remove only RP1's children, and
-    // clear each saved ID only after removal succeeds so failures can be retried.
-    for (child = bus->Children; child != NULL; child = child->Next) {
-        if (child->DeviceId != UUID_INVALID) {
-            status = DmDeviceDestroy(child->DeviceId);
-            if (status != OS_EOK) {
-                return status;
-            }
-            child->DeviceId = UUID_INVALID;
-            child->BindingEnabled = 0;
-        }
-    }
-
-    // Clear the parent ID only after every child has been removed successfully.
-    bus->DeviceId = UUID_INVALID;
-    return OS_EOK;
-}
-
-oserr_t
 Rp1BusPublish(
-    _InOut_ struct Rp1Bus*          bus,
-    _In_    const struct PciDevice* endpoint)
+    _InOut_ struct Rp1Bus*             bus,
+    _In_    const struct PciDevice*    endpoint,
+    _InOut_ struct DmPublicationGroup* group)
 {
     struct Rp1Child* child;
     oserr_t          status;
@@ -135,42 +112,14 @@ Rp1BusPublish(
     if (endpoint->DeviceId == UUID_INVALID) {
         return OS_EINVALPARAMS;
     }
-    
-    bus->DeviceId = endpoint->DeviceId;
-    for (child = bus->Children; child != NULL; child = child->Next) {
-        // Keep successful entries when retried; PCI can clean them up if a later
-        // child fails, or continue publication without creating duplicates.
-        if (child->DeviceId != UUID_INVALID) {
-            continue;
-        }
 
-        status = __Rp1PublishChild(bus, child);
+    for (child = bus->Children; child != NULL; child = child->Next) {
+        status = __Rp1PublishChild(group, endpoint->DeviceId, child);
+        // The shared group remembers earlier children so PCI can remove the
+        // whole incomplete tree before any drivers have started.
         if (status != OS_EOK) {
             return status;
         }
-    }
-    return OS_EOK;
-}
-
-oserr_t
-Rp1BusEnableBinding(
-    _InOut_ struct Rp1Bus* bus)
-{
-    struct Rp1Child* child;
-    oserr_t          status;
-
-    // Make children eligible for driver matching only after PCI has created the
-    // complete tree. Remember each success so a later failure can be retried.
-    for (child = bus->Children; child != NULL; child = child->Next) {
-        if (child->BindingEnabled) {
-            continue;
-        }
-        
-        status = DmDeviceEnableDriverBinding(child->DeviceId);
-        if (status != OS_EOK) {
-            return status;
-        }
-        child->BindingEnabled = 1;
     }
     return OS_EOK;
 }

@@ -88,6 +88,7 @@ Rp1BusCreate(
     
     bus = calloc(1, sizeof(struct Rp1Bus));
     if (bus == NULL) {
+        // Creation failures may reach cleanup before an inventory was allocated.
         return OS_EOOM;
     }
     bus->Host = host;
@@ -121,14 +122,17 @@ Rp1BusDestroy(
 {
     struct Rp1Child* child;
 
+    // Creation failures may reach cleanup before an inventory was allocated.
     if (bus == NULL) {
         return;
     }
     
-    // Remove device-manager entries before freeing the inventory they refer to.
-    // If removal fails, keep this state intact so the caller can retry later.
-    if (Rp1BusUnpublish(bus) != OS_EOK) {
-        return;
+    for (child = bus->Children; child != NULL; child = child->Next) {
+        // The host group still needs this saved ID to finish removing entries.
+        // Keep the inventory alive until every child has been removed.
+        if (child->DeviceId != UUID_INVALID) {
+            return;
+        }
     }
     
     while (bus->Children != NULL) {
@@ -209,24 +213,11 @@ __Rp1DestroyAttachment(
 
 static oserr_t
 __Rp1PublishAttachment(
-    _In_ void* attachment,
-    _In_ const struct PciDevice* device)
+    _In_    void*                      attachment,
+    _In_    const struct PciDevice*    device,
+    _InOut_ struct DmPublicationGroup* group)
 {
-    return Rp1BusPublish(attachment, device);
-}
-
-static oserr_t
-__Rp1UnpublishAttachment(
-    _In_ void* attachment)
-{
-    return Rp1BusUnpublish(attachment);
-}
-
-static oserr_t
-__Rp1EnableBinding(
-    _In_ void* attachment)
-{
-    return Rp1BusEnableBinding(attachment);
+    return Rp1BusPublish(attachment, device, group);
 }
 
 const struct PciFunctionHandler g_rp1PciHandler = {
@@ -234,7 +225,5 @@ const struct PciFunctionHandler g_rp1PciHandler = {
     .BlockActivation = 1,
     .Attach = __Rp1Attach,
     .Destroy = __Rp1DestroyAttachment,
-    .Publish = __Rp1PublishAttachment,
-    .Unpublish = __Rp1UnpublishAttachment,
-    .EnableBinding = __Rp1EnableBinding
+    .Publish = __Rp1PublishAttachment
 };

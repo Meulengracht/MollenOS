@@ -289,7 +289,7 @@ __AddProtocolToDevice(
     struct DmDeviceProtocol* protocol;
 
     // Check if the protocol is already added to the device.
-    foreach (node, &device->protocols) {
+    foreach (node, &device->Protocols) {
         protocol = node->value;
         if ((uint8_t)(uintptr_t)protocol->header.key == protocolID) {
             return OS_EEXISTS;
@@ -308,7 +308,7 @@ __AddProtocolToDevice(
     }
 
     ELEMENT_INIT(&protocol->header, (uintptr_t)protocolID, protocol);
-    list_append(&device->protocols, &protocol->header);
+    list_append(&device->Protocols, &protocol->header);
     return OS_EOK;
 }
 

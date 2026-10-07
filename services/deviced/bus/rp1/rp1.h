@@ -39,6 +39,7 @@
 
 // Forward declarations
 struct PciDevice;
+struct DmPublicationGroup;
 
 /**
  * @brief One hardware block inside RP1, plus the state deviced needs to list it.
@@ -48,7 +49,6 @@ struct PciDevice;
 struct Rp1Child {
     struct Rp1Child*    Next;
     uuid_t              DeviceId;
-    int                 BindingEnabled;
     struct FdtRp1Device Firmware;
 };
 
@@ -62,8 +62,6 @@ struct Rp1Child {
 struct Rp1Bus {
     // We should not clean this up, it's not managed by us.
     const struct FdtPciHost* Host;
-    // ID of the parent PCI device
-    uuid_t                   DeviceId;
 
     struct Rp1Child* Children;
     unsigned int     ChildCount;
@@ -77,46 +75,19 @@ struct Rp1Bus {
  * @brief Adds device-manager entries for RP1's firmware-described hardware blocks.
  * Each entry is placed below the RP1 PCI device. This does not allow drivers to
  * match yet; PCI enables matching only after the full device tree is listed.
- * If adding an entry fails, entries already added remain recorded so PCI can
- * remove them. Repeating this call skips children that already have an ID.
+ * If adding an entry fails, the group remembers entries already added so PCI
+ * can remove them. The group clears each saved child ID after successful removal.
  *
  * @param bus Inventory whose children will be added.
  * @param endpoint Published PCI device that owns the RP1 hardware blocks.
- * @return OS_EOK if every child is added, or an error if the parent ID is invalid
- *         or a child cannot be added. On failure, call Rp1BusUnpublish to remove
- *         any children that were added before the error.
+ * @param group Host group that will handle driver matching and removal.
+ * @return OS_EOK if every child is added, or the first registration error.
  */
 __EXTERN oserr_t
 Rp1BusPublish(
-    _InOut_ struct Rp1Bus*          bus,
-    _In_    const struct PciDevice* endpoint);
-
-/**
- * @brief Removes the device-manager entries created for this RP1 inventory.
- * The parent PCI entry is owned by PCI and is left in place. Stop programs using
- * these devices and remove any devices registered beneath them before calling.
- * If removal fails, IDs for entries not yet removed remain available for retry.
- *
- * @param bus Inventory whose published children will be removed.
- * @return OS_EOK if all children are removed, or the first removal error. Entries
- *         removed before an error stay removed; call again to retry the rest.
- */
-__EXTERN oserr_t
-Rp1BusUnpublish(
-    _InOut_ struct Rp1Bus* bus);
-
-/**
- * @brief Allows the system to look for drivers for each RP1 child.
- * Call only after all PCI and RP1 device entries have been added. If enabling
- * one child fails, earlier children remain enabled and a later call skips them.
- *
- * @param bus Inventory whose children should be made available to drivers.
- * @return OS_EOK if every child is enabled, or the error for the first child
- *         that could not be enabled. Call again to retry.
- */
-__EXTERN oserr_t
-Rp1BusEnableBinding(
-    _InOut_ struct Rp1Bus* bus);
+    _InOut_ struct Rp1Bus*             bus,
+    _In_    const struct PciDevice*    endpoint,
+    _InOut_ struct DmPublicationGroup* group);
 
 /**
  * @brief Builds an in-memory list of the hardware blocks firmware places inside
@@ -138,10 +109,9 @@ Rp1BusCreate(
     _Out_ struct Rp1Bus**          busOut);
 
 /**
- * @brief Removes published children and frees the inventory after clients stop.
- * Child entries must be removed before their descriptions can be freed. If an
- * entry cannot be removed, this function keeps the inventory so cleanup can be
- * retried; the caller must keep its firmware data and PCI resources available.
+ * @brief Frees the inventory after the host publication group has been removed.
+ * If a child still has a registered ID, keep the inventory for a later retry.
+ * The group still needs that saved ID location to finish removing its entries.
  *
  * @param bus Inventory to release. NULL is allowed.
  */
