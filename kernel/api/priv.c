@@ -24,6 +24,8 @@
 //#define __TRACE
 
 #include <acpiinterface.h>
+#include <arch/interrupts.h>
+#include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <deviceio.h>
@@ -40,21 +42,23 @@ typedef struct __InterruptSet {
     uint32_t Count;
     unsigned int Flags;
     uuid_t   DeviceId;
-    uint16_t Segment;
+    uint32_t Segment;
     uint8_t  Bus;
     uint8_t  Slot;
     uint8_t  Function;
+    int      MsiCommitted;
+    uint32_t RouteCount;
+    InterruptMsiRoute_t Routes[INTERRUPT_MAXVECTORS];
     uuid_t   Sources[INTERRUPT_MAXVECTORS];
 } __InterruptSet_t;
 
 static oserr_t
 __QueueInterruptSetQuiesce(
     _In_ __InterruptSet_t* set,
-    _In_ const uuid_t*     sources,
+    _In_ const InterruptMsiRoute_t* routes,
     _In_ uint32_t          count)
 {
     DeviceInterruptQuiesceRequest_t request = { 0 };
-    uint16_t                       indices[INTERRUPT_MAXVECTORS];
     uuid_t                         token;
 
     if (!(set->Flags & INTERRUPT_MSI)) {
@@ -68,13 +72,10 @@ __QueueInterruptSetQuiesce(
     request.Bus = set->Bus;
     request.Slot = set->Slot;
     request.Function = set->Function;
-    for (uint32_t i = 0; i < count; i++) {
-        indices[i] = LOWORD(sources[i]);
-    }
     return InterruptMsiQuiesceEnqueue(
         &request,
         set->Owner,
-        indices,
+        routes,
         count,
         &token
     );
@@ -84,17 +85,31 @@ static void
 __DestroyInterruptSet(
     _In_ void* resource)
 {
-    __InterruptSet_t* set = (__InterruptSet_t*)resource;
-    uuid_t            sources[INTERRUPT_MAXVECTORS];
-    uint32_t          sourceCount = 0;
+    __InterruptSet_t*   set = (__InterruptSet_t*)resource;
+    InterruptMsiRoute_t routes[INTERRUPT_MAXVECTORS];
+    uint32_t            routeCount = 0;
 
     for (uint32_t i = 0; i < set->Count; i++) {
         if (set->Sources[i] != UUID_INVALID) {
-            sources[sourceCount++] = set->Sources[i];
             (void)InterruptUnregisterOwned(set->Sources[i], set->Owner);
         }
     }
-    (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+    if (set->Flags & INTERRUPT_MSI) {
+        for (uint32_t i = 0; i < set->RouteCount; i++) {
+            if (set->Routes[i].ControllerId != 0) {
+                routes[routeCount++] = set->Routes[i];
+            }
+        }
+        if (set->MsiCommitted) {
+            (void)__QueueInterruptSetQuiesce(set, routes, routeCount);
+        } else {
+            for (uint32_t i = 0; i < routeCount; i++) {
+                if (InterruptMsiReleaseTableRoute(&routes[i]) == OS_EOK) {
+                    PlatformMsiRelease(&routes[i]);
+                }
+            }
+        }
+    }
     kfree(set);
 }
 
@@ -427,7 +442,7 @@ ScRegisterInterruptSet(
     if (flags & INTERRUPT_MSI) {
         DeviceInterrupt_t* first = &descriptors[0];
         if (!first->IsPci || first->DeviceId == UUID_INVALID ||
-            first->Slot > 31 || first->Function > 7 || first->Segment > UINT16_MAX ||
+            first->Slot > 31 || first->Function > 7 ||
             first->Bus > UINT8_MAX) {
             kfree(descriptors);
             kfree(set);
@@ -449,13 +464,28 @@ ScRegisterInterruptSet(
     set->Flags = flags;
     if (flags & INTERRUPT_MSI) {
         set->DeviceId = descriptors[0].DeviceId;
-        set->Segment = (uint16_t)descriptors[0].Segment;
+        set->Segment = descriptors[0].Segment;
         set->Bus = (uint8_t)descriptors[0].Bus;
         set->Slot = (uint8_t)descriptors[0].Slot;
         set->Function = (uint8_t)descriptors[0].Function;
     }
     for (uint32_t i = 0; i < count; i++) {
         set->Sources[i] = UUID_INVALID;
+    }
+
+    if (flags & INTERRUPT_MSI) {
+        for (uint32_t i = 0; i < count; i++) {
+            oserr = PlatformMsiAllocate(&descriptors[i]);
+            if (oserr != OS_EOK) {
+                goto cleanup;
+            }
+            set->Routes[i].ControllerId = descriptors[i].MsiControllerId;
+            set->Routes[i].HwIrq = descriptors[i].MsiHwIrq;
+            set->Routes[i].Index = descriptors[i].MsiIndex;
+            set->Routes[i].ParentLine = descriptors[i].MsiParentLine;
+            set->Routes[i].Flags = descriptors[i].MsiRouteFlags;
+            set->RouteCount++;
+        }
     }
 
     for (uint32_t i = 0; i < count; i++) {
@@ -480,31 +510,40 @@ ScRegisterInterruptSet(
         goto cleanup;
     }
 
+    if (flags & INTERRUPT_MSI) {
+        oserr = InterruptMsiCommitRoutes(set->Sources, set->Count);
+        if (oserr != OS_EOK) {
+            (void)DestroyHandle(setId);
+            kfree(descriptors);
+            return oserr;
+        }
+        set->MsiCommitted = 1;
+    }
+
     oserr = MemorySpaceCopyUser(setOut, &setId, sizeof(setId), true);
     if (oserr != OS_EOK) {
-        uuid_t sources[INTERRUPT_MAXVECTORS];
-        uint32_t sourceCount = set->Count;
         for (uint32_t i = 0; i < set->Count; i++) {
-            sources[i] = set->Sources[i];
             (void)InterruptUnregisterOwned(set->Sources[i], set->Owner);
             set->Sources[i] = UUID_INVALID;
         }
-        (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+        if (set->MsiCommitted) {
+            (void)__QueueInterruptSetQuiesce(set, set->Routes, set->RouteCount);
+        }
         set->Count = 0;
+        set->RouteCount = 0;
         (void)DestroyHandle(setId);
     }
     kfree(descriptors);
     return oserr;
 
 cleanup:
-    {
-        uuid_t sources[INTERRUPT_MAXVECTORS];
-        uint32_t sourceCount = set->Count;
     for (uint32_t i = 0; i < set->Count; i++) {
-        sources[i] = set->Sources[i];
         (void)InterruptUnregisterOwned(set->Sources[i], set->Owner);
     }
-        (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+    for (uint32_t i = 0; i < set->RouteCount; i++) {
+        if (InterruptMsiReleaseTableRoute(&set->Routes[i]) == OS_EOK) {
+            PlatformMsiRelease(&set->Routes[i]);
+        }
     }
     kfree(descriptors);
     kfree(set);
@@ -515,10 +554,10 @@ oserr_t
 ScDestroyInterruptSet(
     _In_ uuid_t setId)
 {
-    __InterruptSet_t* set;
-    uuid_t            sources[INTERRUPT_MAXVECTORS];
-    uint32_t          sourceCount;
-    oserr_t            oserr;
+    __InterruptSet_t*   set;
+    InterruptMsiRoute_t routes[INTERRUPT_MAXVECTORS];
+    uint32_t            routeCount = 0;
+    oserr_t             oserr;
 
     oserr = AcquireHandleOfType(setId, HandleTypeInterruptSet, (void**)&set);
     if (oserr != OS_EOK) {
@@ -529,23 +568,29 @@ ScDestroyInterruptSet(
         return OS_EPERMISSIONS;
     }
 
-    sourceCount = 0;
     for (uint32_t i = 0; i < set->Count; i++) {
         if (set->Sources[i] == UUID_INVALID) {
             continue;
         }
         oserr = InterruptUnregisterOwned(set->Sources[i], set->Owner);
         if (oserr != OS_EOK) {
-            (void)__QueueInterruptSetQuiesce(set, sources, sourceCount);
+            if (set->MsiCommitted) {
+                (void)__QueueInterruptSetQuiesce(set, routes, routeCount);
+            }
             (void)DestroyHandle(setId);
             return oserr;
         }
-        sources[sourceCount++] = set->Sources[i];
+        if (set->Flags & INTERRUPT_MSI) {
+            routes[routeCount++] = set->Routes[i];
+            set->Routes[i].ControllerId = 0;
+        }
         set->Sources[i] = UUID_INVALID;
     }
 
-    oserr = __QueueInterruptSetQuiesce(set, sources, sourceCount);
+    oserr = set->MsiCommitted
+            ? __QueueInterruptSetQuiesce(set, routes, routeCount) : OS_EOK;
     set->Count = 0;
+    set->RouteCount = 0;
     (void)DestroyHandle(setId);
     (void)DestroyHandle(setId);
     return oserr;
@@ -580,6 +625,23 @@ ScCompleteInterruptQuiesce(
     _In_ uuid_t token)
 {
     return InterruptMsiQuiesceFinish(GetCurrentMemorySpaceHandle(), token);
+}
+
+uuid_t
+ScRegisterMsiController(
+    _In_ const DeviceMsiControllerDescription_t* description)
+{
+    DeviceMsiControllerDescription_t request;
+    oserr_t                         oserr;
+
+    if (description == NULL) {
+        return UUID_INVALID;
+    }
+    oserr = MemorySpaceCopyUser((void*)description, &request, sizeof(request), false);
+    if (oserr != OS_EOK) {
+        return UUID_INVALID;
+    }
+    return InterruptMsiControllerRegister(&request);
 }
 
 oserr_t

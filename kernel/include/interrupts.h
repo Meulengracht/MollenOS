@@ -30,6 +30,17 @@
 
 // Kernel specific interrupt models
 #define INTERRUPT_KERNEL 0x10000000U
+#define INTERRUPT_MSI_CONTROLLER_X86_LAPIC 1U
+#define INTERRUPT_MSI_CONTROLLER_FIRST_PLATFORM 2U
+#define INTERRUPT_MSI_ROUTE_PARENT_RESERVED 0x1U
+
+typedef struct InterruptMsiRoute {
+    uint32_t ControllerId;
+    uint32_t HwIrq;
+    uint16_t Index;
+    int      ParentLine;
+    unsigned int Flags;
+} InterruptMsiRoute_t;
 
 typedef struct SystemInterrupt {
     uuid_t                   Id;
@@ -44,6 +55,7 @@ typedef struct SystemInterrupt {
     uint16_t                 Index;      // Interrupt-table slot encoded in Id
     int                      ParentLine; // Hardware line; INTERRUPT_NONE for direct MSI
     int                      Pin;
+    InterruptMsiRoute_t      MsiRoute;
     int                      QuarantineMsi;
     // References acquired by InterruptGet() keep retired descriptors alive.
     _Atomic(unsigned int)    References;
@@ -100,9 +112,34 @@ KERNELAPI oserr_t KERNELABI
 InterruptMsiQuiesceEnqueue(
     _In_ const DeviceInterruptQuiesceRequest_t* Request,
     _In_ uuid_t                                  Owner,
-    _In_ const uint16_t*                         Indices,
+    _In_ const InterruptMsiRoute_t*              Routes,
     _In_ uint32_t                                Count,
     _Out_ uuid_t*                                TokenOut);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiReserveTableRoute(
+    _In_ const InterruptMsiRoute_t* route);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiReleaseTableRoute(
+    _In_ const InterruptMsiRoute_t* route);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiCommitRoutes(
+    _In_ const uuid_t* sources,
+    _In_ uint32_t      count);
+
+KERNELAPI uuid_t KERNELABI
+InterruptMsiControllerRegister(
+    _In_ const DeviceMsiControllerDescription_t* description);
+
+KERNELAPI oserr_t KERNELABI
+InterruptMsiControllerAllocate(
+    _InOut_ DeviceInterrupt_t* deviceInterrupt);
+
+KERNELAPI void KERNELABI
+InterruptMsiControllerRelease(
+    _In_ const InterruptMsiRoute_t* route);
 
 KERNELAPI oserr_t KERNELABI
 InterruptMsiQuiesceNext(

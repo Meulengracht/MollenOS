@@ -74,6 +74,7 @@ extern oserr_t ScDestroyInterruptSet(uuid_t setId);
 extern oserr_t ScRegisterInterruptQuiesceEvent(uuid_t eventHandle);
 extern oserr_t ScGetInterruptQuiesceRequest(DeviceInterruptQuiesceRequest_t* requestOut);
 extern oserr_t ScCompleteInterruptQuiesce(uuid_t token);
+extern uuid_t  ScRegisterMsiController(const DeviceMsiControllerDescription_t* description);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
 extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
@@ -137,7 +138,7 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 68
+#define SYSTEM_CALL_COUNT 69
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -244,7 +245,8 @@ static struct SystemCallDescriptor {
         DefineSyscall(64, ScDestroyInterruptSet),
         DefineSyscall(65, ScRegisterInterruptQuiesceEvent),
         DefineSyscall(66, ScGetInterruptQuiesceRequest),
-        DefineSyscall(67, ScCompleteInterruptQuiesce)
+        DefineSyscall(67, ScCompleteInterruptQuiesce),
+        DefineSyscall(68, ScRegisterMsiController)
 };
 
 Context_t*

@@ -99,6 +99,21 @@ typedef struct InterruptFunctionTable {
 #define INTERRUPT_STRATEGY_MSIX 0x4
 #define INTERRUPT_STRATEGY_ANY  0x7
 
+#define DEVICE_MSI_CONTROLLER_MIP 0x1U
+
+typedef struct DeviceMsiControllerDescription {
+    unsigned int Type;
+    uint32_t     ProviderId;
+    uint32_t     Segment;
+    uint8_t      BusStart;
+    uint8_t      BusEnd;
+    int          ParentLine;
+    uint32_t     MessageOffset;
+    uint32_t     MessageCount;
+    uint64_t     DoorbellAddress;
+    uint64_t     DoorbellLength;
+} DeviceMsiControllerDescription_t;
+
 typedef struct DeviceInterrupt {
     // Interrupt-handler(s) and context
     // FastHandler is called to determine whether or not this source
@@ -126,6 +141,13 @@ typedef struct DeviceInterrupt {
     unsigned int Function;
     uuid_t      DeviceId;
 
+    // Kernel output metadata for controller-owned MSI routes.
+    uint32_t MsiControllerId;
+    uint32_t MsiHwIrq;
+    uint16_t MsiIndex;
+    int      MsiParentLine;
+    uint32_t MsiRouteFlags;
+
     // Msi Identification
     uint64_t  MsiAddress;     // INTERRUPT_MSI - The address of MSI
     uintptr_t MsiValue;       // INTERRUPT_MSI - The value of MSI
@@ -134,7 +156,7 @@ typedef struct DeviceInterrupt {
 typedef struct DeviceInterruptQuiesceRequest {
     uuid_t      Token;
     uuid_t      DeviceId;
-    uint16_t    Segment;
+    uint32_t    Segment;
     uint8_t     Bus;
     uint8_t     Slot;
     uint8_t     Function;
@@ -194,6 +216,15 @@ DeviceInterruptQuiesceNext(
 DDKDECL(oserr_t,
 DeviceInterruptQuiesceComplete(
     _In_ uuid_t token));
+
+/**
+ * @brief Registers a firmware-described MSI controller for its PCI host range.
+ * This is intended for deviced during host registration.
+ * @return A kernel controller ID, or UUID_INVALID on failure.
+ */
+DDKDECL(uuid_t,
+DeviceInterruptMsiControllerRegister(
+    _In_ const DeviceMsiControllerDescription_t* description));
 
 /**
  * @brief Initializes a new device interrupt instance based on the bus device descriptor.

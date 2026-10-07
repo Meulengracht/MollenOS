@@ -157,6 +157,10 @@ PciHostRegister(
     PciDevice_t*                        root;
     PciHost_t*                          existing;
     const struct PciHostIdentification* identification;
+    struct FdtPciMsi                    msi;
+    DeviceMsiControllerDescription_t    msiController;
+    uuid_t                              msiControllerId = UUID_INVALID;
+    oserr_t                             status;
 
     if (host == NULL || host->Operations == NULL) {
         return OS_EINVALPARAMS;
@@ -196,9 +200,37 @@ PciHostRegister(
         return OS_EOOM;
     }
 
+    if (host->Firmware != NULL) {
+        status = FdtResolvePciMsi(host->Firmware, &msi);
+        if (status == OS_EOK && msi.IsMip) {
+            memset(&msiController, 0, sizeof(msiController));
+            msiController.Type = DEVICE_MSI_CONTROLLER_MIP;
+            msiController.ProviderId = msi.Controller;
+            msiController.Segment = identification->Segment;
+            msiController.BusStart = identification->BusStart;
+            msiController.BusEnd = identification->BusEnd;
+            msiController.ParentLine = msi.Interrupt.Line;
+            msiController.MessageOffset = msi.Offset;
+            msiController.MessageCount = msi.InterruptCount;
+            msiController.DoorbellAddress = msi.DoorbellBase;
+            msiController.DoorbellLength = msi.DoorbellLength;
+            msiControllerId = DeviceInterruptMsiControllerRegister(&msiController);
+            if (msiControllerId == UUID_INVALID) {
+                PciCriticalSectionLeave();
+                free(root);
+                return OS_EUNKNOWN;
+            }
+        } else if (status != OS_EOK && status != OS_ENOENT && status != OS_ENOTSUPPORTED) {
+            PciCriticalSectionLeave();
+            free(root);
+            return status;
+        }
+    }
+
     // Commit identification only after every operation that can fail. IDs are
     // not reused when a host is removed, including across discovery passes.
     host->Identification.HostId = g_nextPciHostId++;
+    host->MsiControllerId = msiControllerId;
     list_construct(&root->children);
     ELEMENT_INIT(&root->list_header, (uintptr_t)identification->HostId, root);
     root->Host = host;

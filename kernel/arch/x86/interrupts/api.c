@@ -45,6 +45,8 @@ extern void  __cli(void);
 extern void  __sti(void);
 extern reg_t __getflags(void);
 
+static _Atomic(uint32_t) g_x86MsiVectorBitmap;
+
 static inline uuid_t __GetBspCoreId(void)
 {
     if (!GetCurrentDomain() || !GetCurrentDomain()->CoreGroup.Cores) {
@@ -146,18 +148,8 @@ static uuid_t __AllocateSoftwareVector(
     _In_ unsigned int       flags)
 {
     uuid_t result = 0;
-    if (flags & INTERRUPT_MSI) {
-        int Vectors[INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE];
-        int i;
-
-        for (i = 0; i < (INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE); i++) {
-            Vectors[i] = INTERRUPT_SOFTWARE_BASE + i;
-        }
-        result = InterruptGetLeastLoaded(Vectors, i);
-    }
     // Is it fixed?
-    else if ((flags & INTERRUPT_VECTOR) ||
-        deviceInterrupt->Line != INTERRUPT_NONE) {
+    if ((flags & INTERRUPT_VECTOR) || deviceInterrupt->Line != INTERRUPT_NONE) {
 
         result = (uuid_t)deviceInterrupt->Line;
 
@@ -183,11 +175,91 @@ static uuid_t __AllocateSoftwareVector(
 }
 
 oserr_t
+PlatformMsiAllocate(
+    _InOut_ DeviceInterrupt_t* deviceInterrupt)
+{
+    InterruptMsiRoute_t route = { 0 };
+    uint32_t            bit;
+    uint32_t            bitmap;
+    uint32_t            vector;
+    oserr_t             oserr;
+
+    if (deviceInterrupt == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    for (uint32_t slot = 0; slot < (INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE); slot++) {
+        bit = 1U << slot;
+        bitmap = atomic_load(&g_x86MsiVectorBitmap);
+        while (!(bitmap & bit)) {
+            if (atomic_compare_exchange_weak(&g_x86MsiVectorBitmap, &bitmap, bitmap | bit)) {
+                break;
+            }
+        }
+        if (bitmap & bit) {
+            continue;
+        }
+
+        vector = INTERRUPT_SOFTWARE_BASE + slot;
+        route.ControllerId = INTERRUPT_MSI_CONTROLLER_X86_LAPIC;
+        route.HwIrq = vector;
+        route.Index = (uint16_t)vector;
+        route.ParentLine = INTERRUPT_NONE;
+        oserr = InterruptMsiReserveTableRoute(&route);
+        if (oserr != OS_EOK) {
+            atomic_fetch_and(&g_x86MsiVectorBitmap, ~bit);
+            continue;
+        }
+
+        deviceInterrupt->MsiControllerId = route.ControllerId;
+        deviceInterrupt->MsiHwIrq = route.HwIrq;
+        deviceInterrupt->MsiIndex = route.Index;
+        deviceInterrupt->MsiParentLine = route.ParentLine;
+        deviceInterrupt->MsiRouteFlags = route.Flags;
+        deviceInterrupt->MsiAddress = 0xFEE00000 | (0x0007F000) | 0x8 | 0x4;
+        deviceInterrupt->MsiValue = 0x100 | (route.HwIrq & 0xFF);
+        return OS_EOK;
+    }
+    return OS_EOOM;
+}
+
+void
+PlatformMsiRelease(
+    _In_ const InterruptMsiRoute_t* route)
+{
+    uint32_t slot;
+    uint32_t bit;
+    uint32_t bitmap;
+
+    if (route == NULL || route->ControllerId != INTERRUPT_MSI_CONTROLLER_X86_LAPIC ||
+        route->HwIrq < INTERRUPT_SOFTWARE_BASE || route->HwIrq >= INTERRUPT_SOFTWARE_END ||
+        route->Index != route->HwIrq || route->ParentLine != INTERRUPT_NONE) {
+        return;
+    }
+
+    slot = route->HwIrq - INTERRUPT_SOFTWARE_BASE;
+    bit = 1U << slot;
+    bitmap = atomic_fetch_and(&g_x86MsiVectorBitmap, ~bit);
+    if (!(bitmap & bit)) {
+        ERROR("Duplicate x86 MSI route release for vector %u", route->HwIrq);
+    }
+}
+
+oserr_t
 InterruptResolve(
         _In_  DeviceInterrupt_t* deviceInterrupt,
         _In_  unsigned int       flags,
         _Out_ uuid_t*            tableIndex)
 {
+    if (flags & INTERRUPT_MSI) {
+        if (deviceInterrupt->MsiControllerId != INTERRUPT_MSI_CONTROLLER_X86_LAPIC ||
+            deviceInterrupt->MsiIndex >= MAX_SUPPORTED_INTERRUPTS) {
+            return OS_EINVALPARAMS;
+        }
+        *tableIndex = deviceInterrupt->MsiIndex;
+        return OS_EOK;
+    }
+
     if (!(flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
         if (flags & INTERRUPT_VECTOR) {
             int Vectors[INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE];
@@ -227,27 +299,6 @@ InterruptResolve(
         *tableIndex = __AllocateSoftwareVector(deviceInterrupt, flags);
     }
 
-    // In case of MSI interrupt, update msi format
-    if (flags & INTERRUPT_MSI) {
-        // Fill in MSI data
-        // MSI Message Address Register (0xFEE00000 LAPIC)
-        // Bits 31-20: Must be 0xFEE
-        // Bits 19-12: Destination ID
-        // Bits 11-04: Reserved
-        // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
-        // Bit      2: Destination Mode (1 Logical, 0 Physical)
-        // Bits 00-01: X
-        deviceInterrupt->MsiAddress = 0xFEE00000 | (0x0007F000) | 0x8 | 0x4;
-
-        // Message Data Register Format
-        // Bits 31-16: Reserved
-        // Bit     15: Trigger Mode (1 Level, 0 Edge)
-        // Bit     14: If edge, this is not used, if level, 1 = Assert, 0 = Deassert
-        // Bits 13-11: Reserved
-        // Bits 10-08: Delivery Mode, standard
-        // Bits 07-00: Vector
-        deviceInterrupt->MsiValue = (0x100 | (*tableIndex & 0xFF));
-    }
     return OS_EOK;
 }
 

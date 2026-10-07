@@ -47,6 +47,7 @@ _CODE_END
 #define Syscall_InterruptQuiesceRegister(Event)                                       (oserr_t)syscall1(65, SCPARAM(Event))
 #define Syscall_InterruptQuiesceNext(RequestOut)                                      (oserr_t)syscall1(66, SCPARAM(RequestOut))
 #define Syscall_InterruptQuiesceComplete(Token)                                       (oserr_t)syscall1(67, SCPARAM(Token))
+#define Syscall_InterruptMsiControllerRegister(Description)                           (uuid_t)syscall1(68, SCPARAM(Description))
 
 #define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, TopOfStack, PointerOut) (oserr_t)syscall4(19, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(TopOfStack), SCPARAM(PointerOut))
 

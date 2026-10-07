@@ -58,6 +58,14 @@ InterruptResolve(
         _In_    unsigned int       flags,
         _Out_   uuid_t*            tableIndex);
 
+KERNELAPI oserr_t KERNELABI
+PlatformMsiAllocate(
+        _InOut_ DeviceInterrupt_t* deviceInterrupt);
+
+KERNELAPI void KERNELABI
+PlatformMsiRelease(
+        _In_ const InterruptMsiRoute_t* route);
+
 /**
  * Initialize and enable/disable the interrupt described in systemInterrupt member.
  * @param systemInterrupt

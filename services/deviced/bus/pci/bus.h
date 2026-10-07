@@ -27,6 +27,7 @@
 
 #include <os/osdefs.h>
 #include <ddk/busdevice.h>
+#include <ddk/interrupt.h>
 #include <ddk/io.h>
 #include <ds/list.h>
 #include "host.h"
@@ -294,6 +295,7 @@ typedef struct PciHost {
     void*                           OpContext;
 
     const struct FdtPciHost*   Firmware;
+    uint32_t                   MsiControllerId;
     int                        DriversBlocked;
     struct PciDevice*          RootDevice;
     struct PciFirmwareMapping* FirmwareMapping;

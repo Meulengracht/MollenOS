@@ -210,6 +210,20 @@ InterruptResolve(
 }
 
 oserr_t
+PlatformMsiAllocate(
+    _InOut_ DeviceInterrupt_t* interrupt)
+{
+    return InterruptMsiControllerAllocate(interrupt);
+}
+
+void
+PlatformMsiRelease(
+    _In_ const InterruptMsiRoute_t* route)
+{
+    InterruptMsiControllerRelease(route);
+}
+
+oserr_t
 InterruptConfigure(
     _In_ SystemInterrupt_t* interrupt,
     _In_ int                enable)

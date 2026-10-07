@@ -232,6 +232,16 @@ DeviceInterruptQuiesceComplete(
     return Syscall_InterruptQuiesceComplete(token);
 }
 
+uuid_t
+DeviceInterruptMsiControllerRegister(
+    _In_ const DeviceMsiControllerDescription_t* description)
+{
+    if (description == NULL) {
+        return UUID_INVALID;
+    }
+    return Syscall_InterruptMsiControllerRegister(description);
+}
+
 oserr_t
 UnregisterInterruptSource(
         _In_ uuid_t interruptHandle)

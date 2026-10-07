@@ -51,7 +51,10 @@ typedef struct InterruptTableEntry {
     _Atomic(SystemInterrupt_t*) Descriptor;
     int                         Penalty;
     int                         Sharable;
+    int                         MsiReserved;
     int                         MsiQuarantined;
+    uint32_t                    MsiControllerId;
+    uint32_t                    MsiHwIrq;
 } InterruptTableEntry_t;
 
 typedef struct __InterruptMsiQuiesceEntry {
@@ -59,8 +62,20 @@ typedef struct __InterruptMsiQuiesceEntry {
     DeviceInterruptQuiesceRequest_t   Request;
     uuid_t                             Owner;
     uint32_t                           Count;
-    uint16_t                           Indices[INTERRUPT_MAXVECTORS];
+    InterruptMsiRoute_t                Routes[INTERRUPT_MAXVECTORS];
 } __InterruptMsiQuiesceEntry_t;
+
+typedef struct __InterruptMsiController {
+    uint32_t Id;
+    DeviceMsiControllerDescription_t Description;
+    struct {
+        uint32_t Segment;
+        uint8_t  BusStart;
+        uint8_t  BusEnd;
+    } DeviceRanges[8];
+    uint32_t DeviceRangeCount;
+    uint64_t AllocatedMessages;
+} __InterruptMsiController_t;
 
 static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
 static Spinlock_t            g_interruptTableLock                       = OS_SPINLOCK_INIT;
@@ -78,6 +93,9 @@ static __InterruptMsiQuiesceEntry_t* g_msiQuiesceHead;
 static uuid_t                 g_msiQuiesceOwner = UUID_INVALID;
 static uuid_t                 g_msiQuiesceEvent = UUID_INVALID;
 static _Atomic(uuid_t)        g_nextMsiQuiesceToken = 1;
+static Spinlock_t             g_msiControllerLock = OS_SPINLOCK_INIT;
+static __InterruptMsiController_t g_msiControllers[8];
+static uint32_t                g_nextMsiControllerId = INTERRUPT_MSI_CONTROLLER_FIRST_PLATFORM;
 
 static void
 InterruptReadEnter(void)
@@ -114,12 +132,350 @@ InterruptReleasePenaltyLocked(
         tableEntry->MsiQuarantined = 1;
         return;
     }
+    if (Entry->MsiRoute.Flags & INTERRUPT_MSI_ROUTE_PARENT_RESERVED) {
+        tableEntry->MsiHwIrq = UINT32_MAX;
+        return;
+    }
     if (tableEntry->Penalty > 0) {
         tableEntry->Penalty--;
     }
     if (tableEntry->Penalty == 0) {
         tableEntry->Sharable = 0;
     }
+    if (Entry->MsiRoute.ControllerId != 0) {
+        tableEntry->MsiReserved = 0;
+        tableEntry->MsiControllerId = 0;
+        tableEntry->MsiHwIrq = 0;
+    }
+}
+
+oserr_t
+InterruptMsiReserveTableRoute(
+    _In_ const InterruptMsiRoute_t* route)
+{
+    InterruptTableEntry_t* tableEntry;
+
+    if (route == NULL || route->ControllerId == 0 ||
+        route->Index >= MAX_SUPPORTED_INTERRUPTS) {
+        return OS_EINVALPARAMS;
+    }
+
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    tableEntry = &g_interruptTable[route->Index];
+    if ((route->Flags & INTERRUPT_MSI_ROUTE_PARENT_RESERVED) && route->HwIrq == UINT32_MAX) {
+        if (tableEntry->MsiReserved || tableEntry->MsiQuarantined ||
+            tableEntry->Penalty != 0 ||
+            atomic_load(&tableEntry->Descriptor) != NULL) {
+            SpinlockReleaseIrq(&g_interruptTableLock);
+            return OS_EBUSY;
+        }
+        tableEntry->MsiReserved = 1;
+        tableEntry->MsiControllerId = route->ControllerId;
+        tableEntry->MsiHwIrq = UINT32_MAX;
+        tableEntry->Penalty = 1;
+        tableEntry->Sharable = 0;
+    } else if ((route->Flags & INTERRUPT_MSI_ROUTE_PARENT_RESERVED) &&
+               tableEntry->MsiReserved && !tableEntry->MsiQuarantined &&
+               tableEntry->MsiControllerId == route->ControllerId &&
+               tableEntry->MsiHwIrq == UINT32_MAX &&
+               atomic_load(&tableEntry->Descriptor) == NULL) {
+        tableEntry->MsiHwIrq = route->HwIrq;
+    } else if (!tableEntry->MsiReserved && !tableEntry->MsiQuarantined &&
+               tableEntry->Penalty == 0 &&
+               atomic_load(&tableEntry->Descriptor) == NULL) {
+        tableEntry->MsiReserved = 1;
+        tableEntry->MsiControllerId = route->ControllerId;
+        tableEntry->MsiHwIrq = route->HwIrq;
+        tableEntry->Penalty = 1;
+        tableEntry->Sharable = 0;
+    } else {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        return OS_EBUSY;
+    }
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    return OS_EOK;
+}
+
+oserr_t
+InterruptMsiReleaseTableRoute(
+    _In_ const InterruptMsiRoute_t* route)
+{
+    InterruptTableEntry_t* tableEntry;
+
+    if (route == NULL || route->Index >= MAX_SUPPORTED_INTERRUPTS) {
+        return OS_EINVALPARAMS;
+    }
+
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    tableEntry = &g_interruptTable[route->Index];
+    if (!tableEntry->MsiReserved || tableEntry->MsiQuarantined ||
+        tableEntry->MsiControllerId != route->ControllerId ||
+        atomic_load(&tableEntry->Descriptor) != NULL ||
+        (route->HwIrq != UINT32_MAX && tableEntry->MsiHwIrq != route->HwIrq)) {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        return OS_EBUSY;
+    }
+    if ((route->Flags & INTERRUPT_MSI_ROUTE_PARENT_RESERVED) && route->HwIrq != UINT32_MAX) {
+        tableEntry->MsiHwIrq = UINT32_MAX;
+    } else {
+        tableEntry->MsiReserved = 0;
+        tableEntry->MsiControllerId = 0;
+        tableEntry->MsiHwIrq = 0;
+        if (tableEntry->Penalty > 0) {
+            tableEntry->Penalty--;
+        }
+        tableEntry->Sharable = 0;
+    }
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    return OS_EOK;
+}
+
+uuid_t
+InterruptMsiControllerRegister(
+    _In_ const DeviceMsiControllerDescription_t* description)
+{
+    __InterruptMsiController_t* controller = NULL;
+    uint32_t                    controllerId;
+    oserr_t                     oserr;
+
+    if (description == NULL || description->Type != DEVICE_MSI_CONTROLLER_MIP ||
+        description->ProviderId == 0 ||
+        description->BusStart > description->BusEnd ||
+        description->MessageCount == 0 || description->MessageCount > 64 ||
+        description->MessageOffset >= 64 ||
+        description->MessageCount > 64 - description->MessageOffset ||
+        description->ParentLine < 32 || description->ParentLine >= (int)MAX_SUPPORTED_INTERRUPTS ||
+        description->MessageCount - 1 + description->MessageOffset >
+                (uint32_t)((int)MAX_SUPPORTED_INTERRUPTS - 1 - description->ParentLine) ||
+        description->DoorbellLength == 0 ||
+        description->DoorbellLength - 1 > UINT64_MAX - description->DoorbellAddress) {
+        return UUID_INVALID;
+    }
+
+    SpinlockAcquireIrq(&g_msiControllerLock);
+    for (uint32_t i = 0; i < sizeof(g_msiControllers) / sizeof(g_msiControllers[0]); i++) {
+        __InterruptMsiController_t* current = &g_msiControllers[i];
+        if (current->Id == 0) {
+            if (controller == NULL) {
+                controller = current;
+            }
+            continue;
+        }
+        if (current->Description.ProviderId == description->ProviderId) {
+            if (current->Description.Type != description->Type ||
+                current->Description.ParentLine != description->ParentLine ||
+                current->Description.MessageOffset != description->MessageOffset ||
+                current->Description.MessageCount != description->MessageCount ||
+                current->Description.DoorbellAddress != description->DoorbellAddress ||
+                current->Description.DoorbellLength != description->DoorbellLength) {
+                SpinlockReleaseIrq(&g_msiControllerLock);
+                return UUID_INVALID;
+            }
+            for (uint32_t range = 0; range < current->DeviceRangeCount; range++) {
+                if (current->DeviceRanges[range].Segment != description->Segment) {
+                    continue;
+                }
+                if (current->DeviceRanges[range].BusStart == description->BusStart &&
+                    current->DeviceRanges[range].BusEnd == description->BusEnd) {
+                    controllerId = current->Id;
+                    SpinlockReleaseIrq(&g_msiControllerLock);
+                    return controllerId;
+                }
+                if (description->BusStart <= current->DeviceRanges[range].BusEnd &&
+                    current->DeviceRanges[range].BusStart <= description->BusEnd) {
+                    SpinlockReleaseIrq(&g_msiControllerLock);
+                    return UUID_INVALID;
+                }
+            }
+            if (current->DeviceRangeCount >= 8) {
+                SpinlockReleaseIrq(&g_msiControllerLock);
+                return UUID_INVALID;
+            }
+            current->DeviceRanges[current->DeviceRangeCount].Segment = description->Segment;
+            current->DeviceRanges[current->DeviceRangeCount].BusStart = description->BusStart;
+            current->DeviceRanges[current->DeviceRangeCount].BusEnd = description->BusEnd;
+            current->DeviceRangeCount++;
+            SpinlockReleaseIrq(&g_msiControllerLock);
+            return current->Id;
+        }
+    }
+    if (controller == NULL || g_nextMsiControllerId == 0) {
+        SpinlockReleaseIrq(&g_msiControllerLock);
+        return UUID_INVALID;
+    }
+
+    controllerId = g_nextMsiControllerId++;
+    for (uint32_t i = 0; i < description->MessageCount; i++) {
+        InterruptMsiRoute_t route;
+        route.ControllerId = controllerId;
+        route.HwIrq = UINT32_MAX;
+        route.Index = (uint16_t)(description->ParentLine + description->MessageOffset + i);
+        route.ParentLine = route.Index;
+        route.Flags = INTERRUPT_MSI_ROUTE_PARENT_RESERVED;
+        oserr = InterruptMsiReserveTableRoute(&route);
+        if (oserr != OS_EOK) {
+            while (i > 0) {
+                i--;
+                route.Index = (uint16_t)(description->ParentLine + description->MessageOffset + i);
+                route.ParentLine = route.Index;
+                (void)InterruptMsiReleaseTableRoute(&route);
+            }
+            SpinlockReleaseIrq(&g_msiControllerLock);
+            return UUID_INVALID;
+        }
+    }
+
+    controller->Id = controllerId;
+    controller->Description = *description;
+    controller->DeviceRanges[0].Segment = description->Segment;
+    controller->DeviceRanges[0].BusStart = description->BusStart;
+    controller->DeviceRanges[0].BusEnd = description->BusEnd;
+    controller->DeviceRangeCount = 1;
+    controller->AllocatedMessages = 0;
+    SpinlockReleaseIrq(&g_msiControllerLock);
+    return controllerId;
+}
+
+oserr_t
+InterruptMsiControllerAllocate(
+    _InOut_ DeviceInterrupt_t* deviceInterrupt)
+{
+    __InterruptMsiController_t* controller = NULL;
+    InterruptMsiRoute_t        route;
+    oserr_t                    oserr;
+
+    if (deviceInterrupt == NULL || !deviceInterrupt->IsPci) {
+        return OS_EINVALPARAMS;
+    }
+
+    SpinlockAcquireIrq(&g_msiControllerLock);
+    for (uint32_t i = 0; i < sizeof(g_msiControllers) / sizeof(g_msiControllers[0]); i++) {
+        __InterruptMsiController_t* current = &g_msiControllers[i];
+        if (current->Id == 0) {
+            continue;
+        }
+        for (uint32_t range = 0; range < current->DeviceRangeCount; range++) {
+            if (current->DeviceRanges[range].Segment == deviceInterrupt->Segment &&
+                deviceInterrupt->Bus >= current->DeviceRanges[range].BusStart &&
+                deviceInterrupt->Bus <= current->DeviceRanges[range].BusEnd) {
+                controller = current;
+                break;
+            }
+        }
+        if (controller != NULL) {
+            break;
+        }
+    }
+    if (controller == NULL) {
+        SpinlockReleaseIrq(&g_msiControllerLock);
+        return OS_ENOENT;
+    }
+
+    for (uint32_t slot = 0; slot < controller->Description.MessageCount; slot++) {
+        uint64_t bit = 1ULL << slot;
+        uint32_t hwIrq;
+        uint32_t parentLine;
+
+        if (controller->AllocatedMessages & bit) {
+            continue;
+        }
+        hwIrq = controller->Description.MessageOffset + slot;
+        parentLine = controller->Description.ParentLine + hwIrq;
+        route.ControllerId = controller->Id;
+        route.HwIrq = hwIrq;
+        route.Index = (uint16_t)parentLine;
+        route.ParentLine = (int)parentLine;
+        route.Flags = INTERRUPT_MSI_ROUTE_PARENT_RESERVED;
+        oserr = InterruptMsiReserveTableRoute(&route);
+        if (oserr != OS_EOK) {
+            continue;
+        }
+
+        controller->AllocatedMessages |= bit;
+        deviceInterrupt->MsiControllerId = route.ControllerId;
+        deviceInterrupt->MsiHwIrq = route.HwIrq;
+        deviceInterrupt->MsiIndex = route.Index;
+        deviceInterrupt->MsiParentLine = route.ParentLine;
+        deviceInterrupt->MsiRouteFlags = route.Flags;
+        deviceInterrupt->MsiAddress = controller->Description.DoorbellAddress;
+        deviceInterrupt->MsiValue = hwIrq;
+        SpinlockReleaseIrq(&g_msiControllerLock);
+        return OS_EOK;
+    }
+
+    SpinlockReleaseIrq(&g_msiControllerLock);
+    return OS_EOOM;
+}
+
+void
+InterruptMsiControllerRelease(
+    _In_ const InterruptMsiRoute_t* route)
+{
+    if (route == NULL) {
+        return;
+    }
+    SpinlockAcquireIrq(&g_msiControllerLock);
+    for (uint32_t i = 0; i < sizeof(g_msiControllers) / sizeof(g_msiControllers[0]); i++) {
+        __InterruptMsiController_t* controller = &g_msiControllers[i];
+        uint32_t                    slot;
+        uint64_t                    bit;
+
+        if (controller->Id != route->ControllerId ||
+            !(route->Flags & INTERRUPT_MSI_ROUTE_PARENT_RESERVED) ||
+            route->HwIrq < controller->Description.MessageOffset) {
+            continue;
+        }
+        slot = route->HwIrq - controller->Description.MessageOffset;
+        if (slot >= controller->Description.MessageCount ||
+            route->ParentLine != (int)(controller->Description.ParentLine + route->HwIrq) ||
+            route->Index != (uint16_t)route->ParentLine) {
+            break;
+        }
+        bit = 1ULL << slot;
+        controller->AllocatedMessages &= ~bit;
+        break;
+    }
+    SpinlockReleaseIrq(&g_msiControllerLock);
+}
+
+oserr_t
+InterruptMsiCommitRoutes(
+    _In_ const uuid_t* sources,
+    _In_ uint32_t      count)
+{
+    SystemInterrupt_t* entry;
+
+    if (sources == NULL || count == 0 || count > INTERRUPT_MAXVECTORS) {
+        return OS_EINVALPARAMS;
+    }
+
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    for (uint32_t i = 0; i < count; i++) {
+        uint16_t index = LOWORD(sources[i]);
+        if (index >= MAX_SUPPORTED_INTERRUPTS) {
+            SpinlockReleaseIrq(&g_interruptTableLock);
+            return OS_EINVALPARAMS;
+        }
+        entry = atomic_load(&g_interruptTable[index].Descriptor);
+        while (entry != NULL && entry->Id != sources[i]) {
+            entry = atomic_load(&entry->Link);
+        }
+        if (entry == NULL || entry->MsiRoute.ControllerId == 0 ||
+            !g_interruptTable[index].MsiReserved || entry->QuarantineMsi) {
+            SpinlockReleaseIrq(&g_interruptTableLock);
+            return OS_ENOENT;
+        }
+    }
+    for (uint32_t i = 0; i < count; i++) {
+        uint16_t index = LOWORD(sources[i]);
+        entry = atomic_load(&g_interruptTable[index].Descriptor);
+        while (entry != NULL && entry->Id != sources[i]) {
+            entry = atomic_load(&entry->Link);
+        }
+        entry->QuarantineMsi = 1;
+    }
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    return OS_EOK;
 }
 
 static void
@@ -166,6 +522,9 @@ InterruptReclaimRetired(void)
             if (InterruptReleaseResources(reclaimable) != OS_EOK) {
                 ERROR(" > failed to cleanup interrupt resources");
             }
+        }
+        if (reclaimable->MsiRoute.ControllerId != 0 && !reclaimable->QuarantineMsi) {
+            PlatformMsiRelease(&reclaimable->MsiRoute);
         }
         kfree(reclaimable);
         reclaimable = next;
@@ -496,6 +855,9 @@ InterruptRegister(
     SystemInterrupt_t* systemInterrupt;
     uuid_t             tableIndex;
     uuid_t             id;
+    InterruptMsiRoute_t msiRoute = { 0 };
+    int                 allocatedMsiRoute = 0;
+    oserr_t             oserr;
 
     if (!deviceInterrupt) {
         return UUID_INVALID;
@@ -535,8 +897,22 @@ InterruptRegister(
         systemInterrupt->Owner = GetCurrentMemorySpaceHandle();
     }
 
-    // Resolve the table index
-    if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OS_EOK) {
+    if (flags & INTERRUPT_MSI) {
+        if (deviceInterrupt->MsiControllerId == 0) {
+            oserr = PlatformMsiAllocate(deviceInterrupt);
+            if (oserr != OS_EOK) {
+                kfree(systemInterrupt);
+                return UUID_INVALID;
+            }
+            allocatedMsiRoute = 1;
+        }
+        msiRoute.ControllerId = deviceInterrupt->MsiControllerId;
+        msiRoute.HwIrq = deviceInterrupt->MsiHwIrq;
+        msiRoute.Index = deviceInterrupt->MsiIndex;
+        msiRoute.ParentLine = deviceInterrupt->MsiParentLine;
+        msiRoute.Flags = deviceInterrupt->MsiRouteFlags;
+        tableIndex = msiRoute.Index;
+    } else if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OS_EOK) {
         ERROR("Failed to resolve the interrupt, invalid flags.");
         kfree(systemInterrupt);
         return UUID_INVALID;
@@ -544,9 +920,11 @@ InterruptRegister(
 
     // Update remaining members now that we resolved
         systemInterrupt->Index                          = (uint16_t)tableIndex;
-        systemInterrupt->ParentLine                     = (flags & (INTERRUPT_SOFT | INTERRUPT_MSI))
-            ? INTERRUPT_NONE : deviceInterrupt->Line;
+        systemInterrupt->ParentLine                     = (flags & INTERRUPT_SOFT)
+            ? INTERRUPT_NONE : ((flags & INTERRUPT_MSI)
+                ? deviceInterrupt->MsiParentLine : deviceInterrupt->Line);
         systemInterrupt->DeviceId                       = deviceInterrupt->DeviceId;
+    systemInterrupt->MsiRoute = msiRoute;
     systemInterrupt->Id                            |= tableIndex;
     systemInterrupt->Handler                        = deviceInterrupt->ResourceTable.Handler;
     systemInterrupt->Context                        = deviceInterrupt->Context;
@@ -560,6 +938,10 @@ InterruptRegister(
     if (systemInterrupt->Owner != UUID_INVALID) {
         if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OS_EOK) {
             ERROR(" > failed to resolve the requested resources");
+            if (allocatedMsiRoute) {
+                (void)InterruptMsiReleaseTableRoute(&msiRoute);
+                PlatformMsiRelease(&msiRoute);
+            }
             kfree(systemInterrupt);
             return UUID_INVALID;
         }
@@ -569,7 +951,24 @@ InterruptRegister(
     SpinlockAcquireIrq(&g_interruptTableLock);
 
     // Check sharing while holding the same lock used to publish the entry.
-    if (flags & INTERRUPT_EXCLUSIVE) {
+    if (flags & INTERRUPT_MSI) {
+        if (!g_interruptTable[tableIndex].MsiReserved ||
+            g_interruptTable[tableIndex].MsiQuarantined ||
+            g_interruptTable[tableIndex].MsiControllerId != msiRoute.ControllerId ||
+            g_interruptTable[tableIndex].MsiHwIrq != msiRoute.HwIrq ||
+            atomic_load(&g_interruptTable[tableIndex].Descriptor) != NULL) {
+            SpinlockReleaseIrq(&g_interruptTableLock);
+            if (systemInterrupt->Owner != UUID_INVALID) {
+                InterruptReleaseResources(systemInterrupt);
+            }
+            if (allocatedMsiRoute) {
+                (void)InterruptMsiReleaseTableRoute(&msiRoute);
+                PlatformMsiRelease(&msiRoute);
+            }
+            kfree(systemInterrupt);
+            return UUID_INVALID;
+        }
+    } else if (flags & INTERRUPT_EXCLUSIVE) {
         if (atomic_load(&g_interruptTable[tableIndex].Descriptor) != NULL ||
             g_interruptTable[tableIndex].Penalty > 0) {
             ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", tableIndex);
@@ -597,8 +996,10 @@ InterruptRegister(
                      atomic_load(&g_interruptTable[tableIndex].Descriptor));
     }
     
-    // Increment rather than set, retired entries may still hold a penalty.
-    g_interruptTable[tableIndex].Penalty++;
+    // MSI routes reserved their exclusive table slot before handler binding.
+    if (!(flags & INTERRUPT_MSI)) {
+        g_interruptTable[tableIndex].Penalty++;
+    }
     systemInterrupt->HasPenalty = 1;
     atomic_store(&g_interruptTable[tableIndex].Descriptor, systemInterrupt);
 
@@ -612,7 +1013,6 @@ InterruptRegister(
         InterruptReclaimRetired();
         return UUID_INVALID;
     }
-    systemInterrupt->QuarantineMsi = (flags & INTERRUPT_MSI) != 0;
     SpinlockReleaseIrq(&g_interruptTableLock);
     
     TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
@@ -771,7 +1171,7 @@ oserr_t
 InterruptMsiQuiesceEnqueue(
     _In_ const DeviceInterruptQuiesceRequest_t* Request,
     _In_ uuid_t                                  Owner,
-    _In_ const uint16_t*                         Indices,
+    _In_ const InterruptMsiRoute_t*              Routes,
     _In_ uint32_t                                Count,
     _Out_ uuid_t*                                TokenOut)
 {
@@ -780,7 +1180,7 @@ InterruptMsiQuiesceEnqueue(
     uuid_t                       eventHandle;
     uuid_t                       token;
 
-    if (Request == NULL || Indices == NULL || TokenOut == NULL ||
+    if (Request == NULL || Routes == NULL || TokenOut == NULL ||
         Owner == UUID_INVALID || Request->DeviceId == UUID_INVALID ||
         Count == 0 || Count > INTERRUPT_MAXVECTORS) {
         return OS_EINVALPARAMS;
@@ -797,11 +1197,11 @@ InterruptMsiQuiesceEnqueue(
     entry->Owner = Owner;
     entry->Count = Count;
     for (uint32_t i = 0; i < Count; i++) {
-        if (Indices[i] >= MAX_SUPPORTED_INTERRUPTS) {
+        if (Routes[i].ControllerId == 0 || Routes[i].Index >= MAX_SUPPORTED_INTERRUPTS) {
             kfree(entry);
             return OS_EINVALPARAMS;
         }
-        entry->Indices[i] = Indices[i];
+        entry->Routes[i] = Routes[i];
     }
 
     SpinlockAcquireIrq(&g_msiQuiesceLock);
@@ -872,8 +1272,10 @@ InterruptMsiQuiesceFinish(
 
     SpinlockAcquireIrq(&g_interruptTableLock);
     for (uint32_t i = 0; i < entry->Count; i++) {
-        InterruptTableEntry_t* tableEntry = &g_interruptTable[entry->Indices[i]];
-        if (!tableEntry->MsiQuarantined ||
+        InterruptTableEntry_t* tableEntry = &g_interruptTable[entry->Routes[i].Index];
+        if (!tableEntry->MsiQuarantined || !tableEntry->MsiReserved ||
+            tableEntry->MsiControllerId != entry->Routes[i].ControllerId ||
+            tableEntry->MsiHwIrq != entry->Routes[i].HwIrq ||
             atomic_load(&tableEntry->Descriptor) != NULL ||
             tableEntry->Penalty == 0) {
             SpinlockReleaseIrq(&g_interruptTableLock);
@@ -881,7 +1283,7 @@ InterruptMsiQuiesceFinish(
             return OS_EBUSY;
         }
         for (uint32_t j = i + 1; j < entry->Count; j++) {
-            if (entry->Indices[i] == entry->Indices[j]) {
+            if (entry->Routes[i].Index == entry->Routes[j].Index) {
                 SpinlockReleaseIrq(&g_interruptTableLock);
                 SpinlockReleaseIrq(&g_msiQuiesceLock);
                 return OS_EINVALPARAMS;
@@ -889,14 +1291,25 @@ InterruptMsiQuiesceFinish(
         }
     }
     for (uint32_t i = 0; i < entry->Count; i++) {
-        InterruptTableEntry_t* tableEntry = &g_interruptTable[entry->Indices[i]];
+        InterruptTableEntry_t* tableEntry = &g_interruptTable[entry->Routes[i].Index];
         tableEntry->MsiQuarantined = 0;
-        tableEntry->Penalty--;
-        if (tableEntry->Penalty == 0) {
-            tableEntry->Sharable = 0;
+        if (entry->Routes[i].Flags & INTERRUPT_MSI_ROUTE_PARENT_RESERVED) {
+            tableEntry->MsiHwIrq = UINT32_MAX;
+        } else {
+            tableEntry->MsiReserved = 0;
+            tableEntry->MsiControllerId = 0;
+            tableEntry->MsiHwIrq = 0;
+            tableEntry->Penalty--;
+            if (tableEntry->Penalty == 0) {
+                tableEntry->Sharable = 0;
+            }
         }
     }
     SpinlockReleaseIrq(&g_interruptTableLock);
+
+    for (uint32_t i = 0; i < entry->Count; i++) {
+        PlatformMsiRelease(&entry->Routes[i]);
+    }
 
     if (previous == NULL) {
         g_msiQuiesceHead = entry->Next;
