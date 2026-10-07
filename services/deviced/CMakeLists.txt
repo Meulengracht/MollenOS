@@ -24,6 +24,8 @@ add_service_target(deviced ""
         bus/pci/device.c
         bus/pci/functionhandlers.c
         bus/pci/interrupts.c
+        bus/pci/host.c
+        bus/pci/discovery.c
         bus/pci/pcienumerate.c
         bus/pci/pcihelpers.c
         bus/pci/pciio.c

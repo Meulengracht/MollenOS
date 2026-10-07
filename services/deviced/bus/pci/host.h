@@ -31,11 +31,10 @@
 typedef struct PciHost PciHost_t;
 
 /**
- * @brief Identifies one controller and the PCI bus interval it owns.
- * HostId is assigned on successful registration and is never a segment number
- * or a device-manager ID. Initialize it to UUID_INVALID before registration.
- * Segment and the inclusive bus interval are supplied by the host constructor.
- * All fields remain unchanged while the host is registered.
+ * @brief Identifies one PCI controller and the bus numbers it can access.
+ * Registration assigns HostId; it is neither the PCI segment nor a device ID.
+ * Set it to UUID_INVALID before registration. The constructor supplies Segment
+ * and the inclusive bus range. These values do not change while the host is active.
  */
 struct PciHostIdentification {
     uuid_t   HostId;
@@ -45,19 +44,26 @@ struct PciHostIdentification {
 };
 
 /**
- * @brief Registers a constructed PCI host without scanning or publishing devices.
+ * @brief Registers a constructed PCI host without scanning its buses or adding devices.
  *
- * @param host Host with configuration operations and an ordered bus interval.
- *             Any firmware mapping reference must already be owned by the host.
- * @return OS_EOK transfers ownership to PCI and assigns a service-lifetime host
- *         ID. Overlapping intervals in the same segment or repeated registration
- *         return OS_EEXISTS. Disjoint intervals and different segments may coexist.
- *         On failure, the caller retains the unchanged host and its resources.
- *         The caller serializes discovery and teardown; request lookup uses the
- *         PCI registry lock. BusEnumerate initializes that lock at service startup.
+ * @param host Host with configuration access and a valid bus range. The host must
+ *             already hold a reference to any firmware data it uses.
+ * @return OS_EOK transfers ownership to PCI and assigns a unique host ID that is
+ *         not reused. Registration fails if the host is already registered or its
+ *         bus range overlaps another host in the same segment. On failure, the
+ *         caller still owns the unchanged host and its resources. The caller must
+ *         not run discovery and teardown at the same time. PCI protects request
+ *         lookups with a lock; call PciInitialize before registration or teardown.
  */
-extern oserr_t
+__EXTERN oserr_t
 PciHostRegister(
     _In_ struct PciHost* host);
+
+/**
+ * @brief Initializes PCI once during startup when no other thread is changing
+ * the host list. Calling it again leaves registered hosts in place.
+ */
+__EXTERN void
+PciInitialize(void);
 
 #endif

@@ -1,11 +1,11 @@
-/** RP1 enumeration is separate from the generic PCI scanner. */
+/** RP1 child devices are described by firmware, not found as separate PCI devices. */
 #include "rp1.h"
 #include <bus/pci/bus.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
 
-/** Carries allocation failures across the firmware walk's callback boundary. */
+/** Saves allocation errors because the firmware walk callback cannot return one. */
 struct __Rp1Enumeration {
     struct Rp1Bus* Bus;
     struct Rp1Child** Tail;
@@ -82,7 +82,10 @@ Rp1BusDestroy(
     if (bus == NULL) {
         return;
     }
-    Rp1BusUnpublish(bus);
+    // Published attachments are unpublished by PCI before destruction.
+    if (Rp1BusUnpublish(bus) != OS_EOK) {
+        return;
+    }
     while (bus->Children != NULL) {
         child = bus->Children;
         bus->Children = child->Next;
@@ -117,8 +120,9 @@ __Rp1Attach(
     if (resources->Firmware == NULL) {
         return OS_ENOENT;
     }
-    // The firmware wrapper has no PCI reg identity. Bind it only to the
-    // directly attached function, never to an unrelated downstream endpoint.
+    // Firmware does not identify RP1 by its PCI bus, slot, and function numbers.
+    // Accept only the expected function directly below this host, not another
+    // device that happens to have the same vendor and device IDs.
     if (device->Bus != (unsigned int)device->Host->Identification.BusStart + 1 ||
         device->Slot != 0 || device->Function != 0) {
         return OS_ENOENT;
@@ -126,12 +130,6 @@ __Rp1Attach(
     status = Rp1BusCreate(resources->Firmware, resources->Bars, &bus);
     if (status != OS_EOK) {
         WARNING("RP1 child enumeration failed (%u); assigned BARs and matching firmware required", status);
-        return status;
-    }
-    status = Rp1BusPublish(bus, device);
-    if (status != OS_EOK) {
-        WARNING("RP1 publication failed (%u)", status);
-        Rp1BusDestroy(bus);
         return status;
     }
     *attachmentOut = bus;
@@ -151,9 +149,34 @@ __Rp1DestroyAttachment(
     Rp1BusDestroy(attachment);
 }
 
+static oserr_t
+__Rp1PublishAttachment(
+    _In_ void* attachment,
+    _In_ const struct PciDevice* device)
+{
+    return Rp1BusPublish(attachment, device);
+}
+
+static oserr_t
+__Rp1UnpublishAttachment(
+    _In_ void* attachment)
+{
+    return Rp1BusUnpublish(attachment);
+}
+
+static oserr_t
+__Rp1EnableBinding(
+    _In_ void* attachment)
+{
+    return Rp1BusEnableBinding(attachment);
+}
+
 const struct PciFunctionHandler g_rp1PciHandler = {
     .Match = __Rp1Match,
     .BlockActivation = 1,
     .Attach = __Rp1Attach,
-    .Destroy = __Rp1DestroyAttachment
+    .Destroy = __Rp1DestroyAttachment,
+    .Publish = __Rp1PublishAttachment,
+    .Unpublish = __Rp1UnpublishAttachment,
+    .EnableBinding = __Rp1EnableBinding
 };

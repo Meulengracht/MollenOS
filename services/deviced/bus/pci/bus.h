@@ -132,12 +132,13 @@ struct PciFunctionResources {
 };
 
 /**
- * @brief A statically registered consumer owning a function's child bus.
- * Matching reserves generic driver binding even when attachment fails.
- * BlockActivation also denies bus control and configuration writes on failure.
- * Attach leaves its output NULL and releases partial state on failure; on success
- * it transfers ownership of the attachment to PCI. Resources must be copied.
- * Destroy runs after clients stop and before host resources or firmware are released.
+ * @brief Handles a PCI function that has child devices of its own.
+ * A match keeps a generic driver from claiming the function, even if Attach fails.
+ * When BlockActivation is set, requests to change the function's PCI settings are
+ * rejected. Attach must leave its output NULL and free partial state on failure;
+ * on success, PCI owns the attachment. Copy resources that must outlive Attach.
+ * Attach records child devices; Publish adds them after scanning, without starting
+ * their drivers. Destroy runs after Unpublish succeeds and before host resources go.
  */
 struct PciFunctionHandler {
     int BlockActivation;
@@ -170,6 +171,31 @@ struct PciFunctionHandler {
      * @param attachment The attachment to destroy.
      */
     void (*Destroy)(void* attachment);
+
+    /**
+    * @brief Adds child device records beneath the already listed PCI function.
+    * Do not start matching drivers here. Unpublish must remove all records, even
+    * when this call adds only some of them before returning an error.
+     * 
+     * @param attachment The attachment associated with the function handler.
+     * @param device The PCI device for which child descriptions are being published.
+     */
+    oserr_t (*Publish)(void* attachment, const struct PciDevice* device);
+
+    /**
+    * @brief Removes this handler's child devices after their clients have stopped.
+    * On failure, keep the attachment and remaining device IDs so removal can retry.
+     * 
+     * @param attachment The attachment associated with the function handler.
+     */
+    oserr_t (*Unpublish)(void* attachment);
+
+    /**
+    * @brief Allows drivers to match child devices after the whole PCI tree is listed.
+     * 
+     * @param attachment The attachment associated with the function handler.
+     */
+    oserr_t (*EnableBinding)(void* attachment);
 };
 
 /** @brief Returns the first statically registered handler matching a function. */
@@ -191,11 +217,11 @@ struct PciHostOperations {
      */
     size_t (*Read)(
         struct PciHost* host,
-        unsigned int      bus,
-        unsigned int      slot,
-        unsigned int      function,
-        size_t            reg,
-        size_t            width);
+        unsigned int    bus,
+        unsigned int    slot,
+        unsigned int    function,
+        size_t          reg,
+        size_t          width);
     
     /**
      * @brief Write to the PCI configuration space.
@@ -210,15 +236,16 @@ struct PciHostOperations {
      */
     void (*Write)(
         struct PciHost* host,
-        unsigned int      bus,
-        unsigned int      slot,
-        unsigned int      function,
-        size_t            reg,
-        size_t            width,
-        size_t            value);
+        unsigned int    bus,
+        unsigned int    slot,
+        unsigned int    function,
+        size_t          reg,
+        size_t          value,
+        size_t          width);
 
     /**
-     * @brief Destroy the PCI host and release its resources.
+    * @brief Releases state used only by this host implementation. Common teardown
+    * releases the main I/O mapping, retained firmware data, and host allocation.
      * @param host The PCI host to destroy.
      */
     void (*Destroy)(struct PciHost*);
@@ -235,10 +262,10 @@ struct PciHostOperations {
      */
     oserr_t (*Translate)(
         struct PciHost* host,
-        uint32_t          space,
-        uint64_t          address,
-        uint64_t          length,
-        uint64_t*         physicalOut);
+        uint32_t        space,
+        uint64_t        address,
+        uint64_t        length,
+        uint64_t*       physicalOut);
     
     /**
      * @brief Resolve the interrupt for a PCI device.
@@ -254,21 +281,13 @@ struct PciHostOperations {
      */
     oserr_t (*ResolveInterrupt)(
         struct PciHost* host,
-        unsigned int      bus,
-        unsigned int      slot,
-        unsigned int      function,
-        unsigned int      pin,
-        int*              lineOut,
-        unsigned int*     flagsOut);
+        unsigned int    bus,
+        unsigned int    slot,
+        unsigned int    function,
+        unsigned int    pin,
+        int*            lineOut,
+        unsigned int*   flagsOut);
 };
-
-extern const struct PciHostOperations g_pciDtEcamOperations;
-extern const struct PciHostOperations g_pciAcpiEcamOperations;
-
-// Usually only i386 and amd64 architectures support legacy PCI access.
-#ifdef __OSCONFIG_HAS_LEGACY_PCI
-extern const struct PciHostOperations g_pciLegacyOperations;
-#endif
 
 /**
  * @brief How a host exposes PCI I/O BAR resources to device drivers.
@@ -279,9 +298,9 @@ enum PciIoResourcePolicy {
 };
 
 /**
- * @brief Represents a controller, segment, numbered bus range, 
- * firmware resources and the DT tree. Every initialized host supplies 
- * configuration operations independently of its I/O BAR resource policy.
+ * @brief Represents one PCI controller, its segment and bus range, and any
+ * firmware data used to describe its devices. Configuration access is provided
+ * separately from the way device I/O resources are exposed to drivers.
  */
 typedef struct PciHost {
     DeviceIo_t               IoSpace;
@@ -294,6 +313,7 @@ typedef struct PciHost {
 
     const struct FdtPciHost*   Firmware;
     int                        DriversBlocked;
+    uint8_t                    ScannedBuses[32];
     struct PciDevice*          RootDevice;
     struct PciFirmwareMapping* FirmwareMapping;
 } PciHost_t;
@@ -308,6 +328,10 @@ typedef struct PciDevice {
     struct PciDevice* Parent;
     PciHost_t*        Host;
     int               IsBridge;
+    // Registry IDs are distinct from host identity and PCI addresses.
+    uuid_t            DeviceId;
+    int               BindingEnabled;
+    DeviceIo_t        PublishedIo[6];
 
     struct PciFunctionResources      Resources;
     const struct PciFunctionHandler* Handler;
@@ -324,19 +348,20 @@ typedef struct PciDevice {
 } PciDevice_t;
 
 /**
- * @brief Discovers firmware PCI hosts and enumerates their numbered buses.
- * Architecture-supported legacy access is used when no firmware host initializes. 
+ * @brief Finds PCI controllers described by firmware and scans their buses.
+ * On supported systems, scans legacy PCI if no firmware-described host starts.
  */
 __EXTERN void
 BusEnumerate(void);
 
 /**
- * @brief Releases a constructed or registered host after all its clients stop.
- * A constructor may use this after registration fails; no root is required.
- * The controller, acquired I/O mapping and retained firmware reference are
- * released with the host. Other registered hosts remain valid.
+ * @brief Releases a host after its clients have stopped.
+ * This also frees a newly constructed host if registration failed, even if it
+ * has no root device. The host's controller state, I/O mapping, and firmware data
+ * are released; other hosts are unaffected. If removing device-manager entries
+ * fails, the host and remaining IDs stay valid so the caller can retry.
  */
-__EXTERN void
+__EXTERN oserr_t
 PciHostDestroy(
     _In_ PciHost_t* bus);
 
@@ -419,10 +444,12 @@ PciResolveInterruptLineAndPin(
     _In_ PciDevice_t* pciDevice);
 
 /**
- * @brief Publishes the given PCI device to the system, making it available 
- * for driver binding.
+ * @brief Adds a PCI device and its descendants beneath their parent, then allows
+ * drivers to match them. If adding any entry fails, entries added by this call
+ * are removed. Calling it again after success has no further effect. Publish the
+ * host root before adding any child devices.
  */
-__EXTERN void
+__EXTERN oserr_t
 PciPublishDevice(
     _In_ PciDevice_t* pciDevice);
 

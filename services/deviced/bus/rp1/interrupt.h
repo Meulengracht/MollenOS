@@ -1,16 +1,17 @@
-/** RP1 source control. MSI-X allocation and CPU routing belong to the parent. */
+/** Controls RP1 interrupt sources. The PCI parent allocates MSI-X vectors and
+ * routes them to CPUs; this code only enables, disables, and acknowledges sources. */
 #ifndef __DEVICED_RP1_INTERRUPT_H__
 #define __DEVICED_RP1_INTERRUPT_H__
 
 #include "rp1.h"
 #include <ddk/io.h>
 
-/** Parent vectors are indexed by RP1 source number, never by a GIC line.
- * Mask must also wait for an in-flight handler before returning. Unmask may
- * deliver immediately. Both callbacks must succeed for an allocated vector.
- * The parent owns MSI-X table masking, message programming and vector lifetime.
- * All 61 vectors must be allocated before initialization; callers serialize
- * control operations and keep this object and MMIO alive until Destroy returns.
+/** Vector number passed to the parent is the RP1 source number, not a CPU
+ * interrupt number. MaskAndSynchronize must block new interrupts and wait for
+ * any running handler to finish; Unmask may deliver an interrupt immediately.
+ * The parent also programs the MSI-X table and owns the vectors. Allocate all
+ * 61 vectors before initialization. Do not overlap control calls, and keep this
+ * object and its mapped registers alive until Destroy succeeds.
  */
 struct Rp1InterruptParent {
     void* Context;
@@ -21,7 +22,7 @@ struct Rp1InterruptParent {
 
 typedef void (*Rp1InterruptHandler)(void*, unsigned int);
 
-/** Per-instance source state, separate from the PCI host interrupt controller. */
+/** Interrupt state for one RP1 device, kept separate from the PCI controller. */
 struct Rp1InterruptController {
     DeviceIo_t* Registers;
     struct Rp1InterruptParent Parent;
@@ -32,10 +33,10 @@ struct Rp1InterruptController {
     uint8_t Enabled[FDT_RP1_INTERRUPT_COUNT];
 };
 
-/** @brief Initializes source control with an acquired APBS mapping and masked,
- * allocated parent vectors. Does not allocate vectors or enable any source.
- * The output must be zero-initialized and may not already be active. A failed
- * initialization with Registers set retains masked ownership; call Destroy. */
+/** @brief Starts source control using an acquired APBS register mapping and
+ * parent vectors that are allocated and masked. This does not allocate vectors
+ * or enable sources. Start with a zero-initialized, inactive output object. If
+ * initialization fails after setting Registers, call Destroy before releasing it. */
 extern oserr_t
 Rp1InterruptInitialize(
     _Out_ struct Rp1InterruptController* controller,
@@ -44,7 +45,7 @@ Rp1InterruptInitialize(
     _In_ Rp1InterruptHandler handler,
     _In_ void* context);
 
-/** @brief Sets edge/level mode while the source is disabled. */
+/** @brief Selects whether the source signals on an edge or remains active as a level. */
 extern oserr_t
 Rp1InterruptConfigure(
     _InOut_ struct Rp1InterruptController* controller,
@@ -57,21 +58,23 @@ Rp1InterruptEnable(
     _InOut_ struct Rp1InterruptController* controller,
     _In_ unsigned int source);
 
-/** @brief Masks and drains the parent before disabling this source. */
+/** @brief Blocks new parent interrupts and waits for any running handler before
+ * disabling this source. */
 extern oserr_t
 Rp1InterruptDisable(
     _InOut_ struct Rp1InterruptController* controller,
     _In_ unsigned int source);
 
-/** @brief Dispatches a delivered parent vector and acknowledges a level source
- * after the child handler has cleared its device condition. Called by parent. */
+/** @brief Calls the child handler for a delivered source. For a level interrupt,
+ * acknowledges it after the child handler clears the device's interrupt condition.
+ * The PCI parent calls this function. */
 extern oserr_t
 Rp1InterruptHandle(
     _InOut_ struct Rp1InterruptController* controller,
     _In_ unsigned int source);
 
-/** @brief Masks and drains all parent vectors before forgetting MMIO and handlers.
- * On failure the object remains owned and masked; retry before releasing MMIO. */
+/** @brief Blocks and drains parent interrupts before releasing this object's state.
+ * If it fails, keep the object and mapped registers, and retry Destroy. */
 extern oserr_t
 Rp1InterruptDestroy(
     _InOut_ struct Rp1InterruptController* controller);

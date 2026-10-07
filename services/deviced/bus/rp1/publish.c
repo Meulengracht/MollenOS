@@ -61,23 +61,26 @@ __Rp1PublishChild(
     return status;
 }
 
-void
+oserr_t
 Rp1BusUnpublish(
     _InOut_ struct Rp1Bus* bus)
 {
     struct Rp1Child* child;
+    oserr_t status;
 
-    // The PCI teardown caller has already stopped this host's clients.
+    // PCI owns the endpoint parent. Remove only this attachment's children.
     for (child = bus->Children; child != NULL; child = child->Next) {
         if (child->DeviceId != UUID_INVALID) {
-            DmDeviceDestroy(child->DeviceId);
+            status = DmDeviceDestroy(child->DeviceId);
+            if (status != OS_EOK) {
+                return status;
+            }
             child->DeviceId = UUID_INVALID;
+            child->BindingEnabled = 0;
         }
     }
-    if (bus->DeviceId != UUID_INVALID) {
-        DmDeviceDestroy(bus->DeviceId);
-        bus->DeviceId = UUID_INVALID;
-    }
+    bus->DeviceId = UUID_INVALID;
+    return OS_EOK;
 }
 
 oserr_t
@@ -85,47 +88,41 @@ Rp1BusPublish(
     _InOut_ struct Rp1Bus* bus,
     _In_ const struct PciDevice* endpoint)
 {
-    BusDevice_t* parent;
     struct Rp1Child* child;
     oserr_t status;
 
-    if (bus->DeviceId != UUID_INVALID) {
-        return OS_EOK;
+    if (endpoint->DeviceId == UUID_INVALID) {
+        return OS_EINVALPARAMS;
     }
-    parent = calloc(1, sizeof(*parent));
-    if (parent == NULL) {
-        return OS_EOOM;
-    }
-    parent->Base.Length = sizeof(*parent);
-    parent->Base.VendorId = RP1_VENDOR_ID;
-    parent->Base.ProductId = RP1_DEVICE_ID;
-    parent->Base.Identification.Description = strdup("RP1 internal bus");
-    if (parent->Base.Identification.Description == NULL) {
-        free(parent);
-        return OS_EOOM;
-    }
-    parent->IsPci = 1;
-    parent->Segment = endpoint->Host->Identification.Segment;
-    parent->Bus = endpoint->Bus;
-    parent->Slot = endpoint->Slot;
-    parent->Function = endpoint->Function;
-    parent->InterruptLine = INTERRUPT_NONE;
-    parent->InterruptPin = INTERRUPT_NONE;
-    status = DmDeviceCreate(&parent->Base, 0, &bus->DeviceId);
-    if (status != OS_EOK) {
-        free(parent->Base.Identification.Description);
-        free(parent);
-        return status;
-    }
+    bus->DeviceId = endpoint->DeviceId;
     for (child = bus->Children; child != NULL; child = child->Next) {
+        if (child->DeviceId != UUID_INVALID) {
+            continue;
+        }
         status = __Rp1PublishChild(bus, child);
         if (status != OS_EOK) {
-            Rp1BusUnpublish(bus);
             return status;
         }
     }
+    return OS_EOK;
+}
+
+oserr_t
+Rp1BusEnableBinding(
+    _InOut_ struct Rp1Bus* bus)
+{
+    struct Rp1Child* child;
+    oserr_t status;
+
     for (child = bus->Children; child != NULL; child = child->Next) {
-        DmDeviceEnableDriverBinding(child->DeviceId);
+        if (child->BindingEnabled) {
+            continue;
+        }
+        status = DmDeviceEnableDriverBinding(child->DeviceId);
+        if (status != OS_EOK) {
+            return status;
+        }
+        child->BindingEnabled = 1;
     }
     return OS_EOK;
 }

@@ -23,156 +23,7 @@
  */
 
 #include "bus.h"
-#include <firmware/pci.h>
 #include <stddef.h>
-
-static size_t
-__EcamOffset(
-	_In_ PciHost_t*	  Io,
-	_In_ unsigned int Bus,
-	_In_ unsigned int Device,
-	_In_ unsigned int Function,
-	_In_ size_t 	  Register)
-{
-	return (size_t)(
-        ((Bus - Io->Identification.BusStart) << 20) |
-            (Device << 15) | 
-            (Function << 12) | 
-            Register);
-}
-
-#ifdef __OSCONFIG_HAS_LEGACY_PCI
-static void
-__LegacySelect(
-	_In_ PciHost_t*	  Io,
-	_In_ unsigned int Bus,
-	_In_ unsigned int Device,
-	_In_ unsigned int Function,
-	_In_ size_t 	  Register)
-{
-	size_t address = 0x80000000 | (Bus << 16) | (Device << 11) | (Function << 8) | (Register & 0xFC);
-	WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, address, 4);
-}
-
-// Sub-dword accesses select a byte lane within the 32-bit data port.
-#define __LEGACY_DATA_PORT(Register, Width) (PCI_REGISTER_DATA + ((Register) & 0x3 & ~((Width) - 1)))
-
-static size_t
-__LegacyRead(
-		_In_ PciHost_t*    host,
-		_In_ unsigned int bus,
-		_In_ unsigned int slot,
-		_In_ unsigned int function,
-		_In_ size_t       reg,
-		_In_ size_t       width)
-{
-	__LegacySelect(host, bus, slot, function, reg);
-	return ReadDeviceIo(&host->IoSpace, __LEGACY_DATA_PORT(reg, width), width);
-}
-
-static void
-__LegacyWrite(
-		_In_ PciHost_t*    host,
-		_In_ unsigned int bus,
-		_In_ unsigned int slot,
-		_In_ unsigned int function,
-		_In_ size_t       reg,
-		_In_ size_t       value,
-		_In_ size_t       width)
-{
-	__LegacySelect(host, bus, slot, function, reg);
-	WriteDeviceIo(&host->IoSpace, __LEGACY_DATA_PORT(reg, width), value, width);
-}
-
-const struct PciHostOperations g_pciLegacyOperations = {
-	.Read = __LegacyRead,
-	.Write = __LegacyWrite
-};
-#endif
-
-static size_t
-__EcamRead(
-		_In_ PciHost_t*     host,
-		_In_ unsigned int bus,
-		_In_ unsigned int slot,
-		_In_ unsigned int function,
-		_In_ size_t       reg,
-		_In_ size_t       width)
-{
-	return ReadDeviceIo(
-        &host->IoSpace,
-        __EcamOffset(host, bus, slot, function, reg),
-        width
-    );
-}
-
-static void
-__EcamWrite(
-		_In_ PciHost_t*     host,
-		_In_ unsigned int bus,
-		_In_ unsigned int slot,
-		_In_ unsigned int function,
-		_In_ size_t       reg,
-		_In_ size_t       value,
-		_In_ size_t       width)
-{
-	WriteDeviceIo(
-        &host->IoSpace,
-        __EcamOffset(host, bus, slot, function, reg),
-        value,
-        width
-    );
-}
-
-static oserr_t
-__DtTranslate(
-		_In_ PciHost_t* host,
-		_In_ uint32_t  space,
-		_In_ uint64_t  address,
-		_In_ uint64_t  length,
-		_Out_ uint64_t* physicalOut)
-{
-	return FdtTranslatePciAddress(
-        host->OpContext,
-        space,
-        address,
-        length,
-        physicalOut
-    );
-}
-
-static oserr_t
-__DtResolveInterrupt(
-		_In_ PciHost_t*    host,
-		_In_ unsigned int bus,
-		_In_ unsigned int slot,
-		_In_ unsigned int function,
-		_In_ unsigned int pin,
-		_Out_ int*        lineOut,
-		_Out_ unsigned int* flagsOut)
-{
-	return FdtResolvePciInterrupt(
-        host->OpContext,
-        bus,
-        slot,
-        function,
-        pin,
-        lineOut,
-        flagsOut
-    );
-}
-
-const struct PciHostOperations g_pciAcpiEcamOperations = {
-	.Read = __EcamRead,
-	.Write = __EcamWrite
-};
-
-const struct PciHostOperations g_pciDtEcamOperations = {
-	.Read = __EcamRead,
-	.Write = __EcamWrite,
-	.Translate = __DtTranslate,
-	.ResolveInterrupt = __DtResolveInterrupt
-};
 
 static int
 __ValidAccess(
@@ -185,6 +36,8 @@ __ValidAccess(
 {
 	size_t limit = host->IsExtended ? 4096 : 256;
 
+	// Keep invalid locations, out-of-range registers, and misaligned accesses
+	// from reaching a host method or crossing its mapped configuration space.
 	return bus >= (unsigned int)host->Identification.BusStart && bus <= (unsigned int)host->Identification.BusEnd &&
 			slot < 32 && function < 8 && reg < limit && width <= limit - reg &&
 			(reg & (width - 1)) == 0;

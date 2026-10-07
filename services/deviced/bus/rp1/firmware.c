@@ -20,7 +20,8 @@
 #include <firmware/resources.h>
 #include <string.h>
 
-/** State for the validation and publication passes over one RP1 subtree. */
+/** Tracks checks during the first device-tree walk and child collection during
+ * the second walk of this RP1 controller. */
 struct __FdtRp1Walk {
     const struct FdtPciHost* Host;
     const struct PciBar* Bars;
@@ -56,7 +57,8 @@ __Rp1TranslateRegister(
     uint64_t physical = 0;
     unsigned int bar;
 
-    // RP1 uses two address cells, PCI uses three, and sizes use two.
+    // Each ranges entry stores a child address in 2 32-bit cells, a PCI address
+    // in 3 cells, and a size in 2 cells, for 28 bytes total.
     if (!rp1->RangesLength || rp1->RangesLength % 28) {
         return OS_EINVALPARAMS;
     }
@@ -191,7 +193,7 @@ __VisitRp1(
         walk->Controller = rp1->Phandle;
         return;
     }
-    // Pins, PHYs, SPI slaves and SRAM subregions belong to their child driver.
+    // These describe parts of a device, not separate devices for deviced to add.
     if (node->Compatible == NULL || node->Reg == NULL) {
         return;
     }
