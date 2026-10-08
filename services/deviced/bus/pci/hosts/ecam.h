@@ -23,7 +23,9 @@
 #ifndef __DEVICED_PCI_ECAM_H__
 #define __DEVICED_PCI_ECAM_H__
 
-#include "../bus.h"
+#include <bus/pci/host.h>
+
+struct FdtPciHost;
 
 /**
  * @brief Base is the physical address of BusStart; each bus uses 1 MiB of

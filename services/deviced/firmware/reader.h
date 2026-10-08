@@ -21,8 +21,12 @@
 
 #include <fdt/reader.h>
 
-/** Borrowed identity and properties of one node. Views may be copied, but the
- * immutable firmware mapping must outlive every view and property value. */
+/** Describes one device-tree node without copying its strings or properties.
+ * A node is an entry describing hardware or its configuration. You may copy
+ * this structure, but its pointers still refer to the original firmware data.
+ * Keep that data mapped and unchanged until all copies are no longer used.
+ * NodeOffset is a byte offset within the tree's structure block. Phandle is
+ * an optional numeric ID used by other nodes to refer to this node. */
 struct FdtNode {
     const char* Name;
     uint32_t NodeOffset;
@@ -39,8 +43,18 @@ struct FdtNode {
 
 typedef void (*FdtNodeFn)(const struct FdtNode* nodes, int depth, void* context);
 
-/** @brief Validate the entire structure before visiting nodes. The stack
- * is temporary; copied node views and property spans borrow only the input blob. */
+/**
+ * @brief Check the tree's format, then call the visitor for each node.
+ *
+ * @param blob Firmware device-tree data, kept mapped and unchanged during use.
+ * @param length Available size of blob in bytes.
+ * @param visitor Callback receiving an array from the root to the current node
+ *                and the current node's index (depth). NULL checks the tree only.
+ *                The array is temporary; copy any records needed later. Their
+ *                strings and property bytes still point into blob.
+ * @param context Caller data passed to visitor.
+ * @return OS_EOK on success, or an error if the tree's format is invalid.
+ */
 oserr_t
 FdtWalkNodes(
     _In_ const void* blob,
@@ -48,7 +62,19 @@ FdtWalkNodes(
     _In_ FdtNodeFn visitor,
     _InOut_ void* context);
 
-/** @brief Resolve a unique enabled provider, including forward references. */
+/**
+ * @brief Find the enabled node with the requested firmware ID.
+ *
+ * Searches the whole tree, so references may point to nodes listed later.
+ * Duplicate IDs are rejected even if one of the matching nodes is disabled.
+ *
+ * @param blob Firmware device-tree data, kept mapped and unchanged during use.
+ * @param length Available size of blob in bytes.
+ * @param phandle Numeric node ID to find.
+ * @param node Receives the node on success; its pointers refer to blob.
+ * @return OS_EOK on success, OS_ENOENT if missing or disabled, or an error for
+ *         invalid input, duplicate IDs, or malformed node or parent data.
+ */
 oserr_t
 FdtFindNode(
     _In_ const void* blob,
@@ -56,20 +82,42 @@ FdtFindNode(
     _In_ uint32_t phandle,
     _Out_ struct FdtNode* node);
 
-/** @brief Return a borrowed property span; absent properties return NULL. */
+/**
+ * @brief Find a property by name and return its bytes without copying them.
+ *
+ * @param node Node to search.
+ * @param name Exact property name, such as "reg".
+ * @param length Receives the property's size in bytes, or zero if absent.
+ * @return Pointer into the original firmware data, or NULL if absent. An empty
+ *         property has a non-NULL pointer and a length of zero.
+ */
 const uint8_t*
 FdtProperty(
     _In_ const struct FdtNode* node,
     _In_ const char* name,
     _Out_ uint32_t* length);
 
-/** @brief Match a complete compatible string without controller classification. */
+/**
+ * @brief Check whether the node's "compatible" list contains an exact name.
+ *
+ * @param node Node to check.
+ * @param compatible Hardware name to match, such as "arm,gic-v3".
+ * @return 1 for a match, or 0 if absent or the checked data is malformed.
+ */
 int
 FdtCompatible(
     _In_ const struct FdtNode* node,
     _In_ const char* compatible);
 
-/** @brief Read a scalar, retaining malformed versus absent property errors. */
+/**
+ * @brief Read a property containing one 32-bit number.
+ *
+ * @param node Node containing the property.
+ * @param name Property name.
+ * @param value Receives the number in the CPU's byte order on success.
+ * @return OS_EOK on success, OS_ENOENT if absent, or OS_EINVALPARAMS if the
+ *         property is not exactly four bytes long.
+ */
 oserr_t
 FdtScalar(
     _In_ const struct FdtNode* node,

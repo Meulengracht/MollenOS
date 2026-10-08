@@ -18,7 +18,8 @@
  *
  */
 
-#include "ecam.h"
+#include <bus/pci/hosts/ecam.h>
+#include <bus/pci/host-private.h>
 #include <firmware/pci.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,9 +76,9 @@ __EcamWrite(
 static oserr_t
 __DtTranslate(
     _In_ PciHost_t* host,
-    _In_ uint32_t  space,
-    _In_ uint64_t  address,
-    _In_ uint64_t  length,
+    _In_ uint32_t   space,
+    _In_ uint64_t   address,
+    _In_ uint64_t   length,
     _Out_ uint64_t* physicalOut)
 {
     return FdtTranslatePciAddress(
@@ -91,12 +92,12 @@ __DtTranslate(
 
 static oserr_t
 __DtResolveInterrupt(
-    _In_ PciHost_t*    host,
-    _In_ unsigned int bus,
-    _In_ unsigned int slot,
-    _In_ unsigned int function,
-    _In_ unsigned int pin,
-    _Out_ int*        lineOut,
+    _In_ PciHost_t*     host,
+    _In_ unsigned int   bus,
+    _In_ unsigned int   slot,
+    _In_ unsigned int   function,
+    _In_ unsigned int   pin,
+    _Out_ int*          lineOut,
     _Out_ unsigned int* flagsOut)
 {
     return FdtResolvePciInterrupt(

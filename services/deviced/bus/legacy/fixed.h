@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright (C) Philip Meulengracht
+ * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,28 +16,28 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * Legacy configuration-port host construction.
- * 
+ *
+ * MollenOS PCI Bus Driver
+ * - Enumerates the bus and registers the devices/controllers
+ *   available in the system
  */
 
-#ifndef __DEVICED_PCI_LEGACY_H__
-#define __DEVICED_PCI_LEGACY_H__
+#ifndef __DEVICED_BUS_LEGACY_FIXED_H__
+#define __DEVICED_BUS_LEGACY_FIXED_H__
 
-#include <bus/pci/host.h>
+#include <os/osdefs.h>
 
-struct FdtPciHost;
-
-#ifdef __OSCONFIG_HAS_LEGACY_PCI
+// Fixed device-id and vendor-id values for loading non-dynamic devices
+#define PCI_FIXED_VENDORID    0xFFEF
+#define PCI_CMOS_RTC_DEVICEID 0x0010
+#define PCI_PIT_DEVICEID      0x0020
+#define PCI_PS2_DEVICEID      0x0030
 
 /**
- * @brief Creates a host and acquires the legacy PCI I/O ports, but does not
- * register it or scan its buses. The caller owns the host until registration
- * succeeds. On failure, leaves hostOut NULL and frees partial resources.
+ * @brief Registers the fixed keyboard and mouse controller on legacy systems.
+ * @return OS_EOK on success, or an allocation or I/O registration error.
  */
 __EXTERN oserr_t
-PciLegacyHostCreate(
-    _Out_ PciHost_t** hostOut);
+__InstallPS2Controller(void);
 
-#endif //!__OSCONFIG_HAS_LEGACY_PCI
-
-#endif //!__DEVICED_PCI_LEGACY_H__
+#endif // __DEVICED_BUS_LEGACY_FIXED_H__

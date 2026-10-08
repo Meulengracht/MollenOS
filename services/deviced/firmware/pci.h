@@ -18,9 +18,12 @@
 
 #ifndef DEVICED_FIRMWARE_PCI_H
 #define DEVICED_FIRMWARE_PCI_H
-#include <os/osdefs.h>
-#include "interrupt.h"
 
+#include <os/osdefs.h>
+#include <firmware/interrupt.h>
+
+/** Supported controllers connecting the CPU to PCI buses.
+ * ECAM is the standard memory-based interface to PCI configuration registers. */
 enum FdtPciHostType {
     FdtPciHostEcam,
     FdtPciHostBcm2711,
@@ -29,34 +32,47 @@ enum FdtPciHostType {
 
 #define FDT_PCI_PREFETCHABLE 0x40000000U
 
-/** The purpose of an inbound aperture, established from firmware resources. */
+/** What a device can reach through a direct memory access (DMA) address range.
+ * The purpose is determined from firmware resource descriptions. */
 enum FdtDmaWindowKind {
-    FdtDmaWindowUnknown,
-    FdtDmaWindowRam,
-    FdtDmaWindowPeer,
-    FdtDmaWindowMsi
+    FdtDmaWindowUnknown, // Firmware does not provide enough information to classify it.
+    FdtDmaWindowRam,     // System memory.
+    FdtDmaWindowPeer,    // Resources of another PCI device.
+    FdtDmaWindowMsi      // Address used to send a message-signaled interrupt (MSI).
 };
 
-/** Physical host windows translated through all ancestor buses. */
+/** An address range that connects PCI bus addresses to CPU physical addresses.
+ * PhysicalBase already includes the address conversion through all parent buses.
+ * Space identifies PCI I/O (1), 32-bit memory (2), or 64-bit memory (3). */
 struct FdtPciWindow {
     uint32_t Space;
-    uint32_t Attributes; // Complete PCI phys.hi cell, including prefetchability
-    enum FdtDmaWindowKind Kind; // Applies to inbound DMA windows
+    // First PCI address cell (phys.hi), including the prefetch flag, which
+    // allows reads ahead of time.
+    uint32_t Attributes;
+    // Purpose of a DmaWindows entry; unused for ordinary Windows entries.
+    enum FdtDmaWindowKind Kind;
     uint64_t BusBase;
     uint64_t PhysicalBase;
     uint64_t Length;
 };
 
-/** PCIe link policy. Zero speed/lanes means firmware did not specify a value. */
+/** Firmware settings for the PCI Express connection between host and device.
+ * MaxSpeed is the PCIe generation number; Lanes is the number of data lanes.
+ * Zero means firmware did not specify that setting. */
 struct FdtPciLink {
     uint32_t MaxSpeed;
     uint32_t Lanes;
-    int NoL0s;
-    int EnableSsc;
-    const char* ClkreqMode; // Borrowed, validated NUL-terminated string
+    int NoL0s; // Disable the L0s low-power state.
+    int EnableSsc; // Vary the clock frequency slightly to reduce electrical interference.
+    // Clock-request mode; points to a checked, zero-terminated firmware string.
+    const char* ClkreqMode;
 };
 
-/** MSI provider resources; addresses remain 64-bit even for 32-bit clients. */
+/** Describes the controller handling message-signaled interrupts (MSI).
+ * A device raises an MSI by writing to an address instead of an interrupt pin.
+ * RegisterBase describes controller registers; DoorbellBase is the address
+ * devices write to trigger an interrupt when IsMip identifies a Broadcom MIP
+ * controller. Addresses remain 64-bit even for callers with 32-bit pointers. */
 struct FdtPciMsi {
     uint32_t Controller;
     int IsMip;
@@ -69,10 +85,16 @@ struct FdtPciMsi {
     uint32_t Offset; // Message n targets Interrupt.Line + Offset + n
 };
 
-/** Host resources and borrowed routing data, valid while the blob remains mapped. */
+/** Describes a PCI host's registers, address ranges, and interrupt connections.
+ * Property pointers refer to Blob, the original firmware device-tree data.
+ * Keep Blob mapped and unchanged until all copies of this description are unused.
+ * Segment is the PCI domain number, which identifies a group of PCI buses.
+ * Windows maps CPU accesses to PCI resources; DmaWindows maps device accesses
+ * toward system memory or other resources. */
 struct FdtPciHost {
-    uint32_t NodeOffset; // Identity within Blob, independent of optional phandles
-    // Physical address of the ECAM window for bus <BusStart>
+    // Byte offset in the tree structure; identifies a node without a phandle ID.
+    uint32_t NodeOffset;
+    // CPU physical address of the host registers; for ECAM, starts at bus BusStart
     uint64_t EcamBase;
     uint64_t EcamLength;
     uint32_t Segment;
@@ -113,7 +135,16 @@ struct FdtPciHost {
 
 typedef void (*FdtPciHostFn)(const struct FdtPciHost* host, void* context);
 
-/** @brief Resolves a named host interrupt; extended specifiers take precedence. */
+/**
+ * @brief Find a host interrupt by its name in "interrupt-names".
+ *
+ * Uses "interrupts-extended" when present, otherwise "interrupts" and its parent.
+ *
+ * @param host Host whose firmware properties describe the interrupt.
+ * @param name Interrupt name to find.
+ * @param interrupt Receives the controller, line, and settings on success.
+ * @return OS_EOK on success, or an error if missing, malformed, or unsupported.
+ */
 extern oserr_t
 FdtResolvePciNamedInterrupt(
         _In_ const struct FdtPciHost* host,
@@ -121,13 +152,22 @@ FdtResolvePciNamedInterrupt(
         _Out_ struct FdtInterrupt* interrupt);
 
 /**
- * @brief Invokes <callback> for enabled PCI hosts, including non-ECAM Broadcom hosts.
- * Explicit domains on enabled supported hosts are reserved before assigning
- * missing domains, including declarations later in firmware order. Automatic
- * assignments are distinct and skip every reservation. Explicit duplicates
- * remain intact for PCI registration to validate their bus intervals.
- * @return OS_EINVALPARAMS if the blob is malformed, or OS_EOOM if domain
- *         reservations cannot be allocated. Both fail before host callbacks.
+ * @brief Call a function for each enabled, supported PCI host.
+ *
+ * First collect domain numbers set by "linux,pci-domain" on enabled, supported
+ * hosts, including ones listed later in the tree. Hosts without that property
+ * receive distinct numbers that skip all collected numbers. Repeated numbers
+ * in firmware are kept; PCI host registration checks that their bus ranges
+ * do not overlap. Disabled hosts and hosts with unusable resources are skipped.
+ *
+ * @param blob Firmware device-tree data, kept mapped and unchanged during use.
+ * @param length Available size of blob in bytes.
+ * @param callback Called with a temporary host description; copy it if needed
+ *                 later. Its property pointers continue to refer to blob.
+ * @param context Caller data passed to callback.
+ * @return OS_EOK on success, or an error for invalid input, allocation failure,
+ *         or exhausted domain numbers. Tree format and allocation errors are
+ *         detected before any host callbacks.
  */
 extern oserr_t
 FdtEnumeratePciHosts(
@@ -136,7 +176,17 @@ FdtEnumeratePciHosts(
         _In_ FdtPciHostFn callback,
         _In_ void*        context);
 
-/** @brief Translates a complete PCI resource through a matching host window. */
+/**
+ * @brief Convert a PCI bus address range to a CPU physical address.
+ *
+ * @param host Host whose address mappings should be used.
+ * @param space PCI I/O (1), 32-bit memory (2), or 64-bit memory (3).
+ * @param address Starting PCI bus address.
+ * @param length Size in bytes; the whole range must fit one host mapping.
+ * @param physicalOut Receives the CPU physical address on success.
+ * @return OS_EOK on success, OS_ENOENT if no mapping fits, or OS_EINVALPARAMS
+ *         for invalid arguments or address overflow.
+ */
 extern oserr_t
 FdtTranslatePciAddress(
         _In_ const struct FdtPciHost* host,
@@ -145,7 +195,20 @@ FdtTranslatePciAddress(
         _In_ uint64_t                length,
         _Out_ uint64_t*              physicalOut);
 
-/** @brief Resolves a PCI INTx interrupt-map entry to a supported controller interrupt. */
+/**
+ * @brief Find the controller interrupt connected to a PCI device's interrupt pin.
+ *
+ * Uses the firmware "interrupt-map" for traditional PCI pin interrupts (INTx).
+ *
+ * @param host Host containing the device and its interrupt map.
+ * @param bus PCI bus number, 0 through 255.
+ * @param slot Device slot on that bus, 0 through 31.
+ * @param function Function within the device, 0 through 7.
+ * @param pin Interrupt pin, 1 through 4 for INTA through INTD.
+ * @param lineOut Receives the controller's interrupt line on success.
+ * @param flagsOut Receives the interrupt trigger and polarity settings on success.
+ * @return OS_EOK on success, or an error if missing, malformed, or unsupported.
+ */
 extern oserr_t
 FdtResolvePciInterrupt(
         _In_ const struct FdtPciHost* host,
@@ -158,7 +221,13 @@ FdtResolvePciInterrupt(
 
 
 struct FdtNode;
-/** @brief Recognize hosts in the PCI adapter, independently of generic nodes. */
+/**
+ * @brief Check whether a node describes a supported PCI host controller.
+ *
+ * @param node Node whose "compatible" names should be checked.
+ * @param type Receives the controller type when a match is found.
+ * @return 1 for a supported host, otherwise 0.
+ */
 int
 FdtPciHostType(
     _In_ const struct FdtNode* node,

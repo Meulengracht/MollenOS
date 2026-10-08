@@ -16,10 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS PCI Bus Driver 
- * - Enumerates the bus and registers the devices/controllers
- *   available in the system
  */
 
 #ifndef __PCI_BARS_INTERFACE__
@@ -30,6 +26,7 @@
 // Forward declarations
 typedef struct PciHost PciHost_t;
 struct BusDevice;
+struct FdtPciHost;
 
 enum PciBarState {
     PciBarAbsent,
@@ -39,6 +36,7 @@ enum PciBarState {
     PciBarInvalid
 };
 
+// One PCI address range and whether the host can make it available.
 struct PciBar {
     uint64_t         BusAddress; // Address the PCI device uses to access this resource.
     uint64_t         CpuAddress; // Host CPU address corresponding to BusAddress, if translatable.
@@ -47,6 +45,13 @@ struct PciBar {
     uint32_t         Attributes; // PCI BAR flags and other attributes describing the resource.
     enum PciBarState State;      // Whether the BAR is absent, unassigned, usable, outside the host window, or invalid.
 };
+
+// Resources supplied to a function handler, with borrowed firmware data.
+struct PciFunctionResources {
+    struct PciBar            Bars[6];
+    const struct FdtPciHost* Firmware;
+};
+
 
 /**
  * @brief Determine the size, type, and current assignment of a device's BARs.
@@ -133,5 +138,14 @@ PciRegisterBars(
     _In_ struct PciHost*     host,
     _In_ struct BusDevice*   device,
     _In_ const struct PciBar bars[6]);
+
+/**
+ * @brief Reads and publishes a function's BAR resources.
+ */
+__EXTERN void
+PciReadBars(
+    _In_ PciHost_t*        bus,
+    _In_ struct BusDevice* device,
+    _In_ uint32_t          headerType);
 
 #endif //!__PCI_BARS_INTERFACE__

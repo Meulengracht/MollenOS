@@ -1,19 +1,21 @@
-#include "bcm.h"
-#include "registers.h"
+#include <bus/pci/host-private.h>
+#include <bus/pci/registers.h>
+#include <bus/pci/hosts/broadcom/bcm.h>
+#include <bus/pci/hosts/broadcom/registers.h>
 
 /**
- * @brief Resolve optional Pi 4 dependencies before resetting the bridge.
+ * @brief Check optional Pi 4 calibration and clock resources before resetting the host.
  *
- * Some firmware trees supply an external calibration block or fixed clock.
- * The resolver checks those descriptions; this variant still owns its bridge
- * reset through the controller itself, so a separate bridge provider is rejected.
+ * Firmware may describe separate calibration hardware or a fixed-frequency clock.
+ * Check those descriptions first. Pi 4 resets the host through the PCI controller
+ * itself, so a description requiring a separate reset controller is rejected.
  */
 static oserr_t
 __BcmDependencies(
-        _In_ const struct FdtPciHost* firmware)
+    _In_ const struct FdtPciHost* firmware)
 {
     struct FdtPciDependencies dependencies;
-    oserr_t status;
+    oserr_t                   status;
 
     status = FdtResolvePciDependencies(firmware, &dependencies);
     if (status == OS_EOK && dependencies.BridgeResetController != 0) {
@@ -30,27 +32,30 @@ __BcmDependencies(
 }
 
 /**
- * @brief Check the single RAM mapping and calculate its hardware size code input.
+ * @brief Check the device-to-RAM address range and calculate its size setting.
  *
- * BCM2711's main inbound window always starts at CPU physical zero. Hardware
- * needs a power-of-two size even when firmware describes, for example, 3 GiB.
+ * BCM2711 maps device accesses to RAM starting at CPU physical address zero.
+ * Hardware needs a power-of-two size, so a firmware range of 3 GiB needs a
+ * 4 GiB hardware mapping.
  * Only the programmed size is rounded; the firmware length remains the limit
  * used by BcmPciDmaAddress when checking actual buffers.
  */
 static oserr_t
 __BcmValidateWindows(
-        _In_ const struct FdtPciHost* firmware,
-        _Out_ unsigned int* dmaOrder)
+    _In_  const struct FdtPciHost* firmware,
+    _Out_ unsigned int*            dmaOrder)
 {
     const struct FdtPciWindow* window;
     uint64_t size;
     unsigned int order;
 
-    // This variant programs BAR2 for RAM only. It cannot represent additional
-    // peer-device or interrupt mappings using the same setup procedure.
+    // The host's BAR2 register defines the address range devices use to reach
+    // RAM. This Pi 4 setup supports one such range; it cannot also map other
+    // devices' registers or interrupt destinations.
     if (firmware->DmaWindowCount != 1) {
         return OS_ENOTSUPPORTED;
     }
+
     window = &firmware->DmaWindows[0];
     if (window->Kind != FdtDmaWindowRam || window->PhysicalBase != 0) {
         return OS_ENOTSUPPORTED;
@@ -76,27 +81,29 @@ __BcmValidateWindows(
         return OS_ENOTSUPPORTED;
     }
 
-    // The base and size must describe exactly one hardware-aligned window;
-    // reject wrapping addresses before any controller registers are changed.
+    // Hardware requires a power-of-two size and a starting address that is
+    // a multiple of that size. Also check that the last byte fits in 64 bits
+    // before changing any controller registers.
     if ((size & (size - 1)) || (window->BusBase & (size - 1)) ||
         size - 1 > UINT64_MAX - window->BusBase) {
         return OS_ENOTSUPPORTED;
     }
 
-    // Preserve the reference driver's lower-4-GiB placement restriction.
-    // That address space must also leave room for device register windows;
-    // passing size alignment alone does not establish a supported Pi 4 layout.
+    // Follow the reference driver: reject starting addresses strictly between
+    // 2 GiB and 4 GiB. This area also needs space for device registers, so
+    // meeting the size and alignment requirements alone is not enough.
     if (window->BusBase > BCM2711_INBOUND_RESTRICTED_BASE_START &&
         window->BusBase < BCM2711_INBOUND_RESTRICTED_BASE_END) {
         return OS_ENOTSUPPORTED;
     }
 
-    // The register stores an encoding derived from log2(size), not a byte
-    // count. Return that order for both BAR2 and the matching system-bus field.
+    // Find the exponent for the size: for example, 1 GiB = 2^30 gives 30.
+    // Both BAR2 and the system-memory setting use a code based on this number.
     order = 0;
     while ((1ULL << order) < size) {
         order++;
     }
+
     *dmaOrder = order;
     return OS_EOK;
 }
@@ -104,72 +111,94 @@ __BcmValidateWindows(
 /**
  * @brief Reset the Pi 4 host while keeping the connected device in reset.
  *
- * The bridge must be running for calibration, then reset once to establish
- * known controller state. The connected device is released only after address
- * windows and link policy are ready in the later initialization stages.
+ * The host controller must be running for calibration, then reset once to
+ * return its internal state to defaults. Keep the connected device in reset
+ * until its address mappings and connection settings are ready.
  */
 static oserr_t
 __Bcm2711Prepare(
-        _In_ PciHost_t* bus,
-        _In_ const struct FdtPciHost* firmware)
+    _In_ PciHost_t*               bus,
+    _In_ const struct FdtPciHost* firmware)
 {
     oserr_t status;
 
-    // Release bridge reset for calibration, but assert endpoint reset so the
-    // device cannot communicate through a controller we are still configuring.
-    status = BcmPciUpdate(bus, BCM2711_SW_INIT,
-            BCM2711_RESET_ASSERT_BOTH, BCM2711_PERST_ASSERT);
+    // Let the host controller run for calibration, but hold the connected
+    // device in reset so it cannot communicate while setup is incomplete.
+    status = BcmPciUpdate(
+        bus,
+        BCM2711_SW_INIT,
+        BCM2711_RESET_ASSERT_BOTH,
+        BCM2711_PERST_ASSERT
+    );
     if (status != OS_EOK) {
         return status;
     }
+
     status = __BcmDependencies(firmware);
     if (status != OS_EOK) {
         return status;
     }
 
-    // Reset the bridge's internal state without releasing the endpoint.
-    if (BcmPciUpdate(bus, BCM2711_SW_INIT,
-            BCM2711_RESET_ASSERT_BOTH, BCM2711_RESET_ASSERT_BOTH) != OS_EOK) {
-        return OS_EUNKNOWN;
-    }
-    if (BcmPciDelay(BCM_PCIE_RESET_SETTLE_MS) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Reset the host controller's internal state while keeping the device in reset.
+    status = BcmPciUpdate(
+        bus,
+        BCM2711_SW_INIT,
+        BCM2711_RESET_ASSERT_BOTH,
+        BCM2711_RESET_ASSERT_BOTH
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Bring only the bridge back; address translation is not configured yet.
-    if (BcmPciUpdate(bus, BCM2711_SW_INIT,
-            BCM2711_BRIDGE_RESET_ASSERT, BCM_PCIE_DISABLED) != OS_EOK) {
-        return OS_EUNKNOWN;
+    BcmPciDelay(BCM_PCIE_RESET_SETTLE_MS);
+
+    // Let the host controller run again; its address mappings are still to be set up.
+    status = BcmPciUpdate(
+        bus,
+        BCM2711_SW_INIT,
+        BCM2711_BRIDGE_RESET_ASSERT,
+        BCM_PCIE_DISABLED
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
     // Power up the high-speed electrical interface. Disable device-controlled
     // clock requests and deeper link sleep while initial setup is in progress.
-    if (BcmPciUpdate(bus, BCM2711_HARD_DEBUG,
-            BCM_PCIE_DEBUG_SERDES_POWERDOWN | BCM2711_DEBUG_CLOCK_POWER_MASK,
-            BCM_PCIE_DISABLED) != OS_EOK) {
-        return OS_EUNKNOWN;
-    }
-    if (BcmPciDelay(BCM_PCIE_PHY_SETTLE_MS) != OS_EOK) {
-        return OS_EUNKNOWN;
-    }
-
-    // Allow device access to system memory and enable the expected read-reply
-    // modes. Pi 4 uses the 128-byte burst encoding, which clears the burst field.
-    // BcmPciUpdate also ORs in the named enable bits while preserving other bits.
-    if (BcmPciUpdate(bus, BCM_PCIE_MISC_CONTROL, BCM_PCIE_MISC_BURST_MASK,
-            BCM2711_MISC_BURST_128_BYTES | BCM_PCIE_MISC_MEMORY_ENABLES) != OS_EOK) {
-        return OS_EUNKNOWN;
+    status = BcmPciUpdate(
+        bus,
+        BCM2711_HARD_DEBUG,
+        BCM_PCIE_DEBUG_SERDES_POWERDOWN | BCM2711_DEBUG_CLOCK_POWER_MASK,
+        BCM_PCIE_DISABLED
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // All ones means the register read failed; it must not masquerade as a
-    // valid root-port indication simply because that bit would also be set.
+    BcmPciDelay(BCM_PCIE_PHY_SETTLE_MS);
+
+    // Allow devices to access system memory and set how read replies are split.
+    // Select transfers of up to 128 bytes by clearing the burst-size field.
+    // BcmPciUpdate also sets the requested enable bits, leaving other bits alone.
+    status = BcmPciUpdate(
+        bus,
+        BCM_PCIE_MISC_CONTROL,
+        BCM_PCIE_MISC_BURST_MASK,
+        BCM2711_MISC_BURST_128_BYTES | BCM_PCIE_MISC_MEMORY_ENABLES
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // A failed read returns all bits set, including the CPU-side controller bit.
+    // Reject that value before checking the controller type.
     if (ReadDeviceIo(&bus->IoSpace, BCM_PCIE_LINK_STATUS, sizeof(uint32_t)) ==
             BCM_PCIE_READ_FAILED) {
         return OS_ENOTSUPPORTED;
     }
 
-    // This driver controls the CPU side of the connection. Reject endpoint
-    // mode before the shared initializer programs host address windows.
+    // This driver requires the CPU side of the connection (a root port).
+    // Reject device-side mode before programming the host's address mappings.
     if (!(ReadDeviceIo(&bus->IoSpace, BCM_PCIE_LINK_STATUS, sizeof(uint32_t)) &
             BCM_PCIE_STATUS_ROOT_PORT)) {
         return OS_ENOTSUPPORTED;
@@ -178,78 +207,110 @@ __Bcm2711Prepare(
 }
 
 /**
- * @brief Configure the device-to-RAM view using BCM2711's BAR2 window.
+ * @brief Set the address range devices use to reach RAM, using the host's BAR2.
  *
- * Validation already proved that the physical destination is zero and the
- * PCI base aligns to the encoded size. Disable unused decoders so firmware
- * leftovers cannot create additional device-to-system mappings.
+ * Earlier checks confirmed that RAM starts at CPU physical address zero and
+ * the PCI starting address is a multiple of the chosen size. Disable unused
+ * mappings so devices cannot use extra address ranges left over from firmware.
  */
 static oserr_t
 __Bcm2711Inbound(
-        _In_ PciHost_t* bus,
-        _In_ const struct FdtPciHost* firmware,
-        _In_ unsigned int dmaOrder)
+    _In_ PciHost_t*               bus,
+    _In_ const struct FdtPciHost* firmware,
+    _In_ unsigned int             dmaOrder)
 {
     const struct FdtPciWindow* window;
-    uint32_t sizeCode;
+    uint32_t                   sizeCode;
+    oserr_t                    status;
 
     window = &firmware->DmaWindows[0];
     sizeCode = dmaOrder - BCM_PCIE_INBOUND_LARGE_SIZE_BIAS;
 
     // BAR1 is not the RAM window owned by this variant. Clear its size to
     // remove any extra mapping left by firmware.
-    if (WriteDeviceIo(&bus->IoSpace, BCM_PCIE_INBOUND_BAR1,
-            BCM_PCIE_INBOUND_DISABLED, sizeof(uint32_t)) != OS_EOK) {
-        return OS_EUNKNOWN;
+    status = WriteDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_INBOUND_BAR1,
+        BCM_PCIE_INBOUND_DISABLED,
+        sizeof(uint32_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // BAR3 is also unused; leaving it enabled could provide a second RAM view.
-    if (WriteDeviceIo(&bus->IoSpace, BCM_PCIE_INBOUND_BAR3,
-            BCM_PCIE_INBOUND_DISABLED, sizeof(uint32_t)) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // BAR3 is also unused; leaving it enabled could provide another route to RAM.
+    status = WriteDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_INBOUND_BAR3,
+        BCM_PCIE_INBOUND_DISABLED,
+        sizeof(uint32_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Message interrupts are not configured yet. Do not accept writes through
-    // a legacy MSI target inherited from firmware.
-    if (WriteDeviceIo(&bus->IoSpace, BCM_PCIE_MSI_BAR,
-            BCM_PCIE_MSI_DISABLED, sizeof(uint32_t)) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Message-signaled interrupts (MSI) are raised by writing to an address.
+    // They are not set up yet, so disable the old interrupt destination that
+    // firmware may have left enabled.
+    status = WriteDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_MSI_BAR,
+        BCM_PCIE_MSI_DISABLED,
+        sizeof(uint32_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // The validated base leaves the low size bits free. Combine its lower
-    // address half with the nonzero size code to enable the RAM window.
-    if (WriteDeviceIo(&bus->IoSpace, BCM_PCIE_INBOUND_BAR2,
-            (uint32_t)window->BusBase | sizeCode, sizeof(uint32_t)) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Earlier checks confirmed that the starting address leaves the size bits
+    // zero. Combine the lower 32 address bits with the size code to enable access.
+    status = WriteDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_INBOUND_BAR2,
+        (uint32_t)window->BusBase | sizeCode,
+        sizeof(uint32_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
     // Preserve the upper PCI address half: device-visible RAM may start above
     // 4 GiB even though its CPU physical destination is fixed at zero.
-    if (WriteDeviceIo(&bus->IoSpace, BCM_PCIE_INBOUND_BAR2 + BCM_PCIE_REGISTER_HIGH_OFFSET,
-            window->BusBase >> BCM_PCIE_ADDRESS_HIGH_SHIFT, sizeof(uint32_t)) != OS_EOK) {
-        return OS_EUNKNOWN;
+    status = WriteDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_INBOUND_BAR2 + BCM_PCIE_REGISTER_HIGH_OFFSET,
+        window->BusBase >> BCM_PCIE_ADDRESS_HIGH_SHIFT,
+        sizeof(uint32_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
     // Tell the system-memory side the same size as BAR2, so both sides of the
-    // controller agree about how much address space this RAM view covers.
-    return BcmPciUpdate(bus, BCM_PCIE_MISC_CONTROL, BCM2711_MISC_SCB0_SIZE_MASK,
-            sizeCode << BCM2711_MISC_SCB0_SIZE_SHIFT);
+    // controller agree about the size of the RAM address range.
+    return BcmPciUpdate(
+        bus,
+        BCM_PCIE_MISC_CONTROL,
+        BCM2711_MISC_SCB0_SIZE_MASK,
+        sizeCode << BCM2711_MISC_SCB0_SIZE_SHIFT
+    );
 }
 
 /**
- * @brief Establish bridge identity and link policy, then release the Pi 4 device.
+ * @brief Set Pi 4 connection settings, then allow the connected device to start.
  *
- * The shared initializer has installed the address windows already. Keep the
- * existing Gen2, no-link-power-saving policy and wait the required 100 ms after
- * endpoint reset before the shared code starts its bounded link-status polling.
+ * Address mappings are already installed. Use PCI Express generation 2 speed
+ * (Gen2) and keep connection power saving disabled. After releasing device
+ * reset, wait 100 ms before the shared code starts checking connection status.
  */
 static oserr_t
 __Bcm2711Start(
-        _In_ PciHost_t* bus,
-        _In_ const struct FdtPciHost* firmware)
+    _In_ PciHost_t*               bus,
+    _In_ const struct FdtPciHost* firmware)
 {
     uint32_t buses;
     uint16_t linkControl;
+    oserr_t  status;
 
     // Assign the root bus, its immediate child, and the highest permitted bus.
     // Validation guarantees that the firmware range has room for a child bus.
@@ -257,80 +318,110 @@ __Bcm2711Start(
             ((uint32_t)(firmware->BusStart + 1) << BCM_PCIE_SECONDARY_BUS_SHIFT) |
             ((uint32_t)firmware->BusEnd << BCM_PCIE_SUBORDINATE_BUS_SHIFT);
 
-    // Present the root as a PCI bridge so the generic scanner follows its
-    // secondary bus instead of treating the controller as a normal endpoint.
-    if (BcmPciUpdate(bus, BCM_PCIE_CLASS_CODE,
-            BCM_PCIE_CLASS_CODE_MASK, BCM_PCIE_CLASS_CODE_BRIDGE) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Identify the controller as a bridge connecting PCI buses. This tells
+    // device discovery to look for devices on the bus behind it.
+    status = BcmPciUpdate(
+        bus,
+        BCM_PCIE_CLASS_CODE,
+        BCM_PCIE_CLASS_CODE_MASK,
+        BCM_PCIE_CLASS_CODE_BRIDGE
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Keep inbound BAR2 bytes in PCI's little-endian order rather than asking
-    // the controller to swap the data delivered to RAM.
-    if (BcmPciUpdate(bus, BCM_PCIE_VENDOR_CONTROL,
-            BCM_PCIE_VENDOR_BAR2_ENDIAN_MASK, BCM_PCIE_VENDOR_BAR2_LITTLE_ENDIAN) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Keep PCI's byte order when BAR2 delivers data to RAM: little-endian
+    // stores the least significant byte first. Do not swap bytes in the controller.
+    status = BcmPciUpdate(
+        bus,
+        BCM_PCIE_VENDOR_CONTROL,
+        BCM_PCIE_VENDOR_BAR2_ENDIAN_MASK,
+        BCM_PCIE_VENDOR_BAR2_LITTLE_ENDIAN
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Advertise Gen2 as the maximum speed and remove automatic L0s/L1 sleep
-    // support. Endpoint power saving is not coordinated at this bring-up stage.
-    if (BcmPciUpdate(bus, BCM_PCIE_LINK_CAPABILITY,
-            BCM_PCIE_LINK_CAP_ASPM_MASK | BCM_PCIE_LINK_CAP_SPEED_MASK,
-            BCM_PCIE_LINK_SPEED_GEN2) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Report Gen2 as the maximum speed and disable support for the L0s/L1
+    // sleep modes. Host and device power saving are not coordinated during setup.
+    status = BcmPciUpdate(
+        bus,
+        BCM_PCIE_LINK_CAPABILITY,
+        BCM_PCIE_LINK_CAP_ASPM_MASK | BCM_PCIE_LINK_CAP_SPEED_MASK,
+        BCM_PCIE_LINK_SPEED_GEN2
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
     // Read the 16-bit link-control word to preserve unrelated controls. Avoid
     // a wider access here, which would also touch the adjacent status word.
-    linkControl = (uint16_t)ReadDeviceIo(&bus->IoSpace,
-            BCM_PCIE_LINK_CONTROL2, sizeof(uint16_t));
+    linkControl = (uint16_t)ReadDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_LINK_CONTROL2,
+        sizeof(uint16_t)
+    );
 
     // Request the same Gen2 speed that the capability above advertises.
-    if (WriteDeviceIo(&bus->IoSpace, BCM_PCIE_LINK_CONTROL2,
-            (linkControl & ~BCM_PCIE_LINK_CONTROL2_SPEED_MASK) | BCM_PCIE_LINK_SPEED_GEN2,
-            sizeof(uint16_t)) != OS_EOK) {
-        return OS_EUNKNOWN;
+    status = WriteDeviceIo(
+        &bus->IoSpace,
+        BCM_PCIE_LINK_CONTROL2,
+        (linkControl & ~BCM_PCIE_LINK_CONTROL2_SPEED_MASK) | BCM_PCIE_LINK_SPEED_GEN2,
+        sizeof(uint16_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Publish bus routing before the device comes out of reset so subsequent
-    // configuration requests reach the bus numbers used by the scanner.
-    if (BcmPciUpdate(bus, BCM_PCIE_BUS_NUMBERS, BCM_PCIE_BUS_NUMBERS_MASK, buses) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Set the bus numbers before letting the device start, so configuration
+    // requests reach the buses that device discovery will scan.
+    status = BcmPciUpdate(bus, BCM_PCIE_BUS_NUMBERS, BCM_PCIE_BUS_NUMBERS_MASK, buses);
+    if (status != OS_EOK) {
+        return status;
     }
 
-    // Clearing the active-high PERST bit lets the connected device start.
-    if (BcmPciUpdate(bus, BCM2711_SW_INIT,
-            BCM2711_PERST_ASSERT, BCM_PCIE_DISABLED) != OS_EOK) {
-        return OS_EUNKNOWN;
+    // Clear PERST, the bit that holds the connected device in reset, to let it start.
+    status = BcmPciUpdate(
+        bus,
+        BCM2711_SW_INIT,
+        BCM2711_PERST_ASSERT,
+        BCM_PCIE_DISABLED
+    );
+    if (status != OS_EOK) {
+        return status;
     }
 
     // A device needs recovery time after reset even if link bits become set
-    // immediately. Configuration access is not published until the later poll.
-    if (BcmPciDelay(BCM_PCIE_RESET_CONFIG_WAIT_MS) != OS_EOK) {
-        return OS_EUNKNOWN;
-    }
+    // immediately. Configuration access becomes available only after a later
+    // status check confirms the connection is ready.
+    BcmPciDelay(BCM_PCIE_RESET_CONFIG_WAIT_MS);
     return OS_EOK;
 }
 
 /**
  * @brief Hold both the Pi 4 bridge and its connected device in reset.
  *
- * This also handles a failed Prepare: the mapping still exists, and resetting
- * both sides prevents use of partially configured address windows. Unlike Pi 5,
- * this variant does not need to leave a shared calibration bridge running.
+ * This also handles a failed Prepare: registers are still mapped, and resetting
+ * both sides prevents use of incomplete address mappings. Pi 4 does not need
+ * to keep the host running to preserve calibration shared with other ports.
  */
 static void
 __Bcm2711Stop(
-        _In_ PciHost_t* bus)
+    _In_ PciHost_t* bus)
 {
-    // Assert both active-high reset bits, preserving the rest of the register.
+    // Set both reset bits to 1 to hold the host and device in reset; keep other bits.
     // Shutdown is best effort because this callback has no error return.
-    (void)BcmPciUpdate(bus, BCM2711_SW_INIT,
-            BCM2711_RESET_ASSERT_BOTH, BCM2711_RESET_ASSERT_BOTH);
+    (void)BcmPciUpdate(
+        bus,
+        BCM2711_SW_INIT,
+        BCM2711_RESET_ASSERT_BOTH,
+        BCM2711_RESET_ASSERT_BOTH
+    );
 }
 
-// The shared host code uses these callbacks for the Pi 4 register layout. Keep
-// configuration indexing shared, while reset and inbound RAM setup stay local.
-const struct BcmPciVariant Bcm2711PciVariant = {
+// These callbacks provide Pi 4's reset, RAM mapping, and connection setup.
+// The shared code handles selecting devices and accessing their configuration.
+const struct BcmPciVariant g_bcm2711PciVariant = {
     .Type = FdtPciHostBcm2711,
     .RegisterLength = BCM_PCIE_REGISTER_LENGTH,
     .ConfigIndex = BCM_PCIE_CONFIG_INDEX,

@@ -18,7 +18,10 @@
  *
  */
 
-#include "private.h"
+#include <bus/pci/host-private.h>
+#include <bus/pci/device.h>
+#include <bus/pci/function.h>
+#include <bus/pci/publish.h>
 #include <ddk/firmware.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
@@ -41,6 +44,13 @@ PciInitialize(void)
 
     mtx_init(&g_pciDevicesLock, mtx_plain);
     g_pciInitialized = 1;
+}
+
+const struct PciHostIdentification*
+PciHostGetIdentification(
+    _In_ const PciHost_t* host)
+{
+    return &host->Identification;
 }
 
 void

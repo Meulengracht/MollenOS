@@ -18,9 +18,14 @@
 
 #ifndef DEVICED_FIRMWARE_BCM_H
 #define DEVICED_FIRMWARE_BCM_H
-#include "pci.h"
 
-/** Resolved RESCAL, bridge reset selector, and always-on fixed reference clock. */
+#include <firmware/pci.h>
+
+/** Registers and settings needed to reset and clock a Broadcom PCI host.
+ * ResetBase and ResetLength describe the RESCAL hardware used for calibration.
+ * BridgeResetController and BridgeResetId identify the controller and reset
+ * signal for the PCI bridge; BridgeResetBase and BridgeResetLength locate its
+ * registers. ClockFrequency is the always-on reference clock frequency in hertz. */
 struct FdtPciDependencies {
     uint64_t ResetBase;
     uint64_t ResetLength;
@@ -31,23 +36,55 @@ struct FdtPciDependencies {
     uint64_t BridgeResetLength;
 };
 
-/** @brief Resolves the declared MSI parent and, for MIP, its SPI range and offset. */
+/**
+ * @brief Find the controller that handles the host's message-signaled interrupts.
+ *
+ * For a Broadcom MIP controller, also read the range of GIC interrupt lines and
+ * the offset used to convert a message number into an interrupt line.
+ *
+ * @param host Host whose "msi-parent" property names the controller.
+ * @param msi Receives the controller's registers and interrupt details on success.
+ * @return OS_EOK on success, or an error if missing, malformed, or unsupported.
+ */
 extern oserr_t
 FdtResolvePciMsi(
         _In_ const struct FdtPciHost* host,
         _Out_ struct FdtPciMsi* msi);
 
-/** @brief Resolves supported host dependencies; declared unknown providers fail closed. */
+/**
+ * @brief Read the reset controls and fixed clock declared for a Broadcom host.
+ *
+ * A declared clock or reset that this code does not support causes an error.
+ * Missing optional resources leave their output fields zero.
+ *
+ * @param host Host whose reset and clock properties should be read.
+ * @param dependencies Receives the reset and clock settings on success.
+ * @return OS_EOK on success, or an error for malformed or unsupported settings.
+ */
 extern oserr_t
 FdtResolvePciDependencies(
         _In_ const struct FdtPciHost* host,
         _Out_ struct FdtPciDependencies* dependencies);
 
-/** @brief Match Broadcom hosts and decode their firmware link policy. */
+/**
+ * @brief Check whether a node describes a supported Broadcom PCI host.
+ *
+ * @param node Node whose "compatible" names should be checked.
+ * @param type Receives the controller type when a match is found.
+ * @return 1 for a supported Broadcom host, otherwise 0.
+ */
 int
 FdtBcmHostType(
     _In_ const struct FdtNode* node,
     _Out_ enum FdtPciHostType* type);
+/**
+ * @brief Read firmware settings for the host's PCI Express connection.
+ *
+ * @param node Node containing connection speed, lane count, and clock settings.
+ * @param host Host to update; initialize its fields to zero before calling.
+ *             Some fields may already be updated when an error is returned.
+ * @return OS_EOK on success, or OS_EINVALPARAMS for invalid connection settings.
+ */
 oserr_t
 FdtBcmHostPolicy(
     _In_ const struct FdtNode* node,

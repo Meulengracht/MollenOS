@@ -22,8 +22,8 @@
 
 /**
  * @brief Keeps the inputs and results needed while reading one RP1 controller.
- * The first walk validates every child and records the controller. The callback
- * is set only for the second walk, after validation succeeds.
+ * Reads the tree twice: first to check all child descriptions and record the
+ * controller, then to pass each child to the caller's callback.
  */
 struct __FdtRp1Walk {
     const struct FdtPciHost* Host;
@@ -39,8 +39,9 @@ static int
 __IsRp1Node(
     _In_ const struct FdtResources* node)
 {
-    // Firmware may identify RP1 directly or describe it as an "rp1" simple bus.
-    // Accept both forms so the same controller is found across firmware versions.
+    // Firmware may name the controller type as "raspberrypi,rp1", or use an
+    // "rp1" node with type "simple-bus", which groups devices under one bus.
+    // Accept both descriptions used by different firmware versions.
     return FdtStringListContains(node->Compatible, node->CompatibleLength, "raspberrypi,rp1") ||
         (!strcmp(node->Name, "rp1") &&
          FdtStringListContains(node->Compatible, node->CompatibleLength, "simple-bus"));
@@ -62,9 +63,9 @@ __Rp1TranslateRegister(
     uint64_t     physical = 0;
     unsigned int bar;
 
-    // Convert the child's address in two steps: RP1's ranges map it to a PCI
-    // address, then the host maps that PCI address to a CPU physical address.
-    // Each ranges entry has two 32-bit words for the child address, three for
+    // Convert the child's address in two steps: RP1's "ranges" property maps it
+    // to a PCI address, then the host converts that to a CPU physical address.
+    // Each "ranges" entry has two 32-bit words for the child address, three for
     // the PCI address, and two for the length, so incomplete entries are invalid.
     if (!rp1->RangesLength || rp1->RangesLength % 28) {
         return OS_EINVALPARAMS;
@@ -76,8 +77,9 @@ __Rp1TranslateRegister(
         target = FdtReadCells(rp1->Ranges + offset + 12, 2);
         length = FdtReadCells(rp1->Ranges + offset + 20, 2);
         
-        // Reject empty or overflowing address ranges before using their bounds.
-        // This driver supports memory ranges, not PCI port ranges.
+        // Reject ranges with no bytes or an end address too large for 64 bits.
+        // Only memory ranges are supported here; PCI I/O ports use a separate
+        // kind of address space.
         if (!length || length - 1 > UINT64_MAX - child ||
             length - 1 > UINT64_MAX - target || (space != 2 && space != 3)) {
             return OS_EINVALPARAMS;
@@ -87,8 +89,8 @@ __Rp1TranslateRegister(
             continue;
         }
         
-        // Ambiguous firmware must not choose the first of several overlapping
-        // ranges; each child register must have exactly one valid translation.
+        // Exactly one range must map these child registers to CPU addresses.
+        // Multiple matches would make it unclear which address to use.
         if (++matches != 1 || FdtTranslatePciAddress(walk->Host, space,
                 target + (address - child), resource->Length, &physical) != OS_EOK) {
             return OS_EINVALPARAMS;
@@ -99,8 +101,9 @@ __Rp1TranslateRegister(
         return OS_EINVALPARAMS;
     }
     
-    // A child may use only memory assigned to this RP1 PCI function. Checking
-    // the full range prevents a child mapping from extending beyond its BAR.
+    // A child may use only memory assigned to this RP1 PCI device. A Base
+    // Address Register (BAR) describes an assigned range; all of the child's
+    // register bytes must fit inside one such range.
     for (bar = 0; bar < 6; bar++) {
         if (walk->Bars[bar].State == PciBarAssigned &&
             (walk->Bars[bar].Space == 2 || walk->Bars[bar].Space == 3) &&
@@ -130,7 +133,7 @@ __Rp1ChildResources(
     oserr_t        status;
 
     // Each register entry contains a 64-bit address and a 64-bit length. Reject
-    // incomplete entries and counts that do not fit before reading the array.
+    // incomplete entries or more entries than the output array can hold.
     if (node->Malformed || node->AncestorMalformed || !node->RegLength ||
         node->RegLength % 16 || node->RegLength / 16 > FDT_RP1_MAX_REGISTERS) {
         return OS_EINVALPARAMS;
@@ -158,8 +161,9 @@ __Rp1ChildResources(
     interrupts = node->InterruptsExtended != NULL ? node->InterruptsExtended : node->Interrupts;
     length = node->InterruptsExtended != NULL ? node->InterruptsExtendedLength : node->InterruptsLength;
     
-    // A regular interrupt entry is 8 bytes; an extended entry adds a 4-byte
-    // controller ID. Check the size before reading any entries.
+    // An "interrupts" entry contains two 32-bit values: source number and
+    // trigger type. An "interrupts-extended" entry also includes a 32-bit
+    // controller ID. Check that complete entries fit before reading them.
     stride = node->InterruptsExtended != NULL ? 12 : 8;
     if ((interrupts != NULL && !length) || length % stride ||
         length / stride > FDT_RP1_MAX_INTERRUPTS) {
@@ -184,7 +188,8 @@ __Rp1ChildResources(
         device->Interrupts[i].Number = FdtReadBe32(interrupts + offset);
         device->Interrupts[i].Type = FdtReadBe32(interrupts + offset + 4);
         
-        // Accept only RP1 sources and the edge/level modes this driver handles.
+        // Accept source numbers 0 through 60 and the two supported signal types:
+        // 1 means a change from low to high; 4 means the signal stays high.
         if (device->Interrupts[i].Number >= FDT_RP1_INTERRUPT_COUNT ||
             (device->Interrupts[i].Type != 1 && device->Interrupts[i].Type != 4)) {
             return OS_ENOTSUPPORTED;
@@ -208,8 +213,8 @@ __VisitRp1(
     int                        isBus = __IsRp1Node(node);
     int                        busDepth = isBus ? depth : depth - 1;
 
-    // Disabled firmware nodes are not active hardware. Once a child has failed
-    // validation, keep that error and stop examining more children.
+    // Skip hardware that firmware marks as disabled. Once a child description
+    // fails its checks, keep that error and stop examining more children.
     if (node->Disabled || node->AncestorDisabled || walk->Status != OS_EOK || busDepth < 1) {
         return;
     }
@@ -224,8 +229,9 @@ __VisitRp1(
         return;
     }
     
-    // These cell sizes tell us how addresses and interrupts are laid out. If
-    // they differ, reading the child entries with this format would be unsafe.
+    // A device-tree cell is a 32-bit value. These counts describe how many
+    // values make up each address, size, and interrupt entry. Different counts
+    // would make us read the child data at the wrong positions.
     if (rp1->Malformed || rp1->AncestorMalformed || !rp1->Phandle ||
         !rp1->IsInterruptController || rp1->InterruptCells != 2 ||
         rp1->AddressCells != 2 || rp1->SizeCells != 2 || host->AddressCells != 3) {
@@ -234,22 +240,23 @@ __VisitRp1(
     }
     
     if (isBus) {
-        // Count the RP1 controller itself, but publish only its child devices.
+        // Count the RP1 controller; only its children are passed to the callback.
         walk->Buses++;
         walk->Controller = rp1->Phandle;
         return;
     }
     
-    // Nodes without both properties do not describe independently usable
-    // devices; they may describe internal parts of a parent device instead.
+    // Only return devices with a hardware type ("compatible") and register
+    // ranges ("reg"). Other nodes may describe internal parts of a device.
     if (node->Compatible == NULL || node->Reg == NULL) {
         return;
     }
     
     walk->Status = __Rp1ChildResources(node, rp1, walk, &device);
     if (walk->Status == OS_EOK && walk->Callback != NULL) {
-        // The callback is absent during validation and present only during the
-        // second walk, so a later invalid child cannot leave partial results.
+        // Callers receive children only on the second read, after every child
+        // has passed its checks. A bad description later in the tree therefore
+        // cannot leave the caller with an incomplete list.
         walk->Callback(&device, walk->Context);
     }
 }
@@ -270,8 +277,8 @@ FdtEnumerateRp1Children(
         return OS_EINVALPARAMS;
     }
     
-    // Later range checks rely on BAR ends being representable. Reject a BAR
-    // whose address plus size would wrap around the address space.
+    // Check that the last byte of every PCI address range fits in a 64-bit
+    // address. Later checks rely on those end addresses being valid.
     for (bar = 0; bar < 6; bar++) {
         if (bars[bar].Size && bars[bar].Size - 1 > UINT64_MAX - bars[bar].CpuAddress) {
             return OS_EINVALPARAMS;
@@ -282,21 +289,22 @@ FdtEnumerateRp1Children(
     walk.Bars = bars;
     walk.Status = OS_EOK;
 
-    // Validate and translate every RP1 child before calling the consumer. This
-    // avoids exposing only part of the child list when a later entry is invalid.
+    // Check every RP1 child's description and convert its register addresses
+    // before calling the caller's callback. An invalid entry must not leave
+    // the caller with only part of the device list.
     status = FdtWalkResources(host->Blob, host->BlobLength, __VisitRp1, &walk);
     if (status != OS_EOK || walk.Status != OS_EOK) {
         return status != OS_EOK ? status : walk.Status;
     }
 
     if (walk.Buses != 1) {
-        // No controller means this PCI function has no RP1 description. More
-        // than one means the firmware description is ambiguous.
+        // There must be one RP1 controller described under this PCI host.
+        // With more than one, we cannot tell which description to use.
         return walk.Buses ? OS_EINVALPARAMS : OS_ENOENT;
     }
 
     // Confirm the controller ID names one valid firmware node before using it
-    // for child interrupt records in the second walk.
+    // in the child interrupt descriptions returned during the second read.
     status = FdtFindResources(
         host->Blob,
         host->BlobLength,
@@ -307,7 +315,7 @@ FdtEnumerateRp1Children(
         return status;
     }
 
-    // Only now allow the walk to return child descriptions to its caller.
+    // All checks passed; read the tree again to pass each child to the callback.
     walk.Callback = callback;
     walk.Context = context;
     return FdtWalkResources(host->Blob, host->BlobLength, __VisitRp1, &walk);

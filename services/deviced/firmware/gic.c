@@ -16,8 +16,8 @@
  *
  */
 
-#include "resources.h"
-#include "interrupt.h"
+#include <firmware/resources.h>
+#include <firmware/interrupt.h>
 #include <ddk/interrupt.h>
 
 oserr_t

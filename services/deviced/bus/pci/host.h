@@ -17,7 +17,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
  *
- * MollenOS PCI Bus Driver 
+ * MollenOS PCI Bus Driver
  * - Enumerates the bus and registers the devices/controllers
  *   available in the system
  */
@@ -44,6 +44,14 @@ struct PciHostIdentification {
 };
 
 /**
+ * @brief How a host exposes PCI I/O BAR resources to device drivers.
+ */
+enum PciIoResourcePolicy {
+    PciIoResourcePorts,
+    PciIoResourceMemory
+};
+
+/**
  * @brief Registers a constructed PCI host without scanning its buses or adding devices.
  *
  * @param host Host with configuration access and a valid bus range. The host must
@@ -65,5 +73,28 @@ PciHostRegister(
  */
 __EXTERN void
 PciInitialize(void);
+
+/**
+ * @brief Releases a host after its clients have stopped.
+ * 
+ * This also frees a newly constructed host if registration failed, even if it
+ * has no root device. The host's controller state, I/O mapping, and firmware data
+ * are released; other hosts are unaffected. If removing device-manager entries
+ * fails, the host and remaining IDs stay valid so the caller can retry.
+ */
+__EXTERN oserr_t
+PciHostDestroy(
+    _In_ PciHost_t* bus);
+
+/**
+ * @brief Returns the host identity and bus range without exposing controller state.
+ * 
+ * @param host Host that remains alive while the returned description is used.
+ * @return Identification string, unchanged after host registration. This is not
+ *         caller-owned; do not free.
+ */
+__EXTERN const struct PciHostIdentification*
+PciHostGetIdentification(
+    _In_ const PciHost_t* host);
 
 #endif

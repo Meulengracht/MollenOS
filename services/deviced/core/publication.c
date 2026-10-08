@@ -18,7 +18,7 @@
  * Registers related devices before allowing their drivers to start.
  */
 
-#include "publication.h"
+#include <core/publication.h>
 #include <devices.h>
 #include <stdlib.h>
 

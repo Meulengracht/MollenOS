@@ -29,11 +29,12 @@
 #define RP1_VENDOR_ID        0x1de4
 #define RP1_DEVICE_ID        0x0001
 
-// Define the expected RP1 revision
+// Hardware revision supported by this driver.
 #define RP1_REVISION_C0      2
 
-// RP1's peripheral-control registers occupy a 0x1000-byte window at this offset
-// inside BAR1, the second address range assigned to RP1 by PCI.
+// RP1's peripheral-control registers (APBS) occupy 0x1000 bytes at this offset
+// inside BAR1. A PCI Base Address Register (BAR) describes a device address
+// range; BAR1 is the second slot, counted from zero.
 #define RP1_PCIE_APBS_OFFSET 0x108000U
 #define RP1_PCIE_APBS_LENGTH 0x1000U
 
@@ -53,34 +54,38 @@ struct Rp1Child {
 };
 
 /**
- * @brief Inventory and publication state for the hardware blocks inside one RP1
- * PCI device. Creating this object reads their descriptions but does not add
- * device-manager entries or set up DMA and interrupts. The PCI address ranges
- * are copied into this object. The firmware view is borrowed, so the PCI host
- * must keep its firmware data mapped while this object exists.
+ * @brief List of hardware blocks inside one RP1 PCI device and their saved IDs.
+ * Creating this object reads their descriptions but does not add device-manager
+ * entries or set up interrupts or direct memory access (DMA), which lets devices
+ * access memory themselves. PCI address ranges are copied here. Host and the
+ * firmware strings point to existing data, which the PCI host must keep
+ * available and mapped while this object exists.
  */
 struct Rp1Bus {
-    // We should not clean this up, it's not managed by us.
+    // The PCI host owns this description; do not free it when releasing the bus.
     const struct FdtPciHost* Host;
 
     struct Rp1Child* Children;
     unsigned int     ChildCount;
 
-    // A copy of the pci address range used to check
-    // against child resources
+    // Copies of the six PCI address ranges used to check that each child's
+    // registers fit within memory assigned to RP1.
     struct PciBar    Bars[6];
 };
 
 /**
  * @brief Adds device-manager entries for RP1's firmware-described hardware blocks.
- * Each entry is placed below the RP1 PCI device. This does not allow drivers to
- * match yet; PCI enables matching only after the full device tree is listed.
+ * Each entry is placed below the RP1 PCI device. This does not ask the device
+ * manager to find drivers yet; the PCI code requests that after adding all
+ * device entries. RP1 driver startup remains blocked until DMA and interrupts
+ * are ready.
  * If adding an entry fails, the group remembers entries already added so PCI
  * can remove them. The group clears each saved child ID after successful removal.
  *
- * @param bus Inventory whose children will be added.
- * @param endpoint Published PCI device that owns the RP1 hardware blocks.
- * @param group Host group that will handle driver matching and removal.
+ * @param bus List of RP1 hardware blocks to add.
+ * @param endpoint RP1 PCI device, already registered with the device manager.
+ * @param group Tracks added entries so drivers can be found or entries removed
+ *              together, and saves where each child's device ID is stored.
  * @return OS_EOK if every child is added, or the first registration error.
  */
 __EXTERN oserr_t
@@ -91,16 +96,19 @@ Rp1BusPublish(
 
 /**
  * @brief Builds an in-memory list of the hardware blocks firmware places inside
- * this RP1 device. It checks their addresses against the PCI memory ranges and
- * does not publish them or set up DMA or interrupts. The caller must keep the
- * host's firmware data available until Rp1BusDestroy finishes.
+ * this RP1 device. It checks their addresses against the PCI memory ranges.
+ * Device-manager registration, direct memory access (DMA), and interrupt setup
+ * happen separately. Keep the host description and its firmware data available
+ * until Rp1BusDestroy has freed the list.
  *
  * @param host Firmware description for the PCI host containing RP1.
  * @param bars Six address ranges reported for the RP1 PCI device. BAR1 must be
  *             assigned and large enough to contain RP1's control registers.
- * @param busOut Receives the new inventory on success; set to NULL on failure.
- * @return OS_EOK on success, or an error if the inputs, PCI ranges, firmware data,
- *         or memory allocation are invalid. Partial inventory is freed on error.
+ * @param busOut Receives the new list on success. Set to NULL on failure after
+ *               the initial check that host, bars, and busOut are non-NULL.
+ * @return OS_EOK on success, or an error for invalid inputs, unusable PCI ranges
+ *         or firmware data, or failed memory allocation. Any partly built list
+ *         is freed on error.
  */
 __EXTERN oserr_t
 Rp1BusCreate(
@@ -109,11 +117,12 @@ Rp1BusCreate(
     _Out_ struct Rp1Bus**          busOut);
 
 /**
- * @brief Frees the inventory after the host publication group has been removed.
- * If a child still has a registered ID, keep the inventory for a later retry.
- * The group still needs that saved ID location to finish removing its entries.
+ * @brief Free the list after all of its device-manager entries have been removed.
+ * If a child still has a registered ID, this function leaves the entire list
+ * allocated. The registration group still needs the stored IDs to remove those
+ * entries. Call this function again after their removal succeeds.
  *
- * @param bus Inventory to release. NULL is allowed.
+ * @param bus List to release. NULL is allowed.
  */
 __EXTERN void
 Rp1BusDestroy(

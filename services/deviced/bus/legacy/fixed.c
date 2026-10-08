@@ -21,7 +21,7 @@
 
 //#define __TRACE
 
-#include "../pci/bus.h"
+#include <bus/legacy/fixed.h>
 #include <devices.h>
 #include <ddk/busdevice.h>
 #include <ddk/interrupt.h>

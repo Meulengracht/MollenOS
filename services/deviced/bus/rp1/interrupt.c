@@ -14,14 +14,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
- * RP1 interrupt source registers are in APBS, at offset 0x108000 within BAR1.
- * SET and CLEAR are separate write locations, so changing one source does not
- * require reading and rewriting a register that other sources also use.
+ * RP1 interrupt registers are in its peripheral-control area (APBS), at offset
+ * 0x108000 within BAR1, a PCI register describing memory assigned to RP1.
+ * SET and CLEAR are separate addresses for setting or clearing register bits,
+ * so each change can leave the other bits untouched.
  * Register layout follows Raspberry Pi Linux drivers/mfd/rp1.c (rpi-6.18.y).
  * 
  */
 
-#include "interrupt.h"
+#include <bus/rp1/interrupt.h>
 #include <string.h>
 
 #define RP1_IRQ_CFG(source) (0x8U + 4U * (source))
@@ -42,7 +43,7 @@ __Rp1InterruptWrite(
 
     // A successful PCI write may still be waiting at a bridge. Read the source's
     // normal register to make sure the change reached RP1 before the caller
-    // unmasks a vector or returns to code that depends on the change.
+    // allows interrupt delivery or returns to code that depends on the change.
     status = WriteDeviceIo(controller->Registers, alias + RP1_IRQ_CFG(source), bits, 4);
     if (status == OS_EOK) {
         // This read only waits for the earlier write to arrive; its value is unused.
@@ -62,8 +63,8 @@ Rp1InterruptInitialize(
     unsigned int source;
     oserr_t      status;
 
-    // The controller needs a valid register mapping, all parent vectors, and
-    // callbacks for stopping and delivering interrupts.
+    // The controller needs mapped registers, all 61 PCI interrupt entries, and
+    // callbacks that can block delivery, wait for handlers, and allow delivery again.
     if (controller == NULL || registers == NULL || parent == NULL || handler == NULL) {
         return OS_EINVALPARAMS;
     }
@@ -90,13 +91,14 @@ Rp1InterruptInitialize(
         parent->MaskAndSynchronize(parent->Context, source);
     }
     
-    // Leave every RP1 source disabled. A write failure keeps parent vectors
-    // masked and the mapping owned, allowing Destroy to retry cleanup.
+    // Leave every RP1 source disabled. If a register write fails, PCI interrupt
+    // delivery stays blocked and we keep the register pointer so Destroy can
+    // retry shutdown. The caller must keep those registers mapped.
     for (source = 0; source < FDT_RP1_INTERRUPT_COUNT; source++) {
         status = __Rp1InterruptWrite(controller, source, RP1_IRQ_CLEAR,
             RP1_IRQ_ENABLE | RP1_IRQ_IACK_ENABLE);
         if (status != OS_EOK) {
-            // Parent vectors remain masked. Retain ownership so Destroy can retry.
+            // Keep delivery blocked and the saved state available for a shutdown retry.
             return status;
         }
     }
@@ -113,9 +115,9 @@ Rp1InterruptConfigure(
 {
     oserr_t status;
 
-    // Choose the trigger mode before enabling the source. This controller
-    // supports rising-edge and high-level interrupts; changing an active source
-    // could lose or misreport an interrupt.
+    // Choose how the signal triggers an interrupt before enabling the source:
+    // when it changes from low to high (rising edge), or while it stays high
+    // (high level). Changing an active source could lose or misreport an interrupt.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
         return OS_EINVALPARAMS;
     }
@@ -142,8 +144,8 @@ Rp1InterruptEnable(
 {
     oserr_t status;
 
-    // Enable only after a trigger mode has been selected, so RP1 never delivers
-    // a source with unknown settings.
+    // Configure how the source signals an interrupt before enabling it, so RP1
+    // never delivers an interrupt with unknown settings.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
         return OS_EINVALPARAMS;
     }
@@ -151,8 +153,8 @@ Rp1InterruptEnable(
         return OS_EINVALPARAMS;
     }
     
-    // Turn on the RP1 source first. Unmask its parent vector only after this
-    // change reaches RP1, or the parent could deliver too early.
+    // Turn on the RP1 source first. Allow PCI interrupt delivery only after
+    // this change reaches RP1, or a handler could run before setup is complete.
     status = __Rp1InterruptWrite(controller, source, RP1_IRQ_SET, RP1_IRQ_ENABLE);
     if (status == OS_EOK) {
         controller->Enabled[source] = 1;
@@ -166,8 +168,8 @@ Rp1InterruptDisable(
     _InOut_ struct Rp1InterruptController* controller,
     _In_    unsigned int                   source)
 {
-    // Stop new parent deliveries and wait for a running handler before changing
-    // the RP1 source or its saved state.
+    // Block new interrupts from PCI and wait for any running handler to finish
+    // before changing the RP1 source or its saved state.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
         return OS_EINVALPARAMS;
     }
@@ -181,8 +183,8 @@ Rp1InterruptHandle(
     _InOut_ struct Rp1InterruptController* controller,
     _In_ unsigned int source)
 {
-    // Ignore vectors received during setup or after their source was disabled;
-    // they must not call a child handler that is no longer ready.
+    // Ignore interrupts received during setup or after their source was disabled;
+    // they must not call a device handler that is no longer ready.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
         return OS_EINVALPARAMS;
     }
@@ -192,8 +194,9 @@ Rp1InterruptHandle(
     
     controller->Handler(controller->Context, source);
     if (controller->Types[source] == 4) {
-        // A level stays asserted until the device clears its cause. Acknowledge
-        // it only after the child handler has had a chance to do that.
+        // A high-level interrupt keeps its signal high until the device's
+        // interrupt condition is cleared. Tell RP1 that handling is done only
+        // after the device handler has had a chance to clear that condition.
         return __Rp1InterruptWrite(controller, source, RP1_IRQ_SET, RP1_IRQ_IACK);
     }
     return OS_EOK;
@@ -207,8 +210,8 @@ Rp1InterruptDestroy(
     oserr_t      status;
     oserr_t      result = OS_EOK;
 
-    // Keep retryable state if any source cannot be shut down. Do not release the
-    // register mapping until every parent vector is quiet.
+    // If any source cannot be shut down, keep its saved state so we can retry.
+    // The caller must keep the registers mapped until shutdown succeeds.
     if (controller == NULL) {
         return OS_EINVALPARAMS;
     }
@@ -216,8 +219,8 @@ Rp1InterruptDestroy(
         return OS_EOK;
     }
     
-    // Try every source even if one fails, so teardown can make as much progress
-    // as possible before returning an error.
+    // Try to disable every source even if one fails, so shutdown can make as
+    // much progress as possible before returning an error.
     for (source = 0; source < FDT_RP1_INTERRUPT_COUNT; source++) {
         status = Rp1InterruptDisable(controller, source);
         if (status != OS_EOK) {

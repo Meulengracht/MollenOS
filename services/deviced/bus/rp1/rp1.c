@@ -14,16 +14,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
- * RP1 PCI function and its firmware-described internal bus.
+ * Finds RP1 as a PCI device and reads firmware descriptions of the hardware inside it.
  * 
  */
 
-#include "rp1.h"
-#include <bus/pci/bus.h>
+#include <bus/rp1/rp1.h>
+#include <bus/pci/device.h>
+#include <bus/pci/function.h>
+#include <bus/pci/host.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
 
+/** Tracks the list being built, where to append the next child, and any error. */
 struct __Rp1Enumeration {
     struct Rp1Bus*    Bus;
     struct Rp1Child** Tail;
@@ -38,8 +41,8 @@ __Rp1AddChild(
     struct __Rp1Enumeration* enumeration = context;
     struct Rp1Child*         child;
 
-    // The firmware walk callback cannot return an error. Save allocation failure
-    // here so Rp1BusCreate can report it after the walk finishes.
+    // This callback cannot return an error. Save any memory allocation failure
+    // so Rp1BusCreate can report it after reading the firmware descriptions.
     if (enumeration->Status != OS_EOK) {
         return;
     }
@@ -50,12 +53,12 @@ __Rp1AddChild(
         return;
     }
     
-    // Keep the decoded description, including its pointers into firmware. The
-    // PCI host keeps that firmware mapped for as long as this inventory exists.
+    // Copy the description, including its pointers into firmware data. The
+    // PCI host keeps that data mapped for as long as this device list exists.
     child->Firmware = *firmware;
     
-    // Append through the saved tail pointer so children stay in firmware order
-    // without searching the list for its last entry each time.
+    // Tail points to where the next child belongs. Appending there keeps
+    // firmware order without searching for the end of the list each time.
     *enumeration->Tail = child;
     enumeration->Tail = &child->Next;
     enumeration->Bus->ChildCount++;
@@ -72,15 +75,16 @@ Rp1BusCreate(
     oserr_t                 status;
 
     // The caller needs a clear failure result even if validation or allocation
-    // below fails before an inventory has been created.
+    // below fails before a device list has been created.
     if (host == NULL || bars == NULL || busOut == NULL) {
         return OS_EINVALPARAMS;
     }
     
     *busOut = NULL;
     
-    // APBS registers are inside BAR1. Require an assigned memory BAR large enough
-    // to contain them before using its resources to find firmware-described children.
+    // RP1's peripheral-control registers (APBS) are inside the PCI memory range
+    // described by BAR1. Check that this range is assigned and large enough
+    // before reading the descriptions of RP1's internal devices.
     if (bars[1].State != PciBarAssigned ||
         (bars[1].Space != 2 && bars[1].Space != 3) || bars[1].Size < RP1_PCIE_APBS_OFFSET + RP1_PCIE_APBS_LENGTH) {
         return OS_EINVALPARAMS;
@@ -88,13 +92,12 @@ Rp1BusCreate(
     
     bus = calloc(1, sizeof(struct Rp1Bus));
     if (bus == NULL) {
-        // Creation failures may reach cleanup before an inventory was allocated.
         return OS_EOOM;
     }
     bus->Host = host;
 
-    // Keep the complete PCI resource list because child addresses are checked
-    // against the RP1 function's assigned memory ranges during firmware decoding.
+    // Keep the complete PCI address list. Each child's register addresses must
+    // fit within memory assigned to this RP1 device.
     memcpy(bus->Bars, bars, sizeof(bus->Bars));
     enumeration.Bus = bus;
     enumeration.Tail = &bus->Children;
@@ -122,14 +125,14 @@ Rp1BusDestroy(
 {
     struct Rp1Child* child;
 
-    // Creation failures may reach cleanup before an inventory was allocated.
+    // A failed creation may call cleanup before a device list was allocated.
     if (bus == NULL) {
         return;
     }
     
     for (child = bus->Children; child != NULL; child = child->Next) {
-        // The host group still needs this saved ID to finish removing entries.
-        // Keep the inventory alive until every child has been removed.
+        // The registration group still needs this stored ID to remove the
+        // device-manager entry. Keep the list until every entry has been removed.
         if (child->DeviceId != UUID_INVALID) {
             return;
         }
@@ -147,7 +150,7 @@ static int
 __Rp1Match(
     _In_ const struct PciDevice* device)
 {
-    // The handler belongs to the RP1 endpoint, not PCI bridges or other devices.
+    // Use this handler for the RP1 device itself; skip devices that connect PCI buses.
     return !device->IsBridge && device->Header->VendorId == RP1_VENDOR_ID &&
         device->Header->DeviceId == RP1_DEVICE_ID;
 }
@@ -158,35 +161,36 @@ __Rp1Attach(
     _In_  const struct PciFunctionResources* resources,
     _Out_ void**                             attachmentOut)
 {
+    const struct PciHostIdentification* identification = PciHostGetIdentification(device->Host);
     struct Rp1Bus*   bus;
     struct Rp1Child* child;
     oserr_t          status;
 
-    // Leave no attachment behind on any failure;
+    // Return no RP1 device list if setup fails.
     *attachmentOut = NULL;
 
-    // This driver understands the C0 register and firmware layout only.
+    // Only hardware revision C0 has the register and firmware formats this code supports.
     if (device->Header->Revision != RP1_REVISION_C0) {
         WARNING("RP1 revision %u is unsupported", device->Header->Revision);
         return OS_ENOTSUPPORTED;
     }
     
-    // RP1's internal devices are described by firmware, so PCI identity alone
-    // is not enough to build their resource list.
+    // PCI vendor and device IDs identify RP1 but do not describe the hardware
+    // inside it. Firmware must supply those devices' registers and interrupts.
     if (resources->Firmware == NULL) {
         return OS_ENOENT;
     }
     
     // Firmware does not identify RP1 by its PCI bus, slot, and function numbers.
-    // Accept only the expected function directly below this host, not another
-    // device that happens to have the same vendor and device IDs.
-    if (device->Bus != (unsigned int)device->Host->Identification.BusStart + 1 ||
+    // Check RP1's expected location: the next bus after the host, slot 0,
+    // function 0. This avoids selecting another device with the same IDs.
+    if (device->Bus != (unsigned int)identification->BusStart + 1 ||
         device->Slot != 0 || device->Function != 0) {
         return OS_ENOENT;
     }
     
-    // Build and validate all child descriptions before handing the attachment
-    // to PCI. Publication and driver matching happen later in separate steps.
+    // Build and check all child descriptions before returning their list to
+    // the PCI code. Adding device-manager entries and finding drivers happen later.
     status = Rp1BusCreate(resources->Firmware, resources->Bars, &bus);
     if (status != OS_EOK) {
         WARNING("RP1 child enumeration failed (%u); assigned BARs and matching firmware required", status);
@@ -197,7 +201,7 @@ __Rp1Attach(
     
     for (child = bus->Children; child != NULL; child = child->Next) {
         WARNING("RP1 %u:%u:%u.%u child %s (%s), %u registers, %u local interrupts; activation pending MSI/DMA",
-            device->Host->Identification.Segment, device->Bus, device->Slot, device->Function,
+            identification->Segment, device->Bus, device->Slot, device->Function,
             child->Firmware.Name, child->Firmware.Compatible,
             child->Firmware.RegisterCount, child->Firmware.InterruptCount);
     }

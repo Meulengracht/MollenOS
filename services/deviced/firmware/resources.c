@@ -16,7 +16,7 @@
  *
  */
 
-#include "resources.h"
+#include <firmware/resources.h>
 #include <string.h>
 
 uint64_t
@@ -275,7 +275,7 @@ FdtRawRegister(
     return OS_EOK;
 }
 
-/** Resource decoding is an adapter over reader views, never part of traversal. */
+/** Holds the callback and caller data used when reading resource properties. */
 struct __ResourceWalk {
     FdtResourceFn Visitor;
     void* Context;
@@ -337,7 +337,7 @@ FdtWalkResources(
     return FdtWalkNodes(blob, length, __ResourceVisit, &walk);
 }
 
-/** One provider selected after the reader has established unique identity. */
+/** Stores the resources for a node whose firmware ID was already checked for duplicates. */
 struct __ResourceQuery {
     uint32_t Phandle;
     struct FdtResources Result;

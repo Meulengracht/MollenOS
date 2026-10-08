@@ -16,14 +16,14 @@
  *
  */
 
-#include "pci.h"
-#include "resources.h"
-#include "bcm.h"
+#include <firmware/pci.h>
+#include <firmware/resources.h>
+#include <firmware/bcm.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
 
-/** PCI binding properties, decoded after host matching. */
+/** Stores PCI-specific properties after the node is recognized as a supported host. */
 struct __PciNode {
     const uint8_t* BusRange;
     uint32_t BusRangeLength;
@@ -35,7 +35,8 @@ struct __PciNode {
     uint32_t InterruptMaskLength;
 };
 
-/** Explicit domains are reserved before any automatic assignment or callback. */
+/** Tracks PCI hosts and domain numbers, which identify groups of PCI buses.
+ * Numbers set by firmware are collected before assigning any missing numbers. */
 struct __PciWalk {
     const void* Blob;
     size_t Length;
@@ -54,8 +55,9 @@ __PciNextDomain(
 {
     size_t index;
 
-    // Restart the search after skipping a reservation: firmware order need
-    // not match numeric order. Earlier automatic assignments are below NextDomain.
+    // Firmware domain numbers may appear in any order. After skipping a used
+    // number, check the whole list again so we do not reuse another one.
+    // Numbers we assigned earlier are already below NextDomain.
     index = 0;
     while (index < walk->ReservedCount) {
         if (walk->NextDomain == walk->ReservedDomains[index]) {
@@ -214,7 +216,8 @@ __EmitPciHost(
         return;
     }
 
-    // Only scan buses that the ECAM window actually decodes, 1MB per bus.
+    // ECAM provides access to PCI configuration registers through memory.
+    // Each bus needs 1 MiB of that memory range; only scan buses that fit.
     busesDecoded = host.Type == FdtPciHostEcam ? host.EcamLength >> 20 : 256;
     if (busesDecoded == 0) {
         return;
@@ -303,8 +306,9 @@ __ClassifyDmaWindows(
             }
         }
     }
-    // RAM apertures can be larger than installed memory. Require a firmware
-    // memory bank as evidence, never infer RAM from entry order or address zero.
+    // A DMA address range can cover more space than the installed RAM.
+    // Use firmware memory descriptions to identify RAM; a range's position
+    // in the list or a starting address of zero does not tell us its purpose.
     FdtWalkResources(host->Blob, host->BlobLength, __ClassifyMemory, host);
 }
 
@@ -506,8 +510,8 @@ __PciReserveDomain(
         return;
     }
 
-    // Reserve declared domains even when a host's resource description later
-    // proves unusable. Another controller must not inherit its explicit identity.
+    // Keep a firmware domain number reserved even if we later cannot use that
+    // host. Assigning it to another host would change which buses it identifies.
     domains = realloc(walk->ReservedDomains,
         (walk->ReservedCount + 1) * sizeof(*domains));
     if (domains == NULL) {

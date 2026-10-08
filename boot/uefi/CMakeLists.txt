@@ -28,6 +28,7 @@ FetchContent_Declare(
     edk2
     GIT_REPOSITORY https://github.com/tianocore/edk2.git
     GIT_TAG        edk2-stable202608
+    GIT_SHALLOW    1
 )
 
 find_program(MAKE_EXECUTABLE make REQUIRED)

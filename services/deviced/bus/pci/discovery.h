@@ -1,5 +1,7 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * MollenOS
+ *
+ * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,16 @@
  *
  */
 
-/** Compatibility umbrella. New consumers should include the specific adapter. */
-#ifndef __DEVICED_FDT_H__
-#define __DEVICED_FDT_H__
-#include "pci.h"
-#include "bcm.h"
-#include "rp1.h"
-#endif
+#ifndef __DEVICED_BUS_PCI_DISCOVERY_H__
+#define __DEVICED_BUS_PCI_DISCOVERY_H__
+
+#include <os/osdefs.h>
+
+/**
+ * @brief Finds PCI controllers described by firmware and scans their buses.
+ * On supported systems, scans legacy PCI if no firmware-described host starts.
+ */
+__EXTERN void
+BusEnumerate(void);
+
+#endif // __DEVICED_BUS_PCI_DISCOVERY_H__

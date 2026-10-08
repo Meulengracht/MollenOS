@@ -110,9 +110,17 @@ __MatchBusDevice(
 
     // Require at least one class component to be specified. Otherwise default
     // zero values on both sides could incorrectly make unrelated devices match.
-    return (identification->Class || identification->Subclass) &&
-        identification->Class == configuration->Class &&
-        identification->Subclass == configuration->Subclass;
+    if (!identification->Class && !identification->Subclass) {
+        return 0;
+    }
+
+    // A class match is less specific than a vendor/product match. Give it a
+    // higher score so driver order cannot make it replace an exact match.
+    if (identification->Class == configuration->Class &&
+        identification->Subclass == configuration->Subclass) {
+        return 2;
+    }
+    return 0;
 }
 
 unsigned int

@@ -16,11 +16,12 @@
  *
  */
 
-/** Validated firmware views. Allocation and hardware bindings belong to callers. */
-#include "reader.h"
+/** Reads firmware data after checking its format. Callers set up the devices. */
+#include <firmware/reader.h>
 #include <string.h>
 
-/** Temporary traversal state; callbacks never receive ownership of this stack. */
+/** Tracks the current node and its parents while reading the tree.
+ * Callbacks may copy node records, but must not keep a pointer to this array. */
 struct __FdtWalk {
     struct FdtNode Nodes[FDT_MAX_DEPTH];
     int Depth;
@@ -133,8 +134,9 @@ FdtWalkNodes(
     walk.Structure = (const uint8_t*)blob + header.OffDtStruct;
     walk.Strings = (const char*)blob + header.OffDtStrings;
     walk.StringsLength = header.SizeDtStrings;
-    // A valid prefix never authorizes publication. First consume every event
-    // with no visitor, then revisit the same immutable input for consumers.
+    // An error near the end of the tree must be caught before callers use any
+    // nodes. Check the whole tree first, then read it again with the callback.
+    // The caller must keep the input unchanged between these two passes.
     status = FdtParseStructure(walk.Structure, header.SizeDtStruct,
         walk.Strings, walk.StringsLength, &parser);
     if (status != OS_EOK || visitor == NULL) {
@@ -146,7 +148,8 @@ FdtWalkNodes(
         walk.Strings, walk.StringsLength, &parser);
 }
 
-/** Property lookup keeps unknown bindings available without growing a node. */
+/** Stores a property name to find and the matching bytes in the firmware data.
+ * This also lets callers read properties that FdtNode has no dedicated field for. */
 struct __FdtPropertyQuery {
     const char* Name;
     const uint8_t* Value;
@@ -229,7 +232,8 @@ FdtScalar(
     return OS_EOK;
 }
 
-/** Provider lookup counts disabled duplicates too, so identity is unambiguous. */
+/** Tracks nodes with the requested firmware ID (phandle).
+ * Disabled nodes count too: more than one match makes the ID ambiguous. */
 struct __FdtNodeQuery {
     uint32_t Phandle;
     unsigned int Count;

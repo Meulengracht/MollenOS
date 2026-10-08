@@ -17,7 +17,7 @@
  *
  */
 
-#include <os/osdefs.h>
+#include <bus/pci/strings.h>
 
 const char*
 PciToString(

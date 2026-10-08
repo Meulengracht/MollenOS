@@ -18,28 +18,36 @@
 
 #ifndef DEVICED_FIRMWARE_RP1_H
 #define DEVICED_FIRMWARE_RP1_H
-#include "pci.h"
+
+#include <firmware/pci.h>
 #include <bus/pci/bars.h>
 
 #define FDT_RP1_MAX_REGISTERS 8
 #define FDT_RP1_MAX_INTERRUPTS 8
 #define FDT_RP1_INTERRUPT_COUNT 61
 
-/** A CPU physical resource, checked against an assigned RP1 memory BAR. */
+/** A CPU physical address range for an RP1 device's registers.
+ * The range has been checked to fit inside memory assigned to RP1 through a
+ * PCI Base Address Register (BAR), which describes a device's address range. */
 struct FdtRp1Range {
     uint64_t Base;
     uint64_t Length;
 };
 
-/** RP1-local interrupt identity. Number is never a GIC line or PCI INTx pin. */
+/** An interrupt handled by the RP1 I/O controller.
+ * Controller is its firmware ID (phandle). Number is an RP1 interrupt number,
+ * not a line on the Arm interrupt controller or a PCI device's interrupt pin. */
 struct FdtRp1Interrupt {
     uint32_t Controller;
     uint32_t Number;
-    uint32_t Type; // DeviceTree rising edge (1) or high level (4)
+    uint32_t Type; // 1: signal changes from low to high; 4: signal stays high
 };
 
-/** One enabled child. Strings and NodeOffset refer to the retained firmware blob.
- * The node retains device-specific clocks, resets, DMA and pin configuration. */
+/** Describes one enabled device attached to the RP1 I/O controller.
+ * Strings point into the original firmware data, which must stay mapped and
+ * unchanged while they are used. NodeOffset locates the original node in the
+ * tree's structure block, where callers can also read this device's clock,
+ * reset, direct memory access (DMA), and pin settings. */
 struct FdtRp1Device {
     const char* Name;
     const char* Compatible;
@@ -55,10 +63,20 @@ struct FdtRp1Device {
 typedef void (*FdtRp1DeviceFn)(const struct FdtRp1Device*, void*);
 
 /**
- * @brief Enumerates direct RP1 children beneath this exact host, validating all
- * children before callbacks. Assigned BARs use CPU physical addresses. Disabled
- * nodes are omitted; malformed or unsupported resources fail without callbacks.
- * @param bars Six PCI BAR descriptions; only assigned memory BARs are usable.
+ * @brief Find devices directly attached to the RP1 controller under this host.
+ *
+ * Checks all children and the controller's firmware ID before calling callback.
+ * Disabled nodes are skipped. Malformed or unsupported resources cause an error
+ * before any callbacks, so callers do not receive an incomplete device list.
+ *
+ * @param host PCI host whose RP1 controller should be examined.
+ * @param bars Six PCI BAR descriptions. Only assigned memory ranges are used,
+ *             and their addresses must be CPU physical addresses.
+ * @param callback Called with each device's temporary description; copy it if
+ *                 needed later. Its strings still point into host->Blob.
+ * @param context Caller data passed to callback.
+ * @return OS_EOK on success, OS_ENOENT if no RP1 controller is described, or
+ *         an error for invalid, ambiguous, or unsupported resource descriptions.
  */
 extern oserr_t
 FdtEnumerateRp1Children(

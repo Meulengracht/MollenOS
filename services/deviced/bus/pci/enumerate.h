@@ -1,7 +1,7 @@
 /**
  * MollenOS
  *
- * Copyright (C) Philip Meulengracht
+ * Copyright 2015, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,28 +16,36 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- * Legacy configuration-port host construction.
- * 
  */
 
-#ifndef __DEVICED_PCI_LEGACY_H__
-#define __DEVICED_PCI_LEGACY_H__
+#ifndef __DEVICED_BUS_PCI_ENUMERATE_H__
+#define __DEVICED_BUS_PCI_ENUMERATE_H__
 
 #include <bus/pci/host.h>
 
-struct FdtPciHost;
+struct PciDevice;
+
+/**
+ * @brief Scans a bus for devices and follows any bridges it finds.
+ * @param parent Device or host root that owns this bus.
+ * @param bus Bus number to scan.
+ */
+__EXTERN void
+PciCheckBus(
+    _In_ struct PciDevice* parent,
+    _In_ int          bus);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 
 /**
- * @brief Creates a host and acquires the legacy PCI I/O ports, but does not
- * register it or scan its buses. The caller owns the host until registration
- * succeeds. On failure, leaves hostOut NULL and frees partial resources.
+ * @brief Selects present legacy root functions and scans their buses.
+ *
+ * @param host The host to scan for legacy PCI roots.
  */
-__EXTERN oserr_t
-PciLegacyHostCreate(
-    _Out_ PciHost_t** hostOut);
+__EXTERN void
+PciScanLegacyRoots(
+    _In_ PciHost_t* host);
 
 #endif //!__OSCONFIG_HAS_LEGACY_PCI
 
-#endif //!__DEVICED_PCI_LEGACY_H__
+#endif // __DEVICED_BUS_PCI_ENUMERATE_H__

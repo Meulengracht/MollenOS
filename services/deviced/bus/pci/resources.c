@@ -16,7 +16,8 @@
  *
  */
 
-#include "bus.h"
+#include <bus/pci/bars.h>
+#include <bus/pci/host-private.h>
 #include <ddk/busdevice.h>
 #include <ddk/utils.h>
 

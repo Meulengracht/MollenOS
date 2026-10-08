@@ -18,9 +18,9 @@
  * 
  */
 
-#include "rp1.h"
-#include <bus/pci/bus.h>
-#include <devices.h>
+#include <bus/rp1/rp1.h>
+#include <bus/pci/device.h>
+#include <core/publication.h>
 #include <ddk/busdevice.h>
 #include <ddk/interrupt.h>
 #include <ddk/platformdevice.h>
@@ -39,15 +39,15 @@ __Rp1PublishChild(
     const struct FdtRp1Device*  firmware = &child->Firmware;
     oserr_t                     status;
 
-    // The destination has fixed-size arrays. Reject descriptions that cannot
-    // fit rather than silently truncating compatibility data or resource lists.
+    // The destination arrays have fixed limits. Reject descriptions that do
+    // not fit, so hardware names, register ranges, and interrupts are not lost.
     if (firmware->CompatibleLength > PLATFORM_DEVICE_MAX_COMPATIBLES ||
         firmware->RegisterCount > PLATFORM_DEVICE_MAX_REGISTERS ||
         firmware->InterruptCount > PLATFORM_DEVICE_MAX_INTERRUPTS) {
         return OS_ENOTSUPPORTED;
     }
     
-    // The registry needs its own copy, separate from the firmware inventory.
+    // The device manager needs its own record, separate from our list of RP1 devices.
     device = calloc(1, sizeof(*device));
     if (device == NULL) {
         return OS_EOOM;
@@ -55,8 +55,8 @@ __Rp1PublishChild(
     device->Base.Length = sizeof(*device);
     device->Base.ParentId = parentId;
     
-    // The source strings point into firmware data. Make an owned copy so this
-    // device description does not depend on that memory remaining mapped.
+    // The name points into firmware data. Copy it into separately allocated
+    // memory so this name remains available if the firmware mapping is released.
     device->Base.Identification.Description = strdup(firmware->Name);
     if (device->Base.Identification.Description == NULL) {
         free(device);
@@ -65,8 +65,9 @@ __Rp1PublishChild(
     
     device->Version = PLATFORM_DEVICE_VERSION;
     
-    // This record describes resources but does not set up DMA or interrupts.
-    // Keep the driver from initializing hardware until those services are ready.
+    // Registers and interrupt numbers alone are not enough to run the device.
+    // Block driver startup until interrupt delivery and direct memory access
+    // (DMA), which lets the device access memory itself, have been set up.
     device->Pending = PLATFORM_DEVICE_PENDING_INTERRUPTS | PLATFORM_DEVICE_PENDING_DMA;
     device->FirmwareNode = firmware->NodeOffset;
     device->CompatibleLength = firmware->CompatibleLength;
@@ -85,14 +86,14 @@ __Rp1PublishChild(
         device->Interrupts[i].Type = firmware->Interrupts[i].Type;
     }
     
-    // Add the record without asking for a driver yet. PCI first creates the full
-    // device tree; if a later addition fails, it can remove this partial set
-    // without any peripheral driver having started.
+    // Add the record without asking for a driver yet. The PCI code first adds
+    // all device-manager entries. If a later addition fails, it can remove the
+    // entries already added before any device drivers have started.
     registration.Description = &device->Base;
     
     status = DmPublicationAdd(group, &registration, 1, &child->DeviceId);
     if (status != OS_EOK) {
-        // Registration did not take ownership, so release both allocations here.
+        // The device manager did not accept the record, so free it and its name.
         free(device->Base.Identification.Description);
         free(device);
     }
@@ -108,15 +109,15 @@ Rp1BusPublish(
     struct Rp1Child* child;
     oserr_t          status;
 
-    // Every child needs a published parent ID before the device manager can add it.
+    // Register the RP1 PCI device first so each child can refer to its device ID.
     if (endpoint->DeviceId == UUID_INVALID) {
         return OS_EINVALPARAMS;
     }
 
     for (child = bus->Children; child != NULL; child = child->Next) {
         status = __Rp1PublishChild(group, endpoint->DeviceId, child);
-        // The shared group remembers earlier children so PCI can remove the
-        // whole incomplete tree before any drivers have started.
+        // The registration group tracks entries already added, so the PCI code
+        // can remove them all on failure before any drivers have started.
         if (status != OS_EOK) {
             return status;
         }

@@ -18,12 +18,22 @@
  *
  */
 
-#include "legacy.h"
+#include <bus/pci/hosts/legacy.h>
+#include <bus/pci/host-private.h>
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
+
+// To be able to access bus data we need io-space
+// access, so lets define the io-ports neccessary
+// for accessing PCI (legacy), not PCIe
+#define PCI_IO_BASE                     0xCF8
+#define PCI_IO_LENGTH                   8
+#define PCI_REGISTER_SELECT             0x00
+#define PCI_REGISTER_DATA               0x04
+
 static void
 __LegacySelect(
     _In_ PciHost_t*      Io,

@@ -18,7 +18,7 @@
  *
  */
 
-#include "bus.h"
+#include <bus/pci/function.h>
 
 extern const struct PciFunctionHandler g_rp1PciHandler;
 
