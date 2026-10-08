@@ -19,6 +19,7 @@
  */
 
 #include <bus/pci/host-private.h>
+#include <bus/pci/dma.h>
 #include <bus/pci/registers.h>
 #include <bus/pci/hosts/broadcom/bcm.h>
 #include <string.h>
@@ -333,7 +334,35 @@ __BcmInterrupt(
     return FdtResolvePciInterrupt(&controller->Firmware, number, slot, function, pin, line, flags);
 }
 
+static oserr_t
+__BcmGetDmaDescription(
+    _In_  PciHost_t*                bus,
+    _Out_ struct PciDmaDescription* description)
+{
+    const struct BcmPciHost* controller = bus->OpContext;
+    oserr_t                  status;
+
+    // Configuration access alone is not evidence of a usable inbound mapping.
+    // Stop and failed setup clear this separate record before removing hardware.
+    if (!controller->Ready || !controller->InboundConfigured) {
+        return OS_EBUSY;
+    }
+
+    // Setup used these retained firmware windows. Reuse the shared RAM filter
+    // and keep their exact lengths, including when hardware rounded a size up.
+    status = FdtPciDmaMap(&controller->Firmware, &description->Map);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // The initial policy requires software to arrange visibility. Neither a
+    // programmed address window nor a firmware flag proves that caches are shared.
+    description->CachePolicy = PciDmaCacheNonCoherent;
+    return OS_EOK;
+}
+
 const struct PciHostOperations g_pciBcmOperations = {
+    .GetDmaDescription = __BcmGetDmaDescription,
     .Read = __BcmRead,
     .Write = __BcmWrite,
     .Translate = __BcmTranslate,
@@ -658,6 +687,7 @@ BcmPciInitialize(
     if (status != OS_EOK) {
         goto failure;
     }
+    controller->InboundConfigured = 1;
 
     status = __BcmBridgeWindow(bus, firmware);
     if (status != OS_EOK) {
@@ -688,6 +718,7 @@ BcmPciInitialize(
 
 failure:
     // Remove the hardware setup and published bus state together after failure.
+    controller->InboundConfigured = 0;
     variant->Stop(bus);
     bus->OpContext = NULL;
     bus->Firmware = NULL;
@@ -712,6 +743,7 @@ BcmPciDestroy(
     // Prevent new register work while stopping the host and removing its callbacks.
     mtx_lock(&controller->ConfigLock);
     controller->Ready = 0;
+    controller->InboundConfigured = 0;
     controller->Variant->Stop(bus);
     bus->Operations = NULL;
     bus->OpContext = NULL;
@@ -736,7 +768,7 @@ BcmPciDmaAddress(
     if (controller == NULL || address == NULL) {
         return OS_EINVALPARAMS;
     }
-    if (!controller->Ready || length == 0) {
+    if (!controller->Ready || !controller->InboundConfigured || length == 0) {
         return OS_EINVALPARAMS;
     }
     if (length - 1 > UINT64_MAX - physical) {

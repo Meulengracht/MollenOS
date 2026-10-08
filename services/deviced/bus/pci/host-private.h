@@ -29,8 +29,18 @@
 struct PciDevice;
 struct PciFirmwareMapping;
 struct FdtPciHost;
+struct PciDmaDescription;
 
 struct PciHostOperations {
+    /** 
+     * @brief Copy configured DMA ranges without giving callers private host state.
+     * Optional: a host with no platform DMA policy leaves this callback NULL.
+     * The common wrapper supplies identity and preserves output on failure.
+     */
+    oserr_t (*GetDmaDescription)(
+        struct PciHost*           host,
+        struct PciDmaDescription* description);
+
     /**
      * @brief Read from the PCI configuration space.
      *

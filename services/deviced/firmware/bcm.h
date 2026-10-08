@@ -16,22 +16,27 @@
  *
  */
 
-#ifndef DEVICED_FIRMWARE_BCM_H
-#define DEVICED_FIRMWARE_BCM_H
+#ifndef __FIRMWARE_BCM_H__
+#define __FIRMWARE_BCM_H__
 
 #include <firmware/pci.h>
 
-/** Registers and settings needed to reset and clock a Broadcom PCI host.
- * ResetBase and ResetLength describe the RESCAL hardware used for calibration.
- * BridgeResetController and BridgeResetId identify the controller and reset
- * signal for the PCI bridge; BridgeResetBase and BridgeResetLength locate its
- * registers. ClockFrequency is the always-on reference clock frequency in hertz. */
+/** 
+ * @brief Registers and settings needed to reset and clock a Broadcom PCI host.
+ */
 struct FdtPciDependencies {
+    // ResetBase and ResetLength describe the RESCAL hardware used for calibration.
     uint64_t ResetBase;
     uint64_t ResetLength;
+
+    // ClockFrequency is the always-on reference clock frequency in hertz.
     uint32_t ClockFrequency;
+
+    // BridgeResetController and BridgeResetId identify the controller and reset signal for the PCI bridge.
     uint32_t BridgeResetController;
     uint32_t BridgeResetId;
+
+    // BridgeResetBase and BridgeResetLength locate its registers.
     uint64_t BridgeResetBase;
     uint64_t BridgeResetLength;
 };
@@ -48,8 +53,8 @@ struct FdtPciDependencies {
  */
 extern oserr_t
 FdtResolvePciMsi(
-        _In_ const struct FdtPciHost* host,
-        _Out_ struct FdtPciMsi* msi);
+    _In_  const struct FdtPciHost* host,
+    _Out_ struct FdtPciMsi*        msi);
 
 /**
  * @brief Read the reset controls and fixed clock declared for a Broadcom host.
@@ -63,8 +68,8 @@ FdtResolvePciMsi(
  */
 extern oserr_t
 FdtResolvePciDependencies(
-        _In_ const struct FdtPciHost* host,
-        _Out_ struct FdtPciDependencies* dependencies);
+    _In_  const struct FdtPciHost*   host,
+    _Out_ struct FdtPciDependencies* dependencies);
 
 /**
  * @brief Check whether a node describes a supported Broadcom PCI host.
@@ -75,8 +80,9 @@ FdtResolvePciDependencies(
  */
 int
 FdtBcmHostType(
-    _In_ const struct FdtNode* node,
-    _Out_ enum FdtPciHostType* type);
+    _In_  const struct FdtNode* node,
+    _Out_ enum FdtPciHostType*  type);
+
 /**
  * @brief Read firmware settings for the host's PCI Express connection.
  *
@@ -88,5 +94,6 @@ FdtBcmHostType(
 oserr_t
 FdtBcmHostPolicy(
     _In_ const struct FdtNode* node,
-    _In_ struct FdtPciHost* host);
-#endif
+    _In_ struct FdtPciHost*    host);
+
+#endif //!__FIRMWARE_BCM_H__

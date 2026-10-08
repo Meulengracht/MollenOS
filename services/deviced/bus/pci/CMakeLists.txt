@@ -5,6 +5,7 @@ add_library(deviced-pci STATIC
     bars.c
     device.c
     discovery.c
+    dma.c
     enumerate.c
     functionhandlers.c
     helpers.c

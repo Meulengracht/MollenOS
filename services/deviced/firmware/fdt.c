@@ -16,7 +16,6 @@
  *
  */
 
-/** Reads firmware data after checking its format. Callers set up the devices. */
 #include <firmware/reader.h>
 #include <string.h>
 
@@ -24,12 +23,12 @@
  * Callbacks may copy node records, but must not keep a pointer to this array. */
 struct __FdtWalk {
     struct FdtNode Nodes[FDT_MAX_DEPTH];
-    int Depth;
+    int            Depth;
     const uint8_t* Structure;
-    const char* Strings;
-    uint32_t StringsLength;
-    FdtNodeFn Visitor;
-    void* Context;
+    const char*    Strings;
+    uint32_t       StringsLength;
+    FdtNodeFn      Visitor;
+    void*          Context;
 };
 
 static oserr_t

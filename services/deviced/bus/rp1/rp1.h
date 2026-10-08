@@ -41,6 +41,10 @@
 // Forward declarations
 struct PciDevice;
 struct DmPublicationGroup;
+struct PciFunctionHandler;
+
+// Identifies the PCI attachment owned by RP1 when serving child resource queries.
+extern const struct PciFunctionHandler g_rp1PciHandler;
 
 /**
  * @brief One hardware block inside RP1, plus the state deviced needs to list it.

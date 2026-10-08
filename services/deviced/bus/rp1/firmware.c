@@ -17,21 +17,38 @@
  */
 
 #include <firmware/rp1.h>
+#include <firmware/dma.h>
 #include <firmware/resources.h>
 #include <string.h>
 
 /**
- * @brief Keeps the inputs and results needed while reading one RP1 controller.
- * Reads the tree twice: first to check all child descriptions and record the
- * controller, then to pass each child to the caller's callback.
+ * @brief Visits an RP1 bus or one of its direct children with the complete ancestry.
  */
-struct __FdtRp1Walk {
+typedef oserr_t (*__Rp1VisitFn)(
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _In_    int                        busDepth,
+    _InOut_ void*                      context);
+
+/**
+ * @brief Shared traversal state; exactly one enabled RP1 bus must belong to the host.
+ */
+struct __Rp1Walk {
+    const struct FdtPciHost* Host;
+    __Rp1VisitFn             Visit;
+    void*                    Context;
+    oserr_t                  Status;
+    unsigned int             Buses;
+};
+
+/**
+ * @brief Inputs and controller identity retained across validation and child emission.
+ */
+struct __Rp1Children {
     const struct FdtPciHost* Host;
     const struct PciBar*     Bars;
     FdtRp1DeviceFn           Callback;
     void*                    Context;
-    oserr_t                  Status;
-    unsigned int             Buses;
     uint32_t                 Controller;
 };
 
@@ -47,10 +64,83 @@ __IsRp1Node(
          FdtStringListContains(node->Compatible, node->CompatibleLength, "simple-bus"));
 }
 
+static void
+__VisitRp1(
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _InOut_ void*                      context)
+{
+    struct __Rp1Walk*          walk = context;
+    const struct FdtResources* node = &nodes[depth];
+    const struct FdtResources* rp1;
+    const struct FdtResources* host;
+    enum FdtPciHostType        type;
+    int                        isBus = __IsRp1Node(node);
+    int                        busDepth = isBus ? depth : depth - 1;
+
+    if (walk->Status != OS_EOK || busDepth < 1) {
+        return;
+    }
+    if (node->Disabled || node->AncestorDisabled) {
+        return;
+    }
+
+    // Match the exact host and only the RP1 bus or its direct children. Other
+    // hosts, disabled subtrees and nested peripherals do not belong to this walk.
+    rp1 = &nodes[busDepth];
+    host = &nodes[busDepth - 1];
+    if (!__IsRp1Node(rp1) || host->NodeOffset != walk->Host->NodeOffset) {
+        return;
+    }
+    
+    if (!FdtPciHostType(&host->View, &type) || type != walk->Host->Type) {
+        walk->Status = OS_ENOTSUPPORTED;
+        return;
+    }
+    
+    if (rp1->Malformed || rp1->AncestorMalformed) {
+        walk->Status = OS_EINVALPARAMS;
+        return;
+    }
+
+    // Resource walking visits children before their parent. Validate the bus
+    // for each visit instead of relying on its own callback having run first.
+    walk->Status = walk->Visit(nodes, depth, busDepth, walk->Context);
+    if (isBus && walk->Status == OS_EOK) {
+        walk->Buses++;
+    }
+}
+
+static oserr_t
+__WalkRp1(
+    _In_    const struct FdtPciHost* host,
+    _In_    __Rp1VisitFn             visit,
+    _InOut_ void*                   context)
+{
+    struct __Rp1Walk walk = {
+        .Host = host,
+        .Visit = visit,
+        .Context = context,
+        .Status = OS_EOK
+    };
+    oserr_t status;
+
+    status = FdtWalkResources(host->Blob, host->BlobLength, __VisitRp1, &walk);
+    if (status != OS_EOK || walk.Status != OS_EOK) {
+        return status != OS_EOK ? status : walk.Status;
+    }
+    // More than one bus makes the firmware association ambiguous, even if the
+    // requested child was found before the second bus in the tree.
+    if (walk.Buses != 1) {
+        return walk.Buses ? OS_EINVALPARAMS : OS_ENOENT;
+    }
+    return OS_EOK;
+}
+
 static oserr_t
 __Rp1TranslateRegister(
     _In_    const struct FdtResources* rp1,
-    _In_    struct __FdtRp1Walk*       walk,
+    _In_    struct __Rp1Children*      walk,
     _In_    uint64_t                   address,
     _InOut_ struct FdtRp1Range*        resource)
 {
@@ -120,7 +210,7 @@ static oserr_t
 __Rp1ChildResources(
     _In_  const struct FdtResources* node,
     _In_  const struct FdtResources* rp1,
-    _In_  struct __FdtRp1Walk*       walk,
+    _In_  struct __Rp1Children*      walk,
     _Out_ struct FdtRp1Device*       device)
 {
     const uint8_t* interrupts;
@@ -198,67 +288,44 @@ __Rp1ChildResources(
     return OS_EOK;
 }
 
-static void
-__VisitRp1(
+static oserr_t
+__Rp1VisitChild(
     _In_    const struct FdtResources* nodes,
     _In_    int                        depth,
+    _In_    int                        busDepth,
     _InOut_ void*                      context)
 {
-    struct __FdtRp1Walk*       walk = context;
+    struct __Rp1Children*      walk = context;
     const struct FdtResources* node = &nodes[depth];
-    const struct FdtResources* rp1;
-    const struct FdtResources* host;
+    const struct FdtResources* rp1 = &nodes[busDepth];
+    const struct FdtResources* host = &nodes[busDepth - 1];
     struct FdtRp1Device        device = { 0 };
-    enum FdtPciHostType        type;
-    int                        isBus = __IsRp1Node(node);
-    int                        busDepth = isBus ? depth : depth - 1;
+    oserr_t                    status;
 
-    // Skip hardware that firmware marks as disabled. Once a child description
-    // fails its checks, keep that error and stop examining more children.
-    if (node->Disabled || node->AncestorDisabled || walk->Status != OS_EOK || busDepth < 1) {
-        return;
+    // Cell counts determine the layout of the addresses and interrupt entries.
+    if (!rp1->Phandle || !rp1->IsInterruptController || rp1->InterruptCells != 2) {
+        return OS_EINVALPARAMS;
     }
-
-    rp1 = &nodes[busDepth];
-    host = &nodes[busDepth - 1];
-    
-    // The firmware tree can contain other PCI controllers and RP1 devices. Only
-    // process nodes below the RP1 controller attached to the requested host.
-    if (!__IsRp1Node(rp1) || !FdtPciHostType(&host->View, &type) ||
-        host->NodeOffset != walk->Host->NodeOffset) {
-        return;
+    if (rp1->AddressCells != 2 || rp1->SizeCells != 2 || host->AddressCells != 3) {
+        return OS_EINVALPARAMS;
     }
-    
-    // A device-tree cell is a 32-bit value. These counts describe how many
-    // values make up each address, size, and interrupt entry. Different counts
-    // would make us read the child data at the wrong positions.
-    if (rp1->Malformed || rp1->AncestorMalformed || !rp1->Phandle ||
-        !rp1->IsInterruptController || rp1->InterruptCells != 2 ||
-        rp1->AddressCells != 2 || rp1->SizeCells != 2 || host->AddressCells != 3) {
-        walk->Status = OS_EINVALPARAMS;
-        return;
-    }
-    
-    if (isBus) {
-        // Count the RP1 controller; only its children are passed to the callback.
-        walk->Buses++;
+    if (depth == busDepth) {
         walk->Controller = rp1->Phandle;
-        return;
+        return OS_EOK;
     }
-    
+
     // Only return devices with a hardware type ("compatible") and register
     // ranges ("reg"). Other nodes may describe internal parts of a device.
     if (node->Compatible == NULL || node->Reg == NULL) {
-        return;
+        return OS_EOK;
     }
     
-    walk->Status = __Rp1ChildResources(node, rp1, walk, &device);
-    if (walk->Status == OS_EOK && walk->Callback != NULL) {
-        // Callers receive children only on the second read, after every child
-        // has passed its checks. A bad description later in the tree therefore
-        // cannot leave the caller with an incomplete list.
+    status = __Rp1ChildResources(node, rp1, walk, &device);
+    if (status == OS_EOK && walk->Callback != NULL) {
+        // Emit children only after a complete validation pass has succeeded.
         walk->Callback(&device, walk->Context);
     }
+    return status;
 }
 
 oserr_t
@@ -268,7 +335,7 @@ FdtEnumerateRp1Children(
     _In_ FdtRp1DeviceFn           callback,
     _In_ void*                    context)
 {
-    struct __FdtRp1Walk walk = { 0 };
+    struct __Rp1Children walk = { 0 };
     struct FdtResources provider;
     oserr_t             status;
     unsigned int        bar;
@@ -287,20 +354,13 @@ FdtEnumerateRp1Children(
 
     walk.Host = host;
     walk.Bars = bars;
-    walk.Status = OS_EOK;
 
     // Check every RP1 child's description and convert its register addresses
     // before calling the caller's callback. An invalid entry must not leave
     // the caller with only part of the device list.
-    status = FdtWalkResources(host->Blob, host->BlobLength, __VisitRp1, &walk);
-    if (status != OS_EOK || walk.Status != OS_EOK) {
-        return status != OS_EOK ? status : walk.Status;
-    }
-
-    if (walk.Buses != 1) {
-        // There must be one RP1 controller described under this PCI host.
-        // With more than one, we cannot tell which description to use.
-        return walk.Buses ? OS_EINVALPARAMS : OS_ENOENT;
+    status = __WalkRp1(host, __Rp1VisitChild, &walk);
+    if (status != OS_EOK) {
+        return status;
     }
 
     // Confirm the controller ID names one valid firmware node before using it
@@ -318,5 +378,130 @@ FdtEnumerateRp1Children(
     // All checks passed; read the tree again to pass each child to the callback.
     walk.Callback = callback;
     walk.Context = context;
-    return FdtWalkResources(host->Blob, host->BlobLength, __VisitRp1, &walk);
+    return __WalkRp1(host, __Rp1VisitChild, &walk);
+}
+
+/** Keeps a private result until the complete tree and exact ancestry are checked. */
+struct __Rp1DmaWalk {
+    uint32_t ChildNode;
+    int Found;
+    const struct FdtDmaMap* Parent;
+    struct FdtDmaMap Result;
+};
+
+static oserr_t
+__Rp1DmaPath(
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _InOut_ struct __Rp1DmaWalk*       walk)
+{
+    struct FdtDmaRanges child;
+    uint32_t            length;
+    oserr_t             status;
+
+    if (nodes[depth].Malformed || nodes[depth].AncestorMalformed) {
+        return OS_EINVALPARAMS;
+    }
+    if (nodes[depth].Compatible == NULL || nodes[depth].Reg == NULL) {
+        return OS_ENOTSUPPORTED;
+    }
+    if (nodes[depth].DmaRanges != NULL) {
+        // This resolver handles a direct DMA master, not another child bus.
+        return OS_ENOTSUPPORTED;
+    }
+    
+    for (int i = 0; i <= depth; i++) {
+        if (FdtProperty(&nodes[i].View, "iommus", &length) != NULL ||
+            FdtProperty(&nodes[i].View, "iommu-map", &length) != NULL) {
+            return OS_ENOTSUPPORTED;
+        }
+    }
+    
+    status = FdtDecodeDmaRanges(
+        &nodes[depth - 1],
+        FdtDmaAddressSimple,
+        FdtDmaAddressPci,
+        &child
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    return FdtComposeDmaRanges(&child, walk->Parent, &walk->Result);
+}
+
+static oserr_t
+__Rp1DmaVisit(
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _In_    int                        busDepth,
+    _InOut_ void*                      context)
+{
+    struct __Rp1DmaWalk*       walk = context;
+    const struct FdtResources* rp1 = &nodes[busDepth];
+    const struct FdtResources* host = &nodes[busDepth - 1];
+
+    // DMA translation does not depend on the bus's interrupt provider or BARs.
+    if (rp1->AddressCells != 2 || rp1->SizeCells != 2 || host->AddressCells != 3) {
+        return OS_ENOTSUPPORTED;
+    }
+    
+    if (depth != busDepth && nodes[depth].NodeOffset == walk->ChildNode) {
+        walk->Found = 1;
+        return __Rp1DmaPath(nodes, depth, walk);
+    }
+    return OS_EOK;
+}
+
+oserr_t
+FdtComposeRp1Dma(
+    _In_  const struct FdtPciHost* host,
+    _In_  uint32_t                 childNode,
+    _In_  const struct FdtDmaMap*  parent,
+    _Out_ struct FdtDmaMap*        map)
+{
+    struct __Rp1DmaWalk walk = { 0 };
+    oserr_t             status;
+
+    // Keep the child traversal independent of how the parent map was obtained.
+    // A live host supplies configured ranges; firmware-only callers supply the
+    // described ranges. The composer checks every extent before using it.
+    if (host == NULL || parent == NULL || map == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    walk.ChildNode = childNode;
+    walk.Parent = parent;
+    
+    status = __WalkRp1(host, __Rp1DmaVisit, &walk);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (!walk.Found) {
+        return OS_ENOENT;
+    }
+    
+    *map = walk.Result;
+    return OS_EOK;
+}
+
+oserr_t
+FdtResolveRp1Dma(
+    _In_  const struct FdtPciHost* host,
+    _In_  uint32_t                 childNode,
+    _Out_ struct FdtDmaMap*        map)
+{
+    struct FdtDmaMap parent;
+    oserr_t          status;
+
+    // Preserve the descriptive API for discovery and offline firmware checks.
+    // It deliberately makes no claim that these windows have been programmed.
+    if (map == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    status = FdtPciDmaMap(host, &parent);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    return FdtComposeRp1Dma(host, childNode, &parent, map);
 }

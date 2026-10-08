@@ -61,12 +61,15 @@ struct BcmPciVariant {
  * can access device configuration registers. Firmware contains pointers into
  * the original device-tree data; the caller must keep that data unchanged and
  * mapped, along with the main controller registers, until BcmPciDestroy returns.
+ * InboundConfigured records successful installation of device-to-system address
+ * ranges. It does not certify safe buffers, cache handling or driver readiness.
  */
 struct BcmPciHost {
     struct FdtPciHost           Firmware;
     const struct BcmPciVariant* Variant;
     mtx_t                       ConfigLock;
     int                         Ready;
+    int                         InboundConfigured;
 
     // BCM2712 resets the host through separate registers described by firmware.
     DeviceIo_t BridgeReset;
@@ -123,6 +126,7 @@ BcmPciDestroy(
  *
  * Direct memory access (DMA) lets devices read or write memory themselves.
  * The entire buffer must fit one firmware address range identified as RAM.
+ * Inbound setup must have completed; configuration access alone is insufficient.
  *
  * @param controller Initialized host with an active connection.
  * @param physical CPU physical address of the buffer's first byte.

@@ -1,4 +1,5 @@
 add_library(deviced-rp1 STATIC
+    dma.c
     firmware.c
     interrupt.c
     publish.c

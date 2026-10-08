@@ -1,4 +1,5 @@
 add_library(deviced-firmware STATIC
+    dma.c
     fdt.c
     gic.c
     pci.c
