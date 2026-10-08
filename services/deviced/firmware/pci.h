@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef DEVICED_FIRMWARE_PCI_H
-#define DEVICED_FIRMWARE_PCI_H
+#ifndef __FIRMWARE_PCI_H__
+#define __FIRMWARE_PCI_H__
 
 #include <os/osdefs.h>
 #include <firmware/interrupt.h>
@@ -232,4 +232,5 @@ int
 FdtPciHostType(
     _In_ const struct FdtNode* node,
     _Out_ enum FdtPciHostType* type);
-#endif
+
+#endif //!__FIRMWARE_PCI_H__

@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** Tracks the list being built, where to append the next child, and any error. */
+// Track state during enumeration of RP1 children.
 struct __Rp1Enumeration {
     struct Rp1Bus*    Bus;
     struct Rp1Child** Tail;

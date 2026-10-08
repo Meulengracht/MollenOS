@@ -1,7 +1,26 @@
-/** Controls interrupts raised by hardware blocks inside the RP1 chip.
+/**
+ * Copyright 2026, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * 
+ * Controls interrupts raised by hardware blocks inside the RP1 chip.
  * Each interrupt source has a number from 0 to 60. The PCI code sets up MSI-X,
  * a mechanism that delivers interrupts to CPUs through PCI memory writes.
- * This code enables or disables RP1 sources and tells RP1 when handling is done. */
+ * This code enables or disables RP1 sources and tells RP1 when handling is done.
+ * 
+ */
+
 #ifndef __DEVICED_RP1_INTERRUPT_H__
 #define __DEVICED_RP1_INTERRUPT_H__
 
@@ -23,15 +42,18 @@
  * interrupt entries available until Rp1InterruptDestroy succeeds.
  */
 struct Rp1InterruptParent {
-    void* Context;
+    void*        Context;
     unsigned int VectorCount;
+
     void (*MaskAndSynchronize)(void*, unsigned int);
     void (*Unmask)(void*, unsigned int);
 };
 
-/** Handles one source; receives the caller's context and an RP1 source number.
+/**
+ * Handles one source; receives the caller's context and an RP1 source number.
  * For a high-level interrupt, clear the device's interrupt condition before
- * returning so it no longer holds its interrupt signal high. */
+ * returning so it no longer holds its interrupt signal high.
+ */
 typedef void (*Rp1InterruptHandler)(void*, unsigned int);
 
 /**
@@ -43,13 +65,13 @@ typedef void (*Rp1InterruptHandler)(void*, unsigned int);
  * succeeds. Run setup and control calls one at a time, without overlapping them.
  */
 struct Rp1InterruptController {
-    DeviceIo_t* Registers;
+    DeviceIo_t*               Registers;
     struct Rp1InterruptParent Parent;
-    Rp1InterruptHandler Handler;
-    void* Context;
-    int Ready;
-    uint8_t Types[FDT_RP1_INTERRUPT_COUNT];
-    uint8_t Enabled[FDT_RP1_INTERRUPT_COUNT];
+    Rp1InterruptHandler       Handler;
+    void*                     Context;
+    int                       Ready;
+    uint8_t                   Types[FDT_RP1_INTERRUPT_COUNT];
+    uint8_t                   Enabled[FDT_RP1_INTERRUPT_COUNT];
 };
 
 /**
@@ -69,13 +91,13 @@ struct Rp1InterruptController {
  *         OS_ENOTSUPPORTED for missing parent callbacks or too few interrupt
  *         entries, or a register-write error.
  */
-extern oserr_t
+__EXTERN oserr_t
 Rp1InterruptInitialize(
-    _Out_ struct Rp1InterruptController* controller,
-    _In_ DeviceIo_t* registers,
-    _In_ const struct Rp1InterruptParent* parent,
-    _In_ Rp1InterruptHandler handler,
-    _In_ void* context);
+    _Out_ struct Rp1InterruptController*   controller,
+    _In_  DeviceIo_t*                      registers,
+    _In_  const struct Rp1InterruptParent* parent,
+    _In_  Rp1InterruptHandler              handler,
+    _In_  void*                            context);
 
 /**
  * @brief Select how a disabled source signals an interrupt.
@@ -87,11 +109,11 @@ Rp1InterruptInitialize(
  * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs or controller
  *         state, or a register-write error. The saved type changes only on success.
  */
-extern oserr_t
+__EXTERN oserr_t
 Rp1InterruptConfigure(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_ unsigned int source,
-    _In_ unsigned int type);
+    _In_    unsigned int                   source,
+    _In_    unsigned int                   type);
 
 /**
  * @brief Allow a configured RP1 source to deliver interrupts.
@@ -102,10 +124,10 @@ Rp1InterruptConfigure(
  * @return OS_EOK on success, OS_EINVALPARAMS for invalid inputs, an unconfigured
  *         or already enabled source, or a register-write error.
  */
-extern oserr_t
+__EXTERN oserr_t
 Rp1InterruptEnable(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_ unsigned int source);
+    _In_    unsigned int                   source);
 
 /**
  * @brief Block delivery, wait for any running handler, and disable the RP1 source.
@@ -116,10 +138,10 @@ Rp1InterruptEnable(
  *         error. If the write fails, PCI delivery remains blocked; keep the
  *         mapping available so shutdown can be retried.
  */
-extern oserr_t
+__EXTERN oserr_t
 Rp1InterruptDisable(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_ unsigned int source);
+    _In_    unsigned int                   source);
 
 /**
  * @brief Call the device handler for an interrupt delivered by the PCI code.
@@ -134,10 +156,10 @@ Rp1InterruptDisable(
  *         setup is incomplete or the source is disabled, or an acknowledgement
  *         register-write error.
  */
-extern oserr_t
+__EXTERN oserr_t
 Rp1InterruptHandle(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_ unsigned int source);
+    _In_    unsigned int                   source);
 
 /**
  * @brief Stop all interrupt delivery and clear the controller's saved state.
@@ -151,7 +173,7 @@ Rp1InterruptHandle(
  * @return OS_EOK if shutdown succeeds or no register mapping is set,
  *         OS_EINVALPARAMS for NULL, or a register-write error.
  */
-extern oserr_t
+__EXTERN oserr_t
 Rp1InterruptDestroy(
     _InOut_ struct Rp1InterruptController* controller);
 

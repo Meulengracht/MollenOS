@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef DEVICED_FIRMWARE_RP1_H
-#define DEVICED_FIRMWARE_RP1_H
+#ifndef __FIRMWARE_RP1_H__
+#define __FIRMWARE_RP1_H__
 
 #include <firmware/pci.h>
 #include <bus/pci/bars.h>
@@ -86,4 +86,4 @@ FdtEnumerateRp1Children(
     _In_ void* context);
 
 
-#endif
+#endif //!__FIRMWARE_RP1_H__

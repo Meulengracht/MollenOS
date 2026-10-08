@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef DEVICED_FIRMWARE_RESOURCES_H
-#define DEVICED_FIRMWARE_RESOURCES_H
+#ifndef __FIRMWARE_RESOURCES_H__
+#define __FIRMWARE_RESOURCES_H__
 
 #include <firmware/reader.h>
 
@@ -250,4 +250,5 @@ FdtNextReference(
     _InOut_ uint32_t* offset,
     _Out_ struct FdtResources* provider,
     _Out_ const uint8_t** arguments);
-#endif
+
+#endif //!__FIRMWARE_RESOURCES_H__

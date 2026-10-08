@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef DEVICED_FIRMWARE_READER_H
-#define DEVICED_FIRMWARE_READER_H
+#ifndef __FIRMWARE_READER_H__
+#define __FIRMWARE_READER_H__
 
 #include <fdt/reader.h>
 
@@ -124,4 +124,4 @@ FdtScalar(
     _In_ const char* name,
     _Out_ uint32_t* value);
 
-#endif
+#endif //!__FIRMWARE_READER_H__
