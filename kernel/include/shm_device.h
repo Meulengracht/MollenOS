@@ -66,6 +66,21 @@ struct SHMDeviceSegment {
     uint64_t Length;
 };
 
+/**
+ * What a device needs from memory it keeps using, such as a controller's rings.
+ * Zero for Alignment or Boundary means no requirement.
+ */
+struct SHMDeviceRequirements {
+    // Number of bytes needed; the allocation is rounded up to whole pages.
+    size_t   Length;
+    // The device address of the first byte must be a multiple of this power of two.
+    uint64_t Alignment;
+    // No segment may cross a multiple of this power of two, e.g. 64 KiB for xHCI.
+    uint64_t Boundary;
+    // The device must see the whole allocation as a single segment.
+    bool     Contiguous;
+};
+
 // Opaque types
 struct SHMDeviceContext;
 struct SHMDeviceMapping;
@@ -200,12 +215,16 @@ SHMDeviceContextBuildSegments(
  * hardware, and it is not a permission check: callers are kernel code that has
  * already decided this device may use this buffer.
  *
- * Only buffers SHM owns are accepted. For a non-coherent context with a
- * device that writes (FromDevice or Bidirectional), the range must start and
- * end on a CPU cache line boundary: the sync calls throw away whole cached
- * lines, which would otherwise also erase CPU changes to neighbouring bytes.
- * Every page in the range must already be allocated (for example with
- * SHM_COMMIT); this never allocates pages as a side effect.
+ * Only buffers SHM owns are accepted. Every page in the range must already be
+ * allocated (for example with SHM_COMMIT); this never allocates buffer pages
+ * as a side effect.
+ *
+ * When the device cannot use the buffer's own pages, the mapping uses zeroed
+ * bounce pages instead, and the sync calls copy data between them. That
+ * happens when part of the range is out of the device's reach, or when a
+ * non-coherent device writes and the range does not start and end on a CPU
+ * cache line boundary (cache work would otherwise erase neighbouring bytes).
+ * The segments then describe the bounce pages.
  *
  * The new mapping starts out owned by the CPU. Hand it to the device with
  * SHMDeviceSyncForDevice before starting a transfer.
@@ -218,9 +237,8 @@ SHMDeviceContextBuildSegments(
  * @param mappingOut Empty owning slot; receives the mapping on success.
  * @return OS_EOK; OS_EINVALPARAMS for NULL arguments, a bad range or an
  *         unknown direction; OS_EBUSY for an occupied slot; OS_ENOENT for an
- *         unknown buffer or bytes with no device address; OS_ENOTSUPPORTED
- *         for an exported buffer, or a range not on cache line boundaries
- *         where that is required;
+ *         unknown buffer or bytes with no device address, even through
+ *         bounce pages; OS_ENOTSUPPORTED for an exported buffer;
  *         OS_EINCOMPLETE if a page in the range was never allocated;
  *         OS_EOVERFLOW if the context cannot take another reference; OS_EOOM.
  *         Failure leaves the slot unchanged and takes no references.
@@ -235,11 +253,47 @@ SHMDeviceMap(
     _InOut_ struct SHMDeviceMapping** mappingOut);
 
 /**
+ * @brief Allocate memory a device keeps using alongside the CPU.
+ *
+ * Meant for long-lived structures such as rings and contexts, which both sides
+ * read and write all the time. The memory is a new zeroed, uncached SHM_DEVICE
+ * buffer, so neither side needs sync calls to see the other's writes. The
+ * mapping is bidirectional and never bounces, because a copy could never stay
+ * up to date. Its segments cover the whole allocation, rounded up to pages.
+ *
+ * Until a reserved device memory pool exists, pages come from ordinary low
+ * memory and the requirements are checked afterwards, not guaranteed. Requests
+ * for several contiguous pages or for large alignments may therefore fail
+ * with OS_ENOTSUPPORTED even though memory is available.
+ *
+ * The buffer is created in, and mapped into, the calling process. Release with
+ * SHMDeviceUnmap on the mapping and SHMDetach on the buffer, in that order.
+ *
+ * @param context Context held by the caller throughout this call.
+ * @param requirements What the device needs; see SHMDeviceRequirements.
+ * @param bufferOut Receives the buffer handle, including the CPU pointer.
+ * @param mappingOut Empty owning slot; receives the mapping on success.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL arguments or requirements no
+ *         memory could meet; OS_EBUSY for an occupied slot; OS_ENOENT if the
+ *         device cannot reach the memory; OS_ENOTSUPPORTED if the memory did
+ *         not meet the requirements; or an error from creating the buffer.
+ *         Failure leaves nothing allocated and the slot unchanged.
+ */
+oserr_t
+SHMDeviceAllocate(
+    _In_    struct SHMDeviceContext*            context,
+    _In_    const struct SHMDeviceRequirements* requirements,
+    _Out_   SHMHandle_t*                        bufferOut,
+    _InOut_ struct SHMDeviceMapping**           mappingOut);
+
+/**
  * @brief Hand a mapping to the device before starting a transfer.
  *
  * Makes the CPU's writes to the range visible to the device, then marks the
- * whole mapping as device-owned. For a non-coherent context, cached data in
- * the range is written back, and for a device that writes, also thrown away.
+ * whole mapping as device-owned. When bouncing, the range is first copied to
+ * the bounce pages (unless the device only writes). For a non-coherent
+ * context, cached data in the range is written back, and for a device that
+ * writes, also thrown away.
  * Until SHMDeviceSyncForCpu, the CPU must not touch the mapping's bytes, and
  * the mapping cannot be released.
  *
@@ -262,7 +316,8 @@ SHMDeviceSyncForDevice(
  * Call only once the driver knows the device has finished, for example from a
  * completion event, or after stopping the device. Makes the device's writes in
  * the completed range visible to the CPU (for a non-coherent context with a
- * device that writes, by throwing away stale cached copies), then returns the
+ * device that writes, by throwing away stale cached copies, and when bouncing,
+ * by copying the completed bytes back into the buffer), then returns the
  * whole mapping to the CPU. Bytes outside the completed range must be treated
  * as unchanged.
  *

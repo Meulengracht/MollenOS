@@ -23,6 +23,7 @@
 #include <handle.h>
 #include <heap.h>
 #include <limits.h>
+#include <shm.h>
 #include <string.h>
 #include "private.h"
 
@@ -706,7 +707,8 @@ __PrepareBounce(
  *
  * Kept apart from SHMDeviceMap so that function only deals with references.
  * The physical blocks gathered here are kept in the mapping for cache work.
- * Bounces when the device cannot use the buffer's own pages for the range.
+ * Bounces when the device cannot use the buffer's own pages for the range,
+ * unless the caller needs the device to use the buffer itself.
  */
 static oserr_t
 __CreateMapping(
@@ -715,6 +717,7 @@ __CreateMapping(
     _In_  size_t                    offset,
     _In_  size_t                    length,
     _In_  enum SHMDeviceDirection   direction,
+    _In_  bool                      allowBounce,
     _Out_ struct SHMDeviceMapping** mappingOut)
 {
     struct SHMDeviceMapping* mapping = NULL;
@@ -751,6 +754,15 @@ __CreateMapping(
         goto cleanup;
     }
     needsBounce = status == OS_ENOENT || __SharesCacheLines(buffer, context, offset, length, direction);
+
+    // Keep reporting unreachable bytes as such; the other reason to bounce
+    // means this range cannot be used directly.
+    if (needsBounce && !allowBounce) {
+        if (status == OS_EOK) {
+            status = OS_ENOTSUPPORTED;
+        }
+        goto cleanup;
+    }
 
     if (needsBounce) {
         status = __PrepareBounce(buffer, offset, length, pageSize, &bounce, extents, &extentCount);
@@ -797,18 +809,21 @@ __CreateMapping(
 
 cleanup:
     __ReleaseBounce(&bounce);
-    kfree(mapping);
+    if (mapping != NULL) {
+        kfree(mapping);
+    }
     kfree(extents);
     return status;
 }
 
-oserr_t
-SHMDeviceMap(
+static oserr_t
+__Map(
     _In_    struct SHMDeviceContext*  context,
     _In_    uuid_t                    shmID,
     _In_    size_t                    offset,
     _In_    size_t                    length,
     _In_    enum SHMDeviceDirection   direction,
+    _In_    bool                      allowBounce,
     _InOut_ struct SHMDeviceMapping** mappingOut)
 {
     struct SHMBuffer*        buffer;
@@ -848,11 +863,6 @@ SHMDeviceMap(
         goto release;
     }
 
-    status = __CheckCacheAlignment(buffer, context, offset, length, direction);
-    if (status != OS_EOK) {
-        goto release;
-    }
-
     // The mapping hands out the context with its segments, so it keeps the
     // rules alive for as long as those segments can be read.
     status = SHMDeviceContextAcquire(context);
@@ -860,7 +870,7 @@ SHMDeviceMap(
         goto release;
     }
 
-    status = __CreateMapping(buffer, context, offset, length, direction, &mapping);
+    status = __CreateMapping(buffer, context, offset, length, direction, allowBounce, &mapping);
     if (status != OS_EOK) {
         SHMDeviceContextRelease(&context);
         goto release;
@@ -872,6 +882,142 @@ SHMDeviceMap(
 release:
     (void)DestroyHandle(shmID);
     return status;
+}
+
+oserr_t
+SHMDeviceMap(
+    _In_    struct SHMDeviceContext*  context,
+    _In_    uuid_t                    shmID,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    enum SHMDeviceDirection   direction,
+    _InOut_ struct SHMDeviceMapping** mappingOut)
+{
+    return __Map(context, shmID, offset, length, direction, true, mappingOut);
+}
+
+static bool
+__IsPowerOfTwoOrZero(
+    _In_ uint64_t value)
+{
+    return (value & (value - 1)) == 0;
+}
+
+/**
+ * @brief Reject requirements that no memory could ever meet.
+ *
+ * Catching these before allocating keeps a caller's mistake from looking like
+ * a temporary shortage of suitable memory.
+ */
+static bool
+__RequirementsValid(
+    _In_ const struct SHMDeviceRequirements* requirements)
+{
+    if (requirements->Length == 0) {
+        return false;
+    }
+    if (!__IsPowerOfTwoOrZero(requirements->Alignment) || !__IsPowerOfTwoOrZero(requirements->Boundary)) {
+        return false;
+    }
+
+    // One block longer than the boundary would always cross it.
+    if (requirements->Contiguous && requirements->Boundary != 0) {
+        return requirements->Length <= requirements->Boundary;
+    }
+    return true;
+}
+
+/**
+ * @brief Check the device's view of an allocation against the requirements.
+ *
+ * The current page allocator cannot be asked for contiguous or aligned
+ * memory, so the result is checked afterwards instead of being guaranteed.
+ */
+static oserr_t
+__CheckRequirements(
+    _In_ const struct SHMDeviceMapping*      mapping,
+    _In_ const struct SHMDeviceRequirements* requirements)
+{
+    const struct SHMDeviceSegment* segment;
+    uint64_t                       last;
+
+    if (requirements->Contiguous && mapping->SegmentCount != 1) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // Alignment applies to where the allocation starts for the device.
+    if (requirements->Alignment != 0 && (mapping->Segments[0].Address & (requirements->Alignment - 1)) != 0) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // A block crosses a boundary when its first and last byte differ in the
+    // address bits above the boundary size.
+    for (uint32_t i = 0; requirements->Boundary != 0 && i < mapping->SegmentCount; i++) {
+        segment = &mapping->Segments[i];
+        last = segment->Address + (segment->Length - 1);
+        if (((segment->Address ^ last) & ~(requirements->Boundary - 1)) != 0) {
+            return OS_ENOTSUPPORTED;
+        }
+    }
+    return OS_EOK;
+}
+
+oserr_t
+SHMDeviceAllocate(
+    _In_    struct SHMDeviceContext*            context,
+    _In_    const struct SHMDeviceRequirements* requirements,
+    _Out_   SHMHandle_t*                        bufferOut,
+    _InOut_ struct SHMDeviceMapping**           mappingOut)
+{
+    SHMHandle_t handle;
+    size_t      pageSize = GetMemorySpacePageSize();
+    oserr_t     status;
+
+    if (context == NULL || requirements == NULL || bufferOut == NULL || mappingOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (*mappingOut != NULL) {
+        return OS_EBUSY;
+    }
+
+    // The length is rounded up to whole pages below, which must not wrap.
+    if (!__RequirementsValid(requirements) || requirements->Length > SIZE_MAX - pageSize) {
+        return OS_EINVALPARAMS;
+    }
+
+    // SHM_DEVICE gives committed, uncached pages, so neither side needs sync
+    // calls to see the other's writes; SHM_CLEAN zeroes them, so the device
+    // never sees old data. Low memory is the most likely to be reachable.
+    // Whole pages are used so no cache line is shared with other memory.
+    status = SHMCreate(
+        &(SHM_t) {
+            .Flags = SHM_DEVICE | SHM_CLEAN,
+            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
+            .Conformity = OSMEMORYCONFORMITY_LOW,
+            .Size = DIVUP(requirements->Length, pageSize) * pageSize
+        },
+        &handle
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // The device keeps using this memory while the CPU does too, so it must
+    // work on the buffer itself: a bounce copy would never be up to date.
+    status = __Map(context, handle.ID, 0, handle.Length, SHMDeviceBidirectional, false, mappingOut);
+    if (status == OS_EOK) {
+        status = __CheckRequirements(*mappingOut, requirements);
+        if (status != OS_EOK) {
+            (void)SHMDeviceUnmap(mappingOut);
+        }
+    }
+    if (status != OS_EOK) {
+        (void)SHMDetach(&handle);
+        return status;
+    }
+
+    *bufferOut = handle;
+    return OS_EOK;
 }
 
 oserr_t
@@ -898,6 +1044,8 @@ SHMDeviceUnmap(
     *mapping = NULL;
 
     SHMDeviceContextRelease(&owned->Context);
+    // The buffer view must go before the buffer reference that keeps its pages.
+    __ReleaseBounce(&owned->Bounce);
     (void)DestroyHandle(owned->SHMID);
     kfree(owned->Extents);
     kfree(owned);
@@ -978,6 +1126,16 @@ SHMDeviceSyncForDevice(
         return OS_EBUSY;
     }
 
+    // When bouncing, the device reads the copy, so the CPU's data must be put
+    // there first. A device that only writes would overwrite it anyway.
+    if (mapping->Bounce.Copy != 0 && mapping->Direction != SHMDeviceFromDevice) {
+        memcpy(
+            (void*)(mapping->Bounce.Copy + offset),
+            (const void*)(mapping->Bounce.Source + mapping->Bounce.SourceOffset + offset),
+            length
+        );
+    }
+
     // Every CPU write to the buffer must be finished before the cache work and
     // before the device is told to start.
     dma_mb();
@@ -1027,6 +1185,16 @@ SHMDeviceSyncForCpu(
     if (mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent &&
         mapping->Direction != SHMDeviceToDevice) {
         __MaintainRange(mapping, offset, length, CpuDataCacheInvalidate);
+    }
+
+    // When bouncing, the device wrote the copy. Bring back only the completed
+    // bytes, so the rest of the buffer keeps whatever the CPU put there.
+    if (mapping->Bounce.Copy != 0 && mapping->Direction != SHMDeviceToDevice) {
+        memcpy(
+            (void*)(mapping->Bounce.Source + mapping->Bounce.SourceOffset + offset),
+            (const void*)(mapping->Bounce.Copy + offset),
+            length
+        );
     }
     mapping->DeviceOwned = false;
     return OS_EOK;
