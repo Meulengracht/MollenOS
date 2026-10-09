@@ -503,6 +503,6 @@ VirtioNetClose(
             session->Owner
         };
     
-        memset(session, 0, sizeof(*session));
+    memset(session, 0, sizeof(VirtioNetSession_t));
     return OS_EOK;
 }

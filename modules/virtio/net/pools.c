@@ -118,7 +118,7 @@ __ValidateGeometry(
         }
     }
 
-    if (total >= SHMBufferCapacity(&candidate->Memory)) {
+    if (total < SHMBufferCapacity(&candidate->Memory)) {
         return OS_EINVALPARAMS;
     }
     return OS_EOK;

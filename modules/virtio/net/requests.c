@@ -17,9 +17,42 @@
  */
 
 #include "virtio-net.h"
+#include <stdlib.h>
 #include <string.h>
 
 static uint64_t g_nextSession = 1;
+
+static oserr_t
+__ReserveCloseRecord(
+    _InOut_ VirtioNetDevice_t* device)
+{
+    VirtioNetClosedSession_t* records;
+    size_t                    capacity;
+    size_t                    maximum = SIZE_MAX / sizeof(*records);
+
+    if (device->ClosedCount < device->ClosedCapacity) {
+        return OS_EOK;
+    }
+    if (device->ClosedCount == maximum) {
+        return OS_EOVERFLOW;
+    }
+
+    capacity = device->ClosedCapacity;
+    if (!capacity) {
+        capacity = VIRTIO_NET_INITIAL_CLOSED_SESSIONS;
+    } else {
+        capacity = capacity > maximum / 2 ? maximum : capacity * 2;
+    }
+
+    records = realloc(device->Closed, capacity * sizeof(VirtioNetClosedSession_t));
+    if (records == NULL) {
+        return OS_EOOM;
+    }
+
+    device->Closed = records;
+    device->ClosedCapacity = capacity;
+    return OS_EOK;
+}
 
 void
 ctt_netadapter_get_info_invocation(
@@ -60,20 +93,23 @@ ctt_netadapter_open_invocation(
         status = OS_ENOTSUPPORTED;
     } else if (device->Session.Active && device->Session.Owner != message->client) {
         status = OS_EBUSY;
-    } else if (!device->Session.Active &&
-               (device->ClosedCount == VIRTIO_NET_CLOSED_SESSIONS || g_nextSession == UINT64_MAX)) {
+    } else if (!device->Session.Active && g_nextSession == UINT64_MAX) {
         status = OS_EOVERFLOW;
     }
 
     if (status == OS_EOK && !device->Session.Active) {
         // OPEN has no operation key. Reusing an already closed endpoint would
         // make a delayed old OPEN indistinguishable from a new one. Require a
-        // fresh client endpoint and retain bounded close tombstones for retries.
-        for (uint32_t i = 0; i < device->ClosedCount; ++i) {
+        // fresh client endpoint and retain close tombstones for retries.
+        for (size_t i = 0; i < device->ClosedCount; ++i) {
             if (device->Closed[i].Owner == message->client) {
                 status = OS_ENOENT;
             }
         }
+    }
+
+    if (status == OS_EOK && !device->Session.Active) {
+        status = __ReserveCloseRecord(device);
     }
 
     if (status == OS_EOK && gracht_server_register_client(message)) {
@@ -317,9 +353,8 @@ ctt_netadapter_close_invocation(
     device = VirtioNetFindSession(message, identity);
     if (device != NULL) {
         status = VirtioNetClose(device);
-        if (VirtioNetWasClosed(message, identity)) {
-            status = OS_EOK;
-        }
+    } else if (VirtioNetWasClosed(message, identity)) {
+        status = OS_EOK;
     }
     ctt_netadapter_close_response(message, status);
     VirtioNetUnlock();

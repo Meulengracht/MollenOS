@@ -98,7 +98,7 @@ VirtioNetWasClosed(
 {
     foreach (element, &g_devices) {
         VirtioNetDevice_t* device = element->value;
-        for (uint32_t i = 0; i < device->ClosedCount; ++i) {
+        for (size_t i = 0; i < device->ClosedCount; ++i) {
             VirtioNetClosedSession_t* closed = &device->Closed[i];
             if (closed->Owner == message->client && identity->id == closed->Identity.id &&
                 identity->generation == closed->Identity.generation) {

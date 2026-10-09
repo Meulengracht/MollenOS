@@ -67,8 +67,8 @@ typedef struct VirtioNetPool   VirtioNetPool_t;
 #define VIRTIO_NET_POOL_BYTES (128 * 1024)
 // Bytes reserved per slot for the device header and safe short-frame padding.
 #define VIRTIO_NET_METADATA_STRIDE 64
-// Number of recently closed sessions remembered for retry handling.
-#define VIRTIO_NET_CLOSED_SESSIONS 16
+// Initial allocation for closed sessions remembered for retry handling.
+#define VIRTIO_NET_INITIAL_CLOSED_SESSIONS 16
 
 /** Header placed before each frame in device-visible packet memory.
  *
@@ -240,9 +240,11 @@ struct VirtioNetDevice {
     // Current client session and its packet state.
     VirtioNetSession_t           Session;
     // Recent close records for retry handling.
-    VirtioNetClosedSession_t     Closed[VIRTIO_NET_CLOSED_SESSIONS];
+    VirtioNetClosedSession_t*    Closed;
     // Number of valid entries in Closed.
-    uint32_t                     ClosedCount;
+    size_t                       ClosedCount;
+    // Number of allocated entries in Closed.
+    size_t                       ClosedCapacity;
 };
 
 /**

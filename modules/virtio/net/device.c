@@ -297,6 +297,7 @@ VirtioNetDeviceDestroy(
     }
     
     free(device->MetadataSg.Entries);
+    free(device->Closed);
     VirtioPciTransportDestroy(&device->Transport);
     VirtioNetBusDeviceDestroy(device->BusDevice);
     free(device);
