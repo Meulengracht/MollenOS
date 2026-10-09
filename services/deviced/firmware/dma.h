@@ -32,15 +32,20 @@ struct FdtResources;
 
 // Describes how addresses are stored in the firmware device-tree data.
 enum FdtDmaAddressFormat {
-    FdtDmaAddressSimple, /**< One or two 32-bit values form the address. */
-    FdtDmaAddressPci    /**< Three values form a PCI address, including flags. */
+    // One or two 32-bit values form the address.
+    FdtDmaAddressSimple,
+    // Three values form a PCI address, including flags.
+    FdtDmaAddressPci
 };
 
 // Tells whether a bus has no DMA mapping, a direct mapping, or listed windows.
 enum FdtDmaPropertyState {
-    FdtDmaPropertyAbsent,   /**< No dma-ranges property was supplied. */
-    FdtDmaPropertyIdentity, /**< An empty property means addresses pass through unchanged. */
-    FdtDmaPropertyWindows   /**< The property contains one or more address mappings. */
+    // No dma-ranges property was supplied.
+    FdtDmaPropertyAbsent,
+    // An empty property means addresses pass through unchanged.
+    FdtDmaPropertyIdentity,
+    // The property contains one or more address mappings.
+    FdtDmaPropertyWindows
 };
 
 /**
@@ -106,7 +111,7 @@ struct FdtDmaRange {
  * are kept separate when the address mapping changes at their boundary.
  */
 struct FdtDmaMap {
-    uint32_t Count;
+    uint32_t           Count;
     struct FdtDmaRange Ranges[FDT_DMA_MAX_RANGES];
 };
 
@@ -134,7 +139,7 @@ FdtDecodeDmaRanges(
     _In_  const struct FdtResources* bus,
     _In_  enum FdtDmaAddressFormat   childFormat,
     _In_  enum FdtDmaAddressFormat   parentFormat,
-    _Out_ struct FdtDmaRanges*      ranges);
+    _Out_ struct FdtDmaRanges*       ranges);
 
 /**
  * @brief Combine one bus's mappings with the parent's known physical memory.

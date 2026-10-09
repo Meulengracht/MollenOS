@@ -1,3 +1,21 @@
+/**
+ * Copyright, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * 
+ */
+
 #include <bus/pci/host-private.h>
 #include <bus/pci/registers.h>
 #include <bus/pci/hosts/broadcom/bcm.h>
@@ -46,8 +64,8 @@ __BcmValidateWindows(
     _Out_ unsigned int*            dmaOrder)
 {
     const struct FdtPciWindow* window;
-    uint64_t size;
-    unsigned int order;
+    uint64_t                   size;
+    unsigned int               order;
 
     // The host's BAR2 register defines the address range devices use to reach
     // RAM. This Pi 4 setup supports one such range; it cannot also map other

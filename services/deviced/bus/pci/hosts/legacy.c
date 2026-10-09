@@ -36,7 +36,7 @@
 
 static void
 __LegacySelect(
-    _In_ PciHost_t*      Io,
+    _In_ PciHost_t*   Io,
     _In_ unsigned int Bus,
     _In_ unsigned int Device,
     _In_ unsigned int Function,
@@ -51,7 +51,7 @@ __LegacySelect(
 
 static size_t
 __LegacyRead(
-    _In_ PciHost_t*    host,
+    _In_ PciHost_t*   host,
     _In_ unsigned int bus,
     _In_ unsigned int slot,
     _In_ unsigned int function,
@@ -64,7 +64,7 @@ __LegacyRead(
 
 static void
 __LegacyWrite(
-    _In_ PciHost_t*    host,
+    _In_ PciHost_t*   host,
     _In_ unsigned int bus,
     _In_ unsigned int slot,
     _In_ unsigned int function,
@@ -88,13 +88,15 @@ PciLegacyHostCreate(
     _Out_ PciHost_t** hostOut)
 {
     PciHost_t* bus;
-    oserr_t oserr;
+    oserr_t    oserr;
 
     *hostOut = NULL;
+
     bus = (PciHost_t*)malloc(sizeof(PciHost_t));
     if (!bus) {
         return OS_EOOM;
     }
+
     memset(bus, 0, sizeof(PciHost_t));
     bus->Identification.BusEnd = 255;
     bus->Operations = &g_pciLegacyOperations;
@@ -114,6 +116,7 @@ PciLegacyHostCreate(
         free(bus);
         return oserr;
     }
+    
     *hostOut = bus;
     return OS_EOK;
 }

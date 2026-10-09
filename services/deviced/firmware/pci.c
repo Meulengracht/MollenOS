@@ -23,41 +23,49 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** Stores PCI-specific properties after the node is recognized as a supported host. */
+/**
+ * @brief Holds the PCI properties needed after a Device Tree node is recognized as
+ * a supported host controller. The property bytes remain in the original tree.
+ */
 struct __PciNode {
     const uint8_t* BusRange;
-    uint32_t BusRangeLength;
-    int HasDomain;
-    uint32_t Domain;
+    uint32_t       BusRangeLength;
+    int            HasDomain;
+    uint32_t       Domain;
     const uint8_t* InterruptMap;
-    uint32_t InterruptMapLength;
+    uint32_t       InterruptMapLength;
     const uint8_t* InterruptMask;
-    uint32_t InterruptMaskLength;
+    uint32_t       InterruptMaskLength;
 };
 
-/** Tracks PCI hosts and domain numbers, which identify groups of PCI buses.
- * Numbers set by firmware are collected before assigning any missing numbers. */
+/**
+ * @brief Keeps state while the Device Tree is checked for PCI host controllers.
+ * A domain number identifies a group of PCI buses. Firmware-provided numbers
+ * are collected first so automatically chosen numbers cannot take their place.
+ */
 struct __PciWalk {
-    const void* Blob;
-    size_t Length;
-    uint32_t* ReservedDomains;
-    size_t ReservedCount;
-    uint64_t NextDomain;
-    oserr_t Status;
+    const void*  Blob;
+    size_t       Length;
+    uint32_t*    ReservedDomains;
+    size_t       ReservedCount;
+    uint64_t     NextDomain;
+    oserr_t      Status;
     FdtPciHostFn Callback;
-    void* Context;
+    void*        Context;
 };
 
+// Choose a domain number for a host whose firmware did not provide one. The
+// full list is checked so this choice cannot take a number used by a later host.
 static oserr_t
 __PciNextDomain(
     _InOut_ struct __PciWalk* walk,
-    _Out_ uint32_t* domainOut)
+    _Out_   uint32_t*         domainOut)
 {
     size_t index;
 
-    // Firmware domain numbers may appear in any order. After skipping a used
-    // number, check the whole list again so we do not reuse another one.
-    // Numbers we assigned earlier are already below NextDomain.
+    // Firmware numbers are not required to be in order. After skipping a used
+    // number, restart because the next candidate may also appear later in the list.
+    // Numbers assigned by this function are already below NextDomain.
     index = 0;
     while (index < walk->ReservedCount) {
         if (walk->NextDomain == walk->ReservedDomains[index]) {
@@ -70,14 +78,17 @@ __PciNextDomain(
     if (walk->NextDomain > UINT32_MAX) {
         return OS_EOVERFLOW;
     }
+
     *domainOut = (uint32_t)walk->NextDomain++;
     return OS_EOK;
 }
 
+// Use the Device Tree's hardware names to select only controllers this code
+// knows how to configure; an unknown host must not be treated as generic ECAM.
 int
 FdtPciHostType(
-    _In_ const struct FdtNode* node,
-    _Out_ enum FdtPciHostType* type)
+    _In_  const struct FdtNode* node,
+    _Out_ enum FdtPciHostType*  type)
 {
     if (FdtBcmHostType(node, type)) {
         return 1;
@@ -93,25 +104,30 @@ static void
 __ClassifyDmaWindows(
     _InOut_ struct FdtPciHost* host);
 
+// Build a complete, checked host description before invoking the caller. If
+// any required range cannot be decoded, skip this host rather than expose a
+// partly initialized description that later code could mistake for usable.
 static void
 __EmitPciHost(
-        _In_ const struct FdtResources* nodes,
-        _In_ int                    depth,
-        _In_ const struct FdtResources* node,
-        _InOut_ struct __PciWalk*    walk)
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _In_    const struct FdtResources* node,
+    _InOut_ struct __PciWalk*          walk)
 {
-    struct __PciNode pci = { 0 };
-    oserr_t status;
+    struct __PciNode           pci = { 0 };
     const struct FdtResources* parent = &nodes[depth - 1];
-    struct FdtPciHost host = { 0 };
-    uint32_t          addressCells = parent->AddressCells;
-    uint32_t          busStart     = 0;
-    uint32_t          busEnd       = 255;
-    uint64_t          busesDecoded;
-    uint32_t          cells;
-    uint32_t          offset;
-    struct FdtPciWindow* window;
+    struct FdtPciHost          host = { 0 };
+    uint32_t                   addressCells = parent->AddressCells;
+    uint32_t                   busStart     = 0;
+    uint32_t                   busEnd       = 255;
+    uint64_t                   busesDecoded;
+    uint32_t                   cells;
+    uint32_t                   offset;
+    struct FdtPciWindow*       window;
+    oserr_t                    status;
 
+    // The register range identifies the host's control registers. Without a
+    // trustworthy range, consumers cannot safely access or configure the host.
     if (node->Malformed || node->AncestorMalformed || node->RegisterStatus != OS_EOK) {
         WARNING("FdtEnumeratePciHosts unsupported reg layout for ECAM host");
         return;
@@ -121,16 +137,21 @@ __EmitPciHost(
     host.EcamBase   = node->PhysicalBase;
     host.EcamLength = node->PhysicalLength;
     FdtPciHostType(&node->View, &host.Type);
+    
+    // Broadcom controllers need platform-specific settings in addition to the
+    // common PCI properties, so let their policy fill and validate those fields.
     if (FdtBcmHostPolicy(&node->View, &host) != OS_EOK) {
         return;
     }
     pci.BusRange = FdtProperty(&node->View, "bus-range", &pci.BusRangeLength);
     pci.InterruptMap = FdtProperty(&node->View, "interrupt-map", &pci.InterruptMapLength);
     pci.InterruptMask = FdtProperty(&node->View, "interrupt-map-mask", &pci.InterruptMaskLength);
+    
     status = FdtScalar(&node->View, "linux,pci-domain", &pci.Domain);
     if (status != OS_EOK && status != OS_ENOENT) {
         return;
     }
+
     pci.HasDomain = status == OS_EOK;
     host.Phandle = node->Phandle;
     host.MsiParent = node->MsiParent;
@@ -156,15 +177,21 @@ __EmitPciHost(
     host.ClocksLength = node->ClocksLength;
     host.ClockNames = node->ClockNames;
     host.ClockNamesLength = node->ClockNamesLength;
+    
+    // "ranges" describes addresses the processor uses to reach PCI devices.
+    // Its entries have a fixed cell layout; reject unknown layouts and too many
+    // entries before filling the fixed-size Windows array.
     if (node->RangesLength != 0) {
         if (node->AddressCells != 3 || node->SizeCells == 0 || node->SizeCells > 2) {
             return;
         }
+        
         cells = 3 + addressCells + node->SizeCells;
         if (node->RangesLength % (cells * 4) != 0 ||
             node->RangesLength / (cells * 4) > 16) {
             return;
         }
+        
         for (offset = 0; offset < node->RangesLength; offset += cells * 4) {
             window = &host.Windows[host.WindowCount++];
             window->Attributes = FdtReadBe32(node->Ranges + offset);
@@ -173,6 +200,8 @@ __EmitPciHost(
             window->PhysicalBase = FdtReadCells(node->Ranges + offset + 12, addressCells);
             window->Length = FdtReadCells(node->Ranges + offset + (3 + addressCells) * 4,
                     node->SizeCells);
+            // A zero-sized or wrapping range cannot be represented safely.
+            // Translate through parent buses so callers receive CPU addresses.
             if (window->Length == 0 || window->Length - 1 > UINT64_MAX - window->BusBase ||
                 !FdtTranslateAddress(nodes, depth - 1, window->Length, &window->PhysicalBase, 0)) {
                 return;
@@ -180,15 +209,20 @@ __EmitPciHost(
         }
     }
 
+    // "dma-ranges" describes addresses devices can use when reading or writing
+    // outside themselves. Decode it separately because its translation direction
+    // differs from the processor-to-device mappings above.
     if (node->DmaRangesLength != 0) {
         if (node->AddressCells != 3 || node->SizeCells == 0 || node->SizeCells > 2) {
             return;
         }
+        
         cells = 3 + addressCells + node->SizeCells;
         if (node->DmaRangesLength % (cells * 4) != 0 ||
             node->DmaRangesLength / (cells * 4) > 16) {
             return;
         }
+        
         for (offset = 0; offset < node->DmaRangesLength; offset += cells * 4) {
             window = &host.DmaWindows[host.DmaWindowCount++];
             window->Attributes = FdtReadBe32(node->DmaRanges + offset);
@@ -197,6 +231,8 @@ __EmitPciHost(
             window->PhysicalBase = FdtReadCells(node->DmaRanges + offset + 12, addressCells);
             window->Length = FdtReadCells(node->DmaRanges + offset + (3 + addressCells) * 4,
                     node->SizeCells);
+                // Reject ranges that wrap or cannot be translated through the
+                // parent buses; an incorrect DMA target could expose unrelated memory.
             if (window->Length == 0 || window->Length - 1 > UINT64_MAX - window->BusBase ||
                 !FdtTranslateAddress(nodes, depth - 1, window->Length, &window->PhysicalBase, 1)) {
                 return;
@@ -204,6 +240,8 @@ __EmitPciHost(
         }
     }
 
+    // The bus range contains exactly two 32-bit values. Keep the defaults only
+    // when firmware omits the property; malformed values cannot define a scan range.
     if (pci.BusRange != NULL && pci.BusRangeLength != 8) {
         return;
     }
@@ -216,8 +254,9 @@ __EmitPciHost(
         return;
     }
 
-    // ECAM provides access to PCI configuration registers through memory.
-    // Each bus needs 1 MiB of that memory range; only scan buses that fit.
+    // ECAM exposes each bus's PCI configuration registers in a 1 MiB part of
+    // the host's memory range. Limit bus scanning to the buses that fit there,
+    // so enumeration never reads configuration space beyond the mapped range.
     busesDecoded = host.Type == FdtPciHostEcam ? host.EcamLength >> 20 : 256;
     if (busesDecoded == 0) {
         return;
@@ -228,6 +267,8 @@ __EmitPciHost(
 
     host.BusStart = (uint8_t)busStart;
     host.BusEnd   = (uint8_t)busEnd;
+    // Preserve firmware's identity when supplied. Otherwise assign a number
+    // that was not reserved during the first tree walk.
     if (pci.HasDomain) {
         host.Segment = pci.Domain;
     } else {
@@ -239,6 +280,9 @@ __EmitPciHost(
     __ClassifyDmaWindows(&host);
     walk->Callback(&host, walk->Context);
 }
+// Compare enabled memory nodes with uncertain DMA ranges. Firmware can describe
+// a range larger than installed RAM, so its size or starting address alone is
+// not enough to decide whether a device may safely use it for memory buffers.
 static void
 __ClassifyMemory(
         _In_ const struct FdtResources* nodes,
@@ -257,6 +301,8 @@ __ClassifyMemory(
     if (node->Disabled || node->AncestorDisabled || !node->IsMemory || node->Malformed || node->AncestorMalformed || depth == 0) {
         return;
     }
+    // A memory node's "reg" entries use the parent bus's address and size cell
+    // counts. Validate that layout before reading the entries as byte ranges.
     ac = nodes[depth - 1].AddressCells;
     sc = nodes[depth - 1].SizeCells;
     stride = (ac + sc) * 4;
@@ -281,6 +327,9 @@ __ClassifyMemory(
     }
 }
 
+// Mark known MSI and peer-device destinations first, then compare remaining
+// ranges with actual memory nodes. This order avoids labeling an interrupt or
+// another device's address space as ordinary RAM.
 static void
 __ClassifyDmaWindows(
         _InOut_ struct FdtPciHost* host)
@@ -291,6 +340,9 @@ __ClassifyDmaWindows(
 
     for (uint32_t i = 0; i < host->DmaWindowCount; i++) {
         window = &host->DmaWindows[i];
+        // MIP interrupts are raised by writes to their doorbell address. Check
+        // both bus and translated physical addresses to avoid matching an
+        // unrelated range that happens to contain the same bus address.
         if (hasMip && FdtContainsRange(window->BusBase, window->Length,
                 msi.DoorbellBase, msi.DoorbellLength) &&
             msi.RegisterBase >= window->PhysicalBase &&
@@ -298,6 +350,8 @@ __ClassifyDmaWindows(
             window->Kind = FdtDmaWindowMsi;
             continue;
         }
+        // A DMA destination inside a processor-to-PCI window points at another
+        // PCI resource, rather than at system RAM.
         for (uint32_t j = 0; j < host->WindowCount; j++) {
             if (FdtContainsRange(host->Windows[j].PhysicalBase, host->Windows[j].Length,
                     window->PhysicalBase, window->Length)) {
@@ -306,12 +360,15 @@ __ClassifyDmaWindows(
             }
         }
     }
-    // A DMA address range can cover more space than the installed RAM.
-    // Use firmware memory descriptions to identify RAM; a range's position
-    // in the list or a starting address of zero does not tell us its purpose.
+    // A device's DMA range may include addresses that are not backed by RAM.
+    // Compare it with the firmware's descriptions of installed memory instead
+    // of guessing from the range's order or from an address that starts at zero.
     FdtWalkResources(host->Blob, host->BlobLength, __ClassifyMemory, host);
 }
 
+// Convert only when one firmware window contains the entire request. Returning
+// the first address for a partly covered range would make later accesses cross
+// into an unmapped or differently translated region.
 oserr_t
 FdtTranslatePciAddress(
         _In_ const struct FdtPciHost* host,
@@ -330,12 +387,16 @@ FdtTranslatePciAddress(
     }
     for (index = 0; index < host->WindowCount; index++) {
         window = &host->Windows[index];
+        // PCI memory addresses of the 32-bit and 64-bit kinds share compatible
+        // windows; I/O addresses must still match their own kind exactly.
         if ((window->Space != space &&
              !((space == 2 || space == 3) && (window->Space == 2 || window->Space == 3))) ||
             address < window->BusBase) {
             continue;
         }
         displacement = address - window->BusBase;
+        // Subtract only after checking the starting address, then use the
+        // remaining window size to avoid overflowing an end-address calculation.
         if (displacement < window->Length && length <= window->Length - displacement) {
             if (displacement > UINT64_MAX - window->PhysicalBase ||
                 length - 1 > UINT64_MAX - window->PhysicalBase - displacement) {
@@ -348,6 +409,9 @@ FdtTranslatePciAddress(
     return OS_ENOENT;
 }
 
+// Resolve the older pin-based PCI interrupt path. Each interrupt-map entry can
+// have a different controller format, so its referenced controller determines
+// how many cells must be read before the next entry begins.
 oserr_t
 FdtResolvePciInterrupt(
         _In_ const struct FdtPciHost* host,
@@ -381,6 +445,8 @@ FdtResolvePciInterrupt(
         (host->InterruptMask != NULL && host->InterruptMaskLength != 16)) {
         return OS_EINVALPARAMS;
     }
+    // PCI identifies a device by bus, slot, and function. The fourth key value
+    // is its interrupt pin; the firmware mask decides which bits are significant.
     key[0] = (bus << 16) | (slot << 11) | (function << 8);
     key[1] = 0;
     key[2] = 0;
@@ -402,10 +468,15 @@ FdtResolvePciInterrupt(
             controller.InterruptCells > 16) {
             return OS_ENOTSUPPORTED;
         }
+        // Entries contain the four PCI match values, a controller reference,
+        // and that controller's address and interrupt values. Check the full
+        // entry is present before reading its variable-length interrupt data.
         stride = (5 + controller.AddressCells + controller.InterruptCells) * 4;
         if (stride > host->InterruptMapLength - offset) {
             return OS_EINVALPARAMS;
         }
+        // Apply the firmware mask to both sides of the comparison. This allows
+        // firmware to ignore fields such as the function number when desired.
         matches = 1;
         for (index = 0; index < 4; index++) {
             mask = host->InterruptMask == NULL ? UINT32_MAX : FdtReadBe32(host->InterruptMask + index * 4);
@@ -428,6 +499,8 @@ FdtResolvePciInterrupt(
     return OS_ENOENT;
 }
 
+// Resolve an interrupt by its parallel name list. Extended entries identify
+// their own controller; ordinary entries share the host's interrupt parent.
 oserr_t
 FdtResolvePciNamedInterrupt(
         _In_ const struct FdtPciHost* host,
@@ -449,10 +522,14 @@ FdtResolvePciNamedInterrupt(
     if (host == NULL || name == NULL || interrupt == NULL) {
         return OS_EINVALPARAMS;
     }
+    // Find both the requested position and the number of names so the parsed
+    // interrupt list can later be checked for a matching number of entries.
     status = FdtNameIndex(host->InterruptNames, host->InterruptNamesLength, name, &selected, &names);
     if (status != OS_EOK) {
         return status;
     }
+    // The extended form carries a controller reference with each interrupt;
+    // the regular form uses one shared parent from the host node.
     cells = host->InterruptsExtended != NULL ? host->InterruptsExtended : host->Interrupts;
     length = host->InterruptsExtended != NULL ? host->InterruptsExtendedLength : host->InterruptsLength;
     if (cells == NULL || (length & 3)) {
@@ -471,6 +548,8 @@ FdtResolvePciNamedInterrupt(
         if (!provider.InterruptCells) {
             return OS_EINVALPARAMS;
         }
+        // Decode only the requested entry, but continue parsing all entries so
+        // malformed data or a mismatch with the name list is still detected.
         if (index == selected) {
             status = FdtGicInterrupt(&provider, arguments, &result);
             if (status != OS_EOK) {
@@ -487,6 +566,9 @@ FdtResolvePciNamedInterrupt(
 }
 
 
+// First pass: reserve every explicit firmware number, including numbers on
+// hosts that later cannot be emitted. This prevents an automatic choice from
+// changing the identity firmware assigned to another group of buses.
 static void
 __PciReserveDomain(
     _In_ const struct FdtResources* nodes,
@@ -510,8 +592,8 @@ __PciReserveDomain(
         return;
     }
 
-    // Keep a firmware domain number reserved even if we later cannot use that
-    // host. Assigning it to another host would change which buses it identifies.
+    // Keep this number unavailable even if the host later proves unusable.
+    // Reusing it would make the number identify a different group of buses.
     domains = realloc(walk->ReservedDomains,
         (walk->ReservedCount + 1) * sizeof(*domains));
     if (domains == NULL) {
@@ -522,6 +604,8 @@ __PciReserveDomain(
     domains[walk->ReservedCount++] = domain;
 }
 
+// Second pass: emit only enabled nodes recognized as supported PCI hosts. This
+// runs after domain reservation so automatically assigned numbers are stable.
 static void
 __PciVisit(
     _In_ const struct FdtResources* nodes,
@@ -541,6 +625,9 @@ __PciVisit(
     }
 }
 
+// Walk the tree twice: reserve all firmware-selected domain numbers first,
+// then build and report usable hosts. The first pass prevents automatic numbers
+// from depending on the order in which hosts appear in the tree.
 oserr_t
 FdtEnumeratePciHosts(
     _In_ const void* blob,
@@ -554,6 +641,7 @@ FdtEnumeratePciHosts(
     if (callback == NULL) {
         return OS_EINVALPARAMS;
     }
+    
     status = FdtWalkResources(blob, length, __PciReserveDomain, &walk);
     if (status == OS_EOK && walk.Status == OS_EOK) {
         status = FdtWalkResources(blob, length, __PciVisit, &walk);

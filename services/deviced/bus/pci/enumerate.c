@@ -39,7 +39,8 @@ unsigned int PciToDevSubClass(uint32_t Interface) {
     return ((Interface & 0xFFFF) << 16 | 0);
 }
 
-static oserr_t __GetPciDeviceNativeHeader(
+static oserr_t
+__GetPciDeviceNativeHeader(
     _In_  PciDevice_t*        parent,
     _In_  int                 bus,
     _In_  int                 slot,
@@ -67,11 +68,11 @@ PciCheckFunction(
     _In_ int          slot,
     _In_ int          function)
 {
-    oserr_t                     oserr;
-    PciDevice_t*                device;
-    int                         secondBus;
-    uint16_t                    settings;
-    BusDevice_t                 resources = { 0 };
+    oserr_t      oserr;
+    PciDevice_t* device;
+    int          secondBus;
+    uint16_t     settings;
+    BusDevice_t  resources = { 0 };
 
     device = calloc(1, sizeof(PciDevice_t));
     if (!device) {

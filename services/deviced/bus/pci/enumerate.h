@@ -33,7 +33,7 @@ struct PciDevice;
 __EXTERN void
 PciCheckBus(
     _In_ struct PciDevice* parent,
-    _In_ int          bus);
+    _In_ int               bus);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 

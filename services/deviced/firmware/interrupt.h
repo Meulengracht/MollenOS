@@ -21,12 +21,15 @@
 
 #include <os/osdefs.h>
 
-/** An interrupt handled by an Arm Generic Interrupt Controller (GIC).
- * Controller is the controller's firmware ID (phandle), Line is the GIC
- * interrupt number, and Flags describes how the interrupt signal is triggered. */
+/** 
+ * @brief An interrupt handled by an Arm Generic Interrupt Controller (GIC).
+ */
 struct FdtInterrupt {
-    uint32_t Controller;
-    int Line;
+    // Controller is the controller's firmware ID (phandle).
+    uint32_t     Controller;
+    // Line is the GIC interrupt number.
+    int          Line;
+    // Flags describes how the interrupt signal is triggered.
     unsigned int Flags;
 };
 
@@ -44,8 +47,8 @@ struct FdtResources;
  */
 oserr_t
 FdtGicInterrupt(
-    _In_ const struct FdtResources* provider,
-    _In_ const uint8_t* cells,
-    _Out_ struct FdtInterrupt* interrupt);
+    _In_  const struct FdtResources* provider,
+    _In_  const uint8_t*             cells,
+    _Out_ struct FdtInterrupt*       interrupt);
 
 #endif //!__FIRMWARE_INTERRUPT_H__

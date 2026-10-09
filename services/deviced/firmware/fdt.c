@@ -19,8 +19,15 @@
 #include <firmware/reader.h>
 #include <string.h>
 
-/** Tracks the current node and its parents while reading the tree.
- * Callbacks may copy node records, but must not keep a pointer to this array. */
+/**
+ * @brief Holds the nodes along the path currently being read from the tree.
+ * The first entry is the root, and each later entry is a child of the one
+ * before it. When a node is complete, the callback function supplied by the
+ * caller receives this temporary array. It may copy individual node
+ * descriptions, but must not keep the array itself. Each description's name
+ * and property data still point into the firmware data, so they remain usable
+ * only while that data is available and unchanged.
+ */
 struct __FdtWalk {
     struct FdtNode Nodes[FDT_MAX_DEPTH];
     int            Depth;
@@ -31,14 +38,38 @@ struct __FdtWalk {
     void*          Context;
 };
 
+/**
+ * @brief Holds the name of a property to search for and its matching data.
+ * The property bytes are not copied; the pointer refers to the original
+ * firmware data. This allows callers to read any property, including ones
+ * that do not have a separate field in FdtNode.
+ */
+struct __FdtPropertyQuery {
+    const char*    Name;
+    const uint8_t* Value;
+    uint32_t       Length;
+};
+
+/**
+ * @brief Holds the result of searching for a node by its numeric ID.
+ * A node's phandle is the number other nodes use to refer to it. This search
+ * counts every matching node, including disabled ones, so it can reject an ID
+ * that appears more than once instead of choosing an uncertain match.
+ */
+struct __FdtNodeQuery {
+    uint32_t       Phandle;
+    unsigned int   Count;
+    struct FdtNode Node;
+};
+
 static oserr_t
 __ReaderBegin(
-    _InOut_ void* context,
+    _InOut_ void*    context,
     _In_ const char* name,
-    _In_ uint32_t length)
+    _In_ uint32_t    length)
 {
-    struct __FdtWalk* walk = context;
-    struct FdtNode* node = &walk->Nodes[++walk->Depth];
+    struct __FdtWalk*     walk = context;
+    struct FdtNode*       node = &walk->Nodes[++walk->Depth];
     const struct FdtNode* parent = walk->Depth ? node - 1 : NULL;
 
     memset(node, 0, sizeof(*node));
@@ -56,23 +87,24 @@ __ReaderBegin(
 
 static oserr_t
 __ReaderProperty(
-    _InOut_ void* context,
+    _InOut_ void*    context,
     _In_ const char* name,
     _In_ const void* value,
-    _In_ uint32_t length)
+    _In_ uint32_t    length)
 {
     struct __FdtWalk* walk = context;
-    struct FdtNode* node = &walk->Nodes[walk->Depth];
-    const uint8_t* bytes = value;
-    const uint8_t* end;
-    uint32_t offset = 0;
-    uint32_t phandle;
+    struct FdtNode*   node = &walk->Nodes[walk->Depth];
+    const uint8_t*    bytes = value;
+    const uint8_t*    end;
+    uint32_t          offset = 0;
+    uint32_t          phandle;
 
     node->PropertiesLength = (uint32_t)(bytes - node->Properties) + ((length + 3) & ~3U);
     if (!strcmp(name, "compatible") || !strcmp(name, "status")) {
         if (!length) {
             node->Malformed = 1;
         }
+        
         while (offset < length) {
             end = memchr(bytes + offset, 0, length - offset);
             if (end == NULL || end == bytes + offset) {
@@ -84,6 +116,7 @@ __ReaderProperty(
                 node->Malformed = 1;
             }
         }
+        
         if (!strcmp(name, "status")) {
             node->Disabled = !((length == 3 && !memcmp(bytes, "ok", 3)) ||
                 (length == 5 && !memcmp(bytes, "okay", 5)));
@@ -123,44 +156,55 @@ FdtWalkNodes(
 {
     struct FDTHeader header;
     struct __FdtWalk walk = { .Depth = -1 };
-    struct FdtParser parser = { __ReaderBegin, __ReaderProperty, __ReaderEnd, &walk };
-    oserr_t status;
+    struct FdtParser parser = { 
+        __ReaderBegin,
+        __ReaderProperty,
+        __ReaderEnd,
+        &walk
+    };
+    oserr_t          status;
 
-    status = FdtParseHeader(blob, length > UINT32_MAX ? UINT32_MAX : (uint32_t)length, &header);
+    status = FdtParseHeader(
+        blob,
+        length > UINT32_MAX ? UINT32_MAX : (uint32_t)length,
+        &header
+    );
     if (status != OS_EOK) {
         return status;
     }
+
     walk.Structure = (const uint8_t*)blob + header.OffDtStruct;
     walk.Strings = (const char*)blob + header.OffDtStrings;
     walk.StringsLength = header.SizeDtStrings;
-    // An error near the end of the tree must be caught before callers use any
-    // nodes. Check the whole tree first, then read it again with the callback.
-    // The caller must keep the input unchanged between these two passes.
+    
+    // Check the complete tree before calling the visitor. Otherwise, a format
+    // error near the end could be reported after the visitor has already acted
+    // on earlier nodes. The second read delivers the nodes only after the first
+    // read succeeds, so the caller must keep the firmware data unchanged until
+    // both reads finish.
     status = FdtParseStructure(walk.Structure, header.SizeDtStruct,
         walk.Strings, walk.StringsLength, &parser);
     if (status != OS_EOK || visitor == NULL) {
         return status;
     }
+    
     walk.Visitor = visitor;
     walk.Context = context;
-    return FdtParseStructure(walk.Structure, header.SizeDtStruct,
-        walk.Strings, walk.StringsLength, &parser);
+    return FdtParseStructure(
+        walk.Structure,
+        header.SizeDtStruct,
+        walk.Strings,
+        walk.StringsLength,
+        &parser
+    );
 }
-
-/** Stores a property name to find and the matching bytes in the firmware data.
- * This also lets callers read properties that FdtNode has no dedicated field for. */
-struct __FdtPropertyQuery {
-    const char* Name;
-    const uint8_t* Value;
-    uint32_t Length;
-};
 
 static oserr_t
 __ReaderFindProperty(
-    _InOut_ void* context,
+    _InOut_ void*    context,
     _In_ const char* name,
     _In_ const void* value,
-    _In_ uint32_t length)
+    _In_ uint32_t    length)
 {
     struct __FdtPropertyQuery* query = context;
 
@@ -173,15 +217,24 @@ __ReaderFindProperty(
 
 const uint8_t*
 FdtProperty(
-    _In_ const struct FdtNode* node,
-    _In_ const char* name,
-    _Out_ uint32_t* length)
+    _In_  const struct FdtNode* node,
+    _In_  const char*           name,
+    _Out_ uint32_t*             length)
 {
     struct __FdtPropertyQuery query = { .Name = name };
-    struct FdtParser parser = { .Property = __ReaderFindProperty, .UserData = &query };
+    struct FdtParser          parser = {
+        .Property = __ReaderFindProperty,
+        .UserData = &query
+    };
 
-    FdtVisitProperties(node->Properties, node->PropertiesLength,
-        node->Strings, node->StringsLength, &parser);
+    FdtVisitProperties(
+        node->Properties,
+        node->PropertiesLength,
+        node->Strings,
+        node->StringsLength,
+        &parser
+    );
+    
     *length = query.Length;
     return query.Value;
 }
@@ -189,21 +242,23 @@ FdtProperty(
 int
 FdtCompatible(
     _In_ const struct FdtNode* node,
-    _In_ const char* compatible)
+    _In_ const char*           compatible)
 {
-    uint32_t length;
+    uint32_t       length;
     const uint8_t* value = FdtProperty(node, "compatible", &length);
     const uint8_t* end;
-    uint32_t offset = 0;
+    uint32_t       offset = 0;
 
     if (node->Malformed) {
         return 0;
     }
+
     while (offset < length) {
         end = memchr(value + offset, 0, length - offset);
         if (end == NULL) {
             return 0;
         }
+        
         if (!strcmp((const char*)value + offset, compatible)) {
             return 1;
         }
@@ -214,36 +269,30 @@ FdtCompatible(
 
 oserr_t
 FdtScalar(
-    _In_ const struct FdtNode* node,
-    _In_ const char* name,
-    _Out_ uint32_t* value)
+    _In_  const struct FdtNode* node,
+    _In_  const char*           name,
+    _Out_ uint32_t*             value)
 {
-    uint32_t length;
-    const uint8_t* property = FdtProperty(node, name, &length);
+    uint32_t       length;
+    const uint8_t* property;
 
+    property = FdtProperty(node, name, &length);
     if (property == NULL) {
         return OS_ENOENT;
     }
     if (length != 4) {
         return OS_EINVALPARAMS;
     }
+
     *value = FdtReadBe32(property);
     return OS_EOK;
 }
 
-/** Tracks nodes with the requested firmware ID (phandle).
- * Disabled nodes count too: more than one match makes the ID ambiguous. */
-struct __FdtNodeQuery {
-    uint32_t Phandle;
-    unsigned int Count;
-    struct FdtNode Node;
-};
-
 static void
 __ReaderFindNode(
-    _In_ const struct FdtNode* nodes,
-    _In_ int depth,
-    _InOut_ void* context)
+    _In_    const struct FdtNode* nodes,
+    _In_    int                   depth,
+    _InOut_ void*                 context)
 {
     struct __FdtNodeQuery* query = context;
 
@@ -255,27 +304,30 @@ __ReaderFindNode(
 
 oserr_t
 FdtFindNode(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ uint32_t phandle,
+    _In_  const void*     blob,
+    _In_  size_t          length,
+    _In_  uint32_t        phandle,
     _Out_ struct FdtNode* node)
 {
     struct __FdtNodeQuery query = { .Phandle = phandle };
-    oserr_t status;
+    oserr_t               status;
 
     if (!phandle || node == NULL) {
         return OS_EINVALPARAMS;
     }
+
     status = FdtWalkNodes(blob, length, __ReaderFindNode, &query);
     if (status != OS_EOK) {
         return status;
     }
+    
     if (query.Count > 1 || query.Node.Malformed || query.Node.AncestorMalformed) {
         return OS_EINVALPARAMS;
     }
     if (!query.Count || query.Node.Disabled || query.Node.AncestorDisabled) {
         return OS_ENOENT;
     }
+    
     *node = query.Node;
     return OS_EOK;
 }

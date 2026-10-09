@@ -25,8 +25,6 @@
 
 #include <bus/pci/host.h>
 
-struct FdtPciHost;
-
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
 
 /**

@@ -16,10 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS PCI Bus Driver
- * - Enumerates the bus and registers the devices/controllers
- *   available in the system
  */
 
 #ifndef __DEVICED_BUS_LEGACY_FIXED_H__

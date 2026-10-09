@@ -25,7 +25,7 @@ PciHostGetDmaDescription(
     _Out_ struct PciDmaDescription* description)
 {
     struct PciDmaDescription result = { 0 };
-    oserr_t status;
+    oserr_t                  status;
 
     // Dispatch through the existing host operations so callers never need to
     // know the controller type. No callback means no established DMA support.
