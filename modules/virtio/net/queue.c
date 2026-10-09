@@ -25,6 +25,91 @@
 #include <string.h>
 
 /**
+ * @brief Count the most descriptors one packet in a pool can need.
+ *
+ * Clients choose where a packet starts inside its slot, so every memory
+ * segment touched by a slot is counted. The private header always takes one
+ * descriptor, and transmit packets may also need one for short-frame padding.
+ *
+ * @param device Device whose session owns the pool.
+ * @param direction Direction of the pool to inspect.
+ * @return Descriptor bound for one packet, or 0 if no such pool is mapped.
+ */
+static size_t
+__PacketDescriptorBound(
+    _In_ VirtioNetDevice_t*            device,
+    _In_ enum ctt_netadapter_direction direction)
+{
+    for (uint32_t p = 0; p < device->Session.PoolCount; ++p) {
+        VirtioNetPool_t* pool = &device->Session.Pools[p];
+        size_t           worst = 0;
+
+        if (!pool->Mapped || pool->Description.direction != direction) {
+            continue;
+        }
+
+        for (uint32_t s = 0; s < pool->Description.slot_count; ++s) {
+            size_t start = pool->Description.region_offset +
+                           (size_t)s * pool->Description.slot_size;
+            size_t end = start + pool->Description.slot_size;
+            size_t base = 0;
+            size_t segments = 0;
+
+            for (int i = 0; i < pool->ScatterGather.Count; ++i) {
+                size_t length = pool->ScatterGather.Entries[i].Length;
+                if (base < end && base + length > start) {
+                    segments++;
+                }
+                base += length;
+            }
+            if (segments > worst) {
+                worst = segments;
+            }
+        }
+
+        // Packets needing more data descriptors than this are refused at submit.
+        if (worst > 34) {
+            worst = 34;
+        }
+        worst++;
+        if (direction == CTT_NETADAPTER_DIRECTION_TX) {
+            worst++;
+        }
+        return worst;
+    }
+    return 0;
+}
+
+/**
+ * @brief Make sure a created queue can hold the packets a run depends on.
+ *
+ * Queue creation may shrink the requested size to what the device supports.
+ * A queue that cannot hold the required packets would let preparation succeed
+ * while start could never be satisfied, so it is rejected instead.
+ *
+ * @param queue Queue that was just created.
+ * @param required Number of descriptors the run needs at once.
+ * @return OS_EOK when the queue is large enough, otherwise an error.
+ */
+static oserr_t
+__CheckQueueCapacity(
+    _In_ VirtioSplitQueue_t* queue,
+    _In_ size_t              required)
+{
+    VirtioQueueStats_t stats;
+    oserr_t            status;
+
+    status = VirtioSplitQueueGetStats(queue, &stats);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (stats.QueueSize < required) {
+        return OS_ENOTSUPPORTED;
+    }
+    return OS_EOK;
+}
+
+/**
  * @brief Prepare the packet queues for a new device run.
  *
  * The device needs its supported features and current configuration before
@@ -65,15 +150,34 @@ VirtioNetQueuesPrepare(
         return status;
     }
 
+    // Start waits for min_rx_slots receive packets to be queued at once.
+    status = __CheckQueueCapacity(
+        device->ReceiveQueue,
+        __PacketDescriptorBound(
+            device,
+            CTT_NETADAPTER_DIRECTION_RX
+        ) * device->Info.min_rx_slots
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
     status = VirtioSplitQueueCreate(
         &device->Transport,
         1,
         VIRTIO_NET_QUEUE_SIZE,
         &device->TransmitQueue
     );
+    if (status != OS_EOK) {
+        return status;
+    }
+
     // Keep the device from using receive buffers until startup has finished
     // setting up everything this run depends on.
-    return status;
+    return __CheckQueueCapacity(
+        device->TransmitQueue,
+        __PacketDescriptorBound(device, CTT_NETADAPTER_DIRECTION_TX)
+    );
 }
 
 /**
