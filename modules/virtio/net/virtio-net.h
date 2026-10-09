@@ -267,7 +267,8 @@ VirtioNetBusDeviceDestroy(
  * @brief Create and initialize a device from a discovered bus descriptor.
  * This function takes ownership of busDevice whether it succeeds or fails. If
  * creation fails, it releases the descriptor as part of cleanup unless reset
- * fails; then the live device and descriptor remain in the registry for retry.
+ * fails; then the live device and descriptor remain on a private cleanup list
+ * for retry, without being exposed to clients.
  * 
  * @param busDevice Discovered device descriptor to consume.
  * @return The initialized device, or NULL if setup fails.
@@ -291,7 +292,8 @@ VirtioNetDeviceDestroy(
     _In_ VirtioNetDevice_t* device);
 
 /**
- * @brief Keep a device in the registry after destruction could not complete.
+ * @brief Keep a device on the private cleanup list after destruction fails.
+ * Retained devices are not available through device or session lookup.
  * The caller holds the module lock and the device must not already be listed.
  *
  * @param device Live device to retain for a later destruction attempt.

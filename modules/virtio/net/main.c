@@ -44,6 +44,7 @@ extern void
 __crt_module_set_send_timeout(uint32_t milliseconds);
 
 static list_t            g_devices = LIST_INIT;
+static list_t            g_cleanupDevices = LIST_INIT;
 static struct usched_mtx g_lock;
 
 /**
@@ -77,7 +78,7 @@ void
 VirtioNetRetainDevice(
     _In_ VirtioNetDevice_t* device)
 {
-    list_append(&g_devices, &device->Header);
+    list_append(&g_cleanupDevices, &device->Header);
 }
 
 VirtioNetDevice_t*
@@ -165,10 +166,10 @@ __DestroyDevice(
     _In_ void*      context)
 {
     VirtioNetDevice_t* device = element->value;
+    list_t*           devices = context;
     oserr_t            status;
 
-    (void)context;
-    list_remove(&g_devices, element);
+    list_remove(devices, element);
     status = VirtioNetDeviceDestroy(device);
     if (status != OS_EOK) {
         VirtioNetRetainDevice(device);
@@ -181,9 +182,17 @@ OnUnload(void)
     int count;
 
     VirtioNetLock();
+    
+    // Retry previously failed cleanup before active devices, so a new failure
+    // is not retried again during the same unload attempt.
+    count = list_count(&g_cleanupDevices);
+    for (int remaining = count; remaining > 0; --remaining) {
+        __DestroyDevice(list_front(&g_cleanupDevices), &g_cleanupDevices);
+    }
+    
     count = list_count(&g_devices);
     for (int remaining = count; remaining > 0; --remaining) {
-        __DestroyDevice(list_front(&g_devices), NULL);
+        __DestroyDevice(list_front(&g_devices), &g_devices);
     }
     VirtioNetUnlock();
 }
@@ -343,8 +352,8 @@ OnUnregister(
         return status;
     }
 
-    // Unlink first, but put the still-live entry back if reset fails. A
-    // failed detach must not lose the only reference to DMA-owned storage.
+    // Stop exposing the device even if reset fails. Keep its DMA-owned storage
+    // on the cleanup list until destruction can complete.
     list_remove(&g_devices, &device->Header);
     status = VirtioNetDeviceDestroy(device);
     if (status != OS_EOK) {
