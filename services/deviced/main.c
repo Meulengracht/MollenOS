@@ -23,7 +23,7 @@
 #define __TRACE
 
 #include <assert.h>
-#include <bus.h>
+#include <bus/pci/discovery.h>
 #include "devices.h"
 #include "discover.h"
 #include <ddk/service.h>

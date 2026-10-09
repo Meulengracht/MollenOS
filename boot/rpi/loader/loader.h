@@ -169,7 +169,9 @@ DeviceTreeReserveMemory(
     _In_ uint64_t physicalBase,
     _In_ uint64_t length);
 
-/** @brief Reserve a physical interval while preserving its DT mapping policy. */
+/** 
+ * @brief Reserve a physical interval while preserving its DT mapping policy.
+ */
 __EXTERN oserr_t
 DeviceTreeReserveMemoryWithAttributes(
     _In_ struct RpiBootContext* context,

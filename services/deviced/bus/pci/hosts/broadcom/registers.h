@@ -15,42 +15,48 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * 
  */
+
 #ifndef __DEVICED_BCM_PCI_REGISTERS_H__
 #define __DEVICED_BCM_PCI_REGISTERS_H__
 
 /**
- * Register definitions for the BCM2711 and BCM2712 PCIe controller variants.
+ * Registers for the BCM2711 and BCM2712 PCI Express (PCIe) controllers.
+ * A host controller connects the CPU to PCI devices. Its CPU-side connection
+ * is called the root port; a connected device is called an endpoint.
  *
- * Offsets are bytes from the mapped controller, except the explicitly marked
- * bridge-reset registers and PHY register numbers. Masks identify bits already
- * in their register position. Values are also positioned unless named SHIFT,
- * ORDER, or BIAS; those names describe how to construct an encoded value.
+ * Offsets count bytes from the start of the mapped controller registers, except
+ * where comments identify separate reset registers or electrical-interface
+ * (PHY) register numbers. Masks select bits in their final register positions.
+ * Most values are already shifted into position too. SHIFT names a bit count,
+ * ORDER is an exponent (a size of 2^ORDER bytes), and BIAS is an adjustment
+ * used to turn a size into the code expected by hardware.
  *
- * In plain terms, outbound windows let the CPU reach a device, and inbound
- * windows let a device reach system memory or other system registers. The
- * hardware calls inbound windows "BARs", but they are separate from the BARs
- * that describe a connected device's own register space.
+ * A window is an address range mapped between the CPU and PCI devices.
+ * Outbound means CPU-to-device access; inbound means device-to-system access.
+ * The hardware calls inbound windows "BARs" (Base Address Registers). These
+ * belong to the host, separately from the BARs describing a connected device's
+ * own registers or memory.
  *
  * Layout and setup references:
  * https://github.com/raspberrypi/linux/blob/rpi-6.18.y/drivers/pci/controller/pcie-brcmstb.c
  * https://github.com/raspberrypi/linux/blob/rpi-6.18.y/drivers/reset/reset-brcmstb.c
  */
 
-// Both variants expose this controller region. Downstream configuration access
-// selects a device at CONFIG_INDEX, then accesses its bytes at CONFIG_DATA.
+// Both chips provide this register area. To access a connected device's
+// configuration, select it at CONFIG_INDEX, then read or write at CONFIG_DATA.
 #define BCM_PCIE_REGISTER_LENGTH                 0x9310
 #define BCM_PCIE_CONFIG_INDEX                    0x9000
 #define BCM_PCIE_CONFIG_DATA                     0x8000
 
-// A failed register read is conventionally all ones. A cleared enable field
-// disables its feature; named nonzero encodings below select specific modes.
+// A failed register read returns all bits set. Clearing an enable field
+// disables its feature; the nonzero values below select specific settings.
 #define BCM_PCIE_READ_FAILED                     0xFFFFFFFFU
 #define BCM_PCIE_DISABLED                        0U
 #define BCM_PCIE_ADDRESS_HIGH_SHIFT              32
 #define BCM_PCIE_REGISTER_HIGH_OFFSET            4
 
-// DeviceTree PCI address-space codes, after the parser extracts the field.
-// Both memory types are accepted; I/O-port ranges need different programming.
+// PCI address types read from the firmware device tree. Both memory types
+// are supported; PCI I/O ports use a separate address space and need different setup.
 #define BCM_PCIE_DT_MEMORY32                     2U
 #define BCM_PCIE_DT_MEMORY64                     3U
 
@@ -78,21 +84,23 @@
 #define BCM_PCIE_LINK_SPEED_GEN2                 2U
 #define BCM_PCIE_LINK_SPEED_GEN3                 3U
 
-// Bits 3:2 control byte order for inbound BAR2. Zero keeps the little-endian
-// byte order used by PCI devices, so the controller does not swap their data.
+// Bits 3:2 control byte order for data entering the system through BAR2.
+// Zero keeps PCI's little-endian order (least significant byte first), so
+// the controller does not swap the data's bytes.
 #define BCM_PCIE_VENDOR_CONTROL                  0x0188
 #define BCM_PCIE_VENDOR_BAR2_ENDIAN_MASK         0x0000000CU
 #define BCM_PCIE_VENDOR_BAR2_LITTLE_ENDIAN       0U
 
-// This private register supplies the class seen in root-port configuration
-// space. 06:04:00 identifies a PCI-to-PCI bridge rather than an endpoint device.
+// This controller-specific register sets the device class reported to PCI
+// discovery. Class 06:04:00 means a bridge connecting two PCI buses.
 #define BCM_PCIE_CLASS_CODE                      0x043C
 #define BCM_PCIE_CLASS_CODE_MASK                 0x00FFFFFFU
 #define BCM_PCIE_CLASS_CODE_BRIDGE               0x00060400U
 
-// Capability bits describe what software may request, not the current link.
-// Bits 3:0 give maximum speed, bits 8:4 give lane count, and bits 11:10 advertise
-// the L0s/L1 power-saving states. Clearing these discourages entering those states.
+// These bits report supported settings, not the connection's current state.
+// Bits 3:0 give the maximum speed; bits 8:4 give the number of parallel data
+// paths (lanes). Bits 11:10 report support for the L0s/L1 sleep modes.
+// Clearing them tells software not to select those modes.
 #define BCM_PCIE_LINK_CAPABILITY                 0x04DC
 #define BCM_PCIE_LINK_CAP_SPEED_MASK             0x0000000FU
 #define BCM_PCIE_LINK_CAP_WIDTH_MASK             0x000001F0U
@@ -104,18 +112,18 @@
 #define BCM_PCIE_LINK_LANES_X2                   2U
 #define BCM_PCIE_LINK_LANES_X4                   4U
 
-// Bits 7:3 select how the root advertises deeper L1 power-saving modes.
-// The hardware encoding 2 hides these modes; it is not an enable-bit mask.
+// Bits 7:3 control which deeper L1 sleep modes the host reports as supported.
+// Set the field to 2 to hide these modes; 2 is a field value, not a mask of bits.
 #define BCM2712_ROOT_CAPABILITY                  0x04F8
 #define BCM2712_ROOT_CAP_L1SS_MASK               0x000000F8U
 #define BCM2712_ROOT_CAP_L1SS_SHIFT              3
 #define BCM2712_ROOT_CAP_L1SS_DISABLED           (2U << BCM2712_ROOT_CAP_L1SS_SHIFT)
 
-// Controller memory behavior: allow device access to the system memory bus,
-// handle unsupported configuration reads, and choose read-reply boundary modes.
-// RCB means read completion boundary: a boundary used when splitting read replies.
+// Controls device access to system memory, responses to unsupported
+// configuration reads, and how data is split across read replies.
+// RCB (read completion boundary) sets where one read reply can end and another begin.
 #define BCM_PCIE_MISC_CONTROL                    0x4008
-// Bit 7 selects 64-byte reply boundaries; bit 10 enables packet-size-aware boundaries.
+// Bit 7 splits replies at 64-byte boundaries; bit 10 also accounts for packet size.
 #define BCM_PCIE_MISC_RCB_64_BYTES               0x00000080U
 #define BCM_PCIE_MISC_RCB_PACKET_SIZE            0x00000400U
 // Bit 12 permits system-memory access; bit 13 enables unsupported config-read handling.
@@ -130,13 +138,14 @@
                                                  BCM_PCIE_MISC_SYSTEM_ACCESS | \
                                                  BCM_PCIE_MISC_CONFIG_READ_UR)
 
-// BCM2711's first memory-controller size field must match its inbound RAM
-// window. It holds the same size code as BAR2, shifted into bits 31:27.
+// BCM2711's first memory-controller size field must match the range devices
+// use to reach RAM. It holds the same size code as BAR2, shifted into bits 31:27.
 #define BCM2711_MISC_SCB0_SIZE_MASK              0xF8000000U
 #define BCM2711_MISC_SCB0_SIZE_SHIFT             27
 
-// Inbound window low words contain the PCI base and a size code in bits 4:0.
-// A zero size code disables the window. The next word holds address bits 63:32.
+// Each inbound mapping uses two 32-bit registers. The first stores the lower
+// PCI address bits and a size code in bits 4:0; zero disables the mapping.
+// The next register stores the upper address bits, 63:32.
 #define BCM_PCIE_INBOUND_BAR1                    0x402C
 #define BCM_PCIE_INBOUND_BAR2                    0x4034
 #define BCM_PCIE_INBOUND_BAR3                    0x403C
@@ -145,8 +154,8 @@
 #define BCM_PCIE_INBOUND_MIN_ORDER               12 // 2^12 bytes = 4 KiB, supported by BCM2712.
 #define BCM_PCIE_INBOUND_LARGE_MIN_ORDER         16 // 2^16 bytes = 64 KiB, also BCM2711's minimum.
 #define BCM_PCIE_INBOUND_MAX_ORDER               36 // 2^36 bytes = 64 GiB.
-#define BCM_PCIE_INBOUND_SMALL_SIZE_BASE         0x1CU // Orders 12..15 encode as 0x1c..0x1f.
-#define BCM_PCIE_INBOUND_LARGE_SIZE_BIAS         15 // Orders 16..36 encode as order minus 15.
+#define BCM_PCIE_INBOUND_SMALL_SIZE_BASE         0x1CU // Sizes 2^12..2^15 bytes use codes 0x1c..0x1f.
+#define BCM_PCIE_INBOUND_LARGE_SIZE_BIAS         15 // Sizes 2^16..2^36 bytes use exponent minus 15.
 #define BCM_PCIE_INBOUND_MIN_SIZE                (1ULL << BCM_PCIE_INBOUND_MIN_ORDER)
 #define BCM2711_INBOUND_MIN_SIZE                 (1ULL << BCM_PCIE_INBOUND_LARGE_MIN_ORDER)
 #define BCM_PCIE_INBOUND_MAX_SIZE                (1ULL << BCM_PCIE_INBOUND_MAX_ORDER)
@@ -154,24 +163,25 @@
 // The reference driver excludes bases strictly between 2 GiB and 4 GiB when
 // checking Pi 4's memory layout. Low PCI addresses must leave room for device
 // register windows, and early Pi 4 revisions also have RAM-access restrictions.
-// Preserve that placement rule separately from power-of-two size alignment.
+// Check that placement separately from whether the base is a multiple of the size.
 #define BCM2711_INBOUND_RESTRICTED_BASE_START    0x80000000ULL
 #define BCM2711_INBOUND_RESTRICTED_BASE_END      0x100000000ULL
 
-// The legacy message-interrupt target is separate from the memory windows.
-// Writing zero disables it. BCM2712's MIP interrupt block uses an ordinary
-// inbound window instead; installing interrupt handlers remains separate work.
+// A device raises a message-signaled interrupt (MSI) by writing to an address.
+// This older interrupt destination is separate from the memory mappings; zero
+// disables it. BCM2712's MIP interrupt controller instead receives writes through
+// an ordinary inbound mapping. Interrupt handlers still need separate setup.
 #define BCM_PCIE_MSI_BAR                         0x4044
 #define BCM_PCIE_MSI_DISABLED                    0U
 
 // Bit 7 distinguishes a root port (the CPU side) from an endpoint device.
-// Reading this bit does not prove link-up; the shared code checks that later.
+// This bit alone does not show a working connection; the shared code checks that later.
 #define BCM_PCIE_LINK_STATUS                     0x4068
 #define BCM_PCIE_STATUS_ROOT_PORT                0x00000080U
 
-// Debug/clock controls share bit meanings but move between chip variants.
-// IDDQ powers down the high-speed electrical interface. CLKREQ is a device's
-// request for its reference clock; L1SS controls deeper link sleep support.
+// Debug and clock bits have the same meanings but different locations on each chip.
+// The power-down bit turns off the high-speed electrical interface. CLKREQ lets
+// a device request its reference clock; L1SS enables deeper connection sleep modes.
 #define BCM2711_HARD_DEBUG                       0x4204
 #define BCM2712_HARD_DEBUG                       0x4304
 #define BCM_PCIE_DEBUG_CLKREQ_ENABLE             0x00000002U
@@ -187,21 +197,22 @@
 #define BCM2712_DEBUG_CLOCK_ALWAYS_ON           (BCM_PCIE_DEBUG_REFCLK_OVERRIDE_ENABLE | \
                                                  BCM_PCIE_DEBUG_REFCLK_OVERRIDE_OUT)
 
-// BCM2711 has active-high reset bits in the controller itself. PERST holds the
-// connected device in reset; bridge reset resets the host-side controller logic.
+// BCM2711 keeps reset controls in the PCI controller itself. Setting PERST to 1
+// holds the connected device in reset; setting bridge reset to 1 resets the host.
 #define BCM2711_SW_INIT                          0x9210
 #define BCM2711_PERST_ASSERT                     0x00000001U
 #define BCM2711_BRIDGE_RESET_ASSERT              0x00000002U
 #define BCM2711_RESET_ASSERT_BOTH               (BCM2711_PERST_ASSERT | BCM2711_BRIDGE_RESET_ASSERT)
 
-// BCM2712 moves endpoint reset here and reverses its polarity: bit 2 set
-// releases reset, bit 2 clear holds the device in reset. Other bits are preserved.
+// BCM2712 uses this register for device reset: bit 2 set lets the device run,
+// while bit 2 clear holds it in reset. Keep the other bits unchanged.
 #define BCM2712_PCIE_CONTROL                     0x4064
 #define BCM2712_PERST_RELEASE                    0x00000004U
 
-// These offsets belong to the separate firmware-described reset provider.
-// Each bank has 32 reset lines and occupies 24 bytes. SET/CLEAR accept a single
-// 1 bit to assert/release that line; STATUS reports which lines remain asserted.
+// These offsets belong to the separate reset controller described by firmware.
+// Each group (bank) controls 32 reset signals and occupies 24 bytes. Write a
+// single 1 bit to SET to hold that signal in reset, or to CLEAR to release it.
+// STATUS reports which reset signals remain active.
 #define BCM2712_RESET_LINES_PER_BANK             32
 #define BCM2712_RESET_BANK_STRIDE                0x18
 #define BCM2712_RESET_SET                        0x00
@@ -211,9 +222,10 @@
 #define BCM2712_RESET_RELEASED                   0
 #define BCM_PCIE_RESCAL_MIN_LENGTH               12 // Covers START, CONTROL and STATUS.
 
-// BCM2712 has ten inbound windows. Slots 1..3 and 4..10 occupy separate blocks.
-// Each remap low word gives physical address bits 31:12 and bit 0 enables access;
-// the following word gives bits 63:32. Physical addresses are limited to 40 bits.
+// BCM2712 has ten device-to-system mappings. Slots 1..3 and 4..10 use separate
+// register blocks. The remap registers give each mapping's CPU physical address:
+// the first stores address bits 31:12 plus an enable bit at bit 0; the next stores
+// bits 63:32. Only physical addresses that fit in 40 bits are supported.
 #define BCM2712_INBOUND_COUNT                    10
 #define BCM2712_INBOUND_FIRST_BLOCK_COUNT        3
 #define BCM2712_INBOUND_REGISTER_STRIDE          8
@@ -286,9 +298,10 @@
 #define BCM2712_RETRY_TIMEOUT                    0x405C
 #define BCM2712_RETRY_TIMEOUT_240MS              0x0ABA0000U
 
-// Memory request priority workarounds. Clear forwarding of queued priorities
-// (bit 7); set the table, update-timing, and update-gating corrections (13:11).
-// The reference does not describe the circuits behind these workaround bits.
+// Priority decides which memory request is handled first. Work around hardware
+// faults by clearing bit 7, which forwards queued priorities, and setting bits
+// 13:11, which fix the priority table and control when its values are updated.
+// The reference driver does not explain the circuits changed by these bits.
 #define BCM2712_AXI_CONTROL                      0x416C
 #define BCM2712_AXI_PRIORITY_FORWARD_ENABLE     0x00000080U
 #define BCM2712_AXI_PRIORITY_GATING_DISABLE     0x00000800U
@@ -302,8 +315,8 @@
 #define BCM2712_AXI_OUTSTANDING_MASK             0x0000003FU // Bits 5:0 limit requests awaiting replies.
 #define BCM2712_AXI_OUTSTANDING_FALLBACK         15U // Conservative limit when the timing fix is absent.
 
-// Bit 5 lets vendor-defined device messages change memory request priorities.
-// Keep this off during enumeration; the priority-message path has known faults.
+// Bit 5 lets manufacturer-specific device messages change memory request priorities.
+// Keep this off while finding devices; that hardware mechanism has known faults.
 #define BCM2712_MISC_CONTROL1                    0x40A0
 #define BCM2712_MISC_VDM_PRIORITY_ENABLE         0x00000020U
 

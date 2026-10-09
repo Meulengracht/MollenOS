@@ -115,10 +115,32 @@ struct device_usb {
     uint8  speed;
 }
 
+struct platform_register {
+    uint64 base;
+    uint64 length;
+}
+
+struct platform_interrupt {
+    uint32 controller;
+    uint32 number;
+    uint32 type;
+}
+
+struct device_platform {
+    device_base;
+    uint32               version;
+    uint32               pending;
+    uint32               firmware_node;
+    uint8[]              compatibles;
+    platform_register[]  registers;
+    platform_interrupt[] interrupts;
+}
+
 struct device {
     variant content {
         device_base base;
         device_bus  bus;
         device_usb  usb;
+        device_platform platform;
     }
 }

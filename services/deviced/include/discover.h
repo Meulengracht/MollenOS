@@ -87,7 +87,7 @@ struct DriverIdentification {
  * match. For platform devices, the score is the position of the first
  * compatible string supported by the driver, with firmware's first entry
  * preferred. For non-platform devices, a vendor/product match scores 1;
- * otherwise the exact class/subclass pair may match with score 1. A score of
+ * otherwise the exact class/subclass pair may match with score 2. A score of
  * zero means no match or malformed platform-compatible data.
  *
  * @param configuration The settings that describe which devices the driver supports.

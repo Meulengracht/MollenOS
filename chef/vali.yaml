@@ -7,6 +7,7 @@ homepage: www.mollenos.com
 
 platforms:
   - name: linux
+    target: vali
     toolchain: vali/clang-cc=devel
 
 environment:
@@ -34,7 +35,7 @@ recipes:
       type: build
       system: cmake
       env:
-        VALICC: $[[ TOOLCHAIN_PREFIX ]]/usr/local
+        VALICC: $[[ TOOLCHAIN_PREFIX ]]
         VALI_ARCH: $[[ CHEF_TARGET_ARCHITECTURE ]]
       configure:
         arguments: [-DVALI_ARCH=$[[ CHEF_TARGET_ARCHITECTURE ]]]

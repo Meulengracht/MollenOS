@@ -36,8 +36,12 @@ UsbControllerRegister(
     struct vali_link_message msg          = VALI_MSG_INIT_HANDLE(GetUsbService());
     uuid_t                   serverHandle = GetNativeHandle(__crt_get_server_iod());
     struct sys_device        protoDevice;
+    oserr_t                  status;
 
-    to_sys_device(device, &protoDevice);
+    status = to_sys_device(device, &protoDevice);
+    if (status != OS_EOK) {
+        return status;
+    }
     sys_usb_register_controller(
         GetGrachtClient(), &msg.base,
         serverHandle,

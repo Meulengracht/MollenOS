@@ -29,6 +29,7 @@
 #include <ddk/device.h>
 #include <ddk/usbdevice.h>
 #include <ddk/busdevice.h>
+#include <ddk/platformdevice.h>
 #include <ddk/filesystem.h>
 
 #include <os/types/file.h>
@@ -251,8 +252,62 @@ static void to_sys_device_usb(UsbDevice_t* in, struct sys_device_usb* out)
     out->speed                = in->DeviceContext.speed;
 }
 
-static void to_sys_device(Device_t* in, struct sys_device* out)
+static oserr_t
+to_sys_device_platform(
+    _In_ PlatformDevice_t* in,
+    _Out_ struct sys_device_platform* out)
 {
+    unsigned int i;
+    struct sys_platform_register* reg;
+    struct sys_platform_interrupt* interrupt;
+
+    out->id = in->Base.Id;
+    out->parent_id = in->Base.ParentId;
+    out->identification.vendor_id = in->Base.VendorId;
+    out->identification.product_id = in->Base.ProductId;
+    out->identification.class = in->Base.Class;
+    out->identification.subclass = in->Base.Subclass;
+    to_sys_device_identification(&in->Base.Identification, &out->identification);
+    out->version = in->Version;
+    out->pending = in->Pending;
+    out->firmware_node = in->FirmwareNode;
+    out->compatibles = malloc(in->CompatibleLength);
+    if (out->compatibles == NULL) {
+        return OS_EOOM;
+    }
+    out->compatibles_count = in->CompatibleLength;
+    memcpy(out->compatibles, in->Compatibles, in->CompatibleLength);
+    if (in->RegisterCount) {
+        out->registers = calloc(in->RegisterCount, sizeof(*out->registers));
+        if (out->registers == NULL) {
+            return OS_EOOM;
+        }
+    }
+    out->registers_count = in->RegisterCount;
+    for (i = 0; i < in->RegisterCount; i++) {
+        reg = sys_device_platform_registers_get(out, i);
+        reg->base = in->Registers[i].Base;
+        reg->length = in->Registers[i].Length;
+    }
+    if (in->InterruptCount) {
+        out->interrupts = calloc(in->InterruptCount, sizeof(*out->interrupts));
+        if (out->interrupts == NULL) {
+            return OS_EOOM;
+        }
+    }
+    out->interrupts_count = in->InterruptCount;
+    for (i = 0; i < in->InterruptCount; i++) {
+        interrupt = sys_device_platform_interrupts_get(out, i);
+        interrupt->controller = in->Interrupts[i].Controller;
+        interrupt->number = in->Interrupts[i].Number;
+        interrupt->type = in->Interrupts[i].Type;
+    }
+    return OS_EOK;
+}
+
+static oserr_t to_sys_device(Device_t* in, struct sys_device* out)
+{
+    oserr_t status;
     sys_device_init(out);
 
     if (in->Length == sizeof(Device_t)) {
@@ -261,10 +316,24 @@ static void to_sys_device(Device_t* in, struct sys_device* out)
     } else if (in->Length == sizeof(BusDevice_t)) {
         out->content_type = SYS_DEVICE_CONTENT_BUS;
         to_sys_device_bus((BusDevice_t*)in, &out->content.bus);
+    } else if (in->Length == sizeof(PlatformDevice_t)) {
+        if (!PlatformDeviceValidate((PlatformDevice_t*)in)) {
+            return OS_EINVALPARAMS;
+        }
+        out->content_type = SYS_DEVICE_CONTENT_PLATFORM;
+        status = to_sys_device_platform((PlatformDevice_t*)in, &out->content.platform);
+        if (status != OS_EOK) {
+            sys_device_destroy(out);
+            sys_device_init(out);
+            return status;
+        }
     } else if (in->Length == sizeof(UsbDevice_t)) {
         out->content_type = SYS_DEVICE_CONTENT_USB;
         to_sys_device_usb((UsbDevice_t*)in,&out->content.usb);
+    } else {
+        return OS_EINVALPARAMS;
     }
+    return OS_EOK;
 }
 
 static char* from_protocol_string(const char* in)
@@ -376,11 +445,66 @@ static void from_sys_device_usb(const struct sys_device_usb* in, UsbDevice_t* ou
     out->DeviceContext.speed = in->speed;
 }
 
+static Device_t*
+from_sys_device_platform(
+    _In_ const struct sys_device_platform* in)
+{
+    PlatformDevice_t* out;
+    unsigned int i;
+
+    if (!in->compatibles_count || in->compatibles_count > PLATFORM_DEVICE_MAX_COMPATIBLES ||
+        in->registers_count > PLATFORM_DEVICE_MAX_REGISTERS) {
+        return NULL;
+    }
+    if (in->interrupts_count > PLATFORM_DEVICE_MAX_INTERRUPTS || in->compatibles == NULL) {
+        return NULL;
+    }
+    if ((in->registers_count && in->registers == NULL) ||
+        (in->interrupts_count && in->interrupts == NULL)) {
+        return NULL;
+    }
+    out = calloc(1, sizeof(*out));
+    if (out == NULL) {
+        return NULL;
+    }
+    out->Base.Length = sizeof(*out);
+    out->Version = in->version;
+    out->Pending = in->pending;
+    out->FirmwareNode = in->firmware_node;
+    out->CompatibleLength = in->compatibles_count;
+    memcpy(out->Compatibles, in->compatibles, in->compatibles_count);
+    out->RegisterCount = in->registers_count;
+    out->InterruptCount = in->interrupts_count;
+    for (i = 0; i < out->RegisterCount; i++) {
+        out->Registers[i].Base = in->registers[i].base;
+        out->Registers[i].Length = in->registers[i].length;
+    }
+    for (i = 0; i < out->InterruptCount; i++) {
+        out->Interrupts[i].Controller = in->interrupts[i].controller;
+        out->Interrupts[i].Number = in->interrupts[i].number;
+        out->Interrupts[i].Type = in->interrupts[i].type;
+    }
+    if (!PlatformDeviceValidate(out)) {
+        free(out);
+        return NULL;
+    }
+    out->Base.Id = in->id;
+    out->Base.ParentId = in->parent_id;
+    out->Base.VendorId = in->identification.vendor_id;
+    out->Base.ProductId = in->identification.product_id;
+    out->Base.Class = in->identification.class;
+    out->Base.Subclass = in->identification.subclass;
+    from_sys_device_identification(&in->identification, &out->Base.Identification);
+    return &out->Base;
+}
+
 static Device_t* from_sys_device(const struct sys_device* in)
 {
     Device_t* out = NULL;
 
     switch (in->content_type) {
+        case SYS_DEVICE_CONTENT_PLATFORM:
+            return from_sys_device_platform(&in->content.platform);
         case SYS_DEVICE_CONTENT_BASE: {
             out = malloc(sizeof(Device_t));
             if (out == NULL) {

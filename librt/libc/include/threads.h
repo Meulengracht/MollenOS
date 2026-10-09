@@ -101,9 +101,9 @@ static inline void call_once(once_flag* flag, void (*func)(void)) {
  */
 CRTDECL(int,
 thrd_create(
-    _In_ thrd_t*     thr,
+    _In_ thrd_t*      thr,
     _In_ thrd_start_t func,
-    _In_ void*       arg));
+    _In_ void*        arg));
 
 /**
  * @brief Checks whether lhs and rhs refer to the same thread.

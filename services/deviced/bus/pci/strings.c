@@ -15,17 +15,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  *
- *
- * MollenOS X86 Bus Driver (Strings)
- * - Enumerates the bus and registers the devices/controllers
- *   available in the system
  */
 
-#include <os/osdefs.h>
+#include <bus/pci/strings.h>
 
-/* PciToString
- * Converts the given class, subclass and interface into
- * descriptive string to give the pci-entry a description */
 const char*
 PciToString(
 	_In_ uint8_t Class,

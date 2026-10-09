@@ -35,7 +35,9 @@ RegisterDevice(
     uuid_t                   id;
     struct sys_device        sysDevice;
 
-    to_sys_device(device, &sysDevice);
+    if (to_sys_device(device, &sysDevice) != OS_EOK) {
+        return UUID_INVALID;
+    }
 
     status = sys_device_register(GetGrachtClient(), &msg.base, &sysDevice,  flags);
     gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);

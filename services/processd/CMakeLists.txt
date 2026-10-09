@@ -3,12 +3,16 @@ enable_language(C)
 # Configure the base address for phoenix. this is to simplify things for the loader
 # as the loader will not have to relocate.
 set (PHOENIX_BASE_ADDRESS "0x100000")
-if ("${VALI_ARCH}" STREQUAL "i386")
+set (PHOENIX_LINKER_FLAGS "-entry:__phoenix_main,-fixed,")
+if (VALI_ARCH STREQUAL "i386")
     set (PHOENIX_BASE_ADDRESS "0x20000000")
-elseif ("${VALI_ARCH}" STREQUAL "amd64")
+elseif (VALI_ARCH STREQUAL "amd64")
     set (PHOENIX_BASE_ADDRESS "0x8000000000")
+elseif (VALI_ARCH STREQUAL "aarch64")
+    set (PHOENIX_BASE_ADDRESS "0x8000000000")
+    set (PHOENIX_LINKER_FLAGS "-entry:__phoenix_main,")
 else ()
-    message(FATAL "phoenix: unsupported architecture ${VALI_ARCH}")
+    message(FATAL_ERROR "phoenix: unsupported architecture ${VALI_ARCH}")
 endif ()
 
 # Include any sub-projects here
@@ -32,7 +36,7 @@ add_executable (phoenix
 
 target_include_directories(phoenix PRIVATE include)
 target_compile_options(phoenix PRIVATE -nostdlib -Wno-address-of-packed-member)
-target_link_options(phoenix PRIVATE "LINKER:-entry:__phoenix_main,-fixed,-base:${PHOENIX_BASE_ADDRESS}")
+target_link_options(phoenix PRIVATE "LINKER:${PHOENIX_LINKER_FLAGS}-base:${PHOENIX_BASE_ADDRESS}")
 set_target_properties(phoenix
         PROPERTIES
             OUTPUT_NAME "phoenix"

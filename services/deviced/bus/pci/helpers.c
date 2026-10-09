@@ -21,7 +21,7 @@
  *   available in the system
  */
 
-#include "bus.h"
+#include <bus/pci/config.h>
 
 uint16_t PciReadVendorId(
     PciHost_t*   host,

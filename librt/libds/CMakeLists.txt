@@ -55,7 +55,10 @@ elseif (${VALI_ARCH} STREQUAL "amd64")
 endif ()
 
 add_library(libdsk ${LIBDS_SRCS} support/dsk.c)
-target_compile_options(libdsk PRIVATE -mno-sse)
+target_compile_options(libdsk PRIVATE 
+    $<$<STREQUAL:${VALI_ARCH},aarch64>:-mgeneral-regs-only> 
+    $<$<NOT:$<STREQUAL:${VALI_ARCH},aarch64>>:-mno-sse>
+)
 target_compile_definitions(libdsk PRIVATE -D__LIBDS_KERNEL__)
 target_include_directories(libdsk PRIVATE ${SHARED_INCLUDES} ${KERNEL_INCLUDES})
 target_include_directories(libdsk PUBLIC include)
