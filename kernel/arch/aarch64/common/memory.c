@@ -19,6 +19,8 @@
 #include <arch/mmu.h>
 #include <arch/aarch64/arch.h>
 #include <arch/interrupts.h>
+#include <arch/utils.h>
+#include <device_pool.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -33,6 +35,10 @@ static int          g_bootAllocating;
 static uintptr_t    g_identityTable;
 static uintptr_t    g_kernelTable;
 static Spinlock_t   g_tableLock;
+
+// Device pool range, chosen before the identity map so it is never cached.
+static paddr_t      g_devicePoolBase;
+static size_t       g_devicePoolLength;
 
 /**
  * @brief Writes modified translation tables out of this CPU's data cache.
@@ -464,6 +470,46 @@ __MapBootRange(
 }
 
 /**
+ * @brief Identity-map one loader range, keeping the device pool uncached.
+ *
+ * The pool must have no cached view anywhere: the CPU may load cached lines
+ * through any cached view at any time, and those would then disagree with
+ * what devices write. The part of the range inside the pool is therefore
+ * mapped normal non-cacheable and not executable; the rest stays as before.
+ * The pool is 2 MiB aligned, so both parts can still use block mappings.
+ */
+static oserr_t
+__MapBootPieces(
+    _In_ uintptr_t base,
+    _In_ uintptr_t end)
+{
+    uintptr_t poolBase = (uintptr_t)g_devicePoolBase;
+    uintptr_t poolEnd = poolBase + g_devicePoolLength;
+    uintptr_t inside;
+    uintptr_t insideEnd;
+    oserr_t   status;
+
+    if (g_devicePoolLength == 0 || end <= poolBase || base >= poolEnd) {
+        return __MapBootRange(g_identityTable, base, base, end - base, MAPPING_EXECUTABLE, 1);
+    }
+
+    if (base < poolBase) {
+        status = __MapBootRange(g_identityTable, base, base, poolBase - base, MAPPING_EXECUTABLE, 1);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+
+    inside = base > poolBase ? base : poolBase;
+    insideEnd = end < poolEnd ? end : poolEnd;
+    status = __MapBootRange(g_identityTable, inside, inside, insideEnd - inside, MAPPING_NOCACHE, 1);
+    if (status != OS_EOK || end <= poolEnd) {
+        return status;
+    }
+    return __MapBootRange(g_identityTable, poolEnd, poolEnd, end - poolEnd, MAPPING_EXECUTABLE, 1);
+}
+
+/**
  * @brief Builds identity mappings for the loader's mappable physical memory.
  *
  * Rounds each range to page boundaries, skips ranges marked NO_MAP, and keeps
@@ -500,14 +546,7 @@ __MapBootMemory(
             return OS_ENOTSUPPORTED;
         }
         
-        status = __MapBootRange(
-            g_identityTable,
-            base,
-            base,
-            end - base,
-            MAPPING_EXECUTABLE,
-            1
-        );
+        status = __MapBootPieces(base, end);
         if (status != OS_EOK) {
             return status;
         }
@@ -592,6 +631,14 @@ Arm64BootMemoryInitialize(
     g_bootAllocating = 1;
     g_identityTable = __AllocateTable();
     g_kernelTable = __AllocateTable();
+
+    // Generic memory setup later makes the same choice from the same loader
+    // map, so the uncached mapping below covers exactly the pool it uses.
+    // Without room for a pool, all RAM is mapped as before.
+    if (DevicePoolChooseRange(boot, ARM64_DEVICE_POOL_SIZE, ARM64_MEMORY_MASK_LOW, ARM64_BLOCK_SIZE,
+                              &g_devicePoolBase, &g_devicePoolLength) != OS_EOK) {
+        g_devicePoolLength = 0;
+    }
     
     status = __MapBootMemory(boot);
     if (status != OS_EOK) {
@@ -602,6 +649,13 @@ Arm64BootMemoryInitialize(
     // allocation use the physical allocator and its synchronization safely.
     __EnableBootTranslation(features);
     g_bootAllocating = 0;
+
+    // The loader or firmware may have left pool lines in the cache while the
+    // memory was mapped cached. Write them back and drop them once, so the
+    // only view left is the uncached one.
+    if (g_devicePoolLength != 0) {
+        CpuDataCacheCleanInvalidate((uintptr_t)g_devicePoolBase, g_devicePoolLength);
+    }
 
     SpinlockConstruct(&g_tableLock);
     return OS_EOK;
@@ -635,6 +689,13 @@ MmuGetMemoryConfiguration(
     configuration->MemoryMasks[0] = ARM64_MEMORY_MASK_LOW;
     configuration->MemoryMasks[1] = ARM64_MEMORY_MASK_32;
     configuration->MemoryMasks[2] = UINT64_MAX;
+
+    // Must match the arguments Arm64BootMemoryInitialize used to map the
+    // pool uncached. Below 2 GiB suits 32-bit devices and RP1's low alias.
+    configuration->DevicePoolSize = ARM64_DEVICE_POOL_SIZE;
+    configuration->DevicePoolLimit = ARM64_MEMORY_MASK_LOW;
+    configuration->DevicePoolAlignment = ARM64_BLOCK_SIZE;
+    configuration->DevicePoolCached = false;
 }
 
 /**

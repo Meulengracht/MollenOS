@@ -71,7 +71,10 @@ enum VBootMemoryType {
     VBootMemoryType_ACPI,
     VBootMemoryType_NVS,
     VBootMemoryType_Available,
-    VBootMemoryType_Reclaim
+    VBootMemoryType_Reclaim,
+    // RAM the loader set aside for devices, e.g. from a device tree
+    // shared-dma-pool node. Never handed out as ordinary memory.
+    VBootMemoryType_DevicePool
 };
 
 /**

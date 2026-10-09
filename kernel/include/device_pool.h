@@ -21,16 +21,19 @@
 #include <os/osdefs.h>
 #include <ds/bitmap.h>
 #include <spinlock.h>
+#include <vboot/vboot.h>
 
 /**
  * One block of physical memory set aside at boot for devices. It never enters
  * the general page allocator, so it can hand out neighbouring, aligned pages
  * on request, which the general allocator cannot promise. A set bit in Pages
- * means that page is in use.
+ * means that page is in use. Cached tells how every view of the memory must
+ * be mapped: uncached where devices do not see the CPU cache.
  */
 struct DevicePool {
     paddr_t    Base;
     size_t     PageSize;
+    bool       Cached;
     bitmap_t   Pages;
     Spinlock_t Lock;
 };
@@ -48,6 +51,7 @@ struct DevicePool {
  * @param base First physical byte; must be a multiple of pageSize.
  * @param length Nonzero size in bytes; must be a multiple of pageSize.
  * @param pageSize Power of two; the unit everything is handed out in.
+ * @param cached Whether views of the memory may be cached.
  * @param bitmapStorage At least DEVICE_POOL_BITMAP_BYTES(length / pageSize)
  *                      bytes, kept alive as long as the pool.
  * @return OS_EOK; OS_EINVALPARAMS for NULL arguments, a bad page size, a range
@@ -61,6 +65,7 @@ DevicePoolConstruct(
     _In_ paddr_t            base,
     _In_ size_t             length,
     _In_ size_t             pageSize,
+    _In_ bool               cached,
     _In_ void*              bitmapStorage);
 
 /**
@@ -104,5 +109,49 @@ DevicePoolFree(
     _In_ struct DevicePool* pool,
     _In_ paddr_t            base,
     _In_ size_t             length);
+
+/**
+ * @brief Decide where the system's device pool goes, from the loader's map.
+ *
+ * A range the loader marked as VBootMemoryType_DevicePool wins, when it is
+ * aligned to alignment. Otherwise the highest available RAM that fits size
+ * bytes, starting on a multiple of alignment and ending at or below limit, is
+ * used; the highest is chosen to leave the lowest memory for devices with the
+ * tightest address limits. This reads only the map and changes nothing, so
+ * early boot code and generic memory setup can both call it and always agree.
+ *
+ * @param boot Loader information with the physical memory map.
+ * @param size Default pool size; a multiple of alignment.
+ * @param limit Last physical address the default pool may use, inclusive.
+ * @param alignment Power of two the pool's start and size must be multiples of.
+ * @param baseOut Receives the pool's first physical address.
+ * @param lengthOut Receives the pool's size in bytes.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL arguments or a bad size or
+ *         alignment; OS_ENOENT if no range fits.
+ */
+oserr_t
+DevicePoolChooseRange(
+    _In_  const struct VBoot* boot,
+    _In_  size_t              size,
+    _In_  paddr_t             limit,
+    _In_  size_t              alignment,
+    _Out_ paddr_t*            baseOut,
+    _Out_ size_t*             lengthOut);
+
+/**
+ * @brief Make a constructed pool the one SHM uses for device memory.
+ *
+ * Called once by memory setup. Until then, and when no pool could be set up,
+ * DevicePoolSystem returns NULL and device allocations fail.
+ */
+void
+DevicePoolSetSystem(
+    _In_ struct DevicePool* pool);
+
+/**
+ * @brief Return the system's device pool, or NULL if there is none.
+ */
+struct DevicePool*
+DevicePoolSystem(void);
 
 #endif //!__DEVICE_POOL_H__

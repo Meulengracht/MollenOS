@@ -90,6 +90,13 @@ MmuGetMemoryConfiguration(
 #if defined(__amd64__)
     configuration->MemoryMasks[configuration->MemoryMaskCount++] = MEMORY_MASK_64BIT;
 #endif
+
+    // PCI devices see the CPU cache, so the pool may stay cached. It is only
+    // needed for contiguous, aligned runs; below 4 GiB suits 32-bit devices.
+    configuration->DevicePoolSize      = 0x200000;
+    configuration->DevicePoolLimit     = MEMORY_MASK_32BIT;
+    configuration->DevicePoolAlignment = 0x200000;
+    configuration->DevicePoolCached    = true;
 }
 
 

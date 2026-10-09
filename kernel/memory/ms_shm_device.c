@@ -431,11 +431,13 @@ SHMDeviceContextBuildSegments(
  * so the sync calls can copy between them with plain memory copies.
  */
 struct SHMDeviceBounce {
-    vaddr_t Source;       // Kernel view of the buffer's pages.
-    size_t  SourceLength;
-    size_t  SourceOffset; // Where the mapped range starts inside that view.
-    vaddr_t Copy;         // Kernel view of the bounce pages; the range starts at 0.
-    size_t  CopyLength;
+    vaddr_t            Source;       // Kernel view of the buffer's pages.
+    size_t             SourceLength;
+    size_t             SourceOffset; // Where the mapped range starts inside that view.
+    vaddr_t            Copy;         // Kernel view of the bounce pages; the range starts at 0.
+    size_t             CopyLength;
+    struct DevicePool* CopyPool;     // Where the bounce pages go back to.
+    paddr_t            CopyPhysical;
 };
 
 /**
@@ -565,11 +567,16 @@ static void
 __ReleaseBounce(
     _In_ struct SHMDeviceBounce* bounce)
 {
-    // The bounce pages belong to this view and are freed with it. The buffer
-    // view is persistent, so removing it leaves the buffer's pages alone.
+    // The bounce view is persistent, so its pages are returned to the pool
+    // separately. The buffer view is persistent too, so removing it leaves
+    // the buffer's pages alone.
     if (bounce->Copy != 0) {
         (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Copy, bounce->CopyLength);
         bounce->Copy = 0;
+    }
+    if (bounce->CopyPool != NULL) {
+        (void)DevicePoolFree(bounce->CopyPool, bounce->CopyPhysical, bounce->CopyLength);
+        bounce->CopyPool = NULL;
     }
     if (bounce->Source != 0) {
         (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Source, bounce->SourceLength);
@@ -596,9 +603,9 @@ __MapSourceView(
     size_t       start = buffer->Offset + offset;
     unsigned int flags = MAPPING_COMMIT | MAPPING_PERSISTENT;
 
-    // An uncached buffer must not get a cached kernel view: the two could
-    // then disagree about what is in memory.
-    if (SHM_KIND(buffer->Flags) == SHM_DEVICE) {
+    // A second view must match the buffer's other views, or the two could
+    // disagree about what is in memory.
+    if (SHMBufferUncached(buffer)) {
         flags |= MAPPING_NOCACHE;
     }
 
@@ -619,11 +626,12 @@ __MapSourceView(
 }
 
 /**
- * @brief Allocate bounce pages and describe them as physical blocks.
+ * @brief Take bounce pages from the device pool and describe them.
  *
- * Low memory is requested because it is the most likely to be reachable by a
- * device with an address limit; the caller still checks reachability. Pages
- * are zeroed, so a device never reads data left behind by someone else.
+ * The pool's memory is chosen at boot to be reachable by devices, and on
+ * ARM64 has no cached view anywhere. The caller still checks reachability.
+ * Pages are zeroed, so a device never reads data left behind by someone else.
+ * A full pool fails the mapping rather than falling back to other memory.
  *
  * @param extents Room for one entry per bounce page; overwritten on success.
  */
@@ -635,31 +643,43 @@ __AllocateCopy(
     _Out_   SHMSG_t*                extents,
     _Out_   int*                    extentCountOut)
 {
-    paddr_t* pages;
-    size_t   pageCount = DIVUP(length, pageSize);
-    size_t   mask;
-    oserr_t  status;
+    struct DevicePool* pool = DevicePoolSystem();
+    paddr_t*           pages;
+    size_t             pageCount = DIVUP(length, pageSize);
+    unsigned int       flags = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_CLEAN;
+    oserr_t            status;
 
-    status = ArchSHMTypeToPageMask(OSMEMORYCONFORMITY_LOW, &mask);
+    if (pool == NULL) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    bounce->CopyLength = pageCount * pageSize;
+    status = DevicePoolAllocate(pool, bounce->CopyLength, 0, 0, &bounce->CopyPhysical);
     if (status != OS_EOK) {
         return status;
     }
+    bounce->CopyPool = pool;
 
-    // MemorySpaceMap reports the pages it allocated through this array.
+    // MemorySpaceMap takes the pages as a list, one entry per page.
     pages = kmalloc(pageCount * sizeof(paddr_t));
     if (pages == NULL) {
         return OS_EOOM;
     }
+    for (size_t i = 0; i < pageCount; i++) {
+        pages[i] = bounce->CopyPhysical + ((paddr_t)i * pageSize);
+    }
 
-    bounce->CopyLength = pageCount * pageSize;
+    if (!pool->Cached) {
+        flags |= MAPPING_NOCACHE;
+    }
     status = MemorySpaceMap(
         GetCurrentMemorySpace(),
         &(struct MemorySpaceMapOptions) {
             .Pages = pages,
             .Length = bounce->CopyLength,
-            .Mask = mask,
-            .Flags = MAPPING_COMMIT | MAPPING_CLEAN,
-            .PlacementFlags = MAPPING_VIRTUAL_GLOBAL
+            .Mask = __MASK,
+            .Flags = flags,
+            .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
         },
         &bounce->Copy
     );
@@ -930,8 +950,9 @@ __RequirementsValid(
 /**
  * @brief Check the device's view of an allocation against the requirements.
  *
- * The current page allocator cannot be asked for contiguous or aligned
- * memory, so the result is checked afterwards instead of being guaranteed.
+ * The pool guarantees them for physical addresses. Device addresses can be
+ * offset from those, or split across ranges, so the device's view is checked
+ * too before the memory is handed out.
  */
 static oserr_t
 __CheckRequirements(
@@ -985,17 +1006,15 @@ SHMDeviceAllocate(
         return OS_EINVALPARAMS;
     }
 
-    // SHM_DEVICE gives committed, uncached pages, so neither side needs sync
-    // calls to see the other's writes; SHM_CLEAN zeroes them, so the device
-    // never sees old data. Low memory is the most likely to be reachable.
-    // Whole pages are used so no cache line is shared with other memory.
-    status = SHMCreate(
-        &(SHM_t) {
-            .Flags = SHM_DEVICE | SHM_CLEAN,
-            .Access = SHM_ACCESS_READ | SHM_ACCESS_WRITE,
-            .Conformity = OSMEMORYCONFORMITY_LOW,
-            .Size = DIVUP(requirements->Length, pageSize) * pageSize
-        },
+    // Pool pages are one contiguous, zeroed run whose physical alignment and
+    // boundary already follow the requirements, and whose views are uncached
+    // where devices do not see the CPU cache, so neither side needs sync
+    // calls. Whole pages keep any cache line from being shared with other
+    // memory. A full pool fails here instead of falling back.
+    status = SHMCreateFromDevicePool(
+        DIVUP(requirements->Length, pageSize) * pageSize,
+        (size_t)requirements->Alignment,
+        (size_t)requirements->Boundary,
         &handle
     );
     if (status != OS_EOK) {

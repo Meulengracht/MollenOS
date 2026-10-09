@@ -20,25 +20,47 @@
 
 #include <ds/list.h>
 #include <ds/bitmap.h>
+#include <device_pool.h>
 #include <memoryspace.h>
 #include <mutex.h>
+#include <os/types/shm.h>
 
 /**
  * @brief Internal SHMBuffer representation.
+ *
+ * Pool is set when the pages came from a device pool; they go back there
+ * instead of to the page allocator.
  */
 struct SHMBuffer {
-    uuid_t            ID;
-    MemorySpace_t*    Owner;
-    Mutex_t           Mutex;
-    vaddr_t           KernelMapping;
-    size_t            Offset;
-    size_t            Length;
-    size_t            PageMask;
-    unsigned int      Flags;
-    bool              Exported;
-    int               PageCount;
-    paddr_t           Pages[];
+    uuid_t             ID;
+    MemorySpace_t*     Owner;
+    Mutex_t            Mutex;
+    vaddr_t            KernelMapping;
+    size_t             Offset;
+    size_t             Length;
+    size_t             PageMask;
+    unsigned int       Flags;
+    bool               Exported;
+    struct DevicePool* Pool;
+    int                PageCount;
+    paddr_t            Pages[];
 };
+
+/**
+ * @brief Tell whether every view of a buffer must be uncached.
+ *
+ * All views of the same memory must agree, or the CPU can see stale data.
+ * Pool memory follows its pool; other device buffers are always uncached.
+ */
+static inline bool
+SHMBufferUncached(
+    _In_ const struct SHMBuffer* buffer)
+{
+    if (buffer->Pool != NULL) {
+        return !buffer->Pool->Cached;
+    }
+    return SHM_KIND(buffer->Flags) == SHM_DEVICE;
+}
 
 struct MSAllocation {
     element_t            Header;
