@@ -161,38 +161,39 @@ OnLoad(void)
 }
 
 static void
-__DestroyDevice(
+__UnloadDevice(
     _In_ element_t* element,
-    _In_ void*      context)
+    _In_ list_t*    devices)
 {
     VirtioNetDevice_t* device = element->value;
-    list_t*           devices = context;
     oserr_t            status;
 
     list_remove(devices, element);
     status = VirtioNetDeviceDestroy(device);
+    if (status == OS_EOK) {
+        return;
+    }
+
+    // Unload runs at process exit, so there is no later retry and teardown will
+    // reclaim the DMA memory. Stop the device from reaching it over PCI instead.
+    status = VirtioPciTransportDisable(&device->Transport);
     if (status != OS_EOK) {
-        VirtioNetRetainDevice(device);
+        ERROR("virtio-net device=%u could not be disabled: %u",
+              device->BusDevice->Base.Id, status);
     }
 }
 
 void
 OnUnload(void)
 {
-    int count;
-
     VirtioNetLock();
-    
-    // Retry previously failed cleanup before active devices, so a new failure
-    // is not retried again during the same unload attempt.
-    count = list_count(&g_cleanupDevices);
-    for (int remaining = count; remaining > 0; --remaining) {
-        __DestroyDevice(list_front(&g_cleanupDevices), &g_cleanupDevices);
+    // Devices whose earlier cleanup failed get one more reset attempt here.
+    while (list_count(&g_cleanupDevices) > 0) {
+        __UnloadDevice(list_front(&g_cleanupDevices), &g_cleanupDevices);
     }
-    
-    count = list_count(&g_devices);
-    for (int remaining = count; remaining > 0; --remaining) {
-        __DestroyDevice(list_front(&g_devices), &g_devices);
+
+    while (list_count(&g_devices) > 0) {
+        __UnloadDevice(list_front(&g_devices), &g_devices);
     }
     VirtioNetUnlock();
 }
