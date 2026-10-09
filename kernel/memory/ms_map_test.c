@@ -1163,6 +1163,46 @@ SystemMachine_t* GetMachine(void) {
     return &g_testContext.Machine;
 }
 
+// Mocks for MemorySpaceCopyUser, which is not exercised by these tests
+MemorySpace_t* GetCurrentMemorySpace(void) {
+    return NULL;
+}
+
+MemorySpace_t* GetDomainMemorySpace(void) {
+    return NULL;
+}
+
+oserr_t GetMemorySpaceAttributes(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ size_t         length,
+        _In_ unsigned int*  attributesArray) {
+    return OS_ENOTSUPPORTED;
+}
+
+oserr_t GetMemorySpaceMapping(
+        _In_  MemorySpace_t* memorySpace,
+        _In_  vaddr_t        address,
+        _In_  int            pageCount,
+        _Out_ uintptr_t*     dmaVectorOut) {
+    return OS_ENOTSUPPORTED;
+}
+
+oserr_t MemorySpaceUnmap(
+        _In_ MemorySpace_t* memorySpace,
+        _In_ vaddr_t        address,
+        _In_ size_t         size) {
+    return OS_ENOTSUPPORTED;
+}
+
+void MutexLock(
+        _In_ Mutex_t* mutex) {
+}
+
+void MutexUnlock(
+        _In_ Mutex_t* mutex) {
+}
+
 // System mocks
 oserr_t AllocatePhysicalMemory(
         _In_ size_t     pageMask,
@@ -1365,6 +1405,12 @@ struct MSAllocation* MSAllocationAcquire(
     assert_non_null(context);
     assert_int_not_equal(address, 0);
     return NULL;
+}
+
+oserr_t MSAllocationRelease(
+        _In_ struct MSContext*    context,
+        _In_ struct MSAllocation* allocation) {
+    return OS_EOK;
 }
 
 struct MSAllocation* MSAllocationLookup(

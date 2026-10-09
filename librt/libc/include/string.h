@@ -25,6 +25,7 @@
 
 #include <crtdefs.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <locale.h>
 
 _CODE_BEGIN
@@ -165,10 +166,10 @@ CRTDECL(size_t, strnlen(const char *str, size_t max));
 /*******************************
  *     String Conversions      *
  *******************************/
-CRTDECL(char*, i64toa(__int64 value, char *string, int radix));
-CRTDECL(int,   i64toa_s(__int64 value, char *str, size_t size, int radix));
-CRTDECL(char*, ui64toa(unsigned __int64 value, char *string, int radix));
-CRTDECL(int,   ui64toa_s(unsigned __int64 value, char *str, size_t size, int radix));
+CRTDECL(char*, i64toa(int64_t value, char *string, int radix));
+CRTDECL(int,   i64toa_s(int64_t value, char *str, size_t size, int radix));
+CRTDECL(char*, ui64toa(uint64_t value, char *string, int radix));
+CRTDECL(int,   ui64toa_s(uint64_t value, char *str, size_t size, int radix));
 CRTDECL(int,   itoa_s(int value, char *str, size_t size, int radix));
 CRTDECL(char*, itoa(int value, char *string, int radix));
 CRTDECL(char*, ltoa(long value, char *string, int radix));

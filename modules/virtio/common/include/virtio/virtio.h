@@ -436,6 +436,19 @@ VirtioPciTransportDestroy(
 	_In_ VirtioPciTransport_t* transport);
 
 /**
+ * @brief Disables bus mastering, MMIO/IO decoding and interrupts at the PCI level.
+ *
+ * Last-resort quiesce when VirtioPciReset() fails: it stops device DMA without
+ * relying on the Virtio status register. The transport is unusable afterwards.
+ *
+ * @param transport The initialized transport controlling the device.
+ * @return OS_EOK on success, or the bus control error.
+ */
+oserr_t
+VirtioPciTransportDisable(
+	_In_ VirtioPciTransport_t* transport);
+
+/**
  * @brief Reads a value from a mapped Virtio PCI capability region.
  *
  * @param region The capability region to access.

@@ -16,7 +16,8 @@
  * 
  * Virtio network device main module.
  * 
- * Handles PCI attachment, protocol advertisement, and interrupt dispatch for the Virtio network device.
+ * Handles PCI attachment, protocol advertisement, and interrupt dispatch 
+ * for the Virtio network device.
  * 
  */
 
@@ -43,6 +44,7 @@ extern void
 __crt_module_set_send_timeout(uint32_t milliseconds);
 
 static list_t            g_devices = LIST_INIT;
+static list_t            g_cleanupDevices = LIST_INIT;
 static struct usched_mtx g_lock;
 
 /**
@@ -72,6 +74,13 @@ VirtioNetFindDevice(
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
+void
+VirtioNetRetainDevice(
+    _In_ VirtioNetDevice_t* device)
+{
+    list_append(&g_cleanupDevices, &device->Header);
+}
+
 VirtioNetDevice_t*
 VirtioNetFindSession(
     _In_ const struct gracht_message*         message,
@@ -97,7 +106,7 @@ VirtioNetWasClosed(
 {
     foreach (element, &g_devices) {
         VirtioNetDevice_t* device = element->value;
-        for (uint32_t i = 0; i < device->ClosedCount; ++i) {
+        for (size_t i = 0; i < device->ClosedCount; ++i) {
             VirtioNetClosedSession_t* closed = &device->Closed[i];
             if (closed->Owner == message->client && identity->id == closed->Identity.id &&
                 identity->generation == closed->Identity.generation) {
@@ -152,19 +161,40 @@ OnLoad(void)
 }
 
 static void
-__DestroyDevice(
+__UnloadDevice(
     _In_ element_t* element,
-    _In_ void*      context)
+    _In_ list_t*    devices)
 {
-    (void)context;
-    VirtioNetDeviceDestroy(element->value);
+    VirtioNetDevice_t* device = element->value;
+    oserr_t            status;
+
+    list_remove(devices, element);
+    status = VirtioNetDeviceDestroy(device);
+    if (status == OS_EOK) {
+        return;
+    }
+
+    // Unload runs at process exit, so there is no later retry and teardown will
+    // reclaim the DMA memory. Stop the device from reaching it over PCI instead.
+    status = VirtioPciTransportDisable(&device->Transport);
+    if (status != OS_EOK) {
+        ERROR("virtio-net device=%u could not be disabled: %u",
+              device->BusDevice->Base.Id, status);
+    }
 }
 
 void
 OnUnload(void)
 {
     VirtioNetLock();
-    list_clear(&g_devices, __DestroyDevice, NULL);
+    // Devices whose earlier cleanup failed get one more reset attempt here.
+    while (list_count(&g_cleanupDevices) > 0) {
+        __UnloadDevice(list_front(&g_cleanupDevices), &g_cleanupDevices);
+    }
+
+    while (list_count(&g_devices) > 0) {
+        __UnloadDevice(list_front(&g_devices), &g_devices);
+    }
     VirtioNetUnlock();
 }
 
@@ -323,10 +353,13 @@ OnUnregister(
         return status;
     }
 
-    // Unlink first, but put the still-live entry back if reset fails. A
-    // failed detach must not lose the only reference to DMA-owned storage.
+    // Stop exposing the device even if reset fails. Keep its DMA-owned storage
+    // on the cleanup list until destruction can complete.
     list_remove(&g_devices, &device->Header);
-    VirtioNetDeviceDestroy(device);
+    status = VirtioNetDeviceDestroy(device);
+    if (status != OS_EOK) {
+        VirtioNetRetainDevice(device);
+    }
     VirtioNetUnlock();
     return status;
 }

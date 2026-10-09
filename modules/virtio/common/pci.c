@@ -663,6 +663,24 @@ VirtioPciTransportDestroy(
 }
 
 oserr_t
+VirtioPciTransportDisable(
+    _In_ VirtioPciTransport_t* transport)
+{
+    if (transport == NULL || transport->Device == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    return OSDeviceIOCtl(
+        transport->Device->Base.Id,
+        OSIOCTLREQUEST_BUS_CONTROL,
+        &(struct OSIOCtlBusControl) {
+            .Flags = 0
+        },
+        sizeof(struct OSIOCtlBusControl)
+    );
+}
+
+oserr_t
 VirtioPciReset(
     _In_ VirtioPciTransport_t* transport)
 {
