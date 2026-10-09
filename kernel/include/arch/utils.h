@@ -112,6 +112,54 @@ CpuInvalidateMemoryCache(
     _In_Opt_ size_t Length);
 
 /**
+ * @brief Smallest data cache line size in bytes.
+ *
+ * Cache maintenance always works on whole lines, so callers use this to tell
+ * whether a block of memory shares a line with unrelated data.
+ */
+KERNELAPI size_t KERNELABI
+CpuDataCacheLineSize(void);
+
+/**
+ * @brief Write cached CPU data for a block of physical RAM back to memory.
+ *
+ * A device that cannot see the CPU cache reads memory directly, so data the
+ * CPU wrote must reach memory before such a device reads it. The cached copy
+ * stays valid. Whole cache lines touching the block are affected. Returns once
+ * the work is complete. Does nothing where devices see the CPU cache.
+ */
+KERNELAPI void KERNELABI
+CpuDataCacheClean(
+    _In_ uintptr_t physical,
+    _In_ size_t    length);
+
+/**
+ * @brief Throw away cached copies of a block of physical RAM.
+ *
+ * After a device wrote memory directly, older cached copies would hide the new
+ * data from the CPU. Any unwritten CPU changes in the affected lines are lost,
+ * so callers must own every byte of every line touching the block. Returns once
+ * the work is complete. Does nothing where devices see the CPU cache.
+ */
+KERNELAPI void KERNELABI
+CpuDataCacheInvalidate(
+    _In_ uintptr_t physical,
+    _In_ size_t    length);
+
+/**
+ * @brief Write back, then throw away, cached copies of a block of physical RAM.
+ *
+ * Used before a device writes memory: writing back first means no CPU data is
+ * lost, and throwing away the lines means no old cached line can later be
+ * written over the device's data. Returns once the work is complete. Does
+ * nothing where devices see the CPU cache.
+ */
+KERNELAPI void KERNELABI
+CpuDataCacheCleanInvalidate(
+    _In_ uintptr_t physical,
+    _In_ size_t    length);
+
+/**
  * @brief Discover and register the platform components from a validated DTB. 
  * @param tree A pointer to the validated device tree blob (DTB) containing platform components.
  * @return Returns OS_EOK on success, or an appropriate error code on failure.

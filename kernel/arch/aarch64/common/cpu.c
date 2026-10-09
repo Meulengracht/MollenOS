@@ -243,3 +243,87 @@ CpuInvalidateMemoryCache(
     
     __asm__ volatile("dsb ishst\ntlbi vmalle1is\ndsb ish\nisb" ::: "memory");
 }
+
+size_t
+CpuDataCacheLineSize(void)
+{
+    uint64_t ctr;
+
+    // CTR.DminLine is the smallest data line of any cache in the system, so
+    // stepping by it never skips a line in a larger cache.
+    __asm__ volatile("mrs %0, ctr_el0" : "=r"(ctr));
+    return ARM64_CACHE_WORD_SIZE << ((ctr >> ARM64_CTR_DATA_SHIFT) & ARM64_FEATURE_FIELD_MASK);
+}
+
+enum __DataCacheOperation {
+    __DataCacheClean,
+    __DataCacheInvalidate,
+    __DataCacheCleanInvalidate
+};
+
+/**
+ * @brief Apply one cache operation to every line touching a block of RAM.
+ *
+ * The "to point of coherency" forms are used because that is where devices
+ * read and write memory. One loop serves all three operations so they cannot
+ * differ in how they round to whole lines.
+ */
+static void
+__MaintainDataCache(
+    _In_ uintptr_t                 physical,
+    _In_ size_t                    length,
+    _In_ enum __DataCacheOperation operation)
+{
+    size_t    line;
+    uintptr_t address;
+    uintptr_t end = physical + length;
+
+    if (length == 0) {
+        return;
+    }
+
+    // Every address space links the boot identity window, where RAM sits at
+    // the same virtual address as its physical one, so no mapping is needed.
+    line = CpuDataCacheLineSize();
+    for (address = physical & ~(line - 1); address < end; address += line) {
+        switch (operation) {
+            case __DataCacheClean:
+                __asm__ volatile("dc cvac, %0" :: "r"(address) : "memory");
+                break;
+            case __DataCacheInvalidate:
+                __asm__ volatile("dc ivac, %0" :: "r"(address) : "memory");
+                break;
+            default:
+                __asm__ volatile("dc civac, %0" :: "r"(address) : "memory");
+                break;
+        }
+    }
+
+    // Wait for every line to finish before a device is told to use the memory,
+    // or before the CPU reads what a device wrote.
+    __asm__ volatile("dsb sy" ::: "memory");
+}
+
+void
+CpuDataCacheClean(
+    _In_ uintptr_t physical,
+    _In_ size_t    length)
+{
+    __MaintainDataCache(physical, length, __DataCacheClean);
+}
+
+void
+CpuDataCacheInvalidate(
+    _In_ uintptr_t physical,
+    _In_ size_t    length)
+{
+    __MaintainDataCache(physical, length, __DataCacheInvalidate);
+}
+
+void
+CpuDataCacheCleanInvalidate(
+    _In_ uintptr_t physical,
+    _In_ size_t    length)
+{
+    __MaintainDataCache(physical, length, __DataCacheCleanInvalidate);
+}

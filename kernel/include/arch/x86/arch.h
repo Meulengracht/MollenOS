@@ -45,6 +45,8 @@ typedef struct PlatformCpuBlock {
     uint32_t EcxFeatures;
     uint32_t EdxFeatures;
     uint32_t Flags;
+
+    uint32_t CacheLineSize;
 } PlatformCpuBlock_t;
 
 typedef struct PlatformCpuCoreBlock {

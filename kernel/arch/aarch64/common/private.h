@@ -163,6 +163,9 @@
 #define ARM64_MEMORY_MASK_LOW    0x7fffffffULL
 #define ARM64_MEMORY_MASK_32     0xffffffffULL
 
+// Default device pool size; a multiple of ARM64_BLOCK_SIZE so it maps in blocks.
+#define ARM64_DEVICE_POOL_SIZE   0x400000ULL
+
 // ESR_EL1.EC[31:26] selects the exception class; ISS[24:0] carries details.
 #define ARM64_ESR_SYNDROME_MASK           0x1ffffffU
 #define ARM64_EC_UNKNOWN                  0x00U

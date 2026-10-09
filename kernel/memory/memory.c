@@ -25,6 +25,7 @@
 #include <arch/mmu.h>
 #include <ddk/io.h>
 #include <debug.h>
+#include <device_pool.h>
 #include <heap.h>
 #include <machine.h>
 
@@ -37,11 +38,15 @@ struct MemoryBootContext {
     uintptr_t               BootMemoryAddress;
     int                     BootMemoryEnabled;
     uintptr_t               BootMemoryStart;
+    // Physical range set aside for devices; zero length when there is none.
+    paddr_t                 DevicePoolBase;
+    size_t                  DevicePoolLength;
 };
 
 static PlatformMemoryMapping_t* g_kernelMappings        = NULL;
 static int                      g_kernelMappingIndex    = 0;
 static int                      g_kernelMappingCapacity = 0;
+static struct DevicePool        g_devicePool;
 
 // static methods in this file
 static oserr_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
@@ -127,6 +132,55 @@ __InitializeKernelMappings(
     return OS_EOK;
 }
 
+/**
+ * @brief Tell whether a physical range shares any byte with the device pool.
+ */
+static bool
+__OverlapsDevicePool(
+        _In_ const struct MemoryBootContext* bootContext,
+        _In_ uint64_t                        base,
+        _In_ uint64_t                        length)
+{
+    uint64_t poolBase = bootContext->DevicePoolBase;
+
+    if (bootContext->DevicePoolLength == 0 || length == 0) {
+        return false;
+    }
+    return base < poolBase + bootContext->DevicePoolLength && poolBase < base + length;
+}
+
+/**
+ * @brief Decide where the device pool goes, before any memory is handed out.
+ *
+ * Uses the same choice ARM64 made when it mapped the pool uncached at early
+ * boot: the same function on the same loader map always gives the same range.
+ */
+static void
+__ChooseDevicePool(
+        _In_ struct MemoryBootContext*            bootContext,
+        _In_ struct VBoot*                        bootInformation,
+        _In_ const PlatformMemoryConfiguration_t* configuration)
+{
+    oserr_t oserr;
+
+    if (configuration->DevicePoolSize == 0) {
+        return;
+    }
+
+    oserr = DevicePoolChooseRange(
+            bootInformation,
+            configuration->DevicePoolSize,
+            configuration->DevicePoolLimit,
+            configuration->DevicePoolAlignment,
+            &bootContext->DevicePoolBase,
+            &bootContext->DevicePoolLength
+    );
+    if (oserr != OS_EOK) {
+        WARNING("MachineMemoryInitialize no room for the device pool, device allocations will fail");
+        bootContext->DevicePoolLength = 0;
+    }
+}
+
 static oserr_t
 __InitializeIdentityMemory(
         _In_ struct MemoryBootContext*      bootContext,
@@ -152,7 +206,10 @@ __InitializeIdentityMemory(
     entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &entries[i];
-        if (entry->Type == VBootMemoryType_Available) {
+        // Boot memory must not land in the device pool, whose pages may be
+        // mapped uncached and must never be used for anything else.
+        if (entry->Type == VBootMemoryType_Available &&
+            !__OverlapsDevicePool(bootContext, entry->PhysicalBase, sizeRequired)) {
             if (entry->Length >= sizeRequired) {
                 TRACE("__InitializeIdentityMemory found area PhysicalBase=0x%llx, Length=0x%llx",
                       entry->PhysicalBase, entry->Length);
@@ -331,6 +388,68 @@ __InitializePhysicalMemory(
 }
 
 static void
+__FillRange(
+        _In_ SystemMemoryAllocator_t* physicalMemory,
+        _In_ uintptr_t                baseAddress,
+        _In_ size_t                   length,
+        _In_ size_t                   pageSize)
+{
+    for (int j = 0; j < physicalMemory->MaskCount && length; j++) {
+        size_t maskSize;
+        size_t sizeAvailable;
+        int    blockCount;
+
+        if (baseAddress > physicalMemory->Masks[j]) {
+            continue;
+        }
+
+        // ok so base address fits into the region, lets calculate how many
+        // blocks fit             mask=0xFFFFF, base=0, len=0x200000
+        // maskSize = 0x100000
+        maskSize      = (physicalMemory->Masks[j] - baseAddress) + 1;
+        sizeAvailable = MIN(maskSize, length);
+        blockCount    = (int)(sizeAvailable / pageSize);
+        MemoryStackPush(&physicalMemory->Region[j].Stack, baseAddress, blockCount);
+
+        // add statistics so we can keep track of free memory
+        GetMachine()->NumberOfFreeMemoryBlocks += (size_t)blockCount;
+
+        // adjust base and length
+        baseAddress += sizeAvailable;
+        length      -= sizeAvailable;
+    }
+}
+
+/**
+ * @brief Hand a free range to the page allocator, leaving out the device pool.
+ *
+ * The pool's pages belong to devices only; giving them to the page allocator
+ * as well would let the same page be handed out twice.
+ */
+static void
+__FillAroundDevicePool(
+        _In_ struct MemoryBootContext* bootContext,
+        _In_ SystemMemoryAllocator_t*  physicalMemory,
+        _In_ uintptr_t                 baseAddress,
+        _In_ size_t                    length,
+        _In_ size_t                    pageSize)
+{
+    uintptr_t poolBase = (uintptr_t)bootContext->DevicePoolBase;
+    uintptr_t poolEnd  = poolBase + bootContext->DevicePoolLength;
+
+    if (!__OverlapsDevicePool(bootContext, baseAddress, length)) {
+        __FillRange(physicalMemory, baseAddress, length, pageSize);
+        return;
+    }
+    if (baseAddress < poolBase) {
+        __FillRange(physicalMemory, baseAddress, poolBase - baseAddress, pageSize);
+    }
+    if (baseAddress + length > poolEnd) {
+        __FillRange(physicalMemory, poolEnd, (baseAddress + length) - poolEnd, pageSize);
+    }
+}
+
+static void
 __FillPhysicalMemory(
         _In_ struct MemoryBootContext* bootContext,
         _In_ struct VBoot*             bootInformation,
@@ -338,7 +457,6 @@ __FillPhysicalMemory(
         _In_ size_t                    pageSize)
 {
     unsigned int             i;
-    int                      j;
     size_t                   reservedMemorySize;
     struct VBootMemoryEntry* entries;
     TRACE("__FillPhysicalMemory()");
@@ -361,30 +479,7 @@ __FillPhysicalMemory(
 
             TRACE("__FillPhysicalMemory region %i: 0x%" PRIxIN " => 0x%" PRIxIN,
                   i, baseAddress, baseAddress + length);
-            for (j = 0; j < physicalMemory->MaskCount && length; j++) {
-                size_t maskSize;
-                size_t sizeAvailable;
-                int    blockCount;
-
-                if (baseAddress > physicalMemory->Masks[j]) {
-                    continue;
-                }
-
-                // ok so base address fits into the region, lets calculate how many
-                // blocks fit             mask=0xFFFFF, base=0, len=0x200000
-                // maskSize = 0x100000
-                maskSize      = (physicalMemory->Masks[j] - baseAddress) + 1;
-                sizeAvailable = MIN(maskSize, length);
-                blockCount    = (int)(sizeAvailable / pageSize);
-                MemoryStackPush(&physicalMemory->Region[j].Stack, baseAddress, blockCount);
-
-                // add statistics so we can keep track of free memory
-                GetMachine()->NumberOfFreeMemoryBlocks += (size_t)blockCount;
-
-                // adjust base and length
-                baseAddress += sizeAvailable;
-                length      -= sizeAvailable;
-            }
+            __FillAroundDevicePool(bootContext, physicalMemory, baseAddress, length, pageSize);
         }
     }
 }
@@ -470,6 +565,50 @@ __InitializeBootTLS(
     // add any other per-core data here
 }
 
+/**
+ * @brief Start handing out the device pool's pages, once the heap works.
+ *
+ * The pool's range was kept out of the page allocator earlier. Its bitmap
+ * comes from the heap, which only exists at the end of memory setup.
+ */
+static oserr_t
+__InitializeDevicePool(
+        _In_ struct MemoryBootContext*            bootContext,
+        _In_ const PlatformMemoryConfiguration_t* configuration)
+{
+    size_t  pageCount = bootContext->DevicePoolLength / configuration->PageSize;
+    void*   bitmap;
+    oserr_t oserr;
+
+    if (bootContext->DevicePoolLength == 0) {
+        return OS_EOK;
+    }
+
+    bitmap = kmalloc(DEVICE_POOL_BITMAP_BYTES(pageCount));
+    if (bitmap == NULL) {
+        return OS_EOOM;
+    }
+
+    oserr = DevicePoolConstruct(
+            &g_devicePool,
+            bootContext->DevicePoolBase,
+            bootContext->DevicePoolLength,
+            configuration->PageSize,
+            configuration->DevicePoolCached,
+            bitmap
+    );
+    if (oserr != OS_EOK) {
+        kfree(bitmap);
+        return oserr;
+    }
+
+    DevicePoolSetSystem(&g_devicePool);
+    DEBUG("Device pool 0x%llx, %" PRIuIN " bytes, %s",
+          (unsigned long long)bootContext->DevicePoolBase, bootContext->DevicePoolLength,
+          configuration->DevicePoolCached ? "cached" : "uncached");
+    return OS_EOK;
+}
+
 oserr_t
 MachineMemoryInitialize(
         _In_ SystemMachine_t* machine,
@@ -503,6 +642,10 @@ MachineMemoryInitialize(
     // Initialize the memory boot context that keeps some state for us while initializing
     // system memory.
     memset(&bootContext, 0, sizeof(struct MemoryBootContext));
+
+    // Decide on the device pool first, so neither boot memory nor the page
+    // allocator can take its pages.
+    __ChooseDevicePool(&bootContext, &machine->BootInformation, &configuration);
 
     // Find a suitable area where we can allocate continous physical pages for systems
     // that require (ident-mapped) memory. This is memory where the pointers need to be valid
@@ -588,6 +731,11 @@ MachineMemoryInitialize(
 
     // Initialize the slab allocator now that subsystems are up
     MemoryCacheInitialize();
+
+    oserr = __InitializeDevicePool(&bootContext, &configuration);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     __PrintMemoryUsage();
     return OS_EOK;

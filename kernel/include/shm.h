@@ -33,6 +33,28 @@ SHMCreate(
         _In_ SHMHandle_t* handle);
 
 /**
+ * @brief Create a zeroed device buffer from the system's device pool.
+ *
+ * The pages form one physically contiguous run that starts on a multiple of
+ * alignment and whose first size bytes do not cross a multiple of boundary.
+ * Every view of it is cached or uncached as the pool requires. The buffer is
+ * mapped into the calling process; releasing it returns the pages to the pool.
+ *
+ * @param size Nonzero number of bytes, a multiple of the page size.
+ * @param alignment Zero or a power of two, measured in physical addresses.
+ * @param boundary Zero or a power of two no smaller than size.
+ * @param handle Receives the buffer handle, including the CPU pointer.
+ * @return OS_EOK; OS_EINVALPARAMS for bad arguments; OS_ENOTSUPPORTED if the
+ *         system has no device pool; OS_EOOM if the pool has no fitting run.
+ */
+KERNELAPI oserr_t KERNELABI
+SHMCreateFromDevicePool(
+        _In_  size_t       size,
+        _In_  size_t       alignment,
+        _In_  size_t       boundary,
+        _Out_ SHMHandle_t* handle);
+
+/**
  * @brief Exports an existing memory region that stretches over <Length>. Makes sure
  * all the memory from <Memory> to <Memory + Length> is committed.
  * @param memory [In]  The buffer that should be exported.
