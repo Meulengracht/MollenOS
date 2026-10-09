@@ -19,6 +19,7 @@
 #define __SHM_DEVICE_H__
 
 #include <os/osdefs.h>
+#include <os/types/shm.h>
 
 // Bound copying and validation work. This accepts all 64 ranges currently
 // produced by deviced without making kernel code depend on firmware headers.
@@ -43,6 +44,18 @@ enum SHMDeviceCachePolicy {
 struct SHMDeviceRange {
     uint64_t PhysicalBase;
     uint64_t DeviceBase;
+    uint64_t Length;
+};
+
+/**
+ * @brief One block of bytes as the device sees it.
+ *
+ * Unlike SHMSG_t, which holds CPU physical addresses in a pointer-sized type,
+ * this always uses 64 bits because device addresses can exceed 4 GiB even on
+ * 32-bit kernels, and they need not equal the physical address.
+ */
+struct SHMDeviceSegment {
+    uint64_t Address;
     uint64_t Length;
 };
 
@@ -113,8 +126,8 @@ SHMDeviceContextGetCachePolicy(
 /**
  * @brief Find a device address for an entire physical buffer, not just its start.
  *
- * The buffer must fit inside one range. Adjacent ranges are not joined; future
- * segment-building code must split at their boundaries. Among physical aliases
+ * The buffer must fit inside one range. Adjacent ranges are not joined; use
+ * SHMDeviceContextBuildSegments to split at their boundaries. Among aliases
  * that fit the full buffer and device limit, choose the lowest device address,
  * independently of input order. No RAM ownership or installed-memory check is
  * made, so a successful translation alone never authorizes a DMA transfer.
@@ -136,5 +149,44 @@ SHMDeviceContextTranslate(
     _In_  uint64_t                       length,
     _In_  uint64_t                       deviceLimit,
     _Out_ uint64_t*                      deviceAddressOut);
+
+/**
+ * @brief Turn a buffer's physical blocks into the blocks a device must use.
+ *
+ * A buffer is usually spread over several physical blocks, and one physical
+ * block can cross from one address range into another. This splits the buffer
+ * wherever the device's view changes, and joins neighbouring pieces back
+ * together when they continue each other in device addresses. For each piece,
+ * the alias reaching the most bytes is used, and the lowest device address
+ * breaks ties, matching SHMDeviceContextTranslate.
+ *
+ * Call it once with segmentsOut NULL to learn the count, then again with an
+ * array of that size. Like SHMDeviceContextTranslate, this is arithmetic only:
+ * it does not check that the memory is committed, owned or kept alive.
+ *
+ * @param context Context held by the caller throughout this call.
+ * @param extents Exact physical bytes of the buffer, in order. Each must be
+ *                nonzero, must not wrap and must be committed memory: physical
+ *                address zero is real memory on some boards, so an uncommitted
+ *                page cannot be recognised here.
+ * @param extentCount Number of extents, at least one.
+ * @param deviceLimit Largest address the controller may use, inclusive.
+ * @param segmentCount In: capacity of segmentsOut (ignored when it is NULL).
+ *                     Out: segments needed, or written on success.
+ * @param segmentsOut NULL to count only, otherwise receives the segments.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL arguments, no extents, or an empty
+ *         or wrapping extent; OS_ENOENT if some byte has no device address
+ *         within deviceLimit; OS_EBUFFER if segmentsOut is too small, with the
+ *         needed count stored; OS_ENOTSUPPORTED if the count would not fit.
+ *         segmentsOut is untouched on every failure.
+ */
+oserr_t
+SHMDeviceContextBuildSegments(
+    _In_    const struct SHMDeviceContext* context,
+    _In_    const SHMSG_t*                 extents,
+    _In_    int                            extentCount,
+    _In_    uint64_t                       deviceLimit,
+    _InOut_ uint32_t*                      segmentCount,
+    _Out_   struct SHMDeviceSegment*       segmentsOut);
 
 #endif //!__SHM_DEVICE_H__
