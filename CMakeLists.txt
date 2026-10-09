@@ -35,7 +35,11 @@ if (__BUILD_UNIT_TESTS)
 
     # enable testing
     enable_testing()
-    add_subdirectory(testing)
+
+    # add the testing sub-directory if checked out
+    if (EXISTS "${CMAKE_SOURCE_DIR}/testing/CMakeLists.txt")
+        add_subdirectory(testing)
+    endif ()
 
     # a lot of support libraries reside here, so add this first
     add_subdirectory(librt)

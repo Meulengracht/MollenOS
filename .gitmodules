@@ -13,3 +13,6 @@
 [submodule "tools/cmake-data"]
 	path = tools/cmake-data
 	url = ../vali-cmake.git
+[submodule "testing"]
+	path = testing
+	url = ../../vali-os/kernel-testing
