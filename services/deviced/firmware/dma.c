@@ -65,20 +65,22 @@ __DmaDecodeAddress(
     _Out_ uint64_t*                address,
     _Out_ uint32_t*                attributes)
 {
-    uint32_t space;
+    enum FdtPciSpace space;
 
     *attributes = 0;
     if (format == FdtDmaAddressPci) {
         *attributes = FdtReadBe32(bytes);
-        space = (*attributes >> 24) & 3;
+        space = FDT_PCI_SPACE_FROM_ATTRIBUTES(*attributes);
         
         // The first PCI value contains flags as well as the address type. Accept
         // memory addresses, including the supported prefetch and relocation
         // flags, but reject other PCI address types. Those types need different
         // rules and cannot be used to describe the physical-memory paths here.
-        if ((space != 2 && space != 3) || (*attributes & ~0xc3000000U)) {
+        if ((space != FdtPciSpaceMemory32 && space != FdtPciSpaceMemory64) ||
+            (*attributes & ~0xc3000000U)) {
             return OS_ENOTSUPPORTED;
         }
+
         bytes += 4;
         cells--;
     }
@@ -383,11 +385,11 @@ FdtPciDmaMap(
     
     for (uint32_t i = 0; i < host->DmaWindowCount; i++) {
         window = &host->DmaWindows[i];
-        if (window->Space != 2 && window->Space != 3) {
+        if (window->Space != FdtPciSpaceMemory32 && window->Space != FdtPciSpaceMemory64) {
             return OS_ENOTSUPPORTED;
         }
         
-        if (((window->Attributes >> 24) & 3) != window->Space ||
+        if (FDT_PCI_SPACE_FROM_ATTRIBUTES(window->Attributes) != window->Space ||
             (window->Attributes & ~0xc3000000U)) {
             return OS_ENOTSUPPORTED;
         }

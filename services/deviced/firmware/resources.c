@@ -19,10 +19,17 @@
 #include <firmware/resources.h>
 #include <string.h>
 
+/**
+ * @brief Join big-endian 32-bit values into the integer they represent.
+ *
+ * Device-tree addresses can be wider than one 32-bit cell. Reading one cell
+ * at a time and shifting the earlier value left preserves the device-tree
+ * order, where the most significant cell comes first.
+ */
 uint64_t
 FdtReadCells(
-        _In_ const uint8_t* p,
-        _In_ uint32_t       cells)
+    _In_ const uint8_t* p,
+    _In_ uint32_t       cells)
 {
     uint64_t value = 0;
     for (uint32_t i = 0; i < cells; i++) {
@@ -30,11 +37,19 @@ FdtReadCells(
     }
     return value;
 }
+
+/**
+ * @brief Search a bounded list without reading beyond its final byte.
+ *
+ * Each string ends at a zero byte. memchr is given only the bytes that remain
+ * in the property, so a broken final string is rejected instead of allowing
+ * the search to continue into unrelated firmware data.
+ */
 int
 FdtStringListContains(
-        _In_ const uint8_t* list,
-        _In_ uint32_t       length,
-        _In_ const char*    needle)
+    _In_ const uint8_t* list,
+    _In_ uint32_t       length,
+    _In_ const char*    needle)
 {
     size_t   needleLength = strlen(needle);
     uint32_t offset       = 0;
@@ -56,98 +71,161 @@ FdtStringListContains(
     }
     return 0;
 }
+
+static int
+__FdtCellCountSupported(
+    _In_ uint32_t count)
+{
+    return count != 0 && count <= 2;
+}
+
+/**
+ * @brief Translate an address through one bus mapping.
+ *
+ * One mapping entry connects a range used by a bus's children to a range in
+ * its parent bus. Keeping this step separate lets the caller focus on walking
+ * up the bus chain, while this helper checks and applies exactly one mapping.
+ */
+static int
+__FdtTranslateBusAddress(
+    _In_    const struct FdtResources* bus,
+    _In_    const struct FdtResources* parentBus,
+    _In_    uint64_t                   length,
+    _InOut_ uint64_t*                  address,
+    _In_    int                        dma)
+{
+    const uint8_t* ranges;
+    uint32_t       rangesLength;
+    uint32_t       cells;
+    uint32_t       offset;
+    uint64_t       child;
+    uint64_t       parent;
+    uint64_t       size;
+    uint64_t       parentAddress;
+
+    if (bus->Malformed || parentBus->Malformed) {
+        return 0;
+    }
+
+    ranges = dma ? bus->DmaRanges : bus->Ranges;
+    rangesLength = dma ? bus->DmaRangesLength : bus->RangesLength;
+    if (dma && ranges == NULL) {
+        return 1;
+    }
+    if (ranges == NULL) {
+        return 0;
+    }
+    if (rangesLength == 0) {
+        return 1;
+    }
+
+    if (!__FdtCellCountSupported(bus->AddressCells) ||
+        !__FdtCellCountSupported(parentBus->AddressCells) ||
+        !__FdtCellCountSupported(bus->SizeCells)) {
+        return 0;
+    }
+
+    cells = bus->AddressCells + parentBus->AddressCells + bus->SizeCells;
+    if (rangesLength % (cells * 4) != 0) {
+        return 0;
+    }
+
+    for (offset = 0; offset < rangesLength; offset += cells * 4) {
+        child = FdtReadCells(ranges + offset, bus->AddressCells);
+        parent = FdtReadCells(
+            ranges + offset + bus->AddressCells * 4,
+            parentBus->AddressCells
+        );
+        size = FdtReadCells(
+            ranges + offset +
+                (bus->AddressCells + parentBus->AddressCells) * 4,
+            bus->SizeCells
+        );
+        
+        if (!FdtContainsRange(child, size, *address, length)) {
+            continue;
+        }
+
+        if (*address - child > UINT64_MAX - parent) {
+            return 0;
+        }
+
+        parentAddress = parent + (*address - child);
+        if (length == 0 || length - 1 > UINT64_MAX - parentAddress) {
+            return 0;
+        }
+
+        *address = parentAddress;
+        return 1;
+    }
+    return 0;
+}
+
+/**
+ * @brief Apply each parent bus mapping from the starting bus toward the root.
+ *
+ * A device address may be translated more than once, once for every bus in
+ * its path. This function coordinates those single-bus steps and then checks
+ * that the final address can hold the complete requested range.
+ */
 int
 FdtTranslateAddress(
-        _In_ const struct FdtResources* nodes,
-        _In_ int                    depth,
-        _In_ uint64_t               length,
-    _InOut_ uint64_t*               address,
-        _In_ int                    dma)
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _In_    uint64_t                   length,
+    _InOut_ uint64_t*                  address,
+    _In_    int                        dma)
 {
-    const struct FdtResources* bus;
-    uint32_t               cells;
-    uint32_t               offset;
-    uint64_t               child;
-    uint64_t               parent;
-    uint64_t               size;
-    int                    found;
-    const uint8_t*         ranges;
-    uint32_t               rangesLength;
-
     if (nodes[depth].Malformed) {
         return 0;
     }
+
     for (; depth > 0; depth--) {
-        bus = &nodes[depth];
-        if (bus->Malformed || nodes[depth - 1].Malformed) {
-            return 0;
-        }
-        ranges = dma ? bus->DmaRanges : bus->Ranges;
-        rangesLength = dma ? bus->DmaRangesLength : bus->RangesLength;
-        if (dma && ranges == NULL) {
-            continue;
-        }
-        if (ranges == NULL) {
-            return 0;
-        }
-        if (rangesLength == 0) {
-            continue;
-        }
-        if (bus->AddressCells == 0 || bus->AddressCells > 2 ||
-            nodes[depth - 1].AddressCells == 0 || nodes[depth - 1].AddressCells > 2 ||
-            bus->SizeCells == 0 || bus->SizeCells > 2) {
-            return 0;
-        }
-        cells = bus->AddressCells + nodes[depth - 1].AddressCells + bus->SizeCells;
-        if (rangesLength % (cells * 4) != 0) {
-            return 0;
-        }
-        found = 0;
-        for (offset = 0; offset < rangesLength; offset += cells * 4) {
-            child = FdtReadCells(ranges + offset, bus->AddressCells);
-            parent = FdtReadCells(ranges + offset + bus->AddressCells * 4,
-                    nodes[depth - 1].AddressCells);
-            size = FdtReadCells(ranges + offset +
-                    (bus->AddressCells + nodes[depth - 1].AddressCells) * 4, bus->SizeCells);
-            if (*address < child || *address - child > size ||
-                length > size - (*address - child)) {
-                continue;
-            }
-            if (*address - child > UINT64_MAX - parent ||
-                length == 0 || length - 1 > UINT64_MAX - (parent + (*address - child))) {
-                return 0;
-            }
-            *address = parent + (*address - child);
-            found = 1;
-            break;
-        }
-        if (!found) {
+        int translated = __FdtTranslateBusAddress(
+            &nodes[depth],
+            &nodes[depth - 1],
+            length,
+            address,
+            dma
+        );
+        if (!translated) {
             return 0;
         }
     }
     return length != 0 && length - 1 <= UINT64_MAX - *address;
 }
+
+/**
+ * @brief Validate a name list and find the unique position of a requested name.
+ *
+ * The full list must be checked because callers use the returned position to
+ * select a matching resource value. Accepting an incomplete list or a
+ * duplicate requested name could select the wrong resource while appearing
+ * successful.
+ */
 oserr_t
 FdtNameIndex(
-        _In_ const uint8_t* names,
-        _In_ uint32_t length,
-        _In_ const char* name,
-        _Out_ uint32_t* indexOut,
-        _Out_ uint32_t* countOut)
+    _In_  const uint8_t* names,
+    _In_  uint32_t       length,
+    _In_  const char*    name,
+    _Out_ uint32_t*      indexOut,
+    _Out_ uint32_t*      countOut)
 {
-    uint32_t offset = 0;
-    uint32_t count = 0;
-    uint32_t selected = UINT32_MAX;
+    uint32_t       offset = 0;
+    uint32_t       count = 0;
+    uint32_t       selected = UINT32_MAX;
     const uint8_t* end;
 
     if (length && names == NULL) {
         return OS_EINVALPARAMS;
     }
+
     while (offset < length) {
         end = memchr(names + offset, 0, length - offset);
         if (end == NULL || end == names + offset) {
             return OS_EINVALPARAMS;
         }
+        
         if (!strcmp((const char*)names + offset, name)) {
             if (selected != UINT32_MAX) {
                 return OS_EINVALPARAMS;
@@ -157,55 +235,92 @@ FdtNameIndex(
         offset = (uint32_t)(end - names) + 1;
         count++;
     }
+
     *indexOut = selected;
     *countOut = count;
     return selected == UINT32_MAX ? OS_ENOENT : OS_EOK;
 }
+
+/**
+ * @brief Check containment without calculating either range's end address.
+ *
+ * End-address addition can overflow near the top of the address space. Once
+ * the child's start is known to be at or above the base, subtraction gives its
+ * offset; comparing lengths against the remaining space is safe.
+ */
 int
 FdtContainsRange(
-        _In_ uint64_t base,
-        _In_ uint64_t length,
-        _In_ uint64_t child,
-        _In_ uint64_t childLength)
+    _In_ uint64_t base,
+    _In_ uint64_t length,
+    _In_ uint64_t child,
+    _In_ uint64_t childLength)
 {
     return childLength && child >= base && child - base < length &&
             childLength <= length - (child - base);
 }
-static oserr_t
-__ResourceProperty(
-    _InOut_ void* context,
-    _In_ const char* name,
-    _In_ const void* property,
-    _In_ uint32_t length)
-{
-    struct FdtResources* node = context;
-    const uint8_t* value = property;
 
-    if ((!strcmp(name, "#address-cells") || !strcmp(name, "#size-cells") ||
-         !strcmp(name, "#interrupt-cells") || !strcmp(name, "#reset-cells") ||
-         !strcmp(name, "#clock-cells") || !strcmp(name, "#msi-cells") ||
-         !strcmp(name, "interrupt-parent")) && length != 4) {
-        node->Malformed = 1;
-        return OS_EOK;
-    }
-    if ((!strcmp(name, "interrupt-controller") || !strcmp(name, "msi-controller")) && length) {
-        node->Malformed = 1;
-        return OS_EOK;
-    }
-    if (!strcmp(name, "#address-cells") && length == 4) {
+/**
+ * @brief Decode the numeric and flag properties for a node.
+ *
+ * These properties fit in one 32-bit value or indicate that the node provides
+ * a resource. Handling them together keeps value decoding separate from the
+ * byte lists that are stored by reference into the firmware tree.
+ */
+static int
+__ResourceScalarProperty(
+    _InOut_ struct FdtResources* node,
+    _In_    const char*          name,
+    _In_    const uint8_t*       value,
+    _In_    uint32_t             length)
+{
+    if (!strcmp(name, "#address-cells")) {
         node->AddressCells = FdtReadBe32(value);
         node->HasAddressCells = 1;
-    } else if (!strcmp(name, "#size-cells") && length == 4) {
+    } else if (!strcmp(name, "#size-cells")) {
         node->SizeCells = FdtReadBe32(value);
-    } else if (!strcmp(name, "#interrupt-cells") && length == 4) {
+    } else if (!strcmp(name, "#interrupt-cells")) {
         node->InterruptCells = FdtReadBe32(value);
+    } else if (!strcmp(name, "#reset-cells")) {
+        node->HasResetCells = 1;
+        node->ResetCells = FdtReadBe32(value);
+    } else if (!strcmp(name, "#clock-cells")) {
+        node->HasClockCells = 1;
+        node->ClockCells = FdtReadBe32(value);
+    } else if (!strcmp(name, "#msi-cells")) {
+        node->MsiCells = FdtReadBe32(value);
+    } else if (!strcmp(name, "interrupt-parent")) {
+        node->InterruptParent = FdtReadBe32(value);
     } else if (!strcmp(name, "interrupt-controller")) {
         node->IsInterruptController = 1;
-    } else if (!strcmp(name, "reg")) {
-        node->Reg       = value;
+    } else if (!strcmp(name, "msi-controller")) {
+        node->IsMsiController = 1;
+    } else if (!strcmp(name, "device_type")) {
+        node->IsMemory = length == 7 && !memcmp(value, "memory", 7);
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * @brief Keep the byte lists that describe a node's resources.
+ *
+ * These properties may contain one or many bytes, so the record keeps their
+ * location and length instead of interpreting or copying them here. Later
+ * helpers can read each list according to its own format.
+ */
+static int
+__ResourceDataProperty(
+    _InOut_ struct FdtResources* node,
+    _In_ const char* name,
+    _In_ const uint8_t* value,
+    _In_ uint32_t length)
+{
+    if (!strcmp(name, "reg")) {
+        node->Reg = value;
         node->RegLength = length;
     } else if (!strcmp(name, "ranges")) {
-        node->Ranges       = value;
+        node->Ranges = value;
         node->RangesLength = length;
     } else if (!strcmp(name, "dma-ranges")) {
         node->DmaRanges = value;
@@ -222,26 +337,12 @@ __ResourceProperty(
     } else if (!strcmp(name, "clock-names")) {
         node->ClockNames = value;
         node->ClockNamesLength = length;
-    } else if (!strcmp(name, "#reset-cells") && length == 4) {
-        node->HasResetCells = 1;
-        node->ResetCells = FdtReadBe32(value);
-    } else if (!strcmp(name, "#clock-cells") && length == 4) {
-        node->HasClockCells = 1;
-        node->ClockCells = FdtReadBe32(value);
-    } else if (!strcmp(name, "device_type")) {
-        node->IsMemory = length == 7 && !memcmp(value, "memory", 7);
-    } else if (!strcmp(name, "msi-controller")) {
-        node->IsMsiController = 1;
-    } else if (!strcmp(name, "#msi-cells")) {
-        node->MsiCells = FdtReadBe32(value);
     } else if (!strcmp(name, "msi-parent")) {
         node->MsiParent = value;
         node->MsiParentLength = length;
     } else if (!strcmp(name, "msi-ranges")) {
         node->MsiRanges = value;
         node->MsiRangesLength = length;
-    } else if (!strcmp(name, "interrupt-parent")) {
-        node->InterruptParent = FdtReadBe32(value);
     } else if (!strcmp(name, "interrupts")) {
         node->Interrupts = value;
         node->InterruptsLength = length;
@@ -251,125 +352,246 @@ __ResourceProperty(
     } else if (!strcmp(name, "interrupt-names")) {
         node->InterruptNames = value;
         node->InterruptNamesLength = length;
+    } else {
+        return 0;
     }
+    return 1;
+}
+
+/**
+ * @brief Validate and dispatch one resource property.
+ *
+ * Fixed-size values are decoded only when their lengths are correct. Invalid
+ * fixed-size properties mark the node malformed; the tree walk can still
+ * visit it, while resource consumers can avoid trusting its data.
+ */
+static oserr_t
+__ResourceProperty(
+    _InOut_ void*       context,
+    _In_    const char* name,
+    _In_    const void* property,
+    _In_    uint32_t    length)
+{
+    struct FdtResources* node = context;
+    const uint8_t*       value = property;
+
+    if ((!strcmp(name, "#address-cells") || !strcmp(name, "#size-cells") ||
+         !strcmp(name, "#interrupt-cells") || !strcmp(name, "#reset-cells") ||
+         !strcmp(name, "#clock-cells")) && length != 4) {
+        node->Malformed = 1;
+        return OS_EOK;
+    }
+    
+    if ((!strcmp(name, "#msi-cells") || !strcmp(name, "interrupt-parent")) && length != 4) {
+        node->Malformed = 1;
+        return OS_EOK;
+    }
+
+    if ((!strcmp(name, "interrupt-controller") || !strcmp(name, "msi-controller")) && length) {
+        node->Malformed = 1;
+        return OS_EOK;
+    }
+
+    if (__ResourceScalarProperty(node, name, value, length)) {
+        return OS_EOK;
+    }
+
+    __ResourceDataProperty(node, name, value, length);
     return OS_EOK;
 }
 
+/**
+ * @brief Decode one register entry using the format chosen by its parent bus.
+ *
+ * Each entry has an address followed by a size, but the parent bus determines
+ * how many 32-bit values make up each part. Checking the cell counts and the
+ * complete entry before reading prevents an incomplete property from being
+ * mistaken for a valid hardware range.
+ */
 oserr_t
 FdtRawRegister(
-    _In_ const struct FdtResources* node,
-    _In_ unsigned int index,
-    _Out_ uint64_t* base,
-    _Out_ uint64_t* length)
+    _In_  const struct FdtResources* node,
+    _In_  unsigned int               index,
+    _Out_ uint64_t*                  base,
+    _Out_ uint64_t*                  length)
 {
     uint32_t ac = node->ParentAddressCells;
     uint32_t sc = node->ParentSizeCells;
     uint32_t stride = (ac + sc) * 4;
 
-    if (!ac || ac > 2 || !sc || sc > 2 || !node->RegLength ||
-        node->RegLength % stride || index >= node->RegLength / stride) {
+    if (!__FdtCellCountSupported(ac) || !__FdtCellCountSupported(sc)) {
         return OS_EINVALPARAMS;
     }
+
+    if (!node->RegLength || node->RegLength % stride ||
+        index >= node->RegLength / stride) {
+        return OS_EINVALPARAMS;
+    }
+
     *base = FdtReadCells(node->Reg + index * stride, ac);
     *length = FdtReadCells(node->Reg + index * stride + ac * 4, sc);
     return OS_EOK;
 }
 
-/** Holds the callback and caller data used when reading resource properties. */
 struct __ResourceWalk {
     FdtResourceFn Visitor;
-    void* Context;
+    void*         Context;
 };
 
+/**
+ * @brief Decode one node into its resource record.
+ *
+ * The node's parent has already been prepared in the records array. Its cell
+ * counts and interrupt-controller information are needed to interpret this
+ * node, so they are copied before its properties and register address are
+ * processed.
+ */
 static void
-__ResourceVisit(
+__ResourceBuildNode(
     _In_ const struct FdtNode* views,
-    _In_ int depth,
-    _InOut_ void* context)
+    _In_ struct FdtResources*  nodes,
+    _In_ int                   index)
 {
-    struct __ResourceWalk* walk = context;
-    struct FdtResources nodes[FDT_MAX_DEPTH];
-    struct FdtResources* node;
-    struct FdtParser parser = { .Property = __ResourceProperty };
-    int i;
+    struct FdtResources* node = &nodes[index];
+    struct FdtParser     parser = { .Property = __ResourceProperty };
 
-    for (i = 0; i <= depth; i++) {
-        node = &nodes[i];
-        memset(node, 0, sizeof(*node));
-        node->View = views[i];
-        node->Name = views[i].Name;
-        node->NodeOffset = views[i].NodeOffset;
-        node->Phandle = views[i].Phandle;
-        node->Malformed = views[i].Malformed;
-        node->Disabled = views[i].Disabled;
-        node->AncestorDisabled = views[i].AncestorDisabled;
-        node->AncestorMalformed = i && (nodes[i - 1].Malformed || nodes[i - 1].AncestorMalformed);
-        node->AddressCells = 2;
-        node->SizeCells = 1;
-        node->Compatible = FdtProperty(&views[i], "compatible", &node->CompatibleLength);
-        if (i) {
-            node->ParentAddressCells = nodes[i - 1].AddressCells;
-            node->ParentSizeCells = nodes[i - 1].SizeCells;
-            node->InterruptParent = nodes[i - 1].IsInterruptController ?
-                nodes[i - 1].Phandle : nodes[i - 1].InterruptParent;
-        }
-        parser.UserData = node;
-        FdtVisitProperties(views[i].Properties, views[i].PropertiesLength,
-            views[i].Strings, views[i].StringsLength, &parser);
-        node->RegisterStatus = FdtRawRegister(node, 0, &node->PhysicalBase, &node->PhysicalLength);
-        if (node->RegisterStatus == OS_EOK &&
-            !FdtTranslateAddress(nodes, i - 1, node->PhysicalLength, &node->PhysicalBase, 0)) {
+    memset(node, 0, sizeof(*node));
+    node->View = views[index];
+    node->Name = views[index].Name;
+    node->NodeOffset = views[index].NodeOffset;
+    node->Phandle = views[index].Phandle;
+    node->Malformed = views[index].Malformed;
+    node->Disabled = views[index].Disabled;
+    node->AncestorDisabled = views[index].AncestorDisabled;
+    node->AncestorMalformed = index &&
+            (nodes[index - 1].Malformed || nodes[index - 1].AncestorMalformed);
+    node->AddressCells = 2;
+    node->SizeCells = 1;
+    node->Compatible = FdtProperty(&views[index], "compatible", &node->CompatibleLength);
+    if (index) {
+        node->ParentAddressCells = nodes[index - 1].AddressCells;
+        node->ParentSizeCells = nodes[index - 1].SizeCells;
+        node->InterruptParent = nodes[index - 1].IsInterruptController ?
+                nodes[index - 1].Phandle : nodes[index - 1].InterruptParent;
+    }
+
+    parser.UserData = node;
+    
+    FdtVisitProperties(
+        views[index].Properties,
+        views[index].PropertiesLength,
+        views[index].Strings,
+        views[index].StringsLength,
+        &parser
+    );
+
+    node->RegisterStatus = FdtRawRegister(
+        node,
+        0,
+        &node->PhysicalBase,
+        &node->PhysicalLength
+    );
+    if (node->RegisterStatus == OS_EOK) {
+        int translated = FdtTranslateAddress(
+            nodes,
+            index - 1,
+            node->PhysicalLength,
+            &node->PhysicalBase,
+            0
+        );
+        if (!translated) {
             node->RegisterStatus = OS_EINVALPARAMS;
         }
+    }
+}
+
+/**
+ * @brief Prepare the records from the tree root through the current node.
+ *
+ * Processing in root-to-leaf order makes each parent's resource settings
+ * available before they are needed by its child. Once the path is ready, the
+ * caller's visitor receives the complete array for this node.
+ */
+static void
+__ResourceVisit(
+    _In_    const struct FdtNode* views,
+    _In_    int                   depth,
+    _InOut_ void*                 context)
+{
+    struct __ResourceWalk* walk = context;
+    struct FdtResources    nodes[FDT_MAX_DEPTH];
+
+    for (int i = 0; i <= depth; i++) {
+        __ResourceBuildNode(views, nodes, i);
     }
     walk->Visitor(nodes, depth, walk->Context);
 }
 
+/**
+ * @brief Walk the tree and provide resource details for each node.
+ *
+ * This wrapper keeps the caller's visitor and context together for the tree
+ * reader. The reader handles the tree's structure; __ResourceVisit interprets
+ * each node's resource properties and supplies its ancestors as context.
+ */
 oserr_t
 FdtWalkResources(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ FdtResourceFn visitor,
-    _InOut_ void* context)
+    _In_    const void*   blob,
+    _In_    size_t        length,
+    _In_    FdtResourceFn visitor,
+    _InOut_ void*         context)
 {
     struct __ResourceWalk walk = { visitor, context };
-
     return FdtWalkNodes(blob, length, __ResourceVisit, &walk);
 }
 
-/** Stores the resources for a node whose firmware ID was already checked for duplicates. */
 struct __ResourceQuery {
-    uint32_t Phandle;
+    uint32_t            Phandle;
     struct FdtResources Result;
 };
 
+/**
+ * @brief Copy the resource record for the node whose ID is being searched.
+ *
+ * The general resource walk visits every node. Keeping the match operation in
+ * its callback lets FdtFindResources reuse the same parsing rules as callers
+ * that walk the whole tree.
+ */
 static void
 __ResourceFind(
-    _In_ const struct FdtResources* nodes,
-    _In_ int depth,
-    _InOut_ void* context)
+    _In_    const struct FdtResources* nodes,
+    _In_    int                        depth,
+    _InOut_ void*                      context)
 {
     struct __ResourceQuery* query = context;
-
     if (nodes[depth].Phandle == query->Phandle) {
         query->Result = nodes[depth];
     }
 }
 
+/**
+ * @brief Look up one identified node and return its parsed resource details.
+ *
+ * The initial lookup verifies that the requested ID exists and can be used.
+ * A resource walk then builds the same ancestor-aware record used by normal
+ * traversal. This keeps single-node lookups consistent with full-tree visits.
+ */
 oserr_t
 FdtFindResources(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ uint32_t phandle,
+    _In_  const void*          blob,
+    _In_  size_t               length,
+    _In_  uint32_t             phandle,
     _Out_ struct FdtResources* provider)
 {
-    struct FdtNode identity;
+    struct FdtNode         identity;
     struct __ResourceQuery query = { .Phandle = phandle };
-    oserr_t status = FdtFindNode(blob, length, phandle, &identity);
+    oserr_t                status;
 
+    status = FdtFindNode(blob, length, phandle, &identity);
     if (status != OS_EOK) {
         return status;
     }
+
     status = FdtWalkResources(blob, length, __ResourceFind, &query);
     if (status != OS_EOK) {
         return status;
@@ -377,44 +599,58 @@ FdtFindResources(
     if (query.Result.Malformed || query.Result.AncestorMalformed) {
         return OS_EINVALPARAMS;
     }
+
     *provider = query.Result;
     return OS_EOK;
 }
 
+/**
+ * @brief Parse one provider reference and its provider-defined arguments.
+ *
+ * The argument count belongs to the referenced provider, not to the property
+ * containing the reference. Looking up the provider before consuming its
+ * arguments is therefore necessary to find the next entry reliably. All
+ * outputs are assigned at the end so a malformed or incomplete entry does not
+ * move the caller's cursor or leave it with a partly filled result.
+ */
 oserr_t
 FdtNextReference(
-    _In_ const void* blob,
-    _In_ size_t blobLength,
-    _In_ const uint8_t* cells,
-    _In_ uint32_t length,
-    _In_ const char* cellsName,
-    _In_ uint32_t inheritedProvider,
-    _InOut_ uint32_t* offset,
-    _Out_ struct FdtResources* provider,
-    _Out_ const uint8_t** arguments)
+    _In_    const void*          blob,
+    _In_    size_t               blobLength,
+    _In_    const uint8_t*       cells,
+    _In_    uint32_t             length,
+    _In_    const char*          cellsName,
+    _In_    uint32_t             inheritedProvider,
+    _InOut_ uint32_t*            offset,
+    _Out_   struct FdtResources* provider,
+    _Out_   const uint8_t**      arguments)
 {
     struct FdtResources result;
-    uint32_t cursor = *offset;
-    uint32_t phandle = inheritedProvider;
-    uint32_t count;
-    oserr_t status;
+    uint32_t            cursor = *offset;
+    uint32_t            phandle = inheritedProvider;
+    uint32_t            count;
+    oserr_t             status;
 
     if (cells == NULL || (length & 3) || cursor >= length || (cursor & 3)) {
         return OS_EINVALPARAMS;
     }
+
     if (!inheritedProvider) {
         phandle = FdtReadBe32(cells + cursor);
         cursor += 4;
     }
+
     status = FdtFindResources(blob, blobLength, phandle, &result);
     if (status != OS_EOK) {
         return status;
     }
+
     status = FdtScalar(&result.View, cellsName, &count);
     if (status != OS_EOK || count > 16 || count * 4 > length - cursor ||
         (inheritedProvider && !count)) {
         return OS_EINVALPARAMS;
     }
+    
     *provider = result;
     *arguments = cells + cursor;
     *offset = cursor + count * 4;

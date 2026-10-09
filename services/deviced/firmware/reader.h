@@ -21,24 +21,26 @@
 
 #include <fdt/reader.h>
 
-/** Describes one device-tree node without copying its strings or properties.
+/** 
+ * @brief Describes one device-tree node without copying its strings or properties.
  * A node is an entry describing hardware or its configuration. You may copy
  * this structure, but its pointers still refer to the original firmware data.
  * Keep that data mapped and unchanged until all copies are no longer used.
  * NodeOffset is a byte offset within the tree's structure block. Phandle is
- * an optional numeric ID used by other nodes to refer to this node. */
+ * an optional numeric ID used by other nodes to refer to this node.
+ */
 struct FdtNode {
-    const char* Name;
-    uint32_t NodeOffset;
-    uint32_t Phandle;
-    int Disabled;
-    int Malformed;
-    int AncestorDisabled;
-    int AncestorMalformed;
+    const char*    Name;
+    uint32_t       NodeOffset;
+    uint32_t       Phandle;
+    int            Disabled;
+    int            Malformed;
+    int            AncestorDisabled;
+    int            AncestorMalformed;
     const uint8_t* Properties;
-    uint32_t PropertiesLength;
-    const char* Strings;
-    uint32_t StringsLength;
+    uint32_t       PropertiesLength;
+    const char*    Strings;
+    uint32_t       StringsLength;
 };
 
 typedef void (*FdtNodeFn)(const struct FdtNode* nodes, int depth, void* context);
@@ -55,12 +57,12 @@ typedef void (*FdtNodeFn)(const struct FdtNode* nodes, int depth, void* context)
  * @param context Caller data passed to visitor.
  * @return OS_EOK on success, or an error if the tree's format is invalid.
  */
-oserr_t
+__EXTERN oserr_t
 FdtWalkNodes(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ FdtNodeFn visitor,
-    _InOut_ void* context);
+    _In_    const void* blob,
+    _In_    size_t      length,
+    _In_    FdtNodeFn   visitor,
+    _InOut_ void*       context);
 
 /**
  * @brief Find the enabled node with the requested firmware ID.
@@ -75,11 +77,11 @@ FdtWalkNodes(
  * @return OS_EOK on success, OS_ENOENT if missing or disabled, or an error for
  *         invalid input, duplicate IDs, or malformed node or parent data.
  */
-oserr_t
+__EXTERN oserr_t
 FdtFindNode(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ uint32_t phandle,
+    _In_  const void*     blob,
+    _In_  size_t          length,
+    _In_  uint32_t        phandle,
     _Out_ struct FdtNode* node);
 
 /**
@@ -91,11 +93,11 @@ FdtFindNode(
  * @return Pointer into the original firmware data, or NULL if absent. An empty
  *         property has a non-NULL pointer and a length of zero.
  */
-const uint8_t*
+__EXTERN const uint8_t*
 FdtProperty(
-    _In_ const struct FdtNode* node,
-    _In_ const char* name,
-    _Out_ uint32_t* length);
+    _In_  const struct FdtNode* node,
+    _In_  const char*           name,
+    _Out_ uint32_t*             length);
 
 /**
  * @brief Check whether the node's "compatible" list contains an exact name.
@@ -104,10 +106,10 @@ FdtProperty(
  * @param compatible Hardware name to match, such as "arm,gic-v3".
  * @return 1 for a match, or 0 if absent or the checked data is malformed.
  */
-int
+__EXTERN int
 FdtCompatible(
     _In_ const struct FdtNode* node,
-    _In_ const char* compatible);
+    _In_ const char*           compatible);
 
 /**
  * @brief Read a property containing one 32-bit number.
@@ -118,10 +120,10 @@ FdtCompatible(
  * @return OS_EOK on success, OS_ENOENT if absent, or OS_EINVALPARAMS if the
  *         property is not exactly four bytes long.
  */
-oserr_t
+__EXTERN oserr_t
 FdtScalar(
-    _In_ const struct FdtNode* node,
-    _In_ const char* name,
-    _Out_ uint32_t* value);
+    _In_  const struct FdtNode* node,
+    _In_  const char*           name,
+    _Out_ uint32_t*             value);
 
 #endif //!__FIRMWARE_READER_H__

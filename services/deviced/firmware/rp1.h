@@ -24,8 +24,8 @@
 
 struct FdtDmaMap;
 
-#define FDT_RP1_MAX_REGISTERS 8
-#define FDT_RP1_MAX_INTERRUPTS 8
+#define FDT_RP1_MAX_REGISTERS   8
+#define FDT_RP1_MAX_INTERRUPTS  8
 #define FDT_RP1_INTERRUPT_COUNT 61
 
 /** 
@@ -46,7 +46,8 @@ struct FdtRp1Range {
 struct FdtRp1Interrupt {
     uint32_t Controller;
     uint32_t Number;
-    uint32_t Type; // 1: signal changes from low to high; 4: signal stays high
+    // 1: signal changes from low to high; 4: signal stays high
+    uint32_t Type;
 };
 
 /** 
@@ -93,9 +94,9 @@ typedef void (*FdtRp1DeviceFn)(const struct FdtRp1Device*, void*);
 __EXTERN oserr_t
 FdtEnumerateRp1Children(
     _In_ const struct FdtPciHost* host,
-    _In_ const struct PciBar* bars,
-    _In_ FdtRp1DeviceFn callback,
-    _In_ void* context);
+    _In_ const struct PciBar*     bars,
+    _In_ FdtRp1DeviceFn           callback,
+    _In_ void*                    context);
 
 /**
  * @brief Describe the RAM apertures reachable by an enabled direct RP1 child.

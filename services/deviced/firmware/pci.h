@@ -40,6 +40,21 @@ enum FdtPciHostType {
 // PCI memory window may be read ahead by the processor.
 #define FDT_PCI_PREFETCHABLE 0x40000000U
 
+enum FdtPciSpace {
+    // PCI configuration addresses.
+    FdtPciSpaceConfiguration = 0,
+    // PCI I/O addresses.
+    FdtPciSpaceIo = 1,
+    // PCI memory addresses limited to 32 bits.
+    FdtPciSpaceMemory32 = 2,
+    // PCI memory addresses that can use 64 bits.
+    FdtPciSpaceMemory64 = 3
+};
+
+// Read the PCI address-space kind from bits 25 through 24 of its attributes.
+#define FDT_PCI_SPACE_FROM_ATTRIBUTES(attributes) \
+    ((enum FdtPciSpace)(((attributes) >> 24) & 3))
+
 /** 
  * @brief Describes what a PCI device can reach through one of its DMA address ranges.
  * Direct memory access (DMA) lets a device read or write memory without asking
@@ -63,8 +78,8 @@ enum FdtDmaWindowKind {
  * after applying address changes made by parent buses. Space identifies the
  * PCI address kind: 1 is I/O, 2 is 32-bit memory, and 3 is 64-bit memory. */
 struct FdtPciWindow {
-    // Address kind: PCI I/O (1), 32-bit memory (2), or 64-bit memory (3).
-    uint32_t Space;
+    // Address kind from the PCI firmware address-space encoding.
+    enum FdtPciSpace Space;
     // Firmware attributes from the first PCI address cell. The prefetch flag
     // means the processor may read nearby addresses ahead of the request.
     uint32_t Attributes;
@@ -274,7 +289,8 @@ FdtEnumeratePciHosts(
  * address mappings. The entire requested range must fit within one mapping.
  *
  * @param host Host whose address mappings describe the conversion.
- * @param space Address kind: PCI I/O (1), 32-bit memory (2), or 64-bit memory (3).
+ * @param space PCI address-space kind: FdtPciSpaceConfiguration, FdtPciSpaceIo,
+ *              FdtPciSpaceMemory32, or FdtPciSpaceMemory64.
  * @param address First address in the range as seen by the PCI device.
  * @param length Number of bytes to translate; zero-length ranges are invalid.
  * @param physicalOut Receives the first corresponding processor physical address.
@@ -284,7 +300,7 @@ FdtEnumeratePciHosts(
 __EXTERN oserr_t
 FdtTranslatePciAddress(
     _In_  const struct FdtPciHost* host,
-    _In_  uint32_t                 space,
+    _In_  enum FdtPciSpace         space,
     _In_  uint64_t                 address,
     _In_  uint64_t                 length,
     _Out_ uint64_t*                physicalOut);

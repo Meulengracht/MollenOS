@@ -83,7 +83,7 @@ __DtTranslate(
 {
     return FdtTranslatePciAddress(
         host->OpContext,
-        space,
+        (enum FdtPciSpace)space,
         address,
         length,
         physicalOut

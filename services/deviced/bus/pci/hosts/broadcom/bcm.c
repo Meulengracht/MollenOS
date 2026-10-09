@@ -316,7 +316,13 @@ __BcmTranslate(
     // Firmware describes how device addresses map to machine addresses, so use
     // the common firmware translator rather than duplicating those rules here.
     struct BcmPciHost* controller = bus->OpContext;
-    return FdtTranslatePciAddress(&controller->Firmware, space, address, length, physical);
+    return FdtTranslatePciAddress(
+        &controller->Firmware,
+        (enum FdtPciSpace)space,
+        address,
+        length,
+        physical
+    );
 }
 
 static oserr_t
@@ -331,7 +337,15 @@ __BcmInterrupt(
 {
     // Firmware may route each device interrupt differently; ask its interrupt map.
     struct BcmPciHost* controller = bus->OpContext;
-    return FdtResolvePciInterrupt(&controller->Firmware, number, slot, function, pin, line, flags);
+    return FdtResolvePciInterrupt(
+        &controller->Firmware,
+        number,
+        slot,
+        function,
+        pin,
+        line,
+        flags
+    );
 }
 
 static oserr_t
@@ -393,7 +407,7 @@ __BcmValidateOutbound(
         window = &firmware->Windows[index];
         
         // Only memory ranges are supported; an empty range has no addresses to map.
-        if (window->Space != 2 && window->Space != 3) {
+        if (window->Space != FdtPciSpaceMemory32 && window->Space != FdtPciSpaceMemory64) {
             return OS_ENOTSUPPORTED;
         }
         if (window->Length == 0) {

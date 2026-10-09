@@ -84,8 +84,8 @@ typedef struct InterruptFunctionTable {
  * needed when registering interrupts
  */
 #define INTERRUPT_ACPICONFORM_PRESENT         0x00000001U
-#define INTERRUPT_ACPICONFORM_TRIGGERMODE     0x00000002U
-#define INTERRUPT_ACPICONFORM_POLARITY        0x00000004U
+#define INTERRUPT_ACPICONFORM_TRIGGERMODE     0x00000002U // If set, trigger mode means level-triggered
+#define INTERRUPT_ACPICONFORM_POLARITY        0x00000004U // If set, polarity means active-low
 #define INTERRUPT_ACPICONFORM_SHAREABLE       0x00000008U
 #define INTERRUPT_ACPICONFORM_FIXED           0x00000010U
 

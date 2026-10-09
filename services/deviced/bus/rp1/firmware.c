@@ -144,14 +144,14 @@ __Rp1TranslateRegister(
     _In_    uint64_t                   address,
     _InOut_ struct FdtRp1Range*        resource)
 {
-    uint32_t     offset;
-    uint32_t     space;
-    uint32_t     matches = 0;
-    uint64_t     child;
-    uint64_t     target;
-    uint64_t     length;
-    uint64_t     physical = 0;
-    unsigned int bar;
+    uint32_t         offset;
+    enum FdtPciSpace space;
+    uint32_t         matches = 0;
+    uint64_t         child;
+    uint64_t         target;
+    uint64_t         length;
+    uint64_t         physical = 0;
+    unsigned int     bar;
 
     // Convert the child's address in two steps: RP1's "ranges" property maps it
     // to a PCI address, then the host converts that to a CPU physical address.
@@ -163,7 +163,7 @@ __Rp1TranslateRegister(
     
     for (offset = 0; offset < rp1->RangesLength; offset += 28) {
         child = FdtReadCells(rp1->Ranges + offset, 2);
-        space = (FdtReadBe32(rp1->Ranges + offset + 8) >> 24) & 3;
+        space = FDT_PCI_SPACE_FROM_ATTRIBUTES(FdtReadBe32(rp1->Ranges + offset + 8));
         target = FdtReadCells(rp1->Ranges + offset + 12, 2);
         length = FdtReadCells(rp1->Ranges + offset + 20, 2);
         
@@ -171,7 +171,8 @@ __Rp1TranslateRegister(
         // Only memory ranges are supported here; PCI I/O ports use a separate
         // kind of address space.
         if (!length || length - 1 > UINT64_MAX - child ||
-            length - 1 > UINT64_MAX - target || (space != 2 && space != 3)) {
+            length - 1 > UINT64_MAX - target ||
+            (space != FdtPciSpaceMemory32 && space != FdtPciSpaceMemory64)) {
             return OS_EINVALPARAMS;
         }
         

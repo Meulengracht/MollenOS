@@ -21,22 +21,38 @@
 
 #include <firmware/reader.h>
 
-/** Describes a node's registers, address ranges, clocks, resets, and interrupts.
- * View and the property pointers refer to the original firmware data, which
- * must stay mapped and unchanged while this structure is used.
- * A cell is a 32-bit number in device-tree data. AddressCells and SizeCells
- * count how many cells encode each address and size for this node's children.
- * PhysicalBase and PhysicalLength describe the first register range only when
- * RegisterStatus is OS_EOK. Malformed marks invalid resource properties. */
+/**
+ * @brief Read hardware resource information from a device-tree description.
+ *
+ * A device tree is a nested description of hardware. Each node represents a
+ * device or a bus and stores named properties as byte sequences. Some
+ * properties describe values directly; others refer to a different node by a
+ * numeric ID and include extra values for that node.
+ *
+ * This interface turns the resource-related properties into easier-to-use
+ * records. A cell is one 32-bit value in the device tree. For example, an
+ * address may use one or two cells, and a size may also use one or two cells.
+ * The number of cells used for a device's registers is set by its parent bus.
+ * A bus may also describe how addresses used by its children map to addresses
+ * used by its own parent; FdtTranslateAddress applies those mappings one level
+ * at a time.
+ *
+ * The View and property pointers in these records point into the original
+ * firmware data. Keep that data mapped and unchanged for as long as any such
+ * record or pointer is in use. PhysicalBase and PhysicalLength describe only
+ * the first register range, and are usable only when RegisterStatus is
+ * OS_EOK. Malformed indicates that a resource property could not be trusted.
+ */
 struct FdtResources {
     struct FdtNode View;
-    uint32_t ParentAddressCells;
-    uint32_t ParentSizeCells;
-    oserr_t RegisterStatus;
-    const char* Name;
-    uint32_t NodeOffset;
+    uint32_t       ParentAddressCells;
+    uint32_t       ParentSizeCells;
+    oserr_t        RegisterStatus;
+    const char*    Name;
+    uint32_t       NodeOffset;
     const uint8_t* Compatible;
-    uint32_t CompatibleLength;
+    uint32_t       CompatibleLength;
+
     // Number of 32-bit cells per address and size for this node's children
     uint32_t       AddressCells;
     int            HasAddressCells;
@@ -83,172 +99,265 @@ struct FdtResources {
     const uint8_t* InterruptNames;
     uint32_t       InterruptNamesLength;
 };
+
 typedef void (*FdtResourceFn)(const struct FdtResources*, int, void*);
 
 /**
- * @brief Read each node's resource properties and pass them to a callback.
+ * @brief Visit every device-tree node with its decoded resource properties.
+ *
+ * For each node, this function builds an array containing that node and its
+ * ancestors, starting at the tree root. It reads resource properties such as
+ * register ranges, bus address rules, clocks, resets, and interrupts, then
+ * passes the array to the visitor. Keeping the ancestors in the array lets
+ * callers interpret a node using the cell counts and address rules declared
+ * by the buses above it.
+ *
+ * A node can still be visited when one of its resource properties is invalid.
+ * The visitor must check Malformed and RegisterStatus before using the
+ * affected data. The callback runs while the tree is being read, so copy any
+ * records that must outlive the callback. Their pointers still refer to the
+ * original firmware data.
  *
  * @param blob Firmware device-tree data, kept mapped and unchanged during use.
  * @param length Available size of blob in bytes.
- * @param visitor Callback receiving an array from the root to the current node
- *                and that node's index (depth). Copy records needed after the
- *                callback returns; their property pointers still refer to blob.
+ * @param visitor Function called for each node. It receives the ancestor array
+ *                and the index of the current node in that array.
  * @param context Caller data passed to visitor.
- * @return OS_EOK if the tree was read, or a tree format error. The callback
- *         must also check each record's Malformed and RegisterStatus fields.
+ * @return OS_EOK if the tree was read, or an error if the tree itself could
+ *         not be read. Resource-property problems are reported in each record
+ *         and do not necessarily stop the walk.
  */
-oserr_t
+__EXTERN oserr_t
 FdtWalkResources(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ FdtResourceFn visitor,
-    _InOut_ void* context);
+    _In_    const void*   blob,
+    _In_    size_t        length,
+    _In_    FdtResourceFn visitor,
+    _InOut_ void*         context);
+
 /**
- * @brief Find an enabled node by its firmware ID and read its resources.
+ * @brief Find a node by its numeric device-tree ID and read its resources.
+ *
+ * Nodes that provide things such as clocks or interrupts are often named by
+ * numeric IDs in other nodes' properties. This function locates the node for
+ * one of those IDs and returns its decoded resource information. The ID must
+ * identify exactly one node, and the node and all of its ancestors must be
+ * enabled and structurally usable. The returned register address still needs
+ * to be checked through RegisterStatus before it is used.
  *
  * @param blob Firmware device-tree data, kept mapped and unchanged during use.
  * @param length Available size of blob in bytes.
- * @param phandle Numeric node ID to find; duplicate IDs are rejected.
+ * @param phandle Numeric ID of the node to find. Duplicate IDs are rejected.
  * @param provider Receives the node's resources on success. Check RegisterStatus
  *                 before using its physical register address.
  * @return OS_EOK on success, OS_ENOENT if missing or disabled, or an error for
  *         invalid input or malformed resource properties.
  */
-oserr_t
+__EXTERN oserr_t
 FdtFindResources(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ uint32_t phandle,
+    _In_  const void*          blob,
+    _In_  size_t               length,
+    _In_  uint32_t             phandle,
     _Out_ struct FdtResources* provider);
+
 /**
- * @brief Read one address and size pair from a node's "reg" property.
+ * @brief Read one register range as it is written in the device tree.
+ *
+ * A node's "reg" property is a sequence of address-and-size pairs. The
+ * parent bus decides how many 32-bit cells make up each part, so this function
+ * uses the cell counts saved on the node to find the requested pair. It does
+ * not apply any bus address mappings; use FdtTranslateAddress afterward when
+ * a CPU physical address is needed.
  *
  * @param node Node whose register ranges should be read.
  * @param index Zero-based index of the range.
- * @param base Receives the starting address as written in "reg". It has not
- *             yet been converted from the parent bus address to a CPU address.
+ * @param base Receives the starting address exactly as written in "reg".
+ *             It has not yet been translated through the parent buses.
  * @param length Receives the range size in bytes.
- * @return OS_EOK on success, or OS_EINVALPARAMS for a missing entry, unsupported
- *         cell counts, or an incomplete address and size pair. The returned
- *         address and size still need range and overflow checks before use.
+ * @return OS_EOK on success, or OS_EINVALPARAMS if the entry is missing, the
+ *         parent uses unsupported cell counts, or the property ends partway
+ *         through a pair. The caller remains responsible for checking that
+ *         the range is valid for its intended use.
  */
-oserr_t
+__EXTERN oserr_t
 FdtRawRegister(
-    _In_ const struct FdtResources* node,
-    _In_ unsigned int index,
-    _Out_ uint64_t* base,
-    _Out_ uint64_t* length);
+    _In_  const struct FdtResources* node,
+    _In_  unsigned int               index,
+    _Out_ uint64_t*                  base,
+    _Out_ uint64_t*                  length);
+
 /**
- * @brief Convert a bus address to a CPU physical address through its parent buses.
+ * @brief Translate an address through each parent bus up to the tree root.
  *
- * The whole requested range must fit within a mapping at each bus level.
- * An empty mapping leaves the address unchanged. A missing "dma-ranges"
- * property also leaves it unchanged; a missing "ranges" property is an error.
+ * A device's address is first written in the address space of its parent bus,
+ * which may not be the same address space used by the CPU. Each bus can
+ * provide a "ranges" property that maps part of its children's address space
+ * into the address space of its own parent. This function follows those maps
+ * from the starting bus toward the root so the caller gets the final address.
  *
- * @param nodes Array of bus descriptions from the root to the starting bus.
+ * The entire requested range must fit inside one map at every level; checking
+ * only its first byte could allow a device to access memory beyond the mapped
+ * area. A present but empty mapping means addresses already match at that
+ * level. For DMA, a missing "dma-ranges" property means no translation is
+ * specified and leaves that level unchanged; for normal device addresses, a
+ * missing "ranges" property is an error. Failed translation may leave
+ * address partly updated, so use a temporary value if the original is needed.
+ *
+ * @param nodes Bus descriptions from the tree root through the starting bus.
  * @param depth Index of the starting bus in nodes.
- * @param length Size of the requested range in bytes.
- * @param address Starting address, updated as each bus mapping is applied.
- *                On failure it may contain a partly converted address.
- * @param dma Nonzero to use "dma-ranges" for direct memory access by devices;
- *            zero to use "ranges" for CPU access to device resources.
+ * @param length Number of bytes that must fit in the translated range.
+ * @param address Starting address; replaced with the translated address on
+ *                success and possibly partly changed on failure.
+ * @param dma Nonzero to use "dma-ranges", which describes addresses used by
+ *            devices when they directly read or write memory. Zero uses
+ *            "ranges", which describes addresses used for device resources.
  * @return 1 on success, or 0 if a mapping is missing, invalid, or does not fit.
  */
-int
+__EXTERN int
 FdtTranslateAddress(
     _In_ const struct FdtResources* nodes,
-    _In_ int depth,
-    _In_ uint64_t length,
-    _In_ uint64_t* address,
-    _In_ int dma);
+    _In_ int                        depth,
+    _In_ uint64_t                   length,
+    _In_ uint64_t*                  address,
+    _In_ int                        dma);
+
 /**
- * @brief Combine device-tree cells into a number in the CPU's byte order.
+ * @brief Read one or more device-tree cells as a single integer.
  *
- * @param value Bytes to read; the caller must ensure cells * 4 bytes are available.
- * @param cells Number of 32-bit cells. Use at most two for a 64-bit result.
- * @return The combined value, or zero if cells is zero.
+ * Device-tree values are stored as 32-bit numbers in big-endian byte order.
+ * Addresses and sizes may use multiple cells, with the most significant cell
+ * first. This helper joins those cells and converts each one to the CPU's
+ * byte order, so callers can do ordinary integer comparisons and arithmetic.
+ *
+ * @param value Bytes to read. The caller must ensure at least cells * 4 bytes
+ *              are available.
+ * @param cells Number of 32-bit values to combine. Use no more than two when
+ *              the result must fit in 64 bits.
+ * @return The combined integer, or zero when cells is zero.
  */
-uint64_t
+__EXTERN uint64_t
 FdtReadCells(
     _In_ const uint8_t* value,
-    _In_ uint32_t cells);
+    _In_ uint32_t       cells);
+
 /**
- * @brief Check for an exact string in a list of zero-terminated strings.
+ * @brief Check whether a zero-terminated string list contains a name.
  *
- * @param list String list bytes.
- * @param length Available size of list in bytes.
- * @param needle String to find.
- * @return 1 for a match, or 0 if absent or an unterminated string is found first.
+ * Properties such as "compatible" and "clock-names" store several strings
+ * back-to-back, each ending with a zero byte. This function walks those
+ * strings one at a time and compares complete entries, so a short name does
+ * not accidentally match the beginning of a longer one. If an entry has no
+ * terminating zero within the supplied length, the list is treated as invalid
+ * and no match is reported.
+ *
+ * @param list Bytes containing the string list.
+ * @param length Number of bytes available in list.
+ * @param needle Name to find, compared exactly.
+ * @return 1 if a complete matching entry is found, or 0 if it is absent or the
+ *         list contains an unterminated entry before a match.
  */
-int
+__EXTERN int
 FdtStringListContains(
     _In_ const uint8_t* list,
-    _In_ uint32_t length,
-    _In_ const char* needle);
+    _In_ uint32_t       length,
+    _In_ const char*    needle);
+
 /**
- * @brief Find a name's position after checking the entire string list.
+ * @brief Find a name's position and validate the complete name list.
  *
- * @param names List of zero-terminated names.
- * @param length Available size of names in bytes.
- * @param name Name to find; more than one occurrence is an error.
- * @param index Receives its zero-based position, or UINT32_MAX if not found.
- * @param count Receives the total number of names if the list is valid.
- * @return OS_EOK for a match, OS_ENOENT if absent, or OS_EINVALPARAMS for an
- *         invalid list or duplicate matches. Outputs stay unchanged on error
- *         except for OS_ENOENT, which still sets index and count.
+ * Some properties pair a list of names with another list of values by using
+ * the same position in each list. This function returns that position and
+ * counts all names. It reads the whole list, rather than stopping at the
+ * requested name, so malformed trailing data and repeated copies of that name
+ * are not silently accepted. Empty entries are rejected because they cannot
+ * name a resource.
+ *
+ * @param names Bytes containing the zero-terminated names.
+ * @param length Number of bytes available in names.
+ * @param name Name whose zero-based position is requested. A repeated match
+ *             makes the result ambiguous and is reported as an error.
+ * @param index Receives the matching position, or UINT32_MAX if there is no
+ *              match. It is written only after the whole list is valid.
+ * @param count Receives the total number of names when the list is valid.
+ * @return OS_EOK when the name occurs once, OS_ENOENT when it is absent, or
+ *         OS_EINVALPARAMS when the list is malformed or the name is repeated.
+ *         Outputs are unchanged for OS_EINVALPARAMS; for OS_ENOENT, index and
+ *         count are set to describe the valid list.
  */
-oserr_t
+__EXTERN oserr_t
 FdtNameIndex(
-    _In_ const uint8_t* names,
-    _In_ uint32_t length,
-    _In_ const char* name,
-    _Out_ uint32_t* index,
-    _Out_ uint32_t* count);
+    _In_  const uint8_t* names,
+    _In_  uint32_t       length,
+    _In_  const char*    name,
+    _Out_ uint32_t*      index,
+    _Out_ uint32_t*      count);
+
 /**
- * @brief Check whether one address range fits entirely inside another.
+ * @brief Check whether a nonempty address range fits inside another range.
  *
- * @param base Starting address of the containing range.
+ * Resource properties often give a starting address and a byte length. This
+ * helper checks that every byte of one such range belongs to a containing
+ * range. It uses subtraction after confirming the starting address is not
+ * below the containing range, avoiding an end-address addition that could
+ * overflow the integer type.
+ *
+ * @param base First address in the containing range.
  * @param length Size of the containing range in bytes.
- * @param child Starting address of the range to check.
- * @param childLength Size of the range to check in bytes.
- * @return 1 if it fits and childLength is nonzero, otherwise 0.
+ * @param child First address in the range being checked.
+ * @param childLength Size of the range being checked in bytes.
+ * @return 1 if the child range is nonempty and fully contained, otherwise 0.
  */
-int
+__EXTERN int
 FdtContainsRange(
     _In_ uint64_t base,
     _In_ uint64_t length,
     _In_ uint64_t child,
     _In_ uint64_t childLength);
+
 /**
- * @brief Read the next reference to a resource, such as a clock or interrupt.
+ * @brief Read one reference to another node from a resource property.
  *
- * The referenced node (the provider) declares how many 32-bit argument cells
- * follow its ID. This function checks that those cells fit within the list.
- * Outputs and offset change only on success.
+ * A property such as "clocks" can contain a sequence of references. Each
+ * reference names a node that supplies a resource, such as a clock or reset;
+ * that node is called the provider. A reference normally starts with the
+ * provider's numeric ID. The provider declares how many 32-bit argument
+ * values follow that ID, so this function reads the ID, finds the provider,
+ * checks its declared argument count, and returns the argument bytes.
+ *
+ * Some properties name their provider once for the whole list instead of
+ * repeating the ID for every entry. In that case inheritedProvider supplies
+ * the ID and each entry contains only arguments. The function advances offset
+ * only after the entire reference is valid, allowing a caller to stop safely
+ * on an error without losing its place. The returned pointers refer to the
+ * original firmware data.
  *
  * @param blob Firmware device-tree data, kept mapped and unchanged during use.
  * @param blobLength Available size of blob in bytes.
- * @param cells Reference list to read.
- * @param length Size of the reference list in bytes.
- * @param cellsName Provider property giving the argument count, e.g. "#clock-cells".
- * @param inheritedProvider Zero if each entry begins with a provider ID (phandle).
- *                          Otherwise, use this ID and read only arguments.
- * @param offset Byte position to read; advances past the entry on success.
- * @param provider Receives the referenced node's resources.
- * @param arguments Receives a pointer to the entry's argument bytes in cells.
- *                  The original list must remain available while these are used.
- * @return OS_EOK on success, or an error for an invalid reference or argument count.
+ * @param cells Bytes containing the references and their arguments.
+ * @param length Number of bytes available in cells.
+ * @param cellsName Name of the provider property that states the argument
+ *                  count, such as "#clock-cells".
+ * @param inheritedProvider Zero when every entry starts with its provider ID.
+ *                          Otherwise, this ID is used for each entry and the
+ *                          entry starts directly with its arguments.
+ * @param offset Byte position of the next entry to read. It advances past the
+ *               entry only when that entry is valid.
+ * @param provider Receives the resource information for the named provider.
+ * @param arguments Receives a pointer to this entry's argument bytes. The
+ *                  original firmware data must remain available while the
+ *                  pointer is used.
+ * @return OS_EOK on success, or an error if the provider cannot be found, its
+ *         argument count is invalid, or the entry is incomplete.
  */
-oserr_t
+__EXTERN oserr_t
 FdtNextReference(
-    _In_ const void* blob,
-    _In_ size_t blobLength,
-    _In_ const uint8_t* cells,
-    _In_ uint32_t length,
-    _In_ const char* cellsName,
-    _In_ uint32_t inheritedProvider,
-    _InOut_ uint32_t* offset,
-    _Out_ struct FdtResources* provider,
-    _Out_ const uint8_t** arguments);
+    _In_    const void*          blob,
+    _In_    size_t               blobLength,
+    _In_    const uint8_t*       cells,
+    _In_    uint32_t             length,
+    _In_    const char*          cellsName,
+    _In_    uint32_t             inheritedProvider,
+    _InOut_ uint32_t*            offset,
+    _Out_   struct FdtResources* provider,
+    _Out_   const uint8_t**      arguments);
 
 #endif //!__FIRMWARE_RESOURCES_H__
