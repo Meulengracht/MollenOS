@@ -26,13 +26,14 @@
 
 #include <os/handle.h>
 #include <ddk/utils.h>
-#include "domains/domains.h"
 #include <os/shm.h>
-#include "socket.h"
 #include <stdlib.h>
 #include <string.h>
 
 #include "sys_socket_service_server.h"
+
+#include "domains/domains.h"
+#include "socket.h"
 
 // TODO send pipe should have STREAMBUFFER_MULTIPLE_WRITERS only
 // TODO recv pipe should have STREAMBUFFER_MULTIPLE_READERS only
@@ -178,35 +179,35 @@ SocketShutdownImpl(
     _In_ Socket_t* Socket,
     _In_ int       Options)
 {
-    mtx_lock(&Socket->SyncObject);
-    if (Options & SYS_CLOSE_OPTIONS_DESTROY) {
-        if (Socket->Configuration.Connected) {
-            DomainDisconnect(Socket);
-        }
-        
-        mtx_unlock(&Socket->SyncObject);
-        mtx_destroy(&Socket->SyncObject);
-        free(Socket->QueuedPacket.Data);
-        DomainDestroy(Socket->Domain);
-        __SocketPipeDestroy(&Socket->Receive);
-        __SocketPipeDestroy(&Socket->Send);
-        OSHandleDestroy(&Socket->Handle);
-        free(Socket);
-        return OS_EOK;
+    // These are protocol operations, not flags (READ is zero).
+    switch (Options) {
+        case SYS_CLOSE_OPTIONS_READ:
+        case SYS_CLOSE_OPTIONS_WRITE:
+        case SYS_CLOSE_OPTIONS_READ_WRITE:
+            // Do not change shared pipes until the domain can finish all sends,
+            // propagate peer EOF and wake blocked IO.
+            return OS_ENOTSUPPORTED;
+        case SYS_CLOSE_OPTIONS_DESTROY:
+            break;
+        default:
+            return OS_EINVALPARAMS;
     }
-    else {
-        if (Options & SYS_CLOSE_OPTIONS_WRITE) {
-            // Disable pipe
-            // TODO
-        }
-        
-        if (Options & SYS_CLOSE_OPTIONS_READ) {
-            // Disable pipe
-            // TODO
-        }
+
+    mtx_lock(&Socket->SyncObject);
+    if (Socket->Configuration.Connected) {
+        DomainDisconnect(Socket);
     }
     mtx_unlock(&Socket->SyncObject);
-    return OS_ENOTSUPPORTED;
+
+    mtx_destroy(&Socket->SyncObject);
+    free(Socket->QueuedPacket.Data);
+    
+    DomainDestroy(Socket->Domain);
+    __SocketPipeDestroy(&Socket->Receive);
+    __SocketPipeDestroy(&Socket->Send);
+    OSHandleDestroy(&Socket->Handle);
+    free(Socket);
+    return OS_EOK;
 }
 
 oserr_t
