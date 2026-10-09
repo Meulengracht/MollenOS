@@ -21,6 +21,109 @@
 #include <bus/pci/hosts/broadcom/bcm.h>
 #include <bus/pci/hosts/broadcom/registers.h>
 #include <ddk/utils.h>
+#include <stdlib.h>
+
+/**
+ * @brief Keep one register mapping for all hosts using the same reset hardware.
+ *
+ * The kernel rejects a second registration of an overlapping physical range,
+ * even from this service. References counts hosts, not reset signals: each host
+ * keeps its own signal number and writes only that signal's bit. The list and
+ * reference counts are protected by g_bcm2712ResetLock.
+ */
+struct __Bcm2712ResetProvider {
+    element_t    Header;
+    DeviceIo_t   Io;
+    unsigned int References;
+};
+
+static list_t g_bcm2712ResetProviders = LIST_INIT;
+static mtx_t  g_bcm2712ResetLock = MUTEX_INIT(mtx_plain);
+
+/**
+ * @brief Retain an existing reset mapping instead of registering it twice.
+ *
+ * Physical address and length identify the actual registers, even if separate
+ * firmware descriptions use different names. Hold a separate lock through
+ * registration so simultaneous callers cannot both create the same mapping.
+ * The PCI list lock cannot be used here because host teardown already holds it.
+ * A failed first mapping leaves no record or reference for Stop to release.
+ */
+static oserr_t
+__Bcm2712AcquireResetProvider(
+    _In_  const struct FdtPciDependencies* dependencies,
+    _Out_ struct __Bcm2712ResetProvider**  result)
+{
+    struct __Bcm2712ResetProvider* provider;
+    oserr_t                        status;
+
+    mtx_lock(&g_bcm2712ResetLock);
+    foreach (element, &g_bcm2712ResetProviders) {
+        provider = element->value;
+        if (provider->Io.Access.Memory.PhysicalBase != dependencies->BridgeResetBase ||
+            provider->Io.Access.Memory.Length != dependencies->BridgeResetLength) {
+            continue;
+        }
+        if (provider->References == UINT_MAX) {
+            mtx_unlock(&g_bcm2712ResetLock);
+            return OS_EOVERFLOW;
+        }
+        
+        provider->References++;
+        *result = provider;
+        
+        mtx_unlock(&g_bcm2712ResetLock);
+        return OS_EOK;
+    }
+
+    provider = calloc(1, sizeof(struct __Bcm2712ResetProvider));
+    if (provider == NULL) {
+        mtx_unlock(&g_bcm2712ResetLock);
+        return OS_EOOM;
+    }
+
+    status = BcmPciMapRegisters(
+        &provider->Io,
+        dependencies->BridgeResetBase,
+        dependencies->BridgeResetLength
+    );
+    if (status != OS_EOK) {
+        free(provider);
+        mtx_unlock(&g_bcm2712ResetLock);
+        return status;
+    }
+
+    provider->References = 1;
+    ELEMENT_INIT(&provider->Header, 0, provider);
+    list_append(&g_bcm2712ResetProviders, &provider->Header);
+
+    *result = provider;
+
+    mtx_unlock(&g_bcm2712ResetLock);
+    return OS_EOK;
+}
+
+/**
+ * @brief Drop one host's reference without removing another host's registers.
+ *
+ * Stop calls this only after finishing its reset writes. Keep the mapping
+ * acquired until the last host stops, including when a sibling fails setup.
+ * Removing and destroying it under the same lock also prevents a new host
+ * from trying to register the range before the old registration is gone.
+ */
+static void
+__Bcm2712ReleaseResetProvider(
+    _In_ struct __Bcm2712ResetProvider* provider)
+{
+    mtx_lock(&g_bcm2712ResetLock);
+    if (--provider->References == 0) {
+        list_remove(&g_bcm2712ResetProviders, &provider->Header);
+        ReleaseDeviceIo(&provider->Io);
+        DestroyDeviceIo(&provider->Io);
+        free(provider);
+    }
+    mtx_unlock(&g_bcm2712ResetLock);
+}
 
 /**
  * @brief Keep each fixed electrical-interface setting beside its register number.
@@ -171,7 +274,7 @@ __Bcm2712BridgeReset(
     // SET and CLEAR act on bits written as one. Write only this host's bit:
     // reading and rewriting a bank could accidentally reset another live host.
     status = WriteDeviceIo(
-        &controller->BridgeReset,
+        &controller->BridgeReset->Io,
         bank + (assert ? BCM2712_RESET_SET : BCM2712_RESET_CLEAR),
         bit,
         sizeof(uint32_t)
@@ -180,7 +283,7 @@ __Bcm2712BridgeReset(
     for (attempt = 0; status == OS_EOK && attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
         // Reading STATUS waits for the earlier write to reach the controller
         // and reports whether reset is active. SET/CLEAR cannot report that state.
-        value = (uint32_t)ReadDeviceIo(&controller->BridgeReset,
+        value = (uint32_t)ReadDeviceIo(&controller->BridgeReset->Io,
                 bank + BCM2712_RESET_STATUS, sizeof(uint32_t));
 
         // A failed read returns all bits set; that does not prove reset is active.
@@ -397,8 +500,8 @@ __Bcm2712Setup(
  *
  * Let the host run for calibration, then briefly reset it. Keep the connected
  * device in reset while later setup stages install address mappings. Record
- * the acquired reset-register mapping immediately so Stop can release it if
- * a later setup step fails.
+ * the retained reset-provider reference immediately so Stop can drop it if
+ * a later setup step fails, without unmapping another host's reset registers.
  */
 static oserr_t
 __Bcm2712Prepare(
@@ -415,11 +518,7 @@ __Bcm2712Prepare(
         return status;
     }
 
-    status = BcmPciMapRegisters(
-        &controller->BridgeReset,
-        dependencies.BridgeResetBase, 
-        dependencies.BridgeResetLength
-    );
+    status = __Bcm2712AcquireResetProvider(&dependencies, &controller->BridgeReset);
     if (status != OS_EOK) {
         return status;
     }
@@ -850,7 +949,7 @@ __Bcm2712Start(
 }
 
 /**
- * @brief Stop this Pi 5 connection and release its reset-register mapping.
+ * @brief Stop this Pi 5 connection and drop its reset-provider reference.
  *
  * Prepare may have failed before acquiring the mapping. If it was acquired,
  * hold the connected device in reset but let the host controller run. Keeping
@@ -875,8 +974,8 @@ __Bcm2712Stop(
     // Keeping it in reset could disturb calibration shared with another host.
     (void)__Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
 
-    ReleaseDeviceIo(&controller->BridgeReset);
-    DestroyDeviceIo(&controller->BridgeReset);
+    __Bcm2712ReleaseResetProvider(controller->BridgeReset);
+    controller->BridgeReset = NULL;
     controller->BridgeResetMapped = 0;
 }
 

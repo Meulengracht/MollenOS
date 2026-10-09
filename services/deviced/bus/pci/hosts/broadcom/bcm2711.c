@@ -318,8 +318,9 @@ __Bcm2711Inbound(
  * @brief Set Pi 4 connection settings, then allow the connected device to start.
  *
  * Address mappings are already installed. Use PCI Express generation 2 speed
- * (Gen2) and keep connection power saving disabled. After releasing device
- * reset, wait 100 ms before the shared code starts checking connection status.
+ * (Gen2), limited by firmware, and keep connection power saving disabled.
+ * After releasing device reset, wait 100 ms before the shared code starts
+ * checking connection status.
  */
 static oserr_t
 __Bcm2711Start(
@@ -327,8 +328,14 @@ __Bcm2711Start(
     _In_ const struct FdtPciHost* firmware)
 {
     uint32_t buses;
+    uint32_t linkSpeed;
     uint16_t linkControl;
     oserr_t  status;
+
+    linkSpeed = BCM_PCIE_LINK_SPEED_GEN2;
+    if (firmware->Link.MaxSpeed != 0 && firmware->Link.MaxSpeed < linkSpeed) {
+        linkSpeed = firmware->Link.MaxSpeed;
+    }
 
     // Assign the root bus, its immediate child, and the highest permitted bus.
     // Validation guarantees that the firmware range has room for a child bus.
@@ -360,13 +367,13 @@ __Bcm2711Start(
         return status;
     }
 
-    // Report Gen2 as the maximum speed and disable support for the L0s/L1
+    // Report the firmware-limited speed and disable support for the L0s/L1
     // sleep modes. Host and device power saving are not coordinated during setup.
     status = BcmPciUpdate(
         bus,
         BCM_PCIE_LINK_CAPABILITY,
         BCM_PCIE_LINK_CAP_ASPM_MASK | BCM_PCIE_LINK_CAP_SPEED_MASK,
-        BCM_PCIE_LINK_SPEED_GEN2
+        linkSpeed
     );
     if (status != OS_EOK) {
         return status;
@@ -380,11 +387,11 @@ __Bcm2711Start(
         sizeof(uint16_t)
     );
 
-    // Request the same Gen2 speed that the capability above advertises.
+    // Request the same speed that the capability above advertises.
     status = WriteDeviceIo(
         &bus->IoSpace,
         BCM_PCIE_LINK_CONTROL2,
-        (linkControl & ~BCM_PCIE_LINK_CONTROL2_SPEED_MASK) | BCM_PCIE_LINK_SPEED_GEN2,
+        (linkControl & ~BCM_PCIE_LINK_CONTROL2_SPEED_MASK) | linkSpeed,
         sizeof(uint16_t)
     );
     if (status != OS_EOK) {
