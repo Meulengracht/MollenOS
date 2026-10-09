@@ -21,8 +21,8 @@
 #include <os/osdefs.h>
 #include <os/types/shm.h>
 
-// Bound copying and validation work. This accepts all 64 ranges currently
-// produced by deviced without making kernel code depend on firmware headers.
+// This accepts all 64 ranges produced by deviced without 
+// making the kernel aware of firmware-specific details.
 #define SHM_DEVICE_MAX_RANGES 64
 
 enum SHMDeviceCachePolicy {
@@ -34,9 +34,18 @@ enum SHMDeviceCachePolicy {
     SHMDeviceCacheCoherent
 };
 
+// Which way data moves during a transfer. Later cache handling and bounce
+// buffers use it to skip work that cannot matter for that direction.
+enum SHMDeviceDirection {
+    // The device only reads the memory, e.g. a USB OUT transfer.
+    SHMDeviceToDevice,
+    // The device only writes the memory, e.g. a USB IN transfer.
+    SHMDeviceFromDevice,
+    // The device both reads and writes, e.g. a controller's own structures.
+    SHMDeviceBidirectional
+};
+
 /**
- * @brief Describe one device address block and its matching physical block.
- *
  * These are address rules, not allocated pages. Length counts bytes from both
  * bases. Device blocks must not overlap; physical blocks may overlap because
  * hardware can expose several device addresses for the same physical memory.
@@ -48,8 +57,6 @@ struct SHMDeviceRange {
 };
 
 /**
- * @brief One block of bytes as the device sees it.
- *
  * Unlike SHMSG_t, which holds CPU physical addresses in a pointer-sized type,
  * this always uses 64 bits because device addresses can exceed 4 GiB even on
  * 32-bit kernels, and they need not equal the physical address.
@@ -59,21 +66,25 @@ struct SHMDeviceSegment {
     uint64_t Length;
 };
 
-// The context owns an immutable copy of the ranges and cache policy. Keeping
-// it private prevents a caller from changing address rules while others use it.
+// Opaque types
 struct SHMDeviceContext;
+struct SHMDeviceMapping;
 
 /**
  * @brief Copy validated address rules so SHM can keep them beyond a request.
  *
- * This kernel-only operation takes stable kernel memory, never user pointers.
+ * This call must only use kernel memory, never user pointers.
  * It does not register a device, retain a deviced lease, reserve RAM, configure
  * caches or enable hardware. The future registration caller must separately
  * keep the actual device path alive and exclude reset while using these rules.
  *
- * @param ranges Unsorted or sorted ranges, stable throughout this call.
+ * @param ranges Unsorted or sorted ranges.
  * @param count Number of ranges; must be 1 through SHM_DEVICE_MAX_RANGES.
  * @param cachePolicy Known coherency policy for the complete device path.
+ * @param addressLimit Largest address the device can use, inclusive. It is a
+ *                     property of the device, so it is stored here instead of
+ *                     passed on every call. UINT64_MAX means no limit;
+ *                     UINT32_MAX describes a device limited to 32-bit addresses.
  * @param contextOut Empty owning slot; receives one reference on success.
  * @return OS_EOK; OS_EINVALPARAMS for invalid arguments, policy, empty ranges,
  *         overflow or overlapping device blocks; OS_ENOTSUPPORTED for too many
@@ -85,38 +96,33 @@ SHMDeviceContextCreate(
     _In_    const struct SHMDeviceRange* ranges,
     _In_    uint32_t                     count,
     _In_    enum SHMDeviceCachePolicy    cachePolicy,
+    _In_    uint64_t                     addressLimit,
     _InOut_ struct SHMDeviceContext**    contextOut);
 
 /**
- * @brief Take another reference so an independent owner can keep the rules.
+ * @brief Increases the reference count for a device context.
  *
- * @param context Context protected by an existing reference throughout this
- *                call. Success permits copying its pointer to a new owning
- *                slot. Acquiring from an unprotected pointer is not safe.
- * @return OS_EOK, OS_EINVALPARAMS for NULL, or OS_EOVERFLOW if the reference
- *         count cannot grow. Failure does not acquire a reference.
+ * @return OS_EOK,
+ *         OS_EINVALPARAMS for NULL
+ *         OS_EOVERFLOW if the reference fails to increase. 
+ * On error it does not acquire a reference.
  */
 oserr_t
-SHMDeviceContextRetain(
+SHMDeviceContextAcquire(
     _In_ struct SHMDeviceContext* context);
 
 /**
- * @brief Drop one owner and free the copied rules after the last owner leaves.
- *
- * @param context Owning slot, cleared by this call. NULL or an empty slot is
- *                harmless. Serialize access to the same slot; distinct owners
- *                may release concurrently. This releases no DMA buffers and
- *                does not stop hardware or release a deviced lease.
+ * @brief Releases a reference to a device context. If the last reference is 
+ * released, the context is freed.
  */
 void
 SHMDeviceContextRelease(
     _InOut_ struct SHMDeviceContext** context);
 
 /**
- * @brief Read the saved policy so future SHM mappings can choose cache handling.
+ * @brief Get the policy for the context SHM mappings can choose cache handling.
  *
- * @param context Context held by the caller for the duration of this call.
- * @return The copied policy, or SHMDeviceCacheUnknown for NULL. Reading it does
+ * @return The policy, or SHMDeviceCacheUnknown for NULL. Reading it does
  *         not perform cache maintenance or make memory visible to hardware.
  */
 enum SHMDeviceCachePolicy
@@ -128,18 +134,17 @@ SHMDeviceContextGetCachePolicy(
  *
  * The buffer must fit inside one range. Adjacent ranges are not joined; use
  * SHMDeviceContextBuildSegments to split at their boundaries. Among aliases
- * that fit the full buffer and device limit, choose the lowest device address,
- * independently of input order. No RAM ownership or installed-memory check is
- * made, so a successful translation alone never authorizes a DMA transfer.
+ * that fit the full buffer and the context's address limit, choose the lowest
+ * device address, independently of input order. No RAM ownership or
+ * installed-memory check is made, so a successful translation alone never
+ * authorizes a DMA transfer.
  *
  * @param context Context held by the caller throughout this call.
  * @param physicalBase First physical byte of the proposed buffer.
  * @param length Nonzero buffer length in bytes.
- * @param deviceLimit Largest address the controller may use, inclusive.
- *                    UINT64_MAX means no additional controller limit.
  * @param deviceAddressOut Receives the device address only on success.
  * @return OS_EOK; OS_EINVALPARAMS for NULL, zero length or physical overflow;
- *         OS_ENOENT if no single range covers the buffer within deviceLimit.
+ *         OS_ENOENT if no single range covers the buffer within the limit.
  *         Failure leaves the output unchanged.
  */
 oserr_t
@@ -147,7 +152,6 @@ SHMDeviceContextTranslate(
     _In_  const struct SHMDeviceContext* context,
     _In_  uint64_t                       physicalBase,
     _In_  uint64_t                       length,
-    _In_  uint64_t                       deviceLimit,
     _Out_ uint64_t*                      deviceAddressOut);
 
 /**
@@ -170,23 +174,138 @@ SHMDeviceContextTranslate(
  *                address zero is real memory on some boards, so an uncommitted
  *                page cannot be recognised here.
  * @param extentCount Number of extents, at least one.
- * @param deviceLimit Largest address the controller may use, inclusive.
  * @param segmentCount In: capacity of segmentsOut (ignored when it is NULL).
  *                     Out: segments needed, or written on success.
  * @param segmentsOut NULL to count only, otherwise receives the segments.
  * @return OS_EOK; OS_EINVALPARAMS for NULL arguments, no extents, or an empty
  *         or wrapping extent; OS_ENOENT if some byte has no device address
- *         within deviceLimit; OS_EBUFFER if segmentsOut is too small, with the
- *         needed count stored; OS_ENOTSUPPORTED if the count would not fit.
- *         segmentsOut is untouched on every failure.
+ *         within the context's address limit; OS_EBUFFER if segmentsOut is too
+ *         small, with the needed count stored; OS_ENOTSUPPORTED if the count
+ *         would not fit. segmentsOut is untouched on every failure.
  */
 oserr_t
 SHMDeviceContextBuildSegments(
     _In_    const struct SHMDeviceContext* context,
     _In_    const SHMSG_t*                 extents,
     _In_    int                            extentCount,
-    _In_    uint64_t                       deviceLimit,
     _InOut_ uint32_t*                      segmentCount,
     _Out_   struct SHMDeviceSegment*       segmentsOut);
+
+/**
+ * @brief Prepare part of an SHM buffer for a device and keep it alive.
+ *
+ * The mapping holds its own reference to the buffer, so the pages stay
+ * allocated even if every process detaches it. It also holds a reference to
+ * the context. It does not move or copy data, change caching, or start any
+ * hardware, and it is not a permission check: callers are kernel code that has
+ * already decided this device may use this buffer.
+ *
+ * Only buffers SHM owns are accepted. For a non-coherent context with a
+ * device that writes (FromDevice or Bidirectional), the range must start and
+ * end on a CPU cache line boundary: the sync calls throw away whole cached
+ * lines, which would otherwise also erase CPU changes to neighbouring bytes.
+ * Every page in the range must already be allocated (for example with
+ * SHM_COMMIT); this never allocates pages as a side effect.
+ *
+ * The new mapping starts out owned by the CPU. Hand it to the device with
+ * SHMDeviceSyncForDevice before starting a transfer.
+ *
+ * @param context Context held by the caller throughout this call.
+ * @param shmID Buffer to use.
+ * @param offset First byte of the range, counted from the start of the buffer.
+ * @param length Nonzero number of bytes; the range must fit in the buffer.
+ * @param direction Which way data will move for this mapping.
+ * @param mappingOut Empty owning slot; receives the mapping on success.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL arguments, a bad range or an
+ *         unknown direction; OS_EBUSY for an occupied slot; OS_ENOENT for an
+ *         unknown buffer or bytes with no device address; OS_ENOTSUPPORTED
+ *         for an exported buffer, or a range not on cache line boundaries
+ *         where that is required;
+ *         OS_EINCOMPLETE if a page in the range was never allocated;
+ *         OS_EOVERFLOW if the context cannot take another reference; OS_EOOM.
+ *         Failure leaves the slot unchanged and takes no references.
+ */
+oserr_t
+SHMDeviceMap(
+    _In_    struct SHMDeviceContext*  context,
+    _In_    uuid_t                    shmID,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    enum SHMDeviceDirection   direction,
+    _InOut_ struct SHMDeviceMapping** mappingOut);
+
+/**
+ * @brief Hand a mapping to the device before starting a transfer.
+ *
+ * Makes the CPU's writes to the range visible to the device, then marks the
+ * whole mapping as device-owned. For a non-coherent context, cached data in
+ * the range is written back, and for a device that writes, also thrown away.
+ * Until SHMDeviceSyncForCpu, the CPU must not touch the mapping's bytes, and
+ * the mapping cannot be released.
+ *
+ * @param mapping Mapping owned by the caller. Calls on one mapping must not
+ *                overlap.
+ * @param offset First byte the device will use, counted from the mapping.
+ * @param length Nonzero number of bytes; must lie inside the mapping.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL or a bad range; OS_EBUSY if the
+ *         device already owns the mapping.
+ */
+oserr_t
+SHMDeviceSyncForDevice(
+    _In_ struct SHMDeviceMapping* mapping,
+    _In_ size_t                   offset,
+    _In_ size_t                   length);
+
+/**
+ * @brief Take a mapping back from the device after a transfer has ended.
+ *
+ * Call only once the driver knows the device has finished, for example from a
+ * completion event, or after stopping the device. Makes the device's writes in
+ * the completed range visible to the CPU (for a non-coherent context with a
+ * device that writes, by throwing away stale cached copies), then returns the
+ * whole mapping to the CPU. Bytes outside the completed range must be treated
+ * as unchanged.
+ *
+ * @param mapping Mapping owned by the caller. Calls on one mapping must not
+ *                overlap.
+ * @param offset First completed byte, counted from the mapping.
+ * @param length Completed bytes; zero is allowed when nothing was transferred.
+ * @return OS_EOK; OS_EINVALPARAMS for NULL, a bad range, or a mapping the
+ *         device does not own.
+ */
+oserr_t
+SHMDeviceSyncForCpu(
+    _In_ struct SHMDeviceMapping* mapping,
+    _In_ size_t                   offset,
+    _In_ size_t                   length);
+
+/**
+ * @brief Drop a mapping and the buffer and context references it held.
+ *
+ * Refuses while the device owns the mapping, because releasing could free
+ * pages the device is still using. Take it back with SHMDeviceSyncForCpu once
+ * the device has stopped. This does not stop hardware itself.
+ *
+ * @param mapping Owning slot, cleared on success. NULL or an empty slot is
+ *                harmless. Serialize access to the same slot.
+ * @return OS_EOK, or OS_EBUSY if the device owns the mapping; the slot is then
+ *         left unchanged.
+ */
+oserr_t
+SHMDeviceUnmap(
+    _InOut_ struct SHMDeviceMapping** mapping);
+
+/**
+ * @brief Read the device segments covering the mapped range, in order.
+ *
+ * @param mapping Mapping owned by the caller.
+ * @param countOut Receives the number of segments.
+ * @return The segment list, valid until the mapping is released, or NULL for
+ *         NULL arguments.
+ */
+const struct SHMDeviceSegment*
+SHMDeviceMappingSegments(
+    _In_  const struct SHMDeviceMapping* mapping,
+    _Out_ uint32_t*                      countOut);
 
 #endif //!__SHM_DEVICE_H__

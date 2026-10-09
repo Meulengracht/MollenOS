@@ -139,9 +139,18 @@ ArchPlatformInitialize(
         __get_cpuid(1, cpuRegisters);
         cpu->PlatformData.EcxFeatures = cpuRegisters[2];
         cpu->PlatformData.EdxFeatures = cpuRegisters[3];
+        
         if (cpuRegisters[3] & CPUID_FEAT_EDX_HTT) {
             cpu->NumberOfCores = (int)((cpuRegisters[1] >> 16) & 0xFF);
             core->Id           = (cpuRegisters[1] >> 24) & 0xFF;
+        }
+
+        if (cpuRegisters[3] & CPUID_FEAT_EDX_CLF) {
+            // Line size is ((EBX >> 8) & 0xff) * 8
+            cpu->PlatformData.CacheLineSize = ((cpuRegisters[1] >> 8) & 0xFF) * 8;
+        } else {
+            // Default cache line size if CLF is not supported
+            cpu->PlatformData.CacheLineSize = 64;
         }
 
         // CPUID.0B:EDX is the full x2APIC ID. The legacy CPUID.01 ID is
@@ -334,8 +343,7 @@ CpuInvalidateMemoryCache(
     if (Start == NULL) {
         // TODO: disable PGE bit
         memory_reload_cr3();
-    }
-    else {
+    } else {
         uintptr_t Offset       = ((uintptr_t)Start) & ATTRIBUTE_MASK;
         size_t    AdjustLength = Offset + Length;
         uintptr_t StartAddress = ((uintptr_t)Start) & PAGE_MASK;
@@ -344,6 +352,41 @@ CpuInvalidateMemoryCache(
             memory_invalidate_addr(StartAddress);
         }
     }
+}
+
+// PCI devices on x86 see the CPU caches, so their contexts are coherent and
+// the cache operations below have nothing to do.
+size_t
+CpuDataCacheLineSize(void)
+{
+    return GetMachine()->Processor.PlatformData.CacheLineSize;
+}
+
+void
+CpuDataCacheClean(
+    _In_ uintptr_t physical,
+    _In_ size_t    length)
+{
+    _CRT_UNUSED(physical);
+    _CRT_UNUSED(length);
+}
+
+void
+CpuDataCacheInvalidate(
+    _In_ uintptr_t physical,
+    _In_ size_t    length)
+{
+    _CRT_UNUSED(physical);
+    _CRT_UNUSED(length);
+}
+
+void
+CpuDataCacheCleanInvalidate(
+    _In_ uintptr_t physical,
+    _In_ size_t    length)
+{
+    _CRT_UNUSED(physical);
+    _CRT_UNUSED(length);
 }
 
 void CpuReadModelRegister(uint32_t registerIndex, uint64_t* pointerToValue)

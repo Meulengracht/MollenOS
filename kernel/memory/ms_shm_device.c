@@ -18,19 +18,18 @@
 //#define __TRACE
 
 #include <shm_device.h>
+#include <arch/utils.h>
+#include <ddk/barrier.h>
+#include <handle.h>
 #include <heap.h>
 #include <limits.h>
 #include <string.h>
+#include "private.h"
 
-/**
- * @brief Keep copied address rules alive independently of the caller's storage.
- *
- * Only References changes after creation, so translations need no lock while
- * the caller owns a reference. Ranges contains exactly Count entries.
- */
 struct SHMDeviceContext {
     _Atomic(unsigned int)     References;
     enum SHMDeviceCachePolicy CachePolicy;
+    uint64_t                  AddressLimit;
     uint32_t                  Count;
     struct SHMDeviceRange     Ranges[];
 };
@@ -76,6 +75,7 @@ SHMDeviceContextCreate(
     _In_    const struct SHMDeviceRange* ranges,
     _In_    uint32_t                     count,
     _In_    enum SHMDeviceCachePolicy    cachePolicy,
+    _In_    uint64_t                     addressLimit,
     _InOut_ struct SHMDeviceContext**    contextOut)
 {
     struct SHMDeviceContext* context;
@@ -114,6 +114,7 @@ SHMDeviceContextCreate(
 
     atomic_init(&context->References, 1);
     context->CachePolicy = cachePolicy;
+    context->AddressLimit = addressLimit;
     context->Count = count;
     memcpy(context->Ranges, ranges, rangeBytes);
 
@@ -122,7 +123,7 @@ SHMDeviceContextCreate(
 }
 
 oserr_t
-SHMDeviceContextRetain(
+SHMDeviceContextAcquire(
     _In_ struct SHMDeviceContext* context)
 {
     unsigned int references;
@@ -182,18 +183,18 @@ SHMDeviceContextGetCachePolicy(
  *
  * @param length Nonzero, and physicalBase + length - 1 must not wrap.
  * @return Number of bytes reachable from physicalBase, or 0 if no range
- *         contains physicalBase within deviceLimit. addressOut is only
- *         written when the result is nonzero.
+ *         contains physicalBase within the context's address limit.
+ *         addressOut is only written when the result is nonzero.
  */
 static uint64_t
 __TranslatePrefix(
     _In_  const struct SHMDeviceContext* context,
     _In_  uint64_t                       physicalBase,
     _In_  uint64_t                       length,
-    _In_  uint64_t                       deviceLimit,
     _Out_ uint64_t*                      addressOut)
 {
     const struct SHMDeviceRange* range;
+    uint64_t                     deviceLimit = context->AddressLimit;
     uint64_t                     offset;
     uint64_t                     address;
     uint64_t                     last;
@@ -249,7 +250,6 @@ SHMDeviceContextTranslate(
     _In_  const struct SHMDeviceContext* context,
     _In_  uint64_t                       physicalBase,
     _In_  uint64_t                       length,
-    _In_  uint64_t                       deviceLimit,
     _Out_ uint64_t*                      deviceAddressOut)
 {
     uint64_t address;
@@ -268,7 +268,6 @@ SHMDeviceContextTranslate(
         context,
         physicalBase,
         length,
-        deviceLimit,
         &address
     );
 
@@ -314,7 +313,6 @@ __WalkSegments(
     _In_  const struct SHMDeviceContext* context,
     _In_  const SHMSG_t*                 extents,
     _In_  int                            extentCount,
-    _In_  uint64_t                       deviceLimit,
     _Out_ struct SHMDeviceSegment*       segmentsOut,
     _Out_ uint32_t*                      countOut)
 {
@@ -338,7 +336,7 @@ __WalkSegments(
         // Each pass of this loop takes the longest piece one range can reach.
         // A piece ends at a range boundary, a hole or the controller limit.
         while (remaining != 0) {
-            covered = __TranslatePrefix(context, physical, remaining, deviceLimit, &address);
+            covered = __TranslatePrefix(context, physical, remaining, &address);
             if (covered == 0) {
                 return OS_ENOENT;
             }
@@ -374,7 +372,6 @@ SHMDeviceContextBuildSegments(
     _In_    const struct SHMDeviceContext* context,
     _In_    const SHMSG_t*                 extents,
     _In_    int                            extentCount,
-    _In_    uint64_t                       deviceLimit,
     _InOut_ uint32_t*                      segmentCount,
     _Out_   struct SHMDeviceSegment*       segmentsOut)
 {
@@ -395,7 +392,6 @@ SHMDeviceContextBuildSegments(
         context,
         extents,
         extentCount,
-        deviceLimit,
         NULL,
         &required
     );
@@ -417,7 +413,6 @@ SHMDeviceContextBuildSegments(
         context,
         extents,
         extentCount,
-        deviceLimit,
         segmentsOut,
         &required
     );
@@ -427,4 +422,626 @@ SHMDeviceContextBuildSegments(
 
     *segmentCount = required;
     return OS_EOK;
+}
+
+/**
+ * Temporary memory a device uses instead of the buffer itself. Copy is zero
+ * when the mapping uses the buffer directly. Both views are kernel mappings,
+ * so the sync calls can copy between them with plain memory copies.
+ */
+struct SHMDeviceBounce {
+    vaddr_t Source;       // Kernel view of the buffer's pages.
+    size_t  SourceLength;
+    size_t  SourceOffset; // Where the mapped range starts inside that view.
+    vaddr_t Copy;         // Kernel view of the bounce pages; the range starts at 0.
+    size_t  CopyLength;
+};
+
+/**
+ * Remember which part of a buffer a device may use, and where.
+ * Everything except DeviceOwned is fixed at creation. DeviceOwned is only
+ * changed by the sync calls, which the mapping's owner must not overlap.
+ * Segments contains exactly SegmentCount entries. Extents holds the same bytes
+ * as physical blocks, which the sync calls need for cache work. When bouncing,
+ * both describe the bounce pages, since those are what the device uses.
+ */
+struct SHMDeviceMapping {
+    uuid_t                   SHMID;
+    struct SHMDeviceContext* Context;
+    size_t                   Offset;
+    size_t                   Length;
+    enum SHMDeviceDirection  Direction;
+    bool                     DeviceOwned;
+    struct SHMDeviceBounce   Bounce;
+    SHMSG_t*                 Extents;
+    int                      ExtentCount;
+    uint32_t                 SegmentCount;
+    struct SHMDeviceSegment  Segments[];
+};
+
+static oserr_t
+__CheckBufferKind(
+    _In_ const struct SHMBuffer* buffer)
+{
+    // Exported buffers wrap memory SHM does not own, 
+    // so SHM cannot use it for device memory.
+    if (buffer->Exported) {
+        return OS_ENOTSUPPORTED;
+    }
+    return OS_EOK;
+}
+
+/**
+ * @brief Tell whether cache work for the range would reach bytes outside it.
+ *
+ * When a device that cannot see the CPU cache writes memory, cached lines are
+ * thrown away, always as whole lines. A line shared with bytes outside the
+ * range could hold CPU changes to those bytes, which would be lost, so such a
+ * range must be bounced. Coherent devices need no cache work, and a device
+ * that only reads only causes write-backs, which never lose data.
+ */
+static bool
+__SharesCacheLines(
+    _In_ const struct SHMBuffer*        buffer,
+    _In_ const struct SHMDeviceContext* context,
+    _In_ size_t                         offset,
+    _In_ size_t                         length,
+    _In_ enum SHMDeviceDirection        direction)
+{
+    size_t line;
+    size_t start;
+
+    if (context->CachePolicy == SHMDeviceCacheCoherent || direction == SHMDeviceToDevice) {
+        return false;
+    }
+
+    // Pages start on a line boundary, so the position inside the buffer
+    // decides alignment.
+    line = CpuDataCacheLineSize();
+    start = buffer->Offset + offset;
+    return start % line != 0 || length % line != 0;
+}
+
+/**
+ * @brief Describe exactly the requested bytes of a page list as physical blocks.
+ *
+ * SHMBuildSG cannot be reused here: it reports missing pages as address zero
+ * and lets its last entry run to the end of the final page. A device must only
+ * ever see the requested bytes, and only memory that really exists, so this
+ * walks the page list itself. Neighbouring pages that are also next to each
+ * other in physical memory are joined, as SHMBuildSG does, to keep lists short.
+ * Used for both buffer pages and bounce pages.
+ *
+ * @param start First byte, counted from the start of the first page.
+ * @param extents Room for one entry per page touched by the range.
+ * @return OS_EOK, or OS_EINCOMPLETE if a page in the range was never allocated.
+ */
+static oserr_t
+__GatherExtents(
+    _In_  const paddr_t* pages,
+    _In_  size_t         start,
+    _In_  size_t         length,
+    _In_  size_t         pageSize,
+    _Out_ SHMSG_t*       extents,
+    _Out_ int*           countOut)
+{
+    size_t  page = start / pageSize;
+    size_t  pageOffset = start % pageSize;
+    size_t  remaining = length;
+    size_t  chunk;
+    paddr_t address;
+    int     count = 0;
+
+    while (remaining != 0) {
+        // SHM marks a page that was never allocated with address zero.
+        if (pages[page] == 0) {
+            return OS_EINCOMPLETE;
+        }
+
+        address = pages[page] + pageOffset;
+        chunk = pageSize - pageOffset;
+        if (chunk > remaining) {
+            chunk = remaining;
+        }
+
+        if (count != 0 && extents[count - 1].Address + extents[count - 1].Length == address) {
+            extents[count - 1].Length += chunk;
+        } else {
+            extents[count] = (SHMSG_t){ .Address = address, .Length = chunk };
+            count++;
+        }
+
+        remaining -= chunk;
+        pageOffset = 0;
+        page++;
+    }
+
+    *countOut = count;
+    return OS_EOK;
+}
+
+static void
+__ReleaseBounce(
+    _In_ struct SHMDeviceBounce* bounce)
+{
+    // The bounce pages belong to this view and are freed with it. The buffer
+    // view is persistent, so removing it leaves the buffer's pages alone.
+    if (bounce->Copy != 0) {
+        (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Copy, bounce->CopyLength);
+        bounce->Copy = 0;
+    }
+    if (bounce->Source != 0) {
+        (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Source, bounce->SourceLength);
+        bounce->Source = 0;
+    }
+}
+
+/**
+ * @brief Give the kernel its own view of the buffer's pages for copying.
+ *
+ * The process view of the buffer belongs to whichever process mapped it and
+ * may be gone, so the copies need a view in kernel memory that lives as long
+ * as the mapping. This is the same kind of view SHM already keeps for IPC
+ * buffers.
+ */
+static oserr_t
+__MapSourceView(
+    _In_    struct SHMBuffer*       buffer,
+    _In_    size_t                  offset,
+    _In_    size_t                  length,
+    _In_    size_t                  pageSize,
+    _InOut_ struct SHMDeviceBounce* bounce)
+{
+    size_t       start = buffer->Offset + offset;
+    unsigned int flags = MAPPING_COMMIT | MAPPING_PERSISTENT;
+
+    // An uncached buffer must not get a cached kernel view: the two could
+    // then disagree about what is in memory.
+    if (SHM_KIND(buffer->Flags) == SHM_DEVICE) {
+        flags |= MAPPING_NOCACHE;
+    }
+
+    bounce->SourceOffset = start % pageSize;
+    bounce->SourceLength = DIVUP(bounce->SourceOffset + length, pageSize) * pageSize;
+    return MemorySpaceMap(
+        GetCurrentMemorySpace(),
+        &(struct MemorySpaceMapOptions) {
+            .SHMTag = buffer->ID,
+            .Pages = &buffer->Pages[start / pageSize],
+            .Length = bounce->SourceLength,
+            .Mask = buffer->PageMask,
+            .Flags = flags,
+            .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
+        },
+        &bounce->Source
+    );
+}
+
+/**
+ * @brief Allocate bounce pages and describe them as physical blocks.
+ *
+ * Low memory is requested because it is the most likely to be reachable by a
+ * device with an address limit; the caller still checks reachability. Pages
+ * are zeroed, so a device never reads data left behind by someone else.
+ *
+ * @param extents Room for one entry per bounce page; overwritten on success.
+ */
+static oserr_t
+__AllocateCopy(
+    _In_    size_t                  length,
+    _In_    size_t                  pageSize,
+    _InOut_ struct SHMDeviceBounce* bounce,
+    _Out_   SHMSG_t*                extents,
+    _Out_   int*                    extentCountOut)
+{
+    paddr_t* pages;
+    size_t   pageCount = DIVUP(length, pageSize);
+    size_t   mask;
+    oserr_t  status;
+
+    status = ArchSHMTypeToPageMask(OSMEMORYCONFORMITY_LOW, &mask);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // MemorySpaceMap reports the pages it allocated through this array.
+    pages = kmalloc(pageCount * sizeof(paddr_t));
+    if (pages == NULL) {
+        return OS_EOOM;
+    }
+
+    bounce->CopyLength = pageCount * pageSize;
+    status = MemorySpaceMap(
+        GetCurrentMemorySpace(),
+        &(struct MemorySpaceMapOptions) {
+            .Pages = pages,
+            .Length = bounce->CopyLength,
+            .Mask = mask,
+            .Flags = MAPPING_COMMIT | MAPPING_CLEAN,
+            .PlacementFlags = MAPPING_VIRTUAL_GLOBAL
+        },
+        &bounce->Copy
+    );
+    if (status == OS_EOK) {
+        status = __GatherExtents(pages, 0, length, pageSize, extents, extentCountOut);
+    }
+    kfree(pages);
+    return status;
+}
+
+/**
+ * @brief Switch a mapping-to-be over to bounce pages.
+ *
+ * Used when the device cannot reach part of the buffer, or when cache work
+ * would reach bytes outside the range. The bounce pages start on a page
+ * boundary and belong to the mapping alone, so neither problem applies to
+ * them. On success extents describes the bounce pages instead of the buffer.
+ */
+static oserr_t
+__PrepareBounce(
+    _In_    struct SHMBuffer*       buffer,
+    _In_    size_t                  offset,
+    _In_    size_t                  length,
+    _In_    size_t                  pageSize,
+    _InOut_ struct SHMDeviceBounce* bounce,
+    _Out_   SHMSG_t*                extents,
+    _Out_   int*                    extentCountOut)
+{
+    oserr_t status;
+
+    status = __MapSourceView(buffer, offset, length, pageSize, bounce);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = __AllocateCopy(length, pageSize, bounce, extents, extentCountOut);
+    if (status != OS_EOK) {
+        __ReleaseBounce(bounce);
+    }
+    return status;
+}
+
+/**
+ * @brief Build the device segments for a buffer range into a new mapping.
+ *
+ * Kept apart from SHMDeviceMap so that function only deals with references.
+ * The physical blocks gathered here are kept in the mapping for cache work.
+ * Bounces when the device cannot use the buffer's own pages for the range.
+ */
+static oserr_t
+__CreateMapping(
+    _In_  struct SHMBuffer*         buffer,
+    _In_  struct SHMDeviceContext*  context,
+    _In_  size_t                    offset,
+    _In_  size_t                    length,
+    _In_  enum SHMDeviceDirection   direction,
+    _Out_ struct SHMDeviceMapping** mappingOut)
+{
+    struct SHMDeviceMapping* mapping = NULL;
+    struct SHMDeviceBounce   bounce = { 0 };
+    SHMSG_t*                 extents;
+    size_t                   pageSize = GetMemorySpacePageSize();
+    size_t                   pageCount;
+    size_t                   maxSegments;
+    int                      extentCount;
+    uint32_t                 segmentCount;
+    bool                     needsBounce;
+    oserr_t                  status;
+
+    // One extent per touched page is the most either gather can produce: the
+    // bounce range starts on a page boundary, so it never touches more pages.
+    pageCount = DIVUP((buffer->Offset + offset) % pageSize + length, pageSize);
+    extents = kmalloc(pageCount * sizeof(SHMSG_t));
+    if (extents == NULL) {
+        return OS_EOOM;
+    }
+
+    // Pages are filled in on demand under this lock, so hold it while reading.
+    MutexLock(&buffer->Mutex);
+    status = __GatherExtents(buffer->Pages, buffer->Offset + offset, length, pageSize, extents, &extentCount);
+    MutexUnlock(&buffer->Mutex);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    // Bytes the device cannot reach are not an error yet: bounce pages may be
+    // reachable where the buffer's own pages are not.
+    status = SHMDeviceContextBuildSegments(context, extents, extentCount, &segmentCount, NULL);
+    if (status != OS_EOK && status != OS_ENOENT) {
+        goto cleanup;
+    }
+    needsBounce = status == OS_ENOENT || __SharesCacheLines(buffer, context, offset, length, direction);
+
+    if (needsBounce) {
+        status = __PrepareBounce(buffer, offset, length, pageSize, &bounce, extents, &extentCount);
+        if (status != OS_EOK) {
+            goto cleanup;
+        }
+
+        status = SHMDeviceContextBuildSegments(context, extents, extentCount, &segmentCount, NULL);
+        if (status != OS_EOK) {
+            goto cleanup;
+        }
+    }
+
+    // Guard the size calculation, which could otherwise wrap on 32-bit kernels.
+    maxSegments = (SIZE_MAX - sizeof(struct SHMDeviceMapping)) / sizeof(struct SHMDeviceSegment);
+    if (segmentCount > maxSegments) {
+        status = OS_EOOM;
+        goto cleanup;
+    }
+    mapping = kmalloc(sizeof(struct SHMDeviceMapping) + segmentCount * sizeof(struct SHMDeviceSegment));
+    if (mapping == NULL) {
+        status = OS_EOOM;
+        goto cleanup;
+    }
+
+    status = SHMDeviceContextBuildSegments(context, extents, extentCount, &segmentCount, mapping->Segments);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+
+    mapping->SHMID = buffer->ID;
+    mapping->Context = context;
+    mapping->Offset = offset;
+    mapping->Length = length;
+    mapping->Direction = direction;
+    // The caller built the mapping from the CPU side, so the CPU owns it first.
+    mapping->DeviceOwned = false;
+    mapping->Bounce = bounce;
+    mapping->Extents = extents;
+    mapping->ExtentCount = extentCount;
+    mapping->SegmentCount = segmentCount;
+    *mappingOut = mapping;
+    return OS_EOK;
+
+cleanup:
+    __ReleaseBounce(&bounce);
+    kfree(mapping);
+    kfree(extents);
+    return status;
+}
+
+oserr_t
+SHMDeviceMap(
+    _In_    struct SHMDeviceContext*  context,
+    _In_    uuid_t                    shmID,
+    _In_    size_t                    offset,
+    _In_    size_t                    length,
+    _In_    enum SHMDeviceDirection   direction,
+    _InOut_ struct SHMDeviceMapping** mappingOut)
+{
+    struct SHMBuffer*        buffer;
+    struct SHMDeviceMapping* mapping = NULL;
+    oserr_t                  status;
+
+    // Preserve an occupied slot: replacing it would lose its owning reference.
+    if (context == NULL || mappingOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (*mappingOut != NULL) {
+        return OS_EBUSY;
+    }
+
+    // Later cache handling decides what to do from the direction, so an
+    // unknown value must not slip through and be treated as one of them.
+    if (direction != SHMDeviceToDevice && direction != SHMDeviceFromDevice &&
+        direction != SHMDeviceBidirectional) {
+        return OS_EINVALPARAMS;
+    }
+
+    // This reference is what keeps the pages allocated while a device may use
+    // them: SHM frees a buffer's pages only when its last reference goes away.
+    status = AcquireHandleOfType(shmID, HandleTypeSHM, (void**)&buffer);
+    if (status != OS_EOK) {
+        return OS_ENOENT;
+    }
+
+    status = __CheckBufferKind(buffer);
+    if (status != OS_EOK) {
+        goto release;
+    }
+
+    // Use subtraction so a huge offset or length cannot wrap past the check.
+    if (length == 0 || offset > buffer->Length || length > buffer->Length - offset) {
+        status = OS_EINVALPARAMS;
+        goto release;
+    }
+
+    status = __CheckCacheAlignment(buffer, context, offset, length, direction);
+    if (status != OS_EOK) {
+        goto release;
+    }
+
+    // The mapping hands out the context with its segments, so it keeps the
+    // rules alive for as long as those segments can be read.
+    status = SHMDeviceContextAcquire(context);
+    if (status != OS_EOK) {
+        goto release;
+    }
+
+    status = __CreateMapping(buffer, context, offset, length, direction, &mapping);
+    if (status != OS_EOK) {
+        SHMDeviceContextRelease(&context);
+        goto release;
+    }
+
+    *mappingOut = mapping;
+    return OS_EOK;
+
+release:
+    (void)DestroyHandle(shmID);
+    return status;
+}
+
+oserr_t
+SHMDeviceUnmap(
+    _InOut_ struct SHMDeviceMapping** mapping)
+{
+    struct SHMDeviceMapping* owned;
+
+    // Nothing to release; succeeding keeps repeated cleanup harmless.
+    if (mapping == NULL || *mapping == NULL) {
+        return OS_EOK;
+    }
+
+    // While the device owns the range it may still read or write it, and
+    // releasing could free those pages under it. The owner must first take
+    // the range back with SHMDeviceSyncForCpu, after the device has stopped.
+    if ((*mapping)->DeviceOwned) {
+        return OS_EBUSY;
+    }
+
+    // Clear the slot before releasing so a retry on it cannot drop the buffer
+    // or context references a second time.
+    owned = *mapping;
+    *mapping = NULL;
+
+    SHMDeviceContextRelease(&owned->Context);
+    (void)DestroyHandle(owned->SHMID);
+    kfree(owned->Extents);
+    kfree(owned);
+    return OS_EOK;
+}
+
+/**
+ * @brief Check that a sync range lies inside the mapping.
+ *
+ * Ranges are counted from the start of the mapping, not the buffer, so a
+ * driver only needs to know about the part it mapped. Subtraction keeps a huge
+ * offset or length from wrapping past the check.
+ */
+static bool
+__RangeInMapping(
+    _In_ const struct SHMDeviceMapping* mapping,
+    _In_ size_t                         offset,
+    _In_ size_t                         length)
+{
+    if (offset > mapping->Length) {
+        return false;
+    }
+    return length <= mapping->Length - offset;
+}
+
+/**
+ * @brief Run one cache operation on the physical bytes behind a sync range.
+ *
+ * Sync ranges count from the start of the mapping, but cache operations need
+ * physical addresses, so this walks the mapping's physical blocks to find the
+ * pieces the range covers. The range must already lie inside the mapping.
+ */
+static void
+__MaintainRange(
+    _In_ const struct SHMDeviceMapping* mapping,
+    _In_ size_t                         offset,
+    _In_ size_t                         length,
+    _In_ void                           (*operation)(uintptr_t, size_t))
+{
+    const SHMSG_t* extent;
+    size_t         skip = offset;
+    size_t         chunk;
+
+    for (int i = 0; i < mapping->ExtentCount && length != 0; i++) {
+        extent = &mapping->Extents[i];
+        if (skip >= extent->Length) {
+            skip -= extent->Length;
+            continue;
+        }
+
+        chunk = extent->Length - skip;
+        if (chunk > length) {
+            chunk = length;
+        }
+        operation(extent->Address + skip, chunk);
+        length -= chunk;
+        skip = 0;
+    }
+}
+
+oserr_t
+SHMDeviceSyncForDevice(
+    _In_ struct SHMDeviceMapping* mapping,
+    _In_ size_t                   offset,
+    _In_ size_t                   length)
+{
+    // Handing over nothing would leave the device with no bytes to use.
+    if (mapping == NULL || length == 0) {
+        return OS_EINVALPARAMS;
+    }
+    if (!__RangeInMapping(mapping, offset, length)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // A second hand-over means the driver lost track of a transfer that may
+    // still be running, so refuse instead of silently accepting it.
+    if (mapping->DeviceOwned) {
+        return OS_EBUSY;
+    }
+
+    // Every CPU write to the buffer must be finished before the cache work and
+    // before the device is told to start.
+    dma_mb();
+
+    // A device that cannot see the CPU cache reads memory directly. Before it
+    // reads, write cached data back. Before it writes, also throw the lines
+    // away, so no old cached line can later land on top of the device's data.
+    if (mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent) {
+        if (mapping->Direction == SHMDeviceToDevice) {
+            __MaintainRange(mapping, offset, length, CpuDataCacheClean);
+        } else {
+            __MaintainRange(mapping, offset, length, CpuDataCacheCleanInvalidate);
+        }
+    }
+    mapping->DeviceOwned = true;
+    return OS_EOK;
+}
+
+oserr_t
+SHMDeviceSyncForCpu(
+    _In_ struct SHMDeviceMapping* mapping,
+    _In_ size_t                   offset,
+    _In_ size_t                   length)
+{
+    // An empty completed range is valid: a transfer can stop before the device
+    // wrote anything, and the CPU must still be able to take the range back.
+    if (mapping == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (!__RangeInMapping(mapping, offset, length)) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Taking back a range the device never had points to a driver bug.
+    if (!mapping->DeviceOwned) {
+        return OS_EINVALPARAMS;
+    }
+
+    // The driver has seen the device finish. Order that check before any CPU
+    // read of the data, so the CPU cannot read values from before the device
+    // wrote them.
+    dma_mb();
+
+    // While the device owned the memory, the CPU may have read ahead and
+    // cached old values. Throw those away for the bytes the device wrote.
+    // Map made sure this range's lines belong to the mapping alone.
+    if (mapping->Context->CachePolicy == SHMDeviceCacheNonCoherent &&
+        mapping->Direction != SHMDeviceToDevice) {
+        __MaintainRange(mapping, offset, length, CpuDataCacheInvalidate);
+    }
+    mapping->DeviceOwned = false;
+    return OS_EOK;
+}
+
+const struct SHMDeviceSegment*
+SHMDeviceMappingSegments(
+    _In_  const struct SHMDeviceMapping* mapping,
+    _Out_ uint32_t*                      countOut)
+{
+    // Hand out the stored list rather than a copy; it lives as long as the
+    // mapping and never changes, so there is nothing to keep in sync.
+    if (mapping == NULL || countOut == NULL) {
+        return NULL;
+    }
+    *countOut = mapping->SegmentCount;
+    return mapping->Segments;
 }
