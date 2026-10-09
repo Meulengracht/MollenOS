@@ -16,7 +16,8 @@
  * 
  * Virtio network device main module.
  * 
- * Handles PCI attachment, protocol advertisement, and interrupt dispatch for the Virtio network device.
+ * Handles PCI attachment, protocol advertisement, and interrupt dispatch 
+ * for the Virtio network device.
  * 
  */
 
