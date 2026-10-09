@@ -70,12 +70,19 @@ typedef struct VirtioNetPool   VirtioNetPool_t;
 // Initial allocation for closed sessions remembered for retry handling.
 #define VIRTIO_NET_INITIAL_CLOSED_SESSIONS 16
 
-/** Header placed before each frame in device-visible packet memory.
+/** 
+ * @brief Header placed before each frame in device-visible packet memory.
  *
  * This modern header always includes NumBuffers, even though this adapter does
  * not use merged receive frames. Transmit requests do not use checksum or
  * segmentation offload, so their offload fields are zero. A received frame
  * without offload information occupies one buffer.
+ * 
+ * NumBuffers is present only when VIRTIO_NET_F_MRG_RXBUF is negotiated.
+ * However this is not an issue for this driver. This would only be an issue
+ * for legacy VirtIO.
+ * 
+ * This driver negotiates MAC/STATUS.
  */
 PACKED_TYPESTRUCT(VirtioNetHeader, {
     // Checksum/offload flags; zero for transmit.
@@ -90,7 +97,7 @@ PACKED_TYPESTRUCT(VirtioNetHeader, {
     uint16_t ChecksumStart;
     // Byte offset of the checksum field.
     uint16_t ChecksumOffset;
-    // Number of buffers in this frame; one for normal RX.
+    // Number of buffers in this frame; one for normal RX. 0 for TX.
     uint16_t NumBuffers;
 });
 
@@ -259,7 +266,8 @@ VirtioNetBusDeviceDestroy(
 /** 
  * @brief Create and initialize a device from a discovered bus descriptor.
  * This function takes ownership of busDevice whether it succeeds or fails. If
- * creation fails, it releases the descriptor as part of cleanup.
+ * creation fails, it releases the descriptor as part of cleanup unless reset
+ * fails; then the live device and descriptor remain in the registry for retry.
  * 
  * @param busDevice Discovered device descriptor to consume.
  * @return The initialized device, or NULL if setup fails.
@@ -275,9 +283,21 @@ VirtioNetDeviceCreate(
  * keep the device object and its resources available rather than reuse them.
  * 
  * @param device Device to destroy.
+ * @return OS_EOK if released, or a reset/queue cleanup error. On error, the
+ *         caller still owns the live device and must retain it for retry.
+ */
+__EXTERN oserr_t
+VirtioNetDeviceDestroy(
+    _In_ VirtioNetDevice_t* device);
+
+/**
+ * @brief Keep a device in the registry after destruction could not complete.
+ * The caller holds the module lock and the device must not already be listed.
+ *
+ * @param device Live device to retain for a later destruction attempt.
  */
 __EXTERN void
-VirtioNetDeviceDestroy(
+VirtioNetRetainDevice(
     _In_ VirtioNetDevice_t* device);
 
 /**

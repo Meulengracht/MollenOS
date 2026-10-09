@@ -73,6 +73,13 @@ VirtioNetFindDevice(
     return list_find_value(&g_devices, (void*)(uintptr_t)deviceId);
 }
 
+void
+VirtioNetRetainDevice(
+    _In_ VirtioNetDevice_t* device)
+{
+    list_append(&g_devices, &device->Header);
+}
+
 VirtioNetDevice_t*
 VirtioNetFindSession(
     _In_ const struct gracht_message*         message,
@@ -157,15 +164,27 @@ __DestroyDevice(
     _In_ element_t* element,
     _In_ void*      context)
 {
+    VirtioNetDevice_t* device = element->value;
+    oserr_t            status;
+
     (void)context;
-    VirtioNetDeviceDestroy(element->value);
+    list_remove(&g_devices, element);
+    status = VirtioNetDeviceDestroy(device);
+    if (status != OS_EOK) {
+        VirtioNetRetainDevice(device);
+    }
 }
 
 void
 OnUnload(void)
 {
+    int count;
+
     VirtioNetLock();
-    list_clear(&g_devices, __DestroyDevice, NULL);
+    count = list_count(&g_devices);
+    for (int remaining = count; remaining > 0; --remaining) {
+        __DestroyDevice(list_front(&g_devices), NULL);
+    }
     VirtioNetUnlock();
 }
 
@@ -327,7 +346,10 @@ OnUnregister(
     // Unlink first, but put the still-live entry back if reset fails. A
     // failed detach must not lose the only reference to DMA-owned storage.
     list_remove(&g_devices, &device->Header);
-    VirtioNetDeviceDestroy(device);
+    status = VirtioNetDeviceDestroy(device);
+    if (status != OS_EOK) {
+        VirtioNetRetainDevice(device);
+    }
     VirtioNetUnlock();
     return status;
 }
