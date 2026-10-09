@@ -21,6 +21,7 @@
 //#define __TRACE
 
 #include <bus/pci/device.h>
+#include <limits.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/function.h>
 #include <bus/pci/config.h>
@@ -117,27 +118,48 @@ __PciIoctlDevice(
     return OS_EOK;
 }
 
+oserr_t
+PciDeviceRetain(
+    _InOut_ PciDevice_t* device)
+{
+    // Child providers use the same count as the PCI registry provider so host
+    // destruction sees every owner before freeing the device and its attachment.
+    PciCriticalSectionEnter();
+    if (device->ProviderReferences == UINT_MAX) {
+        PciCriticalSectionLeave();
+        return OS_EOVERFLOW;
+    }
+    
+    device->ProviderReferences++;
+    PciCriticalSectionLeave();
+    return OS_EOK;
+}
+
+void
+PciDeviceRelease(
+    _InOut_ PciDevice_t* device)
+{
+    // Release only ownership. Hardware cleanup belongs to the host owner and
+    // must not run inside a registry callback or while another owner remains.
+    PciCriticalSectionEnter();
+    device->ProviderReferences--;
+    PciCriticalSectionLeave();
+}
+
 static oserr_t
 __PciProviderRetain(
     _In_ void* context)
 {
-    PciDevice_t* device = context;
-
-    PciCriticalSectionEnter();
-    device->ProviderReferences++;
-    PciCriticalSectionLeave();
-    return OS_EOK;
+    // Adapt the registry's untyped context to the shared PCI ownership helper.
+    return PciDeviceRetain(context);
 }
 
 static void
 __PciProviderRelease(
     _In_ void* context)
 {
-    PciDevice_t* device = context;
-
-    PciCriticalSectionEnter();
-    device->ProviderReferences--;
-    PciCriticalSectionLeave();
+    // Registry and attached-bus owners must balance the same reference count.
+    PciDeviceRelease(context);
 }
 
 static oserr_t

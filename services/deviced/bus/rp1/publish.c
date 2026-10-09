@@ -1,5 +1,5 @@
 /**
- * Copyright 2026, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
  */
 
 #include <bus/rp1/rp1.h>
+#include <bus/rp1/dma.h>
 #include <bus/pci/device.h>
 #include <core/publication.h>
 #include <ddk/busdevice.h>
@@ -27,6 +28,87 @@
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
+
+static oserr_t
+__Rp1ProviderRetain(
+    _In_ void* context)
+{
+    struct Rp1Child* child = context;
+    struct Rp1Bus*   bus = child->Bus;
+    oserr_t          status;
+
+    // Retain the PCI owner first so its host, attachment and firmware survive
+    // every child reference. Unattached firmware inventories cannot be providers.
+    if (bus->Parent == NULL) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    status = PciDeviceRetain(bus->Parent);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    atomic_fetch_add(&bus->ProviderReferences, 1);
+    return OS_EOK;
+}
+
+static void
+__Rp1ProviderRelease(
+    _In_ void* context)
+{
+    struct Rp1Child*  child = context;
+    struct Rp1Bus*    bus = child->Bus;
+    struct PciDevice* parent = bus->Parent;
+
+    // Drop the child count before the parent reference, then touch neither
+    // object again. The publication group may still need the child's saved ID;
+    // its owner, not this callback, decides when to free the inventory.
+    atomic_fetch_sub(&bus->ProviderReferences, 1);
+
+    PciDeviceRelease(parent);
+}
+
+static oserr_t
+__Rp1ProviderPrepareDma(
+    _In_  void*                    context,
+    _Out_ struct DmDmaDescription* description)
+{
+    struct Rp1Child*         child = context;
+    struct PciDmaDescription configured;
+    oserr_t                  status;
+
+    // Follow this child's retained PCI owner so the result describes configured
+    // hardware, rather than firmware's requested map or a different RP1 device.
+    status = Rp1GetDmaDescription(
+        child->Bus->Parent,
+        child->Firmware.NodeOffset,
+        &configured
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // A later resource owner needs a registered host and a known cache policy.
+    // Neither an anonymous host nor unknown cache behavior can support that use.
+    if (configured.Host.HostId == UUID_INVALID) {
+        return OS_EBUSY;
+    }
+    if (configured.CachePolicy == DmDmaCacheUnknown) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    description->HostId = configured.Host.HostId;
+    description->CachePolicy = configured.CachePolicy;
+    description->Map = configured.Map;
+    return OS_EOK;
+}
+
+// Preparing a description supplies no register access or permission to run DMA.
+static const struct DmDeviceProviderOperations g_rp1ChildProviderOperations = {
+    .Retain = __Rp1ProviderRetain,
+    .Release = __Rp1ProviderRelease,
+    .PrepareDma = __Rp1ProviderPrepareDma
+};
 
 static oserr_t
 __Rp1PublishChild(
@@ -90,6 +172,8 @@ __Rp1PublishChild(
     // all device-manager entries. If a later addition fails, it can remove the
     // entries already added before any device drivers have started.
     registration.Description = &device->Base;
+    registration.Provider.Operations = &g_rp1ChildProviderOperations;
+    registration.Provider.Context = child;
     
     status = DmPublicationAdd(group, &registration, 1, &child->DeviceId);
     if (status != OS_EOK) {
@@ -111,6 +195,12 @@ Rp1BusPublish(
 
     // Register the RP1 PCI device first so each child can refer to its device ID.
     if (endpoint->DeviceId == UUID_INVALID) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // Only the endpoint that created this attachment can publish its providers.
+    // Reparenting would make retained references protect the wrong PCI device.
+    if (bus->Parent != endpoint) {
         return OS_EINVALPARAMS;
     }
 

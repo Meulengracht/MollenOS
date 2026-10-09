@@ -1,5 +1,5 @@
 /**
- * Copyright 2021, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,8 @@
 //#define __OSCONFIG_NODRIVERS
 
 #include <assert.h>
+#include <core/dma.h>
+#include <limits.h>
 #include <devices.h>
 #include <discover.h>
 #include <ddk/busdevice.h>
@@ -54,7 +56,16 @@ struct DMDevice {
     enum DmDeviceDescriptionKind Kind;
     struct DmDeviceProvider      Provider;
     unsigned int                 ActiveRequests;
+    unsigned int                 DmaLeases;
     int                          Removing;
+};
+
+// Describes a DMA lease associated with a device.
+// These are not time-bound leases, they rather just inhibit
+// destruction of the device while a lease is active.
+struct DmDmaLease {
+    struct DMDevice*        Device;
+    struct DmDmaDescription Description;
 };
 
 static struct usched_mtx g_devicesLock;
@@ -190,6 +201,11 @@ __AcquireDeviceRequest(
         return OS_EBUSY;
     }
     
+    // Wrapping the request count could allow removal during a live callback.
+    if (device->ActiveRequests == UINT_MAX) {
+        usched_mtx_unlock(&g_devicesLock);
+        return OS_EOVERFLOW;
+    }
     device->ActiveRequests++;
     
     *deviceOut = device;
@@ -204,6 +220,104 @@ __ReleaseDeviceRequest(
     usched_mtx_lock(&g_devicesLock);
     device->ActiveRequests--;
     usched_mtx_unlock(&g_devicesLock);
+}
+
+oserr_t
+DmDevicePrepareDma(
+    _In_    uuid_t              deviceId,
+    _InOut_ struct DmDmaLease** leaseOut)
+{
+    struct DMDevice*                         device;
+    const struct DmDeviceProviderOperations* operations;
+    struct DmDmaLease*                       lease;
+    oserr_t                                  status;
+
+    // Require an empty owning slot so preparing twice cannot lose an earlier
+    // lease and permanently prevent the device from being removed.
+    if (leaseOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (*leaseOut != NULL) {
+        return OS_EBUSY;
+    }
+
+    status = __AcquireDeviceRequest(deviceId, &device);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    operations = device->Provider.Operations;
+    if (operations == NULL || operations->PrepareDma == NULL) {
+        __ReleaseDeviceRequest(device);
+        return OS_ENOTSUPPORTED;
+    }
+
+    lease = calloc(1, sizeof(struct DmDmaLease));
+    if (lease == NULL) {
+        __ReleaseDeviceRequest(device);
+        return OS_EOOM;
+    }
+
+    // The request guard keeps the entry and its registry-owned provider
+    // reference alive. Bus callbacks may acquire their own locks or fail, so
+    // run them without the registry lock and keep their result private.
+    status = operations->PrepareDma(device->Provider.Context, &lease->Description);
+
+    // Commit the lease before dropping request protection. Removal may have
+    // started during the callback; in that case it wins and no lease escapes.
+    usched_mtx_lock(&g_devicesLock);
+    if (status == OS_EOK) {
+        if (device->Removing) {
+            status = OS_EBUSY;
+        } else if (device->DmaLeases == UINT_MAX) {
+            status = OS_EOVERFLOW;
+        } else {
+            device->DmaLeases++;
+            lease->Device = device;
+            lease->Description.DeviceId = deviceId;
+        }
+    }
+    device->ActiveRequests--;
+    usched_mtx_unlock(&g_devicesLock);
+
+    if (status != OS_EOK) {
+        free(lease);
+        return status;
+    }
+
+    *leaseOut = lease;
+    return OS_EOK;
+}
+
+const struct DmDmaDescription*
+DmDmaLeaseGetDescription(
+    _In_ const struct DmDmaLease* lease)
+{
+    // Borrow the copy rather than expose the registry or provider's context.
+    return lease == NULL ? NULL : &lease->Description;
+}
+
+void
+DmDmaLeaseRelease(
+    _InOut_ struct DmDmaLease** lease)
+{
+    struct DmDmaLease* owned;
+
+    // Clearing the owning slot makes repeated cleanup on that slot harmless.
+    // No request lookup is needed: releasing must work after removal starts.
+    if (lease == NULL || *lease == NULL) {
+        return;
+    }
+    
+    owned = *lease;
+    *lease = NULL;
+
+    usched_mtx_lock(&g_devicesLock);
+    owned->Device->DmaLeases--;
+    usched_mtx_unlock(&g_devicesLock);
+
+    // The entry may now be destroyed by another thread. Touch only our copy.
+    free(owned);
 }
 
 oserr_t
@@ -607,7 +721,7 @@ DmDeviceDestroy(
     
     device->Removing = 1;
     
-    if (device->ActiveRequests != 0) {
+    if (device->ActiveRequests != 0 || device->DmaLeases != 0) {
         usched_mtx_unlock(&g_devicesLock);
         return OS_EBUSY;
     }

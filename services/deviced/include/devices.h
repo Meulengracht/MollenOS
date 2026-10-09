@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -122,8 +122,8 @@ DmDeviceIsBindable(
  *
  * @param deviceId The ID of the device to remove.
  * @return OS_EOK if the device was removed, OS_ENOENT if it was not registered,
- *         or OS_EBUSY if it still has children or active requests. Once removal
- *         starts, new requests and binding attempts are rejected. On OS_EBUSY
+ *         or OS_EBUSY if children, active requests or DMA leases remain. Once
+ *         removal starts, new requests and binding attempts are rejected. On OS_EBUSY
  *         the registry retains ownership; stop clients and retry removal.
  */
 extern oserr_t

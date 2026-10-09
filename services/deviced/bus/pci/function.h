@@ -34,7 +34,9 @@ struct DmPublicationGroup;
  * on success, PCI owns the attachment. Copy resources that must outlive Attach.
  * Attach records child devices; Publish adds them after scanning, without starting
  * their drivers. Destroy runs after the publication group is removed and before
- * host resources are released.
+ * host resources are released. A failed Destroy leaves the attachment and its
+ * parent alive for retry. Destroy runs under the PCI lock; it must not acquire
+ * that lock again or release provider references from inside the callback.
  */
 struct PciFunctionHandler {
     int BlockActivation;
@@ -51,13 +53,14 @@ struct PciFunctionHandler {
     /**
      * @brief Attach a function handler to the given PCI device.
      *
-     * @param device The PCI device to attach to.
+     * @param device The PCI device to attach to. Attachments may keep this owner
+     *               pointer so their later providers can retain the exact device.
      * @param resources The resources allocated for the function.
      * @param attachmentOut Output parameter for the attachment.
      * @return An error code indicating the result of the attachment.
      */
     oserr_t (*Attach)(
-        const struct PciDevice*            device,
+        struct PciDevice*                  device,
         const struct PciFunctionResources* resources,
         void**                             attachmentOut);
 
@@ -65,8 +68,10 @@ struct PciFunctionHandler {
      * @brief Destroy the attachment associated with the function handler.
      *
      * @param attachment The attachment to destroy.
+     * @return OS_EOK after freeing it. On failure, keep the attachment valid;
+     *         PCI preserves the parent and host so destruction can be retried.
      */
-    void (*Destroy)(void* attachment);
+    oserr_t (*Destroy)(void* attachment);
 
     /**
      * @brief Adds child descriptions to the host's group beneath this function.
@@ -86,7 +91,7 @@ struct PciFunctionHandler {
 /**
  * @brief Check if we have a function-handler registered for the pci device.
  */
-extern const struct PciFunctionHandler*
+__EXTERN const struct PciFunctionHandler*
 PciFunctionHandlerFind(
     _In_ const struct PciDevice* device);
 

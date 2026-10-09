@@ -94,22 +94,33 @@ PciFirmwareRelease(
     }
 }
 
-static void
+static oserr_t
 __PciDestroyDevice(
     _In_ PciDevice_t* device)
 {
+    oserr_t status;
+
+    // Remove descendants first; a busy attachment keeps its enclosing objects
+    // alive. Earlier successful removals stay removed when the owner retries.
     while (device->children.head != NULL) {
-        __PciDestroyDevice(device->children.head->value);
+        status = __PciDestroyDevice(device->children.head->value);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+
+    if (device->Attachment != NULL) {
+        status = device->Handler->Destroy(device->Attachment);
+        if (status != OS_EOK) {
+            return status;
+        }
     }
     
     list_remove(&device->Parent->children, &device->child_header);
     list_remove(&g_pciDevices, &device->list_header);
-    
-    if (device->Attachment != NULL) {
-        device->Handler->Destroy(device->Attachment);
-    }
     free(device->Header);
     free(device);
+    return OS_EOK;
 }
 
 static int
@@ -158,7 +169,11 @@ PciHostDestroy(
         }
         
         while (bus->RootDevice->children.head != NULL) {
-            __PciDestroyDevice(bus->RootDevice->children.head->value);
+            status = __PciDestroyDevice(bus->RootDevice->children.head->value);
+            if (status != OS_EOK) {
+                PciCriticalSectionLeave();
+                return status;
+            }
         }
         
         list_remove(&g_pciRoots, &bus->RootDevice->list_header);

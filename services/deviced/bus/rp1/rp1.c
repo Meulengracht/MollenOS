@@ -56,6 +56,7 @@ __Rp1AddChild(
     // Copy the description, including its pointers into firmware data. The
     // PCI host keeps that data mapped for as long as this device list exists.
     child->Firmware = *firmware;
+    child->Bus = enumeration->Bus;
     
     // Tail points to where the next child belongs. Appending there keeps
     // firmware order without searching for the end of the list each time.
@@ -95,6 +96,7 @@ Rp1BusCreate(
         return OS_EOOM;
     }
     bus->Host = host;
+    atomic_init(&bus->ProviderReferences, 0);
 
     // Keep the complete PCI address list. Each child's register addresses must
     // fit within memory assigned to this RP1 device.
@@ -119,7 +121,7 @@ Rp1BusCreate(
     return OS_EOK;
 }
 
-void
+oserr_t
 Rp1BusDestroy(
     _In_ struct Rp1Bus* bus)
 {
@@ -127,14 +129,18 @@ Rp1BusDestroy(
 
     // A failed creation may call cleanup before a device list was allocated.
     if (bus == NULL) {
-        return;
+        return OS_EOK;
     }
-    
+    // A provider may outlive its registry ID. Keep its context and the borrowed
+    // firmware pointers until that owner has also released its parent reference.
+    if (atomic_load(&bus->ProviderReferences) != 0) {
+        return OS_EBUSY;
+    }
     for (child = bus->Children; child != NULL; child = child->Next) {
         // The registration group still needs this stored ID to remove the
         // device-manager entry. Keep the list until every entry has been removed.
         if (child->DeviceId != UUID_INVALID) {
-            return;
+            return OS_EBUSY;
         }
     }
     
@@ -144,6 +150,7 @@ Rp1BusDestroy(
         free(child);
     }
     free(bus);
+    return OS_EOK;
 }
 
 static int
@@ -157,7 +164,7 @@ __Rp1Match(
 
 static oserr_t
 __Rp1Attach(
-    _In_  const struct PciDevice*            device,
+    _In_  struct PciDevice*                  device,
     _In_  const struct PciFunctionResources* resources,
     _Out_ void**                             attachmentOut)
 {
@@ -197,6 +204,9 @@ __Rp1Attach(
         return status;
     }
     
+    // Record the association without retaining our owner permanently. Actual
+    // provider users take references; a permanent one would prevent teardown.
+    bus->Parent = device;
     *attachmentOut = bus;
     
     for (child = bus->Children; child != NULL; child = child->Next) {
@@ -208,11 +218,12 @@ __Rp1Attach(
     return OS_EOK;
 }
 
-static void
+static oserr_t
 __Rp1DestroyAttachment(
     _In_ void* attachment)
 {
-    Rp1BusDestroy(attachment);
+    // Propagate busy to PCI so it cannot free our parent while we remain in use.
+    return Rp1BusDestroy(attachment);
 }
 
 static oserr_t

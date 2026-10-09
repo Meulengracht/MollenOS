@@ -371,7 +371,7 @@ __BcmGetDmaDescription(
     
     // The initial policy requires software to arrange visibility. Neither a
     // programmed address window nor a firmware flag proves that caches are shared.
-    description->CachePolicy = PciDmaCacheNonCoherent;
+    description->CachePolicy = DmDmaCacheNonCoherent;
     return OS_EOK;
 }
 

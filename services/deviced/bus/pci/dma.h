@@ -20,16 +20,7 @@
 #define __DEVICED_PCI_DMA_H__
 
 #include <bus/pci/host.h>
-#include <firmware/dma.h>
-
-enum PciDmaCachePolicy {
-    // No policy has been established; this is not permission to use cached RAM.
-    PciDmaCacheUnknown,
-    // Software must arrange cache visibility. This is the initial Broadcom policy.
-    PciDmaCacheNonCoherent,
-    // Reserved for a backend that establishes this guarantee for the whole path.
-    PciDmaCacheCoherent
-};
+#include <device-dma.h>
 
 /**
  * @brief Copied address ranges and cache policy for a host or its RP1 child.
@@ -41,7 +32,7 @@ enum PciDmaCachePolicy {
  */
 struct PciDmaDescription {
     struct PciHostIdentification Host;
-    enum PciDmaCachePolicy       CachePolicy;
+    enum DmDmaCachePolicy        CachePolicy;
     struct FdtDmaMap             Map;
 };
 

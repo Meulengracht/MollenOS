@@ -66,8 +66,8 @@ Rp1GetDmaDescription(
 
     // Even a coherent parent would not establish cache visibility across RP1.
     // Keep unknown policy unknown; otherwise require software-managed visibility.
-    if (result.CachePolicy != PciDmaCacheUnknown) {
-        result.CachePolicy = PciDmaCacheNonCoherent;
+    if (result.CachePolicy != DmDmaCacheUnknown) {
+        result.CachePolicy = DmDmaCacheNonCoherent;
     }
     
     *description = result;

@@ -62,4 +62,30 @@ typedef struct PciDevice {
     list_t             children;
 } PciDevice_t;
 
+/**
+ * @brief Keep a PCI device, its attachment and host alive for an owner.
+ *
+ * Reuses the reference count checked by host destruction. The caller must
+ * already have a live device, through serialized setup or an existing reference;
+ * this cannot recover an object from a stale pointer. It does not prevent reset
+ * or grant permission to access hardware.
+ *
+ * @param device Live device to retain. The PCI lock must not already be held.
+ * @return OS_EOK, or OS_EOVERFLOW with no change to ownership.
+ */
+__EXTERN oserr_t
+PciDeviceRetain(
+    _InOut_ PciDevice_t* device);
+
+/**
+ * @brief Drop one matching reference without stopping or freeing hardware.
+ *
+ * The host owner performs destruction later, after all references are gone.
+ * @param device Previously retained device. Do not hold the PCI lock or use
+ *               this reference after releasing it.
+ */
+__EXTERN void
+PciDeviceRelease(
+    _InOut_ PciDevice_t* device);
+
 #endif // __DEVICED_BUS_PCI_DEVICE_H__

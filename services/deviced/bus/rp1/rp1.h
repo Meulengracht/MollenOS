@@ -25,6 +25,7 @@
 #define __DEVICED_RP1_H__
 
 #include <firmware/rp1.h>
+#include <stdatomic.h>
 
 #define RP1_VENDOR_ID        0x1de4
 #define RP1_DEVICE_ID        0x0001
@@ -49,10 +50,13 @@ extern const struct PciFunctionHandler g_rp1PciHandler;
 /**
  * @brief One hardware block inside RP1, plus the state deviced needs to list it.
  * The firmware description contains names and other data that point into the
- * device tree. The PCI host keeps that data mapped while this child exists.
+ * device tree. Bus identifies the owning inventory. A provider reference keeps
+ * that inventory and its PCI parent alive; the parent keeps firmware mapped.
+ * Without a reference, the caller must keep the inventory and host alive itself.
  */
 struct Rp1Child {
     struct Rp1Child*    Next;
+    struct Rp1Bus*      Bus;
     uuid_t              DeviceId;
     struct FdtRp1Device Firmware;
 };
@@ -68,6 +72,11 @@ struct Rp1Child {
 struct Rp1Bus {
     // The PCI host owns this description; do not free it when releasing the bus.
     const struct FdtPciHost* Host;
+    // Set by PCI attachment. Borrowed unless a child provider holds a reference.
+    struct PciDevice* Parent;
+    // Each child provider reference also retains Parent. Atomic because registry
+    // callbacks for different children may run concurrently.
+    atomic_uint ProviderReferences;
 
     struct Rp1Child* Children;
     unsigned int     ChildCount;
@@ -88,6 +97,7 @@ struct Rp1Bus {
  *
  * @param bus List of RP1 hardware blocks to add.
  * @param endpoint RP1 PCI device, already registered with the device manager.
+ *                 Must be the parent recorded when this bus was attached.
  * @param group Tracks added entries so drivers can be found or entries removed
  *              together, and saves where each child's device ID is stored.
  * @return OS_EOK if every child is added, or the first registration error.
@@ -122,13 +132,18 @@ Rp1BusCreate(
 
 /**
  * @brief Free the list after all of its device-manager entries have been removed.
- * If a child still has a registered ID, this function leaves the entire list
- * allocated. The registration group still needs the stored IDs to remove those
- * entries. Call this function again after their removal succeeds.
+ * Published IDs and outstanding provider references both keep the list alive.
+ * The group still needs the stored IDs while removing entries, even after the
+ * registry has released its provider. Release callbacks therefore never free it.
  *
  * @param bus List to release. NULL is allowed.
+ *            The owner must exclude publication, removal of registry entries,
+ *            and new reference acquisition while calling this function.
+ * @return OS_EOK after freeing the list (or for NULL), OS_EBUSY without freeing
+ *         anything while IDs or provider references remain. The caller must
+ *         preserve the parent and retry, rather than continue enclosing cleanup.
  */
-__EXTERN void
+__EXTERN oserr_t
 Rp1BusDestroy(
     _In_ struct Rp1Bus* bus);
 

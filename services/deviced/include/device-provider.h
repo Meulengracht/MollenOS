@@ -1,5 +1,5 @@
 /**
- * Copyright 2017, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,9 @@
 #include <ddk/device.h>
 #include <os/types/device.h>
 
+// Forward declarations
+struct DmDmaDescription;
+
 enum DmDeviceDescriptionKind {
     DmDeviceDescriptionGeneric,
     DmDeviceDescriptionBus,
@@ -34,8 +37,8 @@ enum DmDeviceDescriptionKind {
 /**
  * @brief Handles requests for a device owned by a bus or another service module.
  * The operations must remain valid until Release returns. All callbacks run
- * without the device registry lock. Control and AccessRegister are optional.
- * Retain and Release are required when a provider is supplied.
+ * without the device registry lock. Control, AccessRegister and PrepareDma are
+ * optional. Retain and Release are required when a provider is supplied.
  */
 struct DmDeviceProviderOperations {
     /**
@@ -68,6 +71,19 @@ struct DmDeviceProviderOperations {
         _In_    unsigned int reg,
         _InOut_ size_t*      value,
         _In_    size_t       width);
+
+    /**
+     * @brief Copy the configured DMA path for this exact retained device.
+     *
+     * Describe only: do not allocate provider-owned resources, enable hardware,
+     * or change pending flags. That keeps failure and removal rollback a simple
+     * discard of copied values. Supply validated RAM ranges, a registered host
+     * identity and an established cache policy; DeviceId is assigned by the core.
+     * The owning bus must exclude reset while preparing and using this result.
+     */
+    oserr_t (*PrepareDma)(
+        _In_  void*                    context,
+        _Out_ struct DmDmaDescription* description);
 };
 
 /**
