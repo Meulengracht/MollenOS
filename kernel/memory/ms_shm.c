@@ -32,13 +32,18 @@ static void __BuildSG(struct SHMBuffer* shmBuffer, int* sgCountOut, SHMSG_t* sgO
 
 static void
 __SHMBufferDelete(
-        _In_ struct SHMBuffer* shmBuffer)
+        _In_ void* resource)
 {
+    struct SHMBuffer* shmBuffer = resource;
+
     if (shmBuffer == NULL) {
         return;
     }
 
-    if (!(shmBuffer->Exported)) {
+    // Reserved backing returns to the memory component recorded at allocation.
+    if (shmBuffer->Allocation.Owner != NULL) {
+        (void)SystemMemoryReleaseAllocation(&shmBuffer->Allocation);
+    } else if (!(shmBuffer->Exported)) {
         FreePhysicalMemory(shmBuffer->PageCount, &shmBuffer->Pages[0]);
     }
 
@@ -67,9 +72,14 @@ __SHMBufferNew(
     MutexConstruct(&buffer->Mutex, MUTEX_FLAG_PLAIN);
     buffer->ID = CreateHandle(
             HandleTypeSHM,
-            (HandleDestructorFn)__SHMBufferDelete,
+            __SHMBufferDelete,
             buffer
     );
+    if (buffer->ID == UUID_INVALID) {
+        MutexDestruct(&buffer->Mutex);
+        kfree(buffer);
+        return NULL;
+    }
     buffer->Owner = GetCurrentMemorySpace();
     buffer->PageCount = (int)pageCount;
     buffer->Offset = offset;
@@ -402,6 +412,74 @@ SHMCreate(
             0,
             mapping
     );
+    return OS_EOK;
+}
+
+oserr_t
+SHMCreateDeviceBuffer(
+        _In_  size_t       size,
+        _In_  size_t       alignment,
+        _In_  size_t       boundary,
+        _Out_ SHMHandle_t* handle)
+{
+    struct SystemMemoryAllocation allocation = { 0 };
+    struct SHMBuffer*             buffer;
+    size_t                        pageSize = GetMemorySpacePageSize();
+    unsigned int                  flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_COMMIT | MAPPING_CLEAN;
+    vaddr_t                       mapping;
+    oserr_t                       oserr;
+
+    if (handle == NULL || size == 0 || size % pageSize != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = SystemMemoryAllocateDevice(
+            &GetMachine()->PhysicalMemory,
+            size,
+            alignment,
+            boundary,
+            &allocation
+    );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    buffer = __SHMBufferNew(0, size, SHM_DEVICE | SHM_CLEAN, false);
+    if (buffer == NULL) {
+        (void)SystemMemoryReleaseAllocation(&allocation);
+        return OS_EOOM;
+    }
+
+    // Move ownership into the buffer before creating any mappings.
+    buffer->Allocation = allocation;
+    memset(&allocation, 0, sizeof(allocation));
+    for (int i = 0; i < buffer->PageCount; i++) {
+        buffer->Pages[i] = buffer->Allocation.PhysicalBase + ((paddr_t)i * pageSize);
+    }
+
+    // MAPPING_CLEAN zeroes the pages through this view, so a device never
+    // sees data an earlier user left behind.
+    if (SHMBufferUncached(buffer)) {
+        flags |= MAPPING_NOCACHE;
+    }
+    oserr = MemorySpaceMap(
+            GetCurrentMemorySpace(),
+            &(struct MemorySpaceMapOptions) {
+                .SHMTag = buffer->ID,
+                .Pages = &buffer->Pages[0],
+                .Length = size,
+                .Mask = buffer->PageMask,
+                .Flags = flags,
+                .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
+            },
+            &mapping
+    );
+    if (oserr != OS_EOK) {
+        (void)DestroyHandle(buffer->ID);
+        return oserr;
+    }
+
+    __ConstructSHMHandle(handle, buffer->ID, size, size, 0, (void*)mapping);
     return OS_EOK;
 }
 
@@ -972,8 +1050,8 @@ __EnsurePhysicalPages(
 
 static unsigned int
 __RecalculateFlags(
-        _In_ unsigned int shmFlags,
-        _In_ unsigned int accessFlags)
+        _In_ const struct SHMBuffer* shmBuffer,
+        _In_ unsigned int            accessFlags)
 {
     // All mappings must be marked USERSPACE and PERSISTENT. We do not allow
     // the underlying virtual memory system to automatically free any physical
@@ -981,8 +1059,14 @@ __RecalculateFlags(
     unsigned int flags = MAPPING_USERSPACE | MAPPING_PERSISTENT;
 
     // SHM_CLEAN we include when doing maps
-    if (shmFlags & SHM_CLEAN) {
+    if (shmBuffer->Flags & SHM_CLEAN) {
         flags |= MAPPING_CLEAN;
+    }
+
+    // A second view must match the first one's caching, or the two views can
+    // disagree about what is in memory.
+    if (SHMBufferUncached(shmBuffer)) {
+        flags |= MAPPING_NOCACHE;
     }
 
     // Ignore MAPPING_TRAPPAGE and MAPPING_GUARDPAGE attributes for
@@ -1031,7 +1115,7 @@ __UpdateMapping(
                 .Pages = &shmBuffer->Pages[0],
                 .Length = length,
                 .Mask = shmBuffer->PageMask,
-                .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
+                .Flags = __RecalculateFlags(shmBuffer, flags),
                 .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_FIXED
             },
             (vaddr_t*)&handle->Buffer
@@ -1079,7 +1163,7 @@ __CreateMapping(
                 // the entire first page.
                 .Length = (length + (actualOffset % pageSize)),
                 .Mask = shmBuffer->PageMask,
-                .Flags = __RecalculateFlags(shmBuffer->Flags, flags),
+                .Flags = __RecalculateFlags(shmBuffer, flags),
                 .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_PROCESS
             },
             (vaddr_t*)mappingOut

@@ -33,6 +33,12 @@ typedef struct PlatformMemoryConfiguration {
     size_t            PageSize;
     int               MemoryMaskCount;
     size_t            MemoryMasks[MEMORY_MASK_COUNT];
+    // Default device pool: size (zero for none), last usable physical
+    // address, required alignment, and whether views of it may be cached.
+    size_t            DevicePoolSize;
+    paddr_t           DevicePoolLimit;
+    size_t            DevicePoolAlignment;
+    bool              DevicePoolCached;
 } PlatformMemoryConfiguration_t;
 
 typedef struct PlatformMemoryMapping {

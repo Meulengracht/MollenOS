@@ -21,6 +21,7 @@
 #include <os/types/memory.h>
 #include <os/types/syslog.h>
 #include <os/types/shm.h>
+#include <os/types/dma.h>
 #include <os/types/time.h>
 #include <time.h> // for clock_t
 
@@ -56,5 +57,21 @@ typedef struct OSSHMConformParameters {
     size_t                  Offset;
     size_t                  Length;
 } OSSHMConformParameters_t;
+
+struct OSDmaMapParameters {
+    size_t                  Offset;
+    size_t                  Length;
+    enum SHMDeviceDirection Direction;
+};
+
+struct OSDmaMappingResult {
+    uuid_t   Handle;
+    uint32_t SegmentCount;
+};
+
+struct OSDmaAllocationResult {
+    SHMHandle_t               Buffer;
+    struct OSDmaMappingResult Mapping;
+};
 
 #endif //!__TYPES_SYSCALL_H__

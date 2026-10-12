@@ -56,7 +56,8 @@ void TestMSContextNew_Happy(void** state)
 
     context = MSContextNew();
     assert_non_null(context);
-    assert_int_equal(g_testContext.MutexConstructCalls, 1);
+    // SyncObject and UserCopyLock
+    assert_int_equal(g_testContext.MutexConstructCalls, 2);
     assert_int_equal(g_testContext.DynamicMemoryPoolConstructCalls, 1);
     assert_int_equal(list_count(&context->Allocations), 0);
     assert_int_equal(context->SignalHandler, 0);
@@ -112,7 +113,7 @@ void TestMSContextDelete_Happy(void** state)
 
     // ensure that DynamicMemoryPoolFree was called once, this means
     // the allocation was freed
-    assert_int_equal(g_testContext.MutexDestructCalls, 1);
+    assert_int_equal(g_testContext.MutexDestructCalls, 2);
     assert_int_equal(g_testContext.DynamicMemoryPoolFreeCalls, 1);
     assert_int_equal(g_testContext.DynamicMemoryPoolDestroyCalls, 1);
 }

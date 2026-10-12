@@ -20,102 +20,308 @@
  */
 
 #include <assert.h>
+#include <limits.h>
 #include <component/memory.h>
+#include <string.h>
 
 void
 SystemMemoryConstruct(
-        _In_ SystemMemory_t* systemMemory,
-        _In_ uintptr_t       physicalBase,
-        _In_ size_t          size,
-        _In_ size_t          blockSize,
-        _In_ unsigned int    attributes)
+    _In_ SystemMemory_t* systemMemory,
+    _In_ uintptr_t       physicalBase,
+    _In_ size_t          size,
+    _In_ size_t          blockSize,
+    _In_ unsigned int    attributes)
 {
     assert(systemMemory != NULL);
+    assert(blockSize != 0);
 
+    memset(systemMemory, 0, sizeof(*systemMemory));
     systemMemory->PhysicalBase = physicalBase;
     systemMemory->Size = size;
     systemMemory->BlockSize = blockSize;
     systemMemory->Attributes = attributes;
+    // Boot setup supplies the mask regions and their free ranges separately.
+}
 
-    // initialize the allocator if the memory region has data
-    if (size != 0) {
-        assert(blockSize != 0);
+static bool
+__InDeviceRegion(
+    _In_ const SystemMemory_t* systemMemory,
+    _In_ paddr_t               address)
+{
+    const struct SystemMemoryDeviceRegion* region = &systemMemory->DeviceMemory;
 
-        // retrieve memory masks for this region which should be specified by
-        // the underlying architecture
-
-        // do not add any memory pages yet, this will be done when the core memory
-        // map gets transferred to regions
-    }
+    return address >= region->Base && address - region->Base < region->Length;
 }
 
 static SystemMemoryAllocatorRegion_t*
-__GetAppropriateAllocator(
-        _In_  SystemMemory_t* systemMemory,
-        _In_  size_t          memoryMask)
+__RegionForAddress(
+    _In_ SystemMemory_t* systemMemory,
+    _In_ uintptr_t       address)
 {
-    int i;
-    if (memoryMask == 0) {
-        // if caller do not care then return highest allocator
-        return &systemMemory->Allocator.Region[systemMemory->Allocator.MaskCount - 1];
-    }
-
-    for (i = systemMemory->Allocator.MaskCount - 1; i > 0; i--) {
-        if (memoryMask >= systemMemory->Allocator.Masks[i]) {
-            break;
+    for (int i = 0; i < systemMemory->Allocator.MaskCount; i++) {
+        if (address <= systemMemory->Allocator.Masks[i]) {
+            return &systemMemory->Allocator.Region[i];
         }
     }
-    return &systemMemory->Allocator.Region[i];
+    return NULL;
 }
 
 oserr_t
 SystemMemoryAllocate(
-        _In_ SystemMemory_t* systemMemory,
-        _In_ size_t          memoryMask,
-        _In_ int             pageCount,
-        _In_ uintptr_t*      pages)
+    _In_  SystemMemory_t* systemMemory,
+    _In_  size_t          memoryMask,
+    _In_  int             pageCount,
+    _Out_ uintptr_t*      pages)
 {
-    oserr_t oserr;
-    int     pagesAllocated = pageCount;
     SystemMemoryAllocatorRegion_t* region;
+    int                            allocated = 0;
+    int                            count;
+    oserr_t                        status;
 
-    // default to highest allocator
-    region = &systemMemory->Allocator.Region[systemMemory->Allocator.MaskCount - 1];
-    if (memoryMask) {
-        for (int i = systemMemory->Allocator.MaskCount - 1; i >= 0; i--) {
-            if (memoryMask >= systemMemory->Allocator.Masks[i]) {
-                region = &systemMemory->Allocator.Region[i];
-            }
+    if (systemMemory == NULL || pages == NULL || pageCount <= 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Prefer high memory, preserving the lower ranges for constrained callers.
+    for (int i = systemMemory->Allocator.MaskCount - 1; i >= 0; i--) {
+        if (memoryMask != 0 && memoryMask < systemMemory->Allocator.Masks[i]) {
+            continue;
+        }
+        
+        region = &systemMemory->Allocator.Region[i];
+        count = pageCount - allocated;
+        
+        SpinlockAcquireIrq(&region->Lock);
+        status = MemoryStackPop(&region->Stack, &count, &pages[allocated]);
+        SpinlockReleaseIrq(&region->Lock);
+        if (status == OS_EOOM) {
+            continue;
+        }
+        
+        allocated += count;
+        if (allocated == pageCount) {
+            return OS_EOK;
         }
     }
 
-    SpinlockAcquireIrq(&region->Lock);
-    oserr = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
-    if (oserr == OS_EINCOMPLETE) {
-        MemoryStackPushMultiple(&region->Stack, pages, pagesAllocated);
-        oserr = OS_EOOM;
+    // If the allocation fails, cleanup and free the allocation
+    if (allocated != 0) {
+        status = SystemMemoryFree(systemMemory, allocated, pages);
+        assert(status == OS_EOK);
+        (void)status;
+        memset(pages, 0, (size_t)allocated * sizeof(*pages));
     }
-    SpinlockReleaseIrq(&region->Lock);
-    return oserr;
+    return OS_EOOM;
 }
 
 oserr_t
 SystemMemoryFree(
-        _In_ SystemMemory_t* systemMemory,
-        _In_ int             pageCount,
-        _In_ uintptr_t*      pages)
+    _In_ SystemMemory_t*  systemMemory,
+    _In_ int              pageCount,
+    _In_ const uintptr_t* pages)
 {
+    SystemMemoryAllocatorRegion_t* region;
+    oserr_t                        status;
 
+    if (systemMemory == NULL || pages == NULL || pageCount <= 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Validate the whole list before returning any pages. Reserved pages must
+    // only be released through their allocation record, never into a stack.
+    for (int i = 0; i < pageCount; i++) {
+        if (pages[i] == 0) {
+            continue;
+        }
+        
+        if (systemMemory->BlockSize == 0 || pages[i] % systemMemory->BlockSize != 0) {
+            return OS_EINVALPARAMS;
+        }
+        
+        // If the page we're trying to free is in the device region
+        // or we fail to find a valid region for it, it's an invalid free.
+        if (__InDeviceRegion(systemMemory, pages[i]) || 
+                __RegionForAddress(systemMemory, pages[i]) == NULL) {
+            return OS_EINVALPARAMS;
+        }
+    }
+
+    for (int i = 0; i < pageCount; i++) {
+        if (pages[i] == 0) {
+            continue;
+        }
+        
+        // Get the region
+        region = __RegionForAddress(systemMemory, pages[i]);
+        
+        // Free page
+        SpinlockAcquireIrq(&region->Lock);
+        status = MemoryStackPush(&region->Stack, pages[i], 1);
+        SpinlockReleaseIrq(&region->Lock);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
     return OS_EOK;
 }
 
 oserr_t
+SystemMemoryInitializeDeviceRegion(
+    _In_ SystemMemory_t* systemMemory,
+    _In_ paddr_t         base,
+    _In_ size_t          length,
+    _In_ bool            cached,
+    _In_ void*           storage,
+    _In_ size_t          storageSize)
+{
+    struct SystemMemoryDeviceRegion* region;
+    size_t                           pageSize;
+    size_t                           pageCount;
+    size_t                           required;
+    oserr_t                          status;
+
+    if (systemMemory == NULL || storage == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    region = &systemMemory->DeviceMemory;
+    if (region->Length != 0) {
+        return OS_EBUSY;
+    }
+    
+    pageSize = systemMemory->BlockSize;
+    if (pageSize == 0 || (pageSize & (pageSize - 1)) != 0) {
+        return OS_EINVALPARAMS;
+    }
+    if (length == 0 || base % pageSize != 0 || length % pageSize != 0) {
+        return OS_EINVALPARAMS;
+    }
+    if (length - 1 > (paddr_t)~(paddr_t)0 - base) {
+        return OS_EINVALPARAMS;
+    }
+
+    pageCount = length / pageSize;
+    required = MemoryStackCalculateSize(pageCount);
+    if (pageCount > INT_MAX || required == 0) {
+        return OS_ENOTSUPPORTED;
+    }
+    if (storageSize < required) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = MemoryStackConstruct(
+        &region->Stack,
+        pageSize,
+        (uintptr_t)storage,
+        storageSize
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // Push initial capacity into the memory stack, and setup region
+    (void)MemoryStackPush(&region->Stack, (uintptr_t)base, (int)pageCount);
+    SpinlockConstruct(&region->Lock);
+    region->Base = base;
+    region->Length = length;
+    region->Cached = cached;
+    return OS_EOK;
+}
+
+oserr_t
+SystemMemoryAllocateDevice(
+    _In_    SystemMemory_t*                systemMemory,
+    _In_    size_t                         length,
+    _In_    size_t                         alignment,
+    _In_    size_t                         boundary,
+    _InOut_ struct SystemMemoryAllocation* allocation)
+{
+    struct SystemMemoryDeviceRegion* region;
+    uintptr_t                        base;
+    oserr_t                          status;
+
+    if (systemMemory == NULL || allocation == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (allocation->Owner != NULL) {
+        return OS_EBUSY;
+    }
+
+    region = &systemMemory->DeviceMemory;
+    if (region->Length == 0) {
+        return OS_ENOTSUPPORTED;
+    }
+    
+    SpinlockAcquireIrq(&region->Lock);
+    status = MemoryStackPopContiguous(
+        &region->Stack,
+        length,
+        alignment,
+        boundary,
+        &base
+    );
+    SpinlockReleaseIrq(&region->Lock);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    allocation->Owner = systemMemory;
+    allocation->PhysicalBase = base;
+    allocation->Length = DIVUP(length, systemMemory->BlockSize) * systemMemory->BlockSize;
+    allocation->Cached = systemMemory->DeviceMemory.Cached;
+    return OS_EOK;
+}
+
+oserr_t
+SystemMemoryReleaseAllocation(
+    _InOut_ struct SystemMemoryAllocation* allocation)
+{
+    struct SystemMemoryDeviceRegion* region;
+    size_t                           pageSize;
+    size_t                           offset;
+    oserr_t                          status;
+
+    if (allocation == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (allocation->Owner == NULL) {
+        return OS_EOK;
+    }
+
+    region = &allocation->Owner->DeviceMemory;
+    pageSize = allocation->Owner->BlockSize;
+    if (allocation->PhysicalBase < region->Base || allocation->Length == 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    offset = (size_t)(allocation->PhysicalBase - region->Base);
+    if (offset > region->Length || allocation->Length > region->Length - offset) {
+        return OS_EINVALPARAMS;
+    }
+    if (offset % pageSize != 0 || allocation->Length % pageSize != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    SpinlockAcquireIrq(&region->Lock);
+    status = MemoryStackPush(
+        &region->Stack,
+        (uintptr_t)allocation->PhysicalBase,
+        (int)(allocation->Length / pageSize)
+    );
+    SpinlockReleaseIrq(&region->Lock);
+    if (status == OS_EOK) {
+        memset(allocation, 0, sizeof(*allocation));
+    }
+    return status;
+}
+
+oserr_t
 SystemMemoryContainsAddress(
-        _In_ SystemMemory_t* systemMemory,
-        _In_ uintptr_t       address)
+    _In_ SystemMemory_t* systemMemory,
+    _In_ uintptr_t       address)
 {
     if (address >= systemMemory->PhysicalBase &&
-        address < (systemMemory->PhysicalBase + systemMemory->Size)) {
+        address - systemMemory->PhysicalBase < systemMemory->Size) {
         return OS_EOK;
     }
     return OS_EUNKNOWN;

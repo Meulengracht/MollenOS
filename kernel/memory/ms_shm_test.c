@@ -1922,6 +1922,32 @@ size_t GetMemorySpacePageSize(void) {
     return g_testContext.Machine.MemoryGranularity;
 }
 
+// These legacy tests exercise ordinary SHM. Reserved backing is covered with
+// the real memory component by testing/shm_memory_ownership_test.py.
+oserr_t
+SystemMemoryAllocateDevice(
+    _In_    SystemMemory_t*                systemMemory,
+    _In_    size_t                         length,
+    _In_    size_t                         alignment,
+    _In_    size_t                         boundary,
+    _InOut_ struct SystemMemoryAllocation* allocation)
+{
+    (void)systemMemory;
+    (void)length;
+    (void)alignment;
+    (void)boundary;
+    (void)allocation;
+    return OS_ENOTSUPPORTED;
+}
+
+oserr_t
+SystemMemoryReleaseAllocation(
+    _InOut_ struct SystemMemoryAllocation* allocation)
+{
+    assert_null(allocation->Owner);
+    return OS_EOK;
+}
+
 SystemMachine_t* GetMachine(void) {
     return &g_testContext.Machine;
 }

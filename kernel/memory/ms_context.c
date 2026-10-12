@@ -55,6 +55,7 @@ MSContextDelete(
         _In_ struct MSContext* context)
 {
     MutexDestruct(&context->SyncObject);
+    MutexDestruct(&context->UserCopyLock);
     list_clear(&context->Allocations, __CleanupMemoryAllocation, context);
     DynamicMemoryPoolDestroy(&context->Heap);
     kfree(context);
