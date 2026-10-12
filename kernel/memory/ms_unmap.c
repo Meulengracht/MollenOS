@@ -152,13 +152,13 @@ MemorySpaceUnmap(
     // If the memoryspace has a context, we do this in a 
     // locked section.
     if (memorySpace->Context != NULL) {
-        MutexLock(&memorySpace->Context->UserCopyLock);
+        MutexLock(&memorySpace->Context->UserCopySyncObject);
     }
     
     status = __Unmap(memorySpace, address, length);
     
     if (memorySpace->Context != NULL) {
-        MutexUnlock(&memorySpace->Context->UserCopyLock);
+        MutexUnlock(&memorySpace->Context->UserCopySyncObject);
     }
     return status;
 }

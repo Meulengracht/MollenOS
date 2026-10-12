@@ -671,7 +671,7 @@ MemorySpaceCopyUser(
         return OS_EINVALPARAMS;
     }
     
-    MutexLock(&space->Context->UserCopyLock);
+    MutexLock(&space->Context->UserCopySyncObject);
     
     allocation = MSAllocationAcquire(space->Context, address);
     if (allocation != NULL) {
@@ -763,6 +763,6 @@ exit:
     if (allocation != NULL) {
         MSAllocationRelease(space->Context, allocation);
     }
-    MutexUnlock(&space->Context->UserCopyLock);
+    MutexUnlock(&space->Context->UserCopySyncObject);
     return oserr;
 }

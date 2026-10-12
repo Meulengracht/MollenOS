@@ -85,7 +85,7 @@ MemorySpaceChangeProtection(
     }
     
     if (memorySpace->Context != NULL) {
-        MutexLock(&memorySpace->Context->UserCopyLock);
+        MutexLock(&memorySpace->Context->UserCopySyncObject);
     }
     
     status = __ChangeProtection(
@@ -97,7 +97,7 @@ MemorySpaceChangeProtection(
     );
 
     if (memorySpace->Context != NULL) {
-        MutexUnlock(&memorySpace->Context->UserCopyLock);
+        MutexUnlock(&memorySpace->Context->UserCopySyncObject);
     }
     return status;
 }

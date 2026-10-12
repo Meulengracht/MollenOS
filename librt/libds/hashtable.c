@@ -107,17 +107,17 @@ void hashtable_destroy(
     if (hashtable->swap) {
         dsfree(hashtable->swap);
     }
-
     if (hashtable->elements) {
         dsfree(hashtable->elements);
     }
+    memset(hashtable, 0, sizeof(hashtable_t));
 }
 
 void* hashtable_set(
     _In_ hashtable_t* hashtable,
     _In_ const void*  element)
 {
-    if (!hashtable) {
+    if (!hashtable || hashtable->capacity == 0) {
         errno = EINVAL;
         return NULL;
     }
@@ -181,7 +181,7 @@ void* hashtable_get(
     uint64_t hash;
     size_t   index;
 
-    if (!hashtable) {
+    if (!hashtable || hashtable->capacity == 0) {
         errno = EINVAL;
         return NULL;
     }
@@ -213,7 +213,7 @@ void* hashtable_remove(
     uint64_t hash;
     size_t   index;
 
-    if (!hashtable) {
+    if (!hashtable || hashtable->capacity == 0) {
         errno = EINVAL;
         return NULL;
     }

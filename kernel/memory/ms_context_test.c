@@ -56,7 +56,7 @@ void TestMSContextNew_Happy(void** state)
 
     context = MSContextNew();
     assert_non_null(context);
-    // SyncObject and UserCopyLock
+    // SyncObject and UserCopySyncObject
     assert_int_equal(g_testContext.MutexConstructCalls, 2);
     assert_int_equal(g_testContext.DynamicMemoryPoolConstructCalls, 1);
     assert_int_equal(list_count(&context->Allocations), 0);

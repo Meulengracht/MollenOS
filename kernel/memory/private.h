@@ -20,6 +20,7 @@
 
 #include <ds/list.h>
 #include <ds/bitmap.h>
+#include <ds/hashtable.h>
 #include <component/memory.h>
 #include <memoryspace.h>
 #include <mutex.h>
@@ -74,12 +75,22 @@ struct MSAllocation {
     struct MSAllocation* CloneOf;
 };
 
+struct HandleGrantTable {
+    Mutex_t     SyncObject;
+    hashtable_t Entries;
+};
+
 struct MSContext {
-    DynamicMemoryPool_t Heap;
-    list_t              Allocations;
-    uintptr_t           SignalHandler;
-    Mutex_t             SyncObject;
-    Mutex_t             UserCopyLock;
+    DynamicMemoryPool_t     Heap;
+    struct HandleGrantTable HandleGrants;
+    list_t                  Allocations;
+    uintptr_t               SignalHandler;
+    // Protects the access to the allocations.
+    Mutex_t                 SyncObject;
+    // Synchronizes access to user-space copy operations. This
+    // only ensures that kernel system calls can't do multiple
+    // copies at once to the same process space.
+    Mutex_t                 UserCopySyncObject;
 };
 
 /**
@@ -95,7 +106,7 @@ MSContextNew(void);
  */
 void
 MSContextDelete(
-        _In_ struct MSContext* context);
+    _In_ struct MSContext* context);
 
 /**
  * @brief Registers a new allocation with the given context.
@@ -104,8 +115,8 @@ MSContextDelete(
  */
 void
 MSContextAddAllocation(
-        _In_ struct MSContext*    context,
-        _In_ struct MSAllocation* allocation);
+    _In_ struct MSContext*    context,
+    _In_ struct MSAllocation* allocation);
 
 /**
  * @brief
@@ -118,11 +129,11 @@ MSContextAddAllocation(
  */
 oserr_t
 MSAllocationCreate(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ uuid_t         shmTag,
-        _In_ vaddr_t        address,
-        _In_ size_t         length,
-        _In_ unsigned int   flags);
+    _In_ MemorySpace_t* memorySpace,
+    _In_ uuid_t         shmTag,
+    _In_ vaddr_t        address,
+    _In_ size_t         length,
+    _In_ unsigned int   flags);
 
 /**
  * @brief Partially or fully frees a previously made allocation.
@@ -139,10 +150,10 @@ MSAllocationCreate(
  */
 oserr_t
 MSAllocationFree(
-        _In_  struct MSContext*     context,
-        _In_  vaddr_t               address,
-        _In_  size_t                length,
-        _Out_ struct MSAllocation** clonedFrom);
+    _In_  struct MSContext*     context,
+    _In_  vaddr_t               address,
+    _In_  size_t                length,
+    _Out_ struct MSAllocation** clonedFrom);
 
 /**
  * @brief Looks up an existing allocation.
@@ -152,8 +163,8 @@ MSAllocationFree(
  */
 struct MSAllocation*
 MSAllocationLookup(
-        _In_ struct MSContext* context,
-        _In_ vaddr_t           address);
+    _In_ struct MSContext* context,
+    _In_ vaddr_t           address);
 
 /**
  * Looks up and increases the reference count by one if the allocation
@@ -164,8 +175,8 @@ MSAllocationLookup(
  */
 struct MSAllocation*
 MSAllocationAcquire(
-        _In_ struct MSContext* context,
-        _In_ vaddr_t           address);
+    _In_ struct MSContext* context,
+    _In_ vaddr_t           address);
 
 /**
  * @brief
@@ -175,8 +186,8 @@ MSAllocationAcquire(
  */
 oserr_t
 MSAllocationRelease(
-        _In_ struct MSContext*    context,
-        _In_ struct MSAllocation* allocation);
+    _In_ struct MSContext*    context,
+    _In_ struct MSAllocation* allocation);
 
 /**
  * @brief
@@ -187,9 +198,9 @@ MSAllocationRelease(
  */
 oserr_t
 MSAllocationLink(
-        _In_ struct MSContext*    context,
-        _In_ vaddr_t              address,
-        _In_ struct MSAllocation* link);
+    _In_ struct MSContext*    context,
+    _In_ vaddr_t              address,
+    _In_ struct MSAllocation* link);
 
 /**
  * @brief
@@ -198,7 +209,7 @@ MSAllocationLink(
  */
 MemorySpace_t*
 MemorySpaceNew(
-        _In_ unsigned int flags);
+    _In_ unsigned int flags);
 
 /**
  * @brief
@@ -206,7 +217,7 @@ MemorySpaceNew(
  */
 void
 MemorySpaceDelete(
-        _In_ MemorySpace_t* memorySpace);
+    _In_ MemorySpace_t* memorySpace);
 
 /**
  * @brief Synchronizes a region of memory with all active memory spaces across CPU cores.
@@ -216,8 +227,8 @@ MemorySpaceDelete(
  */
 extern void
 MSSync(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ uintptr_t      address,
-        _In_ size_t         size);
+    _In_ MemorySpace_t* memorySpace,
+    _In_ uintptr_t      address,
+    _In_ size_t         size);
 
 #endif //!__MS_PRIVATE_H__

@@ -55,6 +55,7 @@ add_executable (vali-core
 		deviceio.c
 		firmware.c
 		handle.c
+		handle_grants.c
 		handle_set.c
 		interrupts.c
 		interrupts_handlers.c

@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <handle_grants.h>
 #include <heap.h>
 #include <machine.h>
 #include <memoryspace.h>
@@ -30,9 +31,14 @@ MSContextNew(void)
     }
 
     MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
-    MutexConstruct(&context->UserCopyLock, MUTEX_FLAG_PLAIN);
-    DynamicMemoryPoolConstruct(&context->Heap, GetMachine()->MemoryMap.UserHeap.Start,
-                               GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
+    MutexConstruct(&context->UserCopySyncObject, MUTEX_FLAG_PLAIN);
+    HandleGrantTableInitialize(&context->HandleGrants);
+    DynamicMemoryPoolConstruct(
+        &context->Heap,
+        GetMachine()->MemoryMap.UserHeap.Start,
+        GetMachine()->MemoryMap.UserHeap.Length,
+        GetMachine()->MemoryGranularity
+    );
     list_construct(&context->Allocations);
     context->SignalHandler = 0;
     return context;
@@ -55,8 +61,9 @@ MSContextDelete(
         _In_ struct MSContext* context)
 {
     MutexDestruct(&context->SyncObject);
-    MutexDestruct(&context->UserCopyLock);
+    MutexDestruct(&context->UserCopySyncObject);
     list_clear(&context->Allocations, __CleanupMemoryAllocation, context);
+    HandleGrantTableDestroy(&context->HandleGrants);
     DynamicMemoryPoolDestroy(&context->Heap);
     kfree(context);
 }
