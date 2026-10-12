@@ -155,9 +155,9 @@ __PublishRange(
  */
 static int64_t
 __PsciCpuOn(
-    _in_ uint64_t     affinity,
-    _in_ uintptr_t    entry,
-    _in_ unsigned int id)
+    _In_ uint64_t     affinity,
+    _In_ uintptr_t    entry,
+    _In_ unsigned int id)
 {
     // PSCI's calling convention places function, affinity, entry, and context
     // in x0-x3; x0 returns a signed firmware status, with zero meaning success.

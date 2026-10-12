@@ -263,86 +263,37 @@ InitializeMachine(
 
 oserr_t
 AllocatePhysicalMemory(
-        _In_ size_t     pageMask,
-        _In_ int        pageCount,
-        _In_ uintptr_t* pages)
+    _In_  size_t     pageMask,
+    _In_  int        pageCount,
+    _Out_ uintptr_t* pages)
 {
-    SystemMemoryAllocatorRegion_t* region;
-    oserr_t                        oserr;
-    int                            pagesLeftToAllocate = pageCount;
-    int                            i = GetMachine()->PhysicalMemory.MaskCount - 1;
+    oserr_t status;
 
-    // default to the highest allocator
-    region = &GetMachine()->PhysicalMemory.Region[i];
-    while (pagesLeftToAllocate > 0 && i >= 0) {
-        int pagesAllocated = pagesLeftToAllocate;
-
-        // make sure pagemask is correct if one is provided
-        if (pageMask) {
-            if (pageMask < GetMachine()->PhysicalMemory.Masks[i]) {
-                region = &GetMachine()->PhysicalMemory.Region[--i];
-                continue;
-            }
-        }
-
-        // try to allocate all neccessary pages from this memory mask allocator
-        SpinlockAcquireIrq(&region->Lock);
-        oserr = MemoryStackPop(&region->Stack, &pagesAllocated, pages);
-        SpinlockReleaseIrq(&region->Lock);
-
-        // if it returns out of memory, then no pages are available here
-        if (oserr != OS_EOOM) {
-            // otherwise, we subtract the number of pages allocated from this
-            pagesLeftToAllocate -= pagesAllocated;
-        }
-
-        // go to next allocator
-        region = &GetMachine()->PhysicalMemory.Region[--i];
-    }
-
-    if (oserr == OS_EOK) {
+    status = SystemMemoryAllocate(&GetMachine()->PhysicalMemory, pageMask, pageCount, pages);
+    if (status == OS_EOK) {
         GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pageCount;
     }
-    return oserr;
+    return status;
 }
 
 void
 FreePhysicalMemory(
-        _In_ int              pageCount,
-        _In_ const uintptr_t* pages)
+    _In_ int              pageCount,
+    _In_ const uintptr_t* pages)
 {
-    SystemMemoryAllocatorRegion_t* region = NULL;
-    int                            i;
+    oserr_t status;
+    size_t  freed = 0;
 
-    for (i = 0; i < pageCount; i++) {
-        uintptr_t address = pages[i];
-        if (address == 0) {
-            // Let's be OK with partially filled lists
-            continue;
-        }
-
-        for (int j = 0; j < GetMachine()->PhysicalMemory.MaskCount; j++) {
-            if (address < GetMachine()->PhysicalMemory.Masks[j]) {
-                region = &GetMachine()->PhysicalMemory.Region[j];
-                break;
-            }
-        }
-
-        if (region == NULL) {
-            // Tring to free an invalid address
-            ERROR("FreePhysicalMemory tried to free an invalid page");
-            ERROR("FreePhysicalMemory pageCount=%i, i=%i", pageCount, i);
-            ERROR("FreePhysicalMemory PAGES:");
-            for (int j = 0; j < pageCount; j++) {
-                ERROR("FreePhysicalMemory 0x%llx", pages[j]);
-            }
-            assert(0);
-        }
-
-        SpinlockAcquireIrq(&region->Lock);
-        MemoryStackPush(&region->Stack, address, 1);
-        SpinlockReleaseIrq(&region->Lock);
+    status = SystemMemoryFree(&GetMachine()->PhysicalMemory, pageCount, pages);
+    if (status != OS_EOK) {
+        ERROR("FreePhysicalMemory received an invalid page list");
+        assert(status == OS_EOK);
+        return;
     }
-
-    GetMachine()->NumberOfFreeMemoryBlocks += (size_t)pageCount;
+    for (int i = 0; i < pageCount; i++) {
+        if (pages[i] != 0) {
+            freed++;
+        }
+    }
+    GetMachine()->NumberOfFreeMemoryBlocks += freed;
 }

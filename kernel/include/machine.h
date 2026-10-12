@@ -46,7 +46,7 @@ typedef struct SystemMachine {
     // UMA Hardware Resources
     SystemCpu_t             Processor;      // Used in UMA mode
     MemorySpace_t           SystemSpace;    // Used in UMA mode
-    SystemMemoryAllocator_t PhysicalMemory;
+    SystemMemory_t          PhysicalMemory;
     
     // Global Hardware Resources
     StaticMemoryPool_t          GlobalAccessMemory;

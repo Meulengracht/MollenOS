@@ -23,6 +23,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <limits.h>
 
 /**
  * Include some C11 headers if the environment supports it.
@@ -171,32 +172,23 @@ LastSetBit(size_t value)
 static inline int
 IsPowerOfTwo(size_t value)
 {
-    if (value == 0) {
-        return 0;
-    }
-   
-    while (value != 1) {
-        if (value & 0x1) {
-            return 0;
-        }
-        value >>= 1;
-    }
-    return 1;    
+    return value != 0 && (value & (value - 1)) == 0;
 }
 
 static inline size_t
 NextPowerOfTwo(size_t value)
 {
-    size_t next = 1;
-    
-    if (value >> (__BITS - 2) == 1) {
-        return value;
+    size_t shift;
+
+    if (value <= 1) {
+        return 1;
     }
-    
-    while (next < value) {
-        next <<= 1;
+
+    value--;
+    for (shift = 1; shift < sizeof(value) * CHAR_BIT; shift <<= 1) {
+        value |= value >> shift;
     }
-    return next;
+    return value + 1;
 }
 
 #ifndef _MAXPATH

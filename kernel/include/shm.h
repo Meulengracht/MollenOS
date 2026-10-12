@@ -33,7 +33,7 @@ SHMCreate(
         _In_ SHMHandle_t* handle);
 
 /**
- * @brief Create a zeroed device buffer from the system's device pool.
+ * @brief Create a zeroed device buffer from reserved system memory.
  *
  * The pages form one physically contiguous run that starts on a multiple of
  * alignment and whose first size bytes do not cross a multiple of boundary.
@@ -48,7 +48,7 @@ SHMCreate(
  *         system has no device pool; OS_EOOM if the pool has no fitting run.
  */
 KERNELAPI oserr_t KERNELABI
-SHMCreateFromDevicePool(
+SHMCreateDeviceBuffer(
         _In_  size_t       size,
         _In_  size_t       alignment,
         _In_  size_t       boundary,

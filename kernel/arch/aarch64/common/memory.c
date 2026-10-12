@@ -20,7 +20,7 @@
 #include <arch/aarch64/arch.h>
 #include <arch/interrupts.h>
 #include <arch/utils.h>
-#include <device_pool.h>
+#include <component/memory.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -635,8 +635,15 @@ Arm64BootMemoryInitialize(
     // Generic memory setup later makes the same choice from the same loader
     // map, so the uncached mapping below covers exactly the pool it uses.
     // Without room for a pool, all RAM is mapped as before.
-    if (DevicePoolChooseRange(boot, ARM64_DEVICE_POOL_SIZE, ARM64_MEMORY_MASK_LOW, ARM64_BLOCK_SIZE,
-                              &g_devicePoolBase, &g_devicePoolLength) != OS_EOK) {
+    status = SystemMemoryFitDeviceRegion(
+        boot,
+        ARM64_DEVICE_POOL_SIZE,
+        ARM64_MEMORY_MASK_LOW,
+        ARM64_BLOCK_SIZE,
+        &g_devicePoolBase,
+        &g_devicePoolLength
+    );
+    if (status != OS_EOK) {
         g_devicePoolLength = 0;
     }
     

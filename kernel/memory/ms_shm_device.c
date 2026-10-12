@@ -23,6 +23,7 @@
 #include <handle.h>
 #include <heap.h>
 #include <limits.h>
+#include <machine.h>
 #include <shm.h>
 #include <string.h>
 #include "private.h"
@@ -435,9 +436,7 @@ struct SHMDeviceBounce {
     size_t             SourceLength;
     size_t             SourceOffset; // Where the mapped range starts inside that view.
     vaddr_t            Copy;         // Kernel view of the bounce pages; the range starts at 0.
-    size_t             CopyLength;
-    struct DevicePool* CopyPool;     // Where the bounce pages go back to.
-    paddr_t            CopyPhysical;
+    struct SystemMemoryAllocation Allocation; // Owns the bounce backing.
 };
 
 /**
@@ -571,13 +570,10 @@ __ReleaseBounce(
     // separately. The buffer view is persistent too, so removing it leaves
     // the buffer's pages alone.
     if (bounce->Copy != 0) {
-        (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Copy, bounce->CopyLength);
+        (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Copy, bounce->Allocation.Length);
         bounce->Copy = 0;
     }
-    if (bounce->CopyPool != NULL) {
-        (void)DevicePoolFree(bounce->CopyPool, bounce->CopyPhysical, bounce->CopyLength);
-        bounce->CopyPool = NULL;
-    }
+    (void)SystemMemoryReleaseAllocation(&bounce->Allocation);
     if (bounce->Source != 0) {
         (void)MemorySpaceUnmap(GetCurrentMemorySpace(), bounce->Source, bounce->SourceLength);
         bounce->Source = 0;
@@ -643,22 +639,21 @@ __AllocateCopy(
     _Out_   SHMSG_t*                extents,
     _Out_   int*                    extentCountOut)
 {
-    struct DevicePool* pool = DevicePoolSystem();
     paddr_t*           pages;
     size_t             pageCount = DIVUP(length, pageSize);
     unsigned int       flags = MAPPING_COMMIT | MAPPING_PERSISTENT | MAPPING_CLEAN;
     oserr_t            status;
 
-    if (pool == NULL) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    bounce->CopyLength = pageCount * pageSize;
-    status = DevicePoolAllocate(pool, bounce->CopyLength, 0, 0, &bounce->CopyPhysical);
+    status = SystemMemoryAllocateDevice(
+        &GetMachine()->PhysicalMemory,
+        pageCount * pageSize,
+        0,
+        0,
+        &bounce->Allocation
+    );
     if (status != OS_EOK) {
         return status;
     }
-    bounce->CopyPool = pool;
 
     // MemorySpaceMap takes the pages as a list, one entry per page.
     pages = kmalloc(pageCount * sizeof(paddr_t));
@@ -666,17 +661,17 @@ __AllocateCopy(
         return OS_EOOM;
     }
     for (size_t i = 0; i < pageCount; i++) {
-        pages[i] = bounce->CopyPhysical + ((paddr_t)i * pageSize);
+        pages[i] = bounce->Allocation.PhysicalBase + ((paddr_t)i * pageSize);
     }
 
-    if (!pool->Cached) {
+    if (!bounce->Allocation.Cached) {
         flags |= MAPPING_NOCACHE;
     }
     status = MemorySpaceMap(
         GetCurrentMemorySpace(),
         &(struct MemorySpaceMapOptions) {
             .Pages = pages,
-            .Length = bounce->CopyLength,
+            .Length = bounce->Allocation.Length,
             .Mask = __MASK,
             .Flags = flags,
             .PlacementFlags = MAPPING_PHYSICAL_FIXED | MAPPING_VIRTUAL_GLOBAL
@@ -1011,7 +1006,7 @@ SHMDeviceAllocate(
     // where devices do not see the CPU cache, so neither side needs sync
     // calls. Whole pages keep any cache line from being shared with other
     // memory. A full pool fails here instead of falling back.
-    status = SHMCreateFromDevicePool(
+    status = SHMCreateDeviceBuffer(
         DIVUP(requirements->Length, pageSize) * pageSize,
         (size_t)requirements->Alignment,
         (size_t)requirements->Boundary,

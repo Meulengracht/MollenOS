@@ -20,7 +20,7 @@
 
 #include <ds/list.h>
 #include <ds/bitmap.h>
-#include <device_pool.h>
+#include <component/memory.h>
 #include <memoryspace.h>
 #include <mutex.h>
 #include <os/types/shm.h>
@@ -28,8 +28,8 @@
 /**
  * @brief Internal SHMBuffer representation.
  *
- * Pool is set when the pages came from a device pool; they go back there
- * instead of to the page allocator.
+ * Allocation owns reserved backing memory when present. Its original memory
+ * component releases it after the last buffer reference is gone.
  */
 struct SHMBuffer {
     uuid_t             ID;
@@ -41,7 +41,7 @@ struct SHMBuffer {
     size_t             PageMask;
     unsigned int       Flags;
     bool               Exported;
-    struct DevicePool* Pool;
+    struct SystemMemoryAllocation Allocation;
     int                PageCount;
     paddr_t            Pages[];
 };
@@ -56,8 +56,8 @@ static inline bool
 SHMBufferUncached(
     _In_ const struct SHMBuffer* buffer)
 {
-    if (buffer->Pool != NULL) {
-        return !buffer->Pool->Cached;
+    if (buffer->Allocation.Owner != NULL) {
+        return !buffer->Allocation.Cached;
     }
     return SHM_KIND(buffer->Flags) == SHM_DEVICE;
 }

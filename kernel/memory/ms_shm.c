@@ -32,20 +32,17 @@ static void __BuildSG(struct SHMBuffer* shmBuffer, int* sgCountOut, SHMSG_t* sgO
 
 static void
 __SHMBufferDelete(
-        _In_ struct SHMBuffer* shmBuffer)
+        _In_ void* resource)
 {
+    struct SHMBuffer* shmBuffer = resource;
+
     if (shmBuffer == NULL) {
         return;
     }
 
-    // Pool pages are one contiguous run that must go back to the pool; the
-    // page allocator never owned them.
-    if (shmBuffer->Pool != NULL) {
-        (void)DevicePoolFree(
-                shmBuffer->Pool,
-                shmBuffer->Pages[0],
-                (size_t)shmBuffer->PageCount * GetMemorySpacePageSize()
-        );
+    // Reserved backing returns to the memory component recorded at allocation.
+    if (shmBuffer->Allocation.Owner != NULL) {
+        (void)SystemMemoryReleaseAllocation(&shmBuffer->Allocation);
     } else if (!(shmBuffer->Exported)) {
         FreePhysicalMemory(shmBuffer->PageCount, &shmBuffer->Pages[0]);
     }
@@ -75,9 +72,14 @@ __SHMBufferNew(
     MutexConstruct(&buffer->Mutex, MUTEX_FLAG_PLAIN);
     buffer->ID = CreateHandle(
             HandleTypeSHM,
-            (HandleDestructorFn)__SHMBufferDelete,
+            __SHMBufferDelete,
             buffer
     );
+    if (buffer->ID == UUID_INVALID) {
+        MutexDestruct(&buffer->Mutex);
+        kfree(buffer);
+        return NULL;
+    }
     buffer->Owner = GetCurrentMemorySpace();
     buffer->PageCount = (int)pageCount;
     buffer->Offset = offset;
@@ -414,45 +416,45 @@ SHMCreate(
 }
 
 oserr_t
-SHMCreateFromDevicePool(
+SHMCreateDeviceBuffer(
         _In_  size_t       size,
         _In_  size_t       alignment,
         _In_  size_t       boundary,
         _Out_ SHMHandle_t* handle)
 {
-    struct DevicePool* pool = DevicePoolSystem();
-    struct SHMBuffer*  buffer;
-    size_t             pageSize = GetMemorySpacePageSize();
-    unsigned int       flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_COMMIT | MAPPING_CLEAN;
-    paddr_t            base;
-    vaddr_t            mapping;
-    oserr_t            oserr;
+    struct SystemMemoryAllocation allocation = { 0 };
+    struct SHMBuffer*             buffer;
+    size_t                        pageSize = GetMemorySpacePageSize();
+    unsigned int                  flags = MAPPING_USERSPACE | MAPPING_PERSISTENT | MAPPING_COMMIT | MAPPING_CLEAN;
+    vaddr_t                       mapping;
+    oserr_t                       oserr;
 
     if (handle == NULL || size == 0 || size % pageSize != 0) {
         return OS_EINVALPARAMS;
     }
 
-    // Without a pool there is no memory that can meet device requirements, and
-    // falling back to ordinary pages would only make them hold by luck.
-    if (pool == NULL) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    oserr = DevicePoolAllocate(pool, size, alignment, boundary, &base);
+    oserr = SystemMemoryAllocateDevice(
+            &GetMachine()->PhysicalMemory,
+            size,
+            alignment,
+            boundary,
+            &allocation
+    );
     if (oserr != OS_EOK) {
         return oserr;
     }
 
     buffer = __SHMBufferNew(0, size, SHM_DEVICE | SHM_CLEAN, false);
     if (buffer == NULL) {
-        (void)DevicePoolFree(pool, base, size);
+        (void)SystemMemoryReleaseAllocation(&allocation);
         return OS_EOOM;
     }
 
-    // From here on, releasing the buffer returns the pages to the pool.
-    buffer->Pool = pool;
+    // Move ownership into the buffer before creating any mappings.
+    buffer->Allocation = allocation;
+    memset(&allocation, 0, sizeof(allocation));
     for (int i = 0; i < buffer->PageCount; i++) {
-        buffer->Pages[i] = base + ((paddr_t)i * pageSize);
+        buffer->Pages[i] = buffer->Allocation.PhysicalBase + ((paddr_t)i * pageSize);
     }
 
     // MAPPING_CLEAN zeroes the pages through this view, so a device never

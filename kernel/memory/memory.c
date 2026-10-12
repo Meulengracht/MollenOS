@@ -25,8 +25,9 @@
 #include <arch/mmu.h>
 #include <ddk/io.h>
 #include <debug.h>
-#include <device_pool.h>
+#include <component/memory.h>
 #include <heap.h>
+#include <limits.h>
 #include <machine.h>
 
 #define KERNEL_MAPPING_PAGECOUNT 2
@@ -38,6 +39,7 @@ struct MemoryBootContext {
     uintptr_t               BootMemoryAddress;
     int                     BootMemoryEnabled;
     uintptr_t               BootMemoryStart;
+    size_t                  AllocatorStorageSize[MEMORY_MASK_COUNT];
     // Physical range set aside for devices; zero length when there is none.
     paddr_t                 DevicePoolBase;
     size_t                  DevicePoolLength;
@@ -46,7 +48,6 @@ struct MemoryBootContext {
 static PlatformMemoryMapping_t* g_kernelMappings        = NULL;
 static int                      g_kernelMappingIndex    = 0;
 static int                      g_kernelMappingCapacity = 0;
-static struct DevicePool        g_devicePool;
 
 // static methods in this file
 static oserr_t __AllocateIdentity(struct MemoryBootContext*, size_t, void**);
@@ -64,7 +65,7 @@ __PrintMemoryUsage(void) {
 
 static size_t
 __GetAvailablePhysicalMemory(
-        _In_ struct VBoot* bootInformation)
+    _In_ struct VBoot* bootInformation)
 {
     struct VBootMemoryEntry* entries;
     size_t                   memorySize = 0;
@@ -85,9 +86,9 @@ __GetAvailablePhysicalMemory(
 
 static oserr_t
 __AddKernelMapping(
-        _In_ paddr_t physicalBase,
-        _In_ vaddr_t virtualBase,
-        _In_ size_t  length)
+    _In_ paddr_t physicalBase,
+    _In_ vaddr_t virtualBase,
+    _In_ size_t  length)
 {
     PlatformMemoryMapping_t* mapping;
     TRACE("__AddKernelMapping(i=%i, physical=0x%" PRIxIN ", virtual=0x%" PRIxIN ", length=0x%" PRIxIN ")",
@@ -107,16 +108,16 @@ __AddKernelMapping(
 
 static oserr_t
 __InitializeKernelMappings(
-        _In_ struct MemoryBootContext*      bootContext,
-        _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
+    _In_ struct MemoryBootContext*      bootContext,
+    _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
     oserr_t osStatus;
     TRACE("__InitializeKernelMappings()");
 
     osStatus = __AllocateIdentity(
-            bootContext,
-            memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT,
-            (void**)&g_kernelMappings
+        bootContext,
+        memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT,
+        (void**)&g_kernelMappings
     );
     if (osStatus != OS_EOK) {
         return osStatus;
@@ -126,8 +127,11 @@ __InitializeKernelMappings(
 
     // calculate the max number of kernel mappings we support
     g_kernelMappingCapacity = (int)(
-            (memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT) / sizeof(PlatformMemoryMapping_t));
-    g_kernelMappingCapacity--; // keep a null entry
+            (memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT) 
+                / sizeof(PlatformMemoryMapping_t));
+    
+    // keep a null entry
+    g_kernelMappingCapacity--;
     TRACE("__InitializeKernelMappings g_kernelMappingCapacity=%i", g_kernelMappingCapacity);
     return OS_EOK;
 }
@@ -137,9 +141,9 @@ __InitializeKernelMappings(
  */
 static bool
 __OverlapsDevicePool(
-        _In_ const struct MemoryBootContext* bootContext,
-        _In_ uint64_t                        base,
-        _In_ uint64_t                        length)
+    _In_ const struct MemoryBootContext* bootContext,
+    _In_ uint64_t                        base,
+    _In_ uint64_t                        length)
 {
     uint64_t poolBase = bootContext->DevicePoolBase;
 
@@ -156,10 +160,10 @@ __OverlapsDevicePool(
  * boot: the same function on the same loader map always gives the same range.
  */
 static void
-__ChooseDevicePool(
-        _In_ struct MemoryBootContext*            bootContext,
-        _In_ struct VBoot*                        bootInformation,
-        _In_ const PlatformMemoryConfiguration_t* configuration)
+__FindDevicePool(
+    _In_ struct MemoryBootContext*            bootContext,
+    _In_ struct VBoot*                        bootInformation,
+    _In_ const PlatformMemoryConfiguration_t* configuration)
 {
     oserr_t oserr;
 
@@ -167,13 +171,13 @@ __ChooseDevicePool(
         return;
     }
 
-    oserr = DevicePoolChooseRange(
-            bootInformation,
-            configuration->DevicePoolSize,
-            configuration->DevicePoolLimit,
-            configuration->DevicePoolAlignment,
-            &bootContext->DevicePoolBase,
-            &bootContext->DevicePoolLength
+    oserr = SystemMemoryFitDeviceRegion(
+        bootInformation,
+        configuration->DevicePoolSize,
+        configuration->DevicePoolLimit,
+        configuration->DevicePoolAlignment,
+        &bootContext->DevicePoolBase,
+        &bootContext->DevicePoolLength
     );
     if (oserr != OS_EOK) {
         WARNING("MachineMemoryInitialize no room for the device pool, device allocations will fail");
@@ -181,31 +185,115 @@ __ChooseDevicePool(
     }
 }
 
+// Size each mask's free-range array for its worst possible fragmentation.
+static oserr_t
+__SizeAllocatorStorage(
+    _In_ struct MemoryBootContext*            bootContext,
+    _In_ const struct VBoot*                  boot,
+    _In_ const PlatformMemoryConfiguration_t* configuration)
+{
+    const struct VBootMemoryEntry* entries = (const void*)(uintptr_t)boot->Memory.Entries;
+    uint64_t first;
+    uint64_t last;
+    uint64_t low;
+    size_t   pages;
+    size_t   bytes;
+    size_t   size;
+    size_t   pageSize = configuration->PageSize;
+
+    for (int mask = 0; mask < configuration->MemoryMaskCount; mask++) {
+        low = mask == 0 ? 0 : (uint64_t)configuration->MemoryMasks[mask - 1] + 1;
+        size = 0;
+        
+        for (unsigned int i = 0; i < boot->Memory.NumberOfEntries; i++) {
+            if (entries[i].Type != VBootMemoryType_Available || entries[i].Length == 0) {
+                continue;
+            }
+            
+            first = entries[i].PhysicalBase;
+            if (entries[i].Length - 1 > UINT64_MAX - first) {
+                return OS_EINVALPARAMS;
+            }
+            
+            last = first + entries[i].Length - 1;
+            if (first < low) {
+                first = low;
+            }
+            if (last > configuration->MemoryMasks[mask]) {
+                last = configuration->MemoryMasks[mask];
+            }
+            if (first > last) {
+                continue;
+            }
+            
+            pages = (size_t)((last - first) / pageSize + 1);
+            bytes = MemoryStackCalculateSize(pages);
+            if (bytes == 0 || bytes > SIZE_MAX - size) {
+                return OS_EOOM;
+            }
+            size += bytes;
+        }
+
+        // Even an empty mask has a valid empty stack. Round its mapping and
+        // boot allocation identically so later relocation covers all storage.
+        if (size == 0) {
+            size = pageSize;
+        }
+        if (size > SIZE_MAX - (pageSize - 1)) {
+            return OS_EOOM;
+        }
+        bootContext->AllocatorStorageSize[mask] = DIVUP(size, pageSize) * pageSize;
+    }
+    return OS_EOK;
+}
+
 static oserr_t
 __InitializeIdentityMemory(
-        _In_ struct MemoryBootContext*      bootContext,
-        _In_ struct VBoot*                  bootInformation,
-        _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
+    _In_ struct MemoryBootContext*      bootContext,
+    _In_ struct VBoot*                  bootInformation,
+    _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
     struct VBootMemoryEntry* entries;
     size_t                   sizeRequired;
+    size_t                   extraSize;
+    size_t                   pageSize = memoryConfiguration->PageSize;
     TRACE("__InitializeIdentityMemory()");
 
-    // We initially use a page for each memory mask manager. We also use a page for
-    // kernel mappings, and we use a lot of pages for the GA region.
-    sizeRequired = memoryConfiguration->MemoryMaskCount * memoryConfiguration->PageSize;
-    sizeRequired += memoryConfiguration->PageSize * KERNEL_MAPPING_PAGECOUNT;
-    sizeRequired += StaticMemoryPoolCalculateSize(
-            memoryConfiguration->MemoryMap.Shared.Length,
-            memoryConfiguration->PageSize
+    // All allocator metadata is reserved here; runtime stack operations never
+    // allocate recursively while holding a physical memory allocator lock.
+    sizeRequired = 0;
+    for (int i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
+        if (bootContext->AllocatorStorageSize[i] > SIZE_MAX - sizeRequired) {
+            return OS_EOOM;
+        }
+        sizeRequired += bootContext->AllocatorStorageSize[i];
+    }
+    if (pageSize > (SIZE_MAX - sizeRequired) / KERNEL_MAPPING_PAGECOUNT) {
+        return OS_EOOM;
+    }
+    
+    sizeRequired += pageSize * KERNEL_MAPPING_PAGECOUNT;
+    extraSize = StaticMemoryPoolCalculateSize(
+        memoryConfiguration->MemoryMap.Shared.Length,
+        pageSize
     );
+    if (extraSize > SIZE_MAX - sizeRequired) {
+        return OS_EOOM;
+    }
+    sizeRequired += extraSize;
 
-    // so this a very qualified guess and hopefully the preperation of the kernel virtual address space
-    // should NEVER require more space than a megabyte of physical memory.
+    // The GA tree storage is rounded to pages by __AllocateIdentity too.
+    if (sizeRequired > SIZE_MAX - (pageSize - 1)) {
+        return OS_EOOM;
+    }
+
+    sizeRequired = DIVUP(sizeRequired, pageSize) * pageSize;
     TRACE("__InitializeIdentityMemory sizeRequired=0x%" PRIxIN, sizeRequired);
+    
     entries = (struct VBootMemoryEntry*)bootInformation->Memory.Entries;
     for (unsigned int i = 0; i < bootInformation->Memory.NumberOfEntries; i++) {
         struct VBootMemoryEntry* entry = &entries[i];
+        
         // Boot memory must not land in the device pool, whose pages may be
         // mapped uncached and must never be used for anything else.
         if (entry->Type == VBootMemoryType_Available &&
@@ -225,8 +313,8 @@ __InitializeIdentityMemory(
 
 static oserr_t
 __DisableIdentityMemory(
-        _In_ struct MemoryBootContext* bootContext,
-        _In_ StaticMemoryPool_t*       globalAccessMemory)
+    _In_ struct MemoryBootContext* bootContext,
+    _In_ StaticMemoryPool_t*       globalAccessMemory)
 {
     oserr_t osStatus;
     int        i;
@@ -237,40 +325,45 @@ __DisableIdentityMemory(
     // Add the kernel mappings that have been created with identity mappings
     // 1. Physical Memory Managers
     for (i = 0; i < MEMORY_MASK_COUNT; i++) {
-        if (bootContext->IdentityMappings[i].Length) {
-            bootContext->IdentityMappings[i].VirtualBase = StaticMemoryPoolAllocate(
-                    globalAccessMemory,
-                    bootContext->IdentityMappings[i].Length
-            );
-            osStatus = __AddKernelMapping(
-                    bootContext->IdentityMappings[i].PhysicalBase,
-                    bootContext->IdentityMappings[i].VirtualBase,
-                    bootContext->IdentityMappings[i].Length
-            );
-            if (osStatus != OS_EOK) {
-                return osStatus;
-            }
+        if (bootContext->IdentityMappings[i].Length == 0) {
+            continue;
+        }
+
+        // Allocate virtual memory for the identity mapping
+        bootContext->IdentityMappings[i].VirtualBase = StaticMemoryPoolAllocate(
+            globalAccessMemory,
+            bootContext->IdentityMappings[i].Length
+        );
+        
+        // Add the kernel mapping for the identity mapping
+        osStatus = __AddKernelMapping(
+            bootContext->IdentityMappings[i].PhysicalBase,
+            bootContext->IdentityMappings[i].VirtualBase,
+            bootContext->IdentityMappings[i].Length
+        );
+        if (osStatus != OS_EOK) {
+            return osStatus;
         }
     }
 
     // 2. GA Memory range (map it into itself)
     bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase = StaticMemoryPoolAllocate(
-            globalAccessMemory,
-            bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length
+        globalAccessMemory,
+        bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length
     );
     osStatus = __AddKernelMapping(
-            bootContext->IdentityMappings[MEMORY_MASK_COUNT].PhysicalBase,
-            bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase,
-            bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length
+        bootContext->IdentityMappings[MEMORY_MASK_COUNT].PhysicalBase,
+        bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase,
+        bootContext->IdentityMappings[MEMORY_MASK_COUNT].Length
     );
     return osStatus;
 }
 
 oserr_t
 __AllocateIdentity(
-        _In_  struct MemoryBootContext* bootContext,
-        _In_  size_t                    size,
-        _Out_ void**                    memory)
+    _In_  struct MemoryBootContext* bootContext,
+    _In_  size_t                    size,
+    _Out_ void**                    memory)
 {
     TRACE("__AllocateIdentity(size=0x%" PRIxIN ")", size);
     if (!bootContext || !bootContext->BootMemoryEnabled) {
@@ -292,124 +385,144 @@ __AllocateIdentity(
 
 oserr_t
 MachineAllocateBootMemory(
-        _In_  size_t   size,
-        _Out_ vaddr_t* virtualBaseOut,
-        _Out_ paddr_t* physicalBaseOut)
+    _In_  size_t   size,
+    _Out_ vaddr_t* virtualBaseOut,
+    _Out_ paddr_t* physicalBaseOut)
 {
-    int        i          = GetMachine()->PhysicalMemory.MaskCount - 1;
-    int        blockCount = DIVUP(size, GetMachine()->MemoryGranularity);
-    oserr_t osStatus;
-    uintptr_t  blocks[blockCount];
-    vaddr_t    virtualBase = 0;
+    SystemMemoryAllocator_t* allocator = &GetMachine()->PhysicalMemory.Allocator;
+    MemoryStack_t*           stack = NULL;
+    uintptr_t                physicalBase;
+    vaddr_t                  virtualBase = 0;
+    size_t                   pageCount;
+    oserr_t                  status = OS_EOOM;
 
-    TRACE("MachineAllocateBootMemory(size=0x%" PRIxIN ")", size);
+    if (physicalBaseOut == NULL || size == 0 ||
+        size > SIZE_MAX - (GetMachine()->MemoryGranularity - 1)) {
+        return OS_EINVALPARAMS;
+    }
 
-    // Allocate virtual space
-    if (virtualBaseOut) {
+    pageCount = DIVUP(size, GetMachine()->MemoryGranularity);
+    if (pageCount > INT_MAX) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    // Early callers describe the result as one physical extent. Searching for
+    // that extent must finish before mapping it or changing accounting.
+    for (int i = allocator->MaskCount - 1; i >= 0; i--) {
+        stack = &allocator->Region[i].Stack;
+        status = MemoryStackPopContiguous(stack, size, 0, 0, &physicalBase);
+        if (status != OS_EOOM) {
+            break;
+        }
+    }
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (virtualBaseOut != NULL) {
         virtualBase = StaticMemoryPoolAllocate(&GetMachine()->GlobalAccessMemory, size);
-        if (!virtualBase) {
-            return OS_EOOM;
+        if (virtualBase == 0) {
+            status = OS_EOOM;
+            goto error;
         }
+        status = __AddKernelMapping(physicalBase, virtualBase, size);
+        if (status != OS_EOK) {
+            StaticMemoryPoolFree(&GetMachine()->GlobalAccessMemory, virtualBase);
+            goto error;
+        }
+        *virtualBaseOut = virtualBase;
     }
 
-    // Allocate a physical page
-    for (; i >= 0 && blockCount; i--) {
-        int pagesAllocated = blockCount;
-        osStatus = MemoryStackPop(
-                &GetMachine()->PhysicalMemory.Region[i].Stack,
-                &pagesAllocated, &blocks[0]
-        );
-        if (osStatus == OS_EOOM) {
-            continue;
-        }
-        blockCount -= pagesAllocated;
+    GetMachine()->NumberOfFreeMemoryBlocks -= pageCount;
+    *physicalBaseOut = physicalBase;
 
-        // keep the number of free blocks in the machine stats up to date here
-        GetMachine()->NumberOfFreeMemoryBlocks -= (size_t)pagesAllocated;
-    }
+    return OS_EOK;
 
-    if (osStatus == OS_EOK) {
-        // revert the order of pages, the reason for this is we want to provide
-        // contigious pages, and it actually pops from top
-        for (i = 0; i < blockCount / 2; i++) {
-            uintptr_t temp = blocks[i];
-            blocks[i] = blocks[blockCount - i];
-            blocks[blockCount - i] = temp;
-        }
-    }
-
-    // register the kernel mapping, so it will be available after switching to virtual space
-    if (virtualBaseOut) {
-        osStatus = __AddKernelMapping(blocks[0], virtualBase, size);
-        if (osStatus != OS_EOK) {
-            return osStatus;
-        }
-        *virtualBaseOut  = virtualBase;
-    }
-
-    *physicalBaseOut = blocks[0];
-    return osStatus;
+error:
+    (void)MemoryStackPush(stack, physicalBase, (int)pageCount);
+    return status;
 }
 
 static oserr_t
 __InitializePhysicalMemory(
-        _In_ struct MemoryBootContext*      bootContext,
-        _In_ SystemMemoryAllocator_t*       physicalMemory,
-        _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
+    _In_ struct MemoryBootContext*      bootContext,
+    _In_ SystemMemoryAllocator_t*       physicalMemory,
+    _In_ PlatformMemoryConfiguration_t* memoryConfiguration)
 {
-    oserr_t oserr;
-    int     i;
     TRACE("__InitializePhysicalMemory()");
 
     physicalMemory->MaskCount = memoryConfiguration->MemoryMaskCount;
-    for (i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
+    for (int i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
         physicalMemory->Masks[i] = memoryConfiguration->MemoryMasks[i];
     }
 
-    for (i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
+    for (int i = 0; i < memoryConfiguration->MemoryMaskCount; i++) {
+        oserr_t   oserr;
         uintptr_t memory;
-        oserr = __AllocateIdentity(bootContext, memoryConfiguration->PageSize, (void**)&memory);
+        
+        oserr = __AllocateIdentity(
+            bootContext,
+            bootContext->AllocatorStorageSize[i],
+            (void**)&memory
+        );
         if (oserr != OS_EOK) {
             return oserr;
         }
 
         // update the address in the boot context
         bootContext->IdentityMappings[i].PhysicalBase = memory;
-        bootContext->IdentityMappings[i].Length       = memoryConfiguration->PageSize;
+        bootContext->IdentityMappings[i].Length       = bootContext->AllocatorStorageSize[i];
 
         SpinlockConstruct(&physicalMemory->Region[i].Lock);
-        MemoryStackConstruct(&physicalMemory->Region[i].Stack,
-                             memoryConfiguration->PageSize,
-                             memory,
-                             memoryConfiguration->PageSize
+        oserr = MemoryStackConstruct(
+            &physicalMemory->Region[i].Stack,
+            memoryConfiguration->PageSize,
+            memory,
+            bootContext->AllocatorStorageSize[i]
         );
+        if (oserr != OS_EOK) {
+            return oserr;
+        }
     }
     return OS_EOK;
 }
 
-static void
+static oserr_t
 __FillRange(
-        _In_ SystemMemoryAllocator_t* physicalMemory,
-        _In_ uintptr_t                baseAddress,
-        _In_ size_t                   length,
-        _In_ size_t                   pageSize)
+    _In_ SystemMemoryAllocator_t* physicalMemory,
+    _In_ uintptr_t                baseAddress,
+    _In_ size_t                   length,
+    _In_ size_t                   pageSize)
 {
-    for (int j = 0; j < physicalMemory->MaskCount && length; j++) {
-        size_t maskSize;
-        size_t sizeAvailable;
-        int    blockCount;
+    size_t  sizeAvailable;
+    size_t  blockCount;
+    oserr_t status;
 
+    for (int j = 0; j < physicalMemory->MaskCount && length; j++) {
         if (baseAddress > physicalMemory->Masks[j]) {
             continue;
         }
 
-        // ok so base address fits into the region, lets calculate how many
-        // blocks fit             mask=0xFFFFF, base=0, len=0x200000
-        // maskSize = 0x100000
-        maskSize      = (physicalMemory->Masks[j] - baseAddress) + 1;
-        sizeAvailable = MIN(maskSize, length);
-        blockCount    = (int)(sizeAvailable / pageSize);
-        MemoryStackPush(&physicalMemory->Region[j].Stack, baseAddress, blockCount);
+        // Compare inclusive distances so an unrestricted mask does not wrap
+        // when the range begins at physical zero.
+        sizeAvailable = length;
+        if (length - 1 > physicalMemory->Masks[j] - baseAddress) {
+            sizeAvailable = physicalMemory->Masks[j] - baseAddress + 1;
+        }
+        
+        blockCount = sizeAvailable / pageSize;
+        if (blockCount > INT_MAX) {
+            return OS_ENOTSUPPORTED;
+        }
+        
+        status = MemoryStackPush(
+            &physicalMemory->Region[j].Stack,
+            baseAddress,
+            (int)blockCount
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
 
         // add statistics so we can keep track of free memory
         GetMachine()->NumberOfFreeMemoryBlocks += (size_t)blockCount;
@@ -418,46 +531,52 @@ __FillRange(
         baseAddress += sizeAvailable;
         length      -= sizeAvailable;
     }
+    return length == 0 ? OS_EOK : OS_EOOM;
 }
 
-/**
- * @brief Hand a free range to the page allocator, leaving out the device pool.
- *
- * The pool's pages belong to devices only; giving them to the page allocator
- * as well would let the same page be handed out twice.
- */
-static void
+// Make sure we filter out pages that are allocated to the device pool
+static oserr_t
 __FillAroundDevicePool(
-        _In_ struct MemoryBootContext* bootContext,
-        _In_ SystemMemoryAllocator_t*  physicalMemory,
-        _In_ uintptr_t                 baseAddress,
-        _In_ size_t                    length,
-        _In_ size_t                    pageSize)
+    _In_ struct MemoryBootContext* bootContext,
+    _In_ SystemMemoryAllocator_t*  physicalMemory,
+    _In_ uintptr_t                 baseAddress,
+    _In_ size_t                    length,
+    _In_ size_t                    pageSize)
 {
+    oserr_t   status;
     uintptr_t poolBase = (uintptr_t)bootContext->DevicePoolBase;
     uintptr_t poolEnd  = poolBase + bootContext->DevicePoolLength;
 
+    // If the range does not overlap with the device pool, fill it entirely.
     if (!__OverlapsDevicePool(bootContext, baseAddress, length)) {
-        __FillRange(physicalMemory, baseAddress, length, pageSize);
-        return;
+        return __FillRange(physicalMemory, baseAddress, length, pageSize);
     }
+    
+    // Fill pages before the device pool
     if (baseAddress < poolBase) {
-        __FillRange(physicalMemory, baseAddress, poolBase - baseAddress, pageSize);
+        status = __FillRange(physicalMemory, baseAddress, poolBase - baseAddress, pageSize);
+        if (status != OS_EOK) {
+            return status;
+        }
     }
+    
+    // Fill pages after the device pool
     if (baseAddress + length > poolEnd) {
-        __FillRange(physicalMemory, poolEnd, (baseAddress + length) - poolEnd, pageSize);
+        return __FillRange(physicalMemory, poolEnd, (baseAddress + length) - poolEnd, pageSize);
     }
+    return OS_EOK;
 }
 
-static void
+static oserr_t
 __FillPhysicalMemory(
-        _In_ struct MemoryBootContext* bootContext,
-        _In_ struct VBoot*             bootInformation,
-        _In_ SystemMemoryAllocator_t*  physicalMemory,
-        _In_ size_t                    pageSize)
+    _In_ struct MemoryBootContext* bootContext,
+    _In_ struct VBoot*             bootInformation,
+    _In_ SystemMemoryAllocator_t*  physicalMemory,
+    _In_ size_t                    pageSize)
 {
     unsigned int             i;
     size_t                   reservedMemorySize;
+    oserr_t                  status;
     struct VBootMemoryEntry* entries;
     TRACE("__FillPhysicalMemory()");
 
@@ -479,26 +598,36 @@ __FillPhysicalMemory(
 
             TRACE("__FillPhysicalMemory region %i: 0x%" PRIxIN " => 0x%" PRIxIN,
                   i, baseAddress, baseAddress + length);
-            __FillAroundDevicePool(bootContext, physicalMemory, baseAddress, length, pageSize);
+            status = __FillAroundDevicePool(
+                bootContext,
+                physicalMemory,
+                baseAddress,
+                length,
+                pageSize
+            );
+            if (status != OS_EOK) {
+                return status;
+            }
         }
     }
+    return OS_EOK;
 }
 
 static oserr_t
 __InitializeGlobalAccessMemory(
-        _In_ struct MemoryBootContext* bootContext,
-        _In_ StaticMemoryPool_t*       globalAccessMemory,
-        _In_ SystemMemoryMap_t*        memoryMap,
-        _In_ size_t                    pageSize)
+    _In_ struct MemoryBootContext* bootContext,
+    _In_ StaticMemoryPool_t*       globalAccessMemory,
+    _In_ SystemMemoryMap_t*        memoryMap,
+    _In_ size_t                    pageSize)
 {
-    size_t     gaMemorySize;
-    void*      gaMemory;
+    size_t  gaMemorySize;
+    void*   gaMemory;
     oserr_t osStatus;
     TRACE("__InitializeGlobalAccessMemory()");
 
     gaMemorySize = StaticMemoryPoolCalculateSize(
-            memoryMap->Shared.Length,
-            pageSize
+        memoryMap->Shared.Length,
+        pageSize
     );
 
     osStatus = __AllocateIdentity(bootContext, gaMemorySize, &gaMemory);
@@ -518,11 +647,11 @@ __InitializeGlobalAccessMemory(
     }
 
     StaticMemoryPoolConstruct(
-            globalAccessMemory,
-            gaMemory,
-            memoryMap->Shared.Start,
-            gaMemorySize,
-            pageSize
+        globalAccessMemory,
+        gaMemory,
+        memoryMap->Shared.Start,
+        gaMemorySize,
+        pageSize
     );
     return OS_EOK;
 }
@@ -530,17 +659,17 @@ __InitializeGlobalAccessMemory(
 #ifdef __OSCONFIG_HAS_MMIO
 static void
 __UpdateSystemAddresses(
-        _In_ struct MemoryBootContext* bootContext)
+    _In_ struct MemoryBootContext* bootContext)
 {
     TRACE("__UpdateSystemAddresses()");
 
     // Update all addresses used by physical memory
-    for (int i = 0; i < GetMachine()->PhysicalMemory.MaskCount; i++) {
+    for (int i = 0; i < GetMachine()->PhysicalMemory.Allocator.MaskCount; i++) {
         TRACE("__UpdateSystemAddresses relocating %i to 0x%" PRIxIN,
               i, bootContext->IdentityMappings[i].VirtualBase);
         MemoryStackRelocate(
-                &GetMachine()->PhysicalMemory.Region[i].Stack,
-                bootContext->IdentityMappings[i].VirtualBase
+            &GetMachine()->PhysicalMemory.Allocator.Region[i].Stack,
+            bootContext->IdentityMappings[i].VirtualBase
         );
     }
 
@@ -548,8 +677,8 @@ __UpdateSystemAddresses(
     TRACE("__UpdateSystemAddresses relocating GA to 0x%" PRIxIN,
           bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase);
     StaticMemoryPoolRelocate(
-            &GetMachine()->GlobalAccessMemory,
-            (void*)bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase
+        &GetMachine()->GlobalAccessMemory,
+        (void*)bootContext->IdentityMappings[MEMORY_MASK_COUNT].VirtualBase
     );
 }
 #endif
@@ -568,41 +697,46 @@ __InitializeBootTLS(
 /**
  * @brief Start handing out the device pool's pages, once the heap works.
  *
- * The pool's range was kept out of the page allocator earlier. Its bitmap
+ * The pool's range was kept out of the page allocator earlier. Its metadata
  * comes from the heap, which only exists at the end of memory setup.
  */
 static oserr_t
 __InitializeDevicePool(
-        _In_ struct MemoryBootContext*            bootContext,
-        _In_ const PlatformMemoryConfiguration_t* configuration)
+    _In_ struct MemoryBootContext*            bootContext,
+    _In_ const PlatformMemoryConfiguration_t* configuration)
 {
     size_t  pageCount = bootContext->DevicePoolLength / configuration->PageSize;
-    void*   bitmap;
+    size_t  storageSize;
+    void*   storage;
     oserr_t oserr;
 
     if (bootContext->DevicePoolLength == 0) {
         return OS_EOK;
     }
 
-    bitmap = kmalloc(DEVICE_POOL_BITMAP_BYTES(pageCount));
-    if (bitmap == NULL) {
+    storageSize = MemoryStackCalculateSize(pageCount);
+    if (storageSize == 0) {
+        return OS_EOOM;
+    }
+    
+    storage = kmalloc(storageSize);
+    if (storage == NULL) {
         return OS_EOOM;
     }
 
-    oserr = DevicePoolConstruct(
-            &g_devicePool,
-            bootContext->DevicePoolBase,
-            bootContext->DevicePoolLength,
-            configuration->PageSize,
-            configuration->DevicePoolCached,
-            bitmap
+    oserr = SystemMemoryInitializeDeviceRegion(
+        &GetMachine()->PhysicalMemory,
+        bootContext->DevicePoolBase,
+        bootContext->DevicePoolLength,
+        configuration->DevicePoolCached,
+        storage,
+        storageSize
     );
     if (oserr != OS_EOK) {
-        kfree(bitmap);
+        kfree(storage);
         return oserr;
     }
 
-    DevicePoolSetSystem(&g_devicePool);
     DEBUG("Device pool 0x%llx, %" PRIuIN " bytes, %s",
           (unsigned long long)bootContext->DevicePoolBase, bootContext->DevicePoolLength,
           configuration->DevicePoolCached ? "cached" : "uncached");
@@ -611,8 +745,8 @@ __InitializeDevicePool(
 
 oserr_t
 MachineMemoryInitialize(
-        _In_ SystemMachine_t* machine,
-        _In_ SystemCpuCore_t* cpuCore)
+    _In_ SystemMachine_t* machine,
+    _In_ SystemCpuCore_t* cpuCore)
 {
     struct MemoryBootContext      bootContext;
     PlatformMemoryConfiguration_t configuration;
@@ -645,15 +779,20 @@ MachineMemoryInitialize(
 
     // Decide on the device pool first, so neither boot memory nor the page
     // allocator can take its pages.
-    __ChooseDevicePool(&bootContext, &machine->BootInformation, &configuration);
+    __FindDevicePool(&bootContext, &machine->BootInformation, &configuration);
+
+    oserr = __SizeAllocatorStorage(&bootContext, &machine->BootInformation, &configuration);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Find a suitable area where we can allocate continous physical pages for systems
     // that require (ident-mapped) memory. This is memory where the pointers need to be valid
     // both before and after we switch to the new virtual address space.
     oserr = __InitializeIdentityMemory(
-            &bootContext,
-            &machine->BootInformation,
-            &configuration
+        &bootContext,
+        &machine->BootInformation,
+        &configuration
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -667,11 +806,20 @@ MachineMemoryInitialize(
         return oserr;
     }
 
+    // prepare the physical memory allocator
+    SystemMemoryConstruct(
+        &machine->PhysicalMemory,
+        0,
+        0,
+        configuration.PageSize,
+        0
+    );
+
     // initialize the subsystems
     oserr = __InitializePhysicalMemory(
-            &bootContext,
-            &machine->PhysicalMemory,
-            &configuration
+        &bootContext,
+        &machine->PhysicalMemory.Allocator,
+        &configuration
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -682,10 +830,10 @@ MachineMemoryInitialize(
     // It will start from the next free lower physical region and go up to
     // memoryMap->KernelRegion.Length
     oserr = __InitializeGlobalAccessMemory(
-            &bootContext,
-            &machine->GlobalAccessMemory,
-            &machine->MemoryMap,
-            machine->MemoryGranularity
+        &bootContext,
+        &machine->GlobalAccessMemory,
+        &machine->MemoryMap,
+        machine->MemoryGranularity
     );
     if (oserr != OS_EOK) {
         return oserr;
@@ -699,19 +847,22 @@ MachineMemoryInitialize(
     }
 
     // fill the memory allocators, as we need them for allocating boot memory
-    __FillPhysicalMemory(
-            &bootContext,
-            &machine->BootInformation,
-            &machine->PhysicalMemory,
-            machine->MemoryGranularity
+    oserr = __FillPhysicalMemory(
+        &bootContext,
+        &machine->BootInformation,
+        &machine->PhysicalMemory.Allocator,
+        machine->MemoryGranularity
     );
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Switch to the new virtual space
 #ifdef __OSCONFIG_HAS_MMIO
     oserr = MemorySpaceInitialize(
-            &machine->SystemSpace,
-            &machine->BootInformation,
-            g_kernelMappings
+        &machine->SystemSpace,
+        &machine->BootInformation,
+        g_kernelMappings
     );
     if (oserr != OS_EOK) {
         return oserr;
