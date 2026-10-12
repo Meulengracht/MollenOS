@@ -59,6 +59,7 @@ add_library(libddk
         debug.c
         device.c
         deviceio.c
+        dma.c
         firmware.c
         interrupt.c
         io.c

@@ -97,4 +97,13 @@ _CODE_END
 #define Syscall_Sleep(DurationNs, RemainingNs)                             (oserr_t)syscall2(61, SCPARAM(DurationNs), SCPARAM(RemainingNs))
 #define Syscall_Stall(DurationNs)                                          (oserr_t)syscall1(62, SCPARAM(DurationNs))
 
+#define Syscall_DmaOpen(Grant, Limit, ContextOut)                          (oserr_t)syscall3(63, SCPARAM(Grant), SCPARAM(Limit), SCPARAM(ContextOut))
+#define Syscall_DmaAllocate(Context, Requirements, ResultOut)              (oserr_t)syscall3(64, SCPARAM(Context), SCPARAM(Requirements), SCPARAM(ResultOut))
+#define Syscall_DmaMapShm(Context, Shm, Parameters, ResultOut)             (oserr_t)syscall4(65, SCPARAM(Context), SCPARAM(Shm), SCPARAM(Parameters), SCPARAM(ResultOut))
+#define Syscall_DmaGetSegments(Mapping, Entries, Capacity, CountOut)       (oserr_t)syscall4(66, SCPARAM(Mapping), SCPARAM(Entries), SCPARAM(Capacity), SCPARAM(CountOut))
+#define Syscall_DmaSyncForDevice(Mapping, Offset, Length)                  (oserr_t)syscall3(67, SCPARAM(Mapping), SCPARAM(Offset), SCPARAM(Length))
+#define Syscall_DmaSyncForCpu(Mapping, Offset, Length)                     (oserr_t)syscall3(68, SCPARAM(Mapping), SCPARAM(Offset), SCPARAM(Length))
+#define Syscall_DmaUnmap(Mapping)                                          (oserr_t)syscall1(69, SCPARAM(Mapping))
+#define Syscall_DmaClose(Context)                                          (oserr_t)syscall1(70, SCPARAM(Context))
+
 #endif //!__INTERNAL_CRT_SYSCALLS__

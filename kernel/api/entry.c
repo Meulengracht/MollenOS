@@ -131,7 +131,16 @@ extern oserr_t ScSystemTime(enum OSTimeSource, Integer64_t*);
 extern oserr_t ScTimeSleep(OSTimestamp_t*, OSTimestamp_t*);
 extern oserr_t ScTimeStall(UInteger64_t*);
 
-#define SYSTEM_CALL_COUNT 63
+extern oserr_t ScDmaOpen(uuid_t, const uint64_t*, uuid_t*);
+extern oserr_t ScDmaAllocate(uuid_t, const struct SHMDeviceRequirements*, struct OSDmaAllocationResult*);
+extern oserr_t ScDmaMapShm(uuid_t, uuid_t, const struct OSDmaMapParameters*, struct OSDmaMappingResult*);
+extern oserr_t ScDmaGetSegments(uuid_t, struct SHMDeviceSegment*, uint32_t, uint32_t*);
+extern oserr_t ScDmaSyncForDevice(uuid_t, size_t, size_t);
+extern oserr_t ScDmaSyncForCpu(uuid_t, size_t, size_t);
+extern oserr_t ScDmaUnmap(uuid_t);
+extern oserr_t ScDmaClose(uuid_t);
+
+#define SYSTEM_CALL_COUNT 71
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -233,7 +242,17 @@ static struct SystemCallDescriptor {
         DefineSyscall(59, ScSystemClockFrequency),
         DefineSyscall(60, ScSystemTime),
         DefineSyscall(61, ScTimeSleep),
-        DefineSyscall(62, ScTimeStall)
+        DefineSyscall(62, ScTimeStall),
+
+        // DMA interface
+        DefineSyscall(63, ScDmaOpen),
+        DefineSyscall(64, ScDmaAllocate),
+        DefineSyscall(65, ScDmaMapShm),
+        DefineSyscall(66, ScDmaGetSegments),
+        DefineSyscall(67, ScDmaSyncForDevice),
+        DefineSyscall(68, ScDmaSyncForCpu),
+        DefineSyscall(69, ScDmaUnmap),
+        DefineSyscall(70, ScDmaClose)
 };
 
 Context_t*

@@ -20,6 +20,7 @@
 
 #include <os/osdefs.h>
 #include <os/types/shm.h>
+#include <os/types/dma.h>
 
 // This accepts all 64 ranges produced by deviced without 
 // making the kernel aware of firmware-specific details.
@@ -34,17 +35,6 @@ enum SHMDeviceCachePolicy {
     SHMDeviceCacheCoherent
 };
 
-// Which way data moves during a transfer. Later cache handling and bounce
-// buffers use it to skip work that cannot matter for that direction.
-enum SHMDeviceDirection {
-    // The device only reads the memory, e.g. a USB OUT transfer.
-    SHMDeviceToDevice,
-    // The device only writes the memory, e.g. a USB IN transfer.
-    SHMDeviceFromDevice,
-    // The device both reads and writes, e.g. a controller's own structures.
-    SHMDeviceBidirectional
-};
-
 /**
  * These are address rules, not allocated pages. Length counts bytes from both
  * bases. Device blocks must not overlap; physical blocks may overlap because
@@ -54,31 +44,6 @@ struct SHMDeviceRange {
     uint64_t PhysicalBase;
     uint64_t DeviceBase;
     uint64_t Length;
-};
-
-/**
- * Unlike SHMSG_t, which holds CPU physical addresses in a pointer-sized type,
- * this always uses 64 bits because device addresses can exceed 4 GiB even on
- * 32-bit kernels, and they need not equal the physical address.
- */
-struct SHMDeviceSegment {
-    uint64_t Address;
-    uint64_t Length;
-};
-
-/**
- * What a device needs from memory it keeps using, such as a controller's rings.
- * Zero for Alignment or Boundary means no requirement.
- */
-struct SHMDeviceRequirements {
-    // Number of bytes needed; the allocation is rounded up to whole pages.
-    size_t   Length;
-    // The device address of the first byte must be a multiple of this power of two.
-    uint64_t Alignment;
-    // No segment may cross a multiple of this power of two, e.g. 64 KiB for xHCI.
-    uint64_t Boundary;
-    // The device must see the whole allocation as a single segment.
-    bool     Contiguous;
 };
 
 // Opaque types
@@ -256,15 +221,16 @@ SHMDeviceMap(
  * @brief Allocate memory a device keeps using alongside the CPU.
  *
  * Meant for long-lived structures such as rings and contexts, which both sides
- * read and write all the time. The memory is a new zeroed, uncached SHM_DEVICE
- * buffer, so neither side needs sync calls to see the other's writes. The
+ * read and write all the time. The memory is a new zeroed SHM_DEVICE buffer
+ * using the device pool's cache policy (uncached on ARM64). Neither side needs
+ * streaming sync calls to see the other's writes. The
  * mapping is bidirectional and never bounces, because a copy could never stay
  * up to date. Its segments cover the whole allocation, rounded up to pages.
  *
- * Until a reserved device memory pool exists, pages come from ordinary low
- * memory and the requirements are checked afterwards, not guaranteed. Requests
- * for several contiguous pages or for large alignments may therefore fail
- * with OS_ENOTSUPPORTED even though memory is available.
+ * Pages come from the reserved device pool as a continuous physical run. The
+ * pool enforces physical alignment and boundaries, and the translated device
+ * segments are checked as well. An absent/full pool or an incompatible device
+ * view fails; there is no fallback to ordinary memory.
  *
  * The buffer is created in, and mapped into, the calling process. Release with
  * SHMDeviceUnmap on the mapping and SHMDetach on the buffer, in that order.
