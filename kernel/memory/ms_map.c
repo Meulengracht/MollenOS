@@ -417,6 +417,9 @@ cleanup:
             options->Flags,
             options->PlacementFlags
     );
+    if (mappingOut) {
+        *mappingOut = 0;
+    }
     return oserr;
 }
 
