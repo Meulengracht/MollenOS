@@ -434,6 +434,53 @@ HandleAdapterRequest(
     _In_ const NetAdapterReply_t* reply,
     _In_ uint64_t                 now);
 
+/**
+ * @brief Check whether a request expects a control response, as opposed to the
+ * one-way batch, ACK and drain requests whose results arrive as events.
+ * @param request Request returned by NetAdapterNextRequest; null is not control.
+ */
+__EXTERN bool
+NetAdapterRequestIsControl(
+    _In_ const NetAdapterRequest_t* request);
+
+/**
+ * @brief Return the next request the transport should send, if any is due. The
+ * returned storage is borrowed and only valid until the next call into the core.
+ * A resent request keeps its original identity.
+ * @param adapter Adapter to schedule.
+ * @param now Current time in milliseconds from a monotonic clock.
+ * @param out Receives the borrowed request, or null when nothing is due.
+ * @return OS_EOK when a request was produced,
+ *         OS_ENOENT when nothing is due,
+ *         OS_EINVALPARAMS for null inputs,
+ *         OS_ETIMEOUT or another error when the adapter failed while scheduling.
+ */
+__EXTERN oserr_t
+NetAdapterNextRequest(
+    _In_  NetworkAdapter_t*           adapter,
+    _In_  uint64_t                    now,
+    _Out_ const NetAdapterRequest_t** out);
+
+/**
+ * @brief Validate and apply one driver event (admission, completions, drain end or
+ * ACK progress). The whole event is checked before any lease or callback is touched.
+ * A malformed event fails the adapter.
+ * @param adapter Adapter receiving the event.
+ * @param driver Source driver identity.
+ * @param event Decoded event copied out of transport storage.
+ * @param now Current time in milliseconds from a monotonic clock.
+ * @return OS_EOK when applied or deferred until missing completions are drained,
+ *         OS_ENOENT for stale or foreign events,
+ *         OS_EINVALPARAMS for null inputs or an unknown operation,
+ *         OS_EPROTOCOL or another error when the event was rejected.
+ */
+__EXTERN oserr_t
+NetAdapterEvent(
+    _In_ NetworkAdapter_t*        adapter,
+    _In_ uuid_t                   driver,
+    _In_ const NetAdapterEvent_t* event,
+    _In_ uint64_t                 now);
+
 /** 
  * @brief Acquire a TX pool slot that the caller can build a frame in. This does not queue a
  * transmission; the writable view is managed only by the caller until a successful

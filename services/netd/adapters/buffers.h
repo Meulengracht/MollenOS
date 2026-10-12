@@ -55,7 +55,7 @@
 #ifndef __NETD_BUFFERS_H__
 #define __NETD_BUFFERS_H__
 
-#include <ddk/utils.h>
+#include <os/osdefs.h>
 #include <ctt_netadapter_service.h>
 
 // Number of bytes in the fixed Ethernet header included in every frame.
