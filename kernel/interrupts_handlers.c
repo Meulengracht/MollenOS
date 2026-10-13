@@ -133,7 +133,7 @@ TxuMessageSend(
 void
 InitializeInterruptHandlers(void)
 {
-    DeviceInterrupt_t Interrupt = { { 0 } };
+    InterruptDescriptor_t Interrupt = { { 0 } };
     int               MinimumCount;
     int               i;
 

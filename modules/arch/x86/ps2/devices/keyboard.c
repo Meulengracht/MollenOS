@@ -300,6 +300,7 @@ PS2KeyboardInitialize(
     _In_ int              translation)
 {
     PS2Port_t* port = &controller->Ports[portIndex];
+    oserr_t    status;
     TRACE("PS2KeyboardInitialize(portIndex=%i, translation=%i)", portIndex, translation);
 
     // Initialize keyboard defaults
@@ -309,10 +310,15 @@ PS2KeyboardInitialize(
     port->device_data.keyboard.repeat       = PS2_REPEATS_PERSEC(16);
     port->device_data.keyboard.delay        = PS2_DELAY_500MS;
 
-    // Initialize interrupt
-    RegisterFastInterruptIoResource(&port->Interrupt, controller->Data);
-    RegisterFastInterruptHandler(&port->Interrupt, (InterruptHandler_t)PS2KeyboardFastInterrupt);
-    port->InterruptId = RegisterInterruptSource(&port->Interrupt, INTERRUPT_EXCLUSIVE);
+    // Do not enable device scanning unless its handler and resources are ready.
+    status = PS2PortRegisterInterrupt(
+        port,
+        controller->Data,
+        (InterruptHandler_t)PS2KeyboardFastInterrupt
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
 
     // Reset keyboard LEDs status
     if (PS2KeyboardSetLEDs(port, 0, 0, 0) != OS_EOK) {
@@ -340,10 +346,14 @@ PS2KeyboardCleanup(
     _In_ int              portIndex)
 {
     PS2Port_t* port = &controller->Ports[portIndex];
+    oserr_t    status;
 
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(port, PS2_DISABLE_SCANNING, NULL);
-    UnregisterInterruptSource(port->InterruptId);
+    status = DeviceInterruptDestroy(&port->Interrupt);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;

@@ -220,16 +220,22 @@ PS2MouseInitialize(
     _In_ int              index)
 {
     PS2Port_t* port = &controller->Ports[index];
+    oserr_t    status;
 
     // Set initial mouse sampling
     memset(&port->device_data, 0, sizeof(port->device_data));
     port->device_data.mouse.sampling = 100;
     port->device_data.mouse.mode     = 0;
 
-    // Initialize interrupt
-    RegisterFastInterruptIoResource(&port->Interrupt, controller->Data);
-    RegisterFastInterruptHandler(&port->Interrupt, (InterruptHandler_t)PS2MouseFastInterrupt);
-    port->InterruptId = RegisterInterruptSource(&port->Interrupt, INTERRUPT_EXCLUSIVE);
+    // Do not enable device scanning unless its handler and resources are ready.
+    status = PS2PortRegisterInterrupt(
+        port,
+        controller->Data,
+        (InterruptHandler_t)PS2MouseFastInterrupt
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
 
     // The mouse is in default state at this point
     // since all ports suffer a reset - We want to test if the mouse is a 4-byte mouse
@@ -255,10 +261,14 @@ PS2MouseCleanup(
     _In_ int              index)
 {
     PS2Port_t* port = &controller->Ports[index];
+    oserr_t    status;
 
     // Try to disable the device before cleaning up
     PS2PortExecuteCommand(port, PS2_DISABLE_SCANNING, NULL);
-    UnregisterInterruptSource(port->InterruptId);
+    status = DeviceInterruptDestroy(&port->Interrupt);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     port->Signature = 0xFFFFFFFF;
     port->State     = PortStateConnected;

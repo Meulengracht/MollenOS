@@ -207,7 +207,6 @@ VirtioNetDeviceCreate(
     
     device->BusDevice = busDevice;
     device->EventDescriptor = -1;
-    device->InterruptId = UUID_INVALID;
     device->Metadata.ID = UUID_INVALID;
     ELEMENT_INIT(&device->Header, (void*)(uintptr_t)busDevice->Base.Id, device);
     
@@ -292,7 +291,11 @@ VirtioNetDeviceDestroy(
         }
     }
     
-    VirtioNetUnregisterInterrupt(device);
+    status = VirtioNetUnregisterInterrupt(device);
+    if (status != OS_EOK) {
+        return status;
+    }
+
     VirtioNetPoolsDetach(device);
     
     if (device->Metadata.Payload) {

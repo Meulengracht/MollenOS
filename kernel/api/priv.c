@@ -26,6 +26,7 @@
 #include <acpiinterface.h>
 #include <arch/utils.h>
 #include <ddk/acpi.h>
+#include <ddk/interrupt_request.h>
 #include <deviceio.h>
 #include <firmware.h>
 #include <handle.h>
@@ -248,76 +249,184 @@ ScIoSpaceDestroy(
     return OS_EOK;
 }
 
-static oserr_t
-__CopyInterruptResults(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ DeviceInterrupt_t* request
-)
-{
-    oserr_t oserr;
-
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->Line, &request->Line, sizeof(request->Line), true);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiAddress, &request->MsiAddress, sizeof(request->MsiAddress), true);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiValue, &request->MsiValue, sizeof(request->MsiValue), true);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    return oserr;
-}
-
-uuid_t
-ScRegisterInterrupt(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ unsigned int       flags)
-{
-    DeviceInterrupt_t request;
-    uuid_t            id;
-    oserr_t           oserr;
-
-    if (deviceInterrupt == NULL ||
-        (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
-        return UUID_INVALID;
-    }
-
-    // Do not trust the user-space memory here; copy it into kernel space first.
-    oserr = MemorySpaceCopyUser(
-        deviceInterrupt,
-        &request,
-        sizeof(request),
-        false
-    );
-    if (oserr != OS_EOK) {
-        return UUID_INVALID;
-    }
-
-    // Now we register the interrupt
-    id = InterruptRegister(&request, flags);
-    if (id == UUID_INVALID) {
-        return UUID_INVALID;
-    }
-
-    // Only the resolved outputs are written back, never the full request.
-    oserr = __CopyInterruptResults(deviceInterrupt, &request);
-    if (oserr != OS_EOK) {
-        (void)InterruptUnregister(id);
-        return UUID_INVALID;
-    }
-    return id;
-}
-
+/**
+ * @brief Copies a reservation request before resolving any of its fields.
+ * Only INTx is implemented here. DeviceId records the caller's device identity;
+ * it does not yet authorize PCI programming or message-interrupt allocation.
+ */
 oserr_t
-ScUnregisterInterrupt(
-        _In_ uuid_t sourceId)
+ScInterruptAllocate(
+    _In_  InterruptAllocationRequest_t* userRequest,
+    _Out_ InterruptAllocationResult_t*  userResult)
 {
-    return InterruptUnregister(sourceId);
+    InterruptAllocationRequest_t request;
+    InterruptAllocationResult_t  result;
+    InterruptDescriptor_t descriptor = {0};
+    oserr_t status;
+
+    if (userRequest == NULL || userResult == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    status = MemorySpaceCopyUser(userRequest, &request, sizeof(request), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (request.Minimum == 0 || request.Minimum > request.Optimal) {
+        return OS_EINVALPARAMS;
+    }
+    if (request.Strategies == 0 || (request.Strategies & ~INTERRUPT_STRATEGY_ANY)) {
+        return OS_EINVALPARAMS;
+    }
+    if (request.Flags & ~INTERRUPT_EXCLUSIVE) {
+        return OS_EINVALPARAMS;
+    }
+    if (!(request.Strategies & INTERRUPT_STRATEGY_INTx) || request.Minimum != 1) {
+        return OS_ENOTSUPPORTED;
+    }
+    if (request.Line.Line < 0) {
+        return OS_ENOENT;
+    }
+    descriptor.Line = request.Line.Line;
+    descriptor.Pin = request.Line.Pin;
+    descriptor.AcpiConform = request.Line.AcpiConform;
+    status = InterruptReserve(&descriptor, request.Flags, &result.Handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    result.Count = 1;
+    result.Strategy = INTERRUPT_STRATEGY_INTx;
+    status = MemorySpaceCopyUser(userResult, &result, sizeof(result), true);
+    if (status != OS_EOK) {
+        // No handler has been bound, so an inaccessible output cannot leave
+        // hardware active or hide an allocation from its caller.
+        InterruptUnregister(result.Handle);
+    }
+    return status;
+}
+
+/**
+ * @brief Checks ownership before a system call can change an interrupt.
+ * Kernel timers and CPU interrupts must remain outside driver control. The
+ * reference keeps the identity readable while checking it; the core operation
+ * also checks ownership while locking the entry before making any changes.
+ */
+static oserr_t
+__CheckInterruptOwner(
+    _In_ uuid_t handle)
+{
+    SystemInterrupt_t* entry;
+    int                owned;
+
+    entry = InterruptGet(handle);
+    if (entry == NULL) {
+        return OS_ENOENT;
+    }
+    owned = !(entry->Flags & INTERRUPT_KERNEL) &&
+            entry->Owner == GetCurrentMemorySpaceHandle();
+    InterruptPut(entry);
+    return owned ? OS_EOK : OS_EPERMISSIONS;
+}
+
+/**
+ * @brief Copies handler resources into an owned reservation without enabling it.
+ * Only the requested vector's resource table crosses this boundary, so the
+ * kernel never follows the library's private allocation or vector pointers.
+ */
+oserr_t
+ScInterruptBind(
+    _In_ uuid_t                  handle,
+    _In_ InterruptBindRequest_t* userRequest)
+{
+    InterruptBindRequest_t request;
+    oserr_t                status;
+
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (userRequest == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    status = MemorySpaceCopyUser(userRequest, &request, sizeof(request), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (request.Index != 0) {
+        return OS_EINVALPARAMS;
+    }
+    return InterruptBind(handle, &request.Resources);
+}
+
+/**
+ * @brief Allows delivery after the owner has supplied a complete handler.
+ * Keeping activation separate lets drivers prepare every resource before the
+ * device can call their handler for the first time.
+ */
+oserr_t
+ScInterruptEnable(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptSetEnabled(handle, 1);
+}
+
+/**
+ * @brief Stops delivery and waits for running handlers before returning.
+ * The reservation remains available, allowing its owner to change resources
+ * without losing the interrupt line to another allocation.
+ */
+oserr_t
+ScInterruptDisable(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptSetEnabled(handle, 0);
+}
+
+/**
+ * @brief Releases handler mappings while retaining the owner's reservation.
+ * The core requires delivery to be disabled so no handler can access a mapping
+ * while it is being removed. Failed cleanup remains available for retry.
+ */
+oserr_t
+ScInterruptUnbind(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptUnbind(handle);
+}
+
+/**
+ * @brief Returns an owned reservation after stopping delivery and removing mappings.
+ * The core retains the reservation if cleanup fails so the caller can retry
+ * without losing the handle needed to release its remaining resources.
+ */
+oserr_t
+ScInterruptRelease(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptUnregister(handle);
 }
 
 oserr_t

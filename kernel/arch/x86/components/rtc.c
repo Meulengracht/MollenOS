@@ -156,9 +156,9 @@ __ConfigureRTC(
 
 static oserr_t
 __InstallInterrupt(
-        _In_ Cmos_t* cmos)
+    _In_ Cmos_t* cmos)
 {
-    DeviceInterrupt_t deviceInterrupt = { { 0 } };
+    InterruptDescriptor_t deviceInterrupt = { { 0 } };
 
     // initialize the device interrupt
     deviceInterrupt.Line                  = CMOS_RTC_IRQ;

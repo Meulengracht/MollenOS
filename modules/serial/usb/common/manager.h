@@ -25,6 +25,7 @@
 #define _USB_MANAGER_H_
 
 #include <ddk/busdevice.h>
+#include <ddk/interrupt.h>
 #include <ds/hashtable.h>
 #include <ds/list.h>
 #include <os/spinlock.h>
@@ -45,7 +46,7 @@ typedef struct UsbManagerController {
     struct OSIOCtlRequestRequirements IORequirements;
 
     int                 event_descriptor;
-    uuid_t              Interrupt;
+    DeviceInterrupt_t   Interrupt;
     _Atomic(reg32_t)    InterruptStatus;
     size_t              PortCount;
     
@@ -106,6 +107,18 @@ UsbManagerRegisterController(
 extern void
 UsbManagerDestroyController(
     _In_ UsbManagerController_t* controller);
+
+/**
+ * @brief Prepares the common interrupt resources used by USB host controllers.
+ * The allocation remains disabled so a controller can add extra resources, such
+ * as OHCI's communication area, before calling DeviceInterruptEnable. On error,
+ * the caller destroys Base.Interrupt before releasing the controller storage.
+ */
+extern oserr_t
+UsbManagerConfigureInterrupt(
+    _In_ UsbManagerController_t* controller,
+    _In_ InterruptHandler_t      handler,
+    _In_ size_t                  controllerSize);
 
 /**
  * Clears all queued transfers by iterating them and invoking Finalize. This also notifies waiters.

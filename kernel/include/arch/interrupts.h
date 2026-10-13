@@ -54,7 +54,7 @@ InterruptSetMode(
  */
 KERNELAPI oserr_t KERNELABI
 InterruptResolve(
-        _In_    DeviceInterrupt_t* deviceInterrupt,
+        _In_    InterruptDescriptor_t* deviceInterrupt,
         _In_    unsigned int       flags,
         _Out_   uuid_t*            tableIndex);
 

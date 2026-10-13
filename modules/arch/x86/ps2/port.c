@@ -287,17 +287,10 @@ PS2PortInitialize(
 
     TRACE("[PS2PortInitialize] %i", port->Index);
 
-    // Initialize some variables for the port, this is essentially 
-    // the same init as DeviceInterruptInitialize
-    port->Interrupt.AcpiConform = 0;
-    port->Interrupt.Pin         = INTERRUPT_NONE;
-    port->Interrupt.Vectors[0]  = INTERRUPT_NONE;
-    if (port->Index == 0) {
-        port->Interrupt.Line = PS2_PORT1_IRQ;
-    }
-    else {
-        port->Interrupt.Line = PS2_PORT2_IRQ;
-    }
+    // Legacy PS/2 ports have fixed lines rather than a bus descriptor.
+    DeviceInterruptInitialize(&port->Interrupt, NULL);
+    port->Interrupt.Line.Line = port->Index == 0 ? PS2_PORT1_IRQ : PS2_PORT2_IRQ;
+    port->Interrupt.Flags = INTERRUPT_EXCLUSIVE;
 
     port->event_descriptor = eventd(0, EVT_RESET_EVENT);
     if (port->event_descriptor <= 0) {
@@ -310,10 +303,6 @@ PS2PortInitialize(
                IOSET_ADD, port->event_descriptor,
                &(struct ioset_event){ .data.context = port, .events = IOSETSYN });
     ioctl(port->event_descriptor, FIONBIO, &opt);
-
-    // Initialize interrupt resources
-    RegisterInterruptDescriptor(&port->Interrupt, port->event_descriptor);
-    RegisterFastInterruptMemoryResource(&port->Interrupt, (uintptr_t)port, sizeof(PS2Port_t), 0);
 
     // Start out by doing an interface
     // test on the given port
@@ -356,4 +345,47 @@ PS2PortInitialize(
         return PS2RegisterDevice(port);
     }
     return OS_EOK;
+}
+
+/**
+ * @brief Prepares identical resources for keyboard and mouse fast handlers.
+ * Reserve only when a device is present, so an unused port does not keep a line.
+ */
+oserr_t
+PS2PortRegisterInterrupt(
+    _In_ PS2Port_t*         port,
+    _In_ DeviceIo_t*        data,
+    _In_ InterruptHandler_t handler)
+{
+    uint32_t count;
+    oserr_t status;
+
+    status = DeviceInterruptAllocate(&port->Interrupt, 1, 1, INTERRUPT_STRATEGY_INTx, &count);
+    if (status != OS_EOK) {
+        return status;
+    }
+    status = DeviceInterruptSetDescriptor(&port->Interrupt, 0, port->event_descriptor);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+    status = DeviceInterruptAddMemoryResource(&port->Interrupt, 0, (uintptr_t)port, sizeof(*port), 0);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+    status = DeviceInterruptAddIoResource(&port->Interrupt, 0, data);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+    status = DeviceInterruptSetHandler(&port->Interrupt, 0, handler);
+    if (status != OS_EOK) {
+        goto cleanup;
+    }
+    status = DeviceInterruptEnable(&port->Interrupt);
+    if (status == OS_EOK) {
+        return OS_EOK;
+    }
+cleanup:
+    // Destroy retains ownership on failure, so later cleanup can retry safely.
+    DeviceInterruptDestroy(&port->Interrupt);
+    return status;
 }

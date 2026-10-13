@@ -346,7 +346,7 @@ typedef struct AhciController {
     BusDevice_t*            Device;
     element_t               header;
     AhciInterruptResource_t InterruptResource;
-    uuid_t                  InterruptId;
+    DeviceInterrupt_t       Interrupt;
     spinlock_t              Lock;
     int                     event_descriptor;
     bool                    Bits64;

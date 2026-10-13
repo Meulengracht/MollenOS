@@ -303,7 +303,6 @@ HCIControllerCreate(
         _In_ BusDevice_t* device)
 {
     XhciController_t* controller;
-    DeviceInterrupt_t interrupt;
     DeviceIo_t*       ioBase;
     uintptr_t         registerBase;
     oserr_t           oserr;
@@ -338,12 +337,24 @@ HCIControllerCreate(
     controller->Doorbells = (volatile reg32_t*)(registerBase + (controller->CapRegisters->DoorbellOffset & ~0x3UL));
     controller->Ports = (XhciPortRegisters_t*)((uintptr_t)controller->OpRegisters + 0x400);
 
-    DeviceInterruptInitialize(&interrupt, device);
-    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&interrupt, ioBase);
-    RegisterFastInterruptMemoryResource(&interrupt, (uintptr_t)controller, sizeof(XhciController_t), 0);
-    RegisterInterruptDescriptor(&interrupt, controller->Base.event_descriptor);
-    controller->Base.Interrupt = RegisterInterruptSource(&interrupt, 0);
+    // Keep the source quiet until controller setup has created its event ring.
+    WRITE_VOLATILE(controller->OpRegisters->UsbCommand,
+        READ_VOLATILE(controller->OpRegisters->UsbCommand) & ~XHCI_OP_USBCMD_INTERRUPTER);
+    
+    // Keep the allocation with the controller so disable and destruction can
+    // release every handler mapping before the controller memory is freed.
+    oserr = UsbManagerConfigureInterrupt(
+        &controller->Base,
+        (InterruptHandler_t)OnFastInterrupt,
+        sizeof(XhciController_t)
+    );
+    if (oserr == OS_EOK) {
+        oserr = DeviceInterruptEnable(&controller->Base.Interrupt);
+    }
+    if (oserr != OS_EOK) {
+        HCIControllerDestroy(&controller->Base);
+        return NULL;
+    }
 
     oserr = OSDeviceIOCtl(
             controller->Base.Device->Base.Id,
@@ -374,10 +385,21 @@ HCIControllerDestroy(
     XhciController_t* controller = (XhciController_t*)baseController;
 
     TRACE("HCIControllerDestroy()");
-    XhciHalt(controller);
+    if (XhciHalt(controller) != OS_EOK) {
+        ERROR("Failed to stop XHCI; keeping interrupt and queue resources alive");
+        return;
+    }
+    
+    // Synchronize delivery before freeing queues, events or mapped handler state.
+    if (DeviceInterruptDestroy(&baseController->Interrupt) != OS_EOK) {
+        ERROR("Failed to release controller interrupt; keeping its resources alive");
+        return;
+    }
+
     UsbManagerDestroyController(baseController);
-    XhciQueueDestroy(controller);
-    UnregisterInterruptSource(baseController->Interrupt);
+    if (baseController->Scheduler != NULL) {
+        XhciQueueDestroy(controller);
+    }
     ReleaseDeviceIo(baseController->IoBase);
     free(controller);
 }

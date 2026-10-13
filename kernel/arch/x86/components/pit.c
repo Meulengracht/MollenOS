@@ -181,7 +181,7 @@ PITEnable(
     Pit_t* pit = context;
 
     if (enable) {
-        DeviceInterrupt_t deviceInterrupt = { { 0 } };
+        InterruptDescriptor_t deviceInterrupt = { { 0 } };
         if (pit->Enabled) {
             return OS_EOK;
         }
