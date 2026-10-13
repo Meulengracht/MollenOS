@@ -35,6 +35,7 @@
 #include <internal/_utils.h>
 #include <os/usched/mutex.h>
 #include <os/device.h>
+#include <os/handle.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
@@ -48,6 +49,7 @@ struct DmDeviceProtocol {
 
 struct DMDevice {
     element_t                    header;
+    OSHandle_t                   handle;
     uuid_t                       driver_id;
     bool                         has_driver;
     unsigned int                 flags;
@@ -70,7 +72,6 @@ struct DmDmaLease {
 
 static struct usched_mtx g_devicesLock;
 static list_t            g_devices      = LIST_INIT;
-static uuid_t            g_nextDeviceId = 1;
 
 void DmDevicesInitialize(void)
 {
@@ -599,7 +600,7 @@ DmDeviceCreateWithProvider(
         return OS_EINVALPARAMS;
     }
 
-    deviceNode = calloc(1, sizeof(*deviceNode));
+    deviceNode = calloc(1, sizeof(struct DMDevice));
     if (deviceNode == NULL) {
         return OS_EOOM;
     }
@@ -634,7 +635,16 @@ DmDeviceCreateWithProvider(
         }
     }
 
-    description->Id = g_nextDeviceId++;
+    status = OSHandleCreate(OSHANDLE_DEVICE, deviceNode, &deviceNode->handle);
+    if (status != OS_EOK) {
+        if (deviceNode->Provider.Operations != NULL) {
+            deviceNode->Provider.Operations->Release(deviceNode->Provider.Context);
+        }
+        free(deviceNode);
+        return status;
+    }
+
+    description->Id = deviceNode->handle.ID;
     deviceNode->header.key = (void*)(uintptr_t)description->Id;
     list_append(&g_devices, &deviceNode->header);
 

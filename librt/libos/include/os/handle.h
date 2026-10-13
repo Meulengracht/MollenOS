@@ -34,9 +34,9 @@
  */
 CRTDECL(oserr_t,
 OSHandleCreate(
-        _In_ enum OSHandleType type,
-        _In_ void*             payload,
-        _In_ struct OSHandle*  handle));
+    _In_ enum OSHandleType type,
+    _In_ void*             payload,
+    _In_ struct OSHandle*  handle));
 
 /**
  * @brief Constructs a new handle based on an existing system handle. This is useful
@@ -51,11 +51,11 @@ OSHandleCreate(
  */
 CRTDECL(oserr_t,
 OSHandleWrap(
-        _In_ uuid_t            id,
-        _In_ enum OSHandleType type,
-        _In_ void*             payload,
-        _In_ bool              ownership,
-        _In_ struct OSHandle*  handle));
+    _In_ uuid_t            id,
+    _In_ enum OSHandleType type,
+    _In_ void*             payload,
+    _In_ bool              ownership,
+    _In_ struct OSHandle*  handle));
 
 /**
  * @brief Frees a previously allocated system handle. This makes the handle invalid
@@ -69,7 +69,7 @@ OSHandleWrap(
  */
 CRTDECL(void,
 OSHandleDestroy(
-        _In_ struct OSHandle* handle));
+    _In_ struct OSHandle* handle));
 
 /**
  * @brief Acquires an additional reference to a system handle.
@@ -78,7 +78,7 @@ OSHandleDestroy(
  */
 CRTDECL(oserr_t,
 OSHandlesAcquire(
-        _In_ struct OSHandle* handle));
+    _In_ struct OSHandle* handle));
 
 /**
  * @brief Finds and wraps a system handle by its global identifier.
@@ -88,7 +88,7 @@ OSHandlesAcquire(
  */
 CRTDECL(oserr_t,
 OSHandlesFind(
-        _In_ uuid_t           id,
-        _In_ struct OSHandle* handle));
+    _In_ uuid_t           id,
+    _In_ struct OSHandle* handle));
 
 #endif //!__OS_HANDLE_H__

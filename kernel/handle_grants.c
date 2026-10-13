@@ -90,7 +90,6 @@ HandleGrantAdd(
     _In_ HandleGrantRights_t rights)
 {
     MemorySpace_t*     current = GetCurrentMemorySpace();
-    oserr_t            oserr;
     struct HandleGrant entry = {
         .ID = id,
         .Rights = rights
@@ -109,12 +108,9 @@ HandleGrantAdd(
         return OS_EEXISTS;
     }
 
-    oserr = AcquireHandle(id, NULL);
-    if (oserr != OS_EOK) {
-        hashtable_set(&current->Context->HandleGrants.Entries, &entry);
-    }
+    hashtable_set(&current->Context->HandleGrants.Entries, &entry);
     MutexUnlock(&current->Context->HandleGrants.SyncObject);
-    return oserr;
+    return OS_EOK;
 }
 
 oserr_t
@@ -179,7 +175,10 @@ HandleGrantRelease(
 
     // Release the handle before removing the grant entry
     oserr = DestroyHandle(id);
-    hashtable_remove(&current->Context->HandleGrants.Entries, &entry);
+    if (oserr == OS_EOK) {
+        // Do not keep grants around for handles that no longer exist
+        hashtable_remove(&current->Context->HandleGrants.Entries, &entry);
+    }
     MutexUnlock(&current->Context->HandleGrants.SyncObject);
     return oserr;
 }

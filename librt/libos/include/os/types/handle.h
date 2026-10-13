@@ -27,6 +27,8 @@ enum OSHandleType {
     OSHANDLE_HQUEUE,
     OSHANDLE_SHM,
     OSHANDLE_SOCKET,
+    OSHANDLE_DEVICE,
+    
     __OSHANDLE_COUNT
 };
 
