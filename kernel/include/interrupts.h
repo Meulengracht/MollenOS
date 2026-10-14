@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,11 +32,7 @@
 // Kernel specific interrupt models
 #define INTERRUPT_KERNEL 0x10000000U
 
-/**
- * @brief Describes one kernel-owned source, including timers and CPU messages.
- * Drivers use allocation and bind requests instead, so their local arrays never
- * become part of the system call interface.
- */
+// Represents the data needed to register an interrupt
 typedef struct InterruptDescriptor {
     // Kernel handlers receive Context directly. User handlers instead receive
     // the resource table mapped by InterruptBind.
@@ -57,7 +54,7 @@ typedef struct InterruptDescriptor {
     uintptr_t MsiValue;
 } InterruptDescriptor_t;
 
-/** Owns one reserved source and the mappings used while its handler is bound. */
+// Describes a kernel registered interrupt and its state
 typedef struct SystemInterrupt {
     uuid_t                   Id;
     uuid_t                   Owner;
@@ -102,9 +99,8 @@ KERNELAPI InterruptFunctionTable_t* KERNELABI
 GetFastInterruptTable(void);
 
 /**
- * @brief Reserves one source without mapping a handler or enabling hardware.
- * The reservation participates in sharing checks even while disabled, so an
- * exclusive source cannot be claimed by a second caller during configuration.
+ * @brief Reserve the needed interrupt resources. This does not
+ * enable any interruptd, but is used to claim a specific interrupt.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptReserve(
@@ -113,9 +109,7 @@ InterruptReserve(
     _Out_   uuid_t*                idOut);
 
 /**
- * @brief Maps resources while the reservation remains disabled.
- * Keeping mapping separate from delivery prevents a shared line from invoking
- * a handler before all of its requested resources are available.
+ * @brief Maps resources to an already reserved interrupt.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptBind(
@@ -123,9 +117,10 @@ InterruptBind(
     _In_ InterruptResourceTable_t* resources);
 
 /**
- * @brief Changes delivery and waits for running handlers when disabling.
- * A shared hardware line remains enabled until its last enabled user stops.
- * Call only from ordinary execution context, where waiting is permitted.
+ * @brief Enables or disables a reserved interrupt. 
+ * If disabling, waits for running handlers.
+ * A shared interrupt remains enabled until its last enabled instance stops.
+ * Never call from interrupt (non-syscall) context.
  */
 KERNELAPI oserr_t KERNELABI
 InterruptSetEnabled(
@@ -133,7 +128,7 @@ InterruptSetEnabled(
     _In_ int    enable);
 
 /**
- * @brief Releases handler mappings while retaining the disabled reservation.
+ * @brief Releases handler mappings while keeping the reservation.
  * This allows a driver to change configuration without losing its interrupt.
  * If cleanup fails, retry Unbind before enabling or binding another handler.
  */
@@ -157,10 +152,8 @@ InterruptUnregister(
         _In_ uuid_t Source);
 
 /**
- * @brief References an entry to inspect its immutable identity and ownership.
- * Release the reference with InterruptPut. A reference keeps the descriptor
- * alive, but does not pin its handler mappings: those belong to the binding
- * lifecycle and may only be accessed by the protected dispatch path.
+ * @brief Acquires a reference to the system interrupt described
+ * by its id. Use Put to release the reference.
  */
 KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGet(
