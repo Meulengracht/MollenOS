@@ -43,7 +43,7 @@ PlatformInterruptInitialize(void);
  */
 KERNELAPI void KERNELABI
 InterruptSetMode(
-        _In_ int mode);
+    _In_ int mode);
 
 /**
  *
@@ -54,9 +54,9 @@ InterruptSetMode(
  */
 KERNELAPI oserr_t KERNELABI
 InterruptResolve(
-        _In_    InterruptDescriptor_t* deviceInterrupt,
-        _In_    unsigned int       flags,
-        _Out_   uuid_t*            tableIndex);
+    _In_    InterruptDescriptor_t* deviceInterrupt,
+    _In_    unsigned int           flags,
+    _Out_   uuid_t*                tableIndex);
 
 /**
  * Initialize and enable/disable the interrupt described in systemInterrupt member.
@@ -84,6 +84,6 @@ KERNELAPI irqstate_t KERNELABI InterruptDisable(void);
 KERNELAPI irqstate_t KERNELABI InterruptEnable(void);
 KERNELAPI irqstate_t KERNELABI InterruptRestoreState(irqstate_t State);
 KERNELAPI irqstate_t KERNELABI InterruptSaveState(void);
-KERNELAPI int         KERNELABI InterruptIsDisabled(void);
+KERNELAPI int        KERNELABI InterruptIsDisabled(void);
 
 #endif //!__VALI_ARCH_INTERRUPT_H__
