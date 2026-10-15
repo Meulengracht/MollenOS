@@ -1,14 +1,31 @@
-/**
- * Interrupt system call requests shared by libddk and the kernel.
- * These are separate from DeviceInterrupt_t: its pointers refer to library
- * bookkeeping, which the kernel must neither follow nor modify.
+/* MollenOS
+ *
+ * Copyright 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Interrupt Support Definitions & Structures
+ * - This header describes the base interrupt-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
  */
-#ifndef __DDK_INTERRUPT_REQUEST_H__
-#define __DDK_INTERRUPT_REQUEST_H__
+
+#ifndef __DDK_TYPES_INTERRUPT_H__
+#define __DDK_TYPES_INTERRUPT_H__
 
 #include <ddk/interrupt.h>
 
-/** Describes a reservation without supplying executable handler resources. */
 typedef struct InterruptAllocationRequest {
     uuid_t                DeviceId;
     DeviceInterruptLine_t Line;
@@ -18,17 +35,15 @@ typedef struct InterruptAllocationRequest {
     uint32_t              Strategies;
 } InterruptAllocationRequest_t;
 
-/** Only these results are copied back after a successful reservation. */
 typedef struct InterruptAllocationResult {
     uuid_t   Handle;
     uint32_t Count;
     uint32_t Strategy;
 } InterruptAllocationResult_t;
 
-/** Binds resources to one reserved vector without changing its routing. */
 typedef struct InterruptBindRequest {
     uint32_t                 Index;
     InterruptResourceTable_t Resources;
 } InterruptBindRequest_t;
 
-#endif
+#endif //!__DDK_TYPES_INTERRUPT_H__
