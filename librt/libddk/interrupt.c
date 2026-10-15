@@ -23,17 +23,13 @@
  */
 
 #include <ddk/busdevice.h>
-#include <ddk/interrupt_request.h>
+#include <ddk/types/interrupt.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
 #include <string.h>
 
-/**
- * @brief Keeps kernel ownership separate from editable driver configuration.
- * Bound can remain set after a failed Enable cleanup. Retaining the handle and
- * this state allows Disable or Destroy to retry without losing any mappings.
- */
+// Local state in libddk to keep track of changes
 struct DeviceInterruptState {
     uuid_t Handle;
     int    Bound;
@@ -51,6 +47,7 @@ DeviceInterruptInitialize(
     interrupt->DeviceId = UUID_INVALID;
     interrupt->Line.Line = INTERRUPT_NONE;
     interrupt->Line.Pin = INTERRUPT_NONE;
+    
     if (device != NULL) {
         interrupt->DeviceId = device->Base.Id;
         interrupt->Line.Line = device->InterruptLine;
@@ -70,13 +67,15 @@ DeviceInterruptAllocate(
     InterruptAllocationRequest_t request;
     InterruptAllocationResult_t  result;
     struct DeviceInterruptState* state;
-    DeviceInterruptVector_t*      vectors;
+    DeviceInterruptVector_t*     vectors;
     oserr_t                      status;
 
     if (countOut == NULL) {
         return OS_EINVALPARAMS;
     }
+    
     *countOut = 0;
+    
     if (interrupt == NULL || min == 0 || min > optimal) {
         return OS_EINVALPARAMS;
     }
@@ -89,46 +88,50 @@ DeviceInterruptAllocate(
     if (interrupt->State != NULL) {
         return OS_EBUSY;
     }
+    
     if (min != 1 || !(strategies & INTERRUPT_STRATEGY_INTx)) {
         return OS_ENOTSUPPORTED;
     }
 
     // Reserve bookkeeping before the system call, following the DMA wrappers'
     // ownership pattern. No allocation can become hidden by a later malloc failure.
-    state = calloc(1, sizeof(*state));
-    vectors = calloc(1, sizeof(*vectors));
+    state = calloc(1, sizeof(struct DeviceInterruptState));
+    vectors = calloc(1, sizeof(DeviceInterruptVector));
     if (state == NULL || vectors == NULL) {
         free(state);
         free(vectors);
         return OS_EOOM;
     }
+    
     request.DeviceId = interrupt->DeviceId;
     request.Line = interrupt->Line;
     request.Flags = interrupt->Flags;
     request.Minimum = min;
     request.Optimal = optimal;
     request.Strategies = strategies;
+    
     status = Syscall_InterruptAllocate(&request, &result);
     if (status != OS_EOK) {
         free(vectors);
         free(state);
         return status;
     }
+    
     state->Handle = result.Handle;
+    
     vectors[0].AffinityMask = UINT32_MAX;
     vectors[0].ResourceTable.HandleResource = UUID_INVALID;
+    
     interrupt->State = state;
     interrupt->Vectors = vectors;
     interrupt->Count = result.Count;
     interrupt->Strategy = result.Strategy;
+    
     *countOut = result.Count;
     return OS_EOK;
 }
 
-/**
- * @brief Prevents edits to configuration already copied into the kernel.
- * Checking Bound also covers failed enablement whose cleanup needs a retry.
- */
+// Ensures we don't vectors that are already bound
 static oserr_t
 __GetEditableVector(
     _In_  DeviceInterrupt_t*        interrupt,
@@ -141,6 +144,7 @@ __GetEditableVector(
     if (interrupt->State->Bound || interrupt->State->Enabled) {
         return OS_EBUSY;
     }
+    
     *vectorOut = &interrupt->Vectors[index];
     return OS_EOK;
 }
@@ -152,7 +156,7 @@ DeviceInterruptSetAffinity(
     _In_    uint32_t           affinityMask)
 {
     DeviceInterruptVector_t* vector;
-    oserr_t status;
+    oserr_t                  status;
 
     // INTx retains the platform's routing. Do not record a restriction that
     // the controller has not actually applied.
@@ -166,6 +170,7 @@ DeviceInterruptSetAffinity(
     if (affinityMask != UINT32_MAX) {
         return OS_ENOTSUPPORTED;
     }
+    
     vector->AffinityMask = affinityMask;
     return OS_EOK;
 }
@@ -177,7 +182,7 @@ DeviceInterruptSetHandler(
     _In_    InterruptHandler_t handler)
 {
     DeviceInterruptVector_t* vector;
-    oserr_t status;
+    oserr_t                  status;
 
     // Defer mapping until Enable so the driver can finish describing resources.
     status = __GetEditableVector(interrupt, index, &vector);
@@ -187,6 +192,7 @@ DeviceInterruptSetHandler(
     if (handler == NULL) {
         return OS_EINVALPARAMS;
     }
+    
     vector->ResourceTable.Handler = handler;
     return OS_EOK;
 }
@@ -198,8 +204,8 @@ DeviceInterruptSetDescriptor(
     _In_    int                descriptor)
 {
     DeviceInterruptVector_t* vector;
-    uuid_t handle;
-    oserr_t status;
+    uuid_t                   handle;
+    oserr_t                  status;
 
     // The kernel signals a native handle, not the driver's file descriptor.
     status = __GetEditableVector(interrupt, index, &vector);
@@ -209,10 +215,12 @@ DeviceInterruptSetDescriptor(
     if (descriptor < 0) {
         return OS_EINVALPARAMS;
     }
+    
     handle = GetNativeHandle(descriptor);
     if (handle == UUID_INVALID) {
         return OS_EINVALPARAMS;
     }
+    
     vector->ResourceTable.HandleResource = handle;
     return OS_EOK;
 }
@@ -224,8 +232,7 @@ DeviceInterruptAddIoResource(
     _In_    DeviceIo_t*        ioSpace)
 {
     DeviceInterruptVector_t* vector;
-    oserr_t status;
-    unsigned int i;
+    oserr_t                  status;
 
     // Keep stable resource positions because fast handlers address them by index.
     status = __GetEditableVector(interrupt, index, &vector);
@@ -235,7 +242,8 @@ DeviceInterruptAddIoResource(
     if (ioSpace == NULL) {
         return OS_EINVALPARAMS;
     }
-    for (i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
+    
+    for (unsigned int i = 0; i < INTERRUPT_MAX_IO_RESOURCES; i++) {
         if (vector->ResourceTable.IoResources[i] == NULL) {
             vector->ResourceTable.IoResources[i] = ioSpace;
             return OS_EOK;
@@ -252,10 +260,9 @@ DeviceInterruptAddMemoryResource(
     _In_    size_t             length,
     _In_    unsigned int       flags)
 {
-    DeviceInterruptVector_t* vector;
+    DeviceInterruptVector_t*       vector;
     FastInterruptMemoryResource_t* resource;
-    oserr_t status;
-    unsigned int i;
+    oserr_t                        status;
 
     // Reject empty or wrapped ranges before they reach the kernel's mapper.
     status = __GetEditableVector(interrupt, index, &vector);
@@ -268,7 +275,8 @@ DeviceInterruptAddMemoryResource(
     if (length > UINTPTR_MAX - address || (flags & ~INTERRUPT_RESOURCE_DISABLE_CACHE)) {
         return OS_EINVALPARAMS;
     }
-    for (i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
+    
+    for (unsigned int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
         resource = &vector->ResourceTable.MemoryResources[i];
         if (resource->Address == 0) {
             resource->Address = address;
@@ -284,7 +292,7 @@ oserr_t
 DeviceInterruptEnable(
     _InOut_ DeviceInterrupt_t* interrupt)
 {
-    InterruptBindRequest_t        request;
+    InterruptBindRequest_t       request;
     struct DeviceInterruptState* state;
     oserr_t                      status;
     oserr_t                      cleanup;
@@ -296,6 +304,7 @@ DeviceInterruptEnable(
     if (state->Enabled) {
         return OS_EOK;
     }
+    
     // A previous enable may have failed partway through cleanup. Finish that
     // cleanup before rebinding; some of its old mappings may already be gone.
     if (state->Bound) {
@@ -307,11 +316,13 @@ DeviceInterruptEnable(
     if (interrupt->Vectors[0].ResourceTable.Handler == NULL) {
         return OS_EINVALPARAMS;
     }
+    
     // INTx has one vector. Bind it before enabling delivery, including when the
     // physical line is already enabled by another device sharing this interrupt.
     if (!state->Bound) {
         request.Index = 0;
         request.Resources = interrupt->Vectors[0].ResourceTable;
+        
         status = Syscall_InterruptBind(state->Handle, &request);
         if (status != OS_EOK) {
             // A failed mapping may itself need cleanup. Preserve that obligation
@@ -322,6 +333,7 @@ DeviceInterruptEnable(
         }
         state->Bound = 1;
     }
+    
     status = Syscall_InterruptEnable(state->Handle);
     if (status != OS_EOK) {
         cleanup = Syscall_InterruptUnbind(state->Handle);
@@ -330,6 +342,7 @@ DeviceInterruptEnable(
         }
         return status;
     }
+    
     state->Enabled = 1;
     return OS_EOK;
 }
@@ -348,6 +361,7 @@ DeviceInterruptDisable(
     if (state == NULL) {
         return OS_EOK;
     }
+    
     // A successful disable waits for running handlers. Only then is it safe to
     // release their mappings or allow setters to change the configuration.
     if (state->Enabled) {
@@ -357,6 +371,7 @@ DeviceInterruptDisable(
         }
         state->Enabled = 0;
     }
+    
     if (state->Bound) {
         status = Syscall_InterruptUnbind(state->Handle);
         if (status != OS_EOK) {
@@ -378,10 +393,12 @@ DeviceInterruptDestroy(
     if (status != OS_EOK || interrupt->State == NULL) {
         return status;
     }
+    
     status = Syscall_InterruptRelease(interrupt->State->Handle);
     if (status != OS_EOK) {
         return status;
     }
+    
     free(interrupt->Vectors);
     free(interrupt->State);
     interrupt->State = NULL;
