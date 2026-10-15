@@ -37,7 +37,9 @@
 #include <os/types/syscall.h>
 #include <threading.h>
 
-DECL_STRUCT(DeviceInterrupt);
+DECL_STRUCT(InterruptAllocationRequest);
+DECL_STRUCT(InterruptAllocationResult);
+DECL_STRUCT(InterruptBindRequest);
 
 struct MemoryMappingParameters;
 
@@ -66,8 +68,12 @@ extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
-extern uuid_t  ScRegisterInterrupt(DeviceInterrupt_t* deviceInterrupt, unsigned int flags);
-extern oserr_t ScUnregisterInterrupt(uuid_t sourceId);
+extern oserr_t ScInterruptAllocate(InterruptAllocationRequest_t*, InterruptAllocationResult_t*);
+extern oserr_t ScInterruptBind(uuid_t, InterruptBindRequest_t*);
+extern oserr_t ScInterruptEnable(uuid_t);
+extern oserr_t ScInterruptDisable(uuid_t);
+extern oserr_t ScInterruptUnbind(uuid_t);
+extern oserr_t ScInterruptRelease(uuid_t);
 extern oserr_t ScGetProcessBaseAddress(uintptr_t* baseAddress);
 
 extern oserr_t ScMapThreadMemoryRegion(uuid_t, uintptr_t, void**, void**);
@@ -140,7 +146,7 @@ extern oserr_t ScDmaSyncForCpu(uuid_t, size_t, size_t);
 extern oserr_t ScDmaUnmap(uuid_t);
 extern oserr_t ScDmaClose(uuid_t);
 
-#define SYSTEM_CALL_COUNT 71
+#define SYSTEM_CALL_COUNT 75
 
 typedef size_t(*SystemCallHandlerFn)(void*,void*,void*,void*,void*);
 
@@ -176,8 +182,8 @@ static struct SystemCallDescriptor {
         DefineSyscall(13, ScIoSpaceAcquire),
         DefineSyscall(14, ScIoSpaceRelease),
         DefineSyscall(15, ScIoSpaceDestroy),
-        DefineSyscall(16, ScRegisterInterrupt),
-        DefineSyscall(17, ScUnregisterInterrupt),
+        DefineSyscall(16, ScInterruptAllocate),
+        DefineSyscall(17, ScInterruptBind),
         DefineSyscall(18, ScGetProcessBaseAddress),
 
         DefineSyscall(19, ScMapThreadMemoryRegion),
@@ -252,7 +258,13 @@ static struct SystemCallDescriptor {
         DefineSyscall(67, ScDmaSyncForDevice),
         DefineSyscall(68, ScDmaSyncForCpu),
         DefineSyscall(69, ScDmaUnmap),
-        DefineSyscall(70, ScDmaClose)
+        DefineSyscall(70, ScDmaClose),
+
+        // Interrupt delivery and resource lifetime
+        DefineSyscall(71, ScInterruptEnable),
+        DefineSyscall(72, ScInterruptDisable),
+        DefineSyscall(73, ScInterruptUnbind),
+        DefineSyscall(74, ScInterruptRelease)
 };
 
 Context_t*

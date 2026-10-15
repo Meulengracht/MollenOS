@@ -39,8 +39,8 @@ _CODE_END
 #define Syscall_IoSpaceAcquire(IoSpace)                                               (oserr_t)syscall1(13, SCPARAM(IoSpace))
 #define Syscall_IoSpaceRelease(IoSpace)                                               (oserr_t)syscall1(14, SCPARAM(IoSpace))
 #define Syscall_IoSpaceDestroy(IoSpaceId)                                             (oserr_t)syscall1(15, SCPARAM(IoSpaceId))
-#define Syscall_InterruptAdd(Descriptor, Flags)                                       (uuid_t)syscall2(16, SCPARAM(Descriptor), SCPARAM(Flags))
-#define Syscall_InterruptRemove(InterruptId)                                          (oserr_t)syscall1(17, SCPARAM(InterruptId))
+#define Syscall_InterruptAllocate(Request, Result)                                    (oserr_t)syscall2(16, SCPARAM(Request), SCPARAM(Result))
+#define Syscall_InterruptBind(Handle, Request)                                      (oserr_t)syscall2(17, SCPARAM(Handle), SCPARAM(Request))
 #define Syscall_GetProcessBaseAddress(BaseAddressOut)                                 (oserr_t)syscall1(18, SCPARAM(BaseAddressOut))
 
 #define Syscall_MapThreadMemoryRegion(ThreadHandle, Address, TopOfStack, PointerOut) (oserr_t)syscall4(19, SCPARAM(ThreadHandle), SCPARAM(Address), SCPARAM(TopOfStack), SCPARAM(PointerOut))
@@ -105,5 +105,12 @@ _CODE_END
 #define Syscall_DmaSyncForCpu(Mapping, Offset, Length)                     (oserr_t)syscall3(68, SCPARAM(Mapping), SCPARAM(Offset), SCPARAM(Length))
 #define Syscall_DmaUnmap(Mapping)                                          (oserr_t)syscall1(69, SCPARAM(Mapping))
 #define Syscall_DmaClose(Context)                                          (oserr_t)syscall1(70, SCPARAM(Context))
+
+// Each interrupt lifetime change has its own entry point so its arguments and
+// permission checks remain explicit at the userspace boundary.
+#define Syscall_InterruptEnable(Handle)                                  (oserr_t)syscall1(71, SCPARAM(Handle))
+#define Syscall_InterruptDisable(Handle)                                 (oserr_t)syscall1(72, SCPARAM(Handle))
+#define Syscall_InterruptUnbind(Handle)                                  (oserr_t)syscall1(73, SCPARAM(Handle))
+#define Syscall_InterruptRelease(Handle)                                 (oserr_t)syscall1(74, SCPARAM(Handle))
 
 #endif //!__INTERNAL_CRT_SYSCALLS__

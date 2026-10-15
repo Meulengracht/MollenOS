@@ -75,7 +75,7 @@ VirtioBlkRecoverDevice(
 /**
  * @brief Create the module event and register the fast interrupt handler.
  *
- * Requires mapped ISR capability resources, InterruptId == UUID_INVALID, and
+ * Requires mapped ISR capability resources, no allocated interrupt, and
  * EventDescriptor == -1. Call before DRIVER_OK so initial completions can wake
  * the module. On failure releases any event created here; on success the device
  * owns the event and interrupt registration until unregister.
@@ -87,11 +87,12 @@ VirtioBlkRegisterInterrupt(
 /**
  * @brief Unregister the fast handler and remove/close its module event.
  *
- * Accepts a partially initialized device. Call once during teardown, before
- * releasing the ISR mapping or device memory. Does not reset the queue or
- * cancel requests; hardware DMA ownership is handled separately.
+ * Accepts a partially initialized device and repeated calls. Stop device
+ * interrupts before calling this, then release the ISR mapping and device memory
+ * only after success. On failure, the allocation and event remain owned so the
+ * caller can retry. Queue reset and request cancellation are handled separately.
  */
-void
+oserr_t
 VirtioBlkUnregisterInterrupt(
     _InOut_ VirtioBlkDevice_t* device);
 

@@ -790,3 +790,46 @@ static int endpoint_cmp(const void* element1, const void* element2)
     const struct USBManagerEndpointToggle* endpoint2 = element2;
     return endpoint1->Address == endpoint2->Address ? 0 : 1;
 }
+
+// Shares the handler setup used by all four USB controller drivers.
+// Each handler needs its controller state, register region and event descriptor;
+// keeping that ordering here gives each driver the same resource-table layout.
+oserr_t
+UsbManagerConfigureInterrupt(
+    _In_ UsbManagerController_t* controller,
+    _In_ InterruptHandler_t     handler,
+    _In_ size_t                 controllerSize)
+{
+    DeviceInterrupt_t* interrupt = &controller->Interrupt;
+    uint32_t           count;
+    oserr_t            status;
+
+    DeviceInterruptInitialize(interrupt, controller->Device);
+    
+    status = DeviceInterruptAllocate(interrupt, 1, 1, INTERRUPT_STRATEGY_INTx, &count);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = DeviceInterruptSetHandler(interrupt, 0, handler);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = DeviceInterruptAddIoResource(interrupt, 0, controller->IoBase);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = DeviceInterruptAddMemoryResource(
+        interrupt,
+        0,
+        (uintptr_t)controller,
+        controllerSize,
+        0
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    return DeviceInterruptSetDescriptor(interrupt, 0, controller->event_descriptor);
+}

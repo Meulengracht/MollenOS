@@ -8,7 +8,7 @@
   FILE_GUID                      = 36B8CF65-4E24-4B0A-AEEA-77A3AE06DF43
   MODULE_TYPE                    = UEFI_APPLICATION
   VERSION_STRING                 = 1.0
-  ENTRY_POINT                    = EfiMain
+  ENTRY_POINT                    = VBootMain
 
 [Sources]
   console.c

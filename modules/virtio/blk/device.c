@@ -166,7 +166,6 @@ VirtioBlkDeviceCreate(
     
     ELEMENT_INIT(&device->Header, (void*)(uintptr_t)busDevice->Base.Id, device);
     device->BusDevice = busDevice;
-    device->InterruptId = UUID_INVALID;
     device->EventDescriptor = -1;
     device->Descriptor.DeviceID = storageDeviceId;
     device->Descriptor.DriverID = GetNativeHandle(__crt_get_server_iod());
@@ -244,7 +243,6 @@ VirtioBlkDeviceDestroy(
 
     // Stop externally visible I/O before tearing down interrupts and queue DMA.
     __UnregisterStorage(device);
-    VirtioBlkUnregisterInterrupt(device);
 
     if (device->Transport.Device != NULL) {
         oserr = VirtioBlkResetRequestQueue(device);
@@ -256,6 +254,13 @@ VirtioBlkDeviceDestroy(
             return;
         }
     }
+    
+    oserr = VirtioBlkUnregisterInterrupt(device);
+    if (oserr != OS_EOK) {
+        ERROR("Refusing Virtio block teardown while its interrupt remains owned");
+        return;
+    }
+    
     VirtioPciTransportDestroy(&device->Transport);
     free(device->BusDevice);
     free(device);

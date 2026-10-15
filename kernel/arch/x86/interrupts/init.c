@@ -35,7 +35,7 @@
 static void
 __InstallSoftwareHandlers(void)
 {
-    DeviceInterrupt_t deviceInterrupt = {{0 } };
+    InterruptDescriptor_t deviceInterrupt = { { 0 } };
     TRACE("__InstallSoftwareHandlers()");
 
     deviceInterrupt.Vectors[0] = INTERRUPT_NONE;

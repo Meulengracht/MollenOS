@@ -139,12 +139,12 @@ __HPETInitializeComparator(
 
 static void
 __AllocateInterrupt(
-        _In_ HPETComparator_t* comparator)
+    _In_ HPETComparator_t* comparator)
 {
-    DeviceInterrupt_t hpetInterrupt;
-    int               i, j;
+    InterruptDescriptor_t hpetInterrupt;
+    int                   i, j;
 
-    memset(&hpetInterrupt, 0, sizeof(DeviceInterrupt_t));
+    memset(&hpetInterrupt, 0, sizeof(InterruptDescriptor_t));
     hpetInterrupt.ResourceTable.Handler = HpInterrupt;
     hpetInterrupt.Context               = comparator;
     hpetInterrupt.Line                  = INTERRUPT_NONE;

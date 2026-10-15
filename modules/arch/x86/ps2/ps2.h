@@ -118,7 +118,6 @@ typedef struct PS2Port {
     int               Index;
     uuid_t            DeviceId;
     DeviceInterrupt_t Interrupt;
-    uuid_t            InterruptId;
     PS2Command_t      ActiveCommand;
     PS2PortState_t    State;
     unsigned int      Signature;
@@ -158,6 +157,16 @@ typedef struct PS2Controller {
 __EXTERN oserr_t
 PS2PortInitialize(
     _In_ PS2Port_t* port);
+
+/**
+ * @brief Installs the port's fast handler after identifying its attached device.
+ * Both keyboard and mouse use the same event, I/O and port-memory layout.
+ */
+oserr_t
+PS2PortRegisterInterrupt(
+    _In_ PS2Port_t*        port,
+    _In_ DeviceIo_t*       data,
+    _In_ InterruptHandler_t handler);
 
 /* PS2PortExecuteCommand 
  * Executes the given ps2 command, handles both retries and commands that

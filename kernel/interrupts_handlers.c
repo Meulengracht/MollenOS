@@ -38,8 +38,8 @@ static queue_t        TxuReusableBin                      = QUEUE_INIT;
 
 irqstatus_t
 ProcessorHaltHandler(
-        _In_ InterruptFunctionTable_t* NotUsed,
-        _In_ void*                     NotUsedEither)
+    _In_ InterruptFunctionTable_t* NotUsed,
+    _In_ void*                      NotUsedEither)
 {
     _CRT_UNUSED(NotUsed);
     _CRT_UNUSED(NotUsedEither);
@@ -49,8 +49,8 @@ ProcessorHaltHandler(
 
 irqstatus_t
 FunctionExecutionInterruptHandler(
-        _In_ InterruptFunctionTable_t* NotUsed,
-        _In_ void*                     NotUsedEither)
+    _In_ InterruptFunctionTable_t* NotUsed,
+    _In_ void*                     NotUsedEither)
 {
     SystemCpuCore_t* Core = CpuCoreCurrent();
     TxuMessage_t*    Message;
@@ -75,16 +75,16 @@ FunctionExecutionInterruptHandler(
 
 oserr_t
 TxuMessageSend(
-        _In_ uuid_t                  CoreId,
-        _In_ SystemCpuFunctionType_t Type,
-        _In_ TxuFunction_t           Function,
-        _In_ void*                   Argument,
-        _In_ int                     Asynchronous)
+    _In_ uuid_t                  CoreId,
+    _In_ SystemCpuFunctionType_t Type,
+    _In_ TxuFunction_t           Function,
+    _In_ void*                   Argument,
+    _In_ int                     Asynchronous)
 {
     SystemCpuCore_t* Core = GetProcessorCore(CoreId);
     element_t*       Element;
     TxuMessage_t*    Message;
-    oserr_t       Status;
+    oserr_t          Status;
     
     assert(Core != NULL);
     assert(Type < CpuFunctionCount);
@@ -133,14 +133,14 @@ TxuMessageSend(
 void
 InitializeInterruptHandlers(void)
 {
-    DeviceInterrupt_t Interrupt = { { 0 } };
-    int               MinimumCount;
-    int               i;
+    InterruptDescriptor_t Interrupt = { { 0 } };
+    int                   MinimumCount;
+    int                   i;
 
     MinimumCount = atomic_load(&GetMachine()->NumberOfCores);
     MinimumCount *= 8; // Allow each core to queue up 8 messages
 
-    // Disable SMP otpimizations, we run too quickly out of cache elements, and we
+    // Disable SMP optimizations, we run too quickly out of cache elements, and we
     // are not allowed to expand the cache as it can cause issues with memory sync.
     // Also set a minimum slab count based on the number of cores in the system
     TxuMessageCache = MemoryCacheCreate("txu_message_cache", sizeof(TxuMessage_t), 0, 

@@ -1,0 +1,49 @@
+/* MollenOS
+ *
+ * Copyright 2017, Philip Meulengracht
+ *
+ * This program is free software : you can redistribute it and / or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation ? , either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ * Interrupt Support Definitions & Structures
+ * - This header describes the base interrupt-structures, prototypes
+ *   and functionality, refer to the individual things for descriptions
+ */
+
+#ifndef __DDK_TYPES_INTERRUPT_H__
+#define __DDK_TYPES_INTERRUPT_H__
+
+#include <ddk/interrupt.h>
+
+typedef struct InterruptAllocationRequest {
+    uuid_t                DeviceId;
+    DeviceInterruptLine_t Line;
+    unsigned int          Flags;
+    uint32_t              Minimum;
+    uint32_t              Optimal;
+    uint32_t              Strategies;
+} InterruptAllocationRequest_t;
+
+typedef struct InterruptAllocationResult {
+    uuid_t   Handle;
+    uint32_t Count;
+    uint32_t Strategy;
+} InterruptAllocationResult_t;
+
+typedef struct InterruptBindRequest {
+    uint32_t                 Index;
+    InterruptResourceTable_t Resources;
+} InterruptBindRequest_t;
+
+#endif //!__DDK_TYPES_INTERRUPT_H__
