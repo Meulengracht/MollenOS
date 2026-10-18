@@ -96,7 +96,7 @@ DeviceInterruptAllocate(
     // Reserve bookkeeping before the system call, following the DMA wrappers'
     // ownership pattern. No allocation can become hidden by a later malloc failure.
     state = calloc(1, sizeof(struct DeviceInterruptState));
-    vectors = calloc(1, sizeof(DeviceInterruptVector));
+    vectors = calloc(1, sizeof(DeviceInterruptVector_t));
     if (state == NULL || vectors == NULL) {
         free(state);
         free(vectors);
