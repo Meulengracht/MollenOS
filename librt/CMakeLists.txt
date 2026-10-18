@@ -80,6 +80,8 @@ endmacro ()
 include (ExternalProject)
 ExternalProject_Add(compiler-rt
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compiler-rt
+    # Declare the archive consumed below so Ninja can track its producer.
+    BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/lib/valicc/${VALI_COMPILER_RT_TARGET}.lib
     CMAKE_ARGS
         -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ToolchainFile.cmake
         -DCMAKE_C_FLAGS=${VALI_COMPILER_RT_C_FLAGS}

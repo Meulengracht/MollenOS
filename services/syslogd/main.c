@@ -25,7 +25,7 @@
 #include <sys_log_service_server.h>
 
 void ServiceInitialize(
-        _In_ struct ServiceStartupOptions* startupOptions)
+    _In_ struct ServiceStartupOptions* startupOptions)
 {
     // Register supported interfaces
     gracht_server_register_protocol(startupOptions->Server, &sys_log_server_protocol);

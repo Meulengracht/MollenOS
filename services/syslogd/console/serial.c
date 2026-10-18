@@ -25,7 +25,7 @@ static struct Screen* g_screen = NULL;
 
 void ScreenInitialize(void)
 {
-
+    
 }
 
 void

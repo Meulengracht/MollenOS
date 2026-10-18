@@ -30,7 +30,7 @@
 // MSVC raises a warning about a nonstandard extension being used for the 0
 // sized element in this array. Disable this for warn-as-error builds.
 #pragma warning(push)
-#pragma warning(disable : 4206)
+#pragma warning(disable : 4200)
 #endif
 
 typedef struct emutls_address_array {
@@ -45,13 +45,15 @@ typedef struct emutls_address_array {
 
 static void emutls_shutdown(emutls_address_array *array);
 
-#if !defined(_WIN32) && !defined(MOLLENOS)
+#ifndef _WIN32
 
 #include <pthread.h>
 
 static pthread_mutex_t emutls_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_key_t emutls_pthread_key;
+#ifdef __BIONIC__
 static bool emutls_key_created = false;
+#endif
 
 typedef unsigned int gcc_word __attribute__((mode(word)));
 typedef unsigned int gcc_pointer __attribute__((mode(pointer)));
@@ -93,7 +95,7 @@ static __inline void emutls_setspecific(emutls_address_array *value) {
   pthread_setspecific(emutls_pthread_key, (void *)value);
 }
 
-static __inline emutls_address_array *emutls_getspecific() {
+static __inline emutls_address_array *emutls_getspecific(void) {
   return (emutls_address_array *)pthread_getspecific(emutls_pthread_key);
 }
 
@@ -117,7 +119,9 @@ static void emutls_key_destructor(void *ptr) {
 static __inline void emutls_init(void) {
   if (pthread_key_create(&emutls_pthread_key, emutls_key_destructor) != 0)
     abort();
+#ifdef __BIONIC__
   emutls_key_created = true;
+#endif
 }
 
 static __inline void emutls_init_once(void) {
@@ -125,62 +129,10 @@ static __inline void emutls_init_once(void) {
   pthread_once(&once, emutls_init);
 }
 
-static __inline void emutls_lock() { pthread_mutex_lock(&emutls_mutex); }
+static __inline void emutls_lock(void) { pthread_mutex_lock(&emutls_mutex); }
 
-static __inline void emutls_unlock() { pthread_mutex_unlock(&emutls_mutex); }
+static __inline void emutls_unlock(void) { pthread_mutex_unlock(&emutls_mutex); }
 
-#elif defined(MOLLENOS)
-#include <threads.h>
-
-static mtx_t emutls_mutex = MUTEX_INIT(mtx_plain);
-static tss_t emutls_pthread_key = TSS_KEY_INVALID;
-
-typedef unsigned int gcc_word __attribute__((mode(word)));
-typedef unsigned int gcc_pointer __attribute__((mode(pointer)));
-
-static __inline void *emutls_memalign_alloc(size_t align, size_t size) {
-    void *base;
-    if ((base = aligned_alloc(align, size)) == NULL) {
-        abort();
-    }
-    return base;
-}
-
-static __inline void emutls_memalign_free(void *base) {
-    free(base);
-}
-
-static void emutls_key_destructor(void* ptr) {
-    emutls_shutdown((emutls_address_array*)ptr);
-    free(ptr);
-}
-
-static __inline void emutls_init(void) {
-    if (tss_create(&emutls_pthread_key, emutls_key_destructor) != OsSuccess) {
-        abort();
-    }
-}
-
-static __inline void emutls_init_once(void) {
-    static once_flag once = ONCE_FLAG_INIT;
-    call_once(&once, emutls_init);
-}
-
-static __inline void emutls_lock() {
-    mtx_lock(&emutls_mutex);
-}
-
-static __inline void emutls_unlock() {
-    mtx_unlock(&emutls_mutex);
-}
-
-static __inline void emutls_setspecific(emutls_address_array *value) {
-    tss_set(emutls_pthread_key, (void*)value);
-}
-
-static __inline emutls_address_array* emutls_getspecific() {
-    return (emutls_address_array*)tss_get(emutls_pthread_key);
-}
 #else // _WIN32
 
 #include <assert.h>
@@ -202,7 +154,7 @@ static void win_error(DWORD last_err, const char *hint) {
                      NULL, last_err, 0, (LPSTR)&buffer, 1, NULL)) {
     fprintf(stderr, "Windows error: %s\n", buffer);
   } else {
-    fprintf(stderr, "Unkown Windows error: %s\n", hint);
+    fprintf(stderr, "Unknown Windows error: %s\n", hint);
   }
   LocalFree(buffer);
 }
@@ -261,16 +213,16 @@ static __inline void emutls_init_once(void) {
   InitOnceExecuteOnce(&once, emutls_init, NULL, NULL);
 }
 
-static __inline void emutls_lock() { EnterCriticalSection(emutls_mutex); }
+static __inline void emutls_lock(void) { EnterCriticalSection(emutls_mutex); }
 
-static __inline void emutls_unlock() { LeaveCriticalSection(emutls_mutex); }
+static __inline void emutls_unlock(void) { LeaveCriticalSection(emutls_mutex); }
 
 static __inline void emutls_setspecific(emutls_address_array *value) {
   if (TlsSetValue(emutls_tls_index, (LPVOID)value) == 0)
     win_abort(GetLastError(), "TlsSetValue");
 }
 
-static __inline emutls_address_array *emutls_getspecific() {
+static __inline emutls_address_array *emutls_getspecific(void) {
   LPVOID value = TlsGetValue(emutls_tls_index);
   if (value == NULL) {
     const DWORD err = GetLastError();
@@ -426,6 +378,21 @@ emutls_get_address_array(uintptr_t index) {
   return array;
 }
 
+#ifndef _WIN32
+// Our emulated TLS implementation relies on local state (e.g. for the pthread
+// key), and if we duplicate this state across different shared libraries,
+// accesses to the same TLS variable from different shared libraries will yield
+// different results (see https://github.com/android/ndk/issues/1551 for an
+// example). __emutls_get_address is the only external entry point for emulated
+// TLS, and by making it default visibility and weak, we can rely on the dynamic
+// linker to coalesce multiple copies at runtime and ensure a single unique copy
+// of TLS state. This is a best effort; it won't work if the user is linking
+// with -Bsymbolic or -Bsymbolic-functions, and it also won't work on Windows,
+// where the dynamic linker has no notion of coalescing weak symbols at runtime.
+// A more robust solution would be to create a separate shared library for
+// emulated TLS, to ensure a single copy of its state.
+__attribute__((visibility("default"), weak))
+#endif
 void *__emutls_get_address(__emutls_control *control) {
   uintptr_t index = emutls_get_index(control);
   emutls_address_array *array = emutls_get_address_array(index--);

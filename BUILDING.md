@@ -60,6 +60,21 @@ make
 
 The above should be enough to build the kernel, services and drivers.
 
+On Windows, use Ninja explicitly from a developer PowerShell with CMake, Ninja,
+and NASM available on PATH:
+
+```powershell
+$env:VALICC = 'C:\Users\the_m\ValiCC'
+cmake -S . -B build/windows -G Ninja -DVALI_ARCH=amd64
+cmake --build build/windows
+```
+
+Use a fresh build directory if an existing one selected MSVC or the Visual Studio
+generator. The OS uses the Vali Clang cross-compiler; the separate host tools
+(such as `mkvafs`, `lzss`, and `file2c`) use a Windows compiler and may use MSVC.
+If NASM is outside PATH, pass `-DCMAKE_ASM_NASM_COMPILER=C:/path/to/nasm.exe`
+when configuring.
+
 ### Building the userspace (optional)
 
 Just building this repository is not enough for the full OS experience. You need to checkout the userspace
