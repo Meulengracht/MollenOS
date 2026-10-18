@@ -3,7 +3,7 @@
 // that it correctly finds out which region (and name and size) the address
 // belongs to.
 // RUN: %clangxx_asan -O0 %s -o %t && %run %t 2>&1
-
+// UNSUPPORTED: msvc
 #include <assert.h>
 #include <sanitizer/asan_interface.h>
 #include <stdio.h>
@@ -23,14 +23,14 @@ int main() {
 
   type = __asan_locate_address(&global_var, name, 100,
                                &region_address, &region_size);
-  assert(0 == strcmp(name, "global_var"));
+  assert(nullptr != strstr(name, "global_var"));
   assert(0 == strcmp(type, "global"));
   assert(region_address == &global_var);
   assert(region_size == sizeof(global_var));
 
   type = __asan_locate_address((char *)(&global_var)+1, name, 100,
                                &region_address, &region_size);
-  assert(0 == strcmp(name, "global_var"));
+  assert(nullptr != strstr(name, "global_var"));
   assert(0 == strcmp(type, "global"));
   assert(region_address == &global_var);
   assert(region_size == sizeof(global_var));

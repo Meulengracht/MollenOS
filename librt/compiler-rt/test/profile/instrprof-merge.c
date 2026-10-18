@@ -3,7 +3,7 @@
 // RUN: llvm-profdata show --all-functions --counts %t.profraw  | FileCheck %s
 
 // FIXME: llvm-profdata exits with "Malformed instrumentation profile data"
-// XFAIL: msvc
+// XFAIL: target={{.*windows.*}}
 
 #include <stdint.h>
 #include <stdio.h>
@@ -37,6 +37,7 @@ void foo(char c) {
 void bar(int M) { g += M; }
 
 int main(int argc, const char *argv[]) {
+  __llvm_profile_test_initialize();
   int i;
   if (argc < 4)
     return 1;

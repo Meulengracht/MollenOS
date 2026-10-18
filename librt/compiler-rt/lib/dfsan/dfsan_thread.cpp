@@ -5,15 +5,13 @@
 #include "dfsan.h"
 #include "sanitizer_common/sanitizer_tls_get_addr.h"
 
-namespace __dfsan {
+using namespace __dfsan;
 
-DFsanThread *DFsanThread::Create(void *start_routine_trampoline,
-                                 thread_callback_t start_routine, void *arg,
+DFsanThread *DFsanThread::Create(thread_callback_t start_routine, void *arg,
                                  bool track_origins) {
   uptr PageSize = GetPageSizeCached();
   uptr size = RoundUpTo(sizeof(DFsanThread), PageSize);
   DFsanThread *thread = (DFsanThread *)MmapOrDie(size, __func__);
-  thread->start_routine_trampoline_ = start_routine_trampoline;
   thread->start_routine_ = start_routine;
   thread->arg_ = arg;
   thread->track_origins_ = track_origins;
@@ -23,13 +21,8 @@ DFsanThread *DFsanThread::Create(void *start_routine_trampoline,
 }
 
 void DFsanThread::SetThreadStackAndTls() {
-  uptr tls_size = 0;
-  uptr stack_size = 0;
-  GetThreadStackAndTls(IsMainThread(), &stack_.bottom, &stack_size, &tls_begin_,
-                       &tls_size);
-  stack_.top = stack_.bottom + stack_size;
-  tls_end_ = tls_begin_ + tls_size;
-
+  GetThreadStackAndTls(IsMainThread(), &stack_.bottom, &stack_.top, &tls_begin_,
+                       &tls_end_);
   int local;
   CHECK(AddrIsInStack((uptr)&local));
 }
@@ -67,8 +60,6 @@ void DFsanThread::Destroy() {
 }
 
 thread_return_t DFsanThread::ThreadStart() {
-  Init();
-
   if (!start_routine_) {
     // start_routine_ == 0 if we're on the main thread or on one of the
     // OS X libdispatch worker threads. But nobody is supposed to call
@@ -76,23 +67,15 @@ thread_return_t DFsanThread::ThreadStart() {
     return 0;
   }
 
-  CHECK(start_routine_trampoline_);
+  // The only argument is void* arg.
+  //
+  // We have never supported propagating the pointer arg as tainted,
+  // __dfsw_pthread_create/__dfso_pthread_create ignore the taint label.
+  // Note that the bytes pointed-to (probably the much more common case)
+  // can still have taint labels attached to them.
+  dfsan_clear_thread_local_state();
 
-  typedef void *(*thread_callback_trampoline_t)(void *, void *, dfsan_label,
-                                                dfsan_label *);
-  typedef void *(*thread_callback_origin_trampoline_t)(
-      void *, void *, dfsan_label, dfsan_label *, dfsan_origin, dfsan_origin *);
-
-  dfsan_label ret_label;
-  if (!track_origins_)
-    return ((thread_callback_trampoline_t)
-                start_routine_trampoline_)((void *)start_routine_, arg_, 0,
-                                           &ret_label);
-
-  dfsan_origin ret_origin;
-  return ((thread_callback_origin_trampoline_t)
-              start_routine_trampoline_)((void *)start_routine_, arg_, 0,
-                                         &ret_label, 0, &ret_origin);
+  return start_routine_(arg_);
 }
 
 DFsanThread::StackBounds DFsanThread::GetStackBounds() const {
@@ -111,7 +94,7 @@ bool DFsanThread::AddrIsInStack(uptr addr) {
 static pthread_key_t tsd_key;
 static bool tsd_key_inited = false;
 
-void DFsanTSDInit(void (*destructor)(void *tsd)) {
+void __dfsan::DFsanTSDInit(void (*destructor)(void *tsd)) {
   CHECK(!tsd_key_inited);
   tsd_key_inited = true;
   CHECK_EQ(0, pthread_key_create(&tsd_key, destructor));
@@ -119,9 +102,9 @@ void DFsanTSDInit(void (*destructor)(void *tsd)) {
 
 static THREADLOCAL DFsanThread *dfsan_current_thread;
 
-DFsanThread *GetCurrentThread() { return dfsan_current_thread; }
+DFsanThread *__dfsan::GetCurrentThread() { return dfsan_current_thread; }
 
-void SetCurrentThread(DFsanThread *t) {
+void __dfsan::SetCurrentThread(DFsanThread *t) {
   // Make sure we do not reset the current DFsanThread.
   CHECK_EQ(0, dfsan_current_thread);
   dfsan_current_thread = t;
@@ -130,7 +113,7 @@ void SetCurrentThread(DFsanThread *t) {
   pthread_setspecific(tsd_key, t);
 }
 
-void DFsanTSDDtor(void *tsd) {
+void __dfsan::DFsanTSDDtor(void *tsd) {
   DFsanThread *t = (DFsanThread *)tsd;
   if (t->destructor_iterations_ > 1) {
     t->destructor_iterations_--;
@@ -142,5 +125,3 @@ void DFsanTSDDtor(void *tsd) {
   atomic_signal_fence(memory_order_seq_cst);
   DFsanThread::TSDDtor(tsd);
 }
-
-}  // namespace __dfsan

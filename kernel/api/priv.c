@@ -251,7 +251,7 @@ ScIoSpaceDestroy(
 
 static oserr_t
 __CopyAndVerifyAllocationRequest(
-    _In_ InterruptAllocationRequest_t* userRequest
+    _In_ InterruptAllocationRequest_t* userRequest,
     _In_ InterruptAllocationRequest_t* kernelRequest)
 {
     oserr_t oserr;

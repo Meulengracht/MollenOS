@@ -47,6 +47,7 @@ struct FuzzingOptions {
   int ReportSlowUnits = 10;
   bool OnlyASCII = false;
   bool Entropic = true;
+  bool ForkCorpusGroups = false;
   size_t EntropicFeatureFrequencyThreshold = 0xFF;
   size_t EntropicNumberOfRarestFeatures = 100;
   bool EntropicScalePerExecTime = false;
@@ -81,6 +82,7 @@ struct FuzzingOptions {
   bool HandleInt = false;
   bool HandleSegv = false;
   bool HandleTerm = false;
+  bool HandleTrap = false;
   bool HandleXfsz = false;
   bool HandleUsr1 = false;
   bool HandleUsr2 = false;

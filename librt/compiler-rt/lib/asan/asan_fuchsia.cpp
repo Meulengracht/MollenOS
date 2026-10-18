@@ -14,37 +14,44 @@
 #include "sanitizer_common/sanitizer_fuchsia.h"
 #if SANITIZER_FUCHSIA
 
-#include "asan_interceptors.h"
-#include "asan_internal.h"
-#include "asan_stack.h"
-#include "asan_thread.h"
-
 #include <limits.h>
 #include <zircon/sanitizer.h>
 #include <zircon/syscalls.h>
 #include <zircon/threads.h>
 
+#  include "asan_interceptors.h"
+#  include "asan_internal.h"
+#  include "asan_stack.h"
+#  include "asan_thread.h"
+#  include "lsan/lsan_common.h"
+
+namespace __sanitizer {
+// ASan doesn't need to do anything else special in the startup hook.
+void EarlySanitizerInit() {}
+}  // namespace __sanitizer
+
 namespace __asan {
 
-// The system already set up the shadow memory for us.
-// __sanitizer::GetMaxUserVirtualAddress has already been called by
-// AsanInitInternal->InitializeHighMemEnd (asan_rtl.cpp).
-// Just do some additional sanity checks here.
 void InitializeShadowMemory() {
-  if (Verbosity()) PrintAddressSpaceLayout();
+  // Explicitly setup shadow here right beforer any of the ShadowBounds members
+  // are used.
+  InitShadowBounds();
 
-  // Make sure SHADOW_OFFSET doesn't use __asan_shadow_memory_dynamic_address.
-  __asan_shadow_memory_dynamic_address = kDefaultShadowSentinel;
-  DCHECK(kLowShadowBeg != kDefaultShadowSentinel);
-  __asan_shadow_memory_dynamic_address = kLowShadowBeg;
+  if (Verbosity())
+    PrintAddressSpaceLayout();
+
+  // TODO(https://fxbug.dev/42085278): Shadow on Fuchsia starts as zero for now.
+  // __asan_shadow_memory_dynamic_address is an uninitialized global that's
+  // zero. This is temporary and will be changed to a non-zero value in the
+  // future.
 
   CHECK_EQ(kShadowGapEnd, kHighShadowBeg - 1);
   CHECK_EQ(kHighMemEnd, __sanitizer::ShadowBounds.memory_limit - 1);
   CHECK_EQ(kHighMemBeg, __sanitizer::ShadowBounds.shadow_limit);
   CHECK_EQ(kHighShadowBeg, __sanitizer::ShadowBounds.shadow_base);
   CHECK_EQ(kShadowGapEnd, __sanitizer::ShadowBounds.shadow_base - 1);
-  CHECK_EQ(kLowShadowEnd, 0);
-  CHECK_EQ(kLowShadowBeg, 0);
+  CHECK_EQ(kLowShadowEnd, MEM_TO_SHADOW(kLowMemEnd));
+  CHECK_EQ(kLowShadowBeg, __asan_shadow_memory_dynamic_address);
 }
 
 void AsanApplyToGlobals(globals_op_fptr op, const void *needle) {
@@ -55,14 +62,39 @@ void AsanCheckDynamicRTPrereqs() {}
 void AsanCheckIncompatibleRT() {}
 void InitializeAsanInterceptors() {}
 
-void *AsanDoesNotSupportStaticLinkage() { return nullptr; }
-
 void InitializePlatformExceptionHandlers() {}
 void AsanOnDeadlySignal(int signo, void *siginfo, void *context) {
   UNIMPLEMENTED();
 }
 
-bool PlatformUnpoisonStacks() { return false; }
+bool PlatformUnpoisonStacks() {
+  // The current sp might not point to the default stack. This
+  // could be because we are in a crash stack from fuzzing for example.
+  // Unpoison the default stack and the current stack page.
+  AsanThread *curr_thread = GetCurrentThread();
+  CHECK(curr_thread != nullptr);
+  uptr top = curr_thread->stack_top();
+  uptr bottom = curr_thread->stack_bottom();
+  // The default stack grows from top to bottom. (bottom < top).
+
+  uptr local_stack = reinterpret_cast<uptr>(__builtin_frame_address(0));
+  if (local_stack >= bottom && local_stack <= top) {
+    // The current stack is the default stack.
+    // We only need to unpoison from where we are using until the end.
+    bottom = RoundDownTo(local_stack, GetPageSize());
+    UnpoisonStack(bottom, top, "default");
+  } else {
+    // The current stack is not the default stack.
+    // Unpoison the entire default stack and the current stack page.
+    UnpoisonStack(bottom, top, "default");
+    bottom = RoundDownTo(local_stack, GetPageSize());
+    top = bottom + GetPageSize();
+    UnpoisonStack(bottom, top, "unknown");
+    return true;
+  }
+
+  return false;
+}
 
 // We can use a plain thread_local variable for TSD.
 static thread_local void *per_thread;
@@ -90,14 +122,11 @@ struct AsanThread::InitOptions {
 
 // Shared setup between thread creation and startup for the initial thread.
 static AsanThread *CreateAsanThread(StackTrace *stack, u32 parent_tid,
-                                    uptr user_id, bool detached,
-                                    const char *name) {
+                                    bool detached, const char *name) {
   // In lieu of AsanThread::Create.
   AsanThread *thread = (AsanThread *)MmapOrDie(AsanThreadMmapSize(), __func__);
 
-  AsanThreadContext::CreateThreadContextArgs args = {thread, stack};
-  u32 tid =
-      asanThreadRegistry().CreateThread(user_id, detached, parent_tid, &args);
+  u32 tid = asanThreadRegistry().CreateThread(0, detached, parent_tid, thread);
   asanThreadRegistry().SetThreadName(tid, name);
 
   return thread;
@@ -124,7 +153,7 @@ AsanThread *CreateMainThread() {
   CHECK_NE(__sanitizer::MainThreadStackBase, 0);
   CHECK_GT(__sanitizer::MainThreadStackSize, 0);
   AsanThread *t = CreateAsanThread(
-      nullptr, 0, reinterpret_cast<uptr>(self), true,
+      nullptr, 0, true,
       _zx_object_get_property(thrd_get_zx_handle(self), ZX_PROP_NAME, name,
                               sizeof(name)) == ZX_OK
           ? name
@@ -148,13 +177,13 @@ static void *BeforeThreadCreateHook(uptr user_id, bool detached,
                                     uptr stack_size) {
   EnsureMainThreadIDIsCorrect();
   // Strict init-order checking is thread-hostile.
-  if (flags()->strict_init_order) StopInitOrderChecking();
+  if (flags()->strict_init_order)
+    StopInitOrderChecking();
 
   GET_STACK_TRACE_THREAD;
   u32 parent_tid = GetCurrentTidOrInvalid();
 
-  AsanThread *thread =
-      CreateAsanThread(&stack, parent_tid, user_id, detached, name);
+  AsanThread *thread = CreateAsanThread(&stack, parent_tid, detached, name);
 
   // On other systems, AsanThread::Init() is called from the new
   // thread itself.  But on Fuchsia we already know the stack address
@@ -209,7 +238,19 @@ void FlushUnneededASanShadowMemory(uptr p, uptr size) {
   __sanitizer_fill_shadow(p, size, 0, 0);
 }
 
+// On Fuchsia, leak detection is done by a special hook after atexit hooks.
+// So this doesn't install any atexit hook like on other platforms.
+void InstallAtExitCheckLeaks() {}
+
+void InstallAtForkHandler() {}
+
 }  // namespace __asan
+
+namespace __lsan {
+
+bool UseExitcodeOnLeak() { return __asan::flags()->halt_on_error; }
+
+}  // namespace __lsan
 
 // These are declared (in extern "C") by <zircon/sanitizer.h>.
 // The system runtime will call our definitions directly.

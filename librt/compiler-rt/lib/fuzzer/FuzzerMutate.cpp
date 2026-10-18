@@ -101,7 +101,7 @@ size_t MutationDispatcher::Mutate_CustomCrossOver(uint8_t *Data, size_t Size,
 
   if (!NewSize)
     return 0;
-  assert(NewSize <= MaxSize && "CustomCrossOver returned overisized unit");
+  assert(NewSize <= MaxSize && "CustomCrossOver returned oversized unit");
   memcpy(Data, U.data(), NewSize);
   return NewSize;
 }
@@ -413,9 +413,9 @@ size_t ChangeBinaryInteger(uint8_t *Data, size_t Size, Random &Rand) {
     T Add = static_cast<T>(Rand(21));
     Add -= 10;
     if (Rand.RandBool())
-      Val = Bswap(T(Bswap(Val) + Add)); // Add assuming different endiannes.
+      Val = Bswap(T(Bswap(Val) + Add)); // Add assuming different endianness.
     else
-      Val = Val + Add;               // Add assuming current endiannes.
+      Val = Val + Add;               // Add assuming current endianness.
     if (Add == 0 || Rand.RandBool()) // Maybe negate.
       Val = -Val;
   }
@@ -463,7 +463,7 @@ size_t MutationDispatcher::Mutate_CrossOver(uint8_t *Data, size_t Size,
     default: assert(0);
   }
   assert(NewSize > 0 && "CrossOver returned empty unit");
-  assert(NewSize <= MaxSize && "CrossOver returned overisized unit");
+  assert(NewSize <= MaxSize && "CrossOver returned oversized unit");
   return NewSize;
 }
 
@@ -485,7 +485,7 @@ void MutationDispatcher::RecordSuccessfulMutationSequence() {
 }
 
 void MutationDispatcher::PrintRecommendedDictionary() {
-  Vector<DictionaryEntry> V;
+  std::vector<DictionaryEntry> V;
   for (auto &DE : PersistentAutoDictionary)
     if (!ManualDictionary.ContainsWord(DE.GetW()))
       V.push_back(DE);
@@ -521,7 +521,7 @@ void MutationDispatcher::PrintMutationSequence(bool Verbose) {
 
 std::string MutationDispatcher::MutationSequence() {
   std::string MS;
-  for (auto M : CurrentMutatorSequence) {
+  for (const auto &M : CurrentMutatorSequence) {
     MS += M.Name;
     MS += "-";
   }
@@ -540,7 +540,7 @@ size_t MutationDispatcher::DefaultMutate(uint8_t *Data, size_t Size,
 // Mutates Data in place, returns new size.
 size_t MutationDispatcher::MutateImpl(uint8_t *Data, size_t Size,
                                       size_t MaxSize,
-                                      Vector<Mutator> &Mutators) {
+                                      std::vector<Mutator> &Mutators) {
   assert(MaxSize > 0);
   // Some mutations may fail (e.g. can't insert more bytes if Size == MaxSize),
   // in which case they will return 0.
@@ -562,7 +562,7 @@ size_t MutationDispatcher::MutateImpl(uint8_t *Data, size_t Size,
 // Mask represents the set of Data bytes that are worth mutating.
 size_t MutationDispatcher::MutateWithMask(uint8_t *Data, size_t Size,
                                           size_t MaxSize,
-                                          const Vector<uint8_t> &Mask) {
+                                          const std::vector<uint8_t> &Mask) {
   size_t MaskedSize = std::min(Size, Mask.size());
   // * Copy the worthy bytes into a temporary array T
   // * Mutate T

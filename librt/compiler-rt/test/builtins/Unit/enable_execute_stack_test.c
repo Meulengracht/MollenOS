@@ -10,13 +10,26 @@ extern void __enable_execute_stack(void* addr);
 
 typedef int (*pfunc)(void);
 
+#ifdef __arm64ec__
+// On ARM64EC, we need the x86_64 version of this function, but the compiler
+// would normally generate the AArch64 variant, so we hardcode it here.
+static char func1[] = {
+    0xb8, 0x01, 0x00, 0x00, 0x00, // movl    $0x1, %eax
+    0xc3                          // retq
+};
+static char func2[] = {
+    0xb8, 0x02, 0x00, 0x00, 0x00, // movl    $0x2, %eax
+    0xc3                          // retq
+};
+#else
 // Make these static to avoid ILT jumps for incremental linking on Windows.
 static int func1() { return 1; }
 static int func2() { return 2; }
+#endif
 
 void *__attribute__((noinline))
 memcpy_f(void *dst, const void *src, size_t n) {
-// ARM and MIPS nartually align functions, but use the LSB for ISA selection
+// ARM and MIPS naturally align functions, but use the LSB for ISA selection
 // (THUMB, MIPS16/uMIPS respectively).  Ensure that the ISA bit is ignored in
 // the memcpy
 #if defined(__arm__) || defined(__mips__)
@@ -29,7 +42,11 @@ memcpy_f(void *dst, const void *src, size_t n) {
 
 int main()
 {
+#if defined(__ve__)
+    unsigned char execution_buffer[128] __attribute__((__aligned__(8)));
+#else
     unsigned char execution_buffer[128];
+#endif
     // mark stack page containing execution_buffer to be executable
     __enable_execute_stack(execution_buffer);
 	

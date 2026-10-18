@@ -10,7 +10,7 @@ Building Compiler-RT
 .. _build instructions:
 
 The instructions on this page are aimed at vendors who ship Compiler-RT as part of an
-operating system distribution, a toolchain or similar shipping vehicules. If you
+operating system distribution, a toolchain or similar shipping vehicles. If you
 are a user merely trying to use Compiler-RT in your program, you most likely want to
 refer to your vendor's documentation, or to the general documentation for using
 LLVM, Clang, the various santizers, etc.
@@ -79,6 +79,21 @@ Compiler-RT specific options
 
   Path where Compiler-RT data should be installed. If a relative
   path, relative to ``COMPILER_RT_INSTALL_PATH``.
+
+.. option:: COMPILER_RT_INCLUDE_TESTS:BOOL
+
+  **Default**: ``LLVM_INCLUDE_TESTS`` in LLVM builds, ``OFF`` in standalone builds.
+
+  Generate and build compiler-rt tests. If ``OFF``,
+  ``COMPILER_RT_ENABLE_TEST_SUITES`` has no effect.
+
+.. option:: COMPILER_RT_ENABLE_TEST_SUITES:STRING
+
+  **Default**: ``all``
+
+  Semicolon-separated list of test suites to enable, or ``all`` to enable all
+  test suites.
+  Example: ``-DCOMPILER_RT_ENABLE_TEST_SUITES="asan;ubsan;lsan"``
 
 .. _LLVM-specific variables:
 

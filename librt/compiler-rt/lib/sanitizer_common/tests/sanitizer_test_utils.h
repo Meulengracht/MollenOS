@@ -72,9 +72,8 @@ inline void break_optimization(void *arg) {
 
 // This function returns its parameter but in such a way that compiler
 // can not prove it.
-template<class T>
-NOINLINE
-static T Ident(T t) {
+template <class T>
+NOINLINE T Ident(T t) {
   T ret = t;
   break_optimization(&ret);
   return ret;
@@ -127,8 +126,8 @@ static inline uint32_t my_rand() {
 # define SANITIZER_TEST_HAS_PRINTF_L 0
 #endif
 
-#if !defined(_MSC_VER)
-# define SANITIZER_TEST_HAS_STRNDUP 1
+#if !defined(_WIN32)
+#  define SANITIZER_TEST_HAS_STRNDUP 1
 #else
 # define SANITIZER_TEST_HAS_STRNDUP 0
 #endif

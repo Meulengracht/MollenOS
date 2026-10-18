@@ -11,6 +11,13 @@
 //===----------------------------------------------------------------------===//
 #include "asan_test_utils.h"
 
+#ifdef __sparc__
+// Tests using unaligned accesses cannot work on strict-alignment targets.
+#define SKIP_ON_STRICT_ALIGNMENT(x) DISABLED_##x
+#else
+#define SKIP_ON_STRICT_ALIGNMENT(x) x
+#endif
+
 NOINLINE void asan_write_sized_aligned(uint8_t *p, size_t size) {
   EXPECT_EQ(0U, ((uintptr_t)p % size));
   if      (size == 1) asan_write((uint8_t*)p);
@@ -30,7 +37,7 @@ NOINLINE void oob_test(int size, int off) {
 
 static std::string GetLeftOOBMessage(int off) {
   char str[100];
-  sprintf(str, "is located.*%d byte.*to the left", off);
+  sprintf(str, "is located.*%d byte.*before", off);
   return str;
 }
 
@@ -38,12 +45,12 @@ static std::string GetRightOOBMessage(int off) {
   char str[100];
 #if !defined(_WIN32)
   // FIXME: Fix PR42868 and remove SEGV match.
-  sprintf(str, "is located.*%d byte.*to the right|SEGV", off);
+  sprintf(str, "is located.*%d byte.*after|SEGV", off);
 #else
   // `|` doesn't work in googletest's regexes on Windows,
   // see googletest/docs/advanced.md#regular-expression-syntax
   // But it's not needed on Windows anyways.
-  sprintf(str, "is located.*%d byte.*to the right", off);
+  sprintf(str, "is located.*%d byte.*after", off);
 #endif
   return str;
 }
@@ -79,7 +86,7 @@ TEST(AddressSanitizer, OOB_char) {
   OOBTest<U1>();
 }
 
-TEST(AddressSanitizer, OOB_int) {
+TEST(AddressSanitizer, SKIP_ON_STRICT_ALIGNMENT(OOB_int)) {
   OOBTest<U4>();
 }
 

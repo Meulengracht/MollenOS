@@ -1,4 +1,4 @@
-// RUN: %clang -fsanitize=implicit-signed-integer-truncation,implicit-integer-sign-change %s -o %t && %run %t 2>&1 | FileCheck %s --check-prefixes=CHECK
+// RUN: %clang_min_runtime -fsanitize=implicit-signed-integer-truncation,implicit-integer-sign-change %s -o %t && %run %t 2>&1 | FileCheck %s --check-prefixes=CHECK
 
 #include <stdint.h>
 
@@ -10,7 +10,7 @@ int main() {
 
   // Positive tests.
   int8_t t0 = (uint32_t)-1;
-// CHECK: implicit-conversion
+// CHECK: implicit-conversion by 0x{{[[:xdigit:]]+$}}
 // CHECK-NOT: implicit-conversion
 
   return 0;

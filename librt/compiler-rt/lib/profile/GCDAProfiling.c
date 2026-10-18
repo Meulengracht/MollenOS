@@ -3,9 +3,9 @@
 |* Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 |* See https://llvm.org/LICENSE.txt for license information.
 |* SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-|* 
+|*
 |*===----------------------------------------------------------------------===*|
-|* 
+|*
 |* This file implements the call back routines for the gcov profiling
 |* instrumentation pass. Link against this library when running code through
 |* the -insert-gcov-profiling LLVM pass.
@@ -20,6 +20,11 @@
 \*===----------------------------------------------------------------------===*/
 
 #if !defined(__Fuchsia__)
+
+#if defined(__linux__)
+// For fdopen()
+#define _DEFAULT_SOURCE
+#endif
 
 #include <errno.h>
 #include <fcntl.h>
@@ -65,7 +70,7 @@ static char *filename = NULL;
 
 /*
  * The current file we're outputting.
- */ 
+ */
 static FILE *output_file = NULL;
 
 /*
@@ -83,7 +88,7 @@ static HANDLE mmap_handle = NULL;
 #endif
 static int fd = -1;
 
-typedef void (*fn_ptr)();
+typedef void (*fn_ptr)(void);
 
 typedef void* dynamic_object_id;
 // The address of this variable identifies a given dynamic object.
@@ -183,7 +188,7 @@ static void write_64bit_value(uint64_t i) {
   write_32bit_value(hi);
 }
 
-static uint32_t read_32bit_value() {
+static uint32_t read_32bit_value(void) {
   uint32_t val;
 
   if (new_file)
@@ -194,7 +199,7 @@ static uint32_t read_32bit_value() {
   return val;
 }
 
-static uint64_t read_64bit_value() {
+static uint64_t read_64bit_value(void) {
   // GCOV uses a lo-/hi-word format even on big-endian systems.
   // See also GCOVBuffer::readInt64 in LLVM.
   uint32_t lo = read_32bit_value();
@@ -218,7 +223,7 @@ static char *mangle_filename(const char *orig_filename) {
   return new_filename;
 }
 
-static int map_file() {
+static int map_file(void) {
   fseek(output_file, 0L, SEEK_END);
   file_size = ftell(output_file);
 
@@ -262,13 +267,8 @@ static int map_file() {
   return 0;
 }
 
-static void unmap_file() {
+static void unmap_file(void) {
 #if defined(_WIN32)
-  if (!FlushViewOfFile(write_buffer, file_size)) {
-    fprintf(stderr, "profiling: %s: cannot flush mapped view: %lu\n", filename,
-            GetLastError());
-  }
-
   if (!UnmapViewOfFile(write_buffer)) {
     fprintf(stderr, "profiling: %s: cannot unmap mapped view: %lu\n", filename,
             GetLastError());
@@ -449,7 +449,7 @@ void llvm_gcda_emit_arcs(uint32_t num_counters, uint64_t *counters) {
 }
 
 COMPILER_RT_VISIBILITY
-void llvm_gcda_summary_info() {
+void llvm_gcda_summary_info(void) {
   uint32_t runs = 1;
   static uint32_t run_counted = 0; // We only want to increase the run count once.
   uint32_t val = 0;
@@ -513,7 +513,7 @@ void llvm_gcda_summary_info() {
 }
 
 COMPILER_RT_VISIBILITY
-void llvm_gcda_end_file() {
+void llvm_gcda_end_file(void) {
   /* Write out EOF record. */
   if (output_file) {
     write_bytes("\0\0\0\0\0\0\0\0", 8);
@@ -589,7 +589,7 @@ void llvm_reset_counters(void) {
   }
 }
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__wasm__)
 COMPILER_RT_VISIBILITY
 pid_t __gcov_fork() {
   pid_t parent_pid = getpid();
@@ -622,12 +622,31 @@ void llvm_gcov_init(fn_ptr wfn, fn_ptr rfn) {
     atexit_ran = 1;
 
     /* Make sure we write out the data and delete the data structures. */
-    atexit(llvm_delete_reset_function_list);
+    lprofAtExit(llvm_delete_reset_function_list);
 #ifdef _WIN32
-    atexit(llvm_writeout_and_clear);
+    lprofAtExit(llvm_writeout_and_clear);
 #endif
   }
 }
+
+#if defined(_AIX)
+COMPILER_RT_VISIBILITY __attribute__((constructor)) void
+__llvm_profile_gcov_initialize() {
+  const __llvm_gcov_init_func_struct *InitFuncStart =
+      __llvm_profile_begin_covinit();
+  const __llvm_gcov_init_func_struct *InitFuncEnd =
+      __llvm_profile_end_covinit();
+
+  for (const __llvm_gcov_init_func_struct *Ptr = InitFuncStart;
+       Ptr != InitFuncEnd; ++Ptr) {
+    fn_ptr wfn = (fn_ptr)Ptr->WriteoutFunction;
+    fn_ptr rfn = (fn_ptr)Ptr->ResetFunction;
+    if (!(wfn && rfn))
+      continue;
+    llvm_gcov_init(wfn, rfn);
+  }
+}
+#endif
 
 void __gcov_dump(void) {
   for (struct fn_node *f = writeout_fn_list.head; f; f = f->next)

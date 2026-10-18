@@ -1,7 +1,8 @@
-// RUN: %clangxx_asan -O1 -fsanitize-address-use-after-scope %s -o %t && %run %t
-//
-// Not expected to work yet with HWAsan.
-// XFAIL: *
+// This is the ASAN test of the same name ported to HWAsan.
+
+// RUN: %clangxx_hwasan -O1 %s -o %t && %run %t
+
+// REQUIRES: aarch64-target-arch || riscv64-target-arch
 
 #include <stdio.h>
 #include <stdlib.h>

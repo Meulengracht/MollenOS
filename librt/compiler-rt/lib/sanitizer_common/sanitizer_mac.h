@@ -9,12 +9,12 @@
 // This file is shared between various sanitizers' runtime libraries and
 // provides definitions for OSX-specific functions.
 //===----------------------------------------------------------------------===//
-#ifndef SANITIZER_MAC_H
-#define SANITIZER_MAC_H
+#ifndef SANITIZER_APPLE_H
+#define SANITIZER_APPLE_H
 
 #include "sanitizer_common.h"
 #include "sanitizer_platform.h"
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 #include "sanitizer_posix.h"
 
 namespace __sanitizer {
@@ -37,15 +37,18 @@ struct VersionBase {
 
   VersionBase(u16 major, u16 minor) : major(major), minor(minor) {}
 
-  bool operator==(const VersionType &other) const {
-    return major == other.major && minor == other.minor;
-  }
   bool operator>=(const VersionType &other) const {
     return major > other.major ||
            (major == other.major && minor >= other.minor);
   }
   bool operator<(const VersionType &other) const { return !(*this >= other); }
 };
+
+template <typename VersionType>
+bool operator==(const VersionBase<VersionType> &self,
+                const VersionBase<VersionType> &other) {
+  return self.major == other.major && self.minor == other.minor;
+}
 
 struct MacosVersion : VersionBase<MacosVersion> {
   MacosVersion(u16 major, u16 minor) : VersionBase(major, minor) {}
@@ -55,14 +58,30 @@ struct DarwinKernelVersion : VersionBase<DarwinKernelVersion> {
   DarwinKernelVersion(u16 major, u16 minor) : VersionBase(major, minor) {}
 };
 
+struct ReservedRange {
+  uptr beg, end;
+};
+
 MacosVersion GetMacosAlignedVersion();
 DarwinKernelVersion GetDarwinKernelVersion();
+void GetAppReservedRanges(InternalMmapVector<ReservedRange>& ranges);
 
 char **GetEnviron();
 
 void RestrictMemoryToMaxAddress(uptr max_address);
 
+using ThreadEventCallback = void (*)(uptr thread);
+using ThreadCreateEventCallback = void (*)(uptr thread, bool gcd_worker);
+struct ThreadEventCallbacks {
+  ThreadCreateEventCallback create;
+  ThreadEventCallback start;
+  ThreadEventCallback terminate;
+  ThreadEventCallback destroy;
+};
+
+void InstallPthreadIntrospectionHook(const ThreadEventCallbacks &callbacks);
+
 }  // namespace __sanitizer
 
-#endif  // SANITIZER_MAC
-#endif  // SANITIZER_MAC_H
+#endif  // SANITIZER_APPLE
+#endif  // SANITIZER_APPLE_H

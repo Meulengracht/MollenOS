@@ -120,7 +120,7 @@ class DeadlockDetectorTLS {
     u32 lock;
     u32 stk;
   };
-  LockWithContext all_locks_with_contexts_[64];
+  LockWithContext all_locks_with_contexts_[128];
   uptr n_all_locks_;
 };
 
@@ -293,7 +293,7 @@ class DeadlockDetector {
   }
 
   // Returns true iff dtls is empty (no locks are currently held) and we can
-  // add the node to the currently held locks w/o chanding the global state.
+  // add the node to the currently held locks w/o changing the global state.
   // This operation is thread-safe as it only touches the dtls.
   bool onFirstLock(DeadlockDetectorTLS<BV> *dtls, uptr node, u32 stk = 0) {
     if (!dtls->empty()) return false;

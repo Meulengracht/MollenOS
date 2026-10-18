@@ -73,7 +73,7 @@ void DebugMutexInit() {
   // Build adjacency matrix.
   bool leaf[kMutexTypeMax];
   internal_memset(&leaf, 0, sizeof(leaf));
-  int cnt[kMutexTypeMax] = {};
+  int cnt[kMutexTypeMax];
   internal_memset(&cnt, 0, sizeof(cnt));
   for (int t = 0; t < kMutexTypeMax; t++) {
     mutex_type_count = t;
@@ -174,7 +174,7 @@ struct InternalDeadlockDetector {
     if (max_idx != MutexInvalid && !mutex_can_lock[max_idx][type]) {
       Printf("%s: internal deadlock: can't lock %s under %s mutex\n", SanitizerToolName,
              mutex_meta[type].name, mutex_meta[max_idx].name);
-      PrintMutexPC(pc);
+      PrintMutexPC(locked[max_idx].pc);
       CHECK(0);
     }
     locked[type].seq = ++sequence;
@@ -212,8 +212,10 @@ struct InternalDeadlockDetector {
     return initialized > 0;
   }
 };
-
-static THREADLOCAL InternalDeadlockDetector deadlock_detector;
+// This variable is used by the __tls_get_addr interceptor, so cannot use the
+// global-dynamic TLS model, as that would result in crashes.
+__attribute__((tls_model("initial-exec"))) static THREADLOCAL
+    InternalDeadlockDetector deadlock_detector;
 
 void CheckedMutex::LockImpl(uptr pc) { deadlock_detector.Lock(type_, pc); }
 

@@ -1,5 +1,5 @@
-// RUN: %clangxx_asan -O1 -fsanitize-address-use-after-scope %s -o %t && \
-// RUN:     not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan %if MSVC %{ /Od %} %else %{ -O1 %} \
+// RUN:     %s -o %t && not %run %t 2>&1 | FileCheck %s
 
 int *p[3];
 

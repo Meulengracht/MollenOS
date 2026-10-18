@@ -3,171 +3,13 @@
 
 #include "sanitizer_common/sanitizer_asm.h"
 
+.att_syntax
+
 #if !defined(__APPLE__)
 .section .text
 #else
 .section __TEXT,__text
 #endif
-
-ASM_HIDDEN(__tsan_trace_switch)
-.globl ASM_SYMBOL(__tsan_trace_switch_thunk)
-ASM_SYMBOL(__tsan_trace_switch_thunk):
-  CFI_STARTPROC
-  # Save scratch registers.
-  push %rax
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rax, 0)
-  push %rcx
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rcx, 0)
-  push %rdx
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rdx, 0)
-  push %rsi
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rsi, 0)
-  push %rdi
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rdi, 0)
-  push %r8
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r8, 0)
-  push %r9
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r9, 0)
-  push %r10
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r10, 0)
-  push %r11
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r11, 0)
-  # Align stack frame.
-  push %rbx  # non-scratch
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rbx, 0)
-  mov %rsp, %rbx  # save current rsp
-  CFI_DEF_CFA_REGISTER(%rbx)
-  shr $4, %rsp  # clear 4 lsb, align to 16
-  shl $4, %rsp
-
-  call ASM_SYMBOL(__tsan_trace_switch)
-
-  # Unalign stack frame back.
-  mov %rbx, %rsp  # restore the original rsp
-  CFI_DEF_CFA_REGISTER(%rsp)
-  pop %rbx
-  CFI_ADJUST_CFA_OFFSET(-8)
-  # Restore scratch registers.
-  pop %r11
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %r10
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %r9
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %r8
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rdi
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rsi
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rdx
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rcx
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rax
-  CFI_ADJUST_CFA_OFFSET(-8)
-  CFI_RESTORE(%rax)
-  CFI_RESTORE(%rbx)
-  CFI_RESTORE(%rcx)
-  CFI_RESTORE(%rdx)
-  CFI_RESTORE(%rsi)
-  CFI_RESTORE(%rdi)
-  CFI_RESTORE(%r8)
-  CFI_RESTORE(%r9)
-  CFI_RESTORE(%r10)
-  CFI_RESTORE(%r11)
-  ret
-  CFI_ENDPROC
-
-ASM_HIDDEN(__tsan_report_race)
-.globl ASM_SYMBOL(__tsan_report_race_thunk)
-ASM_SYMBOL(__tsan_report_race_thunk):
-  CFI_STARTPROC
-  # Save scratch registers.
-  push %rax
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rax, 0)
-  push %rcx
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rcx, 0)
-  push %rdx
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rdx, 0)
-  push %rsi
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rsi, 0)
-  push %rdi
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rdi, 0)
-  push %r8
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r8, 0)
-  push %r9
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r9, 0)
-  push %r10
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r10, 0)
-  push %r11
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%r11, 0)
-  # Align stack frame.
-  push %rbx  # non-scratch
-  CFI_ADJUST_CFA_OFFSET(8)
-  CFI_REL_OFFSET(%rbx, 0)
-  mov %rsp, %rbx  # save current rsp
-  CFI_DEF_CFA_REGISTER(%rbx)
-  shr $4, %rsp  # clear 4 lsb, align to 16
-  shl $4, %rsp
-
-  call ASM_SYMBOL(__tsan_report_race)
-
-  # Unalign stack frame back.
-  mov %rbx, %rsp  # restore the original rsp
-  CFI_DEF_CFA_REGISTER(%rsp)
-  pop %rbx
-  CFI_ADJUST_CFA_OFFSET(-8)
-  # Restore scratch registers.
-  pop %r11
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %r10
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %r9
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %r8
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rdi
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rsi
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rdx
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rcx
-  CFI_ADJUST_CFA_OFFSET(-8)
-  pop %rax
-  CFI_ADJUST_CFA_OFFSET(-8)
-  CFI_RESTORE(%rax)
-  CFI_RESTORE(%rbx)
-  CFI_RESTORE(%rcx)
-  CFI_RESTORE(%rdx)
-  CFI_RESTORE(%rsi)
-  CFI_RESTORE(%rdi)
-  CFI_RESTORE(%r8)
-  CFI_RESTORE(%r9)
-  CFI_RESTORE(%r10)
-  CFI_RESTORE(%r11)
-  ret
-  CFI_ENDPROC
 
 ASM_HIDDEN(__tsan_setjmp)
 #if defined(__NetBSD__)
@@ -185,6 +27,7 @@ ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(setjmp))
 ASM_SYMBOL_INTERCEPTOR(setjmp):
 #endif
   CFI_STARTPROC
+  _CET_ENDBR
   // save env parameter
   push %rdi
   CFI_ADJUST_CFA_OFFSET(8)
@@ -226,6 +69,7 @@ ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(setjmp))
 ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(_setjmp))
 ASM_SYMBOL_INTERCEPTOR(_setjmp):
   CFI_STARTPROC
+  _CET_ENDBR
   // save env parameter
   push %rdi
   CFI_ADJUST_CFA_OFFSET(8)
@@ -267,6 +111,7 @@ ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(sigsetjmp))
 ASM_SYMBOL_INTERCEPTOR(sigsetjmp):
 #endif
   CFI_STARTPROC
+  _CET_ENDBR
   // save env parameter
   push %rdi
   CFI_ADJUST_CFA_OFFSET(8)
@@ -323,6 +168,7 @@ ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(sigsetjmp))
 ASM_TYPE_FUNCTION(ASM_SYMBOL_INTERCEPTOR(__sigsetjmp))
 ASM_SYMBOL_INTERCEPTOR(__sigsetjmp):
   CFI_STARTPROC
+  _CET_ENDBR
   // save env parameter
   push %rdi
   CFI_ADJUST_CFA_OFFSET(8)

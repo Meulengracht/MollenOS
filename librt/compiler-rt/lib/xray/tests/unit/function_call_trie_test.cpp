@@ -280,8 +280,8 @@ TEST(FunctionCallTrieTest, MergeInto) {
 
   // We use a different allocator here to make sure that we're able to transfer
   // data into a FunctionCallTrie which uses a different allocator. This
-  // reflects the inteded usage scenario for when we're collecting profiles that
-  // aggregate across threads.
+  // reflects the intended usage scenario for when we're collecting profiles
+  // that aggregate across threads.
   auto B = FunctionCallTrie::InitAllocators();
   FunctionCallTrie Merged(B);
 
@@ -310,16 +310,14 @@ TEST(FunctionCallTrieTest, MergeInto) {
 
 TEST(FunctionCallTrieTest, PlacementNewOnAlignedStorage) {
   profilingFlags()->setDefaults();
-  typename std::aligned_storage<sizeof(FunctionCallTrie::Allocators),
-                                alignof(FunctionCallTrie::Allocators)>::type
-      AllocatorsStorage;
+  alignas(FunctionCallTrie::Allocators)
+      std::byte AllocatorsStorage[sizeof(FunctionCallTrie::Allocators)];
   new (&AllocatorsStorage)
       FunctionCallTrie::Allocators(FunctionCallTrie::InitAllocators());
   auto *A =
       reinterpret_cast<FunctionCallTrie::Allocators *>(&AllocatorsStorage);
 
-  typename std::aligned_storage<sizeof(FunctionCallTrie),
-                                alignof(FunctionCallTrie)>::type FCTStorage;
+  alignas(FunctionCallTrie) std::byte FCTStorage[sizeof(FunctionCallTrie)];
   new (&FCTStorage) FunctionCallTrie(*A);
   auto *T = reinterpret_cast<FunctionCallTrie *>(&FCTStorage);
 

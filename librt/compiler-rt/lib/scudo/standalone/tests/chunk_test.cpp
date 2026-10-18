@@ -33,30 +33,7 @@ TEST(ScudoChunkDeathTest, ChunkBasic) {
   scudo::Chunk::loadHeader(Cookie, P, &Header);
   EXPECT_TRUE(scudo::Chunk::isValid(Cookie, P, &Header));
   EXPECT_FALSE(scudo::Chunk::isValid(InvalidCookie, P, &Header));
-  EXPECT_DEATH(scudo::Chunk::loadHeader(InvalidCookie, P, &Header), "");
-  free(Block);
-}
-
-TEST(ScudoChunkTest, ChunkCmpXchg) {
-  initChecksum();
-  const scudo::uptr Size = 0x100U;
-  scudo::Chunk::UnpackedHeader OldHeader = {};
-  OldHeader.OriginOrWasZeroed = scudo::Chunk::Origin::Malloc;
-  OldHeader.ClassId = 0x42U;
-  OldHeader.SizeOrUnusedBytes = Size;
-  OldHeader.State = scudo::Chunk::State::Allocated;
-  void *Block = malloc(HeaderSize + Size);
-  void *P = reinterpret_cast<void *>(reinterpret_cast<scudo::uptr>(Block) +
-                                     HeaderSize);
-  scudo::Chunk::storeHeader(Cookie, P, &OldHeader);
-  memset(P, 'A', Size);
-  scudo::Chunk::UnpackedHeader NewHeader = OldHeader;
-  NewHeader.State = scudo::Chunk::State::Quarantined;
-  scudo::Chunk::compareExchangeHeader(Cookie, P, &NewHeader, &OldHeader);
-  NewHeader = {};
-  EXPECT_TRUE(scudo::Chunk::isValid(Cookie, P, &NewHeader));
-  EXPECT_EQ(NewHeader.State, scudo::Chunk::State::Quarantined);
-  EXPECT_FALSE(scudo::Chunk::isValid(InvalidCookie, P, &NewHeader));
+  SCUDO_EXPECT_DEATH(scudo::Chunk::loadHeader(InvalidCookie, P, &Header), "");
   free(Block);
 }
 
@@ -73,7 +50,7 @@ TEST(ScudoChunkDeathTest, CorruptHeader) {
   // Simulate a couple of corrupted bits per byte of header data.
   for (scudo::uptr I = 0; I < sizeof(scudo::Chunk::PackedHeader); I++) {
     *(reinterpret_cast<scudo::u8 *>(Block) + I) ^= 0x42U;
-    EXPECT_DEATH(scudo::Chunk::loadHeader(Cookie, P, &Header), "");
+    SCUDO_EXPECT_DEATH(scudo::Chunk::loadHeader(Cookie, P, &Header), "");
     *(reinterpret_cast<scudo::u8 *>(Block) + I) ^= 0x42U;
   }
   free(Block);

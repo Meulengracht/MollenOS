@@ -1,6 +1,12 @@
 // RUN: %clang_safestack %s -o %t
 // RUN: %run %t
 
+// RUN: %clang_safestack -fsanitize-minimal-runtime %s -o %t
+// RUN: %run %t
+
+// RUN: %clang_safestack -fsanitize-minimal-runtime -fsanitize=null %s -o %t
+// RUN: %run %t
+
 // RUN: %clang_nosafestack -fno-stack-protector %s -o %t
 // RUN: not %run %t
 
@@ -8,6 +14,8 @@
 // safe stack.
 
 // REQUIRES: stable-runtime
+
+extern void *memset(void *, int, __typeof__(sizeof(0)));
 
 __attribute__((noinline))
 void fct(volatile int *buffer)

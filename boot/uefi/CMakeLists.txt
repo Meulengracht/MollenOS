@@ -31,11 +31,40 @@ FetchContent_Declare(
     GIT_SHALLOW    1
 )
 
-find_program(MAKE_EXECUTABLE make REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 if (NOT CMAKE_C_COMPILER)
     find_program(CMAKE_C_COMPILER clang REQUIRED)
+endif ()
+
+# BaseTools are host programs; the firmware is always built with CLANGPDB.
+if (CMAKE_HOST_WIN32)
+    find_program(MAKE_EXECUTABLE nmake)
+    find_program(EDK_HOST_C_COMPILER cl)
+    if (NOT MAKE_EXECUTABLE OR NOT EDK_HOST_C_COMPILER)
+        message(FATAL_ERROR "Build UEFI from a Visual Studio Developer PowerShell (C++ tools required).")
+    endif ()
+
+    # Match the active MSVC environment, independently of the firmware target.
+    if ("$ENV{VSCMD_ARG_TGT_ARCH}" STREQUAL "x64")
+        set(EDK_HOST_ARCH X64)
+        set(EDK_HOST_BIN Win64)
+    elseif ("$ENV{VSCMD_ARG_TGT_ARCH}" STREQUAL "x86")
+        set(EDK_HOST_ARCH IA32)
+        set(EDK_HOST_BIN Win32)
+    elseif ("$ENV{VSCMD_ARG_TGT_ARCH}" STREQUAL "arm64")
+        set(EDK_HOST_ARCH AARCH64)
+        set(EDK_HOST_BIN Win64)
+    else ()
+        message(FATAL_ERROR "VSCMD_ARG_TGT_ARCH is unset or unsupported. Use a Visual Studio Developer PowerShell.")
+    endif ()
+else ()
+    find_program(MAKE_EXECUTABLE make REQUIRED)
+endif ()
+
+if (EDK_ARCH STREQUAL "X64" OR EDK_ARCH STREQUAL "IA32")
+    find_program(EDK_NASM_EXECUTABLE nasm REQUIRED)
+    get_filename_component(EDK_NASM_BIN "${EDK_NASM_EXECUTABLE}" DIRECTORY)
 endif ()
 
 # After the checks, make it available
@@ -49,7 +78,6 @@ get_filename_component(CLANG_HOST_BIN "${MAKE_EXECUTABLE}" DIRECTORY)
 set(EDK_WORKSPACE "${edk2_SOURCE_DIR}")
 set(EDK_TOOLS_PATH "${EDK_WORKSPACE}/BaseTools")
 set(EDK_CONF_PATH "${CMAKE_CURRENT_BINARY_DIR}/Conf")
-set(EDK_BUILD_WRAPPERS "${EDK_TOOLS_PATH}/BinWrappers/PosixLike")
 set(EDK_BUILD_ROOT "${CMAKE_CURRENT_BINARY_DIR}/Build/VBoot")
 set(EDK_OUTPUT "${EDK_BUILD_ROOT}/RELEASE_CLANGPDB/${EDK_ARCH}/VBoot.efi")
 set(BOOT_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${BOOT_FILENAME}")
@@ -59,33 +87,32 @@ configure_file("${EDK_TOOLS_PATH}/Conf/target.template" "${EDK_CONF_PATH}/target
 configure_file("${EDK_TOOLS_PATH}/Conf/tools_def.template" "${EDK_CONF_PATH}/tools_def.txt" COPYONLY)
 configure_file("${EDK_TOOLS_PATH}/Conf/build_rule.template" "${EDK_CONF_PATH}/build_rule.txt" COPYONLY)
 
-set(EDK_ENV
-    "WORKSPACE=${EDK_WORKSPACE}"
-    "PACKAGES_PATH=${EDK_WORKSPACE}:${CMAKE_CURRENT_SOURCE_DIR}"
-    "CONF_PATH=${EDK_CONF_PATH}"
-    "EDK_TOOLS_PATH=${EDK_TOOLS_PATH}"
-    "PYTHON_COMMAND=${Python3_EXECUTABLE}"
-    "CLANG_BIN=${CLANG_BIN}/"
-    "CLANG_HOST_BIN=${CLANG_HOST_BIN}/"
-    "PATH=${EDK_BUILD_WRAPPERS}:$ENV{PATH}"
-)
+# EDK II selects its makefile syntax from MAKE_PATH. Keep Clang's compile and
+# link rules, but use native NMake rules on Windows. Modify only our Conf copy.
+if (CMAKE_HOST_WIN32)
+    file(TO_NATIVE_PATH "${MAKE_EXECUTABLE}" EDK_NMAKE)
+    file(APPEND "${EDK_CONF_PATH}/tools_def.txt"
+        "\n# Native Windows host for the CLANGPDB toolchain.\n"
+        "*_CLANGPDB_*_MAKE_PATH = ${EDK_NMAKE}\n"
+        "*_CLANGPDB_*_MAKE_FLAGS = /nologo\n")
+endif ()
+
+# A script keeps Windows' semicolon-separated environment values out of CMake
+# command lists, and inherits the developer environment at build time.
+configure_file(BuildEdk2.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/BuildEdk2.cmake" @ONLY)
 
 add_custom_target(edk2-basetools
-    COMMAND "${MAKE_EXECUTABLE}" -C "${EDK_TOOLS_PATH}/Source/C"
+    COMMAND "${CMAKE_COMMAND}" -DEDK_BUILD_STEP=basetools -P "${CMAKE_CURRENT_BINARY_DIR}/BuildEdk2.cmake"
+    VERBATIM
     USES_TERMINAL
 )
 
 add_custom_target(vboot ALL
-    COMMAND ${CMAKE_COMMAND} -E env ${EDK_ENV}
-        "${EDK_BUILD_WRAPPERS}/build"
-        -p "${CMAKE_CURRENT_SOURCE_DIR}/VBoot.dsc"
-        -a "${EDK_ARCH}"
-        -t CLANGPDB
-        -b RELEASE
-        -D "VBOOT_OUTPUT_DIRECTORY=${EDK_BUILD_ROOT}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${EDK_OUTPUT}" "${BOOT_OUTPUT}"
+    COMMAND "${CMAKE_COMMAND}" -DEDK_BUILD_STEP=firmware -P "${CMAKE_CURRENT_BINARY_DIR}/BuildEdk2.cmake"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${EDK_OUTPUT}" "${BOOT_OUTPUT}"
     DEPENDS edk2-basetools
     BYPRODUCTS "${BOOT_OUTPUT}"
+    VERBATIM
     USES_TERMINAL
 )
 

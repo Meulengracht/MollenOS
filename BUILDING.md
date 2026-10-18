@@ -65,6 +65,7 @@ and NASM available on PATH:
 
 ```powershell
 $env:VALICC = 'C:\Users\the_m\ValiCC'
+$env:VALI_ARCH = {i386, amd64, aarch64}
 cmake -S . -B build/windows -G Ninja -DVALI_ARCH=amd64
 cmake --build build/windows
 ```

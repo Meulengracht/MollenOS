@@ -6,15 +6,16 @@
 // Do not test with optimization -- the error may be optimized away.
 
 // FIXME: https://code.google.com/p/address-sanitizer/issues/detail?id=186
-// XFAIL: windows-msvc
+// XFAIL: target={{.*windows-msvc.*}}
 
+#include "defines.h"
 #include <cstdio>
 
 // The structure of the test is:
 // "x", "y", "z" are dynamically initialized globals.
 // Value of "x" depends on "y", value of "y" depends on "z".
 // "x" and "z" are defined in this TU, "y" is defined in another one.
-// Thus we shoud stably report initialization order fiasco independently of
+// Thus we should stably report initialization order fiasco independently of
 // the translation unit order.
 
 int initZ() {
@@ -27,7 +28,7 @@ int z = initZ();
 // result is undefined behavior, which should be caught by initialization order
 // checking.
 extern int y;
-int __attribute__((noinline)) initX() {
+int ATTRIBUTE_NOINLINE initX() {
   return y + 1;
   // CHECK: {{AddressSanitizer: initialization-order-fiasco}}
   // CHECK: {{READ of size .* at 0x.* thread T0}}

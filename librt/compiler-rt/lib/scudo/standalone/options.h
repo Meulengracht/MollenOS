@@ -19,6 +19,7 @@ enum class OptionBit {
   MayReturnNull,
   FillContents0of2,
   FillContents1of2,
+  DeallocAlignMismatch,
   DeallocTypeMismatch,
   DeleteSizeMismatch,
   TrackAllocationStacks,
@@ -38,7 +39,7 @@ struct Options {
   }
 };
 
-template <typename Config> bool useMemoryTagging(Options Options) {
+template <typename Config> bool useMemoryTagging(const Options &Options) {
   return allocatorSupportsMemoryTagging<Config>() &&
          Options.get(OptionBit::UseMemoryTagging);
 }

@@ -1,9 +1,7 @@
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -o %t && setarch `uname -m` -R %run %t
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -o %t && setarch `uname -m` -R %run %t
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && setarch `uname -m` -R %run %t
-// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && setarch `uname -m` -R %run %t
-//
-// REQUIRES: x86_64-target-arch
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -o %t && %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -o %t && %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=false RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && %run %t
+// DFSAN_OPTIONS=no_huge_pages_for_shadow=true RUN: %clang_dfsan %s -DORIGIN_TRACKING -mllvm -dfsan-track-origins=1 -o %t && %run %t
 
 #include <assert.h>
 #include <sanitizer/dfsan_interface.h>
@@ -25,7 +23,11 @@ size_t get_rss_kb() {
   char buf[256];
   while (fgets(buf, sizeof(buf), f) != NULL) {
     int64_t rss;
-    if (sscanf(buf, "Rss: %ld kB", &rss) == 1)
+    // DFSan's sscanf is broken and doesn't check for ordinary characters in
+    // the format string, hence we use strstr as a secondary check
+    // (https://github.com/llvm/llvm-project/issues/94769).
+    if ((sscanf(buf, "Rss: %ld kB", &rss) == 1) &&
+        (strstr(buf, "Rss: ") != NULL))
       ret += rss;
   }
   assert(feof(f));
@@ -72,9 +74,16 @@ int main(int argc, char **argv) {
       before, after_mmap, after_mmap_and_set_label, after_fixed_mmap,
       after_mmap_and_set_label2, after_munmap);
 
+  // This is orders of magnitude larger than we expect (typically < 10,000KB).
+  // It is a quick check to ensure that the RSS calculation function isn't
+  // egregriously wrong.
+  assert(before < 1000000);
+
   const size_t mmap_cost_kb = map_size >> 10;
+  // Shadow space (1:1 with application memory)
   const size_t mmap_shadow_cost_kb = sizeof(dfsan_label) * mmap_cost_kb;
 #ifdef ORIGIN_TRACKING
+  // Origin space (1:1 with application memory)
   const size_t mmap_origin_cost_kb = mmap_cost_kb;
 #else
   const size_t mmap_origin_cost_kb = 0;
@@ -85,11 +94,20 @@ int main(int argc, char **argv) {
   assert(after_mmap_and_set_label2 >=
          before + mmap_cost_kb + mmap_shadow_cost_kb + mmap_origin_cost_kb);
 
+#ifdef ORIGIN_TRACKING
+  // This value is chosen based on observed difference.
+  const size_t mmap_origin_chain_kb = 4000;
+#else
+  const size_t mmap_origin_chain_kb = 0;
+#endif
+
   // RSS may not change memory amount after munmap to the same level as the
   // start of the program. The assert checks the memory up to a delta.
   const size_t delta = 5000;
-  assert(after_fixed_mmap <= before + delta);
-  assert(after_munmap <= before + delta);
+  // Origin chains are not freed, even when the origin space which refers to
+  // them is freed, so mmap_origin_chain_kb is added to account for this.
+  assert(after_fixed_mmap <= before + delta + mmap_origin_chain_kb);
+  assert(after_munmap <= before + delta + mmap_origin_chain_kb);
 
   return 0;
 }

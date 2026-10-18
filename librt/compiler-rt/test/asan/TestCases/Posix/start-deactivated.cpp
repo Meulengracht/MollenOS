@@ -1,8 +1,6 @@
 // Test for ASAN_OPTIONS=start_deactivated=1 mode.
 // Main executable is uninstrumented, but linked to ASan runtime. The shared
 // library is instrumented. Memory errors before dlopen are not detected.
-// Fails with debug checks: https://bugs.llvm.org/show_bug.cgi?id=46862
-// XFAIL: !compiler-rt-optimized
 
 // RUN: %clangxx_asan -O0 -DSHARED_LIB %s -std=c++11 -fPIC -shared -o %t-so.so
 // RUN: %clangxx -O0 %s -std=c++11 -c -o %t.o
@@ -115,7 +113,7 @@ int main(int argc, char *argv[]) {
   // CHECK: AddressSanitizer: heap-buffer-overflow
   // CHECK: READ of size 1
   // CHECK: {{#0 .* in do_another_bad_thing}}
-  // CHECK: is located 5 bytes to the right of 100-byte region
+  // CHECK: is located 5 bytes after 100-byte region
   // CHECK: in do_another_bad_thing
 
   return 0;
