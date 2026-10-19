@@ -53,7 +53,7 @@ macro (merge_libraries)
           # Use OSX's libtool to merge archives (ihandles universal 
           # binaries properly)
             add_custom_command (TARGET ${TARGET} POST_BUILD
-                COMMAND rm ${TARGET_LOCATION}
+                COMMAND ${CMAKE_COMMAND} -E rm -f "${TARGET_LOCATION}"
                 COMMAND /usr/bin/libtool -static -o ${TARGET_LOCATION} 
                 ${STATIC_LIBS}
             )
@@ -68,7 +68,7 @@ macro (merge_libraries)
                 @ONLY
             )
             add_custom_command (TARGET ${TARGET} POST_BUILD
-              COMMAND rm ${TARGET_LOCATION}
+              COMMAND ${CMAKE_COMMAND} -E rm -f "${TARGET_LOCATION}"
               COMMAND ${CMAKE_COMMAND} -P 
               ${CMAKE_CURRENT_BINARY_DIR}/merge_archives_${TARGET}.cmake
             )

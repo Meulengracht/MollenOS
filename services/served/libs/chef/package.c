@@ -19,12 +19,36 @@
 #include <chef/package.h>
 #include <chef/utils_vafs.h>
 #include <errno.h>
+#include <vafs/reader.h>
+#include <ddk/initrd.h>
+#include <zstd.h>
 #include <stdlib.h>
 #include <string.h>
 
 static struct VaFsGuid g_headerGuid   = CHEF_PACKAGE_HEADER_GUID;
 static struct VaFsGuid g_versionGuid  = CHEF_PACKAGE_VERSION_GUID;
 static struct VaFsGuid g_commandsGuid = CHEF_PACKAGE_APPS_GUID;
+
+static int __decode_zstd(
+    _In_  const void* input,
+    _In_  size_t      inputLength,
+    _In_  void*       output,
+    _In_  size_t      outputLength,
+    _In_  void*       userData,
+    _Out_ size_t*     bytesWrittenOut)
+{
+    size_t decoded;
+    (void)userData;
+
+    decoded = ZSTD_decompress(output, outputLength, input, inputLength);
+    if (ZSTD_isError(decoded)) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    *bytesWrittenOut = decoded;
+    return 0;
+}
 
 static int __load_package_header(struct VaFs* vafs, struct chef_package** packageOut)
 {
@@ -33,7 +57,7 @@ static int __load_package_header(struct VaFs* vafs, struct chef_package** packag
     char*                                    data;
     int                                      status;
 
-    status = vafs_feature_query(vafs, &g_headerGuid, (struct VaFsFeatureHeader**)&header);
+    status = vafs_reader_query_feature(vafs, &g_headerGuid, (struct VaFsFeatureHeader**)&header);
     if (status != 0) {
         return status;
     }
@@ -77,7 +101,7 @@ static int __load_package_version(struct VaFs* vafs, struct chef_version** versi
     char*                                     data;
     int                                       status;
 
-    status = vafs_feature_query(vafs, &g_versionGuid, (struct VaFsFeatureHeader**)&header);
+    status = vafs_reader_query_feature(vafs, &g_versionGuid, (struct VaFsFeatureHeader**)&header);
     if (status != 0) {
         return status;
     }
@@ -135,7 +159,7 @@ static int __load_package_commands(struct VaFs* vafs, struct chef_command** comm
     char*                                  data;
     int                                    status;
 
-    status = vafs_feature_query(vafs, &g_commandsGuid, (struct VaFsFeatureHeader**)&header);
+    status = vafs_reader_query_feature(vafs, &g_commandsGuid, (struct VaFsFeatureHeader**)&header);
     if (status != 0) {
         return status;
     }
@@ -174,7 +198,15 @@ int chef_package_load(
         return -1;
     }
 
-    status = vafs_open_file(path, &vafs);
+    // Codec registration precedes open, even when only package features are
+    // requested: the reader also loads the compressed root descriptor.
+    struct VaFsReaderConfiguration configuration;
+    struct VaFsCodec codecs[2];
+    DdkInitrdConfigureVafsReader(&configuration);
+    codecs[0] = configuration.SupportedCodecs[0];
+    codecs[1] = (struct VaFsCodec) { .ID = "zstd", .Decode = __decode_zstd };
+    vafs_reader_config_set_codecs(&configuration, codecs, 2);
+    status = vafs_reader_open_file(path, &configuration, &vafs);
     if (status != 0) {
         return status;
     }
@@ -182,7 +214,7 @@ int chef_package_load(
     if (packageOut) {
         status = __load_package_header(vafs, packageOut);
         if (status != 0) {
-            vafs_close(vafs);
+            vafs_reader_close(vafs);
             return status;
         }
     }
@@ -195,7 +227,7 @@ int chef_package_load(
             if (packageOut) {
                 chef_package_free(*packageOut);
             }
-            vafs_close(vafs);
+            vafs_reader_close(vafs);
             return status;
         }
     }
@@ -210,7 +242,7 @@ int chef_package_load(
         }
     }
 
-    vafs_close(vafs);
+    vafs_reader_close(vafs);
     return 0;
 }
 

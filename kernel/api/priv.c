@@ -254,7 +254,7 @@ __CopyAndVerifyAllocationRequest(
     _In_ InterruptAllocationRequest_t* userRequest,
     _In_ InterruptAllocationRequest_t* kernelRequest)
 {
-    oserr_t oserr;
+    oserr_t status;
 
     status = MemorySpaceCopyUser(
         userRequest,
@@ -266,21 +266,21 @@ __CopyAndVerifyAllocationRequest(
         return status;
     }
     
-    if (request.Minimum == 0 || request.Minimum > request.Optimal) {
+    if (kernelRequest->Minimum == 0 || kernelRequest->Minimum > kernelRequest->Optimal) {
         return OS_EINVALPARAMS;
     }
-    if (request.Strategies == 0 || (request.Strategies & ~INTERRUPT_STRATEGY_ANY)) {
+    if (kernelRequest->Strategies == 0 || (kernelRequest->Strategies & ~INTERRUPT_STRATEGY_ANY)) {
         return OS_EINVALPARAMS;
     }
-    if (request.Flags & ~INTERRUPT_EXCLUSIVE) {
+    if (kernelRequest->Flags & ~INTERRUPT_EXCLUSIVE) {
         return OS_EINVALPARAMS;
     }
 
     // Currently we only support INTx delivery, and only 1 interrupt.
-    if (!(request.Strategies & INTERRUPT_STRATEGY_INTx) || request.Minimum != 1) {
+    if (!(kernelRequest->Strategies & INTERRUPT_STRATEGY_INTx) || kernelRequest->Minimum != 1) {
         return OS_ENOTSUPPORTED;
     }
-    if (request.Line.Line < 0) {
+    if (kernelRequest->Line.Line < 0) {
         return OS_ENOENT;
     }
     return OS_EOK;

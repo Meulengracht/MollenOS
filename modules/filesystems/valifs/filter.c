@@ -15,67 +15,37 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <vafs/vafs.h>
-#include <string.h>
+#include <ddk/initrd.h>
+#include <errno.h>
+#include <vafs/reader.h>
 #include <zstd.h>
 
-struct VaFsFeatureFilter {
-    struct VaFsFeatureHeader Header;
-};
-
-static struct VaFsGuid g_filterGuid    = VA_FS_FEATURE_FILTER;
-static struct VaFsGuid g_filterOpsGuid = VA_FS_FEATURE_FILTER_OPS;
-
-static int __zstd_decode(void* Input, uint32_t InputLength, void* Output, uint32_t* OutputLength)
+static int __zstd_decode(
+    _In_  const void* input,
+    _In_  size_t      inputLength,
+    _In_  void*       output,
+    _In_  size_t      outputLength,
+    _In_  void*       userData,
+    _Out_ size_t*     bytesWrittenOut)
 {
-    /* Read the content size from the frame header. For simplicity we require
-     * that it is always present. By default, zstd will write the content size
-     * in the header when it is known. If you can't guarantee that the frame
-     * content size is always written into the header, either use streaming
-     * decompression, or ZSTD_decompressBound().
-     */
-    size_t             decompressedSize;
-    unsigned long long contentSize = ZSTD_getFrameContentSize(Input, InputLength);
-    if (contentSize == ZSTD_CONTENTSIZE_ERROR || contentSize == ZSTD_CONTENTSIZE_UNKNOWN) {
-        return -1;
-    }
+    size_t decoded;
+    (void)userData;
 
-    /* Decompress.
-     * If you are doing many decompressions, you may want to reuse the context
-     * and use ZSTD_decompressDCtx(). If you want to set advanced parameters,
-     * use ZSTD_DCtx_setParameter().
-     */
-    decompressedSize = ZSTD_decompress(Output, *OutputLength, Input, InputLength);
-    if (ZSTD_isError(decompressedSize)) {
+    decoded = ZSTD_decompress(output, outputLength, input, inputLength);;
+    if (ZSTD_isError(decoded)) {
+        errno = EINVAL;
         return -1;
     }
-    *OutputLength = (uint32_t)decompressedSize;
+    
+    *bytesWrittenOut = decoded;
     return 0;
 }
 
-static int __set_filter_ops(
-        struct VaFs* vafs)
+void __ValiFSConfigureReader(struct VaFsReaderConfiguration* configuration,
+                           struct VaFsCodec codecs[2])
 {
-    struct VaFsFeatureFilterOps filterOps;
-
-    memcpy(&filterOps.Header.Guid, &g_filterOpsGuid, sizeof(struct VaFsGuid));
-
-    filterOps.Header.Length = sizeof(struct VaFsFeatureFilterOps);
-    filterOps.Encode = NULL;
-    filterOps.Decode = __zstd_decode;
-
-    return vafs_feature_add(vafs, &filterOps.Header);
-}
-
-int __ValiFSHandleFilter(struct VaFs* vafs)
-{
-    struct VaFsFeatureFilter* filter;
-    int                       status;
-
-    status = vafs_feature_query(vafs, &g_filterGuid, (struct VaFsFeatureHeader**)&filter);
-    if (status) {
-        // no filter present
-        return 0;
-    }
-    return __set_filter_ops(vafs);
+    DdkInitrdConfigureVafsReader(configuration);
+    codecs[0] = configuration->SupportedCodecs[0];
+    codecs[1] = (struct VaFsCodec) { .ID = "zstd", .Decode = __zstd_decode };
+    vafs_reader_config_set_codecs(configuration, codecs, 2);
 }

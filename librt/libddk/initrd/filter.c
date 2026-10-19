@@ -20,87 +20,49 @@
  */
 
 #include <errno.h>
+#include <limits.h>
 #include <ddk/initrd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <vafs/vafs.h>
+#include <vafs/reader.h>
 #include "depacks.h"
 
-enum VaFsFilterType {
-    VaFsFilterType_APLIB
-};
-
-struct VaFsFeatureFilter {
-    struct VaFsFeatureHeader Header;
-    int                      Type;
-};
-
-static struct VaFsGuid g_filterGuid    = VA_FS_FEATURE_FILTER;
-static struct VaFsGuid g_filterOpsGuid = VA_FS_FEATURE_FILTER_OPS;
-
-static int __aplib_encode_dummy(void* Input, uint32_t InputLength, void** Output, uint32_t* OutputLength)
+static int __aplib_decode(
+    _In_  const void* input,
+    _In_  size_t      inputLength,
+    _In_  void*       output,
+    _In_  size_t      outputLength,
+    _In_  void*       userData,
+    _Out_ size_t*     bytesWrittenOut)
 {
-    _CRT_UNUSED(Input);
-    _CRT_UNUSED(InputLength);
-    _CRT_UNUSED(Output);
-    _CRT_UNUSED(OutputLength);
-    return -1;
-}
+    unsigned int original, decoded;
+    (void)userData;
 
-static int __aplib_decode(void* Input, uint32_t InputLength, void* Output, uint32_t* OutputLength)
-{
-    size_t decompressedSize;
-
-    decompressedSize = aP_get_orig_size(Input);
-    if (decompressedSize == APLIB_ERROR) {
+    if (!input || !output || !bytesWrittenOut || inputLength < 24 || inputLength > UINT_MAX) {
         errno = EINVAL;
         return -1;
     }
 
-    if (decompressedSize > *OutputLength) {
-        errno = ENODATA;
+    original = aP_get_orig_size(input);
+    if (original == APLIB_ERROR || original > outputLength) {
+        errno = EINVAL;
         return -1;
     }
-
-    decompressedSize = aP_depack_safe(Input, InputLength, Output, decompressedSize);
-    *OutputLength = decompressedSize;
+    
+    decoded = aP_depack_safe(input, (unsigned int)inputLength, output, original);
+    if (decoded == APLIB_ERROR || decoded != original) {
+        errno = EINVAL;
+        return -1;
+    }
+    
+    *bytesWrittenOut = decoded;
     return 0;
 }
 
-static int __set_filter_ops(
-    struct VaFs*              vafs,
-    struct VaFsFeatureFilter* filter)
+static struct VaFsCodec g_initrdCodecs[] = {
+    { .ID = "aplib", .Decode = __aplib_decode }
+};
+
+void DdkInitrdConfigureVafsReader(struct VaFsReaderConfiguration* configuration)
 {
-    struct VaFsFeatureFilterOps filterOps;
-
-    memcpy(&filterOps.Header.Guid, &g_filterOpsGuid, sizeof(struct VaFsGuid));
-    filterOps.Header.Length = sizeof(struct VaFsFeatureFilterOps);
-
-    switch (filter->Type) {
-        case VaFsFilterType_APLIB: {
-            filterOps.Encode = __aplib_encode_dummy;
-            filterOps.Decode = __aplib_decode;
-        } break;
-        default: {
-            fprintf(stderr, "unsupported filter type %i\n", filter->Type);
-            return -1;
-        }
-    }
-
-    return vafs_feature_add(vafs, &filterOps.Header);
-}
-
-int DdkInitrdHandleVafsFilter(
-    struct VaFs* vafs)
-{
-    struct VaFsFeatureFilter* filter;
-    int                       status;
-
-    status = vafs_feature_query(vafs, &g_filterGuid, (struct VaFsFeatureHeader**)&filter);
-    if (status) {
-        // no filter present
-        return 0;
-    }
-    return __set_filter_ops(vafs, filter);
+    vafs_reader_config_initialize(configuration);
+    vafs_reader_config_set_codecs(configuration, g_initrdCodecs, 1);
 }
