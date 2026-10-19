@@ -12,6 +12,7 @@ macro (add_host_project PROJECT_DIR)
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_DIR}
             CMAKE_CACHE_ARGS
                 -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/host
+                -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
                 ${ARGN}
     )
 endmacro ()

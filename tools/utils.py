@@ -63,10 +63,10 @@ def copy_files(source_path, destination_path, pattern='*', overwrite=False):
     files_count = 0
     if not os.path.exists(destination_path):
         os.mkdir(destination_path)
-    items = glob.glob(source_path + '/' + pattern)
+    items = glob.glob(os.path.join(source_path, pattern))
     for item in items:
         if not os.path.isdir(item):
-            file = os.path.join(destination_path, item.split('/')[-1])
+            file = os.path.join(destination_path, os.path.basename(item))
             if not os.path.exists(file) or overwrite:
                 shutil.copyfile(item, file)
                 files_count += 1
@@ -85,14 +85,14 @@ def recursive_copy_files(source_path, destination_path, pattern='*', overwrite=F
     files_count = 0
     if not os.path.exists(destination_path):
         os.mkdir(destination_path)
-    items = glob.glob(source_path + '/' + pattern)
+    items = glob.glob(os.path.join(source_path, pattern))
     for item in items:
         if os.path.isdir(item):
-            path = os.path.join(destination_path, item.split('/')[-1])
+            path = os.path.join(destination_path, os.path.basename(item))
             files_count += recursive_copy_files(source_path=item, destination_path=path, pattern=pattern,
                                                 overwrite=overwrite)
         else:
-            file = os.path.join(destination_path, item.split('/')[-1])
+            file = os.path.join(destination_path, os.path.basename(item))
             if not os.path.exists(file) or overwrite:
                 shutil.copyfile(item, file)
                 files_count += 1
