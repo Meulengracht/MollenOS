@@ -1,5 +1,5 @@
 # CMake configuration for building the UEFI bootloader using edk2
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.17)
 
 # The project is built as an external project, so declare this
 # as a separate project
@@ -22,13 +22,22 @@ else ()
     message(FATAL_ERROR "Unsupported UEFI architecture: ${VALI_ARCH}")
 endif ()
 
-# Fetch the official edk2 repository, but we stick it to the
-# stable tag releases
+# Keep EDK2 shallow and pinned to a stable release. Only fetch the submodules
+# needed by our build: Brotli for BaseTools, plus the Brotli and MIPI Sys-T
+# include paths declared by MdeModulePkg.dec and MdePkg.dec. EDK2 validates
+# these paths even when VBoot does not use the corresponding libraries.
+# Recheck this list when updating EDK2 or adding firmware libraries.
 FetchContent_Declare(
     edk2
     GIT_REPOSITORY https://github.com/tianocore/edk2.git
     GIT_TAG        edk2-stable202608
     GIT_SHALLOW    1
+    GIT_PROGRESS   TRUE
+    GIT_SUBMODULES
+        BaseTools/Source/C/BrotliCompress/brotli
+        MdeModulePkg/Library/BrotliCustomDecompressLib/brotli
+        MdePkg/Library/MipiSysTLib/mipisyst
+    GIT_SUBMODULES_RECURSE FALSE
 )
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
