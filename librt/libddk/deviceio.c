@@ -120,12 +120,16 @@ ReleaseDeviceIo(
  * the offset and length must be below the size of the io-space */
 size_t
 ReadDeviceIo(
-    _In_ DeviceIo_t*    IoSpace,
-    _In_ size_t         Offset,
-    _In_ size_t         Length)
+    _In_ DeviceIo_t* IoSpace,
+    _In_ size_t      Offset,
+    _In_ size_t      Length)
 {
     size_t Result = 0;
+    
     assert(IoSpace != NULL);
+    if (IoSpace == NULL) {
+        return 0;
+    }
 
     switch (IoSpace->Type) {
         case DeviceIoMemoryBased: {
@@ -188,7 +192,11 @@ WriteDeviceIo(
     _In_ size_t         Length)
 {
     oserr_t Status = OS_EOK;
+
     assert(IoSpace != NULL);
+    if (IoSpace == NULL) {
+        return 0;
+    }
 
     switch (IoSpace->Type) {
         case DeviceIoMemoryBased: {
