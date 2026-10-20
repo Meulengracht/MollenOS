@@ -168,4 +168,5 @@ InitializeInterruptHandlers(void)
     Interrupt.ResourceTable.Handler = FunctionExecutionInterruptHandler;
     InterruptHandlers[CpuFunctionCustom] = InterruptRegister(&Interrupt,
                                                              INTERRUPT_SOFT | INTERRUPT_KERNEL | INTERRUPT_EXCLUSIVE);
+    MemorySpaceSyncInitialize();
 }

@@ -19,37 +19,26 @@
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/x86/apic.h>
-#include <component/timer.h>
+#include <immintrin.h>
 
-#define WaitForConditionWithFault(fault, condition, runs, wait) \
-    fault = OS_EOK;                                             \
-    OSTimestamp_t deadline;                                     \
-    SystemTimerGetWallClockTime(&deadline);                     \
-    for (unsigned int tries_ = 0; !(condition); tries_++) {     \
-        OSTimestampAddNsec(&deadline, &deadline, wait);         \
-        SystemTimerStall(&deadline);                            \
-        if (tries_ == runs - 1) {                               \
-             fault = OS_ETIMEOUT;                               \
-             break;                                             \
-        }                                                       \
-    }
+#define __APIC_DELIVERY_SPIN_LIMIT 1000000U
 
 static oserr_t
 __WaitForAPICIdle(void)
 {
-    oserr_t oserr;
-    WaitForConditionWithFault(
-            oserr,
-            (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0,
-            200,
-            NSEC_PER_MSEC
-    );
-	return oserr;
+    // IRQ-driven clocks cannot advance here with interrupts disabled.
+    for (unsigned int tries = 0; tries < __APIC_DELIVERY_SPIN_LIMIT; tries++) {
+        if ((ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0) {
+            return OS_EOK;
+        }
+        _mm_pause();
+    }
+    return OS_ETIMEOUT;
 }
 
 static oserr_t
 __SendIPI(
-        _In_ UInteger64_t* ipi)
+    _In_ UInteger64_t* ipi)
 {
     irqstate_t irqstate;
     oserr_t    oserr;
@@ -90,9 +79,9 @@ ApicSynchronizeArbIds(void)
 
 oserr_t
 ApicSendInterrupt(
-        _In_ InterruptTarget_t  type,
-        _In_ uuid_t             specific,
-        _In_ uint32_t           vector)
+    _In_ InterruptTarget_t  type,
+    _In_ uuid_t             specific,
+    _In_ uint32_t           vector)
 {
     UInteger64_t ipiValue;
     uuid_t       id  = ArchGetProcessorCoreId();
@@ -124,8 +113,8 @@ ApicSendInterrupt(
 
 oserr_t
 ApicPerformIPI(
-        _In_ uuid_t coreId,
-        _In_ int    assert)
+    _In_ uuid_t coreId,
+    _In_ int    assert)
 {
     UInteger64_t ipiValue;
 
@@ -143,19 +132,21 @@ ApicPerformIPI(
 
 oserr_t
 ApicPerformSIPI(
-        _In_ uuid_t    coreId,
-        _In_ uintptr_t address)
+    _In_ uuid_t    coreId,
+    _In_ uintptr_t address)
 {
     UInteger64_t ipiValue;
 	uint8_t      irqVector;
+
+    if (address == 0 || address >= 0x100000 || (address % 0x1000) != 0) {
+        return OS_EINVALPARAMS;
+    }
 
     ipiValue.u.LowPart = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
     ipiValue.u.HighPart = ApicIsX2Apic() ? coreId : APIC_DESTINATION(coreId);
 
     // Sanitize address given
-    assert((address % 0x1000) == 0);
     irqVector = address / 0x1000;
-    assert(irqVector <= 0xF);
     ipiValue.u.LowPart |= irqVector;
 
     return __SendIPI(&ipiValue);

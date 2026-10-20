@@ -60,13 +60,15 @@ MemorySpaceDelete(
         return;
     }
 
-    if (memorySpace->Flags & MEMORY_SPACE_APPLICATION) {
-        DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
-        MmuDestroyVirtualSpace(memorySpace);
-    }
+    DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
+    MmuDestroyVirtualSpace(memorySpace);
+
+    // Some cleanup for the root memory space
     if (memorySpace->ParentHandle == UUID_INVALID) {
         MSContextDelete(memorySpace->Context);
     }
+    
+    // Some cleanup for non-root memory spaces
     if (memorySpace->ParentHandle != UUID_INVALID) {
         DestroyHandle(memorySpace->ParentHandle);
     }

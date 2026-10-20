@@ -81,13 +81,12 @@ static oserr_t __TrySpinOnOwner(Mutex_t* mutex, uuid_t owner)
     uuid_t currentOwner = owner;
 
     if (atomic_load(&GetMachine()->NumberOfActiveCores) > 1) {
-        // they must be on seperate cores, otherwise it makes no sense
-        SchedulerObject_t* ownerSchedulerObject = ThreadSchedulerHandle(THREAD_GET(owner));
-        if (CpuCoreId(CpuCoreCurrent()) != SchedulerObjectGetAffinity(ownerSchedulerObject)) {
-            for (int i = 0; i < MUTEX_SPINS && currentOwner == owner; i++) {
-                if (__TryQuickLock(mutex, &currentOwner) == OS_EOK) {
-                    return OS_EOK;
-                }
+        // Do not look up the owner through the handle table. The caller may
+        // already hold that table's lock (for example during a heap allocation).
+        // A bounded speculative spin is safe even if the owner is not running.
+        for (int i = 0; i < MUTEX_SPINS && currentOwner == owner; i++) {
+            if (__TryQuickLock(mutex, &currentOwner) == OS_EOK) {
+                return OS_EOK;
             }
         }
     }

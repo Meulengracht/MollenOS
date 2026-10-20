@@ -24,6 +24,7 @@
 #include <arch/interrupts.h>
 #include <assert.h>
 #include <spinlock.h>
+#include <memoryspace.h>
 
 // For the X86 platform we need the _mm_pause intrinsinc to generate
 // a pause in-between each cycle. This is recommended by the AMD manuals.
@@ -69,6 +70,10 @@ SpinlockAcquire(
             //    position in the queue.
             ticket = atomic_fetch_add(&spinlock->Next, 1);
         }
+
+        // A lock owner may be unmapping memory. IRQ-disabled waiters must
+        // acknowledge its shootdown without running arbitrary IPI callbacks.
+        MemorySpaceSyncProcessPending();
 
         // As recommended by AMD we insert a pause instruction to
         // not tie up the cpu bus. If we are a single core CPU we should

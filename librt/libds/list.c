@@ -209,7 +209,13 @@ list_splice(
     
     assert(list_in != NULL);
     assert(list_out != NULL);
+
+    if (count <= 0 || list_in == list_out) {
+        return;
+    }
     
+    // We start out by removing the requeste number of elements
+    // from the input list, we keep this in a temporary pointer.
     list = list_in;
     LIST_LOCK;
     head          = list->head;
@@ -220,24 +226,30 @@ list_splice(
     }
     
     list->count  -= element_count;
-    while (element_count--) {
+    for (int i = 0; i < element_count; i++) {
         tail       = list->head;
         list->head = list->head->next;
     }
     
     if (!list->head) {
         list->tail = NULL;
+    } else {
+        list->head->previous = NULL;
     }
+    tail->next = NULL;
     LIST_UNLOCK;
     
+    // Now append them onto the output list
     list = list_out;
     LIST_LOCK;
+    head->previous = list->tail;
     if (!list->head) {
         list->head = head;
     } else {
         list->tail->next = head;
     }
     list->tail = tail;
+    list->count += element_count;
     LIST_UNLOCK;
 }
 

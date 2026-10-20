@@ -293,13 +293,18 @@ FutexWait(
     if (!futexItem) {
         futexItem = FutexCreateNode(futexBucket, futexAddress, context);
         if (!futexItem) {
+            InterruptRestoreState(irqState);
             return OS_EOOM;
         }
     }
 
     (void)atomic_fetch_add(&futexItem->Waiters, 1);
 CheckValue:
+    // A remote wake must not pass between the value check and publication of
+    // our waiter. Disabling local IRQs alone does not close this SMP race.
+    SpinlockAcquireIrq(&futexItem->BlockQueueSyncObject);
     if (atomic_load(futex) != expectedValue) {
+        SpinlockReleaseIrq(&futexItem->BlockQueueSyncObject);
         (void)atomic_fetch_sub(&futexItem->Waiters, 1);
         InterruptRestoreState(irqState);
         return OS_EINTERRUPTED;
@@ -308,6 +313,8 @@ CheckValue:
     // Are we running in a supported async syscall context? Then we can fork
     // the thread that were supposed to wait.
     if (asyncContext != NULL) {
+        // Fork may switch threads; the child rechecks under the lock below.
+        SpinlockReleaseIrq(&futexItem->BlockQueueSyncObject);
         oserr = ThreadFork(asyncContext);
         if (oserr != OS_EFORKED) {
             // If fork returned an actual error, then we are aborting the operation,
@@ -328,6 +335,7 @@ CheckValue:
     }
 
     oserr = SchedulerBlock(&futexItem->BlockQueue, deadline);
+    SpinlockReleaseIrq(&futexItem->BlockQueueSyncObject);
     if (oserr == OS_EOK) {
         if (flags & FUTEX_FLAG_OP) {
             FutexPerformOperation(futex2, operation);
@@ -336,6 +344,8 @@ CheckValue:
         InterruptRestoreState(irqState);
         ArchThreadYield();
         oserr = SchedulerGetTimeoutReason();
+    } else {
+        InterruptRestoreState(irqState);
     }
 
     (void)atomic_fetch_sub(&futexItem->Waiters, 1);

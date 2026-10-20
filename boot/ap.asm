@@ -16,183 +16,153 @@
 ; along with this program. If not, see <http://www.gnu.org/licenses/>.
 ;
 ; MollenOS Smp Trampoline Code
-; Version 1.0
-;
+
+; Relocatable SIPI page. CS contains the startup vector shifted by eight.
+; No firmware calls or stack memory are used before paging is enabled.
 BITS 16
-ORG TRAMPOLINE_LOCATION
+ORG 0
 
-; Definitions
-%define __BOOT_SILENCE
-%include "bios/stage2/systems/defines.inc"
-
-; Jump code to skip over all includes
-jmp Entry
-
-; Includes
-%include "bios/stage2/systems/a20.inc"
-%include "bios/stage2/systems/gdt.inc"
-
-; ****************************
-; 16 Bit Stage Below 
-; ****************************
 Entry:
     cli
-    jmp 0x0:FixCS ; Far jump to fix segment registers
+    cld
 
-FixCS:
-    ; Setup segments
-    xor ax, ax
-    mov	ds, ax
-    mov	es, ax
-    mov	fs, ax
-    mov	gs, ax
+    ; align cs and ds segments
+    mov   ax, cs
+    mov   ds, ax
 
-    ; Setup stack
-    mov	ss, ax
-    mov ax, word [wBootStackSize]
-    lock xadd word [wBootStackAddress], ax
-    mov	sp, ax
-    mov bp, ax
-    xor ax, ax
-    sti
+    ; initialize the storage, as we are loaded
+    ; from a relocatable address, CS has the startup
+    ; vector that we shift by 8
+    movzx ebx, ax
+    shl   ebx, 4
 
-    call A20Enable16
-    call GdtInstall
+    ; fixup gdt
+    lea eax, [ebx + Gdt]
+    mov [GdtPointer + 2], eax
 
-    ; switch to 32 bit mode
-    mov	eax, cr0
-    or	eax, 1
-    mov	cr0, eax
-    jmp CODE_DESC:Entry32
-
-; ****************************
-; 32 Bit Stage Below
-; **************************** 
-BITS 32
-
-; 32 Bit Includes
-%include "bios/stage2/systems/cpu.inc"
-
-Entry32:
-    cli
-
-    ; Setup Segments, Stack etc
-    xor eax, eax
-    mov ax, DATA_DESC
-    mov ds, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
-    mov es, ax
-
-    ; initialize 32 bit stack, we reuse the 16 bit stack while deciding on 32/64 bit mode
-    mov ax, sp
-    xor esp, esp
-    mov sp, ax
+    ; fixup entry for 32 bit
+    lea eax, [ebx + Entry32]
+    mov [ProtectedEntry], eax
 
 %ifdef __amd64__
-    call CpuDetect64
-    test eax, eax
-    jz Skip64BitMode
-    jmp Switch64
+    ; fixup entry for 64 bit
+    lea eax, [ebx + Entry64]
+    mov [LongEntry], eax
 %endif
 
-Skip64BitMode:
-    ; switch to new larger permanent stack
-    mov eax, dword [dRunStackSize]
-    lock xadd dword [dRunStackAddress], eax
-    mov ebp, eax
-    mov esp, eax
+    ; load the gdt
+    lgdt [GdtPointer]
 
-    ; Enable paging
-    mov eax, dword [dSystemPageDirectory]
-    mov cr3, eax
+    ; switch on protected mode
     mov eax, cr0
-    or  eax, 0x80000000
+    or  eax, 1
     mov cr0, eax
 
-    ; Setup Registers
-    xor esi, esi
-    xor edi, edi
-    mov ecx, dword [dKernelAddress]
-    jmp ecx
+    ; jump into 32 bit space
+    jmp dword far [ProtectedEntry]
 
-    ; Safety
-EndOfStage:
-    cli
-    hlt
-
-; ****************************
-; 64 Bit Stage Below
-; **************************** 
-BITS 64
-Switch64:
-    ; switch to new larger permanent stack
-    mov rax, qword [dRunStackSize]
-    lock xadd qword [dRunStackAddress], rax
-    mov rbp, rax
-    mov rsp, rax
-
-    ; Enable PAE paging
-    mov rax, qword [dSystemPageDirectory]
-    mov cr3, rax
-    mov rax, cr4
-    or  rax, 0x20
-    mov cr4, rax
-
-    ; Switch to compatability mode
-    mov ecx, 0xC0000080
-    rdmsr
-    or eax, 0x100
-    wrmsr
-
-    ; Enable paging
-    mov rax, cr0
-    or  eax, 0x80000000
-    mov cr0, rax
-
-    ; Invoke a faux interrupt return to switch code segment
-    ; to 64 bit
-    mov rax, rsp
-    sub rsp, 16
-    mov qword [rsp + 8], DATA64_DESC
-    mov qword [rsp], rax
-    pushfq
-    sub rsp, 16
-    mov qword [rsp + 8], CODE64_DESC
-    mov rax, Entry64
-    mov qword [rsp], rax
-    iretq
-
-Entry64:
-    xor eax, eax
-    mov ax, DATA64_DESC
+BITS 32
+Entry32:
+    mov ax, 0x10
     mov ds, ax
+    mov es, ax
+    mov ss, ax
     mov fs, ax
     mov gs, ax
-    mov ss, ax
+
+%ifdef __amd64__
+    ; These instructions must be encoded as 32-bit until CS.L is set.
+    mov eax, cr4
+    or  eax, 0x20 ; CR4.PAE
+    mov cr4, eax
+%endif
+
+    mov eax, [ebx + dSystemPageDirectory]
+    mov cr3, eax
+    
+%ifdef __amd64__
+    mov ecx, 0xC0000080
+    rdmsr
+    or  eax, 0x100       ; EFER.LME
+    wrmsr
+%endif
+
+    mov eax, cr0
+    and eax, 0x9FFFFFFF  ; clear reset-state CR0.CD/NW (enable caching)
+    or  eax, 0x80010000  ; CR0.PG/WP; the SIPI page is identity mapped
+    mov cr0, eax
+
+%ifdef __amd64__
+    jmp far [ebx + LongEntry]
+
+BITS 64
+Entry64:
+    ; initialize all the segments
+    mov eax, 0x10
+    mov ds, ax
     mov es, ax
+    mov ss, ax
+    mov fs, ax
+    mov gs, ax
 
-    ; Setup Registers
-    xor rsi, rsi
-    xor rdi, rdi
-    xor rax, rax
-    xor rbx, rbx
-    xor rcx, rcx
-    mov rcx, qword [dKernelAddress]
-    jmp rcx
+    ; allocate stack space, and we do it locked to
+    ; avoid clashing with other cpus
+    mov rax, [rel dRunStackSize]
+    lock xadd [rel dRunStackAddress], rax
 
-    ; Safety
-EndOfStage64:
+    ; setup the stack
+    mov rsp, rax
+    and rsp, -16
+    xor ebp, ebp
+
+    ; x64 ABI home space; CALL supplies return slot
+    sub rsp, 32
+    call [rel dKernelAddress]
+%else
+    ; allocate stack space, and we do it locked to
+    ; avoid clashing with other cpus
+    mov  eax, [ebx + dRunStackSize]
+    lock xadd [ebx + dRunStackAddress], eax
+    
+    ; setup the stack
+    mov esp, eax
+    and esp, -16
+    xor ebp, ebp
+
+    ; jump to the kernel
+    call [ebx + dKernelAddress]
+%endif
+
+Halted:
     cli
     hlt
+    jmp Halted
 
-; **************************
-; Variables
-; **************************
-wBootStackSize          dw  0x100
-wBootStackAddress       dw  0x1100  ; Base-stack must not be below 0x1000
-dRunStackSize           dq  0       ; size - 32
-dRunStackAddress        dq  0       ; size - 24
-dSystemPageDirectory    dq  0       ; size - 16
-dKernelAddress          dq  0       ; size - 8
+align 8
+Gdt:
+    dq 0
+    dq 0x00CF9a000000FFFF  ; 0x08: flat 32-bit code
+    dq 0x00CF92000000FFFF  ; 0x10: flat data
+    dq 0x00209A0000000000  ; 0x18: 64-bit code
+GdtEnd:
+GdtPointer:
+    dw GdtEnd - Gdt - 1
+    dd 0
+
+ProtectedEntry:
+    dd 0
+    dw 0x08
+
+%ifdef __amd64__
+LongEntry:
+    dd 0
+    dw 0x18
+%endif
+
+; Fixed trailer shared with InitializeApplicationJumpSpace. 
+; Keep last and aligned.
+align 8
+dRunStackSize           dq 0
+dRunStackAddress        dq 0
+dSystemPageDirectory    dq 0
+dKernelAddress          dq 0
