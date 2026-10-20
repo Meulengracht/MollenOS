@@ -250,7 +250,9 @@ WaitForHandleSet(
 
     available = maxEvents - pollEvents;
     if (numberOfEvents > available) {
-        atomic_fetch_add(&set->events_pending, numberOfEvents - available);
+        if (atomic_fetch_add(&set->events_pending, numberOfEvents - available) == 0) {
+            (void)FutexWake(&set->events_pending, 1, 0);
+        }
         numberOfEvents = available;
     }
 
