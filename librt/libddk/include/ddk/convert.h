@@ -218,6 +218,7 @@ static void to_sys_device_bus(BusDevice_t* in, struct sys_device_bus* out)
     out->irq_line = in->InterruptLine;
     out->irq_pin = in->InterruptPin;
     out->acpi_conform_flags = in->InterruptAcpiConform;
+    out->type = (enum sys_bus_type)in->Type;
     out->segment = in->Segment;
     out->bus = in->Bus;
     out->slot = in->Slot;
@@ -416,6 +417,7 @@ static void from_sys_device_bus(struct sys_device_bus* in, BusDevice_t* out)
     out->InterruptLine = in->irq_line;
     out->InterruptPin = in->irq_pin;
     out->InterruptAcpiConform = in->acpi_conform_flags;
+    out->Type = (BusType_t)in->type;
     out->Segment = in->segment;
     out->Bus = in->bus;
     out->Slot = in->slot;

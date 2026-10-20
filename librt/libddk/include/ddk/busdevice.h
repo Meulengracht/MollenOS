@@ -46,6 +46,12 @@
 #define __DEVICEMANAGER_IOCTL_EXT_WRITE        0x00000000
 #define __DEVICEMANAGER_IOCTL_EXT_READ         0x80000000
 
+// Values match sys.bus_type in the device protocol.
+typedef enum BusType {
+    BusTypeGeneric = 0, // Bus device without PCI configuration-space identity.
+    BusTypePci = 1
+} BusType_t;
+
 // Device Bus Information 
 // This describes the location on the bus, and these informations
 // can be used to control the bus-device
@@ -55,7 +61,7 @@ typedef struct BusDevice {
     int          InterruptLine;
     int          InterruptPin;
     unsigned int InterruptAcpiConform;
-    unsigned int IsPci;
+    BusType_t    Type;
     unsigned int Segment;
     unsigned int Bus;
     unsigned int Slot;

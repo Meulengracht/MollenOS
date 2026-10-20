@@ -70,6 +70,8 @@ typedef struct SystemInterrupt {
     // Reserved entries stay in the table while disabled. Dispatch checks Enabled
     // before reading their handler, so a shared line can remain active safely.
     _Atomic(int)             Enabled;
+    // Shared group enable flag. NULL for standalone kernel interrupts.
+    _Atomic(int)*            GroupEnabled;
     int                      Bound;
     // Cleanup may have removed only some mappings; never enable that handler.
     int                      Unbinding;

@@ -37,8 +37,8 @@
 #include <os/types/syscall.h>
 #include <threading.h>
 
-DECL_STRUCT(InterruptAllocationRequest);
-DECL_STRUCT(InterruptAllocationResult);
+DECL_STRUCT(InterruptGroupRequest);
+DECL_STRUCT(InterruptGroupResult);
 DECL_STRUCT(InterruptBindRequest);
 
 struct MemoryMappingParameters;
@@ -68,7 +68,7 @@ extern oserr_t ScIoSpaceRegister(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceAcquire(DeviceIo_t* IoSpace);
 extern oserr_t ScIoSpaceRelease(DeviceIo_t* ioSpace);
 extern oserr_t ScIoSpaceDestroy(DeviceIo_t* ioSpace);
-extern oserr_t ScInterruptAllocate(InterruptAllocationRequest_t*, InterruptAllocationResult_t*);
+extern oserr_t ScInterruptAllocate(InterruptGroupRequest_t*, InterruptGroupResult_t*);
 extern oserr_t ScInterruptBind(uuid_t, InterruptBindRequest_t*);
 extern oserr_t ScInterruptEnable(uuid_t);
 extern oserr_t ScInterruptDisable(uuid_t);

@@ -56,9 +56,6 @@ add_executable (vali-core
 		firmware.c
 		handle.c
 		handle_set.c
-		interrupts.c
-		interrupts_handlers.c
-		interrupts_table.c
 		ipc.c
 		machine.c
 )
@@ -72,6 +69,7 @@ add_subdirectory(api)
 add_subdirectory(arch)
 add_subdirectory(components)
 add_subdirectory(devicetree)
+add_subdirectory(interrupts)
 add_subdirectory(memory)
 add_subdirectory(output)
 add_subdirectory(sync)

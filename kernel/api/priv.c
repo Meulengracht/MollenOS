@@ -32,6 +32,7 @@
 #include <handle.h>
 #include <heap.h>
 #include <interrupts.h>
+#include <interrupts_group.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -250,16 +251,16 @@ ScIoSpaceDestroy(
 }
 
 static oserr_t
-__CopyAndVerifyAllocationRequest(
-    _In_ InterruptAllocationRequest_t* userRequest,
-    _In_ InterruptAllocationRequest_t* kernelRequest)
+__CopyAndVerifyGroupRequest(
+    _In_ InterruptGroupRequest_t* userRequest,
+    _In_ InterruptGroupRequest_t* kernelRequest)
 {
     oserr_t status;
 
     status = MemorySpaceCopyUser(
         userRequest,
         kernelRequest,
-        sizeof(InterruptAllocationRequest_t),
+        sizeof(InterruptGroupRequest_t),
         false
     );
     if (status != OS_EOK) {
@@ -276,11 +277,13 @@ __CopyAndVerifyAllocationRequest(
         return OS_EINVALPARAMS;
     }
 
-    // Currently we only support INTx delivery, and only 1 interrupt.
-    if (!(kernelRequest->Strategies & INTERRUPT_STRATEGY_INTx) || kernelRequest->Minimum != 1) {
+    // libddk checks PCI support before making this request. Vali has no device
+    // access checks yet. This syscall accepts single-message MSI and INTx.
+    kernelRequest->Strategies &= INTERRUPT_STRATEGY_MSI | INTERRUPT_STRATEGY_INTx;
+    if (kernelRequest->Strategies == 0 || kernelRequest->Minimum != 1) {
         return OS_ENOTSUPPORTED;
     }
-    if (kernelRequest->Line.Line < 0) {
+    if (!(kernelRequest->Strategies & INTERRUPT_STRATEGY_MSI) && kernelRequest->Line.Line < 0) {
         return OS_ENOENT;
     }
     return OS_EOK;
@@ -288,47 +291,37 @@ __CopyAndVerifyAllocationRequest(
 
 oserr_t
 ScInterruptAllocate(
-    _In_  InterruptAllocationRequest_t* userRequest,
-    _Out_ InterruptAllocationResult_t*  userResult)
+    _In_  InterruptGroupRequest_t* userRequest,
+    _Out_ InterruptGroupResult_t*  userResult)
 {
-    InterruptAllocationRequest_t request;
-    InterruptAllocationResult_t  result;
-    InterruptDescriptor_t        descriptor = { 0 };
+    InterruptGroupRequest_t      request;
+    InterruptGroupResult_t       result;
     oserr_t                      status;
 
     if (userRequest == NULL || userResult == NULL) {
         return OS_EINVALPARAMS;
     }
     
-    status = __CopyAndVerifyAllocationRequest(userRequest, &request);
+    status = __CopyAndVerifyGroupRequest(userRequest, &request);
     if (status != OS_EOK) {
         return status;
     }
     
-    descriptor.Line = request.Line.Line;
-    descriptor.Pin = request.Line.Pin;
-    descriptor.AcpiConform = request.Line.AcpiConform;
-    
-    // perform the reservation
-    status = InterruptReserve(&descriptor, request.Flags, &result.Handle);
+    status = InterruptGroupCreate(&request, 0, &result);
     if (status != OS_EOK) {
         return status;
     }
-
-    // currently just support 1 irq and intx
-    result.Count = 1;
-    result.Strategy = INTERRUPT_STRATEGY_INTx;
 
     status = MemorySpaceCopyUser(
         userResult,
         &result,
-        sizeof(InterruptAllocationResult_t),
+        sizeof(InterruptGroupResult_t),
         true
     );
     if (status != OS_EOK) {
         // Just unregister if it fails, no resources has been bound to
         // the irq yet
-        InterruptUnregister(result.Handle);
+        InterruptGroupRelease(result.Handle);
     }
     return status;
 }
@@ -337,21 +330,36 @@ static oserr_t
 __CheckInterruptOwner(
     _In_ uuid_t handle)
 {
-    SystemInterrupt_t* entry;
-    int                hasAccess;
+    return InterruptGroupCheckOwner(handle);
+}
 
-    entry = InterruptGet(handle);
-    if (entry == NULL) {
-        return OS_ENOENT;
+oserr_t
+ScInterruptGetMessage(
+    _In_  uuid_t                    handle,
+    _In_  uint32_t                  index,
+    _Out_ DeviceInterruptMessage_t* userMessage)
+{
+    InterruptMessage_t       message;
+    DeviceInterruptMessage_t result;
+    oserr_t                  status;
+
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (userMessage == NULL) {
+        return OS_EINVALPARAMS;
     }
 
-    // For a process/driver to own an interrupt it must not be a
-    // kernel interrupt, and the entry must belong to the same ms handle.
-    hasAccess = !(entry->Flags & INTERRUPT_KERNEL) &&
-            entry->Owner == GetCurrentMemorySpaceHandle();
-    
-    InterruptPut(entry);
-    return hasAccess ? OS_EOK : OS_EPERMISSIONS;
+    status = InterruptGroupGetMessage(handle, index, &message);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    result.AddressLow = (uint32_t)message.Address;
+    result.AddressHigh = (uint32_t)(message.Address >> 32U);
+    result.Data = message.Data;
+    return MemorySpaceCopyUser(userMessage, &result, sizeof(result), true);
 }
 
 oserr_t
@@ -382,12 +390,8 @@ ScInterruptBind(
     if (status != OS_EOK) {
         return status;
     }
-    if (request.Index != 0) {
-        return OS_EINVALPARAMS;
-    }
-
     // execute the request
-    return InterruptBind(handle, &request.Resources);
+    return InterruptGroupBind(handle, request.Index, &request.Resources);
 }
 
 oserr_t
@@ -401,7 +405,7 @@ ScInterruptEnable(
     if (status != OS_EOK) {
         return status;
     }
-    return InterruptSetEnabled(handle, 1);
+    return InterruptGroupSetEnabled(handle, 1);
 }
 
 oserr_t
@@ -415,7 +419,7 @@ ScInterruptDisable(
     if (status != OS_EOK) {
         return status;
     }
-    return InterruptSetEnabled(handle, 0);
+    return InterruptGroupSetEnabled(handle, 0);
 }
 
 oserr_t
@@ -430,7 +434,7 @@ ScInterruptUnbind(
     if (status != OS_EOK) {
         return status;
     }
-    return InterruptUnbind(handle);
+    return InterruptGroupUnbind(handle);
 }
 
 oserr_t
@@ -444,7 +448,7 @@ ScInterruptRelease(
     if (status != OS_EOK) {
         return status;
     }
-    return InterruptUnregister(handle);
+    return InterruptGroupRelease(handle);
 }
 
 oserr_t
