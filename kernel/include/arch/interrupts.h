@@ -28,6 +28,13 @@
 #include <os/osdefs.h>
 #include <interrupts.h>
 
+// Interrupt message structure used for configuring interrupt delivery.
+// Represents MSI (Message Signaled Interrupts) messages.
+typedef struct InterruptMessage {
+    uint64_t Address;
+    uint32_t Data;
+} InterruptMessage_t;
+
 /**
  * @brief Initializes the interrupts for the platform.
  *
@@ -85,5 +92,24 @@ KERNELAPI irqstate_t KERNELABI InterruptEnable(void);
 KERNELAPI irqstate_t KERNELABI InterruptRestoreState(irqstate_t State);
 KERNELAPI irqstate_t KERNELABI InterruptSaveState(void);
 KERNELAPI int        KERNELABI InterruptIsDisabled(void);
+
+/**
+ * @brief Retrieves the count of available interrupt message vectors.
+ */
+KERNELAPI uint32_t KERNELABI InterruptMessageVectorCount(void);
+
+/**
+ * @brief Format the interrupt message vector for the given ordinal.
+ *
+ * @param ordinal The ordinal of the interrupt message vector.
+ * @param descriptor Pointer to the interrupt descriptor to be filled.
+ * @param message Pointer to the interrupt message to be filled.
+ * @return Status of the operation.
+ */
+KERNELAPI oserr_t KERNELABI InterruptMessageVector(
+    _In_ uint32_t               ordinal,
+    _In_ InterruptDescriptor_t* descriptor,
+    _In_ InterruptMessage_t*    message);
+
 
 #endif //!__VALI_ARCH_INTERRUPT_H__

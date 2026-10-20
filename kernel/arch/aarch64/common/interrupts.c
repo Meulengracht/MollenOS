@@ -209,6 +209,24 @@ InterruptResolve(
     return OS_EOK;
 }
 
+uint32_t
+InterruptMessageVectorCount(void)
+{
+    return 0;
+}
+
+oserr_t
+InterruptMessageVector(
+    _In_ uint32_t               ordinal,
+    _In_ InterruptDescriptor_t* descriptor,
+    _In_ InterruptMessage_t*    message)
+{
+    (void)ordinal;
+    (void)descriptor;
+    (void)message;
+    return OS_ENOTSUPPORTED;
+}
+
 oserr_t
 InterruptConfigure(
     _In_ SystemInterrupt_t* interrupt,

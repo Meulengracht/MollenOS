@@ -45,6 +45,51 @@ extern void  __cli(void);
 extern void  __sti(void);
 extern reg_t __getflags(void);
 
+uint32_t
+InterruptMessageVectorCount(void)
+{
+    // Ensure that MSI can be used only when the APIC is initialized and the system supports it
+    if (ApicIsInitialized() != OS_EOK || GetApicInterruptMode() == InterruptMode_PIC ||
+        GetMachine()->Processor.Cores == NULL ||
+        CpuCoreId(GetMachine()->Processor.Cores) >= 255) {
+        return 0;
+    }
+
+    return INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE;
+}
+
+oserr_t
+InterruptMessageVector(
+    _In_ uint32_t               ordinal,
+    _In_ InterruptDescriptor_t* descriptor,
+    _In_ InterruptMessage_t*    message)
+{
+    uint32_t count = InterruptMessageVectorCount();
+    uint32_t vector;
+
+    if (descriptor == NULL || message == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    if (count == 0) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    if (ordinal >= count) {
+        return OS_EINVALPARAMS;
+    }
+
+    vector = INTERRUPT_SOFTWARE_BASE + ordinal;
+    descriptor->Line = (int)vector;
+    descriptor->Pin = INTERRUPT_NONE;
+
+    // Physical destination, fixed delivery, edge triggered. Route to the BSP
+    // until affinity and CPU hotplug can update both routing and PCI messages.
+    message->Address = 0xFEE00000ULL | ((uint64_t)CpuCoreId(GetMachine()->Processor.Cores) << 12U);
+    message->Data = vector;
+    return OS_EOK;
+}
+
 static inline uuid_t
 __GetBspCoreId(void)
 {
