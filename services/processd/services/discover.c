@@ -63,10 +63,10 @@ __EndsWith(
 
 static oserr_t
 __ReadFile(
-    _In_  struct VaFsDirectoryReader* directoryHandle,
-    _In_  const char*                 filename,
-    _Out_ void**                      bufferOut,
-    _Out_ size_t*                     lengthOut)
+    _In_      struct VaFsDirectoryReader* directoryHandle,
+    _In_      const char*                 filename,
+    _Out_Opt_ void**                      bufferOut,
+    _Out_Opt_ size_t*                     lengthOut)
 {
     struct VaFsObjectReader* fileHandle;
     struct VaFsMetadata      metadata;
@@ -106,6 +106,15 @@ __ReadFile(
     }
 
     fileSize = (size_t)length;
+    
+    if (bufferOut == NULL) {
+        if (lengthOut != NULL) {
+            *lengthOut = fileSize;
+        }
+        vafs_object_reader_close(fileHandle);
+        return OS_EOK;
+    }
+
     fileBuffer = malloc(fileSize ? fileSize : 1);
     if (!fileBuffer) {
         vafs_object_reader_close(fileHandle);
@@ -120,7 +129,9 @@ __ReadFile(
     }
 
     *bufferOut = fileBuffer;
-    *lengthOut = fileSize;
+    if (lengthOut != NULL) {
+        *lengthOut = fileSize;
+    }
     return OS_EOK;
 }
 
@@ -405,9 +416,9 @@ PSBootstrapCleanup(void)
 
 oserr_t
 PmBootstrapFindRamdiskFile(
-    _In_  mstring_t* path,
-        _Out_ void**     bufferOut,
-        _Out_ size_t*    bufferSizeOut)
+    _In_      mstring_t* path,
+    _Out_Opt_ void**     bufferOut,
+    _Out_Opt_ size_t*    bufferSizeOut)
 {
     struct VaFsDirectoryReader* directoryHandle;
     char*                       internPath;

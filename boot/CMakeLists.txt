@@ -17,9 +17,16 @@ endif ()
 # Configure options
 if (NOT VALI_ARCH STREQUAL "amd64" AND NOT VALI_ARCH STREQUAL "i386")
     set(BOOTLOADER_BIOS OFF CACHE BOOL "BIOS Bootloader only available on x86" FORCE)
+else ()
+    # Enable the BIOS bootloader on x86 platforms by default
+    message(STATUS "Enabling BIOS bootloader on x86 platform by default")
+    set(BOOTLOADER_BIOS ON CACHE BOOL "Enable BIOS bootloader" FORCE)
+
+    # Enable the UEFI bootloader on x86 platforms by default
+    message(STATUS "Enabling UEFI bootloader on x86 platform by default")
+    set(BOOTLOADER_UEFI ON CACHE BOOL "Enable UEFI bootloader" FORCE)
 endif ()
 
-option (BOOTLOADER_BIOS "Enable BIOS bootloader" OFF)
 option (BOOTLOADER_UEFI "Enable UEFI bootloader" OFF)
 option (BOOTLOADER_RPI  "Enable Raspberry Pi bootloader" OFF)
 
