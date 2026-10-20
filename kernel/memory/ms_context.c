@@ -40,8 +40,8 @@ MSContextNew(void)
 
 static void
 __CleanupMemoryAllocation(
-        _In_ element_t* element,
-        _In_ void*      context)
+    _In_ element_t* element,
+    _In_ void*      context)
 {
     struct MSAllocation* allocation = element->value;
     struct MSContext*    msContext = context;
@@ -52,8 +52,12 @@ __CleanupMemoryAllocation(
 
 void
 MSContextDelete(
-        _In_ struct MSContext* context)
+    _In_ struct MSContext* context)
 {
+    if (context == NULL) {
+        return;
+    }
+
     MutexDestruct(&context->SyncObject);
     MutexDestruct(&context->UserCopyLock);
     list_clear(&context->Allocations, __CleanupMemoryAllocation, context);
@@ -63,8 +67,8 @@ MSContextDelete(
 
 void
 MSContextAddAllocation(
-        _In_ struct MSContext*    context,
-        _In_ struct MSAllocation* allocation)
+    _In_ struct MSContext*    context,
+    _In_ struct MSAllocation* allocation)
 {
     MutexLock(&context->SyncObject);
     list_append(&context->Allocations, &allocation->Header);
