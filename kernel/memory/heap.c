@@ -24,6 +24,7 @@
 //#define __TRACE
 
 #include <arch/utils.h>
+#include <arch/interrupts.h>
 #include <assert.h>
 #include <debug.h>
 #include <ds/list.h>
@@ -77,6 +78,26 @@ typedef struct MemoryCache {
 
     uintptr_t        AtomicCaches;
 } MemoryCache_t;
+
+// Heap operations also run under IRQ spinlocks and in interrupt handlers.
+// Keep the owner non-preemptible and never put a contending allocator to sleep.
+// Retain recursive ownership for nested slab metadata allocation/free paths.
+static irqstate_t
+__CacheLock(MemoryCache_t* cache)
+{
+    irqstate_t state = InterruptDisable();
+    while (MutexTryLock(&cache->SyncObject) != OS_EOK) {
+        MemorySpaceSyncProcessPending();
+    }
+    return state;
+}
+
+static void
+__CacheUnlock(MemoryCache_t* cache, irqstate_t state)
+{
+    MutexUnlock(&cache->SyncObject);
+    InterruptRestoreState(state);
+}
 
 // All the standard caches DO not use contigious memory
 static MemoryCache_t g_initialCache = { 0 };
@@ -397,7 +418,8 @@ __CacheContainsAddress(
     _In_ MemoryCache_t* cache,
     _In_ uintptr_t      address)
 {
-    struct FindSlabContext Context = {
+    irqstate_t             irqState;
+    struct FindSlabContext context = {
         .Cache   = cache,
         .Address = address,
         .Found   = 0
@@ -407,13 +429,13 @@ __CacheContainsAddress(
 
     // Check partials first, we have to lock the cache as slabs can 
     // get rearranged as we go, which is not ideal
-    MutexLock(&cache->SyncObject);
-    list_enumerate(&cache->PartialSlabs, SlabContainsAddress, &Context);
-    if (!Context.Found) {
-        list_enumerate(&cache->FullSlabs, SlabContainsAddress, &Context);
+    irqState = __CacheLock(cache);
+    list_enumerate(&cache->PartialSlabs, SlabContainsAddress, &context);
+    if (!context.Found) {
+        list_enumerate(&cache->FullSlabs, SlabContainsAddress, &context);
     }
-    MutexUnlock(&cache->SyncObject);
-    return Context.Found;
+    __CacheUnlock(cache, irqState);
+    return context.Found;
 }
 
 static inline size_t
@@ -694,6 +716,7 @@ MemoryCacheAllocate(
     MemorySlab_t* Slab;
     void*         Allocated;
     int           Index;
+    irqstate_t    irqState = InterruptDisable();
     TRACE("MemoryCacheAllocate(%s)", Cache->Name);
 
     // Can we allocate from cpu cache? No need to use explicit macros with memory
@@ -706,12 +729,13 @@ MemoryCacheAllocate(
                 Allocated = MEMORY_ATOMIC_ELEMENT(AtomicCache, (Available - 1))[0];
                 TRACE("[heap] [%s] ATOMIC ALLOC 0x%" PRIxIN " (%u, %u, %u)", 
                     Cache->Name, Allocated, Cache->ObjectSize, Cache->ObjectPadding, Available);
+                InterruptRestoreState(irqState);
                 return Allocated;
             }
         }
     }
 
-    MutexLock(&Cache->SyncObject);
+    (void)__CacheLock(Cache);
     if (Cache->NumberOfFreeObjects) {
         element_t* Element = list_front(&Cache->PartialSlabs);
         if (Element) {
@@ -743,7 +767,7 @@ MemoryCacheAllocate(
     } else if (!(Cache->Flags & HEAP_SINGLE_SLAB)) {
         Slab = __SlabCreate(Cache);
         if (!Slab) {
-            MutexUnlock(&Cache->SyncObject);
+            __CacheUnlock(Cache, irqState);
             ERROR("[heap] [%s] __SlabCreate returned NULL", Cache->Name);
             return NULL;
         }
@@ -765,7 +789,7 @@ MemoryCacheAllocate(
         Allocated = NULL;
         Index     = -1;
     }
-    MutexUnlock(&Cache->SyncObject);
+    __CacheUnlock(Cache, irqState);
 
     TRACE(" => 0x%" PRIxIN " (%u [0x%x], %u, %i)", Allocated, Cache->ObjectSize, 
         LODWORD(&Cache->ObjectSize), Cache->ObjectPadding, Index);
@@ -808,31 +832,36 @@ __FreeInSlab(
 
 void
 MemoryCacheFree(
-    _In_ MemoryCache_t* Cache,
-    _In_ void*          Object)
+    _In_ MemoryCache_t* cache,
+    _In_ void*          object)
 {
-    struct FreeContext Context = { 
-        .Cache     = Cache, 
-        .Object    = (uintptr_t)Object, 
+    irqstate_t         irqState;
+    struct FreeContext context = { 
+        .Cache     = cache, 
+        .Object    = (uintptr_t)object, 
         .Element   = NULL, 
         .AddToFree = 0
     };
     
-    TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", Cache->Name, Object);
+    TRACE("MemoryCacheFree(%s, 0x%" PRIxIN ")", cache->Name, object);
+
+    // Disable interrupts before manipulating the cache
+    irqState = InterruptDisable();
 
     // Handle debug flags
-    if (Cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
-        memset(Object, MEMORY_OVERRUN_PATTERN & 0xFF, Cache->ObjectSize);
+    if (cache->Flags & HEAP_DEBUG_USE_AFTER_FREE) {
+        memset(object, MEMORY_OVERRUN_PATTERN & 0xFF, cache->ObjectSize);
     }
 
     // Can we push to cpu cache?
-    if (Cache->AtomicCaches != 0) {
-        TRACE("[heap] [%s] ATOMIC FREE 0x%" PRIxIN, Cache->Name, Object);
-        MemoryAtomicCache_t* AtomicCache = MEMORY_ATOMIC_CACHE(Cache, ArchGetProcessorCoreId());
-        int Available = atomic_load(&AtomicCache->Available);
-        while (Available < AtomicCache->Limit) {
-            if (atomic_compare_exchange_weak(&AtomicCache->Available, &Available, Available + 1)) {
-                MEMORY_ATOMIC_ELEMENT(AtomicCache, Available)[0] = Object;
+    if (cache->AtomicCaches != 0) {
+        TRACE("[heap] [%s] ATOMIC FREE 0x%" PRIxIN, cache->Name, object);
+        MemoryAtomicCache_t* atomicCache = MEMORY_ATOMIC_CACHE(cache, ArchGetProcessorCoreId());
+        int                  available = atomic_load(&atomicCache->Available);
+        while (available < atomicCache->Limit) {
+            if (atomic_compare_exchange_weak(&atomicCache->Available, &available, available + 1)) {
+                MEMORY_ATOMIC_ELEMENT(atomicCache, available)[0] = object;
+                InterruptRestoreState(irqState);
                 return;
             }
         }
@@ -840,36 +869,36 @@ MemoryCacheFree(
         // If the atomic cache is full then drain it
     }
 
-    MutexLock(&Cache->SyncObject);
-    list_enumerate(&Cache->PartialSlabs, __FreeInSlab, &Context);
-    if (Context.AddToFree) {
-        list_append(&Cache->FreeSlabs, Context.Element);
+    (void)__CacheLock(cache);
+    list_enumerate(&cache->PartialSlabs, __FreeInSlab, &context);
+    if (context.AddToFree) {
+        list_append(&cache->FreeSlabs, context.Element);
     }
     
     // Element was not present in partial slabs, check the full slabs now
-    if (!Context.Element) {
-        list_enumerate(&Cache->FullSlabs, __FreeInSlab, &Context);
-        if (Context.Element) {
+    if (!context.Element) {
+        list_enumerate(&cache->FullSlabs, __FreeInSlab, &context);
+        if (context.Element) {
             // AddToFree is set if the object was removed already
-            if (!Context.AddToFree) {
-                list_remove(&Cache->FullSlabs, Context.Element);
+            if (!context.AddToFree) {
+                list_remove(&cache->FullSlabs, context.Element);
             }
             
             // A slab can go directly from full to free if the count is 1
-            if (Cache->ObjectCount == 1) {
-                list_append(&Cache->FreeSlabs, Context.Element);
+            if (cache->ObjectCount == 1) {
+                list_append(&cache->FreeSlabs, context.Element);
             }
             else {
-                list_append(&Cache->PartialSlabs, Context.Element);
+                list_append(&cache->PartialSlabs, context.Element);
             }
         }
     }
-    MutexUnlock(&Cache->SyncObject);
+    __CacheUnlock(cache, irqState);
 }
 
 int MemoryCacheReap(void)
 {
-    // Iterate the caches in the system and drain their cpu caches
+    // TODO: Iterate the caches in the system and drain their cpu caches
     // Then start looking at the entirely free slabs, and free them.
     return 0;
 }

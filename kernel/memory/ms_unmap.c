@@ -53,11 +53,13 @@ __ClearPhysicalPages(
             &pagesCleared
     );
     if (pagesCleared) {
+        // No CPU may retain a stale translation when these pages are reused.
+        MSSync(memorySpace, address, size);
+        
         // free the physical memory
         if (pagesFreed) {
             FreePhysicalMemory(pagesFreed, &addresses[0]);
         }
-        MSSync(memorySpace, address, size);
     }
     kfree(addresses);
 

@@ -200,7 +200,9 @@ WaitForHandleSet(
 {
     struct handle_set* set = LookupHandleOfType(handle, HandleTypeSet);
     int                numberOfEvents;
+    int                available;
     list_t             spliced;
+    element_t*         i;
     int                k = pollEvents;
     TRACE("WaitForHandleSet(%u, %i, %i)", handle, maxEvents, pollEvents);
 
@@ -208,6 +210,18 @@ WaitForHandleSet(
         return OS_ENOENT;
     }
     
+    // Validate the input parameters for the handle set wait operation.
+    if (maxEvents <= 0 || pollEvents < 0 || pollEvents > maxEvents) {
+        return OS_EINVALPARAMS;
+    }
+
+    // If the number of poll events equals the maximum number of events, 
+    // we can return early.
+    if (pollEvents == maxEvents) {
+        *numEventsOut = pollEvents;
+        return OS_EOK;
+    }
+
     // If there are no queued events, but there were pollEvents, let the user
     // handle those first.
     numberOfEvents = atomic_exchange(&set->events_pending, 0);
@@ -234,17 +248,22 @@ WaitForHandleSet(
         numberOfEvents = atomic_exchange(&set->events_pending, 0);
     }
 
-    numberOfEvents = MIN(numberOfEvents, maxEvents);
+    available = maxEvents - pollEvents;
+    if (numberOfEvents > available) {
+        atomic_fetch_add(&set->events_pending, numberOfEvents - available);
+        numberOfEvents = available;
+    }
+
     list_construct(&spliced);
     list_splice(&set->events, numberOfEvents, &spliced);
-    if (numberOfEvents > maxEvents) {
-        // add the event count back that we are not handling
-        atomic_fetch_add(&set->events_pending, numberOfEvents - maxEvents);
-    }
     
     TRACE("WaitForHandleSet numberOfEvents=%i", numberOfEvents);
-    foreach(i, &spliced) {
+    while ((i = list_front(&spliced)) != NULL) {
         struct handleset_element* element = i->value;
+        
+        // Clearing ActiveEvents permits an IRQ to enqueue this same node
+        // again. Detach it before publishing that transition.
+        list_remove(&spliced, i);
         
         // reuse an existing structure (combine events)?
         if (pollEvents) {

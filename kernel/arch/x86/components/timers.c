@@ -28,6 +28,7 @@
 #include <arch/x86/tsc.h>
 #include <debug.h>
 #include <interrupts.h>
+#include <component/timer.h>
 
 oserr_t
 TimersDiscover(void)
@@ -64,7 +65,8 @@ TimersDiscover(void)
 oserr_t
 PlatformTimersInitialize(void)
 {
-    oserr_t oserr;
+    UInteger64_t frequency;
+    oserr_t      oserr;
 
     // Free all the allocated isa's now for drivers
     InterruptDecreasePenalty(0); // PIT
@@ -87,14 +89,23 @@ PlatformTimersInitialize(void)
         return oserr;
     }
 
+    // Calibration needs a running reference even when HPET is absent.
+    // Registration alone does not select the RTC/PIT as the system clock.
+    SystemTimerRefreshTimers();
+    SystemTimerGetClockFrequency(&frequency);
+    if (frequency.QuadPart == 0) {
+        ERROR("PlatformTimersInitialize no calibration clock available");
+        return OS_ENOTSUPPORTED;
+    }
+
     // Calibrate the TSC
     TscInitialize();
     
     // Calibrate the Local Apic Timer
     ApicTimerInitialize();
 
-    // Disable calibration mode
-    RtcSetCalibrationMode(0);
-    PitSetCalibrationMode(0);
+    // Selection disables an IRQ reference only if a counter replaces it.
+    // Otherwise it must keep running, with its tick count intact.
+    SystemTimerRefreshTimers();
     return OS_EOK;
 }

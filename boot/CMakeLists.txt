@@ -46,7 +46,7 @@ if (VALI_ARCH STREQUAL "amd64" OR VALI_ARCH STREQUAL "i386")
     add_custom_command(OUTPUT "${VALI_PATH_DEPLOY}/ap.sys"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${VALI_PATH_DEPLOY}"
-        COMMAND "${CMAKE_ASM_NASM_COMPILER}" -f bin -DTRAMPOLINE_LOCATION=0x8000 -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o "${VALI_PATH_DEPLOY}/ap.sys" ap.asm
+        COMMAND "${CMAKE_ASM_NASM_COMPILER}" -f bin -D${VALI_ARCH} -D__${VALI_ARCH}__ ${NASM_FEATURE_FLAGS} -o "${VALI_PATH_DEPLOY}/ap.sys" ap.asm
         VERBATIM
         COMMENT "Compiling trampoline code"
         DEPENDS ap.asm

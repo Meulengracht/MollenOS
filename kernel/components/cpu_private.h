@@ -33,6 +33,9 @@
 #include <component/cpu.h>
 #include "../threads/private.h"
 
+// forward declarations
+typedef struct MemorySynchronizationObject MemorySynchronizationObject_t;
+
 typedef struct SystemCpuCore {
     uuid_t           Id;
     SystemCpuState_t State;
@@ -43,11 +46,12 @@ typedef struct SystemCpuCore {
     Scheduler_t      Scheduler;
 
     // State resources
-    queue_t          FunctionQueue[CpuFunctionCount];
-    Thread_t*        CurrentThread;
-    Context_t*       InterruptRegisters;
-    int              InterruptNesting;
-    uint32_t         InterruptPriority;
+    queue_t                                 FunctionQueue[CpuFunctionCount];
+    _Atomic(MemorySynchronizationObject_t*) MemorySync;
+    Thread_t*                               CurrentThread;
+    Context_t*                              InterruptRegisters;
+    int                                     InterruptNesting;
+    uint32_t                                InterruptPriority;
 
     struct SystemCpuCore* Link;
 

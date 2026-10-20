@@ -24,9 +24,6 @@
 
 #include <os/osdefs.h>
 
-/* Definitions 
- * Where in lower memory we want to keep trampoline code */
-#define MEMORY_LOCATION_TRAMPOLINE_CODE 0x8000
 #define CPUID_VENDOR_OLDAMD       "AMDisbetter!" /* early engineering samples of AMD K5 processor */
 #define CPUID_VENDOR_AMD          "AuthenticAMD"
 #define CPUID_VENDOR_INTEL        "GenuineIntel"

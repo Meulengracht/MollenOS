@@ -49,7 +49,7 @@ __WaitForAPICIdle(void)
 
 static oserr_t
 __SendIPI(
-        _In_ UInteger64_t* ipi)
+    _In_ UInteger64_t* ipi)
 {
     irqstate_t irqstate;
     oserr_t    oserr;
@@ -90,9 +90,9 @@ ApicSynchronizeArbIds(void)
 
 oserr_t
 ApicSendInterrupt(
-        _In_ InterruptTarget_t  type,
-        _In_ uuid_t             specific,
-        _In_ uint32_t           vector)
+    _In_ InterruptTarget_t  type,
+    _In_ uuid_t             specific,
+    _In_ uint32_t           vector)
 {
     UInteger64_t ipiValue;
     uuid_t       id  = ArchGetProcessorCoreId();
@@ -124,8 +124,8 @@ ApicSendInterrupt(
 
 oserr_t
 ApicPerformIPI(
-        _In_ uuid_t coreId,
-        _In_ int    assert)
+    _In_ uuid_t coreId,
+    _In_ int    assert)
 {
     UInteger64_t ipiValue;
 
@@ -143,19 +143,21 @@ ApicPerformIPI(
 
 oserr_t
 ApicPerformSIPI(
-        _In_ uuid_t    coreId,
-        _In_ uintptr_t address)
+    _In_ uuid_t    coreId,
+    _In_ uintptr_t address)
 {
     UInteger64_t ipiValue;
 	uint8_t      irqVector;
+
+    if (address == 0 || address >= 0x100000 || (address % 0x1000) != 0) {
+        return OS_EINVALPARAMS;
+    }
 
     ipiValue.u.LowPart = APIC_DELIVERY_MODE(APIC_MODE_SIPI) | APIC_LEVEL_ASSERT | APIC_DESTINATION_PHYSICAL;
     ipiValue.u.HighPart = ApicIsX2Apic() ? coreId : APIC_DESTINATION(coreId);
 
     // Sanitize address given
-    assert((address % 0x1000) == 0);
     irqVector = address / 0x1000;
-    assert(irqVector <= 0xF);
     ipiValue.u.LowPart |= irqVector;
 
     return __SendIPI(&ipiValue);

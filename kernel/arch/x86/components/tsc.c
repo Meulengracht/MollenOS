@@ -34,9 +34,8 @@ static void TscGetCount(void*, UInteger64_t*);
 static void TscGetFrequency(void*, UInteger64_t*);
 static void TscNoOperation(void*);
 
-/**
- * Recalibrate is registered as a no-op as the TSC never needs to be calibrated again
- */
+// Recalibrate is registered as a no-op as the TSC never needs to be calibrated again
+static tick_t                  g_tscFrequency = 0;
 static SystemTimerOperations_t g_tscOperations = {
         .Enable = NULL,
         .Configure = NULL,
@@ -45,31 +44,45 @@ static SystemTimerOperations_t g_tscOperations = {
         .GetFrequency = TscGetFrequency,
         .Recalibrate = TscNoOperation
 };
-static tick_t g_tscFrequency = 0;
 
-static void
+static oserr_t
 __Calibrate(void)
 {
     uint64_t     tscStart, tscEnd;
-    UInteger64_t tick, frequency, tickEnd;
+    UInteger64_t tick, frequency, tickStart;
+    uint64_t     interval;
 
     SystemTimerGetClockFrequency(&frequency);
-    SystemTimerGetClockTick(&tick);
+    if (frequency.QuadPart == 0) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    interval = frequency.QuadPart / 10;
+    if (interval == 0) {
+        interval = 1;
+    }
+
+    // Start at a reference tick boundary so an IRQ clock's partial first
+    // period is not mistaken for a full calibration tick.
+    SystemTimerGetClockTick(&tickStart);
+    do {
+        SystemTimerGetClockTick(&tick);
+    } while (tick.QuadPart == tickStart.QuadPart);
+    tickStart = tick;
     _rdtsc(&tscStart);
 
     // Run for 100ms, so divide the frequency (ticks per second) by 10
-    tickEnd.QuadPart = tick.QuadPart + (frequency.QuadPart / 10);
     do {
         SystemTimerGetClockTick(&tick);
-    } while (tick.QuadPart < tickEnd.QuadPart);
+    } while (tick.QuadPart - tickStart.QuadPart < interval);
 
     // get end tick
     _rdtsc(&tscEnd);
 
     // calculate the frequency
-    tscEnd -= tscStart;
-    tscEnd *= 10; // ticks per second
-    g_tscFrequency = tscEnd;
+    g_tscFrequency = ((tscEnd - tscStart) * frequency.QuadPart) /
+            (tick.QuadPart - tickStart.QuadPart);
+    return g_tscFrequency ? OS_EOK : OS_ENOTSUPPORTED;
 }
 
 void
@@ -83,21 +96,24 @@ TscInitialize(void)
         return;
     }
     
-    if (GetMachine()->Processor.PlatformData.Flags & X86_CPU_FLAG_INVARIANT_TSC) {
+    if (!(GetMachine()->Processor.PlatformData.Flags & X86_CPU_FLAG_INVARIANT_TSC)) {
         WARNING("TscInitialize the TSC is non-invariant, will not use it for time-keeping");
         return;
     }
 
     // Calibrate the TSC against other system timers.
-    // TODO: Add check that there must be others?
-    __Calibrate();
+    if (__Calibrate() != OS_EOK) {
+        WARNING("TscInitialize no usable calibration reference");
+        return;
+    }
 
     // register as available platform timer
     oserr = SystemTimerRegister(
-            "x86-tsc",
-            &g_tscOperations,
-            SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
-            NULL);
+        "x86-tsc",
+        &g_tscOperations,
+        SystemTimeAttributes_COUNTER | SystemTimeAttributes_CALIBRATED,
+        NULL
+    );
     if (oserr != OS_EOK) {
         WARNING("TscInitialize failed to register platform timer");
     }
@@ -105,8 +121,8 @@ TscInitialize(void)
 
 static void
 TscGetCount(
-        _In_ void*         context,
-        _In_ UInteger64_t* tick)
+    _In_ void*         context,
+    _In_ UInteger64_t* tick)
 {
     _CRT_UNUSED(context);
     _rdtsc(&tick->QuadPart);
@@ -114,8 +130,8 @@ TscGetCount(
 
 static void
 TscGetFrequency(
-        _In_ void*         context,
-        _In_ UInteger64_t* frequency)
+    _In_ void*         context,
+    _In_ UInteger64_t* frequency)
 {
     _CRT_UNUSED(context);
     frequency->QuadPart = g_tscFrequency;
@@ -123,7 +139,7 @@ TscGetFrequency(
 
 static void
 TscNoOperation(
-        _In_ void* context)
+    _In_ void* context)
 {
     // no-op
     _CRT_UNUSED(context);

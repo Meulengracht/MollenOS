@@ -134,9 +134,8 @@ PitInitialize(
     // Mark PIT as available, which means we enable the use of calibration mode
     g_pit.Available = true;
 
-    // Initialize the PIT to a frequency of 1000hz during boot so that the rest of the system
-    // can calibrate its timers. When calibration is over, we disable the PIT and let the kernel
-    // timer system deterimine whether it wants to reenable us.
+    // Start the reference for calibration. Clock selection keeps it running
+    // unless a calibrated counter replaces it.
     PitSetCalibrationMode(1);
 
     // Register us as a system timer, but only if we are not emulated by the HPET, otherwise

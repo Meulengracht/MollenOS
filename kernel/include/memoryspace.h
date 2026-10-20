@@ -131,6 +131,16 @@ KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
 
 /**
+ * @brief Initializes the memory space synchronization system.
+ */
+KERNELAPI void KERNELABI MemorySpaceSyncInitialize(void);
+
+/**
+ * @brief Processes any pending memory synchronization requests for the current CPU.
+ */
+KERNELAPI void KERNELABI MemorySpaceSyncProcessPending(void);
+
+/**
  * @brief Checks if two memory spaces are related to each other by sharing resources.
  *
  * @param Space1

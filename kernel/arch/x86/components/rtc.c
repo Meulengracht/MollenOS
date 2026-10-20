@@ -66,7 +66,8 @@ RtcInterrupt(
 
     // If it was a sync event, then we clear it again, as we treat this
     // as a one-shot event
-    if (irqstatus & CMOSC_IRQ_UPDATE) {
+    if ((irqstatus & CMOSC_IRQ_UPDATE) &&
+        (CmosRead(CMOS_REGISTER_STATUS_B) & CMOSB_IRQ_UPDATE)) {
         SystemTimerHandleSync();
         irqstat = CmosRead(CMOS_REGISTER_STATUS_B);
         irqstat &= ~(CMOSB_IRQ_UPDATE);
@@ -139,11 +140,11 @@ __ConfigureRTC(
     // Find nearest frequency that matches what we want
     while (rate > 3) {
         uint32_t distanceToCurrent = abs((int)(frequency->s.LowPart) - (int)current);
-        uint32_t distanceToNext    = abs((int)(frequency->s.LowPart) - (int)(current << 2));
+        uint32_t distanceToNext    = abs((int)(frequency->s.LowPart) - (int)(current << 1));
         if (distanceToCurrent < distanceToNext) {
             break;
         }
-        current <<= 2;
+        current <<= 1;
         rate--;
     }
 
@@ -203,9 +204,8 @@ RtcInitialize(
         return oserr;
     }
 
-    // Initialize the RTC to a frequency of 1000hz during boot so that the rest of the system
-    // can calibrate its timers. When calibration is over, we disable the RTC and let the kernel
-    // timer system deterimine whether it wants to reenable us.
+    // Start the reference for calibration. Clock selection keeps it running
+    // unless a calibrated counter replaces it.
     RtcSetCalibrationMode(1);
 
     // Register the timer with the system for use.

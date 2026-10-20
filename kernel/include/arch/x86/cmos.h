@@ -22,6 +22,7 @@
 #define __DRIVER_CMOS_H__
 
 #include <os/osdefs.h>
+#include <stdatomic.h>
 #include <time.h>
 
 #define CMOS_IO_BASE            0x70
@@ -118,13 +119,13 @@
 #define CMOS_RTC_IRQ 0x08
 
 typedef struct Cmos {
-    uint8_t  AcpiCentury;
-    bool     RtcAvailable;
-    bool     RtcEnabled;
-    int      InterruptLine;
-    uuid_t   Irq;
-    uint32_t Frequency;
-    uint64_t Ticks;
+    uint8_t           AcpiCentury;
+    bool              RtcAvailable;
+    bool              RtcEnabled;
+    int               InterruptLine;
+    uuid_t            Irq;
+    uint32_t          Frequency;
+    _Atomic(uint64_t) Ticks;
 } Cmos_t;
 
 /**

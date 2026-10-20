@@ -170,6 +170,13 @@ CpuCoreStart(void)
     // Create the idle-thread and scheduler for the core
     ThreadingEnable(cpuCore);
     
+#if !defined(__aarch64__)
+    // ThreadingEnable has no current thread to inherit from on an AP. Retain
+    // the private space we installed, so scheduling back to idle restores it.
+    cpuCore->IdleThread.MemorySpace = MEMORYSPACE_GET(memorySpace);
+    cpuCore->IdleThread.MemorySpaceHandle = memorySpace;
+#endif
+    
     // Notify everyone that we are running beore switching on interrupts, don't
     // add this flag, overwrite and set only this flag
     WRITE_VOLATILE(cpuCore->State, CpuStateRunning);

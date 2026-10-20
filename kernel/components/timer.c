@@ -31,38 +31,58 @@
 // for time macros and length of months
 #include "../../librt/libc/time/local.h"
 
-static inline uint32_t
-__CalculateMultiplier(
-        _In_ UInteger64_t* frequency)
+// Scale a fractional second without rounding the clock's frequency. The slow
+// path also supports counters whose remainder * NSEC_PER_SEC would overflow.
+static uint64_t
+__FractionToNanoseconds(
+    _In_ uint64_t remainder,
+    _In_ uint64_t frequency)
 {
-    return MAX(1, (uint32_t)(NSEC_PER_SEC / frequency->QuadPart));
-}
-
-static inline uint32_t
-__CalculateDivider(
-        _In_ UInteger64_t* frequency)
-{
-    return MAX(1, (uint32_t)(frequency->QuadPart / NSEC_PER_SEC));
+    uint64_t result = 0;
+    uint64_t fraction = 0;
+    
+    if (remainder <= UINT64_MAX / NSEC_PER_SEC) {
+        return (remainder * NSEC_PER_SEC) / frequency;
+    }
+    
+    for (uint32_t bit = 1U << 29; bit != 0; bit >>= 1) {
+        result <<= 1;
+        if (fraction >= frequency - fraction) {
+            fraction -= frequency - fraction;
+            result++;
+        } else {
+            fraction += fraction;
+        }
+        
+        if (NSEC_PER_SEC & bit) {
+            if (fraction >= frequency - remainder) {
+                fraction -= frequency - remainder;
+                result++;
+            } else {
+                fraction += remainder;
+            }
+        }
+    }
+    return result;
 }
 
 static inline void
 __ToTimestamp(
-        _In_ uint32_t       multiplier,
-        _In_ uint32_t       divider,
-        _In_ UInteger64_t*  frequency,
-        _In_ UInteger64_t*  tick,
-        _In_ OSTimestamp_t* timestamp)
+    _In_ UInteger64_t*  frequency,
+    _In_ UInteger64_t*  tick,
+    _In_ OSTimestamp_t* timestamp)
 {
     timestamp->Seconds = (int64_t)(tick->QuadPart / frequency->QuadPart);
-    timestamp->Nanoseconds = (int64_t)(((tick->QuadPart % frequency->QuadPart) * multiplier) / divider);
+    timestamp->Nanoseconds = (int64_t)__FractionToNanoseconds(
+            tick->QuadPart % frequency->QuadPart, frequency->QuadPart);
 }
 
 oserr_t
 SystemTimerRegister(
-        _In_ const char*               name,
-        _In_ SystemTimerOperations_t*  operations,
-        _In_ enum SystemTimeAttributes attributes,
-        _In_ void*                     context)
+    _In_ const char*               name,
+    _In_ SystemTimerOperations_t*  operations,
+    _In_ enum SystemTimeAttributes attributes,
+    _In_ void*                     context)
 {
     SystemTimer_t* systemTimer;
     TRACE("SystemTimerRegister(name=%s, attributes=0x%x)", name, attributes);
@@ -118,8 +138,8 @@ static void __LinearTime(SystemTime_t* time, Integer64_t* linear)
 
 oserr_t
 SystemWallClockRegister(
-        _In_ SystemWallClockOperations_t* operations,
-        _In_ void*                        context)
+    _In_ SystemWallClockOperations_t* operations,
+    _In_ void*                        context)
 {
     SystemWallClock_t* clock;
 
@@ -143,7 +163,7 @@ SystemWallClockRegister(
 
 void
 SystemTimerGetWallClockTime(
-        _In_ OSTimestamp_t* time)
+    _In_ OSTimestamp_t* time)
 {
     SystemTimer_t* clock;
     UInteger64_t   tick;
@@ -175,11 +195,9 @@ SystemTimerGetWallClockTime(
 
     // Convert from raw ticks to something we recognize
     __ToTimestamp(
-            clock->Multiplier,
-            clock->Divider,
-            &clock->Frequency,
-            &tick,
-            time
+        &clock->Frequency,
+        &tick,
+        time
     );
     time->Seconds += GetMachine()->SystemTimers.WallClock->BaseTick.QuadPart;
 }
@@ -205,18 +223,16 @@ SystemTimerGetTimestamp(
 
     // Convert from raw ticks to something we recognize
     __ToTimestamp(
-            clock->Multiplier,
-            clock->Divider,
-            &clock->Frequency,
-            &tick,
-            &timestamp
+        &clock->Frequency,
+        &tick,
+        &timestamp
     );
     *timestampOut = (timestamp.Seconds * NSEC_PER_SEC) + timestamp.Nanoseconds;
 }
 
 void
 SystemTimerGetClockTick(
-        _In_ UInteger64_t* tickOut)
+    _In_ UInteger64_t* tickOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
     if (!clock) {
@@ -228,7 +244,7 @@ SystemTimerGetClockTick(
 
 void
 SystemTimerGetClockFrequency(
-        _In_ UInteger64_t* frequencyOut)
+    _In_ UInteger64_t* frequencyOut)
 {
     SystemTimer_t* clock = GetMachine()->SystemTimers.Clock;
     if (!clock) {
@@ -264,7 +280,7 @@ SystemTimerGetPerformanceTick(
 
 void
 SystemTimerStall(
-        _In_ OSTimestamp_t* deadline)
+    _In_ OSTimestamp_t* deadline)
 {
     OSTimestamp_t currentTime;
     do {
@@ -274,7 +290,7 @@ SystemTimerStall(
 
 static void
 __SynchronizeWallClockAndClocks(
-        _In_ void* argument)
+    _In_ void* argument)
 {
     SystemTime_t       systemTime;
     SystemWallClock_t* wallClock;
@@ -332,13 +348,13 @@ __SelectTimerFrequency(
 
 static void
 __CalculateTimerFrequency(
-        _In_ SystemTimer_t* timer)
+    _In_ SystemTimer_t* timer)
 {
     TRACE("__CalculateTimerFrequency(%s)", timer->Name);
     assert(timer->Operations.GetFrequency != NULL);
 
     // Does the timer support variadic frequency?
-    if (timer->Operations.GetFrequencyRange != NULL) {
+    if (timer != GetMachine()->SystemTimers.Clock && timer->Operations.GetFrequencyRange != NULL) {
         UInteger64_t low, high;
 
         // If we support the frequency range, then we must support configure.
@@ -348,16 +364,13 @@ __CalculateTimerFrequency(
     } else {
         timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
     }
-    timer->Multiplier = __CalculateMultiplier(&timer->Frequency);
-    timer->Divider = __CalculateDivider(&timer->Frequency);
-    TRACE("__CalculateTimerFrequency: freq=0x%llx, mult=%u, div=%u",
-          timer->Frequency.QuadPart, timer->Multiplier, timer->Divider);
+    TRACE("__CalculateTimerFrequency: freq=0x%llx", timer->Frequency.QuadPart);
 }
 
 static inline void
 __SelectIfFrequencyIsHigher(
-        _In_ SystemTimer_t** current,
-        _In_ SystemTimer_t*  candidate)
+    _In_ SystemTimer_t** current,
+    _In_ SystemTimer_t*  candidate)
 {
     if (*current == NULL) {
         *current = candidate;
@@ -370,7 +383,7 @@ __SelectIfFrequencyIsHigher(
 
 static oserr_t
 __EnableTimer(
-        _In_ SystemTimer_t* timer)
+    _In_ SystemTimer_t* timer)
 {
     TRACE("__EnableTimer %s", timer->Name);
 
@@ -390,6 +403,11 @@ __EnableTimer(
         timer->Operations.GetFrequency(timer->Context, &timer->Frequency);
     }
 
+    // If the frequency is zero, then the timer is not usable
+    if (timer->Frequency.QuadPart == 0) {
+        return OS_EINVALPARAMS;
+    }
+
     // Enable it if the operation is supported
     if (timer->Operations.Enable != NULL) {
         oserr_t oserr = timer->Operations.Enable(timer->Context, true);
@@ -406,7 +424,7 @@ __EnableTimer(
 
 static oserr_t
 __SelectTimerAsClock(
-        _In_ SystemTimer_t* timer)
+    _In_ SystemTimer_t* timer)
 {
     SystemTimer_t* current = GetMachine()->SystemTimers.Clock;
     oserr_t        oserr;
@@ -454,7 +472,13 @@ SystemTimerRefreshTimers(void)
     // and irq timers, then we make a decision between both.
     foreach (i, &GetMachine()->SystemTimers.Timers) {
         SystemTimer_t* timer = i->value;
+        
         __CalculateTimerFrequency(timer);
+        if (timer->Frequency.QuadPart == 0) {
+            // Skip timers with zero frequency
+            continue;
+        }
+
         if (timer->Attributes & SystemTimeAttributes_IRQ) {
             __SelectIfFrequencyIsHigher(&irqCandidate, timer);
         } else if (timer->Attributes & SystemTimeAttributes_COUNTER) {

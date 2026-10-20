@@ -18,6 +18,7 @@
 #include <arch/mmu.h>
 #include <debug.h>
 #include <handle.h>
+#include <heap.h>
 #include <string.h>
 #include "private.h"
 
@@ -39,28 +40,24 @@ CreateMemorySpace(
     // inheritting/creating a new userspace address-space. If we are inheritting the kernel
     // address-space, we clone it as we still need TLS data-areas in each kernel thread.
     if (flags == MEMORY_SPACE_INHERIT) {
-        // When cloning kernel memory spaces, we initially just copy the platform block
-        // for the new memory space, and then let the Platfrom call correct anything.
-        if (GetCurrentMemorySpace() != NULL) {
-            memcpy(
-                    &memorySpace->PlatformData,
-                    &GetCurrentMemorySpace()->PlatformData,
-                    sizeof(PlatformMemoryBlock_t)
-            );
-        }
-
-        // It doesn't matter which parent we take, they all map the exact same kernel segments
-        // so just pass in the current memory space
-        oserr = MmuCloneVirtualSpace(
-                GetCurrentMemorySpace(),
-                memorySpace,
-                (flags & MEMORY_SPACE_INHERIT) ? 1 : 0
-        );
+        // Kernel clones own their page tables and TLS. They need their own
+        // handle too: an AP has no current thread and therefore no parent handle.
+        oserr = MmuCloneVirtualSpace(NULL, memorySpace, 0);
         if (oserr != OS_EOK) {
+            DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
+            kfree(memorySpace);
             return oserr;
         }
 
-        *handleOut = GetCurrentMemorySpaceHandle();
+        *handleOut = CreateHandle(
+            HandleTypeMemorySpace,
+            (HandleDestructorFn)MemorySpaceDelete,
+            memorySpace
+        );
+        if (*handleOut == UUID_INVALID) {
+            MemorySpaceDelete(memorySpace);
+            return OS_EOOM;
+        }
     } else if (flags & MEMORY_SPACE_APPLICATION) {
         MemorySpace_t* parent = NULL;
 
