@@ -19,32 +19,21 @@
 #include <arch/interrupts.h>
 #include <arch/utils.h>
 #include <arch/x86/apic.h>
-#include <component/timer.h>
+#include <immintrin.h>
 
-#define WaitForConditionWithFault(fault, condition, runs, wait) \
-    fault = OS_EOK;                                             \
-    OSTimestamp_t deadline;                                     \
-    SystemTimerGetWallClockTime(&deadline);                     \
-    for (unsigned int tries_ = 0; !(condition); tries_++) {     \
-        OSTimestampAddNsec(&deadline, &deadline, wait);         \
-        SystemTimerStall(&deadline);                            \
-        if (tries_ == runs - 1) {                               \
-             fault = OS_ETIMEOUT;                               \
-             break;                                             \
-        }                                                       \
-    }
+#define __APIC_DELIVERY_SPIN_LIMIT 1000000U
 
 static oserr_t
 __WaitForAPICIdle(void)
 {
-    oserr_t oserr;
-    WaitForConditionWithFault(
-            oserr,
-            (ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0,
-            200,
-            NSEC_PER_MSEC
-    );
-	return oserr;
+    // IRQ-driven clocks cannot advance here with interrupts disabled.
+    for (unsigned int tries = 0; tries < __APIC_DELIVERY_SPIN_LIMIT; tries++) {
+        if ((ApicReadLocal(APIC_ICR_LOW) & APIC_DELIVERY_BUSY) == 0) {
+            return OS_EOK;
+        }
+        _mm_pause();
+    }
+    return OS_ETIMEOUT;
 }
 
 static oserr_t

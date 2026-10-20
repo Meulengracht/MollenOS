@@ -113,7 +113,7 @@ __InitializeApplicationJumpSpace(void)
     // Ensure that we retrieve a <1mb page for the trampoline code.
     status = AllocatePhysicalMemory(MEMORY_MASK_BIOS, 1, &page);
     if (status != OS_EOK) {
-        ERROR("__InitializeApplicationJumpSpace: failed to allocate trampoline page: 0x%" PRIxIN "", page);
+        ERROR("__InitializeApplicationJumpSpace: failed to allocate trampoline page");
         return status;
     }
 
