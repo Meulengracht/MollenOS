@@ -241,7 +241,7 @@ struct VirtioNetDevice {
     // State passed between interrupt handling stages.
     VirtioNetInterruptResource_t InterruptResource;
     // Registered interrupt identifier, when present.
-    uuid_t                       InterruptId;
+    DeviceInterrupt_t            Interrupt;
     // Executor event used to process deferred interrupts.
     int                          EventDescriptor;
     // Current client session and its packet state.
@@ -396,7 +396,7 @@ VirtioNetRegisterInterrupt(
 /**
  * @brief Disable and release the device interrupt and its executor event.
  */
-__EXTERN void
+__EXTERN oserr_t
 VirtioNetUnregisterInterrupt(
     _In_ VirtioNetDevice_t* device);
 

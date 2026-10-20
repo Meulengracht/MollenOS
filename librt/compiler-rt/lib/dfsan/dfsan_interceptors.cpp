@@ -17,6 +17,7 @@
 #include "dfsan/dfsan.h"
 #include "dfsan/dfsan_thread.h"
 #include "interception/interception.h"
+#include "sanitizer_common/sanitizer_allocator_dlsym.h"
 #include "sanitizer_common/sanitizer_allocator_interface.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_errno.h"
@@ -24,106 +25,76 @@
 #include "sanitizer_common/sanitizer_posix.h"
 #include "sanitizer_common/sanitizer_tls_get_addr.h"
 
+using namespace __dfsan;
 using namespace __sanitizer;
 
-namespace {
+static bool interceptors_initialized;
 
-bool interceptors_initialized;
-
-}  // namespace
+struct DlsymAlloc : public DlSymAllocator<DlsymAlloc> {
+  static bool UseImpl() { return !dfsan_inited; }
+};
 
 INTERCEPTOR(void *, reallocarray, void *ptr, SIZE_T nmemb, SIZE_T size) {
-  return __dfsan::dfsan_reallocarray(ptr, nmemb, size);
+  return dfsan_reallocarray(ptr, nmemb, size);
 }
 
 INTERCEPTOR(void *, __libc_memalign, SIZE_T alignment, SIZE_T size) {
-  void *ptr = __dfsan::dfsan_memalign(alignment, size);
-  if (ptr)
-    DTLS_on_libc_memalign(ptr, size);
-  return ptr;
+  return dfsan_memalign(alignment, size);
 }
 
 INTERCEPTOR(void *, aligned_alloc, SIZE_T alignment, SIZE_T size) {
-  return __dfsan::dfsan_aligned_alloc(alignment, size);
-}
-
-static uptr allocated_for_dlsym;
-static const uptr kDlsymAllocPoolSize = 1024;
-static uptr alloc_memory_for_dlsym[kDlsymAllocPoolSize];
-
-static bool IsInDlsymAllocPool(const void *ptr) {
-  uptr off = (uptr)ptr - (uptr)alloc_memory_for_dlsym;
-  return off < sizeof(alloc_memory_for_dlsym);
-}
-
-static void *AllocateFromLocalPool(uptr size_in_bytes) {
-  uptr size_in_words = RoundUpTo(size_in_bytes, kWordSize) / kWordSize;
-  void *mem = (void *)&alloc_memory_for_dlsym[allocated_for_dlsym];
-  allocated_for_dlsym += size_in_words;
-  CHECK_LT(allocated_for_dlsym, kDlsymAllocPoolSize);
-  return mem;
+  return dfsan_aligned_alloc(alignment, size);
 }
 
 INTERCEPTOR(void *, calloc, SIZE_T nmemb, SIZE_T size) {
-  if (UNLIKELY(!__dfsan::dfsan_inited))
-    // Hack: dlsym calls calloc before REAL(calloc) is retrieved from dlsym.
-    return AllocateFromLocalPool(nmemb * size);
-  return __dfsan::dfsan_calloc(nmemb, size);
+  if (DlsymAlloc::Use())
+    return DlsymAlloc::Callocate(nmemb, size);
+  return dfsan_calloc(nmemb, size);
 }
 
 INTERCEPTOR(void *, realloc, void *ptr, SIZE_T size) {
-  if (UNLIKELY(IsInDlsymAllocPool(ptr))) {
-    uptr offset = (uptr)ptr - (uptr)alloc_memory_for_dlsym;
-    uptr copy_size = Min(size, kDlsymAllocPoolSize - offset);
-    void *new_ptr;
-    if (UNLIKELY(!__dfsan::dfsan_inited)) {
-      new_ptr = AllocateFromLocalPool(copy_size);
-    } else {
-      copy_size = size;
-      new_ptr = __dfsan::dfsan_malloc(copy_size);
-    }
-    internal_memcpy(new_ptr, ptr, copy_size);
-    return new_ptr;
-  }
-  return __dfsan::dfsan_realloc(ptr, size);
+  if (DlsymAlloc::Use() || DlsymAlloc::PointerIsMine(ptr))
+    return DlsymAlloc::Realloc(ptr, size);
+  return dfsan_realloc(ptr, size);
 }
 
 INTERCEPTOR(void *, malloc, SIZE_T size) {
-  if (UNLIKELY(!__dfsan::dfsan_inited))
-    // Hack: dlsym calls malloc before REAL(malloc) is retrieved from dlsym.
-    return AllocateFromLocalPool(size);
-  return __dfsan::dfsan_malloc(size);
+  if (DlsymAlloc::Use())
+    return DlsymAlloc::Allocate(size);
+  return dfsan_malloc(size);
 }
 
 INTERCEPTOR(void, free, void *ptr) {
-  if (!ptr || UNLIKELY(IsInDlsymAllocPool(ptr)))
+  if (!ptr)
     return;
-  return __dfsan::dfsan_deallocate(ptr);
+  if (DlsymAlloc::PointerIsMine(ptr))
+    return DlsymAlloc::Free(ptr);
+  return dfsan_deallocate(ptr);
 }
 
 INTERCEPTOR(void, cfree, void *ptr) {
-  if (!ptr || UNLIKELY(IsInDlsymAllocPool(ptr)))
+  if (!ptr)
     return;
-  return __dfsan::dfsan_deallocate(ptr);
+  if (DlsymAlloc::PointerIsMine(ptr))
+    return DlsymAlloc::Free(ptr);
+  return dfsan_deallocate(ptr);
 }
 
 INTERCEPTOR(int, posix_memalign, void **memptr, SIZE_T alignment, SIZE_T size) {
   CHECK_NE(memptr, 0);
-  int res = __dfsan::dfsan_posix_memalign(memptr, alignment, size);
+  int res = dfsan_posix_memalign(memptr, alignment, size);
   if (!res)
     dfsan_set_label(0, memptr, sizeof(*memptr));
   return res;
 }
 
 INTERCEPTOR(void *, memalign, SIZE_T alignment, SIZE_T size) {
-  return __dfsan::dfsan_memalign(alignment, size);
+  return dfsan_memalign(alignment, size);
 }
 
-INTERCEPTOR(void *, valloc, SIZE_T size) { return __dfsan::dfsan_valloc(size); }
+INTERCEPTOR(void *, valloc, SIZE_T size) { return dfsan_valloc(size); }
 
-INTERCEPTOR(void *, pvalloc, SIZE_T size) {
-  return __dfsan::dfsan_pvalloc(size);
-}
+INTERCEPTOR(void *, pvalloc, SIZE_T size) { return dfsan_pvalloc(size); }
 
 INTERCEPTOR(void, mallinfo, __sanitizer_struct_mallinfo *sret) {
   internal_memset(sret, 0, sizeof(*sret));
@@ -140,25 +111,25 @@ INTERCEPTOR(uptr, malloc_usable_size, void *ptr) {
   return __sanitizer_get_allocated_size(ptr);
 }
 
-#define ENSURE_DFSAN_INITED()               \
-  do {                                      \
-    CHECK(!__dfsan::dfsan_init_is_running); \
-    if (!__dfsan::dfsan_inited) {           \
-      __dfsan::dfsan_init();                \
-    }                                       \
+#define ENSURE_DFSAN_INITED()      \
+  do {                             \
+    CHECK(!dfsan_init_is_running); \
+    if (!dfsan_inited) {           \
+      dfsan_init();                \
+    }                              \
   } while (0)
 
 #define COMMON_INTERCEPTOR_ENTER(func, ...) \
-  if (__dfsan::dfsan_init_is_running)       \
+  if (dfsan_init_is_running)                \
     return REAL(func)(__VA_ARGS__);         \
   ENSURE_DFSAN_INITED();                    \
-  dfsan_set_label(0, __errno_location(), sizeof(int)); /* NOLINT */
+  dfsan_set_label(0, __errno_location(), sizeof(int));
 
 INTERCEPTOR(void *, mmap, void *addr, SIZE_T length, int prot, int flags,
             int fd, OFF_T offset) {
   if (common_flags()->detect_write_exec)
-    ReportMmapWriteExec(prot);
-  if (!__dfsan::dfsan_inited)
+    ReportMmapWriteExec(prot, flags);
+  if (!dfsan_inited)
     return (void *)internal_mmap(addr, length, prot, flags, fd, offset);
   COMMON_INTERCEPTOR_ENTER(mmap, addr, length, prot, flags, fd, offset);
   void *res = REAL(mmap)(addr, length, prot, flags, fd, offset);
@@ -171,8 +142,8 @@ INTERCEPTOR(void *, mmap, void *addr, SIZE_T length, int prot, int flags,
 INTERCEPTOR(void *, mmap64, void *addr, SIZE_T length, int prot, int flags,
             int fd, OFF64_T offset) {
   if (common_flags()->detect_write_exec)
-    ReportMmapWriteExec(prot);
-  if (!__dfsan::dfsan_inited)
+    ReportMmapWriteExec(prot, flags);
+  if (!dfsan_inited)
     return (void *)internal_mmap(addr, length, prot, flags, fd, offset);
   COMMON_INTERCEPTOR_ENTER(mmap64, addr, length, prot, flags, fd, offset);
   void *res = REAL(mmap64)(addr, length, prot, flags, fd, offset);
@@ -183,7 +154,7 @@ INTERCEPTOR(void *, mmap64, void *addr, SIZE_T length, int prot, int flags,
 }
 
 INTERCEPTOR(int, munmap, void *addr, SIZE_T length) {
-  if (!__dfsan::dfsan_inited)
+  if (!dfsan_inited)
     return internal_munmap(addr, length);
   COMMON_INTERCEPTOR_ENTER(munmap, addr, length);
   int res = REAL(munmap)(addr, length);
@@ -192,12 +163,12 @@ INTERCEPTOR(int, munmap, void *addr, SIZE_T length) {
   return res;
 }
 
-#define COMMON_INTERCEPTOR_GET_TLS_RANGE(begin, end)           \
-  if (__dfsan::DFsanThread *t = __dfsan::GetCurrentThread()) { \
-    *begin = t->tls_begin();                                   \
-    *end = t->tls_end();                                       \
-  } else {                                                     \
-    *begin = *end = 0;                                         \
+#define COMMON_INTERCEPTOR_GET_TLS_RANGE(begin, end) \
+  if (DFsanThread *t = GetCurrentThread()) {         \
+    *begin = t->tls_begin();                         \
+    *end = t->tls_end();                             \
+  } else {                                           \
+    *begin = *end = 0;                               \
   }
 #define COMMON_INTERCEPTOR_INITIALIZE_RANGE(ptr, size) \
   dfsan_set_label(0, ptr, size)
@@ -215,8 +186,7 @@ INTERCEPTOR(void *, __tls_get_addr, void *arg) {
   return res;
 }
 
-namespace __dfsan {
-void initialize_interceptors() {
+void __dfsan::initialize_interceptors() {
   CHECK(!interceptors_initialized);
 
   INTERCEPT_FUNCTION(aligned_alloc);
@@ -242,4 +212,3 @@ void initialize_interceptors() {
 
   interceptors_initialized = true;
 }
-}  // namespace __dfsan

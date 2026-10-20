@@ -1,0 +1,54 @@
+# Run EDK II with an environment local to this build process.
+set(EDK_TOOLS_PATH "@EDK_TOOLS_PATH@")
+set(ENV{WORKSPACE} "@EDK_WORKSPACE@")
+set(ENV{CONF_PATH} "@EDK_CONF_PATH@")
+set(ENV{CLANG_BIN} "@CLANG_BIN@/")
+set(ENV{CLANG_HOST_BIN} "@CLANG_HOST_BIN@/")
+if(NOT "@EDK_NASM_BIN@" STREQUAL "")
+    set(ENV{NASM_PREFIX} "@EDK_NASM_BIN@/")
+endif()
+
+if(CMAKE_HOST_WIN32)
+    set(EDK_PATH_SEPARATOR ";")
+    file(TO_NATIVE_PATH "${EDK_TOOLS_PATH}" EDK_TOOLS_PATH)
+    set(EDK_BIN "${EDK_TOOLS_PATH}/Bin/@EDK_HOST_BIN@")
+    set(EDK_WRAPPERS "${EDK_TOOLS_PATH}/BinWrappers/WindowsLike")
+    # EDK II's NMake recipes expand PYTHON_COMMAND through cmd.exe.
+    set(ENV{PYTHON_COMMAND} "\"@Python3_EXECUTABLE@\"")
+    set(ENV{HOST_ARCH} "@EDK_HOST_ARCH@")
+else()
+    set(EDK_PATH_SEPARATOR ":")
+    set(EDK_BIN "${EDK_TOOLS_PATH}/Source/C/bin")
+    set(EDK_WRAPPERS "${EDK_TOOLS_PATH}/BinWrappers/PosixLike")
+    set(ENV{PYTHON_COMMAND} "@Python3_EXECUTABLE@")
+endif()
+
+set(ENV{EDK_TOOLS_PATH} "${EDK_TOOLS_PATH}")
+set(ENV{BASE_TOOLS_PATH} "${EDK_TOOLS_PATH}")
+set(ENV{EDK_TOOLS_BIN} "${EDK_BIN}")
+set(ENV{PACKAGES_PATH} "@EDK_WORKSPACE@${EDK_PATH_SEPARATOR}@CMAKE_CURRENT_SOURCE_DIR@")
+set(ENV{PYTHONPATH} "${EDK_TOOLS_PATH}/Source/Python${EDK_PATH_SEPARATOR}$ENV{PYTHONPATH}")
+set(ENV{PATH} "${EDK_BIN}${EDK_PATH_SEPARATOR}${EDK_WRAPPERS}${EDK_PATH_SEPARATOR}$ENV{PATH}")
+
+if(EDK_BUILD_STEP STREQUAL "basetools")
+    execute_process(
+        COMMAND "@MAKE_EXECUTABLE@"
+        WORKING_DIRECTORY "@EDK_TOOLS_PATH@/Source/C"
+        RESULT_VARIABLE result
+    )
+elseif(EDK_BUILD_STEP STREQUAL "firmware")
+    execute_process(
+        COMMAND "@Python3_EXECUTABLE@" "@EDK_TOOLS_PATH@/Source/Python/build/build.py"
+            -p "@CMAKE_CURRENT_SOURCE_DIR@/VBoot.dsc"
+            -a "@EDK_ARCH@" -t CLANGPDB -b RELEASE
+            -D "VBOOT_OUTPUT_DIRECTORY=@EDK_BUILD_ROOT@"
+        WORKING_DIRECTORY "@EDK_WORKSPACE@"
+        RESULT_VARIABLE result
+    )
+else()
+    message(FATAL_ERROR "Unknown EDK_BUILD_STEP: ${EDK_BUILD_STEP}")
+endif()
+
+if(NOT "${result}" STREQUAL "0")
+    message(FATAL_ERROR "EDK II ${EDK_BUILD_STEP} failed: ${result}")
+endif()

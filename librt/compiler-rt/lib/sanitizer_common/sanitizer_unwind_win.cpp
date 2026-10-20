@@ -43,10 +43,47 @@ void BufferedStackTrace::UnwindSlow(uptr pc, u32 max_depth) {
   trace_buffer[0] = pc;
 }
 
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wframe-larger-than="
-#endif
+PVOID CALLBACK FallbackFunctionTableAccess(HANDLE hProcess,
+                                           DWORD64 dwAddrBase) {
+  // First try DbgHelp's function.
+  if (PVOID pResult =
+          __sanitizer::SymFunctionTableAccess64(hProcess, dwAddrBase)) {
+    return pResult;
+  }
+
+  // Fall back to RtlLookupFunctionEntry for dynamic code.
+  // Function registered with RtlAddFunctionTable is not necessarily registered
+  // with DbgHelp, so this is required to cover some edge cases (e.g. JIT
+  // compilers can use Rtl* functions).
+#    if SANITIZER_WINDOWS64
+  DWORD64 dw64ImageBase = 0;
+  return RtlLookupFunctionEntry(dwAddrBase, &dw64ImageBase, nullptr);
+#    else
+  return nullptr;
+#    endif
+}
+
+DWORD64 CALLBACK FallbackGetModuleBase(HANDLE hProcess, DWORD64 dwAddr) {
+  if (DWORD64 dwResult = __sanitizer::SymGetModuleBase64(hProcess, dwAddr)) {
+    return dwResult;
+  }
+
+  // Both GetModuleBase and FunctionTableAccess must provide this fallback,
+  // otherwise dynamic functions won't be properly unwound.
+#    if SANITIZER_WINDOWS64
+  DWORD64 dw64ImageBase = 0;
+  if (RtlLookupFunctionEntry(dwAddr, &dw64ImageBase, nullptr)) {
+    return dw64ImageBase;
+  }
+#    endif
+
+  return 0;
+}
+
+#    ifdef __clang__
+#      pragma clang diagnostic push
+#      pragma clang diagnostic ignored "-Wframe-larger-than="
+#    endif
 void BufferedStackTrace::UnwindSlow(uptr pc, void *context, u32 max_depth) {
   CHECK(context);
   CHECK_GE(max_depth, 2);
@@ -57,30 +94,49 @@ void BufferedStackTrace::UnwindSlow(uptr pc, void *context, u32 max_depth) {
   InitializeDbgHelpIfNeeded();
 
   size = 0;
-#if defined(_WIN64)
+#    if SANITIZER_WINDOWS64
+#      if SANITIZER_ARM64
+  int machine_type = IMAGE_FILE_MACHINE_ARM64;
+  stack_frame.AddrPC.Offset = ctx.Pc;
+  stack_frame.AddrFrame.Offset = ctx.Fp;
+  stack_frame.AddrStack.Offset = ctx.Sp;
+#      else
   int machine_type = IMAGE_FILE_MACHINE_AMD64;
   stack_frame.AddrPC.Offset = ctx.Rip;
   stack_frame.AddrFrame.Offset = ctx.Rbp;
   stack_frame.AddrStack.Offset = ctx.Rsp;
-#else
+#      endif
+#    else
+#      if SANITIZER_ARM
+  int machine_type = IMAGE_FILE_MACHINE_ARM;
+  stack_frame.AddrPC.Offset = ctx.Pc;
+  stack_frame.AddrFrame.Offset = ctx.R11;
+  stack_frame.AddrStack.Offset = ctx.Sp;
+#      elif SANITIZER_MIPS32
+  int machine_type = IMAGE_FILE_MACHINE_R4000;
+  stack_frame.AddrPC.Offset = ctx.Fir;
+  stack_frame.AddrFrame.Offset = ctx.IntS8;
+  stack_frame.AddrStack.Offset = ctx.IntSp;
+#      else
   int machine_type = IMAGE_FILE_MACHINE_I386;
   stack_frame.AddrPC.Offset = ctx.Eip;
   stack_frame.AddrFrame.Offset = ctx.Ebp;
   stack_frame.AddrStack.Offset = ctx.Esp;
-#endif
+#      endif
+#    endif
   stack_frame.AddrPC.Mode = AddrModeFlat;
   stack_frame.AddrFrame.Mode = AddrModeFlat;
   stack_frame.AddrStack.Mode = AddrModeFlat;
   while (StackWalk64(machine_type, GetCurrentProcess(), GetCurrentThread(),
-    &stack_frame, &ctx, NULL, SymFunctionTableAccess64,
-    SymGetModuleBase64, NULL) &&
-    size < Min(max_depth, kStackTraceMax)) {
+                     &stack_frame, &ctx, NULL, FallbackFunctionTableAccess,
+                     FallbackGetModuleBase, NULL) &&
+         size < Min(max_depth, kStackTraceMax)) {
     trace_buffer[size++] = (uptr)stack_frame.AddrPC.Offset;
   }
 }
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-#endif  // #if !SANITIZER_GO
+#    ifdef __clang__
+#      pragma clang diagnostic pop
+#    endif
+#  endif  // #if !SANITIZER_GO
 
 #endif  // SANITIZER_WINDOWS

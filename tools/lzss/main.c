@@ -76,6 +76,7 @@ static int compress_file(const char *oldname, const char *packedname)
 	FILE *oldfile;
 	FILE *packedfile;
 	unsigned int insize, outsize;
+	unsigned int packedCapacity, workCapacity;
 	clock_t clocks;
 	byte *data, *packed, *workmem;
 
@@ -89,11 +90,19 @@ static int compress_file(const char *oldname, const char *packedname)
 	fseek(oldfile, 0, SEEK_END);
 	insize = (unsigned int)ftell(oldfile);
 	fseek(oldfile, 0, SEEK_SET);
+	
+    packedCapacity = aP_max_packed_size(insize);
+	workCapacity = aP_workmem_size(insize);
+	if (packedCapacity == APLIB_ERROR || workCapacity == APLIB_ERROR) {
+		printf("\nERR: empty or oversized input is not supported\n");
+		fclose(oldfile);
+		return 1;
+	}
 
 	/* allocate memory */
 	if ((data = (byte *)malloc(insize)) == NULL ||
-		(packed = (byte *)malloc(aP_max_packed_size(insize))) == NULL ||
-		(workmem = (byte *)malloc(aP_workmem_size(insize))) == NULL) {
+		(packed = (byte *)malloc(packedCapacity)) == NULL ||
+		(workmem = (byte *)malloc(workCapacity)) == NULL) {
 		printf("\nERR: not enough memory\n");
 	    fclose(oldfile);
 		return 1;
@@ -182,6 +191,13 @@ static int decompress_file(const char *packedname, const char *newname)
 		return 1;
 	}
 
+	/* The legacy size-query API requires a complete AP32 header. */
+	if (insize < 24) {
+		printf("\nERR: truncated compression header\n");
+		free(packed);
+		fclose(packedfile);
+		return 1;
+	}
 	depackedsize = aPsafe_get_orig_size(packed);
 
 	if (depackedsize == APLIB_ERROR) {

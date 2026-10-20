@@ -12,7 +12,7 @@
 //
 //  1) This code must work with C programs that do not link to anything
 //     (including pthreads) and so it should not depend on any pthread
-//     functions.
+//     functions. If the user wishes to opt into using pthreads, they may do so.
 //  2) Atomic operations, rather than explicit mutexes, are most commonly used
 //     on code where contended operations are rate.
 //
@@ -56,7 +56,17 @@ static const long SPINLOCK_MASK = SPINLOCK_COUNT - 1;
 // defined.  Each platform should define the Lock type, and corresponding
 // lock() and unlock() functions.
 ////////////////////////////////////////////////////////////////////////////////
-#if defined(__FreeBSD__) || defined(__DragonFly__)
+#if defined(_LIBATOMIC_USE_PTHREAD)
+#include <pthread.h>
+typedef pthread_mutex_t Lock;
+/// Unlock a lock.  This is a release operation.
+__inline static void unlock(Lock *l) { pthread_mutex_unlock(l); }
+/// Locks a lock.
+__inline static void lock(Lock *l) { pthread_mutex_lock(l); }
+/// locks for atomic operations
+static Lock locks[SPINLOCK_COUNT];
+
+#elif defined(__FreeBSD__) || defined(__DragonFly__)
 #include <errno.h>
 // clang-format off
 #include <sys/types.h>
@@ -92,6 +102,8 @@ __inline static void lock(Lock *l) { OSSpinLockLock(l); }
 static Lock locks[SPINLOCK_COUNT]; // initialized to OS_SPINLOCK_INIT which is 0
 
 #else
+_Static_assert(__atomic_always_lock_free(sizeof(uintptr_t), 0),
+               "Implementation assumes lock-free pointer-size cmpxchg");
 typedef _Atomic(uintptr_t) Lock;
 /// Unlock a lock.  This is a release operation.
 __inline static void unlock(Lock *l) {
@@ -173,7 +185,7 @@ bool __atomic_is_lock_free_c(size_t size, void *ptr) {
 
 /// An atomic load operation.  This is atomic with respect to the source
 /// pointer only.
-void __atomic_load_c(int size, void *src, void *dest, int model) {
+void __atomic_load_c(size_t size, void *src, void *dest, int model) {
 #define LOCK_FREE_ACTION(type)                                                 \
   *((type *)dest) = __c11_atomic_load((_Atomic(type) *)src, model);            \
   return;
@@ -187,7 +199,7 @@ void __atomic_load_c(int size, void *src, void *dest, int model) {
 
 /// An atomic store operation.  This is atomic with respect to the destination
 /// pointer only.
-void __atomic_store_c(int size, void *dest, void *src, int model) {
+void __atomic_store_c(size_t size, void *dest, void *src, int model) {
 #define LOCK_FREE_ACTION(type)                                                 \
   __c11_atomic_store((_Atomic(type) *)dest, *(type *)src, model);              \
   return;
@@ -204,7 +216,7 @@ void __atomic_store_c(int size, void *dest, void *src, int model) {
 /// they  are not, then this stores the current value from *ptr in *expected.
 ///
 /// This function returns 1 if the exchange takes place or 0 if it fails.
-int __atomic_compare_exchange_c(int size, void *ptr, void *expected,
+int __atomic_compare_exchange_c(size_t size, void *ptr, void *expected,
                                 void *desired, int success, int failure) {
 #define LOCK_FREE_ACTION(type)                                                 \
   return __c11_atomic_compare_exchange_strong(                                 \
@@ -226,7 +238,8 @@ int __atomic_compare_exchange_c(int size, void *ptr, void *expected,
 
 /// Performs an atomic exchange operation between two pointers.  This is atomic
 /// with respect to the target address.
-void __atomic_exchange_c(int size, void *ptr, void *val, void *old, int model) {
+void __atomic_exchange_c(size_t size, void *ptr, void *val, void *old,
+                         int model) {
 #define LOCK_FREE_ACTION(type)                                                 \
   *(type *)old =                                                               \
       __c11_atomic_exchange((_Atomic(type) *)ptr, *(type *)val, model);        \
@@ -336,6 +349,18 @@ OPTIMISED_CASES
     return tmp;                                                                \
   }
 
+#define ATOMIC_RMW_NAND(n, lockfree, type)                                     \
+  type __atomic_fetch_nand_##n(type *ptr, type val, int model) {               \
+    if (lockfree(ptr))                                                         \
+      return __c11_atomic_fetch_nand((_Atomic(type) *)ptr, val, model);        \
+    Lock *l = lock_for_pointer(ptr);                                           \
+    lock(l);                                                                   \
+    type tmp = *ptr;                                                           \
+    *ptr = ~(tmp & val);                                                       \
+    unlock(l);                                                                 \
+    return tmp;                                                                \
+  }
+
 #define OPTIMISED_CASE(n, lockfree, type) ATOMIC_RMW(n, lockfree, type, add, +)
 OPTIMISED_CASES
 #undef OPTIMISED_CASE
@@ -351,3 +376,9 @@ OPTIMISED_CASES
 #define OPTIMISED_CASE(n, lockfree, type) ATOMIC_RMW(n, lockfree, type, xor, ^)
 OPTIMISED_CASES
 #undef OPTIMISED_CASE
+// Allow build with clang without __c11_atomic_fetch_nand builtin (pre-14)
+#if __has_builtin(__c11_atomic_fetch_nand)
+#define OPTIMISED_CASE(n, lockfree, type) ATOMIC_RMW_NAND(n, lockfree, type)
+OPTIMISED_CASES
+#undef OPTIMISED_CASE
+#endif

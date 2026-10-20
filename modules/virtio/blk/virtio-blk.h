@@ -84,23 +84,23 @@ PACKED_TYPESTRUCT(VirtioBlkRequestHeader, {
  * module event loop.
  */
 typedef struct VirtioBlkInterruptResource {
-    uint32_t         IsrOffset;
+    uint32_t            IsrOffset;
     atomic_uint_fast8_t PendingStatus;
 } VirtioBlkInterruptResource_t;
 
 typedef struct VirtioBlkDevice {
-    element_t                  Header;
-    BusDevice_t*               BusDevice;
-    VirtioPciTransport_t       Transport;
-    VirtioSplitQueue_t*        RequestQueue;
-    StorageDescriptor_t        Descriptor;
+    element_t                    Header;
+    BusDevice_t*                 BusDevice;
+    VirtioPciTransport_t         Transport;
+    VirtioSplitQueue_t*          RequestQueue;
+    StorageDescriptor_t          Descriptor;
     VirtioBlkInterruptResource_t InterruptResource;
-    uuid_t                     InterruptId;
-    int                        EventDescriptor;
-    uint64_t                   Features;
-    uint32_t                   SizeMax;
-    uint32_t                   SegmentMax;
-    int                        Registered;
+    DeviceInterrupt_t            Interrupt;
+    int                          EventDescriptor;
+    uint64_t                     Features;
+    uint32_t                     SizeMax;
+    uint32_t                     SegmentMax;
+    int                          Registered;
 } VirtioBlkDevice_t;
 
 /**

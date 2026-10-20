@@ -14,12 +14,24 @@
 
 extern "C" {
 
-__attribute__((weak)) const char *__scudo_default_options();
+__attribute__((weak)) const char *__scudo_default_options(void);
 
 // Post-allocation & pre-deallocation hooks.
-// They must be thread-safe and not use heap related functions.
 __attribute__((weak)) void __scudo_allocate_hook(void *ptr, size_t size);
 __attribute__((weak)) void __scudo_deallocate_hook(void *ptr);
+
+// `realloc` involves both deallocation and allocation but they are not reported
+// atomically. In one specific case which may keep taking a snapshot right in
+// the middle of `realloc` reporting the deallocation and allocation, it may
+// confuse the user by missing memory from `realloc`. To alleviate that case,
+// define the two `realloc` hooks to get the knowledge of the bundled hook
+// calls. These hooks are optional and should only be used when a hooks user
+// wants to track reallocs more closely.
+//
+// See more details in the comment of `realloc` in wrapper_c.inc.
+__attribute__((weak)) void
+__scudo_realloc_allocate_hook(void *old_ptr, void *new_ptr, size_t size);
+__attribute__((weak)) void __scudo_realloc_deallocate_hook(void *old_ptr);
 
 void __scudo_print_stats(void);
 
@@ -73,7 +85,8 @@ typedef void (*iterate_callback)(uintptr_t base, size_t size, void *arg);
 // pointer.
 void __scudo_get_error_info(struct scudo_error_info *error_info,
                             uintptr_t fault_addr, const char *stack_depot,
-                            const char *region_info, const char *ring_buffer,
+                            size_t stack_depot_size, const char *region_info,
+                            const char *ring_buffer, size_t ring_buffer_size,
                             const char *memory, const char *memory_tags,
                             uintptr_t memory_addr, size_t memory_size);
 
@@ -84,6 +97,7 @@ enum scudo_error_type {
   BUFFER_UNDERFLOW,
 };
 
+const size_t ScudoTraceSize = 64;
 struct scudo_error_report {
   enum scudo_error_type error_type;
 
@@ -91,24 +105,28 @@ struct scudo_error_report {
   uintptr_t allocation_size;
 
   uint32_t allocation_tid;
-  uintptr_t allocation_trace[64];
+  uintptr_t allocation_trace[ScudoTraceSize];
 
   uint32_t deallocation_tid;
-  uintptr_t deallocation_trace[64];
+  uintptr_t deallocation_trace[ScudoTraceSize];
 };
 
+const size_t ScudoNumErrorReports = 3;
 struct scudo_error_info {
-  struct scudo_error_report reports[3];
+  struct scudo_error_report reports[ScudoNumErrorReports];
 };
 
-const char *__scudo_get_stack_depot_addr();
-size_t __scudo_get_stack_depot_size();
+const char *__scudo_get_stack_depot_addr(void);
+size_t __scudo_get_stack_depot_size(void);
 
-const char *__scudo_get_region_info_addr();
-size_t __scudo_get_region_info_size();
+const char *__scudo_get_region_info_addr(void);
+size_t __scudo_get_region_info_size(void);
 
-const char *__scudo_get_ring_buffer_addr();
-size_t __scudo_get_ring_buffer_size();
+const char *__scudo_get_ring_buffer_addr(void);
+size_t __scudo_get_ring_buffer_size(void);
+
+void __scudo_get_fault_error_info(uintptr_t fault_addr,
+                                  struct scudo_error_info *error_info);
 
 #ifndef M_DECAY_TIME
 #define M_DECAY_TIME -100
@@ -116,6 +134,14 @@ size_t __scudo_get_ring_buffer_size();
 
 #ifndef M_PURGE
 #define M_PURGE -101
+#endif
+
+#ifndef M_PURGE_ALL
+#define M_PURGE_ALL -104
+#endif
+
+#ifndef M_PURGE_FAST
+#define M_PURGE_FAST -105
 #endif
 
 // Tune the allocator's choice of memory tags to make it more likely that
@@ -153,6 +179,11 @@ size_t __scudo_get_ring_buffer_size();
 // Tune for use-after-free.
 #ifndef M_MEMTAG_TUNING_UAF
 #define M_MEMTAG_TUNING_UAF 1
+#endif
+
+// Print internal stats to the log.
+#ifndef M_LOG_STATS
+#define M_LOG_STATS -205
 #endif
 
 } // extern "C"

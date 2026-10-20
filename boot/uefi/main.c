@@ -81,7 +81,11 @@ static void __JumpToKernel(
     LongJump(&JumpBuffer, 1);
 }
 
-EFI_STATUS EFIAPI EfiMain (
+// Enter the Vali loader after EDK2 has initialized its libraries. Use a distinct
+// name because UefiApplicationEntryPoint also exports EfiMain as a compatibility
+// wrapper. Selecting that wrapper from its library would call the entry point
+// machinery again instead of loading the kernel.
+EFI_STATUS EFIAPI VBootMain (
   IN EFI_HANDLE        ImageHandle,
   IN EFI_SYSTEM_TABLE* SystemTable)
 {

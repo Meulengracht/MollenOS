@@ -180,9 +180,9 @@ InterruptSetMode(
 
 oserr_t
 InterruptResolve(
-    _In_  DeviceInterrupt_t* interrupt,
-    _In_  unsigned int       flags,
-    _Out_ uuid_t*            tableIndex)
+    _In_  InterruptDescriptor_t* interrupt,
+    _In_  unsigned int           flags,
+    _Out_ uuid_t*                tableIndex)
 {
     if (flags & INTERRUPT_MSI) {
         return OS_ENOTSUPPORTED;

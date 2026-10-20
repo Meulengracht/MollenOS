@@ -29,10 +29,17 @@ endif ()
 
 set (CMAKE_SYSTEM_NAME valicc)
 set (CMAKE_SYSTEM_PROCESSOR $ENV{VALI_ARCH})
-set (CMAKE_C_COMPILER "${CCROOT}/bin/clang" CACHE FILEPATH "")
-set (CMAKE_CXX_COMPILER "${CCROOT}/bin/clang++" CACHE FILEPATH "")
-set (CMAKE_AR "${CCROOT}/bin/llvm-ar" CACHE FILEPATH "")
-set (CMAKE_RANLIB "${CCROOT}/bin/llvm-ranlib" CACHE FILEPATH "")
+
+# Tool paths describe host executables, even when targeting Vali.
+set(VALI_HOST_EXECUTABLE_SUFFIX "")
+if(CMAKE_HOST_WIN32)
+    set(VALI_HOST_EXECUTABLE_SUFFIX ".exe")
+endif()
+
+set (CMAKE_C_COMPILER "${CCROOT}/bin/clang${VALI_HOST_EXECUTABLE_SUFFIX}" CACHE FILEPATH "")
+set (CMAKE_CXX_COMPILER "${CCROOT}/bin/clang++${VALI_HOST_EXECUTABLE_SUFFIX}" CACHE FILEPATH "")
+set (CMAKE_AR "${CCROOT}/bin/llvm-ar${VALI_HOST_EXECUTABLE_SUFFIX}" CACHE FILEPATH "")
+set (CMAKE_RANLIB "${CCROOT}/bin/llvm-ranlib${VALI_HOST_EXECUTABLE_SUFFIX}" CACHE FILEPATH "")
 set (VERBOSE 1)
 
 # Setup the default for the linker to create .map files so we can debug

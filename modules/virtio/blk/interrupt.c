@@ -31,10 +31,11 @@ oserr_t
 VirtioBlkRegisterInterrupt(
     _InOut_ VirtioBlkDevice_t* device)
 {
-    DeviceInterrupt_t interrupt;
-    DeviceIo_t*       isrIoSpace = device->Transport.Regions[VIRTIO_PCI_CAP_ISR_CFG - 1].IoSpace;
-    int               enable = 1;
-    int               status;
+    uint32_t    count;
+    oserr_t     oserr;
+    DeviceIo_t* isrIoSpace = device->Transport.Regions[VIRTIO_PCI_CAP_ISR_CFG - 1].IoSpace;
+    int         enable = 1;
+    int         status;
     TRACE("VirtioBlkRegisterInterrupt()");
 
     // The fast handler only acknowledges the ISR and signals this descriptor.
@@ -67,50 +68,76 @@ VirtioBlkRegisterInterrupt(
         device->Transport.Regions[VIRTIO_PCI_CAP_ISR_CFG - 1].Offset;
 
     atomic_init(&device->InterruptResource.PendingStatus, 0);
-    DeviceInterruptInitialize(&interrupt, device->BusDevice);
-
-    TRACE("VirtioBlkRegisterInterrupt line=%i, pin=%i, isrOffset=0x%x",
-        interrupt.Line,
-        interrupt.Pin,
-        device->InterruptResource.IsrOffset
-    );
-    RegisterInterruptDescriptor(&interrupt, device->EventDescriptor);
+    DeviceInterruptInitialize(&device->Interrupt, device->BusDevice);
     
-    // Register handler for fast interrupt, and the resources it needs
-    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&interrupt, isrIoSpace);
-    RegisterFastInterruptMemoryResource(
-        &interrupt,
+    oserr = DeviceInterruptAllocate(
+        &device->Interrupt,
+        1, // Min
+        1, // Optimal
+        INTERRUPT_STRATEGY_INTx,
+        &count
+    );
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptSetDescriptor(&device->Interrupt, 0, device->EventDescriptor);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptSetHandler(&device->Interrupt, 0, (InterruptHandler_t)OnFastInterrupt);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptAddIoResource(&device->Interrupt, 0, isrIoSpace);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptAddMemoryResource(
+        &device->Interrupt,
+        0,
         (uintptr_t)&device->InterruptResource,
         sizeof(device->InterruptResource),
         0
     );
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
     
-    device->InterruptId = RegisterInterruptSource(&interrupt, 0);
-    if (device->InterruptId == UUID_INVALID) {
-        ERROR("Failed to register the Virtio block interrupt source");
-        ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
-                   IOSET_DEL, device->EventDescriptor, NULL);
-        close(device->EventDescriptor);
-        device->EventDescriptor = -1;
-        return OS_EUNKNOWN;
+    oserr = DeviceInterruptEnable(&device->Interrupt);
+    if (oserr != OS_EOK) {
+        goto cleanup;
     }
     return OS_EOK;
+
+cleanup:
+    // Retain the event if handler cleanup fails; it may still be referenced.
+    VirtioBlkUnregisterInterrupt(device);
+    return oserr;
 }
 
-void
+oserr_t
 VirtioBlkUnregisterInterrupt(
     _InOut_ VirtioBlkDevice_t* device)
 {
-    // Revoke the fast handler before removing its event and the device state
-    // it references. Queue DMA remains owned until the subsequent device reset.
-    if (device->InterruptId != UUID_INVALID) {
-        UnregisterInterruptSource(device->InterruptId);
+    oserr_t status;
+
+    // Device teardown stops the hardware first. Wait for its last handler before
+    // removing the event or allowing the caller to free the device state.
+    status = DeviceInterruptDestroy(&device->Interrupt);
+    if (status != OS_EOK) {
+        ERROR("Failed to release Virtio interrupt; keeping its resources alive");
+        return status;
     }
-    
+
     if (device->EventDescriptor >= 0) {
         ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
                    IOSET_DEL, device->EventDescriptor, NULL);
         close(device->EventDescriptor);
+        device->EventDescriptor = -1;
     }
+    return OS_EOK;
 }

@@ -25,7 +25,7 @@ inline u16 computeChecksum(u32 Seed, uptr Value, uptr *Array, uptr ArraySize) {
   // as opposed to only for crc32_hw.cpp. This means that other hardware
   // specific instructions were likely emitted at other places, and as a result
   // there is no reason to not use it here.
-#if defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
+#if defined(__CRC32__) || defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
   u32 Crc = static_cast<u32>(CRC32_INTRINSIC(Seed, Value));
   for (uptr I = 0; I < ArraySize; I++)
     Crc = static_cast<u32>(CRC32_INTRINSIC(Crc, Array[I]));
@@ -42,7 +42,8 @@ inline u16 computeChecksum(u32 Seed, uptr Value, uptr *Array, uptr ArraySize) {
       Checksum = computeBSDChecksum(Checksum, Array[I]);
     return Checksum;
   }
-#endif // defined(__SSE4_2__) || defined(__ARM_FEATURE_CRC32)
+#endif // defined(__CRC32__) || defined(__SSE4_2__) ||
+       // defined(__ARM_FEATURE_CRC32)
 }
 
 namespace Chunk {
@@ -52,11 +53,28 @@ namespace Chunk {
 // but https://gcc.gnu.org/bugzilla/show_bug.cgi?id=61414 prevents it from
 // happening, as it will error, complaining the number of bits is not enough.
 enum Origin : u8 {
-  Malloc = 0,
-  New = 1,
-  NewArray = 2,
-  Memalign = 3,
+  Malloc = 0,   // malloc, calloc, realloc
+  New = 1,      // operator new
+  NewArray = 2, // operator new []
+  Memalign = 3, // aligned_alloc, memalign, posix_memalign, pvalloc, valloc
+
+  // These flags are not stored in the Origin in the header, used in deallocate
+  // for verification purposes.
+  Size = 0x10,  // Verify size parameter.
+  Align = 0x20, // Verify align parameter.
+
+  // NOTE: It is currently not possible to verify a new/new [] aligned
+  //       allocation calls delete/delete [] that is aligned due to only
+  //       having two bits to store the Origin in the header.
 };
+
+ALWAYS_INLINE u8 originBaseType(u8 Origin) {
+  return (Origin & 3) == Origin::Memalign ? Origin::Malloc : Origin & 0x3;
+}
+ALWAYS_INLINE bool originAligned(u8 Origin) {
+  return Origin == Origin::Memalign || (Origin & Origin::Align);
+}
+ALWAYS_INLINE bool originSized(u8 Origin) { return Origin & Origin::Size; }
 
 enum State : u8 { Available = 0, Allocated = 1, Quarantined = 2 };
 
@@ -70,6 +88,10 @@ struct UnpackedHeader {
   uptr SizeOrUnusedBytes : 20;
   uptr Offset : 16;
   uptr Checksum : 16;
+
+  ALWAYS_INLINE u8 getOrigin() { return OriginOrWasZeroed; }
+
+  ALWAYS_INLINE void setOrigin(u8 Origin) { OriginOrWasZeroed = Origin & 0x3; }
 };
 typedef atomic_u64 AtomicPackedHeader;
 static_assert(sizeof(UnpackedHeader) == sizeof(PackedHeader), "");
@@ -84,7 +106,7 @@ constexpr uptr OffsetMask = (1UL << 16) - 1;
 constexpr uptr ChecksumMask = (1UL << 16) - 1;
 
 constexpr uptr getHeaderSize() {
-  return roundUpTo(sizeof(PackedHeader), 1U << SCUDO_MIN_ALIGNMENT_LOG);
+  return roundUp(sizeof(PackedHeader), 1U << SCUDO_MIN_ALIGNMENT_LOG);
 }
 
 inline AtomicPackedHeader *getAtomicHeader(void *Ptr) {
@@ -124,20 +146,7 @@ inline void loadHeader(u32 Cookie, const void *Ptr,
   *NewUnpackedHeader = bit_cast<UnpackedHeader>(NewPackedHeader);
   if (UNLIKELY(NewUnpackedHeader->Checksum !=
                computeHeaderChecksum(Cookie, Ptr, NewUnpackedHeader)))
-    reportHeaderCorruption(const_cast<void *>(Ptr));
-}
-
-inline void compareExchangeHeader(u32 Cookie, void *Ptr,
-                                  UnpackedHeader *NewUnpackedHeader,
-                                  UnpackedHeader *OldUnpackedHeader) {
-  NewUnpackedHeader->Checksum =
-      computeHeaderChecksum(Cookie, Ptr, NewUnpackedHeader);
-  PackedHeader NewPackedHeader = bit_cast<PackedHeader>(*NewUnpackedHeader);
-  PackedHeader OldPackedHeader = bit_cast<PackedHeader>(*OldUnpackedHeader);
-  if (UNLIKELY(!atomic_compare_exchange_strong(
-          getAtomicHeader(Ptr), &OldPackedHeader, NewPackedHeader,
-          memory_order_relaxed)))
-    reportHeaderRace(Ptr);
+    reportHeaderCorruption(NewUnpackedHeader, Ptr);
 }
 
 inline bool isValid(u32 Cookie, const void *Ptr,

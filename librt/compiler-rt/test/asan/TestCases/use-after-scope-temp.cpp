@@ -1,16 +1,14 @@
-// RUN: %clangxx_asan %stdcxx11 -O1 -fsanitize-address-use-after-scope %s -o %t && \
-// RUN:     not %run %t 2>&1 | FileCheck %s
+// RUN: %clangxx_asan %if MSVC %{ /Od %} %else %{ -O1 %} \
+// RUN:     %s -o %t && not %run %t 2>&1 | FileCheck %s
 
-
+#include "defines.h"
 struct IntHolder {
   int val;
 };
 
 const IntHolder *saved;
 
-__attribute__((noinline)) void save(const IntHolder &holder) {
-  saved = &holder;
-}
+ATTRIBUTE_NOINLINE void save(const IntHolder &holder) { saved = &holder; }
 
 int main(int argc, char *argv[]) {
   save({argc});

@@ -11,17 +11,21 @@
 // This file contains error reporting code.
 //===----------------------------------------------------------------------===//
 
+#include "asan_report.h"
+
+#include "asan_descriptions.h"
 #include "asan_errors.h"
 #include "asan_flags.h"
-#include "asan_descriptions.h"
 #include "asan_internal.h"
 #include "asan_mapping.h"
-#include "asan_report.h"
 #include "asan_scariness_score.h"
 #include "asan_stack.h"
 #include "asan_thread.h"
+#include "lsan/lsan_common.h"
 #include "sanitizer_common/sanitizer_common.h"
 #include "sanitizer_common/sanitizer_flags.h"
+#include "sanitizer_common/sanitizer_interface_internal.h"
+#include "sanitizer_common/sanitizer_placement_new.h"
 #include "sanitizer_common/sanitizer_report_decorator.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
@@ -30,27 +34,27 @@ namespace __asan {
 
 // -------------------- User-specified callbacks ----------------- {{{1
 static void (*error_report_callback)(const char*);
-static char *error_message_buffer = nullptr;
-static uptr error_message_buffer_pos = 0;
-static BlockingMutex error_message_buf_mutex(LINKER_INITIALIZED);
+using ErrorMessageBuffer = InternalMmapVectorNoCtor<char, true>;
+alignas(
+    alignof(ErrorMessageBuffer)) static char error_message_buffer_placeholder
+    [sizeof(ErrorMessageBuffer)];
+static ErrorMessageBuffer *error_message_buffer = nullptr;
+static Mutex error_message_buf_mutex;
 static const unsigned kAsanBuggyPcPoolSize = 25;
 static __sanitizer::atomic_uintptr_t AsanBuggyPcPool[kAsanBuggyPcPoolSize];
 
 void AppendToErrorMessageBuffer(const char *buffer) {
-  BlockingMutexLock l(&error_message_buf_mutex);
+  Lock l(&error_message_buf_mutex);
   if (!error_message_buffer) {
     error_message_buffer =
-      (char*)MmapOrDieQuietly(kErrorMessageBufferSize, __func__);
-    error_message_buffer_pos = 0;
+        new (error_message_buffer_placeholder) ErrorMessageBuffer();
+    error_message_buffer->Initialize(kErrorMessageBufferSize);
   }
-  uptr length = internal_strlen(buffer);
-  RAW_CHECK(kErrorMessageBufferSize >= error_message_buffer_pos);
-  uptr remaining = kErrorMessageBufferSize - error_message_buffer_pos;
-  internal_strncpy(error_message_buffer + error_message_buffer_pos,
-                   buffer, remaining);
-  error_message_buffer[kErrorMessageBufferSize - 1] = '\0';
-  // FIXME: reallocate the buffer instead of truncating the message.
-  error_message_buffer_pos += Min(remaining, length);
+  uptr error_message_buffer_len = error_message_buffer->size();
+  uptr buffer_len = internal_strlen(buffer);
+  error_message_buffer->resize(error_message_buffer_len + buffer_len);
+  internal_memcpy(error_message_buffer->data() + error_message_buffer_len,
+                  buffer, buffer_len);
 }
 
 // ---------------------- Helper functions ----------------------- {{{1
@@ -58,23 +62,23 @@ void AppendToErrorMessageBuffer(const char *buffer) {
 void PrintMemoryByte(InternalScopedString *str, const char *before, u8 byte,
                      bool in_shadow, const char *after) {
   Decorator d;
-  str->append("%s%s%x%x%s%s", before,
-              in_shadow ? d.ShadowByte(byte) : d.MemoryByte(), byte >> 4,
-              byte & 15, d.Default(), after);
+  str->AppendF("%s%s%x%x%s%s", before,
+               in_shadow ? d.ShadowByte(byte) : d.MemoryByte(), byte >> 4,
+               byte & 15, d.Default(), after);
 }
 
 static void PrintZoneForPointer(uptr ptr, uptr zone_ptr,
                                 const char *zone_name) {
   if (zone_ptr) {
     if (zone_name) {
-      Printf("malloc_zone_from_ptr(%p) = %p, which is %s\n",
-                 ptr, zone_ptr, zone_name);
+      Printf("malloc_zone_from_ptr(%p) = %p, which is %s\n", (void *)ptr,
+             (void *)zone_ptr, zone_name);
     } else {
       Printf("malloc_zone_from_ptr(%p) = %p, which doesn't have a name\n",
-                 ptr, zone_ptr);
+             (void *)ptr, (void *)zone_ptr);
     }
   } else {
-    Printf("malloc_zone_from_ptr(%p) = 0\n", ptr);
+    Printf("malloc_zone_from_ptr(%p) = 0\n", (void *)ptr);
   }
 }
 
@@ -123,6 +127,33 @@ class ScopedInErrorReport {
  public:
   explicit ScopedInErrorReport(bool fatal = false)
       : halt_on_error_(fatal || flags()->halt_on_error) {
+    // Deadlock Prevention Between ASan and LSan
+    //
+    // Background:
+    // - The `dl_iterate_phdr` function requires holding libdl's internal lock
+    //   (Lock A).
+    // - LSan acquires the ASan thread registry lock (Lock B) *after* calling
+    //   `dl_iterate_phdr`.
+    //
+    // Problem Scenario:
+    // When ASan attempts to call `dl_iterate_phdr` while holding Lock B (e.g.,
+    // during error reporting via `ErrorDescription::Print`), a circular lock
+    // dependency may occur:
+    //   1. Thread 1: Holds Lock B → Requests Lock A (via dl_iterate_phdr)
+    //   2. Thread 2: Holds Lock A → Requests Lock B (via LSan operations)
+    //
+    // Solution:
+    // Proactively load all required modules before acquiring Lock B.
+    // This ensures:
+    // 1. Any `dl_iterate_phdr` calls during module loading complete before
+    //    locking.
+    // 2. Subsequent error reporting avoids nested lock acquisition patterns.
+    // 3. Eliminates the lock order inversion risk between libdl and ASan's
+    //    thread registry.
+#if CAN_SANITIZE_LEAKS && (SANITIZER_LINUX || SANITIZER_NETBSD)
+    Symbolizer::GetOrInit()->GetRefreshedListOfModules();
+#endif
+
     // Make sure the registry and sanitizer report mutexes are locked while
     // we're printing an error report.
     // We can lock them only here to avoid self-deadlock in case of
@@ -155,15 +186,15 @@ class ScopedInErrorReport {
       DumpProcessMap();
 
     // Copy the message buffer so that we could start logging without holding a
-    // lock that gets aquired during printing.
-    InternalMmapVector<char> buffer_copy(kErrorMessageBufferSize);
+    // lock that gets acquired during printing.
+    InternalScopedString buffer_copy;
     {
-      BlockingMutexLock l(&error_message_buf_mutex);
-      internal_memcpy(buffer_copy.data(),
-                      error_message_buffer, kErrorMessageBufferSize);
+      Lock l(&error_message_buf_mutex);
+      error_message_buffer->push_back('\0');
+      buffer_copy.Append(error_message_buffer->data());
       // Clear error_message_buffer so that if we find other errors
       // we don't re-log this error.
-      error_message_buffer_pos = 0;
+      error_message_buffer->clear();
     }
 
     LogFullErrorReport(buffer_copy.data());
@@ -229,6 +260,14 @@ void ReportNewDeleteTypeMismatch(uptr addr, uptr delete_size,
   ScopedInErrorReport in_report;
   ErrorNewDeleteTypeMismatch error(GetCurrentTidOrInvalid(), free_stack, addr,
                                    delete_size, delete_alignment);
+  in_report.ReportError(error);
+}
+
+void ReportFreeSizeMismatch(uptr addr, uptr delete_size, uptr delete_alignment,
+                            BufferedStackTrace* free_stack) {
+  ScopedInErrorReport in_report;
+  ErrorFreeSizeMismatch error(GetCurrentTidOrInvalid(), free_stack, addr,
+                              delete_size, delete_alignment);
   in_report.ReportError(error);
 }
 
@@ -335,11 +374,11 @@ void ReportStringFunctionMemoryRangesOverlap(const char *function,
   in_report.ReportError(error);
 }
 
-void ReportStringFunctionSizeOverflow(uptr offset, uptr size,
-                                      BufferedStackTrace *stack) {
+void ReportStringFunctionSizeOverflow(uptr offset, uptr size, bool is_write,
+                                      BufferedStackTrace* stack) {
   ScopedInErrorReport in_report;
   ErrorStringFunctionSizeOverflow error(GetCurrentTidOrInvalid(), stack, offset,
-                                        size);
+                                        size, is_write);
   in_report.ReportError(error);
 }
 
@@ -349,6 +388,18 @@ void ReportBadParamsToAnnotateContiguousContainer(uptr beg, uptr end,
   ScopedInErrorReport in_report;
   ErrorBadParamsToAnnotateContiguousContainer error(
       GetCurrentTidOrInvalid(), stack, beg, end, old_mid, new_mid);
+  in_report.ReportError(error);
+}
+
+void ReportBadParamsToAnnotateDoubleEndedContiguousContainer(
+    uptr storage_beg, uptr storage_end, uptr old_container_beg,
+    uptr old_container_end, uptr new_container_beg, uptr new_container_end,
+    BufferedStackTrace *stack) {
+  ScopedInErrorReport in_report;
+  ErrorBadParamsToAnnotateDoubleEndedContiguousContainer error(
+      GetCurrentTidOrInvalid(), stack, storage_beg, storage_end,
+      old_container_beg, old_container_end, new_container_beg,
+      new_container_end);
   in_report.ReportError(error);
 }
 
@@ -435,9 +486,10 @@ static inline void CheckForInvalidPointerPair(void *p1, void *p2) {
 void ReportMacMzReallocUnknown(uptr addr, uptr zone_ptr, const char *zone_name,
                                BufferedStackTrace *stack) {
   ScopedInErrorReport in_report;
-  Printf("mz_realloc(%p) -- attempting to realloc unallocated memory.\n"
-             "This is an unrecoverable problem, exiting now.\n",
-             addr);
+  Printf(
+      "mz_realloc(%p) -- attempting to realloc unallocated memory.\n"
+      "This is an unrecoverable problem, exiting now.\n",
+      (void *)addr);
   PrintZoneForPointer(addr, zone_ptr, zone_name);
   stack->Print();
   DescribeAddressIfHeap(addr);
@@ -459,6 +511,10 @@ static bool SuppressErrorReport(uptr pc) {
 
 void ReportGenericError(uptr pc, uptr bp, uptr sp, uptr addr, bool is_write,
                         uptr access_size, u32 exp, bool fatal) {
+  if (__asan_test_only_reported_buggy_pointer) {
+    *__asan_test_only_reported_buggy_pointer = addr;
+    return;
+  }
   if (!fatal && SuppressErrorReport(pc)) return;
   ENABLE_FRAME_POINTER;
 
@@ -490,7 +546,7 @@ void __asan_report_error(uptr pc, uptr bp, uptr sp, uptr addr, int is_write,
 }
 
 void NOINLINE __asan_set_error_report_callback(void (*callback)(const char*)) {
-  BlockingMutexLock l(&error_message_buf_mutex);
+  Lock l(&error_message_buf_mutex);
   error_report_callback = callback;
 }
 
@@ -544,6 +600,148 @@ uptr __asan_get_report_access_size() {
   return 0;
 }
 
+int __asan_get_report_src_address(uptr* out_addr, uptr* out_size) {
+  ErrorDescription& err = ScopedInErrorReport::CurrentError();
+  if (err.kind == kErrorKindGeneric && !err.Generic.is_write) {
+    if (out_addr)
+      *out_addr = err.Generic.addr_description.Address();
+    if (out_size)
+      *out_size = err.Generic.access_size;
+    return 1;
+  }
+  if (err.kind == kErrorKindStringFunctionMemoryRangesOverlap) {
+    if (out_addr)
+      *out_addr =
+          err.StringFunctionMemoryRangesOverlap.addr2_description.Address();
+    if (out_size)
+      *out_size = err.StringFunctionMemoryRangesOverlap.length2;
+    return 1;
+  }
+  if (err.kind == kErrorKindStringFunctionSizeOverflow &&
+      !err.StringFunctionSizeOverflow.is_write) {
+    if (out_addr)
+      *out_addr = err.StringFunctionSizeOverflow.addr_description.Address();
+    if (out_size)
+      *out_size = err.StringFunctionSizeOverflow.size;
+    return 1;
+  }
+  if (err.kind == kErrorKindMallocUsableSizeNotOwned) {
+    if (out_addr)
+      *out_addr = err.MallocUsableSizeNotOwned.addr_description.Address();
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  if (err.kind == kErrorKindSanitizerGetAllocatedSizeNotOwned) {
+    if (out_addr)
+      *out_addr =
+          err.SanitizerGetAllocatedSizeNotOwned.addr_description.Address();
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  return 0;
+}
+
+int __asan_get_report_dest_address(uptr* out_addr, uptr* out_size) {
+  ErrorDescription& err = ScopedInErrorReport::CurrentError();
+  if (err.kind == kErrorKindGeneric && err.Generic.is_write) {
+    if (out_addr)
+      *out_addr = err.Generic.addr_description.Address();
+    if (out_size)
+      *out_size = err.Generic.access_size;
+    return 1;
+  }
+  if (err.kind == kErrorKindStringFunctionMemoryRangesOverlap) {
+    if (out_addr)
+      *out_addr =
+          err.StringFunctionMemoryRangesOverlap.addr1_description.Address();
+    if (out_size)
+      *out_size = err.StringFunctionMemoryRangesOverlap.length1;
+    return 1;
+  }
+  if (err.kind == kErrorKindStringFunctionSizeOverflow &&
+      err.StringFunctionSizeOverflow.is_write) {
+    if (out_addr)
+      *out_addr = err.StringFunctionSizeOverflow.addr_description.Address();
+    if (out_size)
+      *out_size = err.StringFunctionSizeOverflow.size;
+    return 1;
+  }
+  return 0;
+}
+
+int __asan_get_report_dealloc_address(uptr* out_addr, uptr* out_size) {
+  ErrorDescription& err = ScopedInErrorReport::CurrentError();
+  if (err.kind == kErrorKindDoubleFree) {
+    if (out_addr)
+      *out_addr = err.DoubleFree.addr_description.addr;
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  if (err.kind == kErrorKindNewDeleteTypeMismatch) {
+    if (out_addr)
+      *out_addr = err.NewDeleteTypeMismatch.addr_description.addr;
+    if (out_size)
+      *out_size = err.NewDeleteTypeMismatch.delete_size;
+    return 1;
+  }
+  if (err.kind == kErrorKindFreeNotMalloced) {
+    if (out_addr)
+      *out_addr = err.FreeNotMalloced.addr_description.Address();
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  if (err.kind == kErrorKindAllocTypeMismatch) {
+    if (out_addr)
+      *out_addr = err.AllocTypeMismatch.addr_description.Address();
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  return 0;
+}
+
+int __asan_get_report_first_address(uptr* out_addr, uptr* out_size) {
+  ErrorDescription& err = ScopedInErrorReport::CurrentError();
+  if (err.kind == kErrorKindInvalidPointerPair) {
+    if (out_addr)
+      *out_addr = err.InvalidPointerPair.addr1_description.Address();
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  if (err.kind == kErrorKindODRViolation) {
+    if (out_addr)
+      *out_addr = err.ODRViolation.global1.beg;
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  return 0;
+}
+
+int __asan_get_report_second_address(uptr* out_addr, uptr* out_size) {
+  ErrorDescription& err = ScopedInErrorReport::CurrentError();
+  if (err.kind == kErrorKindInvalidPointerPair) {
+    if (out_addr)
+      *out_addr = err.InvalidPointerPair.addr2_description.Address();
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  if (err.kind == kErrorKindODRViolation) {
+    if (out_addr)
+      *out_addr = err.ODRViolation.global2.beg;
+    if (out_size)
+      *out_size = 0;
+    return 1;
+  }
+  return 0;
+}
+
 const char *__asan_get_report_description() {
   if (ScopedInErrorReport::CurrentError().kind == kErrorKindGeneric)
     return ScopedInErrorReport::CurrentError().Generic.bug_descr;
@@ -562,5 +760,5 @@ void __sanitizer_ptr_cmp(void *a, void *b) {
 } // extern "C"
 
 // Provide default implementation of __asan_on_error that does nothing
-// and may be overriden by user.
+// and may be overridden by user.
 SANITIZER_INTERFACE_WEAK_DEF(void, __asan_on_error, void) {}

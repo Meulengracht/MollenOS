@@ -5,7 +5,7 @@
 #include "../assembly.h"
 
 // _chkstk routine
-// This routine is windows specific
+// Windows and Vali share the non-RSP-adjusting probe convention.
 // http://msdn.microsoft.com/en-us/library/ms648426.aspx
 
 // Notes from r227519
@@ -17,7 +17,14 @@
 
 .text
 .balign 4
-DEFINE_COMPILERRT_FUNCTION(___chkstk_ms)
+#if defined(VALI)
+DEFINE_COMPILERRT_FUNCTION(__alloca)
+        mov    %rcx,%rax
+#define CHKSTK_NAME __chkstk
+#else
+#define CHKSTK_NAME ___chkstk_ms
+#endif
+DEFINE_COMPILERRT_FUNCTION(CHKSTK_NAME)
         push   %rcx
         push   %rax
         cmp    $0x1000,%rax
@@ -35,6 +42,9 @@ DEFINE_COMPILERRT_FUNCTION(___chkstk_ms)
         pop    %rax
         pop    %rcx
         ret
-END_COMPILERRT_FUNCTION(___chkstk_ms)
+END_COMPILERRT_FUNCTION(CHKSTK_NAME)
+#if defined(VALI)
+END_COMPILERRT_FUNCTION(__alloca)
+#endif
 
 #endif // __x86_64__

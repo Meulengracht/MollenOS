@@ -12,6 +12,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 __attribute__((noinline))
@@ -25,13 +26,20 @@ void baz() { printf("baz\n"); }
 
 int main(int argc, char **argv) {
   pid_t child_pid = fork();
+  char buf[100];
   if (child_pid == 0) {
-    fprintf(stderr, "Child PID: %d\n", getpid());
+    snprintf(buf, sizeof(buf), "Child PID: %ld\n", (long)getpid());
+    write(2, buf, strlen(buf));
     baz();
   } else {
-    fprintf(stderr, "Parent PID: %d\n", getpid());
+    snprintf(buf, sizeof(buf), "Parent PID: %ld\n", (long)getpid());
+    write(2, buf, strlen(buf));
     foo();
     bar();
+
+    // Wait for the child process(s) to finish
+    while (wait(NULL) > 0)
+      ;
   }
   return 0;
 }

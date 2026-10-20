@@ -53,7 +53,7 @@ macro (merge_libraries)
           # Use OSX's libtool to merge archives (ihandles universal 
           # binaries properly)
             add_custom_command (TARGET ${TARGET} POST_BUILD
-                COMMAND rm ${TARGET_LOCATION}
+                COMMAND ${CMAKE_COMMAND} -E rm -f "${TARGET_LOCATION}"
                 COMMAND /usr/bin/libtool -static -o ${TARGET_LOCATION} 
                 ${STATIC_LIBS}
             )
@@ -68,7 +68,7 @@ macro (merge_libraries)
                 @ONLY
             )
             add_custom_command (TARGET ${TARGET} POST_BUILD
-              COMMAND rm ${TARGET_LOCATION}
+              COMMAND ${CMAKE_COMMAND} -E rm -f "${TARGET_LOCATION}"
               COMMAND ${CMAKE_COMMAND} -P 
               ${CMAKE_CURRENT_BINARY_DIR}/merge_archives_${TARGET}.cmake
             )
@@ -78,10 +78,24 @@ endmacro ()
 
 # COMPILER-RT
 include (ExternalProject)
+set(VALI_COMPILER_RT_ARCH "${VALI_ARCH}")
+if(VALI_ARCH STREQUAL "amd64")
+    set(VALI_COMPILER_RT_ARCH x86_64)
+endif()
+set(VALI_COMPILER_RT_TRIPLE "${VALI_COMPILER_RT_ARCH}-uml-vali")
+
 ExternalProject_Add(compiler-rt
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/compiler-rt
+    # Declare the archive consumed below so Ninja can track its producer.
+    BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/lib/valicc/${VALI_COMPILER_RT_TARGET}.lib
     CMAKE_ARGS
         -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ToolchainFile.cmake
+        -DLLVM_COMMON_CMAKE_UTILS:PATH=${CMAKE_CURRENT_SOURCE_DIR}/../cmake/llvm
+        -DCMAKE_C_COMPILER_TARGET=${VALI_COMPILER_RT_TRIPLE}
+        -DCMAKE_CXX_COMPILER_TARGET=${VALI_COMPILER_RT_TRIPLE}
+        -DCMAKE_ASM_COMPILER_TARGET=${VALI_COMPILER_RT_TRIPLE}
+        -DCOMPILER_RT_DEFAULT_TARGET_ONLY=ON
+        -UCOMPILER_RT_DEFAULT_TARGET_TRIPLE
         -DCMAKE_C_FLAGS=${VALI_COMPILER_RT_C_FLAGS}
         -DCMAKE_CXX_FLAGS=${VALI_COMPILER_RT_CXX_FLAGS}
         -DCMAKE_ASM_FLAGS=${VALI_COMPILER_RT_ASM_FLAGS}
@@ -91,12 +105,18 @@ ExternalProject_Add(compiler-rt
         -DCOMPILER_RT_BUILD_XRAY=OFF
         -DCOMPILER_RT_BUILD_LIBFUZZER=OFF
         -DCOMPILER_RT_BUILD_PROFILE=OFF
+        -DCOMPILER_RT_BUILD_CTX_PROFILE=OFF
+        -DCOMPILER_RT_BUILD_MEMPROF=OFF
+        -DCOMPILER_RT_BUILD_ORC=OFF
+        -DCOMPILER_RT_BUILD_CRT=OFF
+        -DCOMPILER_RT_INCLUDE_TESTS=OFF
+        -DCOMPILER_RT_BUILTINS_ENABLE_PIC=OFF
+        -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=OFF
         -DCOMPILER_RT_BAREMETAL_BUILD=ON
         -DCOMPILER_RT_EXCLUDE_ATOMIC_BUILTIN=OFF
         -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
         -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}
         -DVALI_ARCH=${VALI_ARCH}
-        -DCOMPILER_RT_DEFAULT_TARGET_TRIPLE=${VALI_ARCH}-uml-vali
 )
 
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/lib/valicc)

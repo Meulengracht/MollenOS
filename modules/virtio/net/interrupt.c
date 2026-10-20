@@ -34,10 +34,11 @@ oserr_t
 VirtioNetRegisterInterrupt(
     _InOut_ VirtioNetDevice_t* device)
 {
-    DeviceInterrupt_t interrupt;
-    DeviceIo_t*       isrIoSpace;
-    int               enable = 1;
-    int               status;
+    uint32_t    count;
+    oserr_t     oserr;
+    DeviceIo_t* isrIoSpace;
+    int         enable = 1;
+    int         status;
     TRACE("VirtioNetRegisterInterrupt()");
 
     // Obtain the I/O space for the ISR configuration region
@@ -73,38 +74,67 @@ VirtioNetRegisterInterrupt(
             device->Transport.Regions[VIRTIO_PCI_CAP_ISR_CFG - 1].Offset;
 
     atomic_init(&device->InterruptResource.PendingStatus, 0);
-    DeviceInterruptInitialize(&interrupt, device->BusDevice);
-
-    TRACE("VirtioNetRegisterInterrupt line=%i, pin=%i, isrOffset=0x%x",
-          interrupt.Line,
-          interrupt.Pin,
-          device->InterruptResource.IsrOffset);
-    RegisterInterruptDescriptor(&interrupt, device->EventDescriptor);
-
-    // Register handler for fast interrupt, and the resources it needs
-    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&interrupt, isrIoSpace);
-    RegisterFastInterruptMemoryResource(&interrupt,
-                                        (uintptr_t)&device->InterruptResource,
-                                        sizeof(device->InterruptResource),
-                                        0);
-
-    device->InterruptId = RegisterInterruptSource(&interrupt, 0);
-    if (device->InterruptId == UUID_INVALID) {
-        ERROR("VirtioNetRegisterInterrupt: failed to register the interrupt source");
-        VirtioNetUnregisterInterrupt(device);
-        return OS_EUNKNOWN;
+    DeviceInterruptInitialize(&device->Interrupt, device->BusDevice);
+    
+    oserr = DeviceInterruptAllocate(
+        &device->Interrupt,
+        1, // Min
+        1, // Optimal
+        INTERRUPT_STRATEGY_INTx,
+        &count
+    );
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptSetDescriptor(&device->Interrupt, 0, device->EventDescriptor);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptSetHandler(&device->Interrupt, 0, (InterruptHandler_t)OnFastInterrupt);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptAddIoResource(&device->Interrupt, 0, isrIoSpace);
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptAddMemoryResource(
+        &device->Interrupt,
+        0,
+        (uintptr_t)&device->InterruptResource,
+        sizeof(device->InterruptResource),
+        0
+    );
+    if (oserr != OS_EOK) {
+        goto cleanup;
+    }
+    
+    oserr = DeviceInterruptEnable(&device->Interrupt);
+    if (oserr != OS_EOK) {
+        goto cleanup;
     }
     return OS_EOK;
+
+cleanup:
+    // Retain the event if handler cleanup fails; it may still be referenced.
+    VirtioNetUnregisterInterrupt(device);
+    return oserr;
 }
 
-void
+oserr_t
 VirtioNetUnregisterInterrupt(
     _InOut_ VirtioNetDevice_t* device)
 {
-    if (device->InterruptId != UUID_INVALID) {
-        UnregisterInterruptSource(device->InterruptId);
-        device->InterruptId = UUID_INVALID;
+    oserr_t status;
+
+    status = DeviceInterruptDestroy(&device->Interrupt);
+    if (status != OS_EOK) {
+        ERROR("Failed to release Virtio interrupt; keeping its resources alive");
+        return status;
     }
 
     if (device->EventDescriptor >= 0) {
@@ -117,4 +147,5 @@ VirtioNetUnregisterInterrupt(
         close(device->EventDescriptor);
         device->EventDescriptor = -1;
     }
+    return OS_EOK;
 }

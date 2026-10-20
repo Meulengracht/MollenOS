@@ -13,15 +13,15 @@
 #ifndef ORC_RT_COMMON_H
 #define ORC_RT_COMMON_H
 
-#include "c_api.h"
 #include "compiler.h"
+#include "orc_rt/c_api.h"
 #include <type_traits>
 
 /// This macro should be used to define tags that will be associated with
 /// handlers in the JIT process, and call can be used to define tags f
-#define ORC_RT_JIT_DISPATCH_TAG(X) \
-extern "C" char X; \
-char X = 0;
+#define ORC_RT_JIT_DISPATCH_TAG(X)                                             \
+  ORC_RT_INTERFACE char X;                                                     \
+  char X = 0;
 
 /// Opaque struct for external symbols.
 struct __orc_rt_Opaque {};
@@ -34,14 +34,14 @@ extern "C" void __orc_rt_log_error(const char *ErrMsg);
 /// This is declared for use by the runtime, but should be implemented in the
 /// executor or provided by a definition added to the JIT before the runtime
 /// is loaded.
-extern "C" __orc_rt_Opaque __orc_rt_jit_dispatch_ctx ORC_RT_WEAK_IMPORT;
+ORC_RT_IMPORT __orc_rt_Opaque __orc_rt_jit_dispatch_ctx ORC_RT_WEAK_IMPORT;
 
 /// For dispatching calls to the JIT object.
 ///
 /// This is declared for use by the runtime, but should be implemented in the
 /// executor or provided by a definition added to the JIT before the runtime
 /// is loaded.
-extern "C" __orc_rt_CWrapperFunctionResult
+ORC_RT_IMPORT orc_rt_WrapperFunctionResult
 __orc_rt_jit_dispatch(__orc_rt_Opaque *DispatchCtx, const void *FnTag,
                       const char *Data, size_t Size) ORC_RT_WEAK_IMPORT;
 

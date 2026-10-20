@@ -46,7 +46,7 @@ function(try_compile_only output)
 
   set(TRY_COMPILE_FLAGS "${ARG_FLAGS}")
   if(CMAKE_C_COMPILER_ID MATCHES Clang AND CMAKE_C_COMPILER_TARGET)
-    list(APPEND TRY_COMPILE_FLAGS "-target ${CMAKE_C_COMPILER_TARGET}")
+    list(APPEND TRY_COMPILE_FLAGS "--target=${CMAKE_C_COMPILER_TARGET}")
   endif()
 
   string(REPLACE ";" " " extra_flags "${TRY_COMPILE_FLAGS}")
@@ -74,7 +74,7 @@ function(try_compile_only output)
 
   # Strip quotes from the compile command, as the compiler is not expecting
   # quoted arguments (see discussion on D62063 for when this can come up). If
-  # the quotes were there for arugments with spaces in them, the quotes were
+  # the quotes were there for arguments with spaces in them, the quotes were
   # not going to help since the string gets split on spaces below.
   string(REPLACE "\"" "" test_compile_command "${test_compile_command}")
 
@@ -112,7 +112,7 @@ endfunction()
 function(builtin_check_c_compiler_flag flag output)
   if(NOT DEFINED ${output})
     message(STATUS "Performing Test ${output}")
-    try_compile_only(result FLAGS ${flag})
+    try_compile_only(result FLAGS ${flag} ${CMAKE_REQUIRED_FLAGS})
     set(${output} ${result} CACHE INTERNAL "Compiler supports ${flag}")
     if(${result})
       message(STATUS "Performing Test ${output} - Success")

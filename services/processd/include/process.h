@@ -84,15 +84,16 @@ extern void PmDebuggerInitialize(void);
  * @brief
  *
  * @param path
- * @param bufferOut
- * @param bufferSizeOut
+ * @param bufferOut Receives the allocated file contents. NULL checks existence
+ *                  without allocating or reading the contents.
+ * @param bufferSizeOut Optionally receives the file size.
  * @return
  */
 extern oserr_t
 PmBootstrapFindRamdiskFile(
-        _In_  mstring_t* path,
-        _Out_ void**     bufferOut,
-        _Out_ size_t*    bufferSizeOut);
+    _In_      mstring_t* path,
+    _Out_Opt_ void**     bufferOut,
+    _Out_Opt_ size_t*    bufferSizeOut);
 
 /**
  * @brief Spawns a new process with the given configuration. The process assumes a valid PE image

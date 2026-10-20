@@ -100,169 +100,153 @@ typedef struct InterruptFunctionTable {
 #define INTERRUPT_STRATEGY_MSIX 0x4
 #define INTERRUPT_STRATEGY_ANY  0x7
 
-typedef struct DeviceInterrupt {
-    // Interrupt-handler(s) and context
-    // FastHandler is called to determine whether or not this source
-    // has produced the interrupt.
-    InterruptResourceTable_t ResourceTable;
-
-    // General information, note that these can change
-    // after the RegisterInterruptSource, always use the value
-    // in <Line> to see your allocated interrupt-line
-    unsigned int AcpiConform;
+// Only describes a line-based interrupt. 
+// Message-based interrupts will use DeviceId instead.
+typedef struct DeviceInterruptLine {
     int          Line;
     int          Pin;
-    void*        Context;
+    unsigned int AcpiConform;
+} DeviceInterruptLine_t;
 
-    // If the system should choose the best available
-    // between all directs, fill all unused entries with 
-    // INTERRUPT_NONE. Specify INTERRUPT_VECTOR to use this.
-    int Vectors[INTERRUPT_MAXVECTORS];
+// Each interrupt may carry its own resource table and an
+// affinity mask.
+typedef struct DeviceInterruptVector {
+    InterruptResourceTable_t ResourceTable;
+    uint32_t                 AffinityMask;
+} DeviceInterruptVector_t;
 
-    // Pci Identification
-    unsigned int IsPci;
-    unsigned int Segment;
-    unsigned int Bus;
-    unsigned int Slot;
-    unsigned int Function;
+// Describes all interrupts allocated for a single device.
+// This structure includes the device identifier, line-based interrupt information,
+// flags, the chosen strategy, the number of allocated vectors, the array of vectors,
+// and the current state of the interrupt allocation.
+typedef struct DeviceInterrupt {
+    uuid_t                       DeviceId;
+    DeviceInterruptLine_t        Line;
+    unsigned int                 Flags;
+    uint32_t                     Strategy;
 
-    // Msi Identification
-    uint64_t  MsiAddress;     // INTERRUPT_MSI - The address of MSI
-    uintptr_t MsiValue;       // INTERRUPT_MSI - The value of MSI
+    // These are maintained by libddk
+    uint32_t                     Count;
+    DeviceInterruptVector_t*     Vectors;
+    struct DeviceInterruptState* State;
 } DeviceInterrupt_t;
 
 /**
- * @brief Initializes a new device interrupt instance based on the bus device descriptor.
- * The updated flow for v2 should be to allocate the needed vectors after this call.
+ * @brief Initializes line and device information from the provided device base.
  * 
- * @param interrupt The interrupt descriptor to initialize.
- * @param device The bus device descriptor associated with the interrupt.
+ * Pass NULL for device to set Line explicitly for a fixed platform interrupt.
+ * Must be called prior to Allocate. Flags defaults to shared delivery;
+ * set INTERRUPT_EXCLUSIVE before allocation if this line must not be shared.
  */
 DDKDECL(void,
 DeviceInterruptInitialize(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ BusDevice_t*       device));
+    _Out_ DeviceInterrupt_t* interrupt,
+    _In_  BusDevice_t*       device));
 
 /**
- * @brief Requests an allocation of interrupt vectors through the accepted
- * strategies. We support INTERRUPT_STRATEGY_* values to allocate interrupt
- * vectors. For MSI/X multiple vectors may be requested. For INTx only a single
- * vector can be requested, and requesting more will result in an error. If multiple
- * strategies are provided the order will be MSIX -> MSI -> INTx.
- * 
- * This should be called after Initialize() but before Enable() is invoked.
- *
- * @param interrupt The interrupt descriptor to allocate vectors for.
- * @param min The minimum number of vectors required.
- * @param optimal The optimal number of vectors desired.
- * @param strategy The allocation strategy to use (INTERRUPT_STRATEGY_*).
- * @param countOut Receives the number of vectors actually allocated.
- * @return OS_EOK if the allocation succeeded, or an error code if it failed.
+ * @brief Reserves interrupts without installing a handler or enabling delivery.
+ * Strategies are preferences in MSI-X, MSI, INTx order. This implementation
+ * supports INTx only: min must be one and INTx must be allowed. optimal may be
+ * larger, so callers can already request a preferred count with INTx fallback.
+ * Success returns the actual count. Failure leaves countOut zero and retains
+ * any existing allocation. An object cannot own two allocations at once.
  */
 DDKDECL(oserr_t,
 DeviceInterruptAllocate(
-    _In_  DeviceInterrupt_t* interrupt,
-    _In_  uint32_t           min,
-    _In_  uint32_t           optimal,
-    _In_  uint32_t           strategy,
-    _Out_ uint32_t*          countOut));
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           min,
+    _In_    uint32_t           optimal,
+    _In_    uint32_t           strategies,
+    _Out_   uint32_t*          countOut));
 
 /**
- * @brief Sets the CPU affinity for a specific interrupt vector. The index must be lower
- * than the value returned in DeviceInterruptAllocate's <countOut> parameter.
- * 
- * @param interrupt The interrupt descriptor to set the affinity for.
- * @param index The index of the interrupt vector to set the affinity for.
- * @param affinityMask The CPU affinity mask indicating which CPUs can handle the interrupt.
+ * @brief Specifies acceptable CPUs before enabling the allocation.
+ * INTx currently preserves platform routing: only UINT32_MAX (the default,
+ * meaning no additional restriction) is supported. Other masks return
+ * OS_ENOTSUPPORTED rather than claiming a CPU assignment was made.
  */
-DDKDECL(void,
-DeviceInterruptSetAffinity(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ uint32_t           index,
-    _In_ uint32_t           affinityMask));
-
-/**
- * @brief Registers a handler for the specific index. The index must be lower
- * than the value returned in DeviceInterruptAllocate's <countOut> parameter.
- * 
- * @param interrupt The interrupt descriptor to set the handler for.
- * @param index The index of the interrupt vector to associate with the handler.
- * @param handler The interrupt handler function to register.
- */
-DDKDECL(void,
-DeviceInterruptSetHandler(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ uint32_t           index,
-    _In_ InterruptHandler_t handler));
-
-/**
- * @brief Enables the specified interrupt vector for the device. The index must be lower
- * than the value returned in DeviceInterruptAllocate's <countOut> parameter.
- * 
- * @param interrupt The interrupt descriptor to enable the vector for.
- * @param index The index of the interrupt vector to enable.
- */
-DDKDECL(void,
-DeviceInterruptEnable(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ uint32_t           index));
-
-/**
- * @brief Tears down any interrupt vector associated with this device's
- * interrupt vectors. It additionally frees kernel resources associated
- * with this instance.
- * 
- * @param interrupt The interrupt descriptor to destroy.
- */
-DDKDECL(void,
-DeviceInterruptDestroy(
-    _In_ DeviceInterrupt_t* interrupt));
-
-/* RegisterFastInterruptHandler
- * Registers a fast interrupt handler associated with the interrupt. */
-DDKDECL(void,
-RegisterFastInterruptHandler(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ InterruptHandler_t handler));
-
-/* RegisterFastInterruptIoResource
- * Registers the given device io resource with the fast-interrupt. */
-DDKDECL(void,
-RegisterFastInterruptIoResource(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ DeviceIo_t*        ioSpace));
-
-/* RegisterFastInterruptMemoryResource
- * Registers the given memory resource with the fast-interrupt. */
-DDKDECL(void,
-RegisterFastInterruptMemoryResource(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ uintptr_t          address,
-    _In_ size_t             length,
-    _In_ unsigned int       flags));
-
-/**
- * Register event descriptor that will be signalled when a fast interrupt needs additional processing
- * @param interrupt  The interrupt descriptor that it should be bound to
- * @param descriptor The descriptor that should be available for the interrupt
- */
-DDKDECL(void,
-RegisterInterruptDescriptor(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ int                descriptor));
-
-/* RegisterInterruptSource 
- * Allocates the given interrupt source for use by the requesting driver, an id for the interrupt source
- * is returned. After a succesful register, SIGINT can be invoked by the event-system */
-DDKDECL(uuid_t,
-RegisterInterruptSource(
-    _In_ DeviceInterrupt_t* interrupt,
-    _In_ unsigned int       flags));
-
-/* UnregisterInterruptSource 
- * Unallocates the given interrupt source and disables all events of SIGINT */
 DDKDECL(oserr_t,
-UnregisterInterruptSource(
-    _In_ uuid_t interruptHandle));
+DeviceInterruptSetAffinity(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           index,
+    _In_    uint32_t           affinityMask));
 
-#endif //!_INTERRUPT_INTERFACE_H_
+/**
+ * @brief Sets a vector's fast handler while the allocation is disabled.
+ * The handler is mapped and checked by the kernel during Enable, after all
+ * resources have been described. A missing handler prevents Enable succeeding.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptSetHandler(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           index,
+    _In_    InterruptHandler_t handler));
+
+/**
+ * @brief Gives one vector an event descriptor for deferred processing.
+ * The descriptor and all registered resources must remain alive until Disable
+ * or Destroy succeeds, because a running fast handler can still access them.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptSetDescriptor(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           index,
+    _In_    int                descriptor));
+
+/**
+ * @brief Adds an acquired I/O region that the kernel maps for this handler.
+ * Returns OS_EOOM if the vector's resource table is full, so a driver never
+ * enables a handler with a silently omitted register range.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptAddIoResource(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           index,
+    _In_    DeviceIo_t*        ioSpace));
+
+/**
+ * @brief Adds memory that must remain accessible while the fast handler runs.
+ * Address and length must describe a nonempty range without wrapping. The
+ * kernel creates its own mapping, which the handler reads through its table.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptAddMemoryResource(
+    _InOut_ DeviceInterrupt_t* interrupt,
+    _In_    uint32_t           index,
+    _In_    uintptr_t          address,
+    _In_    size_t             length,
+    _In_    unsigned int       flags));
+
+/**
+ * @brief Maps all handlers and resources before allowing them to run.
+ * The driver must keep its device's interrupt source stopped during setup and
+ * start device work only after success. Repeated Enable calls are harmless.
+ * This operation enables the whole allocation, avoiding partial MSI enablement
+ * when support for message interrupts is added.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptEnable(
+    _InOut_ DeviceInterrupt_t* interrupt));
+
+/**
+ * @brief Stops handler delivery and waits for running handlers to finish.
+ * Stop interrupts at the device first: a shared INTx line may remain enabled
+ * for another device. On success, handler mappings are released but the line
+ * reservation remains, allowing configuration changes and a later Enable.
+ * Call from normal driver code, never from a fast interrupt handler.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptDisable(
+    _InOut_ DeviceInterrupt_t* interrupt));
+
+/**
+ * @brief Disables delivery and releases the allocation and local storage.
+ * Safe on an initialized or zeroed object and on repeated calls. If teardown
+ * fails, ownership is retained so the caller can retry without losing resources.
+ * Device identity and routing remain available for a later Allocate.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptDestroy(
+    _InOut_ DeviceInterrupt_t* interrupt));
+
+#endif //!__INTERRUPT_INTERFACE_H__

@@ -49,7 +49,7 @@ int main() {
   void *trace[100];
   size_t num_frames = 100;
   int thread_id;
-  uint64_t *thread_os_id;
+  uint64_t thread_os_id;
   num_frames =
       __tsan_get_alloc_stack(mem, trace, num_frames, &thread_id, &thread_os_id);
 
@@ -61,11 +61,11 @@ int main() {
   fprintf(stderr, "thread os id = 0x%llx\n", thread_os_id);
   // CHECK: thread os id = [[THREAD_OS_ID]]
   fprintf(stderr, "%p\n", trace[0]);
-  // CHECK: [[ALLOC_FRAME_0:0x[0-9a-f]+]]
+  // CHECK: 0x{{0*}}[[ALLOC_FRAME_0:[0-9a-f]+]]
   fprintf(stderr, "%p\n", trace[1]);
-  // CHECK: [[ALLOC_FRAME_1:0x[0-9a-f]+]]
+  // CHECK: 0x{{0*}}[[ALLOC_FRAME_1:[0-9a-f]+]]
   fprintf(stderr, "%p\n", trace[2]);
-  // CHECK: [[ALLOC_FRAME_2:0x[0-9a-f]+]]
+  // CHECK: 0x{{0*}}[[ALLOC_FRAME_2:[0-9a-f]+]]
 
   pthread_create(&t, NULL, RaceThread, NULL);
   barrier_wait(&barrier);
@@ -79,6 +79,6 @@ int main() {
 
 // CHECK: WARNING: ThreadSanitizer: data race
 // CHECK: Location is heap block of size 10 at {{.*}} allocated by thread T1
-// CHECK: #0 [[ALLOC_FRAME_0]]
-// CHECK: #1 [[ALLOC_FRAME_1]] in alloc_func
-// CHECK: #2 [[ALLOC_FRAME_2]] in AllocThread
+// CHECK: #0 0x{{0*}}[[ALLOC_FRAME_0]]
+// CHECK: #1 0x{{0*}}[[ALLOC_FRAME_1]] in alloc_func
+// CHECK: #2 0x{{0*}}[[ALLOC_FRAME_2]] in AllocThread

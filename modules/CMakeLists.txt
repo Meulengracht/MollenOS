@@ -18,7 +18,6 @@ macro (add_module_target)
 endmacro ()
 
 # build modules
-add_subdirectory(arch)
 add_subdirectory(serial)
 add_subdirectory(virtio)
 add_subdirectory(storage)

@@ -34,6 +34,7 @@
 #include <ioset.h>
 #include <gracht/server.h>
 #include <ioctl.h>
+#include <io.h>
 #include "ahci.h"
 
 extern gracht_server_t* __crt_get_module_server(void);
@@ -47,7 +48,7 @@ AhciControllerCreate(
     _In_ BusDevice_t* busDevice)
 {
     AhciController_t* controller;
-    DeviceInterrupt_t interrupt;
+    uint32_t          count;
     DeviceIo_t*       ioBase = NULL;
     oserr_t           osStatus;
     int               i;
@@ -107,17 +108,52 @@ AhciControllerCreate(
     TRACE("Io-Space was assigned virtual address 0x%" PRIxIN, ioBase->Access.Memory.VirtualBase);
     controller->Registers = (AHCIGenericRegisters_t*)ioBase->Access.Memory.VirtualBase;
     
-    DeviceInterruptInitialize(&interrupt, busDevice);
-    RegisterInterruptDescriptor(&interrupt, controller->event_descriptor);
-    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&interrupt, ioBase);
-    RegisterFastInterruptMemoryResource(&interrupt,
-                                        (uintptr_t)&controller->InterruptResource,
-                                        sizeof(AhciInterruptResource_t), 0);
-
-    // Register interrupt
-    TRACE(" > ahci interrupt line is %u", interrupt.Line);
-    controller->InterruptId = RegisterInterruptSource(&interrupt, 0);
+    // Stop this device's source before preparing a handler on a shared line.
+    WRITE_VOLATILE(controller->Registers->GlobalHostControl,
+        READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
+    DeviceInterruptInitialize(&controller->Interrupt, busDevice);
+    
+    osStatus = DeviceInterruptAllocate(
+        &controller->Interrupt,
+        1, // Min
+        1, // Optimal
+        INTERRUPT_STRATEGY_INTx,
+        &count
+    );
+    if (osStatus != OS_EOK) {
+        goto interrupt_error;
+    }
+    
+    osStatus = DeviceInterruptSetDescriptor(&controller->Interrupt, 0, controller->event_descriptor);
+    if (osStatus != OS_EOK) {
+        goto interrupt_error;
+    }
+    
+    osStatus = DeviceInterruptSetHandler(&controller->Interrupt, 0, (InterruptHandler_t)OnFastInterrupt);
+    if (osStatus != OS_EOK) {
+        goto interrupt_error;
+    }
+    
+    osStatus = DeviceInterruptAddIoResource(&controller->Interrupt, 0, ioBase);
+    if (osStatus != OS_EOK) {
+        goto interrupt_error;
+    }
+    
+    osStatus = DeviceInterruptAddMemoryResource(
+        &controller->Interrupt,
+        0,
+        (uintptr_t)&controller->InterruptResource,
+        sizeof(AhciInterruptResource_t),
+        0
+    );
+    if (osStatus != OS_EOK) {
+        goto interrupt_error;
+    }
+    
+    osStatus = DeviceInterruptEnable(&controller->Interrupt);
+    if (osStatus != OS_EOK) {
+        goto interrupt_error;
+    }
 
     // Enable device
     osStatus = OSDeviceIOCtl(
@@ -128,12 +164,9 @@ AhciControllerCreate(
                               __DEVICEMANAGER_IOCTL_BUSMASTER_ENABLE)
             }, sizeof(struct OSIOCtlBusControl)
     );
-    if (osStatus != OS_EOK || controller->InterruptId == UUID_INVALID) {
+    if (osStatus != OS_EOK) {
         ERROR("Failed to enable the ahci-controller");
-        UnregisterInterruptSource(controller->InterruptId);
-        ReleaseDeviceIo(controller->IoBase);
-        free(controller);
-        return NULL;
+        goto interrupt_error;
     }
 
     // Now that all formalities has been taken care
@@ -145,6 +178,19 @@ AhciControllerCreate(
         AhciControllerDestroy(controller);
         return NULL;
     }
+
+interrupt_error:
+    // The controller has no running queues yet; release only setup resources.
+    if (DeviceInterruptDestroy(&controller->Interrupt) != OS_EOK) {
+        ERROR("Failed to release AHCI interrupt; keeping its resources alive");
+        return NULL;
+    }
+    ioset_ctrl(gracht_server_get_aio_handle(__crt_get_module_server()),
+        IOSET_DEL, controller->event_descriptor, NULL);
+    close(controller->event_descriptor);
+    ReleaseDeviceIo(controller->IoBase);
+    free(controller);
+    return NULL;
 }
 
 oserr_t
@@ -152,6 +198,15 @@ AhciControllerDestroy(
     _In_ AhciController_t* controller)
 {
     int i;
+    oserr_t status;
+
+    // Stop device assertions before detaching from a possibly shared INTx line.
+    WRITE_VOLATILE(controller->Registers->GlobalHostControl,
+        READ_VOLATILE(controller->Registers->GlobalHostControl) & ~AHCI_HOSTCONTROL_IE);
+    status = DeviceInterruptDestroy(&controller->Interrupt);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     // First step is to clear out all ports
     // this releases devices and resources
@@ -161,7 +216,6 @@ AhciControllerDestroy(
         }
     }
 
-    UnregisterInterruptSource(controller->InterruptId);
     ReleaseDeviceIo(controller->IoBase);
     free(controller->Device);
     free(controller);

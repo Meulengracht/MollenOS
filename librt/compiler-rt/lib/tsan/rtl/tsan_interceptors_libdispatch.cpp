@@ -19,7 +19,7 @@
 #include "BlocksRuntime/Block.h"
 #include "tsan_dispatch_defs.h"
 
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 # include <Availability.h>
 #endif
 
@@ -225,7 +225,7 @@ DISPATCH_INTERCEPT(dispatch_barrier, true)
 
 // dispatch_async_and_wait() and friends were introduced in macOS 10.14.
 // Linking of these interceptors fails when using an older SDK.
-#if !SANITIZER_MAC || defined(__MAC_10_14)
+#if !SANITIZER_APPLE || defined(__MAC_10_14)
 // macOS 10.14 is greater than our minimal deployment target.  To ensure we
 // generate a weak reference so the TSan dylib continues to work on older
 // systems, we need to forward declare the intercepted functions as "weak
@@ -511,12 +511,28 @@ TSAN_INTERCEPTOR(void, dispatch_apply, size_t iterations,
   uptr parent_to_child_sync = (uptr)&sync1;
   uptr child_to_parent_sync = (uptr)&sync2;
 
+  // Capturing `block` inside `new_block` (below) causes `new_block`'s copy
+  // helper to `_Block_copy` `block`. Any captured objects must be `retain`ed
+  // and their (retained) pointers stored into the heap Block_layout. This
+  // happens on the calling thread inside `REAL(dispatch_apply)` below, after
+  // the `Release(..., parent_to_child_sync)` call.
+  //
+  // When `block` gets invoked in `new_block` on a worker thread, it reads
+  // those same captures. The worker does not see a happens-before edge
+  // between the writes during the copy and these reads, resulting in a
+  // false positive race report.
+  //
+  // We avoid this copy by taking a raw pointer to the block and directly
+  // invoking that. This is safe because `dispatch_apply` will not return
+  // until all iterations have completed - thus `block` will live past the
+  // end of all uses of `block_ptr`.
+  void* block_ptr = (void*)block;
   Release(thr, pc, parent_to_child_sync);
   void (^new_block)(size_t) = ^(size_t iteration) {
     SCOPED_INTERCEPTOR_RAW(dispatch_apply);
     Acquire(thr, pc, parent_to_child_sync);
     SCOPED_TSAN_INTERCEPTOR_USER_CALLBACK_START();
-    block(iteration);
+    ((void (^)(size_t))block_ptr)(iteration);
     SCOPED_TSAN_INTERCEPTOR_USER_CALLBACK_END();
     Release(thr, pc, child_to_parent_sync);
   };
@@ -558,7 +574,7 @@ TSAN_INTERCEPTOR(void, dispatch_apply_f, size_t iterations,
 }
 
 DECLARE_REAL_AND_INTERCEPTOR(void, free, void *ptr)
-DECLARE_REAL_AND_INTERCEPTOR(int, munmap, void *addr, long_t sz)
+DECLARE_REAL_AND_INTERCEPTOR(int, munmap, void *addr, SIZE_T sz)
 
 TSAN_INTERCEPTOR(dispatch_data_t, dispatch_data_create, const void *buffer,
                  size_t size, dispatch_queue_t q, dispatch_block_t destructor) {

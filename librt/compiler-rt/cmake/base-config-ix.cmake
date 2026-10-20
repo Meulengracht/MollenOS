@@ -3,28 +3,51 @@
 # .o files. This is particularly useful in producing larger, more complex
 # runtime libraries.
 
+include(BuiltinTests)
 include(CheckIncludeFile)
 include(CheckCXXSourceCompiles)
+include(GNUInstallDirs)
+include(GetClangResourceDir)
+include(ExtendPath)
+include(CompilerRTDarwinUtils)
 
 check_include_file(unwind.h HAVE_UNWIND_H)
 
 # Used by sanitizer_common and tests.
-check_include_file(rpc/xdr.h HAVE_RPC_XDR_H)
+set(_rpc_xdr_header "rpc/xdr.h")
+set(_default_require_rpc_xdr_h OFF)
+if ("${CMAKE_SYSTEM_NAME}" MATCHES AIX)
+  set(_rpc_xdr_header "tirpc/rpc/xdr.h")
+  if (COMPILER_RT_BUILD_SANITIZERS)
+    set(_default_require_rpc_xdr_h ON)
+  endif()
+endif()
+check_include_file(${_rpc_xdr_header} HAVE_RPC_XDR_H)
+option(COMPILER_RT_REQUIRE_RPC_XDR_H
+  "Require ${_rpc_xdr_header} for sanitizer builds (default ON for AIX when sanitizers are enabled, OFF elsewhere). \
+Set to OFF to bypass the missing-header error."
+  ${_default_require_rpc_xdr_h})
 if (NOT HAVE_RPC_XDR_H)
   set(HAVE_RPC_XDR_H 0)
+  if (COMPILER_RT_REQUIRE_RPC_XDR_H)
+    message(FATAL_ERROR
+      "${_rpc_xdr_header} is required for sanitizer builds but was not found. "
+      "Install the appropriate development package (e.g. bos.net.nfs.adt on AIX), "
+      "or set -DCOMPILER_RT_REQUIRE_RPC_XDR_H=OFF to bypass this check.")
+  endif()
 endif()
 
 # Top level target used to build all compiler-rt libraries.
 add_custom_target(compiler-rt ALL)
 add_custom_target(install-compiler-rt)
 add_custom_target(install-compiler-rt-stripped)
+set_property(TARGET compiler-rt PROPERTY FOLDER "Compiler-RT/Metatargets")
 set_property(
   TARGET
-    compiler-rt
     install-compiler-rt
     install-compiler-rt-stripped
   PROPERTY
-    FOLDER "Compiler-RT Misc"
+    FOLDER "Compiler-RT/Installation"
 )
 
 # Setting these variables from an LLVM build is sufficient that compiler-rt can
@@ -34,16 +57,11 @@ if (LLVM_LIBRARY_OUTPUT_INTDIR AND LLVM_RUNTIME_OUTPUT_INTDIR AND PACKAGE_VERSIO
 endif()
 
 if (LLVM_TREE_AVAILABLE)
-  # Compute the Clang version from the LLVM version.
-  # FIXME: We should be able to reuse CLANG_VERSION variable calculated
-  #        in Clang cmake files, instead of copying the rules here.
-  string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?" CLANG_VERSION
-         ${PACKAGE_VERSION})
   # Setup the paths where compiler-rt runtimes and headers should be stored.
-  set(COMPILER_RT_OUTPUT_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION})
+  get_clang_resource_dir(COMPILER_RT_OUTPUT_DIR PREFIX ${LLVM_LIBRARY_OUTPUT_INTDIR}/..)
   set(COMPILER_RT_EXEC_OUTPUT_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
-  set(COMPILER_RT_INSTALL_PATH lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION})
-  option(COMPILER_RT_INCLUDE_TESTS "Generate and build compiler-rt unit tests."
+  get_clang_resource_dir(COMPILER_RT_INSTALL_PATH)
+  option(COMPILER_RT_INCLUDE_TESTS "Generate and build compiler-rt tests."
          ${LLVM_INCLUDE_TESTS})
   option(COMPILER_RT_ENABLE_WERROR "Fail and stop if warning is triggered"
          ${LLVM_ENABLE_WERROR})
@@ -59,9 +77,9 @@ if (LLVM_TREE_AVAILABLE)
     set(_host_executable_suffix ${CMAKE_EXECUTABLE_SUFFIX})
   endif()
   set(COMPILER_RT_TEST_COMPILER
-    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang${_host_executable_suffix})
+    ${LLVM_TOOLS_BINARY_DIR}/clang${_host_executable_suffix})
   set(COMPILER_RT_TEST_CXX_COMPILER
-    ${LLVM_RUNTIME_OUTPUT_INTDIR}/clang++${_host_executable_suffix})
+    ${LLVM_TOOLS_BINARY_DIR}/clang++${_host_executable_suffix})
 else()
     # Take output dir and install path from the user.
   set(COMPILER_RT_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH
@@ -70,58 +88,61 @@ else()
     "Path where built compiler-rt executables should be stored.")
   set(COMPILER_RT_INSTALL_PATH "" CACHE PATH
     "Prefix for directories where built compiler-rt artifacts should be installed.")
-  option(COMPILER_RT_INCLUDE_TESTS "Generate and build compiler-rt unit tests." OFF)
+  option(COMPILER_RT_INCLUDE_TESTS "Generate and build compiler-rt tests." OFF)
   option(COMPILER_RT_ENABLE_WERROR "Fail and stop if warning is triggered" OFF)
   # Use a host compiler to compile/link tests.
   set(COMPILER_RT_TEST_COMPILER ${CMAKE_C_COMPILER} CACHE PATH "Compiler to use for testing")
   set(COMPILER_RT_TEST_CXX_COMPILER ${CMAKE_CXX_COMPILER} CACHE PATH "C++ Compiler to use for testing")
 endif()
 
-if("${COMPILER_RT_TEST_COMPILER}" MATCHES "clang[+]*$")
+get_filename_component(_test_compiler_name "${COMPILER_RT_TEST_COMPILER}" NAME)
+if("${COMPILER_RT_TEST_COMPILER}" STREQUAL "${CMAKE_C_COMPILER}")
+  set(COMPILER_RT_TEST_COMPILER_ID "${CMAKE_C_COMPILER_ID}")
+elseif("${_test_compiler_name}" MATCHES "clang.*")
   set(COMPILER_RT_TEST_COMPILER_ID Clang)
-elseif("${COMPILER_RT_TEST_COMPILER}" MATCHES "clang.*.exe$")
-  set(COMPILER_RT_TEST_COMPILER_ID Clang)
+elseif("${_test_compiler_name}" MATCHES "cl.exe$")
+  set(COMPILER_RT_TEST_COMPILER_ID MSVC)
 else()
+  message(STATUS "Unknown compiler ${COMPILER_RT_TEST_COMPILER}, assuming GNU")
   set(COMPILER_RT_TEST_COMPILER_ID GNU)
 endif()
 
-function(extend_install_path joined_path current_segment)
-  if("${current_segment}" STREQUAL "")
-    set(temp_path "${COMPILER_RT_INSTALL_PATH}")
-  elseif("${COMPILER_RT_INSTALL_PATH}" STREQUAL "")
-    set(temp_path "${current_segment}")
-  elseif(IS_ABSOLUTE "${current_segment}")
-    message(WARNING "Since \"${current_segment}\" is absolute, it overrides COMPILER_RT_INSTALL_PATH: \"${COMPILER_RT_INSTALL_PATH}\".")
-    set(temp_path "${current_segment}")
-  else()
-    set(temp_path "${COMPILER_RT_INSTALL_PATH}/${current_segment}")
-  endif()
-  set(${joined_path} "${temp_path}" PARENT_SCOPE)
-endfunction()
+# AppleClang expects 'Clang' as compiler-rt test compiler ID.
+if ("${COMPILER_RT_TEST_COMPILER_ID}" STREQUAL "AppleClang")
+  set(COMPILER_RT_TEST_COMPILER_ID Clang)
+endif()
 
 if(NOT DEFINED COMPILER_RT_OS_DIR)
-  string(TOLOWER ${CMAKE_SYSTEM_NAME} COMPILER_RT_OS_DIR)
+  if(ANDROID)
+    # The CMAKE_SYSTEM_NAME for Android is Android, but the OS is Linux and the
+    # driver will search for compiler-rt libraries in the "linux" directory.
+    set(COMPILER_RT_OS_DIR linux)
+  else()
+    string(TOLOWER ${CMAKE_SYSTEM_NAME} COMPILER_RT_OS_DIR)
+  endif()
 endif()
+
+# TODO: Use common runtimes infrastructure for output and install paths
 if(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(COMPILER_RT_OUTPUT_LIBRARY_DIR
     ${COMPILER_RT_OUTPUT_DIR}/lib)
-  extend_install_path(default_install_path lib)
+  extend_path(default_install_path "${COMPILER_RT_INSTALL_PATH}" lib)
   set(COMPILER_RT_INSTALL_LIBRARY_DIR "${default_install_path}" CACHE PATH
     "Path where built compiler-rt libraries should be installed.")
 else(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT APPLE)
   set(COMPILER_RT_OUTPUT_LIBRARY_DIR
     ${COMPILER_RT_OUTPUT_DIR}/lib/${COMPILER_RT_OS_DIR})
-  extend_install_path(default_install_path "lib/${COMPILER_RT_OS_DIR}")
+  extend_path(default_install_path "${COMPILER_RT_INSTALL_PATH}" "lib/${COMPILER_RT_OS_DIR}")
   set(COMPILER_RT_INSTALL_LIBRARY_DIR "${default_install_path}" CACHE PATH
     "Path where built compiler-rt libraries should be installed.")
 endif()
-extend_install_path(default_install_path bin)
+extend_path(default_install_path "${COMPILER_RT_INSTALL_PATH}" "${CMAKE_INSTALL_BINDIR}")
 set(COMPILER_RT_INSTALL_BINARY_DIR "${default_install_path}" CACHE PATH
   "Path where built compiler-rt executables should be installed.")
-extend_install_path(default_install_path include)
+extend_path(default_install_path "${COMPILER_RT_INSTALL_PATH}" "${CMAKE_INSTALL_INCLUDEDIR}")
 set(COMPILER_RT_INSTALL_INCLUDE_DIR "${default_install_path}" CACHE PATH
   "Path where compiler-rt headers should be installed.")
-extend_install_path(default_install_path share)
+extend_path(default_install_path "${COMPILER_RT_INSTALL_PATH}" "${CMAKE_INSTALL_DATADIR}")
 set(COMPILER_RT_INSTALL_DATA_DIR "${default_install_path}" CACHE PATH
   "Path where compiler-rt data files should be installed.")
 
@@ -144,9 +165,27 @@ if(APPLE)
     set(OSX_SYSROOT_FLAG "")
   endif()
 
-  option(COMPILER_RT_ENABLE_IOS "Enable building for iOS" On)
+  try_compile_only(COMPILER_RT_HAS_DARWIN_TARGET_VARIANT_FLAG
+                   FLAGS
+                   "-target" "x86_64-apple-macos10.15"
+                   "-darwin-target-variant" "x86_64-apple-ios13.1-macabi"
+                   "-Werror")
+  option(COMPILER_RT_ENABLE_MACCATALYST "Enable building for Mac Catalyst" ${COMPILER_RT_HAS_DARWIN_TARGET_VARIANT_FLAG})
+
+  # Don't enable COMPILER_RT_ENABLE_IOS if we can't find the sdk dir.
+  # This can happen when you only have the commandline tools installed
+  # which doesn't come with the iOS SDK.
+  find_darwin_sdk_dir(HAS_IOS_SDK "iphoneos")
+  set(COMPILER_RT_ENABLE_IOS_DEFAULT On)
+  if("${HAS_IOS_SDK}" STREQUAL "")
+    message(WARNING "iOS SDK not found! Building compiler-rt without iOS support.")
+    set(COMPILER_RT_ENABLE_IOS_DEFAULT Off)
+  endif()
+  option(COMPILER_RT_ENABLE_IOS "Enable building for iOS" ${COMPILER_RT_ENABLE_IOS_DEFAULT})
+
   option(COMPILER_RT_ENABLE_WATCHOS "Enable building for watchOS - Experimental" Off)
   option(COMPILER_RT_ENABLE_TVOS "Enable building for tvOS - Experimental" Off)
+  option(COMPILER_RT_ENABLE_XROS "Enable building for xrOS - Experimental" Off)
 
 else()
   option(COMPILER_RT_DEFAULT_TARGET_ONLY "Build builtins only for the default target" Off)
@@ -161,16 +200,13 @@ if(WIN32 AND NOT MINGW AND NOT CYGWIN)
   set(CMAKE_STATIC_LIBRARY_SUFFIX_CXX ".lib")
 endif()
 
-if(VALI)
-    set(CMAKE_SHARED_LIBRARY_PREFIX_C "")
-    set(CMAKE_SHARED_LIBRARY_PREFIX_CXX "")
-    set(CMAKE_STATIC_LIBRARY_PREFIX_C "")
-    set(CMAKE_STATIC_LIBRARY_PREFIX_CXX "")
-    set(CMAKE_STATIC_LIBRARY_SUFFIX_C ".lib")
-    set(CMAKE_STATIC_LIBRARY_SUFFIX_CXX ".lib")
-endif()
-
 macro(test_targets)
+  if("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "amdgpu|amdgcn")
+    set(COMPILER_RT_TARGET_AMDGPU TRUE)
+  else()
+    set(COMPILER_RT_TARGET_AMDGPU FALSE)
+  endif()
+
   # Find and run MSVC (not clang-cl) and get its version. This will tell clang-cl
   # what version of MSVC to pretend to be so that the STL works.
   set(MSVC_VERSION_FLAG "")
@@ -213,37 +249,66 @@ macro(test_targets)
           test_target_arch(x86_64 "" "")
         endif()
       endif()
-    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "powerpc64le")
+    elseif(COMPILER_RT_TARGET_AMDGPU)
+      test_target_arch(amdgcn "" "--target=amdgcn-amd-amdhsa" "-nogpulib"
+                       "-flto" "-Xclang -mcode-object-version=none")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "hexagon")
+      test_target_arch(hexagon "" "")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "loongarch64")
+      test_target_arch(loongarch64 "" "")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "powerpc64le|ppc64le")
       test_target_arch(powerpc64le "" "-m64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "powerpc")
-      if(CMAKE_SYSTEM_NAME MATCHES "AIX")
-        test_target_arch(powerpc "" "-m32")
-      endif()
+      test_target_arch(powerpc "" "-m32")
       test_target_arch(powerpc64 "" "-m64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "s390x")
       test_target_arch(s390x "" "")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "sparc")
       test_target_arch(sparc "" "-m32")
       test_target_arch(sparcv9 "" "-m64")
-    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "mipsel|mips64el")
-      # Gcc doesn't accept -m32/-m64 so we do the next best thing and use
-      # -mips32r2/-mips64r2. We don't use -mips1/-mips3 because we want to match
-      # clang's default CPU's. In the 64-bit case, we must also specify the ABI
-      # since the default ABI differs between gcc and clang.
-      # FIXME: Ideally, we would build the N32 library too.
-      test_target_arch(mipsel "" "-mips32r2" "-mabi=32" "-D_LARGEFILE_SOURCE" "-D_FILE_OFFSET_BITS=64")
-      test_target_arch(mips64el "" "-mips64r2" "-mabi=64")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "mips")
-      test_target_arch(mips "" "-mips32r2" "-mabi=32" "-D_LARGEFILE_SOURCE" "-D_FILE_OFFSET_BITS=64")
-      test_target_arch(mips64 "" "-mips64r2" "-mabi=64")
+      CHECK_SYMBOL_EXISTS (_MIPS_ARCH_MIPS32R6 "" COMPILER_RT_MIPS32R6)
+      CHECK_SYMBOL_EXISTS (_MIPS_ARCH_MIPS64R6 "" COMPILER_RT_MIPS64R6)
+      CHECK_SYMBOL_EXISTS (__mips64 "" COMPILER_RT_MIPS_64)
+      CHECK_SYMBOL_EXISTS (__MIPSEL__ "" COMPILER_RT_MIPS_EL)
+      if ("${COMPILER_RT_MIPS_64}")
+        set(COMPILER_RT_DEFAULT_TARGET_ARCH "mips64")
+      else()
+        set(COMPILER_RT_DEFAULT_TARGET_ARCH "mips")
+      endif()
+      if ("${COMPILER_RT_MIPS_EL}")
+        set(COMPILER_RT_DEFAULT_TARGET_ARCH "${COMPILER_RT_DEFAULT_TARGET_ARCH}el")
+      endif()
+
+      # FIXME: Ideally, we would build the N32 library too.
+      if("${COMPILER_RT_MIPS_EL}" AND ("${COMPILER_RT_MIPS32R6}" OR "${COMPILER_RT_MIPS64R6}"))
+        test_target_arch(mipsel "" "-mips32r6" "-mabi=32" "-D_LARGEFILE_SOURCE=1" "-D_FILE_OFFSET_BITS=64")
+        test_target_arch(mips64el "" "-mips64r6" "-mabi=64")
+      elseif("${COMPILER_RT_MIPS_EL}")
+        test_target_arch(mipsel "" "-mips32r2" "-mabi=32" "-D_LARGEFILE_SOURCE=1" "-D_FILE_OFFSET_BITS=64")
+        test_target_arch(mips64el "" "-mips64r2" "-mabi=64")
+      elseif("${COMPILER_RT_MIPS32R6}" OR "${COMPILER_RT_MIPS64R6}")
+        test_target_arch(mips "" "-mips32r6" "-mabi=32" "-D_LARGEFILE_SOURCE=1" "-D_FILE_OFFSET_BITS=64")
+        test_target_arch(mips64 "" "-mips64r6" "-mabi=64")
+      else()
+        test_target_arch(mips "" "-mips32r2" "-mabi=32" "-D_LARGEFILE_SOURCE=1" "-D_FILE_OFFSET_BITS=64")
+        test_target_arch(mips64 "" "-mips64r2" "-mabi=64")
+      endif()
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "nvptx")
+      test_target_arch(nvptx64 "" "--nvptx64-nvidia-cuda" "-nogpulib" "-flto" "-c")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "spirv64")
+      test_target_arch(spirv64 "" "--spirv64-unknown-unknown" "-nogpulib" "-flto" "-c")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "arm")
       if(WIN32)
         test_target_arch(arm "" "" "")
       else()
+        test_target_arch(armv4t "" "-march=armv4t" "-mfloat-abi=soft")
+        test_target_arch(armv6m "" "-march=armv6m" "-mfloat-abi=soft")
         test_target_arch(arm "" "-march=armv7-a" "-mfloat-abi=soft")
         test_target_arch(armhf "" "-march=armv7-a" "-mfloat-abi=hard")
-        test_target_arch(armv6m "" "-march=armv6m" "-mfloat-abi=soft")
       endif()
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "avr")
+      test_target_arch(avr "__AVR__" "--target=avr")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "aarch32")
       test_target_arch(aarch32 "" "-march=armv8-a")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "aarch64")
@@ -258,6 +323,8 @@ macro(test_targets)
       test_target_arch(wasm64 "" "--target=wasm64-unknown-unknown")
     elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "ve")
       test_target_arch(ve "__ve__" "--target=ve-unknown-none")
+    elseif("${COMPILER_RT_DEFAULT_TARGET_ARCH}" MATCHES "alpha")
+      test_target_arch(alpha "" "")
     endif()
     set(COMPILER_RT_OS_SUFFIX "")
   endif()

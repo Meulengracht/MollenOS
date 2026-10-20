@@ -12,26 +12,25 @@
 //===----------------------------------------------------------------------===//
 
 #include "sanitizer_platform.h"
-#if SANITIZER_MAC
+#if SANITIZER_APPLE
 
-#include "sanitizer_allocator_internal.h"
-#include "sanitizer_mac.h"
-#include "sanitizer_symbolizer_mac.h"
+#  include <dlfcn.h>
+#  include <errno.h>
+#  include <stdlib.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
+#  include <util.h>
 
-#include <dlfcn.h>
-#include <errno.h>
-#include <mach/mach.h>
-#include <stdlib.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <util.h>
+#  include "sanitizer_allocator_internal.h"
+#  include "sanitizer_mac.h"
+#  include "sanitizer_symbolizer_mac.h"
 
 namespace __sanitizer {
 
 bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   Dl_info info;
   int result = dladdr((const void *)addr, &info);
-  if (!result) return false;
+  if (!result || !info.dli_sname) return false;
 
   // Compute offset if possible. `dladdr()` doesn't always ensure that `addr >=
   // sym_addr` so only compute the offset when this holds. Failure to find the
@@ -43,7 +42,8 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   }
 
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
-  if (!demangled) return false;
+  if (!demangled)
+    demangled = info.dli_sname;
   stack->info.function = internal_strdup(demangled);
   return true;
 }
@@ -51,19 +51,14 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
 bool DlAddrSymbolizer::SymbolizeData(uptr addr, DataInfo *datainfo) {
   Dl_info info;
   int result = dladdr((const void *)addr, &info);
-  if (!result) return false;
+  if (!result || !info.dli_sname) return false;
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
+  if (!demangled)
+    demangled = info.dli_sname;
   datainfo->name = internal_strdup(demangled);
   datainfo->start = (uptr)info.dli_saddr;
   return true;
 }
-
-#define K_ATOS_ENV_VAR "__check_mach_ports_lookup"
-
-// This cannot live in `AtosSymbolizerProcess` because instances of that object
-// are allocated by the internal allocator which under ASan is poisoned with
-// kAsanInternalHeapMagic.
-static char kAtosMachPortEnvEntry[] = K_ATOS_ENV_VAR "=000000000000000";
 
 class AtosSymbolizerProcess final : public SymbolizerProcess {
  public:
@@ -72,62 +67,36 @@ class AtosSymbolizerProcess final : public SymbolizerProcess {
     pid_str_[0] = '\0';
   }
 
-  void LateInitialize() {
-    if (SANITIZER_IOSSIM) {
-      // `putenv()` may call malloc/realloc so it is only safe to do this
-      // during LateInitialize() or later (i.e. we can't do this in the
-      // constructor).  We also can't do this in `StartSymbolizerSubprocess()`
-      // because in TSan we switch allocators when we're symbolizing.
-      // We use `putenv()` rather than `setenv()` so that we can later directly
-      // write into the storage without LibC getting involved to change what the
-      // variable is set to
-      int result = putenv(kAtosMachPortEnvEntry);
-      CHECK_EQ(result, 0);
-    }
-  }
-
  private:
   bool StartSymbolizerSubprocess() override {
-    // Configure sandbox before starting atos process.
-
     // Put the string command line argument in the object so that it outlives
     // the call to GetArgV.
-    internal_snprintf(pid_str_, sizeof(pid_str_), "%d", internal_getpid());
+    internal_snprintf(pid_str_, sizeof(pid_str_), "%d", (int)internal_getpid());
 
-    if (SANITIZER_IOSSIM) {
-      // `atos` in the simulator is restricted in its ability to retrieve the
-      // task port for the target process (us) so we need to do extra work
-      // to pass our task port to it.
-      mach_port_t ports[]{mach_task_self()};
-      kern_return_t ret =
-          mach_ports_register(mach_task_self(), ports, /*count=*/1);
-      CHECK_EQ(ret, KERN_SUCCESS);
-
-      // Set environment variable that signals to `atos` that it should look
-      // for our task port. We can't call `setenv()` here because it might call
-      // malloc/realloc. To avoid that we instead update the
-      // `mach_port_env_var_entry_` variable with our current PID.
-      uptr count = internal_snprintf(kAtosMachPortEnvEntry,
-                                     sizeof(kAtosMachPortEnvEntry),
-                                     K_ATOS_ENV_VAR "=%s", pid_str_);
-      CHECK_GE(count, sizeof(K_ATOS_ENV_VAR) + internal_strlen(pid_str_));
-      // Document our assumption but without calling `getenv()` in normal
-      // builds.
-      DCHECK(getenv(K_ATOS_ENV_VAR));
-      DCHECK_EQ(internal_strcmp(getenv(K_ATOS_ENV_VAR), pid_str_), 0);
-    }
-
+    // Configure sandbox before starting atos process.
     return SymbolizerProcess::StartSymbolizerSubprocess();
   }
 
   bool ReachedEndOfOutput(const char *buffer, uptr length) const override {
-    return (length >= 1 && buffer[length - 1] == '\n');
+    if (common_flags()->symbolize_inline_frames) {
+      // When running with -i, atos sends two newlines at the end of each
+      // address it symbolizes. This indicates the end of the set of frames
+      // for a particular address.
+      return length >= 2 && buffer[length - 1] == '\n' &&
+             buffer[length - 2] == '\n';
+    } else {
+      // When running without -i, atos only sends a single newline at
+      // the end of each address it symbolizes.
+      return length >= 1 && buffer[length - 1] == '\n';
+    }
   }
 
   void GetArgV(const char *path_to_binary,
                const char *(&argv)[kArgVMax]) const override {
     int i = 0;
     argv[i++] = path_to_binary;
+    if (common_flags()->symbolize_inline_frames)
+      argv[i++] = "-i";
     argv[i++] = "-p";
     argv[i++] = &pid_str_[0];
     if (GetMacosAlignedVersion() == MacosVersion(10, 9)) {
@@ -137,23 +106,24 @@ class AtosSymbolizerProcess final : public SymbolizerProcess {
       argv[i++] = "-d";
     }
     argv[i++] = nullptr;
+    CHECK_LE(i, kArgVMax);
   }
 
   char pid_str_[16];
-  // Space for `\0` in `K_ATOS_ENV_VAR` is reused for `=`.
-  static_assert(sizeof(kAtosMachPortEnvEntry) ==
-                    (sizeof(K_ATOS_ENV_VAR) + sizeof(pid_str_)),
-                "sizes should match");
 };
 
 #undef K_ATOS_ENV_VAR
 
-static bool ParseCommandOutput(const char *str, uptr addr, char **out_name,
-                               char **out_module, char **out_file, uptr *line,
-                               uptr *start_address) {
+// Parses a single frame (one line) from str, and returns the pointer to the
+// next character to parse (i.e. after the newline) if successful. If
+// it fails, returns NULL.
+static const char* ParseCommandOutput(const char* str, uptr addr,
+                                      char** out_name, char** out_module,
+                                      char** out_file, uptr* line,
+                                      uptr* start_address) {
   // Trim ending newlines.
   char *trim;
-  ExtractTokenUpToDelimiter(str, "\n", &trim);
+  str = ExtractTokenUpToDelimiter(str, "\n", &trim);
 
   // The line from `atos` is in one of these formats:
   //   myfunction (in library.dylib) (sourcefile.c:17)
@@ -170,7 +140,7 @@ static bool ParseCommandOutput(const char *str, uptr addr, char **out_name,
   if (rest[0] == '\0') {
     InternalFree(symbol_name);
     InternalFree(trim);
-    return false;
+    return NULL;
   }
 
   if (internal_strncmp(symbol_name, "0x", 2) != 0)
@@ -195,7 +165,7 @@ static bool ParseCommandOutput(const char *str, uptr addr, char **out_name,
   }
 
   InternalFree(trim);
-  return true;
+  return str;
 }
 
 AtosSymbolizer::AtosSymbolizer(const char *path, LowLevelAllocator *allocator)
@@ -207,31 +177,72 @@ bool AtosSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   char command[32];
   internal_snprintf(command, sizeof(command), "0x%zx\n", addr);
   const char *buf = process_->SendCommand(command);
-  if (!buf) return false;
-  uptr line;
-  uptr start_address = AddressInfo::kUnknown;
-  if (!ParseCommandOutput(buf, addr, &stack->info.function, &stack->info.module,
-                          &stack->info.file, &line, &start_address)) {
-    process_ = nullptr;
+  if (!buf)
     return false;
-  }
-  stack->info.line = (int)line;
 
-  if (start_address == AddressInfo::kUnknown) {
-    // Fallback to dladdr() to get function start address if atos doesn't report
-    // it.
-    Dl_info info;
-    int result = dladdr((const void *)addr, &info);
-    if (result)
-      start_address = reinterpret_cast<uptr>(info.dli_saddr);
+  SymbolizedStack* last = stack;
+  bool top_frame = true;
+
+  // Parse one line of input (i.e. one frame).
+  //
+  // When symbolize_inline_frames=true, an empty line
+  // (i.e. \n at the beginning of a line) indicates that the last
+  // frame has been sent.
+  //
+  // When symbolize_inline_frames=false, the symbolizer will send only
+  // one frame (without a empty line), so loop runs exactly once
+  // and hits an early `break`.
+  while (*buf != '\n') {
+    uptr line;
+    uptr start_address = AddressInfo::kUnknown;
+
+    SymbolizedStack* cur;
+    if (top_frame) {
+      cur = stack;
+    } else {
+      cur = SymbolizedStack::New(stack->info.address);
+      cur->info.FillModuleInfo(stack->info.module, stack->info.module_offset,
+                               stack->info.module_arch);
+      last->next = cur;
+      last = cur;
+    }
+
+    // Parse one line of input (i.e. one frame)
+    // If this succeeds, buf will be updated to point to the first character
+    // after the newline.
+    buf = ParseCommandOutput(buf, addr, &cur->info.function, &cur->info.module,
+                             &cur->info.file, &line, &start_address);
+
+    // Upon failure, ParseCommandOutput returns NULL.
+    if (!buf) {
+      Report("WARNING: atos failed to symbolize address \"0x%zx\"\n", addr);
+      return false;
+    }
+    cur->info.line = (int)line;
+
+    if (top_frame && start_address == AddressInfo::kUnknown) {
+      // Fallback to dladdr() to get function start address if atos doesn't
+      // report it.
+      Dl_info info;
+      int result = dladdr((const void*)addr, &info);
+      if (result)
+        start_address = reinterpret_cast<uptr>(info.dli_saddr);
+    }
+
+    // Only assign to `function_offset` if we were able to get the function's
+    // start address and we got a sensible `start_address` (dladdr doesn't
+    // always ensure that `addr >= sym_addr`).
+    if (start_address != AddressInfo::kUnknown && addr >= start_address) {
+      cur->info.function_offset = addr - start_address;
+    }
+
+    // atos only sends one line when inline frames are off
+    if (!common_flags()->symbolize_inline_frames)
+      break;
+
+    top_frame = false;
   }
 
-  // Only assign to `function_offset` if we were able to get the function's
-  // start address and we got a sensible `start_address` (dladdr doesn't always
-  // ensure that `addr >= sym_addr`).
-  if (start_address != AddressInfo::kUnknown && addr >= start_address) {
-    stack->info.function_offset = addr - start_address;
-  }
   return true;
 }
 
@@ -249,8 +260,6 @@ bool AtosSymbolizer::SymbolizeData(uptr addr, DataInfo *info) {
   return true;
 }
 
-void AtosSymbolizer::LateInitialize() { process_->LateInitialize(); }
-
 }  // namespace __sanitizer
 
-#endif  // SANITIZER_MAC
+#endif  // SANITIZER_APPLE

@@ -1,5 +1,5 @@
 // Test that the specified output has profiling data.
-// RUN: %clang -fprofile-instr-generate -fcoverage-mapping -o %t %s
+// RUN: %clang_profgen -fcoverage-mapping -o %t %s
 // RUN: %run %t %t.file.profraw
 // RUN: test -f %t.file.profraw
 // RUN: llvm-profdata merge -o %t.file.profdata %t.file.profraw
@@ -17,6 +17,7 @@ int main(int argc, const char *argv[]) {
   __llvm_profile_set_file_object(F, 0);
   return 0;
 }
+// XFAIL: target={{.*}}-aix{{.*}}
 // CHECK:    8|       |#include <stdio.h>
 // CHECK:    9|       |
 // CHECK:   10|       |extern void __llvm_profile_set_file_object(FILE *, int);

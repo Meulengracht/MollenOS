@@ -134,9 +134,9 @@ Arm64TimerInitializeCore(void)
 oserr_t
 PlatformTimersInitialize(void)
 {
-    DeviceInterrupt_t interrupt = { 0 };
-    oserr_t           status;
-    uuid_t            id;
+    InterruptDescriptor_t interrupt = { 0 };
+    oserr_t               status;
+    uuid_t                id;
 
     if (!GetMachine()->Processor.PlatformData.CounterFrequency) {
         return OS_EINVALPARAMS;

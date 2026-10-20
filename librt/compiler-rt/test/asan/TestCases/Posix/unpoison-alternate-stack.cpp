@@ -3,11 +3,8 @@
 
 // Don't optimize, otherwise the variables which create redzones might be
 // dropped.
-// RUN: %clangxx_asan -std=c++20 -fexceptions -O0 %s -o %t -pthread
-// RUN: %run %t
-
-// longjmp from signal handler is unportable.
-// XFAIL: solaris
+// RUN: %clangxx_asan -fexceptions -O0 %s -o %t -pthread
+// RUN: %env_asan_opts=detect_stack_use_after_return=0 %run %t
 
 #include <algorithm>
 #include <cassert>
@@ -139,7 +136,7 @@ void *threadFun(void *AltStack) {
 int main() {
   size_t const PageSize = sysconf(_SC_PAGESIZE);
   // The Solaris defaults of 4k (32-bit) and 8k (64-bit) are too small.
-  size_t const MinStackSize = std::max(PTHREAD_STACK_MIN, 16 * 1024);
+  size_t const MinStackSize = std::max<size_t>(PTHREAD_STACK_MIN, 16 * 1024);
   // To align the alternate stack, we round this up to page_size.
   size_t const DefaultStackSize =
       (MinStackSize - 1 + PageSize) & ~(PageSize - 1);
@@ -162,6 +159,7 @@ int main() {
   pthread_attr_init(&ThreadAttr);
   pthread_attr_setstack(&ThreadAttr, Mapping, DefaultStackSize);
   pthread_create(&Thread, &ThreadAttr, &threadFun, (void *)&AltStack);
+  pthread_attr_destroy(&ThreadAttr);
 
   pthread_join(Thread, nullptr);
 

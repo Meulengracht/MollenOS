@@ -1,19 +1,22 @@
-// RUN: %clangxx_asan %stdcxx11 -O1 -fsanitize-address-use-after-scope %s -o %t && \
-// RUN:     not %run %t 2>&1 | FileCheck %s
-//
-// Not expected to work yet with HWAsan
-// XFAIL: *
+// This is the ASAN test of the same name ported to HWAsan.
+
+// RUN: %clangxx_hwasan --std=c++11 -O1 %s -o %t && not %run %t 2>&1 | FileCheck %s
+
+// REQUIRES: aarch64-target-arch || riscv64-target-arch
 
 #include <functional>
 
 int main() {
   std::function<int()> f;
   {
-    int x = 0;
+    volatile int x = 0;
     f = [&x]() __attribute__((noinline)) {
       return x; // BOOM
-      // CHECK: ERROR: AddressSanitizer: stack-use-after-scope
-      // CHECK: #0 0x{{.*}} in {{.*}}use-after-scope-capture.cpp:[[@LINE-2]]
+      // CHECK: ERROR: HWAddressSanitizer: tag-mismatch
+      // We cannot assert the line, after the argument promotion pass this crashes
+      // in the BOOM line below instead, when the ref gets turned into a value.
+      // CHECK: 0x{{.*}} in {{.*}}use-after-scope-capture.cpp
+      // CHECK: Cause: stack tag-mismatch
     };
   }
   return f(); // BOOM

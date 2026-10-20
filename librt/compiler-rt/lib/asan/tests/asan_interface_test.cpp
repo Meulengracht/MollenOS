@@ -90,7 +90,7 @@ TEST(AddressSanitizerInterface, GetCurrentAllocatedBytesTest) {
 TEST(AddressSanitizerInterface, GetHeapSizeTest) {
   // ASan allocator does not keep huge chunks in free list, but unmaps them.
   // The chunk should be greater than the quarantine size,
-  // otherwise it will be stuck in quarantine instead of being unmaped.
+  // otherwise it will be stuck in quarantine instead of being unmapped.
   static const size_t kLargeMallocSize = (1 << 28) + 1;  // 256M
   free(Ident(malloc(kLargeMallocSize)));  // Drain quarantine.
   size_t old_heap_size = __sanitizer_get_heap_size();
@@ -160,7 +160,6 @@ TEST(AddressSanitizerInterface, DeathCallbackTest) {
 #define BAD_ACCESS(ptr, offset) \
     EXPECT_TRUE(__asan_address_is_poisoned(ptr + offset))
 
-#if !defined(ASAN_SHADOW_SCALE) || ASAN_SHADOW_SCALE == 3
 static const char* kUseAfterPoisonErrorMessage = "use-after-poison";
 
 TEST(AddressSanitizerInterface, SimplePoisonMemoryRegionTest) {
@@ -200,7 +199,40 @@ TEST(AddressSanitizerInterface, OverlappingPoisonMemoryRegionTest) {
   BAD_ACCESS(array, 96);
   free(array);
 }
-#endif  // !defined(ASAN_SHADOW_SCALE) || ASAN_SHADOW_SCALE == 3
+
+TEST(AddressSanitizerInterface, PoisonedSuffixOfFirstGranuleOfRegionTest) {
+  static const size_t granularity = 1ULL << 3;  // shadow granularity
+  char* array = Ident((char*)malloc(118));
+  // State: [0..117] - unpoisoned
+  char* first_granule = (char*)((uintptr_t)array & ~(granularity - 1));
+  EXPECT_EQ(array, first_granule);
+  // Poison [4..7] (suffix of the first granule)
+  __asan_poison_memory_region(array + 4, 4);
+  // State: [uuuupppp][uuuuuuuu]...[uuuuuupp]
+  // i.e. [0..3] - unpoisoned; [4..7] - poisoned; [8..117] - unpoisoned
+  // Sanity checks:
+  GOOD_ACCESS(array, 3);
+  BAD_ACCESS(array, 4);
+  BAD_ACCESS(array, 7);
+  GOOD_ACCESS(array, 8);
+  GOOD_ACCESS(array, 117);
+  BAD_ACCESS(array, 118);
+  EXPECT_EQ(0, __asan_region_is_poisoned(array, 4));               // [0..3]
+  EXPECT_EQ(0, __asan_region_is_poisoned(array + 8, 110));         // [8..117]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array + 4, 4));   // [4..7]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array, 8));       // [0..7]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array, 16));      // [0..15]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array, 17));      // [0..16]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array + 4, 12));  // [4..15]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array + 4, 13));  // [4..16]
+  EXPECT_EQ(array + 5, __asan_region_is_poisoned(array + 5, 2));   // [5..6]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array + 2, 4));   // [2..5]
+  EXPECT_EQ(array + 6, __asan_region_is_poisoned(array + 6, 10));  // [6..15]
+  // Check that poisoned suffix of the first granule is not skipped:
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array + 2, 14));   // [2..15]
+  EXPECT_EQ(array + 4, __asan_region_is_poisoned(array + 2, 100));  // [2..101]
+  free(array);
+}
 
 TEST(AddressSanitizerInterface, PushAndPopWithPoisoningTest) {
   // Vector of capacity 20
@@ -415,6 +447,9 @@ TEST(AddressSanitizerInterface, HandleNoReturnTest) {
   __asan_poison_memory_region(array, sizeof(array));
   BAD_ACCESS(array, 20);
   __asan_handle_no_return();
+  // Fake stack does not need to be unpoisoned.
+  if (__asan_get_current_fake_stack())
+    return;
   // It unpoisons the whole thread stack.
   GOOD_ACCESS(array, 20);
 }

@@ -28,8 +28,7 @@
 #include <string.h>
 #include "process.h"
 #include <vafs/vafs.h>
-#include <vafs/directory.h>
-#include <vafs/file.h>
+#include <vafs/reader.h>
 
 static uint64_t __svc_hash(const void* element);
 static int      __svc_cmp(const void* element1, const void* element2);
@@ -43,8 +42,8 @@ static hashtable_t  g_services;
 
 static int
 __EndsWith(
-        _In_ const char* text,
-        _In_ const char* suffix)
+    _In_ const char* text,
+    _In_ const char* suffix)
 {
     size_t lengthOfText;
     size_t lengthOfSuffix;
@@ -64,45 +63,81 @@ __EndsWith(
 
 static oserr_t
 __ReadFile(
-        _In_  struct VaFsDirectoryHandle* directoryHandle,
-        _In_  const char*                 filename,
-        _Out_ void**                      bufferOut,
-        _Out_ size_t*                     lengthOut)
+    _In_      struct VaFsDirectoryReader* directoryHandle,
+    _In_      const char*                 filename,
+    _Out_Opt_ void**                      bufferOut,
+    _Out_Opt_ size_t*                     lengthOut)
 {
-    struct VaFsFileHandle* fileHandle;
-    size_t                 bytesRead;
-    size_t                 fileSize;
-    void*                  fileBuffer;
-    int                    status;
+    struct VaFsObjectReader* fileHandle;
+    struct VaFsMetadata      metadata;
+    uint64_t                 bytesRead;
+    size_t                   fileSize;
+    void*                    fileBuffer;
+    int                      status;
+    uint64_t                 length;
 
     // now lets access the file
-    status = vafs_directory_open_file(directoryHandle, filename, &fileHandle);
+    status = vafs_directory_reader_open_object_in(directoryHandle, filename, &fileHandle);
     if (status) {
         ERROR("__ReadFile file %s was not found", filename);
         return OS_ENOENT;
     }
 
-    // allocate a buffer for the file, and read the data
-    fileSize = vafs_file_length(fileHandle);
-    fileBuffer = malloc(fileSize);
-    if (!fileBuffer) {
+    // Object readers can also represent directories and symlinks. These
+    // bootstrap callers require a regular file that fits in addressable memory.
+    length = vafs_object_reader_length(fileHandle);
+    status = vafs_object_reader_stat(fileHandle, &metadata);
+    if (status) {
+        ERROR("__ReadFile failed to stat file %s", filename);
+        vafs_object_reader_close(fileHandle);
         return OS_EUNKNOWN;
     }
 
-    bytesRead = vafs_file_read(fileHandle, fileBuffer, fileSize);
-    if (bytesRead != fileSize) {
-        WARNING("__ReadFile read %" PRIuIN "/%" PRIuIN " bytes from file", bytesRead, fileSize);
+    if (metadata.Type != VaFsEntryType_File && metadata.Type != VaFsEntryType_Hardlink) {
+        ERROR("__ReadFile file %s is not a regular file", filename);
+        vafs_object_reader_close(fileHandle);
+        return OS_EINVALPARAMS;
     }
 
-    vafs_file_close(fileHandle);
+    if (length > SIZE_MAX) {
+        ERROR("__ReadFile file %s is too large", filename);
+        vafs_object_reader_close(fileHandle);
+        return OS_EINVALPARAMS;
+    }
+
+    fileSize = (size_t)length;
+    
+    if (bufferOut == NULL) {
+        if (lengthOut != NULL) {
+            *lengthOut = fileSize;
+        }
+        vafs_object_reader_close(fileHandle);
+        return OS_EOK;
+    }
+
+    fileBuffer = malloc(fileSize ? fileSize : 1);
+    if (!fileBuffer) {
+        vafs_object_reader_close(fileHandle);
+        return OS_EOOM;
+    }
+
+    bytesRead = vafs_object_reader_read(fileHandle, fileBuffer, fileSize);
+    vafs_object_reader_close(fileHandle);
+    if (bytesRead != fileSize) {
+        free(fileBuffer);
+        return OS_EUNKNOWN;
+    }
+
     *bufferOut = fileBuffer;
-    *lengthOut = fileSize;
+    if (lengthOut != NULL) {
+        *lengthOut = fileSize;
+    }
     return OS_EOK;
 }
 
 static mstring_t*
 __ServiceNameFromYaml(
-        _In_ const char* yamlName)
+    _In_ const char* yamlName)
 {
     // Replace .yaml with .dll
     mstring_t* result;
@@ -118,7 +153,7 @@ __ServiceNameFromYaml(
 
 static void
 __SystemServiceDelete(
-        _In_ struct SystemService* systemService)
+    _In_ struct SystemService* systemService)
 {
     if (systemService == NULL) {
         return;
@@ -132,7 +167,7 @@ __SystemServiceDelete(
 
 static struct SystemService*
 __SystemServiceNew(
-        _In_ const char* yamlName)
+    _In_ const char* yamlName)
 {
     struct SystemService* systemService;
 
@@ -158,7 +193,7 @@ __SystemServiceNew(
 
 static void
 __RegisterSystemService(
-        _In_ struct SystemService* systemService)
+    _In_ struct SystemService* systemService)
 {
     // Assign an idea before we insert
     systemService->ID = g_serviceID++;
@@ -167,8 +202,8 @@ __RegisterSystemService(
 
 static oserr_t
 __ParseServiceConfiguration(
-        _In_ struct VaFsDirectoryHandle* directoryHandle,
-        _In_ const char*                 name)
+    _In_ struct VaFsDirectoryReader* directoryHandle,
+    _In_ const char*                 name)
 {
     struct SystemService* systemService;
     oserr_t               oserr;
@@ -200,7 +235,7 @@ __ParseServiceConfiguration(
 
 static char*
 __BuildArguments(
-        _In_ const struct SystemService* systemService)
+    _In_ const struct SystemService* systemService)
 {
     // Always allocate a base length of 128 to cover argument specifiers.
     size_t argsLength = 128;
@@ -220,9 +255,9 @@ __BuildArguments(
 
 static void
 __SpawnService(
-        _In_ int         index,
-        _In_ const void* element,
-        _In_ void*       userContext)
+    _In_ int         index,
+    _In_ const void* element,
+    _In_ void*       userContext)
 {
     const struct SystemService* systemService = element;
     struct ProcessOptions*      procOpts      = userContext;
@@ -275,39 +310,35 @@ __SpawnServices(void)
 
 static oserr_t
 __ParseRamdisk(
-        _In_ void*  ramdiskBuffer,
-        _In_ size_t ramdiskSize)
+    _In_ void*  ramdiskBuffer,
+    _In_ size_t ramdiskSize)
 {
-    struct VaFsDirectoryHandle* directoryHandle;
-    struct VaFsEntry            entry;
-    int                         status;
-    oserr_t                     oserr;
+    struct VaFsReaderConfiguration configuration;
+    struct VaFsDirectoryReader*    directoryHandle;
+    struct VaFsEntry               entry;
+    int                            status;
+    oserr_t                        oserr;
     TRACE("__ParseRamdisk(buffer=0x%llx, size=%llu)", ramdiskBuffer, ramdiskSize);
 
-    status = vafs_open_memory(ramdiskBuffer, ramdiskSize, &g_vafs);
+    DdkInitrdConfigureVafsReader(&configuration);
+    status = vafs_reader_open_memory(ramdiskBuffer, ramdiskSize, &configuration, &g_vafs);
     if (status) {
         ERROR("__ParseRamdisk failed to open vafs image: %i", errno);
         return OS_EUNKNOWN;
     }
 
-    status = DdkInitrdHandleVafsFilter(g_vafs);
-    if (status) {
-        ERROR("__ParseRamdisk vafs image is using an unsupported filter");
-        vafs_close(g_vafs);
-        return OS_ENOTSUPPORTED;
-    }
-
-    status = vafs_directory_open(g_vafs, "/services", &directoryHandle);
+    status = vafs_directory_reader_open(g_vafs, "/services", VaFsLookup_None, &directoryHandle);
     if (status) {
         ERROR("__ParseRamdisk failed to open /services in vafs image");
-        vafs_close(g_vafs);
+        vafs_reader_close(g_vafs);
+        g_vafs = NULL;
         return OS_ENOTSUPPORTED;
     }
 
-    while (vafs_directory_read(directoryHandle, &entry) == 0) {
+    while (vafs_directory_reader_next(directoryHandle, &entry) == 0) {
         TRACE("__ParseRamdisk found entry %s", entry.Name);
         // Skip all entries that are not regular files
-        if (entry.Type != VaFsEntryType_File) {
+        if (entry.Type != VaFsEntryType_File && entry.Type != VaFsEntryType_Hardlink) {
             continue;
         }
 
@@ -324,7 +355,7 @@ __ParseRamdisk(
     }
 
     // close the directory and cleanup
-    vafs_directory_close(directoryHandle);
+    vafs_directory_reader_close(directoryHandle);
     return OS_EOK;
 }
 
@@ -372,7 +403,8 @@ PSBootstrapCleanup(void)
     oserr_t osStatus;
 
     // close the vafs handle before freeing the buffer
-    vafs_close(g_vafs);
+    vafs_reader_close(g_vafs);
+    g_vafs = NULL;
 
     if (g_ramdiskBuffer && g_ramdiskSize) {
         osStatus = MemoryFree(g_ramdiskBuffer, g_ramdiskSize);
@@ -384,15 +416,15 @@ PSBootstrapCleanup(void)
 
 oserr_t
 PmBootstrapFindRamdiskFile(
-        _In_  mstring_t* path,
-        _Out_ void**     bufferOut,
-        _Out_ size_t*    bufferSizeOut)
+    _In_      mstring_t* path,
+    _Out_Opt_ void**     bufferOut,
+    _Out_Opt_ size_t*    bufferSizeOut)
 {
-    struct VaFsDirectoryHandle* directoryHandle;
-    struct VaFsFileHandle*      fileHandle;
+    struct VaFsDirectoryReader* directoryHandle;
     char*                       internPath;
     char*                       internFilename;
     int                         status;
+    oserr_t                     oserr;
     char                        tempbuf[64] = { 0 };
     char*                       pathu8;
 
@@ -417,46 +449,17 @@ PmBootstrapFindRamdiskFile(
     // skip the starting '/'
     internFilename++;
 
-    status = vafs_directory_open(g_vafs, &tempbuf[0], &directoryHandle);
+    status = vafs_directory_reader_open(g_vafs, &tempbuf[0], VaFsLookup_None, &directoryHandle);
     if (status) {
         ERROR("PmBootstrapFindRamdiskFile failed to open %s: %i", &tempbuf[0], errno);
         free(pathu8);
         return OS_EUNKNOWN;
     }
 
-    // now lets access the file
-    status = vafs_directory_open_file(directoryHandle, internFilename, &fileHandle);
-    if (status) {
-        WARNING("PmBootstrapFindRamdiskFile file %s was not found", internFilename);
-        free(pathu8);
-        return OS_ENOENT;
-    }
-
-    // allocate a buffer for the file, and read the data
-    if (bufferOut && bufferSizeOut)
-    {
-        size_t bytesRead;
-        size_t fileSize = vafs_file_length(fileHandle);
-        void*  fileBuffer = malloc(fileSize);
-        if (!fileBuffer) {
-            free(pathu8);
-            return OS_EUNKNOWN;
-        }
-
-        bytesRead = vafs_file_read(fileHandle, fileBuffer, fileSize);
-        if (bytesRead != fileSize) {
-            WARNING("PmBootstrapFindRamdiskFile read %" PRIuIN "/%" PRIuIN " bytes from file", bytesRead, fileSize);
-        }
-
-        *bufferOut = fileBuffer;
-        *bufferSizeOut = fileSize;
-    }
-
-    // close the file and directory handle
-    vafs_file_close(fileHandle);
-    vafs_directory_close(directoryHandle);
+    oserr = __ReadFile(directoryHandle, internFilename, bufferOut, bufferSizeOut);
+    vafs_directory_reader_close(directoryHandle);
     free(pathu8);
-    return OS_EOK;
+    return oserr;
 }
 
 static uint64_t __svc_hash(const void* element)

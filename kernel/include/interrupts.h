@@ -1,6 +1,7 @@
-/* MollenOS
+/**
+ * MollenOS
  *
- * Copyright 2011, Philip Meulengracht
+ * Copyright, Philip Meulengracht
  *
  * This program is free software : you can redistribute it and / or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +32,29 @@
 // Kernel specific interrupt models
 #define INTERRUPT_KERNEL 0x10000000U
 
+// Represents the data needed to register an interrupt
+typedef struct InterruptDescriptor {
+    // Kernel handlers receive Context directly. User handlers instead receive
+    // the resource table mapped by InterruptBind.
+    InterruptResourceTable_t ResourceTable;
+    void*                    Context;
+
+    // InterruptResolve may replace Line with the platform's routed line number.
+    unsigned int AcpiConform;
+    int          Line;
+    int          Pin;
+
+    // Candidate lines for kernel sources such as HPET. This fixed-size list is
+    // unrelated to DeviceInterrupt_t's dynamically allocated vector array.
+    int Vectors[INTERRUPT_MAXVECTORS];
+
+    // Existing kernel MSI users receive their hardware message here. Driver
+    // MSI/MSI-X allocation is deliberately not implemented by this descriptor.
+    uint64_t  MsiAddress;
+    uintptr_t MsiValue;
+} InterruptDescriptor_t;
+
+// Describes a kernel registered interrupt and its state
 typedef struct SystemInterrupt {
     uuid_t                   Id;
     uuid_t                   Owner;
@@ -43,6 +67,15 @@ typedef struct SystemInterrupt {
     int                      Line;
     int                      Pin;
     int                      Source;
+    // Reserved entries stay in the table while disabled. Dispatch checks Enabled
+    // before reading their handler, so a shared line can remain active safely.
+    _Atomic(int)             Enabled;
+    int                      Bound;
+    // Cleanup may have removed only some mappings; never enable that handler.
+    int                      Unbinding;
+    // Serializes operations that must release the table lock to map resources
+    // or wait for running handlers. References keep the entry alive meanwhile.
+    int                      Updating;
     // References acquired by InterruptGet() keep retired descriptors alive.
     _Atomic(unsigned int)    References;
     // Link is read by the interrupt path without taking the table lock. It
@@ -65,13 +98,51 @@ KERNELAPI void KERNELABI InitializeInterruptHandlers(void);
 KERNELAPI InterruptFunctionTable_t* KERNELABI
 GetFastInterruptTable(void);
 
+/**
+ * @brief Reserve the needed interrupt resources. This does not
+ * enable any interruptd, but is used to claim a specific interrupt.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptReserve(
+    _InOut_ InterruptDescriptor_t* descriptor,
+    _In_    unsigned int           flags,
+    _Out_   uuid_t*                idOut);
+
+/**
+ * @brief Maps resources to an already reserved interrupt.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptBind(
+    _In_ uuid_t                    id,
+    _In_ InterruptResourceTable_t* resources);
+
+/**
+ * @brief Enables or disables a reserved interrupt. 
+ * If disabling, waits for running handlers.
+ * A shared interrupt remains enabled until its last enabled instance stops.
+ * Never call from interrupt (non-syscall) context.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptSetEnabled(
+    _In_ uuid_t id,
+    _In_ int    enable);
+
+/**
+ * @brief Releases handler mappings while keeping the reservation.
+ * This allows a driver to change configuration without losing its interrupt.
+ * If cleanup fails, retry Unbind before enabling or binding another handler.
+ */
+KERNELAPI oserr_t KERNELABI
+InterruptUnbind(
+    _In_ uuid_t id);
+
 /* InterruptRegister
  * Tries to allocate the given interrupt source by the given descriptor and flags. On success
  * it returns the id of the irq, and on failure it returns UUID_INVALID */
 KERNELAPI uuid_t KERNELABI
 InterruptRegister(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ unsigned int       flags);
+    _In_ InterruptDescriptor_t* deviceInterrupt,
+    _In_ unsigned int           flags);
 
 /* InterruptUnregister 
  * Unregisters the interrupt from the system and removes any resources that was associated 
@@ -80,9 +151,10 @@ KERNELAPI oserr_t KERNELABI
 InterruptUnregister(
         _In_ uuid_t Source);
 
-/* InterruptGet
- * Retrieves the given interrupt source information as a referenced
- * SystemInterrupt_t. The caller must release it with InterruptPut(). */
+/**
+ * @brief Acquires a reference to the system interrupt described
+ * by its id. Use Put to release the reference.
+ */
 KERNELAPI SystemInterrupt_t* KERNELABI
 InterruptGet(
     _In_ uuid_t Source);

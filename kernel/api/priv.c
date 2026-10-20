@@ -26,6 +26,7 @@
 #include <acpiinterface.h>
 #include <arch/utils.h>
 #include <ddk/acpi.h>
+#include <ddk/types/interrupt.h>
 #include <deviceio.h>
 #include <firmware.h>
 #include <handle.h>
@@ -37,7 +38,7 @@
 
 oserr_t
 ScFirmwareQuery(
-        _Out_ OSFirmwareInfo_t* infoOut)
+    _Out_ OSFirmwareInfo_t* infoOut)
 {
     OSFirmwareInfo_t info;
     oserr_t          oserr;
@@ -51,9 +52,9 @@ ScFirmwareQuery(
 
 static oserr_t
 __LocateFirmwareTable(
-        _In_  const OSFirmwareTableKey_t* userKey,
-        _Out_ const void**                dataOut,
-        _Out_ OSFirmwareTable_t*          tableOut)
+    _In_  const OSFirmwareTableKey_t* userKey,
+    _Out_ const void**                dataOut,
+    _Out_ OSFirmwareTable_t*          tableOut)
 {
     OSFirmwareTableKey_t key;
     oserr_t              oserr;
@@ -67,8 +68,8 @@ __LocateFirmwareTable(
 
 oserr_t
 ScFirmwareTableLocate(
-        _In_  const OSFirmwareTableKey_t* key,
-        _Out_ OSFirmwareTable_t*          tableOut)
+    _In_  const OSFirmwareTableKey_t* key,
+    _Out_ OSFirmwareTable_t*          tableOut)
 {
     OSFirmwareTable_t table;
     const void*       data;
@@ -87,10 +88,10 @@ ScFirmwareTableLocate(
 
 oserr_t
 ScFirmwareTableRead(
-        _In_  const OSFirmwareTableKey_t* key,
-        _In_  void*                       buffer,
-        _In_  size_t                      size,
-        _Out_ size_t*                     lengthOut)
+    _In_  const OSFirmwareTableKey_t* key,
+    _In_  void*                       buffer,
+    _In_  size_t                      size,
+    _Out_ size_t*                     lengthOut)
 {
     OSFirmwareTable_t table;
     const void*       data;
@@ -146,15 +147,15 @@ ScFirmwareTableMap(
     }
 
     oserr = MemorySpaceMap(
-            memorySpace,
-            &(struct MemorySpaceMapOptions) {
-                .Pages = pages,
-                .Length = table.Length,
-                .Mask = __MASK,
-                .Flags = MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_CLEAN,
-                .PlacementFlags = MAPPING_VIRTUAL_PROCESS
-            },
-            &mapping
+        memorySpace,
+        &(struct MemorySpaceMapOptions) {
+            .Pages = pages,
+            .Length = table.Length,
+            .Mask = __MASK,
+            .Flags = MAPPING_USERSPACE | MAPPING_COMMIT | MAPPING_CLEAN,
+            .PlacementFlags = MAPPING_VIRTUAL_PROCESS
+        },
+        &mapping
     );
     kfree(pages);
     if (oserr != OS_EOK) {
@@ -249,75 +250,201 @@ ScIoSpaceDestroy(
 }
 
 static oserr_t
-__CopyInterruptResults(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ DeviceInterrupt_t* request
-)
+__CopyAndVerifyAllocationRequest(
+    _In_ InterruptAllocationRequest_t* userRequest,
+    _In_ InterruptAllocationRequest_t* kernelRequest)
 {
-    oserr_t oserr;
+    oserr_t status;
 
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->Line, &request->Line, sizeof(request->Line), true);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiAddress, &request->MsiAddress, sizeof(request->MsiAddress), true);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-
-    oserr = MemorySpaceCopyUser(&deviceInterrupt->MsiValue, &request->MsiValue, sizeof(request->MsiValue), true);
-    if (oserr != OS_EOK) {
-        return oserr;
-    }
-    return oserr;
-}
-
-uuid_t
-ScRegisterInterrupt(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ unsigned int       flags)
-{
-    DeviceInterrupt_t request;
-    uuid_t            id;
-    oserr_t           oserr;
-
-    if (deviceInterrupt == NULL ||
-        (flags & (INTERRUPT_KERNEL | INTERRUPT_SOFT))) {
-        return UUID_INVALID;
-    }
-
-    // Do not trust the user-space memory here; copy it into kernel space first.
-    oserr = MemorySpaceCopyUser(
-        deviceInterrupt,
-        &request,
-        sizeof(request),
+    status = MemorySpaceCopyUser(
+        userRequest,
+        kernelRequest,
+        sizeof(InterruptAllocationRequest_t),
         false
     );
-    if (oserr != OS_EOK) {
-        return UUID_INVALID;
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    if (kernelRequest->Minimum == 0 || kernelRequest->Minimum > kernelRequest->Optimal) {
+        return OS_EINVALPARAMS;
+    }
+    if (kernelRequest->Strategies == 0 || (kernelRequest->Strategies & ~INTERRUPT_STRATEGY_ANY)) {
+        return OS_EINVALPARAMS;
+    }
+    if (kernelRequest->Flags & ~INTERRUPT_EXCLUSIVE) {
+        return OS_EINVALPARAMS;
     }
 
-    // Now we register the interrupt
-    id = InterruptRegister(&request, flags);
-    if (id == UUID_INVALID) {
-        return UUID_INVALID;
+    // Currently we only support INTx delivery, and only 1 interrupt.
+    if (!(kernelRequest->Strategies & INTERRUPT_STRATEGY_INTx) || kernelRequest->Minimum != 1) {
+        return OS_ENOTSUPPORTED;
     }
-
-    // Only the resolved outputs are written back, never the full request.
-    oserr = __CopyInterruptResults(deviceInterrupt, &request);
-    if (oserr != OS_EOK) {
-        (void)InterruptUnregister(id);
-        return UUID_INVALID;
+    if (kernelRequest->Line.Line < 0) {
+        return OS_ENOENT;
     }
-    return id;
+    return OS_EOK;
 }
 
 oserr_t
-ScUnregisterInterrupt(
-        _In_ uuid_t sourceId)
+ScInterruptAllocate(
+    _In_  InterruptAllocationRequest_t* userRequest,
+    _Out_ InterruptAllocationResult_t*  userResult)
 {
-    return InterruptUnregister(sourceId);
+    InterruptAllocationRequest_t request;
+    InterruptAllocationResult_t  result;
+    InterruptDescriptor_t        descriptor = { 0 };
+    oserr_t                      status;
+
+    if (userRequest == NULL || userResult == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    status = __CopyAndVerifyAllocationRequest(userRequest, &request);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    descriptor.Line = request.Line.Line;
+    descriptor.Pin = request.Line.Pin;
+    descriptor.AcpiConform = request.Line.AcpiConform;
+    
+    // perform the reservation
+    status = InterruptReserve(&descriptor, request.Flags, &result.Handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    // currently just support 1 irq and intx
+    result.Count = 1;
+    result.Strategy = INTERRUPT_STRATEGY_INTx;
+
+    status = MemorySpaceCopyUser(
+        userResult,
+        &result,
+        sizeof(InterruptAllocationResult_t),
+        true
+    );
+    if (status != OS_EOK) {
+        // Just unregister if it fails, no resources has been bound to
+        // the irq yet
+        InterruptUnregister(result.Handle);
+    }
+    return status;
+}
+
+static oserr_t
+__CheckInterruptOwner(
+    _In_ uuid_t handle)
+{
+    SystemInterrupt_t* entry;
+    int                hasAccess;
+
+    entry = InterruptGet(handle);
+    if (entry == NULL) {
+        return OS_ENOENT;
+    }
+
+    // For a process/driver to own an interrupt it must not be a
+    // kernel interrupt, and the entry must belong to the same ms handle.
+    hasAccess = !(entry->Flags & INTERRUPT_KERNEL) &&
+            entry->Owner == GetCurrentMemorySpaceHandle();
+    
+    InterruptPut(entry);
+    return hasAccess ? OS_EOK : OS_EPERMISSIONS;
+}
+
+oserr_t
+ScInterruptBind(
+    _In_ uuid_t                  handle,
+    _In_ InterruptBindRequest_t* userRequest)
+{
+    InterruptBindRequest_t request;
+    oserr_t                status;
+
+    // Before binding resources to an interrupt handle
+    // ensure we can do this
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (userRequest == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // get the request data
+    status = MemorySpaceCopyUser(
+        userRequest,
+        &request,
+        sizeof(InterruptBindRequest_t),
+        false
+    );
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (request.Index != 0) {
+        return OS_EINVALPARAMS;
+    }
+
+    // execute the request
+    return InterruptBind(handle, &request.Resources);
+}
+
+oserr_t
+ScInterruptEnable(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    // Ownership check before enabling an interrupt
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptSetEnabled(handle, 1);
+}
+
+oserr_t
+ScInterruptDisable(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    // Ownership check before disabling an interrupt
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptSetEnabled(handle, 0);
+}
+
+oserr_t
+ScInterruptUnbind(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    // Ownership check before we release resources asssociated
+    // with the interrupt
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptUnbind(handle);
+}
+
+oserr_t
+ScInterruptRelease(
+    _In_ uuid_t handle)
+{
+    oserr_t status;
+
+    // Ownership check before we release the irq reservation
+    status = __CheckInterruptOwner(handle);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return InterruptUnregister(handle);
 }
 
 oserr_t
@@ -340,13 +467,13 @@ ScMapRamdisk(
     vaddr_t mapping;
 
     oserr = MemorySpaceCloneMapping(
-            GetCurrentMemorySpace(),
-            GetCurrentMemorySpace(),
-            (vaddr_t)GetMachine()->BootInformation.Ramdisk.Data,
-            &mapping,
-            GetMachine()->BootInformation.Ramdisk.Length,
-            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
-            MAPPING_VIRTUAL_PROCESS
+        GetCurrentMemorySpace(),
+        GetCurrentMemorySpace(),
+        (vaddr_t)GetMachine()->BootInformation.Ramdisk.Data,
+        &mapping,
+        GetMachine()->BootInformation.Ramdisk.Length,
+        MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_READONLY,
+        MAPPING_VIRTUAL_PROCESS
     );
     if (oserr == OS_EOK) {
         *bufferOut = (void*)mapping;

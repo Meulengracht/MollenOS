@@ -22,16 +22,16 @@
 #include <ddk/ddkdefs.h>
 
 // forward declare this to avoid any vafs includes
-struct VaFs;
+struct VaFsReaderConfiguration;
 
 /**
- * @brief Handles the neccessary filter setup for the OS initrd
+ * @brief Initializes reader configuration with the OS initrd's aPLib codec.
+ * Call before opening the image; descriptor blocks can already be compressed.
  *
- * @param[In] vafs The vafs handle that requires filter setup
- * @return Returns -1 if any errors was detected, 0 otherwise.
+ * @param[Out] configuration The reader configuration to initialize.
  */
-DDKDECL(int,
-DdkInitrdHandleVafsFilter(
-        _In_ struct VaFs* vafs));
+DDKDECL(void,
+DdkInitrdConfigureVafsReader(
+    _Out_ struct VaFsReaderConfiguration* configuration));
 
 #endif //!__DDK_INITRD_H__

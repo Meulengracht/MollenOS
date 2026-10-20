@@ -74,22 +74,23 @@ __AcquireIOSpace(
 
 static oserr_t
 __InitializeInterrupt(
-        _In_ BusDevice_t*      busDevice,
-        _In_ UhciController_t* controller)
+    _In_ UhciController_t* controller)
 {
-    DeviceInterrupt_t deviceInterrupt;
+    oserr_t status;
 
-    // Initialize the interrupt settings
-    DeviceInterruptInitialize(&deviceInterrupt, busDevice);
-    RegisterInterruptDescriptor(&deviceInterrupt, controller->Base.event_descriptor);
-    RegisterFastInterruptHandler(&deviceInterrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&deviceInterrupt, controller->Base.IoBase);
-    RegisterFastInterruptMemoryResource(&deviceInterrupt, (uintptr_t)controller, sizeof(UhciController_t), 0);
-    controller->Base.Interrupt = RegisterInterruptSource(&deviceInterrupt, 0);
-    if (controller->Base.Interrupt == UUID_INVALID) {
-        return OS_EUNKNOWN;
+    // Keep the device quiet until setup later enables its interrupt sources.
+    UhciWrite16(controller, UHCI_REGISTER_INTR, 0);
+    
+    // The shared helper preserves the resource positions expected by the ISR.
+    status = UsbManagerConfigureInterrupt(
+        &controller->Base,
+        (InterruptHandler_t)OnFastInterrupt,
+        sizeof(UhciController_t)
+    );
+    if (status != OS_EOK) {
+        return status;
     }
-    return OS_EOK;
+    return DeviceInterruptEnable(&controller->Base.Interrupt);
 }
 
 UsbManagerController_t*
@@ -126,7 +127,7 @@ HCIControllerCreate(
             controller->Base.IoBase->Access.Memory.Length
     );
 
-    oserr = __InitializeInterrupt(busDevice, controller);
+    oserr = __InitializeInterrupt(controller);
     if (oserr != OS_EOK) {
         ERROR("UhciControllerCreate: failed to initialize interrupt resources");
         HCIControllerDestroy(&controller->Base);
@@ -178,14 +179,20 @@ void
 HCIControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
+    // Stop this device before leaving a line which may still serve other devices.
+    UhciWrite16((UhciController_t*)Controller, UHCI_REGISTER_INTR, 0);
+    if (DeviceInterruptDestroy(&Controller->Interrupt) != OS_EOK) {
+        ERROR("Failed to release controller interrupt; keeping its resources alive");
+        return;
+    }
+
     // Unregister, then destroy
     UsbManagerDestroyController(Controller);
     
     // Cleanup scheduler
-    UHCIQueueDestroy((UhciController_t*)Controller);
-
-    // Unregister the interrupt
-    UnregisterInterruptSource(Controller->Interrupt);
+    if (Controller->Scheduler != NULL) {
+        UHCIQueueDestroy((UhciController_t*)Controller);
+    }
 
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);

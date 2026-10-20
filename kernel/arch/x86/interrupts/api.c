@@ -45,7 +45,8 @@ extern void  __cli(void);
 extern void  __sti(void);
 extern reg_t __getflags(void);
 
-static inline uuid_t __GetBspCoreId(void)
+static inline uuid_t
+__GetBspCoreId(void)
 {
     if (!GetCurrentDomain() || !GetCurrentDomain()->CoreGroup.Cores) {
         return CpuCoreId(GetMachine()->Processor.Cores);
@@ -53,7 +54,8 @@ static inline uuid_t __GetBspCoreId(void)
     return CpuCoreId(GetCurrentDomain()->CoreGroup.Cores);
 }
 
-static uint64_t __GetApicConfiguration(
+static uint64_t
+__GetApicConfiguration(
     _In_ SystemInterrupt_t* systemInterrupt)
 {
     UInteger64_t flags;
@@ -141,9 +143,10 @@ static uint64_t __GetApicConfiguration(
     return flags.QuadPart;
 }
 
-static uuid_t __AllocateSoftwareVector(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ unsigned int       flags)
+static uuid_t
+__AllocateSoftwareVector(
+    _In_ InterruptDescriptor_t* deviceInterrupt,
+    _In_ unsigned int           flags)
 {
     uuid_t result = 0;
     
@@ -159,16 +162,14 @@ static uuid_t __AllocateSoftwareVector(
         }
 
         // @todo verify proper fixed lines
-    }
-    else if (deviceInterrupt->Line == INTERRUPT_NONE) {
+    } else if (deviceInterrupt->Line == INTERRUPT_NONE) {
         int Vectors[INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE];
         int i;
         for (i = 0; i < (INTERRUPT_SOFTWARE_END - INTERRUPT_SOFTWARE_BASE); i++) {
             Vectors[i] = (INTERRUPT_SOFTWARE_BASE + i);
         }
         result = InterruptGetLeastLoaded(Vectors, i);
-    }
-    else {
+    } else {
         assert(0);
     }
     return result;
@@ -176,9 +177,9 @@ static uuid_t __AllocateSoftwareVector(
 
 oserr_t
 InterruptResolve(
-        _In_  DeviceInterrupt_t* deviceInterrupt,
-        _In_  unsigned int       flags,
-        _Out_ uuid_t*            tableIndex)
+    _In_  InterruptDescriptor_t* deviceInterrupt,
+    _In_  unsigned int           flags,
+    _Out_ uuid_t*                tableIndex)
 {
     if (!(flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
         if (flags & INTERRUPT_VECTOR) {

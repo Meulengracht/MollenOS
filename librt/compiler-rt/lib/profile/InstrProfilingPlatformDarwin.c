@@ -26,14 +26,27 @@ extern char
 COMPILER_RT_VISIBILITY
 extern char NamesEnd __asm("section$end$__DATA$" INSTR_PROF_NAME_SECT_NAME);
 COMPILER_RT_VISIBILITY
-extern uint64_t
+extern char
     CountersStart __asm("section$start$__DATA$" INSTR_PROF_CNTS_SECT_NAME);
 COMPILER_RT_VISIBILITY
-extern uint64_t
-    CountersEnd __asm("section$end$__DATA$" INSTR_PROF_CNTS_SECT_NAME);
+extern char CountersEnd __asm("section$end$__DATA$" INSTR_PROF_CNTS_SECT_NAME);
 COMPILER_RT_VISIBILITY
-extern uint32_t
-    OrderFileStart __asm("section$start$__DATA$" INSTR_PROF_ORDERFILE_SECT_NAME);
+extern char
+    BitmapStart __asm("section$start$__DATA$" INSTR_PROF_BITS_SECT_NAME);
+COMPILER_RT_VISIBILITY
+extern char BitmapEnd __asm("section$end$__DATA$" INSTR_PROF_BITS_SECT_NAME);
+COMPILER_RT_VISIBILITY
+extern VTableProfData
+    VTableProfStart __asm("section$start$__DATA$" INSTR_PROF_VTAB_SECT_NAME);
+COMPILER_RT_VISIBILITY
+extern VTableProfData
+    VTableProfEnd __asm("section$end$__DATA$" INSTR_PROF_VTAB_SECT_NAME);
+COMPILER_RT_VISIBILITY
+extern char
+    VNameStart __asm("section$start$__DATA$" INSTR_PROF_VNAME_SECT_NAME);
+COMPILER_RT_VISIBILITY
+extern char VNameEnd __asm("section$end$__DATA$" INSTR_PROF_VNAME_SECT_NAME);
+COMPILER_RT_VISIBILITY
 
 COMPILER_RT_VISIBILITY
 extern ValueProfNode
@@ -53,11 +66,25 @@ const char *__llvm_profile_begin_names(void) { return &NamesStart; }
 COMPILER_RT_VISIBILITY
 const char *__llvm_profile_end_names(void) { return &NamesEnd; }
 COMPILER_RT_VISIBILITY
-uint64_t *__llvm_profile_begin_counters(void) { return &CountersStart; }
+char *__llvm_profile_begin_counters(void) { return &CountersStart; }
 COMPILER_RT_VISIBILITY
-uint64_t *__llvm_profile_end_counters(void) { return &CountersEnd; }
+char *__llvm_profile_end_counters(void) { return &CountersEnd; }
 COMPILER_RT_VISIBILITY
-uint32_t *__llvm_profile_begin_orderfile(void) { return &OrderFileStart; }
+char *__llvm_profile_begin_bitmap(void) { return &BitmapStart; }
+COMPILER_RT_VISIBILITY
+char *__llvm_profile_end_bitmap(void) { return &BitmapEnd; }
+COMPILER_RT_VISIBILITY
+const VTableProfData *__llvm_profile_begin_vtables(void) {
+  return &VTableProfStart;
+}
+COMPILER_RT_VISIBILITY
+const VTableProfData *__llvm_profile_end_vtables(void) {
+  return &VTableProfEnd;
+}
+COMPILER_RT_VISIBILITY
+const char *__llvm_profile_begin_vtabnames(void) { return &VNameStart; }
+COMPILER_RT_VISIBILITY
+const char *__llvm_profile_end_vtabnames(void) { return &VNameEnd; }
 
 COMPILER_RT_VISIBILITY
 ValueProfNode *__llvm_profile_begin_vnodes(void) {

@@ -1,4 +1,4 @@
-//===-- orc_rt_macho_tlv.x86-64.s -------------------------------*- ASM -*-===//
+//===-- macho_tlv.x86-64.s --------------------------------------*- ASM -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,6 +9,9 @@
 // This file is a part of the ORC runtime support library.
 //
 //===----------------------------------------------------------------------===//
+
+// The content of this file is x86_64-only
+#if defined(__x86_64__)
 
 #define REGISTER_SAVE_SPACE_SIZE        512
 
@@ -66,3 +69,5 @@ ___orc_rt_macho_tlv_get_addr:
         addq            $REGISTER_SAVE_SPACE_SIZE, %rsp
         popq            %rbp
         ret
+
+#endif // defined(__x86_64__)

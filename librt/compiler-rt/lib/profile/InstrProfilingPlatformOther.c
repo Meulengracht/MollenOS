@@ -6,23 +6,45 @@
 |*
 \*===----------------------------------------------------------------------===*/
 
-#if !defined(__APPLE__) && !defined(__linux__) && !defined(__FreeBSD__) &&     \
-    !(defined(__sun__) && defined(__svr4__)) && !defined(__NetBSD__) &&        \
-    !defined(_WIN32)
+// This file defines a fallback implementation to compute the locations of
+// profile data sections, for targets that don't have linker support.  No
+// commonly used targets use this codepath.
+//
+// This implementation expects the compiler instrumentation pass to define a
+// constructor in each file which calls into this file.
 
-#include <stdlib.h>
-#include <stdio.h>
+#if (!defined(__APPLE__) && !defined(__linux__) && !defined(__FreeBSD__) &&    \
+     !defined(__Fuchsia__) && !(defined(__sun__) && defined(__svr4__)) &&      \
+     !defined(__NetBSD__) && !defined(_WIN32) && !defined(_AIX) &&             \
+     !defined(__wasm__) && !defined(__HAIKU__) &&                              \
+     !defined(COMPILER_RT_PROFILE_BAREMETAL)) ||                               \
+    defined(__NVPTX__)
 
 #include "InstrProfiling.h"
 #include "InstrProfilingInternal.h"
 
+#if defined(__NVPTX__)
+extern __llvm_profile_gpu_sections INSTR_PROF_SECT_BOUNDS_TABLE;
+#define DataFirst INSTR_PROF_SECT_BOUNDS_TABLE.DataStart
+#define DataLast INSTR_PROF_SECT_BOUNDS_TABLE.DataStop
+#define NamesFirst INSTR_PROF_SECT_BOUNDS_TABLE.NamesStart
+#define NamesLast INSTR_PROF_SECT_BOUNDS_TABLE.NamesStop
+#define CountersFirst INSTR_PROF_SECT_BOUNDS_TABLE.CountersStart
+#define CountersLast INSTR_PROF_SECT_BOUNDS_TABLE.CountersStop
+#else
 static const __llvm_profile_data *DataFirst = NULL;
 static const __llvm_profile_data *DataLast = NULL;
 static const char *NamesFirst = NULL;
 static const char *NamesLast = NULL;
-static uint64_t *CountersFirst = NULL;
-static uint64_t *CountersLast = NULL;
-static uint32_t *OrderFileFirst = NULL;
+static char *CountersFirst = NULL;
+static char *CountersLast = NULL;
+#endif
+static const VTableProfData *VTableProfDataFirst = NULL;
+static const VTableProfData *VTableProfDataLast = NULL;
+static const char *VNamesFirst = NULL;
+static const char *VNamesLast = NULL;
+static char *BitmapFirst = NULL;
+static char *BitmapLast = NULL;
 
 static const void *getMinAddr(const void *A1, const void *A2) {
   return A1 < A2 ? A1 : A2;
@@ -43,20 +65,37 @@ COMPILER_RT_VISIBILITY
 void __llvm_profile_register_function(void *Data_) {
   /* TODO: Only emit this function if we can't use linker magic. */
   const __llvm_profile_data *Data = (__llvm_profile_data *)Data_;
+
+#if defined(__NVPTX__)
+  // NVPTX stores absolute counter addresses to avoid circular dependencies in
+  // PTX global variable initializers. Convert to a relative offset so the
+  // host-side profile reader sees the standard format.
+  {
+    uintptr_t Rel = (uintptr_t)Data->CounterPtr - (uintptr_t)Data_;
+    __builtin_memcpy((char *)Data_ +
+                         __builtin_offsetof(__llvm_profile_data, CounterPtr),
+                     &Rel, sizeof(Rel));
+  }
+#endif
+
   if (!DataFirst) {
     DataFirst = Data;
     DataLast = Data + 1;
-    CountersFirst = Data->CounterPtr;
-    CountersLast = (uint64_t *)Data->CounterPtr + Data->NumCounters;
+    CountersFirst = (char *)((uintptr_t)Data_ + Data->CounterPtr);
+    CountersLast =
+        CountersFirst + Data->NumCounters * __llvm_profile_counter_entry_size();
     return;
   }
 
   DataFirst = (const __llvm_profile_data *)getMinAddr(DataFirst, Data);
-  CountersFirst = (uint64_t *)getMinAddr(CountersFirst, Data->CounterPtr);
+  CountersFirst = (char *)getMinAddr(
+      CountersFirst, (char *)((uintptr_t)Data_ + Data->CounterPtr));
 
   DataLast = (const __llvm_profile_data *)getMaxAddr(DataLast, Data + 1);
-  CountersLast = (uint64_t *)getMaxAddr(
-      CountersLast, (uint64_t *)Data->CounterPtr + Data->NumCounters);
+  CountersLast = (char *)getMaxAddr(
+      CountersLast,
+      (char *)((uintptr_t)Data_ + Data->CounterPtr) +
+          Data->NumCounters * __llvm_profile_counter_entry_size());
 }
 
 COMPILER_RT_VISIBILITY
@@ -76,17 +115,29 @@ COMPILER_RT_VISIBILITY
 const __llvm_profile_data *__llvm_profile_begin_data(void) { return DataFirst; }
 COMPILER_RT_VISIBILITY
 const __llvm_profile_data *__llvm_profile_end_data(void) { return DataLast; }
+COMPILER_RT_VISIBILITY const VTableProfData *
+__llvm_profile_begin_vtables(void) {
+  return VTableProfDataFirst;
+}
+COMPILER_RT_VISIBILITY const VTableProfData *__llvm_profile_end_vtables(void) {
+  return VTableProfDataLast;
+}
 COMPILER_RT_VISIBILITY
 const char *__llvm_profile_begin_names(void) { return NamesFirst; }
 COMPILER_RT_VISIBILITY
 const char *__llvm_profile_end_names(void) { return NamesLast; }
 COMPILER_RT_VISIBILITY
-uint64_t *__llvm_profile_begin_counters(void) { return CountersFirst; }
+const char *__llvm_profile_begin_vtabnames(void) { return VNamesFirst; }
 COMPILER_RT_VISIBILITY
-uint64_t *__llvm_profile_end_counters(void) { return CountersLast; }
-/* TODO: correctly set up OrderFileFirst. */
+const char *__llvm_profile_end_vtabnames(void) { return VNamesLast; }
 COMPILER_RT_VISIBILITY
-uint32_t *__llvm_profile_begin_orderfile(void) { return OrderFileFirst; }
+char *__llvm_profile_begin_counters(void) { return CountersFirst; }
+COMPILER_RT_VISIBILITY
+char *__llvm_profile_end_counters(void) { return CountersLast; }
+COMPILER_RT_VISIBILITY
+char *__llvm_profile_begin_bitmap(void) { return BitmapFirst; }
+COMPILER_RT_VISIBILITY
+char *__llvm_profile_end_bitmap(void) { return BitmapLast; }
 
 COMPILER_RT_VISIBILITY
 ValueProfNode *__llvm_profile_begin_vnodes(void) {

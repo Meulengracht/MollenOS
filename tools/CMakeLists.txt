@@ -12,16 +12,27 @@ macro (add_host_project PROJECT_DIR)
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_DIR}
             CMAKE_CACHE_ARGS
                 -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/host
+                -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+                ${ARGN}
     )
 endmacro ()
 
 # build host tool projects
-add_host_project (rd)
+add_host_project (rd
+    -DVAFS_BUILD_FILTER_APLIB:BOOL=ON
+    -DVAFS_BUILD_FILTER_BRIEFLZ:BOOL=OFF
+    -DVAFS_BUILD_TESTS:BOOL=OFF
+    -DVAFS_BUILD_BENCHMARKS:BOOL=OFF)
 add_host_project (lzss)
 add_host_project (file2c)
 
 # build native tool projects
-set (VAFS_BUILD_TOOLS OFF CACHE BOOL "Disable vafs tools for native build")
+set (VAFS_BUILD_TOOLS OFF)
+set (VAFS_BUILD_TESTS OFF)
+set (VAFS_BUILD_BENCHMARKS OFF)
+set (VAFS_BUILD_FILTER_APLIB OFF)
+set (VAFS_BUILD_FILTER_BRIEFLZ OFF)
 add_subdirectory (rd)
 target_include_directories(vafs-blockcache PRIVATE ../librt/libos/include ../librt/libc/include)
-target_include_directories(vafs PRIVATE ../librt/libos/include ../librt/libc/include)
+# Public VAFS headers include Vali's thread and IO definitions.
+target_include_directories(vafs PUBLIC ../librt/libos/include ../librt/libc/include)

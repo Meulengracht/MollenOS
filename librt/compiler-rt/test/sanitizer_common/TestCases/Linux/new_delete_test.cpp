@@ -1,12 +1,12 @@
-// RUN: %clangxx -std=c++1z -faligned-allocation -O0 %s -o %t && %run %t
-// RUN: %clangxx -std=c++1z -faligned-allocation -fsized-deallocation -O0 %s -o %t && %run %t
+// RUN: %clangxx -fno-sized-deallocation -O0 %s -o %t && %run %t
+// RUN: %clangxx -fsized-deallocation -O0 %s -o %t && %run %t
 
 // ubsan does not intercept new/delete.
 // UNSUPPORTED: ubsan
 
 // Check that all new/delete variants are defined and work with supported
 // sanitizers. Sanitizer-specific failure modes tests are supposed to go to
-// the particular sanitizier's test suites.
+// the particular sanitizer's test suites.
 
 #include <cstddef>
 

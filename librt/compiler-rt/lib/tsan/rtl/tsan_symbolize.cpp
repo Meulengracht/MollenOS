@@ -79,7 +79,7 @@ static void AddFrame(void *ctx, const char *function_name, const char *file,
   info->column = column;
 }
 
-SymbolizedStack *SymbolizeCode(uptr addr) {
+SymbolizedStack* SymbolizeCode(uptr addr, bool leaf) {
   // Check if PC comes from non-native land.
   if (addr & kExternalPCBit) {
     SymbolizedStackBuilder ssb = {nullptr, nullptr, addr};
@@ -110,7 +110,8 @@ ReportLocation *SymbolizeData(uptr addr) {
   DataInfo info;
   if (!Symbolizer::GetOrInit()->SymbolizeData(addr, &info))
     return 0;
-  ReportLocation *ent = ReportLocation::New(ReportLocationGlobal);
+  auto *ent = New<ReportLocation>();
+  ent->type = ReportLocationGlobal;
   internal_memcpy(&ent->global, &info, sizeof(info));
   return ent;
 }

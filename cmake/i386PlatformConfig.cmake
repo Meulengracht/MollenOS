@@ -6,6 +6,7 @@ endif ()
 
 # Platform build features
 set (VALI_BUILD_FEATURE_ACPI ON)
+set (VALI_BUILD_FEATURE_PS2 ON)
 
 set (ARCH_FLAGS "--target=i386-uml-vali")
 set (WARNINGS_FLAGS "-Wno-address-of-packed-member -Wno-self-assign -Wno-unused-function")

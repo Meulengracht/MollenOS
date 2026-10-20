@@ -32,7 +32,7 @@ static uint32_t VPDataArraySize = sizeof(VPDataArray) / sizeof(*VPDataArray);
 COMPILER_RT_VISIBILITY uint8_t *DynamicBufferIOBuffer = 0;
 COMPILER_RT_VISIBILITY uint32_t VPBufferSize = 0;
 
-/* The buffer writer is reponsponsible in keeping writer state
+/* The buffer writer is responsible in keeping writer state
  * across the call.
  */
 COMPILER_RT_VISIBILITY uint32_t lprofBufferWriter(ProfDataWriter *This,
@@ -244,44 +244,109 @@ COMPILER_RT_VISIBILITY int lprofWriteData(ProfDataWriter *Writer,
   /* Match logic in __llvm_profile_write_buffer(). */
   const __llvm_profile_data *DataBegin = __llvm_profile_begin_data();
   const __llvm_profile_data *DataEnd = __llvm_profile_end_data();
-  const uint64_t *CountersBegin = __llvm_profile_begin_counters();
-  const uint64_t *CountersEnd = __llvm_profile_end_counters();
+  const char *CountersBegin = __llvm_profile_begin_counters();
+  const char *CountersEnd = __llvm_profile_end_counters();
+  const char *BitmapBegin = __llvm_profile_begin_bitmap();
+  const char *BitmapEnd = __llvm_profile_end_bitmap();
   const char *NamesBegin = __llvm_profile_begin_names();
   const char *NamesEnd = __llvm_profile_end_names();
+  const VTableProfData *VTableBegin = __llvm_profile_begin_vtables();
+  const VTableProfData *VTableEnd = __llvm_profile_end_vtables();
+  const char *VNamesBegin = __llvm_profile_begin_vtabnames();
+  const char *VNamesEnd = __llvm_profile_end_vtabnames();
+  uint64_t Version = __llvm_profile_get_version();
   return lprofWriteDataImpl(Writer, DataBegin, DataEnd, CountersBegin,
-                            CountersEnd, VPDataReader, NamesBegin, NamesEnd,
-                            SkipNameDataWrite);
+                            CountersEnd, BitmapBegin, BitmapEnd,
+                            /*UniformCountersBegin=*/NULL,
+                            /*UniformCountersEnd=*/NULL, VPDataReader,
+                            NamesBegin, NamesEnd, VTableBegin, VTableEnd,
+                            VNamesBegin, VNamesEnd, SkipNameDataWrite, Version);
 }
 
-COMPILER_RT_VISIBILITY int
-lprofWriteDataImpl(ProfDataWriter *Writer, const __llvm_profile_data *DataBegin,
-                   const __llvm_profile_data *DataEnd,
-                   const uint64_t *CountersBegin, const uint64_t *CountersEnd,
-                   VPDataReaderType *VPDataReader, const char *NamesBegin,
-                   const char *NamesEnd, int SkipNameDataWrite) {
-
+COMPILER_RT_VISIBILITY int lprofWriteDataImpl(
+    ProfDataWriter *Writer, const __llvm_profile_data *DataBegin,
+    const __llvm_profile_data *DataEnd, const char *CountersBegin,
+    const char *CountersEnd, const char *BitmapBegin, const char *BitmapEnd,
+    const char *UniformCountersBegin, const char *UniformCountersEnd,
+    VPDataReaderType *VPDataReader, const char *NamesBegin,
+    const char *NamesEnd, const VTableProfData *VTableBegin,
+    const VTableProfData *VTableEnd, const char *VNamesBegin,
+    const char *VNamesEnd, int SkipNameDataWrite, uint64_t Version) {
   /* Calculate size of sections. */
-  const uint64_t DataSize = __llvm_profile_get_data_size(DataBegin, DataEnd);
-  const uint64_t CountersSize = CountersEnd - CountersBegin;
-  const uint64_t NamesSize = NamesEnd - NamesBegin;
+  const uint64_t DataSectionSize =
+      __llvm_profile_get_data_size(DataBegin, DataEnd);
+  const uint64_t NumData = __llvm_profile_get_num_data(DataBegin, DataEnd);
+  const uint64_t CountersSectionSize =
+      __llvm_profile_get_counters_size(CountersBegin, CountersEnd);
+  const uint64_t NumCounters =
+      __llvm_profile_get_num_counters(CountersBegin, CountersEnd);
+  const uint64_t NumBitmapBytes =
+      __llvm_profile_get_num_bitmap_bytes(BitmapBegin, BitmapEnd);
+  const uint64_t NamesSize = __llvm_profile_get_name_size(NamesBegin, NamesEnd);
+  const uint64_t NumVTables =
+      __llvm_profile_get_num_vtable(VTableBegin, VTableEnd);
+  const uint64_t VTableSectionSize =
+      __llvm_profile_get_vtable_section_size(VTableBegin, VTableEnd);
+  const uint64_t VNamesSize =
+      __llvm_profile_get_name_size(VNamesBegin, VNamesEnd);
+  const uint64_t NumUniformCounters =
+      (UniformCountersBegin && UniformCountersEnd &&
+       UniformCountersEnd > UniformCountersBegin)
+          ? (UniformCountersEnd - UniformCountersBegin) / sizeof(uint64_t)
+          : 0;
+  const uint64_t UniformCountersSectionSize =
+      NumUniformCounters * sizeof(uint64_t);
 
   /* Create the header. */
   __llvm_profile_header Header;
 
-  if (!DataSize)
-    return 0;
-
   /* Determine how much padding is needed before/after the counters and after
    * the names. */
   uint64_t PaddingBytesBeforeCounters, PaddingBytesAfterCounters,
-      PaddingBytesAfterNames;
-  __llvm_profile_get_padding_sizes_for_counters(
-      DataSize, CountersSize, NamesSize, &PaddingBytesBeforeCounters,
-      &PaddingBytesAfterCounters, &PaddingBytesAfterNames);
+      PaddingBytesAfterBitmapBytes, PaddingBytesAfterUniformCounters,
+      PaddingBytesAfterNames, PaddingBytesAfterVTable, PaddingBytesAfterVNames;
+  if (__llvm_profile_get_padding_sizes_for_counters(
+          DataSectionSize, CountersSectionSize, NumBitmapBytes,
+          NumUniformCounters, NamesSize, VTableSectionSize, VNamesSize,
+          &PaddingBytesBeforeCounters, &PaddingBytesAfterCounters,
+          &PaddingBytesAfterBitmapBytes, &PaddingBytesAfterUniformCounters,
+          &PaddingBytesAfterNames, &PaddingBytesAfterVTable,
+          &PaddingBytesAfterVNames) == -1)
+    return -1;
 
+  {
 /* Initialize header structure.  */
 #define INSTR_PROF_RAW_HEADER(Type, Name, Init) Header.Name = Init;
 #include "profile/InstrProfData.inc"
+  }
+  Header.Version = Version;
+
+  /* On WIN64, label differences are truncated 32-bit values. Truncate
+   * CountersDelta to match. */
+#ifdef _WIN64
+  Header.CountersDelta = (uint32_t)Header.CountersDelta;
+  Header.BitmapDelta = (uint32_t)Header.BitmapDelta;
+  Header.UniformCountersDelta = (uint32_t)Header.UniformCountersDelta;
+#endif
+
+  /* Recompute UniformCountersDelta from file layout. The macro initializer
+     uses in-memory pointer arithmetic which is wrong when sections are in
+     separate allocations (e.g., custom profiles from device PGO). */
+  if (NumUniformCounters > 0)
+    Header.UniformCountersDelta = DataSectionSize + PaddingBytesBeforeCounters +
+                                  CountersSectionSize +
+                                  PaddingBytesAfterCounters + NumBitmapBytes +
+                                  PaddingBytesAfterBitmapBytes;
+  else
+    Header.UniformCountersDelta = 0;
+
+  /* The data and names sections are omitted in lightweight mode. */
+  if (NumData == 0 && NamesSize == 0) {
+    Header.CountersDelta = 0;
+    Header.BitmapDelta = 0;
+    Header.NamesDelta = 0;
+    Header.UniformCountersDelta = 0;
+  }
 
   /* Write the profile header. */
   ProfDataIOVec IOVec[] = {{&Header, sizeof(__llvm_profile_header), 1, 0}};
@@ -294,18 +359,49 @@ lprofWriteDataImpl(ProfDataWriter *Writer, const __llvm_profile_data *DataBegin,
 
   /* Write the profile data. */
   ProfDataIOVec IOVecData[] = {
-      {DataBegin, sizeof(__llvm_profile_data), DataSize, 0},
+      {DataBegin, sizeof(uint8_t), DataSectionSize, 0},
       {NULL, sizeof(uint8_t), PaddingBytesBeforeCounters, 1},
-      {CountersBegin, sizeof(uint64_t), CountersSize, 0},
+      {CountersBegin, sizeof(uint8_t), CountersSectionSize, 0},
       {NULL, sizeof(uint8_t), PaddingBytesAfterCounters, 1},
+      {BitmapBegin, sizeof(uint8_t), NumBitmapBytes, 0},
+      {NULL, sizeof(uint8_t), PaddingBytesAfterBitmapBytes, 1},
+      {UniformCountersBegin, sizeof(uint8_t), UniformCountersSectionSize, 0},
+      {NULL, sizeof(uint8_t), PaddingBytesAfterUniformCounters, 1},
       {SkipNameDataWrite ? NULL : NamesBegin, sizeof(uint8_t), NamesSize, 0},
-      {NULL, sizeof(uint8_t), PaddingBytesAfterNames, 1}};
+      {NULL, sizeof(uint8_t), PaddingBytesAfterNames, 1},
+      {VTableBegin, sizeof(uint8_t), VTableSectionSize, 0},
+      {NULL, sizeof(uint8_t), PaddingBytesAfterVTable, 1},
+      {SkipNameDataWrite ? NULL : VNamesBegin, sizeof(uint8_t), VNamesSize, 0},
+      {NULL, sizeof(uint8_t), PaddingBytesAfterVNames, 1}};
   if (Writer->Write(Writer, IOVecData, sizeof(IOVecData) / sizeof(*IOVecData)))
     return -1;
 
-  /* Value profiling is not yet supported in continuous mode. */
-  if (__llvm_profile_is_continuous_mode_enabled())
+  /* Value profiling is not yet supported in continuous mode and profile
+   * correlation mode. */
+  if (__llvm_profile_is_continuous_mode_enabled() ||
+      (NumData == 0 && NamesSize == 0))
     return 0;
 
   return writeValueProfData(Writer, VPDataReader, DataBegin, DataEnd);
+}
+
+/*
+ * Write binary id length and then its data, because binary id does not
+ * have a fixed length.
+ */
+COMPILER_RT_VISIBILITY
+int lprofWriteOneBinaryId(ProfDataWriter *Writer, uint64_t BinaryIdLen,
+                          const uint8_t *BinaryIdData,
+                          uint64_t BinaryIdPadding) {
+  ProfDataIOVec BinaryIdIOVec[] = {
+      {&BinaryIdLen, sizeof(uint64_t), 1, 0},
+      {BinaryIdData, sizeof(uint8_t), BinaryIdLen, 0},
+      {NULL, sizeof(uint8_t), BinaryIdPadding, 1},
+  };
+  if (Writer->Write(Writer, BinaryIdIOVec,
+                    sizeof(BinaryIdIOVec) / sizeof(*BinaryIdIOVec)))
+    return -1;
+
+  /* Successfully wrote binary id, report success. */
+  return 0;
 }

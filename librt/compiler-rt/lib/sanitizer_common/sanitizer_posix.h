@@ -20,10 +20,7 @@
 #include "sanitizer_platform_limits_posix.h"
 #include "sanitizer_platform_limits_solaris.h"
 
-#if !SANITIZER_POSIX
-// Make it hard to accidentally use any of functions declared in this file:
-#error This file should only be included on POSIX
-#endif
+#if SANITIZER_POSIX
 
 namespace __sanitizer {
 
@@ -31,6 +28,9 @@ namespace __sanitizer {
 // Don't use directly, use __sanitizer::OpenFile() instead.
 uptr internal_open(const char *filename, int flags);
 uptr internal_open(const char *filename, int flags, u32 mode);
+// Closes all file descriptors from lowfd to highfd (inclusive).
+// Returns 0 on success or non-zero if not supported on this platform.
+uptr internal_close_range(fd_t lowfd, fd_t highfd, int flags);
 uptr internal_close(fd_t fd);
 
 uptr internal_read(fd_t fd, void *buf, uptr count);
@@ -67,7 +67,8 @@ uptr internal_ptrace(int request, int pid, void *addr, void *data);
 uptr internal_waitpid(int pid, int *status, int options);
 
 int internal_fork();
-fd_t internal_spawn(const char *argv[], const char *envp[], pid_t *pid);
+bool internal_spawn(const char* argv[], const char* envp[], pid_t* pid,
+                    fd_t fd_stdin, fd_t fd_stdout);
 
 int internal_sysctl(const int *name, unsigned int namelen, void *oldp,
                     uptr *oldlenp, const void *newp, uptr newlen);
@@ -77,23 +78,23 @@ int internal_sysctlbyname(const char *sname, void *oldp, uptr *oldlenp,
 // These functions call appropriate pthread_ functions directly, bypassing
 // the interceptor. They are weak and may not be present in some tools.
 SANITIZER_WEAK_ATTRIBUTE
-int real_pthread_create(void *th, void *attr, void *(*callback)(void *),
-                        void *param);
+int internal_pthread_create(void *th, void *attr, void *(*callback)(void *),
+                            void *param);
 SANITIZER_WEAK_ATTRIBUTE
-int real_pthread_join(void *th, void **ret);
+int internal_pthread_join(void *th, void **ret);
 
-#define DEFINE_REAL_PTHREAD_FUNCTIONS                                          \
-  namespace __sanitizer {                                                      \
-  int real_pthread_create(void *th, void *attr, void *(*callback)(void *),     \
-                          void *param) {                                       \
-    return REAL(pthread_create)(th, attr, callback, param);                    \
-  }                                                                            \
-  int real_pthread_join(void *th, void **ret) {                                \
-    return REAL(pthread_join(th, ret));                                        \
-  }                                                                            \
-  }  // namespace __sanitizer
+#  define DEFINE_INTERNAL_PTHREAD_FUNCTIONS                               \
+    namespace __sanitizer {                                               \
+    int internal_pthread_create(void *th, void *attr,                     \
+                                void *(*callback)(void *), void *param) { \
+      return REAL(pthread_create)(th, attr, callback, param);             \
+    }                                                                     \
+    int internal_pthread_join(void *th, void **ret) {                     \
+      return REAL(pthread_join)(th, ret);                                 \
+    }                                                                     \
+    }  // namespace __sanitizer
 
-int my_pthread_attr_getstack(void *attr, void **addr, uptr *size);
+int internal_pthread_attr_getstack(void *attr, void **addr, uptr *size);
 
 // A routine named real_sigaction() must be implemented by each sanitizer in
 // order for internal_sigaction() to bypass interceptors.
@@ -111,6 +112,7 @@ bool IsStateDetached(int state);
 fd_t ReserveStandardFds(fd_t fd);
 
 bool ShouldMockFailureToOpen(const char *path);
+bool OpenReadsVaArgs(int oflag);
 
 // Create a non-file mapping with a given /proc/self/maps name.
 uptr MmapNamed(void *addr, uptr length, int prot, int flags, const char *name);
@@ -123,7 +125,12 @@ int GetNamedMappingFd(const char *name, uptr size, int *flags);
 // alive at least as long as the mapping exists.
 void DecorateMapping(uptr addr, uptr size, const char *name);
 
+#  if !SANITIZER_FREEBSD
+#    define __sanitizer_dirsiz(dp) ((dp)->d_reclen)
+#  endif
 
 }  // namespace __sanitizer
+
+#endif  // SANITIZER_POSIX
 
 #endif  // SANITIZER_POSIX_H

@@ -32,6 +32,7 @@
 #include <semaphore.h>
 #include <signal.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/ethernet.h>
 #include <sys/filio.h>
 #include <sys/ipc.h>
@@ -50,6 +51,7 @@
 #include <sys/timeb.h>
 #include <sys/times.h>
 #include <sys/types.h>
+#include <sys/ucontext.h>
 #include <sys/utsname.h>
 #include <termios.h>
 #include <time.h>
@@ -89,7 +91,7 @@ namespace __sanitizer {
   unsigned struct_sched_param_sz = sizeof(struct sched_param);
   unsigned struct_statfs_sz = sizeof(struct statfs);
   unsigned struct_sockaddr_sz = sizeof(struct sockaddr);
-  unsigned ucontext_t_sz = sizeof(ucontext_t);
+  unsigned ucontext_t_sz(void *ctx) { return sizeof(ucontext_t); }
   unsigned struct_timespec_sz = sizeof(struct timespec);
 #if SANITIZER_SOLARIS32
   unsigned struct_statvfs64_sz = sizeof(struct statvfs64);
@@ -123,6 +125,7 @@ namespace __sanitizer {
   unsigned struct_ElfW_Phdr_sz = sizeof(ElfW(Phdr));
 
   int glob_nomatch = GLOB_NOMATCH;
+  const int wordexp_wrde_dooffs = WRDE_DOOFFS;
 
   unsigned path_max = PATH_MAX;
 
@@ -133,6 +136,8 @@ namespace __sanitizer {
 
   unsigned struct_sioc_sg_req_sz = sizeof(struct sioc_sg_req);
   unsigned struct_sioc_vif_req_sz = sizeof(struct sioc_vif_req);
+
+  unsigned fpos_t_sz = sizeof(fpos_t);
 
   const unsigned IOCTL_NOT_PRESENT = 0;
 

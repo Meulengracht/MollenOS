@@ -8,12 +8,14 @@
 // IO functions.
 //===----------------------------------------------------------------------===//
 
+#include "FuzzerIO.h"
 #include "FuzzerDefs.h"
 #include "FuzzerExtFunctions.h"
-#include "FuzzerIO.h"
 #include "FuzzerUtil.h"
 #include <algorithm>
+#include <cerrno>
 #include <cstdarg>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <sys/stat.h>
@@ -22,6 +24,14 @@
 namespace fuzzer {
 
 static FILE *OutputFile = stderr;
+
+FILE *GetOutputFile() {
+  return OutputFile;
+}
+
+void SetOutputFile(FILE *NewOutputFile) {
+  OutputFile = NewOutputFile;
+}
 
 long GetEpoch(const std::string &Path) {
   struct stat St;
@@ -33,7 +43,7 @@ long GetEpoch(const std::string &Path) {
 Unit FileToVector(const std::string &Path, size_t MaxSize, bool ExitOnError) {
   std::ifstream T(Path, std::ios::binary);
   if (ExitOnError && !T) {
-    Printf("No such directory: %s; exiting\n", Path.c_str());
+    Printf("No such file: %s (%s); exiting\n", Path.c_str(), strerror(errno));
     exit(1);
   }
 
@@ -57,7 +67,7 @@ std::string FileToString(const std::string &Path) {
 }
 
 void CopyFileToErr(const std::string &Path) {
-  Printf("%s", FileToString(Path).c_str());
+  Puts(FileToString(Path).c_str());
 }
 
 void WriteToFile(const Unit &U, const std::string &Path) {
@@ -90,11 +100,11 @@ void AppendToFile(const uint8_t *Data, size_t Size, const std::string &Path) {
   fclose(Out);
 }
 
-void ReadDirToVectorOfUnits(const char *Path, Vector<Unit> *V, long *Epoch,
+void ReadDirToVectorOfUnits(const char *Path, std::vector<Unit> *V, long *Epoch,
                             size_t MaxSize, bool ExitOnError,
-                            Vector<std::string> *VPaths) {
+                            std::vector<std::string> *VPaths) {
   long E = Epoch ? *Epoch : 0;
-  Vector<std::string> Files;
+  std::vector<std::string> Files;
   ListFilesInDirRecursive(Path, Epoch, &Files, /*TopDir*/true);
   size_t NumLoaded = 0;
   for (size_t i = 0; i < Files.size(); i++) {
@@ -112,8 +122,8 @@ void ReadDirToVectorOfUnits(const char *Path, Vector<Unit> *V, long *Epoch,
   }
 }
 
-void GetSizedFilesFromDir(const std::string &Dir, Vector<SizedFile> *V) {
-  Vector<std::string> Files;
+void GetSizedFilesFromDir(const std::string &Dir, std::vector<SizedFile> *V) {
+  std::vector<std::string> Files;
   ListFilesInDirRecursive(Dir, 0, &Files, /*TopDir*/true);
   for (auto &File : Files)
     if (size_t Size = FileSize(File))
@@ -141,6 +151,11 @@ void DupAndCloseStderr() {
 
 void CloseStdout() {
   DiscardOutput(1);
+}
+
+void Puts(const char *Str) {
+  fputs(Str, OutputFile);
+  fflush(OutputFile);
 }
 
 void Printf(const char *Fmt, ...) {

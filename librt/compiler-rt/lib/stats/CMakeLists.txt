@@ -4,7 +4,7 @@ set(STATS_HEADERS
 include_directories(..)
 
 add_custom_target(stats)
-set_target_properties(stats PROPERTIES FOLDER "Compiler-RT Misc")
+set_target_properties(stats PROPERTIES FOLDER "Compiler-RT/Metatargets")
 
 if(APPLE)
   set(STATS_LIB_FLAVOR SHARED)
@@ -23,7 +23,7 @@ endif()
 add_compiler_rt_runtime(clang_rt.stats
   ${STATS_LIB_FLAVOR}
   ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-  OS ${SANITIZER_COMMON_SUPPORTED_OS}
+  OS ${STATS_SUPPORTED_OS}
   SOURCES stats.cpp
   ADDITIONAL_HEADERS ${STATS_HEADERS}
   OBJECT_LIBS RTSanitizerCommon
@@ -37,7 +37,7 @@ add_compiler_rt_runtime(clang_rt.stats
 add_compiler_rt_runtime(clang_rt.stats_client
   STATIC
   ARCHS ${SANITIZER_COMMON_SUPPORTED_ARCH}
-  OS ${SANITIZER_COMMON_SUPPORTED_OS}
+  OS ${STATS_SUPPORTED_OS}
   SOURCES stats_client.cpp
   ADDITIONAL_HEADERS ${STATS_HEADERS}
   CFLAGS ${SANITIZER_COMMON_CFLAGS}

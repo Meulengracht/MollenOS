@@ -42,7 +42,6 @@ HCIControllerCreate(
 {
     SHM_t             shm;
     DeviceIo_t*       ioBase  = NULL;
-    DeviceInterrupt_t interrupt;
     OhciController_t* controller;
     oserr_t           oserr;
     int i;
@@ -110,16 +109,29 @@ HCIControllerCreate(
     WRITE_VOLATILE(controller->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
 
     // Initialize the interrupt settings
-    DeviceInterruptInitialize(&interrupt, Device);
-    RegisterInterruptDescriptor(&interrupt, controller->Base.event_descriptor);
-    RegisterFastInterruptHandler(&interrupt, (InterruptHandler_t)OnFastInterrupt);
-    RegisterFastInterruptIoResource(&interrupt, ioBase);
-    RegisterFastInterruptMemoryResource(&interrupt, (uintptr_t)controller, sizeof(OhciController_t), 0);
-    RegisterFastInterruptMemoryResource(&interrupt, (uintptr_t)controller->Hcca, 0x1000, INTERRUPT_RESOURCE_DISABLE_CACHE);
-
-    // Register interrupt
-    TRACE("... register interrupt");
-    controller->Base.Interrupt = RegisterInterruptSource(&interrupt, 0);
+    // Keep the allocation with the controller so disable and destruction can
+    // release every handler mapping before the controller memory is freed.
+    oserr = UsbManagerConfigureInterrupt(
+        &controller->Base,
+        (InterruptHandler_t)OnFastInterrupt,
+        sizeof(OhciController_t)
+    );
+    if (oserr == OS_EOK) {
+        oserr = DeviceInterruptAddMemoryResource(
+            &controller->Base.Interrupt,
+            0,
+            (uintptr_t)controller->Hcca,
+            0x1000,
+            INTERRUPT_RESOURCE_DISABLE_CACHE
+        );
+    }
+    if (oserr == OS_EOK) {
+        oserr = DeviceInterruptEnable(&controller->Base.Interrupt);
+    }
+    if (oserr != OS_EOK) {
+        HCIControllerDestroy(&controller->Base);
+        return NULL;
+    }
 
     // Enable device
     TRACE("... enabling device");
@@ -133,9 +145,7 @@ HCIControllerCreate(
     );
     if (oserr != OS_EOK) {
         ERROR("Failed to enable the ohci-controller");
-        UnregisterInterruptSource(controller->Base.Interrupt);
-        ReleaseDeviceIo(controller->Base.IoBase);
-        free(controller);
+        HCIControllerDestroy(&controller->Base);
         return NULL;
     }
 
@@ -153,19 +163,26 @@ void
 HCIControllerDestroy(
     _In_ UsbManagerController_t* Controller)
 {
+    WRITE_VOLATILE(((OhciController_t*)Controller)->Registers->HcInterruptDisable, OHCI_MASTER_INTERRUPT);
+    
+    // Synchronize delivery before freeing queues, events or mapped handler state.
+    if (DeviceInterruptDestroy(&Controller->Interrupt) != OS_EOK) {
+        ERROR("Failed to release controller interrupt; keeping its resources alive");
+        return;
+    }
+
     // Unregister us with service
     UsbManagerDestroyController(Controller);
 
     // Cleanup scheduler
-    OHCIQueueDestroy((OhciController_t*)Controller);
+    if (Controller->Scheduler != NULL) {
+        OHCIQueueDestroy((OhciController_t*)Controller);
+    }
 
     // Free resources
     if (((OhciController_t*)Controller)->Hcca != NULL) {
         OSHandleDestroy(&((OhciController_t *) Controller)->HccaDMA);
     }
-
-    // Unregister the interrupt
-    UnregisterInterruptSource(Controller->Interrupt);
 
     // Release the io-space
     ReleaseDeviceIo(Controller->IoBase);

@@ -49,6 +49,7 @@ typedef struct InterruptTableEntry {
     _Atomic(SystemInterrupt_t*) Descriptor;
     int                         Penalty;
     int                         Sharable;
+    unsigned int                EnabledCount;
 } InterruptTableEntry_t;
 
 static InterruptTableEntry_t g_interruptTable[MAX_SUPPORTED_INTERRUPTS] = { { 0 } };
@@ -121,8 +122,8 @@ InterruptReclaimRetired(void)
     }
 
     // Keep descriptors with an outstanding InterruptGet() reference on the
-    // retired list. They are no longer dispatchable, but their storage and
-    // user mapping must remain valid until the reference is released.
+    // retired list. A reference protects the descriptor's identity fields;
+    // handler mappings are protected separately by the dispatch reader count.
     retired = g_retiredInterrupts;
     g_retiredInterrupts = NULL;
     while (retired != NULL) {
@@ -262,8 +263,8 @@ InterruptCleanupIoResources(
  * kernel space to allow the handler to access them. */
 static oserr_t
 InterruptResolveIoResources(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ SystemInterrupt_t* systemInterrupt)
+    _In_ InterruptDescriptor_t* deviceInterrupt,
+    _In_ SystemInterrupt_t*     systemInterrupt)
 {
     InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* Destination = &systemInterrupt->KernelResources;
@@ -317,8 +318,8 @@ InterruptCleanupMemoryResources(
  * kernel space to allow the handler to access them. */
 static oserr_t
 InterruptResolveMemoryResources(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
-    _In_ SystemInterrupt_t* systemInterrupt)
+    _In_ InterruptDescriptor_t* deviceInterrupt,
+    _In_ SystemInterrupt_t*     systemInterrupt)
 {
     InterruptResourceTable_t* source      = &deviceInterrupt->ResourceTable;
     InterruptResourceTable_t* destination = &systemInterrupt->KernelResources;
@@ -336,13 +337,13 @@ InterruptResolveMemoryResources(
             }
 
             oserr = MemorySpaceCloneMapping(
-                    GetCurrentMemorySpace(),
-                    GetCurrentMemorySpace(),
-                    source->MemoryResources[i].Address,
-                    &updatedMapping,
-                    length,
-                    pageFlags,
-                    placementFlags
+                GetCurrentMemorySpace(),
+                GetCurrentMemorySpace(),
+                source->MemoryResources[i].Address,
+                &updatedMapping,
+                length,
+                pageFlags,
+                placementFlags
             );
             if (oserr != OS_EOK) {
                 ERROR(" > failed to clone interrupt resource mapping");
@@ -362,16 +363,9 @@ InterruptResolveMemoryResources(
     return oserr;
 }
 
-/**
- * Maps the neccessary fast-interrupt resources into kernel space
- * and allowing the interrupt handler to access the requested memory spaces.
- * @param deviceInterrupt
- * @param systemInterrupt
- * @return
- */
 static oserr_t
 InterruptResolveResources(
-    _In_ DeviceInterrupt_t* deviceInterrupt,
+    _In_ InterruptDescriptor_t* deviceInterrupt,
     _In_ SystemInterrupt_t* systemInterrupt)
 {
     InterruptResourceTable_t* Source      = &deviceInterrupt->ResourceTable;
@@ -444,216 +438,459 @@ InterruptReleaseResources(
         return OS_EOK;
     }
 
-    // Unmap and release the fast-handler that we had mapped in.
-    Offset      = ((uintptr_t)resources->Handler) % GetMemorySpacePageSize();
-    Length      = GetMemorySpacePageSize() + Offset;
-    osStatus      = MemorySpaceUnmap(GetCurrentMemorySpace(),
-        (uintptr_t)resources->Handler, Length);
-    if (osStatus != OS_EOK) {
-        ERROR(" > failed to cleanup interrupt handler mapping");
-        return osStatus;
-    }
-
+    // Release data mappings first and the handler last. Keeping Handler set
+    // until the end lets a failed cleanup retry the remaining resources.
     osStatus = InterruptCleanupIoResources(Interrupt);
     if (osStatus != OS_EOK) {
-        ERROR(" > failed to cleanup interrupt io resources");
         return osStatus;
     }
-
+    
     osStatus = InterruptCleanupMemoryResources(Interrupt);
     if (osStatus != OS_EOK) {
-        ERROR(" > failed to cleanup interrupt memory resources");
         return osStatus;
+    }
+    
+    Offset = ((uintptr_t)resources->Handler) % GetMemorySpacePageSize();
+    Length = GetMemorySpacePageSize() + Offset;
+    
+    osStatus = MemorySpaceUnmap(GetCurrentMemorySpace(),
+        (uintptr_t)resources->Handler, Length);
+    if (osStatus == OS_EOK) {
+        resources->Handler = NULL;
     }
     return osStatus;
 }
 
-uuid_t
-InterruptRegister(
-        _In_ DeviceInterrupt_t* deviceInterrupt,
-        _In_ unsigned int       flags)
+oserr_t
+InterruptReserve(
+    _InOut_ InterruptDescriptor_t* descriptor,
+    _In_    unsigned int           flags,
+    _Out_   uuid_t*                idOut)
 {
-    SystemInterrupt_t* systemInterrupt;
-    uuid_t             tableIndex;
-    uuid_t             id;
+    SystemInterrupt_t*     entry;
+    InterruptTableEntry_t* slot;
+    uuid_t                 index;
+    oserr_t                status;
 
-    if (!deviceInterrupt) {
-        return UUID_INVALID;
+    if (descriptor == NULL || idOut == NULL) {
+        return OS_EINVALPARAMS;
     }
-
-    // Reclaim entries retired by an earlier interrupt-context unregister.
+    *idOut = UUID_INVALID;
+    
+    // Start out by reclaiming retired interrupts so we have the most
+    // resources available to us when doing the reservation.
     InterruptReclaimRetired();
 
-    TRACE("InterruptRegister(Line %i Pin %i, Vector %i, Flags 0x%" PRIxIN ")",
-        deviceInterrupt->Line, deviceInterrupt->Pin, deviceInterrupt->Vectors[0], flags);
-
-    systemInterrupt = (SystemInterrupt_t*)kmalloc(sizeof(SystemInterrupt_t));
-    if (!systemInterrupt) {
-        return UUID_INVALID;
+    status = InterruptResolve(descriptor, flags, &index);
+    if (status != OS_EOK) {
+        return status;
     }
-    
-    // TODO: change this to use handle system
-    id = atomic_fetch_add(&g_nextInterruptId, 1);
-    memset((void*)systemInterrupt, 0, sizeof(SystemInterrupt_t));
-    atomic_init(&systemInterrupt->References, 0);
-
-    systemInterrupt->Id           = (id << 16U);
-    systemInterrupt->Owner        = UUID_INVALID;
-    systemInterrupt->Thread       = ThreadCurrentHandle();
-    systemInterrupt->Flags        = flags;
-    systemInterrupt->Line         = deviceInterrupt->Line;
-    systemInterrupt->Pin          = deviceInterrupt->Pin;
-    systemInterrupt->AcpiConform  = deviceInterrupt->AcpiConform;
-
-    // Get process id?
-    if (!(flags & INTERRUPT_KERNEL)) {
-        systemInterrupt->Owner = GetCurrentMemorySpaceHandle();
-    }
-
-    // Resolve the table index
-    if (InterruptResolve(deviceInterrupt, flags, &tableIndex) != OS_EOK) {
-        ERROR("Failed to resolve the interrupt, invalid flags.");
-        kfree(systemInterrupt);
-        return UUID_INVALID;
-    }
-
-    // Update remaining members now that we resolved
-    systemInterrupt->Source                         = deviceInterrupt->Line; // clear Source for software interrupts?
-    systemInterrupt->Id                            |= tableIndex;
-    systemInterrupt->Handler                        = deviceInterrupt->ResourceTable.Handler;
-    systemInterrupt->Context                        = deviceInterrupt->Context;
-    systemInterrupt->KernelResources.HandleResource = deviceInterrupt->ResourceTable.HandleResource;
-
-    // Trace
-    TRACE("Updated line %i:%i for index 0x%" PRIxIN,
-          deviceInterrupt->Line, deviceInterrupt->Pin, tableIndex);
-
-    // If it's an user interrupt, resolve resources
-    if (systemInterrupt->Owner != UUID_INVALID) {
-        if (InterruptResolveResources(deviceInterrupt, systemInterrupt) != OS_EOK) {
-            ERROR(" > failed to resolve the requested resources");
-            kfree(systemInterrupt);
-            return UUID_INVALID;
-        }
-    }
-    
-    // Initialize the table entry?
-    SpinlockAcquireIrq(&g_interruptTableLock);
-
-    // Check sharing while holding the same lock used to publish the entry.
-    if (flags & INTERRUPT_EXCLUSIVE) {
-        if (atomic_load(&g_interruptTable[tableIndex].Descriptor) != NULL) {
-            ERROR(" > can't gain exclusive access as there exist interrupt for 0x%x", tableIndex);
-            SpinlockReleaseIrq(&g_interruptTableLock);
-            if (systemInterrupt->Owner != UUID_INVALID) {
-                InterruptReleaseResources(systemInterrupt);
-            }
-            kfree(systemInterrupt);
-            return UUID_INVALID;
-        }
-    } else if (g_interruptTable[tableIndex].Sharable != 1 && g_interruptTable[tableIndex].Penalty > 0) {
-        ERROR(" > existing interrupt has exclusive access");
-        SpinlockReleaseIrq(&g_interruptTableLock);
-        if (systemInterrupt->Owner != UUID_INVALID) {
-            InterruptReleaseResources(systemInterrupt);
-        }
-        kfree(systemInterrupt);
-        return UUID_INVALID;
-    }
-
-    if (atomic_load(&g_interruptTable[tableIndex].Descriptor) == NULL) {
-        g_interruptTable[tableIndex].Sharable = (flags & INTERRUPT_EXCLUSIVE) ? 0 : 1;
-    } else {
-        atomic_store(&systemInterrupt->Link,
-                     atomic_load(&g_interruptTable[tableIndex].Descriptor));
-    }
-    
-    // Increment rather than set, retired entries may still hold a penalty.
-    g_interruptTable[tableIndex].Penalty++;
-    systemInterrupt->HasPenalty = 1;
-    atomic_store(&g_interruptTable[tableIndex].Descriptor, systemInterrupt);
-
-    // Enable the new interrupt
-    if (InterruptConfigure(systemInterrupt, 1) != OS_EOK) {
-        ERROR("Failed to enable source %" PRIiIN "", systemInterrupt->Source);
-        atomic_store(&g_interruptTable[tableIndex].Descriptor,
-                     atomic_load(&systemInterrupt->Link));
-        InterruptRetire(systemInterrupt);
-        SpinlockReleaseIrq(&g_interruptTableLock);
-        InterruptReclaimRetired();
-        return UUID_INVALID;
-    }
-    SpinlockReleaseIrq(&g_interruptTableLock);
-    
-    TRACE("Interrupt Id 0x%" PRIxIN " (Handler 0x%" PRIxIN ", Context 0x%" PRIxIN ")",
-          systemInterrupt->Id, systemInterrupt->Interrupt.ResourceTable.Handler, systemInterrupt->Interrupt.Context);
-    return systemInterrupt->Id;
-}
-
-oserr_t
-InterruptUnregister(
-        _In_ uuid_t Source)
-{
-    SystemInterrupt_t* Entry;
-    SystemInterrupt_t* Previous   = NULL;
-    uint16_t           TableIndex = LOWORD(Source);
-    int                Found      = 0;
-
-    // Sanitize parameter
-    if (TableIndex >= MAX_SUPPORTED_INTERRUPTS) {
+    if (index >= MAX_SUPPORTED_INTERRUPTS) {
         return OS_EINVALPARAMS;
     }
     
-    // Iterate handlers in that table index and unlink the given entry
-    SpinlockAcquireIrq(&g_interruptTableLock);
-    Entry = atomic_load(&g_interruptTable[TableIndex].Descriptor);
-    while (Entry) {
-        if (Entry->Id == Source) {
-            if (!(Entry->Flags & INTERRUPT_KERNEL)) {
-                if (Entry->Owner != GetCurrentMemorySpaceHandle()) {
-                    Previous = Entry;
-                    Entry    = atomic_load(&Entry->Link);
-                    continue;
-                }
-            }
-
-            // Marked entry as found
-            Found = 1;
-            if (Previous == NULL) {
-                atomic_store(&g_interruptTable[TableIndex].Descriptor,
-                             atomic_load(&Entry->Link));
-            } else {
-                atomic_store(&Previous->Link, atomic_load(&Entry->Link));
-            }
-            
-            // Mask the line once its last handler is gone. The penalty stays
-            // until the grace period, see InterruptReclaimRetired().
-            if (atomic_load(&g_interruptTable[TableIndex].Descriptor) == NULL) {
-                InterruptConfigure(Entry, 0);
-            }
-            
-            InterruptRetire(Entry);
-            break;
-        }
-        Previous = Entry;
-        Entry    = atomic_load(&Entry->Link);
+    entry = kmalloc(sizeof(SystemInterrupt_t));
+    if (entry == NULL) {
+        return OS_EOOM;
     }
+    memset(entry, 0, sizeof(SystemInterrupt_t));
+    atomic_init(&entry->References, 0);
+    atomic_init(&entry->Enabled, 0);
+    atomic_init(&entry->Link, NULL);
+    entry->Id = (atomic_fetch_add(&g_nextInterruptId, 1) << 16U) | index;
+    entry->Owner = (flags & INTERRUPT_KERNEL) ? UUID_INVALID : GetCurrentMemorySpaceHandle();
+    entry->Thread = ThreadCurrentHandle();
+    entry->Flags = flags;
+    entry->Line = descriptor->Line;
+    entry->Source = descriptor->Line;
+    entry->Pin = descriptor->Pin;
+    entry->AcpiConform = descriptor->AcpiConform;
+    entry->Context = descriptor->Context;
+
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    
+    slot = &g_interruptTable[index];
+    // Retired handlers may still be running. Their reservation must also prevent
+    // an exclusive claimant from taking the same line before they finish.
+    if (slot->Penalty > 0 && ((flags & INTERRUPT_EXCLUSIVE) || !slot->Sharable)) {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        kfree(entry);
+        return OS_EBUSY;
+    }
+    if (slot->Penalty == 0) {
+        slot->Sharable = !(flags & INTERRUPT_EXCLUSIVE);
+    }
+    slot->Penalty++;
+    entry->HasPenalty = 1;
+    atomic_store(&entry->Link, atomic_load(&slot->Descriptor));
+    atomic_store(&slot->Descriptor, entry);
+    
+    // Store the id while we got the lock for consistency
+    *idOut = entry->Id;
     SpinlockReleaseIrq(&g_interruptTableLock);
 
-    // Entry must not be touched past this point, it may already be reclaimed.
-    if (!Found) {
-        return OS_ENOENT;
+    return OS_EOK;
+}
+
+// Ensures an interrupt can only make locked updates. This returns
+// an reference to a registered interrupt
+static oserr_t
+__BeginInterruptUpdate(
+    _In_  uuid_t              id,
+    _Out_ SystemInterrupt_t** entryOut)
+{
+    SystemInterrupt_t* entry;
+    uint16_t           index = LOWORD(id);
+
+    if (id == UUID_INVALID || index >= MAX_SUPPORTED_INTERRUPTS) {
+        return OS_EINVALPARAMS;
     }
 
-    // A caller in interrupt context cannot wait for a grace period because
-    // the current handler may be the reader keeping this entry alive. Normal
-    // callers wait, so returning from unregister guarantees that the entry
-    // and its context are no longer in use.
-    if (!InterruptGetActiveStatus()) {
-        while (atomic_load(&g_interruptReaders) != 0) {
-            ArchThreadYield();
+    SpinlockAcquireIrq(&g_interruptTableLock);
+
+    // Find the entry in the list of the interrupt table
+    entry = atomic_load(&g_interruptTable[index].Descriptor);
+    while (entry != NULL && entry->Id != id) {
+        entry = atomic_load(&entry->Link);
+    }
+    
+    // If we didn't find the entry, or the rights were not correct
+    // then we return bad result
+    if (entry == NULL || (!(entry->Flags & INTERRUPT_KERNEL) &&
+                         entry->Owner != GetCurrentMemorySpaceHandle())) {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        return OS_ENOENT;
+    }
+    
+    // If the entry is in the process of updating, try again later
+    if (entry->Updating) {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        return OS_EBUSY;
+    }
+    
+    entry->Updating = 1;
+    atomic_fetch_add(&entry->References, 1);
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    
+    *entryOut = entry;
+    return OS_EOK;
+}
+
+// Releases the reference on an interrupt and ends the "updating"
+// state
+static void
+__EndInterruptUpdate(
+    _In_ SystemInterrupt_t* entry)
+{
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    entry->Updating = 0;
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    
+    InterruptPut(entry);
+}
+
+static void
+__SynchronizeInterrupts(void)
+{
+    while (atomic_load(&g_interruptReaders) != 0) {
+        ArchThreadYield();
+    }
+    InterruptReclaimRetired();
+}
+
+static oserr_t
+__ValidateInterruptResources(
+    _In_ InterruptResourceTable_t* resources)
+{
+    FastInterruptMemoryResource_t* memory;
+
+    if (resources == NULL || resources->Handler == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    
+    for (unsigned int i = 0; i < INTERRUPT_MAX_MEMORY_RESOURCES; i++) {
+        memory = &resources->MemoryResources[i];
+        if (memory->Address == 0 && memory->Length == 0 && memory->Flags == 0) {
+            continue;
         }
-        InterruptReclaimRetired();
+        if (memory->Address == 0 || memory->Length == 0) {
+            return OS_EINVALPARAMS;
+        }
+        if (memory->Length > UINTPTR_MAX - memory->Address ||
+            (memory->Flags & ~INTERRUPT_RESOURCE_DISABLE_CACHE)) {
+            return OS_EINVALPARAMS;
+        }
+    }
+    return OS_EOK;
+}
+
+// Binds resources to a previously allocated interrupt vector
+oserr_t
+InterruptBind(
+    _In_ uuid_t                    id,
+    _In_ InterruptResourceTable_t* resources)
+{
+    InterruptDescriptor_t request = { 0 };
+    SystemInterrupt_t     mapped = { 0 };
+    SystemInterrupt_t*    entry;
+    oserr_t               status;
+
+    if (InterruptGetActiveStatus()) {
+        return OS_EINVALPARAMS;
+    }
+
+    // Interrupt syscalls can be invoked outside libddk (but hopefully not)
+    // so we also must validate certain resource aspects here
+    status = __ValidateInterruptResources(resources);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // Do a locked update of the reserved interrupt
+    status = __BeginInterruptUpdate(id, &entry);
+    if (status != OS_EOK) {
+        return status;
+    }
+    if (entry->Bound || atomic_load(&entry->Enabled)) {
+        // always release the reference
+        __EndInterruptUpdate(entry);
+        return OS_EBUSY;
+    }
+    
+    request.ResourceTable = *resources;
+    mapped.KernelResources.HandleResource = resources->HandleResource;
+    
+    if (!(entry->Flags & INTERRUPT_KERNEL)) {
+        status = InterruptResolveResources(&request, &mapped);
+    }
+    
+    if (status == OS_EOK) {
+        entry->KernelResources = mapped.KernelResources;
+        entry->Handler = resources->Handler;
+        entry->Bound = 1;
+    } else if (mapped.KernelResources.Handler != NULL) {
+        // Mapping failed and cleanup also failed. Preserve the remaining
+        // mappings in the reservation so Unbind can retry instead of leaking.
+        entry->KernelResources = mapped.KernelResources;
+        entry->Bound = 1;
+        entry->Unbinding = 1;
+    }
+
+    // Release the reference, so we publish the changes
+    __EndInterruptUpdate(entry);
+    return status;
+}
+
+static oserr_t
+__SetInterruptEnabledLocked(
+    _In_ SystemInterrupt_t* entry,
+    _In_ int                enable)
+{
+    InterruptTableEntry_t* slot = &g_interruptTable[LOWORD(entry->Id)];
+    oserr_t                status;
+
+    if (atomic_load(&entry->Enabled) == enable) {
+        return OS_EOK;
+    }
+
+    if (enable) {
+        if (!entry->Bound || entry->Unbinding) {
+            return OS_EINVALPARAMS;
+        }
+
+        // Publish the fully mapped handler before hardware can deliver to it.
+        atomic_store(&entry->Enabled, 1);
+        if (slot->EnabledCount == 0) {
+            status = InterruptConfigure(entry, 1);
+            if (status != OS_EOK) {
+                atomic_store(&entry->Enabled, 0);
+                return status;
+            }
+        }
+        slot->EnabledCount++;
+    } else {
+        if (slot->EnabledCount == 1) {
+            status = InterruptConfigure(entry, 0);
+            if (status != OS_EOK) {
+                return status;
+            }
+        }
+        atomic_store(&entry->Enabled, 0);
+        slot->EnabledCount--;
+    }
+    return OS_EOK;
+}
+
+oserr_t
+InterruptSetEnabled(
+    _In_ uuid_t id,
+    _In_ int    enable)
+{
+    SystemInterrupt_t* entry;
+    oserr_t            status;
+
+    if ((enable != 0 && enable != 1) || InterruptGetActiveStatus()) {
+        return OS_EINVALPARAMS;
+    }
+    
+    // Get a locked reference to the interrupt handle
+    status = __BeginInterruptUpdate(id, &entry);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    // Update the interrupt state of the line
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    status = __SetInterruptEnabledLocked(entry, enable);
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    if (!enable || status != OS_EOK) {
+        // When disabling, ensure we synchronize the state
+        __SynchronizeInterrupts();
+    }
+    
+    // Release the reference again
+    __EndInterruptUpdate(entry);
+    return status;
+}
+
+// Unbinding releases resources without releasing the interrupt reservation
+oserr_t
+InterruptUnbind(
+    _In_ uuid_t id)
+{
+    SystemInterrupt_t* entry;
+    oserr_t            status;
+
+    if (InterruptGetActiveStatus()) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = __BeginInterruptUpdate(id, &entry);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    if (atomic_load(&entry->Enabled)) {
+        __EndInterruptUpdate(entry);
+        return OS_EBUSY;
+    }
+    
+    __SynchronizeInterrupts();
+    if (entry->Bound && !(entry->Flags & INTERRUPT_KERNEL)) {
+        // A failed unmap can leave only part of the table valid. Keep cleanup
+        // retryable, but reject Enable until every mapping has been released.
+        entry->Unbinding = 1;
+        status = InterruptReleaseResources(entry);
+    }
+    if (status == OS_EOK) {
+        memset(&entry->KernelResources, 0, sizeof(entry->KernelResources));
+        entry->Handler = NULL;
+        entry->Bound = 0;
+        entry->Unbinding = 0;
+    }
+    __EndInterruptUpdate(entry);
+    return status;
+}
+
+/**
+ * @brief Installs a kernel source using the same reservation and binding steps.
+ * Boot timers and CPU messages already supply complete descriptors, so this
+ * helper performs the sequence for them and returns their interrupt identity.
+ */
+uuid_t
+InterruptRegister(
+    _In_ InterruptDescriptor_t* descriptor,
+    _In_ unsigned int           flags)
+{
+    uuid_t  id;
+    oserr_t status;
+
+    status = InterruptReserve(descriptor, flags, &id);
+    if (status != OS_EOK) {
+        return UUID_INVALID;
+    }
+    
+    status = InterruptBind(id, &descriptor->ResourceTable);
+    if (status == OS_EOK) {
+        status = InterruptSetEnabled(id, 1);
+    }
+    if (status != OS_EOK) {
+        InterruptUnregister(id);
+        return UUID_INVALID;
+    }
+    return id;
+}
+
+/**
+ * @brief Releases one reservation without disturbing other enabled users.
+ * Entries removed by a handler remain on the retired list until dispatch exits;
+ * normal callers wait before returning so their backing resources can be freed.
+ */
+oserr_t
+InterruptUnregister(
+    _In_ uuid_t id)
+{
+    SystemInterrupt_t*     entry;
+    SystemInterrupt_t*     previous = NULL;
+    SystemInterrupt_t*     iterator;
+    InterruptTableEntry_t* slot;
+    oserr_t                status;
+
+    status = __BeginInterruptUpdate(id, &entry);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    if (InterruptGetActiveStatus() && !(entry->Flags & INTERRUPT_KERNEL)) {
+        // User mappings require ordinary execution context for cleanup. Kernel
+        // sources can still retire themselves from their own interrupt handler.
+        __EndInterruptUpdate(entry);
+        return OS_EBUSY;
+    }
+    
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    status = __SetInterruptEnabledLocked(entry, 0);
+    if (status != OS_EOK) {
+        SpinlockReleaseIrq(&g_interruptTableLock);
+        __EndInterruptUpdate(entry);
+        return status;
+    }
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    
+    if (entry->Bound && !(entry->Flags & INTERRUPT_KERNEL)) {
+        // Keep the disabled reservation until cleanup succeeds. A
+        // failed unmap must not turn into an orphaned allocation or mapping.
+        __SynchronizeInterrupts();
+        entry->Unbinding = 1;
+        
+        status = InterruptReleaseResources(entry);
+        if (status != OS_EOK) {
+            __EndInterruptUpdate(entry);
+            return status;
+        }
+        entry->Bound = 0;
+        entry->Unbinding = 0;
+    }
+    
+    SpinlockAcquireIrq(&g_interruptTableLock);
+    slot = &g_interruptTable[LOWORD(id)];
+    iterator = atomic_load(&slot->Descriptor);
+    while (iterator != entry) {
+        previous = iterator;
+        iterator = atomic_load(&iterator->Link);
+    }
+    if (previous == NULL) {
+        atomic_store(&slot->Descriptor, atomic_load(&entry->Link));
+    } else {
+        atomic_store(&previous->Link, atomic_load(&entry->Link));
+    }
+    
+    InterruptRetire(entry);
+    SpinlockReleaseIrq(&g_interruptTableLock);
+    
+    InterruptPut(entry);
+    if (!InterruptGetActiveStatus()) {
+        __SynchronizeInterrupts();
     }
     return OS_EOK;
 }
@@ -735,6 +972,13 @@ InterruptHandle(
     InterruptReadEnter();
     entry = atomic_load(&g_interruptTable[tableIndex].Descriptor);
     while (entry != NULL) {
+        // A disabled reservation may share a line with enabled devices. Keep
+        // its line available for acknowledgement, but never call its handler.
+        interruptSource = entry->Source;
+        if (!atomic_load(&entry->Enabled)) {
+            entry = atomic_load(&entry->Link);
+            continue;
+        }
         if (entry->Flags & INTERRUPT_KERNEL) {
             interruptStatus = entry->Handler(GetFastInterruptTable(), entry->Context);
         } else {

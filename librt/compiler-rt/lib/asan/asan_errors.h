@@ -53,9 +53,9 @@ struct ErrorDeadlySignal : ErrorBase {
       scariness.Scare(10, "null-deref");
     } else if (signal.addr == signal.pc) {
       scariness.Scare(60, "wild-jump");
-    } else if (signal.write_flag == SignalContext::WRITE) {
+    } else if (signal.write_flag == SignalContext::Write) {
       scariness.Scare(30, "wild-addr-write");
-    } else if (signal.write_flag == SignalContext::READ) {
+    } else if (signal.write_flag == SignalContext::Read) {
       scariness.Scare(20, "wild-addr-read");
     } else {
       scariness.Scare(25, "wild-addr");
@@ -94,6 +94,25 @@ struct ErrorNewDeleteTypeMismatch : ErrorBase {
     GetHeapAddressInformation(addr, 1, &addr_description);
   }
   void Print();
+};
+
+struct ErrorFreeSizeMismatch : ErrorBase {
+  const BufferedStackTrace* free_stack;
+  HeapAddressDescription addr_description;
+  uptr delete_size;
+  uptr delete_alignment;
+
+  ErrorFreeSizeMismatch() = default;  // (*)
+  ErrorFreeSizeMismatch(u32 tid, BufferedStackTrace* stack, uptr addr,
+                        uptr delete_size, uptr delete_alignment)
+      : ErrorBase(tid, 10, "free-size-mismatch"),
+        free_stack(stack),
+        delete_size(delete_size),
+        delete_alignment(delete_alignment) {
+    GetHeapAddressInformation(addr, 1, &addr_description);
+  }
+  void Print();
+  bool isFreeAlignedSized() const { return delete_alignment != 0; }
 };
 
 struct ErrorFreeNotMalloced : ErrorBase {
@@ -279,16 +298,16 @@ struct ErrorStringFunctionMemoryRangesOverlap : ErrorBase {
   const char *function;
 
   ErrorStringFunctionMemoryRangesOverlap() = default;  // (*)
-  ErrorStringFunctionMemoryRangesOverlap(u32 tid, BufferedStackTrace *stack_,
-                                         uptr addr1, uptr length1_, uptr addr2,
-                                         uptr length2_, const char *function_)
+  ErrorStringFunctionMemoryRangesOverlap(u32 tid, BufferedStackTrace* stack,
+                                         uptr addr1, uptr length1, uptr addr2,
+                                         uptr length2, const char* function)
       : ErrorBase(tid),
-        stack(stack_),
-        length1(length1_),
-        length2(length2_),
+        stack(stack),
+        length1(length1),
+        length2(length2),
         addr1_description(addr1, length1, /*shouldLockThreadRegistry=*/false),
         addr2_description(addr2, length2, /*shouldLockThreadRegistry=*/false),
-        function(function_) {
+        function(function) {
     char bug_type[100];
     internal_snprintf(bug_type, sizeof(bug_type), "%s-param-overlap", function);
     scariness.Clear();
@@ -301,14 +320,16 @@ struct ErrorStringFunctionSizeOverflow : ErrorBase {
   const BufferedStackTrace *stack;
   AddressDescription addr_description;
   uptr size;
+  bool is_write;
 
   ErrorStringFunctionSizeOverflow() = default;  // (*)
-  ErrorStringFunctionSizeOverflow(u32 tid, BufferedStackTrace *stack_,
-                                  uptr addr, uptr size_)
+  ErrorStringFunctionSizeOverflow(u32 tid, BufferedStackTrace* stack, uptr addr,
+                                  uptr size, bool is_write)
       : ErrorBase(tid, 10, "negative-size-param"),
-        stack(stack_),
+        stack(stack),
         addr_description(addr, /*shouldLockThreadRegistry=*/false),
-        size(size_) {}
+        size(size),
+        is_write(is_write) {}
   void Print();
 };
 
@@ -328,6 +349,28 @@ struct ErrorBadParamsToAnnotateContiguousContainer : ErrorBase {
         end(end_),
         old_mid(old_mid_),
         new_mid(new_mid_) {}
+  void Print();
+};
+
+struct ErrorBadParamsToAnnotateDoubleEndedContiguousContainer : ErrorBase {
+  const BufferedStackTrace *stack;
+  uptr storage_beg, storage_end, old_container_beg, old_container_end,
+      new_container_beg, new_container_end;
+
+  ErrorBadParamsToAnnotateDoubleEndedContiguousContainer() = default;  // (*)
+  ErrorBadParamsToAnnotateDoubleEndedContiguousContainer(
+      u32 tid, BufferedStackTrace *stack_, uptr storage_beg_, uptr storage_end_,
+      uptr old_container_beg_, uptr old_container_end_, uptr new_container_beg_,
+      uptr new_container_end_)
+      : ErrorBase(tid, 10,
+                  "bad-__sanitizer_annotate_double_ended_contiguous_container"),
+        stack(stack_),
+        storage_beg(storage_beg_),
+        storage_end(storage_end_),
+        old_container_beg(old_container_beg_),
+        old_container_end(old_container_end_),
+        new_container_beg(new_container_beg_),
+        new_container_end(new_container_end_) {}
   void Print();
 };
 
@@ -372,34 +415,36 @@ struct ErrorGeneric : ErrorBase {
   u8 shadow_val;
 
   ErrorGeneric() = default;  // (*)
-  ErrorGeneric(u32 tid, uptr addr, uptr pc_, uptr bp_, uptr sp_, bool is_write_,
+  ErrorGeneric(u32 tid, uptr pc_, uptr bp_, uptr sp_, uptr addr, bool is_write_,
                uptr access_size_);
   void Print();
 };
 
 // clang-format off
-#define ASAN_FOR_EACH_ERROR_KIND(macro)         \
-  macro(DeadlySignal)                           \
-  macro(DoubleFree)                             \
-  macro(NewDeleteTypeMismatch)                  \
-  macro(FreeNotMalloced)                        \
-  macro(AllocTypeMismatch)                      \
-  macro(MallocUsableSizeNotOwned)               \
-  macro(SanitizerGetAllocatedSizeNotOwned)      \
-  macro(CallocOverflow)                         \
-  macro(ReallocArrayOverflow)                   \
-  macro(PvallocOverflow)                        \
-  macro(InvalidAllocationAlignment)             \
-  macro(InvalidAlignedAllocAlignment)           \
-  macro(InvalidPosixMemalignAlignment)          \
-  macro(AllocationSizeTooBig)                   \
-  macro(RssLimitExceeded)                       \
-  macro(OutOfMemory)                            \
-  macro(StringFunctionMemoryRangesOverlap)      \
-  macro(StringFunctionSizeOverflow)             \
-  macro(BadParamsToAnnotateContiguousContainer) \
-  macro(ODRViolation)                           \
-  macro(InvalidPointerPair)                     \
+#define ASAN_FOR_EACH_ERROR_KIND(macro)                    \
+  macro(DeadlySignal)                                      \
+  macro(DoubleFree)                                        \
+  macro(NewDeleteTypeMismatch)                             \
+  macro(FreeSizeMismatch)                                  \
+  macro(FreeNotMalloced)                                   \
+  macro(AllocTypeMismatch)                                 \
+  macro(MallocUsableSizeNotOwned)                          \
+  macro(SanitizerGetAllocatedSizeNotOwned)                 \
+  macro(CallocOverflow)                                    \
+  macro(ReallocArrayOverflow)                              \
+  macro(PvallocOverflow)                                   \
+  macro(InvalidAllocationAlignment)                        \
+  macro(InvalidAlignedAllocAlignment)                      \
+  macro(InvalidPosixMemalignAlignment)                     \
+  macro(AllocationSizeTooBig)                              \
+  macro(RssLimitExceeded)                                  \
+  macro(OutOfMemory)                                       \
+  macro(StringFunctionMemoryRangesOverlap)                 \
+  macro(StringFunctionSizeOverflow)                        \
+  macro(BadParamsToAnnotateContiguousContainer)            \
+  macro(BadParamsToAnnotateDoubleEndedContiguousContainer) \
+  macro(ODRViolation)                                      \
+  macro(InvalidPointerPair)                                \
   macro(Generic)
 // clang-format on
 
