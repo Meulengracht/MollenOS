@@ -278,6 +278,23 @@ VirtioNetDeviceCreate(
     _In_ BusDevice_t* busDevice);
 
 /**
+ * @brief Resolve a metadata cell to its device-visible address.
+ *
+ * The allocation may span multiple physical segments. Each cell must fit
+ * entirely within one segment for its header and padding descriptors.
+ *
+ * @param device Device owning the metadata allocation.
+ * @param offset Byte offset of the cell within the allocation.
+ * @param addressOut Device-visible start of the cell on success.
+ * @return OS_EOK, or an error if the cell is absent or crosses a segment.
+ */
+__EXTERN oserr_t
+VirtioNetMetadataAddress(
+    _In_  VirtioNetDevice_t* device,
+    _In_  size_t             offset,
+    _Out_ uintptr_t*         addressOut);
+
+/**
  * @brief Stop and release a device whose queues are no longer in use.
  * If the device cannot be reset, it may still be using its queues or shared
  * memory. In that case this function does not free the device; its caller must
