@@ -25,6 +25,7 @@
 #include <ddk/memory.h>
 #include <os/types/shm.h>
 #include <os/types/syscall.h>
+#include <capabilities.h>
 #include <debug.h>
 #include <handle.h>
 #include <heap.h>
@@ -328,9 +329,9 @@ ScSHMMap(
 
 oserr_t
 ScSHMCommit(
-        _In_ SHMHandle_t* handle,
-        _In_ void*        address,
-        _In_ size_t       length)
+    _In_ SHMHandle_t* handle,
+    _In_ void*        address,
+    _In_ size_t       length)
 {
     if (handle == NULL) {
         return OS_EINVALPARAMS;
@@ -354,23 +355,40 @@ ScSHMUnmap(
 
 oserr_t
 ScCreateMemorySpace(
-        _In_  unsigned int flags,
-        _Out_ uuid_t*      handleOut)
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      handleOut)
 {
+    oserr_t oserr;
+
     if (handleOut == NULL) {
         return OS_EUNKNOWN;
     }
-    return CreateMemorySpace(flags | MEMORY_SPACE_APPLICATION, handleOut);
+    
+    oserr = CapabilityVerify(CAPABILITY_MEMORYSPACE_MANAGEMENT);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    return CreateMemorySpace(
+        flags | MEMORY_SPACE_APPLICATION,
+        handleOut
+    );
 }
 
 oserr_t
 ScGetThreadMemorySpaceHandle(
-        _In_  uuid_t  threadHandle,
-        _Out_ uuid_t* handleOut)
+    _In_  uuid_t  threadHandle,
+    _Out_ uuid_t* handleOut)
 {
     Thread_t* thread;
+    oserr_t   oserr;
+    
     if (handleOut == NULL) {
         return OS_EUNKNOWN;
+    }
+
+    oserr = CapabilityVerify(CAPABILITY_MEMORYSPACE_MANAGEMENT);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     thread = THREAD_GET(threadHandle);
@@ -383,9 +401,9 @@ ScGetThreadMemorySpaceHandle(
 
 oserr_t
 ScCreateMemorySpaceMapping(
-        _In_  uuid_t                          handle,
-        _In_  struct MemoryMappingParameters* mappingParameters,
-        _Out_ void**                          addressOut)
+    _In_  uuid_t                          handle,
+    _In_  struct MemoryMappingParameters* mappingParameters,
+    _Out_ void**                          addressOut)
 {
     MemorySpace_t* memorySpace = (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace);
     unsigned int   memoryFlags   = MAPPING_COMMIT | MAPPING_USERSPACE;
@@ -395,13 +413,18 @@ ScCreateMemorySpaceMapping(
     oserr_t        oserr;
     TRACE("[sc_map] target address 0x%" PRIxIN ", flags 0x%x, length 0x%" PRIxIN,
           mappingParameters->VirtualAddress, mappingParameters->Flags, mappingParameters->Length);
-    
+
     if (mappingParameters == NULL || addressOut == NULL) {
         return OS_EINVALPARAMS;
     }
     
     if (memorySpace == NULL) {
         return OS_ENOENT;
+    }
+
+    oserr = CapabilityVerify(CAPABILITY_MEMORYSPACE_MANAGEMENT);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     pageCount = DIVUP(mappingParameters->Length, GetMemorySpacePageSize());
@@ -462,14 +485,19 @@ ScCreateMemorySpaceMapping(
 
 oserr_t
 ScMapThreadMemoryRegion(
-        _In_  uuid_t    threadHandle,
-        _In_  uintptr_t stackPointer,
-        _Out_ void**    topOfStack,
-        _Out_ void**    pointerOut)
+    _In_  uuid_t    threadHandle,
+    _In_  uintptr_t stackPointer,
+    _Out_ void**    topOfStack,
+    _Out_ void**    pointerOut)
 {
     Thread_t*  thread;
     uintptr_t  copiedAddress;
     oserr_t    status;
+
+    status = CapabilityVerify(CAPABILITY_MEMORYSPACE_MANAGEMENT);
+    if (status != OS_EOK) {
+        return status;
+    }
 
     thread = THREAD_GET(threadHandle);
     if (!thread) {
@@ -478,13 +506,13 @@ ScMapThreadMemoryRegion(
 
     // Map in the first page of the stack
     status = MemorySpaceCloneMapping(
-            ThreadMemorySpace(thread),
-            GetCurrentMemorySpace(),
-            stackPointer,
-            &copiedAddress,
-            GetMemorySpacePageSize() * 2,
-            MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
-            MAPPING_VIRTUAL_PROCESS
+        ThreadMemorySpace(thread),
+        GetCurrentMemorySpace(),
+        stackPointer,
+        &copiedAddress,
+        GetMemorySpacePageSize() * 2,
+        MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_PERSISTENT,
+        MAPPING_VIRTUAL_PROCESS
     );
     if (status != OS_EOK) {
         return status;

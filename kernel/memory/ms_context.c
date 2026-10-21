@@ -35,6 +35,7 @@ MSContextNew(void)
                                GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
     list_construct(&context->Allocations);
     context->SignalHandler = 0;
+    context->Capabilities = 0;
     return context;
 }
 

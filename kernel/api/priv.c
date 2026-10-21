@@ -27,6 +27,7 @@
 #include <arch/utils.h>
 #include <ddk/acpi.h>
 #include <ddk/types/interrupt.h>
+#include <capabilities.h>
 #include <deviceio.h>
 #include <firmware.h>
 #include <handle.h>
@@ -38,11 +39,24 @@
 #include <string.h>
 
 oserr_t
+ScCapabilityGrant(
+    _In_ Capabilities_t capabilities,
+    _In_ uuid_t         memorySpaceHandle)
+{
+    return CapabilityGrant(capabilities, memorySpaceHandle);
+}
+
+oserr_t
 ScFirmwareQuery(
     _Out_ OSFirmwareInfo_t* infoOut)
 {
     OSFirmwareInfo_t info;
     oserr_t          oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     oserr = FirmwareQuery(&info);
     if (oserr != OS_EOK) {
@@ -59,6 +73,11 @@ __LocateFirmwareTable(
 {
     OSFirmwareTableKey_t key;
     oserr_t              oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     oserr = MemorySpaceCopyUser((void*)userKey, &key, sizeof(key), false);
     if (oserr != OS_EOK) {
@@ -78,6 +97,11 @@ ScFirmwareTableLocate(
 
     if (tableOut == NULL) {
         return OS_EINVALPARAMS;
+    }
+
+    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     oserr = __LocateFirmwareTable(key, &data, &table);
@@ -100,6 +124,11 @@ ScFirmwareTableRead(
 
     if (lengthOut == NULL) {
         return OS_EINVALPARAMS;
+    }
+
+    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     oserr = __LocateFirmwareTable(key, &data, &table);
@@ -133,6 +162,11 @@ ScFirmwareTableMap(
 
     if (mappingOut == NULL || lengthOut == NULL) {
         return OS_EINVALPARAMS;
+    }
+
+    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     oserr = __LocateFirmwareTable(key, &data, &table);
@@ -197,6 +231,13 @@ ScAcpiQueryInterrupt(
     _Out_ int*          interruptOut,
     _Out_ unsigned int* acpiConformOut)
 {
+    oserr_t oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_FIRMWARE_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
 #ifdef __OSCONFIG_ACPI_SUPPORT
     return AcpiDeviceGetInterrupt(bus, device, pin, interruptOut, acpiConformOut);
 #else
@@ -213,9 +254,17 @@ oserr_t
 ScIoSpaceRegister(
     _In_ DeviceIo_t* ioSpace)
 {
+    oserr_t oserr;
+
     if (ioSpace == NULL) {
         return OS_EUNKNOWN;
     }
+    
+    oserr = CapabilityVerify(CAPABILITY_DEVICEIO_MANAGEMENT);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
     return RegisterSystemDeviceIo(ioSpace);
 }
 
@@ -223,9 +272,17 @@ oserr_t
 ScIoSpaceAcquire(
     _In_ DeviceIo_t* IoSpace)
 {
+    oserr_t oserr;
+
     if (IoSpace == NULL) {
         return OS_EUNKNOWN;
     }
+    
+    oserr = CapabilityVerify(CAPABILITY_DEVICEIO_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
     return AcquireSystemDeviceIo(IoSpace);
 }
 
@@ -233,9 +290,17 @@ oserr_t
 ScIoSpaceRelease(
     _In_ DeviceIo_t* ioSpace)
 {
+    oserr_t oserr;
+
     if (ioSpace == NULL) {
         return OS_EUNKNOWN;
     }
+    
+    oserr = CapabilityVerify(CAPABILITY_DEVICEIO_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
     return ReleaseSystemDeviceIo(ioSpace);
 }
 
@@ -243,11 +308,52 @@ oserr_t
 ScIoSpaceDestroy(
     _In_ DeviceIo_t* ioSpace)
 {
+    oserr_t oserr;
+
     if (ioSpace == NULL) {
         return OS_EINVALPARAMS;
     }
+    
+    oserr = CapabilityVerify(CAPABILITY_DEVICEIO_MANAGEMENT);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
     DestroyHandle(ioSpace->Id);
     return OS_EOK;
+}
+
+oserr_t
+ScIoSpaceMap(
+    _In_  uuid_t     id,
+    _In_  size_t     offset,
+    _In_  size_t     length,
+    _Out_ uintptr_t* userMapping)
+{
+    uintptr_t mapping;
+    size_t    pageOffset;
+    oserr_t   oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_DEVICEIO_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    if (userMapping == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    oserr = MapSystemDeviceIo(id, offset, length, &mapping);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
+    oserr = MemorySpaceCopyUser(userMapping, &mapping, sizeof(mapping), true);
+    if (oserr != OS_EOK) {
+        pageOffset = mapping % GetMemorySpacePageSize();
+        MemorySpaceUnmap(GetCurrentMemorySpace(), mapping - pageOffset, length + pageOffset);
+    }
+    return oserr;
 }
 
 static oserr_t
@@ -278,12 +384,8 @@ __CopyAndVerifyGroupRequest(
     }
 
     // libddk checks PCI support before making this request. Vali has no device
-    // access checks yet. This syscall accepts single-message MSI and INTx.
-    kernelRequest->Strategies &= INTERRUPT_STRATEGY_MSI | INTERRUPT_STRATEGY_INTx;
-    if (kernelRequest->Strategies == 0 || kernelRequest->Minimum != 1) {
-        return OS_ENOTSUPPORTED;
-    }
-    if (!(kernelRequest->Strategies & INTERRUPT_STRATEGY_MSI) && kernelRequest->Line.Line < 0) {
+    // access checks yet. The group allocator negotiates MSI-X, single MSI or INTx.
+    if (kernelRequest->Strategies == INTERRUPT_STRATEGY_INTx && kernelRequest->Line.Line < 0) {
         return OS_ENOENT;
     }
     return OS_EOK;
@@ -294,36 +396,41 @@ ScInterruptAllocate(
     _In_  InterruptGroupRequest_t* userRequest,
     _Out_ InterruptGroupResult_t*  userResult)
 {
-    InterruptGroupRequest_t      request;
-    InterruptGroupResult_t       result;
-    oserr_t                      status;
+    InterruptGroupRequest_t request;
+    InterruptGroupResult_t  result;
+    oserr_t                 oserr;
 
     if (userRequest == NULL || userResult == NULL) {
         return OS_EINVALPARAMS;
     }
     
-    status = __CopyAndVerifyGroupRequest(userRequest, &request);
-    if (status != OS_EOK) {
-        return status;
-    }
-    
-    status = InterruptGroupCreate(&request, 0, &result);
-    if (status != OS_EOK) {
-        return status;
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
-    status = MemorySpaceCopyUser(
+    oserr = __CopyAndVerifyGroupRequest(userRequest, &request);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+    
+    oserr = InterruptGroupCreate(&request, 0, &result);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
+
+    oserr = MemorySpaceCopyUser(
         userResult,
         &result,
         sizeof(InterruptGroupResult_t),
         true
     );
-    if (status != OS_EOK) {
+    if (oserr != OS_EOK) {
         // Just unregister if it fails, no resources has been bound to
         // the irq yet
         InterruptGroupRelease(result.Handle);
     }
-    return status;
+    return oserr;
 }
 
 static oserr_t
@@ -341,19 +448,24 @@ ScInterruptGetMessage(
 {
     InterruptMessage_t       message;
     DeviceInterruptMessage_t result;
-    oserr_t                  status;
+    oserr_t                  oserr;
+    
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
-    status = __CheckInterruptOwner(handle);
-    if (status != OS_EOK) {
-        return status;
+    oserr = __CheckInterruptOwner(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     if (userMessage == NULL) {
         return OS_EINVALPARAMS;
     }
 
-    status = InterruptGroupGetMessage(handle, index, &message);
-    if (status != OS_EOK) {
-        return status;
+    oserr = InterruptGroupGetMessage(handle, index, &message);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
 
     result.AddressLow = (uint32_t)message.Address;
@@ -368,27 +480,32 @@ ScInterruptBind(
     _In_ InterruptBindRequest_t* userRequest)
 {
     InterruptBindRequest_t request;
-    oserr_t                status;
+    oserr_t                oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Before binding resources to an interrupt handle
     // ensure we can do this
-    status = __CheckInterruptOwner(handle);
-    if (status != OS_EOK) {
-        return status;
+    oserr = __CheckInterruptOwner(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     if (userRequest == NULL) {
         return OS_EINVALPARAMS;
     }
     
     // get the request data
-    status = MemorySpaceCopyUser(
+    oserr = MemorySpaceCopyUser(
         userRequest,
         &request,
         sizeof(InterruptBindRequest_t),
         false
     );
-    if (status != OS_EOK) {
-        return status;
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     // execute the request
     return InterruptGroupBind(handle, request.Index, &request.Resources);
@@ -398,12 +515,17 @@ oserr_t
 ScInterruptEnable(
     _In_ uuid_t handle)
 {
-    oserr_t status;
+    oserr_t oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Ownership check before enabling an interrupt
-    status = __CheckInterruptOwner(handle);
-    if (status != OS_EOK) {
-        return status;
+    oserr = __CheckInterruptOwner(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     return InterruptGroupSetEnabled(handle, 1);
 }
@@ -412,12 +534,17 @@ oserr_t
 ScInterruptDisable(
     _In_ uuid_t handle)
 {
-    oserr_t status;
+    oserr_t oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Ownership check before disabling an interrupt
-    status = __CheckInterruptOwner(handle);
-    if (status != OS_EOK) {
-        return status;
+    oserr = __CheckInterruptOwner(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     return InterruptGroupSetEnabled(handle, 0);
 }
@@ -426,13 +553,18 @@ oserr_t
 ScInterruptUnbind(
     _In_ uuid_t handle)
 {
-    oserr_t status;
+    oserr_t oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Ownership check before we release resources asssociated
     // with the interrupt
-    status = __CheckInterruptOwner(handle);
-    if (status != OS_EOK) {
-        return status;
+    oserr = __CheckInterruptOwner(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     return InterruptGroupUnbind(handle);
 }
@@ -441,12 +573,17 @@ oserr_t
 ScInterruptRelease(
     _In_ uuid_t handle)
 {
-    oserr_t status;
+    oserr_t oserr;
+
+    oserr = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     // Ownership check before we release the irq reservation
-    status = __CheckInterruptOwner(handle);
-    if (status != OS_EOK) {
-        return status;
+    oserr = __CheckInterruptOwner(handle);
+    if (oserr != OS_EOK) {
+        return oserr;
     }
     return InterruptGroupRelease(handle);
 }
@@ -469,6 +606,11 @@ ScMapRamdisk(
 {
     oserr_t oserr;
     vaddr_t mapping;
+
+    oserr = CapabilityVerify(CAPABILITY_RAMDISK_ACCESS);
+    if (oserr != OS_EOK) {
+        return oserr;
+    }
 
     oserr = MemorySpaceCloneMapping(
         GetCurrentMemorySpace(),

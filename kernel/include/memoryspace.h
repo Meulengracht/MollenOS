@@ -25,6 +25,7 @@
 
 #include <arch/platform.h>
 #include <os/types/memory.h>
+#include <machine.h>
 #include <utils/dynamic_memory_pool.h>
 #include <vboot/vboot.h>
 
@@ -74,7 +75,7 @@ DECL_STRUCT(PlatformMemoryMapping);
 
 // Addressing spaces are seperated into two layers. Because the kernel
 // has no concept of processes, it instead has 'thread clusters', which
-// are represented by a <MemorySpaceContext> (Tbh, I want a different name).
+// are represented by a <MSContext> (Tbh, I want a different name).
 // These represent groups of addressing spaces, which are bound to threads.
 // So MemorySpaceContext is shared across multiple threads, even though each
 // thread technically has their own address space.
@@ -88,6 +89,40 @@ typedef struct MemorySpace {
     struct MSContext*     Context;
     PlatformMemoryBlock_t PlatformData;
 } MemorySpace_t;
+
+/**
+ * @brief Verify a memory range is a valid userspace pointer.
+ */
+static inline bool
+__UserMemoryRangeValid(
+    _In_ uintptr_t address,
+    _In_ size_t    length)
+{
+    SystemMemoryMap_t*  map = &GetMachine()->MemoryMap;
+    SystemMemoryRange_t ranges[] = {
+        map->UserCode,
+        map->UserHeap,
+        map->ThreadLocal
+    };
+
+    if (address == 0 || length == 0 || length - 1 > UINTPTR_MAX - address) {
+        return false;
+    }
+    
+    for (int i = 0; i < SIZEOF_ARRAY(ranges); i++) {
+        size_t offset;
+
+        if (address < ranges[i].Start) {
+            continue;
+        }
+        
+        offset = address - ranges[i].Start;
+        if (offset < ranges[i].Length && length <= ranges[i].Length - offset) {
+            return true;
+        }
+    }
+    return false;
+}
 
 /**
  * @brief Initializes the system memory space. This initializes a static version of the

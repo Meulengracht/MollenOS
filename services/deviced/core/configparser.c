@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <discover.h>
 #include <ddk/utils.h>
+#include <ddk/capabilities.h>
 #include <ddk/platformdevice.h>
 #include <ds/list.h>
 #include <yaml/yaml.h>
@@ -32,6 +33,10 @@
  * driver configuration format
  * 
  * driver:
+ *   capabilities:
+ *   - deviceio-access
+ *   - interrupt-control
+ * 
  *   compatibles:
  *   - brcm,bcm2711-genet-v5
  *   - brcm,genet-v5
@@ -78,6 +83,9 @@ enum state {
 
     STATE_COMPATIBLES_LIST,
     STATE_COMPATIBLES,
+
+    STATE_CAPABILITIES_LIST,
+    STATE_CAPABILITIES,
 
     STATE_STOP
 };
@@ -166,7 +174,8 @@ __ConsumeEvent(
     _In_ struct parser_state* s,
     _In_ yaml_event_t*        event)
 {
-    char *value;
+    char*          value;
+    Capabilities_t capability;
     TRACE("__ConsumeEvent(state=%d event=%d)", s->state, event->type);
 
     switch (s->state) {
@@ -247,7 +256,9 @@ __ConsumeEvent(
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
                     TRACE("__ConsumeEvent STATE_DRIVERKEY/%s", value);
-                    if (strcmp(value, "compatibles") == 0) {
+                    if (strcmp(value, "capabilities") == 0) {
+                        s->state = STATE_CAPABILITIES_LIST;
+                    } else if (strcmp(value, "compatibles") == 0) {
                         s->state = STATE_COMPATIBLES_LIST;
                     } else if (strcmp(value, "type") == 0) {
                         s->state = STATE_DRIVERTYPE;
@@ -530,6 +541,34 @@ __ConsumeEvent(
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
                     return -1;
             }
+            break;
+
+        case STATE_CAPABILITIES_LIST:
+            if (event->type != YAML_SEQUENCE_START_EVENT) {
+                ERROR("Driver capabilities must be a sequence");
+                return -1;
+            }
+            s->state = STATE_CAPABILITIES;
+            break;
+
+        case STATE_CAPABILITIES:
+            if (event->type == YAML_SEQUENCE_END_EVENT) {
+                s->state = STATE_DRIVERKEY;
+                break;
+            }
+            
+            if (event->type != YAML_SCALAR_EVENT) {
+                ERROR("Driver capability must be a name");
+                return -1;
+            }
+            
+            capability = CapabilityParse((const char*)event->data.scalar.value);
+            if (capability == 0) {
+                ERROR("Unknown driver capability: %s", event->data.scalar.value);
+                return -1;
+            }
+            
+            s->driver.Capabilities |= capability;
             break;
 
         case STATE_STOP:

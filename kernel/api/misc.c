@@ -39,19 +39,19 @@ ScSystemDebug(
 
 oserr_t
 ScMigrateKernelLog(
-        _In_ void*   buffer,
-        _In_ size_t  bufferSize,
-        _In_ size_t* bytesRead)
+    _In_ void*   buffer,
+    _In_ size_t  bufferSize,
+    _In_ size_t* bytesRead)
 {
     return LogMigrate(buffer, bufferSize, bytesRead);
 }
 
 oserr_t
 ScSystemQuery(
-        _In_  enum OSSystemQueryRequest request,
-        _In_  void*                     buffer,
-        _In_  size_t                    bufferSize,
-        _Out_ size_t*                   bytesQueriedOut)
+    _In_  enum OSSystemQueryRequest request,
+    _In_  void*                     buffer,
+    _In_  size_t                    bufferSize,
+    _Out_ size_t*                   bytesQueriedOut)
 {
     switch (request) {
         case OSSYSTEMQUERY_BOOTVIDEOINFO: {
@@ -130,14 +130,14 @@ ScFlushHardwareCache(
 
 oserr_t
 ScInstallSignalHandler(
-        _In_ uintptr_t handler)
+    _In_ uintptr_t handler)
 {
     return MemorySpaceSetSignalHandler(GetCurrentMemorySpace(), handler);
 }
 
 oserr_t
 ScMapBootFramebuffer(
-        _Out_ void** bufferOut)
+    _Out_ void** bufferOut)
 {
     MemorySpace_t* memorySpace     = GetCurrentMemorySpace();
     uintptr_t      addressPhysical = VideoGetTerminal()->FrameBufferAddressPhysical;
@@ -150,15 +150,14 @@ ScMapBootFramebuffer(
     }
 
     oserr = MemorySpaceMap(
-            memorySpace,
-            &(struct MemorySpaceMapOptions) {
-                .PhysicalStart = addressPhysical,
-                .Length = fbSize,
-                .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
-                .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_PROCESS
-            },
-            &fbVirtual
-
+        memorySpace,
+        &(struct MemorySpaceMapOptions) {
+            .PhysicalStart = addressPhysical,
+            .Length = fbSize,
+            .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE | MAPPING_PERSISTENT,
+            .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_PROCESS
+        },
+        &fbVirtual
     );
     if (oserr == OS_EOK) {
         *bufferOut = (void*)fbVirtual;

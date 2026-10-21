@@ -40,6 +40,8 @@
 #define STREAMBUFFER_PRIORITY      0x4U
 #define STREAMBUFFER_PEEK          0x8U
 
+// Positions wrap at the largest multiple of capacity below UINT_MAX, keeping
+// physical ring offsets continuous for non-power-of-two capacities as well.
 typedef struct streambuffer {
     size_t       capacity;
     unsigned int options;
@@ -67,6 +69,14 @@ typedef struct streambuffer_rw_options {
     OSTimestamp_t*    deadline;
 } streambuffer_rw_options_t;
 
+/**
+ * @brief Initialize a ring with a capacity in [1, UINT_MAX / 2]. An invalid
+ * capacity constructs a disabled, zero-capacity ring.
+ *
+ * @param stream Storage for the header followed by capacity bytes.
+ * @param capacity Number of bytes in the ring, excluding its header.
+ * @param options Stream configuration flags.
+ */
 DSDECL(void,
 streambuffer_construct(
     _In_ streambuffer_t* stream,

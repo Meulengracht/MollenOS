@@ -26,6 +26,7 @@
 #include <os/osdefs.h>
 #include <ds/mstring.h>
 #include <ds/list.h>
+#include <ddk/types/capabilities.h>
 
 struct DriverProduct {
     element_t ListHeader;
@@ -50,12 +51,17 @@ struct DriverCompatible {
     char*     Name;
 };
 
+/**
+ * @brief Driver matching data, resources and requested initial capabilities
+ * parsed from trusted installed driver configuration.
+ */
 struct DriverConfiguration {
-    uint32_t Class;
-    uint32_t Subclass;
-    list_t   Vendors;
-    list_t   Compatibles;
-    list_t   Resources;
+    Capabilities_t Capabilities;
+    uint32_t       Class;
+    uint32_t       Subclass;
+    list_t         Vendors;
+    list_t         Compatibles;
+    list_t         Resources;
 };
 
 struct DriverIdentification {

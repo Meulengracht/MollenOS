@@ -18,52 +18,61 @@
 //#define __TRACE
 
 #include <discover.h>
+#include <ddk/capabilities.h>
 #include <ddk/utils.h>
 #include <yaml/yaml.h>
 
 /**
- * service configuration valuesservice:
- * # The service API path, for other instances to expect connection through.
- * # These API paths are registered upon startup of the service, and allows an
- * # easy way to recognize system services.
- * path: /service/serve
+ * service configuration values
+ * service:
+ *   # Service capabilities
+ *   capabilities:
+ *     - capability-name # Replace with actual capability required by the service
+ * 
+ *   # The service API path, for other instances to expect connection through.
+ *   # These API paths are registered upon startup of the service, and allows an
+ *   # easy way to recognize system services.
+ *   path: /service/serve
  *
- * # Dependencies allow for different criterias to be met before the service is
- * # started. Services can depend on other services, paths or devices to be registered
- * # with the system before being started up.
- * depends:
- *   # The list of services that should be running before starting this service.
- *   services:
- *     - filed # Require filed to be running as we need FS access
- *   paths:
- *   devices:
+ *   # Dependencies allow for different criterias to be met before the service is
+ *   # started. Services can depend on other services, paths or devices to be registered
+ *   # with the system before being started up.
+ *   depends:
+ *     # The list of services that should be running before starting this service.
+ *     services:
+ *       - filed # Require filed to be running as we need FS access
+ *     paths:
+ *     devices:
  */
 enum state {
-    STATE_START,    /* start state */
-    STATE_STREAM,   /* start/end stream */
-    STATE_DOCUMENT, /* start/end document */
-    STATE_SECTION,  /* top level */
+    STATE_START,            // start state
+    STATE_STREAM,           // start/end stream
+    STATE_DOCUMENT,         // start/end document
+    STATE_SECTION,          // top level
 
     STATE_SERVICE,          // service object discovered
     STATE_SERVICEKEY,       // service key discovered, followed by scalar
     STATE_SERVICEPATH,      // service path mapping
     STATE_SERVICEDEPS,      // service depends mapping
 
-    STATE_DEPS_SERVICES,
+    STATE_CAPS_LIST,        // service capabilities list
+
+    STATE_DEPS_SERVICES,    // service dependencies: services list
 
     STATE_STOP
 };
 
 struct parser_state {
-    enum state state;
-    mstring_t* api_path;
-    list_t     dependencies;
+    enum state     state;
+    mstring_t*     api_path;
+    Capabilities_t capabilities;
+    list_t         dependencies;
 };
 
 static int
 __AddDependency(
-        _In_ struct parser_state* s,
-        _In_ const char*          d)
+    _In_ struct parser_state* s,
+    _In_ const char*          d)
 {
     element_t* entry;
     mstring_t* name;
@@ -83,6 +92,23 @@ __AddDependency(
 
     ELEMENT_INIT(entry, NULL, name);
     list_append(&s->dependencies, entry);
+    return 0;
+}
+
+static int
+__AddCapability(
+    _In_ struct parser_state* s,
+    _In_ const char*          d)
+{
+    Capabilities_t capability;
+
+    capability = CapabilityParse(d);
+    if (capability == 0) {
+        ERROR("__AddCapability invalid capability: %s", d);
+        return -1;
+    }
+
+    s->capabilities |= capability;
     return 0;
 }
 
@@ -173,6 +199,8 @@ __ConsumeEvent(
                     value = (char *)event->data.scalar.value;
                     if (strcmp(value, "path") == 0) {
                         s->state = STATE_SERVICEPATH;
+                    } else if (strcmp(value, "capabilities") == 0) {
+                        s->state = STATE_CAPS_LIST;
                     } else if (strcmp(value, "depends") == 0) {
                         s->state = STATE_SERVICEDEPS;
                     } else {
@@ -200,6 +228,29 @@ __ConsumeEvent(
                     }
                     s->api_path = mstr_new_u8(value);
                     s->state = STATE_SERVICEKEY;
+                    break;
+                default:
+                    ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
+                    return -1;
+            }
+            break;
+
+        case STATE_CAPS_LIST:
+            switch (event->type) {
+                case YAML_SEQUENCE_START_EVENT:
+                    // list start of dependencies
+                    break;
+
+                case YAML_SEQUENCE_END_EVENT:
+                    // list end
+                    s->state = STATE_SERVICEDEPS;
+                    break;
+
+                case YAML_SCALAR_EVENT:
+                    // Occurs on a new dependency entry
+                    if (__AddCapability(s, (const char*)event->data.scalar.value)) {
+                        return -1;
+                    }
                     break;
                 default:
                     ERROR("__ConsumeEvent Unexpected event %d in state %d.", event->type, s->state);
@@ -262,9 +313,9 @@ __ConsumeEvent(
 
 oserr_t
 PSParseServiceYAML(
-        _In_ struct SystemService* systemService,
-        _In_ const uint8_t*        yaml,
-        _In_ size_t                length)
+    _In_ struct SystemService* systemService,
+    _In_ const uint8_t*        yaml,
+    _In_ size_t                length)
 {
     yaml_parser_t       parser;
     yaml_event_t        event;
@@ -303,6 +354,7 @@ PSParseServiceYAML(
 
     // copy all the data into the structure provided
     systemService->APIPath = state.api_path;
+    systemService->Capabilities = state.capabilities;
     memcpy(&systemService->Dependencies, &state.dependencies, sizeof(list_t));
 
     yaml_parser_delete(&parser);

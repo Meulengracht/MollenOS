@@ -147,10 +147,11 @@ static oserr_t
 __SpawnDriver(
     _In_ struct DmDriver* driver)
 {
-    uuid_t  handle;
-    oserr_t osStatus;
-    char    args[32];
-    char*   driverPath;
+    OSProcessOptions_t* options;
+    uuid_t              handle;
+    oserr_t             osStatus;
+    char                args[32];
+    char*               driverPath;
     TRACE("__SpawnDriver(%ms)", driver->path);
 
     driverPath = mstr_u8(driver->path);
@@ -160,9 +161,22 @@ __SpawnDriver(
 
     sprintf(&args[0], "--id %u", driver->id);
 
-    osStatus = OSProcessSpawn(driverPath, &args[0], &handle);
+    options = OSProcessOptionsNew();
+    if (options == NULL) {
+        free(driverPath);
+        return OS_EOOM;
+    }
+
+    OSProcessOptionsSetArguments(options, args);
+    OSProcessOptionsSetCapabilities(options, driver->configuration->Capabilities);
+    
+    TRACE("__SpawnDriver: requested capabilities=0x%x", driver->configuration->Capabilities);
+    osStatus = OSProcessSpawnOpts(driverPath, options, &handle);
+    OSProcessOptionsDelete(options);
     free(driverPath);
     if (osStatus != OS_EOK) {
+        ERROR("__SpawnDriver: process creation failed (%i), capabilities=0x%x",
+              osStatus, driver->configuration->Capabilities);
         return osStatus;
     }
 

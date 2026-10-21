@@ -18,6 +18,7 @@
 
 #define __TRACE
 
+#include <capabilities.h>
 #include <debug.h>
 #include <handle.h>
 #include <machine.h>
@@ -49,31 +50,40 @@ SpawnBootstrapper(void)
 
     codeAddress = GetMachine()->MemoryMap.UserCode.Start;
 
+    // Grant the bootstrapper memory space the necessary capabilities.
+    oserr = CapabilityGrant(
+        CAPABILITY_GRANT_CAPABILITY | CAPABILITY_RAMDISK_ACCESS | CAPABILITY_MEMORYSPACE_MANAGEMENT,
+        memorySpaceHandle
+    );
+    if (oserr != OS_EOK) {
+        ERROR("SpawnBootstrapper failed to grant capabilities to bootstrapper memory space");
+    }
+
     // Create one big continous mapping that maps in the entire image
     oserr = MemorySpaceMap(
-            MEMORYSPACE_GET(memorySpaceHandle),
-            &(struct MemorySpaceMapOptions) {
-                .PhysicalStart = (paddr_t)GetMachine()->BootInformation.Phoenix.Base,
-                .VirtualStart = (vaddr_t)GetMachine()->MemoryMap.UserCode.Start,
-                .Length = GetMachine()->BootInformation.Phoenix.Length,
-                .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_EXECUTABLE | MAPPING_PERSISTENT,
-                .PlacementFlags = MAPPING_VIRTUAL_FIXED | MAPPING_PHYSICAL_CONTIGUOUS
-            },
-            &codeAddress
+        MEMORYSPACE_GET(memorySpaceHandle),
+        &(struct MemorySpaceMapOptions) {
+            .PhysicalStart = (paddr_t)GetMachine()->BootInformation.Phoenix.Base,
+            .VirtualStart = (vaddr_t)GetMachine()->MemoryMap.UserCode.Start,
+            .Length = GetMachine()->BootInformation.Phoenix.Length,
+            .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_EXECUTABLE | MAPPING_PERSISTENT,
+            .PlacementFlags = MAPPING_VIRTUAL_FIXED | MAPPING_PHYSICAL_CONTIGUOUS
+        },
+        &codeAddress
     );
     if (oserr != OS_EOK) {
         ERROR("SpawnBootstrapper failed to map image into bootstrapper memory space");
     }
 
     oserr = ThreadCreate(
-            "phoenix.mos",
-            (ThreadEntry_t)GetMachine()->BootInformation.Phoenix.EntryPoint,
-            NULL,
-            THREADING_USERMODE,
-            memorySpaceHandle,
-            0,
-            0,
-            &threadHandle
+        "phoenix.mos",
+        (ThreadEntry_t)GetMachine()->BootInformation.Phoenix.EntryPoint,
+        NULL,
+        THREADING_USERMODE,
+        memorySpaceHandle,
+        0,
+        0,
+        &threadHandle
     );
     if (oserr != OS_EOK) {
         ERROR("SpawnBootstrapper failed to create thread for bootstrapper");
