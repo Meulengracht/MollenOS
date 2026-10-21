@@ -29,7 +29,6 @@
 #include <os/usched/mutex.h>
 #include <time.h>
 #include <pe.h>
-#include <process_security.h>
 
 enum ProcessState {
     ProcessState_RUNNING,
@@ -99,6 +98,18 @@ PmBootstrapFindRamdiskFile(
     _In_      mstring_t* path,
     _Out_Opt_ void**     bufferOut,
     _Out_Opt_ size_t*    bufferSizeOut);
+
+/**
+ * @brief Authorize the requested initial capabilities before preparing a child.
+ * @param caller Authenticated request context, or NULL for an unauthenticated transport.
+ * @param capabilities Requested child capability mask; zero needs no grant authority.
+ * @return OS_EOK, OS_EINVALPARAMS for unknown bits, or OS_EPERMISSIONS.
+ * NULL never grants authority. Service bootstrap uses a separate entry point.
+ */
+extern oserr_t
+PmAuthorizeSpawn(
+    _In_ const struct gracht_security_context* caller,
+    _In_ Capabilities_t                        capabilities);
 
 /**
  * @brief Spawns a new process with the given configuration. The process assumes a valid PE image

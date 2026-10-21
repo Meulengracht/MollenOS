@@ -77,12 +77,12 @@ IPCContextCreate(
 
 oserr_t
 IPCContextSend(
-        _In_ OSHandle_t*       handle,
-        _In_ IPCAddress_t*     address,
-        _In_ const void*       data,
-        _In_ unsigned int      length,
-        _In_ OSTimestamp_t*    deadline,
-        _In_ OSAsyncContext_t* asyncContext)
+    _In_ OSHandle_t*       handle,
+    _In_ IPCAddress_t*     address,
+    _In_ const void*       data,
+    _In_ unsigned int      length,
+    _In_ OSTimestamp_t*    deadline,
+    _In_ OSAsyncContext_t* asyncContext)
 {
     IPCMessage_t  msg;
     IPCMessage_t* msgArray = &msg;
@@ -101,18 +101,17 @@ IPCContextSend(
 
 oserr_t
 IPCContextRecv(
-        _In_  OSHandle_t*       handle,
-        _In_  void*             buffer,
-        _In_  unsigned int      length,
-        _In_  int               flags,
-        _In_  OSAsyncContext_t* asyncContext,
-        _Out_ uuid_t*           fromHandle,
-        _Out_ size_t*           bytesReceived)
+    _In_  OSHandle_t*          handle,
+    _In_  void*                buffer,
+    _In_  unsigned int         length,
+    _In_  int                  flags,
+    _In_  OSAsyncContext_t*    asyncContext,
+    _Out_ IPCMessageContext_t* msgContext,
+    _Out_ size_t*              bytesReceived)
 {
     size_t                    bytesAvailable;
     streambuffer_packet_ctx_t packetCtx;
     streambuffer_t*           stream;
-    uuid_t                    sender;
     size_t                    payloadLength;
     streambuffer_rw_options_t rwOptions = {
             .flags = 0,
@@ -121,7 +120,7 @@ IPCContextRecv(
     };
     TRACE("IPCContextRecv(async=%i, flags=0x%x)", asyncContext != NULL ? 1 : 0, flags);
 
-    if (handle == NULL || buffer == NULL || length == 0 || fromHandle == NULL || bytesReceived == NULL) {
+    if (handle == NULL || buffer == NULL || length == 0 || msgContext == NULL || bytesReceived == NULL) {
         return OS_EINVALPARAMS;
     }
 
@@ -133,28 +132,27 @@ IPCContextRecv(
     bytesAvailable = streambuffer_read_packet_start(stream, &rwOptions, &packetCtx);
     TRACE("IPCContextRecv bytes=%u", (uint32_t)bytesAvailable);
     if (!bytesAvailable) {
-        *fromHandle = UUID_INVALID;
+        msgContext->SenderHandle = UUID_INVALID;
         *bytesReceived = 0;
         return OS_EOK;
     }
 
-    // The packet stream includes a sender prefix, but callers receive that
+    // The packet stream includes a message header, but callers receive that
     // separately. Report only payload bytes actually copied, including when
     // the caller's buffer truncates a packet. Counting the prefix breaks framed
     // protocols which compare their declared length against this receive count.
-    if (bytesAvailable < sizeof(uuid_t)) {
+    if (bytesAvailable < sizeof(IPCMessageContext_t)) {
         streambuffer_read_packet_end(&packetCtx);
-        *fromHandle = UUID_INVALID;
+        msgContext->SenderHandle = UUID_INVALID;
         *bytesReceived = 0;
         return OS_EPROTOCOL;
     }
     
-    payloadLength = MIN((size_t)length, bytesAvailable - sizeof(uuid_t));
-    streambuffer_read_packet_data(&sender, sizeof(uuid_t), &packetCtx);
+    payloadLength = MIN((size_t)length, bytesAvailable - sizeof(IPCMessageContext_t));
+    streambuffer_read_packet_data(msgContext, sizeof(IPCMessageContext_t), &packetCtx);
     streambuffer_read_packet_data(buffer, payloadLength, &packetCtx);
     streambuffer_read_packet_end(&packetCtx);
 
-    *fromHandle = sender;
     *bytesReceived = payloadLength;
     return OS_EOK;
 }

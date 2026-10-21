@@ -34,9 +34,9 @@ _CODE_BEGIN
  */
 CRTDECL(oserr_t,
 IPCContextCreate(
-        _In_  size_t        length,
-        _In_  IPCAddress_t* address,
-        _Out_ OSHandle_t*   handleOut));
+    _In_  size_t        length,
+    _In_  IPCAddress_t* address,
+    _Out_ OSHandle_t*   handleOut));
 
 /**
  * @brief Sends data through an IPC context.
@@ -50,12 +50,12 @@ IPCContextCreate(
  */
 CRTDECL(oserr_t,
 IPCContextSend(
-        _In_ OSHandle_t*       handle,
-        _In_ IPCAddress_t*     address,
-        _In_ const void*       data,
-        _In_ unsigned int      length,
-        _In_ OSTimestamp_t*    deadline,
-        _In_ OSAsyncContext_t* asyncContext));
+    _In_ OSHandle_t*       handle,
+    _In_ IPCAddress_t*     address,
+    _In_ const void*       data,
+    _In_ unsigned int      length,
+    _In_ OSTimestamp_t*    deadline,
+    _In_ OSAsyncContext_t* asyncContext));
 
 /**
  * @brief Receives data from an IPC context.
@@ -64,19 +64,19 @@ IPCContextSend(
  * @param length Capacity of buffer in bytes.
  * @param flags Receive behavior flags.
  * @param asyncContext Optional asynchronous operation context.
- * @param fromHandle Receives the sender handle identifier.
+ * @param msgContext Receives the message context, including the sender handle.
  * @param bytesReceived Receives the number of bytes copied.
  * @return OS_EOK on success; otherwise, an error code.
  */
 CRTDECL(oserr_t,
 IPCContextRecv(
-        _In_  OSHandle_t*       handle,
-        _In_  void*             buffer,
-        _In_  unsigned int      length,
-        _In_  int               flags,
-        _In_  OSAsyncContext_t* asyncContext,
-        _Out_ uuid_t*           fromHandle,
-        _Out_ size_t*           bytesReceived));
+    _In_  OSHandle_t*          handle,
+    _In_  void*                buffer,
+    _In_  unsigned int         length,
+    _In_  int                  flags,
+    _In_  OSAsyncContext_t*    asyncContext,
+    _Out_ IPCMessageContext_t* msgContext,
+    _Out_ size_t*              bytesReceived));
 
 _CODE_END
 #endif //!__OS_IPCCONTEXT_H__

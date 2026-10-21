@@ -25,14 +25,13 @@
 #if defined(VALI)
 #ifdef __LIBDS_KERNEL_BUILD
 #include <arch/interrupts.h>
-#include <memoryspace.h>
 #include <machine.h>
+#include <memoryspace.h>
+#include <futex.h>
 #include <stdio.h>
 #include <debug.h>
 #include <heap.h>
 
-extern oserr_t ScFutexWait(OSAsyncContext_t*, OSFutexParameters_t*);
-extern oserr_t ScFutexWake(OSFutexParameters_t*);
 #else
 #include <os/futex.h>
 #include <ddk/utils.h>
@@ -80,7 +79,16 @@ void dsfree(void* pointer)
 void dswait(OSFutexParameters_t* params, OSAsyncContext_t* asyncContext)
 {
 #ifdef __LIBDS_KERNEL_BUILD
-    ScFutexWait(asyncContext, params);
+    FutexWait(
+        asyncContext,
+        params->Futex0,
+        params->Expected0,
+        params->Flags,
+        params->Futex1,
+        params->Count,
+        params->Op,
+        params->Deadline
+    );
 #else
     OSFutex(params, asyncContext);
 #endif
@@ -89,7 +97,7 @@ void dswait(OSFutexParameters_t* params, OSAsyncContext_t* asyncContext)
 void dswake(OSFutexParameters_t* params)
 {
 #ifdef __LIBDS_KERNEL_BUILD
-    ScFutexWake(params);
+    FutexWake(params->Futex0, params->Expected0, params->Flags);
 #else
     OSFutex(params, NULL);
 #endif

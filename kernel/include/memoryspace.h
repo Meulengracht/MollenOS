@@ -25,7 +25,6 @@
 
 #include <arch/platform.h>
 #include <os/types/memory.h>
-#include <machine.h>
 #include <utils/dynamic_memory_pool.h>
 #include <vboot/vboot.h>
 
@@ -73,6 +72,13 @@ DECL_STRUCT(PlatformMemoryMapping);
 
 #define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
 
+// Security context associated with a memory space context. This can be
+// retrieved with MemorySpaceGetSecurityContext().
+typedef struct MSContextSecurity {
+    uint64_t          Identity;
+    _Atomic(uint32_t) Capabilities;
+} MSContextSecurity_t;
+
 // Addressing spaces are seperated into two layers. Because the kernel
 // has no concept of processes, it instead has 'thread clusters', which
 // are represented by a <MSContext> (Tbh, I want a different name).
@@ -89,40 +95,6 @@ typedef struct MemorySpace {
     struct MSContext*     Context;
     PlatformMemoryBlock_t PlatformData;
 } MemorySpace_t;
-
-/**
- * @brief Verify a memory range is a valid userspace pointer.
- */
-static inline bool
-__UserMemoryRangeValid(
-    _In_ uintptr_t address,
-    _In_ size_t    length)
-{
-    SystemMemoryMap_t*  map = &GetMachine()->MemoryMap;
-    SystemMemoryRange_t ranges[] = {
-        map->UserCode,
-        map->UserHeap,
-        map->ThreadLocal
-    };
-
-    if (address == 0 || length == 0 || length - 1 > UINTPTR_MAX - address) {
-        return false;
-    }
-    
-    for (int i = 0; i < SIZEOF_ARRAY(ranges); i++) {
-        size_t offset;
-
-        if (address < ranges[i].Start) {
-            continue;
-        }
-        
-        offset = address - ranges[i].Start;
-        if (offset < ranges[i].Length && length <= ranges[i].Length - offset) {
-            return true;
-        }
-    }
-    return false;
-}
 
 /**
  * @brief Initializes the system memory space. This initializes a static version of the
@@ -164,6 +136,13 @@ KERNELAPI uuid_t KERNELABI         GetCurrentMemorySpaceHandle(void);
 KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
 KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
+
+/**
+ * @brief Retrieves the security context associated with the current memory space.
+ * 
+ * @return Pointer to the security context, or NULL if unavailable.
+ */
+KERNELAPI MSContextSecurity_t* KERNELABI MemorySpaceGetSecurityContext(void);
 
 /**
  * @brief Initializes the memory space synchronization system.

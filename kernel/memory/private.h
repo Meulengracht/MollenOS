@@ -35,6 +35,7 @@
 struct SHMBuffer {
     uuid_t             ID;
     MemorySpace_t*     Owner;
+    uint64_t           IPCOwner;
     Mutex_t            Mutex;
     vaddr_t            KernelMapping;
     size_t             Offset;
@@ -76,7 +77,7 @@ struct MSAllocation {
 };
 
 struct MSContext {
-    Capabilities_t      Capabilities;
+    MSContextSecurity_t Security;
     DynamicMemoryPool_t Heap;
     list_t              Allocations;
     uintptr_t           SignalHandler;

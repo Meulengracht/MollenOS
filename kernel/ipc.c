@@ -17,29 +17,37 @@
 
 //#define __TRACE
 
-#include "ddk/barrier.h"
-#include "ds/streambuffer.h"
-#include "debug.h"
-#include "handle.h"
-#include "handle_set.h"
-#include "ioset.h"
-#include "ipc_context.h"
-#include "shm.h"
+#include <ddk/barrier.h>
+#include <ds/streambuffer.h>
+#include <debug.h>
+#include <handle.h>
+#include <handle_set.h>
+#include <memoryspace.h>
+#include <ioset.h>
+#include <ipc_context.h>
+#include <shm.h>
 
 static oserr_t
 __AllocateMessage(
-        _In_  IPCMessage_t*              message,
-        _In_  streambuffer_rw_options_t* options,
-        _In_  streambuffer_packet_ctx_t* packetCtx,
-        _Out_ uuid_t*                    streamIDOut)
+    _In_  IPCMessage_t*              message,
+    _In_  streambuffer_rw_options_t* options,
+    _In_  streambuffer_packet_ctx_t* packetCtx,
+    _Out_ uuid_t*                    streamIDOut)
 {
     streambuffer_t* stream;
     size_t          bytesAvailable;
-    size_t          bytesToAllocate = sizeof(uuid_t) + message->Length;
+    size_t          payloadLength = message->Length;
+    size_t          bytesToAllocate;
     uuid_t          streamID;
     oserr_t         oserr;
+
     TRACE("__AllocateMessage(target=%u, len=%" PRIuIN ")", message->Address->Data.Handle, bytesToAllocate);
-    
+
+    if (payloadLength > SIZE_MAX - sizeof(IPCMessageContext_t)) {
+        return OS_EINVALPARAMS;
+    }
+    bytesToAllocate = sizeof(IPCMessageContext_t) + payloadLength;
+        
     if (message->Address->Type == IPC_ADDRESS_HANDLE) {
         streamID = message->Address->Data.Handle;
     } else {
@@ -57,10 +65,10 @@ __AllocateMessage(
     }
 
     bytesAvailable = streambuffer_write_packet_start(
-            stream,
-            bytesToAllocate,
-            options,
-            packetCtx
+        stream,
+        bytesToAllocate,
+        options,
+        packetCtx
     );
     if (!bytesAvailable) {
         ERROR("__AllocateMessage timeout allocating space for message");
@@ -73,23 +81,33 @@ __AllocateMessage(
 
 static void
 __WriteMessage(
-        _In_ IPCMessage_t*              message,
-        _In_ streambuffer_packet_ctx_t* packetCtx)
+    _In_ IPCMessage_t*              message,
+    _In_ streambuffer_packet_ctx_t* packetCtx,
+    _In_ MSContextSecurity_t*       secCtx)
 {
+    // The message header carries sender information and capabilities.
+    IPCMessageContext_t context = {
+        .Sender = secCtx->Sender,
+        .Capabilities = secCtx->Capabilities,
+        .SenderHandle = message->SenderHandle
+    };
+    size_t payloadLength = packetCtx->_length - sizeof(IPCMessageContext_t);
+    
     TRACE("__WriteMessage()");
     
     // write the header (senders handle)
     streambuffer_write_packet_data(
-            &message->SenderHandle,
-            sizeof(uuid_t),
-            packetCtx
+        &context,
+        sizeof(IPCMessageContext_t),
+        packetCtx
     );
 
-    // write the actual payload
+    // The sender can change its descriptor while allocation waits. Only write
+    // the payload length recorded in the successful reservation.
     streambuffer_write_packet_data(
-            (void*)message->Payload,
-            message->Length,
-            packetCtx
+        (void*)message->Payload,
+        payloadLength,
+        packetCtx
     );
 }
 
@@ -110,6 +128,7 @@ IpcContextSendMultiple(
         _In_ OSTimestamp_t*    deadline,
         _In_ OSAsyncContext_t* asyncContext)
 {
+    MSContextSecurity_t*      secCtx;
     streambuffer_packet_ctx_t packetCtx;
     streambuffer_rw_options_t options = {
             .flags = 0,
@@ -121,20 +140,26 @@ IpcContextSendMultiple(
     if (!messages || !messageCount) {
         return OS_EINVALPARAMS;
     }
+
+    // All IPC messages must be sent from a valid security context.
+    secCtx = MemorySpaceGetSecurityContext();
+    if (!secCtx) {
+        return OS_EPERMISSIONS;
+    }
     
     for (int i = 0; i < messageCount; i++) {
         uuid_t  streamID;
         oserr_t status = __AllocateMessage(
-                messages[i],
-                &options,
-                &packetCtx,
-                &streamID
+            messages[i],
+            &options,
+            &packetCtx,
+            &streamID
         );
         if (status != OS_EOK) {
             // todo store status in context and return incomplete
             return OS_EINCOMPLETE;
         }
-        __WriteMessage(messages[i], &packetCtx);
+        __WriteMessage(messages[i], &packetCtx, secCtx);
         SendMessage(streamID, &packetCtx);
     }
     return OS_EOK;
