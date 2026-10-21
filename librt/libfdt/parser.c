@@ -55,11 +55,11 @@ __SkipPaddedValue(
  * More precisely, each node’s representation consists of the following components:
  * • (optionally) any number of FDT_NOP tokens
  * • FDT_BEGIN_NODE token
- * – The node’s name as a null-terminated string
- * – [zeroed padding bytes to align to a 4-byte boundary]
+ * - The node’s name as a null-terminated string
+ * - [zeroed padding bytes to align to a 4-byte boundary]
  * • For each property of the node:
- * – (optionally) any number of FDT_NOP tokens
- * – FDT_PROP token
+ * - (optionally) any number of FDT_NOP tokens
+ * - FDT_PROP token
  * ∗ property information as given in Section 5.4.1
  * ∗ [zeroed padding bytes to align to a 4-byte boundary]
  * • Representations of all child nodes in this format
