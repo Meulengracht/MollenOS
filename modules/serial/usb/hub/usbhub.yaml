@@ -1,5 +1,8 @@
 # Standard configuration file for drivers in the OS
 driver:
+  # Hardware access is handled by the USB host controller through RPC.
+  capabilities: []
+
   type:
     - class: 0xCABB
     - subclass: 0x90000

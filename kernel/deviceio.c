@@ -25,6 +25,7 @@
 #include <ds/list.h>
 #include <handle.h>
 #include <heap.h>
+#include <limits.h>
 #include <memoryspace.h>
 #include <threading.h>
 #include <string.h>
@@ -243,7 +244,7 @@ ReleaseSystemDeviceIo(
             uintptr_t BaseAddress = ioEntry->Io.Access.Memory.PhysicalBase;
             size_t    PageSize    = GetMemorySpacePageSize();
             size_t    Length      = ioEntry->Io.Access.Memory.Length + (BaseAddress % PageSize);
-            assert(memorySpace->Context != NULL);
+            assert(memorySpace->GroupHandle != UUID_INVALID);
             MemorySpaceUnmap(memorySpace, ioEntry->MappedAddress, Length);
         } break;
 
@@ -261,6 +262,75 @@ ReleaseSystemDeviceIo(
     ioEntry->MappedAddress                 = 0;
     ioEntry->Owner                         = UUID_INVALID;
     return OS_EOK;
+}
+
+oserr_t
+MapSystemDeviceIo(
+    _In_  uuid_t     id,
+    _In_  size_t     offset,
+    _In_  size_t     length,
+    _Out_ uintptr_t* mappingOut)
+{
+    DeviceIOEntry_t* entry;
+    uintptr_t        physical;
+    size_t           pageOffset;
+    size_t           pageSize = GetMemorySpacePageSize();
+    size_t           mapLength;
+    vaddr_t          mapping;
+    oserr_t          status;
+
+    entry = list_find_value(&g_ioSpaces, VOID_KEY(id));
+    if (entry == NULL) {
+        return OS_ENOENT;
+    }
+
+    if (entry->Io.Type != DeviceIoMemoryBased) {
+        return OS_ENOTSUPPORTED;
+    }
+    
+    if (length == 0 || offset >= entry->Io.Access.Memory.Length) {
+        return OS_EINVALPARAMS;
+    }
+    if (length > entry->Io.Access.Memory.Length - offset) {
+        return OS_EINVALPARAMS;
+    }
+    
+    physical = entry->Io.Access.Memory.PhysicalBase;
+    if (offset > UINTPTR_MAX - physical) {
+        return OS_EOVERFLOW;
+    }
+    
+    physical += offset;
+    if (length - 1 > UINTPTR_MAX - physical) {
+        return OS_EOVERFLOW;
+    }
+    
+    pageOffset = physical % pageSize;
+    if (length > SIZE_MAX - pageOffset - (pageSize - 1)) {
+        return OS_EOVERFLOW;
+    }
+    
+    mapLength = length + pageOffset;
+    // The VM page walkers use a signed page count.
+    if (DIVUP(mapLength, pageSize) > INT_MAX) {
+        return OS_EOVERFLOW;
+    }
+    
+    status = MemorySpaceMap(
+        GetCurrentMemorySpace(),
+        &(struct MemorySpaceMapOptions) {
+            .PhysicalStart = physical - pageOffset,
+            .Length = mapLength,
+            .Flags = MAPPING_COMMIT | MAPPING_USERSPACE | MAPPING_NOCACHE |
+                     MAPPING_DEVICE | MAPPING_PERSISTENT,
+            .PlacementFlags = MAPPING_PHYSICAL_CONTIGUOUS | MAPPING_VIRTUAL_PROCESS
+        },
+        &mapping
+    );
+    if (status == OS_EOK) {
+        *mappingOut = mapping + pageOffset;
+    }
+    return status;
 }
 
 oserr_t

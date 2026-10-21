@@ -42,18 +42,75 @@ struct DeviceInterruptState {
 };
 
 static oserr_t
-__PciControl(DeviceInterrupt_t* interrupt, uint32_t operation)
+__PciControl(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t           operation)
 {
     struct PciInterruptRequest request = {
         .Operation = operation,
-        .Allocation = interrupt->State->Handle
+        .Allocation = interrupt->State->Handle,
+        .Strategy = interrupt->Strategy
     };
+
     return OSDeviceIOCtl(
         interrupt->DeviceId,
         OSIOCTLREQUEST_PCI_INTERRUPT,
         &request,
-        sizeof(struct PciInterruptRequest)
+        sizeof(request)
     );
+}
+
+static oserr_t
+__ReservePciMessages(
+    _InOut_ DeviceInterrupt_t* interrupt)
+{
+    struct DeviceInterruptState* state = interrupt->State;
+    DeviceInterruptMessage_t     message;
+    oserr_t                      status;
+    struct PciInterruptRequest   request = {
+        .Operation = PciInterruptReserve,
+        .Allocation = state->Handle,
+        .Strategy = interrupt->Strategy,
+        .Count = interrupt->Count
+    };
+
+    // A lost reply can hide a successful reservation. Retain its cleanup duty.
+    state->PciReserved = 1;
+    status = OSDeviceIOCtl(
+        interrupt->DeviceId, OSIOCTLREQUEST_PCI_INTERRUPT, &request, sizeof(request)
+    );
+    if (status != OS_EOK) {
+        // Busy means another reservation owns the untouched function.
+        if (status == OS_EBUSY) {
+            state->PciReserved = 0;
+        }
+        return status;
+    }
+
+    request.Operation = PciInterruptProgram;
+    request.Count = 0;
+    
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
+        status = Syscall_InterruptGetMessage(state->Handle, i, &message);
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        request.Index = i;
+        request.AddressLow = message.AddressLow;
+        request.AddressHigh = message.AddressHigh;
+        request.Data = message.Data;
+        status = OSDeviceIOCtl(
+            interrupt->DeviceId,
+            OSIOCTLREQUEST_PCI_INTERRUPT,
+            &request,
+            sizeof(struct PciInterruptRequest)
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    return OS_EOK;
 }
 
 void
@@ -105,9 +162,7 @@ DeviceInterruptAllocate(
 {
     InterruptGroupRequest_t      request;
     InterruptGroupResult_t       result;
-    DeviceInterruptMessage_t     message;
     struct PciInterruptSupport   support = { 0 };
-    struct PciInterruptRequest   pci = { 0 };
     struct DeviceInterruptState* state;
     oserr_t                      status;
 
@@ -130,26 +185,30 @@ DeviceInterruptAllocate(
         return OS_EBUSY;
     }
     
-    // MSI-X capacity is discoverable, but the provider cannot program its table.
-    // Keep this gate as well as the syscall gate until that backend is ready.
-    strategies &= INTERRUPT_STRATEGY_MSI | INTERRUPT_STRATEGY_INTx;
-    if (min != 1 || strategies == 0) {
-        return OS_ENOTSUPPORTED;
-    }
-
-    if ((strategies & INTERRUPT_STRATEGY_MSI) && interrupt->IsPci) {
+    if ((strategies & (INTERRUPT_STRATEGY_MSI | INTERRUPT_STRATEGY_MSIX)) && interrupt->IsPci) {
         status = OSDeviceIOCtl(interrupt->DeviceId, OSIOCTLREQUEST_PCI_INTERRUPT_QUERY,
                               &support, sizeof(support));
-        // Fall back to INTx only when MSI is absent or unsupported. Report broken
+        // Fall back only when a mode is absent or unsupported. Report broken
         // configuration and transport errors to the caller.
         if (status != OS_EOK && status != OS_ENOTSUPPORTED) {
             return status;
         }
-        if (status != OS_EOK || !(support.Strategies & INTERRUPT_STRATEGY_MSI)) {
-            strategies &= ~INTERRUPT_STRATEGY_MSI;
+        if (status != OS_EOK) {
+            support.Strategies = 0;
         }
+        strategies &= support.Strategies | INTERRUPT_STRATEGY_INTx;
     } else {
-        strategies &= ~INTERRUPT_STRATEGY_MSI;
+        strategies &= INTERRUPT_STRATEGY_INTx;
+    }
+    if (min != 1) {
+        strategies &= INTERRUPT_STRATEGY_MSIX;
+    }
+    if (strategies & INTERRUPT_STRATEGY_MSIX) {
+        if (support.MsixCapacity < min) {
+            strategies &= ~INTERRUPT_STRATEGY_MSIX;
+        } else if (optimal > support.MsixCapacity) {
+            optimal = support.MsixCapacity;
+        }
     }
     
     if (strategies == 0) {
@@ -187,31 +246,9 @@ DeviceInterruptAllocate(
         goto rollback;
     }
 
-    if (result.Strategy == INTERRUPT_STRATEGY_MSI) {
-        status = Syscall_InterruptGetMessage(state->Handle, 0, &message);
+    if (result.Strategy != INTERRUPT_STRATEGY_INTx) {
+        status = __ReservePciMessages(interrupt);
         if (status != OS_EOK) {
-            goto rollback;
-        }
-
-        pci.Operation = PciInterruptReserve;
-        pci.Allocation = state->Handle;
-        pci.AddressLow = message.AddressLow;
-        pci.AddressHigh = message.AddressHigh;
-        pci.Data = message.Data;
-        
-        // Reserve may succeed even if its response is lost. Keep track for cleanup.
-        state->PciReserved = 1;
-        status = OSDeviceIOCtl(
-            interrupt->DeviceId,
-            OSIOCTLREQUEST_PCI_INTERRUPT,
-            &pci,
-            sizeof(pci)
-        );
-        if (status != OS_EOK) {
-            // Busy leaves the function untouched because another reservation owns it.
-            if (status == OS_EBUSY) {
-                state->PciReserved = 0;
-            }
             goto rollback;
         }
     }
@@ -483,7 +520,7 @@ DeviceInterruptEnable(
         state->PendingCleanup = 1;
         status = __PciControl(interrupt, PciInterruptEnable);
         if (status != OS_EOK) {
-            // MSI may be enabled even if the response failed. Stop it before
+            // PCI delivery may be enabled even if the response failed. Stop it before
             // unmapping handlers, and keep their resources if stopping fails.
             (void)DeviceInterruptDisable(interrupt);
             return status;
@@ -548,7 +585,7 @@ DeviceInterruptDestroy(
     oserr_t status;
 
     if (interrupt != NULL && interrupt->State != NULL &&
-        interrupt->Strategy == INTERRUPT_STRATEGY_MSI) {
+        interrupt->Strategy != INTERRUPT_STRATEGY_INTx) {
         // Teardown may restore PCI state before failing. Block Enable until
         // the caller finishes Destroy and allocates again.
         interrupt->State->Ready = 0;

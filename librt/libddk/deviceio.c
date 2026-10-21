@@ -104,6 +104,16 @@ AcquireDeviceIo(
     return Syscall_IoSpaceAcquire(IoSpace);
 }
 
+oserr_t
+MapDeviceIo(
+    _In_  uuid_t id,
+    _In_  size_t offset,
+    _In_  size_t length,
+    _Out_ void** mappingOut)
+{
+    return Syscall_IoSpaceMap(id, offset, length, mappingOut);
+}
+
 /* ReleaseDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */

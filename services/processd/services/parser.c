@@ -242,8 +242,8 @@ __ConsumeEvent(
                     break;
 
                 case YAML_SEQUENCE_END_EVENT:
-                    // list end
-                    s->state = STATE_SERVICEDEPS;
+                    // Capabilities belong to the service, not its dependencies.
+                    s->state = STATE_SERVICEKEY;
                     break;
 
                 case YAML_SCALAR_EVENT:

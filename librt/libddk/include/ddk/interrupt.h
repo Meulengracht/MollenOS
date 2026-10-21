@@ -161,13 +161,17 @@ DeviceInterruptInitialize(
 /**
  * @brief Reserves interrupts without installing a handler or enabling delivery.
  *
- * deviced prepares PCI MSI with MSI and INTx disabled. The driver must stop its
- * interrupt sources and set up bus mastering and MMIO.
+ * deviced prepares PCI messages with delivery and INTx masked. The driver must
+ * stop interrupt sources and set up bus mastering and MMIO. For MSI-X, vector
+ * index i is programmed into table entry i; route device queues/causes to those
+ * entries before Enable. Only request modes the device-specific driver supports.
  * 
  * Strategies are preferences in MSI-X, MSI, INTx order. This implementation
- * supports single-message PCI MSI and INTx. @p min must be one.
- * Multi-message MSI are unsupported. @p optimal may be larger so callers
- * can request higher counts when support is added.
+ * supports PCI MSI-X, single-message MSI and INTx. MSI-X negotiates a count from
+ * min through optimal, limited by the device table and free kernel vectors.
+ * MSI and INTx fallback require min == 1. Multi-message MSI is unsupported.
+ * Unsupported capabilities and kernel vector exhaustion allow fallback; malformed
+ * configuration, provider ownership conflicts and transport failures are errors.
  * Success returns the actual count. Failure leaves @p countOut zero and retains
  * any existing allocation. If allocation rollback fails, State may remain set,
  * including when allocating local vector storage fails after kernel reservation.
@@ -175,7 +179,7 @@ DeviceInterruptInitialize(
  * can own only one allocation at a time. Serialize calls on the object and keep
  * the device stopped during allocation and teardown.
  *
- * On x86, a released MSI vector that has been enabled is retired until reboot
+ * On x86, a released MSI/MSI-X vector that has been enabled is retired until reboot
  * because the platform cannot drain messages yet. Disable/Enable reuses the
  * reservation. Each Destroy/Allocate cycle uses another slot in the vector pool.
  */
@@ -190,8 +194,8 @@ DeviceInterruptAllocate(
 /**
  * @brief Reads the message for one vector without changing delivery or ownership.
  *
- * The index addresses the allocation's vector array; it does not identify a PCI
- * MSI-X table entry. The provider will define that mapping when MSI-X is enabled.
+ * The index addresses the allocation's vector array. The initial PCI MSI-X
+ * provider assigns this vector to the table entry with the same index.
  * INTx has no message and returns OS_ENOTSUPPORTED. Failure leaves messageOut
  * unchanged. Serialize this query with other operations on the allocation.
  *

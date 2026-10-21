@@ -137,6 +137,8 @@ macro (deploy_file_to_initrd)
 
         get_target_property(D2RD_SOURCE_DIR ${ARGV0} SOURCE_DIR)
         foreach (RD_FILE ${FILES_TO_DEPLOY})
+            # Refresh the post-build copy when only the deployed configuration changes.
+            set_property(TARGET ${ARGV0} APPEND PROPERTY LINK_DEPENDS "${D2RD_SOURCE_DIR}/${RD_FILE}")
             add_custom_command (TARGET ${ARGV0} POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy "${D2RD_SOURCE_DIR}/${RD_FILE}" "${VALI_PATH_DEPLOY_SYSTEM}/${ARGV1}"
             )
