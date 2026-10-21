@@ -37,6 +37,21 @@
 #endif
 
 static int g_acpiAvailable;
+static int g_msiDisabled;
+
+int
+PciIsMsiAvailable(void)
+{
+    if (g_msiDisabled) {
+        return 0;
+    }
+#if defined(__i386__) || defined(__amd64__)
+    return 1;
+#else
+    // ARM64 MSI controllers are not connected to the vector backend yet.
+    return 0;
+#endif
+}
 
 int
 PciIsAcpiAvailable(void)
@@ -261,11 +276,13 @@ void BusEnumerate(void)
         return;
     }
     g_acpiAvailable = 0;
+    g_msiDisabled = 0;
 
     if (AcpiQueryStatus(&acpi) == OS_EOK) {
         TRACE("ACPI-Version: 0x%x (BootFlags 0x%x)",
               acpi.Version, acpi.BootFlags);
         g_acpiAvailable = 1;
+        g_msiDisabled = (acpi.BootFlags & ACPI_IA_NO_MSI) != 0;
     }
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI

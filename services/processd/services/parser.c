@@ -238,7 +238,6 @@ __ConsumeEvent(
         case STATE_CAPS_LIST:
             switch (event->type) {
                 case YAML_SEQUENCE_START_EVENT:
-                    // list start of dependencies
                     break;
 
                 case YAML_SEQUENCE_END_EVENT:
@@ -247,7 +246,6 @@ __ConsumeEvent(
                     break;
 
                 case YAML_SCALAR_EVENT:
-                    // Occurs on a new dependency entry
                     if (__AddCapability(s, (const char*)event->data.scalar.value)) {
                         return -1;
                     }

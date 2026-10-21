@@ -127,7 +127,7 @@ static int
 __PciHasProviderReferences(
     _In_ PciDevice_t* device)
 {
-    if (device->ProviderReferences != 0) {
+    if (device->ProviderReferences != 0 || device->Msi.Active || device->Msix != NULL) {
         return 1;
     }
     
