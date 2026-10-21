@@ -32,8 +32,9 @@ CapabilityGrant(
     _In_ Capabilities_t capabilities,
     _In_ uuid_t         memorySpaceHandle)
 {
-    MemorySpace_t* memorySpace;
-    oserr_t        oserr;
+    MemorySpace_t*    memorySpace;
+    struct MSContext* context;
+    oserr_t           oserr;
 
     if ((uint32_t)capabilities & ~(uint32_t)CAPABILITY_ALL) {
         ERROR("CapabilityGrant: unknown capability bits 0x%x", capabilities);
@@ -53,13 +54,15 @@ CapabilityGrant(
     }
 
     // Grant the specified capabilities to the memory space.
-    if (memorySpace->Context == NULL) {
+    context = __MSContextGet(memorySpace);
+    if (context == NULL) {
         DestroyHandle(memorySpaceHandle);
         return OS_EINVALPARAMS;
     }
-    atomic_fetch_or(&memorySpace->Context->Security.Capabilities, (uint32_t)capabilities);
+
+    context->Security.Capabilities |= capabilities;
     TRACE("CapabilityGrant: principal=%llu capabilities=0x%x",
-          (unsigned long long)memorySpace->Context->Security.Identity, capabilities);
+          (unsigned long long)context->Security.Handle, capabilities);
 
     DestroyHandle(memorySpaceHandle);
     return OS_EOK;
@@ -69,16 +72,19 @@ oserr_t
 CapabilityVerify(
     _In_ Capabilities_t capabilities)
 {
-    MemorySpace_t* memorySpace = GetCurrentMemorySpace();
+    MemorySpace_t*    memorySpace = GetCurrentMemorySpace();
+    struct MSContext* context;
     
-    if (memorySpace == NULL || memorySpace->Context == NULL) {
+    if (memorySpace == NULL || memorySpace->GroupHandle == UUID_INVALID) {
         // Only kernel threads or early system init code can have no context.
         // In this case, we assume the caller has all capabilities.
         return OS_EOK;
     }
 
+    context = __MSContextGet(memorySpace);
+    
     // For the check to pass, all capabilities requested must hold
-    if ((atomic_load(&memorySpace->Context->Security.Capabilities) & capabilities) == capabilities) {
+    if ((context->Security.Capabilities & capabilities) == capabilities) {
         return OS_EOK;
     }
 

@@ -87,8 +87,8 @@ __WriteMessage(
 {
     // The message header carries sender information and capabilities.
     IPCMessageContext_t context = {
-        .Sender = secCtx->Sender,
-        .Capabilities = secCtx->Capabilities,
+        .Sender = secCtx->Handle,
+        .Capabilities = (uint32_t)secCtx->Capabilities,
         .SenderHandle = message->SenderHandle
     };
     size_t payloadLength = packetCtx->_length - sizeof(IPCMessageContext_t);
@@ -113,8 +113,8 @@ __WriteMessage(
 
 static inline void
 SendMessage(
-        _In_ uuid_t                     streamID,
-        _In_ streambuffer_packet_ctx_t* packetCtx)
+    _In_ uuid_t                     streamID,
+    _In_ streambuffer_packet_ctx_t* packetCtx)
 {
     TRACE("SendMessage()");
     streambuffer_write_packet_end(packetCtx);
@@ -123,10 +123,10 @@ SendMessage(
 
 oserr_t
 IpcContextSendMultiple(
-        _In_ IPCMessage_t**    messages,
-        _In_ int               messageCount,
-        _In_ OSTimestamp_t*    deadline,
-        _In_ OSAsyncContext_t* asyncContext)
+    _In_ IPCMessage_t**    messages,
+    _In_ int               messageCount,
+    _In_ OSTimestamp_t*    deadline,
+    _In_ OSAsyncContext_t* asyncContext)
 {
     MSContextSecurity_t*      secCtx;
     streambuffer_packet_ctx_t packetCtx;

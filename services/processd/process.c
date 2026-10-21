@@ -573,7 +573,7 @@ PmAuthorizeSpawn(
         return OS_EOK;
     }
     
-    if (caller == NULL || caller->source != GRACHT_SECURITY_VALI_KERNEL || caller->principal == 0) {
+    if (caller == NULL || caller->source != GRACHT_SECURITY_KERNEL || caller->principal == 0) {
         WARNING("PmAuthorizeSpawn rejected privileged spawn without authenticated credentials");
         return OS_EPERMISSIONS;
     }

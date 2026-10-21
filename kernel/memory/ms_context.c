@@ -15,29 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <handle.h>
 #include <heap.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <mutex.h>
 #include "private.h"
-
-struct MSContext*
-MSContextNew(void)
-{
-    struct MSContext* context = kmalloc(sizeof(struct MSContext));
-    if (!context) {
-        return NULL;
-    }
-
-    MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
-    MutexConstruct(&context->UserCopyLock, MUTEX_FLAG_PLAIN);
-    DynamicMemoryPoolConstruct(&context->Heap, GetMachine()->MemoryMap.UserHeap.Start,
-                               GetMachine()->MemoryMap.UserHeap.Length, GetMachine()->MemoryGranularity);
-    list_construct(&context->Allocations);
-    context->SignalHandler = 0;
-    context->Capabilities = 0;
-    return context;
-}
 
 static void
 __CleanupMemoryAllocation(
@@ -51,19 +34,49 @@ __CleanupMemoryAllocation(
     kfree(allocation);
 }
 
-void
-MSContextDelete(
-    _In_ struct MSContext* context)
+static void
+__MSContextDelete(
+    _In_ void* resource)
 {
-    if (context == NULL) {
-        return;
-    }
+    struct MSContext* context = resource;
 
     MutexDestruct(&context->SyncObject);
     MutexDestruct(&context->UserCopyLock);
     list_clear(&context->Allocations, __CleanupMemoryAllocation, context);
     DynamicMemoryPoolDestroy(&context->Heap);
     kfree(context);
+}
+
+uuid_t
+MSContextNew(void)
+{
+    struct MSContext* context;
+    uuid_t            handle;
+
+    context = kmalloc(sizeof(struct MSContext));
+    if (!context) {
+        return UUID_INVALID;
+    }
+
+    handle = CreateHandle(HandleTypeMSContext, __MSContextDelete, context);
+    if (handle == UUID_INVALID) {
+        kfree(context);
+        return UUID_INVALID;
+    }
+
+    MutexConstruct(&context->SyncObject, MUTEX_FLAG_PLAIN);
+    MutexConstruct(&context->UserCopyLock, MUTEX_FLAG_PLAIN);
+    DynamicMemoryPoolConstruct(
+        &context->Heap,
+        GetMachine()->MemoryMap.UserHeap.Start,
+        GetMachine()->MemoryMap.UserHeap.Length,
+        GetMachine()->MemoryGranularity
+    );
+    list_construct(&context->Allocations);
+    context->SignalHandler = 0;
+    context->Security.Handle = handle;
+    context->Security.Capabilities = 0;
+    return handle;
 }
 
 void
@@ -74,4 +87,18 @@ MSContextAddAllocation(
     MutexLock(&context->SyncObject);
     list_append(&context->Allocations, &allocation->Header);
     MutexUnlock(&context->SyncObject);
+}
+
+MSContextSecurity_t*
+MemorySpaceGetSecurityContext(void)
+{
+    MemorySpace_t*    memorySpace = GetCurrentMemorySpace();
+    struct MSContext* context;
+
+    if (!memorySpace) {
+        return NULL;
+    }
+
+    context = __MSContextGet(memorySpace);
+    return context != NULL ? &context->Security : NULL;
 }

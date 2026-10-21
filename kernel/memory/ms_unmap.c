@@ -23,9 +23,9 @@
 
 static oserr_t
 __ClearPhysicalPages(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         size)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         size)
 {
     paddr_t* addresses;
     oserr_t  oserr;
@@ -70,10 +70,11 @@ exit:
 
 static oserr_t
 __Unmap(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         length)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         length)
 {
+    struct MSContext*     context;
     struct MSAllocation* allocation;
     vaddr_t              startAddress = address;
     oserr_t              oserr;
@@ -86,16 +87,17 @@ __Unmap(
         return OS_EINVALPARAMS;
     }
 
-    allocation = MSAllocationLookup(memorySpace->Context, address);
+    context = __MSContextGet(memorySpace);
+    allocation = MSAllocationLookup(context, address);
     if (allocation != NULL) {
         struct MSAllocation* original;
         startAddress = allocation->Address;
 
         oserr = MSAllocationFree(
-                memorySpace->Context,
-                address,
-                length,
-                &original
+            context,
+            address,
+            length,
+            &original
         );
         if (oserr != OS_EOK) {
             // There are two reasons for this to fail, either there are links
@@ -127,8 +129,8 @@ __Unmap(
 
     // When a full free occurs, we must always use the start address of the allocation
     // and it's full length when freeing the virtual region.
-    if (memorySpace->Context != NULL && DynamicMemoryPoolContains(&memorySpace->Context->Heap, startAddress)) {
-        DynamicMemoryPoolFree(&memorySpace->Context->Heap, startAddress);
+    if (context != NULL && DynamicMemoryPoolContains(&context->Heap, startAddress)) {
+        DynamicMemoryPoolFree(&context->Heap, startAddress);
     } else if (StaticMemoryPoolContains(&GetMachine()->GlobalAccessMemory, startAddress)) {
         StaticMemoryPoolFree(&GetMachine()->GlobalAccessMemory, startAddress);
     } else if (DynamicMemoryPoolContains(&memorySpace->ThreadMemory, startAddress)) {
@@ -141,26 +143,27 @@ exit:
 
 oserr_t
 MemorySpaceUnmap(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t address,
-        _In_ size_t length)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t address,
+    _In_ size_t length)
 {
-    oserr_t status;
+    struct MSContext* context;
+    oserr_t           status;
 
     if (memorySpace == NULL) {
         return OS_EINVALPARAMS;
     }
     
-    // If the memoryspace has a context, we do this in a 
-    // locked section.
-    if (memorySpace->Context != NULL) {
-        MutexLock(&memorySpace->Context->UserCopyLock);
+    // Serialize changes against user copies in every space in the group.
+    context = __MSContextGet(memorySpace);
+    if (context != NULL) {
+        MutexLock(&context->UserCopyLock);
     }
     
     status = __Unmap(memorySpace, address, length);
     
-    if (memorySpace->Context != NULL) {
-        MutexUnlock(&memorySpace->Context->UserCopyLock);
+    if (context != NULL) {
+        MutexUnlock(&context->UserCopyLock);
     }
     return status;
 }

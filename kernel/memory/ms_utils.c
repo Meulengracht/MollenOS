@@ -27,13 +27,13 @@
 
 oserr_t
 MemorySpaceInitialize(
-        _In_ MemorySpace_t*           memorySpace,
-        _In_ struct VBoot*            bootInformation,
-        _In_ PlatformMemoryMapping_t* kernelMappings)
+    _In_ MemorySpace_t*           memorySpace,
+    _In_ struct VBoot*            bootInformation,
+    _In_ PlatformMemoryMapping_t* kernelMappings)
 {
     // initialzie the data structure
     memorySpace->ParentHandle = UUID_INVALID;
-    memorySpace->Context      = NULL;
+    memorySpace->GroupHandle  = UUID_INVALID;
 
     // initialize arch specific stuff
     return MmuLoadKernel(memorySpace, bootInformation, kernelMappings);
@@ -41,11 +41,11 @@ MemorySpaceInitialize(
 
 static oserr_t
 __ChangeProtection(
-        _In_    MemorySpace_t* memorySpace,
-        _InOut_ vaddr_t        address,
-        _In_    size_t         length,
-        _In_    unsigned int   attributes,
-        _Out_   unsigned int*  previousAttributes)
+    _In_    MemorySpace_t* memorySpace,
+    _InOut_ vaddr_t        address,
+    _In_    size_t         length,
+    _In_    unsigned int   attributes,
+    _Out_   unsigned int*  previousAttributes)
 {
     int     pageCount = DIVUP((length + (address % GetMemorySpacePageSize())), GetMemorySpacePageSize());
     int     pagesUpdated;
@@ -72,20 +72,22 @@ __ChangeProtection(
 
 oserr_t
 MemorySpaceChangeProtection(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t address,
-        _In_ size_t length,
-        _In_ unsigned int attributes,
-        _Out_ unsigned int* previousAttributes)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t address,
+    _In_ size_t length,
+    _In_ unsigned int attributes,
+    _Out_ unsigned int* previousAttributes)
 {
-    oserr_t status;
+    struct MSContext* context;
+    oserr_t           status;
 
     if (memorySpace == NULL) {
         return OS_EINVALPARAMS;
     }
     
-    if (memorySpace->Context != NULL) {
-        MutexLock(&memorySpace->Context->UserCopyLock);
+    context = __MSContextGet(memorySpace);
+    if (context != NULL) {
+        MutexLock(&context->UserCopyLock);
     }
     
     status = __ChangeProtection(
@@ -96,8 +98,8 @@ MemorySpaceChangeProtection(
         previousAttributes
     );
 
-    if (memorySpace->Context != NULL) {
-        MutexUnlock(&memorySpace->Context->UserCopyLock);
+    if (context != NULL) {
+        MutexUnlock(&context->UserCopyLock);
     }
     return status;
 }
@@ -126,7 +128,7 @@ MemorySpaceQuery(
         return OS_EINVALPARAMS;
     }
 
-    allocation = MSAllocationLookup(memorySpace->Context, address);
+    allocation = MSAllocationLookup(__MSContextGet(memorySpace), address);
     if (!allocation) {
         return OS_ENOENT;
     }
@@ -243,7 +245,7 @@ AreMemorySpacesRelated(
         _In_ MemorySpace_t* Space1,
         _In_ MemorySpace_t* Space2)
 {
-    return (Space1->Context == Space2->Context) ? OS_EOK : OS_EUNKNOWN;
+    return (Space1->GroupHandle == Space2->GroupHandle) ? OS_EOK : OS_EUNKNOWN;
 }
 
 oserr_t
@@ -251,11 +253,18 @@ MemorySpaceSetSignalHandler(
         _In_ MemorySpace_t* memorySpace,
         _In_ vaddr_t        signalHandlerAddress)
 {
-    if (!memorySpace || !memorySpace->Context) {
+    struct MSContext* context;
+
+    if (!memorySpace) {
         return OS_EINVALPARAMS;
     }
 
-    memorySpace->Context->SignalHandler = signalHandlerAddress;
+    context = __MSContextGet(memorySpace);
+    if (context == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    context->SignalHandler = signalHandlerAddress;
     return OS_EOK;
 }
 
@@ -263,10 +272,14 @@ vaddr_t
 MemorySpaceSignalHandler(
         _In_ MemorySpace_t* memorySpace)
 {
-    if (!memorySpace || !memorySpace->Context) {
+    struct MSContext* context;
+
+    if (!memorySpace) {
         return 0;
     }
-    return memorySpace->Context->SignalHandler;
+
+    context = __MSContextGet(memorySpace);
+    return context != NULL ? context->SignalHandler : 0;
 }
 
 size_t

@@ -18,6 +18,8 @@
 #ifndef __MS_PRIVATE_H__
 #define __MS_PRIVATE_H__
 
+#include <assert.h>
+#include <handle.h>
 #include <ddk/types/capabilities.h>
 #include <ds/list.h>
 #include <ds/bitmap.h>
@@ -35,7 +37,6 @@
 struct SHMBuffer {
     uuid_t             ID;
     MemorySpace_t*     Owner;
-    uint64_t           IPCOwner;
     Mutex_t            Mutex;
     vaddr_t            KernelMapping;
     size_t             Offset;
@@ -76,6 +77,9 @@ struct MSAllocation {
     struct MSAllocation* CloneOf;
 };
 
+/**
+ * @brief Handle-owned resources shared by all memory spaces in a group.
+ */
 struct MSContext {
     MSContextSecurity_t Security;
     DynamicMemoryPool_t Heap;
@@ -86,19 +90,32 @@ struct MSContext {
 };
 
 /**
- * @brief Returns a new instance of a memory space (shared) context.
- * @return An allocated and instantiated memory space context.
+ * @brief Creates a memory-space group with one owning handle reference.
+ * @return The group handle, or UUID_INVALID if allocation fails.
  */
-struct MSContext*
+uuid_t
 MSContextNew(void);
 
 /**
- * @brief Destroys and frees any resources associated with the memory space context.
- * @param context The memory space context to clean up.
+ * @brief Borrows the shared context while the caller keeps the memory space alive.
+ *
+ * @param memorySpace The memory space owning the group reference.
+ * @return The shared context, or NULL for a kernel memory space without a group.
  */
-void
-MSContextDelete(
-    _In_ struct MSContext* context);
+static inline struct MSContext*
+__MSContextGet(
+    _In_ MemorySpace_t* memorySpace)
+{
+    struct MSContext* context;
+
+    if (memorySpace->GroupHandle == UUID_INVALID) {
+        return NULL;
+    }
+
+    context = LookupHandleOfType(memorySpace->GroupHandle, HandleTypeMSContext);
+    assert(context != NULL);
+    return context;
+}
 
 /**
  * @brief Registers a new allocation with the given context.

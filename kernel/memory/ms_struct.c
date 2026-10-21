@@ -43,6 +43,7 @@ MemorySpaceNew(
 
     memorySpace->Flags        = flags;
     memorySpace->ParentHandle = UUID_INVALID;
+    memorySpace->GroupHandle  = UUID_INVALID;
     DynamicMemoryPoolConstruct(
             &memorySpace->ThreadMemory,
             threadRegionStart,
@@ -63,9 +64,8 @@ MemorySpaceDelete(
     DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
     MmuDestroyVirtualSpace(memorySpace);
 
-    // Some cleanup for the root memory space
-    if (memorySpace->ParentHandle == UUID_INVALID) {
-        MSContextDelete(memorySpace->Context);
+    if (memorySpace->GroupHandle != UUID_INVALID) {
+        DestroyHandle(memorySpace->GroupHandle);
     }
     
     // Some cleanup for non-root memory spaces
