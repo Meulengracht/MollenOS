@@ -137,7 +137,7 @@ int ipsend(int iod, IPCAddress_t* addr, const void* data, unsigned int len, cons
     );
 }
 
-int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandle)
+int iprecv(int iod, void* buffer, unsigned int len, int flags, IPCMessageContext_t* msgContext)
 {
     stdio_handle_t*    handle = stdio_handle_get(iod);
     size_t             bytesRead = 0;
@@ -160,13 +160,13 @@ int iprecv(int iod, void* buffer, unsigned int len, int flags, uuid_t* fromHandl
         OSAsyncContextInitialize(asyncContext);
     }
     oserr = IPCContextRecv(
-            &handle->OSHandle,
-            buffer,
-            len,
-            flags,
-            asyncContext,
-            fromHandle,
-            &bytesRead
+        &handle->OSHandle,
+        buffer,
+        len,
+        flags,
+        asyncContext,
+        msgContext,
+        &bytesRead
     );
     if (oserr != OS_EOK) {
         OsErrToErrNo(oserr);

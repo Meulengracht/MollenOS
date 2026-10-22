@@ -22,6 +22,7 @@
 #include <ds/hashtable.h>
 #include <ddk/barrier.h>
 #include <os/handle.h>
+#include <ddk/capabilities.h>
 #include <ddk/utils.h>
 #include <internal/_syscalls.h> // for Syscall_ThreadCreate
 #include <internal/_io.h>
@@ -291,6 +292,7 @@ __ProcessNew(
 
     memcpy(&process->handle, handle, sizeof(OSHandle_t));
     process->primary_thread_id = UUID_INVALID;
+    process->capabilities = procOpts->Capabilities;
     process->tick_base = clock();
     process->state = ProcessState_RUNNING;
     process->load_context = loadContext;
@@ -459,12 +461,12 @@ __GetLoadPaths(
     return ldpaths;
 }
 
-oserr_t
-PmCreateProcess(
-        _In_  const char*            path,
-        _In_  const char*            args,
-        _In_  struct ProcessOptions* procOpts,
-        _Out_ uuid_t*                handleOut)
+static oserr_t
+__CreateProcess(
+    _In_  const char*            path,
+    _In_  const char*            args,
+    _In_  struct ProcessOptions* procOpts,
+    _Out_ uuid_t*                handleOut)
 {
     struct PEImageLoadContext* loadContext;
     Process_t*                 process;
@@ -480,10 +482,10 @@ PmCreateProcess(
     }
 
     oserr = __LoadProcessImage(
-            procOpts->Scope,
-            loadPaths,
-            path,
-            &loadContext
+        procOpts->Scope,
+        loadPaths,
+        path,
+        &loadContext
     );
     if (oserr != OS_EOK) {
         goto exit;
@@ -497,14 +499,29 @@ PmCreateProcess(
     }
 
     oserr = __ProcessNew(
-            procOpts,
-            &handle,
-            loadContext,
-            &process
+        procOpts,
+        &handle,
+        loadContext,
+        &process
     );
     if (oserr != OS_EOK) {
         PEImageLoadContextDelete(loadContext);
         goto exit;
+    }
+
+    // Set the capabilities for the process based on the process options.
+    if (process->capabilities) {
+        // The request boundary checked the sender. The kernel independently
+        // checks processd's own authority to perform the grant.
+        oserr = CapabilityGrant(
+            process->capabilities,
+            process->load_context->MemorySpace
+        );
+        if (oserr != OS_EOK) {
+            ERROR("PmCreateProcess failed to grant capabilities");
+            DestroyProcess(process);
+            goto exit;
+        }
     }
 
     oserr = __BuildArguments(process, args);
@@ -527,12 +544,12 @@ PmCreateProcess(
     // Add it to the list of processes
     TRACE("PmCreateProcess registering process %u/%u", handle.ID, process->primary_thread_id);
     hashtable_set(&g_threadmappings, &(struct thread_mapping) {
-            .process_id = handle.ID,
-            .thread_id  = process->primary_thread_id
+        .process_id = handle.ID,
+        .thread_id  = process->primary_thread_id
     });
     hashtable_set(&g_processes, &(struct process_entry) {
-            .process_id = handle.ID,
-            .process    = process
+        .process_id = handle.ID,
+        .process    = process
     });
     usched_mtx_unlock(&g_processesLock);
 
@@ -540,6 +557,67 @@ PmCreateProcess(
 exit:
     EXIT("PmCreateProcess");
     return oserr;
+}
+
+oserr_t
+PmAuthorizeSpawn(
+    _In_ const struct gracht_security_context* caller,
+    _In_ Capabilities_t                        capabilities)
+{
+    if ((uint32_t)capabilities & ~(uint32_t)CAPABILITY_ALL) {
+        WARNING("PmAuthorizeSpawn rejected unknown child capabilities 0x%x", capabilities);
+        return OS_EINVALPARAMS;
+    }
+    
+    if (capabilities == 0) {
+        return OS_EOK;
+    }
+    
+    if (caller == NULL || caller->source != GRACHT_SECURITY_KERNEL || caller->principal == 0) {
+        WARNING("PmAuthorizeSpawn rejected privileged spawn without authenticated credentials");
+        return OS_EPERMISSIONS;
+    }
+    
+    if (!(caller->capabilities & CAPABILITY_GRANT_CAPABILITY)) {
+        WARNING("PmAuthorizeSpawn principal=%llu cannot grant child capabilities 0x%x",
+                (unsigned long long)caller->principal, capabilities);
+        return OS_EPERMISSIONS;
+    }
+    
+    TRACE("PmAuthorizeSpawn principal=%llu authorized child capabilities 0x%x",
+          (unsigned long long)caller->principal, capabilities);
+    return OS_EOK;
+}
+
+oserr_t
+PmCreateProcess(
+    _In_  const struct gracht_security_context* caller,
+    _In_  const char*                          path,
+    _In_  const char*                          args,
+    _In_  struct ProcessOptions*               procOpts,
+    _Out_ uuid_t*                              handleOut)
+{
+    oserr_t status;
+
+    status = PmAuthorizeSpawn(caller, procOpts->Capabilities);
+    if (status != OS_EOK) {
+        return status;
+    }
+    return __CreateProcess(path, args, procOpts, handleOut);
+}
+
+oserr_t
+PmCreateServiceProcess(
+    _In_  const char*            path,
+    _In_  const char*            args,
+    _In_  struct ProcessOptions* procOpts,
+    _Out_ uuid_t*                handleOut)
+{
+    if ((uint32_t)procOpts->Capabilities & ~(uint32_t)CAPABILITY_ALL) {
+        return OS_EINVALPARAMS;
+    }
+    TRACE("processd: bootstrap service %s capabilities=0x%x", path, procOpts->Capabilities);
+    return __CreateProcess(path, args, procOpts, handleOut);
 }
 
 static oserr_t

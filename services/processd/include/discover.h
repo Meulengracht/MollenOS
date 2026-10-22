@@ -20,15 +20,17 @@
 
 #include <ds/mstring.h>
 #include <ds/list.h>
+#include <ddk/capabilities.h>
 
 struct SystemService {
-    int        ID;
-    mstring_t* Name;
-    mstring_t* Path;
-    mstring_t* APIPath;
+    int            ID;
+    mstring_t*     Name;
+    mstring_t*     Path;
+    mstring_t*     APIPath;
+    Capabilities_t Capabilities;
     // Dependencies is a list of service names this service requires
     // before it is spawned.
-    list_t Dependencies;
+    list_t         Dependencies;
 };
 
 /**

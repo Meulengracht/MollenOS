@@ -26,20 +26,26 @@
 
 #include <ddk/interrupt.h>
 
-typedef struct InterruptAllocationRequest {
+typedef struct InterruptGroupRequest {
     uuid_t                DeviceId;
     DeviceInterruptLine_t Line;
     unsigned int          Flags;
     uint32_t              Minimum;
     uint32_t              Optimal;
     uint32_t              Strategies;
-} InterruptAllocationRequest_t;
+} InterruptGroupRequest_t;
 
-typedef struct InterruptAllocationResult {
+typedef struct InterruptGroupResult {
     uuid_t   Handle;
     uint32_t Count;
     uint32_t Strategy;
-} InterruptAllocationResult_t;
+    
+    // Single-message MSI payload. Zero for INTx.
+    // Use the indexed message query for individual vectors.
+    uint32_t AddressLow;
+    uint32_t AddressHigh;
+    uint32_t Data;
+} InterruptGroupResult_t;
 
 typedef struct InterruptBindRequest {
     uint32_t                 Index;

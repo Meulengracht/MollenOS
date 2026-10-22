@@ -89,8 +89,14 @@ struct bus_io {
     }
 }
 
+enum bus_type {
+    GENERIC = 0,
+    PCI = 1
+}
+
 struct device_bus {
     device_base;
+    bus_type type;
     int      irq_line;
     int      irq_pin;
     uint32   acpi_conform_flags;

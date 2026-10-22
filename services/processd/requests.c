@@ -50,6 +50,7 @@ __from_sys_process_configuration(
         _In_ struct ProcessOptions*                  out)
 {
     out->Scope = in->scope;
+    out->Capabilities = (Capabilities_t)in->capabilities;
     out->WorkingDirectory = in->working_directory;
     out->MemoryLimit.QuadPart = in->memory_limit;
     out->InheritationBlockLength = in->inherit_block_length;
@@ -58,14 +59,15 @@ __from_sys_process_configuration(
 }
 
 void sys_process_spawn_invocation(
-        struct gracht_message*                  message,
-        const char*                             path,
-        const char*                             arguments,
-        const struct sys_process_configuration* configuration)
+    struct gracht_message*                  message,
+    const char*                             path,
+    const char*                             arguments,
+    const struct sys_process_configuration* configuration)
 {
-    struct ProcessOptions options;
-    uuid_t                handle = UUID_INVALID;
-    oserr_t               oserr;
+    struct ProcessOptions                 options = { 0 };
+    const struct gracht_security_context* caller;
+    uuid_t                                handle = UUID_INVALID;
+    oserr_t                               oserr;
     TRACE("void sys_process_spawn_invocation(()");
 
     if (path == NULL || !strlen(path)) {
@@ -73,6 +75,13 @@ void sys_process_spawn_invocation(
         return;
     }
     __from_sys_process_configuration(configuration, &options);
+
+    caller = gracht_server_get_security_context(message);
+    oserr = PmAuthorizeSpawn(caller, options.Capabilities);
+    if (oserr != OS_EOK) {
+        sys_process_spawn_response(message, oserr, UUID_INVALID);
+        return;
+    }
 
     oserr = SHMAttach(configuration->data_buffer, &options.DataBufferHandle);
     if (oserr != OS_EOK) {
@@ -82,10 +91,10 @@ void sys_process_spawn_invocation(
 
     // We only need read access to the buffer
     oserr = SHMMap(
-            &options.DataBufferHandle,
-            0,
-            SHMBufferCapacity(&options.DataBufferHandle),
-            SHM_ACCESS_READ
+        &options.DataBufferHandle,
+        0,
+        SHMBufferCapacity(&options.DataBufferHandle),
+        SHM_ACCESS_READ
     );
     if (oserr != OS_EOK) {
         OSHandleDestroy(&options.DataBufferHandle);
@@ -93,7 +102,7 @@ void sys_process_spawn_invocation(
         return;
     }
 
-    oserr = PmCreateProcess(path, arguments, &options, &handle);
+    oserr = PmCreateProcess(caller, path, arguments, &options, &handle);
     OSHandleDestroy(&options.DataBufferHandle);
     sys_process_spawn_response(message, oserr, handle);
 }
@@ -104,10 +113,10 @@ void sys_process_get_startup_information_invocation(struct gracht_message* messa
     TRACE("sys_process_get_startup_information_invocation()");
     uuid_t  processHandle = UUID_INVALID;
     oserr_t oserr = PmGetProcessStartupInformation(
-            handle,
-            bufferHandle,
-            offset,
-            &processHandle
+        handle,
+        bufferHandle,
+        offset,
+        &processHandle
     );
     sys_process_get_startup_information_response(message, oserr, processHandle);
 }

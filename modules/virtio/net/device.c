@@ -193,12 +193,37 @@ VirtioNetBusDeviceDestroy(
     free(busDevice);
 }
 
+oserr_t
+VirtioNetMetadataAddress(
+    _In_  VirtioNetDevice_t* device,
+    _In_  size_t             offset,
+    _Out_ uintptr_t*         addressOut)
+{
+    int     index;
+    size_t  segmentOffset;
+    oserr_t status;
+
+    status = SHMSGTableOffset(&device->MetadataSg, offset, &index, &segmentOffset);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    if (device->MetadataSg.Entries[index].Length - segmentOffset < VIRTIO_NET_METADATA_STRIDE) {
+        return OS_ENOTSUPPORTED;
+    }
+
+    *addressOut = device->MetadataSg.Entries[index].Address + segmentOffset;
+    return OS_EOK;
+}
+
 VirtioNetDevice_t*
 VirtioNetDeviceCreate(
         _In_ BusDevice_t* busDevice)
 {
     VirtioNetDevice_t* device = calloc(1, sizeof(*device));
     oserr_t            status;
+    size_t             offset;
+    uintptr_t          metadataAddress;
     
     if (device == NULL) {
         VirtioNetBusDeviceDestroy(busDevice);
@@ -251,10 +276,14 @@ VirtioNetDeviceCreate(
         goto error;
     }
     
-    if (device->MetadataSg.Count != 1 ||
-        device->MetadataSg.Entries[0].Length < SHMBufferLength(&device->Metadata)) {
-        status = OS_ENOTSUPPORTED;
-        goto error;
+    // SHM_DEVICE may span nonadjacent physical pages. Only each header/padding
+    // cell must fit in one segment, since it is submitted as a single descriptor.
+    for (offset = 0; offset < SHMBufferLength(&device->Metadata); offset += VIRTIO_NET_METADATA_STRIDE) {
+        status = VirtioNetMetadataAddress(device, offset, &metadataAddress);
+        if (status != OS_EOK) {
+            ERROR("virtio-net metadata cell at %zu crosses a DMA segment", offset);
+            goto error;
+        }
     }
     
     status = VirtioNetRegisterInterrupt(device);

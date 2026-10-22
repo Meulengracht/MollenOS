@@ -30,6 +30,16 @@ static struct __TestContext {
     struct MSContext     MSContext;
 } g_testContext;
 
+void*
+LookupHandleOfType(
+    _In_ uuid_t       handle,
+    _In_ HandleType_t type)
+{
+    assert_int_equal(handle, 1);
+    assert_int_equal(type, HandleTypeMSContext);
+    return &g_testContext.MSContext;
+}
+
 int Setup(void** state) {
     (void)state;
     return 0;
@@ -57,7 +67,7 @@ static void __CleanupAllocation(element_t* element, void* context) {
 void TestMSAllocationCreate_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     oserr_t oserr;
 
@@ -93,7 +103,7 @@ void TestMSAllocationCreate_Happy(void** state)
 void TestMSAllocationCreate_NonPageAlignedLengthHappy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     oserr_t oserr;
 
@@ -130,7 +140,7 @@ void TestMSAllocationCreate_MissingContext(void** state)
 {
     (void)state;
     oserr_t oserr = MSAllocationCreate(
-            &(struct MemorySpace) { },
+            &(struct MemorySpace) { .GroupHandle = UUID_INVALID },
             UUID_INVALID,
             0x1000,
             0x1000,
@@ -162,7 +172,7 @@ void TestMSAllocationCreate_NotPageAlignedAddress(void** state)
 {
     (void)state;
     oserr_t oserr = MSAllocationCreate(
-            &(struct MemorySpace) { .Context = &g_testContext.MSContext },
+            &(struct MemorySpace) { .GroupHandle = 1 },
             UUID_INVALID,
             0x1345,
             0x1000,
@@ -174,7 +184,7 @@ void TestMSAllocationCreate_NotPageAlignedAddress(void** state)
 void TestMSAllocationLookup_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     struct MSAllocation* allocation;
     oserr_t oserr;
@@ -192,19 +202,19 @@ void TestMSAllocationLookup_Happy(void** state)
     assert_int_equal(oserr, OS_EOK);
 
     // should return the allocation when providing the base address
-    allocation = MSAllocationLookup(memorySpace.Context, 0x1000);
+    allocation = MSAllocationLookup(__MSContextGet(&memorySpace), 0x1000);
     assert_non_null(allocation);
     assert_int_equal(g_testContext.MutexLockCalls, 1);
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);
 
     // should return if in range
-    allocation = MSAllocationLookup(memorySpace.Context, 0x1400);
+    allocation = MSAllocationLookup(__MSContextGet(&memorySpace), 0x1400);
     assert_non_null(allocation);
     assert_int_equal(g_testContext.MutexLockCalls, 2);
     assert_int_equal(g_testContext.MutexUnlockCalls, 2);
 
     // should NOT return if out of range
-    allocation = MSAllocationLookup(memorySpace.Context, 0x2000);
+    allocation = MSAllocationLookup(__MSContextGet(&memorySpace), 0x2000);
     assert_null(allocation);
     assert_int_equal(g_testContext.MutexLockCalls, 3);
     assert_int_equal(g_testContext.MutexUnlockCalls, 3);
@@ -227,7 +237,7 @@ void TestMSAllocationLookup_InvalidContext(void** state)
 void TestMSAllocationAcquire_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     struct MSAllocation* allocation;
     oserr_t oserr;
@@ -245,7 +255,7 @@ void TestMSAllocationAcquire_Happy(void** state)
     assert_int_equal(oserr, OS_EOK);
 
     // must increase ref count on the allocation
-    allocation = MSAllocationAcquire(memorySpace.Context, 0x1000);
+    allocation = MSAllocationAcquire(__MSContextGet(&memorySpace), 0x1000);
     assert_non_null(allocation);
     assert_int_equal(g_testContext.MutexLockCalls, 1);
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);
@@ -269,7 +279,7 @@ void TestMSAllocationAcquire_InvalidContext(void** state)
 void TestMSAllocationFree_Simple(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     struct MSAllocation* clonedFrom;
     oserr_t oserr;
@@ -304,7 +314,7 @@ void TestMSAllocationFree_Simple(void** state)
 void TestMSAllocationFree_PartialFree(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     struct MSAllocation* clonedFrom;
     oserr_t oserr;
@@ -357,7 +367,7 @@ void TestMSAllocationFree_PartialFree(void** state)
 void TestMSAllocationFree_MultipleReferencesSimple(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     struct MSAllocation* clonedFrom;
     struct MSAllocation* allocation;
@@ -376,7 +386,7 @@ void TestMSAllocationFree_MultipleReferencesSimple(void** state)
     assert_int_equal(oserr, OS_EOK);
 
     // must increase ref count on the allocation
-    allocation = MSAllocationAcquire(memorySpace.Context, 0x1000);
+    allocation = MSAllocationAcquire(__MSContextGet(&memorySpace), 0x1000);
     assert_non_null(allocation);
     assert_int_equal(g_testContext.MutexLockCalls, 1);
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);
@@ -477,7 +487,7 @@ void TestMSAllocationFree_InvalidAddress(void** state)
 void TestMSAllocationLink_Happy(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     struct MSAllocation allocation;
     oserr_t oserr;
@@ -495,7 +505,7 @@ void TestMSAllocationLink_Happy(void** state)
     assert_int_equal(oserr, OS_EOK);
 
     // must increase ref count on the allocation
-    oserr = MSAllocationLink(memorySpace.Context, 0x1000, &allocation);
+    oserr = MSAllocationLink(__MSContextGet(&memorySpace), 0x1000, &allocation);
     assert_int_equal(oserr, OS_EOK);
     assert_int_equal(g_testContext.MutexLockCalls, 1);
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);
@@ -519,13 +529,13 @@ void TestMSAllocationLink_InvalidContext(void** state)
 void TestMSAllocationLink_InvalidAddress(void** state)
 {
     MemorySpace_t memorySpace = {
-            .Context = &g_testContext.MSContext
+            .GroupHandle = 1
     };
     oserr_t oserr;
     (void)state;
 
     // Create the allocation we will use for testing
-    oserr = MSAllocationLink(memorySpace.Context, 0x1000, NULL);
+    oserr = MSAllocationLink(__MSContextGet(&memorySpace), 0x1000, NULL);
     assert_int_equal(oserr, OS_ENOENT);
     assert_int_equal(g_testContext.MutexLockCalls, 1);
     assert_int_equal(g_testContext.MutexUnlockCalls, 1);

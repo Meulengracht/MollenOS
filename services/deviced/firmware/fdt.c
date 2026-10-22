@@ -16,7 +16,9 @@
  *
  */
 
+//#define __TRACE
 #include <firmware/reader.h>
+#include <ddk/utils.h>
 #include <string.h>
 
 /**
@@ -149,10 +151,10 @@ __ReaderEnd(
 
 oserr_t
 FdtWalkNodes(
-    _In_ const void* blob,
-    _In_ size_t length,
-    _In_ FdtNodeFn visitor,
-    _InOut_ void* context)
+    _In_    const void* blob,
+    _In_    size_t      length,
+    _In_    FdtNodeFn   visitor,
+    _InOut_ void*       context)
 {
     struct FDTHeader header;
     struct __FdtWalk walk = { .Depth = -1 };
@@ -164,12 +166,14 @@ FdtWalkNodes(
     };
     oserr_t          status;
 
+    TRACE("FdtWalkNodes(blob=%p, length=%zu)", blob, length);
     status = FdtParseHeader(
         blob,
         length > UINT32_MAX ? UINT32_MAX : (uint32_t)length,
         &header
     );
     if (status != OS_EOK) {
+        ERROR("FdtWalkNodes: invalid tree header (%u)", status);
         return status;
     }
 
@@ -184,19 +188,28 @@ FdtWalkNodes(
     // both reads finish.
     status = FdtParseStructure(walk.Structure, header.SizeDtStruct,
         walk.Strings, walk.StringsLength, &parser);
-    if (status != OS_EOK || visitor == NULL) {
+    if (status != OS_EOK) {
+        ERROR("FdtWalkNodes: invalid tree structure (%u)", status);
         return status;
+    }
+    if (visitor == NULL) {
+        return OS_EOK;
     }
     
     walk.Visitor = visitor;
     walk.Context = context;
-    return FdtParseStructure(
+    status = FdtParseStructure(
         walk.Structure,
         header.SizeDtStruct,
         walk.Strings,
         walk.StringsLength,
         &parser
     );
+    if (status != OS_EOK) {
+        ERROR("FdtWalkNodes: tree visitation failed (%u)", status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -226,14 +239,20 @@ FdtProperty(
         .Property = __ReaderFindProperty,
         .UserData = &query
     };
+    oserr_t status;
 
-    FdtVisitProperties(
+    status = FdtVisitProperties(
         node->Properties,
         node->PropertiesLength,
         node->Strings,
         node->StringsLength,
         &parser
     );
+    if (status != OS_EOK) {
+        // Keep any match found before the malformed property.
+        ERROR("FdtProperty: node %u property %s traversal failed (%u)",
+            node->NodeOffset, name, status);
+    }
     
     *length = query.Length;
     return query.Value;
@@ -281,6 +300,8 @@ FdtScalar(
         return OS_ENOENT;
     }
     if (length != 4) {
+        ERROR("FdtScalar: node %u property %s has length %u, expected 4",
+            node->NodeOffset, name, length);
         return OS_EINVALPARAMS;
     }
 
@@ -312,19 +333,24 @@ FdtFindNode(
     struct __FdtNodeQuery query = { .Phandle = phandle };
     oserr_t               status;
 
+    TRACE("FdtFindNode(phandle=%u)", phandle);
     if (!phandle || node == NULL) {
+        ERROR("FdtFindNode: invalid phandle %u or output", phandle);
         return OS_EINVALPARAMS;
     }
 
     status = FdtWalkNodes(blob, length, __ReaderFindNode, &query);
     if (status != OS_EOK) {
+        ERROR("FdtFindNode: lookup of phandle %u failed (%u)", phandle, status);
         return status;
     }
     
     if (query.Count > 1 || query.Node.Malformed || query.Node.AncestorMalformed) {
+        ERROR("FdtFindNode: phandle %u is duplicated or malformed", phandle);
         return OS_EINVALPARAMS;
     }
     if (!query.Count || query.Node.Disabled || query.Node.AncestorDisabled) {
+        TRACE("FdtFindNode: phandle %u absent or disabled", phandle);
         return OS_ENOENT;
     }
     

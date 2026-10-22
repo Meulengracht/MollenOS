@@ -586,24 +586,28 @@ __PerformObjectTimeout(
         _In_ Scheduler_t*       scheduler,
         _In_ SchedulerObject_t* object)
 {
-    int resultState;
+    int state = STATE_BLOCKED;
 
-    // clear timeout
+    // A remote wakeup could change the object before its queue callback runs here.
+    if (!atomic_compare_exchange_strong(&object->State, &state, STATE_QUEUEING)) {
+        if (state == STATE_QUEUEING) {
+            // Stop tracking this timeout, but leave the runnable queue and wait
+            // result to the pending wakeup. Queue links belong to this core.
+            __RemoveFromQueue(&scheduler->SleepQueue, object);
+        } else {
+            WARNING("__PerformObjectTimeout object 0x%" PRIxIN " was in invalid state %i", object, state);
+        }
+        return;
+    }
+
     object->WakeUpTime.Seconds = 0;
     object->WakeUpTime.Nanoseconds = 0;
-
-    resultState = ExecuteEvent(object, EVENT_QUEUE);
-    if (resultState != STATE_INVALID) {
-        if (object->WaitQueueHandle != NULL) {
-            (void)list_remove(object->WaitQueueHandle, &object->Header);
-        }
-
-        object->TimeoutReason = OS_ETIMEOUT;
-        __QueueForScheduler(scheduler, object, 0);
+    if (object->WaitQueueHandle != NULL) {
+        (void)list_remove(object->WaitQueueHandle, &object->Header);
     }
-    else {
-        WARNING("__PerformObjectTimeout object 0x%" PRIxIN " was in invalid state", object);
-    }
+
+    object->TimeoutReason = OS_ETIMEOUT;
+    __QueueForScheduler(scheduler, object, 0);
 }
 
 static inline bool

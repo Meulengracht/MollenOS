@@ -1,5 +1,10 @@
 # Standard configuration file for drivers in the OS
 driver:
+  # Access device registers and manage hardware interrupts.
+  capabilities:
+    - deviceio-access
+    - interrupt-control
+
   type:
     - class: 0x10006
     - subclass: 0x10000

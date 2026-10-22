@@ -52,16 +52,26 @@ OSDeviceIOCtl(
         length
     );
     if (status) {
-        return OsErrToErrNo(status);
+        // We don't know whether the PCI operation ran. Return a transport error
+        // so the caller keeps its state and retries cleanup. OS_EBUSY or OS_EOK
+        // would incorrectly imply a known service result.
+        return OS_EPROTOCOL;
     }
 
-    gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
-    sys_device_ioctl_result(
+    status = gracht_client_await(GetGrachtClient(), &msg.base, GRACHT_AWAIT_ASYNC);
+    if (status) {
+        return OS_EPROTOCOL;
+    }
+
+    status = sys_device_ioctl_result(
         GetGrachtClient(), &msg.base,
         u8,
         &decodedLength,
         &oserr
     );
+    if (status || (oserr == OS_EOK && (request & __IOCTL_IN) && decodedLength != length)) {
+        return OS_EPROTOCOL;
+    }
     return oserr;
 }
 

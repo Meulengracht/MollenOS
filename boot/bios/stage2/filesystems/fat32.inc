@@ -126,7 +126,7 @@ ReadCluster:
     push 	bx
 
     ; Calculate Sector
-    ; FirstSectorofCluster = ((N – 2) * BPB_SecPerClus) + FirstDataSector;
+    ; FirstSectorofCluster = ((N - 2) * BPB_SecPerClus) + FirstDataSector;
     xor 	eax, eax
     xor 	ebx, ebx
     mov 	eax, esi

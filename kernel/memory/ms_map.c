@@ -41,8 +41,8 @@
 
 static oserr_t
 __VerifyFixedVirtualAddress(
-        _In_  struct MemorySpaceMapOptions* options,
-        _Out_ vaddr_t*                      baseAddressOut)
+    _In_  struct MemorySpaceMapOptions* options,
+    _Out_ vaddr_t*                      baseAddressOut)
 {
     if (options->VirtualStart == 0) {
         ERROR("__AllocateVirtualMemory: MAPPING_VIRTUAL_FIXED was set, but options->VirtualStart not provided");
@@ -69,29 +69,31 @@ __VerifyFixedVirtualAddress(
 
 static vaddr_t
 __AllocateProcessMemory(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ uuid_t         shmTag,
-        _In_ size_t         size,
-        _In_ unsigned int   mapFlags)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ uuid_t         shmTag,
+    _In_ size_t         size,
+    _In_ unsigned int   mapFlags)
 {
-    vaddr_t address;
+    struct MSContext* context = __MSContextGet(memorySpace);
+    vaddr_t           address;
+    oserr_t           oserr;
 
-    if (memorySpace->Context == NULL) {
+    if (context == NULL) {
         ERROR("__AllocateProcessMemory: requested process memory for non-process memory space");
         return 0;
     }
 
-    address = DynamicMemoryPoolAllocate(&memorySpace->Context->Heap, size);
+    address = DynamicMemoryPoolAllocate(&context->Heap, size);
     if (address == 0) {
         ERROR("__AllocateProcessMemory: cannot allocate 0x%" PRIxIN " bytes of memory", size);
     } else {
         // We only track user allocations, not kernel allocations. If we wanted to track ALL allocations
         // then we would have to guard against eternal loops as-well as the __CreateAllocation actually calls
         // kmalloc
-        oserr_t oserr = MSAllocationCreate(memorySpace, shmTag, address, size, mapFlags);
+        oserr = MSAllocationCreate(memorySpace, shmTag, address, size, mapFlags);
         if (oserr != OS_EOK) {
             ERROR("__AllocateProcessMemory: cannot register allocation");
-            DynamicMemoryPoolFree(&memorySpace->Context->Heap, size);
+            DynamicMemoryPoolFree(&context->Heap, size);
             address = 0;
         }
     }
@@ -100,9 +102,9 @@ __AllocateProcessMemory(
 
 static oserr_t
 __AllocateVirtualMemory(
-        _In_  MemorySpace_t*                memorySpace,
-        _In_  struct MemorySpaceMapOptions* options,
-        _Out_ vaddr_t*                      baseAddressOut)
+    _In_  MemorySpace_t*                memorySpace,
+    _In_  struct MemorySpaceMapOptions* options,
+    _Out_ vaddr_t*                      baseAddressOut)
 {
     vaddr_t virtualBase;
     size_t  length = options->Length;
@@ -162,11 +164,11 @@ __AllocateVirtualMemory(
 
 static void
 __FreeVirtualMemory(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        address,
-        _In_ size_t         size,
-        _In_ unsigned int   memoryFlags,
-        _In_ unsigned int   placementFlags)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        address,
+    _In_ size_t         size,
+    _In_ unsigned int   memoryFlags,
+    _In_ unsigned int   placementFlags)
 {
     // Is this a stack allocation? Then we need to allocate another page
     // for the allocation, which will be the first page in the segment of memory.
@@ -179,7 +181,8 @@ __FreeVirtualMemory(
     _CRT_UNUSED(size);
     switch (__VMTYPE(placementFlags)) {
         case MAPPING_VIRTUAL_PROCESS: {
-            DynamicMemoryPoolFree(&memorySpace->Context->Heap, address);
+            struct MSContext* context = __MSContextGet(memorySpace);
+            DynamicMemoryPoolFree(&context->Heap, address);
         } break;
 
         case MAPPING_VIRTUAL_THREAD: {
@@ -197,10 +200,10 @@ __FreeVirtualMemory(
 
 static oserr_t
 __ReserveMapping(
-        _In_ MemorySpace_t* memorySpace,
-        _In_ vaddr_t        virtualBase,
-        _In_ unsigned int   flags,
-        _In_ int            pageCount)
+    _In_ MemorySpace_t* memorySpace,
+    _In_ vaddr_t        virtualBase,
+    _In_ unsigned int   flags,
+    _In_ int            pageCount)
 {
     int     pagesReserved;
     oserr_t oserr;
@@ -324,7 +327,7 @@ MemorySpaceMap(
 
     // Existing allocation we are touching?
     if (__VMTYPE(options->PlacementFlags) == MAPPING_VIRTUAL_FIXED) {
-        allocation = MSAllocationLookup(memorySpace->Context, options->VirtualStart);
+        allocation = MSAllocationLookup(__MSContextGet(memorySpace), options->VirtualStart);
         if (allocation) {
             // OK existing allocation, there is a good chance we want to commit a part (or all) of it,
             // if MAPPING_COMMIT is set. To change protection flags of a mapping, MemorySpaceChangeProtection
@@ -509,13 +512,13 @@ __GetAndVerifyPhysicalMapping(
 
 oserr_t
 MemorySpaceCloneMapping(
-        _In_        MemorySpace_t* sourceSpace,
-        _In_        MemorySpace_t* destinationSpace,
-        _In_        vaddr_t        sourceAddress,
-        _InOut_Opt_ vaddr_t*       destinationAddress,
-        _In_        size_t         length,
-        _In_        unsigned int   memoryFlags,
-        _In_        unsigned int   placementFlags)
+    _In_        MemorySpace_t* sourceSpace,
+    _In_        MemorySpace_t* destinationSpace,
+    _In_        vaddr_t        sourceAddress,
+    _InOut_Opt_ vaddr_t*       destinationAddress,
+    _In_        size_t         length,
+    _In_        unsigned int   memoryFlags,
+    _In_        unsigned int   placementFlags)
 {
     struct MSAllocation* sourceAllocation = NULL;
     vaddr_t              virtualBase;
@@ -535,7 +538,7 @@ MemorySpaceCloneMapping(
     // Increase reference of the source allocation first, to "acquire" it. We are not sure
     // that an allocation exists, especially if the allocation is made in non process-memory, so
     // take into account that sourceAllocation may be NULL
-    sourceAllocation = MSAllocationAcquire(sourceSpace->Context, sourceAddress);
+    sourceAllocation = MSAllocationAcquire(__MSContextGet(sourceSpace), sourceAddress);
     oserr = __GetAndVerifyPhysicalMapping(
             sourceSpace,
             sourceAddress,
@@ -548,14 +551,14 @@ MemorySpaceCloneMapping(
     }
 
     oserr = __AllocateVirtualMemory(
-            destinationSpace,
-            &(struct MemorySpaceMapOptions) {
-                .VirtualStart = *destinationAddress,
-                .Length = length,
-                .Flags = memoryFlags,
-                .PlacementFlags = placementFlags
-            },
-            &virtualBase
+        destinationSpace,
+        &(struct MemorySpaceMapOptions) {
+            .VirtualStart = *destinationAddress,
+            .Length = length,
+            .Flags = memoryFlags,
+            .PlacementFlags = placementFlags
+        },
+        &virtualBase
     );
     if (oserr != OS_EOK) {
         goto exit;
@@ -565,15 +568,15 @@ MemorySpaceCloneMapping(
 
     // bind the source and destination allocation together
     if (sourceAllocation) {
-        MSAllocationLink(destinationSpace->Context, virtualBase, sourceAllocation);
+        MSAllocationLink(__MSContextGet(destinationSpace), virtualBase, sourceAllocation);
     }
 
     oserr = __CommitMapping(
-            destinationSpace,
-            virtualBase,
-            &pages[0],
-            pagesRetrieved,
-            memoryFlags | MAPPING_PERSISTENT | MAPPING_COMMIT
+        destinationSpace,
+        virtualBase,
+        &pages[0],
+        pagesRetrieved,
+        memoryFlags | MAPPING_PERSISTENT | MAPPING_COMMIT
     );
 
 exit:
@@ -585,10 +588,10 @@ exit:
         if (sourceAllocation) {
             struct MSAllocation* originalMapping;
             (void)MSAllocationFree(
-                    destinationSpace->Context,
-                    virtualBase,
-                    length,
-                    &originalMapping
+                __MSContextGet(destinationSpace),
+                virtualBase,
+                length,
+                &originalMapping
             );
         }
     }
@@ -652,6 +655,7 @@ MemorySpaceCopyUser(
 {
     MemorySpace_t*       space = GetCurrentMemorySpace();
     MemorySpace_t*       kernelSpace = GetDomainMemorySpace();
+    struct MSContext*    context = __MSContextGet(space);
     struct MSAllocation* allocation;
     uintptr_t            address = (uintptr_t)userBuffer;
     size_t               pageSize = GetMemorySpacePageSize();
@@ -665,15 +669,15 @@ MemorySpaceCopyUser(
     size_t               index;
 
     if (address == 0 || kernelBuffer == NULL || length == 0 ||
-        space->Context == NULL ||
+        context == NULL ||
         length - 1 > UINTPTR_MAX - address || length > SIZE_MAX - offset ||
         length + offset > SIZE_MAX - (pageSize - 1)) {
         return OS_EINVALPARAMS;
     }
     
-    MutexLock(&space->Context->UserCopyLock);
+    MutexLock(&context->UserCopyLock);
     
-    allocation = MSAllocationAcquire(space->Context, address);
+    allocation = MSAllocationAcquire(context, address);
     if (allocation != NULL) {
         // A tracked allocation must be userspace memory before it can be used as a user buffer.
         if (!(allocation->Flags & MAPPING_USERSPACE)) {
@@ -761,8 +765,8 @@ MemorySpaceCopyUser(
 exit:
     kfree(pages);
     if (allocation != NULL) {
-        MSAllocationRelease(space->Context, allocation);
+        MSAllocationRelease(context, allocation);
     }
-    MutexUnlock(&space->Context->UserCopyLock);
+    MutexUnlock(&context->UserCopyLock);
     return oserr;
 }

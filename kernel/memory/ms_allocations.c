@@ -41,6 +41,7 @@ MSAllocationCreate(
         _In_ size_t         length,
         _In_ unsigned int   flags)
 {
+    struct MSContext*    context;
     struct MSAllocation* allocation;
     void*                bitmap;
     size_t               pageSize = GetMemorySpacePageSize();
@@ -55,7 +56,8 @@ MSAllocationCreate(
     }
 
     // We only support allocation tracking for spaces with context
-    if (memorySpace->Context == NULL) {
+    context = __MSContextGet(memorySpace);
+    if (context == NULL) {
         return OS_ENOTSUPPORTED;
     }
 
@@ -84,7 +86,7 @@ MSAllocationCreate(
     allocation->Flags       = flags;
     allocation->References  = 1;
     allocation->CloneOf     = NULL;
-    MSContextAddAllocation(memorySpace->Context, allocation);
+    MSContextAddAllocation(context, allocation);
 
 exit:
     return oserr;

@@ -49,6 +49,24 @@ KERNELAPI oserr_t KERNELABI
 ReleaseSystemDeviceIo(
     _In_ DeviceIo_t* devIO);
 
+/**
+ * @brief Map a bounded alias of a registered MMIO region in the current space.
+ *
+ * The caller keeps the registration alive. The exclusive driver claim is not
+ * changed. The resulting device mapping can be released with MemorySpaceUnmap.
+ * @param id Registered memory I/O identifier.
+ * @param offset Byte offset in the region.
+ * @param length Nonzero byte length.
+ * @param mappingOut Receives the mapped address, including its page offset.
+ * @return OS_EOK on success or a validation/mapping error.
+ */
+KERNELAPI oserr_t KERNELABI
+MapSystemDeviceIo(
+    _In_  uuid_t     id,
+    _In_  size_t     offset,
+    _In_  size_t     length,
+    _Out_ uintptr_t* mappingOut);
+
 /* AcquireKernelSystemDeviceIo
  * Creates a kernel mapped copy of the passed device-io. This can then be released
  * and cleaned up by the opposite call. */

@@ -143,7 +143,7 @@ int SetupTest(void** state) {
     memset(&g_testContext, 0, sizeof(struct __TestContext));
 
     // Initialize the memory space
-    g_testContext.MemorySpace.Context = &g_testContext.Context;
+    g_testContext.MemorySpace.GroupHandle = 1;
     g_testContext.MemorySpace.Flags   = MEMORY_SPACE_APPLICATION;
 
     // Default to a page size of 4KB. If a test needs something else

@@ -23,6 +23,7 @@
 #define __OS_SERVICES_PROCESS_H__
 
 #include <os/osdefs.h>
+#include <ddk/types/capabilities.h>
 #include <os/types/process.h>
 #include <time.h>
 
@@ -254,5 +255,18 @@ OSProcessSetWorkingDirectory(
 // TODO: OSProcessAssemblyPath
 // TODO: OSProcessMemoryLimit
 
+/**
+ * @brief Request initial child capabilities. Defaults to zero.
+ * @param options Process options to update.
+ * @param capabilities Defined capability bits to grant. Nonzero masks require
+ * the sender to hold CAPABILITY_GRANT_CAPABILITY when it submits the request.
+ * The grant authority permits bits the caller does not itself hold.
+ */
+CRTDECL(void,
+OSProcessOptionsSetCapabilities(
+    _In_ OSProcessOptions_t* options,
+    _In_ Capabilities_t      capabilities));
+
 _CODE_END
+
 #endif //!__OS_SERVICES_PROCESS_H__

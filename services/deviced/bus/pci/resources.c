@@ -16,6 +16,8 @@
  *
  */
 
+//#define __TRACE
+
 #include <bus/pci/bars.h>
 #include <bus/pci/host-private.h>
 #include <ddk/busdevice.h>
@@ -29,26 +31,46 @@ __CreateBarResource(
 {
     uint64_t physical = bar->CpuAddress;
     uint64_t length = bar->Size;
+    oserr_t  status;
 
     if (bar->State != PciBarAssigned) {
         return;
     }
     
     if (length > SIZE_MAX || physical > UINTPTR_MAX || length - 1 > UINTPTR_MAX - physical) {
+        WARNING("__CreateBarResource region 0x%llx+0x%llx is not CPU-addressable",
+            (unsigned long long)physical, (unsigned long long)length);
         return;
     }
     
     if (bar->Space == 1) {
         if (bus->IoResourcePolicy == PciIoResourcePorts) {
             if (physical > UINT16_MAX || length - 1 > UINT16_MAX - physical) {
+                WARNING("__CreateBarResource port range 0x%llx+0x%llx exceeds 16 bits",
+                    (unsigned long long)physical, (unsigned long long)length);
                 return;
             }
-            CreateDevicePortIo(resource, (uint16_t)physical, (size_t)length);
+            status = CreateDevicePortIo(resource, (uint16_t)physical, (size_t)length);
+            if (status != OS_EOK) {
+                ERROR("__CreateBarResource failed to create port I/O at 0x%x: %u",
+                    (unsigned)physical, status);
+                return;
+            }
         } else {
-            CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
+            status = CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
+            if (status != OS_EOK) {
+                ERROR("__CreateBarResource failed to map PCI I/O window at 0x%llx: %u",
+                    (unsigned long long)physical, status);
+                return;
+            }
         }
     } else {
-        CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
+        status = CreateDeviceMemoryIo(resource, (uintptr_t)physical, (size_t)length);
+        if (status != OS_EOK) {
+            ERROR("__CreateBarResource failed to create memory I/O at 0x%llx: %u",
+                (unsigned long long)physical, status);
+            return;
+        }
     }
 }
 
@@ -58,6 +80,9 @@ PciRegisterBars(
     _In_ BusDevice_t*        device,
     _In_ const struct PciBar bars[6])
 {
+    TRACE("PciRegisterBars(%u:%u:%u.%u)", host->Identification.Segment,
+        device->Bus, device->Slot, device->Function);
+
     for (unsigned int i = 0; i < 6; i++) {
         __CreateBarResource(host, &device->IoSpaces[i], &bars[i]);
     }
@@ -75,7 +100,8 @@ PciDiagnoseBars(
                 host->Identification.Segment, device->Bus, device->Slot, device->Function,
                 i, (unsigned long long)bars[i].Size);
         } else if (bars[i].State == PciBarOutsideWindow) {
-            WARNING("PCI BAR is outside host windows (segment %u)", host->Identification.Segment);
+            WARNING("PCI %u:%u:%u.%u BAR%u is outside host windows",
+                host->Identification.Segment, device->Bus, device->Slot, device->Function, i);
         } else if (bars[i].State == PciBarInvalid) {
             WARNING("PCI %u:%u:%u.%u BAR%u has an invalid encoding or extent",
                 host->Identification.Segment, device->Bus, device->Slot, device->Function, i);

@@ -502,7 +502,7 @@ InterruptReserve(
     entry->Thread = ThreadCurrentHandle();
     entry->Flags = flags;
     entry->Line = descriptor->Line;
-    entry->Source = descriptor->Line;
+    entry->Source = (flags & INTERRUPT_MSI) ? INTERRUPT_NONE : descriptor->Line;
     entry->Pin = descriptor->Pin;
     entry->AcpiConform = descriptor->AcpiConform;
     entry->Context = descriptor->Context;
@@ -952,6 +952,19 @@ InterruptGetActiveStatus(void)
     return (State & CpuStateInterruptActive) == 0 ? 0 : 1;
 }
 
+static inline bool
+__IsSystemInterruptEnabled(
+    _In_ SystemInterrupt_t* interrupt)
+{
+    if (!atomic_load(&interrupt->Enabled)) {
+        return false;
+    }
+    if (interrupt->GroupEnabled != NULL && !atomic_load(interrupt->GroupEnabled)) {
+        return false;
+    }
+    return true;
+}
+
 Context_t*
 InterruptHandle(
     _In_  Context_t* context,
@@ -975,10 +988,11 @@ InterruptHandle(
         // A disabled reservation may share a line with enabled devices. Keep
         // its line available for acknowledgement, but never call its handler.
         interruptSource = entry->Source;
-        if (!atomic_load(&entry->Enabled)) {
+        if (!__IsSystemInterruptEnabled(entry)) {
             entry = atomic_load(&entry->Link);
             continue;
         }
+        
         if (entry->Flags & INTERRUPT_KERNEL) {
             interruptStatus = entry->Handler(GetFastInterruptTable(), entry->Context);
         } else {

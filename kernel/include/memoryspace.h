@@ -24,6 +24,7 @@
 #define __MEMORY_SPACE_INTERFACE__
 
 #include <arch/platform.h>
+#include <ddk/types/capabilities.h>
 #include <os/types/memory.h>
 #include <utils/dynamic_memory_pool.h>
 #include <vboot/vboot.h>
@@ -72,20 +73,23 @@ DECL_STRUCT(PlatformMemoryMapping);
 
 #define MEMORYSPACE_GET(handle) (MemorySpace_t*)LookupHandleOfType(handle, HandleTypeMemorySpace)
 
-// Addressing spaces are seperated into two layers. Because the kernel
-// has no concept of processes, it instead has 'thread clusters', which
-// are represented by a <MemorySpaceContext> (Tbh, I want a different name).
-// These represent groups of addressing spaces, which are bound to threads.
-// So MemorySpaceContext is shared across multiple threads, even though each
-// thread technically has their own address space.
-struct MSContext;
+// Security context associated with a memory-space group. This can be
+// retrieved with MemorySpaceGetSecurityContext().
+typedef struct MSContextSecurity {
+    uuid_t         Handle;
+    Capabilities_t Capabilities;
+} MSContextSecurity_t;
 
-// one per thread
+/**
+ * @brief Per-thread address space belonging to a shared memory-space group.
+ */
 typedef struct MemorySpace {
+    // The memory space group contains shared resources
+    // for this memory space and it's relatives.
+    uuid_t                GroupHandle;
     uuid_t                ParentHandle;
     unsigned int          Flags;
     DynamicMemoryPool_t   ThreadMemory;
-    struct MSContext*     Context;
     PlatformMemoryBlock_t PlatformData;
 } MemorySpace_t;
 
@@ -129,6 +133,14 @@ KERNELAPI uuid_t KERNELABI         GetCurrentMemorySpaceHandle(void);
 KERNELAPI MemorySpace_t* KERNELABI GetCurrentMemorySpace(void);
 KERNELAPI MemorySpace_t* KERNELABI GetDomainMemorySpace(void);
 KERNELAPI size_t KERNELABI         GetMemorySpacePageSize(void);
+
+/**
+ * @brief Borrows the security context shared by the current memory-space group.
+ * 
+ * @return Pointer valid while the current memory space is alive, or NULL if it
+ * has no group.
+ */
+KERNELAPI MSContextSecurity_t* KERNELABI MemorySpaceGetSecurityContext(void);
 
 /**
  * @brief Initializes the memory space synchronization system.

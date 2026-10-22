@@ -39,6 +39,7 @@ typedef struct OSProcessOptions {
     const char*               WorkingDirectory;
     struct InheritanceOptions InheritanceOptions;
     UInteger64_t              MemoryLimit;
+    Capabilities_t            Capabilities;
     uint32_t                  InheritationBlockLength;
     uint32_t                  EnvironmentBlockLength;
 } OSProcessOptions_t;
@@ -56,6 +57,7 @@ __OSProcessOptionsConstruct(
     options->InheritanceOptions.StdInHandle  = STDIN_FILENO;
     options->InheritanceOptions.StdErrHandle = STDERR_FILENO;
     options->MemoryLimit.QuadPart = 0;
+    options->Capabilities = 0;
 
     // Calculated before passed on to protocol
     options->InheritationBlockLength = 0;
@@ -122,6 +124,14 @@ OSProcessOptionsSetMemoryLimit(
     options->MemoryLimit.QuadPart = memoryLimit;
 }
 
+void
+OSProcessOptionsSetCapabilities(
+    _In_ OSProcessOptions_t* options,
+    _In_ Capabilities_t      capabilities)
+{
+    options->Capabilities = capabilities;
+}
+
 oserr_t
 OSProcessSpawn(
         _In_     const char* path,
@@ -181,6 +191,7 @@ __to_sys_process_configuration(
     out->inherit_block_length = in->InheritationBlockLength;
     out->environ_block_length = in->EnvironmentBlockLength;
     out->data_buffer = bufferIn;
+    out->capabilities = (uint32_t)in->Capabilities;
 }
 
 oserr_t

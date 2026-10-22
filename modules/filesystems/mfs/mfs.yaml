@@ -1,5 +1,8 @@
 # Standard configuration file for drivers in the OS
 driver:
+  # Storage access goes through the storage driver; no kernel privileges needed.
+  capabilities: []
+
   type:
     - class: 0x1010101
     - subclass: 0x8

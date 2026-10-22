@@ -259,12 +259,16 @@ VirtioNetQueuePacket(
     uintptr_t           metadata;
     oserr_t             status;
     
+    status = VirtioNetMetadataAddress(device, slot->MetadataOffset, &metadata);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
     status = SHMSGTableOffset(&pool->ScatterGather, offset, &index, &segmentOffset);
     if (status != OS_EOK) {
         return status;
     }
 
-    metadata = device->MetadataSg.Entries[0].Address + slot->MetadataOffset;
     memset(
         (char*)SHMBuffer(&device->Metadata) + slot->MetadataOffset,
         0,

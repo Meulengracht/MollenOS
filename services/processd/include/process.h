@@ -21,6 +21,7 @@
 
 #include <ds/mstring.h>
 #include <gracht/server.h>
+#include <ddk/types/capabilities.h>
 #include <os/services/process.h>
 #include <os/types/handle.h>
 #include <os/types/shm.h>
@@ -35,21 +36,24 @@ enum ProcessState {
 };
 
 struct ProcessOptions {
-    uuid_t       Scope;
-    UInteger64_t MemoryLimit;
-    const char*  WorkingDirectory;
-    uint32_t     InheritationBlockLength;
-    uint32_t     EnvironmentBlockLength;
-    OSHandle_t   DataBufferHandle;
+    uuid_t         Scope;
+    UInteger64_t   MemoryLimit;
+    Capabilities_t Capabilities;
+    const char*    WorkingDirectory;
+    uint32_t       InheritationBlockLength;
+    uint32_t       EnvironmentBlockLength;
+    OSHandle_t     DataBufferHandle;
+    
     // DataBuffer is set if it should used instead of the
     // DataBufferHandle. This is needed when doing internal
     // spawning.
-    const void* DataBuffer;
+    const void*    DataBuffer;
 };
 
 typedef struct Process {
     OSHandle_t                 handle;
     uuid_t                     primary_thread_id;
+    Capabilities_t             capabilities;
     clock_t                    tick_base;
     enum ProcessState          state;
     struct usched_mtx          mutex;
@@ -96,9 +100,22 @@ PmBootstrapFindRamdiskFile(
     _Out_Opt_ size_t*    bufferSizeOut);
 
 /**
+ * @brief Authorize the requested initial capabilities before preparing a child.
+ * @param caller Authenticated request context, or NULL for an unauthenticated transport.
+ * @param capabilities Requested child capability mask; zero needs no grant authority.
+ * @return OS_EOK, OS_EINVALPARAMS for unknown bits, or OS_EPERMISSIONS.
+ * NULL never grants authority. Service bootstrap uses a separate entry point.
+ */
+extern oserr_t
+PmAuthorizeSpawn(
+    _In_ const struct gracht_security_context* caller,
+    _In_ Capabilities_t                        capabilities);
+
+/**
  * @brief Spawns a new process with the given configuration. The process assumes a valid PE image
  * and builds all required tables for the new process.
  *
+ * @param[In] caller Transport-authenticated send-time credentials. NULL carries no authority.
  * @param[In] path
  * @param[In] args
  * @param[In] procOpts
@@ -107,10 +124,28 @@ PmBootstrapFindRamdiskFile(
  */
 extern oserr_t
 PmCreateProcess(
+        _In_  const struct gracht_security_context* caller,
         _In_  const char*            path,
         _In_  const char*            args,
         _In_  struct ProcessOptions* procOpts,
         _Out_ uuid_t*                handleOut);
+
+/**
+ * @brief Create a service from processd's trusted boot service configuration.
+ * Never call this entry point from an IPC handler. The kernel still checks
+ * processd's grant capability. No absent or fabricated caller context is used.
+ * @param path Service image path.
+ * @param args Service arguments.
+ * @param procOpts Configuration obtained by internal service discovery.
+ * @param handleOut Receives the created process handle.
+ * @return Creation status.
+ */
+oserr_t
+PmCreateServiceProcess(
+    _In_  const char*            path,
+    _In_  const char*            args,
+    _In_  struct ProcessOptions* procOpts,
+    _Out_ uuid_t*                handleOut);
 
 /**
  * @brief Retrieves the process associated by the handle.

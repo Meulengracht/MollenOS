@@ -58,11 +58,10 @@ NetAdapterClientCreate(
     gracht_client_configuration_init(&config);
     gracht_client_configuration_set_link(&config, (struct gracht_link*)link);
 
-    // Set the maximum message size for the client to the frame limit, but
-    // accounting for the UUID overhead.
+    // Set the maximum message size to the frame limit.
     gracht_client_configuration_set_max_msg_size(
         &config,
-        CTT_NETADAPTER_LIMIT_FRAME_BYTES + sizeof(uuid_t)
+        CTT_NETADAPTER_LIMIT_FRAME_BYTES
     );
     
     // From here on the client manages the link, and frees it if creation fails.

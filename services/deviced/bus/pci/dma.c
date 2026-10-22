@@ -16,6 +16,9 @@
  *
  */
 
+//#define __TRACE
+
+#include <ddk/utils.h>
 #include <bus/pci/dma.h>
 #include <bus/pci/host-private.h>
 
@@ -27,17 +30,23 @@ PciHostGetDmaDescription(
     struct PciDmaDescription result = { 0 };
     oserr_t                  status;
 
+    TRACE("PciHostGetDmaDescription(host=%p)", host);
+
     // Dispatch through the existing host operations so callers never need to
     // know the controller type. No callback means no established DMA support.
     if (host == NULL || description == NULL) {
+        WARNING("PciHostGetDmaDescription missing host or output");
         return OS_EINVALPARAMS;
     }
     if (host->Operations == NULL || host->Operations->GetDmaDescription == NULL) {
+        TRACE("PciHostGetDmaDescription host has no established DMA support");
         return OS_ENOTSUPPORTED;
     }
    
     status = host->Operations->GetDmaDescription(host, &result);
     if (status != OS_EOK) {
+        WARNING("PciHostGetDmaDescription host %u query failed: %u",
+            host->Identification.HostId, status);
         return status;
     }
 

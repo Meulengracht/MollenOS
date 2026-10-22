@@ -10,6 +10,9 @@ add_library(deviced-pci STATIC
     functionhandlers.c
     helpers.c
     interrupts.c
+    msi.c
+    msix.c
+    msix-device.c
     host.c
     io.c
     resources.c

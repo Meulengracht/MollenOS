@@ -23,6 +23,77 @@
 
 #include <os/osdefs.h>
 
+//  Standard capabilities live in the first 256 bytes of configuration space, 
+// while PCI Express extended capabilities expand 
+// from offset 0x100 up to 0xFFF (4096 bytes)
+#define PCI_CONFIG_SPACE_SIZE                 256U
+
+// Pci standard header offsets
+#define PCI_VENDOR_ID_OFFSET                  0x00U
+#define PCI_DEVICE_ID_OFFSET                  0x02U
+#define PCI_COMMAND_OFFSET                    0x04U
+#define PCI_STATUS_OFFSET                     0x06U
+#define PCI_REVISION_OFFSET                   0x08U
+#define PCI_INTERFACE_OFFSET                  0x09U
+#define PCI_SUBCLASS_OFFSET                   0x0AU
+#define PCI_CLASS_OFFSET                      0x0BU
+#define PCI_CACHE_LINE_SIZE_OFFSET            0x0CU
+#define PCI_LATENCY_TIMER_OFFSET              0x0DU
+#define PCI_HEADER_TYPE_OFFSET                0x0EU
+
+// Type 0 Header (Normal Device)
+// 0x10 - 0x24 | Base Address Registers (BAR0 - BAR5)
+// 0x28 | CardBus CIS Pointer
+// 0x2C | Subsystem Vendor ID
+// 0x2E | Subsystem ID
+// 0x30 - 0x33 | Expansion ROM Base Address
+#define PCI_CAPABILITY_POINTER_OFFSET         0x34U
+#define PCI_INTERRUPT_LINE_OFFSET             0x3CU
+#define PCI_INTERRUPT_PIN_OFFSET              0x3DU
+// 0x3E | Min_Gnt: Burst period length the device expects.
+// 0x3F | Max_Lat: Maximum latency the device can tolerate.
+
+// Type 1 Header (PCI-to-PCI Bridge)
+// 0x10 - 0x14 | Base Address Registers (BAR0 - BAR1): Memory/I/O base address registers for the bridge itself.
+// 0x18 | Primary Bus Number: Bus number of the upstream bus.
+// 0x19 | Secondary Bus Number: Bus number of the bus directly attached downstream.
+// 0x1A | Subordinate Bus Number: Highest bus number behind the bridge.
+// 0x1B | Secondary Latency Timer: Latency timer for the secondary bus.
+// 0x1C | I/O Base: Bottom of the I/O address range for the secondary bus.
+// 0x1D | I/O Limit: Top of the I/O address range for the secondary bus.
+// 0x1E - 0x1F | Secondary Status: Status register for the secondary bus.
+// 0x20 - 0x21 | Memory Base: Start of memory-mapped I/O range.
+// 0x22 - 0x23 | Memory Limit: End of memory-mapped I/O range.
+// 0x24 - 0x27 | Prefetchable Memory Base/Limit: Range for prefetchable memory.
+// 0x28 - 0x2F | Prefetchable Base/Limit Upper 32 Bits: High bits for 64-bit prefetchable memory.
+// 0x30 - 0x31 | I/O Base Upper 16 Bits: Upper 16 bits for extended I/O addressing.
+// 0x32 - 0x33 | I/O Limit Upper 16 Bits: Upper 16 bits for extended I/O limit.
+// 0x34 | Capabilities Pointer: Points to capability linked lists.
+// 0x38 - 0x3B | Expansion ROM Base Address: Expansion ROM for the bridge.
+// 0x3C | Interrupt Line / 0x3D | Interrupt Pin: Interrupt routing information.
+// 0x3E - 0x3F | Bridge Control: Control flags for parity, SERR, secondary reset, and VGA/ISA routing.
+
+#define PCI_STATUS_CAPABILITIES_LIST          0x10U
+
+// Bit 7 indicates multi-function; bits 6-0 define Type 0x00 or 0x01.
+#define PCI_HEADER_TYPE_NORMAL                0x00U
+#define PCI_HEADER_TYPE_MASK                  0x7FU
+#define PCI_HEADER_TYPE_MULTIFUNCTION         0x80U
+
+#define PCI_CAPABILITY_LIST_MIN_OFFSET        0x40U
+#define PCI_CAPABILITY_LIST_ALIGNMENT_MASK    0x03U
+
+// PCI Capability Header Offsets
+#define PCI_CAPABILITY_HEADER_LENGTH          2U
+
+// The standard pci capability header offsets
+#define PCI_CAPABILITY_ID_OFFSET              0U
+#define PCI_CAPABILITY_NEXT_OFFSET            1U
+
+// PCI Capability IDs
+#define PCI_CAPABILITY_ID_MSI                 0x05U
+#define PCI_CAPABILITY_ID_MSIX                0x11U
+
 /* Pci Type definitions, helps us figure out what
  * kind of device/controller we are dealing with */
 #define PCI_CLASS_NONE                  0x00

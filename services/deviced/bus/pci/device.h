@@ -26,6 +26,8 @@
 #define __DEVICED_BUS_PCI_DEVICE_H__
 
 #include <bus/pci/bars.h>
+#include <bus/pci/msi.h>
+#include <bus/pci/msix.h>
 #include <bus/pci/registers.h>
 #include <ddk/io.h>
 #include <ds/list.h>
@@ -37,16 +39,18 @@ struct PciFunctionHandler;
  * about location, children, and a parent device/controller
  */
 typedef struct PciDevice {
-    element_t         list_header;
-    element_t         child_header;
-    struct PciDevice* Parent;
-    PciHost_t*        Host;
-    int               IsBridge;
+    element_t            list_header;
+    element_t            child_header;
+    struct PciDevice*    Parent;
+    int                  IsBridge;
+    PciHost_t*           Host;
     // Registry IDs are distinct from host identity and PCI addresses.
-    uuid_t            DeviceId;
+    uuid_t               DeviceId;
     // Changed under the PCI lock; nonzero references prevent host destruction.
-    unsigned int      ProviderReferences;
-    DeviceIo_t        PublishedIo[6];
+    unsigned int         ProviderReferences;
+    DeviceIo_t           PublishedIo[6];
+    struct PciMsiState   Msi;
+    struct PciMsixState* Msix;
 
     struct PciFunctionResources      Resources;
     const struct PciFunctionHandler* Handler;

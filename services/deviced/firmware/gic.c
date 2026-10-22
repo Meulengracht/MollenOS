@@ -16,9 +16,11 @@
  *
  */
 
+//#define __TRACE
 #include <firmware/resources.h>
 #include <firmware/interrupt.h>
 #include <ddk/interrupt.h>
+#include <ddk/utils.h>
 
 // The first GIC interrupt cell identifies whether the interrupt belongs to a
 // shared peripheral or is private to a processor.
@@ -89,11 +91,14 @@ FdtGicInterrupt(
     uint32_t number;
     uint32_t trigger;
 
+    TRACE("FdtGicInterrupt(provider=%u)", provider->Phandle);
     // This decoder understands the three-cell format used by GIC interrupt
     // descriptions: the interrupt kind, its number, and how its signal is
     // triggered. Other controllers or formats need a different decoder, so
     // reject them rather than interpreting their cells incorrectly.
     if (provider->InterruptCells != 3) {
+        WARNING("FdtGicInterrupt: provider %u has unsupported cell count %u",
+            provider->Phandle, provider->InterruptCells);
         return OS_ENOTSUPPORTED;
     }
 
@@ -114,8 +119,13 @@ FdtGicInterrupt(
     // The number is the SPI number from the Device Tree description, not the
     // final GIC interrupt ID. The GIC reserves IDs 0 through 31 for other
     // purposes, so SPI numbers from 0 through 987 become IDs 32 through 1019.
-    if (!__IsSupportedCompatible(provider) || !provider->IsInterruptController ||
-        type != FdtGicInterruptTypeSpi || number > 987 || !__IsSupportedTriggerMode(trigger)) {
+    if (!__IsSupportedCompatible(provider) || !provider->IsInterruptController) {
+        WARNING("FdtGicInterrupt: provider %u is not a supported GIC", provider->Phandle);
+        return OS_ENOTSUPPORTED;
+    }
+    if (type != FdtGicInterruptTypeSpi || number > 987 || !__IsSupportedTriggerMode(trigger)) {
+        WARNING("FdtGicInterrupt: provider %u rejects type %u number %u trigger %u",
+            provider->Phandle, type, number, trigger);
         return OS_ENOTSUPPORTED;
     }
 
@@ -147,5 +157,7 @@ FdtGicInterrupt(
         interrupt->Flags |= INTERRUPT_ACPICONFORM_POLARITY;
     }
     
+    TRACE("FdtGicInterrupt: provider %u line %i flags 0x%x",
+        interrupt->Controller, interrupt->Line, interrupt->Flags);
     return OS_EOK;
 }

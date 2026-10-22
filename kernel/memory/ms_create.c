@@ -24,10 +24,12 @@
 
 oserr_t
 CreateMemorySpace(
-        _In_  unsigned int flags,
-        _Out_ uuid_t*      handleOut)
+    _In_  unsigned int flags,
+    _Out_ uuid_t*      handleOut)
 {
     MemorySpace_t* memorySpace;
+    MemorySpace_t* parent = NULL;
+    uuid_t         parentHandle;
     oserr_t        oserr;
     TRACE("CreateMemorySpace(flags=0x%x)", flags);
 
@@ -44,67 +46,80 @@ CreateMemorySpace(
         // handle too: an AP has no current thread and therefore no parent handle.
         oserr = MmuCloneVirtualSpace(NULL, memorySpace, 0);
         if (oserr != OS_EOK) {
-            DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
-            kfree(memorySpace);
-            return oserr;
-        }
-
-        *handleOut = CreateHandle(
-            HandleTypeMemorySpace,
-            (HandleDestructorFn)MemorySpaceDelete,
-            memorySpace
-        );
-        if (*handleOut == UUID_INVALID) {
-            MemorySpaceDelete(memorySpace);
-            return OS_EOOM;
+            goto error;
         }
     } else if (flags & MEMORY_SPACE_APPLICATION) {
-        MemorySpace_t* parent = NULL;
-
         // Parent must be the uppermost instance of the address-space
         // of the process. Only to the point of not having kernel as parent
         if (flags & MEMORY_SPACE_INHERIT) {
             parent = GetCurrentMemorySpace();
             if (parent != GetDomainMemorySpace()) {
                 if (parent->ParentHandle != UUID_INVALID) {
-                    memorySpace->ParentHandle = parent->ParentHandle;
-                    memorySpace->Context      = parent->Context;
-                    parent = (MemorySpace_t*)LookupHandleOfType(
-                            parent->ParentHandle, HandleTypeMemorySpace);
+                    parentHandle = parent->ParentHandle;
                 } else {
-                    memorySpace->ParentHandle = GetCurrentMemorySpaceHandle();
-                    memorySpace->Context      = parent->Context;
+                    parentHandle = GetCurrentMemorySpaceHandle();
                 }
 
-                // Add a reference and copy data
-                AcquireHandleOfType(
-                        memorySpace->ParentHandle,
-                        HandleTypeMemorySpace,
-                        NULL
+                oserr = AcquireHandleOfType(
+                    parentHandle,
+                    HandleTypeMemorySpace,
+                    (void**)&parent
                 );
+                if (oserr != OS_EOK) {
+                    goto error;
+                }
+                memorySpace->ParentHandle = parentHandle;
+
+                oserr = AcquireHandleOfType(parent->GroupHandle, HandleTypeMSContext, NULL);
+                if (oserr != OS_EOK) {
+                    goto error;
+                }
+                memorySpace->GroupHandle = parent->GroupHandle;
                 memcpy(&memorySpace->PlatformData, &parent->PlatformData, sizeof(PlatformMemoryBlock_t));
             } else {
                 parent = NULL;
             }
         }
 
-        // If we are root, create the memory bitmaps
+        // A root space owns the initial reference to a new group.
         if (memorySpace->ParentHandle == UUID_INVALID) {
-            memorySpace->Context = MSContextNew();
+            memorySpace->GroupHandle = MSContextNew();
+            if (memorySpace->GroupHandle == UUID_INVALID) {
+                oserr = OS_EOOM;
+                goto error;
+            }
         }
 
         oserr = MmuCloneVirtualSpace(parent, memorySpace, (flags & MEMORY_SPACE_INHERIT) ? 1 : 0);
         if (oserr != OS_EOK) {
-            return oserr;
+            goto error;
         }
-
-        *handleOut = CreateHandle(
-                HandleTypeMemorySpace,
-                (HandleDestructorFn)MemorySpaceDelete,
-                memorySpace
-        );
     } else {
         FATAL(FATAL_SCOPE_KERNEL, "Invalid flags parsed in CreateMemorySpace 0x%" PRIxIN "", flags);
     }
+
+    *handleOut = CreateHandle(
+        HandleTypeMemorySpace,
+        (HandleDestructorFn)MemorySpaceDelete,
+        memorySpace
+    );
+    if (*handleOut == UUID_INVALID) {
+        MemorySpaceDelete(memorySpace);
+        return OS_EOOM;
+    }
     return OS_EOK;
+
+error:
+    // A failed clone unwinds its own page tables; only our references remain.
+    if (memorySpace->GroupHandle != UUID_INVALID) {
+        DestroyHandle(memorySpace->GroupHandle);
+    }
+    
+    if (memorySpace->ParentHandle != UUID_INVALID) {
+        DestroyHandle(memorySpace->ParentHandle);
+    }
+
+    DynamicMemoryPoolDestroy(&memorySpace->ThreadMemory);
+    kfree(memorySpace);
+    return oserr;
 }

@@ -1,5 +1,9 @@
 # Standard configuration file for drivers in the OS
 driver:
+  # This controller uses polled I/O and does not allocate interrupts.
+  capabilities:
+    - deviceio-access
+
   type:
     - class: 0x0101
     - subclass: 0x0000

@@ -21,6 +21,7 @@
 #include <bus/pci/config.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/device.h>
+#include <ddk/utils.h>
 #include <stddef.h>
 
 static int
@@ -43,34 +44,40 @@ __ValidAccess(
 
 static size_t
 __PciRead(
-	_In_ PciHost_t*	  Io,
-	_In_ unsigned int Bus,
-	_In_ unsigned int Device,
-	_In_ unsigned int Function,
-	_In_ size_t 	  Register,
-	_In_ size_t       Width)
+    _In_ PciHost_t*   Io,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device,
+    _In_ unsigned int Function,
+    _In_ size_t       Register,
+    _In_ size_t       Width)
 {
-	if (!__ValidAccess(Io, Bus, Device, Function, Register, Width)) {
-		return (size_t)-1;
-	}
-	
+    if (!__ValidAccess(Io, Bus, Device, Function, Register, Width)) {
+        WARNING("__PciRead invalid %u:%u:%u.%u register 0x%llx width %llu",
+            Io->Identification.Segment, Bus, Device, Function,
+            (unsigned long long)Register, (unsigned long long)Width);
+        return (size_t)-1;
+    }
+
     return Io->Operations->Read(Io, Bus, Device, Function, Register, Width);
 }
 
 static void
 __PciWrite(
-	_In_ PciHost_t*	  Io,
-	_In_ unsigned int Bus,
-	_In_ unsigned int Device,
-	_In_ unsigned int Function,
-	_In_ size_t 	  Register,
-	_In_ size_t       Value,
-	_In_ size_t       Width)
+    _In_ PciHost_t*   Io,
+    _In_ unsigned int Bus,
+    _In_ unsigned int Device,
+    _In_ unsigned int Function,
+    _In_ size_t       Register,
+    _In_ size_t       Value,
+    _In_ size_t       Width)
 {
-	if (!__ValidAccess(Io, Bus, Device, Function, Register, Width)) {
-		return;
-	}
-	
+    if (!__ValidAccess(Io, Bus, Device, Function, Register, Width)) {
+        WARNING("__PciWrite invalid %u:%u:%u.%u register 0x%llx width %llu",
+            Io->Identification.Segment, Bus, Device, Function,
+            (unsigned long long)Register, (unsigned long long)Width);
+        return;
+    }
+
     Io->Operations->Write(Io, Bus, Device, Function, Register, Value, Width);
 }
 

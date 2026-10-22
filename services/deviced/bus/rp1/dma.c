@@ -18,9 +18,11 @@
  * 
  */
 
+//#define __TRACE
 #include <bus/rp1/dma.h>
 #include <bus/rp1/rp1.h>
 #include <bus/pci/device.h>
+#include <ddk/utils.h>
 
 oserr_t
 Rp1GetDmaDescription(
@@ -33,12 +35,15 @@ Rp1GetDmaDescription(
     struct PciDmaDescription result;
     oserr_t                  status;
 
+    TRACE("Rp1GetDmaDescription(parent=%p, child=%u)", parent, childNode);
     // The PCI attachment already owns the inventory. Use that association
     // instead of keeping another registry or accepting an arbitrary host.
     if (parent == NULL || description == NULL) {
+        ERROR("Rp1GetDmaDescription: missing parent or output");
         return OS_EINVALPARAMS;
     }
     if (parent->Handler != &g_rp1PciHandler || parent->Attachment == NULL) {
+        WARNING("Rp1GetDmaDescription: parent has no RP1 attachment");
         return OS_ENOTSUPPORTED;
     }
     
@@ -49,6 +54,7 @@ Rp1GetDmaDescription(
         }
     }
     if (child == NULL) {
+        WARNING("Rp1GetDmaDescription: child %u is not in the parent inventory", childNode);
         return OS_ENOENT;
     }
 
@@ -56,11 +62,13 @@ Rp1GetDmaDescription(
     // part must come from the host that actually installed the inbound windows.
     status = PciHostGetDmaDescription(parent->Host, &result);
     if (status != OS_EOK) {
+        WARNING("Rp1GetDmaDescription: host DMA unavailable for child %u (%u)", childNode, status);
         return status;
     }
     
     status = FdtComposeRp1Dma(bus->Host, childNode, &result.Map, &result.Map);
     if (status != OS_EOK) {
+        WARNING("Rp1GetDmaDescription: child %u DMA path unavailable (%u)", childNode, status);
         return status;
     }
 
@@ -71,5 +79,7 @@ Rp1GetDmaDescription(
     }
     
     *description = result;
+    TRACE("Rp1GetDmaDescription: child %u has %u ranges, cache policy %u",
+        childNode, result.Map.Count, result.CachePolicy);
     return OS_EOK;
 }

@@ -280,8 +280,11 @@ __SpawnService(
         return;
     }
 
+    // Set the capabilities for the process based on the system service's capabilities.
+    procOpts->Capabilities = systemService->Capabilities;
+
     TRACE("__SpawnService %s", &pathBuffer[0]);
-    oserr = PmCreateProcess(path, args, procOpts, &handle);
+    oserr = PmCreateServiceProcess(path, args, procOpts, &handle);
     if (oserr != OS_EOK) {
         ERROR("__SpawnService failed to spawn service %s", path);
     }

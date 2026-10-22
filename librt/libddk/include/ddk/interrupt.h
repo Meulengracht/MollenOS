@@ -108,6 +108,19 @@ typedef struct DeviceInterruptLine {
     unsigned int AcpiConform;
 } DeviceInterruptLine_t;
 
+/**
+ * @brief Architecture-composed message for one vector in an interrupt allocation.
+ *
+ * AddressLow and AddressHigh form the 64-bit message address. Data is the
+ * message payload, not an allocation index or a PCI MSI-X table-entry index.
+ * Fixed-width fields keep the syscall layout identical on all architectures.
+ */
+typedef struct DeviceInterruptMessage {
+    uint32_t AddressLow;
+    uint32_t AddressHigh;
+    uint32_t Data;
+} DeviceInterruptMessage_t;
+
 // Each interrupt may carry its own resource table and an
 // affinity mask.
 typedef struct DeviceInterruptVector {
@@ -123,6 +136,7 @@ typedef struct DeviceInterrupt {
     uuid_t                       DeviceId;
     DeviceInterruptLine_t        Line;
     unsigned int                 Flags;
+    unsigned int                 IsPci;
     uint32_t                     Strategy;
 
     // These are maintained by libddk
@@ -135,6 +149,7 @@ typedef struct DeviceInterrupt {
  * @brief Initializes line and device information from the provided device base.
  * 
  * Pass NULL for device to set Line explicitly for a fixed platform interrupt.
+ * IsPci is derived from the device bus type; only BusTypePci enables PCI MSI.
  * Must be called prior to Allocate. Flags defaults to shared delivery;
  * set INTERRUPT_EXCLUSIVE before allocation if this line must not be shared.
  */
@@ -145,11 +160,28 @@ DeviceInterruptInitialize(
 
 /**
  * @brief Reserves interrupts without installing a handler or enabling delivery.
+ *
+ * deviced prepares PCI messages with delivery and INTx masked. The driver must
+ * stop interrupt sources and set up bus mastering and MMIO. For MSI-X, vector
+ * index i is programmed into table entry i; route device queues/causes to those
+ * entries before Enable. Only request modes the device-specific driver supports.
+ * 
  * Strategies are preferences in MSI-X, MSI, INTx order. This implementation
- * supports INTx only: min must be one and INTx must be allowed. optimal may be
- * larger, so callers can already request a preferred count with INTx fallback.
- * Success returns the actual count. Failure leaves countOut zero and retains
- * any existing allocation. An object cannot own two allocations at once.
+ * supports PCI MSI-X, single-message MSI and INTx. MSI-X negotiates a count from
+ * min through optimal, limited by the device table and free kernel vectors.
+ * MSI and INTx fallback require min == 1. Multi-message MSI is unsupported.
+ * Unsupported capabilities and kernel vector exhaustion allow fallback; malformed
+ * configuration, provider ownership conflicts and transport failures are errors.
+ * Success returns the actual count. Failure leaves @p countOut zero and retains
+ * any existing allocation. If allocation rollback fails, State may remain set,
+ * including when allocating local vector storage fails after kernel reservation.
+ * Retry Destroy until cleanup succeeds before discarding the object. An object
+ * can own only one allocation at a time. Serialize calls on the object and keep
+ * the device stopped during allocation and teardown.
+ *
+ * On x86, a released MSI/MSI-X vector that has been enabled is retired until reboot
+ * because the platform cannot drain messages yet. Disable/Enable reuses the
+ * reservation. Each Destroy/Allocate cycle uses another slot in the vector pool.
  */
 DDKDECL(oserr_t,
 DeviceInterruptAllocate(
@@ -158,6 +190,25 @@ DeviceInterruptAllocate(
     _In_    uint32_t           optimal,
     _In_    uint32_t           strategies,
     _Out_   uint32_t*          countOut));
+
+/**
+ * @brief Reads the message for one vector without changing delivery or ownership.
+ *
+ * The index addresses the allocation's vector array. The initial PCI MSI-X
+ * provider assigns this vector to the table entry with the same index.
+ * INTx has no message and returns OS_ENOTSUPPORTED. Failure leaves messageOut
+ * unchanged. Serialize this query with other operations on the allocation.
+ *
+ * @param interrupt Successfully allocated interrupt object.
+ * @param index Zero-based index less than Count.
+ * @param messageOut Receives the architecture-composed address and data.
+ * @return OS_EOK on success, or an error for an invalid or unavailable vector.
+ */
+DDKDECL(oserr_t,
+DeviceInterruptGetMessage(
+    _In_  DeviceInterrupt_t*        interrupt,
+    _In_  uint32_t                  index,
+    _Out_ DeviceInterruptMessage_t* messageOut));
 
 /**
  * @brief Specifies acceptable CPUs before enabling the allocation.
@@ -221,8 +272,10 @@ DeviceInterruptAddMemoryResource(
  * @brief Maps all handlers and resources before allowing them to run.
  * The driver must keep its device's interrupt source stopped during setup and
  * start device work only after success. Repeated Enable calls are harmless.
- * This operation enables the whole allocation, avoiding partial MSI enablement
- * when support for message interrupts is added.
+ * Kernel dispatch opens before deviced enables PCI MSI. If enabling MSI fails
+ * or the response is lost, cleanup stops PCI delivery before waiting for handlers
+ * and unmapping them. If cleanup fails, Disable or Destroy must release the
+ * remaining resources.
  */
 DDKDECL(oserr_t,
 DeviceInterruptEnable(
@@ -233,6 +286,8 @@ DeviceInterruptEnable(
  * Stop interrupts at the device first: a shared INTx line may remain enabled
  * for another device. On success, handler mappings are released but the line
  * reservation remains, allowing configuration changes and a later Enable.
+ * For PCI MSI, deviced disables the capability before the kernel waits for
+ * handlers. The driver must still stop its queues, DMA and other interrupt sources.
  * Call from normal driver code, never from a fast interrupt handler.
  */
 DDKDECL(oserr_t,
@@ -244,6 +299,8 @@ DeviceInterruptDisable(
  * Safe on an initialized or zeroed object and on repeated calls. If teardown
  * fails, ownership is retained so the caller can retry without losing resources.
  * Device identity and routing remain available for a later Allocate.
+ * Retry a failed MSI Destroy until it succeeds. Enable rejects the object
+ * because teardown may already have restored its PCI configuration.
  */
 DDKDECL(oserr_t,
 DeviceInterruptDestroy(

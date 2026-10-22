@@ -119,6 +119,16 @@ static struct __TestContext {
     struct __DynamicMemoryPoolAllocate DynamicMemoryPoolAllocate;
 } g_testContext;
 
+void*
+LookupHandleOfType(
+    _In_ uuid_t       handle,
+    _In_ HandleType_t type)
+{
+    assert_int_equal(handle, 1);
+    assert_int_equal(type, HandleTypeMSContext);
+    return &g_testContext.Context;
+}
+
 int Setup(void** state) {
     (void)state;
     return 0;
@@ -134,7 +144,7 @@ int SetupTest(void** state) {
     memset(&g_testContext, 0, sizeof(struct __TestContext));
 
     // Initialize the memory space
-    g_testContext.MemorySpace.Context = &g_testContext.Context;
+    g_testContext.MemorySpace.GroupHandle = 1;
     g_testContext.MemorySpace.Flags   = MEMORY_SPACE_APPLICATION;
 
     // Default to a page size of 4KB. If a test needs something else

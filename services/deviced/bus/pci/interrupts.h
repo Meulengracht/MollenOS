@@ -48,4 +48,10 @@ PciResolveInterruptLineAndPin(
 __EXTERN int
 PciIsAcpiAvailable(void);
 
+/**
+ * @brief Check whether platform policy allows the current MSI backend.
+ */
+__EXTERN int
+PciIsMsiAvailable(void);
+
 #endif // __DEVICED_BUS_PCI_INTERRUPTS_H__

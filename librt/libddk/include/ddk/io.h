@@ -44,9 +44,9 @@
 
 typedef enum DeviceIoType {
     DeviceIoInvalid = 0,
-    DeviceIoMemoryBased,            // Usually device memory range
-    DeviceIoPortBased,              // Usually a port range
-    DeviceIoPinBased                // Usually a port/pin combination
+    DeviceIoMemoryBased,    // Usually device memory range
+    DeviceIoPortBased,      // Usually a port range
+    DeviceIoPinBased        // Usually a port/pin combination
 } DeviceIoType_t;
 
 // Represents a device io communcation space
@@ -88,7 +88,7 @@ void WriteVolatileMemory(
  * overlaps any existing io range, this request will be denied by the system.
  */
 DDKDECL(oserr_t,
-        CreateDeviceMemoryIo(
+CreateDeviceMemoryIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uintptr_t      PhysicalBase,
     _In_ size_t         Length));
@@ -98,7 +98,7 @@ DDKDECL(oserr_t,
  * overlaps any existing range, this request will be denied by the system.
  */
 DDKDECL(oserr_t,
-        CreateDevicePortIo(
+CreateDevicePortIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
     _In_ size_t         Length));
@@ -107,7 +107,7 @@ DDKDECL(oserr_t,
  * Registers a new device port/pin io with the operating system. If this port/pin
  * overlaps any existing port/pin, this request will be denied by the system. */
 DDKDECL(oserr_t,
-        CreateDevicePinIo(
+CreateDevicePinIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ uint16_t       Port,
     _In_ uint8_t        Pin));
@@ -116,22 +116,44 @@ DDKDECL(oserr_t,
  * Unregisters a device-io with the operating system, releasing all resources
  * associated and disabling the io range for use. */
 DDKDECL(oserr_t,
-        DestroyDeviceIo(
+DestroyDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* AcquireDeviceIo
  * Tries to claim a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
 DDKDECL(oserr_t,
-        AcquireDeviceIo(
+AcquireDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
 
 /* ReleaseDeviceIo
  * Tries to release a given io-space, only one driver can claim a single io-space 
  * at a time, to avoid two drivers using the same device */
 DDKDECL(oserr_t,
-        ReleaseDeviceIo(
+ReleaseDeviceIo(
     _In_ DeviceIo_t*    IoSpace));
+
+/**
+ * @brief Map a registered MMIO subrange without acquiring its exclusive claim.
+ *
+ * Bus providers use this for structures such as MSI-X tables in a BAR also used
+ * by a driver. The caller must keep the registration alive until MemoryFree
+ * releases this uncached device mapping. This does not check device access.
+ * To release it, round the returned address down to MemoryPageSize() and pass
+ * that address and length plus the removed page offset to MemoryFree().
+ *
+ * @param id Registered memory I/O identifier.
+ * @param offset Byte offset within the registered region.
+ * @param length Nonzero byte length of the mapping.
+ * @param mappingOut Receives the address corresponding to offset.
+ * @return OS_EOK on success, or an error for an invalid range or failed mapping.
+ */
+DDKDECL(oserr_t,
+MapDeviceIo(
+    _In_  uuid_t id,
+    _In_  size_t offset,
+    _In_  size_t length,
+    _Out_ void** mappingOut));
 
 /* ReadDeviceIo
  * Read data from the given io-space at <offset> with the given <length>, 
@@ -146,11 +168,12 @@ ReadDeviceIo(
  * Write data from the given io-space at <offset> with the given <length>, 
  * the offset and length must be below the size of the io-space */
 DDKDECL(oserr_t,
-        WriteDeviceIo(
+WriteDeviceIo(
     _In_ DeviceIo_t*    IoSpace,
     _In_ size_t         Offset,
     _In_ size_t         Value,
     _In_ size_t         Length));
+
 _CODE_END
 
 #endif //!__DEVICEIO_INTERFACE_H__

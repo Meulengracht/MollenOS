@@ -24,6 +24,8 @@
 
 #include <ddk/busdevice.h>
 #include <ddk/types/interrupt.h>
+#include <ddk/types/pci-interrupt.h>
+#include <os/device.h>
 #include <internal/_syscalls.h>
 #include <internal/_utils.h>
 #include <stdlib.h>
@@ -34,7 +36,82 @@ struct DeviceInterruptState {
     uuid_t Handle;
     int    Bound;
     int    Enabled;
+    int    PciReserved;
+    int    Ready;
+    int    PendingCleanup;
 };
+
+static oserr_t
+__PciControl(
+    _In_ DeviceInterrupt_t* interrupt,
+    _In_ uint32_t           operation)
+{
+    struct PciInterruptRequest request = {
+        .Operation = operation,
+        .Allocation = interrupt->State->Handle,
+        .Strategy = interrupt->Strategy
+    };
+
+    return OSDeviceIOCtl(
+        interrupt->DeviceId,
+        OSIOCTLREQUEST_PCI_INTERRUPT,
+        &request,
+        sizeof(request)
+    );
+}
+
+static oserr_t
+__ReservePciMessages(
+    _InOut_ DeviceInterrupt_t* interrupt)
+{
+    struct DeviceInterruptState* state = interrupt->State;
+    DeviceInterruptMessage_t     message;
+    oserr_t                      status;
+    struct PciInterruptRequest   request = {
+        .Operation = PciInterruptReserve,
+        .Allocation = state->Handle,
+        .Strategy = interrupt->Strategy,
+        .Count = interrupt->Count
+    };
+
+    // A lost reply can hide a successful reservation. Retain its cleanup duty.
+    state->PciReserved = 1;
+    status = OSDeviceIOCtl(
+        interrupt->DeviceId, OSIOCTLREQUEST_PCI_INTERRUPT, &request, sizeof(request)
+    );
+    if (status != OS_EOK) {
+        // Busy means another reservation owns the untouched function.
+        if (status == OS_EBUSY) {
+            state->PciReserved = 0;
+        }
+        return status;
+    }
+
+    request.Operation = PciInterruptProgram;
+    request.Count = 0;
+    
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
+        status = Syscall_InterruptGetMessage(state->Handle, i, &message);
+        if (status != OS_EOK) {
+            return status;
+        }
+
+        request.Index = i;
+        request.AddressLow = message.AddressLow;
+        request.AddressHigh = message.AddressHigh;
+        request.Data = message.Data;
+        status = OSDeviceIOCtl(
+            interrupt->DeviceId,
+            OSIOCTLREQUEST_PCI_INTERRUPT,
+            &request,
+            sizeof(struct PciInterruptRequest)
+        );
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    return OS_EOK;
+}
 
 void
 DeviceInterruptInitialize(
@@ -43,17 +120,36 @@ DeviceInterruptInitialize(
 {
     // Initialization allocates nothing, so even a driver without a bus device
     // can prepare a line descriptor before requesting its reservation.
-    memset(interrupt, 0, sizeof(*interrupt));
+    memset(interrupt, 0, sizeof(DeviceInterrupt_t));
     interrupt->DeviceId = UUID_INVALID;
     interrupt->Line.Line = INTERRUPT_NONE;
     interrupt->Line.Pin = INTERRUPT_NONE;
     
     if (device != NULL) {
         interrupt->DeviceId = device->Base.Id;
+        interrupt->IsPci = device->Type == BusTypePci;
         interrupt->Line.Line = device->InterruptLine;
         interrupt->Line.Pin = device->InterruptPin;
         interrupt->Line.AcpiConform = device->InterruptAcpiConform;
     }
+}
+
+static oserr_t
+__AllocateVectors(
+    _InOut_ DeviceInterrupt_t* interrupt)
+{
+    uint32_t i;
+
+    interrupt->Vectors = calloc(interrupt->Count, sizeof(DeviceInterruptVector_t));
+    if (interrupt->Vectors == NULL) {
+        return OS_EOOM;
+    }
+
+    for (i = 0; i < interrupt->Count; i++) {
+        interrupt->Vectors[i].AffinityMask = UINT32_MAX;
+        interrupt->Vectors[i].ResourceTable.HandleResource = UUID_INVALID;
+    }
+    return OS_EOK;
 }
 
 oserr_t
@@ -64,10 +160,10 @@ DeviceInterruptAllocate(
     _In_    uint32_t           strategies,
     _Out_   uint32_t*          countOut)
 {
-    InterruptAllocationRequest_t request;
-    InterruptAllocationResult_t  result;
+    InterruptGroupRequest_t      request;
+    InterruptGroupResult_t       result;
+    struct PciInterruptSupport   support = { 0 };
     struct DeviceInterruptState* state;
-    DeviceInterruptVector_t*     vectors;
     oserr_t                      status;
 
     if (countOut == NULL) {
@@ -89,17 +185,40 @@ DeviceInterruptAllocate(
         return OS_EBUSY;
     }
     
-    if (min != 1 || !(strategies & INTERRUPT_STRATEGY_INTx)) {
+    if ((strategies & (INTERRUPT_STRATEGY_MSI | INTERRUPT_STRATEGY_MSIX)) && interrupt->IsPci) {
+        status = OSDeviceIOCtl(interrupt->DeviceId, OSIOCTLREQUEST_PCI_INTERRUPT_QUERY,
+                              &support, sizeof(support));
+        // Fall back only when a mode is absent or unsupported. Report broken
+        // configuration and transport errors to the caller.
+        if (status != OS_EOK && status != OS_ENOTSUPPORTED) {
+            return status;
+        }
+        if (status != OS_EOK) {
+            support.Strategies = 0;
+        }
+        strategies &= support.Strategies | INTERRUPT_STRATEGY_INTx;
+    } else {
+        strategies &= INTERRUPT_STRATEGY_INTx;
+    }
+    if (min != 1) {
+        strategies &= INTERRUPT_STRATEGY_MSIX;
+    }
+    if (strategies & INTERRUPT_STRATEGY_MSIX) {
+        if (support.MsixCapacity < min) {
+            strategies &= ~INTERRUPT_STRATEGY_MSIX;
+        } else if (optimal > support.MsixCapacity) {
+            optimal = support.MsixCapacity;
+        }
+    }
+    
+    if (strategies == 0) {
         return OS_ENOTSUPPORTED;
     }
 
-    // Reserve bookkeeping before the system call, following the DMA wrappers'
-    // ownership pattern. No allocation can become hidden by a later malloc failure.
+    // Keep a place for the handle before reserving. Vector storage is sized from
+    // the negotiated count; if it fails, State retains any cleanup obligation.
     state = calloc(1, sizeof(struct DeviceInterruptState));
-    vectors = calloc(1, sizeof(DeviceInterruptVector_t));
-    if (state == NULL || vectors == NULL) {
-        free(state);
-        free(vectors);
+    if (state == NULL) {
         return OS_EOOM;
     }
     
@@ -112,23 +231,62 @@ DeviceInterruptAllocate(
     
     status = Syscall_InterruptAllocate(&request, &result);
     if (status != OS_EOK) {
-        free(vectors);
         free(state);
         return status;
     }
     
     state->Handle = result.Handle;
     
-    vectors[0].AffinityMask = UINT32_MAX;
-    vectors[0].ResourceTable.HandleResource = UUID_INVALID;
-    
     interrupt->State = state;
-    interrupt->Vectors = vectors;
     interrupt->Count = result.Count;
     interrupt->Strategy = result.Strategy;
+
+    status = __AllocateVectors(interrupt);
+    if (status != OS_EOK) {
+        goto rollback;
+    }
+
+    if (result.Strategy != INTERRUPT_STRATEGY_INTx) {
+        status = __ReservePciMessages(interrupt);
+        if (status != OS_EOK) {
+            goto rollback;
+        }
+    }
+    state->Ready = 1;
     
     *countOut = result.Count;
     return OS_EOK;
+
+rollback:
+    // Destroy keeps the handle reachable if release itself fails.
+    (void)DeviceInterruptDestroy(interrupt);
+    return status;
+}
+
+oserr_t
+DeviceInterruptGetMessage(
+    _In_  DeviceInterrupt_t*        interrupt,
+    _In_  uint32_t                  index,
+    _Out_ DeviceInterruptMessage_t* messageOut)
+{
+    DeviceInterruptMessage_t message;
+    oserr_t                  status;
+
+    if (interrupt == NULL || interrupt->State == NULL || messageOut == NULL) {
+        return OS_EINVALPARAMS;
+    }
+    if (index >= interrupt->Count) {
+        return OS_EINVALPARAMS;
+    }
+    if (!interrupt->State->Ready) {
+        return OS_EBUSY;
+    }
+
+    status = Syscall_InterruptGetMessage(interrupt->State->Handle, index, &message);
+    if (status == OS_EOK) {
+        *messageOut = message;
+    }
+    return status;
 }
 
 // Ensures we don't vectors that are already bound
@@ -141,7 +299,7 @@ __GetEditableVector(
     if (interrupt == NULL || interrupt->State == NULL || index >= interrupt->Count) {
         return OS_EINVALPARAMS;
     }
-    if (interrupt->State->Bound || interrupt->State->Enabled) {
+    if (!interrupt->State->Ready || interrupt->State->Bound || interrupt->State->Enabled) {
         return OS_EBUSY;
     }
     
@@ -300,7 +458,19 @@ DeviceInterruptEnable(
     if (interrupt == NULL || interrupt->State == NULL) {
         return OS_EINVALPARAMS;
     }
+
     state = interrupt->State;
+    if (!state->Ready) {
+        return OS_EBUSY;
+    }
+    
+    if (state->PendingCleanup) {
+        status = DeviceInterruptDisable(interrupt);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    
     if (state->Enabled) {
         return OS_EOK;
     }
@@ -313,15 +483,17 @@ DeviceInterruptEnable(
             return status;
         }
     }
-    if (interrupt->Vectors[0].ResourceTable.Handler == NULL) {
-        return OS_EINVALPARAMS;
+
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
+        if (interrupt->Vectors[i].ResourceTable.Handler == NULL) {
+            return OS_EINVALPARAMS;
+        }
     }
     
-    // INTx has one vector. Bind it before enabling delivery, including when the
-    // physical line is already enabled by another device sharing this interrupt.
-    if (!state->Bound) {
-        request.Index = 0;
-        request.Resources = interrupt->Vectors[0].ResourceTable;
+    // Bind every vector before allowing dispatch.
+    for (uint32_t i = 0; i < interrupt->Count; i++) {
+        request.Index = i;
+        request.Resources = interrupt->Vectors[i].ResourceTable;
         
         status = Syscall_InterruptBind(state->Handle, &request);
         if (status != OS_EOK) {
@@ -344,6 +516,17 @@ DeviceInterruptEnable(
     }
     
     state->Enabled = 1;
+    if (state->PciReserved) {
+        state->PendingCleanup = 1;
+        status = __PciControl(interrupt, PciInterruptEnable);
+        if (status != OS_EOK) {
+            // PCI delivery may be enabled even if the response failed. Stop it before
+            // unmapping handlers, and keep their resources if stopping fails.
+            (void)DeviceInterruptDisable(interrupt);
+            return status;
+        }
+        state->PendingCleanup = 0;
+    }
     return OS_EOK;
 }
 
@@ -357,14 +540,26 @@ DeviceInterruptDisable(
     if (interrupt == NULL) {
         return OS_EINVALPARAMS;
     }
+
     state = interrupt->State;
     if (state == NULL) {
         return OS_EOK;
     }
     
+    if (state->PciReserved) {
+        // Make Enable retry an incomplete stop. Clear this only after PCI delivery
+        // and kernel dispatch are stopped and the handler mappings are removed.
+        state->PendingCleanup = 1;
+
+        status = __PciControl(interrupt, PciInterruptDisable);
+        if (status != OS_EOK) {
+            return status;
+        }
+    }
+    
     // A successful disable waits for running handlers. Only then is it safe to
     // release their mappings or allow setters to change the configuration.
-    if (state->Enabled) {
+    if (state->Enabled || state->Bound) {
         status = Syscall_InterruptDisable(state->Handle);
         if (status != OS_EOK) {
             return status;
@@ -379,6 +574,7 @@ DeviceInterruptDisable(
         }
         state->Bound = 0;
     }
+    state->PendingCleanup = 0;
     return OS_EOK;
 }
 
@@ -388,10 +584,23 @@ DeviceInterruptDestroy(
 {
     oserr_t status;
 
+    if (interrupt != NULL && interrupt->State != NULL &&
+        interrupt->Strategy != INTERRUPT_STRATEGY_INTx) {
+        // Teardown may restore PCI state before failing. Block Enable until
+        // the caller finishes Destroy and allocates again.
+        interrupt->State->Ready = 0;
+    }
+
     // Keep the handle and storage on any failure so a caller can retry teardown.
     status = DeviceInterruptDisable(interrupt);
     if (status != OS_EOK || interrupt->State == NULL) {
         return status;
+    }
+    
+    if (interrupt->State->PciReserved) {
+        status = __PciControl(interrupt, PciInterruptRelease);
+        if (status != OS_EOK) return status;
+        interrupt->State->PciReserved = 0;
     }
     
     status = Syscall_InterruptRelease(interrupt->State->Handle);

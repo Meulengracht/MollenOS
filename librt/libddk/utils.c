@@ -16,16 +16,18 @@
  */
 
 #include <internal/_syscalls.h>
+#include <ddk/capabilities.h>
 #include <ddk/video.h>
 #include <ddk/utils.h>
+#include <os/osdefs.h>
 #include <string.h>
 #include <assert.h>
 #include <stdio.h>
 
 void
 SystemDebug(
-        _In_ enum OSSysLogLevel Level,
-        _In_ const char*        Format, ...)
+    _In_ enum OSSysLogLevel Level,
+    _In_ const char*        Format, ...)
 {
 	va_list args;
 	char    buffer[256];
@@ -39,14 +41,14 @@ SystemDebug(
 
 oserr_t
 QueryBootVideoInformation(
-        _In_ OSBootVideoDescriptor_t* Descriptor)
+    _In_ OSBootVideoDescriptor_t* Descriptor)
 {
     size_t bytesQueried;
     return OSSystemQuery(
-            OSSYSTEMQUERY_BOOTVIDEOINFO,
-            Descriptor,
-            sizeof(OSBootVideoDescriptor_t),
-            &bytesQueried
+        OSSYSTEMQUERY_BOOTVIDEOINFO,
+        Descriptor,
+        sizeof(OSBootVideoDescriptor_t),
+        &bytesQueried
     );
 }
 
@@ -62,11 +64,48 @@ void* CreateDisplayFramebuffer(void)
 
 oserr_t
 DdkUtilsMapRamdisk(
-        _Out_ void**  bufferOut,
-        _Out_ size_t* bufferLengthOut)
+    _Out_ void**  bufferOut,
+    _Out_ size_t* bufferLengthOut)
 {
     if (!bufferOut || !bufferLengthOut) {
         return OS_EINVALPARAMS;
     }
     return Syscall_MapRamdisk(bufferOut, bufferLengthOut);
+}
+
+oserr_t
+CapabilityGrant(
+    _In_ Capabilities_t capabilities,
+    _In_ uuid_t         memorySpaceHandle)
+{
+    return Syscall_CapabilityGrant(capabilities, memorySpaceHandle);
+}
+
+static struct {
+    const char*    name;
+    Capabilities_t capability;
+} g_capabilityStrings[] = {
+    { "grant-control",           CAPABILITY_GRANT_CAPABILITY },
+    { "firmware-access",         CAPABILITY_FIRMWARE_ACCESS },
+    { "ramdisk-access",          CAPABILITY_RAMDISK_ACCESS },
+    { "deviceio-access",         CAPABILITY_DEVICEIO_ACCESS },
+    { "deviceio-management",     CAPABILITY_DEVICEIO_MANAGEMENT },
+    { "interrupt-control",       CAPABILITY_INTERRUPT_CONTROL },
+    { "memoryspace-management",  CAPABILITY_MEMORYSPACE_MANAGEMENT },
+};
+
+Capabilities_t
+CapabilityParse(
+    _In_ const char* capabilityString)
+{
+    if (capabilityString == NULL) {
+        return 0;
+    }
+
+    for (size_t i = 0; i < SIZEOF_ARRAY(g_capabilityStrings); i++) {
+        if (strcmp(g_capabilityStrings[i].name, capabilityString) == 0) {
+            return g_capabilityStrings[i].capability;
+        }
+    }
+    return 0; // Invalid capability string
 }

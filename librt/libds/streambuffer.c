@@ -72,6 +72,10 @@ streambuffer_construct(
     memset(stream, 0, sizeof(streambuffer_t));
     stream->capacity = capacity;
     stream->options  = options;
+    if (capacity == 0 || capacity > UINT_MAX / 2) {
+        stream->capacity = 0;
+        stream->options |= STREAMBUFFER_DISABLED;
+    }
 }
 
 oserr_t
@@ -82,7 +86,13 @@ streambuffer_create(
 {
     // When calculating the number of bytes we want to actual structure size
     // without the buffer[1] and then capacity
-    streambuffer_t* stream = (streambuffer_t*)dsalloc(sizeof(streambuffer_t) + capacity);
+    streambuffer_t* stream;
+
+    if (capacity == 0 || capacity > UINT_MAX / 2) {
+        return OS_EINVALPARAMS;
+    }
+    
+    stream = (streambuffer_t*)dsalloc(sizeof(streambuffer_t) + capacity);
     if (!stream) {
         return OS_EOOM;
     }
@@ -116,21 +126,50 @@ streambuffer_clear_option(
     stream->options &= ~(option);
 }
 
+static inline unsigned int
+__AdvanceIndex(
+    _In_ size_t       capacity,
+    _In_ unsigned int index,
+    _In_ size_t       length)
+{
+    // Wrap at a multiple of capacity so ring sizes keep their
+    // offsets across counter rollover.
+    unsigned int limit = (UINT_MAX / capacity) * capacity;
+    unsigned int remaining = limit - index;
+
+    return length >= remaining ? length - remaining : index + length;
+}
+
+static inline size_t
+__IndexDistance(
+    _In_ size_t capacity,
+    _In_ size_t read_index,
+    _In_ size_t write_index)
+{
+    size_t limit;
+
+    if (write_index >= read_index) {
+        return write_index - read_index;
+    }
+
+    limit = (UINT_MAX / capacity) * capacity;
+    return limit - read_index + write_index;
+}
+
 static inline size_t
 bytes_writable(
     _In_ size_t capacity,
     _In_ size_t read_index,
     _In_ size_t write_index)
 {
-    if (read_index > write_index) {
-        // If we somehow ended up in a state where read_index got ahead of write_index
-        // fix this by treating us with an empty capacity
-        if ((UINT_MAX - read_index) - write_index > capacity) {
-            return capacity;
-        }
-        return capacity - (write_index - (read_index - UINT_MAX));
+    size_t distance;
+
+    if (capacity == 0) {
+        return 0;
     }
-    return capacity - (write_index - read_index);
+    
+    distance = __IndexDistance(capacity, read_index, write_index);
+    return distance <= capacity ? capacity - distance : 0;
 }
 
 static inline size_t
@@ -139,17 +178,14 @@ bytes_readable(
     _In_ size_t read_index,
     _In_ size_t write_index)
 {
-    // Handle wrap-around
-    if (read_index > write_index) {
-        if (read_index >= (UINT_MAX - capacity)) {
-            // (capacity - (read_index & (capacity- 1))) + (write_index & (capacity - 1)) - 1;
-            return (capacity - (read_index % capacity)) + (write_index % capacity) - 1;
-        }
-        else {
-            return 0; // Overcommitted
-        }
+    size_t distance;
+
+    if (capacity == 0) {
+        return 0;
     }
-    return write_index - read_index;
+    
+    distance = __IndexDistance(capacity, read_index, write_index);
+    return distance <= capacity ? distance : 0;
 }
 
 static void
@@ -175,7 +211,7 @@ streambuffer_try_truncate(
     // Perform the actual allocation, if this fails someone else is truncating
     // or reading, abort
     if (!atomic_compare_exchange_strong(&stream->consumer_index, 
-            &read_index, read_index + bytes_available)) {
+            &read_index, __AdvanceIndex(stream->capacity, read_index, bytes_available))) {
         return;
     }
     
@@ -184,11 +220,11 @@ streambuffer_try_truncate(
     // index is writable. This can be skipped for single reader
     if (STREAMBUFFER_HAS_MULTIPLE_READERS(stream)) {
         unsigned int current_commit = atomic_load(&stream->consumer_comitted_index);
-        while (current_commit < (read_index - bytes_comitted)) {
+        while (current_commit != read_index) {
             current_commit = atomic_load(&stream->consumer_comitted_index);
         }
     }
-    atomic_fetch_add(&stream->consumer_comitted_index, bytes_comitted);
+    atomic_store(&stream->consumer_comitted_index, __AdvanceIndex(stream->capacity, read_index, bytes_comitted));
 }
 
 void
@@ -274,27 +310,25 @@ streambuffer_stream_out(
         
         // Perform the actual allocation
         if (!atomic_compare_exchange_strong(&stream->producer_index, 
-                &write_index, write_index + bytes_available)) {
+                &write_index, __AdvanceIndex(stream->capacity, write_index, bytes_available))) {
             continue;
         }
 
-        // Write the data to the internal buffer
-        while (bytes_available--) {
-            // (write_index++ & (stream->capacity - 1))
-            stream->buffer[(write_index++ % stream->capacity)] = casted_ptr[bytes_written++];
-        }
+        streambuffer_write_packet_data((void*)(casted_ptr + bytes_written), bytes_comitted,
+            &(streambuffer_packet_ctx_t) { ._stream = stream, ._state = write_index });
+        bytes_written += bytes_comitted;
         
         // Synchronize with other producers, we must wait for our turn to increament
         // the comitted index, otherwise we could end up telling readers that the wrong
         // index is readable. This can be skipped for single writer
         if (STREAMBUFFER_HAS_MULTIPLE_WRITERS(stream)) {
             unsigned int current_commit = atomic_load(&stream->producer_comitted_index);
-            while (current_commit < (write_index - bytes_comitted)) {
+            while (current_commit != write_index) {
                 current_commit = atomic_load(&stream->producer_comitted_index);
             }
         }
 
-        atomic_fetch_add(&stream->producer_comitted_index, bytes_comitted);
+        atomic_store(&stream->producer_comitted_index, __AdvanceIndex(stream->capacity, write_index, bytes_comitted));
         parameters.Expected0 = atomic_exchange(&stream->consumer_count, 0);
         if (parameters.Expected0 != 0) {
             parameters.Futex0 = (atomic_int*)&stream->producer_comitted_index;
@@ -348,7 +382,8 @@ streambuffer_write_packet_start(
             parameters.Futex0    = (atomic_int*)&stream->consumer_comitted_index;
             parameters.Expected0 = (int)read_index;
             parameters.Deadline  = options->deadline;
-            parameters.Flags     = STREAMBUFFER_WAIT_FLAGS(stream);
+            parameters.Flags     = (stream->options & STREAMBUFFER_GLOBAL) ? FUTEX_FLAG_WAIT :
+                                    FUTEX_FLAG_WAIT | FUTEX_FLAG_PRIVATE;
             atomic_fetch_add(&stream->producer_count, 1);
             dswait(&parameters, options->async_context);
             continue; // Start over
@@ -356,7 +391,7 @@ streambuffer_write_packet_start(
         
         // Perform the actual allocation
         if (!atomic_compare_exchange_strong(&stream->producer_index, 
-                &write_index, write_index + bytes_available)) {
+                &write_index, __AdvanceIndex(stream->capacity, write_index, bytes_available))) {
             continue;
         }
         
@@ -382,16 +417,19 @@ streambuffer_write_packet_data(
         _In_ streambuffer_packet_ctx_t* packetCtx)
 {
     streambuffer_t* stream        = packetCtx->_stream;
-    uint8_t*        casted_ptr    = (uint8_t*)buffer;
-    unsigned int    write_index   = (packetCtx->_state % stream->capacity);
-    size_t          bytes_written = 0;
-    
-    while (length--) {
-        // write_index++ & (stream->capacity - 1)
-        stream->buffer[write_index++] = casted_ptr[bytes_written++];
-        if (write_index == stream->capacity) {
-            write_index = 0;
-        }
+    uint8_t*        casted_ptr = (uint8_t*)buffer;
+    size_t          capacity = stream->capacity;
+    unsigned int    write_index = (packetCtx->_state % capacity);
+    size_t          chunk;
+
+    // Packet data occupies at most two contiguous ring spans. Keep the loop
+    // valid for callers that pass a larger range as well.
+    while (length != 0) {
+        chunk = MIN(length, capacity - write_index);
+        memcpy(&stream->buffer[write_index], casted_ptr, chunk);
+        casted_ptr += chunk;
+        length -= chunk;
+        write_index = (write_index + chunk) % capacity;
     }
 
     packetCtx->_state = write_index;
@@ -411,17 +449,20 @@ streambuffer_write_packet_end(
     if (STREAMBUFFER_HAS_MULTIPLE_WRITERS(stream)) {
         unsigned int write_index    = packetCtx->_base;
         unsigned int current_commit = atomic_load(&stream->producer_comitted_index);
-        while (current_commit < write_index) {
+        while (current_commit != write_index) {
             current_commit = atomic_load(&stream->producer_comitted_index);
         }
     }
 
     adjusted_length = packetCtx->_length + sizeof(sb_packethdr_t);
-    atomic_fetch_add(&stream->producer_comitted_index, adjusted_length);
+    atomic_store(
+        &stream->producer_comitted_index,
+        __AdvanceIndex(stream->capacity, packetCtx->_base, adjusted_length)
+    );
     parameters.Expected0 = atomic_exchange(&stream->consumer_count, 0);
     if (parameters.Expected0 != 0) {
         parameters.Futex0 = (atomic_int*)&stream->producer_comitted_index;
-        parameters.Flags  = STREAMBUFFER_WAKE_FLAGS(stream);
+        parameters.Flags = STREAMBUFFER_WAKE_FLAGS(stream);
         dswake(&parameters);
     }
 }
@@ -472,27 +513,25 @@ streambuffer_stream_in(
 
         // Perform the actual allocation
         if (!atomic_compare_exchange_strong(&stream->consumer_index, 
-                &read_index, read_index + bytes_available)) {
+                &read_index, __AdvanceIndex(stream->capacity, read_index, bytes_available))) {
             continue;
         }
         
-        // Write the data to the provided buffer
-        while (bytes_available--) {
-            // read_index++ & (stream->capacity - 1)
-            casted_ptr[bytes_read++] = stream->buffer[(read_index++ % stream->capacity)];
-        }
+        streambuffer_read_packet_data(casted_ptr + bytes_read, bytes_comitted,
+            &(streambuffer_packet_ctx_t) { ._stream = stream, ._state = read_index });
+        bytes_read += bytes_comitted;
         
         // Synchronize with other consumers, we must wait for our turn to increament
         // the comitted index, otherwise we could end up telling writers that the wrong
         // index is writable. This can be skipped for single reader
         if (STREAMBUFFER_HAS_MULTIPLE_READERS(stream)) {
             unsigned int current_commit = atomic_load(&stream->consumer_comitted_index);
-            while (current_commit < (read_index - bytes_comitted)) {
+            while (current_commit != read_index) {
                 current_commit = atomic_load(&stream->consumer_comitted_index);
             }
         }
 
-        atomic_fetch_add(&stream->consumer_comitted_index, bytes_comitted);
+        atomic_store(&stream->consumer_comitted_index, __AdvanceIndex(stream->capacity, read_index, bytes_comitted));
         parameters.Expected0 = atomic_exchange(&stream->producer_count, 0);
         if (parameters.Expected0 != 0) {
             parameters.Futex0 = (atomic_int*)&stream->consumer_comitted_index;
@@ -563,7 +602,7 @@ streambuffer_read_packet_start(
         // Perform the actual allocation if PEEK was not specified.
         if (!(options->flags & STREAMBUFFER_PEEK)) {
             if (!atomic_compare_exchange_strong(&stream->consumer_index, 
-                    &read_index, read_index + bytes_available)) {
+                    &read_index, __AdvanceIndex(stream->capacity, read_index, bytes_available))) {
                 continue;
             }
         }
@@ -573,7 +612,7 @@ streambuffer_read_packet_start(
         bytes_read = bytes_available - sizeof(sb_packethdr_t);
         packetCtx->_stream = stream;
         packetCtx->_base   = read_index;
-        packetCtx->_state  = read_index + sizeof(sb_packethdr_t);
+        packetCtx->_state  = __AdvanceIndex(stream->capacity, read_index, sizeof(sb_packethdr_t));
         packetCtx->_length = bytes_read;
     }
     return bytes_read;
@@ -588,14 +627,15 @@ streambuffer_read_packet_data(
     streambuffer_t* stream = packetCtx->_stream;
     uint8_t*        casted_ptr = (uint8_t*)buffer;
     unsigned int    read_index = (packetCtx->_state % stream->capacity);
-    size_t          bytes_read = 0;
-    
+    size_t          chunk;
+
     // Write the data to the provided buffer
-    while (length--) {
-        casted_ptr[bytes_read++] = stream->buffer[read_index++];
-        if (read_index == stream->capacity) {
-            read_index = 0;
-        }
+    while (length != 0) {
+        chunk = MIN(length, stream->capacity - read_index);
+        memcpy(casted_ptr, &stream->buffer[read_index], chunk);
+        casted_ptr += chunk;
+        length -= chunk;
+        read_index = (read_index + chunk) % stream->capacity;
     }
 
     packetCtx->_state = read_index;
@@ -614,7 +654,7 @@ streambuffer_read_packet_end(
     if (STREAMBUFFER_HAS_MULTIPLE_READERS(stream)) {
         unsigned int read_index     = packetCtx->_base;
         unsigned int current_commit = atomic_load(&stream->consumer_comitted_index);
-        while (current_commit < read_index) {
+        while (current_commit != read_index) {
             current_commit = atomic_load(&stream->consumer_comitted_index);
         }
     }
@@ -622,7 +662,14 @@ streambuffer_read_packet_end(
     // Take into account an invisible instance of sb_packethdr_t
     packetCtx->_length += sizeof(sb_packethdr_t);
     
-    atomic_fetch_add(&stream->consumer_comitted_index, packetCtx->_length);
+    atomic_store(
+        &stream->consumer_comitted_index,
+        __AdvanceIndex(
+            stream->capacity,
+            packetCtx->_base,
+            packetCtx->_length
+        )
+    );
     parameters.Expected0 = atomic_exchange(&stream->producer_count, 0);
     if (parameters.Expected0 != 0) {
         parameters.Futex0 = (atomic_int*)&stream->consumer_comitted_index;

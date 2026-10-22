@@ -38,6 +38,12 @@ typedef struct IPCMessage {
     size_t        Length;
 } IPCMessage_t;
 
+typedef struct IPCMessageContext {
+    uint64_t Sender;
+    uint32_t Capabilities;
+    uuid_t   SenderHandle;
+} IPCMessageContext_t;
+
 #define IPC_ADDRESS_HANDLE_INIT(handle) { IPC_ADDRESS_HANDLE, { handle } }
 
 #define IPC_DONTWAIT 0x1

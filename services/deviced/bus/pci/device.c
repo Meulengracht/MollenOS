@@ -27,6 +27,8 @@
 #include <bus/pci/config.h>
 #include <bus/pci/publish.h>
 #include <bus/pci/strings.h>
+#include <bus/pci/interrupts.h>
+#include <ddk/interrupt.h>
 #include <devices.h>
 #include <ddk/busdevice.h>
 #include <ddk/utils.h>
@@ -39,9 +41,17 @@ __PciBusControl(
     _In_ struct OSIOCtlBusControl* request)
 {
     uint16_t settings;
+    uint16_t requested;
 
+    TRACE("__PciBusControl(%u:%u:%u.%u, flags=0x%x)",
+        device->Host->Identification.Segment, device->Bus, device->Slot,
+        device->Function, request->Flags);
+
+    // Do not change command bits while the host or this handler forbids activation.
     if (device->Host->DriversBlocked ||
         (device->Handler != NULL && device->Handler->BlockActivation)) {
+        WARNING("__PciBusControl activation blocked for %u:%u:%u.%u",
+            device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         return OS_ENOTSUPPORTED;
     }
 
@@ -52,8 +62,8 @@ __PciBusControl(
     settings &= ~(PCI_COMMAND_BUSMASTER | PCI_COMMAND_FASTBTB
                   | PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO | PCI_COMMAND_INTDISABLE);
 
-    // Handle enable
-    if (!(request->Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
+    // An active MSI reservation owns the interrupt state until it is released.
+    if (device->Msi.Active || !(request->Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
         settings |= PCI_COMMAND_INTDISABLE;
     }
 
@@ -80,8 +90,28 @@ __PciBusControl(
         settings |= PCI_COMMAND_MEMWRITE;
     }
 
+    requested = settings;
+    if (device->Msix != NULL) {
+        // Keep memory access enabled and interrupts disabled until the MSI-X
+        // table is restored and unmapped. Save the requested bits for Release.
+        settings |= PCI_COMMAND_INTDISABLE | PCI_COMMAND_MMIO;
+    }
+
     // Write back settings
     PciWrite16(device->Host, device->Bus, device->Slot, device->Function, 0x04, settings);
+
+    if (device->Msix != NULL) {
+        PciMsixUpdateCommand(device->Msix, requested);
+    }
+
+    // Remember the requested INTx state because the reservation keeps INTx
+    // disabled in hardware until Release restores the command register.
+    if (device->Msi.Active) {
+        device->Msi.Command &= ~PCI_COMMAND_INTDISABLE;
+        if (!(request->Flags & __DEVICEMANAGER_IOCTL_ENABLE)) {
+            device->Msi.Command |= PCI_COMMAND_INTDISABLE;
+        }
+    }
     return OS_EOK;
 }
 
@@ -95,13 +125,23 @@ __PciIoctlDevice(
 {
     size_t limit = device->Host->IsExtended ? 4096 : 256;
 
+    TRACE("__PciIoctlDevice(%u:%u:%u.%u, direction=%i, reg=0x%x, width=%u)",
+        device->Host->Identification.Segment, device->Bus, device->Slot,
+        device->Function, direction, reg, (unsigned)width);
+
+    // Reject unsupported sizes and misaligned or out-of-range accesses before
+    // they reach hardware configuration space.
     if (direction != __DEVICEMANAGER_IOCTL_EXT_READ && direction != __DEVICEMANAGER_IOCTL_EXT_WRITE) {
+        WARNING("__PciIoctlDevice invalid direction %i", direction);
         return OS_EINVALPARAMS;
     }
     if (width != 1 && width != 2 && width != 4) {
+        WARNING("__PciIoctlDevice invalid access width %llu", (unsigned long long)width);
         return OS_EINVALPARAMS;
     }
     if (reg >= limit || width > limit - reg || (reg & (width - 1)) != 0) {
+        WARNING("__PciIoctlDevice invalid register 0x%x, width %u, limit %u",
+            reg, (unsigned)width, (unsigned)limit);
         return OS_EINVALPARAMS;
     }
 
@@ -109,8 +149,17 @@ __PciIoctlDevice(
         *value = PciDeviceRead(device, reg, width);
         return OS_EOK;
     }
+
+    // Reads remain useful during a reservation, but writes could replace the
+    // configuration that the interrupt code must restore later.
+    if (device->Msi.Active || device->Msix != NULL) {
+        WARNING("__PciIoctlDevice write blocked by an active interrupt reservation");
+        return OS_EBUSY;
+    }
+
     if (device->Host->DriversBlocked ||
         (device->Handler != NULL && device->Handler->BlockActivation)) {
+        WARNING("__PciIoctlDevice configuration writes blocked by device policy");
         return OS_ENOTSUPPORTED;
     }
 
@@ -125,8 +174,10 @@ PciDeviceRetain(
     // Child providers use the same count as the PCI registry provider so host
     // destruction sees every owner before freeing the device and its attachment.
     PciCriticalSectionEnter();
+    // Never wrap the count: a wrapped value could make a live device look unused.
     if (device->ProviderReferences == UINT_MAX) {
         PciCriticalSectionLeave();
+        ERROR("PciDeviceRetain provider reference count exhausted");
         return OS_EOVERFLOW;
     }
     
@@ -142,6 +193,7 @@ PciDeviceRelease(
     // Release only ownership. Hardware cleanup belongs to the host owner and
     // must not run inside a registry callback or while another owner remains.
     PciCriticalSectionEnter();
+    // Matching the increment here keeps the count change atomic with Retain.
     device->ProviderReferences--;
     PciCriticalSectionLeave();
 }
@@ -163,6 +215,10 @@ __PciProviderRelease(
 }
 
 static oserr_t
+__PciInterruptControl(PciDevice_t* device, enum OSIOCtlRequest request,
+                       void* buffer, size_t length);
+
+static oserr_t
 __PciProviderControl(
     _In_ void*               context,
     _In_ enum OSIOCtlRequest request,
@@ -171,19 +227,158 @@ __PciProviderControl(
 {
     oserr_t status;
 
+    // Interrupt requests use the same lock as register access so a reservation
+    // cannot race with another operation changing the device configuration.
+    if (request == OSIOCTLREQUEST_PCI_INTERRUPT_QUERY ||
+        request == OSIOCTLREQUEST_PCI_INTERRUPT) {
+        PciCriticalSectionEnter();
+        status = __PciInterruptControl(context, request, buffer, length);
+        PciCriticalSectionLeave();
+        return status;
+    }
+
+    // This provider supports interrupt requests and bus control only.
     if (request != OSIOCTLREQUEST_BUS_CONTROL) {
+        WARNING("__PciProviderControl unsupported request %u", request);
         return OS_ENOTSUPPORTED;
     }
     if (buffer == NULL || length < sizeof(struct OSIOCtlBusControl)) {
+        WARNING("__PciProviderControl invalid bus-control buffer, length %llu",
+            (unsigned long long)length);
         return OS_EINVALPARAMS;
     }
 
-    // The registry keeps this function alive until the request returns. The
-    // PCI lock still keeps configuration reads and writes together.
+    // Validate the whole request before passing its buffer to bus control.
     PciCriticalSectionEnter();
     status = __PciBusControl(context, buffer);
     PciCriticalSectionLeave();
     return status;
+}
+
+static uint32_t
+__PciMsiRead(void* context, size_t offset, size_t width)
+{
+    // MSI helpers use this callback to share the device's configuration path.
+    return PciDeviceRead(context, offset, width);
+}
+
+static void
+__PciMsiWrite(void* context, size_t offset, uint32_t value, size_t width)
+{
+    // Keep MSI writes on the same path as other configuration updates.
+    PciDeviceWrite(context, offset, value, width);
+}
+
+static oserr_t
+__PciInterruptControl(
+    _In_    PciDevice_t*        device,
+    _In_    enum OSIOCtlRequest request,
+    _InOut_ void*               buffer,
+    _In_    size_t              length)
+{
+    struct PciInterruptCapabilities   capabilities;
+    struct PciInterruptSupport*       support;
+    const struct PciInterruptRequest* interrupt;
+    oserr_t                           status;
+    struct PciConfigOperations        access = {
+        device,
+        __PciMsiRead,
+        __PciMsiWrite
+    };
+
+    TRACE("__PciInterruptControl(%u:%u:%u.%u, request=%u, length=%llu)",
+        device->Host->Identification.Segment, device->Bus, device->Slot,
+        device->Function, request, (unsigned long long)length);
+
+    if (buffer == NULL) {
+        WARNING("__PciInterruptControl missing request buffer");
+        return OS_EINVALPARAMS;
+    }
+
+    if (request == OSIOCTLREQUEST_PCI_INTERRUPT_QUERY) {
+        support = buffer;
+
+        if (length != sizeof(struct PciInterruptSupport)) {
+            WARNING("__PciInterruptControl invalid query length %llu",
+                (unsigned long long)length);
+            return OS_EINVALPARAMS;
+        }
+
+        memset(support, 0, sizeof(*support));
+
+        // Report no strategies when policy or device type prevents their use.
+        if (!PciIsMsiAvailable() || device->Host->DriversBlocked ||
+            device->IsBridge || device->Handler != NULL) {
+            TRACE("__PciInterruptControl message interrupts unavailable by policy or device type");
+            return OS_EOK;
+        }
+
+        status = PciInterruptProbe(&access, &capabilities);
+        if (status == OS_ENOTSUPPORTED) {
+            TRACE("__PciInterruptControl no message interrupt capability");
+            return OS_EOK;
+        }
+        if (status != OS_EOK) {
+            WARNING("__PciInterruptControl capability probe failed: %u", status);
+            return status;
+        }
+
+        support->MsiCapacity = capabilities.MsiCapacity;
+        support->MsixCapacity = capabilities.MsixCapacity;
+
+        // The capability can exist while its table is inaccessible. Check the
+        // BAR mapping before advertising MSI-X support.
+        if (capabilities.MsiOffset != 0) {
+            support->Strategies = INTERRUPT_STRATEGY_MSI;
+        }
+        if (capabilities.MsixOffset != 0) {
+            status = PciMsixDeviceProbe(device);
+            if (status != OS_EOK) {
+                WARNING("__PciInterruptControl MSI-X table unavailable: %u", status);
+            } else {
+                support->Strategies |= INTERRUPT_STRATEGY_MSIX;
+            }
+        }
+        return OS_EOK;
+    }
+
+    if (length != sizeof(struct PciInterruptRequest)) {
+        WARNING("__PciInterruptControl invalid control length %llu", (unsigned long long)length);
+        return OS_EINVALPARAMS;
+    }
+
+    interrupt = buffer;
+    if (!PciInterruptRequestIsValid(interrupt)) {
+        WARNING("__PciInterruptControl invalid operation %u for strategy %u",
+            interrupt->Operation, interrupt->Strategy);
+        return OS_EINVALPARAMS;
+    }
+    
+    // Keep one interrupt mode at a time so each mode can restore its own saved
+    // configuration without overwriting the other's state.
+    if (interrupt->Strategy == INTERRUPT_STRATEGY_MSIX && device->Msi.Active) {
+        WARNING("__PciInterruptControl MSI-X request conflicts with active MSI");
+        return OS_EBUSY;
+    }
+    
+    if (interrupt->Strategy == INTERRUPT_STRATEGY_MSI && device->Msix != NULL) {
+        WARNING("__PciInterruptControl MSI request conflicts with active MSI-X");
+        return OS_EBUSY;
+    }
+
+    // Apply current restrictions to new reservations, but let a release finish
+    // even if platform policy changed after the reservation was made.
+    if (interrupt->Operation == PciInterruptReserve &&
+        (!PciIsMsiAvailable() || device->Host->DriversBlocked ||
+         device->IsBridge || device->Handler != NULL)) {
+        WARNING("__PciInterruptControl reservation blocked by device policy or type");
+        return OS_ENOTSUPPORTED;
+    }
+    
+    if (interrupt->Strategy == INTERRUPT_STRATEGY_MSIX) {
+        return PciMsixDeviceControl(device, interrupt);
+    }
+    return PciMsiControl(&access, &device->Msi, interrupt);
 }
 
 static oserr_t
@@ -196,6 +391,8 @@ __PciProviderAccessRegister(
 {
     oserr_t status;
 
+    // Serialize this path with bus control and MSI operations, which also update
+    // PCI configuration registers and saved restoration state.
     PciCriticalSectionEnter();
     status = __PciIoctlDevice(context, direction, reg, value, width);
     PciCriticalSectionLeave();
@@ -213,6 +410,8 @@ static int
 __PciAllowsDriverBinding(
     _In_ const PciDevice_t* device)
 {
+    // Bridges are managed through their child bus and handled functions already
+    // have an owner, so neither should be offered to a generic driver.
     return !device->IsBridge && device->Handler == NULL 
             && !device->Host->DriversBlocked;
 }
@@ -221,10 +420,16 @@ static void
 __PciReleaseIoSpaces(
     _InOut_ DeviceIo_t* spaces)
 {
+    oserr_t status;
+
     for (unsigned int i = 0; i < 6; i++) {
-        // Empty slots own no resources, including slots already released.
+        // Skip empty slots, and clear released entries so another cleanup pass
+        // cannot treat stale data as a live resource.
         if (spaces[i].Type != DeviceIoInvalid) {
-            DestroyDeviceIo(&spaces[i]);
+            status = DestroyDeviceIo(&spaces[i]);
+            if (status != OS_EOK) {
+                ERROR("__PciReleaseIoSpaces failed to destroy resource %u: %u", i, status);
+            }
             memset(&spaces[i], 0, sizeof(DeviceIo_t));
         }
     }
@@ -237,14 +442,24 @@ __PciAddIdeChannelPorts(
     _In_    size_t      base,
     _In_    size_t      control)
 {
-    // Keep a reported mapping; fixed ports are only needed for missing entries.
+    oserr_t status;
+
+    // A reported BAR is authoritative; use fixed legacy addresses only for gaps.
     if (spaces[0].Type == DeviceIoInvalid) {
-        CreateDevicePortIo(&spaces[0], base, 8);
+        status = CreateDevicePortIo(&spaces[0], base, 8);
+        if (status != OS_EOK) {
+            ERROR("__PciAddIdeChannelPorts failed to create data ports at 0x%x: %u",
+                (unsigned)base, status);
+        }
     }
     
     // Some controllers report one of the two entries but omit the other.
     if (spaces[1].Type == DeviceIoInvalid) {
-        CreateDevicePortIo(&spaces[1], control, 4);
+        status = CreateDevicePortIo(&spaces[1], control, 4);
+        if (status != OS_EOK) {
+            ERROR("__PciAddIdeChannelPorts failed to create control ports at 0x%x: %u",
+                (unsigned)control, status);
+        }
     }
 }
 
@@ -264,11 +479,8 @@ __PciAddLegacyIdePorts(
         return;
     }
 
-    // PCI - IDE Bar Fixup
-    // From experience ide-bars don't always show up (ex: Oracle VM and Bochs)
-    // but only the initial 4 bars don't, the BM bar
-    // always seem to show up
-    // A cleared mode bit means the channel uses the fixed legacy addresses.
+    // Firmware may omit IDE BARs in legacy mode. A cleared mode bit means this
+    // channel uses its fixed legacy addresses instead of native PCI mappings.
     if ((pciDevice->Header->Interface & 0x1) == 0) {
         __PciAddIdeChannelPorts(&device->IoSpaces[0], 0x1F0, 0x3F6);
     }
@@ -296,9 +508,13 @@ __PublishPciDevice(
     BusDevice_t* device;
     oserr_t      status;
 
+    TRACE("__PublishPciDevice(%u:%u:%u.%u)", pciDevice->Host->Identification.Segment,
+        pciDevice->Bus, pciDevice->Slot, pciDevice->Function);
+
     device = malloc(sizeof(BusDevice_t));
     // No description can be registered until its storage is available.
     if (device == NULL) {
+        ERROR("__PublishPciDevice failed to allocate device description");
         return OS_EOOM;
     }
 
@@ -319,7 +535,7 @@ __PublishPciDevice(
         )
     );
 
-    device->IsPci = 1;
+    device->Type = BusTypePci;
     device->Segment  = (unsigned int)pciDevice->Host->Identification.Segment;
     device->Bus      = pciDevice->Bus;
     device->Slot     = pciDevice->Slot;
@@ -329,15 +545,16 @@ __PublishPciDevice(
     device->InterruptPin         = (int)pciDevice->Header->InterruptPin;
     device->InterruptAcpiConform = pciDevice->AcpiConform;
 
-    // The registered description must own its name even if firmware is released.
+    // The registry outlives firmware data, so copy the name into owned storage.
     if (device->Base.Identification.Description == NULL) {
+        ERROR("__PublishPciDevice failed to copy device name");
         free(device);
         return OS_EOOM;
     }
     
     if (__PciAllowsDriverBinding(pciDevice)) {
-        // Only endpoints that may use a generic driver expose their BAR
-        // (base address register) mappings.
+        // Only devices eligible for generic drivers expose BAR mappings; bridge
+        // and handler-owned resources are managed through their own paths.
         PciRegisterBars(pciDevice->Host, device, pciDevice->Resources.Bars);
 
 #ifdef __OSCONFIG_HAS_LEGACY_PCI
@@ -353,8 +570,10 @@ __PublishPciDevice(
         &pciDevice->DeviceId
     );
     
-    // Registration failure leaves the description and its I/O mappings with us.
+    // Ownership passes to the publication group only on success; otherwise
+    // release the name and any mappings created above.
     if (status != OS_EOK) {
+        ERROR("__PublishPciDevice DmPublicationAdd failed: %u", status);
         __PciReleaseIoSpaces(device->IoSpaces);
         free(device->Base.Identification.Description);
         free(device);
@@ -375,16 +594,18 @@ __PublishPciRoot(
 
     description = calloc(1, sizeof(*description));
     
-    // The root needs an owned description just like its children.
+    // The root needs storage for its description and a name owned by the group.
     if (description == NULL) {
+        ERROR("__PublishPciRoot failed to allocate host description");
         return OS_EOOM;
     }
 
     description->Length = sizeof(*description);
     description->Identification.Description = strdup("PCI host");
     
-    // A failed name copy leaves nothing safe to give to the registry.
+    // Do not register a description with a missing name.
     if (description->Identification.Description == NULL) {
+        ERROR("__PublishPciRoot failed to copy host name");
         free(description);
         return OS_EOOM;
     }
@@ -394,6 +615,7 @@ __PublishPciRoot(
     
     // The registry takes ownership only after the group accepts this entry.
     if (status != OS_EOK) {
+        ERROR("__PublishPciRoot DmPublicationAdd failed: %u", status);
         free(description->Identification.Description);
         free(description);
     }
@@ -406,9 +628,16 @@ __PciStagePublication(
 {
     oserr_t status;
 
-    status = device->Parent == NULL ? __PublishPciRoot(device) : __PublishPciDevice(device);
+    // Publish parents first so each child can refer to an assigned parent ID.
+    if (device->Parent == NULL) {
+        status = __PublishPciRoot(device);
+    } else {
+        status = __PublishPciDevice(device);
+    }
     // Children need their parent's ID, so stop before descending on failure.
     if (status != OS_EOK) {
+        ERROR("__PciStagePublication attachment publication failed at %u:%u.%u: %u",
+            device->Bus, device->Slot, device->Function, status);
         return status;
     }
 
@@ -440,10 +669,30 @@ static void
 __PciReleasePublishedIo(
     _In_ PciDevice_t* device)
 {
+    // Release descendants before this device so their mappings stay valid until
+    // the whole publication group has been removed.
     foreach (element, &device->children) {
         __PciReleasePublishedIo(element->value);
     }
     __PciReleaseIoSpaces(device->PublishedIo);
+}
+
+static int
+__PciHasInterruptReservation(
+    _In_ const PciDevice_t* device)
+{
+    // An active reservation anywhere in the tree still needs its provider and
+    // resources, so the whole host must remain published.
+    if (device->Msi.Active || device->Msix != NULL) {
+        return 1;
+    }
+    
+    foreach (element, &device->children) {
+        if (__PciHasInterruptReservation(element->value)) {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 oserr_t
@@ -452,15 +701,30 @@ PciUnpublishDevice(
 {
     oserr_t status;
 
+    TRACE("PciUnpublishDevice(host=%u)", device->Host->Identification.HostId);
+
     // A host shares one publication group with its attachments. Removing just
     // one subtree would leave the group's saved IDs pointing at freed objects.
     if (device->Parent != NULL) {
+        WARNING("PciUnpublishDevice requires a host root");
         return OS_EINVALPARAMS;
     }
+
+    // Do not remove providers or BAR mappings while interrupt cleanup may need
+    // them. This also leaves the host published so cleanup can be retried.
+    PciCriticalSectionEnter();
+    if (__PciHasInterruptReservation(device)) {
+        PciCriticalSectionLeave();
+        WARNING("PciUnpublishDevice host %u has active interrupt reservations",
+            device->Host->Identification.HostId);
+        return OS_EBUSY;
+    }
+    PciCriticalSectionLeave();
 
     status = DmPublicationRemove(&device->Host->Publication);
     // Keep I/O resources until every device entry has released its provider.
     if (status != OS_EOK) {
+        WARNING("PciUnpublishDevice publication removal incomplete: %u", status);
         return status;
     }
     __PciReleasePublishedIo(device);
@@ -475,38 +739,48 @@ PciPublishDevice(
     oserr_t                    status;
     oserr_t                    cleanup;
 
+    TRACE("PciPublishDevice(host=%u)", device->Host->Identification.HostId);
+
     // Publication must cover the whole host before any driver can start.
     if (device->Parent != NULL) {
+        WARNING("PciPublishDevice requires a host root");
         return OS_EINVALPARAMS;
     }
 
-    // A fully removed group can be rebuilt, including after an earlier failure
-    // while adding descriptions. Partial removal must finish before reuse.
+    // Reuse a group only after removal completed; an unfinished removal must
+    // not be mixed with descriptions from a new publication attempt.
     if (group->State == DmPublicationRemoved) {
         status = DmPublicationReset(group);
         // Do not start building unless the previous group has been cleared.
         if (status != OS_EOK) {
+            ERROR("PciPublishDevice publication reset failed: %u", status);
             return status;
         }
     }
 
-    // Published groups may already have active clients. A repeated call only
-    // retries binding, never removes descriptions beneath those clients.
-    // The shared helper also rejects binding once removal has begun.
+    // Keep existing descriptions when clients may already hold them; repeated
+    // calls only retry binding through the publication helper.
     if (group->State != DmPublicationCollecting) {
         return DmPublicationEnableBinding(group);
     }
 
     status = __PciStagePublication(device);
-    // Incomplete descriptions have no drivers yet, so remove the partial set.
+    // No drivers have started yet, so a failed staging pass can safely remove
+    // all entries accumulated for this host.
     if (status != OS_EOK) {
+        ERROR("PciPublishDevice staging failed: %u", status);
         cleanup = PciUnpublishDevice(device);
-        return cleanup == OS_EOK ? status : cleanup;
+        if (cleanup != OS_EOK) {
+            WARNING("PciPublishDevice rollback incomplete: %u", cleanup);
+            return cleanup;
+        }
+        return status;
     }
 
     status = DmPublicationFinish(group);
-    // Binding requires an explicitly finished set of descriptions.
+    // Finish the complete set before allowing any driver to bind.
     if (status != OS_EOK) {
+        ERROR("PciPublishDevice publication finalization failed: %u", status);
         return status;
     }
     return DmPublicationEnableBinding(group);
