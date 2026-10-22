@@ -27,7 +27,7 @@
 #include <ddk/interrupt.h>
 
 typedef struct InterruptGroupRequest {
-    uuid_t                DeviceId;
+    uuid_t                ControllerID;
     DeviceInterruptLine_t Line;
     unsigned int          Flags;
     uint32_t              Minimum;
@@ -51,5 +51,23 @@ typedef struct InterruptBindRequest {
     uint32_t                 Index;
     InterruptResourceTable_t Resources;
 } InterruptBindRequest_t;
+
+typedef enum InterruptMessageControllerKind {
+    // The platform's shared PCI message fabric, currently provided on x86.
+    InterruptMessageControllerKindPlatform = 1,
+    // A PCI host node in the boot Device Tree; never a deviced-generated ID.
+    InterruptMessageControllerKindDeviceTree
+} InterruptMessageControllerKind_t;
+
+typedef struct InterruptMessageControllerIdentity {
+    // Message controller version, should be 1
+    uint32_t                         Version;
+    InterruptMessageControllerKind_t Kind;
+    // FirmwareNode is the host node's byte offset in the 
+    // boot Device Tree structure, or zero for Platform
+    uint32_t                         FirmwareNode;
+    // Must be 0
+    uint32_t                         Reserved;
+} InterruptMessageControllerIdentity_t;
 
 #endif //!__DDK_TYPES_INTERRUPT_H__

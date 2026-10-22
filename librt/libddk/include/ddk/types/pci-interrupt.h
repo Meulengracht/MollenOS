@@ -31,23 +31,15 @@ enum PciInterruptOperation {
     PciInterruptRelease
 };
 
-/**
- * @brief Usable message modes and advertised capacities of this PCI function.
- *
- * OSIOCTLREQUEST_PCI_INTERRUPT_QUERY returns supported MSI/MSI-X provider modes
- * in Strategies. Only Strategies grants permission to attempt a mode. Capacity
- * fields describe the hardware, not the number of currently free kernel vectors:
- * MsiCapacity is the advertised message count, and MsixCapacity is the table
- * entry count. Zero means absent or unavailable under provider/platform policy.
- * MSI-X requires valid BAR/table/PBA ranges and a published table BAR.
- * Multi-message MSI is unsupported.
- * The query leaves configuration unchanged and does not reserve the function.
- * Rebuild the runtime and deviced together when this fixed-width layout changes.
- */
 struct PciInterruptSupport {
+    // Supported interrupt strategies (bitmask of INTERRUPT_STRATEGY_*)
     uint32_t Strategies;
+    // Advertised MSI message count
     uint32_t MsiCapacity;
+    // Advertised MSI-X table entry count
     uint32_t MsixCapacity;
+    // Identifies the host interrupt controller
+    uuid_t   ControllerID;
 };
 
 /**

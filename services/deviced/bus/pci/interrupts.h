@@ -49,7 +49,7 @@ __EXTERN int
 PciIsAcpiAvailable(void);
 
 /**
- * @brief Check whether platform policy allows the current MSI backend.
+ * @brief Reports whether MSI (Message Signaled Interrupts) are available.
  */
 __EXTERN int
 PciIsMsiAvailable(void);

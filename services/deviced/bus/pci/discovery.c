@@ -47,12 +47,7 @@ PciIsMsiAvailable(void)
     if (g_msiDisabled) {
         return 0;
     }
-#if defined(__i386__) || defined(__amd64__)
     return 1;
-#else
-    // ARM64 MSI controllers are not connected to the vector backend yet.
-    return 0;
-#endif
 }
 
 int

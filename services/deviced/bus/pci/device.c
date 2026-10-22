@@ -21,6 +21,9 @@
 //#define __TRACE
 
 #include <bus/pci/device.h>
+#include <ddk/types/interrupt.h>
+#include <firmware/pci.h>
+
 #include <limits.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/function.h>
@@ -34,6 +37,10 @@
 #include <ddk/utils.h>
 #include <stdlib.h>
 #include <string.h>
+
+static int
+__PciAllowsDriverBinding(
+    _In_ const PciDevice_t* device);
 
 static oserr_t
 __PciBusControl(
@@ -307,8 +314,8 @@ __PciInterruptControl(
         memset(support, 0, sizeof(*support));
 
         // Report no strategies when policy or device type prevents their use.
-        if (!PciIsMsiAvailable() || device->Host->DriversBlocked ||
-            device->IsBridge || device->Handler != NULL) {
+        if (!PciIsMsiAvailable() || device->Host->InterruptControllerId == UUID_INVALID ||
+            !__PciAllowsDriverBinding(device)) {
             TRACE("__PciInterruptControl message interrupts unavailable by policy or device type");
             return OS_EOK;
         }
@@ -323,6 +330,7 @@ __PciInterruptControl(
             return status;
         }
 
+        support->Domain = device->Host->InterruptControllerId;
         support->MsiCapacity = capabilities.MsiCapacity;
         support->MsixCapacity = capabilities.MsixCapacity;
 
@@ -369,8 +377,8 @@ __PciInterruptControl(
     // Apply current restrictions to new reservations, but let a release finish
     // even if platform policy changed after the reservation was made.
     if (interrupt->Operation == PciInterruptReserve &&
-        (!PciIsMsiAvailable() || device->Host->DriversBlocked ||
-         device->IsBridge || device->Handler != NULL)) {
+        (!PciIsMsiAvailable() || device->Host->InterruptControllerId == UUID_INVALID ||
+         !__PciAllowsDriverBinding(device))) {
         WARNING("__PciInterruptControl reservation blocked by device policy or type");
         return OS_ENOTSUPPORTED;
     }
@@ -721,6 +729,8 @@ PciUnpublishDevice(
     }
     PciCriticalSectionLeave();
 
+    // A kernel allocation made before PCI Reserve has no provider resources.
+    // It can still be released after this publication disappears.
     status = DmPublicationRemove(&device->Host->Publication);
     // Keep I/O resources until every device entry has released its provider.
     if (status != OS_EOK) {
@@ -738,6 +748,10 @@ PciPublishDevice(
     struct DmPublicationGroup* group = &device->Host->Publication;
     oserr_t                    status;
     oserr_t                    cleanup;
+    InterruptMessageControllerIdentity_t query = {
+        .Version = 1,
+        .Kind = InterruptMessageControllerKindPlatform
+    };
 
     TRACE("PciPublishDevice(host=%u)", device->Host->Identification.HostId);
 
@@ -762,6 +776,19 @@ PciPublishDevice(
     // calls only retry binding through the publication helper.
     if (group->State != DmPublicationCollecting) {
         return DmPublicationEnableBinding(group);
+    }
+
+    if (device->Host->InterruptControllerId == UUID_INVALID &&
+        !device->Host->DriversBlocked && PciIsMsiAvailable()) {
+        if (device->Host->Firmware != NULL) {
+            query.Kind = InterruptMessageControllerKindDeviceTree;
+            query.FirmwareNode = device->Host->Firmware->NodeOffset;
+        }
+        
+        status = DeviceInterruptControllerResolve(&query, &device->Host->InterruptControllerId);
+        if (status != OS_EOK && status != OS_ENOTSUPPORTED) {
+            return status;
+        }
     }
 
     status = __PciStagePublication(device);

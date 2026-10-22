@@ -28,6 +28,7 @@
 
 DECL_STRUCT(DeviceIo);
 DECL_STRUCT(BusDevice);
+DECL_STRUCT(InterruptMessageControllerIdentity);
 
 #define INTERRUPT_NONE                      (int)-1
 #define INTERRUPT_MAXVECTORS                8
@@ -100,21 +101,14 @@ typedef struct InterruptFunctionTable {
 #define INTERRUPT_STRATEGY_MSIX 0x4
 #define INTERRUPT_STRATEGY_ANY  0x7
 
-// Only describes a line-based interrupt. 
-// Message-based interrupts will use DeviceId instead.
+// Describes a line-based interrupt. 
 typedef struct DeviceInterruptLine {
     int          Line;
     int          Pin;
     unsigned int AcpiConform;
 } DeviceInterruptLine_t;
 
-/**
- * @brief Architecture-composed message for one vector in an interrupt allocation.
- *
- * AddressLow and AddressHigh form the 64-bit message address. Data is the
- * message payload, not an allocation index or a PCI MSI-X table-entry index.
- * Fixed-width fields keep the syscall layout identical on all architectures.
- */
+// Describes a message based interrupt.
 typedef struct DeviceInterruptMessage {
     uint32_t AddressLow;
     uint32_t AddressHigh;
@@ -144,6 +138,21 @@ typedef struct DeviceInterrupt {
     DeviceInterruptVector_t*     Vectors;
     struct DeviceInterruptState* State;
 } DeviceInterrupt_t;
+
+/**
+ * @brief Resolve a kernel-owned message controller for a bus.
+ * Requires INTERRUPT_CONTROL. The opaque ID remains valid for this boot and
+ * needs no close operation. It selects an allocator; it does not grant device
+ * access. The kernel owns controller discovery, initialization and lifetime.
+ *
+ * @param query Firmware identity as described above.
+ * @param domainOut Receives the domain ID on success; unchanged on failure.
+ * @return OS_EOK, OS_ENOTSUPPORTED if no backend exists, or a validation error.
+ */
+__EXTERN oserr_t
+DeviceInterruptControllerResolve(
+    _In_  const InterruptMessageControllerIdentity_t* query,
+    _Out_ uuid_t*                                     idOut);
 
 /**
  * @brief Initializes line and device information from the provided device base.

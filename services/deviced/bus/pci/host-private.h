@@ -142,6 +142,7 @@ typedef struct PciHost {
 
     const struct FdtPciHost*   Firmware;
     int                        DriversBlocked;
+    uuid_t                     InterruptControllerId;
     // 32 possible PCI buses
     uint8_t                    ScannedBuses[32];
     struct PciDevice*          RootDevice;
