@@ -90,9 +90,6 @@
 #define PCI_CAPABILITY_ID_OFFSET              0U
 #define PCI_CAPABILITY_NEXT_OFFSET            1U
 
-// Everything beyond the standard header offsets is specific to the capability
-#define PCI_CAPABILITY_CONTROL_OFFSET         2U
-
 // PCI Capability IDs
 #define PCI_CAPABILITY_ID_MSI                 0x05U
 #define PCI_CAPABILITY_ID_MSIX                0x11U

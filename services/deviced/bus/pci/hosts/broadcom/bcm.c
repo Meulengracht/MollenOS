@@ -18,10 +18,13 @@
  * 
  */
 
+//#define __TRACE
+
 #include <bus/pci/host-private.h>
 #include <bus/pci/dma.h>
 #include <bus/pci/registers.h>
 #include <bus/pci/hosts/broadcom/bcm.h>
+#include <ddk/utils.h>
 #include <string.h>
 #include <time.h>
 
@@ -43,7 +46,12 @@ BcmPciDelay(
         .tv_sec = milliseconds / 1000,
         .tv_nsec = (milliseconds % 1000) * 1000000
     };
-    (void)thrd_sleep(&interval, NULL);
+    int status;
+
+    status = thrd_sleep(&interval, NULL);
+    if (status != 0) {
+        WARNING("BcmPciDelay sleep of %li ms did not complete: %i", milliseconds, status);
+    }
 }
 
 oserr_t
@@ -53,28 +61,41 @@ BcmPciMapRegisters(
     _In_ uint64_t     length)
 {
     oserr_t status;
+    oserr_t cleanup;
+
+    TRACE("BcmPciMapRegisters(base=0x%llx, length=0x%llx)",
+        (unsigned long long)base, (unsigned long long)length);
 
     // Check the range before converting it to the smaller types used by I/O.
     if (length == 0) {
+        ERROR("BcmPciMapRegisters empty register range");
         return OS_ENOTSUPPORTED;
     }
     if (base > UINTPTR_MAX || length > SIZE_MAX) {
+        ERROR("BcmPciMapRegisters range exceeds pointer width");
         return OS_ENOTSUPPORTED;
     }
     if (length - 1 > UINTPTR_MAX - base) {
+        ERROR("BcmPciMapRegisters register range wraps the CPU address space");
         return OS_ENOTSUPPORTED;
     }
     
     status = CreateDeviceMemoryIo(io, (uintptr_t)base, (size_t)length);
     if (status != OS_EOK) {
+        ERROR("BcmPciMapRegisters CreateDeviceMemoryIo failed: %u", status);
         return status;
     }
    
     status = AcquireDeviceIo(io);
     if (status != OS_EOK) {
-        DestroyDeviceIo(io);
+        ERROR("BcmPciMapRegisters AcquireDeviceIo failed: %u", status);
+        cleanup = DestroyDeviceIo(io);
+        if (cleanup != OS_EOK) {
+            ERROR("BcmPciMapRegisters DestroyDeviceIo failed during cleanup: %u", cleanup);
+        }
+        return status;
     }
-    return status;
+    return OS_EOK;
 }
 
 oserr_t
@@ -88,6 +109,9 @@ BcmPciRescal(
     uint32_t     value;
     unsigned int attempt;
 
+    TRACE("BcmPciRescal(base=0x%llx, reuse=%i)",
+        (unsigned long long)dependencies->ResetBase, reuseCompleted);
+
     // No reset range means firmware has not provided the optional calibration block.
     if (dependencies->ResetLength == 0) {
         return OS_EOK;
@@ -95,6 +119,7 @@ BcmPciRescal(
 
     status = BcmPciMapRegisters(&reset, dependencies->ResetBase, dependencies->ResetLength);
     if (status != OS_EOK) {
+        ERROR("BcmPciRescal BcmPciMapRegisters failed: %u", status);
         return status;
     }
 
@@ -102,6 +127,7 @@ BcmPciRescal(
     // starting another port does not interrupt a port that is already working.
     value = (uint32_t)ReadDeviceIo(&reset, 8, 4);
     if (reuseCompleted && value != UINT32_MAX && (value & 1)) {
+        TRACE("BcmPciRescal reusing completed shared calibration");
         goto cleanup;
     }
 
@@ -109,14 +135,18 @@ BcmPciRescal(
     // the hardware accepted the request.
     value = (uint32_t)ReadDeviceIo(&reset, 0, 4);
     status = WriteDeviceIo(&reset, 0, value | 1, 4);
-    if (status == OS_EOK) {
+    if (status != OS_EOK) {
+        ERROR("BcmPciRescal failed to start calibration: %u", status);
+    } else {
         value = (uint32_t)ReadDeviceIo(&reset, 0, 4);
         if (!(value & 1)) {
+            ERROR("BcmPciRescal start bit did not latch, read back 0x%x", value);
             status = OS_EUNKNOWN;
         }
     }
 
-    // Stop waiting after a fixed number of checks if the hardware never finishes.
+    // The start write may have reached hardware even if it failed. Bound the
+    // wait and clear the request before releasing the mapping.
     for (attempt = 0; attempt < 10; attempt++) {
         value = (uint32_t)ReadDeviceIo(&reset, 8, 4);
         if (value != UINT32_MAX && (value & 1)) {
@@ -126,6 +156,7 @@ BcmPciRescal(
     }
 
     if (attempt == 10) {
+        ERROR("BcmPciRescal timed out waiting for calibration, status=0x%x", value);
         status = OS_EUNKNOWN;
     }
 
@@ -133,13 +164,22 @@ BcmPciRescal(
     // clearing it also fails.
     value = (uint32_t)ReadDeviceIo(&reset, 0, 4);
     cleanupStatus = WriteDeviceIo(&reset, 0, value & ~1U, 4);
-    if (cleanupStatus != OS_EOK && status == OS_EOK) {
-        status = OS_EUNKNOWN;
+    if (cleanupStatus != OS_EOK) {
+        ERROR("BcmPciRescal failed to clear calibration request: %u", cleanupStatus);
+        if (status == OS_EOK) {
+            status = OS_EUNKNOWN;
+        }
     }
 
 cleanup:
-    ReleaseDeviceIo(&reset);
-    DestroyDeviceIo(&reset);
+    cleanupStatus = ReleaseDeviceIo(&reset);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("BcmPciRescal failed to release calibration mapping: %u", cleanupStatus);
+    }
+    cleanupStatus = DestroyDeviceIo(&reset);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("BcmPciRescal failed to destroy calibration mapping: %u", cleanupStatus);
+    }
     return status;
 }
 
@@ -152,7 +192,15 @@ BcmPciUpdate(
 {
     // Change only the requested bits so unrelated controller settings survive.
     uint32_t previous = (uint32_t)ReadDeviceIo(&bus->IoSpace, reg, 4);
-    return WriteDeviceIo(&bus->IoSpace, reg, (previous & ~mask) | value, 4);
+    oserr_t  status;
+
+    status = WriteDeviceIo(&bus->IoSpace, reg, (previous & ~mask) | value, 4);
+    if (status != OS_EOK) {
+        ERROR("BcmPciUpdate register 0x%x mask 0x%x value 0x%x failed: %u",
+            (unsigned)reg, mask, value, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 int
@@ -239,6 +287,8 @@ __BcmConfigOffset(
         4
     );
     if (status != OS_EOK) {
+        ERROR("__BcmConfigOffset WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(controller->Variant->ConfigIndex), status);
         return 0;
     }
     
@@ -265,10 +315,13 @@ __BcmRead(
     struct BcmPciHost* controller = bus->OpContext;
     size_t             offset;
     size_t             value = (size_t)-1;
+    int                status;
 
     // The controller uses shared registers to select a device and read its
     // settings, so keep the selection and read together under one lock.
-    if (mtx_lock(&controller->ConfigLock) != thrd_success) {
+    status = mtx_lock(&controller->ConfigLock);
+    if (status != thrd_success) {
+        ERROR("__BcmRead failed to lock configuration: %i", status);
         return value;
     }
 
@@ -276,7 +329,10 @@ __BcmRead(
         value = ReadDeviceIo(&bus->IoSpace, offset, width);
     }
 
-    mtx_unlock(&controller->ConfigLock);
+    status = mtx_unlock(&controller->ConfigLock);
+    if (status != thrd_success) {
+        ERROR("__BcmRead failed to unlock configuration: %i", status);
+    }
     return value;
 }
 
@@ -292,17 +348,28 @@ __BcmWrite(
 {
     struct BcmPciHost* controller = bus->OpContext;
     size_t             offset;
+    int                lockStatus;
+    oserr_t            status;
 
     // Keep selecting the device and writing its settings together so another
     // caller cannot change the selected device midway through the operation.
-    if (mtx_lock(&controller->ConfigLock) != thrd_success) {
+    lockStatus = mtx_lock(&controller->ConfigLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__BcmWrite failed to lock configuration: %i", lockStatus);
         return;
     }
     
     if (__BcmConfigOffset(bus, number, slot, function, reg, width, &offset)) {
-        (void)WriteDeviceIo(&bus->IoSpace, offset, value, width);
+        status = WriteDeviceIo(&bus->IoSpace, offset, value, width);
+        if (status != OS_EOK) {
+            ERROR("__BcmWrite %u:%u.%u register 0x%x failed: %u",
+                number, slot, function, (unsigned)reg, status);
+        }
     }
-    mtx_unlock(&controller->ConfigLock);
+    lockStatus = mtx_unlock(&controller->ConfigLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__BcmWrite failed to unlock configuration: %i", lockStatus);
+    }
 }
 
 static oserr_t
@@ -359,6 +426,7 @@ __BcmGetDmaDescription(
     // Configuration access alone is not evidence of a usable inbound mapping.
     // Stop and failed setup clear this separate record before removing hardware.
     if (!controller->Ready || !controller->InboundConfigured) {
+        WARNING("__BcmGetDmaDescription controller is not ready for DMA");
         return OS_EBUSY;
     }
 
@@ -366,6 +434,7 @@ __BcmGetDmaDescription(
     // and keep their exact lengths, including when hardware rounded a size up.
     status = FdtPciDmaMap(&controller->Firmware, &description->Map);
     if (status != OS_EOK) {
+        ERROR("__BcmGetDmaDescription FdtPciDmaMap failed: %u", status);
         return status;
     }
     
@@ -394,12 +463,17 @@ __BcmValidateOutbound(
     uint64_t                   length;
     uint64_t                   previousLength;
 
+    TRACE("__BcmValidateOutbound(segment=%u, windows=%u)",
+        firmware->Segment, firmware->WindowCount);
+
     // The controller can handle at most four address ranges, and it needs at
     // least one bus number after its own number for attached devices.
     if (firmware->WindowCount == 0 || firmware->WindowCount > 4) {
+        WARNING("__BcmValidateOutbound requires one to four outbound windows");
         return OS_ENOTSUPPORTED;
     }
     if (firmware->BusStart >= firmware->BusEnd) {
+        WARNING("__BcmValidateOutbound bus range has no downstream bus");
         return OS_ENOTSUPPORTED;
     }
     
@@ -408,28 +482,34 @@ __BcmValidateOutbound(
         
         // Only memory ranges are supported; an empty range has no addresses to map.
         if (window->Space != FdtPciSpaceMemory32 && window->Space != FdtPciSpaceMemory64) {
+            WARNING("__BcmValidateOutbound outbound window is not memory space");
             return OS_ENOTSUPPORTED;
         }
         if (window->Length == 0) {
+            WARNING("__BcmValidateOutbound outbound window is empty");
             return OS_ENOTSUPPORTED;
         }
         
         // Hardware maps whole 1 MiB blocks, so both starting addresses must
         // begin at a block boundary.
         if ((window->PhysicalBase | window->BusBase) & (BCM_MEGABYTE - 1)) {
+            WARNING("__BcmValidateOutbound outbound addresses must be MiB-aligned");
             return OS_ENOTSUPPORTED;
         }
         
         // The controller cannot reach machine addresses above its 40-bit limit.
         if (window->PhysicalBase >= (1ULL << 40)) {
+            WARNING("__BcmValidateOutbound outbound CPU base exceeds 40 bits");
             return OS_ENOTSUPPORTED;
         }
         if (window->Length > (1ULL << 40) - window->PhysicalBase) {
+            WARNING("__BcmValidateOutbound outbound CPU extent exceeds 40 bits");
             return OS_ENOTSUPPORTED;
         }
         
         // Make sure the last device-visible address does not wrap around.
         if (window->Length - 1 > UINT64_MAX - window->BusBase) {
+            WARNING("__BcmValidateOutbound outbound PCI extent wraps");
             return OS_ENOTSUPPORTED;
         }
         
@@ -439,6 +519,7 @@ __BcmValidateOutbound(
         // the original firmware description.
         length = (window->Length + BCM_MEGABYTE - 1) & ~(BCM_MEGABYTE - 1);
         if (length - 1 > UINT64_MAX - window->BusBase) {
+            WARNING("__BcmValidateOutbound rounded outbound PCI extent wraps");
             return OS_ENOTSUPPORTED;
         }
 
@@ -446,6 +527,7 @@ __BcmValidateOutbound(
         // Ranges marked as safe to read ahead have extra registers for larger addresses.
         if (!(window->Attributes & FDT_PCI_PREFETCHABLE) &&
             (window->BusBase >= (1ULL << 32) || length > (1ULL << 32) - window->BusBase)) {
+            WARNING("__BcmValidateOutbound non-prefetchable window exceeds 32-bit PCI addressing");
             return OS_ENOTSUPPORTED;
         }
         
@@ -456,11 +538,13 @@ __BcmValidateOutbound(
             // addresses seen by devices; otherwise two mappings would conflict.
             if (window->PhysicalBase <= firmware->Windows[previous].PhysicalBase + previousLength - 1 &&
                 firmware->Windows[previous].PhysicalBase <= window->PhysicalBase + length - 1) {
+                WARNING("__BcmValidateOutbound rounded outbound CPU windows overlap");
                 return OS_ENOTSUPPORTED;
             }
             
             if (window->BusBase <= firmware->Windows[previous].BusBase + previousLength - 1 &&
                 firmware->Windows[previous].BusBase <= window->BusBase + length - 1) {
+                WARNING("__BcmValidateOutbound rounded outbound PCI windows overlap");
                 return OS_ENOTSUPPORTED;
             }
         }
@@ -483,6 +567,8 @@ __BcmBridgeWindow(
     uint32_t     prefetch = 0x0000FFF0;
     uint32_t     command;
     oserr_t      status;
+
+    TRACE("__BcmBridgeWindow(segment=%u)", firmware->Segment);
 
     // The bridge has one range for regular memory and one for memory that a
     // device says may be read ahead. Combine matching startup ranges for each.
@@ -513,26 +599,36 @@ __BcmBridgeWindow(
     // requests, so devices cannot use an old or incomplete range.
     status = WriteDeviceIo(&bus->IoSpace, 0x20, memory, 4);
     if (status != OS_EOK) {
+        ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(0x20), status);
         return status;
     }
     
     status = WriteDeviceIo(&bus->IoSpace, 0x24, prefetch, 4);
     if (status != OS_EOK) {
+        ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(0x24), status);
         return status;
     }
 
     status = WriteDeviceIo(&bus->IoSpace, 0x28, base[1] == UINT64_MAX ? 0 : base[1] >> 32, 4);
     if (status != OS_EOK) {
+        ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(0x28), status);
         return status;
     }
 
     status = WriteDeviceIo(&bus->IoSpace, 0x2C, limit[1] >> 32, 4);
     if (status != OS_EOK) {
+        ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(0x2C), status);
         return status;
     }
 
     status = WriteDeviceIo(&bus->IoSpace, 0x1C, 0x00F0, 2);
     if (status != OS_EOK) {
+        ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(0x1C), status);
         return status;
     }
 
@@ -541,6 +637,8 @@ __BcmBridgeWindow(
     
     status = WriteDeviceIo(&bus->IoSpace, 0x04, command, 2);
     if (status != OS_EOK) {
+        ERROR("__BcmBridgeWindow WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(0x04), status);
         return status;
     }
     return OS_EOK;
@@ -557,21 +655,29 @@ __BcmWindows(
     uint32_t                   index;
     oserr_t                    status;
 
+    TRACE("__BcmWindows(segment=%u, windows=%u)", firmware->Segment, firmware->WindowCount);
+
     // Clear all four hardware ranges first so settings left by earlier firmware
     // cannot conflict with the ranges this driver is about to install.
     for (index = 0; index < 4; index++) {
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_BASE_LIMIT + index * 4, 0xFFF0, 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_BASE_LIMIT + index * 4), status);
             return status;
         }
 
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_BASE_HIGH + index * 8, 0, 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_BASE_HIGH + index * 8), status);
             return status;
         }
 
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_BASE_HIGH + index * 8 + 4, 0, 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_BASE_HIGH + index * 8 + 4), status);
             return status;
         }
     }
@@ -586,30 +692,40 @@ __BcmWindows(
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_TARGET + index * 8,
             (uint32_t)window->BusBase, 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_TARGET + index * 8), status);
             return status;
         }
 
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_TARGET + index * 8 + 4,
             (uint32_t)(window->BusBase >> 32), 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_TARGET + index * 8 + 4), status);
             return status;
         }
 
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_BASE_HIGH + index * 8,
             (uint32_t)(base >> 12), 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_BASE_HIGH + index * 8), status);
             return status;
         }
 
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_BASE_HIGH + index * 8 + 4,
             (uint32_t)(limit >> 12), 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_BASE_HIGH + index * 8 + 4), status);
             return status;
         }
 
         status = WriteDeviceIo(&bus->IoSpace, BCM_OUTBOUND_BASE_LIMIT + index * 4,
             ((uint32_t)base & 0xFFF) << 4 | ((uint32_t)limit & 0xFFF) << 20, 4);
         if (status != OS_EOK) {
+            ERROR("__BcmWindows WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_OUTBOUND_BASE_LIMIT + index * 4), status);
             return status;
         }
     }
@@ -642,39 +758,50 @@ BcmPciInitialize(
     unsigned int                attempt;
     oserr_t                     status;
     const struct BcmPciVariant* variant;
+    int                         lockStatus;
+
+    TRACE("BcmPciInitialize(bus=%p, firmware=%p)", bus, firmware);
 
     // Check inputs and firmware ranges before changing the bus, so a bad
     // description cannot leave the controller partly configured.
     if (bus == NULL || controller == NULL || firmware == NULL) {
+        ERROR("BcmPciInitialize missing host, controller or firmware");
         return OS_EINVALPARAMS;
     }
 
     variant = BcmPciGetVariant(firmware->Type);
     if (variant == NULL) {
+        WARNING("BcmPciInitialize unsupported controller type %u", firmware->Type);
         return OS_ENOTSUPPORTED;
     }
     if (bus->OpContext != NULL || bus->Operations != NULL) {
+        WARNING("BcmPciInitialize host is already initialized");
         return OS_EINVALPARAMS;
     }
     if (bus->IoSpace.Type != DeviceIoMemoryBased ||
         bus->IoSpace.Access.Memory.Length < variant->RegisterLength) {
+        ERROR("BcmPciInitialize missing or truncated register mapping");
         return OS_EINVALPARAMS;
     }
 
     status = variant->Validate(firmware, &dmaOrder);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize variant->Validate failed: %u", status);
         return status;
     }
 
     status = __BcmValidateOutbound(firmware);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize __BcmValidateOutbound failed: %u", status);
         return status;
     }
     
     memset(controller, 0, sizeof(*controller));
     controller->Firmware = *firmware;
     controller->Variant = variant;
-    if (mtx_init(&controller->ConfigLock, mtx_plain) != thrd_success) {
+    lockStatus = mtx_init(&controller->ConfigLock, mtx_plain);
+    if (lockStatus != thrd_success) {
+        ERROR("BcmPciInitialize failed to initialize configuration lock: %i", lockStatus);
         return OS_EOOM;
     }
 
@@ -689,27 +816,32 @@ BcmPciInitialize(
     // Prepare the host before installing its address ranges and memory access.
     status = variant->Prepare(bus, firmware);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize variant->Prepare failed: %u", status);
         goto failure;
     }
 
     status = __BcmWindows(bus, firmware);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize __BcmWindows failed: %u", status);
         goto failure;
     }
 
     status = variant->ProgramInbound(bus, firmware, dmaOrder);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize variant->ProgramInbound failed: %u", status);
         goto failure;
     }
     controller->InboundConfigured = 1;
 
     status = __BcmBridgeWindow(bus, firmware);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize __BcmBridgeWindow failed: %u", status);
         goto failure;
     }
 
     status = variant->Start(bus, firmware);
     if (status != OS_EOK) {
+        ERROR("BcmPciInitialize variant->Start failed: %u", status);
         goto failure;
     }
 
@@ -720,6 +852,8 @@ BcmPciInitialize(
             controller->Ready = 1;
             bus->Operations = &g_pciBcmOperations;
             bus->Firmware = &controller->Firmware;
+            TRACE("BcmPciInitialize segment %u link ready after %u polls",
+                firmware->Segment, attempt + 1);
             return OS_EOK;
         }
         if (attempt == 20) {
@@ -728,6 +862,7 @@ BcmPciInitialize(
         BcmPciDelay(5);
     }
 
+    ERROR("BcmPciInitialize segment %u link did not come up", firmware->Segment);
     status = OS_EUNKNOWN;
 
 failure:
@@ -746,6 +881,10 @@ BcmPciDestroy(
     _InOut_ PciHost_t*         bus,
     _InOut_ struct BcmPciHost* controller)
 {
+    int status;
+
+    TRACE("BcmPciDestroy(bus=%p, controller=%p)", bus, controller);
+
     // Ignore incomplete or stale requests so they cannot stop another host.
     if (bus == NULL || controller == NULL) {
         return;
@@ -755,14 +894,20 @@ BcmPciDestroy(
     }
 
     // Prevent new register work while stopping the host and removing its callbacks.
-    mtx_lock(&controller->ConfigLock);
+    status = mtx_lock(&controller->ConfigLock);
+    if (status != thrd_success) {
+        ERROR("BcmPciDestroy failed to lock configuration: %i", status);
+    }
     controller->Ready = 0;
     controller->InboundConfigured = 0;
     controller->Variant->Stop(bus);
     bus->Operations = NULL;
     bus->OpContext = NULL;
     bus->Firmware = NULL;
-    mtx_unlock(&controller->ConfigLock);
+    status = mtx_unlock(&controller->ConfigLock);
+    if (status != thrd_success) {
+        ERROR("BcmPciDestroy failed to unlock configuration: %i", status);
+    }
     mtx_destroy(&controller->ConfigLock);
 }
 
@@ -780,12 +925,15 @@ BcmPciDmaAddress(
     // A translation needs a live host, an output location, and a non-empty
     // physical range whose end does not wrap around.
     if (controller == NULL || address == NULL) {
+        WARNING("BcmPciDmaAddress missing controller or output");
         return OS_EINVALPARAMS;
     }
     if (!controller->Ready || !controller->InboundConfigured || length == 0) {
+        WARNING("BcmPciDmaAddress controller is not ready or length is zero");
         return OS_EINVALPARAMS;
     }
     if (length - 1 > UINT64_MAX - physical) {
+        WARNING("BcmPciDmaAddress requested range wraps the physical address space");
         return OS_EINVALPARAMS;
     }
 
@@ -813,5 +961,7 @@ BcmPciDmaAddress(
         return OS_EOK;
     }
 
+    TRACE("BcmPciDmaAddress no RAM window contains 0x%llx+0x%llx",
+        (unsigned long long)physical, (unsigned long long)length);
     return OS_ENOENT;
 }

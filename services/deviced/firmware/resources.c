@@ -16,7 +16,9 @@
  *
  */
 
+//#define __TRACE
 #include <firmware/resources.h>
+#include <ddk/utils.h>
 #include <string.h>
 
 /**
@@ -217,17 +219,20 @@ FdtNameIndex(
     const uint8_t* end;
 
     if (length && names == NULL) {
+        ERROR("FdtNameIndex: missing names data for %s (%u bytes)", name, length);
         return OS_EINVALPARAMS;
     }
 
     while (offset < length) {
         end = memchr(names + offset, 0, length - offset);
         if (end == NULL || end == names + offset) {
+            ERROR("FdtNameIndex: malformed names entry at byte %u for %s", offset, name);
             return OS_EINVALPARAMS;
         }
         
         if (!strcmp((const char*)names + offset, name)) {
             if (selected != UINT32_MAX) {
+                ERROR("FdtNameIndex: duplicate resource name %s", name);
                 return OS_EINVALPARAMS;
             }
             selected = count;
@@ -454,6 +459,8 @@ __ResourceBuildNode(
 {
     struct FdtResources* node = &nodes[index];
     struct FdtParser     parser = { .Property = __ResourceProperty };
+    oserr_t              status;
+    int                  translated;
 
     memset(node, 0, sizeof(*node));
     node->View = views[index];
@@ -477,13 +484,19 @@ __ResourceBuildNode(
 
     parser.UserData = node;
     
-    FdtVisitProperties(
+    status = FdtVisitProperties(
         views[index].Properties,
         views[index].PropertiesLength,
         views[index].Strings,
         views[index].StringsLength,
         &parser
     );
+    if (status != OS_EOK) {
+        // Keep fields decoded before the malformed property and their validity
+        // flags.
+        ERROR("__ResourceBuildNode: node %u property traversal failed (%u)",
+            node->NodeOffset, status);
+    }
 
     node->RegisterStatus = FdtRawRegister(
         node,
@@ -491,17 +504,21 @@ __ResourceBuildNode(
         &node->PhysicalBase,
         &node->PhysicalLength
     );
-    if (node->RegisterStatus == OS_EOK) {
-        int translated = FdtTranslateAddress(
-            nodes,
-            index - 1,
-            node->PhysicalLength,
-            &node->PhysicalBase,
-            0
-        );
-        if (!translated) {
-            node->RegisterStatus = OS_EINVALPARAMS;
-        }
+    if (node->RegisterStatus != OS_EOK) {
+        // Many nodes have no CPU register range. The caller decides whether
+        // that matters for this device and can report it with context.
+        return;
+    }
+
+    translated = FdtTranslateAddress(
+        nodes,
+        index - 1,
+        node->PhysicalLength,
+        &node->PhysicalBase,
+        0
+    );
+    if (!translated) {
+        node->RegisterStatus = OS_EINVALPARAMS;
     }
 }
 
@@ -542,7 +559,15 @@ FdtWalkResources(
     _InOut_ void*         context)
 {
     struct __ResourceWalk walk = { visitor, context };
-    return FdtWalkNodes(blob, length, __ResourceVisit, &walk);
+    oserr_t               status;
+
+    TRACE("FdtWalkResources(blob=%p, length=%zu)", blob, length);
+    status = FdtWalkNodes(blob, length, __ResourceVisit, &walk);
+    if (status != OS_EOK) {
+        ERROR("FdtWalkResources: resource traversal failed (%u)", status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 struct __ResourceQuery {
@@ -587,16 +612,20 @@ FdtFindResources(
     struct __ResourceQuery query = { .Phandle = phandle };
     oserr_t                status;
 
+    TRACE("FdtFindResources(phandle=%u)", phandle);
     status = FdtFindNode(blob, length, phandle, &identity);
     if (status != OS_EOK) {
+        WARNING("FdtFindResources: provider %u unavailable (%u)", phandle, status);
         return status;
     }
 
     status = FdtWalkResources(blob, length, __ResourceFind, &query);
     if (status != OS_EOK) {
+        ERROR("FdtFindResources: provider %u resource traversal failed (%u)", phandle, status);
         return status;
     }
     if (query.Result.Malformed || query.Result.AncestorMalformed) {
+        ERROR("FdtFindResources: provider %u has malformed resources", phandle);
         return OS_EINVALPARAMS;
     }
 
@@ -632,6 +661,8 @@ FdtNextReference(
     oserr_t             status;
 
     if (cells == NULL || (length & 3) || cursor >= length || (cursor & 3)) {
+        ERROR("FdtNextReference: invalid %s reference at byte %u of %u",
+            cellsName, cursor, length);
         return OS_EINVALPARAMS;
     }
 
@@ -642,12 +673,19 @@ FdtNextReference(
 
     status = FdtFindResources(blob, blobLength, phandle, &result);
     if (status != OS_EOK) {
+        WARNING("FdtNextReference: %s provider %u unavailable (%u)", cellsName, phandle, status);
         return status;
     }
 
     status = FdtScalar(&result.View, cellsName, &count);
-    if (status != OS_EOK || count > 16 || count * 4 > length - cursor ||
+    if (status != OS_EOK) {
+        ERROR("FdtNextReference: provider %u lacks usable %s (%u)", phandle, cellsName, status);
+        return OS_EINVALPARAMS;
+    }
+    if (count > 16 || count * 4 > length - cursor ||
         (inheritedProvider && !count)) {
+        ERROR("FdtNextReference: provider %u has invalid %s argument count %u",
+            phandle, cellsName, count);
         return OS_EINVALPARAMS;
     }
     

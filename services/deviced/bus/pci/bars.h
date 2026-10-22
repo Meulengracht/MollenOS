@@ -128,6 +128,8 @@ PciDiagnoseBars(
  * port I/O resources when the host policy supports ports; otherwise they are
  * represented as memory resources. This prepares resources for device use but
  * does not assign or rewrite BAR addresses in PCI configuration space.
+ * Registration is best effort. Unsupported ranges and I/O creation failures
+ * are logged, then processing continues with the remaining BARs.
  *
  * @param host PCI host whose I/O resource policy determines how BARs are exposed.
  * @param device Device whose I/O resource entries are populated.

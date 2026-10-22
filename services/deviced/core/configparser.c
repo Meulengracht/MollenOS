@@ -126,17 +126,20 @@ __AddCompatible(
     const char*              value = (const char*)event->data.scalar.value;
 
     if (!length || length >= PLATFORM_DEVICE_MAX_COMPATIBLES) {
+        WARNING("__AddCompatible: invalid compatible length %zu", length);
         return -1;
     }
     
     compatible = calloc(1, sizeof(*compatible));
     if (compatible == NULL) {
+        ERROR("__AddCompatible: failed to allocate compatible entry");
         return -1;
     }
     
     ELEMENT_INIT(&compatible->ListHeader, 0, compatible);
     compatible->Name = strdup(value);
     if (compatible->Name == NULL) {
+        ERROR("__AddCompatible: failed to copy compatible %s", value);
         free(compatible);
         return -1;
     }
@@ -175,8 +178,11 @@ __ConsumeEvent(
     _In_ yaml_event_t*        event)
 {
     char*          value;
+    char*          end;
     Capabilities_t capability;
-    TRACE("__ConsumeEvent(state=%d event=%d)", s->state, event->type);
+    uint32_t       productId;
+    oserr_t        osStatus;
+    int            status;
 
     switch (s->state) {
         case STATE_START:
@@ -255,7 +261,6 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     value = (char *)event->data.scalar.value;
-                    TRACE("__ConsumeEvent STATE_DRIVERKEY/%s", value);
                     if (strcmp(value, "capabilities") == 0) {
                         s->state = STATE_CAPABILITIES_LIST;
                     } else if (strcmp(value, "compatibles") == 0) {
@@ -295,7 +300,6 @@ __ConsumeEvent(
 
                 case YAML_SCALAR_EVENT:
                     value = (char*)event->data.scalar.value;
-                    TRACE("__ConsumeEvent STATE_DRIVERTYPE/%s", value);
                     if (strcmp(value, "class") == 0) {
                         s->state = STATE_TYPECLASS;
                     } else if (strcmp(value, "subclass") == 0) {
@@ -313,8 +317,11 @@ __ConsumeEvent(
         case STATE_TYPECLASS:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    TRACE("__ConsumeEvent STATE_TYPECLASS/%s", (const char*)event->data.scalar.value);
-                    s->driver.Class = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    s->driver.Class = (uint32_t)strtol(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid class value %s; keeping conversion result", value);
+                    }
                     break;
 
                 case YAML_MAPPING_END_EVENT:
@@ -329,8 +336,11 @@ __ConsumeEvent(
         case STATE_TYPESUBCLASS:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    TRACE("__ConsumeEvent STATE_TYPESUBCLASS/%s", (const char*)event->data.scalar.value);
-                    s->driver.Subclass = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    s->driver.Subclass = (uint32_t)strtol(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid subclass value %s; keeping conversion result", value);
+                    }
                     break;
 
                 case YAML_MAPPING_END_EVENT:
@@ -386,8 +396,11 @@ __ConsumeEvent(
                     }
                     ELEMENT_INIT(&s->vendor->ListHeader, 0, s->vendor);
                     list_construct(&s->vendor->Products);
-                    TRACE("__ConsumeEvent STATE_VENDOR/%s", (const char*)event->data.scalar.value);
-                    s->vendor->Id = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    s->vendor->Id = (uint32_t)strtol(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid vendor value %s; keeping conversion result", value);
+                    }
                     break;
 
                 default:
@@ -404,14 +417,20 @@ __ConsumeEvent(
                     break;
 
                 case YAML_SCALAR_EVENT:
-                    TRACE("__ConsumeEvent STATE_VENDORPRODUCT/%s", (const char*)event->data.scalar.value);
-                    uint32_t productId = (uint32_t)strtol((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    productId = (uint32_t)strtol(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid product value %s; keeping conversion result", value);
+                    }
                     if (!productId) {
                         WARNING("__ConsumeEvent failed to parse product id: %s",
                                 (const char*)event->data.scalar.value);
                     }
                     else {
-                        if (__AddProduct(s->vendor, productId) != OS_EOK) {
+                        osStatus = __AddProduct(s->vendor, productId);
+                        if (osStatus != OS_EOK) {
+                            ERROR("__ConsumeEvent: adding product 0x%x to vendor 0x%x failed: %u",
+                                  productId, s->vendor->Id, osStatus);
                             return -1;
                         }
                     }
@@ -482,7 +501,11 @@ __ConsumeEvent(
         case STATE_RESOURCETYPE:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->Type = (int)strtol((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    s->resource->Type = (int)strtol(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid resource type %s; keeping conversion result", value);
+                    }
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -494,7 +517,11 @@ __ConsumeEvent(
         case STATE_RESOURCEBASE:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->Base = (uintptr_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    s->resource->Base = (uintptr_t)strtoll(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid resource base %s; keeping conversion result", value);
+                    }
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -506,7 +533,11 @@ __ConsumeEvent(
         case STATE_RESOURCELENGTH:
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
-                    s->resource->Length = (size_t)strtoll((const char*)event->data.scalar.value, NULL, 0);
+                    value = (char*)event->data.scalar.value;
+                    s->resource->Length = (size_t)strtoll(value, &end, 0);
+                    if (end == value || *end != '\0') {
+                        WARNING("__ConsumeEvent: invalid resource length %s; keeping conversion result", value);
+                    }
                     s->state = STATE_RESOURCE;
                     break;
                 default:
@@ -530,7 +561,12 @@ __ConsumeEvent(
             switch (event->type) {
                 case YAML_SCALAR_EVENT:
                     if (event->data.scalar.value != NULL) {
-                        return __AddCompatible(s, event);
+                        status = __AddCompatible(s, event);
+                        if (status != 0) {
+                            ERROR("__ConsumeEvent: adding compatible failed: %i", status);
+                            return status;
+                        }
+                        return 0;
                     }
                     break;
                 
@@ -639,8 +675,9 @@ DmDriverConfigParseYaml(
     struct parser_state state;
     int                 status;
 
-    TRACE("DmDriverConfigParseYaml()");
+    TRACE("DmDriverConfigParseYaml(length=%zu)", length);
     if (!yaml || !length || !driverConfig) {
+        WARNING("DmDriverConfigParseYaml: missing input or output, length %zu", length);
         return OS_EINVALPARAMS;
     }
 
@@ -650,14 +687,17 @@ DmDriverConfigParseYaml(
     list_construct(&state.driver.Compatibles);
     list_construct(&state.driver.Resources);
 
-    if (!yaml_parser_initialize(&parser)) {
+    status = yaml_parser_initialize(&parser);
+    if (!status) {
+        ERROR("DmDriverConfigParseYaml: failed to initialize YAML parser");
         return OS_EOOM;
     }
     yaml_parser_set_input_string(&parser, yaml, length);
     do {
         status = yaml_parser_parse(&parser, &event);
         if (status == 0) {
-            ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
+            ERROR("DmDriverConfigParseYaml: YAML parser failed in state %i: %s",
+                  state.state, parser.problem != NULL ? parser.problem : "unknown error");
             __CleanupDriverConfiguration(&state.driver);
             yaml_parser_delete(&parser);
             return OS_EUNKNOWN;
@@ -665,7 +705,8 @@ DmDriverConfigParseYaml(
 
         status = __ConsumeEvent(&state, &event);
         if (status) {
-            ERROR("DmDriverConfigParseYaml failed to parse driver configuration");
+            ERROR("DmDriverConfigParseYaml: event %i rejected in state %i: %i",
+                  event.type, state.state, status);
             __CleanupDriverConfiguration(&state.driver);
             yaml_event_delete(&event);
             yaml_parser_delete(&parser);
@@ -677,6 +718,8 @@ DmDriverConfigParseYaml(
     yaml_parser_delete(&parser);
 
     memcpy(driverConfig, &state.driver, sizeof(struct DriverConfiguration));
+    TRACE("DmDriverConfigParseYaml: parsed class %u, subclass %u, capabilities 0x%x",
+          driverConfig->Class, driverConfig->Subclass, driverConfig->Capabilities);
     return OS_EOK;
 }
 

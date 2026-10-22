@@ -18,6 +18,8 @@
  * 
  */
 
+//#define __TRACE
+
 #include <bus/rp1/rp1.h>
 #include <bus/pci/device.h>
 #include <bus/pci/function.h>
@@ -49,6 +51,7 @@ __Rp1AddChild(
     
     child = calloc(1, sizeof(struct Rp1Child));
     if (child == NULL) {
+        ERROR("__Rp1AddChild: allocation failed for node %u", firmware->NodeOffset);
         enumeration->Status = OS_EOOM;
         return;
     }
@@ -74,10 +77,13 @@ Rp1BusCreate(
     struct __Rp1Enumeration enumeration = { 0 };
     struct Rp1Bus*          bus;
     oserr_t                 status;
+    oserr_t                 cleanupStatus;
 
+    TRACE("Rp1BusCreate(host=%p)", host);
     // The caller needs a clear failure result even if validation or allocation
     // below fails before a device list has been created.
     if (host == NULL || bars == NULL || busOut == NULL) {
+        ERROR("Rp1BusCreate: missing host, BARs or output");
         return OS_EINVALPARAMS;
     }
     
@@ -88,11 +94,13 @@ Rp1BusCreate(
     // before reading the descriptions of RP1's internal devices.
     if (bars[1].State != PciBarAssigned ||
         (bars[1].Space != 2 && bars[1].Space != 3) || bars[1].Size < RP1_PCIE_APBS_OFFSET + RP1_PCIE_APBS_LENGTH) {
+        ERROR("Rp1BusCreate: BAR1 does not contain assigned APBS memory");
         return OS_EINVALPARAMS;
     }
     
     bus = calloc(1, sizeof(struct Rp1Bus));
     if (bus == NULL) {
+        ERROR("Rp1BusCreate: bus allocation failed");
         return OS_EOOM;
     }
     bus->Host = host;
@@ -106,19 +114,28 @@ Rp1BusCreate(
     enumeration.Status = OS_EOK;
     
     status = FdtEnumerateRp1Children(host, bars, __Rp1AddChild, &enumeration);
-    if (status == OS_EOK) {
-        status = enumeration.Status;
-    }
-    
     if (status != OS_EOK) {
-        // Do not return a partial child list. Free every record created before
-        // the bad description or allocation failure was found.
-        Rp1BusDestroy(bus);
-        return status;
+        WARNING("Rp1BusCreate: firmware enumeration failed (%u)", status);
+        goto error;
+    }
+
+    status = enumeration.Status;
+    if (status != OS_EOK) {
+        ERROR("Rp1BusCreate: child inventory construction failed (%u)", status);
+        goto error;
     }
     
     *busOut = bus;
+    TRACE("Rp1BusCreate: created %u children", bus->ChildCount);
     return OS_EOK;
+
+error:
+    // Destroy the partial inventory before returning an error.
+    cleanupStatus = Rp1BusDestroy(bus);
+    if (cleanupStatus != OS_EOK) {
+        ERROR("Rp1BusCreate: partial inventory cleanup failed (%u)", cleanupStatus);
+    }
+    return status;
 }
 
 oserr_t
@@ -127,6 +144,7 @@ Rp1BusDestroy(
 {
     struct Rp1Child* child;
 
+    TRACE("Rp1BusDestroy(bus=%p)", bus);
     // A failed creation may call cleanup before a device list was allocated.
     if (bus == NULL) {
         return OS_EOK;
@@ -134,12 +152,14 @@ Rp1BusDestroy(
     // A provider may outlive its registry ID. Keep its context and the borrowed
     // firmware pointers until that owner has also released its parent reference.
     if (atomic_load(&bus->ProviderReferences) != 0) {
+        WARNING("Rp1BusDestroy: providers still retain bus %p", bus);
         return OS_EBUSY;
     }
     for (child = bus->Children; child != NULL; child = child->Next) {
         // The registration group still needs this stored ID to remove the
         // device-manager entry. Keep the list until every entry has been removed.
         if (child->DeviceId != UUID_INVALID) {
+            WARNING("Rp1BusDestroy: child node %u is still published", child->Firmware.NodeOffset);
             return OS_EBUSY;
         }
     }
@@ -173,6 +193,8 @@ __Rp1Attach(
     struct Rp1Child* child;
     oserr_t          status;
 
+    TRACE("__Rp1Attach: %u:%u:%u.%u", identification->Segment,
+        device->Bus, device->Slot, device->Function);
     // Return no RP1 device list if setup fails.
     *attachmentOut = NULL;
 
@@ -185,6 +207,7 @@ __Rp1Attach(
     // PCI vendor and device IDs identify RP1 but do not describe the hardware
     // inside it. Firmware must supply those devices' registers and interrupts.
     if (resources->Firmware == NULL) {
+        WARNING("__Rp1Attach: RP1 has no firmware description");
         return OS_ENOENT;
     }
     
@@ -193,6 +216,7 @@ __Rp1Attach(
     // function 0. This avoids selecting another device with the same IDs.
     if (device->Bus != (unsigned int)identification->BusStart + 1 ||
         device->Slot != 0 || device->Function != 0) {
+        WARNING("__Rp1Attach: RP1 is not at the supported host-relative PCI location");
         return OS_ENOENT;
     }
     
@@ -210,7 +234,7 @@ __Rp1Attach(
     *attachmentOut = bus;
     
     for (child = bus->Children; child != NULL; child = child->Next) {
-        WARNING("RP1 %u:%u:%u.%u child %s (%s), %u registers, %u local interrupts; activation pending MSI/DMA",
+        TRACE("RP1 %u:%u:%u.%u child %s (%s), %u registers, %u local interrupts; activation pending MSI/DMA",
             identification->Segment, device->Bus, device->Slot, device->Function,
             child->Firmware.Name, child->Firmware.Compatible,
             child->Firmware.RegisterCount, child->Firmware.InterruptCount);
@@ -222,8 +246,15 @@ static oserr_t
 __Rp1DestroyAttachment(
     _In_ void* attachment)
 {
+    oserr_t status;
+
     // Propagate busy to PCI so it cannot free our parent while we remain in use.
-    return Rp1BusDestroy(attachment);
+    status = Rp1BusDestroy(attachment);
+    if (status != OS_EOK) {
+        WARNING("__Rp1DestroyAttachment: attachment %p retained (%u)", attachment, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -232,7 +263,14 @@ __Rp1PublishAttachment(
     _In_    const struct PciDevice*    device,
     _InOut_ struct DmPublicationGroup* group)
 {
-    return Rp1BusPublish(attachment, device, group);
+    oserr_t status;
+
+    status = Rp1BusPublish(attachment, device, group);
+    if (status != OS_EOK) {
+        WARNING("__Rp1PublishAttachment: attachment %p publication failed (%u)", attachment, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 const struct PciFunctionHandler g_rp1PciHandler = {

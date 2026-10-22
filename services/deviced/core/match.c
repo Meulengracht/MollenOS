@@ -19,8 +19,11 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
+//#define __TRACE
+
 #include <discover.h>
 #include <ddk/platformdevice.h>
+#include <ddk/utils.h>
 #include <string.h>
 
 /**
@@ -47,6 +50,8 @@ __MatchPlatformDevice(
     // empty, or oversized data before reading from that array.
     if (identification->Compatibles == NULL || !identification->CompatibleLength ||
         identification->CompatibleLength > PLATFORM_DEVICE_MAX_COMPATIBLES) {
+        TRACE("__MatchPlatformDevice: absent or invalid compatible data, length %zu",
+              identification->CompatibleLength);
         return 0;
     }
 
@@ -57,6 +62,8 @@ __MatchPlatformDevice(
         // unterminated or empty item so malformed data can never match a name.
         end = memchr(entry, 0, identification->CompatibleLength - offset);
         if (end == NULL || end == entry) {
+            WARNING("__MatchPlatformDevice: malformed compatible at offset %zu, length %zu",
+                    offset, identification->CompatibleLength);
             return 0;
         }
         length = (size_t)(end - entry);
@@ -128,12 +135,20 @@ DmDriverMatchScore(
     _In_ const struct DriverConfiguration*  configuration,
     _In_ const struct DriverIdentification* identification)
 {
+    unsigned int score;
+    TRACE("DmDriverMatchScore(platform=%i)", identification->IsPlatform);
+
     // IsPlatform means the device was enumerated from firmware as a
     // PlatformDevice_t. Its ordered compatible strings are its identity; the
     // numeric fields are not a fallback because they may just be zero defaults.
     if (identification->IsPlatform) {
-        return __MatchPlatformDevice(configuration, identification);
+        score = __MatchPlatformDevice(configuration, identification);
+    } else {
+        score = __MatchBusDevice(configuration, identification);
     }
 
-    return __MatchBusDevice(configuration, identification);
+    if (score != 0) {
+        TRACE("DmDriverMatchScore: matched with score %u", score);
+    }
+    return score;
 }

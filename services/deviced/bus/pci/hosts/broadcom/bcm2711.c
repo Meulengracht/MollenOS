@@ -16,6 +16,9 @@
  * 
  */
 
+//#define __TRACE
+
+#include <ddk/utils.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/registers.h>
 #include <bus/pci/hosts/broadcom/bcm.h>
@@ -35,12 +38,20 @@ __BcmDependencies(
     struct FdtPciDependencies dependencies;
     oserr_t                   status;
 
+    TRACE("__BcmDependencies(segment=%u)", firmware->Segment);
+
     status = FdtResolvePciDependencies(firmware, &dependencies);
-    if (status == OS_EOK && dependencies.BridgeResetController != 0) {
+    if (status != OS_EOK) {
+        ERROR("__BcmDependencies FdtResolvePciDependencies failed: %u", status);
+        return status;
+    }
+    if (dependencies.BridgeResetController != 0) {
+        WARNING("__BcmDependencies BCM2711 does not support an external bridge reset");
         return OS_ENOTSUPPORTED;
     }
-    if (status != OS_EOK || dependencies.ResetLength == 0) {
-        return status;
+    if (dependencies.ResetLength == 0) {
+        TRACE("__BcmDependencies no optional calibration block");
+        return OS_EOK;
     }
 
     // The shared helper starts resistor calibration, waits for completion,
@@ -67,21 +78,28 @@ __BcmValidateWindows(
     uint64_t                   size;
     unsigned int               order;
 
+    TRACE("__BcmValidateWindows(segment=%u, windows=%u)",
+        firmware->Segment, firmware->DmaWindowCount);
+
     // The host's BAR2 register defines the address range devices use to reach
     // RAM. This Pi 4 setup supports one such range; it cannot also map other
     // devices' registers or interrupt destinations.
     if (firmware->DmaWindowCount != 1) {
+        WARNING("__BcmValidateWindows requires exactly one DMA window");
         return OS_ENOTSUPPORTED;
     }
 
     window = &firmware->DmaWindows[0];
     if (window->Kind != FdtDmaWindowRam || window->PhysicalBase != 0) {
+        WARNING("__BcmValidateWindows DMA window must describe RAM starting at CPU address zero");
         return OS_ENOTSUPPORTED;
     }
     if (window->Space != BCM_PCIE_DT_MEMORY32 && window->Space != BCM_PCIE_DT_MEMORY64) {
+        WARNING("__BcmValidateWindows DMA window must use memory space");
         return OS_ENOTSUPPORTED;
     }
     if (window->Length == 0 || window->Length > BCM_PCIE_INBOUND_MAX_SIZE) {
+        WARNING("__BcmValidateWindows unsupported DMA window length");
         return OS_ENOTSUPPORTED;
     }
 
@@ -96,6 +114,7 @@ __BcmValidateWindows(
     }
     if (size < window->Length || size < BCM2711_INBOUND_MIN_SIZE ||
         size > BCM_PCIE_INBOUND_MAX_SIZE) {
+        WARNING("__BcmValidateWindows SCB size cannot cover the DMA window");
         return OS_ENOTSUPPORTED;
     }
 
@@ -104,6 +123,7 @@ __BcmValidateWindows(
     // before changing any controller registers.
     if ((size & (size - 1)) || (window->BusBase & (size - 1)) ||
         size - 1 > UINT64_MAX - window->BusBase) {
+        WARNING("__BcmValidateWindows inbound size or PCI base is misaligned or wraps");
         return OS_ENOTSUPPORTED;
     }
 
@@ -112,6 +132,7 @@ __BcmValidateWindows(
     // meeting the size and alignment requirements alone is not enough.
     if (window->BusBase > BCM2711_INBOUND_RESTRICTED_BASE_START &&
         window->BusBase < BCM2711_INBOUND_RESTRICTED_BASE_END) {
+        WARNING("__BcmValidateWindows inbound PCI base lies in the reserved 2-4 GiB gap");
         return OS_ENOTSUPPORTED;
     }
 
@@ -140,6 +161,8 @@ __Bcm2711Prepare(
 {
     oserr_t status;
 
+    TRACE("__Bcm2711Prepare(segment=%u)", firmware->Segment);
+
     // Let the host controller run for calibration, but hold the connected
     // device in reset so it cannot communicate while setup is incomplete.
     status = BcmPciUpdate(
@@ -149,11 +172,14 @@ __Bcm2711Prepare(
         BCM2711_PERST_ASSERT
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2711_SW_INIT), status);
         return status;
     }
 
     status = __BcmDependencies(firmware);
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Prepare __BcmDependencies failed: %u", status);
         return status;
     }
 
@@ -165,6 +191,8 @@ __Bcm2711Prepare(
         BCM2711_RESET_ASSERT_BOTH
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2711_SW_INIT), status);
         return status;
     }
 
@@ -178,6 +206,8 @@ __Bcm2711Prepare(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2711_SW_INIT), status);
         return status;
     }
 
@@ -190,6 +220,8 @@ __Bcm2711Prepare(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2711_HARD_DEBUG), status);
         return status;
     }
 
@@ -205,6 +237,8 @@ __Bcm2711Prepare(
         BCM2711_MISC_BURST_128_BYTES | BCM_PCIE_MISC_MEMORY_ENABLES
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_MISC_CONTROL), status);
         return status;
     }
 
@@ -212,6 +246,7 @@ __Bcm2711Prepare(
     // Reject that value before checking the controller type.
     if (ReadDeviceIo(&bus->IoSpace, BCM_PCIE_LINK_STATUS, sizeof(uint32_t)) ==
             BCM_PCIE_READ_FAILED) {
+        ERROR("__Bcm2711Prepare could not read controller link status");
         return OS_ENOTSUPPORTED;
     }
 
@@ -219,6 +254,7 @@ __Bcm2711Prepare(
     // Reject device-side mode before programming the host's address mappings.
     if (!(ReadDeviceIo(&bus->IoSpace, BCM_PCIE_LINK_STATUS, sizeof(uint32_t)) &
             BCM_PCIE_STATUS_ROOT_PORT)) {
+        WARNING("__Bcm2711Prepare controller is not a root port");
         return OS_ENOTSUPPORTED;
     }
     return OS_EOK;
@@ -241,6 +277,8 @@ __Bcm2711Inbound(
     uint32_t                   sizeCode;
     oserr_t                    status;
 
+    TRACE("__Bcm2711Inbound(segment=%u, order=%u)", firmware->Segment, dmaOrder);
+
     window = &firmware->DmaWindows[0];
     sizeCode = dmaOrder - BCM_PCIE_INBOUND_LARGE_SIZE_BIAS;
 
@@ -253,6 +291,8 @@ __Bcm2711Inbound(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Inbound WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_INBOUND_BAR1), status);
         return status;
     }
 
@@ -264,6 +304,8 @@ __Bcm2711Inbound(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Inbound WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_INBOUND_BAR3), status);
         return status;
     }
 
@@ -277,6 +319,8 @@ __Bcm2711Inbound(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Inbound WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_MSI_BAR), status);
         return status;
     }
 
@@ -289,6 +333,8 @@ __Bcm2711Inbound(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Inbound WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_INBOUND_BAR2), status);
         return status;
     }
 
@@ -301,6 +347,8 @@ __Bcm2711Inbound(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Inbound WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_INBOUND_BAR2 + BCM_PCIE_REGISTER_HIGH_OFFSET), status);
         return status;
     }
 
@@ -332,6 +380,8 @@ __Bcm2711Start(
     uint16_t linkControl;
     oserr_t  status;
 
+    TRACE("__Bcm2711Start(segment=%u)", firmware->Segment);
+
     linkSpeed = BCM_PCIE_LINK_SPEED_GEN2;
     if (firmware->Link.MaxSpeed != 0 && firmware->Link.MaxSpeed < linkSpeed) {
         linkSpeed = firmware->Link.MaxSpeed;
@@ -352,6 +402,8 @@ __Bcm2711Start(
         BCM_PCIE_CLASS_CODE_BRIDGE
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_CLASS_CODE), status);
         return status;
     }
 
@@ -364,6 +416,8 @@ __Bcm2711Start(
         BCM_PCIE_VENDOR_BAR2_LITTLE_ENDIAN
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_VENDOR_CONTROL), status);
         return status;
     }
 
@@ -376,6 +430,8 @@ __Bcm2711Start(
         linkSpeed
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_LINK_CAPABILITY), status);
         return status;
     }
 
@@ -395,6 +451,8 @@ __Bcm2711Start(
         sizeof(uint16_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Start WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_LINK_CONTROL2), status);
         return status;
     }
 
@@ -402,6 +460,8 @@ __Bcm2711Start(
     // requests reach the buses that device discovery will scan.
     status = BcmPciUpdate(bus, BCM_PCIE_BUS_NUMBERS, BCM_PCIE_BUS_NUMBERS_MASK, buses);
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_BUS_NUMBERS), status);
         return status;
     }
 
@@ -413,6 +473,8 @@ __Bcm2711Start(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2711Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2711_SW_INIT), status);
         return status;
     }
 
@@ -434,14 +496,21 @@ static void
 __Bcm2711Stop(
     _In_ PciHost_t* bus)
 {
+    oserr_t status;
+
+    TRACE("__Bcm2711Stop(segment=%u)", bus->Identification.Segment);
+
     // Set both reset bits to 1 to hold the host and device in reset; keep other bits.
     // Shutdown is best effort because this callback has no error return.
-    (void)BcmPciUpdate(
+    status = BcmPciUpdate(
         bus,
         BCM2711_SW_INIT,
         BCM2711_RESET_ASSERT_BOTH,
         BCM2711_RESET_ASSERT_BOTH
     );
+    if (status != OS_EOK) {
+        ERROR("__Bcm2711Stop failed to assert bridge and device resets: %u", status);
+    }
 }
 
 // These callbacks provide Pi 4's reset, RAM mapping, and connection setup.

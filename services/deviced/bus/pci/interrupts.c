@@ -36,8 +36,14 @@ static inline void __UpdateInterruptLine(
     _In_ int          interruptLine,
     _In_ PciDevice_t* pciDevice)
 {
-    PciWrite8(parent->Host, (unsigned int)bus, (unsigned int)slot,
-              (unsigned int)function, 0x3C, (uint8_t)interruptLine);
+    PciWrite8(
+        parent->Host,
+        (unsigned int)bus,
+        (unsigned int)slot,
+        (unsigned int)function,
+        0x3C,
+        (uint8_t)interruptLine
+    );
     pciDevice->Header->InterruptLine = (uint8_t)interruptLine;
     pciDevice->InterruptLine = interruptLine;
 }
@@ -58,28 +64,47 @@ PciResolveInterruptLineAndPin(
     PciDevice_t* iterator;
     unsigned int pin;
     unsigned int flags;
-    int line;
+    int          line;
+    oserr_t      status;
 
     TRACE("PciResolveInterruptLineAndPin(bus=%i, slot=%i, function=%i)",
           bus, slot, function);
 
     pciDevice->InterruptLine = pciDevice->Header->InterruptLine;
     if (parent->Host->Operations->ResolveInterrupt != NULL) {
+        
         pciDevice->InterruptLine = INTERRUPT_NONE;
         pin = pciDevice->Header->InterruptPin;
         iterator = pciDevice;
+        
         if (pin == 0 || pin > 4) {
+            TRACE("PciResolveInterruptLineAndPin no usable INTx pin (%u)", pin);
             return;
         }
+        
         while (iterator->Parent != parent->Host->RootDevice) {
             pin = __SwizzleInterruptPin((int)iterator->Slot, (int)pin);
             iterator = iterator->Parent;
         }
-        if (parent->Host->Operations->ResolveInterrupt(parent->Host,
-                iterator->Bus, iterator->Slot, iterator->Function, pin, &line, &flags) == OS_EOK) {
-            pciDevice->InterruptLine = line;
-            pciDevice->AcpiConform = flags;
+        
+        status = parent->Host->Operations->ResolveInterrupt(
+            parent->Host,
+            iterator->Bus,
+            iterator->Slot,
+            iterator->Function,
+            pin,
+            &line,
+            &flags
+        );
+        if (status != OS_EOK) {
+            WARNING("PciResolveInterruptLineAndPin host route failed for %i:%i.%i pin %u: %u",
+                bus, slot, function, pin, status);
+            return;
         }
+        
+        pciDevice->InterruptLine = line;
+        pciDevice->AcpiConform = flags;
+        TRACE("PciResolveInterruptLineAndPin resolved line=%i, flags=0x%x", line, flags);
         return;
     }
 
@@ -89,11 +114,12 @@ PciResolveInterruptLineAndPin(
         unsigned int acpiConform   = 0;
         int          interruptLine = pciDevice->Header->InterruptLine;
         int          interruptPin  = pciDevice->Header->InterruptPin;
-        oserr_t   hasRouting    = OS_ENOENT;
+        oserr_t      hasRouting    = OS_ENOENT;
         TRACE("PciResolveInterruptLineAndPin initial line=%i, pin=%i", interruptLine, interruptPin);
 
         // Sanitize legals
         if (interruptPin > 4) {
+            WARNING("PciResolveInterruptLineAndPin invalid INTx pin %i, using INTA", interruptPin);
             interruptPin = 1;
         }
 
@@ -109,13 +135,20 @@ PciResolveInterruptLineAndPin(
             //           -> Go-To 1
             while (iterator && iterator != parent->Host->RootDevice) {
                 hasRouting = AcpiQueryInterrupt(
-                        iterator->Bus, iterator->Slot, interruptPin,
-                        &interruptLine, &acpiConform);
-
-                // Did routing exist?
+                    iterator->Bus,
+                    iterator->Slot,
+                    interruptPin,
+                    &interruptLine,
+                    &acpiConform
+                );
                 if (hasRouting == OS_EOK) {
+                    TRACE("PciResolveInterruptLineAndPin ACPI route found at %u:%u pin %i: line=%i, flags=0x%x",
+                        iterator->Bus, iterator->Slot, interruptPin, interruptLine, acpiConform);
                     break;
                 }
+
+                TRACE("PciResolveInterruptLineAndPin ACPI route absent at %u:%u pin %i: %u",
+                    iterator->Bus, iterator->Slot, interruptPin, hasRouting);
 
                 // Nope, swizzle pin, move up the ladder
                 interruptPin = __SwizzleInterruptPin((int) iterator->Slot, interruptPin);
@@ -128,6 +161,8 @@ PciResolveInterruptLineAndPin(
                 TRACE("PciResolveInterruptLineAndPin updating device, line=%i, pin=%i", interruptLine, interruptPin);
                 __UpdateInterruptLine(parent, bus, slot, function, interruptLine, pciDevice);
                 pciDevice->AcpiConform = acpiConform;
+            } else {
+                TRACE("PciResolveInterruptLineAndPin retaining firmware line %i", interruptLine);
             }
         }
     }

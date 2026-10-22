@@ -18,6 +18,8 @@
  *
  */
 
+//#define __TRACE
+
 #include <bus/pci/hosts/legacy.h>
 #include <bus/pci/host-private.h>
 #include <ddk/utils.h>
@@ -43,7 +45,13 @@ __LegacySelect(
     _In_ size_t       Register)
 {
     size_t address = 0x80000000 | (Bus << 16) | (Device << 11) | (Function << 8) | (Register & 0xFC);
-    WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, address, 4);
+    oserr_t status;
+
+    status = WriteDeviceIo(&Io->IoSpace, PCI_REGISTER_SELECT, address, 4);
+    if (status != OS_EOK) {
+        ERROR("__LegacySelect %u:%u.%u register 0x%x selection failed: %u",
+            Bus, Device, Function, (unsigned)Register, status);
+    }
 }
 
 // Sub-dword accesses select a byte lane within the 32-bit data port.
@@ -72,8 +80,14 @@ __LegacyWrite(
     _In_ size_t       value,
     _In_ size_t       width)
 {
+    oserr_t status;
+
     __LegacySelect(host, bus, slot, function, reg);
-    WriteDeviceIo(&host->IoSpace, __LEGACY_DATA_PORT(reg, width), value, width);
+    status = WriteDeviceIo(&host->IoSpace, __LEGACY_DATA_PORT(reg, width), value, width);
+    if (status != OS_EOK) {
+        ERROR("__LegacyWrite %u:%u.%u register 0x%x failed: %u",
+            bus, slot, function, (unsigned)reg, status);
+    }
 }
 
 static const struct PciHostOperations g_pciLegacyOperations = {
@@ -89,11 +103,15 @@ PciLegacyHostCreate(
 {
     PciHost_t* bus;
     oserr_t    oserr;
+    oserr_t    cleanup;
+
+    TRACE("PciLegacyHostCreate()");
 
     *hostOut = NULL;
 
     bus = (PciHost_t*)malloc(sizeof(PciHost_t));
     if (!bus) {
+        ERROR("PciLegacyHostCreate failed to allocate host");
         return OS_EOOM;
     }
 
@@ -104,15 +122,18 @@ PciLegacyHostCreate(
 
     oserr = CreateDevicePortIo(&bus->IoSpace, PCI_IO_BASE, PCI_IO_LENGTH);
     if (oserr != OS_EOK) {
-        ERROR(" > failed to initialize pci io space");
+        ERROR("PciLegacyHostCreate failed to create configuration ports: %u", oserr);
         free(bus);
         return oserr;
     }
 
     oserr = AcquireDeviceIo(&bus->IoSpace);
     if (oserr != OS_EOK) {
-        ERROR(" > failed to acquire pci io space");
-        DestroyDeviceIo(&bus->IoSpace);
+        ERROR("PciLegacyHostCreate failed to acquire configuration ports: %u", oserr);
+        cleanup = DestroyDeviceIo(&bus->IoSpace);
+        if (cleanup != OS_EOK) {
+            ERROR("PciLegacyHostCreate failed to destroy configuration ports: %u", cleanup);
+        }
         free(bus);
         return oserr;
     }

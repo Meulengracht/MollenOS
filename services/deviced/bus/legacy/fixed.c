@@ -32,7 +32,9 @@ __InstallFixedBusDevice(
     _In_ BusDevice_t* device,
     _In_ const char*  Description)
 {
-    uuid_t Id;
+    uuid_t  Id;
+    oserr_t oserr;
+    TRACE("__InstallFixedBusDevice(description=%s)", Description);
 
     device->Base.ParentId = UUID_INVALID;
     device->Base.Length   = sizeof(BusDevice_t);
@@ -42,12 +44,22 @@ __InstallFixedBusDevice(
     device->Base.Class    = 0xFF0F;
     device->Base.Subclass = 0xFF0F;
     device->Base.Identification.Description = strdup(Description);
+    if (device->Base.Identification.Description == NULL) {
+        // A missing description does not prevent registration.
+        WARNING("__InstallFixedBusDevice: failed to copy description for %s", Description);
+    }
 
     // Invalidate irqs, this must be set by fixed drivers
     device->InterruptPin         = INTERRUPT_NONE;
     device->InterruptLine        = INTERRUPT_NONE;
     device->InterruptAcpiConform = 0;
-    return DmDeviceCreate(&device->Base, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
+    oserr = DmDeviceCreate(&device->Base, DEVICE_REGISTER_FLAG_LOADDRIVER, &Id);
+    if (oserr != OS_EOK) {
+        ERROR("__InstallFixedBusDevice: registration of %s failed: %u", Description, oserr);
+        return oserr;
+    }
+    TRACE("__InstallFixedBusDevice: registered %s as device %u", Description, Id);
+    return OS_EOK;
 }
 
 oserr_t
@@ -55,9 +67,11 @@ __InstallPS2Controller(void)
 {
     BusDevice_t* device;
     oserr_t      oserr;
+    TRACE("__InstallPS2Controller()");
 
     device = malloc(sizeof(BusDevice_t));
     if (device == NULL) {
+        ERROR("__InstallPS2Controller: failed to allocate controller description");
         return OS_EOOM;
     }
     memset(device, 0, sizeof(BusDevice_t));
@@ -71,14 +85,19 @@ __InstallPS2Controller(void)
     // one byte each
     oserr = CreateDevicePortIo(&device->IoSpaces[0], 0x60, 1);
     if (oserr != OS_EOK) {
-        ERROR(" > failed to initialize ps2 data io space");
+        ERROR("__InstallPS2Controller: failed to initialize data port 0x60: %u", oserr);
         return OS_EUNKNOWN;
     }
 
     oserr = CreateDevicePortIo(&device->IoSpaces[1], 0x64, 1);
     if (oserr != OS_EOK) {
-        ERROR(" > failed to initialize ps2 command/status io space");
+        ERROR("__InstallPS2Controller: failed to initialize command/status port 0x64: %u", oserr);
         return OS_EUNKNOWN;
     }
-    return __InstallFixedBusDevice(device, "PS/2 Controller");
+    oserr = __InstallFixedBusDevice(device, "PS/2 Controller");
+    if (oserr != OS_EOK) {
+        ERROR("__InstallPS2Controller: failed to register controller: %u", oserr);
+        return oserr;
+    }
+    return OS_EOK;
 }

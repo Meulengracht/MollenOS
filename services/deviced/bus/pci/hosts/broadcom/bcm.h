@@ -145,9 +145,10 @@ BcmPciDmaAddress(
     _Out_ uint64_t*                address);
 
 /**
- * @brief Pause the calling thread to give hardware time to respond.
+ * @brief Sleep while hardware completes an operation.
  *
- * @param milliseconds Duration to sleep; this does not check hardware status.
+ * @param milliseconds Sleep duration. This does not check hardware status.
+ *                     Sleep errors are logged and do not fail the caller.
  */
 __EXTERN void
 BcmPciDelay(
@@ -207,7 +208,8 @@ BcmPciMapRegisters(
  * @param reuseCompleted Nonzero to keep an already completed result. Pi 5 ports
  *                       share calibration, so restarting it can affect another port.
  * @return OS_EOK if calibration completes, is reused, or is absent; otherwise
- *         a mapping, register-write, sleep, or timeout error.
+ *         a mapping, register-write, or timeout error. Release failures are
+ *         logged without replacing the calibration result.
  */
 __EXTERN oserr_t
 BcmPciRescal(

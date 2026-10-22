@@ -16,6 +16,9 @@
  *
  */
 
+//#define __TRACE
+
+#include <ddk/utils.h>
 #include <bus/pci/device.h>
 #include <bus/pci/config.h>
 #include <bus/pci/host-private.h>
@@ -49,14 +52,17 @@ __ValidateMsixRegion(
     DeviceIo_t* io = &device->PublishedIo[region->Bar];
 
     if (io->Type != DeviceIoMemoryBased || io->Id == UUID_INVALID) {
+        WARNING("__ValidateMsixRegion BAR%u has no published memory resource", region->Bar);
         return OS_ENOTSUPPORTED;
     }
     if (io->Access.Memory.PhysicalBase != device->Resources.Bars[region->Bar].CpuAddress) {
+        ERROR("__ValidateMsixRegion BAR%u no longer matches its published base", region->Bar);
         return OS_EINVALPARAMS;
     }
 
     if (region->Offset >= io->Access.Memory.Length ||
         region->Length > io->Access.Memory.Length - region->Offset) {
+        ERROR("__ValidateMsixRegion BAR%u region is outside the published resource", region->Bar);
         return OS_EINVALPARAMS;
     }
     return OS_EOK;
@@ -71,17 +77,25 @@ __MsixDeviceMap(
     PciDevice_t* device = context;
     oserr_t      status;
 
+    TRACE("__MsixDeviceMap(bar=%u, offset=0x%llx, length=%llu)", region->Bar,
+        (unsigned long long)region->Offset, (unsigned long long)region->Length);
+
     status = __ValidateMsixRegion(device, region);
     if (status != OS_EOK) {
         return status;
     }
 
-    return MapDeviceIo(
+    status = MapDeviceIo(
         device->PublishedIo[region->Bar].Id,
         region->Offset,
         region->Length,
         mapping
     );
+    if (status != OS_EOK) {
+        ERROR("__MsixDeviceMap MapDeviceIo failed for BAR%u: %u", region->Bar, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static oserr_t
@@ -92,9 +106,17 @@ __MsixDeviceUnmap(
 {
     uintptr_t address = (uintptr_t)mapping;
     size_t    offset = address % MemoryPageSize();
+    oserr_t   status;
 
     (void)context;
-    return MemoryFree((void*)(address - offset), length + offset);
+    TRACE("__MsixDeviceUnmap(mapping=%p, length=%llu)", mapping, (unsigned long long)length);
+
+    status = MemoryFree((void*)(address - offset), length + offset);
+    if (status != OS_EOK) {
+        ERROR("__MsixDeviceUnmap MemoryFree failed: %u", status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 static uint32_t
@@ -121,11 +143,11 @@ __MsixDeviceWriteTable(
     mb();
 }
 
-static struct PciMsixAccess
+static struct MsixDeviceOperations
 __MsixDeviceAccess(
     _In_ PciDevice_t* device)
 {
-    struct PciMsixAccess access = {
+    struct MsixDeviceOperations access = {
         .Config = {
             device,
             __MsixDeviceReadConfig,
@@ -144,9 +166,12 @@ oserr_t
 PciMsixDeviceProbe(
     _In_ PciDevice_t* device)
 {
-    struct PciMsixAccess access = __MsixDeviceAccess(device);
-    struct PciMsixLayout layout;
-    oserr_t              status;
+    struct MsixDeviceOperations access = __MsixDeviceAccess(device);
+    struct PciMsixLayout        layout;
+    oserr_t                     status;
+
+    TRACE("PciMsixDeviceProbe(%u:%u:%u.%u)", device->Host->Identification.Segment,
+        device->Bus, device->Slot, device->Function);
 
     status = PciMsixProbe(&access, &layout);
     if (status != OS_EOK) {
@@ -161,6 +186,6 @@ PciMsixDeviceControl(
     _In_ PciDevice_t*                      device,
     _In_ const struct PciInterruptRequest* request)
 {
-    struct PciMsixAccess access = __MsixDeviceAccess(device);
+    struct MsixDeviceOperations access = __MsixDeviceAccess(device);
     return PciMsixControl(&access, &device->Msix, request);
 }

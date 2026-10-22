@@ -18,6 +18,8 @@
  *
  */
 
+//#define __TRACE
+
 #include <bus/pci/enumerate.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/device.h>
@@ -51,6 +53,7 @@ __GetPciDeviceNativeHeader(
 
     nativeHeader = (PciNativeHeader_t*)malloc(sizeof(PciNativeHeader_t));
     if (!nativeHeader) {
+        ERROR("__GetPciDeviceNativeHeader allocation failed for %i:%i.%i", bus, slot, function);
         return OS_EOOM;
     }
 
@@ -76,6 +79,7 @@ PciCheckFunction(
 
     device = calloc(1, sizeof(PciDevice_t));
     if (!device) {
+        ERROR("PciCheckFunction allocation failed for %i:%i.%i", bus, slot, function);
         return OS_EOOM;
     }
 
@@ -136,6 +140,8 @@ PciCheckFunction(
     }
     
     if (device->Handler != NULL && !device->IsBridge) {
+        TRACE("PciCheckFunction attaching handler to %u:%u:%u.%u",
+            device->Host->Identification.Segment, device->Bus, device->Slot, device->Function);
         oserr = device->Handler->Attach(device, &device->Resources, &device->Attachment);
         if (oserr != OS_EOK) {
             WARNING("PCI %u:%u:%u.%u function attachment failed (%u)",
@@ -166,6 +172,7 @@ PciCheckDevice(
     uint16_t vendorId;
     uint8_t  headerType;
     int      function = 0;
+    oserr_t  status;
 
     // Validate the vendor id, it's invalid only
     // if there is no device on that location
@@ -182,7 +189,10 @@ PciCheckDevice(
     }
 
     // Check base function
-    PciCheckFunction(parent, bus, slot, function);
+    status = PciCheckFunction(parent, bus, slot, function);
+    if (status != OS_EOK) {
+        ERROR("PciCheckDevice failed to enumerate %i:%i.%i: %u", bus, slot, function, status);
+    }
 
     // Multi-function or single? 
     // If it is a multi-function device, check remaining functions
@@ -195,7 +205,11 @@ PciCheckDevice(
     if (headerType & 0x80) {
         for (function = 1; function < 8; function++) {
             if (PciReadVendorId(parent->Host, bus, slot, function) != 0xFFFF) {
-                PciCheckFunction(parent, bus, slot, function);
+                status = PciCheckFunction(parent, bus, slot, function);
+                if (status != OS_EOK) {
+                    ERROR("PciCheckDevice failed to enumerate %i:%i.%i: %u",
+                        bus, slot, function, status);
+                }
             }
         }
     }
@@ -209,18 +223,25 @@ PciCheckBus(
     int device;
 
     if (parent == NULL) {
+        WARNING("PciCheckBus missing parent for bus %i", bus);
         return;
     }
 
     if (bus < parent->Host->Identification.BusStart || bus > parent->Host->Identification.BusEnd) {
+        WARNING("PciCheckBus bus %i is outside segment %u range %u-%u", bus,
+            parent->Host->Identification.Segment, parent->Host->Identification.BusStart,
+            parent->Host->Identification.BusEnd);
         return;
     }
 
     // Each bus belongs to one path through this host. Broken bridge routing
     // and legacy root aliases must not create cycles or duplicate functions.
     if (parent->Host->ScannedBuses[bus / 8] & (1U << (bus % 8))) {
+        TRACE("PciCheckBus skipping previously scanned segment %u bus %i",
+            parent->Host->Identification.Segment, bus);
         return;
     }
+    TRACE("PciCheckBus(segment=%u, bus=%i)", parent->Host->Identification.Segment, bus);
     parent->Host->ScannedBuses[bus / 8] |= 1U << (bus % 8);
 
     // Iterate all possible 32 devices on the pci-bus
@@ -235,6 +256,8 @@ PciScanLegacyRoots(
     _In_ PciHost_t* host)
 {
     int function;
+
+    TRACE("PciScanLegacyRoots(host=%u)", host->Identification.HostId);
 
     if (!(PciReadHeaderType(host, 0, 0, 0) & 0x80)) {
         PciCheckBus(host->RootDevice, 0);

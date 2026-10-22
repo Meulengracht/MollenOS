@@ -16,6 +16,8 @@
  * 
  */
 
+//#define __TRACE
+
 #include <bus/pci/host-private.h>
 #include <bus/pci/registers.h>
 #include <bus/pci/hosts/broadcom/bcm.h>
@@ -56,8 +58,15 @@ __Bcm2712AcquireResetProvider(
 {
     struct __Bcm2712ResetProvider* provider;
     oserr_t                        status;
+    int                            lockStatus;
 
-    mtx_lock(&g_bcm2712ResetLock);
+    TRACE("__Bcm2712AcquireResetProvider(base=0x%llx, id=%u)",
+        (unsigned long long)dependencies->BridgeResetBase, dependencies->BridgeResetId);
+
+    lockStatus = mtx_lock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712AcquireResetProvider failed to lock providers: %i", lockStatus);
+    }
     foreach (element, &g_bcm2712ResetProviders) {
         provider = element->value;
         if (provider->Io.Access.Memory.PhysicalBase != dependencies->BridgeResetBase ||
@@ -65,20 +74,32 @@ __Bcm2712AcquireResetProvider(
             continue;
         }
         if (provider->References == UINT_MAX) {
-            mtx_unlock(&g_bcm2712ResetLock);
+            ERROR("__Bcm2712AcquireResetProvider reference count exhausted");
+            lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+            if (lockStatus != thrd_success) {
+                ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
+            }
             return OS_EOVERFLOW;
         }
         
         provider->References++;
         *result = provider;
         
-        mtx_unlock(&g_bcm2712ResetLock);
+        TRACE("__Bcm2712AcquireResetProvider reused mapping, references=%u", provider->References);
+        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+        if (lockStatus != thrd_success) {
+            ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
+        }
         return OS_EOK;
     }
 
     provider = calloc(1, sizeof(struct __Bcm2712ResetProvider));
     if (provider == NULL) {
-        mtx_unlock(&g_bcm2712ResetLock);
+        ERROR("__Bcm2712AcquireResetProvider allocation failed");
+        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+        if (lockStatus != thrd_success) {
+            ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
+        }
         return OS_EOOM;
     }
 
@@ -88,8 +109,12 @@ __Bcm2712AcquireResetProvider(
         dependencies->BridgeResetLength
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712AcquireResetProvider BcmPciMapRegisters failed: %u", status);
         free(provider);
-        mtx_unlock(&g_bcm2712ResetLock);
+        lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+        if (lockStatus != thrd_success) {
+            ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
+        }
         return status;
     }
 
@@ -99,7 +124,10 @@ __Bcm2712AcquireResetProvider(
 
     *result = provider;
 
-    mtx_unlock(&g_bcm2712ResetLock);
+    lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712AcquireResetProvider failed to unlock providers: %i", lockStatus);
+    }
     return OS_EOK;
 }
 
@@ -115,14 +143,31 @@ static void
 __Bcm2712ReleaseResetProvider(
     _In_ struct __Bcm2712ResetProvider* provider)
 {
-    mtx_lock(&g_bcm2712ResetLock);
+    int     lockStatus;
+    oserr_t status;
+
+    TRACE("__Bcm2712ReleaseResetProvider(provider=%p)", provider);
+
+    lockStatus = mtx_lock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712ReleaseResetProvider failed to lock providers: %i", lockStatus);
+    }
     if (--provider->References == 0) {
         list_remove(&g_bcm2712ResetProviders, &provider->Header);
-        ReleaseDeviceIo(&provider->Io);
-        DestroyDeviceIo(&provider->Io);
+        status = ReleaseDeviceIo(&provider->Io);
+        if (status != OS_EOK) {
+            ERROR("__Bcm2712ReleaseResetProvider failed to release mapping: %u", status);
+        }
+        status = DestroyDeviceIo(&provider->Io);
+        if (status != OS_EOK) {
+            ERROR("__Bcm2712ReleaseResetProvider failed to destroy mapping: %u", status);
+        }
         free(provider);
     }
-    mtx_unlock(&g_bcm2712ResetLock);
+    lockStatus = mtx_unlock(&g_bcm2712ResetLock);
+    if (lockStatus != thrd_success) {
+        ERROR("__Bcm2712ReleaseResetProvider failed to unlock providers: %i", lockStatus);
+    }
 }
 
 /**
@@ -157,12 +202,16 @@ __Bcm2712Validate(
     uint32_t                   index;
     uint32_t                   other;
 
+    TRACE("__Bcm2712Validate(segment=%u, windows=%u)",
+        firmware->Segment, firmware->DmaWindowCount);
+
     // Pi 4 uses this output for one shared size setting. Pi 5 gives each
     // address mapping its own size, so it does not use this output.
     *dmaOrder = 0;
 
     status = FdtResolvePciDependencies(firmware, &dependencies);
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Validate FdtResolvePciDependencies failed: %u", status);
         return status;
     }
 
@@ -171,6 +220,7 @@ __Bcm2712Validate(
     // register range must also include the register reporting completion.
     if (dependencies.BridgeResetController == 0 ||
         dependencies.ResetLength < BCM_PCIE_RESCAL_MIN_LENGTH) {
+        WARNING("__Bcm2712Validate requires bridge reset and resistor calibration resources");
         return OS_ENOTSUPPORTED;
     }
 
@@ -178,16 +228,19 @@ __Bcm2712Validate(
     // Checking the base first also makes the following subtraction safe.
     if (dependencies.BridgeResetBase > UINTPTR_MAX ||
         dependencies.BridgeResetLength - 1 > UINTPTR_MAX - dependencies.BridgeResetBase) {
+        WARNING("__Bcm2712Validate bridge reset range is not CPU-addressable");
         return OS_ENOTSUPPORTED;
     }
     if (dependencies.ResetBase > UINTPTR_MAX ||
         dependencies.ResetLength - 1 > UINTPTR_MAX - dependencies.ResetBase) {
+        WARNING("__Bcm2712Validate calibration range is not CPU-addressable");
         return OS_ENOTSUPPORTED;
     }
 
     // Hardware has ten address-mapping slots. At least one range is needed
     // to describe where device reads and writes can reach the system.
     if (firmware->DmaWindowCount == 0 || firmware->DmaWindowCount > BCM2712_INBOUND_COUNT) {
+        WARNING("__Bcm2712Validate requires one to ten inbound windows");
         return OS_ENOTSUPPORTED;
     }
 
@@ -195,12 +248,14 @@ __Bcm2712Validate(
     // than PCI Express generation 3 (Gen3). The connection may use one, two,
     // or four lanes, the parallel signal paths that carry data.
     if (firmware->Link.MaxSpeed > BCM_PCIE_LINK_SPEED_GEN3) {
+        WARNING("__Bcm2712Validate link speed exceeds Gen3");
         return OS_ENOTSUPPORTED;
     }
     if (firmware->Link.Lanes != 0) {
         if (firmware->Link.Lanes != BCM_PCIE_LINK_LANES_X1 &&
             firmware->Link.Lanes != BCM_PCIE_LINK_LANES_X2 &&
             firmware->Link.Lanes != BCM_PCIE_LINK_LANES_X4) {
+            WARNING("__Bcm2712Validate unsupported link lane count");
             return OS_ENOTSUPPORTED;
         }
     }
@@ -211,6 +266,7 @@ __Bcm2712Validate(
         // These address mappings support memory reads and writes. PCI I/O
         // ports use a separate address space and are not supported here.
         if (window->Space != BCM_PCIE_DT_MEMORY32 && window->Space != BCM_PCIE_DT_MEMORY64) {
+            WARNING("__Bcm2712Validate inbound window is not memory space");
             return OS_ENOTSUPPORTED;
         }
 
@@ -219,6 +275,7 @@ __Bcm2712Validate(
         if (window->Length < BCM_PCIE_INBOUND_MIN_SIZE ||
             window->Length > BCM_PCIE_INBOUND_MAX_SIZE ||
             (window->Length & (window->Length - 1))) {
+            WARNING("__Bcm2712Validate inbound window length must be a power of two from 4 KiB to 64 GiB");
             return OS_ENOTSUPPORTED;
         }
 
@@ -227,6 +284,7 @@ __Bcm2712Validate(
         // hardware does not store its lower 12 address bits.
         if ((window->BusBase & (window->Length - 1)) ||
             (window->PhysicalBase & BCM2712_INBOUND_PHYSICAL_ALIGN_MASK)) {
+            WARNING("__Bcm2712Validate inbound PCI or CPU address is misaligned");
             return OS_ENOTSUPPORTED;
         }
 
@@ -235,6 +293,7 @@ __Bcm2712Validate(
         if (window->Length - 1 > UINT64_MAX - window->BusBase ||
             window->PhysicalBase >= BCM2712_SYSTEM_ADDRESS_LIMIT ||
             window->Length > BCM2712_SYSTEM_ADDRESS_LIMIT - window->PhysicalBase) {
+            WARNING("__Bcm2712Validate inbound address range wraps or exceeds 40-bit CPU addressing");
             return OS_ENOTSUPPORTED;
         }
         for (other = 0; other < index; other++) {
@@ -244,6 +303,7 @@ __Bcm2712Validate(
             // have already passed their overflow checks, including the ends.
             if (window->BusBase <= previous->BusBase + previous->Length - 1 &&
                 previous->BusBase <= window->BusBase + window->Length - 1) {
+                WARNING("__Bcm2712Validate inbound PCI windows overlap");
                 return OS_ENOTSUPPORTED;
             }
         }
@@ -271,6 +331,8 @@ __Bcm2712BridgeReset(
     oserr_t      status;
     unsigned int attempt;
 
+    TRACE("__Bcm2712BridgeReset(id=%u, assert=%i)", controller->BridgeResetId, assert);
+
     // SET and CLEAR act on bits written as one. Write only this host's bit:
     // reading and rewriting a bank could accidentally reset another live host.
     status = WriteDeviceIo(
@@ -280,7 +342,13 @@ __Bcm2712BridgeReset(
         sizeof(uint32_t)
     );
     
-    for (attempt = 0; status == OS_EOK && attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712BridgeReset failed to write reset %u (assert=%i): %u",
+            controller->BridgeResetId, assert, status);
+        return status;
+    }
+
+    for (attempt = 0; attempt < BCM2712_REGISTER_POLL_ATTEMPTS; attempt++) {
         // Reading STATUS waits for the earlier write to reach the controller
         // and reports whether reset is active. SET/CLEAR cannot report that state.
         value = (uint32_t)ReadDeviceIo(&controller->BridgeReset->Io,
@@ -294,7 +362,9 @@ __Bcm2712BridgeReset(
         }
         BcmPciDelay(BCM2712_REGISTER_POLL_MS);
     }
-    return status == OS_EOK ? OS_EUNKNOWN : status;
+    ERROR("__Bcm2712BridgeReset reset %u did not reach assert=%i, read back 0x%x",
+        controller->BridgeResetId, assert, value);
+    return OS_EUNKNOWN;
 }
 
 /**
@@ -313,6 +383,8 @@ __Bcm2712MdioWrite(
     unsigned int attempt;
     oserr_t      status;
 
+    TRACE("__Bcm2712MdioWrite(reg=0x%x, value=0x%x)", reg, value);
+
     // Select PHY port zero, the requested register, and the write command.
     // Port zero and write both encode as zero in the address/control word.
     status = WriteDeviceIo(
@@ -322,6 +394,8 @@ __Bcm2712MdioWrite(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712MdioWrite WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM2712_MDIO_ADDRESS), status);
         return status;
     }
 
@@ -337,6 +411,8 @@ __Bcm2712MdioWrite(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712MdioWrite WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM2712_MDIO_WRITE), status);
         return status;
     }
 
@@ -349,6 +425,7 @@ __Bcm2712MdioWrite(
         }
         BcmPciDelay(BCM2712_REGISTER_POLL_MS);
     }
+    ERROR("__Bcm2712MdioWrite timed out writing PHY register 0x%x", reg);
     return OS_EUNKNOWN;
 }
 
@@ -376,10 +453,13 @@ __Bcm2712Setup(
     uint32_t     value;
     oserr_t      status;
 
+    TRACE("__Bcm2712Setup(segment=%u)", bus->Identification.Segment);
+
     // Select the PHY's clock-generation register block. Subsequent register
     // numbers refer to that block, not to the controller's CPU-visible offsets.
     status = __Bcm2712MdioWrite(bus, BCM2712_PHY_BLOCK_SELECT, BCM2712_PHY_PLL_BLOCK);
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup __Bcm2712MdioWrite failed: %u", status);
         return status;
     }
 
@@ -389,6 +469,7 @@ __Bcm2712Setup(
     for (index = 0; index < sizeof(settings) / sizeof(settings[0]); index++) {
         status = __Bcm2712MdioWrite(bus, settings[index].Register, settings[index].Value);
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Setup __Bcm2712MdioWrite failed: %u", status);
             return status;
         }
     }
@@ -403,6 +484,8 @@ __Bcm2712Setup(
         BCM2712_PHY_PM_CLOCK_54MHZ_NS
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_PHY_TIMERS), status);
         return status;
     }
 
@@ -415,6 +498,8 @@ __Bcm2712Setup(
         BCM2712_UBUS_ERROR_DISABLE_MASK
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_UBUS_CONTROL), status);
         return status;
     }
 
@@ -427,6 +512,8 @@ __Bcm2712Setup(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM2712_READ_ERROR), status);
         return status;
     }
 
@@ -439,6 +526,8 @@ __Bcm2712Setup(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM2712_UBUS_TIMEOUT), status);
         return status;
     }
 
@@ -451,6 +540,8 @@ __Bcm2712Setup(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM2712_RETRY_TIMEOUT), status);
         return status;
     }
 
@@ -464,6 +555,8 @@ __Bcm2712Setup(
         BCM2712_AXI_PRIORITY_FIXES
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_AXI_CONTROL), status);
         return status;
     }
 
@@ -476,6 +569,8 @@ __Bcm2712Setup(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Setup BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_MISC_CONTROL1), status);
         return status;
     }
 
@@ -513,13 +608,17 @@ __Bcm2712Prepare(
     oserr_t                   status;
     uint32_t                  value;
 
+    TRACE("__Bcm2712Prepare(segment=%u)", firmware->Segment);
+
     status = FdtResolvePciDependencies(firmware, &dependencies);
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare FdtResolvePciDependencies failed: %u", status);
         return status;
     }
 
     status = __Bcm2712AcquireResetProvider(&dependencies, &controller->BridgeReset);
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare __Bcm2712AcquireResetProvider failed: %u", status);
         return status;
     }
     
@@ -528,24 +627,32 @@ __Bcm2712Prepare(
 
     // The resistor-calibration block cannot be used with the bridge held in
     // reset. The reset helper checks completion and includes a settling delay.
-    if (__Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED) != OS_EOK) {
+    status = __Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare failed to release reset before calibration: %u", status);
         return OS_EUNKNOWN;
     }
 
     // Pi 5 hosts share calibration. Reuse an already-completed result so
     // initializing this host does not disturb another host that is already in use.
-    if (BcmPciRescal(&dependencies, 1) != OS_EOK) {
+    status = BcmPciRescal(&dependencies, 1);
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare calibration failed: %u", status);
         return OS_EUNKNOWN;
     }
 
     // Reset this bridge's internal state after calibration, leaving the
     // shared calibration result intact. The helper waits until reset is active.
-    if (__Bcm2712BridgeReset(controller, BCM2712_RESET_ASSERTED) != OS_EOK) {
+    status = __Bcm2712BridgeReset(controller, BCM2712_RESET_ASSERTED);
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare failed to assert bridge reset: %u", status);
         return OS_EUNKNOWN;
     }
 
     // Bring the bridge back so its own configuration registers can be used.
-    if (__Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED) != OS_EOK) {
+    status = __Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare failed to release bridge reset after calibration: %u", status);
         return OS_EUNKNOWN;
     }
 
@@ -558,6 +665,8 @@ __Bcm2712Prepare(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_PCIE_CONTROL), status);
         return status;
     }
 
@@ -570,6 +679,8 @@ __Bcm2712Prepare(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_HARD_DEBUG), status);
         return status;
     }
 
@@ -585,6 +696,8 @@ __Bcm2712Prepare(
         BCM2712_MISC_BURST_512_BYTES | BCM_PCIE_MISC_MEMORY_ENABLES
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_MISC_CONTROL), status);
         return status;
     }
 
@@ -597,6 +710,8 @@ __Bcm2712Prepare(
         BCM_PCIE_VENDOR_BAR2_LITTLE_ENDIAN
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Prepare BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_VENDOR_CONTROL), status);
         return status;
     }
 
@@ -608,6 +723,7 @@ __Bcm2712Prepare(
         sizeof(uint32_t)
     );
     if (value == BCM_PCIE_READ_FAILED || !(value & BCM_PCIE_STATUS_ROOT_PORT)) {
+        ERROR("__Bcm2712Prepare invalid root-port status 0x%x", value);
         return OS_ENOTSUPPORTED;
     }
     return __Bcm2712Setup(bus);
@@ -656,6 +772,9 @@ __Bcm2712Inbound(
     size_t                     remap;
     oserr_t                    status;
 
+    TRACE("__Bcm2712Inbound(segment=%u, windows=%u)",
+        firmware->Segment, firmware->DmaWindowCount);
+
     // Pi 4 uses this shared size parameter; Pi 5 sets a size for each mapping.
     (void)dmaOrder;
     for (index = 0; index < BCM2712_INBOUND_COUNT; index++) {
@@ -671,6 +790,8 @@ __Bcm2712Inbound(
             sizeof(uint32_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(bar), status);
             return status;
         }
 
@@ -683,6 +804,8 @@ __Bcm2712Inbound(
             sizeof(uint32_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(remap), status);
             return status;
         }
     }
@@ -697,6 +820,8 @@ __Bcm2712Inbound(
         sizeof(uint32_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_MSI_BAR), status);
         return status;
     }
 
@@ -727,6 +852,8 @@ __Bcm2712Inbound(
             sizeof(uint32_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(bar + BCM_PCIE_REGISTER_HIGH_OFFSET), status);
             return status;
         }
 
@@ -739,6 +866,8 @@ __Bcm2712Inbound(
             sizeof(uint32_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(remap + BCM_PCIE_REGISTER_HIGH_OFFSET), status);
             return status;
         }
 
@@ -751,6 +880,8 @@ __Bcm2712Inbound(
             sizeof(uint32_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(remap), status);
             return status;
         }
 
@@ -764,6 +895,8 @@ __Bcm2712Inbound(
             sizeof(uint32_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Inbound WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(bar), status);
             return status;
         }
     }
@@ -788,6 +921,9 @@ __Bcm2712Start(
     uint16_t linkControl;
     oserr_t  status;
 
+    TRACE("__Bcm2712Start(segment=%u, speed=%u, lanes=%u)",
+        firmware->Segment, firmware->Link.MaxSpeed, firmware->Link.Lanes);
+
     if (firmware->Link.MaxSpeed != 0) {
         // Report the maximum speed set by firmware, so later code cannot
         // request a faster connection than the board supports.
@@ -798,6 +934,8 @@ __Bcm2712Start(
             firmware->Link.MaxSpeed
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+                (unsigned)(BCM_PCIE_LINK_CAPABILITY), status);
             return status;
         }
 
@@ -814,6 +952,8 @@ __Bcm2712Start(
             sizeof(uint16_t)
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Start WriteDeviceIo register 0x%x failed: %u",
+                (unsigned)(BCM_PCIE_LINK_CONTROL2), status);
             return status;
         }
     }
@@ -828,6 +968,8 @@ __Bcm2712Start(
             firmware->Link.Lanes << BCM_PCIE_LINK_CAP_WIDTH_SHIFT
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+                (unsigned)(BCM_PCIE_LINK_CAPABILITY), status);
             return status;
         }
 
@@ -841,6 +983,8 @@ __Bcm2712Start(
             BCM2712_PHY_P2_POWERDOWN_ENABLE
         );
         if (status != OS_EOK) {
+            ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+                (unsigned)(BCM2712_PHY_CONTROL), status);
             return status;
         }
     }
@@ -861,6 +1005,8 @@ __Bcm2712Start(
         BCM_PCIE_CLASS_CODE_BRIDGE
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_CLASS_CODE), status);
         return status;
     }
 
@@ -873,6 +1019,8 @@ __Bcm2712Start(
         BCM_PCIE_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_LINK_CAPABILITY), status);
         return status;
     }
 
@@ -885,6 +1033,8 @@ __Bcm2712Start(
         BCM2712_ROOT_CAP_L1SS_DISABLED
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_ROOT_CAPABILITY), status);
         return status;
     }
 
@@ -902,6 +1052,8 @@ __Bcm2712Start(
         sizeof(uint16_t)
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start WriteDeviceIo register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_LINK_CONTROL), status);
         return status;
     }
 
@@ -914,6 +1066,8 @@ __Bcm2712Start(
         BCM2712_DEBUG_CLOCK_ALWAYS_ON
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_HARD_DEBUG), status);
         return status;
     }
 
@@ -926,6 +1080,8 @@ __Bcm2712Start(
         buses
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM_PCIE_BUS_NUMBERS), status);
         return status;
     }
 
@@ -937,6 +1093,8 @@ __Bcm2712Start(
         BCM2712_PERST_RELEASE
     );
     if (status != OS_EOK) {
+        ERROR("__Bcm2712Start BcmPciUpdate register 0x%x failed: %u",
+            (unsigned)(BCM2712_PCIE_CONTROL), status);
         return status;
     }
 
@@ -960,6 +1118,9 @@ __Bcm2712Stop(
     _In_ PciHost_t* bus)
 {
     struct BcmPciHost* controller = bus->OpContext;
+    oserr_t            status;
+
+    TRACE("__Bcm2712Stop(segment=%u)", bus->Identification.Segment);
 
     if (!controller->BridgeResetMapped) {
         return;
@@ -967,12 +1128,18 @@ __Bcm2712Stop(
 
     // Clear the release bit to keep the device from using incomplete address
     // mappings. Attempt shutdown even though this callback cannot report errors.
-    (void)BcmPciUpdate(bus, BCM2712_PCIE_CONTROL,
+    status = BcmPciUpdate(bus, BCM2712_PCIE_CONTROL,
             BCM2712_PERST_RELEASE, BCM_PCIE_DISABLED);
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712Stop failed to hold the device in reset: %u", status);
+    }
 
     // Let the host controller run even if Prepare failed while it was in reset.
     // Keeping it in reset could disturb calibration shared with another host.
-    (void)__Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
+    status = __Bcm2712BridgeReset(controller, BCM2712_RESET_RELEASED);
+    if (status != OS_EOK) {
+        ERROR("__Bcm2712Stop failed to release bridge reset: %u", status);
+    }
 
     __Bcm2712ReleaseResetProvider(controller->BridgeReset);
     controller->BridgeReset = NULL;

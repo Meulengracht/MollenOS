@@ -22,6 +22,9 @@
  *   available in the system
  */
 
+//#define __TRACE
+
+#include <ddk/utils.h>
 #include <bus/pci/bars.h>
 #include <bus/pci/host-private.h>
 #include <bus/pci/config.h>
@@ -91,6 +94,8 @@ PciDescribeBar(
         // Translate the bus address to a CPU address
         oserr = host->Operations->Translate(host, space, address, size, &bar->CpuAddress);
         if (oserr != OS_EOK) {
+            TRACE("PciDescribeBar translation failed for space %u at 0x%llx+0x%llx: %u",
+                space, (unsigned long long)address, (unsigned long long)size, oserr);
             bar->CpuAddress = 0;
             bar->State = PciBarOutsideWindow;
             return;
@@ -113,9 +118,11 @@ PciProbeBars(
     _Out_ struct PciBar*    bars)
 {
     // Buses have 2 io spaces, devices have 6
-    int count = (headerType & 0x1) == 0x1 ? 2 : 6;
-    int i;
+    int      count = (headerType & 0x1) == 0x1 ? 2 : 6;
     uint16_t command;
+
+    TRACE("PciProbeBars(%u:%u:%u.%u, header=0x%x)", bus->Identification.Segment,
+        device->Bus, device->Slot, device->Function, headerType);
 
     memset(bars, 0, sizeof(struct PciBar) * 6);
 
@@ -126,7 +133,7 @@ PciProbeBars(
         command & ~(PCI_COMMAND_MMIO | PCI_COMMAND_PORTIO));
 
     // Probe each BAR while decoding is disabled.
-    for (i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++) {
         uint32_t space32, size32, mask32;
         uint64_t space64, size64, mask64;
         int      barIndex = i;
@@ -200,8 +207,7 @@ PciProbeBars(
             size64  |= ((uint64_t)size32 << 32);
             // Correct the size and validate
             size64 = PciValidateBarSize(space64, size64, mask64);
-        }
-        else {
+        } else {
             memorySpace = 2;
             space64 = space32 & 0xFFFFFFF0;
             size64  = size32 & 0xFFFFFFF0;
@@ -210,8 +216,20 @@ PciProbeBars(
             // Correct the size and validate
             size64 = PciValidateBarSize(space64, size64, mask64);
         }
-        PciDescribeBar(bus, memorySpace ? memorySpace : 1, attributes,
-            space64, size64, &bars[barIndex]);
+        
+        PciDescribeBar(
+            bus,
+            memorySpace ? memorySpace : 1,
+            attributes,
+            space64,
+            size64,
+            &bars[barIndex]
+        );
+        TRACE("PciProbeBars BAR%u space=%u bus=0x%llx cpu=0x%llx size=0x%llx state=%u",
+            (unsigned)barIndex, bars[barIndex].Space, (unsigned long long)space64,
+            (unsigned long long)bars[barIndex].CpuAddress, (unsigned long long)size64,
+            bars[barIndex].State);
     }
+
     PciWrite16(bus, device->Bus, device->Slot, device->Function, 0x04, command);
 }

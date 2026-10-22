@@ -18,6 +18,8 @@
  * 
  */
 
+//#define __TRACE
+
 #include <bus/rp1/rp1.h>
 #include <bus/rp1/dma.h>
 #include <bus/pci/device.h>
@@ -40,11 +42,14 @@ __Rp1ProviderRetain(
     // Retain the PCI owner first so its host, attachment and firmware survive
     // every child reference. Unattached firmware inventories cannot be providers.
     if (bus->Parent == NULL) {
+        WARNING("__Rp1ProviderRetain: child %u has no PCI owner", child->Firmware.NodeOffset);
         return OS_ENOTSUPPORTED;
     }
 
     status = PciDeviceRetain(bus->Parent);
     if (status != OS_EOK) {
+        WARNING("__Rp1ProviderRetain: child %u parent retention failed (%u)",
+            child->Firmware.NodeOffset, status);
         return status;
     }
 
@@ -77,6 +82,7 @@ __Rp1ProviderPrepareDma(
     struct PciDmaDescription configured;
     oserr_t                  status;
 
+    TRACE("__Rp1ProviderPrepareDma(child=%u)", child->Firmware.NodeOffset);
     // Follow this child's retained PCI owner so the result describes configured
     // hardware, rather than firmware's requested map or a different RP1 device.
     status = Rp1GetDmaDescription(
@@ -85,15 +91,19 @@ __Rp1ProviderPrepareDma(
         &configured
     );
     if (status != OS_EOK) {
+        WARNING("__Rp1ProviderPrepareDma: child %u DMA description unavailable (%u)",
+            child->Firmware.NodeOffset, status);
         return status;
     }
 
     // A later resource owner needs a registered host and a known cache policy.
     // Neither an anonymous host nor unknown cache behavior can support that use.
     if (configured.Host.HostId == UUID_INVALID) {
+        WARNING("__Rp1ProviderPrepareDma: child %u host is not registered", child->Firmware.NodeOffset);
         return OS_EBUSY;
     }
     if (configured.CachePolicy == DmDmaCacheUnknown) {
+        WARNING("__Rp1ProviderPrepareDma: child %u cache policy is unknown", child->Firmware.NodeOffset);
         return OS_ENOTSUPPORTED;
     }
 
@@ -120,18 +130,22 @@ __Rp1PublishChild(
     PlatformDevice_t*           device;
     const struct FdtRp1Device*  firmware = &child->Firmware;
     oserr_t                     status;
+    unsigned int                i;
 
+    TRACE("__Rp1PublishChild(node=%u)", firmware->NodeOffset);
     // The destination arrays have fixed limits. Reject descriptions that do
     // not fit, so hardware names, register ranges, and interrupts are not lost.
     if (firmware->CompatibleLength > PLATFORM_DEVICE_MAX_COMPATIBLES ||
         firmware->RegisterCount > PLATFORM_DEVICE_MAX_REGISTERS ||
         firmware->InterruptCount > PLATFORM_DEVICE_MAX_INTERRUPTS) {
+        WARNING("__Rp1PublishChild: node %u exceeds platform resource capacity", firmware->NodeOffset);
         return OS_ENOTSUPPORTED;
     }
     
     // The device manager needs its own record, separate from our list of RP1 devices.
     device = calloc(1, sizeof(*device));
     if (device == NULL) {
+        ERROR("__Rp1PublishChild: node %u device allocation failed", firmware->NodeOffset);
         return OS_EOOM;
     }
     device->Base.Length = sizeof(*device);
@@ -141,6 +155,7 @@ __Rp1PublishChild(
     // memory so this name remains available if the firmware mapping is released.
     device->Base.Identification.Description = strdup(firmware->Name);
     if (device->Base.Identification.Description == NULL) {
+        ERROR("__Rp1PublishChild: node %u description allocation failed", firmware->NodeOffset);
         free(device);
         return OS_EOOM;
     }
@@ -156,13 +171,13 @@ __Rp1PublishChild(
     memcpy(device->Compatibles, firmware->Compatible, firmware->CompatibleLength);
     device->RegisterCount = firmware->RegisterCount;
     
-    for (unsigned int i = 0; i < firmware->RegisterCount; i++) {
+    for (i = 0; i < firmware->RegisterCount; i++) {
         device->Registers[i].Base = firmware->Registers[i].Base;
         device->Registers[i].Length = firmware->Registers[i].Length;
     }
     
     device->InterruptCount = firmware->InterruptCount;
-    for (unsigned int i = 0; i < firmware->InterruptCount; i++) {
+    for (i = 0; i < firmware->InterruptCount; i++) {
         device->Interrupts[i].Controller = firmware->Interrupts[i].Controller;
         device->Interrupts[i].Number = firmware->Interrupts[i].Number;
         device->Interrupts[i].Type = firmware->Interrupts[i].Type;
@@ -177,11 +192,14 @@ __Rp1PublishChild(
     
     status = DmPublicationAdd(group, &registration, 1, &child->DeviceId);
     if (status != OS_EOK) {
+        WARNING("__Rp1PublishChild: node %u registration failed (%u)", firmware->NodeOffset, status);
         // The device manager did not accept the record, so free it and its name.
         free(device->Base.Identification.Description);
         free(device);
+        return status;
     }
-    return status;
+    TRACE("__Rp1PublishChild: node %u published with activation pending", firmware->NodeOffset);
+    return OS_EOK;
 }
 
 oserr_t
@@ -193,14 +211,17 @@ Rp1BusPublish(
     struct Rp1Child* child;
     oserr_t          status;
 
+    TRACE("Rp1BusPublish(bus=%p)", bus);
     // Register the RP1 PCI device first so each child can refer to its device ID.
     if (endpoint->DeviceId == UUID_INVALID) {
+        WARNING("Rp1BusPublish: parent endpoint is not registered");
         return OS_EINVALPARAMS;
     }
     
     // Only the endpoint that created this attachment can publish its providers.
     // Reparenting would make retained references protect the wrong PCI device.
     if (bus->Parent != endpoint) {
+        WARNING("Rp1BusPublish: endpoint does not own this RP1 attachment");
         return OS_EINVALPARAMS;
     }
 
@@ -209,6 +230,7 @@ Rp1BusPublish(
         // The registration group tracks entries already added, so the PCI code
         // can remove them all on failure before any drivers have started.
         if (status != OS_EOK) {
+            WARNING("Rp1BusPublish: stopped at child %u (%u)", child->Firmware.NodeOffset, status);
             return status;
         }
     }

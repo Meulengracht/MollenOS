@@ -34,36 +34,46 @@ extern oserr_t DmHandleIoctl(uuid_t, enum OSIOCtlRequest, void*, size_t);
 extern oserr_t DmHandleIoctl2(uuid_t device_id, int direction, unsigned int command, size_t value, unsigned int width, size_t*);
 extern void DmHandleRegisterProtocol(uuid_t deviceID, const char* protocolName, uint8_t protocolID);
 
-void sys_device_notify_invocation(struct gracht_message* message,
-                                  const uuid_t driverId, const uuid_t driverHandle)
+void
+sys_device_notify_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           driverId,
+    _In_ const uuid_t           driverHandle)
 {
-    TRACE("sys_device_notify_invocation()");
+    TRACE("sys_device_notify_invocation(driver=%u, handle=%u)", driverId, driverHandle);
     DmHandleNotify(driverId, driverHandle);
 }
 
-void sys_device_register_invocation(
-        struct gracht_message* message, const struct sys_device* sysDevice, const unsigned int flags)
+void
+sys_device_register_invocation(
+    _In_ struct gracht_message*   message,
+    _In_ const struct sys_device* sysDevice,
+    _In_ const unsigned int       flags)
 {
     Device_t* device;
     uuid_t    result = UUID_INVALID;
     oserr_t   status;
-    TRACE("sys_device_register_invocation()");
+    int       responseStatus;
+    TRACE("sys_device_register_invocation(type=%i, flags=0x%x)", sysDevice->content_type, flags);
 
     // Firmware platform identities are published by the bus, not supplied by
     // arbitrary driver registrations claiming another controller's resources.
     if (sysDevice->content_type == SYS_DEVICE_CONTENT_PLATFORM) {
+        WARNING("sys_device_register_invocation: rejecting driver-supplied platform identity");
         status = OS_ENOTSUPPORTED;
         goto respond;
     }
 
     device = from_sys_device(sysDevice);
     if (device == NULL) {
+        WARNING("sys_device_register_invocation: failed to convert device description");
         status = OS_EINVALPARAMS;
         goto respond;
     }
 
     status = DmDeviceCreate(device, flags, &result);
     if (status != OS_EOK) {
+        WARNING("sys_device_register_invocation: device registration failed: %u", status);
         // Registration takes ownership only on success.
         free(device->Identification.Description);
         free(device->Identification.Manufacturer);
@@ -74,66 +84,120 @@ void sys_device_register_invocation(
     }
 
 respond:
-    sys_device_register_response(message, status, result);
+    responseStatus = sys_device_register_response(message, status, result);
+    if (responseStatus != 0) {
+        WARNING("sys_device_register_invocation: response for device %u failed: %i",
+                result, responseStatus);
+    }
 }
 
-void sys_device_unregister_invocation(struct gracht_message* message, const uuid_t deviceId)
+void
+sys_device_unregister_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId)
 {
-    TRACE("sys_device_unregister_invocation()");
-    sys_device_unregister_response(message, OS_ENOTSUPPORTED);
+    int status;
+    TRACE("sys_device_unregister_invocation(device=%u): unsupported", deviceId);
+
+    status = sys_device_unregister_response(message, OS_ENOTSUPPORTED);
+    if (status != 0) {
+        WARNING("sys_device_unregister_invocation: response for device %u failed: %i", deviceId, status);
+    }
 }
 
-void sys_device_ioctl_invocation(
-        struct gracht_message* message,
-        const uuid_t           deviceId,
-        const unsigned int     request,
-        const uint8_t*         data,
-        const uint32_t         data_count)
+void
+sys_device_ioctl_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId,
+    _In_ const unsigned int     request,
+    _In_ const uint8_t*         data,
+    _In_ const uint32_t         data_count)
 {
-    TRACE("sys_device_ioctl_invocation()");
+    oserr_t oserr;
+    int     status;
+    TRACE("sys_device_ioctl_invocation(device=%u, request=0x%x, length=%u)",
+          deviceId, request, data_count);
 
     // assert maximum request size
     if (request & __IOCTL_IN) {
         uint8_t out[data_count];
-        oserr_t oserr = DmHandleIoctl(
+        oserr = DmHandleIoctl(
                 deviceId,
                 (enum OSIOCtlRequest)request,
                 &out[0],
                 data_count
         );
-        sys_device_ioctl_response(message, &out[0], data_count, oserr);
+        if (oserr != OS_EOK) {
+            WARNING("sys_device_ioctl_invocation: device %u input request 0x%x failed: %u",
+                    deviceId, request, oserr);
+        }
+        status = sys_device_ioctl_response(message, &out[0], data_count, oserr);
+        if (status != 0) {
+            WARNING("sys_device_ioctl_invocation: input response for device %u failed: %i",
+                    deviceId, status);
+        }
     } else {
-        oserr_t oserr = DmHandleIoctl(
+        oserr = DmHandleIoctl(
                 deviceId,
                 (enum OSIOCtlRequest)request,
                 (void*)&data[0],
                 data_count
         );
-        sys_device_ioctl_response(message, NULL, 0, oserr);
+        if (oserr != OS_EOK) {
+            WARNING("sys_device_ioctl_invocation: device %u output request 0x%x failed: %u",
+                    deviceId, request, oserr);
+        }
+        status = sys_device_ioctl_response(message, NULL, 0, oserr);
+        if (status != 0) {
+            WARNING("sys_device_ioctl_invocation: output response for device %u failed: %i",
+                    deviceId, status);
+        }
     }
 }
 
-void sys_device_ioctlex_invocation(struct gracht_message* message, const uuid_t deviceId,
-                                   const int direction, const unsigned int command,
-                                   const size_t value, const unsigned int width)
+void
+sys_device_ioctlex_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uuid_t           deviceId,
+    _In_ const int              direction,
+    _In_ const unsigned int     command,
+    _In_ const size_t           value,
+    _In_ const unsigned int     width)
 {
-    TRACE("sys_device_ioctlex_invocation()");
     size_t  result;
-    oserr_t oserr = DmHandleIoctl2(deviceId, direction, command, value, width, &result);
-    sys_device_ioctlex_response(message, oserr, result);
+    oserr_t oserr;
+    int     status;
+    TRACE("sys_device_ioctlex_invocation(device=%u, direction=%i, command=0x%x, width=%u)",
+          deviceId, direction, command, width);
+
+    oserr = DmHandleIoctl2(deviceId, direction, command, value, width, &result);
+    if (oserr != OS_EOK) {
+        WARNING("sys_device_ioctlex_invocation: device %u command 0x%x failed: %u",
+                deviceId, command, oserr);
+    }
+    status = sys_device_ioctlex_response(message, oserr, result);
+    if (status != 0) {
+        WARNING("sys_device_ioctlex_invocation: response for device %u failed: %i", deviceId, status);
+    }
 }
 
-void sys_device_get_devices_by_protocol_invocation(struct gracht_message* message, const uint8_t protocolId)
+void
+sys_device_get_devices_by_protocol_invocation(
+    _In_ struct gracht_message* message,
+    _In_ const uint8_t          protocolId)
 {
-    TRACE("sys_device_get_devices_by_protocol_invocation()");
+    TRACE("sys_device_get_devices_by_protocol_invocation(protocol=%u)", protocolId);
     DmHandleGetDevicesByProtocol(message, protocolId);
 }
 
-void ctt_driver_event_device_protocol_invocation(gracht_client_t* client,
-                                                 const uuid_t deviceId,
-                                                 const char* protocolName,
-                                                 const uint8_t protocolId)
+void
+ctt_driver_event_device_protocol_invocation(
+    _In_ gracht_client_t* client,
+    _In_ const uuid_t     deviceId,
+    _In_ const char*      protocolName,
+    _In_ const uint8_t    protocolId)
 {
-    TRACE("ctt_driver_event_device_protocol_invocation()");
+    TRACE("ctt_driver_event_device_protocol_invocation(device=%u, protocol=%u, name=%s)",
+          deviceId, protocolId, protocolName);
     DmHandleRegisterProtocol(deviceId, protocolName, protocolId);
 }

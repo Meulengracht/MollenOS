@@ -20,30 +20,43 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <assert.h>
 #include <bus/pci/discovery.h>
 #include "devices.h"
 #include "discover.h"
 #include <ddk/service.h>
+#include <ddk/utils.h>
 #include <gracht/link/vali.h>
 #include <internal/_utils.h>
 
 #include <sys_device_service_server.h>
 #include <ctt_driver_service_client.h>
 
-void ServiceInitialize(
-        _In_ struct ServiceStartupOptions* startupOptions)
+void
+ServiceInitialize(
+    _In_ struct ServiceStartupOptions* startupOptions)
 {
+    int status;
+    TRACE("ServiceInitialize()");
+
     // Register supported interfaces
-    gracht_server_register_protocol(startupOptions->Server, &sys_device_server_protocol);
+    status = gracht_server_register_protocol(startupOptions->Server, &sys_device_server_protocol);
+    if (status != 0) {
+        ERROR("ServiceInitialize: device service protocol registration failed: %i", status);
+    }
 
     // Register the client control protocol
-    gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);
+    status = gracht_client_register_protocol(GetGrachtClient(), &ctt_driver_client_protocol);
+    if (status != 0) {
+        ERROR("ServiceInitialize: driver client protocol registration failed: %i", status);
+    }
 
     // Initialize the subsystems
     DmDevicesInitialize();
     DmDiscoverInitialize();
+    
+    TRACE("ServiceInitialize: enumerating buses");
     BusEnumerate();
 }

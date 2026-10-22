@@ -18,6 +18,9 @@
  *
  */
 
+//#define __TRACE
+
+#include <ddk/utils.h>
 #include <bus/pci/hosts/ecam.h>
 #include <bus/pci/host-private.h>
 #include <firmware/pci.h>
@@ -65,12 +68,18 @@ __EcamWrite(
     _In_ size_t       value,
     _In_ size_t       width)
 {
-    WriteDeviceIo(
+    oserr_t status;
+
+    status = WriteDeviceIo(
         &host->IoSpace,
         __EcamOffset(host, bus, slot, function, reg),
         value,
         width
     );
+    if (status != OS_EOK) {
+        ERROR("__EcamWrite %u:%u:%u.%u register 0x%x failed: %u",
+            host->Identification.Segment, bus, slot, function, (unsigned)reg, status);
+    }
 }
 
 static oserr_t
@@ -123,7 +132,6 @@ static const struct PciHostOperations g_pciDtEcamOperations = {
     .ResolveInterrupt = __DtResolveInterrupt
 };
 
-
 oserr_t
 PciEcamHostCreate(
     _In_  const struct PciEcamHostConfiguration* configuration,
@@ -133,34 +141,47 @@ PciEcamHostCreate(
     size_t     length;
     uint64_t   base = configuration->Base;
     oserr_t    status;
+    oserr_t    cleanup;
+
+    TRACE("PciEcamHostCreate(segment=%u, buses=%u-%u, base=0x%llx)",
+        configuration->Identification.Segment, configuration->Identification.BusStart,
+        configuration->Identification.BusEnd, (unsigned long long)base);
 
     *hostOut = NULL;
     if (configuration->Identification.HostId != UUID_INVALID ||
         configuration->Identification.BusStart > configuration->Identification.BusEnd) {
+        ERROR("PciEcamHostCreate invalid host identity or bus range");
         return OS_EINVALPARAMS;
     }
 
     length = ((size_t)configuration->Identification.BusEnd -
         configuration->Identification.BusStart + 1) << 20;
     if (base > UINTPTR_MAX || length - 1 > UINTPTR_MAX - (uintptr_t)base) {
+        ERROR("PciEcamHostCreate ECAM range exceeds CPU address space");
         return OS_EOVERFLOW;
     }
 
     host = calloc(1, sizeof(*host) +
         (configuration->Firmware != NULL ? sizeof(struct FdtPciHost) : 0));
     if (host == NULL) {
+        ERROR("PciEcamHostCreate failed to allocate host");
         return OS_EOOM;
     }
 
     status = CreateDeviceMemoryIo(&host->IoSpace, (uintptr_t)base, length);
     if (status != OS_EOK) {
+        ERROR("PciEcamHostCreate failed to create ECAM I/O: %u", status);
         free(host);
         return status;
     }
 
     status = AcquireDeviceIo(&host->IoSpace);
     if (status != OS_EOK) {
-        DestroyDeviceIo(&host->IoSpace);
+        ERROR("PciEcamHostCreate failed to acquire ECAM I/O: %u", status);
+        cleanup = DestroyDeviceIo(&host->IoSpace);
+        if (cleanup != OS_EOK) {
+            ERROR("PciEcamHostCreate failed to destroy ECAM I/O: %u", cleanup);
+        }
         free(host);
         return status;
     }

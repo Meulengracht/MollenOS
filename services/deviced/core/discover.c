@@ -19,7 +19,7 @@
  *   Keeps track of devices, their loaded drivers and bus management.
  */
 
-#define __TRACE
+//#define __TRACE
 
 #include <discover.h>
 #include <devices.h>
@@ -63,6 +63,9 @@ static uuid_t            g_driverId = 1;
 void
 DmDiscoverInitialize(void)
 {
+    uuid_t jobId;
+    TRACE("DmDiscoverInitialize()");
+
     // Initialize all our dependencies first before we start discovering drivers
     usched_mtx_init(&g_driversLock, USCHED_MUTEX_PLAIN);
 
@@ -70,8 +73,14 @@ DmDiscoverInitialize(void)
     // context, so we spawn a job to do this. After discovering drivers, we want to do
     // a refresh of drivers for devices. This ensures that we don't have to enumerate
     // devices and drivers in a certain order
-    usched_job_queue((usched_task_fn)DmRamdiskDiscover, NULL);
-    usched_job_queue((usched_task_fn)DmDeviceRefreshDrivers, NULL);
+    jobId = usched_job_queue((usched_task_fn)DmRamdiskDiscover, NULL);
+    if (jobId == UUID_INVALID) {
+        ERROR("DmDiscoverInitialize: failed to queue ramdisk discovery");
+    }
+    jobId = usched_job_queue((usched_task_fn)DmDeviceRefreshDrivers, NULL);
+    if (jobId == UUID_INVALID) {
+        ERROR("DmDiscoverInitialize: failed to queue driver refresh");
+    }
 }
 
 static void
@@ -95,6 +104,7 @@ DmDiscoverAddDriver(
 
     driver = malloc(sizeof(struct DmDriver));
     if (!driver) {
+        ERROR("DmDiscoverAddDriver: failed to allocate driver %ms", driverPath);
         return OS_EOOM;
     }
     memset(driver, 0, sizeof(struct DmDriver));
@@ -109,12 +119,14 @@ DmDiscoverAddDriver(
 
     driver->path = mstr_clone(driverPath);
     if (!driver->path) {
+        ERROR("DmDiscoverAddDriver: failed to copy path %ms", driverPath);
         __DestroyDriver(driver);
         return OS_EOOM;
     }
 
     usched_mtx_lock(&g_driversLock);
     list_append(&g_drivers, &driver->list_header);
+    TRACE("DmDiscoverAddDriver: added driver %u at %ms", driver->id, driver->path);
     usched_mtx_unlock(&g_driversLock);
     return OS_EOK;
 }
@@ -124,6 +136,7 @@ DmDiscoverRemoveDriver(
     _In_ mstring_t* driverPath)
 {
     oserr_t osStatus = OS_ENOENT;
+    TRACE("DmDiscoverRemoveDriver(path=%ms)", driverPath);
 
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
@@ -131,8 +144,11 @@ DmDiscoverRemoveDriver(
         if (!mstr_cmp(driver->path, driverPath)) {
             // we do not remove the driver if the driver is already loading/loaded
             if (driver->state == DmDriverState_NOTLOADED) {
+                TRACE("DmDiscoverRemoveDriver: removing unloaded driver %u", driver->id);
                 list_remove(&g_drivers, &driver->list_header);
                 __DestroyDriver(driver);
+            } else {
+                TRACE("DmDiscoverRemoveDriver: keeping driver %u in state %i", driver->id, driver->state);
             }
 
             osStatus =  OS_EOK;
@@ -156,6 +172,7 @@ __SpawnDriver(
 
     driverPath = mstr_u8(driver->path);
     if (driverPath == NULL) {
+        ERROR("__SpawnDriver: failed to encode path for driver %u", driver->id);
         return OS_EOOM;
     }
 
@@ -163,6 +180,7 @@ __SpawnDriver(
 
     options = OSProcessOptionsNew();
     if (options == NULL) {
+        ERROR("__SpawnDriver: failed to allocate options for driver %u", driver->id);
         free(driverPath);
         return OS_EOOM;
     }
@@ -172,16 +190,19 @@ __SpawnDriver(
     
     TRACE("__SpawnDriver: requested capabilities=0x%x", driver->configuration->Capabilities);
     osStatus = OSProcessSpawnOpts(driverPath, options, &handle);
-    OSProcessOptionsDelete(options);
-    free(driverPath);
     if (osStatus != OS_EOK) {
-        ERROR("__SpawnDriver: process creation failed (%i), capabilities=0x%x",
-              osStatus, driver->configuration->Capabilities);
+        ERROR("__SpawnDriver: driver %u (%s) process creation failed (%i), capabilities=0x%x",
+              driver->id, driverPath, osStatus, driver->configuration->Capabilities);
+        OSProcessOptionsDelete(options);
+        free(driverPath);
         return osStatus;
     }
+    OSProcessOptionsDelete(options);
+    free(driverPath);
 
     // update driver state
     driver->state = DmDriverState_LOADING;
+    TRACE("__SpawnDriver: driver %u is loading with handle %u", driver->id, handle);
 
     return OS_EOK;
 }
@@ -192,10 +213,12 @@ __RegisterDeviceForDriver(
     _In_ uuid_t           deviceId)
 {
     struct DMDevice* device;
-    TRACE("__RegisterDeviceForDriver()");
+    TRACE("__RegisterDeviceForDriver(driver=%u, device=%u)", driver->id, deviceId);
 
     device = malloc(sizeof(struct DMDevice));
     if (!device) {
+        ERROR("__RegisterDeviceForDriver: failed to allocate binding for device %u, driver %u",
+              deviceId, driver->id);
         return OS_EOOM;
     }
 
@@ -205,6 +228,7 @@ __RegisterDeviceForDriver(
     usched_mtx_lock(&driver->devices_lock);
     foreach (i, &driver->devices) {
         if (((struct DMDevice*)i->value)->id == deviceId) {
+            TRACE("__RegisterDeviceForDriver: device %u is already queued for driver %u", deviceId, driver->id);
             usched_mtx_unlock(&driver->devices_lock);
             free(device);
             return OS_EEXISTS;
@@ -238,6 +262,7 @@ void
 DmDiscoverForgetDevice(
     _In_ uuid_t deviceId)
 {
+    TRACE("DmDiscoverForgetDevice(device=%u)", deviceId);
     usched_mtx_lock(&g_driversLock);
     foreach (i, &g_drivers) {
         __ForgetDriverDevice(i->value, deviceId);
@@ -255,12 +280,14 @@ DmDiscoverFindDriver(
     unsigned int     best = 0;
     unsigned int     score;
     oserr_t          status;
+    TRACE("DmDiscoverFindDriver(device=%u)", deviceId);
 
     usched_mtx_lock(&g_driversLock);
     
     // Pair this check with ForgetDevice's discovery lock. Removal cannot leave
     // a queued binding behind even if it races a driver search.
     if (!DmDeviceIsBindable(deviceId)) {
+        TRACE("DmDiscoverFindDriver: device %u is not bindable", deviceId);
         usched_mtx_unlock(&g_driversLock);
         return OS_ENOENT;
     }
@@ -274,28 +301,42 @@ DmDiscoverFindDriver(
         }
     }
     if (selected == NULL) {
+        TRACE("DmDiscoverFindDriver: no matching driver for device %u", deviceId);
         usched_mtx_unlock(&g_driversLock);
         return OS_ENOENT;
     }
     
+    TRACE("DmDiscoverFindDriver: selected driver %u for device %u with score %u",
+          selected->id, deviceId, best);
     status = __RegisterDeviceForDriver(selected, deviceId);
-    if (status == OS_EEXISTS) {
-        status = OS_EOK;
+    if (status != OS_EOK && status != OS_EEXISTS) {
+        WARNING("DmDiscoverFindDriver: queueing device %u for driver %u failed: %u",
+                deviceId, selected->id, status);
+        usched_mtx_unlock(&g_driversLock);
+        return status;
     }
-    if (status == OS_EOK) {
-        if (selected->state == DmDriverState_NOTLOADED) {
-            status = __SpawnDriver(selected);
-        } else if (selected->state == DmDriverState_AVAILABLE) {
-            status = DmDevicesRegister(selected->handle, deviceId);
-            if (status == OS_EEXISTS) {
-                status = OS_EOK;
-            }
-        }
+
+    if (selected->state == DmDriverState_NOTLOADED) {
+        status = __SpawnDriver(selected);
         if (status != OS_EOK) {
-            __ForgetDriverDevice(selected, deviceId);
+            WARNING("DmDiscoverFindDriver: starting driver %u for device %u failed: %u",
+                    selected->id, deviceId, status);
+            goto error;
+        }
+    } else if (selected->state == DmDriverState_AVAILABLE) {
+        status = DmDevicesRegister(selected->handle, deviceId);
+        if (status != OS_EOK && status != OS_EEXISTS) {
+            WARNING("DmDiscoverFindDriver: registering device %u with driver %u failed: %u",
+                    deviceId, selected->id, status);
+            goto error;
         }
     }
-    
+
+    usched_mtx_unlock(&g_driversLock);
+    return OS_EOK;
+
+error:
+    __ForgetDriverDevice(selected, deviceId);
     usched_mtx_unlock(&g_driversLock);
     return status;
 }
@@ -323,36 +364,48 @@ __SubscribeToDriver(
     _In_ struct DmDriver* driver)
 {
     struct vali_link_message msg = VALI_MSG_INIT_HANDLE(driver->handle);
-    ctt_driver_subscribe(GetGrachtClient(), &msg.base);
+    int                      status;
+    TRACE("__SubscribeToDriver(driver=%u, handle=%u)", driver->id, driver->handle);
+
+    status = ctt_driver_subscribe(GetGrachtClient(), &msg.base);
+    if (status != 0) {
+        WARNING("__SubscribeToDriver: subscribing to driver %u failed: %i", driver->id, status);
+    }
 }
 
 static void
 __NotifyDevices(
     _In_ struct DmDriver* driver)
 {
+    struct DMDevice* device;
+    oserr_t          oserr;
+    TRACE("__NotifyDevices(driver=%u, handle=%u)", driver->id, driver->handle);
+
     usched_mtx_lock(&driver->devices_lock);
     foreach (i, &driver->devices) {
-        struct DMDevice* device = i->value;
-        oserr_t          oserr  = DmDevicesRegister(driver->handle, device->id);
+        device = i->value;
+        oserr = DmDevicesRegister(driver->handle, device->id);
         if (oserr != OS_EOK) {
-            WARNING("__NotifyDevices failed to notify driver of device %u", device->id);
+            WARNING("__NotifyDevices: notifying driver %u of device %u failed: %u",
+                    driver->id, device->id, oserr);
         }
     }
     usched_mtx_unlock(&driver->devices_lock);
 }
 
-void DmHandleNotify(
+void
+DmHandleNotify(
     _In_ uuid_t driverId,
     _In_ uuid_t driverHandle)
 {
     // driver is now booted, we can send all the devices that have
     // been registered
     struct DmDriver* driver;
-    TRACE("DmHandleNotify(driverId=%u)", driverId);
+    TRACE("DmHandleNotify(driver=%u, handle=%u)", driverId, driverHandle);
 
     driver = __GetDriver(driverId);
     if (!driver) {
-        ERROR("DmHandleNotify driver provided an invalid id");
+        WARNING("DmHandleNotify: driver %u with handle %u was not found", driverId, driverHandle);
         return;
     }
 
@@ -360,6 +413,7 @@ void DmHandleNotify(
     usched_mtx_lock(&g_driversLock);
     driver->handle = driverHandle;
     driver->state = DmDriverState_AVAILABLE;
+    TRACE("DmHandleNotify: driver %u is available", driverId);
     __SubscribeToDriver(driver);
 
     // iterate all devices attached and send them

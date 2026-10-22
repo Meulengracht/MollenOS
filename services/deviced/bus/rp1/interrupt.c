@@ -22,7 +22,10 @@
  * 
  */
 
+//#define __TRACE
+
 #include <bus/rp1/interrupt.h>
+#include <ddk/utils.h>
 #include <string.h>
 
 #define RP1_IRQ_CFG(source) (0x8U + 4U * (source))
@@ -45,11 +48,15 @@ __Rp1InterruptWrite(
     // normal register to make sure the change reached RP1 before the caller
     // allows interrupt delivery or returns to code that depends on the change.
     status = WriteDeviceIo(controller->Registers, alias + RP1_IRQ_CFG(source), bits, 4);
-    if (status == OS_EOK) {
-        // This read only waits for the earlier write to arrive; its value is unused.
-        (void)ReadDeviceIo(controller->Registers, RP1_IRQ_CFG(source), 4);
+    if (status != OS_EOK) {
+        ERROR("__Rp1InterruptWrite: source %u offset 0x%x bits 0x%x failed (%u)",
+            source, alias + RP1_IRQ_CFG(source), bits, status);
+        return status;
     }
-    return status;
+
+    // Read the normal register to flush the posted write; its value is unused.
+    (void)ReadDeviceIo(controller->Registers, RP1_IRQ_CFG(source), 4);
+    return OS_EOK;
 }
 
 oserr_t
@@ -63,19 +70,28 @@ Rp1InterruptInitialize(
     unsigned int source;
     oserr_t      status;
 
+    TRACE("Rp1InterruptInitialize(controller=%p, registers=%p)", controller, registers);
     // The controller needs mapped registers, all 61 PCI interrupt entries, and
     // callbacks that can block delivery, wait for handlers, and allow delivery again.
     if (controller == NULL || registers == NULL || parent == NULL || handler == NULL) {
+        ERROR("Rp1InterruptInitialize: missing controller, registers, parent or handler");
         return OS_EINVALPARAMS;
     }
     
-    if (controller->Registers != NULL || registers->Type != DeviceIoMemoryBased ||
-        !registers->Access.Memory.VirtualBase || registers->Access.Memory.Length < RP1_PCIE_APBS_LENGTH) {
+    if (controller->Registers != NULL) {
+        WARNING("Rp1InterruptInitialize: controller already owns registers");
+        return OS_EINVALPARAMS;
+    }
+    if (registers->Type != DeviceIoMemoryBased || !registers->Access.Memory.VirtualBase ||
+        registers->Access.Memory.Length < RP1_PCIE_APBS_LENGTH) {
+        ERROR("Rp1InterruptInitialize: invalid APBS register mapping");
         return OS_EINVALPARAMS;
     }
    
     if (parent->VectorCount < FDT_RP1_INTERRUPT_COUNT ||
         parent->MaskAndSynchronize == NULL || parent->Unmask == NULL) {
+        WARNING("Rp1InterruptInitialize: parent lacks callbacks or vectors (count=%u)",
+            parent->VectorCount);
         return OS_ENOTSUPPORTED;
     }
     
@@ -98,12 +114,15 @@ Rp1InterruptInitialize(
         status = __Rp1InterruptWrite(controller, source, RP1_IRQ_CLEAR,
             RP1_IRQ_ENABLE | RP1_IRQ_IACK_ENABLE);
         if (status != OS_EOK) {
+            ERROR("Rp1InterruptInitialize: source %u shutdown failed (%u); registers retained",
+                source, status);
             // Keep delivery blocked and the saved state available for a shutdown retry.
             return status;
         }
     }
     
     controller->Ready = 1;
+    TRACE("Rp1InterruptInitialize: ready with %u disabled sources", FDT_RP1_INTERRUPT_COUNT);
     return OS_EOK;
 }
 
@@ -115,26 +134,34 @@ Rp1InterruptConfigure(
 {
     oserr_t status;
 
+    TRACE("Rp1InterruptConfigure(controller=%p, source=%u, type=%u)", controller, source, type);
     // Choose how the signal triggers an interrupt before enabling the source:
     // when it changes from low to high (rising edge), or while it stays high
     // (high level). Changing an active source could lose or misreport an interrupt.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
+        ERROR("Rp1InterruptConfigure: invalid controller or source %u", source);
         return OS_EINVALPARAMS;
     }
     
     if (!controller->Ready || (type != 1 && type != 4) || controller->Enabled[source]) {
+        WARNING("Rp1InterruptConfigure: source %u rejects type %u (ready=%i, enabled=%u)",
+            source, type, controller->Ready, controller->Enabled[source]);
         return OS_EINVALPARAMS;
     }
     
     status = __Rp1InterruptWrite(
         controller,
         source,
-        type == 4 ? RP1_IRQ_SET : RP1_IRQ_CLEAR, RP1_IRQ_IACK_ENABLE
+        type == 4 ? RP1_IRQ_SET : RP1_IRQ_CLEAR,
+        RP1_IRQ_IACK_ENABLE
     );
-    if (status == OS_EOK) {
-        controller->Types[source] = (uint8_t)type;
+    if (status != OS_EOK) {
+        ERROR("Rp1InterruptConfigure: source %u configuration failed (%u)", source, status);
+        return status;
     }
-    return status;
+
+    controller->Types[source] = (uint8_t)type;
+    return OS_EOK;
 }
 
 oserr_t
@@ -144,23 +171,29 @@ Rp1InterruptEnable(
 {
     oserr_t status;
 
+    TRACE("Rp1InterruptEnable(controller=%p, source=%u)", controller, source);
     // Configure how the source signals an interrupt before enabling it, so RP1
     // never delivers an interrupt with unknown settings.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
+        ERROR("Rp1InterruptEnable: invalid controller or source %u", source);
         return OS_EINVALPARAMS;
     }
     if (!controller->Ready || !controller->Types[source] || controller->Enabled[source]) {
+        WARNING("Rp1InterruptEnable: source %u is not ready, unconfigured or already enabled", source);
         return OS_EINVALPARAMS;
     }
     
     // Turn on the RP1 source first. Allow PCI interrupt delivery only after
     // this change reaches RP1, or a handler could run before setup is complete.
     status = __Rp1InterruptWrite(controller, source, RP1_IRQ_SET, RP1_IRQ_ENABLE);
-    if (status == OS_EOK) {
-        controller->Enabled[source] = 1;
-        controller->Parent.Unmask(controller->Parent.Context, source);
+    if (status != OS_EOK) {
+        ERROR("Rp1InterruptEnable: source %u enable failed (%u); parent remains masked", source, status);
+        return status;
     }
-    return status;
+
+    controller->Enabled[source] = 1;
+    controller->Parent.Unmask(controller->Parent.Context, source);
+    return OS_EOK;
 }
 
 oserr_t
@@ -168,27 +201,40 @@ Rp1InterruptDisable(
     _InOut_ struct Rp1InterruptController* controller,
     _In_    unsigned int                   source)
 {
+    oserr_t status;
+
+    TRACE("Rp1InterruptDisable(controller=%p, source=%u)", controller, source);
     // Block new interrupts from PCI and wait for any running handler to finish
     // before changing the RP1 source or its saved state.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
+        ERROR("Rp1InterruptDisable: invalid controller or source %u", source);
         return OS_EINVALPARAMS;
     }
     controller->Parent.MaskAndSynchronize(controller->Parent.Context, source);
     controller->Enabled[source] = 0;
-    return __Rp1InterruptWrite(controller, source, RP1_IRQ_CLEAR, RP1_IRQ_ENABLE);
+    status = __Rp1InterruptWrite(controller, source, RP1_IRQ_CLEAR, RP1_IRQ_ENABLE);
+    if (status != OS_EOK) {
+        ERROR("Rp1InterruptDisable: source %u disable failed (%u); parent remains masked", source, status);
+        return status;
+    }
+    return OS_EOK;
 }
 
 oserr_t
 Rp1InterruptHandle(
     _InOut_ struct Rp1InterruptController* controller,
-    _In_ unsigned int source)
+    _In_    unsigned int                   source)
 {
+    oserr_t status;
+
     // Ignore interrupts received during setup or after their source was disabled;
     // they must not call a device handler that is no longer ready.
     if (controller == NULL || controller->Registers == NULL || source >= FDT_RP1_INTERRUPT_COUNT) {
+        ERROR("Rp1InterruptHandle: invalid controller or source %u", source);
         return OS_EINVALPARAMS;
     }
     if (!controller->Ready || !controller->Enabled[source]) {
+        TRACE("Rp1InterruptHandle: ignoring inactive source %u", source);
         return OS_ENOENT;
     }
     
@@ -197,7 +243,11 @@ Rp1InterruptHandle(
         // A high-level interrupt keeps its signal high until the device's
         // interrupt condition is cleared. Tell RP1 that handling is done only
         // after the device handler has had a chance to clear that condition.
-        return __Rp1InterruptWrite(controller, source, RP1_IRQ_SET, RP1_IRQ_IACK);
+        status = __Rp1InterruptWrite(controller, source, RP1_IRQ_SET, RP1_IRQ_IACK);
+        if (status != OS_EOK) {
+            ERROR("Rp1InterruptHandle: source %u acknowledgement failed (%u)", source, status);
+            return status;
+        }
     }
     return OS_EOK;
 }
@@ -210,9 +260,11 @@ Rp1InterruptDestroy(
     oserr_t      status;
     oserr_t      result = OS_EOK;
 
+    TRACE("Rp1InterruptDestroy(controller=%p)", controller);
     // If any source cannot be shut down, keep its saved state so we can retry.
     // The caller must keep the registers mapped until shutdown succeeds.
     if (controller == NULL) {
+        ERROR("Rp1InterruptDestroy: missing controller");
         return OS_EINVALPARAMS;
     }
     if (controller->Registers == NULL) {
@@ -229,8 +281,12 @@ Rp1InterruptDestroy(
     }
     
     controller->Ready = 0;
-    if (result == OS_EOK) {
-        memset(controller, 0, sizeof(*controller));
+    if (result != OS_EOK) {
+        ERROR("Rp1InterruptDestroy: shutdown incomplete (%u); registers retained", result);
+        return result;
     }
-    return result;
+
+    memset(controller, 0, sizeof(*controller));
+    TRACE("Rp1InterruptDestroy: all sources disabled");
+    return OS_EOK;
 }

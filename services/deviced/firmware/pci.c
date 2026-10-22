@@ -16,6 +16,7 @@
  *
  */
 
+//#define __TRACE
 #include <firmware/pci.h>
 #include <firmware/resources.h>
 #include <firmware/bcm.h>
@@ -74,6 +75,7 @@ __PciNextDomain(
         }
     }
     if (walk->NextDomain > UINT32_MAX) {
+        ERROR("__PciNextDomain: no unused PCI domain remains");
         return OS_EOVERFLOW;
     }
 
@@ -127,11 +129,15 @@ __PciReadWindows(
         return 1;
     }
     if (node->AddressCells != 3 || node->SizeCells == 0 || node->SizeCells > 2) {
+        ERROR("__PciReadWindows: node %u has invalid %s cell counts",
+            node->NodeOffset, dma ? "dma-ranges" : "ranges");
         return 0;
     }
 
     cells = 3 + addressCells + node->SizeCells;
     if (rangesLength % (cells * 4) != 0 || rangesLength / (cells * 4) > 16) {
+        ERROR("__PciReadWindows: node %u has invalid %s length %u",
+            node->NodeOffset, dma ? "dma-ranges" : "ranges", rangesLength);
         return 0;
     }
 
@@ -146,8 +152,14 @@ __PciReadWindows(
             node->SizeCells
         );
         
-        if (window->Length == 0 || window->Length - 1 > UINT64_MAX - window->BusBase ||
-            !FdtTranslateAddress(nodes, depth - 1, window->Length, &window->PhysicalBase, dma)) {
+        if (window->Length == 0 || window->Length - 1 > UINT64_MAX - window->BusBase) {
+            ERROR("__PciReadWindows: node %u %s window at byte %u has an invalid extent",
+                node->NodeOffset, dma ? "dma-ranges" : "ranges", offset);
+            return 0;
+        }
+        if (!FdtTranslateAddress(nodes, depth - 1, window->Length, &window->PhysicalBase, dma)) {
+            ERROR("__PciReadWindows: node %u %s window at byte %u cannot be translated",
+                node->NodeOffset, dma ? "dma-ranges" : "ranges", offset);
             return 0;
         }
     }
@@ -172,6 +184,8 @@ __PciReadBusRange(
 
     busRange = FdtProperty(node, "bus-range", &busRangeLength);
     if (busRange != NULL && busRangeLength != 8) {
+        ERROR("__PciReadBusRange: node %u has invalid bus-range length %u",
+            node->NodeOffset, busRangeLength);
         return 0;
     }
     if (busRangeLength == 8) {
@@ -179,15 +193,18 @@ __PciReadBusRange(
         busEnd = FdtReadBe32(busRange + 4);
     }
     if (busStart > 255 || busEnd > 255 || busEnd < busStart) {
-        WARNING("FdtEnumeratePciHosts invalid bus-range %u-%u", busStart, busEnd);
+        ERROR("__PciReadBusRange: node %u has invalid bus-range %u-%u",
+            node->NodeOffset, busStart, busEnd);
         return 0;
     }
 
     busesDecoded = host->Type == FdtPciHostEcam ? host->EcamLength >> 20 : 256;
     if (busesDecoded == 0) {
+        ERROR("__PciReadBusRange: node %u configuration range cannot expose a bus", node->NodeOffset);
         return 0;
     }
     if ((uint64_t)(busEnd - busStart) + 1 > busesDecoded) {
+        TRACE("__PciReadBusRange: node %u limiting bus range to configuration aperture", node->NodeOffset);
         busEnd = busStart + (uint32_t)busesDecoded - 1;
     }
 
@@ -210,21 +227,26 @@ __EmitPciHost(
     struct FdtPciHost host = { 0 };
     oserr_t           status;
 
+    TRACE("__EmitPciHost(node=%u)", node->NodeOffset);
     // The register range identifies the host's control registers. Without a
     // trustworthy range, consumers cannot safely access or configure the host.
     if (node->Malformed || node->AncestorMalformed || node->RegisterStatus != OS_EOK) {
-        WARNING("FdtEnumeratePciHosts unsupported reg layout for ECAM host");
+        ERROR("__EmitPciHost: node %u has malformed or unsupported register layout (%u)",
+            node->NodeOffset, node->RegisterStatus);
         return;
     }
 
     host.NodeOffset = node->NodeOffset;
     host.EcamBase   = node->PhysicalBase;
     host.EcamLength = node->PhysicalLength;
+    // __PciVisit already selected this node's supported host type.
     FdtPciHostType(&node->View, &host.Type);
     
     // Broadcom controllers need platform-specific settings in addition to the
     // common PCI properties, so let their policy fill and validate those fields.
-    if (FdtBcmHostPolicy(&node->View, &host) != OS_EOK) {
+    status = FdtBcmHostPolicy(&node->View, &host);
+    if (status != OS_EOK) {
+        ERROR("__EmitPciHost: node %u host policy rejected (%u)", node->NodeOffset, status);
         return;
     }
     pci.InterruptMap = FdtProperty(&node->View, "interrupt-map", &pci.InterruptMapLength);
@@ -232,6 +254,7 @@ __EmitPciHost(
     
     status = FdtScalar(&node->View, "linux,pci-domain", &pci.Domain);
     if (status != OS_EOK && status != OS_ENOENT) {
+        ERROR("__EmitPciHost: node %u PCI domain rejected (%u)", node->NodeOffset, status);
         return;
     }
 
@@ -263,15 +286,18 @@ __EmitPciHost(
     
     // "ranges" maps processor accesses to PCI resources.
     if (!__PciReadWindows(nodes, depth, node, 0, host.Windows, &host.WindowCount)) {
+        ERROR("__EmitPciHost: node %u outbound windows rejected", node->NodeOffset);
         return;
     }
 
     // "dma-ranges" maps device memory requests to system addresses.
     if (!__PciReadWindows(nodes, depth, node, 1, host.DmaWindows, &host.DmaWindowCount)) {
+        ERROR("__EmitPciHost: node %u DMA windows rejected", node->NodeOffset);
         return;
     }
 
     if (!__PciReadBusRange(&node->View, &host, &host.BusStart, &host.BusEnd)) {
+        ERROR("__EmitPciHost: node %u bus range rejected", node->NodeOffset);
         return;
     }
 
@@ -282,11 +308,14 @@ __EmitPciHost(
     } else {
         walk->Status = __PciNextDomain(walk, &host.Segment);
         if (walk->Status != OS_EOK) {
+            ERROR("__EmitPciHost: node %u domain assignment failed (%u)", node->NodeOffset, walk->Status);
             return;
         }
     }
 
     __ClassifyDmaWindows(&host);
+    TRACE("__EmitPciHost: domain %u buses %u-%u, %u outbound and %u DMA windows",
+        host.Segment, host.BusStart, host.BusEnd, host.WindowCount, host.DmaWindowCount);
     walk->Callback(&host, walk->Context);
 }
 
@@ -307,6 +336,8 @@ __ClassifyMemory(
     uint64_t                   base;
     uint64_t                   length;
     struct FdtPciWindow*       window;
+    uint32_t                   offset;
+    uint32_t                   i;
 
     if (node->Disabled || node->AncestorDisabled || !node->IsMemory || node->Malformed || node->AncestorMalformed || depth == 0) {
         return;
@@ -318,17 +349,20 @@ __ClassifyMemory(
     sc = nodes[depth - 1].SizeCells;
     stride = (ac + sc) * 4;
     if (!ac || ac > 2 || !sc || sc > 2 || node->RegLength % stride) {
+        WARNING("__ClassifyMemory: node %u has an unsupported memory register layout", node->NodeOffset);
         return;
     }
 
-    for (uint32_t offset = 0; offset < node->RegLength; offset += stride) {
+    for (offset = 0; offset < node->RegLength; offset += stride) {
         base = FdtReadCells(node->Reg + offset, ac);
         length = FdtReadCells(node->Reg + offset + ac * 4, sc);
         if (!FdtTranslateAddress(nodes, depth - 1, length, &base, 0)) {
+            WARNING("__ClassifyMemory: node %u memory range at byte %u cannot be translated",
+                node->NodeOffset, offset);
             continue;
         }
         
-        for (uint32_t i = 0; i < host->DmaWindowCount; i++) {
+        for (i = 0; i < host->DmaWindowCount; i++) {
             window = &host->DmaWindows[i];
             if (window->Kind == FdtDmaWindowUnknown &&
                 (window->Space == FdtPciSpaceMemory32 || window->Space == FdtPciSpaceMemory64) &&
@@ -349,11 +383,24 @@ __ClassifyDmaWindows(
 {
     struct FdtPciMsi     msi;
     struct FdtPciWindow* window;
-    int                  hasMip;
+    int                  hasMip = 0;
+    oserr_t              status;
+    uint32_t             i;
+    uint32_t             j;
 
-    hasMip = FdtResolvePciMsi(host, &msi) == OS_EOK && msi.IsMip;
+    status = FdtResolvePciMsi(host, &msi);
+    if (status != OS_EOK) {
+        // MSI metadata is optional. Continue classifying peer and RAM windows
+        // without it.
+        if (status != OS_ENOENT) {
+            WARNING("__ClassifyDmaWindows: domain %u MSI classification unavailable (%u)",
+                host->Segment, status);
+        }
+    } else {
+        hasMip = msi.IsMip;
+    }
 
-    for (uint32_t i = 0; i < host->DmaWindowCount; i++) {
+    for (i = 0; i < host->DmaWindowCount; i++) {
         window = &host->DmaWindows[i];
         
         // MIP interrupts are raised by writes to their doorbell address. Check
@@ -369,7 +416,7 @@ __ClassifyDmaWindows(
         
         // A DMA destination inside a processor-to-PCI window points at another
         // PCI resource, rather than at system RAM.
-        for (uint32_t j = 0; j < host->WindowCount; j++) {
+        for (j = 0; j < host->WindowCount; j++) {
             if (FdtContainsRange(host->Windows[j].PhysicalBase, host->Windows[j].Length,
                     window->PhysicalBase, window->Length)) {
                 window->Kind = FdtDmaWindowPeer;
@@ -381,7 +428,12 @@ __ClassifyDmaWindows(
     // A device's DMA range may include addresses that are not backed by RAM.
     // Compare it with the firmware's descriptions of installed memory instead
     // of guessing from the range's order or from an address that starts at zero.
-    FdtWalkResources(host->Blob, host->BlobLength, __ClassifyMemory, host);
+    status = FdtWalkResources(host->Blob, host->BlobLength, __ClassifyMemory, host);
+    if (status != OS_EOK) {
+        // Continue enumeration with the classifications collected so far.
+        WARNING("__ClassifyDmaWindows: domain %u memory classification incomplete (%u)",
+            host->Segment, status);
+    }
 }
 
 // Convert only when one firmware window contains the entire request. Returning
@@ -399,8 +451,14 @@ FdtTranslatePciAddress(
     uint32_t                   index;
     uint64_t                   displacement;
 
-    if (host == NULL || physicalOut == NULL || host->WindowCount > 16 ||
-        length == 0 || length - 1 > UINT64_MAX - address) {
+    TRACE("FdtTranslatePciAddress(host=%p, space=%u, address=0x%llx, length=0x%llx)",
+        host, space, (unsigned long long)address, (unsigned long long)length);
+    if (host == NULL || physicalOut == NULL) {
+        ERROR("FdtTranslatePciAddress: missing host or output");
+        return OS_EINVALPARAMS;
+    }
+    if (host->WindowCount > 16 || length == 0 || length - 1 > UINT64_MAX - address) {
+        ERROR("FdtTranslatePciAddress: domain %u has invalid windows or request extent", host->Segment);
         return OS_EINVALPARAMS;
     }
 
@@ -408,7 +466,7 @@ FdtTranslatePciAddress(
         window = &host->Windows[index];
         // PCI memory addresses of the 32-bit and 64-bit kinds share compatible
         // windows; I/O addresses must still match their own kind exactly.
-           if ((window->Space != space &&
+        if ((window->Space != space &&
                !((space == FdtPciSpaceMemory32 || space == FdtPciSpaceMemory64) &&
                 (window->Space == FdtPciSpaceMemory32 || window->Space == FdtPciSpaceMemory64)))) {
             continue;
@@ -421,12 +479,15 @@ FdtTranslatePciAddress(
         displacement = address - window->BusBase;
         if (displacement > UINT64_MAX - window->PhysicalBase ||
             length - 1 > UINT64_MAX - window->PhysicalBase - displacement) {
+            ERROR("FdtTranslatePciAddress: domain %u window %u physical extent overflows",
+                host->Segment, index);
             return OS_EINVALPARAMS;
         }
 
         *physicalOut = window->PhysicalBase + displacement;
         return OS_EOK;
     }
+    WARNING("FdtTranslatePciAddress: domain %u has no window covering the requested range", host->Segment);
     return OS_ENOENT;
 }
 
@@ -453,6 +514,7 @@ __PciDecodeInterruptMapEntry(
 
     memset(interruptOut, 0, sizeof(*interruptOut));
     if (available < 20) {
+        ERROR("__PciDecodeInterruptMapEntry: domain %u has a truncated entry", host->Segment);
         return OS_EINVALPARAMS;
     }
 
@@ -463,6 +525,7 @@ __PciDecodeInterruptMapEntry(
         &controller
     );
     if (status != OS_EOK) {
+        WARNING("__PciDecodeInterruptMapEntry: domain %u controller lookup failed (%u)", host->Segment, status);
         return status;
     }
     if (!controller.HasAddressCells) {
@@ -470,11 +533,13 @@ __PciDecodeInterruptMapEntry(
     }
     if (controller.AddressCells > 2 || controller.InterruptCells == 0 ||
         controller.InterruptCells > 16) {
+        WARNING("__PciDecodeInterruptMapEntry: controller %u cell counts unsupported", controller.Phandle);
         return OS_ENOTSUPPORTED;
     }
 
     stride = (5 + controller.AddressCells + controller.InterruptCells) * 4;
     if (stride > available) {
+        ERROR("__PciDecodeInterruptMapEntry: controller %u specifier is truncated", controller.Phandle);
         return OS_EINVALPARAMS;
     }
 
@@ -489,6 +554,8 @@ __PciDecodeInterruptMapEntry(
         specifier = entry + (5 + controller.AddressCells) * 4;
         status = FdtGicInterrupt(&controller, specifier, interruptOut);
         if (status != OS_EOK) {
+            WARNING("__PciDecodeInterruptMapEntry: controller %u interrupt rejected (%u)",
+                controller.Phandle, status);
             return status;
         }
     }
@@ -518,15 +585,22 @@ FdtResolvePciInterrupt(
     int                 matches;
     oserr_t             status;
 
-    if (host == NULL || lineOut == NULL || flagsOut == NULL ||
-        bus > 255 || slot > 31 || function > 7 || pin == 0 || pin > 4) {
+    TRACE("FdtResolvePciInterrupt(host=%p, device=%u:%u.%u, pin=%u)", host, bus, slot, function, pin);
+    if (host == NULL || lineOut == NULL || flagsOut == NULL) {
+        ERROR("FdtResolvePciInterrupt: missing host or output");
+        return OS_EINVALPARAMS;
+    }
+    if (bus > 255 || slot > 31 || function > 7 || pin == 0 || pin > 4) {
+        ERROR("FdtResolvePciInterrupt: invalid device %u:%u.%u or pin %u", bus, slot, function, pin);
         return OS_EINVALPARAMS;
     }
     if (host->InterruptMap == NULL) {
+        TRACE("FdtResolvePciInterrupt: domain %u has no interrupt-map", host->Segment);
         return OS_ENOENT;
     }
     if ((host->InterruptMapLength & 3) ||
         (host->InterruptMask != NULL && host->InterruptMaskLength != 16)) {
+        ERROR("FdtResolvePciInterrupt: domain %u has malformed interrupt-map or mask", host->Segment);
         return OS_EINVALPARAMS;
     }
 
@@ -548,12 +622,16 @@ FdtResolvePciInterrupt(
             &interrupt
         );
         if (status != OS_EOK) {
+            WARNING("FdtResolvePciInterrupt: domain %u entry at byte %u rejected (%u)",
+                host->Segment, offset, status);
             return status;
         }
 
         if (matches) {
             *lineOut = interrupt.Line;
             *flagsOut = interrupt.Flags;
+            TRACE("FdtResolvePciInterrupt: domain %u device %u:%u.%u pin %u maps to line %i",
+                host->Segment, bus, slot, function, pin, interrupt.Line);
             return OS_EOK;
         }
         offset += stride;
@@ -581,7 +659,9 @@ FdtResolvePciNamedInterrupt(
     const uint8_t*      arguments;
     oserr_t             status;
 
+    TRACE("FdtResolvePciNamedInterrupt(host=%p, name=%s)", host, name != NULL ? name : "(null)");
     if (host == NULL || name == NULL || interrupt == NULL) {
+        ERROR("FdtResolvePciNamedInterrupt: missing host, name or output");
         return OS_EINVALPARAMS;
     }
 
@@ -589,6 +669,10 @@ FdtResolvePciNamedInterrupt(
     // interrupt list can later be checked for a matching number of entries.
     status = FdtNameIndex(host->InterruptNames, host->InterruptNamesLength, name, &selected, &names);
     if (status != OS_EOK) {
+        if (status != OS_ENOENT) {
+            ERROR("FdtResolvePciNamedInterrupt: domain %u name %s lookup failed (%u)",
+                host->Segment, name, status);
+        }
         return status;
     }
 
@@ -597,12 +681,15 @@ FdtResolvePciNamedInterrupt(
     cells = host->InterruptsExtended != NULL ? host->InterruptsExtended : host->Interrupts;
     length = host->InterruptsExtended != NULL ? host->InterruptsExtendedLength : host->InterruptsLength;
     if (cells == NULL || (length & 3)) {
+        ERROR("FdtResolvePciNamedInterrupt: domain %u name %s has malformed interrupt data",
+            host->Segment, name);
         return OS_EINVALPARAMS;
     }
 
     while (offset < length) {
         phandle = host->InterruptsExtended != NULL ? 0 : host->InterruptParent;
         if (host->InterruptsExtended == NULL && !phandle) {
+            ERROR("FdtResolvePciNamedInterrupt: domain %u has no interrupt parent", host->Segment);
             return OS_EINVALPARAMS;
         }
 
@@ -618,9 +705,12 @@ FdtResolvePciNamedInterrupt(
             &arguments
         );
         if (status != OS_EOK) {
+            WARNING("FdtResolvePciNamedInterrupt: domain %u name %s provider rejected (%u)",
+                host->Segment, name, status);
             return status;
         }
         if (!provider.InterruptCells) {
+            ERROR("FdtResolvePciNamedInterrupt: provider %u declares no interrupt cells", provider.Phandle);
             return OS_EINVALPARAMS;
         }
 
@@ -629,6 +719,8 @@ FdtResolvePciNamedInterrupt(
         if (index == selected) {
             status = FdtGicInterrupt(&provider, arguments, &result);
             if (status != OS_EOK) {
+                WARNING("FdtResolvePciNamedInterrupt: domain %u name %s interrupt rejected (%u)",
+                    host->Segment, name, status);
                 return status;
             }
         }
@@ -636,6 +728,8 @@ FdtResolvePciNamedInterrupt(
     }
 
     if (index != names) {
+        ERROR("FdtResolvePciNamedInterrupt: domain %u has %u interrupts but %u names",
+            host->Segment, index, names);
         return OS_EINVALPARAMS;
     }
 
@@ -657,6 +751,7 @@ __PciReserveDomain(
     enum FdtPciHostType        type;
     uint32_t                   domain;
     uint32_t*                  domains;
+    oserr_t                    status;
 
     if (walk->Status != OS_EOK || depth == 0) {
         return;
@@ -665,8 +760,14 @@ __PciReserveDomain(
         return;
     }
 
-    if (!FdtPciHostType(&node->View, &type) ||
-        FdtScalar(&node->View, "linux,pci-domain", &domain) != OS_EOK) {
+    if (!FdtPciHostType(&node->View, &type)) {
+        return;
+    }
+    status = FdtScalar(&node->View, "linux,pci-domain", &domain);
+    if (status != OS_EOK) {
+        if (status != OS_ENOENT) {
+            ERROR("__PciReserveDomain: node %u has an invalid PCI domain (%u)", node->NodeOffset, status);
+        }
         return;
     }
 
@@ -674,6 +775,7 @@ __PciReserveDomain(
     // Reusing it would make the number identify a different group of buses.
     domains = realloc(walk->ReservedDomains, (walk->ReservedCount + 1) * sizeof(uint32_t));
     if (domains == NULL) {
+        ERROR("__PciReserveDomain: node %u domain reservation allocation failed", node->NodeOffset);
         walk->Status = OS_EOOM;
         return;
     }
@@ -722,15 +824,34 @@ FdtEnumeratePciHosts(
         .Context = context
     };
 
+    TRACE("FdtEnumeratePciHosts(blob=%p, length=%zu)", blob, length);
     if (callback == NULL) {
+        ERROR("FdtEnumeratePciHosts: missing callback");
         return OS_EINVALPARAMS;
     }
     
     status = FdtWalkResources(blob, length, __PciReserveDomain, &walk);
-    if (status == OS_EOK && walk.Status == OS_EOK) {
-        status = FdtWalkResources(blob, length, __PciVisit, &walk);
+    if (status != OS_EOK) {
+        ERROR("FdtEnumeratePciHosts: domain reservation traversal failed (%u)", status);
+        goto cleanup;
     }
-    
+    if (walk.Status != OS_EOK) {
+        status = walk.Status;
+        ERROR("FdtEnumeratePciHosts: domain reservation failed (%u)", status);
+        goto cleanup;
+    }
+
+    status = FdtWalkResources(blob, length, __PciVisit, &walk);
+    if (status != OS_EOK) {
+        ERROR("FdtEnumeratePciHosts: host traversal failed (%u)", status);
+        goto cleanup;
+    }
+    status = walk.Status;
+    if (status != OS_EOK) {
+        ERROR("FdtEnumeratePciHosts: host enumeration failed (%u)", status);
+    }
+
+cleanup:
     free(walk.ReservedDomains);
-    return status != OS_EOK ? status : walk.Status;
+    return status;
 }
