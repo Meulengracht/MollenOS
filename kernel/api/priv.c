@@ -34,6 +34,7 @@
 #include <heap.h>
 #include <interrupts.h>
 #include <interrupts_group.h>
+#include <component/ic.h>
 #include <machine.h>
 #include <memoryspace.h>
 #include <string.h>
@@ -44,6 +45,37 @@ ScCapabilityGrant(
     _In_ uuid_t         memorySpaceHandle)
 {
     return CapabilityGrant(capabilities, memorySpaceHandle);
+}
+
+oserr_t
+ScInterruptControllerResolve(
+    _In_  const InterruptMessageControllerIdentity_t* userQuery,
+    _Out_ uuid_t*                                  userDomain)
+{
+    InterruptMessageControllerIdentity_t query;
+    uuid_t                               domain;
+    oserr_t                              status;
+
+    if (userQuery == NULL || userDomain == NULL) {
+        return OS_EINVALPARAMS;
+    }
+
+    status = CapabilityVerify(CAPABILITY_INTERRUPT_CONTROL);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    status = MemorySpaceCopyUser((void*)userQuery, &query, sizeof(query), false);
+    if (status != OS_EOK) {
+        return status;
+    }
+
+    status = InterruptMessageControllerResolve(&query, &domain);
+    if (status != OS_EOK) {
+        return status;
+    }
+    
+    return MemorySpaceCopyUser(userDomain, &domain, sizeof(domain), true);
 }
 
 oserr_t

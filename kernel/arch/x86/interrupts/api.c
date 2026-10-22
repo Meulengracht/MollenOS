@@ -27,6 +27,7 @@
 //#define __TRACE
 
 #include <arch/interrupts.h>
+#include <interrupts.h>
 #include <arch/utils.h>
 #include <arch/x86/arch.h>
 #include <arch/x86/apic.h>
@@ -85,7 +86,23 @@ InterruptMessageVector(
 
     // Physical destination, fixed delivery, edge triggered. Route to the BSP
     // until affinity and CPU hotplug can update both routing and PCI messages.
+
+    // MSI Message Address Register (0xFEE00000 LAPIC)
+    // Bits 31-20: Must be 0xFEE
+    // Bits 19-12: Destination ID
+    // Bits 11-04: Reserved
+    // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
+    // Bit      2: Destination Mode (1 Logical, 0 Physical)
+    // Bits 00-01: X
     message->Address = 0xFEE00000ULL | ((uint64_t)CpuCoreId(GetMachine()->Processor.Cores) << 12U);
+
+    // Message Data Register Format
+    // Bits 31-16: Reserved
+    // Bit     15: Trigger Mode (1 Level, 0 Edge)
+    // Bit     14: If edge, this is not used, if level, 1 = Assert, 0 = Deassert
+    // Bits 13-11: Reserved
+    // Bits 10-08: Delivery Mode, standard
+    // Bits 07-00: Vector
     message->Data = vector;
     return OS_EOK;
 }
@@ -101,12 +118,12 @@ __GetBspCoreId(void)
 
 static uint64_t
 __GetApicConfiguration(
-    _In_ SystemInterrupt_t* systemInterrupt)
+    _In_ const InterruptControllerResource_t* resource)
 {
     UInteger64_t flags;
 
     TRACE("__GetApicConfiguration(%i:%i)",
-          systemInterrupt->Line, systemInterrupt->Pin);
+          resource->Line, resource->Pin);
 
     // So we could load balance by splitting it up between group 1-7, but for now all to all
     flags.u.LowPart  = APIC_DESTINATION_LOGICAL;
@@ -115,11 +132,11 @@ __GetApicConfiguration(
     // Case 1 - ISA Interrupts 
     // - In most cases are Edge-Triggered, Active-High
     // - ALL ISA interrupts are going directly to the BSP core
-    if (systemInterrupt->Line < NUM_ISA_INTERRUPTS && systemInterrupt->Pin == INTERRUPT_NONE) {
+    if (resource->Line < NUM_ISA_INTERRUPTS && resource->Pin == INTERRUPT_NONE) {
         int Enabled, LevelTriggered;
         uuid_t bspCoreId;
 
-        PicGetConfiguration(systemInterrupt->Line, &Enabled, &LevelTriggered);
+        PicGetConfiguration(resource->Line, &Enabled, &LevelTriggered);
         bspCoreId        = __GetBspCoreId();
 
         // Physical destination, BSP core
@@ -130,7 +147,7 @@ __GetApicConfiguration(
         // Configure as level triggered if requested by interrupt flags
         // Ignore polarity mode as that is automatically treated as active low
         // when trigger is set to level
-        if (systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
+        if (resource->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
             LevelTriggered = 1;
         }
 
@@ -147,7 +164,7 @@ __GetApicConfiguration(
     // Case 2 - PCI Interrupts (No-Pin) 
     // - Must be Level Triggered Low-Active
     // - PCI interrupts go to all cores
-    else if (systemInterrupt->Line >= NUM_ISA_INTERRUPTS && systemInterrupt->Pin == INTERRUPT_NONE) {
+    else if (resource->Line >= NUM_ISA_INTERRUPTS && resource->Pin == INTERRUPT_NONE) {
         TRACE("__GetApicConfiguration pci interrupt (active-low, level-triggered)");
         flags.u.LowPart |= APIC_DELIVERY_MODE(APIC_MODE_LOWEST_PRIORITY);
         flags.u.LowPart |= APIC_ACTIVE_LOW;
@@ -156,29 +173,29 @@ __GetApicConfiguration(
 
     // Case 3 - PCI Interrupts (Pin) 
     // - Usually Level Triggered Low-Active
-    else if (systemInterrupt->Pin != INTERRUPT_NONE) {
+    else if (resource->Pin != INTERRUPT_NONE) {
         // If no routing exists use the pci interrupt line
-        if (!(systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_PRESENT)) {
+        if (!(resource->AcpiConform & INTERRUPT_ACPICONFORM_PRESENT)) {
             TRACE("__GetApicConfiguration pci interrupt (active-low, level-triggered)");
             flags.u.LowPart |= APIC_DELIVERY_MODE(APIC_MODE_LOWEST_PRIORITY);
             flags.u.LowPart |= APIC_ACTIVE_LOW;
             flags.u.LowPart |= APIC_LEVEL_TRIGGER;
         }
         else {
-            TRACE("__GetApicConfiguration pci interrupt (pin-configured - 0x%" PRIxIN ")", systemInterrupt->AcpiConform);
+            TRACE("__GetApicConfiguration pci interrupt (pin-configured - 0x%" PRIxIN ")", resource->AcpiConform);
             flags.u.LowPart |= APIC_DELIVERY_MODE(APIC_MODE_LOWEST_PRIORITY);
 
             // Both trigger and polarity is either fixed or set by the
             // information we extracted earlier
-            if (systemInterrupt->Line >= NUM_ISA_INTERRUPTS) {
+            if (resource->Line >= NUM_ISA_INTERRUPTS) {
                 flags.u.LowPart |= APIC_ACTIVE_LOW;
                 flags.u.LowPart |= APIC_LEVEL_TRIGGER;
             }
             else {
-                if (systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
+                if (resource->AcpiConform & INTERRUPT_ACPICONFORM_TRIGGERMODE) {
                     flags.u.LowPart |= APIC_LEVEL_TRIGGER;
                 }
-                if (systemInterrupt->AcpiConform & INTERRUPT_ACPICONFORM_POLARITY) {
+                if (resource->AcpiConform & INTERRUPT_ACPICONFORM_POLARITY) {
                     flags.u.LowPart |= APIC_ACTIVE_LOW;
                 }
             }
@@ -226,7 +243,12 @@ InterruptResolve(
     _In_  unsigned int           flags,
     _Out_ uuid_t*                tableIndex)
 {
-    if (!(flags & (INTERRUPT_SOFT | INTERRUPT_MSI))) {
+    // Message routing is composed only by InterruptMessageVector.
+    if (flags & INTERRUPT_MSI) {
+        return OS_EINVALPARAMS;
+    }
+
+    if (!(flags & INTERRUPT_SOFT)) {
         if (flags & INTERRUPT_VECTOR) {
             int Vectors[INTERRUPT_PHYSICAL_END - INTERRUPT_PHYSICAL_BASE];
             int i;
@@ -265,27 +287,6 @@ InterruptResolve(
         *tableIndex = __AllocateSoftwareVector(deviceInterrupt, flags);
     }
 
-    // In case of MSI interrupt, update msi format
-    if (flags & INTERRUPT_MSI) {
-        // Fill in MSI data
-        // MSI Message Address Register (0xFEE00000 LAPIC)
-        // Bits 31-20: Must be 0xFEE
-        // Bits 19-12: Destination ID
-        // Bits 11-04: Reserved
-        // Bit      3: 0 = Destination is ONE CPU, 1 = Destination is Group
-        // Bit      2: Destination Mode (1 Logical, 0 Physical)
-        // Bits 00-01: X
-        deviceInterrupt->MsiAddress = 0xFEE00000 | (0x0007F000) | 0x8 | 0x4;
-
-        // Message Data Register Format
-        // Bits 31-16: Reserved
-        // Bit     15: Trigger Mode (1 Level, 0 Edge)
-        // Bit     14: If edge, this is not used, if level, 1 = Assert, 0 = Deassert
-        // Bits 13-11: Reserved
-        // Bits 10-08: Delivery Mode, standard
-        // Bits 07-00: Vector
-        deviceInterrupt->MsiValue = (0x100 | (*tableIndex & 0xFF));
-    }
     return OS_EOK;
 }
 
@@ -301,8 +302,8 @@ void InterruptSetMode(
 
 oserr_t
 InterruptConfigure(
-    _In_ SystemInterrupt_t* systemInterrupt,
-    _In_ int                enable)
+    _In_ const InterruptControllerResource_t* resource,
+    _In_ int                                  enable)
 {
     SystemInterruptController_t* ic = NULL;
     int      pin;
@@ -318,10 +319,10 @@ InterruptConfigure(
     } ApicExisting;
     
     // Debug
-    TRACE("InterruptConfigure(Id 0x%" PRIxIN ", Enable %i)", systemInterrupt->Id, enable);
+    TRACE("InterruptConfigure(Vector 0x%" PRIxIN ", Enable %i)", resource->TableIndex, enable);
 
     // Is this a software interrupt? Don't install
-    if (systemInterrupt->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
+    if (resource->Flags & (INTERRUPT_SOFT | INTERRUPT_MSI)) {
         return OS_EOK;
     }
 
@@ -331,8 +332,8 @@ InterruptConfigure(
     }
 
     // Determine the kind of apic configuration
-    tableIndex = (systemInterrupt->Id & 0xFF);
-    apicFlags  = __GetApicConfiguration(systemInterrupt);
+    tableIndex = (resource->TableIndex & 0xFF);
+    apicFlags  = __GetApicConfiguration(resource);
     apicFlags  |= tableIndex;
 
     // Trace
@@ -340,23 +341,23 @@ InterruptConfigure(
 
     // If this is an (E)ISA interrupt make sure it's configured
     // properly in the PIC/ELCR
-    if (systemInterrupt->Source < NUM_ISA_INTERRUPTS) {
+    if (resource->Source < NUM_ISA_INTERRUPTS) {
         // ISA Interrupts can be level triggered
         // so make sure we configure it for level triggering
         if (apicFlags & APIC_LEVEL_TRIGGER) {
-            PicConfigureLine(systemInterrupt->Source, -1, 1);
+            PicConfigureLine(resource->Source, -1, 1);
         }
     }
 
 UpdateEntry:
     if (GetApicInterruptMode() == InterruptMode_PIC) {
-        PicConfigureLine(systemInterrupt->Source, enable, -1);
+        PicConfigureLine(resource->Source, enable, -1);
     }
     else {
         // If Apic Entry is located, we need to adjust
-        ic = GetInterruptControllerByLine(systemInterrupt->Source);
-        pin = GetPinOffsetByLine(systemInterrupt->Source);
-        if (ic != NULL && pin != APIC_NO_GSI) {
+        ic = resource->Controller;
+        pin = resource->Source - ic->Line.InterruptLineBase;
+        if (pin >= 0 && pin < ic->Line.NumberOfInterruptLines) {
             if (enable == 0) {
                 ApicWriteIoEntry(ic, pin, APIC_MASKED);
             } else {
@@ -372,12 +373,12 @@ UpdateEntry:
                     }
                 } else {
                     // Unmask the irq in the io-apic
-                    TRACE("Installing source %i => 0x%" PRIxIN "", systemInterrupt->Source, LODWORD(apicFlags));
+                    TRACE("Installing source %i => 0x%" PRIxIN "", resource->Source, LODWORD(apicFlags));
                     ApicWriteIoEntry(ic, pin, apicFlags);
                 }
             }
         } else {
-            ERROR("Failed to derive io-apic for source %i", systemInterrupt->Source);
+            ERROR("Failed to derive io-apic for source %i", resource->Source);
             return OS_EUNKNOWN;
         }
     }

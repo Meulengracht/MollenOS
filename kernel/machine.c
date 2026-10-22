@@ -20,7 +20,6 @@
 #define __TRACE
 
 #include <assert.h>
-#include <arch/interrupts.h>
 #include <arch/io.h>
 #include <arch/platform.h>
 #include <arch/thread.h>
@@ -29,6 +28,7 @@
 
 // Include the private structure for PerCpu data
 #include "components/cpu_private.h"
+#include <component/ic.h>
 
 // Optional features here are included, but might not
 // actually be used
@@ -42,7 +42,6 @@
 #include <handle.h>
 #include <handle_set.h>
 #include <hpet.h>
-#include <interrupts.h>
 #include <scheduler.h>
 #include <stdio.h>
 #include <threading.h>
@@ -183,11 +182,9 @@ InitializeMachine(
     ThreadingEnable(&g_bootCore);
 
     // initialize the interrupt subsystem
-    InitializeInterruptTable();
-    InitializeInterruptHandlers();
-    oserr = PlatformInterruptInitialize();
+    oserr = SystemInterruptsInitialize();
     if (oserr != OS_EOK) {
-        ERROR("Failed to initialize interrupts for system.");
+        ERROR("Failed to initialize platform message domain.");
         ArchProcessorHalt();
     }
 
@@ -246,6 +243,10 @@ InitializeMachine(
 #endif
 
     // Initialize all userspace subsystems here
+#ifdef VALI_INTERRUPT_SELFTEST
+    extern void InterruptGroupSelfTest(void);
+    InterruptGroupSelfTest();
+#endif
     UserEventInitialize();
 
     // Start the bootstrap module if present

@@ -17,6 +17,7 @@
  */
 
 #include <arch/interrupts.h>
+#include <interrupts.h>
 #include <arch/utils.h>
 #include <component/cpu.h>
 #include <machine.h>
@@ -229,8 +230,8 @@ InterruptMessageVector(
 
 oserr_t
 InterruptConfigure(
-    _In_ SystemInterrupt_t* interrupt,
-    _In_ int                enable)
+    _In_ const InterruptControllerResource_t* interrupt,
+    _In_ int                                  enable)
 {
     unsigned int line = interrupt->Line;
     unsigned int shift;
