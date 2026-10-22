@@ -58,9 +58,9 @@ ArchThreadInitialize(
 }
 
 /**
- * @brief Releases the saved SIMD and floating-point state of a retired thread.
+ * @brief Releases the saved SIMD and floating-point state of a destroyed thread.
  *
- * The thread must no longer run or participate in context switches. This only
+ * The thread must no longer be scheduled. This only
  * frees the platform register buffer; stack cleanup is handled separately.
  *
  * @param thread Thread whose platform resources are being destroyed.

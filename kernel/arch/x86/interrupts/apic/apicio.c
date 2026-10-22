@@ -100,7 +100,7 @@ void ApicWriteLocal64(size_t Register, uint64_t Value) {
  * Reads and writes from and to the io apic
  * registers must always be 32 bit */
 void ApicSetIoRegister(SystemInterruptController_t *IoApic, uint32_t Register) {
-	(*(volatile uint32_t*)(IoApic->MemoryAddress)) = Register;
+	(*(volatile uint32_t*)(IoApic->Line.MemoryAddress)) = Register;
 }
 
 /* Read from io-apic registers
@@ -110,7 +110,7 @@ uint32_t ApicIoRead(SystemInterruptController_t *IoApic, uint32_t Register) {
 
 	// Select the given register and read the register
 	ApicSetIoRegister(IoApic, Register);
-	return *((volatile uint32_t*)(IoApic->MemoryAddress + 0x10));
+	return *((volatile uint32_t*)(IoApic->Line.MemoryAddress + 0x10));
 }
 
 /* Write to the io-apic registers
@@ -120,8 +120,8 @@ void ApicIoWrite(SystemInterruptController_t *IoApic, uint32_t Register, uint32_
 
 	// Write the value, then re-read it to ensure memory synchronization
 	ApicSetIoRegister(IoApic, Register);
-	*((volatile uint32_t*)(IoApic->MemoryAddress + 0x10)) = Data;
-	Data = (*(volatile uint32_t*)(IoApic->MemoryAddress + 0x10));
+	*((volatile uint32_t*)(IoApic->Line.MemoryAddress + 0x10)) = Data;
+	Data = (*(volatile uint32_t*)(IoApic->Line.MemoryAddress + 0x10));
 }
 
 /* Writes interrupt data to the io-apic interrupt register. It writes the data to

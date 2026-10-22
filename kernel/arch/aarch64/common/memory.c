@@ -1349,7 +1349,7 @@ MmuCloneVirtualSpace(
  * CPU and must have no concurrent users of its owned mappings. Does not flush
  * translations or clear the memory space's root-address fields.
  *
- * @param space Retired memory space whose private tables are being destroyed.
+ * @param space Memory space that should be destroyed.
  * @return OS_EOK after releasing the owned tree.
  */
 oserr_t

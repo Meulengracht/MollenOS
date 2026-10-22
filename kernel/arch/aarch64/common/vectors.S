@@ -93,7 +93,7 @@ Arm64Vectors:
 .Lsync:
     save_frame
     // Blocking syscalls and page faults retain their thread stack. Only an
-    // EL1 SVC #1 yields through the scheduler and can retire that stack.
+    // EL1 SVC #1 yields through the scheduler and can free that stack.
     ldr x1, [x0, #ARM64_CONTEXT_SYNDROME]
     lsr x2, x1, #ARM64_ESR_CLASS_SHIFT
     cmp x2, #ARM64_EC_SVC

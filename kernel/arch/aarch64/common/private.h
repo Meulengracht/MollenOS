@@ -242,7 +242,7 @@
 // Console discovery must include FR, the highest register used by this port.
 #define ARM64_UART_REGION_MINIMUM   (ARM64_UART_FLAGS + ARM64_MMIO_REGISTER_SIZE)
 
-// Per-core stack reservations: IRQ dispatch survives thread retirement; the
+// Per-core stack reservations: IRQ dispatch survives thread destruction; the
 // smaller secondary stack is used only while that core enters shared startup.
 #define ARM64_INTERRUPT_STACK_SIZE 32768U
 #define ARM64_SECONDARY_STACK_SIZE 16384U

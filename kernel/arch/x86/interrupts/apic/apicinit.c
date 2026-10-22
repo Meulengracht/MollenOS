@@ -137,7 +137,7 @@ __InitializeIoApic(
     TRACE("__InitializeIoApic(ioApic=%" PRIuIN ")", ioApic->Id);
 
     // Relocate the io-apic
-    originalAddress = ioApic->MemoryAddress;
+    originalAddress = ioApic->Line.MemoryAddress;
     oserr = MemorySpaceMap(
             GetCurrentMemorySpace(),
             &(struct MemorySpaceMapOptions) {
@@ -153,7 +153,7 @@ __InitializeIoApic(
         ERROR("__InitializeIoApic cannot map address of io-apic");
         return;
     }
-    ioApic->MemoryAddress = remappedAddress + (originalAddress & 0xFFF);
+    ioApic->Line.MemoryAddress = remappedAddress + (originalAddress & 0xFFF);
 
     /**
      * Maximum Redirection Entry - RO. This field contains the entry number (0 being the lowest
@@ -163,7 +163,7 @@ __InitializeIoApic(
     ioEntryCount = ApicIoRead(ioApic, 1);
     ioEntryCount >>= 16;
     ioEntryCount &= 0xFF;
-    ioApic->NumberOfInterruptLines = (int)(ioEntryCount + 1);
+    ioApic->Line.NumberOfInterruptLines = (int)(ioEntryCount + 1);
     TRACE("__InitializeIoApic number of interrupt pins: %" PRIiIN "", ioEntryCount);
 
     /**
@@ -206,7 +206,7 @@ __InitializeIoApic(
     }
 
     // Next step is to clear interrupts for the io-apic
-    for (i = ioApic->InterruptLineBase, j = 0; j <= ioEntryCount; i++, j++) {
+    for (i = ioApic->Line.InterruptLineBase, j = 0; j <= ioEntryCount; i++, j++) {
         uint64_t Entry = ApicReadIoEntry(ioApic, j);
 
         /* Sanitize the entry
@@ -487,11 +487,13 @@ ApicInitialize(void)
     // the io-apics. If the io-apics don't exist, then there are no interrupt
     // controllers, and we should instead create it as PIC
     TRACE("ApicInitialize initializing interrupt controllers");
-    ic = GetMachine()->InterruptController;
+    ic = GetNextInterruptController(NULL);
     if (ic) {
         while (ic) {
-            __InitializeIoApic(ic);
-            ic = ic->Link;
+            if (ic->Type == SystemInterruptControllerLine) {
+                __InitializeIoApic(ic);
+            }
+            ic = GetNextInterruptController(ic);
         }
     } else {
         /* Keep the historical PIC fallback when no I/O APIC exists. Local
